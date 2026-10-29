@@ -387,20 +387,17 @@ export function VoiceInputControl({
         createPortal(
           <div
             aria-hidden="true"
-            className="voice-capsule-pop pointer-events-none fixed bottom-4 left-1/2 z-[80] flex h-10 -translate-x-1/2 items-center gap-[3px] rounded-full border border-[rgba(125,211,252,.35)] bg-[#10141c]/95 px-4"
-            style={{
-              boxShadow: `0 8px 30px -8px rgba(0,0,0,.55), 0 0 ${14 + levelRef.current * 26}px rgba(80,180,255,${(0.18 + levelRef.current * 0.4).toFixed(3)})`,
-            }}
+            className="voice-capsule-pop pointer-events-none fixed bottom-4 left-1/2 z-[80] flex h-10 -translate-x-1/2 items-center gap-[3px] rounded-full bg-ink px-4 shadow-float"
           >
+            {/* 单色仪表式波形：只随音量改变高度，不用渐变与外发光。 */}
             {bars.map((bar, index) => (
               <span
                 key={index}
-                className="w-[3px] rounded-full"
+                className="w-[3px] rounded-full bg-on-ink"
                 style={{
                   height: `${(3 + bar * 19).toFixed(1)}px`,
-                  // 能量越高色相从青转向蓝紫，低能量保持沉静的青色
-                  background: `linear-gradient(180deg, hsl(${210 - bar * 45} 92% ${62 + bar * 10}%), hsl(${222 - bar * 30} 85% ${48 + bar * 8}%))`,
-                  transition: 'height 70ms linear, background 200ms linear',
+                  opacity: 0.55 + bar * 0.45,
+                  transition: 'height 70ms linear',
                 }}
               />
             ))}
@@ -412,7 +409,7 @@ export function VoiceInputControl({
         createPortal(
           <button
             type="button"
-            className="voice-capsule-pop fixed bottom-4 left-1/2 z-[80] flex h-9 max-w-[min(480px,calc(100vw-32px))] -translate-x-1/2 cursor-pointer items-center gap-2 rounded-full border border-[rgba(248,113,113,.4)] bg-[#1c1012]/95 px-4 text-[12px] text-[#fca5a5] shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)]"
+            className="voice-capsule-pop fixed bottom-4 left-1/2 z-[80] flex h-9 max-w-[min(480px,calc(100vw-32px))] -translate-x-1/2 cursor-pointer items-center gap-2 rounded-full border border-danger-border bg-solid px-4 text-xs text-danger shadow-float max-[650px]:h-11"
             onClick={() => {
               window.clearTimeout(errorTimerRef.current)
               setError('')
@@ -426,14 +423,14 @@ export function VoiceInputControl({
         )}
       <button
         type="button"
-        className={`relative grid !size-11 !min-w-11 place-items-center rounded-[var(--r-sm)] border transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45 ${
+        className={`relative grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm border transition-colors disabled:cursor-not-allowed disabled:opacity-45 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 ${
           stage === 'recording'
-            ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger-strong)] shadow-[0_0_0_3px_var(--danger-soft)]'
+            ? 'border-danger bg-danger-soft text-danger'
             : stage === 'transcribing' || stage === 'requesting'
-              ? 'border-transparent bg-[var(--brand-blue-soft)] text-[var(--brand-blue-strong)]'
+              ? 'border-transparent bg-star-soft text-accent-fg'
               : stage === 'error'
-                ? 'border-transparent bg-[var(--danger-soft)] text-[var(--danger-strong)]'
-                : 'border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]'
+                ? 'border-transparent bg-danger-soft text-danger'
+                : 'border-transparent text-content-muted hover:bg-surface-hover hover:text-content'
         }`}
         title={buttonTitle}
         aria-label={stage === 'recording' ? t('chat:voiceInput.stop') : t('chat:voiceInput.open')}
@@ -450,13 +447,13 @@ export function VoiceInputControl({
         {stage === 'recording' && (
           <span
             aria-hidden="true"
-            className="absolute inset-0 animate-ping rounded-[var(--r-sm)] bg-[var(--danger)] opacity-25"
+            className="absolute inset-0 animate-ping rounded-sm bg-danger opacity-25"
           />
         )}
         {stage === 'recording' ? (
           <MicOff size={17} />
         ) : stage === 'transcribing' || stage === 'requesting' ? (
-          <LoaderCircle className="animate-spin" size={17} />
+          <LoaderCircle className="animate-spin" size={16} />
         ) : stage === 'error' ? (
           <MicOff size={17} />
         ) : (

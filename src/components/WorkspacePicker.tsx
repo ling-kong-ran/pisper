@@ -1,6 +1,6 @@
 // 系统目录选择器由调用方打开；这里仅收集 Runtime 路径，不枚举宿主文件系统。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { AlertTriangle, Check, FolderInput, LoaderCircle } from 'lucide-react'
+import { AlertTriangle, Check, FolderInput } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { importMobileWorkspaceDirectory, mobileWorkspaceMode } from '@/lib/mobile-workspace'
 
 type WorkspacePickerProps = {
@@ -118,11 +119,11 @@ export function WorkspacePicker({
           </DialogDescription>
         </DialogHeader>
         <form className="flex min-w-0 flex-col gap-4" onSubmit={(event) => void choose(event)}>
-          <label className="flex min-w-0 flex-col gap-2 text-sm">
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium text-content">
             {t('common:workspacePicker.workingDirectoryPath')}
             <Input
               autoFocus
-              className="font-mono text-xs"
+              className="font-mono text-xs font-normal max-[650px]:h-11"
               value={path}
               disabled={busy}
               placeholder={t('common:workspacePicker.enterAbsolutePath')}
@@ -132,11 +133,12 @@ export function WorkspacePicker({
           {canImport && (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
+              className="max-[650px]:h-11"
               disabled={busy}
               onClick={() => void importDirectory()}
             >
-              {importing ? <LoaderCircle className="animate-spin" /> : <FolderInput />}
+              {importing ? <OrbitSpinner className="text-current" /> : <FolderInput />}
               {importing
                 ? t('common:workspacePicker.importingFolder')
                 : t('common:workspacePicker.importFolderCopy')}
@@ -151,14 +153,16 @@ export function WorkspacePicker({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
+              size="dialogAction"
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >
               {t('common:ui.cancel')}
             </Button>
-            <Button type="submit" variant="secondary" disabled={busy || !path.trim()}>
-              {saving ? <LoaderCircle className="animate-spin" /> : <Check />}
+            {/* 「使用此文件夹」是对话框唯一的主操作：强调色实心键。 */}
+            <Button type="submit" size="dialogAction" disabled={busy || !path.trim()}>
+              {saving ? <OrbitSpinner className="text-current" /> : <Check />}
               {saving
                 ? t('common:workspacePicker.switching')
                 : t('common:workspacePicker.useThisFolder')}

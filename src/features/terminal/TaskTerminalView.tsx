@@ -4,6 +4,7 @@ import { Square, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { PageState } from '@/components/app/PageState'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import type { DesktopTerminalProfile } from '@/types/update'
 import { useTerminalService, useTerminals } from './terminal-context'
 import { createTerminalRenderer } from './terminal-renderer'
@@ -95,14 +96,16 @@ export function TaskTerminalView({
     )
   if (!terminalId)
     return (
-      <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-5">
-        <TerminalSquare className="size-7 text-content-muted" />
-        <h2 className="text-base font-medium">{t('terminal:workspace.create')}</h2>
-        <p className="max-w-full break-all text-sm text-content-muted">
+      <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-5 text-center">
+        <span className="grid size-8 place-items-center rounded-md bg-key text-content-secondary shadow-key ring-1 ring-key-border">
+          <TerminalSquare className="size-4" aria-hidden="true" />
+        </span>
+        <h2 className="text-sm font-medium">{t('terminal:workspace.create')}</h2>
+        <p className="max-w-full break-all font-mono text-xs text-content-muted">
           {cwd || t('terminal:workspace.defaultDirectory')}
         </p>
         <select
-          className="max-w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          className="h-8.5 max-w-full min-w-40 rounded-sm border border-control bg-panel px-2 font-mono text-sm text-content outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring pointer-coarse:h-11"
           aria-label={t('terminal:workspace.profile')}
           value={profileId}
           onChange={(event) => setProfileId(event.target.value)}
@@ -128,12 +131,26 @@ export function TaskTerminalView({
       data-terminal-id={terminalId}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-2 border-b border-border px-3 py-2 text-xs">
-        <span className="min-w-0 flex-1 truncate text-content-muted" title={record?.cwd}>
+      {/* 终端顶条：等宽目录 + 状态（运行中用品牌轨道指示）+ 停止键，下方是 --terminal-* 着色的凹陷终端井。 */}
+      <div className="flex min-h-10 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft py-1 pr-1.5 pl-3 text-xs">
+        <span className="min-w-0 flex-1 truncate font-mono text-content-muted" title={record?.cwd}>
           {record?.cwd || t('terminal:workspace.defaultDirectory')}
         </span>
-        {record?.orphaned && <span>{t('terminal:workspace.orphaned')}</span>}
-        <span>
+        {record?.orphaned && (
+          <span className="text-warning-strong">{t('terminal:workspace.orphaned')}</span>
+        )}
+        {(record?.status === 'running' || record?.status === 'starting') && (
+          <OrbitSpinner className="size-3.5" />
+        )}
+        <span
+          className={
+            record?.status === 'error'
+              ? 'text-danger'
+              : record?.status === 'running'
+                ? 'font-medium text-accent-fg'
+                : 'text-content-muted'
+          }
+        >
           {record?.status === 'exited'
             ? t('terminal:workspace.exited')
             : record?.status === 'error'
@@ -148,6 +165,7 @@ export function TaskTerminalView({
           <Button
             variant="ghost"
             size="sm"
+            className="hover:text-danger max-[650px]:min-h-11"
             disabled={record?.status === 'stopping'}
             onClick={() => {
               setError('')
@@ -161,7 +179,7 @@ export function TaskTerminalView({
       </div>
       <div
         ref={host}
-        className="min-h-0 flex-1 overflow-hidden bg-[var(--terminal-bg)] px-2 py-1"
+        className="min-h-0 flex-1 overflow-hidden bg-[var(--terminal-bg)] px-2.5 py-1.5"
       />
       {(error || record?.error) && (
         <p role="alert" className="shrink-0 break-words p-2 text-xs text-danger">

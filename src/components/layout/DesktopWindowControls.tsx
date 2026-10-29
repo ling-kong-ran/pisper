@@ -46,7 +46,7 @@ export function DesktopWindowControls() {
             key={action}
             title={labels[action]}
             aria-label={labels[action]}
-            className={`grid w-11 place-items-center text-muted-foreground ${action === 'close' ? 'hover:bg-red-600 hover:text-white' : 'hover:bg-foreground/10'}`}
+            className={`grid w-11 place-items-center text-content-muted transition-colors duration-[var(--d-fast)] ${action === 'close' ? 'hover:bg-red-600 hover:text-white' : 'hover:bg-surface-hover hover:text-content'}`}
             onClick={() => void bridge.windowAction?.(action).catch(() => {})}
           >
             <Icon size={action === 'maximize' ? 12 : 15} />

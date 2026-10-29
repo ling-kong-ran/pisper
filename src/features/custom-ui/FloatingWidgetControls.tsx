@@ -33,7 +33,7 @@ export function FloatingWidgetControls({
   return (
     <section className="min-w-0 space-y-2" aria-labelledby={labelId}>
       <div className="flex items-center justify-between gap-2">
-        <h3 id={labelId} className="text-xs font-medium text-muted-foreground">
+        <h3 id={labelId} className="text-xs font-medium text-content-muted">
           {t('custom-ui:floating.title')}
         </h3>
         <Button
@@ -48,24 +48,27 @@ export function FloatingWidgetControls({
         </Button>
       </div>
       {catalog.isPending && (
-        <p role="status" className="text-xs text-muted-foreground">
+        <p role="status" className="text-xs text-content-muted">
           {t('custom-ui:customUiPage.loading')}
         </p>
       )}
       {catalog.error && (
-        <p role="status" className="text-xs text-muted-foreground">
+        <p role="status" className="text-xs text-content-muted">
           {t('custom-ui:widget.catalogFailed')}
         </p>
       )}
       {!catalog.isPending && !catalog.error && !components.length && (
-        <p className="text-xs text-muted-foreground">{t('custom-ui:customUiPage.emptyTitle')}</p>
+        <p className="text-xs text-content-muted">{t('custom-ui:customUiPage.emptyTitle')}</p>
       )}
       {components.length > 0 && (
         <div className="max-h-40 space-y-0.5 overflow-y-auto">
           {components.map((component) => {
             const id = `${labelId}-${component.id}`
             return (
-              <div key={component.id} className="flex min-h-10 min-w-0 items-center gap-3 px-1">
+              <div
+                key={component.id}
+                className="flex min-h-10 min-w-0 items-center gap-3 px-1 max-[650px]:min-h-11 pointer-coarse:min-h-11"
+              >
                 <Checkbox
                   id={id}
                   checked={visibleIds.includes(component.id)}

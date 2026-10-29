@@ -53,7 +53,7 @@ export function MessageCopyButton({ text, copyLabel }: { text: string; copyLabel
             onClick={state === 'copied' || state === 'pending' ? undefined : () => void copy()}
           >
             {state === 'copied' ? (
-              <Check size={16} />
+              <Check size={16} className="text-success" />
             ) : state === 'pending' ? (
               <LoaderCircle size={16} className="animate-spin" />
             ) : (

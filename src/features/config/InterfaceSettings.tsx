@@ -38,6 +38,7 @@ import {
   type ThemeMode,
 } from '@/stores/ui-store'
 import { LanguageSettings } from './LanguageSettings'
+import { SettingsGroup } from './settings-primitives'
 import { TypographySizeInput } from './TypographySizeInput'
 import type { Notify } from '@/app/route-context'
 
@@ -61,13 +62,19 @@ function CompactChoices<T extends string>({
         const option = options.find((item) => item.value === next)
         if (option) onChange(option.value)
       }}
-      className="grid auto-cols-fr grid-flow-col gap-1 rounded-[var(--r-sm)] bg-[var(--surface-muted)] p-1"
+      className="grid auto-cols-fr grid-flow-col gap-0.5 rounded-md border border-stroke bg-chrome p-[3px]"
       aria-label={label}
     >
+      {/* 选中段是凸起键帽（键帽面 + 描边 + 投影 + 500 字重），暗色下亮度差同样清楚。 */}
       {options.map((option) => (
         <RadioGroupOption
           type="button"
-          className={`min-h-9 max-[650px]:min-h-11 rounded-lg px-2 text-sm font-normal transition ${option.value === value ? 'bg-[var(--solid)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+          className={cn(
+            'min-h-7 rounded-sm border border-transparent px-2.5 text-sm transition-colors pointer-coarse:min-h-11 max-[650px]:min-h-11',
+            option.value === value
+              ? 'border-key-border bg-key font-medium text-content shadow-key'
+              : 'text-content-secondary hover:text-content',
+          )}
           value={option.value}
           key={option.value}
         >
@@ -79,12 +86,12 @@ function CompactChoices<T extends string>({
 }
 
 const ACCENT_SWATCHES: Record<AccentPreset, string> = {
-  neutral: '#18181b',
-  blue: '#1677e8',
+  neutral: '#17171a',
+  blue: '#3d4bef',
   teal: '#0f766e',
-  violet: '#7557c8',
-  coral: '#c94f5d',
-  custom: '#1677e8',
+  violet: '#6d4ad6',
+  coral: '#c93a48',
+  custom: '#3d4bef',
 }
 
 type Hsv = { hue: number; saturation: number; brightness: number }
@@ -180,12 +187,12 @@ function AccentColorPicker({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="h-7 min-h-0 w-24 gap-1.5 rounded-full px-2 text-xs"
+          className="h-8 min-h-0 w-26 gap-1.5 px-2 text-xs tabular-nums pointer-coarse:h-11 max-[650px]:h-11"
           aria-label={t('config:interfaceSettings.customAccentColor')}
         >
           <span
             aria-hidden="true"
-            className="size-3 shrink-0 rounded-full border border-black/10"
+            className="size-3 shrink-0 rounded-full border border-stroke-strong"
             style={{ backgroundColor: value }}
           />
           <span className="font-mono">{value}</span>
@@ -280,7 +287,7 @@ function AccentColorPicker({
           aria-invalid={invalid}
           aria-describedby={hintId}
           className={cn(
-            'h-7 w-34 rounded-full border bg-background px-2 font-mono text-xs',
+            'h-8 w-34 rounded-sm border border-input bg-panel px-2 font-mono text-xs outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring',
             invalid && 'border-destructive',
           )}
           onChange={(event) => {
@@ -439,6 +446,7 @@ export function InterfaceSettings({
             type="button"
             variant="ghost"
             size="sm"
+            className="pointer-coarse:h-11"
             disabled={!changed}
             onClick={() => {
               resetAppearance()
@@ -450,104 +458,111 @@ export function InterfaceSettings({
           </Button>
         }
       >
-        <SettingsRow
-          title={t('config:interfaceSettings.colorMode')}
-          control={
-            <div
-              role="radiogroup"
-              aria-label={t('config:interfaceSettings.colorMode')}
-              className="grid w-68 max-w-full grid-cols-3 gap-4"
-            >
-              {themeOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className="group flex min-w-0 cursor-pointer flex-col items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <input
-                    className="peer sr-only"
-                    type="radio"
-                    name={themeName}
-                    value={option.value}
-                    checked={theme === option.value}
-                    onChange={() => update(setTheme)(option.value)}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'relative block aspect-4/3 w-full overflow-hidden rounded-lg border border-border bg-[#f0f0f0] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring',
-                      theme === option.value && 'ring-2 ring-ring',
-                    )}
-                  >
-                    <span className="absolute inset-2 rounded border border-black/10 bg-white">
-                      <span className="absolute inset-y-0 left-0 w-1/4 border-r border-black/10 bg-[#f5f5f5]" />
-                      <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-black/15" />
-                      <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-black/15" />
-                    </span>
-                    {option.value !== 'light' && (
-                      <span
-                        className={cn(
-                          'absolute inset-2 rounded bg-[#181818]',
-                          option.value === 'system' && 'left-1/2 rounded-l-none',
-                        )}
-                      >
-                        <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-white/25" />
-                        <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-white/25" />
-                      </span>
-                    )}
-                  </span>
-                  <span className={cn(theme === option.value && 'text-foreground')}>
-                    {option.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          }
-        />
-        <SettingsRow
-          title={t('config:interfaceSettings.accentColor')}
-          description={t('config:interfaceSettings.accentDescription')}
-          control={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Select
-                value={accent}
-                onValueChange={(next) => {
-                  const option = accentOptions.find((item) => item.value === next)
-                  if (option) update(setAccent)(option.value)
-                }}
+        <SettingsGroup>
+          <SettingsRow
+            title={t('config:interfaceSettings.colorMode')}
+            control={
+              <div
+                role="radiogroup"
+                aria-label={t('config:interfaceSettings.colorMode')}
+                className="grid w-68 max-w-full grid-cols-3 gap-4"
               >
-                <SelectTrigger
-                  aria-label={t('config:interfaceSettings.accentColor')}
-                  className="rounded-full"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" align="end">
-                  {accentOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span
-                        aria-hidden="true"
-                        className="size-3 rounded-full border border-black/10"
-                        style={{
-                          backgroundColor:
-                            option.value === 'custom'
-                              ? customAccent
-                              : ACCENT_SWATCHES[option.value],
-                        }}
-                      />
+                {themeOptions.map((option) => (
+                  <label
+                    key={option.value}
+                    className="group flex min-w-0 cursor-pointer flex-col items-center gap-2 text-xs text-content-muted"
+                  >
+                    <input
+                      className="peer sr-only"
+                      type="radio"
+                      name={themeName}
+                      value={option.value}
+                      checked={theme === option.value}
+                      onChange={() => update(setTheme)(option.value)}
+                    />
+                    {/* 外框是当前主题的凹槽面，不随预览内容翻成亮白；内部缩略窗描绘的是
+                        浅色/深色主题本身，所以用两套主题下取值固定的 --preview-* 令牌。 */}
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'relative block aspect-4/3 w-full overflow-hidden rounded-md border border-stroke bg-surface-sunken peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus',
+                        theme === option.value && 'border-star ring-2 ring-star',
+                      )}
+                    >
+                      <span className="absolute inset-2 rounded border border-(--preview-light-line) bg-(--preview-light-bg)">
+                        <span className="absolute inset-y-0 left-0 w-1/4 border-r border-(--preview-light-line) bg-(--preview-light-side)" />
+                        <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-(--preview-light-line)" />
+                        <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-(--preview-light-line)" />
+                      </span>
+                      {option.value !== 'light' && (
+                        <span
+                          className={cn(
+                            'absolute inset-2 rounded border border-(--preview-dark-line) bg-(--preview-dark-bg)',
+                            option.value === 'system' && 'left-1/2 rounded-l-none border-l-0',
+                          )}
+                        >
+                          {option.value === 'dark' && (
+                            <span className="absolute inset-y-0 left-0 w-1/4 border-r border-(--preview-dark-line) bg-(--preview-dark-side)" />
+                          )}
+                          <span className="absolute top-3 right-1 h-0.5 w-1/2 rounded bg-(--preview-dark-line)" />
+                          <span className="absolute top-5 right-2 h-0.5 w-1/3 rounded bg-(--preview-dark-line)" />
+                        </span>
+                      )}
+                    </span>
+                    <span className={cn(theme === option.value && 'font-medium text-content')}>
                       {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {accent === 'custom' && (
-                <AccentColorPicker
-                  value={normalizeHexColor(customAccent) || DEFAULT_UI_PREFERENCES.customAccent}
-                  onCommit={update(setCustomAccent)}
-                />
-              )}
-            </div>
-          }
-        />
+                    </span>
+                  </label>
+                ))}
+              </div>
+            }
+          />
+          <SettingsRow
+            title={t('config:interfaceSettings.accentColor')}
+            description={t('config:interfaceSettings.accentDescription')}
+            control={
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Select
+                  value={accent}
+                  onValueChange={(next) => {
+                    const option = accentOptions.find((item) => item.value === next)
+                    if (option) update(setAccent)(option.value)
+                  }}
+                >
+                  <SelectTrigger
+                    aria-label={t('config:interfaceSettings.accentColor')}
+                    className="min-w-36 pointer-coarse:min-h-11 max-[650px]:min-h-11"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" align="end">
+                    {accentOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span
+                          aria-hidden="true"
+                          className="size-3 rounded-full border border-stroke-strong"
+                          style={{
+                            backgroundColor:
+                              option.value === 'custom'
+                                ? customAccent
+                                : ACCENT_SWATCHES[option.value],
+                          }}
+                        />
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {accent === 'custom' && (
+                  <AccentColorPicker
+                    value={normalizeHexColor(customAccent) || DEFAULT_UI_PREFERENCES.customAccent}
+                    onCommit={update(setCustomAccent)}
+                  />
+                )}
+              </div>
+            }
+          />
+        </SettingsGroup>
       </SettingsSection>
       <Collapsible open={advancedExpanded} onOpenChange={setAdvancedExpanded}>
         <CollapsibleTrigger asChild>
@@ -555,88 +570,95 @@ export function InterfaceSettings({
             type="button"
             aria-controls={advancedId}
             aria-expanded={advancedExpanded}
-            className="flex min-h-11 w-full items-center justify-between rounded-lg text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-h-9 w-full items-center gap-2 rounded-sm text-left text-[15px] leading-6 font-medium text-content max-[650px]:min-h-11"
           >
-            {t('config:interfaceSettings.advanced')}
             <ChevronDown
               size={16}
               aria-hidden="true"
-              className={cn('transition-transform', advancedExpanded && 'rotate-180')}
+              className={cn(
+                'text-content-muted transition-transform',
+                !advancedExpanded && '-rotate-90',
+              )}
             />
+            {t('config:interfaceSettings.advanced')}
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent id={advancedId}>
-          <div className="divide-y divide-border" data-config-card="interface-style">
-            <SettingsRow
-              title={t('config:interfaceSettings.uiFontSize')}
-              description={t('config:interfaceSettings.numericFontHint')}
-              control={
-                <TypographySizeInput
-                  role="ui"
-                  label={t('config:interfaceSettings.uiFontSize')}
-                  value={uiFontSize}
-                  onCommit={update(setUiFontSize)}
-                />
-              }
-            />
-            <SettingsRow
-              title={t('config:interfaceSettings.codeFontSize')}
-              control={
-                <TypographySizeInput
-                  role="code"
-                  label={t('config:interfaceSettings.codeFontSize')}
-                  value={codeFontSize}
-                  onCommit={update(setCodeFontSize)}
-                />
-              }
-            />
-            <SettingsRow
-              title={t('config:interfaceSettings.cornerStyle')}
-              control={
-                <CompactChoices
-                  label={t('config:interfaceSettings.cornerStyle')}
-                  options={radiusOptions}
-                  value={radius}
-                  onChange={update(setRadius)}
-                />
-              }
-            />
-          </div>
-          <div className="divide-y divide-border" data-config-card="interface-motion">
-            <SettingsRow
-              title={t('config:interfaceSettings.interfaceDensity')}
-              control={
-                <CompactChoices
-                  label={t('config:interfaceSettings.interfaceDensity')}
-                  options={densityOptions}
-                  value={density}
-                  onChange={update(setDensity)}
-                />
-              }
-            />
-            <SettingsRow
-              title={t('config:interfaceSettings.motion')}
-              control={
-                <CompactChoices
-                  label={t('config:interfaceSettings.motion')}
-                  options={motionOptions}
-                  value={motion}
-                  onChange={update(setMotion)}
-                />
-              }
-            />
-            <SettingsRow
-              title={t('config:interfaceSettings.automaticByTime')}
-              description={t('config:interfaceSettings.automaticByTimeDescription')}
-              control={
-                <Switch
-                  checked={theme === 'scheduled'}
-                  onCheckedChange={(checked) => update(setTheme)(checked ? 'scheduled' : 'system')}
-                  aria-label={t('config:interfaceSettings.automaticByTime')}
-                />
-              }
-            />
-          </div>
+          <SettingsGroup className="mt-3">
+            <div className="divide-y divide-stroke-soft" data-config-card="interface-style">
+              <SettingsRow
+                title={t('config:interfaceSettings.uiFontSize')}
+                description={t('config:interfaceSettings.numericFontHint')}
+                control={
+                  <TypographySizeInput
+                    role="ui"
+                    label={t('config:interfaceSettings.uiFontSize')}
+                    value={uiFontSize}
+                    onCommit={update(setUiFontSize)}
+                  />
+                }
+              />
+              <SettingsRow
+                title={t('config:interfaceSettings.codeFontSize')}
+                control={
+                  <TypographySizeInput
+                    role="code"
+                    label={t('config:interfaceSettings.codeFontSize')}
+                    value={codeFontSize}
+                    onCommit={update(setCodeFontSize)}
+                  />
+                }
+              />
+              <SettingsRow
+                title={t('config:interfaceSettings.cornerStyle')}
+                control={
+                  <CompactChoices
+                    label={t('config:interfaceSettings.cornerStyle')}
+                    options={radiusOptions}
+                    value={radius}
+                    onChange={update(setRadius)}
+                  />
+                }
+              />
+            </div>
+            <div className="divide-y divide-stroke-soft" data-config-card="interface-motion">
+              <SettingsRow
+                title={t('config:interfaceSettings.interfaceDensity')}
+                control={
+                  <CompactChoices
+                    label={t('config:interfaceSettings.interfaceDensity')}
+                    options={densityOptions}
+                    value={density}
+                    onChange={update(setDensity)}
+                  />
+                }
+              />
+              <SettingsRow
+                title={t('config:interfaceSettings.motion')}
+                control={
+                  <CompactChoices
+                    label={t('config:interfaceSettings.motion')}
+                    options={motionOptions}
+                    value={motion}
+                    onChange={update(setMotion)}
+                  />
+                }
+              />
+              <SettingsRow
+                title={t('config:interfaceSettings.automaticByTime')}
+                description={t('config:interfaceSettings.automaticByTimeDescription')}
+                control={
+                  <Switch
+                    checked={theme === 'scheduled'}
+                    onCheckedChange={(checked) =>
+                      update(setTheme)(checked ? 'scheduled' : 'system')
+                    }
+                    aria-label={t('config:interfaceSettings.automaticByTime')}
+                  />
+                }
+              />
+            </div>
+          </SettingsGroup>
         </CollapsibleContent>
       </Collapsible>
       <LanguageSettings notify={notify} />

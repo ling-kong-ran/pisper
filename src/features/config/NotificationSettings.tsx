@@ -1,10 +1,11 @@
 // 通知设置：浏览器通知开关 + 事件模板（飞书/微信/QQ/Telegram/浏览器渠道）配置。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bell, BellOff, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Bell, BellOff, ChevronLeft, ShieldCheck } from 'lucide-react'
 import {
   SettingsBadge as Badge,
   SettingsCard as Panel,
+  SettingsGroup,
   SettingsSwitch as Toggle,
 } from './settings-primitives'
 import { APP_NAME } from '@/app/brand'
@@ -38,6 +39,8 @@ import type { Notify } from '@/app/route-context'
 import type { NotificationPlatform, NotificationSettingsData } from '@/types/notifications'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 
 import { AppError, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
 
@@ -325,7 +328,7 @@ export function NotificationSettings({
   if (loading)
     return (
       <AppEmptyState>
-        <RefreshCw className="animate-spin" size={23} />
+        <OrbitSpinner className="size-6" />
         <h2>{t('config:notificationSettings.loadingNotificationSettings')}</h2>
       </AppEmptyState>
     )
@@ -361,6 +364,7 @@ export function NotificationSettings({
       <div data-config-card="notifications-templates" className="space-y-4">
         <Button
           variant="ghost"
+          className="-ml-2.5 pointer-coarse:h-11"
           onClick={() =>
             setParams((current) => {
               const next = new URLSearchParams(current)
@@ -371,6 +375,7 @@ export function NotificationSettings({
             })
           }
         >
+          <ChevronLeft size={16} aria-hidden="true" />
           {t('config:notificationSettings.backToCategories')}
         </Button>
         <NotificationTemplatesEditor
@@ -408,7 +413,7 @@ export function NotificationSettings({
         : 'red'
 
   return (
-    <div className="flex flex-col gap-[12px]">
+    <div className="flex flex-col gap-6">
       {loadError && <AppError>{loadError}</AppError>}
       {Object.entries(settings.mutations)
         .filter(([, mutation]) => mutation.error)
@@ -424,27 +429,40 @@ export function NotificationSettings({
             </Button>
           </div>
         ))}
-      <Panel className="browser-notification-card" data-config-card="notifications-browser">
-        <div className="notification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-[4px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[11px]">
+      <Panel
+        className="browser-notification-card p-4 py-4"
+        data-config-card="notifications-browser"
+      >
+        {/* 通道总开关：键帽图标 + 标题/说明 + 权限读数徽标 + 开关；窄屏徽标与开关换到下一行。 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span
-            className={`provider-icon [&_svg]:w-[19px] [&.green]:bg-[var(--success-soft)] [&.green]:text-[var(--success)] [&.blue]:bg-[var(--brand-blue-soft)] [&.blue]:text-[var(--brand-blue-strong)] [.notification-option_&:not(.blue)]:bg-[var(--surface-muted)] [.notification-option_&:not(.blue)]:text-[var(--text-muted)] grid w-[38px] h-[38px] place-items-center rounded-[var(--r-md)] ${data.browser.enabled ? 'blue' : ''}`}
+            aria-hidden="true"
+            className={cn(
+              'grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key shadow-key',
+              data.browser.enabled ? 'text-accent-fg' : 'text-content-muted',
+            )}
           >
             {data.browser.enabled ? <Bell size={18} /> : <BellOff size={18} />}
           </span>
-          <div>
-            <strong>{t('config:notificationSettings.notification')}</strong>
-            <small>
+          <div className="min-w-0 flex-1 basis-48">
+            <p className="text-sm font-medium text-content">
+              {t('config:notificationSettings.notification')}
+            </p>
+            <p className="mt-0.5 text-xs leading-[1.45] text-content-muted">
               {t(
                 'config:notificationSettings.pisperUsesTheCurrentPlatformNotificationSystemWhenAnAgentCompletesOrFails',
               )}
-            </small>
+            </p>
           </div>
-          <Badge tone={permissionTone}>{permissionLabel}</Badge>
-          <Toggle
-            value={data.browser.enabled}
-            disabled={browserSaving || permission === 'checking'}
-            onChange={updateBrowser}
-          />
+          <div className="ml-auto flex items-center gap-3">
+            <Badge tone={permissionTone}>{permissionLabel}</Badge>
+            <Toggle
+              ariaLabel={t('config:notificationSettings.notification')}
+              value={data.browser.enabled}
+              disabled={browserSaving || permission === 'checking'}
+              onChange={updateBrowser}
+            />
+          </div>
         </div>
         <AppNotice>
           <ShieldCheck size={15} />
@@ -465,12 +483,11 @@ export function NotificationSettings({
             </small>
           </span>
         </AppNotice>
-        <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+        <div className="mt-4 flex gap-2 max-[650px]:flex-wrap">
           {desktop && permission === 'denied' && (
             <Button
-              variant="outline"
-              size="lg"
-              className="bg-surface-subtle"
+              variant="secondary"
+              className="max-[650px]:h-11"
               onClick={openDesktopNotificationSettings}
             >
               <ShieldCheck size={14} />
@@ -478,9 +495,8 @@ export function NotificationSettings({
             </Button>
           )}
           <Button
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
+            variant="secondary"
+            className="max-[650px]:h-11"
             disabled={!data.browser.enabled || browserSaving || permission !== 'granted'}
             onClick={testNotification}
           >
@@ -493,100 +509,117 @@ export function NotificationSettings({
         title={t('config:notificationSettings.notificationCategories')}
         description={t('config:notificationSettings.channelPreferenceHint')}
         action={
-          <Button variant="ghost" size="sm" onClick={() => openTemplates()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="pointer-coarse:h-11"
+            onClick={() => openTemplates()}
+          >
             {t('config:notificationSettings.editNotificationTemplates')}
           </Button>
         }
       >
         {!settings.supportsChannels && (
-          <p role="status" className="py-2 text-sm text-muted-foreground">
+          <p role="status" className="py-2 text-sm text-content-muted">
             {t('config:notificationSettings.channelPreferencesUnsupported')}
           </p>
         )}
-        {templates.map((template) => {
-          const selected = template.enabled
-            ? NOTIFICATION_PLATFORMS.filter(
-                (platform) => template.channels[platform]?.enabled !== false,
+        {/* 事件行装入同一张细线卡；空列表时不渲染空卡框。 */}
+        {templates.length > 0 && (
+          <SettingsGroup>
+            {templates.map((template) => {
+              const selected = template.enabled
+                ? NOTIFICATION_PLATFORMS.filter(
+                    (platform) => template.channels[platform]?.enabled !== false,
+                  )
+                : []
+              const pending = Object.entries(settings.mutations).some(
+                ([key, mutation]) =>
+                  mutation.pending &&
+                  (key === `event:${template.id}` || key.startsWith(`channel:${template.id}:`)),
               )
-            : []
-          const pending = Object.entries(settings.mutations).some(
-            ([key, mutation]) =>
-              mutation.pending &&
-              (key === `event:${template.id}` || key.startsWith(`channel:${template.id}:`)),
-          )
-          return (
-            <SettingsRow
-              key={template.id}
-              data-notification-event={template.id}
-              title={template.name}
-              description={template.description}
-              control={
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="max-w-full rounded-full"
-                      aria-label={t('config:notificationSettings.eventChannels', {
-                        event: template.name,
-                      })}
-                      aria-busy={pending}
-                    >
-                      <span className="max-w-64 truncate">
-                        {selected.length
-                          ? selected
-                              .map((platform) => notificationChannelLabel(platform, t))
-                              .join(language === 'zh-CN' ? '、' : ', ')
-                          : t('config:notificationSettings.channelsOff')}
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="max-w-[calc(100vw-40px)] min-w-56">
-                    <DropdownMenuCheckboxItem
-                      checked={template.enabled}
-                      onCheckedChange={(enabled) =>
-                        void settings.setEventEnabled(template.id, enabled === true)
-                      }
-                    >
-                      {t('config:notificationSettings.enableEvent')}
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuSeparator />
-                    {NOTIFICATION_PLATFORMS.map((platform) => {
-                      const available =
-                        platform === 'browser'
-                          ? data.browser.enabled
-                          : data.connections[platform]?.enabled === true &&
-                            data.scopes.some((scope) => scope.platform === platform)
-                      return (
+              return (
+                <SettingsRow
+                  key={template.id}
+                  data-notification-event={template.id}
+                  title={template.name}
+                  description={template.description}
+                  control={
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="max-w-full font-normal text-content-secondary pointer-coarse:h-11"
+                          aria-label={t('config:notificationSettings.eventChannels', {
+                            event: template.name,
+                          })}
+                          aria-busy={pending}
+                        >
+                          <span className="max-w-64 truncate">
+                            {selected.length
+                              ? selected
+                                  .map((platform) => notificationChannelLabel(platform, t))
+                                  .join(language === 'zh-CN' ? '、' : ', ')
+                              : t('config:notificationSettings.channelsOff')}
+                          </span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="max-w-[calc(100vw-40px)] min-w-56"
+                      >
                         <DropdownMenuCheckboxItem
-                          key={platform}
-                          checked={template.channels[platform]?.enabled !== false}
-                          disabled={!settings.supportsChannels}
+                          checked={template.enabled}
                           onCheckedChange={(enabled) =>
-                            void settings.setChannelEnabled(template.id, platform, enabled === true)
+                            void settings.setEventEnabled(template.id, enabled === true)
                           }
                         >
-                          <span>{notificationChannelLabel(platform, t)}</span>
-                          {!available && (
-                            <small className="ml-2 text-muted-foreground">
-                              {t('config:notificationSettings.channelNeedsSetup')}
-                            </small>
-                          )}
+                          {t('config:notificationSettings.enableEvent')}
                         </DropdownMenuCheckboxItem>
-                      )
-                    })}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => openTemplates(template.id)}>
-                      {t('config:notificationSettings.editNotificationTemplates')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              }
-            />
-          )
-        })}
+                        <DropdownMenuSeparator />
+                        {NOTIFICATION_PLATFORMS.map((platform) => {
+                          const available =
+                            platform === 'browser'
+                              ? data.browser.enabled
+                              : data.connections[platform]?.enabled === true &&
+                                data.scopes.some((scope) => scope.platform === platform)
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={platform}
+                              checked={template.channels[platform]?.enabled !== false}
+                              disabled={!settings.supportsChannels}
+                              onCheckedChange={(enabled) =>
+                                void settings.setChannelEnabled(
+                                  template.id,
+                                  platform,
+                                  enabled === true,
+                                )
+                              }
+                            >
+                              <span>{notificationChannelLabel(platform, t)}</span>
+                              {!available && (
+                                <small className="ml-2 text-muted-foreground">
+                                  {t('config:notificationSettings.channelNeedsSetup')}
+                                </small>
+                              )}
+                            </DropdownMenuCheckboxItem>
+                          )
+                        })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => openTemplates(template.id)}>
+                          {t('config:notificationSettings.editNotificationTemplates')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  }
+                />
+              )
+            })}
+          </SettingsGroup>
+        )}
         {!templates.length && (
-          <p role="status" className="py-3 text-sm text-muted-foreground">
+          <p role="status" className="py-3 text-sm text-content-muted">
             {t('config:notificationSettings.noNotificationEvents')}
           </p>
         )}

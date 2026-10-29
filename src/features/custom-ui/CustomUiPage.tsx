@@ -14,7 +14,9 @@ import {
   Upload,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { AppCard as Panel, AppEmptyState, AppNotice } from '@/components/ui/app-primitives'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { AppNotice } from '@/components/ui/app-primitives'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { ApiError } from '@/lib/http'
 import type { Notify } from '@/app/route-context'
@@ -65,62 +68,58 @@ function ComponentStage({
   const { t } = useI18n()
 
   return (
-    <Panel className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden p-3">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[14px]">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-stroke bg-panel">
+      {/* 头部：名称 15/500 + 内置徽标 + 等宽版本号，操作在右；说明与权限在下方细线区内。 */}
+      <header className="flex min-w-0 flex-wrap items-center gap-2 border-b border-stroke-soft px-3.5 py-2.5">
+        <strong className="min-w-0 flex-1 truncate text-[15px] font-medium">
           {customUiComponentLabel(component, t)}
         </strong>
-        {component.builtIn && (
-          <span className="rounded bg-[var(--surface-muted)] px-1.5 py-0.5 text-xs text-[var(--text-muted)]">
-            {t('custom-ui:builtIn.badge')}
-          </span>
-        )}
+        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
         {component.version && (
-          <span className="flex-none text-[12px] text-[var(--text-muted)]">
+          <span className="flex-none font-mono text-xs text-content-muted tabular-nums">
             v{component.version}
           </span>
         )}
-        <Button variant="outline" size="sm" asChild>
-          <Link to={`/tools/components/${encodeURIComponent(component.id)}`}>
-            {t('custom-ui:customUiPage.openComponent')}
-          </Link>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-pressed={floating}
-          title={t('custom-ui:floating.hint')}
-          onClick={onToggleFloating}
-        >
-          <PanelsTopLeft size={13} />
-          {floating ? t('custom-ui:floating.hide') : t('custom-ui:floating.show')}
-        </Button>
-      </div>
-      <p className="m-0 text-xs leading-5 text-[var(--text-muted)]">
-        {t('custom-ui:floating.hint')}
-      </p>
-      {component.description && (
-        <p className="m-0 text-[12px] leading-[1.55] text-[var(--text-secondary)]">
-          {customUiComponentDescription(component, t)}
-        </p>
-      )}
-      {component.permissions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-[6px] text-[11px] text-[var(--text-muted)]">
-          <ShieldCheck size={12} className="flex-none" />
-          {component.permissions.map((permission) => (
-            <span
-              key={permission}
-              className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] px-[6px] py-[2px]"
-            >
-              {permissionLabel(permission, t)}
-            </span>
-          ))}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <Button variant="secondary" size="sm" className="max-[650px]:h-11" asChild>
+            <Link to={`/tools/components/${encodeURIComponent(component.id)}`}>
+              {t('custom-ui:customUiPage.openComponent')}
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-pressed={floating}
+            title={t('custom-ui:floating.hint')}
+            className="aria-pressed:bg-star-soft aria-pressed:text-star-strong max-[650px]:h-11"
+            onClick={onToggleFloating}
+          >
+            <PanelsTopLeft />
+            {floating ? t('custom-ui:floating.hide') : t('custom-ui:floating.show')}
+          </Button>
+        </span>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
+        <p className="text-xs leading-relaxed text-content-muted">{t('custom-ui:floating.hint')}</p>
+        {component.description && (
+          <p className="text-sm leading-relaxed text-content-secondary">
+            {customUiComponentDescription(component, t)}
+          </p>
+        )}
+        {component.permissions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-content-muted">
+            <ShieldCheck className="size-3.5 flex-none" aria-hidden="true" />
+            {component.permissions.map((permission) => (
+              <Badge key={permission}>{permissionLabel(permission, t)}</Badge>
+            ))}
+          </div>
+        )}
+        {/* 组件舞台是一口凹陷的井：代码井底色 + 细线，与外层纸面拉开层次。 */}
+        <div className="min-h-[240px] flex-1 overflow-hidden rounded-md border border-stroke-soft bg-code">
+          <CustomUiFrame component={component} notify={notify} />
         </div>
-      )}
-      <div className="min-h-[240px] flex-1 overflow-hidden rounded-[var(--r-md)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)]">
-        <CustomUiFrame component={component} notify={notify} />
       </div>
-    </Panel>
+    </section>
   )
 }
 
@@ -224,30 +223,33 @@ export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
         }}
       />
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
+        className="max-[650px]:h-11"
         disabled={importing}
         onClick={() => folderInputRef.current?.click()}
       >
-        <FolderUp size={14} />
+        <FolderUp />
         {t('custom-ui:customUiPage.importFolder')}
       </Button>
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
+        className="max-[650px]:h-11"
         disabled={importing}
         onClick={() => zipInputRef.current?.click()}
       >
-        <Upload size={14} />
+        <Upload />
         {t('custom-ui:customUiPage.importZip')}
       </Button>
       {importing && (
-        <span role="status" className="text-xs text-muted-foreground">
+        <span role="status" className="inline-flex items-center gap-1.5 text-xs text-content-muted">
+          <OrbitSpinner className="size-3.5" />
           {t('custom-ui:customUiPage.importing')}
         </span>
       )}
       {importError && (
-        <span role="alert" className="text-xs text-destructive">
+        <span role="alert" className="text-xs text-danger">
           {importError}
         </span>
       )}
@@ -273,43 +275,43 @@ export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
     </Dialog>
   )
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[100%] items-center justify-center text-[12px] text-[var(--text-muted)]">
-        {t('custom-ui:customUiPage.loading')}
-      </div>
-    )
-  }
+  if (loading) return <PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />
 
   if (!components.length && !error) {
     return (
       <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
         {importPanel}
         {importNotice}
-        <AppEmptyState className="flex flex-1 flex-col items-center justify-center gap-[10px] p-[40px_24px] text-center">
-          <Blocks size={28} className="text-[var(--text-muted)]" />
-          <strong className="text-[14px]">{t('custom-ui:customUiPage.emptyTitle')}</strong>
-          <p className="m-0 max-w-[520px] text-[12px] leading-[1.7] text-[var(--text-secondary)]">
-            {t('custom-ui:customUiPage.emptyHint')}
-          </p>
-          {root && (
-            <code className="max-w-full break-all rounded-[var(--r-sm)] bg-[var(--surface-muted)] px-[8px] py-[4px] text-[11px] text-[var(--text-soft)]">
-              {root}
-            </code>
-          )}
-          <p className="m-0 max-w-[520px] text-[11px] leading-[1.6] text-[var(--text-muted)]">
-            {t('custom-ui:customUiPage.directoryLocationHint')}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={refreshing}
-            onClick={() => void catalog.refetch()}
-          >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            {t('custom-ui:customUiPage.rescan')}
-          </Button>
-        </AppEmptyState>
+        {/* 空状态：星轨插画 + 说明 + 等宽目录路径，重新扫描是唯一的操作。 */}
+        <InlineEmptyState
+          className="flex-1"
+          title={t('custom-ui:customUiPage.emptyTitle')}
+          description={
+            <>
+              {t('custom-ui:customUiPage.emptyHint')}
+              {root && (
+                <code className="mx-auto mt-2 block max-w-full rounded-xs bg-inline-code px-2 py-1 font-mono text-xs break-all text-content-secondary">
+                  {root}
+                </code>
+              )}
+              <span className="mt-2 block">
+                {t('custom-ui:customUiPage.directoryLocationHint')}
+              </span>
+            </>
+          }
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              className="max-[650px]:h-11"
+              disabled={refreshing}
+              onClick={() => void catalog.refetch()}
+            >
+              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+              {t('custom-ui:customUiPage.rescan')}
+            </Button>
+          }
+        />
       </div>
     )
   }
@@ -326,56 +328,69 @@ export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
           </AppNotice>
         )}
         {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-[12px] lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-          <Panel className="flex min-h-0 flex-col gap-[8px] overflow-y-auto p-2">
-            <div className="flex items-center justify-between px-1 pt-1">
-              <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+          {/* 组件清单：细线卡片，选中行为次级表面 + 3px 强调色刻度；组件 id 用等宽字。 */}
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-stroke bg-panel">
+            <header className="flex min-h-10 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle py-1 pr-1.5 pl-3.5">
+              <span className="text-xs font-medium text-content-secondary tabular-nums">
                 {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
               </span>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-[26px] w-[26px]"
+                size="icon-sm"
+                className="max-[650px]:size-11"
                 title={t('custom-ui:customUiPage.rescan')}
                 aria-label={t('custom-ui:customUiPage.rescan')}
                 disabled={refreshing}
                 onClick={() => void catalog.refetch()}
               >
-                <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
               </Button>
-            </div>
-            {components.map((component) => (
-              <button
-                key={component.id}
-                type="button"
-                onClick={() => setSelectedId(component.id)}
-                className={cn(
-                  'flex min-w-0 cursor-pointer flex-col gap-[2px] rounded-[var(--r-md)] border-0 px-[10px] py-[8px] text-left transition-colors',
-                  component.id === selected?.id
-                    ? 'bg-[var(--accent-soft)] text-[var(--text)]'
-                    : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]',
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-[6px]">
-                  <Blocks size={13} className="flex-none text-[var(--star-strong)]" />
-                  <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                    {customUiComponentLabel(component, t)}
-                  </strong>
-                </span>
-                {component.builtIn && (
-                  <small className="pl-[19px] text-xs text-[var(--text-muted)]">
-                    {t('custom-ui:builtIn.badge')}
-                  </small>
-                )}
-                <small className="overflow-hidden text-ellipsis whitespace-nowrap pl-[19px] text-[11px] text-[var(--text-muted)]">
-                  {component.id}
-                </small>
-              </button>
-            ))}
-            <p className="m-0 mt-auto break-all px-1 pb-1 text-[11px] leading-[1.6] text-[var(--text-muted)]">
+            </header>
+            <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto p-1.5">
+              {components.map((component) => {
+                const active = component.id === selected?.id
+                return (
+                  <li key={component.id} className="relative">
+                    {active && (
+                      <i
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-r-[3px] bg-star"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      aria-current={active || undefined}
+                      onClick={() => setSelectedId(component.id)}
+                      className={cn(
+                        'flex w-full min-w-0 flex-col gap-0.5 rounded-sm px-2.5 py-2 text-left transition-colors duration-(--d-fast) focus-visible:-outline-offset-2 max-[650px]:min-h-11',
+                        active
+                          ? 'bg-surface-muted text-content'
+                          : 'text-content-secondary hover:bg-surface-subtle',
+                      )}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Blocks
+                          className="size-3.5 flex-none text-content-muted"
+                          aria-hidden="true"
+                        />
+                        <strong className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {customUiComponentLabel(component, t)}
+                        </strong>
+                        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
+                      </span>
+                      <small className="truncate pl-5.5 font-mono text-xs text-content-muted">
+                        {component.id}
+                      </small>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-auto border-t border-stroke-soft px-3.5 py-2.5 text-xs leading-relaxed break-all text-content-muted">
               {t('custom-ui:customUiPage.directoryHint', { path: root })}
             </p>
-          </Panel>
+          </section>
           {selected ? (
             <ComponentStage
               key={`${selected.id}:${catalog.dataUpdatedAt}`}
@@ -385,9 +400,7 @@ export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
               onToggleFloating={toggleFloating}
             />
           ) : (
-            <Panel className="grid place-items-center text-[12px] text-[var(--text-muted)]">
-              {t('custom-ui:customUiPage.selectComponent')}
-            </Panel>
+            <InlineEmptyState title={t('custom-ui:customUiPage.selectComponent')} />
           )}
         </div>
       </div>

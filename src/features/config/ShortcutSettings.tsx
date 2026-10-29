@@ -2,6 +2,8 @@ import { useState, type KeyboardEvent } from 'react'
 import { ChevronDown, Ellipsis, Keyboard, RotateCcw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +21,7 @@ import {
   type ShortcutAction,
 } from '@/lib/shortcuts'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
+import { SettingsGroup } from './settings-primitives'
 
 const COMMON_SHORTCUTS: ShortcutAction[] = [
   'voiceInput',
@@ -118,17 +121,22 @@ export function ShortcutSettings({
   const changed = SHORTCUT_ACTIONS.some((action) => bindings[action] !== DEFAULT_SHORTCUTS[action])
 
   const renderShortcut = (action: ShortcutAction) => (
-    <div key={action} className="py-3" data-shortcut-action={action}>
+    <div key={action} className="py-2.5" data-shortcut-action={action}>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-2">
-        <label htmlFor={`shortcut-${action}`} className="min-w-0 text-sm font-medium">
+        <label htmlFor={`shortcut-${action}`} className="min-w-0 text-sm font-medium text-content">
           {labels[action]}
         </label>
-        <div className="flex min-w-0 max-w-full items-center gap-1">
+        <div className="flex max-w-full min-w-0 items-center gap-1 max-[650px]:w-full">
+          {/* 录制框画成字段：按键读数用小键帽逐键呈现；录制中换成强调色焦点边框。 */}
           <Button
             id={`shortcut-${action}`}
             data-shortcut-recorder
             variant="outline"
-            className="h-9 w-44 min-w-0 justify-center gap-2 px-2.5 text-xs max-[400px]:w-40"
+            className={cn(
+              'h-8.5 w-44 min-w-0 justify-center gap-2 border-input bg-panel px-2.5 text-xs font-normal shadow-none hover:bg-surface-subtle pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:flex-1',
+              recording === action &&
+                'border-focus text-accent-fg ring-3 ring-focus-ring hover:bg-panel',
+            )}
             aria-label={t('config:shortcuts.edit', { action: labels[action] })}
             aria-pressed={recording === action}
             aria-describedby={error?.action === action ? `shortcut-error-${action}` : undefined}
@@ -140,17 +148,28 @@ export function ShortcutSettings({
             onBlur={() => setRecording((current) => (current === action ? null : current))}
             onKeyDown={(event) => recordKey(event, action)}
           >
-            <span className="min-w-0 whitespace-normal break-words text-left">
-              {recording === action
-                ? t('config:shortcuts.recording')
-                : formatShortcut(bindings[action]) || t('config:shortcuts.disabled')}
-            </span>
+            {recording === action ? (
+              <span className="min-w-0 truncate">{t('config:shortcuts.recording')}</span>
+            ) : formatShortcut(bindings[action]) ? (
+              <KbdGroup className="min-w-0 flex-wrap justify-center">
+                {formatShortcut(bindings[action])
+                  .split(' + ')
+                  .map((key, index) => (
+                    <Kbd key={index} className="text-content-secondary">
+                      {key}
+                    </Kbd>
+                  ))}
+              </KbdGroup>
+            ) : (
+              <span className="text-content-muted">{t('config:shortcuts.disabled')}</span>
+            )}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
+                className="pointer-coarse:size-11 max-[650px]:size-11"
                 title={t('config:shortcuts.options', { action: labels[action] })}
                 aria-label={t('config:shortcuts.options', { action: labels[action] })}
               >
@@ -185,7 +204,7 @@ export function ShortcutSettings({
         </div>
       </div>
       {error?.action === action && (
-        <p id={`shortcut-error-${action}`} role="alert" className="mt-2 text-sm text-destructive">
+        <p id={`shortcut-error-${action}`} role="alert" className="mt-2 text-xs text-danger">
           {error.message}
         </p>
       )}
@@ -194,14 +213,17 @@ export function ShortcutSettings({
 
   return (
     <section className="w-full min-w-0" data-config-card="shortcuts-bindings">
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Keyboard className="size-5 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-base font-semibold">{t('config:configPage.shortcuts')}</h2>
+          <Keyboard className="size-4 text-content-muted" aria-hidden="true" />
+          <h2 className="text-[15px] leading-6 font-medium text-content">
+            {t('config:configPage.shortcuts')}
+          </h2>
         </div>
         <Button
           variant="ghost"
           size="icon"
+          className="pointer-coarse:size-11 max-[650px]:size-11"
           disabled={!changed}
           title={t('config:shortcuts.resetAll')}
           aria-label={t('config:shortcuts.resetAll')}
@@ -210,19 +232,15 @@ export function ShortcutSettings({
           <RotateCcw className="size-4" />
         </Button>
       </div>
-      <div className="divide-y divide-border border-y border-border">
-        {COMMON_SHORTCUTS.map(renderShortcut)}
-      </div>
+      <SettingsGroup>{COMMON_SHORTCUTS.map(renderShortcut)}</SettingsGroup>
       <details className="group mt-3" onToggle={() => setRecording(null)}>
-        <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 py-2 text-sm text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+        <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1.5 rounded-sm text-sm text-content-secondary hover:text-content max-[650px]:min-h-11 [&::-webkit-details-marker]:hidden">
+          <ChevronDown className="size-4 -rotate-90 text-content-muted transition-transform group-open:rotate-0" />
           {t('config:shortcuts.more')}
         </summary>
-        <div className="divide-y divide-border border-b border-border">
-          {MORE_SHORTCUTS.map(renderShortcut)}
-        </div>
+        <SettingsGroup className="mt-2">{MORE_SHORTCUTS.map(renderShortcut)}</SettingsGroup>
       </details>
-      <div className="mt-3 min-h-5 text-xs text-muted-foreground" role="status" aria-live="polite">
+      <div className="mt-3 min-h-5 text-xs text-content-muted" role="status" aria-live="polite">
         {error?.action === null ? (
           <span className="text-destructive">{error.message}</span>
         ) : saved ? (

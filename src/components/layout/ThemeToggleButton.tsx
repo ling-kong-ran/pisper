@@ -52,7 +52,7 @@ export function ThemeToggleButton({
       size="icon"
       className={cn(
         '[-webkit-app-region:no-drag]',
-        compact && 'size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+        compact && 'size-7 text-content-muted hover:bg-surface-hover hover:text-content',
         className,
       )}
       data-testid="theme-toggle"

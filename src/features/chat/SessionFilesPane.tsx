@@ -5,6 +5,8 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import { Check, ChevronRight, FileDiff, RefreshCw, Undo2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { chatApi, type SessionFileChangesResponse } from './chat-api'
 import { TaskFileDiff } from './TaskChangesPane'
@@ -224,217 +226,226 @@ export function SessionFilesPane({
     changes?.files.filter((file) => file.canRevert && !file.reverted).length || 0
   const displayedError = actionError || error
 
+  // 触屏与窄屏保留 44px 触控目标；桌面行内操作是 28px 幽灵图标键。
+  const rowAction = 'max-[650px]:size-11 pointer-coarse:size-11'
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-3 p-3"
+      className="flex min-h-0 flex-1 flex-col"
       aria-label={t('chat:focusSession.fileChanges')}
       aria-busy={loading || Boolean(running)}
     >
-      <div className="flex flex-none flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[length:var(--app-font-size)] font-medium">
-            {t('chat:focusSession.fileChanges')}
-          </p>
-          {changes && (
-            <p className="text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-              {t('chat:focusSession.fileChangesCount', { count: changes.summary.files })}
-              {' · '}+{changes.summary.added} −{changes.summary.removed}
-              {pendingCount > 0 &&
-                ` · ${t('chat:focusSession.fileChangesPending', { count: pendingCount })}`}
-            </p>
-          )}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-9"
-            disabled={writesDisabled || pendingCount === 0}
-            title={streaming ? t('chat:focusSession.gitWaitForRunToFinish') : undefined}
-            onClick={() => void runAction({ kind: 'approve' })}
-          >
-            {running?.kind === 'approve' && !running.path ? (
-              <RefreshCw className="animate-spin" size={14} />
-            ) : (
-              <Check size={14} />
-            )}
-            {t('chat:focusSession.fileChangesApproveAll')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-9"
-            disabled={writesDisabled || reversibleCount === 0}
-            title={
-              streaming
-                ? t('chat:focusSession.gitWaitForRunToFinish')
-                : t('chat:focusSession.fileChangesRevertAllDescription')
-            }
-            onClick={() => void runAction({ kind: 'revert' })}
-          >
-            {running?.kind === 'revert' && !running.path ? (
-              <RefreshCw className="animate-spin" size={14} />
-            ) : (
-              <Undo2 size={14} />
-            )}
-            {t('chat:focusSession.fileChangesRevertAll')}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-11 sm:size-9"
-            aria-label={t('chat:focusSession.gitRefresh')}
-            title={t('chat:focusSession.gitRefresh')}
-            disabled={loading || Boolean(running)}
-            onClick={() => {
-              loadingRef.current = true
-              setLoading(true)
-              setActionError('')
-              setRevision((current) => current + 1)
-            }}
-          >
-            <RefreshCw className={loading ? 'animate-spin' : ''} size={16} />
-          </Button>
-        </div>
-      </div>
-      <p className="text-xs text-content-muted">{t('chat:workbench.taskSnapshotScope')}</p>
-      <div className="flex gap-2">
+      {/* 细线分区：12/500 弱化标签 + 等宽数字统计；批量操作在下方工具行，路径一律等宽字体。 */}
+      <header className="flex min-h-10 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-1.5 pl-3">
+        <h2 className="min-w-0 flex-1 truncate text-xs font-medium tracking-[.02em] text-content-muted">
+          {t('chat:focusSession.fileChanges')}
+        </h2>
+        {changes && (
+          <span className="shrink-0 font-mono text-xs tabular-nums">
+            <span className="text-success">+{changes.summary.added}</span>{' '}
+            <span className="text-danger">−{changes.summary.removed}</span>
+          </span>
+        )}
         <Button
-          variant="outline"
-          size="sm"
-          disabled={loading || !changes?.files.length}
-          onClick={() =>
-            expand(changes?.files.slice(0, MAX_VISIBLE_FILES).map((file) => file.path) || [])
-          }
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={rowAction}
+          aria-label={t('chat:focusSession.gitRefresh')}
+          title={t('chat:focusSession.gitRefresh')}
+          disabled={loading || Boolean(running)}
+          onClick={() => {
+            loadingRef.current = true
+            setLoading(true)
+            setActionError('')
+            setRevision((current) => current + 1)
+          }}
         >
-          {t('chat:workbench.expandAll')}
+          <RefreshCw className={loading ? 'animate-spin' : ''} size={15} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => expand([])}>
-          {t('chat:workbench.collapseAll')}
-        </Button>
+      </header>
+      <div className="flex shrink-0 flex-col gap-2 border-b border-stroke-soft px-3 py-2.5">
+        {changes && (
+          <p className="text-xs text-content-secondary tabular-nums">
+            {t('chat:focusSession.fileChangesCount', { count: changes.summary.files })}
+            {pendingCount > 0 &&
+              ` · ${t('chat:focusSession.fileChangesPending', { count: pendingCount })}`}
+          </p>
+        )}
+        <p className="text-xs leading-relaxed text-content-muted">
+          {t('chat:workbench.taskSnapshotScope')}
+        </p>
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={writesDisabled || pendingCount === 0}
+              title={streaming ? t('chat:focusSession.gitWaitForRunToFinish') : undefined}
+              onClick={() => void runAction({ kind: 'approve' })}
+            >
+              {running?.kind === 'approve' && !running.path ? (
+                <RefreshCw className="animate-spin" size={14} />
+              ) : (
+                <Check size={14} />
+              )}
+              {t('chat:focusSession.fileChangesApproveAll')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={writesDisabled || reversibleCount === 0}
+              title={
+                streaming
+                  ? t('chat:focusSession.gitWaitForRunToFinish')
+                  : t('chat:focusSession.fileChangesRevertAllDescription')
+              }
+              onClick={() => void runAction({ kind: 'revert' })}
+            >
+              {running?.kind === 'revert' && !running.path ? (
+                <RefreshCw className="animate-spin" size={14} />
+              ) : (
+                <Undo2 size={14} />
+              )}
+              {t('chat:focusSession.fileChangesRevertAll')}
+            </Button>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={loading || !changes?.files.length}
+              onClick={() =>
+                expand(changes?.files.slice(0, MAX_VISIBLE_FILES).map((file) => file.path) || [])
+              }
+            >
+              {t('chat:workbench.expandAll')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => expand([])}>
+              {t('chat:workbench.collapseAll')}
+            </Button>
+          </div>
+        </div>
       </div>
       {displayedError && (
-        <p
-          role="alert"
-          className="text-[length:var(--app-small-size)] text-[var(--text-secondary)]"
-        >
+        <p role="alert" className="px-3 pt-2.5 text-xs text-danger">
           {displayedError}
         </p>
       )}
       {notice && !displayedError && (
-        <p
-          role="status"
-          className="text-[length:var(--app-small-size)] text-[var(--text-secondary)]"
-        >
+        <p role="status" className="px-3 pt-2.5 text-xs text-content-secondary">
           {notice}
         </p>
       )}
       {loading && !changes ? (
-        <p role="status" className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          {t('chat:focusSession.gitLoading')}
-        </p>
+        <PageState kind="loading" title={t('chat:focusSession.gitLoading')} />
       ) : !changes?.files.length ? (
         !displayedError && (
-          <p className="text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-            {t('chat:focusSession.fileChangesEmpty')}
-          </p>
+          <InlineEmptyState compact title={t('chat:focusSession.fileChangesEmpty')} />
         )
       ) : (
         <ul
           ref={reading.ref}
-          className="min-h-0 flex-1 space-y-1 overflow-y-auto"
+          className="min-h-0 flex-1 overflow-y-auto"
           aria-label={t('chat:focusSession.fileChanges')}
         >
-          {changes.files.slice(0, MAX_VISIBLE_FILES).map((file) => (
-            <li key={file.path} className="min-w-0 rounded-md border-b border-border/60">
-              <div className="flex min-w-0 items-center gap-1 px-2 py-1">
-                <button
-                  type="button"
-                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md text-left text-[length:var(--app-small-size)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-blue)] disabled:opacity-60"
-                  title={file.path}
-                  disabled={loading || Boolean(running)}
-                  aria-busy={diffLoading === file.path}
-                  aria-expanded={expandedFiles.includes(file.path)}
-                  onClick={() =>
-                    expand(
-                      expandedFiles.includes(file.path)
-                        ? expandedFiles.filter((path) => path !== file.path)
-                        : [...expandedFiles, file.path],
-                    )
-                  }
+          {changes.files.slice(0, MAX_VISIBLE_FILES).map((file) => {
+            const expanded = expandedFiles.includes(file.path)
+            return (
+              <li key={file.path} className="min-w-0 border-b border-stroke-soft">
+                <div
+                  className={`flex min-w-0 items-center gap-0.5 pr-1.5 hover:bg-surface-subtle ${expanded ? 'bg-surface-subtle' : ''}`}
                 >
-                  <ChevronRight
-                    size={14}
-                    className={
-                      expandedFiles.includes(file.path) ? 'rotate-90 shrink-0' : 'shrink-0'
+                  <button
+                    type="button"
+                    className="flex min-h-9 min-w-0 flex-1 items-center gap-2 pl-2 text-left text-xs focus-visible:-outline-offset-2 disabled:opacity-60 max-[650px]:min-h-11 pointer-coarse:min-h-11"
+                    title={file.path}
+                    disabled={loading || Boolean(running)}
+                    aria-busy={diffLoading === file.path}
+                    aria-expanded={expanded}
+                    onClick={() =>
+                      expand(
+                        expanded
+                          ? expandedFiles.filter((path) => path !== file.path)
+                          : [...expandedFiles, file.path],
+                      )
                     }
-                  />
-                  {diffLoading === file.path ? (
-                    <RefreshCw size={14} className="flex-none animate-spin" />
-                  ) : (
-                    <FileDiff size={14} className="flex-none text-[var(--star-strong)]" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{file.path}</span>
-                    <span className="block text-[var(--text-muted)]">
-                      +{file.added} −{file.removed}
-                      {file.reverted
-                        ? ` · ${t('chat:focusSession.fileChangesReverted')}`
-                        : file.approved
-                          ? ` · ${t('chat:focusSession.fileChangesApproved')}`
-                          : ''}
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={`shrink-0 text-content-muted transition-transform duration-(--d-fast) ${expanded ? 'rotate-90' : ''}`}
+                    />
+                    {diffLoading === file.path ? (
+                      <OrbitSpinner className="size-3.5" />
+                    ) : (
+                      <FileDiff size={14} className="flex-none text-content-muted" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
+                    {(file.reverted || file.approved) && (
+                      <span className="shrink-0 text-content-muted">
+                        {file.reverted
+                          ? t('chat:focusSession.fileChangesReverted')
+                          : t('chat:focusSession.fileChangesApproved')}
+                      </span>
+                    )}
+                    <span className="shrink-0 font-mono tabular-nums">
+                      <span className="text-success">+{file.added}</span>{' '}
+                      <span className="text-danger">−{file.removed}</span>
                     </span>
-                  </span>
-                </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-11 sm:size-9"
-                  title={t('chat:focusSession.fileChangesApproveFile')}
-                  aria-label={`${t('chat:focusSession.fileChangesApproveFile')} ${file.path}`}
-                  disabled={writesDisabled || !file.pending || file.approved || file.reverted}
-                  onClick={() => void runAction({ kind: 'approve', path: file.path })}
-                >
-                  <Check size={14} />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-11 sm:size-9"
-                  title={t('chat:focusSession.fileChangesRevertFile')}
-                  aria-label={`${t('chat:focusSession.fileChangesRevertFile')} ${file.path}`}
-                  disabled={writesDisabled || file.reverted || !file.canRevert}
-                  onClick={() => void runAction({ kind: 'revert', path: file.path })}
-                >
-                  <Undo2 size={14} />
-                </Button>
-              </div>
-              {expandedFiles.includes(file.path) && (
-                <>
-                  <TaskFileDiff
-                    sessionId={sessionId}
-                    path={file.path}
-                    scope="task"
-                    position={view?.reading?.[file.path]}
-                    onReading={(position) =>
-                      onViewChange?.({ reading: { ...view?.reading, [file.path]: position } })
-                    }
-                    revision={snapshotRevision}
-                  />
-                  <Button variant="ghost" size="sm" onClick={() => void viewDiff(file.path)}>
-                    {t('chat:workbench.fullDiff')}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={rowAction}
+                    title={t('chat:focusSession.fileChangesApproveFile')}
+                    aria-label={`${t('chat:focusSession.fileChangesApproveFile')} ${file.path}`}
+                    disabled={writesDisabled || !file.pending || file.approved || file.reverted}
+                    onClick={() => void runAction({ kind: 'approve', path: file.path })}
+                  >
+                    <Check size={14} />
                   </Button>
-                </>
-              )}
-            </li>
-          ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={rowAction}
+                    title={t('chat:focusSession.fileChangesRevertFile')}
+                    aria-label={`${t('chat:focusSession.fileChangesRevertFile')} ${file.path}`}
+                    disabled={writesDisabled || file.reverted || !file.canRevert}
+                    onClick={() => void runAction({ kind: 'revert', path: file.path })}
+                  >
+                    <Undo2 size={14} />
+                  </Button>
+                </div>
+                {expanded && (
+                  <>
+                    <TaskFileDiff
+                      sessionId={sessionId}
+                      path={file.path}
+                      scope="task"
+                      position={view?.reading?.[file.path]}
+                      onReading={(position) =>
+                        onViewChange?.({ reading: { ...view?.reading, [file.path]: position } })
+                      }
+                      revision={snapshotRevision}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="m-1.5"
+                      onClick={() => void viewDiff(file.path)}
+                    >
+                      {t('chat:workbench.fullDiff')}
+                    </Button>
+                  </>
+                )}
+              </li>
+            )
+          })}
           {changes.files.length > MAX_VISIBLE_FILES && (
-            <li className="px-2 py-1 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
+            <li className="px-3 py-2 text-xs text-content-muted tabular-nums">
               {t('chat:focusSession.gitMoreFiles', {
                 count: changes.files.length - MAX_VISIBLE_FILES,
               })}

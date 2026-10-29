@@ -11,7 +11,9 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { SettingsCard as Panel } from './settings-primitives'
+import { SettingsCard as Panel, SettingsCardHeader } from './settings-primitives'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { MobilePairingDialog } from './MobilePairingDialog'
 import { Button } from '@/components/ui/button'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -131,14 +133,19 @@ export function MobileServerSettings({
   return (
     <div className="flex flex-col gap-4">
       <div
-        className={`flex min-h-10 items-center gap-2 rounded-[var(--r-sm)] border px-3 py-2 text-[12px] ${connected ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success-strong)]' : 'border-[var(--stroke)] bg-[var(--surface-subtle)] text-[var(--text-muted)]'}`}
+        className={cn(
+          'flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 text-xs',
+          connected
+            ? 'border-success-border bg-success-soft text-success-strong'
+            : 'border-stroke bg-surface-subtle text-content-muted',
+        )}
         role="status"
         aria-live="polite"
       >
         <StatusIcon size={15} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{statusLabel}</span>
         {state?.activeTransport ? (
-          <span className="flex-none text-[11px] opacity-80">
+          <span className="flex-none font-mono text-xs opacity-80">
             {state.activeTransport === 'iroh'
               ? t('config:mobileServer.transportP2p')
               : t('config:mobileServer.transportLan')}
@@ -147,54 +154,44 @@ export function MobileServerSettings({
       </div>
       <MobilePairingDialog open={pairingOpen} onOpenChange={setPairingOpen} />
       <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-main">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start gap-[11px]">
-            <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <MonitorSmartphone size={19} />
-            </span>
-            <div>
-              <h2 className="text-[16px]">{t('config:mobileServer.title')}</h2>
-              <p className="mt-1 text-[13px] leading-[1.55] text-[var(--text-muted)]">
-                {t('config:mobileServer.description')}
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            className="max-[650px]:h-10 max-[650px]:px-3"
-            onClick={() => setPairingOpen(true)}
-          >
-            <Plus size={14} />
-            {t('config:mobileServer.addServer')}
-          </Button>
-        </div>
-        {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
+        <SettingsCardHeader
+          icon={<MonitorSmartphone size={18} />}
+          title={t('config:mobileServer.title')}
+          description={t('config:mobileServer.description')}
+          action={
+            <Button
+              size="sm"
+              className="pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:px-3"
+              onClick={() => setPairingOpen(true)}
+            >
+              <Plus size={14} />
+              {t('config:mobileServer.addServer')}
+            </Button>
+          }
+        />
+        {error ? <p className="text-xs text-danger">{error}</p> : null}
       </Panel>
 
       <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-local">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 basis-48 items-start gap-[11px]">
-            <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <Smartphone size={19} />
-            </span>
-            <div>
-              <h2 className="flex flex-wrap items-center gap-2 text-[16px]">
+          <SettingsCardHeader
+            className="min-w-0 flex-1 basis-64"
+            active={localActive}
+            icon={<Smartphone size={18} />}
+            title={
+              <span className="flex flex-wrap items-center gap-2">
                 {t('config:mobileServer.localTitle')}
                 {localActive ? (
-                  <span className="text-[11px] text-[var(--star-strong)]">
-                    {t('config:mobileServer.currentLocal')}
-                  </span>
+                  <Badge variant="accent">{t('config:mobileServer.currentLocal')}</Badge>
                 ) : null}
-              </h2>
-              <p className="mt-1 text-[13px] leading-[1.55] text-[var(--text-muted)]">
-                {t('config:mobileServer.localDescription')}
-              </p>
-            </div>
-          </div>
+              </span>
+            }
+            description={t('config:mobileServer.localDescription')}
+          />
           <Button
             size="sm"
-            variant="outline"
-            className="flex-none max-[650px]:h-10 max-[650px]:px-3"
+            variant="secondary"
+            className="flex-none max-[650px]:h-10 max-[650px]:px-3 pointer-coarse:h-11 max-[650px]:min-h-11"
             disabled={localActive || Boolean(busyId)}
             onClick={() =>
               void (async () => {
@@ -220,7 +217,7 @@ export function MobileServerSettings({
 
       <Panel className="flex flex-col gap-3 p-4">
         {state?.servers?.length ? (
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
             {state.servers.map((server) => {
               const active = state.mode === 'remote' && server.id === state.activeId
               const directEndpoint = server.endpoints.find((endpoint) => endpoint.url)
@@ -231,22 +228,20 @@ export function MobileServerSettings({
               return (
                 <li
                   key={server.id}
-                  className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2 max-[650px]:items-start max-[650px]:flex-wrap"
+                  className="flex min-h-12 items-center justify-between gap-3 px-3 py-2 max-[650px]:flex-wrap max-[650px]:items-start"
                 >
                   <div className="flex min-w-0 items-center gap-2">
-                    <Server size={15} className="flex-none text-[var(--text-muted)]" />
+                    <Server size={15} aria-hidden="true" className="flex-none text-content-muted" />
                     <div className="min-w-0">
-                      <div className="truncate text-[13px]">
-                        {server.name}
+                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-content">
+                        <span className="truncate">{server.name}</span>
                         {active ? (
-                          <span className="ml-2 text-[11px] text-[var(--star-strong)]">
-                            {t('config:mobileServer.current')}
-                          </span>
+                          <Badge variant="accent">{t('config:mobileServer.current')}</Badge>
                         ) : null}
                       </div>
-                      <div className="truncate text-[11px] text-[var(--text-muted)]">
+                      <div className="truncate font-mono text-xs text-content-muted">
                         {endpointLabel}
-                        <span className="ml-2">
+                        <span className="ml-2 font-sans">
                           {directEndpoint && irohEndpoint
                             ? t('config:mobileServer.transportLanP2p')
                             : irohEndpoint
@@ -255,7 +250,7 @@ export function MobileServerSettings({
                         </span>
                       </div>
                       {active && state.activeTransport ? (
-                        <div className="text-[11px] text-[var(--star-strong)]">
+                        <div className="text-xs text-accent-fg">
                           {t('config:mobileServer.activeTransport', {
                             transport:
                               state.activeTransport === 'iroh'
@@ -271,7 +266,7 @@ export function MobileServerSettings({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="max-[650px]:h-10 max-[650px]:px-3"
+                        className="pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:px-3"
                         disabled={busyId === server.id}
                         onClick={() => void selectServer(server.id)}
                       >
@@ -281,7 +276,7 @@ export function MobileServerSettings({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="max-[650px]:size-10"
+                      className="hover:bg-danger-soft hover:text-danger pointer-coarse:size-11 max-[650px]:size-11"
                       aria-label={t('config:mobileServer.forget')}
                       title={t('config:mobileServer.forget')}
                       disabled={Boolean(busyId)}
@@ -295,7 +290,7 @@ export function MobileServerSettings({
             })}
           </ul>
         ) : (
-          <p className="text-[12px] text-[var(--text-muted)]">{t('config:mobileServer.empty')}</p>
+          <p className="text-xs text-content-muted">{t('config:mobileServer.empty')}</p>
         )}
       </Panel>
     </div>

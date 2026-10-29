@@ -1,5 +1,5 @@
 // 自定义强调色:从单个 HEX 派生整套 accent 设计 token。
-// 变量面对齐 index.css 中各预设 accent 块(含暗色主题的增亮策略),
+// 变量面对齐 index.css 中各预设 accent 块(含暗色主题的增亮策略与 --accent-fg 文字色),
 // 由 ui-preferences 注入为即时生成的 <style> 规则。
 
 export type Rgb = { r: number; g: number; b: number }
@@ -114,6 +114,7 @@ export function customAccentStyleRules(hex: string) {
   --star-soft: ${soft};
   --star-border: ${border};
   --on-accent: ${on};
+  --accent-fg: ${strong};
   --brand-blue: ${hex};
   --brand-blue-hover: ${hover};
   --brand-blue-strong: ${strong};
@@ -130,6 +131,7 @@ export function customAccentStyleRules(hex: string) {
   --star-soft: ${alpha(darkBaseRgb, 0.15)};
   --star-border: ${alpha(darkBaseRgb, 0.38)};
   --on-accent: ${darkOn};
+  --accent-fg: ${darkStrong};
   --brand-blue: ${darkBase};
   --brand-blue-hover: ${darkHover};
   --brand-blue-strong: ${darkStrong};

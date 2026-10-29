@@ -35,9 +35,12 @@
         const root = document.documentElement
         root.dataset.theme = dark ? 'dark' : 'light'
         root.classList.toggle('dark', dark)
-        root.dataset.accent = ['neutral', 'blue', 'teal', 'violet', 'coral'].includes(stored.accent)
+        // 与 ui-store 的一次性迁移保持一致：默认强调色为 blue，未带修订号的旧中性档视为旧默认值。
+        let accent = ['neutral', 'blue', 'teal', 'violet', 'coral'].includes(stored.accent)
           ? stored.accent
-          : 'neutral'
+          : 'blue'
+        if (accent === 'neutral' && !(Number(stored.accentRevision) >= 1)) accent = 'blue'
+        root.dataset.accent = accent
         root.dataset.density = stored.density === 'compact' ? 'compact' : 'comfortable'
         root.dataset.fontScale = ['small', 'default', 'large'].includes(stored.fontScale)
           ? stored.fontScale

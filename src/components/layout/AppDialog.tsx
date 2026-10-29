@@ -91,7 +91,7 @@ export function AppDialog({
           <form className="flex min-h-0 flex-col" onSubmit={(event) => void submit(event)}>
             <div className="flex shrink-0 items-start justify-between gap-3">
               <div className="min-w-0">
-                <DialogTitle className="text-lg leading-6 font-medium tracking-[0]">
+                <DialogTitle className="text-[15px] leading-6 font-semibold tracking-[-.01em]">
                   {dialog.title}
                 </DialogTitle>
               </div>
@@ -101,27 +101,27 @@ export function AppDialog({
                 size="toolbar"
                 aria-label={t('common:ui.closeDialog')}
                 title={t('common:ui.closeDialog')}
-                className="size-6 shrink-0 px-0 text-muted-foreground"
+                className="size-7 shrink-0 px-0 text-content-muted"
                 disabled={isBusy}
                 onClick={onClose}
               >
-                <X className="size-[18px]" />
+                <X className="size-4" />
               </Button>
             </div>
             <DialogBody>
               <DialogDescription
                 className={
-                  dialog.message ? 'mt-2 text-sm leading-5 text-muted-foreground' : 'sr-only'
+                  dialog.message ? 'mt-1.5 text-[13px] leading-5 text-content-muted' : 'sr-only'
                 }
               >
                 {dialog.message || dialog.title}
               </DialogDescription>
               {dialog.type === 'prompt' && (
-                <Label className="mt-4 block text-[12px] leading-5 font-semibold text-content-soft">
+                <Label className="mt-4 block text-[13px] leading-5 font-medium text-content">
                   {dialog.inputLabel || t('common:ui.name')}
                   <Input
                     ref={inputRef}
-                    className="mt-2 h-10 rounded-lg border-border bg-background px-3 text-[13px]"
+                    className="mt-2 h-[34px] px-2.5 text-[13px]"
                     disabled={isBusy}
                     value={value}
                     placeholder={dialog.placeholder}
@@ -151,7 +151,6 @@ export function AppDialog({
                 size="dialogAction"
                 loading={isBusy}
                 variant={dialog.tone === 'danger' ? 'destructive' : 'default'}
-                className={dialog.tone === 'danger' ? undefined : 'text-primary-foreground'}
                 disabled={dialog.type === 'prompt' && !value.trim()}
               >
                 {dialog.confirmLabel || t('common:ui.confirm')}

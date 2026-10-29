@@ -1,39 +1,42 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from 'radix-ui'
-import { LoaderCircle } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
+// Quiet Precision 按钮：主操作是唯一使用强调色的实心键（32px、r-sm、顶部 1px 内高光）；
+// 次级为键帽（键帽面 + 强描边 + 键帽投影），幽灵按钮平铺。焦点由 base 层统一的
+// 2px --focus 外描边提供，因此这里不再叠加 ring，避免与选中态混淆。
+// 触屏（pointer: coarse）下常规尺寸统一抬到 44px：该媒体变体在生成的 CSS 中排在
+// max-[650px]:* 之后，若这里低于 44px 会覆盖调用方的手机尺寸。xs/icon-xs/toolbar 是
+// 紧凑内联尺寸，触屏热区由调用方按所在布局决定。
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast,150ms)] outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:brightness-95 disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-sm border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast,150ms)] select-none disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+        default: 'bg-star text-on-accent shadow-primary hover:bg-star-hover',
         outline:
-          'border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+          'border-stroke-strong bg-key hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+          'border-stroke-strong bg-key text-foreground shadow-key hover:bg-surface-subtle aria-expanded:bg-surface-hover',
         ghost:
-          'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
-        destructive:
-          'bg-danger-soft text-danger hover:bg-danger-border focus-visible:border-danger-border focus-visible:ring-danger-border',
+          'text-content-secondary hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground',
+        destructive: 'bg-danger-soft text-danger hover:bg-danger-border',
         link: 'text-brand underline-offset-4 hover:underline',
       },
       size: {
-        default: 'gap-1.5 px-2 py-0.5 leading-[18px] pointer-coarse:min-h-10',
+        default: 'h-8 gap-1.5 px-3 pointer-coarse:min-h-11',
         toolbar: 'h-6 gap-1 px-2 text-xs',
-        dialogAction: 'min-h-9 gap-2 px-4 py-2 leading-5',
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 pointer-coarse:h-9 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: 'h-9 pointer-coarse:h-10 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
-        icon: 'size-8 pointer-coarse:size-10',
-        'icon-xs':
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
-        'icon-sm':
-          'size-7 pointer-coarse:size-9 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg',
-        'icon-lg': 'size-9',
+        dialogAction: 'min-h-9 gap-2 px-4 py-2 leading-5 pointer-coarse:min-h-11',
+        xs: "h-6 gap-1 px-2 text-xs has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 pointer-coarse:h-11 gap-1 px-2.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        lg: 'h-9 pointer-coarse:h-11 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
+        icon: 'size-7 pointer-coarse:size-11',
+        'icon-xs': "size-6 [&_svg:not([class*='size-'])]:size-3",
+        'icon-sm': 'size-7 pointer-coarse:size-11',
+        'icon-lg': 'size-9 pointer-coarse:size-11',
       },
     },
     defaultVariants: {
@@ -104,7 +107,7 @@ function Button({
             {text}
           </span>
         ))}
-        {loading && <LoaderCircle aria-hidden="true" className="absolute size-4 animate-spin" />}
+        {loading && <OrbitSpinner className="absolute size-4 text-current" />}
       </span>
     ) : (
       content

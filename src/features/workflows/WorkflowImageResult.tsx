@@ -212,7 +212,7 @@ export function WorkflowImageResult({
     )
   return (
     <section
-      className="my-3 space-y-3 rounded-xl border p-3"
+      className="my-3 space-y-3 rounded-md border p-3"
       aria-label={t('workflows:imageNodes.result')}
     >
       <h3 className="text-sm font-medium">{t('workflows:imageNodes.result')}</h3>
@@ -251,7 +251,7 @@ export function WorkflowImageResult({
               </AppSelect>
             )}
           </div>
-          <div className="relative overflow-hidden rounded-lg border bg-[repeating-conic-gradient(#d4d4d8_0%_25%,#fafafa_0%_50%)] bg-size-[16px_16px] dark:bg-[repeating-conic-gradient(#27272a_0%_25%,#3f3f46_0%_50%)]">
+          <div className="relative overflow-hidden rounded-md border bg-[repeating-conic-gradient(var(--surface-active)_0%_25%,var(--surface-muted)_0%_50%)] bg-size-[16px_16px]">
             <canvas
               width={512}
               height={384}

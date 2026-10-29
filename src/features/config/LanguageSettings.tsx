@@ -37,16 +37,16 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
   }
 
   return (
-    // 与界面设置的其他行同一层级，不再单独套卡片。
+    // 单行细线卡：与外观分组同一视觉层级，标题 13/500、说明 12px，控件右对齐。
     <div
-      className="flex flex-row flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border py-4"
+      className="flex flex-row flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-md border border-stroke bg-panel px-4 py-3"
       data-config-card="interface-language"
     >
       <div className="min-w-0 flex-1 basis-40">
-        <h2 id={labelId} className="text-sm font-medium">
+        <h2 id={labelId} className="text-sm font-medium text-content">
           {t('config:languageSettings.displayLanguage')}
         </h2>
-        <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        <p id={descriptionId} className="mt-0.5 text-xs leading-relaxed text-content-muted">
           {t('config:languageSettings.interfaceOnlyHint')}
         </p>
       </div>
@@ -60,7 +60,7 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
         <SelectTrigger
           aria-labelledby={labelId}
           aria-describedby={descriptionId}
-          className="min-h-9 min-w-32 shrink-0 rounded-full px-3 max-[650px]:min-h-11"
+          className="min-w-36 shrink-0 pointer-coarse:min-h-11 max-[650px]:min-h-11"
         >
           <SelectValue />
         </SelectTrigger>

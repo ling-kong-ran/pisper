@@ -139,7 +139,7 @@ export function WebDesktopPet() {
 
   return (
     <div
-      className={`web-desktop-pet max-[640px]:[transform:scale(0.75)] max-[640px]:origin-[bottom_right] fixed z-[70] w-[192px] h-[288px] cursor-grab [touch-action:none] select-none [filter:drop-shadow(0_12px_14px_rgb(15_23_42_/_0.16))] ${pointer.current ? 'dragging [.web-desktop-pet&]:cursor-grabbing' : ''}`}
+      className={`web-desktop-pet max-[640px]:[transform:scale(0.75)] max-[640px]:origin-[bottom_right] fixed z-[70] w-[192px] h-[288px] cursor-grab [touch-action:none] select-none [filter:drop-shadow(0_12px_14px_var(--shadow))] ${pointer.current ? 'dragging [.web-desktop-pet&]:cursor-grabbing' : ''}`}
       style={{ left: position.x, top: position.y, opacity: status.opacity ?? 1 }}
       onPointerDown={(event) => {
         if (event.button !== 0) return
@@ -172,8 +172,9 @@ export function WebDesktopPet() {
         name: status.selectedName || status.selectedSlug,
       })}
     >
+      {/* 气泡即一枚浮层：实色底 + 环线投影，12px 文字（中文最小字号），只做透明度与位移过渡。 */}
       <div
-        className={`web-desktop-pet-bubble motion-reduce:[transition:none] absolute z-[2] [left:50%] [bottom:210px] max-w-[180px] [padding:6px_10px] [transform:translateX(-50%)_translateY(4px)] [border:1px_solid_color-mix(in_srgb,_var(--stroke)_75%,_transparent)] rounded-[10px] bg-[color-mix(in_srgb,_var(--surface)_94%,_transparent)] shadow-[0_8px_24px_rgb(15_23_42_/_0.2)] text-[var(--text)] text-[11px] leading-[1.4] opacity-0 pointer-events-none text-center [transition:opacity_0.18s_ease,_transform_0.18s_ease] whitespace-nowrap ${bubble ? 'visible [.web-desktop-pet-bubble&]:opacity-100 [.web-desktop-pet-bubble&]:[transform:translateX(-50%)_translateY(0)]' : ''}`}
+        className={`web-desktop-pet-bubble pointer-events-none absolute bottom-[210px] left-1/2 z-[2] max-w-[180px] -translate-x-1/2 rounded-md bg-popover px-2.5 py-1 text-center text-xs leading-[1.45] whitespace-nowrap text-content shadow-float transition-[opacity,translate] duration-(--d-base) ease-(--ease) motion-reduce:transition-none ${bubble ? 'visible translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}
         role="status"
       >
         {bubble}

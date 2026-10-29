@@ -52,10 +52,10 @@ function ToolList({
       : t('chat:focusSession.pinShortcutToComposer')
 
   return (
-    <ul className="divide-y divide-[var(--stroke-soft)]">
+    <ul className="divide-y divide-stroke-soft">
       {ids.map((id, index) => (
         <li className="flex min-h-12 min-w-0 items-center gap-1 py-0.5" key={id}>
-          <span className="min-w-0 flex-1 px-1 text-xs leading-5 text-[var(--text)]">
+          <span className="min-w-0 flex-1 px-1 text-[13px] leading-5 text-content">
             {labels[id]}
           </span>
           <div className="flex flex-none items-center">
@@ -63,7 +63,7 @@ function ToolList({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-11 text-[var(--text-muted)]"
+              className="size-11 text-content-muted"
               title={t('chat:focusSession.moveShortcutEarlier')}
               aria-label={t('chat:focusSession.moveShortcutEarlierName', { name: labels[id] })}
               disabled={index === 0}
@@ -75,7 +75,7 @@ function ToolList({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-11 text-[var(--text-muted)]"
+              className="size-11 text-content-muted"
               title={t('chat:focusSession.moveShortcutLater')}
               aria-label={t('chat:focusSession.moveShortcutLaterName', { name: labels[id] })}
               disabled={index === ids.length - 1}
@@ -147,28 +147,34 @@ export function ComposerToolbarSettings({
           type="button"
           variant="ghost"
           className={cn(
-            'text-[var(--text-muted)]',
-            // 收纳区内与上方菜单行对齐：图标居中于 40px 列，文字同字号。
+            'text-content-muted',
+            // 收纳区内与上方菜单行对齐：图标居中于 30px 列（触控 44px），文字同字号。
             labeled
-              ? 'h-10 w-full justify-start gap-5 rounded-lg pr-2 pl-3 text-[13px] font-normal'
+              ? 'h-[30px] w-full justify-start gap-2 px-0 pr-2 text-[13px] font-normal text-content max-[650px]:h-11 pointer-coarse:h-11'
               : 'h-11 w-11 gap-2 px-0',
           )}
           title={t('chat:focusSession.customizeShortcuts')}
           aria-label={t('chat:focusSession.customizeShortcuts')}
         >
-          <SlidersHorizontal />
+          {labeled ? (
+            <span className="grid size-[30px] shrink-0 place-items-center text-content-muted max-[650px]:size-11 pointer-coarse:size-11">
+              <SlidersHorizontal />
+            </span>
+          ) : (
+            <SlidersHorizontal />
+          )}
           {labeled && <span>{t('chat:focusSession.customizeShortcuts')}</span>}
         </Button>
       </DialogTrigger>
       <DialogContent
         showCloseButton={false}
         overlayClassName="z-[70]"
-        className="z-[71] flex max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-[720px] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[720px]"
+        className="z-[71] flex max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-[720px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]"
       >
-        <div className="flex flex-none items-start gap-3 border-b border-[var(--stroke-soft)] p-4">
+        <div className="flex flex-none items-start gap-3 border-b border-stroke-soft p-4">
           <DialogHeader className="min-w-0 flex-1 gap-2 pt-1">
             <DialogTitle>{t('chat:focusSession.customizeShortcuts')}</DialogTitle>
-            <DialogDescription className="text-xs leading-5">
+            <DialogDescription className="text-xs leading-5 text-content-muted">
               {t('chat:focusSession.customizeShortcutsDescription')}
             </DialogDescription>
           </DialogHeader>
@@ -186,10 +192,10 @@ export function ComposerToolbarSettings({
         </div>
         <div className="grid min-h-0 min-w-0 grid-cols-1 gap-5 overflow-y-auto overscroll-contain p-4 sm:grid-cols-2">
           <section className="min-w-0" aria-label={t('chat:focusSession.composerShortcuts')}>
-            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-content-secondary">
               <Pin size={14} />
               {t('chat:focusSession.composerShortcuts')}
-              <span className="text-[var(--text-muted)]">{layout.inline.length}</span>
+              <span className="text-content-muted tabular-nums">{layout.inline.length}</span>
             </h3>
             {layout.inline.length ? (
               <ToolList
@@ -201,16 +207,16 @@ export function ComposerToolbarSettings({
                 onMoveButtonRef={setMoveButtonRef}
               />
             ) : (
-              <p className="py-4 text-xs leading-5 text-[var(--text-muted)]">
+              <p className="py-4 text-xs leading-5 text-content-muted">
                 {t('chat:focusSession.noInlineShortcuts')}
               </p>
             )}
           </section>
           <section className="min-w-0" aria-label={t('chat:focusSession.overflowShortcuts')}>
-            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+            <h3 className="mb-1 flex h-8 items-center gap-2 text-xs font-medium text-content-secondary">
               <Archive size={14} />
               {t('chat:focusSession.overflowShortcuts')}
-              <span className="text-[var(--text-muted)]">{layout.overflow.length}</span>
+              <span className="text-content-muted tabular-nums">{layout.overflow.length}</span>
             </h3>
             {layout.overflow.length ? (
               <ToolList
@@ -222,13 +228,13 @@ export function ComposerToolbarSettings({
                 onMoveButtonRef={setMoveButtonRef}
               />
             ) : (
-              <p className="py-4 text-xs leading-5 text-[var(--text-muted)]">
+              <p className="py-4 text-xs leading-5 text-content-muted">
                 {t('chat:focusSession.noOverflowShortcuts')}
               </p>
             )}
           </section>
         </div>
-        <div className="flex flex-none flex-wrap items-center gap-x-1 border-t border-[var(--stroke-soft)] px-3 py-2">
+        <div className="flex flex-none flex-wrap items-center gap-x-1 border-t border-stroke-soft px-3 py-2">
           <Button
             type="button"
             variant="ghost"
@@ -255,7 +261,7 @@ export function ComposerToolbarSettings({
             type="button"
             variant="ghost"
             size="sm"
-            className="ml-auto h-11 text-xs text-[var(--text-muted)]"
+            className="ml-auto h-11 text-xs text-content-muted"
             disabled={sameLayout(layout, DEFAULT_COMPOSER_TOOLBAR_LAYOUT)}
             onClick={resetLayout}
           >

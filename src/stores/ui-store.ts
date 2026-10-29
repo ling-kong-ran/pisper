@@ -20,11 +20,12 @@ export type FontScale = 'small' | 'default' | 'large'
 export type RadiusMode = 'sharp' | 'default' | 'soft'
 export type MotionMode = 'system' | 'full' | 'reduced'
 
+// Quiet Precision 起默认强调色为信号钴蓝（Pisper 蓝）；中性档保留为单色墨黑版本。
 export const DEFAULT_UI_PREFERENCES = {
   theme: 'system',
   density: 'comfortable',
-  accent: 'neutral',
-  customAccent: '#1677e8',
+  accent: 'blue',
+  customAccent: '#3d4bef',
   fontScale: 'default',
   uiFontSize: UI_FONT_SIZE.default,
   codeFontSize: CODE_FONT_SIZE.default,
@@ -42,12 +43,26 @@ export const DEFAULT_UI_PREFERENCES = {
   motion: MotionMode
 }
 
+// 强调色默认值修订号：旧版本无法区分「默认中性档」与「主动选择中性档」，
+// 低于当前修订号的中性档一次性迁移为新默认；迁移后再次选择中性档会被保留。
+// 持久化版本号由既有迁移测试固定为 2，因此用独立标记完成这次一次性迁移。
+export const ACCENT_REVISION = 1
+
+export function migrateStoredAccent(
+  accent: AccentPreset | undefined,
+  revision: unknown,
+): AccentPreset | undefined {
+  if (accent === 'neutral' && !(Number(revision) >= ACCENT_REVISION)) return 'blue'
+  return accent
+}
+
 type UiState = {
   sidebarCollapsed: boolean
   sidebarWidth: number
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
+  accentRevision: number
   customAccent: string
   fontScale: FontScale
   uiFontSize: number
@@ -78,6 +93,7 @@ type PersistedUiState = Pick<
   | 'theme'
   | 'density'
   | 'accent'
+  | 'accentRevision'
   | 'customAccent'
   | 'fontScale'
   | 'uiFontSize'
@@ -99,6 +115,7 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       sidebarCollapsed: false,
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+      accentRevision: ACCENT_REVISION,
       ...DEFAULT_UI_PREFERENCES,
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth: clampSidebarWidth(sidebarWidth) }),
@@ -134,6 +151,8 @@ export const useUiStore = create<UiState>()(
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
           ...normalizeTypographyPreferences(stored),
+          // 保留旧修订号（缺省为 0），由 merge 统一执行强调色迁移。
+          accentRevision: Number(stored.accentRevision) || 0,
           theme:
             version === 0 && stored.theme === 'system' ? 'scheduled' : (stored.theme ?? 'system'),
         }
@@ -144,6 +163,7 @@ export const useUiStore = create<UiState>()(
         theme,
         density,
         accent,
+        accentRevision,
         customAccent,
         fontScale,
         uiFontSize,
@@ -156,6 +176,7 @@ export const useUiStore = create<UiState>()(
         theme,
         density,
         accent,
+        accentRevision,
         customAccent,
         fontScale,
         uiFontSize,
@@ -181,7 +202,8 @@ export const useUiStore = create<UiState>()(
           sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
           sidebarWidth: clampSidebarWidth(stored?.sidebarWidth),
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
-          accent: stored?.accent ?? current.accent,
+          accent: migrateStoredAccent(stored?.accent, stored?.accentRevision) ?? current.accent,
+          accentRevision: ACCENT_REVISION,
           customAccent: stored?.customAccent ?? current.customAccent,
           ...normalizeTypographyPreferences(stored),
           fontScale: legacyFontScale(normalizeTypographyPreferences(stored).uiFontSize),

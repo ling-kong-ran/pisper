@@ -22,9 +22,9 @@ function DiffCell({ side, cell }: { side: 'old' | 'next'; cell: GitDiffCell }) {
   const marker = cell.tone === 'deleted' ? '−' : cell.tone === 'added' ? '+' : ' '
   return (
     <div
-      className={`git-diff-cell grid min-w-0 min-h-[24px] grid-cols-[44px_20px_minmax(0,1fr)] [border-bottom:1px_solid_var(--stroke-soft)] font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[11px] leading-[1.55] [&.next]:[border-left:1px_solid_var(--stroke)] [&.deleted]:bg-[var(--danger-soft)] [&.added]:bg-[var(--success-soft)] [&.empty]:bg-[var(--surface-muted)] [&.context]:bg-[var(--solid)] [&_code]:block [&_code]:min-w-0 [&_code]:p-[3px_8px_3px_2px] [&_code]:text-[var(--text)] [&_code]:font-[inherit] [&_code]:whitespace-pre-wrap [&_code]:[overflow-wrap:anywhere] ${side}    ${cell.tone}`}
+      className={`git-diff-cell grid min-w-0 min-h-[24px] grid-cols-[44px_20px_minmax(0,1fr)] border-b border-stroke-soft font-mono text-[12px] leading-[1.6] tabular-nums [&.next]:border-l [&.next]:border-l-stroke [&.deleted]:bg-[var(--danger-soft)] [&.added]:bg-[var(--success-soft)] [&.deleted]:shadow-[inset_2px_0_var(--danger)] [&.added]:shadow-[inset_2px_0_var(--success)] [&.empty]:bg-surface-subtle [&.context]:bg-code [&_code]:block [&_code]:min-w-0 [&_code]:p-[3px_8px_3px_2px] [&_code]:text-[var(--text)] [&_code]:font-[inherit] [&_code]:whitespace-pre-wrap [&_code]:[overflow-wrap:anywhere] ${side}    ${cell.tone}`}
     >
-      <span className="block [padding:3px_7px_3px_4px] [border-right:1px_solid_var(--stroke-soft)] text-[var(--text-muted)] text-right select-none">
+      <span className="block border-r border-stroke-soft p-[3px_8px_3px_4px] text-right text-code-gutter select-none">
         {cell.lineNumber ?? ''}
       </span>
       <span
@@ -120,11 +120,11 @@ function VirtualDiffRows({
             style={{ top: `${virtualItem.start - scrollMargin}px` }}
           >
             {item.kind === 'header' ? (
-              <div className="git-diff-hunk-header [border-bottom:1px_solid_var(--stroke-soft)] bg-[var(--blue-soft)] p-[4px_10px] text-[var(--brand-blue-strong)] font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[10px] [white-space:pre]">
+              <div className="git-diff-hunk-header border-b border-stroke-soft bg-surface-subtle p-[4px_10px] font-mono text-[12px] text-content-muted [white-space:pre]">
                 {item.header}
               </div>
             ) : item.row.kind === 'meta' ? (
-              <div className="git-diff-row-meta [border-bottom:1px_solid_var(--stroke-soft)] bg-[var(--blue-soft)] p-[4px_10px] text-[var(--brand-blue-strong)] font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[10px] [white-space:pre] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+              <div className="git-diff-row-meta border-b border-stroke-soft bg-surface-subtle p-[4px_10px] font-mono text-[12px] text-content-muted [white-space:pre]">
                 {item.row.text}
               </div>
             ) : (
@@ -224,19 +224,19 @@ export function GitDiffDialog({
 
   return createPortal(
     <div
-      className="git-diff-dialog-backdrop max-[760px]:p-[10px] fixed z-[120] inset-0 grid place-items-center bg-[rgb(0_0_0/.48)] [padding:24px] [backdrop-filter:blur(3px)]"
+      className="git-diff-dialog-backdrop fixed inset-0 z-[120] grid place-items-center bg-[var(--overlay-scrim)] p-[24px] max-[760px]:p-[10px]"
       role="presentation"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
-        className="git-diff-dialog max-[760px]:w-[calc(100vw_-_20px)] max-[760px]:h-[calc(100vh_-_20px)] flex w-[min(1180px,calc(100vw_-_48px))] h-[min(820px,calc(100vh_-_48px))] min-w-0 min-h-0 flex-col overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-lg)] bg-[var(--solid)] shadow-[0_28px_90px_-24px_rgb(0_0_0/.65)]"
+        className="git-diff-dialog max-[760px]:w-[calc(100vw_-_20px)] max-[760px]:h-[calc(100vh_-_20px)] flex w-[min(1180px,calc(100vw_-_48px))] h-[min(820px,calc(100vh_-_48px))] min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border border-stroke bg-solid shadow-float"
         role="dialog"
         aria-modal="true"
         aria-label={t('chat:focusSession.gitViewDiff')}
       >
-        <header className="git-diff-dialog-head [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] grid min-h-[54px] flex-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] [border-bottom:1px_solid_var(--stroke)] [padding:8px_12px]">
-          <span className="grid w-[34px] h-[34px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-            <FileDiff size={17} />
+        <header className="git-diff-dialog-head [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:text-content-muted [&_small]:text-[12px] [&_small]:tabular-nums grid min-h-[52px] flex-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[10px] border-b border-stroke p-[8px_12px]">
+          <span className="grid size-[30px] place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key">
+            <FileDiff size={16} />
           </span>
           <span>
             <strong>{t('chat:focusSession.gitViewDiff')}</strong>
@@ -255,18 +255,18 @@ export function GitDiffDialog({
         </header>
 
         {!entries.length ? (
-          <div className="min-w-0 min-h-0 flex-1 bg-[var(--surface-subtle)] overflow-auto [padding:12px]">
-            <div className="[border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:20px] text-[var(--text-muted)] whitespace-pre-wrap">
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-subtle p-[12px]">
+            <div className="rounded-md border border-stroke bg-panel p-[20px] whitespace-pre-wrap text-content-muted">
               {diff || t('chat:focusSession.gitDiffUnavailable')}
             </div>
           </div>
         ) : (
           <div className="git-diff-layout max-[760px]:grid-rows-[minmax(112px,26vh)_minmax(0,1fr)] max-[760px]:grid-cols-[minmax(0,1fr)] grid min-w-0 min-h-0 flex-1 grid-cols-[252px_minmax(0,1fr)] overflow-hidden">
             <nav
-              className="git-diff-file-nav max-[760px]:[border-right:0] max-[760px]:[border-bottom:1px_solid_var(--stroke)] flex min-w-0 min-h-0 flex-col overflow-hidden [border-right:1px_solid_var(--stroke)] bg-[var(--surface-muted)]"
+              className="git-diff-file-nav flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-stroke bg-chrome max-[760px]:border-r-0 max-[760px]:border-b"
               aria-label={t('chat:focusSession.gitDiffChangedFiles')}
             >
-              <strong className="git-diff-file-nav-title max-[760px]:[padding-block:7px_5px] flex-none [padding:10px_12px_8px] text-[var(--text-muted)] text-[10px] font-[700] tracking-[.055em] [text-transform:uppercase]">
+              <strong className="git-diff-file-nav-title flex-none p-[10px_12px_6px] text-[12px] font-medium tracking-[.02em] text-content-muted max-[760px]:[padding-block:7px_5px]">
                 {t('chat:focusSession.gitDiffChangedFiles')}
               </strong>
               <div className="git-diff-file-nav-list max-[760px]:pb-[6px] min-h-0 flex-1 overflow-x-hidden overflow-y-auto [padding:0_6px_8px]">
@@ -275,24 +275,24 @@ export function GitDiffDialog({
                   return (
                     <button
                       type="button"
-                      className={`git-diff-file-nav-item hover:bg-[var(--surface-hover)] hover:text-[var(--text)] [&.selected]:bg-[var(--accent-soft)] [&.selected]:text-[var(--text)] [&.selected]:shadow-[inset_2px_0_var(--star-strong)] grid w-full min-h-[42px] grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-[7px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:5px_7px] text-[var(--text-secondary)] text-left cursor-pointer ${entry.status}    ${selected ? 'selected' : ''}`}
+                      className={`git-diff-file-nav-item grid min-h-[42px] w-full cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-[7px] rounded-sm border-0 bg-transparent p-[5px_7px] text-left text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-foreground [&.selected]:bg-key [&.selected]:text-foreground [&.selected]:shadow-[inset_3px_0_var(--star),var(--key-shadow)] ${entry.status}    ${selected ? 'selected' : ''}`}
                       key={`${entry.file.path}-${index}`}
                       title={entry.file.path}
                       aria-current={selected ? 'true' : undefined}
                       onClick={() => selectFile(index)}
                     >
                       <span
-                        className="git-diff-file-status font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[11px] font-[750] text-center [.git-diff-file-nav-item.added_&]:text-[var(--success)] [.git-diff-file-nav-item.deleted_&]:text-[var(--danger)] [.git-diff-file-nav-item.renamed_&]:text-[var(--warning-strong)] [.git-diff-file-nav-item.modified_&]:text-[var(--star-strong)]"
+                        className="git-diff-file-status text-center font-mono text-[12px] font-medium [.git-diff-file-nav-item.added_&]:text-[var(--success)] [.git-diff-file-nav-item.deleted_&]:text-[var(--danger)] [.git-diff-file-nav-item.renamed_&]:text-[var(--warning-strong)] [.git-diff-file-nav-item.modified_&]:text-content-secondary"
                         aria-hidden="true"
                       >
                         {statusLetter(entry.status)}
                       </span>
-                      <span className="git-diff-file-name [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[11px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[9px] flex min-w-0 flex-col gap-[1px]">
+                      <span className="git-diff-file-name [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-medium [&_small]:text-content-muted [&_small]:text-[12px] flex min-w-0 flex-col gap-[1px]">
                         <strong>{entry.name}</strong>
                         {entry.directory && <small>{entry.directory}</small>}
                       </span>
                       <span
-                        className="git-diff-file-stats inline-flex items-center gap-[4px] font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[9px] [&_em]:[font-style:normal]"
+                        className="git-diff-file-stats inline-flex items-center gap-[4px] font-mono text-[12px] tabular-nums [&_em]:[font-style:normal]"
                         aria-hidden="true"
                       >
                         {entry.added > 0 && (
@@ -313,20 +313,20 @@ export function GitDiffDialog({
             </nav>
 
             <div
-              className="min-w-0 min-h-0 overflow-auto bg-[var(--surface-subtle)] [padding:12px]"
+              className="min-w-0 min-h-0 overflow-auto bg-surface-subtle p-[12px]"
               ref={setContentElement}
             >
               {truncated && (
-                <div className="[margin:0_0_12px] [border:1px_solid_var(--warning-border)] rounded-[var(--r-sm)] bg-[var(--warning-soft)] [padding:8px_10px] text-[var(--warning-strong)] text-[11px]">
+                <div className="mb-[12px] rounded-sm border border-[var(--warning-border)] bg-warning-soft p-[8px_10px] text-[12px] text-warning-strong">
                   {t('chat:focusSession.gitDiffTruncated')}
                 </div>
               )}
               {selectedEntry && (
                 <section
-                  className="min-w-[880px] [overflow:clip] [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)]"
+                  className="min-w-[880px] [overflow:clip] rounded-md border border-stroke bg-panel"
                   key={selectedEntry.file.path}
                 >
-                  <header className="git-diff-file-head [&_>_svg]:text-[var(--star-strong)] [&_strong]:overflow-hidden [&_strong]:font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] [&_strong]:text-[12px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:max-w-[300px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap sticky z-[3] top-0 grid min-h-[38px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] [border-bottom:1px_solid_var(--stroke)] bg-[var(--solid)] [padding:7px_10px]">
+                  <header className="git-diff-file-head [&_>_svg]:text-content-muted [&_strong]:overflow-hidden [&_strong]:font-mono [&_strong]:text-[12px] [&_strong]:font-medium [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:max-w-[300px] [&_small]:overflow-hidden [&_small]:text-content-muted [&_small]:text-[12px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap sticky top-0 z-[3] grid min-h-[38px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] border-b border-stroke bg-panel p-[7px_10px]">
                     <FileDiff size={14} />
                     <strong title={selectedEntry.file.path}>{selectedEntry.file.path}</strong>
                     {selectedEntry.file.oldPath &&
@@ -338,13 +338,13 @@ export function GitDiffDialog({
                       )}
                   </header>
                   {selectedEntry.file.metadata.length > 0 && (
-                    <div className="git-diff-file-meta [border-bottom:1px_solid_var(--stroke-soft)] bg-[var(--surface-muted)] p-[5px_10px] text-[var(--text-muted)] font-[ui-monospace,SFMono-Regular,Consolas,'Liberation_Mono',monospace] text-[10px]">
+                    <div className="git-diff-file-meta border-b border-stroke-soft bg-surface-subtle p-[5px_10px] font-mono text-[12px] text-content-muted">
                       {selectedEntry.file.metadata.join(' · ')}
                     </div>
                   )}
                   {selectedEntry.file.hunks.length > 0 ? (
                     <>
-                      <div className="git-diff-column-head [&_span]:p-[5px_10px] [&_span_+_span]:[border-left:1px_solid_var(--stroke)] sticky z-[2] [top:38px] grid grid-cols-[1fr_1fr] [border-bottom:1px_solid_var(--stroke)] bg-[var(--surface-muted)] text-[var(--text-muted)] text-[10px] font-[650] [text-transform:uppercase]">
+                      <div className="git-diff-column-head [&_span]:p-[5px_10px] [&_span_+_span]:border-l [&_span_+_span]:border-stroke sticky top-[38px] z-[2] grid grid-cols-[1fr_1fr] border-b border-stroke bg-surface-subtle text-[12px] font-medium text-content-muted">
                         <span>{t('chat:focusSession.gitDiffOriginal')}</span>
                         <span>{t('chat:focusSession.gitDiffModified')}</span>
                       </div>

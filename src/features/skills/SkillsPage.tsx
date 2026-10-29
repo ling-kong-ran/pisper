@@ -1,19 +1,20 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { ListDetailLayout } from '@/components/app/ListDetailLayout'
+import { InlineEmptyState } from '@/components/app/PageState'
 // 技能页：查看/安装/卸载 Agent 技能包，展示技能说明与封面。
 import { useCallback, useEffect, useState } from 'react'
-import { FileCode2, Image, Package, RefreshCw, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
+import { FileCode2, Image, Package, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
-  AppCard as Panel,
-  AppSectionTitle as SectionTitle,
   AppSwitch as Toggle,
   SegmentedTabs as Segmented,
   StatusBadge as Badge,
-  AppCardHeader,
   AppEmptyState,
 } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
@@ -57,6 +58,17 @@ const SKILL_FILTERS: SkillFilter[] = [
   'docs',
   'privileged',
 ]
+
+// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
+const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
+const CARD_HEAD =
+  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
+const ICON_KEY =
+  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
+const SELECTED_TICK = 'absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star'
+// 只读键值行：左侧弱化标签，右侧值单行省略。
+const KEY_VALUE =
+  'key-value flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft text-sm [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
 
 function skillsApiPath(path: string, activeSessionId = '') {
   if (!activeSessionId) return path
@@ -188,7 +200,7 @@ export function SkillsPage({
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <AppEmptyState>
-          <RefreshCw className="animate-spin" size={23} />
+          <OrbitSpinner className="size-5" />
           <h2>{t('skills:skillsPage.loadingSkills')}</h2>
           <p>{t('skills:skillsPage.scanningSkillDirectoriesAndConfiguredPackages')}</p>
         </AppEmptyState>
@@ -315,50 +327,71 @@ export function SkillsPage({
     emptyMessage: string,
     workspace = '',
   ) => (
-    <section className="skill-scope [.skill-scope_+_&]:[border-top:1px_solid_var(--stroke)] [.skill-scope_+_&]:pt-[14px]">
-      <div className="skill-scope-head [&_>_div]:min-w-0 [&_small]:block [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_span]:min-w-[24px] [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-[12px] [&_>_span]:font-[600] [&_>_span]:text-right flex min-w-0 items-start justify-between gap-[10px]">
-        <div>
-          <SectionTitle title={title} className="mb-0.5" />
-          {workspace && <small title={workspace}>{workspace}</small>}
+    <section className="skill-scope min-w-0 [.skill-scope+&]:mt-3 [.skill-scope+&]:border-t [.skill-scope+&]:border-stroke-soft [.skill-scope+&]:pt-2">
+      {/* 分组标题 12/500 弱化文字 + 等宽目录与计数。 */}
+      <div className="skill-scope-head flex min-w-0 items-end justify-between gap-2.5 px-1 pt-1.5 pb-1.5">
+        <div className="min-w-0">
+          <h2 className="text-xs font-medium tracking-[.02em] text-content-muted">{title}</h2>
+          {workspace && (
+            <small
+              className="block truncate font-mono text-xs text-content-muted"
+              title={workspace}
+            >
+              {workspace}
+            </small>
+          )}
         </div>
-        <span>{scopedSkills.length}</span>
+        <span className="shrink-0 text-xs text-content-muted tabular-nums">
+          {scopedSkills.length}
+        </span>
       </div>
       {scopedSkills.length ? (
-        scopedSkills.map((skill) => {
-          const Icon = skillIcon(skill)
-          return (
-            <div
-              className={`skill-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.selected]:rounded-[var(--r-sm)] [&.selected]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] grid-cols-[minmax(0,1fr)_auto] [padding-block:4px] ${selected?.id === skill.id ? 'selected' : ''}`}
-              key={skill.id}
-            >
-              <button
-                className="skill-row-main [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] border-0 bg-transparent [padding:6px_4px] text-left"
-                onClick={() => {
-                  setDetailOpen(true)
-                  setSelectedId(skill.id)
-                }}
+        <ul className="flex flex-col gap-0.5">
+          {scopedSkills.map((skill) => {
+            const Icon = skillIcon(skill)
+            const active = selected?.id === skill.id
+            return (
+              <li
+                className={cn(
+                  'skill-row relative grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md pr-2.5 transition-colors duration-(--d-fast) hover:bg-surface-subtle',
+                  active && 'selected bg-surface-muted hover:bg-surface-muted',
+                )}
+                key={skill.id}
               >
-                <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                  <Icon size={15} />
-                </span>
-                <span>
-                  <strong>{skill.name}</strong>
-                  <small className="line-clamp-2" title={skill.description}>
-                    {skill.description}
-                  </small>
-                </span>
-              </button>
-              <Toggle
-                value={skill.enabled}
-                disabled={busy}
-                ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
-                onChange={(enabled) => void updateSkill(skill, { enabled })}
-              />
-            </div>
-          )
-        })
+                {active && <i aria-hidden="true" className={SELECTED_TICK} />}
+                <button
+                  type="button"
+                  aria-current={active || undefined}
+                  className="skill-row-main grid min-h-[56px] min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-2 pl-3 text-left focus-visible:-outline-offset-2 [&_small]:text-xs [&_small]:leading-[1.45] [&_small]:text-content-muted"
+                  onClick={() => {
+                    setDetailOpen(true)
+                    setSelectedId(skill.id)
+                  }}
+                >
+                  <span className={ICON_KEY}>
+                    <Icon />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <strong className="truncate font-mono text-[13px] font-medium text-content">
+                      {skill.name}
+                    </strong>
+                    <small className="line-clamp-2" title={skill.description}>
+                      {skill.description}
+                    </small>
+                  </span>
+                </button>
+                <Toggle
+                  value={skill.enabled}
+                  disabled={busy}
+                  ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
+                  onChange={(enabled) => void updateSkill(skill, { enabled })}
+                />
+              </li>
+            )
+          })}
+        </ul>
       ) : (
-        <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
+        <p className="skills-empty-copy px-1 py-2 text-xs leading-normal text-content-muted">
           {allScopedSkills.length
             ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
             : emptyMessage}
@@ -369,134 +402,185 @@ export function SkillsPage({
 
   return (
     <PageFrame variant="list-detail">
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <Segmented
-            options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
-            value={skillFilterLabel(filter, t)}
-            onChange={(label) =>
-              setFilter(SKILL_FILTERS.find((item) => skillFilterLabel(item, t) === label) || 'all')
-            }
-          />
-          <>
-            <ListDetailLayout
-              selected={detailOpen}
-              onBack={() => setDetailOpen(false)}
-              backLabel={t('common:pageTemplate.backToList')}
-              list={
-                <Panel className="min-w-0 border-0 bg-transparent p-0 shadow-none">
-                  <Button
-                    variant="outline"
-                    className="mb-3 w-full @min-[760px]/list-detail:hidden"
-                    onClick={() => setDetailOpen(true)}
-                  >
-                    {t('skills:skillsPage.configuredSkillPackages')}
-                  </Button>
-                  {filter !== 'project' &&
-                    renderSkillScope(
-                      t('skills:skillsPage.globalSkills'),
-                      globalSkills,
-                      allGlobalSkills,
-                      t('skills:skillsPage.noGlobalSkills'),
-                      data?.locations?.global || '~/.pisper/agent/skills',
-                    )}
-                  {filter !== 'global' &&
-                    renderSkillScope(
-                      t('skills:skillsPage.projectSkills'),
-                      projectSkills,
-                      allProjectSkills,
-                      t('skills:skillsPage.noProjectSkills'),
-                      data?.locations?.project ||
-                        (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
-                    )}
-                </Panel>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* 筛选条位于列表/详情之上，细线分隔；分段控件横向可滚动，不撑破窄屏。 */}
+          <div className="shrink-0 border-b border-stroke-soft px-3 py-2.5 @min-[760px]/page:px-4">
+            <Segmented
+              options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
+              value={skillFilterLabel(filter, t)}
+              onChange={(label) =>
+                setFilter(
+                  SKILL_FILTERS.find((item) => skillFilterLabel(item, t) === label) || 'all',
+                )
               }
-              detail={
-                <Panel>
-                  <AppCardHeader>
-                    <SectionTitle title={t('skills:skillsPage.configuredSkillPackages')} />
-                    <span className="text-[var(--text-secondary)] text-[12px] font-[600]">
-                      {t('skills:skillsPage.countSkillPackages', { count: packages.length })}
+            />
+          </div>
+          <ListDetailLayout
+            selected={detailOpen}
+            onBack={() => setDetailOpen(false)}
+            backLabel={t('common:pageTemplate.backToList')}
+            list={
+              <div className="min-w-0">
+                <Button
+                  variant="secondary"
+                  className="mb-3 h-11 w-full @min-[760px]/list-detail:hidden"
+                  onClick={() => setDetailOpen(true)}
+                >
+                  <Package />
+                  {t('skills:skillsPage.configuredSkillPackages')}
+                </Button>
+                {filter !== 'project' &&
+                  renderSkillScope(
+                    t('skills:skillsPage.globalSkills'),
+                    globalSkills,
+                    allGlobalSkills,
+                    t('skills:skillsPage.noGlobalSkills'),
+                    data?.locations?.global || '~/.pisper/agent/skills',
+                  )}
+                {filter !== 'global' &&
+                  renderSkillScope(
+                    t('skills:skillsPage.projectSkills'),
+                    projectSkills,
+                    allProjectSkills,
+                    t('skills:skillsPage.noProjectSkills'),
+                    data?.locations?.project ||
+                      (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
+                  )}
+              </div>
+            }
+            detail={
+              <section className={CARD}>
+                <header className={CARD_HEAD}>
+                  <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
+                    {t('skills:skillsPage.configuredSkillPackages')}
+                    <span className="font-normal text-content-muted tabular-nums">
+                      {packages.length}
                     </span>
-                  </AppCardHeader>
-                  {packages.length ? (
-                    packages.map((item) => (
-                      <div
-                        className="market-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                  </h2>
+                </header>
+                {packages.length ? (
+                  <ul className="divide-y divide-stroke-soft">
+                    {packages.map((item) => (
+                      <li
+                        className="market-row grid min-h-[52px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 pr-3.5 pl-3.5"
                         key={item.source}
                       >
-                        <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                          <Package size={15} />
+                        <span className={ICON_KEY}>
+                          <Package />
                         </span>
-                        <span>
-                          <strong title={item.source}>{item.source}</strong>
-                          <small>{item.description}</small>
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <strong
+                            className="truncate font-mono text-xs font-medium text-content"
+                            title={item.source}
+                          >
+                            {item.source}
+                          </strong>
+                          <small className="truncate text-xs text-content-muted">
+                            {item.description}
+                          </small>
                         </span>
                         <Badge tone={item.tone as 'green' | 'gray'}>{item.status}</Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55] skills-empty-copy !m-[8px_2px_4px]">
-                      {t(
-                        'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <InlineEmptyState
+                    compact
+                    icon={Package}
+                    title={t(
+                      'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
+                    )}
+                  />
+                )}
+              </section>
+            }
+            inspector={
+              <div className="flex min-w-0 flex-col gap-4">
+                <section className={CARD}>
+                  <header className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-2.5">
+                    <small className="text-xs font-medium tracking-[.02em] text-content-muted">
+                      {t('skills:skillsPage.selectedSkill')}
+                    </small>
+                    <h2
+                      className={cn(
+                        'truncate text-[15px] leading-6 font-medium text-content',
+                        selected && 'font-mono',
                       )}
-                    </p>
-                  )}
-                </Panel>
-              }
-              inspector={
-                <div className="flex min-w-0 flex-col gap-3">
-                  <Panel>
-                    <SectionTitle title={t('skills:skillsPage.selectedSkill')} />
-                    <h2>{selected?.name || t('skills:skillsPage.noSkillAvailable')}</h2>
-                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-secondary)] text-[12px] leading-[1.55]">
+                    >
+                      {selected?.name || t('skills:skillsPage.noSkillAvailable')}
+                    </h2>
+                    <p className="text-xs leading-normal text-content-secondary">
                       {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
                     </p>
-                    {[
+                  </header>
+                  <dl className="px-3.5">
+                    {(
                       [
-                        t('skills:skillsPage.triggerMode'),
-                        selected?.modelInvocationEnabled
-                          ? t('skills:skillsPage.automaticManual')
-                          : t('skills:skillsPage.manualOnly'),
-                      ],
-                      [
-                        t('skills:skillsPage.permissions'),
-                        selected?.allowedTools?.length
-                          ? selected.allowedTools.join(', ')
-                          : t('skills:skillsPage.usesChatToolPermissions'),
-                      ],
-                      [
-                        t('skills:skillsPage.scope'),
-                        selected?.sourceInfo?.scope === 'project'
-                          ? t('skills:skillsPage.project')
-                          : t('skills:skillsPage.global'),
-                      ],
-                      [t('skills:skillsPage.version'), selected?.version || 'latest'],
-                      [t('skills:skillsPage.source'), selected?.source || '—'],
-                    ].map((row) => (
-                      <div
-                        className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
-                        key={row[0]}
-                      >
-                        <span>{row[0]}</span>
-                        <strong>{row[1]}</strong>
+                        [
+                          t('skills:skillsPage.triggerMode'),
+                          selected?.modelInvocationEnabled
+                            ? t('skills:skillsPage.automaticManual')
+                            : t('skills:skillsPage.manualOnly'),
+                          false,
+                        ],
+                        [
+                          t('skills:skillsPage.permissions'),
+                          selected?.allowedTools?.length
+                            ? selected.allowedTools.join(', ')
+                            : t('skills:skillsPage.usesChatToolPermissions'),
+                          Boolean(selected?.allowedTools?.length),
+                        ],
+                        [
+                          t('skills:skillsPage.scope'),
+                          selected?.sourceInfo?.scope === 'project'
+                            ? t('skills:skillsPage.project')
+                            : t('skills:skillsPage.global'),
+                          false,
+                        ],
+                        [t('skills:skillsPage.version'), selected?.version || 'latest', true],
+                        [t('skills:skillsPage.source'), selected?.source || '—', true],
+                      ] as Array<[string, string, boolean]>
+                    ).map(([label, value, mono]) => (
+                      <div className={KEY_VALUE} key={label}>
+                        <dt>{label}</dt>
+                        <dd className={mono ? 'font-mono text-xs' : undefined} title={value}>
+                          {value}
+                        </dd>
                       </div>
                     ))}
-                    <Button
-                      variant={selected?.removable ? 'destructive' : 'default'}
-                      size="lg"
-                      className="w-full"
-                      disabled={busy}
-                      onClick={selected?.removable ? uninstallSkill : saveSettings}
-                    >
-                      {selected?.removable ? <Trash2 size={14} /> : <Save size={14} />}
-                      {selected?.removable
-                        ? t('skills:skillsPage.uninstallSkill')
-                        : t('skills:skillsPage.saveSettings')}
-                    </Button>
-                  </Panel>
-                  <Panel>
-                    <SectionTitle title={t('skills:skillsPage.triggerConditions')} />
+                  </dl>
+                  <footer className="flex justify-end border-t border-stroke-soft bg-surface-subtle px-3.5 py-2.5">
+                    {selected?.removable ? (
+                      <Button
+                        variant="ghost"
+                        className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                        disabled={busy}
+                        onClick={uninstallSkill}
+                      >
+                        <Trash2 />
+                        {t('skills:skillsPage.uninstallSkill')}
+                      </Button>
+                    ) : (
+                      <Button
+                        className="max-[650px]:h-11"
+                        loading={busy}
+                        disabled={busy}
+                        onClick={saveSettings}
+                      >
+                        <Save />
+                        {t('skills:skillsPage.saveSettings')}
+                      </Button>
+                    )}
+                  </footer>
+                </section>
+                <section className={CARD}>
+                  <header className={CARD_HEAD}>
+                    <h2 className="text-sm font-medium text-content">
+                      {t('skills:skillsPage.triggerConditions')}
+                    </h2>
+                  </header>
+                  <ul className="divide-y divide-stroke-soft">
                     {(
                       [
                         [
@@ -523,24 +607,22 @@ export function SkillsPage({
                         ],
                       ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
                     ).map(([item, checked, disabled, onChange]) => (
-                      <label
-                        className="check-row [&_input]:[accent-color:var(--star-strong)] flex items-center gap-[7px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_2px] text-[12px]"
-                        key={item}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={!selected || busy || disabled}
-                          onChange={(event) => onChange?.(event.target.checked)}
-                        />
-                        <span>{item}</span>
-                      </label>
+                      <li key={item}>
+                        <label className="check-row flex min-h-[40px] items-center gap-2.5 px-3.5 text-sm text-content has-disabled:text-content-muted max-[650px]:min-h-11">
+                          <Checkbox
+                            checked={checked}
+                            disabled={!selected || busy || disabled}
+                            onCheckedChange={(next) => onChange?.(next === true)}
+                          />
+                          <span>{item}</span>
+                        </label>
+                      </li>
                     ))}
-                  </Panel>
-                </div>
-              }
-            />
-          </>
+                  </ul>
+                </section>
+              </div>
+            }
+          />
         </div>
       </div>
     </PageFrame>

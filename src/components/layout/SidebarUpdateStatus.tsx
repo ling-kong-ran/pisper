@@ -2,7 +2,7 @@
 import { Download, ExternalLink, RefreshCw, Rocket } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 export type SidebarUpdate = {
-  info?: { desktop?: boolean; mobile?: boolean }
+  info?: { desktop?: boolean; mobile?: boolean; version?: string }
   status?: {
     state: string
     percent?: number
@@ -52,16 +52,16 @@ export default function SidebarUpdateStatus({
   return (
     <button
       type="button"
-      className={`flex min-h-11 w-full items-center rounded-[var(--r-sm)] border border-[var(--stroke)] bg-[var(--accent-soft)] text-[var(--text)] transition-colors hover:bg-sidebar-accent ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3 text-left'}`}
+      className={`flex min-h-11 w-full items-center rounded-sm border border-star-border bg-star-soft text-content transition-colors duration-[var(--d-fast)] hover:bg-surface-hover ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-3 text-left'}`}
       title={`${label} · ${detail}`}
       aria-label={`${label} · ${detail}`}
       onClick={onOpen}
     >
-      <Icon className={downloading ? 'animate-spin shrink-0' : 'shrink-0'} size={16} />
+      <Icon className={`shrink-0 text-accent-fg ${downloading ? 'animate-spin' : ''}`} size={16} />
       {!collapsed && (
         <span className="min-w-0">
-          <strong className="block truncate text-[12px]">{label}</strong>
-          <small className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
+          <strong className="block truncate text-xs font-medium">{label}</strong>
+          <small className="mt-0.5 block truncate text-xs text-content-muted tabular-nums">
             {detail}
           </small>
         </span>

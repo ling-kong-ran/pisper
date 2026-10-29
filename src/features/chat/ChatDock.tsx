@@ -4,8 +4,13 @@ import { TASK_VIEW_WILL_CHANGE } from './events'
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { AlertTriangle, History, MessageSquare, Plus, X } from 'lucide-react'
+import { StarOrbit } from '@/components/StarOrbit'
+import { Button } from '@/components/ui/button'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
+import { cn } from '@/lib/utils'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
@@ -131,6 +136,9 @@ export function MobileSessionPanel({
       : tabs
   // 页面恢复时 localStorage 里的活动 id 可能暂时不在新目录中，不能把它直接交给面板。
   const sessionId = activeSession?.id || visibleTabs[0]?.id || ''
+  // 手机外壳只有一个会话时，标签条只会重复下方顶栏的标题；新会话与历史仍在菜单抽屉里。
+  // 桌面壳窄窗口保留标签条，不改变其顶栏与窗口按钮的让位关系。
+  const showTabs = Boolean(window.pisperDesktop) || visibleTabs.length > 1
 
   useEffect(() => {
     const knownIds = new Set(context?.sessions.map((session) => session.id))
@@ -168,84 +176,89 @@ export function MobileSessionPanel({
   }
 
   return (
-    <div className="mobile-session-shell flex h-full min-h-0 min-w-0 flex-col bg-[var(--panel)]">
-      {/* 浮动侧栏开关压在首行左侧；标签条让出该宽度，会话内容区不再重复让位。 */}
-      <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-[var(--stroke-soft)] bg-[var(--surface-subtle)] pl-[calc(var(--workbench-leading-inset,0px)+4px)]">
-        <button
-          type="button"
-          className="flex min-h-11 flex-none items-center gap-1.5 border-0 border-r border-[var(--stroke-soft)] bg-transparent px-3 text-[length:var(--app-small-size)] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-          title={t('navigation:appSidebar.viewAllCountChats', {
-            count: context?.sessions.length || 0,
-          })}
-          aria-label={t('navigation:appSidebar.viewAllCountChats', {
-            count: context?.sessions.length || 0,
-          })}
-          onClick={onOpenHistory}
-        >
-          <History size={16} aria-hidden="true" />
-          <span>{t('navigation:appSidebar.viewAll')}</span>
-        </button>
-        <div
-          className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          role="tablist"
-          aria-label={t('chat:chatPage.openChats')}
-        >
-          {visibleTabs.map((session) => {
-            const title = session.name || t('chat:chatPage.untitledChat')
-            const active = session.id === sessionId
-            return (
-              <div
-                className={`group relative flex h-full min-w-[148px] max-w-[228px] flex-none items-stretch border-b-[3px] transition-colors ${active ? 'border-[var(--brand-blue)] bg-[var(--solid)] text-[var(--text)]' : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'}`}
-                key={session.id}
-              >
-                <button
-                  ref={active ? activeTabRef : undefined}
-                  type="button"
-                  role="tab"
-                  id={`mobile-session-tab-${session.id}`}
-                  aria-selected={active}
-                  aria-controls="mobile-session-tabpanel"
-                  className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-[length:var(--app-font-size)] font-medium focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-                  title={title}
-                  onClick={() => onSelectSession(session.id)}
+    <div className="mobile-session-shell flex h-full min-h-0 min-w-0 flex-col bg-panel">
+      {/* 浮动侧栏开关压在首行左侧；标签条让出该宽度，会话内容区不再重复让位。
+          移动顶栏与纸面同色，只用底部细线分层；选中会话以 2px 强调刻度标出，运行中显示轨道指示。 */}
+      {showTabs && (
+        <div className="mobile-session-tabs flex h-[52px] flex-none border-b border-stroke-soft bg-panel pl-[calc(var(--workbench-leading-inset,0px)+4px)]">
+          <button
+            type="button"
+            className="flex min-h-11 flex-none items-center gap-1.5 border-0 border-r border-stroke-soft bg-transparent px-3 text-xs font-medium text-content-secondary hover:bg-surface-hover hover:text-content focus-visible:z-[1] focus-visible:-outline-offset-2"
+            title={t('navigation:appSidebar.viewAllCountChats', {
+              count: context?.sessions.length || 0,
+            })}
+            aria-label={t('navigation:appSidebar.viewAllCountChats', {
+              count: context?.sessions.length || 0,
+            })}
+            onClick={onOpenHistory}
+          >
+            <History size={16} aria-hidden="true" />
+            <span>{t('navigation:appSidebar.viewAll')}</span>
+          </button>
+          <div
+            className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            role="tablist"
+            aria-label={t('chat:chatPage.openChats')}
+          >
+            {visibleTabs.map((session) => {
+              const title = session.name || t('chat:chatPage.untitledChat')
+              const active = session.id === sessionId
+              return (
+                <div
+                  className={`relative flex h-full min-w-[148px] max-w-[228px] flex-none items-stretch transition-colors duration-(--d-fast) ${active ? 'font-medium text-content after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-star' : 'text-content-muted hover:bg-surface-hover hover:text-content'}`}
+                  key={session.id}
                 >
-                  <MessageSquare size={15} className="flex-none" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{title}</span>
-                  {session.streaming && (
-                    <span
-                      aria-hidden="true"
-                      className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--brand-blue)]"
-                    />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="grid min-h-11 w-11 flex-none place-items-center border-0 bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-                  title={t('chat:chatPage.closeChat', { title })}
-                  aria-label={t('chat:chatPage.closeChat', { title })}
-                  onClick={() => closeSessionTab(session.id)}
-                >
-                  <X size={14} aria-hidden="true" />
-                </button>
-              </div>
-            )
-          })}
+                  <button
+                    ref={active ? activeTabRef : undefined}
+                    type="button"
+                    role="tab"
+                    id={`mobile-session-tab-${session.id}`}
+                    aria-selected={active}
+                    aria-controls="mobile-session-tabpanel"
+                    className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent py-0 pl-3 text-left text-base focus-visible:z-[1] focus-visible:-outline-offset-2"
+                    title={title}
+                    onClick={() => onSelectSession(session.id)}
+                  >
+                    {session.streaming ? (
+                      <OrbitSpinner className="size-4" />
+                    ) : (
+                      <MessageSquare size={16} className="flex-none" aria-hidden="true" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{title}</span>
+                    {session.streaming && (
+                      <span className="sr-only">{t('chat:focusSession.running')}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="grid min-h-11 w-11 flex-none place-items-center border-0 bg-transparent text-content-muted hover:bg-surface-hover hover:text-content focus-visible:z-[1] focus-visible:-outline-offset-2"
+                    title={t('chat:chatPage.closeChat', { title })}
+                    aria-label={t('chat:chatPage.closeChat', { title })}
+                    onClick={() => closeSessionTab(session.id)}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            className="grid h-full w-[52px] flex-none place-items-center border-0 border-l border-stroke-soft bg-transparent text-content-secondary hover:bg-surface-hover hover:text-content focus-visible:-outline-offset-2"
+            title={t('chat:chatPage.newChat')}
+            aria-label={t('chat:chatPage.newChat')}
+            onClick={() => void onCreateSession()}
+          >
+            <Plus size={22} aria-hidden="true" />
+          </button>
         </div>
-        <button
-          type="button"
-          className="grid h-full w-[52px] flex-none place-items-center border-0 border-l border-[var(--stroke-soft)] bg-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
-          title={t('chat:chatPage.newChat')}
-          aria-label={t('chat:chatPage.newChat')}
-          onClick={() => void onCreateSession()}
-        >
-          <Plus size={20} aria-hidden="true" />
-        </button>
-      </div>
+      )}
+      {/* 无标签条时首行就是会话顶栏，由它为浮动菜单键让位；也不再声明孤立的 tabpanel。 */}
       <div
-        className="min-h-0 min-w-0 flex-1 [--workbench-leading-inset:0px]"
-        role="tabpanel"
+        className={cn('min-h-0 min-w-0 flex-1', showTabs && '[--workbench-leading-inset:0px]')}
+        role={showTabs ? 'tabpanel' : undefined}
         id="mobile-session-tabpanel"
-        aria-labelledby={sessionId ? `mobile-session-tab-${sessionId}` : undefined}
+        aria-labelledby={showTabs && sessionId ? `mobile-session-tab-${sessionId}` : undefined}
       >
         {sessionId ? (
           <SessionPanel
@@ -421,7 +434,7 @@ function SessionPanel({
 
   if (!context || !session) {
     return (
-      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-[8px] text-[var(--text-secondary)] text-[length:var(--app-font-size)]">
+      <div className="session-dock-missing flex h-full min-h-[180px] items-center justify-center gap-2 text-sm text-content-secondary">
         <AlertTriangle size={16} />
         {context ? 'Session unavailable' : 'Loading session'}
       </div>
@@ -434,7 +447,7 @@ function SessionPanel({
       : null
   return (
     <div
-      className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-[var(--panel)]"
+      className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-panel"
       onFocusCapture={onFocusCapture}
     >
       <TaskWorkspace
@@ -529,29 +542,28 @@ type ChatDockWatermarkProps = {
 
 export function ChatDockWatermark({ onNewSession, newSessionShortcut }: ChatDockWatermarkProps) {
   const { t } = useI18n()
+  // 空 Dock 是品牌时刻：星轨插画 + 14/500 标题 + 12px 说明；新建会话是键帽按钮，快捷键画成小键帽。
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-[8px] text-center text-[length:var(--app-font-size)] text-[var(--text-secondary)]">
-      <MessageSquare size={34} />
-      <strong className="text-[14px] font-semibold text-[var(--text)]">
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-1.5 px-6 text-center">
+      <StarOrbit className="mb-1.5" />
+      <strong className="text-sm font-medium text-content">
         {t('chat:chatDock.openAChatToBegin')}
       </strong>
-      <span className="max-w-[320px] leading-[1.55]">
+      <span className="max-w-[320px] text-xs leading-relaxed text-content-muted">
         {t('chat:chatDock.openAChatFromTheSessionListOrSplitItInAnyDirection')}
       </span>
       {onNewSession ? (
-        <button
-          type="button"
-          className="mt-[10px] inline-flex cursor-pointer items-center gap-[6px] rounded-[var(--r-sm)] border-0 bg-[var(--brand-blue)] px-[16px] py-[8px] text-[length:var(--app-font-size)] font-medium text-white transition-colors duration-[var(--d1)] hover:bg-[var(--brand-blue-hover)] focus-visible:outline-[2px] focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
-          onClick={() => void onNewSession()}
-        >
-          <Plus size={14} aria-hidden="true" />
+        <Button variant="secondary" className="mt-3" onClick={() => void onNewSession()}>
+          <Plus aria-hidden="true" />
           {t('chat:chatDock.newChat')}
           {newSessionShortcut ? (
-            <kbd className="ml-[2px] rounded-[4px] border border-white/35 bg-white/10 px-[5px] py-[1px] font-sans text-[length:var(--app-small-size)] font-medium leading-[1.4]">
-              {newSessionShortcut}
-            </kbd>
+            <KbdGroup aria-hidden="true" className="ml-1.5 pointer-coarse:hidden">
+              {newSessionShortcut.split(/\+(?=.)/).map((key) => (
+                <Kbd key={key}>{key}</Kbd>
+              ))}
+            </KbdGroup>
           ) : null}
-        </button>
+        </Button>
       ) : null}
     </div>
   )

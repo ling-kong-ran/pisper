@@ -80,12 +80,14 @@ export function SidebarResizeHandle({
       aria-valuenow={Math.round(width)}
       data-testid="sidebar-resize-handle"
       data-dragging={dragging || undefined}
+      // 把手占据侧栏与主纸面之间 12px 的沟槽：静止时是 3×36 的描边色胶囊，
+      // 悬停/拖动/键盘聚焦转为焦点色；越过收起阈值时变灰，提示松手会收起侧栏。
       className={cn(
-        'group/resize absolute inset-y-0 right-0 z-20 w-2 touch-none cursor-col-resize select-none outline-none',
-        'after:absolute after:inset-y-2 after:right-0 after:w-px after:rounded-full after:bg-transparent after:transition-[background-color,width] after:duration-150',
-        'hover:after:w-0.5 hover:after:bg-[var(--stroke)] hover:after:delay-150 focus-visible:after:w-0.5 focus-visible:after:bg-[var(--focus)]',
-        dragging && 'after:w-0.5 after:bg-[var(--focus)] after:delay-0',
-        collapsing && 'after:bg-[var(--text-muted)]',
+        'group/resize absolute inset-y-0 right-0 z-20 w-3 touch-none cursor-col-resize select-none outline-none',
+        'after:absolute after:top-1/2 after:left-1/2 after:h-9 after:w-[3px] after:-translate-1/2 after:rounded-full after:bg-stroke-strong after:transition-colors after:duration-[var(--d-fast)]',
+        'hover:after:bg-focus focus-visible:after:bg-focus focus-visible:after:ring-3 focus-visible:after:ring-focus-ring',
+        dragging && 'after:bg-focus',
+        collapsing && 'after:bg-content-muted',
       )}
       onPointerDown={(event) => {
         if (event.button !== 0) return

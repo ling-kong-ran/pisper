@@ -6,9 +6,11 @@ import type { Notify } from '@/app/route-context'
 import { Button } from '@/components/ui/button'
 import { openMobileExternalLink } from '@/lib/mobile-external-link'
 import type { AppUpdateController } from '@/types/update'
+import { BrandLogo } from '@/components/BrandLogo'
 import {
   SettingsBadge as Badge,
   SettingsCard as Panel,
+  SettingsGroup,
   SettingsSectionTitle as SectionTitle,
 } from './settings-primitives'
 
@@ -32,24 +34,23 @@ function AboutLink({
 }) {
   return (
     <a
-      className="group grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-left no-underline"
+      className="group grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2.5 text-left no-underline"
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       data-web-preview="external"
       onClick={onClick}
     >
-      <span className="grid size-8 place-items-center rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-muted)] transition-colors group-hover:text-[var(--star-strong)]">
-        <Icon size={16} />
+      <span className="grid size-7.5 place-items-center rounded-md border border-key-border bg-key text-content-muted shadow-key transition-colors group-hover:text-content">
+        <Icon size={16} aria-hidden="true" />
       </span>
       <span className="min-w-0">
-        <strong className="block text-[13px] text-[var(--text)]">{label}</strong>
-        <small className="mt-0.5 block truncate text-[12px] text-[var(--text-muted)]">
-          {value}
-        </small>
+        <span className="block text-sm font-medium text-content">{label}</span>
+        <span className="mt-0.5 block truncate font-mono text-xs text-content-muted">{value}</span>
       </span>
       <ExternalLink
-        className="text-[var(--text-muted)] transition-colors group-hover:text-[var(--star-strong)]"
+        aria-hidden="true"
+        className="text-content-muted transition-colors group-hover:text-content"
         size={14}
       />
     </a>
@@ -65,27 +66,31 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
   }
 
   return (
-    <div className="mx-auto flex w-full  flex-col gap-3">
-      <div className="flex items-center gap-4 px-1 py-3">
-        <img
-          className="size-16 shrink-0 rounded-[14px] shadow-[0_10px_28px_-14px_var(--shadow)]"
-          src="/favicon.svg"
-          alt="Pisper"
-        />
+    <div className="mx-auto flex w-full flex-col gap-6">
+      {/* 品牌时刻：单色四芒星键帽 + 名称与等宽版本号；页面语义标题仍是页头的「关于」。 */}
+      <div className="flex items-center gap-4">
+        <span aria-hidden="true" className="shrink-0 rounded-[15px] shadow-raise">
+          <BrandLogo size={56} />
+        </span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[22px] font-bold tracking-[0]">Pisper</h1>
-            <Badge tone="gray">v{version}</Badge>
+            <h2 className="text-[length:calc(var(--ui-font-size)*10/7)] leading-[1.3] font-semibold tracking-[-.015em] text-content">
+              Pisper
+            </h2>
+            <Badge tone="gray" className="font-mono">
+              v{version}
+            </Badge>
           </div>
-          <p className="mt-1 text-[13px] leading-5 text-[var(--text-muted)]">
-            {t('config:aboutSettings.description')}
-          </p>
+          <p className="mt-1 text-sm text-content-muted">{t('config:aboutSettings.description')}</p>
         </div>
       </div>
 
-      <Panel className="p-5" data-config-card="about-project">
-        <SectionTitle title={t('config:aboutSettings.projectInformation')} />
-        <div className="mt-3 divide-y divide-[var(--stroke-soft)] border-y border-[var(--stroke-soft)]">
+      <section data-config-card="about-project">
+        <SectionTitle
+          title={t('config:aboutSettings.projectInformation')}
+          className="mb-3 text-[15px] leading-6 font-medium text-content"
+        />
+        <SettingsGroup>
           <AboutLink
             href={PROJECT_URL}
             icon={Globe2}
@@ -107,18 +112,18 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
             value="MIT License"
             onClick={openLink}
           />
-        </div>
-      </Panel>
+        </SettingsGroup>
+      </section>
 
-      <Panel className="p-5" data-config-card="about-support">
+      <Panel className="p-4 py-4" data-config-card="about-support">
         <div className="flex flex-wrap items-center justify-between gap-4 max-[540px]:flex-col max-[540px]:items-stretch">
           <div className="min-w-0 flex-1">
             <SectionTitle title={t('config:aboutSettings.supportPisper')} />
-            <p className="mt-1 max-w-[520px] text-[13px] leading-5 text-[var(--text-muted)]">
+            <p className="mt-0.5 max-w-[520px] text-xs leading-5 text-content-muted">
               {t('config:aboutSettings.supportDescription')}
             </p>
           </div>
-          <Button asChild size="lg" className="max-[540px]:w-full">
+          <Button asChild className="max-[650px]:h-11 max-[540px]:w-full">
             <a
               href={REPOSITORY_URL}
               target="_blank"
@@ -133,7 +138,7 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
         </div>
       </Panel>
 
-      <p className="px-1 py-2 text-center text-[12px] text-[var(--text-muted)]">
+      <p className="text-center text-xs text-content-muted">
         {t('config:aboutSettings.copyright')}
       </p>
     </div>

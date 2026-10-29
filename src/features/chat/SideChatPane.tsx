@@ -7,9 +7,10 @@ import {
   useSyncExternalStore,
   type FormEvent,
 } from 'react'
-import { ArrowUp, LoaderCircle, MessageSquare, Square } from 'lucide-react'
+import { ArrowUp, MessageSquare, Square } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { matchesShortcut } from '@/lib/shortcuts'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { ChatRequestNotice } from './ChatRequestNotice'
@@ -91,22 +92,25 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
     }
   }
   const empty = (
-    <div className="grid h-full min-h-36 place-content-center justify-items-center gap-3 px-3 text-center text-sm text-muted-foreground">
-      <MessageSquare size={22} aria-hidden="true" />
+    <div className="grid h-full min-h-36 place-content-center justify-items-center gap-2 px-3 text-center text-xs text-content-muted">
+      <span className="mb-1 grid size-8 place-items-center rounded-md bg-key text-content-secondary shadow-key ring-1 ring-key-border">
+        <MessageSquare className="size-4" aria-hidden="true" />
+      </span>
       <p className="max-w-64 leading-relaxed">
         {entry.expired ? t('chat:sideChat.expired') : t('chat:sideChat.empty')}
       </p>
       {entry.expired && (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
+          className="mt-1"
           disabled={entry.loading}
           onClick={async () => {
             const response = await load(parentId, true)
             if (response?.session) inputRef.current?.focus()
           }}
         >
-          {entry.loading && <LoaderCircle className="size-4 animate-spin" />}
+          {entry.loading && <OrbitSpinner className="size-3.5 text-current" />}
           {t('chat:sideChat.restart')}
         </Button>
       )}
@@ -119,7 +123,7 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
       aria-label={t('chat:sideChat.title')}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col [container-type:inline-size]"
     >
-      <p className="shrink-0 border-b border-border/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+      <p className="shrink-0 border-b border-stroke-soft px-3 py-2 text-xs leading-relaxed text-content-muted">
         {t('chat:sideChat.retention')}
       </p>
       {sessionId ? (
@@ -152,7 +156,7 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
         <div className="min-h-0 flex-1 overflow-auto">{empty}</div>
       )}
       <form
-        className="flex shrink-0 flex-col gap-2 border-t border-border/50 p-3"
+        className="flex shrink-0 flex-col gap-2 border-t border-stroke-soft p-3"
         onSubmit={submit}
       >
         {error && (
@@ -177,14 +181,15 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
             }
           }}
         />
-        <div className="flex min-w-0 items-end gap-2 rounded-xl border border-border/70 bg-muted/40 p-2 focus-within:border-ring/50">
+        {/* 与主输入框同一语言：≥3:1 的控件边框 + 聚焦光环，发送键是唯一的强调色实心键。 */}
+        <div className="flex min-w-0 items-end gap-2 rounded-xl border border-control bg-panel p-2 shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring">
           <textarea
             ref={inputRef}
             rows={2}
             value={entry.draft}
             aria-label={t('chat:sideChat.message')}
             placeholder={t('chat:sideChat.placeholder')}
-            className="max-h-40 min-h-14 min-w-0 flex-1 resize-y border-0 bg-transparent px-1 py-1 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+            className="max-h-40 min-h-14 min-w-0 flex-1 resize-y border-0 bg-transparent px-1 py-1 text-sm leading-relaxed text-content caret-focus outline-none placeholder:text-content-muted"
             onChange={(event) => setDraft(parentId, event.target.value)}
             onCompositionStart={() => {
               composing.current = true
@@ -207,7 +212,7 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
           <Button
             type={streaming ? 'button' : 'submit'}
             size="icon"
-            className="size-9 shrink-0 rounded-full"
+            className="size-8 shrink-0 rounded-md max-[650px]:size-11 pointer-coarse:size-11"
             aria-label={streaming ? t('chat:sideChat.stop') : t('chat:sideChat.send')}
             disabled={
               streaming
@@ -217,7 +222,7 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
             onClick={streaming ? () => void stop() : undefined}
           >
             {starting || stopping ? (
-              <LoaderCircle className="size-4 animate-spin" />
+              <OrbitSpinner className="size-4 text-current" />
             ) : streaming ? (
               <Square size={13} fill="currentColor" />
             ) : (

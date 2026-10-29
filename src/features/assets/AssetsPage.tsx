@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { StarOrbit } from '@/components/StarOrbit'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { formatFileSize } from '@/lib/format'
 import { canOpenAssetInApplication, openAssetInApplication } from '@/lib/open-asset'
@@ -162,6 +163,9 @@ export function AssetsPage({
     : filtered
       ? t('assets:assetsPage.noMatchingAssets')
       : t('assets:assetsPage.nothingHasGatheredHereYet')
+  // 已生效的筛选条件是「开启」态芯片：强调色软底 + 强调描边，点击即移除该条件。
+  const chip =
+    'border-star-border bg-star-soft text-star-strong hover:bg-star-soft hover:text-star-strong max-[650px]:h-11'
   return (
     <PageFrame variant="collection" scrollMode="content">
       <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
@@ -170,6 +174,8 @@ export function AssetsPage({
             actions={
               <Button
                 variant="ghost"
+                size="icon"
+                className="max-[650px]:size-11"
                 loading={result.isFetching && !noSession}
                 disabled={noSession || result.isFetching}
                 aria-label={t('assets:assetsPage.refreshAssets')}
@@ -183,7 +189,7 @@ export function AssetsPage({
           >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button ref={fallbackRef} variant="outline">
+                <Button ref={fallbackRef} variant="secondary" className="max-[650px]:h-11">
                   <ListFilter />
                   {t('assets:assetsPage.filters')}
                 </Button>
@@ -217,8 +223,9 @@ export function AssetsPage({
             </DropdownMenu>
             {kind !== 'all' && (
               <Button
-                variant="secondary"
+                variant="outline"
                 size="sm"
+                className={chip}
                 onClick={() => setKind('all')}
                 aria-label={t('assets:assetsPage.removeFilter', { filter: kindLabel(kind, t) })}
               >
@@ -228,8 +235,9 @@ export function AssetsPage({
             )}
             {current && (
               <Button
-                variant="secondary"
+                variant="outline"
                 size="sm"
+                className={chip}
                 onClick={() => setCurrent(false)}
                 aria-label={t('assets:assetsPage.removeFilter', {
                   filter: t('assets:assetsPage.fromCurrentChat'),
@@ -240,28 +248,30 @@ export function AssetsPage({
               </Button>
             )}
           </PageToolbar>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-content-muted">
             <span aria-live="polite">
               {assets && (
                 <>
-                  <strong className="font-medium text-foreground">{assets.length}</strong>{' '}
+                  <strong className="font-medium text-content tabular-nums">{assets.length}</strong>{' '}
                   {t('assets:assetsPage.assets')}
                 </>
               )}
             </span>
-            <span>
+            <span className="min-w-0">
               {t('assets:assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically')}
             </span>
           </div>
           {!noSession && result.isError && (
             <div
               role="alert"
-              className="mt-3 flex flex-wrap items-center gap-2 text-sm text-danger"
+              className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-danger-border bg-danger-soft py-1 pr-1 pl-3 text-sm text-danger"
             >
-              <AlertTriangle className="shrink-0" />
-              <span>{result.error.message}</span>
+              <AlertTriangle className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 break-words">{result.error.message}</span>
               <Button
                 variant="ghost"
+                size="sm"
+                className="text-danger"
                 onClick={() => {
                   void result.refetch()
                 }}
@@ -271,7 +281,8 @@ export function AssetsPage({
             </div>
           )}
           {!noSession && result.isFetching && result.data && (
-            <p role="status" className="mt-2 text-xs text-muted-foreground">
+            <p role="status" className="mt-2 flex items-center gap-1.5 text-xs text-content-muted">
+              <OrbitSpinner className="size-3.5" />
               {t('assets:assetsPage.refreshingAssets')}
             </p>
           )}
@@ -279,15 +290,19 @@ export function AssetsPage({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-assets-results>
           {noSession ? (
             <AppEmptyState>
+              {/* 包一层，避免空状态容器给首个 svg 再套一圈虚线圆：星轨插画自带轨道。 */}
+              <span aria-hidden="true">
+                <StarOrbit size={54} />
+              </span>
               <h2>{t('assets:assetsPage.noActiveSession')}</h2>
             </AppEmptyState>
           ) : result.isPending ? (
             <AppEmptyState>
-              <RefreshCw className="animate-spin" />
+              <OrbitSpinner className="size-5" />
               <h2 role="status">{t('assets:assetsPage.loadingAssets')}</h2>
             </AppEmptyState>
           ) : assets?.length ? (
-            <div className="grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))] content-start gap-3 p-1">
+            <div className="asset-grid grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] content-start gap-3 p-px">
               {assets.map((asset) => (
                 <AssetCard
                   key={asset.id}
@@ -305,7 +320,10 @@ export function AssetsPage({
             </div>
           ) : !result.isError ? (
             <AppEmptyState>
-              <StarOrbit size={46} />
+              {/* 包一层，避免空状态容器给首个 svg 再套一圈虚线圆：星轨插画自带轨道。 */}
+              <span aria-hidden="true">
+                <StarOrbit size={54} />
+              </span>
               <h2>{emptyTitle}</h2>
               <p>
                 {current || filtered
@@ -315,7 +333,7 @@ export function AssetsPage({
                     )}
               </p>
               {!current && !filtered && (
-                <Button size="lg" className="mt-4" onClick={() => setLinkOpen(true)}>
+                <Button className="mt-4 max-[650px]:h-11" onClick={() => setLinkOpen(true)}>
                   <Link2 />
                   {t('assets:assetsPage.addLink')}
                 </Button>
@@ -374,13 +392,18 @@ function AssetCard({
   const video = asset.mimeType?.startsWith('video/')
   const Icon =
     asset.kind === 'image' ? FileImage : video ? FileVideo : asset.kind === 'link' ? Link2 : File
+  // 预览角标只复述已有元数据：链接显示域名，文件显示扩展名，均用等宽字。
+  const tag =
+    asset.kind === 'link'
+      ? asset.url && new URL(asset.url).hostname
+      : /\.([a-z0-9]{1,6})$/i.exec(asset.name)?.[1]
   return (
     <AppCard
-      className="flex h-full min-h-[292px] min-w-0 flex-col overflow-hidden"
+      className="asset-card flex h-full min-h-[292px] min-w-0 flex-col overflow-hidden p-0 py-0"
       data-asset-id={asset.id}
     >
       <button
-        className="relative mb-3 grid h-44 w-full shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-subtle text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="asset-preview relative grid h-44 w-full shrink-0 place-items-center overflow-hidden border-b border-stroke-soft bg-surface-subtle text-content-faint focus-visible:-outline-offset-2"
         aria-label={`${t('assets:assetsPage.preview')}: ${asset.name}`}
         onClick={(event) => onPreview(event.currentTarget)}
       >
@@ -400,35 +423,67 @@ function AssetCard({
             onError={() => setFailed(true)}
           />
         ) : (
-          <Icon size={38} />
+          <Icon className="size-8" strokeWidth={1.5} />
+        )}
+        {tag && (
+          <span className="absolute top-2 left-2 max-w-[calc(100%-16px)] truncate rounded-xs border border-stroke bg-panel px-1.5 font-mono text-xs leading-5 text-content-secondary">
+            {tag}
+          </span>
         )}
         {failed && (
-          <span className="absolute bottom-2 max-w-full rounded bg-background px-2 text-xs">
+          <span className="absolute bottom-2 max-w-[calc(100%-16px)] rounded-xs bg-panel px-2 text-xs leading-5 text-content-muted">
             {t('assets:assetsPage.mediaFailed')}
           </span>
         )}
       </button>
-      <div className="flex min-w-0 flex-col gap-1">
-        <strong className="break-words text-sm" title={asset.name}>
+      <div className="flex min-w-0 flex-col gap-1 px-3 pt-2.5">
+        <strong
+          className="line-clamp-2 text-sm font-medium text-content [overflow-wrap:anywhere]"
+          title={asset.name}
+        >
           {asset.name}
         </strong>
-        <span className="break-words text-xs text-muted-foreground">
-          {asset.kind === 'link' ? asset.url : formatFileSize(asset.size)} ·{' '}
-          {asset.source === 'agent'
-            ? t('assets:assetsPage.agentOutputs')
-            : asset.source === 'attachment'
-              ? t('assets:assetsPage.chatAttachments')
-              : t('assets:assetsPage.manualUploads')}
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-content-muted">
+          <span
+            className={
+              asset.kind === 'link' ? 'min-w-0 truncate font-mono' : 'shrink-0 tabular-nums'
+            }
+            title={asset.kind === 'link' ? asset.url : undefined}
+          >
+            {asset.kind === 'link' ? asset.url : formatFileSize(asset.size)}
+          </span>
+          <span aria-hidden="true" className="text-content-faint">
+            ·
+          </span>
+          <span className="shrink-0">
+            {asset.source === 'agent'
+              ? t('assets:assetsPage.agentOutputs')
+              : asset.source === 'attachment'
+                ? t('assets:assetsPage.chatAttachments')
+                : t('assets:assetsPage.manualUploads')}
+          </span>
         </span>
         {asset.sessionName && (
-          <small className="break-words text-xs text-muted-foreground">
+          <small className="truncate text-xs text-content-muted" title={asset.sessionName}>
             {t('assets:assetsPage.fromName', { name: asset.sessionName })}
           </small>
         )}
       </div>
-      <div className="mt-auto flex shrink-0 flex-wrap items-center gap-2 pt-3">
+      {/* 卡片内只放键帽与幽灵按钮：页面唯一的强调色实心键留给页头的「添加链接」。 */}
+      <div className="asset-card-actions flex-none mt-auto flex flex-wrap items-center gap-1.5 p-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="max-[650px]:h-11"
+          disabled={Boolean(busy)}
+          loading={busy === 'use'}
+          onClick={() => onAction('use')}
+        >
+          <Paperclip />
+          {t('assets:assetsPage.useInChat')}
+        </Button>
         {asset.kind === 'link' ? (
-          <Button asChild variant="outline">
+          <Button asChild variant="ghost" size="sm" className="max-[650px]:h-11">
             <a href={asset.url} target="_blank" rel="noreferrer">
               <ExternalLink />
               {t('assets:assetsPage.open')}
@@ -436,7 +491,9 @@ function AssetCard({
           </Button>
         ) : (
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
+            className="max-[650px]:h-11"
             disabled={Boolean(busy)}
             loading={busy === 'open'}
             onClick={() => onAction('open')}
@@ -447,14 +504,10 @@ function AssetCard({
               : t('assets:assetsPage.download')}
           </Button>
         )}
-        <Button disabled={Boolean(busy)} loading={busy === 'use'} onClick={() => onAction('use')}>
-          <Paperclip />
-          {t('assets:assetsPage.useInChat')}
-        </Button>
         <Button
-          variant="destructive"
+          variant="ghost"
           size="icon"
-          className="ml-auto"
+          className="ml-auto text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
           disabled={Boolean(busy)}
           loading={busy === 'delete'}
           aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
@@ -464,8 +517,8 @@ function AssetCard({
         </Button>
       </div>
       {error && (
-        <p role="alert" className="mt-2 break-words text-sm text-danger">
-          <AlertTriangle className="mr-1 inline size-4" />
+        <p role="alert" className="mx-3 mb-3 flex gap-1.5 text-xs break-words text-danger">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" />
           {error}
         </p>
       )}

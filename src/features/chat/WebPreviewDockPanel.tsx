@@ -2,8 +2,9 @@
 // 支持前进/后退/刷新/新开，URL 状态跨会话持久。
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { IDockviewPanelProps } from 'dockview-react'
-import { ArrowLeft, ArrowRight, ExternalLink, Globe2, LoaderCircle, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, Globe2, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import {
   WebPreview,
   WebPreviewBody,
@@ -94,10 +95,12 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
   if (!currentUrl) {
     return (
       <div
-        className="web-preview-panel [&_>_div]:rounded-[0] w-full h-full min-w-0 min-h-0 overflow-hidden bg-[var(--panel)] web-preview-empty [&_strong]:text-[var(--text)] [&_strong]:text-[13px] flex flex-col items-center justify-center gap-[8px] text-[var(--text-muted)]"
+        className="web-preview-panel web-preview-empty flex h-full min-h-0 w-full min-w-0 flex-col items-center justify-center gap-2 overflow-hidden bg-panel text-content-muted [&_strong]:text-sm [&_strong]:font-medium [&_strong]:text-content"
         onFocusCapture={() => api.setActive()}
       >
-        <Globe2 size={24} />
+        <span className="grid size-8 place-items-center rounded-md bg-key text-content-secondary shadow-key ring-1 ring-key-border">
+          <Globe2 className="size-4" aria-hidden="true" />
+        </span>
         <strong>{t('common:webPreview.title')}</strong>
       </div>
     )
@@ -105,7 +108,7 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
 
   return (
     <div
-      className="web-preview-panel [&_>_div]:rounded-[0] w-full h-full min-w-0 min-h-0 overflow-hidden bg-[var(--panel)]"
+      className="web-preview-panel h-full min-h-0 w-full min-w-0 overflow-hidden bg-panel [&_>_div]:rounded-none"
       onFocusCapture={() => api.setActive()}
     >
       <WebPreview
@@ -138,7 +141,7 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
           >
             <RefreshCw />
           </WebPreviewNavigationButton>
-          <div className="web-preview-address [&_>_svg]:w-[14px] [&_>_svg]:h-[14px] [&_>_svg]:flex-none [&_>_svg]:text-[var(--text-muted)] flex min-w-0 flex-1 items-center gap-[7px] [margin:0_3px]">
+          <div className="web-preview-address mx-0.5 flex min-w-0 flex-1 items-center gap-2 [&_>_svg]:size-3.5 [&_>_svg]:flex-none [&_>_svg]:text-content-muted">
             <Globe2 aria-hidden="true" />
             <WebPreviewUrl
               aria-label={t('common:webPreview.url')}
@@ -160,19 +163,20 @@ export function WebPreviewDockPanel({ params, api }: IDockviewPanelProps<WebPrev
           title={t('common:webPreview.title')}
           loading={
             loading ? (
-              <div className="absolute inset-0 grid place-items-center overflow-hidden bg-[color-mix(in_srgb,var(--panel)_86%,transparent)] text-[var(--text-muted)] text-[12px] [backdrop-filter:blur(3px)]">
+              // 加载层不透明、不做背景模糊；状态胶囊用浮层投影与品牌轨道指示。
+              <div className="absolute inset-0 grid place-items-center overflow-hidden bg-panel text-xs text-content-muted">
                 <Suspense fallback={null}>
                   <Threads />
                 </Suspense>
-                <span className="relative z-[1] flex items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[color-mix(in_srgb,var(--panel)_82%,transparent)] [padding:7px_11px] shadow-[var(--sh-1)]">
-                  <LoaderCircle className="animate-spin" size={18} />
+                <span className="relative z-[1] flex items-center gap-2 rounded-full bg-popover px-3 py-1.5 shadow-float">
+                  <OrbitSpinner className="size-3.5" />
                   <span>{t('common:webPreview.loading')}</span>
                 </span>
               </div>
             ) : null
           }
         />
-        <div className="flex-none [border-top:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [padding:5px_10px] text-[var(--text-muted)] text-[10px] leading-[1.4]">
+        <div className="flex-none border-t border-stroke-soft bg-surface-subtle px-2.5 py-1 text-xs leading-snug text-content-muted">
           {t('common:webPreview.embedNotice')}
         </div>
       </WebPreview>

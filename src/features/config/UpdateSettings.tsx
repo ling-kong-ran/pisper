@@ -34,6 +34,8 @@ import { openMobileExternalLink } from '@/lib/mobile-external-link'
 import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
 const SPONSOR_REFRESH_MS = 15 * 60_000
@@ -267,141 +269,139 @@ export function UpdateSettings({
   )
 
   return (
-    <div className="mx-auto flex w-full flex-col gap-3">
-      <Panel className="p-5" data-config-card="updates-main">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <PackageCheck size={19} />
+    <div className="mx-auto flex w-full flex-col gap-4">
+      <Panel className="p-0 py-0" data-config-card="updates-main">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke-soft px-4 py-3.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content shadow-key">
+              <PackageCheck size={18} aria-hidden="true" />
             </span>
-            <span className="min-w-0">
-              <strong className="block text-[16px]">
-                {t('config:updateSettings.pisperAppUpdates')}
-              </strong>
-            </span>
+            <h2 className="min-w-0 text-[15px]! leading-6 font-medium text-content">
+              {t('config:updateSettings.pisperAppUpdates')}
+            </h2>
           </div>
           <Badge tone={statusMeta[1]}>{statusMeta[0]}</Badge>
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] p-3">
-            <small className="text-[12px] text-[var(--text-muted)]">
+        {/* 版本 / 平台 / 通道三格读数：细线分隔的仪表格，版本与通道用等宽字。 */}
+        <dl className="grid divide-stroke-soft border-b border-stroke-soft max-sm:divide-y sm:grid-cols-3 sm:divide-x">
+          <div className="px-4 py-3">
+            <dt className="text-xs text-content-muted">
               {nativeApp
                 ? t('config:updateSettings.currentVersion')
                 : t('config:updateSettings.currentSource')}
-            </small>
-            <strong className="mt-1 block font-mono text-[14px]">{currentIdentifier}</strong>
+            </dt>
+            <dd className="mt-1 font-mono text-[12.5px] font-medium text-content">
+              {currentIdentifier}
+            </dd>
           </div>
-          <div className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] p-3">
-            <small className="text-[12px] text-[var(--text-muted)]">
-              {t('config:updateSettings.platform')}
-            </small>
-            <strong className="mt-1 block text-[14px]">{platformLabel(info, t)}</strong>
+          <div className="px-4 py-3">
+            <dt className="text-xs text-content-muted">{t('config:updateSettings.platform')}</dt>
+            <dd className="mt-1 text-sm font-medium text-content">{platformLabel(info, t)}</dd>
           </div>
-          <div className="rounded-[var(--r-sm)] bg-[var(--surface-muted)] p-3">
-            <small className="text-[12px] text-[var(--text-muted)]">
+          <div className="px-4 py-3">
+            <dt className="text-xs text-content-muted">
               {t('config:updateSettings.updateChannel')}
-            </small>
-            <strong className="mt-1 block text-[14px]">
+            </dt>
+            <dd className="mt-1 font-mono text-[12.5px] font-medium text-content">
               {nativeApp ? 'Stable' : status.branch || DEFAULT_BRANCH}
-            </strong>
+            </dd>
           </div>
-        </div>
-        {status.message && (
-          <div
-            className={`mt-4 flex items-start gap-2 rounded-[var(--r-sm)] p-3 text-[13px] ${status.state === 'error' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--accent-soft)] text-[var(--text)]'}`}
-          >
-            {status.state === 'error' ? (
-              <TriangleAlert className="mt-0.5 shrink-0" size={15} />
-            ) : (
-              <Laptop className="mt-0.5 shrink-0" size={15} />
-            )}
-            <span>{status.message}</span>
-          </div>
-        )}
-        {resumable && (
-          <small className="mt-2 block text-[12px] text-[var(--text-muted)]">
-            {t(
-              'config:updateSettings.downloadedDataWasPreservedAndCanResumeFromTheInterruptionPoint',
-            )}
-          </small>
-        )}
-        {downloading && (
-          <div className="mt-4">
-            <div className="flex justify-between text-[12px] text-[var(--text-muted)]">
-              <span>{t('config:updateSettings.downloadProgress')}</span>
-              <span>
-                {Math.round(status.percent || 0)}% · {formatBytes(status.transferred, language)} /{' '}
-                {formatBytes(status.total, language)}
-              </span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--progress-track)]">
-              <i
-                className="block h-full bg-[var(--star)] transition-[width]"
-                style={{ width: `${status.percent || 0}%` }}
-              />
-            </div>
-          </div>
-        )}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button
-            size="lg"
-            disabled={checking || downloading || Boolean(componentBusy)}
-            onClick={downloaded ? install : available || resumable ? download : check}
-          >
-            {checking || downloading ? (
-              <RefreshCw className="animate-spin" size={14} />
-            ) : downloaded ? (
-              <Rocket size={14} />
-            ) : available || resumable ? (
-              status.canDownload ? (
-                <Download size={14} />
-              ) : (
-                <ExternalLink size={14} />
-              )
-            ) : (
-              <RefreshCw size={14} />
-            )}
-            {checking || downloading
-              ? downloading && desktop
-                ? t('config:updateSettings.installingUpdates')
-                : t('config:updateSettings.checking2')
-              : downloaded
-                ? t('config:updateSettings.restartAndInstall')
-                : resumable
-                  ? t('config:updateSettings.resumeDownload')
-                  : available
-                    ? status.canDownload
-                      ? desktop
-                        ? t('config:updateSettings.downloadAndInstallUpdates')
-                        : t('config:updateSettings.downloadUpdate')
-                      : nativeApp
-                        ? t('config:updateSettings.viewRelease')
-                        : t('config:updateSettings.viewSourceUpdates')
-                    : t('config:updateSettings.checkForUpdates')}
-          </Button>
-          <Button variant="outline" size="lg" className="bg-surface-subtle" onClick={openReleases}>
-            <ExternalLink size={14} />
-            {nativeApp ? 'GitHub Releases' : 'GitHub Compare'}
-          </Button>
-          {desktop && (
-            <Button
-              variant="outline"
-              size="lg"
-              className="bg-surface-subtle"
-              onClick={openUpdateLog}
+        </dl>
+        <div className="p-4">
+          {status.message && (
+            <div
+              className={`flex items-start gap-2 rounded-sm p-2.5 text-sm ${status.state === 'error' ? 'bg-danger-soft text-danger' : 'bg-surface-subtle text-content-secondary'}`}
             >
-              <ExternalLink size={14} />
-              {t('config:updateSettings.viewUpdateDiagnosticLog')}
-            </Button>
+              {status.state === 'error' ? (
+                <TriangleAlert className="mt-0.5 shrink-0" size={15} />
+              ) : (
+                <Laptop className="mt-0.5 shrink-0" size={15} />
+              )}
+              <span>{status.message}</span>
+            </div>
           )}
+          {resumable && (
+            <small className="mt-2 block text-xs text-content-muted">
+              {t(
+                'config:updateSettings.downloadedDataWasPreservedAndCanResumeFromTheInterruptionPoint',
+              )}
+            </small>
+          )}
+          {downloading && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-content-muted">
+                <span>{t('config:updateSettings.downloadProgress')}</span>
+                <span className="tabular-nums">
+                  {Math.round(status.percent || 0)}% · {formatBytes(status.transferred, language)} /{' '}
+                  {formatBytes(status.total, language)}
+                </span>
+              </div>
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-active">
+                <i
+                  className="block h-full bg-star transition-[width]"
+                  style={{ width: `${status.percent || 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+          <div className={cn('flex flex-wrap gap-2', (status.message || downloading) && 'mt-4')}>
+            <Button
+              className="max-[650px]:h-11"
+              disabled={checking || downloading || Boolean(componentBusy)}
+              onClick={downloaded ? install : available || resumable ? download : check}
+            >
+              {checking || downloading ? (
+                <OrbitSpinner className="text-current" />
+              ) : downloaded ? (
+                <Rocket size={14} />
+              ) : available || resumable ? (
+                status.canDownload ? (
+                  <Download size={14} />
+                ) : (
+                  <ExternalLink size={14} />
+                )
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {checking || downloading
+                ? downloading && desktop
+                  ? t('config:updateSettings.installingUpdates')
+                  : t('config:updateSettings.checking2')
+                : downloaded
+                  ? t('config:updateSettings.restartAndInstall')
+                  : resumable
+                    ? t('config:updateSettings.resumeDownload')
+                    : available
+                      ? status.canDownload
+                        ? desktop
+                          ? t('config:updateSettings.downloadAndInstallUpdates')
+                          : t('config:updateSettings.downloadUpdate')
+                        : nativeApp
+                          ? t('config:updateSettings.viewRelease')
+                          : t('config:updateSettings.viewSourceUpdates')
+                      : t('config:updateSettings.checkForUpdates')}
+            </Button>
+            <Button variant="secondary" className="max-[650px]:h-11" onClick={openReleases}>
+              <ExternalLink size={14} />
+              {nativeApp ? 'GitHub Releases' : 'GitHub Compare'}
+            </Button>
+            {desktop && (
+              <Button variant="secondary" className="max-[650px]:h-11" onClick={openUpdateLog}>
+                <ExternalLink size={14} />
+                {t('config:updateSettings.viewUpdateDiagnosticLog')}
+              </Button>
+            )}
+          </div>
         </div>
         {!mobile && (
-          <div
-            className="mt-6 border-t border-[var(--border)] pt-5"
-            data-config-card="updates-components"
-          >
-            <SectionTitle title={t('config:updateSettings.appComponents')} />
-            <div className="mt-3 divide-y divide-[var(--border)]">
+          <div className="border-t border-stroke" data-config-card="updates-components">
+            <div className="flex h-9 items-center bg-surface-subtle px-4">
+              <SectionTitle
+                title={t('config:updateSettings.appComponents')}
+                className="text-xs font-medium text-content-muted"
+              />
+            </div>
+            <div className="divide-y divide-stroke-soft border-t border-stroke-soft px-4">
               {componentItems.map((component) => {
                 const Icon =
                   component.component === 'desktop'
@@ -439,21 +439,21 @@ export function UpdateSettings({
                               : t('config:updateSettings.notChecked')
                 return (
                   <div
-                    className="grid min-h-[68px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                    className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
                     key={component.component}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Icon className="shrink-0 text-[var(--text-muted)]" size={17} />
+                    <div className="col-span-2 flex min-w-0 items-center gap-3 sm:col-span-1">
+                      <Icon className="shrink-0 text-content-muted" size={16} aria-hidden="true" />
                       <div className="min-w-0">
-                        <strong className="block text-[14px]">{label}</strong>
+                        <span className="block text-sm font-medium text-content">{label}</span>
                         {component.message && (
-                          <small className="mt-0.5 block text-[12px] text-[var(--text-muted)]">
+                          <small className="mt-0.5 block text-xs text-content-muted">
                             {component.message}
                           </small>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[12px]">
+                    <div className="flex items-center gap-2 font-mono text-xs text-content-secondary tabular-nums">
                       <span>v{component.currentVersion}</span>
                       {component.availableVersion &&
                         component.availableVersion !== component.currentVersion && (
@@ -463,7 +463,7 @@ export function UpdateSettings({
                           </>
                         )}
                       {component.size > 0 && component.state === 'available' && (
-                        <span className="font-sans text-[var(--text-muted)]">
+                        <span className="font-sans text-content-muted">
                           {formatBytes(component.size, language)}
                         </span>
                       )}
@@ -479,7 +479,7 @@ export function UpdateSettings({
 
       {!mobile && <CliSettings notify={notify} />}
 
-      <Panel className="p-5">
+      <Panel className="p-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle
             title={
@@ -492,8 +492,8 @@ export function UpdateSettings({
                   : t('config:updateSettings.currentSourceStatus')
             }
           />
-          <span className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-            <CheckCircle2 size={13} />
+          <span className="flex items-center gap-1.5 font-mono text-xs text-content-muted">
+            <CheckCircle2 size={13} aria-hidden="true" />
             {available || resumable || downloaded || downloading
               ? latestIdentifier
               : nativeApp
@@ -502,31 +502,31 @@ export function UpdateSettings({
           </span>
         </div>
         {(status.releaseDate || (nativeApp && bundledCurrent?.date)) && (
-          <small className="mt-2 block text-[12px] text-[var(--text-muted)]">
+          <small className="mt-1 block text-xs text-content-muted tabular-nums">
             {new Intl.DateTimeFormat(language, { dateStyle: 'long' }).format(
               new Date(status.releaseDate || bundledCurrent?.date || ''),
             )}
           </small>
         )}
-        <div className="mt-4 rounded-[var(--r-sm)] border border-[var(--stroke-soft)] bg-[var(--surface-subtle)] p-4">
+        <div className="mt-3 rounded-sm border border-stroke-soft bg-surface-subtle p-4">
           <MarkdownMessage>{notes}</MarkdownMessage>
         </div>
       </Panel>
 
       {visibleSponsors.length > 0 && (
-        <Panel className="p-5" data-config-card="updates-sponsors">
+        <Panel className="p-4 py-4" data-config-card="updates-sponsors">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <Handshake size={19} />
+            <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content-muted shadow-key">
+              <Handshake size={18} aria-hidden="true" />
             </span>
             <span className="min-w-0">
               <SectionTitle title={t('config:updateSettings.sponsors')} />
-              <small className="mt-1 block text-[12px] leading-5 text-[var(--text-muted)]">
+              <small className="mt-0.5 block text-xs leading-5 text-content-muted">
                 {t('config:updateSettings.sponsorsDescription')}
               </small>
             </span>
           </div>
-          <div className="mt-4 divide-y divide-[var(--stroke-soft)] border-y border-[var(--stroke-soft)]">
+          <div className="mt-4 divide-y divide-stroke-soft border-y border-stroke-soft">
             {visibleSponsors.map((sponsor) => (
               <div
                 key={sponsor.id}
@@ -534,14 +534,16 @@ export function UpdateSettings({
               >
                 <span className="min-w-0">
                   <span className="mb-1 flex items-center gap-2">
-                    <strong className="truncate text-[14px]">{sponsor.name}</strong>
+                    <span className="truncate text-sm font-medium text-content">
+                      {sponsor.name}
+                    </span>
                     <Badge tone="gray">{t('config:updateSettings.sponsored')}</Badge>
                   </span>
-                  <small className="block text-[12px] leading-5 text-[var(--text-muted)]">
+                  <small className="block text-xs leading-5 text-content-muted">
                     {sponsor.description}
                   </small>
                 </span>
-                <Button asChild variant="outline" className="bg-surface-subtle">
+                <Button asChild variant="secondary">
                   <a
                     href={sponsor.href}
                     target="_blank"
@@ -557,7 +559,7 @@ export function UpdateSettings({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="shrink-0"
+                  className="shrink-0 pointer-coarse:size-11 max-[650px]:size-11"
                   aria-label={t('config:updateSettings.hideSponsor')}
                   title={t('config:updateSettings.hideSponsor')}
                   onClick={() => dismissSponsor(sponsor.id)}

@@ -57,26 +57,27 @@ export function ConnectionCardGrid({
         return (
           <div
             key={provider.id}
-            className="flex min-w-0 flex-col gap-2 border border-[var(--stroke-soft)] rounded-sm bg-[var(--surface-subtle)] px-3 py-2.5"
+            className="flex min-w-0 flex-col gap-2 rounded-md border border-stroke bg-panel px-3 py-2.5"
           >
             <button
               type="button"
               title={t('config:configPage.configure')}
-              className="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent p-0 text-left hover:text-[var(--brand-blue)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+              className="flex min-h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-sm border-0 bg-transparent p-0 text-left text-content hover:text-accent-fg"
               onClick={() => onConfigure(provider)}
             >
-              <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-                <Icon size={16} />
+              <span
+                aria-hidden="true"
+                className="grid size-7.5 flex-none place-items-center rounded-md border border-key-border bg-key text-content-muted shadow-key"
+              >
+                <Icon size={15} />
               </span>
-              <strong className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
-                {provider.name}
-              </strong>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{provider.name}</span>
               {isDefault && (
                 <SettingsBadge tone="green">{t('config:configPage.defaultBadge')}</SettingsBadge>
               )}
             </button>
             {onSetDefaultModel && provider.models.some((model) => model.kind === 'chat') ? (
-              <label className="grid min-w-0 gap-1 text-[12px] text-[var(--text-muted)]">
+              <label className="grid min-w-0 gap-1 text-xs text-content-muted">
                 {t('config:configPage.providerDefaultModel')}
                 <AppSelect
                   aria-label={`${t('config:configPage.providerDefaultModel')}: ${provider.name}`}
@@ -102,21 +103,21 @@ export function ConnectionCardGrid({
               </label>
             ) : provider.defaultModel ? (
               <small
-                className="truncate text-[12px] text-[var(--text-muted)]"
+                className="truncate font-mono text-xs text-content-muted"
                 title={provider.defaultModel}
               >
                 {t('config:configPage.providerDefaultModel')}: {provider.defaultModel}
               </small>
             ) : null}
-            <div className="flex flex-wrap items-center justify-between gap-[8px]">
-              <small className="text-[12px] text-[var(--text-muted)]">{statusText}</small>
-              <div className="flex flex-none items-center gap-[6px]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <small className="text-xs text-content-muted">{statusText}</small>
+              <div className="flex flex-none items-center gap-1.5">
                 {onSetDefault && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-[26px] w-[26px]"
+                    className="size-7 pointer-coarse:size-11"
                     title={t('config:configPage.setAsDefaultProvider')}
                     aria-label={t('config:configPage.setAsDefaultProvider')}
                     aria-pressed={isDefault}
@@ -136,7 +137,7 @@ export function ConnectionCardGrid({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-[26px] w-[26px]"
+                  className="size-7 pointer-coarse:size-11"
                   title={t('config:configPage.cloneProvider')}
                   aria-label={t('config:configPage.cloneProvider')}
                   onClick={() => onClone(provider)}
@@ -152,9 +153,9 @@ export function ConnectionCardGrid({
                 {provider.custom && (
                   <Button
                     type="button"
-                    variant="destructive"
+                    variant="ghost"
                     size="icon"
-                    className="h-[26px] w-[26px]"
+                    className="size-7 hover:bg-danger-soft hover:text-danger pointer-coarse:size-11"
                     title={t('config:configPage.deleteProvider')}
                     aria-label={t('config:configPage.deleteProvider')}
                     onClick={() => void onDelete(provider)}
@@ -182,12 +183,7 @@ export function ConnectionList({ onAddCustom, providers, ...gridProps }: Connect
     <SettingsCard>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <SettingsSectionTitle title={t('config:configPage.connections')} />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-[26px] px-[8px] text-[12px] text-[var(--text-muted)]"
-          onClick={onAddCustom}
-        >
+        <Button variant="ghost" size="sm" className="pointer-coarse:h-11" onClick={onAddCustom}>
           <Plus size={13} />
           {t('config:configPage.addCustomConnection')}
         </Button>

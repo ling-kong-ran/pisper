@@ -194,19 +194,20 @@ function MarkdownCopyButton({ source }: { source: string }) {
     }
   }
 
+  // 标题栏里的图标键：悬停在面板色上需要一级表面色，暗色沿用白色 10% 洗色。
+  const label = copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copyCode')
   return (
     <Button
       type="button"
       variant="ghost"
-      size="sm"
-      className="h-7 gap-1 px-[7px] text-[11px] font-bold text-[var(--code-toolbar-text)] hover:bg-white/10 hover:text-[var(--code-toolbar-text)]"
+      size="icon-sm"
+      className="size-[26px] text-[var(--code-toolbar-text)] hover:bg-white/10 hover:text-[var(--code-toolbar-text)] max-[650px]:size-11 pointer-coarse:size-11 [.markdown-body_&]:hover:bg-surface-hover [.markdown-body_&]:hover:text-foreground"
       data-streamdown="code-block-copy-button"
       onClick={copy}
-      aria-label={t('common:markdownMessage.copyCode')}
-      title={t('common:markdownMessage.copyCode')}
+      aria-label={label}
+      title={label}
     >
-      {copied ? <Check size={13} /> : <Copy size={13} />}
-      {copied ? t('common:markdownMessage.copied') : t('common:markdownMessage.copy')}
+      {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
     </Button>
   )
 }
@@ -240,7 +241,12 @@ function StreamingCodeBlock({ language, source }: { language: string; source: st
         data-streamdown="code-block-body"
       >
         <pre className="bg-transparent">
-          <code>{source}</code>
+          {/* 按行拆分，与高亮完成后的行结构一致：行号槽在围栏闭合前后不跳动。 */}
+          <code>
+            {source.split('\n').map((line, index) => (
+              <span key={index}>{line}</span>
+            ))}
+          </code>
         </pre>
       </div>
     </div>

@@ -24,7 +24,7 @@ export function CustomUiWidget({
   return (
     <div
       role="status"
-      className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-auto p-3 text-center text-xs text-[var(--text-muted)]"
+      className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-auto p-3 text-center text-xs text-content-muted"
     >
       <p className="max-w-full break-words">
         {catalog.isPending

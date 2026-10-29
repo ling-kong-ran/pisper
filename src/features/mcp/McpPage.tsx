@@ -3,11 +3,11 @@ import { ListDetailLayout } from '@/components/app/ListDetailLayout'
 import { InlineEmptyState } from '@/components/app/PageState'
 // MCP 页面负责选择与操作编排；远程快照和请求生命周期由领域查询层持有。
 import { useCallback, useState, type ReactNode } from 'react'
-import { CircleDot, History, RefreshCw, Server, Trash2, Wrench } from 'lucide-react'
+import { Check, History, RefreshCw, Server, Trash2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardTitle } from '@/components/ui/card'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Alert } from '@/components/ui/alert'
@@ -27,77 +27,61 @@ type McpPageProps = {
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 type Translate = (message: string, values?: I18nValues) => string
-type McpTone = 'green' | 'amber' | 'gray' | 'red'
+type McpTone = 'ok' | 'warn' | 'default' | 'bad'
 
-const MCP_BADGE_TONES: Record<McpTone, string> = {
-  green: 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success-strong)]',
-  amber: 'border-[var(--warning-border)] bg-[var(--warning-soft)] text-[var(--warning-strong)]',
-  gray: 'border-[var(--stroke)] bg-[var(--surface-muted)] text-[var(--text-muted)]',
-  red: 'border-[var(--danger-border)] bg-[var(--danger-soft)] text-[var(--danger)]',
-}
+// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
+const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
+const CARD_HEAD =
+  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
+const ICON_KEY =
+  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
+const SELECTED_TICK = 'absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star'
+// 只读键值行：左侧弱化标签，右侧值单行省略；路径、地址等用等宽字。
+const KEY_VALUE =
+  'key-value flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft text-sm [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
 
-function McpPanel({ className, children }: { className?: string; children: ReactNode }) {
+function CardTitle({ children, count }: { children: ReactNode; count?: ReactNode }) {
   return (
-    <Card
-      size="sm"
-      className={cn(
-        'workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] gap-0 p-3.5 py-3.5',
-        className,
+    <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
+      {children}
+      {count !== undefined && (
+        <span className="font-normal text-content-muted tabular-nums">{count}</span>
       )}
-    >
-      {children}
-    </Card>
+    </h2>
   )
 }
 
-function McpSectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <CardTitle className="workflow-section-title [.selection-list_&]:mb-[8px] [.node-library_&]:mb-[8px] text-[var(--text-soft)] text-[13px] font-[700] leading-[1.4]">
-      {children}
-    </CardTitle>
-  )
-}
-
+// 计量读数：12px 标签 + 20px 等宽数字，说明文字弱化；数值保持墨色，不做彩色强调。
 function McpMetric({
   value,
   label,
   note,
-  tone,
 }: {
   value: ReactNode
   label: ReactNode
   note: ReactNode
-  tone: 'blue' | 'green' | 'amber'
 }) {
   return (
-    <Card
-      size="sm"
-      className={cn(
-        "workflow-card [&_h2]:text-[16px] [&_h2]:tracking-[-.02em] [.detail-stack_>_&]:[flex:0_0_auto] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--panel)] text-[var(--text)] shadow-[0_1px_2px_var(--sh-edge),0_14px_32px_-24px_var(--shadow)] metric [transition:transform_var(--d2)_var(--ease-out),_box-shadow_var(--d2)_var(--ease-out),_border-color_var(--d2)_var(--ease-out)] hover:[transform:translateY(-2px)] hover:shadow-[var(--sh-2)] hover:border-[var(--star-border)] [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:mt-[5px] [&_strong]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_strong]:text-[23px] [&_span]:[align-self:end] [&_span]:text-[var(--text-muted)] [&_span]:text-[13px] [&.blue_strong]:text-[var(--star-strong)] [&.green_strong]:text-[var(--success)] [&.amber_strong]:text-[var(--amber)] grid grid-cols-[1fr_auto] [padding:12px] gap-0 p-3 py-3",
-        tone,
-      )}
-    >
-      <small>{label}</small>
-      <strong>{value}</strong>
-      <span>{note}</span>
-    </Card>
+    <div className="metric flex min-w-0 flex-col gap-1 px-3.5 py-3 max-[650px]:px-3">
+      <small className="truncate text-xs text-content-muted">{label}</small>
+      <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
+        <strong className="text-xl leading-7 font-medium text-content tabular-nums">{value}</strong>
+        <span className="truncate text-xs text-content-muted tabular-nums">{note}</span>
+      </span>
+    </div>
   )
 }
 
 function McpBadge({ children, tone }: { children: ReactNode; tone: McpTone }) {
-  return (
-    <Badge variant="outline" className={MCP_BADGE_TONES[tone]}>
-      {children}
-    </Badge>
-  )
+  return <Badge variant={tone}>{children}</Badge>
 }
 
 function mcpStatusMeta(status: string | undefined, t: Translate): [string, McpTone] {
-  if (status === 'online') return [t('mcp:online'), 'green']
-  if (status === 'connecting') return [t('mcp:connecting'), 'amber']
-  if (status === 'unauthorized') return [t('mcp:unauthorized'), 'gray']
-  if (status === 'disabled') return [t('mcp:disabled'), 'gray']
-  return [t('mcp:offline'), 'red']
+  if (status === 'online') return [t('mcp:online'), 'ok']
+  if (status === 'connecting') return [t('mcp:connecting'), 'warn']
+  if (status === 'unauthorized') return [t('mcp:unauthorized'), 'default']
+  if (status === 'disabled') return [t('mcp:disabled'), 'default']
+  return [t('mcp:offline'), 'bad']
 }
 
 function mcpRiskLabel(risk: unknown, t: Translate) {
@@ -233,13 +217,21 @@ export function McpPage({
   return (
     <PageFrame variant="list-detail">
       <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col">
           <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
-          {loading && !error && <p role="status">{t('mcp:loading')}</p>}
+          {loading && !error && (
+            <p
+              role="status"
+              className="flex items-center gap-2 px-4 py-3 text-xs text-content-muted @min-[760px]/page:px-6"
+            >
+              <OrbitSpinner className="size-3.5" />
+              {t('mcp:loading')}
+            </p>
+          )}
           {error && (
             <Alert
               role="status"
-              className="mb-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere]"
+              className="mx-4 my-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere] @min-[760px]/page:mx-6"
             >
               <span>{error.message}</span>
               <Button variant="ghost" disabled={busy} onClick={() => void reload()}>
@@ -248,98 +240,123 @@ export function McpPage({
             </Alert>
           )}
           {data && (
-            <>
-              <ListDetailLayout
-                selected={detailOpen}
-                onBack={() => setDetailOpen(false)}
-                backLabel={t('common:pageTemplate.backToList')}
-                list={
-                  <McpPanel className="min-w-0 border-0 bg-transparent p-0 shadow-none">
-                    <McpSectionTitle>{t('mcp:services')}</McpSectionTitle>
-                    {visibleServices.length ? (
-                      visibleServices.map((service) => {
+            <ListDetailLayout
+              selected={detailOpen}
+              onBack={() => setDetailOpen(false)}
+              backLabel={t('common:pageTemplate.backToList')}
+              list={
+                <section className="min-w-0">
+                  {/* 列表标题 12/500 弱化文字 + 等宽计数，与其它列表页同一节奏。 */}
+                  <h2 className="flex h-[30px] items-end justify-between px-1 pb-1.5 text-xs font-medium tracking-[.02em] text-content-muted">
+                    <span>{t('mcp:services')}</span>
+                    <span className="font-normal tabular-nums">{visibleServices.length}</span>
+                  </h2>
+                  {visibleServices.length ? (
+                    <ul className="flex flex-col gap-0.5">
+                      {visibleServices.map((service) => {
                         const [label, tone] = mcpStatusMeta(service.status, t)
+                        const active = selected?.id === service.id
                         const location =
                           service.transport === 'stdio'
                             ? service.workingDirectory || service.command
                             : service.endpoint
                         return (
-                          <button
-                            className={`service-row grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] border-0 [border-top:1px_solid_var(--stroke-soft)] bg-transparent p-[10px_8px] text-left hover:rounded-[var(--r-sm)] hover:bg-[var(--accent-soft)] [&.active]:rounded-[var(--r-sm)] [&.active]:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap ${selected?.id === service.id ? 'active' : ''}`}
-                            onClick={() => {
-                              setDetailOpen(true)
-                              setSelectedId(service.id)
-                            }}
+                          <li
+                            className={cn(
+                              'relative rounded-md transition-colors duration-(--d-fast) hover:bg-surface-subtle',
+                              active && 'bg-surface-muted hover:bg-surface-muted',
+                            )}
                             key={service.id}
                           >
-                            <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                              <Server size={15} />
-                            </span>
-                            <span>
-                              <strong>{service.name}</strong>
-                              <small title={location}>{location}</small>
-                            </span>
-                            <McpBadge tone={tone}>{label}</McpBadge>
-                          </button>
+                            {active && <i aria-hidden="true" className={SELECTED_TICK} />}
+                            <button
+                              type="button"
+                              aria-current={active || undefined}
+                              className={cn(
+                                'service-row grid min-h-[56px] w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 pr-2.5 pl-3 text-left focus-visible:-outline-offset-2',
+                                active && 'active',
+                              )}
+                              onClick={() => {
+                                setDetailOpen(true)
+                                setSelectedId(service.id)
+                              }}
+                            >
+                              <span className={ICON_KEY}>
+                                <Server />
+                              </span>
+                              <span className="flex min-w-0 flex-col gap-0.5">
+                                <strong className="truncate text-sm font-medium text-content max-[650px]:text-[15px]">
+                                  {service.name}
+                                </strong>
+                                <small
+                                  className="truncate font-mono text-xs text-content-muted"
+                                  title={location}
+                                >
+                                  {location}
+                                </small>
+                              </span>
+                              <McpBadge tone={tone}>{label}</McpBadge>
+                            </button>
+                          </li>
                         )
-                      })
-                    ) : (
-                      <InlineEmptyState compact icon={Server} title={t('mcp:noServerConfigured')} />
-                    )}
-                  </McpPanel>
-                }
-                detail={
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <div className="metric-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[9px]">
-                      <McpMetric
-                        value={String(metrics.onlineServices)}
-                        label={t('mcp:onlineServices')}
-                        note={t('mcp:countServicesTotal', {
-                          count: metrics.totalServices,
-                        })}
-                        tone="blue"
-                      />
-                      <McpMetric
-                        value={String(metrics.availableTools)}
-                        label={t('mcp:availableTools')}
-                        note={t('mcp:countRestrictedTools', {
-                          count: metrics.restrictedTools,
-                        })}
-                        tone="green"
-                      />
-                      <McpMetric
-                        value={`${metrics.errorRate}%`}
-                        label={t('mcp:errorRate')}
-                        note="24h"
-                        tone="amber"
-                      />
-                    </div>
-                    <McpPanel className="mcp-tools-panel min-h-0 flex-1 overflow-y-auto">
-                      <McpSectionTitle>
-                        {t('mcp:toolCapabilities')} · {tools.length}
-                      </McpSectionTitle>
-                      {tools.length ? (
-                        tools.map((tool) => (
-                          <div
-                            className="tool-row [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [padding:6px_2px]"
+                      })}
+                    </ul>
+                  ) : (
+                    <InlineEmptyState title={t('mcp:noServerConfigured')} />
+                  )}
+                </section>
+              }
+              detail={
+                <div className="flex min-w-0 flex-col gap-4">
+                  <div
+                    className={cn('metric-grid grid grid-cols-3 divide-x divide-stroke-soft', CARD)}
+                  >
+                    <McpMetric
+                      value={String(metrics.onlineServices)}
+                      label={t('mcp:onlineServices')}
+                      note={t('mcp:countServicesTotal', { count: metrics.totalServices })}
+                    />
+                    <McpMetric
+                      value={String(metrics.availableTools)}
+                      label={t('mcp:availableTools')}
+                      note={t('mcp:countRestrictedTools', { count: metrics.restrictedTools })}
+                    />
+                    <McpMetric
+                      value={`${metrics.errorRate}%`}
+                      label={t('mcp:errorRate')}
+                      note="24h"
+                    />
+                  </div>
+                  <section className={cn('mcp-tools-panel', CARD)}>
+                    <header className={CARD_HEAD}>
+                      <CardTitle count={tools.length}>{t('mcp:toolCapabilities')}</CardTitle>
+                    </header>
+                    {tools.length ? (
+                      <ul className="divide-y divide-stroke-soft">
+                        {tools.map((tool) => (
+                          <li
+                            className="tool-row grid min-h-[52px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2 pr-3 pl-3.5"
                             key={tool.piName}
                           >
-                            <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                              <Wrench size={15} />
-                            </span>
-                            <span>
-                              <strong>{tool.name}</strong>
-                              <small>
-                                {tool.serviceName} · {tool.description}
+                            <span className="flex min-w-0 flex-col gap-0.5">
+                              <strong className="truncate font-mono text-[13px] font-medium text-content">
+                                {tool.name}
+                              </strong>
+                              <small className="flex min-w-0 gap-1.5 text-xs text-content-muted">
+                                <span className="shrink-0 font-mono">{tool.serviceName}</span>
+                                <span aria-hidden="true" className="text-content-faint">
+                                  ·
+                                </span>
+                                <span className="truncate">{tool.description}</span>
                               </small>
                             </span>
                             <McpBadge
                               tone={
                                 tool.risk === 'high' || tool.risk === '高风险'
-                                  ? 'red'
+                                  ? 'bad'
                                   : tool.risk === 'medium' || tool.risk === '中风险'
-                                    ? 'amber'
-                                    : 'green'
+                                    ? 'warn'
+                                    : 'ok'
                               }
                             >
                               {mcpRiskLabel(tool.risk, t)}
@@ -350,20 +367,31 @@ export function McpPage({
                               aria-label={t('mcp:toggleToolName', { name: tool.name })}
                               onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
                             />
-                          </div>
-                        ))
-                      ) : (
-                        <InlineEmptyState compact icon={Wrench} title={t('mcp:noToolsAvailable')} />
-                      )}
-                    </McpPanel>
-                  </div>
-                }
-                inspector={
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <McpPanel>
-                      <McpSectionTitle>{t('mcp:currentService')}</McpSectionTitle>
-                      <h2>{selected?.name || t('mcp:noServerConfigured')}</h2>
-                      <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <InlineEmptyState compact icon={Wrench} title={t('mcp:noToolsAvailable')} />
+                    )}
+                  </section>
+                </div>
+              }
+              inspector={
+                <div className="flex min-w-0 flex-col gap-4">
+                  <section className={CARD}>
+                    <header className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-2.5">
+                      <small className="text-xs font-medium tracking-[.02em] text-content-muted">
+                        {t('mcp:currentService')}
+                      </small>
+                      <h2 className="truncate text-[15px] leading-6 font-medium text-content">
+                        {selected?.name || t('mcp:noServerConfigured')}
+                      </h2>
+                      <p
+                        className={cn(
+                          'text-xs leading-normal [overflow-wrap:anywhere]',
+                          selected?.error ? 'font-mono text-danger' : 'text-content-muted',
+                        )}
+                      >
                         {selected?.error ||
                           (selected
                             ? t(
@@ -373,41 +401,49 @@ export function McpPage({
                                 'mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer',
                               ))}
                       </p>
-                      {[
+                    </header>
+                    <dl className="px-3.5">
+                      {(
                         [
-                          t('mcp:transport'),
-                          selected?.transport === 'stdio'
-                            ? 'stdio'
-                            : selected?.transport === 'sse'
-                              ? 'HTTP + SSE'
-                              : 'Streamable HTTP',
-                        ],
-                        ...(selected?.transport === 'stdio'
-                          ? [
-                              [t('mcp:executable'), selected.command || '—'],
-                              [t('mcp:workingDirectory'), selected.workingDirectory || '—'],
-                            ]
-                          : [[t('mcp:serverAddress'), selected?.endpoint || '—']]),
-                        [
-                          t('mcp:latency'),
-                          selected?.latencyMs == null ? '—' : `${selected.latencyMs} ms`,
-                        ],
-                        [
-                          t('mcp:lastPing'),
-                          selected?.lastPingAt ? relativeTime(selected.lastPingAt, language) : '—',
-                        ],
-                        [t('mcp:authentication'), mcpAuthLabel(selected, t)],
-                      ].map((row) => (
-                        <div
-                          className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]"
-                          key={row[0]}
-                        >
-                          <span>{row[0]}</span>
-                          <strong title={row[1]}>{row[1]}</strong>
+                          [
+                            t('mcp:transport'),
+                            selected?.transport === 'stdio'
+                              ? 'stdio'
+                              : selected?.transport === 'sse'
+                                ? 'HTTP + SSE'
+                                : 'Streamable HTTP',
+                            false,
+                          ],
+                          ...(selected?.transport === 'stdio'
+                            ? [
+                                [t('mcp:executable'), selected.command || '—', true],
+                                [t('mcp:workingDirectory'), selected.workingDirectory || '—', true],
+                              ]
+                            : [[t('mcp:serverAddress'), selected?.endpoint || '—', true]]),
+                          [
+                            t('mcp:latency'),
+                            selected?.latencyMs == null ? '—' : `${selected.latencyMs} ms`,
+                            false,
+                          ],
+                          [
+                            t('mcp:lastPing'),
+                            selected?.lastPingAt
+                              ? relativeTime(selected.lastPingAt, language)
+                              : '—',
+                            false,
+                          ],
+                          [t('mcp:authentication'), mcpAuthLabel(selected, t), false],
+                        ] as Array<[string, string, boolean]>
+                      ).map(([label, value, mono]) => (
+                        <div className={KEY_VALUE} key={label}>
+                          <dt>{label}</dt>
+                          <dd className={mono ? 'font-mono text-xs' : 'tabular-nums'} title={value}>
+                            {value}
+                          </dd>
                         </div>
                       ))}
-                      <div className="toggle-line [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_>_span]:text-[12px] flex min-h-[34px] items-center justify-between [border-top:1px_solid_var(--stroke-soft)]">
-                        <span>{t('mcp:serverEnabled')}</span>
+                      <div className="toggle-line flex min-h-[40px] items-center justify-between gap-3 border-t border-stroke-soft text-sm">
+                        <span className="font-medium text-content">{t('mcp:serverEnabled')}</span>
                         <Switch
                           checked={Boolean(selected?.enabled)}
                           disabled={!selected || busy}
@@ -415,59 +451,92 @@ export function McpPage({
                           onCheckedChange={(enabled) => void toggleServer(enabled)}
                         />
                       </div>
-                      <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={!selected?.enabled || busy}
-                          onClick={testConnection}
-                        >
-                          <RefreshCw
-                            className={busy ? 'animate-spin' : ''}
-                            data-icon="inline-start"
-                          />
-                          {t('mcp:testConnection')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={!selected || busy}
-                          onClick={deleteServer}
-                        >
-                          <Trash2 data-icon="inline-start" />
-                          {t('mcp:delete')}
-                        </Button>
-                      </div>
-                    </McpPanel>
-                    <McpPanel className="mcp-calls-panel min-h-0 flex-1 overflow-y-auto">
-                      <McpSectionTitle>{t('mcp:recentCalls')}</McpSectionTitle>
-                      {calls.length ? (
-                        calls.slice(0, 8).map((activity) => (
-                          <div
-                            className="activity-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_span]:text-[var(--text)] [&.failed]:text-[var(--danger)] [&.running]:text-[var(--star-strong)] grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:9px_2px] text-[var(--success)]"
-                            key={activity.id}
-                          >
-                            <CircleDot size={14} />
-                            <span>
-                              <strong>{activity.toolName}</strong>
-                              <small>
-                                {relativeTime(activity.timestamp, language)} ·{' '}
-                                {activity.status === 'ok'
-                                  ? t('mcp:callSucceeded')
-                                  : activity.error || t('mcp:callFailed')}{' '}
-                                · {activity.durationMs} ms
-                              </small>
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <InlineEmptyState compact icon={History} title={t('mcp:noRecentCalls')} />
-                      )}
-                    </McpPanel>
-                  </div>
-                }
-              />
-            </>
+                    </dl>
+                    <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke-soft bg-surface-subtle px-3.5 py-2.5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                        disabled={!selected || busy}
+                        onClick={deleteServer}
+                      >
+                        <Trash2 data-icon="inline-start" />
+                        {t('mcp:delete')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="max-[650px]:h-11"
+                        loading={busy}
+                        disabled={!selected?.enabled || busy}
+                        onClick={testConnection}
+                      >
+                        <RefreshCw data-icon="inline-start" />
+                        {t('mcp:testConnection')}
+                      </Button>
+                    </footer>
+                  </section>
+                  <section className={cn('mcp-calls-panel', CARD)}>
+                    <header className={CARD_HEAD}>
+                      <CardTitle count={calls.length ? Math.min(calls.length, 8) : undefined}>
+                        {t('mcp:recentCalls')}
+                      </CardTitle>
+                    </header>
+                    {calls.length ? (
+                      <ul className="divide-y divide-stroke-soft">
+                        {calls.slice(0, 8).map((activity) => {
+                          const ok = activity.status === 'ok'
+                          return (
+                            <li
+                              className={cn(
+                                'activity-row grid min-h-[44px] min-w-0 grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2.5 py-2 pr-3.5 pl-3.5',
+                                ok ? 'completed' : 'failed',
+                              )}
+                              key={activity.id}
+                            >
+                              {/* 状态方块同时用形状（勾/叉）和颜色表达结果。 */}
+                              <span
+                                className={cn(
+                                  'grid size-[18px] place-items-center rounded-xs [&_svg]:size-3 [&_svg]:stroke-[2.5]',
+                                  ok
+                                    ? 'bg-success-soft text-success'
+                                    : 'bg-danger-soft text-danger',
+                                )}
+                              >
+                                {ok ? <Check /> : <X />}
+                              </span>
+                              <span className="flex min-w-0 flex-col gap-0.5">
+                                <strong className="truncate font-mono text-xs font-medium text-content">
+                                  {activity.toolName}
+                                </strong>
+                                <small
+                                  className={cn(
+                                    'truncate text-xs',
+                                    ok ? 'text-content-muted' : 'text-danger',
+                                  )}
+                                >
+                                  {ok
+                                    ? t('mcp:callSucceeded')
+                                    : activity.error || t('mcp:callFailed')}
+                                </small>
+                              </span>
+                              <span className="flex flex-col items-end gap-0.5 text-xs text-content-muted tabular-nums">
+                                <span className="text-content-secondary">
+                                  {activity.durationMs} ms
+                                </span>
+                                <span>{relativeTime(activity.timestamp, language)}</span>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <InlineEmptyState compact icon={History} title={t('mcp:noRecentCalls')} />
+                    )}
+                  </section>
+                </div>
+              }
+            />
           )}
         </div>
       </div>

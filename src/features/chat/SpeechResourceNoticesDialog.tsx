@@ -63,13 +63,13 @@ export function SpeechResourceNoticesDialog({
         </DialogHeader>
         <p className="break-words text-sm text-muted-foreground">{notices.scope}</p>
         <p className="break-words text-sm text-muted-foreground">{notices.licenseIdsMeaning}</p>
-        <div className="min-w-0 divide-y">
+        <div className="min-w-0 divide-y divide-stroke-soft">
           {model.groups.map((group) => (
             <details key={group.id} className="min-w-0 py-3">
               <summary className="cursor-pointer break-words text-sm font-medium">
                 {group.id}
                 {group.status === 'pending' && (
-                  <span className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-400">
+                  <span className="ml-2 text-xs font-normal text-warning-strong">
                     {t('chat:speechModels.provenancePending')}
                   </span>
                 )}

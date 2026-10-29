@@ -17,11 +17,9 @@ import {
   Archive,
   ArchiveRestore,
   ChevronRight,
-  CircleAlert,
   FolderClosed,
   FolderPlus,
   MessageSquare,
-  LoaderCircle,
   PanelRight,
   Pencil,
   Pin,
@@ -77,6 +75,9 @@ import {
 } from '@/components/ui/context-menu'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { StarOrbit } from '@/components/StarOrbit'
+import { cn } from '@/lib/utils'
 
 // 目录选择器只在「新建项目」时用到：按需加载。
 const WorkspacePicker = lazy(() =>
@@ -92,6 +93,7 @@ type SessionSummary = {
   archived?: boolean
   unread?: boolean
   needsAttention?: boolean
+  attentionReason?: 'approval' | 'failure' | null
   streaming?: boolean
 }
 
@@ -106,6 +108,13 @@ type ProjectTaskListProps = {
 
 const RECENT_SESSION_LIMIT = 24
 
+// 树形行的共用几何：默认 36px、紧凑密度 30px，手机与粗指针放大到 44px 触控目标。
+const TREE_ROW =
+  'h-9 rounded-sm text-sm transition-colors duration-(--d-fast) ease-precise in-data-[density=compact]:h-[30px] max-[650px]:h-11 pointer-coarse:h-11'
+
+// 分组头部的小图标键：默认 24px，手机与粗指针放大到 44px。
+const SECTION_ICON_BUTTON = 'size-6 text-content-muted max-[650px]:size-11 pointer-coarse:size-11'
+
 function WorkspaceActionButton({
   label,
   onClick,
@@ -119,7 +128,7 @@ function WorkspaceActionButton({
     <Button
       type="button"
       variant="ghost"
-      className="opacity-0 group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 !size-7 !min-h-7 !shrink-0 !p-0 !text-[var(--text-muted)] hover:!bg-[var(--surface-hover)] hover:!text-[var(--text)] max-[650px]:!size-11 max-[650px]:!min-h-11"
+      className="size-7 shrink-0 p-0 text-content-muted hover:bg-surface-active hover:text-content max-[650px]:size-11 pointer-coarse:size-11"
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -127,6 +136,39 @@ function WorkspaceActionButton({
       {children}
     </Button>
   )
+}
+
+// 会话状态只占一个固定宽度的槽位，保证标题左缘对齐：运行用品牌轨道指示，
+// 失败为危险色点、待审批/需处理为警示色点、未读为墨色点；颜色之外都带可读标签。
+function SessionStatusMark({
+  session,
+  labels,
+}: {
+  session: SessionSummary
+  labels: { running: string; failed: string; approval: string; attention: string; unread: string }
+}) {
+  // 运行指示作为带名图片参与按钮的可访问名称，保持「正在执行 <标题> <时间>」的朗读顺序。
+  if (session.streaming)
+    return (
+      <OrbitSpinner
+        role="img"
+        aria-hidden={false}
+        aria-label={labels.running}
+        className="size-3.5"
+      />
+    )
+  const dot = (label: string, tone: string) => (
+    <span role="img" aria-label={label} className={cn('size-1.5 rounded-full', tone)} />
+  )
+  if (session.needsAttention) {
+    if (session.attentionReason === 'failure') return dot(labels.failed, 'bg-danger')
+    return dot(
+      session.attentionReason === 'approval' ? labels.approval : labels.attention,
+      'bg-warning-strong',
+    )
+  }
+  if (session.unread) return dot(labels.unread, 'bg-ink')
+  return null
 }
 
 export function ProjectTaskList({
@@ -512,36 +554,51 @@ export function ProjectTaskList({
     if (isMobile) setOpenMobile(false)
   }
 
+  const statusLabels = {
+    running: t('navigation:appSidebar.running'),
+    failed: t('navigation:appSidebar.failed'),
+    approval: t('navigation:appSidebar.awaitingApproval'),
+    attention: t('navigation:appSidebar.needsAttention'),
+    unread: t('navigation:appSidebar.unread'),
+  }
+
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col px-2 pt-3"
+      className="flex min-h-0 flex-1 flex-col px-1 pt-4"
       aria-label={t('navigation:appSidebar.recentChats')}
     >
-      <div className="mb-1 flex h-8 shrink-0 items-center gap-1 px-1.5">
+      {/* 分组标签：12/500 弱化文字，右侧是筛选、新建项目与查看全部，几何与侧栏其它分组一致。 */}
+      <div className="flex h-7 shrink-0 items-center gap-0.5 pr-1.5 pl-2 max-[650px]:h-11">
         <button
-          className="mr-auto flex min-w-0 items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:text-foreground"
+          className="mr-auto flex h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 text-xs font-medium tracking-[.02em] text-content-muted transition-colors duration-(--d-fast) hover:text-content max-[650px]:h-11 pointer-coarse:h-11"
           aria-controls="sidebar-recent-sessions"
           aria-expanded={historyExpanded}
           onClick={() => setHistoryExpanded((value) => !value)}
         >
           <span>{t('navigation:workbench.projects')}</span>
-          <ChevronRight className={historyExpanded ? 'rotate-90' : ''} size={12} />
+          <ChevronRight
+            className={cn(
+              'transition-transform duration-(--d-fast) ease-precise',
+              historyExpanded && 'rotate-90',
+            )}
+            size={12}
+          />
         </button>
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-6 text-muted-foreground"
+          className={SECTION_ICON_BUTTON}
           title={t('navigation:workbench.filterSessions')}
           aria-label={t('navigation:workbench.filterSessions')}
           aria-expanded={filterOpen}
           onClick={() => setFilterOpen((value) => !value)}
         >
-          <Search size={13} />
+          <Search className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-6 text-muted-foreground"
+          className={SECTION_ICON_BUTTON}
           title={t('navigation:appSidebar.newProject')}
           aria-label={t('navigation:appSidebar.newProject')}
           aria-haspopup="dialog"
@@ -549,10 +606,10 @@ export function ProjectTaskList({
           disabled={projectPicking}
           onClick={() => void chooseProject()}
         >
-          <FolderPlus size={14} />
+          <FolderPlus className="size-3.5" />
         </Button>
         <button
-          className="rounded-md px-1 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+          className="h-6 rounded-sm px-1.5 text-xs text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content max-[650px]:h-11 pointer-coarse:h-11"
           aria-label={t('navigation:appSidebar.viewAllCountChats', { count: sessions.length })}
           onClick={() => navigateFromSection('chatHistory')}
         >
@@ -560,10 +617,10 @@ export function ProjectTaskList({
         </button>
       </div>
       {(filterOpen || sessionQuery) && (
-        <label className="mx-2 mb-2 flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border px-2 text-muted-foreground focus-within:ring-1 focus-within:ring-ring">
-          <Search size={13} aria-hidden="true" />
+        <label className="m-1 flex h-8 shrink-0 items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11">
+          <Search size={14} aria-hidden="true" />
           <input
-            className="min-w-0 flex-1 border-0 bg-transparent text-xs outline-none"
+            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-content caret-focus outline-none max-[650px]:text-[16px]"
             value={sessionQuery}
             onChange={(event) => setSessionQuery(event.target.value)}
             placeholder={t('navigation:appSidebar.searchChats')}
@@ -582,7 +639,7 @@ export function ProjectTaskList({
         >
           <ContextMenuTrigger asChild>
             <div
-              className="flex flex-1 min-h-0 flex-col gap-[2px] [padding-bottom:2px] overflow-y-auto [animation:page-in_var(--d1)_var(--ease-out)]"
+              className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1 pb-2 [animation:page-in_var(--d1)_var(--ease-out)]"
               id="sidebar-recent-sessions"
               onPointerDownCapture={(event) => prepareTouchMenu(event)}
               onContextMenuCapture={() => setContextMenuTarget()}
@@ -591,28 +648,43 @@ export function ProjectTaskList({
                 const groupCollapsed = collapsedWorkspaces.has(group.key)
                 const label = workspaceLabel(group)
                 return (
-                  <div
-                    className="nav-workspace-group [.nav-workspace-group_+_&]:mt-[3px]"
-                    key={group.key}
-                  >
+                  <div className="nav-workspace-group" key={group.key}>
+                    {/* 项目行：操作键在悬停或键盘聚焦时替换右侧计数，粗指针下常驻。 */}
                     <div
-                      className="group/workspace flex min-w-0 items-center gap-[2px]"
+                      className="group/workspace flex min-w-0 items-center gap-0.5 rounded-sm pr-1 hover:bg-surface-hover"
                       onContextMenu={() => setMenuTargetKey(group.key)}
                       onPointerDown={(event) => prepareTouchMenu(event, group.key)}
                     >
                       <button
-                        className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-left text-sm text-foreground hover:bg-sidebar-accent [&_span]:min-w-0 [&_span]:flex-1 [&_span]:truncate [&_small]:hidden [&_.is-open]:rotate-90"
+                        className={cn(
+                          TREE_ROW,
+                          'flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left font-medium text-content',
+                        )}
                         aria-expanded={!groupCollapsed}
                         onClick={() => toggleWorkspace(group.key)}
                         title={group.cwd || label}
                       >
-                        <ChevronRight className={groupCollapsed ? '' : 'is-open'} size={13} />
-                        <FolderClosed size={13} />
-                        <span>{label}</span>
-                        <small>{workspaceCounts.get(group.key) || group.sessions.length}</small>
+                        <ChevronRight
+                          className={cn(
+                            'shrink-0 text-content-muted transition-transform duration-(--d-fast) ease-precise',
+                            !groupCollapsed && 'rotate-90',
+                          )}
+                          size={14}
+                        />
+                        <FolderClosed className="shrink-0 text-content-secondary" size={16} />
+                        <span className="min-w-0 flex-1 truncate">{label}</span>
+                        <small
+                          className={cn(
+                            'shrink-0 text-xs font-normal text-content-muted tabular-nums',
+                            group.cwd &&
+                              'group-focus-within/workspace:hidden group-hover/workspace:hidden pointer-coarse:hidden',
+                          )}
+                        >
+                          {workspaceCounts.get(group.key) || group.sessions.length}
+                        </small>
                       </button>
                       {group.cwd && (
-                        <>
+                        <span className="hidden shrink-0 items-center gap-0.5 group-focus-within/workspace:flex group-hover/workspace:flex pointer-coarse:flex">
                           <WorkspaceActionButton
                             label={t('navigation:appSidebar.renameProjectNamed', {
                               project: label,
@@ -629,71 +701,84 @@ export function ProjectTaskList({
                           >
                             <Plus size={14} />
                           </WorkspaceActionButton>
-                        </>
+                        </span>
                       )}
                     </div>
-                    {!groupCollapsed &&
-                      group.sessions.map((session) => (
-                        <button
-                          className={`flex h-8 w-full items-center gap-1 rounded-lg pl-8 pr-2.5 text-left text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground ${session.id === activeSessionId ? 'active-session bg-sidebar-accent text-foreground' : ''}`}
-                          aria-current={session.id === activeSessionId ? 'page' : undefined}
-                          title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
-                          onClick={() => openRecentSession(session.id)}
-                          onContextMenu={() => setMenuTargetSessionId(session.id)}
-                          onPointerDown={(event) => prepareTouchMenu(event, '', session.id)}
-                          key={session.id}
-                        >
-                          {session.streaming && (
-                            <LoaderCircle
-                              className="mr-1 size-3.5 shrink-0 animate-spin text-foreground"
-                              aria-label={t('navigation:appSidebar.running')}
-                            />
-                          )}
-                          {session.pinned && (
-                            <Pin
-                              className="mr-1 size-3 shrink-0"
-                              aria-label={t('navigation:appSidebar.pinned')}
-                            />
-                          )}
-                          {session.needsAttention && (
-                            <CircleAlert
-                              className="mr-1 size-3 shrink-0"
-                              aria-label={t('navigation:appSidebar.needsAttention')}
-                            />
-                          )}
-                          {session.unread && (
-                            <span
-                              className="mr-1 size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]"
-                              aria-label={t('navigation:appSidebar.unread')}
-                            />
-                          )}
-                          <span className="min-w-0 flex-1 select-none truncate">
-                            {session.name || t('navigation:appSidebar.untitledChat')}
-                          </span>
-                          <time
-                            className="shrink-0 text-xs text-muted-foreground/70"
-                            dateTime={session.modified}
-                          >
-                            {relativeTime(session.modified, language)}
-                          </time>
-                          {session.archived && (
-                            <span className="ml-auto text-[11px] font-normal text-muted-foreground">
-                              {t('navigation:appSidebar.archived')}
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                    {/* 会话缩进挂在 1px 引导线上；当前会话抬起为键帽，3px 强调刻度压在引导线上。 */}
+                    {!groupCollapsed && group.sessions.length > 0 && (
+                      <div className="relative flex flex-col gap-px pt-px pl-6 before:absolute before:top-0.5 before:bottom-0.5 before:left-[13px] before:w-px before:bg-stroke-strong">
+                        {group.sessions.map((session) => {
+                          const active = session.id === activeSessionId
+                          return (
+                            <button
+                              className={cn(
+                                TREE_ROW,
+                                'relative flex w-full min-w-0 items-center gap-2 pr-2 pl-2.5 text-left text-content-secondary hover:bg-surface-hover hover:text-content',
+                                active &&
+                                  'active-session bg-key font-medium text-content shadow-key ring-1 ring-key-border before:absolute before:top-1/2 before:-left-3 before:h-4 before:w-[3px] before:-translate-y-1/2 before:rounded-r-[3px] before:bg-star hover:bg-key',
+                              )}
+                              aria-current={active ? 'page' : undefined}
+                              title={`${session.name || t('navigation:appSidebar.untitledChat')} · ${relativeTime(session.modified, language)}`}
+                              onClick={() => openRecentSession(session.id)}
+                              onContextMenu={() => setMenuTargetSessionId(session.id)}
+                              onPointerDown={(event) => prepareTouchMenu(event, '', session.id)}
+                              key={session.id}
+                            >
+                              <span className="grid size-3.5 shrink-0 place-items-center">
+                                <SessionStatusMark session={session} labels={statusLabels} />
+                              </span>
+                              <span className="min-w-0 flex-1 truncate select-none">
+                                {session.name || t('navigation:appSidebar.untitledChat')}
+                              </span>
+                              {session.pinned && (
+                                <Pin
+                                  className="size-3 shrink-0 text-content-muted"
+                                  aria-label={t('navigation:appSidebar.pinned')}
+                                />
+                              )}
+                              {/* 运行中直接写出状态文字，不只依赖轨道指示的颜色与动画；
+                                  读屏已从轨道指示读到「正在执行」，这里只给视觉，时间改为仅读屏可见。 */}
+                              {session.streaming && (
+                                <span
+                                  aria-hidden="true"
+                                  className="shrink-0 text-xs font-medium text-accent-fg"
+                                >
+                                  {statusLabels.running}
+                                </span>
+                              )}
+                              <time
+                                className={cn(
+                                  'shrink-0 text-xs font-normal text-content-muted tabular-nums',
+                                  session.streaming && 'sr-only',
+                                )}
+                                dateTime={session.modified}
+                              >
+                                {relativeTime(session.modified, language)}
+                              </time>
+                              {session.archived && (
+                                <span className="shrink-0 text-xs font-normal text-content-muted">
+                                  {t('navigation:appSidebar.archived')}
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })}
               {!visibleSessions.length && (
-                <span className="[padding:8px] text-[var(--text-muted)] text-xs font-normal">
-                  {sessionQuery.trim()
-                    ? t('navigation:appSidebar.noMatchingChats')
-                    : sessions.length
-                      ? t('navigation:appSidebar.noActiveChats')
-                      : t('navigation:appSidebar.noChatHistoryYet')}
-                </span>
+                <div className="mt-1 flex items-center gap-3 rounded-lg border border-dashed border-stroke-strong px-3 py-3 text-xs leading-relaxed text-content-muted">
+                  <StarOrbit size={27} />
+                  <span>
+                    {sessionQuery.trim()
+                      ? t('navigation:appSidebar.noMatchingChats')
+                      : sessions.length
+                        ? t('navigation:appSidebar.noActiveChats')
+                        : t('navigation:appSidebar.noChatHistoryYet')}
+                  </span>
+                </div>
               )}
             </div>
           </ContextMenuTrigger>

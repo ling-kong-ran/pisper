@@ -9,7 +9,6 @@ import {
   ChevronDown,
   CircleAlert,
   FlaskConical,
-  RefreshCw,
   Sparkles,
   Wand2,
 } from 'lucide-react'
@@ -28,6 +27,8 @@ import type {
 } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { AppError } from '@/components/ui/app-primitives'
 
@@ -179,92 +180,94 @@ export function VisualGenerationSettings({
   const videoModels = status?.videoModels || []
 
   return (
-    <section className="[margin-top:12px]">
-      {/* 当前视觉模型摘要卡：与「当前对话模型」卡片同构 */}
-      <SettingsCard className="[margin-bottom:12px]" data-config-card="models-visual">
+    <section className="mt-3">
+      {/* 当前视觉模型摘要卡：键帽图标 + 读数（提供方 / 模型），右侧测试与快速设置 */}
+      <SettingsCard className="mb-3 p-4 py-3.5" data-config-card="models-visual">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="grid size-10 flex-none place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--star-strong)]">
-            <Sparkles size={19} />
+          <span
+            aria-hidden="true"
+            className={cn(
+              'grid size-9.5 flex-none place-items-center rounded-lg border border-key-border bg-key shadow-key',
+              status?.image ? 'text-accent-fg' : 'text-content-muted',
+            )}
+          >
+            <Sparkles size={18} />
           </span>
-          <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-            <span className="text-[12px] font-[600] text-[var(--text-muted)]">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-xs font-medium text-content-muted">
               {t('config:configPage.currentVisualModel')}
             </span>
             {loading ? (
-              <span className="flex items-center gap-[7px] text-[12px] text-[var(--text-muted)]">
-                <RefreshCw className="animate-spin" size={13} />
+              <span role="status" className="flex items-center gap-2 text-xs text-content-muted">
+                <OrbitSpinner className="size-3.5" />
                 {t('config:configPage.loadingVisualStatus')}
               </span>
             ) : status?.image ? (
               <>
-                <span className="flex min-w-0 flex-wrap items-center gap-[7px]">
-                  <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px]">
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-medium text-content">
                     {status.image.providerName} / {status.image.name}
-                  </strong>
+                  </span>
                   <SettingsBadge tone="green">
                     <CheckCircle2 size={11} className="mr-[3px] inline" />
                     {t('config:configPage.authenticationReady')}
                   </SettingsBadge>
                 </span>
                 {status.video && (
-                  <small className="text-[12px] text-[var(--text-muted)] [overflow-wrap:anywhere]">
+                  <small className="text-xs text-content-muted [overflow-wrap:anywhere]">
                     {t('config:configPage.visualVideoModel')}：{status.video.providerName} /{' '}
                     {status.video.name}
                   </small>
                 )}
               </>
             ) : (
-              <span className="flex min-w-0 flex-col gap-[2px]">
-                <strong className="flex items-center gap-[6px] text-[14px] text-[var(--warning-strong)]">
-                  <CircleAlert size={15} />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-warning-strong">
+                  <CircleAlert size={14} aria-hidden="true" />
                   {t('config:configPage.visualNoneConfigured')}
-                </strong>
-                <small className="text-[12px] text-[var(--text-muted)]">
+                </span>
+                <small className="text-xs text-content-muted">
                   {t('config:configPage.visualEmptyHint')}
                 </small>
               </span>
             )}
           </div>
-          <div className="flex w-full min-w-0 max-w-full flex-none flex-wrap items-center gap-[7px] sm:w-auto">
+          <div className="flex w-full max-w-full min-w-0 flex-none flex-wrap items-center gap-2 sm:w-auto">
             {status?.image && (
               <Button
-                variant="outline"
-                className="bg-surface-subtle"
+                variant="secondary"
+                className="max-[650px]:h-11"
                 disabled={testing}
                 onClick={() => void runTest()}
               >
-                {testing ? (
-                  <RefreshCw className="animate-spin" size={13} />
-                ) : (
-                  <FlaskConical size={13} />
-                )}
+                {testing ? <OrbitSpinner className="text-current" /> : <FlaskConical size={13} />}
                 {testing
                   ? t('config:configPage.testingGeneration')
                   : t('config:configPage.testGeneration')}
               </Button>
             )}
-            <Button onClick={onQuickSetup}>
+            <Button className="max-[650px]:h-11" onClick={onQuickSetup}>
               <Wand2 size={13} />
               {t('config:configPage.visualQuickSetup')}
             </Button>
           </div>
         </div>
         {testResult && (
-          <div className="flex items-center gap-[10px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
+          <div className="mt-3 flex items-center gap-2.5 rounded-sm border border-stroke-soft bg-surface-subtle px-2.5 py-2">
             {testResult.previewDataUrl ? (
               <img
                 src={testResult.previewDataUrl}
                 alt={testResult.modelName}
-                className="h-[44px] w-[44px] flex-none rounded-[var(--r-xs)] object-cover"
+                className="size-11 flex-none rounded-xs object-cover"
               />
             ) : (
-              <Check size={16} className="flex-none text-[var(--success)]" />
+              <Check size={16} className="flex-none text-success" />
             )}
-            <span className="flex min-w-0 flex-col gap-[1px] text-[12px]">
-              <strong className="text-[var(--success-strong)]">
+            <span className="flex min-w-0 flex-col gap-px text-xs">
+              <span className="font-medium text-success-strong">
                 {t('config:configPage.testSucceeded')}
-              </strong>
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[var(--text-muted)]">
+              </span>
+              <span className="truncate font-mono text-content-muted">
                 {testResult.providerName} / {testResult.modelName} · {testResult.path}
               </span>
             </span>
@@ -277,22 +280,23 @@ export function VisualGenerationSettings({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group flex w-full cursor-pointer items-center gap-[7px] border-0 bg-transparent p-[4px_2px] text-left"
+            className="group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-0.5 text-left max-[650px]:min-h-11"
           >
             <ChevronDown
-              size={15}
-              className="flex-none text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
+              size={16}
+              aria-hidden="true"
+              className="flex-none text-content-muted transition-transform group-data-[state=closed]:-rotate-90"
             />
-            <span className="shrink-0 text-[13px] font-[700] text-[var(--text-secondary)]">
+            <span className="shrink-0 text-sm font-medium text-content">
               {t('config:configPage.visualConnections')}
             </span>
-            <span className="min-w-0 text-[12px] text-[var(--text-tertiary)]">
+            <span className="min-w-0 truncate text-xs text-content-muted">
               {t('config:configPage.visualConnectionsHint')}
             </span>
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <SettingsCard>
+          <SettingsCard className="mt-2 p-4 py-4">
             {/* 与对话连接管理共用同一套卡片网格，保证两边样式一致 */}
             <ConnectionCardGrid
               providers={visualProviders}
@@ -303,15 +307,13 @@ export function VisualGenerationSettings({
               onDelete={onDeleteProvider}
             />
             {visibleVisualProviders.length === 0 && (
-              <p className="[margin:2px_0_0] text-[12px] text-[var(--text-muted)]">
-                {t('config:configPage.visualEmptyHint')}
-              </p>
+              <p className="text-xs text-content-muted">{t('config:configPage.visualEmptyHint')}</p>
             )}
             {(imageModels.length > 0 || videoModels.length > 0) && (
-              <div className="flex flex-col gap-[8px] [border-top:1px_solid_var(--stroke-soft)] [margin-top:10px] pt-[10px]">
+              <div className="mt-3 flex flex-col gap-2 border-t border-stroke-soft pt-3">
                 {imageModels.length > 0 && (
-                  <div className="flex items-center gap-[8px]">
-                    <span className="w-[64px] flex-none text-[12px] text-[var(--text-muted)]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-16 flex-none text-xs text-content-muted">
                       {t('config:configPage.visualImageModel')}
                     </span>
                     <AppSelect
@@ -334,8 +336,8 @@ export function VisualGenerationSettings({
                   </div>
                 )}
                 {videoModels.length > 0 && (
-                  <div className="flex items-center gap-[8px]">
-                    <span className="w-[64px] flex-none text-[12px] text-[var(--text-muted)]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-16 flex-none text-xs text-content-muted">
                       {t('config:configPage.visualVideoModel')}
                     </span>
                     <AppSelect
@@ -357,7 +359,7 @@ export function VisualGenerationSettings({
                     </AppSelect>
                   </div>
                 )}
-                <small className="text-[11px] text-[var(--text-tertiary)]">
+                <small className="text-xs text-content-muted">
                   {t(
                     'config:configPage.visualModelsAreSelectedByTheVisualGenerationToolAndDoNotAppearInTheChatModelList',
                   )}
@@ -369,7 +371,7 @@ export function VisualGenerationSettings({
       </Collapsible>
 
       {error && (
-        <div className="[margin-top:10px]">
+        <div className="mt-2.5">
           <AppError>
             <AlertTriangle size={13} />
             {error}

@@ -3,6 +3,7 @@ import { ChevronRight, Square, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { PageState } from '@/components/app/PageState'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { useTerminalService, useTerminals } from './terminal-context'
 import type { TerminalRecord } from './terminal-registry'
 
@@ -35,10 +36,11 @@ function ProcessLog({
     if (follow && area.current) area.current.scrollTop = area.current.scrollHeight
   }, [record.output, follow])
   return (
-    <div className="border-t border-border p-3">
-      <label className="mb-2 flex items-center gap-2 text-xs text-content-muted">
+    <div className="border-t border-stroke-soft bg-code px-3 py-2.5">
+      <label className="mb-2 flex min-h-6 items-center gap-2 text-xs text-content-muted pointer-coarse:min-h-11">
         <input
           type="checkbox"
+          className="size-3.5 accent-star"
           checked={follow}
           onChange={(event) => onFollow(event.target.checked)}
         />
@@ -58,7 +60,7 @@ function ProcessLog({
           if (el.scrollTop + el.clientHeight < el.scrollHeight - 4) onFollow(false)
           onScroll(el.scrollTop)
         }}
-        className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-subtle p-3 font-mono text-xs"
+        className="max-h-80 overflow-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-content-soft focus-visible:-outline-offset-2"
       >
         {record.output || t('terminal:workspace.noOutput')}
       </pre>
@@ -99,17 +101,18 @@ export function TaskProcessesPane({
     error: t('terminal:workspace.error'),
   }
   const visible = records.filter((record) => filter === 'all' || record.status === filter)
+  const iconAction = 'max-[650px]:size-11'
   return (
     <section className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-3">
-        <span className="flex-1 text-xs text-content-muted">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-stroke-soft px-3 py-2">
+        <span className="min-w-0 flex-1 text-xs text-content-muted">
           {t('terminal:workspace.ownedProcesses')}
         </span>
         <select
           aria-label={t('terminal:workspace.filter')}
           value={filter}
           onChange={(event) => onViewChange({ filter: event.target.value })}
-          className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+          className="h-8 rounded-sm border border-control bg-panel px-2 text-sm text-content outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring pointer-coarse:h-11"
         >
           <option value="all">{t('terminal:workspace.all')}</option>
           {Object.entries(statuses).map(([value, label]) => (
@@ -124,7 +127,7 @@ export function TaskProcessesPane({
           {error}
         </p>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {!visible.length ? (
           <PageState
             kind="empty"
@@ -134,14 +137,15 @@ export function TaskProcessesPane({
           />
         ) : (
           visible.map((record) => (
-            <article
-              className="mb-2 overflow-hidden rounded-lg border border-border"
-              key={record.id}
-            >
-              <div className="flex min-w-0 items-center gap-2 p-2">
+            <article className="border-b border-stroke-soft" key={record.id}>
+              {/* 细线进程行：轨道指示运行中，等宽配置名与目录，状态文字 12px 弱化。 */}
+              <div
+                className={`flex min-h-11 min-w-0 items-center gap-2 py-1 pr-1.5 pl-1.5 ${expanded.has(record.id) ? 'bg-surface-subtle' : ''}`}
+              >
                 <Button
                   variant="ghost"
                   size="icon"
+                  className={iconAction}
                   aria-expanded={expanded.has(record.id)}
                   aria-label={t('terminal:workspace.logs')}
                   onClick={() =>
@@ -152,20 +156,38 @@ export function TaskProcessesPane({
                     })
                   }
                 >
-                  <ChevronRight className={expanded.has(record.id) ? 'rotate-90' : ''} />
+                  <ChevronRight
+                    className={`text-content-muted transition-transform duration-(--d-fast) ${expanded.has(record.id) ? 'rotate-90' : ''}`}
+                  />
                 </Button>
+                {record.status === 'running' || record.status === 'starting' ? (
+                  <OrbitSpinner className="size-3.5" />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className={`size-2 shrink-0 rounded-[2px] ${record.status === 'error' ? 'bg-danger' : 'bg-content-faint'}`}
+                  />
+                )}
                 <div className="min-w-0 flex-1">
-                  <strong className="block truncate text-sm font-medium">{record.profileId}</strong>
-                  <span className="block truncate text-xs text-content-muted" title={record.cwd}>
+                  <strong className="block truncate font-mono text-sm font-medium">
+                    {record.profileId}
+                  </strong>
+                  <span
+                    className="block truncate font-mono text-xs text-content-muted"
+                    title={record.cwd}
+                  >
                     {record.cwd}
                   </span>
                 </div>
-                <span className="text-xs text-content-muted">
+                <span
+                  className={`shrink-0 text-xs ${record.status === 'error' ? 'text-danger' : 'text-content-muted'}`}
+                >
                   {statuses[record.status] || t('terminal:workspace.unknown')}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
+                  className={iconAction}
                   aria-label={t('terminal:workspace.open')}
                   onClick={() => onOpenTerminal(record.id)}
                 >
@@ -175,6 +197,7 @@ export function TaskProcessesPane({
                   <Button
                     variant="ghost"
                     size="icon"
+                    className={`${iconAction} hover:text-danger`}
                     disabled={record.status === 'stopping'}
                     aria-label={t('terminal:workspace.stop')}
                     onClick={() => {
@@ -184,7 +207,7 @@ export function TaskProcessesPane({
                         .catch((caught) => setError(String(caught)))
                     }}
                   >
-                    <Square className="size-4" />
+                    <Square className="size-3.5" />
                   </Button>
                 )}
               </div>

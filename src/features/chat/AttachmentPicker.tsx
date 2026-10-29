@@ -62,14 +62,14 @@ export function AttachmentPicker({
       />
       <button
         type="button"
-        className="relative grid size-9 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
         title={t('chat:focusSession.addAttachment')}
         aria-label={t('chat:focusSession.addAttachment')}
         onClick={() => void chooseAttachments()}
       >
-        <Paperclip size={17} />
+        <Paperclip size={16} />
         {selection.attachments.length > 0 && (
-          <span className="absolute -top-1 -right-1 grid min-w-3.5 place-items-center rounded-full border-2 border-background bg-primary px-0.5 text-xs text-primary-foreground">
+          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full border-2 border-panel bg-star px-0.5 text-[10px] leading-none font-medium text-on-accent tabular-nums">
             {selection.attachments.length}
           </span>
         )}

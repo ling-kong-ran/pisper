@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Input } from '@/components/ui/input'
+import { Kbd } from '@/components/ui/kbd'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { requestConfigCardHighlight, searchConfig, type ConfigSearchMatch } from './config-search'
@@ -30,6 +32,7 @@ export function ConfigSearchBox({
   const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const shortcut = useShortcutLabel('focusSearch')
   const results = useMemo(
     () =>
       searchConfig(query, language, {
@@ -84,7 +87,8 @@ export function ConfigSearchBox({
     >
       <Search
         size={15}
-        className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[var(--text-muted)]"
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-content-muted"
       />
       <Input
         ref={inputRef}
@@ -92,9 +96,9 @@ export function ConfigSearchBox({
         title={t('navigation:pageHeader.search')}
         aria-label={t('navigation:pageHeader.search')}
         className={cn(
-          'h-[34px] pl-8 text-sm',
-          placement === 'sidebar' &&
-            'h-9 rounded-full border-transparent bg-sidebar-accent shadow-none',
+          'h-8.5 pl-8 text-sm pointer-coarse:min-h-11',
+          // 侧栏搜索是一枚平键：键帽面 + 键帽描边，右侧留出快捷键小键帽的位置。
+          placement === 'sidebar' && 'h-8 border-key-border bg-key pr-9 shadow-key',
         )}
         placeholder={t('config:configSearch.placeholder')}
         onChange={(event) => {
@@ -122,10 +126,15 @@ export function ConfigSearchBox({
           }
         }}
       />
+      {placement === 'sidebar' && shortcut && !query && (
+        <Kbd className="absolute top-1/2 right-2 -translate-y-1/2 pointer-coarse:hidden">
+          {shortcut}
+        </Kbd>
+      )}
       {showDropdown && (
-        <div className="absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--sh-floating)]">
+        <div className="absolute top-full left-0 z-50 mt-1.5 w-full overflow-hidden rounded-md bg-solid shadow-float">
           {results.length === 0 ? (
-            <p className="px-3 py-3 text-[12px] text-[var(--text-muted)]">
+            <p role="status" className="px-3 py-3 text-xs text-content-muted">
               {t('config:configSearch.noResults')}
             </p>
           ) : (
@@ -135,18 +144,14 @@ export function ConfigSearchBox({
                   <button
                     type="button"
                     className={cn(
-                      'flex w-full flex-col gap-0.5 px-3 py-2 text-left',
-                      index === activeIndex
-                        ? 'bg-[var(--accent-soft)]'
-                        : 'hover:bg-[var(--surface-subtle)]',
+                      'flex w-full flex-col gap-0.5 px-3 py-1.5 text-left pointer-coarse:min-h-11',
+                      index === activeIndex ? 'bg-surface-hover' : 'hover:bg-surface-subtle',
                     )}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => select(match)}
                   >
-                    <span className="text-[13px] text-[var(--text)]">{match.title}</span>
-                    <span className="text-[11px] text-[var(--text-muted)]">
-                      {match.sectionTitle}
-                    </span>
+                    <span className="text-sm text-content">{match.title}</span>
+                    <span className="text-xs text-content-muted">{match.sectionTitle}</span>
                   </button>
                 </li>
               ))}

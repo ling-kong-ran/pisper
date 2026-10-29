@@ -20,6 +20,7 @@ import type {
 } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { FieldLabel } from '@/components/ui/field'
 import { AppCardHeader, AppError, AppNotice } from '@/components/ui/app-primitives'
@@ -282,8 +283,8 @@ export function QuickSetupWizard({
     >
       <DialogContent
         showCloseButton={false}
-        className="modal z-[80] block max-h-[calc(100dvh_-_40px)] w-[calc(100%_-_40px)] max-w-lg overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] sm:max-w-lg max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:w-[calc(100%_-_16px)]"
-        overlayClassName="z-[70] bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)]"
+        className="modal z-[80] block max-h-[calc(100dvh_-_40px)] w-[calc(100%_-_40px)] max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-stroke bg-solid p-[18px] shadow-float sm:max-w-lg max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:w-[calc(100%_-_16px)]"
+        overlayClassName="z-[70] bg-[var(--modal-overlay)]"
         aria-busy={busy}
         onEscapeKeyDown={(event) => {
           if (busy) event.preventDefault()
@@ -321,6 +322,7 @@ export function QuickSetupWizard({
             type="button"
             variant="ghost"
             size="icon"
+            className="pointer-coarse:size-11"
             aria-label={t('config:configPage.closeDialog')}
             disabled={busy}
             onClick={onClose}
@@ -329,15 +331,24 @@ export function QuickSetupWizard({
           </Button>
         </AppCardHeader>
 
-        <div className="flex items-center gap-[8px] [margin-top:12px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[9px_10px]">
-          <span className="grid w-[30px] h-[30px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)]">
-            <Server size={16} />
+        {/* 三段步进刻度：已完成与当前步为强调色，读数与标题里的「第 N 步 / 共 3 步」一致。 */}
+        <div aria-hidden="true" className="mt-3 grid grid-cols-3 gap-1">
+          {[1, 2, 3].map((index) => (
+            <span
+              key={index}
+              className={cn('h-1 rounded-full', index <= step ? 'bg-star' : 'bg-surface-active')}
+            />
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2.5 rounded-md border border-stroke-soft bg-surface-subtle px-2.5 py-2">
+          <span className="grid size-7.5 flex-none place-items-center rounded-md border border-key-border bg-key text-content-muted shadow-key">
+            <Server size={15} aria-hidden="true" />
           </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
-            <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-sm font-medium text-content">
               {connectionName || identity.name}
-            </strong>
-            <small className="text-[11px] text-[var(--text-muted)]">{purposeLabel}</small>
+            </span>
+            <small className="text-xs text-content-muted">{purposeLabel}</small>
           </span>
           <SettingsBadge tone="gray">{purposeLabel}</SettingsBadge>
         </div>
@@ -354,7 +365,7 @@ export function QuickSetupWizard({
                 inputMode="url"
               />
             </FieldLabel>
-            <p className="[margin:8px_0_0] text-[12px] leading-[1.5] text-[var(--text-muted)]">
+            <p className="mt-2 text-xs leading-[1.5] text-content-muted">
               {t('config:configPage.quickSetupBaseUrlHint')}
             </p>
           </div>
@@ -402,12 +413,12 @@ export function QuickSetupWizard({
             />
             <Button
               type="button"
-              size="lg"
-              className="[margin-top:10px] w-full"
+              variant="secondary"
+              className="mt-2.5 w-full max-[650px]:h-11"
               disabled={busy}
               onClick={() => void fetchModels()}
             >
-              {busy ? <RefreshCw className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+              {busy ? <OrbitSpinner className="text-current" /> : <RefreshCw size={14} />}
               {busy ? t('config:configPage.fetchingModels') : t('config:configPage.fetchModels')}
             </Button>
             {discoverWarning && (
@@ -420,20 +431,20 @@ export function QuickSetupWizard({
             )}
             {visibleModels.length > 0 && (
               <>
-                <p className="[margin:14px_0_8px] text-[12px] leading-[1.5] text-[var(--text-muted)]">
+                <p className="mt-3.5 mb-2 text-xs leading-[1.5] text-content-muted">
                   {providerType === 'visual'
                     ? t('config:configPage.selectVisualModelToFinish')
                     : t('config:configPage.selectModelToFinish')}
                 </p>
-                <div className="flex max-h-[260px] flex-col gap-[6px] overflow-y-auto">
+                <div className="flex max-h-[260px] flex-col overflow-y-auto rounded-md border border-stroke">
                   {visibleModels.map((model) => (
                     <button
                       key={`${model.id}-${model.kind}`}
                       type="button"
                       className={cn(
-                        'flex min-w-0 cursor-pointer items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px] text-left hover:border-[var(--accent-border)]',
+                        'relative flex min-h-10 min-w-0 cursor-pointer items-center gap-2 border-b border-stroke-soft px-2.5 py-2 text-left last:border-b-0 hover:bg-surface-subtle pointer-coarse:min-h-11',
                         modelId === model.id &&
-                          '[border-color:var(--accent-border)] bg-[var(--accent-soft)]',
+                          'bg-star-soft before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-r-[3px] before:bg-star hover:bg-star-soft',
                       )}
                       onClick={() => {
                         setModelId(model.id)
@@ -442,14 +453,13 @@ export function QuickSetupWizard({
                     >
                       <span
                         className={cn(
-                          'grid w-[16px] h-[16px] flex-none place-items-center rounded-full [border:1px_solid_var(--stroke)] text-transparent',
-                          modelId === model.id &&
-                            '[border-color:var(--brand-blue)] bg-[var(--brand-blue)] text-white',
+                          'grid size-4 flex-none place-items-center rounded-full border border-control text-transparent',
+                          modelId === model.id && 'border-star bg-star text-on-accent',
                         )}
                       >
                         <Check size={11} />
                       </span>
-                      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+                      <span className="min-w-0 flex-1 truncate text-sm text-content">
                         {model.name}
                       </span>
                       {providerType === 'visual' && (
@@ -466,7 +476,7 @@ export function QuickSetupWizard({
             )}
             {/* 手动输入模型 ID：站点不提供 /models 接口或列表缺模型时的兜底入口，
                 与上面获取到的列表双向联动（点列表填入，可直接改）。 */}
-            <div className="[margin-top:14px] grid gap-[9px]">
+            <div className="mt-3.5 grid gap-2">
               <FieldLabel variant="control">
                 {t('config:configPage.manualModelId')}
                 <input
@@ -475,7 +485,7 @@ export function QuickSetupWizard({
                   placeholder={providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.4'}
                 />
               </FieldLabel>
-              <p className="[margin:0] text-[11px] text-[var(--text-tertiary)]">
+              <p className="text-xs text-content-muted">
                 {t('config:configPage.manualModelIdHint')}
               </p>
               {providerType === 'visual' && (
@@ -509,12 +519,11 @@ export function QuickSetupWizard({
           </AppError>
         )}
 
-        <div className="flex justify-between gap-[8px] [margin-top:18px]">
+        <div className="mt-[18px] flex justify-between gap-2">
           <Button
             type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
+            variant="secondary"
+            className="max-[650px]:h-11"
             disabled={busy || step === 1}
             onClick={() => {
               setError('')
@@ -527,7 +536,7 @@ export function QuickSetupWizard({
           {step === 1 ? (
             <Button
               type="button"
-              size="lg"
+              className="max-[650px]:h-11"
               disabled={busy || !baseUrl.trim()}
               onClick={nextFromBaseUrl}
             >
@@ -535,18 +544,23 @@ export function QuickSetupWizard({
               {t('config:configPage.nextStep')}
             </Button>
           ) : step === 2 ? (
-            <Button type="button" size="lg" disabled={busy} onClick={nextFromProtocol}>
+            <Button
+              type="button"
+              className="max-[650px]:h-11"
+              disabled={busy}
+              onClick={nextFromProtocol}
+            >
               <ArrowRight size={14} />
               {t('config:configPage.nextStep')}
             </Button>
           ) : (
             <Button
               type="button"
-              size="lg"
+              className="max-[650px]:h-11"
               disabled={busy || (!modelId.trim() && manualIds.length === 0)}
               onClick={() => void save()}
             >
-              {busy ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
+              {busy ? <OrbitSpinner className="text-current" /> : <Check size={14} />}
               {busy ? t('config:configPage.saving') : t('config:configPage.saveChanges')}
             </Button>
           )}

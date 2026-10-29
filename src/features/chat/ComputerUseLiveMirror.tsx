@@ -4,6 +4,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Monitor, ShieldAlert } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import type { DesktopBridge, DesktopComputerUseFrameEvent } from '@/types/update.ts'
 import type { EntityRecord } from '@/types/chat'
 
@@ -119,7 +120,7 @@ function ComputerUseLiveMirrorBase({
 
   return (
     <div
-      className="computer-use-live-mirror w-full overflow-hidden rounded-[var(--r-md)] [border:1px_solid_var(--stroke-soft)] bg-[var(--surface-subtle)] [margin:2px_0]"
+      className="computer-use-live-mirror my-0.5 w-full overflow-hidden rounded-md border border-stroke bg-code"
       data-pisper-live-mirror={live ? 'live' : status}
     >
       {source ? (
@@ -130,7 +131,7 @@ function ComputerUseLiveMirrorBase({
         />
       ) : (
         <div
-          className="computer-use-live-placeholder grid min-h-[84px] w-full place-items-center text-[12px] text-[var(--text-muted)]"
+          className="computer-use-live-placeholder grid min-h-[84px] w-full place-items-center text-xs text-content-muted"
           style={{ aspectRatio }}
         >
           {t('chat:computerUseLive.waitingForFirstFrame')}
@@ -138,24 +139,26 @@ function ComputerUseLiveMirrorBase({
       )}
       {secureInput ? (
         <div
-          className="flex items-center gap-[6px] bg-[var(--warning-soft)] px-[8px] py-[4px] text-[11px] text-[var(--warning-strong)]"
+          className="flex items-center gap-1.5 border-t border-stroke-soft bg-warning-soft px-2.5 py-1 text-xs text-warning-strong"
           data-pisper-secure-input="active"
         >
           <ShieldAlert size={12} className="flex-none" />
           <span className="min-w-0">{t('chat:computerUseLive.secureInput')}</span>
         </div>
       ) : null}
-      <div className="flex items-center justify-between gap-[8px] px-[8px] py-[4px] text-[11px] text-[var(--text-muted)]">
-        <span className="flex min-w-0 items-center gap-[5px]">
+      {/* 页脚是细线分隔的元信息行：窗口名 + 状态；实时状态带运行轨道指示与强调色文字。 */}
+      <div className="flex min-h-7 items-center justify-between gap-2 border-t border-stroke-soft bg-panel px-2.5 text-xs text-content-muted">
+        <span className="flex min-w-0 items-center gap-1.5">
           <Monitor size={12} />
           <span className="truncate" title={windowTitle}>
             {windowTitle || t('chat:computerUseLive.appWindow')}
           </span>
         </span>
         <span
-          className={live ? 'text-[var(--brand-blue-strong)]' : 'text-[var(--text-tertiary)]'}
+          className={`inline-flex shrink-0 items-center gap-1.5 ${live ? 'font-medium text-accent-fg' : 'text-content-muted'}`}
           data-pisper-live-mirror-status={status}
         >
+          {live && <OrbitSpinner className="size-3" />}
           {live
             ? t('chat:computerUseLive.live')
             : status === 'connecting'

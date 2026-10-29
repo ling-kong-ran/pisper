@@ -7,7 +7,6 @@ import {
   ChevronRight,
   FileCode2,
   Info,
-  LoaderCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -16,19 +15,14 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import {
-  AppCard as Panel,
-  AppSectionTitle as SectionTitle,
-  AppCardHeader,
-  AppError,
-} from '@/components/ui/app-primitives'
+import { AppCard as Panel, AppCardHeader, AppError } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useAnimationVisibility } from '@/hooks/use-animation-visibility'
-import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues } from '@/app/i18n'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -36,6 +30,9 @@ import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { Button } from '@/components/ui/button'
 
 import { FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type Translate = (message: string, values?: I18nValues) => string
@@ -128,6 +125,42 @@ const MEMORY_TYPES: MemoryType[] = [
   'fact',
   'task',
 ]
+
+// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
+const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
+const CARD_HEAD =
+  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
+const SELECTED_TICK = 'absolute inset-y-2 left-0 w-[3px] rounded-r-[3px] bg-star'
+// 只读键值行：左侧弱化标签，右侧值单行省略。
+const KEY_VALUE =
+  'key-value flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft text-sm [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
+// 星忆弹窗沿用全局 .modal 浮层：纯色遮罩（无背景模糊）、浮层底色 + 环线投影。
+const MODAL_BACKDROP =
+  'modal-backdrop fixed inset-0 z-[70] grid place-items-center overflow-y-auto overscroll-contain bg-[var(--modal-overlay)] p-5 max-[650px]:p-2'
+const MODAL_SURFACE =
+  'modal grid max-h-[calc(100dvh_-_40px)] w-[min(430px,100%)] gap-0.5 overflow-y-auto overscroll-contain rounded-dialog bg-popover p-5 shadow-float max-[650px]:max-h-[calc(100dvh_-_16px)]'
+
+function CardTitle({ children, count }: { children: ReactNode; count?: ReactNode }) {
+  return (
+    <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
+      {children}
+      {count !== undefined && (
+        <span className="font-normal text-content-muted tabular-nums">{count}</span>
+      )}
+    </h2>
+  )
+}
+
+// 星图类型色点：沿用星系配色 token，外加 1px 细环保证浅色底上的浅色类型可见。
+function GalaxyDot({ type }: { type: MemoryType }) {
+  return (
+    <i
+      aria-hidden="true"
+      className={`g-dot g-${type} inline-block size-2 shrink-0 rounded-full ring-1 ring-stroke`}
+      style={{ background: STAR_COLORS[type] }}
+    />
+  )
+}
 
 function memoryTypeLabel(type: MemoryType, t: Translate) {
   if (type === 'file') return t('memory:memoryPage.fileType')
@@ -602,98 +635,146 @@ export function MemoryPage({
             list={
               <>
                 <Button
-                  variant="outline"
-                  className="mb-3 w-full @min-[760px]/list-detail:hidden"
+                  variant="secondary"
+                  className="mb-3 h-11 w-full @min-[760px]/list-detail:hidden"
                   onClick={() => setDetailOpen(true)}
                 >
                   {t('common:pageTemplate.openDetail')}
                 </Button>
-                <div className="flex min-w-0 flex-col gap-[12px]">
-                  <Panel className="wiki-panel [&_>_button]:grid [&_>_button]:w-full [&_>_button]:grid-cols-[minmax(0,1fr)_auto_auto] [&_>_button]:items-center [&_>_button]:gap-[6px] [&_>_button]:border-0 [&_>_button]:[border-top:1px_solid_var(--stroke-soft)] [&_>_button]:bg-transparent [&_>_button]:p-[9px_5px] [&_>_button]:text-left [&_>_button]:text-[12px] [&_>_button.active]:rounded-[var(--r-xs)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_small]:text-[var(--text-muted)] [&_>_button_small]:text-[13px]">
-                    <AppCardHeader>
-                      <SectionTitle title={t('memory:memoryPage.memorySpaces')} />
+                <div className="flex min-w-0 flex-col gap-4">
+                  <section className={cn('wiki-panel', CARD)}>
+                    <header className={CARD_HEAD}>
+                      <CardTitle count={data.spaces.length}>
+                        {t('memory:memoryPage.memorySpaces')}
+                      </CardTitle>
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="-mr-1.5 max-[650px]:size-11"
                         title={t('memory:memoryPage.newMemorySpace')}
+                        aria-label={t('memory:memoryPage.newMemorySpace')}
                         onClick={() => setSpaceModal({})}
                       >
-                        <Plus size={13} />
+                        <Plus />
                       </Button>
-                    </AppCardHeader>
-                    {data.spaces.map((space) => (
-                      <button
-                        className={space.id === spaceId ? 'active' : ''}
-                        onClick={() => {
-                          setSpaceId(space.id)
-                          setSelectedId('')
-                        }}
-                        key={space.id}
-                      >
-                        <span>{spaceLabel(space, t)}</span>
-                        <small>
-                          {t('memory:memoryPage.countMemories', { count: space.nodeCount })}
-                        </small>
-                        <ChevronRight size={13} />
-                      </button>
-                    ))}
+                    </header>
+                    <ul className="flex flex-col gap-0.5 p-1.5">
+                      {data.spaces.map((space) => {
+                        const active = space.id === spaceId
+                        return (
+                          <li
+                            className={cn(
+                              'relative rounded-md transition-colors duration-(--d-fast) hover:bg-surface-subtle',
+                              active && 'bg-surface-muted hover:bg-surface-muted',
+                            )}
+                            key={space.id}
+                          >
+                            {/* 选中星域：次级表面 + 3px 强调色刻度。 */}
+                            {active && <i aria-hidden="true" className={SELECTED_TICK} />}
+                            <button
+                              type="button"
+                              aria-current={active || undefined}
+                              className={cn(
+                                'grid min-h-10 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-1.5 pr-2 pl-3 text-left text-sm focus-visible:-outline-offset-2 max-[650px]:min-h-11',
+                                active && 'active',
+                              )}
+                              onClick={() => {
+                                setSpaceId(space.id)
+                                setSelectedId('')
+                              }}
+                            >
+                              <span
+                                className={cn(
+                                  'truncate',
+                                  active ? 'font-medium text-content' : 'text-content-soft',
+                                )}
+                              >
+                                {spaceLabel(space, t)}
+                              </span>
+                              <small className="text-xs text-content-muted tabular-nums">
+                                {t('memory:memoryPage.countMemories', { count: space.nodeCount })}
+                              </small>
+                              <ChevronRight className="size-3.5 text-content-faint" />
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
                     {selectedSpace && (
-                      <div className="memory-space-actions [&_button]:inline-flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] [&_button.danger]:text-[var(--danger)] flex gap-[6px] [margin-top:10px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:9px]">
-                        <button onClick={() => setSpaceModal(selectedSpace)}>
-                          <Pencil size={12} />
+                      <div className="memory-space-actions flex gap-1 border-t border-stroke-soft px-1.5 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="max-[650px]:h-11"
+                          onClick={() => setSpaceModal(selectedSpace)}
+                        >
+                          <Pencil />
                           {t('memory:memoryPage.rename')}
-                        </button>
+                        </Button>
                         {selectedSpace.kind !== 'global' && (
-                          <button className="danger" onClick={deleteSpace}>
-                            <Trash2 size={12} />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="danger text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                            onClick={deleteSpace}
+                          >
+                            <Trash2 />
                             {t('memory:memoryPage.delete')}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     )}
-                  </Panel>
-                  <Panel className="memory-legend-panel">
-                    <SectionTitle title={t('memory:memoryPage.memoryMapTypes')} />
-                    <div className="galaxy-legend [&_span]:flex [&_span]:items-center [&_span]:gap-[7px] [&_span]:text-[var(--text-soft)] [&_span]:text-[12px] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[8px_10px] [margin-top:11px]">
+                  </section>
+                  <section className={cn('memory-legend-panel', CARD)}>
+                    <header className={CARD_HEAD}>
+                      <CardTitle>{t('memory:memoryPage.memoryMapTypes')}</CardTitle>
+                    </header>
+                    <div className="galaxy-legend grid grid-cols-2 gap-x-3 gap-y-2 px-3.5 py-3">
                       {MEMORY_TYPES.map((type) => (
-                        <span key={type}>
-                          <i
-                            className={`g-dot [&.g-concept]:bg-[var(--g-concept)] [&.g-concept]:shadow-[0_0_5px_var(--g-concept-glow)] [&.g-file]:bg-[var(--g-file)] [&.g-file]:shadow-[0_0_5px_var(--g-file-glow)] [&.g-risk]:bg-[var(--g-risk)] [&.g-risk]:shadow-[0_0_5px_var(--g-risk-glow)] [&.g-preference]:bg-[var(--g-preference)] [&.g-preference]:shadow-[0_0_5px_var(--g-preference-glow)] [&.g-decision]:bg-[var(--g-decision)] [&.g-decision]:shadow-[0_0_5px_var(--g-decision-glow)] [&.g-fact]:bg-[var(--g-fact)] [&.g-fact]:shadow-[0_0_5px_var(--g-fact-glow)] [&.g-task]:bg-[var(--g-task)] [&.g-task]:shadow-[0_0_5px_var(--g-task-glow)] inline-block w-[7px] h-[7px] flex-none rounded-[50%] g-${type}`}
-                          />
+                        <span
+                          className="flex items-center gap-2 text-xs text-content-secondary"
+                          key={type}
+                        >
+                          <GalaxyDot type={type} />
                           {memoryTypeLabel(type, t)}
                         </span>
                       ))}
                     </div>
-                  </Panel>
-                  <Panel className="min-h-0">
-                    <AppCardHeader>
-                      <SectionTitle
-                        title={`${t('memory:memoryPage.memoryDrafts')} · ${data.candidates?.length || 0}`}
-                      />
+                  </section>
+                  <section className={CARD}>
+                    <header className={CARD_HEAD}>
+                      <CardTitle count={data.candidates?.length || 0}>
+                        {t('memory:memoryPage.memoryDrafts')}
+                      </CardTitle>
                       {Boolean(data.candidates?.length) && (
                         <Button
-                          variant="outline"
-                          className="bg-surface-subtle"
+                          variant="ghost"
+                          size="sm"
+                          className="-mr-1.5 max-[650px]:h-11"
                           disabled={Boolean(resolvingCandidateId)}
                           onClick={ignoreAllCandidates}
                         >
-                          <X size={12} />
+                          <X />
                           {t('memory:memoryPage.ignoreAll')}
                         </Button>
                       )}
-                    </AppCardHeader>
+                    </header>
                     {loadingThreshold && (
-                      <p role="status" className="py-2 text-xs text-muted-foreground">
+                      <p
+                        role="status"
+                        className="flex items-center gap-2 px-3.5 pt-3 text-xs text-content-muted"
+                      >
+                        <OrbitSpinner className="size-3.5" />
                         {t('memory:memoryPage.loadingAutoApproveThreshold')}
                       </p>
                     )}
                     {thresholdError && (
-                      <div className="my-2 flex flex-wrap items-center gap-2">
-                        <AppError>
+                      <div className="flex flex-wrap items-center gap-2 px-3.5 pt-3">
+                        <AppError className="my-0">
                           {t('memory:memoryPage.autoApproveThresholdUnavailable')} {thresholdError}
                         </AppError>
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           disabled={loadingThreshold || savingThreshold}
                           onClick={() =>
@@ -707,24 +788,25 @@ export function MemoryPage({
                       </div>
                     )}
                     {autoApproveConfidence !== null && (
-                      <div className="memory-auto-approve-row [&_label]:flex [&_label]:min-w-0 [&_label]:flex-col [&_label]:gap-[2px] [&_label_span]:text-[12px] [&_label_span]:font-[600] [&_label_small]:text-[var(--text-muted)] [&_label_small]:text-[10px] [&_label_small]:leading-[1.4] flex items-center justify-between gap-[10px] [border-bottom:1px_solid_var(--stroke-soft)] [padding:8px_0_10px]">
-                        <div className="flex items-center justify-center gap-1">
+                      <div className="memory-auto-approve-row flex min-h-11 items-center justify-between gap-3 border-b border-stroke-soft px-3.5 py-1.5">
+                        <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-content">
                           <span>{t('memory:memoryPage.autoApproveThreshold')}</span>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Info size={16} />
+                              <Info className="size-3.5 shrink-0 text-content-muted" />
                             </TooltipTrigger>
                             <TooltipContent align="center" side="top">
                               {t('memory:memoryPage.autoApproveThresholdHint')}
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <span className="memory-auto-approve-input [&_input]:w-[64px] [&_input]:[border:1px_solid_var(--stroke-soft)] [&_input]:rounded-[6px] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[4px_6px] [&_input]:text-[var(--text)] [&_input]:text-[12px] [&_input]:text-right [&_em]:text-[var(--text-muted)] [&_em]:text-[11px] [&_em]:[font-style:normal] flex flex-none items-center gap-[5px]">
-                          <input
+                        <span className="memory-auto-approve-input flex flex-none items-center gap-1.5 text-xs text-content-muted">
+                          <Input
                             type="number"
                             min={0}
                             max={100}
                             step={5}
+                            className="h-7 w-16 text-right tabular-nums max-[650px]:h-11"
                             value={autoApproveConfidence}
                             aria-busy={savingThreshold}
                             aria-label={t('memory:memoryPage.autoApproveThreshold')}
@@ -740,19 +822,20 @@ export function MemoryPage({
                               }
                             }}
                           />
-                          <em>%</em>
-                          {savingThreshold && <LoaderCircle className="animate-spin" size={12} />}
+                          %{savingThreshold && <OrbitSpinner className="size-3.5" />}
                         </span>
                       </div>
                     )}
-                    <div className="flex max-h-[300px] flex-col gap-[8px] overflow-auto mt-2">
+                    <div className="flex max-h-[320px] flex-col gap-2 overflow-auto p-3">
                       {(data.candidates || []).map((candidate) => (
-                        <div
-                          className="memory-candidate [&_>_strong]:text-[12px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[11px] [&_>_span]:leading-[1.45] [&_>_small]:text-[var(--text-muted)] [&_>_small]:text-[11px] [&_>_small]:leading-[1.45] [&_>_div]:flex [&_>_div]:gap-[6px] [&_button]:inline-flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:[border:1px_solid_var(--stroke-soft)] [&_button]:rounded-[6px] [&_button]:bg-transparent [&_button]:p-[4px_7px] [&_button]:text-[var(--text)] [&_button]:text-[11px] [&_button.danger]:text-[var(--danger)] flex flex-col gap-[5px] [border:1px_solid_var(--stroke-soft)] rounded-[8px] bg-[var(--surface-muted)] [padding:8px]"
+                        <article
+                          className="memory-candidate flex flex-col gap-1 rounded-md border border-stroke-soft bg-surface-subtle p-2.5 text-xs leading-[1.5] text-content-muted"
                           key={candidate.id}
                         >
-                          <strong>{candidate.title}</strong>
-                          <small>
+                          <strong className="text-sm font-medium text-content">
+                            {candidate.title}
+                          </strong>
+                          <small className="text-xs tabular-nums">
                             {spaceLabel(
                               data.spaces.find((space) => space.id === candidate.spaceId),
                               t,
@@ -766,50 +849,56 @@ export function MemoryPage({
                               value: Math.round((candidate.confidence || 0) * 100),
                             })}
                           </small>
-                          <span>{candidate.content}</span>
+                          <span className="text-content-secondary">{candidate.content}</span>
                           {candidate.topicKey && (
-                            <small>
-                              {t('memory:memoryPage.topic')}：{candidate.topicKey}
+                            <small className="text-xs">
+                              {t('memory:memoryPage.topic')}：
+                              <code className="font-mono">{candidate.topicKey}</code>
                             </small>
                           )}
                           {candidate.evidence && (
-                            <small>
+                            <small className="text-xs">
                               {t('memory:memoryPage.evidence')}：{candidate.evidence}
                             </small>
                           )}
-                          <small>
+                          <small className="text-xs tabular-nums">
                             {t('memory:memoryPage.created')}：
                             {formatMemoryTime(candidate.createdAt, language)}
                             {candidate.expiresAt
                               ? ` · ${t('memory:memoryPage.expires')}：${formatMemoryTime(candidate.expiresAt, language)}`
                               : ''}
                           </small>
-                          <div>
-                            <button
+                          <div className="mt-1 flex gap-1.5">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="max-[650px]:h-11"
                               disabled={Boolean(resolvingCandidateId)}
-                              title={t('memory:memoryPage.confirm')}
                               onClick={() => resolveCandidate(candidate, 'accept')}
                             >
-                              <Check size={12} />
+                              <Check />
                               {t('memory:memoryPage.confirm')}
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="danger text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
                               disabled={Boolean(resolvingCandidateId)}
-                              className="danger"
-                              title={t('memory:memoryPage.ignore')}
                               onClick={() => resolveCandidate(candidate, 'reject')}
                             >
-                              <X size={12} />
+                              <X />
                               {t('memory:memoryPage.ignore')}
-                            </button>
+                            </Button>
                           </div>
-                        </div>
+                        </article>
                       ))}
                       {!data.candidates?.length && (
-                        <small>{t('memory:memoryPage.thereAreNoPendingMemoryCandidates')}</small>
+                        <small className="text-xs text-content-muted">
+                          {t('memory:memoryPage.thereAreNoPendingMemoryCandidates')}
+                        </small>
                       )}
                     </div>
-                  </Panel>
+                  </section>
                 </div>
               </>
             }
@@ -819,31 +908,43 @@ export function MemoryPage({
                 onPointerMove={handleParallax}
                 onPointerLeave={resetParallax}
               >
-                <div className="graph-toolbar [&_button]:grid [&_button]:w-[32px] [&_button]:h-[32px] [&_button]:place-items-center [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[12px] [.galaxy-panel_&]:border-[var(--galaxy-toolbar-border)] [.galaxy-panel_&]:bg-[var(--galaxy-toolbar-bg)] [.galaxy-panel_&]:text-[var(--galaxy-toolbar-text)] [.galaxy-panel_&]:[backdrop-filter:blur(9px)] [.galaxy-panel_&_button:hover]:bg-[var(--galaxy-toolbar-hover)] dark:bg-[var(--solid)] dark:text-[var(--text)] absolute z-[4] [top:10px] [left:10px] flex gap-[3px] [padding:3px] [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--solid)]">
+                {/* 星图始终是深空场景：工具条用星系专属 token，实色底不做背景模糊。 */}
+                <div className="graph-toolbar absolute top-2.5 left-2.5 z-[4] flex gap-0.5 rounded-sm border border-[var(--galaxy-toolbar-border)] bg-[var(--galaxy-toolbar-bg)] p-0.5 text-[var(--galaxy-toolbar-text)] [&_button]:grid [&_button]:size-7 [&_button]:place-items-center [&_button]:rounded-xs [&_button]:transition-colors [&_button]:duration-(--d-fast) [&_button:hover]:bg-[var(--galaxy-toolbar-hover)] max-[650px]:[&_button]:size-11 [&_svg]:size-3.5">
                   <button
+                    type="button"
                     title={t('memory:memoryPage.addMemory')}
+                    aria-label={t('memory:memoryPage.addMemory')}
                     onClick={() => setNodeModal({ spaceId })}
                   >
-                    <Plus size={14} />
+                    <Plus />
                   </button>
                   <button
+                    type="button"
                     title={t('memory:memoryPage.zoomIn')}
+                    aria-label={t('memory:memoryPage.zoomIn')}
                     onClick={() =>
                       setZoom((value) => Math.min(1.6, Number((value + 0.15).toFixed(2))))
                     }
                   >
-                    <ZoomIn size={13} />
+                    <ZoomIn />
                   </button>
                   <button
+                    type="button"
                     title={t('memory:memoryPage.zoomOut')}
+                    aria-label={t('memory:memoryPage.zoomOut')}
                     onClick={() =>
                       setZoom((value) => Math.max(0.7, Number((value - 0.15).toFixed(2))))
                     }
                   >
-                    <ZoomOut size={13} />
+                    <ZoomOut />
                   </button>
-                  <button title={t('memory:memoryPage.refresh')} onClick={() => load(spaceId)}>
-                    <RefreshCw className={loading ? 'animate-spin' : ''} size={13} />
+                  <button
+                    type="button"
+                    title={t('memory:memoryPage.refresh')}
+                    aria-label={t('memory:memoryPage.refresh')}
+                    onClick={() => load(spaceId)}
+                  >
+                    {loading ? <OrbitSpinner className="text-current" /> : <RefreshCw />}
                   </button>
                 </div>
                 <div
@@ -1008,7 +1109,7 @@ export function MemoryPage({
                   ))}
                 </div>
                 {!!stars.length && (
-                  <span className="absolute z-[3] [right:12px] [bottom:9px] [border:1px_solid_var(--galaxy-toolbar-border)] rounded-[var(--r-pill)] bg-[rgba(12,11,20,.52)] [padding:3px_10px] text-[var(--galaxy-label)] text-[11px] tracking-[.5px] pointer-events-none [backdrop-filter:blur(6px)]">
+                  <span className="pointer-events-none absolute right-3 bottom-2.5 z-[3] rounded-xs border border-[var(--galaxy-toolbar-border)] bg-[var(--galaxy-toolbar-bg)] px-2 text-xs leading-5 text-[var(--galaxy-label)] tabular-nums">
                     ✦{' '}
                     {t('memory:memoryPage.visibleTotalMemories', {
                       visible: stars.length,
@@ -1029,114 +1130,156 @@ export function MemoryPage({
               </Panel>
             }
             inspector={
-              <div className="flex min-w-0 flex-col gap-3">
-                <Panel>
-                  <SectionTitle title={t('memory:memoryPage.selectedMemory')} />
-                  {selected ? (
-                    <>
-                      <h2>{selected.title}</h2>
-                      <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
-                        {selected.content}
+              <div className="flex min-w-0 flex-col gap-4">
+                <section className={CARD}>
+                  <header className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-2.5">
+                    <small className="text-xs font-medium tracking-[.02em] text-content-muted">
+                      {t('memory:memoryPage.selectedMemory')}
+                    </small>
+                    {selected ? (
+                      <>
+                        <h2 className="text-[15px] leading-6 font-medium break-words text-content">
+                          {selected.title}
+                        </h2>
+                        <p className="text-xs leading-normal break-words text-content-secondary">
+                          {selected.content}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs leading-normal text-content-muted">
+                        {t('memory:memoryPage.selectAMemoryInTheMapToViewItsDetails')}
                       </p>
-                      <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                        <span>{t('memory:memoryPage.memoryType')}</span>
-                        <strong className="inline-flex items-center gap-[6px]">
-                          <i
-                            className={`g-dot [&.g-concept]:bg-[var(--g-concept)] [&.g-concept]:shadow-[0_0_5px_var(--g-concept-glow)] [&.g-file]:bg-[var(--g-file)] [&.g-file]:shadow-[0_0_5px_var(--g-file-glow)] [&.g-risk]:bg-[var(--g-risk)] [&.g-risk]:shadow-[0_0_5px_var(--g-risk-glow)] [&.g-preference]:bg-[var(--g-preference)] [&.g-preference]:shadow-[0_0_5px_var(--g-preference-glow)] [&.g-decision]:bg-[var(--g-decision)] [&.g-decision]:shadow-[0_0_5px_var(--g-decision-glow)] [&.g-fact]:bg-[var(--g-fact)] [&.g-fact]:shadow-[0_0_5px_var(--g-fact-glow)] [&.g-task]:bg-[var(--g-task)] [&.g-task]:shadow-[0_0_5px_var(--g-task-glow)] inline-block w-[7px] h-[7px] flex-none rounded-[50%] g-${selected.type}`}
-                          />
-                          {memoryTypeLabel(selected.type, t)}
-                        </strong>
-                      </div>
-                      <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                        <span>{t('memory:memoryPage.source')}</span>
-                        <strong>
-                          {selected.sourceType === 'conversation_confirmed'
-                            ? t('memory:memoryPage.userConfirmedConversationCandidate')
-                            : selected.sourceType === 'user_confirmed'
-                              ? t('memory:memoryPage.explicitUserRequest')
-                              : selected.sourceType === 'agent'
-                                ? t('memory:memoryPage.createdByAgent')
-                                : t('memory:memoryPage.addedManually')}
-                        </strong>
-                      </div>
-                      <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                        <span>{t('memory:memoryPage.authority')}</span>
-                        <strong>{selected.authority ?? 0}/100</strong>
-                      </div>
-                      {selected.evidence && (
-                        <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                          <span>{t('memory:memoryPage.evidence')}</span>
-                          <strong>{selected.evidence}</strong>
+                    )}
+                  </header>
+                  {selected && (
+                    <>
+                      <dl className="px-3.5">
+                        <div className={KEY_VALUE}>
+                          <dt>{t('memory:memoryPage.memoryType')}</dt>
+                          <dd className="inline-flex items-center justify-end gap-2">
+                            <GalaxyDot type={selected.type} />
+                            {memoryTypeLabel(selected.type, t)}
+                          </dd>
                         </div>
-                      )}
-                      <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                        <span>{t('memory:memoryPage.created')}</span>
-                        <strong>{formatMemoryTime(selected.createdAt, language)}</strong>
-                      </div>
-                      <div className="key-value [&:first-of-type]:mt-[7px] [&_span]:text-[var(--text-muted)] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[12px] [&_strong]:min-w-0 [&_strong]:overflow-hidden [&_strong]:text-[13px] [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap flex min-h-[31px] items-center justify-between gap-[10px] [border-top:1px_solid_var(--stroke-soft)] text-[13px]">
-                        <span>{t('memory:memoryPage.relatedMemories')}</span>
-                        <strong>
-                          {t('memory:memoryPage.count', { count: relatedNodeIds.size })}
-                        </strong>
-                      </div>
-                      <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-                        <Button size="lg" onClick={() => setNodeModal(selected)}>
-                          <Pencil size={14} />
-                          {t('memory:memoryPage.edit')}
-                        </Button>
+                        <div className={KEY_VALUE}>
+                          <dt>{t('memory:memoryPage.source')}</dt>
+                          <dd>
+                            {selected.sourceType === 'conversation_confirmed'
+                              ? t('memory:memoryPage.userConfirmedConversationCandidate')
+                              : selected.sourceType === 'user_confirmed'
+                                ? t('memory:memoryPage.explicitUserRequest')
+                                : selected.sourceType === 'agent'
+                                  ? t('memory:memoryPage.createdByAgent')
+                                  : t('memory:memoryPage.addedManually')}
+                          </dd>
+                        </div>
+                        <div className={KEY_VALUE}>
+                          <dt>{t('memory:memoryPage.authority')}</dt>
+                          <dd className="tabular-nums">{selected.authority ?? 0}/100</dd>
+                        </div>
+                        {selected.evidence && (
+                          <div className={KEY_VALUE}>
+                            <dt>{t('memory:memoryPage.evidence')}</dt>
+                            <dd title={selected.evidence}>{selected.evidence}</dd>
+                          </div>
+                        )}
+                        <div className={KEY_VALUE}>
+                          <dt>{t('memory:memoryPage.created')}</dt>
+                          <dd className="tabular-nums">
+                            {formatMemoryTime(selected.createdAt, language)}
+                          </dd>
+                        </div>
+                        <div className={KEY_VALUE}>
+                          <dt>{t('memory:memoryPage.relatedMemories')}</dt>
+                          <dd className="tabular-nums">
+                            {t('memory:memoryPage.count', { count: relatedNodeIds.size })}
+                          </dd>
+                        </div>
+                      </dl>
+                      <footer className="flex flex-wrap justify-end gap-2 border-t border-stroke-soft bg-surface-subtle px-3.5 py-2.5">
                         <Button
-                          variant="destructive"
-                          size="lg"
+                          variant="ghost"
+                          className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
                           onClick={() => deleteNode(selected)}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 />
                           {t('memory:memoryPage.delete')}
                         </Button>
-                      </div>
+                        <Button
+                          variant="secondary"
+                          className="max-[650px]:h-11"
+                          onClick={() => setNodeModal(selected)}
+                        >
+                          <Pencil />
+                          {t('memory:memoryPage.edit')}
+                        </Button>
+                      </footer>
                     </>
-                  ) : (
-                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
-                      {t('memory:memoryPage.selectAMemoryInTheMapToViewItsDetails')}
-                    </p>
                   )}
-                  {error && <AppError>{error}</AppError>}
-                </Panel>
-                <Panel>
-                  <SectionTitle title={t('memory:memoryPage.relatedFiles')} />
-                  {relatedFiles.map((file) => (
-                    <div
-                      className="file-row [&_span]:flex [&_span]:min-w-0 [&_span]:flex-col [&_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[var(--text-soft)] [&_button]:text-[13px] grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-[6px] [border-top:1px_solid_var(--stroke-soft)] [padding:8px_0]"
-                      key={file.id}
-                    >
-                      <FileCode2 size={15} />
-                      <span>
-                        <strong>{file.title}</strong>
-                        <small>
-                          {file.sourcePath || file.cwd || t('memory:memoryPage.localMemory')}
-                        </small>
-                      </span>
-                      <button
-                        onClick={() => {
-                          setDetailOpen(true)
-                          setSelectedId(file.id)
-                        }}
-                      >
-                        {t('memory:memoryPage.view')}
-                      </button>
-                      <button onClick={() => setNodeModal(file)}>
-                        <Pencil size={13} />
-                      </button>
-                      <button className="danger" onClick={() => deleteNode(file)}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  ))}
-                  {!relatedFiles.length && (
-                    <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+                  {error && <AppError className="mx-3.5 mb-3">{error}</AppError>}
+                </section>
+                <section className={CARD}>
+                  <header className={CARD_HEAD}>
+                    <CardTitle count={relatedFiles.length}>
+                      {t('memory:memoryPage.relatedFiles')}
+                    </CardTitle>
+                  </header>
+                  {relatedFiles.length ? (
+                    <ul className="divide-y divide-stroke-soft">
+                      {relatedFiles.map((file) => (
+                        <li
+                          className="file-row grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 py-1.5 pr-1.5 pl-3.5"
+                          key={file.id}
+                        >
+                          <FileCode2 className="size-4 text-content-muted" />
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <strong className="truncate text-sm font-medium text-content">
+                              {file.title}
+                            </strong>
+                            <small className="truncate font-mono text-xs text-content-muted">
+                              {file.sourcePath || file.cwd || t('memory:memoryPage.localMemory')}
+                            </small>
+                          </span>
+                          <span className="flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="max-[650px]:h-11"
+                              onClick={() => {
+                                setDetailOpen(true)
+                                setSelectedId(file.id)
+                              }}
+                            >
+                              {t('memory:memoryPage.view')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="max-[650px]:size-11"
+                              aria-label={`${t('memory:memoryPage.edit')}: ${file.title}`}
+                              onClick={() => setNodeModal(file)}
+                            >
+                              <Pencil />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="danger text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
+                              aria-label={`${t('memory:memoryPage.delete')}: ${file.title}`}
+                              onClick={() => deleteNode(file)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-3.5 py-3 text-xs text-content-muted">
                       {t('memory:memoryPage.thisMemoryHasNoRelatedFiles')}
                     </p>
                   )}
-                </Panel>
+                </section>
               </div>
             }
           />
@@ -1206,17 +1349,17 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
   }
   return (
     <div
-      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
+      className={MODAL_BACKDROP}
       onMouseDown={(event) => !saving && event.target === event.currentTarget && onClose()}
     >
       <form
         role="dialog"
         aria-modal="true"
         aria-label={node ? t('memory:memoryPage.editMemory') : t('memory:memoryPage.addMemory')}
-        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        className={MODAL_SURFACE}
         onSubmit={submit}
       >
-        <AppCardHeader>
+        <AppCardHeader className="[&_h2]:text-[15px] [&_h2]:font-medium">
           <div>
             <h2>{node ? t('memory:memoryPage.editMemory') : t('memory:memoryPage.addMemory')}</h2>
             <p>{t('memory:memoryPage.lightUpIdeasWorthKeepingAsMemoriesYouCanReturnToLater')}</p>
@@ -1225,11 +1368,12 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
             type="button"
             variant="ghost"
             size="icon"
+            className="-mt-1 -mr-1 max-[650px]:size-11"
             aria-label={t('memory:memoryPage.closeDialog')}
             disabled={saving}
             onClick={onClose}
           >
-            <X size={17} />
+            <X />
           </Button>
         </AppCardHeader>
         <FieldLabel variant="control">
@@ -1261,7 +1405,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
             placeholder={t('memory:memoryPage.recordStandaloneReusableMemoryForFutureChats')}
           />
         </FieldLabel>
-        <div className="form-grid grid gap-[9px]">
+        <div className="form-grid grid gap-x-2.5 sm:grid-cols-2">
           <FieldLabel variant="control">
             {t('memory:memoryPage.memoryType')}
             <AppSelect
@@ -1297,22 +1441,16 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
           />
         </FieldLabel>
         {error && <AppError>{error}</AppError>}
-        <div className="flex justify-end gap-[8px] [margin-top:18px]">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            onClick={onClose}
-          >
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="secondary" size="dialogAction" onClick={onClose}>
             {t('memory:memoryPage.cancel')}
           </Button>
           <Button
             type="submit"
-            size="lg"
+            size="dialogAction"
             disabled={saving || !draft.spaceId || !draft.title.trim() || !draft.content.trim()}
           >
-            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Pencil size={14} />}
+            {saving ? <OrbitSpinner className="text-current" /> : <Pencil />}
             {saving ? t('memory:memoryPage.saving') : t('memory:memoryPage.save')}
           </Button>
         </div>
@@ -1353,7 +1491,7 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
   }
   return (
     <div
-      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
+      className={MODAL_BACKDROP}
       onMouseDown={(event) => !saving && event.target === event.currentTarget && onClose()}
     >
       <form
@@ -1362,10 +1500,10 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
         aria-label={
           space ? t('memory:memoryPage.renameMemorySpace') : t('memory:memoryPage.newMemorySpace')
         }
-        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
+        className={MODAL_SURFACE}
         onSubmit={submit}
       >
-        <AppCardHeader>
+        <AppCardHeader className="[&_h2]:text-[15px] [&_h2]:font-medium">
           <div>
             <h2>
               {space
@@ -1382,11 +1520,12 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
             type="button"
             variant="ghost"
             size="icon"
+            className="-mt-1 -mr-1 max-[650px]:size-11"
             aria-label={t('memory:memoryPage.closeDialog')}
             disabled={saving}
             onClick={onClose}
           >
-            <X size={17} />
+            <X />
           </Button>
         </AppCardHeader>
         <FieldLabel variant="control">
@@ -1399,18 +1538,12 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
           />
         </FieldLabel>
         {error && <AppError>{error}</AppError>}
-        <div className="flex justify-end gap-[8px] [margin-top:18px]">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            onClick={onClose}
-          >
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="secondary" size="dialogAction" onClick={onClose}>
             {t('memory:memoryPage.cancel')}
           </Button>
-          <Button type="submit" size="lg" disabled={saving || !name.trim()}>
-            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+          <Button type="submit" size="dialogAction" disabled={saving || !name.trim()}>
+            {saving ? <OrbitSpinner className="text-current" /> : <Plus />}
             {saving ? t('memory:memoryPage.saving') : t('memory:memoryPage.save')}
           </Button>
         </div>

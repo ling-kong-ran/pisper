@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Download, File, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { Download, File, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import {
   Dialog,
   DialogClose,
@@ -102,7 +103,7 @@ export function FileAttachmentPreview({
               role="status"
               className="flex flex-1 items-center justify-center gap-2 text-muted-foreground"
             >
-              <LoaderCircle size={16} className="animate-spin" />
+              <OrbitSpinner className="size-4" />
               {t('chat:chatMessage.filePreviewLoading')}
             </div>
           ) : error ? (
@@ -143,11 +144,13 @@ export function FileAttachmentPreview({
                   <MarkdownMessage>{text}</MarkdownMessage>
                 </TabsContent>
                 <TabsContent value="source" className="min-h-0 overflow-auto">
-                  <pre className="m-0 p-3 font-mono text-xs leading-relaxed">{text}</pre>
+                  <pre className="m-0 rounded-md border border-stroke-soft bg-code p-3 font-mono text-[12px] leading-[1.65] text-content-soft">
+                    {text}
+                  </pre>
                 </TabsContent>
               </Tabs>
             ) : (
-              <pre className="m-0 min-h-0 flex-1 overflow-auto rounded-md bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+              <pre className="m-0 min-h-0 flex-1 overflow-auto rounded-md border border-stroke-soft bg-code p-3 font-mono text-[12px] leading-[1.65] text-content-soft">
                 {text}
               </pre>
             )

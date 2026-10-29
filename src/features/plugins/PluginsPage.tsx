@@ -1,5 +1,6 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { PageToolbar } from '@/components/app/PageToolbar'
+import { InlineEmptyState } from '@/components/app/PageState'
 // 插件页：浏览/启停/卸载工具插件，展示启用统计与状态。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
@@ -11,10 +12,8 @@ import {
   FolderOpen,
   Globe2,
   Image,
-  LoaderCircle,
   PackagePlus,
   Plug,
-  RefreshCw,
   Search,
   Server,
   ShieldAlert,
@@ -48,6 +47,7 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { PluginInstallDialog } from '@/features/plugins/PluginInstallDialog'
 import {
   isHighRisk,
+  isMediumRisk,
   toolCategoryLabel,
   toolDescription,
   toolName,
@@ -64,6 +64,9 @@ import type {
 } from '@/features/plugins/plugin-types'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 
 type PluginsPageProps = {
   query?: string
@@ -120,6 +123,14 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   browser_automation: Globe2,
   generate_visual: Image,
 }
+
+// 目录卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
+const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
+const CARD_HEAD =
+  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
+// 单色键帽图标：工具类别靠图形区分，不用彩色底。
+const ICON_KEY =
+  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
 
 function sourceLabel(source: SourceFilter, t: ReturnType<typeof useI18n>['t']) {
   if (source === 'builtin') return t('plugins:pluginsPage.builtIn')
@@ -198,7 +209,7 @@ function WebSearchEditor({
 }) {
   const { t } = useI18n()
   return (
-    <div className="plugin-tool-config [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[var(--text-muted)] [&_label]:text-[11px] [&_label]:font-[600] [&_select]:w-full [&_select]:h-[34px] [&_select]:[border:1px_solid_var(--stroke)] [&_select]:rounded-[var(--r-xs)] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text)] [&_select]:text-[12px] [&_input]:w-full [&_input]:h-[34px] [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-xs)] [&_input]:bg-[var(--solid)] [&_input]:p-[0_8px] [&_input]:text-[var(--text)] [&_input]:text-[12px] grid gap-[9px] [border-top:1px_solid_var(--stroke)] [padding-top:10px]">
+    <div className="plugin-tool-config grid gap-2.5 border-t border-stroke-soft pt-3 [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label>
           {t('plugins:pluginsPage.defaultLanguage')}
@@ -224,10 +235,11 @@ function WebSearchEditor({
         </label>
         <label>
           {t('plugins:pluginsPage.resultCount')}
-          <input
+          <Input
             type="number"
             min="1"
             max="12"
+            className="tabular-nums"
             value={value.maxResults}
             onChange={(event) => onChange({ ...value, maxResults: Number(event.target.value) })}
           />
@@ -235,13 +247,13 @@ function WebSearchEditor({
       </div>
       <Button
         type="button"
-        variant="outline"
-        size="lg"
-        className="justify-self-end bg-surface-subtle"
+        variant="secondary"
+        className="justify-self-end max-[650px]:h-11"
+        loading={testing}
         disabled={testing}
         onClick={onTest}
       >
-        {testing ? <RefreshCw className="animate-spin" size={14} /> : <Globe2 size={14} />}
+        <Globe2 />
         {testing ? t('plugins:pluginsPage.testing') : t('plugins:pluginsPage.testConnection')}
       </Button>
     </div>
@@ -359,130 +371,151 @@ function ExtensionMarket({
   })).filter((group) => group.items.length > 0)
 
   return (
-    <section className="plugin-market grid gap-[10px] border-t border-[var(--stroke)] pt-[14px]">
-      <div className="flex flex-wrap items-center justify-between gap-[10px]">
-        <h2 className="m-0 text-[14px] font-[650]">{t('plugins:pluginsPage.extensionMarket')}</h2>
-        <div className="flex flex-wrap items-center gap-2">
+    <section className={cn('plugin-market mt-4', CARD)}>
+      <header className={cn(CARD_HEAD, 'flex-wrap')}>
+        <h2 className="text-sm font-medium text-content">
+          {t('plugins:pluginsPage.extensionMarket')}
+        </h2>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button asChild variant="ghost" size="sm" className="max-[650px]:h-11">
+            <a href="https://pi.dev/packages" target="_blank" rel="noreferrer">
+              <ExternalLink />
+              {t('plugins:pluginsPage.openPackageCatalog')}
+            </a>
+          </Button>
           <Button
             type="button"
-            variant="outline"
-            size="lg"
+            variant="secondary"
+            size="sm"
+            className="max-[650px]:h-11"
             onClick={installCustom}
             disabled={Boolean(busy)}
           >
-            <PackagePlus size={14} />
+            <PackagePlus />
             {t('plugins:pluginsPage.installExtension')}
           </Button>
-          <a
-            className="inline-flex h-[34px] items-center gap-1 rounded-[var(--r-xs)] border border-[var(--stroke)] px-2 text-[12px] text-[var(--text-soft)] no-underline hover:bg-[var(--surface-hover)]"
-            href="https://pi.dev/packages"
-            target="_blank"
-            rel="noreferrer"
+        </div>
+      </header>
+      <div className="grid gap-3 p-3.5">
+        <form
+          className="flex min-w-0 gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void load(marketQuery)
+          }}
+        >
+          <Input
+            className="min-w-0 flex-1 max-[650px]:h-11"
+            value={marketQuery}
+            onChange={(event) => setMarketQuery(event.target.value)}
+            placeholder={t('plugins:pluginsPage.searchPackageCatalog')}
+            aria-label={t('plugins:pluginsPage.searchPackageCatalog')}
+          />
+          <Button
+            type="submit"
+            variant="secondary"
+            className="h-[34px] max-[650px]:h-11"
+            loading={loading}
+            disabled={loading}
           >
-            <ExternalLink size={13} />
-            {t('plugins:pluginsPage.openPackageCatalog')}
-          </a>
-        </div>
-      </div>
-      <form
-        className="flex min-w-0 gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void load(marketQuery)
-        }}
-      >
-        <input
-          className="h-[34px] min-w-0 flex-1 rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-2 text-[12px] text-[var(--text)]"
-          value={marketQuery}
-          onChange={(event) => setMarketQuery(event.target.value)}
-          placeholder={t('plugins:pluginsPage.searchPackageCatalog')}
-          aria-label={t('plugins:pluginsPage.searchPackageCatalog')}
-        />
-        <Button type="submit" variant="outline" size="lg" disabled={loading}>
-          {loading ? <RefreshCw className="animate-spin" size={14} /> : <Search size={14} />}
-          {t('plugins:pluginsPage.search')}
-        </Button>
-      </form>
-      {marketError && <p className="m-0 text-[12px] text-[var(--danger)]">{marketError}</p>}
-      {installedGroups.length > 0 && (
-        <div className="grid gap-2">
-          <h3 className="m-0 text-[12px] font-[650] text-[var(--text-secondary)]">
-            {t('plugins:pluginsPage.installedExtensions')}
-          </h3>
-          {installedGroups.map((group) => (
-            <section className="grid gap-1" key={group.type}>
-              <h4 className="m-0 text-[11px] font-[650] text-[var(--text-muted)]">
-                {extensionResourceLabel(group.type, t)}
-              </h4>
-              {group.items.map((item) => (
-                <div
-                  className="flex min-w-0 items-center justify-between gap-2 border-t border-[var(--stroke-soft)] py-2"
-                  key={`${group.type}:${item.scope}:${item.source}`}
-                >
-                  <span className="min-w-0">
-                    <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">
-                      {item.name}
-                    </strong>
-                    <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--text-muted)]">
-                      {item.source} · v{item.version}
-                    </small>
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={Boolean(busy)}
-                    onClick={() => void uninstall(item)}
-                  >
-                    {busy === item.source ? (
-                      <LoaderCircle className="animate-spin" size={13} />
-                    ) : (
-                      <Trash2 size={13} />
-                    )}
-                    {t('plugins:pluginsPage.uninstallExtension')}
-                  </Button>
-                </div>
-              ))}
-            </section>
-          ))}
-        </div>
-      )}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-2">
-        {visiblePackages.slice(0, 12).map((item: EntityRecord) => {
-          const isInstalled = installed.some(
-            (entry) => entry.name === item.name || entry.source === `npm:${item.name}`,
-          )
-          return (
-            <article
-              className="grid min-w-0 gap-2 rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] p-2"
-              key={item.name}
-            >
-              <strong
-                className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]"
-                title={item.name}
+            <Search />
+            {t('plugins:pluginsPage.search')}
+          </Button>
+        </form>
+        {marketError && (
+          <p role="alert" className="text-xs text-danger">
+            {marketError}
+          </p>
+        )}
+        {installedGroups.length > 0 && (
+          <div className="grid gap-2">
+            <h3 className="text-xs font-medium tracking-[.02em] text-content-muted">
+              {t('plugins:pluginsPage.installedExtensions')}
+            </h3>
+            {installedGroups.map((group) => (
+              <section
+                className="overflow-hidden rounded-md border border-stroke-soft"
+                key={group.type}
               >
-                {item.name}
-              </strong>
-              <p className="m-0 line-clamp-3 min-h-[45px] text-[11px] leading-[1.45] text-[var(--text-secondary)]">
-                {item.description}
-              </p>
-              <div className="flex items-center justify-between gap-2">
-                <small className="text-[10px] text-[var(--text-muted)]">{item.published}</small>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={isInstalled || Boolean(busy)}
-                  onClick={() => void install(item.name)}
+                <h4 className="border-b border-stroke-soft bg-surface-subtle px-3 py-1.5 text-xs font-medium text-content-secondary">
+                  {extensionResourceLabel(group.type, t)}
+                </h4>
+                <ul className="divide-y divide-stroke-soft">
+                  {group.items.map((item) => (
+                    <li
+                      className="flex min-w-0 items-center justify-between gap-2 py-1.5 pr-1.5 pl-3"
+                      key={`${group.type}:${item.scope}:${item.source}`}
+                    >
+                      <span className="min-w-0">
+                        <strong className="block truncate font-mono text-xs font-medium text-content">
+                          {item.name}
+                        </strong>
+                        <small className="block truncate font-mono text-xs text-content-muted">
+                          {item.source} · v{item.version}
+                        </small>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                        loading={busy === item.source}
+                        disabled={Boolean(busy)}
+                        onClick={() => void uninstall(item)}
+                      >
+                        <Trash2 />
+                        {t('plugins:pluginsPage.uninstallExtension')}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+        {visiblePackages.length > 0 && (
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-2">
+            {visiblePackages.slice(0, 12).map((item: EntityRecord) => {
+              const isInstalled = installed.some(
+                (entry) => entry.name === item.name || entry.source === `npm:${item.name}`,
+              )
+              return (
+                <li
+                  className="grid min-w-0 content-start gap-1.5 rounded-md border border-stroke bg-panel p-3"
+                  key={item.name}
                 >
-                  {busy === item.name && <LoaderCircle className="animate-spin" size={13} />}
-                  {isInstalled
-                    ? t('plugins:pluginsPage.installed')
-                    : t('plugins:pluginsPage.installExtension')}
-                </Button>
-              </div>
-            </article>
-          )
-        })}
+                  <strong
+                    className="truncate font-mono text-xs font-medium text-content"
+                    title={item.name}
+                  >
+                    {item.name}
+                  </strong>
+                  <p className="line-clamp-3 min-h-[54px] text-xs leading-[1.5] text-content-secondary">
+                    {item.description}
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <small className="text-xs text-content-muted tabular-nums">
+                      {item.published}
+                    </small>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="max-[650px]:h-11"
+                      loading={busy === item.name}
+                      disabled={isInstalled || Boolean(busy)}
+                      onClick={() => void install(item.name)}
+                    >
+                      {isInstalled
+                        ? t('plugins:pluginsPage.installed')
+                        : t('plugins:pluginsPage.installExtension')}
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
     </section>
   )
@@ -649,7 +682,7 @@ export function PluginsPage({
   if (!data) {
     return (
       <AppEmptyState>
-        <RefreshCw className="animate-spin" size={24} />
+        <OrbitSpinner className="size-5" />
         <h2>{t('plugins:pluginsPage.loadingToolPlugins')}</h2>
         {error && (
           <AppError>
@@ -678,8 +711,23 @@ export function PluginsPage({
 
   return (
     <PageFrame variant="collection">
-      <div className="flex min-w-0 flex-col gap-3">
-        <PageToolbar>
+      {/* 工具栏自带 16px 下边距，这里不再叠加 gap，两张卡片之间单独留 16px。 */}
+      <div className="flex min-w-0 flex-col">
+        <PageToolbar
+          actions={
+            customPluginsAvailable && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="max-[650px]:h-11"
+                onClick={() => requireSavedPluginState() && setInstallOpen(true)}
+              >
+                <PackagePlus />
+                {t('plugins:pluginsPage.installPlugin')}
+              </Button>
+            )
+          }
+        >
           <Segmented
             options={sourceFilters.map((source) => sourceLabel(source, t))}
             value={sourceLabel(sourceFilter, t)}
@@ -689,158 +737,177 @@ export function PluginsPage({
               )
             }
           />
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {customPluginsAvailable && (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                className="bg-surface-subtle"
-                onClick={() => requireSavedPluginState() && setInstallOpen(true)}
-              >
-                <PackagePlus size={15} />
-                {t('plugins:pluginsPage.installPlugin')}
-              </Button>
-            )}
-          </div>
         </PageToolbar>
 
-        <div className="plugin-catalog-heading [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_strong]:text-[13px] [&_small]:text-[var(--text-secondary)] [&_small]:text-[12px] [&_small]:[font-variant-numeric:tabular-nums] max-[650px]:items-start flex items-center justify-between gap-[12px] [padding:2px]">
-          <span>
-            <strong>{t('plugins:pluginsPage.toolCatalog')}</strong>
-            <small>{filtered.length}</small>
-          </span>
-          <span className="plugin-catalog-summary text-[var(--text-secondary)] text-[12px] [font-variant-numeric:tabular-nums] [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-green)] max-[650px]:flex-wrap max-[650px]:justify-end">
-            <i />
-            {entries.filter((tool) => tool.enabled).length}/{entries.length}{' '}
-            {t('plugins:pluginsPage.enabled2')}
-            {dirty && <Badge tone="amber">{t('plugins:pluginsPage.unsaved')}</Badge>}
-          </span>
-        </div>
-
-        {filtered.length ? (
-          <div className="plugin-tool-grid max-[650px]:grid-cols-[minmax(0,1fr)] grid grid-cols-[repeat(auto-fill,minmax(310px,1fr))] [align-items:start] gap-[10px] [padding-bottom:4px]">
-            {filtered.map((tool) => {
-              const open = expandedName === tool.name
-              const Icon = TOOL_ICONS[tool.name] || Plug
-              return (
-                <article
-                  className="plugin-tool-card [&[data-open]]:border-[var(--stroke-hover)] [&[data-open]]:shadow-[var(--sh-1)] min-w-0 overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--solid)]"
-                  data-open={open || undefined}
-                  key={tool.name}
-                >
-                  <div className="plugin-tool-card-head hover:bg-[var(--surface-hover)] [.plugin-tool-card[data-open]_>_&]:bg-[var(--surface-hover)] max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:[padding-inline:8px] grid min-h-[56px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[10px] [padding:7px_10px]">
-                    <button
-                      type="button"
-                      className="grid min-w-0 h-full grid-cols-[32px_minmax(0,1fr)] items-center gap-[9px] border-0 bg-transparent p-0 text-inherit text-left"
-                      aria-expanded={open}
-                      onClick={() =>
-                        setExpandedName((current) => (current === tool.name ? '' : tool.name))
-                      }
-                    >
-                      <span className="grid w-[32px] h-[32px] place-items-center rounded-[var(--r-xs)] bg-[var(--surface-muted)] text-[var(--text-soft)]">
-                        <Icon size={15} />
-                      </span>
-                      <span className="plugin-tool-title [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] flex min-w-0 flex-col gap-[2px]">
-                        <strong title={displayToolName(tool, t)}>{displayToolName(tool, t)}</strong>
-                        <small>{displayPluginName(tool, t)}</small>
-                      </span>
-                    </button>
-                    <span className="plugin-tool-trailing [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--status-muted)] [&_>_i[data-enabled]]:bg-[var(--status-green)] max-[650px]:gap-[5px] inline-flex items-center gap-[7px]">
-                      <i data-enabled={tool.enabled || undefined} />
-                      {!tool.pluginBuiltIn && (
-                        <Badge tone="amber">{t('plugins:pluginsPage.local')}</Badge>
-                      )}
-                      <Toggle
-                        value={tool.enabled}
-                        onChange={(enabled) => toggleCapability(tool.pluginId, tool.name, enabled)}
-                        ariaLabel={displayToolName(tool, t)}
-                      />
+        <section className={CARD}>
+          <header className={cn('plugin-catalog-heading', CARD_HEAD)}>
+            <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
+              {t('plugins:pluginsPage.toolCatalog')}
+              <span className="font-normal text-content-muted tabular-nums">{filtered.length}</span>
+            </h2>
+            <span className="plugin-catalog-summary flex min-w-0 flex-wrap items-center justify-end gap-2 text-xs text-content-secondary tabular-nums">
+              {dirty && <Badge tone="amber">{t('plugins:pluginsPage.unsaved')}</Badge>}
+              <span>
+                <strong className="font-medium text-content">
+                  {entries.filter((tool) => tool.enabled).length}
+                </strong>
+                /{entries.length} {t('plugins:pluginsPage.enabled2')}
+              </span>
+            </span>
+          </header>
+          {filtered.length ? (
+            <ul className="plugin-tool-grid divide-y divide-stroke-soft">
+              {filtered.map((tool) => {
+                const open = expandedName === tool.name
+                const Icon = TOOL_ICONS[tool.name] || Plug
+                return (
+                  <li
+                    className="plugin-tool-card group/tool min-w-0"
+                    data-open={open || undefined}
+                    key={tool.name}
+                  >
+                    <div className="plugin-tool-card-head grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5 pr-2 pl-3.5 transition-colors duration-(--d-fast) group-data-open/tool:bg-surface-subtle hover:bg-surface-subtle max-[650px]:pl-3">
+                      {/* 宽屏把风险等级与路径范围展开成两列（与详情同源），窄屏只留名称。 */}
                       <button
                         type="button"
-                        className="plugin-tool-chevron hover:bg-[var(--surface-muted)] hover:text-[var(--text)] [&_svg]:[transition:transform_var(--d1)_var(--ease-out)] [&[aria-expanded='true']_svg]:[transform:rotate(180deg)] grid w-[24px] h-[24px] place-items-center border-0 rounded-[var(--r-xs)] bg-transparent text-[var(--text-muted)]"
-                        aria-label={t('plugins:pluginsPage.toggleToolDetails', {
-                          name: displayToolName(tool, t),
-                        })}
+                        className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-3 self-stretch text-left focus-visible:-outline-offset-2 @min-[880px]/page:grid-cols-[28px_minmax(0,1fr)_96px_minmax(0,200px)]"
                         aria-expanded={open}
                         onClick={() =>
                           setExpandedName((current) => (current === tool.name ? '' : tool.name))
                         }
                       >
-                        <ChevronDown size={14} />
+                        <span className={ICON_KEY}>
+                          <Icon />
+                        </span>
+                        <span className="plugin-tool-title flex min-w-0 flex-col gap-0.5">
+                          <strong
+                            className="truncate text-sm font-medium text-content"
+                            title={displayToolName(tool, t)}
+                          >
+                            {displayToolName(tool, t)}
+                          </strong>
+                          <small className="flex min-w-0 items-baseline gap-1.5 text-xs text-content-muted">
+                            <code className="min-w-0 truncate font-mono">{tool.name}</code>
+                            <span aria-hidden="true" className="text-content-faint">
+                              ·
+                            </span>
+                            <span className="shrink-0">{displayPluginName(tool, t)}</span>
+                          </small>
+                        </span>
+                        {/* 风险等级用 6px 状态点承载颜色，文字保持中性，避免整列告警色。 */}
+                        <span className="hidden items-center gap-1.5 text-xs text-content-secondary @min-[880px]/page:flex">
+                          <i
+                            aria-hidden="true"
+                            className={cn(
+                              'size-1.5 shrink-0 rounded-full',
+                              isHighRisk(tool.risk)
+                                ? 'bg-danger'
+                                : isMediumRisk(tool.risk)
+                                  ? 'bg-warning-strong'
+                                  : 'bg-content-faint',
+                            )}
+                          />
+                          {toolRiskLabel(tool.risk, t)}
+                        </span>
+                        <span className="hidden truncate text-xs text-content-muted @min-[880px]/page:block">
+                          {toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}
+                        </span>
                       </button>
-                    </span>
-                  </div>
-
-                  {open && (
-                    <div className="plugin-tool-details [&_>_p]:m-0 [&_>_p]:text-[var(--text-soft)] [&_>_p]:text-[12px] [&_>_p]:leading-[1.55] [&_>_code]:[overflow-wrap:anywhere] [&_>_code]:text-[var(--text)] [&_>_code]:text-[11px] [&_dl]:grid [&_dl]:grid-cols-[78px_minmax(0,1fr)] [&_dl]:gap-[6px_10px] [&_dl]:m-0 [&_dl_div]:[display:contents] [&_dt]:text-[var(--text-muted)] [&_dt]:text-[11px] [&_dd]:min-w-0 [&_dd]:m-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-[var(--text-soft)] [&_dd]:text-[12px] max-[650px]:[&_dl]:grid-cols-[68px_minmax(0,1fr)] grid gap-[9px] [border-top:1px_solid_var(--stroke)] bg-[var(--surface-subtle)] [padding:11px_13px_13px]">
-                      <p>{toolDescription({ id: tool.name, description: tool.description }, t)}</p>
-                      <code>{tool.name}</code>
-                      <dl>
-                        <div>
-                          <dt>{t('plugins:pluginsPage.source')}</dt>
-                          <dd>
-                            {displayPluginName(tool, t)}
-                            {!tool.pluginBuiltIn && ` · v${tool.pluginVersion}`}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>{t('plugins:pluginsPage.riskLevel')}</dt>
-                          <dd className={isHighRisk(tool.risk) ? 'text-[var(--danger)]' : ''}>
-                            {toolRiskLabel(tool.risk, t)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>{t('plugins:pluginsPage.pathScope')}</dt>
-                          <dd>{toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}</dd>
-                        </div>
+                      <span className="plugin-tool-trailing inline-flex items-center gap-2">
                         {!tool.pluginBuiltIn && (
+                          <Badge tone="amber">{t('plugins:pluginsPage.local')}</Badge>
+                        )}
+                        <Toggle
+                          value={tool.enabled}
+                          onChange={(enabled) =>
+                            toggleCapability(tool.pluginId, tool.name, enabled)
+                          }
+                          ariaLabel={displayToolName(tool, t)}
+                        />
+                        <button
+                          type="button"
+                          className="plugin-tool-chevron grid size-7 place-items-center rounded-sm text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content max-[650px]:size-11 [&_svg]:transition-transform [&_svg]:duration-(--d-base) [&[aria-expanded=true]_svg]:rotate-180"
+                          aria-label={t('plugins:pluginsPage.toggleToolDetails', {
+                            name: displayToolName(tool, t),
+                          })}
+                          aria-expanded={open}
+                          onClick={() =>
+                            setExpandedName((current) => (current === tool.name ? '' : tool.name))
+                          }
+                        >
+                          <ChevronDown className="size-4" />
+                        </button>
+                      </span>
+                    </div>
+
+                    {open && (
+                      <div className="plugin-tool-details grid gap-3 border-t border-stroke-soft bg-surface-subtle py-3 pr-3.5 pl-[54px] max-[650px]:pl-3">
+                        <p className="text-sm leading-relaxed text-content-soft">
+                          {toolDescription({ id: tool.name, description: tool.description }, t)}
+                        </p>
+                        <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-content-soft [&_dt]:text-content-muted [&>div]:contents">
                           <div>
-                            <dt>{t('plugins:pluginsPage.executionMode')}</dt>
-                            <dd>{t('plugins:pluginsPage.fullAccessOnly')}</dd>
+                            <dt>{t('plugins:pluginsPage.source')}</dt>
+                            <dd className="tabular-nums">
+                              {displayPluginName(tool, t)}
+                              {!tool.pluginBuiltIn && ` · v${tool.pluginVersion}`}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{t('plugins:pluginsPage.riskLevel')}</dt>
+                            <dd className={isHighRisk(tool.risk) ? 'text-danger!' : ''}>
+                              {toolRiskLabel(tool.risk, t)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{t('plugins:pluginsPage.pathScope')}</dt>
+                            <dd>{toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}</dd>
+                          </div>
+                          {!tool.pluginBuiltIn && (
+                            <div>
+                              <dt>{t('plugins:pluginsPage.executionMode')}</dt>
+                              <dd>{t('plugins:pluginsPage.fullAccessOnly')}</dd>
+                            </div>
+                          )}
+                        </dl>
+
+                        {!tool.pluginBuiltIn && (
+                          <div className="plugin-tool-warning flex items-start gap-2 rounded-sm bg-warning-soft p-2.5 text-xs leading-normal text-warning-strong">
+                            <ShieldAlert className="mt-px size-3.5 shrink-0" />
+                            <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
                           </div>
                         )}
-                      </dl>
 
-                      {!tool.pluginBuiltIn && (
-                        <div className="plugin-tool-warning [&_svg]:flex-none [&_svg]:mt-[1px] flex items-start gap-[7px] rounded-[var(--r-xs)] bg-[var(--warning-soft)] [padding:8px] text-[var(--warning-strong)] text-[11px] leading-[1.5]">
-                          <ShieldAlert size={14} />
-                          <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
-                        </div>
-                      )}
+                        {tool.name === 'web_search' && (
+                          <WebSearchEditor
+                            value={webSearch}
+                            testing={testingSearch}
+                            onChange={setWebSearch}
+                            onTest={testWebSearch}
+                          />
+                        )}
 
-                      {tool.name === 'web_search' && (
-                        <WebSearchEditor
-                          value={webSearch}
-                          testing={testingSearch}
-                          onChange={setWebSearch}
-                          onTest={testWebSearch}
-                        />
-                      )}
-
-                      {!tool.pluginBuiltIn && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="lg"
-                          className="[justify-self:end]"
-                          onClick={() => requireSavedPluginState() && setRemoveTarget(tool)}
-                        >
-                          <Trash2 size={14} />
-                          {t('plugins:pluginsPage.uninstallPlugin')}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </article>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="plugin-empty [&.compact]:min-h-[90px] grid min-h-[180px] place-items-center text-[var(--text-secondary)] text-[12px]">
-            {t('plugins:pluginsPage.noMatchingTools')}
-          </div>
-        )}
+                        {!tool.pluginBuiltIn && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="justify-self-end text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                            onClick={() => requireSavedPluginState() && setRemoveTarget(tool)}
+                          >
+                            <Trash2 />
+                            {t('plugins:pluginsPage.uninstallPlugin')}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <InlineEmptyState compact title={t('plugins:pluginsPage.noMatchingTools')} />
+          )}
+        </section>
 
         <ExtensionMarket
           query={query}
@@ -872,7 +939,7 @@ export function PluginsPage({
             <AlertDialogFooter>
               <AlertDialogCancel disabled={removing}>{t('common:ui.cancel')}</AlertDialogCancel>
               <AlertDialogAction variant="destructive" disabled={removing} onClick={uninstall}>
-                {removing && <LoaderCircle className="animate-spin" size={14} />}
+                {removing && <OrbitSpinner className="text-current" />}
                 {t('plugins:pluginsPage.uninstallPlugin')}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -880,7 +947,7 @@ export function PluginsPage({
         </AlertDialog>
 
         {error && (
-          <AppError className="fixed z-[21] [right:24px] [bottom:24px] max-w-[360px] shadow-[0_12px_28px_-18px_var(--floating-shadow)]">
+          <AppError className="fixed right-6 bottom-6 z-[21] max-w-[360px] border border-danger-border shadow-float">
             <AlertTriangle size={13} />
             {error}
           </AppError>

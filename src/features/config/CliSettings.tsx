@@ -1,5 +1,5 @@
 // CLI 安装/修复设置：检测系统 pisper CLI 状态，提供安装/卸载/修复。
-import { CheckCircle2, Download, RefreshCw, Terminal, Trash2, Wrench } from 'lucide-react'
+import { CheckCircle2, Download, Terminal, Trash2, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { SettingsBadge as Badge, SettingsCard as Panel } from './settings-primitives'
@@ -7,6 +7,7 @@ import type { Notify } from '@/app/route-context'
 import type { DesktopCliStatus } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
 import { AppError, AppNotice } from '@/components/ui/app-primitives'
 
@@ -78,14 +79,18 @@ export function CliSettings({ notify }: { notify: Notify }) {
             : t('config:cliSettings.notInstalled')
 
   return (
-    <Panel className="[padding:18px] cli-settings-card" data-config-card="updates-cli">
-      <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55] cli-settings-heading !grid grid-cols-[auto_minmax(0,1fr)_auto]">
-        <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-          <Terminal size={19} />
+    <Panel className="p-4 py-4" data-config-card="updates-cli">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
+        <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content shadow-key">
+          <Terminal size={18} aria-hidden="true" />
         </span>
-        <div>
-          <h2>{t('config:cliSettings.title')}</h2>
-          <p>{t('config:cliSettings.description')}</p>
+        <div className="min-w-0">
+          <h2 className="text-[15px]! leading-6 font-medium text-content">
+            {t('config:cliSettings.title')}
+          </h2>
+          <p className="mt-0.5 text-xs leading-[1.55] text-content-muted">
+            {t('config:cliSettings.description')}
+          </p>
         </div>
         <Badge
           className="self-center"
@@ -102,7 +107,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
       </div>
 
       {status && (
-        <AppNotice className="[margin-top:15px] cli-settings-status [&_small]:[overflow-wrap:anywhere]">
+        <AppNotice className="mt-4 [&_small]:[overflow-wrap:anywhere] [&_small]:font-mono [&_small]:text-xs">
           {status.installed && !status.needsRepair ? (
             <CheckCircle2 size={16} />
           ) : (
@@ -133,14 +138,13 @@ export function CliSettings({ notify }: { notify: Notify }) {
           {status?.installed && (
             <Button
               type="button"
-              variant="outline"
-              size="lg"
-              className="bg-surface-subtle"
+              variant="secondary"
+              className="max-[650px]:h-11"
               disabled={Boolean(busy)}
               onClick={() => void uninstall()}
             >
               {busy === 'uninstall' ? (
-                <RefreshCw className="animate-spin" size={14} />
+                <OrbitSpinner className="text-current" />
               ) : (
                 <Trash2 size={14} />
               )}
@@ -150,12 +154,12 @@ export function CliSettings({ notify }: { notify: Notify }) {
           {(!status?.installed || status.needsRepair) && (
             <Button
               type="button"
-              size="lg"
+              className="max-[650px]:h-11"
               disabled={Boolean(busy) || loading || status?.supported === false}
               onClick={() => void install()}
             >
               {busy === 'install' ? (
-                <RefreshCw className="animate-spin" size={14} />
+                <OrbitSpinner className="text-current" />
               ) : status?.needsRepair ? (
                 <Wrench size={14} />
               ) : (
@@ -169,7 +173,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
         </div>
       )}
       {supported && (
-        <small className="block [margin:9px_1px_0] text-[var(--text-muted)] text-[12px]">
+        <small className="mt-2 block text-xs text-content-muted">
           {t('config:cliSettings.restartTerminal')}
         </small>
       )}

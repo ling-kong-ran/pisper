@@ -20,10 +20,13 @@ import {
   type NodeTypes,
 } from '@xyflow/react'
 
+import { Check, Clock3, X, type LucideIcon } from 'lucide-react'
 import { Controls } from '@/components/ai-elements/controls'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 import { WORKFLOW_NODE_KINDS, type NodeKind, type WorkflowEdge, type WorkflowNode } from './types'
+import { WORKFLOW_PALETTE } from './workflow-templates'
 
 type WorkflowCanvasNodeData = {
   kind: NodeKind
@@ -31,7 +34,7 @@ type WorkflowCanvasNodeData = {
   typeLabel: string
   inputLabel: string
   outputLabel: string
-  compact?: boolean
+  status?: string
 }
 
 type WorkflowFlowNode = Node<WorkflowCanvasNodeData, 'workflow'>
@@ -42,6 +45,8 @@ type WorkflowCanvasProps = {
   edges: WorkflowEdge[]
   selectedNodeId: string
   selectedEdgeId: string
+  // 仅在运行进行中传入：节点 id → 本次运行中的节点状态，用于在画布上标出运行位置。
+  nodeStatus?: ReadonlyMap<string, string>
   hint: string
   inputLabel: string
   outputLabel: string
@@ -56,31 +61,58 @@ type WorkflowCanvasProps = {
   onDeleteEdges: (ids: string[]) => void
 }
 
+const NODE_ICONS = new Map<NodeKind, LucideIcon>(
+  WORKFLOW_PALETTE.map(({ kind, Icon }) => [kind, Icon]),
+)
+// 端口：面板色实心圆 + 控件描边（≥3:1），悬停/连接时换成焦点色；::after 把命中区扩到 28px。
+const PORT_CLASS =
+  'flow-port size-2.5! rounded-full! border-[1.5px]! border-control! bg-panel! cursor-crosshair after:absolute after:-inset-2 hover:border-focus!'
+
+// 运行状态字形：形状与颜色共同表达（勾 / 叉 / 时钟 / 轨道），与对话里的工具日志一致。
+function NodeStatusGlyph({ status }: { status?: string }) {
+  if (status === 'running') return <OrbitSpinner className="ml-auto size-3.5" />
+  if (status === 'completed')
+    return <Check className="ml-auto size-3.5 text-success" strokeWidth={2.25} />
+  if (status === 'failed') return <X className="ml-auto size-3.5 text-danger" strokeWidth={2.25} />
+  if (status === 'waiting_approval')
+    return <Clock3 className="ml-auto size-3.5 text-warning-strong" />
+  return null
+}
+
 function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
+  const Icon = NODE_ICONS.get(data.kind)
   return (
     <div
       className={cn(
-        'flow-node relative flex w-40 min-h-16 cursor-grab flex-col justify-center gap-1 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm transition-shadow [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground [&_strong]:text-[13px] [&_strong]:font-medium [&.active]:border-primary [&.active]:ring-2 [&.active]:ring-[var(--brand-blue-border)] [&.type-condition]:border-amber-500/40 [&.type-parallel]:border-violet-500/40 [&.type-approval]:border-emerald-500/40 [&.compact]:w-28 [&.compact]:min-h-10 [&.compact]:px-2 [&.compact]:py-1',
+        // 默认节点是平铺在细线后的卡片；选中节点抬起为键帽并带 3px 强调色刻度，运行中的节点换成强调色描边。
+        // React Flow 会去掉外层节点的焦点轮廓，键盘焦点改画在卡片上，与选中键帽区分。
+        'flow-node relative flex w-36 min-h-14 cursor-grab flex-col justify-center gap-0.5 rounded-md border border-stroke bg-panel px-3 py-2 text-left transition-[border-color,box-shadow] duration-(--d-fast) ease-precise [:focus-visible>&]:outline-2 [:focus-visible>&]:outline-offset-2 [:focus-visible>&]:outline-focus',
         `type-${data.kind}`,
-        selected && 'active',
-        data.compact && 'compact',
+        selected && 'active border-stroke-strong bg-key shadow-key',
+        data.status === 'running' && 'border-star-border',
       )}
     >
-      {!data.compact && data.kind !== 'trigger' && (
+      {selected && (
+        <i
+          aria-hidden="true"
+          className="absolute inset-y-2 -left-px w-[3px] rounded-r-[3px] bg-star"
+        />
+      )}
+      {data.kind !== 'trigger' && (
         <Handle
           id="input"
-          className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] input [.flow-port&]:top-[50%] [.flow-port&]:left-[-7px] [.flow-port&]:[transform:translateY(-50%)]"
+          className={`${PORT_CLASS} input`}
           type="target"
           position={Position.Left}
           title={data.inputLabel}
           aria-label={data.inputLabel}
         />
       )}
-      {!data.compact && data.kind === 'condition' ? (
+      {data.kind === 'condition' ? (
         <>
           <Handle
             id="true"
-            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)] condition-true"
+            className={`${PORT_CLASS} output condition-true`}
             type="source"
             position={Position.Right}
             title="true"
@@ -88,7 +120,7 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
           />
           <Handle
             id="false"
-            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)] condition-false"
+            className={`${PORT_CLASS} output condition-false`}
             type="source"
             position={Position.Bottom}
             title="false"
@@ -96,19 +128,23 @@ function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowFlowNode>) {
           />
         </>
       ) : (
-        !data.compact && (
-          <Handle
-            id="output"
-            className="flow-port after:absolute after:[content:''] after:inset-[-8px] absolute z-[3] w-[12px] h-[12px] [border:2px_solid_var(--solid)] rounded-[50%] bg-[var(--text)] [cursor:crosshair] output [.flow-port&]:top-[50%] [.flow-port&]:right-[-7px] [.flow-port&]:[transform:translateY(-50%)]"
-            type="source"
-            position={Position.Right}
-            title={data.outputLabel}
-            aria-label={data.outputLabel}
-          />
-        )
+        <Handle
+          id="output"
+          className={`${PORT_CLASS} output`}
+          type="source"
+          position={Position.Right}
+          title={data.outputLabel}
+          aria-label={data.outputLabel}
+        />
       )}
-      <small>{data.typeLabel}</small>
-      <strong>{data.label}</strong>
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-content-muted">
+        {Icon && <Icon className="size-3.5 shrink-0" aria-hidden="true" />}
+        <span className="truncate">{data.typeLabel}</span>
+        <NodeStatusGlyph status={data.status} />
+      </span>
+      <strong className="truncate text-sm font-medium text-content" title={data.label}>
+        {data.label}
+      </strong>
     </div>
   )
 }
@@ -119,12 +155,9 @@ function isNodeKind(value: unknown): value is NodeKind {
   return typeof value === 'string' && WORKFLOW_NODE_KINDS.includes(value as NodeKind)
 }
 
+// 小地图保持单色：节点一律描边灰，只有正在运行的节点用强调色标出位置。
 function nodeColor(node: WorkflowFlowNode) {
-  if (node.data.kind === 'condition') return 'var(--warning-strong)'
-  if (node.data.kind === 'parallel') return 'var(--workflow-violet)'
-  if (node.data.kind === 'approval') return 'var(--success)'
-  if (node.data.kind === 'notification') return 'var(--notification-border)'
-  return 'var(--star-strong)'
+  return node.data.status === 'running' ? 'var(--star)' : 'var(--stroke-strong)'
 }
 
 function WorkflowCanvasInner({
@@ -132,6 +165,7 @@ function WorkflowCanvasInner({
   edges,
   selectedNodeId,
   selectedEdgeId,
+  nodeStatus,
   hint,
   inputLabel,
   outputLabel,
@@ -160,9 +194,10 @@ function WorkflowCanvasInner({
           typeLabel: nodeTypeLabel(node.kind),
           inputLabel,
           outputLabel,
+          status: nodeStatus?.get(node.id),
         },
       })),
-    [inputLabel, nodeTypeLabel, nodes, outputLabel, selectedNodeId],
+    [inputLabel, nodeStatus, nodeTypeLabel, nodes, outputLabel, selectedNodeId],
   )
   const draggingNodeIds = useRef(new Set<string>())
   const pendingNodePositions = useRef(new Map<string, { x: number; y: number }>())
@@ -190,7 +225,7 @@ function WorkflowCanvasInner({
           currentNode.data.typeLabel === externalNode.data.typeLabel &&
           currentNode.data.inputLabel === externalNode.data.inputLabel &&
           currentNode.data.outputLabel === externalNode.data.outputLabel &&
-          currentNode.data.compact === externalNode.data.compact
+          currentNode.data.status === externalNode.data.status
         const nodeUnchanged =
           position.x === currentNode.position.x &&
           position.y === currentNode.position.y &&
@@ -243,13 +278,13 @@ function WorkflowCanvasInner({
         target: edge.target,
         targetHandle: edge.targetPort,
         selected: edge.id === selectedEdgeId,
+        // 线色与粗细交给画布的 --xy-edge-* 变量，选中态才能换成强调色；箭头保持淡墨色。
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 16,
-          height: 16,
+          width: 14,
+          height: 14,
           color: 'var(--canvas-edge)',
         },
-        style: { stroke: 'var(--canvas-edge)', strokeWidth: 2 },
       })),
     [edges, selectedEdgeId],
   )
@@ -328,22 +363,22 @@ function WorkflowCanvasInner({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1.2}
-          color="var(--canvas-grid)"
-        />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
         <MiniMap
-          className="workflow-react-flow-minimap !m-3 !h-24 !w-36 overflow-hidden rounded-lg border border-border !bg-card shadow-sm [&_svg]:h-full [&_svg]:w-full @max-[640px]/workflow:hidden"
+          className="workflow-react-flow-minimap m-3! h-24! w-36! overflow-hidden rounded-md border border-stroke [&_svg]:h-full [&_svg]:w-full @max-[640px]/workflow:hidden"
           nodeColor={nodeColor}
-          nodeStrokeWidth={3}
+          nodeBorderRadius={4}
           pannable
           zoomable
         />
-        <Controls position="top-left" showInteractive={false} />
+        {/* 缩放控件是一组 28px 图标键；手机与粗指针下放大到 44px 触控目标。 */}
+        <Controls
+          position="top-left"
+          showInteractive={false}
+          className="border-stroke bg-panel p-0.5 [&>button]:size-7! [&>button]:rounded-sm! [&>button]:hover:bg-surface-hover! max-[650px]:[&>button]:size-11! pointer-coarse:[&>button]:size-11!"
+        />
       </ReactFlow>
-      <div className="pointer-events-none absolute bottom-3 left-3 z-[5] hidden max-w-[calc(100%-180px)] rounded-md bg-card px-2 py-1 text-[11px] leading-relaxed text-muted-foreground @min-[640px]/workflow:block">
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[5] hidden max-w-[calc(100%-180px)] text-xs text-content-muted @min-[640px]/workflow:block">
         {hint}
       </div>
     </div>

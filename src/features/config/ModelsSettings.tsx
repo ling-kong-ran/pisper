@@ -1,11 +1,12 @@
 // 模型设置：连接列表/详情分栏；保留本地导入、快速向导及运行策略。
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ChevronDown, RefreshCw } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { ProviderWorkbench } from './ProviderWorkbench'
 import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
@@ -92,7 +93,7 @@ export function ModelsSettings({
   if (!config) {
     return (
       <AppEmptyState>
-        <RefreshCw className="animate-spin" size={24} />
+        <OrbitSpinner className="size-6" />
         <h2>{t('config:configPage.loadingModelCatalog')}</h2>
         <p>{t('config:configPage.readingProvidersAndAuthenticationStatus')}</p>
         {settings.error && <AppError>{settings.error}</AppError>}
@@ -117,25 +118,26 @@ export function ModelsSettings({
 
   return (
     <>
-      {defaultProvider && defaultModel && (
-        <div className="mb-4 text-sm">
-          <p className="min-w-0 truncate text-muted-foreground">
+      {/* 页头大标题下的 13px 说明行：当前默认模型（等宽 ID）与本地配置接入读数。 */}
+      <div className="mb-5 grid min-w-0 gap-1 text-sm text-content-muted">
+        {defaultProvider && defaultModel && (
+          <p className="min-w-0 truncate">
             {t('config:configPage.currentChatModel')} ·{' '}
-            <span className="text-foreground">
-              {defaultProvider.name} / {defaultModel}
-            </span>
+            <span className="font-medium text-content">{defaultProvider.name}</span>
+            {' / '}
+            <span className="font-mono text-[12.5px] text-content">{defaultModel}</span>
           </p>
-        </div>
-      )}
-      <p className="mb-4 flex items-center gap-2 text-xs text-muted-foreground" role="status">
-        {discovery.discovering && <RefreshCw size={12} className="animate-spin" />}
-        {discovery.discovering
-          ? t('config:providerWorkbench.scanningLocal')
-          : t('config:providerWorkbench.localImportStatus', {
-              imported: discovery.autoImport.imported,
-              skipped: discovery.autoImport.skipped,
-            })}
-      </p>
+        )}
+        <p className="flex min-w-0 items-center gap-2 text-xs tabular-nums" role="status">
+          {discovery.discovering && <OrbitSpinner className="size-3" />}
+          {discovery.discovering
+            ? t('config:providerWorkbench.scanningLocal')
+            : t('config:providerWorkbench.localImportStatus', {
+                imported: discovery.autoImport.imported,
+                skipped: discovery.autoImport.skipped,
+              })}
+        </p>
+      </div>
       <ProviderWorkbench
         config={config}
         selectedProviderId={selectedProviderId}
@@ -154,16 +156,17 @@ export function ModelsSettings({
         onToggle={settings.toggleProvider}
         onSetDefault={settings.setDefaultProvider}
         onSetDefaultModel={settings.setProviderDefaultModel}
+        onAddConnection={() => setWizard({ providerType: 'chat' })}
       />
       {settings.error && <AppError>{settings.error}</AppError>}
       {importableCount > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-[length:var(--app-small-size)] text-[var(--text-muted)]">
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-content-muted">
           <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="h-auto min-h-11 shrink-0 px-1 py-0 font-normal text-[var(--text-secondary)] sm:min-h-8"
+            className="h-auto min-h-11 shrink-0 px-1 py-0 font-medium sm:min-h-8"
             aria-expanded={manageOpenEffective}
             aria-controls="model-connection-management"
             onClick={() => setManageOpenPersisted(true)}
@@ -180,16 +183,17 @@ export function ModelsSettings({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group flex w-full cursor-pointer items-center gap-[7px] [margin:2px_0_10px] border-0 bg-transparent p-[4px_2px] text-left"
+            className="group mt-6 mb-3 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-0.5 text-left max-[650px]:min-h-11"
           >
             <ChevronDown
-              size={15}
-              className="shrink-0 text-[var(--text-muted)] transition-transform group-data-[state=closed]:-rotate-90"
+              size={16}
+              aria-hidden="true"
+              className="shrink-0 text-content-muted transition-transform group-data-[state=closed]:-rotate-90"
             />
-            <span className="shrink-0 text-[13px] font-[700] text-[var(--text-secondary)]">
+            <span className="shrink-0 text-sm font-medium text-content">
               {t('config:providerWorkbench.advanced')}
             </span>
-            <span className="min-w-0 text-[12px] text-[var(--text-tertiary)]">
+            <span className="min-w-0 truncate text-xs text-content-muted">
               {t('config:providerWorkbench.advancedHint')}
             </span>
           </button>
@@ -204,7 +208,7 @@ export function ModelsSettings({
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />
-          <div data-config-target="models-runtime-policy" className="[margin-top:12px]">
+          <div data-config-target="models-runtime-policy" className="mt-3">
             <RuntimePolicySettings
               config={config}
               notify={notify}

@@ -63,9 +63,13 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
       t('navigation:navigation.components'),
       t('navigation:navigation.componentsDescription'),
     ],
-    workflowCreate: [
-      t('navigation:navigation.newWorkflow'),
-      t('navigation:navigation.newWorkflowDescription'),
-    ],
+    workflowCreate: getWorkflowEditorMeta(t, false),
   }
+}
+
+// 工作流编辑器的新建与编辑共用一个页面 id：打开已有工作流时页头不能仍写“新建”。
+export function getWorkflowEditorMeta(t: Translate, editing: boolean): PageMeta {
+  return editing
+    ? [t('navigation:navigation.editWorkflow'), t('navigation:navigation.editWorkflowDescription')]
+    : [t('navigation:navigation.newWorkflow'), t('navigation:navigation.newWorkflowDescription')]
 }

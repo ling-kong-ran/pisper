@@ -35,6 +35,8 @@
   "schedulesPage.lastRunTime": "上次运行：{time}",
   "schedulesPage.loadingScheduledTasks": "正在加载定时任务",
   "schedulesPage.pause": "暂停",
+  "schedulesPage.lastRunFailed": "上次失败",
+  "schedulesPage.notifyWhen": "通知时机",
   "schedulesPage.failuresOnly": "仅失败时",
   "schedulesPage.runNow": "立即运行",
   "schedulesPage.scheduledTrigger": "定时触发",

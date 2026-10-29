@@ -6,7 +6,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import {
   Dialog,
   DialogContent,
@@ -163,17 +163,21 @@ export function McpHostPanel({
 
   return (
     <>
-      <Card className="mb-3 gap-3 p-4 shadow-none">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="mt-0.5 rounded-lg bg-muted p-2 text-foreground" aria-hidden="true">
+      {/* 内置服务是整页的状态带：位于列表/详情之上，细线分隔，不再叠一层卡片。 */}
+      <section className="flex shrink-0 flex-col gap-2.5 border-b border-stroke-soft px-4 py-3 @min-[760px]/page:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              className="grid size-8 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key"
+              aria-hidden="true"
+            >
               <Server className="size-4" />
             </span>
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-semibold text-foreground">{t('mcp:hostTitle')}</h2>
+                <h2 className="text-sm font-medium text-content">{t('mcp:hostTitle')}</h2>
                 {status && (
-                  <Badge variant="outline" className="font-normal text-muted-foreground">
+                  <Badge variant={status.listening ? 'ok' : status.enabled ? 'bad' : 'default'}>
                     {status.listening
                       ? t('mcp:hostReady')
                       : status.enabled
@@ -182,24 +186,22 @@ export function McpHostPanel({
                   </Badge>
                 )}
               </div>
-              <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+              <p className="max-w-2xl text-xs leading-5 text-content-muted">
                 {t('mcp:hostDescription')}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-xs text-muted-foreground">{t('mcp:hostEnabled')}</span>
+          <label className="flex shrink-0 items-center gap-2.5 text-xs text-content-secondary">
+            {t('mcp:hostEnabled')}
             <Switch
               checked={Boolean(status?.enabled)}
               disabled={!status || updating}
               aria-label={t('mcp:hostEnabled')}
               onCheckedChange={(enabled) => void toggle(enabled)}
             />
-          </div>
+          </label>
         </div>
-        {statusQuery.isPending && (
-          <p className="text-xs text-muted-foreground">{t('mcp:loading')}</p>
-        )}
+        {statusQuery.isPending && <p className="text-xs text-content-muted">{t('mcp:loading')}</p>}
         {statusQuery.error && (
           <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>{statusQuery.error.message}</span>
@@ -214,17 +216,22 @@ export function McpHostPanel({
           </Alert>
         )}
         {status?.listening && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t pt-3">
-            <code className="min-w-0 max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs text-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-11 max-[650px]:pl-0">
+            <code className="max-w-full min-w-0 rounded-xs border border-stroke bg-code px-2 py-0.5 font-mono text-xs break-all text-content">
               {status.url}
             </code>
-            <Button size="sm" variant="outline" onClick={() => void loadCredentials()}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="max-[650px]:h-11"
+              onClick={() => void loadCredentials()}
+            >
               <KeyRound data-icon="inline-start" />
               {t('mcp:hostShowConfig')}
             </Button>
           </div>
         )}
-      </Card>
+      </section>
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] sm:max-w-xl">
           <DialogHeader className="min-w-0 pr-8 text-left">
@@ -234,8 +241,8 @@ export function McpHostPanel({
             </DialogDescription>
           </DialogHeader>
           {revealing && (
-            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-              <RefreshCw className="size-4 animate-spin" />
+            <p role="status" className="flex items-center gap-2 text-sm text-content-muted">
+              <OrbitSpinner />
               {t('mcp:hostLoadingConfig')}
             </p>
           )}
@@ -251,12 +258,12 @@ export function McpHostPanel({
               readOnly
               spellCheck={false}
               aria-label={t('mcp:hostConfigTitle')}
-              className="h-52 max-h-[45dvh] resize-y font-mono text-xs [overflow-wrap:anywhere]"
+              className="h-52 max-h-[45dvh] resize-y bg-code font-mono text-xs [overflow-wrap:anywhere]"
               onFocus={(event) => event.currentTarget.select()}
             />
           )}
           <DialogFooter className="min-w-0 flex-wrap">
-            <Button variant="outline" disabled={revealing} onClick={() => void rotate()}>
+            <Button variant="secondary" disabled={revealing} onClick={() => void rotate()}>
               <RefreshCw data-icon="inline-start" />
               {t('mcp:hostRotate')}
             </Button>

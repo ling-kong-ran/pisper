@@ -56,7 +56,7 @@ export function SessionTreeControl({
   }, [revision, sessionId, streaming, visible])
 
   const indicator = branches > 0 && (
-    <i aria-hidden="true" className="size-1 rounded-full bg-blue-500" />
+    <i aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-star" />
   )
   const menuItem = visible ? (
     <DropdownMenuItem

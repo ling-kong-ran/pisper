@@ -141,7 +141,7 @@ export function GitChangesControl({
     >
       <button
         type="button"
-        className="git-changes-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.git-changes-select.open_&]:border-[var(--accent-border)] [.git-changes-select.open_&]:bg-[var(--accent-soft)] [.git-changes-select.open_&]:text-[var(--star-strong)] [.git-changes-select.active_&]:text-[var(--star-strong)] [&_>_i]:absolute [&_>_i]:top-[-4px] [&_>_i]:right-[-6px] [&_>_i]:min-w-[15px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--star-strong)] [&_>_i]:p-[1px_4px] [&_>_i]:text-[var(--on-accent)] [&_>_i]:text-[9px] [&_>_i]:[font-style:normal] [&_>_i]:font-[700] [&_>_i]:leading-[1.3] [&_>_i]:text-center @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
+        className="git-changes-trigger hover:border-[var(--accent-border)] hover:bg-surface-hover hover:text-[var(--star-strong)] [.git-changes-select.open_&]:border-[var(--accent-border)] [.git-changes-select.open_&]:bg-[var(--accent-soft)] [.git-changes-select.open_&]:text-[var(--star-strong)] [.git-changes-select.active_&]:text-[var(--star-strong)] [&_>_i]:absolute [&_>_i]:top-[-4px] [&_>_i]:right-[-6px] [&_>_i]:min-w-[15px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--star-strong)] [&_>_i]:p-[1px_4px] [&_>_i]:text-[var(--on-accent)] [&_>_i]:text-[9px] [&_>_i]:[font-style:normal] [&_>_i]:font-[700] [&_>_i]:leading-[1.3] [&_>_i]:text-center @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
         title={label}
         aria-label={label}
         aria-haspopup="dialog"
@@ -156,11 +156,11 @@ export function GitChangesControl({
         open={open}
         anchorRef={rootRef}
         menuRef={menuRef}
-        className="anchored-popup-menu git-changes-menu w-[min(340px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+        className="anchored-popup-menu git-changes-menu w-[min(340px,calc(100vw_-_28px))] overflow-hidden rounded-md bg-solid p-1 text-content shadow-float"
         role="dialog"
         ariaLabel={t('chat:focusSession.gitChanges')}
       >
-        <div className="git-changes-menu-head hover:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
+        <div className="git-changes-menu-head hover:bg-surface-hover [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:overflow-hidden [&_small]:text-content-muted [&_small]:text-xs [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
           <span
             className={`git-changes-menu-icon grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] ${hasChanges ? 'bg-[var(--star-soft)] text-[var(--star-strong)]' : 'bg-[var(--surface-muted)] text-[var(--text-muted)]'}`}
           >
@@ -193,19 +193,11 @@ export function GitChangesControl({
           </Button>
         </div>
 
-        {error && (
-          <p className="[margin:2px_7px_4px] text-[var(--danger,_#d64545)] text-[11px]">{error}</p>
-        )}
+        {error && <p className="mx-2 mt-0.5 mb-1 text-xs text-danger">{error}</p>}
         {!error && changes?.error && (
-          <p className="[margin:2px_7px_4px] text-[var(--danger,_#d64545)] text-[11px]">
-            {changes.error}
-          </p>
+          <p className="mx-2 mt-0.5 mb-1 text-xs text-danger">{changes.error}</p>
         )}
-        {notice && !error && (
-          <p className="[margin:2px_7px_4px] text-[var(--success,_#2e9e63)] text-[11px]">
-            {notice}
-          </p>
-        )}
+        {notice && !error && <p className="mx-2 mt-0.5 mb-1 text-xs text-success">{notice}</p>}
 
         {changes?.isRepo && (
           <>
@@ -213,10 +205,10 @@ export function GitChangesControl({
               <div className="git-changes-file-list [&_>_small]:p-[3px_5px] [&_>_small]:text-[var(--text-muted)] flex max-h-[168px] flex-col gap-[1px] [margin:2px_4px] overflow-y-auto">
                 {changes.files.slice(0, 60).map((file) => (
                   <div
-                    className="git-changes-file hover:bg-[var(--accent-soft)] [&_>_span]:overflow-hidden [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap grid grid-cols-[26px_minmax(0,1fr)] items-center gap-[6px] rounded-[var(--r-sm)] [padding:3px_5px] text-[11px]"
+                    className="git-changes-file hover:bg-surface-hover [&_>_span]:overflow-hidden [&_>_span]:text-content-secondary [&_>_span]:font-mono [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap grid grid-cols-[26px_minmax(0,1fr)] items-center gap-[6px] rounded-[var(--r-sm)] [padding:3px_5px] text-[11px]"
                     key={`${file.status}-${file.path}`}
                   >
-                    <code className="text-[var(--star-strong)] text-[10px] font-[700]">
+                    <code className="text-[var(--star-strong)] font-mono text-xs font-medium">
                       {file.status}
                     </code>
                     <span title={file.path}>{file.path}</span>
@@ -229,7 +221,7 @@ export function GitChangesControl({
                 )}
               </div>
             ) : (
-              <p className="[margin:4px_7px] text-[var(--text-muted)] text-[11px]">
+              <p className="mx-2 my-1 text-xs text-content-muted">
                 {t('chat:focusSession.gitNoChanges')}
               </p>
             )}
@@ -270,7 +262,7 @@ export function GitChangesControl({
             {hasChanges && (
               <button
                 type="button"
-                className="git-changes-view-diff hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] flex w-[calc(100%_-_14px)] min-h-[30px] items-center gap-[7px] [margin:4px_7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-muted)] [padding:5px_8px] text-[var(--text-secondary)] text-[11px] font-[600] cursor-pointer"
+                className="git-changes-view-diff hover:border-[var(--accent-border)] hover:bg-surface-hover hover:text-[var(--star-strong)] flex w-[calc(100%_-_14px)] min-h-[30px] items-center gap-[7px] [margin:4px_7px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-muted)] [padding:5px_8px] text-[var(--text-secondary)] text-[11px] font-[600] cursor-pointer"
                 onClick={() => {
                   setDiffOpen(true)
                   setOpen(false)

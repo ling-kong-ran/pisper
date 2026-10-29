@@ -45,7 +45,7 @@ export function TypographySizeInput({
           aria-label={label}
           aria-invalid={invalid}
           aria-describedby={invalid ? errorId : undefined}
-          className="h-8 w-16 text-sm"
+          className="h-8 w-16 text-sm tabular-nums pointer-coarse:min-h-11 max-[650px]:min-h-11"
           onChange={(event) => {
             draftRef.current = event.target.value
             setDraft(event.target.value)
@@ -65,7 +65,7 @@ export function TypographySizeInput({
             }
           }}
         />
-        <span className="text-sm text-muted-foreground">px</span>
+        <span className="text-sm text-content-muted">px</span>
       </div>
       {invalid && (
         <p id={errorId} role="alert" className="max-w-56 text-xs text-destructive">

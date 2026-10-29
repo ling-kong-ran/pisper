@@ -24,7 +24,7 @@ function RadioGroupItem({
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
       className={cn(
-        'group/radio-group-item peer relative flex aspect-square size-4 shrink-0 rounded-full border border-input outline-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary',
+        'group/radio-group-item peer relative flex aspect-square size-4 shrink-0 rounded-full border border-input bg-panel after:absolute after:-inset-x-3 after:-inset-y-2 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-checked:border-star data-checked:bg-star',
         className,
       )}
       {...props}
@@ -33,7 +33,7 @@ function RadioGroupItem({
         data-slot="radio-group-indicator"
         className="flex size-4 items-center justify-center"
       >
-        <span className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-foreground" />
+        <span className="absolute top-1/2 left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent" />
       </RadioGroupPrimitive.Indicator>
     </RadioGroupPrimitive.Item>
   )
@@ -47,10 +47,7 @@ function RadioGroupOption({
   return (
     <RadioGroupPrimitive.Item
       data-slot="radio-group-option"
-      className={cn(
-        'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-        className,
-      )}
+      className={cn('disabled:pointer-events-none disabled:opacity-50', className)}
       {...props}
     />
   )

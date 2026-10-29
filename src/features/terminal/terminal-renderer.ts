@@ -8,50 +8,66 @@ function terminalTheme() {
   const style = getComputedStyle(document.documentElement)
   const color = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback
   const dark = document.documentElement.dataset.theme === 'dark'
+  // 中性色取冷调锌灰；红/绿/黄/蓝/品红读取界面的语义与代码 token，让终端与工具日志、diff 同一套颜色。
   const ansi = dark
     ? {
-        black: '#111318',
-        red: '#f87171',
-        green: '#86efac',
-        yellow: '#fde68a',
-        blue: '#93c5fd',
-        magenta: '#d8b4fe',
+        black: '#0b0b0d',
+        red: '#f0645a',
+        green: '#3fb26f',
+        yellow: '#e8a23a',
+        blue: '#9aa1ff',
+        magenta: '#d2a8ff',
         cyan: '#67e8f9',
-        white: '#e5e7eb',
-        brightBlack: '#6b7280',
+        white: '#d0d0d6',
+        brightBlack: '#8b8b95',
         brightRed: '#fca5a5',
-        brightGreen: '#bbf7d0',
-        brightYellow: '#fef08a',
-        brightBlue: '#bfdbfe',
+        brightGreen: '#6fcf97',
+        brightYellow: '#fde68a',
+        brightBlue: '#bfc4ff',
         brightMagenta: '#e9d5ff',
         brightCyan: '#a5f3fc',
-        brightWhite: '#f9fafb',
+        brightWhite: '#ededf0',
       }
     : {
-        black: '#1f2937',
-        red: '#b91c1c',
-        green: '#15803d',
-        yellow: '#a16207',
-        blue: '#1d4ed8',
-        magenta: '#7e22ce',
+        black: '#17171a',
+        red: '#c8281d',
+        green: '#1a7f3c',
+        yellow: '#a85207',
+        blue: '#3d4bef',
+        magenta: '#6b2fc0',
         cyan: '#0e7490',
-        white: '#64748b',
-        brightBlack: '#64748b',
+        white: '#67676f',
+        brightBlack: '#67676f',
         brightRed: '#dc2626',
         brightGreen: '#16a34a',
         brightYellow: '#ca8a04',
-        brightBlue: '#2563eb',
+        brightBlue: '#2b38c4',
         brightMagenta: '#9333ea',
         brightCyan: '#0891b2',
-        brightWhite: '#334155',
+        brightWhite: '#36363c',
       }
   return {
     background: color('--terminal-bg', dark ? '#111318' : '#f8fafc'),
-    foreground: color('--terminal-fg', dark ? '#e5e7eb' : '#1f2937'),
-    cursor: color('--terminal-cursor', dark ? '#7dd3fc' : '#1783ff'),
-    selectionBackground: color('--terminal-selection', dark ? '#334155' : '#bfdbfe'),
+    foreground: color('--terminal-fg', dark ? '#e4e4e7' : '#17171a'),
+    cursor: color('--terminal-cursor', dark ? '#8d95ff' : '#3d4bef'),
+    cursorAccent: color('--terminal-bg', dark ? '#111318' : '#f8fafc'),
+    selectionBackground: color('--terminal-selection', dark ? '#2e3266' : '#c7ccfb'),
     ...ansi,
+    red: color('--danger', ansi.red),
+    green: color('--success', ansi.green),
+    yellow: color('--warning-strong', ansi.yellow),
+    blue: color('--code-keyword', ansi.blue),
+    magenta: color('--code-fn', ansi.magenta),
+    brightBlack: color('--text-muted', ansi.brightBlack),
   }
+}
+
+// 终端字体跟随界面等宽 token（--font-code-family），保证路径、命令与工具日志同一字形。
+function terminalFontFamily() {
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue('--font-code-family').trim() ||
+    'ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace'
+  )
 }
 
 // 缓存按视图身份隔离。同一 PTY 可在底部面板与任务标签中显示，不搬走另一视图的 DOM。
@@ -62,9 +78,9 @@ export function createTerminalRenderer(registry: TerminalRegistry, id: string): 
     allowProposedApi: false,
     convertEol: false,
     cursorBlink: true,
-    fontFamily: "'Cascadia Mono', 'SFMono-Regular', Consolas, monospace",
+    fontFamily: terminalFontFamily(),
     fontSize: 13,
-    lineHeight: 1.2,
+    lineHeight: 1.25,
     scrollback: 8000,
     theme: terminalTheme(),
   })

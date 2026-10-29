@@ -117,7 +117,7 @@ export function WorkflowRunDialog({
           }}
         >
           {workflowImageRequestCount(workflow) > 0 && (
-            <p className="rounded-lg bg-muted p-3 text-sm">
+            <p className="rounded-md bg-surface-subtle p-3 text-sm tabular-nums">
               {t('workflows:imageNodes.requestEstimate', {
                 count: workflowImageRequestCount(workflow),
               })}

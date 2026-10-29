@@ -1,5 +1,6 @@
 // 统一的 Select 封装：把 shadcn 的受控 Select 转成原生 <select> 语义，
 // 支持必填/禁用/无值占位，供表单与设置页复用，避免各处重复状态逻辑。
+// 外观沿用字段规范：控件边框 ≥3:1、纸面底色、聚焦换边框并加焦点光环。
 import {
   Children,
   isValidElement,
@@ -65,7 +66,7 @@ export function AppSelect({
       <select
         data-slot="select-trigger"
         className={cn(
-          'h-10 min-h-0 w-full rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--surface-subtle)] px-2.5 py-0 text-[14px] font-normal text-[var(--text)] shadow-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] dark:bg-[var(--solid)]',
+          'h-10 min-h-0 w-full rounded-sm border border-input bg-panel px-2.5 py-0 text-[14px] font-normal text-foreground shadow-none outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring',
           className,
         )}
         value={selectedValue}
@@ -96,7 +97,7 @@ export function AppSelect({
     >
       <SelectTrigger
         className={cn(
-          'h-[31px] min-h-0 w-full rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--surface-subtle)] px-2.5 py-0 text-[12px] font-normal text-[var(--text)] shadow-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] dark:bg-[var(--solid)] [&>svg]:size-[13px] [&>svg]:text-[var(--text-muted)]',
+          'h-8 min-h-0 w-full rounded-sm border border-input bg-panel px-2.5 py-0 text-sm font-normal text-foreground shadow-none [&>svg]:text-muted-foreground',
           className,
         )}
         {...ariaProps}
@@ -113,7 +114,7 @@ export function AppSelect({
             key={option.value}
             value={option.value}
             disabled={option.disabled}
-            className="text-[12px]"
+            className="text-sm"
           >
             {option.label}
           </SelectItem>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { attachComponentBridge } from './component-bridge'
 import { startCustomUiView } from './custom-ui-view'
@@ -51,7 +52,7 @@ export function CustomUiFrame({
     return (
       <div
         role="status"
-        className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-auto p-3 text-center text-xs text-[var(--text-muted)]"
+        className="flex h-full min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-auto p-3 text-center text-xs text-content-muted"
       >
         <p>{t('custom-ui:customUiPage.componentFailedToLoad')}</p>
         <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
@@ -64,8 +65,9 @@ export function CustomUiFrame({
     return (
       <div
         role="status"
-        className="grid h-full min-h-0 min-w-0 place-items-center p-3 text-xs text-[var(--text-muted)]"
+        className="flex h-full min-h-0 min-w-0 items-center justify-center gap-1.5 p-3 text-xs text-content-muted"
       >
+        <OrbitSpinner className="size-3.5" />
         {t('custom-ui:customUiPage.loading')}
       </div>
     )

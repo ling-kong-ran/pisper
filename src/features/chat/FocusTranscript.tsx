@@ -27,6 +27,7 @@ import { WorkbenchGreeting } from './WorkbenchGreeting'
 import { useContextPagesStore } from './session-context-pages-store'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
@@ -70,27 +71,24 @@ type FocusTranscriptProps = {
 function TranscriptLoading({ label }: { label: string }) {
   return (
     <div
-      className="session-history-loading grid min-h-[100%] place-content-center justify-items-center gap-[24px] text-[var(--text-muted)] [animation:transcript-stage-enter_.18s_var(--ease-out)_both]"
+      className="session-history-loading grid min-h-[100%] place-content-center justify-items-center gap-[20px] text-content-muted [animation:transcript-stage-enter_.18s_var(--ease-out)_both]"
       role="status"
       aria-live="polite"
     >
-      {/* 品牌行:Logo + 状态文案 + 思考点 */}
+      {/* 品牌行：墨色键帽 + 轨道运行指示 + 状态文案，与转录区内的运行指示同一语言。 */}
       <div className="flex items-center gap-[10px]">
-        <span className="grid h-[34px] w-[34px] place-items-center rounded-[11px] border border-[color-mix(in_srgb,#A855F7_24%,var(--stroke))] bg-[var(--solid)] shadow-[var(--sh-1)]">
-          <BrandLogo size={19} />
-        </span>
-        <strong className="text-[13px] font-medium text-[var(--text-soft)]">{label}</strong>
-        <span className="flex items-end gap-[3px] pb-[3px]" aria-hidden="true">
-          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_infinite]" />
-          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.16s_infinite]" />
-          <i className="block h-[4px] w-[4px] rounded-full bg-[#A855F7] [animation:agent-thinking-dot_1.2s_ease-in-out_.32s_infinite]" />
-        </span>
+        <BrandLogo size={22} />
+        <strong className="text-[13px] font-medium text-content-secondary">{label}</strong>
+        <OrbitSpinner className="size-4" />
       </div>
-      {/* 会话骨架:比起三条进度线,消息泡形状更能传达「对话正在成形」 */}
+      {/* 会话骨架：静止的细线轮廓，比起闪烁占位更安静，也能传达「对话正在成形」。 */}
       <div className="grid w-[min(560px,78vw)] gap-[12px]" aria-hidden="true">
-        <div className="h-[52px] w-[68%] rounded-[16px_16px_16px_5px] border border-[var(--stroke-soft)] bg-[var(--surface-muted)] [animation:agent-message-pulse_1.9s_ease-in-out_infinite]" />
-        <div className="h-[40px] w-[46%] justify-self-end rounded-[16px_16px_5px_16px] bg-[var(--user-bubble-bg)] opacity-[.14] [animation:agent-message-pulse_1.9s_ease-in-out_.25s_infinite]" />
-        <div className="h-[46px] w-[58%] rounded-[16px_16px_16px_5px] border border-[var(--stroke-soft)] bg-[var(--surface-muted)] [animation:agent-message-pulse_1.9s_ease-in-out_.5s_infinite]" />
+        <div className="h-[40px] w-[46%] justify-self-end rounded-[12px_12px_3px_12px] bg-[var(--user-bubble-bg)]" />
+        <div className="grid gap-[8px]">
+          <div className="h-[34px] rounded-md border border-stroke-soft bg-surface-subtle" />
+          <div className="h-[10px] w-[82%] rounded-full bg-surface-muted" />
+          <div className="h-[10px] w-[64%] rounded-full bg-surface-muted" />
+        </div>
       </div>
     </div>
   )
@@ -317,9 +315,9 @@ export function FocusTranscript({
               {olderError ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="lg"
-                  className="bg-surface-subtle"
+                  variant="secondary"
+                  size="sm"
+                  className="max-[650px]:h-11"
                   onClick={loadOlder}
                 >
                   <RefreshCw size={13} />
@@ -327,15 +325,15 @@ export function FocusTranscript({
                 </Button>
               ) : loadingOlder ? (
                 <>
-                  <RefreshCw className="animate-spin" size={14} />
+                  <OrbitSpinner className="size-3.5" />
                   {t('chat:focusSession.loadingOlderMessages')}
                 </>
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="lg"
-                  className="bg-surface-subtle"
+                  variant="secondary"
+                  size="sm"
+                  className="max-[650px]:h-11"
                   onClick={loadOlder}
                 >
                   <ArrowDown
@@ -389,9 +387,9 @@ export function FocusTranscript({
         <div className="pointer-events-none absolute inset-x-0 bottom-[6px] z-[5] flex justify-center">
           <Button
             type="button"
-            variant="outline"
-            size="lg"
-            className="pointer-events-auto bg-surface-subtle min-h-[32px] [border-color:var(--accent-border)] text-[var(--star-strong)] shadow-[0_8px_18px_-14px_var(--shadow)]"
+            variant="secondary"
+            size="sm"
+            className="pointer-events-auto rounded-full px-3 shadow-float max-[650px]:h-11"
             disabled={loadingLatest}
             aria-busy={loadingLatest || undefined}
             onClick={async () => {

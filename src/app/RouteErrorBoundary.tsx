@@ -28,17 +28,11 @@ export function RouteErrorBoundary() {
 
   return (
     <main
-      className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]"
+      className="app-startup flex min-h-[100vh] w-full items-center justify-center gap-2.5 bg-chrome text-[13px] text-content-muted"
       role="alert"
     >
-      <strong>{message}</strong>
-      <Button
-        variant="outline"
-        size="lg"
-        className="bg-surface-subtle"
-        type="button"
-        onClick={() => void recoverRoute()}
-      >
+      <strong className="font-medium">{message}</strong>
+      <Button variant="secondary" type="button" onClick={() => void recoverRoute()}>
         重新加载
       </Button>
     </main>

@@ -51,7 +51,7 @@ export function ChatDockView({
         return (
           <button
             type="button"
-            className="dock-new-session hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus-visible:relative focus-visible:z-[1] focus-visible:[outline:2px_solid_var(--focus)] focus-visible:[outline-offset:-2px] grid w-[36px] h-[35px] flex-none place-items-center border-0 [border-left:1px_solid_var(--stroke-soft)] bg-transparent text-[var(--text-muted)] cursor-pointer"
+            className="dock-new-session grid h-[35px] w-9 flex-none cursor-pointer place-items-center border-0 border-l border-stroke-soft bg-transparent text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:relative focus-visible:z-[1] focus-visible:-outline-offset-2"
             title={label}
             aria-label={label}
             onPointerDown={(event) => event.stopPropagation()}
@@ -60,7 +60,7 @@ export function ChatDockView({
               void createSession(group)
             }}
           >
-            <Plus size={15} />
+            <Plus size={16} />
           </button>
         )
       },

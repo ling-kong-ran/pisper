@@ -175,7 +175,7 @@ export function FileChangesControl({
       <button
         ref={triggerRef}
         type="button"
-        className="file-changes-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.file-changes-select.open_&]:border-[var(--accent-border)] [.file-changes-select.open_&]:bg-[var(--accent-soft)] [.file-changes-select.open_&]:text-[var(--star-strong)] [.file-changes-select.active_&]:text-[var(--star-strong)] [&_>_i]:absolute [&_>_i]:top-[-4px] [&_>_i]:right-[-6px] [&_>_i]:min-w-[15px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--star-strong)] [&_>_i]:p-[1px_4px] [&_>_i]:text-[var(--on-accent)] [&_>_i]:text-[9px] [&_>_i]:[font-style:normal] [&_>_i]:font-[700] [&_>_i]:leading-[1.3] [&_>_i]:text-center @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
+        className="file-changes-trigger hover:border-[var(--accent-border)] hover:bg-surface-hover hover:text-[var(--star-strong)] [.file-changes-select.open_&]:border-[var(--accent-border)] [.file-changes-select.open_&]:bg-[var(--accent-soft)] [.file-changes-select.open_&]:text-[var(--star-strong)] [.file-changes-select.active_&]:text-[var(--star-strong)] [&_>_i]:absolute [&_>_i]:top-[-4px] [&_>_i]:right-[-6px] [&_>_i]:min-w-[15px] [&_>_i]:rounded-[var(--r-pill)] [&_>_i]:bg-[var(--star-strong)] [&_>_i]:p-[1px_4px] [&_>_i]:text-[var(--on-accent)] [&_>_i]:text-[9px] [&_>_i]:[font-style:normal] [&_>_i]:font-[700] [&_>_i]:leading-[1.3] [&_>_i]:text-center @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] relative grid w-full h-full place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-inherit cursor-pointer"
         title={label}
         aria-label={label}
         aria-haspopup="dialog"
@@ -190,12 +190,12 @@ export function FileChangesControl({
         open={open}
         anchorRef={rootRef}
         menuRef={menuRef}
-        className="anchored-popup-menu file-changes-menu w-[min(340px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+        className="anchored-popup-menu file-changes-menu w-[min(340px,calc(100vw_-_28px))] overflow-hidden rounded-md bg-solid p-1 text-content shadow-float"
         role="dialog"
         ariaLabel={label}
         onClose={() => closeMenu(true)}
       >
-        <div className="file-changes-menu-head hover:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[12px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
+        <div className="file-changes-menu-head hover:bg-surface-hover [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:overflow-hidden [&_small]:text-content-muted [&_small]:text-xs [&_small]:text-ellipsis [&_small]:whitespace-nowrap grid min-h-[44px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] rounded-[var(--r-sm)] [padding:6px_7px]">
           <span
             className={`file-changes-menu-icon grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] ${pendingCount > 0 ? 'bg-[var(--star-soft)] text-[var(--star-strong)]' : 'bg-[var(--surface-muted)] text-[var(--text-muted)]'}`}
           >
@@ -225,18 +225,12 @@ export function FileChangesControl({
         </div>
 
         {error && (
-          <p
-            role="alert"
-            className="[margin:2px_7px_4px] text-[var(--danger,_#d64545)] text-[11px]"
-          >
+          <p role="alert" className="mx-2 mt-0.5 mb-1 text-xs text-danger">
             {error}
           </p>
         )}
         {notice && !error && (
-          <p
-            role="status"
-            className="[margin:2px_7px_4px] text-[var(--success,_#2e9e63)] text-[11px]"
-          >
+          <p role="status" className="mx-2 mt-0.5 mb-1 text-xs text-success">
             {notice}
           </p>
         )}
@@ -246,11 +240,11 @@ export function FileChangesControl({
             <div className="file-changes-file-list [&_>_small]:p-[3px_5px] [&_>_small]:text-[var(--text-muted)] flex max-h-[200px] flex-col gap-[1px] [margin:2px_4px] overflow-y-auto">
               {(changes?.files || []).map((file) => (
                 <div
-                  className="file-changes-file hover:bg-[var(--accent-soft)] [&_>_span]:overflow-hidden [&_>_span]:text-[var(--text-secondary)] [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-[6px] rounded-[var(--r-sm)] [padding:3px_5px] text-[11px]"
+                  className="file-changes-file hover:bg-surface-hover [&_>_span]:overflow-hidden [&_>_span]:text-content-secondary [&_>_span]:font-mono [&_>_span]:text-ellipsis [&_>_span]:whitespace-nowrap grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-[6px] rounded-[var(--r-sm)] [padding:3px_5px] text-[11px]"
                   key={file.path}
                 >
                   <code
-                    className={`text-[10px] font-[700] ${file.status === 'created' ? 'text-[var(--success,_#2e9e63)]' : file.status === 'deleted' ? 'text-[var(--danger,_#d64545)]' : 'text-[var(--star-strong)]'}`}
+                    className={`font-mono text-xs font-medium ${file.status === 'created' ? 'text-success' : file.status === 'deleted' ? 'text-danger' : 'text-[var(--star-strong)]'}`}
                   >
                     {STATUS_LABEL[file.status] || 'M'}
                   </code>
@@ -288,9 +282,7 @@ export function FileChangesControl({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className={
-                        confirmingRevert === file.path ? 'text-[var(--danger,_#d64545)]' : ''
-                      }
+                      className={confirmingRevert === file.path ? 'text-danger' : ''}
                       title={t('chat:focusSession.fileChangesRevertFile')}
                       aria-label={
                         confirmingRevert === file.path

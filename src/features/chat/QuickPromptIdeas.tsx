@@ -78,16 +78,17 @@ export default function QuickPromptIdeas({
   const lastPage = Math.ceil(chips.length / 3) - 1
   const currentPage = Math.min(page, lastPage)
   return (
-    <section aria-label={t('chat:focusSession.promptIdeas')} className="pt-5 text-left text-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">{t('chat:focusSession.promptIdeas')}</h2>
+    <section aria-label={t('chat:focusSession.promptIdeas')} className="pt-6 text-left text-sm">
+      <div className="mb-2 flex min-h-7 items-center justify-between gap-2">
+        <h2 className="text-[12px] font-medium tracking-[.02em] text-content-muted">
+          {t('chat:focusSession.promptIdeas')}
+        </h2>
         {/* 窄容器改为横滑浏览全部任务，翻页按钮只在宽布局出现。 */}
         <div className="flex gap-1 @max-[600px]:hidden">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full"
             aria-label={t('chat:workbench.previousIdeas')}
             disabled={currentPage === 0}
             onClick={() => setPage(currentPage - 1)}
@@ -98,7 +99,6 @@ export default function QuickPromptIdeas({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 rounded-full"
             aria-label={t('chat:workbench.nextIdeas')}
             disabled={currentPage === lastPage}
             onClick={() => setPage(currentPage + 1)}
@@ -107,7 +107,7 @@ export default function QuickPromptIdeas({
           </Button>
         </div>
       </div>
-      <div className="welcome-chips grid grid-cols-3 gap-3 @max-[600px]:flex @max-[600px]:snap-x @max-[600px]:overflow-x-auto @max-[600px]:pb-2">
+      <div className="welcome-chips grid grid-cols-3 gap-2 @max-[600px]:flex @max-[600px]:snap-x @max-[600px]:overflow-x-auto @max-[600px]:pb-2">
         {chips.map((chip, index) => (
           <button
             type="button"
@@ -116,16 +116,19 @@ export default function QuickPromptIdeas({
             data-off-page={Math.floor(index / 3) !== currentPage || undefined}
             data-target-cursor
             onClick={() => onPromptSelect(chip.prompt)}
-            className="flex min-h-32 min-w-0 flex-col gap-3 rounded-2xl border border-border bg-background p-3 text-left font-normal shadow-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @max-[600px]:w-[min(240px,80cqw)] @max-[600px]:shrink-0 @max-[600px]:snap-start @min-[600px]:data-off-page:hidden"
+            className="group/idea flex min-h-[112px] min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-stroke bg-panel p-3 text-left font-normal transition-colors duration-(--d-fast) ease-precise hover:border-stroke-strong hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus @max-[600px]:w-[min(240px,80cqw)] @max-[600px]:shrink-0 @max-[600px]:snap-start @min-[600px]:data-off-page:hidden"
           >
+            {/* 图标放进小键帽：与功能栏、品牌键同一「凸起键」语言；「试一试」只在悬停/聚焦时浮现。 */}
             <span className="flex w-full items-center justify-between gap-2">
-              <chip.icon size={20} aria-hidden="true" />
-              <span className="rounded-full border border-border px-2 py-1 text-xs">
+              <span className="grid size-7 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key">
+                <chip.icon size={15} aria-hidden="true" />
+              </span>
+              <span className="rounded-xs border border-stroke px-1.5 text-[12px] leading-[18px] text-content-muted opacity-0 transition-opacity duration-(--d-fast) group-hover/idea:opacity-100 group-focus-visible/idea:opacity-100 pointer-coarse:opacity-100">
                 {t('chat:workbench.tryPrompt')}
               </span>
             </span>
-            <span>{chip.label}</span>
-            <span className="text-xs leading-relaxed text-muted-foreground">
+            <span className="mt-1 text-[13px] font-medium text-foreground">{chip.label}</span>
+            <span className="text-[12px] leading-[1.5] text-content-muted">
               {chip.prompt.replace(/[：:]$/, '')}
             </span>
           </button>

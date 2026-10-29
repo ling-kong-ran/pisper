@@ -103,9 +103,9 @@ function FieldLabel({
       data-variant={variant}
       className={cn(
         variant === 'default' &&
-          'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10 has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
+          'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-star-border has-data-checked:bg-star-soft has-[>[data-slot=field]]:rounded-md has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
         variant === 'control' &&
-          'mt-2.5 flex w-full min-w-0 flex-col items-stretch gap-[5px] text-[12px] font-semibold text-[var(--text-secondary)] [&_input]:h-[31px] [&_input]:w-full [&_input]:rounded-[var(--r-xs)] [&_input]:border [&_input]:border-[var(--stroke)] [&_input]:bg-[var(--surface-subtle)] [&_input]:px-[9px] [&_input]:text-[12px] [&_input]:font-normal [&_input]:text-[var(--text)] [&_textarea]:min-h-[66px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-[var(--r-xs)] [&_textarea]:border [&_textarea]:border-[var(--stroke)] [&_textarea]:bg-[var(--surface-subtle)] [&_textarea]:px-[9px] [&_textarea]:py-2 [&_textarea]:text-[12px] [&_textarea]:leading-[1.45] [&_textarea]:font-normal [&_textarea]:text-[var(--text)] dark:[&_input]:bg-[var(--solid)] dark:[&_textarea]:bg-[var(--solid)]',
+          'mt-2.5 flex w-full min-w-0 flex-col items-stretch gap-1.5 text-xs font-medium text-content-secondary [&_input]:h-8.5 [&_input]:w-full [&_input]:rounded-sm [&_input]:border [&_input]:border-input [&_input]:bg-panel [&_input]:px-2.5 [&_input]:text-sm [&_input]:font-normal [&_input]:text-foreground [&_textarea]:min-h-[66px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-sm [&_textarea]:border [&_textarea]:border-input [&_textarea]:bg-panel [&_textarea]:px-2.5 [&_textarea]:py-2 [&_textarea]:text-sm [&_textarea]:leading-[1.45] [&_textarea]:font-normal [&_textarea]:text-foreground',
         className,
       )}
       {...props}
@@ -131,7 +131,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot="field-description"
       className={cn(
-        'text-left text-sm leading-normal font-normal text-muted-foreground group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5',
+        'text-left text-xs leading-normal font-normal text-muted-foreground group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5',
         'last:mt-0 nth-last-2:-mt-1',
         '[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
         className,

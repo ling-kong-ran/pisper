@@ -2,21 +2,15 @@ import './remote-workspace-messages'
 // 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
 // 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Check,
-  LoaderCircle,
-  MonitorSmartphone,
-  QrCode,
-  RefreshCw,
-  Smartphone,
-  X,
-} from 'lucide-react'
+import { Check, MonitorSmartphone, QrCode, RefreshCw, Smartphone, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
 import { SettingsCard as Panel, SettingsSwitch as Switch } from './settings-primitives'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -240,7 +234,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
   }
 
   if (loadError) {
-    return <Panel className="p-4 text-[13px] text-[var(--text-muted)]">{loadError}</Panel>
+    return <Panel className="p-4 text-sm text-content-muted">{loadError}</Panel>
   }
   if (!status) return null
 
@@ -257,18 +251,18 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               <img
                 src={pairing.qrDataUrl}
                 alt={t('config:remoteAccess.qrAlt')}
-                className="size-64 max-w-full rounded-[var(--r-sm)] bg-white p-2"
+                className="size-64 max-w-full rounded-sm border border-stroke bg-white p-2"
               />
             ) : null}
             {pairingError ? (
-              <p className="text-center text-[12px] leading-relaxed text-[var(--danger)]">
-                {pairingError}
-              </p>
+              <p className="text-center text-xs leading-relaxed text-danger">{pairingError}</p>
             ) : null}
             {pairing ? (
               <div className="text-center">
-                <div className="font-mono text-[20px] tracking-[0.2em]">{pairing.code}</div>
-                <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+                <div className="font-mono text-[20px] font-medium tracking-[0.2em] text-content">
+                  {pairing.code}
+                </div>
+                <div className="mt-1 text-xs text-content-muted tabular-nums">
                   {t('config:remoteAccess.codeExpiresAt', {
                     time: relativeTime(pairing.expiresAt, language),
                   })}
@@ -277,17 +271,22 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
             ) : null}
           </div>
           {pairing?.connectionInfo && (
-            <details className="min-w-0 rounded-md border px-3 py-2 text-sm">
-              <summary className="cursor-pointer">{t('remote-workspace:manualConnection')}</summary>
-              <div className="mt-2 space-y-2 text-xs">
+            <details className="min-w-0 rounded-md border border-stroke px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-content-secondary">
+                {t('remote-workspace:manualConnection')}
+              </summary>
+              <div className="mt-2 space-y-2 text-xs text-content-muted">
                 <div>{t('remote-workspace:serverAddress')}</div>
                 {pairing.connectionInfo.endpoints.map((endpoint) => (
-                  <code key={endpoint.url} className="block select-all break-all">
+                  <code
+                    key={endpoint.url}
+                    className="block font-mono break-all text-content select-all"
+                  >
                     {endpoint.url}
                   </code>
                 ))}
                 <div>{t('remote-workspace:fingerprint')}</div>
-                <code className="block select-all break-all">
+                <code className="block font-mono break-all text-content select-all">
                   {pairing.connectionInfo.fingerprint}
                 </code>
               </div>
@@ -295,7 +294,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           )}
           <DialogFooter>
             <Button disabled={busy} onClick={() => void generatePairingCode()}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+              {busy ? <OrbitSpinner className="text-current" /> : <RefreshCw />}
               {busy ? t('config:remoteAccess.generatingQr') : t('config:remoteAccess.regenerate')}
             </Button>
           </DialogFooter>
@@ -304,13 +303,20 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
       <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-main">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start gap-[11px]">
-            <span className="grid size-[38px] flex-none place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <MonitorSmartphone size={19} />
+          <div className="flex items-start gap-3">
+            <span
+              className={cn(
+                'grid size-9.5 flex-none place-items-center rounded-lg border border-key-border bg-key shadow-key',
+                status.enabled ? 'text-accent-fg' : 'text-content-muted',
+              )}
+            >
+              <MonitorSmartphone size={18} aria-hidden="true" />
             </span>
-            <div>
-              <h2 className="text-[16px]">{t('config:remoteAccess.title')}</h2>
-              <p className="mt-1 text-[13px] leading-[1.55] text-[var(--text-muted)]">
+            <div className="min-w-0">
+              <h2 className="text-[15px]! leading-6 font-medium text-content">
+                {t('config:remoteAccess.title')}
+              </h2>
+              <p className="mt-0.5 text-xs leading-[1.55] text-content-muted">
                 {t('config:remoteAccess.description')}
               </p>
             </div>
@@ -323,7 +329,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           />
         </div>
         {status.error ? (
-          <p className="rounded-[var(--r-sm)] bg-[var(--danger-soft)] px-3 py-2 text-[12px] text-[var(--danger)]">
+          <p className="rounded-sm bg-danger-soft px-3 py-2 text-xs text-danger">
             {t('config:remoteAccess.listenFailed', { message: status.error })}
           </p>
         ) : null}
@@ -332,32 +338,34 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       {firewall ? (
         <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-[14px]">{t('config:remoteAccess.firewallTitle')}</h3>
+            <h3 className="text-sm font-medium text-content">
+              {t('config:remoteAccess.firewallTitle')}
+            </h3>
             {status.enabled || firewall.state === 'cleanup_pending' ? (
               <Button
                 size="sm"
+                variant="secondary"
+                className="pointer-coarse:h-11"
                 disabled={busy || firewall.busy}
                 onClick={() => void retryFirewall()}
               >
-                {busy || firewall.busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+                {busy || firewall.busy ? <OrbitSpinner className="text-current" /> : <RefreshCw />}
                 {status.enabled
                   ? t('config:remoteAccess.firewallRetry')
                   : t('config:remoteAccess.firewallRetryCleanup')}
               </Button>
             ) : null}
           </div>
-          <p className="text-[13px]">
+          <p className="text-sm text-content-secondary">
             {firewall.busy
               ? t('config:remoteAccess.firewallWorking')
               : firewallStates[firewall.state]}
           </p>
           {firewall.reason && firewallReasons[firewall.reason] ? (
-            <p className="text-[12px] text-[var(--text-muted)]">
-              {firewallReasons[firewall.reason]}
-            </p>
+            <p className="text-xs text-content-muted">{firewallReasons[firewall.reason]}</p>
           ) : null}
           {status.enabled ? (
-            <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+            <p className="text-xs leading-relaxed text-content-muted">
               {firewall.scope === 'application'
                 ? t('config:remoteAccess.firewallApplicationScope')
                 : firewall.scope === 'program_port'
@@ -367,11 +375,11 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
                   : t('config:remoteAccess.firewallPortScope', { port: firewall.port ?? '—' })}
             </p>
           ) : null}
-          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+          <p className="text-xs leading-relaxed text-content-muted">
             {t('config:remoteAccess.firewallReachability')}
           </p>
           {firewall.checkedAt ? (
-            <p className="text-[11px] text-[var(--text-muted)]">
+            <p className="text-xs text-content-muted tabular-nums">
               {t('config:remoteAccess.firewallCheckedAt', {
                 time: relativeTime(firewall.checkedAt, language),
               })}
@@ -382,27 +390,29 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
       {status.listening && approvals.length ? (
         <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
-          <div className="flex items-center gap-2 text-[14px]">
-            <Smartphone size={16} />
+          <h3 className="flex items-center gap-2 text-sm font-medium text-content">
+            <Smartphone size={16} aria-hidden="true" className="text-content-muted" />
             {t('config:remoteAccess.pendingApprovals')}
-          </div>
-          <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+          </h3>
+          <p className="text-xs leading-relaxed text-content-muted">
             {t('config:remoteAccess.pendingApprovalsDescription')}
           </p>
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
             {approvals.map((approval) => (
               <li
                 key={approval.id}
-                className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2"
+                className="flex min-h-12 items-center justify-between gap-3 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-[13px]">{approval.deviceName}</div>
-                  <div className="text-[11px] text-[var(--text-muted)]">
+                  <div className="truncate text-sm font-medium text-content">
+                    {approval.deviceName}
+                  </div>
+                  <div className="text-xs text-content-muted tabular-nums">
                     {t('config:remoteAccess.requestedAt', {
                       time: relativeTime(approval.requestedAt, language),
                     })}
                   </div>
-                  <code className="block truncate text-[11px] text-[var(--text-muted)]">
+                  <code className="block truncate font-mono text-xs text-content-muted">
                     {t('config:remoteAccess.requestSource', { ip: approval.ip })}
                   </code>
                 </div>
@@ -410,6 +420,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="pointer-coarse:h-11"
                     disabled={approvalBusy === approval.id}
                     onClick={() => void decideApproval(approval, false)}
                   >
@@ -418,11 +429,12 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
                   </Button>
                   <Button
                     size="sm"
+                    className="pointer-coarse:h-11"
                     disabled={approvalBusy === approval.id}
                     onClick={() => void decideApproval(approval, true)}
                   >
                     {approvalBusy === approval.id ? (
-                      <LoaderCircle className="animate-spin" />
+                      <OrbitSpinner className="text-current" />
                     ) : (
                       <Check />
                     )}
@@ -438,20 +450,25 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       {status.listening ? (
         <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-pairing">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[14px]">
-              <QrCode size={16} />
+            <h3 className="flex items-center gap-2 text-sm font-medium text-content">
+              <QrCode size={16} aria-hidden="true" className="text-content-muted" />
               {t('config:remoteAccess.pairing')}
-            </div>
-            <Button size="sm" disabled={busy} onClick={() => void generatePairingCode()}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <QrCode />}
+            </h3>
+            <Button
+              size="sm"
+              className="pointer-coarse:h-11"
+              disabled={busy}
+              onClick={() => void generatePairingCode()}
+            >
+              {busy ? <OrbitSpinner className="text-current" /> : <QrCode />}
               {busy ? t('config:remoteAccess.generatingQr') : t('config:remoteAccess.generateQr')}
             </Button>
           </div>
-          <p className="text-[12px] leading-[1.6] text-[var(--text-muted)]">
+          <p className="text-xs leading-[1.6] text-content-muted">
             {t('config:remoteAccess.pairingDescription')}
           </p>
           {pairingError && !pairingOpen ? (
-            <p className="text-[12px] leading-relaxed text-[var(--danger)]" aria-live="polite">
+            <p className="text-xs leading-relaxed text-danger" aria-live="polite">
               {pairingError}
             </p>
           ) : null}
@@ -460,13 +477,14 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
 
       <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-devices">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-[14px]">
-            <Smartphone size={16} />
+          <h3 className="flex items-center gap-2 text-sm font-medium text-content">
+            <Smartphone size={16} aria-hidden="true" className="text-content-muted" />
             {t('config:remoteAccess.devices')}
-          </div>
+          </h3>
           <Button
-            size="sm"
+            size="icon-sm"
             variant="ghost"
+            className="pointer-coarse:size-11"
             onClick={() => void refresh()}
             aria-label={t('config:remoteAccess.refresh')}
           >
@@ -474,32 +492,35 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
           </Button>
         </div>
         {devices.length === 0 ? (
-          <p className="text-[12px] text-[var(--text-muted)]">
-            {t('config:remoteAccess.noDevices')}
-          </p>
+          <p className="text-xs text-content-muted">{t('config:remoteAccess.noDevices')}</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
             {devices.map((device) => (
               <li
                 key={device.id}
-                className="flex items-center justify-between gap-3 rounded-[var(--r-sm)] border border-[var(--border)] px-3 py-2"
+                className="flex min-h-12 items-center justify-between gap-3 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-[13px]">
+                  <div className="truncate text-sm font-medium text-content">
                     {device.name}
                     {device.current ? (
-                      <span className="ml-2 text-[11px] text-[var(--text-muted)]">
+                      <span className="ml-2 text-xs font-normal text-content-muted">
                         {t('config:remoteAccess.currentDevice')}
                       </span>
                     ) : null}
                   </div>
-                  <div className="text-[11px] text-[var(--text-muted)]">
+                  <div className="text-xs text-content-muted tabular-nums">
                     {t('config:remoteAccess.lastSeen', {
                       time: relativeTime(device.lastSeenAt, language),
                     })}
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => void revokeDevice(device)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="hover:bg-danger-soft hover:text-danger pointer-coarse:h-11"
+                  onClick={() => void revokeDevice(device)}
+                >
                   {t('config:remoteAccess.revoke')}
                 </Button>
               </li>

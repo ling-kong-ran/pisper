@@ -44,6 +44,7 @@
   "channelsPage.cannotScanOpenTheSignInLink": "无法扫码？打开登录链接",
   "channelsPage.channelChatReset": "渠道会话已重置",
   "channelsPage.channelChats": "渠道会话",
+  "channelsPage.platforms": "渠道平台",
   "channelsPage.channelReplyModelUpdated": "渠道回复模型已更新",
   "channelsPage.closeDialog": "关闭对话框",
   "channelsPage.connectedTime": "已连接 {time}",

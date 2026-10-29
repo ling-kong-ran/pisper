@@ -10,6 +10,8 @@ import { SettingsBadge, SettingsCard } from './settings-primitives'
 import type { DiscoveredProvider, DiscoveryData, DiscoveryError, Translate } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 
 type ProviderDiscoveryProps = {
   discovery: DiscoveryData
@@ -87,50 +89,62 @@ export function ProviderDiscovery({
             : t('config:configPage.unableToReadTheConfigurationFile')
 
   return (
-    <SettingsCard className="[margin-bottom:12px] [padding:12px_14px]">
-      <div className="[&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] [&_small]:leading-[1.45] max-[650px]:flex-wrap flex items-center gap-[10px]">
+    <SettingsCard className="mb-3 p-4 py-3.5">
+      <div className="flex items-center gap-2.5 max-[650px]:flex-wrap">
         <button
           type="button"
-          className="max-[650px]:basis-full [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-1 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[3px] flex min-w-0 flex-1 items-center gap-[10px] border-0 bg-transparent p-0 text-inherit text-left cursor-pointer"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-sm border-0 bg-transparent p-0 text-left max-[650px]:basis-full"
           aria-expanded={!isCollapsed}
           onClick={() => setCollapsed(!isCollapsed)}
         >
-          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
+          <span
+            aria-hidden="true"
+            className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content-muted shadow-key"
+          >
             <Server size={18} />
           </span>
-          <span>
-            <strong>{t('config:configPage.localProviderConfiguration')}</strong>
-            <small>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-sm font-medium text-content">
+              {t('config:configPage.localProviderConfiguration')}
+            </span>
+            <span className="text-xs leading-[1.45] text-content-muted">
               {t(
                 'config:configPage.readProviderEndpointModelAndAuthenticationFieldsFromCodexConfigTomlAndClaudeSettingsJson',
               )}
-            </small>
+            </span>
           </span>
           <ChevronDown
-            size={15}
-            className={`provider-discovery-caret [&.open]:[transform:rotate(180deg)] flex-none text-[var(--text-muted)] [transition:transform_var(--d1)_var(--ease-out)] ${isCollapsed ? '' : 'open'}`}
+            size={16}
+            aria-hidden="true"
+            className={cn(
+              'flex-none text-content-muted transition-transform',
+              !isCollapsed && 'rotate-180',
+            )}
           />
         </button>
         <Button
           type="button"
-          variant="outline"
-          className="bg-surface-subtle"
+          variant="secondary"
+          className="max-[650px]:h-11"
           disabled={discovering || Boolean(importing)}
           onClick={handleRefresh}
         >
-          {discovering ? <RefreshCw className="animate-spin" size={13} /> : <RefreshCw size={13} />}
+          {discovering ? <OrbitSpinner className="text-current" /> : <RefreshCw size={13} />}
           {t('config:configPage.rescan')}
         </Button>
       </div>
       {!isCollapsed && (
         <>
           {discovering && !providers.length ? (
-            <div className="flex min-h-[48px] items-center justify-center gap-[7px] [margin-top:9px] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] text-[var(--text-muted)] text-[12px]">
-              <RefreshCw className="animate-spin" size={15} />
+            <div
+              role="status"
+              className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-sm bg-surface-subtle text-xs text-content-muted"
+            >
+              <OrbitSpinner />
               {t('config:configPage.scanningProviderConfigurationFiles')}
             </div>
           ) : providers.length ? (
-            <div className="provider-discovery-list max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[8px] [margin-top:11px]">
+            <div className="mt-3 grid grid-cols-2 gap-2 max-[650px]:grid-cols-1">
               {providers.map((provider) => {
                 const source = discoverySourceLabel(provider)
                 const busy = importing === provider.id
@@ -143,27 +157,33 @@ export function ProviderDiscovery({
                       : t('config:configPage.noModelSpecified')
                 return (
                   <div
-                    className={`provider-discovery-card grid min-w-0 min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] max-[650px]:grid-cols-[auto_minmax(0,1fr)] items-center gap-[9px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:8px_9px] ${provider.imported ? 'configured [.provider-discovery-card&]:border-[var(--success-border)] [.provider-discovery-card&]:bg-[var(--success-soft)]' : ''}`}
+                    className={cn(
+                      'grid min-h-17 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border px-3 py-2 max-[650px]:grid-cols-[auto_minmax(0,1fr)]',
+                      provider.imported
+                        ? 'border-success-border bg-success-soft'
+                        : 'border-stroke bg-panel',
+                    )}
                     key={provider.id}
                   >
                     <span
-                      className={`provider-discovery-icon [&.source-claude-config]:bg-[var(--brand-blue-soft)] [&.source-claude-config]:text-[var(--brand-blue-strong)] grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--star-soft)] text-[var(--star-strong)] source-${provider.source}`}
+                      aria-hidden="true"
+                      className="grid size-7.5 place-items-center rounded-md border border-key-border bg-key text-content-muted shadow-key"
                     >
-                      <Icon size={17} />
+                      <Icon size={15} />
                     </span>
-                    <span className="provider-discovery-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] flex min-w-0 flex-col gap-[3px]">
-                      <strong>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-sm font-medium text-content">
                         {source} · {provider.providerName}
-                      </strong>
-                      <small>
+                      </span>
+                      <span className="truncate font-mono text-xs text-content-muted">
                         {provider.api} · {modelSummary}
-                      </small>
-                      <small>
+                      </span>
+                      <span className="truncate text-xs text-content-muted">
                         {provider.kind === 'authentication'
                           ? t('config:configPage.officialEndpointOnly')
                           : provider.baseUrl || t('config:configPage.noBaseURLSpecified')}{' '}
                         · {discoveryAuthLabel(provider, t)} · {provider.location}
-                      </small>
+                      </span>
                     </span>
                     <span className="flex min-w-0 flex-none items-center max-[650px]:col-start-2">
                       {provider.imported ? (
@@ -175,11 +195,13 @@ export function ProviderDiscovery({
                       ) : provider.importable ? (
                         <Button
                           type="button"
+                          size="sm"
+                          className="pointer-coarse:h-11"
                           disabled={busy || Boolean(importing)}
                           onClick={() => handleImport(provider)}
                         >
                           {busy ? (
-                            <RefreshCw className="animate-spin" size={12} />
+                            <OrbitSpinner className="size-3 text-current" />
                           ) : (
                             <Download size={12} />
                           )}
@@ -200,8 +222,8 @@ export function ProviderDiscovery({
               })}
             </div>
           ) : (
-            <div className="flex min-h-[48px] items-center justify-center gap-[7px] [margin-top:9px] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] text-[var(--text-muted)] text-[12px]">
-              <Server size={15} />
+            <div className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-sm bg-surface-subtle px-3 text-center text-xs text-content-muted">
+              <Server size={15} aria-hidden="true" />
               {t('config:configPage.noImportableCodexOrClaudeProviderConfigurationWasDetected')}
             </div>
           )}
@@ -211,7 +233,7 @@ export function ProviderDiscovery({
               provider.warnings?.some((warning) => warning.code !== 'login_auth_not_imported'),
             )) && (
             <div
-              className="provider-discovery-errors [&_span]:flex [&_span]:items-center [&_span]:gap-[5px] flex flex-col gap-[4px] [margin-top:8px] text-[var(--danger)] text-[11px]"
+              className="mt-2 flex flex-col gap-1 text-xs text-danger [&_span]:flex [&_span]:items-center [&_span]:gap-1.5"
               aria-live="polite"
             >
               {error && (

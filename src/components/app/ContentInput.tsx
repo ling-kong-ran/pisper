@@ -64,7 +64,7 @@ export function ContentInput({
     <div className={cn('flex min-w-0 flex-col gap-2', className)}>
       <Label htmlFor={allowText ? `${id}-text` : `${id}-picker`}>{label}</Label>
       <div
-        className="min-w-0 rounded-xl border bg-background focus-within:ring-2 focus-within:ring-ring/25"
+        className="min-w-0 rounded-md border border-control bg-panel transition-colors duration-[var(--d-fast)] focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring"
         onDragOver={(event) => {
           if (allowFiles) event.preventDefault()
         }}
@@ -90,7 +90,10 @@ export function ContentInput({
         {files.length > 0 && (
           <ul className={cn('grid min-w-0 gap-2 p-3', files.length > 1 && 'sm:grid-cols-2')}>
             {files.map((file) => (
-              <li key={file.id} className="relative min-w-0 rounded-lg border bg-muted/20 p-2">
+              <li
+                key={file.id}
+                className="relative min-w-0 rounded-md border border-stroke bg-surface-subtle p-2"
+              >
                 {file.url && file.mimeType.startsWith('image/') ? (
                   <img
                     src={file.url}

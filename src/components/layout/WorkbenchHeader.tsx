@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 
 export function WorkbenchHeader({
   title,
@@ -21,14 +22,23 @@ export function WorkbenchHeader({
   // 展开时开关归侧栏标题所有；收起后在同一顶部位置恢复入口，不占第二行。
   if (sidebarOpen && !isMobile) return null
   return (
+    // 桌面收起侧栏时是 48px 顶栏里的 28px 图标键；抽屉模式（手机/窄窗）保留 44px 触控键，
+    // 落在 52px 手机顶栏的垂直中线上。
     <header
       data-window-drag-region
-      className="absolute left-1 top-1 z-30 flex h-11 items-center gap-2"
+      className={cn(
+        'absolute z-30 flex items-center gap-2',
+        isMobile ? 'top-1 left-1 h-11' : 'top-0 left-2 h-12',
+      )}
     >
       <Button
         id="workbench-sidebar-toggle"
         variant="ghost"
-        className="size-11 shrink-0 [-webkit-app-region:no-drag]"
+        size={isMobile ? undefined : 'icon'}
+        className={cn(
+          'shrink-0 text-content-muted [-webkit-app-region:no-drag]',
+          isMobile && 'size-11 text-content-secondary',
+        )}
         aria-label={toggleLabel}
         title={toggleLabel}
         aria-expanded={sidebarOpen}
@@ -42,7 +52,13 @@ export function WorkbenchHeader({
           }
         }}
       >
-        {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+        {isMobile ? (
+          <Menu className="size-[22px]" />
+        ) : sidebarOpen ? (
+          <PanelLeftClose />
+        ) : (
+          <PanelLeftOpen />
+        )}
       </Button>
       <div className="sr-only">{title}</div>
       {actions && (

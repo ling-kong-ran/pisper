@@ -19,10 +19,10 @@ export function TaskNewTab({
   const [url, setUrl] = useState('')
   const [invalid, setInvalid] = useState(false)
   return (
-    <section className="@container/new-tab flex min-h-0 flex-1 flex-col overflow-y-auto bg-surface-subtle/40 p-5">
-      <h2 className="mb-4 text-sm font-medium">{t('chat:workbench.newTab')}</h2>
+    <section className="@container/new-tab flex min-h-0 flex-1 flex-col overflow-y-auto bg-panel p-4">
+      <h2 className="mb-3 text-sm font-medium text-content">{t('chat:workbench.newTab')}</h2>
       <form
-        className="mb-5 flex gap-2"
+        className="mb-4 flex gap-2"
         onSubmit={(event) => {
           event.preventDefault()
           const normalized = normalizeWebPreviewInput(url, window.location.href)
@@ -31,29 +31,30 @@ export function TaskNewTab({
         }}
       >
         <Input
-          className="h-10 rounded-full bg-background px-4"
+          className="font-mono"
           aria-label={t('common:webPreview.url')}
           placeholder={t('common:webPreview.urlPlaceholder')}
           value={url}
           maxLength={2048}
           onChange={(event) => setUrl(event.target.value)}
         />
-        <Button type="submit" variant="outline">
+        <Button type="submit" variant="secondary" className="h-8.5 pointer-coarse:h-11">
           {t('chat:sessionContext.openUrl')}
         </Button>
       </form>
       {invalid && (
-        <p role="alert" className="mb-3 text-sm text-destructive">
+        <p role="alert" className="mb-3 text-xs text-danger">
           {t('chat:sessionContext.invalidUrl')}
         </p>
       )}
-      <div className="grid grid-cols-1 gap-2 @min-[420px]/new-tab:grid-cols-2">
+      {/* 页面种类是平铺在细线框里的工具行：图标弱化、文字 13px，悬停只换底色，不抢强调色。 */}
+      <div className="grid grid-cols-1 gap-1.5 @min-[420px]/new-tab:grid-cols-2">
         {tools.map(({ id, label, icon: Icon, disabled }) => (
           <Button
             key={id}
             disabled={disabled}
-            variant="outline"
-            className="h-12 min-w-0 justify-start gap-3 rounded-xl border-transparent bg-background px-3 font-normal shadow-none"
+            variant="ghost"
+            className="h-10 min-w-0 justify-start gap-2.5 border-stroke bg-panel px-3 font-normal text-content max-[650px]:h-11 pointer-coarse:h-11 [&_svg]:text-content-muted"
             onClick={() => onSelect(id)}
           >
             <Icon className="size-4 shrink-0" />

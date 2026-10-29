@@ -114,13 +114,9 @@ export function SessionContextLayout({
               : width + (event.key === 'ArrowRight' ? step : -step) * (side === 'left' ? 1 : -1),
         )
       }}
-      className="group flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-    >
-      <span
-        aria-hidden="true"
-        className="h-10 w-0.5 rounded-full bg-border group-hover:bg-ring group-focus-visible:bg-ring"
-      />
-    </div>
+      // 与侧栏把手同一语言：静止为 3×36 描边色胶囊，悬停/拖动/键盘聚焦转为焦点色。
+      className="relative w-2 shrink-0 cursor-col-resize touch-none select-none outline-none after:absolute after:top-1/2 after:left-1/2 after:h-9 after:w-[3px] after:-translate-1/2 after:rounded-full after:bg-stroke-strong after:transition-colors after:duration-[var(--d-fast)] hover:after:bg-focus active:after:bg-focus focus-visible:after:bg-focus focus-visible:after:ring-3 focus-visible:after:ring-focus-ring"
+    />
   ) : null
   const resource = (
     <div

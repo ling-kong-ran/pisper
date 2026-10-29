@@ -40,9 +40,20 @@ export function ChatAppearancePage({
       }}
       className="min-h-full min-w-0 gap-4"
     >
-      <TabsList aria-label={t('config:interfaceSettings.tabsLabel')} className="max-w-full">
-        <TabsTrigger value="appearance">{t('config:interfaceSettings.appearanceTab')}</TabsTrigger>
-        <TabsTrigger value="widgets">{t('config:interfaceSettings.customUiTab')}</TabsTrigger>
+      {/* 触屏与窄窗下分段项本身达到 44px 触控高度，轨道随之撑高。 */}
+      <TabsList
+        aria-label={t('config:interfaceSettings.tabsLabel')}
+        className="max-w-full pointer-coarse:h-auto max-[650px]:h-auto"
+      >
+        <TabsTrigger
+          value="appearance"
+          className="px-3 pointer-coarse:min-h-11 max-[650px]:min-h-11"
+        >
+          {t('config:interfaceSettings.appearanceTab')}
+        </TabsTrigger>
+        <TabsTrigger value="widgets" className="px-3 pointer-coarse:min-h-11 max-[650px]:min-h-11">
+          {t('config:interfaceSettings.customUiTab')}
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="appearance" className="min-w-0">
         {appearance}

@@ -5,6 +5,8 @@ import { Switch as SwitchPrimitive } from 'radix-ui'
 
 import { cn } from '@/lib/utils'
 
+// 34×20 开关：关闭为凹陷轨道 + 控件边框（≥3:1）+ 灰色滑块，开启为强调色轨道 + 反色滑块；
+// 滑块位移 180ms。焦点沿用 base 层 2px 外描边；after 伪元素把触控热区扩到 44px 高。
 function Switch({
   className,
   size = 'default',
@@ -17,14 +19,14 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        'peer group/switch relative inline-flex min-h-0! shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=default]:h-[18.4px] data-[size=default]:w-[32px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50',
+        'peer group/switch relative inline-flex min-h-0! shrink-0 items-center rounded-full border border-control bg-surface-active transition-colors duration-(--d-fast) after:absolute after:-inset-x-3 after:-inset-y-3 aria-invalid:border-destructive data-[size=default]:h-5 data-[size=default]:w-[34px] data-[size=sm]:h-4 data-[size=sm]:w-[26px] data-checked:border-star data-checked:bg-star data-disabled:cursor-not-allowed data-disabled:opacity-50',
         className,
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="pointer-events-none block rounded-full bg-background ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] dark:data-checked:bg-primary-foreground group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 dark:data-unchecked:bg-foreground"
+        className="pointer-events-none block translate-x-0.5 rounded-full bg-content-muted transition-transform duration-(--d-base) ease-(--ease) group-data-[size=default]/switch:size-3.5 group-data-[size=sm]/switch:size-2.5 data-checked:bg-on-accent data-checked:shadow-xs group-data-[size=default]/switch:data-checked:translate-x-4 group-data-[size=sm]/switch:data-checked:translate-x-3"
       />
     </SwitchPrimitive.Root>
   )

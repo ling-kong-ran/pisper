@@ -1,13 +1,21 @@
-// 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、状态指示灯、
+// 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、输入框顶部的运行条、
 // 手动压缩按钮与按草稿、队列和准备状态选择的发送/停止按钮。
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatStepDuration } from '@/features/chat/run-activity-presentation'
+import { runDurationMs } from '@/features/chat/run-activity'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
+
+// 输入区工具图标键：桌面 30px，手机与粗指针 44px 触控目标；多处复用同一组工具类，避免重复生成样式。
+export const COMPOSER_ICON_KEY_CLASSES =
+  'grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
 
 // 状态文案切换时的一次性光泽扫过（ShinyText 动画只跑一遍），懒加载避免进入主包。
 const ShinyText = lazy(() =>
@@ -29,10 +37,10 @@ export function QueuedInputsTray({
   return (
     <QueueSection asChild defaultOpen>
       <div
-        className="flex min-w-0 flex-col gap-1 text-xs text-[var(--text-secondary)]"
+        className="flex min-w-0 flex-col gap-1 rounded-md border border-stroke bg-surface-subtle py-1.5 pr-1 pl-3 text-xs text-content-secondary"
         data-pisper-queue-size={queuedInputs.length}
       >
-        <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-[var(--star-strong)]">
+        <div className="flex min-w-0 items-center gap-2 font-medium text-accent-fg">
           <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
           <span className="shrink-0 tabular-nums">{queuedInputs.length}</span>
         </div>
@@ -47,7 +55,7 @@ export function QueuedInputsTray({
             return (
               <li
                 key={inputId || `${item.behavior}-${index}`}
-                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--stroke-soft)] py-0.5 last:border-0"
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-stroke-soft py-0.5 last:border-0"
               >
                 <span
                   className="line-clamp-2 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
@@ -61,7 +69,7 @@ export function QueuedInputsTray({
                       type="button"
                       variant="ghost"
                       size="icon-lg"
-                      className="rounded-md text-[var(--text-muted)] hover:text-[var(--text)]"
+                      className="text-content-muted hover:text-content max-[650px]:size-11"
                       aria-label={withdrawLabel}
                       aria-busy={pending || undefined}
                       disabled={!inputId || !onWithdraw || pending}
@@ -91,7 +99,7 @@ export function ComposerResourceChip({
   const { t } = useI18n()
   return (
     <div
-      className={`composer-resource-chip [&.workflow]:border-[var(--success)] [&.workflow]:bg-[var(--success-soft)] [&_button]:grid [&_button]:w-[20px] [&_button]:h-[20px] [&_button]:place-items-center [&_button]:border-0 [&_button]:rounded-[var(--r-xs)] [&_button]:bg-transparent [&_button]:text-[var(--text-muted)] [&_button]:cursor-pointer [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)] inline-flex min-h-[28px] self-start items-center gap-[6px] [border:1px_solid_var(--blue)] rounded-[var(--r-sm)] bg-[var(--blue-soft)] text-[var(--text)] [padding:4px_6px_4px_8px] text-[12px] font-[600] ${invocation.kind}`}
+      className={`composer-resource-chip [&.workflow]:border-success-border [&.workflow]:bg-success-soft [&.workflow]:text-success-strong [&_button]:grid [&_button]:size-6 [&_button]:place-items-center [&_button]:rounded-xs [&_button]:text-content-muted [&_button]:hover:bg-surface-hover [&_button]:hover:text-content inline-flex h-7 self-start items-center gap-1.5 rounded-sm border border-star-border bg-star-soft pr-0.5 pl-2 text-xs font-medium text-star-strong max-[650px]:h-11 max-[650px]:[&_button]:size-11 ${invocation.kind}`}
     >
       {invocation.kind === 'tool' ? <Wrench size={13} /> : <Braces size={13} />}
       <span>
@@ -109,35 +117,121 @@ export function ComposerResourceChip({
   )
 }
 
+// 运行条正在执行的工具目标：只取真实参数（命令或路径），取不到就不显示。
+function runningToolTarget(activity?: EntityRecord | null) {
+  const args = activity?.args && typeof activity.args === 'object' ? activity.args : {}
+  const target = activity?.name === 'bash' ? args.command : args.path || args.pattern || args.url
+  return typeof target === 'string' ? target.replace(/\s+/g, ' ').trim() : ''
+}
+
+// 每秒刷新只留在这段计时文字内，避免整个输入区随计时器重渲染；缺少开始时间时不以 0 冒充。
+function RunElapsed({ startedAt }: { startedAt?: string | null }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const elapsed = runDurationMs(startedAt, null, now)
+  if (!elapsed) return null
+  return (
+    <>
+      <span aria-hidden="true" className="text-content-faint">
+        ·
+      </span>
+      <span aria-hidden="true" className="shrink-0 text-content-secondary tabular-nums">
+        {formatStepDuration(elapsed, true)}
+      </span>
+    </>
+  )
+}
+
+// 输入框顶部的集成运行条：轨道指示 + 强调色「运行中」+ 工具/计时/命令 + 真实停止按钮，
+// 底边一条强调色进度细线。空闲时整条隐藏；压缩上下文时改用警示色且不提供停止。
 export function ComposerStatusPill({
   compaction,
   streaming,
   statusLabel,
+  startedAt,
+  activity,
+  stopping = false,
+  onStop,
 }: {
   compaction?: EntityRecord | null
   streaming?: boolean
   statusLabel?: string
+  startedAt?: string | null
+  activity?: EntityRecord | null
+  stopping?: boolean
+  onStop?: () => void
 }) {
   const { t } = useI18n()
+  const compacting = Boolean(compaction?.active)
+  const tool = !compacting && activity?.type === 'tool' && activity.status === 'running'
+  const target = tool ? runningToolTarget(activity) : ''
   return (
     <div
-      className={`focus-composer-status [&.idle]:hidden [&_>_i]:w-[7px] [&_>_i]:h-[7px] [&_>_i]:flex-none [&_>_i]:rounded-[50%] [&_>_i]:bg-[var(--text-muted)] [&.running]:text-[var(--success-strong)] [&.running_>_i]:bg-[var(--success)] [&.running_>_i]:shadow-[0_0_0_3px_var(--success-soft)] [&.running_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite] inline-flex min-h-[22px] self-start items-center gap-[7px] [margin:0_0_-2px_5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-pill)] bg-[var(--solid)] [padding:3px_9px_3px_7px] text-[var(--text-muted)] text-[11px] font-[600] shadow-[0_8px_18px_-16px_var(--shadow-strong)] ${compaction?.active ? 'compacting [.focus-composer-status&]:text-[var(--warning-strong)] [.focus-composer-status&_>_i]:bg-[var(--warning-strong)] [.focus-composer-status&_>_i]:shadow-[0_0_0_3px_var(--warning-soft)] [.focus-composer-status&_>_i]:[animation:star-twinkle_1.1s_ease-in-out_infinite]' : streaming ? 'running' : 'idle'}`}
-      role="status"
-      aria-live="polite"
+      className={`focus-composer-status [&.idle]:hidden [&.running]:text-[var(--success-strong)] [&.running]:border-star-border [&.running]:bg-star-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-4 text-xs text-content-muted pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
     >
-      <i aria-hidden="true" />
-      <span className="min-w-0 max-w-[min(420px,60vw)] overflow-hidden text-ellipsis whitespace-nowrap">
-        {compaction?.active ? (
-          t('chat:focusSession.compactingContext')
-        ) : streaming ? (
-          <Suspense fallback={statusLabel || t('chat:focusSession.running')}>
-            <ShinyText key={statusLabel || 'running'}>
-              {statusLabel || t('chat:focusSession.running')}
-            </ShinyText>
-          </Suspense>
+      <span role="status" aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2">
+        <OrbitSpinner className={`size-3.5 ${compacting ? 'text-warning-strong' : ''}`} />
+        <span
+          className={`shrink-0 font-medium ${compacting ? 'text-warning-strong' : 'text-accent-fg'}`}
+        >
+          {compacting ? t('chat:focusSession.compactingContext') : t('chat:focusSession.running')}
+        </span>
+        {streaming && <RunElapsed startedAt={startedAt} />}
+        {tool ? (
+          <>
+            <span aria-hidden="true" className="text-content-faint">
+              ·
+            </span>
+            <span className="shrink-0 font-mono font-medium text-content-secondary">
+              {String(activity?.name || '')}
+            </span>
+            {target && (
+              <span className="min-w-0 truncate font-mono text-content-muted" title={target}>
+                {target}
+              </span>
+            )}
+          </>
         ) : (
-          t('chat:focusSession.waitingForInput')
+          streaming &&
+          statusLabel && (
+            <>
+              <span aria-hidden="true" className="text-content-faint">
+                ·
+              </span>
+              <span className="min-w-0 truncate text-content-secondary">
+                <Suspense fallback={statusLabel}>
+                  <ShinyText key={statusLabel}>{statusLabel}</ShinyText>
+                </Suspense>
+              </span>
+            </>
+          )
         )}
+      </span>
+      {streaming && !compacting && onStop && (
+        <button
+          type="button"
+          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-1.5 text-xs text-content-secondary transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:border-l max-[650px]:border-star-border max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:font-medium max-[650px]:text-danger max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
+          aria-label={t('chat:focusSession.stopRun')}
+          title={t('chat:focusSession.stopRunShortcut')}
+          aria-busy={stopping || undefined}
+          disabled={stopping}
+          onClick={onStop}
+        >
+          <Kbd className="max-[650px]:hidden pointer-coarse:hidden">Esc</Kbd>
+          <Square size={10} fill="currentColor" className="hidden max-[650px]:block" />
+          {stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
+        </button>
+      )}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -bottom-px h-px overflow-hidden"
+      >
+        <span
+          className={`block h-full w-[38%] animate-[hairline-sweep_1.4s_var(--ease)_infinite] ${compacting ? 'bg-warning-strong' : 'bg-star'}`}
+        />
       </span>
     </div>
   )
@@ -160,7 +254,7 @@ export function CompactContextButton({
   return (
     <button
       type="button"
-      className="compact-context-trigger [&:hover:not(:disabled)]:border-[var(--accent-border)] [&:hover:not(:disabled)]:bg-[var(--accent-soft)] [&:hover:not(:disabled)]:text-[var(--star-strong)] disabled:[cursor:not-allowed] disabled:opacity-[.5] [.composer-tool-tray_&]:w-[38px] [.composer-tool-tray_&]:min-w-[38px] [.composer-tool-tray_&]:h-[38px] [.composer-tool-tray_&]:flex-none @max-[700px]:[.composer-tool-tray_&]:w-[32px] @max-[700px]:[.composer-tool-tray_&]:min-w-[32px] @max-[700px]:[.composer-tool-tray_&]:h-[32px] @max-[700px]:[.composer-tool-tray_&]:p-0 @max-[470px]:[.composer-tool-tray_&]:w-[28px] @max-[470px]:[.composer-tool-tray_&]:min-w-[28px] @max-[470px]:[.composer-tool-tray_&]:h-[28px] grid w-[38px] h-[38px] flex-none place-items-center [border:1px_solid_transparent] rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-tertiary)] cursor-pointer"
+      className={`compact-context-trigger ${COMPOSER_ICON_KEY_CLASSES}`}
       title={
         streaming
           ? t('chat:focusSession.manualCompactionWaitForRun')
@@ -219,7 +313,8 @@ export function ComposerSendButton({
   return (
     <button
       type={stopAction ? 'button' : 'submit'}
-      className="send-button grid size-8 min-w-8 pointer-coarse:size-10 pointer-coarse:min-w-10 flex-none place-items-center rounded-full border-0 bg-foreground text-background transition-colors cursor-pointer hover:enabled:opacity-85 active:enabled:scale-[.96] disabled:cursor-not-allowed disabled:bg-foreground/20 disabled:text-background/70 aria-disabled:opacity-50"
+      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 data-[action=stop]:border-control data-[action=stop]:bg-key data-[action=stop]:text-content data-[action=stop]:shadow-key data-[action=stop]:hover:enabled:bg-surface-hover max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
+      data-action={stopAction ? 'stop' : 'send'}
       title={
         blockedReason ||
         (!stopAction && !busy && sendShortcut ? `${label} (${sendShortcut})` : label)
@@ -239,9 +334,9 @@ export function ComposerSendButton({
       {busy ? (
         <RefreshCw className="animate-spin" size={17} />
       ) : stopAction ? (
-        <Square size={12} fill="currentColor" />
+        <Square size={11} fill="currentColor" />
       ) : (
-        <ArrowUp size={17} />
+        <ArrowUp size={17} strokeWidth={2.1} />
       )}
     </button>
   )

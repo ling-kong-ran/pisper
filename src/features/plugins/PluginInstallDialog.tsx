@@ -1,6 +1,6 @@
 // 插件安装对话框：从本地目录安装插件（目录选择 + 校验 + 安装进度）。
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, FolderOpen, LoaderCircle, PackagePlus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FolderOpen, PackagePlus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   Dialog,
@@ -15,6 +15,8 @@ import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { PluginInspection } from '@/features/plugins/plugin-types'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
 import { AppError } from '@/components/ui/app-primitives'
 
@@ -105,7 +107,7 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
       <DialogContent className="z-[220] sm:max-w-xl" overlayClassName="z-[220]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <PackagePlus size={17} />
+            <PackagePlus className="size-4 text-content-secondary" />
             {t('plugins:pluginsPage.installLocalPlugin')}
           </DialogTitle>
           <DialogDescription>
@@ -114,11 +116,11 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
         </DialogHeader>
 
         <div className="grid gap-3">
-          <label className="grid gap-1.5 text-xs font-semibold text-[var(--text-soft)]">
+          <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
             {t('plugins:pluginsPage.pluginDirectory')}
             <span className="flex min-w-0 gap-2">
-              <input
-                className="h-10 min-w-0 flex-1 rounded-md border border-[var(--stroke)] bg-[var(--solid)] px-3 text-[13px] text-[var(--text)] outline-none focus:border-[var(--star-border)]"
+              <Input
+                className="min-w-0 flex-1 font-mono text-xs max-[650px]:h-11"
                 value={path}
                 disabled={busy}
                 placeholder={t('plugins:pluginsPage.pluginDirectoryPlaceholder')}
@@ -129,28 +131,29 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
               />
               <Button
                 type="button"
-                variant="ghost"
+                variant="secondary"
                 size="icon"
-                className="size-10 shrink-0"
+                className="size-[34px] shrink-0 max-[650px]:size-11"
                 title={t('plugins:pluginsPage.chooseDirectory')}
+                aria-label={t('plugins:pluginsPage.chooseDirectory')}
                 onClick={chooseDirectory}
               >
-                <FolderOpen size={16} />
+                <FolderOpen />
               </Button>
             </span>
           </label>
 
           {inspection && (
-            <div className="grid gap-3 rounded-md border border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+            <div className="grid gap-3 overflow-hidden rounded-md border border-stroke bg-surface-subtle p-3">
               <div className="flex min-w-0 items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[var(--success-soft)] text-[var(--success)]">
-                  <CheckCircle2 size={17} />
+                <span className="grid size-8 shrink-0 place-items-center rounded-sm bg-success-soft text-success">
+                  <CheckCircle2 className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <strong className="block truncate text-[13px] text-[var(--text)]">
+                  <strong className="block truncate text-sm font-medium text-content">
                     {inspection.plugin.name}
                   </strong>
-                  <small className="block truncate text-[12px] text-[var(--text-muted)]">
+                  <small className="block truncate font-mono text-xs text-content-muted tabular-nums">
                     {inspection.plugin.id} · v{inspection.plugin.version} · {inspection.fileCount}{' '}
                     {t('plugins:pluginsPage.files')} · {formatBytes(inspection.byteCount)}
                   </small>
@@ -160,19 +163,19 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
                 {inspection.plugin.capabilities.map((capability) => (
                   <div
                     key={capability.name}
-                    className="flex items-start justify-between gap-3 border-t border-[var(--stroke-soft)] pt-2 text-xs"
+                    className="flex items-start justify-between gap-3 border-t border-stroke-soft pt-2 text-xs"
                   >
-                    <span>
-                      <strong className="block text-[var(--text)]">{capability.label}</strong>
-                      <small className="text-[var(--text-muted)]">{capability.description}</small>
+                    <span className="min-w-0">
+                      <strong className="block font-medium text-content">{capability.label}</strong>
+                      <small className="text-xs text-content-muted">{capability.description}</small>
                     </span>
-                    <code className="shrink-0 text-[11px] text-[var(--text-soft)]">
+                    <code className="shrink-0 font-mono text-xs text-content-secondary">
                       {capability.name}
                     </code>
                   </div>
                 ))}
               </div>
-              <div className="flex items-start gap-2 rounded-md bg-[var(--warning-soft)] p-2.5 text-xs leading-5 text-[var(--warning-strong)]">
+              <div className="flex items-start gap-2 rounded-sm bg-warning-soft p-2.5 text-xs leading-5 text-warning-strong">
                 <AlertTriangle className="mt-0.5 shrink-0" size={15} />
                 <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
               </div>
@@ -190,9 +193,8 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
         <DialogFooter>
           <Button
             type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
+            variant="secondary"
+            size="dialogAction"
             disabled={busy}
             onClick={() => onOpenChange(false)}
           >
@@ -200,16 +202,16 @@ export function PluginInstallDialog({ open, onOpenChange, onInstalled }: PluginI
           </Button>
           <Button
             type="button"
-            size="lg"
+            size="dialogAction"
             disabled={busy || (!inspection && !path.trim())}
             onClick={inspection ? install : inspect}
           >
             {busy ? (
-              <LoaderCircle className="animate-spin" size={15} />
+              <OrbitSpinner className="text-current" />
             ) : inspection ? (
-              <PackagePlus size={15} />
+              <PackagePlus />
             ) : (
-              <CheckCircle2 size={15} />
+              <CheckCircle2 />
             )}
             {busy
               ? t('plugins:pluginsPage.processing')

@@ -1,18 +1,17 @@
 // 运行时策略设置：思考等级、工具权限等全局 Agent 运行参数。
 // 自包含保存：复用 PUT /api/config（携带当前默认 Provider/模型不变，
 // setAsDefault=false），不再需要页面级的 Provider 草稿。
-import { useEffect, useState } from 'react'
-import { AlertTriangle, RefreshCw, Save, ShieldCheck } from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
+import { AlertTriangle, Save, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { apiJson } from '@/lib/api'
 import { AppSelect } from '@/components/AppSelect'
-import { SettingsCard, SettingsSectionTitle } from './settings-primitives'
+import { SettingsCard, SettingsField, SettingsSectionTitle } from './settings-primitives'
 import type { Notify } from '@/app/route-context'
 import type { ConfigData } from './config-types'
 
 import { Button } from '@/components/ui/button'
-
-import { FieldLabel } from '@/components/ui/field'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
 import { AppError, AppNotice } from '@/components/ui/app-primitives'
 
@@ -32,6 +31,7 @@ export function RuntimePolicySettings({
   const [toolMode, setToolMode] = useState(config.toolMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const fieldId = useId()
 
   // 配置重载（向导/导入完成后）时同步表单。
   useEffect(() => {
@@ -77,53 +77,68 @@ export function RuntimePolicySettings({
   }
 
   return (
-    <SettingsCard>
-      <div className="flex items-center justify-between gap-[8px]">
-        <SettingsSectionTitle title={t('config:configPage.agentRuntimePolicy')} />
+    <SettingsCard className="@container/card p-0 py-0">
+      <div className="flex items-center justify-between gap-2 border-b border-stroke-soft px-4 py-3">
+        <SettingsSectionTitle
+          title={t('config:configPage.agentRuntimePolicy')}
+          className="text-[15px] leading-6 font-medium text-content"
+        />
         <Button
           size="sm"
-          className="h-[27px] px-[10px] text-[12px]"
+          className="pointer-coarse:h-11"
           disabled={saving || !dirty || !canSave}
           onClick={() => void save()}
         >
-          {saving ? <RefreshCw className="animate-spin" size={13} /> : <Save size={13} />}
+          {saving ? <OrbitSpinner className="size-3.5 text-current" /> : <Save size={13} />}
           {saving ? t('config:configPage.saving') : t('config:configPage.saveSettings')}
         </Button>
       </div>
-      <FieldLabel variant="control">
-        {t('config:configPage.thinkingLevel')}
-        <AppSelect value={thinkingLevel} onChange={(event) => setThinkingLevel(event.target.value)}>
-          {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
-            <option key={level}>{level}</option>
-          ))}
-        </AppSelect>
-      </FieldLabel>
-      <FieldLabel variant="control">
-        {t('config:configPage.availableTools')}
-        <AppSelect value={toolMode} onChange={(event) => setToolMode(event.target.value)}>
-          <option value="full">{t('config:configPage.fullToolAccess')}</option>
-          <option value="custom">
-            {t('config:configPage.customManageEachToolOnThePluginsPage')}
-          </option>
-        </AppSelect>
-      </FieldLabel>
-      <AppNotice>
-        <ShieldCheck size={16} />
-        <span>
-          <strong>{t('config:configPage.permissionsAreEnforcedByTheRuntime')}</strong>
-          <small>
-            {t(
-              'config:configPage.afterSavingExistingRuntimesAreReleasedAndNewChatsUseTheLatestPolicy',
-            )}
-          </small>
-        </span>
-      </AppNotice>
-      {error && (
-        <AppError>
-          <AlertTriangle size={13} />
-          {error}
-        </AppError>
-      )}
+      <div className="divide-y divide-stroke-soft px-4 py-1">
+        <SettingsField label={t('config:configPage.thinkingLevel')} labelId={`${fieldId}-thinking`}>
+          <AppSelect
+            aria-labelledby={`${fieldId}-thinking`}
+            className="h-8.5 font-mono pointer-coarse:min-h-11 max-[650px]:min-h-11"
+            value={thinkingLevel}
+            onChange={(event) => setThinkingLevel(event.target.value)}
+          >
+            {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((level) => (
+              <option key={level}>{level}</option>
+            ))}
+          </AppSelect>
+        </SettingsField>
+        <SettingsField label={t('config:configPage.availableTools')} labelId={`${fieldId}-tools`}>
+          <AppSelect
+            aria-labelledby={`${fieldId}-tools`}
+            className="h-8.5 pointer-coarse:min-h-11 max-[650px]:min-h-11"
+            value={toolMode}
+            onChange={(event) => setToolMode(event.target.value)}
+          >
+            <option value="full">{t('config:configPage.fullToolAccess')}</option>
+            <option value="custom">
+              {t('config:configPage.customManageEachToolOnThePluginsPage')}
+            </option>
+          </AppSelect>
+        </SettingsField>
+      </div>
+      <div className="px-4 pb-4">
+        <AppNotice className="mt-1">
+          <ShieldCheck size={16} />
+          <span>
+            <strong>{t('config:configPage.permissionsAreEnforcedByTheRuntime')}</strong>
+            <small>
+              {t(
+                'config:configPage.afterSavingExistingRuntimesAreReleasedAndNewChatsUseTheLatestPolicy',
+              )}
+            </small>
+          </span>
+        </AppNotice>
+        {error && (
+          <AppError>
+            <AlertTriangle size={13} />
+            {error}
+          </AppError>
+        )}
+      </div>
     </SettingsCard>
   )
 }

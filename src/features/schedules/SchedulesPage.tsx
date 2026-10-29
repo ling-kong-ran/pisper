@@ -1,6 +1,6 @@
 import { PageFrame } from '@/components/app/PageFrame'
 import { ListDetailLayout } from '@/components/app/ListDetailLayout'
-import { InlineEmptyState } from '@/components/app/PageState'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
 // 定时计划页：查看/创建/启停周期任务（如每日对话/工作流运行），
 // 展示下次执行时间与历史。
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -8,32 +8,39 @@ import {
   AlertTriangle,
   Bell,
   Bot,
+  Check,
   CheckCircle2,
   FolderOpen,
   MessageCircle,
   Play,
   Plus,
-  RefreshCw,
   Send,
   Trash2,
+  TriangleAlert,
   X,
 } from 'lucide-react'
 import {
   AppCard as Panel,
-  AppSectionTitle as SectionTitle,
   AppSwitch as Toggle,
-  StatusBadge as Badge,
   AppCardHeader,
   AppError,
-  AppEmptyState,
 } from '@/components/ui/app-primitives'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { useI18n } from '@/app/use-i18n'
-import { StarOrbit } from '@/components/StarOrbit'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
 import { pickSystemDirectory } from '@/lib/pick-system-directory'
+import { cn } from '@/lib/utils'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { FormEvent } from 'react'
 import type { Notify } from '@/app/route-context'
@@ -170,6 +177,44 @@ const TIMEZONES = [
   ]),
 ]
 const SCHEDULE_EXECUTION_MODES: ScheduleExecutionMode[] = ['full-access']
+// 表单按「目标 / 计划 / 通知」分组：组间只用一条细线隔开，不再叠卡片。
+const SECTION = 'mt-4 border-t border-stroke-soft pt-1'
+// 运行计划三列（频率 / 时间或间隔 / 时区），窄屏折成单列。
+const SCHEDULE_GRID = 'form-grid grid gap-x-3 sm:grid-cols-3'
+// 间隔 = 数值框 + 单位选择，两个独立控件并排，各自沿用字段规范的描边与焦点环。
+const INTERVAL_INPUT =
+  'schedule-interval-input grid grid-cols-[minmax(0,1fr)_minmax(84px,auto)] gap-1.5'
+// 两段式分段控件（与历史会话页同一几何）：凹陷轨道 + 选中键帽；手机与粗指针下每段 44px。
+const SEGMENT_TRACK =
+  'inline-grid h-8 grid-cols-2 rounded-md border border-stroke bg-chrome p-[3px] max-[650px]:h-auto max-[650px]:w-full pointer-coarse:h-auto'
+const SEGMENT =
+  'inline-flex min-w-0 items-center justify-center rounded-sm border border-transparent px-3 text-sm text-content-secondary transition-colors duration-(--d-fast) hover:text-content aria-pressed:border-key-border aria-pressed:bg-key aria-pressed:font-medium aria-pressed:text-content aria-pressed:shadow-key max-[650px]:h-11 pointer-coarse:h-11'
+
+// 运行状态方块：形状与颜色共同表达（勾 / 叉 / 警示 / 轨道），与工作流运行日志一致。
+function ScheduleRunSquare({ status }: { status: ScheduleRun['status'] }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'mt-px grid size-[18px] flex-none place-items-center rounded-xs',
+        status === 'completed' && 'bg-success-soft text-success',
+        status === 'failed' && 'bg-danger-soft text-danger',
+        status === 'interrupted' && 'bg-warning-soft text-warning-strong',
+        status === 'running' && 'text-accent-fg',
+      )}
+    >
+      {status === 'running' ? (
+        <OrbitSpinner className="size-3.5" />
+      ) : status === 'completed' ? (
+        <Check size={12} strokeWidth={2.25} />
+      ) : status === 'failed' ? (
+        <X size={12} strokeWidth={2.25} />
+      ) : (
+        <TriangleAlert size={11} />
+      )}
+    </span>
+  )
+}
 
 function executionModeHelp(t: ReturnType<typeof useI18n>['t']) {
   return t('schedules:schedulesPage.fullAccessHelp')
@@ -263,7 +308,7 @@ function ScheduleTargetFields({
   const { t } = useI18n()
   const workflow = workflows.find((item) => item.id === workflowId)
   return (
-    <div className="grid gap-[10px]">
+    <div className="grid">
       <FieldLabel variant="control">
         {t('schedules:schedulesPage.executionTarget')}
         <AppSelect
@@ -326,12 +371,12 @@ function ScheduleTargetFields({
             </small>
           </FieldLabel>
           {workflow?.inputs.length ? (
-            <div className="grid gap-[8px]">
-              <div className="schedule-workflow-inputs-heading [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[11px] [&_small]:text-right max-[650px]:items-start max-[650px]:flex-col max-[650px]:gap-[2px] max-[650px]:[&_small]:text-left flex [align-items:baseline] justify-between gap-[12px]">
+            <div className="grid">
+              <div className="schedule-workflow-inputs-heading mt-3 flex items-baseline justify-between gap-3 max-[650px]:flex-col max-[650px]:items-start max-[650px]:gap-0.5 [&_small]:text-xs [&_small]:text-content-muted [&_strong]:text-xs [&_strong]:font-medium [&_strong]:text-content-secondary">
                 <strong>{t('schedules:schedulesPage.workflowInputs')}</strong>
                 <small>{t('schedules:schedulesPage.workflowInputsHelp')}</small>
               </div>
-              <div className="schedule-workflow-inputs [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[justify-self:end] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,minmax(0,1fr))] gap-[8px]">
+              <div className="schedule-workflow-inputs grid gap-x-3 sm:grid-cols-2 [&_input[type=checkbox]]:size-4 [&_input[type=checkbox]]:justify-self-end [&_input[type=checkbox]]:accent-star">
                 {workflow.inputs.map((input) => (
                   <FieldLabel
                     variant="control"
@@ -408,20 +453,20 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
     <>
       <FieldLabel variant="control">
         {t('schedules:schedulesPage.workingDirectory')}
-        <span className="schedule-workspace-input [&_input]:min-w-0 [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] grid grid-cols-[minmax(0,1fr)_auto] gap-[6px]">
+        <span className="schedule-workspace-input grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 [&_input]:min-w-0 [&_input]:font-mono">
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={t('schedules:schedulesPage.enterTheProjectSAbsolutePath')}
           />
+          {/* 浏览键与输入框等高（网格行拉伸），作为次级键帽而不是第二个主操作。 */}
           <Button
             type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
+            variant="secondary"
+            className="h-auto min-h-8.5"
             onClick={() => void browse()}
           >
-            <FolderOpen size={13} />
+            <FolderOpen />
             {t('schedules:schedulesPage.browseDirectories')}
           </Button>
         </span>
@@ -622,52 +667,85 @@ export function SchedulesPage({
   }
 
   if (loading)
-    return (
-      <AppEmptyState>
-        <RefreshCw className="animate-spin" size={23} />
-        <h2>{t('schedules:schedulesPage.loadingScheduledTasks')}</h2>
-      </AppEmptyState>
-    )
+    return <PageState kind="loading" title={t('schedules:schedulesPage.loadingScheduledTasks')} />
   return (
     <PageFrame variant="list-detail">
       <div className="flex h-full min-h-0 flex-col gap-3">
-        <>
-          {error && (
-            <AppError>
-              <AlertTriangle size={13} />
-              {error}
-            </AppError>
-          )}
-          <>
-            <ListDetailLayout
-              selected={detailOpen}
-              onBack={() => setDetailOpen(false)}
-              backLabel={t('common:pageTemplate.backToList')}
-              list={
-                <Panel className="min-w-0 border-0 bg-transparent p-0 shadow-none">
-                  <SectionTitle title={t('schedules:schedulesPage.taskQueue')} />
-                  {data.tasks.length ? (
-                    data.tasks.map((task) => (
-                      <div
-                        className={`schedule-list-item hover:bg-[var(--accent-soft)] [&.active]:bg-[var(--accent-soft)] [&_>_button]:grid [&_>_button]:min-w-0 [&_>_button]:min-h-[68px] [&_>_button]:grid-cols-[minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:bg-transparent [&_>_button]:p-[6px_2px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[5px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_em]:flex [&_em]:items-center [&_em]:gap-[4px] [&_em]:text-[var(--text-muted)] [&_em]:text-[13px] [&_em]:[font-style:normal] grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[5px] [border-top:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] [padding:3px_5px] ${selectedId === task.id ? 'active' : ''}`}
+        {error && (
+          <AppError className="mx-3 mb-0">
+            <AlertTriangle size={13} />
+            {error}
+          </AppError>
+        )}
+        <ListDetailLayout
+          selected={detailOpen}
+          onBack={() => setDetailOpen(false)}
+          backLabel={t('common:pageTemplate.backToList')}
+          list={
+            <section className="min-w-0">
+              {/* 队列标题 12/500 弱化文字 + 等宽计数，与历史会话的分组标题同一节奏。 */}
+              <h2 className="flex h-[30px] items-end justify-between px-1 pb-1.5 text-xs font-medium tracking-[.02em] text-content-muted">
+                <span>{t('schedules:schedulesPage.taskQueue')}</span>
+                <span className="font-normal tabular-nums">{data.tasks.length}</span>
+              </h2>
+              {data.tasks.length ? (
+                <ul className="flex flex-col gap-0.5">
+                  {data.tasks.map((task) => {
+                    const active = selectedId === task.id
+                    return (
+                      <li
+                        className={cn(
+                          'schedule-list-item relative rounded-md transition-colors duration-(--d-fast) hover:bg-surface-subtle',
+                          active && 'active bg-surface-muted hover:bg-surface-muted',
+                        )}
                         key={task.id}
                       >
+                        {/* 选中行：次级表面 + 3px 强调色刻度，两种主题下都不只靠底色区分。 */}
+                        {active && (
+                          <i
+                            aria-hidden="true"
+                            className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star"
+                          />
+                        )}
                         <button
+                          type="button"
+                          aria-current={active || undefined}
+                          className="grid min-h-[60px] w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2 pr-2.5 pl-3 text-left focus-visible:-outline-offset-2"
                           onClick={() => {
                             setDetailOpen(true)
                             setSelectedId(task.id)
                           }}
                         >
-                          <span>
-                            <div className="schedule-item-head [.schedule-list-item_&]:flex [.schedule-list-item_&]:min-w-0 [.schedule-list-item_&]:items-center [.schedule-list-item_&]:gap-[6px] [.schedule-list-item_&_strong]:flex-1 [.schedule-list-item_&_strong]:min-w-0">
-                              <strong>{task.name}</strong>
-                              <Badge tone={task.enabled ? 'green' : 'gray'}>
+                          <strong className="truncate text-sm font-medium text-content max-[650px]:text-[15px]">
+                            {task.name}
+                          </strong>
+                          <em className="text-xs text-content-muted not-italic tabular-nums">
+                            {nextRunLabel(task, language)}
+                          </em>
+                          <span className="col-span-2 flex min-w-0 items-center gap-2">
+                            {task.lastStatus === 'running' ? (
+                              <Badge variant="run" className="gap-1.5">
+                                <OrbitSpinner />
+                                {t('schedules:schedulesPage.running')}
+                              </Badge>
+                            ) : (
+                              <Badge variant={task.enabled ? 'ok' : 'default'}>
                                 {task.enabled
                                   ? t('schedules:schedulesPage.enabled')
                                   : t('schedules:schedulesPage.pause')}
                               </Badge>
-                            </div>
-                            <small>
+                            )}
+                            {task.lastStatus === 'failed' && (
+                              <Badge variant="bad">
+                                {t('schedules:schedulesPage.lastRunFailed')}
+                              </Badge>
+                            )}
+                            <small
+                              className={cn(
+                                'min-w-0 truncate text-xs text-content-secondary',
+                                task.targetType === 'workflow' && 'font-mono',
+                              )}
+                            >
                               {task.targetType === 'workflow'
                                 ? availableWorkflows.find(
                                     (workflow) => workflow.id === task.workflowId,
@@ -675,316 +753,347 @@ export function SchedulesPage({
                                 : task.prompt}
                             </small>
                           </span>
-                          <em>{nextRunLabel(task, language)}</em>
                         </button>
-                      </div>
-                    ))
-                  ) : (
-                    <InlineEmptyState
-                      illustration={<StarOrbit size={38} />}
-                      title={t('schedules:schedulesPage.theTimelineIsStillUnlit')}
-                      description={t(
-                        'schedules:schedulesPage.createATaskAndLetItSetOutAutomaticallyAtTheAppointedTime',
-                      )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <InlineEmptyState
+                  title={t('schedules:schedulesPage.theTimelineIsStillUnlit')}
+                  description={t(
+                    'schedules:schedulesPage.createATaskAndLetItSetOutAutomaticallyAtTheAppointedTime',
+                  )}
+                />
+              )}
+            </section>
+          }
+          detail={
+            selected && draft ? (
+              <div className="flex min-w-0 flex-col gap-4">
+                {/* 手机上详情已独占整屏，卡片外框退为无边平铺，避免与页面边距叠成双层框。 */}
+                <Panel className="p-4 py-4 max-[650px]:border-0 max-[650px]:bg-transparent max-[650px]:p-0">
+                  <AppCardHeader className="items-center max-[650px]:flex-wrap max-[650px]:items-start">
+                    <h2 className="min-w-0 text-[15px]! font-medium break-words">{draft.name}</h2>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 max-[650px]:w-full">
+                      <Toggle
+                        value={draft.enabled}
+                        onChange={(enabled) => updateDraft({ enabled })}
+                        ariaLabel={draft.name}
+                      />
+                      <Button
+                        variant="secondary"
+                        className="max-[650px]:h-11"
+                        disabled={saving || selected.lastStatus === 'running'}
+                        onClick={run}
+                      >
+                        {selected.lastStatus === 'running' ? <OrbitSpinner /> : <Play />}
+                        {selected.lastStatus === 'running'
+                          ? t('schedules:schedulesPage.running')
+                          : t('schedules:schedulesPage.runNow')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-danger-soft hover:text-danger max-[650px]:ml-auto max-[650px]:size-11"
+                        title={t('schedules:schedulesPage.deleteTask')}
+                        aria-label={t('schedules:schedulesPage.deleteTask')}
+                        onClick={remove}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </AppCardHeader>
+                  <ScheduleTargetFields
+                    targetType={draft.targetType}
+                    prompt={draft.prompt}
+                    workflowId={draft.workflowId}
+                    workflowInputs={draft.workflowInputs}
+                    workflows={availableWorkflows}
+                    onChange={updateDraft}
+                  />
+                  {draft.targetType === 'prompt' && (
+                    <ScheduleWorkspaceField
+                      value={draft.cwd}
+                      onChange={(cwd) => updateDraft({ cwd })}
                     />
                   )}
-                </Panel>
-              }
-              detail={
-                selected && draft ? (
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <Panel>
-                      <AppCardHeader className="max-[650px]:flex-wrap max-[650px]:items-start">
-                        <h2 className="min-w-0 break-words">{draft.name}</h2>
-                        <div className="flex min-w-0 flex-wrap items-center gap-[5px] max-[650px]:w-full">
-                          <Toggle
-                            value={draft.enabled}
-                            onChange={(enabled) => updateDraft({ enabled })}
-                            ariaLabel={draft.name}
+                  <div className={SECTION}>
+                    <div className={SCHEDULE_GRID}>
+                      <FieldLabel variant="control">
+                        {t('schedules:schedulesPage.frequency')}
+                        <AppSelect
+                          value={draft.frequency}
+                          onChange={(event) =>
+                            updateDraft({ frequency: event.target.value as ScheduleFrequency })
+                          }
+                        >
+                          {Object.keys(FREQUENCIES).map((value) => (
+                            <option value={value} key={value}>
+                              {frequencyLabel(value as ScheduleFrequency, t)}
+                            </option>
+                          ))}
+                        </AppSelect>
+                      </FieldLabel>
+                      {draft.frequency === 'interval' ? (
+                        <FieldLabel variant="control">
+                          {t('schedules:schedulesPage.runInterval')}
+                          <span className={INTERVAL_INPUT}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={draft.intervalValue}
+                              onChange={(event) =>
+                                updateDraft({ intervalValue: Number(event.target.value) })
+                              }
+                            />
+                            <AppSelect
+                              value={draft.intervalUnit}
+                              onChange={(event) =>
+                                updateDraft({ intervalUnit: event.target.value as IntervalUnit })
+                              }
+                            >
+                              {Object.keys(INTERVAL_UNITS).map((value) => (
+                                <option value={value} key={value}>
+                                  {intervalUnitLabel(value as IntervalUnit, t)}
+                                </option>
+                              ))}
+                            </AppSelect>
+                          </span>
+                        </FieldLabel>
+                      ) : (
+                        <FieldLabel variant="control">
+                          {t('schedules:schedulesPage.time')}
+                          <input
+                            type="time"
+                            className="tabular-nums"
+                            value={draft.time}
+                            onChange={(event) => updateDraft({ time: event.target.value })}
                           />
-                          <Button
-                            size="lg"
-                            disabled={saving || selected.lastStatus === 'running'}
-                            onClick={run}
-                          >
-                            {selected.lastStatus === 'running' ? (
-                              <RefreshCw className="animate-spin" size={14} />
-                            ) : (
-                              <Play size={14} />
-                            )}
-                            {selected.lastStatus === 'running'
-                              ? t('schedules:schedulesPage.running')
-                              : t('schedules:schedulesPage.runNow')}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            title={t('schedules:schedulesPage.deleteTask')}
-                            aria-label={t('schedules:schedulesPage.deleteTask')}
-                            onClick={remove}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </AppCardHeader>
-                      <ScheduleTargetFields
-                        targetType={draft.targetType}
-                        prompt={draft.prompt}
-                        workflowId={draft.workflowId}
-                        workflowInputs={draft.workflowInputs}
-                        workflows={availableWorkflows}
-                        onChange={updateDraft}
-                      />
+                        </FieldLabel>
+                      )}
+                      <FieldLabel variant="control">
+                        {t('schedules:schedulesPage.timeZone')}
+                        <AppSelect
+                          value={draft.timezone}
+                          onChange={(event) => updateDraft({ timezone: event.target.value })}
+                        >
+                          {TIMEZONES.map((timezone) => (
+                            <option value={timezone} key={timezone}>
+                              {timezone}
+                            </option>
+                          ))}
+                        </AppSelect>
+                      </FieldLabel>
                       {draft.targetType === 'prompt' && (
-                        <ScheduleWorkspaceField
-                          value={draft.cwd}
-                          onChange={(cwd) => updateDraft({ cwd })}
+                        <ScheduleExecutionModeField
+                          value={draft.executionMode}
+                          onChange={(executionMode) => updateDraft({ executionMode })}
                         />
                       )}
-                      <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
-                        <FieldLabel variant="control">
-                          {t('schedules:schedulesPage.frequency')}
-                          <AppSelect
-                            value={draft.frequency}
-                            onChange={(event) =>
-                              updateDraft({ frequency: event.target.value as ScheduleFrequency })
-                            }
+                    </div>
+                  </div>
+                  <div className={cn('schedule-notification-section pt-3', SECTION)}>
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-sm font-medium">
+                        {t('schedules:schedulesPage.notificationChannels')}
+                      </strong>
+                      <button
+                        type="button"
+                        className="text-button text-xs font-medium text-content-secondary underline underline-offset-2 hover:text-content max-[650px]:min-h-11"
+                        onClick={openNotificationSettings}
+                      >
+                        {t('schedules:schedulesPage.editTemplates')}
+                      </button>
+                    </div>
+                    <p className="mt-0.5 text-xs text-content-muted">
+                      {t('schedules:schedulesPage.notificationChannelsHelp')}
+                    </p>
+                    {/* 渠道开关是可按下的磁贴：开启 = 强调色软底 + 强调描边 + 勾，关闭只留细线。 */}
+                    <div className="schedule-notification-targets mt-2.5 grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2">
+                      {(
+                        Object.entries(TARGETS) as Array<
+                          [NotificationTarget, (typeof TARGETS)[NotificationTarget]]
+                        >
+                      ).map(([id, target]) => {
+                        const Icon = target.Icon
+                        const selected = draft.notifications.includes(id)
+                        return (
+                          <button
+                            type="button"
+                            aria-pressed={selected}
+                            className={cn(
+                              'grid min-h-[52px] grid-cols-[16px_minmax(0,1fr)_16px] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors duration-(--d-fast)',
+                              selected
+                                ? 'selected border-star-border bg-star-soft text-star-strong'
+                                : 'border-stroke bg-panel text-content hover:bg-surface-subtle',
+                            )}
+                            onClick={() => toggleNotification(id)}
+                            key={id}
                           >
-                            {Object.keys(FREQUENCIES).map((value) => (
-                              <option value={value} key={value}>
-                                {frequencyLabel(value as ScheduleFrequency, t)}
-                              </option>
-                            ))}
-                          </AppSelect>
-                        </FieldLabel>
-                        {draft.frequency === 'interval' ? (
-                          <FieldLabel variant="control">
-                            {t('schedules:schedulesPage.runInterval')}
-                            <span className="schedule-interval-input [&_input]:w-full [&_input]:min-w-0 [&_input]:h-full [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:p-[0_9px] [&_input]:text-[var(--text)] [&_select]:h-full [&_select]:border-0 [&_select]:[border-left:1px_solid_var(--stroke)] [&_select]:[outline:0] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text-tertiary)] [&_select]:text-[12px] [&_[data-slot='select-trigger']]:w-auto [&_[data-slot='select-trigger']]:min-w-[74px] [&_[data-slot='select-trigger']]:[border-left:1px_solid_var(--stroke)] [&_[data-slot='select-trigger']]:rounded-[0] [&_[data-slot='select-trigger']]:bg-[var(--solid)] [&_[data-slot='select-trigger']]:text-[var(--text-tertiary)] grid h-[31px] grid-cols-[minmax(0,1fr)_auto] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)]">
-                              <input
-                                type="number"
-                                min="1"
-                                value={draft.intervalValue}
-                                onChange={(event) =>
-                                  updateDraft({ intervalValue: Number(event.target.value) })
-                                }
-                              />
-                              <AppSelect
-                                value={draft.intervalUnit}
-                                onChange={(event) =>
-                                  updateDraft({ intervalUnit: event.target.value as IntervalUnit })
-                                }
-                              >
-                                {Object.keys(INTERVAL_UNITS).map((value) => (
-                                  <option value={value} key={value}>
-                                    {intervalUnitLabel(value as IntervalUnit, t)}
-                                  </option>
-                                ))}
-                              </AppSelect>
+                            <Icon className="size-4" />
+                            <span className="flex min-w-0 flex-col gap-0.5">
+                              <strong className="truncate text-sm font-medium">
+                                {notificationTargetLabel(id, t)}
+                              </strong>
+                              <small className="truncate text-xs text-content-muted">
+                                {data.notificationTargets[id].enabled
+                                  ? t('schedules:schedulesPage.configured')
+                                  : t('schedules:schedulesPage.notConfigured')}
+                              </small>
                             </span>
-                          </FieldLabel>
-                        ) : (
-                          <FieldLabel variant="control">
-                            {t('schedules:schedulesPage.time')}
-                            <input
-                              type="time"
-                              value={draft.time}
-                              onChange={(event) => updateDraft({ time: event.target.value })}
+                            <CheckCircle2
+                              className={cn(
+                                'size-4',
+                                selected ? 'text-accent-fg' : 'text-content-faint',
+                              )}
                             />
-                          </FieldLabel>
-                        )}
-                        <FieldLabel variant="control">
-                          {t('schedules:schedulesPage.timeZone')}
-                          <AppSelect
-                            value={draft.timezone}
-                            onChange={(event) => updateDraft({ timezone: event.target.value })}
-                          >
-                            {TIMEZONES.map((timezone) => (
-                              <option value={timezone} key={timezone}>
-                                {timezone}
-                              </option>
-                            ))}
-                          </AppSelect>
-                        </FieldLabel>
-                        {draft.targetType === 'prompt' && (
-                          <ScheduleExecutionModeField
-                            value={draft.executionMode}
-                            onChange={(executionMode) => updateDraft({ executionMode })}
-                          />
-                        )}
-                      </div>
-                      <div className="schedule-notification-section [&_>_div:first-child]:flex [&_>_div:first-child]:items-center [&_>_div:first-child]:justify-between [&_>_div:first-child]:gap-[8px] [&_>_div:first-child_strong]:text-[13px] [&_>_p]:mt-[4px] [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[13px] [margin-top:13px] [border-top:1px_solid_var(--stroke-soft)] [padding-top:12px]">
-                        <div>
-                          <strong>{t('schedules:schedulesPage.notificationChannels')}</strong>
-                          <button
-                            type="button"
-                            className="text-button hover:text-[var(--text)] border-0 bg-transparent text-[var(--text-soft)] text-[12px] font-[600] [text-decoration:underline] [text-underline-offset:2px]"
-                            onClick={openNotificationSettings}
-                          >
-                            {t('schedules:schedulesPage.editTemplates')}
                           </button>
-                        </div>
-                        <p>{t('schedules:schedulesPage.notificationChannelsHelp')}</p>
-                        <div className="schedule-notification-targets [&_>_button]:grid [&_>_button]:min-h-[52px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[7px] [&_>_button]:[border:1px_solid_var(--stroke)] [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-[var(--surface-subtle)] [&_>_button]:p-[7px_8px] [&_>_button]:text-left [&_>_button_>_span]:flex [&_>_button_>_span]:min-w-0 [&_>_button_>_span]:flex-col [&_>_button_>_span]:gap-[3px] [&_strong]:text-[13px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_button_>_svg:last-child]:text-[var(--control-muted)] [&_>_button.selected]:border-[var(--focus)] [&_>_button.selected]:bg-[var(--accent-soft)] [&_>_button.selected]:text-[var(--star-strong)] [&_>_button.selected_>_svg:last-child]:text-[var(--success)] max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[7px] [margin-top:9px]">
-                          {(
-                            Object.entries(TARGETS) as Array<
-                              [NotificationTarget, (typeof TARGETS)[NotificationTarget]]
-                            >
-                          ).map(([id, target]) => {
-                            const Icon = target.Icon
-                            const selected = draft.notifications.includes(id)
-                            return (
-                              <button
-                                type="button"
-                                className={selected ? 'selected' : ''}
-                                onClick={() => toggleNotification(id)}
-                                key={id}
-                              >
-                                <Icon size={15} />
-                                <span>
-                                  <strong>{notificationTargetLabel(id, t)}</strong>
-                                  <small>
-                                    {data.notificationTargets[id].enabled
-                                      ? t('schedules:schedulesPage.configured')
-                                      : t('schedules:schedulesPage.notConfigured')}
-                                  </small>
-                                </span>
-                                <CheckCircle2 size={15} />
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <div className="flex items-center gap-[6px] [margin-top:9px]">
+                        )
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <span id="schedule-notify-on" className="text-xs text-content-muted">
+                        {t('schedules:schedulesPage.notifyWhen')}
+                      </span>
+                      <div
+                        role="group"
+                        aria-labelledby="schedule-notify-on"
+                        className={cn('schedule-notification-chip', SEGMENT_TRACK)}
+                      >
+                        {(['always', 'failure'] as const).map((value) => (
                           <button
                             type="button"
-                            className={`schedule-notification-chip [&.selected]:border-[var(--control-selected-border)] [&.selected]:bg-[var(--control-selected-bg)] [&.selected]:text-[var(--control-selected-text)] [&.selected]:shadow-[var(--sh-1)] dark:bg-[var(--surface-subtle)] inline-flex h-[32px] items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-pill)] bg-[var(--surface-subtle)] text-[var(--text-muted)] [padding:0_10px] text-[13px] font-[600] ${draft.notifyOn === 'failure' ? 'selected' : ''}`}
-                            onClick={() =>
-                              updateDraft({
-                                notifyOn: draft.notifyOn === 'failure' ? 'always' : 'failure',
-                              })
-                            }
+                            key={value}
+                            aria-pressed={draft.notifyOn === value}
+                            className={SEGMENT}
+                            onClick={() => updateDraft({ notifyOn: value })}
                           >
-                            {draft.notifyOn === 'failure'
+                            {value === 'failure'
                               ? t('schedules:schedulesPage.failuresOnly')
                               : t('schedules:schedulesPage.completionAndFailure')}
                           </button>
-                        </div>
+                        ))}
                       </div>
-                      <div className="form-footer [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[10px] [margin-top:10px]">
-                        <span>
-                          {selected.lastRunAt
-                            ? t('schedules:schedulesPage.lastRunTime', {
-                                time: relativeTime(selected.lastRunAt, language),
-                              })
-                            : t('schedules:schedulesPage.nextRunTime', {
-                                time: nextRunLabel(selected, language),
-                              })}
-                        </span>
-                        <Button
-                          size="lg"
-                          disabled={
-                            saving ||
-                            !scheduleTargetValid(
-                              draft.targetType,
-                              draft.prompt,
-                              draft.workflowId,
-                              draft.workflowInputs,
-                              availableWorkflows,
-                            )
-                          }
-                          onClick={save}
-                        >
-                          {saving ? <RefreshCw className="animate-spin" size={14} /> : null}
-                          {saving
-                            ? t('schedules:schedulesPage.saving')
-                            : t('schedules:schedulesPage.saveTask')}
-                        </Button>
-                      </div>
-                    </Panel>
-                    <Panel>
-                      <SectionTitle title={t('schedules:schedulesPage.recentRuns')} />
-                      {runs.length ? (
-                        runs.map((item) => (
-                          <div
-                            className={`schedule-run-row [&_>_svg]:text-[var(--text-muted)] [&.completed_>_svg]:text-[var(--success)] [&.failed_>_svg]:text-[var(--danger)] [&.running_>_svg]:text-[var(--star-strong)] [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_>_span]:gap-[4px] [&_strong]:[display:-webkit-box] [&_strong]:overflow-hidden [&_strong]:text-[12px] [&_strong]:leading-[1.4] [&_strong]:[-webkit-box-orient:vertical] [&_strong]:[-webkit-line-clamp:2] [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_a]:text-[var(--text-soft)] [&_a]:text-[13px] [&_a]:[text-decoration:underline] [&_a]:[text-underline-offset:2px] [&_>_em]:text-[var(--text-secondary)] [&_>_em]:text-[12px] [&_>_em]:[font-style:normal] [&_>_em]:whitespace-nowrap grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[9px] [border-top:1px_solid_var(--stroke-soft)] [padding:10px_2px] ${item.status}`}
-                            key={item.id}
-                          >
-                            {item.status === 'running' ? (
-                              <RefreshCw className="animate-spin" size={15} />
-                            ) : item.status === 'completed' ? (
-                              <CheckCircle2 size={15} />
-                            ) : (
-                              <AlertTriangle size={15} />
-                            )}
-                            <span>
-                              <strong>
-                                {item.status === 'running'
-                                  ? t('schedules:schedulesPage.running2')
-                                  : item.status === 'completed'
-                                    ? item.summary || t('schedules:schedulesPage.taskCompleted')
-                                    : item.status === 'interrupted'
-                                      ? t('schedules:schedulesPage.taskInterrupted')
-                                      : item.error || t('schedules:schedulesPage.taskFailed')}
-                              </strong>
-                              <small>
-                                {relativeTime(item.startedAt, language)} ·{' '}
-                                {item.trigger === 'manual'
-                                  ? t('schedules:schedulesPage.manualRun')
-                                  : t('schedules:schedulesPage.scheduledTrigger')}
-                                {item.durationMs
-                                  ? ` · ${t('schedules:schedulesPage.countSec', { count: Math.round(item.durationMs / 1000) })}`
-                                  : ''}
-                              </small>
-                            </span>
-                            <em>
-                              {new Intl.DateTimeFormat(language, {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }).format(new Date(item.startedAt))}
-                            </em>
-                          </div>
-                        ))
-                      ) : (
-                        <InlineEmptyState
-                          compact
-                          illustration={<StarOrbit size={32} />}
-                          title={t('schedules:schedulesPage.noRunHistory')}
-                        />
-                      )}
-                    </Panel>
+                    </div>
                   </div>
-                ) : (
-                  <CreateSchedulePanel
-                    notificationTargets={data.notificationTargets}
-                    workflows={availableWorkflows}
-                    defaultCwd={data.defaultCwd}
-                    onCreated={(result) => {
-                      setData(result.state)
-                      setSelectedId(result.task.id)
-                      setDetailOpen(true)
-                      notify(t('schedules:schedulesPage.scheduledTaskCreated'))
-                    }}
-                  />
-                )
-              }
-            />
-          </>
-          {createOpen && (
-            <CreateScheduleModal
-              notificationTargets={data.notificationTargets}
-              workflows={availableWorkflows}
-              defaultCwd={data.defaultCwd}
-              onClose={() => setCreateOpen(false)}
-              onCreated={(result) => {
-                setCreateOpen(false)
-                setData(result.state)
-                setSelectedId(result.task.id)
-                setDetailOpen(true)
-                notify(t('schedules:schedulesPage.scheduledTaskCreated'))
-              }}
-            />
-          )}
-        </>
+                  <div className="form-footer mt-4 flex items-center justify-between gap-2.5 border-t border-stroke-soft pt-3 max-[650px]:flex-wrap">
+                    <span className="text-xs text-content-muted tabular-nums">
+                      {selected.lastRunAt
+                        ? t('schedules:schedulesPage.lastRunTime', {
+                            time: relativeTime(selected.lastRunAt, language),
+                          })
+                        : t('schedules:schedulesPage.nextRunTime', {
+                            time: nextRunLabel(selected, language),
+                          })}
+                    </span>
+                    <Button
+                      className="max-[650px]:h-11 max-[650px]:w-full"
+                      disabled={
+                        saving ||
+                        !scheduleTargetValid(
+                          draft.targetType,
+                          draft.prompt,
+                          draft.workflowId,
+                          draft.workflowInputs,
+                          availableWorkflows,
+                        )
+                      }
+                      onClick={save}
+                    >
+                      {saving ? <OrbitSpinner className="text-current" /> : null}
+                      {saving
+                        ? t('schedules:schedulesPage.saving')
+                        : t('schedules:schedulesPage.saveTask')}
+                    </Button>
+                  </div>
+                </Panel>
+                {/* 最近执行：与工具活动日志同一语言的细线卡片，状态方块 + 摘要 + 等宽时间。 */}
+                <section className="overflow-hidden rounded-md border border-stroke bg-panel">
+                  <h3 className="flex min-h-10 items-center gap-2 border-b border-stroke-soft bg-surface-subtle px-3.5 text-sm font-medium">
+                    {t('schedules:schedulesPage.recentRuns')}
+                    <span className="font-normal text-content-muted tabular-nums">
+                      {runs.length}
+                    </span>
+                  </h3>
+                  {runs.length ? (
+                    <ul className="divide-y divide-stroke-soft">
+                      {runs.map((item) => (
+                        <li
+                          className={`schedule-run-row grid min-h-11 grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2.5 px-3.5 py-2.5 ${item.status}`}
+                          key={item.id}
+                        >
+                          <ScheduleRunSquare status={item.status} />
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <strong
+                              className={cn(
+                                'line-clamp-2 text-sm leading-5 font-medium',
+                                item.status === 'failed' ? 'text-danger' : 'text-content',
+                              )}
+                            >
+                              {item.status === 'running'
+                                ? t('schedules:schedulesPage.running2')
+                                : item.status === 'completed'
+                                  ? item.summary || t('schedules:schedulesPage.taskCompleted')
+                                  : item.status === 'interrupted'
+                                    ? t('schedules:schedulesPage.taskInterrupted')
+                                    : item.error || t('schedules:schedulesPage.taskFailed')}
+                            </strong>
+                            <small className="text-xs text-content-muted tabular-nums">
+                              {relativeTime(item.startedAt, language)} ·{' '}
+                              {item.trigger === 'manual'
+                                ? t('schedules:schedulesPage.manualRun')
+                                : t('schedules:schedulesPage.scheduledTrigger')}
+                              {item.durationMs
+                                ? ` · ${t('schedules:schedulesPage.countSec', { count: Math.round(item.durationMs / 1000) })}`
+                                : ''}
+                            </small>
+                          </span>
+                          <em className="font-mono text-xs leading-5 text-content-secondary not-italic tabular-nums">
+                            {new Intl.DateTimeFormat(language, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }).format(new Date(item.startedAt))}
+                          </em>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <InlineEmptyState compact title={t('schedules:schedulesPage.noRunHistory')} />
+                  )}
+                </section>
+              </div>
+            ) : (
+              <CreateSchedulePanel
+                notificationTargets={data.notificationTargets}
+                workflows={availableWorkflows}
+                defaultCwd={data.defaultCwd}
+                onCreated={(result) => {
+                  setData(result.state)
+                  setSelectedId(result.task.id)
+                  setDetailOpen(true)
+                  notify(t('schedules:schedulesPage.scheduledTaskCreated'))
+                }}
+              />
+            )
+          }
+        />
+        {/* 每次打开都重新挂载，保证新建表单从空白开始。 */}
+        {createOpen && (
+          <CreateScheduleModal
+            notificationTargets={data.notificationTargets}
+            workflows={availableWorkflows}
+            defaultCwd={data.defaultCwd}
+            onClose={() => setCreateOpen(false)}
+            onCreated={(result) => {
+              setCreateOpen(false)
+              setData(result.state)
+              setSelectedId(result.task.id)
+              setDetailOpen(true)
+              notify(t('schedules:schedulesPage.scheduledTaskCreated'))
+            }}
+          />
+        )}
       </div>
     </PageFrame>
   )
@@ -1048,10 +1157,12 @@ function CreateSchedulePanel({
     }
   }
   return (
-    <Panel>
+    <Panel className="p-4 py-4">
       <AppCardHeader>
         <div>
-          <h2>{t('schedules:schedulesPage.newScheduledTask')}</h2>
+          <h2 className="text-[15px]! font-medium">
+            {t('schedules:schedulesPage.newScheduledTask')}
+          </h2>
           <p>
             {t(
               'schedules:schedulesPage.youCanContinueEditingTheRunTimeAndNotificationChannelsAfterCreation',
@@ -1081,7 +1192,7 @@ function CreateSchedulePanel({
         }}
       />
       {targetType === 'prompt' && <ScheduleWorkspaceField value={cwd} onChange={setCwd} />}
-      <div className="form-grid grid gap-[9px] three [.form-grid&]:grid-cols-[repeat(3,minmax(0,1fr))] max-[650px]:[.form-grid&]:grid-cols-[1fr]">
+      <div className={cn(SECTION, SCHEDULE_GRID)}>
         <FieldLabel variant="control">
           {t('schedules:schedulesPage.frequency')}
           <AppSelect
@@ -1098,7 +1209,7 @@ function CreateSchedulePanel({
         {frequency === 'interval' ? (
           <FieldLabel variant="control">
             {t('schedules:schedulesPage.runInterval')}
-            <span className="schedule-interval-input [&_input]:w-full [&_input]:min-w-0 [&_input]:h-full [&_input]:border-0 [&_input]:[outline:0] [&_input]:bg-transparent [&_input]:p-[0_9px] [&_input]:text-[var(--text)] [&_select]:h-full [&_select]:border-0 [&_select]:[border-left:1px_solid_var(--stroke)] [&_select]:[outline:0] [&_select]:bg-[var(--solid)] [&_select]:p-[0_8px] [&_select]:text-[var(--text-tertiary)] [&_select]:text-[12px] [&_[data-slot='select-trigger']]:w-auto [&_[data-slot='select-trigger']]:min-w-[74px] [&_[data-slot='select-trigger']]:[border-left:1px_solid_var(--stroke)] [&_[data-slot='select-trigger']]:rounded-[0] [&_[data-slot='select-trigger']]:bg-[var(--solid)] [&_[data-slot='select-trigger']]:text-[var(--text-tertiary)] grid h-[31px] grid-cols-[minmax(0,1fr)_auto] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-xs)] bg-[var(--surface-subtle)]">
+            <span className={INTERVAL_INPUT}>
               <input
                 type="number"
                 min="1"
@@ -1120,7 +1231,12 @@ function CreateSchedulePanel({
         ) : (
           <FieldLabel variant="control">
             {t('schedules:schedulesPage.time')}
-            <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+            <input
+              type="time"
+              className="tabular-nums"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+            />
           </FieldLabel>
         )}
         <FieldLabel variant="control">
@@ -1143,10 +1259,12 @@ function CreateSchedulePanel({
           {error}
         </AppError>
       )}
-      <div className="form-footer [&_>_span]:text-[var(--text-muted)] [&_>_span]:text-[13px] flex items-center justify-between gap-[10px] [margin-top:10px]">
-        <span>{t('schedules:schedulesPage.enabledAutomaticallyAfterCreation')}</span>
+      <div className="form-footer mt-4 flex items-center justify-between gap-2.5 border-t border-stroke-soft pt-3 max-[650px]:flex-wrap">
+        <span className="text-xs text-content-muted">
+          {t('schedules:schedulesPage.enabledAutomaticallyAfterCreation')}
+        </span>
         <Button
-          size="lg"
+          className="max-[650px]:h-11 max-[650px]:w-full"
           disabled={
             saving ||
             !name.trim() ||
@@ -1154,7 +1272,7 @@ function CreateSchedulePanel({
           }
           onClick={create}
         >
-          {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+          {saving ? <OrbitSpinner className="text-current" /> : <Plus />}
           {saving ? t('schedules:schedulesPage.creating') : t('schedules:schedulesPage.createTask')}
         </Button>
       </div>
@@ -1213,93 +1331,72 @@ function CreateScheduleModal({
       setSaving(false)
     }
   }
+  // 新建对话框沿用统一 Dialog：实心浮层、无模糊遮罩、焦点受困与 Esc 关闭由原语负责。
   return (
-    <div
-      className="modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <form
-        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]"
-        onSubmit={submit}
-      >
-        <AppCardHeader>
-          <div>
-            <h2>{t('schedules:schedulesPage.newScheduledTask')}</h2>
-            <p>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="compact">
+        <form className="grid min-w-0" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{t('schedules:schedulesPage.newScheduledTask')}</DialogTitle>
+            <DialogDescription>
               {t(
                 'schedules:schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation',
               )}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t('schedules:schedulesPage.closeDialog')}
-            onClick={onClose}
-          >
-            <X size={17} />
-          </Button>
-        </AppCardHeader>
-        <FieldLabel variant="control">
-          {t('schedules:schedulesPage.taskName')}
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
+            </DialogDescription>
+          </DialogHeader>
+          <FieldLabel variant="control">
+            {t('schedules:schedulesPage.taskName')}
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
+            />
+          </FieldLabel>
+          <ScheduleTargetFields
+            targetType={targetType}
+            prompt={prompt}
+            workflowId={workflowId}
+            workflowInputs={workflowInputs}
+            workflows={workflows}
+            onChange={(patch) => {
+              if (patch.targetType) setTargetType(patch.targetType)
+              if (patch.prompt !== undefined) setPrompt(patch.prompt)
+              if (patch.workflowId !== undefined) setWorkflowId(patch.workflowId)
+              if (patch.workflowInputs !== undefined) setWorkflowInputs(patch.workflowInputs)
+            }}
           />
-        </FieldLabel>
-        <ScheduleTargetFields
-          targetType={targetType}
-          prompt={prompt}
-          workflowId={workflowId}
-          workflowInputs={workflowInputs}
-          workflows={workflows}
-          onChange={(patch) => {
-            if (patch.targetType) setTargetType(patch.targetType)
-            if (patch.prompt !== undefined) setPrompt(patch.prompt)
-            if (patch.workflowId !== undefined) setWorkflowId(patch.workflowId)
-            if (patch.workflowInputs !== undefined) setWorkflowInputs(patch.workflowInputs)
-          }}
-        />
-        {targetType === 'prompt' && (
-          <>
-            <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
-            <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
-          </>
-        )}
-        {error && (
-          <AppError>
-            <AlertTriangle size={13} />
-            {error}
-          </AppError>
-        )}
-        <div className="flex justify-end gap-[8px] [margin-top:18px]">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            onClick={onClose}
-          >
-            {t('schedules:schedulesPage.cancel')}
-          </Button>
-          <Button
-            type="submit"
-            size="lg"
-            disabled={
-              saving ||
-              !name.trim() ||
-              !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
-            }
-          >
-            {saving ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
-            {saving
-              ? t('schedules:schedulesPage.creating')
-              : t('schedules:schedulesPage.createTask')}
-          </Button>
-        </div>
-      </form>
-    </div>
+          {targetType === 'prompt' && (
+            <>
+              <ScheduleWorkspaceField value={cwd} onChange={setCwd} />
+              <ScheduleExecutionModeField value={executionMode} onChange={setExecutionMode} />
+            </>
+          )}
+          {error && (
+            <AppError>
+              <AlertTriangle size={13} />
+              {error}
+            </AppError>
+          )}
+          <div className="mt-5 flex justify-end gap-2 max-[650px]:[&>button]:h-11 max-[650px]:[&>button]:flex-1">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              {t('schedules:schedulesPage.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                saving ||
+                !name.trim() ||
+                !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
+              }
+            >
+              {saving ? <OrbitSpinner className="text-current" /> : <Plus />}
+              {saving
+                ? t('schedules:schedulesPage.creating')
+                : t('schedules:schedulesPage.createTask')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

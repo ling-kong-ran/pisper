@@ -83,7 +83,7 @@ export function WorkflowInputsEditor({
       )}
       {inputs.map((input) => (
         <Collapsible
-          className="min-w-0 rounded-lg border"
+          className="min-w-0 rounded-md border"
           key={input.id}
           open={editingId === input.id}
           onOpenChange={(open) => setEditingId(open ? input.id : null)}

@@ -144,12 +144,13 @@ export function ExecutionModeControl({
   return (
     <div
       ref={rootRef}
-      className={`task-execution-mode-select relative h-10 min-w-0 text-muted-foreground ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
+      className={`task-execution-mode-select relative h-7 min-w-0 max-[650px]:h-11 pointer-coarse:h-11 ${open ? 'open' : ''} ${selectedMode !== 'plan' ? 'active' : ''}`}
     >
+      {/* 收进「+」托盘时与其他菜单行对齐：图标占同宽图标列（svg 加宽后图形居中），文字从同一列起。 */}
       <button
         ref={triggerRef}
         type="button"
-        className="task-execution-mode-trigger hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--star-strong)] [.task-execution-mode-select.open_&]:border-[var(--accent-border)] [.task-execution-mode-select.open_&]:bg-[var(--accent-soft)] [.task-execution-mode-select.open_&]:text-[var(--star-strong)] [.task-execution-mode-select.active_&]:text-[var(--star-strong)] inline-flex w-full h-full items-center justify-center gap-1.5 px-1.5 rounded-lg border-0 bg-transparent text-[13px] text-inherit cursor-pointer disabled:cursor-not-allowed disabled:opacity-[.55]"
+        className="task-execution-mode-trigger [.task-execution-mode-select.open_&]:bg-surface-hover [.task-execution-mode-select.open_&]:text-content [.task-execution-mode-select.active_&]:border-star-border [.task-execution-mode-select.active_&]:bg-star-soft [.task-execution-mode-select.active_&]:text-star-strong inline-flex h-full w-full min-w-7 cursor-pointer items-center justify-center gap-1.5 rounded-sm border border-stroke bg-panel px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-[.55] max-[650px]:min-w-11 max-[650px]:rounded-md max-[650px]:border-transparent max-[650px]:bg-transparent max-[650px]:px-2.5 max-[650px]:text-sm [.composer-tool-tray_&]:justify-start [.composer-tool-tray_&]:gap-2 [.composer-tool-tray_&]:border-transparent [.composer-tool-tray_&]:pl-0 [.composer-tool-tray_&]:text-[13px] [.composer-tool-tray_&]:text-content [.composer-tool-tray_&>svg]:w-[30px] max-[650px]:[.composer-tool-tray_&>svg]:w-11 pointer-coarse:[.composer-tool-tray_&>svg]:w-11"
         title={label}
         aria-label={label}
         aria-haspopup="menu"
@@ -157,8 +158,8 @@ export function ExecutionModeControl({
         disabled={disabled}
         onClick={() => setOpen((visible) => !visible)}
       >
-        <CurrentIcon className="shrink-0 max-[650px]:hidden" size={15} />
-        <span className="truncate">{current.label}</span>
+        <CurrentIcon className="shrink-0 opacity-80" size={15} />
+        <span className="truncate @max-[440px]/composer-footer:hidden">{current.label}</span>
       </button>
       {open && (
         <AnchoredPopupMenu
@@ -166,12 +167,12 @@ export function ExecutionModeControl({
           anchorRef={triggerRef}
           menuRef={menuRef}
           placement="top"
-          className="anchored-popup-menu task-execution-mode-menu [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_small]:overflow-hidden [&_small]:text-[var(--text-secondary)] [&_small]:text-[length:var(--app-small-size)] [&_small]:font-normal [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_p]:m-[1px_7px_4px_47px] [&_p]:text-[var(--text-secondary)] [&_p]:text-[length:var(--app-small-size)] w-[min(270px,calc(100vw_-_28px))] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)]"
+          className="anchored-popup-menu task-execution-mode-menu [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:overflow-hidden [&_small]:text-xs [&_small]:font-normal [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_small]:text-content-muted [&_p]:mx-2 [&_p]:mt-px [&_p]:mb-1 [&_p]:text-xs [&_p]:text-content-muted [&_p]:tabular-nums w-[min(270px,calc(100vw_-_28px))] overflow-hidden rounded-md bg-solid p-1 text-content shadow-float"
           role="menu"
           ariaLabel={t('chat:focusSession.executionMode')}
           onClose={closeMenu}
         >
-          <div className="[padding:6px_8px_4px] text-[var(--text-secondary)] text-[length:var(--app-small-size)] font-semibold">
+          <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-content-muted">
             {t('chat:focusSession.executionMode')}
           </div>
           {options.map((option) => {
@@ -182,28 +183,28 @@ export function ExecutionModeControl({
                 type="button"
                 role="menuitemradio"
                 aria-checked={selected}
-                className={`task-execution-mode-option hover:bg-[var(--accent-soft)] [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[2px] grid w-full min-h-[48px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] border-0 rounded-[var(--r-sm)] bg-transparent [padding:6px_7px] text-left ${selected ? 'bg-[var(--accent-soft)]' : ''}`}
+                className={`task-execution-mode-option grid min-h-11 w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-2 py-1.5 text-left hover:bg-surface-hover [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-0.5 [&_>_svg]:text-accent-fg ${selected ? 'bg-surface-hover' : ''}`}
                 key={option.value}
                 onClick={() => {
                   onChange(option.value)
                   closeMenu()
                 }}
               >
-                <span className="grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+                <span className="grid size-7 place-items-center rounded-sm bg-surface-muted text-content-secondary">
                   <Icon size={14} />
                 </span>
                 <span>
                   <strong>{option.label}</strong>
                   <small>{option.description}</small>
                 </span>
-                {selected && <Check size={13} />}
+                {selected && <Check size={15} strokeWidth={2.25} />}
               </button>
             )
           })}
           {(selectedMode === 'goal' || selectedMode === 'team' || hasExistingGoal) && (
             <>
               {usage && <p>{usage}</p>}
-              <div className="goal-mode-budget-row [&_label]:text-[var(--text-secondary)] [&_label]:text-[length:var(--app-small-size)] [&_label]:font-medium [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[length:var(--app-font-size)] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] [margin:2px_7px_2px]">
+              <div className="goal-mode-budget-row [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary [&_input]:h-8 [&_input]:w-full [&_input]:min-w-0 [&_input]:rounded-sm [&_input]:border [&_input]:border-control [&_input]:bg-panel [&_input]:px-2 [&_input]:text-[13px] [&_input]:text-inherit [&_input]:tabular-nums [&_input:focus]:border-focus [&_input:focus]:[outline:none] [&_input:focus]:ring-3 [&_input:focus]:ring-focus-ring mx-2 my-1 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
                 <label htmlFor="goal-token-budget-input">
                   {selectedMode === 'team'
                     ? t('chat:focusSession.teamTokenBudget')
@@ -250,7 +251,7 @@ export function ExecutionModeControl({
                   </Button>
                 )}
               </div>
-              <small className="block [margin:0_7px_5px] text-[var(--text-secondary)] text-[length:var(--app-small-size)]">
+              <small className="mx-2 mb-1.5 block text-xs text-content-muted">
                 {selectedMode === 'team'
                   ? t('chat:focusSession.teamTokenBudgetHint')
                   : hasExistingGoal

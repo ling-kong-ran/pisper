@@ -28,6 +28,11 @@ type DragState = {
 
 const EMPTY_SIZE = { width: 0, height: 0 }
 
+// 悬浮组件的拖动/复位/关闭小键：实心键帽面 + 键帽描边与投影，不用半透明遮罩；
+// 不向外扩命中区，避免抢走紧贴其旁的组件 iframe 的点击。焦点沿用全局 2px 焦点描边。
+const FLOATING_KEY =
+  'flex items-center justify-center rounded-full bg-key text-content-muted shadow-key ring-1 ring-key-border hover:text-content'
+
 function FloatingWidget({
   id,
   componentId,
@@ -196,7 +201,7 @@ function FloatingWidget({
           aria-label={t('custom-ui:floating.move')}
           aria-describedby={helpId}
           title={t('custom-ui:floating.moveHint')}
-          className="flex h-6 w-5 touch-none items-center justify-center rounded-full bg-background/85 text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(FLOATING_KEY, 'h-6 w-5 touch-none')}
           style={{ cursor: draft ? 'grabbing' : 'grab' }}
           onKeyDown={onKeyDown}
           onPointerDown={(event) => {
@@ -237,7 +242,7 @@ function FloatingWidget({
           aria-label={t('custom-ui:floating.resetPosition')}
           title={t('custom-ui:floating.resetPosition')}
           onClick={reset}
-          className="flex size-5 items-center justify-center rounded-full bg-background/85 text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(FLOATING_KEY, 'size-5')}
         >
           <RotateCcw className="size-3" />
         </button>
@@ -251,7 +256,7 @@ function FloatingWidget({
           aria-label={t('custom-ui:floating.close')}
           title={t('custom-ui:floating.close')}
           onClick={() => onClose(componentId)}
-          className="absolute right-0 top-1/2 z-10 flex size-5 -translate-y-1/2 items-center justify-center rounded-full bg-background/85 text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(FLOATING_KEY, 'absolute top-1/2 right-0 z-10 size-5 -translate-y-1/2')}
         >
           <X className="size-3" />
         </button>

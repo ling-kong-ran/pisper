@@ -14,6 +14,7 @@
   "workflowsPage.templates": "模板",
   "workflowsPage.import": "导入",
   "workflowsPage.neverRun": "尚未运行",
+  "workflowsPage.moreActionsFor": "{name} 的更多操作",
   "workflowsPage.duplicateWorkflow": "复制工作流",
   "workflowsPage.export": "导出",
   "workflowsPage.countAttempts": "{count} 次尝试",

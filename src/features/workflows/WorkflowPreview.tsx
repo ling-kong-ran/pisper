@@ -16,8 +16,9 @@ type PreviewEdge = Edge<Record<string, never>, 'default'>
 function PreviewNodeCard({ data }: NodeProps<PreviewNode>) {
   return (
     <div
+      // 只读预览沿用画布节点的细线卡片语言，尺寸缩小、不可拖动。
       className={cn(
-        'flow-node [.workflow-mini-map_&.compact]:w-[100px] [.workflow-mini-map_&.compact]:min-h-[42px] [.workflow-mini-map_&.compact]:p-[5px_8px] [.workflow-mini-map_&.compact]:cursor-default [.workflow-mini-map_&.compact_small]:text-[11px] [.workflow-mini-map_&.compact_strong]:max-w-[100%] [.workflow-mini-map_&.compact_strong]:overflow-hidden [.workflow-mini-map_&.compact_strong]:text-[12px] [.workflow-mini-map_&.compact_strong]:text-ellipsis [.workflow-mini-map_&.compact_strong]:whitespace-nowrap [&_small]:text-[var(--text-muted)] [&_small]:text-[13px] [&_strong]:text-[13px] [&.active]:border-[var(--star)] [&.active]:[animation:star-node-pulse_2.4s_var(--ease-out)_infinite] [&.type-condition]:border-[var(--warning-border)] [&.type-condition]:bg-[var(--warning-subtle)] [&.type-parallel]:border-[var(--violet-border)] [&.type-parallel]:bg-[var(--violet-soft)] [&.type-approval]:border-[var(--approval-border)] [&.type-approval]:bg-[var(--success-subtle)] [&.type-notification]:border-[var(--notification-border)] [&.type-notification]:bg-[var(--notification-soft)] dark:[&.type-condition]:bg-[var(--warning-soft)] dark:[&.type-并行]:bg-[var(--violet-soft)] dark:[&.type-审批]:bg-[var(--success-subtle)] dark:[&.type-通知]:bg-[var(--notification-soft)] relative flex w-[120px] min-h-[49px] flex-col items-start justify-center gap-[3px] [border:1px_solid_var(--accent-border)] rounded-[var(--r-sm)] bg-[var(--accent-soft)] [padding:7px_10px] text-left shadow-[0_8px_18px_-14px_var(--node-shadow)] cursor-grab compact',
+        'flow-node compact flex w-[100px] min-h-[42px] cursor-default flex-col justify-center gap-0.5 rounded-sm border border-stroke bg-panel px-2 py-1.5 text-left [&_small]:text-xs [&_small]:text-content-muted [&_strong]:truncate [&_strong]:text-xs [&_strong]:font-medium',
         `type-${data.kind}`,
       )}
     >
@@ -61,13 +62,13 @@ export function WorkflowPreview({
         target: edge.target,
         targetHandle: edge.targetPort,
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--canvas-edge)' },
-        style: { stroke: 'var(--canvas-edge)', strokeWidth: 2 },
+        style: { stroke: 'var(--canvas-edge)', strokeWidth: 1.5 },
       })),
     [edges],
   )
 
   return (
-    <div className="workflow-mini-map relative h-[150px] overflow-hidden [margin-top:5px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--canvas-bg)]">
+    <div className="workflow-mini-map relative mt-1 h-[150px] overflow-hidden rounded-md border border-stroke-soft bg-panel">
       <ReactFlow<PreviewNode, PreviewEdge>
         nodes={previewNodes}
         edges={previewEdges}

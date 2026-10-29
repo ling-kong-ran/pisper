@@ -109,7 +109,7 @@ export function SpeechModelsDialog({
       }}
     >
       <DialogContent
-        className="z-[110] max-h-[85dvh] overflow-y-auto rounded-lg sm:max-w-md"
+        className="z-[110] max-h-[85dvh] overflow-y-auto sm:max-w-md"
         overlayClassName="z-[109]"
         onEscapeKeyDown={(event) => event.stopPropagation()}
       >
@@ -123,7 +123,7 @@ export function SpeechModelsDialog({
             aria-label={t('chat:speechModels.loading')}
           />
         )}
-        <div className="min-w-0 divide-y">
+        <div className="min-w-0 divide-y divide-stroke-soft">
           {manager.models.map((model) => {
             const downloading = ['downloading', 'verifying'].includes(model.status)
             const percent = model.totalBytes
@@ -149,7 +149,7 @@ export function SpeechModelsDialog({
                   </div>
                   {model.status === 'installed' ? (
                     <CheckCircle2
-                      className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                      className="size-5 shrink-0 text-success"
                       aria-label={statuses.installed}
                     />
                   ) : (
@@ -209,7 +209,7 @@ export function SpeechModelsDialog({
                       href={licenseUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="block break-words text-[11px] text-muted-foreground underline underline-offset-2"
+                      className="block break-words text-xs text-muted-foreground underline underline-offset-2"
                     >
                       {model.license.name}
                     </a>

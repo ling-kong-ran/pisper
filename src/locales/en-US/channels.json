@@ -44,6 +44,7 @@
   "channelsPage.cannotScanOpenTheSignInLink": "Cannot scan? Open the sign-in link",
   "channelsPage.channelChatReset": "Channel chat reset",
   "channelsPage.channelChats": "Channel chats",
+  "channelsPage.platforms": "Platforms",
   "channelsPage.channelReplyModelUpdated": "Channel reply model updated",
   "channelsPage.closeDialog": "Close dialog",
   "channelsPage.connectedTime": "Connected {time}",

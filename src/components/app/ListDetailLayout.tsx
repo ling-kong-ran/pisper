@@ -88,7 +88,7 @@ export function ListDetailLayout({
           }}
           data-slot="page-list"
           className={cn(
-            'min-h-0 min-w-0 overflow-y-auto p-4 @min-[760px]/list-detail:border-r @min-[760px]/list-detail:border-border',
+            'min-h-0 min-w-0 overflow-y-auto p-3 @min-[760px]/list-detail:border-r @min-[760px]/list-detail:border-stroke-soft',
             selected && 'hidden @min-[760px]/list-detail:block',
           )}
         >
@@ -99,7 +99,7 @@ export function ListDetailLayout({
           tabIndex={-1}
           data-slot="page-detail"
           className={cn(
-            'min-h-0 min-w-0 overflow-y-auto p-4',
+            'min-h-0 min-w-0 overflow-y-auto p-4 @min-[760px]/list-detail:px-6 @min-[760px]/list-detail:py-5',
             !selected && 'hidden @min-[760px]/list-detail:block',
           )}
         >
@@ -122,7 +122,7 @@ export function ListDetailLayout({
             {inspector && (
               <aside
                 data-slot="page-inspector"
-                className="min-w-0 border-t border-border pt-4 @min-[1120px]/list-detail:border-t-0 @min-[1120px]/list-detail:border-l @min-[1120px]/list-detail:pt-0 @min-[1120px]/list-detail:pl-4"
+                className="min-w-0 border-t border-stroke-soft pt-4 @min-[1120px]/list-detail:border-t-0 @min-[1120px]/list-detail:border-l @min-[1120px]/list-detail:pt-0 @min-[1120px]/list-detail:pl-4"
               >
                 {inspector}
               </aside>

@@ -73,15 +73,11 @@ export function SessionTreeInspector({
 
   return (
     <div
-      className={`chat-resource-config flex min-h-0 min-w-0 flex-col gap-[16px] overflow-y-auto [overscroll-behavior:contain] [padding:18px] session-tree-inspector [&_>_p]:m-[auto] [&_>_p]:text-[12px] [&_>_p]:text-[var(--text-muted)] [&_strong]:text-[14px] [&_p]:text-[12px] [&_p]:text-[var(--text-muted)] ${mobileLayout ? 'bg-[var(--solid)]' : '[margin:12px_12px_12px_0] rounded-[var(--r-md)] bg-[color-mix(in_srgb,var(--solid)_88%,var(--surface-subtle))] shadow-[0_10px_28px_-26px_var(--shadow)]'}`}
+      className={`chat-resource-config session-tree-inspector flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain bg-panel p-[18px] [&_>_p]:m-auto [&_>_p]:text-xs [&_>_p]:text-content-muted [&_p]:text-xs [&_p]:text-content-muted [&_strong]:text-[15px] [&_strong]:font-medium ${mobileLayout ? '' : 'border-l border-stroke-soft'}`}
     >
       {mobileLayout && (
-        <div className="sticky top-0 z-[2] -mx-[6px] -mt-[8px] flex border-b border-[var(--stroke-soft)] bg-[var(--solid)] px-[2px] pb-[8px]">
-          <Button
-            variant="ghost"
-            className="min-h-[40px] justify-start px-[8px]"
-            onClick={onBackToList}
-          >
+        <div className="sticky top-0 z-[2] -mx-1.5 -mt-2 flex border-b border-stroke-soft bg-panel px-0.5 pb-2">
+          <Button variant="ghost" className="min-h-11 justify-start px-2" onClick={onBackToList}>
             <ChevronLeft size={17} />
             {t('chat:sessionTree.backToNodes')}
           </Button>
@@ -90,11 +86,11 @@ export function SessionTreeInspector({
       {selected ? (
         <>
           {(parentSession || childSessions.length > 0) && (
-            <div className="session-tree-lineage [&_>_strong]:text-[12px] [&_>_strong]:font-[650] [&_button]:justify-start [&_button]:text-left [&_button]:text-[11px] flex flex-col gap-[6px] [border-bottom:1px_solid_var(--stroke-soft)] [padding-bottom:12px]">
+            <div className="session-tree-lineage flex flex-col gap-1.5 border-b border-stroke-soft pb-3 [&_>_strong]:text-xs [&_>_strong]:font-medium [&_>_strong]:text-content-muted [&_button]:justify-start [&_button]:text-left [&_button]:text-xs">
               <strong>{t('chat:sessionTree.conversationLineage')}</strong>
               {parentSession && (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   disabled={Boolean(openingRelatedId)}
                   onClick={() => onOpenRelated(parentSession, parentEntryId)}
                 >
@@ -106,7 +102,7 @@ export function SessionTreeInspector({
               )}
               {childSessions.map((child) => (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   disabled={Boolean(openingRelatedId)}
                   key={child.id}
                   onClick={() => onOpenRelated(child)}
@@ -120,14 +116,14 @@ export function SessionTreeInspector({
             </div>
           )}
           <div>
-            <span className="session-tree-selection-kind [&_em]:rounded-[var(--r-xs)] [&_em]:bg-[var(--brand-blue-soft)] [&_em]:text-[var(--brand-blue-strong)] [&_em]:p-[2px_5px] [&_em]:[font-style:normal] flex items-center justify-between gap-[8px] text-[var(--text-muted)] text-[10px] [text-transform:uppercase]">
+            <span className="session-tree-selection-kind mb-1 flex items-center justify-between gap-2 text-xs text-content-muted [&_em]:rounded-xs [&_em]:border [&_em]:border-star-border [&_em]:bg-star-soft [&_em]:px-1.5 [&_em]:py-0.5 [&_em]:font-medium [&_em]:text-star-strong [&_em]:not-italic">
               {typeLabel(selected)}
               {stateLabel(selected) && <em>{stateLabel(selected)}</em>}
             </span>
             <strong>{selected.label || typeLabel(selected)}</strong>
             <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
           </div>
-          <div className="chat-resource-inputs [&_label]:grid [&_label]:gap-[5px] [&_label]:text-[12px] [&_label]:font-[600] [&_input[type='checkbox']]:w-[16px] [&_input[type='checkbox']]:h-[16px] [&_input[type='checkbox']]:[accent-color:var(--blue)] flex flex-col gap-[11px]">
+          <div className="chat-resource-inputs flex flex-col gap-3 [&_input[type='checkbox']]:size-4 [&_input[type='checkbox']]:[accent-color:var(--star)] [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
             {canLabel && (
               <>
                 <label>
@@ -140,7 +136,7 @@ export function SessionTreeInspector({
                   />
                 </label>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   disabled={savingLabel || streaming || dataStreaming}
                   onClick={onSaveLabel}
                 >
@@ -151,7 +147,7 @@ export function SessionTreeInspector({
                 </Button>
                 {Boolean(selected.label) && (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     disabled={savingLabel || streaming || dataStreaming}
                     onClick={onRemoveLabel}
                   >
@@ -163,7 +159,7 @@ export function SessionTreeInspector({
             )}
             {canLabel && (
               <Button
-                variant="outline"
+                variant="secondary"
                 disabled={creatingChild || streaming || dataStreaming}
                 onClick={onCreateChild}
               >
@@ -174,7 +170,7 @@ export function SessionTreeInspector({
               </Button>
             )}
             {canDerive && (
-              <label className="session-tree-summary-option [&_small]:[grid-column:1/-1] [&_small]:text-[var(--text-muted)] [&_small]:font-[400] [&_small]:leading-[1.45] grid-cols-[minmax(0,1fr)_auto] items-center">
+              <label className="session-tree-summary-option grid-cols-[minmax(0,1fr)_auto] items-center [&_small]:col-span-full [&_small]:leading-relaxed [&_small]:font-normal [&_small]:text-content-muted">
                 <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
                 <input
                   type="checkbox"
@@ -195,10 +191,14 @@ export function SessionTreeInspector({
               }).format(new Date(selected.timestamp))}
             </p>
           )}
-          {error && <p className="danger-text">{error}</p>}
+          {error && (
+            <p role="alert" className="text-danger!">
+              {error}
+            </p>
+          )}
           {canDerive && (
             <Button
-              className="chat-resource-confirm hover:bg-[var(--star-hover)] hover:text-[var(--on-accent)] min-w-[112px] min-h-[36px] self-start bg-[var(--star)] text-[var(--on-accent)] font-[650]"
+              className="chat-resource-confirm min-h-8 min-w-[112px] self-start bg-star text-[var(--on-accent)] hover:bg-star-hover max-[650px]:min-h-11"
               disabled={navigating || selected.leaf || streaming || dataStreaming}
               onClick={onNavigate}
             >
@@ -215,7 +215,7 @@ export function SessionTreeInspector({
         <p>{loading ? t('chat:sessionTree.loading') : error || t('chat:sessionTree.chooseNode')}</p>
       )}
       {error && !selected && (
-        <Button variant="outline" onClick={onRefresh}>
+        <Button variant="secondary" onClick={onRefresh}>
           {t('chat:sessionTree.retry')}
         </Button>
       )}

@@ -345,16 +345,14 @@ export function SessionTreeDialog({
             trigger.focus()
           }
         }}
-        className={`chat-resource-dialog grid-rows-[auto_minmax(0,1fr)] overflow-hidden session-tree-dialog ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none !gap-0 !p-0' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
+        className={`chat-resource-dialog session-tree-dialog grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
         showCloseButton={false}
       >
-        <div
-          className={`chat-resource-head flex items-start justify-between gap-[16px] [border-bottom:1px_solid_var(--stroke-soft)] session-tree-head [&_[data-slot='dialog-description']]:mt-[3px] [&_[data-slot='dialog-description']]:text-[12px] [&_[data-slot='dialog-title']]:text-[16px] ${mobileLayout ? 'p-[14px]' : '[padding:17px_18px_14px]'}`}
-        >
+        <div className="chat-resource-head flex items-start justify-between gap-4 border-b border-stroke-soft px-[18px] pt-4 pb-3.5 max-[650px]:p-3.5 [&_[data-slot='dialog-description']]:mt-0.5 [&_[data-slot='dialog-description']]:text-xs [&_[data-slot='dialog-description']]:text-content-muted [&_[data-slot='dialog-title']]:text-base [&_[data-slot='dialog-title']]:font-semibold">
           <div>
-            <div className="session-tree-title [&_>_span]:grid [&_>_span]:w-[30px] [&_>_span]:h-[30px] [&_>_span]:place-items-center [&_>_span]:rounded-[var(--r-sm)] [&_>_span]:bg-[var(--success-soft)] [&_>_span]:text-[var(--success)] flex items-center gap-[9px]">
-              <span>
-                <TreePine size={17} />
+            <div className="session-tree-title flex items-center gap-2.5">
+              <span className="grid size-[30px] place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key">
+                <TreePine size={16} />
               </span>
               <DialogTitle>{t('chat:sessionTree.title')}</DialogTitle>
             </div>
@@ -368,16 +366,17 @@ export function SessionTreeDialog({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
+            className="max-[650px]:size-11"
             aria-label={t('common:ui.closeDialog')}
             title={t('common:ui.closeDialog')}
             onClick={onClose}
           >
-            <X size={17} />
+            <X size={16} />
           </Button>
         </div>
         <div
-          className={`chat-resource-body grid min-h-0 overflow-hidden bg-[var(--surface-subtle)] session-tree-layout ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
+          className={`chat-resource-body session-tree-layout grid min-h-0 overflow-hidden bg-surface-subtle ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
         >
           {(!mobileLayout || mobilePane === 'list') && (
             <SessionTreeBrowser

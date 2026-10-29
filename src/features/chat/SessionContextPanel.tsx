@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { InlineEmptyState } from '@/components/app/PageState'
 import {
   createContextPages,
   updateContextPages,
@@ -88,39 +90,37 @@ function BrowserPane({
           if (normalized) onChange({ url: normalized })
         }}
       >
-        <input
+        <Input
           aria-label={t('common:webPreview.url')}
-          className="min-w-0 flex-1 rounded-md border border-[var(--stroke)] bg-[var(--solid)] px-2 text-[length:var(--app-font-size)]"
+          className="flex-1 font-mono"
           value={draft}
           onChange={(event) => onChange({ draft: event.target.value })}
           placeholder={t('common:webPreview.urlPlaceholder')}
           maxLength={2048}
         />
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="secondary" className="h-8.5 pointer-coarse:h-11">
           {t('chat:sessionContext.openUrl')}
         </Button>
       </form>
       {error && (
-        <p
-          role="alert"
-          className="text-[length:var(--app-small-size)] text-[var(--text-secondary)]"
-        >
+        <p role="alert" className="text-xs text-danger">
           {t('chat:sessionContext.invalidUrl')}
         </p>
       )}
       {url ? (
         <WebPreview
-          className="min-h-0 flex-1 overflow-hidden rounded-md"
+          className="min-h-0 flex-1 overflow-hidden rounded-md border-stroke"
           defaultUrl={url}
           key={url}
         >
           <WebPreviewBody src={url} title={t('common:webPreview.title')} />
         </WebPreview>
       ) : (
-        <div className="grid min-h-0 flex-1 place-content-center justify-items-center gap-2 rounded-md border border-dashed border-[var(--stroke-soft)] text-center text-[length:var(--app-font-size)] text-[var(--text-muted)]">
-          <Globe2 size={24} aria-hidden="true" />
-          <p>{t('chat:sessionContext.browserEmpty')}</p>
-        </div>
+        <InlineEmptyState
+          icon={Globe2}
+          className="min-h-0 flex-1"
+          title={t('chat:sessionContext.browserEmpty')}
+        />
       )}
       {url && (
         <Button
@@ -134,9 +134,7 @@ function BrowserPane({
           {t('common:webPreview.openExternal')}
         </Button>
       )}
-      <p className="text-[length:var(--app-small-size)] text-[var(--text-muted)]">
-        {t('common:webPreview.embedNotice')}
-      </p>
+      <p className="text-xs text-content-muted">{t('common:webPreview.embedNotice')}</p>
     </section>
   )
 }
@@ -216,27 +214,30 @@ export function SessionContextPanel({
     <Button
       variant="ghost"
       size="icon"
+      className="max-[650px]:size-11"
       disabled={pages.pages.length >= MAX_CONTEXT_PAGES}
       aria-label={addPageLabel}
       title={pages.pages.length >= MAX_CONTEXT_PAGES ? pageLimitLabel : addPageLabel}
       onClick={() => dispatch({ type: 'add', kind: 'new' })}
     >
-      <Plus size={15} />
+      <Plus size={16} />
     </Button>
   )
   const content = (
     <div
       data-session-context-panel
-      className="flex h-full min-h-0 min-w-0 flex-col bg-background text-foreground"
+      className="flex h-full min-h-0 min-w-0 flex-col bg-panel text-content"
     >
+      {/* 与任务顶栏同高的 48px 细线页头；标签是细线标签条，选中页抬成键帽并带强调色底刻度。 */}
       <header
         data-window-drag-region
-        className="auxiliary-page-header flex h-14 shrink-0 items-center gap-0.5 border-b border-border/60 px-1.5"
+        className="auxiliary-page-header flex h-12 shrink-0 items-center gap-1 border-b border-stroke-soft px-2"
       >
         {onBack && (
           <Button
             variant="ghost"
             size="icon"
+            className="max-[650px]:size-11"
             aria-label={t('chat:workbench.backToConversation')}
             title={t('chat:workbench.backToConversation')}
             onClick={onBack}
@@ -246,7 +247,7 @@ export function SessionContextPanel({
         )}
         <div
           ref={listRef}
-          className="flex min-w-0 flex-1 items-center overflow-x-auto"
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-px py-1 [scrollbar-width:none]"
           role="tablist"
           aria-label={t('chat:sessionContext.title')}
           onKeyDown={(event) => {
@@ -278,7 +279,7 @@ export function SessionContextPanel({
             return (
               <div
                 key={page.id}
-                className={`group flex max-w-40 min-w-20 shrink-0 items-center rounded-md ${page.id === selected.id ? 'bg-muted' : 'text-muted-foreground'}`}
+                className={`relative flex max-w-40 min-w-20 shrink-0 items-center rounded-sm transition-colors duration-(--d-fast) ${page.id === selected.id ? 'bg-key font-medium text-content shadow-key ring-1 ring-key-border after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-star' : 'text-content-muted hover:bg-surface-hover hover:text-content'}`}
               >
                 <button
                   id={`${panelId}-${page.id}-tab`}
@@ -287,19 +288,19 @@ export function SessionContextPanel({
                   aria-selected={page.id === selected.id}
                   aria-controls={`${panelId}-${page.id}-content`}
                   tabIndex={page.id === selected.id ? 0 : -1}
-                  className="flex h-8 min-w-0 flex-1 items-center gap-1.5 px-2 text-xs"
+                  className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-sm pl-2 text-sm focus-visible:outline-offset-0 max-[650px]:h-11"
                   onClick={() => dispatch({ type: 'select', id: page.id })}
                 >
-                  <Icon size={13} className="shrink-0" />
+                  <Icon size={14} className="shrink-0" />
                   <span className="truncate">{label}</span>
                 </button>
                 <button
                   type="button"
-                  className="mr-0.5 grid size-5 shrink-0 place-items-center rounded hover:bg-foreground/10"
+                  className="mx-0.5 grid size-5 shrink-0 place-items-center rounded-xs text-content-muted hover:bg-surface-hover hover:text-content focus-visible:outline-offset-0 max-[650px]:size-11"
                   aria-label={`${t('chat:sessionContext.closePage')} · ${label}`}
                   onClick={() => dispatch({ type: 'close', id: page.id })}
                 >
-                  <X size={11} />
+                  <X size={12} />
                 </button>
               </div>
             )
@@ -407,9 +408,7 @@ export function SessionContextPanel({
                   {plan?.items?.length ? (
                     <PlanBoard plan={plan} />
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {t('chat:sessionContext.planEmpty')}
-                    </p>
+                    <InlineEmptyState compact title={t('chat:sessionContext.planEmpty')} />
                   )}
                 </div>
               ))
@@ -424,7 +423,7 @@ export function SessionContextPanel({
       <aside
         id={panelId}
         tabIndex={embedded ? -1 : undefined}
-        className="h-full min-h-0 w-full overflow-hidden border-l border-border/60"
+        className="h-full min-h-0 w-full overflow-hidden border-l border-stroke bg-panel"
         aria-label={t('chat:sessionContext.title')}
       >
         {content}

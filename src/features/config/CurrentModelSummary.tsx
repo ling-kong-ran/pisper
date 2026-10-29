@@ -32,7 +32,7 @@ export function CurrentModelSummary({
           <Bot size={19} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-          <span className="text-xs font-semibold text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             {t('config:configPage.currentChatModel')}
           </span>
           {ready ? (

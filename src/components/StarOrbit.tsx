@@ -1,40 +1,40 @@
-// 星轨线条插画：空状态统一视觉（logo 星形元素衍生）。
-export function StarOrbit({ size = 54, className = '' }: { size?: number; className?: string }) {
+// 星轨插画：空状态的品牌时刻——虚线轨道、内环、低调四芒星与一颗强调色行星。
+// 只用描边/文字 token 着色，强调色只落在行星上；size 为高度（沿用旧方形插画的占位），宽度按 4:3 画幅换算。
+export function StarOrbit({ size = 48, className = '' }: { size?: number; className?: string }) {
   return (
     <svg
-      className={`star-orbit ${className}`}
-      width={size}
+      className={`star-orbit block flex-none ${className}`}
+      width={Math.round((size * 4) / 3)}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="0 0 64 48"
       fill="none"
       aria-hidden="true"
     >
-      <circle
+      <ellipse
         cx="32"
-        cy="32"
-        r="23"
-        stroke="var(--stroke)"
-        strokeWidth="1.4"
-        strokeDasharray="2.5 4.5"
-        strokeLinecap="round"
+        cy="24"
+        rx="28"
+        ry="11"
+        transform="rotate(-14 32 24)"
+        stroke="var(--stroke-strong)"
+        strokeDasharray="2 3"
       />
       <ellipse
         cx="32"
-        cy="32"
-        rx="28"
-        ry="10.5"
+        cy="24"
+        rx="16"
+        ry="6"
+        transform="rotate(-14 32 24)"
         stroke="var(--stroke)"
-        strokeWidth="1"
-        transform="rotate(-18 32 32)"
-        opacity=".65"
       />
-      <circle cx="32" cy="32" r="3.2" fill="var(--control-muted)" />
-      <circle cx="53" cy="27" r="1.7" fill="var(--star)" opacity=".8" />
-      <circle cx="12" cy="45" r="1.3" fill="var(--text-muted)" opacity=".7" />
       <path
-        d="M45 4 Q45.8 7.7 49.5 8.5 Q45.8 9.3 45 13 Q44.2 9.3 40.5 8.5 Q44.2 7.7 45 4 Z"
-        fill="var(--star)"
+        d="M32 15.5c.55 4.3 3.2 6.95 7.5 7.5-4.3.55-6.95 3.2-7.5 7.5-.55-4.3-3.2-6.95-7.5-7.5 4.3-.55 6.95-3.2 7.5-7.5z"
+        fill="var(--text-muted)"
       />
+      <circle cx="56.6" cy="14" r="2.6" fill="var(--star)" />
+      <circle cx="8" cy="8" r="1" fill="var(--text-faint)" />
+      <circle cx="13" cy="41" r=".9" fill="var(--text-faint)" />
+      <circle cx="55" cy="40" r="1.1" fill="var(--text-faint)" />
     </svg>
   )
 }

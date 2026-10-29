@@ -1,17 +1,10 @@
 // 会话工作流运行记录：展示会话关联的工作流运行历史与状态。
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CircleX,
-  RefreshCw,
-  Square,
-  Workflow,
-} from 'lucide-react'
+import { Check, ChevronRight, CircleX, Square, Workflow, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import type { EntityRecord } from '@/types/chat'
 import { chatApi } from './chat-api'
 
@@ -47,8 +40,12 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
   }, [load])
 
   if (!runs.length) return null
+  // 与工具活动日志同一语言：一张细线卡片，运行逐行以发丝线分隔；状态方块同时带形状与颜色，
+  // 运行中使用品牌轨道指示，计数与进度用等宽数字。
+  const context =
+    'session-workflow-context grid min-w-0 gap-1 border-b border-stroke-soft pb-1.5 [&_strong]:text-xs [&_strong]:font-medium [&_strong]:text-content-muted [&_p]:max-h-[84px] [&_p]:overflow-auto [&_p]:text-xs [&_p]:leading-relaxed [&_p]:whitespace-pre-wrap [&_p]:text-content-secondary [&_p]:[overflow-wrap:anywhere] [&_pre]:max-h-[84px] [&_pre]:overflow-auto [&_pre]:rounded-xs [&_pre]:bg-code [&_pre]:px-1.5 [&_pre]:py-1 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:leading-relaxed [&_pre]:whitespace-pre-wrap [&_pre]:text-content-secondary [&_pre]:[overflow-wrap:anywhere]'
   return (
-    <div className="flex max-h-[210px] flex-col gap-[5px] overflow-auto">
+    <div className="flex max-h-[210px] flex-col overflow-auto rounded-md border border-stroke bg-panel">
       {[...runs]
         .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
         .slice(0, 5)
@@ -59,15 +56,26 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
           )
           return (
             <div
-              className={`session-workflow-run [&.failed]:border-[color-mix(in_srgb,var(--danger)_40%,var(--stroke-soft))] [&.waiting_approval]:border-[color-mix(in_srgb,var(--warning)_45%,var(--stroke-soft))] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)] ${run.status}`}
+              className={`session-workflow-run border-b border-stroke-soft last:border-b-0 ${run.status}`}
               key={run.id}
             >
               <button
-                className="session-workflow-summary [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_>_span:nth-child(2)]:gap-[1px] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] [&_[data-slot='progress']]:h-[4px] max-[650px]:grid-cols-[28px_minmax(0,1fr)_16px] max-[650px]:[&_[data-slot='progress']]:[grid-column:2/4] grid w-full grid-cols-[28px_minmax(120px,1fr)_minmax(80px,160px)_16px] items-center gap-[9px] border-0 bg-transparent [padding:7px_9px] text-[var(--text)] text-left cursor-pointer"
+                className={`session-workflow-summary grid w-full cursor-pointer grid-cols-[20px_minmax(120px,1fr)_minmax(80px,160px)_14px] items-center gap-2.5 border-0 px-3 py-2 text-left text-content transition-colors duration-(--d-fast) hover:bg-surface-subtle focus-visible:-outline-offset-2 max-[650px]:min-h-11 max-[650px]:grid-cols-[20px_minmax(0,1fr)_14px] max-[650px]:[&_[data-slot='progress']]:col-[2/4] [&_[data-slot='progress']]:h-1 [&_>_span:nth-child(2)]:flex [&_>_span:nth-child(2)]:min-w-0 [&_>_span:nth-child(2)]:flex-col [&_small]:truncate [&_small]:text-xs [&_small]:text-content-muted [&_small]:tabular-nums [&_strong]:truncate [&_strong]:text-sm [&_strong]:font-medium ${open ? 'bg-surface-subtle' : 'bg-transparent'}`}
+                aria-expanded={open}
                 onClick={() => setExpanded(open ? '' : run.id)}
               >
-                <span className="list-icon [.chat-resource-list_&]:grid [.chat-resource-list_&]:w-[28px] [.chat-resource-list_&]:h-[28px] [.chat-resource-list_&]:place-items-center [.chat-resource-list_&]:rounded-[var(--r-sm)] [.chat-resource-list_&]:bg-[var(--surface-subtle)] [.chat-resource-list_&]:text-[var(--star-strong)] [.session-workflow-summary_&]:grid [.session-workflow-summary_&]:w-[28px] [.session-workflow-summary_&]:h-[28px] [.session-workflow-summary_&]:place-items-center [.session-workflow-summary_&]:rounded-[var(--r-sm)] [.session-workflow-summary_&]:bg-[var(--surface-subtle)] [.session-workflow-summary_&]:text-[var(--star-strong)] grid w-[27px] h-[27px] place-items-center rounded-[var(--r-sm)] bg-[var(--accent-soft)] text-[var(--star-strong)] [.workflow-template-gallery_&]:grid [.workflow-template-gallery_&]:w-[32px] [.workflow-template-gallery_&]:h-[32px] [.workflow-template-gallery_&]:place-items-center [.workflow-template-gallery_&]:rounded-[var(--r-sm)] [.workflow-template-gallery_&]:bg-[var(--surface-subtle)] [.workflow-template-gallery_&]:text-[var(--star-strong)]">
-                  <Workflow size={14} />
+                <span
+                  className={`grid size-5 place-items-center rounded-xs ${run.status === 'completed' ? 'bg-success-soft text-success' : run.status === 'failed' ? 'bg-danger-soft text-danger' : run.status === 'waiting_approval' ? 'bg-warning-soft text-warning-strong' : 'bg-surface-muted text-content-muted'}`}
+                >
+                  {run.status === 'running' ? (
+                    <OrbitSpinner className="size-3.5" />
+                  ) : run.status === 'completed' ? (
+                    <Check size={12} />
+                  ) : run.status === 'failed' ? (
+                    <X size={12} />
+                  ) : (
+                    <Workflow size={12} />
+                  )}
                 </span>
                 <span>
                   <strong>{run.workflowName}</strong>
@@ -76,25 +84,28 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
                   </small>
                 </span>
                 <Progress value={run.status === 'completed' ? 100 : progress} />
-                {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <ChevronRight
+                  size={14}
+                  className={`text-content-muted transition-transform duration-(--d-fast) ${open ? 'rotate-90' : ''}`}
+                />
               </button>
               {open && (
-                <div className="session-workflow-detail [&_>_p]:text-[var(--text-muted)] [&_>_p]:text-[11px] max-[650px]:pl-[12px] flex flex-col gap-[5px] [border-top:1px_solid_var(--stroke-soft)] [padding:7px_9px_9px_46px]">
+                <div className="session-workflow-detail flex flex-col gap-1.5 border-t border-stroke-soft bg-surface-subtle py-2 pr-3 pl-[42px] max-[650px]:pl-3 [&_>_p]:text-xs [&_>_p]:text-content-muted">
                   {run.sourceMessage && (
-                    <div className="session-workflow-context [&_strong]:text-[var(--text-muted)] [&_strong]:text-[10px] [&_strong]:[text-transform:uppercase] [&_p]:max-h-[84px] [&_p]:overflow-auto [&_p]:m-0 [&_p]:text-[var(--text-secondary)] [&_p]:text-[11px] [&_p]:leading-[1.45] [&_p]:whitespace-pre-wrap [&_p]:[overflow-wrap:anywhere] [&_pre]:max-h-[84px] [&_pre]:overflow-auto [&_pre]:m-0 [&_pre]:text-[var(--text-secondary)] [&_pre]:text-[11px] [&_pre]:leading-[1.45] [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:rounded-[var(--r-xs)] [&_pre]:bg-[var(--surface-subtle)] [&_pre]:p-[5px_6px] [&_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] grid min-w-0 gap-[3px] [border-bottom:1px_solid_var(--stroke-soft)] [padding-bottom:6px]">
+                    <div className={context}>
                       <strong>{t('chat:workflowRun.request')}</strong>
                       <p>{run.sourceMessage}</p>
                     </div>
                   )}
                   {run.inputs && Object.keys(run.inputs).length > 0 && (
-                    <div className="session-workflow-context [&_strong]:text-[var(--text-muted)] [&_strong]:text-[10px] [&_strong]:[text-transform:uppercase] [&_p]:max-h-[84px] [&_p]:overflow-auto [&_p]:m-0 [&_p]:text-[var(--text-secondary)] [&_p]:text-[11px] [&_p]:leading-[1.45] [&_p]:whitespace-pre-wrap [&_p]:[overflow-wrap:anywhere] [&_pre]:max-h-[84px] [&_pre]:overflow-auto [&_pre]:m-0 [&_pre]:text-[var(--text-secondary)] [&_pre]:text-[11px] [&_pre]:leading-[1.45] [&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] [&_pre]:rounded-[var(--r-xs)] [&_pre]:bg-[var(--surface-subtle)] [&_pre]:p-[5px_6px] [&_pre]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] grid min-w-0 gap-[3px] [border-bottom:1px_solid_var(--stroke-soft)] [padding-bottom:6px]">
+                    <div className={context}>
                       <strong>{t('chat:workflowRun.inputs')}</strong>
                       <pre>{JSON.stringify(run.inputs, null, 2)}</pre>
                     </div>
                   )}
                   {(run.nodes || []).map((node: EntityRecord) => (
                     <div
-                      className={`session-workflow-node [&.completed]:text-[var(--success)] [&.failed]:text-[var(--danger)] [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_strong]:text-[var(--text)] [&_strong]:text-[11px] [&_small]:overflow-hidden [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_>_div]:flex [&_>_div]:gap-[4px] grid grid-cols-[15px_minmax(0,1fr)_auto] items-center gap-[6px] min-h-[24px] text-[var(--text-muted)] ${node.status}`}
+                      className={`session-workflow-node grid min-h-6 grid-cols-[15px_minmax(0,1fr)_auto] items-center gap-1.5 text-content-muted [&.completed]:text-success [&.failed]:text-danger [&_>_div]:flex [&_>_div]:gap-1 [&_>_span]:flex [&_>_span]:min-w-0 [&_>_span]:flex-col [&_small]:truncate [&_small]:text-xs [&_small]:text-content-muted [&_strong]:text-xs [&_strong]:font-medium [&_strong]:text-content ${node.status}`}
                       key={node.id}
                     >
                       {node.status === 'completed' ? (
@@ -102,7 +113,7 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
                       ) : node.status === 'failed' ? (
                         <CircleX size={13} />
                       ) : node.status === 'running' ? (
-                        <RefreshCw className="animate-spin" size={13} />
+                        <OrbitSpinner className="size-3.5" />
                       ) : (
                         <Square size={11} />
                       )}
@@ -142,6 +153,7 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
                     <Button
                       size="xs"
                       variant="destructive"
+                      className="self-start"
                       onClick={async () => {
                         await chatApi.stopWorkflowRun(run.id)
                         await load()

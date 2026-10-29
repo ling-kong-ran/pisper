@@ -194,7 +194,7 @@ export function TaskWorkspace({
           }}
           layoutId={panelId}
           availableWidth={width}
-          conversationHeaderInset={56}
+          conversationHeaderInset={48}
           presentation={
             presentation === 'split' ? 'aside' : presentation === 'content' ? 'content' : 'closed'
           }

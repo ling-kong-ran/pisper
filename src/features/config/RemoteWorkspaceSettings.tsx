@@ -1,13 +1,13 @@
 import './remote-workspace-messages'
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowUpRight, LoaderCircle, RefreshCw, Server, Trash2 } from 'lucide-react'
+import { ArrowUpRight, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { RemoteWorkspaceSummary } from '@/types/remote-workspace'
-import { SettingsCard } from './settings-primitives'
+import { SettingsCard, SettingsField } from './settings-primitives'
 
 export function RemoteWorkspaceSettings({
   requestConfirm,
@@ -47,14 +47,14 @@ export function RemoteWorkspaceSettings({
   if (window.__PISPER_REMOTE_WORKSPACE__) {
     return (
       <SettingsCard data-config-card="remote-workspaces" className="space-y-3">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Server className="size-4" />
+        <h2 className="flex items-center gap-2 text-[15px]! leading-6 font-medium text-content">
+          <Server className="size-4 text-content-muted" aria-hidden="true" />
           {t('remote-workspace:activeTitle')}
         </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">
+        <p className="text-sm leading-relaxed text-content-secondary">
           {t('remote-workspace:activeDescription')}
         </p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
+        <p className="text-xs leading-relaxed text-content-muted">
           {t('remote-workspace:isolation')}
         </p>
       </SettingsCard>
@@ -63,21 +63,29 @@ export function RemoteWorkspaceSettings({
   if (!bridge) return null
 
   return (
-    <SettingsCard data-config-card="remote-workspaces" className="space-y-4">
+    <SettingsCard
+      data-config-card="remote-workspaces"
+      className="@container/card space-y-4 p-4 py-4"
+    >
       <header className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 font-semibold">
-            <Server className="size-4" />
-            {t('config:remoteWorkspace.title')}
-          </h2>
-          <p className="max-w-[64ch] text-sm leading-relaxed text-muted-foreground">
-            {t('remote-workspace:description')}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid size-9.5 flex-none place-items-center rounded-lg border border-key-border bg-key text-content-muted shadow-key">
+            <Server size={18} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[15px]! leading-6 font-medium text-content">
+              {t('config:remoteWorkspace.title')}
+            </h2>
+            <p className="mt-0.5 max-w-[64ch] text-xs leading-relaxed text-content-muted">
+              {t('remote-workspace:description')}
+            </p>
+          </div>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
+          className="pointer-coarse:size-11"
           disabled={busy}
           aria-label={t('remote-workspace:refresh')}
           onClick={() => void run(refresh)}
@@ -85,17 +93,19 @@ export function RemoteWorkspaceSettings({
           <RefreshCw className="size-3.5" />
         </Button>
       </header>
-      <p className="rounded-md bg-muted/50 px-3 py-2 text-sm leading-relaxed text-muted-foreground">
+      <p className="rounded-sm bg-surface-subtle px-3 py-2 text-xs leading-relaxed text-content-secondary">
         {t('remote-workspace:instructions')}
       </p>
       {servers.length > 0 && (
-        <ul className="divide-y rounded-lg border">
+        <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
           {servers.map((server) => (
-            <li key={server.id} className="flex items-center gap-3 px-3 py-2.5">
-              <Server className="size-4 shrink-0 text-muted-foreground" />
+            <li key={server.id} className="flex min-h-12 items-center gap-3 px-3 py-2">
+              <Server className="size-4 shrink-0 text-content-muted" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{server.name}</div>
-                <div className="truncate text-xs text-muted-foreground">{server.address}</div>
+                <div className="truncate text-sm font-medium text-content">{server.name}</div>
+                <div className="truncate font-mono text-xs text-content-muted">
+                  {server.address}
+                </div>
               </div>
               <Button
                 type="button"
@@ -116,6 +126,7 @@ export function RemoteWorkspaceSettings({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                className="hover:bg-danger-soft hover:text-danger pointer-coarse:size-11"
                 disabled={busy}
                 aria-label={t('remote-workspace:forget', { name: server.name })}
                 onClick={() =>
@@ -139,7 +150,7 @@ export function RemoteWorkspaceSettings({
         </ul>
       )}
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="divide-y divide-stroke-soft border-y border-stroke-soft"
         onSubmit={(event) => {
           event.preventDefault()
           void run(async () => {
@@ -151,8 +162,7 @@ export function RemoteWorkspaceSettings({
           })
         }}
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="remote-workspace-name">{t('remote-workspace:name')}</Label>
+        <SettingsField label={t('remote-workspace:name')} htmlFor="remote-workspace-name">
           <Input
             id="remote-workspace-name"
             value={name}
@@ -161,9 +171,8 @@ export function RemoteWorkspaceSettings({
             placeholder="Linux"
             onChange={(event) => setName(event.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="remote-workspace-address">{t('remote-workspace:address')}</Label>
+        </SettingsField>
+        <SettingsField label={t('remote-workspace:address')} htmlFor="remote-workspace-address">
           <Input
             id="remote-workspace-address"
             type="url"
@@ -173,11 +182,14 @@ export function RemoteWorkspaceSettings({
             placeholder="https://192.168.1.10:5174"
             autoComplete="off"
             spellCheck={false}
+            className="font-mono"
             onChange={(event) => setAddress(event.target.value)}
           />
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="remote-workspace-fingerprint">{t('remote-workspace:fingerprint')}</Label>
+        </SettingsField>
+        <SettingsField
+          label={t('remote-workspace:fingerprint')}
+          htmlFor="remote-workspace-fingerprint"
+        >
           <Input
             id="remote-workspace-fingerprint"
             value={fingerprint}
@@ -189,9 +201,8 @@ export function RemoteWorkspaceSettings({
             className="font-mono text-xs"
             onChange={(event) => setFingerprint(event.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="remote-workspace-code">{t('remote-workspace:code')}</Label>
+        </SettingsField>
+        <SettingsField label={t('remote-workspace:code')} htmlFor="remote-workspace-code">
           <Input
             id="remote-workspace-code"
             value={code}
@@ -201,13 +212,14 @@ export function RemoteWorkspaceSettings({
             placeholder="ABCD-EFGH"
             autoComplete="off"
             spellCheck={false}
+            className="font-mono"
             onChange={(event) => setCode(event.target.value)}
           />
-        </div>
-        <div className="flex items-end sm:justify-end">
-          <Button type="submit" size="sm" disabled={busy}>
+        </SettingsField>
+        <div className="flex justify-end py-3">
+          <Button type="submit" className="max-[650px]:h-11" disabled={busy}>
             {busy ? (
-              <LoaderCircle className="size-3.5 animate-spin" />
+              <OrbitSpinner className="text-current" />
             ) : (
               <ArrowUpRight className="size-3.5" />
             )}
@@ -216,11 +228,14 @@ export function RemoteWorkspaceSettings({
         </div>
       </form>
       {error && (
-        <p role="alert" className="break-words text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-sm bg-danger-soft px-2.5 py-2 text-sm break-words text-danger"
+        >
           {error}
         </p>
       )}
-      <p className="text-xs leading-relaxed text-muted-foreground">
+      <p className="text-xs leading-relaxed text-content-muted">
         {t('remote-workspace:isolation')}
       </p>
     </SettingsCard>

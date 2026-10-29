@@ -50,6 +50,21 @@ export const CONFIG_SECTIONS = new Set([
 
 export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
 
+// 插件、星忆、渠道等独立设置页同时挂在功能栏分组下。为让功能栏、底栏、侧栏、面包屑和
+// 手机设置分区条对同一路由只认一个归属：从功能栏/底栏分组进入时把来源写进历史条目的 state，
+// 前进后退与刷新都能还原进入时的上下文；其余入口（设置导航、地址栏、命令面板）默认归设置。
+export const ACTIVITY_NAVIGATION_STATE = Object.freeze({ navOrigin: 'activity' })
+
+export function settingsOwnsPage(page: string, locationState: unknown) {
+  if (page === 'config') return true
+  if (!SETTINGS_PAGES.has(page)) return false
+  return !(
+    typeof locationState === 'object' &&
+    locationState !== null &&
+    (locationState as { navOrigin?: unknown }).navOrigin === ACTIVITY_NAVIGATION_STATE.navOrigin
+  )
+}
+
 // 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
 // mobileApp 为 true 时（手机经代理访问），用「服务器」替代桌面端的远程访问管理面。
 export function getSettingsNavigation(

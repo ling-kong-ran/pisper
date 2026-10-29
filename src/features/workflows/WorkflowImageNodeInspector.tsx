@@ -92,7 +92,7 @@ function ModelDownload({
     }
   }
   return (
-    <div className="space-y-2 rounded-lg border p-3 text-xs">
+    <div className="space-y-2 rounded-md border p-3 text-xs">
       <p>{t('workflows:imageNodes.modelHint')}</p>
       <p>
         {engine?.status === 'ready'
@@ -477,7 +477,7 @@ export function WorkflowImageNodeInspector({
             max={64}
             onChange={(padding) => update({ padding })}
           />
-          <details className="rounded-lg border p-3">
+          <details className="rounded-md border p-3">
             <summary className="cursor-pointer text-sm">
               {t('workflows:imageNodes.frameEdits')}
             </summary>

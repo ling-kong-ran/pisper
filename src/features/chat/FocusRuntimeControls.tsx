@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   Database,
   FileCheck2,
@@ -156,7 +157,7 @@ export function SessionUsageMetrics({
 
   return (
     <div
-      className={`session-usage-metrics [&_>_span]:inline-flex [&_>_span]:min-w-0 [&_>_span]:items-center [&_>_span]:gap-[4px] [&_>_span]:whitespace-nowrap [&_small]:text-inherit [&_small]:font-normal [&_strong]:text-[var(--text-secondary)] [&_strong]:text-[length:var(--app-small-size)] [&_strong]:[font-variant-numeric:tabular-nums] [&_strong]:font-medium [&_svg]:text-[var(--text-tertiary)] [&_svg]:opacity-[.9] [&_>_i]:w-[1px] [&_>_i]:h-[10px] [&_>_i]:bg-[var(--border-subtle,var(--stroke-soft,#ddd))] @max-[470px]:[&_small]:hidden flex min-w-0 min-h-[26px] items-center justify-start gap-[10px] m-0 text-[var(--text-secondary)] text-[length:var(--app-small-size)] ${compact ? '[&_small]:hidden gap-[7px]' : ''}`}
+      className={`session-usage-metrics [&_>_span]:inline-flex [&_>_span]:min-w-0 [&_>_span]:items-center [&_>_span]:gap-[4px] [&_>_span]:whitespace-nowrap [&_small]:text-inherit [&_small]:font-normal [&_strong]:text-[var(--text-secondary)] [&_strong]:text-[length:var(--app-small-size)] [&_strong]:[font-variant-numeric:tabular-nums] [&_strong]:font-medium [&_svg]:text-[var(--text-tertiary)] [&_svg]:opacity-[.9] [&_>_i]:w-[1px] [&_>_i]:h-[10px] [&_>_i]:bg-stroke-soft @max-[470px]:[&_small]:hidden flex min-w-0 min-h-[26px] items-center justify-start gap-[10px] m-0 text-[var(--text-secondary)] text-[length:var(--app-small-size)] ${compact ? '[&_small]:hidden gap-[7px]' : ''}`}
       title={metricsTitle}
       aria-label={metricsTitle}
     >
@@ -382,11 +383,12 @@ export function ContextUsageIndicator({
   )
 }
 
+// 带文字的选择器按字段处理焦点：描边换成焦点色并加 3px 焦点环（透明原生 select 覆盖整块）。
 const LABEL_SELECT_CLASSES =
-  'relative flex h-10 min-w-0 items-center gap-1 rounded-lg px-1.5 text-[13px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring'
+  'relative flex h-10 min-w-0 items-center gap-1 rounded-sm border border-transparent px-1.5 text-[13px] text-content-secondary hover:bg-surface-hover hover:text-content has-[:focus-visible]:border-focus has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-focus-ring'
 
 const ICON_SELECT_CLASSES =
-  'session-model-select relative grid size-[38px] min-w-[38px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--star-soft)] hover:text-[var(--star-strong)] focus-within:ring-2 focus-within:ring-[var(--focus-ring)] [&.compact]:size-8 [&.compact]:min-w-8'
+  'session-model-select relative grid size-[30px] min-w-[30px] place-items-center rounded-sm text-content-muted hover:bg-surface-hover hover:text-content focus-within:ring-2 focus-within:ring-focus max-[650px]:size-11 max-[650px]:min-w-11 [&.compact]:size-8 [&.compact]:min-w-8'
 
 export function SessionModelSelect({
   value,
@@ -604,25 +606,31 @@ export function ModelThinkingControl({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="model-effort-pill inline-flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-xs text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:border-stroke max-[650px]:pr-2 max-[650px]:pl-2.5 max-[650px]:text-sm pointer-coarse:h-11"
           aria-label={label}
           title={label}
         >
-          <span className="min-w-0 truncate">{modelLabel}</span>
-          <span className="shrink-0">
+          <span className="min-w-0 truncate font-medium">{modelLabel}</span>
+          <span aria-hidden="true" className="text-content-faint">
+            ·
+          </span>
+          <span className="shrink-0 text-content-muted">
             {supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'}
           </span>
+          <ChevronsUpDown size={14} className="shrink-0 text-content-muted" aria-hidden="true" />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         side="top"
         sideOffset={8}
-        className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] gap-0 rounded-2xl border-border/70 bg-popover p-1.5 shadow-xl"
+        className="model-effort-popover w-[224px] max-w-[calc(100vw_-_24px)] gap-0 p-1"
       >
-        {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。 */}
-        <div className="model-effort-model flex flex-col gap-1 p-1.5 pb-2">
-          <span className="px-1 text-[11px] font-medium text-muted-foreground">
+        {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。
+            模型行带 1px 描边，而透明选择器只铺满内边距盒；行高取 52px，
+            保证有无服务商副标题时可点区域都不低于 48px。 */}
+        <div className="model-effort-model flex flex-col gap-1.5 p-1.5 pb-2">
+          <span className="px-0.5 text-xs font-medium text-content-muted">
             {t('chat:focusSession.toolbarModel')}
           </span>
           <SessionModelSelect
@@ -631,23 +639,23 @@ export function ModelThinkingControl({
             models={models}
             onChange={onModelChange}
             disabled={modelDisabled || saving}
-            className="h-auto w-full rounded-xl bg-foreground/[0.04] px-2.5 py-2 text-foreground hover:bg-foreground/[0.08] [&>span]:flex-1"
+            className="h-auto min-h-13 w-full border-control bg-panel px-2 py-1.5 text-content [&>span]:flex-1"
             displayLabel={
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-background text-muted-foreground shadow-[0_0_0_1px_var(--stroke-soft)]">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-muted shadow-key">
                   <Bot size={15} aria-hidden="true" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col text-left">
                   <span className="truncate text-[13px] leading-5 font-medium">{modelLabel}</span>
                   {currentModel?.providerName && (
-                    <span className="truncate text-[11px] leading-4 text-muted-foreground">
+                    <span className="truncate text-xs leading-4 text-content-muted">
                       {currentModel.providerName}
                     </span>
                   )}
                 </span>
                 <ChevronsUpDown
                   size={14}
-                  className="shrink-0 text-muted-foreground"
+                  className="shrink-0 text-content-muted"
                   aria-hidden="true"
                 />
               </span>
@@ -655,18 +663,19 @@ export function ModelThinkingControl({
           />
         </div>
         {supported && (
-          <div className="border-t border-[var(--stroke-soft)] p-1.5 pt-2.5">
-            <div className="flex items-baseline justify-between px-1 pb-1.5">
-              <span className="text-[11px] font-medium text-muted-foreground">
+          <div className="border-t border-stroke-soft p-1.5 pt-2">
+            <div className="flex items-baseline justify-between px-0.5 pb-1">
+              <span className="text-xs font-medium text-content-muted">
                 {t('chat:focusSession.thinkingLevelTitle')}
               </span>
               <span
-                className="model-effort-heading text-[13px] leading-5 font-semibold text-[var(--brand-blue)]"
+                className="model-effort-heading text-[13px] leading-5 font-medium text-accent-fg"
                 aria-live="polite"
               >
                 {effortLabel}
               </span>
             </div>
+            {/* 仪表式刻度：4px 轨道 + 每档一根刻度线；轨道两端对齐滑块圆心（滑块 24px）。 */}
             <div
               className="relative h-7"
               style={
@@ -675,17 +684,13 @@ export function ModelThinkingControl({
                 } as React.CSSProperties
               }
             >
-              <div
-                aria-hidden="true"
-                className="effort-track absolute inset-y-1 inset-x-0 overflow-hidden rounded-full bg-foreground/10"
-              >
-                <div
-                  className="h-full bg-[var(--brand-blue)]"
-                  style={{ width: 'var(--effort-fill)' }}
-                />
-                <div className="absolute inset-0 flex items-center justify-between px-2.5">
+              <div aria-hidden="true" className="effort-track absolute inset-x-3 inset-y-0">
+                <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-surface-active">
+                  <div className="h-full bg-star" style={{ width: 'var(--effort-fill)' }} />
+                </div>
+                <div className="absolute inset-0 flex items-center justify-between">
                   {levels.map((level) => (
-                    <i key={level} className="size-1.5 rounded-full bg-foreground/20" />
+                    <i key={level} className="h-2.5 w-px bg-stroke-strong" />
                   ))}
                 </div>
               </div>
@@ -721,7 +726,7 @@ export function ModelThinkingControl({
             </div>
             {levels.length > 1 && (
               <div
-                className="flex justify-between px-1 pt-1 text-[11px] text-muted-foreground"
+                className="flex justify-between px-0.5 pt-1 text-xs text-content-muted"
                 aria-hidden="true"
               >
                 <span>{thinkingLevelLabel(t, levels[0])}</span>
@@ -731,13 +736,13 @@ export function ModelThinkingControl({
           </div>
         )}
         {deferred && (
-          <p className="px-2.5 pt-1 pb-2 text-xs leading-4 text-muted-foreground" role="status">
+          <p className="px-2 pt-1 pb-2 text-xs leading-4 text-content-muted" role="status">
             {t('chat:focusSession.runtimeSelectionDeferred')}
           </p>
         )}
         {(!supported || levels.length === 1) && (
           <p
-            className="border-t border-[var(--stroke-soft)] px-2.5 pt-2.5 pb-2 text-xs leading-relaxed text-muted-foreground"
+            className="border-t border-stroke-soft px-2 pt-2 pb-1.5 text-xs leading-relaxed text-content-muted"
             role="status"
           >
             {supported
@@ -788,7 +793,7 @@ export function ApprovalModeSelect({
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 270 })
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 300 })
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const options = executionModeOptions(t)
@@ -800,9 +805,10 @@ export function ApprovalModeSelect({
     const rect = trigger.getBoundingClientRect()
     const edge = 8
     const gap = 8
-    const width = Math.min(270, window.innerWidth - edge * 2)
+    const width = Math.min(300, window.innerWidth - edge * 2)
     const height = menuRef.current?.offsetHeight || 190
-    const left = Math.max(edge, Math.min(rect.right - width, window.innerWidth - width - edge))
+    // 与触发芯片左缘对齐向右展开，避免菜单越过输入框伸进侧栏；右侧空间不足时再回推。
+    const left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge))
     const top =
       rect.top >= height + gap + edge
         ? rect.top - height - gap
@@ -843,11 +849,11 @@ export function ApprovalModeSelect({
     createPortal(
       <div
         ref={menuRef}
-        className="permission-mode-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-[48px] [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-[8px] [&_>_button]:border-0 [&_>_button]:rounded-[var(--r-sm)] [&_>_button]:bg-transparent [&_>_button]:text-[var(--text)] [&_>_button]:p-[6px_7px] [&_>_button]:text-left [&_>_button:hover]:bg-[var(--accent-soft)] [&_>_button.active]:bg-[var(--accent-soft)] [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-[2px] [&_strong]:text-[length:var(--app-font-size)] [&_strong]:font-medium [&_small]:text-[var(--text-secondary)] [&_small]:font-normal [&_small]:text-[length:var(--app-small-size)] [&_small]:leading-normal [&_>_button_>_svg]:text-[var(--star-strong)] absolute z-[35] right-0 [bottom:calc(100%_+_8px)] w-[250px] overflow-hidden [border:1px_solid_var(--stroke)] rounded-[var(--r-md)] bg-[var(--solid)] [padding:5px] shadow-[0_18px_42px_-18px_var(--menu-shadow)] execution-mode-menu !fixed !right-auto !bottom-auto z-[80]"
+        className="permission-mode-menu [&_>_button]:grid [&_>_button]:w-full [&_>_button]:min-h-11 [&_>_button]:cursor-pointer [&_>_button]:grid-cols-[auto_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-2.5 [&_>_button]:rounded-sm [&_>_button]:bg-transparent [&_>_button]:px-2 [&_>_button]:py-1.5 [&_>_button]:text-left [&_>_button]:text-content [&_>_button:hover]:bg-surface-hover [&_>_button.active]:bg-surface-hover [&_>_button_>_span:nth-child(2)]:flex [&_>_button_>_span:nth-child(2)]:min-w-0 [&_>_button_>_span:nth-child(2)]:flex-col [&_>_button_>_span:nth-child(2)]:gap-0.5 [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:text-xs [&_small]:leading-normal [&_small]:font-normal [&_small]:text-content-muted [&_>_button_>_svg]:text-accent-fg w-[300px] overflow-hidden rounded-md bg-solid p-1 text-content shadow-float execution-mode-menu !fixed z-[80]"
         style={menuPosition}
         role="menu"
       >
-        <div className="[padding:6px_8px_4px] text-[var(--text-secondary)] text-[length:var(--app-small-size)] font-semibold">
+        <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-content-muted">
           {t('chat:focusSession.approvalMode')}
         </div>
         {options.map(([mode, label, description, Icon]) => (
@@ -863,15 +869,15 @@ export function ApprovalModeSelect({
             key={mode}
           >
             <span
-              className={`permission-level [&.level-auto]:bg-[var(--accent-soft)] [&.level-auto]:text-[var(--star-strong)] [&.level-ignore]:bg-[var(--danger-soft)] [&.level-ignore]:text-[var(--danger)] [&.level-full-access]:bg-[var(--danger-soft)] [&.level-full-access]:text-[var(--danger)] grid w-[32px] h-[32px] place-items-center rounded-[var(--r-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)] level-${mode}`}
+              className={`permission-level [&.level-full-access]:bg-danger-soft [&.level-full-access]:text-danger grid size-7 place-items-center rounded-sm bg-surface-muted text-content-secondary level-${mode}`}
             >
-              <Icon size={13} />
+              <Icon size={14} />
             </span>
             <span>
               <strong>{label}</strong>
               <small>{description}</small>
             </span>
-            {mode === current[0] && <Check size={13} />}
+            {mode === current[0] && <Check size={15} strokeWidth={2.25} />}
           </button>
         ))}
       </div>,
@@ -884,9 +890,10 @@ export function ApprovalModeSelect({
         ref={rootRef}
         className={`permission-mode-select relative min-w-0 shrink-0 ${compact ? 'compact' : ''} ${open ? 'open' : ''}`}
       >
+        {/* 审批模式始终是带文字的芯片：宽时显示完整模式名，窄输入区退为「审批」短标签，图标形状区分模式。 */}
         <button
           type="button"
-          className={`permission-mode-trigger inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-transparent px-1.5 text-[13px] transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-55 ${showLabel ? 'max-w-[104px] min-[651px]:max-w-[124px]' : 'w-[38px]'} ${current[0] === 'full-access' ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'} mode-${current[0]}`}
+          className={`permission-mode-trigger inline-flex h-7 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-sm border border-stroke bg-panel pr-1.5 pl-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content disabled:cursor-not-allowed disabled:opacity-55 max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:pr-2 max-[650px]:pl-3 max-[650px]:text-sm pointer-coarse:h-11 [&.mode-full-access]:border-[var(--warning-border)] [&.mode-full-access]:bg-warning-soft [&.mode-full-access]:text-warning-strong ${showLabel ? 'max-w-[180px]' : 'w-[38px]'} mode-${current[0]}`}
           title={t('chat:focusSession.approvalModeModeDescription', {
             mode: current[1],
             description: current[2],
@@ -898,10 +905,18 @@ export function ApprovalModeSelect({
           onClick={() => setOpen((visible) => !visible)}
         >
           <CurrentIcon
-            className={`shrink-0 ${showLabel ? 'max-[650px]:hidden' : ''}`}
-            size={showLabel ? 16 : compact ? 11 : 14}
+            className={`shrink-0 opacity-80 ${showLabel ? 'max-[650px]:hidden' : ''}`}
+            size={showLabel ? 15 : compact ? 11 : 14}
           />
-          {showLabel && <span className="truncate">{current[1]}</span>}
+          {showLabel && (
+            <>
+              <span className="truncate @max-[520px]/composer-footer:hidden">{current[1]}</span>
+              <span className="hidden truncate @max-[520px]/composer-footer:inline">
+                {t('chat:focusSession.approvalShort')}
+              </span>
+              <ChevronDown size={14} className="shrink-0 opacity-70" aria-hidden="true" />
+            </>
+          )}
         </button>
       </div>
       {menu}

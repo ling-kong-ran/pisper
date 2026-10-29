@@ -29,10 +29,12 @@ export function MobileTabBar({
   onSelect: (id: string) => void
   // 侧栏分组名偏长（如“工作台与项目”），底栏按组 id 换成短名。
   shortLabels?: Record<string, string>
+  // 插件、星忆等页同时属于某个分组和设置；归属由壳层按进入来源判定后传入，
+  // 归设置时 activeId 为空，分组不再点亮，保证底栏与设置分区条一致。
   settings: {
     label: string
     icon: LucideIcon
-    contains: (id: string) => boolean
+    active: boolean
     onSelect: () => void
   }
   label: string
@@ -40,29 +42,10 @@ export function MobileTabBar({
 }) {
   const lastVisitedRef = useRef<Record<string, string>>({})
   const [sheetGroupId, setSheetGroupId] = useState<string | null>(null)
-  // 插件、星忆等页同时属于某个分组和设置；以最后点过的标签为归属，避免从设置进入后高亮跳走。
-  const [owner, setOwner] = useState<string | null>(null)
-  const owns = (tabId: string, id: string) =>
-    tabId === 'settings'
-      ? settings.contains(id)
-      : Boolean(groups.find((group) => group.id === tabId)?.items.some((item) => item.id === id))
-  const ownerValid = owner !== null && owns(owner, activeId)
-  const activeTabId = ownerValid
-    ? owner
-    : groups.find((group) => group.items.some((item) => item.id === activeId))?.id ||
-      (settings.contains(activeId) ? 'settings' : null)
+  const activeTabId = settings.active
+    ? 'settings'
+    : groups.find((group) => group.items.some((item) => item.id === activeId))?.id || null
 
-  // 点击标签与路由切换不在同一帧；归属等页面真正变化后再落定，离开归属页时才清除。
-  const pendingOwnerRef = useRef<string | null>(null)
-  const ownsRef = useRef(owns)
-  ownsRef.current = owns
-  useEffect(() => {
-    const pending = pendingOwnerRef.current
-    pendingOwnerRef.current = null
-    setOwner(
-      (current) => pending ?? (current && ownsRef.current(current, activeId) ? current : null),
-    )
-  }, [activeId])
   useEffect(() => {
     if (activeTabId && activeTabId !== 'settings') lastVisitedRef.current[activeTabId] = activeId
   }, [activeTabId, activeId])
@@ -86,11 +69,7 @@ export function MobileTabBar({
 
   const selectTab = (tab: MobileTab) => {
     if (!tab.group) {
-      if (tab.active) setOwner('settings')
-      else {
-        pendingOwnerRef.current = 'settings'
-        settings.onSelect()
-      }
+      if (!tab.active) settings.onSelect()
       return
     }
     const enabled = tab.group.items.filter((item) => !item.disabled)
@@ -101,7 +80,6 @@ export function MobileTabBar({
     const remembered = lastVisitedRef.current[tab.group.id]
     const target = enabled.find((item) => item.id === remembered) || enabled[0]
     if (!target) return
-    pendingOwnerRef.current = tab.group.id
     onSelect(target.id)
   }
 
@@ -110,7 +88,7 @@ export function MobileTabBar({
       <nav
         aria-label={label}
         data-testid="mobile-tab-bar"
-        className="mobile-tab-bar grid flex-none grid-flow-col auto-cols-fr border-t border-[var(--stroke-soft)] bg-[var(--app-chrome)] pb-[var(--pisper-safe-area-bottom)] [[data-mobile-keyboard='open']_&]:hidden"
+        className="mobile-tab-bar grid flex-none grid-flow-col auto-cols-fr border-t border-stroke bg-panel pb-[var(--pisper-safe-area-bottom)] [[data-mobile-keyboard='open']_&]:hidden"
       >
         {tabs.map((tab) => {
           const expandable =
@@ -122,20 +100,19 @@ export function MobileTabBar({
               aria-current={tab.active ? 'page' : undefined}
               aria-haspopup={expandable ? 'dialog' : undefined}
               aria-label={expandable ? groupPagesLabel(tab.label) : undefined}
+              // 选中标签只用强调色文字/图标 + 顶边 28×2 刻度表达，不加底色块；聚焦用内嵌焦点环与之区分。
               className={cn(
-                'flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 border-0 bg-transparent px-1 text-[11px] font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]',
-                tab.active && 'text-content',
+                'relative flex h-14 min-w-0 flex-col items-center justify-center gap-1 border-0 bg-transparent px-1 text-xs leading-none text-content-muted transition-colors duration-[var(--d-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset active:bg-surface-subtle',
+                tab.active &&
+                  'font-medium text-accent-fg before:absolute before:top-[-1px] before:left-1/2 before:h-0.5 before:w-7 before:-translate-x-1/2 before:rounded-b-[2px] before:bg-star',
               )}
               onClick={() => selectTab(tab)}
             >
-              <span
-                className={cn(
-                  'grid h-7 w-12 place-items-center rounded-full transition-colors',
-                  tab.active && 'bg-surface-hover',
-                )}
-              >
-                <tab.icon className="size-5" aria-hidden="true" />
-              </span>
+              <tab.icon
+                className="size-[22px]"
+                strokeWidth={tab.active ? 2 : 1.75}
+                aria-hidden="true"
+              />
               <span className="flex max-w-full items-center gap-0.5">
                 <span className="truncate">{tab.label}</span>
                 {expandable && <ChevronUp className="size-3 shrink-0" aria-hidden="true" />}
@@ -148,14 +125,11 @@ export function MobileTabBar({
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="gap-0 rounded-t-2xl px-2 pt-2 pb-[calc(8px+var(--pisper-safe-area-bottom))]"
+          className="gap-0 px-2 pt-2 pb-[calc(8px+var(--pisper-safe-area-bottom))]"
         >
-          <div
-            className="mx-auto mb-1 h-1 w-9 rounded-full bg-[var(--stroke)]"
-            aria-hidden="true"
-          />
+          <div className="mx-auto mb-1 h-1 w-9 rounded-full bg-stroke-strong" aria-hidden="true" />
           <SheetHeader className="px-3 pt-2 pb-1">
-            <SheetTitle className="text-[13px] text-muted-foreground">
+            <SheetTitle className="text-xs font-medium tracking-[.02em] text-content-muted">
               {sheetGroup?.label}
             </SheetTitle>
           </SheetHeader>
@@ -168,15 +142,26 @@ export function MobileTabBar({
                   type="button"
                   disabled={item.disabled}
                   aria-current={current ? 'page' : undefined}
-                  className="flex min-h-12 items-center gap-3 rounded-xl border-0 bg-transparent px-3 text-left text-[15px] text-content hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)] disabled:opacity-40"
+                  className={cn(
+                    'flex min-h-[52px] items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-[15px] text-content active:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset disabled:opacity-40',
+                    current && 'font-medium',
+                  )}
                   onClick={() => {
                     setSheetGroupId(null)
                     if (!current) onSelect(item.id)
                   }}
                 >
-                  <item.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <item.icon
+                    className={cn(
+                      'size-5 shrink-0',
+                      current ? 'text-accent-fg' : 'text-content-muted',
+                    )}
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {current && <Check className="size-4 shrink-0" aria-hidden="true" />}
+                  {current && (
+                    <Check className="size-4 shrink-0 text-accent-fg" aria-hidden="true" />
+                  )}
                 </button>
               )
             })}

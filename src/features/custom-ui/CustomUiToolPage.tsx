@@ -1,5 +1,5 @@
 import { PageFrame } from '@/components/app/PageFrame'
-import { PageToolbar } from '@/components/app/PageToolbar'
+import { PageState } from '@/components/app/PageState'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Settings2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -13,42 +13,43 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
   const { t } = useI18n()
   const query = useCustomUiComponents()
   const component = query.data?.components.find((item) => item.id === componentId)
+  // 工具页铺满主纸面：44px 工具条以细线与组件舞台分隔，舞台本身不再套第二层卡片。
   return (
     <PageFrame variant="workbench">
-      <div className="flex h-full min-h-0 min-w-0 flex-col p-3">
-        <PageToolbar>
-          <Button variant="ghost" size="sm" asChild>
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-1 border-b border-stroke-soft px-2 py-1.5">
+          <Button variant="ghost" size="sm" className="max-[650px]:h-11" asChild>
             <Link to="/chat">
               <ArrowLeft />
               {t('custom-ui:tool.back')}
             </Link>
           </Button>
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="sm" className="max-[650px]:h-11" asChild>
             <Link to="/config/interface?view=widgets">
               <Settings2 />
               {t('custom-ui:tool.openSettings')}
             </Link>
           </Button>
-        </PageToolbar>
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border bg-card">
+        </div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           {component ? (
             <CustomUiFrame component={component} notify={notify} />
+          ) : query.isPending ? (
+            <PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />
           ) : (
-            <div
-              className="flex h-full flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
-              role="status"
-            >
-              {query.isPending
-                ? t('custom-ui:customUiPage.loading')
-                : query.error
+            <PageState
+              kind="error"
+              title={
+                query.error
                   ? t('custom-ui:widget.catalogFailed')
-                  : t('custom-ui:widget.missing', { id: componentId })}
-              {!query.isPending && (
-                <Button variant="outline" onClick={() => void query.refetch()}>
+                  : t('custom-ui:widget.missing', { id: componentId })
+              }
+              action={
+                <Button variant="secondary" onClick={() => void query.refetch()}>
                   {t('custom-ui:widget.retry')}
                 </Button>
-              )}
-            </div>
+              }
+            />
           )}
         </div>
       </div>

@@ -22,18 +22,21 @@ import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-con
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { clampSidebarWidth } from '@/lib/sidebar-width'
-import { getNavigation, getPageMeta } from '@/app/navigation'
+import { getNavigation, getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
 import { PAGE_IDS, pageFromPath, pagePath } from '@/app/routes'
 import {
+  ACTIVITY_NAVIGATION_STATE,
   CONFIG_SECTIONS,
   getSettingsNavigation,
   SETTINGS_PAGES,
+  settingsOwnsPage,
   type SettingsDestination,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { ensureCustomUiMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
+import { cn } from '@/lib/utils'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { TerminalProvider } from '@/features/terminal/public'
 import { AppSidebar } from '@/components/layout/AppSidebar'
@@ -186,6 +189,8 @@ function App() {
   const navigation = useMemo(() => getNavigation(t, capabilities), [capabilities, t])
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'chat'
+  // 同时挂在功能栏分组与设置导航下的页面按进入来源确定唯一归属，壳层各处共用这一结论。
+  const settingsOwned = settingsOwnsPage(page, location.state)
   const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
   const [installedTools, setInstalledTools] = useState<Array<{ id: string; name: string }>>([])
@@ -224,7 +229,7 @@ function App() {
   const drawerSidebar = mobileLayout || compactSidebarViewport
   const [paletteOpen, setPaletteOpen] = useState(false)
   const preferredSidebarCollapsed = useUiStore((state) => state.sidebarCollapsed)
-  const persistentSettingsSidebar = !drawerSidebar && SETTINGS_PAGES.has(page)
+  const persistentSettingsSidebar = !drawerSidebar && settingsOwned
   const sidebarCollapsed = !persistentSettingsSidebar && preferredSidebarCollapsed
   const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
   const preferredSidebarWidth = useUiStore((state) => state.sidebarWidth)
@@ -706,7 +711,15 @@ function App() {
               .find((item) => item.key === `config:${configSection}`)?.label || pageMeta.config[0],
             '',
           ]
-        : pageMeta[page] || [t('common:app.sessions'), '']
+        : page === 'workflowCreate'
+          ? // 编辑器挂载前（懒加载）按路由段推断；挂载后以编辑器判断为准（不存在的 id 打开的是空白新建草稿）。
+            getWorkflowEditorMeta(
+              t,
+              workflowActions
+                ? workflowActions.editing
+                : decodePathSegment(location.pathname.split('/')[2] || 'new') !== 'new',
+            )
+          : pageMeta[page] || [t('common:app.sessions'), '']
 
   const updateNotificationSettings = useCallback((settings: NotificationSettingsData) => {
     // 回调须稳定，否则通知表单会因依赖变化重复加载；保存值不能被较早的请求覆盖。
@@ -737,11 +750,16 @@ function App() {
   const workbenchNavigationProps = {
     activeSessionId,
     page,
+    settingsOwned,
+    componentId:
+      page === 'customComponentTool'
+        ? decodePathSegment(location.pathname.split('/')[3] || '')
+        : '',
     installedTools,
     onSelect: (id: string) => {
       if (id.startsWith('component:'))
         routerNavigate(`/tools/components/${encodeURIComponent(id.slice(10))}`)
-      else navigate(id)
+      else navigate(id, { state: ACTIVITY_NAVIGATION_STATE })
     },
     onSettings: () => navigateSettings({ type: 'config', id: 'models' }),
   }
@@ -752,10 +770,10 @@ function App() {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        className="app-startup dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full min-h-[100vh] items-center justify-center gap-[10px] bg-[var(--bg)] text-[var(--text-muted)] text-[13px]"
+        className="app-startup flex min-h-[100vh] w-full items-center justify-center gap-2.5 bg-chrome text-[13px] text-content-muted"
       >
-        <BrandLogo size={30} className="startup-logo [.app-startup_&]:mr-[2px]" />
-        <strong>{t('common:app.wakingPisper')}</strong>
+        <BrandLogo size={30} className="startup-logo" />
+        <strong className="font-medium">{t('common:app.wakingPisper')}</strong>
       </div>
     )
 
@@ -764,7 +782,7 @@ function App() {
       <TerminalProvider bridge={window.pisperDesktop}>
         <div
           ref={appShellRef}
-          className="app-shell dark:bg-[var(--bg)] dark:text-[var(--text)] flex w-full h-full min-h-0 flex-col overflow-hidden bg-[var(--bg)] pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
+          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
           data-mobile-app={mobileLayout || undefined}
           data-phone-shell={phoneShell || undefined}
           data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
@@ -793,10 +811,14 @@ function App() {
             style={
               {
                 '--sidebar-width': `${sidebarWidth}px`,
-                '--workbench-leading-inset': drawerSidebar || sidebarCollapsed ? '44px' : '0px',
+                '--workbench-leading-inset': drawerSidebar
+                  ? '44px'
+                  : sidebarCollapsed
+                    ? '32px'
+                    : '0px',
               } as CSSProperties
             }
-            className="app-body flex min-h-0 flex-1 overflow-hidden bg-[var(--app-chrome)]"
+            className="app-body flex min-h-0 flex-1 overflow-hidden bg-chrome"
             data-mobile-app={mobileLayout || undefined}
             data-resizing={sidebarWidthPreview !== null || undefined}
             mobile={drawerSidebar}
@@ -848,6 +870,7 @@ function App() {
             )}
             <AppSidebar
               page={page}
+              settingsOwned={settingsOwned}
               configSection={configSection}
               navigate={navigate}
               navigateSettings={navigateSettings}
@@ -886,8 +909,15 @@ function App() {
                 </Suspense>
               }
             />
+            {/* 主内容是内嵌纸面：上/右/下留 8px 外壳边距、10px 圆角与 1px 细线；手机壳整屏铺满。
+                Windows 自绘标题栏时纸面贴住窗口顶部和右缘，让窗口按钮落在真实窗角、压在页头预留区上。 */}
             <SidebarInset
-              className={`main-surface relative flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-background ${phoneShell ? '' : `${!drawerSidebar ? 'rounded-r-2xl' : ''} ${sidebarCollapsed || drawerSidebar ? 'rounded-l-2xl' : ''}`}`}
+              className={cn(
+                'main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel',
+                phoneShell
+                  ? 'h-full'
+                  : 'my-2 mr-2 rounded-lg border border-stroke shadow-raise [[data-custom-titlebar]_&]:mt-0 [[data-custom-titlebar]_&]:mr-0 [[data-custom-titlebar]_&]:rounded-tr-none [[data-custom-titlebar]_&]:border-t-0 [[data-custom-titlebar]_&]:border-r-0',
+              )}
             >
               <WorkbenchHeader
                 title={activeMeta[0]}
@@ -909,6 +939,7 @@ function App() {
                     elementRef={pageHeaderRef}
                     meta={activeMeta}
                     page={page}
+                    settingsOwned={settingsOwned}
                     query={query}
                     setQuery={setQuery}
                     configSection={configSection}
@@ -937,7 +968,7 @@ function App() {
                   />
                 </Suspense>
               )}
-              {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && (
+              {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && settingsOwned && (
                 <MobileSettingsNavigation
                   page={page}
                   configSection={configSection}
@@ -946,7 +977,7 @@ function App() {
                 />
               )}
               <div
-                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pb-5 max-[650px]:px-3`}`}
+                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
                 key={page}
               >
                 <Outlet context={routeContext} />

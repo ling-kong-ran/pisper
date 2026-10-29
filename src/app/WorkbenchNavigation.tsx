@@ -1,17 +1,17 @@
 // 全局菜单按需加载，避免非当前页面的图标和菜单原语进入首屏依赖图。
 import { Blocks, Settings, FileDiff, TerminalSquare, Activity, Link2, Globe2 } from 'lucide-react'
-import { ActivityRail } from '@/components/layout/ActivityRail'
+import { ActivityRail, ActivityRailButton } from '@/components/layout/ActivityRail'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
-import { Button } from '@/components/ui/button'
 import { useI18n } from '@/app/use-i18n'
 import { getActivityNavigation } from '@/app/activity-navigation'
-import { SETTINGS_PAGES } from '@/app/settings-navigation'
 import { requestTaskContent, taskContentKinds } from '@/features/chat/public-workspace'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
 export function WorkbenchNavigation({
   page,
+  settingsOwned = page === 'config',
+  componentId = '',
   activeSessionId,
   installedTools,
   onSelect,
@@ -20,6 +20,10 @@ export function WorkbenchNavigation({
 }: {
   variant?: 'rail' | 'tabbar'
   page: string
+  // 当前路由是否归设置（壳层按进入来源判定）；归设置时只点亮设置键，不再点亮功能分组。
+  settingsOwned?: boolean
+  // 自定义组件工具页的组件 id，用来点亮扩展分组里对应的已安装工具。
+  componentId?: string
   activeSessionId: string
   installedTools: Array<{ id: string; name: string }>
   onSelect: (id: string) => void
@@ -87,7 +91,17 @@ export function WorkbenchNavigation({
           }
         : group,
   )
-  const activeId = page === 'workflowCreate' ? 'workflows' : page
+  // 功能分组与设置对同一路由只认一个归属；内置组件不在已安装工具列表里，退回「组件」项。
+  const componentItem = `component:${componentId}`
+  const activeId = settingsOwned
+    ? ''
+    : page === 'workflowCreate'
+      ? 'workflows'
+      : page === 'customComponentTool'
+        ? installedTools.some((tool) => tool.id === componentId)
+          ? componentItem
+          : 'components'
+        : page
   const select = (id: string) => {
     const kind = taskContentKinds.find((kind) => id === `task:${kind}`)
     if (kind) requestTaskContent(kind)
@@ -105,7 +119,7 @@ export function WorkbenchNavigation({
         settings={{
           label: t('navigation:navigation.settings'),
           icon: Settings,
-          contains: (id) => SETTINGS_PAGES.has(id),
+          active: settingsOwned,
           onSelect: onSettings,
         }}
       />
@@ -117,16 +131,15 @@ export function WorkbenchNavigation({
       groups={groups}
       activeId={activeId}
       onSelect={select}
+      shortLabels={{ workspace: t('navigation:rail.workspaceShort') }}
       footer={
-        <Button
-          variant="ghost"
-          className="size-11"
-          aria-label={t('navigation:navigation.settings')}
-          title={t('navigation:navigation.settings')}
+        // 插件、星忆等页同时归属功能分组；按进入来源只点亮一处，避免功能栏出现两个选中刻度。
+        <ActivityRailButton
+          icon={Settings}
+          label={t('navigation:navigation.settings')}
+          active={settingsOwned}
           onClick={onSettings}
-        >
-          <Settings className="size-5" />
-        </Button>
+        />
       }
     />
   )

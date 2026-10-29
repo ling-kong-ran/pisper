@@ -1,5 +1,6 @@
 // 会话树节点行渲染：移动端列表与桌面端分段轨道（含虚拟化）。
-// 从 SessionTreeDialog 拆出，样式类与原实现逐字一致。
+// 从 SessionTreeDialog 拆出。节点是细线卡片，选中项抬成键帽并带 3px 强调色刻度；
+// 标记为单色方块，只有当前位置（leaf）使用强调色实心。
 import { useEffect, type RefObject } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Bookmark } from 'lucide-react'
@@ -53,25 +54,25 @@ export function MobileSessionTreeList({
         const Icon = nodeIcon(node)
         return (
           <div
-            className="absolute top-0 left-0 w-full px-[12px] py-[4px]"
+            className="absolute top-0 left-0 w-full px-3 py-1"
             key={virtualItem.key}
             style={{ transform: `translateY(${virtualItem.start}px)` }}
           >
             <button
               type="button"
-              className={`session-tree-node hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.selected]:border-[var(--focus)] [&.selected]:bg-[var(--solid)] [&.selected]:shadow-[0_0_0_2px_var(--focus-ring)] grid min-h-[56px] w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--solid)] p-[7px_9px_7px_4px] text-left ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
+              className={`session-tree-node relative grid items-center gap-2 rounded-sm border border-stroke bg-panel text-left text-content transition-colors duration-(--d-fast) hover:bg-surface-subtle [&.selected]:border-key-border [&.selected]:bg-key [&.selected]:shadow-key [&.selected]:before:absolute [&.selected]:before:inset-y-2 [&.selected]:before:-left-px [&.selected]:before:w-[3px] [&.selected]:before:rounded-r-[3px] [&.selected]:before:bg-star min-h-14 w-full grid-cols-[34px_minmax(0,1fr)_auto] py-2 pr-2.5 pl-1 ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
               data-kind={node.kind}
               data-pisper-tree-entry={node.id}
               onClick={() => onSelect(node.id)}
             >
-              <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] grid size-[28px] place-items-center justify-self-center [border:2px_solid_var(--surface-subtle)] rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]">
+              <span className="session-tree-marker relative z-[2] grid size-6 place-items-center justify-self-center rounded-sm bg-surface-muted text-content-secondary [.session-tree-node[data-kind='tool']_&]:bg-warning-soft [.session-tree-node[data-kind='tool']_&]:text-warning-strong [.session-tree-node.leaf_&]:bg-star [.session-tree-node.leaf_&]:text-on-accent [.session-tree-mark.active_&]:bg-star-soft [.session-tree-mark.active_&]:text-star-strong">
                 <Icon size={14} />
               </span>
-              <span className="session-tree-node-copy flex min-w-0 flex-col gap-[2px] [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_small]:text-[10px] [&_small]:text-[var(--text-muted)] [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650]">
+              <span className="session-tree-node-copy flex min-w-0 flex-col gap-0.5 [&_small]:truncate [&_small]:text-xs [&_small]:text-content-muted [&_strong]:truncate [&_strong]:text-sm [&_strong]:font-medium">
                 <strong>{node.label || node.text || typeLabel(node)}</strong>
                 <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
               </span>
-              <span className="session-tree-node-state [.session-tree-node.active_&]:text-[var(--brand-blue-strong)] [.session-tree-node.leaf_&]:text-[var(--brand-blue-strong)] inline-flex items-center gap-[4px] text-[9px] text-[var(--text-muted)] [text-transform:uppercase]">
+              <span className="session-tree-node-state inline-flex min-w-0 shrink-0 items-center gap-1 text-xs text-content-muted [.session-tree-node.leaf_&]:text-accent-fg">
                 {node.label && <Bookmark size={12} />}
                 {stateLabel(node)}
               </span>
@@ -117,20 +118,20 @@ export function SessionTreeSegment({
     return (
       <button
         type="button"
-        className={`session-tree-node hover:border-[var(--stroke-hover)] hover:bg-[var(--solid)] [&.selected]:border-[var(--focus)] [&.selected]:bg-[var(--solid)] [&.selected]:shadow-[0_0_0_2px_var(--focus-ring),0_8px_20px_-18px_var(--shadow)] relative z-[1] grid w-[220px] min-h-[48px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[color-mix(in_srgb,var(--solid)_94%,transparent)] text-[var(--text)] [padding:6px_8px_6px_2px] text-left shadow-[0_4px_14px_-13px_var(--shadow)] cursor-pointer ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
+        className={`session-tree-node relative grid items-center gap-2 rounded-sm border border-stroke bg-panel text-left text-content transition-colors duration-(--d-fast) hover:bg-surface-subtle [&.selected]:border-key-border [&.selected]:bg-key [&.selected]:shadow-key [&.selected]:before:absolute [&.selected]:before:inset-y-2 [&.selected]:before:-left-px [&.selected]:before:w-[3px] [&.selected]:before:rounded-r-[3px] [&.selected]:before:bg-star z-[1] min-h-12 w-[220px] cursor-pointer grid-cols-[30px_minmax(0,1fr)_auto] py-1.5 pr-2 pl-0.5 ${node.id === selectedId ? ' selected' : ''}${node.active ? ' active' : ''}${node.leaf ? ' leaf' : ''}`}
         data-kind={node.kind}
         data-pisper-tree-entry={node.id}
         key={node.id}
         onClick={() => onSelect(node.id)}
       >
-        <span className="session-tree-marker [.session-tree-node[data-kind='user']_&]:bg-[var(--star-soft)] [.session-tree-node[data-kind='user']_&]:text-[var(--star-strong)] [.session-tree-node[data-kind='assistant']_&]:bg-[var(--brand-blue-soft)] [.session-tree-node[data-kind='assistant']_&]:text-[var(--brand-blue-strong)] [.session-tree-node[data-kind='tool']_&]:bg-[var(--warning-soft)] [.session-tree-node[data-kind='tool']_&]:text-[var(--warning-strong)] [.session-tree-node[data-kind='summary']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='summary']_&]:text-[var(--violet-strong)] [.session-tree-node[data-kind='compaction']_&]:bg-[var(--violet-soft)] [.session-tree-node[data-kind='compaction']_&]:text-[var(--violet-strong)] [.session-tree-node.active_&]:border-[var(--brand-blue-border)] [.session-tree-node.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] [.session-tree-node.leaf_&]:bg-[var(--star)] [.session-tree-node.leaf_&]:text-[var(--on-accent)] [.session-tree-mark.active_&]:border-[var(--brand-blue-border)] [.session-tree-mark.active_&]:shadow-[0_0_0_2px_var(--brand-blue-soft)] relative z-[2] grid w-[26px] h-[26px] place-items-center [justify-self:center] [border:2px_solid_var(--surface-subtle)] rounded-[50%] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+        <span className="session-tree-marker relative z-[2] grid size-6 place-items-center justify-self-center rounded-sm bg-surface-muted text-content-secondary [.session-tree-node[data-kind='tool']_&]:bg-warning-soft [.session-tree-node[data-kind='tool']_&]:text-warning-strong [.session-tree-node.leaf_&]:bg-star [.session-tree-node.leaf_&]:text-on-accent [.session-tree-mark.active_&]:bg-star-soft [.session-tree-mark.active_&]:text-star-strong">
           <Icon size={14} />
         </span>
-        <span className="session-tree-node-copy [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_small]:overflow-hidden [&_small]:text-ellipsis [&_small]:whitespace-nowrap [&_strong]:text-[12px] [&_strong]:font-[650] [&_small]:text-[var(--text-muted)] [&_small]:text-[10px] flex min-w-0 flex-col gap-[2px]">
+        <span className="session-tree-node-copy flex min-w-0 flex-col gap-0.5 [&_small]:truncate [&_small]:text-xs [&_small]:text-content-muted [&_strong]:truncate [&_strong]:text-sm [&_strong]:font-medium">
           <strong>{node.label || node.text || typeLabel(node)}</strong>
           <small>{node.label && node.text ? node.text : typeLabel(node)}</small>
         </span>
-        <span className="session-tree-node-state [.session-tree-node.active_&]:text-[var(--brand-blue-strong)] [.session-tree-node.leaf_&]:text-[var(--brand-blue-strong)] inline-flex min-w-0 items-center gap-[4px] text-[var(--text-muted)] text-[9px] [text-transform:uppercase]">
+        <span className="session-tree-node-state inline-flex min-w-0 shrink-0 items-center gap-1 text-xs text-content-muted [.session-tree-node.leaf_&]:text-accent-fg">
           {node.label && <Bookmark size={12} />}
           {stateLabel(node)}
         </span>
@@ -149,7 +150,7 @@ export function SessionTreeSegment({
     <div
       className={`session-tree-segment relative flex min-w-[220px] flex-col items-center ${segment.active ? ' active' : ''}`}
     >
-      <div className="session-tree-track before:absolute before:z-[0] before:top-[22px] before:bottom-[22px] before:left-[50%] before:w-[2px] before:rounded-[var(--r-pill)] before:bg-[var(--stroke)] before:[content:''] before:[transform:translateX(-1px)] [.session-tree-segment.active_>_&::before]:bg-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] relative z-[1] grid w-[220px] gap-[8px]">
+      <div className="session-tree-track relative z-[1] grid w-[220px] gap-2 before:absolute before:top-[22px] before:bottom-[22px] before:left-1/2 before:z-0 before:w-px before:bg-stroke-strong [.session-tree-segment.active_>_&::before]:bg-control">
         {shouldVirtualize ? (
           <div className="relative w-[220px]" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map((virtualItem) => (
@@ -167,10 +168,10 @@ export function SessionTreeSegment({
         )}
       </div>
       {children.length > 0 && (
-        <div className="session-tree-children before:absolute before:top-0 before:left-[50%] before:w-[2px] before:h-[14px] before:rounded-[var(--r-pill)] before:bg-[var(--stroke)] before:[content:''] before:[transform:translateX(-1px)] [.session-tree-segment.active_>_&::before]:bg-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] relative flex items-start justify-center [margin-top:0] [padding-top:28px]">
+        <div className="session-tree-children relative flex items-start justify-center pt-7 before:absolute before:top-0 before:left-1/2 before:h-3.5 before:w-px before:bg-stroke-strong [.session-tree-segment.active_>_&::before]:bg-control">
           {children.map((child) => (
             <div
-              className={`session-tree-child before:absolute before:top-0 before:w-[50%] before:h-[14px] before:[border-top:2px_solid_var(--stroke)] before:[content:''] after:absolute after:top-0 after:w-[50%] after:h-[14px] after:[border-top:2px_solid_var(--stroke)] after:[content:''] before:right-[50%] after:left-[50%] after:[border-left:2px_solid_var(--stroke)] [&:first-child::before]:[border-top-color:transparent] [&:last-child::after]:[border-top-color:transparent] [&.active::before]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active::after]:border-[color-mix(in_srgb,var(--brand-blue)_64%,var(--stroke))] [&.active:first-child::before]:[border-top-color:transparent] [&.active:last-child::after]:[border-top-color:transparent] relative flex [padding:14px_12px_0]${child.active ? ' active' : ''}`}
+              className={`session-tree-child relative flex px-3 pt-3.5 before:absolute before:top-0 before:right-1/2 before:h-3.5 before:w-1/2 before:border-t before:border-stroke-strong after:absolute after:top-0 after:left-1/2 after:h-3.5 after:w-1/2 after:border-t after:border-l after:border-stroke-strong [&:first-child::before]:border-t-transparent [&:last-child::after]:border-t-transparent [&.active]:before:border-control [&.active]:after:border-control [&.active:first-child::before]:border-t-transparent [&.active:last-child::after]:border-t-transparent${child.active ? ' active' : ''}`}
               key={child.id}
             >
               <SessionTreeSegment

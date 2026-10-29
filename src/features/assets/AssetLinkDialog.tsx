@@ -86,6 +86,7 @@ export function AssetLinkDialog({
             <FieldLabel variant="control">
               URL
               <input
+                className="font-mono"
                 value={url}
                 disabled={saving}
                 onChange={(event) => setUrl(event.target.value)}
@@ -99,7 +100,7 @@ export function AssetLinkDialog({
             )}
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" size="dialogAction" disabled={saving} onClick={onClose}>
+            <Button variant="secondary" size="dialogAction" disabled={saving} onClick={onClose}>
               {t('assets:assetsPage.cancel')}
             </Button>
             <Button

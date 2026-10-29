@@ -35,18 +35,19 @@ function Option({
       aria-checked={checked}
       disabled={disabled}
       onClick={onChange}
+      // 选中态是设计里的「开启」芯片：强调软底 + 强调描边 + 强调文字，外加实心勾选方块。
       className={cn(
-        'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition-colors disabled:opacity-50',
+        'inline-flex h-8 items-center gap-2 rounded-sm border px-2.5 text-sm transition-colors disabled:opacity-50 pointer-coarse:h-11',
         checked
-          ? 'border-foreground/30 bg-muted text-foreground'
-          : 'border-border hover:bg-muted/60',
+          ? 'border-star-border bg-star-soft text-star-strong'
+          : 'border-stroke text-content-secondary hover:bg-surface-hover hover:text-content',
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          'grid size-3.5 place-items-center rounded-[3px] border',
-          checked && 'border-primary bg-primary text-primary-foreground',
+          'grid size-3.5 place-items-center rounded-[3px] border border-control',
+          checked && 'border-star bg-star text-on-accent',
         )}
       >
         {checked && <Check size={11} />}

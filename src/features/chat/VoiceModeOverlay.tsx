@@ -195,7 +195,7 @@ export function VoiceModeOverlay({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[90] grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_100px_108px] overflow-hidden select-none pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] ${dark ? 'bg-[#030304] text-[#cfe8ff]' : 'bg-[#f2f5fa] text-[#1e2c42]'}`}
+      className="fixed inset-0 z-[90] grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_100px_108px] overflow-hidden bg-chrome pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] text-content select-none"
       ref={dialogRef}
       tabIndex={-1}
       role="dialog"
@@ -205,14 +205,10 @@ export function VoiceModeOverlay({
       {/* 左上品牌字标 + 状态呼吸点 */}
       <header className="pointer-events-none absolute left-[calc(env(safe-area-inset-left)_+_28px)] top-[calc(env(safe-area-inset-top)_+_24px)] flex items-center gap-3">
         <span
-          className={`inline-block size-2 rounded-full ${active ? 'animate-pulse bg-[#59e6ff]' : dark ? 'bg-[#3b4a5c]' : 'bg-[#b6c3d4]'}`}
+          className={`inline-block size-2 rounded-full ${active ? 'animate-pulse bg-star' : 'bg-content-faint'}`}
           aria-hidden="true"
         />
-        <span
-          className={`text-[13px] font-bold tracking-[0.42em] ${dark ? 'text-[#9be7ff] [text-shadow:0_0_14px_rgba(89,230,255,.45)]' : 'text-[#0d6ac9]'}`}
-        >
-          PISPER
-        </span>
+        <span className="text-[13px] font-semibold tracking-[0.3em] text-content">PISPER</span>
       </header>
 
       <div className="absolute top-[calc(env(safe-area-inset-top)_+_16px)] right-[calc(env(safe-area-inset-right)_+_16px)] z-10 flex items-center gap-1">
@@ -257,15 +253,13 @@ export function VoiceModeOverlay({
       {/* 状态行 + 字幕 */}
       <div className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 px-6 text-center">
         <div
-          className={`max-w-full text-[11px] font-semibold uppercase tracking-normal ${stage === 'error' ? 'max-h-full overflow-y-auto break-words text-[#f87171]' : `line-clamp-2 ${dark ? 'text-[#5f7a94]' : 'text-[#7488a0]'}`}`}
+          className={`max-w-full text-xs font-medium tracking-normal ${stage === 'error' ? 'max-h-full overflow-y-auto break-words text-danger' : 'line-clamp-2 text-content-muted'}`}
           role="status"
           aria-live="polite"
         >
           {statusLabel}
         </div>
-        <p
-          className={`m-0 line-clamp-2 min-h-[22px] max-w-[640px] text-[15px] leading-[1.6] ${dark ? 'text-[#d7e6f7]' : 'text-[#24344d]'}`}
-        >
+        <p className="m-0 line-clamp-2 min-h-[22px] max-w-[640px] text-[15px] leading-[1.6] text-content">
           {caption}
         </p>
       </div>
@@ -274,10 +268,10 @@ export function VoiceModeOverlay({
       <div className="relative flex justify-center pt-3 sm:items-center sm:pt-0">
         <button
           type="button"
-          className={`h-11 cursor-pointer rounded-full border bg-transparent px-9 text-[11px] font-semibold uppercase tracking-[0.3em] transition-[box-shadow,background-color,border-color] duration-300 ${
-            dark
-              ? 'border-[rgba(140,220,255,.4)] text-[#9be7ff] hover:border-[rgba(140,220,255,.8)] hover:bg-[rgba(89,230,255,.08)] hover:shadow-[0_0_28px_rgba(89,230,255,.25)]'
-              : 'border-[rgba(13,106,201,.45)] text-[#0d6ac9] hover:border-[rgba(13,106,201,.85)] hover:bg-[rgba(13,106,201,.07)] hover:shadow-[0_0_28px_rgba(13,106,201,.18)]'
+          className={`h-11 cursor-pointer rounded-full border px-8 text-sm font-medium transition-colors ${
+            active
+              ? 'border-control bg-key text-content shadow-key hover:bg-surface-hover'
+              : 'border-transparent bg-star text-on-accent shadow-primary hover:bg-star-hover'
           }`}
           onClick={() => (active ? voice.hangUp() : voice.toggleMain())}
         >
@@ -288,14 +282,12 @@ export function VoiceModeOverlay({
       {/* 右下：通话计时 */}
       <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)_+_12px)] right-[calc(env(safe-area-inset-right)_+_20px)] flex items-center gap-2.5 sm:bottom-[calc(env(safe-area-inset-bottom)_+_36px)] sm:right-[calc(env(safe-area-inset-right)_+_28px)]">
         <span
-          className="hidden size-9 place-items-center rounded-full sm:grid bg-[linear-gradient(135deg,#2563eb,#38bdf8)] text-[10px] font-bold text-white shadow-[0_0_18px_rgba(56,189,248,.4)]"
+          className="hidden size-9 place-items-center rounded-full border border-key-border bg-key text-xs text-accent-fg shadow-key sm:grid"
           aria-hidden="true"
         >
           {active ? '●' : '○'}
         </span>
-        <span
-          className={`font-mono text-[13px] tabular-nums tracking-[0.12em] ${dark ? 'text-[#7d93ad]' : 'text-[#61748c]'}`}
-        >
+        <span className="font-mono text-[13px] tracking-[0.08em] text-content-muted tabular-nums">
           {formatElapsed(elapsed)}
         </span>
       </div>

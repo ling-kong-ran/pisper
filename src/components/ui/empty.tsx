@@ -1,4 +1,4 @@
-// 空态（EmptyState）原语：居中展示图标/标题/描述的空状态容器。
+// 空态（EmptyState）原语：虚线强描边卡片内居中展示插画/标题/描述；标题 14/500，说明 12px 灰字。
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
@@ -8,7 +8,7 @@ function Empty({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="empty"
       className={cn(
-        'flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-dashed p-6 text-center text-balance',
+        'flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-stroke-strong p-6 text-center text-balance',
         className,
       )}
       {...props}
@@ -32,7 +32,7 @@ const emptyMediaVariants = cva(
     variants: {
       variant: {
         default: 'bg-transparent',
-        icon: "flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground [&_svg:not([class*='size-'])]:size-4",
+        icon: "flex size-8 shrink-0 items-center justify-center rounded-md border border-stroke bg-key text-content-muted shadow-key [&_svg:not([class*='size-'])]:size-4",
       },
     },
     defaultVariants: {
@@ -60,7 +60,7 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="empty-title"
-      className={cn('font-heading text-sm font-medium tracking-tight', className)}
+      className={cn('font-heading text-base font-medium text-content-secondary', className)}
       {...props}
     />
   )
@@ -71,7 +71,7 @@ function EmptyDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <div
       data-slot="empty-description"
       className={cn(
-        'text-sm/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
+        'text-xs/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
         className,
       )}
       {...props}

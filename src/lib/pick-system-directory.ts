@@ -18,10 +18,16 @@ export async function pickSystemDirectory(
     const path = await pickDirectory(initialDirectory || undefined)
     return path ? { status: 'picked', path } : { status: 'cancelled' }
   }
-  const result = await apiJson<RuntimePickResponse>('/api/local/directory-picker', {
-    method: 'POST',
-    body: JSON.stringify({ initialDirectory, title }),
-  })
+  let result: RuntimePickResponse
+  try {
+    result = await apiJson<RuntimePickResponse>('/api/local/directory-picker', {
+      method: 'POST',
+      body: JSON.stringify({ initialDirectory, title }),
+    })
+  } catch {
+    // 旧版或经代理访问的 Runtime 没有这个接口（404 等），同样退回手动填写，而不是报错中断新建项目。
+    return { status: 'unavailable' }
+  }
   if (result.status === 'picked' && result.path) return { status: 'picked', path: result.path }
   // busy 表示系统对话框已经打开，本次点击不再叠加窗口。
   if (result.status === 'cancelled' || result.status === 'busy') return { status: 'cancelled' }

@@ -38,6 +38,11 @@ const NOTIFICATION_TARGETS = {
 }
 
 const WORKFLOW_EXECUTION_MODES: WorkflowExecutionMode[] = ['workspace-write', 'full-access']
+// 通知前置条件提示：警示软底 + 警示描边，说明与跳转链接同一行，12px 下限保证中文可读。
+const NOTIFICATION_ALERT =
+  'workflow-notification-alert mt-2.5 mb-1.5 border-(--warning-border) bg-warning-soft text-content-secondary *:[svg]:text-warning-strong [&_[data-slot=alert-description]]:flex [&_[data-slot=alert-description]]:flex-wrap [&_[data-slot=alert-description]]:items-center [&_[data-slot=alert-description]]:gap-1 [&_[data-slot=alert-description]]:text-xs'
+// 说明块：次级表面上的 12px 弱化文字，与输入框区分但不加边框。
+const HINT = 'rounded-md bg-surface-subtle p-3 text-xs leading-relaxed text-content-muted'
 
 function executionModeLabel(mode: WorkflowExecutionMode, t: WorkflowTranslate) {
   if (mode === 'workspace-write') return t('workflows:workflowsPage.workspaceWrite')
@@ -205,11 +210,11 @@ function NodeNotificationSettings({
           placeholder="{{inputs.name}} · {{previous.summary}}"
         />
       </FieldLabel>
-      <strong className="block [margin-top:12px] text-[var(--text-secondary)] text-[12px]">
+      <strong className="mt-3 block text-xs font-medium text-content-secondary">
         {t('workflows:workflowsPage.notificationChannels')}
       </strong>
       {!hasExternalNotificationTarget && (
-        <Alert className="workflow-notification-alert [&_[data-slot='alert-description']]:flex [&_[data-slot='alert-description']]:items-center [&_[data-slot='alert-description']]:gap-[4px] [&_[data-slot='alert-description']]:text-[11px] [&_[data-slot='alert-description']]:leading-[1.4] [margin:10px_0_6px] [border-color:color-mix(in_srgb,var(--warning)_35%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,var(--card))] text-[var(--text-secondary)]">
+        <Alert className={NOTIFICATION_ALERT}>
           <AlertTriangle />
           <AlertDescription>
             {t('workflows:workflowsPage.noExternalNotificationChannelsEnabled')}
@@ -221,7 +226,7 @@ function NodeNotificationSettings({
       )}
       {(systemNotificationPermission === 'denied' ||
         systemNotificationPermission === 'unsupported') && (
-        <Alert className="workflow-notification-alert [&_[data-slot='alert-description']]:flex [&_[data-slot='alert-description']]:items-center [&_[data-slot='alert-description']]:gap-[4px] [&_[data-slot='alert-description']]:text-[11px] [&_[data-slot='alert-description']]:leading-[1.4] [margin:10px_0_6px] [border-color:color-mix(in_srgb,var(--warning)_35%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,var(--card))] text-[var(--text-secondary)]">
+        <Alert className={NOTIFICATION_ALERT}>
           <AlertTriangle />
           <AlertDescription>
             {systemNotificationPermission === 'unsupported'
@@ -248,7 +253,7 @@ function NodeNotificationSettings({
             : Boolean(catalog.notificationTargets[id]?.enabled)
         return (
           <div
-            className="toggle-line [&_>_span]:flex [&_>_span]:items-center [&_>_span]:gap-[7px] [&_>_span]:text-[12px] flex min-h-[34px] items-center justify-between [border-top:1px_solid_var(--stroke-soft)]"
+            className="toggle-line flex min-h-[34px] items-center justify-between gap-3 border-t border-stroke-soft text-sm max-[650px]:min-h-11 [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:text-content-secondary"
             key={id}
           >
             <span>
@@ -299,7 +304,7 @@ function SelectedConnection({
   const nodesById = new Map(nodes.map((node) => [node.id, node]))
   return (
     <section className="min-w-0 space-y-3">
-      <div className="workflow-edge-summary [&_strong]:overflow-hidden [&_strong]:text-ellipsis [&_strong]:whitespace-nowrap [&_span]:text-[var(--text-muted)] grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[8px] [margin:10px_0]">
+      <div className="workflow-edge-summary my-2.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-sm [&_strong]:truncate [&_strong]:font-medium [&>span]:text-content-faint">
         <strong>
           {nodesById.get(edge.source)?.label || t('workflows:workflowsPage.unknownNode')}
         </strong>
@@ -308,7 +313,7 @@ function SelectedConnection({
           {nodesById.get(edge.target)?.label || t('workflows:workflowsPage.unknownNode')}
         </strong>
       </div>
-      <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+      <p className="muted-copy text-xs leading-relaxed text-content-muted">
         {t('workflows:workflowsPage.pressDeleteOrBackspaceToRemoveThisConnection')}
       </p>
       <Button size="sm" variant="destructive" onClick={onDelete}>
@@ -385,18 +390,12 @@ function SelectedNode({
             </FieldLabel>
           )}
           {node.kind === 'trigger' && (
-            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
-              {t('workflows:editor.manualTriggerHint')}
-            </p>
+            <p className={HINT}>{t('workflows:editor.manualTriggerHint')}</p>
           )}
-          {node.kind === 'parallel' && (
-            <p className="rounded-lg bg-[var(--surface-subtle)] p-3 text-xs leading-relaxed text-muted-foreground">
-              {t('workflows:editor.parallelHint')}
-            </p>
-          )}
+          {node.kind === 'parallel' && <p className={HINT}>{t('workflows:editor.parallelHint')}</p>}
           {!['trigger', 'parallel', 'condition', 'approval'].includes(node.kind) && (
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-xs font-medium">
+            <details className="rounded-md border border-stroke p-3">
+              <summary className="cursor-pointer text-xs font-medium text-content-secondary">
                 {t('workflows:editor.executionSettings')}
               </summary>
               <div className="grid gap-3 pt-3">
@@ -507,7 +506,7 @@ function SelectedNode({
                 />
               </FieldLabel>
               <div className="space-y-2 py-2">
-                <p className="text-xs leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-content-muted">
                   {t('workflows:inputs.nodeRulesHint')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -646,7 +645,7 @@ function SelectedNode({
               </FieldLabel>
             </>
           )}
-          <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
+          <div className="mt-4 flex gap-2 max-[650px]:flex-wrap">
             <Button size="sm" variant="secondary" onClick={onCopy}>
               <Copy data-icon="inline-start" />
               {t('workflows:workflowsPage.duplicateNode')}
@@ -658,7 +657,7 @@ function SelectedNode({
           </div>
         </>
       ) : (
-        <p className="muted-copy m-[8px_0_14px] text-[var(--text-muted)] text-[12px] leading-[1.55]">
+        <p className="muted-copy text-xs leading-relaxed text-content-muted">
           {selectedEdge
             ? t('workflows:workflowsPage.aConnectionIsCurrentlySelected')
             : t('workflows:workflowsPage.dragNodesFromTheLeftToStartBuildingTheWorkflow')}
@@ -741,7 +740,7 @@ export function WorkflowNodeInspector({
         />
       )}
       {selectedNode && isWorkflowImageNodeKind(selectedNode.kind) && onRunImageNode && (
-        <div className="space-y-2 rounded-lg border p-3">
+        <div className="space-y-2 rounded-md border border-stroke p-3">
           <Button
             className="w-full"
             variant="outline"
@@ -753,7 +752,7 @@ export function WorkflowNodeInspector({
             <Play />
             {t('workflows:imageNodes.runNode')}
           </Button>
-          <p className="text-xs text-muted-foreground">{t('workflows:imageNodes.runNodeHint')}</p>
+          <p className="text-xs text-content-muted">{t('workflows:imageNodes.runNodeHint')}</p>
         </div>
       )}
       {selectedNode && isWorkflowImageNodeKind(selectedNode.kind) && (
@@ -771,11 +770,11 @@ export function WorkflowNodeInspector({
         />
       )}
       {draft.id && currentRun && (
-        <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">
+        <details className="overflow-hidden rounded-md border border-stroke">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium hover:bg-surface-subtle focus-visible:-outline-offset-2 max-[650px]:py-3">
             {t('workflows:workflowsPage.latestRun')}
           </summary>
-          <div className="mt-3">
+          <div className="border-t border-stroke-soft px-3 py-2.5">
             <WorkflowLatestRun run={currentRun} language={language} t={t} />
           </div>
         </details>

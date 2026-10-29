@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { AlertTriangle, Download, ExternalLink, File, Paperclip, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Download, ExternalLink, File, Paperclip } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import {
   Dialog,
   DialogBody,
@@ -76,19 +77,19 @@ export function AssetPreviewDialog({
       >
         <DialogHeader className="pr-8">
           <DialogTitle className="break-words leading-6">{asset.name}</DialogTitle>
-          <DialogDescription className="break-words">
+          <DialogDescription className="font-mono break-words tabular-nums">
             {asset.kind === 'link'
               ? asset.url
               : `${asset.mimeType || ''} · ${formatFileSize(asset.size)}`}
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="min-h-[min(240px,30dvh)] rounded-lg border border-border bg-surface-subtle p-3">
+        <DialogBody className="min-h-[min(240px,30dvh)] rounded-md border border-stroke bg-surface-subtle p-3">
           {media ? (
             mediaFailed ? (
-              <div role="alert" className="flex flex-col items-center gap-3 p-4">
-                <AlertTriangle />
+              <div role="alert" className="flex flex-col items-center gap-3 p-4 text-sm">
+                <AlertTriangle className="size-5 text-danger" />
                 <p>{t('assets:assetsPage.mediaFailed')}</p>
-                <Button variant="outline" onClick={retryMedia}>
+                <Button variant="secondary" onClick={retryMedia}>
                   {t('assets:assetsPage.retry')}
                 </Button>
               </div>
@@ -113,7 +114,7 @@ export function AssetPreviewDialog({
             )
           ) : asset.kind === 'link' ? (
             <a
-              className="flex items-center gap-2 break-all underline"
+              className="flex items-center gap-2 font-mono text-sm break-all text-content underline underline-offset-4"
               href={asset.url}
               target="_blank"
               rel="noreferrer"
@@ -122,16 +123,19 @@ export function AssetPreviewDialog({
               {asset.url}
             </a>
           ) : content.isPending ? (
-            <div role="status" className="flex items-center justify-center gap-2 p-8">
-              <RefreshCw className="animate-spin" />
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 p-8 text-sm text-content-muted"
+            >
+              <OrbitSpinner />
               {t('assets:assetsPage.loadingPreview')}
             </div>
           ) : content.isError ? (
-            <div role="alert" className="flex flex-wrap items-center gap-2 p-4">
-              <AlertTriangle />
-              <span>{content.error.message}</span>
+            <div role="alert" className="flex flex-wrap items-center gap-2 p-4 text-sm text-danger">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span className="min-w-0 break-words">{content.error.message}</span>
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => {
                   void content.refetch()
                 }}
@@ -153,10 +157,10 @@ export function AssetPreviewDialog({
               </div>
             )
           ) : (
-            <div className="flex flex-col items-center gap-3 p-6 text-center">
-              <File size={42} />
-              <strong className="break-words">{asset.name}</strong>
-              <p>
+            <div className="flex flex-col items-center gap-2 p-6 text-center text-sm">
+              <File className="size-8 text-content-faint" strokeWidth={1.5} />
+              <strong className="font-medium break-words">{asset.name}</strong>
+              <p className="max-w-md text-xs text-content-muted">
                 {t(
                   'assets:assetsPage.thisFileTypeCanBeDownloadedSupportedDocumentsCanAlsoBeAddedToAChatForAnalysis',
                 )}
@@ -164,7 +168,7 @@ export function AssetPreviewDialog({
             </div>
           )}
           {content.data?.truncated && (
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-content-muted">
               {t('assets:assetsPage.previewTruncated')}
             </p>
           )}
@@ -177,7 +181,7 @@ export function AssetPreviewDialog({
         <DialogFooter>
           {asset.kind !== 'link' && (
             <Button
-              variant="outline"
+              variant="secondary"
               size="dialogAction"
               disabled={Boolean(busy)}
               loading={busy === 'open'}

@@ -25,6 +25,7 @@ import { startupQueryOptions } from '@/lib/startup-queries'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Kbd } from '@/components/ui/kbd'
 import { FieldLabel } from '@/components/ui/field'
 import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -323,13 +324,13 @@ export function CommandPalette({
         onPointerDownOutside={(event) => {
           if (pendingRef.current) event.preventDefault()
         }}
-        className="command-palette top-[max(16px,calc((100dvh-min(504px,90dvh))/2))]! w-[min(520px,92vw)]! max-w-none! translate-y-0! gap-1 overflow-hidden rounded-2xl border border-transparent bg-popover p-1 text-sm shadow-2xl ring-0 dark:border-border"
+        className="command-palette top-[max(16px,calc((100dvh-min(504px,90dvh))/2))]! w-[min(520px,92vw)]! max-w-none! translate-y-0! gap-1 overflow-hidden rounded-lg border-0 bg-popover p-1 text-sm shadow-float ring-0"
       >
         <DialogTitle className="sr-only">{t('navigation:appOverlays.commandPalette')}</DialogTitle>
         <DialogDescription className="sr-only">
           {t('navigation:appOverlays.searchPagesChatsOrActions')}
         </DialogDescription>
-        <label className="flex min-h-11 shrink-0 items-center gap-2 border-b border-border/50 px-3 text-muted-foreground">
+        <label className="flex min-h-11 shrink-0 items-center gap-2 border-b border-stroke-soft px-3 text-content-muted">
           <Search className="size-4 shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
@@ -340,7 +341,7 @@ export function CommandPalette({
             aria-expanded="true"
             aria-controls={listId}
             aria-activedescendant={selectedEntry ? `${listId}-${selectedIndex}` : undefined}
-            className="h-11 min-w-0 flex-1 border-0 bg-transparent text-base text-foreground outline-none"
+            className="h-11 min-w-0 flex-1 border-0 bg-transparent text-base text-foreground caret-focus outline-none"
             value={query}
             readOnly={Boolean(pendingEntryId)}
             onChange={(event) => {
@@ -361,7 +362,7 @@ export function CommandPalette({
           {pendingEntryId ? (
             <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           ) : (
-            <kbd className="rounded-sm border border-border px-1 text-xs">Esc</kbd>
+            <Kbd>Esc</Kbd>
           )}
         </label>
         {pendingEntryId && (
@@ -422,8 +423,10 @@ export function CommandPalette({
                       key={entry.id}
                       title={entry.title}
                       className={cn(
-                        'palette-item flex min-h-6 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm opacity-75 outline-none hover:bg-accent hover:opacity-100 focus-visible:bg-accent focus-visible:opacity-100 aria-disabled:opacity-25',
-                        index === selectedIndex && 'bg-accent opacity-100',
+                        // 当前项用实心表面而非半透明，配合 30px 行高与右侧等宽提示，保持仪器式密度；
+                        // 手机与粗指针下行高抬到 44px 触控下限。
+                        'palette-item flex min-h-[30px] w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-content-secondary outline-none hover:bg-surface-hover hover:text-content focus-visible:bg-surface-hover aria-disabled:opacity-40 max-[650px]:min-h-11 pointer-coarse:min-h-11 [&_svg]:text-content-muted',
+                        index === selectedIndex && 'bg-surface-hover text-content',
                       )}
                       onPointerMove={() => {
                         if (!pendingRef.current) setActiveId(entry.id)
@@ -444,7 +447,7 @@ export function CommandPalette({
                           </span>
                         )}
                       </span>
-                      <span className="w-24 shrink-0 truncate text-right text-xs text-muted-foreground">
+                      <span className="w-24 shrink-0 truncate text-right text-xs text-content-muted tabular-nums">
                         {entry.hint}
                       </span>
                     </button>
@@ -503,7 +506,7 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
         showCloseButton={false}
-        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] max-w-[430px]! gap-0 rounded-dialog border-surface-highlight shadow-dialog ring-0"
+        className="modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] max-[650px]:max-h-[calc(100dvh_-_16px)] max-w-[430px]! gap-0 rounded-dialog border-0 bg-popover p-5 shadow-float ring-0"
       >
         <form onSubmit={submit}>
           <AppCardHeader>
@@ -542,7 +545,7 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
             id="quick-create-type"
             name="type"
             defaultValue={options[0]}
-            className="mt-1 w-full bg-surface-subtle"
+            className="mt-1 h-[34px] w-full rounded-sm border border-control bg-panel px-2.5 text-[13px]"
           >
             {options.map((option) => (
               <option value={option} key={option}>
@@ -550,7 +553,7 @@ export function QuickCreate({ type, close, notify }: QuickCreateProps) {
               </option>
             ))}
           </select>
-          <div className="flex justify-end gap-[8px] [margin-top:18px]">
+          <div className="mt-5 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close}>
               {t('navigation:appOverlays.cancel')}
             </Button>

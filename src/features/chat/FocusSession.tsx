@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
@@ -192,6 +193,8 @@ export const FocusSession = memo(function FocusSession({
   const mobileApp = useIsMobileApp()
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  // 手机顶栏只属于手机外壳；桌面壳窄窗口仍用工作区 / 标题的桌面写法，避免与自绘窗口按钮冲突。
+  const phoneShell = mobileLayout && !window.pisperDesktop
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
@@ -388,7 +391,7 @@ export const FocusSession = memo(function FocusSession({
     resource: (
       <button
         type="button"
-        className="resource-picker-trigger grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)]"
+        className="resource-picker-trigger grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
         title={t('chat:resourcePicker.open')}
         aria-label={t('chat:resourcePicker.open')}
         onClick={() => setResourcePickerOpen(true)}
@@ -449,7 +452,7 @@ export const FocusSession = memo(function FocusSession({
     commands: (
       <button
         type="button"
-        className="command-palette-trigger relative grid size-9 min-w-9 place-items-center rounded-[var(--r-sm)] border-0 bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--star-strong)] [&_kbd]:sr-only"
+        className="command-palette-trigger relative grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 [&_kbd]:sr-only"
         title={
           COMMAND_PALETTE_SHORTCUT
             ? t('chat:focusSession.openCommandPaletteShortcut', {
@@ -487,30 +490,35 @@ export const FocusSession = memo(function FocusSession({
     ),
   }
   const availableComposerToolIds = COMPOSER_TOOL_IDS.filter((id) => composerTools[id] !== null)
+  // Plan 是默认值时可退入「+」；切到 Goal/Team 或目标运行中必须常驻，否则手机上看不到生效的执行模式。
+  const runModeEngaged = composerExecutionMode !== 'plan' || goal?.status === 'active'
   const toolbarAllocation = allocateComposerToolbar(
     toolbarLayout,
     availableComposerToolIds,
     // Respect the actual composer width; small layouts may move secondary settings into +.
     Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),
-    // 窄屏下审批与执行模式只剩图标（见下方容器查询），按图标宽度计，模型选择才能留在工具栏。
+    // 按 40px 槽位计：窄屏审批芯片约 70px、执行模式图标 48px，模型按「名称 · 思考等级」的理想宽度计。
     mobileLayout
-      ? { permission: 1, 'run-mode': 1, model: 3 }
+      ? { permission: 1.75, 'run-mode': 1.2, model: 4.4 }
       : { permission: 2.6, 'run-mode': 2, model: 3.9 },
+    // 手机上审批芯片与模型名必须可读，空间不足时先把未启用的执行模式收进「+」。
+    mobileLayout
+      ? runModeEngaged
+        ? ['permission', 'model', 'run-mode']
+        : ['permission', 'model']
+      : [],
   )
   const renderComposerTool = (id: ComposerToolId) => (
     <div
       className={cn(
         'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
+        // 模型药丸占据余下空间并靠右贴近发送键。常驻时槽位按余下宽度成为尺寸容器：
+        // 放不下「名称 · 等级」先隐藏等级，再隐藏箭头，模型名始终保留（等级仍在弹层与无障碍名称里）。
         id === 'model' &&
-          'ml-auto flex-1 [.composer-tool-tray_&]:ml-0 [.composer-tool-tray_&]:flex-none [&_.model-effort-pill]:max-w-full @max-[300px]/composer-footer:[&_.model-effort-pill>span:first-child]:hidden',
-        id === 'permission' &&
-          '@max-[520px]/composer-footer:[&_.permission-mode-trigger>span]:hidden @max-[520px]/composer-footer:[&_.permission-mode-trigger>svg]:block!',
-        id === 'run-mode' &&
-          '@max-[440px]/composer-footer:[&_.task-execution-mode-trigger>span]:hidden @max-[440px]/composer-footer:[&_.task-execution-mode-trigger>svg]:block!',
-        !['model', 'permission', 'run-mode'].includes(id) &&
-          'h-10 [&>button]:!size-10 [&>div]:!size-10 [&>div>button]:!size-10',
+          'ml-auto flex-1 justify-end [.composer-tool-tray_&]:ml-0 [.composer-tool-tray_&]:flex-none [.composer-tool-tray_&]:justify-start [&_.model-effort-pill]:max-w-full @max-[176px]/model-slot:[&_.model-effort-pill>span:nth-child(n+2)]:hidden @max-[124px]/model-slot:[&_.model-effort-pill>svg]:hidden',
+        id === 'model' && toolbarAllocation.inline.includes(id) && '@container/model-slot',
         // 收纳区里整行是一个菜单项：统一悬停底色，图标不再各自带底，文字也可点击。
-        '[.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&]:rounded-lg [.composer-tool-tray_&]:pr-2 [.composer-tool-tray_&]:hover:bg-foreground/5 [.composer-tool-tray_&_button]:!bg-transparent [.composer-tool-tray_&]:has-[button:disabled]:cursor-default [.composer-tool-tray_&]:has-[button:disabled]:opacity-50 [.composer-tool-tray_&]:has-[button:disabled]:hover:bg-transparent',
+        '[.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&]:rounded-sm [.composer-tool-tray_&]:pr-2 [.composer-tool-tray_&]:hover:bg-surface-hover [.composer-tool-tray_&_button]:!bg-transparent [.composer-tool-tray_&]:has-[button:disabled]:cursor-default [.composer-tool-tray_&]:has-[button:disabled]:opacity-50 [.composer-tool-tray_&]:has-[button:disabled]:hover:bg-transparent',
       )}
       data-composer-tool-id={id}
       key={id}
@@ -522,7 +530,7 @@ export const FocusSession = memo(function FocusSession({
     >
       {composerTools[id]}
       {!['model', 'permission', 'run-mode'].includes(id) && (
-        <span className="hidden text-[13px] text-foreground [.composer-tool-tray_&]:block">
+        <span className="hidden text-[13px] text-content [.composer-tool-tray_&]:block">
           {composerToolLabels[id]}
         </span>
       )}
@@ -531,7 +539,8 @@ export const FocusSession = memo(function FocusSession({
   const workspaceBlock = (
     <button
       type="button"
-      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 @max-[520px]:size-8 @max-[520px]:shrink-0 @max-[520px]:justify-center @max-[520px]:[&_span]:hidden"
+      // 窄容器下与分隔符一起隐藏：只剩 32px 文件夹图标既不达触控尺寸又留下孤立的“/”；更多菜单仍可改工作目录。
+      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 max-[650px]:h-11 pointer-coarse:h-11 @max-[520px]:hidden"
       title={cwd}
       aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
         workspace: workspaceName(cwd, language),
@@ -592,26 +601,55 @@ export const FocusSession = memo(function FocusSession({
           data-context-aside={(contextOpen && !contextCompact) || undefined}
           className={cn(
             'workbench-chat-header relative z-4 h-14 shrink-0 items-center gap-2 border-0 bg-transparent pr-4 pl-[calc(16px+var(--workbench-leading-inset,0px))] py-1',
+            // 手机单行顶栏：左侧让出与右侧两枚 44px 按钮等宽的位置（浮动菜单键落在其中），标题才能真正居中。
+            phoneShell && 'gap-0 pr-1 pl-[92px]',
           )}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1" data-window-drag-region>
-            {workspaceBlock}
-            <span className="text-muted-foreground/40" aria-hidden="true">
-              /
-            </span>
+            {!phoneShell && (
+              <>
+                {workspaceBlock}
+                <span className="text-muted-foreground/40 @max-[520px]:hidden" aria-hidden="true">
+                  /
+                </span>
+              </>
+            )}
             <button
               type="button"
-              className="group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted"
+              className={cn(
+                'group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted max-[650px]:min-h-11 pointer-coarse:min-h-11',
+                // 手机按设计稿两行居中：16/600 会话标题 + 12px 工作区与运行状态，整块仍是一个 44px 重命名目标。
+                phoneShell && 'min-h-11 flex-1 flex-col justify-center gap-0 py-0 text-center',
+              )}
               title={t('chat:focusSession.renameChat')}
               aria-label={t('chat:focusSession.renameChat')}
               onClick={onRename}
             >
-              <span className="truncate">{session.name || t('navigation:pageHeader.newChat')}</span>
-              <Pencil
-                size={12}
-                aria-hidden="true"
-                className="shrink-0 opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60"
-              />
+              <span
+                className={cn(
+                  'truncate',
+                  phoneShell && 'max-w-full text-lg leading-[1.3] font-semibold',
+                )}
+              >
+                {session.name || t('navigation:pageHeader.newChat')}
+              </span>
+              {phoneShell ? (
+                <span className="flex max-w-full items-center gap-1.5 text-xs leading-[1.3] font-normal text-content-muted">
+                  <span className="truncate">{workspaceName(cwd, language)}</span>
+                  {streaming && (
+                    <>
+                      <OrbitSpinner className="size-3" />
+                      <span className="shrink-0">{t('chat:focusSession.running')}</span>
+                    </>
+                  )}
+                </span>
+              ) : (
+                <Pencil
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60"
+                />
+              )}
             </button>
           </div>
         </TaskWorkspaceHeader>
@@ -659,12 +697,12 @@ export const FocusSession = memo(function FocusSession({
   const toolsBlock = (
     <div
       ref={toolbarRef}
-      className="focus-composer-quick-actions flex min-w-0 flex-1 items-end gap-1"
+      className="focus-composer-quick-actions flex min-w-0 flex-1 items-center gap-1"
     >
       <button
         ref={toolTrayAnchorRef}
         type="button"
-        className={`composer-tools-trigger grid size-9 min-w-9 max-[650px]:w-11 max-[650px]:min-w-11 h-10 flex-none place-items-center rounded-lg border-0 bg-transparent text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground ${toolsOpen ? 'active bg-foreground/5 text-foreground' : ''}`}
+        className={`composer-tools-trigger grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border border-stroke bg-transparent text-content-secondary transition-colors hover:bg-surface-hover hover:text-content max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-md max-[650px]:border-transparent pointer-coarse:size-11 pointer-coarse:min-w-11 ${toolsOpen ? 'active bg-surface-hover text-content' : ''}`}
         title={quickActionsLabel}
         aria-label={quickActionsLabel}
         aria-expanded={toolsOpen}
@@ -673,7 +711,7 @@ export const FocusSession = memo(function FocusSession({
       >
         {toolsOpen ? <X size={17} /> : <Plus size={18} />}
       </button>
-      <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
+      <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {toolbarAllocation.inline.map(renderComposerTool)}
       </div>
       <ComposerToolTray
@@ -687,19 +725,19 @@ export const FocusSession = memo(function FocusSession({
         {toolbarAllocation.overflow.map(renderComposerTool)}
         <button
           type="button"
-          className="flex h-10 w-full items-center gap-2 rounded-lg pr-2 text-[13px] text-foreground hover:bg-foreground/5"
+          className="flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-sm pr-2 text-[13px] text-content hover:bg-surface-hover max-[650px]:h-11 pointer-coarse:h-11"
           aria-expanded={detailsOpen}
           onClick={() => {
             setDetailsOpen((open) => !open)
             setToolsOpen(false)
           }}
         >
-          <span className="grid size-10 shrink-0 place-items-center text-muted-foreground">
+          <span className="grid size-[30px] shrink-0 place-items-center text-content-muted max-[650px]:size-11 pointer-coarse:size-11">
             <Gauge size={16} />
           </span>
           {detailsOpen ? t('chat:focusSession.hideDetails') : t('chat:focusSession.details')}
         </button>
-        <div className="w-full border-t border-[var(--stroke-soft)] pt-1">
+        <div className="w-full border-t border-stroke-soft pt-1">
           <ComposerToolbarSettings labels={composerToolLabels} labeled />
         </div>
       </ComposerToolTray>
@@ -727,7 +765,12 @@ export const FocusSession = memo(function FocusSession({
   const composerBlock = (
     <form
       key="composer"
-      className="focus-composer-shell relative z-20 mx-auto flex w-[min(768px,calc(100%_-_48px))] shrink-0 flex-col gap-2 pt-2 pb-4 @max-[700px]:w-[calc(100%_-_24px)]"
+      className={cn(
+        'focus-composer-shell relative z-20 mx-auto flex w-[min(768px,calc(100%_-_48px))] shrink-0 flex-col gap-2 pt-2 pb-3 @max-[700px]:w-[calc(100%_-_24px)] max-[650px]:pb-2.5',
+        // 有对话时在输入区上方叠 36px 渐隐，让转录滚到底部时柔和收尾而不是硬切。
+        hasConversation &&
+          'before:pointer-events-none before:absolute before:inset-x-0 before:-top-9 before:h-9 before:bg-linear-to-b before:from-transparent before:to-panel',
+      )}
       onSubmit={(event) => {
         if (!streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)) {
           event.preventDefault()
@@ -758,15 +801,11 @@ export const FocusSession = memo(function FocusSession({
           className="w-full"
         />
       )}
-      <ComposerStatusPill
-        compaction={compaction}
-        streaming={streaming}
-        statusLabel={composerStatusLabel}
-      />
+      {/* 输入卡片：控件级描边（≥3:1）+ 输入时焦点描边与 3px 焦点环；运行条集成在卡片顶部。 */}
       <div
         className={cn(
-          'focus-composer relative flex min-w-0 flex-col gap-2 rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-border/50 bg-background dark:bg-surface-subtle p-3 shadow-[var(--shadow-composer)] transition-[border-color,box-shadow] focus-within:border-ring/50 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-0 [&_textarea]:py-3 [&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-foreground [&_textarea]:placeholder:text-foreground/50',
-          attachmentDropActive && 'border-ring ring-2 ring-ring/30',
+          'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-panel shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-2xl [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
+          attachmentDropActive && 'border-focus ring-3 ring-focus-ring',
         )}
         onDragEnter={showAttachmentDrop}
         onDragOver={showAttachmentDrop}
@@ -779,11 +818,20 @@ export const FocusSession = memo(function FocusSession({
         {attachmentDropActive && (
           <div
             role="status"
-            className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[18px] border border-dashed border-ring bg-background/85 px-4 text-center text-sm text-foreground"
+            className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] border border-dashed border-focus bg-panel px-4 text-center text-sm text-content"
           >
             {t('chat:focusSession.dropAttachment')}
           </div>
         )}
+        <ComposerStatusPill
+          compaction={compaction}
+          streaming={streaming}
+          statusLabel={composerStatusLabel}
+          startedAt={runStartedAt}
+          activity={currentActivity}
+          stopping={stopping}
+          onStop={() => void stop()}
+        />
         <AttachmentTray
           attachments={selection.attachments}
           preparing={selection.preparingAttachments}
@@ -816,12 +864,24 @@ export const FocusSession = memo(function FocusSession({
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()
             }
+            // 运行条提示「Esc 停止」：输入框内按 Esc 中断当前运行；命令菜单等已处理的 Esc 不再重复响应，
+            // 工具托盘打开时 Esc 只收起托盘（托盘监听在 document 上，晚于这里触发）。
+            if (
+              streaming &&
+              !composing &&
+              !toolsOpen &&
+              event.key === 'Escape' &&
+              !event.defaultPrevented
+            ) {
+              event.preventDefault()
+              void stop()
+            }
           }}
           data-mobile-composer-input={mobileLayout || undefined}
           enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
           placeholder={composerPlaceholder}
         />
-        <div className="focus-composer-footer @container/composer-footer flex min-w-0 items-end gap-1">
+        <div className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:px-1.5 max-[650px]:pb-1.5">
           {toolsBlock}
           <ComposerSendButton
             streaming={streaming}
@@ -850,20 +910,20 @@ export const FocusSession = memo(function FocusSession({
       </div>
       <div
         className={cn(
-          'composer-details flex min-h-9 min-w-0 flex-wrap items-center gap-2 px-2 py-1 text-xs text-muted-foreground',
+          'composer-details flex min-h-9 min-w-0 flex-wrap items-center gap-2 px-2 py-1 text-xs text-content-muted',
           !detailsOpen && '!hidden',
         )}
       >
         {hasConversation && usageBlock}
         <button
           type="button"
-          className="grid size-7 place-items-center rounded-md hover:bg-muted"
+          className="grid size-7 cursor-pointer place-items-center rounded-sm hover:bg-surface-hover hover:text-content max-[650px]:size-11 pointer-coarse:size-11"
           aria-label={t('chat:focusSession.hideDetails')}
           onClick={() => setDetailsOpen(false)}
         >
           <X size={14} />
         </button>
-        <div className="ml-auto flex items-center gap-1 [&_.voice-input-control_button]:!size-8">
+        <div className="ml-auto flex items-center gap-1">
           <div className="focus-composer-secondary flex h-8 min-w-0 flex-none items-center justify-end">
             <ContextUsageIndicator
               usage={contextUsage}
@@ -877,7 +937,7 @@ export const FocusSession = memo(function FocusSession({
           <>
             <button
               type="button"
-              className="grid !size-8 !min-w-8 place-items-center rounded-[var(--r-sm)] border border-transparent bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-[background-color,color,border-color,box-shadow,transform] duration-200 hover:scale-105 hover:border-[var(--brand-blue)] hover:bg-[var(--brand-blue-soft)] hover:text-[var(--brand-blue-strong)]"
+              className="grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm text-content-muted transition-colors hover:bg-surface-hover hover:text-content max-[650px]:size-11 pointer-coarse:size-11"
               title={t('chat:voiceMode.open')}
               aria-label={t('chat:voiceMode.open')}
               onClick={() => setVoiceModeOpen(true)}

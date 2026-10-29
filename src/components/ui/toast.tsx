@@ -7,13 +7,13 @@ import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex min-h-11 w-full items-center gap-2 overflow-hidden rounded-surface border px-3.5 py-2.5 pr-10 text-[13px] leading-5 font-semibold tracking-[0] shadow-floating transition data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none',
+  'group pointer-events-auto relative flex min-h-11 w-full items-center gap-2 overflow-hidden rounded-md border px-3.5 py-2.5 pr-10 text-[13px] leading-5 font-medium tracking-[0] shadow-float transition data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none',
   {
     variants: {
       tone: {
         success: 'border-success-border bg-success-soft text-success-strong',
         error: 'border-danger-border bg-danger-soft text-danger',
-        info: 'border-border bg-surface-muted text-content-soft',
+        info: 'border-stroke bg-popover text-foreground',
       },
     },
     defaultVariants: {
@@ -75,7 +75,7 @@ function ToastClose({ className, ...props }: React.ComponentProps<typeof ToastPr
     <ToastPrimitive.Close
       data-slot="toast-close"
       className={cn(
-        'absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-md text-current opacity-70 outline-none transition hover:bg-black/5 hover:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-white/10',
+        'absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-sm text-current opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10',
         className,
       )}
       {...props}

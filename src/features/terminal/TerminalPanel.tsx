@@ -121,7 +121,7 @@ export function TerminalPanel({
   return (
     <section
       aria-label={labels.terminal}
-      className={`terminal-panel relative z-3 flex flex-col bg-background ${fill ? 'h-full min-h-0 flex-1' : 'shrink-0 border-t border-border'}`}
+      className={`terminal-panel relative z-3 flex flex-col bg-panel ${fill ? 'h-full min-h-0 flex-1' : 'shrink-0 border-t border-stroke'}`}
       style={fill ? undefined : { height }}
       data-swipe-ignore={fill ? true : undefined}
     >
@@ -152,22 +152,23 @@ export function TerminalPanel({
                     ),
             )
           }}
-          className="absolute inset-x-0 -top-1 z-10 h-2 cursor-ns-resize focus-visible:outline-2 focus-visible:outline-ring"
+          // 与分栏把手同一语言：悬停/聚焦时浮出 36×3 的焦点色胶囊，静止时不占视觉。
+          className="absolute inset-x-0 -top-1 z-10 h-2 cursor-ns-resize outline-none after:absolute after:top-1/2 after:left-1/2 after:h-[3px] after:w-9 after:-translate-1/2 after:rounded-full after:transition-colors after:duration-[var(--d-fast)] hover:after:bg-focus focus-visible:after:bg-focus focus-visible:after:ring-3 focus-visible:after:ring-focus-ring"
         />
       )}
-      <header className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+      <header className="flex h-10 shrink-0 items-center gap-1 border-b border-stroke-soft px-2">
         <TerminalSquare className="size-4 shrink-0 text-content-muted" />
         <div
           role="tablist"
           aria-label={labels.terminal}
-          className="flex min-w-0 flex-1 overflow-x-auto"
+          className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto px-px py-1 [scrollbar-width:none]"
         >
           {visible.map((record) => (
-            <div key={record.id} className="flex min-w-0 max-w-52 shrink-0 items-center rounded-md">
+            <div key={record.id} className="flex min-w-0 max-w-52 shrink-0 items-center">
               <button
                 role="tab"
                 aria-selected={!pending && active?.id === record.id}
-                className="min-w-0 truncate rounded-md px-2 py-1 text-xs hover:bg-surface-hover aria-selected:bg-surface-muted"
+                className="relative h-7 min-w-0 truncate rounded-sm px-2 font-mono text-xs text-content-muted hover:bg-surface-hover hover:text-content focus-visible:-outline-offset-2 aria-selected:bg-key aria-selected:font-medium aria-selected:text-content aria-selected:shadow-key aria-selected:ring-1 aria-selected:ring-key-border aria-selected:after:absolute aria-selected:after:inset-x-2 aria-selected:after:bottom-0 aria-selected:after:h-0.5 aria-selected:after:rounded-full aria-selected:after:bg-star"
                 title={`${record.cwd} · ${record.sessionId}`}
                 onClick={() => {
                   setActiveIds((current) => ({ ...current, [activeSessionId]: record.id }))

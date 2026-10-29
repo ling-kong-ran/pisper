@@ -2,7 +2,7 @@ import './provider-messages'
 // Provider 配置对话框：新增/编辑 Provider（密钥、端点、模型列表），
 // 提交前校验必填项与端点格式。
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, Plus, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Check, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
@@ -16,6 +16,7 @@ import type { FormEvent } from 'react'
 import type { ConfigData, ProviderConfig, ProviderType } from './config-types'
 
 import { Button } from '@/components/ui/button'
+import { OrbitSpinner } from '@/components/ui/spinner'
 
 import { FieldLabel } from '@/components/ui/field'
 
@@ -213,7 +214,7 @@ export function ProviderConfigModal({
       className={
         embedded
           ? 'provider-config-inline'
-          : 'modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [backdrop-filter:blur(3px)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]'
+          : 'modal-backdrop max-[650px]:p-[8px] fixed z-[70] inset-0 grid place-items-center overflow-y-auto bg-[var(--modal-overlay)] [padding:20px] [overscroll-behavior:contain] [animation:fade-in_var(--d1)_var(--ease-out)]'
       }
       onMouseDown={(event) =>
         !embedded && !saving && event.target === event.currentTarget && onClose()
@@ -225,7 +226,7 @@ export function ProviderConfigModal({
         className={
           embedded
             ? 'provider-config-form grid gap-3 text-sm [&_label]:!mt-0 [&_label]:!text-sm [&_label]:font-medium [&_input]:!h-9 [&_input]:!min-h-9 [&_input]:rounded-lg [&_input]:!text-sm [&_select]:!h-9 [&_select]:!min-h-9 [&_select]:rounded-lg [&_select]:!text-sm [&_summary]:text-sm'
-            : 'modal !w-[min(430px,100%)] max-h-[calc(100dvh_-_40px)] overflow-y-auto [overscroll-behavior:contain] [border:1px_solid_var(--surface-highlight)] rounded-[var(--r-md)] bg-[var(--solid)] p-[18px] shadow-[0_26px_70px_-25px_var(--shadow-strong)] [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)] provider-config-modal !w-[min(620px,100%)]'
+            : 'modal provider-config-modal max-h-[calc(100dvh_-_40px)] !w-[min(620px,100%)] overflow-y-auto overscroll-contain rounded-lg border border-stroke bg-solid p-[18px] shadow-float [animation:modal-in_var(--d2)_var(--ease-out)] max-[650px]:max-h-[calc(100dvh_-_16px)]'
         }
         onSubmit={submit}
       >
@@ -293,11 +294,11 @@ export function ProviderConfigModal({
         {!cloning && (
           <>
             {!embedded && (
-              <div className="flex items-center justify-between gap-[8px] [margin-top:10px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[8px_10px]">
-                <span className="text-[12px] text-[var(--text-muted)]">
+              <div className="mt-2.5 flex items-center justify-between gap-2 rounded-sm border border-stroke-soft bg-surface-subtle px-2.5 py-2">
+                <span className="text-xs text-content-muted">
                   {t('config:configPage.providerPurpose')}
                 </span>
-                <strong className="text-[12px]">
+                <strong className="font-mono text-xs font-medium">
                   {draft.providerType === 'visual'
                     ? t('config:configPage.visualProvider')
                     : t('config:configPage.chatProvider')}
@@ -450,20 +451,19 @@ export function ProviderConfigModal({
             {error}
           </AppError>
         )}
-        <div className="flex justify-end gap-[8px] [margin-top:18px]">
+        <div className="mt-[18px] flex justify-end gap-2">
           <Button
             type="button"
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
+            variant="secondary"
+            className="max-[650px]:h-11"
             disabled={saving}
             onClick={onClose}
           >
             {t('config:configPage.cancel')}
           </Button>
-          <Button type="submit" size="lg" disabled={saving}>
+          <Button type="submit" className="max-[650px]:h-11" disabled={saving}>
             {saving ? (
-              <RefreshCw className="animate-spin" size={14} />
+              <OrbitSpinner className="text-current" />
             ) : editing ? (
               <Check size={14} />
             ) : (

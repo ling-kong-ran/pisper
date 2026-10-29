@@ -127,6 +127,47 @@ export function compactionText(compaction: EntityRecord | null | undefined, t: T
   return t('chat:agentRunActivity.summarizingOlderMessages')
 }
 
+function timeValue(value: unknown) {
+  if (typeof value !== 'string' && typeof value !== 'number') return 0
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+// 单步耗时：只取活动自带的开始/结束时间，运行中或缺时间戳时返回 null，
+// 避免用当前时间推算出会跳动、且并非真实记录的数值。
+export function stepSpanMs(activity: EntityRecord | null | undefined) {
+  if (!activity || activity.status === 'running') return null
+  const agent = activity.type === 'agent' ? activity.agent || {} : {}
+  const start = timeValue(activity.startedAt || agent.startedAt)
+  const end = timeValue(activity.finishedAt || agent.completedAt || activity.updatedAt)
+  if (!start || !end || end < start) return null
+  return end - start
+}
+
+// 仪器式时长：毫秒与秒使用国际单位符号，配合 tabular-nums 保证列宽稳定；
+// coarse 用于每秒刷新的总计时，避免整秒跳动时出现无意义的小数位。
+export function formatStepDuration(milliseconds: number, coarse = false) {
+  const ms = Math.max(0, Math.round(milliseconds))
+  if (ms < 1000) return coarse ? '0 s' : `${ms} ms`
+  if (ms < 10_000 && !coarse) return `${(ms / 1000).toFixed(1)} s`
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds} s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = String(seconds % 60).padStart(2, '0')
+  if (minutes < 60) return `${minutes}:${rest}`
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${rest}`
+}
+
+// bash 失败时运行时在输出末尾追加 “Command exited with code N”；只解析这一真实记录，
+// 解析不到就不显示退出码。
+export function commandExitCode(activity: EntityRecord | null | undefined) {
+  if (activity?.type !== 'tool' || activity.status !== 'error') return null
+  const match = /Command exited with code (\d+)/.exec(
+    `${String(activity.output || '')}\n${String(activity.message || '')}`,
+  )
+  return match ? match[1] : null
+}
+
 export type ActivityPresentationContext = {
   t: Translate
   streaming?: boolean

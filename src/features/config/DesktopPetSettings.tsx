@@ -1,12 +1,17 @@
 // 桌面宠物设置：启用/透明度/宠物选择与商店浏览。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Blend, Cat, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Blend, Cat, Download, ExternalLink, Search, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   SettingsBadge as Badge,
   SettingsCard as Panel,
+  SettingsCardHeader,
   SettingsSwitch as Toggle,
 } from './settings-primitives'
+import { SettingsRow } from '@/components/app/SettingsRow'
+import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
@@ -15,7 +20,17 @@ import type { DesktopPetCatalogItem, DesktopPetStatus } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
 
-import { AppNotice } from '@/components/ui/app-primitives'
+// 宠物标记：小键帽里的猫形图标，与提供方字母标记同一套键帽语言。
+function PetMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-7.5 place-items-center rounded-md border border-key-border bg-key text-content-muted shadow-key"
+    >
+      <Cat size={15} />
+    </span>
+  )
+}
 
 type PetController = {
   getStatus: () => Promise<DesktopPetStatus>
@@ -227,59 +242,58 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
   }
 
   return (
-    <div className="flex flex-col gap-[12px] desktop-pet-settings">
-      <Panel className="[padding:18px]" data-config-card="desktop-pet-settings">
-        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
-          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-            <Cat size={19} />
-          </span>
-          <div>
-            <h2>{t('config:desktopPetSettings.title')}</h2>
-            <p>{t('config:desktopPetSettings.description')}</p>
-          </div>
-        </div>
-
+    <div className="flex flex-col gap-4">
+      <Panel className="p-0 py-0" data-config-card="desktop-pet-settings">
+        <SettingsCardHeader
+          className="border-b border-stroke-soft px-4 py-3.5"
+          active={Boolean(status?.enabled)}
+          icon={<Cat size={18} />}
+          title={t('config:desktopPetSettings.title')}
+          description={t('config:desktopPetSettings.description')}
+        />
         {!status ? (
-          <AppNotice className="[margin-top:15px]">
-            <RefreshCw className="animate-spin" size={16} />
-            <span>{t('config:desktopPetSettings.loading')}</span>
-          </AppNotice>
+          <p role="status" className="flex items-center gap-2 px-4 py-3 text-sm text-content-muted">
+            <OrbitSpinner />
+            {t('config:desktopPetSettings.loading')}
+          </p>
         ) : (
-          <div className="max-w-1/2">
-            <div className="flex items-center  snotification-option [&_>_div]:flex [&_>_div]:min-w-0 [&_>_div]:flex-col [&_>_div]:gap-1 gap-2.75 mt-4">
-              <Cat size={18} />
-              <div>
-                <div>
-                  <span className="font-bold">{t('config:desktopPetSettings.showOnDesktop')}</span>{' '}
+          <div className="divide-y divide-stroke-soft px-4">
+            <SettingsRow
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  {t('config:desktopPetSettings.showOnDesktop')}
                   <Badge tone={status.running ? 'green' : 'gray'}>
                     {status.running
                       ? t('config:desktopPetSettings.running')
                       : t('config:desktopPetSettings.stopped')}
                   </Badge>
-                </div>
-                <span className="text-xs">
-                  {status.selectedName
-                    ? t('config:desktopPetSettings.currentPet', { name: status.selectedName })
-                    : t('config:desktopPetSettings.installBeforeEnabling')}
                 </span>
-              </div>
-
-              <Toggle
-                value={status.enabled}
-                disabled={Boolean(busy) || !status.installed.length}
-                onChange={toggle}
-                ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
-                className="ml-4"
-              />
-            </div>
-            {status && (
-              <div className="flex items-center snotification-option gap-2.75 mt-4">
-                <Blend size={18} />
-                <div className="flex items-center justify-center gap-2">
-                  <span className="font-bold">{t('config:desktopPetSettings.opacity')}</span>
-                  <span className="text-xs">{opacityPercent}%</span>
-                </div>
-
+              }
+              description={
+                status.selectedName
+                  ? t('config:desktopPetSettings.currentPet', { name: status.selectedName })
+                  : t('config:desktopPetSettings.installBeforeEnabling')
+              }
+              control={
+                <Toggle
+                  value={status.enabled}
+                  disabled={Boolean(busy) || !status.installed.length}
+                  onChange={toggle}
+                  ariaLabel={t('config:desktopPetSettings.showOnDesktop')}
+                />
+              }
+            />
+            <SettingsRow
+              title={
+                <span className="flex items-center gap-2">
+                  <Blend size={14} aria-hidden="true" className="text-content-muted" />
+                  {t('config:desktopPetSettings.opacity')}
+                  <span className="text-xs font-normal text-content-muted tabular-nums">
+                    {opacityPercent}%
+                  </span>
+                </span>
+              }
+              control={
                 <Slider
                   value={[opacityPercent]}
                   min={20}
@@ -289,28 +303,31 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
                   onValueChange={([value]) => setOpacityPercent(value)}
                   onValueCommit={([value]) => void changeOpacity(value / 100)}
                   aria-label={t('config:desktopPetSettings.opacity')}
-                  className="flex-1 w-auto ml-4"
+                  className="w-48 max-w-full"
                 />
-              </div>
-            )}
+              }
+            />
           </div>
         )}
-
-        {error && <div className="text-[var(--danger)] text-[13px] mt-3">{error}</div>}
+        {error && (
+          <p
+            role="alert"
+            className="mx-4 mb-3 rounded-sm bg-danger-soft px-2.5 py-2 text-sm text-danger"
+          >
+            {error}
+          </p>
+        )}
       </Panel>
 
-      <Panel className="[padding:18px]" data-config-card="desktop-pet-install">
-        <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
-          <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-            <Download size={19} />
-          </span>
-          <div>
-            <h2>{t('config:desktopPetSettings.installTitle')}</h2>
-            <p>{t('config:desktopPetSettings.installDescription')}</p>
-          </div>
-        </div>
-        <div className="workspace-path-form grid h-[39px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[8px] mt-[16px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] p-[3px_3px_3px_10px] text-[var(--text-muted)] [&_input]:min-w-0 [&_input]:border-0 [&_input]:[outline:0] [&_input]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_input]:text-[12px] dark:[&_input]:bg-[var(--solid)] dark:[&_input]:text-[var(--text)] desktop-pet-search !grid-cols-[minmax(0,1fr)_auto] mt-4">
-          <input
+      <Panel className="p-4 py-4" data-config-card="desktop-pet-install">
+        <SettingsCardHeader
+          icon={<Download size={18} />}
+          title={t('config:desktopPetSettings.installTitle')}
+          description={t('config:desktopPetSettings.installDescription')}
+        />
+        {/* 搜索框：等宽输入 + 主操作键，整体是一个 34px 字段（手机 44px）。 */}
+        <div className="mt-4 flex gap-2">
+          <Input
             value={slug}
             onChange={(event) => setSlug(event.target.value)}
             onKeyDown={(event) => {
@@ -318,39 +335,37 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
             }}
             placeholder={t('config:desktopPetSettings.searchPlaceholder')}
             aria-label={t('config:desktopPetSettings.petSlug')}
+            className="min-w-0 flex-1 font-mono pointer-coarse:min-h-11 max-[650px]:min-h-11"
           />
           <Button
-            size="lg"
-            className="min-w-[104px]"
+            className="h-8.5 shrink-0 pointer-coarse:h-11 max-[650px]:h-11"
             disabled={busy === 'search'}
             onClick={searchCatalog}
           >
-            {busy === 'search' ? (
-              <RefreshCw className="animate-spin" size={14} />
-            ) : (
-              <Search size={14} />
-            )}
+            {busy === 'search' ? <OrbitSpinner className="text-current" /> : <Search size={14} />}
             {t('config:desktopPetSettings.search')}
           </Button>
         </div>
         {catalog.length > 0 && (
-          <div className="language-choice-grid  grid grid-cols-4 max-[650px]:grid-cols-1 max-[1300px]:grid-cols-2 gap-2.25 mt-4">
+          <div className="mt-4 grid grid-cols-2 gap-2 max-[650px]:grid-cols-1">
             {catalog.map((pet) => {
               const installed = status?.installed.some((item) => item.slug === pet.slug)
               return (
                 <button
                   type="button"
-                  className="language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] hover:[transform:translateY(-1px)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:11px] text-[var(--text)] text-left [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out),_transform_var(--d1)_var(--ease-out)]"
+                  className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border border-stroke bg-panel px-3 py-2.5 text-left transition-colors hover:bg-surface-subtle disabled:opacity-50"
                   disabled={Boolean(busy)}
                   onClick={() => (installed ? select(pet.slug) : install(pet.slug))}
                   key={pet.slug}
                 >
-                  <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
-                    <Cat size={16} />
-                  </span>
-                  <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
-                    <strong>{pet.displayName}</strong>
-                    <small>{pet.slug}</small>
+                  <PetMark />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-medium text-content">
+                      {pet.displayName}
+                    </span>
+                    <span className="truncate font-mono text-xs text-content-muted">
+                      {pet.slug}
+                    </span>
                   </span>
                   <Badge tone={installed ? 'green' : 'blue'}>
                     {installed
@@ -362,13 +377,8 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
             })}
           </div>
         )}
-        <div className="mt-[15px] flex gap-2 max-[650px]:flex-wrap">
-          <Button
-            variant="outline"
-            size="lg"
-            className="bg-surface-subtle"
-            onClick={controller.openCatalog}
-          >
+        <div className="mt-4 flex gap-2 max-[650px]:flex-wrap">
+          <Button variant="secondary" className="max-[650px]:h-11" onClick={controller.openCatalog}>
             <ExternalLink size={14} />
             {t('config:desktopPetSettings.browsePetdex')}
           </Button>
@@ -376,41 +386,50 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
       </Panel>
 
       {status && status.installed.length > 0 && (
-        <Panel className="[padding:18px]" data-config-card="desktop-pet-installed">
-          <div className="language-settings-heading flex items-start gap-[11px] [&_h2]:text-[16px] [&_p]:mt-[4px] [&_p]:text-[var(--text-muted)] [&_p]:text-[13px] [&_p]:leading-[1.55]">
-            <span className="grid w-[38px] h-[38px] [flex:0_0_auto] place-items-center rounded-[11px] bg-[var(--star-soft)] text-[var(--star-strong)]">
-              <Cat size={19} />
-            </span>
-            <div>
-              <h2>{t('config:desktopPetSettings.installedTitle')}</h2>
-              <p>{t('config:desktopPetSettings.installedDescription')}</p>
-            </div>
-          </div>
-          <div
-            className="language-choice-grid max-[650px]:grid-cols-[1fr] grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[9px] [margin-top:18px] mt-4"
-            role="radiogroup"
-          >
+        <Panel className="p-4 py-4" data-config-card="desktop-pet-installed">
+          <SettingsCardHeader
+            icon={<Cat size={18} />}
+            title={t('config:desktopPetSettings.installedTitle')}
+            description={t('config:desktopPetSettings.installedDescription')}
+          />
+          {/* 已安装宠物：选中项用 3px 强调刻线 + 次级底色标记，而不是只靠浅色底。 */}
+          <div className="mt-4 grid grid-cols-2 gap-2 max-[650px]:grid-cols-1" role="radiogroup">
             {status.installed.map((pet) => {
               const selected = pet.slug === status.selectedSlug
               return (
                 <div
-                  className={`language-choice hover:border-[var(--star)] hover:bg-[var(--accent-soft)] [&.selected]:border-[var(--star)] [&.selected]:bg-[var(--star-soft)] [&.selected]:shadow-[0_0_0_3px_var(--accent-ring)] grid min-h-[80px] grid-cols-[minmax(0,_1fr)_auto] items-center gap-[4px] [border:1px_solid_var(--stroke)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] [padding:4px] text-[var(--text)] [transition:border-color_var(--d1)_var(--ease-out),_background_var(--d1)_var(--ease-out),_box-shadow_var(--d1)_var(--ease-out)] ${selected ? 'selected' : ''}`}
+                  className={cn(
+                    'relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md border border-stroke pr-1.5 transition-colors',
+                    selected
+                      ? 'bg-surface-muted before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-[3px] before:bg-star'
+                      : 'bg-panel hover:bg-surface-subtle',
+                  )}
                   key={`${pet.source}:${pet.slug}`}
                 >
                   <button
                     type="button"
-                    className={`grid min-h-[70px] grid-cols-[auto_minmax(0,_1fr)_auto] items-center gap-[10px] rounded-[calc(var(--r-sm)-2px)] [padding:7px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--star)] disabled:pointer-events-none disabled:opacity-50 ${pet.source === 'pisper' ? '' : 'col-span-2'}`}
+                    className={cn(
+                      'grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm px-3 py-2.5 text-left disabled:pointer-events-none disabled:opacity-50',
+                      pet.source !== 'pisper' && 'col-span-2',
+                    )}
                     role="radio"
                     aria-checked={selected}
                     disabled={Boolean(busy)}
                     onClick={() => select(pet.slug)}
                   >
-                    <span className="language-choice-mark grid w-[34px] h-[34px] place-items-center rounded-[9px] bg-[var(--solid)] text-[var(--star-strong)] text-[12px] font-[800] tracking-[.03em]">
-                      <Cat size={16} />
-                    </span>
-                    <span className="language-choice-copy [&_strong]:text-[13px] [&_small]:text-[var(--text-muted)] [&_small]:text-[12px] flex min-w-0 flex-col gap-[3px]">
-                      <strong>{pet.name}</strong>
-                      <small>{pet.slug}</small>
+                    <PetMark />
+                    <span className="flex min-w-0 flex-col">
+                      <span
+                        className={cn(
+                          'truncate text-sm text-content',
+                          selected ? 'font-medium' : 'font-normal',
+                        )}
+                      >
+                        {pet.name}
+                      </span>
+                      <span className="truncate font-mono text-xs text-content-muted">
+                        {pet.slug}
+                      </span>
                     </span>
                     <Badge tone={pet.source === 'pisper' ? 'blue' : 'gray'}>
                       {pet.source === 'pisper' ? 'Pisper' : 'Petdex'}
@@ -421,14 +440,14 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="text-content-muted hover:text-destructive"
+                      className="hover:bg-danger-soft hover:text-danger pointer-coarse:size-11"
                       disabled={Boolean(busy)}
                       onClick={() => void remove(pet)}
                       aria-label={t('config:desktopPetSettings.delete')}
                       title={t('config:desktopPetSettings.delete')}
                     >
                       {busy === `remove:${pet.slug}` ? (
-                        <RefreshCw className="animate-spin" size={14} />
+                        <OrbitSpinner className="text-current" />
                       ) : (
                         <Trash2 size={14} />
                       )}

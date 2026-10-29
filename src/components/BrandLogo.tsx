@@ -1,41 +1,21 @@
-import { useId } from 'react'
-// Pisper 品牌标：终端 P（竖杆 + ">" 字碗 + 光标），紫罗兰极光渐变。
+// Pisper 品牌标：墨色方形键帽 + 反白四芒星与一颗卫星点。
+// 单色是为了让品牌只在功能栏顶部、智能体头像等少数位置出现，不与唯一强调色争夺注意力；
+// 颜色全部取自 --ink / --on-ink，暗色主题自动翻转为浅色键帽 + 深色星。
 export function BrandLogo({ size = 22, className = '' }: { size?: number; className?: string }) {
-  const gradientId = useId()
   return (
     <svg
-      className={`block flex-none text-[var(--text)] ${className}`}
+      className={`block flex-none ${className}`}
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 34 34"
       role="img"
       aria-label="Pisper"
     >
-      <defs>
-        <linearGradient
-          id={gradientId}
-          x1="9"
-          y1="6"
-          x2="40"
-          y2="44"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0" stopColor="#8B5CF6" />
-          <stop offset="0.55" stopColor="#A855F7" />
-          <stop offset="1" stopColor="#EC4899" />
-        </linearGradient>
-      </defs>
-      <g
-        fill="none"
-        stroke={`url(#${gradientId})`}
-        strokeWidth={4.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M13,7 V42" />
-        <path d="M13,7 L37,20.5 L13,34" />
+      <rect width="34" height="34" rx="9" fill="var(--ink)" />
+      <g fill="var(--on-ink)" transform="translate(7 7) scale(.8333)">
+        <path d="M12 3.2c.55 4.6 3.6 7.65 8.2 8.2-4.6.55-7.65 3.6-8.2 8.2-.55-4.6-3.6-7.65-8.2-8.2 4.6-.55 7.65-3.6 8.2-8.2z" />
+        <circle cx="19.4" cy="5.1" r="1.25" />
       </g>
-      <rect x={23} y={38} width={15} height={4} rx={2} fill={`url(#${gradientId})`} />
     </svg>
   )
 }

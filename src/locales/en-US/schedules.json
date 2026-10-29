@@ -35,6 +35,8 @@
   "schedulesPage.lastRunTime": "Last run: {time}",
   "schedulesPage.loadingScheduledTasks": "Loading scheduled tasks",
   "schedulesPage.pause": "Pause",
+  "schedulesPage.lastRunFailed": "Last run failed",
+  "schedulesPage.notifyWhen": "Notify on",
   "schedulesPage.failuresOnly": "Failures only",
   "schedulesPage.runNow": "Run now",
   "schedulesPage.scheduledTrigger": "Scheduled trigger",

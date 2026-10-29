@@ -34,7 +34,7 @@ export function ManualModelIds({
     <>
       <FieldLabel variant="control">
         {t('config:configPage.manualModelIds')}
-        <div className="flex items-stretch gap-[6px]">
+        <div className="flex items-stretch gap-1.5">
           <input
             aria-label={t('config:configPage.manualModelIds')}
             value={draft}
@@ -51,7 +51,8 @@ export function ManualModelIds({
           <Button
             type="button"
             size="icon"
-            className="h-[31px] w-[31px] flex-none"
+            variant="secondary"
+            className="h-auto w-8.5 flex-none pointer-coarse:w-11"
             aria-label={t('config:configPage.manualModelIds')}
             disabled={!draft.trim()}
             onClick={add}
@@ -61,19 +62,19 @@ export function ManualModelIds({
         </div>
       </FieldLabel>
       {ids.length > 0 && (
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex flex-col overflow-hidden rounded-md border border-stroke">
           {ids.map((id) => (
             <div
               key={id}
-              className="flex min-w-0 items-center gap-[8px] [border:1px_solid_var(--stroke-soft)] rounded-[var(--r-sm)] bg-[var(--surface-subtle)] p-[6px_10px]"
+              className="flex min-h-9 min-w-0 items-center gap-2 border-b border-stroke-soft py-1 pr-1 pl-2.5 last:border-b-0"
             >
-              <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+              <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-content">
                 {id}
               </span>
               <button
                 type="button"
                 aria-label={t('config:configPage.delete')}
-                className="grid w-[20px] h-[20px] flex-none cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-[var(--text-muted)] hover:bg-[var(--surface-highlight)] hover:text-[var(--text)]"
+                className="grid size-7 flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent p-0 text-content-muted hover:bg-danger-soft hover:text-danger pointer-coarse:size-11"
                 onClick={() => onChange(ids.filter((item) => item !== id))}
               >
                 <X size={12} />
@@ -82,9 +83,7 @@ export function ManualModelIds({
           ))}
         </div>
       )}
-      <p className="[margin:0] text-[11px] text-[var(--text-tertiary)]">
-        {t('config:configPage.manualModelIdsHint')}
-      </p>
+      <p className="text-xs text-content-muted">{t('config:configPage.manualModelIdsHint')}</p>
     </>
   )
 }

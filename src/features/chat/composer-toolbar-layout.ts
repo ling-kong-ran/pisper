@@ -102,11 +102,14 @@ export function moveComposerTool(
 }
 
 // 用户主动收纳的工具始终留在收纳区；空间不足时再从常驻区尾部临时回退。
+// reserved 只作用于用户已放在常驻区的工具：它们先占位且不参与回退，
+// 让手机等窄输入区优先收纳次要工具，而不是把必须可见的状态（如模型名）挤进收纳区。
 export function allocateComposerToolbar(
   layout: ComposerToolbarLayout,
   availableToolIds: readonly ComposerToolId[],
   inlineCapacity: number,
   toolWidths: Partial<Record<ComposerToolId, number>> = {},
+  reserved: readonly ComposerToolId[] = [],
 ): ComposerToolbarAllocation {
   const normalized = normalizeComposerToolbarLayout(layout)
   const available = new Set(availableToolIds)
@@ -115,16 +118,26 @@ export function allocateComposerToolbar(
   const capacity = Number.isFinite(inlineCapacity)
     ? Math.max(0, inlineCapacity)
     : Number.POSITIVE_INFINITY
+  const reservedInline = new Set(reserved.filter((id) => preferredInline.includes(id)))
   let used = 0
+  for (const id of reservedInline) used += toolWidths[id] ?? 1
   let count = 0
   for (const id of preferredInline) {
-    const width = toolWidths[id] ?? 1
-    if (used + width > capacity) break
-    used += width
+    if (!reservedInline.has(id)) {
+      const width = toolWidths[id] ?? 1
+      if (used + width > capacity) break
+      used += width
+    }
     count += 1
   }
-  const inline = preferredInline.slice(0, count)
-  const automaticallyOverflowed = preferredInline.slice(count)
+  // 保留区工具即使排在回退点之后也留在常驻区，且维持用户设定的先后顺序。
+  const inline = [
+    ...preferredInline.slice(0, count),
+    ...preferredInline.slice(count).filter((id) => reservedInline.has(id)),
+  ]
+  const automaticallyOverflowed = preferredInline
+    .slice(count)
+    .filter((id) => !reservedInline.has(id))
 
   return {
     inline,

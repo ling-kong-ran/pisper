@@ -55,7 +55,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'fixed inset-0 isolate z-50 bg-[var(--overlay-scrim,rgba(0,0,0,0.3))] duration-[var(--duration-fast,150ms)] data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
+        'fixed inset-0 isolate z-50 bg-[var(--overlay-scrim)] duration-[var(--duration-fast,150ms)] data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
         className,
       )}
       {...props}
@@ -63,6 +63,7 @@ function DialogOverlay({
   )
 }
 
+// 对话框：实心底、r-lg、浮层阴影（含 1px 描边环），无模糊遮罩；页脚落在次级表面上。
 function DialogContent({
   className,
   overlayClassName,
@@ -117,11 +118,11 @@ function DialogContent({
           if (busy) event.preventDefault()
         }}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-2xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-[var(--stroke-soft)] duration-[var(--duration-fast,150ms)] outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-float duration-[var(--duration-fast,150ms)] outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
           size === 'default' && 'max-w-[min(92vw,520px)]',
           size === 'compact' && 'max-w-[min(92vw,430px)]',
           size === 'wide' && 'max-w-[min(92vw,600px)]',
-          surface === 'confirmation' && 'border border-surface-highlight shadow-dialog ring-0',
+          surface === 'confirmation' && 'border border-stroke',
           scrollMode === 'body' && 'flex flex-col overflow-hidden',
           className,
         )}
@@ -180,7 +181,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        '-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-[var(--surface-subtle)] p-4 sm:flex-row sm:justify-end',
+        '-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t border-stroke bg-surface-subtle px-4 py-3 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}
@@ -201,7 +202,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('font-heading text-base leading-none font-medium', className)}
+      className={cn('font-heading text-[15px] leading-snug font-medium', className)}
       {...props}
     />
   )

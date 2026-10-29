@@ -1,10 +1,9 @@
 // 聊天主页面持有会话目录与实时连接，任务工作区在各分屏内独立装配。
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
-import { RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
-import { AppEmptyState } from '@/components/ui/app-primitives'
+import { PageState } from '@/components/app/PageState'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
@@ -418,13 +417,14 @@ export function ChatPage({
         className="chat-layout dock-layout relative flex w-full min-w-0 min-h-0 flex-1"
       >
         {catalog.loading ? (
-          <AppEmptyState>
-            <RefreshCw className="animate-spin" size={24} />
-            <h2>{t('chat:chatPage.wakingTheAgent')}</h2>
-            <p>{t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}</p>
-          </AppEmptyState>
+          // 首次唤醒沿用品牌轨道指示，不画额外卡片框，让纸面保持安静。
+          <PageState
+            kind="loading"
+            title={t('chat:chatPage.wakingTheAgent')}
+            description={t('chat:chatPage.modelsSessionsAndContextAreSettlingIntoPlace')}
+          />
         ) : (
-          <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-background">
+          <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-panel">
             <ChatDockContext.Provider value={dockContextValue}>
               {clientLoaded &&
                 (mobileLayout ? (
@@ -437,9 +437,7 @@ export function ChatPage({
                 ) : (
                   <Suspense
                     fallback={
-                      <div role="status" className="p-4">
-                        {t('chat:chatPage.wakingTheAgent')}
-                      </div>
+                      <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
                     }
                   >
                     <LazyChatDockView

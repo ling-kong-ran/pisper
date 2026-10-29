@@ -27,6 +27,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -96,7 +97,7 @@ function ImageLightbox({
   if (!image) return null
   return (
     <div
-      className="image-lightbox [&_img]:h-full [&_img]:min-h-0 [&_img]:w-full [&_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_72px_24px_24px] [backdrop-filter:blur(8px)] max-sm:[padding:12px_56px_16px_12px]"
+      className="image-lightbox [&_img]:h-full [&_img]:min-h-0 [&_img]:w-full [&_img]:object-contain fixed z-[100] inset-0 grid grid-rows-[auto_minmax(0,1fr)] gap-[12px] bg-[var(--lightbox-bg)] [padding:18px_72px_24px_24px] max-sm:[padding:12px_56px_16px_12px]"
       role="dialog"
       aria-modal="true"
       aria-label={t('chat:chatMessage.fullScreenImagePreview')}
@@ -104,13 +105,13 @@ function ImageLightbox({
       <div className="image-lightbox-toolbar flex min-w-0 items-center justify-between gap-[16px] text-[var(--on-ink)]">
         <div className="flex min-w-0 items-center gap-[10px]">
           <span
-            className="overflow-hidden text-[13px] font-[700] text-ellipsis whitespace-nowrap"
+            className="overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap"
             title={image.attachment.name}
           >
             {image.attachment.name || t('chat:chatMessage.generatedImage')}
           </span>
           {images.length > 1 && (
-            <span className="flex-none text-[12px] font-[600] text-[var(--on-ink)]/70">
+            <span className="flex-none text-[12px] text-[var(--on-ink)]/70 tabular-nums">
               {index + 1} / {images.length}
             </span>
           )}
@@ -219,7 +220,7 @@ function FileActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex items-center gap-[7px] rounded-[var(--r-xs)] border-0 bg-transparent px-[8px] py-[6px] text-left text-[13px] text-[var(--text-secondary)] [cursor:pointer] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex min-h-[30px] cursor-pointer items-center gap-[8px] rounded-sm border-0 bg-transparent px-[8px] text-left text-[13px] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
     >
       {icon}
       {label}
@@ -404,9 +405,9 @@ export function MessageAttachments({
                     onClick={(event) => {
                       fileTriggerRef.current = event.currentTarget
                     }}
-                    className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] cursor-pointer"
+                    className="inline-flex min-h-[28px] max-w-full min-w-0 cursor-pointer items-center gap-[6px] rounded-sm border border-stroke bg-panel px-[9px] text-[13px] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-foreground max-[650px]:min-h-11"
                   >
-                    <File size={12} className="shrink-0" />
+                    <File size={14} className="shrink-0 text-content-muted" />
                     <span className="truncate">
                       {attachment.name || t('chat:chatMessage.fileAttachment')}
                     </span>
@@ -475,11 +476,11 @@ export function MessageAttachments({
             )
           return (
             <a
-              className="inline-flex max-w-full min-w-0 items-center gap-[5px] rounded-[var(--r-xs)] border border-[var(--stroke)] bg-[var(--solid)] px-[7px] py-[5px] text-[13px] text-[var(--text-tertiary)] no-underline"
+              className="inline-flex min-h-[28px] max-w-full min-w-0 items-center gap-[6px] rounded-sm border border-stroke bg-panel px-[9px] text-[13px] text-content-secondary no-underline transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-foreground max-[650px]:min-h-11"
               href={attachment.downloadUrl || undefined}
               key={key}
             >
-              <File size={12} className="shrink-0" />
+              <File size={14} className="shrink-0 text-content-muted" />
               <span className="truncate">
                 {attachment.name || t('chat:chatMessage.fileAttachment')}
               </span>
@@ -652,6 +653,24 @@ function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: 
   )
 }
 
+// 回复时间：今天只显示时分，更早的补上月日；无可信时间戳（如流式中）时不显示。
+function messageTime(value: unknown, language: string) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return null
+  const today = new Date().toDateString() === date.toDateString()
+  return {
+    iso: date.toISOString(),
+    label: date.toLocaleString(language, {
+      ...(today ? {} : { month: '2-digit', day: '2-digit' }),
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }),
+    full: date.toLocaleString(language),
+  }
+}
+
 type FocusChatMessageProps = {
   sessionId: string
   message: ChatMessage
@@ -700,7 +719,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   hideErrorNotice,
   onRetryLastTurn,
 }: FocusChatMessageProps) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const [branching, setBranching] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -708,8 +727,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const fullText = message.text || ''
   // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
   const displayText = message.error && fullText === message.error ? '' : fullText
-  // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——否则首轮事件
-  // 空窗期活动区渲染空壳，三点动画永远不会出现。
+  // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——首轮事件到达前
+  // 由抬头里的轨道指示表明正在工作，活动区不渲染空壳。
   const hasVisibleRunActivity = Boolean(
     runProps &&
     (String(runProps.thinkingText || '').trim() ||
@@ -717,6 +736,18 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       (runProps.tools?.length ?? 0) > 0 ||
       runProps.team),
   )
+
+  const timestamp = message.role === 'agent' ? messageTime(message.timestamp, language) : null
+  // 智能体抬头只在这条回复确有内容时出现，空白完成态不留下孤立的名字行。
+  const showAgentHead =
+    message.role === 'agent' &&
+    Boolean(
+      streaming ||
+      displayText ||
+      hasVisibleRunActivity ||
+      message.error ||
+      message.attachments?.length,
+    )
 
   return (
     <AiMessage
@@ -733,38 +764,38 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
-      {message.role === 'agent' && streaming && (
-        <span className="mb-3 flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
+      {showAgentHead && (
+        // 抬头：墨色品牌键帽 + 名称；运行中追加轨道指示，时间使用等宽数字。
+        <div className="agent-message-head mb-2 flex h-6 min-w-0 items-center gap-2 text-[13px]">
           <span
-            className="agent-message-mark grid size-[22px] place-items-center"
+            className="agent-message-mark grid size-[22px] flex-none place-items-center"
             data-state={agentState}
             aria-hidden="true"
           >
             <BrandLogo size={20} />
           </span>
-          Pisper
-        </span>
+          <span className="font-semibold text-foreground">Pisper</span>
+          {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}
+          {timestamp && (
+            <time
+              className="ml-auto flex-none text-[12px] text-content-muted tabular-nums"
+              dateTime={timestamp.iso}
+              title={timestamp.full}
+            >
+              {timestamp.label}
+            </time>
+          )}
+        </div>
       )}
       <div
         className={cn(
           'message-content relative min-w-0',
           message.role === 'agent'
             ? 'w-full'
-            : "w-fit max-w-[78%] @max-[700px]:max-w-[86%] @max-[470px]:max-w-[94%] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full",
+            : "w-fit max-w-[min(640px,88%)] [[data-chat-message-style='plain']_&]:w-full [[data-chat-message-style='plain']_&]:max-w-full",
         )}
       >
         {showRunActivity && runProps && <AgentRunActivity {...runProps} />}
-        {streaming && !displayText && !hasVisibleRunActivity && (
-          // 首轮 SSE 事件到达前的空窗：只有头像会显得卡住，用三点动画表明正在工作。
-          <div
-            className="agent-thinking-dots [&_i]:w-[4px] [&_i]:h-[4px] [&_i]:rounded-[50%] [&_i]:bg-[var(--text-muted)] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-center gap-[3px] py-2"
-            aria-hidden="true"
-          >
-            <i />
-            <i />
-            <i />
-          </div>
-        )}
         {displayText && (
           <MarkdownMessage
             cwd={cwd}
@@ -773,7 +804,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)] [font-family:var(--font-content-family)] font-[400]',
               message.role === 'agent'
                 ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h1]:text-[1.5em]! [&_h1]:leading-[1.333333]! [&_h2]:text-[1.25em]! [&_h2]:leading-[1.4]! [&_h3]:text-[1.125em]! [&_h3]:leading-[1.555556]! [&_h1]:mt-[1em]! [&_h2]:mt-[1em]! [&_h3]:mt-[1em]! [&_h1]:mb-[.25em]! [&_h2]:mb-[.25em]! [&_h3]:mb-[.25em]! [&_li]:py-0! [&_li+li]:mt-[.25em]! [&_p]:mt-0! [&_p]:mb-[.25em]! [&_ul]:my-[.25em]! [&_ol]:my-[.25em]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
-                : "rounded-[22px] border border-transparent bg-[var(--user-bubble-bg)] px-4 py-2.5 leading-[1.625] text-[var(--user-bubble-text)] shadow-none [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:border-0 [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+                : "rounded-[12px_12px_3px_12px] border-0 bg-[var(--user-bubble-bg)] px-[14px] py-[10px] text-[length:calc(var(--app-message-font-size)*.9375)]! leading-[1.6] text-[var(--user-bubble-text)] shadow-none [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [&_code]:bg-panel [&_code]:shadow-[0_0_0_1px_var(--stroke-soft)] [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}
@@ -786,19 +817,20 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             sessionStreaming={sessionStreaming}
           />
         )}
+        {message.role === 'user' && displayText && (
+          // 宽屏把复制键挂在气泡左下角外侧，不再在气泡下方留一整行空白；窄屏与触屏保持常显的 44px 行。
+          <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end min-h-5 gap-0 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 min-[651px]:absolute min-[651px]:right-full min-[651px]:bottom-0 min-[651px]:mr-1 min-[651px]:mt-0 [[data-chat-message-style='plain']_&]:static [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 pointer-coarse:[&_button]:size-11 pointer-coarse:[&_button]:min-h-11 [&_button]:rounded-md">
+            <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />
+          </div>
+        )}
       </div>
-      {message.role === 'user' && displayText && (
-        <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end min-h-5 gap-0 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md">
-          <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />
-        </div>
-      )}
       {message.error && !streaming && !hideErrorNotice && (
         <ChatRequestNotice error={String(message.error)} className="mt-3" />
       )}
       {message.role === 'agent' &&
         !streaming &&
         (displayText || message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center min-h-5 gap-0 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
+          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center min-h-5 gap-0 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 pointer-coarse:[&_button]:size-11 pointer-coarse:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
             {displayText && <MessageCopyButton text={displayText} />}
             {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
               <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
@@ -903,7 +935,7 @@ export const MiniChatMessage = memo(function MiniChatMessage({ message }: MiniCh
   return (
     <AiMessage
       from={message.role === 'agent' ? 'assistant' : 'user'}
-      className={`[&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[13px] [&_>_span]:font-[600] [&_>_span]:[text-transform:uppercase] [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-[var(--star)] [&_.markdown-body]:rounded-[var(--r-xs)] [&_.markdown-body]:bg-[var(--surface-subtle)] [&_.markdown-body]:[padding:6px_8px] [&_.markdown-body]:text-[13px] [&_.markdown-body]:leading-[1.45] [&_.markdown-body]:[overflow-wrap:anywhere] [&.agent_.markdown-body]:bg-[var(--accent-soft)] [&_.markdown-body_pre]:max-h-[130px] [&_.markdown-body_pre]:[padding:7px] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
+      className={`[&_>_span]:pt-[5px] [&_>_span]:text-[var(--text-muted)] [&_>_span]:font-[ui-monospace,_SFMono-Regular,_Consolas,_'Liberation_Mono',_monospace] [&_>_span]:text-[12px] [&_>_span]:font-medium [&.agent_>_span::before]:[content:'✦'] [&.agent_>_span::before]:mr-[4px] [&.agent_>_span::before]:text-content-muted [&_.markdown-body]:rounded-[var(--r-xs)] [&_.markdown-body]:bg-[var(--surface-subtle)] [&_.markdown-body]:[padding:6px_8px] [&_.markdown-body]:text-[13px] [&_.markdown-body]:leading-[1.45] [&_.markdown-body]:[overflow-wrap:anywhere] [&.agent_.markdown-body]:bg-[var(--surface-muted)] [&_.markdown-body_pre]:max-h-[130px] [&_.markdown-body_pre]:[padding:7px] grid grid-cols-[34px_minmax(0,1fr)] gap-[6px] [margin-bottom:6px] [align-items:start] ${message.role}`}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
       data-pisper-streaming={message.streaming || undefined}

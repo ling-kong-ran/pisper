@@ -105,11 +105,11 @@ export function NotificationTemplatesEditor({
   }
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-medium">
+      <h2 className="text-[15px] leading-6 font-medium text-content">
         {t('config:notificationSettings.notificationTemplates')}
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm">
+        <label className="grid gap-1.5 text-sm font-medium text-content">
           {t('config:notificationSettings.notificationEvent')}
           <AppSelect
             aria-label={t('config:notificationSettings.notificationEvent')}
@@ -123,7 +123,7 @@ export function NotificationTemplatesEditor({
             ))}
           </AppSelect>
         </label>
-        <label className="grid gap-1 text-sm">
+        <label className="grid gap-1.5 text-sm font-medium text-content">
           {t('config:notificationSettings.notificationChannel')}
           <AppSelect
             aria-label={t('config:notificationSettings.notificationChannel')}
@@ -141,35 +141,41 @@ export function NotificationTemplatesEditor({
           </AppSelect>
         </label>
       </div>
-      <p className="text-sm text-muted-foreground">{selected.description}</p>
-      <label className="grid gap-2 text-sm">
+      <p className="text-xs text-content-muted">{selected.description}</p>
+      <label className="grid gap-1.5 text-sm font-medium text-content">
         {t('config:notificationSettings.messageContent')}
         <textarea
           aria-label={t('config:notificationSettings.messageContent')}
           value={draft.content}
           onChange={(event) => settings.editDraft(selected.id, platform, event.target.value)}
-          className="min-h-36 w-full rounded-lg border border-border bg-background p-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-36 w-full rounded-sm border border-input bg-panel p-3 font-mono text-[12.5px] leading-[1.65] font-normal caret-focus outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring"
         />
       </label>
-      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-content-muted">
         <span>{t('config:notificationSettings.availableVariables')}</span>
         {selected.variables.map((variable) => (
-          <code key={variable}>{`{{${variable}}}`}</code>
+          <code
+            key={variable}
+            className="rounded-xs bg-inline-code px-1.5 py-0.5 font-mono text-content-secondary"
+          >{`{{${variable}}}`}</code>
         ))}
       </div>
-      <div className="rounded-lg border border-border p-3">
-        <p className="text-xs text-muted-foreground">{t('config:notificationSettings.preview')}</p>
-        <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm">
+      {/* 预览是凹陷的读数井：代码底色 + 细描边，与可编辑字段区分。 */}
+      <div className="rounded-md border border-stroke bg-code p-3">
+        <p className="text-xs font-medium text-content-muted">
+          {t('config:notificationSettings.preview')}
+        </p>
+        <pre className="mt-2 font-sans text-sm break-words whitespace-pre-wrap text-content">
           {renderPreview(draft.content, t)}
         </pre>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-content-muted">
         {draft.dirty
           ? t('config:notificationSettings.saveBeforeTest')
           : t('config:notificationSettings.testUsesSavedTemplate')}
       </p>
       {!canTest && (
-        <p role="status" className="text-xs text-muted-foreground">
+        <p role="status" className="text-xs text-content-muted">
           {t('config:notificationSettings.channelTestUnavailable')}
         </p>
       )}
@@ -178,7 +184,8 @@ export function NotificationTemplatesEditor({
       )}
       <div className="flex flex-wrap justify-end gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
+          className="max-[650px]:h-11"
           disabled={draft.dirty || draft.save.pending || !canTest}
           loading={draft.test.pending}
           onClick={() => void test()}
@@ -187,6 +194,7 @@ export function NotificationTemplatesEditor({
         </Button>
         <Button
           data-template-save
+          className="max-[650px]:h-11"
           loading={draft.save.pending}
           disabled={!draft.dirty || !draft.content.trim()}
           onClick={async () => {

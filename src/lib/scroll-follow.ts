@@ -120,7 +120,9 @@ export function createScrollFollowController(
     lastTop = node.scrollTop
     if (programmatic || disposed) return
     // 小幅上翻也要脱离，不能因为仍在贴底阈值内而立即抢回滚动权。
-    if (delta < -0.5) pauseFollowing()
+    // 但视口变高（如输入区收起）时浏览器会把 scrollTop 向上夹回底部，这不是用户意图；
+    // 真实上翻已由滚轮、键盘和触摸各自处理，这里只在离开底部时才视为上翻。
+    if (delta < -0.5 && bottom() - node.scrollTop > 1) pauseFollowing()
     else if (delta > 0.5 && bottom() - node.scrollTop <= threshold) resumeFollowing()
   }
   const onWheel = (event: WheelEvent) => {

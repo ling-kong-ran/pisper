@@ -1,6 +1,7 @@
 // 视觉改编自 ZCode ConversationDraftEmptyState；来源和改动见 THIRD_PARTY_NOTICES.md。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
+import { StarOrbit } from '@/components/StarOrbit'
 import {
   greetingFontSize,
   greetingPeriod,
@@ -44,13 +45,15 @@ export function WorkbenchGreeting() {
   }, [greeting])
   return (
     <div
-      className="relative mx-auto flex w-full max-w-2xl items-center justify-center text-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none"
+      className="relative mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-3 text-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none"
       data-testid="workbench-greeting"
     >
+      {/* 品牌时刻：静止的星轨插画（虚线轨道 + 四芒星 + 强调色行星），不发光、不循环动画。 */}
+      <StarOrbit size={40} />
       <h1
         ref={container}
         style={{ fontSize: Math.min(24, fontSize) }}
-        className="relative z-10 m-0 w-full px-4 text-center leading-[1.4] font-normal"
+        className="relative z-10 m-0 w-full px-4 text-center leading-[1.4] font-normal tracking-[-.01em]"
       >
         <span
           ref={measurement}
