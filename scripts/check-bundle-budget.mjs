@@ -6,13 +6,14 @@ import { fileURLToPath } from 'node:url'
 const KIB = 1024
 
 export const BUNDLE_BUDGETS = {
-  // 决策模型设置页（懒加载）新增少量布局/进度条样式类。
-  totalCssGzip: 88 * KIB + 128,
+  // Quiet Precision 重设计后样式收敛到约 79 KiB，预算同步下调以锁住收益，保留约 3 KiB 余量。
+  totalCssGzip: 82 * KIB,
   // 移动端恢复门禁保留在统一请求层，入口只增加极小的按需加载开销。
   // 状态栏新增连接探针与重连提示（自适应轮询 + 内置 toast）后，入口文件小幅增长。
   entryFileGzip: 57 * KIB + 384,
   // 页面偏好恢复后无条件加载的 mount-app 也计入启动面；分块与恢复客户端增加约 7 KB。
-  entryStaticJsGzip: 292 * KIB,
+  // 重设计后的功能栏品牌标、标签与导航图标进入启动面（约 297.6 KiB），预留约 2.4 KiB 余量。
+  entryStaticJsGzip: 300 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {
