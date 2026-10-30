@@ -128,7 +128,8 @@ export function SessionPhoneHeader({
                 'flex flex-none items-center gap-1',
                 status.kind === 'approval' && 'font-medium text-st-attn',
                 status.kind === 'running' && 'text-st-run',
-                status.kind === 'failed' && 'text-st-fail',
+                // 失败在等人处理，归需要你（规格 v2 1.3），与批准同用琥珀。
+                status.kind === 'failed' && 'font-medium text-st-attn',
                 status.kind === 'stopped' && 'text-content-muted',
               )}
               data-session-status={status.kind}
@@ -137,9 +138,9 @@ export function SessionPhoneHeader({
                 status={
                   status.kind === 'running'
                     ? 'run'
-                    : status.kind === 'approval'
-                      ? 'approval'
-                      : status.kind
+                    : status.kind === 'stopped'
+                      ? 'stopped'
+                      : 'attention'
                 }
                 className="size-3.5"
               />

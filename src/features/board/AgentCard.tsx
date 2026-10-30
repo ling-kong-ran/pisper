@@ -50,7 +50,7 @@ import { useShortcutStore } from '@/stores/shortcut-store'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import {
-  BOARD_STATUS_GLYPHS,
+  boardStatusGlyph,
   approvalArgsText,
   boardCardTone,
   boardEdgeWidth,
@@ -780,8 +780,8 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       </span>
       <div className="flex min-w-0 items-center gap-2">
         <StatusTag
-          status={BOARD_STATUS_GLYPHS[item.status]}
-          tone={item.status === 'failed' ? 'fail' : undefined}
+          status={boardStatusGlyph(item)}
+          tone={boardCardTone(item)}
           // 运行中图标只在卡片可见时旋转。
           spin={running ? motion.spin : undefined}
         >

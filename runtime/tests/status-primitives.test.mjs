@@ -26,12 +26,34 @@ test('every status has its own shape, drawn in currentColor and decorative unles
   const labelled = renderToStaticMarkup(h(StatusGlyph, { status: 'failed', label: '失败' }))
   assert.match(labelled, /role="img"/)
   assert.match(labelled, /aria-label="失败"/)
+  assert.match(labelled, /<title>失败<\/title>/, 'labelled glyphs also show the text on hover')
   assert.doesNotMatch(labelled, /aria-hidden/)
+})
+
+// 规格 v2 第 6.5 节：16px 网格；需要你是 8px 圆点，运行中是 r5.6 / 2.2 的粗弧，排队是虚线圈，
+// 完成是不带圈的勾，已处理的失败是细 ✕，已停止是实心小方块。默认颜色只取状态族工具类。
+test('v2 glyph geometry follows the 16px spec and defaults to status-family colors', () => {
+  const html = (status, props = {}) => renderToStaticMarkup(h(StatusGlyph, { status, ...props }))
+  for (const status of STATUS_GLYPH_KINDS) assert.match(html(status), /viewBox="0 0 16 16"/)
+  assert.match(html('attention'), /<circle cx="8" cy="8" r="4" fill="currentColor"/)
+  assert.match(html('attention'), /text-st-attn-fill/)
+  assert.match(html('run'), /r="5\.6" stroke-width="2\.2" stroke-opacity="0\.16"/)
+  assert.match(html('run'), /text-st-run/)
+  assert.match(html('queued'), /stroke-dasharray="1\.9 2\.3"/)
+  assert.doesNotMatch(html('done'), /<circle/, 'done is a bare check without a ring')
+  assert.match(html('done'), /stroke-width="1\.7"/)
+  assert.match(html('stopped'), /<rect[^>]*fill="currentColor"/)
+  for (const status of ['queued', 'done', 'failed', 'stopped'])
+    assert.doesNotMatch(html(status), /st-attn|st-run/, `${status} stays neutral`)
+  // 多个运行中的弧错开相位：独立 rotate 属性，减少动效停转后角度仍然错开。
+  assert.match(html('run', { phase: 0.25 }), /style="rotate:90deg"/)
+  assert.doesNotMatch(html('run'), /style=/)
+  assert.doesNotMatch(html('queued', { phase: 0.25 }), /rotate/)
 })
 
 test('only the running glyph spins and reduced motion stops it', () => {
   const running = renderToStaticMarkup(h(StatusGlyph, { status: 'run' }))
-  assert.match(running, /animate-\[spin_1\.1s_linear_infinite\]/)
+  assert.match(running, /animate-\[spin_1\.2s_linear_infinite\]/)
   // 静态 HTML 会把 & 转义为 &amp;。
   assert.match(running, /\[:root\[data-motion=reduced\]_&amp;\]:animate-none/)
   assert.match(running, /motion-reduce:\[:root:not\(\[data-motion=full\]\)_&amp;\]:animate-none/)
@@ -42,12 +64,11 @@ test('only the running glyph spins and reduced motion stops it', () => {
 
 test('status tags color text, soft fill and border from the status family only', () => {
   assert.deepEqual(STATUS_GLYPH_TONES, {
+    attention: 'attn',
     run: 'run',
-    approval: 'attn',
-    question: 'attn',
-    failed: 'fail',
     queued: 'queue',
     done: 'done',
+    failed: 'fail',
     stopped: 'queue',
   })
   for (const status of STATUS_GLYPH_KINDS) {

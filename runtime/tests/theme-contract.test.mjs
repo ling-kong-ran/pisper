@@ -86,56 +86,82 @@ const TEXT = 4.5
 const BOUNDARY = 3
 const STATUSES = ['run', 'attn', 'fail', 'done', 'queue']
 
-// WCAG 配对表：规格 6.2/6.3 中带对比度数值的组合（spec 为规格记录值，仅作说明），
-// 外加状态标签、卡片元信息等同一批 token 的日常组合。[前景, 背景, 下限, 规格值, 半透明背景的下层底]
+// WCAG 配对表：规格 v2 第 6.2 节带对比度数值的组合（spec 为规格记录值，由下方测试从实际 token 复算），
+// 外加侧栏、井、控件边框等同一批 token 的日常组合。[前景, 背景, 下限, 规格值, 半透明背景的下层底]
+// v2 侧栏（--sidebar-bg）比纸面暗一级，文字与琥珀圆点必须在两种底上都达标。
 const WCAG_PAIRS = {
   light: [
-    ['--text-muted', '--bg', TEXT, 5.84],
+    ['--text-muted', '--bg', TEXT, 5.05],
+    ['--text-muted', '--sidebar-bg', TEXT, 4.71],
     ['--text-muted', '--panel', TEXT],
     ['--text-muted', '--solid', TEXT],
+    ['--text-muted', '--surface-subtle', TEXT],
+    ['--text-muted', '--well-bg', TEXT],
     ['--text-muted', '--lane-bg', TEXT],
     ['--text-muted', '--surface-muted', TEXT],
+    ['--text-secondary', '--surface-hover', TEXT],
+    ['--text-secondary', '--surface-active', TEXT],
     ['--text', '--bg', TEXT],
-    ['--on-accent', '--star', TEXT, 17.89],
+    ['--text', '--surface-active', TEXT],
+    ['--on-accent', '--star', TEXT],
     ['--on-accent', '--star-hover', TEXT],
-    ['--success', '--panel', TEXT, 5.67],
-    ['--danger', '--panel', TEXT, 5.95],
-    ['--warning-strong', '--panel', TEXT, 6.06],
-    ['--status-blue', '--panel', TEXT, 5.54],
-    ['--on-attn', '--st-attn-solid', TEXT, 8.59],
+    ['--success', '--panel', TEXT],
+    ['--danger', '--panel', TEXT],
+    ['--warning-strong', '--panel', TEXT, 6.33],
+    ['--warning-strong', '--sidebar-bg', TEXT],
+    ['--warning-strong', '--warning-soft', TEXT],
+    ['--on-attn', '--st-attn-solid', TEXT],
     ['--well-text', '--well-bg', TEXT],
     ['--well-muted', '--well-bg', TEXT],
-    ['--control-border', '--panel', BOUNDARY, 3.88],
+    ['--control-border', '--panel', BOUNDARY],
     ['--control-border', '--solid', BOUNDARY],
     ['--control-border', '--bg', BOUNDARY],
-    ['--st-attn-ring', '--panel', BOUNDARY, 6.79],
+    ['--control-border', '--sidebar-bg', BOUNDARY],
+    ['--control-border', '--surface-subtle', BOUNDARY],
+    ['--amber', '--sidebar-bg', BOUNDARY, 3.31],
+    ['--amber', '--panel', BOUNDARY],
+    ['--amber', '--surface-hover', BOUNDARY],
+    ['--st-attn-ring', '--panel', BOUNDARY],
     ['--focus', '--bg', BOUNDARY],
     ['--focus', '--panel', BOUNDARY],
+    ['--focus', '--sidebar-bg', BOUNDARY],
     ['--focus', '--lane-bg', BOUNDARY],
   ],
   dark: [
-    ['--text-muted', '--bg', TEXT, 5.71],
-    ['--text-muted', '--panel', TEXT],
+    ['--text-muted', '--bg', TEXT],
+    ['--text-muted', '--panel', TEXT, 5.47],
+    ['--text-muted', '--sidebar-bg', TEXT],
     ['--text-muted', '--solid', TEXT],
+    ['--text-muted', '--surface-subtle', TEXT],
+    ['--text-muted', '--well-bg', TEXT],
     ['--text-muted', '--lane-bg', TEXT],
     ['--text-muted', '--surface-muted', TEXT],
+    ['--text-secondary', '--surface-hover', TEXT],
+    ['--text-secondary', '--surface-active', TEXT],
     ['--text', '--bg', TEXT],
-    ['--on-accent', '--star', TEXT, 15.08],
+    ['--text', '--surface-active', TEXT],
+    ['--on-accent', '--star', TEXT],
     ['--on-accent', '--star-hover', TEXT],
-    ['--success', '--panel', TEXT, 9.39],
-    ['--danger', '--panel', TEXT, 7.18],
-    ['--warning-strong', '--panel', TEXT, 9.0],
-    ['--status-blue', '--panel', TEXT, 9.58],
-    ['--st-queue', '--panel', TEXT, 7.27],
-    ['--on-attn', '--st-attn-solid', TEXT, 9.37],
+    ['--success', '--panel', TEXT],
+    ['--danger', '--panel', TEXT],
+    ['--warning-strong', '--panel', TEXT],
+    ['--warning-strong', '--sidebar-bg', TEXT],
+    ['--warning-strong', '--warning-soft', TEXT, undefined, '--panel'],
+    ['--on-attn', '--st-attn-solid', TEXT],
     ['--well-text', '--well-bg', TEXT],
     ['--well-muted', '--well-bg', TEXT],
-    ['--control-border', '--panel', BOUNDARY, 3.83],
+    ['--control-border', '--panel', BOUNDARY],
     ['--control-border', '--solid', BOUNDARY],
     ['--control-border', '--bg', BOUNDARY],
-    ['--st-attn-solid', '--panel', BOUNDARY, 9.0],
+    ['--control-border', '--sidebar-bg', BOUNDARY],
+    ['--control-border', '--surface-subtle', BOUNDARY],
+    ['--amber', '--sidebar-bg', BOUNDARY],
+    ['--amber', '--panel', BOUNDARY],
+    ['--amber', '--surface-hover', BOUNDARY],
+    ['--st-attn-solid', '--panel', BOUNDARY],
     ['--focus', '--bg', BOUNDARY],
     ['--focus', '--panel', BOUNDARY],
+    ['--focus', '--sidebar-bg', BOUNDARY],
     ['--focus', '--lane-bg', BOUNDARY],
   ],
 }
@@ -357,14 +383,17 @@ test('new layout tokens resolve in both themes and cards round up on the phone s
       assert.ok(resolve(token), `${mode} ${token}`)
     assert.match(resolve('--hatch-attn'), /^repeating-linear-gradient\(/)
   }
-  assert.equal(theme('light', 'neutral')('--r-card'), '8px')
+  // 规格 6.4：会话行、列表行、小卡片 10，弹层与对话框 14，按钮芯片 6。
+  assert.equal(theme('light', 'neutral')('--r-card'), '10px')
+  assert.equal(theme('light', 'neutral')('--r-sm'), '6px')
+  assert.equal(theme('light', 'neutral')('--r-lg'), '14px')
   assert.equal(
     theme('light', 'neutral', '', { 'phone-shell': true })('--r-card'),
-    'calc(8px + 4px)',
+    'calc(10px + 4px)',
   )
   assert.equal(
     theme('light', 'neutral', '', { 'phone-shell': true, radius: 'sharp' })('--r-card'),
-    'calc(5px + 4px)',
+    'calc(7px + 4px)',
   )
   assert.equal(theme('light', 'neutral')('--d-lane'), '240ms')
 })

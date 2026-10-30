@@ -119,7 +119,7 @@ export function SessionPageHeader({
 
   const status =
     approvals > 0 ? (
-      <StatusTag status="approval" data-session-status="approval">
+      <StatusTag status="attention" data-session-status="approval">
         {t('board:status.approval')}
       </StatusTag>
     ) : streaming ? (
@@ -129,7 +129,7 @@ export function SessionPageHeader({
           : t('board:session.running', { elapsed: formatCompactDuration(elapsed) })}
       </StatusTag>
     ) : failed ? (
-      <StatusTag status="failed" data-session-status="failed">
+      <StatusTag status="attention" data-session-status="failed">
         {t('board:status.failed')}
       </StatusTag>
     ) : stopped ? (

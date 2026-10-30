@@ -19,9 +19,9 @@ import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 const ATTENTION_GLYPHS: Partial<Record<FleetAttentionItem['status'], StatusGlyphKind>> = {
-  approval: 'approval',
-  question: 'question',
-  failed: 'failed',
+  approval: 'attention',
+  question: 'attention',
+  failed: 'attention',
 }
 
 type FleetMeterProps = {
@@ -210,7 +210,7 @@ function FleetPanel({
             </p>
             <div className="flex items-center gap-1.5 text-xs text-st-attn">
               <StatusGlyph
-                status={ATTENTION_GLYPHS[first.status] || 'approval'}
+                status={ATTENTION_GLYPHS[first.status] || 'attention'}
                 className={cn('size-3.5', first.status === 'failed' && 'text-st-fail')}
               />
               <span className={cn('font-medium', first.status === 'failed' && 'text-st-fail')}>
@@ -257,7 +257,7 @@ function FleetPanel({
                       onClick={() => onOpenSession(item.sessionId)}
                     >
                       <StatusGlyph
-                        status={ATTENTION_GLYPHS[item.status] || 'approval'}
+                        status={ATTENTION_GLYPHS[item.status] || 'attention'}
                         label={statusLabels[item.status]}
                         className={cn(
                           'size-3.5 flex-none',

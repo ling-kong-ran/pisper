@@ -117,8 +117,9 @@ test('terminal views may unmount while the application owns resources and theme 
   ])
   assert.match(provider, /registry\.dispose\(\)/)
   assert.match(provider, /window\.addEventListener\('pagehide', dispose\)/)
-  assert.match(styles, /--terminal-bg: #f9f9fa;/)
-  assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #0b0b0d;/)
+  // 终端底色跟随 v2 暖调中性灰（规格 6.2）：浅色与侧栏同为 #f7f7f5，深色与侧栏同为 #171716。
+  assert.match(styles, /--terminal-bg: #f7f7f5;/)
+  assert.match(styles, /:root\[data-theme='dark'\][\s\S]*?--terminal-bg: #171716;/)
   assert.match(renderer, /document\.documentElement\.dataset\.theme === 'dark'/)
   assert.match(renderer, /background: color\('--terminal-bg'/)
   assert.match(renderer, /themeObserver\.disconnect\(\)/)

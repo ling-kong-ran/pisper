@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import {
-  BOARD_STATUS_GLYPHS,
+  boardStatusGlyph,
   approvalArgsText,
   boardCardTone,
   guardReasonSummary,
@@ -195,7 +195,7 @@ export function AgentMiniRow({
       <span className="pointer-events-none grid min-w-0 gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-[13px]">
           <StatusGlyph
-            status={BOARD_STATUS_GLYPHS[item.status]}
+            status={boardStatusGlyph(item)}
             spin={item.status === 'running'}
             className={cn('size-3.5 flex-none', TONE_TEXT[tone])}
           />
@@ -247,7 +247,7 @@ export function AgentMiniPreview({
     <div className="grid min-w-0 gap-2 text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <StatusGlyph
-          status={BOARD_STATUS_GLYPHS[item.status]}
+          status={boardStatusGlyph(item)}
           spin={item.status === 'running'}
           className={cn('size-4 flex-none', TONE_TEXT[tone])}
         />

@@ -60,5 +60,11 @@
   "pageTemplate.openDetail": "打开详情与画布",
   "pageTemplate.loading": "正在加载…",
   "pageTemplate.retry": "重试",
-  "pageTemplate.empty": "暂无内容"
+  "pageTemplate.empty": "暂无内容",
+  "statusGlyph.attention": "需要你",
+  "statusGlyph.run": "运行中",
+  "statusGlyph.queued": "排队",
+  "statusGlyph.done": "已完成",
+  "statusGlyph.failed": "失败 · 已查看",
+  "statusGlyph.stopped": "已停止"
 }

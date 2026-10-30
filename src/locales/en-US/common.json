@@ -60,5 +60,11 @@
   "pageTemplate.openDetail": "Open details and canvas",
   "pageTemplate.loading": "Loading…",
   "pageTemplate.retry": "Retry",
-  "pageTemplate.empty": "Nothing here yet"
+  "pageTemplate.empty": "Nothing here yet",
+  "statusGlyph.attention": "Needs you",
+  "statusGlyph.run": "Running",
+  "statusGlyph.queued": "Queued",
+  "statusGlyph.done": "Done",
+  "statusGlyph.failed": "Failed · seen",
+  "statusGlyph.stopped": "Stopped"
 }

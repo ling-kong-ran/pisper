@@ -59,7 +59,7 @@ import {
   rememberBoardReturn,
   type BoardReturnRect,
 } from './board-return'
-import { BOARD_STATUS_GLYPHS, boardCardTone, elapsedSince } from './card-presentation'
+import { boardStatusGlyph, boardCardTone, elapsedSince } from './card-presentation'
 import { AgentPanel } from './AgentPanel'
 import { LaneGlyph } from './LaneGlyph'
 import { useLaneLabels } from './lane-labels'
@@ -419,7 +419,7 @@ export function SessionLaneStrip({
           onClick={() => open(item.id)}
         />
         <StatusGlyph
-          status={BOARD_STATUS_GLYPHS[item.status]}
+          status={boardStatusGlyph(item)}
           className={cn('pointer-events-none size-3.5 flex-none', TONE_TEXT[tone])}
         />
         <span className="pointer-events-none grid min-w-0 flex-1">

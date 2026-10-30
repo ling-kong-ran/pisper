@@ -9,9 +9,11 @@ import type { StatusGlyphKind, StatusTone } from '@/components/app/status-glyph-
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 
+// 规格 v2 第 6.5 节：批准、提问统一是需要你的琥珀圆点（原因写在文字里）；
+// failed 这里是“已处理的失败”（细 ✕），仍在需要你分组里的失败由 boardStatusGlyph 换成圆点。
 export const BOARD_STATUS_GLYPHS: Readonly<Record<BoardStatus, StatusGlyphKind>> = Object.freeze({
-  approval: 'approval',
-  question: 'question',
+  approval: 'attention',
+  question: 'attention',
   failed: 'failed',
   running: 'run',
   queued: 'queued',
@@ -20,7 +22,7 @@ export const BOARD_STATUS_GLYPHS: Readonly<Record<BoardStatus, StatusGlyphKind>>
 })
 
 export const BOARD_LANE_GLYPHS: Readonly<Record<BoardLane, StatusGlyphKind>> = Object.freeze({
-  attention: 'approval',
+  attention: 'attention',
   running: 'run',
   queued: 'queued',
   done: 'done',
@@ -33,14 +35,21 @@ export const BOARD_LANE_TONES: Readonly<Record<BoardLane, StatusTone>> = Object.
   done: 'done',
 })
 
-// 卡片色调：已处理的失败仍是红色八边形，只是落在已完成泳道、换成细边。
-export function boardCardTone(item: Pick<BoardItem, 'status'>): StatusTone {
+// 失败在等人处理时属于需要你（琥珀圆点）；打开或标记已处理后落到完成分组，换成中性的细 ✕。
+export function boardStatusGlyph(item: Pick<BoardItem, 'status'> & { lane?: BoardLane | null }) {
+  return item.lane === 'attention' ? 'attention' : BOARD_STATUS_GLYPHS[item.status]
+}
+
+// 卡片色调：只有需要你是琥珀；已处理的失败与其余状态一样是中性灰（v2 不再用红色表示失败）。
+export function boardCardTone(
+  item: Pick<BoardItem, 'status'> & { lane?: BoardLane | null },
+): StatusTone {
   switch (item.status) {
     case 'approval':
     case 'question':
       return 'attn'
     case 'failed':
-      return 'fail'
+      return item.lane === 'attention' ? 'attn' : 'fail'
     case 'running':
       return 'run'
     case 'done':

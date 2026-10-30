@@ -23,7 +23,7 @@ import { ApprovalConfirm } from './ApprovalConfirm'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import {
-  BOARD_STATUS_GLYPHS,
+  boardStatusGlyph,
   approvalArgsText,
   boardCardTone,
   guardReasonSummary,
@@ -127,7 +127,7 @@ export function PhoneAgentStrip({ currentId, notify, onOpenSession }: PhoneAgent
                 onClick={() => setSelectedId(item.id)}
               >
                 <StatusGlyph
-                  status={BOARD_STATUS_GLYPHS[item.status]}
+                  status={boardStatusGlyph(item)}
                   spin={item.status === 'running'}
                   className={cn('size-4 flex-none', TONE_TEXT[tone])}
                 />
@@ -242,7 +242,7 @@ function AgentActionSheetBody({
     <>
       <SheetHeader className="flex-row items-start gap-2 p-0">
         <StatusGlyph
-          status={BOARD_STATUS_GLYPHS[item.status]}
+          status={boardStatusGlyph(item)}
           spin={item.status === 'running'}
           className={cn('mt-0.5 size-5 flex-none', TONE_TEXT[tone])}
         />
