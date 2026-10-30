@@ -180,11 +180,19 @@ test('conversation layout keeps a compact title header without a persistent avat
     /onClick=\{actions\.onRename\}[\s\S]{0,40}<span className="truncate" data-session-title>/,
   )
   assert.doesNotMatch(phoneHeader, /Avatar|BrandLogo/)
-  // 第 3 期桌面会话页：44px 会话页头取代旧顶栏，标题只出现这一次（15/600，可点改名），没有头像卡片；
-  // 外壳本身（泳道条与返回键）不再重复标题。
+  // 桌面会话顶栏（规格 v2 第 4.1 节，52px）：标题只出现这一次（15px），是标题 ▾ 菜单的触发键，
+  // 菜单第一项就是重命名（原来“点标题改名”的等价入口）；没有头像卡片，外壳本身不再重复标题。
   assert.match(focus, /const headerBlock = pageHeaderBlock \|\| \(/)
   assert.match(pageHeader, /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/)
-  assert.match(pageHeader, /text-\[15px\] leading-6 font-semibold[\s\S]{0,300}onClick=\{onRename\}/)
+  assert.match(
+    pageHeader,
+    /<DropdownMenuTrigger asChild>[\s\S]{0,600}text-\[15px\] leading-6[\s\S]{0,800}data-session-title[\s\S]{0,400}<DropdownMenuContent[^>]*>\s*\{menu\.items\}/,
+  )
+  const headerMenu = await readFile('src/features/chat/session-header-menu.tsx', 'utf8')
+  assert.match(
+    headerMenu,
+    /const items = \(\s*<>\s*<DropdownMenuItem onSelect=\{actions\.onRename\}>/,
+  )
   assert.equal(pageHeader.match(/data-session-title/g)?.length, 1)
   assert.doesNotMatch(pageHeader, /Avatar|BrandLogo/)
   assert.doesNotMatch(shell, /session\.name|data-session-title|pageHeader\.newChat/)

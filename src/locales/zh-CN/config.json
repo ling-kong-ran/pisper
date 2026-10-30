@@ -367,6 +367,8 @@
   "interfaceSettings.lightDescription": "始终使用明亮的浅色界面",
   "interfaceSettings.livePreview": "实时预览",
   "interfaceSettings.motion": "界面动效",
+  "interfaceSettings.pinInspector": "固定检查器",
+  "interfaceSettings.pinInspectorDescription": "常驻会话页右侧；关闭时按需滑入。",
   "interfaceSettings.motionFull": "完整",
   "interfaceSettings.motionFullDescription": "保留全部过渡与反馈",
   "interfaceSettings.motionReduced": "减少",

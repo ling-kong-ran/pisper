@@ -367,6 +367,8 @@
   "interfaceSettings.lightDescription": "Always use the bright interface",
   "interfaceSettings.livePreview": "Live preview",
   "interfaceSettings.motion": "Interface motion",
+  "interfaceSettings.pinInspector": "Pin the inspector",
+  "interfaceSettings.pinInspectorDescription": "Keep it docked instead of sliding in on demand.",
   "interfaceSettings.motionFull": "Full",
   "interfaceSettings.motionFullDescription": "Keep all transitions and feedback",
   "interfaceSettings.motionReduced": "Reduced",

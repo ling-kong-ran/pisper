@@ -26,7 +26,8 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
   const marker = 'PI history mark fixture'
   const dialog = page.getByRole('dialog', { name: '追忆', exact: true })
   const entry = (id) => dialog.locator(`[data-pisper-tree-entry="${id}"]`)
-  // 第 3 期：会话树（追忆）的入口是会话页头的“分支”按钮（原“⋯ › 追忆”菜单项随新页头退役）。
+  // 规格 v2 第 4.1 / 4.5 节：会话树（追忆）唯一的入口是顶栏标题旁的 ⑂ 按钮（git-fork 图标，提示“会话树”），
+  // 有分支时写数量，没有时只有图标；⇧⌘B 走同一个入口。
   const branches = page.locator('[data-session-header] [data-session-branches]')
   const openTree = (options) => branches.click(options)
   await openTree()
@@ -49,12 +50,19 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
   const continued = await send('history continued branch fixture')
   assert.ok(continued.some((node) => node.id === second.id && !node.active))
   assert.ok(continued.some((node) => ![first.id, second.id].includes(node.id) && node.active))
-  // 页头“分支”按钮带上 Runtime 给出的分支数。
+  // 顶栏 ⑂ 带上 Runtime 给出的分支数（“⑂ 2”），名称写“会话树：N 个分支”。
   const { branchCount } = await tree()
   assert.ok(branchCount >= 1, `continuing from an earlier turn creates a branch: ${branchCount}`)
-  await branches.filter({ hasText: `分支 ${branchCount}` }).waitFor()
+  await page
+    .locator(`[data-session-header] [data-session-branches="${branchCount}"]`)
+    .filter({ hasText: String(branchCount) })
+    .waitFor()
+  assert.match(
+    await branches.getAttribute('aria-label'),
+    new RegExp(`^会话树：${branchCount} 个分支`),
+  )
   report.checks.push(
-    'History marks, global index and search work; continuing retains both active and inactive branches and the header 分支 button shows the branch count',
+    'History marks, global index and search work; continuing retains both active and inactive branches and the header ⑂ session-tree button shows the branch count',
   )
 
   await openTree()
@@ -111,7 +119,14 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
   assert.equal((await tree()).nodes.find((node) => node.id === first.id).label, '')
   await page.screenshot({ path: join(output, 'history-tree.png'), animations: 'disabled' })
   await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
-  // 关闭后焦点回到打开它的“分支”按钮。
+  // 关闭后焦点回到打开它的 ⑂ 按钮。
   await page.waitForFunction(() => document.activeElement?.hasAttribute('data-session-branches'))
   report.checks.push('History label deletion, original turns and continued branches survive reload')
+  // ⇧⌘B（sessionTree，规格 2.8）从输入框打开同一个会话树，关闭后焦点回到 ⑂。
+  await page.locator('.focus-composer textarea').first().click()
+  await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+Shift+KeyB`)
+  await dialog.waitFor()
+  await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-session-branches'))
+  report.checks.push('⇧⌘B opens the session tree from the composer and closing returns focus to ⑂')
 }

@@ -975,6 +975,12 @@ try {
       'session page: 52px session header (aligned with the sidebar brand row)',
     )
     assert.equal(geo.workspace, 'aside', 'wide session page docks the inspector')
+    // 规格 v2 第 4.4 节：检查器默认关着、按需滑入（没有固定时）；对话列独占主区。
+    assert.equal(
+      await page.locator('[data-session-inspector]').count(),
+      0,
+      'the inspector starts closed',
+    )
     assert.deepEqual(geo.intrusions, [], 'session page: top-right 144px stays free')
     assert.equal(await page.locator('[data-session-title]').innerText(), BOARD_SESSION_TITLE)
     await page.screenshot({ path: join(output, 'session-1440.png') })
@@ -1053,13 +1059,24 @@ try {
       '⌘J moves focus from the composer to the current session row in the sidebar and ↓ walks the rows; ⌥A focuses the longest-waiting needs-you row without approving or navigating',
     )
 
-    // ⌘I：输入框内也能开合检查器。
+    // ⌘I：输入框内也能开合检查器；宽屏是推开对话的停靠面板（456px），焦点留在输入框里。
     await prompt.click()
     await page.keyboard.press(`${mod}+KeyI`)
-    await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
+    await page.locator('[data-inspector-aside] [data-session-inspector]').waitFor()
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
+      true,
+      '⌘I on the wide page keeps focus in the composer',
+    )
+    assert.equal(
+      await page.locator('[data-inspector-toggle]').getAttribute('aria-expanded'),
+      'true',
+    )
     await page.keyboard.press(`${mod}+KeyI`)
-    await page.locator('[data-session-inspector]').waitFor()
-    report.checks.push('⌘I closes and reopens the docked inspector from inside the composer')
+    await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
+    report.checks.push(
+      'The inspector starts closed on the wide session page; ⌘I slides the docked inspector in and out from inside the composer and the changes button reports aria-expanded',
+    )
 
     // ⌥↓ / ⌥↑：按侧栏顺序换会话，只换路由（草稿按会话保留），浏览器后退回到看板。
     await prompt.fill('会话页的未发送草稿')
@@ -1147,27 +1164,41 @@ try {
     assert.equal(geo.horizontalScroll, false)
     assert.deepEqual(geo.intrusions, [], '1080: top-right 144px stays free')
     assert.deepEqual(geo.blocked, [], '1080: no clipped or covered controls')
-    // 在输入框里 ⌘I 打开覆盖层（不抢焦点）、Esc 关闭：焦点留在输入框，不被挪到页头开关，也不停止运行。
+    // 规格 4.4 / 9.2：覆盖层无遮罩，用户打开（⌘I 或改动按钮）时焦点进面板的当前标签，Tab / ⇧Tab 在面板里循环，
+    // Esc 先关覆盖层（不停止运行），焦点回到顶栏的改动按钮。
     const composerInput = page.locator('.focus-composer textarea').first()
+    const focusInOverlay = () =>
+      page.evaluate(() => Boolean(document.activeElement?.closest('[data-inspector-overlay]')))
     await composerInput.click()
     await page.keyboard.press(`${mod}+KeyI`)
     await page.locator('[data-inspector-overlay]').waitFor()
+    await page.waitForFunction(() =>
+      document.activeElement?.matches(
+        '[data-inspector-overlay] [role="tab"][aria-selected="true"]',
+      ),
+    )
+    for (let step = 0; step < 24; step += 1) {
+      await page.keyboard.press('Tab')
+      assert.equal(await focusInOverlay(), true, `Tab ${step + 1} stays inside the overlay`)
+    }
+    for (let step = 0; step < 24; step += 1) {
+      await page.keyboard.press('Shift+Tab')
+      assert.equal(await focusInOverlay(), true, `Shift+Tab ${step + 1} stays inside the overlay`)
+    }
     await page.keyboard.press('Escape')
     await page.locator('[data-inspector-overlay]').waitFor({ state: 'detached' })
-    await page.waitForTimeout(100)
-    assert.equal(
-      await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
-      true,
-      'closing the overlay with Esc keeps focus in the composer',
-    )
+    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-inspector-toggle'))
     assert.deepEqual(aborts, [], 'Esc closes the overlay and does not stop the run')
+    report.checks.push(
+      '1080x680 overlay focus: ⌘I from the composer moves focus to the selected inspector tab, 24 × Tab and 24 × Shift+Tab stay inside the overlay, Esc closes it without stopping the run and returns focus to the changes button',
+    )
     await page.locator('[data-inspector-toggle]').click()
     await page.locator('[data-inspector-overlay]').waitFor()
     await page.locator('[data-session-inspector]').waitFor()
     await settle(page)
-    // 覆盖层从页头下方开始，页头按钮都能点到。规格 v2：侧栏常驻后 1080 宽窗口的主区只有 812px，
-    // 让出 420px 后对话列不足 480，按规格 4.4 退回纯覆盖层（不推开对话）：这时停止键与发送键在覆盖层下面，
-    // Esc 先关覆盖层（见下方）；停靠与让位的新规则在 A2 的会话页重做里定。
+    // 覆盖层从顶栏下方开始，顶栏按钮都能点到。侧栏常驻后 1080 宽窗口的主区只有 812px，
+    // 让出 420px 后对话列不足 480，按规格 4.4 是纯覆盖层（不推开对话）：这时停止键与发送键在覆盖层下面，
+    // Esc 先关覆盖层（见上方）。
     const reachable = await page.evaluate(() =>
       ['[data-inspector-toggle]', '[data-session-header] [id$="-more"]'].map((selector) => {
         const element = document.querySelector(selector)
@@ -1205,16 +1236,19 @@ try {
     assert.deepEqual(geo.intrusions, [], '1080 overlay: top-right 144px stays free')
     assert.deepEqual(geo.blocked, [], '1080 overlay: no clipped or covered controls')
     await page.screenshot({ path: join(output, 'session-1080-overlay.png') })
-    await page.locator('[data-session-header]').click({ position: { x: 300, y: 20 } })
+    // 焦点无主（例如点了不可聚焦的转录文字）：Esc 关闭时同样把焦点交回改动按钮。
+    await page.evaluate(() => document.activeElement?.blur())
+    assert.equal(await page.evaluate(() => document.activeElement === document.body), true)
     await page.keyboard.press('Escape')
     await page.locator('[data-inspector-overlay]').waitFor({ state: 'detached' })
+    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-inspector-toggle'))
     await page.waitForTimeout(300)
     assert.deepEqual(aborts, [], 'Esc closes the overlay first and does not stop the run')
     assert.equal(await page.evaluate(() => location.hash), `#/board/${BOARD_SESSION_ID}`)
     await context.close()
   }
   report.checks.push(
-    '1080x680 with the simulated custom title bar: the 268px sidebar stays expanded, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header (with the 812px main area it stays a pure overlay instead of squeezing the conversation below 480px) and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; ⌘I/Esc from the composer keeps focus there, and Esc closes the overlay without stopping the run',
+    '1080x680 with the simulated custom title bar: the 268px sidebar stays expanded, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header (with the 812px main area it stays a pure overlay instead of squeezing the conversation below 480px) and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; Esc closes the overlay without stopping the run and focus returns to the changes button',
   )
 
   // 7c. 手机 App 390×844：第 4 期手机会话页（顶栏左侧“看板 ▲N”入口、无泳道条、隐藏底部标签栏），
@@ -1287,7 +1321,7 @@ try {
     const title = page.locator('[data-session-header] [data-session-title]')
     await title.filter({ hasText: BOARD_SESSION_TITLE }).waitFor({ timeout: 30_000 })
     const openRename = async () => {
-      await page.locator('[data-session-header] [aria-label="项目与任务设置"]').click()
+      await page.locator('[data-session-header] [data-session-menu]').click()
       await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
       await dialog.waitFor()
@@ -1316,7 +1350,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Session header ⋯ › 重命名会话: a blank name cannot be saved and cancelling sends nothing; saving trims the name, PATCHes the real runtime once and updates the header title',
+    'Session title ▾ › 重命名会话: a blank name cannot be saved and cancelling sends nothing; saving trims the name, PATCHes the real runtime once and updates the header title',
   )
 
   // 7e. 第 4 期快捷键改绑：⌘J / ⌘I / ⌥↑⌥↓ / 插话 / ⌘/ 都在 shortcut-store，可在“设置 → 快捷键”改绑；
@@ -1481,8 +1515,8 @@ try {
       (open) => !!document.querySelector('[data-session-inspector]') === open,
       before,
     )
-    // 侧栏常驻后 1440 宽窗口里停靠的检查器会把对话列压到 768 以下，工具区放不下运行提示：
-    // 先收起检查器（F7），在完整的 768 对话列上核对提示。
+    // 停靠的检查器会把对话列压到 768 以下（268 + 768 + 456 > 1440），工具区放不下运行提示：
+    // 检查器按需滑入（规格 4.4），核对提示前确认它是收着的。
     if (await inspectorOpen()) {
       await page.keyboard.press('F7')
       await page.waitForFunction(() => !document.querySelector('[data-session-inspector]'))

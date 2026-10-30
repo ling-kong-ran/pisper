@@ -438,12 +438,14 @@ export const FocusSession = memo(function FocusSession({
   // 运行条读数只在桌面会话页显示（手机运行条只有“运行中 · 工具 · 时长 [停止]”）；
   // 数值都来自会话已有的用量快照，拿不到的项不显示。
   const contextPercent = Number(contextUsage?.percent)
+  // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与运行条读数同一来源，拿不到时不写。
+  const runMetricsContextPercent =
+    contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null
   const processedTokens = Number(sessionUsage?.processedTokens)
   const cacheHitRate = Number(sessionUsage?.cacheHitRate)
   const runMetrics = deskPage
     ? {
-        contextPercent:
-          contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null,
+        contextPercent: runMetricsContextPercent,
         tokens: Number.isFinite(processedTokens) && processedTokens > 0 ? processedTokens : null,
         cacheHitRate:
           sessionUsage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
@@ -769,14 +771,10 @@ export const FocusSession = memo(function FocusSession({
       </DropdownMenuItem>
     )
   // 两种会话页头共用的数据与操作（菜单项都复用现有实现）。
-  const sessionHeaderProps = {
+  const sessionMenuProps = {
     session,
     cwd: cwd || '',
     streaming: Boolean(streaming),
-    runStartedAt,
-    approvals: approvals.length,
-    failed: Boolean(!streaming && (error || latestAgentMessage?.error)),
-    stopped: Boolean(!streaming && runStopped),
     treeAvailable: messages.length > 0,
     onRename,
     onWorkspace,
@@ -792,12 +790,6 @@ export const FocusSession = memo(function FocusSession({
     workflowsAvailable,
     onVoiceMode: () => setVoiceModeOpen(true),
     notify: notify ?? (() => undefined),
-    extraItems: (
-      <>
-        {terminalMenuItem}
-        <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
-      </>
-    ),
   }
   const pageHeaderBlock = pageChrome && (
     <SessionTreeControl
@@ -818,24 +810,26 @@ export const FocusSession = memo(function FocusSession({
       {(_recallItem, tree) =>
         phonePage ? (
           <SessionPhoneHeader
-            {...sessionHeaderProps}
+            {...sessionMenuProps}
+            runStartedAt={runStartedAt}
+            approvals={approvals.length}
+            failed={Boolean(!streaming && (error || latestAgentMessage?.error))}
+            stopped={Boolean(!streaming && runStopped)}
+            // 手机顶栏（A4 前）的“⋯”仍带桌面终端与主题项；桌面标题菜单按规格 2.5 不再放它们（⌘K / ⌘` 与设置里有）。
+            extraItems={
+              <>
+                {terminalMenuItem}
+                <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
+              </>
+            }
             leading={routeLeading}
             branches={tree.branches}
             onOpenTree={tree.open}
           />
         ) : (
           <SessionPageHeader
-            {...sessionHeaderProps}
-            usage={
-              <ContextUsageIndicator
-                usage={contextUsage}
-                sessionUsage={sessionUsage}
-                model={model}
-                availableModels={availableModels}
-                onThresholdChange={onCompactionThresholdChange}
-                compact
-              />
-            }
+            {...sessionMenuProps}
+            contextPercent={runMetricsContextPercent}
             branches={tree.branches}
             onOpenTree={tree.open}
           />

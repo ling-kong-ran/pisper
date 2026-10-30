@@ -48,10 +48,13 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     for (const { url, handler } of fixtureRoutes.splice(0)) await page.unroute(url, handler)
   }
   async function openSideChat() {
-    // 桌面会话页的入口是页头的“侧聊”：在检查器里打开（或切到）唯一的侧聊标签。
-    const headerEntry = page.locator('[data-session-header] [data-session-side-chat]')
-    if (await headerEntry.isVisible()) {
-      await headerEntry.click()
+    // 桌面会话页（规格 v2 第 2.5 节）：标题 ▾ 菜单里的“侧聊”，在检查器里打开（或切到）唯一的侧聊标签；
+    // 顶栏上不再有单独的侧聊按钮。
+    const titleMenu = page.locator('[data-session-header] [data-session-menu]')
+    if (await titleMenu.isVisible()) {
+      assert.equal(await page.locator('[data-session-header] [data-session-side-chat]').count(), 0)
+      await titleMenu.click()
+      await page.getByRole('menuitem', { name: '侧聊', exact: true }).click()
       await input.waitFor()
       assert.equal(await page.locator('[data-inspector-tab-id="side-chat"]').count(), 1)
       assert.equal(
@@ -124,7 +127,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
       'Temporary chat stays compact without duplicating the parent toolbar',
     )
     report.checks.push(
-      'Temporary chat opens from the session header 侧聊 button as an inspector tab without creating a session; repeated opening selects its single tab and keeps the parent draft active',
+      'Temporary chat opens from the session title menu 侧聊 item as an inspector tab without creating a session; repeated opening selects its single tab and keeps the parent draft active',
     )
 
     stage = 'send'

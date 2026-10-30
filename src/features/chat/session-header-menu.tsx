@@ -1,8 +1,18 @@
-// 会话页头（桌面 44px）与手机顶栏（56px）共用的部分：运行时长、归档、侧聊入口，
-// 以及“⋯”菜单里两端相同的会话操作（重命名 / 移动工作区 / 压缩上下文 / 目标模式 / 工作流运行记录 /
-// 语音模式 / 归档）。每一项都只调用现有实现，两种页头不各写一份。
+// 会话顶栏（桌面 52px 的标题 ▾ 菜单）与手机顶栏（56px 的“⋯”）共用的部分：运行时长、归档、侧聊入口，
+// 以及两端相同的会话操作。顺序按规格 v2 第 2.5 节“会话其余操作”：重命名 · 侧聊 · 归档 | 移动工作区 ·
+// 压缩上下文（带当前用量）· 目标模式 · 工作流运行记录 · 语音模式。“导出”要到 A9 才有 Runtime 能力，
+// 这之前不显示（不放一个点了没反应的项）。每一项都只调用现有实现，两种页头不各写一份。
 import { useContext, useEffect, useState, type ReactNode } from 'react'
-import { Archive, AudioLines, FolderOpen, Pencil, Shrink, Target, Workflow } from 'lucide-react'
+import {
+  Archive,
+  AudioLines,
+  FolderOpen,
+  MessageSquare,
+  Pencil,
+  Shrink,
+  Target,
+  Workflow,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import {
@@ -16,6 +26,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
 import type { SessionSummary } from '@/types/chat'
 import { updateSessionOrganization } from './session-organization-api'
@@ -47,6 +58,10 @@ export function openSessionSideChat(sessionId: string, inspector: SessionInspect
 
 export type SessionMenuActions = {
   onRename: () => void
+  // 桌面标题菜单里的“侧聊”（规格 2.5）；手机顶栏的“⋯”自己放侧聊入口，不传。
+  onSideChat?: () => void
+  // 当前上下文用量（0–100），写在“压缩上下文”一项的右侧；拿不到时不写。
+  contextPercent?: number | null
   onWorkspace: () => void
   workspaceDisabled: boolean
   onCompact?: () => void
@@ -86,12 +101,28 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
     }
   }
 
+  const percent =
+    typeof actions.contextPercent === 'number' && Number.isFinite(actions.contextPercent)
+      ? Math.round(Math.min(100, Math.max(0, actions.contextPercent)))
+      : null
+
   const items = (
     <>
       <DropdownMenuItem onSelect={actions.onRename}>
         <Pencil />
         {t('chat:focusSession.renameChat')}
       </DropdownMenuItem>
+      {actions.onSideChat && (
+        <DropdownMenuItem onSelect={actions.onSideChat} data-session-side-chat>
+          <MessageSquare />
+          {t('board:inspector.sideChat')}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem disabled={archiving} onSelect={() => void archive()}>
+        <Archive />
+        {t('board:card.archive')}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
       <DropdownMenuItem disabled={actions.workspaceDisabled} onSelect={actions.onWorkspace}>
         <FolderOpen />
         {t('board:session.moveWorkspace')}
@@ -102,6 +133,15 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       >
         <Shrink />
         {t('chat:focusSession.compactContextNow')}
+        {percent !== null && (
+          <DropdownMenuShortcut
+            className="font-mono tabular-nums"
+            title={t('board:session.contextUsage', { percent })}
+            data-session-context-usage
+          >
+            {percent}%
+          </DropdownMenuShortcut>
+        )}
       </DropdownMenuItem>
       {actions.goalAvailable && (
         <DropdownMenuCheckboxItem
@@ -125,11 +165,6 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       </DropdownMenuItem>
       {actions.extraItems && <DropdownMenuSeparator />}
       {actions.extraItems}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={archiving} onSelect={() => void archive()}>
-        <Archive />
-        {t('board:card.archive')}
-      </DropdownMenuItem>
     </>
   )
 

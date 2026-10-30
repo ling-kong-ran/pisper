@@ -74,6 +74,7 @@ import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
   peekSessionNavigationIntent,
+  requestSessionCommand,
   requestSessionSelection,
   requestSessionCreation,
 } from '@/features/chat/events'
@@ -1063,6 +1064,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   : undefined
                 : () => requestSidebarCommand({ kind: 'focus-attention' })
             }
+            // ⇧⌘B 会话树、侧聊：只在会话页消费（其余页面不拦截浏览器的同名组合键），由会话页自己的入口处理。
+            onSessionTree={page === 'session' ? () => requestSessionCommand('tree') : undefined}
+            onSideChat={page === 'session' ? () => requestSessionCommand('side-chat') : undefined}
             // F6：侧栏 → 顶栏 → 对话 → 输入框（规格 2.8）。区域逻辑按需加载，不占入口包。
             onCycleFocusRegion={() =>
               void import('@/app/focus-regions').then((module) => module.cycleFocusRegion())

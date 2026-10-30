@@ -1,6 +1,7 @@
 // 会话页检查器的“改动”标签（规格 4.4）：顶部是范围切换（本会话 / 工作区）与改动汇总，
 // 中间是改动文件列表（M / A / D 标记 + 增删统计），下面是所选文件的差异（统一 / 并排、
-// 等宽 12/20、双列行号、词级高亮、hunk 标题，长行横向滚动不截断），底部是批准状态与文件操作。
+// 等宽 12/20、双列行号、词级高亮、hunk 标题，长行横向滚动不截断），然后是所选文件的批准状态与文件操作；
+// 全部批准、全部还原、刷新这类批量操作收在最底部的“⋯”里（规格 v2 第 4.4 节），汇总行只写数字。
 // 数据逻辑沿用现有实现：本会话 = /file-changes 快照（useSessionFileChanges），
 // 工作区 = /vcs/changes（与旧上下文面板同一个查询键，缓存互通）；这里只重做结构与样式。
 import {
@@ -12,11 +13,18 @@ import {
   type ReactNode,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, FolderSearch, GitBranch, RefreshCw, Undo2 } from 'lucide-react'
+import { Check, FolderSearch, GitBranch, MoreHorizontal, RefreshCw, Undo2 } from 'lucide-react'
 import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { relativeTime } from '@/lib/format'
@@ -96,10 +104,41 @@ function emitRevealNotice(message: string, tone: 'info' | 'error') {
 function DiffStats({ added, removed }: { added: number | null; removed: number | null }) {
   if (added === null || removed === null) return null
   return (
+    // 红绿只用于 diff 增删（规格 6.1）。v2 把 --st-done / --st-fail 改成了中性灰，这里原先借用它们，增删数因此失去颜色。
     <span className="flex-none font-mono text-xs tabular-nums">
-      <span className="text-st-done">+{added}</span>{' '}
-      <span className="text-st-fail">−{removed}</span>
+      <span className="text-success">+{added}</span> <span className="text-danger">−{removed}</span>
     </span>
+  )
+}
+
+// 改动页最底部的一行：左边是状态（待批准数、进行中的批量操作），右边“⋯”收着批量操作。
+function ChangesFooter({ status, children }: { status?: ReactNode; children: ReactNode }) {
+  const { t } = useI18n()
+  return (
+    <footer
+      className="mt-auto flex h-10 shrink-0 items-center gap-2 border-t border-stroke-soft pr-1.5 pl-3 text-xs text-content-muted"
+      data-changes-footer
+    >
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">{status}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="pointer-coarse:size-11"
+            aria-label={t('board:changes.more')}
+            title={t('board:changes.more')}
+            data-changes-more
+          >
+            <MoreHorizontal aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" className="min-w-48">
+          {children}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </footer>
   )
 }
 
@@ -412,43 +451,6 @@ function SessionScopeChanges({
             <DiffStats added={changes.summary.added} removed={changes.summary.removed} />
           )}
         </p>
-        {pendingCount > 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={writesDisabled}
-            title={waitTitle}
-            onClick={() => void runAction({ kind: 'approve' })}
-          >
-            {busy('approve') ? <RefreshCw className="animate-spin" /> : <Check />}
-            {t('chat:focusSession.fileChangesApproveAll')}
-          </Button>
-        )}
-        {(changes?.summary.files ?? 0) > 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={writesDisabled || reversibleCount === 0}
-            title={waitTitle ?? t('chat:focusSession.fileChangesRevertAllDescription')}
-            onClick={() => void runAction({ kind: 'revert' })}
-          >
-            {busy('revert') ? <RefreshCw className="animate-spin" /> : <Undo2 />}
-            {t('board:changes.revertAll')}
-          </Button>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('chat:focusSession.gitRefresh')}
-          title={t('chat:focusSession.gitRefresh')}
-          disabled={loading || Boolean(running)}
-          onClick={refresh}
-        >
-          <RefreshCw className={loading ? 'animate-spin' : ''} />
-        </Button>
       </header>
       {displayedError && (
         <p role="alert" className="shrink-0 px-3 pt-2 text-xs text-st-fail">
@@ -554,6 +556,46 @@ function SessionScopeChanges({
           )}
         </>
       )}
+      <ChangesFooter
+        status={
+          running ? (
+            <>
+              <RefreshCw className="size-3.5 flex-none animate-spin" aria-hidden="true" />
+              {running.kind === 'approve'
+                ? t('chat:focusSession.fileChangesApproveAll')
+                : t('board:changes.revertAll')}
+            </>
+          ) : pendingCount > 0 ? (
+            t('board:changes.pending', { count: pendingCount })
+          ) : null
+        }
+      >
+        {pendingCount > 0 && (
+          <DropdownMenuItem
+            disabled={writesDisabled}
+            title={waitTitle}
+            onSelect={() => void runAction({ kind: 'approve' })}
+          >
+            <Check />
+            {t('chat:focusSession.fileChangesApproveAll')}
+          </DropdownMenuItem>
+        )}
+        {(changes?.summary.files ?? 0) > 0 && (
+          <DropdownMenuItem
+            disabled={writesDisabled || reversibleCount === 0}
+            title={waitTitle ?? t('chat:focusSession.fileChangesRevertAllDescription')}
+            onSelect={() => void runAction({ kind: 'revert' })}
+          >
+            <Undo2 />
+            {t('board:changes.revertAll')}
+          </DropdownMenuItem>
+        )}
+        {(pendingCount > 0 || (changes?.summary.files ?? 0) > 0) && <DropdownMenuSeparator />}
+        <DropdownMenuItem disabled={loading || Boolean(running)} onSelect={refresh}>
+          <RefreshCw />
+          {t('chat:focusSession.gitRefresh')}
+        </DropdownMenuItem>
+      </ChangesFooter>
     </section>
   )
 }
@@ -621,17 +663,6 @@ function WorkspaceScopeChanges({
             <span className="truncate">{query.data.branch}</span>
           </span>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('chat:focusSession.gitRefresh')}
-          title={t('chat:focusSession.gitRefresh')}
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          <RefreshCw className={query.isFetching ? 'animate-spin' : undefined} />
-        </Button>
       </header>
       {query.isPending ? (
         <PageState kind="loading" title={t('chat:focusSession.gitLoading')} />
@@ -674,6 +705,18 @@ function WorkspaceScopeChanges({
           )}
         </>
       )}
+      <ChangesFooter
+        status={
+          query.isFetching ? (
+            <RefreshCw className="size-3.5 flex-none animate-spin" aria-hidden="true" />
+          ) : null
+        }
+      >
+        <DropdownMenuItem disabled={query.isFetching} onSelect={() => void query.refetch()}>
+          <RefreshCw />
+          {t('chat:focusSession.gitRefresh')}
+        </DropdownMenuItem>
+      </ChangesFooter>
     </section>
   )
 }

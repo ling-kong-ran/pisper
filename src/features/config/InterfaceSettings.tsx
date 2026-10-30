@@ -37,6 +37,7 @@ import {
   type RadiusMode,
   type ThemeMode,
 } from '@/stores/ui-store'
+import { useSessionInspectorStore } from '@/features/chat/session-inspector-store'
 import { LanguageSettings } from './LanguageSettings'
 import { SettingsGroup } from './settings-primitives'
 import { TypographySizeInput } from './TypographySizeInput'
@@ -344,6 +345,9 @@ export function InterfaceSettings({
     setMotion,
     resetAppearance,
   } = useUiStore()
+  // “固定检查器”（规格 v2 第 2.6 / 4.4 节）：会话页检查器的布局偏好，状态归检查器自己的偏好键所有。
+  const inspectorPinned = useSessionInspectorStore((state) => state.pinned)
+  const setInspectorPinned = useSessionInspectorStore((state) => state.setPinned)
   const [advancedExpanded, setAdvancedExpanded] = useState(defaultAdvancedExpanded)
   const advancedId = useId()
   const themeName = useId()
@@ -632,6 +636,18 @@ export function InterfaceSettings({
                     options={densityOptions}
                     value={density}
                     onChange={update(setDensity)}
+                  />
+                }
+              />
+              <SettingsRow
+                title={t('config:interfaceSettings.pinInspector')}
+                description={t('config:interfaceSettings.pinInspectorDescription')}
+                control={
+                  <Switch
+                    checked={inspectorPinned}
+                    onCheckedChange={update(setInspectorPinned)}
+                    aria-label={t('config:interfaceSettings.pinInspector')}
+                    data-setting="pin-inspector"
                   />
                 }
               />

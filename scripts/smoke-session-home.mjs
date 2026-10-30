@@ -459,11 +459,21 @@ try {
   await page.keyboard.press('Escape')
   await page.locator('[data-launch-console="overlay"]').waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${id}`)
-  // ⇧⌘B 归会话树（A2 接线前不消费），不再离开会话页；⌘1 从输入框里打开看板。
+  // ⇧⌘B 归会话树（规格 v2 第 2.8 节），不再离开会话页：会话有对话（顶栏有 ⑂）时打开会话树，Esc 关掉；
+  // ⌘1 从输入框里打开看板。
   await page.locator('.focus-composer textarea').first().click()
+  const treeAvailable =
+    (await page.locator('[data-session-header] [data-session-branches]').count()) > 0
   await page.keyboard.press(`${mod}+Shift+KeyB`)
   await page.waitForTimeout(400)
   assert.equal(hashOf(page), `#/board/${id}`, '⇧⌘B no longer opens the board')
+  const treeDialog = page.getByRole('dialog', { name: '追忆', exact: true })
+  assert.equal(await treeDialog.isVisible(), treeAvailable, '⇧⌘B opens the session tree')
+  if (treeAvailable) {
+    await page.keyboard.press('Escape')
+    await treeDialog.waitFor({ state: 'detached' })
+    await page.locator('.focus-composer textarea').first().click()
+  }
   await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
   // 从全部代理点侧栏的会话行回到会话（push，后退回看板）；改绑的会话主页键同样回到上次的会话。

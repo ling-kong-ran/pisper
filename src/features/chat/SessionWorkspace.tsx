@@ -1,12 +1,16 @@
-// 会话页（/board/:sessionId，桌面布局）的单会话工作区：对话列（页头 44 + 计划细进度 + 转录与输入框）
-// + 检查器。宽屏时检查器 456px 并排、可拖宽、可收起；≤1279 宽或 ≤760 高（以及手机 App 平板）时默认关闭，
-// 改为从右侧滑出的 420px 覆盖层（无遮罩，--sh-float）。⌘I 开关检查器。
+// 会话页（/board/:sessionId，桌面布局）的单会话工作区：对话列（顶栏 52 + 运行中计划的 2px 细进度 + 转录与输入框）
+// + 检查器（规格 v2 第 4.4 节）。检查器默认关着、按需滑入：改动按钮 / ⌘I / 回合结束且本回合有改动时自动滑入一次
+//（运行中不自动弹出）。窗口 ≥1280 时 456px 推开对话（对话列重新居中，可拖宽）；<1280 宽或 ≤760 高（以及手机 App 平板）
+// 时是 420px 覆盖层：无遮罩，打开时焦点进面板、Tab 在面板里循环，Esc 关闭后焦点回到改动按钮。
+// 设置 › 界面的“固定检查器”打开后，宽屏检查器像第 4 期一样常驻（开关跨页面加载保留）。
+// 滑入 220ms cubic-bezier(.2,.8,.2,1)（--ease），对话列同时从原位置移到新的居中位置；减少动效时直接出现。
 // 手机外壳（规格 7.3）：页头换成 56px 顶栏，下面是应用壳交来的代理条；检查器改为底部表单
 //（改动 / 终端 / 文件 / 预览），由顶栏的“+N 改动 ›”或“⋯”打开，拖拽条、关闭键、Esc 与 Android 返回键都先关表单。
 // 表单关闭时播放与滑入对应的退场动画，只为退场多挂载一会儿（useExitPresence：动画结束或兜底超时即卸载，
 // 减少动效时立即卸载），焦点回到打开它的入口（通常是“+N 改动”）。
 // 外部的“打开资源”请求（网页预览、任务内容请求、运行结束后的自动展示）仍写进 session-context-pages-store，
 // 这里订阅它并切到对应标签，所以这些入口不需要知道会话页换了布局。
+// 应用级的会话树（⇧⌘B）与侧聊快捷键经 SESSION_COMMAND_EVENT 交到当前可见的工作区处理。
 import {
   lazy,
   Suspense,
@@ -17,6 +21,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
@@ -30,10 +36,11 @@ import { matchesShortcut, optionTypingInEditable, shortcutEventBlocked } from '@
 import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import type { ChatMessage, EntityRecord, Plan, TeamState } from '@/types/chat'
-import { TASK_VIEW_WILL_CHANGE } from './events'
+import { SESSION_COMMAND_EVENT, TASK_VIEW_WILL_CHANGE } from './events'
 import { TASK_CONTENT_REQUESTED, parseTaskContentRequest } from './public-workspace'
 import type { SessionContextTab } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
+import { openSessionSideChat } from './session-header-menu'
 import {
   SESSION_CONVERSATION_MIN_WIDTH,
   SESSION_INSPECTOR_DEFAULT_WIDTH,
@@ -96,6 +103,25 @@ function sheetFocusReturnTarget(active: Element | null): HTMLElement | null {
   return trigger ? document.getElementById(trigger) : null
 }
 
+// 覆盖层里可用 Tab 到达的元素：焦点在面板里循环（规格 4.4 / 9.2：1080 宽时覆盖层要测焦点陷阱与 Esc）。
+const FOCUSABLE =
+  'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), iframe, [tabindex]:not([tabindex="-1"])'
+
+function trapOverlayFocus(event: ReactKeyboardEvent<HTMLElement>) {
+  if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
+  const items = [...event.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (item) => item.getClientRects().length > 0,
+  )
+  if (!items.length) return
+  const first = items[0]
+  const last = items[items.length - 1]
+  const active = document.activeElement
+  if (event.shiftKey ? active === first : active === last) {
+    event.preventDefault()
+    ;(event.shiftKey ? last : first).focus()
+  }
+}
+
 function planProgress(plan: Plan | null) {
   const items = plan?.items ?? []
   if (!items.length) return null
@@ -148,6 +174,7 @@ export function SessionWorkspace({
   )
   const sources = useMemo(() => collectTaskSources(messages), [messages])
   const asideOpen = useSessionInspectorStore((state) => state.open)
+  const pinned = useSessionInspectorStore((state) => state.pinned)
   const setAsideOpen = useSessionInspectorStore((state) => state.setOpen)
   const preferredWidth = useSessionInspectorStore((state) => state.width)
   const setWidth = useSessionInspectorStore((state) => state.setWidth)
@@ -175,7 +202,7 @@ export function SessionWorkspace({
     return () => observer.disconnect()
   }, [])
   const displayWidth = inspectorDisplayWidth(preferredWidth, width || preferredWidth + 800)
-  // 覆盖层从会话页头下方开始：页头的“⋯”、侧聊与检查器开关始终可点。
+  // 覆盖层从会话顶栏下方开始：标题菜单、⑂ 与改动按钮始终可点。
   const [headerHeight, setHeaderHeight] = useState(0)
   useLayoutEffect(() => {
     if (!headerHost) return
@@ -186,33 +213,41 @@ export function SessionWorkspace({
     return () => observer.disconnect()
   }, [headerHost])
   const asideRef = useRef<HTMLElement>(null)
+  // 这次打开是否播放滑入（规格 6.6）：只有本次挂载期间被打开才滑入；固定检查器随页面加载就在，直接出现。
+  const [entering, setEntering] = useState(false)
+  // 覆盖层由用户打开（改动按钮、⌘I、标题菜单、计划进度）时焦点进面板；外部请求（网页预览、自动展示）不抢焦点。
+  const [focusOnOpen, setFocusOnOpen] = useState(false)
 
   const setOpen = useCallback(
-    (next: boolean) => {
+    (next: boolean, focus = false) => {
       window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
       // 表单挂载时焦点会被移进表单：打开入口要在这一刻记下，关闭后把焦点送回去。
       if (sheetMode && next) {
         const opener = sheetFocusReturnTarget(document.activeElement)
         if (opener) sheetOpenerRef.current = opener
       }
+      setEntering(next)
+      setFocusOnOpen(next && focus)
       if (overlayMode) setOverlayOpen(next)
       else setAsideOpen(next)
     },
     [overlayMode, setAsideOpen, sheetMode],
   )
-  const show = useCallback(
-    (tab: SessionInspectorTab) => {
+  const showTab = useCallback(
+    (tab: SessionInspectorTab, focus: boolean) => {
       useSessionInspectorStore.getState().setTab(tab)
-      setOpen(true)
+      setOpen(true, focus)
     },
     [setOpen],
   )
-  const toggle = useCallback(() => setOpen(!open), [open, setOpen])
+  const show = useCallback((tab: SessionInspectorTab) => showTab(tab, true), [showTab])
   const close = useCallback(() => {
-    // 焦点原本在检查器里（关闭键、标签、终端）时才送回页头开关，键盘用户不会落到 body；
-    // 在输入框里 ⌘I 打开、Esc 关闭时焦点留在原处，可以接着输入。
+    // 焦点在检查器里（关闭键、标签、终端），或覆盖层关闭时焦点无主（落在 body）时，送回顶栏的改动按钮，
+    // 键盘用户不会落到 body（规格 4.4）；在输入框里 ⌘I 打开、再 ⌘I 关闭时焦点留在原处，可以接着输入。
     const active = document.activeElement
-    const focusInside = Boolean(active && asideRef.current?.contains(active))
+    const focusInside =
+      Boolean(active && asideRef.current?.contains(active)) ||
+      (overlayMode && !sheetMode && (!active || active === document.body))
     setOpen(false)
     if (!focusInside) return
     requestAnimationFrame(() =>
@@ -222,7 +257,9 @@ export function SessionWorkspace({
         )
         ?.focus(),
     )
-  }, [panelId, setOpen])
+  }, [overlayMode, panelId, setOpen, sheetMode])
+  // 关闭也走 close：焦点在面板里时按 ⌘I 关掉覆盖层，焦点同样回到改动按钮，不落到 body。
+  const toggle = useCallback(() => (open ? close() : setOpen(true, true)), [close, open, setOpen])
   // 表单卸载（退场结束）后焦点回到打开它的入口；入口已不在（例如改动清零后芯片消失）时退回“+N 改动”或“⋯”。
   const returnSheetFocus = useCallback(
     (event: Event) => {
@@ -253,9 +290,9 @@ export function SessionWorkspace({
       const store = useSessionInspectorStore.getState()
       if (target.terminalView) store.setTerminalView(target.terminalView)
       if (target.changesView) store.setChangesView(target.changesView)
-      show(target.tab)
+      showTab(target.tab, false)
     },
-    [show],
+    [showTab],
   )
   useEffect(
     () =>
@@ -283,7 +320,21 @@ export function SessionWorkspace({
     window.addEventListener(TASK_CONTENT_REQUESTED, request)
     return () => window.removeEventListener(TASK_CONTENT_REQUESTED, request)
   }, [active, sessionId])
-  // 运行结束且本轮留下改动：宽屏时自动展开“改动 · 本会话”；覆盖层与底部表单不自动弹出，避免盖住刚出来的回复。
+  // ⇧⌘B 会话树与侧聊快捷键（应用壳广播）：会话树与点 ⑂ 走同一条路径（对话框关闭后焦点回到 ⑂）；
+  // 还没有对话时没有 ⑂，也就没有会话树可开。侧聊与标题菜单里的“侧聊”相同。
+  useEffect(() => {
+    if (!active) return
+    const command = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail
+      if (detail === 'side-chat') openSessionSideChat(sessionId, control)
+      else if (detail === 'tree')
+        root.current?.querySelector<HTMLButtonElement>('[data-session-branches]')?.click()
+    }
+    window.addEventListener(SESSION_COMMAND_EVENT, command)
+    return () => window.removeEventListener(SESSION_COMMAND_EVENT, command)
+  }, [active, control, sessionId])
+  // 回合结束且本回合留下改动：宽屏时自动滑入一次“改动 · 本会话”（运行中不弹出，免得挤占宽度）；
+  // 覆盖层与底部表单不自动弹出，避免盖住刚出来的回复与输入框。
   useSessionContextAutoReveal({
     sessionId,
     streaming,
@@ -337,6 +388,8 @@ export function SessionWorkspace({
   }
 
   const progress = streaming ? planProgress(plan) : null
+  // 宽屏滑入时对话列同步移到新的居中位置：先停在原位（向右偏移检查器宽度的一半），再随检查器一起滑过去。
+  const recenter = entering && open && !overlayMode
   // 紧凑窗口打开覆盖层时，宽度允许就给对话内容让出覆盖层的位置（布局变化，不是动画）：
   // 转录与输入框在剩余宽度里重新居中，停止键与发送键不会被盖住。放不下时保持纯覆盖。
   const overlayInset =
@@ -370,6 +423,7 @@ export function SessionWorkspace({
         requestConfirm={requestConfirm}
         onClose={close}
         onOpenComponents={chrome?.onOpenComponents}
+        autoFocus={mode === 'overlay' && focusOnOpen}
       />
     </Suspense>
   )
@@ -395,30 +449,47 @@ export function SessionWorkspace({
             <div ref={setHeaderHost} className="@container shrink-0" data-task-header />
             {phone?.strip}
             {progress && (
-              <div
-                role="progressbar"
-                aria-label={t('board:session.planLabel', progress)}
-                aria-valuemin={0}
-                aria-valuemax={progress.total}
-                aria-valuenow={progress.done}
-                data-plan-progress
-                className="flex h-6 shrink-0 items-center gap-2 border-b border-stroke-soft px-4 text-xs text-content-muted"
-              >
-                <span className="flex-none font-medium text-content-secondary">
-                  {t('board:session.plan', progress)}
-                </span>
-                <span className="relative h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-muted">
-                  <span
-                    className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-st-run transition-transform duration-(--d-base)"
-                    style={{ transform: `scaleX(${progress.done / progress.total})` }}
-                  />
-                </span>
+              // 运行中的计划（规格 4.1）：顶栏下方一条 2px 细进度，右侧“计划 2/4”打开检查器的计划标签看详情。
+              // 读数浮在转录上方，不另占一行高度。
+              <div className="relative z-10 h-0.5 shrink-0 bg-surface-muted" data-plan-progress>
+                <span
+                  role="progressbar"
+                  aria-label={t('board:session.planLabel', progress)}
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.done}
+                  className="absolute inset-0 origin-left bg-st-run transition-transform duration-(--d-base)"
+                  style={{ transform: `scaleX(${progress.done / progress.total})` }}
+                />
+                {planTab && (
+                  <button
+                    type="button"
+                    className="absolute top-1.5 right-3 inline-flex h-6 items-center rounded-sm bg-panel px-2 font-mono text-xs text-content-secondary tabular-nums shadow-edge hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:h-11"
+                    aria-label={t('board:session.planOpen', {
+                      plan: t('board:session.plan', progress),
+                    })}
+                    aria-controls={panelId}
+                    data-plan-progress-open
+                    onClick={() => show('plan')}
+                  >
+                    {t('board:session.plan', progress)}
+                  </button>
+                )}
               </div>
             )}
             <div
-              className="min-h-0 min-w-0 flex-1 overflow-hidden"
+              className={cn(
+                'min-h-0 min-w-0 flex-1 overflow-hidden',
+                recenter && 'animate-in duration-[220ms] ease-(--ease)',
+              )}
               data-overlay-inset={overlayInset || undefined}
-              style={overlayInset ? { paddingRight: overlayInset } : undefined}
+              style={
+                overlayInset
+                  ? { paddingRight: overlayInset }
+                  : recenter
+                    ? ({ '--tw-enter-translate-x': `${displayWidth / 2}px` } as CSSProperties)
+                    : undefined
+              }
             >
               {children}
             </div>
@@ -456,9 +527,13 @@ export function SessionWorkspace({
               />
               <aside
                 ref={asideRef}
-                className="h-full min-h-0 shrink-0 overflow-hidden border-l border-stroke-soft"
+                className={cn(
+                  'h-full min-h-0 shrink-0 overflow-hidden border-l border-stroke-soft',
+                  entering && 'animate-in slide-in-from-right duration-[220ms] ease-(--ease)',
+                )}
                 style={{ width: displayWidth }}
                 data-inspector-aside
+                data-inspector-pinned={pinned || undefined}
               >
                 {inspector}
               </aside>
@@ -501,9 +576,11 @@ export function SessionWorkspace({
                 <aside
                   ref={asideRef}
                   data-inspector-overlay
+                  // 无遮罩的覆盖层：焦点进来后 Tab 在面板里循环，Esc（返回层）关闭并把焦点交回改动按钮。
+                  onKeyDown={trapOverlayFocus}
                   className={cn(
                     'absolute right-0 bottom-0 z-30 max-w-[calc(100%-24px)] overflow-hidden border-l border-stroke bg-panel shadow-float',
-                    'animate-in fade-in-0 slide-in-from-right-4 duration-(--d-base) ease-(--ease-enter)',
+                    'animate-in slide-in-from-right duration-[220ms] ease-(--ease)',
                   )}
                   style={{ width: SESSION_INSPECTOR_OVERLAY_WIDTH, top: headerHeight }}
                 >

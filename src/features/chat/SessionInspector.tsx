@@ -1,5 +1,5 @@
-// 会话页检查器（规格 4.4）：固定标签 改动 N / 终端 / 文件 / 预览 / 计划（有目标、计划或团队时）
-// | 组件标签（来自“会话面板”放置，现有数据有就显示）| +。手机外壳里是底部表单（规格 7.3），
+// 会话页检查器（规格 v2 第 4.4 节）：固定标签 改动 N / 终端 / 文件 / 预览 / 计划（有目标、计划或团队时）
+// / 侧聊（打开时）| 组件标签（来自“会话面板”放置，现有数据有就显示）| +。宽屏停靠时标签行 52px，与会话顶栏齐平。手机外壳里是底部表单（规格 7.3），
 // 标签与内容组件相同，改动的 diff 在窄宽度下自动是统一视图、长行横向滚动。本阶段把现有面板组件原样挂进各标签，
 // 标签内容的重做在下一阶段。每个会话各标签的阅读位置、终端资源与预览地址仍存在
 // session-context-pages-store（与旧上下文面板、网页预览请求共用），开关 / 当前标签 / 宽度是全局偏好。
@@ -59,6 +59,8 @@ type SessionInspectorProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onClose: () => void
   onOpenComponents?: () => void
+  // 覆盖层由用户打开时，挂载后把焦点放到当前标签上（无遮罩覆盖层的焦点管理，规格 4.4）。
+  autoFocus?: boolean
 }
 
 const EMPTY_PAGES: never[] = []
@@ -92,6 +94,7 @@ export function SessionInspector({
   requestConfirm,
   onClose,
   onOpenComponents,
+  autoFocus = false,
 }: SessionInspectorProps) {
   const { t } = useI18n()
   const sheet = mode === 'sheet'
@@ -121,6 +124,18 @@ export function SessionInspector({
       ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
       ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }, [tab])
+
+  // 只在挂载那一刻看 autoFocus：等菜单等浮层先把焦点还给各自的触发键，再移进面板。
+  const autoFocusRef = useRef(autoFocus)
+  useEffect(() => {
+    if (!autoFocusRef.current) return
+    const frame = requestAnimationFrame(() =>
+      listRef.current
+        ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+        ?.focus({ preventScroll: true }),
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   // 当前标签需要的上下文页不存在时创建一页（只为可见标签创建，不预建全部）。
   useEffect(() => {
@@ -337,7 +352,8 @@ export function SessionInspector({
           'flex shrink-0 items-center gap-1 border-b border-stroke-soft pr-1.5 pl-2',
           // 触屏（手机 App 平板的覆盖层、触屏电脑）与手机表单一样用 52px 标签行：标签行是横向滚动容器，
           // 会裁掉伪元素外扩，标签只能把可见高度抬到 44px。
-          sheet ? 'h-[52px]' : 'h-11 pointer-coarse:h-[52px]',
+          // 停靠时与 52px 的会话顶栏齐平；覆盖层从顶栏下方开始，用 44px。
+          sheet || mode === 'aside' ? 'h-[52px]' : 'h-11 pointer-coarse:h-[52px]',
           // 停靠在最右侧时它就是主区右上角：Windows 自绘标题栏的窗口按钮占 144px（覆盖层从页头下方开始，不用让）。
           mode === 'aside' && '[[data-custom-titlebar]_&]:pr-[144px]',
         )}

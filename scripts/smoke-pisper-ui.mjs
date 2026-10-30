@@ -899,8 +899,11 @@ try {
   console.log('TOOLS', tools)
   await page.keyboard.press('Escape')
   // 第 3 期：会话页右侧是检查器（固定标签 改动 / 终端 / 文件 / 预览），取代可关闭的上下文页标签；
-  // 计划标签只在有计划、目标或团队时出现。标签条支持方向键与 Home / End，宽屏默认并排展开。
+  // 计划标签只在有计划、目标或团队时出现。标签条支持方向键与 Home / End。
+  // 规格 v2 第 4.4 节：检查器默认关着，由顶栏的改动按钮（没有改动时只是检查器图标）按需滑入。
   const inspector = page.locator('[data-session-inspector]')
+  assert.equal(await inspector.count(), 0, 'the inspector starts closed')
+  await page.locator('[data-session-header] [data-inspector-toggle]').click()
   await inspector.waitFor()
   const inspectorTabIds = () =>
     inspector
@@ -940,15 +943,15 @@ try {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    // 手机会话页是第 4 期的 56px 顶栏（右端只有 ⋯ 项目与任务设置，侧聊与检查器都在 ⋯ 里）；桌面会话页头
-    // 右端依次是侧聊、⋯（项目与任务设置）与检查器开关，置顶摘要与新建标签页的职责由检查器承担。
+    // 手机会话页是第 4 期的 56px 顶栏（右端只有 ⋯ 项目与任务设置，侧聊与检查器都在 ⋯ 里）；桌面会话顶栏
+    // （规格 v2 第 4.1 节）左边是标题 ▾ 菜单，右端只有改动按钮（兼检查器开关）。
     const phoneLayout = width <= 650
     const taskHeader = page.locator(
       phoneLayout ? '[data-session-header="phone"]' : '[data-session-header]',
     )
     const headerControls = phoneLayout
       ? ['[aria-label="项目与任务设置"]']
-      : ['[data-session-side-chat]', '[aria-label="项目与任务设置"]', '[data-inspector-toggle]']
+      : ['[data-session-menu]', '[data-inspector-toggle]']
     await taskHeader.locator(headerControls.at(-1)).waitFor()
     await taskHeader.evaluate(async (header) => {
       header.getBoundingClientRect()
@@ -1078,6 +1081,10 @@ try {
     await page.screenshot({ path: join(output, `light-${width}.png`), animations: 'disabled' })
   }
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  // 规格 v2 第 2.5 节：桌面标题菜单不再放主题项（主题在 ⌘K 与设置 › 界面）；“⋯”里的主题切换只留在
+  // 手机顶栏（A4 前），所以主题循环在 390 宽的手机顶栏上验证，结束后回到 1440。
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.waitForFunction(() => window.innerWidth === 390)
   const themeToggle = page.getByTestId('theme-toggle')
   await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
   await page.emulateMedia({ colorScheme: 'light' })
@@ -1110,6 +1117,9 @@ try {
   await themeToggle.waitFor()
   assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
   await page.keyboard.press('Escape')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.waitForFunction(() => window.innerWidth === 1440)
+  await page.locator('[data-session-header] [data-session-menu]').waitFor()
   report.checks.push(
     'Theme toggle cycles system/dark/light with current and next labels, follows OS changes only in system mode and persists after reload',
   )

@@ -309,10 +309,13 @@ try {
   assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/a')
   assert.equal(await page.locator('[data-task-workspace]').count(), 1)
   // 第 3 期：会话页右侧是检查器（固定标签 改动 / 终端 / 文件 / 预览，没有可关闭的上下文页标签），
-  // 与 44px 会话页头同一行起头；宽屏默认并排展开，Dockview 与旧的“新建标签页”都不再挂载。
+  // 与 52px 会话顶栏同一行起头；Dockview 与旧的“新建标签页”都不再挂载。规格 v2 第 4.4 节：检查器默认关着
+  //（后台会话的资源自动展示也不会让它在打开会话时弹出来），由顶栏的改动按钮按需滑入。
   const initialPane = page.locator('[data-task-workspace="a"]')
   const inspectorOf = (owner) => owner.locator('[data-session-inspector]')
   const inspectorTab = (owner, id) => owner.locator(`[data-inspector-tab-id="${id}"]`)
+  assert.equal(await inspectorOf(initialPane).count(), 0, 'the inspector starts closed')
+  await initialPane.locator('[data-session-header] [data-inspector-toggle]').click()
   await inspectorOf(initialPane).waitFor()
   assert.equal(await initialPane.getAttribute('data-session-workspace'), 'aside')
   assert.equal(await inspectorTab(initialPane, 'changes').getAttribute('aria-selected'), 'true')
@@ -346,17 +349,19 @@ try {
   const mobileMoreBounds = await mobileMore.boundingBox()
   assert.ok(mobileMoreBounds.width >= 44 && mobileMoreBounds.height >= 44)
   await page.setViewportSize({ width: 1600, height: 1000 })
-  // 页头“⋯”（id 不变）集中会话操作；单会话页没有分屏，也不再有“打开会话上下文”。
+  // 标题 ▾ 菜单（沿用旧“⋯”的 id）集中会话操作（规格 v2 第 2.5 节）：重命名、侧聊……；主题与终端不在这里
+  //（⌘K、⌘` 与设置 › 界面）。单会话页没有分屏，也不再有“打开会话上下文”。
   await initialPane.locator('[data-session-header]').waitFor()
-  await initialPane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await initialPane.locator('[data-session-header] [data-session-menu]').click()
   await page.getByRole('menuitem', { name: '重命名会话', exact: true }).waitFor()
-  await page.getByRole('menuitem', { name: /^主题：/ }).waitFor()
+  await page.getByRole('menuitem', { name: '侧聊', exact: true }).waitFor()
+  assert.equal(await page.getByRole('menuitem', { name: /^主题：/ }).count(), 0)
   assert.equal(await initialPane.getByTestId('theme-toggle').count(), 0)
   assert.equal(await page.getByRole('menuitem', { name: /拆分到|关闭分屏/ }).count(), 0)
   assert.equal(await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).count(), 0)
   await page.keyboard.press('Escape')
   await page.waitForFunction(() => document.activeElement?.id === 'task-a-more')
-  // 原“⋯ › 追忆”的入口换成页头的“分支”：打开同一个会话树对话框，关闭后焦点回到“分支”。
+  // 会话树唯一的入口是顶栏标题旁的 ⑂：打开同一个会话树对话框，关闭后焦点回到 ⑂。
   await initialPane.locator('[data-session-branches]').click()
   const recallDialog = page.getByRole('dialog', { name: '追忆', exact: true })
   await recallDialog.waitFor()
@@ -623,7 +628,7 @@ try {
     await page.setViewportSize({ width, height: 1000 })
     await page.waitForTimeout(100)
   }
-  // 宽度来回切换后回到桌面：检查器仍并排展开；收起后焦点回到页头的检查器开关，草稿不丢、不中止运行。
+  // 宽度来回切换后回到桌面：已打开的检查器仍并排展开；收起后焦点回到顶栏的改动按钮，草稿不丢、不中止运行。
   const restored = page.locator('[data-task-workspace="a"]')
   await inspectorOf(restored).waitFor()
   assert.equal(await restored.getAttribute('data-session-workspace'), 'aside')
@@ -800,6 +805,8 @@ try {
   )
   await delayedPage.goto(fixtureUrl('a'))
   await delayedPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
+  // 新页面里检查器从关闭开始（规格 v2 第 4.4 节），先用顶栏的改动按钮打开。
+  await delayedPage.locator('[data-task-workspace="a"] [data-inspector-toggle]').click()
   await delayedPage
     .locator('[data-session-inspector]')
     .getByRole('radio', { name: '工作区', exact: true })

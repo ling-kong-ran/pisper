@@ -116,7 +116,9 @@ test('sidebar keyboard wiring: F6 regions, A / D on rows, return focus and the p
   assert.equal(sidebar.match(/aria-live="polite"/g)?.length, 1)
 })
 
-test('inspector preferences persist open, tab and width under a registered key', async () => {
+// 规格 v2 第 4.4 节：检查器默认关着、按需滑入；“固定检查器”（pinned，只做加法的新字段）打开后像第 4 期一样常驻。
+// 第 4 期写下的 open: true（当时默认展开）在 v2 里不能让检查器自己弹出来；固定时开关跨页面加载保留。
+test('inspector preferences persist pin, open, tab and width under a registered key', async () => {
   const values = new Map([
     [
       'pisper-session-inspector',
@@ -146,8 +148,10 @@ test('inspector preferences persist open, tab and width under a registered key',
     } = await import('../../src/features/chat/session-inspector-store.ts')
     const { BROWSER_PREFERENCE_KEYS } = await import('../../shared/browser-preferences.mjs')
     assert.ok(BROWSER_PREFERENCE_KEYS.includes('pisper-session-inspector'))
+    // 旧版（第 4 期）存下的 open: true 没有 pinned：v2 当作未固定，从关闭开始。
     // 侧聊是临时标签，恢复时回到“改动”；宽度夹在允许范围内。
-    assert.equal(store.getState().open, true)
+    assert.equal(store.getState().open, false)
+    assert.equal(store.getState().pinned, false)
     assert.equal(store.getState().tab, 'changes')
     assert.equal(store.getState().width, SESSION_INSPECTOR_MAX_WIDTH)
     assert.equal(store.getState().terminalView, 'processes')
@@ -155,9 +159,25 @@ test('inspector preferences persist open, tab and width under a registered key',
     store.getState().setWidth(100)
     assert.equal(store.getState().width, SESSION_INSPECTOR_MIN_WIDTH)
     assert.equal(JSON.parse(values.get('pisper-session-inspector')).state.tab, 'preview')
+    // 打开“固定”时顺带展开并写进偏好；取消固定不收起当前面板。字段只做加法：旧字段原样保留。
+    store.getState().setPinned(true)
+    assert.equal(store.getState().open, true)
+    const persisted = JSON.parse(values.get('pisper-session-inspector')).state
+    assert.equal(persisted.pinned, true)
+    assert.equal(persisted.open, true)
+    assert.equal(persisted.tab, 'preview')
+    store.getState().setPinned(false)
+    assert.equal(store.getState().open, true)
+    assert.equal(store.getState().pinned, false)
+    // 固定时沿用第 4 期：没写 open 视为展开，收起后记住；未固定时加载总是关着。
+    assert.equal(normalizeInspectorPreferences({ pinned: true }).open, true)
+    assert.equal(normalizeInspectorPreferences({ pinned: true, open: false }).open, false)
+    assert.equal(normalizeInspectorPreferences({ open: true }).open, false)
+    assert.equal(normalizeInspectorPreferences({ pinned: 'yes', open: true }).pinned, false)
     assert.equal(normalizeInspectorPreferences({ open: false }).open, false)
     assert.deepEqual(normalizeInspectorPreferences('broken'), {
-      open: true,
+      open: false,
+      pinned: false,
       tab: 'changes',
       width: 456,
       terminalView: 'terminal',
@@ -216,14 +236,28 @@ test('session page layout: no lane strip above the chat, inspector overlay under
   assert.match(loader, /import\('@\/app\/SessionShell'\)/)
   assert.match(loader, /import\('@\/features\/chat\/ChatPage'\)/)
   assert.match(loader, /ensureBoardMessages\(\)/)
-  // 页头 52px，⌘I 开关检查器；覆盖层 420px、无遮罩、--sh-float。
-  // 规格 v2：主区顶栏 52（与侧栏品牌行对齐；A1 先改高度，顶栏内容在 A2 重做）。
+  // 规格 v2 第 4.1 节：顶栏 52（与侧栏品牌行对齐），左 标题 ▾ · 项目 · ⑂ 会话树，右 只有改动按钮（兼检查器开关）。
+  // 状态胶囊、上下文环、分支 / 标签两个按钮、侧聊按钮与“⋯”都不再在顶栏上（侧聊进标题菜单）。
   assert.match(header, /className="flex h-\[52px\] min-w-0 shrink-0/)
-  assert.match(header, /data-inspector-toggle/)
+  assert.match(header, /\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/)
+  assert.match(header, /data-inspector-toggle\s+data-session-changes=\{changedFiles\}/)
+  assert.match(header, /onSideChat: \(\) => openSessionSideChat\(session\.id, inspector\)/)
+  // ⑂ 用 git-fork 图标并写“会话树”提示（检查器里的 git 分支用 git-branch，规格 6.7）；有分支时写数量。
+  assert.match(header, /<GitFork className="size-3\.5" aria-hidden="true" \/>\s*\{branches > 0 &&/)
+  assert.doesNotMatch(
+    header,
+    /GitBranch|StatusTag|ContextUsageIndicator|MessageSquare|MoreHorizontal|\bTag\b/,
+  )
+  assert.doesNotMatch(header, /data-session-labels|data-session-side-chat|data-session-status/)
+  // 没有改动时改动按钮只剩检查器图标。
+  assert.match(
+    header,
+    /\{changesText && summary \? \([\s\S]*?\) : \(\s*<PanelRight aria-hidden="true" \/>\s*\)\}/,
+  )
   // 第 4 期起 ⌘I 是 shortcut-store 里的 toggleInspector（默认 Mod+KeyI，见 shortcuts.test），改绑后立即生效。
   assert.match(workspace, /useShortcutStore\(\(state\) => state\.bindings\.toggleInspector\)/)
   assert.match(workspace, /matchesShortcut\(event, inspectorBinding\)/)
-  assert.match(workspace, /data-inspector-overlay[\s\S]{0,200}shadow-float/)
+  assert.match(workspace, /data-inspector-overlay[\s\S]{0,400}shadow-float/)
   assert.doesNotMatch(workspace, /overlay-scrim|backdrop/)
   assert.match(workspace, /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/)
   // 页头只在会话页布局里替换旧顶栏；旧顶栏（手机外壳）保持不变。
@@ -473,9 +507,66 @@ test('the inspector sits after the conversation with a keyboard separator only w
     workspace,
     /width - SESSION_INSPECTOR_OVERLAY_WIDTH >= SESSION_CONVERSATION_MIN_WIDTH\s*\?\s*SESSION_INSPECTOR_OVERLAY_WIDTH\s*:\s*0/,
   )
-  assert.match(workspace, /style=\{overlayInset \? \{ paddingRight: overlayInset \} : undefined\}/)
+  assert.match(workspace, /style=\{\s*overlayInset\s*\?\s*\{ paddingRight: overlayInset \}/)
   // 收起时对话列独占：检查器只在 open 时渲染。例外只有手机底部表单的退场动画期间（sheetLeaving 只在手机表单时
   // 成立，退场结束即卸载）；右侧覆盖层分支走到时一定是打开的。
   assert.match(workspace, /const sheetLeaving = sheetMode && sheetPresence\.leaving/)
   assert.match(workspace, /\{overlayMode && \(open \|\| sheetLeaving\) && \(/)
+})
+
+// 规格 v2 第 4.4 / 6.6 / 9.2 节：检查器按需滑入（220ms --ease，减少动效时由全局规则直接出现）；
+// <1280 的覆盖层无遮罩，用户打开时焦点进面板、Tab 在面板里循环，Esc（返回层）关闭后焦点回到改动按钮。
+// 行为由 smoke-pisper-ui（1080×680 + customTitlebar）在浏览器里验证。
+test('the inspector slides in on demand and the overlay keeps focus until escape', async () => {
+  const [workspace, inspector, app, events, settings] = await Promise.all([
+    read('src/features/chat/SessionWorkspace.tsx'),
+    read('src/features/chat/SessionInspector.tsx'),
+    read('src/App.tsx'),
+    read('src/features/chat/events.ts'),
+    read('src/features/config/InterfaceSettings.tsx'),
+  ])
+  // 滑入：停靠与覆盖层都用 220ms 的 --ease（cubic-bezier(.2,.8,.2,1)）；对话列同时从原位移到新的居中位置。
+  assert.match(
+    workspace,
+    /entering && 'animate-in slide-in-from-right duration-\[220ms\] ease-\(--ease\)'/,
+  )
+  assert.match(workspace, /'animate-in slide-in-from-right duration-\[220ms\] ease-\(--ease\)',/)
+  assert.match(workspace, /const recenter = entering && open && !overlayMode/)
+  assert.match(workspace, /'--tw-enter-translate-x': `\$\{displayWidth \/ 2\}px`/)
+  // 覆盖层焦点：Tab 循环、用户打开才把焦点移进来（外部请求不抢焦点），关闭时焦点无主或在面板里就回到改动按钮。
+  assert.match(workspace, /onKeyDown=\{trapOverlayFocus\}/)
+  assert.match(workspace, /autoFocus=\{mode === 'overlay' && focusOnOpen\}/)
+  assert.match(
+    workspace,
+    /const toggle = useCallback\(\(\) => \(open \? close\(\) : setOpen\(true, true\)\)/,
+  )
+  assert.match(workspace, /showTab\(target\.tab, false\)/)
+  assert.match(
+    workspace,
+    /\(overlayMode && !sheetMode && \(!active \|\| active === document\.body\)\)/,
+  )
+  assert.match(
+    workspace,
+    /\[aria-controls="\$\{CSS\.escape\(panelId\)\}"\]\[data-inspector-toggle\]/,
+  )
+  assert.match(inspector, /const autoFocusRef = useRef\(autoFocus\)/)
+  // 会话树与侧聊快捷键：应用壳只在会话页广播，工作区按自己的入口处理（会话树点 ⑂，焦点关闭后回到它）。
+  assert.match(
+    app,
+    /onSessionTree=\{page === 'session' \? \(\) => requestSessionCommand\('tree'\) : undefined\}/,
+  )
+  assert.match(
+    app,
+    /onSideChat=\{page === 'session' \? \(\) => requestSessionCommand\('side-chat'\) : undefined\}/,
+  )
+  assert.match(events, /export type SessionCommand = 'tree' \| 'side-chat'/)
+  assert.match(workspace, /window\.addEventListener\(SESSION_COMMAND_EVENT, command\)/)
+  assert.match(workspace, /if \(!active\) return\s+const command = /)
+  assert.match(
+    workspace,
+    /querySelector<HTMLButtonElement>\('\[data-session-branches\]'\)\?\.click\(\)/,
+  )
+  // 设置 › 界面的“固定检查器”写检查器自己的偏好键。
+  assert.match(settings, /useSessionInspectorStore\(\(state\) => state\.setPinned\)/)
+  assert.match(settings, /data-setting="pin-inspector"/)
 })

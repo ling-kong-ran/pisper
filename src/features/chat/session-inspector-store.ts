@@ -1,5 +1,8 @@
-// 会话页检查器的布局偏好（规格 4.4）：开关、当前标签与宽度，跨会话共用并经偏好同步保留。
+// 会话页检查器的布局偏好（规格 v2 第 4.4 节）：开关、当前标签、宽度与“固定检查器”，跨会话共用并经偏好同步保留。
 // 每个会话里各标签的阅读位置、终端资源与预览地址仍在 session-context-pages-store（内存）。
+// v2 起检查器默认关着、按需滑入；“固定”（pinned，默认关）打开后像第 4 期一样常驻，开关状态跨页面加载保留。
+// pinned 是只做加法的新字段：旧版本读到它会忽略，新版本读旧值时当作未固定。
+// @public 设置 › 界面读写“固定检查器”；模块只有偏好状态，不导入组件。
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { pageStateStorage } from '@/lib/page-state-storage'
@@ -29,6 +32,7 @@ export const SESSION_CONVERSATION_MIN_WIDTH = 480
 
 type SessionInspectorPreferences = {
   open: boolean
+  pinned: boolean
   tab: SessionInspectorTab
   width: number
   terminalView: SessionInspectorTerminalView
@@ -38,6 +42,7 @@ type SessionInspectorPreferences = {
 
 type SessionInspectorState = SessionInspectorPreferences & {
   setOpen: (open: boolean) => void
+  setPinned: (pinned: boolean) => void
   setTab: (tab: SessionInspectorTab) => void
   setWidth: (width: number) => void
   setTerminalView: (view: SessionInspectorTerminalView) => void
@@ -68,9 +73,12 @@ export function normalizeInspectorPreferences(value: unknown): SessionInspectorP
       ? (value as Record<string, unknown>)
       : {}
   const tab = SESSION_INSPECTOR_TABS.find((entry) => entry === record.tab) ?? 'changes'
+  const pinned = record.pinned === true
   return {
-    // 宽屏默认展开（规格 4.1 的两栏布局）；用户收起后记住。紧凑窗口另用覆盖层，默认关闭。
-    open: record.open !== false,
+    // 未固定时每次加载都从关闭开始（按需滑入，规格 4.4）；固定后沿用第 4 期的行为：默认展开，收起后记住。
+    // 第 4 期留下的 open: true（当时默认展开）因此不会让检查器在 v2 里自己弹出来。
+    open: pinned && record.open !== false,
+    pinned,
     // 侧聊是临时标签：恢复时回到改动，不在下次打开会话时自动挂起一条侧聊。
     tab: tab === 'side-chat' ? 'changes' : tab,
     width: normalizeInspectorWidth(record.width),
@@ -114,6 +122,8 @@ export const useSessionInspectorStore = create<SessionInspectorState>()(
       setOpen: (open) => {
         if (get().open !== open) set({ open })
       },
+      // 打开“固定”时顺带展开（固定的意思是常驻）；取消固定不收起当前已打开的面板。
+      setPinned: (pinned) => set(pinned ? { pinned, open: true } : { pinned }),
       setTab: (tab) => {
         if (get().tab !== tab) set({ tab })
       },
@@ -129,8 +139,9 @@ export const useSessionInspectorStore = create<SessionInspectorState>()(
       name: SESSION_INSPECTOR_STORAGE_KEY,
       version: 1,
       storage,
-      partialize: ({ open, tab, width, terminalView, changesView, diffMode }) => ({
+      partialize: ({ open, pinned, tab, width, terminalView, changesView, diffMode }) => ({
         open,
+        pinned,
         tab,
         width,
         terminalView,

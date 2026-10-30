@@ -18,6 +18,7 @@ import {
   Search,
   SunMoon,
   Tag,
+  TerminalSquare,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -32,6 +33,8 @@ import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
 import { takeCommandPaletteQuery } from '@/features/chat/events'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 
 import { AppCardHeader } from '@/components/ui/app-primitives'
 
@@ -88,6 +91,12 @@ export function CommandPalette({
   // 从“更多”页搜索框转来时带着关键词打开（与 ⌘K 同一份数据源）；⌘K 直接打开时为空。
   const [query, setQuery] = useState(takeCommandPaletteQuery)
   const keyword = query.trim()
+  // 桌面全局终端面板（规格 v2 第 2.5 节）：会话标题菜单不再放终端项，⌘K 与 ⌘` 是它的入口；
+  // 只在桌面壳提供终端配置且 Runtime 开了终端能力时出现，执行时交给应用壳已有的切换事件。
+  const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
+  const terminalAvailable =
+    Boolean(window.pisperDesktop?.terminalProfiles) &&
+    runtimeFeatureAvailable(capabilities, 'terminal')
   const sessionQuery = useQuery(startupQueryOptions<{ sessions?: SessionSummary[] }>('sessions'))
   const { isError: sessionsError, refetch: refetchSessions } = sessionQuery
   const sessions = useMemo(() => sessionQuery.data?.sessions || [], [sessionQuery.data])
@@ -170,6 +179,21 @@ export function CommandPalette({
         run: onToggleTheme,
       })
     }
+    const terminalLabel = t('navigation:pageHeader.toggleTerminal')
+    if (
+      terminalAvailable &&
+      matches(terminalLabel, t('navigation:appOverlays.actions'), 'terminal')
+    )
+      result.push({
+        id: 'action:toggle-terminal',
+        group: 'actions',
+        Icon: TerminalSquare,
+        label: terminalLabel,
+        hint: t('navigation:appOverlays.actions'),
+        run: () => {
+          window.dispatchEvent(new Event('pisper:toggle-terminal'))
+        },
+      })
     for (const [group, items] of navigation) {
       for (const [id, label, Icon] of items) {
         if (matches(label, group, id))
@@ -254,6 +278,7 @@ export function CommandPalette({
     sessionsError,
     refetchSessions,
     t,
+    terminalAvailable,
   ])
 
   // 同一查询下冻结指针进入时的结果，防止迟到的标签插入后改变点击对象。

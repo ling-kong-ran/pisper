@@ -17,6 +17,7 @@ export const SESSION_CREATE_REQUESTED_EVENT = 'pisper:session-create-requested'
 export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
 export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
+export const SESSION_COMMAND_EVENT = 'pisper:session-command'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
 export type SessionTitleUpdate = { id: string; name: string }
@@ -81,6 +82,13 @@ export function takeCommandPaletteQuery() {
   const query = pendingPaletteQuery
   pendingPaletteQuery = ''
   return query
+}
+
+// 会话页的应用级快捷键（规格 v2 第 2.8 节）：⇧⌘B 会话树、侧聊（默认未绑定）。应用壳只广播，
+// 当前可见的会话页按自己的入口处理（会话树走 ⑂ 按钮，焦点关闭后回到它），壳不需要加载聊天页。
+export type SessionCommand = 'tree' | 'side-chat'
+export function requestSessionCommand(command: SessionCommand) {
+  window.dispatchEvent(new CustomEvent(SESSION_COMMAND_EVENT, { detail: command }))
 }
 
 // 请求创建会话（带工作目录与可选的自动发送提示词）：持久化请求并广播；
