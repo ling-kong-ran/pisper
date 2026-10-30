@@ -145,6 +145,7 @@ export function SessionPageHeader({
   return (
     <header
       data-session-header
+      data-focus-region="header"
       data-window-drag-region
       className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
     >

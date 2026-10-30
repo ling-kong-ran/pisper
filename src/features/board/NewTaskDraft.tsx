@@ -81,6 +81,7 @@ export function NewTaskDraft({
       >
         <header
           data-session-header="draft"
+          data-focus-region="header"
           className="flex h-14 min-w-0 shrink-0 items-center gap-1 bg-chrome px-1"
         >
           <div className="flex flex-none items-center">{leading}</div>
@@ -99,7 +100,9 @@ export function NewTaskDraft({
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto px-4 pt-4 pb-5">
           {intro}
         </div>
-        <div className="shrink-0 px-3 pt-1 pb-2.5">{composer}</div>
+        <div data-focus-region="composer" className="shrink-0 px-3 pt-1 pb-2.5">
+          {composer}
+        </div>
       </div>
     )
 
@@ -107,6 +110,7 @@ export function NewTaskDraft({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel" data-new-task-draft="desktop">
       <header
         data-session-header="draft"
+        data-focus-region="header"
         data-window-drag-region
         className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
       >
@@ -120,7 +124,12 @@ export function NewTaskDraft({
       <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto">
         <div className="mx-auto w-[min(768px,calc(100%_-_48px))] pt-8 pb-6">{intro}</div>
       </div>
-      <div className="mx-auto w-[min(768px,calc(100%_-_48px))] shrink-0 pt-2 pb-3">{composer}</div>
+      <div
+        data-focus-region="composer"
+        className="mx-auto w-[min(768px,calc(100%_-_48px))] shrink-0 pt-2 pb-3"
+      >
+        {composer}
+      </div>
     </div>
   )
 }

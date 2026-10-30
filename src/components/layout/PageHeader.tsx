@@ -121,6 +121,7 @@ export function PageHeader({
   return (
     <header
       ref={elementRef}
+      data-focus-region="header"
       data-window-drag-region
       className={cn(
         '@container/page-header relative z-[2] flex flex-none flex-col',

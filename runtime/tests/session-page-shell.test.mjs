@@ -62,6 +62,60 @@ test('rapid option-arrow presses start from the switch that has not committed ye
   )
 })
 
+// 规格 v2 第 2.2 / 2.3 / 2.8 节的键盘与读屏接线（A1 键盘段）；行为由 smoke-sidebar 在浏览器里逐项验证。
+test('sidebar keyboard wiring: F6 regions, A / D on rows, return focus and the polite announcement', async () => {
+  const [app, sidebar, regions, shell, header, focusSession, draft] = await Promise.all([
+    read('src/App.tsx'),
+    read('src/features/board/SidebarSessions.tsx'),
+    read('src/app/focus-regions.ts'),
+    read('src/app/ShellSidebar.tsx'),
+    read('src/features/chat/SessionPageHeader.tsx'),
+    read('src/features/chat/FocusSession.tsx'),
+    read('src/features/board/NewTaskDraft.tsx'),
+  ])
+  // F6：外壳只在按下时动态加载区域逻辑（不进入口包）；区域顺序 侧栏 → 顶栏 → 对话 / 内容 → 输入框。
+  assert.match(
+    app,
+    /onCycleFocusRegion=\{\(\) =>\s+void import\('@\/app\/focus-regions'\)\.then\(\(module\) => module\.cycleFocusRegion\(\)\)/,
+  )
+  assert.doesNotMatch(app, /^import .*focus-regions/m)
+  assert.match(
+    regions,
+    /const RANK: Record<RegionKind, number> = \{ sidebar: 0, header: 1, content: 2, main: 2, composer: 3 \}/,
+  )
+  assert.match(regions, /\[data-sidebar-row\]\[aria-current="page"\]/)
+  assert.match(shell, /data-focus-region="sidebar"/)
+  assert.match(app, /<main\s+data-focus-region="main"/)
+  assert.match(header, /data-session-header\s+data-focus-region="header"/)
+  assert.match(focusSession, /data-chat-region="messages"\s+data-focus-region="content"/)
+  assert.match(focusSession, /data-chat-region="composer" data-focus-region="composer"/)
+  assert.equal(draft.match(/data-focus-region="composer"/g)?.length, 2)
+  // 侧栏行的 A / D 跟随全部代理的单字母绑定，必须用看板匹配器（应用匹配器拒绝无修饰的字母键，
+  // 7c3052bb 用错匹配器导致 A / D 在侧栏上从未生效）。
+  assert.match(sidebar, /matchesBoardShortcut\(event\.nativeEvent, boardBindings\.boardApprove\)/)
+  assert.match(sidebar, /matchesBoardShortcut\(event\.nativeEvent, boardBindings\.boardDeny\)/)
+  assert.doesNotMatch(sidebar, /matchesShortcut\(event\.nativeEvent, boardBindings/)
+  // 返回时焦点回到原会话行：外壳把已渲染的会话交给常驻的 SidebarCommands，只在焦点无主时移动。
+  assert.match(
+    app,
+    /renderedSessionId=\{\s*page === 'session' \? sessionIdFromPath\(location\.pathname\) : null\s*\}/,
+  )
+  assert.match(
+    sidebar,
+    /if \(!left \|\| left !== renderedSessionId \|\| useSidebarStore\.getState\(\)\.collapsed\) return/,
+  )
+  assert.match(sidebar, /\{\s*unclaimed: true,?\s*\}/)
+  // 需要你的 polite 播报在常驻的 SidebarCommands 里（窄轨时分组不挂载也要播），分组里不再重复一份。
+  const commands = sidebar.slice(sidebar.indexOf('export function SidebarCommands'))
+  const commandsBody = commands.slice(0, commands.indexOf('export type SidebarRailCountsProps'))
+  assert.match(
+    commandsBody,
+    /<p data-sidebar-announce aria-live="polite" role="status" className="sr-only">/,
+  )
+  assert.match(commandsBody, /t\('board:sidebar\.announce'/)
+  assert.equal(sidebar.match(/aria-live="polite"/g)?.length, 1)
+})
+
 test('inspector preferences persist open, tab and width under a registered key', async () => {
   const values = new Map([
     [
@@ -238,9 +292,9 @@ test('the sidebar reads the board store and keeps escape for its own temporary e
     /matchesShortcut\(event, bindings\.previousAgent\)\) action = onPreviousAgent/,
   )
   assert.match(shortcuts, /matchesShortcut\(event, bindings\.nextAgent\)\) action = onNextAgent/)
-  // 侧栏行的 A / D 跟随全部代理的改绑（boardBindings）。
-  assert.match(sidebar, /matchesShortcut\(event\.nativeEvent, boardBindings\.boardApprove\)/)
-  assert.match(sidebar, /matchesShortcut\(event\.nativeEvent, boardBindings\.boardDeny\)/)
+  // 侧栏行的 A / D 跟随全部代理的改绑（boardBindings），用看板的单字母匹配器（见上面的接线守卫）。
+  assert.match(sidebar, /matchesBoardShortcut\(event\.nativeEvent, boardBindings\.boardApprove\)/)
+  assert.match(sidebar, /matchesBoardShortcut\(event\.nativeEvent, boardBindings\.boardDeny\)/)
   // Esc 只收回临时展开的侧栏，不离开页面。
   assert.match(shell, /if \(event\.key !== 'Escape'[\s\S]{0,120}setPeeking\(false\)/)
   assert.doesNotMatch(sidebar, /'Escape'/)

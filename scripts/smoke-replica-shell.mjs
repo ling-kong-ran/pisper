@@ -278,8 +278,69 @@ try {
   await page.getByRole('option').filter({ hasText: 'Alpha conversation' }).waitFor()
   await page.keyboard.press('Escape')
   await page.getByRole('combobox').waitFor({ state: 'detached' })
+  // 1x 截图逐像素（规格 9.2）：运行中的墨色粗弧对比度明显高于排队虚线圈与完成勾，排队与完成形状不同。
+  // 浅色与深色各一次；底色取字形截图左上角（圆与勾都碰不到的角落）。
+  const glyphPixels = async (kind) => {
+    const png = await page.locator(`[data-legend="${kind}"]`).screenshot({ animations: 'disabled' })
+    return page.evaluate(async (data) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${data}`
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.width
+      canvas.height = image.height
+      const context = canvas.getContext('2d')
+      context.drawImage(image, 0, 0)
+      const { data: pixels } = context.getImageData(0, 0, image.width, image.height)
+      const lum = (index) =>
+        0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]
+      const background = lum(0)
+      let maxDiff = 0
+      const mask = []
+      for (let index = 0; index < pixels.length; index += 4) {
+        const diff = Math.abs(lum(index) - background)
+        maxDiff = Math.max(maxDiff, diff)
+        mask.push(diff > 40 ? 1 : 0)
+      }
+      return { width: image.width, maxDiff: Math.round(maxDiff), mask }
+    }, png.toString('base64'))
+  }
+  const overlap = (a, b) => {
+    let both = 0
+    let either = 0
+    a.forEach((value, index) => {
+      if (value && b[index]) both += 1
+      if (value || b[index]) either += 1
+    })
+    return either ? both / either : 1
+  }
+  const originalTheme = await page.evaluate(() => document.documentElement.dataset.theme ?? null)
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value
+    }, theme)
+    const [run, queued, done] = await Promise.all(['run', 'queued', 'done'].map(glyphPixels))
+    assert.equal(run.width, 16, `${theme}: glyphs are 16px at 1x`)
+    assert.ok(
+      run.maxDiff >= Math.max(queued.maxDiff, done.maxDiff) + 40,
+      `${theme}: the ink running arc stands out (${run.maxDiff} vs ${queued.maxDiff} / ${done.maxDiff})`,
+    )
+    for (const [name, other] of [
+      ['queued', queued],
+      ['done', done],
+    ])
+      assert.ok(
+        overlap(run.mask, other.mask) < 0.5,
+        `${theme}: running and ${name} differ in shape`,
+      )
+    assert.ok(overlap(queued.mask, done.mask) < 0.5, `${theme}: queued and done differ in shape`)
+  }
+  await page.evaluate((value) => {
+    if (value === null) delete document.documentElement.dataset.theme
+    else document.documentElement.dataset.theme = value
+  }, originalTheme)
   console.log(
-    'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header, search opens the palette with a 切换主题 command, More-search keyword hand-off',
+    'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header, 1x running arc / queued ring / done tick distinguishable pixel by pixel in light and dark, search opens the palette with a 切换主题 command, More-search keyword hand-off',
   )
 
   // 手机底部标签栏：会话 · 看板 · [新任务 52×40] · 更多 · 设置；看板徽标在任何选中标签下都在；

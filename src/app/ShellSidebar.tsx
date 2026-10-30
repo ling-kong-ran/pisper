@@ -101,6 +101,7 @@ export function ShellSidebar(props: ShellSidebarProps) {
     <div
       ref={rootRef}
       data-shell-sidebar={collapsed ? 'rail' : 'expanded'}
+      data-focus-region="sidebar"
       onFocus={() => {
         focusInsideRef.current = true
       }}

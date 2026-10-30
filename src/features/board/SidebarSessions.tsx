@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { PromptDialogOptions } from '@/hooks/useAppDialog'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
-import { matchesShortcut } from '@/lib/shortcuts'
+import { matchesBoardShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
@@ -115,9 +115,16 @@ function sidebarRows(root: ParentNode | null) {
 }
 
 // 焦点目标可能还没画出来（临时展开刚触发、分组刚加载）：逐帧找，最多等 20 帧。
-function focusSidebarRow(pick: (rows: HTMLElement[]) => HTMLElement | undefined) {
+// unclaimed：只在焦点无主（落在 body 上，或仍在侧栏里）时才移动，不抢页面自己放好的焦点。
+function focusSidebarRow(
+  pick: (rows: HTMLElement[]) => HTMLElement | undefined,
+  { unclaimed = false }: { unclaimed?: boolean } = {},
+) {
   let frames = 0
   const attempt = () => {
+    const active = document.activeElement
+    if (unclaimed && active && active !== document.body && !active.closest('[data-shell-sidebar]'))
+      return
     const target = pick(sidebarRows(document.querySelector('[data-sidebar-groups]')))
     if (target) {
       target.focus()
@@ -132,13 +139,22 @@ function focusSidebarRow(pick: (rows: HTMLElement[]) => HTMLElement | undefined)
 export type SidebarCommandsProps = {
   // 当前会话：读路由器的最新去向（连按 ⌥↓ 时界面还没换过去），不是已渲染的地址。
   resolveCurrentId: () => string
+  // 已渲染页面上的会话：会话页（含主页草稿，此时是空串）给出 id，其他页面为 null。
+  // 用来在“从全部代理、设置、功能等页面回到原会话”时把焦点还给原来的会话行（规格 2.3）。
+  renderedSessionId: string | null
   onOpenSession: (sessionId: string) => void
 }
 
 // 无界面的命令处理：⌘J / ⌥A / ⌥↑⌥↓ 由外壳的快捷键层转成事件交到这里。展开与收起时都挂着，
-// 同时让看板同步在侧栏收起时也保持存活（窄轨计数、⌥A 目标都要实时）。
-export function SidebarCommands({ resolveCurrentId, onOpenSession }: SidebarCommandsProps) {
-  const { model } = useSidebarModel()
+// 同时让看板同步在侧栏收起时也保持存活（窄轨计数、⌥A 目标都要实时），
+// 需要你的读屏播报也放在这里：侧栏收成窄轨时分组不挂载，播报照样要有（规格 2.2）。
+export function SidebarCommands({
+  resolveCurrentId,
+  renderedSessionId,
+  onOpenSession,
+}: SidebarCommandsProps) {
+  const { t } = useI18n()
+  const { model, isLoading } = useSidebarModel()
   const modelRef = useRef(model)
   modelRef.current = model
   const propsRef = useRef({ resolveCurrentId, onOpenSession })
@@ -172,7 +188,52 @@ export function SidebarCommands({ resolveCurrentId, onOpenSession }: SidebarComm
     window.addEventListener(SIDEBAR_COMMAND_EVENT, listener)
     return () => window.removeEventListener(SIDEBAR_COMMAND_EVENT, listener)
   }, [])
-  return null
+
+  // 返回时焦点回到原会话行：记下离开会话页时的会话，回到同一个会话时把焦点交给它的行。
+  // 侧栏收起时行不在界面上，不为此临时展开；页面自己已经放好焦点（如输入框）时不抢。
+  const previousRef = useRef(renderedSessionId)
+  const leftRef = useRef<string | null>(null)
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = renderedSessionId
+    if (renderedSessionId === null) {
+      if (previous) leftRef.current = previous
+      return
+    }
+    if (previous !== null) return
+    const left = leftRef.current
+    leftRef.current = null
+    if (!left || left !== renderedSessionId || useSidebarStore.getState().collapsed) return
+    focusSidebarRow((rows) => rows.find((row) => row.dataset.sidebarRow === left), {
+      unclaimed: true,
+    })
+  }, [renderedSessionId])
+
+  // 新进入“需要你”的行经 polite 读屏播报（“修复 CI 失败 需要你：等你批准”）；首次载入的既有事项不播。
+  const seenRef = useRef<Set<string> | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  useEffect(() => {
+    if (isLoading) return
+    const rows = (model.groups.find((group) => group.id === 'attention')?.rows ??
+      []) as SidebarAttentionRow[]
+    const previous = seenRef.current
+    seenRef.current = new Set(rows.map((row) => row.id))
+    if (!previous) return
+    const added = rows.filter((row) => !previous.has(row.id))
+    if (!added.length) return
+    setAnnouncement(
+      added
+        .map((row) =>
+          t('board:sidebar.announce', { title: row.title, reason: reasonText(t, row.reasons) }),
+        )
+        .join('；'),
+    )
+  }, [model.groups, isLoading, t])
+  return (
+    <p data-sidebar-announce aria-live="polite" role="status" className="sr-only">
+      {announcement}
+    </p>
+  )
 }
 
 export type SidebarRailCountsProps = {
@@ -287,10 +348,10 @@ export function SidebarSessions({
       return next
     })
 
-  // 新进入“需要你”的行：首次载入的既有事项不算新进入，只为之后出现的行播动效和读屏播报。
+  // 新进入“需要你”的行：首次载入的既有事项不算新进入，只为之后出现的行播展开与外圈扩散动效；
+  // 读屏播报在 SidebarCommands（侧栏收成窄轨时也要播）。
   const seenRef = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
-  const [announcement, setAnnouncement] = useState('')
   const attentionRows = useMemo(
     () =>
       (model.groups.find((group) => group.id === 'attention')?.rows ?? []) as SidebarAttentionRow[],
@@ -305,14 +366,7 @@ export function SidebarSessions({
     const added = attentionRows.filter((row) => !previous.has(row.id))
     if (!added.length) return
     setFresh(new Set(added.map((row) => row.id)))
-    setAnnouncement(
-      added
-        .map((row) =>
-          t('board:sidebar.announce', { title: row.title, reason: reasonText(t, row.reasons) }),
-        )
-        .join('；'),
-    )
-  }, [attentionRows, isLoading, t])
+  }, [attentionRows, isLoading])
 
   const report = useCallback(
     (result: BoardActionResult) => {
@@ -427,8 +481,9 @@ export function SidebarSessions({
       return
     }
     if (row.group !== 'attention' || event.shiftKey) return
-    const approve = matchesShortcut(event.nativeEvent, boardBindings.boardApprove)
-    const deny = !approve && matchesShortcut(event.nativeEvent, boardBindings.boardDeny)
+    // 全部代理的单字母键用自己的匹配器（应用快捷键的匹配器不接受无修饰的字母键）。
+    const approve = matchesBoardShortcut(event.nativeEvent, boardBindings.boardApprove)
+    const deny = !approve && matchesBoardShortcut(event.nativeEvent, boardBindings.boardDeny)
     if (!approve && !deny) return
     event.preventDefault()
     if (row.quickAction.kind === 'decide')
@@ -446,9 +501,6 @@ export function SidebarSessions({
     !error && model.groups.every((group) => group.count === 0) && model.groups.length <= 2
   return (
     <div ref={rootRef} data-sidebar-groups className="flex flex-col gap-3 pb-2">
-      <p aria-live="polite" role="status" className="sr-only">
-        {announcement}
-      </p>
       {Boolean(error) && model.groups.every((group) => group.count === 0) ? (
         <div className="flex flex-col items-start gap-1.5 px-2.5 py-2 text-xs text-content-muted">
           <p>{t('board:sidebar.error')}</p>

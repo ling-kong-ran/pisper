@@ -162,6 +162,7 @@ export function BoardHeader({
 
   return (
     <header
+      data-focus-region="header"
       data-window-drag-region
       className="flex h-[52px] flex-none items-center gap-3 px-4 [[data-custom-titlebar]_&]:pr-[144px]"
     >

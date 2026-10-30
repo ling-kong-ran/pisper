@@ -1320,7 +1320,11 @@ export const FocusSession = memo(function FocusSession({
               ? headerBlock
               : null}
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-chat-region="messages">
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          data-chat-region="messages"
+          data-focus-region="content"
+        >
           {transcriptMeta ? (
             <TranscriptMetaContext.Provider value={transcriptMeta}>
               {transcriptBlock}
@@ -1329,7 +1333,7 @@ export const FocusSession = memo(function FocusSession({
             transcriptBlock
           )}
         </div>
-        <div className="shrink-0" data-chat-region="composer">
+        <div className="shrink-0" data-chat-region="composer" data-focus-region="composer">
           {composerBlock}
         </div>
       </div>

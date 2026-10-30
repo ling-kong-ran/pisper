@@ -1063,6 +1063,10 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   : undefined
                 : () => requestSidebarCommand({ kind: 'focus-attention' })
             }
+            // F6：侧栏 → 顶栏 → 对话 → 输入框（规格 2.8）。区域逻辑按需加载，不占入口包。
+            onCycleFocusRegion={() =>
+              void import('@/app/focus-regions').then((module) => module.cycleFocusRegion())
+            }
             onShortcutHelp={() => setShortcutHelpOpen(true)}
           />
           <div
@@ -1117,6 +1121,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               <Suspense fallback={null}>
                 <SidebarCommands
                   resolveCurrentId={currentSessionTarget}
+                  renderedSessionId={
+                    page === 'session' ? sessionIdFromPath(location.pathname) : null
+                  }
                   onOpenSession={openSidebarSession}
                 />
               </Suspense>
@@ -1141,7 +1148,10 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 />
               </Suspense>
             )}
-            <main className="main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel">
+            <main
+              data-focus-region="main"
+              className="main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel"
+            >
               {sharedPageHeader && (
                 <Suspense fallback={null}>
                   <PageHeader
