@@ -358,10 +358,65 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </div>
   </section>
 
+  <section aria-labelledby="dir-a-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a-built-h">方向 A 已实现：A1 外壳与侧栏、A2 会话页</h2>
+      <p class="lede">左边设计稿、右边实现（zh-CN，1x，浏览器模拟；Windows 自绘标题栏是模拟的窗口按钮，不代表 WebView2 验证）。标题栏、泳道条、<kbd>⌘J</kbd> 代理面板已退役，下面“导航”“会话页”两节里的第 4 期截图只作对照。</p>
+    </div>
+    <h3>A1 · 侧栏</h3>
+    <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-attention-dark.png" aria-label="放大：设计稿：等你批准和回答（深色）"><img src="drafts/redesign/claude-sidebar/desktop-session-attention-dark.png" alt="设计稿：等你批准和回答（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>等你批准和回答（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a1-sidebar-1440-quick-dark.png" aria-label="放大：实现：需要你行悬停，拒绝 D / 允许 A，标题按省略号截断"><img src="built/a1-sidebar-1440-quick-dark.png" alt="实现：需要你行悬停，拒绝 D / 允许 A，标题按省略号截断" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A1</span>需要你行悬停：拒绝 D · 允许 A（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a1-sidebar-1440-quick-light.png" aria-label="放大：实现：需要你行悬停（浅色）"><img src="built/a1-sidebar-1440-quick-light.png" alt="实现：需要你行悬停（浅色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A1</span>需要你行悬停（浅色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" aria-label="放大：设计稿：侧栏收成窄条"><img src="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" alt="设计稿：侧栏收成窄条" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>侧栏收成窄条</figcaption></figure>
+      <figure><button type="button" data-full="built/a1-sidebar-rail-1440-light.png" aria-label="放大：实现：60px 窄轨，需要你与运行中计数"><img src="built/a1-sidebar-rail-1440-light.png" alt="实现：60px 窄轨，需要你与运行中计数" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A1</span>60px 窄轨，琥珀“需要你”与运行中计数</figcaption></figure>
+      <figure><button type="button" data-full="built/a1-session-1080-titlebar-light.png" aria-label="放大：实现：1080 × 680 自绘标题栏，右上 144px 只留窗口按钮"><img src="built/a1-session-1080-titlebar-light.png" alt="实现：1080 × 680 自绘标题栏，右上 144px 只留窗口按钮" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A1</span>1080 × 680 自绘标题栏</figcaption></figure>
+    </div>
+    <h3>A2 · 会话页</h3>
+    <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-running-light.png" aria-label="放大：设计稿：会话 · 运行中"><img src="drafts/redesign/claude-sidebar/desktop-session-running-light.png" alt="设计稿：会话 · 运行中" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>会话 · 运行中</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-1440-running-light.png" aria-label="放大：实现：会话运行中，托盘“运行中 3:17 · 停止 Esc”"><img src="built/a2-session-1440-running-light.png" alt="实现：会话运行中，托盘“运行中 3:17 · 停止 Esc”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>运行中：托盘、圆角 22 输入框</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-running-dark.png" aria-label="放大：设计稿：会话 · 运行中（深色）"><img src="drafts/redesign/claude-sidebar/desktop-session-running-dark.png" alt="设计稿：会话 · 运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>会话 · 运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-1440-running-dark.png" aria-label="放大：实现：会话运行中（深色）"><img src="built/a2-session-1440-running-dark.png" alt="实现：会话运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-1440-inspector-light.png" aria-label="放大：实现：改动按钮滑入的 456px 检查器"><img src="built/a2-session-1440-inspector-light.png" alt="实现：改动按钮滑入的 456px 检查器" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>≥1280 停靠检查器（按需滑入）</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-1440-titlebar-inspector-dark.png" aria-label="放大：实现：自绘标题栏下停靠检查器从顶栏下方开始，标签行完整"><img src="built/a2-session-1440-titlebar-inspector-dark.png" alt="实现：自绘标题栏下停靠检查器从顶栏下方开始，标签行完整" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>自绘标题栏 + 停靠检查器（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-1080-overlay-light.png" aria-label="放大：实现：1080 宽窗口检查器为 420px 覆盖层"><img src="built/a2-session-1080-overlay-light.png" alt="实现：1080 宽窗口检查器为 420px 覆盖层" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>1080 × 680，420px 覆盖层</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-title-menu-light.png" aria-label="放大：实现：标题 ▾ 菜单"><img src="built/a2-session-title-menu-light.png" alt="实现：标题 ▾ 菜单" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>标题 ▾ 菜单</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-composer-model-light.png" aria-label="放大：实现：模型芯片弹层带上下文与用量"><img src="built/a2-composer-model-light.png" alt="实现：模型芯片弹层带上下文与用量" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>模型芯片：上下文与用量</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-session-tree-light.png" aria-label="放大：实现：会话树三页 分支 / 标记 / 全部标记"><img src="built/a2-session-tree-light.png" alt="实现：会话树三页 分支 / 标记 / 全部标记" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>会话树：分支 / 标记 / 全部标记</figcaption></figure>
+      <figure><button type="button" data-full="built/a2-approval-card-light.png" aria-label="放大：实现：内联批准卡，高风险按住允许，其余折叠成一行"><img src="built/a2-approval-card-light.png" alt="实现：内联批准卡，高风险按住允许，其余折叠成一行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A2</span>内联批准卡（夹具页，无侧栏）</figcaption></figure>
+    </div>
+    <ul class="notes">
+      <li>侧栏 268 / 窄轨 60；需要你行 48、其他行 36；需要你永不折叠，同一会话挂着多条普通批准时一步处理一条，行留在原处、下一条顶上来。</li>
+      <li>会话顶栏 52：标题 ▾ · 项目 · ⑂ 会话树（带分支数）· 改动按钮；对话列与输入框 768，正文 16/26，输入框圆角 22。</li>
+      <li>检查器默认关着，改动按钮 / <kbd>⌘I</kbd> 按需滑入；没固定时 <kbd>Esc</kbd> 先收起它，再按一次才停止运行（1080 与 1440 一致）。</li>
+      <li class="change">Windows 自绘标题栏下，停靠检查器与覆盖层一样从顶栏下方开始，顶上留 52px 拖动区，标签行不再被窗口按钮裁掉。</li>
+      <li class="change">需要你行原因写“运行失败”而不是“测试失败”：Runtime 不区分测试失败与其他失败。</li>
+      <li class="change">设计稿里“@ 引用文件”没有单独入口：输入框没有 @ 补全，“+”菜单的“附件”按路径引用文件。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="nav-h">
     <div class="sec-head">
       <h2 id="nav-h">导航：会话做主页</h2>
-      <p class="lede">第 4 期已做完：打开应用回到上次停留的会话，没有可回的就显示新任务草稿。</p>
+      <p class="lede">第 4 期已做完：打开应用回到上次停留的会话，没有可回的就显示新任务草稿。下面的截图是第 4 期的标题栏外壳，方向 A 的 A1 已把标题栏换成侧栏（见上一节），留作对照。</p>
     </div>
     <div class="shots">
       <figure><button type="button" data-full="built/home-draft-1440-light.png" aria-label="放大：新任务草稿"><img src="built/home-draft-1440-light.png" alt="主页新任务草稿：发出第一条消息时才建会话" loading="lazy"></button>
@@ -421,7 +476,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
   <section aria-labelledby="session-h">
     <div class="sec-head">
       <h2 id="session-h">会话页（新主页）</h2>
-      <p class="lede">桌面布局：标题栏 48 → 泳道条 52 → 会话页头 44 + 对话 + 检查器。</p>
+      <p class="lede">第 3–4 期的桌面布局：标题栏 48 → 泳道条 52 → 会话页头 44 + 对话 + 检查器。方向 A 的 A2 已换成侧栏 + 52 顶栏 + 按需检查器（见“方向 A 已实现”），这里的截图留作对照。</p>
     </div>
     <div class="shots">
       <figure><button type="button" data-full="drafts/desktop-session-light.png" aria-label="放大：会话页设计稿"><img src="drafts/desktop-session-light.png" alt="会话页设计稿：左侧代理列表、中间对话、右侧改动检查器" loading="lazy"></button>
@@ -534,6 +589,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">0–1</span><span class="what">新视觉 token、标题栏外壳、看板 MVP</span><span class="chip built">已推送 bfd689b1</span></div>
       <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
       <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
+      <div class="phase"><span class="n">A1–A2</span><span class="what">方向 A：视觉 token v2、侧栏外壳与会话分组、快捷键 v2；会话顶栏、按需检查器、托盘与输入区、内联批准卡、会话树三页</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">5</span><span class="what">组件工作室、组件放置（不固定在看板）；5a 核心闭环 → 5b 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">6</span><span class="what">ask_user、排队泳道、导出、思考用时、目录变更事件；删除旧外壳要先经你同意</span><span class="chip">未开始</span></div>
     </div>
