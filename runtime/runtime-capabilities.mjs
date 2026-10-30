@@ -98,6 +98,10 @@ function buildCapabilities({
     askUser: true,
     // 原生组件（A7）：同源 ESM 模块 + JSON 文件存储，不需要编译器或原生二进制，三种档案都提供。
     'components.native': true,
+    // 排在 X 之后启动：队列落盘在数据目录，各档案都提供。
+    sessionQueue: true,
+    // 会话导出 Markdown：只读已投影的转录。
+    sessionExport: true,
   }
   return Object.freeze({
     version: 1,

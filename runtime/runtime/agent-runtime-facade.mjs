@@ -218,6 +218,9 @@ export class AgentRuntimeFacade {
         // 删除后丢掉内存摘要，并让看板事件流对在线客户端发 removed。
         this.sessionCards?.forget(id, { deleted: true })
         this.boardEvents?.touch(id)
+        this.boardEvents?.catalogChanged()
+        // 删掉的会话不再排队；排在它后面的会话视为前置已结束，照常启动。
+        void this.sessionQueue?.onSessionDeleted(id).catch(() => {})
       }
       return result
     }
@@ -276,6 +279,8 @@ export class AgentRuntimeFacade {
         // 仍读到 runActive=true。这里在真正放下运行标记后再失效一次活动投影，
         // 经 onInvalidate 让看板事件流补发一帧“已结束”，/live 缓存也随之失效。
         this.streamProjection.invalidate(id, { transcript: false, activity: true, usage: false })
+        // 这一轮结束（完成、失败、停止都算）：启动排在它后面的会话（sessionQueue）。
+        void this.sessionQueue?.onRunFinished(id).catch(() => console.warn('排队的会话启动失败。'))
         const forceDisposed = value.forceDisposed
         delete value.abortedAt
         delete value.forceDisposed
@@ -834,6 +839,7 @@ export class AgentRuntimeFacade {
     this.mobileOperations.dispose()
     this.permissions.dispose()
     this.questions?.dispose()
+    await this.sessionQueue?.dispose()
     await this.disposeSessions()
     await this.sandbox?.close?.()
     this.pendingSessions.clear()

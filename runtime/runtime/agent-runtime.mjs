@@ -99,6 +99,8 @@ import { BUILTIN_SKILLS } from '../services/custom-ui-sdk-docs.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { ASK_USER_TOOL_NAME, createAskUserTool } from '../tools/app/ask-user.mjs'
 import { SessionQuestionService } from '../services/session-question-service.mjs'
+import { SessionStartQueue } from '../services/session-start-queue.mjs'
+import { recordThinkingDuration } from '../services/thinking-durations.mjs'
 import {
   createPlanTools,
   PLAN_ALL_TOOL_NAMES,
@@ -566,6 +568,28 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.questions = new SessionQuestionService({
       onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
+    // 排在 X 之后（sessionQueue）：前置会话这一轮结束时在后台启动排队的会话，事件推给看板事件流。
+    this.sessionQueue = new SessionStartQueue({
+      path: join(dataDir, 'pisper-session-queue.json'),
+      startSession: ({ sessionId, message, runMode }) =>
+        this.streamPrompt({
+          sessionId,
+          message,
+          goalMode: runMode === 'goal' || runMode === 'team',
+          teamMode: runMode === 'team',
+          send: () => {},
+        }),
+      isRunning: (sessionId) => this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)),
+      sessionExists: async (sessionId) =>
+        Boolean(
+          sessionId &&
+          (this.sessions.has(sessionId) ||
+            this.pendingSessions?.has(sessionId) ||
+            (await this.findSessionInfo(sessionId))),
+        ),
+      onChange: (sessionId) => this.boardEvents?.touch(sessionId),
+      onError: () => console.warn('排队的会话启动失败。'),
+    })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
       path: join(dataDir, 'pisper-agents.json'),
@@ -686,6 +710,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }),
       getPermissions: () => this.permissions,
       getQuestions: () => this.questions,
+      getSessionQueue: () => this.sessionQueue,
       getBrowserAutomation: () => this.browserAutomation,
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
       resolveDirectory,
@@ -825,6 +850,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
     await startup.complete()
+    // 排队恢复放在就绪之后：前置会话的那一轮已随上次进程结束，等它的会话现在启动（后台进行，不拖住启动）。
+    if (this.capabilities.features.sessionQueue)
+      void this.sessionQueue.resume().catch(() => console.warn('排队恢复失败。'))
   }
 
   async waitForInitialization(service) {
@@ -2248,6 +2276,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           )}`
         : goalContinuationPrompt(currentGoal)
     let queueUpdateScheduled = false
+    // 思考用时（A9）：本轮所有思考段的墙钟时长之和；思考开始计时，出现正文、工具调用或消息结束即停。
+    let thinkingStartedAt = 0
+    const endThinking = () => {
+      if (!thinkingStartedAt) return
+      live.thinkingMs = (live.thinkingMs || 0) + Math.max(0, Date.now() - thinkingStartedAt)
+      thinkingStartedAt = 0
+    }
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
       if (event.type === 'message_start' && event.message?.role === 'user') {
@@ -2263,8 +2298,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const update = event.assistantMessageEvent
         const blockIndex = streamBlockIndex(update)
         requestTiming.onStreamDelta(update.type)
+        if (update.type === 'text_start' || update.type === 'toolcall_start') endThinking()
         if (update.type === 'text_start') beginTextBlock(activeTextBlocks, blockIndex, live, emit)
         if (update.type === 'text_delta') {
+          endThinking()
           beginTextBlock(activeTextBlocks, blockIndex, live, emit)
           const delta = String(update.delta || '')
           live.text += delta
@@ -2281,6 +2318,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             emit('text_end', { text: live.text, updatedAt: live.lastActivityAt })
           }
         }
+        if (update.type === 'thinking_start' || update.type === 'thinking_delta')
+          thinkingStartedAt ||= Date.now()
         if (update.type === 'thinking_start') activeThinkingBlocks.add(blockIndex)
         if (update.type === 'thinking_delta') {
           activeThinkingBlocks.add(blockIndex)
@@ -2293,6 +2332,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         }
         if (update.type === 'thinking_end') {
           activeThinkingBlocks.delete(blockIndex)
+          if (!activeThinkingBlocks.size) endThinking()
         }
       } else if (event.type === 'compaction_start') {
         // 上下文压缩开始/结束：同步 live 状态并广播。
@@ -2318,6 +2358,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           }
           activeTextBlocks.clear()
           activeThinkingBlocks.clear()
+          endThinking()
           const finalMessage = ['stop', 'length'].includes(event.message.stopReason)
           if (finalMessage) {
             const completedText = textFromContent(event.message.content)
@@ -2624,7 +2665,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       // 回合边界条目随 done 直接下发：前端就地补全消息元数据，结束后不再整页重拉历史。
       const turnBoundaryEntryId = findLastMessageEntryId(session.sessionManager, 'assistant')
       if (boardCardId()) this.finishBoardCard(session.sessionId, value, live)
+      endThinking()
+      // 思考用时挂在这一轮最后一条助手消息上（按它的时间戳记），会话元数据随本轮收尾落盘。
+      if (live.thinkingMs > 0 && last?.timestamp != null)
+        recordThinkingDuration(this.sessionMeta, session.sessionId, last.timestamp, live.thinkingMs)
       emit('done', {
+        thinkingMs: live.thinkingMs > 0 ? Math.round(live.thinkingMs) : undefined,
         turnBoundaryEntryId,
         queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,

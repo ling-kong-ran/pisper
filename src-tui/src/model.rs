@@ -894,6 +894,7 @@ mod tests {
                         "questions": [{ "header": "DB", "question": "Which database?", "options": [{ "label": "Postgres" }], "multiSelect": false }]
                     },
                     "runId": "run_abc",
+                    "queue": { "position": 1, "startAfter": "other", "createdAt": "2026-10-29T02:00:00.000Z" },
                     "card": {
                         "boardStatus": "attention",
                         "runId": "run_abc",

@@ -1,6 +1,7 @@
 // 流投影：把会话的引擎内部状态（消息、工具、用量、压缩、生命周期）投影成前端可消费的
 // 视图（transcript 消息、实时快照、上下文用量、历史消息页）。带多级缓存（投影缓存/历史
 // 消息缓存/上下文用量缓存），并在源数据未变时直接命中缓存避免重复序列化。
+import { attachThinkingDurations } from '../services/thinking-durations.mjs'
 import { createHash } from 'node:crypto'
 import { open, stat } from 'node:fs/promises'
 import { calculateContextTokens, estimateTokens } from './pi-coding-agent.mjs'
@@ -779,6 +780,11 @@ export class StreamProjection {
     return generatedAssetsForSession(this.assetIndex().assets, sessionId)
   }
 
+  // 思考用时不进转录缓存：它在本轮收尾时才写入元数据，贴回这一步每次都按最新元数据做。
+  withThinkingDurations(sessionId, messages) {
+    return attachThinkingDurations(messages, this.sessionMeta()[sessionId]?.thinkingDurations)
+  }
+
   withGeneratedAssets(sessionId, messages) {
     const revision = this.getAssetRevision()
     return this.cache.transcriptWithAssets(sessionId, messages, revision, () =>
@@ -824,7 +830,7 @@ export class StreamProjection {
         ),
       )
     }
-    return this.withGeneratedAssets(id, messages)
+    return this.withThinkingDurations(id, this.withGeneratedAssets(id, messages))
   }
 
   // 历史消息缓存修剪（按条目数与估算字节）。
@@ -1037,7 +1043,7 @@ export class StreamProjection {
       history.serializedSize = history.size
       history.serializedMessages = messages
     }
-    return this.withGeneratedAssets(id, messages)
+    return this.withThinkingDurations(id, this.withGeneratedAssets(id, messages))
   }
 
   // 上下文用量装饰：补充压缩阈值、压缩触发点等前端展示字段。

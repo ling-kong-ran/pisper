@@ -490,3 +490,33 @@ test('a failing data source closes the connection instead of leaving it half-ope
   connection.detach()
   hub.dispose()
 })
+
+test('catalog changes are coalesced into one catalog_changed frame and replayable', async (t) => {
+  const source = fakeSource()
+  const hub = hubFor(source)
+  t.after(() => hub.dispose())
+  const client = recorder()
+  const connection = hub.connect({ send: client.send, close: client.close })
+  await connection.ready
+  const before = hub.revision
+  hub.catalogChanged()
+  hub.catalogChanged()
+  hub.catalogChanged()
+  const frames = await waitFor(() => {
+    const found = client.events('catalog_changed')
+    return found.length ? found : null
+  })
+  await sleep(300)
+  assert.equal(client.events('catalog_changed').length, 1)
+  assert.ok(frames[0].data.revision > before)
+  // 断线后带旧修订号重连：缓冲里的 catalog_changed 照常补发。
+  const late = recorder()
+  const replayed = hub.connect({ send: late.send, close: late.close, after: before })
+  await replayed.ready
+  assert.equal(late.events('catalog_changed').length, 1)
+  // 关闭后不再发。
+  hub.dispose()
+  hub.catalogChanged()
+  await sleep(300)
+  assert.equal(client.events('catalog_changed').length, 1)
+})

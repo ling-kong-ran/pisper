@@ -92,6 +92,8 @@ const CAPABILITY_ROUTES = [
       /^\/api\/custom-ui\/(?:instances(?:\/|$)|trash(?:\/|$)|staged(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|storage|errors|session|versions|export|usage)(?:\/|$))/,
     feature: 'components.native',
   },
+  { pattern: /^\/api\/sessions\/[^/]+\/queue(?:\/|$)/, feature: 'sessionQueue' },
+  { pattern: /^\/api\/sessions\/[^/]+\/export$/, feature: 'sessionExport' },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

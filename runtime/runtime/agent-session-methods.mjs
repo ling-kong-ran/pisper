@@ -1,6 +1,7 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
+import { exportFileName, sessionToMarkdown } from '../services/session-export.mjs'
 import { modelThinkingState } from './provider-preferences.mjs'
 import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
@@ -66,7 +67,11 @@ export const agentSessionMethods = {
       approvals: this.permissions.getPending(id),
       agents: this.multiAgents.summaries(id),
       question: projectQuestionSummary(this.questions?.getPending(id) || []),
-      capabilities: { askUser: this.capabilities?.features?.askUser === true },
+      queue: this.sessionQueue?.summary(id) || null,
+      capabilities: {
+        askUser: this.capabilities?.features?.askUser === true,
+        sessionQueue: this.capabilities?.features?.sessionQueue === true,
+      },
       now,
       doneWindow,
       timeZoneOffsetMinutes,
@@ -110,8 +115,11 @@ export const agentSessionMethods = {
     return result
   },
 
+  // 目录变更（新建、改名、归档 / 置顶、移动工作区）都通知看板事件流的 catalog_changed。
   async createSession(name, cwd) {
-    return this.sessionLifecycle.createSession(name, cwd)
+    const created = await this.sessionLifecycle.createSession(name, cwd)
+    this.boardEvents?.catalogChanged()
+    return created
   },
 
   async getSideChat(parentId, options) {
@@ -297,11 +305,15 @@ export const agentSessionMethods = {
   },
 
   async renameSession(id, name, options = {}) {
-    return this.sessionLifecycle.renameSession(id, name, options)
+    const renamed = await this.sessionLifecycle.renameSession(id, name, options)
+    if (renamed) this.boardEvents?.catalogChanged()
+    return renamed
   },
 
   async updateSessionOrganization(id, patch) {
-    return this.sessionLifecycle.updateSessionOrganization(id, patch)
+    const updated = await this.sessionLifecycle.updateSessionOrganization(id, patch)
+    if (updated) this.boardEvents?.catalogChanged()
+    return updated
   },
 
   async setSessionModel(id, provider, modelId) {
@@ -468,6 +480,33 @@ export const agentSessionMethods = {
     return this.permissions.resolve(sessionId, approvalId, approved)
   },
 
+  // 导出 Markdown（标题菜单"导出"）：会话不存在返回 null。
+  async exportSessionMarkdown(id, { locale = 'zh-CN' } = {}) {
+    const session = (await this.listSessions()).find((item) => item.id === id)
+    if (!session) return null
+    const messages = await this.getSessionMessages(id)
+    return {
+      fileName: exportFileName(session.name),
+      markdown: sessionToMarkdown({ session, messages, locale }),
+    }
+  },
+
+  // 排在 X 之后启动（sessionQueue）：登记、立即开始、取消。
+  enqueueSessionStart(sessionId, input) {
+    return this.sessionQueue.enqueue({
+      ...(input && typeof input === 'object' ? input : {}),
+      sessionId,
+    })
+  },
+
+  startQueuedSession(sessionId) {
+    return this.sessionQueue.startNow(sessionId)
+  },
+
+  cancelQueuedSession(sessionId) {
+    return this.sessionQueue.cancel(sessionId)
+  },
+
   // 回答 / 跳过 ask_user 的问题；输入非法时抛 QuestionInputError，由 HTTP 层转成 400。
   answerSessionQuestion(sessionId, questionId, input) {
     if (!this.questions) return { found: false, alreadyResolved: false, questionId, sessionId }
@@ -479,6 +518,8 @@ export const agentSessionMethods = {
   },
 
   async setSessionCwd(id, input) {
-    return this.sessionLifecycle.setSessionCwd(id, input)
+    const moved = await this.sessionLifecycle.setSessionCwd(id, input)
+    if (moved) this.boardEvents?.catalogChanged()
+    return moved
   },
 }

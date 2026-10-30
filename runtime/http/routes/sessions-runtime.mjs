@@ -5,6 +5,17 @@ import { SessionOrganizationInputError } from '../../services/chat-session-organ
 import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 import { SideChatError } from '../../services/side-chat-service.mjs'
 import { QuestionInputError, isQuestionId } from '../../services/session-question-service.mjs'
+import { SessionQueueError } from '../../services/session-start-queue.mjs'
+
+// 排队接口的统一错误出口：校验与状态错误带稳定 code，其余照常抛给通用错误处理。
+async function handleQueue(json, action) {
+  try {
+    json(200, await action())
+  } catch (error) {
+    if (!(error instanceof SessionQueueError)) throw error
+    json(error.status, { error: error.message, code: error.code })
+  }
+}
 import { BoardViewQueryError } from '../../services/session-board-view.mjs'
 import { parseBoardViewQuery } from './board.mjs'
 function isMobileAppRequest(runtime, req) {
@@ -484,6 +495,58 @@ const routes = [
       )
       if (!resolution.found) json(404, { error: '授权请求不存在。' })
       else json(200, resolution)
+    },
+  },
+  {
+    // 导出 Markdown：GET …/export?format=markdown&lang=zh-CN|en-US，以附件下载。
+    method: 'GET',
+    path: '/api/sessions/:sessionId/export',
+    async handler({ runtime, params, url, res, json }) {
+      const format = url.searchParams.get('format') || 'markdown'
+      if (format !== 'markdown') {
+        json(400, { error: '只支持导出 Markdown。', code: 'export_format_unsupported' })
+        return
+      }
+      const locale = url.searchParams.get('lang') === 'en-US' ? 'en-US' : 'zh-CN'
+      const exported = await runtime.exportSessionMarkdown(params.sessionId, { locale })
+      if (!exported) {
+        json(404, { error: '会话不存在。', code: 'session_not_found' })
+        return
+      }
+      const body = Buffer.from(exported.markdown.toWellFormed(), 'utf8')
+      res.writeHead(200, {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Length': body.length,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(exported.fileName)}`,
+        'Cache-Control': 'no-store',
+      })
+      res.end(body)
+    },
+  },
+  {
+    // 排在 X 之后启动（规格 8.4 sessionQueue）：{startAfter, message, runMode?}。
+    // 前置会话已经结束时直接启动，返回 {queued: false, started: true}。
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue',
+    async handler({ runtime, params, body, json }) {
+      const input = await body()
+      await handleQueue(json, () => runtime.enqueueSessionStart(params.sessionId, input))
+    },
+  },
+  {
+    // 立即开始：跳过等待。
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue/start',
+    async handler({ runtime, params, json }) {
+      await handleQueue(json, () => runtime.startQueuedSession(params.sessionId))
+    },
+  },
+  {
+    // 取消排队：会话留下，返回原消息供客户端放回草稿。
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId/queue',
+    async handler({ runtime, params, json }) {
+      await handleQueue(json, () => runtime.cancelQueuedSession(params.sessionId))
     },
   },
   {

@@ -35,6 +35,7 @@ import {
  *   agents?: { running: number, total: number },
  *   usage?: { totalTokens: number },
  *   question?: Record<string, unknown>,
+ *   queue?: { position: number, startAfter: string, createdAt: string },
  * }} SessionCard
  * @typedef {{
  *   v: 1,
@@ -755,6 +756,7 @@ function liveActivity(activity) {
  *   approvals?: readonly unknown[],
  *   agents?: readonly unknown[],
  *   question?: Record<string, unknown> | null,
+ *   queue?: { position: number, startAfter: string, createdAt: string } | null,
  *   capabilities?: import('../../shared/session-board-status.mjs').BoardCapabilities,
  *   now?: number,
  *   doneWindow?: BoardDoneWindow,
@@ -770,6 +772,7 @@ export function projectSessionCard({
   approvals = [],
   agents = [],
   question = null,
+  queue = null,
   capabilities = {},
   now = Date.now(),
   doneWindow = '7d',
@@ -826,6 +829,8 @@ export function projectSessionCard({
   if (totalTokens !== null) card.usage = { totalTokens }
   // 等你回答（ask_user）：问题摘要已在提问服务里归一化、限长，原样带上。
   if (question) card.question = question
+  // 排在别的会话之后：只在没在运行时带（开始运行后队列项已出队）。
+  if (queue && !streaming) card.queue = { ...queue }
   const derived = deriveBoardStatus(
     {
       ...session,
@@ -834,6 +839,7 @@ export function projectSessionCard({
         startedAt: card.startedAt,
         outcome: card.outcome,
         ...(card.question ? { question: card.question } : {}),
+        ...(card.queue ? { queue: card.queue } : {}),
       },
     },
     { now, doneWindow, timeZoneOffsetMinutes, capabilities },

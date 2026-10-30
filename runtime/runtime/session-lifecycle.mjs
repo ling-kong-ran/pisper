@@ -71,6 +71,7 @@ export class SessionLifecycle {
     getTeamWorkflows,
     getPermissions,
     getQuestions,
+    getSessionQueue,
     getBrowserAutomation,
     getExecutionMode,
     resolveDirectory,
@@ -108,6 +109,8 @@ export class SessionLifecycle {
     this.getPermissions = getPermissions
     // 提问服务（ask_user）是可选依赖：没有时等同于没有待回答的问题。
     this.getQuestions = typeof getQuestions === 'function' ? getQuestions : () => null
+    // 启动排队（sessionQueue）同样可选。
+    this.getSessionQueue = typeof getSessionQueue === 'function' ? getSessionQueue : () => null
     this.getBrowserAutomation = getBrowserAutomation
     this.getExecutionMode = getExecutionMode
     this.resolveDirectory = resolveDirectory
@@ -371,6 +374,10 @@ export class SessionLifecycle {
       const question = projectQuestionSummary(pending)
       return question ? { question } : {}
     }
+    const queueField = (id) => {
+      const queue = this.getSessionQueue()?.summary(id)
+      return queue ? { queue } : {}
+    }
     const sessionValue = (id, value) => ({
       permissionMode:
         sessionMeta[id]?.permissionMode ||
@@ -403,6 +410,8 @@ export class SessionLifecycle {
       ),
       // 等你回答（ask_user）：只在有待回答的问题时出现，旧客户端忽略这个字段。
       ...questionField(pendingQuestionsFor(id)),
+      // 排在别的会话之后等待启动：只在排队时出现。
+      ...queueField(id),
     })
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)

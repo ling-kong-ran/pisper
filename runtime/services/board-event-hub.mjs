@@ -36,6 +36,8 @@
 export const BOARD_EVENTS_MAX_CONNECTIONS = 32
 export const BOARD_CARD_MIN_INTERVAL_MS = 250
 export const BOARD_HEARTBEAT_MS = 15_000
+// 目录变更（新建、改名、归档、移动、删除）合并 250ms 发一次：批量操作只让客户端重读一次目录。
+export const BOARD_CATALOG_COALESCE_MS = 250
 const DEFAULT_COALESCE_MS = 50
 // 两次 flush 之间至少间隔 100ms：多个会话各自的节流窗口错开时，整体每秒最多读 10 次会话列表。
 const DEFAULT_MIN_FLUSH_GAP_MS = 100
@@ -115,6 +117,8 @@ export class BoardEventHub {
     this.flushTimer = null
     /** @type {ReturnType<typeof setInterval> | null} */
     this.heartbeatTimer = null
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this.catalogTimer = null
     /** @type {Promise<void>} */
     this.queue = Promise.resolve()
     this.disposed = false
@@ -132,6 +136,22 @@ export class BoardEventHub {
     }
     this.dirty.add(sessionId)
     if (this.connections.size) this.scheduleFlush(this.coalesceMs)
+  }
+
+  /**
+   * 会话目录变化（A9）：不在看板上的会话（空会话、很久以前的会话）改名、归档或删除时没有卡片增量，
+   * 客户端靠这个事件重读 /api/sessions，而不是在事件流在线时轮询目录。只做加法，旧客户端忽略。
+   */
+  catalogChanged() {
+    if (this.disposed || this.catalogTimer) return
+    this.catalogTimer = setTimeout(() => {
+      this.catalogTimer = null
+      if (this.disposed) return
+      this.enqueue(async () => {
+        this.publish('catalog_changed', '', (revision) => ({ revision }))
+      })
+    }, BOARD_CATALOG_COALESCE_MS)
+    this.catalogTimer.unref?.()
   }
 
   /**
@@ -438,6 +458,8 @@ export class BoardEventHub {
 
   dispose() {
     this.disposed = true
+    if (this.catalogTimer) clearTimeout(this.catalogTimer)
+    this.catalogTimer = null
     for (const connection of [...this.connections]) this.closeConnection(connection)
     this.stopTimers()
     this.buffer = []
