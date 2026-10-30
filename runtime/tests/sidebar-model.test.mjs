@@ -188,7 +188,7 @@ test('needs-you rows carry a Chinese reason without commands and one-step action
   assert.deepEqual(rows.approve.reasons, [{ kind: 'approval', critical: false }])
   assert.deepEqual(rows.fail.reasons, [{ kind: 'failed' }])
   // 普通批准一步“拒绝 / 允许”（带第一条审批 id）；高风险与失败一律“打开”。
-  assert.deepEqual(rows.approve.quickAction, { kind: 'decide', approvalId: 'a1' })
+  assert.deepEqual(rows.approve.quickAction, { kind: 'decide', approvalId: 'a1', remaining: 0 })
   assert.deepEqual(rows.critical.quickAction, { kind: 'open' })
   assert.deepEqual(rows.fail.quickAction, { kind: 'open' })
   // 第二行只写原因：任何字段里都没有命令或输出。
@@ -244,7 +244,20 @@ test('reasons combine and anything without full standard approval details opens 
   assert.deepEqual(sidebarQuickAction({ ...base, status: 'approval' }), {
     kind: 'decide',
     approvalId: 'p1',
+    remaining: 0,
   })
+  // 同一会话挂着多条普通批准：一步处理第一条，并告诉侧栏还剩几条（行不收起，下一条顶上来）。
+  assert.deepEqual(
+    sidebarQuickAction({
+      ...base,
+      status: 'approval',
+      approvals: [
+        { id: 'p1', toolName: 'bash' },
+        { id: 'p2', toolName: 'bash' },
+      ],
+    }),
+    { kind: 'decide', approvalId: 'p1', remaining: 1 },
+  )
 })
 
 test('long running lists show eight rows plus a remainder and today keeps at most ten rows', () => {

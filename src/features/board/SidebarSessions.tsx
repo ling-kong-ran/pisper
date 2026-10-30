@@ -165,8 +165,14 @@ export function SidebarCommands({
       if (!command) return
       const current = modelRef.current
       if (command.kind === 'adjacent') {
+        // 按用户看得见的顺序：折叠起来的“今天完成”里的行不参与（模型不知道折叠状态）。
+        const order = useSidebarStore.getState().doneCollapsed
+          ? current.groups.flatMap((group) =>
+              group.id === 'done' ? [] : group.rows.map((row) => row.id),
+            )
+          : current.order
         const next = adjacentSidebarSession(
-          current.order,
+          order,
           propsRef.current.resolveCurrentId() || null,
           command.direction,
         )
@@ -226,7 +232,7 @@ export function SidebarCommands({
         .map((row) =>
           t('board:sidebar.announce', { title: row.title, reason: reasonText(t, row.reasons) }),
         )
-        .join('；'),
+        .join(t('board:sidebar.announceSeparator')),
     )
   }, [model.groups, isLoading, t])
   return (
@@ -357,6 +363,8 @@ export function SidebarSessions({
       (model.groups.find((group) => group.id === 'attention')?.rows ?? []) as SidebarAttentionRow[],
     [model.groups],
   )
+  const attentionIdsRef = useRef<ReadonlySet<string>>(new Set())
+  attentionIdsRef.current = new Set(attentionRows.map((row) => row.id))
   useEffect(() => {
     if (isLoading) return
     const ids = new Set(attentionRows.map((row) => row.id))
@@ -383,22 +391,34 @@ export function SidebarSessions({
         onOpenSession(row.id)
         return
       }
-      const approvalId = row.quickAction.approvalId
+      const { approvalId, remaining } = row.quickAction
+      // 同一会话还有别的审批：会话仍在“需要你”，行不收起，焦点留在这一行，下一条审批顶上来（规格 2.2 需要你永不折叠）。
+      const leaves = remaining === 0
       // 键盘处理时焦点接到下一行，行收起后不丢焦点。
       const hadFocus = Boolean(element?.contains(document.activeElement))
       const rows = sidebarRows(rootRef.current)
       const index = rows.findIndex((entry) => entry.dataset.sidebarRow === row.id)
       const following = rows[index + 1] ?? rows[index - 1]
-      if (hadFocus) following?.focus()
+      if (hadFocus && leaves) following?.focus()
       // 动作与收起同时开始；收起播完才把行藏起来，失败时撤掉收起、行原样回来。
       let failed = false
-      const collapsed = collapseRow(element).then(() => {
-        if (!failed) markLeaving(row.id, true)
-      })
+      const collapsed = leaves
+        ? collapseRow(element).then(() => {
+            if (!failed) markLeaving(row.id, true)
+          })
+        : Promise.resolve()
       const result = approve
         ? await actionsRef.current.approve(row.id, approvalId, { confirmCritical: false })
         : await actionsRef.current.deny(row.id, approvalId)
-      if (result.ok) return
+      if (result.ok) {
+        if (!leaves) return
+        // 处理成功但会话仍在“需要你”（处理期间又来了新的审批或问题）：行回来，不能藏着等你处理的事。
+        await collapsed
+        if (!attentionIdsRef.current.has(row.id)) return
+        markLeaving(row.id, false)
+        element?.getAnimations?.().forEach((animation) => animation.cancel())
+        return
+      }
       failed = true
       await collapsed
       markLeaving(row.id, false)
@@ -740,6 +760,7 @@ function SidebarRowItem({
   const { t } = useI18n()
   const itemRef = useRef<HTMLLIElement>(null)
   const ringRef = useRef<HTMLSpanElement>(null)
+  const quickRef = useRef<HTMLDivElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const attention = row.group === 'attention'
 
@@ -768,6 +789,20 @@ function SidebarRowItem({
       )
   }, [fresh])
 
+  // 快捷处理层是叠在行右侧的绝对定位层：量出它的宽度写进 --quick-w，悬停 / 聚焦时行文字让出这段宽度，
+  // 标题与原因按省略号截断，不从按钮底下穿过去。触屏上快捷层不显示（display: none），宽度为 0。
+  useLayoutEffect(() => {
+    const item = itemRef.current
+    const quick = quickRef.current
+    if (!item || !quick) return
+    const measure = () => item.style.setProperty('--quick-w', `${quick.offsetWidth + 12}px`)
+    measure()
+    if (typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(quick)
+    return () => observer.disconnect()
+  }, [])
+
   let meta = ''
   let reason = ''
   if (row.group === 'attention') {
@@ -783,13 +818,17 @@ function SidebarRowItem({
     row.group === 'attention'
       ? meta
         ? t('board:sidebar.attentionRow', { title: row.title, reason, wait: meta })
-        : `${row.title}，${reason}`
+        : t('board:sidebar.attentionRowNoWait', { title: row.title, reason })
       : undefined
 
   const reveal =
     'invisible opacity-0 transition-[opacity,visibility] delay-[80ms] duration-[120ms] group-hover/row:visible group-hover/row:opacity-100 group-focus-within/row:visible group-focus-within/row:opacity-100 group-data-[menu-open]/row:visible group-data-[menu-open]/row:opacity-100 pointer-coarse:hidden'
+  // 时长淡出后宽度也收为 0（80ms 后一步到位，不做宽度动画），让出的位置给标题。
   const metaFade =
-    'transition-opacity delay-[80ms] duration-[120ms] group-hover/row:opacity-0 group-focus-within/row:opacity-0 group-data-[menu-open]/row:opacity-0 pointer-coarse:group-hover/row:opacity-100'
+    'max-w-24 overflow-hidden whitespace-nowrap [transition:opacity_120ms_80ms,max-width_0s_80ms] group-hover/row:max-w-0 group-hover/row:opacity-0 group-focus-within/row:max-w-0 group-focus-within/row:opacity-0 group-data-[menu-open]/row:max-w-0 group-data-[menu-open]/row:opacity-0 pointer-coarse:group-hover/row:max-w-24 pointer-coarse:group-hover/row:opacity-100'
+  // 与快捷层同一时刻（80ms 后）让出右侧宽度；行底色跟随整行（含快捷层）的悬停，指针停在按钮上时行也是悬停态。
+  const quickRoom =
+    'group-hover/row:pr-[max(10px,var(--quick-w,0px))] group-focus-within/row:pr-[max(10px,var(--quick-w,0px))] group-data-[menu-open]/row:pr-[max(10px,var(--quick-w,0px))]'
   const quickButton =
     'flex h-[26px] flex-none items-center gap-1 rounded-[var(--r-sm)] px-2 text-[12.5px] leading-none font-medium transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus'
 
@@ -808,9 +847,10 @@ function SidebarRowItem({
         aria-current={current ? 'page' : undefined}
         aria-label={label}
         className={cn(
-          'flex min-w-0 items-center gap-2.5 rounded-[var(--r-md)] px-2.5 text-base text-content transition-colors duration-(--d-fast) hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+          'flex min-w-0 items-center gap-2.5 rounded-[var(--r-md)] px-2.5 text-base text-content [transition:color_var(--d-fast),background-color_var(--d-fast),padding-right_0s_80ms] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
           attention ? 'h-12 pointer-coarse:h-14' : 'h-9 pointer-coarse:h-11',
-          current && 'bg-surface-active hover:bg-surface-active',
+          quickRoom,
+          current ? 'bg-surface-active' : 'group-hover/row:bg-surface-hover',
         )}
         onClick={(event) => {
           if (!plainClick(event)) return
@@ -888,6 +928,8 @@ function SidebarRowItem({
         )}
       </a>
       <div
+        ref={quickRef}
+        data-sidebar-quick
         className={cn(
           'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-1',
           reveal,

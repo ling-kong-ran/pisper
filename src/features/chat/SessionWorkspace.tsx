@@ -362,6 +362,9 @@ export function SessionWorkspace({
   // 覆盖层是浮层：Esc / 原生返回先关它（Esc 永远不用于离开会话页）。底部表单本身是对话框，
   // Esc 与原生返回先由它处理；这里的返回层只是兜底，两者不会同时生效。
   useBackLayer(active && overlayMode && overlayOpen, 100, close)
+  // 宽屏停靠但没有固定的检查器同样是按需滑入的面板：Esc 先收起它（焦点在面板里时回到改动按钮），
+  // 下一次 Esc 才停止运行，与 <1280 的覆盖层行为一致；固定的检查器是常驻布局，不占用 Esc。
+  useBackLayer(active && !overlayMode && asideOpen && !pinned, 100, close)
 
   // —— 宽屏拖宽 ——
   const cleanup = useRef<() => void>(() => {})
@@ -528,14 +531,22 @@ export function SessionWorkspace({
               <aside
                 ref={asideRef}
                 className={cn(
-                  'h-full min-h-0 shrink-0 overflow-hidden border-l border-stroke-soft',
+                  'flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-stroke-soft',
                   entering && 'animate-in slide-in-from-right duration-[220ms] ease-(--ease)',
                 )}
                 style={{ width: displayWidth }}
                 data-inspector-aside
                 data-inspector-pinned={pinned || undefined}
               >
-                {inspector}
+                {/* Windows 自绘标题栏：右上 144px 归窗口按钮，面板顶上留出与会话顶栏同高的拖动区，
+                    标签行从顶栏下方开始、用满宽度（与覆盖层一致）。 */}
+                <div
+                  aria-hidden="true"
+                  data-window-drag-region
+                  data-inspector-titlebar-gap
+                  className="hidden h-[52px] shrink-0 [[data-custom-titlebar]_&]:block"
+                />
+                <div className="min-h-0 flex-1">{inspector}</div>
               </aside>
             </>
           )}

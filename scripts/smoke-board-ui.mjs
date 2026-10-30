@@ -1072,10 +1072,65 @@ try {
       await page.locator('[data-inspector-toggle]').getAttribute('aria-expanded'),
       'true',
     )
+    // 模拟 Windows 自绘标题栏：停靠面板从顶栏下方开始，每个标签与“+”、收起键都完整可见、可点，
+    // 不在右上 144px 里（评审返修：标签行曾让出 144px，“预览”和“+”被裁掉且没有滚动提示）。
+    await settle(page)
+    const inspectorControls = await page.evaluate(() => {
+      const aside = document.querySelector('[data-inspector-aside]')
+      const list = aside.querySelector('[role="tablist"]').getBoundingClientRect()
+      return [...aside.querySelectorAll('header [role="tab"], header button')].map((element) => {
+        const box = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return {
+          name: element.getAttribute('aria-label') || element.textContent?.trim(),
+          inTablist: Boolean(element.closest('[role="tablist"]')),
+          clipped: element.closest('[role="tablist"]')
+            ? box.right > list.right + 0.5 || box.left < list.left - 0.5
+            : false,
+          corner: box.top < 48 && box.right > innerWidth - 144 + 0.5,
+          covered: !(hit && (element.contains(hit) || hit.contains(element))),
+        }
+      })
+    })
+    assert.ok(inspectorControls.length >= 5, JSON.stringify(inspectorControls))
+    for (const control of inspectorControls)
+      assert.ok(
+        !control.clipped && !control.corner && !control.covered,
+        `inspector control reachable under the custom title bar: ${JSON.stringify(control)}`,
+      )
+    // 未固定的停靠面板是按需滑入的：Esc 先收起它（不停止运行），焦点留在输入框；
+    // 点改动按钮打开后 Esc 同样只收起，焦点回到改动按钮。
+    await page.keyboard.press('Escape')
+    await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
+      true,
+      'Esc closing the docked inspector keeps focus in the composer',
+    )
+    await page.locator('[data-inspector-toggle]').click()
+    await page.locator('[data-inspector-aside] [data-session-inspector]').waitFor()
+    await page.keyboard.press('Escape')
+    await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.hasAttribute('data-inspector-toggle')),
+      true,
+      'Esc returns focus to the changes button',
+    )
+    await page.waitForTimeout(300)
+    assert.deepEqual(
+      aborts,
+      [],
+      'Esc on an open docked inspector closes it and never stops the run',
+    )
+    await prompt.click()
+    await page.keyboard.press(`${mod}+KeyI`)
+    await page.locator('[data-inspector-aside] [data-session-inspector]').waitFor()
     await page.keyboard.press(`${mod}+KeyI`)
     await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
     report.checks.push(
       'The inspector starts closed on the wide session page; ⌘I slides the docked inspector in and out from inside the composer and the changes button reports aria-expanded',
+      'With the simulated Windows title bar the docked inspector starts below the 52px header band: every tab, + and hide stay fully visible, uncovered and out of the top-right 144px',
+      'Esc on the unpinned docked inspector closes it first (focus stays in the composer, or returns to the changes button) without stopping the run; the next Esc stops it',
     )
 
     // ⌥↓ / ⌥↑：按侧栏顺序换会话，只换路由（草稿按会话保留），浏览器后退回到看板。

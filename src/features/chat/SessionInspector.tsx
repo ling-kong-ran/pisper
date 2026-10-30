@@ -353,9 +353,13 @@ export function SessionInspector({
           // 触屏（手机 App 平板的覆盖层、触屏电脑）与手机表单一样用 52px 标签行：标签行是横向滚动容器，
           // 会裁掉伪元素外扩，标签只能把可见高度抬到 44px。
           // 停靠时与 52px 的会话顶栏齐平；覆盖层从顶栏下方开始，用 44px。
-          sheet || mode === 'aside' ? 'h-[52px]' : 'h-11 pointer-coarse:h-[52px]',
-          // 停靠在最右侧时它就是主区右上角：Windows 自绘标题栏的窗口按钮占 144px（覆盖层从页头下方开始，不用让）。
-          mode === 'aside' && '[[data-custom-titlebar]_&]:pr-[144px]',
+          // Windows 自绘标题栏时停靠面板与覆盖层一样从顶栏下方开始（窗口按钮占右上 144px，面板顶上留一条 52px 的拖动区），
+          // 标签行用满整个宽度，不再被窗口按钮裁掉“预览”和“+”（SessionWorkspace 的 aside）。
+          sheet
+            ? 'h-[52px]'
+            : mode === 'aside'
+              ? 'h-[52px] [[data-custom-titlebar]_&]:h-11 [[data-custom-titlebar]_&]:pointer-coarse:h-[52px]'
+              : 'h-11 pointer-coarse:h-[52px]',
         )}
       >
         <div

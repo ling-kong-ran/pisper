@@ -116,7 +116,14 @@ export function ShellSidebar(props: ShellSidebarProps) {
         'dark:border-r dark:border-stroke-soft',
       )}
     >
-      {collapsed ? <SidebarRail {...props} /> : <SidebarExpanded {...props} />}
+      {/* 宽度 180ms 过渡的同时，换上来的内容（展开时的文字、收起时的窄轨计数）120ms 淡入（规格 6.6）；
+          只用 opacity，减少动效时不播。 */}
+      <div
+        key={collapsed ? 'rail' : 'expanded'}
+        className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-(--d-fast) motion-reduce:animate-none"
+      >
+        {collapsed ? <SidebarRail {...props} /> : <SidebarExpanded {...props} />}
+      </div>
       {collapsed && peeking && (
         <div
           ref={overlayRef}

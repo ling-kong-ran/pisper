@@ -1,10 +1,11 @@
 // 侧栏分组数据（规格 v2 第 2.1、2.2 节）：读看板 store（与全部代理、手机标签栏同一个所有者），
 // 经 sidebar-model 推导分组、计数与 ⌥A / ⌥↑⌥↓ 的顺序。分组按分钟级时钟重算（“今天完成”的边界），
-// 行内的等待时长与运行计时另用每秒时钟，避免每秒重排整组。
+// 行内的等待时长与运行计时另用每秒时钟（只在 SidebarSessions 有运行中或需要你的行时跳），
+// 这个 hook 的常驻使用方（命令层、窄轨计数、手机标签栏）因此不会每秒重渲染。
 import { useMemo } from 'react'
 import { buildSidebarModel, type SidebarModel } from './sidebar-model'
 import { useBoardItems, type BoardRuntimeCapabilities } from './useBoardItems'
-import { useNow } from './useNow'
+import { useMinute } from './useNow'
 
 export type SidebarModelResult = {
   model: SidebarModel
@@ -19,9 +20,9 @@ export type SidebarModelResult = {
 export function useSidebarModel(): SidebarModelResult {
   const { query, items, capabilities, isLoading } = useBoardItems('today')
   // 分钟级：只为“今天”的边界推进；运行中与需要你的计时由行自己的秒级时钟负责。
-  const minute = Math.floor(useNow(true) / 60_000)
+  const minute = useMinute()
   const model = useMemo(
-    () => buildSidebarModel(items, { now: minute * 60_000, capabilities }),
+    () => buildSidebarModel(items, { now: minute, capabilities }),
     [capabilities, items, minute],
   )
   const refetch = query.refetch

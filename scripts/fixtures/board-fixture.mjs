@@ -409,7 +409,17 @@ export async function installBoardFixture(
     const request = route.request()
     const id = sessionIdFrom(request)
     const body = JSON.parse(request.postData() || '{}')
-    state.posts.push({ method: request.method(), path: new URL(request.url()).pathname, body })
+    const path = new URL(request.url()).pathname
+    state.posts.push({ method: request.method(), path, body })
+    // 同一会话还挂着别的审批时只去掉这一条，会话留在“需要你”（与 Runtime 一致：一条一条处理）。
+    const approvalId = decodeURIComponent(path.split('/').at(-1) ?? '')
+    const remaining = (state.live[id]?.approvals ?? []).filter((item) => item.id !== approvalId)
+    if (remaining.length) {
+      state.live[id] = { ...state.live[id], approvals: remaining }
+      update(id, {})
+      await route.fulfill({ json: { ok: true } })
+      return
+    }
     const settled = { needsAttention: false, attentionReason: null }
     delete state.live[id]
     update(

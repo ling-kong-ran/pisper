@@ -351,6 +351,33 @@ try {
     assert.equal(await item('fx-critical').getByRole('button', { name: /^允许/ }).count(), 0)
     await row('fx-standard').hover()
     await approve.waitFor()
+    // 快捷处理叠在行右侧：标题与原因让出它的宽度（按省略号截断），不从按钮底下穿过去；
+    // 指针停在按钮上时整行仍是悬停底色。
+    await approve.hover()
+    await page.waitForTimeout(300)
+    const overlap = await page.evaluate(() => {
+      const item = document.querySelector('[data-sidebar-item="fx-standard"]')
+      const quick = item.querySelector('[data-sidebar-quick]').getBoundingClientRect()
+      const texts = [...item.querySelectorAll('[data-sidebar-row] .truncate')].map((element) =>
+        Math.round(element.getBoundingClientRect().right),
+      )
+      return {
+        quickLeft: Math.round(quick.left),
+        texts,
+        background: getComputedStyle(item.querySelector('[data-sidebar-row]')).backgroundColor,
+      }
+    })
+    assert.ok(overlap.texts.length >= 2, `title and reason measured ${JSON.stringify(overlap)}`)
+    for (const right of overlap.texts)
+      assert.ok(
+        right <= overlap.quickLeft,
+        `row text stops before the quick actions ${JSON.stringify(overlap)}`,
+      )
+    assert.notEqual(
+      overlap.background,
+      'rgba(0, 0, 0, 0)',
+      'the row keeps its hover background under the pointer',
+    )
     await approve.click()
     await page.waitForFunction(
       () =>
@@ -365,7 +392,7 @@ try {
     )
     assert.equal(page.url().endsWith(`#/board/${BOARD_SESSION_ID}`), true)
     report.checks.push(
-      'Needs-you rows read “title，reason，waited …”; hovering the standard approval reveals 允许 (critical only 打开), one click sends exactly one {"approved":true} and the row collapses out of 需要你 while the current session stays open',
+      'Needs-you rows read “title，reason，waited …”; hovering the standard approval reveals 允许 (critical only 打开) while the title and reason truncate before the quick actions and the row keeps its hover background under the buttons; one click sends exactly one {"approved":true} and the row collapses out of 需要你 while the current session stays open',
     )
 
     // 新增需要你：polite 播报；侧栏收起（分组不挂载）时同样播报。
@@ -418,6 +445,82 @@ try {
     await ensureExpanded(page)
     await resetBoardView()
     await context.close()
+  }
+
+  // 2b. 同一会话挂着两条普通批准：一步允许第一条后行留在“需要你”（不收起、不隐藏），焦点留在行上，
+  // 第二条顶上来，再按 A 处理第二条后行才离开（评审返修：曾把整行永久藏起来，剩下的批准在侧栏看不到）。
+  {
+    const { context, fixture } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      {
+        prepare: (state) => {
+          const first = state.live['fx-standard'].approvals[0]
+          state.live['fx-standard'].approvals.push({
+            ...first,
+            id: 'approval-standard-b',
+            toolCallId: 'call-standard-b',
+            args: { command: 'npm run lint' },
+            createdAt: new Date(Date.now() - 10_000).toISOString(),
+          })
+        },
+      },
+    )
+    const page = await openSession(context, 'two approvals')
+    const row = page.locator('[data-sidebar-row="fx-standard"]')
+    const item = page.locator('[data-sidebar-item="fx-standard"]')
+    await row.hover()
+    const approve = item.getByRole('button', { name: /^允许/ })
+    await approve.waitFor({ timeout: 20_000 })
+    await approve.click()
+    await page.waitForFunction(() => document.querySelectorAll('[data-sidebar-item]').length > 0)
+    const deadline = Date.now() + 5_000
+    while (fixture.posts.length < 1 && Date.now() < deadline) await page.waitForTimeout(100)
+    await page.waitForTimeout(800)
+    const visible = await page.evaluate(() => {
+      const element = document.querySelector(
+        '[data-sidebar-group="attention"] [data-sidebar-item="fx-standard"]',
+      )
+      return element ? { hidden: element.hidden, opacity: getComputedStyle(element).opacity } : null
+    })
+    assert.deepEqual(
+      visible,
+      { hidden: false, opacity: '1' },
+      'the row stays in 需要你 while another approval waits',
+    )
+    assert.deepEqual(
+      fixture.posts.map((post) => [post.path, post.body]),
+      [['/api/sessions/fx-standard/approvals/approval-standard', { approved: true }]],
+    )
+    // 第二条（新的审批 id）就绪后键盘 A 处理它，这时行才离开。
+    await row.focus()
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-sidebar-item="fx-standard"] [data-sidebar-quick] button')
+          ?.textContent?.includes('拒绝'),
+      null,
+      { timeout: 20_000 },
+    )
+    await page.keyboard.press('KeyA')
+    await page.waitForFunction(
+      () =>
+        !document.querySelector(
+          '[data-sidebar-group="attention"] [data-sidebar-item="fx-standard"]:not([hidden])',
+        ),
+      null,
+      { timeout: 10_000 },
+    )
+    assert.deepEqual(
+      fixture.posts.map((post) => post.path),
+      [
+        '/api/sessions/fx-standard/approvals/approval-standard',
+        '/api/sessions/fx-standard/approvals/approval-standard-b',
+      ],
+    )
+    await context.close()
+    report.checks.push(
+      'A session with two standard approvals: approving the first from the sidebar keeps the row visible in 需要你 (not hidden, opacity 1) with focus on it; A then approves the second and only then the row leaves',
+    )
   }
 
   // 3. 窄轨计数为 0：变灰，不消失。

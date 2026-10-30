@@ -56,9 +56,14 @@ test('rapid option-arrow presses start from the switch that has not committed ye
   )
   assert.match(app, /if \(sessionIdFromPath\(target\) === id\) return/)
   assert.match(app, /<SidebarCommands\s+resolveCurrentId=\{currentSessionTarget\}/)
+  // 起点仍是路由器的最新去向；顺序是用户看得见的侧栏顺序（折叠的“今天完成”不参与）。
   assert.match(
     sidebar,
-    /adjacentSidebarSession\(\s*current\.order,\s*propsRef\.current\.resolveCurrentId\(\) \|\| null,/,
+    /adjacentSidebarSession\(\s*order,\s*propsRef\.current\.resolveCurrentId\(\) \|\| null,/,
+  )
+  assert.match(
+    sidebar,
+    /const order = useSidebarStore\.getState\(\)\.doneCollapsed\s*\?\s*current\.groups\.flatMap\(\(group\) =>\s*group\.id === 'done' \? \[\] :[\s\S]*?: current\.order/,
   )
 })
 
@@ -376,6 +381,13 @@ test('the sidebar renders board store data and opens no connection of its own', 
   assert.equal(hook.match(/useBoardItems\(/g)?.length, 1)
   assert.match(hook, /useBoardItems\('today'\)/)
   assert.match(sidebar, /useSidebarModel\(\)/)
+  // 分组只按分钟级时钟重算：常驻的命令层、窄轨计数与手机标签栏不能每秒重渲染；秒级时钟只在 SidebarSessions 有计时行时跳。
+  assert.match(hook, /const minute = useMinute\(\)/)
+  assert.doesNotMatch(hook, /useNow\(/)
+  assert.match(
+    sidebar,
+    /const ticking = model\.counts\.attention \+ model\.counts\.running > 0\s*const now = useNow\(ticking\)/,
+  )
   assert.match(items, /from '\.\/board-store'/)
   assert.match(items, /const query = useSessionListQuery\(\)/)
   assert.doesNotMatch(items, connection)
@@ -550,6 +562,19 @@ test('the inspector slides in on demand and the overlay keeps focus until escape
     /\[aria-controls="\$\{CSS\.escape\(panelId\)\}"\]\[data-inspector-toggle\]/,
   )
   assert.match(inspector, /const autoFocusRef = useRef\(autoFocus\)/)
+  // Esc 先关按需滑入的面板：覆盖层与宽屏未固定的停靠面板都登记返回层，固定的检查器不占用 Esc（评审返修：
+  // 1440 时点改动按钮再按 Esc 曾直接停止运行）。
+  assert.match(workspace, /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/)
+  assert.match(
+    workspace,
+    /useBackLayer\(active && !overlayMode && asideOpen && !pinned, 100, close\)/,
+  )
+  // Windows 自绘标题栏：停靠面板顶上留 52px 拖动区、标签行用满宽度，不再在标签行里让出 144px（会裁掉“预览”和“+”）。
+  assert.match(
+    workspace,
+    /data-window-drag-region\s+data-inspector-titlebar-gap\s+className="hidden h-\[52px\] shrink-0 \[\[data-custom-titlebar\]_&\]:block"/,
+  )
+  assert.doesNotMatch(inspector, /pr-\[144px\]/)
   // 会话树与侧聊快捷键：应用壳只在会话页广播，工作区按自己的入口处理（会话树点 ⑂，焦点关闭后回到它）。
   assert.match(
     app,

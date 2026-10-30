@@ -145,6 +145,8 @@ export function ToolApproval({
     if (!approvalId) return undefined
     const focusAction = (event: KeyboardEvent) => {
       if (shortcutEventBlocked(event) || isEditableTarget(event.target)) return
+      // 侧栏里的 A / D 归侧栏行自己（只在需要你行上处理）；从侧栏冒上来的按键不把焦点拽进会话。
+      if (event.target instanceof Element && event.target.closest('[data-shell-sidebar]')) return
       const card = cardRef.current
       if (!card || card.getClientRects().length === 0) return
       const target = matchesBoardShortcut(event, boardBindings.boardApprove)

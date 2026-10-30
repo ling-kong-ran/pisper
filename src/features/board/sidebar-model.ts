@@ -49,7 +49,9 @@ export type SidebarReason =
   | { kind: 'question'; count: number | null }
 
 // 快捷处理：普通批准一步“拒绝 / 允许”；高风险、提问、失败以及审批详情还没到的，一律“打开”进会话处理。
-export type SidebarQuickAction = { kind: 'decide'; approvalId: string } | { kind: 'open' }
+// remaining：处理完这一条后同一会话还剩几条审批。大于 0 时行不收起（会话仍在“需要你”），下一条顶上来。
+export type SidebarQuickAction =
+  { kind: 'decide'; approvalId: string; remaining: number } | { kind: 'open' }
 
 type SidebarRowBase = {
   id: string
@@ -170,7 +172,7 @@ export function sidebarQuickAction(item: SidebarSourceItem): SidebarQuickAction 
     !first.truncated &&
     !(questions !== null && questions > 0)
   )
-    return { kind: 'decide', approvalId: first.id }
+    return { kind: 'decide', approvalId: first.id, remaining: item.approvals.length - 1 }
   return { kind: 'open' }
 }
 
