@@ -90,7 +90,12 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
   assert.match(
     app,
-    /if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+    /if \(requestedPathname\(readRouter\(\)\) !== location\.pathname\) \{\s+pendingNewTask\.current = source\s+return\s+\}\s+if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+  )
+  // 路由器已请求去别处、渲染的 page 还是离开中的那页时，请求先记下，目标页提交后再问一次（只执行一次）。
+  assert.match(
+    app,
+    /const source = pendingNewTask\.current\s+if \(!source \|\| requestedPathname\(readRouter\(\)\) !== location\.pathname\) return\s+pendingNewTask\.current = null\s+startNewTask\(source\)/,
   )
   // 旧调用方在会话页里新建会话仍走就地创建事件。
   assert.match(app, /requestSessionCreation\(''\)/)

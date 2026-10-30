@@ -27,10 +27,21 @@ async function within(promise, label, ms = 30000) {
     clearTimeout(timer)
   }
 }
+// 前面步骤（改名保存、快速设置、删除模型）发出的通知在应用里排队，每条显示 2.8 秒后才换下一条。
+// 每条新通知都是 Radix 层栈里最新、也就是最上层的可关闭层：选择器开着时冒出来的通知会先吃掉 Esc
+// （Radix 通知关掉自己但不 preventDefault），选择器那一下 Esc 就落空，偶发“列表框没关”。
+// 检查选择器前逐条点掉排队的通知直到队列清空；点通知不会关掉浮层（通知视口是 Radix 的 Branch）。
+async function dismissQueuedToasts(page) {
+  const close = page.locator('[data-slot="toast"] [data-slot="toast-close"]')
+  for (let index = 0; index < 20 && (await close.count()); index++) await close.first().click()
+  assert.equal(await close.count(), 0, 'queued toasts are cleared before the picker check')
+}
 // 思考等级和模型名称共用一个选择器，上下两行、键盘和触发器间留白都可操作。
 async function verifyUnifiedModelPicker(page) {
   const panel = page.locator('.model-effort-popover')
   const picker = panel.getByRole('combobox', { name: '当前会话模型' })
+  await dismissQueuedToasts(page)
+  assert.equal(await panel.count(), 1, 'dismissing queued toasts keeps the model popover open')
   const closePicker = async (trigger) => {
     await page.evaluate(() => {
       window.__pickerEscapeEvents = []

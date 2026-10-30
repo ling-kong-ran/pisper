@@ -329,9 +329,11 @@ function MoreTileButton({
       >
         {tile.label}
       </span>
-      {/* 三列磁贴很窄：均衡折行，避免最后一行只剩一个字。 */}
+      {/* 三列磁贴很窄（360px 手机上约 6 个汉字宽）：内置说明按这个宽度写短，中文一行放下、英文两行内按词断开；
+          组件自带的长说明均衡折行、截到两行，全文仍在按钮文字里供读屏读出；
+          “甲 · 乙”式说明把间隔点粘在前半句后面，折行时不会让第二行以“·”开头。 */}
       <span className="line-clamp-2 text-xs leading-snug text-balance text-content-muted">
-        {tile.disabledReason || tile.description}
+        {(tile.disabledReason || tile.description).replaceAll(' · ', '\u00a0· ')}
       </span>
     </button>
   )

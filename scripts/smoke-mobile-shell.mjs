@@ -10,6 +10,8 @@
 //      Android 返回键先关表单再回上一级；
 //    - 平板 1024×768（手机 App）：桌面布局、泳道收缩规则、检查器覆盖层；
 //    - 窄宽度桌面模拟（pisperDesktop + customTitlebar）：不进手机外壳，标题栏无遮挡。
+//    - 冷启动快捷键（手机与 1440 桌面）：外壳第一次画出来就按一次 ⌘N / ⌘2，生效且只生效一次；
+//      手机看板上 ⌘1 紧接 ⌘N，请求等主页提交后交给草稿。
 // 浏览器模拟不等于真机（安全区、软键盘、返回键）或 Tauri / WebView 验证。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
@@ -694,6 +696,32 @@ async function settle(page, ms = 300) {
 
 const hashOf = (page) => new URL(page.url()).hash
 const nativeBack = (page) => page.evaluate(() => window.__pisperRequestBack?.())
+const MOD_KEY = process.platform === 'darwin' ? 'Meta' : 'Control'
+
+// 冷启动探针（addInitScript 注入）：选择器第一次出现后的下一帧记为首次绘制，同时在捕获阶段只读地记下
+// 第一个按键到达页面的时间。报告写明按键离首次绘制多久：快捷键层曾经懒加载，外壳画出来后约 0.3 秒
+// 没有监听（React 揭示 Suspense 的节流），这段时间按下的键会直接丢失。
+function firstPaintProbe(selector) {
+  window.__firstPaint = { painted: 0, key: 0 }
+  addEventListener('keydown', () => (window.__firstPaint.key ||= performance.now()), true)
+  const observer = new MutationObserver(() => {
+    if (!document.querySelector(selector)) return
+    observer.disconnect()
+    requestAnimationFrame(() => (window.__firstPaint.painted = performance.now()))
+  })
+  observer.observe(document, { childList: true, subtree: true })
+}
+const waitForFirstPaint = (page) =>
+  page.waitForFunction(() => window.__firstPaint?.painted > 0, undefined, {
+    polling: 'raf',
+    timeout: 60000,
+  })
+// 首次绘制后立刻按一次（不重试）；返回按键距首次绘制的毫秒数。
+async function pressAfterFirstPaint(page, key) {
+  await waitForFirstPaint(page)
+  await page.keyboard.press(key)
+  return page.evaluate(() => Math.round(window.__firstPaint.key - window.__firstPaint.painted))
+}
 const activeTabs = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll('[data-shell-tab][aria-current="page"]')].map(
@@ -743,50 +771,43 @@ async function verifyPhoneShell(boardSessions) {
     sessions: boardSessions,
   })
   // 主页是会话：全新设备落在新任务草稿（手机会话外壳，不显示标签栏）；主页是返回的根。
+  // 冷启动：草稿第一次画出来就按一次硬件键盘 ⌘N。快捷键层随外壳同步加载、在提交阶段挂监听，草稿也在
+  // 提交阶段认领新任务请求，所以这一下不会丢，也不会因为草稿还没登记而改开派发底部表单。
+  await context.addInitScript(firstPaintProbe, '[data-new-task-draft="phone"]')
   const page = await openPage(context, 'phone', '#/')
-  await page.locator('[data-new-task-draft="phone"]').waitFor({ timeout: 60000 })
-  assert.equal(await page.locator('[data-session-shell="phone"]').count(), 1)
-  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
-  const homeEntry = await page.locator('[data-board-entry]').boundingBox()
-  assert.ok(homeEntry && homeEntry.height >= 43.5, `home board entry ${JSON.stringify(homeEntry)}`)
-  assert.equal(await nativeBack(page), false, 'Android back on the home draft hands over')
-  // 手机草稿不自动聚焦（落地不弹软键盘）；硬件键盘的 ⌘N 是明确操作：聚焦草稿，不打开派发底部表单。
   const draftFocused = () =>
     page.evaluate(
       () =>
         document.activeElement?.hasAttribute('data-launch-input') === true &&
         document.activeElement.closest('[data-new-task-draft="phone"]') !== null,
     )
+  await waitForFirstPaint(page)
+  // 手机草稿不自动聚焦（落地不弹软键盘）；硬件键盘的 ⌘N 是明确操作：聚焦草稿，不打开派发底部表单。
   assert.equal(await draftFocused(), false, 'the phone draft is not autofocused')
-  // 应用级快捷键层（AppShortcuts）懒加载：冷启动约 1 秒内按键还没有监听者，直接丢失（不会误开表单），
-  // 没有可等的 DOM 信号。所以重复按 ⌘N 直到快捷键层第一次响应，再断言这次响应是聚焦草稿而不是打开底部表单。
-  const newTaskKey = `${process.platform === 'darwin' ? 'Meta' : 'Control'}+KeyN`
-  for (let attempt = 0; ; attempt += 1) {
-    await page.keyboard.press(newTaskKey)
-    const answered = await page
-      .waitForFunction(
-        () =>
-          Boolean(document.activeElement?.closest('[data-new-task-draft="phone"]')) ||
-          document.querySelector('[role="dialog"]') !== null,
-        undefined,
-        { timeout: 500 },
-      )
-      .then(
-        () => true,
-        () => false,
-      )
-    if (answered) break
-    assert.ok(attempt < 20, 'the app shortcut layer never answered a hardware ⌘N')
-  }
-  assert.equal(await draftFocused(), true, 'hardware ⌘N focuses the phone draft')
-  await page.waitForTimeout(300)
+  const coldDelay = await pressAfterFirstPaint(page, MOD_KEY + '+KeyN')
+  await page.waitForFunction(
+    () => document.activeElement?.closest('[data-new-task-draft="phone"]') !== null,
+    undefined,
+    { timeout: 5000 },
+  )
+  assert.equal(
+    await draftFocused(),
+    true,
+    'one hardware ⌘N right after the first paint focuses the draft',
+  )
+  await page.waitForTimeout(400)
   assert.equal(await page.getByRole('dialog').count(), 0, 'hardware ⌘N opens no dispatch sheet')
   await page.evaluate(
     () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
   )
   assert.equal(await draftFocused(), false)
+  assert.equal(await page.locator('[data-session-shell="phone"]').count(), 1)
+  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
+  const homeEntry = await page.locator('[data-board-entry]').boundingBox()
+  assert.ok(homeEntry && homeEntry.height >= 43.5, `home board entry ${JSON.stringify(homeEntry)}`)
+  assert.equal(await nativeBack(page), false, 'Android back on the home draft hands over')
   report.checks.push(
-    'Phone home: a fresh device lands on the new-task draft in the phone session shell without the tab bar (draft not autofocused; a hardware ⌘N focuses it without opening the dispatch sheet); the 看板 entry is ≥44px; Android back on the home hands over to the platform',
+    `Phone home: a fresh device lands on the new-task draft in the phone session shell without the tab bar (draft not autofocused; a single hardware ⌘N pressed ${coldDelay}ms after the draft's first paint focuses it without opening the dispatch sheet); the 看板 entry is ≥44px; Android back on the home hands over to the platform`,
   )
 
   // 看板：标签栏、徽标、安全区、跳转条与区段、审批卡、派发底部表单、软键盘。
@@ -934,6 +955,29 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await tabBar.isVisible(), true)
   report.checks.push(
     'Phone 新任务 opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input under the project row (Android back closes it first); the software keyboard hides the tab bar and it returns when the keyboard closes',
+  )
+
+  // 看板上 ⌘1 紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是看板（手机看板不认领，旧逻辑会打开
+  // 派发底部表单）。外壳按路由器的最新去向判断，请求等主页提交后交给草稿：聚焦草稿、不开表单，只执行一次。
+  await page.keyboard.press(`${MOD_KEY}+Digit1`)
+  await page.keyboard.press(`${MOD_KEY}+KeyN`)
+  await page.waitForURL((url) => url.hash === '#/')
+  await page.waitForFunction(
+    () => document.activeElement?.closest('[data-new-task-draft="phone"]') !== null,
+    undefined,
+    { timeout: 5000 },
+  )
+  await page.waitForTimeout(400)
+  assert.equal(await page.getByRole('dialog').count(), 0, '⌘N during ⌘1 opens no dispatch sheet')
+  assert.equal(hashOf(page), '#/')
+  await page.evaluate(
+    () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
+  )
+  await page.locator('[data-board-entry]').click()
+  await page.waitForURL((url) => url.hash === '#/board')
+  await tabBar.waitFor()
+  report.checks.push(
+    'Phone race: ⌘1 then ⌘N at once from the board lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving board)',
   )
 
   // 更多：磁贴、角标、组件磁贴；组件列表 → 详情；返回键沿层级回到主页。
@@ -1365,6 +1409,47 @@ async function verifyTablet(boardSessions) {
   await context.close()
 }
 
+// 冷启动快捷键（桌面与手机）：全新页面，外壳第一次画出来就按一次，必须生效且只生效一次。
+// ⌘2 只压入一条历史（idx 0 → 1）；桌面在“更多”页按 ⌘N（那里没有视图认领）只打开一个派发浮层。
+// 手机主页上的 ⌘N 在 verifyPhoneShell 开头验证（聚焦草稿、不开底部表单）。
+async function verifyColdStartShortcuts(boardSessions) {
+  const delays = []
+  for (const [label, options, extra, selector] of [
+    ['phone', phoneViewport, { mobileApp: true }, '[data-new-task-draft="phone"]'],
+    [
+      'desktop',
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      {},
+      '[data-app-titlebar]',
+    ],
+  ]) {
+    await resetLastSession()
+    const { context } = await newContext(options, { ...extra, sessions: boardSessions })
+    await context.addInitScript(firstPaintProbe, selector)
+    const page = await openPage(context, `cold ${label} ⌘2`, '#/')
+    delays.push(`${label} ⌘2 ${await pressAfterFirstPaint(page, `${MOD_KEY}+Digit2`)}ms`)
+    await page.waitForURL((url) => url.hash === '#/board', { timeout: 5000 })
+    await page.locator('[data-board-root]').waitFor({ timeout: 30000 })
+    assert.equal(await page.evaluate(() => window.history.state?.idx), 1, `${label}: one push`)
+    assert.deepEqual(await activeTabs(page), ['board'])
+    if (label === 'desktop') {
+      await page.goto(app.url + '/#/more')
+      await page.reload()
+      delays.push(`desktop ⌘N ${await pressAfterFirstPaint(page, `${MOD_KEY}+KeyN`)}ms`)
+      const overlay = page.locator('[data-launch-console="overlay"]')
+      await overlay.waitFor({ timeout: 5000 })
+      await page.waitForTimeout(400)
+      assert.equal(await overlay.count(), 1, 'one ⌘N opens exactly one dispatch overlay')
+      assert.equal(await page.getByRole('dialog').count(), 1)
+      assert.equal(hashOf(page), '#/more')
+    }
+    await context.close()
+  }
+  report.checks.push(
+    `Cold start: a single shortcut pressed right after the shell's first paint takes effect exactly once (${delays.join(', ')} after first paint) — ⌘2 pushes one /board entry on phone and desktop, desktop ⌘N on 更多 opens one dispatch overlay`,
+  )
+}
+
 async function verifyNarrowDesktop(boardSessions) {
   for (const [width, height] of [
     [640, 760],
@@ -1459,6 +1544,7 @@ try {
     { ...realItem, unread: false, needsAttention: false, streaming: true },
   ]
   await verifyPhoneShell(boardSessions)
+  await verifyColdStartShortcuts(boardSessions)
   await verifyPhoneSession(boardSessions)
   await verifyTablet(boardSessions)
   await verifyNarrowDesktop(boardSessions)

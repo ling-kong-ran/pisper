@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { chromium } from 'playwright-core'
 const root = fileURLToPath(new URL('../', import.meta.url))
+// 独立的依赖预构建缓存（同 replica 冒烟）：不与 dev 服务共用 node_modules/.vite，免得并发预构建互相改写。
+const cacheRoot = await mkdtemp(join(tmpdir(), 'pisper-unsaved-settings-'))
 const server = await createServer({
   configFile: false,
   root,
+  cacheDir: join(cacheRoot, 'vite-cache'),
   resolve: { alias: { '@': `${root}src`, '@shared': `${root}shared` } },
   plugins: [
     react(),
@@ -62,4 +68,5 @@ try {
 } finally {
   await browser?.close()
   await server.close()
+  await rm(cacheRoot, { recursive: true, force: true })
 }

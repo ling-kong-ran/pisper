@@ -3,7 +3,7 @@
 // 主页是会话（负责人决定）：“会话”标签排第一，去向是主页 '/'（上次停留的会话或新任务草稿），
 // 不是 PAGE_PATHS.session（'/board/new' 进入即新建会话）。
 import { MORE_PAGES } from '@/app/more-pages'
-import { HOME_PATH, type PageId } from '@/app/routes'
+import { HOME_PATH, pageFromPath, type PageId } from '@/app/routes'
 
 export const SHELL_TABS = Object.freeze([
   'session',
@@ -41,6 +41,33 @@ export function activeShellTab(
   if (page === 'components') return phone ? 'more' : 'components'
   if (page === 'more' || MORE_PAGES.has(page)) return 'more'
   return null
+}
+
+// 数据路由 router.state 的子集。navigate() 同步改它：懒加载路由还在加载时 navigation 带着目标，
+// 加载完才写入历史并换掉 location；React 却在 transition 里稍后才提交，渲染出的 location / page 会落后
+// （与 SessionShell 的 effectiveStripCurrent 同一个问题）。
+export type RouterLocationState = {
+  location: { pathname: string; search?: string; state?: unknown }
+  navigation: { state: string; location?: { pathname: string } }
+}
+
+// 最新请求的去向：有进行中的导航以它的目标为准，否则是路由器已提交的位置（界面可能还没换过去）。
+export function requestedPathname({ location, navigation }: RouterLocationState): string {
+  return (navigation.state !== 'idle' && navigation.location?.pathname) || location.pathname
+}
+
+// “会话”标签与 ⌘1 的去向（null 表示不导航）：
+// - 已在或正要去会话页 / 主页：不再压入历史；
+// - 离开会话页的导航还在加载、没写入历史：原地 replace（带上当前条目的状态）撤销它，不压一条重复的条目；
+// - 其余回到主页（上次停留的会话或新任务草稿）。
+export function sessionTabNavigation({
+  location,
+  navigation,
+}: RouterLocationState): { to: string; replace?: boolean; state?: unknown } | null {
+  if (pageFromPath(requestedPathname({ location, navigation })) === 'session') return null
+  if (navigation.state !== 'idle' && pageFromPath(location.pathname) === 'session')
+    return { to: location.pathname + (location.search || ''), replace: true, state: location.state }
+  return { to: HOME_PATH }
 }
 
 // 组件详情路由：/components/:componentId（手机上列表与详情各占一屏；桌面在双栏里选中同一组件）。

@@ -38,6 +38,8 @@ const css = distAssets.find((name) => /^index-.*\.css$/.test(name))
 const fonts = new Set(distAssets.filter((name) => name.endsWith('.woff2')))
 assert.ok(css, 'build production CSS before running workbench verification')
 const server = await createServer({
+  // 独立的依赖预构建缓存（同 replica 冒烟）：不与 dev 服务共用 node_modules/.vite，免得并发预构建互相改写。
+  cacheDir: join(output, 'vite-cache'),
   server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
   appType: 'custom',
   plugins: [

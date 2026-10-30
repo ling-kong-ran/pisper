@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import {
   isEditableTarget,
   matchesShortcut,
@@ -44,7 +44,8 @@ export function AppShortcuts({
   onShortcutHelp?: () => void
 }) {
   const bindings = useShortcutStore((state) => state.bindings)
-  useEffect(() => {
+  // 在提交阶段（浏览器绘制之前）挂监听：外壳第一次画出来时快捷键就已可用，冷启动不丢键。
+  useLayoutEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (blocked || shortcutEventBlocked(event) || optionTypingInEditable(event)) return
       let action: (() => void) | undefined

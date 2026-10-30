@@ -1246,7 +1246,13 @@ try {
     await openRunningSession()
     assert.equal(await agentsButton.getAttribute('aria-keyshortcuts'), `${ariaMod}+J`)
     // ⌘/ 速查（默认键）：三组，列出 ⌘J；Esc 关闭、焦点回到输入框、不停止运行。
+    // 换成矮窗口打开，列表才需要滚动，键盘滚动与焦点框的检查才有意义；关闭后恢复原尺寸。
+    // 点进输入框后再按一下 End，让最近一次交互是键盘（边打字边按 ⌘/ 的真实路径）：只用鼠标点过、
+    // 再按带修饰键的 ⌘/ 时，Chromium 不把打开时的程序聚焦算作 focus-visible，本来就不描边，
+    // 检查不出“打开时压住焦点框”。
     await composer.click()
+    await page.keyboard.press('End')
+    await page.setViewportSize({ width: 1280, height: 560 })
     await page.keyboard.press(`${mod}+Slash`)
     await help.waitFor({ timeout: 10_000 })
     assert.deepEqual(
@@ -1254,6 +1260,49 @@ try {
         .locator('[data-shortcut-help-group]')
         .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-help-group'))),
       ['global', 'board', 'session'],
+    )
+    // 键盘打开时焦点直接落在可滚动的列表上（不落到“在设置中改绑”上被回车误触）：
+    // 列表此时已是 focus-visible，但打开时这一次程序聚焦不描边；第一下翻页键立即滚动列表，
+    // 之后恢复焦点框；Shift+Tab 绕回关闭键，再 Tab 回到列表。
+    const helpList = help.locator('[data-slot="dialog-body"]')
+    const helpListState = () =>
+      helpList.evaluate((el) => ({
+        focused: el === document.activeElement,
+        focusVisible: el.matches(':focus-visible'),
+        outline: getComputedStyle(el).outlineStyle,
+        scrollable: el.scrollHeight > el.clientHeight,
+        scrolled: el.scrollTop > 0,
+      }))
+    assert.deepEqual(
+      await helpListState(),
+      { focused: true, focusVisible: true, outline: 'none', scrollable: true, scrolled: false },
+      'the help list takes focus on open without a focus ring',
+    )
+    await page.keyboard.press('PageDown')
+    await page.waitForFunction(
+      () => document.querySelector('[data-shortcut-help] [data-slot="dialog-body"]')?.scrollTop > 0,
+    )
+    assert.deepEqual(
+      await helpListState(),
+      { focused: true, focusVisible: true, outline: 'solid', scrollable: true, scrolled: true },
+      'PageDown right after opening scrolls the help list and brings its focus ring back',
+    )
+    await page.keyboard.press('Shift+Tab')
+    assert.equal(
+      await page.evaluate(() => {
+        const active = document.activeElement
+        return active?.closest('[data-shortcut-help]') && active.matches('button')
+          ? active.textContent.trim()
+          : null
+      }),
+      '关闭对话框',
+      'Shift+Tab from the help list wraps to the close button',
+    )
+    await page.keyboard.press('Tab')
+    assert.equal(
+      (await helpListState()).focused,
+      true,
+      'Tab from the close button returns to the list',
     )
     assert.match((await helpRow('agentPanel').innerText()).replace(/\s+/g, ' '), /J/)
     // 一级标签按标题栏顺序编号：会话 1、看板 2、组件 3、更多 4；⌘[ 的“返回看板”不再列出。
@@ -1276,6 +1325,7 @@ try {
       await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
       true,
     )
+    await page.setViewportSize({ width: 1440, height: 900 })
 
     // 设置 → 快捷键：代理面板 F6、检查器 F7、插话 ⌘↵。
     await page.goto(`${base}/#/config/shortcuts`)
@@ -1371,7 +1421,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Shortcut rebinding: ⌘/ help lists global/board/session bindings and Esc closes it without stopping the run; after rebinding the agent panel to F6, the inspector to F7 and steer to ⌘↵ in Settings → Shortcuts, the old keys stop working, the new ones work at once, labels and aria-keyshortcuts follow, the help shows the new keys and links back to Settings; reset restores ⌘J',
+    'Shortcut rebinding: ⌘/ help lists global/board/session bindings, opens with focus on its list without a focus ring (PageDown scrolls it at once and brings the ring back, Shift+Tab wraps to the close button) and Esc closes it without stopping the run; after rebinding the agent panel to F6, the inspector to F7 and steer to ⌘↵ in Settings → Shortcuts, the old keys stop working, the new ones work at once, labels and aria-keyshortcuts follow, the help shows the new keys and links back to Settings; reset restores ⌘J',
   )
 
   assert.deepEqual(report.pageErrors, [])

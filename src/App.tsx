@@ -41,7 +41,15 @@ import {
   sessionIdFromPath,
   sessionPath,
 } from '@/app/routes'
-import { activeShellTab, SHELL_TAB_PAGES, shellBackPath, type ShellTab } from '@/app/shell-tabs'
+import {
+  activeShellTab,
+  requestedPathname,
+  SHELL_TAB_PAGES,
+  sessionTabNavigation,
+  shellBackPath,
+  type RouterLocationState,
+  type ShellTab,
+} from '@/app/shell-tabs'
 import { AppTitlebar } from '@/app/AppTitlebar'
 import {
   CONFIG_SECTIONS,
@@ -56,9 +64,11 @@ import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferen
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
 import { TerminalProvider } from '@/features/terminal/public'
+// 应用级快捷键随外壳同步加载：它的懒加载块只有约 0.6 kB，但 React 揭示已挂出占位的 Suspense 边界时
+// 最多节流 300ms，冷启动外壳画出来之后约 0.3 秒内没有按键监听，按下的 ⌘N / ⌘1–⌘4 会直接丢失。
+import { AppShortcuts } from '@/components/layout/AppShortcuts'
 import { MobileSettingsNavigation } from '@/components/layout/MobileNavigation'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
-import { chatApi } from '@/features/chat/chat-api'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
@@ -102,9 +112,6 @@ const DesktopWindowControls = lazy(() =>
   import('@/components/layout/DesktopWindowControls').then((m) => ({
     default: m.DesktopWindowControls,
   })),
-)
-const AppShortcuts = lazy(() =>
-  import('@/components/layout/AppShortcuts').then((module) => ({ default: module.AppShortcuts })),
 )
 const FloatingWidgets = lazy(async () => {
   const [{ FloatingWidgets }] = await Promise.all([
@@ -229,11 +236,17 @@ function invokeMobile<T>(command: string, args?: unknown): Promise<T> {
   return invoke<T>(command, args)
 }
 
-function App() {
+// routerState 读数据路由的实时状态（router.tsx 注入）：导航在 transition 里提交，渲染出的 location 会落后。
+function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const { t } = useI18n()
   useEffect(() => markStartupPhase('react-app-mounted'), [])
   const location = useLocation()
   const routerNavigate = useNavigate()
+  // “现在在哪 / 要去哪”以路由器为准；没有注入时（测试等）退回已渲染的位置，与没有进行中的导航时一致。
+  const readRouter = useCallback(
+    (): RouterLocationState => routerState?.() ?? { location, navigation: { state: 'idle' } },
+    [location, routerState],
+  )
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const capabilitiesLoaded = useRuntimeCapabilitiesStore((state) => state.loaded)
   const loadRuntimeCapabilities = useRuntimeCapabilitiesStore((state) => state.load)
@@ -532,13 +545,26 @@ function App() {
 
   // 新任务：自带新任务输入框的页面先认领——看板聚焦启动台；主页的新任务草稿认领 ⌘N 与标题栏“新任务”，
   // 聚焦草稿输入框（会话页的页面 id 也是 session，但那里没有认领者）。没有视图认领时打开派发浮层。
+  // 路由已请求去别处、界面还没换过去时，离开中的看板不该认领，要显示的草稿也还没挂上：
+  // 先记下请求，等目标页提交后（下方 effect）再问它，只执行一次。
+  const pendingNewTask = useRef<BoardNewTaskSource | null>(null)
   const startNewTask = useCallback(
     (source: BoardNewTaskSource) => {
+      if (requestedPathname(readRouter()) !== location.pathname) {
+        pendingNewTask.current = source
+        return
+      }
       if ((page === 'board' || page === 'session') && requestBoardNewTask(source)) return
       setDispatchOpen(true)
     },
-    [page],
+    [location.pathname, page, readRouter],
   )
+  useEffect(() => {
+    const source = pendingNewTask.current
+    if (!source || requestedPathname(readRouter()) !== location.pathname) return
+    pendingNewTask.current = null
+    startNewTask(source)
+  }, [location, readRouter, startNewTask])
 
   // 派发浮层受理后：⌘↵ 打开该会话；↵ 留在当前页，只提示已派发（新卡片出现在看板与舰队计量里）。
   const taskDispatched = useCallback(
@@ -599,16 +625,18 @@ function App() {
   )
 
   // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。“会话”走与 '/' 相同的主页逻辑
-  // （上次停留的会话或新任务草稿）；已在会话页或主页时不再压入历史。
+  // （上次停留的会话或新任务草稿）；已在（或正要去）会话页或主页时不再压入历史。按路由器的最新去向判断：
+  // 刚按 ⇧⌘B / ⌘2 离开主页、界面还没换过去时，已渲染的 page 仍是 session，⌘1 不能因此什么都不做。
   const selectShellTab = useCallback(
     (tab: ShellTab) => {
       if (tab === 'session') {
-        if (page !== 'session') routerNavigate(HOME_PATH)
+        const next = sessionTabNavigation(readRouter())
+        if (next) routerNavigate(next.to, { replace: next.replace, state: next.state })
         setQuery('')
       } else if (tab === 'settings') setConfigSection('models')
       else navigate(SHELL_TAB_PAGES[tab])
     },
-    [navigate, page, routerNavigate, setConfigSection],
+    [navigate, readRouter, routerNavigate, setConfigSection],
   )
 
   const dismissModelOnboarding = useCallback(() => {
@@ -938,30 +966,28 @@ function App() {
             </Suspense>
           )}
           <BackNavigation onRouteBack={mobileLayout ? routeBack : undefined} />
-          <Suspense fallback={null}>
-            <AppShortcuts
-              blocked={Boolean(
-                appDialog.dialog || modal || modelOnboardingOpen || paletteOpen || dispatchOpen,
-              )}
-              onCommandPalette={() => setPaletteOpen(true)}
-              onPrimary={() => startNewTask('shortcut')}
-              onSearch={focusPageSearch}
-              onToggleTerminal={
-                window.pisperDesktop?.terminalProfiles &&
-                runtimeFeatureAvailable(capabilities, 'terminal')
-                  ? () => setTerminalOpen((value) => !value)
-                  : undefined
-              }
-              onSettings={() => selectShellTab('settings')}
-              onOpenSession={() => selectShellTab('session')}
-              onOpenBoard={() => selectShellTab('board')}
-              onOpenComponents={() => selectShellTab('components')}
-              onOpenMore={() => selectShellTab('more')}
-              onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
-              onShowBoard={page === 'session' ? backToBoard : undefined}
-              onShortcutHelp={() => setShortcutHelpOpen(true)}
-            />
-          </Suspense>
+          <AppShortcuts
+            blocked={Boolean(
+              appDialog.dialog || modal || modelOnboardingOpen || paletteOpen || dispatchOpen,
+            )}
+            onCommandPalette={() => setPaletteOpen(true)}
+            onPrimary={() => startNewTask('shortcut')}
+            onSearch={focusPageSearch}
+            onToggleTerminal={
+              window.pisperDesktop?.terminalProfiles &&
+              runtimeFeatureAvailable(capabilities, 'terminal')
+                ? () => setTerminalOpen((value) => !value)
+                : undefined
+            }
+            onSettings={() => selectShellTab('settings')}
+            onOpenSession={() => selectShellTab('session')}
+            onOpenBoard={() => selectShellTab('board')}
+            onOpenComponents={() => selectShellTab('components')}
+            onOpenMore={() => selectShellTab('more')}
+            onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
+            onShowBoard={page === 'session' ? backToBoard : undefined}
+            onShortcutHelp={() => setShortcutHelpOpen(true)}
+          />
           {/* 桌面（含手机 App 以外的窄窗口）由标题栏承载一级导航；手机外壳改用底部标签栏。 */}
           {!phoneShell && (
             <AppTitlebar
@@ -1137,6 +1163,9 @@ function App() {
                 onOpenSession={async (id, targetEntryId, targetActive) => {
                   try {
                     if (targetEntryId && !targetActive) {
+                      // 只有在面板里选中带标签的轮次才会用到；面板块自己已经加载了 chat-api，
+                      // 这里按需取用即可，不为它把 chat-api 放进启动包。
+                      const { chatApi } = await import('@/features/chat/chat-api')
                       await chatApi.navigateSessionTreeTarget(id, targetEntryId)
                     }
                     openSession(id, targetEntryId)

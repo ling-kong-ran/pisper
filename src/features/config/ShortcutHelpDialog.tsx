@@ -41,8 +41,13 @@ export function ShortcutHelpDialog({
   const [returnTo] = useState(() =>
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   )
-  // 打开时把焦点放在可滚动的列表上：方向键 / 翻页键直接滚动，不会先落到“在设置中改绑”上被回车误触。
+  // 打开时把焦点放在可滚动的列表上：方向键 / 翻页键直接滚动，Shift+Tab 照常绕回关闭键，
+  // 也不会先落到“在设置中改绑”上被回车误触。
   const listRef = useRef<HTMLDivElement>(null)
+  // 键盘打开时，浏览器把这次程序聚焦也算作 focus-visible，整块列表会被描一圈焦点框。
+  // 只压住打开时这一次：用户在列表上第一次按键操作（翻页、方向键、空格）或焦点离开列表后恢复焦点框。
+  // 对话框每次打开都重新挂载，所以初值 true 就对应“刚打开”。
+  const [quietOpenFocus, setQuietOpenFocus] = useState(true)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -70,8 +75,17 @@ export function ShortcutHelpDialog({
           tabIndex={0}
           role="region"
           aria-label={t('board:shortcuts.shortcutHelp')}
-          // 键盘打开时焦点落在列表上：描边内收并留出上下边距，不压到分组标题。
-          className="-mx-4 px-4 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+          data-quiet-focus={quietOpenFocus || undefined}
+          onKeyDown={(event) => {
+            // Esc 关闭对话框、⌘ / Ctrl / Alt 组合是快捷键、单按 Shift 还没有动作，都不是在列表上操作：
+            // 不在这时恢复焦点框，免得关闭的淡出动画里或按住 Shift 时闪出一圈描边。
+            const { key, metaKey, ctrlKey, altKey } = event
+            if (key === 'Escape' || key === 'Shift' || metaKey || ctrlKey || altKey) return
+            setQuietOpenFocus(false)
+          }}
+          onBlur={() => setQuietOpenFocus(false)}
+          // 描边内收并留出上下边距，不压到分组标题；刚打开的那次程序聚焦不描边（叠加变体优先级更高）。
+          className="-mx-4 px-4 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus data-quiet-focus:focus-visible:outline-none"
         >
           <div className="grid gap-x-8 gap-y-5 min-[720px]:grid-cols-2">
             {SHORTCUT_GROUPS.map((group) => (

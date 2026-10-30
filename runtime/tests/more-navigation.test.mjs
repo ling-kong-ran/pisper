@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { getActivityNavigation } from '../../src/app/activity-navigation.ts'
 import {
@@ -128,6 +129,29 @@ test('tiles are unique, described and own the More tab when opened', () => {
     // 从“更多”打开的功能页点亮“更多”标签（组件页除外，它本身是一级标签）。
     for (const page of pageTiles(groups))
       assert.ok(page === 'components' || MORE_PAGES.has(page), page)
+  }
+})
+
+test('built-in tile descriptions fit the 360px phone tile without mid-phrase breaks', async () => {
+  // 手机三列磁贴在 360px 宽时说明只有约 78px：12px 中文一行最多 6 个字，再长就会在词中间折行
+  // （如“生成的图 / 片与文件”）；英文最多两行、只在空格处折行，所以限总长与最长单词。真实折行由更多页截图核对。
+  const [zh, en] = await Promise.all(
+    ['zh-CN', 'en-US'].map(async (language) =>
+      JSON.parse(await readFile(`src/locales/${language}/navigation.json`, 'utf8')),
+    ),
+  )
+  const keys = new Set()
+  for (const options of [{}, { mobileApp: true, componentsTile: true }])
+    for (const tile of tiles(
+      getMoreNavigation(t, { ...options, components: [{ id: 'game-assets', name: 'x' }] }),
+    ))
+      for (const value of [tile.description, tile.disabledReason])
+        if (value) keys.add(value.replace(/^navigation:/, ''))
+  assert.ok(keys.has('more.componentsHint') && keys.has('more.desktopOnly'))
+  for (const key of keys) {
+    assert.ok(zh[key] && [...zh[key]].length <= 6, `zh-CN ${key}: ${zh[key]}`)
+    assert.ok(en[key] && en[key].length <= 25, `en-US ${key}: ${en[key]}`)
+    assert.ok(Math.max(...en[key].split(' ').map((word) => word.length)) <= 11, en[key])
   }
 })
 

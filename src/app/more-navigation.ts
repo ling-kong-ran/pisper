@@ -171,7 +171,8 @@ export function getMoreNavigation(
           ? {
               key: 'shell:components',
               label: t('navigation:shell.components'),
-              description: t('navigation:navigation.componentsDescription'),
+              // 手机三列磁贴在 360px 宽时只有约 6 个汉字宽：用磁贴专用的短说明，页面元信息里的长说明留给页头与命令面板。
+              description: t('navigation:more.componentsHint'),
               icon: Blocks,
               destination: { type: 'page', id: 'components' },
             }

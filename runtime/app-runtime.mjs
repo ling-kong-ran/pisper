@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { createStaticHandler } from './http/static-handler.mjs'
 import { resolveGitCommit, UpdateCheckService } from './services/update-check-service.mjs'
 import { WebDesktopPetService } from './services/web-desktop-pet-service.mjs'
@@ -42,6 +42,22 @@ function serviceUnavailable(res) {
   res.end(body)
 }
 
+// 开发中间件的 Vite 依赖缓存目录。不传（null）时沿用 Vite 默认的 node_modules/.vite，`npm run dev` 行为不变；
+// 冒烟脚本启动的开发 Runtime 传各自的临时目录，免得与正在运行的 dev 服务并发预构建依赖时互相改写同一份缓存。
+// 只接受绝对路径：相对路径会随进程 cwd 漂移，可能又落回共享缓存。
+export function resolveViteCacheDir(value) {
+  if (value === null || value === undefined) return null
+  if (
+    typeof value !== 'string' ||
+    !value.trim() ||
+    value.length > 4096 ||
+    value.includes('\0') ||
+    !isAbsolute(value)
+  )
+    throw new TypeError('viteCacheDir must be an absolute directory path.')
+  return resolve(value)
+}
+
 // 请求处理中途失败时的兜底：已发送响应头则直接断开，否则回写 500，
 // 保证 Node HTTP 不会因 Promise 拒绝而抛出未捕获异常。
 function recoverRequestFailure(res) {
@@ -76,12 +92,16 @@ export async function createPisperRuntime({
   runtimeCapabilities = null,
   // 远程访问（移动端互联）：enabled 为 null 时跟随持久化状态，显式 true/false 覆盖之。
   remote = {},
+  // 仅开发模式使用；生产模式不创建 Vite，忽略该项。
+  viteCacheDir = null,
   runtimeModuleLoader = () => import('./runtime/agent-runtime.mjs'),
   apiHandlerModuleLoader = () => import('./http/api-handler.mjs'),
 } = {}) {
   const appRoot = resolve(root || process.cwd())
   const cwd = resolve(runtimeCwd || homedir())
   const agentDir = resolve(dataDir)
+  // 在创建任何服务或监听之前校验，非法值直接拒绝，不留下半启动的资源。
+  const devViteCacheDir = resolveViteCacheDir(viteCacheDir)
   const stage = createStartupObserver(startupObserver)
   const capabilities = runtimeCapabilities || (await resolveRuntimeCapabilities())
   const mobileBase = mobileBaseInitialization(initializationMode, capabilities.profile)
@@ -341,6 +361,7 @@ export async function createPisperRuntime({
       const { createServer: createViteServer } = await import('vite')
       vite = await createViteServer({
         root: appRoot,
+        ...(devViteCacheDir ? { cacheDir: devViteCacheDir } : {}),
         server: { middlewareMode: true, hmr: { port: Number(port) + 1 } },
         appType: 'spa',
       })

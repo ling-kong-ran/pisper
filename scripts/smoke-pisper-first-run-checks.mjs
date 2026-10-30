@@ -40,6 +40,19 @@ async function freeDevPort() {
   throw new Error('Unable to reserve loopback HTTP/HMR ports for first-run verification')
 }
 
+// 开发 Runtime 用的是本次独立的 Vite 缓存（冷的）：首个页面会赶上依赖扫描与预构建，机器繁忙时可能超出页面等待。
+// 开浏览器前先在 Node 里取应用入口，再取它导入的一个预构建依赖——Vite 在本轮预构建完成前会挂起这个请求，
+// 拿到响应即说明依赖已就绪，页面的等待只覆盖应用自身的启动。
+async function waitForDevDependencies(base) {
+  const entry = await fetch(`${base}/src/mount-app.tsx`, { signal: AbortSignal.timeout(180000) })
+  assert.equal(entry.status, 200, 'Dev entry module must transform')
+  const dependency = (await entry.text()).match(/from\s+["']([^"']+\/deps\/[^"']+)["']/)?.[1]
+  assert.ok(dependency, 'Dev entry must import a pre-bundled dependency')
+  const response = await fetch(new URL(dependency, base), { signal: AbortSignal.timeout(180000) })
+  assert.equal(response.status, 200, 'Pre-bundled dependency must be served')
+  await response.arrayBuffer()
+}
+
 async function verifyDialogBounds(page, dialog) {
   const viewport = page.viewportSize()
   const bounds = await dialog.boundingBox()
@@ -108,11 +121,14 @@ export async function verifyFirstRunSetup({
       runtimeCwd: workspace,
       dataDir,
       production: false,
+      // 独立的 Vite 依赖缓存：不与 dev 服务（默认 node_modules/.vite）并发预构建、互相改写缓存。
+      viteCacheDir: join(temporary, 'vite-cache'),
       port: await freeDevPort(),
       host: '127.0.0.1',
       remote: { enabled: false },
     })
     const base = runtime.url
+    await waitForDevDependencies(base)
     async function resetOnboardingPreference() {
       const response = await fetch(base + '/api/local/browser-preferences', {
         method: 'PUT',

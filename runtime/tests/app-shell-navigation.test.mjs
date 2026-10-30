@@ -25,6 +25,8 @@ import {
   SHELL_TABS,
   SHELL_TAB_PAGES,
   activeShellTab,
+  requestedPathname,
+  sessionTabNavigation,
   shellBackPath,
 } from '../../src/app/shell-tabs.ts'
 // “更多”启动台的分组、能力裁剪与平台禁用在 more-navigation.test.mjs。
@@ -130,6 +132,42 @@ test('component detail routes stay on the components tab and native back walks t
   assert.equal(back('/config/interface'), HOME_PATH)
   assert.equal(back('/components'), HOME_PATH)
   assert.equal(back('/components/game-assets'), '/components')
+})
+
+test('the session tab decides from the latest requested route, not the rendered page', () => {
+  // 数据路由 router.state 的形状：navigation 带着还在加载的目标，location 是已写入历史的位置。
+  const idle = (pathname, state) => ({
+    location: { pathname, search: '', state },
+    navigation: { state: 'idle', location: undefined },
+  })
+  const loading = (from, to, state) => ({
+    location: { pathname: from, search: '', state },
+    navigation: { state: 'loading', location: { pathname: to } },
+  })
+  assert.equal(requestedPathname(idle('/board')), '/board')
+  assert.equal(requestedPathname(loading(HOME_PATH, '/board')), '/board')
+  // 没有进行中的导航：与按已渲染的 page 判断相同——会话页与主页不再压入历史，其余回主页。
+  for (const path of [HOME_PATH, '/board/abc', sessionPath()])
+    assert.equal(sessionTabNavigation(idle(path)), null, path)
+  for (const path of ['/board', '/more', '/components', '/config/models', '/assets'])
+    assert.deepEqual(sessionTabNavigation(idle(path)), { to: HOME_PATH }, path)
+  // ⇧⌘B / ⌘2 已把看板写进历史、界面还停在主页（React 的 transition 尚未提交）：路由器已在 /board，回主页。
+  assert.deepEqual(sessionTabNavigation(idle('/board')), { to: HOME_PATH })
+  // 离开主页 / 会话页的懒加载导航还没写入历史：原地 replace（保留条目状态）撤销它，不压重复条目。
+  assert.deepEqual(sessionTabNavigation(loading(HOME_PATH, '/board')), {
+    to: HOME_PATH,
+    replace: true,
+    state: undefined,
+  })
+  assert.deepEqual(sessionTabNavigation(loading('/board/abc', '/board', HOME_ENTRY_STATE)), {
+    to: '/board/abc',
+    replace: true,
+    state: HOME_ENTRY_STATE,
+  })
+  // 从看板出发、正在去别的一级页：回主页；正在去主页或会话页：什么都不做（不叠第二条）。
+  assert.deepEqual(sessionTabNavigation(loading('/board', '/more')), { to: HOME_PATH })
+  assert.equal(sessionTabNavigation(loading('/board', HOME_PATH)), null)
+  assert.equal(sessionTabNavigation(loading('/board', '/board/abc')), null)
 })
 
 test('palette navigation and page meta cover the new shell pages', () => {

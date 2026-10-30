@@ -51,6 +51,8 @@ const app = await createPisperRuntime({
   runtimeCwd: workspace,
   dataDir,
   production: !development,
+  // --dev 时用独立的 Vite 依赖缓存，与 replica 冒烟一致，不改写 dev 服务的 node_modules/.vite。
+  viteCacheDir: development ? join(output, 'vite-cache') : null,
   port: development ? await developmentPort() : 0,
   host: '127.0.0.1',
   remote: { enabled: false },

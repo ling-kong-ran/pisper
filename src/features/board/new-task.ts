@@ -2,7 +2,7 @@
 // “请求新任务”契约：⌘N、标题栏“新任务”、手机居中按钮与命令面板都只发这一个事件。
 // 看板页挂载启动台后认领事件（preventDefault）并聚焦启动台；没有视图认领时，
 // 应用壳打开派发浮层。事件只携带来源，不携带草稿，草稿由启动台/浮层自己持有。
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 export const BOARD_NEW_TASK_EVENT = 'pisper:board-new-task'
 
@@ -26,7 +26,8 @@ export function useBoardNewTaskHandler(
 ) {
   const handlerRef = useRef(handler)
   handlerRef.current = handler
-  useEffect(() => {
+  // 在提交阶段（绘制之前）认领：草稿一画出来就能接住 ⌘N，不会因被动 effect 晚一步而让外壳改开派发浮层。
+  useLayoutEffect(() => {
     if (!enabled) return
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<BoardNewTaskRequest>).detail

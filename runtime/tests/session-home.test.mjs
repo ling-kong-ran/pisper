@@ -251,10 +251,16 @@ test('native back: the session home is the root, opened sessions go back where t
 
 test('the shell wires the session tab to the home, back to history, and the board entry to its own shortcut', async () => {
   const app = await readFile('src/App.tsx', 'utf8')
+  // “会话”标签按路由器的最新去向判断（规则见 shell-tabs.sessionTabNavigation 的单元测试），
+  // 不看已渲染的 page：刚离开主页、界面还没换过去时 page 仍是 session。
   assert.match(
     app,
-    /if \(tab === 'session'\) \{\s*if \(page !== 'session'\) routerNavigate\(HOME_PATH\)/,
+    /if \(tab === 'session'\) \{\s*const next = sessionTabNavigation\(readRouter\(\)\)\s+if \(next\) routerNavigate\(next\.to, \{ replace: next\.replace, state: next\.state \}\)/,
   )
+  assert.match(app, /routerState\?\.\(\) \?\? \{ location, navigation: \{ state: 'idle' \} \}/)
+  const router = await readFile('src/app/router.tsx', 'utf8')
+  assert.match(router, /const routerState = \(\) => router\.state/)
+  assert.match(router, /<App routerState=\{routerState\} \/>/)
   assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned, phoneShell\)/)
   assert.match(app, /homeEntry: isHomeEntry\(location\.state\)/)
   assert.match(app, /if \(parent === -1\) routerNavigate\(-1\)/)
@@ -373,7 +379,12 @@ test('new-task requests on the home draft focus the draft instead of stacking th
   // 主页的页面 id 也是 session：先问当前页有没有认领者，没有才打开派发浮层。
   assert.match(
     app,
-    /if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+    /if \(requestedPathname\(readRouter\(\)\) !== location\.pathname\) \{\s+pendingNewTask\.current = source\s+return\s+\}\s+if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+  )
+  // 路由器已请求去别处、渲染的 page 还是离开中的那页时，请求先记下，目标页提交后再问一次（只执行一次）。
+  assert.match(
+    app,
+    /const source = pendingNewTask\.current\s+if \(!source \|\| requestedPathname\(readRouter\(\)\) !== location\.pathname\) return\s+pendingNewTask\.current = null\s+startNewTask\(source\)/,
   )
   // 认领者只有新任务草稿本身：主页只在落到草稿时挂它，加载中 / 错误态与真实会话页没有认领者。
   assert.match(home, /if \(landing\.kind === 'draft'\)\s+body = \(\s+<NewTaskDraft/)

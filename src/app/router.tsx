@@ -28,11 +28,15 @@ import {
   workflowsRoute,
 } from './route-elements'
 
+// 应用壳判断“要去哪”读路由器的实时状态：navigate() 同步更新它，React 的 location 要等 transition 提交。
+// 只在事件处理时调用，那时 router 早已创建。
+const routerState = () => router.state
+
 export const router = createHashRouter([
   {
     element: (
       <UnsavedChangesProvider>
-        <App />
+        <App routerState={routerState} />
       </UnsavedChangesProvider>
     ),
     errorElement: <RouteErrorBoundary />,

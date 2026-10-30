@@ -6,9 +6,10 @@
 // 归档该会话后 / → 草稿；桌面标签顺序与点亮；会话目录加载中 / 失败时的主页状态。
 // 标签快捷键按标题栏顺序编号（⌘1 会话、⌘2 看板，⌘[ 已退役）；草稿上的 ⌘N 与标题栏“新任务”聚焦草稿，
 // 不叠派发浮层；真实会话页与主页错误态的 ⌘N 照旧打开派发浮层。
+// 竞态：⌘2 / ⇧⌘B 还没提交就按 ⌘1，按路由器的最新去向回到主页并停在那里（路由懒加载中与已加载两种）。
 // 手机主页（草稿、返回根、标签栏、更多里的组件磁贴）在 smoke-mobile-shell 里覆盖。
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,13 +44,32 @@ const app = await createPisperRuntime({
 await app.initialized
 const base = app.url
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
-const report = { status: 'running', checks: [], pageErrors: [] }
+const report = { status: 'running', checks: [], pageErrors: [], routeErrors: [], routeRetries: [] }
 let browser
 let failurePage
 
 async function sessionCount() {
   const list = await fetch(`${base}/api/sessions`).then((response) => response.json())
   return (list.sessions || []).length
+}
+
+// Playwright 的 route.fetch 走它自己的长连接池，池里的空闲连接没有超时（Node 只用服务器的 Keep-Alive
+// 提示去缩短已有的超时，Playwright 的连接池没设超时，提示不起作用）；运行时服务器空闲 6 秒（5 秒加 1 秒缓冲）
+// 就关掉长连接。两边同在这个进程里，负载下事件循环变慢时，route.fetch 可能恰好把请求写进服务器同一轮要关的
+// 旧连接，服务器先关后读，得到 read ECONNRESET（调用日志只有“→ GET”、没有响应）。
+// 只对幂等的 GET 用：连接级错误时坏连接已被销毁，换新连接重取，最多三次；每次重取都记进报告，不静默吞掉。
+async function fetchIdempotent(route) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await route.fetch()
+    } catch (error) {
+      const message = String(error?.message || error)
+      if (attempt >= 3 || !/ECONNRESET|socket hang up|EPIPE/.test(message)) throw error
+      report.routeRetries.push(
+        `${new URL(route.request().url()).pathname}: ${message.split('\n')[0]}`,
+      )
+    }
+  }
 }
 
 async function newContext(options) {
@@ -66,7 +86,15 @@ async function newContext(options) {
   // 注入一个已配置的对话模型，让草稿的启动台可以发送；真实配置的其余字段原样保留。
   await context.route(/\/api\/config(\?.*)?$/, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    const response = await route.fetch()
+    let response
+    try {
+      response = await fetchIdempotent(route)
+    } catch (error) {
+      // 路由回调里抛出的异常会变成未处理的拒绝，直接打崩冒烟、跳过收尾：记进报告并中止这次请求，
+      // 由结尾的断言以正常失败收尾。
+      report.routeErrors.push(`GET /api/config: ${String(error?.message || error).split('\n')[0]}`)
+      return route.abort('connectionreset').catch(() => {})
+    }
     const data = await response.json().catch(() => ({}))
     await route.fulfill({
       response,
@@ -301,6 +329,63 @@ try {
     'Tab shortcuts follow the title bar order: tooltips read 会话 ⌘1 / 看板 ⌘2; ⌘2 opens the board, ⌘[ no longer navigates, ⌘1 returns to the home draft without creating a session',
   )
 
+  // 1d. 竞态：离开主页的 ⌘2 / ⇧⌘B 还没提交（React 在 transition 里提交路由，渲染的 page 仍是 session），
+  // 紧接着按 ⌘1 也必须回到主页并停在那里。两个窗口都覆盖：
+  // - 路由还在加载：重新载入后第一次去看板，扣住看板页面块，⌘1 落在“导航进行中、还没写入历史”时，
+  //   原地撤销那次导航（历史不变），放行页面块后也不会再落到看板；
+  // - 路由已加载：⌘2 / ⇧⌘B 同步写入历史，只剩 React 提交前的窗口，历史是“看板 + 主页”两条。
+  // 任何情况下都不会在主页上叠一条重复的主页。
+  const manifest = JSON.parse(await readFile(join(root, 'dist/.vite/manifest.json'), 'utf8'))
+  const boardChunk = manifest['src/features/board/BoardPage.tsx'].file
+  let boardChunkGate = null
+  await context.route(`**/${boardChunk}`, async (route) => {
+    await boardChunkGate
+    await route.continue()
+  })
+  const raceToHome = async (first, { holdBoardRoute = false } = {}) => {
+    const before = await page.evaluate(() => window.history.state?.idx)
+    let release = () => {}
+    if (holdBoardRoute) boardChunkGate = new Promise((done) => (release = done))
+    // 请求与响应的等待都在按键之前登记，不会因为事件已经发生而错过。
+    const boardRequested = holdBoardRoute
+      ? page.waitForRequest((request) => request.url().endsWith(boardChunk))
+      : null
+    const boardResponded = holdBoardRoute
+      ? page.waitForResponse((response) => response.url().endsWith(boardChunk))
+      : null
+    await page.keyboard.press(`${mod}+${first}`)
+    await boardRequested
+    await page.keyboard.press(`${mod}+Digit1`)
+    boardChunkGate = null
+    release()
+    await page.waitForURL((url) => url.hash === '#/')
+    await page.locator('[data-new-task-draft="desktop"]').waitFor()
+    await boardResponded
+    await page.waitForTimeout(800)
+    assert.equal(hashOf(page), '#/', `${first} then ⌘1 stays on the home`)
+    assert.deepEqual(await activeTabs(page), ['session'])
+    const after = await page.evaluate(() => window.history.state?.idx)
+    assert.equal(
+      after,
+      holdBoardRoute ? before : before + 2,
+      `${first} then ⌘1: history ${before} → ${after}`,
+    )
+    return after === before ? 'undone in place' : 'board + home'
+  }
+  await page.reload()
+  await page.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 30000 })
+  const raceOutcomes = [await raceToHome('Digit2', { holdBoardRoute: true })]
+  await page.keyboard.press(`${mod}+Digit2`)
+  await page.locator('[data-board-root]').waitFor()
+  await page.keyboard.press(`${mod}+Digit1`)
+  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  raceOutcomes.push(await raceToHome('Shift+KeyB'), await raceToHome('Digit2'))
+  assert.equal(await sessionCount(), 0)
+  assert.deepEqual(creates, [])
+  report.checks.push(
+    `Race: ⌘2 or ⇧⌘B immediately followed by ⌘1 lands on and stays on the home draft — while the board route is still loading (${raceOutcomes[0]}, the held board navigation never lands afterwards) and once it is loaded (⇧⌘B: ${raceOutcomes[1]}, ⌘2: ${raceOutcomes[2]}); no duplicate home entry, no session created`,
+  )
+
   // 2. 发出第一条消息才建会话，以 replace 换成 /board/:id（标为主页落地），浏览器后退不回到草稿。
   await page.locator('[data-launch-input]').fill('只是测试：列出当前目录')
   await page.keyboard.press('Enter')
@@ -448,11 +533,10 @@ try {
     const paletteRun = await newContext({ viewport: { width: 1440, height: 900 } })
     const palettePage = await openPage(paletteRun.context, 'home palette', '#/')
     await palettePage.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 60000 })
+    // 快捷键层随外壳同步加载：草稿一出现，按一次 ⌘K 就能打开命令面板，不用重试。
     const paletteInput = palettePage.locator('input[role="combobox"]')
-    for (let attempt = 0; attempt < 5 && !(await paletteInput.isVisible()); attempt += 1) {
-      await palettePage.keyboard.press(`${mod}+KeyK`)
-      await paletteInput.waitFor({ timeout: 3000 }).catch(() => {})
-    }
+    await palettePage.keyboard.press(`${mod}+KeyK`)
+    await paletteInput.waitFor({ timeout: 5000 })
     await paletteInput.fill('主页打开会话夹具')
     const option = palettePage.getByRole('option', { name: /主页打开会话夹具/ }).first()
     await option.waitFor({ timeout: 15000 })
@@ -516,6 +600,11 @@ try {
   )
 
   assert.deepEqual(report.pageErrors, [])
+  assert.deepEqual(
+    report.routeErrors,
+    [],
+    'every intercepted /api/config fetch reached the Runtime',
+  )
   report.status = 'passed'
   console.log(JSON.stringify(report, null, 2))
 } catch (error) {
