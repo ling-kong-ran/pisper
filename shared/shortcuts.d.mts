@@ -18,8 +18,10 @@ export const SHORTCUT_ACTIONS: readonly [
   'nextAgent',
   'steerMessage',
   'shortcutHelp',
-  'showBoard',
   'openSession',
+  'sessionTree',
+  'sideChat',
+  'cycleFocusRegion',
 ]
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]

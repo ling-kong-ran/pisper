@@ -2,27 +2,35 @@ export const SHORTCUT_ACTIONS = Object.freeze([
   'commandPalette',
   'primaryAction',
   'focusSearch',
+  // 方向 A（规格 v2 第 2.8 节）：侧栏回来了，⌘B 收起 / 展开侧栏重新生效（第 1–4 期是隐藏动作）。
   'toggleSidebar',
   'toggleTerminal',
   'openSettings',
   'focusComposer',
   'sendMessage',
   'voiceInput',
+  // 一级入口：⌘1 全部代理（openBoard，页面 id 仍是 board）、⌘2 功能（openMore）；
+  // 组件工作室不再是一级入口，openComponents 保留为可改绑、默认未绑定的动作。
   'openBoard',
   'openComponents',
   'openMore',
+  // ⌥A：聚焦侧栏里等待最久的需要你行（侧栏收起时临时展开），再按 A / D 处理普通批准、↵ 打开。
   'jumpToAttention',
-  // 会话页：⌘J 代理面板、⌘I 检查器、⌥↑/⌥↓ 切换代理、运行中插话（独立动作，不再由发送键派生）、⌘/ 速查。
+  // ⌘J：聚焦侧栏会话列表（原为代理面板覆盖层，v2 改义）。
   'agentPanel',
   'toggleInspector',
+  // ⌥↑ / ⌥↓：按侧栏顺序切换到上一个 / 下一个会话。
   'previousAgent',
   'nextAgent',
   'steerMessage',
   'shortcutHelp',
-  // 主页改为会话后，会话页泳道条最左侧的“看板”入口（打开看板，push 到 /board）。
-  'showBoard',
-  // 标题栏第一个标签“会话”（主页：上次停留的会话或新任务草稿）。新动作追加在末尾，旧动作的顺序不变。
+  // 主页“会话”入口：v2 没有一级标签了，保留为可改绑、默认未绑定的动作。
+  // showBoard（泳道条的看板入口）在 v2 退役：看板没了，它占的 ⇧⌘B 交给会话树。
   'openSession',
+  // v2 新动作追加在末尾，旧动作的顺序不变。
+  'sessionTree',
+  'sideChat',
+  'cycleFocusRegion',
 ])
 
 export const DEFAULT_SHORTCUTS = Object.freeze({
@@ -35,11 +43,9 @@ export const DEFAULT_SHORTCUTS = Object.freeze({
   focusComposer: 'Mod+Shift+KeyL',
   sendMessage: 'Enter',
   voiceInput: 'F8',
-  // 一级标签按标题栏顺序编号：⌘1 会话（openSession，在表末尾）、⌘2 看板、⌘3 组件、⌘4 更多；
-  // ⌥A 只跳到等待最久的需要你事项。旧的 ⌘[“从会话返回看板”已退役，会话页去看板用 ⇧⌘B（showBoard）。
-  openBoard: 'Mod+Digit2',
-  openComponents: 'Mod+Digit3',
-  openMore: 'Mod+Digit4',
+  openBoard: 'Mod+Digit1',
+  openComponents: null,
+  openMore: 'Mod+Digit2',
   jumpToAttention: 'Alt+KeyA',
   agentPanel: 'Mod+KeyJ',
   toggleInspector: 'Mod+KeyI',
@@ -47,9 +53,13 @@ export const DEFAULT_SHORTCUTS = Object.freeze({
   nextAgent: 'Alt+ArrowDown',
   steerMessage: 'Alt+Enter',
   shortcutHelp: 'Mod+Slash',
-  // 负责人要的 ⌘B 已是隐藏动作 toggleSidebar 的默认键（同一张表里不能重复），改用 ⇧⌘B（仍取 Board 的 B）。
-  showBoard: 'Mod+Shift+KeyB',
-  openSession: 'Mod+Digit1',
+  openSession: null,
+  // 会话树（分支 + 标记合并后的唯一入口）接手退役的 showBoard 的 ⇧⌘B。
+  sessionTree: 'Mod+Shift+KeyB',
+  // 侧聊默认不绑定：样稿的 ⌘⇧L 已是“聚焦聊天输入框”。
+  sideChat: null,
+  // F6 在侧栏、顶栏、对话、输入框之间切换焦点区域（桌面应用的惯例键）。
+  cycleFocusRegion: 'F6',
 })
 
 const MODIFIERS = ['Mod', 'Ctrl', 'Meta', 'Alt', 'Shift']
@@ -254,31 +264,57 @@ export function validateShortcutBindings(input) {
   return bindings
 }
 
-// 标签重新编号之前的默认键（看板 ⌘1、组件 ⌘2、更多 ⌘3）。
+// 第 4 期标签重新编号之前的默认键（看板 ⌘1、组件 ⌘2、更多 ⌘3）。
 const LEGACY_TAB_SHORTCUTS = Object.freeze({
   openBoard: 'Mod+Digit1',
   openComponents: 'Mod+Digit2',
   openMore: 'Mod+Digit3',
 })
+// 83140e4d 的标签默认键：⌘1 会话、⌘2 看板、⌘3 组件、⌘4 更多。写死在这里而不是读 DEFAULT_SHORTCUTS，
+// 因为 v2 改了默认键，链式迁移的中间一步必须落在当时的布局上。
+const TAB_SHORTCUTS_83140E4D = Object.freeze({
+  openSession: 'Mod+Digit1',
+  openBoard: 'Mod+Digit2',
+  openComponents: 'Mod+Digit3',
+  openMore: 'Mod+Digit4',
+})
 // 后移顺序：从 ⌘4 往回，前一个让出的键才轮到后一个；最后“会话”接手 ⌘1。
 const RENUMBERED_TABS = Object.freeze(['openMore', 'openComponents', 'openBoard', 'openSession'])
+// 方向 A 的入口键：⌘1 全部代理、⌘2 功能，会话与组件不再有默认键。
+const SIDEBAR_ENTRY_SHORTCUTS = Object.freeze({
+  openSession: null,
+  openBoard: 'Mod+Digit1',
+  openComponents: null,
+  openMore: 'Mod+Digit2',
+})
 
 // 没有 openSession 的表来自标签重新编号之前的版本。三个标签键都还是旧默认（用户没动过）时整体后移一位，
-// 让没改过键的人拿到与标签顺序一致的新布局；每一步只移到没被其他动作占用的键上，移不动就保持原样，
-// 后面的随之留在原处，“会话”最后补默认键或未绑定。改过其中任何一个就一律不动：自定义优先于新布局。
+// 让没改过键的人拿到与标签顺序一致的布局；每一步只移到没被其他动作占用的键上，移不动就保持原样，
+// 后面的随之留在原处。改过其中任何一个就一律不动：自定义优先于新布局。
 function renumberLegacyTabs(bindings) {
   for (const [action, binding] of Object.entries(LEGACY_TAB_SHORTCUTS)) {
     if (bindings[action] !== binding) return
   }
   for (const action of RENUMBERED_TABS) {
-    const target = DEFAULT_SHORTCUTS[action]
+    const target = TAB_SHORTCUTS_83140E4D[action]
     if (!findShortcutConflict(bindings, action, target)) bindings[action] = target
   }
 }
 
+// 没有 sessionTree 的表来自方向 A 之前的版本（规格 v2 第 2.8 节）。四个入口键正好是 83140e4d 的默认
+// （⌘1 会话 / ⌘2 看板 / ⌘3 组件 / ⌘4 更多）时整体换成新入口键；改过其中任何一个（含禁用、平台别名）
+// 就原样保留。新键只在这四个动作之间腾挪（⌘1、⌘2 本来就属于它们），不会抢走其他动作的键。
+function adoptSidebarEntries(bindings) {
+  for (const [action, binding] of Object.entries(TAB_SHORTCUTS_83140E4D)) {
+    if (bindings[action] !== binding) return
+  }
+  Object.assign(bindings, SIDEBAR_ENTRY_SHORTCUTS)
+}
+
 // 旧版本保存的绑定表缺少后来新增的动作：缺失项补默认键，但默认键已被用户占用时补为未绑定，
-// 已有的自定义与禁用设置原样保留；未知动作（含已退役的 backToBoard）直接丢弃，它占过的键随之空出。
-// 只有补齐后仍不合法才整体回到默认。表里已有 openSession 时不再迁移，所以重复归一化结果不变。
+// 已有的自定义与禁用设置原样保留；未知动作（含已退役的 backToBoard、showBoard）直接丢弃，它占过的键随之空出，
+// 所以 sessionTree 只在 ⇧⌘B 空着或仍是 showBoard 的默认时拿到它。只有补齐后仍不合法才整体回到默认。
+// 表里已有 sessionTree 时不再迁移入口键，所以重复归一化结果不变。
 function withAddedActions(input) {
   if (
     !input ||
@@ -294,7 +330,10 @@ function withAddedActions(input) {
   }
   const bindings = {}
   for (const action of known) bindings[action] = input[action]
-  if (!Object.hasOwn(bindings, 'openSession')) renumberLegacyTabs(bindings)
+  if (!Object.hasOwn(bindings, 'sessionTree')) {
+    if (!Object.hasOwn(bindings, 'openSession')) renumberLegacyTabs(bindings)
+    adoptSidebarEntries(bindings)
+  }
   for (const action of SHORTCUT_ACTIONS) {
     if (Object.hasOwn(bindings, action)) continue
     const fallback = DEFAULT_SHORTCUTS[action]

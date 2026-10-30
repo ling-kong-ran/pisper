@@ -498,7 +498,7 @@ try {
     'PASS interface settings: the components-moved link replaces the widgets tab (legacy ?view=widgets redirects), graphite is the first and default accent and persists',
   )
 
-  // 第 4 期快捷键：全局 / 看板 / 会话三组，固定键只读；新动作可改绑、冲突与不可用组合被拒、恢复默认。
+  // 快捷键 v2（规格 2.8）：全局 / 侧栏 / 全部代理 / 会话四组，固定键只读；新动作可改绑、冲突与不可用组合被拒、恢复默认。
   await page.goto(`${url}/?view=shortcuts`)
   const shortcutCard = page.locator('[data-config-card="shortcuts-bindings"]')
   await shortcutCard.waitFor()
@@ -506,9 +506,9 @@ try {
     await shortcutCard
       .locator('[data-shortcut-group]')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-group'))),
-    ['global', 'board', 'session'],
+    ['global', 'sidebar', 'board', 'session'],
   )
-  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 6)
+  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 8)
   assert.equal(
     await shortcutCard.locator('[data-shortcut-fixed] [data-shortcut-recorder]').count(),
     0,
@@ -521,22 +521,30 @@ try {
     'nextAgent',
     'steerMessage',
     'shortcutHelp',
-    'showBoard',
+    'toggleSidebar',
     'openSession',
+    'openComponents',
+    'sessionTree',
+    'sideChat',
+    'cycleFocusRegion',
     'boardApprove',
   ])
     assert.equal(await shortcutCard.locator(`#shortcut-${action}`).count(), 1, action)
-  // 标签按标题栏顺序编号（⌘1 会话 … ⌘4 更多）；⌘[ 的“返回看板”已退役，不再列出。
-  assert.equal(await shortcutCard.locator('#shortcut-backToBoard').count(), 0)
-  for (const [action, digit] of [
-    ['openSession', '1'],
-    ['openBoard', '2'],
-    ['openComponents', '3'],
-    ['openMore', '4'],
+  // 侧栏入口 ⌘1 全部代理、⌘2 功能；会话主页、组件工作室与侧聊默认未绑定；⌘[ 与 showBoard 已退役，不再列出。
+  for (const retired of ['backToBoard', 'showBoard'])
+    assert.equal(await shortcutCard.locator(`#shortcut-${retired}`).count(), 0, retired)
+  for (const [action, expected] of [
+    ['openBoard', /1$/],
+    ['openMore', /2$/],
+    ['sessionTree', /B$/],
+    ['cycleFocusRegion', /F6$/],
+    ['openSession', /未绑定/],
+    ['openComponents', /未绑定/],
+    ['sideChat', /未绑定/],
   ])
     assert.match(
       (await shortcutCard.locator(`#shortcut-${action}`).innerText()).replace(/\s+/g, ''),
-      new RegExp(`${digit}$`),
+      expected,
       action,
     )
   const storedShortcuts = () =>
@@ -545,15 +553,15 @@ try {
     await shortcutCard.locator(`#shortcut-${action}`).click()
     await page.keyboard.press(keys)
   }
-  await recordShortcut('agentPanel', 'F6')
+  await recordShortcut('agentPanel', 'F7')
   await page.waitForFunction(
-    () => document.querySelector('#shortcut-agentPanel')?.textContent.replace(/\s+/g, '') === 'F6',
+    () => document.querySelector('#shortcut-agentPanel')?.textContent.replace(/\s+/g, '') === 'F7',
   )
-  assert.equal((await storedShortcuts()).agentPanel, 'F6')
+  assert.equal((await storedShortcuts()).agentPanel, 'F7')
   await recordShortcut('nextAgent', 'Alt+ArrowUp')
   const nextAgentError = shortcutCard.locator('#shortcut-error-nextAgent')
   await nextAgentError.waitFor()
-  assert.match(await nextAgentError.innerText(), /切换到上一个代理/)
+  assert.match(await nextAgentError.innerText(), /切换到上一个会话/)
   await page.keyboard.press('Escape')
   await recordShortcut('nextAgent', 'Control+ArrowDown')
   await page.waitForFunction(() =>
@@ -570,7 +578,7 @@ try {
     () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
   )
   console.log(
-    'PASS shortcut settings: global/board/session groups with six read-only fixed keys, tabs numbered ⌘1 session … ⌘4 more with no ⌘[ row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
+    'PASS shortcut settings: global/sidebar/all-agents/session groups with eight read-only fixed keys, ⌘1 all agents and ⌘2 features, session home / components / side chat unbound, ⇧⌘B session tree and F6 focus regions listed, no ⌘[ or showBoard row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
   )
   for (const scenario of [
     { name: 'light-1280', width: 1280, theme: 'light', longLabels: false },

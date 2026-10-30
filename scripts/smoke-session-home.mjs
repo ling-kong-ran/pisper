@@ -2,11 +2,12 @@
 // 会话目录全部来自真实 Runtime，所以“落地主页不建会话”可以直接数 GET /api/sessions。
 // 只在浏览器边界注入一个已配置的模型（启动台需要），并把 /api/chat 换成一个最小的 run 头帧，不连接模型。
 // 覆盖：全新数据目录打开 / → 新任务草稿且会话数不变；发出第一条消息才建会话并以 replace 换成 /board/:id；
-// 重新载入 / → 回到上次停留的会话；泳道条“打开看板”入口与 ⇧⌘B；“会话”标签；未知路径与 /chat 回主页；
+// 重新载入 / → 回到上次停留的会话；泳道条“打开看板”入口与 ⌘1；“会话”标签；未知路径与 /chat 回主页；
 // 归档该会话后 / → 草稿；桌面标签顺序与点亮；会话目录加载中 / 失败时的主页状态。
-// 标签快捷键按标题栏顺序编号（⌘1 会话、⌘2 看板，⌘[ 已退役）；草稿上的 ⌘N 与标题栏“新任务”聚焦草稿，
+// 快捷键 v2（规格 2.8）：⌘1 全部代理（看板）、⌘2 功能（更多），会话主页默认未绑定、⇧⌘B 归会话树，⌘[ 已退役；
+// 这里把“会话主页”改绑到 ⌘9，验证它可改绑并保留回主页的竞态修复。草稿上的 ⌘N 与标题栏“新任务”聚焦草稿，
 // 不叠派发浮层；真实会话页与主页错误态的 ⌘N 照旧打开派发浮层。
-// 竞态：⌘2 / ⇧⌘B 还没提交就按 ⌘1，按路由器的最新去向回到主页并停在那里（路由懒加载中与已加载两种）。
+// 竞态：⌘1 / ⌘2 还没提交就按回主页键，按路由器的最新去向回到主页并停在那里（路由懒加载中与已加载两种）。
 // 手机主页（草稿、返回根、标签栏、更多里的组件磁贴）在 smoke-mobile-shell 里覆盖。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -44,6 +45,9 @@ const app = await createPisperRuntime({
 await app.initialized
 const base = app.url
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+// 会话主页在 v2 默认未绑定；冒烟把它改绑到 ⌘9（完整的合法绑定表，避免依赖迁移）。
+const { DEFAULT_SHORTCUTS } = await import('../shared/shortcuts.mjs')
+const SHORTCUTS = JSON.stringify({ ...DEFAULT_SHORTCUTS, openSession: 'Mod+Digit9' })
 const report = { status: 'running', checks: [], pageErrors: [], routeErrors: [], routeRetries: [] }
 let browser
 let failurePage
@@ -74,12 +78,13 @@ async function fetchIdempotent(route) {
 
 async function newContext(options) {
   const context = await browser.newContext({ locale: 'zh-CN', ...options })
-  await context.addInitScript(() => {
+  await context.addInitScript((shortcuts) => {
     try {
       localStorage.setItem('pisper-language', 'zh-CN')
       localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+      localStorage.setItem('pisper-shortcuts', shortcuts)
     } catch {}
-  })
+  }, SHORTCUTS)
   await context.route('**/api/app-update*', (route) =>
     route.fulfill({ json: { state: 'current', checkedAt: Date.now() } }),
   )
@@ -303,37 +308,37 @@ try {
     'On the new-task draft ⌘N and the title bar 新任务 focus the draft textarea with the caret at the end and open no dispatch overlay; on a 40-line draft that overflows the height cap ⌘N also scrolls the textarea to the bottom, both when blurred and when already focused; the ⌘K 新会话 command still opens the overlay',
   )
 
-  // 1c. 标签快捷键按标题栏顺序：⌘2 看板、⌘1 会话主页（与点“会话”标签同一逻辑，不建会话）；⌘[ 不再导航。
+  // 1c. 快捷键 v2：⌘1 看板（全部代理）、改绑后的 ⌘9 会话主页（与点“会话”标签同一逻辑，不建会话）；⌘[ 不再导航。
   assert.match(
     await page.locator('[data-app-titlebar] [data-shell-tab="session"]').getAttribute('title'),
-    /^会话 \((Ctrl|Cmd) \+ 1\)$/,
+    /^会话 \((Ctrl|Cmd) \+ 9\)$/,
   )
   assert.match(
     await page.locator('[data-app-titlebar] [data-shell-tab="board"]').getAttribute('title'),
-    /^看板 \((Ctrl|Cmd) \+ 2\)$/,
+    /^看板 \((Ctrl|Cmd) \+ 1\)$/,
   )
-  await page.keyboard.press(`${mod}+Digit2`)
+  await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
   await page.locator('[data-board-root]').waitFor()
   assert.deepEqual(await activeTabs(page), ['board'])
   await page.keyboard.press(`${mod}+BracketLeft`)
   await page.waitForTimeout(400)
   assert.equal(hashOf(page), '#/board', '⌘[ no longer navigates')
-  await page.keyboard.press(`${mod}+Digit1`)
+  await page.keyboard.press(`${mod}+Digit9`)
   await page.waitForURL((url) => url.hash === '#/')
   await page.locator('[data-new-task-draft="desktop"]').waitFor()
   assert.deepEqual(await activeTabs(page), ['session'])
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
   report.checks.push(
-    'Tab shortcuts follow the title bar order: tooltips read 会话 ⌘1 / 看板 ⌘2; ⌘2 opens the board, ⌘[ no longer navigates, ⌘1 returns to the home draft without creating a session',
+    'Shortcut v2: tooltips read 看板 ⌘1 and the rebound 会话 ⌘9; ⌘1 opens the board, ⌘[ no longer navigates, the rebound session-home key returns to the home draft without creating a session',
   )
 
-  // 1d. 竞态：离开主页的 ⌘2 / ⇧⌘B 还没提交（React 在 transition 里提交路由，渲染的 page 仍是 session），
-  // 紧接着按 ⌘1 也必须回到主页并停在那里。两个窗口都覆盖：
+  // 1d. 竞态：离开主页的 ⌘1 / ⌘2 还没提交（React 在 transition 里提交路由，渲染的 page 仍是 session），
+  // 紧接着按回主页键（改绑的 ⌘9）也必须回到主页并停在那里。两个窗口都覆盖：
   // - 路由还在加载：重新载入后第一次去看板，扣住看板页面块，⌘1 落在“导航进行中、还没写入历史”时，
   //   原地撤销那次导航（历史不变），放行页面块后也不会再落到看板；
-  // - 路由已加载：⌘2 / ⇧⌘B 同步写入历史，只剩 React 提交前的窗口，历史是“看板 + 主页”两条。
+  // - 路由已加载：⌘1 / ⌘2 同步写入历史，只剩 React 提交前的窗口，历史是“看板（或功能）+ 主页”两条。
   // 任何情况下都不会在主页上叠一条重复的主页。
   const manifest = JSON.parse(await readFile(join(root, 'dist/.vite/manifest.json'), 'utf8'))
   const boardChunk = manifest['src/features/board/BoardPage.tsx'].file
@@ -355,35 +360,40 @@ try {
       : null
     await page.keyboard.press(`${mod}+${first}`)
     await boardRequested
-    await page.keyboard.press(`${mod}+Digit1`)
+    await page.keyboard.press(`${mod}+Digit9`)
     boardChunkGate = null
     release()
     await page.waitForURL((url) => url.hash === '#/')
     await page.locator('[data-new-task-draft="desktop"]').waitFor()
     await boardResponded
     await page.waitForTimeout(800)
-    assert.equal(hashOf(page), '#/', `${first} then ⌘1 stays on the home`)
+    assert.equal(hashOf(page), '#/', `${first} then ⌘9 stays on the home`)
     assert.deepEqual(await activeTabs(page), ['session'])
     const after = await page.evaluate(() => window.history.state?.idx)
     assert.equal(
       after,
       holdBoardRoute ? before : before + 2,
-      `${first} then ⌘1: history ${before} → ${after}`,
+      `${first} then ⌘9: history ${before} → ${after}`,
     )
     return after === before ? 'undone in place' : 'board + home'
   }
   await page.reload()
   await page.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 30000 })
-  const raceOutcomes = [await raceToHome('Digit2', { holdBoardRoute: true })]
-  await page.keyboard.press(`${mod}+Digit2`)
-  await page.locator('[data-board-root]').waitFor()
+  const raceOutcomes = [await raceToHome('Digit1', { holdBoardRoute: true })]
   await page.keyboard.press(`${mod}+Digit1`)
+  await page.locator('[data-board-root]').waitFor()
+  await page.keyboard.press(`${mod}+Digit9`)
   await page.locator('[data-new-task-draft="desktop"]').waitFor()
-  raceOutcomes.push(await raceToHome('Shift+KeyB'), await raceToHome('Digit2'))
+  // 功能页（⌘2）也先加载一次，下面两次都落在“路由已加载”的窗口。
+  await page.keyboard.press(`${mod}+Digit2`)
+  await page.locator('[data-more-tile]').first().waitFor()
+  await page.keyboard.press(`${mod}+Digit9`)
+  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  raceOutcomes.push(await raceToHome('Digit1'), await raceToHome('Digit2'))
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
   report.checks.push(
-    `Race: ⌘2 or ⇧⌘B immediately followed by ⌘1 lands on and stays on the home draft — while the board route is still loading (${raceOutcomes[0]}, the held board navigation never lands afterwards) and once it is loaded (⇧⌘B: ${raceOutcomes[1]}, ⌘2: ${raceOutcomes[2]}); no duplicate home entry, no session created`,
+    `Race: ⌘1 or ⌘2 immediately followed by the session-home key lands on and stays on the home draft — while the board route is still loading (${raceOutcomes[0]}, the held board navigation never lands afterwards) and once it is loaded (⌘1: ${raceOutcomes[1]}, ⌘2: ${raceOutcomes[2]}); no duplicate home entry, no session created`,
   )
 
   // 2. 发出第一条消息才建会话，以 replace 换成 /board/:id（标为主页落地），浏览器后退不回到草稿。
@@ -403,8 +413,9 @@ try {
     (expected) => localStorage.getItem('pisper-last-session') === expected,
     id,
   )
+  // 上一步竞态最后一次是 ⌘2（功能页）+ 主页：被 replace 掉的草稿之前就是功能页。
   await page.goBack()
-  await page.waitForURL((url) => url.hash === '#/board')
+  await page.waitForURL((url) => url.hash === '#/more')
   await page.goForward()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   report.checks.push(
@@ -419,10 +430,10 @@ try {
   assert.equal(await page.evaluate(() => window.history.state?.usr?.navOrigin), 'home')
   assert.deepEqual(await activeTabs(page), ['session'])
   assert.equal(creates.length, 1)
-  // 泳道条最左侧是“打开看板”入口（push，后退回会话），⇧⌘B 打开看板，“会话”标签回到上次的会话。
+  // 泳道条最左侧是“打开看板”入口（push，后退回会话），⌘1 打开看板，“会话”标签回到上次的会话。
   const entry = page.locator('[data-board-entry]')
-  assert.match(await entry.getAttribute('aria-label'), /^打开看板（.*B）$/)
-  assert.equal(await entry.getAttribute('aria-keyshortcuts'), `${mod}+Shift+B`)
+  assert.match(await entry.getAttribute('aria-label'), /^打开看板（.*1）$/)
+  assert.equal(await entry.getAttribute('aria-keyshortcuts'), `${mod}+1`)
   await entry.click()
   await page.waitForURL((url) => url.hash === '#/board')
   await page.goBack()
@@ -439,8 +450,12 @@ try {
   await page.keyboard.press('Escape')
   await page.locator('[data-launch-console="overlay"]').waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${id}`)
+  // ⇧⌘B 归会话树（A2 接线前不消费），不再离开会话页；⌘1 从输入框里打开看板。
   await page.locator('.focus-composer textarea').first().click()
   await page.keyboard.press(`${mod}+Shift+KeyB`)
+  await page.waitForTimeout(400)
+  assert.equal(hashOf(page), `#/board/${id}`, '⇧⌘B no longer opens the board')
+  await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
   await page.locator('[data-app-titlebar] [data-shell-tab="session"]').click()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
@@ -451,7 +466,7 @@ try {
   }
   assert.equal(creates.length, 1, 'navigation never creates sessions')
   report.checks.push(
-    'Reloading / lands on the last session; the lane strip 看板 entry announces ⇧⌘B, pushes /board and browser back returns; on the session page ⌘[ stays put and ⌘N still opens the dispatch overlay; ⇧⌘B opens the board from the composer; the 会话 tab, unknown paths and /chat all return to the last session',
+    'Reloading / lands on the last session; the lane strip 看板 entry announces ⌘1, pushes /board and browser back returns; on the session page ⌘[ and ⇧⌘B stay put and ⌘N still opens the dispatch overlay; ⌘1 opens the board from the composer; the 会话 tab, unknown paths and /chat all return to the last session',
   )
 
   // 4. 归档该会话后回到主页草稿；重新载入 / 仍是草稿。

@@ -264,7 +264,8 @@ test('the shell wires the session tab to the home, back to history, and the boar
   assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned, phoneShell\)/)
   assert.match(app, /homeEntry: isHomeEntry\(location\.state\)/)
   assert.match(app, /if \(parent === -1\) routerNavigate\(-1\)/)
-  assert.match(app, /onShowBoard=\{page === 'session' \? backToBoard : undefined\}/)
+  // v2：showBoard 退役，⇧⌘B 不再打开看板（交给会话树）；外壳不再接线 onShowBoard。
+  assert.doesNotMatch(app, /onShowBoard/)
   // ⌘1（openSession）与点“会话”标签同一个入口：主页逻辑，从不建会话；⌘[ 的返回看板已不再接线。
   assert.match(app, /onOpenSession=\{\(\) => selectShellTab\('session'\)\}/)
   assert.doesNotMatch(app, /onBackToBoard/)
@@ -275,7 +276,8 @@ test('the shell wires the session tab to the home, back to history, and the boar
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)
   const entry = await readFile('src/app/BoardEntry.tsx', 'utf8')
   assert.doesNotMatch(entry, /keydown|Escape|onKeyDown/)
-  assert.match(entry, /state\.bindings\.showBoard/)
+  // 泳道条的看板入口（A1 外壳段删除前）标出的是“全部代理”的 ⌘1。
+  assert.match(entry, /state\.bindings\.openBoard/)
 })
 
 test('on the home page the shell navigates itself: no session route is mounted there to take requests', async () => {
@@ -332,38 +334,48 @@ test('on the home page the shell navigates itself: no session route is mounted t
   assert.match(launch, /t\('board:home\.placeholderUnbound'\)/)
 })
 
-test('"open board" is its own rebindable shortcut; ⌘B stays with the hidden sidebar toggle', async () => {
-  // showBoard 之后只追加了“会话”标签动作（openSession）。
-  assert.deepEqual(SHORTCUT_ACTIONS.slice(-2), ['showBoard', 'openSession'])
-  assert.equal(DEFAULT_SHORTCUTS.showBoard, 'Mod+Shift+KeyB')
-  // ⌘B 是隐藏动作 toggleSidebar 的默认键：同一张表不能重复，因此默认改用 ⇧⌘B。
+// 规格 v2 第 2.8 节：showBoard 退役，⇧⌘B 交给新动作会话树；⌘B 的侧栏开关重新生效并列在设置里。
+// 原守卫保护的是“打开看板是独立、可改绑的动作，且与 ⌘B 不冲突”；看板没了以后，等价的保护是
+// 会话树接手 ⇧⌘B、与 ⌘B 不冲突、旧表迁移时不抢用户已占用的键，以及外壳不再把 ⇧⌘B 接到看板。
+test('session tree takes over ⇧⌘B from the retired showBoard; ⌘B toggles the sidebar again', async () => {
+  assert.deepEqual(SHORTCUT_ACTIONS.slice(-3), ['sessionTree', 'sideChat', 'cycleFocusRegion'])
+  assert.equal(SHORTCUT_ACTIONS.includes('showBoard'), false)
+  assert.equal(DEFAULT_SHORTCUTS.sessionTree, 'Mod+Shift+KeyB')
   assert.equal(DEFAULT_SHORTCUTS.toggleSidebar, 'Mod+KeyB')
-  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'showBoard', 'Mod+KeyB'), 'toggleSidebar')
-  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'showBoard', 'Mod+Shift+KeyB'), null)
+  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'sessionTree', 'Mod+KeyB'), 'toggleSidebar')
+  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'sessionTree', 'Mod+Shift+KeyB'), null)
   assert.deepEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
-  // 旧版保存的表补上新动作；默认键已被用户占用时补为未绑定，自定义原样保留。
+  // 缺会话树的表补默认键；⇧⌘B 已被用户占用时补为未绑定，自定义原样保留。
   const saved = Object.fromEntries(
-    SHORTCUT_ACTIONS.filter((action) => action !== 'showBoard').map((action) => [
+    SHORTCUT_ACTIONS.filter((action) => action !== 'sessionTree').map((action) => [
       action,
       DEFAULT_SHORTCUTS[action],
     ]),
   )
-  assert.equal(normalizeShortcutBindings(saved).showBoard, 'Mod+Shift+KeyB')
+  assert.equal(normalizeShortcutBindings(saved).sessionTree, 'Mod+Shift+KeyB')
   const taken = normalizeShortcutBindings({ ...saved, commandPalette: 'Mod+Shift+KeyB' })
   assert.equal(taken.commandPalette, 'Mod+Shift+KeyB')
-  assert.equal(taken.showBoard, null)
+  assert.equal(taken.sessionTree, null)
   const [catalog, shortcuts] = await Promise.all([
     readFile('src/features/config/shortcut-catalog.ts', 'utf8'),
     readFile('src/components/layout/AppShortcuts.tsx', 'utf8'),
   ])
-  // 会话组的第一行是“打开看板”；⌘[ 的“返回看板”已退役，不再列出。
+  // 会话组列出会话树与侧聊；⌘[ 的“返回看板”与 showBoard 都不再列出。
   assert.match(
     catalog,
-    /id: 'session',\s+entries: \[\s+app\('showBoard'\),\s+app\('previousAgent'\)/,
+    /id: 'session',\s+entries: \[\s+app\('toggleInspector'\),\s+app\('sessionTree'\),\s+app\('sideChat'\)/,
   )
-  assert.doesNotMatch(catalog, /backToBoard/)
-  assert.match(catalog, /showBoard: t\('board:shortcuts\.showBoard'\)/)
-  assert.match(shortcuts, /matchesShortcut\(event, bindings\.showBoard\)\) action = onShowBoard/)
+  assert.doesNotMatch(catalog, /backToBoard|showBoard/)
+  assert.match(catalog, /sessionTree: t\('board:shortcuts\.sessionTree'\)/)
+  assert.match(
+    shortcuts,
+    /matchesShortcut\(event, bindings\.sessionTree\)\) action = onSessionTree/,
+  )
+  assert.match(
+    shortcuts,
+    /matchesShortcut\(event, bindings\.toggleSidebar\)\) action = onToggleSidebar/,
+  )
+  assert.doesNotMatch(shortcuts, /showBoard/)
 })
 
 test('new-task requests on the home draft focus the draft instead of stacking the dispatch overlay', async () => {
@@ -426,12 +438,13 @@ test('title bar renders five tabs in order and lights the session tab on the hom
     ['session'],
   )
   assert.match(html, /lucide-session-bubble/)
-  // 五个标签都在提示里标出自己的快捷键（⌘1–⌘4 与 ⌘,），“会话”也不例外。
+  // 标签在提示里标出自己当前的快捷键：v2 默认 ⌘1 全部代理、⌘2 功能、⌘, 设置；“会话”和“组件”默认未绑定，
+  // 不显示按键（标题栏标签在 A1 外壳段随侧栏一起退役）。
   assert.deepEqual(
     [...html.matchAll(/title="[^"]*\((Ctrl|Cmd) \+ ([^)]+)\)"[^>]*data-shell-tab="(\w+)"/g)].map(
       (match) => `${match[3]}:${match[2]}`,
     ),
-    ['session:1', 'board:2', 'components:3', 'more:4', 'settings:,'],
+    ['board:1', 'more:2', 'settings:,'],
   )
 })
 

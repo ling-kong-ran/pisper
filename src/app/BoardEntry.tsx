@@ -1,5 +1,6 @@
 // 会话页的看板入口（主页改为会话之后取代“‹ 看板”返回键）：看板图标 + “看板”，语义是“打开看板”，
-// 点它 push 到 /board，浏览器后退回到会话。桌面放在泳道条最左侧并标出“打开看板”快捷键（showBoard）；
+// 点它 push 到 /board，浏览器后退回到会话。桌面放在泳道条最左侧并标出“全部代理”快捷键（openBoard，⌘1；
+// v2 的 showBoard 已退役，⇧⌘B 归会话树）；
 // 手机放进会话顶栏左侧，写作“看板 ▲N”，带琥珀的需要你计数（规格 7.3 的徽标保留）。
 // 只认点击与应用级快捷键，不监听 Esc：键盘 Esc 永远不离开会话页。
 import { LaneBarsIcon } from '@/components/app/LaneBarsIcon'
@@ -20,7 +21,7 @@ type BoardEntryProps = {
 export function BoardEntry({ onOpenBoard }: BoardEntryProps) {
   const { t } = useI18n()
   const phone = usePhoneShell()
-  const binding = useShortcutStore((state) => state.bindings.showBoard)
+  const binding = useShortcutStore((state) => state.bindings.openBoard)
   const shortcut = formatShortcut(binding)
   const fleet = useFleetSummary()
   const attention = phone ? fleet.attention : 0

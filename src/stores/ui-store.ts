@@ -4,7 +4,6 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
-import { clampSidebarWidth, DEFAULT_SIDEBAR_WIDTH } from '@/lib/sidebar-width'
 import {
   CODE_FONT_SIZE,
   LEGACY_FONT_SIZES,
@@ -44,9 +43,9 @@ export const DEFAULT_UI_PREFERENCES = {
   motion: MotionMode
 }
 
+// 侧栏收起状态不在这里：v2 侧栏由 src/stores/sidebar-store.ts（'pisper-sidebar'）独占，
+// 旧侧栏的 sidebarCollapsed / sidebarWidth 已随旧外壳退役。
 type UiState = {
-  sidebarCollapsed: boolean
-  sidebarWidth: number
   theme: ThemeMode
   density: DensityMode
   accent: AccentPreset
@@ -56,9 +55,6 @@ type UiState = {
   codeFontSize: number
   radius: RadiusMode
   motion: MotionMode
-  setSidebarCollapsed: (collapsed: boolean) => void
-  setSidebarWidth: (width: number) => void
-  toggleSidebar: () => void
   setTheme: (theme: ThemeMode) => void
   cycleTheme: () => void
   setDensity: (density: DensityMode) => void
@@ -75,8 +71,6 @@ type UiState = {
 
 type PersistedUiState = Pick<
   UiState,
-  | 'sidebarCollapsed'
-  | 'sidebarWidth'
   | 'theme'
   | 'density'
   | 'accent'
@@ -99,15 +93,21 @@ export function nextThemeMode(theme: ThemeMode): ThemeMode {
   return THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(theme) + 1) % THEME_SEQUENCE.length]
 }
 
+// 旧快照还带着已退役旧侧栏的字段：读出时剔除，不让它们混进状态（下次写入 'pisper-ui' 时自然丢弃）。
+function withoutRetiredSidebar(persisted: unknown): Partial<PersistedUiState> {
+  if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) return {}
+  const {
+    sidebarCollapsed: _collapsed,
+    sidebarWidth: _width,
+    ...rest
+  } = persisted as Record<string, unknown>
+  return rest as Partial<PersistedUiState>
+}
+
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
-      sidebarCollapsed: false,
-      sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       ...DEFAULT_UI_PREFERENCES,
-      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
-      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth: clampSidebarWidth(sidebarWidth) }),
-      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setTheme: (theme) => set({ theme }),
       cycleTheme: () =>
         set((state) => ({
@@ -132,10 +132,8 @@ export const useUiStore = create<UiState>()(
       storage: createJSONStorage(() => pageStateStorage),
       version: 3,
       migrate: (persisted, version): PersistedUiState => {
-        const stored = persisted as Partial<PersistedUiState>
+        const stored = withoutRetiredSidebar(persisted)
         return {
-          sidebarCollapsed: stored.sidebarCollapsed ?? false,
-          sidebarWidth: clampSidebarWidth(stored.sidebarWidth),
           ...DEFAULT_UI_PREFERENCES,
           ...stored,
           ...normalizeTypographyPreferences(stored),
@@ -150,8 +148,6 @@ export const useUiStore = create<UiState>()(
         }
       },
       partialize: ({
-        sidebarCollapsed,
-        sidebarWidth,
         theme,
         density,
         accent,
@@ -162,8 +158,6 @@ export const useUiStore = create<UiState>()(
         radius,
         motion,
       }) => ({
-        sidebarCollapsed,
-        sidebarWidth,
         theme,
         density,
         accent,
@@ -175,9 +169,8 @@ export const useUiStore = create<UiState>()(
         motion,
       }),
       merge: (persisted, current) => {
-        const stored = persisted as Partial<UiState> | undefined
+        const stored = persisted === undefined ? undefined : withoutRetiredSidebar(persisted)
         const legacyTheme = localStorage.getItem(STORAGE_KEYS.theme)
-        const legacySidebar = localStorage.getItem(STORAGE_KEYS.sidebarCollapsed)
         const legacyDensity = localStorage.getItem(STORAGE_KEYS.density)
         return {
           ...current,
@@ -189,8 +182,6 @@ export const useUiStore = create<UiState>()(
               : STORED_THEME_MODES.includes(legacyTheme as ThemeMode)
                 ? (legacyTheme as ThemeMode)
                 : current.theme),
-          sidebarCollapsed: stored?.sidebarCollapsed ?? legacySidebar === '1',
-          sidebarWidth: clampSidebarWidth(stored?.sidebarWidth),
           density: stored?.density ?? (legacyDensity === 'compact' ? 'compact' : current.density),
           accent: stored?.accent ?? current.accent,
           customAccent: stored?.customAccent ?? current.customAccent,

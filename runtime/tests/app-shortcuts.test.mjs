@@ -16,7 +16,7 @@ function fixture({
   blocked = false,
   terminal = true,
   bindings = shortcuts.DEFAULT_SHORTCUTS,
-  // 外壳只在有处理对象时传入：⌥A 需要有等待中的事项，⇧⌘B（打开看板）只在会话页与主页可用。
+  // 外壳只在有处理对象时传入：⌥A 需要有等待中的事项，⇧⌘B（会话树）与侧聊只在会话页可用。
   attention = true,
   session = true,
   // ⌘/ 快捷键速查（第 4 期新增）：外壳总会传入处理函数，这里可以关掉以验证不消费。
@@ -86,7 +86,9 @@ function fixture({
     onOpenComponents: () => calls.push('components'),
     onOpenMore: () => calls.push('more'),
     onJumpToAttention: attention ? () => calls.push('attention') : undefined,
-    onShowBoard: session ? () => calls.push('showBoard') : undefined,
+    onSessionTree: session ? () => calls.push('sessionTree') : undefined,
+    onSideChat: session ? () => calls.push('sideChat') : undefined,
+    onCycleFocusRegion: () => calls.push('focusRegion'),
     onShortcutHelp: help ? () => calls.push('help') : undefined,
   })
   const press = (code, properties = {}) => {
@@ -125,23 +127,40 @@ test('global bindings dispatch each supported action once and prevent the consum
     ['KeyB', 'sidebar'],
     ['Backquote', 'terminal'],
     ['Comma', 'settings'],
-    // 一级标签按标题栏顺序编号：会话 / 看板 / 组件 / 更多。
-    ['Digit1', 'session'],
-    ['Digit2', 'board'],
-    ['Digit3', 'components'],
-    ['Digit4', 'more'],
+    // 规格 v2 第 2.8 节：⌘1 全部代理、⌘2 功能；会话主页与组件默认未绑定，⌘3 / ⌘4 不再消费。
+    ['Digit1', 'board'],
+    ['Digit2', 'more'],
   ]) {
     f.calls.length = 0
     assert.equal(f.press(code, { ctrlKey: code !== 'Slash' }).defaultPrevented, true)
     assert.deepEqual(f.calls, [action])
   }
+  // showBoard 退役：⇧⌘B 交给会话树；F6 在侧栏、顶栏、对话、输入框之间切换焦点区域。
   f.calls.length = 0
   assert.equal(f.press('KeyB', { shiftKey: true }).defaultPrevented, true)
-  assert.deepEqual(f.calls, ['showBoard'])
-  // ⌘[ 已退役：不再消费，交还浏览器或页面自己的处理。
+  assert.deepEqual(f.calls, ['sessionTree'])
   f.calls.length = 0
-  assert.equal(f.press('BracketLeft').defaultPrevented, false)
-  assert.deepEqual(f.calls, [])
+  assert.equal(f.press('F6', { ctrlKey: false }).defaultPrevented, true)
+  assert.deepEqual(f.calls, ['focusRegion'])
+  // ⌘[ 已退役，⌘3 / ⌘4 与侧聊默认未绑定：不消费，交还浏览器或页面自己的处理。
+  for (const code of ['BracketLeft', 'Digit3', 'Digit4']) {
+    f.calls.length = 0
+    assert.equal(f.press(code).defaultPrevented, false, code)
+    assert.deepEqual(f.calls, [])
+  }
+  // 改绑后的会话主页、组件与侧聊照常派发。
+  const rebound = fixture({
+    bindings: {
+      ...shortcuts.DEFAULT_SHORTCUTS,
+      openSession: 'Mod+Digit3',
+      openComponents: 'Mod+Digit4',
+      sideChat: 'Mod+Shift+KeyE',
+    },
+  })
+  rebound.press('Digit3')
+  rebound.press('Digit4')
+  rebound.press('KeyE', { shiftKey: true })
+  assert.deepEqual(rebound.calls, ['session', 'components', 'sideChat'])
   f.calls.length = 0
   assert.equal(f.press('KeyA', { ctrlKey: false, altKey: true }).defaultPrevented, true)
   assert.deepEqual(f.calls, ['attention'])
@@ -150,7 +169,7 @@ test('global bindings dispatch each supported action once and prevent the consum
 })
 
 test('editable controls keep bare typing keys while application chords still work', () => {
-  // 应用级组合键在输入框内同样生效（规格 2.8：⌘N 新任务、⌘1/2/3/4 切标签、⌥A 跳到需要你），
+  // 应用级组合键在输入框内同样生效（规格 2.8：⌘N 新任务、⌘1 / ⌘2 侧栏入口、⌥A 聚焦需要你），
   // 不带修饰键的单键（/ 聚焦搜索）只在焦点不在输入框时生效，不能吞掉正常打字。
   const f = fixture()
   for (const selector of ['input', 'textarea', 'select', '[role="textbox"]', '[contenteditable]']) {
@@ -164,9 +183,11 @@ test('editable controls keep bare typing keys while application chords still wor
   for (const [code, properties, action] of [
     ['KeyK', {}, 'palette'],
     ['KeyN', {}, 'primary'],
-    ['Digit1', {}, 'session'],
-    ['Digit3', {}, 'components'],
+    ['Digit1', {}, 'board'],
+    ['Digit2', {}, 'more'],
     ['Comma', {}, 'settings'],
+    ['KeyB', {}, 'sidebar'],
+    ['KeyB', { shiftKey: true }, 'sessionTree'],
     ['KeyA', { ctrlKey: false, altKey: true }, 'attention'],
   ]) {
     f.calls.length = 0
@@ -194,12 +215,12 @@ test('macOS Option typing inside editable controls is never taken by Alt-only ch
 })
 
 test('shell actions without a current target leave the key to the page', () => {
-  // 没有等待中的事项时 ⌥A 不消费；不在会话页时 ⇧⌘B 交还浏览器或页面自己的处理。
+  // 没有等待中的事项时 ⌥A 不消费；不在会话页时 ⇧⌘B（会话树）交还浏览器或页面自己的处理。
   const f = fixture({ attention: false, session: false })
   assert.equal(f.press('KeyA', { ctrlKey: false, altKey: true }).defaultPrevented, false)
   assert.equal(f.press('KeyB', { shiftKey: true }).defaultPrevented, false)
   assert.deepEqual(f.calls, [])
-  assert.equal(f.press('Digit2').defaultPrevented, true)
+  assert.equal(f.press('Digit1').defaultPrevented, true)
   assert.deepEqual(f.calls, ['board'])
 })
 
@@ -259,11 +280,12 @@ test('the shortcut help chord works inside inputs, follows rebinding and never s
   f.calls.length = 0
   assert.equal(f.press('Slash', { ctrlKey: false }).defaultPrevented, true)
   assert.deepEqual(f.calls, ['search'])
+  // 改绑到 F7（F6 默认属于焦点区域切换）。
   const rebound = fixture({
-    bindings: { ...shortcuts.DEFAULT_SHORTCUTS, shortcutHelp: 'F6' },
+    bindings: { ...shortcuts.DEFAULT_SHORTCUTS, shortcutHelp: 'F7' },
   })
   assert.equal(rebound.press('Slash').defaultPrevented, false)
-  rebound.press('F6', { ctrlKey: false })
+  rebound.press('F7', { ctrlKey: false })
   assert.deepEqual(rebound.calls, ['help'])
   const missing = fixture({ help: false })
   assert.equal(missing.press('Slash').defaultPrevented, false)

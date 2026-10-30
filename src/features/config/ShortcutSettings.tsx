@@ -30,7 +30,6 @@ import {
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { SettingsGroup } from './settings-primitives'
 import {
-  HIDDEN_SHORTCUTS,
   SHORTCUT_GROUPS,
   shortcutEntryKey,
   useShortcutCatalogText,
@@ -80,26 +79,19 @@ export function ShortcutSettings({
   }
   const change = (action: ShortcutAction, binding: string | null) => {
     setSaved(false)
+    // v2 所有动作都列在设置里（没有隐藏动作），冲突一律提示用户，不替他让出别的动作的按键。
     const conflict = findShortcutConflict(bindings, action, binding)
-    // 设置里隐藏的动作（侧栏开关：新外壳没有侧栏）不能挡住可见动作，否则会提示与一个看不见的动作冲突；
-    // 直接让出它的按键，存储形状不变。
-    const hiddenConflict = conflict && HIDDEN_SHORTCUTS.includes(conflict) ? conflict : null
-    if (conflict && !hiddenConflict) {
+    if (conflict) {
       setError({ action, message: t('config:shortcuts.conflict', { action: labels[conflict] }) })
       return
     }
     try {
-      validateShortcutBindings({
-        ...bindings,
-        ...(hiddenConflict ? { [hiddenConflict]: null } : {}),
-        [action]: binding,
-      })
+      validateShortcutBindings({ ...bindings, [action]: binding })
     } catch {
       setError({ action, message: t('config:shortcuts.invalid') })
       return
     }
     try {
-      if (hiddenConflict) setBinding(hiddenConflict, null)
       setBinding(action, binding)
       setRecording(null)
       setError(null)

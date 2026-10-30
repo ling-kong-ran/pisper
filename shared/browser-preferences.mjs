@@ -1,8 +1,10 @@
 // 只同步真正需要跨随机回环端口保留的界面偏好；一次性请求和预览 URL 不进入持久化文件。
 export const BROWSER_PREFERENCE_KEYS = Object.freeze([
-  // ui-store 持有主题/排印/布局；sidebarWidth 默认340，旧快照缺字段时补默认并约束240–520。
-  // UI Store v2：UI/代码数值字号分别默认14/12，旧三档恢复13.5/14/14.5；不保存输入草稿。
+  // ui-store 持有主题/排印；UI/代码数值字号分别默认14/12，旧三档恢复13.5/14/14.5；不保存输入草稿。
+  // 旧快照里的 sidebarCollapsed / sidebarWidth 属于已退役的旧侧栏，读取时忽略、下次写入时自然丢弃。
   'pisper-ui',
+  // 方向 A 侧栏：收起成窄轨、“今天完成”折叠（src/stores/sidebar-store.ts 是唯一所有者）。
+  'pisper-sidebar',
   'pisper-session-context-layout',
   // 会话页检查器：开关、当前标签、宽度与改动 / 终端子视图（规格 4.4）。
   'pisper-session-inspector',

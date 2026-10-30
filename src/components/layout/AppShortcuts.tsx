@@ -7,7 +7,7 @@ import {
 } from '@/lib/shortcuts'
 import { useShortcutStore } from '@/stores/shortcut-store'
 
-// 应用级快捷键：带修饰键的组合在输入框内同样生效（⌘K、⌘N、⌘1/2/3/4、⌘,、⌥A、⇧⌘B、⌘/），
+// 应用级快捷键：带修饰键的组合在输入框内同样生效（⌘K、⌘N、⌘B、⌘1/2、⌘,、⌥A、⇧⌘B、⌘/、F6），
 // 单键（如 /）只在焦点不在输入框时生效，避免吞掉正常打字；macOS 上输入框内只带 ⌥ 的组合
 // 是在输入特殊字符（⌥A → å），同样交还输入框。处理器缺省时不消费按键，让浏览器或页面自己的处理继续。
 export function AppShortcuts({
@@ -23,7 +23,9 @@ export function AppShortcuts({
   onOpenComponents,
   onOpenMore,
   onJumpToAttention,
-  onShowBoard,
+  onSessionTree,
+  onSideChat,
+  onCycleFocusRegion,
   onShortcutHelp,
 }: {
   blocked: boolean
@@ -39,8 +41,11 @@ export function AppShortcuts({
   onOpenComponents?: () => void
   onOpenMore?: () => void
   onJumpToAttention?: () => void
-  // 会话页泳道条的“看板”入口（打开看板）；只在会话页与主页传入。
-  onShowBoard?: () => void
+  // 规格 v2 第 2.8 节的新动作：会话树（⇧⌘B）、侧聊（默认未绑定）只在会话页传入；
+  // F6 区域切换由外壳传入。缺省时不消费按键（看板入口动作退役后 ⇧⌘B 不再打开看板）。
+  onSessionTree?: () => void
+  onSideChat?: () => void
+  onCycleFocusRegion?: () => void
   onShortcutHelp?: () => void
 }) {
   const bindings = useShortcutStore((state) => state.bindings)
@@ -56,7 +61,9 @@ export function AppShortcuts({
       else if (matchesShortcut(event, bindings.openComponents)) action = onOpenComponents
       else if (matchesShortcut(event, bindings.openMore)) action = onOpenMore
       else if (matchesShortcut(event, bindings.jumpToAttention)) action = onJumpToAttention
-      else if (matchesShortcut(event, bindings.showBoard)) action = onShowBoard
+      else if (matchesShortcut(event, bindings.sessionTree)) action = onSessionTree
+      else if (matchesShortcut(event, bindings.sideChat)) action = onSideChat
+      else if (matchesShortcut(event, bindings.cycleFocusRegion)) action = onCycleFocusRegion
       else if (matchesShortcut(event, bindings.toggleSidebar)) action = onToggleSidebar
       else if (matchesShortcut(event, bindings.toggleTerminal)) action = onToggleTerminal
       else if (matchesShortcut(event, bindings.openSettings)) action = onSettings
@@ -73,6 +80,7 @@ export function AppShortcuts({
     bindings,
     blocked,
     onCommandPalette,
+    onCycleFocusRegion,
     onJumpToAttention,
     onOpenBoard,
     onOpenComponents,
@@ -80,9 +88,10 @@ export function AppShortcuts({
     onOpenSession,
     onPrimary,
     onSearch,
+    onSessionTree,
     onSettings,
     onShortcutHelp,
-    onShowBoard,
+    onSideChat,
     onToggleTerminal,
     onToggleSidebar,
   ])

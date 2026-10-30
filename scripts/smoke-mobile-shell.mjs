@@ -10,8 +10,9 @@
 //      Android 返回键先关表单再回上一级；
 //    - 平板 1024×768（手机 App）：桌面布局、泳道收缩规则、检查器覆盖层；
 //    - 窄宽度桌面模拟（pisperDesktop + customTitlebar）：不进手机外壳，标题栏无遮挡。
-//    - 冷启动快捷键（手机与 1440 桌面）：外壳第一次画出来就按一次 ⌘N / ⌘2，生效且只生效一次；
-//      手机看板上 ⌘1 紧接 ⌘N，请求等主页提交后交给草稿。
+//    - 冷启动快捷键（手机与 1440 桌面）：外壳第一次画出来就按一次 ⌘N / ⌘1，生效且只生效一次；
+//      手机看板上“会话主页”键紧接 ⌘N，请求等主页提交后交给草稿（快捷键 v2 里会话主页默认未绑定，
+//      冒烟把它改绑到 ⌘9）。
 // 浏览器模拟不等于真机（安全区、软键盘、返回键）或 Tauri / WebView 验证。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
@@ -528,12 +529,13 @@ async function newContext(
   { bridge, mobileApp = false, safeArea = false, keyboard = false, sessions } = {},
 ) {
   const context = await browser.newContext({ locale: 'zh-CN', ...options })
-  await context.addInitScript(() => {
+  await context.addInitScript((shortcuts) => {
     try {
       localStorage.setItem('pisper-language', 'zh-CN')
       localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+      localStorage.setItem('pisper-shortcuts', shortcuts)
     } catch {}
-  })
+  }, SMOKE_SHORTCUTS)
   if (bridge) await context.addInitScript(bridge)
   if (mobileApp) await context.addInitScript('window.__PISPER_MOBILE_APP__ = true')
   if (safeArea)
@@ -697,6 +699,9 @@ async function settle(page, ms = 300) {
 const hashOf = (page) => new URL(page.url()).hash
 const nativeBack = (page) => page.evaluate(() => window.__pisperRequestBack?.())
 const MOD_KEY = process.platform === 'darwin' ? 'Meta' : 'Control'
+// 快捷键 v2：会话主页默认未绑定；冒烟把它改绑到 ⌘9（完整的合法绑定表，不依赖迁移）。
+const { DEFAULT_SHORTCUTS } = await import('../shared/shortcuts.mjs')
+const SMOKE_SHORTCUTS = JSON.stringify({ ...DEFAULT_SHORTCUTS, openSession: 'Mod+Digit9' })
 
 // 冷启动探针（addInitScript 注入）：选择器第一次出现后的下一帧记为首次绘制，同时在捕获阶段只读地记下
 // 第一个按键到达页面的时间。报告写明按键离首次绘制多久：快捷键层曾经懒加载，外壳画出来后约 0.3 秒
@@ -957,9 +962,9 @@ async function verifyPhoneShell(boardSessions) {
     'Phone 新任务 opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input under the project row (Android back closes it first); the software keyboard hides the tab bar and it returns when the keyboard closes',
   )
 
-  // 看板上 ⌘1 紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是看板（手机看板不认领，旧逻辑会打开
-  // 派发底部表单）。外壳按路由器的最新去向判断，请求等主页提交后交给草稿：聚焦草稿、不开表单，只执行一次。
-  await page.keyboard.press(`${MOD_KEY}+Digit1`)
+  // 看板上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是看板（手机看板不认领，
+  // 旧逻辑会打开派发底部表单）。外壳按路由器的最新去向判断，请求等主页提交后交给草稿：聚焦草稿、不开表单，只执行一次。
+  await page.keyboard.press(`${MOD_KEY}+Digit9`)
   await page.keyboard.press(`${MOD_KEY}+KeyN`)
   await page.waitForURL((url) => url.hash === '#/')
   await page.waitForFunction(
@@ -968,7 +973,7 @@ async function verifyPhoneShell(boardSessions) {
     { timeout: 5000 },
   )
   await page.waitForTimeout(400)
-  assert.equal(await page.getByRole('dialog').count(), 0, '⌘N during ⌘1 opens no dispatch sheet')
+  assert.equal(await page.getByRole('dialog').count(), 0, '⌘N during ⌘9 opens no dispatch sheet')
   assert.equal(hashOf(page), '#/')
   await page.evaluate(
     () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
@@ -977,7 +982,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.waitForURL((url) => url.hash === '#/board')
   await tabBar.waitFor()
   report.checks.push(
-    'Phone race: ⌘1 then ⌘N at once from the board lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving board)',
+    'Phone race: the rebound session-home key then ⌘N at once from the board lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving board)',
   )
 
   // 更多：磁贴、角标、组件磁贴；组件列表 → 详情；返回键沿层级回到主页。
@@ -1410,7 +1415,7 @@ async function verifyTablet(boardSessions) {
 }
 
 // 冷启动快捷键（桌面与手机）：全新页面，外壳第一次画出来就按一次，必须生效且只生效一次。
-// ⌘2 只压入一条历史（idx 0 → 1）；桌面在“更多”页按 ⌘N（那里没有视图认领）只打开一个派发浮层。
+// ⌘1（全部代理）只压入一条历史（idx 0 → 1）；桌面在“更多”页按 ⌘N（那里没有视图认领）只打开一个派发浮层。
 // 手机主页上的 ⌘N 在 verifyPhoneShell 开头验证（聚焦草稿、不开底部表单）。
 async function verifyColdStartShortcuts(boardSessions) {
   const delays = []
@@ -1426,8 +1431,8 @@ async function verifyColdStartShortcuts(boardSessions) {
     await resetLastSession()
     const { context } = await newContext(options, { ...extra, sessions: boardSessions })
     await context.addInitScript(firstPaintProbe, selector)
-    const page = await openPage(context, `cold ${label} ⌘2`, '#/')
-    delays.push(`${label} ⌘2 ${await pressAfterFirstPaint(page, `${MOD_KEY}+Digit2`)}ms`)
+    const page = await openPage(context, `cold ${label} ⌘1`, '#/')
+    delays.push(`${label} ⌘1 ${await pressAfterFirstPaint(page, `${MOD_KEY}+Digit1`)}ms`)
     await page.waitForURL((url) => url.hash === '#/board', { timeout: 5000 })
     await page.locator('[data-board-root]').waitFor({ timeout: 30000 })
     assert.equal(await page.evaluate(() => window.history.state?.idx), 1, `${label}: one push`)
@@ -1446,7 +1451,7 @@ async function verifyColdStartShortcuts(boardSessions) {
     await context.close()
   }
   report.checks.push(
-    `Cold start: a single shortcut pressed right after the shell's first paint takes effect exactly once (${delays.join(', ')} after first paint) — ⌘2 pushes one /board entry on phone and desktop, desktop ⌘N on 更多 opens one dispatch overlay`,
+    `Cold start: a single shortcut pressed right after the shell's first paint takes effect exactly once (${delays.join(', ')} after first paint) — ⌘1 pushes one /board entry on phone and desktop, desktop ⌘N on 更多 opens one dispatch overlay`,
   )
 }
 

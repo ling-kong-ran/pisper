@@ -52,10 +52,12 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'nextAgent',
     'steerMessage',
     'shortcutHelp',
-    // 第 4 期主页改为会话：“打开看板”是独立动作（⌘B 已被隐藏的 toggleSidebar 占用，默认 ⇧⌘B）。
-    'showBoard',
-    // 标签按标题栏顺序编号后新增的“会话”标签动作；⌘[ 的 backToBoard 已退役。
+    // 标签按标题栏顺序编号后新增的“会话”动作；⌘[ 的 backToBoard 与 v2 的 showBoard 已退役。
     'openSession',
+    // 方向 A（规格 v2 第 2.8 节）：会话树、侧聊、F6 焦点区域追加在末尾。
+    'sessionTree',
+    'sideChat',
+    'cycleFocusRegion',
   ])
   assert.deepEqual(Object.values(DEFAULT_SHORTCUTS), [
     'Mod+KeyK',
@@ -67,9 +69,10 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'Mod+Shift+KeyL',
     'Enter',
     'F8',
+    // ⌘1 全部代理、组件未绑定、⌘2 功能。
+    'Mod+Digit1',
+    null,
     'Mod+Digit2',
-    'Mod+Digit3',
-    'Mod+Digit4',
     'Alt+KeyA',
     'Mod+KeyJ',
     'Mod+KeyI',
@@ -77,8 +80,11 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'Alt+ArrowDown',
     'Alt+Enter',
     'Mod+Slash',
+    // 会话未绑定；会话树接手 ⇧⌘B；侧聊未绑定；F6 切换焦点区域。
+    null,
     'Mod+Shift+KeyB',
-    'Mod+Digit1',
+    null,
+    'F6',
   ])
   assert.deepEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
   assert.notEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
@@ -393,7 +399,8 @@ test('key fallback is used only when a physical code is missing', () => {
 
 test('all default bindings can be recorded and matched on both platforms', () => {
   for (const mac of [false, true]) {
-    for (const binding of Object.values(DEFAULT_SHORTCUTS)) {
+    // 默认未绑定（null）的动作没有可录制的按键。
+    for (const binding of Object.values(DEFAULT_SHORTCUTS).filter(Boolean)) {
       const parts = binding.split('+')
       const code = parts.pop()
       const input = event(code, {
@@ -468,16 +475,46 @@ test('maps saved before the session actions gain their defaults without losing u
   assert.equal(migrated.nextAgent, 'Alt+ArrowDown')
   assert.deepEqual(validateShortcutBindings(migrated), migrated)
   // 已保存的完整新表原样保留（包括被禁用的新动作）。
-  const saved = { ...DEFAULT_SHORTCUTS, agentPanel: 'F6', steerMessage: null }
+  const saved = { ...DEFAULT_SHORTCUTS, agentPanel: 'F7', steerMessage: null }
   assert.deepEqual(normalizeShortcutBindings(JSON.parse(JSON.stringify(saved))), saved)
 })
 
-// —— 标签按标题栏顺序重新编号：⌘1 会话 / ⌘2 看板 / ⌘3 组件 / ⌘4 更多，⌘[ 退役 ——
+// —— 迁移矩阵：第 4 期之前 → 第 4 期 → 83140e4d（标签重新编号）→ 方向 A（规格 v2 第 2.8 节）——
+
+// 83140e4d 保存的完整默认表：⌘1 会话 / ⌘2 看板 / ⌘3 组件 / ⌘4 更多，⇧⌘B 是 showBoard，toggleSidebar 隐藏但仍是 ⌘B。
+const TABBAR_DEFAULTS = Object.freeze({
+  commandPalette: 'Mod+KeyK',
+  primaryAction: 'Mod+KeyN',
+  focusSearch: 'Slash',
+  toggleSidebar: 'Mod+KeyB',
+  toggleTerminal: 'Mod+Backquote',
+  openSettings: 'Mod+Comma',
+  focusComposer: 'Mod+Shift+KeyL',
+  sendMessage: 'Enter',
+  voiceInput: 'F8',
+  openBoard: 'Mod+Digit2',
+  openComponents: 'Mod+Digit3',
+  openMore: 'Mod+Digit4',
+  jumpToAttention: 'Alt+KeyA',
+  agentPanel: 'Mod+KeyJ',
+  toggleInspector: 'Mod+KeyI',
+  previousAgent: 'Alt+ArrowUp',
+  nextAgent: 'Alt+ArrowDown',
+  steerMessage: 'Alt+Enter',
+  shortcutHelp: 'Mod+Slash',
+  showBoard: 'Mod+Shift+KeyB',
+  openSession: 'Mod+Digit1',
+})
+
+// 83140e4d 存下的表（JSON 往返后的存储形态）。
+function tabbarMap(overrides = {}) {
+  return JSON.parse(JSON.stringify({ ...TABBAR_DEFAULTS, ...overrides }))
+}
 
 // 第 4 期（550971be）保存的完整默认表：有会话页动作和 showBoard，没有 openSession，还带着 backToBoard。
 function phaseFourMap(overrides = {}) {
   const map = {
-    ...DEFAULT_SHORTCUTS,
+    ...TABBAR_DEFAULTS,
     openBoard: 'Mod+Digit1',
     openComponents: 'Mod+Digit2',
     openMore: 'Mod+Digit3',
@@ -495,64 +532,71 @@ const tabs = (map) => ({
   openMore: map.openMore,
 })
 
+const V2_TABS = Object.freeze({
+  openSession: null,
+  openBoard: 'Mod+Digit1',
+  openComponents: null,
+  openMore: 'Mod+Digit2',
+})
+
 function assertStable(input) {
   const once = normalizeShortcutBindings(input)
   // 归一化结果再归一化不变，JSON 往返（存储形态）后也不变。
   assert.deepEqual(normalizeShortcutBindings(once), once)
   assert.deepEqual(normalizeShortcutBindings(JSON.parse(JSON.stringify(once))), once)
-  assert.equal(Object.hasOwn(once, 'backToBoard'), false)
+  for (const retired of ['backToBoard', 'showBoard'])
+    assert.equal(Object.hasOwn(once, retired), false)
   assert.deepEqual(Object.keys(once), [...SHORTCUT_ACTIONS])
+  assert.deepEqual(validateShortcutBindings(once), once)
   return once
 }
 
-test('untouched old tab defaults move to the new layout and the session tab gets ⌘1', () => {
-  for (const input of [phaseFourMap(), { ...PRE_SESSION_DEFAULTS }]) {
+test('untouched older defaults become the v2 sidebar layout in one pass', () => {
+  // 第 4 期之前、第 4 期、83140e4d 三代没动过的默认表，都直接得到完整的 v2 默认表。
+  for (const input of [{ ...PRE_SESSION_DEFAULTS }, phaseFourMap(), tabbarMap()]) {
     assert.deepEqual(assertStable(input), DEFAULT_SHORTCUTS)
   }
-  // 其他动作的自定义与禁用照样保留；标签后移不受影响。
-  const migrated = assertStable(phaseFourMap({ commandPalette: 'F2', voiceInput: null }))
-  assert.deepEqual(tabs(migrated), {
-    openSession: 'Mod+Digit1',
-    openBoard: 'Mod+Digit2',
-    openComponents: 'Mod+Digit3',
-    openMore: 'Mod+Digit4',
-  })
+  // 其他动作的自定义与禁用照样保留；入口键照常换成新布局，⌘B 的侧栏开关原样保留。
+  const migrated = assertStable(tabbarMap({ commandPalette: 'F2', voiceInput: null }))
+  assert.deepEqual(tabs(migrated), V2_TABS)
   assert.equal(migrated.commandPalette, 'F2')
   assert.equal(migrated.voiceInput, null)
+  assert.equal(migrated.toggleSidebar, 'Mod+KeyB')
+  assert.equal(migrated.sessionTree, 'Mod+Shift+KeyB')
+  assert.equal(migrated.sideChat, null)
+  assert.equal(migrated.cycleFocusRegion, 'F6')
+  // 第 4 期的表先按旧规则后移到 83140e4d 的布局，再换成 v2：自定义的其他动作同样保留。
+  const chained = assertStable(phaseFourMap({ commandPalette: 'F2' }))
+  assert.deepEqual(tabs(chained), V2_TABS)
+  assert.equal(chained.commandPalette, 'F2')
 })
 
-test('customised tab keys stay as stored and the session tab only takes ⌘1 when it is free', () => {
-  // 改过任何一个标签键：三个标签原样保留，⌘1 仍被看板占着，“会话”未绑定。
+test('changing any of the four entry keys keeps the stored entry keys as they are', () => {
+  // 83140e4d 的表：改过其中任何一个（换键、禁用、平台别名）就四个都原样保留。
+  for (const overrides of [
+    { openMore: 'Mod+Digit9' },
+    { openComponents: null },
+    { openSession: null },
+    { openBoard: 'Ctrl+Digit2' },
+    { openSession: 'F2', openBoard: 'F3' },
+  ]) {
+    const migrated = assertStable(tabbarMap(overrides))
+    assert.deepEqual(tabs(migrated), tabs(tabbarMap(overrides)), JSON.stringify(overrides))
+  }
+  // 第 4 期的表改过标签键：旧规则不后移，v2 也不换；“会话”在 ⌘1 被占用时未绑定（v2 默认本来就是未绑定）。
   assert.deepEqual(tabs(assertStable(phaseFourMap({ openMore: 'Mod+Digit9' }))), {
     openSession: null,
     openBoard: 'Mod+Digit1',
     openComponents: 'Mod+Digit2',
     openMore: 'Mod+Digit9',
   })
-  // 禁用也算自定义：不重新启用、不后移；⌘1 空出来时“会话”拿默认键。
   assert.deepEqual(tabs(assertStable(phaseFourMap({ openBoard: null }))), {
-    openSession: 'Mod+Digit1',
+    openSession: null,
     openBoard: null,
     openComponents: 'Mod+Digit2',
     openMore: 'Mod+Digit3',
   })
-  assert.deepEqual(tabs(assertStable(phaseFourMap({ openBoard: 'F2', openMore: 'Alt+KeyM' }))), {
-    openSession: 'Mod+Digit1',
-    openBoard: 'F2',
-    openComponents: 'Mod+Digit2',
-    openMore: 'Alt+KeyM',
-  })
-  // 平台别名也算改过（Ctrl+1 不是旧默认的 Mod+1），不替用户换回 Mod。
-  assert.deepEqual(tabs(assertStable(phaseFourMap({ openBoard: 'Ctrl+Digit1' }))), {
-    openSession: null,
-    openBoard: 'Ctrl+Digit1',
-    openComponents: 'Mod+Digit2',
-    openMore: 'Mod+Digit3',
-  })
-})
-
-test('a renumbered key already used by another action keeps the stored layout and leaves the session tab unbound', () => {
-  // ⌘4 已被别的动作占用（含平台别名）：更多移不过去，组件、看板也就留在原处，“会话”未绑定。
+  // 第 4 期后移被别的动作挡住（⌘4 已被占用，含平台别名）：停在第 4 期布局，v2 也不换。
   for (const binding of ['Mod+Digit4', 'Ctrl+Digit4', 'Meta+Digit4']) {
     const migrated = assertStable(phaseFourMap({ agentPanel: binding }))
     assert.equal(migrated.agentPanel, binding)
@@ -565,6 +609,28 @@ test('a renumbered key already used by another action keeps the stored layout an
   }
 })
 
+test('session tree only takes ⇧⌘B when it is free or still the retired showBoard default', () => {
+  // showBoard 仍是默认 ⇧⌘B：随 showBoard 退役空出，会话树拿到。
+  assert.equal(assertStable(tabbarMap()).sessionTree, 'Mod+Shift+KeyB')
+  // showBoard 改到别处：⇧⌘B 空着，会话树拿到；showBoard 占过的键随之空出，不留给任何动作。
+  const moved = assertStable(tabbarMap({ showBoard: 'F9' }))
+  assert.equal(moved.sessionTree, 'Mod+Shift+KeyB')
+  assert.equal(findShortcutConflict(moved, 'voiceInput', 'F9'), null)
+  // showBoard 被禁用：同样空着。
+  assert.equal(assertStable(tabbarMap({ showBoard: null })).sessionTree, 'Mod+Shift+KeyB')
+  // ⇧⌘B 被用户给了别的动作（含平台别名）：会话树未绑定，不抢已保存的键。
+  for (const binding of ['Mod+Shift+KeyB', 'Ctrl+Shift+KeyB', 'Meta+Shift+KeyB']) {
+    const taken = assertStable(tabbarMap({ showBoard: 'F9', commandPalette: binding }))
+    assert.equal(taken.commandPalette, binding)
+    assert.equal(taken.sessionTree, null)
+  }
+  // F6 被占用时 F6 区域切换补为未绑定；侧聊默认就是未绑定。
+  const f6 = assertStable(tabbarMap({ agentPanel: 'F6' }))
+  assert.equal(f6.agentPanel, 'F6')
+  assert.equal(f6.cycleFocusRegion, null)
+  assert.equal(f6.sideChat, null)
+})
+
 test('a stored backToBoard binding is dropped and frees its key', () => {
   // ⌘[ 不再属于任何动作；被丢弃的自定义键也不再挡住后移。
   const freed = assertStable(phaseFourMap({ backToBoard: 'Mod+Digit4' }))
@@ -573,25 +639,38 @@ test('a stored backToBoard binding is dropped and frees its key', () => {
   // 退役动作上的旧值即使不合法，也不会让整张表回到默认。
   const kept = assertStable(phaseFourMap({ commandPalette: 'F2', backToBoard: 'Escape' }))
   assert.equal(kept.commandPalette, 'F2')
-  // 新版本里已有 openSession 的表（包括特意改回旧布局、禁用“会话”）不再迁移。
-  const chosen = {
-    ...DEFAULT_SHORTCUTS,
-    openSession: null,
-    openBoard: 'Mod+Digit1',
-    openComponents: 'Mod+Digit2',
-    openMore: 'Mod+Digit3',
-  }
-  assert.deepEqual(assertStable(chosen), chosen)
-  assert.deepEqual(assertStable({ ...chosen, backToBoard: 'Mod+BracketLeft' }), chosen)
+  assert.equal(
+    assertStable(tabbarMap({ commandPalette: 'F2', showBoard: 'Escape' })).commandPalette,
+    'F2',
+  )
 })
 
-test('odd persisted shapes around the renumbering fall back to defaults without throwing', () => {
-  const throwing = new Proxy(phaseFourMap(), {
+test('maps that already have sessionTree are never migrated again', () => {
+  // 新版本里特意改回旧布局、禁用会话树或入口键：原样保留，包括退役动作的残留也只是丢弃。
+  const chosen = {
+    ...DEFAULT_SHORTCUTS,
+    openSession: 'Mod+Digit1',
+    openBoard: 'Mod+Digit2',
+    openComponents: 'Mod+Digit3',
+    openMore: 'Mod+Digit4',
+    sessionTree: null,
+  }
+  assert.deepEqual(assertStable(chosen), chosen)
+  assert.deepEqual(assertStable({ ...chosen, showBoard: 'Mod+Shift+KeyB' }), chosen)
+  assert.deepEqual(assertStable({ ...chosen, backToBoard: 'Mod+BracketLeft' }), chosen)
+  // 缺了某个 v2 动作（例如只写过 sessionTree 的中间版本）：只补缺的，不动入口键。
+  const partial = { ...chosen }
+  delete partial.cycleFocusRegion
+  assert.deepEqual(assertStable(partial), { ...chosen, cycleFocusRegion: 'F6' })
+})
+
+test('odd persisted shapes around the migrations fall back to defaults without throwing', () => {
+  const throwing = new Proxy(tabbarMap(), {
     ownKeys() {
       throw new Error('boom')
     },
   })
-  const getter = phaseFourMap()
+  const getter = tabbarMap()
   Object.defineProperty(getter, 'openMore', {
     enumerable: true,
     get() {
@@ -602,8 +681,12 @@ test('odd persisted shapes around the renumbering fall back to defaults without 
     phaseFourMap({ openBoard: 42 }),
     phaseFourMap({ openMore: 'Mod+Digit3 ' }),
     phaseFourMap({ openComponents: 'Digit2' }),
-    { ...DEFAULT_SHORTCUTS, openSession: 'Escape' },
-    { ...DEFAULT_SHORTCUTS, openSession: 'Mod+Digit2' },
+    tabbarMap({ openSession: 'Escape' }),
+    tabbarMap({ openSession: 'Mod+Digit2' }),
+    tabbarMap({ commandPalette: 'Mod+Digit1' }),
+    { ...DEFAULT_SHORTCUTS, sessionTree: 'Mod+KeyK' },
+    { ...DEFAULT_SHORTCUTS, sideChat: 'Shift+KeyL' },
+    { ...DEFAULT_SHORTCUTS, cycleFocusRegion: 7 },
     { openSession: 'Mod+Digit1', openBoard: 'Mod+Digit1' },
     throwing,
     getter,
@@ -615,6 +698,40 @@ test('odd persisted shapes around the renumbering fall back to defaults without 
       normalized = normalizeShortcutBindings(input)
     })
     assert.deepEqual(normalized, DEFAULT_SHORTCUTS)
+  }
+})
+
+// 回滚保证（规格 2.8）：用 83140e4d 的归一化函数原样读方向 A 的新表——丢弃不认识的动作、缺的补默认，
+// 不抛错，也不整体回到旧默认（入口键与其他自定义保留）。
+test('the 83140e4d normalizer reads v2 maps without throwing or resetting', async () => {
+  const old = await import('./fixtures/shortcuts-83140e4d.mjs')
+  const cases = [
+    DEFAULT_SHORTCUTS,
+    { ...DEFAULT_SHORTCUTS, commandPalette: 'F2', sessionTree: null, sideChat: 'Mod+Shift+KeyE' },
+    assertStable(tabbarMap({ voiceInput: null })),
+    assertStable(phaseFourMap({ openMore: 'Mod+Digit9' })),
+  ]
+  for (const v2 of cases) {
+    const stored = JSON.parse(JSON.stringify(v2))
+    let read
+    assert.doesNotThrow(() => {
+      read = old.normalizeShortcutBindings(stored)
+    })
+    assert.notDeepEqual(read, old.DEFAULT_SHORTCUTS, 'old version must not reset the map')
+    assert.deepEqual(Object.keys(read), [...old.SHORTCUT_ACTIONS])
+    for (const action of old.SHORTCUT_ACTIONS) {
+      if (action === 'showBoard') continue
+      assert.equal(read[action], v2[action], `old version keeps ${action}`)
+    }
+    // showBoard 在新表里不存在：旧版本补默认 ⇧⌘B（会话树被丢弃后它是空的），被占用时补为未绑定。
+    assert.equal(
+      read.showBoard,
+      v2.sessionTree === 'Mod+Shift+KeyB' || v2.sessionTree === null ? 'Mod+Shift+KeyB' : null,
+    )
+    // 旧版本存回去的表再被新版本读到：已有 openSession、没有 sessionTree，四个入口键不是 83140e4d 默认，原样保留。
+    const back = normalizeShortcutBindings(JSON.parse(JSON.stringify(read)))
+    assert.deepEqual(tabs(back), tabs(v2))
+    assert.deepEqual(validateShortcutBindings(back), back)
   }
 })
 
@@ -695,13 +812,10 @@ test('settings and the ⌘/ help list every visible action exactly once from one
   ])
   const listed = (kind) =>
     [...catalog.matchAll(new RegExp(`\\b${kind}\\('(\\w+)'\\)`, 'g'))].map((match) => match[1])
-  // 侧栏开关在新外壳里没有作用，只保留存储，不列出。
-  assert.deepEqual(
-    listed('app').sort(),
-    SHORTCUT_ACTIONS.filter((action) => action !== 'toggleSidebar').sort(),
-  )
+  // v2 侧栏回来后 ⌘B 收起 / 展开侧栏重新生效，所有动作都列出，没有隐藏动作。
+  assert.deepEqual(listed('app').sort(), [...SHORTCUT_ACTIONS].sort())
   assert.deepEqual(listed('board').sort(), [...BOARD_SHORTCUT_ACTIONS].sort())
-  assert.match(catalog, /HIDDEN_SHORTCUTS: readonly ShortcutAction\[\] = \['toggleSidebar'\]/)
+  assert.doesNotMatch(catalog, /HIDDEN_SHORTCUTS/)
   // 两处都从同一份目录渲染，按键读 shortcut-store。
   for (const source of [settings, help]) assert.match(source, /SHORTCUT_GROUPS\.map/)
   assert.match(help, /useShortcutStore\(\(state\) => state\.bindings\)/)

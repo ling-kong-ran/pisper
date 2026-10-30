@@ -12,7 +12,8 @@ export const STORAGE_KEYS = Object.freeze({
   sessionMessageTarget: 'pisper-session-message-target',
   webPreviewRequest: 'pisper-web-preview-request',
   language: 'pisper-language',
-  sidebarCollapsed: 'pisper-sidebar-collapsed',
+  // 侧栏收起状态（规格 v2 2.1），唯一所有者是 src/stores/sidebar-store.ts。
+  sidebar: 'pisper-sidebar',
   density: 'pisper-density',
   shortcuts: 'pisper-shortcuts',
   boardShortcuts: 'pisper-board-shortcuts',

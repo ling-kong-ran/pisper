@@ -10,9 +10,16 @@ import {
   type ShortcutBindings,
 } from '@/lib/shortcuts'
 
-export type ShortcutGroupId = 'global' | 'board' | 'session'
+export type ShortcutGroupId = 'global' | 'sidebar' | 'board' | 'session'
 export type FixedShortcutId =
-  'boardMove' | 'boardSwitchLane' | 'boardOpen' | 'boardExitTriage' | 'newline' | 'stopRun'
+  | 'sidebarMove'
+  | 'sidebarOpen'
+  | 'boardMove'
+  | 'boardSwitchLane'
+  | 'boardOpen'
+  | 'boardExitTriage'
+  | 'newline'
+  | 'stopRun'
 
 export type ShortcutEntry =
   | { kind: 'app'; action: ShortcutAction }
@@ -28,9 +35,8 @@ const fixed = (id: FixedShortcutId, ...keys: (readonly string[])[]): ShortcutEnt
   keys,
 })
 
-// 新外壳没有侧栏，“展开 / 收起侧栏”不再有作用；绑定仍保留在存储里，只是不列出。
-export const HIDDEN_SHORTCUTS: readonly ShortcutAction[] = ['toggleSidebar']
-
+// 分组与顺序按规格 v2 第 2.8 节：全局 → 侧栏 → 全部代理 → 会话。v2 侧栏回来后所有动作都列出，没有隐藏动作；
+// 默认未绑定的动作（会话主页、组件工作室、侧聊）也列出，方便用户自己绑定。
 export const SHORTCUT_GROUPS: readonly {
   id: ShortcutGroupId
   entries: readonly ShortcutEntry[]
@@ -40,16 +46,27 @@ export const SHORTCUT_GROUPS: readonly {
     entries: [
       app('commandPalette'),
       app('primaryAction'),
-      // 一级标签按标题栏顺序列出：会话 ⌘1、看板 ⌘2、组件 ⌘3、更多 ⌘4。
-      app('openSession'),
+      app('toggleSidebar'),
+      app('agentPanel'),
+      // 侧栏入口：⌘1 全部代理、⌘2 功能、⌘, 设置。
       app('openBoard'),
-      app('openComponents'),
       app('openMore'),
       app('openSettings'),
       app('jumpToAttention'),
-      app('shortcutHelp'),
+      app('previousAgent'),
+      app('nextAgent'),
+      app('cycleFocusRegion'),
       app('toggleTerminal'),
+      app('shortcutHelp'),
+      app('focusComposer'),
+      app('voiceInput'),
+      app('openSession'),
+      app('openComponents'),
     ],
+  },
+  {
+    id: 'sidebar',
+    entries: [fixed('sidebarMove', ['↑'], ['↓']), fixed('sidebarOpen', ['Enter'])],
   },
   {
     id: 'board',
@@ -73,17 +90,13 @@ export const SHORTCUT_GROUPS: readonly {
   {
     id: 'session',
     entries: [
-      app('showBoard'),
-      app('previousAgent'),
-      app('nextAgent'),
-      app('agentPanel'),
       app('toggleInspector'),
+      app('sessionTree'),
+      app('sideChat'),
       app('sendMessage'),
       app('steerMessage'),
       fixed('newline', ['Shift', 'Enter']),
       fixed('stopRun', ['Esc']),
-      app('focusComposer'),
-      app('voiceInput'),
     ],
   },
 ]
@@ -128,8 +141,10 @@ export function useShortcutCatalogText() {
     nextAgent: t('board:shortcuts.nextAgent'),
     steerMessage: t('board:shortcuts.steerMessage'),
     shortcutHelp: t('board:shortcuts.shortcutHelp'),
-    showBoard: t('board:shortcuts.showBoard'),
     openSession: t('board:shortcuts.openSession'),
+    sessionTree: t('board:shortcuts.sessionTree'),
+    sideChat: t('board:shortcuts.sideChat'),
+    cycleFocusRegion: t('board:shortcuts.cycleFocusRegion'),
   }
   const boardActions: Record<BoardShortcutAction, string> = {
     boardNext: t('config:shortcuts.boardNext'),
@@ -143,6 +158,8 @@ export function useShortcutCatalogText() {
     boardToggleGrouping: t('config:shortcuts.boardToggleGrouping'),
   }
   const fixedEntries: Record<FixedShortcutId, string> = {
+    sidebarMove: t('board:shortcuts.sidebarMove'),
+    sidebarOpen: t('board:shortcuts.sidebarOpen'),
     boardMove: t('board:shortcuts.boardMove'),
     boardSwitchLane: t('board:shortcuts.boardSwitchLane'),
     boardOpen: t('board:shortcuts.boardOpen'),
@@ -152,6 +169,7 @@ export function useShortcutCatalogText() {
   }
   const groups: Record<ShortcutGroupId, { title: string; hint: string }> = {
     global: { title: t('board:shortcuts.groupGlobal'), hint: t('board:shortcuts.globalHint') },
+    sidebar: { title: t('board:shortcuts.groupSidebar'), hint: t('board:shortcuts.sidebarHint') },
     board: { title: t('board:shortcuts.groupBoard'), hint: t('board:shortcuts.boardHint') },
     session: { title: t('board:shortcuts.groupSession'), hint: t('board:shortcuts.sessionHint') },
   }

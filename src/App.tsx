@@ -5,7 +5,7 @@ import { BackNavigation } from '@/components/layout/BackNavigation'
 // 一级导航（会话/看板/组件/更多/设置）在标题栏里；主页 '/' 是会话（上次停留的会话或新任务草稿）。
 // 设置页的分区导航在设置内容区左侧。
 // 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
-// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/4/, 一级标签、⌥A 跳到需要你、⇧⌘B 会话页打开看板、` 终端、/ 搜索、
+// （⌘K 命令面板、⌘N 新任务、⌘1 全部代理、⌘2 功能、⌘, 设置、⌥A 跳到需要你、` 终端、/ 搜索、
 // Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
@@ -626,7 +626,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
 
   // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。“会话”走与 '/' 相同的主页逻辑
   // （上次停留的会话或新任务草稿）；已在（或正要去）会话页或主页时不再压入历史。按路由器的最新去向判断：
-  // 刚按 ⇧⌘B / ⌘2 离开主页、界面还没换过去时，已渲染的 page 仍是 session，⌘1 不能因此什么都不做。
+  // 刚按 ⌘1 / ⌘2 离开主页、界面还没换过去时，已渲染的 page 仍是 session，回主页的入口不能因此什么都不做。
   const selectShellTab = useCallback(
     (tab: ShellTab) => {
       if (tab === 'session') {
@@ -870,7 +870,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   }
   // 从“更多”进入的功能页：页头显示“‹ 更多”。
   const moreOwned = shellTab === 'more' && page !== 'more'
-  const backToBoard = useCallback(() => routerNavigate(PAGE_PATHS.board), [routerNavigate])
   const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
   // 手机原生返回的路由层级（shellBackPath）：会话主页是根（主页与从主页落地的会话交还平台），
   // 从看板等页面点进来的会话走历史回到来处，一级标签页回主页，更多的子页回更多，组件详情回列表。
@@ -985,7 +984,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
             onOpenComponents={() => selectShellTab('components')}
             onOpenMore={() => selectShellTab('more')}
             onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
-            onShowBoard={page === 'session' ? backToBoard : undefined}
             onShortcutHelp={() => setShortcutHelpOpen(true)}
           />
           {/* 桌面（含手机 App 以外的窄窗口）由标题栏承载一级导航；手机外壳改用底部标签栏。 */}
