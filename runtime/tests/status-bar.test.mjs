@@ -45,27 +45,24 @@ test('status bar usage normalization accepts numeric strings and rejects invalid
 })
 
 test('Pisper shell waits for client detection and retires the global status bar', async () => {
-  const [app, statusBar] = await Promise.all([
-    readFile('src/App.tsx', 'utf8'),
-    readFile('src/components/layout/StatusBar.tsx', 'utf8'),
-  ])
+  const app = await readFile('src/App.tsx', 'utf8')
 
   assert.match(app, /const clientLoaded = useClientStore\(\(state\) => state\.loaded\)/)
   assert.doesNotMatch(app, /<StatusBar|import .*StatusBar/)
   assert.doesNotMatch(app, /pluginStats=\{pluginStats\}/)
-  assert.match(
-    statusBar,
-    /setUsage\(normalizeTokenUsage\(await apiJson<unknown>\('\/api\/usage\/today'\)\)\)/,
-  )
+  // 早已不挂载的全局状态栏在 v2（A1）随旧外壳删除；今日用量改由 useFleetSystemInfo 按需读取。
+  await assert.rejects(readFile('src/components/layout/StatusBar.tsx', 'utf8'), { code: 'ENOENT' })
 })
 
-test('today usage now lives in the fleet popover and is fetched only while it is open', async () => {
-  const [systemInfo, fleet] = await Promise.all([
-    readFile('src/features/board/useFleetSystemInfo.ts', 'utf8'),
-    readFile('src/app/FleetMeter.tsx', 'utf8'),
-  ])
-  // 全局状态栏退役后，今日用量放进标题栏舰队计量浮层的系统行，沿用同一个容错归一化。
+test('today usage is fetched only on demand once the fleet popover is retired', async () => {
+  const systemInfo = await readFile('src/features/board/useFleetSystemInfo.ts', 'utf8')
+  // 全局状态栏与标题栏舰队计量都已退役；“子代理 x/4 · 今日 tok · 内存”按规格 9.1 移到全部代理页头的
+  // 悬停提示（A3）。系统信息沿用同一个容错归一化，并且只在调用方打开时请求（enabled）。
   assert.match(systemInfo, /apiJson<unknown>\('\/api\/usage\/today', \{ signal \}\)/)
   assert.match(systemInfo, /normalizeTokenUsage\(usage\)\.totalTokens/)
-  assert.match(fleet, /useFleetSystemInfo\(open\)/)
+  assert.match(systemInfo, /export function useFleetSystemInfo\(enabled: boolean\)/)
+  assert.match(
+    systemInfo,
+    /queryFn: \(\{ signal \}\) => fetchFleetSystemInfo\(signal\),\s*enabled,/,
+  )
 })

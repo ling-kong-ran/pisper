@@ -401,19 +401,34 @@ try {
   report.checks.push(
     'Empty board centres the launch console with task suggestions below it; clicking a suggestion fills but never sends',
   )
-  const titlebar = page.locator('[data-app-titlebar]')
-  const shellTab = (tab) => titlebar.locator(`[data-shell-tab="${tab}"]`)
-  // 标题栏舰队计量（所有页面常驻）：运行数与需要你计数写在分组的可访问名称里。
-  const fleet = (running, attention = 0) =>
-    titlebar.getByRole('group', {
-      name: `代理概况：${running} 个运行中，${attention} 项需要你`,
-      exact: true,
-    })
+  // 规格 v2：没有标题栏，一级入口在侧栏（全部代理 / 功能 / 设置）；旧的“组件”标签归“功能”。
+  const titlebar = page.locator('[data-shell-sidebar]')
+  const SIDEBAR_ENTRIES = {
+    board: 'board',
+    more: 'features',
+    components: 'features',
+    settings: 'settings',
+  }
+  const shellTab = (tab) => titlebar.locator(`[data-sidebar-entry="${SIDEBAR_ENTRIES[tab]}"]`)
+  // 侧栏分组计数（取代标题栏舰队计量，所有页面常驻）：运行中与需要你两组标题上的数字。
+  const fleet = (running, attention = 0) => ({
+    waitFor: (options) =>
+      page.waitForFunction(
+        (expected) =>
+          Object.entries(expected).every(
+            ([group, count]) =>
+              document.querySelector(`[data-sidebar-group="${group}"] [data-sidebar-count]`)
+                ?.textContent === String(count),
+          ),
+        { running, attention },
+        options,
+      ),
+  })
   assert.deepEqual(
     await titlebar
-      .locator('[data-shell-tab]')
-      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab'))),
-    ['session', 'board', 'components', 'more', 'settings'],
+      .locator('[data-sidebar-entry]')
+      .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-sidebar-entry'))),
+    ['newTask', 'search', 'board', 'features', 'settings'],
   )
   await shellTab('more').click()
   await page.locator('[data-more-tile="page:workflows"]').waitFor()
@@ -652,7 +667,7 @@ try {
     .getByRole('button', { name: '界面设置', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
-  await titlebar.locator('[data-shell-tab="settings"][aria-current="page"]').waitFor()
+  await titlebar.locator('[data-sidebar-entry="settings"][aria-current="page"]').waitFor()
   // 空会话不上看板；经会话链接回到会话页（同一文档内的哈希跳转，不刷新），草稿仍在。
   await page.goto(base + '/' + sessionHash)
   await prompt.waitFor()
@@ -1172,7 +1187,7 @@ try {
     .getByText(/正在生成停止测试/)
     .first()
     .waitFor({ timeout: 30000 })
-  // 旧侧栏的会话转圈随外壳退役；运行状态由标题栏舰队计量和看板“运行中”泳道承载。
+  // 运行状态由侧栏“运行中”分组（计数 + 墨色弧）和看板“运行中”泳道承载。
   await fleet(1).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   assert.equal(
@@ -1259,7 +1274,7 @@ try {
   assert.equal(report.stopConnectionClosed, true)
   await fleet(0).waitFor({ timeout: 15000 })
   report.checks.push(
-    'The title-bar fleet meter counts the run while it streams and clears after stop; Stop aborts backend run and closes upstream stream',
+    'The sidebar running group counts the run while it streams and clears after stop; Stop aborts backend run and closes upstream stream',
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page.waitForFunction(
@@ -1323,7 +1338,9 @@ try {
   assert.equal(appliedSelection.model, provider + '-fixed/' + model + '-fixed')
   assert.equal(appliedSelection.thinkingLevel, 'off')
   await fleet(0).waitFor({ timeout: 15000 })
-  report.checks.push('The fleet meter clears after natural completion even while viewing workflows')
+  report.checks.push(
+    'The sidebar running count clears after natural completion even while viewing workflows',
+  )
   await page.goto(`${base}/#/board/${encodeURIComponent(sessionId)}`)
   await page
     .getByRole('heading', { name: '工作流', level: 1, exact: true })
@@ -1575,8 +1592,8 @@ try {
   }
   report.checks.push('all 21 release feature/configuration routes render without a React error')
   await verifyPageTemplates({ page, base, api, workspace, output, report })
-  // 新外壳的布局切换：桌面（含窄到 651px 的窗口）由 48px 标题栏承载一级导航，
-  // 手机宽度换成底部标签栏；切换与刷新都不丢会话草稿，设置标签点亮“设置”。
+  // 新外壳的布局切换：桌面（含窄到 651px 的窗口）由侧栏承载一级导航（任何宽度默认展开），
+  // 手机宽度换成手机外壳；切换与刷新都不丢会话草稿，设置入口点亮“设置”。
   await page.goto(base + '/#/board/new')
   await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
   const layoutHash = new URL(page.url()).hash
@@ -1590,13 +1607,13 @@ try {
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,
-      `${width}px title bar must not overflow the window`,
+      `${width}px sidebar shell must not overflow the window`,
     )
-    for (const tab of ['board', 'components', 'more', 'settings']) {
+    for (const tab of ['board', 'more', 'settings']) {
       const bounds = await shellTab(tab).boundingBox()
       assert.ok(
         bounds && bounds.height >= 28 && bounds.x >= 0 && bounds.x + bounds.width <= width,
-        `${tab} tab stays reachable at ${width}px: ${JSON.stringify(bounds)}`,
+        `${tab} entry stays reachable at ${width}px: ${JSON.stringify(bounds)}`,
       )
     }
   }
@@ -1614,12 +1631,14 @@ try {
   assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
   await shellTab('settings').click()
   await page.waitForURL('**/#/config/models')
-  await titlebar.locator('[data-shell-tab="settings"][aria-current="page"]').waitFor()
+  await titlebar.locator('[data-sidebar-entry="settings"][aria-current="page"]').waitFor()
   await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
-  // 主页改为会话：会话页点亮“会话”标签。
-  await titlebar.locator('[data-shell-tab="session"][aria-current="page"]').waitFor()
+  // 会话页不点亮任何入口（当前会话由侧栏的会话行标出）。
+  await page.waitForFunction(
+    () => !document.querySelector('[data-shell-sidebar] [data-sidebar-entry][aria-current]'),
+  )
   await page.reload()
   await titlebar.waitFor()
   await prompt.waitFor()
@@ -1638,13 +1657,13 @@ try {
   await titlebar.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   report.checks.push(
-    'The title bar keeps all four tabs reachable without overflow down to 651px and phones switch to the bottom tab bar; the session draft survives layout switching, settings navigation and the round trip back',
+    'The expanded sidebar keeps its entries reachable without overflow down to 651px and phones switch to the phone shell; the session draft survives layout switching, settings navigation and the round trip back',
   )
-  // 独立组件已迁到“组件”标签：旧的 ?view=widgets 链接直达组件页，聊天布局切换器不再出现。
+  // 独立组件已迁到组件页：旧的 ?view=widgets 链接直达组件页（侧栏点亮“功能”），聊天布局切换器不再出现。
   await page.goto(base + '/#/config/interface?view=widgets')
   await page.waitForURL('**/#/components')
   await page.locator('.page-content.page-components').waitFor()
-  await titlebar.locator('[data-shell-tab="components"][aria-current="page"]').waitFor()
+  await titlebar.locator('[data-sidebar-entry="features"][aria-current="page"]').waitFor()
   assert.equal(await page.getByRole('tab', { name: '会话布局' }).count(), 0)
   // 旧的 /chat 入口回到看板；会话草稿仍在原会话里。
   await page.goto(base + '/#/chat')
@@ -1656,7 +1675,7 @@ try {
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   assert.equal(await page.getByRole('button', { name: '会话布局' }).count(), 0)
   report.checks.push(
-    'Old widget-settings links open the Components tab, /chat returns to the home (last session or new-task draft), the removed chat layout switcher stays absent and navigation preserves the chat draft',
+    'Old widget-settings links open the components page (the sidebar lights 功能), /chat returns to the home (last session or new-task draft), the removed chat layout switcher stays absent and navigation preserves the chat draft',
   )
 
   await verifyRemoteWorkspaceSettings({ browser, base, report, output })

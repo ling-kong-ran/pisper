@@ -146,7 +146,7 @@ export function SessionPageHeader({
     <header
       data-session-header
       data-window-drag-region
-      className="flex h-11 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 pointer-coarse:h-12"
+      className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2" data-window-drag-region>
         <button

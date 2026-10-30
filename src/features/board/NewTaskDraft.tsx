@@ -3,17 +3,17 @@
 // pisper-launch-defaults）；进入草稿不建任何会话，发出第一条消息时才建，宿主随即以 replace 打开它。
 // 桌面：会话页头 44 + 空转录 + 768 宽的输入框；手机：56 顶栏（左侧看板入口）+ 代理条 + 停靠底部的输入框，
 // 底部安全区由这里让出，软键盘弹起时沿用 MobileViewportStabilizer 随可视视口移动。
-// 草稿本身就是“新任务”：挂载期间认领 ⌘N 与标题栏“新任务”的请求（见 new-task.ts），聚焦草稿而不叠派发浮层。
+// 草稿本身就是“新任务”：挂载期间认领 ⌘N 与侧栏“新任务”的请求（见 new-task.ts），聚焦草稿而不叠派发浮层。
 import { useRef, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
 import { LaunchConsole, type LaunchConsoleHandle } from './LaunchConsole'
 import { useBoardNewTaskHandler, type BoardNewTaskSource } from './new-task'
 
-// 草稿认领的来源：⌘N（随改绑）与标着同一个 ⌘N 的标题栏“新任务”按钮，二者在草稿上做同一件事。
+// 草稿认领的来源：⌘N（随改绑）与标着同一个 ⌘N 的侧栏“新任务”入口，二者在草稿上做同一件事。
 // 命令面板的“新会话”照旧打开派发浮层：它在面板对话框里执行，对话框关闭时把焦点还回打开前的位置，
 // 在这里聚焦草稿会被立刻撤销，命令看起来就什么也没做。手机标签栏在主页隐藏，不会发来请求。
-const DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set(['shortcut', 'titlebar'])
+const DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set(['shortcut', 'sidebar'])
 
 export type NewTaskDraftProps = {
   phone: boolean
@@ -107,7 +107,8 @@ export function NewTaskDraft({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel" data-new-task-draft="desktop">
       <header
         data-session-header="draft"
-        className="flex h-11 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4"
+        data-window-drag-region
+        className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
       >
         <h1 className="flex-none text-[15px] leading-6 font-semibold text-content">
           {t('board:home.draftTitle')}

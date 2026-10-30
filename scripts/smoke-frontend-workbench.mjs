@@ -270,11 +270,11 @@ try {
     0,
     'the session page embeds the single-session view without Dockview',
   )
-  // 主页改为会话后，泳道条左端是“打开看板”入口（push 到 /board），焦点仍回到来源卡片。
-  const returnBar = page.getByRole('button', { name: /^打开看板/ })
-  await returnBar.waitFor()
+  // 规格 v2：会话页没有泳道条，去全部代理的入口在应用侧栏（这个夹具只挂路由、不挂外壳），
+  // 这里直接 push 到 /board：焦点仍回到来源卡片。
   await page.getByText('Task A', { exact: true }).first().waitFor()
-  await returnBar.click()
+  assert.equal(await page.locator('[data-lane-strip], [data-board-entry]').count(), 0)
+  await page.evaluate(() => window.workbenchFixture.board())
   await page.locator('[data-board-root]').waitFor()
   await page.waitForFunction(() =>
     document.activeElement?.closest('[data-board-card]')?.getAttribute('data-board-card'),
@@ -841,7 +841,7 @@ try {
   await runningPage.goto(fixtureUrl('a'))
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
   await runningPage.getByText('Running task output', { exact: true }).waitFor()
-  await runningPage.getByRole('button', { name: /^打开看板/ }).click()
+  await runningPage.evaluate(() => window.workbenchFixture.board())
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ state: 'detached' })
   await runningPage.locator('[data-board-card="a"][data-lane="running"]').waitFor()
   await runningPage.waitForRequest(
@@ -910,8 +910,10 @@ try {
     'R2: completed run refreshes expanded snapshot diff',
   )
   await reviewPage.setViewportSize({ width: 1280, height: 900 })
+  // 规格 v2 的应用侧栏：任何时刻只有一个收起 / 展开键可达；按下后整块内容换成 60px 窄轨（分组区不再可聚焦），
+  // 焦点留在换上来的展开键上；再展开回到收起键。
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=navigation`)
-  const sidebarToggle = reviewPage.locator('#workbench-sidebar-toggle')
+  const sidebarToggle = reviewPage.locator('[data-sidebar-toggle]')
   await sidebarToggle.waitFor()
   assert.equal(await sidebarToggle.count(), 1, 'Only one sidebar toggle is reachable')
   assert.equal(await sidebarToggle.getAttribute('aria-expanded'), 'true')
@@ -921,14 +923,21 @@ try {
   )
   await sidebarToggle.focus()
   await sidebarToggle.press('Enter')
-  await reviewPage.getByRole('button', { name: 'Show sidebar', exact: true }).waitFor()
+  await reviewPage.getByRole('button', { name: '展开侧栏', exact: true }).waitFor()
+  assert.equal(
+    await sidebarToggle.count(),
+    1,
+    'Only one sidebar toggle is reachable when collapsed',
+  )
   assert.equal(await sidebarToggle.getAttribute('aria-expanded'), 'false')
   assert.equal(
-    await reviewPage
-      .getByTestId('workbench-sidebar')
-      .evaluate((sidebar) => Boolean(sidebar.closest('[inert]'))),
-    true,
+    await reviewPage.getByTestId('fixture-groups').count(),
+    0,
     'Collapsed navigation cannot receive keyboard focus',
+  )
+  // 宽度 180ms 过渡（规格 6.6）走完后是 60px 窄轨。
+  await reviewPage.waitForFunction(
+    () => document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect().width === 60,
   )
   reviewExpect(
     await sidebarToggle.evaluate((button) => button === document.activeElement),
@@ -1220,30 +1229,7 @@ try {
   await reviewPage
     .getByRole('spinbutton', { name: '界面字号', exact: true })
     .waitFor({ timeout: 5000 })
-  await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=drawer`)
-  const drawerToggle = reviewPage.getByRole('button', { name: 'Show sidebar', exact: true })
-  await drawerToggle.click()
-  const drawer = reviewPage.locator('[data-sidebar="sidebar"][data-mobile="true"]')
-  await drawer.waitFor()
-  await reviewPage.waitForFunction(() =>
-    document.querySelector('[data-mobile="true"]')?.contains(document.activeElement),
-  )
-  await reviewPage.keyboard.press('Escape')
-  await drawer.waitFor({ state: 'hidden' })
-  await reviewPage.waitForFunction(() => document.activeElement?.id === 'workbench-sidebar-toggle')
-  await reviewPage.setViewportSize({ width: 574, height: 844 })
-  await drawerToggle.click()
-  await drawer.waitFor()
-  await drawer.evaluate(async (element) => {
-    element.getBoundingClientRect()
-    await Promise.all(
-      element.getAnimations().map((animation) => animation.finished.catch(() => {})),
-    )
-  })
-  const drawerRect = await drawer.boundingBox()
-  assert.equal(Math.round(drawerRect.width), 280)
-  await reviewPage.locator('[data-slot="sheet-overlay"]').click({ position: { x: 540, y: 400 } })
-  await drawer.waitFor({ state: 'hidden' })
+  // 旧侧栏的手机抽屉（ui/sidebar 的 Sheet 形态）随 AppSidebar 退役；规格 v2 的手机抽屉在 A4 重做，届时补回验收。
   await reviewPage.close()
   assert.deepEqual(
     requests.filter((request) =>

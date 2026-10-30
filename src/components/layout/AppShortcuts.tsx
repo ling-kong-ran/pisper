@@ -7,9 +7,10 @@ import {
 } from '@/lib/shortcuts'
 import { useShortcutStore } from '@/stores/shortcut-store'
 
-// 应用级快捷键：带修饰键的组合在输入框内同样生效（⌘K、⌘N、⌘B、⌘1/2、⌘,、⌥A、⇧⌘B、⌘/、F6），
-// 单键（如 /）只在焦点不在输入框时生效，避免吞掉正常打字；macOS 上输入框内只带 ⌥ 的组合
-// 是在输入特殊字符（⌥A → å），同样交还输入框。处理器缺省时不消费按键，让浏览器或页面自己的处理继续。
+// 应用级快捷键：带修饰键的组合在输入框内同样生效（⌘K、⌘N、⌘B、⌘J、⌘1/2、⌘,、⌥A、⌥↑⌥↓、⇧⌘B、⌘/、F6），
+// 单键（如 /）只在焦点不在输入框时生效，避免吞掉正常打字；macOS 上输入框内只带 ⌥ 的字符键组合
+// 是在输入特殊字符（⌥A → å、⌥E 死键），同样交还输入框；⌥↑ / ⌥↓ 不产生字符，照常生效（与原泳道条一致）。
+// 处理器缺省时不消费按键，让浏览器或页面自己的处理继续。
 export function AppShortcuts({
   blocked,
   onCommandPalette,
@@ -17,6 +18,9 @@ export function AppShortcuts({
   onSearch,
   onToggleTerminal,
   onToggleSidebar,
+  onAgentPanel,
+  onPreviousAgent,
+  onNextAgent,
   onSettings,
   onOpenSession,
   onOpenBoard,
@@ -34,6 +38,10 @@ export function AppShortcuts({
   onSearch: () => void
   onToggleTerminal?: () => void
   onToggleSidebar?: () => void
+  // 侧栏（规格 2.8）：⌘J 聚焦会话列表、⌥↑ / ⌥↓ 按侧栏顺序切换会话；只在桌面外壳传入。
+  onAgentPanel?: () => void
+  onPreviousAgent?: () => void
+  onNextAgent?: () => void
   onSettings: () => void
   // 一级标签“会话”：与点标签相同的主页逻辑（上次停留的会话或新任务草稿，从不建会话）。
   onOpenSession?: () => void
@@ -52,7 +60,12 @@ export function AppShortcuts({
   // 在提交阶段（浏览器绘制之前）挂监听：外壳第一次画出来时快捷键就已可用，冷启动不丢键。
   useLayoutEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (blocked || shortcutEventBlocked(event) || optionTypingInEditable(event)) return
+      if (
+        blocked ||
+        shortcutEventBlocked(event) ||
+        (optionTypingInEditable(event) && !event.key.startsWith('Arrow'))
+      )
+        return
       let action: (() => void) | undefined
       if (matchesShortcut(event, bindings.commandPalette)) action = onCommandPalette
       else if (matchesShortcut(event, bindings.primaryAction)) action = onPrimary
@@ -65,6 +78,9 @@ export function AppShortcuts({
       else if (matchesShortcut(event, bindings.sideChat)) action = onSideChat
       else if (matchesShortcut(event, bindings.cycleFocusRegion)) action = onCycleFocusRegion
       else if (matchesShortcut(event, bindings.toggleSidebar)) action = onToggleSidebar
+      else if (matchesShortcut(event, bindings.agentPanel)) action = onAgentPanel
+      else if (matchesShortcut(event, bindings.previousAgent)) action = onPreviousAgent
+      else if (matchesShortcut(event, bindings.nextAgent)) action = onNextAgent
       else if (matchesShortcut(event, bindings.toggleTerminal)) action = onToggleTerminal
       else if (matchesShortcut(event, bindings.openSettings)) action = onSettings
       else if (matchesShortcut(event, bindings.shortcutHelp)) action = onShortcutHelp
@@ -79,13 +95,16 @@ export function AppShortcuts({
   }, [
     bindings,
     blocked,
+    onAgentPanel,
     onCommandPalette,
     onCycleFocusRegion,
     onJumpToAttention,
+    onNextAgent,
     onOpenBoard,
     onOpenComponents,
     onOpenMore,
     onOpenSession,
+    onPreviousAgent,
     onPrimary,
     onSearch,
     onSessionTree,

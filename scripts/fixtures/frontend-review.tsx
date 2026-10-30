@@ -1,6 +1,6 @@
 // 只注入父组件生命周期输入与 HTTP 数据；被验收的资源和模板均为生产组件。
 import { createRoot } from 'react-dom/client'
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { LanguageProvider } from '@/app/i18n-provider'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/startup-queries'
@@ -11,9 +11,7 @@ import { ListDetailLayout } from '@/components/app/ListDetailLayout'
 import { SessionFilesPane } from '@/features/chat/SessionFilesPane'
 import { createContextPages } from '@/features/chat/session-context-pages'
 import { SkillsPage } from '@/features/skills/SkillsPage'
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
-import { AppSidebar } from '@/components/layout/AppSidebar'
-import { WorkbenchHeader } from '@/components/layout/WorkbenchHeader'
+import { ShellSidebar } from '@/app/ShellSidebar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import QuickPromptIdeas from '@/features/chat/QuickPromptIdeas'
 import { FocusChatMessage } from '@/features/chat/ChatMessage'
@@ -73,37 +71,23 @@ function WelcomeFixture() {
   )
 }
 
-function NavigationFixture({ mobile = false }: { mobile?: boolean }) {
-  const [open, setOpen] = useState(true)
-  const [mobileOpen, setMobileOpen] = useState(false)
+// 规格 v2 的应用侧栏（取代旧的 AppSidebar + WorkbenchHeader 与它的手机抽屉）：真实外壳组件 + 共享页头，
+// 分组区与窄轨计数换成固定占位，只验收起 / 展开的键盘焦点与结构。
+function NavigationFixture() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   return (
-    <SidebarProvider
-      open={open}
-      onOpenChange={setOpen}
-      persistent={false}
-      mobile={mobile}
-      openMobile={mobileOpen}
-      onOpenMobileChange={setMobileOpen}
-    >
-      <AppSidebar
-        page="chat"
-        configSection="models"
-        navigate={() => {}}
-        navigateSettings={() => {}}
-        onNewChat={() => {}}
+    <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <ShellSidebar
+        active={null}
+        onNewTask={() => {}}
         onSearch={() => {}}
-        update={{}}
-        onOpenUpdates={() => {}}
-        tasks={<button>Fixture task</button>}
+        onOpenBoard={() => {}}
+        onOpenFeatures={() => {}}
+        onOpenSettings={() => {}}
+        content={<button data-testid="fixture-groups">Fixture task</button>}
+        railCounts={<span data-testid="fixture-rail-counts" />}
       />
-      <SidebarInset>
-        <WorkbenchHeader
-          title="Fixture workspace"
-          sidebarOpen={mobile ? mobileOpen : open}
-          onToggleSidebar={() => (mobile ? setMobileOpen(!mobileOpen) : setOpen(!open))}
-          toggleLabel="Show sidebar"
-        />
+      <main style={{ flex: 1, minWidth: 0 }}>
         <input aria-label="Workspace draft" />
         <PageHeader
           meta={['Fixture conversation', 'Fixture description']}
@@ -113,16 +97,14 @@ function NavigationFixture({ mobile = false }: { mobile?: boolean }) {
           configSection="models"
           onMenu={() => {}}
           onPrimary={() => {}}
-          theme="light"
-          onCycleTheme={() => {}}
           searchInputRef={searchInputRef}
           workflowActions={null}
           desktopPlatform=""
           terminalOpen={false}
           onToggleTerminal={() => {}}
         />
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </div>
   )
 }
 
@@ -167,8 +149,6 @@ function ReviewFixture() {
         <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
           {mode === 'appearance' || mode === 'appearance-navigation' ? (
             <AppearanceFixture startFromModels={mode === 'appearance-navigation'} />
-          ) : mode === 'drawer' ? (
-            <NavigationFixture mobile />
           ) : mode === 'message' ? (
             <MessageFixture />
           ) : mode === 'welcome' ? (

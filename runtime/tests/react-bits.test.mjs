@@ -50,7 +50,6 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     activity,
     confirmation,
     history,
-    preview,
     composerBits,
     main,
     shinyText,
@@ -63,7 +62,6 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
-    readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
     readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
     readFile('src/main.tsx', 'utf8'),
     readFile('src/components/react-bits/ShinyText.tsx', 'utf8'),
@@ -88,7 +86,6 @@ test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', a
   assert.match(confirmation, /import\('@\/components\/react-bits\/ClickSpark'\)/)
   assert.match(confirmation, /<Suspense fallback=\{action\}>/)
   assert.doesNotMatch(history, /react-bits\/SpotlightCard/)
-  assert.doesNotMatch(preview, /react-bits\/Threads/)
   assert.doesNotMatch(main, /react-bits\.css/)
   assert.match(shinyText, /import '\.\/react-bits\.css'/)
   assert.match(brand, /max-w-2xl/)

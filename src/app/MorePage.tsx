@@ -52,8 +52,10 @@ export function MorePage({ onOpen }: MorePageProps) {
     [catalog.data],
   )
   const groups = useMemo(
-    () => getMoreNavigation(t, { capabilities, mobileApp, components, componentsTile: phone }),
-    [capabilities, components, mobileApp, phone, t],
+    // 规格 v2：组件工作室不再是一级入口（标题栏标签已退役），桌面与手机都从“功能”的组件分组进入；
+    // 功能索引在 A3 重排时移到“扩展 › 组件工作室”。
+    () => getMoreNavigation(t, { capabilities, mobileApp, components, componentsTile: true }),
+    [capabilities, components, mobileApp, t],
   )
   const visible = useMemo(
     () => filterMoreNavigation(groups, query, language),
@@ -112,7 +114,7 @@ export function MorePage({ onOpen }: MorePageProps) {
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto bg-background">
-      <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6 px-6 pt-6 pb-10 max-[650px]:gap-5 max-[650px]:px-4 max-[650px]:pt-4">
+      <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6 px-6 pt-6 pb-10 max-[650px]:gap-5 max-[650px]:px-4 max-[650px]:pt-4 [[data-custom-titlebar]_&]:pt-14">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="flex min-w-0 items-baseline gap-3">
             <h1

@@ -158,7 +158,8 @@ export async function verifyPisperIteration({
       })
       const scaled = await context.newPage()
       const card = scaled.locator('[data-board-card="fx-standard"]')
-      const chip = scaled.locator('[data-strip-chip="fx-standard"]')
+      // 规格 v2：会话页的泳道条换成应用侧栏，侧栏行与界面同为 14（随界面字号缩放）。
+      const row = scaled.locator('[data-shell-sidebar] [data-sidebar-row="fx-standard"]')
       // 字号断言取文本所在元素（没有子元素、文字等于标题）的计算字号。
       const titleFont = (scope, title) =>
         scope.evaluate((root, text) => {
@@ -191,24 +192,24 @@ export async function verifyPisperIteration({
           `card meta row at ${size}`,
         )
         await scaled.goto(base + `/#/board/${real.id}`)
-        await chip.waitFor({ timeout: 30000 })
-        assert.equal(await titleFont(chip, '补充登录模块的单元测试'), xs, `strip chip at ${size}`)
+        await row.waitFor({ timeout: 30000 })
+        assert.equal(await titleFont(row, '补充登录模块的单元测试'), size, `sidebar row at ${size}`)
         const layout = await scaled.evaluate(() => ({
-          strip: Math.round(
-            document.querySelector('[data-lane-strip]').getBoundingClientRect().height,
+          sidebar: Math.round(
+            document.querySelector('[data-shell-sidebar]').getBoundingClientRect().width,
           ),
           horizontalScroll: document.documentElement.scrollWidth > innerWidth,
           root: getComputedStyle(document.documentElement).fontSize,
         }))
-        assert.deepEqual(layout, { strip: 52, horizontalScroll: false, root: '16px' })
+        assert.deepEqual(layout, { sidebar: 268, horizontalScroll: false, root: '16px' })
       }
-      await scaled.screenshot({ path: join(output, 'strip-font-scale.png') })
+      await scaled.screenshot({ path: join(output, 'sidebar-font-scale.png') })
     } finally {
       await context.close()
     }
   }
   report.checks.push(
-    'The numeric UI font size scales board card rows (title base, meta xs) and lane strip chips (xs) at 12/16/14 px while the strip stays 52px, the root stays 16px and nothing scrolls horizontally',
+    'The numeric UI font size scales board card rows (title base, meta xs) and sidebar session rows (base) at 12/16/14 px while the sidebar stays 268px, the root stays 16px and nothing scrolls horizontally',
   )
 
   const openWorkflowSettings = async () => {

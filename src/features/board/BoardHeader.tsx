@@ -161,7 +161,10 @@ export function BoardHeader({
   ].filter(Boolean)
 
   return (
-    <header className="flex h-[52px] flex-none items-center gap-3 px-4">
+    <header
+      data-window-drag-region
+      className="flex h-[52px] flex-none items-center gap-3 px-4 [[data-custom-titlebar]_&]:pr-[144px]"
+    >
       <div className="flex min-w-0 flex-none items-baseline gap-3">
         <h1 className="text-xl leading-7 font-[650] tracking-[-.015em] text-content">
           {t('board:page.title')}

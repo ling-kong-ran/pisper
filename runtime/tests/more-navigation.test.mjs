@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { getActivityNavigation } from '../../src/app/activity-navigation.ts'
 import {
   MORE_PAGES,
   countMoreTiles,
@@ -14,9 +13,26 @@ import { requestCommandPalette, takeCommandPaletteQuery } from '../../src/featur
 import { parseOnlineMcpCount } from '../../src/features/mcp/mcp-status.ts'
 import { parseEnabledScheduleCount } from '../../src/features/schedules/schedule-status.ts'
 import { parseRunningWorkflowCount } from '../../src/features/workflows/workflow-status.ts'
-import { LEGACY_RUNTIME_CAPABILITIES } from '../../src/types/runtime-capabilities.ts'
+import {
+  LEGACY_RUNTIME_CAPABILITIES,
+  runtimePageAvailable,
+} from '../../src/types/runtime-capabilities.ts'
 
-// “更多”启动台取代旧功能栏分组（activity-navigation）在外壳里的角色（规格 2.5）。
+// “更多”（v2 改名“功能”）启动台取代旧功能栏分组在外壳里的角色（规格 2.5）。
+// 旧功能栏（activity-navigation）已随旧外壳删除；它能到的页面冻结在下面，守卫“退役后仍可达”。
+const RETIRED_ACTIVITY_PAGES = [
+  'chat',
+  'chatHistory',
+  'assets',
+  'memory',
+  'workflows',
+  'schedules',
+  'channels',
+  'plugins',
+  'skills',
+  'mcp',
+  'components',
+]
 const t = (key) => key
 
 function capabilities(features = {}) {
@@ -87,7 +103,7 @@ test('capability trimming hides exactly the unavailable pages and keeps the rest
 })
 
 test('every destination of the retired activity rail stays reachable from the new shell', () => {
-  // 旧功能栏能到的页面，新外壳里要么是一级标签，要么是“更多”里的磁贴；能力裁剪结论保持一致。
+  // 旧功能栏能到的页面，新外壳里要么是一级入口，要么是“功能”里的磁贴；能力裁剪结论保持一致。
   for (const features of [
     {},
     { skills: false, workflows: false, assets: false, channels: false },
@@ -97,9 +113,7 @@ test('every destination of the retired activity rail stays reachable from the ne
       ...Object.values(SHELL_TAB_PAGES),
       ...pageTiles(getMoreNavigation(t, { capabilities: caps })),
     ])
-    const activity = getActivityNavigation(t, caps).flatMap((group) =>
-      group.items.map((item) => item.id),
-    )
+    const activity = RETIRED_ACTIVITY_PAGES.filter((page) => runtimePageAvailable(caps, page))
     for (const page of activity) {
       // 旧的“聊天”入口由看板标签承担，会话在看板上打开。
       const target = page === 'chat' ? 'board' : page

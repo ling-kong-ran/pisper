@@ -1,183 +1,65 @@
-// 第 3 期会话页外壳（规格 4.1 / 4.2 / 4.4）：泳道条的收缩顺序与切换顺序、检查器偏好，
-// 以及“critical 审批在任何入口都不能一步批准”在泳道条、代理面板与会话审批面板上的源码守卫。
+// 会话页外壳（规格 v2 第 4.1 / 4.4 / 4.6 节）：并行的代理在应用侧栏里，会话页没有泳道条与 ⌘J 代理面板；
+// 检查器偏好，以及“critical 审批在任何入口都不能一步批准”在侧栏、手机代理条与会话审批面板上的源码守卫。
+// 第 3 期的泳道条收缩顺序与迷你卡片守卫随泳道条退役（A1）；等价的保护改为侧栏分组模型
+// （sidebar-model.test.mjs：长列表规则、只有完整的普通批准才能一步处理、⌥↑⌥↓ 顺序）与下面的源码守卫。
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import {
-  STRIP_ATTENTION_ACTION_CHIP_WIDTH,
-  STRIP_ATTENTION_ACTION_ONE_LINE_WIDTH,
-  STRIP_ATTENTION_CHIP_WIDTH,
-  STRIP_ATTENTION_KEEP,
-  STRIP_CURRENT_CHIP_MAX_WIDTH,
-  STRIP_RUNNING_TITLE_WIDTH,
-  adjacentStripSession,
-  effectiveStripCurrent,
-  stripAttentionChipWidth,
-  stripCurrentChipWidth,
-  stripLayout,
-  stripOrder,
-  stripRequiredWidth,
-} from '../../src/features/board/strip-layout.ts'
+import { effectiveStripCurrent, stripOrder } from '../../src/features/board/strip-layout.ts'
+import { requestedPathname } from '../../src/app/shell-tabs.ts'
+import { sessionIdFromPath } from '../../src/app/routes.ts'
 
 const root = resolve(import.meta.dirname, '../..')
 const read = (path) => readFile(resolve(root, path), 'utf8')
-const base = { attention: 2, running: 3, currentRunning: true, queued: false, done: true }
-
-test('the lane strip shrinks in the four spec steps and never drops attention titles', () => {
-  const wide = stripLayout({ ...base, width: 4000, compact: false })
-  // actionChipWidth：没有带内联键的芯片时就是基础宽度。
-  assert.deepEqual(wide, {
-    level: 0,
-    runningMode: 'full',
-    attentionLines: 2,
-    attentionShown: 2,
-    actionChipWidth: 220,
-  })
-  // 逐步收窄：先运行中只留标题，再收成胶囊（当前会话芯片保留），再需要你单行，最后第 3 个起收进胶囊。
-  const levels = []
-  for (let width = 4000; width > 0; width -= 20) {
-    const layout = stripLayout({ ...base, attention: 4, width, compact: false })
-    if (levels.at(-1)?.level !== layout.level) levels.push(layout)
-  }
-  assert.deepEqual(
-    levels.map((layout) => layout.level),
-    [0, 1, 2, 3, 4],
-  )
-  assert.deepEqual(levels[1], {
-    level: 1,
-    runningMode: 'title',
-    attentionLines: 2,
-    attentionShown: 4,
-    actionChipWidth: 220,
-  })
-  assert.equal(levels[2].runningMode, 'capsule')
-  assert.equal(levels[3].attentionLines, 1)
-  assert.equal(levels[4].attentionShown, STRIP_ATTENTION_KEEP)
-  // 每一步都比上一步更窄。
-  for (let index = 1; index < levels.length; index += 1)
-    assert.ok(
-      stripRequiredWidth({ ...base, attention: 4, width: 0, compact: false }, levels[index]) <
-        stripRequiredWidth({ ...base, attention: 4, width: 0, compact: false }, levels[index - 1]),
-    )
-  // 再窄也停在第 4 步：需要你芯片仍然带标题（不退化成图标 + 数字）。
-  const tiny = stripLayout({ ...base, attention: 4, width: 10, compact: false })
-  assert.equal(tiny.level, 4)
-  assert.equal(tiny.attentionShown, 2)
-  // 36px 单行模式下需要你芯片本来就只有一行。
-  assert.equal(stripLayout({ ...base, width: 4000, compact: true }).attentionLines, 1)
-  // 只有两个需要你时第 4 步不收胶囊。
-  assert.equal(stripLayout({ ...base, attention: 2, width: 10, compact: false }).attentionShown, 2)
-  // 估算放得下、实测仍溢出（中英混排标题等）时，界面逐级抬高最低收缩步；越界值夹在 0–4。
-  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: 2 }).level, 2)
-  assert.equal(
-    stripLayout({ ...base, width: 4000, compact: false, minLevel: 2 }).runningMode,
-    'capsule',
-  )
-  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: 9 }).level, 4)
-  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: -3 }).level, 0)
-})
-
-test('chips with inline actions and the current chip get room for their titles', () => {
-  // 收缩判断按基础宽度（两行 220、单行 180）；带 [拒绝][允许] 的标准审批芯片只用剩余宽度放宽，
-  // 最多到规格上限 280（单行 220），不会因为放宽而多收一步。
-  assert.equal(stripAttentionChipWidth(2), STRIP_ATTENTION_CHIP_WIDTH)
-  const roomy = stripLayout({
-    ...base,
-    attentionActions: [true, false],
-    width: 4000,
-    compact: false,
-  })
-  assert.equal(roomy.level, 0)
-  assert.equal(roomy.actionChipWidth, STRIP_ATTENTION_ACTION_CHIP_WIDTH)
-  const plainLevels = []
-  const actionLevels = []
-  for (let width = 2000; width > 0; width -= 10) {
-    plainLevels.push(stripLayout({ ...base, attention: 3, width, compact: false }).level)
-    const layout = stripLayout({
-      ...base,
-      attention: 3,
-      attentionActions: [false, true, true],
-      width,
-      compact: false,
-    })
-    actionLevels.push(layout.level)
-    const ceiling =
-      layout.attentionLines === 2
-        ? STRIP_ATTENTION_ACTION_CHIP_WIDTH
-        : STRIP_ATTENTION_ACTION_ONE_LINE_WIDTH
-    assert.ok(layout.actionChipWidth >= stripAttentionChipWidth(layout.attentionLines))
-    assert.ok(layout.actionChipWidth <= ceiling)
-  }
-  assert.deepEqual(actionLevels, plainLevels)
-  // 当前会话的芯片按标题估算：短标题不被压到 140 以下的截断，长标题最多 220。
-  assert.equal(stripCurrentChipWidth('改'), STRIP_RUNNING_TITLE_WIDTH)
-  assert.ok(stripCurrentChipWidth('重构登录流程') > STRIP_RUNNING_TITLE_WIDTH)
-  assert.equal(stripCurrentChipWidth('重构登录流程'.repeat(4)), STRIP_CURRENT_CHIP_MAX_WIDTH)
-  const titleOnly = { runningMode: 'title', attentionLines: 2, attentionShown: 2 }
-  const withCurrent = stripRequiredWidth(
-    { ...base, currentWidth: 180, width: 0, compact: false },
-    titleOnly,
-  )
-  const withoutCurrent = stripRequiredWidth(
-    { ...base, currentRunning: false, width: 0, compact: false },
-    titleOnly,
-  )
-  assert.equal(withCurrent - withoutCurrent, 180 - STRIP_RUNNING_TITLE_WIDTH)
-})
-
-test('option-arrow switching follows the strip order and wraps', () => {
-  const items = [
+test('the phone agent strip keeps the lane order of the retired desktop strip', () => {
+  // 手机代理条（A4 前）沿用需要你 → 运行中 → 排队 → 已完成的顺序；桌面的切换顺序改为侧栏可见顺序。
+  const order = stripOrder([
     { id: 'd1', lane: 'done' },
     { id: 'r1', lane: 'running' },
     { id: 'a1', lane: 'attention' },
     { id: 'q1', lane: 'queued' },
     { id: 'a2', lane: 'attention' },
-  ]
-  const order = stripOrder(items)
+  ])
   assert.deepEqual(
     order.map((item) => item.id),
     ['a1', 'a2', 'r1', 'q1', 'd1'],
   )
-  assert.equal(adjacentStripSession(order, 'a2', 1), 'r1')
-  assert.equal(adjacentStripSession(order, 'a1', -1), 'd1')
-  assert.equal(adjacentStripSession(order, 'd1', 1), 'a1')
-  // 当前会话不在条上（例如更早的空闲会话）：↓ 去第一个，↑ 去最后一个。
-  assert.equal(adjacentStripSession(order, 'elsewhere', 1), 'a1')
-  assert.equal(adjacentStripSession(order, 'elsewhere', -1), 'd1')
-  assert.equal(adjacentStripSession([{ id: 'only', lane: 'running' }], 'only', 1), '')
-  assert.equal(adjacentStripSession([], 'x', 1), '')
 })
 
 // 路由在 transition 里提交：⌥↓ 之后 URL 已换、界面还停在原会话时立刻再按 ⌥↑，
 // 必须以刚发出的目标为起点，回到原会话，而不是从原会话再算一次邻居（smoke-board-ui 7a 曾偶发失败）。
 test('rapid option-arrow presses start from the switch that has not committed yet', async () => {
-  const order = stripOrder([
-    { id: 'a1', lane: 'attention' },
-    { id: 'r1', lane: 'running' },
-    { id: 'r2', lane: 'running' },
-    { id: 'r3', lane: 'running' },
-  ])
+  // 手机代理条：界面仍停在 r2、已发出去 r3 的切换时，以 r3 为起点。
   const pending = { from: 'r2', to: 'r3' }
-  // 界面仍是 r2：起点是 r3，⌥↑ 回到 r2；再按 ⌥↓ 去 r3 之后的 a1。
   assert.equal(effectiveStripCurrent('r2', pending), 'r3')
-  assert.equal(adjacentStripSession(order, effectiveStripCurrent('r2', pending), -1), 'r2')
-  assert.equal(adjacentStripSession(order, effectiveStripCurrent('r2', pending), 1), 'a1')
-  // 切换提交之后，或者界面换到了别处，都以界面上的会话为准。
   assert.equal(effectiveStripCurrent('r3', pending), 'r3')
   assert.equal(effectiveStripCurrent('a1', pending), 'a1')
   assert.equal(effectiveStripCurrent('r2', null), 'r2')
-
-  const [shell, strip] = await Promise.all([
+  // 桌面侧栏：当前会话读路由器的最新去向（navigate 同步改它），⌥↓ 之后 URL 已换、界面还停在原会话时
+  // 立刻再按 ⌥↑，起点已经是刚发出的目标（smoke-board-ui 7a 曾因只看渲染状态偶发失败）。
+  const loading = {
+    location: { pathname: '/board/r2' },
+    navigation: { state: 'loading', location: { pathname: '/board/r3' } },
+  }
+  assert.equal(sessionIdFromPath(requestedPathname(loading)), 'r3')
+  const [shell, app, sidebar] = await Promise.all([
     read('src/app/SessionShell.tsx'),
-    read('src/features/board/SessionLaneStrip.tsx'),
+    read('src/App.tsx'),
+    read('src/features/board/SidebarSessions.tsx'),
   ])
-  // 外壳的切换入口记下待提交的目标并据此去重；泳道条的键盘与点击都从同一个起点计算。
   assert.match(shell, /pendingSwitchRef\.current = \{ from, to: id \}/)
   assert.match(shell, /id === effectiveStripCurrent\(from, pendingSwitchRef\.current\)/)
-  assert.match(shell, /resolveCurrentId=\{resolveCurrentId\}/)
-  assert.match(strip, /adjacentStripSession\(ordered, switchBase\(\)/)
-  assert.match(strip, /sessionId === switchBase\(\)/)
+  assert.match(
+    app,
+    /const currentSessionTarget = useCallback\(\s*\(\) => sessionIdFromPath\(requestedPathname\(readRouter\(\)\)\),/,
+  )
+  assert.match(app, /if \(sessionIdFromPath\(target\) === id\) return/)
+  assert.match(app, /<SidebarCommands\s+resolveCurrentId=\{currentSessionTarget\}/)
+  assert.match(
+    sidebar,
+    /adjacentSidebarSession\(\s*current\.order,\s*propsRef\.current\.resolveCurrentId\(\) \|\| null,/,
+  )
 })
 
 test('inspector preferences persist open, tab and width under a registered key', async () => {
@@ -241,7 +123,7 @@ test('inspector preferences persist open, tab and width under a registered key',
   }
 })
 
-test('session page layout: lane strip above the chat, inspector overlay under 1280 or 760 tall', async () => {
+test('session page layout: no lane strip above the chat, inspector overlay under 1280 or 760 tall', async () => {
   const [routes, workspace, header, focus, dock, page] = await Promise.all([
     read('src/app/SessionShell.tsx'),
     read('src/features/chat/SessionWorkspace.tsx'),
@@ -252,11 +134,11 @@ test('session page layout: lane strip above the chat, inspector overlay under 12
   ])
   const session = routes
   assert.match(routes, /SESSION_COMPACT_QUERY = '\(max-width: 1279px\), \(max-height: 760px\)'/)
-  // 手机 App 平板走桌面布局但检查器始终是覆盖层。手机外壳（第 4 期，规格 7.3）不挂泳道条，
-  // 换成同一份会话页契约加上看板领域的代理条（phoneChrome），看板入口在手机顶栏最左侧。
+  // 手机 App 平板走桌面布局但检查器始终是覆盖层。规格 v2：桌面会话页不再有泳道条，并行的代理在
+  // 应用侧栏里；手机外壳（A4 前）是同一份会话页契约加上看板领域的代理条（phoneChrome），看板入口在手机顶栏最左侧。
   assert.match(session, /const pageLayout = !phone \|\| tablet/)
   assert.match(session, /overlayOnly: mobileApp/)
-  assert.match(session, /\{pageLayout && \(\s*<SessionLaneStrip/)
+  assert.doesNotMatch(session, /SessionLaneStrip|AgentPanel|resolveCurrentId/)
   assert.match(session, /pageChrome=\{pageLayout \? pageChrome : phoneChrome\}/)
   assert.match(
     session,
@@ -280,8 +162,9 @@ test('session page layout: lane strip above the chat, inspector overlay under 12
   assert.match(loader, /import\('@\/app\/SessionShell'\)/)
   assert.match(loader, /import\('@\/features\/chat\/ChatPage'\)/)
   assert.match(loader, /ensureBoardMessages\(\)/)
-  // 页头 44px，⌘I 开关检查器；覆盖层 420px、无遮罩、--sh-float。
-  assert.match(header, /className="flex h-11 min-w-0 shrink-0/)
+  // 页头 52px，⌘I 开关检查器；覆盖层 420px、无遮罩、--sh-float。
+  // 规格 v2：主区顶栏 52（与侧栏品牌行对齐；A1 先改高度，顶栏内容在 A2 重做）。
+  assert.match(header, /className="flex h-\[52px\] min-w-0 shrink-0/)
   assert.match(header, /data-inspector-toggle/)
   // 第 4 期起 ⌘I 是 shortcut-store 里的 toggleInspector（默认 Mod+KeyI，见 shortcuts.test），改绑后立即生效。
   assert.match(workspace, /useShortcutStore\(\(state\) => state\.bindings\.toggleInspector\)/)
@@ -298,22 +181,28 @@ test('session page layout: lane strip above the chat, inspector overlay under 12
   )
 })
 
-test('critical approvals cannot be approved in one step from the strip, the panel or the session', async () => {
-  const [strip, mini, panel, controller, toolApproval] = await Promise.all([
-    read('src/features/board/SessionLaneStrip.tsx'),
-    read('src/features/board/AgentMiniCard.tsx'),
-    read('src/features/board/AgentPanel.tsx'),
+test('critical approvals cannot be approved in one step from the sidebar, the phone strip or the session', async () => {
+  const [sidebar, phoneStrip, controller, toolApproval] = await Promise.all([
+    read('src/features/board/SidebarSessions.tsx'),
+    read('src/features/board/PhoneAgentStrip.tsx'),
     read('src/features/board/useBoardController.ts'),
     read('src/features/chat/ToolApproval.tsx'),
   ])
-  // 泳道条、迷你卡片与代理面板只把动作交回 useStripApprovals，不直接调批准接口。
-  for (const source of [strip, mini, panel])
-    assert.doesNotMatch(source, /approveBoardApproval|useBoardActions|confirmCritical/)
-  // critical、截断预览或详情未到时只有“查看”。
+  // 侧栏快捷处理：只有 sidebar-model 判为 decide（完整详情、普通、无同时在等的问题）的行有“允许 / 拒绝”，
+  // 且只传 confirmCritical: false；其余一律“打开”。需要确认时（详情变化）改为打开会话，不弹确认层也不放行。
+  assert.doesNotMatch(sidebar, /confirmCritical: true/)
   assert.match(
-    mini,
-    /if \(!approval \|\| approval\.severity === 'critical' \|\| approval\.truncated\)\s*return \(\s*<Button[\s\S]{0,200}data-strip-review/,
+    sidebar,
+    /row\.quickAction\.kind === 'decide' \? \(\s*<>[\s\S]*?board:sidebar\.deny[\s\S]*?board:sidebar\.approve[\s\S]*?<\/>\s*\) : \(/,
   )
+  assert.match(
+    sidebar,
+    /if \(result\.reason === 'confirmation-required'\) onOpenSession\(row\.id\)/,
+  )
+  // 手机代理条只把动作交回 useStripApprovals，不直接调批准接口。
+  assert.doesNotMatch(phoneStrip, /approveBoardApproval|useBoardActions|confirmCritical/)
+  assert.equal(phoneStrip.match(/confirmStripApproval\(\)/g)?.length, 1)
+  assert.match(phoneStrip, /onConfirm=\{\(\) => void approvals\.confirmStripApproval\(\)\}/)
   const hook = controller.slice(controller.indexOf('export function useStripApprovals'))
   assert.match(
     hook,
@@ -323,12 +212,6 @@ test('critical approvals cannot be approved in one step from the strip, the pane
   assert.match(
     hook.slice(hook.indexOf('const confirmStripApproval')),
     /^const confirmStripApproval = useCallback\(async \(\) => \{[\s\S]{0,400}confirmCritical: true/,
-  )
-  // 泳道条里唯一的 confirmStripApproval 调用方是确认层。
-  assert.equal(strip.match(/confirmStripApproval\(\)/g)?.length, 1)
-  assert.match(
-    strip,
-    /<ApprovalConfirm[\s\S]*?onConfirm=\{\(\) => void approvals\.confirmStripApproval\(\)\}/,
   )
   // 会话审批面板：critical 的“允许…”只打开确认层，确认层回调才真正批准。
   assert.match(toolApproval, /const critical = approvalSeverity\(approval\) === 'critical'/)
@@ -342,233 +225,58 @@ test('critical approvals cannot be approved in one step from the strip, the pane
   )
 })
 
-test('the session strip reads the board store and keeps escape for overlays only', async () => {
-  const [strip, panel] = await Promise.all([
-    read('src/features/board/SessionLaneStrip.tsx'),
-    read('src/features/board/AgentPanel.tsx'),
+test('the sidebar reads the board store and keeps escape for its own temporary expansion only', async () => {
+  const [sidebar, shell, shortcuts] = await Promise.all([
+    read('src/features/board/SidebarSessions.tsx'),
+    read('src/app/ShellSidebar.tsx'),
+    read('src/components/layout/AppShortcuts.tsx'),
   ])
-  // 数据只来自看板 store（同一个所有者）：不新开轮询、事件流或 fetch。
-  assert.match(strip, /useBoardItems\('today'\)/)
-  assert.doesNotMatch(strip, /fetch\(|setInterval|openBoardEvents|EventSource/)
-  // 第 4 期起 ⌘J、⌥↑ / ⌥↓ 读 shortcut-store 的当前绑定（默认键见 shortcuts.test），可改绑。
-  assert.match(strip, /useShortcutStore\(\(state\) => state\.bindings\.agentPanel\)/)
-  assert.match(strip, /matchesShortcut\(event, panelBinding\)/)
-  // ⌥↑ / ⌥↓ 只换路由，不批准也不返回；Esc 只关预览和面板。
+  // ⌘J、⌥↑ / ⌥↓ 读 shortcut-store 的当前绑定（默认键见 shortcuts.test），可改绑；只换路由或移动焦点。
+  assert.match(shortcuts, /matchesShortcut\(event, bindings\.agentPanel\)\) action = onAgentPanel/)
   assert.match(
-    strip,
-    /matchesShortcut\(event, nextBinding\)[\s\S]{0,80}matchesShortcut\(event, previousBinding\)/,
+    shortcuts,
+    /matchesShortcut\(event, bindings\.previousAgent\)\) action = onPreviousAgent/,
   )
-  assert.doesNotMatch(strip, /Escape[\s\S]{0,120}(onOpenSession|navigate)/)
-  assert.match(panel, /side="left"/)
-  assert.match(panel, /width: 320/)
+  assert.match(shortcuts, /matchesShortcut\(event, bindings\.nextAgent\)\) action = onNextAgent/)
+  // 侧栏行的 A / D 跟随全部代理的改绑（boardBindings）。
+  assert.match(sidebar, /matchesShortcut\(event\.nativeEvent, boardBindings\.boardApprove\)/)
+  assert.match(sidebar, /matchesShortcut\(event\.nativeEvent, boardBindings\.boardDeny\)/)
+  // Esc 只收回临时展开的侧栏，不离开页面。
+  assert.match(shell, /if \(event\.key !== 'Escape'[\s\S]{0,120}setPeeking\(false\)/)
+  assert.doesNotMatch(sidebar, /'Escape'/)
 })
 
-// —— 第 3 期守卫迁移：会话页的新布局守卫 ——
-
-function stripItem(approval, overrides = {}) {
-  return {
-    id: 'fx-approval',
-    session: { id: 'fx-approval', name: '部署修复' },
-    title: '部署修复',
-    cwd: '/work/app',
-    workspaceKey: '/work/app',
-    lane: 'attention',
-    status: 'approval',
-    handled: false,
-    since: Date.now() - 30_000,
-    startedAt: null,
-    pinned: false,
-    unread: true,
-    approvals: approval ? [approval] : [],
-    approvalsState: approval ? 'ready' : 'loading',
-    severity: approval?.severity ?? null,
-    activity: null,
-    error: '',
-    localRun: false,
-    hasCard: true,
-    tail: [],
-    preview: '',
-    changeStats: null,
-    contextPct: null,
-    agents: null,
-    ...overrides,
-  }
-}
-
-function boardApproval(overrides = {}) {
-  return {
-    id: 'approval-1',
-    toolName: 'bash',
-    toolCallId: 'call-1',
-    args: { command: 'npm test' },
-    command: 'npm test',
-    path: '',
-    reason: '',
-    risk: 'low',
-    severity: 'standard',
-    createdAt: null,
-    ...overrides,
-  }
-}
-
-test('strip chips, agent panel rows and previews never offer a one-step critical approval', async () => {
-  const [{ default: React }, { renderToStaticMarkup }, { i18n }, { boardMessages }, mini] =
-    await Promise.all([
-      import('react'),
-      import('react-dom/server'),
-      import('../../src/app/i18n.ts'),
-      import('../../src/app/board-messages.ts'),
-      import('../../src/features/board/AgentMiniCard.tsx'),
-    ])
-  // 会话路由随页注册看板命名空间；测试里同样注册，确认渲染的是真实按钮而不是键名。
-  i18n.addResourceBundle('zh-CN', 'board', boardMessages.zh)
-  i18n.addResourceBundle('en-US', 'board', boardMessages.en)
-  const handlers = {
-    onOpen() {},
-    onApprove() {},
-    onDeny() {},
-    onReview() {},
-    onRetry() {},
-    isPending: () => false,
-  }
-  // 三个入口：泳道条芯片（StripItemActions）、⌘J 面板与胶囊列表的行（AgentMiniRow）、悬停预览（AgentMiniPreview）。
-  const surfaces = (item) => [
-    renderToStaticMarkup(React.createElement(mini.StripItemActions, { item, handlers })),
-    renderToStaticMarkup(
-      React.createElement(mini.AgentMiniRow, {
-        item,
-        handlers,
-        now: Date.now(),
-        current: false,
-        onOpen() {},
-        word: '待批准',
-      }),
-    ),
-    renderToStaticMarkup(
-      React.createElement(mini.AgentMiniPreview, {
-        item,
-        handlers,
-        now: Date.now(),
-        word: '待批准',
-      }),
-    ),
-  ]
-  for (const html of surfaces(stripItem(boardApproval()))) {
-    assert.match(html, /data-strip-approve/)
-    assert.match(html, /data-strip-deny/)
-  }
-  // critical、预览被截断或详情未到：每个入口都只有“查看”（打开确认层），没有允许 / 拒绝键。
-  for (const item of [
-    stripItem(boardApproval({ severity: 'critical', command: 'git push --force origin main' })),
-    stripItem(boardApproval({ truncated: true, argsText: 'command: rm -r build …' })),
-    stripItem(null),
-  ])
-    for (const html of surfaces(item)) {
-      assert.doesNotMatch(html, /data-strip-approve|data-strip-deny/)
-      assert.match(html, /data-strip-review/)
-    }
+test('sidebar rows never set Chinese text in monospace', async () => {
+  // 等宽只给机器输出（规格 6.3）：侧栏里唯一的等宽文字是运行中行的计时（数字）；原因、标题与时刻用无衬线。
+  const sidebar = await read('src/features/board/SidebarSessions.tsx')
+  assert.equal(sidebar.match(/font-mono/g)?.length, 1)
+  assert.match(sidebar, /row\.group === 'running'\s*\? 'font-mono text-content-secondary'/)
+  assert.match(sidebar, /meta = formatSidebarClock\(/)
 })
 
-test('strip rows and previews never set Chinese text in monospace', async () => {
-  const [{ default: React }, { renderToStaticMarkup }, { i18n }, { boardMessages }, mini] =
-    await Promise.all([
-      import('react'),
-      import('react-dom/server'),
-      import('../../src/app/i18n.ts'),
-      import('../../src/app/board-messages.ts'),
-      import('../../src/features/board/AgentMiniCard.tsx'),
-    ])
-  i18n.addResourceBundle('zh-CN', 'board', boardMessages.zh)
-  i18n.addResourceBundle('en-US', 'board', boardMessages.en)
-  await i18n.changeLanguage('zh-CN')
-  const handlers = {
-    onOpen() {},
-    onApprove() {},
-    onDeny() {},
-    onReview() {},
-    onRetry() {},
-    isPending: () => false,
-  }
-  const now = Date.now()
-  const items = [
-    // 已完成：结果摘要是中文正文，时间是相对时间（“N 分钟前”）。
-    stripItem(null, {
-      lane: 'done',
-      status: 'done',
-      approvalsState: 'ready',
-      since: now - 40 * 60_000,
-      preview: '已生成 THIRD_PARTY.md，列出 128 个依赖',
-    }),
-    // 需要你：“已等”是中文前缀，数值才等宽。
-    stripItem(boardApproval({ command: 'npm test -- --watch' }), { since: now - 18 * 60_000 }),
-    // 失败：错误行等宽，“可重试”无衬线。
-    stripItem(null, {
-      status: 'failed',
-      approvalsState: 'ready',
-      error: 'Error: exit 1',
-      since: now - 60_000,
-    }),
-    // 运行中：尾巴等宽，“已运行”无衬线；当前会话的标记 12px。
-    stripItem(null, {
-      lane: 'running',
-      status: 'running',
-      approvalsState: 'ready',
-      startedAt: now - 195_000,
-      tail: ['✓ 42 passed'],
-    }),
-  ]
-  const cjk = /[\u3400-\u9fff\uff00-\uffef]/
-  for (const item of items) {
-    const html = [
-      renderToStaticMarkup(
-        React.createElement(mini.AgentMiniRow, {
-          item,
-          handlers,
-          now,
-          current: true,
-          onOpen() {},
-          word: '状态',
-        }),
-      ),
-      renderToStaticMarkup(
-        React.createElement(mini.AgentMiniPreview, { item, handlers, now, word: '状态' }),
-      ),
-    ].join('')
-    // 等宽节点（叶子 span / p / pre）的文字里不能有中文。
-    for (const match of html.matchAll(
-      /<(span|p|pre)[^>]*class="[^"]*font-mono[^"]*"[^>]*>([^<]*)</g,
-    ))
-      assert.doesNotMatch(match[2], cjk, `${item.status}: ${match[2]}`)
-    assert.doesNotMatch(html, /text-\[11px\][^>]*>[^<]*[\u3400-\u9fff]/, item.status)
-  }
-  const done = renderToStaticMarkup(
-    React.createElement(mini.AgentMiniRow, {
-      item: items[0],
-      handlers,
-      now,
-      current: false,
-      onOpen() {},
-      word: '已完成',
-    }),
-  )
-  assert.match(done, /40 分钟前/)
-})
-
-test('the lane strip and the agent panel render board store data and open no connection of their own', async () => {
-  const [strip, panel, mini, presentation, shell, items] = await Promise.all([
-    read('src/features/board/SessionLaneStrip.tsx'),
-    read('src/features/board/AgentPanel.tsx'),
-    read('src/features/board/AgentMiniCard.tsx'),
-    read('src/features/board/strip-presentation.ts'),
+test('the sidebar renders board store data and opens no connection of its own', async () => {
+  const [sidebar, model, hook, presentation, shellSidebar, shell, items] = await Promise.all([
+    read('src/features/board/SidebarSessions.tsx'),
+    read('src/features/board/sidebar-model.ts'),
+    read('src/features/board/useSidebarModel.ts'),
+    read('src/features/board/sidebar-presentation.ts'),
+    read('src/app/ShellSidebar.tsx'),
     read('src/app/SessionShell.tsx'),
     read('src/features/board/useBoardItems.ts'),
   ])
   const connection =
     /\bfetch\(|setInterval\(|EventSource|openBoardEvents|consumeEventStream|apiJson|useQuery\(|refetchInterval/
-  for (const [file, source] of Object.entries({ strip, panel, mini, presentation, shell }))
+  for (const [file, source] of Object.entries({
+    sidebar,
+    model,
+    hook,
+    presentation,
+    shellSidebar,
+    shell,
+  }))
     assert.doesNotMatch(source, connection, file)
-  // 代理面板、迷你卡片与文案推导只拿数据类型，不在运行时导入看板接口、store 或会话数据层。
-  for (const [file, source] of Object.entries({ panel, mini, presentation })) {
+  // 分组模型与文案推导只拿数据类型，不在运行时导入看板接口、store 或会话数据层。
+  for (const [file, source] of Object.entries({ model, presentation })) {
     assert.doesNotMatch(
       source,
       /^import (?!type\b)[^\n]*from '\.\/(?:board-api|board-store|board-model|useBoardItems|useSessionListQuery)'/m,
@@ -576,12 +284,10 @@ test('the lane strip and the agent panel render board store data and open no con
     )
     assert.doesNotMatch(source, /from '@\/features\/chat\//, file)
   }
-  // 唯一的数据源：泳道条读 useBoardItems('today')（看板 store 的同一份目录与覆盖层），
-  // 分组后整组交给 ⌘J 面板，面板不再自己读取。
-  assert.equal(strip.match(/useBoardItems\(/g)?.length, 1)
-  assert.match(strip, /const \{ items, capabilities, isLoading \} = useBoardItems\('today'\)/)
-  assert.match(strip, /<AgentPanel[\s\S]*?lanes=\{lanes\}[\s\S]*?handlers=\{handlers\}/)
-  assert.match(panel, /lanes: Record<BoardLane, BoardItem\[\]>/)
+  // 唯一的数据源：useSidebarModel 读 useBoardItems('today')（看板 store 的同一份目录与覆盖层）。
+  assert.equal(hook.match(/useBoardItems\(/g)?.length, 1)
+  assert.match(hook, /useBoardItems\('today'\)/)
+  assert.match(sidebar, /useSidebarModel\(\)/)
   assert.match(items, /from '\.\/board-store'/)
   assert.match(items, /const query = useSessionListQuery\(\)/)
   assert.doesNotMatch(items, connection)
@@ -592,16 +298,15 @@ test('escape never leaves the session page; returning to the board needs an expl
     await Promise.all(
       [
         'src/app/SessionShell.tsx',
-        // 第 4 期主页改为会话：泳道条最左侧与手机顶栏左侧是看板入口（BoardEntry），旧的“‹ 看板”
-        // 返回条（SessionReturnBar）不再挂载；主页草稿与手机会话页的新部件同样不得用 Esc 离开。
+        // 第 4 期主页改为会话：手机顶栏左侧是看板入口（BoardEntry）；v2 的侧栏外壳与会话分组、
+        // 主页草稿与手机会话页的部件同样不得用 Esc 离开。
         'src/app/BoardEntry.tsx',
         'src/app/SessionHome.tsx',
         'src/features/board/NewTaskDraft.tsx',
         'src/features/board/PhoneAgentStrip.tsx',
         'src/features/chat/SessionPhoneHeader.tsx',
-        'src/features/board/SessionLaneStrip.tsx',
-        'src/features/board/AgentPanel.tsx',
-        'src/features/board/AgentMiniCard.tsx',
+        'src/app/ShellSidebar.tsx',
+        'src/features/board/SidebarSessions.tsx',
         'src/features/chat/SessionWorkspace.tsx',
         'src/features/chat/SessionInspector.tsx',
         'src/features/chat/SessionPageHeader.tsx',
@@ -610,7 +315,7 @@ test('escape never leaves the session page; returning to the board needs an expl
       ].map(async (file) => [file, await read(file)]),
     ),
   )
-  // 会话页外壳与看板入口不监听键盘：去全部代理只认入口、⌘1（应用级快捷键）、标签与
+  // 会话页外壳与看板入口不监听键盘：去全部代理只认侧栏入口、⌘1（应用级快捷键）与
   // 浏览器 / 原生返回。
   for (const file of [
     'src/app/SessionShell.tsx',

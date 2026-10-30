@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Plus,
   Search,
+  SunMoon,
   Tag,
   X,
   type LucideIcon,
@@ -65,6 +66,8 @@ type CommandPaletteProps = {
     targetActive?: boolean,
   ) => Promise<void>
   onNewChat: () => void
+  // “切换主题”命令：主题键已从页头去掉（规格 v2 第 2.5 节），⌘K 与设置 › 界面是它的入口。
+  onToggleTheme?: () => void
 }
 
 export function CommandPalette({
@@ -73,6 +76,7 @@ export function CommandPalette({
   onNavigate,
   onOpenSession,
   onNewChat,
+  onToggleTheme,
 }: CommandPaletteProps) {
   const { t, language } = useI18n()
   const listId = useId()
@@ -155,6 +159,17 @@ export function CommandPalette({
         run: onNewChat,
       })
     }
+    const themeLabel = t('navigation:appOverlays.toggleTheme')
+    if (onToggleTheme && matches(themeLabel, t('navigation:appOverlays.actions'), 'theme')) {
+      result.push({
+        id: 'action:toggle-theme',
+        group: 'actions',
+        Icon: SunMoon,
+        label: themeLabel,
+        hint: t('navigation:appOverlays.actions'),
+        run: onToggleTheme,
+      })
+    }
     for (const [group, items] of navigation) {
       for (const [id, label, Icon] of items) {
         if (matches(label, group, id))
@@ -234,6 +249,7 @@ export function CommandPalette({
     onNavigate,
     onNewChat,
     onOpenSession,
+    onToggleTheme,
     sessions,
     sessionsError,
     refetchSessions,

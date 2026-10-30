@@ -2,18 +2,19 @@
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
 // 覆盖第 1 期验收：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
 // 不被遮挡、无硬裁切、无横向滚动）、泳道与空泳道竖条、内联批准与重试、critical 只开确认层、
-// 舰队计量、⌘2/3/4、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、今天没有活动时的看板骨架、
-// 手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
+// 侧栏分组与计数（规格 v2：取代舰队计量）、⌘1 / ⌘2、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、
+// 今天没有活动时的看板骨架、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
 // 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
 // 另有一段把能力里的 board.* 去掉，验证旧桌面 Runtime 退回第 1 期的 /api/sessions + /live 路径；
 // 再用被测的真实 Runtime 提供 /api/board/events（长连接），核对每个标签页只有 1 条连接、快照与增量、
 // 页面隐藏时断开、回到可见后带 after 重连。
-// 第 3 期会话页：隔离 Runtime 里写入一条真实会话（转录、/live 来自真实 Runtime），看板与泳道条仍由
-// 固定数据提供；覆盖泳道条内联允许 / critical 只开确认层、⌘J 代理面板、⌥↑/⌥↓ 切换、⌘I 检查器、
+// 第 3 期会话页：隔离 Runtime 里写入一条真实会话（转录、/live 来自真实 Runtime），看板与侧栏分组仍由
+// 固定数据提供；覆盖侧栏需要你行的快捷处理（普通批准一步允许、critical / 失败只能打开）、⌘J 聚焦侧栏列表、
+// ⌥A 聚焦等待最久的需要你行、⌥↑/⌥↓ 按侧栏顺序切换、⌘B 收起为窄轨与窄轨计数、⌘I 检查器、
 // ⌘1 回到看板并把焦点还给来源卡片（快捷键 v2：⇧⌘B 归会话树）、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
 // 以及手机 390 的会话页仍可用。
-// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查（标签按 ⌘1 会话…⌘4 更多编号，
-// ⌘[ 已退役）。
+// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查（快捷键 v2：⌘1 全部代理、
+// ⌘2 功能，⌘[ 已退役）。泳道条、⌘J 代理面板与标题栏舰队计量已在 v2（A1）删除。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -140,7 +141,7 @@ async function geometry(page, label) {
           )
       : []
     const clipped = interactive
-      .filter(({ element }) => element.closest('[data-app-titlebar], [data-board-root]'))
+      .filter(({ element }) => element.closest('[data-shell-sidebar], [data-board-root]'))
       .filter(({ element }) => element.tagName === 'BUTTON')
       .filter(({ element }) => element.scrollWidth > element.clientWidth + 1)
       .map(({ element }) => name(element))
@@ -167,6 +168,33 @@ async function geometry(page, label) {
   assert.deepEqual(result.clipped, [], `${label}: no hard-clipped buttons`)
   assert.deepEqual(result.cardOverflow, [], `${label}: card content never overflows its card`)
   return result
+}
+
+// 侧栏分组标题上的计数（需要你 / 运行中），等到与期望一致。
+async function waitForSidebarCounts(page, expected) {
+  await page.waitForFunction(
+    (counts) =>
+      Object.entries(counts).every(
+        ([group, count]) =>
+          document.querySelector(`[data-sidebar-group="${group}"] [data-sidebar-count]`)
+            ?.textContent === String(count),
+      ),
+    expected,
+    { timeout: 15_000 },
+  )
+}
+
+// 看板筛选偏好经 Runtime 的偏好镜像跨上下文同步：用过窄轨计数的筛选后清掉，不影响之后的上下文。
+async function resetBoardView() {
+  const response = await fetch(`${base}/api/local/browser-preferences`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      updates: { 'pisper-board-view': null },
+      revisions: { 'pisper-board-view': Date.now() * 1000 + 999 },
+    }),
+  })
+  assert.ok(response.ok, `reset the board view preference: ${response.status}`)
 }
 
 try {
@@ -197,11 +225,21 @@ try {
         (theme) => document.documentElement.dataset.theme === theme,
         colorScheme,
       )
-      assert.equal(await page.locator('[data-app-titlebar]').isVisible(), true)
+      // 规格 v2：没有标题栏，任何宽度下侧栏都默认展开占位（268px）。
+      assert.equal(await page.locator('[data-shell-sidebar="expanded"]').isVisible(), true)
+      assert.equal(
+        Math.round((await page.locator('[data-shell-sidebar]').boundingBox()).width),
+        268,
+      )
+      assert.equal(await page.locator('[data-app-titlebar]').count(), 0)
       assert.equal(await page.locator('[data-custom-titlebar]').count(), 1)
       assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
       const result = await geometry(page, label)
-      assert.equal(result.windowControls, 3, `${label}: three window buttons in the title bar`)
+      assert.equal(
+        result.windowControls,
+        3,
+        `${label}: three window buttons in the top-right corner`,
+      )
       // 第 1 期 Runtime 不声明 sessionQueue：排队泳道整条隐藏，其余三条都有卡片时全部展开。
       assert.deepEqual(result.lanes, ['attention:expanded', 'running:expanded', 'done:expanded'])
       for (const [lane, ids] of Object.entries({
@@ -220,10 +258,10 @@ try {
     }
   }
   report.checks.push(
-    '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: no horizontal scroll, top-right 144px free of interactive elements, no hard-clipped buttons; lanes attention/running/done expanded, queued hidden without the sessionQueue capability',
+    '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: the 268px sidebar stays expanded, no title bar, no horizontal scroll, top-right 144px free of interactive elements, no hard-clipped buttons; lanes attention/running/done expanded, queued hidden without the sessionQueue capability',
   )
 
-  // 2. 1440 浅色上的交互：舰队计量、逐个处理、critical 确认层、standard 内联批准、重试、快捷键。
+  // 2. 1440 浅色上的交互：侧栏分组与计数、逐个处理、critical 确认层、standard 内联批准、重试、快捷键。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -231,20 +269,41 @@ try {
     )
     const page = await openBoard(context, 'interactions')
     await waitForApprovals(page)
-    const fleet = page.locator('[data-app-titlebar]').getByRole('group', {
-      name: '代理概况：2 个运行中，3 项需要你',
-      exact: true,
-    })
-    await fleet.waitFor()
-    await fleet.getByRole('button', { name: '3 项需要你，查看详情', exact: true }).click()
-    const panel = page.locator('[data-slot="popover-content"]')
-    await panel.getByText('等待最久', { exact: true }).waitFor()
-    assert.equal(await panel.getByRole('button', { name: /允许/ }).count(), 0)
-    assert.ok((await panel.getByRole('button', { name: /前往/ }).count()) >= 1)
-    await page.keyboard.press('Escape')
-    await panel.waitFor({ state: 'hidden' })
+    // 侧栏（取代舰队计量）：需要你 3、运行中 2；需要你行读出“标题，原因，已等时长”，第 2 行只有中文原因；
+    // 悬停或聚焦后普通批准露出“拒绝 / 允许”，critical 与失败只露出“打开”。这里只看不点，批准留给会话页一节。
+    const sidebar = page.locator('[data-shell-sidebar]')
+    await sidebar.locator('[data-sidebar-row="fx-standard"]').waitFor()
+    await waitForSidebarCounts(page, { attention: 3, running: 2 })
+    const sidebarItem = (id) => sidebar.locator(`[data-sidebar-item="${id}"]`)
+    const sidebarRow = (id) => sidebar.locator(`[data-sidebar-row="${id}"]`)
+    assert.match(
+      await sidebarRow('fx-standard').getAttribute('aria-label'),
+      /，等你批准，已等 \d+[smhd]$/,
+    )
+    assert.match(await sidebarRow('fx-critical').getAttribute('aria-label'), /，高风险批准，已等 /)
+    assert.match(await sidebarRow('fx-failed').getAttribute('aria-label'), /，运行失败，已等 /)
+    assert.doesNotMatch(await sidebarRow('fx-critical').innerText(), /git push/)
+    await sidebarRow('fx-standard').focus()
+    await sidebarItem('fx-standard').getByRole('button', { name: /^允许/ }).waitFor()
+    await sidebarItem('fx-standard').getByRole('button', { name: /^拒绝/ }).waitFor()
+    for (const id of ['fx-critical', 'fx-failed']) {
+      await sidebarRow(id).hover()
+      await sidebarItem(id).getByRole('button', { name: /^打开/ }).waitFor()
+      assert.equal(
+        await sidebarItem(id)
+          .getByRole('button', { name: /^(允许|拒绝)/ })
+          .count(),
+        0,
+      )
+    }
+    // A 在 critical 行上不批准任何东西（只有普通批准能一步处理）。
+    await sidebarRow('fx-critical').focus()
+    await page.keyboard.press('a')
+    await page.waitForTimeout(400)
+    assert.equal(fixture.posts.length, 0, 'A on a critical sidebar row approves nothing')
+    assert.equal(await page.evaluate(() => location.hash), '#/board')
     report.checks.push(
-      'Fleet meter counts 2 running and 3 needing you; its popover only navigates and has no approve button',
+      'Sidebar groups count 3 needing you and 2 running; needs-you rows read “title，reason，waited” with only a Chinese reason (no command); a focused standard approval reveals 拒绝 / 允许, critical and failed rows only reveal 打开, and A on a critical row sends nothing',
     )
 
     // T 进入逐个处理（其余泳道变暗，底部提示条），Esc 退出。
@@ -353,12 +412,9 @@ try {
     ])
     await page.locator('[data-board-card="fx-failed"][data-lane="running"]').waitFor()
     assert.equal(fixture.posts.at(-1).path, '/api/sessions/fx-failed/retry')
-    await page
-      .locator('[data-app-titlebar]')
-      .getByRole('group', { name: '代理概况：4 个运行中，1 项需要你', exact: true })
-      .waitFor()
+    await waitForSidebarCounts(page, { attention: 1, running: 4 })
     report.checks.push(
-      'Failed card 重试 posts /api/sessions/fx-failed/retry, moves to running and the fleet meter follows',
+      'Failed card 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar groups follow',
     )
 
     // ⌘N 在看板上聚焦启动台，不打开派发浮层。
@@ -372,14 +428,14 @@ try {
     await page.keyboard.press(`${mod}+Digit3`)
     await page.waitForTimeout(300)
     assert.equal(await page.evaluate(() => location.hash), '#/board', '⌘3 is unbound by default')
-    for (const [key, hash, tab] of [
-      ['Digit2', '#/more', 'more'],
+    for (const [key, hash, entry] of [
+      ['Digit2', '#/more', 'features'],
       ['Digit1', '#/board', 'board'],
     ]) {
       await page.keyboard.press(`${mod}+${key}`)
       await page.waitForFunction((expected) => location.hash === expected, hash)
       await page
-        .locator(`[data-app-titlebar] [data-shell-tab="${tab}"][aria-current="page"]`)
+        .locator(`[data-shell-sidebar] [data-sidebar-entry="${entry}"][aria-current="page"]`)
         .waitFor()
     }
     await page.locator('[data-board-root]').waitFor()
@@ -402,9 +458,11 @@ try {
     assert.match(await attention.innerText(), /已清空/)
     const railWidth = (await attention.boundingBox()).width
     assert.ok(Math.abs(railWidth - 56) <= 1, `empty lane rail is 56px wide: ${railWidth}`)
+    // 侧栏的需要你分组计数为 0，照常留着标题与一句“没有等你处理的事”（取代舰队计量的“全部顺畅”）。
+    await waitForSidebarCounts(page, { attention: 0, running: 2 })
     await page
-      .locator('[data-app-titlebar]')
-      .getByRole('button', { name: '全部顺畅，查看详情', exact: true })
+      .locator('[data-sidebar-group="attention"]')
+      .getByText('没有等你处理的事', { exact: true })
       .waitFor()
     await page.getByRole('button', { name: '折叠“已完成”', exact: true }).first().click()
     const done = page.locator('[data-board-lane="done"]')
@@ -414,7 +472,41 @@ try {
     await done.getByRole('button', { name: /展开已折叠的泳道/ }).click()
     await done.and(page.locator('[data-lane-mode="expanded"]')).waitFor()
     report.checks.push(
-      'An empty attention lane collapses to a 56px “已清空” rail, the fleet meter reads all clear, and the done lane collapses to a rail and expands again',
+      'An empty attention lane collapses to a 56px “已清空” rail, the sidebar needs-you group reads 0 with a quiet empty line, and the done lane collapses to a rail and expands again',
+    )
+    // ⌘B 收起为 60px 窄轨：四个入口图标 + 两个计数（需要你 0 变灰不消失、运行中 2）+ 设置；
+    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view）；再按 ⌘B 展开（偏好经 Runtime 同步，恢复原状）。
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press(`${mod}+KeyB`)
+    const rail = page.locator('[data-shell-sidebar="rail"]')
+    await rail.waitFor()
+    await page.waitForFunction(
+      () => document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect().width === 60,
+    )
+    const attentionCount = rail.locator('[data-rail-count="attention"]')
+    const runningCount = rail.locator('[data-rail-count="running"]')
+    await attentionCount.waitFor()
+    assert.equal(await attentionCount.getAttribute('aria-label'), '0 个代理需要你，打开全部代理')
+    assert.equal(await runningCount.getAttribute('aria-label'), '2 个代理运行中，打开全部代理')
+    await geometry(page, 'collapsed rail')
+    await page.screenshot({ path: join(output, 'board-rail.png') })
+    await runningCount.click()
+    await page.waitForFunction(() =>
+      JSON.parse(localStorage.getItem('pisper-board-view') || '{}').state?.lanes?.includes(
+        'running',
+      ),
+    )
+    assert.equal(await page.locator('[data-board-card="fx-done-unread"]').count(), 0)
+    await page.locator('[data-board-card="fx-running"]').waitFor()
+    await page.keyboard.press(`${mod}+KeyB`)
+    await page.locator('[data-shell-sidebar="expanded"]').waitFor()
+    await page.waitForFunction(() =>
+      localStorage.getItem('pisper-sidebar')?.includes('"collapsed":false'),
+    )
+    // 筛选偏好经 Runtime 镜像同步：清掉，免得影响之后的上下文。
+    await resetBoardView()
+    report.checks.push(
+      '⌘B collapses the sidebar to the 60px rail with a greyed 0 needs-you count and 2 running; the running count opens all agents filtered to running; ⌘B expands it again',
     )
     await context.close()
   }
@@ -537,7 +629,7 @@ try {
     if (bridge) {
       assert.equal(phoneShell, false, `${label}: desktop window must not enter the phone shell`)
       assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
-      assert.equal(await page.locator('[data-app-titlebar]').isVisible(), true)
+      assert.equal(await page.locator('[data-shell-sidebar]').isVisible(), true)
     } else {
       // 对照组：普通浏览器低于手机断点时进入手机外壳，证明上面的门控确实生效。
       assert.equal(phoneShell, true, `${label}: a phone-width browser uses the phone shell`)
@@ -546,7 +638,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Desktop windows narrowed to 1000px and 600px (with and without the custom title bar) keep the desktop title bar and never mount the phone shell; a 600px browser does',
+    'Desktop windows narrowed to 1000px and 600px (with and without the custom title bar) keep the sidebar shell and never mount the phone shell; a 600px browser does',
   )
 
   // 6. 第 2 期数据源：Runtime 声明 board.view / board.events 时看板走事件流，卡片显示 card 摘要
@@ -704,7 +796,7 @@ try {
     assert.equal(streams.length, before, 'the increment arrives on the same connection')
     // 会话页与返回：看板 store 在路由间共享，不新开第二条连接。
     await card.click({ position: { x: 60, y: 14 } })
-    await page.locator('[data-lane-strip]').waitFor({ timeout: 30_000 })
+    await page.locator('[data-session-header]').first().waitFor({ timeout: 30_000 })
     await page.waitForTimeout(1_000)
     assert.equal(connections(), 1, 'the session page reuses the board stream')
     await page.keyboard.press(`${mod}+Digit1`)
@@ -767,18 +859,17 @@ try {
     await page.locator('.focus-composer textarea').first().waitFor({ timeout: 30_000 })
     await page.getByText('已完成重构，全部测试通过。').first().waitFor({ timeout: 30_000 })
   }
-  // 几何：横向滚动、右上 144px、标题栏 + 泳道条 + 页头的高度，泳道条与检查器里的控件没有越出视口、
+  // 几何：横向滚动、右上 144px、页头的高度，侧栏入口与检查器里的控件没有越出视口、
   // 也没有被别的元素挡住（取控件中心点命中测试）。
-  // 覆盖层打开时盖住对话列右侧（含页头右端）是设计本身，那时只核对泳道条与检查器里的控件。
+  // 覆盖层打开时盖住对话列右侧（含页头右端）是设计本身，那时只核对侧栏与检查器里的控件。
   function sessionGeometry(page, { header = true } = {}) {
     return page.evaluate((includeHeader) => {
       const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect() ?? null
       const header = rect('[data-session-header]')
-      const strip = rect('[data-lane-strip]')
       const overlay = rect('[data-inspector-overlay]')
       const blocked = [
         ...document.querySelectorAll(
-          '[data-session-inspector] button, [data-session-inspector] [role="tab"], [data-lane-strip] button' +
+          '[data-session-inspector] button, [data-session-inspector] [role="tab"], [data-shell-sidebar] [data-sidebar-entry]' +
             (includeHeader ? ', [data-session-header] button' : ''),
         ),
       ]
@@ -788,9 +879,6 @@ try {
             return false
           if (box.right > innerWidth + 0.5 || box.bottom > innerHeight + 0.5 || box.left < -0.5)
             return true
-          // 芯片行可以横向滚动；只核对行内可见的控件。
-          const row = element.closest('[data-strip-row]')?.getBoundingClientRect()
-          if (row && (box.left < row.left - 0.5 || box.right > row.right + 0.5)) return false
           const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
           return Boolean(hit && !element.contains(hit) && !hit.contains(element))
         })
@@ -810,7 +898,9 @@ try {
           document.body.scrollWidth > innerWidth,
         headerBottom: header ? Math.round(header.bottom) : null,
         headerHeight: header ? Math.round(header.height) : null,
-        stripHeight: strip ? Math.round(strip.height) : null,
+        sidebarWidth: Math.round(
+          document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect().width ?? 0,
+        ),
         workspace:
           document
             .querySelector('[data-session-workspace]')
@@ -829,7 +919,7 @@ try {
     }, header)
   }
 
-  // 7a. 1440×900：泳道条、确认层、内联允许、⌘J、⌘I、⌥↑/⌥↓、Esc、⌘1（⌘[ 已退役，不再离开会话页）。
+  // 7a. 1440×900：侧栏（当前会话行、快捷处理、⌘J、⌥A）、⌘I、⌥↑/⌥↓、Esc、⌘1（⌘[ 已退役，不再离开会话页）。
   {
     const { context, fixture, aborts } = await sessionContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -855,10 +945,15 @@ try {
     const openedAt = Date.now()
     await realCard.click({ position: { x: 60, y: 14 } })
     await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
-    const strip = page.locator('[data-lane-strip]')
-    await strip.waitFor({ timeout: 30_000 })
+    const sidebar = page.locator('[data-shell-sidebar]')
+    const sidebarRow = (id) => sidebar.locator(`[data-sidebar-row="${id}"]`)
+    const sidebarItem = (id) => sidebar.locator(`[data-sidebar-item="${id}"]`)
     await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
-    await page.locator(`[data-strip-chip="${BOARD_SESSION_ID}"][data-current]`).waitFor()
+    // 会话页没有泳道条；当前会话在侧栏里是带 aria-current 的行（运行中分组，带实时计时）。
+    await sidebar
+      .locator(`[data-sidebar-row="${BOARD_SESSION_ID}"][aria-current="page"]`)
+      .waitFor({ timeout: 30_000 })
+    assert.equal(await page.locator('[data-lane-strip], [data-agent-panel]').count(), 0)
     // 转录来自真实 Runtime：从看板卡片打开也要读到这条会话自己的历史。
     await page.getByText('已完成重构，全部测试通过。').first().waitFor({ timeout: 30_000 })
     const transcriptAfter = Date.now() - openedAt
@@ -873,28 +968,30 @@ try {
     await settle(page)
     const geo = await sessionGeometry(page)
     assert.equal(geo.horizontalScroll, false, 'session page: no horizontal scroll')
-    assert.equal(geo.stripHeight, 52, `session page: 52px lane strip ${JSON.stringify(geo)}`)
-    assert.equal(geo.headerHeight, 44, 'session page: 44px session header')
+    assert.equal(geo.sidebarWidth, 268, `session page: 268px sidebar ${JSON.stringify(geo)}`)
+    assert.equal(
+      geo.headerHeight,
+      52,
+      'session page: 52px session header (aligned with the sidebar brand row)',
+    )
     assert.equal(geo.workspace, 'aside', 'wide session page docks the inspector')
     assert.deepEqual(geo.intrusions, [], 'session page: top-right 144px stays free')
     assert.equal(await page.locator('[data-session-title]').innerText(), BOARD_SESSION_TITLE)
     await page.screenshot({ path: join(output, 'session-1440.png') })
 
-    // critical 芯片只有[查看]：打开看板同一个确认层，Esc 关闭它，不批准、也不停止运行。
-    const criticalChip = page.locator('[data-strip-chip="fx-critical"]')
-    await criticalChip.locator('[data-strip-review]').waitFor({ timeout: 20_000 })
-    assert.equal(await criticalChip.locator('[data-strip-approve]').count(), 0)
-    await criticalChip.locator('[data-strip-review]').click()
-    const confirm = page.getByRole('dialog', { name: '确认高风险操作', exact: true })
-    await confirm.waitFor()
-    await confirm.getByText('git push --force-with-lease origin fix/ci').first().waitFor()
-    await page.keyboard.press('Escape')
-    await confirm.waitFor({ state: 'hidden' })
-    assert.equal(fixture.posts.length, 0, 'the strip review button never approves')
-    assert.deepEqual(aborts, [], 'Esc on the confirmation layer does not stop the run')
+    // critical 行只有“打开”（进会话按住确认），A 不批准；standard 行悬停后一步允许：一次 POST，
+    // 请求体与看板一致，行 160ms 收起后离开需要你分组。
+    await sidebarRow('fx-critical').hover()
+    await sidebarItem('fx-critical').getByRole('button', { name: /^打开/ }).waitFor()
+    assert.equal(await sidebarItem('fx-critical').getByRole('button', { name: /^允许/ }).count(), 0)
+    await sidebarRow('fx-critical').focus()
+    await page.keyboard.press('a')
+    await page.waitForTimeout(400)
+    assert.equal(fixture.posts.length, 0, 'A on a critical sidebar row never approves')
     assert.equal(page.url().endsWith(`#/board/${BOARD_SESSION_ID}`), true)
-
-    // standard 芯片内联允许：一次 POST，请求体与看板一致。
+    await sidebarRow('fx-standard').hover()
+    const sidebarApprove = sidebarItem('fx-standard').getByRole('button', { name: /^允许/ })
+    await sidebarApprove.waitFor()
     const [approveResponse] = await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -902,7 +999,7 @@ try {
           new URL(response.url()).pathname ===
             '/api/sessions/fx-standard/approvals/approval-standard',
       ),
-      page.locator('[data-strip-chip="fx-standard"] [data-strip-approve]').click(),
+      sidebarApprove.click(),
     ])
     assert.equal(approveResponse.request().postData(), JSON.stringify({ approved: true }))
     assert.deepEqual(fixture.posts, [
@@ -912,40 +1009,48 @@ try {
         body: { approved: true },
       },
     ])
+    await page.waitForFunction(
+      () =>
+        !document.querySelector(
+          '[data-sidebar-group="attention"] [data-sidebar-row="fx-standard"]',
+        ),
+    )
+    assert.deepEqual(aborts, [], 'sidebar actions never stop the current run')
+    assert.equal(page.url().endsWith(`#/board/${BOARD_SESSION_ID}`), true)
     report.checks.push(
-      'Session page lane strip: the critical chip only offers 查看, which opens the shared confirmation layer (Esc closes it without approving or stopping); the standard chip approves inline with one POST {"approved":true}',
+      'Session page sidebar: the critical row only offers 打开 and A on it sends nothing; hovering the standard row reveals 允许, one click sends one POST {"approved":true} and the row leaves 需要你 while the session stays open',
     )
 
-    // ⌘J：左侧代理面板按泳道分组，critical 行只有查看；Esc 关闭并把焦点还回输入框，不停止运行。
+    // ⌘J：从输入框把焦点移到侧栏的当前会话行，↓ 在行间移动；⌥A 聚焦等待最久的需要你行（不批准）。
     const prompt = page.locator('.focus-composer textarea')
     await prompt.click()
     await page.keyboard.press(`${mod}+KeyJ`)
-    const panel = page.locator('[data-agent-panel]')
-    await panel.waitFor()
-    const lanes = await panel
-      .locator('[data-agent-lane]')
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-agent-lane')))
-    assert.equal(lanes[0], 'attention', `agent panel groups by lane: ${lanes}`)
-    assert.ok(lanes.includes('running'), `agent panel lists running agents: ${lanes}`)
-    assert.equal(
-      await panel.locator('[data-agent-row="fx-critical"] [data-strip-approve]').count(),
-      0,
+    await page.waitForFunction(
+      (id) => document.activeElement?.getAttribute('data-sidebar-row') === id,
+      BOARD_SESSION_ID,
     )
-    assert.equal(
-      await panel.locator('[data-agent-row="fx-critical"] [data-strip-review]').count(),
-      1,
+    const focusedRow = () =>
+      page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-row') ?? null)
+    const before = await focusedRow()
+    await page.keyboard.press('ArrowDown')
+    await page.waitForFunction(
+      (id) => document.activeElement?.getAttribute('data-sidebar-row') !== id,
+      before,
     )
-    const box = await panel.boundingBox()
-    assert.ok(
-      Math.round(box.width) === 320 && box.x <= 1,
-      `agent panel geometry ${JSON.stringify(box)}`,
+    assert.ok(await focusedRow(), 'ArrowDown moves to the next sidebar row')
+    await prompt.click()
+    await page.keyboard.press('Alt+KeyA')
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.getAttribute('data-sidebar-group-row') === 'attention' &&
+        document.activeElement ===
+          document.querySelector('[data-sidebar-group="attention"] [data-sidebar-row]'),
     )
-    await page.keyboard.press('Escape')
-    await panel.waitFor({ state: 'detached' })
-    await page.waitForFunction(() => document.activeElement?.matches('.focus-composer textarea'))
-    assert.deepEqual(aborts, [], 'Esc on the agent panel does not stop the run')
+    assert.equal(fixture.posts.length, 1, '⌥A only moves focus')
+    assert.equal(page.url().endsWith(`#/board/${BOARD_SESSION_ID}`), true)
+    assert.deepEqual(aborts, [], '⌘J / ⌥A never stop the run')
     report.checks.push(
-      '⌘J opens the 320px agent panel grouped by lane (critical rows only offer 查看); Esc closes it, returns focus to the composer and does not stop the run',
+      '⌘J moves focus from the composer to the current session row in the sidebar and ↓ walks the rows; ⌥A focuses the longest-waiting needs-you row without approving or navigating',
     )
 
     // ⌘I：输入框内也能开合检查器。
@@ -956,13 +1061,13 @@ try {
     await page.locator('[data-session-inspector]').waitFor()
     report.checks.push('⌘I closes and reopens the docked inspector from inside the composer')
 
-    // ⌥↓ / ⌥↑：按泳道条顺序换代理，只换路由（草稿按会话保留），浏览器后退回到看板。
+    // ⌥↓ / ⌥↑：按侧栏顺序换会话，只换路由（草稿按会话保留），浏览器后退回到看板。
     await prompt.fill('会话页的未发送草稿')
     await page.keyboard.press('Alt+ArrowDown')
     await page.waitForFunction((id) => !location.hash.endsWith(id), BOARD_SESSION_ID)
     const next = await page.evaluate(() => location.hash)
-    assert.match(next, /^#\/board\/fx-/, 'Alt+ArrowDown opens the next agent on the strip')
-    await page.locator('[data-lane-strip]').waitFor()
+    assert.match(next, /^#\/board\/fx-/, 'Alt+ArrowDown opens the next session in the sidebar')
+    await page.locator('[data-session-header]').first().waitFor()
     await page.keyboard.press('Alt+ArrowUp')
     await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
     await prompt.waitFor()
@@ -975,14 +1080,14 @@ try {
     await page.keyboard.press('Alt+ArrowDown')
     await page.keyboard.press('Alt+ArrowUp')
     await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
-    await page.locator(`[data-strip-chip="${BOARD_SESSION_ID}"][data-current]`).waitFor()
+    await sidebar.locator(`[data-sidebar-row="${BOARD_SESSION_ID}"][aria-current="page"]`).waitFor()
     assert.equal(
       await page.evaluate(() => location.hash),
       `#/board/${BOARD_SESSION_ID}`,
       'back-to-back ⌥↓ ⌥↑ returns to the starting session',
     )
     report.checks.push(
-      '⌥↓ / ⌥↑ switch agents along the strip by route and keep each session draft; back-to-back presses start from the switch that has not committed yet',
+      '⌥↓ / ⌥↑ switch sessions along the sidebar order by route and keep each session draft; back-to-back presses start from the switch that has not committed yet',
     )
 
     // 运行中按 Esc：只停止当前运行（POST /abort 一次），不离开会话页。
@@ -1023,7 +1128,7 @@ try {
     await context.close()
   }
 
-  // 7b. 1080×680 + 模拟 Windows 自绘标题栏：泳道条 36px 单行，检查器是覆盖层（默认关闭），
+  // 7b. 1080×680 + 模拟 Windows 自绘标题栏：侧栏照常展开（268 + 812 主区），检查器是覆盖层（默认关闭），
   // 打开后在视口内、控件无裁切无遮挡、无横向滚动；Esc 先关覆盖层，不停止运行也不离开。
   {
     const { context, aborts } = await sessionContext(
@@ -1032,11 +1137,10 @@ try {
     )
     const page = await openBoard(context, 'session 1080')
     await openSession(page)
-    await page.locator('[data-lane-strip]').waitFor()
     await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
     await settle(page)
     let geo = await sessionGeometry(page)
-    assert.equal(geo.stripHeight, 36, `1080: single-line strip ${JSON.stringify(geo)}`)
+    assert.equal(geo.sidebarWidth, 268, `1080: the sidebar stays expanded ${JSON.stringify(geo)}`)
     assert.ok(geo.headerBottom !== null && geo.headerBottom <= 128, `1080: chrome ≤ 128px`)
     assert.equal(geo.workspace, 'overlay')
     assert.equal(await page.locator('[data-session-inspector]').count(), 0, 'overlay starts closed')
@@ -1061,14 +1165,11 @@ try {
     await page.locator('[data-inspector-overlay]').waitFor()
     await page.locator('[data-session-inspector]').waitFor()
     await settle(page)
-    // 覆盖层从页头下方开始，并给对话内容让出宽度：停止键、发送键与页头按钮都能点到。
+    // 覆盖层从页头下方开始，页头按钮都能点到。规格 v2：侧栏常驻后 1080 宽窗口的主区只有 812px，
+    // 让出 420px 后对话列不足 480，按规格 4.4 退回纯覆盖层（不推开对话）：这时停止键与发送键在覆盖层下面，
+    // Esc 先关覆盖层（见下方）；停靠与让位的新规则在 A2 的会话页重做里定。
     const reachable = await page.evaluate(() =>
-      [
-        '[data-run-stop]',
-        '.focus-composer .send-button',
-        '[data-inspector-toggle]',
-        '[data-session-header] [id$="-more"]',
-      ].map((selector) => {
+      ['[data-inspector-toggle]', '[data-session-header] [id$="-more"]'].map((selector) => {
         const element = document.querySelector(selector)
         const box = element?.getBoundingClientRect()
         if (!element || !box?.width) return [selector, 'missing']
@@ -1079,7 +1180,12 @@ try {
     assert.deepEqual(
       reachable.filter(([, ok]) => ok !== true),
       [],
-      `1080 overlay leaves stop, send and header controls reachable ${JSON.stringify(reachable)}`,
+      `1080 overlay leaves the header controls reachable ${JSON.stringify(reachable)}`,
+    )
+    assert.equal(
+      await page.locator('[data-overlay-inset]').count(),
+      0,
+      '812px main area: the overlay does not squeeze the conversation below 480px',
     )
     geo = await sessionGeometry(page)
     assert.ok(
@@ -1108,7 +1214,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    '1080x680 with the simulated custom title bar: 36px single-line strip, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header, the conversation makes room so stop, send and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; ⌘I/Esc from the composer keeps focus there, and Esc closes the overlay without stopping the run',
+    '1080x680 with the simulated custom title bar: the 268px sidebar stays expanded, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header (with the 812px main area it stays a pure overlay instead of squeezing the conversation below 480px) and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; ⌘I/Esc from the composer keeps focus there, and Esc closes the overlay without stopping the run',
   )
 
   // 7c. 手机 App 390×844：第 4 期手机会话页（顶栏左侧“看板 ▲N”入口、无泳道条、隐藏底部标签栏），
@@ -1214,7 +1320,7 @@ try {
   )
 
   // 7e. 第 4 期快捷键改绑：⌘J / ⌘I / ⌥↑⌥↓ / 插话 / ⌘/ 都在 shortcut-store，可在“设置 → 快捷键”改绑；
-  // 改绑立即生效、旧键失效，标签与 aria-keyshortcuts 跟随；⌘/ 速查列出当前绑定，Esc 关闭不停止运行。
+  // 改绑立即生效、旧键失效；⌘/ 速查列出当前绑定，Esc 关闭不停止运行。v2：⌘J 聚焦侧栏会话列表。
   // 最后恢复默认（偏好经 Runtime 同步，免得影响之后的上下文）。
   {
     const { context, aborts } = await sessionContext({
@@ -1230,9 +1336,9 @@ try {
     })
     const page = await openBoard(context, 'shortcut rebinding')
     const composer = page.locator('.focus-composer textarea').first()
-    const panel = page.locator('[data-agent-panel]')
     const inspector = page.locator('[data-session-inspector]')
-    const agentsButton = page.locator('[data-strip-agents]')
+    const sidebarFocused = () =>
+      page.evaluate(() => document.activeElement?.hasAttribute('data-sidebar-row') ?? false)
     const help = page.locator('[data-shortcut-help]')
     const helpRow = (key) => help.locator(`[data-shortcut-help-entry="${key}"]`)
     const keyName = mod === 'Meta' ? '⌘' : 'Ctrl'
@@ -1243,10 +1349,15 @@ try {
     const openRunningSession = async () => {
       await openSession(page)
       await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
-      await page.locator('[data-lane-strip]').waitFor()
+      await page.locator('[data-shell-sidebar] [data-sidebar-row][aria-current="page"]').waitFor()
     }
     await openRunningSession()
-    assert.equal(await agentsButton.getAttribute('aria-keyshortcuts'), `${ariaMod}+J`)
+    assert.equal(
+      await page
+        .locator('[data-shell-sidebar] [data-sidebar-entry="board"]')
+        .getAttribute('aria-keyshortcuts'),
+      `${ariaMod}+1`,
+    )
     // ⌘/ 速查（默认键）：三组，列出 ⌘J；Esc 关闭、焦点回到输入框、不停止运行。
     // 换成矮窗口打开，列表才需要滚动，键盘滚动与焦点框的检查才有意义；关闭后恢复原尺寸。
     // 点进输入框后再按一下 End，让最近一次交互是键盘（边打字边按 ⌘/ 的真实路径）：只用鼠标点过、
@@ -1330,7 +1441,7 @@ try {
     )
     await page.setViewportSize({ width: 1440, height: 900 })
 
-    // 设置 → 快捷键：代理面板 F9（F6 默认属于焦点区域切换）、检查器 F7、插话 ⌘↵。
+    // 设置 → 快捷键：聚焦侧栏列表 F9（F6 默认属于焦点区域切换）、检查器 F7、插话 ⌘↵。
     await page.goto(`${base}/#/config/shortcuts`)
     const card = page.locator('[data-config-card="shortcuts-bindings"]')
     await card.waitFor({ timeout: 30_000 })
@@ -1348,16 +1459,12 @@ try {
 
     // 回到会话页：旧键失效、新键生效，标签跟随。
     await openRunningSession()
-    assert.equal(await agentsButton.getAttribute('aria-label'), '全部代理（F9）')
-    assert.equal(await agentsButton.getAttribute('aria-keyshortcuts'), 'F9')
     await composer.click()
     await page.keyboard.press(`${mod}+KeyJ`)
     await page.waitForTimeout(400)
-    assert.equal(await panel.count(), 0, 'the old ⌘J no longer opens the agent panel')
+    assert.equal(await sidebarFocused(), false, 'the old ⌘J no longer focuses the sidebar')
     await page.keyboard.press('F9')
-    await panel.waitFor({ timeout: 5000 })
-    await page.keyboard.press('Escape')
-    await panel.waitFor({ state: 'detached' })
+    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-sidebar-row'))
     const inspectorOpen = async () => (await inspector.count()) > 0
     const before = await inspectorOpen()
     await composer.click()
@@ -1374,6 +1481,12 @@ try {
       (open) => !!document.querySelector('[data-session-inspector]') === open,
       before,
     )
+    // 侧栏常驻后 1440 宽窗口里停靠的检查器会把对话列压到 768 以下，工具区放不下运行提示：
+    // 先收起检查器（F7），在完整的 768 对话列上核对提示。
+    if (await inspectorOpen()) {
+      await page.keyboard.press('F7')
+      await page.waitForFunction(() => !document.querySelector('[data-session-inspector]'))
+    }
     assert.equal(
       (await page.locator('[data-composer-hint]').innerText()).trim(),
       `运行中 Enter 排队 · ${keyName} + Enter 插话`,
@@ -1408,7 +1521,7 @@ try {
     await help.getByRole('button', { name: '在设置中改绑', exact: true }).click()
     await card.waitFor({ timeout: 30_000 })
     assert.ok(page.url().includes('/config/shortcuts'))
-    // 恢复默认：⌘J 重新打开代理面板。
+    // 恢复默认：⌘J 重新聚焦侧栏会话列表。
     await card.getByRole('button', { name: '恢复默认', exact: true }).click()
     const confirm = page.getByRole('alertdialog').or(page.getByRole('dialog'))
     await confirm.getByRole('button', { name: '恢复默认', exact: true }).click()
@@ -1418,13 +1531,12 @@ try {
     await openRunningSession()
     await composer.click()
     await page.keyboard.press(`${mod}+KeyJ`)
-    await panel.waitFor({ timeout: 5000 })
-    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-sidebar-row'))
     assert.deepEqual(aborts, [], 'no Esc in this section stops the run')
     await context.close()
   }
   report.checks.push(
-    'Shortcut rebinding: ⌘/ help lists global/board/session bindings, opens with focus on its list without a focus ring (PageDown scrolls it at once and brings the ring back, Shift+Tab wraps to the close button) and Esc closes it without stopping the run; after rebinding the agent panel to F9, the inspector to F7 and steer to ⌘↵ in Settings → Shortcuts, the old keys stop working, the new ones work at once, labels and aria-keyshortcuts follow, the help shows the new keys and links back to Settings; reset restores ⌘J',
+    'Shortcut rebinding: ⌘/ help lists global/board/session bindings, opens with focus on its list without a focus ring (PageDown scrolls it at once and brings the ring back, Shift+Tab wraps to the close button) and Esc closes it without stopping the run; after rebinding the sidebar-list focus to F9, the inspector to F7 and steer to ⌘↵ in Settings → Shortcuts, the old keys stop working, the new ones work at once, the help shows the new keys and links back to Settings; reset restores ⌘J',
   )
 
   assert.deepEqual(report.pageErrors, [])

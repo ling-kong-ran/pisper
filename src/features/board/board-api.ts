@@ -405,6 +405,12 @@ export const boardApi = {
   updateOrganization: (sessionId: string, patch: SessionOrganizationPatch) =>
     updateSessionOrganization(sessionId, patch),
 
+  // 改名沿用会话接口的 PATCH（与历史会话页、会话页同一个端点），只取服务端确认后的名字。
+  renameSession: async (sessionId: string, name: string) => {
+    const result = record(await chatApi.renameSession(sessionId, name))
+    return typeof result.name === 'string' ? result.name : name
+  },
+
   // GET /api/sessions?view=board：固定取 7 天窗口（客户端再按自己的时间窗收窄），按游标最多读 3 页。
   listBoardView: async (signal?: AbortSignal): Promise<BoardViewPage> => {
     const items: BoardFeedItem[] = []

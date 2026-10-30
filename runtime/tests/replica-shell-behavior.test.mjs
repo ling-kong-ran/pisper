@@ -6,7 +6,6 @@ import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { clampSidebarWidth, DEFAULT_SIDEBAR_WIDTH } from '../../src/lib/sidebar-width.ts'
 import { uiTextSizes } from '../../src/app/ui-preferences.ts'
 import { PHONE_SHELL_TABS } from '../../src/app/shell-tabs.ts'
 import * as laneIcons from '../../src/components/app/LaneBarsIcon.tsx'
@@ -14,19 +13,21 @@ import * as utils from '../../src/lib/utils.ts'
 
 const require = createRequire(import.meta.url)
 
-test('sidebar restores a valid preference while reserving space for the conversation', () => {
-  assert.equal(DEFAULT_SIDEBAR_WIDTH, 340)
-  assert.equal(clampSidebarWidth(undefined, 1200), 340)
-  assert.equal(clampSidebarWidth(NaN, 1200), 340)
-  assert.equal(clampSidebarWidth(Infinity, 1200), 340)
-  assert.equal(clampSidebarWidth(100, 1200), 240)
-  assert.equal(clampSidebarWidth(1000, 1200), 520)
-  assert.equal(clampSidebarWidth(480, 650), 410)
-  assert.equal(clampSidebarWidth(480, 400), 240)
-  // 窄窗只约束当前渲染；恢复宽窗时仍使用用户保存的偏好。
-  const preferred = 480
-  assert.equal(clampSidebarWidth(preferred, 650), 410)
-  assert.equal(clampSidebarWidth(preferred, 1200), preferred)
+test('the v2 sidebar has a fixed width instead of a draggable, persisted one', async () => {
+  // 规格 v2 第 2.1 节：侧栏宽 268、窄轨 60，不可拖动；旧侧栏的拖拽宽度（sidebar-width）随旧外壳删除，
+  // 收起偏好只有 collapsed / doneCollapsed 两个布尔值（sidebar-model / sidebar-store 的测试另见）。
+  const [shell, store] = await Promise.all([
+    readFile('src/app/ShellSidebar.tsx', 'utf8'),
+    readFile('src/stores/sidebar-store.ts', 'utf8'),
+  ])
+  assert.match(shell, /collapsed \? 'w-\[60px\]' : 'w-\[268px\]'/)
+  assert.doesNotMatch(shell, /pointermove|cursor-col-resize|role="separator"|sidebarWidth/)
+  // 偏好的序列化只写两个布尔值（不落盘任何宽度）。
+  assert.match(
+    store,
+    /return JSON\.stringify\(\{\s*collapsed: preference\.collapsed === true,\s*doneCollapsed: preference\.doneCollapsed === true,\s*\}\)/,
+  )
+  await assert.rejects(readFile('src/lib/sidebar-width.ts', 'utf8'), { code: 'ENOENT' })
 })
 
 test('UI font preferences round their scale without changing content and code font roles', () => {
@@ -39,7 +40,7 @@ test('UI font preferences round their scale without changing content and code fo
 })
 
 // —— 第 4 期手机底部标签栏（规格 7.1，主页改为会话）——
-// 真实组件在隔离上下文里渲染：舰队计量换成固定数字，其余依赖用真实模块。
+// 真实组件在隔离上下文里渲染：需要你计数换成固定数字，其余依赖用真实模块。
 const tabBarCode = transformSync(await readFile('src/app/ShellTabBar.tsx', 'utf8'), {
   loader: 'tsx',
   format: 'cjs',
@@ -60,9 +61,12 @@ function renderTabBar({ attention = 0, ...props } = {}) {
     '@/components/app/LaneBarsIcon': laneIcons,
     '@/lib/utils': utils,
     '@/features/board/public': {
-      useFleetSummary: () => ({
-        attention,
-        longestWaiting: attention ? { sessionId: 'waiting-1' } : null,
+      // 计数与侧栏同一份分组模型（看板 store）。
+      useSidebarModel: () => ({
+        model: {
+          counts: { attention },
+          longestWaitingId: attention ? 'waiting-1' : null,
+        },
       }),
     },
   }

@@ -56,6 +56,8 @@ type SidebarRowBase = {
   title: string
   glyph: StatusGlyphKind
   status: BoardStatus
+  // 行 ⋯ 菜单的“置顶 / 取消置顶”：置顶会话留在原组时也要知道它已置顶。
+  pinned: boolean
 }
 
 export type SidebarAttentionRow = SidebarRowBase & {
@@ -232,6 +234,7 @@ export function buildSidebarModel(
       id: item.id,
       title: item.title,
       status: item.status,
+      pinned: item.pinned === true,
       glyph: 'attention',
       waitingSince: finite(item.since),
       reasons: sidebarReasons(item),
@@ -247,6 +250,7 @@ export function buildSidebarModel(
       id: item.id,
       title: item.title,
       status: item.status,
+      pinned: item.pinned === true,
       glyph: 'run',
       startedAt: runningStart(item),
       phase: runningPhase(index),
@@ -266,6 +270,7 @@ export function buildSidebarModel(
       id: item.id,
       title: item.title,
       status: item.status,
+      pinned: item.pinned === true,
       glyph: 'queued',
       position: finite(item.queuePosition) ?? index + 1,
     }))
@@ -277,6 +282,7 @@ export function buildSidebarModel(
       id: item.id,
       title: item.title,
       status: item.status,
+      pinned: item.pinned === true,
       glyph: boardStatusGlyph(item),
       at: finite(item.since),
     }))
@@ -286,6 +292,7 @@ export function buildSidebarModel(
     id: item.id,
     title: item.title,
     status: item.status,
+    pinned: item.pinned === true,
     glyph: boardStatusGlyph(item),
     finishedAt: finite(item.since),
     unread: item.unread === true,

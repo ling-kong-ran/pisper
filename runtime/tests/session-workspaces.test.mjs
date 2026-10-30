@@ -215,18 +215,20 @@ test('project membership and confirmation count use the full directory despite s
     sessionWorkspaceKey({ id: 'relative', cwd: '__no_workspace__' }),
   )
 
-  const sidebar = await readFile('src/features/chat/ProjectTaskList.tsx', 'utf8')
-  assert.match(sidebar, /const targets = sessionsInWorkspace\(freshSessions, group\.key\)/)
-  assert.match(sidebar, /count: targets\.length/)
+  // 旧侧栏（ProjectTaskList）已删除；项目删除现在只走全部代理的“管理项目”（project-actions），
+  // 同样按全量目录（不受搜索与最近列表限制）计数与确认。
+  const actions = await readFile('src/features/chat/project-actions.ts', 'utf8')
+  assert.match(actions, /const targets = sessionsInWorkspace\(freshSessions, project\.key\)/)
+  assert.match(actions, /count: targets\.length/)
   assert.match(
-    sidebar,
+    actions,
     /result\.deletedIds\.length \? \{ deletedIds: result\.deletedIds \} : undefined/,
   )
   assert.match(
-    sidebar,
-    /const remainingCount = sessionsInWorkspace\(result\.sessions, group\.key\)\.length/,
+    actions,
+    /const remainingCount = sessionsInWorkspace\(refreshed, project\.key\)\.length/,
   )
-  assert.doesNotMatch(sidebar, /removeSessions\(group\.sessions\)/)
+  assert.doesNotMatch(actions, /removeSessions\(/)
 })
 
 test('partial project deletion reports only confirmed successes and replaces a deleted active session', async () => {

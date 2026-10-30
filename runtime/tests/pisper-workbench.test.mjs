@@ -56,16 +56,18 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     readFile('src/app/more-navigation.ts', 'utf8'),
   ])
   assert.doesNotMatch(app, /<ChatLayoutSwitcher|<ChatLayoutNavigation|<StatusBar/)
-  // 一级导航在 48px 标题栏（手机外壳换成底部标签栏）；旧的侧栏、活动栏、工作台页头与
-  // 侧栏会话列表不再挂载，源码保留到第 6 期统一删除。
-  assert.match(app, /\{!phoneShell && \(\s*<AppTitlebar\b/)
+  // 规格 v2：一级导航在 268 侧栏（手机外壳换成底部标签栏）；旧的侧栏、活动栏、工作台页头、
+  // 侧栏会话列表与 48px 标题栏都已删除，不能再被挂载或导入。
+  assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
   assert.match(app, /\{phoneShell && \([\s\S]{0,120}<ShellTabBar\b/)
   // 静态与懒加载的导入都算：只把源码留在仓库里，不把它们带进外壳的模块图。
   const imports = [...app.matchAll(/^import\s[\s\S]*?\sfrom\s+'[^']+'|\bimport\('[^']+'\)/gm)].join(
     '\n',
   )
-  assert.match(imports, /@\/app\/AppTitlebar/)
+  assert.match(imports, /@\/app\/ShellSidebar/)
   for (const retired of [
+    'AppTitlebar',
+    'FleetMeter',
     'AppSidebar',
     'ActivityRail',
     'WorkbenchNavigation',
@@ -84,9 +86,9 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     /const sharedPageHeader = !\['board', 'session', 'more', 'chat'\]\.includes\(page\)/,
   )
   assert.match(app, /\{sharedPageHeader && \(/)
-  // 新任务只有一条路径：⌘N、标题栏、手机居中按钮与命令面板都交给 startNewTask，
+  // 新任务只有一条路径：⌘N、侧栏“新任务”、手机居中按钮与命令面板都交给 startNewTask，
   // 看板认领时聚焦启动台、主页的新任务草稿认领时聚焦草稿，否则打开派发浮层。
-  for (const source of ['shortcut', 'titlebar', 'tabbar', 'palette'])
+  for (const source of ['shortcut', 'sidebar', 'tabbar', 'palette'])
     assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
   assert.match(
     app,

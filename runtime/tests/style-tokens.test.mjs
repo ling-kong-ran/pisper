@@ -204,10 +204,9 @@ test('board and new shell sources never need the bare colour allowlist', async (
   // 看板与新外壳全部经 token 着色（状态族 --st-*、泳道/井/卡片 token），连 .ts 模块里的
   // 样式常量、动效关键帧也不例外；需要新颜色时先在 src/index.css 定义 token。
   const shellFiles = [
-    'src/app/AppTitlebar.tsx',
-    'src/app/FleetMeter.tsx',
+    // 规格 v2（A1）：侧栏外壳取代标题栏、舰队计量与“‹ 看板”返回条（三者已删除）。
+    'src/app/ShellSidebar.tsx',
     'src/app/MorePage.tsx',
-    'src/app/SessionReturnBar.tsx',
     'src/app/ShellTabBar.tsx',
     'src/components/app/LaneBarsIcon.tsx',
     'src/components/app/StatusGlyph.tsx',

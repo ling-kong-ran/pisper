@@ -1,12 +1,12 @@
 import { BackNavigation } from '@/components/layout/BackNavigation'
 // 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
-// 设置/更新控制器/工作流动作），组装 48px 应用标题栏 + 全宽内容区（页头 + Outlet）
-// + 手机底部标签栏，并通过 Outlet 上下文向各页面注入公共能力。桌面没有侧栏与活动栏，
-// 一级导航（会话/看板/组件/更多/设置）在标题栏里；主页 '/' 是会话（上次停留的会话或新任务草稿）。
-// 设置页的分区导航在设置内容区左侧。
+// 设置/更新控制器/工作流动作），组装 左侧侧栏（268，⌘B 收起为 60 窄轨）+ 主区（页头 + Outlet）
+// + 手机底部标签栏，并通过 Outlet 上下文向各页面注入公共能力。规格 v2：没有标题栏了，
+// 一级入口（新任务 / 搜索 / 全部代理 / 功能 / 设置）与按状态分组的会话都在侧栏里；
+// 主页 '/' 是会话（上次停留的会话或新任务草稿）。设置页的分区导航暂在设置内容区左侧（A3 移进侧栏）。
 // 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
-// （⌘K 命令面板、⌘N 新任务、⌘1 全部代理、⌘2 功能、⌘, 设置、⌥A 跳到需要你、` 终端、/ 搜索、
-// Esc 逐层关闭）与浏览器通知轮询。
+// （⌘K 命令面板、⌘N 新任务、⌘B 侧栏、⌘J 聚焦会话列表、⌘1 全部代理、⌘2 功能、⌘, 设置、
+// ⌥A 聚焦等待最久的需要你、⌥↑⌥↓ 切换会话、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
   Suspense,
@@ -32,6 +32,7 @@ import { pageStateStorage } from '@/lib/page-state-storage'
 import { getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
 import { MORE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import {
+  HOME_ENTRY_STATE,
   HOME_PATH,
   isHomeEntry,
   PAGE_IDS,
@@ -50,7 +51,7 @@ import {
   type RouterLocationState,
   type ShellTab,
 } from '@/app/shell-tabs'
-import { AppTitlebar } from '@/app/AppTitlebar'
+import { ShellSidebar, SidebarSessionsFallback, type ShellSidebarEntry } from '@/app/ShellSidebar'
 import {
   CONFIG_SECTIONS,
   getSettingsNavigation,
@@ -81,6 +82,7 @@ import {
   requestBoardNewTask,
   type BoardNewTaskSource,
 } from '@/features/board/new-task'
+import { requestSidebarCommand } from '@/features/board/sidebar-commands'
 import { apiJson } from '@/lib/api'
 import {
   fetchStartupQuery,
@@ -95,6 +97,7 @@ import { useIsPhoneViewport, useIsTabletViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { useUiStore } from '@/stores/ui-store'
+import { useSidebarStore } from '@/stores/sidebar-store'
 import { useClientStore } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import {
@@ -155,14 +158,26 @@ const ModelOnboardingDialog = lazy(() =>
     default: module.ModelOnboardingDialog,
   })),
 )
-// 舰队计量与手机标签栏依赖看板数据层（单一轮询者）；按需加载，不进入启动包。
-const FleetMeter = lazy(() =>
-  import('@/app/FleetMeter').then((module) => ({ default: module.FleetMeter })),
+// 侧栏的会话分组、窄轨计数与命令处理依赖看板数据层（单一轮询者）；文案在看板命名空间里，
+// 与分组块一起按需加载，不进入启动包。外壳先画骨架行。
+const loadSidebarSessions = () =>
+  Promise.all([import('@/features/board/sidebar'), ensureBoardMessages()]).then(
+    ([module]) => module,
+  )
+const SidebarSessions = lazy(() =>
+  loadSidebarSessions().then((module) => ({ default: module.SidebarSessions })),
 )
+const SidebarRailCounts = lazy(() =>
+  loadSidebarSessions().then((module) => ({ default: module.SidebarRailCounts })),
+)
+const SidebarCommands = lazy(() =>
+  loadSidebarSessions().then((module) => ({ default: module.SidebarCommands })),
+)
+// 手机标签栏依赖看板数据层（单一轮询者）；按需加载，不进入启动包。
 const ShellTabBar = lazy(() =>
   import('@/app/ShellTabBar').then((module) => ({ default: module.ShellTabBar })),
 )
-// 更新提示只在确有可用更新时加载，常驻标题栏不为它增加启动体积。
+// 更新提示只在确有可用更新时加载，常驻侧栏不为它增加启动体积。
 const SidebarUpdateStatus = lazy(() => import('@/components/layout/SidebarUpdateStatus'))
 const SettingsSectionNav = lazy(() =>
   import('@/components/layout/SettingsSectionNav').then((module) => ({
@@ -269,10 +284,19 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   // 平板（手机 App，≥960×640）走桌面布局：顶部 48px 栏、设置分区导航；返回键与软键盘仍按移动端处理。
   const tabletApp = useIsTabletViewport() && mobileApp
   const phoneLayout = mobileLayout && !tabletApp
-  // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍保留标题栏，避免与 Windows 自绘窗口按钮冲突。
+  // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍是侧栏外壳，避免与 Windows 自绘窗口按钮冲突。
   const phoneShell = mobileLayout && !window.pisperDesktop && !tabletApp
-  // 手机没有“组件”标签，组件页归“更多”点亮。
-  const shellTab = activeShellTab(page, settingsOwned, phoneShell)
+  // 当前页归哪个一级入口：组件工作室与其余功能页归“更多”（侧栏的“功能”）。
+  const shellTab = activeShellTab(page, settingsOwned)
+  const sidebarActive: ShellSidebarEntry | null =
+    shellTab === 'board'
+      ? 'board'
+      : shellTab === 'more'
+        ? 'features'
+        : shellTab === 'settings'
+          ? 'settings'
+          : null
+  const toggleSidebar = useSidebarStore((state) => state.toggleCollapsed)
   useEffect(() => {
     // 底部表单等经 Portal 挂到 body 的界面按根节点属性适配手机外壳（圆角、安全区）。
     document.documentElement.toggleAttribute('data-phone-shell', phoneShell)
@@ -280,7 +304,8 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [dispatchOpen, setDispatchOpen] = useState(false)
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
-  // 等待最久的需要你事项：由舰队计量（桌面）或底部标签栏（手机）上报，⌥A 只据此跳转。
+  // 等待最久的需要你事项：手机标签栏上报，手机外壳的 ⌥A（外接键盘）据此跳转；
+  // 桌面的 ⌥A 交给侧栏聚焦那一行（规格 2.8），不再直接打开会话。
   const [longestWaitingId, setLongestWaitingId] = useState('')
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
@@ -543,7 +568,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [routerNavigate, sessionRouteMounted],
   )
 
-  // 新任务：自带新任务输入框的页面先认领——看板聚焦启动台；主页的新任务草稿认领 ⌘N 与标题栏“新任务”，
+  // 新任务：自带新任务输入框的页面先认领——看板聚焦启动台；主页的新任务草稿认领 ⌘N 与侧栏“新任务”，
   // 聚焦草稿输入框（会话页的页面 id 也是 session，但那里没有认领者）。没有视图认领时打开派发浮层。
   // 路由已请求去别处、界面还没换过去时，离开中的看板不该认领，要显示的草稿也还没挂上：
   // 先记下请求，等目标页提交后（下方 effect）再问它，只执行一次。
@@ -624,9 +649,10 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [capabilities, routerNavigate],
   )
 
-  // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。“会话”走与 '/' 相同的主页逻辑
-  // （上次停留的会话或新任务草稿）；已在（或正要去）会话页或主页时不再压入历史。按路由器的最新去向判断：
-  // 刚按 ⌘1 / ⌘2 离开主页、界面还没换过去时，已渲染的 page 仍是 session，回主页的入口不能因此什么都不做。
+  // 一级入口（侧栏入口、手机标签栏与快捷键共用）：设置回到模型分区（与旧功能栏的设置键一致）。
+  // “会话”走与 '/' 相同的主页逻辑（上次停留的会话或新任务草稿）；已在（或正要去）会话页或主页时不再压入历史。
+  // 按路由器的最新去向判断：刚按 ⌘1 / ⌘2 离开主页、界面还没换过去时，已渲染的 page 仍是 session，
+  // 回主页的入口不能因此什么都不做（61458a38 的竞态修复，原样保留给侧栏入口和快捷键）。
   const selectShellTab = useCallback(
     (tab: ShellTab) => {
       if (tab === 'session') {
@@ -637,6 +663,38 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       else navigate(SHELL_TAB_PAGES[tab])
     },
     [navigate, readRouter, routerNavigate, setConfigSection],
+  )
+
+  // 侧栏会话行：会话页（含主页）之间切换只换路由（replace，保留历史状态，规格 4.6）；
+  // 从其他页面打开时 push，浏览器后退回到来处。当前会话按路由器的最新去向判断，连点或连按 ⌥↓
+  // 时界面还没换过去也不会重复导航（沿用 effectiveStripCurrent 的教训：不能只看渲染状态）。
+  const currentSessionTarget = useCallback(
+    () => sessionIdFromPath(requestedPathname(readRouter())),
+    [readRouter],
+  )
+  const openSidebarSession = useCallback(
+    (id: string) => {
+      if (!id) return
+      const router = readRouter()
+      const target = requestedPathname(router)
+      if (sessionIdFromPath(target) === id) return
+      setQuery('')
+      if (pageFromPath(target) !== 'session') {
+        routerNavigate(sessionPath(id))
+        return
+      }
+      // 主页（草稿）上打开的会话与从主页落地的一样是根；会话之间切换沿用当前条目的状态。
+      const state = target === HOME_PATH ? HOME_ENTRY_STATE : router.location.state
+      routerNavigate(sessionPath(id), { replace: true, state })
+    },
+    [readRouter, routerNavigate],
+  )
+  // 侧栏归档了正在看的会话：回到主页（新任务草稿），与会话页标题菜单里归档的去向一致。
+  const sidebarArchived = useCallback(
+    (id: string) => {
+      if (currentSessionTarget() === id) routerNavigate(HOME_PATH, { replace: true })
+    },
+    [currentSessionTarget, routerNavigate],
   )
 
   const dismissModelOnboarding = useCallback(() => {
@@ -981,47 +1039,88 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
             onSettings={() => selectShellTab('settings')}
             onOpenSession={() => selectShellTab('session')}
             onOpenBoard={() => selectShellTab('board')}
-            onOpenComponents={() => selectShellTab('components')}
+            onOpenComponents={() => navigate('components')}
             onOpenMore={() => selectShellTab('more')}
-            onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
+            // 侧栏只在桌面外壳（含平板）里：⌘B / ⌘J / ⌥A / ⌥↑⌥↓ 都交给它；手机外壳的 ⌥A 仍直接打开会话（A4 改为抽屉）。
+            onToggleSidebar={phoneShell ? undefined : toggleSidebar}
+            onAgentPanel={
+              phoneShell ? undefined : () => requestSidebarCommand({ kind: 'focus-list' })
+            }
+            onPreviousAgent={
+              phoneShell
+                ? undefined
+                : () => requestSidebarCommand({ kind: 'adjacent', direction: -1 })
+            }
+            onNextAgent={
+              phoneShell
+                ? undefined
+                : () => requestSidebarCommand({ kind: 'adjacent', direction: 1 })
+            }
+            onJumpToAttention={
+              phoneShell
+                ? longestWaitingId
+                  ? jumpToAttention
+                  : undefined
+                : () => requestSidebarCommand({ kind: 'focus-attention' })
+            }
             onShortcutHelp={() => setShortcutHelpOpen(true)}
           />
-          {/* 桌面（含手机 App 以外的窄窗口）由标题栏承载一级导航；手机外壳改用底部标签栏。 */}
-          {!phoneShell && (
-            <AppTitlebar
-              activeTab={shellTab}
-              onSelectTab={selectShellTab}
-              onOpenPalette={() => setPaletteOpen(true)}
-              onNewTask={() => startNewTask('titlebar')}
-              status={
-                appUpdate.status &&
-                ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
-                  <Suspense fallback={null}>
-                    {/* 沿用原侧栏的更新提示，收成 32px 图标键放进标题栏；触屏与“新任务”一样抬到 44px。 */}
-                    <div className="flex-none [&>button]:size-8 [&>button]:min-h-0 pointer-coarse:[&>button]:size-11">
-                      <SidebarUpdateStatus
-                        update={appUpdate}
-                        collapsed
-                        onOpen={openUpdateSettings}
-                      />
-                    </div>
-                  </Suspense>
-                ) : undefined
-              }
-              fleet={
-                <Suspense fallback={<span className="h-8 w-24 flex-none" aria-hidden="true" />}>
-                  <FleetMeter
-                    onOpenSession={openSession}
-                    onLongestWaitingChange={setLongestWaitingId}
-                  />
-                </Suspense>
-              }
-            />
-          )}
           <div
             className="app-body flex min-h-0 flex-1 overflow-hidden"
             data-mobile-app={mobileLayout || undefined}
           >
+            {!phoneShell && (
+              <ShellSidebar
+                active={sidebarActive}
+                onNewTask={() => startNewTask('sidebar')}
+                onSearch={() => setPaletteOpen(true)}
+                onOpenBoard={() => selectShellTab('board')}
+                onOpenFeatures={() => selectShellTab('more')}
+                onOpenSettings={() => selectShellTab('settings')}
+                content={
+                  <Suspense fallback={<SidebarSessionsFallback />}>
+                    <SidebarSessions
+                      currentId={sessionIdFromPath(location.pathname)}
+                      notify={notify}
+                      requestText={appDialog.prompt}
+                      onOpenSession={openSidebarSession}
+                      onOpenBoard={() => selectShellTab('board')}
+                      onOpenHistory={() => navigate('chatHistory')}
+                      onArchived={sidebarArchived}
+                    />
+                  </Suspense>
+                }
+                railCounts={
+                  <Suspense fallback={<SidebarSessionsFallback collapsed />}>
+                    <SidebarRailCounts onOpenBoard={() => selectShellTab('board')} />
+                  </Suspense>
+                }
+                update={
+                  appUpdate.status &&
+                  ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
+                    <Suspense fallback={null}>
+                      {/* 沿用原侧栏的更新提示，收成 32px 图标键放在设置旁；触屏抬到 44px。 */}
+                      <div className="flex-none [&>button]:size-8 [&>button]:min-h-0 pointer-coarse:[&>button]:size-11">
+                        <SidebarUpdateStatus
+                          update={appUpdate}
+                          collapsed
+                          onOpen={openUpdateSettings}
+                        />
+                      </div>
+                    </Suspense>
+                  ) : undefined
+                }
+              />
+            )}
+            {!phoneShell && (
+              // 命令处理（⌘J / ⌥A / ⌥↑⌥↓）展开与收起时都挂着，也让看板同步在侧栏收起时保持存活。
+              <Suspense fallback={null}>
+                <SidebarCommands
+                  resolveCurrentId={currentSessionTarget}
+                  onOpenSession={openSidebarSession}
+                />
+              </Suspense>
+            )}
             {settingsLayout && (
               <Suspense
                 fallback={
@@ -1057,8 +1156,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     onPrimary={handlePrimary}
                     searchSlot={page === 'config' && !settingsLayout ? configSearch() : undefined}
                     searchInputRef={searchInputRef}
-                    theme={theme}
-                    onCycleTheme={cycleTheme}
                     workflowActions={workflowActions}
                     desktopPlatform={window.pisperDesktop?.platform || ''}
                     mobileApp={mobileApp}
@@ -1173,6 +1270,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   }
                 }}
                 onNewChat={() => startNewTask('palette')}
+                onToggleTheme={cycleTheme}
               />
             )}
             {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}

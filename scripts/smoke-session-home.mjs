@@ -2,10 +2,10 @@
 // 会话目录全部来自真实 Runtime，所以“落地主页不建会话”可以直接数 GET /api/sessions。
 // 只在浏览器边界注入一个已配置的模型（启动台需要），并把 /api/chat 换成一个最小的 run 头帧，不连接模型。
 // 覆盖：全新数据目录打开 / → 新任务草稿且会话数不变；发出第一条消息才建会话并以 replace 换成 /board/:id；
-// 重新载入 / → 回到上次停留的会话；泳道条“打开看板”入口与 ⌘1；“会话”标签；未知路径与 /chat 回主页；
-// 归档该会话后 / → 草稿；桌面标签顺序与点亮；会话目录加载中 / 失败时的主页状态。
+// 重新载入 / → 回到上次停留的会话；侧栏“全部代理”入口与 ⌘1、侧栏会话行回到会话；未知路径与 /chat 回主页；
+// 归档该会话后 / → 草稿；侧栏入口顺序与点亮（规格 v2 第 2.1 节，标题栏标签已退役）；会话目录加载中 / 失败时的主页状态。
 // 快捷键 v2（规格 2.8）：⌘1 全部代理（看板）、⌘2 功能（更多），会话主页默认未绑定、⇧⌘B 归会话树，⌘[ 已退役；
-// 这里把“会话主页”改绑到 ⌘9，验证它可改绑并保留回主页的竞态修复。草稿上的 ⌘N 与标题栏“新任务”聚焦草稿，
+// 这里把“会话主页”改绑到 ⌘9，验证它可改绑并保留回主页的竞态修复。草稿上的 ⌘N 与侧栏“新任务”聚焦草稿，
 // 不叠派发浮层；真实会话页与主页错误态的 ⌘N 照旧打开派发浮层。
 // 竞态：⌘1 / ⌘2 还没提交就按回主页键，按路由器的最新去向回到主页并停在那里（路由懒加载中与已加载两种）。
 // 手机主页（草稿、返回根、标签栏、更多里的组件磁贴）在 smoke-mobile-shell 里覆盖。
@@ -157,11 +157,14 @@ async function openPage(context, label, hash) {
 }
 
 const hashOf = (page) => new URL(page.url()).hash
+// 侧栏里点亮的入口（全部代理 / 功能 / 设置）；主页与会话页不点亮任何入口，当前会话由会话行标出。
 const activeTabs = (page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll('[data-app-titlebar] [data-shell-tab][aria-current="page"]')].map(
-      (tab) => tab.dataset.shellTab,
-    ),
+    [
+      ...document.querySelectorAll(
+        '[data-shell-sidebar] [data-sidebar-entry][aria-current="page"]',
+      ),
+    ].map((entry) => entry.dataset.sidebarEntry),
   )
 const sessionRoute = /^#\/board\/(?!new$)[^/]+$/
 
@@ -176,7 +179,7 @@ try {
   })
   assert.equal(await sessionCount(), 0, 'the data directory starts without sessions')
 
-  // 1. 全新数据目录打开 / ：新任务草稿，不建会话；“会话”标签点亮，标签顺序 会话 / 看板 / 组件 / 更多 / 设置。
+  // 1. 全新数据目录打开 / ：新任务草稿，不建会话；侧栏展开，入口顺序 新任务 / 搜索 / 全部代理 / 功能 / 设置。
   const { context, chats, creates } = await newContext({
     viewport: { width: 1440, height: 900 },
     colorScheme: 'light',
@@ -187,33 +190,33 @@ try {
   assert.equal(hashOf(page), '#/')
   assert.deepEqual(
     await page
-      .locator('[data-app-titlebar] [data-shell-tab]')
-      .evaluateAll((tabs) => tabs.map((tab) => tab.dataset.shellTab)),
-    ['session', 'board', 'components', 'more', 'settings'],
+      .locator('[data-shell-sidebar="expanded"] [data-sidebar-entry]')
+      .evaluateAll((entries) => entries.map((entry) => entry.dataset.sidebarEntry)),
+    ['newTask', 'search', 'board', 'features', 'settings'],
   )
-  assert.deepEqual(await activeTabs(page), ['session'])
-  await page.locator('[data-board-entry]').waitFor()
+  assert.deepEqual(await activeTabs(page), [])
+  assert.equal(await page.locator('[data-app-titlebar], [data-board-entry]').count(), 0)
   await page.waitForFunction(() => document.activeElement?.hasAttribute('data-launch-input'))
   await page.waitForTimeout(1500)
   assert.equal(await sessionCount(), 0, 'landing on the home creates no session')
   assert.deepEqual(creates, [])
   await page.screenshot({ path: join(output, 'home-draft.png') })
-  // 看板标签点亮看板；“会话”标签回到主页（仍是草稿）。
-  await page.locator('[data-app-titlebar] [data-shell-tab="board"]').click()
+  // 侧栏“全部代理”点亮自己；改绑的会话主页键（⌘9）回到主页（仍是草稿）。
+  await page.locator('[data-shell-sidebar] [data-sidebar-entry="board"]').click()
   await page.waitForURL((url) => url.hash === '#/board')
   await page.locator('[data-board-root]').waitFor()
   assert.deepEqual(await activeTabs(page), ['board'])
-  await page.locator('[data-app-titlebar] [data-shell-tab="session"]').click()
+  await page.keyboard.press(`${mod}+Digit9`)
   await page.waitForURL((url) => url.hash === '#/')
   await page.locator('[data-new-task-draft="desktop"]').waitFor()
-  assert.deepEqual(await activeTabs(page), ['session'])
+  assert.deepEqual(await activeTabs(page), [])
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
   report.checks.push(
-    'Fresh data directory: / shows the new-task draft (URL stays /, 会话 lit, composer focused, 看板 entry on the strip) and GET /api/sessions stays at 0 with no POST; the 看板 tab lights 看板 and the 会话 tab returns to the draft',
+    'Fresh data directory: / shows the new-task draft (URL stays /, sidebar expanded with 新任务 / 搜索 / 全部代理 / 功能 / 设置 and no entry lit, no title bar or strip entry, composer focused) and GET /api/sessions stays at 0 with no POST; the sidebar 全部代理 entry lights itself and the rebound session-home key returns to the draft',
   )
 
-  // 1b. 草稿上的 ⌘N（primaryAction）与标题栏“新任务”聚焦草稿输入框、光标到末尾，不打开派发浮层。
+  // 1b. 草稿上的 ⌘N（primaryAction）与侧栏“新任务”聚焦草稿输入框、光标到末尾，不打开派发浮层。
   const draftInput = page.locator('[data-new-task-draft="desktop"] [data-launch-input]')
   const draftFocusedAtEnd = () =>
     page.waitForFunction(() => {
@@ -244,12 +247,9 @@ try {
   await draftFocusedAtEnd()
   await noOverlay('⌘N on the draft')
   await blurDraftAtStart()
-  await page
-    .locator('[data-app-titlebar]')
-    .getByRole('button', { name: /新任务/ })
-    .click()
+  await page.locator('[data-shell-sidebar] [data-sidebar-entry="newTask"]').click()
   await draftFocusedAtEnd()
-  await noOverlay('the title bar 新任务 on the draft')
+  await noOverlay('the sidebar 新任务 on the draft')
   assert.equal(await draftInput.inputValue(), '草稿里已经写了一半')
   // 命令面板的“新会话”照旧打开派发浮层（叠在草稿上，草稿文本各自独立）。
   const paletteInput = page.locator('input[role="combobox"]')
@@ -305,17 +305,19 @@ try {
   await noOverlay('⌘N inside an overflowing draft')
   assert.deepEqual(creates, [])
   report.checks.push(
-    'On the new-task draft ⌘N and the title bar 新任务 focus the draft textarea with the caret at the end and open no dispatch overlay; on a 40-line draft that overflows the height cap ⌘N also scrolls the textarea to the bottom, both when blurred and when already focused; the ⌘K 新会话 command still opens the overlay',
+    'On the new-task draft ⌘N and the sidebar 新任务 focus the draft textarea with the caret at the end and open no dispatch overlay; on a 40-line draft that overflows the height cap ⌘N also scrolls the textarea to the bottom, both when blurred and when already focused; the ⌘K 新会话 command still opens the overlay',
   )
 
-  // 1c. 快捷键 v2：⌘1 看板（全部代理）、改绑后的 ⌘9 会话主页（与点“会话”标签同一逻辑，不建会话）；⌘[ 不再导航。
-  assert.match(
-    await page.locator('[data-app-titlebar] [data-shell-tab="session"]').getAttribute('title'),
-    /^会话 \((Ctrl|Cmd) \+ 9\)$/,
-  )
-  assert.match(
-    await page.locator('[data-app-titlebar] [data-shell-tab="board"]').getAttribute('title'),
-    /^看板 \((Ctrl|Cmd) \+ 1\)$/,
+  // 1c. 快捷键 v2：⌘1 看板（全部代理）、改绑后的 ⌘9 会话主页（主页逻辑，不建会话）；⌘[ 不再导航。
+  // 侧栏入口标出当前绑定：全部代理 ⌘1、功能 ⌘2（按键提示 + aria-keyshortcuts）。
+  const boardEntry = page.locator('[data-shell-sidebar] [data-sidebar-entry="board"]')
+  assert.match(await boardEntry.locator('kbd').innerText(), /^(Ctrl|Cmd|⌘) ?\+? ?1$/)
+  assert.equal(await boardEntry.getAttribute('aria-keyshortcuts'), `${mod}+1`)
+  assert.equal(
+    await page
+      .locator('[data-shell-sidebar] [data-sidebar-entry="features"]')
+      .getAttribute('aria-keyshortcuts'),
+    `${mod}+2`,
   )
   await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
@@ -327,11 +329,11 @@ try {
   await page.keyboard.press(`${mod}+Digit9`)
   await page.waitForURL((url) => url.hash === '#/')
   await page.locator('[data-new-task-draft="desktop"]').waitFor()
-  assert.deepEqual(await activeTabs(page), ['session'])
+  assert.deepEqual(await activeTabs(page), [])
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
   report.checks.push(
-    'Shortcut v2: tooltips read 看板 ⌘1 and the rebound 会话 ⌘9; ⌘1 opens the board, ⌘[ no longer navigates, the rebound session-home key returns to the home draft without creating a session',
+    'Shortcut v2: the sidebar entries show 全部代理 ⌘1 and 功能 ⌘2 (key hint + aria-keyshortcuts); ⌘1 opens the board, ⌘[ no longer navigates, the rebound session-home key (⌘9) returns to the home draft without creating a session',
   )
 
   // 1d. 竞态：离开主页的 ⌘1 / ⌘2 还没提交（React 在 transition 里提交路由，渲染的 page 仍是 session），
@@ -368,7 +370,7 @@ try {
     await boardResponded
     await page.waitForTimeout(800)
     assert.equal(hashOf(page), '#/', `${first} then ⌘9 stays on the home`)
-    assert.deepEqual(await activeTabs(page), ['session'])
+    assert.deepEqual(await activeTabs(page), [])
     const after = await page.evaluate(() => window.history.state?.idx)
     assert.equal(
       after,
@@ -408,7 +410,7 @@ try {
   assert.equal(chats[0].sessionId, id)
   assert.match(chats[0].message, /列出当前目录/)
   assert.equal(await page.evaluate(() => window.history.state?.usr?.navOrigin), 'home')
-  assert.deepEqual(await activeTabs(page), ['session'])
+  assert.deepEqual(await activeTabs(page), [])
   await page.waitForFunction(
     (expected) => localStorage.getItem('pisper-last-session') === expected,
     id,
@@ -419,7 +421,7 @@ try {
   await page.goForward()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   report.checks.push(
-    'The first message from the draft creates exactly one session, sends to it, replaces / with /board/:id marked as a home landing (会话 lit) and records it as the last session; browser back skips the replaced draft',
+    'The first message from the draft creates exactly one session, sends to it, replaces / with /board/:id marked as a home landing and records it as the last session; browser back skips the replaced draft',
   )
 
   // 3. 重新载入 / → 回到上次停留的会话。
@@ -428,18 +430,25 @@ try {
   await page.waitForURL((url) => url.hash === `#/board/${id}`, { timeout: 30000 })
   await page.locator('[data-session-header]').first().waitFor({ timeout: 30000 })
   assert.equal(await page.evaluate(() => window.history.state?.usr?.navOrigin), 'home')
-  assert.deepEqual(await activeTabs(page), ['session'])
+  assert.deepEqual(await activeTabs(page), [])
   assert.equal(creates.length, 1)
-  // 泳道条最左侧是“打开看板”入口（push，后退回会话），⌘1 打开看板，“会话”标签回到上次的会话。
-  const entry = page.locator('[data-board-entry]')
-  assert.match(await entry.getAttribute('aria-label'), /^打开看板（.*1）$/)
-  assert.equal(await entry.getAttribute('aria-keyshortcuts'), `${mod}+1`)
-  await entry.click()
+  // 侧栏里这个会话的行是当前项（aria-current，带 href 的链接）；“全部代理”入口 push 到看板，后退回会话。
+  // 夹具把 /api/chat 换成了最小的 run 头帧，会话里没有消息、不上看板：置顶后它进侧栏的“置顶”分组。
+  const pinned = await fetch(`${base}/api/sessions/${encodeURIComponent(id)}/organization`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned: true }),
+  })
+  assert.ok(pinned.ok, `pin the session: ${pinned.status}`)
+  const sessionRow = page.locator(`[data-shell-sidebar] [data-sidebar-row="${id}"]`)
+  await sessionRow.waitFor({ timeout: 15000 })
+  assert.equal(await sessionRow.getAttribute('aria-current'), 'page')
+  assert.equal(await sessionRow.getAttribute('href'), `#/board/${encodeURIComponent(id)}`)
+  await page.locator('[data-shell-sidebar] [data-sidebar-entry="board"]').click()
   await page.waitForURL((url) => url.hash === '#/board')
   await page.goBack()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   await page.locator('[data-session-header]').first().waitFor()
-  await page.locator('[data-board-entry]').waitFor()
   await page.locator('.focus-composer textarea').first().click()
   // 真实会话页：⌘[ 不再离开；⌘N 照旧打开派发浮层（只有主页草稿认领新任务请求）。
   await page.keyboard.press(`${mod}+BracketLeft`)
@@ -457,7 +466,12 @@ try {
   assert.equal(hashOf(page), `#/board/${id}`, '⇧⌘B no longer opens the board')
   await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
-  await page.locator('[data-app-titlebar] [data-shell-tab="session"]').click()
+  // 从全部代理点侧栏的会话行回到会话（push，后退回看板）；改绑的会话主页键同样回到上次的会话。
+  await sessionRow.click()
+  await page.waitForURL((url) => url.hash === `#/board/${id}`)
+  await page.goBack()
+  await page.waitForURL((url) => url.hash === '#/board')
+  await page.keyboard.press(`${mod}+Digit9`)
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   // 未知路径与 /chat 兼容入口回落到主页（上次停留的会话）。
   for (const path of ['#/does-not-exist', '#/chat']) {
@@ -466,7 +480,7 @@ try {
   }
   assert.equal(creates.length, 1, 'navigation never creates sessions')
   report.checks.push(
-    'Reloading / lands on the last session; the lane strip 看板 entry announces ⌘1, pushes /board and browser back returns; on the session page ⌘[ and ⇧⌘B stay put and ⌘N still opens the dispatch overlay; ⌘1 opens the board from the composer; the 会话 tab, unknown paths and /chat all return to the last session',
+    'Reloading / lands on the last session (its sidebar row is a link marked aria-current); the sidebar 全部代理 entry pushes /board and browser back returns; on the session page ⌘[ and ⇧⌘B stay put and ⌘N still opens the dispatch overlay; ⌘1 opens the board from the composer; the sidebar session row pushes back to the session, and the session-home key, unknown paths and /chat all return to the last session',
   )
 
   // 4. 归档该会话后回到主页草稿；重新载入 / 仍是草稿。
@@ -604,9 +618,15 @@ try {
     fail = true
     const failed = await openPage(context, 'home error', '#/')
     await failed.locator('[data-session-home="error"]').waitFor({ timeout: 60000 })
-    assert.equal(await failed.getByRole('button', { name: '重试', exact: true }).count(), 1)
+    // 主区的错误态有“重试”；侧栏的会话分组读同一份目录，同样如实显示加载失败与自己的重试。
+    const homeMain = failed.locator('main')
+    assert.equal(await homeMain.getByRole('button', { name: '重试', exact: true }).count(), 1)
+    await failed
+      .locator('[data-shell-sidebar]')
+      .getByRole('button', { name: '重试', exact: true })
+      .waitFor()
     await failed.screenshot({ path: join(output, 'home-error.png') })
-    await failed.getByRole('button', { name: '开始新任务', exact: true }).click()
+    await homeMain.getByRole('button', { name: '开始新任务', exact: true }).click()
     await failed.locator('[data-new-task-draft="desktop"]').waitFor()
     await context.close()
   }

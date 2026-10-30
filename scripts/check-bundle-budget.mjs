@@ -211,12 +211,10 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     check(`${name} gzip`, report.fileMetrics.get(report.manifest[key].file).gzip, limit)
   }
 
-  // 分屏属于聊天路由，必须经独立视图懒加载；下方同时禁止其进入 eager 依赖图。
-  if (
-    report.keyByName.has('vendor-dockview') &&
-    !report.manifest['src/features/chat/ChatDockView.tsx']?.isDynamicEntry
-  )
-    failures.push('split-view vendor must be owned by lazy ChatDockView')
+  // Dockview 分屏已退役（规格 v2 第 9.1 节，ChatDockView 已删除）：聊天代码只剩对它的类型引用，
+  // 任何路由都不应再打出分屏运行时；下方同时禁止其进入 eager 依赖图。
+  if (report.keyByName.has('vendor-dockview'))
+    failures.push('retired split-view vendor must not be bundled')
   const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []
   if (welcomeCss.some((file) => file.includes('react-bits')))
     failures.push('PI welcome must not load decorative React Bits CSS')

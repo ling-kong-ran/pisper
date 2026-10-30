@@ -119,114 +119,157 @@ try {
     return route.fulfill({ json: {} })
   })
   const url = `http://127.0.0.1:${server.httpServer.address().port}/__shell`
-  // 48px 标题栏：会话 / 看板 / 组件 / 更多 / 设置，点亮当前标签，标签提示带快捷键；
-  // 搜索在 1280 以下收成 32px 图标，960 以下标签只留图标（文字仍是无障碍名称），始终不横向溢出。
+  // 规格 v2 第 2.1 节：没有标题栏了，一级入口在 268 侧栏（新任务 / 搜索 / 全部代理 / 功能 / 设置），
+  // 当前入口点亮，入口旁标出当前快捷键；⌘B 或按钮收起为 60px 窄轨，焦点留在收起 / 展开键上；
+  // 任何宽度下默认展开占位，1440 / 1080 / 960 都不横向溢出；Windows 自绘标题栏时主区顶栏右侧让出 144px。
   await page.goto(url)
-  const titlebar = page.locator('[data-app-titlebar]')
-  await titlebar.waitFor()
-  const primary = titlebar.getByRole('navigation', { name: '主导航', exact: true })
-  const tabIds = await primary
-    .locator('[data-shell-tab]')
-    .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab')))
-  assert.deepEqual(tabIds, ['session', 'board', 'components', 'more', 'settings'])
+  const sidebar = page.locator('[data-shell-sidebar]')
+  await sidebar.waitFor()
+  const nav = sidebar.getByRole('navigation', { name: '会话与导航', exact: true })
+  const entryIds = () =>
+    sidebar
+      .locator('[data-sidebar-entry]')
+      .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-sidebar-entry')))
+  assert.deepEqual(await entryIds(), ['newTask', 'search', 'board', 'features', 'settings'])
   for (const [id, name] of [
-    ['session', '会话'],
-    ['board', '看板'],
-    ['components', '组件'],
-    ['more', '更多'],
-    ['settings', '设置'],
+    ['newTask', /^新任务/],
+    ['search', /^搜索/],
+    ['board', /^全部代理/],
+    ['features', /^功能/],
+    ['settings', /^设置/],
   ])
-    assert.equal(
-      await primary.getByRole('button', { name, exact: true }).getAttribute('data-shell-tab'),
-      id,
-    )
+    assert.equal(await nav.getByRole('button', { name }).getAttribute('data-sidebar-entry'), id)
   const current = () =>
-    primary
-      .locator('[data-shell-tab][aria-current="page"]')
-      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab')))
+    sidebar
+      .locator('[data-sidebar-entry][aria-current="page"]')
+      .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-sidebar-entry')))
   assert.deepEqual(await current(), ['board'])
-  // 标签提示标出当前快捷键（快捷键 v2）：看板 ⌘1、更多 ⌘2；“会话”默认未绑定，提示里只有名称。
+  // 入口旁的按键提示与 aria-keyshortcuts 都跟随当前绑定（快捷键 v2）：全部代理 ⌘1、功能 ⌘2。
+  assert.match(await sidebar.locator('[data-sidebar-entry="board"] kbd').innerText(), /1$/)
+  assert.match(await sidebar.locator('[data-sidebar-entry="features"] kbd').innerText(), /2$/)
   assert.match(
-    await primary.locator('[data-shell-tab="board"]').getAttribute('title'),
-    /^看板 \(.+1\)$/,
+    await sidebar.locator('[data-sidebar-entry="features"]').getAttribute('aria-keyshortcuts'),
+    /\+2$/,
   )
-  assert.match(
-    await primary.locator('[data-shell-tab="more"]').getAttribute('title'),
-    /^更多 \(.+2\)$/,
-  )
-  assert.equal(await primary.locator('[data-shell-tab="session"]').getAttribute('title'), '会话')
-  await primary.getByRole('button', { name: '组件', exact: true }).click()
-  assert.equal(await page.getByTestId('opened').textContent(), 'tab:components')
-  assert.deepEqual(await current(), ['components'])
-  // 键盘：Tab 进入标签，Enter 选中。
-  await primary.locator('[data-shell-tab="session"]').focus()
+  await nav.getByRole('button', { name: /^功能/ }).click()
+  assert.equal(await page.getByTestId('opened').textContent(), 'entry:features')
+  assert.deepEqual(await current(), ['features'])
+  // 键盘：Tab 在入口之间移动，Enter 选中。
+  await sidebar.locator('[data-sidebar-entry="search"]').focus()
   await page.keyboard.press('Tab')
   assert.equal(
-    await page.evaluate(() => document.activeElement?.getAttribute('data-shell-tab')),
+    await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-entry')),
     'board',
   )
   await page.keyboard.press('Enter')
   assert.deepEqual(await current(), ['board'])
-  await titlebar.getByRole('button', { name: /^新任务/ }).click()
+  await nav.getByRole('button', { name: /^新任务/ }).click()
   assert.equal(await page.getByTestId('new-tasks').textContent(), '1')
-  const titlebarMetrics = () =>
-    titlebar.evaluate((bar) => {
-      const search = bar.querySelector('button[aria-label="搜索代理、会话、标签与命令"]')
-      const label = bar.querySelector('[data-shell-tab="board"] span')
+  assert.equal(await page.getByTestId('groups-slot').count(), 1)
+  // 分组区单独滚动；品牌行与入口、底部设置固定。浅色下侧栏与主区之间没有分隔线。
+  const shellMetrics = () =>
+    page.evaluate(() => {
+      const bar = document.querySelector('[data-shell-sidebar]')
+      const header = document.querySelector('main header')
+      const style = getComputedStyle(bar)
       return {
-        height: bar.getBoundingClientRect().height,
-        overflow: bar.scrollWidth > bar.clientWidth + 1,
+        mode: bar.dataset.shellSidebar,
+        width: Math.round(bar.getBoundingClientRect().width),
+        border: style.borderRightWidth,
+        scroll: getComputedStyle(bar.querySelector('[data-sidebar-scroll]') || bar).overflowY,
         pageOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-        searchWidth: Math.round(search.getBoundingClientRect().width),
-        tabLabelVisible: label.getBoundingClientRect().width > 1,
-        rightmost: Math.max(
-          ...[...bar.querySelectorAll('button')].map(
-            (button) => button.getBoundingClientRect().right,
+        headerRightmost: Math.max(
+          0,
+          ...[...header.querySelectorAll('button, input')].map(
+            (node) => node.getBoundingClientRect().right,
           ),
         ),
       }
     })
-  for (const [width, search, labels] of [
-    [1440, 'wide', true],
-    [1280, 'wide', true],
-    [1270, 32, true],
-    [1080, 32, true],
-    [960, 32, true],
-    [950, 32, false],
-  ]) {
+  for (const width of [1440, 1080, 960]) {
     await page.setViewportSize({ width, height: 800 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    const metrics = await titlebarMetrics()
-    assert.equal(metrics.height, 48, `title bar height at ${width}px`)
-    assert.equal(metrics.overflow || metrics.pageOverflow, false, `no overflow at ${width}px`)
-    if (search === 'wide') assert.ok(metrics.searchWidth > 200, `search field at ${width}px`)
-    else assert.equal(metrics.searchWidth, search, `search collapses to an icon at ${width}px`)
-    assert.equal(metrics.tabLabelVisible, labels, `tab labels at ${width}px`)
+    const metrics = await shellMetrics()
+    assert.equal(metrics.mode, 'expanded', `the sidebar stays expanded at ${width}px`)
+    assert.equal(metrics.width, 268, `sidebar width at ${width}px`)
+    assert.equal(metrics.border, '0px', `no divider in light mode at ${width}px`)
+    assert.equal(metrics.scroll, 'auto', `the group area scrolls on its own at ${width}px`)
+    assert.equal(metrics.pageOverflow, false, `no overflow at ${width}px`)
   }
-  // 窄于 960 时标签文字只对读屏可见，名称不变。（Tailwind v4 的 max-[959px] 是 width < 959，取 950 避开边界。）
-  assert.equal(
-    await primary.getByRole('button', { name: '看板', exact: true }).getAttribute('data-shell-tab'),
-    'board',
+  // 收起：按钮收成 60px 窄轨（四个入口 + 计数插槽 + 设置），焦点落在展开键上；再展开焦点回到收起键。
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await nav.getByRole('button', { name: '收起侧栏', exact: true }).click()
+  await page.waitForFunction(
+    () => document.querySelector('[data-shell-sidebar]')?.dataset.shellSidebar === 'rail',
   )
-  // Windows 自绘标题栏：右侧 144px 让给窗口按钮，最小窗口 1080 时也不越界。
+  await page.waitForFunction(
+    () => document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect().width === 60,
+  )
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-toggle')),
+    'expand',
+  )
+  assert.equal(await page.getByTestId('rail-counts-slot').count(), 1)
+  assert.equal(await page.getByTestId('groups-slot').count(), 0)
+  assert.deepEqual(await entryIds(), ['newTask', 'search', 'board', 'features', 'settings'])
+  assert.equal(
+    await sidebar.locator('[data-sidebar-entry="board"]').getAttribute('aria-label'),
+    '全部代理',
+  )
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(
+    () => document.querySelector('[data-shell-sidebar]')?.dataset.shellSidebar === 'expanded',
+  )
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-toggle')),
+    'collapse',
+  )
+  // 收起偏好写进 pisper-sidebar（page-state-storage），重新载入后保持。
+  await nav.getByRole('button', { name: '收起侧栏', exact: true }).click()
+  await page.waitForFunction(() =>
+    localStorage.getItem('pisper-sidebar')?.includes('"collapsed":true'),
+  )
+  await page.reload()
+  await page.waitForFunction(
+    () => document.querySelector('[data-shell-sidebar]')?.dataset.shellSidebar === 'rail',
+  )
+  await sidebar.getByRole('button', { name: '展开侧栏', exact: true }).click()
+  await page.waitForFunction(() =>
+    localStorage.getItem('pisper-sidebar')?.includes('"collapsed":false'),
+  )
+  // Windows 自绘标题栏：主区顶栏右侧 144px 让给窗口按钮，最小窗口 1080 时也不越界；
+  // macOS / Linux 只留 12px（页头自己的右内边距）。
   await page.goto(`${url}?custom=1`)
-  await titlebar.waitFor()
+  await sidebar.waitFor()
   for (const width of [1080, 1440]) {
     await page.setViewportSize({ width, height: 800 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    const metrics = await titlebarMetrics()
+    const metrics = await shellMetrics()
     assert.ok(
-      metrics.rightmost <= width - 144 + 0.5,
-      `custom title bar keeps the 144px window-control corner free at ${width}px: ${metrics.rightmost}`,
+      metrics.headerRightmost <= width - 144 + 0.5,
+      `custom title bar keeps the 144px window-control corner free at ${width}px: ${metrics.headerRightmost}`,
     )
-    assert.equal(metrics.overflow || metrics.pageOverflow, false)
+    assert.equal(metrics.pageOverflow, false)
   }
+  assert.equal(
+    await page.locator('[data-shell-sidebar] [data-window-drag-region]').count(),
+    1,
+    'the sidebar brand row is a window drag region',
+  )
   await page.setViewportSize({ width: 1200, height: 800 })
   await page.goto(url)
-  await titlebar.waitFor()
-  await titlebar.getByRole('button', { name: '搜索代理、会话、标签与命令', exact: true }).click()
+  await sidebar.waitFor()
+  assert.ok(
+    (await shellMetrics()).headerRightmost > 1200 - 144,
+    'no reserve without custom titlebar',
+  )
+  await nav.getByRole('button', { name: /^搜索/ }).click()
   await page.getByRole('combobox').waitFor()
-  await page.keyboard.press('Escape')
+  // 主题键已从页头去掉，⌘K 里有“切换主题”。
+  assert.equal(await page.locator('main header [aria-label*="主题"]').count(), 0)
+  await page.getByRole('combobox').fill('主题')
+  await page.getByRole('option', { name: /切换主题/ }).click()
+  assert.equal(await page.getByTestId('opened').textContent(), 'theme')
   await page.getByRole('combobox').waitFor({ state: 'detached' })
   // 更多页搜索框把关键词带进命令面板（同一份数据源）。
   await page.getByTestId('launch-query').click()
@@ -236,7 +279,7 @@ try {
   await page.keyboard.press('Escape')
   await page.getByRole('combobox').waitFor({ state: 'detached' })
   console.log(
-    'PASS replica shell title bar: five tabs in order with the current tab lit, shortcut titles, keyboard selection, new task, 1440/1280/1270/1080/960/950 collapse without overflow, 144px custom title bar corner, search and More-search keyword hand-off to the palette',
+    'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header, search opens the palette with a 切换主题 command, More-search keyword hand-off',
   )
 
   // 手机底部标签栏：会话 · 看板 · [新任务 52×40] · 更多 · 设置；看板徽标在任何选中标签下都在；

@@ -125,9 +125,9 @@ test('the app shell derives the phone shell from the same inputs as the shared h
   assert.match(app, /const mobileLayout = mobileApp \|\| phoneViewport/)
   assert.match(app, /const tabletApp = useIsTabletViewport\(\) && mobileApp/)
   assert.match(app, /const phoneShell = mobileLayout && !window\.pisperDesktop && !tabletApp/)
-  // 根节点标记供经 Portal 挂到 body 的底部表单适配手机外壳；标题栏与底部标签栏二选一。
+  // 根节点标记供经 Portal 挂到 body 的底部表单适配手机外壳；侧栏外壳与底部标签栏二选一。
   assert.match(app, /document\.documentElement\.toggleAttribute\('data-phone-shell', phoneShell\)/)
-  assert.match(app, /\{!phoneShell && \(\s*<AppTitlebar\b/)
+  assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
   assert.match(app, /\{phoneShell && \(\s*<Suspense fallback=\{tabBarFallback\}>\s*<ShellTabBar\b/)
   // 平板仍按移动端处理原生返回（BackNavigation）与软键盘，只是布局换成桌面。
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)

@@ -22,16 +22,11 @@ import {
   pagePath,
   sessionPath,
 } from '../../src/app/routes.ts'
-import {
-  PHONE_SHELL_TABS,
-  SHELL_TABS,
-  activeShellTab,
-  shellBackPath,
-} from '../../src/app/shell-tabs.ts'
+import { PHONE_SHELL_TABS, activeShellTab, shellBackPath } from '../../src/app/shell-tabs.ts'
 import { ACTIVITY_NAVIGATION_STATE, settingsOwnsPage } from '../../src/app/settings-navigation.ts'
 import { getMoreNavigation } from '../../src/app/more-navigation.ts'
 import { getNavigation } from '../../src/app/palette-navigation.ts'
-import { AppTitlebar } from '../../src/app/AppTitlebar.tsx'
+import { ShellSidebar } from '../../src/app/ShellSidebar.tsx'
 
 const t = (key) => key
 
@@ -109,8 +104,13 @@ test('the home landing never creates a session; the draft creates one only on th
     shell,
     /navigate\(sessionPath\(id\), \{ replace: true, state: entryStateRef\.current \}\)/,
   )
-  assert.match(shell, /<BoardEntry onOpenBoard=\{openBoard\} \/>/)
-  assert.doesNotMatch(shell, /SessionReturnBar/)
+  // 看板入口只剩手机顶栏（A4 前）；桌面会话页没有泳道条，入口在应用侧栏。
+  assert.match(
+    shell,
+    /routeLeading=\{pageLayout \? undefined : <BoardEntry onOpenBoard=\{openBoard\} \/>\}/,
+  )
+  assert.doesNotMatch(shell, /SessionReturnBar|SessionLaneStrip/)
+  assert.doesNotMatch(home, /SessionLaneStrip/)
 })
 
 test('home landing: last session if it still exists, draft otherwise, wait while loading, error on failure', async () => {
@@ -192,25 +192,24 @@ test('last-session preference is per device, validated as untrusted input and on
   assert.doesNotMatch(source, /localStorage/)
 })
 
-test('primary tabs: session first; the session page and home light "session", the board lights "board"', () => {
-  assert.deepEqual([...SHELL_TABS], ['session', 'board', 'components', 'more', 'settings'])
-  // 手机标签栏：会话 · 看板 · [新任务] · 更多 · 设置；组件挪进“更多”。
+test('primary entries: the session page and home light "session", the board lights "board"', () => {
+  // 手机标签栏：会话 · 看板 · [新任务] · 更多 · 设置；桌面侧栏的入口用同一份归属结论
+  // （board → 全部代理、more → 功能、settings → 设置；会话页由会话行自己点亮）。
   assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
-  const tab = (path, state, phone = false) => {
+  const tab = (path, state) => {
     const page = pageFromPath(path)
-    return activeShellTab(page, settingsOwnsPage(page, state), phone)
+    return activeShellTab(page, settingsOwnsPage(page, state))
   }
   assert.equal(tab('/'), 'session')
   assert.equal(tab('/board/abc'), 'session')
   assert.equal(tab('/board/new'), 'session')
   assert.equal(tab('/chat'), 'session')
   assert.equal(tab('/board'), 'board')
-  assert.equal(tab('/components'), 'components')
-  assert.equal(tab('/components/x'), 'components')
-  // 手机没有组件标签：从更多进入组件时点亮“更多”。
-  assert.equal(tab('/components', ACTIVITY_NAVIGATION_STATE, true), 'more')
-  assert.equal(tab('/components/x', undefined, true), 'more')
-  assert.equal(tab('/more', undefined, true), 'more')
+  // 组件工作室不再是一级入口：桌面与手机都点亮“功能 / 更多”。
+  assert.equal(tab('/components'), 'more')
+  assert.equal(tab('/components/x'), 'more')
+  assert.equal(tab('/components', ACTIVITY_NAVIGATION_STATE), 'more')
+  assert.equal(tab('/more'), 'more')
   assert.equal(tab('/assets'), 'more')
   assert.equal(tab('/config/models'), 'settings')
   assert.equal(tab('/plugins'), 'settings')
@@ -261,7 +260,7 @@ test('the shell wires the session tab to the home, back to history, and the boar
   const router = await readFile('src/app/router.tsx', 'utf8')
   assert.match(router, /const routerState = \(\) => router\.state/)
   assert.match(router, /<App routerState=\{routerState\} \/>/)
-  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned, phoneShell\)/)
+  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
   assert.match(app, /homeEntry: isHomeEntry\(location\.state\)/)
   assert.match(app, /if \(parent === -1\) routerNavigate\(-1\)/)
   // v2：showBoard 退役，⇧⌘B 不再打开看板（交给会话树）；外壳不再接线 onShowBoard。
@@ -276,8 +275,9 @@ test('the shell wires the session tab to the home, back to history, and the boar
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)
   const entry = await readFile('src/app/BoardEntry.tsx', 'utf8')
   assert.doesNotMatch(entry, /keydown|Escape|onKeyDown/)
-  // 泳道条的看板入口（A1 外壳段删除前）标出的是“全部代理”的 ⌘1。
+  // 手机顶栏的看板入口与侧栏“全部代理”都标出 openBoard 的当前绑定（⌘1）。
   assert.match(entry, /state\.bindings\.openBoard/)
+  assert.match(app, /onOpenBoard=\{\(\) => selectShellTab\('board'\)\}/)
 })
 
 test('on the home page the shell navigates itself: no session route is mounted there to take requests', async () => {
@@ -385,9 +385,9 @@ test('new-task requests on the home draft focus the draft instead of stacking th
     readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
     readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
   ])
-  // 按键只有 AppShortcuts 一个入口（primaryAction 绑定，改绑照常生效），⌘N 与标题栏按钮都交给 startNewTask。
+  // 按键只有 AppShortcuts 一个入口（primaryAction 绑定，改绑照常生效），⌘N 与侧栏“新任务”都交给 startNewTask。
   assert.match(app, /onPrimary=\{\(\) => startNewTask\('shortcut'\)\}/)
-  assert.match(app, /onNewTask=\{\(\) => startNewTask\('titlebar'\)\}/)
+  assert.match(app, /onNewTask=\{\(\) => startNewTask\('sidebar'\)\}/)
   // 主页的页面 id 也是 session：先问当前页有没有认领者，没有才打开派发浮层。
   assert.match(
     app,
@@ -400,10 +400,10 @@ test('new-task requests on the home draft focus the draft instead of stacking th
   )
   // 认领者只有新任务草稿本身：主页只在落到草稿时挂它，加载中 / 错误态与真实会话页没有认领者。
   assert.match(home, /if \(landing\.kind === 'draft'\)\s+body = \(\s+<NewTaskDraft/)
-  // 只认领 ⌘N 与标着同一个 ⌘N 的标题栏按钮；命令面板的“新会话”照旧开浮层（面板关闭会把焦点还回去）。
+  // 只认领 ⌘N 与标着同一个 ⌘N 的侧栏“新任务”；命令面板的“新会话”照旧开浮层（面板关闭会把焦点还回去）。
   assert.match(
     draft,
-    /DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set\(\['shortcut', 'titlebar'\]\)/,
+    /DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set\(\['shortcut', 'sidebar'\]\)/,
   )
   assert.match(
     draft,
@@ -419,36 +419,35 @@ test('new-task requests on the home draft focus the draft instead of stacking th
   )
 })
 
-test('title bar renders five tabs in order and lights the session tab on the home', () => {
+test('the sidebar lists its entries in order, lights none on the home, and shows each current shortcut', () => {
   const html = renderToStaticMarkup(
-    h(AppTitlebar, {
-      activeTab: 'session',
-      onSelectTab() {},
-      onOpenPalette() {},
+    h(ShellSidebar, {
+      active: null,
       onNewTask() {},
-      fleet: h('span', { 'data-fleet-slot': '' }),
+      onSearch() {},
+      onOpenBoard() {},
+      onOpenFeatures() {},
+      onOpenSettings() {},
+      content: null,
+      railCounts: null,
     }),
   )
-  const tabs = [...html.matchAll(/data-shell-tab="(\w+)"/g)].map((match) => match[1])
-  assert.deepEqual(tabs, ['session', 'board', 'components', 'more', 'settings'])
+  const entries = [...html.matchAll(/data-sidebar-entry="(\w+)"/g)].map((match) => match[1])
+  assert.deepEqual(entries, ['newTask', 'search', 'board', 'features', 'settings'])
+  // 主页与会话页不点亮任何入口（当前会话由侧栏的会话行标出）。
+  assert.doesNotMatch(html, /aria-current/)
+  // 入口旁标出自己当前的快捷键：v2 默认 ⌘N 新任务、⌘K 搜索、⌘1 全部代理、⌘2 功能、⌘, 设置。
   assert.deepEqual(
-    [...html.matchAll(/<button[^>]*aria-current="page"[^>]*data-shell-tab="(\w+)"/g)].map(
-      (match) => match[1],
-    ),
-    ['session'],
-  )
-  assert.match(html, /lucide-session-bubble/)
-  // 标签在提示里标出自己当前的快捷键：v2 默认 ⌘1 全部代理、⌘2 功能、⌘, 设置；“会话”和“组件”默认未绑定，
-  // 不显示按键（标题栏标签在 A1 外壳段随侧栏一起退役）。
-  assert.deepEqual(
-    [...html.matchAll(/title="[^"]*\((Ctrl|Cmd) \+ ([^)]+)\)"[^>]*data-shell-tab="(\w+)"/g)].map(
-      (match) => `${match[3]}:${match[2]}`,
-    ),
-    ['board:1', 'more:2', 'settings:,'],
+    [
+      ...html.matchAll(
+        /data-sidebar-entry="(\w+)"[\s\S]*?<kbd[^>]*>(?:Ctrl|Cmd) \+ ([^<]+)<\/kbd>/g,
+      ),
+    ].map((match) => `${match[1]}:${match[2]}`),
+    ['newTask:N', 'search:K', 'board:1', 'features:2', 'settings:,'],
   )
 })
 
-test('phone More lists the components page as a tile; desktop keeps it as a primary tab', () => {
+test('More lists the components page as a tile now that it is not a primary entry', () => {
   const group = (options) =>
     getMoreNavigation(t, options).find((item) => item.id === 'components')?.tiles || []
   assert.equal(
@@ -464,6 +463,6 @@ test('phone More lists the components page as a tile; desktop keeps it as a prim
   const [[, shell]] = getNavigation(t)
   assert.deepEqual(
     shell.map(([page]) => page),
-    ['chat', 'board', 'components', 'more', 'config'],
+    ['chat', 'board', 'more', 'components', 'config'],
   )
 })

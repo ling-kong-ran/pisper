@@ -7,7 +7,7 @@ import { LayoutGrid, Plus, Settings, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { PHONE_SHELL_TABS, ShellTab } from '@/app/shell-tabs'
 import { LaneBarsIcon, SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
-import { useFleetSummary } from '@/features/board/public'
+import { useSidebarModel } from '@/features/board/public'
 import { cn } from '@/lib/utils'
 
 type PhoneTab = (typeof PHONE_SHELL_TABS)[number]
@@ -20,12 +20,12 @@ const TAB_ICONS: Record<PhoneTab, LucideIcon> = {
 }
 
 type ShellTabBarProps = {
-  // 会话页不显示标签栏，但仍订阅舰队计量，让外壳的 ⌥A 目标保持最新。
+  // 会话页不显示标签栏，但仍订阅需要你计数，让外壳的 ⌥A 目标保持最新。
   hidden?: boolean
   activeTab: ShellTab | null
   onSelectTab: (tab: ShellTab) => void
   onNewTask: () => void
-  // 与标题栏计量相同：等待最久事项变化时通知外壳，⌥A（外接键盘）由外壳统一处理。
+  // 等待最久事项变化时通知外壳，⌥A（外接键盘）由外壳统一处理。
   onLongestWaitingChange?: (sessionId: string) => void
 }
 
@@ -37,9 +37,9 @@ export function ShellTabBar({
   onLongestWaitingChange,
 }: ShellTabBarProps) {
   const { t } = useI18n()
-  const fleet = useFleetSummary()
-  const attention = fleet.attention
-  const longestId = fleet.longestWaiting?.sessionId || ''
+  const { model } = useSidebarModel()
+  const attention = model.counts.attention
+  const longestId = model.longestWaitingId || ''
   useEffect(() => onLongestWaitingChange?.(longestId), [longestId, onLongestWaitingChange])
   if (hidden) return null
   const labels: Record<PhoneTab, string> = {

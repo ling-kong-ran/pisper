@@ -190,12 +190,12 @@ test('optional application widgets stay lazy and page header consumes feature-fr
   }
 })
 
-test('the shell keeps board data and title bar extras out of the startup bundle', () => {
+test('the shell keeps board data and sidebar groups out of the startup bundle', () => {
   const appDependencies = graph.get(resolve(root, 'src/App.tsx'))
-  // 舰队计量、手机标签栏与派发浮层依赖看板数据层（单一轮询者），设置分区导航只在设置页需要：
-  // 都按需加载。应用壳静态只认看板的轻量“新任务”契约。
+  // 侧栏的会话分组与窄轨计数、手机标签栏与派发浮层依赖看板数据层（单一轮询者），设置分区导航只在
+  // 设置页需要：都按需加载。应用壳静态只认看板的两份轻量契约（新任务、侧栏命令），二者都没有导入。
   for (const file of [
-    'src/app/FleetMeter.tsx',
+    'src/features/board/sidebar.ts',
     'src/app/ShellTabBar.tsx',
     'src/components/layout/SettingsSectionNav.tsx',
     'src/features/board/DispatchOverlay.tsx',
@@ -206,11 +206,16 @@ test('the shell keeps board data and title bar extras out of the startup bundle'
   const staticBoard = appDependencies
     .filter((entry) => !entry.dynamic && !entry.typeOnly && feature(entry.path) === 'board')
     .map((entry) => name(entry.path))
-  assert.deepEqual(staticBoard, ['src/features/board/new-task.ts'])
-  // 标题栏只组合外壳与基础组件，舰队计量和更新提示经插槽传入，不直接依赖任何 Feature。
-  const titlebar = resolve(root, 'src/app/AppTitlebar.tsx')
-  assert.ok(appDependencies.some((entry) => entry.path === titlebar && !entry.dynamic))
-  for (const dependency of graph.get(titlebar))
+  assert.deepEqual(staticBoard, [
+    'src/features/board/new-task.ts',
+    'src/features/board/sidebar-commands.ts',
+  ])
+  assert.deepEqual(graph.get(resolve(root, 'src/features/board/sidebar-commands.ts')), [])
+  // 侧栏外壳（静态进入口）只组合外壳、基础组件与侧栏偏好；会话分组、计数和更新提示经插槽传入，
+  // 不直接依赖任何 Feature。
+  const sidebar = resolve(root, 'src/app/ShellSidebar.tsx')
+  assert.ok(appDependencies.some((entry) => entry.path === sidebar && !entry.dynamic))
+  for (const dependency of graph.get(sidebar))
     assert.equal(feature(dependency.path), undefined, name(dependency.path))
   for (const file of [
     'src/app/shell-tabs.ts',
@@ -222,14 +227,15 @@ test('the shell keeps board data and title bar extras out of the startup bundle'
 })
 
 test('no route reaches the retired Dockview split view or its vendor code', () => {
-  // 第 3 期退役 Dockview 的挂载：会话页只有单会话视图 + 检查器标签。分屏代码（ChatDockView、
-  // Dock 预览面板）留到第 6 期清理时删除，但从入口出发（含懒加载路由）任何运行时导入都不能再到达它们，
-  // 也不能有文件在运行时导入 dockview（只允许 import type，构建时被擦除）。
+  // 第 3 期退役 Dockview 的挂载，v2（A1）删除了分屏视图（ChatDockView、Dock 预览面板）：
+  // 它们不能再出现在源码里，从入口出发（含懒加载路由）也不能有文件在运行时导入 dockview
+  // （只允许 import type，构建时被擦除；聊天容器里剩下的休眠类型引用留给 A2 清理）。
   const retired = new Set(
     ['ChatDockView.tsx', 'WebPreviewDockPanel.tsx'].map((file) =>
       resolve(root, 'src/features/chat', file),
     ),
   )
+  for (const path of retired) assert.ok(!files.has(path), `${name(path)} must stay deleted`)
   const reachable = new Set()
   const visit = (path) => {
     if (reachable.has(path)) return
@@ -244,7 +250,7 @@ test('no route reaches the retired Dockview split view or its vendor code', () =
     'src/features/chat/ChatPage.tsx',
     'src/features/chat/SessionWorkspace.tsx',
     'src/features/chat/SessionInspector.tsx',
-    'src/features/board/SessionLaneStrip.tsx',
+    'src/features/board/SidebarSessions.tsx',
   ])
     assert.ok(reachable.has(resolve(root, file)), `${file} must be reachable from the entry`)
   for (const path of reachable) {
@@ -259,23 +265,37 @@ test('no route reaches the retired Dockview split view or its vendor code', () =
 })
 
 test('the dormant three-pane phone shell and the retired sidebar shell never load from the entry', () => {
-  // 第 4 期手机外壳换成底部标签栏 + 单屏页面（规格 7.7）：旧三栏外壳、旧手机标签栏、会话上下文全屏页、
-  // 旧侧栏与活动栏、“‹ 看板”返回条只停止挂载，源码留到第 6 期删除（需负责人同意）。从入口出发
-  // （含懒加载路由）的运行时导入都不能再到达它们；删除文件后这条守卫照样成立。
+  // 第 4 期手机外壳换成底部标签栏 + 单屏页面（规格 7.7）：旧三栏外壳、会话上下文全屏页只停止挂载，
+  // 留给 A4 删除。v2（A1）已删除旧侧栏与活动栏、旧手机标签栏、“‹ 看板”返回条、标题栏与舰队计量、
+  // 会话页泳道条与 ⌘J 代理面板（规格 9.1、第 11 节）：它们不能再出现在源码里。
+  // 从入口出发（含懒加载路由）的运行时导入都不能到达休眠或已删除的文件。
+  const deleted = [
+    'src/components/layout/MobileTabBar.tsx',
+    'src/app/SessionReturnBar.tsx',
+    'src/app/WorkbenchNavigation.tsx',
+    'src/app/activity-navigation.ts',
+    'src/app/AppTitlebar.tsx',
+    'src/app/FleetMeter.tsx',
+    'src/components/layout/AppSidebar.tsx',
+    'src/components/layout/ActivityRail.tsx',
+    'src/components/layout/StatusBar.tsx',
+    'src/components/layout/WorkbenchHeader.tsx',
+    'src/features/chat/ProjectTaskList.tsx',
+    'src/features/board/SessionLaneStrip.tsx',
+    'src/features/board/AgentPanel.tsx',
+    'src/features/board/AgentMiniCard.tsx',
+    'src/features/board/useFleetSummary.ts',
+  ].map((file) => resolve(root, file))
+  for (const path of deleted) assert.ok(!files.has(path), `${name(path)} must stay deleted`)
   const dormant = new Set(
     [
       'src/components/layout/MobileThreePane.tsx',
       'src/components/layout/MobileShellContext.tsx',
       'src/components/layout/mobile-shell-layout.ts',
-      'src/components/layout/MobileTabBar.tsx',
       'src/app/mobile/MobileContextScreen.tsx',
-      'src/app/SessionReturnBar.tsx',
-      'src/app/WorkbenchNavigation.tsx',
-      'src/app/activity-navigation.ts',
-      'src/components/layout/AppSidebar.tsx',
-      'src/components/layout/ActivityRail.tsx',
-      'src/features/chat/ProjectTaskList.tsx',
-    ].map((file) => resolve(root, file)),
+    ]
+      .map((file) => resolve(root, file))
+      .concat(deleted),
   )
   const reachable = new Set()
   const visit = (path) => {
@@ -287,7 +307,7 @@ test('the dormant three-pane phone shell and the retired sidebar shell never loa
   // 新外壳确实在图里，避免图不完整时空转。
   for (const file of [
     'src/app/ShellTabBar.tsx',
-    'src/app/AppTitlebar.tsx',
+    'src/app/ShellSidebar.tsx',
     'src/app/MorePage.tsx',
     'src/app/SessionHome.tsx',
     'src/features/board/PhoneBoard.tsx',

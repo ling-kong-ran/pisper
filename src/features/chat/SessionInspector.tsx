@@ -338,6 +338,8 @@ export function SessionInspector({
           // 触屏（手机 App 平板的覆盖层、触屏电脑）与手机表单一样用 52px 标签行：标签行是横向滚动容器，
           // 会裁掉伪元素外扩，标签只能把可见高度抬到 44px。
           sheet ? 'h-[52px]' : 'h-11 pointer-coarse:h-[52px]',
+          // 停靠在最右侧时它就是主区右上角：Windows 自绘标题栏的窗口按钮占 144px（覆盖层从页头下方开始，不用让）。
+          mode === 'aside' && '[[data-custom-titlebar]_&]:pr-[144px]',
         )}
       >
         <div

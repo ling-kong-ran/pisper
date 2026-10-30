@@ -1,8 +1,7 @@
-// 会话页外壳（规格 4.1）：标题栏 48 → 泳道条 52（≤1279 宽或 ≤760 高时 36 单行）→ 会话页头 44 + 对话 + 检查器。
-// 泳道条是看板折叠后的形态（看板领域），对话与检查器是聊天领域的单会话视图；两者都读同一个看板 store。
-// URL 里的 sessionId 是选中依据：切换代理只换路由（replace，浏览器后退回到来处），看板 store 不变；
+// 会话页外壳（规格 v2 第 4.1 节）：会话页头 + 对话 + 检查器；并行的代理在应用侧栏里（规格 2.1），
+// 会话页不再有泳道条与 ⌘J 代理面板。对话与检查器是聊天领域的单会话视图。
+// URL 里的 sessionId 是选中依据：侧栏切换会话只换路由（replace，浏览器后退回到来处），看板 store 不变；
 // 路由组件在会话之间保持挂载，会话目录与转录状态不随切换重载。
-// 主页是会话（负责人决定）：泳道条最左侧是看板入口（打开看板，push 到 /board），不再是返回键；
 // 进入真实会话时记下“上次停留的会话”，主页据此落地；归档当前会话后回到主页（此时显示新任务草稿）。
 // replace 切换时保留历史状态，从主页落地的会话切换代理后仍是根（手机原生返回交还平台）。
 // 手机外壳（规格 7.3）：顶栏 56（左侧“看板 N”入口带需要你计数）+ 代理条 + 对话，检查器改为底部表单；
@@ -13,7 +12,6 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useSessionListQuery } from '@/features/board/public'
 import {
   PhoneAgentStrip,
-  SessionLaneStrip,
   effectiveStripCurrent,
   type PendingStripSwitch,
 } from '@/features/board/session-strip'
@@ -68,7 +66,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     },
     [navigate],
   )
-  // 进入真实会话（非 'new'）时记下“上次停留的会话”；泳道条 / ⌥↑⌥↓ 切换同样经过这里。
+  // 进入真实会话（非 'new'）时记下“上次停留的会话”；侧栏 / ⌥↑⌥↓ 切换同样经过这里。
   // 只记目录里确实存在的 id，错误链接不会顶掉上一条有效记录。
   const catalog = useSessionListQuery()
   const known = Boolean(
@@ -79,7 +77,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
   useEffect(() => {
     if (known) rememberLastSession(sessionId)
   }, [known, sessionId])
-  // 泳道条 / ⌥↑⌥↓ / ⌘J 切换代理：替换当前历史记录（保留主页落地标记），浏览器后退回到来处。
+  // 手机代理条切换代理：替换当前历史记录（保留主页落地标记），浏览器后退回到来处。
   // 路由在 transition 里提交，新会话还在加载时 sessionId 仍是旧值；记下已发出的目标，
   // 连按时以它为当前会话（effectiveStripCurrent），界面换过去之后清掉。
   const pendingSwitchRef = useRef<PendingStripSwitch | null>(null)
@@ -87,10 +85,6 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     if (pendingSwitchRef.current && pendingSwitchRef.current.from !== sessionId)
       pendingSwitchRef.current = null
   }, [sessionId])
-  const resolveCurrentId = useCallback(
-    () => effectiveStripCurrent(currentRef.current, pendingSwitchRef.current),
-    [],
-  )
   const switchSession = useCallback(
     (id: string) => {
       const from = currentRef.current
@@ -100,7 +94,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     },
     [navigate],
   )
-  // 看板入口：打开看板（push），浏览器后退回到这个会话。
+  // 手机顶栏的看板入口：打开看板（push），浏览器后退回到这个会话（桌面的入口在侧栏）。
   const openBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
   const pageChrome = useMemo(
     () => ({
@@ -135,16 +129,6 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       className="flex min-h-0 min-w-0 flex-1 flex-col"
       data-session-shell={pageLayout ? 'desktop' : 'phone'}
     >
-      {pageLayout && (
-        <SessionLaneStrip
-          currentId={sessionId}
-          compact={compact}
-          leading={<BoardEntry onOpenBoard={openBoard} />}
-          notify={context.notify}
-          onOpenSession={switchSession}
-          resolveCurrentId={resolveCurrentId}
-        />
-      )}
       <div className="flex min-h-0 min-w-0 flex-1">
         <ChatPage
           notify={context.notify}
@@ -157,7 +141,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
           requestConfirm={context.requestConfirm}
           routeSessionId={sessionId}
           onRouteSessionChange={openSession}
-          // 手机外壳：看板入口放进会话顶栏最左侧；桌面布局的看板入口在泳道条上。
+          // 手机外壳：看板入口放进会话顶栏最左侧；桌面布局的入口在应用侧栏里。
           routeLeading={pageLayout ? undefined : <BoardEntry onOpenBoard={openBoard} />}
           pageChrome={pageLayout ? pageChrome : phoneChrome}
         />

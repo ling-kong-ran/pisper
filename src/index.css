@@ -258,7 +258,7 @@
 
   /* ── 表面与场景：功能栏和侧栏共用外壳底色，主内容是内嵌纸面 ── */
   --sidebar-bg: #f7f7f5;
-  --sidebar: var(--app-chrome);
+  --sidebar: var(--sidebar-bg);
   --main-surface-bg: var(--panel);
   --search-bg: var(--panel);
   --menu-shadow: rgba(16, 16, 24, .18);
@@ -682,12 +682,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes voice-capsule-pop { from { opacity: 0; transform: translate(-50%, 8px) scale(.92); } 60% { opacity: 1; transform: translate(-50%, -2px) scale(1.02); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 .voice-capsule-pop { animation: voice-capsule-pop 260ms cubic-bezier(.2, .9, .3, 1.2) both; }
 @keyframes composer-energy-spin { to { transform: rotate(360deg); } }
-.chat-dock-workspace > .dockview-theme-pisper { width: 100%; height: 100%; }
-/* Dock 标签条：细线标签，选中标签抬成键帽（键帽面 + 两侧 1px 边），活动分组再加 2px 强调色底刻度。 */
-:root .dockview-theme-pisper { --dv-tabs-and-actions-container-height: 36px; --dv-tabs-and-actions-container-font-size: var(--font-ui-sm); --dv-group-view-background-color: var(--panel); --dv-tabs-and-actions-container-background-color: var(--surface-subtle); --dv-activegroup-visiblepanel-tab-background-color: var(--key-bg); --dv-activegroup-hiddenpanel-tab-background-color: transparent; --dv-inactivegroup-visiblepanel-tab-background-color: var(--key-bg); --dv-inactivegroup-hiddenpanel-tab-background-color: transparent; --dv-activegroup-visiblepanel-tab-color: var(--text); --dv-activegroup-hiddenpanel-tab-color: var(--text-muted); --dv-inactivegroup-visiblepanel-tab-color: var(--text-secondary); --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted); --dv-tab-divider-color: transparent; --dv-separator-border: var(--stroke); --dv-paneview-active-outline-color: var(--focus); --dv-drag-over-background-color: var(--focus-ring); --dv-drag-over-border-color: var(--focus); --dv-icon-hover-background-color: var(--surface-hover); --dv-tabs-container-scrollbar-color: var(--control-muted); --dv-scrollbar-background-color: var(--control-muted); --dv-sash-color: transparent; --dv-active-sash-color: var(--focus); --dv-border-radius: 0; --dv-tab-border-radius: 0; --dv-spacing-padding: 0; }
-.dockview-theme-pisper .dv-tabs-and-actions-container { border-bottom: 1px solid var(--stroke-soft); }
-.dockview-theme-pisper .dv-tab.dv-active-tab { font-weight: 500; box-shadow: inset 1px 0 var(--key-border), inset -1px 0 var(--key-border); }
-.dockview-theme-pisper .dv-active-group .dv-tab.dv-active-tab { box-shadow: inset 1px 0 var(--key-border), inset -1px 0 var(--key-border), inset 0 -2px var(--star); }
 /* 图标化模型切换：Radix Select 透明覆盖整个按钮，文字收进 tooltip，仅保留图标 */
 /* 图标化执行模式触发器：灰=需审批 / 红=完全访问 */
 @keyframes transcript-stage-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }

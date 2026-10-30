@@ -10,21 +10,18 @@ import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { useSessionListQuery } from '@/features/board/public'
-import { NewTaskDraft, PhoneAgentStrip, SessionLaneStrip } from '@/features/board/session-strip'
-import { useMediaQuery } from '@/hooks/use-mobile'
+import { NewTaskDraft, PhoneAgentStrip } from '@/features/board/session-strip'
 import { usePhoneShell, useTabletApp } from '@/hooks/usePhoneShell'
 import { BoardEntry } from './BoardEntry'
 import type { AppRouteContext } from './route-context'
 import { HOME_ENTRY_STATE, PAGE_PATHS, sessionPath } from './routes'
 import { homeLanding, readLastSession } from './session-home'
-import { SESSION_COMPACT_QUERY } from './SessionShell'
 
 export function SessionHome({ context }: { context: AppRouteContext }) {
   const { t } = useI18n()
   const navigate = useNavigate()
   const phone = usePhoneShell()
   const tablet = useTabletApp()
-  const compact = useMediaQuery(SESSION_COMPACT_QUERY)
   const pageLayout = !phone || tablet
   // 落地时读一次：草稿期间别处写入的新记录不应把主页从草稿拽走。
   const [lastId] = useState(readLastSession)
@@ -51,7 +48,8 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
     }
   }, [])
 
-  // 主页里的会话入口（落地、泳道条 / 代理条、草稿发出第一条消息）都替换当前历史条目并标为主页落地。
+  // 主页里的会话入口（落地、手机代理条、草稿发出第一条消息）都替换当前历史条目并标为主页落地；
+  // 桌面侧栏的会话行由应用壳按同样的规则处理（App.openSidebarSession）。
   // 主页已卸载时不再导航，改为全局提示会话已建好，并给出“打开会话”入口。
   const openHomeSession = useCallback(
     (id: string) => {
@@ -70,6 +68,7 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
   const openBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
   const detachedFailure = useCallback((message: string) => notify(message, 'error'), [notify])
   const configureModels = useCallback(() => navigate('/config/models'), [navigate])
+  // 手机顶栏的看板入口；桌面的入口在应用侧栏里。
   const entry = <BoardEntry onOpenBoard={openBoard} />
 
   let body
@@ -133,15 +132,6 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
       data-session-shell={pageLayout ? 'desktop' : 'phone'}
       data-session-home={landing.kind}
     >
-      {pageLayout && (
-        <SessionLaneStrip
-          currentId=""
-          compact={compact}
-          leading={entry}
-          notify={notify}
-          onOpenSession={openHomeSession}
-        />
-      )}
       <div className="flex min-h-0 min-w-0 flex-1">{body}</div>
     </div>
   )

@@ -138,25 +138,27 @@ test('bundle budget rejects size, eager vendor, and CSS ownership regressions', 
   assert.ok(failures.includes('React Bits CSS is owned by the application entry'))
 })
 
-test('workbench split-view vendor must have a lazy owner and stay outside the entry', () => {
+test('the retired split-view vendor is never bundled, lazily or eagerly', () => {
+  // Dockview 分屏已退役（规格 v2 第 9.1 节）：原先“必须由懒加载的 ChatDockView 持有”的约束收紧为
+  // 任何路由都不得再打出分屏运行时；进入入口依赖图时仍按路由专属依赖报错。
   const report = passingReport()
+  assert.deepEqual(validateBundle(report), [])
   report.keyByName.set('vendor-dockview', '_vendor-dockview')
   report.manifest['_vendor-dockview'] = {
     file: 'assets/vendor-dockview.js',
     name: 'vendor-dockview',
     imports: [],
   }
-  report.manifest['src/features/chat/ChatDockView.tsx'] = {
-    file: 'assets/ChatDockView.js',
-    isDynamicEntry: true,
+  report.manifest['src/features/chat/ChatPage.tsx'] = {
+    ...report.manifest['src/features/chat/ChatPage.tsx'],
     imports: ['_vendor-dockview'],
   }
-  assert.deepEqual(validateBundle(report), [])
+  assert.ok(validateBundle(report).includes('retired split-view vendor must not be bundled'))
   report.entryClosure.add('_vendor-dockview')
   assert.ok(validateBundle(report).includes('route-only vendor is eager: vendor-dockview'))
 })
 
-test('workbench bundle rejects unowned split-view code and decorative welcome styles', () => {
+test('workbench bundle rejects split-view code and decorative welcome styles', () => {
   const report = passingReport()
   report.keyByName.set('vendor-dockview', '_vendor-dockview')
   report.manifest['src/features/chat/WelcomeEffects.tsx'] = {
@@ -166,6 +168,6 @@ test('workbench bundle rejects unowned split-view code and decorative welcome st
   }
 
   const failures = validateBundle(report)
-  assert.ok(failures.includes('split-view vendor must be owned by lazy ChatDockView'))
+  assert.ok(failures.includes('retired split-view vendor must not be bundled'))
   assert.ok(failures.includes('PI welcome must not load decorative React Bits CSS'))
 })

@@ -1,14 +1,17 @@
-// 应用外壳复刻夹具（第 4 期重写）：真实的 48px 标题栏（AppTitlebar）、手机底部标签栏（ShellTabBar）
-// 与命令面板（CommandPalette）。旧的侧栏（AppSidebar）已不挂载，不再出现在这里。
-// 页面状态只在内存里：选中的标签、派发次数与命令面板打开的目标都写进 <output>，由冒烟脚本读取。
-import { useEffect, useState } from 'react'
+// 应用外壳复刻夹具（规格 v2 第 2.1 节，A1 重写）：真实的侧栏外壳（ShellSidebar，268 / 60 窄轨）、
+// 共享页头（PageHeader，Windows 自绘标题栏时右侧让出 144px）、手机底部标签栏（ShellTabBar）与命令面板。
+// 会话分组与窄轨计数是看板领域的懒加载块，这里换成固定的占位行，只验外壳本身的结构、尺寸与键盘行为；
+// 分组的真实数据与快捷处理在 smoke-board-ui 里覆盖。
+// 页面状态只在内存里：选中的入口、派发次数与命令面板打开的目标都写进 <output>，由冒烟脚本读取。
+import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Settings } from 'lucide-react'
 import { AppProviders } from '@/app/providers'
-import { AppTitlebar } from '@/app/AppTitlebar'
+import { ShellSidebar, type ShellSidebarEntry } from '@/app/ShellSidebar'
 import { ShellTabBar } from '@/app/ShellTabBar'
 import type { ShellTab } from '@/app/shell-tabs'
 import { CommandPalette } from '@/components/layout/AppOverlays'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { COMMAND_PALETTE_REQUESTED_EVENT, requestCommandPalette } from '@/features/chat/events'
 import '@/index.css'
 
@@ -33,8 +36,10 @@ export function Fixture() {
   const [open, setOpen] = useState(false)
   const [opened, setOpened] = useState('')
   const [active, setActive] = useState<ShellTab | null>('board')
+  const [entry, setEntry] = useState<ShellSidebarEntry | null>('board')
   const [hidden, setHidden] = useState(false)
   const [newTasks, setNewTasks] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   window.shellControls = { setActive, setHidden }
   // “更多”页搜索框把关键词交给命令面板：与应用壳一样监听请求事件再打开。
   useEffect(() => {
@@ -46,6 +51,10 @@ export function Fixture() {
     setActive(tab)
     setOpened(`tab:${tab}`)
   }
+  const selectEntry = (next: ShellSidebarEntry) => {
+    setEntry(next)
+    setOpened(`entry:${next}`)
+  }
   return (
     <AppProviders>
       <div
@@ -53,25 +62,58 @@ export function Fixture() {
         style={{ height: '100dvh' }}
         data-custom-titlebar={customTitlebar || undefined}
       >
-        {!phone && (
-          <AppTitlebar
-            activeTab={active}
-            onSelectTab={select}
-            onOpenPalette={() => setOpen(true)}
-            onNewTask={() => setNewTasks((count) => count + 1)}
-            fleet={<span data-testid="fleet" className="h-8 w-24 flex-none" aria-hidden="true" />}
-          />
-        )}
-        <main className="flex min-h-0 flex-1 flex-col items-start gap-2 bg-background p-4">
-          <button data-testid="launch" onClick={() => setOpen(true)}>
-            Search
-          </button>
-          <button data-testid="launch-query" onClick={() => requestCommandPalette('Alpha')}>
-            Search Alpha
-          </button>
-          <output data-testid="opened">{opened}</output>
-          <output data-testid="new-tasks">{newTasks}</output>
-        </main>
+        <div className="app-body flex min-h-0 flex-1 overflow-hidden">
+          {!phone && (
+            <ShellSidebar
+              active={entry}
+              onNewTask={() => setNewTasks((count) => count + 1)}
+              onSearch={() => setOpen(true)}
+              onOpenBoard={() => selectEntry('board')}
+              onOpenFeatures={() => selectEntry('features')}
+              onOpenSettings={() => selectEntry('settings')}
+              content={
+                <ul data-testid="groups-slot" className="m-0 flex list-none flex-col gap-px p-0">
+                  {['修复 CI 失败', '重构登录流程', '升级 Vite 到 7'].map((title) => (
+                    <li key={title}>
+                      <a href={`#${title}`} className="flex h-9 items-center px-2.5 text-sm">
+                        {title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              }
+              railCounts={<span data-testid="rail-counts-slot" className="size-10" />}
+            />
+          )}
+          <main className="relative flex min-w-0 flex-1 flex-col bg-panel">
+            {!phone && (
+              <PageHeader
+                meta={['资产', '']}
+                page="assets"
+                query=""
+                setQuery={() => {}}
+                configSection="models"
+                onMenu={() => {}}
+                onPrimary={() => setOpened('primary')}
+                searchInputRef={searchInputRef}
+                workflowActions={null}
+                desktopPlatform=""
+                terminalOpen={false}
+                onToggleTerminal={() => {}}
+              />
+            )}
+            <div className="flex flex-col items-start gap-2 p-4">
+              <button data-testid="launch" onClick={() => setOpen(true)}>
+                Search
+              </button>
+              <button data-testid="launch-query" onClick={() => requestCommandPalette('Alpha')}>
+                Search Alpha
+              </button>
+              <output data-testid="opened">{opened}</output>
+              <output data-testid="new-tasks">{newTasks}</output>
+            </div>
+          </main>
+        </div>
         {phone && (
           <ShellTabBar
             hidden={hidden}
@@ -87,6 +129,7 @@ export function Fixture() {
           onClose={() => setOpen(false)}
           onNavigate={setOpened}
           onNewChat={() => setOpened('new')}
+          onToggleTheme={() => setOpened('theme')}
           onOpenSession={(id) => {
             if (id === 'fail') return Promise.reject(new Error('Fixture failure'))
             setOpened(id)

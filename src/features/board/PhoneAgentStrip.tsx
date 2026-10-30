@@ -30,9 +30,8 @@ import {
   isGuardReason,
   projectLabel,
 } from './card-presentation'
-import { StripSinceText } from './AgentMiniCard'
 import { phoneStripItems } from './phone-strip'
-import { sinceLabel, useStripWords } from './strip-presentation'
+import { sinceLabel, useStripWords, type StripSince } from './strip-presentation'
 import { useStripApprovals } from './useBoardController'
 import { useBoardItems } from './useBoardItems'
 import { useNow } from './useNow'
@@ -411,5 +410,17 @@ function AgentActionSheetBody({
         )}
       </div>
     </>
+  )
+}
+
+// 时长：无衬线前缀（“已等”“已运行”）加等宽数值；已完成是无衬线的相对时间。
+function StripSinceText({ since, className }: { since: StripSince; className?: string }) {
+  return (
+    <span
+      className={cn('flex flex-none items-baseline gap-1 text-xs whitespace-nowrap', className)}
+    >
+      {since.prefix && <span>{since.prefix}</span>}
+      <span className={since.mono ? 'font-mono tabular-nums' : undefined}>{since.value}</span>
+    </span>
   )
 }

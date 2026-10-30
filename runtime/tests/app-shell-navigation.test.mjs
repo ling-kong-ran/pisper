@@ -22,7 +22,7 @@ import {
   sessionPath,
 } from '../../src/app/routes.ts'
 import {
-  SHELL_TABS,
+  PHONE_SHELL_TABS,
   SHELL_TAB_PAGES,
   activeShellTab,
   requestedPathname,
@@ -37,7 +37,7 @@ import { ACTIVITY_NAVIGATION_STATE, settingsOwnsPage } from '../../src/app/setti
 import { LEGACY_RUNTIME_CAPABILITIES } from '../../src/types/runtime-capabilities.ts'
 import { parseFleetSystemInfo } from '../../src/features/board/useFleetSystemInfo.ts'
 import { formatCompactDuration } from '../../src/lib/format.ts'
-import { AppTitlebar } from '../../src/app/AppTitlebar.tsx'
+import { ShellSidebar, SidebarRail } from '../../src/app/ShellSidebar.tsx'
 
 const t = (key) => key
 
@@ -77,16 +77,19 @@ test('legacy hashes keep resolving and never create a session on startup', () =>
   assert.equal(legacyHashPath('#/board'), null)
 })
 
-test('each page lights exactly one primary tab, honouring the entry origin of dual-owned pages', () => {
-  // 第 4 期：会话 / 看板 / 组件 / 更多 / 设置；“会话”标签另走主页逻辑，不在 SHELL_TAB_PAGES 里。
-  assert.deepEqual([...SHELL_TABS], ['session', 'board', 'components', 'more', 'settings'])
+test('each page lights exactly one primary entry, honouring the entry origin of dual-owned pages', () => {
+  // 规格 v2：桌面标题栏标签退役，一级入口在侧栏（全部代理 / 功能 / 设置）；手机标签栏（A4 前）仍是
+  // 会话 / 看板 / 更多 / 设置。“会话”另走主页逻辑，不在 SHELL_TAB_PAGES 里；组件工作室不再是一级入口。
+  assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
+  assert.equal('components' in SHELL_TAB_PAGES, false)
   assert.equal(SHELL_TAB_PAGES.settings, 'config')
   assert.equal('session' in SHELL_TAB_PAGES, false)
   const tab = (page, state) => activeShellTab(page, settingsOwnsPage(page, state))
   assert.equal(tab('board'), 'board')
   assert.equal(tab('session'), 'session')
   assert.equal(tab('chat'), 'session')
-  assert.equal(tab('components'), 'components')
+  // 组件工作室归“功能”（规格 2.4：功能 › 扩展），侧栏点亮“功能”。
+  assert.equal(tab('components'), 'more')
   assert.equal(tab('more'), 'more')
   assert.equal(tab('assets'), 'more')
   assert.equal(tab('workflowCreate'), 'more')
@@ -101,7 +104,7 @@ test('each page lights exactly one primary tab, honouring the entry origin of du
 })
 
 test('component detail routes stay on the components tab and native back walks the shell hierarchy', () => {
-  // 组件列表与详情：/components/:componentId 仍归“组件”标签。
+  // 组件列表与详情：/components/:componentId 仍是组件页（侧栏点亮“功能”）。
   assert.equal(pageFromPath('/components/game-assets'), 'components')
   assert.equal(pageFromPath('/components/game-assets/'), 'components')
   assert.equal(pageFromPath('/components/a/b'), null)
@@ -175,7 +178,7 @@ test('palette navigation and page meta cover the new shell pages', () => {
   // “会话”用兼容页面 id 'chat'：navigate('chat') 没有待打开的会话时落到主页，不建会话。
   assert.deepEqual(
     shell.map(([page]) => page),
-    ['chat', 'board', 'components', 'more', 'config'],
+    ['chat', 'board', 'more', 'components', 'config'],
   )
   assert.equal(
     features.some(([page]) => page === 'mcp'),
@@ -252,9 +255,9 @@ test('new task requests report whether a view claimed them', async () => {
       event.preventDefault()
     }
     window.addEventListener(BOARD_NEW_TASK_EVENT, claim)
-    assert.equal(requestBoardNewTask('titlebar'), true)
+    assert.equal(requestBoardNewTask('sidebar'), true)
     window.removeEventListener(BOARD_NEW_TASK_EVENT, claim)
-    assert.deepEqual(sources, ['titlebar'])
+    assert.deepEqual(sources, ['sidebar'])
   } finally {
     globalThis.window = previous
   }
@@ -300,47 +303,67 @@ test('compact durations stay short and never go negative', () => {
   assert.equal(formatCompactDuration(3 * 86_400_000), '3d')
 })
 
-function renderTitlebar(activeTab) {
+function renderSidebar(active, collapsed = false) {
+  // 收起偏好默认展开；窄轨单独渲染，不去改 sidebar-store 的落盘状态。
   return renderToStaticMarkup(
-    h(AppTitlebar, {
-      activeTab,
-      onSelectTab() {},
-      onOpenPalette() {},
+    h(collapsed ? SidebarRail : ShellSidebar, {
+      active,
       onNewTask() {},
-      fleet: h('span', { 'data-fleet-slot': '' }),
+      onSearch() {},
+      onOpenBoard() {},
+      onOpenFeatures() {},
+      onOpenSettings() {},
+      content: h('span', { 'data-groups-slot': '' }),
+      railCounts: h('span', { 'data-rail-counts-slot': '' }),
     }),
   )
 }
 
-test('the desktop title bar is the only primary navigation and reserves the window-control corner', async () => {
-  const html = renderTitlebar('more')
-  const root = html.slice(0, html.indexOf('>') + 1)
-  // 整栏是拖拽区；Windows 自绘标题栏时右侧 144px 让给窗口按钮，其余平台只留 12px。
-  assert.match(root, /^<header\b/)
-  assert.match(root, /data-window-drag-region="true"/)
-  assert.match(root, /data-app-titlebar="true"/)
-  assert.match(root, /\bh-12\b/)
-  assert.match(root, /\bpr-3\b/)
-  assert.match(root, /\[\[data-custom-titlebar\]_&amp;\]:pr-\[144px\]/)
-  // 五个主标签（会话 / 看板 / 组件 / 更多 / 设置）按顺序出现在一个带名称的导航里，当前标签用 aria-current 表达。
-  const tabs = [...html.matchAll(/data-shell-tab="(\w+)"/g)].map((match) => match[1])
-  assert.deepEqual(tabs, [...SHELL_TABS])
+test('the sidebar is the only primary navigation and windows keep the control corner free', async () => {
+  // 规格 v2 第 2.1 节：标题栏退役，侧栏宽 268（不可拖动）是唯一的一级导航；品牌行空白处是拖拽区。
+  const html = renderSidebar('features')
+  assert.match(html, /^<div[^>]*data-shell-sidebar="expanded"/)
+  assert.match(html.slice(0, html.indexOf('>') + 1), /\bw-\[268px\]/)
+  assert.match(html.slice(0, html.indexOf('>') + 1), /\bbg-sidebar\b/)
+  assert.doesNotMatch(html, /cursor-col-resize|role="separator"/)
   assert.match(html, /<nav aria-label="[^"]+"/)
+  assert.match(html, /<div data-window-drag-region="true" class="[^"]*\bh-\[52px\]/)
+  // 四个入口 + 底部设置按顺序出现，当前入口用 aria-current 表达；分组区是插槽（会话分组懒加载）。
+  const entries = [...html.matchAll(/data-sidebar-entry="(\w+)"/g)].map((match) => match[1])
+  assert.deepEqual(entries, ['newTask', 'search', 'board', 'features', 'settings'])
   assert.deepEqual(
-    [...html.matchAll(/<button[^>]*aria-current="page"[^>]*data-shell-tab="(\w+)"/g)].map(
+    [...html.matchAll(/<button[^>]*data-sidebar-entry="(\w+)"[^>]*aria-current="page"/g)].map(
       (match) => match[1],
     ),
-    ['more'],
+    ['features'],
   )
-  assert.doesNotMatch(renderTitlebar(null), /aria-current/)
-  // 舰队计量经插槽放入；“新任务”是默认主按钮（石墨强调色，不用琥珀）。
-  assert.match(html, /data-fleet-slot=""/)
-  assert.match(html, /data-variant="default"[^>]*>[\s\S]*?lucide-plus/)
-  assert.doesNotMatch(html, /st-attn/)
+  assert.doesNotMatch(renderSidebar(null), /aria-current/)
+  assert.match(html, /data-groups-slot=""/)
+  assert.doesNotMatch(html, /data-rail-counts-slot/)
+  // 静态外壳不承载状态色：琥珀只在需要你的行与计数里（插槽内）。
+  assert.doesNotMatch(html, /st-attn|warning-/)
+  // 收起：60px 窄轨，四个入口图标 + 计数插槽 + 底部设置；展开键带 aria-expanded=false。
+  const rail = renderSidebar('board', true)
+  assert.match(rail, /^<nav aria-label="[^"]+"/)
+  assert.match(
+    await readFile('src/app/ShellSidebar.tsx', 'utf8'),
+    /collapsed \? 'w-\[60px\]' : 'w-\[268px\]'/,
+  )
+  assert.deepEqual(
+    [...rail.matchAll(/data-sidebar-entry="(\w+)"/g)].map((match) => match[1]),
+    ['newTask', 'search', 'board', 'features', 'settings'],
+  )
+  assert.match(rail, /data-sidebar-toggle="expand" aria-expanded="false"/)
+  assert.match(rail, /data-rail-counts-slot=""/)
+  assert.doesNotMatch(rail, /data-groups-slot/)
 
-  const [app, controls] = await Promise.all([
+  const [app, controls, ...headers] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/DesktopWindowControls.tsx', 'utf8'),
+    readFile('src/components/layout/PageHeader.tsx', 'utf8'),
+    readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
+    readFile('src/features/board/BoardHeader.tsx', 'utf8'),
+    readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
   ])
   // 外壳根节点按桥接能力标记自绘标题栏，窗口按钮只在这时挂载。
   assert.match(
@@ -351,9 +374,16 @@ test('the desktop title bar is the only primary navigation and reserves the wind
     app,
     /\{window\.pisperDesktop\?\.customTitlebar && \(\s*<Suspense fallback=\{null\}>\s*<DesktopWindowControls \/>/,
   )
-  // 窄化的桌面窗口永远不进手机外壳，标题栏始终保留（规格 2.7）；手机 App 平板也走桌面布局（规格 7.6）。
+  assert.doesNotMatch(app, /AppTitlebar|FleetMeter|data-app-titlebar/)
+  // 窄化的桌面窗口永远不进手机外壳，侧栏外壳始终保留（规格 2.7）；手机 App 平板也走桌面布局（规格 7.6）。
   assert.match(app, /const phoneShell = mobileLayout && !window\.pisperDesktop && !tabletApp/)
-  // 三个 44px 窗口按钮叠在标题栏右上角：总宽 132px 落在 144px 预留区内，高度与标题栏同为 48px。
+  assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
+  // 主区顶栏（各页的页头）在 Windows 自绘标题栏时右侧预留 144px，空白处是拖拽区。
+  for (const header of headers) {
+    assert.match(header, /\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/)
+    assert.match(header, /data-window-drag-region/)
+  }
+  // 三个 44px 窗口按钮叠在主区右上角：总宽 132px 落在 144px 预留区内。
   assert.match(
     controls,
     /className="desktop-window-controls absolute right-0 top-0 z-40 flex h-12"/,

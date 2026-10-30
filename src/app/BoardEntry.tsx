@@ -1,12 +1,11 @@
-// 会话页的看板入口（主页改为会话之后取代“‹ 看板”返回键）：看板图标 + “看板”，语义是“打开看板”，
-// 点它 push 到 /board，浏览器后退回到会话。桌面放在泳道条最左侧并标出“全部代理”快捷键（openBoard，⌘1；
-// v2 的 showBoard 已退役，⇧⌘B 归会话树）；
-// 手机放进会话顶栏左侧，写作“看板 ▲N”，带琥珀的需要你计数（规格 7.3 的徽标保留）。
+// 手机会话页顶栏左侧的看板入口：看板图标 + “看板 N”，带琥珀的需要你计数（规格 7.3 的徽标保留），
+// 点它 push 到 /board，浏览器后退回到会话。桌面的泳道条与这个入口已退役（入口在应用侧栏里）；
+// 手机外壳在 A4 改为顶栏 ☰ + 抽屉时整个删除。计数读侧栏同一份分组模型（看板 store）。
 // 只认点击与应用级快捷键，不监听 Esc：键盘 Esc 永远不离开会话页。
 import { LaneBarsIcon } from '@/components/app/LaneBarsIcon'
 import { useI18n } from '@/app/use-i18n'
 import { Kbd } from '@/components/ui/kbd'
-import { useFleetSummary } from '@/features/board/public'
+import { useSidebarModel } from '@/features/board/public'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -23,8 +22,8 @@ export function BoardEntry({ onOpenBoard }: BoardEntryProps) {
   const phone = usePhoneShell()
   const binding = useShortcutStore((state) => state.bindings.openBoard)
   const shortcut = formatShortcut(binding)
-  const fleet = useFleetSummary()
-  const attention = phone ? fleet.attention : 0
+  const { model } = useSidebarModel()
+  const attention = phone ? model.counts.attention : 0
   const label =
     attention > 0
       ? t('board:home.entryAttention', { count: attention })

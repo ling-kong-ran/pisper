@@ -1,45 +1,33 @@
-// 一级导航（标题栏主标签 / 手机底部标签栏）的纯数据模型：标签顺序、去向与“当前页归哪个标签”。
-// 不依赖 Feature 与 React，桌面标题栏、手机标签栏、快捷键和守卫测试共用同一份结论。
-// 主页是会话（负责人决定）：“会话”标签排第一，去向是主页 '/'（上次停留的会话或新任务草稿），
+// 一级入口的纯数据模型：手机底部标签栏的标签顺序与去向、“当前页归哪个入口”，以及路由竞态用的去向判断。
+// 不依赖 Feature 与 React，桌面侧栏入口、手机标签栏、快捷键和守卫测试共用同一份结论。
+// 规格 v2 第 2.4 节：桌面标题栏的标签（会话 / 看板 / 组件 / 更多 / 设置）已退役，一级入口在侧栏里；
+// 这里只剩手机标签栏（A4 改为抽屉）沿用的四个标签。“组件”不是一级入口，组件工作室归“功能”点亮。
+// 主页是会话（负责人决定）：“会话”的去向是主页 '/'（上次停留的会话或新任务草稿），
 // 不是 PAGE_PATHS.session（'/board/new' 进入即新建会话）。
 import { MORE_PAGES } from '@/app/more-pages'
 import { HOME_PATH, pageFromPath, type PageId } from '@/app/routes'
 
-export const SHELL_TABS = Object.freeze([
-  'session',
-  'board',
-  'components',
-  'more',
-  'settings',
-] as const)
-export type ShellTab = (typeof SHELL_TABS)[number]
-
-// 手机底部标签栏：会话 · 看板 · [居中新任务] · 更多 · 设置。“组件”挪进“更多”的磁贴（手机专属），
-// /components 路由照常可用，从更多进入时点亮“更多”。
+// 手机底部标签栏：会话 · 看板 · [居中新任务] · 更多 · 设置。
 export const PHONE_SHELL_TABS = Object.freeze(['session', 'board', 'more', 'settings'] as const)
+export type ShellTab = (typeof PHONE_SHELL_TABS)[number]
 
-// 标签对应的页面 id；“会话”标签另走主页逻辑（见 App.selectShellTab），设置标签落到 config 的默认分区（模型）。
+// 入口对应的页面 id；“会话”另走主页逻辑（见 App.selectShellTab），设置落到 config 的默认分区（模型）。
 export const SHELL_TAB_PAGES: Readonly<Record<Exclude<ShellTab, 'session'>, PageId>> =
   Object.freeze({
     board: 'board',
-    components: 'components',
     more: 'more',
     settings: 'config',
   })
 
-// 当前页面点亮哪个一级标签。插件、星忆等页同时挂在“更多”和“设置”下，
-// 归属沿用 settingsOwnsPage 的进入来源判定：settingsOwned 为真时只点亮“设置”。
-// 会话页与主页点亮“会话”，看板点亮“看板”；手机没有“组件”标签，组件页归“更多”。
-export function activeShellTab(
-  page: string,
-  settingsOwned: boolean,
-  phone = false,
-): ShellTab | null {
+// 当前页面点亮哪个一级入口（桌面侧栏的“全部代理 / 功能 / 设置”与手机标签栏共用）。
+// 插件、星忆等页同时挂在“功能”和“设置”下，归属沿用 settingsOwnsPage 的进入来源判定：
+// settingsOwned 为真时只点亮“设置”。会话页与主页归“会话”，看板归“看板”（侧栏的“全部代理”），
+// 组件工作室与其余功能页归“更多”（侧栏的“功能”）。
+export function activeShellTab(page: string, settingsOwned: boolean): ShellTab | null {
   if (settingsOwned) return 'settings'
   if (page === 'session' || page === 'chat') return 'session'
   if (page === 'board') return 'board'
-  if (page === 'components') return phone ? 'more' : 'components'
-  if (page === 'more' || MORE_PAGES.has(page)) return 'more'
+  if (page === 'components' || page === 'more' || MORE_PAGES.has(page)) return 'more'
   return null
 }
 
@@ -74,7 +62,7 @@ export function sessionTabNavigation({
 export const COMPONENT_DETAIL_PATTERN = /^\/components\/([^/]+)\/?$/
 
 export type ShellBackContext = {
-  // 手机外壳（不含平板）：组件页从“更多”进入，列表返回更多。
+  // 手机外壳（不含平板）：组件列表返回更多；桌面与平板的组件列表是功能页之一，同样回到更多。
   phone?: boolean
   // 当前历史条目是从主页落地的会话（HOME_ENTRY_STATE），或就是主页本身。
   homeEntry?: boolean
@@ -99,7 +87,9 @@ export function shellBackPath(
     return canGoBack ? -1 : null
   }
   if (page === 'components' && COMPONENT_DETAIL_PATTERN.test(pathname)) return '/components'
-  const tab = activeShellTab(page, settingsOwned, phone)
+  // 桌面 / 平板的组件列表原是一级标签，返回主页；手机上它从“更多”进入，返回更多（行为不变）。
+  if (page === 'components' && !phone) return HOME_PATH
+  const tab = activeShellTab(page, settingsOwned)
   if (tab === 'more' && page !== 'more') return '/more'
   return HOME_PATH
 }

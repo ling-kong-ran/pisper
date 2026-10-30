@@ -1,6 +1,6 @@
 // 看板内联动作：乐观补丁只叠加在看板视图上，失败时撤掉补丁并恢复审批详情，
 // 结束后统一刷新权威缓存。动作从不抛出，结果对象交给界面决定如何提示。
-import type { SessionOrganizationUpdate } from '@/features/chat/events'
+import { announceSessionsUpdated, type SessionOrganizationUpdate } from '@/features/chat/events'
 import { queryClient } from '@/lib/startup-queries'
 import { boardApi } from './board-api'
 import {
@@ -207,4 +207,35 @@ export function pinBoardSession(sessionId: string, pinned = true) {
 
 export function archiveBoardSession(sessionId: string, archived = true) {
   return organize(sessionId, 'archive', { archived }, { archived })
+}
+
+// 改名（侧栏行 ⋯ 菜单）：服务端确认后把新名字写回权威缓存与看板条目，再广播给会话页等其他读者。
+// 不做乐观更新：名字是用户刚输入的文字，失败时界面保持旧名并提示即可。
+export async function renameBoardSession(
+  sessionId: string,
+  name: string,
+): Promise<BoardActionResult> {
+  const key = boardActionKey('rename', sessionId)
+  if (!beginBoardAction(key, 'rename')) return pendingResult()
+  try {
+    const confirmed = await boardApi.renameSession(sessionId, name)
+    updateBoardFeedSession(sessionId, { name: confirmed })
+    queryClient.setQueryData<BoardSessionsData>(BOARD_SESSIONS_QUERY_KEY, (current) =>
+      current
+        ? {
+            ...current,
+            sessions: current.sessions.map((session) =>
+              session.id === sessionId ? { ...session, name: confirmed } : session,
+            ),
+          }
+        : current,
+    )
+    announceSessionsUpdated({ id: sessionId, name: confirmed })
+    return { ok: true }
+  } catch (error) {
+    refreshInBackground()
+    return { ok: false, reason: 'failed', error }
+  } finally {
+    endBoardAction(key)
+  }
 }

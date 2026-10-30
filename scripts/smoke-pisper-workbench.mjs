@@ -52,10 +52,13 @@ try {
       .waitFor({ timeout: 60000 })
     await page.getByTestId('workbench-greeting').waitFor()
     await page.evaluate(() => document.fonts.ready)
-    // 旧侧栏的“更多工具”随外壳退役：“更多”在桌面标题栏（手机外壳是底部标签栏）里。
+    // 规格 v2：“功能”（原“更多”）在桌面侧栏里（手机外壳是底部标签栏的“更多”）。
     await page
-      .locator(width > 650 ? '[data-app-titlebar]' : '[data-testid="mobile-tab-bar"]')
-      .locator('[data-shell-tab="more"]')
+      .locator(
+        width > 650
+          ? '[data-shell-sidebar] [data-sidebar-entry="features"]'
+          : '[data-testid="mobile-tab-bar"] [data-shell-tab="more"]',
+      )
       .waitFor()
     if (width > 650) {
       await page

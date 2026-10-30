@@ -247,9 +247,12 @@ test('only the confirmation layer may approve critical requests', async () => {
   // 允许 critical 的唯一路径是 confirmApproval（按住 0.6 秒或层内回车后调用）。
   const confirmBody = controller.slice(controller.indexOf('const confirmApproval'))
   assert.match(confirmBody.slice(0, 900), /confirmCritical: true/)
-  // 舰队计量只负责跳转，永远不批准。
-  const fleet = await readFile(join(root, 'src/app/FleetMeter.tsx'), 'utf8')
-  assert.doesNotMatch(fleet, /\.approve\(|approveBoardApproval/)
+  // 侧栏的快捷处理（取代舰队计量浮层）只对 sidebar-model 判定为普通批准的行一步允许，
+  // 且永远不带确认：critical、详情未到或截断的一律“打开”进会话。
+  const sidebar = sources.find(([file]) => file === 'SidebarSessions.tsx')[1]
+  const sidebarApprovals = [...sidebar.matchAll(/\.approve\([^)]*\)/g)].map((match) => match[0])
+  assert.deepEqual(sidebarApprovals, ['.approve(row.id, approvalId, { confirmCritical: false })'])
+  assert.match(sidebar, /if \(row\.quickAction\.kind !== 'decide'\) \{\s*onOpenSession\(row\.id\)/)
 
   // 控制器内部的 approveNow 第三个参数就是 confirmCritical：只有 confirmApproval 能传 true，
   // 卡片按钮与 A 键都传 false；critical 或详情未到时 A 只打开确认层。

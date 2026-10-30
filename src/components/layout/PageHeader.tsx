@@ -1,9 +1,11 @@
-// 页头：48px 面包屑顶栏（所属标签 / 当前页）+ 搜索框 + 主操作按钮 + 主题/终端等工具。
+// 页头：48px 面包屑顶栏（所属入口 / 当前页）+ 搜索框 + 主操作按钮 + 终端等工具。
+// 主题切换不在页头（规格 v2 第 2.5 节）：设置 › 界面与 ⌘K“切换主题”。
 // 设置分区在顶栏下方另起 20/600 页标题；手机宽度与看板、更多同一套页头：56px 行内左对齐的 24/650 标题
 // + 12px 说明，从“更多”进入时左侧是 44px 的“‹ 更多”文字返回键；下面一行是搜索与主操作。
 // 手机页头不放主题键（主题在“设置 → 界面”）。
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
-// 从“更多”进入的功能页，面包屑上一级是可点的“‹ 更多”；窗口按钮已移到应用标题栏，页头不再为它留白。
+// 从“更多”进入的功能页，面包屑上一级是可点的“‹ 更多”。没有应用标题栏了：Windows 自绘标题栏时
+// 页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
 import type { ReactNode, RefObject } from 'react'
 import {
   ChevronLeft,
@@ -20,8 +22,6 @@ import {
 import { MORE_PAGES } from '@/app/more-pages'
 import { SETTINGS_PAGES } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import type { ThemeMode } from '@/stores/ui-store'
-import { ThemeToggleButton } from './ThemeToggleButton'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
 
@@ -48,8 +48,6 @@ type PageHeaderProps = {
   onPrimary: () => void
   searchSlot?: ReactNode
   actionsSlot?: ReactNode
-  theme: ThemeMode
-  onCycleTheme: () => void
   searchInputRef: RefObject<HTMLInputElement | null>
   workflowActions: WorkflowActions | null
   desktopPlatform: string
@@ -71,8 +69,6 @@ export function PageHeader({
   onPrimary,
   searchSlot,
   actionsSlot,
-  theme,
-  onCycleTheme,
   searchInputRef,
   workflowActions,
   desktopPlatform,
@@ -136,6 +132,8 @@ export function PageHeader({
           'flex min-h-12 items-center gap-2 border-b border-stroke-soft py-1.5 pr-2.5 in-data-[density=compact]:min-h-11 max-[650px]:min-h-0 max-[650px]:flex-wrap max-[650px]:gap-x-2 max-[650px]:gap-y-0 max-[650px]:border-b-0 max-[650px]:px-4 max-[650px]:pt-0 max-[650px]:pb-3',
           page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
           'pl-[calc(16px+var(--workbench-leading-inset,0px))] max-[650px]:pl-4',
+          // Windows 自绘标题栏：右上角 144px 是窗口按钮。
+          '[[data-custom-titlebar]_&]:pr-[144px]',
         )}
       >
         <div
@@ -291,14 +289,6 @@ export function PageHeader({
             >
               <TerminalSquare size={16} />
             </Button>
-          )}
-          {page !== 'config' && (
-            <ThemeToggleButton
-              compact
-              theme={theme}
-              onCycle={onCycleTheme}
-              className={cn(page !== 'chat' && 'pointer-coarse:size-11 max-[650px]:hidden')}
-            />
           )}
         </div>
       </div>

@@ -537,7 +537,10 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
               : t('board:card.moreApprovals', { count: item.approvals.length - 1 })}
           </p>
         )}
-        <div className={cn('flex min-w-0 items-center gap-2', phone && 'grid grid-cols-2')}>
+        {/* 侧栏常驻后 1080 宽窗口的看板只有 812px，三列卡片放不下一行按钮时换行，不溢出卡片（A3 重做前的兜底）。 */}
+        <div
+          className={cn('flex min-w-0 flex-wrap items-center gap-2', phone && 'grid grid-cols-2')}
+        >
           <Button
             variant="outline"
             size={buttonSize}
@@ -633,7 +636,10 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
             ))}
           </div>
         )}
-        <div className={cn('flex min-w-0 items-center gap-2', phone && 'grid grid-cols-2')}>
+        {/* 侧栏常驻后 1080 宽窗口的看板只有 812px，三列卡片放不下一行按钮时换行，不溢出卡片（A3 重做前的兜底）。 */}
+        <div
+          className={cn('flex min-w-0 flex-wrap items-center gap-2', phone && 'grid grid-cols-2')}
+        >
           <Button
             variant="outline"
             size={buttonSize}

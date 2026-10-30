@@ -1,4 +1,4 @@
-// 看板内联动作：允许 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档。
+// 看板内联动作：允许 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档 / 改名（侧栏行菜单）。
 // 乐观更新、失败回滚与缓存失效都在 board-actions 中完成；这里只暴露进行中状态供按钮禁用。
 import { useMemo } from 'react'
 import {
@@ -7,6 +7,7 @@ import {
   denyBoardApproval,
   markBoardSessionHandled,
   pinBoardSession,
+  renameBoardSession,
   retryBoardSession,
 } from './board-actions'
 import { boardActionKey, useBoardOverlay, type BoardActionKind } from './board-store'
@@ -24,6 +25,7 @@ export function useBoardActions() {
       markHandled: markBoardSessionHandled,
       pin: pinBoardSession,
       archive: archiveBoardSession,
+      rename: renameBoardSession,
       pending,
       isPending: (kind: BoardActionKind, sessionId: string, approvalId = '') =>
         Boolean(pending[boardActionKey(kind, sessionId, approvalId)]),

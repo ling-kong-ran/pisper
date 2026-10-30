@@ -57,7 +57,7 @@ type MoreNavigationOptions = {
   mobileApp?: boolean
   // 放在“更多页面”位置的已安装组件；缺省时只给出“+ 添加”。
   components?: readonly MoreComponentEntry[]
-  // 手机外壳：底部标签栏没有“组件”，组件页的入口挪进“我的组件”分组的第一格。
+  // 组件页的入口放进“我的组件”分组的第一格：手机标签栏没有“组件”，v2 桌面也不再有组件标签。
   componentsTile?: boolean
 }
 

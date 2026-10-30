@@ -76,10 +76,9 @@ test('request timing accrues per-turn first-token and duration stats on sessionM
 })
 
 test('sidebar and usage popover wire project context menu and session stats panel', async () => {
-  const [sidebar, appSidebar, controls, focus, app, routeElements, history, runtime, projection] =
+  const [sidebar, controls, focus, app, routeElements, history, runtime, projection] =
     await Promise.all([
-      source('../../src/features/chat/ProjectTaskList.tsx'),
-      source('../../src/components/layout/AppSidebar.tsx'),
+      source('../../src/features/board/SidebarSessions.tsx'),
       source('../../src/features/chat/FocusRuntimeControls.tsx'),
       source('../../src/features/chat/FocusSession.tsx'),
       source('../../src/App.tsx'),
@@ -89,11 +88,13 @@ test('sidebar and usage popover wire project context menu and session stats pane
       source('../../runtime/runtime/stream-projection.mjs'),
     ])
 
-  // 新外壳不再挂载侧栏（规格 2.1），会话的打开/重命名/删除由“更多 › 历史会话”承担：
-  // 应用壳把同一套对话框能力经路由上下文交给历史页，不在页面里另建弹窗。
+  // 旧侧栏（AppSidebar / ProjectTaskList）已删除。会话的打开/重命名/删除由“功能 › 历史会话”承担，
+  // v2 侧栏的会话行菜单（打开、置顶、重命名、归档、标记已处理、复制链接）只复用看板动作：
+  // 应用壳把同一套对话框能力经路由上下文交给历史页、经属性交给侧栏，不在页面里另建弹窗。
   assert.doesNotMatch(app, /<ProjectTaskList\b|<AppSidebar\b/)
   assert.match(app, /requestText: appDialog\.prompt,/)
   assert.match(app, /requestConfirm: appDialog\.confirm,/)
+  assert.match(app, /<SidebarSessions[\s\S]*?requestText=\{appDialog\.prompt\}/)
   assert.match(
     routeElements,
     /<ChatHistoryPage[\s\S]*?notify=\{context\.notify\}[\s\S]*?requestConfirm=\{context\.requestConfirm\}[\s\S]*?requestText=\{context\.requestText\}/,
@@ -101,28 +102,15 @@ test('sidebar and usage popover wire project context menu and session stats pane
   assert.match(history, /onSelect=\{\(\) => void renameSession\(session\)\}/)
   assert.match(history, /onSelect=\{\(\) => void deleteSession\(session\)\}/)
   assert.match(history, /chat:chatHistoryPage\.renameChat/)
-
-  // 侧栏会话列表组件本身保留到第 6 期删除：它的右键菜单（新建/删除项目、会话级菜单）
-  // 仍按原契约实现，区块从 AppSidebar 的 tasks 插槽注入。
-  assert.match(appSidebar, /tasks: ReactNode/)
-  assert.match(sidebar, /<ContextMenu[\s\S]*?onOpenChange=/)
-  assert.match(sidebar, /id="sidebar-recent-sessions"/)
-  assert.match(sidebar, /navigation:appSidebar\.newProject/)
-  assert.match(sidebar, /navigation:appSidebar\.deleteProject/)
-  assert.match(sidebar, /<ContextMenuSub>/)
-  assert.match(sidebar, /onSelect=\{\(\) => void deleteProject\(menuTargetGroup\)\}/)
-  // 会话级右键菜单与项目级区分：打开/重命名/删除会话。
-  assert.match(sidebar, /onContextMenu=\{\(\) => setMenuTargetSessionId\(session\.id\)\}/)
-  assert.match(sidebar, /navigation:appSidebar\.openSession/)
-  assert.match(sidebar, /chat:chatHistoryPage\.renameChat/)
-  assert.match(sidebar, /onSelect=\{\(\) => void deleteSingleSession\(menuTargetSession\)\}/)
-  assert.match(sidebar, /<WorkspacePicker[\s\S]*?onSelect=/)
-  assert.match(sidebar, /announceSessionsUpdated\(\s*result\.deletedIds\.length/)
+  for (const item of ['open', 'pin', 'unpin', 'rename', 'markHandled', 'copyLink', 'archive'])
+    assert.match(sidebar, new RegExp(`t\\('board:menu\\.${item}'\\)`), item)
+  assert.match(sidebar, /actionsRef\.current\.rename\(row\.id, trimmed\)/)
   assert.match(
     sidebar,
     /requestText: \(options\?: PromptDialogOptions\) => Promise<string \| null>/,
   )
-  assert.match(sidebar, /requestConfirm: \(options\?: ConfirmDialogOptions\) => Promise<boolean>/)
+  // 侧栏不删除会话（删除只在历史会话里，带确认）。
+  assert.doesNotMatch(sidebar, /method: 'DELETE'|deleteSession/)
 
   // 统计弹窗：上下文用量 Popover 内嵌详细统计面板，FocusSession 传入数据源。
   assert.match(controls, /export function SessionStatsPanel/)

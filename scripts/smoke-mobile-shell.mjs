@@ -727,10 +727,17 @@ async function pressAfterFirstPaint(page, key) {
   await page.keyboard.press(key)
   return page.evaluate(() => Math.round(window.__firstPaint.key - window.__firstPaint.painted))
 }
+// 点亮的一级入口：手机标签栏的标签，或桌面侧栏的入口（全部代理 → board、功能 → more、设置 → settings）。
 const activeTabs = (page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll('[data-shell-tab][aria-current="page"]')].map(
-      (tab) => tab.dataset.shellTab,
+    [
+      ...document.querySelectorAll(
+        '[data-shell-tab][aria-current="page"], [data-shell-sidebar] [data-sidebar-entry][aria-current="page"]',
+      ),
+    ].map(
+      (tab) =>
+        tab.dataset.shellTab ||
+        { board: 'board', features: 'more', settings: 'settings' }[tab.dataset.sidebarEntry],
     ),
   )
 const noHorizontalScroll = (page) =>
@@ -826,7 +833,7 @@ async function verifyPhoneShell(boardSessions) {
     await page.evaluate(() => document.documentElement.hasAttribute('data-phone-shell')),
     true,
   )
-  assert.equal(await page.locator('[data-app-titlebar]').count(), 0)
+  assert.equal(await page.locator('[data-app-titlebar], [data-shell-sidebar]').count(), 0)
   const bar = await tabBar.evaluate((nav) => ({
     order: [...nav.children].map(
       (child) => child.dataset.shellTab || (child.querySelector('button') ? 'new' : ''),
@@ -1284,56 +1291,6 @@ async function verifyPhoneSession(boardSessions) {
   await context.close()
 }
 
-// 触屏上泳道条芯片里的内联键（查看 / 拒绝 / 允许）必须竖向撑满芯片内框（打开会话按钮的可见框）：
-// 键的 44px 热区会竖向外扩，键上下方若还留着显示为芯片的部分，点芯片就会误触批准 / 拒绝。
-// 逐像素取芯片内框里不在任何键可见框内的点，确认没有一个落到内联键上；键左右边缘各留 1px，
-// 那是浏览器对小数坐标的取整，去掉伪元素热区也同样存在，与触屏热区无关。
-async function assertStripKeysFillChips(page, mode) {
-  const result = await page.evaluate(() => {
-    const KEY = '[data-strip-approve],[data-strip-deny],[data-strip-review]'
-    const chips = []
-    for (const chip of document.querySelectorAll('[data-lane-strip] [data-strip-chip]')) {
-      const keys = [...chip.querySelectorAll(KEY)]
-      if (!keys.length) continue
-      const inner = chip.querySelector(':scope > button').getBoundingClientRect()
-      const boxes = keys.map((key) => key.getBoundingClientRect())
-      const near = (x, y) =>
-        boxes.some((r) => x > r.left - 1 && x < r.right + 1 && y >= r.top && y < r.bottom)
-      let toKey = 0
-      for (let y = Math.floor(inner.top) + 0.5; y < inner.bottom; y += 1)
-        for (let x = Math.floor(inner.left) + 0.5; x < inner.right; x += 1) {
-          if (near(x, y)) continue
-          if (document.elementFromPoint(x, y)?.closest(KEY)) toKey += 1
-        }
-      chips.push({
-        chip: chip.dataset.stripChip,
-        innerHeight: Math.round(inner.height * 10) / 10,
-        keys: boxes.map((r) => ({
-          top: Math.round((r.top - inner.top) * 10) / 10,
-          bottom: Math.round((inner.bottom - r.bottom) * 10) / 10,
-          width: Math.round(r.width * 10) / 10,
-        })),
-        toKey,
-      })
-    }
-    return { coarse: matchMedia('(pointer: coarse)').matches, chips }
-  })
-  const detail = `${mode} strip ${JSON.stringify(result)}`
-  assert.equal(result.coarse, true, detail)
-  assert.ok(result.chips.length > 0, `the fixture shows inline keys in the ${detail}`)
-  for (const chip of result.chips) {
-    assert.ok(chip.innerHeight >= (mode === 'two-line' ? 36 : 24), detail)
-    assert.equal(chip.toKey, 0, `no chip point outside the keys opens an approval: ${detail}`)
-    for (const key of chip.keys) {
-      assert.ok(
-        Math.abs(key.top) < 0.5 && Math.abs(key.bottom) < 0.5,
-        `keys fill the chip: ${detail}`,
-      )
-      assert.ok(key.width >= 44, `keys are at least 44px wide on touch: ${detail}`)
-    }
-  }
-}
-
 async function verifyTablet(boardSessions) {
   await resetLastSession()
   const { context } = await newContext(
@@ -1350,10 +1307,11 @@ async function verifyTablet(boardSessions) {
   await settle(page)
   const board = await page.evaluate(() => ({
     phoneShell: document.documentElement.hasAttribute('data-phone-shell'),
+    sidebar: document.querySelector('[data-shell-sidebar]')?.dataset.shellSidebar ?? null,
     titlebar: Boolean(document.querySelector('[data-app-titlebar]')),
     tabBar: Boolean(document.querySelector('[data-testid="mobile-tab-bar"]')),
-    tabs: [...document.querySelectorAll('[data-app-titlebar] [data-shell-tab]')].map(
-      (tab) => tab.dataset.shellTab,
+    entries: [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-entry]')].map(
+      (entry) => entry.dataset.sidebarEntry,
     ),
     lanes: [...document.querySelectorAll('[data-board-lane]')].map(
       (lane) => `${lane.dataset.boardLane}:${lane.dataset.laneMode}`,
@@ -1363,43 +1321,53 @@ async function verifyTablet(boardSessions) {
   }))
   assert.deepEqual(board, {
     phoneShell: false,
-    titlebar: true,
+    sidebar: 'expanded',
+    titlebar: false,
     tabBar: false,
-    tabs: ['session', 'board', 'components', 'more', 'settings'],
+    entries: ['newTask', 'search', 'board', 'features', 'settings'],
     lanes: ['attention:expanded', 'running:expanded', 'done:rail'],
     windowControls: 0,
     horizontalScroll: false,
   })
   await page.screenshot({ path: join(output, 'tablet-board.png') })
   await page.goto(app.url + `/#/board/${BOARD_SESSION_ID}`)
-  await page.locator('[data-lane-strip]').waitFor({ timeout: 30000 })
+  const currentRow = page.locator(
+    `[data-shell-sidebar] [data-sidebar-row="${BOARD_SESSION_ID}"][aria-current="page"]`,
+  )
+  await currentRow.waitFor({ timeout: 30000 })
   const workspaceMode = await page
     .locator('[data-session-workspace]')
     .getAttribute('data-session-workspace')
   assert.equal(workspaceMode, 'overlay', 'the tablet session inspector is always an overlay')
   assert.equal(await page.locator('[data-session-header="phone"]').count(), 0)
-  assert.equal(await page.locator('[data-agent-strip]').count(), 0)
-  // 泳道条按实测逐级收缩：1024 宽下右端的胶囊不能被硬裁（估算偏小时也要收到放得下）。
-  const stripFits = () =>
-    page.waitForFunction(() => {
-      const row = document.querySelector('[data-strip-row]')
-      return row && row.clientWidth > 0 && row.scrollWidth <= row.clientWidth + 1
-    })
-  await stripFits()
-  await assertStripKeysFillChips(page, 'single-line')
-  // 1366×1024（iPad Pro 横屏）是 52px 双行芯片：键上下方的芯片内框最高，最容易被内联键的 44px 热区盖住。
-  await page.setViewportSize({ width: 1366, height: 1024 })
-  await page.waitForFunction(() => {
-    const strip = document.querySelector('[data-lane-strip]')
-    return (
-      strip && !strip.hasAttribute('data-strip-compact') && Number(strip.dataset.stripLevel) <= 2
-    )
-  })
-  await stripFits()
-  await assertStripKeysFillChips(page, 'two-line')
-  await page.setViewportSize({ width: 1024, height: 768 })
-  await page.locator('[data-lane-strip][data-strip-compact]').waitFor()
-  await stripFits()
+  assert.equal(await page.locator('[data-agent-strip], [data-lane-strip]').count(), 0)
+  // 触屏（pointer: coarse）：侧栏会话行与入口抬到 44px；悬停才出现的小号快捷处理与 ⋯ 不出现在触屏上
+  // （触屏没有悬停，26px 的键也达不到 44px），点行进会话处理，不会误触批准。
+  const touch = await page.evaluate(() => ({
+    coarse: matchMedia('(pointer: coarse)').matches,
+    rows: [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-row]')].map((row) =>
+      Math.round(row.getBoundingClientRect().height),
+    ),
+    entries: [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-entry]')].map(
+      (entry) => Math.round(entry.getBoundingClientRect().height),
+    ),
+    quickButtons: [...document.querySelectorAll('[data-sidebar-item] button')].filter(
+      (button) => button.getBoundingClientRect().width > 0,
+    ).length,
+    horizontalScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
+  }))
+  assert.equal(touch.coarse, true)
+  assert.ok(touch.rows.length > 0, `the tablet sidebar lists sessions ${JSON.stringify(touch)}`)
+  assert.ok(
+    touch.rows.every((height) => height >= 44),
+    `touch rows ≥ 44 ${JSON.stringify(touch)}`,
+  )
+  assert.ok(
+    touch.entries.every((height) => height >= 44),
+    `touch entries ≥ 44 ${JSON.stringify(touch)}`,
+  )
+  assert.equal(touch.quickButtons, 0, 'no hover-only quick actions on touch')
+  assert.equal(touch.horizontalScroll, false)
   const inspector = page.locator('[data-session-inspector]')
   if (!(await inspector.count())) await page.locator('[data-inspector-toggle]').click()
   await inspector.waitFor()
@@ -1409,7 +1377,7 @@ async function verifyTablet(boardSessions) {
   await inspector.waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
   report.checks.push(
-    "Tablet 1024x768 (phone app): desktop layout with the 48px title bar (five tabs, no window controls) and no tab bar; below 1180 only 需要你 and 运行中 lanes are expanded; the session lane strip shrinks until it fits (no clipped capsules); on touch the inline 查看 / 拒绝 / 允许 keys fill their chip's height in the single-line strip and in the 1366x1024 two-line strip, so no chip point above or below a key opens the approval instead of the session; the session inspector is an overlay that Android back closes first",
+    'Tablet 1024x768 (phone app): desktop layout with the expanded 268px sidebar (five entries, no window controls, no title bar) and no tab bar; below 1180 only 需要你 and 运行中 lanes are expanded; on the session page the current session row is lit, sidebar rows and entries are at least 44px on touch and hover-only quick actions never show there; the session inspector is an overlay that Android back closes first',
   )
   await context.close()
 }
@@ -1425,7 +1393,7 @@ async function verifyColdStartShortcuts(boardSessions) {
       'desktop',
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
       {},
-      '[data-app-titlebar]',
+      '[data-shell-sidebar]',
     ],
   ]) {
     await resetLastSession()
@@ -1457,6 +1425,7 @@ async function verifyColdStartShortcuts(boardSessions) {
 
 async function verifyNarrowDesktop(boardSessions) {
   for (const [width, height] of [
+    [1080, 680],
     [640, 760],
     [390, 844],
   ]) {
@@ -1466,19 +1435,29 @@ async function verifyNarrowDesktop(boardSessions) {
       { bridge: desktopBridgeScript, sessions: boardSessions },
     )
     const page = await openPage(context, label, '#/board')
-    await page.locator('[data-app-titlebar]').waitFor({ timeout: 60000 })
+    await page.locator('[data-shell-sidebar]').waitFor({ timeout: 60000 })
     await page.locator('[data-board-root]').waitFor({ timeout: 30000 })
     await settle(page, 600)
     const audit = await page.evaluate(() => {
-      const bar = document.querySelector('[data-app-titlebar]')
       const controls = document.querySelector('.desktop-window-controls')
       const reservedLeft = window.innerWidth - 144
+      // 没有标题栏了：核对侧栏与主区顶栏（看板页头）里的控件。
       const interactive = [
-        ...bar.querySelectorAll('button, a[href], input, [role="button"], [role="tab"]'),
+        ...document.querySelectorAll(
+          '[data-shell-sidebar] :is(button, a[href]), [data-board-root] header :is(button, a[href], input, [role="button"], [role="tab"])',
+        ),
       ]
         .filter((element) => !element.closest('.desktop-window-controls'))
         .map((element) => ({ element, box: element.getBoundingClientRect() }))
         .filter(({ box }) => box.width > 0 && box.height > 0)
+        // 侧栏行的快捷处理与 ⋯ 只在悬停 / 聚焦时出现，平时是 visibility: hidden，不算被遮挡。
+        .filter(({ element }) => getComputedStyle(element).visibility !== 'hidden')
+        // 分组区单独滚动（品牌行、入口与底部设置固定）：滚出可视区的行不算被遮挡。
+        .filter(({ element, box }) => {
+          const scroller = element.closest('[data-sidebar-scroll]')?.getBoundingClientRect()
+          const middle = box.top + box.height / 2
+          return !scroller || (middle >= scroller.top && middle <= scroller.bottom)
+        })
       const name = (element) =>
         (element.getAttribute('aria-label') || element.textContent || element.tagName)
           .trim()
@@ -1495,25 +1474,26 @@ async function verifyNarrowDesktop(boardSessions) {
         tabBar: document.querySelectorAll('[data-testid="mobile-tab-bar"]').length,
         controls: controls ? Math.round(controls.getBoundingClientRect().width) : 0,
         intrusions: interactive
-          .filter(({ box }) => box.right > reservedLeft + 0.5)
+          // 窗口按钮只占右上角 48px 高：泳道标题等更靠下的控件不算。
+          .filter(({ box }) => box.top < 48 && box.right > reservedLeft + 0.5)
           .map(({ element }) => name(element)),
         covered,
-        tabs: [...bar.querySelectorAll('[data-shell-tab]')].length,
+        entries: document.querySelectorAll('[data-shell-sidebar] [data-sidebar-entry]').length,
       }
     })
     assert.equal(audit.phoneShell, false, `${label}: a desktop window never enters the phone shell`)
     assert.equal(audit.tabBar, 0)
     assert.ok(audit.controls > 0, `${label}: window controls are visible`)
-    assert.equal(audit.tabs, 5)
-    // 遮挡只核对 640：Tauri 最小窗口是 1080，390 宽的桌面窗口并不存在，这一档只验证门控
-    // （自绘标题栏在 600 以下放不下全部控件，属于不可达尺寸）。
-    if (width >= 600) {
+    assert.equal(audit.entries, 5)
+    // 遮挡只核对 1080（Tauri 最小窗口）：侧栏常驻 268 之后，640 与 390 宽的桌面窗口并不存在，
+    // 这两档只验证门控（永不进手机外壳）。
+    if (width >= 1080) {
       assert.deepEqual(
         audit.intrusions,
         [],
         `${label}: nothing enters the 144px window-control corner`,
       )
-      assert.deepEqual(audit.covered, [], `${label}: no title bar control is covered`)
+      assert.deepEqual(audit.covered, [], `${label}: no sidebar or header control is covered`)
     }
     await page.screenshot({ path: join(output, `narrow-desktop-${width}.png`) })
     await page.goto(app.url + `/#/board/${BOARD_SESSION_ID}`)
@@ -1527,7 +1507,7 @@ async function verifyNarrowDesktop(boardSessions) {
     await context.close()
   }
   report.checks.push(
-    'Narrowed desktop windows (pisperDesktop + customTitlebar, 640 and 390 wide): no phone shell or tab bar on the board and the session page, window controls visible; at 640 nothing enters the 144px corner and no title bar control is covered',
+    'Desktop windows (pisperDesktop + customTitlebar, 1080, 640 and 390 wide): the sidebar shell, never the phone shell or tab bar, on the board and the session page, window controls visible; at the 1080 minimum nothing enters the 144px corner and no sidebar or header control is covered',
   )
 }
 

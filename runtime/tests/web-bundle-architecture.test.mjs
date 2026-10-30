@@ -422,11 +422,11 @@ test('settings keep an in-page section navigation without the application sideba
     /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\) && settingsOwned && !tabletApp/,
   )
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
-  // 一级导航始终是标题栏（手机外壳为底部标签栏），设置页不再用设置导航替换应用侧栏；
-  // 当前页点亮哪个标签只由 activeShellTab(page, settingsOwned, phoneShell) 决定
-  // （手机没有“组件”标签，组件页点亮“更多”）。会话页与主页隐藏手机标签栏（规格 7.3）。
-  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned, phoneShell\)/)
-  assert.match(app, /<AppTitlebar\s+activeTab=\{shellTab\}/)
+  // 一级导航始终是应用侧栏（手机外壳为底部标签栏）；设置整页换侧栏内容是 A3，这一期设置分区导航
+  // 仍在内容区左侧。当前页点亮哪个入口只由 activeShellTab(page, settingsOwned) 决定
+  // （组件工作室归“功能”）。会话页与主页隐藏手机标签栏（规格 7.3）。
+  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
+  assert.match(app, /<ShellSidebar\s+active=\{sidebarActive\}/)
   assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}\s+activeTab=\{shellTab\}/)
   assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
   // 桌面与手机 App 平板的设置页在内容区左侧有自己的分区导航；手机仍用横滑分区条。
@@ -440,11 +440,11 @@ test('settings keep an in-page section navigation without the application sideba
   assert.match(sectionNav, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(sectionNav, /aria-label=\{t\('config:settingsShell\.settingsNavigation'\)\}/)
   assert.match(sectionNav, /aria-current=\{active \? 'page' : undefined\}/)
-  // 功能页入口在“更多”启动台，按 Runtime 能力与客户端形态裁剪；手机外壳没有“组件”标签，
-  // 组件页作为“更多”里的磁贴出现（只在 phoneShell 下）。
+  // 功能页入口在“更多”（v2 改名“功能”）启动台，按 Runtime 能力与客户端形态裁剪；手机标签栏与 v2 桌面
+  // 都没有“组件”入口，组件页作为“功能”里的磁贴出现。
   assert.match(
     more,
-    /getMoreNavigation\(t, \{ capabilities, mobileApp, components, componentsTile: phone \}\)/,
+    /getMoreNavigation\(t, \{ capabilities, mobileApp, components, componentsTile: true \}\)/,
   )
   assert.match(more, /const phone = usePhoneShell\(\)/)
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
@@ -508,14 +508,13 @@ test('mobile device permissions are requested by native operations', async () =>
 })
 
 test('route code and route-specific vendor styles remain lazy', async () => {
-  const [router, routeElements, main, chat, chatDock, dockView, workflows, styles, appearance] =
+  const [router, routeElements, main, chat, chatDock, workflows, styles, appearance] =
     await Promise.all([
       readFile('src/app/router.tsx', 'utf8'),
       readFile('src/app/route-elements.tsx', 'utf8'),
       readFile('src/main.tsx', 'utf8'),
       readFile('src/features/chat/ChatPage.tsx', 'utf8'),
       readFile('src/features/chat/ChatDock.tsx', 'utf8'),
-      readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
       readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
       readFile('src/index.css', 'utf8'),
       readFile('src/app/ChatAppearancePage.tsx', 'utf8'),
@@ -552,8 +551,9 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
   // 桌面分屏按需加载；手机只显示所选任务，不能把 Dockview 样式拖入入口。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
-  // 第 3 期起聊天页不再挂载分屏视图；Dockview 及其样式只留在未挂载的 ChatDockView 里，不进入任何路由。
+  // 第 3 期起聊天页不再挂载分屏视图，v2（A1）删除了 ChatDockView：Dockview 的运行时与样式不进入任何路由。
   assert.doesNotMatch(chat, /ChatDockView|dockview-react\/dist/)
+  await assert.rejects(readFile('src/features/chat/ChatDockView.tsx', 'utf8'), { code: 'ENOENT' })
   assert.match(chat, /<MobileSessionPanel/)
   assert.match(chat, /singleSessionLayout: mobileLayout/)
   assert.match(chatDock, /className="mobile-session-tabs/)
@@ -561,7 +561,7 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.doesNotMatch(chatDock, /MOBILE_SESSION_TAB_LIMIT/)
   assert.match(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
   assert.match(chatDock, /onCreateSession/)
-  assert.match(dockView, /import 'dockview-react\/dist\/styles\/dockview\.css'/)
+  assert.doesNotMatch(styles, /dockview/)
   assert.match(workflows, /import '@xyflow\/react\/dist\/style\.css'/)
   assert.match(styles, /@import "tailwindcss" source\(none\);/)
   assert.match(styles, /@source "\.\/\*\*\/\*\.\{ts,tsx\}";/)
