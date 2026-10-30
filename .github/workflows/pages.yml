@@ -27,10 +27,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # docs/design 是仓库内的界面设计截图，只供评审，不随 Pages 发布。
+      - name: Stage site files
+        run: rsync -a --exclude=/design/ docs/ _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: docs
+          path: _site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

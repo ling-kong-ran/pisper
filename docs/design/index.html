@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pisper 整体设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 布局：一列评审板。每个页面一节，左边设计稿、右边已实现，窄屏堆叠；琥珀只标“按你的决定改了”的地方 */
+:root {
+  color-scheme: light;
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --ink: #16181b;
+  --muted: #5a6068;
+  --line: #dcdfe4;
+  --amber: #a8640a;
+  --amber-soft: #fbf0dc;
+  --run: #1f6fb2;
+  --done: #2a7a4b;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --surface: #1a1d21; --ink: #e9ebee; --muted: #9ba2ab; --line: #2d3137;
+    --amber: #f2a93b; --amber-soft: #3a2a10; --run: #6db3ec; --done: #6fcf97; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --surface: #1a1d21; --ink: #e9ebee; --muted: #9ba2ab; --line: #2d3137;
+  --amber: #f2a93b; --amber-soft: #3a2a10; --run: #6db3ec; --done: #6fcf97; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.65;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 48px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.2; margin: 0; font-weight: 700; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; font-weight: 700; text-wrap: balance; }
+h3 { font-size: 15px; margin: 0; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: .88em; }
+kbd { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); }
+
+section { display: grid; gap: 18px; }
+.sec-head { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 22px; }
+
+/* 导航结构 */
+.nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font-size: 13px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.tab.on { color: var(--ink); border-color: var(--ink); font-weight: 500; }
+.tab.star { color: var(--ink); border-style: dashed; }
+dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 14px; }
+dt { color: var(--muted); }
+dd { margin: 0; min-width: 0; }
+.flow-steps { margin: 0; padding: 16px 18px 16px 38px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px; }
+
+/* 截图对照 */
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.shots.phones { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+figure { margin: 0; display: grid; gap: 8px; min-width: 0; align-content: start; }
+figure button { all: unset; cursor: zoom-in; display: block; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+figure button:focus-visible { outline: 2px solid var(--run); outline-offset: 2px; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 13px; color: var(--muted); }
+.chip { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
+.chip.draft { border-style: dashed; }
+.chip.built { border-color: var(--done); color: var(--done); }
+.chip.wip { border-color: var(--run); color: var(--run); }
+
+.notes { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.notes li { padding-left: 16px; position: relative; max-width: 80ch; }
+.notes li::before { content: ""; position: absolute; left: 2px; top: .7em; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.notes li.change { background: var(--amber-soft); border-radius: 6px; padding: 6px 10px 6px 26px; }
+.notes li.change::before { background: var(--amber); left: 11px; top: 1.05em; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); align-items: center; }
+.legend .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--amber-soft); border: 1px solid var(--amber); vertical-align: -2px; margin-right: 6px; }
+
+/* 进度 */
+.phases { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.phase { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: baseline; padding: 12px 16px; border-top: 1px solid var(--line); }
+.phase:first-child { border-top: 0; }
+.phase .n { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.phase .what { min-width: 0; }
+@media (max-width: 560px) {
+  .phase { grid-template-columns: 48px 1fr; }
+  .phase .chip { grid-column: 2; justify-self: start; }
+}
+
+dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 94vh; }
+dialog::backdrop { background: rgb(0 0 0 / .72); }
+dialog img { display: block; max-width: 96vw; max-height: 86vh; width: auto; height: auto; border-radius: 6px; }
+dialog .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #fff; font-size: 13px; padding: 8px 2px 0; }
+dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .12); border: 1px solid rgb(255 255 255 / .3); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 第 4 期进行中</div>
+    <h1>Pisper 整体设计</h1>
+    <p class="lede">界面设计评审用，不随 Pages 发布。按页面排开：每节左边是定稿时选中的设计稿，右边是已经做出来的界面。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
+    <div class="legend"><span>文件夹：drafts/ 设计稿（浅色与深色），built/ 已实现截图</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
+  </header>
+
+  <section aria-labelledby="nav-h">
+    <div class="sec-head">
+      <h2 id="nav-h">导航：会话做主页</h2>
+      <p class="lede">你刚定下的三条已经排进第 4 期，接在手机会话页之后做，完成后和第 4 期其他内容一起给你看截图。</p>
+    </div>
+    <div class="nav-grid">
+      <div class="panel">
+        <h3>桌面与平板标题栏</h3>
+        <div class="tabs" aria-label="桌面标签">
+          <span class="tab on">会话</span><span class="tab">看板</span><span class="tab">组件</span><span class="tab">更多</span><span class="tab">设置</span>
+        </div>
+        <dl>
+          <dt>打开应用</dt><dd>回到上次停留的会话</dd>
+          <dt>没有可回的</dt><dd>显示新任务草稿；发出第一条消息时才建会话</dd>
+          <dt>去看板</dt><dd>泳道条最左侧“看板”、<kbd>⌘B</kbd>、标题栏标签</dd>
+          <dt>换代理</dt><dd>泳道条、<kbd>⌥↑</kbd><kbd>⌥↓</kbd>、<kbd>⌘J</kbd> 代理面板</dd>
+        </dl>
+      </div>
+      <div class="panel">
+        <h3>手机底部标签栏</h3>
+        <div class="tabs" aria-label="手机标签">
+          <span class="tab on">会话</span><span class="tab">看板 ▲3</span><span class="tab star">＋ 新任务</span><span class="tab">更多</span><span class="tab">设置</span>
+        </div>
+        <dl>
+          <dt>组件</dt><dd>挪进“更多”的磁贴</dd>
+          <dt>会话页</dt><dd>隐藏标签栏，左上角“看板 ▲3”进看板</dd>
+          <dt>返回键</dt><dd>会话是根；看板、更多、设置按返回回到会话</dd>
+          <dt>需要你</dt><dd>“看板”标签上的琥珀徽标在所有页面都显示</dd>
+        </dl>
+      </div>
+    </div>
+    <ol class="flow-steps">
+      <li><b>打开应用</b>：上次停留的会话还在 → 进入该会话</li>
+      <li><b>已归档或删除</b> → 新任务草稿，发出第一条消息后才建会话并进入</li>
+      <li><b>会话 → 看板</b>：泳道条最左侧“看板”入口、<kbd>⌘B</kbd>、标题栏“看板”标签</li>
+      <li><b>看板 → 会话</b>：点卡片；浏览器后退回到看板</li>
+      <li><b>会话 → 另一个代理</b>：泳道条、<kbd>⌥↑</kbd><kbd>⌥↓</kbd>、<kbd>⌘J</kbd> 代理面板</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="session-h">
+    <div class="sec-head">
+      <h2 id="session-h">会话页（新主页）</h2>
+      <p class="lede">桌面布局：标题栏 48 → 泳道条 52 → 会话页头 44 + 对话 + 检查器。</p>
+    </div>
+    <div class="shots">
+      <figure><button type="button" data-full="drafts/desktop-session-light.png" aria-label="放大：会话页设计稿"><img src="drafts/desktop-session-light.png" alt="会话页设计稿：左侧代理列表、中间对话、右侧改动检查器" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>1440 × 900</figcaption></figure>
+      <figure><button type="button" data-full="built/session-1440-running-light.png" aria-label="放大：已实现的会话页"><img src="built/session-1440-running-light.png" alt="已实现的会话页：顶部泳道条、对话、右侧改动检查器" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 3 期</span>运行中，检查器并排</figcaption></figure>
+      <figure><button type="button" data-full="built/session-1440-agents-light.png" aria-label="放大：代理面板"><img src="built/session-1440-agents-light.png" alt="⌘J 打开的全部代理面板" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 3 期</span><kbd>⌘J</kbd> 全部代理面板</figcaption></figure>
+      <figure><button type="button" data-full="built/session-1080-overlay-light.png" aria-label="放大：1080 宽窗口"><img src="built/session-1080-overlay-light.png" alt="1080 宽窗口下检查器以覆盖层打开" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 3 期</span>1080 × 680，检查器为覆盖层</figcaption></figure>
+    </div>
+    <ul class="notes">
+      <li>设计稿左边是一列代理；定稿改成顶部泳道条（窄窗口 36px 单行），把宽度留给对话。完整列表用 <kbd>⌘J</kbd> 打开。</li>
+      <li>检查器标签：改动、终端、文件、预览、计划。宽度 ≥1280 并排 456px，更窄时是 420px 覆盖层，<kbd>⌘I</kbd> 开关。</li>
+      <li>高风险审批在任何网页入口都要按住 0.6 秒确认；TUI 已按你的意见改回按一次 y。</li>
+      <li class="change">泳道条最左边现在是“‹ 看板”返回键，第 4 期改成“看板”入口；标题栏点亮的是“会话”。</li>
+      <li class="change">设计稿右下角的“在编辑器打开”按你的决定暂不做。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="board-h">
+    <div class="sec-head">
+      <h2 id="board-h">看板</h2>
+      <p class="lede">四条泳道：需要你、运行中、排队、已完成。上方是派发新任务。</p>
+    </div>
+    <div class="shots">
+      <figure><button type="button" data-full="drafts/desktop-board-light.png" aria-label="放大：看板设计稿"><img src="drafts/desktop-board-light.png" alt="看板设计稿：四条泳道，顶部有 CI 状态与今日用量" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>1440 × 900</figcaption></figure>
+      <figure><button type="button" data-full="built/board-1440-light.png" aria-label="放大：已实现的看板"><img src="built/board-1440-light.png" alt="已实现的看板：需要你、运行中、已完成三条泳道" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 2 期</span>事件流驱动</figcaption></figure>
+      <figure><button type="button" data-full="built/manage-projects-light.png" aria-label="放大：管理项目"><img src="built/manage-projects-light.png" alt="管理项目对话框：排序、改名、删除" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 2 期</span>管理项目</figcaption></figure>
+    </div>
+    <ul class="notes">
+      <li>设计稿顶部的“CI 状态”“今日用量”是固定到看板的组件，在第 5 期做。</li>
+      <li>“排队”泳道要等 Runtime 的排队能力，在第 6 期做，现在不显示。</li>
+      <li>没有会话的空项目第 4 期会留在项目列表里（登记的项目）。</li>
+      <li class="change">看板不再是首页，功能全部保留：点卡片进会话，浏览器后退回看板。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="comp-h">
+    <div class="sec-head">
+      <h2 id="comp-h">组件工作室</h2>
+      <p class="lede">一句话让代理生成或修改组件，预览放置位置，管理能力与版本。</p>
+    </div>
+    <div class="shots">
+      <figure><button type="button" data-full="drafts/desktop-components-light.png" aria-label="放大：组件工作室设计稿"><img src="drafts/desktop-components-light.png" alt="组件工作室设计稿：左侧组件列表、中间预览、右侧属性与版本" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>第 5 期实现</figcaption></figure>
+    </div>
+    <ul class="notes">
+      <li>三栏工作室是第 5 期；第 4 期只保证手机上组件是“列表 → 详情”两级可用。</li>
+      <li class="change">手机上“组件”不再占底部标签，挪进“更多”；桌面标题栏仍有“组件”。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="phone-h">
+    <div class="sec-head">
+      <h2 id="phone-h">手机</h2>
+      <p class="lede">390 × 844，触控目标至少 44px。第 4 期正在做，完成后把实拍截图补进 built/。</p>
+    </div>
+    <div class="shots phones">
+      <figure><button type="button" data-full="drafts/mobile-session-light.png" aria-label="放大：手机会话设计稿"><img src="drafts/mobile-session-light.png" alt="手机会话设计稿：顶栏、代理条、对话、输入框" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>会话（主页）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/mobile-board-light.png" aria-label="放大：手机看板设计稿"><img src="drafts/mobile-board-light.png" alt="手机看板设计稿：泳道跳转条与审批卡片" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>看板</figcaption></figure>
+      <figure><button type="button" data-full="drafts/mobile-more-light.png" aria-label="放大：手机更多设计稿"><img src="drafts/mobile-more-light.png" alt="手机更多设计稿：三列分组磁贴" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>更多</figcaption></figure>
+    </div>
+    <ul class="notes">
+      <li>会话页：点代理条上的芯片打开操作表单，能直接批准、回答、重试别的代理，不用离开当前会话。</li>
+      <li>“+N 改动 ›”打开检查器底部表单：改动、终端、文件、预览。</li>
+      <li>审批卡显示完整命令，最多 3 行再展开（设计稿截成了“fix/…”）；高风险是“允许…”，打开按住确认表单。</li>
+      <li class="change">标签栏改为 会话 · 看板 · ＋新任务 · 更多 · 设置，打开应用先进会话。</li>
+      <li class="change">会话页左上角的“‹ 看板”改成“看板 ▲3”入口；会话是返回键的根。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="phase-h">
+    <div class="sec-head">
+      <h2 id="phase-h">进度</h2>
+    </div>
+    <div class="phases">
+      <div class="phase"><span class="n">0–1</span><span class="what">新视觉 token、标题栏外壳、看板 MVP</span><span class="chip built">已推送 bfd689b1</span></div>
+      <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
+      <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip wip">进行中</span></div>
+      <div class="phase"><span class="n">5</span><span class="what">组件工作室、固定到看板的组件</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">6</span><span class="what">ask_user、排队泳道、导出、思考用时、目录变更事件；删除旧外壳要先经你同意</span><span class="chip">未开始</span></div>
+    </div>
+  </section>
+</div>
+
+<dialog id="lightbox" aria-label="截图大图">
+  <img id="lightbox-img" alt="">
+  <div class="bar"><span id="lightbox-cap"></span><button type="button" id="lightbox-close">关闭</button></div>
+</dialog>
+
+<script>
+(function () {
+  var dlg = document.getElementById('lightbox');
+  var img = document.getElementById('lightbox-img');
+  var cap = document.getElementById('lightbox-cap');
+  document.querySelectorAll('figure button[data-full]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var inner = btn.querySelector('img');
+      img.src = btn.getAttribute('data-full');
+      img.alt = inner ? inner.alt : '';
+      var fc = btn.parentElement.querySelector('figcaption');
+      cap.textContent = fc ? fc.textContent.replace(/\s+/g, ' ').trim() : '';
+      if (dlg.showModal) dlg.showModal();
+    });
+  });
+  document.getElementById('lightbox-close').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+})();
+</script>
+</body>
+</html>
