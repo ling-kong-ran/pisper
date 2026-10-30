@@ -9,6 +9,7 @@ import {
   TREE_NAVIGATION_CUSTOM_TYPE,
   appendTreePosition,
   projectSessionTree,
+  treeRestoreTarget,
 } from '../runtime/session-tree.mjs'
 
 function assistantMessage(text, timestamp = Date.now()) {
@@ -330,6 +331,7 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
     if (options?.refresh) catalogRefreshes += 1
     return listStoredSessions(options)
   }
+  const leafBeforeNavigation = (await runtime.getSessionTree(created.id)).leafId
   const compactNavigation = await runtime.navigateSessionTree(
     created.id,
     entries.originalAssistant,
@@ -338,7 +340,12 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
       includeTree: false,
     },
   )
-  assert.deepEqual(compactNavigation, { cancelled: false, editorText: null })
+  // restoreEntryId 是加法字段：导航前的叶子（物化会话时可能追加了设置条目），撤销时原样传回。
+  assert.deepEqual(compactNavigation, {
+    cancelled: false,
+    editorText: null,
+    restoreEntryId: leafBeforeNavigation,
+  })
   assert.equal(catalogRefreshes, 0)
 
   const firstTree = await runtime.getSessionTree(created.id)
@@ -475,4 +482,95 @@ test('prepareLastTurnRetry withdraws the last turn and returns its original inpu
   // 再次重试则针对新的最后一轮（First question）。
   const second = await runtime.prepareLastTurnRetry(created.id)
   assert.equal(second.message, 'First question')
+})
+
+// 规格 v2 第 4.5 节第 3 条：“从此处继续”可以撤销。撤销 = 把导航响应里的 restoreEntryId 再传给导航接口；
+// 撤销后活动分支、转录、分支数都和导航前一样，并且冷重载后仍然成立（Pi 重载时取文件最后一条为叶子）。
+test('tree navigation can be undone through restoreEntryId and the undo survives a cold reload', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-tree-undo-'))
+  let runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const created = await runtime.createSession('Undo fixture', directory)
+  const manager = runtime.pendingSessions.get(created.id).manager
+  manager.appendModelChange('openai', 'gpt-test')
+  manager.appendMessage({ role: 'user', content: 'Q1', timestamp: Date.now() })
+  const a1 = manager.appendMessage(assistantMessage('A1'))
+  manager.appendMessage({ role: 'user', content: 'Q2', timestamp: Date.now() })
+  const a2 = manager.appendMessage(assistantMessage('A2'))
+  const texts = async () => (await runtime.getSessionMessages(created.id)).map((m) => m.text)
+  await runtime.getOrCreateSession(created.id)
+  const before = await runtime.getSessionTree(created.id)
+  assert.deepEqual(await texts(), ['Q1', 'A1', 'Q2', 'A2'])
+
+  const continued = await runtime.navigateSessionTree(created.id, a1, { summarize: false })
+  // 物化会话时可能在 A2 之后追加设置条目，撤销目标是导航前真正的叶子。
+  assert.equal(continued.restoreEntryId, before.leafId)
+  assert.ok(continued.restoreEntryId)
+  assert.equal(continued.branchCount, before.branchCount + 1)
+  assert.deepEqual(await texts(), ['Q1', 'A1'])
+
+  const undone = await runtime.navigateSessionTree(created.id, continued.restoreEntryId, {
+    summarize: false,
+  })
+  assert.deepEqual(await texts(), ['Q1', 'A1', 'Q2', 'A2'])
+  // 离开后没发过消息的位置不算分支：撤销后分支数回到导航前。
+  assert.equal(undone.branchCount, before.branchCount)
+  assert.equal(undone.nodes.find((node) => node.id === a2).active, true)
+  // 撤销本身也能再撤销（回到 A1 处继续）。
+  assert.equal(undone.restoreEntryId, a1)
+
+  await runtime.dispose()
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  assert.deepEqual(await texts(), ['Q1', 'A1', 'Q2', 'A2'])
+  assert.equal((await runtime.getSessionTree(created.id)).branchCount, before.branchCount)
+})
+
+// 回到一个旧的待继续位置时，若它不在文件末尾，复用它会让重载后的叶子跳回文件末尾那次导航：追加新位置。
+test('returning to an older pending position appends a new one so the leaf survives a reload', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-tree-reuse-'))
+  let runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime?.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const created = await runtime.createSession('Reuse fixture', directory)
+  const entries = appendConversation(runtime.pendingSessions.get(created.id).manager)
+  await runtime.navigateSessionTree(created.id, entries.firstAssistant, { summarize: false })
+  await runtime.navigateSessionTree(created.id, entries.originalAssistant, { summarize: false })
+  const back = await runtime.navigateSessionTree(created.id, entries.firstAssistant, {
+    summarize: false,
+  })
+  assert.equal(back.nodes.find((node) => node.id === entries.originalAssistant).active, false)
+  await runtime.dispose()
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  await runtime.init()
+  const reloaded = await runtime.getSessionTree(created.id)
+  assert.equal(reloaded.leafId, back.leafId)
+  assert.equal(reloaded.nodes.find((node) => node.id === entries.originalAssistant).active, false)
+  assert.equal(reloaded.nodes.find((node) => node.id === entries.alternateAssistant).active, false)
+  // 只有叶子上的位置可见；离开的两个位置不计分支（原有的 original / alternate 两条仍是 1 个分叉）。
+  assert.equal(reloaded.nodes.filter((node) => node.kind === 'position').length, 1)
+  assert.equal(reloaded.branchCount, 2)
+})
+
+test('treeRestoreTarget maps the leaf to an entry that navigation can restore', () => {
+  const manager = SessionManager.inMemory(process.cwd())
+  assert.equal(treeRestoreTarget(manager), '')
+  const userId = manager.appendMessage({ role: 'user', content: 'Q', timestamp: Date.now() })
+  // 叶子是用户消息：navigateTree 会把它退回输入框，无法原样恢复。
+  assert.equal(treeRestoreTarget(manager), '')
+  const answerId = manager.appendMessage(assistantMessage('A'))
+  assert.equal(treeRestoreTarget(manager), answerId)
+  manager.appendLabelChange(answerId, 'checkpoint')
+  assert.equal(treeRestoreTarget(manager), manager.getLeafId())
+  manager.branch(answerId)
+  appendTreePosition(manager, answerId)
+  assert.equal(treeRestoreTarget(manager), answerId)
+  assert.notEqual(userId, answerId)
 })

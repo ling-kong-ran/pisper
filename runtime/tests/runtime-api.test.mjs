@@ -288,7 +288,8 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
     },
     async navigateSessionTree(sessionId, entryId, options) {
       calls.push(['navigate', sessionId, entryId, options])
-      const navigation = { editorText: 'Edit me', cancelled: false }
+      // restoreEntryId（撤销目标，加法字段）原样经 HTTP 返回，紧凑模式也带上。
+      const navigation = { editorText: 'Edit me', cancelled: false, restoreEntryId: 'leaf-0' }
       return options.includeTree === false ? navigation : { ...tree, ...navigation }
     },
     async setSessionTreeLabel(sessionId, entryId, label) {
@@ -316,6 +317,7 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
     ...tree,
     editorText: 'Edit me',
     cancelled: false,
+    restoreEntryId: 'leaf-0',
   })
 
   const compactNavigateResponse = response()
@@ -330,6 +332,7 @@ test('session tree APIs read, navigate, and label Pi tree entries', async () => 
   assert.deepEqual(JSON.parse(compactNavigateResponse.body), {
     editorText: 'Edit me',
     cancelled: false,
+    restoreEntryId: 'leaf-0',
   })
 
   const labelResponse = response()

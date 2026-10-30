@@ -111,10 +111,12 @@ function visibleChildren(node, leafId, positionContext) {
     const pending = children.filter((child) =>
       isPendingTreePosition(child, parent.entry?.id, positionContext),
     )
+    // 只有当前叶子上的待继续位置算一条分支：离开后没发过消息的位置（含撤销“从此处继续”留下的）
+    // 不再计入分支数，目标节点本身仍可选中再继续。
     return {
       children,
       index: 0,
-      keepId: pending.find((child) => child.entry.id === leafId)?.entry.id || pending[0]?.entry.id,
+      keepId: pending.find((child) => child.entry.id === leafId)?.entry.id,
     }
   }
   const visible = []
@@ -278,7 +280,26 @@ export function findPendingTreePosition(manager, targetId) {
     for (let index = (node?.children || []).length - 1; index >= 0; index -= 1)
       stack.push(node.children[index])
   }
-  return matches.find((id) => id === leafId) || matches[0] || ''
+  // Pi 重新载入会话时把文件里最后一条记录当作叶子；复用不在文件末尾的旧位置会让这次导航在重载后丢失，
+  // 所以只复用当前叶子或文件末尾的那一个，其余情况追加新位置。
+  const lastId = manager.getEntries?.().at(-1)?.id || ''
+  return matches.find((id) => id === leafId || id === lastId) || ''
+}
+
+// 撤销一次树导航要回到的条目：导航前的叶子。叶子是待继续位置时回到它指向的节点（导航时会复用或重建位置）；
+// 叶子是用户消息或扩展消息时，Pi 的 navigateTree 会把它退回输入框而不是停在它上面，无法原样恢复，返回空串。
+export function treeRestoreTarget(manager) {
+  const leafId = manager?.getLeafId?.() || ''
+  if (!leafId) return ''
+  const entry = manager.getEntry?.(leafId)
+  if (!entry) return ''
+  if (entry.type === 'custom' && entry.customType === TREE_NAVIGATION_CUSTOM_TYPE) {
+    const targetId = String(entry.data?.targetId || '')
+    return targetId && manager.getEntry(targetId) ? targetId : ''
+  }
+  if (entry.type === 'custom_message') return ''
+  if (entry.type === 'message' && entry.message?.role === 'user') return ''
+  return leafId
 }
 
 // 追加一个“树导航位置”自定义条目，之后可据此恢复上次的浏览位置。

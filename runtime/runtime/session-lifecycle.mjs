@@ -25,6 +25,7 @@ import {
   isLineBoundary,
   projectSessionTree,
   scanSessionTreeLabels,
+  treeRestoreTarget,
 } from './session-tree.mjs'
 
 const DEFAULT_SESSION_NAME = '新会话'
@@ -807,7 +808,8 @@ export class SessionLifecycle {
     const pendingPositionId = findPendingTreePosition(manager, entryId)
     const navigationEntryId = pendingPositionId || entryId
     if (manager.getLeafId() === navigationEntryId) {
-      const navigation = { cancelled: false, editorText: null }
+      // 已在目标位置：什么都没变，没有可撤销的导航。
+      const navigation = { cancelled: false, editorText: null, restoreEntryId: '' }
       return options?.includeTree === false
         ? navigation
         : {
@@ -817,6 +819,8 @@ export class SessionLifecycle {
           }
     }
 
+    // 导航前记下撤销目标（只加字段）：前端“从此处继续”“切到标记所在分支”的撤销把它原样传回本接口。
+    const restoreEntryId = treeRestoreTarget(manager)
     value.runActive = true
     try {
       const result = await value.session.navigateTree(navigationEntryId, {
@@ -833,6 +837,7 @@ export class SessionLifecycle {
       const navigation = {
         cancelled: Boolean(result.cancelled),
         editorText: typeof result.editorText === 'string' ? result.editorText : null,
+        restoreEntryId: result.cancelled ? '' : restoreEntryId,
       }
       return options?.includeTree === false
         ? navigation
