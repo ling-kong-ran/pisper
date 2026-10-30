@@ -99,6 +99,28 @@ figcaption { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baselin
   .phase .chip { grid-column: 2; justify-self: start; }
 }
 
+/* 整体重设计比稿：方向索引卡 + 每个方向一块 */
+.dir-index { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.dir-card { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; }
+.dir-card:hover { border-color: var(--ink); }
+.dir-card:focus-visible { outline: 2px solid var(--run); outline-offset: 2px; }
+.dir-name { font-weight: 700; font-size: 16px; }
+.dir-score { font-family: var(--font-mono); font-size: 24px; font-weight: 500; }
+.dir-score small { font-size: 13px; color: var(--muted); }
+.dir-parts { font-size: 13px; color: var(--muted); }
+.dir-letter { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; margin-right: 8px; vertical-align: 1px; }
+.dir-card .dir-letter { margin: 0 0 4px; }
+.dir { display: grid; gap: 14px; padding-top: 22px; border-top: 1px dashed var(--line); scroll-margin-top: 16px; }
+.dir-head { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+.dir-head h3 { font-size: 19px; margin-right: 6px; }
+/* 顾虑用虚线框，不用琥珀：琥珀在本页只标“按你的决定改了” */
+.notes li.con { border: 1px dashed var(--line); border-radius: 6px; padding: 6px 10px 6px 26px; }
+.notes li.con::before { left: 11px; top: 1.05em; background: var(--muted); }
+details { display: grid; gap: 12px; }
+summary { cursor: pointer; font-size: 14px; color: var(--muted); }
+summary:focus-visible { outline: 2px solid var(--run); outline-offset: 2px; border-radius: 4px; }
+details[open] summary { margin-bottom: 12px; }
+
 dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 94vh; }
 dialog::backdrop { background: rgb(0 0 0 / .72); }
 dialog img { display: block; max-width: 96vw; max-height: 86vh; width: auto; height: auto; border-radius: 6px; }
@@ -109,11 +131,232 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 第 4 期已完成</div>
+    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 整体重设计比稿中</div>
     <h1>Pisper 整体设计</h1>
-    <p class="lede">界面设计评审用，不随 Pages 发布。按页面排开：每节左边是定稿时选中的设计稿，右边是已经做出来的界面。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
-    <div class="legend"><span>文件夹：drafts/ 设计稿（浅色与深色），built/ 已实现截图</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
+    <p class="lede">界面设计评审用，不随 Pages 发布。最上面是整体重设计的四个方向，等你挑一个；下面几节是现有设计稿和已经做出来的界面，按页面排开。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
+    <div class="legend"><span>文件夹：drafts/ 设计稿（drafts/redesign/ 是四个新方向），built/ 已实现截图</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
   </header>
+
+  <section aria-labelledby="redesign-h">
+    <div class="sec-head">
+      <h2 id="redesign-h">整体重设计：四个方向，等你挑</h2>
+      <p class="lede">参考 ChatGPT / Claude 桌面版，每个方向都是渲染出来的效果图，不是已实现的界面。三位评审分别从“够不够简洁”“多代理并行顺不顺手”“能不能在现有代码上做出来”打分（每项 10 分），打分之后每个方向按评审的必修项改过一轮，下面是改过的图。四个方向都守住：打开应用就是会话；琥珀色只表示需要你；组件四种放置平级；所有功能都有入口。</p>
+    </div>
+    <div class="dir-index">
+      <a class="dir-card" href="#dir-claude-sidebar"><span class="dir-letter">A</span><span class="dir-name">Claude 式侧栏</span><span class="dir-score">24<small> / 30</small></span><span class="dir-parts">简洁 7.5 · 并行 8 · 可实现 8.5</span><span class="dir-parts">约 6–7 周</span></a>
+      <a class="dir-card" href="#dir-single-column"><span class="dir-letter">B</span><span class="dir-name">单栏</span><span class="dir-score">21<small> / 30</small></span><span class="dir-parts">简洁 8 · 并行 6.5 · 可实现 6.5</span><span class="dir-parts">约 6.5–7 周</span></a>
+      <a class="dir-card" href="#dir-rail-minimal"><span class="dir-letter">C</span><span class="dir-name">细图标栏</span><span class="dir-score">19.5<small> / 30</small></span><span class="dir-parts">简洁 5 · 并行 7.5 · 可实现 7</span><span class="dir-parts">约 6–7 周</span></a>
+      <a class="dir-card" href="#dir-workbench"><span class="dir-letter">D</span><span class="dir-name">工作台</span><span class="dir-score">19<small> / 30</small></span><span class="dir-parts">简洁 6 · 并行 7 · 可实现 6</span><span class="dir-parts">约 10.5–12 周，分两期</span></a>
+    </div>
+    <div class="dir" id="dir-claude-sidebar">
+      <div class="dir-head"><h3><span class="dir-letter">A</span>Claude 式侧栏</h3><span class="chip">评审 24 / 30 · 简洁 7.5 · 并行 8 · 可实现 8.5</span><span class="chip">三位评审里两位排第一</span><span class="chip">工作量约 6–7 周</span></div>
+      <p>左边一条安静的侧栏，按“需要你 → 运行中 → 排队 → 今天完成”列出所有代理，可以收成 60px 窄条，窄条上仍有需要你和运行中的数量。中间是居中的对话和圆角输入框，检查器点开才推出来。</p>
+      <ul class="notes">
+        <li>需要你排在侧栏最上面：琥珀点、一句中文原因（测试失败 / 等你批准 / 高风险批准）和等待时长；鼠标停上去，普通批准可以直接拒绝或允许（D / A）。</li>
+        <li>运行中是转动的墨色弧加计时，排队和完成变灰，从任何页面都看得到谁在跑。</li>
+        <li>全部代理页上侧栏变成筛选器，代理只列一遍；设置是整页，侧栏换成设置目录，底部留一行“3 个需要你 · 3 个运行中”。</li>
+        <li>会话页常驻控件从约 59 个降到 18 个，另有 9 条会话行；会话树只有标题旁一个分支按钮，有分支时带数量。</li>
+        <li class="con">顾虑：结构上就是第一轮被否掉的“侧栏 + 聊天”，并行要靠分组和状态图标撑起来。</li>
+        <li class="con">顾虑：侧栏是整套里最密的一块区域。</li>
+      </ul>
+      <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-home-light.png" aria-label="放大：A Claude 式侧栏：主页 · 新任务草稿"><img src="drafts/redesign/claude-sidebar/desktop-home-light.png" alt="A Claude 式侧栏：主页 · 新任务草稿" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>主页 · 新任务草稿</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-running-light.png" aria-label="放大：A Claude 式侧栏：会话 · 运行中"><img src="drafts/redesign/claude-sidebar/desktop-session-running-light.png" alt="A Claude 式侧栏：会话 · 运行中" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>会话 · 运行中</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-running-dark.png" aria-label="放大：A Claude 式侧栏：会话 · 运行中（深色）"><img src="drafts/redesign/claude-sidebar/desktop-session-running-dark.png" alt="A Claude 式侧栏：会话 · 运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>会话 · 运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-session-attention-dark.png" aria-label="放大：A Claude 式侧栏：等你批准和回答（深色）"><img src="drafts/redesign/claude-sidebar/desktop-session-attention-dark.png" alt="A Claude 式侧栏：等你批准和回答（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>等你批准和回答（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-overview-light.png" aria-label="放大：A Claude 式侧栏：全部代理总览"><img src="drafts/redesign/claude-sidebar/desktop-overview-light.png" alt="A Claude 式侧栏：全部代理总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>全部代理总览</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-feature-light.png" aria-label="放大：A Claude 式侧栏：功能页 · 插件"><img src="drafts/redesign/claude-sidebar/desktop-feature-light.png" alt="A Claude 式侧栏：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-settings-light.png" aria-label="放大：A Claude 式侧栏：设置 › 模型"><img src="drafts/redesign/claude-sidebar/desktop-settings-light.png" alt="A Claude 式侧栏：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>设置 › 模型</figcaption></figure>
+      </div>
+      <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/phone-session-light.png" aria-label="放大：A Claude 式侧栏：手机 · 会话"><img src="drafts/redesign/claude-sidebar/phone-session-light.png" alt="A Claude 式侧栏：手机 · 会话" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>手机 · 会话</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/phone-overview-light.png" aria-label="放大：A Claude 式侧栏：手机 · 总览"><img src="drafts/redesign/claude-sidebar/phone-overview-light.png" alt="A Claude 式侧栏：手机 · 总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>手机 · 总览</figcaption></figure>
+      </div>
+      <details>
+        <summary>补充截图（6 张）</summary>
+        <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" aria-label="放大：A Claude 式侧栏：侧栏收成窄条，检查器打开"><img src="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" alt="A Claude 式侧栏：侧栏收成窄条，检查器打开" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>侧栏收成窄条，检查器打开</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-dispatch-light.png" aria-label="放大：A Claude 式侧栏：⌘N 派发新任务"><img src="drafts/redesign/claude-sidebar/extra-dispatch-light.png" alt="A Claude 式侧栏：⌘N 派发新任务" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>⌘N 派发新任务</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-palette-dark.png" aria-label="放大：A Claude 式侧栏：⌘K 命令面板（深色）"><img src="drafts/redesign/claude-sidebar/extra-palette-dark.png" alt="A Claude 式侧栏：⌘K 命令面板（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>⌘K 命令面板（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-features-light.png" aria-label="放大：A Claude 式侧栏：功能索引"><img src="drafts/redesign/claude-sidebar/extra-features-light.png" alt="A Claude 式侧栏：功能索引" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>功能索引</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-phone-drawer-light.png" aria-label="放大：A Claude 式侧栏：手机 · 抽屉"><img src="drafts/redesign/claude-sidebar/extra-phone-drawer-light.png" alt="A Claude 式侧栏：手机 · 抽屉" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>手机 · 抽屉</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-phone-session-menu-light.png" aria-label="放大：A Claude 式侧栏：手机 · 会话标题菜单"><img src="drafts/redesign/claude-sidebar/extra-phone-session-menu-light.png" alt="A Claude 式侧栏：手机 · 会话标题菜单" loading="lazy"></button>
+        <figcaption><span class="chip draft">A</span>手机 · 会话标题菜单</figcaption></figure>
+        </div>
+      </details>
+    </div>
+    <div class="dir" id="dir-single-column">
+      <div class="dir-head"><h3><span class="dir-letter">B</span>单栏</h3><span class="chip">评审 21 / 30 · 简洁 8 · 并行 6.5 · 可实现 6.5</span><span class="chip">简洁评审排第一</span><span class="chip">工作量约 6.5–7 周</span></div>
+      <p>没有侧栏，只有一条 48px 顶栏，6 个入口：Pisper ▾、代理切换器、居中的“项目 / 会话标题 ▾”、检查器“+24 −3”、⌘K 和新任务 ✎。对话是 720px 的居中栏，其他东西都是按需弹出的浮层。</p>
+      <ul class="notes">
+        <li>最简洁：会话页常驻控件从约 53 个降到 11 个。</li>
+        <li>改稿后切换器直接写出等得最久的需要你代理（“● 修复 CI 失败 +2”）和“3 运行 · 1 排队”；点开是按状态分组的代理列表，可以在里面重试、回答。</li>
+        <li>功能页和设置共用一个居中页面模板，另加一个“全部功能”索引页。</li>
+        <li>停止并入发送键：运行中且输入框为空时显示 ■。</li>
+        <li class="con">顾虑：并行最不显眼：运行中代理的名字要点开切换器才看得到，正是第一轮否掉的原因。</li>
+        <li class="con">顾虑：所有功能页都收在 Pisper ▾ 菜单里，入口偏深。</li>
+      </ul>
+      <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-home-light.png" aria-label="放大：B 单栏：主页 · 新任务草稿"><img src="drafts/redesign/single-column/desktop-home-light.png" alt="B 单栏：主页 · 新任务草稿" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>主页 · 新任务草稿</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-session-running-light.png" aria-label="放大：B 单栏：会话 · 运行中"><img src="drafts/redesign/single-column/desktop-session-running-light.png" alt="B 单栏：会话 · 运行中" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>会话 · 运行中</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-session-running-dark.png" aria-label="放大：B 单栏：会话 · 运行中（深色）"><img src="drafts/redesign/single-column/desktop-session-running-dark.png" alt="B 单栏：会话 · 运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>会话 · 运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-session-attention-dark.png" aria-label="放大：B 单栏：等你批准和回答（深色）"><img src="drafts/redesign/single-column/desktop-session-attention-dark.png" alt="B 单栏：等你批准和回答（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>等你批准和回答（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-overview-light.png" aria-label="放大：B 单栏：全部代理总览"><img src="drafts/redesign/single-column/desktop-overview-light.png" alt="B 单栏：全部代理总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>全部代理总览</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-feature-light.png" aria-label="放大：B 单栏：功能页 · 插件"><img src="drafts/redesign/single-column/desktop-feature-light.png" alt="B 单栏：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/desktop-settings-light.png" aria-label="放大：B 单栏：设置 › 模型"><img src="drafts/redesign/single-column/desktop-settings-light.png" alt="B 单栏：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>设置 › 模型</figcaption></figure>
+      </div>
+      <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/single-column/phone-session-light.png" aria-label="放大：B 单栏：手机 · 会话"><img src="drafts/redesign/single-column/phone-session-light.png" alt="B 单栏：手机 · 会话" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>手机 · 会话</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/phone-overview-light.png" aria-label="放大：B 单栏：手机 · 总览"><img src="drafts/redesign/single-column/phone-overview-light.png" alt="B 单栏：手机 · 总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>手机 · 总览</figcaption></figure>
+      </div>
+      <details>
+        <summary>补充截图（11 张）</summary>
+        <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-menu-brand-light.png" aria-label="放大：B 单栏：Pisper ▾ 菜单"><img src="drafts/redesign/single-column/extra-menu-brand-light.png" alt="B 单栏：Pisper ▾ 菜单" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>Pisper ▾ 菜单</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-menu-session-light.png" aria-label="放大：B 单栏：会话菜单"><img src="drafts/redesign/single-column/extra-menu-session-light.png" alt="B 单栏：会话菜单" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>会话菜单</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-dispatch-light.png" aria-label="放大：B 单栏：⌘N 派发新任务"><img src="drafts/redesign/single-column/extra-dispatch-light.png" alt="B 单栏：⌘N 派发新任务" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>⌘N 派发新任务</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-tree-light.png" aria-label="放大：B 单栏：会话树"><img src="drafts/redesign/single-column/extra-tree-light.png" alt="B 单栏：会话树" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>会话树</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-sidechat-light.png" aria-label="放大：B 单栏：侧聊"><img src="drafts/redesign/single-column/extra-sidechat-light.png" alt="B 单栏：侧聊" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>侧聊</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-session-inspector-light.png" aria-label="放大：B 单栏：检查器浮层"><img src="drafts/redesign/single-column/extra-session-inspector-light.png" alt="B 单栏：检查器浮层" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>检查器浮层</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-palette-light.png" aria-label="放大：B 单栏：⌘K 命令面板"><img src="drafts/redesign/single-column/extra-palette-light.png" alt="B 单栏：⌘K 命令面板" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>⌘K 命令面板</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-features-index-light.png" aria-label="放大：B 单栏：全部功能"><img src="drafts/redesign/single-column/extra-features-index-light.png" alt="B 单栏：全部功能" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>全部功能</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-overview-projects-light.png" aria-label="放大：B 单栏：总览 · 按项目"><img src="drafts/redesign/single-column/extra-overview-projects-light.png" alt="B 单栏：总览 · 按项目" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>总览 · 按项目</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-session-1080-windows-light.png" aria-label="放大：B 单栏：1080 宽 Windows 窗口"><img src="drafts/redesign/single-column/extra-session-1080-windows-light.png" alt="B 单栏：1080 宽 Windows 窗口" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>1080 宽 Windows 窗口</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/single-column/extra-phone-overview-projects-light.png" aria-label="放大：B 单栏：手机 · 总览按项目"><img src="drafts/redesign/single-column/extra-phone-overview-projects-light.png" alt="B 单栏：手机 · 总览按项目" loading="lazy"></button>
+        <figcaption><span class="chip draft">B</span>手机 · 总览按项目</figcaption></figure>
+        </div>
+      </details>
+    </div>
+    <div class="dir" id="dir-rail-minimal">
+      <div class="dir-head"><h3><span class="dir-letter">C</span>细图标栏</h3><span class="chip">评审 19.5 / 30 · 简洁 5 · 并行 7.5 · 可实现 7</span><span class="chip">工作量约 6–7 周</span></div>
+      <p>左边一条 56px 图标轨：上面 4 个去处，中间一列代理头像（2 字代号加状态环，按需要你 → 运行中 → 排队排序，琥珀环永远在最上面），底部是设置。对话 680px 居中，右侧工作区默认关着。</p>
+      <ul class="notes">
+        <li>每个代理一直看得见；⌥↑ / ⌥↓ 切换代理，图标轨可以展开成 288px 侧栏看全名。</li>
+        <li>改稿后单字头像改成 2 字代号（回调、CI、单测、登录…），去掉了青色和绿色，只剩琥珀一种状态色。</li>
+        <li>状态行直接写出另外几个在等你的代理。</li>
+        <li class="con">顾虑：更像 Linear / Slack，不像 ChatGPT / Claude。</li>
+        <li class="con">顾虑：代号从标题里自动取，可能取到“修复”这类泛词；常驻控件 22 个，不算头像是 14 个。</li>
+      </ul>
+      <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-home-light.png" aria-label="放大：C 细图标栏：主页 · 新任务草稿"><img src="drafts/redesign/rail-minimal/desktop-home-light.png" alt="C 细图标栏：主页 · 新任务草稿" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>主页 · 新任务草稿</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-session-running-light.png" aria-label="放大：C 细图标栏：会话 · 运行中"><img src="drafts/redesign/rail-minimal/desktop-session-running-light.png" alt="C 细图标栏：会话 · 运行中" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>会话 · 运行中</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-session-running-dark.png" aria-label="放大：C 细图标栏：会话 · 运行中（深色）"><img src="drafts/redesign/rail-minimal/desktop-session-running-dark.png" alt="C 细图标栏：会话 · 运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>会话 · 运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-session-attention-dark.png" aria-label="放大：C 细图标栏：等你批准和回答（深色）"><img src="drafts/redesign/rail-minimal/desktop-session-attention-dark.png" alt="C 细图标栏：等你批准和回答（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>等你批准和回答（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-overview-light.png" aria-label="放大：C 细图标栏：全部代理总览"><img src="drafts/redesign/rail-minimal/desktop-overview-light.png" alt="C 细图标栏：全部代理总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>全部代理总览</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-feature-light.png" aria-label="放大：C 细图标栏：功能页 · 插件"><img src="drafts/redesign/rail-minimal/desktop-feature-light.png" alt="C 细图标栏：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-settings-light.png" aria-label="放大：C 细图标栏：设置 › 模型"><img src="drafts/redesign/rail-minimal/desktop-settings-light.png" alt="C 细图标栏：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>设置 › 模型</figcaption></figure>
+      </div>
+      <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/phone-session-light.png" aria-label="放大：C 细图标栏：手机 · 会话"><img src="drafts/redesign/rail-minimal/phone-session-light.png" alt="C 细图标栏：手机 · 会话" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>手机 · 会话</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/phone-overview-light.png" aria-label="放大：C 细图标栏：手机 · 总览"><img src="drafts/redesign/rail-minimal/phone-overview-light.png" alt="C 细图标栏：手机 · 总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>手机 · 总览</figcaption></figure>
+      </div>
+      <details>
+        <summary>补充截图（6 张）</summary>
+        <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-session-workspace-light.png" aria-label="放大：C 细图标栏：工作区打开"><img src="drafts/redesign/rail-minimal/desktop-session-workspace-light.png" alt="C 细图标栏：工作区打开" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>工作区打开</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-rail-expanded-light.png" aria-label="放大：C 细图标栏：图标轨展开看全名"><img src="drafts/redesign/rail-minimal/desktop-rail-expanded-light.png" alt="C 细图标栏：图标轨展开看全名" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>图标轨展开看全名</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-more-menu-light.png" aria-label="放大：C 细图标栏：更多菜单"><img src="drafts/redesign/rail-minimal/desktop-more-menu-light.png" alt="C 细图标栏：更多菜单" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>更多菜单</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-dispatch-light.png" aria-label="放大：C 细图标栏：⌘N 派发新任务"><img src="drafts/redesign/rail-minimal/desktop-dispatch-light.png" alt="C 细图标栏：⌘N 派发新任务" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>⌘N 派发新任务</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-palette-light.png" aria-label="放大：C 细图标栏：⌘K 命令面板"><img src="drafts/redesign/rail-minimal/desktop-palette-light.png" alt="C 细图标栏：⌘K 命令面板" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>⌘K 命令面板</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/rail-minimal/desktop-min-window-light.png" aria-label="放大：C 细图标栏：1080 最小窗口"><img src="drafts/redesign/rail-minimal/desktop-min-window-light.png" alt="C 细图标栏：1080 最小窗口" loading="lazy"></button>
+        <figcaption><span class="chip draft">C</span>1080 最小窗口</figcaption></figure>
+        </div>
+      </details>
+    </div>
+    <div class="dir" id="dir-workbench">
+      <div class="dir-head"><h3><span class="dir-letter">D</span>工作台</h3><span class="chip">评审 19 / 30 · 简洁 6 · 并行 7 · 可实现 6</span><span class="chip">工作量约 10.5–12 周，分两期</span></div>
+      <p>左边是对话，右边是代理做出来的东西：改动、终端、预览，或者批准后会发生什么。改稿后工作台平时收在顶栏“改动 2 +30 −3”开关里，点开才滑出来，默认就是单栏对话。顶栏正中一枚“舰队岛”常驻显示几个需要你、几个在跑。</p>
+      <ul class="notes">
+        <li>审阅代理改动最强：逐文件“已审阅”，高风险推送先列出会覆盖哪些提交。</li>
+        <li>批准和问题合在对话里的一张琥珀卡片上处理完。</li>
+        <li>会话标题本身就是切换器（⌘J）。</li>
+        <li class="con">顾虑：为了让工作台开合时对话不动，对话列偏左（1440 宽时左边 280px、右边 520px）。</li>
+        <li class="con">顾虑：“已审阅”和“会发生什么”要新增协议和存储，工作量最大。</li>
+      </ul>
+      <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-home-light.png" aria-label="放大：D 工作台：主页 · 新任务草稿"><img src="drafts/redesign/workbench/desktop-home-light.png" alt="D 工作台：主页 · 新任务草稿" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>主页 · 新任务草稿</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-session-running-light.png" aria-label="放大：D 工作台：会话 · 运行中"><img src="drafts/redesign/workbench/desktop-session-running-light.png" alt="D 工作台：会话 · 运行中" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>会话 · 运行中</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-session-running-dark.png" aria-label="放大：D 工作台：会话 · 运行中（深色）"><img src="drafts/redesign/workbench/desktop-session-running-dark.png" alt="D 工作台：会话 · 运行中（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>会话 · 运行中（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-session-attention-dark.png" aria-label="放大：D 工作台：等你批准和回答（深色）"><img src="drafts/redesign/workbench/desktop-session-attention-dark.png" alt="D 工作台：等你批准和回答（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>等你批准和回答（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-overview-light.png" aria-label="放大：D 工作台：全部代理总览"><img src="drafts/redesign/workbench/desktop-overview-light.png" alt="D 工作台：全部代理总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>全部代理总览</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-feature-light.png" aria-label="放大：D 工作台：功能页 · 插件"><img src="drafts/redesign/workbench/desktop-feature-light.png" alt="D 工作台：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/desktop-settings-light.png" aria-label="放大：D 工作台：设置 › 模型"><img src="drafts/redesign/workbench/desktop-settings-light.png" alt="D 工作台：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>设置 › 模型</figcaption></figure>
+      </div>
+      <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/workbench/phone-session-light.png" aria-label="放大：D 工作台：手机 · 会话"><img src="drafts/redesign/workbench/phone-session-light.png" alt="D 工作台：手机 · 会话" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>手机 · 会话</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/phone-overview-light.png" aria-label="放大：D 工作台：手机 · 总览"><img src="drafts/redesign/workbench/phone-overview-light.png" alt="D 工作台：手机 · 总览" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>手机 · 总览</figcaption></figure>
+      </div>
+      <details>
+        <summary>补充截图（4 张）</summary>
+        <div class="shots">
+      <figure><button type="button" data-full="drafts/redesign/workbench/extra-session-review-light.png" aria-label="放大：D 工作台：工作台打开 · 逐文件审阅"><img src="drafts/redesign/workbench/extra-session-review-light.png" alt="D 工作台：工作台打开 · 逐文件审阅" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>工作台打开 · 逐文件审阅</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/extra-attention-preview-dark.png" aria-label="放大：D 工作台：高风险推送 · 会发生什么（深色）"><img src="drafts/redesign/workbench/extra-attention-preview-dark.png" alt="D 工作台：高风险推送 · 会发生什么（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>高风险推送 · 会发生什么（深色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/extra-switcher-light.png" aria-label="放大：D 工作台：⌘J 会话切换器"><img src="drafts/redesign/workbench/extra-switcher-light.png" alt="D 工作台：⌘J 会话切换器" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>⌘J 会话切换器</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/workbench/extra-1080-windows-light.png" aria-label="放大：D 工作台：1080 宽 Windows 窗口"><img src="drafts/redesign/workbench/extra-1080-windows-light.png" alt="D 工作台：1080 宽 Windows 窗口" loading="lazy"></button>
+        <figcaption><span class="chip draft">D</span>1080 宽 Windows 窗口</figcaption></figure>
+        </div>
+      </details>
+    </div>
+  </section>
 
   <section aria-labelledby="nav-h">
     <div class="sec-head">
@@ -236,6 +479,9 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </div>
     <ul class="notes">
       <li>三栏工作室是第 5 期；第 4 期只保证手机上组件是“列表 → 详情”两级可用。</li>
+      <li class="change">第 5 期分两段：5a 跑通“描述 → 代理生成 → 预览 → 填属性 → 放置”，5b 做导入信任确认、能力撤销、版本回滚、导出与回收站。</li>
+      <li class="change">旧的 iframe 组件机制整体删除，内置“专注岛”一并删除；已安装的旧组件文件不自动删，工作室里标“旧版 · 已不再支持”，只能删除。</li>
+      <li class="change">“新建”可以从空白开始，也可以从内置模板“今日用量”“便签”开始；模板只生成到工作室，不自动放到任何位置。看板上没放组件时不留空位。</li>
       <li class="change">手机上“组件”不再占底部标签，挪进“更多”；桌面标题栏仍有“组件”。</li>
     </ul>
   </section>
@@ -288,7 +534,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">0–1</span><span class="what">新视觉 token、标题栏外壳、看板 MVP</span><span class="chip built">已推送 bfd689b1</span></div>
       <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
       <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
-      <div class="phase"><span class="n">5</span><span class="what">组件工作室、组件放置（不固定在看板）</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">5</span><span class="what">组件工作室、组件放置（不固定在看板）；5a 核心闭环 → 5b 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">6</span><span class="what">ask_user、排队泳道、导出、思考用时、目录变更事件；删除旧外壳要先经你同意</span><span class="chip">未开始</span></div>
     </div>
   </section>
