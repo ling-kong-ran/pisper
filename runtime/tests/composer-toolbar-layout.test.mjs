@@ -1,257 +1,97 @@
+// 输入框工具行与托盘（规格 v2 第 4.3 节）。原来的可配置工具条（composer-toolbar-layout /
+// composer-toolbar-store）退役：工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]，运行状态与排队消息
+// 移到输入框上方的托盘。这里保护：退役偏好不破坏旧快照恢复、托盘的内容与触控尺寸、发送键形状。
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { i18n } from '../../src/app/i18n.ts'
+import { boardMessages } from '../../src/app/board-messages.ts'
 import {
-  COMPOSER_TOOL_IDS,
-  DEFAULT_COMPOSER_TOOLBAR_LAYOUT,
-  allocateComposerToolbar,
-  moveComposerTool,
-  normalizeComposerToolbarLayout,
-  setAllComposerToolsLocation,
-  setComposerToolLocation,
-} from '../../src/features/chat/composer-toolbar-layout.ts'
+  BROWSER_PREFERENCE_KEYS,
+  parseBrowserPreferenceSnapshot,
+} from '../../shared/browser-preferences.mjs'
+import {
+  ComposerSendButton,
+  ComposerTray,
+} from '../../src/features/chat/focus-session-composer-bits.tsx'
 
-test('composer toolbar layout repairs stale, duplicate, and unknown tool ids', () => {
-  const layout = normalizeComposerToolbarLayout({
-    inline: ['model', 'model', 'unknown', 'attachment'],
-    overflow: ['attachment', 'commands', 12],
-  })
+i18n.addResourceBundle('zh-CN', 'board', boardMessages.zh)
+i18n.addResourceBundle('en-US', 'board', boardMessages.en)
 
-  assert.deepEqual(layout.inline, ['model', 'attachment', 'permission', 'run-mode'])
-  assert.equal(layout.overflow[0], 'commands')
-  assert.equal(new Set([...layout.inline, ...layout.overflow]).size, COMPOSER_TOOL_IDS.length)
-  assert.deepEqual(new Set([...layout.inline, ...layout.overflow]), new Set(COMPOSER_TOOL_IDS))
-})
+const render = (type, props) => renderToStaticMarkup(React.createElement(type, props))
 
-test('new composer preferences keep readable permission, Plan and combined model/reasoning inline', () => {
-  const initial = normalizeComposerToolbarLayout(null)
-  assert.deepEqual(initial, DEFAULT_COMPOSER_TOOLBAR_LAYOUT)
-  assert.deepEqual(initial.inline, ['permission', 'run-mode', 'model'])
-  assert.deepEqual(new Set([...initial.inline, ...initial.overflow]), new Set(COMPOSER_TOOL_IDS))
-  assert.notEqual(initial.inline, DEFAULT_COMPOSER_TOOLBAR_LAYOUT.inline)
-})
-
-test('composer tools move between locations and reorder without affecting other tools', () => {
-  const initial = normalizeComposerToolbarLayout({ inline: COMPOSER_TOOL_IDS, overflow: [] })
-  const overflowed = setComposerToolLocation(initial, 'resource', 'overflow')
-  assert.deepEqual(overflowed.overflow, ['resource'])
-  assert.deepEqual(
-    overflowed.inline,
-    initial.inline.filter((id) => id !== 'resource'),
-  )
-
-  const restored = setComposerToolLocation(overflowed, 'resource', 'inline')
-  assert.deepEqual(restored.overflow, [])
-  assert.equal(restored.inline.at(-1), 'resource')
-
-  const moved = moveComposerTool(restored, 'resource', -1)
-  assert.deepEqual(moved.inline.slice(-2), ['resource', 'compact-context'])
-  assert.deepEqual(moved.inline.slice(0, -2), restored.inline.slice(0, -2))
-})
-
-test('bulk placement preserves every tool and its order through storage and restoration', () => {
-  const initial = setComposerToolLocation(normalizeComposerToolbarLayout(null), 'model', 'overflow')
-  const before = structuredClone(initial)
-  const expected = [...initial.inline, ...initial.overflow]
-  const stored = setAllComposerToolsLocation(initial, 'overflow')
-  assert.deepEqual(stored, { inline: [], overflow: expected })
-  const restored = setAllComposerToolsLocation(stored, 'inline')
-  assert.deepEqual(restored, { inline: expected, overflow: [] })
-  assert.deepEqual(setAllComposerToolsLocation(restored, 'inline'), restored)
-  assert.deepEqual(initial, before)
-})
-
-test('composer allocation preserves user overflow and temporarily overflows the inline tail', () => {
-  const layout = normalizeComposerToolbarLayout({
-    inline: ['attachment', 'resource', 'commands'],
-    overflow: ['compact-context'],
-  })
-  const available = ['attachment', 'resource', 'commands', 'compact-context']
-  const allocation = allocateComposerToolbar(layout, available, 2)
-
-  assert.deepEqual(allocation.inline, ['attachment', 'resource'])
-  assert.deepEqual(allocation.automaticallyOverflowed, ['commands'])
-  assert.equal(allocation.overflow.includes('compact-context'), true)
-})
-
-test('legacy twelve-tool defaults remove retired controls and keep remaining tools inline', () => {
-  const legacy = normalizeComposerToolbarLayout({
-    inline: [
-      'attachment',
-      'resource',
-      'visual',
-      'model',
-      'permission',
-      'run-mode',
-      'thinking',
-      'commands',
-      'git-changes',
-      'file-changes',
-      'compact-context',
-      'session-actions',
-    ],
-    overflow: [],
-  })
-  assert.deepEqual(legacy, { inline: [...COMPOSER_TOOL_IDS], overflow: [] })
-  assert.equal(COMPOSER_TOOL_IDS.includes('model'), true)
-  assert.equal(COMPOSER_TOOL_IDS.includes('permission'), true)
-  assert.equal(COMPOSER_TOOL_IDS.includes('run-mode'), true)
-  assert.equal(COMPOSER_TOOL_IDS.includes('git-changes'), false)
-  assert.equal(COMPOSER_TOOL_IDS.includes('file-changes'), false)
-})
-
-test('retired change controls are filtered from both locations without resetting custom order', () => {
-  const previous = {
-    inline: ['commands', 'git-changes', 'attachment', 'file-changes', 'thinking'],
-    overflow: [
-      'visual',
-      'file-changes',
-      'permission',
-      'model',
-      'git-changes',
-      'resource',
-      'run-mode',
-      'session-actions',
-      'compact-context',
-    ],
-  }
-  const before = structuredClone(previous)
-  const migrated = normalizeComposerToolbarLayout(previous)
-  assert.deepEqual(migrated, {
-    inline: ['commands', 'attachment'],
-    overflow: ['visual', 'permission', 'model', 'resource', 'run-mode', 'compact-context'],
-  })
-  assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
-  assert.deepEqual(previous, before)
-  assert.deepEqual(allocateComposerToolbar(migrated, COMPOSER_TOOL_IDS, Infinity), {
-    ...migrated,
-    automaticallyOverflowed: [],
-  })
-})
-
-test('custom placements survive with restored controls remaining independently configurable', () => {
-  const custom = normalizeComposerToolbarLayout({
-    inline: ['commands', 'model', 'attachment'],
-    overflow: ['visual', 'run-mode', 'permission'],
-  })
-  assert.deepEqual(custom.inline, ['commands', 'model', 'attachment'])
-  assert.deepEqual(custom.overflow.slice(0, 3), ['visual', 'run-mode', 'permission'])
-  assert.deepEqual(normalizeComposerToolbarLayout(custom), custom)
-})
-
-test('preferences restore missing runtime controls inline and retain every saved placement', () => {
-  const restoredIds = ['model', 'permission', 'run-mode']
-  const previousIds = COMPOSER_TOOL_IDS.filter((id) => !restoredIds.includes(id))
-  const previous = { inline: ['commands', 'attachment'], overflow: previousIds.slice().reverse() }
-  previous.overflow = previous.overflow.filter((id) => !previous.inline.includes(id))
-  const migrated = normalizeComposerToolbarLayout(previous)
-
-  assert.deepEqual(migrated.inline, [...previous.inline, ...restoredIds])
-  assert.deepEqual(migrated.overflow, previous.overflow)
-  assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
-
-  const previousDefault = normalizeComposerToolbarLayout({ inline: [], overflow: previousIds })
-  assert.deepEqual(previousDefault.inline, restoredIds)
-  assert.deepEqual(previousDefault.overflow, previousIds)
-})
-
-test('temporarily overflowed controls return when space grows without changing saved locations', () => {
-  const layout = setComposerToolLocation(
-    normalizeComposerToolbarLayout({ inline: COMPOSER_TOOL_IDS, overflow: [] }),
-    'permission',
-    'overflow',
-  )
-  const before = structuredClone(layout)
-  const narrow = allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 2)
-  assert.deepEqual(narrow.inline, ['attachment', 'resource'])
-  assert.equal(narrow.automaticallyOverflowed.includes('model'), true)
-  assert.equal(narrow.automaticallyOverflowed.includes('permission'), false)
-
-  const wide = allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, Infinity)
-  assert.deepEqual(wide.inline, layout.inline)
-  assert.deepEqual(wide.overflow, ['permission'])
-  assert.deepEqual(wide.automaticallyOverflowed, [])
-  assert.deepEqual(layout, before)
-})
-
-test('unavailable capabilities do not mutate or leak into the rendered allocation', () => {
-  const layout = normalizeComposerToolbarLayout({
-    inline: ['visual', 'model', 'attachment'],
-    overflow: ['commands'],
-  })
-  const allocation = allocateComposerToolbar(layout, ['attachment', 'commands'], Infinity)
-
-  assert.deepEqual(allocation.inline, ['attachment'])
-  assert.deepEqual(allocation.overflow, ['commands'])
-  assert.equal(layout.inline.includes('visual'), true)
-  assert.equal(layout.inline.includes('model'), true)
-})
-
-test('readable controls use weighted widths without losing tools or rewriting preferences', () => {
-  const layout = normalizeComposerToolbarLayout(null)
-  const before = structuredClone(layout)
-  const widths = { permission: 2.4, 'run-mode': 1.4, model: 2.7 }
-  assert.deepEqual(allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 6.5, widths).inline, [
-    'permission',
-    'run-mode',
-    'model',
-  ])
-  const small = allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 5.1, widths)
-  assert.deepEqual(small.inline, ['permission', 'run-mode'])
-  assert.deepEqual(small.automaticallyOverflowed, ['model'])
-  assert.deepEqual(new Set([...small.inline, ...small.overflow]), new Set(COMPOSER_TOOL_IDS))
-  assert.deepEqual(allocateComposerToolbar(layout, COMPOSER_TOOL_IDS, 0, widths).inline, [])
-  assert.deepEqual(layout, before)
-})
-
-test('legacy separate effort shortcut retires without losing combined model access or mutating preferences', () => {
-  const previous = {
-    inline: ['thinking', 'permission', 'model'],
-    overflow: ['commands', 'run-mode'],
-  }
-  const before = structuredClone(previous)
-  const migrated = normalizeComposerToolbarLayout(previous)
-  assert.deepEqual(migrated.inline, ['permission', 'model'])
-  assert.equal([...migrated.inline, ...migrated.overflow].includes('thinking'), false)
-  assert.deepEqual(normalizeComposerToolbarLayout(migrated), migrated)
-  assert.deepEqual(previous, before)
-  assert.deepEqual(new Set([...migrated.inline, ...migrated.overflow]), new Set(COMPOSER_TOOL_IDS))
-})
-
-test('renamed toolbar storage preserves custom placements and prefers already migrated state', async () => {
-  const legacyKey = 'pisper-zcode-composer-toolbar'
-  const key = 'pisper-composer-toolbar'
-  const custom = normalizeComposerToolbarLayout({
-    inline: ['commands', 'model'],
-    overflow: ['permission', 'run-mode', 'attachment'],
-  })
-  const legacyValue = JSON.stringify({ state: { layout: custom }, version: 1 })
-  const values = new Map([[legacyKey, legacyValue]])
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      localStorage: {
-        getItem: (name) => values.get(name) ?? null,
-        setItem: (name, value) => values.set(name, value),
-        removeItem: (name) => values.delete(name),
-      },
+test('retired toolbar preferences still restore from old snapshots without any reader left', async () => {
+  // 旧快照带着这两个键：白名单里删掉它们会让整份快照解析失败，其他偏好也恢复不了。
+  for (const key of ['pisper-composer-toolbar', 'pisper-zcode-composer-toolbar'])
+    assert.ok(BROWSER_PREFERENCE_KEYS.includes(key), key)
+  const snapshot = parseBrowserPreferenceSnapshot({
+    version: 1,
+    values: {
+      'pisper-composer-toolbar': JSON.stringify({ state: { layout: { inline: ['model'] } } }),
+      'pisper-ui': '{}',
     },
   })
-  try {
-    const { useComposerToolbarStore: store } =
-      await import('../../src/features/chat/composer-toolbar-store.ts')
-    assert.deepEqual(store.getState().layout, custom)
-    assert.equal(values.get(key), legacyValue)
-    assert.equal(values.has(legacyKey), false)
+  assert.equal(snapshot.values['pisper-ui'], '{}')
+  const sources = await Promise.all(
+    ['FocusSession.tsx', 'focus-session-composer-bits.tsx', 'ComposerModeChip.tsx'].map((file) =>
+      readFile(`src/features/chat/${file}`, 'utf8'),
+    ),
+  )
+  for (const source of sources) assert.doesNotMatch(source, /pisper-composer-toolbar/)
+})
 
-    store.getState().setAllToolsLocation('overflow')
-    const edited = structuredClone(store.getState().layout)
-    values.set(legacyKey, legacyValue)
-    await store.persist.rehydrate()
-    assert.deepEqual(store.getState().layout, edited)
-    assert.equal(store.getState().layout.inline.length, 0)
-  } finally {
-    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
-    else Reflect.deleteProperty(globalThis, 'window')
-  }
+test('the tray shows only “running 3:12 · stop Esc” and never repeats the running command', () => {
+  const html = render(ComposerTray, {
+    streaming: true,
+    startedAt: new Date(Date.now() - 192_000).toISOString(),
+    onStop() {},
+  })
+  assert.match(html, /data-run-bar="running"/)
+  assert.match(html, /运行中/)
+  assert.match(html, /data-tray-clock[^>]*>3:1\d</)
+  assert.match(html, /data-run-stop/)
+  assert.match(html, /<kbd[^>]*>Esc<\/kbd>/)
+  // 托盘不接收当前活动：没有命令、工具名或用量读数。
+  assert.doesNotMatch(html, /npm|bash|上下文|tok|缓存/)
+  // 手机：停止键 72×44。
+  assert.match(html, /max-\[650px\]:h-11 max-\[650px\]:min-w-\[72px\]/)
+  // 没有运行、压缩与排队时托盘整个不出现。
+  assert.equal(render(ComposerTray, { streaming: false, queuedInputs: [] }), '')
+})
+
+test('queued messages are one row each with edit and cancel revealed on hover, 44px on touch', () => {
+  const html = render(ComposerTray, {
+    streaming: true,
+    onStop() {},
+    queuedInputs: [
+      { id: 'q1', text: '顺便把 README 里的登录流程说明也更新一下', behavior: 'followUp' },
+      { id: 'q2', text: '先跑单测', behavior: 'steer' },
+    ],
+    withdrawingInputIds: ['q2'],
+    onEdit() {},
+    onCancel() {},
+  })
+  assert.match(html, /data-pisper-queue-size="2"/)
+  assert.equal((html.match(/<li\b/g) || []).length, 2)
+  assert.match(html, /data-queued-behavior="followUp"[^>]*>排队</)
+  assert.match(html, /data-queued-behavior="steer"[^>]*>插话</)
+  assert.equal((html.match(/data-queued-edit/g) || []).length, 2)
+  assert.equal((html.match(/data-queued-cancel/g) || []).length, 2)
+  // 桌面悬停 / 聚焦才出现，手机与触屏常驻 44×44。
+  assert.match(
+    html,
+    /opacity-0[^"]*group-hover\/queued:opacity-100[^"]*group-focus-within\/queued:opacity-100/,
+  )
+  assert.match(html, /max-\[650px\]:size-11 max-\[650px\]:opacity-100/)
+  // 正在撤回的那条两个键都禁用，并标记忙。
+  assert.match(html, /<li[^>]*aria-busy="true"/)
+  assert.equal((html.match(/ disabled=""/g) || []).length, 2)
+})
+
+test('the send key is a graphite circle that never doubles as stop', () => {
+  const html = render(ComposerSendButton, { queueing: false, disabled: false })
+  assert.match(html, /send-button[^"]*rounded-full[^"]*bg-star/)
+  assert.doesNotMatch(html, /data-run-stop|lucide-square/)
 })

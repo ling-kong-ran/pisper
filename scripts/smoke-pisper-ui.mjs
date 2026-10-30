@@ -678,16 +678,39 @@ try {
     'Provider navigation shows configured or custom connections with one Quick setup entry and no preset catalog',
   )
 
-  assert.deepEqual(
-    await page
-      .locator('.focus-composer-visible-tools [data-composer-tool-id]')
-      .evaluateAll((nodes) => nodes.map((node) => node.dataset.composerToolId)),
-    ['permission', 'run-mode', 'model'],
-  )
+  // 规格 v2 第 4.3 节：工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]，可配置的工具条与收纳区退役。
+  const composerToolbarOrder = () =>
+    page
+      .locator('[data-composer-toolbar]')
+      .evaluate((bar) =>
+        [
+          ...bar.querySelectorAll(
+            '[data-composer-plus], .composer-mode-chip, .model-effort-pill, .send-button',
+          ),
+        ].map((node) =>
+          node.matches('[data-composer-plus]')
+            ? 'plus'
+            : node.matches('.composer-mode-chip')
+              ? 'mode'
+              : node.matches('.model-effort-pill')
+                ? 'model'
+                : 'send',
+        ),
+      )
+  assert.deepEqual(await composerToolbarOrder(), ['plus', 'mode', 'model', 'send'])
   assert.equal(
-    await page.getByRole('button', { name: '审批模式：完全访问', exact: true }).count(),
-    0,
+    await page.locator('.composer-mode-chip').getAttribute('aria-label'),
+    '审批与执行方式 · 审批后写入',
+    'no elevated default: the shield chip starts on approval-required with Plan',
   )
+  for (const retired of [
+    '[data-composer-tool-id]',
+    '.composer-tools-trigger',
+    '[data-composer-hint]',
+    '.composer-details',
+    '.focus-composer-status',
+  ])
+    assert.equal(await page.locator(retired).count(), 0, `${retired} is retired`)
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page
     .locator('.model-effort-model')
@@ -696,7 +719,7 @@ try {
   await page.waitForFunction(
     () =>
       Math.abs(
-        document.querySelector('.model-effort-popover').getBoundingClientRect().width - 224,
+        document.querySelector('.model-effort-popover').getBoundingClientRect().width - 272,
       ) < 0.1,
   )
   assert.equal(
@@ -788,71 +811,73 @@ try {
   report.checks.push(
     'non-reasoning and fixed-effort providers disable reasoning; returning to a supported model restores editing',
   )
-  await page.getByRole('button', { name: /^执行模式 · Plan 模式/ }).click()
-  await page.getByRole('menuitemradio', { name: /Goal 模式/ }).click()
-  await page.getByRole('button', { name: /^执行模式 · Goal 模式/ }).waitFor()
+  // 盾牌芯片（规格 v2 第 2.5 节）：审批模式与执行方式（Plan / Goal / Team）在同一个弹层里；
+  // 非 Plan 时芯片前面写出模式名。⇧Tab 在输入框里循环切换执行方式。
+  const modeChip = (label) =>
+    page.getByRole('button', { name: `审批与执行方式 · ${label}`, exact: true })
+  const modePopover = page.locator('.composer-mode-popover')
+  await modeChip('审批后写入').click()
+  await modePopover.getByRole('radio', { name: /^Goal 模式/ }).click()
+  await modeChip('Goal · 审批后写入').waitFor()
+  await page.keyboard.press('Escape')
   await page.reload()
-  await page.getByRole('button', { name: /^执行模式 · Goal 模式/ }).click()
-  await page.getByRole('menuitemradio', { name: /Plan 模式/ }).click()
-  await page.getByRole('button', { name: /^执行模式 · Plan 模式/ }).waitFor()
-  report.checks.push(
-    'visible Plan/Goal selector changes backend mode, persists on reload, restores Plan',
+  await modeChip('Goal · 审批后写入').click()
+  await modePopover.getByRole('radio', { name: /^Plan 模式/ }).click()
+  await modeChip('审批后写入').waitFor()
+  await prompt.focus()
+  await prompt.press('Shift+Tab')
+  await modeChip('Goal · 审批后写入').waitFor()
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
+    true,
+    'Shift+Tab cycles the run mode without moving focus out of the composer',
   )
-  await page.getByRole('button', { name: /^审批模式：/ }).click()
-  await page.getByRole('menuitemradio', { name: /^自动审批/ }).click()
-  await page.getByRole('button', { name: '审批模式：自动审批', exact: true }).waitFor()
+  for (let step = 0; step < 3; step += 1) {
+    if (await modeChip('审批后写入').count()) break
+    await prompt.press('Shift+Tab')
+  }
+  await modeChip('审批后写入').waitFor()
+  report.checks.push(
+    'shield chip Plan/Goal selector changes backend mode, persists on reload, restores Plan; Shift+Tab in the composer cycles Plan → Goal (→ Team) → Plan',
+  )
+  await modeChip('审批后写入').click()
+  await modePopover.getByRole('radio', { name: /^自动审批/ }).click()
+  await modeChip('自动审批').waitFor()
   await page.reload()
-  await page.getByRole('button', { name: '审批模式：自动审批', exact: true }).waitFor()
-  await page.getByRole('button', { name: '审批模式：自动审批', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: /^审批后写入/ }).click()
-  await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).waitFor()
-  await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: /^完全访问/ }).click()
+  await modeChip('自动审批').waitFor()
+  await modeChip('自动审批').click()
+  await modePopover.getByRole('radio', { name: /^审批后写入/ }).click()
+  await modeChip('审批后写入').waitFor()
+  await modeChip('审批后写入').click()
+  await modePopover.getByRole('radio', { name: /^完全访问/ }).click()
   const accessConfirmation = page.getByRole('dialog', { name: '启用完全访问', exact: true })
   await accessConfirmation.getByRole('button', { name: '取消', exact: true }).click()
-  await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: /^完全访问/ }).click()
+  await modeChip('审批后写入').click()
+  await modePopover.getByRole('radio', { name: /^完全访问/ }).click()
   await accessConfirmation.getByRole('button', { name: '启用完全访问', exact: true }).click()
-  await page.getByRole('button', { name: '审批模式：完全访问', exact: true }).waitFor()
+  await modeChip('完全访问').waitFor()
   await page.reload()
-  await page.getByRole('button', { name: '审批模式：完全访问', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: /^审批后写入/ }).click()
-  await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).waitFor()
+  await modeChip('完全访问').click()
+  await modePopover.getByRole('radio', { name: /^审批后写入/ }).click()
+  await modeChip('审批后写入').waitFor()
   report.checks.push(
     'approval/auto/full access are real persisted settings; no elevated default; restored approval-required',
   )
   assert.equal(await page.getByRole('button', { name: '打开会话操作菜单', exact: true }).count(), 0)
   assert.equal(await page.getByRole('button', { name: /拆分到|关闭标签/ }).count(), 0)
   report.checks.push('no split-window or uncloseable pane entries in session menu')
-  await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
-  await page.getByRole('button', { name: '自定义快捷方式', exact: true }).click()
-  await page.getByRole('button', { name: '模型与智力：移入收纳区', exact: true }).click()
-  await page.getByRole('button', { name: '关闭对话框', exact: true }).click()
-  await page.reload()
-  await prompt.waitFor()
+  // 上下文用量从页头移到模型芯片弹层（规格 v2 第 2.5 节）：读数与自动压缩阈值都在这里。
+  await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
+  await page.locator('.model-effort-popover [data-context-usage]').waitFor()
   assert.equal(
-    await page.locator('.focus-composer-visible-tools [data-composer-tool-id="model"]').count(),
-    0,
+    await page.locator('.model-effort-popover [data-usage-row="cache"]').count(),
+    1,
+    'the model chip popover shows cache hits (or — when the provider does not report them)',
   )
-  await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
-  await page
-    .getByRole('toolbar', { name: '快捷操作' })
-    .getByRole('button', { name: /^模型与智力 ·/ })
-    .click()
-  await page.getByRole('slider', { name: '当前思考等级' }).waitFor()
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: '自定义快捷方式', exact: true }).click()
-  await page.getByRole('button', { name: '恢复默认', exact: true }).click()
-  await page.getByRole('button', { name: '关闭对话框', exact: true }).click()
-  await page.keyboard.press('Escape')
-  await page.locator('.focus-composer-visible-tools [data-composer-tool-id="model"]').waitFor()
   report.checks.push(
-    'toolbar customize/move to overflow persists; restore defaults returns all three inline controls',
+    'model chip popover carries context usage, session tokens and cache hits (the header ring and the details row are retired)',
   )
-  await page.getByRole('button', { name: /^(展开|收起)快捷操作$/ }).waitFor()
-  if ((await page.locator('.composer-tools-trigger').getAttribute('aria-expanded')) === 'true')
-    await page.locator('.composer-tools-trigger').click()
-  await page.getByRole('button', { name: '展开快捷操作', exact: true }).waitFor()
   const beforeIme = report.requests
   await prompt.fill('中文输入测试')
   await prompt.dispatchEvent('compositionstart')
@@ -873,31 +898,21 @@ try {
   await prompt.fill('')
   report.checks.push('IME-composition Enter does not submit; Shift+Enter inserts a newline')
 
-  await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
+  await page.locator('[data-composer-plus]').click()
   const tools = await page
-    .locator('[data-composer-tool-id]')
-    .evaluateAll((nodes) => nodes.map((n) => n.dataset.composerToolId))
-  assert.ok(
-    tools.includes('attachment') &&
-      tools.includes('resource') &&
-      tools.includes('run-mode') &&
-      tools.includes('commands') &&
-      tools.includes('compact-context'),
-  )
-  report.checks.push('plus tray exposes attachments/resources/visual/run-mode/commands/compaction')
-  assert.equal(
-    await page.locator('.composer-tool-tray').evaluate((el) => getComputedStyle(el).flexDirection),
-    'column',
-  )
-  assert.equal(
-    await page
-      .getByRole('toolbar', { name: '快捷操作' })
-      .getByRole('region', { name: '试试这些任务' })
-      .count(),
-    0,
-  )
+    .locator('[data-composer-plus-menu] [data-composer-plus-item]')
+    .evaluateAll((nodes) => nodes.map((n) => n.dataset.composerPlusItem))
+  for (const id of ['attachment', 'resource', 'voice'])
+    assert.ok(tools.includes(id), `+ menu has ${id}: ${tools}`)
   console.log('TOOLS', tools)
   await page.keyboard.press('Escape')
+  await page.locator('[data-composer-plus-menu]').waitFor({ state: 'detached' })
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.hasAttribute('data-composer-plus')),
+    true,
+    'closing the + menu returns focus to +',
+  )
+  report.checks.push('+ menu exposes attachments, skills/tools/workflows and voice input (F8)')
   // 第 3 期：会话页右侧是检查器（固定标签 改动 / 终端 / 文件 / 预览），取代可关闭的上下文页标签；
   // 计划标签只在有计划、目标或团队时出现。标签条支持方向键与 Home / End。
   // 规格 v2 第 4.4 节：检查器默认关着，由顶栏的改动按钮（没有改动时只是检查器图标）按需滑入。
@@ -923,8 +938,8 @@ try {
     document.activeElement?.matches('[data-inspector-tab-id="terminal"]'),
   )
   await inspectorTab('changes').click()
-  await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).click()
-  console.log('PERMISSIONS', await page.getByRole('menu').ariaSnapshot())
+  await page.getByRole('button', { name: '审批与执行方式 · 审批后写入', exact: true }).click()
+  console.log('PERMISSIONS', await page.locator('.composer-mode-popover').ariaSnapshot())
   await page.keyboard.press('Escape')
   report.checks.push(
     'session inspector fixed tabs (changes / terminal / files / preview) with arrow, Home and End keyboard navigation',
@@ -1028,26 +1043,22 @@ try {
         '390px phone inspector sheet (⋯ › 改动、终端、文件与预览) respects system safe areas and one native back closes it back to the conversation',
       )
     }
-    const inline = page.locator('.focus-composer-visible-tools')
-    for (const id of ['permission', 'run-mode', 'model']) {
-      if (await inline.locator(`[data-composer-tool-id="${id}"]`).isVisible()) continue
-      await page.getByRole('button', { name: '展开快捷操作', exact: true }).click()
-      await page.waitForFunction(
-        (id) =>
-          [...document.querySelectorAll('[data-composer-tool-id="' + id + '"]')].some((node) =>
-            node.checkVisibility(),
-          ),
-        id,
-      )
-      assert.ok(
-        (await inline.locator(`[data-composer-tool-id="${id}"]`).isVisible()) ||
-          (await page
-            .getByRole('toolbar', { name: '快捷操作' })
-            .locator(`[data-composer-tool-id="${id}"]`)
-            .isVisible()),
-        `${id} accessible inline or in overflow at ${width}`,
-      )
-      await page.keyboard.press('Escape')
+    // 固定工具行在每个宽度都完整可见；手机外壳下每个控件都是 44px 触控目标。
+    assert.deepEqual(await composerToolbarOrder(), ['plus', 'mode', 'model', 'send'])
+    const toolbarTargets = await page.locator('[data-composer-toolbar]').evaluate((bar) =>
+      [
+        ...bar.querySelectorAll(
+          '[data-composer-plus], .composer-mode-chip, .model-effort-pill, .send-button',
+        ),
+      ].map((node) => {
+        const rect = node.getBoundingClientRect()
+        return { width: rect.width, height: rect.height, visible: node.checkVisibility() }
+      }),
+    )
+    for (const target of toolbarTargets) {
+      assert.ok(target.visible && target.width > 0, `toolbar control visible at ${width}`)
+      if (phoneLayout)
+        assert.ok(target.height >= 44, `toolbar control ≥44px at ${width}: ${target.height}`)
     }
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
@@ -1256,15 +1267,21 @@ try {
   )
   await prompt.fill('排队与撤回验收')
   await prompt.press('Enter')
-  await page.getByRole('button', { name: '撤回消息', exact: true }).waitFor({ timeout: 15000 })
-  await page.getByRole('button', { name: '撤回消息', exact: true }).click()
+  // 规格 v2 第 4.3 节：排队消息在输入框上方的托盘里，“编辑”撤回并放回输入框。
+  const queuedEdit = page
+    .locator('[data-composer-tray]')
+    .getByRole('button', { name: '编辑排队消息', exact: true })
+  await queuedEdit.waitFor({ timeout: 15000 })
+  await queuedEdit.click()
   await page.waitForFunction(
     () =>
       document.querySelector('.focus-composer textarea[aria-label="任务描述"]')?.value ===
       '排队与撤回验收',
   )
   await prompt.fill('')
-  report.checks.push('Enter while streaming queues input; withdrawing restores the draft')
+  report.checks.push(
+    'Enter while streaming queues input into the tray; editing it restores the draft',
+  )
   await page.getByRole('button', { name: '停止', exact: true }).click()
   await page
     .getByRole('button', { name: '停止', exact: true })

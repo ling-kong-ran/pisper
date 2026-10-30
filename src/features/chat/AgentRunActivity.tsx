@@ -1,6 +1,7 @@
 // Agent 运行活动面板：思考过程是一枚可展开的“思考”芯片；工具活动是一张工具组卡片——
-// 组标题“3 个操作 · 2 完成 · 1 运行中”，每行 36px：状态字形 + 等宽动词 + 路径/命令 + 耗时 + 展开箭头，
-// 实时跟随 SSE 流更新；bash 行可展开为凹陷的终端输出井，正在运行的那条默认展开并用运行青浅底标出。
+// 组标题“3 个操作 · 1 运行中 · 19s”（规格 v2 第 4.2 节），每行 36px：状态字形 + 等宽动词 + 路径/命令 +
+// 耗时 + 展开箭头，实时跟随 SSE 流更新。运行中整组展开、正在运行的 bash 行展开实时输出；
+// 这一轮结束后整组折叠成一行，需要时再点开。
 import {
   lazy,
   memo,
@@ -435,7 +436,8 @@ function ActivityElement({
 
 // 终端行着色只识别输出里真实存在的标记：行首 PASS/FAIL 变为浅色标签；失败要点（● ✗ ×）、
 // npm 的 ERR!、Error: 前缀与运行时追加的退出码行标红，行首 ✓ / ✔ 标绿，其余原样显示。
-// 颜色只取 --st-* 状态族：红只表示失败，绿只表示通过。
+// 测试输出是红绿的两个用武之地之一（规格 v2 第 6.1 节）：失败用 --danger，通过用 --success；
+// 状态族 --st-* 在 v2 里是中性灰，不能再拿来表达测试结果。
 const FAILURE_LINE =
   /^\s*(?:●|✗|✕|×|npm ERR!|ERR!|(?:Error|TypeError|SyntaxError|ReferenceError)\b:?)|^Command exited with code \d+/
 const SUCCESS_LINE = /^\s*[✓✔]/
@@ -446,7 +448,7 @@ function TerminalLine({ line }: { line: string }) {
     return (
       <span>
         <b
-          className={`mr-[6px] rounded-[3px] px-[5px] text-[11.5px] font-semibold tracking-[.02em] ${tag === 'PASS' ? 'bg-st-done-soft text-st-done' : 'bg-st-fail-soft text-st-fail'}`}
+          className={`mr-[6px] rounded-[3px] px-[5px] text-[11.5px] font-semibold tracking-[.02em] ${tag === 'PASS' ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}
         >
           {tag}
         </b>
@@ -454,9 +456,9 @@ function TerminalLine({ line }: { line: string }) {
       </span>
     )
   const tone = FAILURE_LINE.test(line)
-    ? 'text-st-fail'
+    ? 'text-danger'
     : SUCCESS_LINE.test(line)
-      ? 'text-st-done'
+      ? 'text-success'
       : undefined
   return <span className={tone}>{line}</span>
 }
@@ -765,6 +767,15 @@ function AgentRunActivity({
   }, [thinking])
 
   const activities = activityFeed.length ? activityFeed : tools
+  // 工具组开合：运行中展开（正在运行的那行同时展开实时输出），这一轮结束后自动折叠成一行；
+  // 中途用户自己点开 / 收起的，以用户为准，直到下一次开始或结束运行。
+  const [groupOpen, setGroupOpen] = useState(Boolean(streaming))
+  const streamingRef = useRef(Boolean(streaming))
+  useEffect(() => {
+    if (streamingRef.current === Boolean(streaming)) return
+    streamingRef.current = Boolean(streaming)
+    setGroupOpen(Boolean(streaming))
+  }, [streaming])
   // 会话页检查器的“预览”标签可见时，实时窗口镜像由那里承担：同一个窗口不同时开两条帧流。
   const inspector = useContext(SessionInspectorContext)
   const inspectorTab = useSessionInspectorStore((state) => state.tab)
@@ -826,11 +837,12 @@ function AgentRunActivity({
   )
   const showLog = Boolean(showTeamPanel || activities.length > 0)
   // 会话路由随页加载看板命名空间，工具组标题的计数文案在那里（不占入口常驻的 chat 命名空间）。
+  // 组标题只写数量与还在进行的事：“3 个操作 · 1 运行中”；结束后“5 个操作 · 全部完成”或“· 1 失败”。
   const groupParts = [
     t('board:transcript.operations', { count: counts.total }),
-    counts.done ? t('board:transcript.done', { count: counts.done }) : '',
     counts.running ? t('board:transcript.running', { count: counts.running }) : '',
     counts.failed ? t('board:transcript.failed', { count: counts.failed }) : '',
+    !streaming && !counts.failed && !counts.running ? t('board:transcript.allDone') : '',
   ].filter(Boolean)
 
   return (
@@ -888,7 +900,7 @@ function AgentRunActivity({
       )}
       {showLog && (
         // 工具组卡片：组标题 + 细线分隔的 36px 工具行；团队面板与工具行共享同一张 1px 描边卡片。
-        <div className="agent-run-log w-full overflow-hidden rounded-md border border-stroke bg-solid [&>*+*]:border-t [&>*+*]:border-stroke-soft">
+        <div className="agent-run-log w-full overflow-hidden rounded-[var(--r-md)] border border-stroke bg-solid [&>*+*]:border-t [&>*+*]:border-stroke-soft">
           {team && showTeamPanel && (
             <details
               className="agent-team-panel min-w-0"
@@ -1061,10 +1073,15 @@ function AgentRunActivity({
             </details>
           )}
           {activities.length > 0 && (
-            // 运行中与历史共用一个工具组：默认展开；运行中时列表跟随最新一行滚动。
-            <details className="agent-run-history min-w-0" open>
+            // 运行中与历史共用一个工具组：运行中展开并跟随最新一行滚动，结束后折叠成一行。
+            <details
+              className="agent-run-history min-w-0"
+              open={groupOpen}
+              onToggle={(event) => setGroupOpen(event.currentTarget.open)}
+              data-tool-group={streaming ? 'running' : 'done'}
+            >
               <summary
-                className={`flex min-h-[34px] min-w-0 items-center gap-[8px] bg-surface-subtle px-[12px] py-[4px] text-[12px] text-content-secondary ${SUMMARY_BASE_CLASS} hover:bg-surface-hover max-[650px]:min-h-11 pointer-coarse:min-h-11`}
+                className={`flex min-h-[38px] min-w-0 items-center gap-[8px] px-[12px] py-[4px] text-[13px] text-content-secondary ${SUMMARY_BASE_CLASS} hover:bg-surface-hover max-[650px]:min-h-11 pointer-coarse:min-h-11`}
                 data-tool-group-summary
               >
                 <Activity className="size-[14px] flex-none text-content-muted" aria-hidden="true" />

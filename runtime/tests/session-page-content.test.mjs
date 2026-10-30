@@ -1,5 +1,5 @@
-// 第 3 期会话页内容（规格 4.3 / 4.4 / 3.5）：工具组与运行中 bash 行、代码块文件名、运行条读数、
-// ↵ 排队 · ⌥↵ 插话、Esc 只停止不返回、会话审批的完整命令与 critical 确认，以及改动标签的统一差异。
+// 会话页内容（规格 v2 第 4.2 / 4.3 / 3.5 节）：工具组与运行中 bash 行、代码块文件名、
+// ↵ 排队 · ⌥↵ 插话、Esc 只停止不返回、内联批准卡（完整命令、按住允许、其余折叠一行），以及改动标签的统一差异。
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -10,7 +10,6 @@ import { i18n } from '../../src/app/i18n.ts'
 import { boardMessages } from '../../src/app/board-messages.ts'
 import AgentRunActivity from '../../src/features/chat/AgentRunActivity.tsx'
 import { steerBindingFor } from '../../src/features/chat/composer-run-input.ts'
-import { ComposerStatusPill } from '../../src/features/chat/focus-session-composer-bits.tsx'
 import {
   intralineRange,
   parseUnifiedDiff,
@@ -28,7 +27,7 @@ i18n.addResourceBundle('en-US', 'board', boardMessages.en)
 
 const render = (type, props) => renderToStaticMarkup(React.createElement(type, props))
 
-test('the tool group header counts operations and the running bash row opens in run cyan', () => {
+test('the tool group header counts operations and the running bash row opens with live output', async () => {
   const html = render(AgentRunActivity, {
     streaming: true,
     startedAt: new Date(Date.now() - 12_000).toISOString(),
@@ -48,13 +47,16 @@ test('the tool group header counts operations and the running bash row opens in 
     ],
   })
   assert.match(html, /data-tool-group-summary/)
-  for (const text of ['3 个操作', '2 完成', '1 运行中']) assert.ok(html.includes(text), text)
-  assert.doesNotMatch(html, /失败<\/span>/)
-  // 运行中的 bash 行默认展开，行用运行青浅底，输出里失败行标红、通过行标绿。
+  // 组标题“3 个操作 · 1 运行中 · 19s”（规格 v2 第 4.2 节）：不再列完成数。
+  for (const text of ['3 个操作', '1 运行中']) assert.ok(html.includes(text), text)
+  assert.doesNotMatch(html, /完成<\/span>|失败<\/span>/)
+  // 运行中整组展开，正在运行的 bash 行展开实时输出；输出里失败行用 --danger、通过行用 --success
+  // （测试输出是红绿的例外，--st-* 在 v2 是中性灰）。
+  assert.match(html, /<details[^>]*agent-run-history[^>]*open=""[^>]*data-tool-group="running"/)
   assert.match(html, /<details[^>]*agent-run-command-output[^>]*data-running="true"[^>]*open/)
   assert.match(html, /<summary[^>]*bg-st-run-soft/)
-  assert.match(html, /class="text-st-fail">✗ login/)
-  assert.match(html, /class="text-st-done">✓ login/)
+  assert.match(html, /class="text-danger">✗ login/)
+  assert.match(html, /class="text-success">✓ login/)
   assert.ok(html.includes('npm test -- --runInBand'))
   // 状态字形来自共用的 StatusGlyph（形状 + 状态色），运行中用弧形。
   assert.match(html, /data-status-glyph="run"/)
@@ -71,6 +73,22 @@ test('the tool group header counts operations and the running bash row opens in 
   assert.ok(done.includes('2 个操作'))
   assert.ok(done.includes('1 失败'))
   assert.ok(!done.includes('运行中'))
+  // 这一轮结束后整组折叠成一行（历史回复挂载时就是折叠的）；没有失败时写“全部完成”。
+  assert.match(done, /<details[^>]*agent-run-history(?![^>]*open)[^>]*data-tool-group="done"/)
+  const clean = render(AgentRunActivity, {
+    streaming: false,
+    activityFeed: [
+      { type: 'tool', id: 't1', name: 'read', args: { path: 'a.ts' }, status: 'done' },
+    ],
+  })
+  assert.ok(clean.includes('全部完成'))
+  // 运行中→结束时由 effect 收起（服务端渲染不跑 effect），这里锁住接线。
+  const source = await read('src/features/chat/AgentRunActivity.tsx')
+  assert.match(
+    source,
+    /if \(streamingRef\.current === Boolean\(streaming\)\) return[\s\S]*?setGroupOpen\(Boolean\(streaming\)\)/,
+  )
+  assert.match(source, /onToggle=\{\(event\) => setGroupOpen\(event\.currentTarget\.open\)\}/)
 })
 
 test('reasoning collapses into a chip that stays closed by default', () => {
@@ -120,30 +138,11 @@ test('session composer wiring: ↵ follows up, ⌥↵ steers, Esc stops without 
   assert.match(escape, /escapeLayerOpen\(\)/)
   assert.match(escape, /void stopRef\.current\(\)/)
   assert.doesNotMatch(escape, /navigate|history\.|backToBoard/)
-  // 发送键仍只负责发送，运行条是唯一停止入口。
+  // 发送键仍只负责发送，托盘是唯一停止入口。
   assert.doesNotMatch(focus, /<ComposerSendButton[^>]*onStop/)
-})
-
-test('the run bar shows only the readings it actually has and a transform-only progress line', () => {
-  const html = render(ComposerStatusPill, {
-    streaming: true,
-    startedAt: new Date(Date.now() - 12_000).toISOString(),
-    activity: { type: 'tool', name: 'bash', status: 'running', args: { command: 'npm test' } },
-    onStop: () => {},
-    metrics: { contextPercent: 38.4, tokens: 42_100, cacheHitRate: 71, queued: 1 },
-  })
-  for (const text of ['上下文 38%', '缓存命中 71%', '排队 1 条', 'npm test'])
-    assert.ok(html.includes(text), text)
-  assert.match(html, /data-run-bar="running"/)
-  assert.match(html, /data-run-stop/)
-  assert.match(html, /animate-\[hairline-sweep[^"]*bg-st-run-fill/)
-  const partial = render(ComposerStatusPill, {
-    streaming: true,
-    onStop: () => {},
-    metrics: { contextPercent: null, tokens: null, cacheHitRate: null, queued: 0 },
-  })
-  assert.doesNotMatch(partial, /data-run-metrics|上下文|缓存命中/)
-  assert.match(render(ComposerStatusPill, { streaming: false }), /idle/)
+  assert.match(focus, /<ComposerTray[\s\S]*?onStop=\{\(\) => void stop\(\)\}/)
+  // 运行中的排队 / 插话按法写在占位文字里（工具条提示退役）。
+  assert.match(focus, /t\('board:composer\.placeholderRunning', \{/)
 })
 
 // 审批卡读取手机外壳判断（matchMedia）；服务端渲染时给一个桌面宽度的最小 window。
@@ -201,6 +200,70 @@ test('session approvals show the whole command and keep critical approvals behin
       /data-variant="outline"[^>]*data-approval-critical|data-approval-critical[^>]*data-variant="outline"/,
     )
   }))
+
+// 动效正常时（data-motion="full"）critical 卡片上直接是“按住允许”（规格 v2 第 3.5 节）。
+function withFullMotion(run) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { documentElement: { dataset: { motion: 'full' } } },
+  })
+  try {
+    return withDesktopWindow(run)
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'document', previous)
+    else delete globalThis.document
+  }
+}
+
+test('inline approval cards are amber, one at a time, with hold-to-allow for critical', () =>
+  withFullMotion(() => {
+    const html = render(ToolApproval, {
+      approvals: [
+        {
+          id: 'a1',
+          toolName: 'bash',
+          args: { command: 'git push --force-with-lease origin fix/ci' },
+          reason: '命令守卫拦截：改写远端分支。需要确认。',
+        },
+        { id: 'a2', toolName: 'edit', args: { path: 'src/a.ts' } },
+      ],
+      onResolve: () => {},
+    })
+    // 琥珀描边 + 浅琥珀底，只突出当前这一张；其余折叠成一行。
+    assert.match(html, /tool-approval[^"]*border-st-attn-border[^"]*bg-st-attn-soft/)
+    assert.equal((html.match(/data-approval-current/g) || []).length, 1)
+    assert.match(html, /data-approval-more="1"[^>]*>[\s\S]*?还有 1 项等你处理/)
+    // 按住允许：不弹层、不是一步批准；拒绝与按住键都能被 A / D 定位。
+    assert.match(html, /data-approval-hold/)
+    assert.doesNotMatch(html, /aria-haspopup="dialog"/)
+    assert.ok(html.includes('按住允许'))
+    assert.ok(html.includes('高风险操作需按住 0.6 秒'))
+    assert.match(html, /data-approval-deny/)
+    assert.match(html, /data-approval-primary/)
+  }))
+
+test('hold-to-confirm needs a 600ms hold by pointer or key and routes direct activation elsewhere', async () => {
+  const source = await read('src/components/app/HoldToConfirmButton.tsx')
+  assert.match(source, /export const HOLD_TO_CONFIRM_MS = 600\b/)
+  // 空格 / 回车按住才计时，松开即取消；按键的默认动作被拦下，不能合成一次点击绕过时长。
+  assert.match(source, /key === ' ' \|\| key === 'Enter'/)
+  assert.match(
+    source,
+    /onKeyUp=\{\(event\) => \{[\s\S]*?event\.preventDefault\(\)[\s\S]*?cancel\(\)/,
+  )
+  // 点击本身从不确认；没有按住过程的激活（读屏）交给 onActivate（确认层）。
+  assert.match(source, /if \(event\.detail === 0 && !holding\) onActivate\?\.\(\)/)
+  const approval = await read('src/features/chat/ToolApproval.tsx')
+  assert.match(approval, /const holdInline = critical && !reducedMotion/)
+  assert.match(approval, /onActivate=\{\(\) => setConfirming\(true\)\}/)
+  // A / D 只移动焦点，不批准。
+  assert.match(approval, /button\.focus\(\)/)
+  assert.doesNotMatch(
+    approval.slice(approval.indexOf('const focusAction')),
+    /resolve\(true\)[\s\S]{0,40}window\.removeEventListener/,
+  )
+})
 
 test('unified diff lists deletions before additions and marks the changed words', () => {
   const diff = [

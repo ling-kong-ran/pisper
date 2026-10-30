@@ -47,6 +47,8 @@ export function VoiceInputControl({
   sessionId,
   disabled = false,
   shortcutEnabled = false,
+  variant = 'button',
+  controlRef,
 }: {
   onInsert: (text: string) => void
   // 实时部分转写：频繁回调写入草稿；传 null 表示录音取消/失败，调用方回滚到录音前文本。
@@ -54,6 +56,10 @@ export function VoiceInputControl({
   sessionId?: string
   disabled?: boolean
   shortcutEnabled?: boolean
+  // menu：入口在输入框“+”菜单里（规格 v2 第 2.5 节），空闲时不画麦克风键，只在录音 / 转写时
+  // 露出状态键供点击结束；F8 照常。controlRef 让菜单项触发与按钮相同的开始 / 结束。
+  variant?: 'button' | 'menu'
+  controlRef?: { current: (() => void) | null }
 }) {
   const { t } = useI18n()
   // 语音输入只需 ASR 模型；未安装时 ensureReady 会弹出下载引导并等待。
@@ -380,8 +386,27 @@ export function VoiceInputControl({
       ? `${buttonLabel} (${formatShortcut(voiceShortcut)})`
       : buttonLabel
 
+  const toggle =
+    stage === 'recording'
+      ? () => void stopRecording()
+      : stage === 'requesting'
+        ? () => close()
+        : () => void startRecording()
+  const toggleRef = useRef(toggle)
+  toggleRef.current = toggle
+  const controllable = !disabled && stage !== 'transcribing'
+  // 菜单项随时调用最新的 toggle；转写中或禁用时不提供入口。
+  useEffect(() => {
+    if (!controlRef) return undefined
+    controlRef.current = controllable ? () => toggleRef.current() : null
+    return () => {
+      controlRef.current = null
+    }
+  }, [controlRef, controllable])
+  const hidden = variant === 'menu' && stage === 'idle'
+
   return (
-    <div className="relative flex flex-none items-center">
+    <div className="relative flex flex-none items-center" data-voice-input={stage}>
       {/* 录音中的声波胶囊：悬浮在视口底部正中央（与参考视频一致），仅展示实时波形 */}
       {stage === 'recording' &&
         createPortal(
@@ -423,6 +448,7 @@ export function VoiceInputControl({
         )}
       <button
         type="button"
+        hidden={hidden}
         className={`relative grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm border transition-colors disabled:cursor-not-allowed disabled:opacity-45 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 ${
           stage === 'recording'
             ? 'border-danger bg-danger-soft text-danger'
@@ -436,13 +462,7 @@ export function VoiceInputControl({
         aria-label={stage === 'recording' ? t('chat:voiceInput.stop') : t('chat:voiceInput.open')}
         aria-pressed={stage === 'recording'}
         disabled={disabled || stage === 'transcribing'}
-        onClick={
-          stage === 'recording'
-            ? () => void stopRecording()
-            : stage === 'requesting'
-              ? () => close()
-              : () => void startRecording()
-        }
+        onClick={toggle}
       >
         {stage === 'recording' && (
           <span

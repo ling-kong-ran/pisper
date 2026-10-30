@@ -120,14 +120,31 @@ const fixtureServer = createServer((request, response) => {
   )
 })
 
-// 按文字找按钮并等它的禁用状态（夹具里的 t() 直接返回键名）。
-const waitButtonDisabled = (page, label, disabled) =>
-  page.waitForFunction(
-    ([label, disabled]) =>
-      [...document.querySelectorAll('button')].find((node) => node.textContent?.includes(label))
-        ?.disabled === disabled,
+// 改动页的批量操作（全部批准 / 全部还原）在底部 ⋯ 菜单里（规格 v2 第 4.4 节）：打开菜单、
+// 等菜单项的禁用状态，再用 Esc 只关菜单（底部表单留着）。
+const openChangesMenu = async (page) => {
+  if (await page.locator('[role="menu"]').count()) return
+  await page.locator('[data-fixture-sheet] [data-changes-more]').click()
+  await page.locator('[role="menu"]').waitFor()
+}
+const waitMenuItemDisabled = async (page, label, disabled) => {
+  await openChangesMenu(page)
+  await page.waitForFunction(
+    ([label, disabled]) => {
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find((node) =>
+        node.textContent?.includes(label),
+      )
+      return Boolean(item) && (item.getAttribute('aria-disabled') === 'true') === disabled
+    },
     [label, disabled],
   )
+  await page.keyboard.press('Escape')
+  await page.locator('[role="menu"]').waitFor({ state: 'detached' })
+}
+const chooseChangesMenuItem = async (page, label) => {
+  await openChangesMenu(page)
+  await page.getByRole('menuitem', { name: label, exact: true }).click()
+}
 
 async function verifyComponentFixture(browser) {
   await new Promise((done) => fixtureServer.listen(0, '127.0.0.1', done))
@@ -369,17 +386,17 @@ async function verifyComponentFixture(browser) {
   const approveLabel = 'chat:focusSession.fileChangesApproveAll'
   const revertLabel = 'board:changes.revertAll'
   await page.evaluate(() => window.controls.setSheet('changes'))
-  await waitButtonDisabled(page, approveLabel, false)
+  await waitMenuItemDisabled(page, approveLabel, false)
   await page.evaluate(() => window.controls.setStreaming(true))
-  await waitButtonDisabled(page, approveLabel, true)
+  await waitMenuItemDisabled(page, approveLabel, true)
   const reads = await page.evaluate(() => window.evidence.reads)
   await page.evaluate(() => {
     window.evidence.revision++
     window.controls.setStreaming(false)
   })
   await page.waitForFunction((previous) => window.evidence.reads > previous, reads)
-  await waitButtonDisabled(page, approveLabel, false)
-  await page.getByRole('button', { name: revertLabel, exact: true }).click()
+  await waitMenuItemDisabled(page, approveLabel, false)
+  await chooseChangesMenuItem(page, revertLabel)
   await page.waitForFunction(() => window.confirmPending)
   const readsBeforeConfirmRun = await page.evaluate(() => window.evidence.reads)
   await page.evaluate(() => window.controls.setStreaming(true))
@@ -389,7 +406,7 @@ async function verifyComponentFixture(browser) {
     await new Promise(requestAnimationFrame)
   })
   await page.evaluate(() => window.controls.setStreaming(false))
-  await waitButtonDisabled(page, approveLabel, false)
+  await waitMenuItemDisabled(page, approveLabel, false)
   assert.equal(
     await page.evaluate(() => window.evidence.reverts),
     0,
@@ -398,7 +415,7 @@ async function verifyComponentFixture(browser) {
   await page.evaluate(() => {
     window.confirmPending = false
   })
-  await page.getByRole('button', { name: revertLabel, exact: true }).click()
+  await chooseChangesMenuItem(page, revertLabel)
   await page.waitForFunction(() => window.confirmPending)
   await page.evaluate(() => window.controls.setSheet(null))
   await page.locator('[data-fixture-sheet]').waitFor({ state: 'detached' })
@@ -413,8 +430,8 @@ async function verifyComponentFixture(browser) {
     'No stale writes after the sheet closes',
   )
   await page.evaluate(() => window.controls.setSheet('changes'))
-  await waitButtonDisabled(page, approveLabel, false)
-  await page.getByRole('button', { name: approveLabel, exact: true }).click()
+  await waitMenuItemDisabled(page, approveLabel, false)
+  await chooseChangesMenuItem(page, approveLabel)
   await page.waitForFunction(() => window.evidence.approvals === 1)
   report.checks.push(
     'Inspector sheet: the terminal survives closing the sheet and switching tabs; changes disable writes while running, cancel a revert when a run starts during confirmation, never write after the sheet closes, and approve once when idle',

@@ -7,7 +7,7 @@ import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 import { FocusChatMessage } from '../../src/features/chat/ChatMessage.tsx'
 import {
   ComposerSendButton,
-  ComposerStatusPill,
+  ComposerTray,
 } from '../../src/features/chat/focus-session-composer-bits.tsx'
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
@@ -115,19 +115,19 @@ test('tool activity uses a polished scroll viewport without truncating records',
   assert.match(activity, /activityPlan\?\.items\?\.length[\s\S]*planCleared/)
 })
 
-test('composer is the sole persistent Agent run status surface', async () => {
-  // 状态胶囊样式随 composer 展示组件拆分到 focus-session-composer-bits.tsx。
-  const focus = await readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8')
-  assert.match(focus, /focus-composer-status/)
-  assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
-  assert.doesNotMatch(focus, /focusSession\.agentRunning/)
-  // 运行条用运行青（--st-run-*）底与「运行中」文字表示运行，不再整体染成成功绿；
-  // 强调色（--star，默认石墨）只留给主操作（规格 1 原则 2、6.1）。
-  assert.match(focus, /\[&\.running\]:border-st-run-border[^`]*\[&\.running\]:bg-st-run-soft/)
-  assert.doesNotMatch(focus, /\[&\.running\]:(?:border|bg)-star/)
-  assert.doesNotMatch(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
-  assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
-  assert.match(focus, /\[&\.idle\]:hidden/)
+test('composer tray is the sole persistent Agent run status surface', () => {
+  // 规格 v2 第 4.3 节：输入框上方的托盘只在运行中、压缩上下文或有排队时出现；
+  // 运行行用中性的运行弧与“运行中”，不染成功绿、不用强调色（--star 只留给发送键），也不用琥珀。
+  const render = (props) => renderToStaticMarkup(React.createElement(ComposerTray, props))
+  assert.equal(render({ streaming: false }), '')
+  const running = render({ streaming: true, onStop() {} })
+  assert.match(running, /data-composer-tray/)
+  assert.match(running, /data-run-bar="running"/)
+  assert.match(running, /data-status-glyph="run"/)
+  assert.doesNotMatch(running, /star|success|warning|st-attn/)
+  const compacting = render({ streaming: false, compaction: { active: true } })
+  assert.match(compacting, /data-run-bar="compacting"/)
+  assert.doesNotMatch(compacting, /warning|st-attn/)
 })
 
 test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
@@ -149,8 +149,9 @@ test('all chats expose their working directory in the title header, not in the c
     /kind="workspace"|workspaceBlock/,
   )
   assert.doesNotMatch(transcript, /welcome-workspace/)
-  assert.match(chinese, /"focusSession\.workingDirectory": "工作目录"/)
-  assert.match(english, /"focusSession\.workingDirectory": "Working directory"/)
+  // 目录按钮的无障碍名称两种语言都有（原“工作目录”键没有任何调用方，随 A2 清理未用文案删除）。
+  assert.match(chinese, /"focusSession\.changeWorkingDirectoryWorkspace": /)
+  assert.match(english, /"focusSession\.changeWorkingDirectoryWorkspace": /)
 })
 
 test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
@@ -243,14 +244,16 @@ test('composer actions distinguish sending, steering, preparing and blocked stat
   // 激活、IME及异步状态切换由 smoke-replica-chat 的真实组件夹具覆盖。
 })
 
-test('the run bar owns the only stop control, including while compacting context', () => {
+test('the tray owns the only stop control, including while compacting context', () => {
   const render = (props) =>
-    renderToStaticMarkup(React.createElement(ComposerStatusPill, { onStop() {}, ...props }))
+    renderToStaticMarkup(React.createElement(ComposerTray, { onStop() {}, ...props }))
   for (const compaction of [null, { active: true }]) {
     const html = render({ streaming: true, compaction })
     assert.equal(html.match(/<button/g)?.length, 1)
+    assert.match(html, /data-run-stop/)
   }
-  assert.doesNotMatch(render({ streaming: false }), /<button/)
+  // 只在压缩（没有运行）时没有停止键：压缩不能被“停止”打断。
+  assert.doesNotMatch(render({ streaming: false, compaction: { active: true } }), /<button/)
   assert.match(render({ streaming: true, stopping: true }), /aria-busy="true"[^>]* disabled=""/)
 })
 
@@ -455,17 +458,14 @@ test('shared plan board opens from the composer progress metric', async () => {
   assert.match(board, /open=\{expanded\}/)
   assert.match(board, /onToggle=\{\(event\) => setExpanded\(event\.currentTarget\.open\)\}/)
   assert.match(board, /data-pisper-plan-current/)
-  assert.match(
-    session,
-    /<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>/,
-  )
+  // 规格 v2 第 2.5 / 4.1 节：运行中的计划在顶栏下方的细进度“计划 2/4”，详情在检查器“计划”标签
+  // （InspectorPlan 沿用 PlanBoard）；输入区不再有计划读数，也不直接渲染 PlanBoard。
+  const inspectorPlan = await readFile('src/features/chat/InspectorPlan.tsx', 'utf8')
+  assert.match(inspectorPlan, /<PlanBoard plan=\{plan\} \/>/)
   assert.match(session, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
-  assert.doesNotMatch(session, /PlanBoard|plan-board-dock/)
+  assert.doesNotMatch(session, /PlanBoard|plan-board-dock|SessionUsageMetrics/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
-  assert.match(controls, /<PopoverTrigger asChild>/)
-  assert.match(controls, /className="session-plan-progress[^"\n]*"/)
-  assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
-  assert.match(controls, /session-plan-popover[^"\n]*max-h-/)
+  assert.doesNotMatch(controls, /PlanBoard|session-plan-progress/)
   assert.doesNotMatch(styles, /\.plan-board-dock/)
   assert.match(board, /views\.length > 4 \? ' is-scrollable[^']*overflow-y-auto/)
   assert.doesNotMatch(board, /unblocks:/)

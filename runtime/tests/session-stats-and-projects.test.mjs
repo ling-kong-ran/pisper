@@ -112,15 +112,16 @@ test('sidebar and usage popover wire project context menu and session stats pane
   // 侧栏不删除会话（删除只在历史会话里，带确认）。
   assert.doesNotMatch(sidebar, /method: 'DELETE'|deleteSession/)
 
-  // 统计弹窗：上下文用量 Popover 内嵌详细统计面板，FocusSession 传入数据源。
+  // 统计弹窗：模型芯片弹层底部的用量段内嵌详细统计面板（规格 v2 第 2.5 节），FocusSession 传入数据源。
   assert.match(controls, /export function SessionStatsPanel/)
   assert.match(controls, /chat:focusSession\.statAvgFirstToken/)
   assert.match(controls, /chat:focusSession\.statAvgDuration/)
   assert.match(controls, /formatRunDuration\(/)
   assert.match(
     focus,
-    /<ContextUsageIndicator[\s\S]*?sessionUsage=\{sessionUsage\}[\s\S]*?model=\{model\}[\s\S]*?availableModels=\{availableModels\}[\s\S]*?\/>/,
+    /<ContextUsageSection[\s\S]*?sessionUsage=\{sessionUsage\}[\s\S]*?model=\{model\}[\s\S]*?availableModels=\{availableModels\}[\s\S]*?\/>/,
   )
+  assert.match(controls, /export function ContextUsageSection[\s\S]*?<SessionStatsPanel/)
 
   // runtime 埋点：时序统计挂 sessionMeta 并随 session_usage 结算上报。
   assert.match(runtime, /sessionRequestTiming\(this\.sessionMeta, session\.sessionId\)/)

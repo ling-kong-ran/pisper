@@ -1000,8 +1000,12 @@ try {
   assert.ok(copyBounds.width >= 44 && copyBounds.height >= 44)
   await copyReply.press('Enter')
   await reviewPage.getByRole('button', { name: '已复制', exact: true }).waitFor()
-  assert.equal(await reviewPage.evaluate(() => window.__copiedReply), 'Reply **content**')
+  // 规格 v2 第 4.2 节：“复制”取渲染后的纯文本，“⋯ → 复制为 Markdown”才复制原文。
+  assert.equal(await reviewPage.evaluate(() => window.__copiedReply), 'Reply content')
   const messageMore = reviewPage.getByRole('button', { name: '更多回复操作', exact: true })
+  await messageMore.press('Enter')
+  await reviewPage.locator('[data-reply-copy-markdown]').click()
+  await reviewPage.waitForFunction(() => window.__copiedReply === 'Reply **content**')
   await messageMore.press('Enter')
   await reviewPage.getByRole('menuitem', { name: '从此处另开对话', exact: true }).click()
   assert.equal(await reviewPage.getByLabel('Fixture action').textContent(), 'child:boundary')

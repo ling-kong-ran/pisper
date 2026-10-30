@@ -12,12 +12,41 @@ import {
 import { SessionPageChromeContext } from '@/features/chat/session-workspace-context'
 import { ensureBoardMessages } from '@/app/i18n'
 import { DEFAULT_SESSION_STATE } from '@/lib/session-state'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, EntityRecord } from '@/types/chat'
 import '@/index.css'
 
 // ?layout=page：按桌面会话页（/board/:id）的方式渲染——提供会话页外壳上下文（页头、会话页输入框），
 // 并先注册会话页文案（与会话路由加载时一致）。不带参数时是手机外壳与旧入口仍在用的单会话视图。
-const pageLayout = new URLSearchParams(location.search).get('layout') === 'page'
+const search = new URLSearchParams(location.search)
+const pageLayout = search.get('layout') === 'page'
+// ?approvals=1：两条待批（一条命令守卫拦截的 critical、一条普通），核对内联批准卡与按住允许。
+const withApprovals = search.get('approvals') === '1'
+const initialApprovals: EntityRecord[] = withApprovals
+  ? [
+      {
+        id: 'approval-critical',
+        toolName: 'bash',
+        args: { command: 'git push --force-with-lease origin fix/ci' },
+        reason: '命令守卫拦截：改写远端分支。需要确认。',
+      },
+      { id: 'approval-standard', toolName: 'edit', args: { path: 'src/auth/login.ts' } },
+    ]
+  : []
+// 运行中的工具组：一条已完成的读取、一条正在跑的测试（输出含通过与失败行）。
+const runningFeed: EntityRecord[] = [
+  { type: 'tool', id: 't1', name: 'read', args: { path: 'src/auth/login.ts' }, status: 'done' },
+  {
+    type: 'tool',
+    id: 't2',
+    name: 'bash',
+    args: { command: 'npm test -- auth' },
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    output: '✓ login › accepts valid token\n✗ login › rejects expired token',
+  },
+]
+// 运行结束后同一组操作都已完成：工具组应自动折叠成一行。
+const finishedFeed: EntityRecord[] = runningFeed.map((item) => ({ ...item, status: 'done' }))
 if (pageLayout) await ensureBoardMessages()
 const pageChrome = { compact: false, overlayOnly: false }
 
@@ -61,12 +90,17 @@ const evidence = {
   aborts: 0,
   attachments: 0,
   behaviors: [] as (string | null)[],
+  withdrawn: [] as string[],
+  approvals: [] as [string, boolean][],
 }
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
 export function Fixture() {
   const [sessionId, setSessionId] = useState('fixture-a')
   const [streaming, setStreaming] = useState(false)
+  const [queued, setQueued] = useState<EntityRecord[]>([])
+  const [ran, setRan] = useState(false)
+  const [approvals, setApprovals] = useState<EntityRecord[]>(initialApprovals)
   const [history, setHistory] = useState({ ...DEFAULT_SESSION_STATE, messages: specimens })
   const loadOlder = () => {
     const start = Math.max(
@@ -95,10 +129,12 @@ export function Fixture() {
     model: 'fixture/model',
     availableModels: [{ key: 'fixture/model', label: 'Fixture Model', providerName: 'Fixture' }],
     executionMode: 'default',
-    tools: [],
-    approvals: [],
-    activityFeed: [],
-    queuedInputs: [],
+    // 结束后实时活动只剩 tools（与会话快照一致），工具组仍挂在最新回复上。
+    tools: !streaming && ran ? finishedFeed : [],
+    approvals,
+    activityFeed: streaming ? runningFeed : [],
+    queuedInputs: queued,
+    runStartedAt: streaming ? new Date(Date.now() - 192_000).toISOString() : null,
     streaming,
     contextOpen: false,
     contextCompact: false,
@@ -108,7 +144,10 @@ export function Fixture() {
     onThinkingLevelChange: noop,
     onExecutionModeChange: () => true,
     onRunModeChange: () => true,
-    onApproval: noop,
+    onApproval: (id, approved) => {
+      evidence.approvals.push([id, approved])
+      setApprovals((current) => current.filter((item) => item.id !== id))
+    },
     onWorkspace: noop,
     onRename: noop,
     onBranchFromHere: noop,
@@ -128,16 +167,24 @@ export function Fixture() {
             if (accepted) {
               onAccepted?.()
               setStreaming(true)
+              setRan(true)
             }
             resolve(accepted)
           },
         }),
       )
     },
-    onQueue: (_text, _attachments, behavior) => {
+    onQueue: (text, _attachments, behavior) => {
       evidence.queues += 1
       evidence.behaviors.push(behavior ?? null)
+      setQueued((current) => [...current, { id: `q${evidence.queues}`, text, behavior }])
       return Promise.resolve(true)
+    },
+    onWithdrawQueuedInput: (inputId) => {
+      evidence.withdrawn.push(inputId)
+      const item = queued.find((entry) => entry.id === inputId)
+      setQueued((current) => current.filter((entry) => entry.id !== inputId))
+      return Promise.resolve(item ? { text: String(item.text || ''), attachments: [] } : null)
     },
     onAbort: () => {
       evidence.aborts += 1
@@ -145,6 +192,7 @@ export function Fixture() {
         Object.assign(window, {
           settleAbort: () => {
             setStreaming(false)
+            setQueued([])
             resolve()
           },
         }),

@@ -19,6 +19,7 @@ export type FixedShortcutId =
   | 'boardOpen'
   | 'boardExitTriage'
   | 'newline'
+  | 'cycleRunMode'
   | 'stopRun'
 
 export type ShortcutEntry =
@@ -96,6 +97,8 @@ export const SHORTCUT_GROUPS: readonly {
       app('sendMessage'),
       app('steerMessage'),
       fixed('newline', ['Shift', 'Enter']),
+      // 输入框里 ⇧Tab 在 Plan / Goal / Team 之间切换（规格 v2 第 2.8 节），固定键，不可改绑。
+      fixed('cycleRunMode', ['Shift', 'Tab']),
       fixed('stopRun', ['Esc']),
     ],
   },
@@ -165,6 +168,7 @@ export function useShortcutCatalogText() {
     boardOpen: t('board:shortcuts.boardOpen'),
     boardExitTriage: t('board:shortcuts.boardExitTriage'),
     newline: t('board:shortcuts.newline'),
+    cycleRunMode: t('board:shortcuts.cycleRunMode'),
     stopRun: t('board:shortcuts.stopRun'),
   }
   const groups: Record<ShortcutGroupId, { title: string; hint: string }> = {

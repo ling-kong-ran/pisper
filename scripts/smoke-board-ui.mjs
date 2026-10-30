@@ -1515,15 +1515,10 @@ try {
       (open) => !!document.querySelector('[data-session-inspector]') === open,
       before,
     )
-    // 停靠的检查器会把对话列压到 768 以下（268 + 768 + 456 > 1440），工具区放不下运行提示：
-    // 检查器按需滑入（规格 4.4），核对提示前确认它是收着的。
-    if (await inspectorOpen()) {
-      await page.keyboard.press('F7')
-      await page.waitForFunction(() => !document.querySelector('[data-session-inspector]'))
-    }
+    // 规格 v2 第 4.3 节：排队 / 插话的按法写在运行中的占位文字里（工具条提示退役），跟随改绑。
     assert.equal(
-      (await page.locator('[data-composer-hint]').innerText()).trim(),
-      `运行中 Enter 排队 · ${keyName} + Enter 插话`,
+      await composer.getAttribute('placeholder'),
+      `运行中：Enter 排队，${keyName} + Enter 插话`,
     )
     await composer.fill('改绑后插话')
     await composer.press('Alt+Enter')

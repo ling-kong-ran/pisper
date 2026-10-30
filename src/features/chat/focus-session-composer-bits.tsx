@@ -1,98 +1,187 @@
-// 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、输入框顶部的运行条、
-// 手动压缩按钮与按草稿、队列和准备状态选择的发送/停止按钮。
+// 聚焦会话输入区的小型展示组件：输入框上方的托盘（运行状态 + 停止、排队消息）、
+// 资源调用芯片与发送键。
 import { useEffect, useRef, useState } from 'react'
-import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
+import { ArrowUp, Braces, Pencil, RefreshCw, Square, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
-import { formatCompactDuration, formatTokenCount } from '@/lib/format'
 import { useShortcutLabel } from '@/lib/shortcuts'
-import { QueueSection } from '@/components/ai-elements/queue'
-import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { OrbitSpinner } from '@/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { runDurationMs } from '@/features/chat/run-activity'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
-// 输入区工具图标键：桌面 30px，手机与粗指针 44px 触控目标；多处复用同一组工具类，避免重复生成样式。
+// 输入区图标键：桌面 32px，手机与粗指针 44px 触控目标；“+”菜单与托盘共用同一组工具类。
 export const COMPOSER_ICON_KEY_CLASSES =
-  'grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
+  'grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
 
-export function QueuedInputsTray({
-  queuedInputs,
+// 托盘计时与侧栏运行中行同一种写法（3:12、1:02:05），同一个运行在两处读起来一致。
+function formatTrayClock(milliseconds: number) {
+  const total = Math.max(0, Math.floor(milliseconds / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = String(total % 60).padStart(2, '0')
+  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`
+}
+
+// 每秒刷新只留在这段计时文字内，避免整个输入区随计时器重渲染；缺少开始时间时不以 0 冒充。
+function TrayClock({ startedAt }: { startedAt?: string | null }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const elapsed = runDurationMs(startedAt, null, now)
+  if (!elapsed) return null
+  return (
+    <span
+      aria-hidden="true"
+      className="shrink-0 font-mono text-[12.5px] text-content-muted tabular-nums"
+      data-tray-clock
+    >
+      {formatTrayClock(elapsed)}
+    </span>
+  )
+}
+
+const TRAY_ROW_CLASS =
+  'flex min-h-[34px] min-w-0 items-center gap-2 pr-1.5 pl-3 text-[13px] max-[650px]:min-h-11 max-[650px]:pr-0 pointer-coarse:min-h-11'
+// 排队行的编辑 / 取消：桌面悬停或聚焦才出现，手机与触屏常驻 44×44（规格 4.3 / 7.2）。
+const TRAY_ACTION_CLASS =
+  'grid size-[26px] flex-none cursor-pointer place-items-center rounded-sm text-content-muted opacity-0 transition-opacity duration-(--d-fast) group-hover/queued:opacity-100 group-focus-within/queued:opacity-100 hover:bg-surface-hover hover:text-content focus-visible:opacity-100 disabled:cursor-default disabled:opacity-40 max-[650px]:size-11 max-[650px]:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100'
+
+// 输入框正上方的托盘（规格 4.3）：只在运行中、压缩上下文或有排队时出现。
+// 运行行只写“运行中 3:12 · 停止 Esc”，不重复正在跑的命令（命令在转录的工具组里）；
+// 停止键是唯一的停止入口，发送键不兼作停止。排队消息一行一条，编辑 / 取消。
+export function ComposerTray({
+  streaming,
+  compaction,
+  startedAt,
+  stopping = false,
+  onStop,
+  queuedInputs = [],
   withdrawingInputIds = [],
-  onWithdraw,
+  onEdit,
+  onCancel,
 }: {
-  queuedInputs: EntityRecord[]
+  streaming?: boolean
+  compaction?: EntityRecord | null
+  startedAt?: string | null
+  stopping?: boolean
+  onStop?: () => void
+  queuedInputs?: EntityRecord[]
   withdrawingInputIds?: string[]
-  onWithdraw?: (inputId: string) => Promise<void> | void
+  onEdit?: (inputId: string) => Promise<void> | void
+  onCancel?: (inputId: string) => Promise<void> | void
 }) {
   const { t } = useI18n()
-  const label = t('chat:focusSession.sentToTheRunningAgent')
-  const withdrawLabel = t('chat:focusSession.withdrawQueuedInput')
+  const compacting = Boolean(compaction?.active)
+  const running = Boolean(streaming) || compacting
+  if (!running && !queuedInputs.length) return null
+  const queueLabel = t('chat:focusSession.sentToTheRunningAgent')
   return (
-    <QueueSection asChild defaultOpen>
-      <div
-        className="flex min-w-0 flex-col gap-1 rounded-md border border-stroke bg-surface-subtle py-1.5 pr-1 pl-3 text-xs text-content-secondary"
-        data-pisper-queue-size={queuedInputs.length}
-      >
-        <div className="flex min-w-0 items-center gap-2 font-medium text-accent-fg">
-          <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
-          <span className="shrink-0 tabular-nums">{queuedInputs.length}</span>
+    <div
+      className="composer-tray mx-3.5 flex min-w-0 flex-col overflow-hidden rounded-t-(--r-lg) border border-b-0 border-stroke bg-well text-content-secondary max-[650px]:mx-2 [&>*+*]:border-t [&>*+*]:border-stroke"
+      data-composer-tray
+    >
+      {running && (
+        <div className={TRAY_ROW_CLASS} data-run-bar={compacting ? 'compacting' : 'running'}>
+          <span role="status" className="flex min-w-0 flex-1 items-center gap-2">
+            {compacting ? (
+              <OrbitSpinner className="size-3.5 flex-none text-content-secondary" />
+            ) : (
+              <StatusGlyph status="run" className="size-4" />
+            )}
+            <span className="shrink-0 text-content">
+              {compacting
+                ? t('chat:focusSession.compactingContext')
+                : t('chat:focusSession.running')}
+            </span>
+            {streaming && <TrayClock startedAt={startedAt} />}
+          </span>
+          {streaming && onStop && (
+            <button
+              type="button"
+              className="inline-flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:min-w-[72px] max-[650px]:justify-center pointer-coarse:h-11 pointer-coarse:min-w-[72px]"
+              aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
+              title={t('chat:focusSession.stopRunShortcut')}
+              aria-busy={stopping || undefined}
+              disabled={stopping}
+              onClick={onStop}
+              data-run-stop
+            >
+              <Square size={10} fill="currentColor" aria-hidden="true" />
+              {stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
+              <Kbd className="max-[650px]:hidden pointer-coarse:hidden">Esc</Kbd>
+            </button>
+          )}
         </div>
+      )}
+      {queuedInputs.length > 0 && (
         <ul
-          className="m-0 max-h-36 min-w-0 list-none overflow-x-hidden overflow-y-auto overscroll-contain p-0"
-          aria-label={label}
+          className="m-0 flex max-h-[136px] min-w-0 list-none flex-col overflow-x-hidden overflow-y-auto overscroll-contain p-0 [&>*+*]:border-t [&>*+*]:border-stroke-soft"
+          aria-label={queueLabel}
+          data-pisper-queue-size={queuedInputs.length}
           tabIndex={queuedInputs.length > 3 ? 0 : undefined}
         >
           {queuedInputs.map((item, index) => {
             const inputId = typeof item.id === 'string' ? item.id : ''
             const pending = withdrawingInputIds.includes(inputId)
+            const unavailable = !inputId || pending
+            const text = String(item.text || '')
             return (
               <li
                 key={inputId || `${item.behavior}-${index}`}
-                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-stroke-soft py-0.5 last:border-0"
+                className={cn(TRAY_ROW_CLASS, 'group/queued')}
+                aria-busy={pending || undefined}
               >
+                {/* 运行中 ↵ 排队（followUp，本轮结束后再交给代理）与 ⌥↵ 插话（steer，下一步就读到）分开标注。 */}
                 <span
-                  className="line-clamp-2 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
-                  title={item.text}
+                  className="inline-flex h-[18px] flex-none items-center rounded-xs border border-stroke bg-solid px-1.5 text-[11.5px] text-content-muted"
+                  data-queued-behavior={item.behavior === 'steer' ? 'steer' : 'followUp'}
                 >
-                  {/* 运行中 ↵ 排队（followUp，本轮结束后再交给代理）与 ⌥↵ 插话（steer，下一步就读到）分开标注。 */}
-                  {(item.behavior === 'followUp' || item.behavior === 'steer') && (
-                    <span
-                      className="mr-1.5 inline-flex h-4.5 items-center rounded-xs bg-surface-muted px-1 align-[1px] text-[11px] font-medium text-content-secondary"
-                      data-queued-behavior={item.behavior}
-                    >
-                      {item.behavior === 'followUp'
-                        ? t('board:composer.queuedFollowUp')
-                        : t('board:composer.queuedSteer')}
-                    </span>
-                  )}
-                  {item.text}
+                  {item.behavior === 'steer'
+                    ? t('board:composer.queuedSteer')
+                    : t('board:composer.queuedFollowUp')}
                 </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-lg"
-                      className="text-content-muted hover:text-content max-[650px]:size-11"
-                      aria-label={withdrawLabel}
-                      aria-busy={pending || undefined}
-                      disabled={!inputId || !onWithdraw || pending}
-                      onClick={() => void onWithdraw?.(inputId)}
-                    >
-                      <Undo2 size={16} aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{withdrawLabel}</TooltipContent>
-                </Tooltip>
+                <span
+                  className="min-w-0 flex-1 truncate text-content [overflow-wrap:anywhere]"
+                  title={text}
+                >
+                  {text}
+                </span>
+                {onEdit && (
+                  <button
+                    type="button"
+                    className={TRAY_ACTION_CLASS}
+                    aria-label={t('board:composer.editQueued')}
+                    title={t('board:composer.editQueued')}
+                    disabled={unavailable}
+                    data-queued-edit
+                    onClick={() => void onEdit(inputId)}
+                  >
+                    <Pencil size={14} aria-hidden="true" />
+                  </button>
+                )}
+                {onCancel && (
+                  <button
+                    type="button"
+                    className={TRAY_ACTION_CLASS}
+                    aria-label={t('board:composer.cancelQueued')}
+                    title={t('board:composer.cancelQueued')}
+                    disabled={unavailable}
+                    data-queued-cancel
+                    onClick={() => void onCancel(inputId)}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
               </li>
             )
           })}
         </ul>
-      </div>
-    </QueueSection>
+      )}
+    </div>
   )
 }
 
@@ -121,229 +210,6 @@ export function ComposerResourceChip({
         <X size={13} />
       </button>
     </div>
-  )
-}
-
-// 运行条正在执行的工具目标：只取真实参数（命令或路径），取不到就不显示。
-function runningToolTarget(activity?: EntityRecord | null) {
-  const args = activity?.args && typeof activity.args === 'object' ? activity.args : {}
-  const target = activity?.name === 'bash' ? args.command : args.path || args.pattern || args.url
-  return typeof target === 'string' ? target.replace(/\s+/g, ' ').trim() : ''
-}
-
-// 每秒刷新只留在这段计时文字内，避免整个输入区随计时器重渲染；缺少开始时间时不以 0 冒充。
-// 与会话页头、泳道条同一种紧凑写法（27s、1m07s），同一个运行不出现两种计时格式。
-function RunElapsed({ startedAt }: { startedAt?: string | null }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [])
-  const elapsed = runDurationMs(startedAt, null, now)
-  if (!elapsed) return null
-  return (
-    <>
-      <span aria-hidden="true" className="text-content-muted">
-        ·
-      </span>
-      <span aria-hidden="true" className="shrink-0 font-mono font-medium text-content tabular-nums">
-        {formatCompactDuration(elapsed)}
-      </span>
-    </>
-  )
-}
-
-// 会话页运行条右侧的实时读数（规格 4.3）：上下文、Token、缓存命中、排队条数。
-// 只显示真实拿到的数；拿不到的那一项整段不出现，不用 0 或“—”占位。
-export type ComposerRunMetrics = {
-  contextPercent: number | null
-  tokens: number | null
-  cacheHitRate: number | null
-  queued: number
-}
-
-function RunMetrics({ metrics }: { metrics: ComposerRunMetrics }) {
-  const { t } = useI18n()
-  // 会话路由随页加载看板命名空间，运行条读数文案在那里（不占入口常驻的 chat 命名空间）。
-  const parts = [
-    metrics.contextPercent != null && {
-      key: 'context',
-      text: t('board:composer.context', { percent: Math.round(metrics.contextPercent) }),
-      hide: '@max-[520px]/runbar:hidden',
-    },
-    metrics.tokens != null &&
-      metrics.tokens > 0 && {
-        key: 'tokens',
-        text: t('board:composer.tokens', { tokens: formatTokenCount(metrics.tokens) }),
-        hide: '@max-[600px]/runbar:hidden',
-      },
-    metrics.cacheHitRate != null && {
-      key: 'cache',
-      text: t('board:composer.cacheHit', { percent: Math.round(metrics.cacheHitRate) }),
-      hide: '@max-[680px]/runbar:hidden',
-    },
-    metrics.queued > 0 && {
-      key: 'queued',
-      text: t('board:composer.queued', { count: metrics.queued }),
-      hide: '',
-    },
-  ].filter((part): part is { key: string; text: string; hide: string } => Boolean(part))
-  if (!parts.length) return null
-  return (
-    <span
-      className="flex flex-none items-center gap-2 text-content-secondary tabular-nums"
-      data-run-metrics
-    >
-      {parts.map((part) => (
-        <span key={part.key} className={`flex flex-none items-center gap-2 ${part.hide}`}>
-          <span aria-hidden="true" className="text-content-muted">
-            ·
-          </span>
-          {part.text}
-        </span>
-      ))}
-    </span>
-  )
-}
-
-// 输入框顶部的集成运行条：运行中字形 + “运行中”（运行青）+ 工具/计时/命令 + 实时读数 + 真实停止按钮，
-// 底边一条运行青的不确定进度线（只动 transform，减少动效时隐藏）。空闲时整条隐藏；压缩上下文时改用警示色且不提供停止。
-// 运行条是唯一的停止入口：发送键不兼作停止。
-export function ComposerStatusPill({
-  compaction,
-  streaming,
-  statusLabel,
-  startedAt,
-  activity,
-  stopping = false,
-  onStop,
-  metrics,
-}: {
-  compaction?: EntityRecord | null
-  streaming?: boolean
-  statusLabel?: string
-  startedAt?: string | null
-  activity?: EntityRecord | null
-  stopping?: boolean
-  onStop?: () => void
-  metrics?: ComposerRunMetrics | null
-}) {
-  const { t } = useI18n()
-  const compacting = Boolean(compaction?.active)
-  const tool = !compacting && activity?.type === 'tool' && activity.status === 'running'
-  const target = tool ? runningToolTarget(activity) : ''
-  return (
-    <div
-      className={`focus-composer-status @container/runbar [&.idle]:hidden [&.running]:border-st-run-border [&.running]:bg-st-run-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-3.5 text-xs text-content-secondary pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
-      data-run-bar={compacting ? 'compacting' : streaming ? 'running' : undefined}
-    >
-      <span role="status" aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2">
-        {compacting ? (
-          <OrbitSpinner className="size-3.5 text-warning-strong" />
-        ) : (
-          <StatusGlyph status="run" className="size-3.5 text-st-run" />
-        )}
-        <span
-          className={`shrink-0 font-semibold ${compacting ? 'text-warning-strong' : 'text-st-run'}`}
-        >
-          {compacting ? t('chat:focusSession.compactingContext') : t('chat:focusSession.running')}
-        </span>
-        {tool ? (
-          <>
-            <span aria-hidden="true" className="text-content-muted">
-              ·
-            </span>
-            <span className="shrink-0 font-mono font-semibold text-content">
-              {String(activity?.name || '')}
-            </span>
-          </>
-        ) : null}
-        {streaming && <RunElapsed startedAt={startedAt} />}
-        {tool
-          ? target && (
-              <>
-                <span aria-hidden="true" className="text-content-muted">
-                  ·
-                </span>
-                <span className="min-w-0 truncate font-mono text-content-secondary" title={target}>
-                  {target}
-                </span>
-              </>
-            )
-          : streaming &&
-            statusLabel && (
-              <>
-                <span aria-hidden="true" className="text-content-muted">
-                  ·
-                </span>
-                <span className="min-w-0 truncate text-content-secondary">{statusLabel}</span>
-              </>
-            )}
-        {streaming && !compacting && metrics && <RunMetrics metrics={metrics} />}
-      </span>
-      {streaming && onStop && (
-        <button
-          type="button"
-          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm bg-solid pr-1 pl-2 text-xs font-medium text-content shadow-[inset_0_0_0_1px_var(--stroke-strong)] transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:bg-transparent max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:shadow-[inset_1px_0_0_var(--st-run-border)] max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
-          aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
-          title={t('chat:focusSession.stopRunShortcut')}
-          aria-busy={stopping || undefined}
-          disabled={stopping}
-          onClick={onStop}
-          data-run-stop
-        >
-          <Square size={10} fill="currentColor" className="text-st-fail" aria-hidden="true" />
-          {stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
-          <Kbd className="max-[650px]:hidden pointer-coarse:hidden">Esc</Kbd>
-        </button>
-      )}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-px h-[2px] overflow-hidden [:root[data-motion=reduced]_&]:hidden motion-reduce:[:root:not([data-motion=full])_&]:hidden"
-      >
-        <span
-          className={`block h-full w-[30%] animate-[hairline-sweep_1.8s_var(--ease)_infinite] ${compacting ? 'bg-warning-strong' : 'bg-st-run-fill'}`}
-        />
-      </span>
-    </div>
-  )
-}
-
-export function CompactContextButton({
-  streaming,
-  compactingManually,
-  compactionActive,
-  disabled,
-  onCompact,
-}: {
-  streaming?: boolean
-  compactingManually: boolean
-  compactionActive: boolean
-  disabled: boolean
-  onCompact: () => void
-}) {
-  const { t } = useI18n()
-  return (
-    <button
-      type="button"
-      className={`compact-context-trigger ${COMPOSER_ICON_KEY_CLASSES}`}
-      title={
-        streaming
-          ? t('chat:focusSession.manualCompactionWaitForRun')
-          : compactingManually || compactionActive
-            ? t('chat:focusSession.compactingContext')
-            : t('chat:focusSession.compactContextNow')
-      }
-      aria-label={t('chat:focusSession.compactContextNow')}
-      disabled={disabled}
-      onClick={onCompact}
-    >
-      {compactingManually || compactionActive ? (
-        <RefreshCw className="animate-spin" size={14} />
-      ) : (
-        <Minimize2 size={14} />
-      )}
-    </button>
   )
 }
 
@@ -400,7 +266,8 @@ export function ComposerSendButton({
   return (
     <button
       type="submit"
-      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
+      // 石墨圆键（规格 4.3）：不兼作停止；草稿为空时淡出但保留形状。
+      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-full border border-transparent bg-star text-on-accent transition-[background-color,opacity] select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:opacity-30 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
       title={blockedReason || (!busy && sendShortcut ? `${label} (${sendShortcut})` : label)}
       aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
       aria-busy={busy || undefined}

@@ -122,7 +122,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     assert.equal((await api(sidePath)).session, null)
     await assertParentUnchanged()
     assert.equal(
-      await panel.getByRole('button', { name: /^模型与智力 ·|^执行模式 ·|^审批模式：/ }).count(),
+      await panel.getByRole('button', { name: /^模型与智力 ·|^审批与执行方式 ·/ }).count(),
       0,
       'Temporary chat stays compact without duplicating the parent toolbar',
     )

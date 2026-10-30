@@ -26,6 +26,7 @@ import {
   Folder,
   ListTodo,
   Plus,
+  Shield,
   ShieldAlert,
   Target,
   Users,
@@ -443,6 +444,224 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       </DropdownMenu>
     )
 
+    const modelMenu = (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            size={chipSize}
+            // 草稿输入框里的模型芯片与会话页一致：无描边、靠右（规格 v2 第 4.3 节）。
+            className={cn(
+              'min-w-0 max-w-[24ch]',
+              composer && 'border-transparent bg-transparent',
+              rowChipTouch,
+            )}
+            title={t('board:launch.modelTitle', { model: modelLabel })}
+            aria-label={t('board:launch.modelTitle', { model: modelLabel })}
+          >
+            <Bot aria-hidden="true" />
+            <span className="min-w-0 truncate">{modelLabel}</span>
+            <ChevronDown aria-hidden="true" />
+          </Chip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
+          <DropdownMenuLabel>{t('board:launch.model')}</DropdownMenuLabel>
+          {options.models.length ? (
+            <DropdownMenuRadioGroup
+              value={model}
+              onValueChange={(next) => defaults.rememberLaunch({ model: next, thinkingLevel: '' })}
+            >
+              {options.models.map((item) => (
+                <DropdownMenuRadioItem key={item.key} value={item.key}>
+                  <span className="min-w-0 truncate">
+                    {item.providerName} · {item.label}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          ) : (
+            <p className="px-2 py-1.5 text-xs text-content-muted">
+              {options.loading ? t('board:launch.loadingModels') : t('board:launch.noModel')}
+            </p>
+          )}
+          {thinkingLevels.length > 1 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t('board:launch.thinking')}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={thinkingLevel}
+                onValueChange={(next) => defaults.rememberLaunch({ thinkingLevel: next })}
+              >
+                <DropdownMenuRadioItem value="">
+                  {t('board:launch.thinkingDefault')}
+                </DropdownMenuRadioItem>
+                {thinkingLevels.map((level) => (
+                  <DropdownMenuRadioItem key={level} value={level}>
+                    {labels.thinking(level)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+    const approvalMenu = (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            size={chipSize}
+            title={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+            aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+            // 完全访问会跳过所有审批：窄宽度下也写出文字并用警示色，派发前一眼能看到。
+            className={cn(
+              rowChipTouch,
+              executionMode === 'full-access' &&
+                'border-st-attn-border bg-st-attn-soft text-st-attn',
+            )}
+          >
+            <ExecutionIcon aria-hidden="true" />
+            {(!compactChips || executionMode === 'full-access') && (
+              <span className="truncate">{labels.execution[executionMode]}</span>
+            )}
+            <ChevronDown aria-hidden="true" />
+          </Chip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={executionMode}
+            onValueChange={(next) => {
+              const mode = next as LaunchExecutionMode
+              setFullAccess(mode === 'full-access')
+              // 安全模式照常记住；完全访问只留在本次草稿里。
+              if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
+            }}
+          >
+            {LAUNCH_EXECUTION_MODES.map((mode) => (
+              <DropdownMenuRadioItem key={mode} value={mode}>
+                {mode === 'full-access' ? (
+                  <span className="flex min-w-0 flex-col">
+                    <span>{labels.execution[mode]}</span>
+                    <span className="text-xs text-content-muted">
+                      {t('board:launch.fullAccessOnce')}
+                    </span>
+                  </span>
+                ) : (
+                  labels.execution[mode]
+                )}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+    const runModeMenu = (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            size={chipSize}
+            className={rowChipTouch}
+            title={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
+            aria-label={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
+          >
+            <RunModeIcon aria-hidden="true" />
+            {!compactChips && <span className="truncate">{labels.runMode[runMode]}</span>}
+            <ChevronDown aria-hidden="true" />
+          </Chip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuLabel>{t('chat:focusSession.executionMode')}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={runMode}
+            onValueChange={(next) => defaults.rememberLaunch({ runMode: next as LaunchRunMode })}
+          >
+            <DropdownMenuRadioItem value="plan">{labels.runMode.plan}</DropdownMenuRadioItem>
+            {options.goalsAvailable && (
+              <DropdownMenuRadioItem value="goal">{labels.runMode.goal}</DropdownMenuRadioItem>
+            )}
+            {options.teamAvailable && (
+              <DropdownMenuRadioItem value="team">{labels.runMode.team}</DropdownMenuRadioItem>
+            )}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+    // 主页新任务草稿的工具行与会话页输入框一致（规格 v2 第 4.3 节）：审批模式与执行方式合在一枚盾牌芯片里，
+    // 模型芯片靠右、紧挨石墨圆形发送键。完全访问只对本次草稿生效，芯片用盾牌警示图标与文字区分，不染琥珀。
+    const ModeIcon = executionMode === 'full-access' ? ShieldAlert : Shield
+    const modeLabel =
+      runMode === 'plan'
+        ? labels.execution[executionMode]
+        : `${labels.runMode[runMode]} · ${labels.execution[executionMode]}`
+    const modeMenu = (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            size={chipSize}
+            className={cn('min-w-0 max-w-[26ch] border-transparent bg-transparent', rowChipTouch)}
+            title={`${t('chat:focusSession.approvalMode')} · ${modeLabel}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+            aria-label={`${t('chat:focusSession.approvalMode')} · ${modeLabel}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+            data-launch-mode={`${runMode}:${executionMode}`}
+          >
+            <ModeIcon aria-hidden="true" />
+            <span className="truncate">
+              {compactChips && runMode === 'plan' && executionMode !== 'full-access'
+                ? ''
+                : modeLabel}
+            </span>
+            <ChevronDown aria-hidden="true" />
+          </Chip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={executionMode}
+            onValueChange={(next) => {
+              const mode = next as LaunchExecutionMode
+              setFullAccess(mode === 'full-access')
+              // 安全模式照常记住；完全访问只留在本次草稿里。
+              if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
+            }}
+          >
+            {LAUNCH_EXECUTION_MODES.map((mode) => (
+              <DropdownMenuRadioItem key={mode} value={mode}>
+                {mode === 'full-access' ? (
+                  <span className="flex min-w-0 flex-col">
+                    <span>{labels.execution[mode]}</span>
+                    <span className="text-xs text-content-muted">
+                      {t('board:launch.fullAccessOnce')}
+                    </span>
+                  </span>
+                ) : (
+                  labels.execution[mode]
+                )}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          {(options.goalsAvailable || options.teamAvailable) && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t('chat:focusSession.executionMode')}</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={runMode}
+                onValueChange={(next) =>
+                  defaults.rememberLaunch({ runMode: next as LaunchRunMode })
+                }
+              >
+                <DropdownMenuRadioItem value="plan">{labels.runMode.plan}</DropdownMenuRadioItem>
+                {options.goalsAvailable && (
+                  <DropdownMenuRadioItem value="goal">{labels.runMode.goal}</DropdownMenuRadioItem>
+                )}
+                {options.teamAvailable && (
+                  <DropdownMenuRadioItem value="team">{labels.runMode.team}</DropdownMenuRadioItem>
+                )}
+              </DropdownMenuRadioGroup>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+
     const chips = (
       <div
         ref={chipRowRef}
@@ -458,173 +677,56 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
               : 'overflow-hidden',
         )}
       >
-        {composer && projectChip}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              size={chipSize}
-              className={cn('min-w-0 max-w-[24ch]', rowChipTouch)}
-              title={t('board:launch.modelTitle', { model: modelLabel })}
-              aria-label={t('board:launch.modelTitle', { model: modelLabel })}
-            >
-              <Bot aria-hidden="true" />
-              <span className="min-w-0 truncate">{modelLabel}</span>
-              <ChevronDown aria-hidden="true" />
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
-            <DropdownMenuLabel>{t('board:launch.model')}</DropdownMenuLabel>
-            {options.models.length ? (
-              <DropdownMenuRadioGroup
-                value={model}
-                onValueChange={(next) =>
-                  defaults.rememberLaunch({ model: next, thinkingLevel: '' })
-                }
-              >
-                {options.models.map((item) => (
-                  <DropdownMenuRadioItem key={item.key} value={item.key}>
-                    <span className="min-w-0 truncate">
-                      {item.providerName} · {item.label}
-                    </span>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            ) : (
-              <p className="px-2 py-1.5 text-xs text-content-muted">
-                {options.loading ? t('board:launch.loadingModels') : t('board:launch.noModel')}
-              </p>
-            )}
-            {thinkingLevels.length > 1 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>{t('board:launch.thinking')}</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={thinkingLevel}
-                  onValueChange={(next) => defaults.rememberLaunch({ thinkingLevel: next })}
-                >
-                  <DropdownMenuRadioItem value="">
-                    {t('board:launch.thinkingDefault')}
-                  </DropdownMenuRadioItem>
-                  {thinkingLevels.map((level) => (
-                    <DropdownMenuRadioItem key={level} value={level}>
-                      {labels.thinking(level)}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              size={chipSize}
-              title={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
-              aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
-              // 完全访问会跳过所有审批：窄宽度下也写出文字并用警示色，派发前一眼能看到。
-              className={cn(
-                rowChipTouch,
-                executionMode === 'full-access' &&
-                  'border-st-attn-border bg-st-attn-soft text-st-attn',
-              )}
-            >
-              <ExecutionIcon aria-hidden="true" />
-              {(!compactChips || executionMode === 'full-access') && (
-                <span className="truncate">{labels.execution[executionMode]}</span>
-              )}
-              <ChevronDown aria-hidden="true" />
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={executionMode}
-              onValueChange={(next) => {
-                const mode = next as LaunchExecutionMode
-                setFullAccess(mode === 'full-access')
-                // 安全模式照常记住；完全访问只留在本次草稿里。
-                if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
-              }}
-            >
-              {LAUNCH_EXECUTION_MODES.map((mode) => (
-                <DropdownMenuRadioItem key={mode} value={mode}>
-                  {mode === 'full-access' ? (
-                    <span className="flex min-w-0 flex-col">
-                      <span>{labels.execution[mode]}</span>
-                      <span className="text-xs text-content-muted">
-                        {t('board:launch.fullAccessOnce')}
-                      </span>
-                    </span>
-                  ) : (
-                    labels.execution[mode]
-                  )}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              size={chipSize}
-              className={rowChipTouch}
-              title={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
-              aria-label={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
-            >
-              <RunModeIcon aria-hidden="true" />
-              {!compactChips && <span className="truncate">{labels.runMode[runMode]}</span>}
-              <ChevronDown aria-hidden="true" />
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel>{t('chat:focusSession.executionMode')}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={runMode}
-              onValueChange={(next) => defaults.rememberLaunch({ runMode: next as LaunchRunMode })}
-            >
-              <DropdownMenuRadioItem value="plan">{labels.runMode.plan}</DropdownMenuRadioItem>
-              {options.goalsAvailable && (
-                <DropdownMenuRadioItem value="goal">{labels.runMode.goal}</DropdownMenuRadioItem>
-              )}
-              {options.teamAvailable && (
-                <DropdownMenuRadioItem value="team">{labels.runMode.team}</DropdownMenuRadioItem>
-              )}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {composer ? (
+          <>
+            {projectChip}
+            {modeMenu}
+          </>
+        ) : (
+          <>
+            {modelMenu}
+            {approvalMenu}
+            {runModeMenu}
+          </>
+        )}
       </div>
     )
 
-    const submit =
-      composer && touch ? (
-        // 手机草稿：44px 图标发送键（与会话页输入框一致），把工具行的宽度留给芯片。
-        <Button
-          type="button"
-          size="icon"
-          className="size-11 flex-none"
-          disabled={pending > 0}
-          aria-label={t('board:home.send')}
-          onClick={() => void dispatch(false)}
-        >
-          <ArrowUp aria-hidden="true" />
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          size={variant === 'sheet' ? 'lg' : 'sm'}
-          className={cn(
-            'flex-none',
-            variant === 'sheet' && 'min-h-11 w-full px-4',
-            composer && 'pointer-coarse:min-h-11',
-          )}
-          disabled={composer && pending > 0}
-          onClick={() => void dispatch(false)}
-          aria-keyshortcuts={composer ? ariaKeyShortcuts(sendBinding) : 'Enter'}
-        >
-          {composer ? t('board:home.send') : t('board:launch.dispatch')}
-          <CornerDownLeft aria-hidden="true" className="opacity-70" />
-        </Button>
-      )
+    const submit = composer ? (
+      // 草稿的发送键与会话页输入框同一枚石墨圆键：桌面 32px，触屏 44px。
+      <Button
+        type="button"
+        size="icon"
+        className={cn(
+          'flex-none rounded-full',
+          touch ? 'size-11' : 'size-8 pointer-coarse:size-11',
+        )}
+        disabled={pending > 0}
+        aria-label={t('board:home.send')}
+        aria-keyshortcuts={ariaKeyShortcuts(sendBinding)}
+        title={sendBinding ? `${t('board:home.send')} (${formatShortcut(sendBinding)})` : undefined}
+        data-launch-send
+        onClick={() => void dispatch(false)}
+      >
+        <ArrowUp aria-hidden="true" />
+      </Button>
+    ) : (
+      <Button
+        type="button"
+        size={variant === 'sheet' ? 'lg' : 'sm'}
+        className={cn(
+          'flex-none',
+          variant === 'sheet' && 'min-h-11 w-full px-4',
+          composer && 'pointer-coarse:min-h-11',
+        )}
+        disabled={composer && pending > 0}
+        onClick={() => void dispatch(false)}
+        aria-keyshortcuts={composer ? ariaKeyShortcuts(sendBinding) : 'Enter'}
+      >
+        {composer ? t('board:home.send') : t('board:launch.dispatch')}
+        <CornerDownLeft aria-hidden="true" className="opacity-70" />
+      </Button>
+    )
 
     // 手机底部表单（含手机空看板）：“在 [项目 ▾] 中”单独一行，输入框占满下一行。
     // 同一行并排时输入框只剩项目芯片让出的宽度，390 宽下只有约 112px。
@@ -744,9 +846,10 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             )}
           />
           {errorLine && <div className="px-4 max-[650px]:px-3.5">{errorLine}</div>}
-          <div className="flex min-w-0 items-center gap-2 px-2.5 pt-1 pb-2.5">
+          <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-2" data-launch-toolbar>
             {chips}
             {status}
+            <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
             {submit}
           </div>
         </section>

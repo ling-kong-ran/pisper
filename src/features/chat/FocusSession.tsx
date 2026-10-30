@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { Fragment, useContext, useMemo } from 'react'
+import { useContext, useMemo } from 'react'
 import { SessionRouteLeading } from './session-route-chrome'
 import { SessionPageChromeContext, TranscriptMetaContext } from './session-workspace-context'
 import { SessionPageHeader } from './SessionPageHeader'
@@ -7,26 +7,31 @@ import { SessionPhoneHeader } from './SessionPhoneHeader'
 import { TaskWorkspaceSlots } from './task-workspace-context'
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
-// use-focus-composer，输入区小组件（排队托盘/资源芯片/状态灯/按钮）在
-// focus-session-composer-bits，状态文案在 focus-session-status；
+// use-focus-composer，输入区小组件（托盘/资源芯片/发送键）在 focus-session-composer-bits，
+// 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
 import { lazy, memo, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
 import {
-  AudioLines,
   Braces,
-  Command,
   CornerDownRight,
   FolderOpen,
+  ImagePlus,
+  Mic,
   PanelRightClose,
   PanelRightOpen,
+  Paperclip,
   Plus,
-  Gauge,
   TerminalSquare,
   Pencil,
-  X,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
 import { useUiStore } from '@/stores/ui-store'
@@ -38,47 +43,32 @@ import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { AttachmentPicker } from './AttachmentPicker'
+import { useAttachmentChooser } from './use-attachment-chooser'
 import { isFileDrag } from './attachments'
 import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { ComposerCommandMenu } from './ComposerCommandMenu'
 import { commandDraft, useComposerDraft } from './composer-drafts'
-import {
-  allocateComposerToolbar,
-  COMPOSER_TOOL_IDS,
-  type ComposerToolId,
-} from './composer-toolbar-layout'
-import { ComposerToolTray } from './ComposerToolTray'
-import { ComposerToolbarSettings } from './ComposerToolbarSettings'
 import { ChatRequestNotice } from './ChatRequestNotice'
-import { requestCommandPalette } from './events'
-import {
-  ApprovalModeSelect as ExecutionModeSelect,
-  ContextUsageIndicator,
-  ModelThinkingControl,
-  SessionUsageMetrics,
-} from './FocusRuntimeControls'
+import { ComposerModeChip } from './ComposerModeChip'
+import { nextComposerRunMode } from './composer-run-mode'
+import { ContextUsageSection, ModelThinkingControl } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
-import { ExecutionModeControl } from './GoalModeControl'
 import { TaskWorkspaceHeader } from './TaskWorkspaceHeader'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
-import { VisualComposerEntry } from './VisualComposerEntry'
+import { openVisualPromptEntry } from './visual-prompt-entry'
 import { VoiceInputControl } from './VoiceInputControl'
 import { VoiceModeOverlay } from './VoiceModeOverlay'
 import {
-  CompactContextButton,
+  COMPOSER_ICON_KEY_CLASSES,
   ComposerResourceChip,
   ComposerSendButton,
-  ComposerStatusPill,
-  QueuedInputsTray,
+  ComposerTray,
 } from '@/features/chat/focus-session-composer-bits'
 import type { FocusSessionProps } from '@/features/chat/focus-session-props'
-import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
-import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
-import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import {
   formatShortcut,
@@ -92,45 +82,27 @@ export type { FocusSessionProps }
 
 const QuickPromptIdeas = lazy(() => import('./QuickPromptIdeas'))
 
-// 托盘外部点击关闭的排除区域：触发按钮、托盘壳、锚定弹层，以及 portal 到 body 的
-// 对话框与浮层（Git diff 对话框、Radix Dialog/AlertDialog/Popover/DropdownMenu/Select/Sheet）。
-// 缺了它们时，点击浮层会被当成外部点击而收起托盘，托盘卸载又连带销毁面板状态
-//（典型场景：审阅 diff 时切换文件，整个 diff 对话框直接消失）。
-const TRAY_CHILD_FLOATING_SELECTOR = [
+// Esc 先交给打开的菜单、弹层、对话框（与 BackNavigation 同一判定），它们都关着才轮到“停止运行”。
+// 弹层包括 Radix 的 Popover（盾牌芯片、模型芯片）与锚定弹层（/ 命令菜单）。
+const ESCAPE_LAYER_SELECTOR = [
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '[role="menu"]',
+  '[role="listbox"]',
   '.anchored-popup-menu',
-  '.permission-mode-menu',
   '.voice-input-popup',
   '.git-diff-dialog-backdrop',
-  "[data-slot='dialog-content']",
-  "[data-slot='dialog-overlay']",
-  "[data-slot='alert-dialog-content']",
-  "[data-slot='alert-dialog-overlay']",
   "[data-slot='popover-content']",
   "[data-slot='dropdown-menu-content']",
-  "[data-slot='dropdown-menu-sub-content']",
   "[data-slot='select-content']",
   "[data-slot='sheet-content']",
-  "[data-slot='sheet-overlay']",
 ].join(', ')
-const TRAY_FLOATING_SELECTOR = [
-  '.composer-tools-trigger',
-  '.composer-tool-tray-shell',
-  TRAY_CHILD_FLOATING_SELECTOR,
-].join(', ')
-
-// Esc 先交给打开的菜单、弹层、对话框（与 BackNavigation 同一判定），它们都关着才轮到“停止运行”。
 function escapeLayerOpen() {
-  return (
-    [
-      ...document.querySelectorAll<HTMLElement>(
-        `[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], ${TRAY_CHILD_FLOATING_SELECTOR}`,
-      ),
-    ].some(
-      (element) =>
-        element.dataset.state !== 'closed' &&
-        element.getAttribute('aria-hidden') !== 'true' &&
-        element.getClientRects().length > 0,
-    ) || Boolean(document.querySelector('.composer-tool-tray-shell'))
+  return [...document.querySelectorAll<HTMLElement>(ESCAPE_LAYER_SELECTOR)].some(
+    (element) =>
+      element.dataset.state !== 'closed' &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      element.getClientRects().length > 0,
   )
 }
 
@@ -152,7 +124,6 @@ export const FocusSession = memo(function FocusSession({
   executionMode,
   goal,
   team,
-  plan,
   currentActivity,
   activityFeed,
   tools,
@@ -218,13 +189,10 @@ export const FocusSession = memo(function FocusSession({
   // 手机外壳（pageChrome.phone）换成 56px 顶栏，返回入口在顶栏左侧。
   const pageChrome = useContext(SessionPageChromeContext)
   const phonePage = Boolean(pageChrome?.phone)
-  // 桌面会话页独有的部分：运行条读数、工具条上的语音键与“↵ 排队 · ⌥↵ 插话”提示。
-  const deskPage = Boolean(pageChrome) && !phonePage
   const { t, language } = useI18n()
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const theme = useUiStore((state) => state.theme)
   const shortcuts = useShortcutStore((state) => state.bindings)
-  const COMMAND_PALETTE_SHORTCUT = useShortcutLabel('commandPalette')
   const mobileApp = useIsMobileApp()
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
@@ -241,8 +209,8 @@ export const FocusSession = memo(function FocusSession({
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
-  const [toolsOpen, setToolsOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  // ⇧Tab 切换执行方式后的读屏播报（芯片文字同时改变）。
+  const [modeAnnouncement, setModeAnnouncement] = useState('')
   const [attachmentDropActive, setAttachmentDropActive] = useState(false)
   const [scrollRequest, setScrollRequest] = useState(0)
   const addSelectedAttachments = selection.addAttachments
@@ -252,20 +220,20 @@ export const FocusSession = memo(function FocusSession({
   const runningBehaviorRef = useRef<'followUp' | 'steer'>('followUp')
   // 插话键是独立绑定（默认 ⌥↵，可在设置里改绑或禁用），不再由发送键派生。
   const steerShortcut = shortcuts.steerMessage
-  // 触屏没有 ⌥：手机会话页运行中长按发送键或在“+”托盘里选“插话发送”，都走同一条提交路径。
+  // 触屏没有 ⌥：手机会话页运行中长按发送键或在“+”菜单里选“插话发送”，都走同一条提交路径。
   const submitSteer = () => {
     runningBehaviorRef.current = 'steer'
     promptRef.current?.form?.requestSubmit()
   }
   const SEND_SHORTCUT = useShortcutLabel('sendMessage')
+  const VOICE_SHORTCUT = useShortcutLabel('voiceInput')
   // 语音实时转写与草稿的合并基准：录音开始时记住原文本，部分转写反复覆盖增量段。
   const voiceDraftBaseRef = useRef<string | null>(null)
+  // “+”菜单里的“语音输入”经它触发与 F8 相同的开始 / 结束（VoiceInputControl 的 menu 形态）。
+  const voiceControlRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!shortcutEnabled) return
     const focusComposer = (event: KeyboardEvent) => {
-      // 语音键在详情行里时，语音快捷键先把详情行展开；桌面会话页的语音键常驻工具条，不需要。
-      if (!deskPage && !shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.voiceInput))
-        setDetailsOpen(true)
       if (!shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.focusComposer)) {
         event.preventDefault()
         promptRef.current?.focus()
@@ -273,46 +241,23 @@ export const FocusSession = memo(function FocusSession({
     }
     window.addEventListener('keydown', focusComposer)
     return () => window.removeEventListener('keydown', focusComposer)
-  }, [deskPage, shortcutEnabled, shortcuts.focusComposer, shortcuts.voiceInput])
-  const toolbarRef = useRef<HTMLDivElement>(null)
-  const toolTrayAnchorRef = useRef<HTMLButtonElement>(null)
-  const toolTrayMenuRef = useRef<HTMLDivElement>(null)
-  const toolbarCapacity = useComposerToolbarCapacity(toolbarRef)
-  const toolbarLayout = useComposerToolbarStore((state) => state.layout)
+  }, [shortcutEnabled, shortcuts.focusComposer])
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
   const centeredWelcome = !hasConversation
-  const composerStatusLabel = useFocusSessionStatusLabel(
-    {
-      streaming,
-      messages,
-      currentActivity,
-      thinkingText,
-      compaction,
-      error,
-      runStopped,
-      runNotice,
-      lastActivityAt,
-    },
-    t,
-  )
-  const toolTrayId = `composer-tool-tray-${session.id}`
-  const quickActionsLabel = toolsOpen
-    ? t('chat:focusSession.collapseQuickActions')
-    : t('chat:focusSession.expandQuickActions')
-  // 会话页的输入框（桌面与手机外壳）：“描述下一步，/ 使用命令”（规格 4.3 / 7.3）；
-  // 桌面运行中的 ↵ / ⌥↵ 写在工具条提示里，手机的插话在发送键长按与“+”托盘里。
-  const pagePlaceholder = pageChrome ? t('board:composer.placeholder') : ''
-  const composerPlaceholder = mobileLayout
-    ? pagePlaceholder ||
-      (streaming
-        ? t('chat:focusSession.addGuidanceForTheRunningAgent')
-        : t('chat:workbench.composerPlaceholder'))
-    : pagePlaceholder ||
-      (streaming
-        ? t('chat:focusSession.runningAgentComposerHint')
-        : t('chat:focusSession.composerHint'))
+  // 占位文字（规格 v2 第 4.3 节）：空闲“回复代理，或用 / 调用命令”；运行中把排队 / 插话的按法
+  // 写进占位文字（原来工具条上的“↵ 排队 · ⌥↵ 插话”提示退役）。触屏没有 ⌥：点发送排队，长按插话。
+  const composerPlaceholder = streaming
+    ? mobileLayout
+      ? t('board:composer.placeholderRunningTouch')
+      : steerShortcut
+        ? t('board:composer.placeholderRunning', {
+            queue: SEND_SHORTCUT,
+            steer: formatShortcut(steerShortcut),
+          })
+        : t('board:composer.placeholderRunningQueueOnly', { queue: SEND_SHORTCUT })
+    : t('board:composer.placeholder')
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
 
@@ -364,7 +309,6 @@ export const FocusSession = memo(function FocusSession({
     onSend,
     onQueue,
     onAbort,
-    setToolsOpen,
     requestTranscriptBottom,
   })
   // 会话页 Esc（规格 2.8）：有打开的菜单 / 浮层时先交给它们；都关着且正在运行时停止运行。
@@ -419,41 +363,21 @@ export const FocusSession = memo(function FocusSession({
     setComposerExecutionMode(nextMode)
     void onRunModeChange(nextMode)
   }
-  // 会话页的代理信息行：当前模型（显示名）与审批模式，只挂在最新一条回复上。
+  // 会话页的代理信息行（规格 v2 第 4.2 节）：最新一条回复写当前模型（显示名）。
+  // 审批模式已在输入框的盾牌芯片上，不再在信息行重复；思考用时等 Runtime 有数据（A9）再加。
   const currentModel = pendingRuntimeSelection?.model || model || ''
   const modelLabel =
     availableModels.find((item) => item.key === currentModel)?.label ||
     currentModel.split('/').at(-1) ||
     ''
-  const approvalModeLabel =
-    executionMode === 'full-access'
-      ? t('chat:focusSession.fullAccess')
-      : executionMode === 'workspace-write'
-        ? t('chat:focusSession.workspaceWrite')
-        : t('chat:focusSession.approvalRequired')
   const transcriptMeta = useMemo(
-    () => (pageChrome ? { model: modelLabel, approvalMode: approvalModeLabel } : null),
-    [approvalModeLabel, modelLabel, pageChrome],
+    () => (pageChrome ? { model: modelLabel } : null),
+    [modelLabel, pageChrome],
   )
-  // 运行条读数只在桌面会话页显示（手机运行条只有“运行中 · 工具 · 时长 [停止]”）；
-  // 数值都来自会话已有的用量快照，拿不到的项不显示。
+  // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与模型芯片弹层同一来源，拿不到时不写。
   const contextPercent = Number(contextUsage?.percent)
-  // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与运行条读数同一来源，拿不到时不写。
   const runMetricsContextPercent =
     contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null
-  const processedTokens = Number(sessionUsage?.processedTokens)
-  const cacheHitRate = Number(sessionUsage?.cacheHitRate)
-  const runMetrics = deskPage
-    ? {
-        contextPercent: runMetricsContextPercent,
-        tokens: Number.isFinite(processedTokens) && processedTokens > 0 ? processedTokens : null,
-        cacheHitRate:
-          sessionUsage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
-            ? Math.max(0, cacheHitRate)
-            : null,
-        queued: queuedInputs.length,
-      }
-    : null
   const latestAgentMessage = messages.at(-1)?.role === 'agent' ? messages.at(-1) : null
   const currentError =
     submitError || error || (!streaming ? String(latestAgentMessage?.error || '') : '')
@@ -463,36 +387,13 @@ export const FocusSession = memo(function FocusSession({
   useEffect(() => {
     setResourcePickerOpen(false)
     setSessionTreeOpen(false)
-    setToolsOpen(false)
   }, [session.id])
   useEffect(() => {
     if (!pendingAsset) return
     addSelectedAttachments([pendingAsset])
     onAssetConsumed?.()
   }, [pendingAsset, onAssetConsumed, addSelectedAttachments])
-  useEffect(() => {
-    if (!toolsOpen) return undefined
-    const close = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      // Escape 先交给托盘中的设置或工具弹层，避免卸载子弹层并丢失返回焦点。
-      if (document.querySelector(TRAY_CHILD_FLOATING_SELECTOR)) return
-      event.preventDefault()
-      setToolsOpen(false)
-      toolTrayAnchorRef.current?.focus()
-    }
-    const closeOnPointerDown = (event: PointerEvent) => {
-      const target = event.target
-      // 点击托盘自身或其衍生的 portal 浮层（弹层菜单、diff/资源等对话框）时不收起托盘。
-      if (target instanceof Element && !target.closest(TRAY_FLOATING_SELECTOR)) setToolsOpen(false)
-    }
-    document.addEventListener('keydown', close)
-    document.addEventListener('pointerdown', closeOnPointerDown)
-    return () => {
-      document.removeEventListener('keydown', close)
-      document.removeEventListener('pointerdown', closeOnPointerDown)
-    }
-  }, [toolsOpen])
-
+  // 托盘里排队消息的“编辑”：撤回后合并回输入框（与已有草稿合并，不覆盖），焦点回到输入框。
   const withdrawQueuedInput = async (inputId: string) => {
     const restored = await onWithdrawQueuedInput?.(inputId)
     if (!restored || !restoreDraft(restored)) return
@@ -505,6 +406,11 @@ export const FocusSession = memo(function FocusSession({
     })
   }
 
+  // 托盘里的“取消”：只撤回这条排队消息，不放回输入框。
+  const cancelQueuedInput = async (inputId: string) => {
+    await onWithdrawQueuedInput?.(inputId)
+  }
+
   const applyWelcomeChip = (prompt: string) => {
     updateValue(prompt)
     requestAnimationFrame(() => {
@@ -515,121 +421,13 @@ export const FocusSession = memo(function FocusSession({
       element.style.height = `${Math.min(element.scrollHeight, 220)}px`
     })
   }
-  const composerToolLabels: Record<ComposerToolId, string> = {
-    attachment: t('chat:focusSession.addAttachment'),
-    resource: t('chat:resourcePicker.open'),
-    visual: t('chat:focusSession.generateImage'),
-    model: t('chat:focusSession.modelAndThinking'),
-    permission: t('chat:focusSession.approvalMode'),
-    'run-mode': t('chat:focusSession.executionMode'),
-    commands: t('chat:focusSession.commands'),
-    'compact-context': t('chat:focusSession.compactContextNow'),
-  }
-  const composerTools = {
-    attachment: <AttachmentPicker cwd={cwd} selection={selection} />,
-    resource: (
-      <button
-        type="button"
-        className="resource-picker-trigger grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
-        title={t('chat:resourcePicker.open')}
-        aria-label={t('chat:resourcePicker.open')}
-        onClick={() => setResourcePickerOpen(true)}
-      >
-        <Braces size={16} />
-      </button>
-    ),
-    visual: visualAvailable ? (
-      <VisualComposerEntry
-        notify={notify}
-        onOpenModelSettings={onOpenModelSettings}
-        onInsertPrompt={applyWelcomeChip}
-      />
-    ) : null,
-    model: (
-      <ModelThinkingControl
-        model={pendingRuntimeSelection?.model || model}
-        models={availableModels}
-        onModelChange={onModelChange}
-        thinkingLevel={pendingRuntimeSelection?.thinkingLevel || thinkingLevel || 'medium'}
-        levels={pendingRuntimeSelection?.model ? [] : availableThinkingLevels || []}
-        status={thinkingStatus}
-        message={thinkingMessage}
-        onThinkingChange={onThinkingLevelChange}
-        modelDisabled={switchingModel || switchingThinking}
-        thinkingDisabled={switchingThinking || switchingModel}
-        deferred={streaming}
-        pendingModel={Boolean(pendingRuntimeSelection?.model)}
-      />
-    ),
-    permission: (
-      <ExecutionModeSelect
-        showLabel
-        value={executionMode}
-        onChange={onExecutionModeChange}
-        disabled={switchingPermission}
-      />
-    ),
-    'run-mode': goalsAvailable ? (
-      <ExecutionModeControl
-        mode={composerExecutionMode}
-        goal={goal}
-        teamAvailable={teamAvailable}
-        disabled={streaming}
-        tokenBudget={composerExecutionMode === 'team' ? teamTokenBudget : goalTokenBudget}
-        onTokenBudgetChange={
-          composerExecutionMode === 'team' ? setTeamTokenBudget : setGoalTokenBudget
-        }
-        onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
-        onChange={changeExecutionMode}
-      />
-    ) : null,
-    commands: (
-      <button
-        type="button"
-        className="command-palette-trigger relative grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 [&_kbd]:sr-only"
-        title={
-          COMMAND_PALETTE_SHORTCUT
-            ? t('chat:focusSession.openCommandPaletteShortcut', {
-                shortcut: COMMAND_PALETTE_SHORTCUT,
-              })
-            : t('chat:focusSession.commands')
-        }
-        aria-label={
-          COMMAND_PALETTE_SHORTCUT
-            ? t('chat:focusSession.openCommandPaletteShortcut', {
-                shortcut: COMMAND_PALETTE_SHORTCUT,
-              })
-            : t('chat:focusSession.commands')
-        }
-        onClick={requestCommandPalette}
-      >
-        <Command size={16} />
-        <kbd>{COMMAND_PALETTE_SHORTCUT}</kbd>
-      </button>
-    ),
-    'compact-context': (
-      <CompactContextButton
-        streaming={streaming}
-        compactingManually={compactingManually}
-        compactionActive={Boolean(compaction?.active)}
-        disabled={
-          !onCompact ||
-          streaming ||
-          compactingManually ||
-          Boolean(compaction?.active) ||
-          messages.length === 0
-        }
-        onCompact={() => void compactContext()}
-      />
-    ),
-  }
-  const availableComposerToolIds = COMPOSER_TOOL_IDS.filter((id) => composerTools[id] !== null)
-  // Plan 是默认值时可退入「+」；切到 Goal/Team 或目标运行中必须常驻，否则手机上看不到生效的执行模式。
-  const runModeEngaged = composerExecutionMode !== 'plan' || goal?.status === 'active'
+  const attachmentChooser = useAttachmentChooser({ cwd, selection })
   const voiceInput = (
     <VoiceInputControl
       sessionId={session.id}
       shortcutEnabled={shortcutEnabled}
+      variant="menu"
+      controlRef={voiceControlRef}
       onLiveText={(text) => {
         if (text === null) {
           // 录音取消/失败：回滚到录音前的草稿。
@@ -654,98 +452,136 @@ export const FocusSession = memo(function FocusSession({
       }}
     />
   )
-  // 会话页运行中提示“↵ 排队 · ⌥↵ 插话”只在运行中、工具区放得下时出现（触屏另由样式隐藏）。
-  const runningHintVisible = Boolean(
-    deskPage && streaming && steerShortcut && toolbarCapacity >= 15.5,
-  )
-  const composerExtras = deskPage ? (
-    <>
-      <div
-        className="composer-toolbar-slot flex flex-none items-center"
-        data-composer-extra="voice"
-      >
-        {voiceInput}
-      </div>
-      {runningHintVisible && steerShortcut && (
-        <span
-          className="max-w-[240px] min-w-0 flex-none truncate px-1 text-xs text-content-muted pointer-coarse:hidden"
-          data-composer-hint
-          title={t('board:composer.runningHint', {
-            queue: SEND_SHORTCUT,
-            steer: formatShortcut(steerShortcut),
-          })}
+  const plusLabel = t('board:composer.plusMenu')
+  // 输入框“+”菜单（规格 v2 第 2.5 / 4.3 节）：附件、技能与工具、生成图片、语音输入（F8）；
+  // 手机运行中另有“插话发送”（触屏没有 ⌥↵）。原来可配置的工具条与“+”托盘退役，工具行固定为
+  // [+] [盾牌芯片] … [模型芯片] [发送]。
+  const plusMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            COMPOSER_ICON_KEY_CLASSES,
+            'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content',
+          )}
+          title={plusLabel}
+          aria-label={plusLabel}
+          data-composer-plus
         >
-          {t('board:composer.runningHint', {
-            queue: SEND_SHORTCUT,
-            steer: formatShortcut(steerShortcut),
-          })}
-        </span>
-      )}
-    </>
-  ) : null
-  const toolbarAllocation = allocateComposerToolbar(
-    toolbarLayout,
-    availableComposerToolIds,
-    // Respect the actual composer width; small layouts may move secondary settings into +.
-    // 会话页的语音键与运行中提示也占工具区：先扣掉它们，再按槽位分配其余工具。
-    Math.max(
-      toolbarCapacity - (deskPage ? 1 : 0) - (runningHintVisible ? 6 : 0),
-      mobileLayout ? 5 : 8.5,
-    ),
-    // 按 40px 槽位计：窄屏审批芯片约 70px、执行模式图标 48px，模型按「名称 · 思考等级」的理想宽度计。
-    mobileLayout
-      ? { permission: 1.75, 'run-mode': 1.2, model: 4.4 }
-      : { permission: 2.6, 'run-mode': 2, model: 3.9 },
-    // 手机上审批芯片与模型名必须可读，空间不足时先把未启用的执行模式收进「+」。
-    mobileLayout
-      ? runModeEngaged
-        ? ['permission', 'model', 'run-mode']
-        : ['permission', 'model']
-      : [],
+          <Plus size={18} aria-hidden="true" />
+          {selection.attachments.length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full border-2 border-panel bg-star px-0.5 text-[10px] leading-none font-medium text-on-accent tabular-nums">
+              {selection.attachments.length}
+            </span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="top"
+        className="min-w-56 p-1 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11 pointer-coarse:[&_[role=menuitem]]:min-h-11"
+        data-composer-plus-menu
+      >
+        {phonePage && streaming && (
+          <DropdownMenuItem
+            data-composer-steer
+            disabled={!value.trim() && !selection.attachments.length && !invocation}
+            onSelect={submitSteer}
+          >
+            <CornerDownRight aria-hidden="true" />
+            <span className="grid min-w-0">
+              <span>{t('board:composer.steerNow')}</span>
+              <span className="truncate text-xs text-content-muted">
+                {t('board:composer.steerHint')}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          data-composer-plus-item="attachment"
+          onSelect={() => void attachmentChooser.choose()}
+        >
+          <Paperclip aria-hidden="true" />
+          {t('chat:focusSession.addAttachment')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-composer-plus-item="resource"
+          onSelect={() => setResourcePickerOpen(true)}
+        >
+          <Braces aria-hidden="true" />
+          {t('chat:resourcePicker.open')}
+        </DropdownMenuItem>
+        {visualAvailable && (
+          <DropdownMenuItem
+            data-composer-plus-item="visual"
+            onSelect={() =>
+              void openVisualPromptEntry({
+                templatePrompt: t('chat:focusSession.visualPromptTemplate'),
+                configureHint: t('chat:focusSession.configureVisualModelFirst'),
+                notify,
+                onOpenModelSettings,
+                onInsertPrompt: applyWelcomeChip,
+              })
+            }
+          >
+            <ImagePlus aria-hidden="true" />
+            {t('chat:focusSession.generateImage')}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          data-composer-plus-item="voice"
+          onSelect={() => voiceControlRef.current?.()}
+        >
+          <Mic aria-hidden="true" />
+          {t('chat:voiceInput.open')}
+          {VOICE_SHORTCUT && <DropdownMenuShortcut>{VOICE_SHORTCUT}</DropdownMenuShortcut>}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
-  const renderComposerTool = (
-    id: ComposerToolId,
-    _index?: number,
-    list?: readonly ComposerToolId[],
-  ) => {
-    const slot = renderComposerSlot(id)
-    // 会话页工具条顺序（规格 4.3）：… 语音、运行中提示、模型胶囊、发送。语音与提示排在模型胶囊之前。
-    if (composerExtras && id === 'model' && list === toolbarAllocation.inline)
-      return (
-        <Fragment key={id}>
-          {composerExtras}
-          {slot}
-        </Fragment>
-      )
-    return slot
-  }
-  const renderComposerSlot = (id: ComposerToolId) => (
-    <div
-      className={cn(
-        'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
-        // 模型药丸占据余下空间并靠右贴近发送键。常驻时槽位按余下宽度成为尺寸容器：
-        // 放不下「名称 · 等级」先隐藏等级，再隐藏箭头，模型名始终保留（等级仍在弹层与无障碍名称里）。
-        id === 'model' &&
-          'ml-auto flex-1 justify-end [.composer-tool-tray_&]:ml-0 [.composer-tool-tray_&]:flex-none [.composer-tool-tray_&]:justify-start [&_.model-effort-pill]:max-w-full @max-[176px]/model-slot:[&_.model-effort-pill>span:nth-child(n+2)]:hidden @max-[124px]/model-slot:[&_.model-effort-pill>svg]:hidden',
-        id === 'model' && toolbarAllocation.inline.includes(id) && '@container/model-slot',
-        // 收纳区里整行是一个菜单项：统一悬停底色，图标不再各自带底，文字也可点击。
-        '[.composer-tool-tray_&]:cursor-pointer [.composer-tool-tray_&]:rounded-sm [.composer-tool-tray_&]:pr-2 [.composer-tool-tray_&]:hover:bg-surface-hover [.composer-tool-tray_&_button]:!bg-transparent [.composer-tool-tray_&]:has-[button:disabled]:cursor-default [.composer-tool-tray_&]:has-[button:disabled]:opacity-50 [.composer-tool-tray_&]:has-[button:disabled]:hover:bg-transparent',
-      )}
-      data-composer-tool-id={id}
-      key={id}
-      onClick={(event) => {
-        if (!event.currentTarget.closest('.composer-tool-tray')) return
-        if ((event.target as Element).closest('button, a, input, select, [role="button"]')) return
-        event.currentTarget.querySelector<HTMLButtonElement>('button:not(:disabled)')?.click()
-      }}
-    >
-      {composerTools[id]}
-      {!['model', 'permission', 'run-mode'].includes(id) && (
-        <span className="hidden text-[13px] text-content [.composer-tool-tray_&]:block">
-          {composerToolLabels[id]}
-        </span>
-      )}
-    </div>
+  const modeChip = (
+    <ComposerModeChip
+      approvalMode={executionMode}
+      onApprovalModeChange={onExecutionModeChange}
+      approvalDisabled={switchingPermission}
+      runMode={composerExecutionMode}
+      onRunModeChange={changeExecutionMode}
+      runModeDisabled={Boolean(streaming)}
+      goalsAvailable={goalsAvailable}
+      teamAvailable={teamAvailable}
+      goal={goal}
+      tokenBudget={composerExecutionMode === 'team' ? teamTokenBudget : goalTokenBudget}
+      onTokenBudgetChange={
+        composerExecutionMode === 'team' ? setTeamTokenBudget : setGoalTokenBudget
+      }
+      onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
+    />
+  )
+  const modelChip = (
+    <ModelThinkingControl
+      model={pendingRuntimeSelection?.model || model}
+      models={availableModels}
+      onModelChange={onModelChange}
+      thinkingLevel={pendingRuntimeSelection?.thinkingLevel || thinkingLevel || 'medium'}
+      levels={pendingRuntimeSelection?.model ? [] : availableThinkingLevels || []}
+      status={thinkingStatus}
+      message={thinkingMessage}
+      onThinkingChange={onThinkingLevelChange}
+      modelDisabled={switchingModel || switchingThinking}
+      thinkingDisabled={switchingThinking || switchingModel}
+      deferred={streaming}
+      pendingModel={Boolean(pendingRuntimeSelection?.model)}
+      usage={
+        <ContextUsageSection
+          usage={contextUsage}
+          sessionUsage={sessionUsage}
+          model={model}
+          availableModels={availableModels}
+          onThresholdChange={onCompactionThresholdChange}
+        />
+      }
+    />
   )
   const workspaceBlock = (
     <button
@@ -982,85 +818,6 @@ export const FocusSession = memo(function FocusSession({
       collapseEarlierTurns={phonePage}
     />
   )
-  const toolsBlock = (
-    <div
-      ref={toolbarRef}
-      className="focus-composer-quick-actions flex min-w-0 flex-1 items-center gap-1"
-    >
-      <button
-        ref={toolTrayAnchorRef}
-        type="button"
-        className={`composer-tools-trigger grid size-[30px] min-w-[30px] flex-none cursor-pointer place-items-center rounded-sm border border-stroke bg-transparent text-content-secondary transition-colors hover:bg-surface-hover hover:text-content max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-md max-[650px]:border-transparent pointer-coarse:size-11 pointer-coarse:min-w-11 ${toolsOpen ? 'active bg-surface-hover text-content' : ''}`}
-        title={quickActionsLabel}
-        aria-label={quickActionsLabel}
-        aria-expanded={toolsOpen}
-        aria-controls={toolTrayId}
-        onClick={() => setToolsOpen((open) => !open)}
-      >
-        {toolsOpen ? <X size={17} /> : <Plus size={18} />}
-      </button>
-      <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-1">
-        {toolbarAllocation.inline.map(renderComposerTool)}
-        {composerExtras && !toolbarAllocation.inline.includes('model') && composerExtras}
-      </div>
-      <ComposerToolTray
-        placement="top"
-        open={toolsOpen}
-        label={t('chat:focusSession.quickActions')}
-        trayId={toolTrayId}
-        anchorRef={toolTrayAnchorRef}
-        menuRef={toolTrayMenuRef}
-      >
-        {phonePage && streaming && (
-          <button
-            type="button"
-            data-composer-steer
-            className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-sm pr-2 text-left text-[13px] text-content hover:bg-surface-hover disabled:cursor-default disabled:opacity-50"
-            disabled={!value.trim() && !selection.attachments.length && !invocation}
-            onClick={() => {
-              setToolsOpen(false)
-              submitSteer()
-            }}
-          >
-            <span className="grid size-11 shrink-0 place-items-center text-content-muted">
-              <CornerDownRight size={16} aria-hidden="true" />
-            </span>
-            <span className="grid min-w-0">
-              <span>{t('board:composer.steerNow')}</span>
-              <span className="truncate text-xs text-content-muted">
-                {t('board:composer.steerHint')}
-              </span>
-            </span>
-          </button>
-        )}
-        {toolbarAllocation.overflow.map(renderComposerTool)}
-        <button
-          type="button"
-          className="flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-sm pr-2 text-[13px] text-content hover:bg-surface-hover max-[650px]:h-11 pointer-coarse:h-11"
-          aria-expanded={detailsOpen}
-          onClick={() => {
-            setDetailsOpen((open) => !open)
-            setToolsOpen(false)
-          }}
-        >
-          <span className="grid size-[30px] shrink-0 place-items-center text-content-muted max-[650px]:size-11 pointer-coarse:size-11">
-            <Gauge size={16} />
-          </span>
-          {detailsOpen ? t('chat:focusSession.hideDetails') : t('chat:focusSession.details')}
-        </button>
-        <div className="w-full border-t border-stroke-soft pt-1">
-          <ComposerToolbarSettings labels={composerToolLabels} labeled />
-        </div>
-      </ComposerToolTray>
-    </div>
-  )
-  const usageBlock = (
-    <SessionUsageMetrics
-      usage={sessionUsage}
-      plan={plansAvailable ? plan : null}
-      compact={mobileLayout}
-    />
-  )
   const showAttachmentDrop = (event: DragEvent<HTMLDivElement>) => {
     if (!isFileDrag(event.dataTransfer)) return false
     event.preventDefault()
@@ -1093,19 +850,13 @@ export const FocusSession = memo(function FocusSession({
         void submit(event, pageChrome ? behavior : 'steer')
       }}
     >
+      {/* 内联批准卡与输入框同宽（规格 v2 第 4.2 节）：一屏只突出当前要处理的一张。 */}
       <ToolApproval
         approvals={approvals}
         onResolve={onApproval}
         sessionTitle={session.name || session.id}
         cwd={cwd || ''}
       />
-      {queuedInputs.length > 0 && (
-        <QueuedInputsTray
-          queuedInputs={queuedInputs}
-          withdrawingInputIds={withdrawingInputIds}
-          onWithdraw={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
-        />
-      )}
       {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
       {invocation && (
         <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />
@@ -1120,168 +871,171 @@ export const FocusSession = memo(function FocusSession({
           className="w-full"
         />
       )}
-      {/* 输入卡片：控件级描边（≥3:1）+ 输入时焦点描边与 3px 焦点环；运行条集成在卡片顶部。 */}
-      <div
-        className={cn(
-          'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-panel shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-2xl [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
-          attachmentDropActive && 'border-focus ring-3 ring-focus-ring',
-        )}
-        onDragEnter={showAttachmentDrop}
-        onDragOver={showAttachmentDrop}
-        onDragLeave={hideAttachmentDrop}
-        onDrop={(event) => {
-          setAttachmentDropActive(false)
-          selection.dropFiles(event)
-        }}
-      >
-        {attachmentDropActive && (
-          <div
-            role="status"
-            className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] border border-dashed border-focus bg-panel px-4 text-center text-sm text-content"
-          >
-            {t('chat:focusSession.dropAttachment')}
-          </div>
-        )}
-        <ComposerStatusPill
-          compaction={compaction}
+      <div className="flex min-w-0 flex-col">
+        <ComposerTray
           streaming={streaming}
-          statusLabel={composerStatusLabel}
+          compaction={compaction}
           startedAt={runStartedAt}
-          activity={currentActivity}
           stopping={stopping}
           onStop={() => void stop()}
-          metrics={runMetrics}
+          queuedInputs={queuedInputs}
+          withdrawingInputIds={withdrawingInputIds}
+          onEdit={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
+          onCancel={onWithdrawQueuedInput ? cancelQueuedInput : undefined}
         />
-        <AttachmentTray
-          attachments={selection.attachments}
-          preparing={selection.preparingAttachments}
-          onRemove={selection.removeAttachment}
-        />
-        <ComposerCommandMenu
-          placement="top"
-          sessionId={session.id}
-          value={value}
-          onChange={updateValue}
-          inputRef={promptRef}
-        />
-        <textarea
-          ref={promptRef}
-          rows={1}
-          aria-label={t('chat:focusSession.taskDescription')}
-          value={value}
-          onChange={(event) => {
-            updateValue(event.target.value)
-            event.currentTarget.style.height = 'auto'
-            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+        {/* 输入卡片：圆角 22（守卫）+ 控件级描边（≥3:1），输入时焦点描边与 3px 焦点环。 */}
+        <div
+          className={cn(
+            'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-2xl [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
+            attachmentDropActive && 'border-focus ring-3 ring-focus-ring',
+          )}
+          onDragEnter={showAttachmentDrop}
+          onDragOver={showAttachmentDrop}
+          onDragLeave={hideAttachmentDrop}
+          onDrop={(event) => {
+            setAttachmentDropActive(false)
+            selection.dropFiles(event)
           }}
-          onPaste={selection.pasteFiles}
-          onCompositionStart={() => (imeComposingRef.current = true)}
-          onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
-          onKeyDown={(event) => {
-            // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
-            const composing = event.nativeEvent.isComposing || imeComposingRef.current
-            // 会话页运行中 ⌥↵：插话（steer），代理在下一步就读到；普通 ↵ 仍走发送绑定 → 排队（followUp）。
-            if (
-              pageChrome &&
-              streaming &&
-              !composing &&
-              steerShortcut &&
-              matchesShortcut(event.nativeEvent, steerShortcut)
-            ) {
-              event.preventDefault()
-              runningBehaviorRef.current = 'steer'
-              event.currentTarget.form?.requestSubmit()
-              return
-            }
-            if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            }
-            // 运行条提示「Esc 停止」：输入框内按 Esc 中断当前运行；命令菜单等已处理的 Esc 不再重复响应，
-            // 工具托盘打开时 Esc 只收起托盘（托盘监听在 document 上，晚于这里触发）。
-            // 会话页由页面级监听统一处理（先关浮层、再停止），这里不重复。
-            if (
-              !pageChrome &&
-              streaming &&
-              !composing &&
-              !toolsOpen &&
-              event.key === 'Escape' &&
-              !event.defaultPrevented
-            ) {
-              event.preventDefault()
-              void stop()
-            }
-          }}
-          data-mobile-composer-input={mobileLayout || undefined}
-          enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
-          placeholder={composerPlaceholder}
-        />
-        <div className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:px-1.5 max-[650px]:pb-1.5">
-          {toolsBlock}
-          <ComposerSendButton
-            streaming={streaming}
-            queueing={queueing}
-            submitting={submitting}
-            stopping={stopping}
-            preparing={selection.preparingAttachments.length > 0}
-            hasDraft={Boolean(value.trim() || selection.attachments.length || invocation)}
-            canQueue={Boolean(onQueue)}
-            blockedReason={
-              !streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)
-                ? t('chat:focusSession.waitingForModel')
-                : undefined
-            }
-            disabled={
-              !streaming &&
-              (Boolean(pendingRuntimeSelection) ||
-                switchingModel ||
-                switchingThinking ||
-                queueing ||
-                (!value.trim() && !selection.attachments.length && !invocation))
-            }
-            onLongPress={phonePage && streaming ? submitSteer : undefined}
-            longPressHint={t('board:composer.longPressSteer')}
-          />
-        </div>
-      </div>
-      <div
-        className={cn(
-          'composer-details flex min-h-9 min-w-0 flex-wrap items-center gap-2 px-2 py-1 text-xs text-content-muted',
-          !detailsOpen && '!hidden',
-        )}
-      >
-        {hasConversation && usageBlock}
-        <button
-          type="button"
-          className="grid size-7 cursor-pointer place-items-center rounded-sm hover:bg-surface-hover hover:text-content max-[650px]:size-11 pointer-coarse:size-11"
-          aria-label={t('chat:focusSession.hideDetails')}
-          onClick={() => setDetailsOpen(false)}
         >
-          <X size={14} />
-        </button>
-        <div className="ml-auto flex items-center gap-1">
-          <div className="focus-composer-secondary flex h-8 min-w-0 flex-none items-center justify-end">
-            <ContextUsageIndicator
-              usage={contextUsage}
-              sessionUsage={sessionUsage}
-              model={model}
-              availableModels={availableModels}
-              onThresholdChange={onCompactionThresholdChange}
-              compact
+          {attachmentDropActive && (
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] border border-dashed border-focus bg-panel px-4 text-center text-sm text-content"
+            >
+              {t('chat:focusSession.dropAttachment')}
+            </div>
+          )}
+          <AttachmentTray
+            attachments={selection.attachments}
+            preparing={selection.preparingAttachments}
+            onRemove={selection.removeAttachment}
+          />
+          <ComposerCommandMenu
+            placement="top"
+            sessionId={session.id}
+            value={value}
+            onChange={updateValue}
+            inputRef={promptRef}
+          />
+          <textarea
+            ref={promptRef}
+            rows={1}
+            aria-label={t('chat:focusSession.taskDescription')}
+            value={value}
+            onChange={(event) => {
+              updateValue(event.target.value)
+              event.currentTarget.style.height = 'auto'
+              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+            }}
+            onPaste={selection.pasteFiles}
+            onCompositionStart={() => (imeComposingRef.current = true)}
+            onCompositionEnd={() => window.setTimeout(() => (imeComposingRef.current = false), 0)}
+            onKeyDown={(event) => {
+              // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
+              const composing = event.nativeEvent.isComposing || imeComposingRef.current
+              // 会话页运行中 ⌥↵：插话（steer），代理在下一步就读到；普通 ↵ 仍走发送绑定 → 排队（followUp）。
+              if (
+                pageChrome &&
+                streaming &&
+                !composing &&
+                steerShortcut &&
+                matchesShortcut(event.nativeEvent, steerShortcut)
+              ) {
+                event.preventDefault()
+                runningBehaviorRef.current = 'steer'
+                event.currentTarget.form?.requestSubmit()
+                return
+              }
+              // ⇧Tab：在 Plan / Goal / Team 之间切换执行方式（规格 v2 第 2.8 节）。运行中、只有 Plan
+              // 可用或带其他修饰键时不拦截，⇧Tab 照常把焦点移到上一个控件。
+              if (
+                event.key === 'Tab' &&
+                event.shiftKey &&
+                !event.altKey &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !composing &&
+                !streaming
+              ) {
+                const nextMode = nextComposerRunMode(composerExecutionMode, {
+                  goalsAvailable,
+                  teamAvailable,
+                })
+                if (nextMode) {
+                  event.preventDefault()
+                  changeExecutionMode(nextMode)
+                  setModeAnnouncement(
+                    nextMode === 'team'
+                      ? t('chat:focusSession.teamMode')
+                      : nextMode === 'goal'
+                        ? t('chat:focusSession.goalMode')
+                        : t('chat:focusSession.planMode'),
+                  )
+                  return
+                }
+              }
+              if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+              // 托盘写着「停止 Esc」：输入框内按 Esc 中断当前运行；命令菜单等已处理的 Esc 不再重复响应。
+              // 会话页由页面级监听统一处理（先关浮层、再停止），这里不重复。
+              if (
+                !pageChrome &&
+                streaming &&
+                !composing &&
+                event.key === 'Escape' &&
+                !event.defaultPrevented
+              ) {
+                event.preventDefault()
+                void stop()
+              }
+            }}
+            data-mobile-composer-input={mobileLayout || undefined}
+            enterKeyHint={mobileLayout && shortcuts.sendMessage === 'Enter' ? 'send' : 'enter'}
+            placeholder={composerPlaceholder}
+          />
+          <span role="status" className="sr-only">
+            {modeAnnouncement}
+          </span>
+          {/* 工具行（规格 v2 第 4.3 节）：[+] [盾牌芯片] … [模型芯片] [发送]。 */}
+          <div
+            className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:px-1.5 max-[650px]:pb-1.5"
+            data-composer-toolbar
+          >
+            {plusMenu}
+            {attachmentChooser.input}
+            {modeChip}
+            <span className="min-w-0 flex-1" />
+            {voiceInput}
+            <div className="flex min-w-0 shrink items-center [&_.model-effort-pill]:max-w-full @max-[300px]/composer-footer:[&_.model-effort-pill>span:nth-child(n+2)]:hidden">
+              {modelChip}
+            </div>
+            <ComposerSendButton
+              streaming={streaming}
+              queueing={queueing}
+              submitting={submitting}
+              stopping={stopping}
+              preparing={selection.preparingAttachments.length > 0}
+              hasDraft={Boolean(value.trim() || selection.attachments.length || invocation)}
+              canQueue={Boolean(onQueue)}
+              blockedReason={
+                !streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)
+                  ? t('chat:focusSession.waitingForModel')
+                  : undefined
+              }
+              disabled={
+                !streaming &&
+                (Boolean(pendingRuntimeSelection) ||
+                  switchingModel ||
+                  switchingThinking ||
+                  queueing ||
+                  (!value.trim() && !selection.attachments.length && !invocation))
+              }
+              onLongPress={phonePage && streaming ? submitSteer : undefined}
+              longPressHint={t('board:composer.longPressSteer')}
             />
           </div>
-          <>
-            <button
-              type="button"
-              className="grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm text-content-muted transition-colors hover:bg-surface-hover hover:text-content max-[650px]:size-11 pointer-coarse:size-11"
-              title={t('chat:voiceMode.open')}
-              aria-label={t('chat:voiceMode.open')}
-              onClick={() => setVoiceModeOpen(true)}
-            >
-              <AudioLines size={17} />
-            </button>
-            {!deskPage && voiceInput}
-          </>
         </div>
       </div>
       {!hasConversation && !streaming && (

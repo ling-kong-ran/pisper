@@ -43,7 +43,6 @@ export const SessionInspectorContext = createContext<SessionInspectorControl | n
 // 所以只挂在最新一条回复上；历史回复没有逐条记录，不拿当前值冒充。没有值（手机外壳、旧入口）时保持原来的抬头。
 export type TranscriptMeta = {
   model: string
-  approvalMode: string
 }
 
 export const TranscriptMetaContext = createContext<TranscriptMeta | null>(null)

@@ -197,25 +197,27 @@ test('chat resource picker remains visible above dock splits with a readable pri
   assert.match(picker, /chat-resource-list[^"\n]*\[flex:1_1_0\][^"\n]*overflow-y-auto/)
   assert.match(picker, /chat-resource-list[^"\n]*\[touch-action:pan-y\]/)
   assert.match(picker, /chat-resource-tabs[^"\n]*data-state='active'/)
-  assert.match(focusSession, /onClick=\{\(\) => setResourcePickerOpen\(true\)\}/)
+  // 资源选择在输入框“+”菜单里（规格 v2 第 2.5 节），运行中同样可用。
+  assert.match(
+    focusSession,
+    /data-composer-plus-item="resource"\s+onSelect=\{\(\) => setResourcePickerOpen\(true\)\}/,
+  )
   assert.doesNotMatch(
-    focusSession.match(/className="resource-picker-trigger"[\s\S]*?<\/button>/)?.[0] || '',
-    /disabled=\{streaming\}/,
+    focusSession.match(/data-composer-plus-item="resource"[\s\S]*?<\/DropdownMenuItem>/)?.[0] || '',
+    /disabled=/,
   )
 })
 
-test('mobile chat sends with Enter and responsively overflows Composer tools', async () => {
-  const [dock, focusSession, toolTray, capacity, pageHeader, zhChat, enChat] = await Promise.all([
+test('mobile chat sends with Enter and keeps the fixed composer toolbar on touch', async () => {
+  const [dock, focusSession, pageHeader, zhBoard, enBoard] = await Promise.all([
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
-    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
-    readFile('src/locales/zh-CN/chat.json', 'utf8'),
-    readFile('src/locales/en-US/chat.json', 'utf8'),
+    readFile('src/locales/zh-CN/board.json', 'utf8'),
+    readFile('src/locales/en-US/board.json', 'utf8'),
   ])
-  const zh = JSON.parse(zhChat)
-  const en = JSON.parse(enChat)
+  const zh = JSON.parse(zhBoard)
+  const en = JSON.parse(enBoard)
 
   assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
   assert.doesNotMatch(dock, /disabled: compactDock/)
@@ -233,21 +235,15 @@ test('mobile chat sends with Enter and responsively overflows Composer tools', a
     focusSession,
     /enterKeyHint=\{\s*mobileLayout && shortcuts\.sendMessage === 'Enter' \? 'send' : 'enter'\s*\}/,
   )
-  assert.match(focusSession, /const composerPlaceholder = mobileLayout/)
+  // 触屏运行中的占位文字不写键位（没有 ⌥）：点发送排队、长按发送插话（规格 7.2）。
+  assert.match(focusSession, /\? mobileLayout\s*\? t\('board:composer\.placeholderRunningTouch'\)/)
   assert.match(focusSession, /data-mobile-composer-input=\{mobileLayout \|\| undefined\}/)
-  assert.match(focusSession, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
-  assert.match(focusSession, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
-  assert.match(focusSession, /<ComposerToolTray[\s\S]*?anchorRef={toolTrayAnchorRef}/)
-  assert.match(capacity, /new ResizeObserver\(scheduleUpdate\)/)
-  assert.match(toolTray, /<AnchoredPopupMenu/)
-  assert.match(toolTray, /placement = 'top'/)
-  assert.match(toolTray, /placement=\{placement\}/)
-  assert.match(toolTray, /flex-col items-stretch/)
-  assert.doesNotMatch(toolTray, /AnimatedContent|AnimatedList|overflow-x-auto/)
+  // 工具行固定（[+] 盾牌 模型 发送），不再按宽度把工具挪进收纳区；手机上同样是 44px 触控目标。
+  assert.doesNotMatch(focusSession, /toolbarAllocation|ComposerToolTray|useComposerToolbarCapacity/)
+  assert.match(focusSession, /onLongPress=\{phonePage && streaming \? submitSteer : undefined\}/)
   assert.match(pageHeader, /page === 'chat'[\s\S]*?!min-h-12[\s\S]*?max-\[650px\]:!flex-nowrap/)
-  // 描述实际不可见由工作台 UI 用例验证，不绑定 Tailwind 条件表达式。
-  assert.doesNotMatch(zh['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
-  assert.doesNotMatch(en['focusSession.writeWhatYouWantToAccomplish'], /Shift|Enter/)
+  assert.doesNotMatch(zh['composer.placeholderRunningTouch'], /Shift|Enter|Alt|⌥/)
+  assert.doesNotMatch(en['composer.placeholderRunningTouch'], /Shift|Enter|Alt|⌥/)
 })
 
 test('chat Composer discovers Runtime Slash commands without exposing templates to the client', async () => {

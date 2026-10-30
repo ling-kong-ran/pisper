@@ -14,7 +14,7 @@ import {
 } from '../../src/features/chat/composer-drafts.ts'
 import { createStreamEventDispatcher } from '../../src/features/chat/stream-event-dispatch.ts'
 import { reconcileLiveSnapshot } from '../../src/features/chat/use-live-session-sync.ts'
-import { QueuedInputsTray } from '../../src/features/chat/focus-session-composer-bits.tsx'
+import { ComposerTray } from '../../src/features/chat/focus-session-composer-bits.tsx'
 import { TooltipProvider } from '../../src/components/ui/tooltip.tsx'
 
 const promptCode = transformSync(
@@ -576,7 +576,8 @@ test('unmounted composers retain a late successful withdrawal for reopening', ()
   assert.equal(composer.readComposerDraft('closed').text, 'retained draft\nreturned message')
 })
 
-test('queue SSR exposes all rows with labelled Undo controls and disables only pending or legacy items', () => {
+// 规格 v2 第 4.3 节：排队消息在输入框上方的托盘里，一行一条，编辑（撤回并放回输入框）与取消（只撤回）。
+test('queue SSR exposes all rows with labelled edit / cancel controls and disables only pending or legacy items', () => {
   const queuedInputs = Array.from({ length: 7 }, (_, index) => ({
     id: `item-${index}`,
     text: `queued ${index} ${'x'.repeat(150)}`,
@@ -586,22 +587,25 @@ test('queue SSR exposes all rows with labelled Undo controls and disables only p
     createElement(
       TooltipProvider,
       null,
-      createElement(QueuedInputsTray, {
+      createElement(ComposerTray, {
         queuedInputs,
         withdrawingInputIds: ['item-1'],
-        onWithdraw() {},
+        onEdit() {},
+        onCancel() {},
       }),
     ),
   )
   assert.equal((html.match(/<li\b/g) || []).length, 8)
-  assert.equal((html.match(/<button\b/g) || []).length, 8)
-  assert.equal((html.match(/lucide-undo-2/g) || []).length, 8)
-  assert.equal((html.match(/disabled=""/g) || []).length, 2)
+  assert.equal((html.match(/<button\b/g) || []).length, 16)
+  assert.equal((html.match(/lucide-pencil/g) || []).length, 8)
+  assert.equal((html.match(/lucide-x/g) || []).length, 8)
+  // 正在撤回的一条与没有 id 的旧消息：编辑、取消都禁用。
+  assert.equal((html.match(/disabled=""/g) || []).length, 4)
   assert.equal((html.match(/aria-busy="true"/g) || []).length, 1)
-  assert.equal((html.match(/aria-label=/g) || []).length, 9)
+  // 每个键都有名字，列表本身也有名字。
+  assert.equal((html.match(/aria-label=/g) || []).length, 17)
   assert.match(html, /overflow-y-auto/)
   assert.match(html, /overflow-wrap:anywhere/)
-  assert.match(html, /grid-cols-\[minmax\(0,1fr\)_auto\]/)
   assert.match(html, /queued 0/)
   assert.match(html, /queued 6/)
 })

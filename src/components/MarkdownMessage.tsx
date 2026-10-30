@@ -214,7 +214,11 @@ function MarkdownCopyButton({ source }: { source: string }) {
       type="button"
       variant="ghost"
       size="icon-sm"
-      className="size-[26px] text-[var(--code-toolbar-text)] hover:bg-surface-hover hover:text-foreground max-[650px]:size-11 pointer-coarse:size-11"
+      // 复制键只在悬停代码块或键盘聚焦时出现（规格 v2 第 4.2 节）；触屏与窄屏常显，复制成功的勾留到复位。
+      className={cn(
+        'size-[26px] text-[var(--code-toolbar-text)] opacity-0 transition-opacity duration-(--d-fast) hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 [[data-streamdown=code-block]:hover_&]:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:size-11 max-[650px]:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100',
+        copied && 'opacity-100',
+      )}
       data-streamdown="code-block-copy-button"
       onClick={copy}
       aria-label={label}

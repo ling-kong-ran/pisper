@@ -355,15 +355,11 @@ test('the chat composer exposes the global command palette shortcut', async () =
 
   assert.match(events, /COMMAND_PALETTE_REQUESTED_EVENT/)
   assert.match(app, /addEventListener\(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette\)/)
-  assert.match(focus, /className="command-palette-trigger[^"\n]*"/)
-  assert.match(focus, /onClick=\{requestCommandPalette\}/)
-  assert.match(focus, /<kbd>\{COMMAND_PALETTE_SHORTCUT\}<\/kbd>/)
-  assert.match(focus, /command-palette-trigger[^"\n]*\[&_kbd\]:sr-only/)
-  assert.equal(
-    english['focusSession.openCommandPaletteShortcut'],
-    'Open command palette ({shortcut})',
-  )
-  assert.equal(chinese['focusSession.openCommandPaletteShortcut'], '打开命令面板（{shortcut}）')
+  // 规格 v2 第 4.3 节：输入框工具行固定为 + · 盾牌 · 模型 · 发送，不再放命令面板键；
+  // 命令面板仍由侧栏“搜索”、⌘K 与 requestCommandPalette 事件打开，输入框里用 / 调用命令。
+  assert.doesNotMatch(focus, /command-palette-trigger|requestCommandPalette/)
+  assert.equal(english['focusSession.openCommandPaletteShortcut'], undefined)
+  assert.equal(chinese['focusSession.openCommandPaletteShortcut'], undefined)
 })
 
 test('the git changes badge uses the theme-aware contrasting text color', async () => {

@@ -20,10 +20,8 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(defaults, /sessionUsage: null/)
   assert.match(dock, /sessionUsage=\{state\.sessionUsage\}/)
   assert.match(dock, /loadThinkingLevel/)
-  assert.match(
-    focus,
-    /<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>/,
-  )
+  // 用量在模型芯片弹层的用量段里（规格 v2 第 2.5 节），按会话取自 sessionUsage。
+  assert.match(focus, /<ContextUsageSection[\s\S]*?sessionUsage=\{sessionUsage\}[\s\S]*?\/>/)
   assert.match(focus, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.match(dispatch, /event === 'session_usage'/)
   assert.match(dispatch, /sessionUsage: data/)
@@ -31,36 +29,31 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? latest\.sessionUsage \?\? null/)
 })
 
-test('composer renders unframed metrics in a collapsible row without unmounting voice controls', async () => {
+// 规格 v2 第 2.5 / 4.3 节：输入框下方的详情行（用量读数、计划读数、语音模式键）退役。
+// 上下文用量、本会话 tok 与缓存命中进模型芯片弹层；计划进度在顶栏下方；语音模式在标题菜单；
+// 语音输入在“+”菜单（录音中的状态键仍挂在工具行，F8 照常）。
+test('model chip popover carries usage readings and voice controls stay mounted in the toolbar', async () => {
   const [focus, controls, css] = await Promise.all([
     source('../../src/features/chat/FocusSession.tsx'),
     source('../../src/features/chat/FocusRuntimeControls.tsx'),
     source('../../src/index.css'),
   ])
-
+  assert.match(focus, /usage=\{\s*<ContextUsageSection[\s\S]*?usage=\{contextUsage\}/)
+  assert.match(controls, /data-usage-row=\{key\}/)
+  assert.match(controls, /t\('board:composer\.contextUsage'\)/)
+  assert.match(controls, /t\('board:composer\.sessionTokens'\)/)
+  assert.match(controls, /t\('board:composer\.cacheHitLabel'\)/)
+  // 缓存命中未上报时写“—”并说明原因，不拿 0 冒充。
   assert.match(
-    focus,
-    /header-workspace[\s\S]*<SessionUsageMetrics[\s\S]*?usage=\{sessionUsage\}[\s\S]*?plan=\{plansAvailable \? plan : null\}[\s\S]*?compact=\{mobileLayout\}[\s\S]*?\/>[\s\S]*<\/form>/,
+    controls,
+    /cacheRateKnown \? `\$\{Math\.round\(Math\.max\(0, cacheHitRate\)\)\}%` : '—'/,
   )
-  assert.match(controls, /cacheHitRate/)
-  assert.match(controls, /usage\?\.processedTokens/)
-  assert.match(controls, /formatTokenCount\(processedTokens\)/)
-  assert.match(controls, /formatTokenCount\(usage\?\.reasoning\)/)
-  assert.match(controls, /completedPlanItems/)
-  assert.match(controls, /chat:planBoard\.progress/)
-  assert.match(controls, /className="session-plan-progress[^"\n]*"/)
-  assert.match(controls, /chat:planBoard\.openCurrentPlan/)
-  assert.match(controls, /<PopoverTrigger asChild>/)
-  assert.match(controls, /<PlanBoard plan=\{plan \?\? null\} \/>/)
-  assert.match(controls, /session-usage-metrics[^"\n]*justify-start/)
-  const metricsRow = focus.match(/composer-details flex min-h-9[^'\n]*/)?.[0] || ''
-  assert.ok(metricsRow)
-  assert.match(focus, /hasConversation && usageBlock/)
-  assert.doesNotMatch(focus, /ChatCanvasSlot/)
-  assert.doesNotMatch(metricsRow, /border|bg-|shadow/)
-  assert.match(focus, /detailsOpen, setDetailsOpen\] = useState\(false\)/)
-  assert.match(focus, /!detailsOpen && '!hidden'/)
-  assert.match(focus, /<VoiceInputControl/)
-  assert.match(controls, /session-plan-popover[^"\n]*max-h-/)
+  assert.match(controls, /chat:focusSession\.cacheHitRateUnavailable/)
+  assert.match(controls, /formatTokenCount\(sessionUsage\?\.reasoning\)/)
+  assert.match(controls, /\{usage\}\s*<\/PopoverContent>/)
+  // 详情行与语音模式键退役；语音输入组件常驻工具行（menu 形态），录音状态不会因菜单关闭而卸载。
+  assert.doesNotMatch(focus, /composer-details|detailsOpen|usageBlock|AudioLines/)
+  assert.match(focus, /\{voiceInput\}\s*<div className="flex min-w-0 shrink items-center/)
+  assert.match(focus, /onVoiceMode: \(\) => setVoiceModeOpen\(true\)/)
   assert.doesNotMatch(css, /\.session-usage-metrics|\.focus-composer-meta|\.header-workspace/)
 })

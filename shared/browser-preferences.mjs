@@ -8,8 +8,9 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper-session-context-layout',
   // 会话页检查器：开关、当前标签、宽度与改动 / 终端子视图（规格 4.4）。
   'pisper-session-inspector',
+  // 输入框工具条的自定义布局已随方向 A 的固定工具行退役（不再有读写方）。两个键仍留在白名单里：
+  // 旧快照带着它们时解析会因未知键整体失败，移除会让其他偏好也恢复不了。
   'pisper-composer-toolbar',
-  // 旧键保留在恢复白名单中，输入栏 Store 首次读取时迁到新名称。
   'pisper-zcode-composer-toolbar',
   'pisper-workspace-order',
   // 登记的项目（空项目）：经“新建项目…”选过、可能还没有会话的目录列表，与会话目录按工作区键合并。

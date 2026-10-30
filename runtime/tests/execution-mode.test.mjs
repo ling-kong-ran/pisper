@@ -77,13 +77,14 @@ test('approval-required execution exposes low-risk and approval-gated tools', ()
 })
 
 test('React exposes approval-required, workspace-write, and full-access execution modes', async () => {
+  // 审批模式在输入框的盾牌芯片里（规格 v2 第 2.5 节，ComposerModeChip）。
   const [session, controls, commands, schedules] = await Promise.all([
     readFile(new URL('../../src/features/chat/FocusSession.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/chat/FocusRuntimeControls.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/chat/ComposerModeChip.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/chat/use-session-commands.ts', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/schedules/SchedulesPage.tsx', import.meta.url), 'utf8'),
   ])
-  assert.match(session, /<ExecutionModeSelect[\s\S]*?disabled=\{switchingPermission\}/)
+  assert.match(session, /<ComposerModeChip[\s\S]*?approvalDisabled=\{switchingPermission\}/)
   assert.doesNotMatch(session, /disabled=\{streaming \|\| switchingPermission\}/)
   assert.match(controls, /'approval-required'/)
   assert.match(controls, /focusSession.approvalRequired/)

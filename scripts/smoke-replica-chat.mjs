@@ -125,13 +125,29 @@ try {
   await page.locator('.send-button').click()
   await page.waitForFunction(() => window.replicaChat.evidence.queues === 1)
   await page.waitForFunction(() => document.querySelector('.focus-composer textarea').value === '')
-  // 停止只在运行条上；发送键运行中没有草稿时不可用。
+  // 停止只在输入框上方的托盘里；发送键运行中没有草稿时不可用。
   assert.equal(await page.locator('.send-button').isDisabled(), true)
-  await page.locator('.focus-composer-status button').click()
+  await page.locator('[data-composer-tray] [data-run-stop]').click()
   await page.waitForFunction(() => window.replicaChat.evidence.aborts === 1)
   assert.equal(await page.locator('.send-button').getAttribute('aria-busy'), 'true')
   await page.evaluate(() => window.settleAbort())
-  const copy = page.locator('[data-pisper-message-id="agent"] .message-actions button').first()
+  // 回复下方的操作只在悬停或聚焦这条回复时出现（规格 v2 第 4.2 节）。
+  const replyActions = page.locator('[data-pisper-message-id="agent"] [data-reply-actions]')
+  await page.mouse.move(2, 2)
+  await page.waitForFunction(
+    () =>
+      getComputedStyle(
+        document.querySelector('[data-pisper-message-id="agent"] [data-reply-actions]'),
+      ).opacity === '0',
+  )
+  await page.locator('[data-pisper-message-id="agent"] .markdown-body').hover()
+  await page.waitForFunction(
+    () =>
+      getComputedStyle(
+        document.querySelector('[data-pisper-message-id="agent"] [data-reply-actions]'),
+      ).opacity === '1',
+  )
+  const copy = replyActions.locator('button').first()
   await copy.click()
   await copy.dispatchEvent('click')
   assert.equal(await page.evaluate(() => window.clipboardEvidence.count), 1)
@@ -270,10 +286,101 @@ try {
     'followUp',
     'steer',
   ])
+  // 托盘（规格 v2 第 4.3 节）：运行行只写“运行中 3:12 · 停止 Esc”，排队消息一行一条，编辑 / 取消。
+  const tray = page.locator('[data-composer-tray]')
+  assert.match(await tray.locator('[data-tray-clock]').innerText(), /^3:\d\d$/)
+  assert.doesNotMatch(await tray.innerText(), /npm test|bash/, 'the tray never repeats the command')
+  assert.match(await input.getAttribute('placeholder'), /^运行中：Enter 排队，Alt \+ Enter 插话$/)
+  await tray.locator('[data-pisper-queue-size="2"]').waitFor()
+  const queuedRows = tray.locator('li')
+  assert.deepEqual(
+    await queuedRows.evaluateAll((rows) =>
+      rows.map((row) => row.querySelector('[data-queued-behavior]').dataset.queuedBehavior),
+    ),
+    ['followUp', 'steer'],
+  )
+  // 编辑：撤回并放回输入框；取消：只撤回。
+  await queuedRows.first().hover()
+  await queuedRows.first().locator('[data-queued-edit]').click()
+  await page.waitForFunction(
+    () => document.querySelector('.focus-composer textarea').value === 'queue after this run',
+  )
+  await tray.locator('[data-pisper-queue-size="1"]').waitFor()
+  await queuedRows.first().locator('[data-queued-cancel]').click()
+  await tray.locator('ul').waitFor({ state: 'detached' })
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.withdrawn), ['q1', 'q2'])
+  assert.equal(await input.inputValue(), 'queue after this run')
+  await input.fill('')
+  // 工具组：运行中展开，正在运行的 bash 行展开实时输出，失败行用 --danger。
+  const toolGroup = page.locator('details.agent-run-history')
+  assert.equal(await toolGroup.getAttribute('data-tool-group'), 'running')
+  assert.equal(await toolGroup.evaluate((element) => element.open), true)
+  assert.equal(
+    await page
+      .locator('details.agent-run-command-output[data-running="true"]')
+      .evaluate((element) => element.open),
+    true,
+  )
+  const failedLine = page.locator('.agent-run-command-output pre span.text-danger')
+  assert.match(await failedLine.innerText(), /rejects expired token/)
+  await page.screenshot({ path: join(output, 'session-page-running.png') })
   await page.locator('[data-run-stop]').click()
   await page.waitForFunction(() => window.replicaChat.evidence.aborts === 1)
   await page.evaluate(() => window.settleAbort())
+  await tray.waitFor({ state: 'detached' })
+  // 这一轮结束后整组折叠成一行。
+  await page.waitForFunction(
+    () => document.querySelector('details.agent-run-history')?.dataset.toolGroup === 'done',
+  )
+  assert.equal(await toolGroup.evaluate((element) => element.open), false)
+  assert.match(await input.getAttribute('placeholder'), /^回复代理，或用 \/ 调用命令$/)
   await page.screenshot({ path: join(output, 'session-page.png'), fullPage: true })
+
+  // 内联批准卡（规格 v2 第 4.2 / 3.5 节）：与输入框同宽、琥珀描边，一屏只突出一张，其余折叠成一行；
+  // critical 是“按住允许”（鼠标或空格按住 0.6 秒），短按不批准；A 只移动焦点。
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto(
+    `http://127.0.0.1:${server.httpServer.address().port}/__chat?layout=page&approvals=1`,
+  )
+  await input.waitFor({ timeout: 45000 })
+  const card = page.locator('[data-approval-current]')
+  await card.waitFor()
+  const cardBox = await card.boundingBox()
+  const composerBox = await page.locator('.focus-composer').boundingBox()
+  assert.ok(Math.abs(cardBox.width - composerBox.width) < 1, 'the card matches the composer width')
+  assert.equal(await page.locator('[data-approval-more="1"]').count(), 1)
+  const cardColors = await card.evaluate((element) => {
+    const style = getComputedStyle(element)
+    const probe = document.createElement('i')
+    document.body.append(probe)
+    probe.style.color = 'var(--st-attn-border)'
+    const border = getComputedStyle(probe).color
+    probe.style.color = 'var(--st-attn-soft)'
+    const soft = getComputedStyle(probe).color
+    probe.remove()
+    return { border: style.borderTopColor === border, soft: style.backgroundColor === soft }
+  })
+  assert.deepEqual(cardColors, { border: true, soft: true })
+  const hold = card.locator('[data-approval-hold]')
+  await hold.click()
+  await page.waitForTimeout(300)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.approvals), [])
+  await page.mouse.move(10, 10)
+  await page.keyboard.press('KeyA')
+  assert.equal(await hold.evaluate((element) => element === document.activeElement), true)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.approvals), [])
+  await page.keyboard.down('Space')
+  await page.waitForTimeout(750)
+  await page.keyboard.up('Space')
+  await page.waitForFunction(() => window.replicaChat.evidence.approvals.length === 1)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.approvals), [
+    ['approval-critical', true],
+  ])
+  // 下一张（普通批准）顶上来，折叠行消失；普通批准一步允许。
+  await page.locator('[data-approval-more]').waitFor({ state: 'detached' })
+  await card.locator('[data-approval-primary]').click()
+  await page.waitForFunction(() => window.replicaChat.evidence.approvals.length === 2)
+  await card.waitFor({ state: 'detached' })
   assert.deepEqual(errors, [])
   await writeFile(
     join(output, 'metrics.json'),

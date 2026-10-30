@@ -25,61 +25,53 @@ test('labeled and icon controls hide the Radix overlay even while disabled', asy
   assert.match(component, /focus-within:ring-2/)
 })
 
-test('composer keeps shortcuts inline and overflows them by measured panel width', async () => {
-  const [session, tray, layout, capacity, settings, store] = await Promise.all([
-    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/ComposerToolTray.tsx', 'utf8'),
-    readFile('src/features/chat/composer-toolbar-layout.ts', 'utf8'),
-    readFile('src/features/chat/use-composer-toolbar-capacity.ts', 'utf8'),
-    readFile('src/features/chat/ComposerToolbarSettings.tsx', 'utf8'),
-    readFile('src/features/chat/composer-toolbar-store.ts', 'utf8'),
-  ])
-
+// 规格 v2 第 4.3 节：工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]。原来可配置的工具条
+// （内联 / 收纳分配、按宽度自动收纳、自定义对话框）与“+”托盘、详情行一起退役；等价的保护改为：
+// 四个控件的顺序与“+”菜单的内容，以及退役件不再出现。
+test('composer toolbar is fixed: + menu, shield chip, model chip and send', async () => {
+  const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
-  assert.match(session, /className={`composer-tools-trigger/)
-  assert.match(session, /aria-expanded={toolsOpen}/)
-  assert.match(session, /ref={toolbarRef}/)
-  assert.match(session, /toolbarAllocation\.inline\.map\(renderComposerTool\)/)
-  // 常驻与收纳复用同一控件，模型、权限和运行模式也必须参与用户偏好分配。
-  assert.match(session, /toolbarAllocation\.overflow\.map\(renderComposerTool\)/)
-  assert.match(session, /model:\s*\(\s*<ModelThinkingControl/)
-  assert.match(session, /permission:\s*\(\s*<ExecutionModeSelect/)
-  assert.match(session, /'run-mode': goalsAvailable \?\s*\(\s*<ExecutionModeControl/)
-  assert.match(session, /<ComposerToolbarSettings labels={composerToolLabels} labeled/)
-  assert.match(session, /<ContextUsageIndicator[\s\S]*?compact[\s\S]*?\/>/)
-  assert.match(session, /toolsOpen \? <X size=\{17\} \/> : <Plus size=\{18\} \/>/)
-  assert.match(session, /document\.addEventListener\('pointerdown', closeOnPointerDown\)/)
-  // portal 内的托盘、设置 Dialog 和工具派生浮层都不能触发外部点击关闭。
-  assert.match(session, /target\.closest\(TRAY_FLOATING_SELECTOR\)/)
-  assert.match(session, /'\.composer-tool-tray-shell'/)
-  assert.match(session, /'\.permission-mode-menu'/)
-  assert.match(session, /document\.querySelector\(TRAY_CHILD_FLOATING_SELECTOR\)/)
-  assert.match(session, /toolTrayAnchorRef\.current\?\.focus\(\)/)
-  assert.match(session, /"\[data-slot='dialog-content'\]"/)
-  assert.match(session, /"\[data-slot='dialog-overlay'\]"/)
-
-  assert.match(layout, /export const COMPOSER_TOOL_IDS = \[/)
-  assert.match(layout, /normalizeComposerToolbarLayout/)
-  assert.match(layout, /automaticallyOverflowed/)
-  assert.match(layout, /preferredInline\.slice\(0, count\)/)
-  assert.match(capacity, /new ResizeObserver\(scheduleUpdate\)/)
-  assert.match(capacity, /getBoundingClientRect\(\)\.width/)
-  assert.match(store, /name: 'pisper-composer-toolbar'/)
-  assert.match(store, /LEGACY_TOOLBAR_KEY/)
-  assert.match(store, /normalizeComposerToolbarLayout/)
-
-  assert.match(tray, /<AnchoredPopupMenu/)
-  // 底部输入仍默认向上；模板将输入置顶时允许向下并由弹层约束视口。
-  assert.match(tray, /placement = 'top'/)
-  assert.match(tray, /placement=\{placement\}/)
-  assert.match(tray, /composer-tool-tray[^"\n]*flex-col/)
-  assert.doesNotMatch(tray, /AnimatedContent|AnimatedList|composer-energy-spin/)
-  assert.match(settings, /setToolLocation/)
-  assert.match(settings, /moveTool/)
-  assert.match(settings, /resetLayout/)
+  const toolbar = session.slice(session.indexOf('data-composer-toolbar'))
+  const order = ['{plusMenu}', '{modeChip}', '{modelChip}', '<ComposerSendButton'].map((token) =>
+    toolbar.indexOf(token),
+  )
+  assert.ok(
+    order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])),
+    `toolbar order ${order}`,
+  )
+  // “+”菜单：附件、技能与工具、生成图片（有能力时）、语音输入（F8）；手机运行中另有“插话发送”。
+  for (const item of ['attachment', 'resource', 'visual', 'voice'])
+    assert.match(session, new RegExp(`data-composer-plus-item="${item}"`))
+  assert.match(session, /phonePage && streaming && \(\s*<DropdownMenuItem\s+data-composer-steer/)
+  assert.match(session, /onSelect=\{\(\) => voiceControlRef\.current\?\.\(\)\}/)
+  assert.match(
+    session,
+    /<VoiceInputControl[\s\S]*?variant="menu"[\s\S]*?controlRef=\{voiceControlRef\}/,
+  )
+  // 上下文用量在模型芯片弹层里（ContextUsageSection），不再有详情行与上下文环。
+  assert.match(session, /usage=\{\s*<ContextUsageSection/)
+  for (const retired of [
+    'toolbarAllocation',
+    'ComposerToolTray',
+    'ComposerToolbarSettings',
+    'composer-details',
+    'ContextUsageIndicator',
+    'SessionUsageMetrics',
+    'ComposerStatusPill',
+    'data-composer-hint',
+    'command-palette-trigger',
+  ])
+    assert.doesNotMatch(session, new RegExp(retired), retired)
+  for (const file of [
+    'composer-toolbar-layout.ts',
+    'composer-toolbar-store.ts',
+    'use-composer-toolbar-capacity.ts',
+    'ComposerToolbarSettings.tsx',
+    'ComposerToolTray.tsx',
+    'GoalModeControl.tsx',
+  ])
+    await assert.rejects(readFile(`src/features/chat/${file}`, 'utf8'), /ENOENT/, file)
   assert.ok(session.indexOf('<ComposerCommandMenu') < session.indexOf('<textarea'))
-  assert.doesNotMatch(session, /focus-composer-secondary[^"\n]*tools-open_&\]:hidden/)
-  assert.match(session, /header-workspace[\s\S]*<SessionUsageMetrics/)
 })
 
 test('composer plain Enter submits, Shift+Enter inserts a newline, and IME composition never submits', async () => {
@@ -148,36 +140,46 @@ test('composer exposes a session thinking-level control wired to the shared API'
   assert.doesNotMatch(session, /thinking:\s*\(/)
 })
 
-test('stored execution mode uses a portal and keeps its menu inside the interaction boundary', async () => {
-  const [control, popup] = await Promise.all([
-    readFile('src/features/chat/GoalModeControl.tsx', 'utf8'),
-    readFile('src/features/chat/AnchoredPopupMenu.tsx', 'utf8'),
-  ])
-
-  // 收纳区会滚动和裁切；二级菜单必须通过公共 portal 脱离该容器。
-  assert.match(control, /<AnchoredPopupMenu/)
-  assert.match(control, /className="anchored-popup-menu task-execution-mode-menu/)
-  assert.match(popup, /createPortal\(/)
-  assert.match(popup, /document\.body/)
-  assert.match(
-    control,
-    /!rootRef\.current\?\.contains\(target\) && !menuRef\.current\?\.contains\(target\)/,
-  )
-  assert.match(control, /onClose={closeMenu}/)
-  assert.match(control, /triggerRef\.current\?\.focus\(\)/)
+test('the shield chip combines approval mode and run mode in one portaled popover', async () => {
+  const chip = await readFile('src/features/chat/ComposerModeChip.tsx', 'utf8')
+  // Radix Popover 走 portal，不被输入区裁切；两组选项都是 radiogroup / radio。
+  assert.match(chip, /<Popover open=\{open\} onOpenChange=\{setOpen\}>/)
+  assert.match(chip, /<PopoverContent[\s\S]*?className="composer-mode-popover/)
+  assert.equal((chip.match(/<Section\b/g) || []).length, 2)
+  assert.match(chip, /role="radiogroup"/)
+  assert.match(chip, /role="radio"/)
+  assert.match(chip, /aria-checked=\{selected\}/)
+  // 选审批模式即关闭弹层；Goal / Team 留下来填预算。
+  assert.match(chip, /setOpen\(false\)\s*onApprovalModeChange\(mode\)/)
+  assert.match(chip, /if \(mode === 'plan'\) setOpen\(false\)/)
+  // 芯片只用中性色：完全访问不染琥珀或警示色（规格 6.1）。
+  assert.doesNotMatch(chip, /warning|st-attn|danger/)
 })
 
-test('Plan remains a labeled real execution control, distinct from approval mode', async () => {
-  const [control, session] = await Promise.all([
-    readFile('src/features/chat/GoalModeControl.tsx', 'utf8'),
+test('Plan, Goal and Team stay real execution choices, distinct from approval mode', async () => {
+  const [chip, session] = await Promise.all([
+    readFile('src/features/chat/ComposerModeChip.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
-  assert.match(control, /<span[^>]*>\{current.label\}<\/span>/)
-  assert.match(control, /value: 'plan'/)
-  assert.match(control, /value: 'goal'/)
-  assert.match(control, /teamAvailable/)
+  const { nextComposerRunMode } = await import('../../src/features/chat/composer-run-mode.ts')
+  assert.match(chip, /value: 'plan'/)
+  assert.match(chip, /value: 'goal' as const/)
+  assert.match(chip, /goalsAvailable && teamAvailable/)
+  // 非 Plan 时芯片前面写出模式名（“Goal · 审批后写入”）。
+  assert.match(
+    chip,
+    /const chipLabel = runShort \? `\$\{runShort\} · \$\{approval\.label\}` : approval\.label/,
+  )
   assert.match(session, /onRunModeChange\(nextMode\)/)
-  assert.match(session, /value=\{executionMode\}/)
-  assert.match(session, /onChange=\{onExecutionModeChange\}/)
-  assert.match(session, /focus-composer-visible-tools[^"\n]*flex-wrap/)
+  assert.match(session, /approvalMode=\{executionMode\}/)
+  assert.match(session, /onApprovalModeChange=\{onExecutionModeChange\}/)
+  // ⇧Tab 在输入框里循环：Plan → Goal → Team → Plan，不可用的方式跳过。
+  const all = { goalsAvailable: true, teamAvailable: true }
+  assert.equal(nextComposerRunMode('plan', all), 'goal')
+  assert.equal(nextComposerRunMode('goal', all), 'team')
+  assert.equal(nextComposerRunMode('team', all), 'plan')
+  assert.equal(nextComposerRunMode('goal', { goalsAvailable: true, teamAvailable: false }), 'plan')
+  assert.equal(nextComposerRunMode('plan', { goalsAvailable: false, teamAvailable: true }), null)
+  assert.match(session, /event\.key === 'Tab' &&\s*event\.shiftKey/)
+  assert.match(session, /!composing &&\s*!streaming\s*\)/)
 })

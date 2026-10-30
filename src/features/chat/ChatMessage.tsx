@@ -4,6 +4,7 @@ import { memo, useCallback, useContext, useEffect, useRef, useState, type ReactN
 import { createPortal } from 'react-dom'
 import {
   Check,
+  Copy,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -520,9 +521,21 @@ export function MessageAttachments({
   )
 }
 
-function MessageTreeLabel({ sessionId, entryId }: { sessionId: string; entryId: string }) {
+function MessageTreeLabel({
+  sessionId,
+  entryId,
+  openRequest = 0,
+}: {
+  sessionId: string
+  entryId: string
+  // “⋯ → 标记此回合”每选一次加一：打开同一个标记弹层（锚在标记键上）。
+  openRequest?: number
+}) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (openRequest) setOpen(true)
+  }, [openRequest])
   const [label, setLabel] = useState('')
   const [savedLabel, setSavedLabel] = useState('')
   const [loading, setLoading] = useState(false)
@@ -687,7 +700,7 @@ type FocusChatMessageProps = {
   retryUserMessageId?: string
   hideErrorNotice?: boolean
   onRetryLastTurn: () => Promise<void> | void
-  /** 是否最新一条助手回复：会话页信息行只在这一条上写当前模型与审批模式。 */
+  /** 是否最新一条助手回复：会话页信息行只在这一条上写当前模型。 */
   latest?: boolean
   /** 第几轮（从整段会话开头数用户消息）；只加载了部分历史时不知道，传 undefined 不显示。 */
   turn?: number
@@ -734,6 +747,11 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const [branching, setBranching] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [labelRequest, setLabelRequest] = useState(0)
+  const labelFocusPending = useRef(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  // 有回合边界且能派生时才提供标记 / 从此处继续（旧会话或侧聊没有这些操作）。
+  const canLabel = Boolean(message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
@@ -772,12 +790,14 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       )}
       data-pisper-message-id={message.id}
       data-pisper-role={message.role}
+      // 第几轮只作为数据标记（会话树、折叠更早回合用），信息行不再写“第 N 轮”。
+      data-pisper-turn={turn}
       data-pisper-streaming={streaming || undefined}
       data-pisper-error={message.error ? 'true' : undefined}
     >
       {showAgentHead && (
-        // 抬头：墨色品牌键帽 + 名称；运行中追加轨道指示，时间使用等宽数字。
-        // 会话页的代理信息行（规格 4.3）：最新回复写当前模型与审批模式，所有回复都写第 N 轮（已知时）。
+        // 代理信息行（规格 v2 第 4.2 节）：墨色品牌键帽 + 名称；会话页最新一条回复写当前模型。
+        // 运行中追加轨道指示，时间使用等宽数字。思考用时等 Runtime 提供后（A9）接在模型后面。
         <div className="agent-message-head mb-2 flex h-6 min-w-0 items-center gap-2 text-[13px]">
           <span
             className="agent-message-mark grid size-[22px] flex-none place-items-center"
@@ -786,25 +806,12 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           >
             <BrandLogo size={22} />
           </span>
-          <span className="min-w-0 truncate font-semibold text-foreground">
+          <span
+            className="min-w-0 truncate font-medium text-content-secondary"
+            data-agent-model={meta && latest && meta.model ? meta.model : undefined}
+          >
             {meta && latest && meta.model ? meta.model : 'Pisper'}
           </span>
-          {meta &&
-            [
-              turn ? t('board:transcript.turn', { count: turn }) : '',
-              latest ? meta.approvalMode : '',
-            ]
-              .filter(Boolean)
-              .map((part) => (
-                <span
-                  key={part}
-                  className="flex min-w-0 flex-none items-center gap-2 text-[12px] text-content-muted tabular-nums"
-                  data-agent-meta
-                >
-                  <span aria-hidden="true">·</span>
-                  {part}
-                </span>
-              ))}
           {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}
           {timestamp && (
             <time
@@ -818,6 +825,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         </div>
       )}
       <div
+        ref={contentRef}
         className={cn(
           'message-content relative min-w-0',
           message.role === 'agent'
@@ -834,7 +842,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)] [font-family:var(--font-content-family)] font-[400]',
               message.role === 'agent'
                 ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h1]:text-[1.5em]! [&_h1]:leading-[1.333333]! [&_h2]:text-[1.25em]! [&_h2]:leading-[1.4]! [&_h3]:text-[1.125em]! [&_h3]:leading-[1.555556]! [&_h1]:mt-[1em]! [&_h2]:mt-[1em]! [&_h3]:mt-[1em]! [&_h1]:mb-[.25em]! [&_h2]:mb-[.25em]! [&_h3]:mb-[.25em]! [&_li]:py-0! [&_li+li]:mt-[.25em]! [&_p]:mt-0! [&_p]:mb-[.25em]! [&_ul]:my-[.25em]! [&_ol]:my-[.25em]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
-                : "rounded-[12px_12px_4px_12px] border-0 bg-[var(--user-bubble-bg)] px-[14px] py-[10px] text-[length:calc(var(--app-message-font-size)*.9375)]! leading-[1.6] text-[var(--user-bubble-text)] shadow-[inset_0_0_0_1px_var(--stroke-soft)] [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [&_code]:bg-panel [&_code]:shadow-[0_0_0_1px_var(--stroke-soft)] [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+                : "rounded-[18px] border-0 bg-[var(--user-bubble-bg)] px-4 py-2.5 text-[length:calc(var(--app-message-font-size)*.9375)]! leading-[1.65] text-[var(--user-bubble-text)] [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [&_code]:bg-panel [&_code]:shadow-[0_0_0_1px_var(--stroke-soft)] [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}
@@ -860,10 +868,28 @@ export const FocusChatMessage = memo(function FocusChatMessage({
       {message.role === 'agent' &&
         !streaming &&
         (displayText || message.turnBoundaryEntryId || retryUserMessageId) && (
-          <div className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center min-h-5 gap-0 text-[var(--text-muted)] [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 pointer-coarse:[&_button]:size-11 pointer-coarse:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]">
-            {displayText && <MessageCopyButton text={displayText} />}
-            {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
-              <MessageTreeLabel sessionId={sessionId} entryId={message.turnBoundaryEntryId} />
+          // 回复下方的操作（规格 v2 第 4.2 节）：复制、标记此回合、重试、⋯，只在悬停或聚焦这条回复时出现；
+          // 触屏与窄屏常显（没有悬停）。⋯ 里是从此处继续、标记此回合、复制为 Markdown、从此处另开对话。
+          <div
+            className="message-actions mt-2 -ml-1.5 flex flex-wrap items-center min-h-5 gap-0 text-[var(--text-muted)] opacity-0 transition-opacity duration-(--d-fast) group-hover/message:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 has-[[aria-busy=true]]:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 pointer-coarse:[&_button]:size-11 pointer-coarse:[&_button]:min-h-11 [&_button]:rounded-md [&_button]:text-[var(--text-muted)] [&_button:hover]:bg-[var(--surface-hover)] [&_button:hover]:text-[var(--text)]"
+            data-reply-actions
+          >
+            {displayText && (
+              <MessageCopyButton
+                text={displayText}
+                getText={() =>
+                  contentRef.current
+                    ?.querySelector<HTMLElement>('.markdown-content')
+                    ?.innerText.trim() || ''
+                }
+              />
+            )}
+            {canLabel && message.turnBoundaryEntryId && (
+              <MessageTreeLabel
+                sessionId={sessionId}
+                entryId={message.turnBoundaryEntryId}
+                openRequest={labelRequest}
+              />
             )}
             {retryUserMessageId && (
               <Tooltip>
@@ -896,7 +922,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                 </TooltipContent>
               </Tooltip>
             )}
-            {message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession && (
+            {(displayText || canLabel) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -904,48 +930,83 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                     variant="ghost"
                     size="icon"
                     aria-label={t('chat:chatMessage.moreReplyActions')}
+                    data-reply-more
                   >
                     <MoreHorizontal size={16} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="min-w-52 rounded-2xl p-1.5 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11"
+                  className="min-w-52 p-1 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11"
+                  // 选了“标记此回合”时焦点交给标记弹层的输入框，不回到 ⋯。
+                  onCloseAutoFocus={(event) => {
+                    if (!labelFocusPending.current) return
+                    labelFocusPending.current = false
+                    event.preventDefault()
+                  }}
                 >
-                  <DropdownMenuItem
-                    data-pisper-derive-entry={message.turnBoundaryEntryId}
-                    disabled={branching || creatingChild || sessionStreaming}
-                    onSelect={async () => {
-                      const boundaryEntryId = message.turnBoundaryEntryId
-                      if (!boundaryEntryId) return
-                      setBranching(true)
-                      try {
-                        await onBranchFromHere(boundaryEntryId)
-                      } finally {
-                        setBranching(false)
-                      }
-                    }}
-                  >
-                    <GitFork size={16} />
-                    {t('chat:chatMessage.deriveFromHere')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-pisper-child-entry={message.turnBoundaryEntryId}
-                    disabled={branching || creatingChild}
-                    onSelect={async () => {
-                      const boundaryEntryId = message.turnBoundaryEntryId
-                      if (!boundaryEntryId) return
-                      setCreatingChild(true)
-                      try {
-                        await onCreateChildSession(boundaryEntryId)
-                      } finally {
-                        setCreatingChild(false)
-                      }
-                    }}
-                  >
-                    <MessageSquarePlus size={16} />
-                    {t('chat:chatMessage.createChildChat')}
-                  </DropdownMenuItem>
+                  {canLabel && message.turnBoundaryEntryId && (
+                    <DropdownMenuItem
+                      data-pisper-derive-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild || sessionStreaming}
+                      onSelect={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId || !onBranchFromHere) return
+                        setBranching(true)
+                        try {
+                          await onBranchFromHere(boundaryEntryId)
+                        } finally {
+                          setBranching(false)
+                        }
+                      }}
+                    >
+                      <GitFork size={16} />
+                      {t('chat:chatMessage.deriveFromHere')}
+                    </DropdownMenuItem>
+                  )}
+                  {canLabel && message.turnBoundaryEntryId && (
+                    <DropdownMenuItem
+                      data-reply-label
+                      onSelect={() => {
+                        labelFocusPending.current = true
+                        // 等菜单关掉再打开标记弹层，免得菜单的关闭把弹层当成外部点击关掉。
+                        window.setTimeout(() => setLabelRequest((value) => value + 1), 0)
+                      }}
+                    >
+                      <Tag size={16} />
+                      {t('chat:chatMessage.labelThisTurn')}
+                    </DropdownMenuItem>
+                  )}
+                  {displayText && (
+                    <DropdownMenuItem
+                      data-reply-copy-markdown
+                      onSelect={() => {
+                        void navigator.clipboard?.writeText(displayText).catch(() => undefined)
+                      }}
+                    >
+                      <Copy size={16} />
+                      {t('board:transcript.copyMarkdown')}
+                    </DropdownMenuItem>
+                  )}
+                  {canLabel && message.turnBoundaryEntryId && (
+                    <DropdownMenuItem
+                      data-pisper-child-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild}
+                      onSelect={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId || !onCreateChildSession) return
+                        setCreatingChild(true)
+                        try {
+                          await onCreateChildSession(boundaryEntryId)
+                        } finally {
+                          setCreatingChild(false)
+                        }
+                      }}
+                    >
+                      <MessageSquarePlus size={16} />
+                      {t('chat:chatMessage.createChildChat')}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

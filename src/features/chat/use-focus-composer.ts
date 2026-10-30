@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import type { ChatAttachment, EntityRecord, ResourceInvocation } from '@/types/chat'
 import type { ComposerSubmission } from './composer-drafts'
-import type { ComposerExecutionMode } from './GoalModeControl'
+import type { ComposerExecutionMode } from './composer-run-mode'
 
 type ComposerSelection = {
   attachments: ChatAttachment[]
@@ -39,7 +39,6 @@ export function useFocusComposer({
   onSend,
   onQueue,
   onAbort,
-  setToolsOpen,
   requestTranscriptBottom,
 }: {
   sessionId: string
@@ -73,7 +72,6 @@ export function useFocusComposer({
     onAccepted?: () => void,
   ) => Promise<boolean> | boolean
   onAbort?: () => Promise<void> | void
-  setToolsOpen: (open: boolean) => void
   requestTranscriptBottom: () => void
 }) {
   // 运行模式是会话级持久化偏好：初始化与切换会话时都从快照恢复，而不是固定回 plan。
@@ -193,7 +191,6 @@ export function useFocusComposer({
       setSubmitting(false)
       setQueueing(false)
       setComposerExecutionMode('plan')
-      setToolsOpen(false)
       if (invocationRef.current === invocation) setInvocation(null)
       requestTranscriptBottom()
       if (promptRef.current) promptRef.current.style.height = 'auto'

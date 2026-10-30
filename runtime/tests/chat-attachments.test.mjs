@@ -47,11 +47,14 @@ test('system picker advertises every supported mobile attachment family', () => 
 })
 
 test('mobile chat uses the system file picker while desktop keeps path attachments', async () => {
+  // 选择逻辑在 use-attachment-chooser：任务工作区的附件键与输入框“+”菜单里的“附件”共用（规格 v2 第 2.5 节）。
   const [focus, picker] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
-    readFile('src/features/chat/AttachmentPicker.tsx', 'utf8'),
+    readFile('src/features/chat/use-attachment-chooser.tsx', 'utf8'),
   ])
   assert.match(focus, /<AttachmentPicker cwd=\{cwd\} selection=\{selection\} \/>/)
+  assert.match(focus, /useAttachmentChooser\(\{ cwd, selection \}\)/)
+  assert.match(focus, /data-composer-plus-item="attachment"[\s\S]*?attachmentChooser\.choose\(\)/)
   assert.match(picker, /const mobileApp = useIsMobileApp\(\)/)
   assert.match(picker, /if \(mobileApp\) \{[\s\S]*deviceFileInputRef\.current\?\.click\(\)/)
   assert.match(picker, /type="file"[\s\S]*accept=\{CHAT_ATTACHMENT_ACCEPT\}[\s\S]*multiple/)

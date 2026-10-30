@@ -103,7 +103,8 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   assert.match(app, /requestSessionCreation\(''\)/)
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
   assert.match(focus, /<QuickPromptIdeas/)
-  assert.match(focus, /<ExecutionModeSelect/)
+  // 审批模式与执行方式在输入框的盾牌芯片里（规格 v2 第 2.5 节）。
+  assert.match(focus, /<ComposerModeChip/)
   // 命令面板与“更多”只列出 Runtime 未裁剪的页面；壳层兜底把不可用页面送回主页
   // （第 4 期主页改为会话，与未知路径一致；主页本身不建会话）。
   assert.match(

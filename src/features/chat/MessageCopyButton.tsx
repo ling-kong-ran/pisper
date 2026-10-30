@@ -4,7 +4,16 @@ import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-export function MessageCopyButton({ text, copyLabel }: { text: string; copyLabel?: string }) {
+export function MessageCopyButton({
+  text,
+  copyLabel,
+  getText,
+}: {
+  text: string
+  copyLabel?: string
+  // 回复的“复制”取渲染后的纯文本（getText），“⋯ → 复制为 Markdown”才复制原文；取不到时退回原文。
+  getText?: () => string
+}) {
   const { t } = useI18n()
   const [state, setState] = useState<'idle' | 'pending' | 'copied' | 'failed'>('idle')
   const request = useRef(0)
@@ -25,7 +34,7 @@ export function MessageCopyButton({ text, copyLabel }: { text: string; copyLabel
     if (resetTimer.current !== null) clearTimeout(resetTimer.current)
     setState('pending')
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(getText?.() || text)
       if (current !== request.current) return
       setState('copied')
       resetTimer.current = setTimeout(() => setState('idle'), 1800)
