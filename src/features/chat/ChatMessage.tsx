@@ -52,6 +52,11 @@ import { chatApi } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
 import { TranscriptMetaContext } from './session-workspace-context'
+import {
+  applySessionTreeResponse,
+  readSessionTreeSummary,
+  useTurnLabel,
+} from './session-tree-summary'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
@@ -521,14 +526,18 @@ export function MessageAttachments({
   )
 }
 
+// 标记此回合的弹层。当前标记来自共享的会话树摘要（顶栏读取），保存 / 删除后把 Runtime 返回的新树写回摘要，
+// 转录里的标记名与顶栏同时更新（规格 v2 第 4.5 节老问题 1：之前保存后对话里看不出来）。
 function MessageTreeLabel({
   sessionId,
   entryId,
+  savedLabel,
   openRequest = 0,
 }: {
   sessionId: string
   entryId: string
-  // “⋯ → 标记此回合”每选一次加一：打开同一个标记弹层（锚在标记键上）。
+  savedLabel: string
+  // “⋯ → 标记此回合”或点信息行上的标记名，每次加一：打开同一个标记弹层（锚在标记键上）。
   openRequest?: number
 }) {
   const { t } = useI18n()
@@ -537,7 +546,6 @@ function MessageTreeLabel({
     if (openRequest) setOpen(true)
   }, [openRequest])
   const [label, setLabel] = useState('')
-  const [savedLabel, setSavedLabel] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -547,14 +555,8 @@ function MessageTreeLabel({
     let active = true
     setLoading(true)
     setError('')
-    void chatApi
-      .getSessionTree(sessionId)
-      .then((tree) => {
-        if (!active) return
-        const currentLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
-        setLabel(currentLabel)
-        setSavedLabel(currentLabel)
-      })
+    void readSessionTreeSummary(sessionId)
+      .then((summary) => active && setLabel(summary.labels[entryId] || ''))
       .catch((reason) => active && setError(chatErrorMessage(reason)))
       .finally(() => active && setLoading(false))
     return () => {
@@ -562,16 +564,14 @@ function MessageTreeLabel({
     }
   }, [entryId, open, sessionId])
 
-  // 保存条目标签：写入运行时并回显新标签，成功后关闭编辑；防重入。
+  // 保存条目标签：写入运行时并把新树写回摘要，成功后关闭编辑；防重入。
   const save = async () => {
     if (saving || loading) return
     setSaving(true)
     setError('')
     try {
       const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, label)
-      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
-      setLabel(nextLabel)
-      setSavedLabel(nextLabel)
+      applySessionTreeResponse(sessionId, tree)
       setOpen(false)
     } catch (reason) {
       setError(chatErrorMessage(reason))
@@ -580,16 +580,15 @@ function MessageTreeLabel({
     }
   }
 
-  // 移除条目标签：置空标签并同步回显；防重入。
+  // 移除条目标签：置空标签并同步摘要；防重入。
   const remove = async () => {
     if (saving || loading) return
     setSaving(true)
     setError('')
     try {
       const tree = await chatApi.setSessionTreeLabel(sessionId, entryId, '')
-      const nextLabel = tree.nodes.find((node) => node.id === entryId)?.label || ''
-      setLabel(nextLabel)
-      setSavedLabel(nextLabel)
+      applySessionTreeResponse(sessionId, tree)
+      setLabel('')
       setOpen(false)
     } catch (reason) {
       setError(chatErrorMessage(reason))
@@ -609,6 +608,7 @@ function MessageTreeLabel({
               size="icon"
               className={savedLabel ? 'bg-surface-hover text-brand' : undefined}
               aria-label={t('chat:chatMessage.labelThisTurn')}
+              aria-pressed={Boolean(savedLabel)}
               data-pisper-label-entry={entryId}
             >
               <Tag size={14} />
@@ -752,6 +752,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const contentRef = useRef<HTMLDivElement>(null)
   // 有回合边界且能派生时才提供标记 / 从此处继续（旧会话或侧聊没有这些操作）。
   const canLabel = Boolean(message.turnBoundaryEntryId && onBranchFromHere && onCreateChildSession)
+  // 这一回合的标记名（老问题 1）：只订阅共享摘要缓存，标记变了才重渲染这一条。
+  const turnLabel = useTurnLabel(sessionId, canLabel ? message.turnBoundaryEntryId : undefined)
   const streaming = Boolean(message.streaming)
   const fullText = message.text || ''
   // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
@@ -813,6 +815,21 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             {meta && latest && meta.model ? meta.model : 'Pisper'}
           </span>
           {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}
+          {turnLabel && (
+            // 打过标记的回合在信息行写出标记名；点它打开同一个标记弹层改名或删除。
+            <button
+              type="button"
+              className="inline-flex h-[22px] min-w-0 max-w-[45%] items-center gap-1 rounded-full bg-surface-muted px-2 text-[12px] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus max-[650px]:h-11 pointer-coarse:h-11"
+              aria-label={t('chat:chatMessage.turnLabel', { label: turnLabel })}
+              title={t('chat:chatMessage.turnLabel', { label: turnLabel })}
+              data-turn-label={message.turnBoundaryEntryId}
+              disabled={streaming}
+              onClick={() => setLabelRequest((value) => value + 1)}
+            >
+              <Tag size={12} aria-hidden="true" className="flex-none" />
+              <span className="min-w-0 truncate">{turnLabel}</span>
+            </button>
+          )}
           {timestamp && (
             <time
               className="ml-auto flex-none text-[12px] text-content-muted tabular-nums"
@@ -888,6 +905,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
               <MessageTreeLabel
                 sessionId={sessionId}
                 entryId={message.turnBoundaryEntryId}
+                savedLabel={turnLabel}
                 openRequest={labelRequest}
               />
             )}

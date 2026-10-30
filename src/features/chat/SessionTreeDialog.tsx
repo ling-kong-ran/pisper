@@ -1,7 +1,10 @@
-// 会话树对话框：会话从属关系（父子）的树形浏览。
+// 会话树对话框（规格 v2 第 4.5 节）：分支 / 标记 / 全部标记三个页，合并了原来的分支与标签两个入口。
 // 数据请求与状态留在本文件；渲染拆到 session-tree-* 子组件，纯算法在 session-tree-model。
+// 会改变当前分支的操作（从此处继续、打开另一条分支上的标记）完成后提示可撤销；打开另一条分支上的标记先确认。
+// “返回原对话”只打开父会话并定位到派生点，不再导航父会话的树（老问题 4：那样会把父会话退回派生点）。
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { TreePine, X } from 'lucide-react'
+import { GitFork, X } from 'lucide-react'
+import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -16,14 +19,16 @@ import {
   type SessionTreeResponse,
 } from './chat-api'
 import { requestSessionSelection } from './events'
+import { notifyTreeNavigation } from './session-tree-actions'
+import { applySessionTreeResponse, invalidateSessionTreeSummary } from './session-tree-summary'
 import { SessionTreeBrowser } from '@/features/chat/session-tree-browser'
 import { SessionTreeInspector } from '@/features/chat/session-tree-inspector'
 import {
   buildDisplayTree,
-  conversationKinds,
   createSegment,
   filterTree,
   flattenTree,
+  nodeInView,
   nonDerivableKinds,
   type TreeView,
 } from '@/features/chat/session-tree-model'
@@ -35,19 +40,21 @@ export function SessionTreeDialog({
   onClose,
   onNavigated,
   onCreateChildSession,
-  initialView = 'conversation',
+  initialView = 'branches',
   returnFocusRef,
+  notify,
 }: {
   open: boolean
   sessionId: string
   streaming: boolean
-  // 会话页头的“标签”入口直接打开“已标记”页签，“分支”入口打开对话树。
+  // 默认打开“分支”页；手机标题菜单的“标签”一行直接打开“标记”页。
   initialView?: TreeView
   // 打开对话框的页头按钮（“分支”“标签”）；为空时退回到会话页头的“⋯”。
   returnFocusRef?: RefObject<HTMLElement | null>
   onClose: () => void
   onNavigated: (editorText: string | null) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
+  notify?: Notify
 }) {
   const { t, language } = useI18n()
   const mobileApp = useIsMobileApp()
@@ -55,7 +62,9 @@ export function SessionTreeDialog({
   const mobileLayout = mobileApp || phoneViewport
   const [data, setData] = useState<SessionTreeResponse | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
-  const [view, setView] = useState<TreeView>('conversation')
+  const [view, setView] = useState<TreeView>('branches')
+  // “分支”页默认只显示对话条目；勾选后连工具调用、设置等全部条目一起显示。
+  const [showAllEntries, setShowAllEntries] = useState(false)
   const [mobilePane, setMobilePane] = useState<'list' | 'detail'>('list')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
@@ -64,12 +73,13 @@ export function SessionTreeDialog({
   const [marksLoaded, setMarksLoaded] = useState(false)
   const [marksLoading, setMarksLoading] = useState(false)
   const [openingMark, setOpeningMark] = useState<SessionTreeLabelMatch | null>(null)
+  // 不在当前分支上的标记：先在列表里就地确认（老问题 2），确认后才切换分支。
+  const [confirmingMark, setConfirmingMark] = useState<SessionTreeLabelMatch | null>(null)
   const [summarize, setSummarize] = useState(false)
   const [loading, setLoading] = useState(false)
   const [savingLabel, setSavingLabel] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
-  const [openingRelatedId, setOpeningRelatedId] = useState('')
   const [error, setError] = useState('')
   const viewportRef = useRef<HTMLDivElement | null>(null)
 
@@ -110,6 +120,7 @@ export function SessionTreeDialog({
     setMobilePane('list')
     setLabel('')
     setOpeningMark(null)
+    setConfirmingMark(null)
     setSummarize(false)
     setError('')
   }, [open])
@@ -144,18 +155,35 @@ export function SessionTreeDialog({
     )
   }, [allMarks, language, query])
 
-  // 打开标签定位：非活动条目先导航到目标条目（激活分支），
-  // 再请求打开会话；防重入避免重复导航。
-  const openMark = async (mark: SessionTreeLabelMatch) => {
+  // 打开标记：在当前分支上的直接打开并定位；在另一条分支上的先就地确认，确认后切换分支、
+  // 打开并提示可撤销。防重入避免重复导航。
+  const openMark = async (mark: SessionTreeLabelMatch, confirmed = false) => {
     if (openingMark) return
+    if (!mark.active && !confirmed) {
+      setConfirmingMark(mark)
+      return
+    }
+    setConfirmingMark(null)
     setOpeningMark(mark)
     setError('')
     try {
+      let navigation = null
       if (!mark.active) {
-        await chatApi.navigateSessionTreeTarget(mark.sessionId, mark.entryId)
+        navigation = await chatApi.navigateSessionTreeTarget(mark.sessionId, mark.entryId)
+        if (navigation.cancelled) {
+          setOpeningMark(null)
+          return
+        }
+        void invalidateSessionTreeSummary(mark.sessionId)
       }
       requestSessionSelection(mark.sessionId, 'open', mark.entryId)
       onClose()
+      if (navigation && notify) {
+        notifyTreeNavigation(mark.sessionId, navigation, t('chat:sessionTree.switchedBranch'), {
+          notify,
+          t,
+        })
+      }
     } catch (reason) {
       setError(chatErrorMessage(reason))
       setOpeningMark(null)
@@ -187,19 +215,13 @@ export function SessionTreeDialog({
   const visibleRoots = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(language)
     return filterTree(annotatedRoots, (node) => {
-      const inView =
-        view === 'conversation'
-          ? conversationKinds.has(node.kind)
-          : view === 'labeled'
-            ? Boolean(node.label)
-            : true
-      if (!inView) return false
+      if (!nodeInView(node, view, showAllEntries)) return false
       if (!needle) return true
       return `${node.label} ${node.text} ${typeLabel(node)}`
         .toLocaleLowerCase(language)
         .includes(needle)
     })
-  }, [annotatedRoots, language, query, typeLabel, view])
+  }, [annotatedRoots, language, query, showAllEntries, typeLabel, view])
   const segments = useMemo(() => visibleRoots.map(createSegment), [visibleRoots])
   const visibleNodes = useMemo(() => flattenTree(visibleRoots), [visibleRoots])
   const allNodes = useMemo(() => flattenTree(annotatedRoots), [annotatedRoots])
@@ -256,7 +278,10 @@ export function SessionTreeDialog({
     setSavingLabel(true)
     setError('')
     try {
-      setData(await chatApi.setSessionTreeLabel(sessionId, selected.id, label))
+      const next = await chatApi.setSessionTreeLabel(sessionId, selected.id, label)
+      setData(next)
+      // 转录里的回合标记与顶栏读同一份摘要，保存后立刻显示（老问题 1）。
+      applySessionTreeResponse(sessionId, next)
     } catch (reason) {
       setError(chatErrorMessage(reason))
     } finally {
@@ -270,7 +295,9 @@ export function SessionTreeDialog({
     setSavingLabel(true)
     setError('')
     try {
-      setData(await chatApi.setSessionTreeLabel(sessionId, selected.id, ''))
+      const next = await chatApi.setSessionTreeLabel(sessionId, selected.id, '')
+      setData(next)
+      applySessionTreeResponse(sessionId, next)
     } catch (reason) {
       setError(chatErrorMessage(reason))
     } finally {
@@ -293,20 +320,12 @@ export function SessionTreeDialog({
     }
   }
 
-  // 在谱系中打开父会话或其它独立对话；父会话需要先定位到创建边界。
-  const openRelatedSession = async (target: SessionSummary, targetEntryId = '') => {
-    if (!target.id || openingRelatedId) return
-    setOpeningRelatedId(target.id)
-    setError('')
-    try {
-      if (targetEntryId) await chatApi.navigateSessionTreeTarget(target.id, targetEntryId)
-      requestSessionSelection(target.id, 'open', targetEntryId)
-      onClose()
-    } catch (reason) {
-      setError(chatErrorMessage(reason))
-    } finally {
-      setOpeningRelatedId('')
-    }
+  // 在谱系中打开父会话或其它独立对话。父会话只定位到派生点那一回合，不导航它的树：
+  // 父会话派生后可能继续聊过，导航到派生点会把它的当前分支退回去（老问题 4，已复现）。
+  const openRelatedSession = (target: SessionSummary, targetEntryId = '') => {
+    if (!target.id) return
+    requestSessionSelection(target.id, 'open', targetEntryId)
+    onClose()
   }
 
   // 导航到选中节点（非叶子且非流式中）：切换到该历史位置继续会话。
@@ -318,8 +337,13 @@ export function SessionTreeDialog({
       const next = await chatApi.navigateSessionTree(sessionId, selected.id, summarize)
       setData(next)
       if (!next.cancelled) {
+        // 分支数立刻更新（老问题 6），提示里可以撤销（老问题 3）。
+        applySessionTreeResponse(sessionId, next)
         await onNavigated(next.editorText)
         onClose()
+        if (notify) {
+          notifyTreeNavigation(sessionId, next, t('chat:chatPage.branchedFromNode'), { notify, t })
+        }
       }
     } catch (reason) {
       setError(chatErrorMessage(reason))
@@ -363,7 +387,7 @@ export function SessionTreeDialog({
           <div>
             <div className="session-tree-title flex items-center gap-2.5">
               <span className="grid size-[30px] place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key">
-                <TreePine size={16} />
+                <GitFork size={16} />
               </span>
               <DialogTitle>{t('chat:sessionTree.title')}</DialogTitle>
             </div>
@@ -394,8 +418,11 @@ export function SessionTreeDialog({
               view={view}
               onViewChange={(nextView) => {
                 setView(nextView)
+                setConfirmingMark(null)
                 setMobilePane('list')
               }}
+              showAllEntries={showAllEntries}
+              onShowAllEntriesChange={setShowAllEntries}
               query={query}
               onQueryChange={setQuery}
               loading={loading}
@@ -412,6 +439,9 @@ export function SessionTreeDialog({
               marksLoading={marksLoading}
               openingMark={openingMark}
               onOpenMark={(mark) => void openMark(mark)}
+              confirmingMark={confirmingMark}
+              onConfirmMark={(mark) => void openMark(mark, true)}
+              onCancelMark={() => setConfirmingMark(null)}
             />
           )}
           {view !== 'marks' && (!mobileLayout || mobilePane === 'detail') && (
@@ -432,7 +462,6 @@ export function SessionTreeDialog({
               savingLabel={savingLabel}
               creatingChild={creatingChild}
               navigating={navigating}
-              openingRelatedId={openingRelatedId}
               typeLabel={typeLabel}
               stateLabel={stateLabel}
               onBackToList={() => setMobilePane('list')}
@@ -444,7 +473,7 @@ export function SessionTreeDialog({
               onNavigate={() => void navigate()}
               onRefresh={() => void refresh()}
               onOpenRelated={(target, targetEntryId) =>
-                void openRelatedSession(target, targetEntryId ?? '')
+                openRelatedSession(target, targetEntryId ?? '')
               }
             />
           )}

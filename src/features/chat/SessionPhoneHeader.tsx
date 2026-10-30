@@ -180,7 +180,7 @@ export function SessionPhoneHeader({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-60">
           {treeAvailable && (
-            <DropdownMenuItem onSelect={() => onOpenTree('conversation')} data-session-branches>
+            <DropdownMenuItem onSelect={() => onOpenTree('branches')} data-session-branches>
               <GitBranch />
               {branches > 0
                 ? t('board:session.branches', { count: branches })

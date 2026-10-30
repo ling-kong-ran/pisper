@@ -1272,10 +1272,19 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 onOpenSession={async (id, targetEntryId, targetActive) => {
                   try {
                     if (targetEntryId && !targetActive) {
-                      // 只有在面板里选中带标签的轮次才会用到；面板块自己已经加载了 chat-api，
-                      // 这里按需取用即可，不为它把 chat-api 放进启动包。
-                      const { chatApi } = await import('@/features/chat/chat-api')
-                      await chatApi.navigateSessionTreeTarget(id, targetEntryId)
+                      // 标记在另一条分支上（规格 v2 第 4.5 节老问题 2）：先确认，确认后切换分支并打开，
+                      // 提示里可以撤销。按需加载会话树操作，不为它把 chat-api 放进启动包。
+                      const { switchToTurnOnOtherBranch } =
+                        await import('@/features/chat/session-tree-actions')
+                      await switchToTurnOnOtherBranch({
+                        sessionId: id,
+                        entryId: targetEntryId,
+                        confirm: appDialog.confirm,
+                        open: openSession,
+                        notify,
+                        t,
+                      })
+                      return
                     }
                     openSession(id, targetEntryId)
                   } catch (error) {

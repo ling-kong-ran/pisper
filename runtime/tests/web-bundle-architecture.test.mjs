@@ -329,6 +329,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
     chatPage,
     chatApi,
     routes,
+    treeActions,
   ] = await Promise.all([
     readFile('src/components/layout/AppOverlays.tsx', 'utf8'),
     readFile('src/App.tsx', 'utf8'),
@@ -343,6 +344,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
+    readFile('src/features/chat/session-tree-actions.ts', 'utf8'),
   ])
 
   // 仍经领域 API 搜索；新增 AbortSignal 用于查询切换/卸载取消，不固定参数个数。
@@ -351,7 +353,22 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(palette, /sessionCreated \|\| label\.sessionModified/)
   assert.match(palette, /label\.nodeTimestamp/)
   assert.match(app, /targetEntryId && !targetActive/)
-  assert.match(app, /navigateSessionTreeTarget\(id, targetEntryId\)/)
+  // 规格 v2 第 4.5 节老问题 2：⌘K 打开另一条分支上的标记不再悄悄切换分支。App 只按需加载会话树操作
+  // （不把 chat-api 拉进启动包），由它先确认、再导航、再打开，并在提示里给撤销。
+  assert.match(app, /import\(\s*'@\/features\/chat\/session-tree-actions'\s*\)/)
+  assert.match(app, /confirm: appDialog\.confirm/)
+  assert.doesNotMatch(app, /navigateSessionTreeTarget/)
+  const switchBody = treeActions.slice(
+    treeActions.indexOf('export async function switchToTurnOnOtherBranch'),
+  )
+  assert.ok(
+    switchBody.indexOf('await confirm(otherBranchConfirmOptions(t))') <
+      switchBody.indexOf('navigateSessionTreeTarget(sessionId, entryId)'),
+    'confirm before switching the branch',
+  )
+  assert.match(switchBody, /return false/)
+  assert.match(switchBody, /notifyTreeNavigation\(/)
+  assert.match(treeActions, /label: deps\.t\('chat:sessionTree\.undo'\)/)
   assert.match(palette, /pendingEntryId/)
   assert.match(palette, /appOverlays\.locatingLabel/)
   assert.match(events, /STORAGE_KEYS\.sessionMessageTarget/)
@@ -377,15 +394,46 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   )
   assert.match(treeModel, /nonDerivableKinds = new Set\(\['tool', 'tool-call'\]\)/)
   assert.match(treeDialog, /canDeriveSelected/)
-  assert.doesNotMatch(treeDialog, /branchRelated|value="branches"/)
+  // 三个页：分支 / 标记 / 全部标记（规格 4.5）；原“对话”“全部”两页并进“分支”页（“显示全部条目”勾选框）。
+  assert.doesNotMatch(treeDialog, /branchRelated/)
+  assert.deepEqual(
+    [...treeBrowser.matchAll(/<TabsTrigger value="([a-z]+)"/g)].map((match) => match[1]),
+    ['branches', 'labeled', 'marks'],
+  )
+  assert.match(treeBrowser, /data-session-tree-all-entries/)
+  assert.match(treeModel, /showAllEntries \|\| conversationKinds\.has\(node\.kind\)/)
   assert.match(treeDialog, /navigateSessionTree\(sessionId, selected\.id, summarize\)/)
   assert.match(treeDialog, /navigateSessionTreeTarget\(mark\.sessionId, mark\.entryId\)/)
+  // 会话树“全部标记”里另一条分支上的标记同样先就地确认（data-session-tree-mark-confirm）。
+  assert.match(
+    treeDialog,
+    /if \(!mark\.active && !confirmed\) \{\s+setConfirmingMark\(mark\)\s+return/,
+  )
+  assert.match(treeBrowser, /data-session-tree-mark-confirm/)
+  // 老问题 4（已复现：导航父会话到派生点会把它的当前分支退回去）：“返回原对话”只打开并定位，不导航父会话。
+  const openRelated = treeDialog.slice(
+    treeDialog.indexOf('const openRelatedSession'),
+    treeDialog.indexOf('const navigate = async'),
+  )
+  assert.match(openRelated, /requestSessionSelection\(target\.id, 'open', targetEntryId\)/)
+  assert.doesNotMatch(openRelated, /navigateSessionTree/)
+  // 老问题 5：“派生自”横幅是链接，打开父会话并定位到派生点，同样不导航父会话的树。
+  assert.match(transcript, /data-pisper-parent-session=\{lineage\.parentSessionId\}/)
+  assert.match(transcript, /href=\{lineageHref\(lineage\.parentSessionId\)\}/)
+  assert.doesNotMatch(transcript, /navigateSessionTree/)
   assert.match(chatMessage, /data-pisper-label-entry/)
   assert.match(chatMessage, /data-pisper-derive-entry/)
   assert.match(chatMessage, /data-pisper-child-entry/)
   assert.match(chatMessage, /onBranchFromHere\(boundaryEntryId\)/)
   assert.match(chatMessage, /setSessionTreeLabel\(sessionId, entryId, label\)/)
+  // 老问题 1、6：标记与导航的响应（带整棵树）立刻写回共享的会话树摘要；转录读标记名，顶栏读分支数。
+  assert.match(chatMessage, /applySessionTreeResponse\(sessionId, tree\)/)
+  assert.match(chatMessage, /useTurnLabel\(sessionId,/)
+  assert.match(chatMessage, /data-turn-label=/)
   assert.match(chatPage, /navigateSessionTree\(session\.id, boundaryEntryId, false\)/)
+  assert.match(chatPage, /applySessionTreeResponse\(session\.id, result\)/)
+  assert.match(chatPage, /notifyTreeNavigation\(session\.id, result,/)
+  assert.match(treeDialog, /applySessionTreeResponse\(sessionId, next\)/)
   assert.match(chatApi, /navigateSessionTreeTarget:/)
   assert.match(chatApi, /includeTree: false/)
   // 图标按钮与文字菜单的可达性由 workbench 消息交互用例验证，不绑定 Tooltip 数量。

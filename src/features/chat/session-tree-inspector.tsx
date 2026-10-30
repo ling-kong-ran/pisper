@@ -27,7 +27,6 @@ export function SessionTreeInspector({
   savingLabel,
   creatingChild,
   navigating,
-  openingRelatedId,
   typeLabel,
   stateLabel,
   onBackToList,
@@ -56,7 +55,6 @@ export function SessionTreeInspector({
   savingLabel: boolean
   creatingChild: boolean
   navigating: boolean
-  openingRelatedId: string
   typeLabel: NodeLabelFn
   stateLabel: NodeLabelFn
   onBackToList: () => void
@@ -91,7 +89,6 @@ export function SessionTreeInspector({
               {parentSession && (
                 <Button
                   variant="secondary"
-                  disabled={Boolean(openingRelatedId)}
                   onClick={() => onOpenRelated(parentSession, parentEntryId)}
                 >
                   <MessageSquare size={13} />
@@ -101,12 +98,7 @@ export function SessionTreeInspector({
                 </Button>
               )}
               {childSessions.map((child) => (
-                <Button
-                  variant="secondary"
-                  disabled={Boolean(openingRelatedId)}
-                  key={child.id}
-                  onClick={() => onOpenRelated(child)}
-                >
+                <Button variant="secondary" key={child.id} onClick={() => onOpenRelated(child)}>
                   <MessageSquare size={13} />
                   {t('chat:sessionTree.openSeparateChat', {
                     name: child.name || t('chat:chatPage.newChat'),

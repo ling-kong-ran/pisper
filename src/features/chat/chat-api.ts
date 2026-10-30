@@ -89,6 +89,8 @@ export type SessionTreeResponse = {
 export type SessionTreeNavigationResult = {
   cancelled: boolean
   editorText: string | null
+  // 撤销这次导航要传回导航接口的条目（加法字段）；旧 Runtime 没有、或无法原样恢复时为空，界面不提供撤销。
+  restoreEntryId?: string
 }
 
 export type SessionTreeNavigationResponse = SessionTreeResponse & SessionTreeNavigationResult

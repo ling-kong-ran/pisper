@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { ArrowDown, ChevronRight, GitFork, RefreshCw } from 'lucide-react'
+import { sessionPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
@@ -22,6 +23,7 @@ import {
   SESSION_NAVIGATION_WILL_CHANGE,
   clearSessionMessageTarget,
   getSessionMessageTarget,
+  requestSessionSelection,
 } from './events'
 import { activityScrollVersion } from './run-activity'
 import { earlierTurnSummary } from './transcript-turns'
@@ -97,6 +99,18 @@ function TranscriptLoading({ label }: { label: string }) {
       </div>
     </div>
   )
+}
+
+function messageIdSequence(messages: ChatMessage[]) {
+  return messages.map((message) => message.id).join('\n')
+}
+
+// 父会话链接：沿用当前地址的路由形式（哈希路由时带 #），与侧栏会话行的链接一致。
+function lineageHref(sessionId: string) {
+  const { pathname, search, hash } = window.location
+  return hash.startsWith('#/')
+    ? `${pathname}${search}#${sessionPath(sessionId)}`
+    : sessionPath(sessionId)
 }
 
 export function FocusTranscript({
@@ -273,21 +287,45 @@ export function FocusTranscript({
     olderRequestRef.current = null
   }, [messageStart])
 
+  // 带定位目标的选中请求会让聊天页强制重读消息（切到另一条分支后，目标只在重读结果里）。
+  // 重读结果到来之前不判定“找不到”，否则目标在旧分支的消息里找不到就被提前清掉，也不会去翻旧分支的更早消息。
+  // 重读迟迟不来（或结果与原来同一份）时 4 秒后照常判定。按消息 id 序列比较：同一份消息在重读期间也会换数组。
+  const latestMessagesRef = useRef(messages)
+  useEffect(() => {
+    latestMessagesRef.current = messages
+  })
+  const targetSnapshotRef = useRef<string | null>(null)
+  const [targetGraceEnded, setTargetGraceEnded] = useState(0)
   useEffect(() => {
     setTargetEntryId(getSessionMessageTarget(sessionId))
+    let graceTimer = 0
     const receiveTarget = (event: Event) => {
       const request = (event as CustomEvent<SessionOpenRequest>).detail
       if (request?.sessionId === sessionId && request.targetEntryId) {
+        targetSnapshotRef.current = messageIdSequence(latestMessagesRef.current)
+        window.clearTimeout(graceTimer)
+        graceTimer = window.setTimeout(() => {
+          targetSnapshotRef.current = null
+          setTargetGraceEnded((value) => value + 1)
+        }, 4000)
         setTargetEntryId(request.targetEntryId)
       }
     }
     window.addEventListener(SESSION_SELECTED_EVENT, receiveTarget)
-    return () => window.removeEventListener(SESSION_SELECTED_EVENT, receiveTarget)
+    return () => {
+      window.clearTimeout(graceTimer)
+      targetSnapshotRef.current = null
+      window.removeEventListener(SESSION_SELECTED_EVENT, receiveTarget)
+    }
   }, [sessionId])
 
   useEffect(() => {
     if (!targetEntryId || messageStart == null) return
     if (messages.some((message) => message.turnBoundaryEntryId === targetEntryId)) return
+    if (targetSnapshotRef.current !== null) {
+      if (targetSnapshotRef.current === messageIdSequence(messages)) return
+      targetSnapshotRef.current = null
+    }
     if (loadingOlder) return
     if (hasOlder) {
       void loadOlder()
@@ -295,7 +333,16 @@ export function FocusTranscript({
     }
     clearSessionMessageTarget(sessionId, targetEntryId)
     setTargetEntryId('')
-  }, [hasOlder, loadOlder, loadingOlder, messageStart, messages, sessionId, targetEntryId])
+  }, [
+    hasOlder,
+    loadOlder,
+    loadingOlder,
+    messageStart,
+    messages,
+    sessionId,
+    targetEntryId,
+    targetGraceEnded,
+  ])
 
   useEffect(() => {
     if (scrollRequest) scrollToBottom('smooth')
@@ -316,17 +363,39 @@ export function FocusTranscript({
           className={`[display:flow-root] w-full ${transcriptLoadState === 'ready' && messages.length > 0 ? 'mt-auto' : ''}`}
           ref={transcriptPrefixRef}
         >
-          {lineage?.parentSessionId && (
-            <div
-              className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
-              data-pisper-parent-session={lineage.parentSessionId}
-            >
-              <GitFork size={13} />
-              <span>
-                {t('chat:focusSession.derivedFromSession', {
-                  name: lineage.sourceSessionName || t('chat:focusSession.unknownSourceSession'),
-                })}
-              </span>
+          {typeof lineage?.parentSessionId === 'string' && lineage.parentSessionId && (
+            // “派生自”横幅是链接（老问题 5）：打开父会话并定位到派生点那一回合；只打开，不导航父会话的树。
+            // 带修饰键或中键时交给浏览器（新标签打开、复制链接照常可用）。
+            <div className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage">
+              <a
+                href={lineageHref(lineage.parentSessionId)}
+                className="inline-flex min-h-8 max-w-full items-center gap-[7px] rounded-md px-2 text-inherit underline-offset-2 transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus max-[650px]:min-h-11"
+                data-pisper-parent-session={lineage.parentSessionId}
+                title={t('chat:focusSession.openSourceTurn')}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return
+                  event.preventDefault()
+                  requestSessionSelection(
+                    String(lineage.parentSessionId),
+                    'open',
+                    typeof lineage.sourceEntryId === 'string' ? lineage.sourceEntryId : '',
+                  )
+                }}
+              >
+                <GitFork size={13} aria-hidden="true" className="flex-none" />
+                <span className="min-w-0 truncate">
+                  {t('chat:focusSession.derivedFromSession', {
+                    name: lineage.sourceSessionName || t('chat:focusSession.unknownSourceSession'),
+                  })}
+                </span>
+              </a>
             </div>
           )}
           {collapsed && earlier && (

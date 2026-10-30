@@ -137,7 +137,7 @@ export function SessionPageHeader({
             title={treeLabel}
             aria-keyshortcuts={ariaKeyShortcuts(treeBinding)}
             data-session-branches={branches}
-            onClick={(event) => onOpenTree('conversation', event.currentTarget)}
+            onClick={(event) => onOpenTree('branches', event.currentTarget)}
           >
             <GitFork className="size-3.5" aria-hidden="true" />
             {branches > 0 && <span aria-hidden="true">{branches}</span>}

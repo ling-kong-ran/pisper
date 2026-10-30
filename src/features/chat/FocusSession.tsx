@@ -642,6 +642,7 @@ export const FocusSession = memo(function FocusSession({
         requestTranscriptBottom()
       }}
       onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
+      notify={notify}
     >
       {(_recallItem, tree) =>
         phonePage ? (
@@ -688,6 +689,7 @@ export const FocusSession = memo(function FocusSession({
         requestTranscriptBottom()
       }}
       onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
+      notify={notify}
     >
       {(recallItem) => (
         <TaskWorkspaceHeader

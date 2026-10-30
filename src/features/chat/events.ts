@@ -18,6 +18,7 @@ export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
 export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
 export const SESSION_COMMAND_EVENT = 'pisper:session-command'
+export const SESSION_BRANCH_CHANGED_EVENT = 'pisper:session-branch-changed'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
 export type SessionTitleUpdate = { id: string; name: string }
@@ -255,4 +256,23 @@ export function subscribeSessionDeletionUpdates(
   }
   target.addEventListener(SESSIONS_UPDATED_EVENT, listener)
   return () => target.removeEventListener(SESSIONS_UPDATED_EVENT, listener)
+}
+
+// 会话的活动分支在别处被切换（⌘K 打开另一条分支上的标记、会话树里的标记、撤销）：
+// 打开着这个会话的聊天页重读消息与会话树摘要。导航本身由发起方完成，这里只广播会话 id。
+export function announceSessionBranchChanged(sessionId: string) {
+  if (sessionId) {
+    window.dispatchEvent(new CustomEvent(SESSION_BRANCH_CHANGED_EVENT, { detail: { sessionId } }))
+  }
+}
+
+export function subscribeSessionBranchChanges(onChange: (sessionId: string) => void) {
+  const listener = (event: Event) => {
+    const detail: unknown = 'detail' in event ? event.detail : null
+    const sessionId =
+      detail && typeof detail === 'object' ? (detail as Record<string, unknown>).sessionId : null
+    if (typeof sessionId === 'string' && sessionId) onChange(sessionId)
+  }
+  window.addEventListener(SESSION_BRANCH_CHANGED_EVENT, listener)
+  return () => window.removeEventListener(SESSION_BRANCH_CHANGED_EVENT, listener)
 }

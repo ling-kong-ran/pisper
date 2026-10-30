@@ -30,12 +30,15 @@ import {
   SESSION_CREATE_REQUESTED_EVENT,
   consumeSessionCreationRequest,
   consumeSessionSelectionRequest,
+  subscribeSessionBranchChanges,
 } from './events'
 import { SessionRouteLeading } from './session-route-chrome'
 import { SessionPageChromeContext, type SessionPageChrome } from './session-workspace-context'
 import { openWebPreviewInSessionContext } from './session-web-preview'
 import { WEB_PREVIEW_OPEN_EVENT, consumeWebPreviewRequest } from './web-preview-events'
 import { SideChatProvider } from './SideChatProvider'
+import { notifyTreeNavigation } from './session-tree-actions'
+import { applySessionTreeResponse } from './session-tree-summary'
 import type { SideChatRuntime } from './side-chat-context'
 
 // 会话页路由里的保留段：进入后新建会话，再以 replace 换成真实 id（与 '/workflows/new' 同理）。
@@ -332,14 +335,27 @@ export function ChatPage({
         setGlobalError('')
         const result = await chatApi.navigateSessionTree(session.id, boundaryEntryId, false)
         if (result.cancelled) return
+        // 响应里带着新树：顶栏分支数与回合标记立刻更新（老问题 6），不等会话树事件。
+        applySessionTreeResponse(session.id, result)
         await reloadSessionBranch(session.id)
         setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
-        notify(t('chat:chatPage.branchedFromNode'))
+        // 提示里带“撤销”（老问题 3）：把 Runtime 给的 restoreEntryId 传回导航接口。
+        notifyTreeNavigation(session.id, result, t('chat:chatPage.branchedFromNode'), { notify, t })
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))
       }
     },
     [notify, reloadSessionBranch, setGlobalError, t],
+  )
+
+  // 活动分支在别处被切换（撤销、⌘K / 会话树里打开另一条分支上的标记）：已加载的会话重读消息与列表。
+  useEffect(
+    () =>
+      subscribeSessionBranchChanges((id) => {
+        if (!sessionStatesRef.current[id]) return
+        void reloadSessionBranch(id).catch(() => undefined)
+      }),
+    [reloadSessionBranch, sessionStatesRef],
   )
 
   // 从已完成回复创建独立对话：命名后调用运行时 derive 接口，

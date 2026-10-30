@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import type { SessionTreeNode } from '@/features/chat/chat-api'
 
-export type TreeView = 'conversation' | 'labeled' | 'all' | 'marks'
+// 三个页（规格 v2 第 4.5 节）：分支（对话树，可展开全部条目）/ 标记（本会话）/ 全部标记（所有会话）。
+export type TreeView = 'branches' | 'labeled' | 'marks'
 export type DisplayNode = Omit<SessionTreeNode, 'children'> & {
   children: DisplayNode[]
 }
@@ -25,6 +26,17 @@ export type TreeSegment = {
 }
 
 export const conversationKinds = new Set(['user', 'assistant', 'summary', 'compaction', 'position'])
+
+// “分支”页默认只看对话条目；勾选“显示全部条目”时连工具、设置、标记变更等一起显示（原“全部”页）。
+export function nodeInView(
+  node: Pick<SessionTreeNode, 'kind' | 'label'>,
+  view: TreeView,
+  showAllEntries: boolean,
+) {
+  if (view === 'labeled') return Boolean(node.label)
+  if (view === 'branches') return showAllEntries || conversationKinds.has(node.kind)
+  return false
+}
 export const nonDerivableKinds = new Set(['tool', 'tool-call'])
 export const TREE_ROW_HEIGHT = 56
 export const TREE_OVERSCAN = 12

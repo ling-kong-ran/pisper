@@ -467,7 +467,7 @@ try {
   await page.keyboard.press(`${mod}+Shift+KeyB`)
   await page.waitForTimeout(400)
   assert.equal(hashOf(page), `#/board/${id}`, '⇧⌘B no longer opens the board')
-  const treeDialog = page.getByRole('dialog', { name: '追忆', exact: true })
+  const treeDialog = page.getByRole('dialog', { name: '会话树', exact: true })
   assert.equal(await treeDialog.isVisible(), treeAvailable, '⇧⌘B opens the session tree')
   if (treeAvailable) {
     await page.keyboard.press('Escape')

@@ -363,7 +363,7 @@ try {
   await page.waitForFunction(() => document.activeElement?.id === 'task-a-more')
   // 会话树唯一的入口是顶栏标题旁的 ⑂：打开同一个会话树对话框，关闭后焦点回到 ⑂。
   await initialPane.locator('[data-session-branches]').click()
-  const recallDialog = page.getByRole('dialog', { name: '追忆', exact: true })
+  const recallDialog = page.getByRole('dialog', { name: '会话树', exact: true })
   await recallDialog.waitFor()
   await page.waitForFunction(() =>
     document.querySelector('[role="dialog"]')?.contains(document.activeElement),
