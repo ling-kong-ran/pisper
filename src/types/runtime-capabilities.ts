@@ -27,6 +27,8 @@ export type RuntimeFeature =
   | 'browserAutomation'
   | 'remoteAccess'
   | 'desktopPet'
+  | 'board.view'
+  | 'board.events'
 
 export type RuntimeCapabilities = {
   version: number
@@ -72,6 +74,9 @@ const fullFeatures = {
   browserAutomation: true,
   remoteAccess: true,
   desktopPet: true,
+  // 第 2 期才有的看板接口：没有能力接口的旧 Runtime 一定不支持，按降级矩阵退回轮询 /api/sessions。
+  'board.view': false,
+  'board.events': false,
 } satisfies Record<RuntimeFeature, boolean>
 
 // 老版本 Runtime 没有能力接口；保持原有全功能导航，避免升级前的远程桌面被误裁剪。

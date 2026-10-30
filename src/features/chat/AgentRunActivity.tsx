@@ -1,19 +1,31 @@
-// Agent 运行活动面板：在消息下方以一张细线分隔的「活动日志」卡片展示运行过程——
-// 思考行、工具行（状态方块 + 等宽动词 + 路径/命令 + 耗时）与计划/子 Agent 活动，
-// 实时跟随 SSE 流更新；bash 行可展开为凹陷的终端输出井。
-import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronRight, Clock3, Lightbulb, ListChecks, Square, X } from 'lucide-react'
+// Agent 运行活动面板：思考过程是一枚可展开的“思考”芯片；工具活动是一张工具组卡片——
+// 组标题“3 个操作 · 2 完成 · 1 运行中”，每行 36px：状态字形 + 等宽动词 + 路径/命令 + 耗时 + 展开箭头，
+// 实时跟随 SSE 流更新；bash 行可展开为凹陷的终端输出井，正在运行的那条默认展开并用运行青浅底标出。
+import {
+  lazy,
+  memo,
+  Suspense,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { Activity, ChevronRight, Lightbulb } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
+import type { StatusGlyphKind } from '@/components/app/status-glyph-kinds'
 import { Plan } from '@/components/ai-elements/plan'
 import { Task } from '@/components/ai-elements/task'
 import MarkdownMessage from '@/components/MarkdownMessage'
-import { OrbitSpinner } from '@/components/ui/spinner'
 import { planFromActivity } from '@/lib/plan-protocol'
 import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
 import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { latestComputerUseTarget } from './computer-use-live-support.ts'
+import { useSessionInspectorStore } from './session-inspector-store'
+import { SessionInspectorContext } from './session-workspace-context'
 import {
   agentActivityTitle,
   commandExitCode,
@@ -35,12 +47,15 @@ import {
 } from './run-activity'
 
 const EMPTY_LIST: EntityRecord[] = []
-// 日志行几何：桌面 34px、触屏与窄屏 44px；所有行共用，保证状态方块与动词列对齐。
+// 日志行几何（规格 4.3）：桌面 36px、触屏与窄屏 44px；所有行共用，保证状态字形与动词列对齐。
 const LOG_ROW_CLASS =
-  'flex min-h-[34px] min-w-0 items-center gap-[10px] px-[12px] py-[5px] text-[13px] max-[650px]:min-h-11 pointer-coarse:min-h-11 [.agent-run-activity.compact_&]:min-h-[30px]'
+  'flex min-h-[36px] min-w-0 items-center gap-[10px] px-[12px] py-[5px] text-[13px] max-[650px]:min-h-11 pointer-coarse:min-h-11 [.agent-run-activity.compact_&]:min-h-[30px]'
 // 可展开行（details > summary）：悬停/展开都只染一级次表面，焦点用 2px 内描边避免被卡片裁切。
-const LOG_SUMMARY_CLASS =
-  'cursor-pointer list-none transition-colors duration-(--d-fast) ease-precise hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden [details[open]>&]:bg-surface-subtle'
+const SUMMARY_BASE_CLASS =
+  'cursor-pointer list-none transition-colors duration-(--d-fast) ease-precise focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden'
+const LOG_SUMMARY_CLASS = `${SUMMARY_BASE_CLASS} hover:bg-surface-subtle [details[open]>&]:bg-surface-subtle`
+// 正在运行的工具行用运行青浅底（--st-run-soft），展开后保持同色，不被次表面覆盖。
+const RUNNING_SUMMARY_CLASS = `${SUMMARY_BASE_CLASS} bg-st-run-soft`
 const DISCLOSURE_CLASS =
   'agent-run-disclosure size-[14px] flex-none text-content-muted transition-transform duration-(--d-fast) ease-precise [details[open]>summary_&]:rotate-90'
 const AnimatedList = lazy(() =>
@@ -337,47 +352,45 @@ export function runActivityStatusLabel(
   }).title
 }
 
-// 状态方块：形状（勾/叉/方块/轨道）与颜色同时表达结果，不只依赖色相区分成功与失败。
-function statusSquareClass(tone: string) {
-  const base =
-    'agent-run-status-icon grid size-[18px] flex-none place-items-center rounded-xs [&_svg]:flex-none'
-  if (tone === 'completed' || tone === 'plan') return `${base} bg-success-soft text-success`
-  if (tone === 'failed') return `${base} bg-danger-soft text-danger`
-  if (tone === 'running' || tone === 'compacting') return `${base} text-accent-fg`
-  return `${base} bg-surface-muted text-content-muted`
+// 状态字形（规格 6.7 的共用 StatusGlyph）：形状 + 状态色同时表达结果，不只依赖色相区分成功与失败；
+// 运行中的弧形字形旋转（减少动效时停转），颜色只取 --st-* 状态族，不随强调色变化。
+const TONE_GLYPHS: Record<string, { kind: StatusGlyphKind; color: string }> = {
+  running: { kind: 'run', color: 'text-st-run' },
+  compacting: { kind: 'run', color: 'text-st-run' },
+  completed: { kind: 'done', color: 'text-st-done' },
+  plan: { kind: 'done', color: 'text-st-done' },
+  failed: { kind: 'failed', color: 'text-st-fail' },
+  stopped: { kind: 'stopped', color: 'text-st-queue' },
+  waiting: { kind: 'queued', color: 'text-st-queue' },
 }
 
-function StatusGlyph({ tone }: { tone: string }) {
-  if (tone === 'failed') return <X size={12} strokeWidth={2.25} />
-  if (tone === 'stopped') return <Square size={8} fill="currentColor" strokeWidth={0} />
-  if (tone === 'completed' || tone === 'plan') return <Check size={12} strokeWidth={2.25} />
-  if (tone === 'waiting') return <Clock3 size={12} strokeWidth={2} />
-  return <OrbitSpinner className="size-3.5" />
-}
-
-// 分段步进表：每个活动一枚 18×4 胶囊，按真实状态着色；数量多时胶囊等比收窄。
-function meterTone(activity: EntityRecord) {
-  const status = activity.type === 'agent' ? activity.agent?.status : activity.status
-  if (status === 'error' || status === 'failed') return 'bg-danger'
-  if (status === 'running' || status === 'starting') return 'bg-star'
-  if (status === 'done' || status === 'completed' || activity.type === 'plan') return 'bg-success'
-  return 'bg-stroke-strong'
-}
-
-function StepMeter({ activities }: { activities: EntityRecord[] }) {
+function ToneGlyph({ tone, spin = true }: { tone: string; spin?: boolean }) {
+  const glyph = TONE_GLYPHS[tone] ?? { kind: 'queued' as const, color: 'text-st-queue' }
   return (
-    <span
-      className="agent-run-meter flex h-[4px] max-w-[min(160px,28%)] min-w-0 flex-none gap-[2px]"
-      aria-hidden="true"
-    >
-      {activities.map((activity, index) => (
-        <i
-          key={activityRenderKey(activity, index)}
-          className={`h-full w-[18px] min-w-[2px] shrink rounded-full ${meterTone(activity)}`}
-        />
-      ))}
+    <span className="agent-run-status-icon grid size-[18px] flex-none place-items-center">
+      <StatusGlyph
+        status={glyph.kind}
+        spin={spin && glyph.kind === 'run'}
+        className={`size-[15px] ${glyph.color}`}
+      />
     </span>
   )
+}
+
+// 工具组标题的计数：只按活动自身的状态归类（完成 / 运行中 / 失败），不另外推导；
+// 运行结束后残留的 running 记录按完成计，避免历史回复里出现“运行中”。
+function activityOutcome(activity: EntityRecord, streaming?: boolean) {
+  const status = activity.type === 'agent' ? activity.agent?.status : activity.status
+  if (status === 'error' || status === 'failed') return 'failed'
+  if (streaming && ['running', 'starting', 'queued'].includes(String(status))) return 'running'
+  if (streaming && activity.type === 'compaction') return 'running'
+  return 'done'
+}
+
+function activityGroupCounts(activities: EntityRecord[], streaming?: boolean) {
+  const counts = { total: activities.length, done: 0, running: 0, failed: 0 }
+  for (const activity of activities) counts[activityOutcome(activity, streaming)] += 1
+  return counts
 }
 
 function ActivityElement({
@@ -420,23 +433,32 @@ function ActivityElement({
   )
 }
 
-// 终端行着色只识别输出里真实存在的标记：行首 PASS/FAIL 变为浅色标签，
-// 失败要点（●）与运行时追加的退出码行用危险色，其余原样显示。
+// 终端行着色只识别输出里真实存在的标记：行首 PASS/FAIL 变为浅色标签；失败要点（● ✗ ×）、
+// npm 的 ERR!、Error: 前缀与运行时追加的退出码行标红，行首 ✓ / ✔ 标绿，其余原样显示。
+// 颜色只取 --st-* 状态族：红只表示失败，绿只表示通过。
+const FAILURE_LINE =
+  /^\s*(?:●|✗|✕|×|npm ERR!|ERR!|(?:Error|TypeError|SyntaxError|ReferenceError)\b:?)|^Command exited with code \d+/
+const SUCCESS_LINE = /^\s*[✓✔]/
+
 function TerminalLine({ line }: { line: string }) {
   const tag = /^(PASS|FAIL)(?=\s|$)/.exec(line)?.[1]
   if (tag)
     return (
       <span>
         <b
-          className={`mr-[6px] rounded-[3px] px-[5px] text-[11.5px] font-semibold tracking-[.02em] ${tag === 'PASS' ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}
+          className={`mr-[6px] rounded-[3px] px-[5px] text-[11.5px] font-semibold tracking-[.02em] ${tag === 'PASS' ? 'bg-st-done-soft text-st-done' : 'bg-st-fail-soft text-st-fail'}`}
         >
           {tag}
         </b>
         {line.slice(tag.length).trimStart()}
       </span>
     )
-  const failure = /^\s*●/.test(line) || /^Command exited with code \d+/.test(line)
-  return <span className={failure ? 'text-danger' : undefined}>{line}</span>
+  const tone = FAILURE_LINE.test(line)
+    ? 'text-st-fail'
+    : SUCCESS_LINE.test(line)
+      ? 'text-st-done'
+      : undefined
+  return <span className={tone}>{line}</span>
 }
 
 function CommandOutput({
@@ -464,16 +486,21 @@ function CommandOutput({
     return () => window.cancelAnimationFrame(frame)
   }, [display.text, streaming])
 
-  if (!display.text.trim()) return <div className={LOG_ROW_CLASS}>{children}</div>
+  // 运行中的命令即使还没有输出也展开，先露出完整命令；结束后没有输出的行不再可展开。
+  if (!display.text.trim() && !(streaming && command))
+    return <div className={LOG_ROW_CLASS}>{children}</div>
 
-  // 行本身就是展开开关；展开后在凹陷的代码井中显示输出，左侧细引导线与状态方块对齐。
+  // 行本身就是展开开关；展开后在凹陷的输出井（--well-*）中显示等宽输出，左侧细引导线与状态字形对齐。
   return (
     <details
-      className="agent-run-command-output [.agent-run-feed:has(&[open])]:max-h-[320px] [&_>_pre]:max-h-[112px] [&_>_pre]:overflow-auto [&_>_pre]:m-0 [&_>_pre]:relative [&_>_pre]:border-t [&_>_pre]:border-stroke-soft [&_>_pre]:bg-code [&_>_pre]:py-[9px] [&_>_pre]:pr-[14px] [&_>_pre]:pl-[40px] [&_>_pre]:font-mono [&_>_pre]:text-[12.5px] [&_>_pre]:leading-[1.65] [&_>_pre]:text-content-soft [&_>_pre]:whitespace-pre-wrap [&_>_pre]:[overflow-wrap:anywhere] [&_>_pre>span]:block [&_>_pre>span]:min-h-[1.65em] [&_>_pre]:before:absolute [&_>_pre]:before:top-0 [&_>_pre]:before:bottom-[12px] [&_>_pre]:before:left-[20px] [&_>_pre]:before:w-px [&_>_pre]:before:bg-stroke max-[650px]:[&_>_pre]:pl-[12px] max-[650px]:[&_>_pre]:text-[12px] max-[650px]:[&_>_pre]:before:hidden min-w-0"
+      className="agent-run-command-output [.agent-run-feed:has(&[open])]:max-h-[320px] [&_>_pre]:max-h-[112px] [&_>_pre]:overflow-auto [&_>_pre]:m-0 [&_>_pre]:relative [&_>_pre]:border-t [&_>_pre]:border-well-stroke [&_>_pre]:bg-well [&_>_pre]:py-[8px] [&_>_pre]:pr-[14px] [&_>_pre]:pl-[40px] [&_>_pre]:font-mono [&_>_pre]:text-[12px] [&_>_pre]:leading-[1.7] [&_>_pre]:text-well-text [&_>_pre]:whitespace-pre-wrap [&_>_pre]:[overflow-wrap:anywhere] [&_>_pre>span]:block [&_>_pre>span]:min-h-[1.7em] [&_>_pre]:before:absolute [&_>_pre]:before:top-0 [&_>_pre]:before:bottom-[12px] [&_>_pre]:before:left-[20px] [&_>_pre]:before:w-px [&_>_pre]:before:bg-well-stroke max-[650px]:[&_>_pre]:pl-[12px] max-[650px]:[&_>_pre]:before:hidden min-w-0"
       data-truncated={display.truncated || undefined}
+      data-running={streaming || undefined}
       open={streaming || undefined}
     >
-      <summary className={`${LOG_ROW_CLASS} ${LOG_SUMMARY_CLASS}`}>
+      <summary
+        className={`${LOG_ROW_CLASS} ${streaming ? RUNNING_SUMMARY_CLASS : LOG_SUMMARY_CLASS}`}
+      >
         {children}
         <span className="sr-only">
           {streaming
@@ -484,14 +511,14 @@ function CommandOutput({
       </summary>
       <pre ref={outputRef}>
         {command ? (
-          <span className="text-foreground">
-            <span className="text-content-muted select-none">$ </span>
+          <span className="text-well-text">
+            <span className="text-well-muted select-none">$ </span>
             {command}
           </span>
         ) : null}
-        {display.text.split('\n').map((line, index) => (
-          <TerminalLine key={index} line={line} />
-        ))}
+        {display.text
+          ? display.text.split('\n').map((line, index) => <TerminalLine key={index} line={line} />)
+          : null}
       </pre>
     </details>
   )
@@ -580,8 +607,11 @@ const ActivityCard = memo(function ActivityCard({
     lastActivityAt,
     now: Date.now(),
   })
-  // 每条带输出的 bash 行都可展开查看终端输出；仅运行中的那条默认展开并跟随滚动。
-  const showCommandOutput = activity.name === 'bash' && Boolean(activity.output)
+  // 每条带输出的 bash 行都可展开查看终端输出；运行中的那条默认展开并跟随滚动（还没有输出时先露出完整命令）。
+  const runningTool = Boolean(
+    streaming && activity.type === 'tool' && activity.status === 'running',
+  )
+  const showCommandOutput = activity.name === 'bash' && Boolean(activity.output || runningTool)
   if (activity.type === 'retry') {
     return (
       <ChatRequestNotice
@@ -603,12 +633,12 @@ const ActivityCard = memo(function ActivityCard({
   // 工具行：等宽动词 + 路径/命令；非工具活动（计划、子 Agent、团队消息）用标题 + 说明。
   const row = (
     <>
-      <span className={statusSquareClass(presentation.tone)}>
-        <StatusGlyph tone={presentation.tone} />
-      </span>
+      <ToneGlyph tone={presentation.tone} spin={Boolean(streaming)} />
       {verb ? (
         <>
-          <span className="agent-run-verb max-w-[40%] min-w-[38px] flex-none truncate font-mono text-[12px] font-medium text-content-muted">
+          <span
+            className={`agent-run-verb max-w-[40%] min-w-[34px] flex-none truncate font-mono text-[12px] font-semibold ${runningTool ? 'text-st-run' : 'text-content-secondary'}`}
+          >
             {verb}
           </span>
           <span
@@ -631,15 +661,18 @@ const ActivityCard = memo(function ActivityCard({
         </span>
       )}
       {exitCode !== null && (
-        <span className="flex-none font-mono text-[12px] font-medium text-danger">
+        <span className="flex-none font-mono text-[12px] font-medium text-st-fail">
           {t('chat:agentRunActivity.exitCode', { code: exitCode })}
         </span>
       )}
-      {span !== null && (
-        <span className="agent-run-elapsed min-w-[44px] flex-none text-right text-[12px] text-content-muted tabular-nums">
+      {span !== null ? (
+        <span className="agent-run-elapsed min-w-[44px] flex-none text-right font-mono text-[12px] text-content-muted tabular-nums">
           {formatStepDuration(span)}
         </span>
-      )}
+      ) : runningTool && activity.startedAt ? (
+        // 运行中的工具行显示已运行多久：每秒刷新只留在这一小段计时文字里。
+        <RunDurationLabel startedAt={String(activity.startedAt)} streaming />
+      ) : null}
     </>
   )
   return (
@@ -651,13 +684,13 @@ const ActivityCard = memo(function ActivityCard({
         <CommandOutput
           output={activity.output}
           command={presentation.detail}
-          streaming={Boolean(streaming && activity.status === 'running')}
+          streaming={runningTool}
           t={t}
         >
           {row}
         </CommandOutput>
       ) : (
-        <div className={LOG_ROW_CLASS}>
+        <div className={`${LOG_ROW_CLASS} ${runningTool ? 'bg-st-run-soft' : ''}`}>
           {row}
           {/* 不可展开的行保留箭头列宽，让耗时列与可展开行对齐。 */}
           <span className="size-[14px] flex-none" aria-hidden="true" />
@@ -686,7 +719,7 @@ const ActivityCard = memo(function ActivityCard({
           )}
           {outputLine ? (
             <small
-              className={`truncate text-[12px] ${failed ? 'text-danger' : 'text-content-muted'}`}
+              className={`truncate text-[12px] ${failed ? 'text-st-fail' : 'text-content-muted'}`}
               title={outputLine}
             >
               {outputLine}
@@ -732,9 +765,14 @@ function AgentRunActivity({
   }, [thinking])
 
   const activities = activityFeed.length ? activityFeed : tools
+  // 会话页检查器的“预览”标签可见时，实时窗口镜像由那里承担：同一个窗口不同时开两条帧流。
+  const inspector = useContext(SessionInspectorContext)
+  const inspectorTab = useSessionInspectorStore((state) => state.tab)
+  const mirrorInInspector = Boolean(inspector?.open && inspectorTab === 'preview')
   // computer use 实时镜像跟随 agent 当前操作的目标窗口；仅流式期间激活，
   // 且镜像回退到同一活动的静态预览图。
-  const computerUseTarget = streaming && !compact ? latestComputerUseTarget(activities) : null
+  const computerUseTarget =
+    streaming && !compact && !mirrorInInspector ? latestComputerUseTarget(activities) : null
   const activityVersion = activityScrollVersion(activities)
   const teamTasks: TeamTask[] = Array.isArray(team?.tasks) ? team.tasks : []
   const teamCompleted = Number(team?.completedTaskCount ?? 0)
@@ -758,7 +796,7 @@ function AgentRunActivity({
   // 没有任何可见内容时不占位：运行状态由输入框的呼吸灯胶囊承载。
   if (!thinking && !activities.length && !team) return null
 
-  const completedActivityCount = !streaming ? activities.length : 0
+  const counts = activityGroupCounts(activities, streaming)
   const renderActivityCards = (items: EntityRecord[]) =>
     items.map((activity, index) => (
       <ActivityCard
@@ -777,7 +815,6 @@ function AgentRunActivity({
       />
     ))
   const activityCards = renderActivityCards(activities)
-  const liveActivityCards = renderActivityCards(activities.slice(-1))
   const showTeamPanel = Boolean(
     team &&
     (teamTasks.length > 0 ||
@@ -787,66 +824,71 @@ function AgentRunActivity({
       Boolean(team.scriptPath) ||
       Boolean(team.summary?.text)),
   )
-  const showLiveFeed = Boolean(streaming && activities.length > 0)
-  const showLog = Boolean(thinking || showTeamPanel || showLiveFeed || completedActivityCount > 0)
+  const showLog = Boolean(showTeamPanel || activities.length > 0)
+  // 会话路由随页加载看板命名空间，工具组标题的计数文案在那里（不占入口常驻的 chat 命名空间）。
+  const groupParts = [
+    t('board:transcript.operations', { count: counts.total }),
+    counts.done ? t('board:transcript.done', { count: counts.done }) : '',
+    counts.running ? t('board:transcript.running', { count: counts.running }) : '',
+    counts.failed ? t('board:transcript.failed', { count: counts.failed }) : '',
+  ].filter(Boolean)
 
   return (
     <section
-      className={`agent-run-activity w-full [margin:2px_0_14px] text-foreground [&.compact]:m-[4px_0_0_40px] ${compact ? 'compact' : ''}`}
+      className={`agent-run-activity flex w-full flex-col items-start gap-[10px] [margin:2px_0_14px] text-foreground [&.compact]:m-[4px_0_0_40px] ${compact ? 'compact' : ''}`}
       aria-live="polite"
     >
-      {showLog && (
-        // 一体化活动日志：思考行、团队、实时/历史工具行共享一张 1px 描边卡片，行间只用细线分隔。
-        <div className="agent-run-log overflow-hidden rounded-md border border-stroke bg-panel [&>*+*]:border-t [&>*+*]:border-stroke-soft">
-          {thinking && (
-            <details
-              className={`agent-thinking-window group/thinking min-w-0 ${streaming ? 'running' : 'completed'}`}
-              data-pisper-activity-type="reasoning"
-            >
-              <summary
-                className={`agent-thinking-head ${LOG_ROW_CLASS} ${LOG_SUMMARY_CLASS}`}
-                aria-label={t('chat:agentRunActivity.toggleReasoning')}
-              >
-                <span className={statusSquareClass(streaming ? 'running' : 'idle')}>
-                  {streaming ? (
-                    <OrbitSpinner className="size-3.5" />
-                  ) : (
-                    <Lightbulb size={12} strokeWidth={2} />
-                  )}
+      {thinking && (
+        // 思考过程收成一枚芯片（规格 4.3 的“思考”芯片）：默认折叠，展开后在芯片下方显示推理文本。
+        <details
+          className={`agent-thinking-window group/thinking w-full min-w-0 ${streaming ? 'running' : 'completed'}`}
+          data-pisper-activity-type="reasoning"
+        >
+          <summary
+            className={`agent-thinking-head inline-flex h-7 max-w-full items-center gap-[6px] rounded-sm pr-[8px] pl-[6px] text-[12px] text-content-secondary ring-1 ring-stroke ring-inset ${SUMMARY_BASE_CLASS} hover:bg-surface-hover max-[650px]:h-11 pointer-coarse:h-11`}
+            aria-label={t('chat:agentRunActivity.toggleReasoning')}
+          >
+            {streaming ? (
+              <StatusGlyph status="run" className="size-[14px] text-st-run" />
+            ) : (
+              <Lightbulb className="size-[14px] flex-none text-content-muted" strokeWidth={1.75} />
+            )}
+            <strong className="flex min-w-0 items-center truncate font-medium">
+              {streaming
+                ? t('chat:agentRunActivity.reasoningInProgress')
+                : t('chat:agentRunActivity.reasoningCompleted')}
+              {streaming ? (
+                <span
+                  className="agent-thinking-dots [&_i]:w-[3px] [&_i]:h-[3px] [&_i]:rounded-[50%] [&_i]:bg-[currentColor] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-end gap-[2px] [margin-left:5px]"
+                  aria-hidden="true"
+                >
+                  <i />
+                  <i />
+                  <i />
                 </span>
-                <strong className="flex min-w-0 flex-1 items-center truncate font-medium text-content-secondary">
-                  {streaming
-                    ? t('chat:agentRunActivity.reasoningInProgress')
-                    : t('chat:agentRunActivity.reasoningCompleted')}
-                  {streaming ? (
-                    <span
-                      className="agent-thinking-dots [&_i]:w-[3px] [&_i]:h-[3px] [&_i]:rounded-[50%] [&_i]:bg-[currentColor] [&_i]:[animation:agent-thinking-dot_1.15s_ease-in-out_infinite] [&_i:nth-child(2)]:[animation-delay:.14s] [&_i:nth-child(3)]:[animation-delay:.28s] inline-flex items-end gap-[2px] [margin-left:5px]"
-                      aria-hidden="true"
-                    >
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  ) : null}
-                </strong>
-                {/* 有历史工具行时总时长放在那一行，思考行不重复显示。 */}
-                {!completedActivityCount && (
-                  <RunDurationLabel
-                    startedAt={startedAt}
-                    finishedAt={finishedAt}
-                    streaming={streaming}
-                  />
-                )}
-                <ChevronRight className={DISCLOSURE_CLASS} aria-hidden="true" />
-              </summary>
-              <div
-                ref={thinkingScrollRef}
-                className="agent-thinking-scroll max-h-[190px] overflow-auto border-t border-stroke-soft bg-surface-subtle py-[9px] pr-[14px] pl-[40px] [scroll-behavior:smooth] max-[650px]:pl-[14px]"
-              >
-                <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
-              </div>
-            </details>
-          )}
+              ) : null}
+            </strong>
+            {/* 没有工具组时，这一轮的总时长挂在思考芯片上；有工具组时放在组标题里，不重复。 */}
+            {!activities.length && (
+              <RunDurationLabel
+                startedAt={startedAt}
+                finishedAt={finishedAt}
+                streaming={streaming}
+              />
+            )}
+            <ChevronRight className={DISCLOSURE_CLASS} aria-hidden="true" />
+          </summary>
+          <div
+            ref={thinkingScrollRef}
+            className="agent-thinking-scroll mt-[8px] max-h-[190px] overflow-auto rounded-md border border-stroke-soft bg-surface-subtle px-[14px] py-[9px] text-content-secondary [scroll-behavior:smooth]"
+          >
+            <MarkdownMessage streaming={streaming}>{thinking}</MarkdownMessage>
+          </div>
+        </details>
+      )}
+      {showLog && (
+        // 工具组卡片：组标题 + 细线分隔的 36px 工具行；团队面板与工具行共享同一张 1px 描边卡片。
+        <div className="agent-run-log w-full overflow-hidden rounded-md border border-stroke bg-solid [&>*+*]:border-t [&>*+*]:border-stroke-soft">
           {team && showTeamPanel && (
             <details
               className="agent-team-panel min-w-0"
@@ -1018,31 +1060,29 @@ function AgentRunActivity({
               </div>
             </details>
           )}
-          {showLiveFeed && (
-            <div
-              ref={liveFeedRef}
-              className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col overflow-y-auto [overscroll-behavior:contain] [&>*+*]:border-t [&>*+*]:border-stroke-soft live"
-              aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
-            >
-              <Suspense fallback={liveActivityCards}>
-                <AnimatedList>{liveActivityCards}</AnimatedList>
-              </Suspense>
-            </div>
-          )}
-          {completedActivityCount > 0 && (
-            // 历史工具行默认展开：日志就是这条回复的过程记录；行数多时在 184px 视口内滚动。
+          {activities.length > 0 && (
+            // 运行中与历史共用一个工具组：默认展开；运行中时列表跟随最新一行滚动。
             <details className="agent-run-history min-w-0" open>
-              <summary className={`${LOG_ROW_CLASS} ${LOG_SUMMARY_CLASS}`}>
-                <span className={statusSquareClass('idle')}>
-                  <ListChecks size={12} strokeWidth={2} />
+              <summary
+                className={`flex min-h-[34px] min-w-0 items-center gap-[8px] bg-surface-subtle px-[12px] py-[4px] text-[12px] text-content-secondary ${SUMMARY_BASE_CLASS} hover:bg-surface-hover max-[650px]:min-h-11 pointer-coarse:min-h-11`}
+                data-tool-group-summary
+              >
+                <Activity className="size-[14px] flex-none text-content-muted" aria-hidden="true" />
+                <span className="flex min-w-0 flex-1 items-center gap-[6px] truncate tabular-nums">
+                  {groupParts.map((part, index) => (
+                    <span
+                      key={index}
+                      className={index === 0 ? 'font-semibold text-content' : undefined}
+                    >
+                      {index > 0 && (
+                        <span aria-hidden="true" className="mr-[6px] text-content-muted">
+                          ·
+                        </span>
+                      )}
+                      {part}
+                    </span>
+                  ))}
                 </span>
-                <strong className="flex-none font-medium text-content-secondary">
-                  {t('chat:agentRunActivity.countCompletedOperations', {
-                    count: completedActivityCount,
-                  })}
-                </strong>
-                <StepMeter activities={activities} />
-                <span className="min-w-0 flex-1" />
                 <RunDurationLabel
                   startedAt={startedAt}
                   finishedAt={finishedAt}
@@ -1051,11 +1091,18 @@ function AgentRunActivity({
                 <ChevronRight className={DISCLOSURE_CLASS} aria-hidden="true" />
               </summary>
               <div
-                className="agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col overflow-y-auto [overscroll-behavior:contain] border-t border-stroke-soft [&>*+*]:border-t [&>*+*]:border-stroke-soft completed"
+                ref={liveFeedRef}
+                className={`agent-run-feed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex max-h-[184px] flex-col overflow-y-auto [overscroll-behavior:contain] border-t border-stroke-soft [&>*+*]:border-t [&>*+*]:border-stroke-soft ${streaming ? 'live' : 'completed'}`}
                 aria-label={t('chat:agentRunActivity.toolActivityAriaLabel')}
                 tabIndex={activities.length > 3 ? 0 : undefined}
               >
-                <Suspense fallback={activityCards}>{activityCards}</Suspense>
+                {streaming ? (
+                  <Suspense fallback={activityCards}>
+                    <AnimatedList>{activityCards}</AnimatedList>
+                  </Suspense>
+                ) : (
+                  <Suspense fallback={activityCards}>{activityCards}</Suspense>
+                )}
               </div>
             </details>
           )}

@@ -9,9 +9,17 @@ import {
   reconcileOlderMessageWindow,
   restoreLatestMessageWindow,
 } from '@/features/chat/use-live-session-sync'
+import { SessionPageChromeContext } from '@/features/chat/session-workspace-context'
+import { ensureBoardMessages } from '@/app/i18n'
 import { DEFAULT_SESSION_STATE } from '@/lib/session-state'
 import type { ChatMessage } from '@/types/chat'
 import '@/index.css'
+
+// ?layout=page：按桌面会话页（/board/:id）的方式渲染——提供会话页外壳上下文（页头、会话页输入框），
+// 并先注册会话页文案（与会话路由加载时一致）。不带参数时是手机外壳与旧入口仍在用的单会话视图。
+const pageLayout = new URLSearchParams(location.search).get('layout') === 'page'
+if (pageLayout) await ensureBoardMessages()
+const pageChrome = { compact: false, overlayOnly: false }
 
 const noop = () => {}
 const markdown = `正文段落用于核对字距、换行与行高。Content baseline and wrapping.
@@ -47,7 +55,13 @@ const rows = (start: number, count: number): ChatMessage[] =>
     role: i % 2 ? 'agent' : 'user',
     text: `Message ${start + i}\n\n` + '固定阅读锚点。Stable reading anchor. '.repeat(3),
   }))
-const evidence = { sends: 0, queues: 0, aborts: 0, attachments: 0 }
+const evidence = {
+  sends: 0,
+  queues: 0,
+  aborts: 0,
+  attachments: 0,
+  behaviors: [] as (string | null)[],
+}
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
 export function Fixture() {
@@ -120,8 +134,9 @@ export function Fixture() {
         }),
       )
     },
-    onQueue: () => {
+    onQueue: (_text, _attachments, behavior) => {
       evidence.queues += 1
+      evidence.behaviors.push(behavior ?? null)
       return Promise.resolve(true)
     },
     onAbort: () => {
@@ -151,7 +166,13 @@ export function Fixture() {
       older: loadOlder,
     },
   })
-  return <FocusSession {...props} />
+  return pageLayout ? (
+    <SessionPageChromeContext.Provider value={pageChrome}>
+      <FocusSession {...props} />
+    </SessionPageChromeContext.Provider>
+  ) : (
+    <FocusSession {...props} />
+  )
 }
 
 createRoot(document.getElementById('root')!).render(

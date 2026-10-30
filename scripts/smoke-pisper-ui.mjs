@@ -872,57 +872,58 @@ try {
   )
   console.log('TOOLS', tools)
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
-  await page.getByRole('tab', { name: '任务文件快照', exact: true }).waitFor()
-  for (const name of ['计划', '网页预览']) {
-    await page.getByRole('button', { name: '新增辅助页面', exact: true }).click()
-    await page.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
-    await page.getByRole('button', { name, exact: true }).click()
-    await page.getByRole('tab', { name, exact: true }).waitFor()
-  }
-  for (const name of ['任务文件快照', '计划', '网页预览'])
-    assert.equal(await page.getByRole('tab', { name, exact: true }).count(), 1)
-  await page.getByRole('tab', { name: '任务文件快照', exact: true }).focus()
+  // 第 3 期：会话页右侧是检查器（固定标签 改动 / 终端 / 文件 / 预览），取代可关闭的上下文页标签；
+  // 计划标签只在有计划、目标或团队时出现。标签条支持方向键与 Home / End，宽屏默认并排展开。
+  const inspector = page.locator('[data-session-inspector]')
+  await inspector.waitFor()
+  const inspectorTabIds = () =>
+    inspector
+      .locator('[data-inspector-tab-id]')
+      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-inspector-tab-id')))
+  assert.deepEqual(await inspectorTabIds(), ['changes', 'terminal', 'files', 'preview'])
+  const inspectorTab = (id) => inspector.locator(`[data-inspector-tab-id="${id}"]`)
+  await inspectorTab('changes').click()
+  await inspectorTab('changes').focus()
   await page.keyboard.press('End')
-  assert.equal(
-    await page.getByRole('tab', { name: '网页预览', exact: true }).getAttribute('aria-selected'),
-    'true',
-  )
+  assert.equal(await inspectorTab('preview').getAttribute('aria-selected'), 'true')
+  await inspector.locator('[data-inspector-preview]').waitFor()
   await page.keyboard.press('Home')
   await page.keyboard.press('ArrowRight')
-  assert.equal(
-    await page.getByRole('tab', { name: '计划', exact: true }).getAttribute('aria-selected'),
-    'true',
+  assert.equal(await inspectorTab('terminal').getAttribute('aria-selected'), 'true')
+  await page.waitForFunction(() =>
+    document.activeElement?.matches('[data-inspector-tab-id="terminal"]'),
   )
-  await page.getByRole('button', { name: '返回对话', exact: true }).last().click()
+  await inspectorTab('changes').click()
   await page.getByRole('button', { name: '审批模式：审批后写入', exact: true }).click()
   console.log('PERMISSIONS', await page.getByRole('menu').ariaSnapshot())
   await page.keyboard.press('Escape')
-  report.checks.push('right context files/plan/web-preview keyboard tabs and close/reopen')
-  // 活动栏的全局“资源”菜单随旧外壳退役；同样的资源页从当前会话的新建标签页打开。
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
-  await page.getByRole('button', { name: '新增辅助页面', exact: true }).click()
-  await page.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
-  assert.equal(await page.getByRole('button', { name: '项目文件', exact: true }).count(), 0)
-  await page.getByRole('button', { name: '来源', exact: true }).click()
-  await page.getByRole('tab', { name: '来源', exact: true }).waitFor()
-  assert.equal(
-    await page.getByRole('tab', { name: '来源', exact: true }).getAttribute('aria-selected'),
-    'true',
+  report.checks.push(
+    'session inspector fixed tabs (changes / terminal / files / preview) with arrow, Home and End keyboard navigation',
   )
-  await page.getByRole('button', { name: '关闭辅助页面 · 来源', exact: true }).click()
-  await page.getByRole('button', { name: '返回对话', exact: true }).click()
-  report.checks.push('The focused task opens a sources content tab from its own new-tab page')
+  // 活动栏的全局“资源”菜单随旧外壳退役；资料来源在检查器的“文件”标签里，
+  // 已退役的工作区文件浏览器不会出现在固定标签或“+”说明里。
+  await inspectorTab('files').click()
+  await inspector.getByRole('region', { name: '来源', exact: true }).waitFor()
+  assert.equal(await page.getByRole('tab', { name: '项目文件', exact: true }).count(), 0)
+  await inspector.getByRole('button', { name: '添加组件标签', exact: true }).click()
+  await page.locator('[data-slot="popover-content"]').waitFor()
+  assert.equal(await page.getByRole('button', { name: '项目文件', exact: true }).count(), 0)
+  await page.keyboard.press('Escape')
+  await inspectorTab('changes').click()
+  report.checks.push('The focused task shows its sources in the inspector files tab')
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    const taskHeader = page.locator('.workbench-chat-header')
-    // 手机标签条已有“新会话”加号，新建标签页收进更多菜单，标题行只保留两个按钮。
-    const headerControls =
-      width <= 650 ? ['项目与任务设置', '置顶摘要'] : ['项目与任务设置', '置顶摘要', '新建标签页']
-    await taskHeader.getByRole('button', { name: headerControls.at(-1), exact: true }).waitFor()
+    // 手机外壳保留第 1 期的单会话标题行（“项目与任务设置”“置顶摘要”）；桌面会话页头右端依次是
+    // 侧聊、⋯（项目与任务设置）与检查器开关，置顶摘要与新建标签页的职责由检查器承担。
+    const phoneLayout = width <= 650
+    const taskHeader = page.locator(
+      phoneLayout ? '.workbench-chat-header' : '[data-session-header]',
+    )
+    const headerControls = phoneLayout
+      ? ['[aria-label="项目与任务设置"]', '[aria-label="置顶摘要"]']
+      : ['[data-session-side-chat]', '[aria-label="项目与任务设置"]', '[data-inspector-toggle]']
+    await taskHeader.locator(headerControls.at(-1)).waitFor()
     await taskHeader.evaluate(async (header) => {
       header.getBoundingClientRect()
       await Promise.all(
@@ -932,18 +933,16 @@ try {
       )
     })
     // 跨断点会重新挂载桌面/手机工作区；一次读取整组尺寸，避免跨调用混用两棵树。
-    const headerMetrics = await taskHeader.evaluate((header, names) => {
+    const headerMetrics = await taskHeader.evaluate((header, selectors) => {
       const rect = header.getBoundingClientRect()
       return {
         left: rect.left,
         right: rect.right,
-        controls: names.map((name) => {
-          const button = [...header.querySelectorAll('button')].find(
-            (item) => item.getAttribute('aria-label') === name,
-          )
+        controls: selectors.map((selector) => {
+          const button = header.querySelector(`button${selector}`)
           const bounds = button.getBoundingClientRect()
           return {
-            name,
+            name: button.getAttribute('aria-label') || button.textContent.trim(),
             left: bounds.left,
             right: bounds.right,
             width: bounds.width,
@@ -958,13 +957,20 @@ try {
         bounds.left >= previousRight && bounds.right <= headerMetrics.right + 1,
         `${bounds.name} stays inside the header without overlapping at ${width}px`,
       )
-      if (width <= 650)
+      if (phoneLayout)
         assert.ok(
           bounds.width >= 44 && bounds.height >= 44,
           `${bounds.name} has a mobile touch target: ${JSON.stringify(bounds)}`,
         )
       previousRight = bounds.right
     }
+    // 桌面检查器为保存阅读位置按需建的资源页，不会让手机外壳落在只显示内容的视图上。
+    if (width === 320)
+      assert.equal(
+        await prompt.isVisible(),
+        true,
+        'the phone layout opens on the conversation after the desktop inspector was used',
+      )
     if (width === 390) {
       // 浏览器没有系统栏；模拟 Android 原生注入的真实 inset，检查最终位置而非 CSS 写法。
       await page.evaluate(() => {
@@ -1093,6 +1099,10 @@ try {
   report.checks.push(
     '320/390/768/1440 px: all three primary controls remain accessible inline or in the overflow tray without horizontal clipping; light/dark screenshots',
   )
+  // 先收起检查器：下面确认没有留下文件改动的普通文本回复结束后，不会自动展开它。
+  if (await page.locator('[data-session-inspector]').count())
+    await page.locator('[data-inspector-toggle]').click()
+  await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
   await prompt.fill('ping [pi-ui-sse]')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await page.getByText('流式回复：', { exact: true }).waitFor({ timeout: 60000 })
@@ -1104,11 +1114,12 @@ try {
   await page.getByText('流式回复：验收通过', { exact: true }).waitFor({ timeout: 30000 })
   // 发送键运行中也保持「发送消息」，以运行条停止键消失判断本轮结束。
   await page.getByRole('button', { name: '停止', exact: true }).waitFor({ state: 'hidden' })
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).waitFor()
-  await page.keyboard.press('Escape')
-  assert.equal(await page.getByRole('button', { name: '返回对话', exact: true }).count(), 0)
-  report.checks.push('A completed ordinary text reply leaves the empty context panel closed')
+  // 只有本轮留下文件改动时才自动展开“改动 · 本会话”；普通文本回复保持检查器收起。
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
+  assert.equal(await page.locator('[data-session-inspector]').count(), 0)
+  report.checks.push('A completed ordinary text reply leaves the collapsed inspector closed')
   const chatRegions = await page.evaluate(() => {
     const messages = document
       .querySelector('[data-chat-region="messages"]')

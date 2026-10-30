@@ -679,7 +679,10 @@ export class StreamProjection {
     touchSessionRuntime,
     saveSessionMeta,
     history,
+    onInvalidate,
   }) {
+    // 投影失效即“这个会话的可见状态变了”：看板事件流借这一处收口感知所有变化，只记脏标记。
+    this.onInvalidate = typeof onInvalidate === 'function' ? onInvalidate : null
     this.cwd = cwd
     this.sessions = sessions
     this.liveSessions = liveSessions
@@ -748,6 +751,13 @@ export class StreamProjection {
 
   invalidate(sessionId, scopes) {
     this.cache.invalidate(sessionId, scopes)
+    if (sessionId && this.onInvalidate) {
+      try {
+        this.onInvalidate(sessionId)
+      } catch {
+        // 观察者只做通知，失败不能影响投影缓存与 Agent 流。
+      }
+    }
   }
 
   invalidateAssets() {
@@ -1237,6 +1247,8 @@ export class StreamProjection {
       id,
       streaming,
       configurationBusy,
+      // 只增不改：经 HTTP 发起的运行带 runId，其它客户端可用 /api/runs/:runId/events 挂接真正的流。
+      runId: typeof live?.runId === 'string' && live.runId ? live.runId : null,
       messages,
       tools: live?.tools || [],
       error: live?.error || '',

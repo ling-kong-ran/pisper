@@ -1,11 +1,17 @@
 // 看板数据层。会话目录的唯一权威所有者是 react-query 的 ['sessions','board']（见 startup-queries）；
-// 本模块的 zustand 覆盖层只保存服务端列表没有的实时细节：审批详情（/live）、本客户端发起的运行活动、
-// 乐观补丁和进行中的动作。第 1 期 Runtime 没有 board.view / board.events 能力，按降级矩阵：
-// 页面可见时每 3 秒刷新一次 /api/sessions，隐藏时停止；需要你的审批卡单独取 /live。
-// 轮询、/live 请求与流消费只在有视图持有（retainBoardSync）时运行，最后一个持有者释放后统一清理。
+// 本模块的 zustand 覆盖层只保存服务端列表没有的实时细节：看板条目与 card（事件流 / 看板视图）、
+// 审批详情（/live）、本客户端发起的运行活动、乐观补丁和进行中的动作。
+// 数据源按 Runtime 能力三选一（规格 8.6 降级矩阵）：
+// - board.events：每个标签页只开一条 /api/board/events，由本 store 独占；页面隐藏时断开，可见后带
+//   ?after=revision 补齐；resync_required 时等新快照整体替换并补读目录；HTTP 拒绝（如 429）时
+//   暂停 60 秒、退回 view=board 轮询。审批详情来自 card.approvals，只有预览被截断时才取 /live。
+// - board.view（没有 events）：页面可见时每 2 秒读一次 view=board。
+// - 都没有（旧 Runtime）：第 1 期路径，页面可见时每 3 秒刷新 /api/sessions，需要你的审批卡单独取 /live。
+// 轮询、事件流、/live 请求与流消费只在有视图持有（retainBoardSync）时运行，最后一个持有者释放后统一清理。
 import { hashKey } from '@tanstack/react-query'
 import { create } from 'zustand'
 import { deriveBoardStatus } from '@shared/session-board-status.mjs'
+import { ApiError } from '@/lib/http'
 import {
   fetchStartupQuery,
   invalidateStartupQuery,
@@ -13,6 +19,7 @@ import {
   SESSIONS_QUERY_KEY,
   startupQueryOptions,
 } from '@/lib/startup-queries'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { SessionSummary } from '@/types/chat'
 import {
   boardApi,
@@ -22,15 +29,39 @@ import {
   type BoardApproval,
   type BoardStreamEvent,
 } from './board-api'
+import {
+  applyBoardFeedEvent,
+  emptyBoardFeed,
+  replaceBoardFeed,
+  type BoardFeedEffects,
+  type BoardFeedEntry,
+  type BoardFeedMode,
+  type BoardFeedState,
+} from './board-feed'
 
 export const BOARD_SESSIONS_QUERY_KEY = SESSIONS_QUERY_KEY
 export const BOARD_POLL_INTERVAL_MS = 3_000
+// 有 board.view 没有 board.events 时，看板视图的轮询间隔（规格 8.6）。
+export const BOARD_VIEW_POLL_INTERVAL_MS = 2_000
+export const BOARD_VIEW_MAX_BACKOFF_MS = 30_000
+// 事件流断开后的重连退避：正常结束（收到过数据）按基础间隔重连，连续失败按指数退避。
+export const BOARD_EVENTS_RETRY_BASE_MS = 1_000
+export const BOARD_EVENTS_RETRY_MAX_MS = 30_000
+// 事件流被 HTTP 拒绝（连接数已满、Runtime 不支持）后暂停这么久，期间退回 view=board 轮询。
+export const BOARD_EVENTS_BLOCK_MS = 60_000
+// 内联动作完成后等待事件流带回确认帧的上限；超时就以当时的数据为准，不再等。
+export const BOARD_CONFIRM_TIMEOUT_MS = 4_000
+// 事件流空闲看门狗：Runtime 每 15 秒发一次心跳，约 2.5 个心跳周期没有任何帧就当作半开连接
+// （切换网络、休眠唤醒、代理静默丢连接），断开后带 after 重连。
+export const BOARD_EVENTS_IDLE_TIMEOUT_MS = 40_000
+// 条目离开看板（归档、删除）或需要重新同步时，合并 300ms 再补读一次完整目录。
+const CATALOG_REFRESH_DELAY_MS = 300
 // 连接预算：Runtime 走 HTTP/1.1，Chromium、WebView2、WKWebView 对同一主机最多 6 条连接。
-// 看板长期占用的连接（本客户端持有的运行流 + 在途的 /live）合计不超过 4 条，
-// 给 3 秒轮询、审批提交与其他页面请求至少留 2 条，否则连续派发几个长任务后整个应用会排队卡死。
+// 看板长期占用的连接（事件流 1 条 + 本客户端持有的运行流 + 在途的 /live）合计不超过 4 条，
+// 给轮询、审批提交与其他页面请求至少留 2 条，否则连续派发几个长任务后整个应用会排队卡死。
 export const BOARD_CONNECTION_BUDGET = 4
 // 最多持有 2 条运行流（给出实时活动行）；更早的流在 Runtime 受理后释放，run 在 Runtime 继续，
-// 卡片退回降级形态，由列表轮询反映真实状态。
+// 卡片退回降级形态，由列表轮询或事件流反映真实状态。
 export const BOARD_HELD_STREAM_LIMIT = 2
 // 降级矩阵：/live 并发上限，错开发起，避免一面需要你的墙同时压垮 Runtime；还受上面的连接预算约束。
 export const BOARD_LIVE_LIMIT = 3
@@ -72,6 +103,8 @@ export type BoardSessionPatch = Partial<
 export type BoardActionKind = 'approve' | 'deny' | 'retry' | 'markHandled' | 'pin' | 'archive'
 
 export type BoardOverlayState = {
+  // 第 2 期 Runtime 的看板条目与 card；旧 Runtime（legacy）时为空且 ready 为 false。
+  feed: BoardFeedState
   live: Record<string, BoardLiveEntry>
   localRuns: Record<string, BoardLocalRun>
   // 首次观察到运行的时间：降级模式拿不到真实开始时间，用它保持运行中泳道顺序稳定。
@@ -81,6 +114,7 @@ export type BoardOverlayState = {
 }
 
 const EMPTY_OVERLAY: BoardOverlayState = {
+  feed: emptyBoardFeed(),
   live: {},
   localRuns: {},
   runningSince: {},
@@ -107,6 +141,68 @@ export function refreshBoardSessions() {
 export async function confirmBoardSessions() {
   void invalidateStartupQuery('sessions')
   await refreshBoardSessions()
+}
+
+export type BoardConfirmPredicate = (entry: BoardFeedEntry | undefined) => boolean
+
+/**
+ * 内联动作之后确认这一张卡片的服务端状态，按数据源区分：
+ * - 事件流在线：等这张卡片的下一帧满足 predicate（例如审批不再出现、开始运行），最多等 4 秒；
+ * - 看板视图（或事件流暂时断开）：立即读一次 view=board；
+ * - 旧 Runtime：刷新完整目录（第 1 期行为）。
+ * 从不抛错；调用方在它结束后撤掉乐观补丁。
+ */
+export async function confirmBoardSession(
+  sessionId: string,
+  predicate: BoardConfirmPredicate = () => true,
+  // fresh：只认动作之后新到的帧。审批用它：动作前的条目可能是请求途中算出的旧状态。
+  { fresh = false }: { fresh?: boolean } = {},
+) {
+  if (sync.active && sync.mode === 'events' && sync.events.controller) {
+    if (!fresh && predicate(useBoardOverlay.getState().feed.entries[sessionId])) return
+    await waitForFeedEntry(sessionId, predicate, BOARD_CONFIRM_TIMEOUT_MS)
+    return
+  }
+  if (sync.active && sync.mode !== 'legacy' && boardFeatures().view) {
+    await pollViewFresh()
+    return
+  }
+  await confirmBoardSessions().catch(() => undefined)
+}
+
+function waitForFeedEntry(sessionId: string, predicate: BoardConfirmPredicate, timeoutMs: number) {
+  return new Promise<void>((resolve) => {
+    const initial = useBoardOverlay.getState().feed.entries[sessionId]
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let unsubscribe = () => {}
+    const finish = () => {
+      if (timer) clearTimeout(timer)
+      unsubscribe()
+      resolve()
+    }
+    // 只认新到的帧：等待开始时已有的条目不再重复判断。
+    unsubscribe = useBoardOverlay.subscribe((state) => {
+      const entry = state.feed.entries[sessionId]
+      if (entry !== initial && predicate(entry)) finish()
+    })
+    timer = setTimeout(finish, timeoutMs)
+  })
+}
+
+// 看板数据源需要的 Runtime 能力：旧 Runtime 没有这两个键，按 false 处理。
+function boardFeatures() {
+  const { capabilities, loaded } = useRuntimeCapabilitiesStore.getState()
+  const features: Partial<Record<string, boolean>> = capabilities.features
+  return {
+    loaded,
+    view: loaded && features['board.view'] === true,
+    events: loaded && features['board.events'] === true,
+  }
+}
+
+// 标记已处理：Runtime 支持 board.view（第 2 期）时同时清掉失败注意力，否则只标已读。
+export function boardDismissAttentionAvailable() {
+  return boardFeatures().view
 }
 
 // —— 乐观补丁：只叠加在看板派生视图上，权威缓存始终是服务端快照 ——
@@ -184,20 +280,95 @@ function updateLive(
   })
 }
 
+// 看板条目（card）里的审批：乐观移除与失败回滚都要同时作用在它和 /live 详情上。
+function updateFeedApprovals(
+  sessionId: string,
+  update: (approvals: BoardApproval[]) => BoardApproval[],
+) {
+  useBoardOverlay.setState((state) => {
+    const entry = state.feed.entries[sessionId]
+    if (!entry) return state
+    const approvals = update(entry.card.approvals)
+    if (approvals === entry.card.approvals) return state
+    return {
+      feed: {
+        ...state.feed,
+        entries: {
+          ...state.feed.entries,
+          [sessionId]: { ...entry, card: { ...entry.card, approvals } },
+        },
+      },
+    }
+  })
+}
+
 export function removeBoardApproval(sessionId: string, approvalId: string) {
   updateLive(sessionId, (entry) =>
     entry && entry.approvals.some((approval) => approval.id === approvalId)
       ? { ...entry, approvals: entry.approvals.filter((approval) => approval.id !== approvalId) }
       : (entry ?? null),
   )
+  updateFeedApprovals(sessionId, (approvals) =>
+    approvals.some((approval) => approval.id === approvalId)
+      ? approvals.filter((approval) => approval.id !== approvalId)
+      : approvals,
+  )
 }
 
 export function restoreBoardApproval(sessionId: string, approval: BoardApproval) {
+  // 有看板条目时审批成员以 card 为准，回滚写回 card；否则写回 /live 详情（第 1 期路径）。
+  if (useBoardOverlay.getState().feed.entries[sessionId]) {
+    updateFeedApprovals(sessionId, (approvals) =>
+      approvals.some((item) => item.id === approval.id) ? approvals : [...approvals, approval],
+    )
+    return
+  }
   updateLive(sessionId, (entry) => {
     const base = entry ?? emptyLiveEntry('ready')
     if (base.approvals.some((item) => item.id === approval.id)) return base
     return { ...base, approvals: [...base.approvals, approval] }
   })
+}
+
+// 一条审批的可批准详情：/live 取到的完整详情优先；card 里的审批只有预览完整（没被截断）时才算数。
+export function boardApprovalDetail(sessionId: string, approvalId: string) {
+  const state = useBoardOverlay.getState()
+  const live = state.live[sessionId]?.approvals.find((approval) => approval.id === approvalId)
+  if (live) return live
+  const card = state.feed.entries[sessionId]?.card.approvals.find(
+    (approval) => approval.id === approvalId,
+  )
+  return card && !card.truncated ? card : undefined
+}
+
+// 服务端确认过的会话字段（整理接口的响应）同步写进看板条目，不必等下一帧才反映到卡片上。
+export function updateBoardFeedSession(sessionId: string, fields: Partial<SessionSummary>) {
+  useBoardOverlay.setState((state) => {
+    const entry = state.feed.entries[sessionId]
+    if (!entry) return state
+    return {
+      feed: {
+        ...state.feed,
+        entries: {
+          ...state.feed.entries,
+          // 服务端刚确认的字段：这一行此刻是最新的，目录重读时以它为准。
+          [sessionId]: {
+            ...entry,
+            session: { ...entry.session, ...fields },
+            receivedAt: Date.now(),
+          },
+        },
+      },
+    }
+  })
+}
+
+// 这张卡片当前还在等待的审批（用于判断处理完这一条之后运行是否恢复）。
+export function boardSessionApprovals(sessionId: string): BoardApproval[] {
+  const state = useBoardOverlay.getState()
+  const entry = state.feed.entries[sessionId]
+  if (entry && sync.mode !== 'legacy') return entry.card.approvals
+  return state.live[sessionId]?.approvals ?? []
 }
 
 function emptyLiveEntry(status: BoardLiveEntry['status']): BoardLiveEntry {
@@ -212,17 +383,38 @@ function emptyLiveEntry(status: BoardLiveEntry['status']): BoardLiveEntry {
   }
 }
 
-// —— 同步生命周期：单一轮询者 ——
+// —— 同步生命周期：单一所有者 ——
+type EventsRuntime = {
+  // 当前这条 /api/board/events 连接；null 表示没有连接（隐藏、退避中或不是事件流模式）。
+  controller: AbortController | null
+  retryTimer: ReturnType<typeof setTimeout> | null
+  // 连续失败次数（没收到任何数据就断开），决定指数退避。
+  attempt: number
+  // HTTP 拒绝后暂停事件流到这个时间点，期间退回 view=board。
+  blockedUntil: number
+  blockTimer: ReturnType<typeof setTimeout> | null
+  // 当前连接的空闲看门狗：每收到一帧（包括心跳）重新计时；连接结束或页面隐藏时清掉。
+  watchdog: ReturnType<typeof setTimeout> | null
+}
+
 type SyncRuntime = {
   retainers: number
   active: boolean
+  mode: BoardFeedMode
   pollTimer: ReturnType<typeof setTimeout> | null
   releaseTimer: ReturnType<typeof setTimeout> | null
+  catalogTimer: ReturnType<typeof setTimeout> | null
   liveTimers: Map<string, ReturnType<typeof setTimeout>>
   liveControllers: Map<string, AbortController>
   liveNextAt: Map<string, number>
   // 按开始顺序排列（Map 保留插入顺序），超出上限时先释放最早的已受理流。
   runControllers: Map<string, HeldRun>
+  events: EventsRuntime
+  view: { inFlight: Promise<void> | null; controller: AbortController | null; failures: number }
+  // 当前数据源的第一次请求已经有结果（成功或失败）：在这之前不为审批卡发 /live，免得与第一份 card 重复。
+  feedSettled: boolean
+  // 最近一次目录请求开始的本地时间：之后才收到的看板条目比这份目录新，更早的则更旧。
+  catalogFetchAt: number
   cleanups: Array<() => void>
 }
 
@@ -231,12 +423,25 @@ type HeldRun = { controller: AbortController; accepted: boolean }
 const sync: SyncRuntime = {
   retainers: 0,
   active: false,
+  mode: 'legacy',
   pollTimer: null,
   releaseTimer: null,
+  catalogTimer: null,
   liveTimers: new Map(),
   liveControllers: new Map(),
   liveNextAt: new Map(),
   runControllers: new Map(),
+  events: {
+    controller: null,
+    retryTimer: null,
+    attempt: 0,
+    blockedUntil: 0,
+    blockTimer: null,
+    watchdog: null,
+  },
+  view: { inFlight: null, controller: null, failures: 0 },
+  feedSettled: false,
+  catalogFetchAt: 0,
   cleanups: [],
 }
 
@@ -244,25 +449,294 @@ function documentVisible() {
   return typeof document === 'undefined' || document.visibilityState !== 'hidden'
 }
 
-function schedulePoll(delay: number) {
+// 按 Runtime 能力选择数据源；事件流被 HTTP 拒绝后在暂停期内退回看板视图。
+function desiredMode(): BoardFeedMode {
+  const features = boardFeatures()
+  if (features.events && Date.now() >= sync.events.blockedUntil) return 'events'
+  if (features.view) return 'view'
+  return 'legacy'
+}
+
+// 看板条目可用：派生卡片以条目为准，审批详情来自 card。
+function cardsActive(feed = useBoardOverlay.getState().feed) {
+  return sync.mode !== 'legacy' && feed.ready
+}
+
+function clearPollTimer() {
   if (sync.pollTimer) clearTimeout(sync.pollTimer)
   sync.pollTimer = null
-  if (!sync.active || !documentVisible()) return
+}
+
+function schedulePoll(delay: number) {
+  clearPollTimer()
+  if (!sync.active || sync.mode === 'events' || !documentVisible()) return
   sync.pollTimer = setTimeout(() => {
     sync.pollTimer = null
     void pollOnce()
   }, delay)
 }
 
+function viewPollDelay() {
+  return sync.view.failures
+    ? Math.min(BOARD_VIEW_POLL_INTERVAL_MS * 2 ** sync.view.failures, BOARD_VIEW_MAX_BACKOFF_MS)
+    : BOARD_VIEW_POLL_INTERVAL_MS
+}
+
 async function pollOnce() {
-  try {
-    await refreshBoardSessions()
-  } catch {
-    // 失败保留在查询状态里供界面展示；上一份有效快照不被清空，下一轮继续尝试。
+  const mode = sync.mode
+  if (mode === 'view') await pollView()
+  else {
+    try {
+      await refreshBoardSessions()
+    } catch {
+      // 失败保留在查询状态里供界面展示；上一份有效快照不被清空，下一轮继续尝试。
+    }
   }
-  if (!sync.active) return
+  if (!sync.active || sync.mode !== mode) return
   reconcileLiveDetails()
-  schedulePoll(BOARD_POLL_INTERVAL_MS)
+  schedulePoll(mode === 'view' ? viewPollDelay() : BOARD_POLL_INTERVAL_MS)
+}
+
+// 读一次 view=board 并整体替换看板条目；同一时刻只有一个在途请求，确认刷新与定时轮询共用它。
+function pollView(): Promise<void> {
+  if (sync.view.inFlight) return sync.view.inFlight
+  const controller = new AbortController()
+  sync.view.controller = controller
+  const request = (async () => {
+    try {
+      const page = await boardApi.listBoardView(controller.signal)
+      if (controller.signal.aborted || !sync.active) return
+      sync.view.failures = 0
+      sync.feedSettled = true
+      // 事件流模式下也可能借用一次视图（事件流暂时断开时的确认刷新），修订号不覆盖事件流的。
+      commitFeed(
+        replaceBoardFeed(
+          useBoardOverlay.getState().feed,
+          page.items,
+          sync.mode === 'events' ? null : page.revision,
+        ),
+      )
+    } catch {
+      if (controller.signal.aborted) return
+      sync.view.failures += 1
+      sync.feedSettled = true
+      reconcileLiveDetails()
+    } finally {
+      if (sync.view.controller === controller) {
+        sync.view.controller = null
+        sync.view.inFlight = null
+      }
+    }
+  })()
+  sync.view.inFlight = request
+  return request
+}
+
+// 动作之后的确认读取：在途的那一次可能在动作之前就发出了，等它结束再读一次新的。
+async function pollViewFresh() {
+  const previous = sync.view.inFlight
+  if (previous) await previous
+  await pollView()
+}
+
+function stopView() {
+  sync.view.controller?.abort()
+  sync.view.controller = null
+  sync.view.inFlight = null
+}
+
+// —— 看板事件流：每个标签页一条，本 store 独占 ——
+function stopEvents() {
+  const events = sync.events
+  if (events.retryTimer) clearTimeout(events.retryTimer)
+  events.retryTimer = null
+  clearEventsWatchdog()
+  const controller = events.controller
+  events.controller = null
+  controller?.abort()
+}
+
+function clearEventsWatchdog() {
+  if (sync.events.watchdog) clearTimeout(sync.events.watchdog)
+  sync.events.watchdog = null
+}
+
+function armEventsWatchdog(controller: AbortController) {
+  clearEventsWatchdog()
+  sync.events.watchdog = setTimeout(() => {
+    sync.events.watchdog = null
+    const events = sync.events
+    if (events.controller !== controller || controller.signal.aborted) return
+    // 半开连接：fetch 还挂着却不再有任何帧。先让出连接再中止，读循环的收尾因此不接手，
+    // 由这里按正常结束处理：立即带 after 重连。
+    events.controller = null
+    controller.abort()
+    if (!sync.active || sync.mode !== 'events') return
+    scheduleEventsReconnect(0)
+    reconcileLiveDetails()
+  }, BOARD_EVENTS_IDLE_TIMEOUT_MS)
+}
+
+function scheduleEventsReconnect(delay: number) {
+  const events = sync.events
+  if (events.retryTimer) clearTimeout(events.retryTimer)
+  events.retryTimer = setTimeout(() => {
+    events.retryTimer = null
+    connectEvents()
+  }, delay)
+}
+
+// 4xx 是 Runtime 明确拒绝（连接数已满 429、不支持 404/409）：换个数据源，而不是原地重试。
+function rejectedByRuntime(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.kind === 'http' &&
+    typeof error.status === 'number' &&
+    error.status >= 400 &&
+    error.status < 500
+  )
+}
+
+function blockEvents() {
+  const events = sync.events
+  events.blockedUntil = Date.now() + BOARD_EVENTS_BLOCK_MS
+  if (events.blockTimer) clearTimeout(events.blockTimer)
+  events.blockTimer = setTimeout(() => {
+    events.blockTimer = null
+    applyMode()
+  }, BOARD_EVENTS_BLOCK_MS + 10)
+  applyMode()
+}
+
+function connectEvents() {
+  const events = sync.events
+  if (!sync.active || sync.mode !== 'events' || events.controller || events.retryTimer) return
+  if (!documentVisible()) return
+  const controller = new AbortController()
+  events.controller = controller
+  armEventsWatchdog(controller)
+  const feed = useBoardOverlay.getState().feed
+  // 已有可信状态时带 after 补发；等待快照（resync / flush_failed）或还没有状态时要完整快照。
+  const after = feed.ready && !feed.awaitingSnapshot ? feed.revision : null
+  let progressed = false
+  let reconnectNow = false
+  void boardApi
+    .openBoardEvents(
+      after,
+      (event, data) => {
+        if (controller.signal.aborted || events.controller !== controller) return false
+        armEventsWatchdog(controller)
+        progressed = true
+        events.attempt = 0
+        sync.feedSettled = true
+        const effects = handleFeedEvent(event, data)
+        if (effects.reconnect) {
+          reconnectNow = true
+          return false
+        }
+        return undefined
+      },
+      controller.signal,
+    )
+    .then(
+      () => null,
+      (error: unknown) => error,
+    )
+    .then((error) => {
+      if (events.controller !== controller) return
+      events.controller = null
+      clearEventsWatchdog()
+      // 主动中止（页面隐藏、模式切换、停止同步）由中止方负责后续，这里不重连。
+      if (controller.signal.aborted || !sync.active) return
+      sync.feedSettled = true
+      if (error && rejectedByRuntime(error)) {
+        blockEvents()
+      } else {
+        const delay = reconnectNow
+          ? 0
+          : progressed
+            ? BOARD_EVENTS_RETRY_BASE_MS
+            : Math.min(BOARD_EVENTS_RETRY_BASE_MS * 2 ** events.attempt, BOARD_EVENTS_RETRY_MAX_MS)
+        if (!progressed && !reconnectNow) events.attempt += 1
+        scheduleEventsReconnect(delay)
+      }
+      // 空出的连接让给排队的 /live。
+      reconcileLiveDetails()
+    })
+}
+
+function handleFeedEvent(event: string, data: unknown): BoardFeedEffects {
+  const result = applyBoardFeedEvent(useBoardOverlay.getState().feed, event, data)
+  // 心跳只推进修订号：读者只订阅条目与分钟级时钟，不会因此重算；也不必重新安排 /live。
+  commitFeed(result, event === 'heartbeat' || event === 'component_changed')
+  return result.effects
+}
+
+function commitFeed(
+  { feed, effects }: { feed: BoardFeedState; effects: BoardFeedEffects },
+  quiet = false,
+) {
+  if (effects.changed) useBoardOverlay.setState({ feed: { ...feed, mode: sync.mode } })
+  if (effects.upserts.length) upsertCatalogRows(effects.upserts)
+  if (effects.removed.length || effects.resync) scheduleCatalogRefresh()
+  if (effects.changed && !quiet) reconcileLiveDetails()
+}
+
+// 事件流 / 看板视图带来的会话行写回权威目录：只改有变化的行，新出现的会话放在最前；
+// 目录还没加载时不凭看板条目造一份残缺目录（历史、侧栏需要完整列表），等首次读取。
+function upsertCatalogRows(rows: readonly SessionSummary[]) {
+  const current = queryClient.getQueryData<BoardSessionsData>(BOARD_SESSIONS_QUERY_KEY)
+  if (!current || !rows.length) return
+  const index = new Map(current.sessions.map((session, position) => [session.id, position]))
+  let sessions: SessionSummary[] | null = null
+  const added: SessionSummary[] = []
+  for (const row of rows) {
+    const position = index.get(row.id)
+    if (position === undefined) {
+      if (!added.some((item) => item.id === row.id)) added.push(row)
+      continue
+    }
+    const existing = (sessions ?? current.sessions)[position]
+    if (JSON.stringify(existing) === JSON.stringify(row)) continue
+    sessions ??= [...current.sessions]
+    sessions[position] = row
+  }
+  // 没有变化时不写：写缓存会再触发一次 success 订阅，必须保证这里收敛。
+  if (!sessions && !added.length) return
+  queryClient.setQueryData<BoardSessionsData>(BOARD_SESSIONS_QUERY_KEY, {
+    ...current,
+    sessions: [...added, ...(sessions ?? current.sessions)],
+  })
+}
+
+function scheduleCatalogRefresh() {
+  if (sync.catalogTimer || !sync.active) return
+  sync.catalogTimer = setTimeout(() => {
+    sync.catalogTimer = null
+    if (sync.active) void refreshBoardSessions().catch(() => undefined)
+  }, CATALOG_REFRESH_DELAY_MS)
+}
+
+// 能力变化（启动时加载完成、远程 Runtime 切换）或事件流暂停到期时重新选择数据源。
+function applyMode() {
+  if (!sync.active) return
+  const next = desiredMode()
+  if (next === sync.mode) return
+  sync.mode = next
+  sync.feedSettled = false
+  sync.view.failures = 0
+  stopEvents()
+  stopView()
+  clearPollTimer()
+  useBoardOverlay.setState((state) => ({
+    // 退回旧 Runtime 路径时丢掉条目：它们不会再更新。换到另一种第 2 期数据源时保留到新数据替换。
+    feed: next === 'legacy' ? emptyBoardFeed('legacy') : { ...state.feed, mode: next },
+  }))
+  if (next === 'events') {
+    sync.events.attempt = 0
+    connectEvents()
+  } else schedulePoll(0)
+  reconcileLiveDetails()
 }
 
 // 持有看板同步：任何读取看板数据的视图挂载时调用，返回幂等的释放函数。
@@ -288,38 +762,70 @@ export function retainBoardSync() {
 
 function startSync() {
   sync.active = true
+  sync.mode = desiredMode()
+  sync.feedSettled = false
+  sync.view.failures = 0
+  sync.events.attempt = 0
+  useBoardOverlay.setState((state) => ({
+    feed: sync.mode === 'legacy' ? emptyBoardFeed('legacy') : { ...state.feed, mode: sync.mode },
+  }))
   const sessionsHash = hashKey(BOARD_SESSIONS_QUERY_KEY)
+  // 停止期间别的读者可能重读过目录（没有被下面的订阅记到）：以缓存的更新时间兜底，
+  // 留下来的旧条目不会把更新的目录改回去。
+  sync.catalogFetchAt = Math.max(
+    sync.catalogFetchAt,
+    queryClient.getQueryState(BOARD_SESSIONS_QUERY_KEY)?.dataUpdatedAt ?? 0,
+  )
   sync.cleanups.push(
     queryClient.getQueryCache().subscribe((event) => {
       if (event.type !== 'updated' || event.query.queryHash !== sessionsHash) return
+      if (event.action.type === 'fetch') {
+        sync.catalogFetchAt = Date.now()
+        return
+      }
       if (event.action.type !== 'success') return
       reconcileSessions()
     }),
   )
+  sync.cleanups.push(useRuntimeCapabilitiesStore.subscribe(() => applyMode()))
   if (typeof document !== 'undefined') {
     const visibilityChanged = () => {
-      if (documentVisible()) schedulePoll(0)
-      else if (sync.pollTimer) {
-        clearTimeout(sync.pollTimer)
-        sync.pollTimer = null
+      if (documentVisible()) {
+        if (sync.mode === 'events') connectEvents()
+        else schedulePoll(0)
+        reconcileLiveDetails()
+        return
       }
+      // 页面隐藏：断开事件流、停掉轮询；回到前台时带 after 补齐。
+      clearPollTimer()
+      stopEvents()
     }
     document.addEventListener('visibilitychange', visibilityChanged)
     sync.cleanups.push(() => document.removeEventListener('visibilitychange', visibilityChanged))
   }
   reconcileSessions()
-  // 有新鲜快照时不必立刻重复请求；陈旧或缺失时马上补读。
-  const updatedAt = queryClient.getQueryState(BOARD_SESSIONS_QUERY_KEY)?.dataUpdatedAt ?? 0
-  schedulePoll(Math.max(0, updatedAt + BOARD_POLL_INTERVAL_MS - Date.now()))
+  if (sync.mode === 'events') connectEvents()
+  else if (sync.mode === 'view') schedulePoll(0)
+  else {
+    // 有新鲜快照时不必立刻重复请求；陈旧或缺失时马上补读。
+    const updatedAt = queryClient.getQueryState(BOARD_SESSIONS_QUERY_KEY)?.dataUpdatedAt ?? 0
+    schedulePoll(Math.max(0, updatedAt + BOARD_POLL_INTERVAL_MS - Date.now()))
+  }
 }
 
-// 停止全部同步工作：轮询、/live 请求与本客户端持有的流消费。Runtime 的 run 不受影响。
+// 停止全部同步工作：轮询、事件流、/live 请求与本客户端持有的流消费。Runtime 的 run 不受影响。
+// 看板条目与修订号保留：下一次持有时事件流带 after 补发，而不是从空白开始。
 export function stopBoardSync() {
   sync.active = false
-  if (sync.pollTimer) clearTimeout(sync.pollTimer)
+  clearPollTimer()
   if (sync.releaseTimer) clearTimeout(sync.releaseTimer)
-  sync.pollTimer = null
+  if (sync.catalogTimer) clearTimeout(sync.catalogTimer)
+  if (sync.events.blockTimer) clearTimeout(sync.events.blockTimer)
   sync.releaseTimer = null
+  sync.catalogTimer = null
+  sync.events.blockTimer = null
+  stopEvents()
+  stopView()
   for (const cleanup of sync.cleanups.splice(0)) cleanup()
   for (const timer of sync.liveTimers.values()) clearTimeout(timer)
   for (const controller of sync.liveControllers.values()) controller.abort()
@@ -335,31 +841,94 @@ export function boardSyncActive() {
   return sync.active
 }
 
+// 供测试与诊断：当前数据源、事件流是否在线。
+export function boardFeedMode() {
+  return sync.mode
+}
+
+export function boardEventsConnected() {
+  return sync.events.controller !== null
+}
+
+// 显式刷新看板数据：目录总是补读；第 2 期数据源再读一次看板视图（事件流在线时由增量负责）。
+export async function refreshBoardFeed() {
+  const catalog = refreshBoardSessions()
+  if (sync.active && sync.mode === 'view') await pollViewFresh()
+  await catalog
+}
+
 // 列表变化后的覆盖层整理：记录运行起点、清掉已消失会话的细节，并为新出现的审批卡安排 /live。
 function reconcileSessions() {
   const sessions = readBoardSessions()
   const now = Date.now()
-  const { runningSince, localRuns } = useBoardOverlay.getState()
+  const { runningSince, localRuns, feed } = useBoardOverlay.getState()
+  const sources = cardsActive(feed)
+    ? [...Object.values(feed.entries).map((entry) => entry.session), ...sessions]
+    : sessions
   const next: Record<string, number> = {}
   let changed = false
-  for (const session of sessions) {
-    if (session.streaming !== true) continue
+  for (const session of sources) {
+    if (session.streaming !== true || session.id in next) continue
     next[session.id] = runningSince[session.id] ?? localRuns[session.id]?.startedAt ?? now
     if (!(session.id in runningSince)) changed = true
   }
   if (!changed) changed = Object.keys(runningSince).some((id) => !(id in next))
   if (changed) useBoardOverlay.setState({ runningSince: next })
+  if (cardsActive(feed)) syncEntriesWithCatalog(sessions)
   reconcileLiveDetails()
 }
 
+// 目录与看板条目以较新者为准：在这次目录请求开始之后才收到的条目行写回目录（目录可能比
+// 事件流旧）；更早收到的条目行反过来由目录刷新（例如改名后的目录重读不会被旧条目改回去，
+// 运行结束后的目录也不会被条目里残留的“运行中”覆盖）。card 只在条目里，不受影响。
+function syncEntriesWithCatalog(sessions: readonly SessionSummary[]) {
+  const fetchedAt = sync.catalogFetchAt
+  const catalog = new Map(sessions.map((session) => [session.id, session]))
+  const newer: SessionSummary[] = []
+  const refreshed: Record<string, SessionSummary> = {}
+  for (const entry of Object.values(useBoardOverlay.getState().feed.entries)) {
+    if ((entry.receivedAt ?? Number.POSITIVE_INFINITY) >= fetchedAt) {
+      newer.push(entry.session)
+      continue
+    }
+    const row = catalog.get(entry.session.id)
+    if (row && row !== entry.session && JSON.stringify(row) !== JSON.stringify(entry.session))
+      refreshed[row.id] = row
+  }
+  if (Object.keys(refreshed).length)
+    useBoardOverlay.setState((state) => {
+      const entries = { ...state.feed.entries }
+      for (const [id, row] of Object.entries(refreshed))
+        if (entries[id]) entries[id] = { ...entries[id], session: row }
+      return { feed: { ...state.feed, entries } }
+    })
+  upsertCatalogRows(newer)
+}
+
 function approvalSessionIds() {
-  const { patches } = useBoardOverlay.getState()
+  const { patches, feed } = useBoardOverlay.getState()
   const ids = new Set<string>()
+  const now = Date.now()
+  if (cardsActive(feed)) {
+    // 第 2 期：审批详情来自 card；只有预览被截断（或 card 还没带上审批）时才需要 /live 的完整参数。
+    for (const entry of Object.values(feed.entries)) {
+      const effective = patchedSession(entry.session, patches)
+      if (effective.archived === true) continue
+      const approvals = entry.card.approvals
+      if (deriveBoardStatus({ ...effective, card: { approvals } }, { now }).status !== 'approval')
+        continue
+      if (!approvals.length || approvals.some((approval) => approval.truncated))
+        ids.add(entry.session.id)
+    }
+    return ids
+  }
+  // 第 2 期数据源的第一次请求还没结果：先等 card，不抢着发 /live。
+  if (sync.mode !== 'legacy' && !sync.feedSettled) return ids
   for (const session of readBoardSessions()) {
     const effective = patchedSession(session, patches)
     if (effective.archived === true) continue
     // 推导与看板一致：只有“需要你 · 等待批准”的卡片需要 /live 补全审批 id 与完整命令。
-    if (deriveBoardStatus(effective, { now: Date.now() }).status === 'approval') ids.add(session.id)
+    if (deriveBoardStatus(effective, { now }).status === 'approval') ids.add(session.id)
   }
   return ids
 }
@@ -396,7 +965,10 @@ export function reconcileLiveDetails() {
     0,
     Math.min(
       BOARD_LIVE_LIMIT - sync.liveControllers.size,
-      BOARD_CONNECTION_BUDGET - sync.liveControllers.size - sync.runControllers.size,
+      BOARD_CONNECTION_BUDGET -
+        sync.liveControllers.size -
+        sync.runControllers.size -
+        (sync.events.controller ? 1 : 0),
     ),
   )
   due.slice(0, slots).forEach((id, index) => startLiveFetch(id, index * BOARD_LIVE_STAGGER_MS))
@@ -583,7 +1155,10 @@ export function ownBoardStream(sessionId: string, kind: BoardRunKind, open: Boar
           return { localRuns }
         })
         if (sync.active) {
-          void refreshBoardSessions().catch(() => undefined)
+          // 事件流在线时由增量反映运行结束；其余数据源补读一次。
+          if (sync.mode === 'legacy') void refreshBoardSessions().catch(() => undefined)
+          else if (boardFeatures().view && (sync.mode === 'view' || !sync.events.controller))
+            void pollViewFresh()
           // 释放的连接让给排队的 /live。
           reconcileLiveDetails()
         }
@@ -595,5 +1170,11 @@ export function ownBoardStream(sessionId: string, kind: BoardRunKind, open: Boar
 export function resetBoardStore() {
   stopBoardSync()
   sync.retainers = 0
-  useBoardOverlay.setState({ ...EMPTY_OVERLAY })
+  sync.mode = 'legacy'
+  sync.events.attempt = 0
+  sync.events.blockedUntil = 0
+  sync.view.failures = 0
+  sync.feedSettled = false
+  sync.catalogFetchAt = 0
+  useBoardOverlay.setState({ ...EMPTY_OVERLAY, feed: emptyBoardFeed() })
 }

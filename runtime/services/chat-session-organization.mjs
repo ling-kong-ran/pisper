@@ -1,9 +1,10 @@
 // 会话导航状态只由明确的用户操作或 Agent 轮次结算改变；文件修改时间不代表未读。
-const ORGANIZATION_PATCH_KEYS = new Set(['pinned', 'archived', 'read'])
+// dismissAttention 是第 2 期新增的可选字段（只增不改）：看板“标记已处理”用它清掉失败注意力。
+const ORGANIZATION_PATCH_KEYS = new Set(['pinned', 'archived', 'read', 'dismissAttention'])
 
 /**
  * @typedef {{ pinned: boolean, archived: boolean, unread: boolean, failed: boolean, lastCompletedAt: string | null }} SessionOrganizationState
- * @typedef {{ pinned?: boolean, archived?: boolean, read?: boolean }} SessionOrganizationPatch
+ * @typedef {{ pinned?: boolean, archived?: boolean, read?: boolean, dismissAttention?: true }} SessionOrganizationPatch
  */
 
 export class SessionOrganizationInputError extends Error {
@@ -63,6 +64,9 @@ export function parseSessionOrganizationPatch(input) {
       throw new SessionOrganizationInputError('未知会话组织状态字段。')
     if (typeof value !== 'boolean')
       throw new SessionOrganizationInputError(`会话组织状态字段 ${key} 必须是布尔值。`)
+    // 注意力只能由新一轮运行的结局重新设置，客户端不能把它“标回”未处理。
+    if (key === 'dismissAttention' && value !== true)
+      throw new SessionOrganizationInputError('dismissAttention 只能为 true。')
   }
   return /** @type {SessionOrganizationPatch} */ (Object.fromEntries(entries))
 }
@@ -77,6 +81,8 @@ export function applySessionOrganizationPatch(meta, patch) {
       ...(Object.hasOwn(patch, 'pinned') ? { pinned: patch.pinned } : {}),
       ...(Object.hasOwn(patch, 'archived') ? { archived: patch.archived } : {}),
       ...(Object.hasOwn(patch, 'read') ? { unread: !patch.read } : {}),
+      // 只清失败注意力；待批准的工具请求仍在等待，不能被“标记已处理”吞掉。
+      ...(patch.dismissAttention === true ? { failed: false } : {}),
     },
   }
 }

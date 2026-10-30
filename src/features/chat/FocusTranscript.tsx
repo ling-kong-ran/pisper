@@ -289,14 +289,18 @@ export function FocusTranscript({
   return (
     <div className="relative min-h-0 flex-1">
       <div
-        className="transcript [.focus-session.has-conversation_&]:p-[var(--chat-transcript-block-padding,30px)_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
+        className="transcript flex flex-col [.focus-session.has-conversation_&]:p-[var(--chat-transcript-block-padding,30px)_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [.focus-session.has-conversation_&]:[scroll-padding-bottom:32px] @max-[700px]:p-[20px_14px] @max-[700px]:[.focus-session.has-conversation_&]:p-[24px_16px] @max-[470px]:[padding-inline:10px] max-[650px]:p-[20px_14px] min-h-0 h-full flex-1 overflow-auto overscroll-contain scroll-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges] m-0 border-0 [padding:26px_max(24px,calc((100%_-_var(--chat-content-width,1040px))/2))] [padding-bottom:70px] [scroll-padding-bottom:70px]"
         data-pisper-transcript-state={transcriptLoadState}
         aria-busy={transcriptLoadState === 'loading'}
         ref={setTranscriptRef}
         onScroll={handleTranscriptScroll}
         tabIndex={0}
       >
-        <div className="[display:flow-root] w-full" ref={transcriptPrefixRef}>
+        {/* 内容锚定底部（规格 4.3）：消息不满一屏时整段贴着输入框，而不是悬在顶部。 */}
+        <div
+          className={`[display:flow-root] w-full ${transcriptLoadState === 'ready' && messages.length > 0 ? 'mt-auto' : ''}`}
+          ref={transcriptPrefixRef}
+        >
           {lineage?.parentSessionId && (
             <div
               className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px] session-lineage"
@@ -379,10 +383,18 @@ export function FocusTranscript({
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
               onRetryLastTurn={onRetryLastTurn}
+              turnsKnown={!hasOlder}
             />
           </div>
         )}
       </div>
+      {transcriptLoadState === 'ready' && messages.length > 0 && (
+        // 顶部渐隐：滚动中的内容在页头下方柔和淡出，不与页头细线硬切。
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-6 bg-linear-to-b from-panel to-transparent"
+        />
+      )}
       {(hasUnread || hasNewer) && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[6px] z-[5] flex justify-center">
           <Button

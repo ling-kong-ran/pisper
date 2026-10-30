@@ -533,7 +533,8 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
   // 桌面分屏按需加载；手机只显示所选任务，不能把 Dockview 样式拖入入口。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)
-  assert.match(chat, /import\('\.\/ChatDockView'\)/)
+  // 第 3 期起聊天页不再挂载分屏视图；Dockview 及其样式只留在未挂载的 ChatDockView 里，不进入任何路由。
+  assert.doesNotMatch(chat, /ChatDockView|dockview-react\/dist/)
   assert.match(chat, /<MobileSessionPanel/)
   assert.match(chat, /singleSessionLayout: mobileLayout/)
   assert.match(chatDock, /className="mobile-session-tabs/)

@@ -1,16 +1,8 @@
-// 聊天主页面持有会话目录与实时连接，任务工作区在各分屏内独立装配。
-// 会话页（/board/:sessionId）以路由模式嵌入：只挂载 URL 指定的单个会话，不挂载 Dockview，
+// 聊天主页面持有会话目录与实时连接，单会话视图在这里装配。
+// 会话页（/board/:sessionId）以路由模式嵌入：只挂载 URL 指定的单个会话，
 // 任何内部打开会话的动作都交回路由，再由 URL 回写活动会话。
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+// 第 3 期起 Dockview 多标签与分屏不再挂载（代码留到清理期删除）：单会话视图是唯一形态。
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DockviewGroupPanel } from 'dockview-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
@@ -19,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
 import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
@@ -39,6 +32,7 @@ import {
   consumeSessionSelectionRequest,
 } from './events'
 import { SessionRouteLeading } from './session-route-chrome'
+import { SessionPageChromeContext, type SessionPageChrome } from './session-workspace-context'
 import { openWebPreviewInSessionContext } from './session-web-preview'
 import { WEB_PREVIEW_OPEN_EVENT, consumeWebPreviewRequest } from './web-preview-events'
 import { SideChatProvider } from './SideChatProvider'
@@ -47,10 +41,6 @@ import type { SideChatRuntime } from './side-chat-context'
 // 会话页路由里的保留段：进入后新建会话，再以 replace 换成真实 id（与 '/workflows/new' 同理）。
 const NEW_SESSION_ROUTE_ID = 'new'
 const FOCUS_MESSAGE_PAGE_SIZE = 40
-
-const LazyChatDockView = lazy(() =>
-  import('./ChatDockView').then((module) => ({ default: module.ChatDockView })),
-)
 
 function invokeMobile<T>(command: string): Promise<T> {
   const invoke = window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke
@@ -75,8 +65,10 @@ type ChatPageProps = {
   // 路由模式：URL 里的会话 id（或 'new'）是唯一选中依据；内部打开会话时回调路由切换。
   routeSessionId?: string
   onRouteSessionChange?: (sessionId: string) => void
-  // 会话页注入到会话顶栏最左侧的返回入口（路由模式才有）。
+  // 会话页注入到会话顶栏最左侧的返回入口（路由模式且手机外壳才有；桌面返回键在泳道条上）。
   routeLeading?: ReactNode
+  // 会话页桌面布局（页头 44 + 对话 + 检查器）；手机外壳不传，保持原来的单会话视图。
+  pageChrome?: SessionPageChrome
 }
 
 export function ChatPage({
@@ -91,6 +83,7 @@ export function ChatPage({
   routeSessionId,
   onRouteSessionChange,
   routeLeading,
+  pageChrome,
 }: ChatPageProps) {
   const { t } = useI18n()
   const routeMode = routeSessionId !== undefined
@@ -125,6 +118,10 @@ export function ChatPage({
     document.addEventListener('visibilitychange', markViewed)
     return () => document.removeEventListener('visibilitychange', markViewed)
   }, [catalog.activeId, catalog.sessions])
+  // 看板事件流在线时，非当前会话的运行状态由看板 store 维护：/live 只为当前会话轮询。
+  const boardEvents = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features['board.events'] === true,
+  )
   const liveSync = useLiveSessionSync({
     sessionStates: catalog.sessionStates,
     sessionStatesRef: catalog.sessionStatesRef,
@@ -132,6 +129,7 @@ export function ChatPage({
     streamGenerationRef,
     updateSessionState: catalog.updateSessionState,
     updateSessions: catalog.updateSessions,
+    pollOnly: boardEvents ? catalog.activeId || null : undefined,
   })
   const dock = useChatDock({
     sessions: catalog.sessions,
@@ -518,59 +516,52 @@ export function ChatPage({
         ) : (
           <div className="chat-dock-workspace relative h-full w-full min-w-0 min-h-0 flex-1 [isolation:isolate] overflow-hidden border-0 rounded-none bg-panel">
             <ChatDockContext.Provider value={dockContextValue}>
-              <SessionRouteLeading.Provider value={routeMode ? (routeLeading ?? null) : null}>
-                {clientLoaded &&
-                  (routeMode ? (
-                    routeTarget && !routeKnown ? (
-                      <PageState
-                        kind="empty"
-                        title={t('navigation:shell.sessionNotFound')}
-                        description={t('navigation:shell.sessionNotFoundHint')}
-                        action={
-                          <Button variant="secondary" onClick={() => navigate('board')}>
-                            {t('navigation:shell.backToBoardLabel')}
-                          </Button>
-                        }
-                      />
-                    ) : routeTarget ? (
-                      <SingleSessionPanel sessionId={routeTarget} onCreateSession={createSession} />
-                    ) : catalog.globalError ? (
-                      <PageState
-                        kind="error"
-                        title={t('navigation:shell.createSessionFailed')}
-                        description={catalog.globalError}
-                        action={
-                          <Button variant="secondary" onClick={() => void createSession()}>
-                            {t('navigation:more.retry')}
-                          </Button>
-                        }
+              <SessionPageChromeContext.Provider value={routeMode ? (pageChrome ?? null) : null}>
+                <SessionRouteLeading.Provider value={routeMode ? (routeLeading ?? null) : null}>
+                  {clientLoaded &&
+                    (routeMode ? (
+                      routeTarget && !routeKnown ? (
+                        <PageState
+                          kind="empty"
+                          title={t('navigation:shell.sessionNotFound')}
+                          description={t('navigation:shell.sessionNotFoundHint')}
+                          action={
+                            <Button variant="secondary" onClick={() => navigate('board')}>
+                              {t('navigation:shell.backToBoardLabel')}
+                            </Button>
+                          }
+                        />
+                      ) : routeTarget ? (
+                        <SingleSessionPanel
+                          sessionId={routeTarget}
+                          onCreateSession={createSession}
+                        />
+                      ) : catalog.globalError ? (
+                        <PageState
+                          kind="error"
+                          title={t('navigation:shell.createSessionFailed')}
+                          description={catalog.globalError}
+                          action={
+                            <Button variant="secondary" onClick={() => void createSession()}>
+                              {t('navigation:more.retry')}
+                            </Button>
+                          }
+                        />
+                      ) : (
+                        <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
+                      )
+                    ) : mobileLayout ? (
+                      <MobileSessionPanel
+                        sessionIds={dock.mobileSessionIds}
+                        onSelectSession={dock.openSessionInDock}
+                        onCreateSession={createSession}
+                        onOpenHistory={() => navigate('chatHistory')}
                       />
                     ) : (
-                      <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
-                    )
-                  ) : mobileLayout ? (
-                    <MobileSessionPanel
-                      sessionIds={dock.mobileSessionIds}
-                      onSelectSession={dock.openSessionInDock}
-                      onCreateSession={createSession}
-                      onOpenHistory={() => navigate('chatHistory')}
-                    />
-                  ) : (
-                    <Suspense
-                      fallback={
-                        <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
-                      }
-                    >
-                      <LazyChatDockView
-                        compactDock={dock.compactDock}
-                        onDockReady={dock.onDockReady}
-                        onDockDispose={dock.onDockDispose}
-                        getTabContextMenuItems={dock.getTabContextMenuItems}
-                        createSession={createSession}
-                      />
-                    </Suspense>
-                  ))}
-              </SessionRouteLeading.Provider>
+                      <SingleSessionPanel onCreateSession={createSession} />
+                    ))}
+                </SessionRouteLeading.Provider>
+              </SessionPageChromeContext.Provider>
             </ChatDockContext.Provider>
           </div>
         )}

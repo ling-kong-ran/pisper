@@ -1,9 +1,8 @@
 import { TASK_VIEW_WILL_CHANGE } from './events'
 // 会话上下文只在用户打开时挂载；文件列表按当前标签请求，不复制聊天状态。
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import {
   ArrowLeft,
-  ExternalLink,
   Files,
   FileDiff,
   Link2,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { InlineEmptyState } from '@/components/app/PageState'
 import {
   createContextPages,
@@ -29,8 +27,6 @@ import {
 } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { WebPreview, WebPreviewBody } from '@/components/ai-elements/web-preview'
-import { normalizeWebPreviewInput } from '@/lib/web-preview'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { Plan } from '@/types/chat'
 import PlanBoard from './PlanBoard'
@@ -44,6 +40,7 @@ import { TaskSourcesPane } from './TaskSourcesPane'
 import type { TaskSource } from './task-sources'
 import { TaskNewTab } from './TaskNewTab'
 import { SideChatPane } from './SideChatPane'
+import { BrowserPane } from './SessionBrowserPane'
 
 export type { SessionContextTab } from './session-context-pages'
 
@@ -63,80 +60,6 @@ type SessionContextPanelProps = {
   onTabChange: (tab: SessionContextTab) => void
   onClose: () => void
   onBack?: () => void
-}
-
-function BrowserPane({
-  page,
-  onChange,
-}: {
-  page: ContextPage
-  onChange: (patch: { draft?: string; url?: string }) => void
-}) {
-  const { t } = useI18n()
-  const { draft, url } = page
-  const [error, setError] = useState(false)
-
-  return (
-    <section
-      className="flex min-h-0 flex-1 flex-col gap-2 p-3"
-      aria-label={t('common:webPreview.title')}
-    >
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          const normalized = normalizeWebPreviewInput(draft, window.location.href)
-          setError(!normalized)
-          if (normalized) onChange({ url: normalized })
-        }}
-      >
-        <Input
-          aria-label={t('common:webPreview.url')}
-          className="flex-1 font-mono"
-          value={draft}
-          onChange={(event) => onChange({ draft: event.target.value })}
-          placeholder={t('common:webPreview.urlPlaceholder')}
-          maxLength={2048}
-        />
-        <Button type="submit" variant="secondary" className="h-8.5 pointer-coarse:h-11">
-          {t('chat:sessionContext.openUrl')}
-        </Button>
-      </form>
-      {error && (
-        <p role="alert" className="text-xs text-danger">
-          {t('chat:sessionContext.invalidUrl')}
-        </p>
-      )}
-      {url ? (
-        <WebPreview
-          className="min-h-0 flex-1 overflow-hidden rounded-md border-stroke"
-          defaultUrl={url}
-          key={url}
-        >
-          <WebPreviewBody src={url} title={t('common:webPreview.title')} />
-        </WebPreview>
-      ) : (
-        <InlineEmptyState
-          icon={Globe2}
-          className="min-h-0 flex-1"
-          title={t('chat:sessionContext.browserEmpty')}
-        />
-      )}
-      {url && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="self-start"
-          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
-        >
-          <ExternalLink size={14} />
-          {t('common:webPreview.openExternal')}
-        </Button>
-      )}
-      <p className="text-xs text-content-muted">{t('common:webPreview.embedNotice')}</p>
-    </section>
-  )
 }
 
 export function SessionContextPanel({

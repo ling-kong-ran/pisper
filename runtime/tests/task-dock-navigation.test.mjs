@@ -1,3 +1,5 @@
+// 纯逻辑守卫：第 3 期起 Dockview 不再挂载（会话页只有单会话视图 + 检查器，见 chat-dock-layout 与
+// frontend-boundaries 的不可达守卫）；dock-layout.ts 与 use-chat-dock 留到第 6 期清理，届时随代码一起删除本文件。
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveTaskOpen, classifyDockSnapshot } from '../../src/features/chat/dock-layout.ts'

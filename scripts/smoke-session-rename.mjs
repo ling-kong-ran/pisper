@@ -30,36 +30,45 @@ const fixture = await build({
     contents: `
       import React, { useState } from 'react'
       import { createRoot } from 'react-dom/client'
-      import { QueryClientProvider } from '@tanstack/react-query'
-      import { ProjectTaskList } from './src/features/chat/ProjectTaskList.tsx'
+      import { QueryClientProvider, useQuery } from '@tanstack/react-query'
       import { ChatHistoryPage } from './src/features/chat/ChatHistoryPage.tsx'
-      import { SidebarProvider } from './src/components/ui/sidebar.tsx'
       import { AppDialog } from './src/components/layout/AppDialog.tsx'
       import { useAppDialog } from './src/hooks/useAppDialog.ts'
-      import { queryClient, installStartupQueryEvents } from './src/lib/startup-queries.ts'
+      import {
+        queryClient,
+        installStartupQueryEvents,
+        startupQueryOptions,
+      } from './src/lib/startup-queries.ts'
       const uninstall = installStartupQueryEvents(window)
       window.addEventListener('pagehide', () => { uninstall(); queryClient.clear() }, { once: true })
+      // 看板、泳道条与会话页头都读同一份会话目录缓存；这里用同一个查询列出名称与整理状态，
+      // 核对历史页的改名、置顶、归档写回了共享缓存（旧侧栏 ProjectTaskList 已不挂载）。
+      function CatalogMirror() {
+        const { data } = useQuery(startupQueryOptions('sessions'))
+        return <ul data-smoke-catalog>
+          {(data?.sessions ?? []).map((session) => <li
+            key={session.id}
+            data-pinned={session.pinned ? 'true' : 'false'}
+            data-archived={session.archived ? 'true' : 'false'}
+          >{session.name}</li>)}
+        </ul>
+      }
       function Fixture() {
         const dialog = useAppDialog()
-        const [view, setView] = useState(location.hash.slice(1))
         const [notice, setNotice] = useState(null)
-        const navigate = page => { location.hash = page; setView(page) }
+        const navigate = () => {}
         const notify = (message, tone) => setNotice({ message, tone })
         const props = { navigate, notify, requestText: dialog.prompt, requestConfirm: dialog.confirm }
         return <QueryClientProvider client={queryClient}>
-          <SidebarProvider>
-            <div data-smoke-layout>
-              <aside className="nav-list" data-smoke-sidebar>
-                <ProjectTaskList {...props} />
-              </aside>
-              <main data-smoke-history data-view={view}>
-                {view === 'chatHistory' && <ChatHistoryPage {...props} query="" />}
-              </main>
-              <div data-smoke-notices>
-                {notice && <div role={notice.tone === 'error' ? 'alert' : 'status'}>{notice.message}</div>}
-              </div>
+          <div data-smoke-layout>
+            <aside data-smoke-catalog-view><CatalogMirror /></aside>
+            <main data-smoke-history>
+              <ChatHistoryPage {...props} query="" />
+            </main>
+            <div data-smoke-notices>
+              {notice && <div role={notice.tone === 'error' ? 'alert' : 'status'}>{notice.message}</div>}
             </div>
-          </SidebarProvider>
+          </div>
           <AppDialog dialog={dialog.dialog} onClose={dialog.close} onFinish={dialog.finish} />
         </QueryClientProvider>
       }
@@ -77,14 +86,15 @@ const fixture = await build({
   loader: { '.css': 'empty' },
 })
 
-// 窄屏直接展示侧栏区块，避免抽屉遮挡历史页；业务组件、对话框和刷新事件均保持原样。
+// 历史页是新外壳里常驻的会话管理入口（重命名、置顶、归档）；会话页头“⋯ › 重命名会话”由看板冒烟在
+// 真实会话页上验收。目录镜像只读共享缓存，业务组件、对话框和刷新事件均保持原样。
 const html = `<!doctype html><html lang="zh-CN"><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="/src/index.css?direct">
 <style>
 [data-smoke-layout] { display:grid; grid-template-columns:236px minmax(0,1fr); gap:16px; width:100%; padding:16px; }
-[data-smoke-sidebar], [data-smoke-history] { min-width:0; }
-[data-smoke-sidebar] { padding:8px; background:var(--panel); }
+[data-smoke-catalog-view], [data-smoke-history] { min-width:0; }
+[data-smoke-catalog-view] { padding:8px; background:var(--panel); }
 [data-smoke-notices] { grid-column:1/-1; }
 @media(max-width:650px) { [data-smoke-layout] { grid-template-columns:minmax(0,1fr); } }
 </style></head><body><div id="root"></div>
@@ -194,23 +204,22 @@ try {
       return route.abort('blockedbyclient')
     })
 
-    const sidebar = page.locator('[data-smoke-sidebar]')
+    const catalog = page.locator('[data-smoke-catalog]')
     const history = page.locator('[data-smoke-history]')
     const dialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
     const assertSynchronized = async (name) => {
       try {
         await page.waitForFunction(
           (expected) =>
-            Array.from(document.querySelectorAll('[data-smoke-sidebar] button > span')).find(
-              (span) => span.textContent === expected,
-            )?.textContent === expected &&
-            document.querySelector('.chat-history-copy strong')?.textContent === expected,
+            Array.from(document.querySelectorAll('[data-smoke-catalog] li')).some(
+              (item) => item.textContent === expected,
+            ) && document.querySelector('.chat-history-copy strong')?.textContent === expected,
           name,
           { timeout: 3_000 },
         )
       } catch (error) {
         const actual = {
-          sidebar: await sidebar.innerText(),
+          catalog: await catalog.innerText(),
           history: await history.innerText(),
         }
         throw new Error(
@@ -224,30 +233,13 @@ try {
       )
     }
     const openRename = async (entry, name) => {
-      if (entry === 'sidebar') {
-        await sidebar
-          .getByRole('button')
-          .filter({ has: page.getByText(name, { exact: true }) })
-          .click({ button: 'right' })
-        // 分屏操作由恢复后的项目任务菜单持有，历史页只负责会话管理。
-        const splitMenu = page.getByRole('menuitem', { name: '在分屏中打开', exact: true })
-        assert.equal(await splitMenu.count(), width > 900 ? 1 : 0)
-        if (width > 900) {
-          await splitMenu.focus()
-          await splitMenu.press('ArrowRight')
-          await page.getByRole('menuitem', { name: '拆分到左侧', exact: true }).waitFor()
-          for (const direction of ['左侧', '右侧', '上方', '下方'])
-            assert.equal(
-              await page.getByRole('menuitem', { name: `拆分到${direction}`, exact: true }).count(),
-              1,
-            )
-          await page.keyboard.press('ArrowLeft')
-        }
-        await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
-      } else {
-        await history.getByRole('button', { name: `${name} 的更多操作`, exact: true }).click()
-        await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
-      }
+      // 历史页“更多操作”菜单：分别用指针点击与键盘（聚焦后按 Enter）打开。
+      const more = history.getByRole('button', { name: `${name} 的更多操作`, exact: true })
+      if (entry === 'keyboard') {
+        await more.focus()
+        await page.keyboard.press('Enter')
+      } else await more.click()
+      await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       await dialog.waitFor()
       assert.equal(await dialog.getByRole('textbox').inputValue(), name)
       const bounds = await dialog.boundingBox()
@@ -270,13 +262,12 @@ try {
 
     try {
       await page.goto(`${origin}/__session-rename-smoke__`)
-      await sidebar.getByRole('button', { name: /查看全部历史会话/ }).click()
       await assertSynchronized(initialName)
       let currentName = initialName
       // 手动标题只改第 20 字后的内容，防止自动标题的截断规则误用于手动重命名。
       const sharedPrefix = 'Repeat title prefix!'
       assert.equal(Array.from(sharedPrefix).length, 20)
-      const entries = ['sidebar', 'sidebar', 'history', 'history']
+      const entries = ['keyboard', 'keyboard', 'history', 'history']
       for (const [index, entry] of entries.entries()) {
         const before = mutations.length
         await openRename(entry, currentName)
@@ -317,7 +308,7 @@ try {
         await openRename(entry, currentName)
         const failure = await saveRename(`Rejected ${entry} ${width}`, 409)
         assert.match(failure.error, /正在运行/)
-        const errorArea = entry === 'sidebar' ? page.locator('[data-smoke-notices]') : history
+        const errorArea = history
         await errorArea.getByRole('alert').filter({ hasText: failure.error }).waitFor()
         await assertSynchronized(currentName)
         runtime.liveSessions.delete(created.id)
@@ -328,38 +319,23 @@ try {
         await page.reload()
         await assertSynchronized(currentName)
       }
-      // 整理状态必须跨侧栏、历史页和重载同步；归档只改变列表可见性，不删除会话。
+      // 整理状态必须跨共享目录、历史页和重载同步；归档只改变列表可见性，不删除会话。
       const openActions = () =>
         history.getByRole('button', { name: `${currentName} 的更多操作` }).click()
       await openActions()
       await page.getByRole('menuitem', { name: '置顶', exact: true }).click()
-      await sidebar
-        .getByRole('button')
-        .filter({ has: page.getByText(currentName, { exact: true }) })
-        .filter({ has: page.getByLabel('已置顶', { exact: true }) })
-        .waitFor()
+      await catalog.locator('li[data-pinned="true"]').filter({ hasText: currentName }).waitFor()
       assert.equal(
         (await runtime.listSessions()).find((item) => item.id === created.id)?.pinned,
         true,
       )
       await page.reload()
       await assertSynchronized(currentName)
-      await sidebar
-        .getByRole('button')
-        .filter({ has: page.getByText(currentName, { exact: true }) })
-        .filter({ has: page.getByLabel('已置顶', { exact: true }) })
-        .waitFor()
+      await catalog.locator('li[data-pinned="true"]').filter({ hasText: currentName }).waitFor()
       await openActions()
       await page.getByRole('menuitem', { name: '归档', exact: true }).click()
       await history.getByRole('heading', { name: '暂无未归档会话' }).waitFor()
-      assert.equal(
-        await sidebar
-          .getByRole('button')
-          .filter({ has: page.getByText(currentName, { exact: true }) })
-          .filter({ has: page.getByLabel('已置顶', { exact: true }) })
-          .count(),
-        0,
-      )
+      await catalog.locator('li[data-archived="true"]').filter({ hasText: currentName }).waitFor()
       assert.equal(
         (await runtime.listSessions()).find((item) => item.id === created.id)?.archived,
         true,
@@ -388,7 +364,7 @@ try {
         entries.flatMap(() => [200, 409]),
       )
       console.log(
-        `PASS ${width}px: repeated rename, persisted pin/archive/restore, sidebar/history sync and Runtime errors`,
+        `PASS ${width}px: repeated history-page rename (menu and keyboard), persisted pin/archive/restore, shared catalog sync and Runtime errors`,
       )
     } catch (error) {
       await page

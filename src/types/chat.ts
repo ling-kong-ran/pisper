@@ -1,6 +1,8 @@
 // 聊天领域类型：消息/工具/计划/会话摘要/会话状态。
 // EntityRecord 是逃生口——流式协议携带前端预先未知的扩展字段，
 // 在运行时协议提供判别式事件 schema 前统一集中在这里。
+import type { BoardCard } from '@shared/session-board-status.mjs'
+
 export type EntityRecord = Record<string, any>
 
 export type ChatAttachment = EntityRecord & {
@@ -127,6 +129,9 @@ export type SessionSummary = EntityRecord & {
     derivedAt?: string | null
     childSessionIds?: string[]
   } | null
+  // 只出现在第 2 期 Runtime 的 view=board 与看板事件流条目里；默认 GET /api/sessions 不带。
+  // 看板 store 把它拆进实时覆盖层，权威目录缓存里的会话行不保存 card。
+  card?: BoardCard
 }
 
 // 历史阅读是有界客户端投影；messages 始终保留实时流可继续更新的最新身份。

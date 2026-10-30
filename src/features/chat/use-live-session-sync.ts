@@ -29,6 +29,9 @@ type SessionSyncOptions = {
   updateSessions: (
     update: SessionSummary[] | ((current: SessionSummary[]) => SessionSummary[]),
   ) => SessionSummary[]
+  // 看板事件流在线时（Runtime 声明 board.events），后台会话的列表状态由看板 store 的事件流维护，
+  // 这里只为给出的当前会话轮询 /live（null 表示一个都不轮询）；不传时保持原行为，所有会话按需轮询。
+  pollOnly?: string | null
 }
 
 export const MAX_FOCUS_MESSAGES = 200
@@ -217,11 +220,16 @@ export function useLiveSessionSync({
   streamGenerationRef,
   updateSessionState,
   updateSessions,
+  pollOnly,
 }: SessionSyncOptions) {
   const liveSyncInFlightRef = useRef(new Set<string>())
   const pollingRef = useRef<{ timer: number | null; activeSessions: Set<string> }>({
     timer: null,
     activeSessions: new Set(),
+  })
+  const kickRef = useRef<{ timer: number | null; ids: Set<string> }>({
+    timer: null,
+    ids: new Set(),
   })
 
   // 同步单个会话的实时状态：普通轮询避让本地 SSE；前台恢复可强制采用服务端快照，
@@ -320,8 +328,21 @@ export function useLiveSessionSync({
       updateSessionState(id, { loading: true })
       try {
         const data = await chatApi.getMessages(id, { limit })
-        updateSessionState(id, (latest) =>
-          latest.streaming
+        // 别处发起的运行（另一台设备、TUI、刷新后）在请求途中被目录标记为运行中：
+        // 消息归 /live 所有，丢掉这一页后不能把空转录标成“已加载”，否则会先闪出
+        // 空会话的问候页，等到下一轮轮询（约 2 秒）才换成对话。保持加载态并立即读 /live。
+        let awaitLive = false
+        updateSessionState(id, (latest) => {
+          if (
+            latest.streaming &&
+            !latest.loaded &&
+            !latest.messages?.length &&
+            !localStreamSessionsRef.current.has(id)
+          ) {
+            awaitLive = true
+            return { ...latest, loading: false, pageSize: Math.max(latest.pageSize || 0, limit) }
+          }
+          return latest.streaming
             ? {
                 ...latest,
                 loaded: true,
@@ -340,8 +361,9 @@ export function useLiveSessionSync({
                 pageSize: Math.max(latest.pageSize || 0, limit),
                 error: '',
                 olderError: '',
-              },
-        )
+              }
+        })
+        if (awaitLive) void syncLiveSession(id)
         const resolvedModel =
           sessionStatesRef.current[id]?.model || (typeof data.model === 'string' ? data.model : '')
         if (resolvedModel) {
@@ -430,18 +452,46 @@ export function useLiveSessionSync({
     for (const id of pollingRef.current.activeSessions) {
       if (!knownIds.has(id)) pollingRef.current.activeSessions.delete(id)
     }
+    const joined: string[] = []
     for (const [id, state] of Object.entries(sessionStates)) {
-      const shouldPoll = shouldPollLiveSession(state, {
-        localStreamOwned: localStreamSessionsRef.current.has(id),
-      })
+      const shouldPoll =
+        (pollOnly === undefined || id === pollOnly) &&
+        shouldPollLiveSession(state, {
+          localStreamOwned: localStreamSessionsRef.current.has(id),
+        })
+      if (shouldPoll && !pollingRef.current.activeSessions.has(id)) joined.push(id)
       if (shouldPoll) pollingRef.current.activeSessions.add(id)
       else pollingRef.current.activeSessions.delete(id)
     }
     if (pollingRef.current.activeSessions.size) ensurePolling()
     else stopPolling()
-  }, [ensurePolling, localStreamSessionsRef, sessionStates, stopPolling])
+    if (!joined.length) return
+    // 刚加入轮询的会话立即读一次 /live，而不是等满一个间隔：打开别处运行中的会话时
+    // 对话要马上出现。延后一拍让同一提交里的其他状态先落定；计时器挂在 ref 上，
+    // 不随下一次状态变化被清掉（否则后续提交会吞掉这次立即读取）；在途去重由 syncLiveSession 负责。
+    const kick = kickRef.current
+    for (const id of joined) kick.ids.add(id)
+    if (kick.timer !== null) return
+    kick.timer = window.setTimeout(() => {
+      kick.timer = null
+      const ids = Array.from(kick.ids)
+      kick.ids.clear()
+      if (typeof document !== 'undefined' && document.hidden) return
+      for (const id of ids) {
+        if (pollingRef.current.activeSessions.has(id)) void syncLiveSession(id)
+      }
+    }, 0)
+  }, [ensurePolling, localStreamSessionsRef, pollOnly, sessionStates, stopPolling, syncLiveSession])
 
-  useEffect(() => stopPolling, [stopPolling])
+  useEffect(() => {
+    const kick = kickRef.current
+    return () => {
+      stopPolling()
+      if (kick.timer !== null) window.clearTimeout(kick.timer)
+      kick.timer = null
+      kick.ids.clear()
+    }
+  }, [stopPolling])
 
   return { syncLiveSession, loadSessionMessages, loadOlderMessages, liveSyncInFlightRef }
 }

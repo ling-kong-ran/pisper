@@ -15,6 +15,8 @@ import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
 import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
 import { TaskWorkspace } from './TaskWorkspace'
+import { SessionWorkspace } from './SessionWorkspace'
+import { SessionPageChromeContext } from './session-workspace-context'
 import { useContextPagesStore } from './session-context-pages-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
@@ -299,6 +301,7 @@ function SessionPanel({
   canClosePanel,
 }: SessionPanelProps) {
   const context = useContext(ChatDockContext)
+  const pageChrome = useContext(SessionPageChromeContext)
   const capabilities = useRuntimeCapabilitiesStore((store) => store.capabilities)
   const contentOpen = useContextPagesStore(
     (store) => store.sessions[sessionId]?.contentOpen || false,
@@ -448,90 +451,126 @@ function SessionPanel({
     (!context.pendingAsset.targetSessionId || context.pendingAsset.targetSessionId === sessionId)
       ? context.pendingAsset.asset
       : null
+  const messages = state.historyWindow?.messages || state.messages || EMPTY_LIST
+  const loadState = state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
+  // 运行中的会话在 /live 给出消息之前保持“加载中”：空转录在这里只可能是还没读到，
+  // 不能显示空会话的问候页（别处发起的运行打开时会先闪一下问候页再跳成对话）。
+  const awaitingLive = Boolean(state.recovering && !messages.length && !state.error)
+  const completed = Boolean(
+    state.lifecycle?.phase === 'completed' && !state.error && !state.runStopped,
+  )
+  const runStartedAt = typeof state.runStartedAt === 'string' ? state.runStartedAt : null
+  const goal = state.goal ?? session.goal ?? null
+  const focus = (
+    <FocusSession
+      session={session}
+      shortcutEnabled={shortcutEnabled}
+      messages={messages}
+      transcriptLoadState={awaitingLive ? 'loading' : loadState}
+      hasNewer={Boolean(state.historyWindow)}
+      messageStart={state.historyWindow?.messageStart ?? state.messageStart}
+      hasOlder={state.historyWindow?.hasOlder ?? state.hasOlder}
+      loadingOlder={state.loadingOlder}
+      olderError={state.olderError}
+      model={state.model || session.model || context.defaultModel}
+      thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
+      availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
+      thinkingStatus={state.thinkingStatus || ''}
+      thinkingMessage={state.thinkingMessage || ''}
+      executionMode={state.executionMode || session.executionMode || 'approval-required'}
+      runMode={state.runMode || session.runMode || 'plan'}
+      goal={goal}
+      team={team}
+      plan={visiblePlan}
+      currentActivity={state.currentActivity}
+      activityFeed={state.activityFeed || EMPTY_LIST}
+      tools={state.tools || EMPTY_LIST}
+      thinkingText={state.thinkingText || ''}
+      queuedInputs={state.queuedInputs || EMPTY_LIST}
+      withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
+      compaction={state.compaction}
+      contextUsage={state.contextUsage}
+      sessionUsage={state.sessionUsage}
+      sessionTreeRevision={state.sessionTreeRevision}
+      sessionTreePulse={sessionTreePulse}
+      cwd={state.cwd || session.cwd}
+      availableModels={context.availableModels}
+      pendingRuntimeSelection={state.pendingRuntimeSelection}
+      switchingModel={state.switchingModel}
+      switchingThinking={state.switchingThinking}
+      switchingCwd={state.switchingCwd}
+      switchingPermission={state.switchingPermission}
+      streaming={streaming}
+      runStartedAt={state.runStartedAt}
+      lastActivityAt={state.lastActivityAt}
+      runFinishedAt={state.runFinishedAt}
+      runStopped={state.runStopped}
+      runNotice={state.runNotice}
+      approvals={state.approvals || EMPTY_LIST}
+      error={state.error || (context.activeId === sessionId ? context.globalError : '')}
+      pendingAsset={pending}
+      onAssetConsumed={context.onAssetConsumed}
+      notify={context.notify}
+      onOpenModelSettings={context.openModelSettings}
+      onCompactionThresholdChange={context.setCompactionThreshold}
+      canSplit={canSplitPanel}
+      canClosePanel={canClosePanel}
+      contextOpen={contentOpen}
+      contextCompact={context.mobileLayout}
+      contextPanelId={`${panelId || `mobile-${sessionId}`}-context`}
+      {...handlers}
+    />
+  )
   return (
     <div
-      className="session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-panel"
+      className={cn(
+        'session-dock-panel w-full h-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-panel',
+        // 切换代理时对话区淡入 120ms（只动 opacity，减少动效时由全局规则关闭）。
+        pageChrome && 'animate-[fade-in_var(--d-fast)_var(--ease-enter)]',
+      )}
       onFocusCapture={onFocusCapture}
+      data-session-panel={sessionId}
     >
-      <TaskWorkspace
-        messages={state.historyWindow?.messages || state.messages || EMPTY_LIST}
-        taskName={session.name || sessionId}
-        cwd={state.cwd || session.cwd || ''}
-        key={sessionId}
-        sessionId={sessionId}
-        panelId={panelId || `mobile-${sessionId}`}
-        active={shortcutEnabled}
-        mobile={context.mobileLayout}
-        plan={visiblePlan}
-        streaming={streaming}
-        completed={Boolean(
-          state.lifecycle?.phase === 'completed' && !state.error && !state.runStopped,
-        )}
-        runStartedAt={typeof state.runStartedAt === 'string' ? state.runStartedAt : null}
-        plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
-        requestConfirm={context.requestConfirm}
-      >
-        <FocusSession
-          session={session}
-          shortcutEnabled={shortcutEnabled}
-          messages={state.historyWindow?.messages || state.messages || EMPTY_LIST}
-          transcriptLoadState={
-            state.loaded ? 'ready' : state.loading || !state.error ? 'loading' : 'error'
-          }
-          hasNewer={Boolean(state.historyWindow)}
-          messageStart={state.historyWindow?.messageStart ?? state.messageStart}
-          hasOlder={state.historyWindow?.hasOlder ?? state.hasOlder}
-          loadingOlder={state.loadingOlder}
-          olderError={state.olderError}
-          model={state.model || session.model || context.defaultModel}
-          thinkingLevel={state.thinkingLevel || session.thinkingLevel || 'medium'}
-          availableThinkingLevels={state.availableThinkingLevels || EMPTY_LIST}
-          thinkingStatus={state.thinkingStatus || ''}
-          thinkingMessage={state.thinkingMessage || ''}
-          executionMode={state.executionMode || session.executionMode || 'approval-required'}
-          runMode={state.runMode || session.runMode || 'plan'}
-          goal={state.goal ?? session.goal ?? null}
-          team={team}
+      {pageChrome ? (
+        // 会话页（桌面布局）：“页头 + 对话 + 检查器”的会话工作区；其余入口保持原来的任务工作区。
+        <SessionWorkspace
+          key={sessionId}
+          sessionId={sessionId}
+          messages={messages}
+          cwd={state.cwd || session.cwd || ''}
+          active={shortcutEnabled}
           plan={visiblePlan}
-          currentActivity={state.currentActivity}
-          activityFeed={state.activityFeed || EMPTY_LIST}
-          tools={state.tools || EMPTY_LIST}
-          thinkingText={state.thinkingText || ''}
-          queuedInputs={state.queuedInputs || EMPTY_LIST}
-          withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
-          compaction={state.compaction}
-          contextUsage={state.contextUsage}
-          sessionUsage={state.sessionUsage}
-          sessionTreeRevision={state.sessionTreeRevision}
-          sessionTreePulse={sessionTreePulse}
-          cwd={state.cwd || session.cwd}
-          availableModels={context.availableModels}
-          pendingRuntimeSelection={state.pendingRuntimeSelection}
-          switchingModel={state.switchingModel}
-          switchingThinking={state.switchingThinking}
-          switchingCwd={state.switchingCwd}
-          switchingPermission={state.switchingPermission}
+          goal={goal}
+          team={team}
+          activity={state.activityFeed?.length ? state.activityFeed : state.tools || EMPTY_LIST}
+          planTab={Boolean(visiblePlan?.items?.length || goal || team)}
           streaming={streaming}
-          runStartedAt={state.runStartedAt}
-          lastActivityAt={state.lastActivityAt}
-          runFinishedAt={state.runFinishedAt}
-          runStopped={state.runStopped}
-          runNotice={state.runNotice}
-          approvals={state.approvals || EMPTY_LIST}
-          error={state.error || (context.activeId === sessionId ? context.globalError : '')}
-          pendingAsset={pending}
-          onAssetConsumed={context.onAssetConsumed}
-          notify={context.notify}
-          onOpenModelSettings={context.openModelSettings}
-          onCompactionThresholdChange={context.setCompactionThreshold}
-          canSplit={canSplitPanel}
-          canClosePanel={canClosePanel}
-          contextOpen={contentOpen}
-          contextCompact={context.mobileLayout}
-          contextPanelId={`${panelId || `mobile-${sessionId}`}-context`}
-          {...handlers}
-        />
-      </TaskWorkspace>
+          completed={completed}
+          runStartedAt={runStartedAt}
+          requestConfirm={context.requestConfirm}
+        >
+          {focus}
+        </SessionWorkspace>
+      ) : (
+        <TaskWorkspace
+          messages={messages}
+          taskName={session.name || sessionId}
+          cwd={state.cwd || session.cwd || ''}
+          key={sessionId}
+          sessionId={sessionId}
+          panelId={panelId || `mobile-${sessionId}`}
+          active={shortcutEnabled}
+          mobile={context.mobileLayout}
+          plan={visiblePlan}
+          streaming={streaming}
+          completed={completed}
+          runStartedAt={runStartedAt}
+          plansAvailable={runtimeFeatureAvailable(capabilities, 'plans')}
+          requestConfirm={context.requestConfirm}
+        >
+          {focus}
+        </TaskWorkspace>
+      )}
     </div>
   )
 }

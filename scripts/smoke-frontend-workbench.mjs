@@ -192,7 +192,12 @@ const server = await createServer({
               isRepo: true,
               diff:
                 'diff --git a/src/one.ts b/src/one.ts\n--- a/src/one.ts\n+++ b/src/one.ts\n@@ -1,100 +1,100 @@\n' +
-                Array.from({ length: 100 }, (_, i) => '-old ' + i + '\n+new ' + i + '\n').join(''),
+                // 第 50 行很长：统一视图不换行，差异区要横向滚动（R5 用它核对横向阅读位置）。
+                Array.from(
+                  { length: 100 },
+                  (_, i) =>
+                    '-old ' + i + '\n+new ' + i + (i === 50 ? ' ' + 'x'.repeat(320) : '') + '\n',
+                ).join(''),
             }
           else if (url.pathname.endsWith('/content'))
             data = url.pathname.includes('broken-image')
@@ -300,13 +305,29 @@ try {
   await page.locator('[data-task-workspace="a"]').waitFor()
   assert.equal(await page.evaluate(() => window.workbenchFixture.path()), '/board/a')
   assert.equal(await page.locator('[data-task-workspace]').count(), 1)
-  await page.locator('[data-task-workspace="a"] [role="tab"]').first().waitFor()
+  // 第 3 期：会话页右侧是检查器（固定标签 改动 / 终端 / 文件 / 预览，没有可关闭的上下文页标签），
+  // 与 44px 会话页头同一行起头；宽屏默认并排展开，Dockview 与旧的“新建标签页”都不再挂载。
   const initialPane = page.locator('[data-task-workspace="a"]')
-  await initialPane
-    .getByRole('button', { name: /关闭辅助页面/ })
-    .first()
-    .click()
-  await initialPane.getByRole('tab').first().waitFor({ state: 'detached' })
+  const inspectorOf = (owner) => owner.locator('[data-session-inspector]')
+  const inspectorTab = (owner, id) => owner.locator(`[data-inspector-tab-id="${id}"]`)
+  await inspectorOf(initialPane).waitFor()
+  assert.equal(await initialPane.getAttribute('data-session-workspace'), 'aside')
+  assert.equal(await inspectorTab(initialPane, 'changes').getAttribute('aria-selected'), 'true')
+  assert.deepEqual(
+    await inspectorOf(initialPane)
+      .locator('[data-inspector-tab-id]')
+      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-inspector-tab-id'))),
+    ['changes', 'terminal', 'files', 'preview'],
+  )
+  const headerRow = await initialPane.evaluate((pane) => ({
+    session: pane.querySelector('[data-session-header]')?.getBoundingClientRect().top,
+    inspector: pane.querySelector('[data-session-inspector] header')?.getBoundingClientRect().top,
+  }))
+  assert.ok(
+    Math.abs(headerRow.session - headerRow.inspector) <= 1,
+    `the session header and the inspector tabs share the top row: ${JSON.stringify(headerRow)}`,
+  )
+  assert.equal(await page.getByRole('button', { name: '新增辅助页面', exact: true }).count(), 0)
   await page.evaluate(() => window.workbenchFixture.open('b'))
   await page.locator('[data-task-workspace="b"]').waitFor()
   assert.equal(await backgroundComposer.inputValue(), '继续编辑 B')
@@ -322,92 +343,122 @@ try {
   const mobileMoreBounds = await mobileMore.boundingBox()
   assert.ok(mobileMoreBounds.width >= 44 && mobileMoreBounds.height >= 44)
   await page.setViewportSize({ width: 1600, height: 1000 })
+  // 页头“⋯”（id 不变）集中会话操作；单会话页没有分屏，也不再有“打开会话上下文”。
+  await initialPane.locator('[data-session-header]').waitFor()
   await initialPane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page
-    .getByRole('menuitem', { name: '打开会话上下文', exact: true })
-    .waitFor({ timeout: 5000 })
-  await page.getByRole('menuitem', { name: '追忆', exact: true }).waitFor()
-  assert.equal(await initialPane.getByTestId('theme-toggle').count(), 0)
+  await page.getByRole('menuitem', { name: '重命名会话', exact: true }).waitFor()
   await page.getByRole('menuitem', { name: /^主题：/ }).waitFor()
-  // 单会话页没有分屏：菜单里不再出现拆分与关闭分屏。
+  assert.equal(await initialPane.getByTestId('theme-toggle').count(), 0)
   assert.equal(await page.getByRole('menuitem', { name: /拆分到|关闭分屏/ }).count(), 0)
-  await page.getByRole('menuitem', { name: '追忆', exact: true }).click()
+  assert.equal(await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).count(), 0)
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => document.activeElement?.id === 'task-a-more')
+  // 原“⋯ › 追忆”的入口换成页头的“分支”：打开同一个会话树对话框，关闭后焦点回到“分支”。
+  await initialPane.locator('[data-session-branches]').click()
   const recallDialog = page.getByRole('dialog', { name: '追忆', exact: true })
   await recallDialog.waitFor()
   await page.waitForFunction(() =>
     document.querySelector('[role="dialog"]')?.contains(document.activeElement),
   )
   await recallDialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
-  await page.waitForFunction(() => document.activeElement?.id === 'task-a-more')
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-session-branches'))
   await initialPane.locator('.focus-composer textarea').fill('A 的未发送草稿')
   await initialPane.locator('.transcript').waitFor()
-  await initialPane.getByRole('button', { name: '置顶摘要', exact: true }).click()
-  const summary = initialPane.getByRole('region', { name: '置顶摘要', exact: true })
-  await summary.waitFor()
-  await page.screenshot({
-    path: join(output, 'summary-desktop.png'),
-  })
-  await initialPane.locator('.focus-composer textarea').click()
-  assert.equal(await summary.isVisible(), true, 'desktop pinned summary survives background clicks')
-  await summary.getByRole('button', { name: '项目变更', exact: false }).click()
+
+  // 改动 · 工作区：版本控制改动列表 + 所选文件差异（统一视图）。阅读位置按文件存进会话页，
+  // 切到别的标签再回来时恢复，包括切换前最后一次还没派发 scroll 事件的位置（R5）。
+  await inspectorOf(initialPane).getByRole('radio', { name: '工作区', exact: true }).click()
   const changesPane = initialPane.getByRole('region', { name: '项目变更', exact: true })
   await changesPane.getByRole('button', { name: 'src/one.ts M', exact: true }).click()
-  await changesPane.locator('[data-pisper-diff-row-count]').waitFor()
-  await changesPane.getByRole('button', { name: '全部展开', exact: true }).click()
-  await page.waitForFunction(
-    () =>
-      document.querySelectorAll('[data-task-workspace="a"] [data-pisper-diff-row-count]').length ===
-      2,
+  assert.equal(
+    await changesPane
+      .getByRole('button', { name: 'src/one.ts M', exact: true })
+      .getAttribute('aria-current'),
+    'true',
   )
-  await changesPane.getByRole('button', { name: '全部收起', exact: true }).click()
-  assert.equal(await changesPane.locator('[data-pisper-diff-row-count]').count(), 0)
-  await changesPane.getByRole('button', { name: 'src/one.ts M', exact: true }).click()
-  const diffScroll = changesPane.locator('[data-pisper-diff-row-count]').locator('..')
-  await diffScroll.evaluate((el) => {
-    el.scrollTop = 300
-    el.scrollLeft = 120
-    el.dispatchEvent(new Event('scroll', { bubbles: true }))
-  })
-  await initialPane.getByRole('button', { name: '置顶摘要', exact: true }).click()
-  await summary.getByRole('button', { name: 'design.md', exact: true }).click()
-  await initialPane.getByRole('tab', { name: '项目变更', exact: true }).click()
-  await changesPane.locator('[data-pisper-diff-row-count]').waitFor()
-  const sourcesTabId = await initialPane
-    .getByRole('tab', { name: '来源', exact: true })
-    .getAttribute('id')
-  await changesPane
-    .locator('[data-pisper-diff-row-count]')
-    .locator('..')
-    .evaluate((el, id) => {
+  const diffScroll = changesPane.locator('[data-change-detail="src/one.ts"] [data-diff-scroll]')
+  await diffScroll.locator('[data-pisper-diff-row-count]').waitFor()
+  assert.equal(
+    await diffScroll.locator('[data-pisper-diff-row-count]').getAttribute('data-diff-mode'),
+    'unified',
+  )
+  // 统一视图里长行保持单行，整个差异区横向滚动；用它同时核对纵横两个方向的阅读位置。
+  const detail = changesPane.locator('[data-change-detail="src/one.ts"]')
+  await diffScroll.evaluate(
+    (el, id) => {
       el.scrollTop = 450
       el.scrollLeft = 160
       document.getElementById(id).click()
-    }, sourcesTabId)
-  await initialPane.getByRole('tab', { name: '项目变更', exact: true }).click()
-  await changesPane.locator('[data-pisper-diff-row-count]').waitFor()
+    },
+    await inspectorTab(initialPane, 'files').getAttribute('id'),
+  )
+  await initialPane.getByRole('region', { name: '来源', exact: true }).waitFor()
+  await inspectorTab(initialPane, 'changes').click()
+  await diffScroll.locator('[data-pisper-diff-row-count]').waitFor()
   await nextFrame(page)
-  const lastResourceOffset = await changesPane
-    .locator('[data-pisper-diff-row-count]')
-    .locator('..')
-    .evaluate((el) => ({ top: el.scrollTop, left: el.scrollLeft }))
+  const lastResourceOffset = await diffScroll.evaluate((el) => ({
+    top: el.scrollTop,
+    left: el.scrollLeft,
+  }))
   reviewExpect(
     Math.abs(lastResourceOffset.top - 450) < 3 && Math.abs(lastResourceOffset.left - 160) < 3,
     'R5: resource tab must flush its last scroll before native scroll dispatch',
   )
-  await initialPane.getByRole('tab', { name: '来源', exact: true }).click()
+  // 并排：默认 456 宽的检查器放不下两栏，“并排”禁用并在组上说明原因；拖宽到 600 以上后可用，
+  // 两栏各占一半、新旧两侧都在视野里（不再是 880px 的并排渲染器把新文件一侧挤出视野）。
+  const splitOption = detail.getByRole('radio', { name: '并排', exact: true })
+  assert.equal(await splitOption.isDisabled(), true)
+  assert.match(
+    (await detail.locator('[data-slot="segmented-control"]').getAttribute('title')) || '',
+    /并排/,
+  )
+  const inspectorSplitter = initialPane.getByRole('separator', {
+    name: '调整会话上下文宽度',
+    exact: true,
+  })
+  for (let step = 0; step < 3; step += 1) await inspectorSplitter.press('Shift+ArrowLeft')
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-change-detail="src/one.ts"]')?.getBoundingClientRect().width >=
+      600,
+  )
+  await splitOption.click()
+  await diffScroll.locator('[data-diff-mode="split-compact"]').waitFor()
+  const splitFit = await diffScroll.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    const next = el.querySelector('.git-diff-cell.next')?.getBoundingClientRect()
+    return {
+      overflow: el.scrollWidth - el.clientWidth,
+      nextInside: Boolean(next && next.left >= box.left && next.right <= box.right + 1),
+    }
+  })
+  reviewExpect(
+    splitFit.overflow <= 1 && splitFit.nextInside,
+    `side-by-side keeps both columns in view inside the inspector: ${JSON.stringify(splitFit)}`,
+  )
+  // 视图偏好（统一 / 并排）是全局的：恢复默认的统一视图与默认宽度。
+  await detail.getByRole('radio', { name: '统一', exact: true }).click()
+  await diffScroll.locator('[data-diff-mode="unified"]').waitFor()
+  await inspectorSplitter.dblclick()
 
+  // 文件标签：资料来源（预览、无法预览的图片、经桌面桥接添加附件、搜索空结果）。
+  await inspectorTab(initialPane, 'files').click()
   const sourcesPane = initialPane.getByRole('region', { name: '来源', exact: true })
+  await sourcesPane.getByRole('button', { name: 'design.md', exact: true }).click()
   await sourcesPane.getByRole('button', { name: '预览', exact: true }).click()
   await page.getByRole('dialog').getByText('Source belongs to asset-a', { exact: true }).waitFor()
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
-  assert.equal(await initialPane.getByRole('tab', { name: '来源', exact: true }).isVisible(), true)
+  assert.equal(await inspectorTab(initialPane, 'files').getAttribute('aria-selected'), 'true')
   await sourcesPane.getByRole('button', { name: 'broken.png', exact: true }).click()
   await sourcesPane.getByRole('button', { name: '预览', exact: true }).click()
   await page.getByRole('dialog').getByText('此文件暂不支持内容预览。', { exact: true }).waitFor()
   await page.getByRole('dialog').getByRole('button', { name: '关闭预览', exact: true }).click()
   // 来源页复用真实系统附件动作；取消、错误与浏览器选择由移动壳验收覆盖。
+  // 桥接只为这一步临时装上：会话页按 window.pisperDesktop 判断桌面壳（窄化的桌面窗口不进手机外壳），
+  // 后面的手机宽度检查需要普通浏览器，所以用完立即还原。
   await page.evaluate(() => {
+    window.previousDesktopBridge = window.pisperDesktop
     window.pisperDesktop = {
       ...window.pisperDesktop,
       pickFiles: (cwd) => {
@@ -423,12 +474,15 @@ try {
     await initialPane.locator('.attachment-tray').getByText('picked.txt', { exact: true }).count(),
     1,
   )
+  await page.evaluate(() => {
+    if (window.previousDesktopBridge === undefined) delete window.pisperDesktop
+    else window.pisperDesktop = window.previousDesktopBridge
+  })
   await sourcesPane.getByRole('textbox', { name: '搜索来源', exact: true }).fill('missing')
   await sourcesPane.getByText('没有匹配的来源', { exact: true }).waitFor()
-  await initialPane.getByRole('button', { name: '关闭辅助页面 · 来源', exact: true }).click()
-  await initialPane.getByRole('button', { name: '关闭辅助页面 · 项目变更', exact: true }).click()
+  await sourcesPane.getByRole('textbox', { name: '搜索来源', exact: true }).fill('')
 
-  // 会话间切换走路由：同一时刻只挂载一个会话视图，草稿与阅读位置按会话保留。
+  // 会话间切换走路由：同一时刻只挂载一个会话视图，草稿、预览地址草稿与阅读位置按会话保留。
   await initialPane.locator('.transcript').evaluate((el) => {
     el.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }))
     el.scrollTop = 360
@@ -443,34 +497,28 @@ try {
   await page.locator('[data-task-workspace="a"]').waitFor()
   assert.equal(await page.locator('[data-task-workspace]').count(), 1)
   const pane = page.locator('[data-task-workspace="a"]')
-  await pane.getByRole('button', { name: '新建标签页', exact: true }).click()
-  await pane.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
-  const taskHeading = await pane.locator('[data-task-header]').boundingBox()
-  const contentHeading = await pane.locator('.auxiliary-page-header').boundingBox()
-  assert.ok(
-    taskHeading && contentHeading && Math.abs(taskHeading.y - contentHeading.y) <= 1,
-    'Task title and resource tabs share the top row on the session page',
-  )
-  assert.equal(await pane.getByRole('tab').count(), 1)
-  await pane.getByRole('button', { name: '网页预览', exact: true }).click()
+  await inspectorTab(pane, 'preview').click()
+  await pane.locator('[data-inspector-preview]').waitFor()
+  // 检查器宽度：分隔条可用方向键与指针调整，双击恢复默认 456（宽度是全局偏好，不按会话保存）。
   const splitter = pane.getByRole('separator', { name: '调整会话上下文宽度', exact: true })
   const beforeWidth = Number(await splitter.getAttribute('aria-valuenow'))
+  assert.equal(beforeWidth, 456)
   await splitter.press('ArrowLeft')
   assert.ok(Number(await splitter.getAttribute('aria-valuenow')) > beforeWidth)
   await splitter.press('ArrowRight')
-  await splitter.dblclick()
-  const beforeDrag = Number(await splitter.getAttribute('aria-valuenow'))
+  assert.equal(Number(await splitter.getAttribute('aria-valuenow')), beforeWidth)
   const handle = await splitter.boundingBox()
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
   await page.mouse.down()
   await page.mouse.move(handle.x - 28, handle.y + handle.height / 2)
   await page.mouse.up()
   assert.ok(
-    Number(await splitter.getAttribute('aria-valuenow')) > beforeDrag,
-    'pointer resize changes only local content width',
+    Number(await splitter.getAttribute('aria-valuenow')) > beforeWidth,
+    'pointer resize widens the inspector',
   )
   await splitter.dblclick()
-  const addressInput = pane.locator('form input')
+  assert.equal(Number(await splitter.getAttribute('aria-valuenow')), 456)
+  const addressInput = pane.locator('[data-inspector-preview] form input')
   await addressInput.fill('https://example.invalid/kept-as-draft')
   const savedReadingPosition = await pane.locator('.transcript').evaluate((el) => {
     el.scrollTop = 720
@@ -486,11 +534,8 @@ try {
     savedReadingPosition,
   )
   await page.evaluate(() => window.workbenchFixture.open('a'))
-  await page.locator('[data-task-workspace="a"] form input').waitFor()
-  assert.equal(
-    await page.locator('[data-task-workspace="a"] form input').inputValue(),
-    'https://example.invalid/kept-as-draft',
-  )
+  await page.locator('[data-task-workspace="a"] [data-inspector-preview] form input').waitFor()
+  assert.equal(await addressInput.inputValue(), 'https://example.invalid/kept-as-draft')
   assert.equal(await pane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
   await page.waitForFunction(
     (top) =>
@@ -498,12 +543,14 @@ try {
     savedReadingPosition,
   )
   await page.setViewportSize({ width: 390, height: 844 })
-  // 会话页在手机宽度仍是同一个单会话视图（没有旧的多标签手机外壳），标题行换成 44px 触控尺寸。
+  // 手机外壳保留第 1 期的单会话视图（第 4 期再重做）：没有泳道条与检查器，标题行换成 44px 触控尺寸，
+  // 桌面检查器打开过的资源页在手机上是只显示内容的单面视图。
   await page.waitForFunction(
     () =>
       document.querySelector('#task-a-more')?.getBoundingClientRect().height >= 44 &&
       !document.querySelector('.mobile-session-shell'),
   )
+  assert.equal(await page.locator('[data-lane-strip], [data-session-inspector]').count(), 0)
   const mobilePane = page.locator('[data-task-workspace="a"]')
   assert.equal(
     await mobilePane.locator('.focus-composer textarea').isVisible(),
@@ -545,11 +592,12 @@ try {
   )
   await sheet.press('Escape')
   await page.waitForFunction(() => document.activeElement?.id === 'task-a-summary-toggle')
+  const pagesBeforeBack = await page.evaluate(() => window.workbenchFixture.state().a.pages.length)
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
   assert.equal(
     await page.evaluate(() => window.workbenchFixture.state().a.pages.length),
-    1,
-    'back preserves tabs',
+    pagesBeforeBack,
+    'back preserves resource pages',
   )
   await mobilePane.locator('.focus-composer textarea').waitFor({ state: 'visible' })
   assert.equal(await mobilePane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
@@ -577,12 +625,13 @@ try {
     await page.setViewportSize({ width, height: 1000 })
     await page.waitForTimeout(100)
   }
+  // 宽度来回切换后回到桌面：检查器仍并排展开；收起后焦点回到页头的检查器开关，草稿不丢、不中止运行。
   const restored = page.locator('[data-task-workspace="a"]')
-  await restored.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
-  await restored.getByRole('button', { name: /关闭辅助页面/ }).click()
-  assert.equal(await restored.getByRole('tab').count(), 0)
-  await page.waitForFunction(() => document.activeElement?.id === 'task-a-new-content-tab')
+  await inspectorOf(restored).waitFor()
+  assert.equal(await restored.getAttribute('data-session-workspace'), 'aside')
+  await inspectorOf(restored).getByRole('button', { name: '收起检查器', exact: true }).click()
+  await inspectorOf(restored).waitFor({ state: 'detached' })
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-inspector-toggle'))
   assert.equal(
     await page.locator('[data-task-workspace="a"] .focus-composer textarea').inputValue(),
     'A 的未发送草稿',
@@ -591,9 +640,13 @@ try {
     requests.some((request) => request.path.endsWith('/abort')),
     false,
   )
+  await restored.locator('[data-inspector-toggle]').click()
+  await inspectorOf(restored).waitFor()
+
+  // 终端标签：终端属于会话，切走标签只卸载视图；进程子视图的筛选与跟随状态按会话保存。
   const terminalOwner = page.locator('[data-task-workspace="a"]')
-  await terminalOwner.getByRole('button', { name: '新建标签页', exact: true }).click()
-  await terminalOwner.getByRole('button', { name: '终端', exact: true }).click()
+  await inspectorTab(terminalOwner, 'terminal').click()
+  await inspectorOf(terminalOwner).getByRole('radio', { name: '终端', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '创建终端', exact: true }).click()
   await terminalOwner.locator('[data-terminal-id]').waitFor()
   const terminalId = await terminalOwner
@@ -611,7 +664,8 @@ try {
     .locator('.xterm-rows')
     .getByText('before closing view', { exact: true })
     .waitFor()
-  await terminalOwner.getByRole('button', { name: '关闭辅助页面 · 终端', exact: true }).click()
+  await inspectorTab(terminalOwner, 'files').click()
+  await terminalOwner.locator('[data-terminal-id]').waitFor({ state: 'detached' })
   assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [])
   await page.evaluate(
     (id) =>
@@ -622,8 +676,8 @@ try {
       ),
     terminalId,
   )
-  await terminalOwner.getByRole('button', { name: '新建标签页', exact: true }).click()
-  await terminalOwner.getByRole('button', { name: '后台进程', exact: true }).click()
+  await inspectorTab(terminalOwner, 'terminal').click()
+  await inspectorOf(terminalOwner).getByRole('radio', { name: '进程', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '展开或收起日志', exact: true }).click()
   await terminalOwner.getByRole('checkbox', { name: '自动跟随输出', exact: true }).uncheck()
   await terminalOwner
@@ -632,10 +686,16 @@ try {
   await terminalOwner.getByRole('button', { name: '打开终端', exact: true }).click()
   await terminalOwner.locator('[data-terminal-id]').waitFor()
   assert.equal(
+    await inspectorOf(terminalOwner)
+      .getByRole('radio', { name: '终端', exact: true })
+      .getAttribute('aria-checked'),
+    'true',
+  )
+  assert.equal(
     await terminalOwner.locator('[data-terminal-id]').getAttribute('data-terminal-id'),
     terminalId,
   )
-  await terminalOwner.getByRole('tab', { name: '后台进程', exact: true }).click()
+  await inspectorOf(terminalOwner).getByRole('radio', { name: '进程', exact: true }).click()
   assert.equal(
     await terminalOwner.getByRole('combobox', { name: '筛选进程状态', exact: true }).inputValue(),
     'running',
@@ -644,16 +704,18 @@ try {
     await terminalOwner.getByRole('checkbox', { name: '自动跟随输出', exact: true }).isChecked(),
     false,
   )
-  assert.match(await terminalOwner.locator('pre').innerText(), /output while view is closed/)
-  await terminalOwner.getByRole('tab', { name: '终端', exact: true }).click()
+  assert.match(
+    await inspectorOf(terminalOwner).locator('pre').innerText(),
+    /output while view is closed/,
+  )
+  await inspectorOf(terminalOwner).getByRole('radio', { name: '终端', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '停止进程', exact: true }).click()
   assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [terminalId])
   // 离开会话页（换到别的会话）只卸载视图，终端进程归会话所有，回来后仍是同一个。
   await page.evaluate(() => window.workbenchFixture.open('c'))
   const secondOwner = page.locator('[data-task-workspace="c"]')
   await secondOwner.waitFor()
-  await secondOwner.getByRole('button', { name: '新建标签页', exact: true }).click()
-  await secondOwner.getByRole('button', { name: '终端', exact: true }).click()
+  await inspectorTab(secondOwner, 'terminal').waitFor()
   await secondOwner.getByRole('button', { name: '创建终端', exact: true }).click()
   await secondOwner.locator('[data-terminal-id]').waitFor()
   const secondTerminalId = await secondOwner
@@ -687,44 +749,41 @@ try {
     secondTerminalId,
   ])
 
-  // A 与 D 共用 project-a：项目数据共享，但展开状态与检查器宽度按会话各自保存。
+  // A 与 D 共用 project-a：项目改动数据共享，但所选文件按会话各自保存（R4）。
   for (const id of ['a', 'd']) {
     await page.evaluate((target) => window.workbenchFixture.open(target), id)
     const owner = page.locator(`[data-task-workspace="${id}"]`)
-    await owner.getByRole('button', { name: '置顶摘要', exact: true }).click()
-    await owner
-      .getByRole('region', { name: '置顶摘要', exact: true })
-      .getByRole('button', { name: '项目变更', exact: false })
-      .click()
+    await inspectorTab(owner, 'changes').click()
+    await inspectorOf(owner).getByRole('radio', { name: '工作区', exact: true }).click()
     await owner
       .getByRole('region', { name: '项目变更', exact: true })
       .getByText('/fixture/project-a', { exact: true })
       .waitFor()
   }
-  const sharedD = page.locator('[data-task-workspace="d"]')
-  await sharedD.getByRole('separator').press('Home')
-  await nextFrame(page)
-  const otherWidth = await sharedD.getByRole('separator').getAttribute('aria-valuenow')
   await page.evaluate(() => window.workbenchFixture.open('a'))
   const sharedA = page.locator('[data-task-workspace="a"]')
-  await sharedA.getByRole('separator').press('ArrowLeft')
-  await sharedA.getByRole('button', { name: 'src/one.ts M', exact: true }).click()
+  await sharedA.getByRole('button', { name: 'src/two.ts A', exact: true }).click()
+  await sharedA.locator('[data-change-detail="src/two.ts"]').waitFor()
   await nextFrame(page)
   await page.evaluate(() => window.workbenchFixture.open('d'))
-  await sharedD.getByRole('separator').waitFor()
+  const sharedD = page.locator('[data-task-workspace="d"]')
+  await sharedD.locator('[data-change-detail]').waitFor()
   reviewExpect(
-    (await sharedD.getByRole('separator').getAttribute('aria-valuenow')) === otherWidth,
-    'R4: resizing A must not resize D',
+    (await sharedD
+      .getByRole('button', { name: 'src/one.ts M', exact: true })
+      .getAttribute('aria-current')) === 'true',
+    'R4: selecting a file in A must not select it in D',
   )
   assert.equal(
     await sharedD
-      .getByRole('button', { name: 'src/one.ts M', exact: true })
-      .getAttribute('aria-expanded'),
-    'false',
-    'shared project data does not share per-task expansion state',
+      .getByRole('button', { name: 'src/two.ts A', exact: true })
+      .getAttribute('aria-current'),
+    null,
+    'shared project data does not share per-task file selection',
   )
-  // 外链预览在会话页落到当前会话检查器的网页预览页（没有 Dock 预览面板）。
+  // 外链预览在会话页落到当前会话检查器的“预览”标签（没有 Dock 预览面板）。
   await page.evaluate(() => window.workbenchFixture.preview(location.origin + '/__preview'))
+  await sharedD.locator('[data-inspector-preview]').waitFor()
   await sharedD
     .frameLocator('iframe')
     .getByText('Legacy preview fixture', { exact: true })
@@ -738,38 +797,39 @@ try {
     window.addEventListener('error', (event) => console.error(event.message)),
   )
   watch(delayedPage)
+  const heldProjectA = delayedPage.waitForRequest((request) =>
+    request.url().endsWith('/a/vcs/changes'),
+  )
   await delayedPage.goto(fixtureUrl('a'))
   await delayedPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
-  await Promise.all([
-    delayedPage.waitForRequest((request) => request.url().endsWith('/a/vcs/changes')),
-    delayedPage.getByRole('button', { name: '置顶摘要', exact: true }).click(),
-  ])
+  await delayedPage
+    .locator('[data-session-inspector]')
+    .getByRole('radio', { name: '工作区', exact: true })
+    .click()
+  await heldProjectA
   await delayedPage.evaluate(() => window.workbenchFixture.open('b'))
   await delayedPage.locator('[data-task-workspace="b"]').waitFor()
-  await delayedPage.getByRole('button', { name: '置顶摘要', exact: true }).click()
-  await delayedPage
-    .getByRole('region', { name: '置顶摘要', exact: true })
-    .getByText('Task B', { exact: true })
-    .waitFor()
+  await delayedPage.getByRole('button', { name: 'b-only.ts M', exact: true }).waitFor()
   releaseProjectA()
   holdProjectA = false
-  await delayedPage
-    .getByRole('region', { name: '置顶摘要', exact: true })
-    .getByRole('button', { name: '项目变更', exact: false })
-    .click()
+  await nextFrame(delayedPage)
+  await delayedPage.waitForTimeout(300)
   await delayedPage.getByRole('button', { name: 'b-only.ts M', exact: true }).waitFor()
   assert.equal(
     await delayedPage.getByRole('button', { name: 'src/one.ts M', exact: true }).count(),
     0,
     'late A response cannot overwrite B resources',
   )
-  await delayedPage.getByRole('button', { name: '新建标签页', exact: true }).click()
-  await delayedPage.getByRole('heading', { name: '新建标签页', exact: true }).waitFor()
+  // 检查器的固定标签与“+”说明都不提供已退役的工作区文件浏览器。
+  assert.equal(await delayedPage.getByRole('tab', { name: '项目文件', exact: true }).count(), 0)
+  await delayedPage.getByRole('button', { name: '添加组件标签', exact: true }).click()
+  await delayedPage.locator('[data-slot="popover-content"]').waitFor()
   assert.equal(
     await delayedPage.getByRole('button', { name: '项目文件', exact: true }).count(),
     0,
-    'new tabs must not expose the retired workspace browser',
+    'the inspector must not expose the retired workspace browser',
   )
+  await delayedPage.keyboard.press('Escape')
   await delayedPage.close()
 
   // 运行中的会话：离开会话页回到看板不会中止后端运行，卡片留在“运行中”泳道。
@@ -1197,7 +1257,7 @@ try {
   assert.deepEqual(reviewFailures, [])
   assert.deepEqual(errors, [])
   console.log(
-    'Workbench: board to session routing, focus return, per-session drafts and last-scroll navigation race, tabs, resource summary, per-file diff, sources, delayed task responses, native terminal ownership, mobile round trip and snapshot fallback passed.',
+    'Workbench: board to session routing, focus return, per-session drafts and last-scroll navigation race, session header menu and branch dialog focus, inspector tabs (changes with per-file diff and reading positions, terminal and processes, sources, preview), inspector width, delayed task responses, native terminal ownership, phone round trip and snapshot fallback passed.',
   )
 } catch (error) {
   console.error('Workbench API paths:', [...new Set(requests.map((request) => request.path))])

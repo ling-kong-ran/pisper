@@ -1,13 +1,15 @@
 // 看板页：页头（注意力胶囊、筛选、分组）、仪表区（第 1 期只有启动台）与占满剩余高度的泳道区。
 // 数据全部来自看板数据层（useBoardSessions），这里只做布局与交互编排；手机外壳换成 PhoneBoard。
 // 本页挂载启动台后认领“新任务”请求（⌘N / 标题栏按钮）并聚焦启动台；手机上交给派发底部表单。
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+// 项目入口（新建、管理、横带“⋯”）经 useProjectCommands 复用聊天领域的项目操作。
+import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { BOARD_LANES, type BoardLane } from '@shared/session-board-status.mjs'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { QuickPromptIdeas, updateComposerDraft } from '@/features/chat/public-launch'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -23,10 +25,22 @@ import { useBoardNewTaskHandler } from './new-task'
 import { PhoneBoard } from './PhoneBoard'
 import { ProjectMatrix, type ProjectRow } from './ProjectMatrix'
 import { useBoardViewStore } from './board-view-store'
+import { sortProjectsByOrder } from './board-model'
+import { useLaunchDefaultsStore } from './launch-defaults-store'
 import { useBoardController, type BoardNavLane } from './useBoardController'
 import { useBoardSessions } from './useBoardSessions'
 import { useLaneMotion } from './useLaneMotion'
+import { useNow } from './useNow'
 import { usePhoneShell } from './usePhoneShell'
+import { useProjectCommands } from './useProjectCommands'
+
+// 管理项目对话框与手动填写目录的对话框（系统目录对话框不可用时）只在打开时需要：按需加载。
+const WorkspacePicker = lazy(() =>
+  import('@/components/WorkspacePicker').then((module) => ({ default: module.WorkspacePicker })),
+)
+const ManageProjectsDialog = lazy(() =>
+  import('./ManageProjectsDialog').then((module) => ({ default: module.ManageProjectsDialog })),
+)
 
 export type BoardPageProps = {
   onOpenSession: (sessionId: string) => void
@@ -34,32 +48,10 @@ export type BoardPageProps = {
   onConfigureModels: () => void
   sessionHref: (sessionId: string) => string
   notify: Notify
-}
-
-// 时长每秒推进；页面隐藏时暂停，回到前台立即补一次。
-function useNow(enabled: boolean) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!enabled) return
-    let timer: ReturnType<typeof setInterval> | null = null
-    const start = () => {
-      if (timer || document.visibilityState === 'hidden') return
-      setNow(Date.now())
-      timer = setInterval(() => setNow(Date.now()), 1_000)
-    }
-    const stop = () => {
-      if (timer) clearInterval(timer)
-      timer = null
-    }
-    const visibility = () => (document.visibilityState === 'hidden' ? stop() : start())
-    start()
-    document.addEventListener('visibilitychange', visibility)
-    return () => {
-      stop()
-      document.removeEventListener('visibilitychange', visibility)
-    }
-  }, [enabled])
-  return now
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+  requestText: (options?: PromptDialogOptions) => Promise<string | null>
+  // 交给应用壳的新任务入口：桌面看板会自己认领并聚焦启动台，手机由壳打开派发底部表单。
+  onNewTask: () => void
 }
 
 function useElementWidth<T extends HTMLElement>() {
@@ -88,6 +80,9 @@ function BoardView({
   onConfigureModels,
   sessionHref,
   notify,
+  requestConfirm,
+  requestText,
+  onNewTask,
   phone,
 }: BoardPageProps & { phone: boolean }) {
   const { t } = useI18n()
@@ -101,6 +96,8 @@ function BoardView({
   const consoleRef = useRef<LaunchConsoleHandle>(null)
   const laneHandles = useRef(new Map<BoardLane, LaneHandle>())
   const [peeked, setPeeked] = useState<BoardLane[]>([])
+  const [manageMounted, setManageMounted] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
   const plansAvailable = useRuntimeCapabilitiesStore(
     (state) => state.capabilities.features.goals !== false,
   )
@@ -144,21 +141,16 @@ function BoardView({
   )
   const template = laneGridTemplate(layout, rootWidth - 32)
 
-  const headerProjects = useMemo<BoardHeaderProject[]>(() => {
-    const positions = new Map(workspaceOrder.map((key, index) => [key, index]))
-    return [...board.projects]
-      .sort(
-        (left, right) =>
-          (positions.get(left.key) ?? Number.MAX_SAFE_INTEGER) -
-            (positions.get(right.key) ?? Number.MAX_SAFE_INTEGER) || right.count - left.count,
-      )
-      .map((project) => ({
+  const headerProjects = useMemo<BoardHeaderProject[]>(
+    () =>
+      sortProjectsByOrder(board.projects, workspaceOrder).map((project) => ({
         ...project,
         label:
           workspaceNames[project.key] ||
           (project.cwd ? projectLabel(project.cwd) : t('board:filter.noProject')),
-      }))
-  }, [board.projects, t, workspaceNames, workspaceOrder])
+      })),
+    [board.projects, t, workspaceNames, workspaceOrder],
+  )
 
   const projectRows = useMemo<ProjectRow[]>(
     () =>
@@ -168,12 +160,13 @@ function BoardView({
           key: project.key,
           cwd: project.cwd,
           label: project.label,
+          custom: Boolean(project.cwd && workspaceNames[project.key]),
           items: board.items.filter(
             (item) => item.workspaceKey === project.key && visibleLanes.includes(item.lane),
           ),
         }))
         .filter((row) => row.items.length > 0),
-    [board.items, headerProjects, view.projects, visibleLanes],
+    [board.items, headerProjects, view.projects, visibleLanes, workspaceNames],
   )
 
   const navLanes = useMemo<BoardNavLane[]>(() => {
@@ -222,6 +215,42 @@ function BoardView({
     return true
   })
 
+  // 新项目或“在此项目新建任务”之后：桌面直接聚焦启动台；手机或启动台暂不可用时交给应用壳。
+  const focusLaunch = useCallback(() => {
+    if (!phone && consoleRef.current) consoleRef.current.focus()
+    else onNewTask()
+  }, [onNewTask, phone])
+  const projects = useProjectCommands({
+    notify,
+    requestConfirm,
+    requestText,
+    onProjectChosen: focusLaunch,
+    announceChoice: !phone,
+  })
+  const openManageProjects = useCallback(() => {
+    setManageMounted(true)
+    setManageOpen(true)
+  }, [])
+  const { mounted: pickerMounted, ...pickerProps } = projects.picker
+  const projectLayers = (
+    <>
+      {pickerMounted && (
+        <Suspense fallback={null}>
+          <WorkspacePicker {...pickerProps} />
+        </Suspense>
+      )}
+      {manageMounted && (
+        <Suspense fallback={null}>
+          <ManageProjectsDialog
+            open={manageOpen}
+            onOpenChange={setManageOpen}
+            commands={projects}
+          />
+        </Suspense>
+      )}
+    </>
+  )
+
   const onDispatched = useCallback(
     (sessionId: string, { open }: { open: boolean }) => {
       if (open) controller.handlers.onOpen(sessionId)
@@ -243,17 +272,23 @@ function BoardView({
 
   if (phone)
     return (
-      <PhoneBoard
-        rootRef={rootRef}
-        board={board}
-        availableLanes={availableLanes}
-        projects={headerProjects}
-        now={now}
-        controller={controller}
-        announcement={announcement}
-        onConfigureModels={onConfigureModels}
-        onOpenHistory={onOpenHistory}
-      />
+      <>
+        <PhoneBoard
+          rootRef={rootRef}
+          board={board}
+          availableLanes={availableLanes}
+          projects={headerProjects}
+          now={now}
+          controller={controller}
+          announcement={announcement}
+          onConfigureModels={onConfigureModels}
+          onOpenHistory={onOpenHistory}
+          projectPicking={projects.picking}
+          onNewProject={() => void projects.newProject()}
+          onManageProjects={openManageProjects}
+        />
+        {projectLayers}
+      </>
     )
 
   const confirmLayer = (
@@ -356,6 +391,16 @@ function BoardView({
             activeId={controller.activeId}
             dimLane={dimLane}
             handlers={controller.handlers}
+            actions={{
+              onNewTask: (row) => {
+                useLaunchDefaultsStore.getState().rememberLaunch({ cwd: row.cwd })
+                focusLaunch()
+              },
+              onRename: (row) => void projects.rename(row),
+              onResetName: (row) => projects.resetName(row),
+              onDelete: (row) => void projects.remove(row),
+              deletingKey: projects.busyKey,
+            }}
           />
         ) : (
           <div
@@ -393,6 +438,7 @@ function BoardView({
                 }}
                 onOpenHistory={onOpenHistory}
                 offerWeek={!board.catalogEmpty}
+                onDispatch={focusLaunch}
               />
             ))}
           </div>
@@ -427,6 +473,9 @@ function BoardView({
         onClearLanes={() => view.setLaneFilter([])}
         onGroupBy={view.setGroupBy}
         onDeckCollapsed={view.setDeckCollapsed}
+        projectPicking={projects.picking}
+        onNewProject={() => void projects.newProject()}
+        onManageProjects={openManageProjects}
       />
       {content}
       {controller.triage && (
@@ -446,6 +495,7 @@ function BoardView({
         {announcement}
       </p>
       {confirmLayer}
+      {projectLayers}
     </div>
   )
 }

@@ -235,6 +235,7 @@
   "shell.systemInfo": "System",
   "shell.todayTokens": "{tokens} tok today",
   "shell.memory": "{size} memory",
+  "shell.subAgents": "Sub-agents {running}/{max}",
   "shell.untitledSession": "Untitled session",
   "shell.backToBoard": "Board",
   "shell.backToBoardLabel": "Back to board",

@@ -1237,5 +1237,7 @@ test('runtime diagnostics expose bounded memory and cache counters without sessi
   assert.equal(diagnostics.projectionCache.maxEstimatedBytes, 24 * 1024 * 1024)
   assert.equal(diagnostics.projectionCache.transcripts.entries, 0)
   assert.ok(diagnostics.memory.rss > 0)
+  // 只增字段：子代理占用的并发槽位与上限，看板舰队计量浮层据此显示“子代理 x/4”。
+  assert.deepEqual(diagnostics.subAgents, { running: 0, maxConcurrent: 4 })
   assert.equal(JSON.stringify(diagnostics).includes('idle.jsonl'), false)
 })

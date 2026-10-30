@@ -24,6 +24,8 @@ export type DispatchOverlayProps = {
   onOpenChange: (open: boolean) => void
   // Runtime 受理后回调：open 表示用户按了 ⌘↵，宿主负责打开会话；否则只需提示已派发。
   onDispatched: (sessionId: string, options: { open: boolean }) => void
+  // 浮层在发送途中被关闭、随后派发失败：浮层已卸载，交给宿主用全局提示报错（草稿已放回）。
+  onDetachedFailure: (message: string) => void
   onConfigureModels: () => void
 }
 
@@ -32,6 +34,7 @@ export function DispatchOverlay({
   phone,
   onOpenChange,
   onDispatched,
+  onDetachedFailure,
   onConfigureModels,
 }: DispatchOverlayProps) {
   const { t } = useI18n()
@@ -40,6 +43,7 @@ export function DispatchOverlay({
       variant={phone ? 'sheet' : 'overlay'}
       autoFocus
       onDispatched={onDispatched}
+      onDetachedFailure={onDetachedFailure}
       onConfigureModels={() => {
         onOpenChange(false)
         onConfigureModels()

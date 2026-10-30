@@ -170,6 +170,12 @@ function FleetPanel({
       ? ''
       : t('navigation:shell.waited', { duration: formatCompactDuration(now - item.since) })
   const systemParts = [
+    system.data?.subAgents
+      ? t('navigation:shell.subAgents', {
+          running: system.data.subAgents.running,
+          max: system.data.subAgents.max,
+        })
+      : '',
     system.data?.todayTokens != null
       ? t('navigation:shell.todayTokens', { tokens: formatTokenCount(system.data.todayTokens) })
       : '',

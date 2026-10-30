@@ -1,5 +1,6 @@
-// 舰队计量浮层底部的系统信息行：今日 token 与 Runtime 内存，只读现有接口，浮层打开时才请求。
-// 拿不到的项返回 null，界面直接不显示，绝不用占位数字冒充；子代理并发数目前没有现成接口，不提供。
+// 舰队计量浮层底部的系统信息行：子代理并发、今日 token 与 Runtime 内存，只读现有接口，浮层打开时才请求。
+// 拿不到的项返回 null，界面直接不显示，绝不用占位数字冒充；子代理并发来自诊断接口的 subAgents
+// （第 2 期 Runtime 新增的可选字段），旧 Runtime 没有它就不显示。
 import { useQuery } from '@tanstack/react-query'
 import { apiJson } from '@/lib/api'
 import { normalizeTokenUsage } from '@/lib/format'
@@ -7,6 +8,8 @@ import { normalizeTokenUsage } from '@/lib/format'
 export type FleetSystemInfo = {
   todayTokens: number | null
   memoryBytes: number | null
+  // 子代理占用的并发槽位与上限（MAX_CONCURRENT_AGENTS）；两者缺一就不带这个字段。
+  subAgents?: { running: number; max: number }
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -26,9 +29,15 @@ export function parseFleetSystemInfo(usage: unknown, diagnostics: unknown): Flee
   const usageFields = record(usage)
   const hasUsage = USAGE_FIELDS.some((field) => finiteCount(usageFields[field]) !== null)
   const tokens = hasUsage ? normalizeTokenUsage(usage).totalTokens : null
+  const agents = record(record(diagnostics).subAgents)
+  const running = finiteCount(agents.running)
+  const max = finiteCount(agents.maxConcurrent)
   return {
     todayTokens: finiteCount(tokens),
     memoryBytes: finiteCount(record(record(diagnostics).memory).rss),
+    ...(running !== null && max !== null && max >= 1
+      ? { subAgents: { running: Math.floor(running), max: Math.floor(max) } }
+      : {}),
   }
 }
 

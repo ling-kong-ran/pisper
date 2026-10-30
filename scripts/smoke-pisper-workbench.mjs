@@ -41,12 +41,23 @@ try {
     const page = await context.newPage()
     const errors = []
     page.on('pageerror', (e) => errors.push(e.message))
-    await page.goto(new URL('/#/chat', base).href)
-    await page.getByRole('textbox', { name: '任务描述' }).waitFor({ timeout: 60000 })
+    // 新外壳里 /chat 回到看板；会话页从 /board/new 进入，建好会话后以 replace 换成真实 id。
+    await page.goto(new URL('/#/board/new', base).href)
+    await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash), null, {
+      timeout: 60000,
+    })
+    await page
+      .locator('.focus-composer')
+      .getByRole('textbox', { name: '任务描述' })
+      .waitFor({ timeout: 60000 })
     await page.getByTestId('workbench-greeting').waitFor()
     await page.evaluate(() => document.fonts.ready)
+    // 旧侧栏的“更多工具”随外壳退役：“更多”在桌面标题栏（手机外壳是底部标签栏）里。
+    await page
+      .locator(width > 650 ? '[data-app-titlebar]' : '[data-testid="mobile-tab-bar"]')
+      .locator('[data-shell-tab="more"]')
+      .waitFor()
     if (width > 650) {
-      await page.getByRole('button', { name: '更多工具', exact: true }).waitFor()
       await page
         .locator('[data-slot="skeleton"]')
         .first()
@@ -72,7 +83,8 @@ try {
     )
     await page.getByRole('button', { name: /模型与智力/ }).click()
     await page.getByRole('combobox', { name: '当前会话模型' }).waitFor()
-    await page.getByRole('combobox', { name: '当前思考等级' }).waitFor()
+    // 思考等级早已改为滑杆（与模型选择器同一浮层），不是下拉框。
+    await page.getByRole('slider', { name: '当前思考等级' }).waitFor()
     await page.keyboard.press('Escape')
     assert.equal(await page.locator('.terminal-panel:visible').count(), 0)
     await context.close()

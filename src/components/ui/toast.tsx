@@ -93,17 +93,31 @@ export function AppToast({
   message,
   tone,
   closeLabel,
+  action,
   ...props
 }: Omit<ToastProps, 'children' | 'tone'> & {
   message: React.ReactNode
   tone: ToastTone
   closeLabel: string
+  // 可选的单个动作（例如“重新打开”）：Radix Action 点按后关闭提示，altText 供读屏说明替代操作。
+  action?: { label: string; onAction: () => void }
 }) {
   const Icon = TOAST_ICONS[tone]
   return (
     <Toast tone={tone} type={tone === 'error' ? 'foreground' : 'background'} {...props}>
       <Icon className="size-[18px] shrink-0" />
       <ToastDescription>{message}</ToastDescription>
+      {action && (
+        <ToastPrimitive.Action altText={action.label} asChild>
+          <button
+            type="button"
+            className="h-7 shrink-0 rounded-sm border border-current/30 px-2 text-xs font-semibold hover:bg-current/10"
+            onClick={action.onAction}
+          >
+            {action.label}
+          </button>
+        </ToastPrimitive.Action>
+      )}
       <ToastClose aria-label={closeLabel} title={closeLabel}>
         <X className="size-4" />
       </ToastClose>

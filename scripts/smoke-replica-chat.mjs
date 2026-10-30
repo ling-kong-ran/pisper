@@ -232,10 +232,49 @@ try {
   assert.ok(Math.abs(after - before) < 4, `Reading anchor moved by ${after - before}px`)
   await page.getByRole('button', { name: /Return to latest|返回最新/ }).click()
   await page.waitForFunction(() => !!document.querySelector('[data-pisper-virtual-item="m499"]'))
+
+  // 第 3 期桌面会话页（会话页头 + 会话页输入框）沿用同一组钉子：输入框宽 768、圆角 22，
+  // 转录 markdown 16/26；运行中 Enter 排队（followUp）、Alt+Enter 插话（steer），停止仍在运行条上。
+  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__chat?layout=page`)
+  await input.waitFor({ timeout: 45000 })
+  await page.locator('[data-session-header]').waitFor()
+  await page.locator('[data-pisper-message-id="agent"] h1').waitFor()
+  const pageMetrics = await page.locator('.focus-composer').evaluate((element) => ({
+    width: element.getBoundingClientRect().width,
+    radius: getComputedStyle(element).borderRadius,
+  }))
+  assert.deepEqual(pageMetrics, { width: 768, radius: '22px' })
+  const pageTypography = await page
+    .locator('[data-pisper-message-id="agent"] .markdown-body')
+    .evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { size: style.fontSize, lineHeight: style.lineHeight }
+    })
+  assert.deepEqual(pageTypography, { size: '16px', lineHeight: '26px' })
+  await input.fill('page accepted draft')
+  await page.locator('.send-button').click()
+  await page.evaluate(() => window.settleSend(true))
+  await page.locator('[data-run-bar="running"]').waitFor()
+  await page.waitForFunction(() => document.querySelector('.focus-composer textarea').value === '')
+  await input.fill('queue after this run')
+  await input.press('Enter')
+  await page.waitForFunction(() => window.replicaChat.evidence.queues === 1)
+  await page.waitForFunction(() => document.querySelector('.focus-composer textarea').value === '')
+  await input.fill('steer this run')
+  await input.press('Alt+Enter')
+  await page.waitForFunction(() => window.replicaChat.evidence.queues === 2)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.behaviors), [
+    'followUp',
+    'steer',
+  ])
+  await page.locator('[data-run-stop]').click()
+  await page.waitForFunction(() => window.replicaChat.evidence.aborts === 1)
+  await page.evaluate(() => window.settleAbort())
+  await page.screenshot({ path: join(output, 'session-page.png'), fullPage: true })
   assert.deepEqual(errors, [])
   await writeFile(
     join(output, 'metrics.json'),
-    JSON.stringify({ metrics, typography, footerWidths }, null, 2),
+    JSON.stringify({ metrics, typography, footerWidths, pageMetrics, pageTypography }, null, 2),
   )
   console.log(`Replica chat smoke passed: ${output}`)
 } finally {

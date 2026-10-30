@@ -546,3 +546,49 @@ test('command guard blocks catastrophic bash and routes recursive rm to approval
     null,
   )
 })
+
+test('pending approvals carry severity and notify the board observer without an attached emitter', async () => {
+  const observed = []
+  const service = new SessionPermissionService({
+    getMode: () => 'auto',
+    getExecutionMode: () => 'workspace-write',
+    timeoutMs: 5000,
+    onEvent: (sessionId, event, data) => observed.push({ sessionId, event, id: data.id }),
+  })
+  const cwd = resolve('workspace')
+  const guarded = service.authorize({
+    sessionId: 'session-background',
+    cwd,
+    toolName: 'bash',
+    toolCallId: 'guarded-1',
+    args: { command: 'git clean -fd' },
+  })
+  const [approval] = await waitForPending(service, 'session-background')
+  assert.equal(approval.severity, 'critical')
+  assert.equal(service.getPending('session-background')[0].severity, 'critical')
+  service.resolve('session-background', approval.id, false)
+  await guarded
+  assert.deepEqual(observed, [
+    { sessionId: 'session-background', event: 'permission_request', id: approval.id },
+    { sessionId: 'session-background', event: 'permission_resolved', id: approval.id },
+  ])
+  // 观察者抛错不影响审批流程。
+  const throwing = new SessionPermissionService({
+    getMode: () => 'ask',
+    timeoutMs: 5000,
+    onEvent: () => {
+      throw new Error('observer failed')
+    },
+  })
+  const plain = throwing.authorize({
+    sessionId: 'session-plain',
+    cwd,
+    toolName: 'bash',
+    toolCallId: 'plain-1',
+    args: { command: 'npm test' },
+  })
+  const [standard] = await waitForPending(throwing, 'session-plain')
+  assert.equal(standard.severity, 'standard')
+  throwing.resolve('session-plain', standard.id, true)
+  assert.equal(await plain, undefined)
+})

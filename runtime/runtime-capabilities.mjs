@@ -89,6 +89,9 @@ function buildCapabilities({
     browserAutomation: profile === 'desktop',
     remoteAccess: profile === 'desktop',
     desktopPet: profile === 'desktop',
+    // 看板视图与事件流只依赖内存中的会话摘要，桌面与两种手机档案都提供。
+    'board.view': true,
+    'board.events': true,
   }
   return Object.freeze({
     version: 1,

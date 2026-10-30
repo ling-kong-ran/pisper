@@ -1,7 +1,6 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载看板。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { useCallback, useRef } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   ensureBoardMessages,
@@ -12,7 +11,7 @@ import {
 } from './i18n'
 import { ACTIVITY_NAVIGATION_STATE } from './settings-navigation'
 import type { AppRouteContext } from './route-context'
-import { NEW_SESSION_ROUTE_ID, PAGE_PATHS, pagePath, sessionPath } from './routes'
+import { pagePath, sessionPath } from './routes'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
 function useAppRouteContext() {
@@ -43,6 +42,9 @@ export async function boardRoute() {
         onConfigureModels={() => navigate('/config/models')}
         sessionHref={sessionHref}
         notify={context.notify}
+        requestConfirm={context.requestConfirm}
+        requestText={context.requestText}
+        onNewTask={context.startNewTask}
       />
     )
   }
@@ -50,45 +52,18 @@ export async function boardRoute() {
   return { Component: BoardRoute }
 }
 
-// 会话页：在新外壳里嵌入现有单会话视图（不挂载侧栏、活动栏和 Dockview 多标签）。
-// URL 里的 sessionId 是选中依据；聊天页内部打开会话时回调这里切换路由，'new' 建好后以 replace 换成真实 id。
+// 会话页（规格 4.1）：泳道条 + 会话页头 + 对话 + 检查器，布局编排在按需加载的 SessionShell 里，
+// 不进入入口包；聊天页仍是独立的懒加载入口。
 export async function sessionRoute() {
-  const [{ ChatPage }, { SessionReturnBar }] = await Promise.all([
+  const [{ ChatPage }, { SessionShell }] = await Promise.all([
     import('@/features/chat/ChatPage'),
-    import('@/app/SessionReturnBar'),
+    import('@/app/SessionShell'),
+    // 泳道条、会话页头、检查器与确认层的文案都在看板命名空间里。
+    ensureBoardMessages(),
   ])
 
   function SessionRoute() {
-    const context = useAppRouteContext()
-    const navigate = useNavigate()
-    const { sessionId = '' } = useParams()
-    const currentRef = useRef(sessionId)
-    currentRef.current = sessionId
-    const openSession = useCallback(
-      (id: string) => {
-        if (!id || id === currentRef.current) return
-        navigate(sessionPath(id), { replace: currentRef.current === NEW_SESSION_ROUTE_ID })
-      },
-      [navigate],
-    )
-    return (
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <ChatPage
-          notify={context.notify}
-          navigate={context.navigate}
-          browserNotify={context.browserNotify}
-          registerPrimaryAction={context.registerPrimaryAction}
-          pendingAsset={context.pendingAsset}
-          onAssetConsumed={context.onAssetConsumed}
-          requestText={context.requestText}
-          requestConfirm={context.requestConfirm}
-          routeSessionId={sessionId}
-          onRouteSessionChange={openSession}
-          // 返回入口放进会话顶栏最左侧，不再单独占一行（标题栏 + 会话顶栏 96px）。
-          routeLeading={<SessionReturnBar onBack={() => navigate(PAGE_PATHS.board)} />}
-        />
-      </div>
-    )
+    return <SessionShell context={useAppRouteContext()} ChatPage={ChatPage} />
   }
 
   return { Component: SessionRoute }

@@ -6,6 +6,8 @@ export type SessionOrganizationPatch = {
   pinned?: boolean
   archived?: boolean
   read?: boolean
+  // 第 2 期 Runtime（能力 board.view）才接受：只清失败注意力，不改已读状态；只能为 true。
+  dismissAttention?: true
 }
 
 export class SessionOrganizationProtocolError extends Error {

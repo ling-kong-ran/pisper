@@ -26,6 +26,7 @@ import {
   streamdownPlugins,
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
+import { codeBlockFileName } from '@/lib/code-block-meta'
 import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
 import {
   LocalPathRevealError,
@@ -60,6 +61,18 @@ function textContent(value: ReactNode): string {
 function languageName(className: string | undefined) {
   const match = String(className || '').match(/language-([\w-]+)/)
   return match?.[1] || 'text'
+}
+
+function CodeFileName({ file }: { file: string }) {
+  return (
+    <span
+      className="max-w-[min(360px,45vw)] truncate px-1.5 font-mono text-xs text-content-secondary"
+      title={file}
+      data-code-file
+    >
+      {file}
+    </span>
+  )
 }
 
 function copyText(value: string) {
@@ -218,7 +231,15 @@ function MarkdownCopyButton({ source }: { source: string }) {
  * 高亮——增长中的代码每变一次都会产生一份 token 结果，开销和驻留内存
  * 都很可观。围栏闭合（isIncomplete 变为 false）后再挂载 CodeBlock 高亮。
  */
-function StreamingCodeBlock({ language, source }: { language: string; source: string }) {
+function StreamingCodeBlock({
+  language,
+  source,
+  file,
+}: {
+  language: string
+  source: string
+  file: string
+}) {
   return (
     <div
       className="my-4 flex w-full flex-col gap-2 rounded-xl border border-border bg-sidebar p-2"
@@ -233,7 +254,10 @@ function StreamingCodeBlock({ language, source }: { language: string; source: st
         data-streamdown="code-block-header"
       >
         <span className="ml-1 font-mono lowercase">{language}</span>
-        <MarkdownCopyButton source={source} />
+        <span className="flex min-w-0 items-center">
+          {file && <CodeFileName file={file} />}
+          <MarkdownCopyButton source={source} />
+        </span>
       </div>
       <div
         className="overflow-x-auto rounded-md border border-border bg-background p-4 text-sm"
@@ -257,8 +281,9 @@ function MarkdownCode({
   children,
   className,
   node: _node,
+  metastring,
   ...props
-}: ComponentProps<'code'> & { node?: unknown; 'data-block'?: string }) {
+}: ComponentProps<'code'> & { node?: unknown; metastring?: unknown; 'data-block'?: string }) {
   const isIncomplete = useIsCodeFenceIncomplete()
   if (!Object.hasOwn(props, 'data-block')) {
     return (
@@ -270,9 +295,11 @@ function MarkdownCode({
 
   const source = textContent(children).replace(/\n$/, '')
   const language = languageName(className)
-  if (isIncomplete) return <StreamingCodeBlock language={language} source={source} />
+  const file = codeBlockFileName(className, metastring)
+  if (isIncomplete) return <StreamingCodeBlock language={language} source={source} file={file} />
   return (
     <CodeBlock code={source} isIncomplete={isIncomplete} language={language} lineNumbers={false}>
+      {file && <CodeFileName file={file} />}
       <MarkdownCopyButton source={source} />
     </CodeBlock>
   )

@@ -612,6 +612,43 @@ test('explicit latest during recovery clears the history projection and updates 
   assert.equal(f.state.messages.at(-1).text, 'LATEST')
 })
 
+test('a session found running elsewhere mid-load waits for /live instead of showing an empty transcript', async () => {
+  let liveReads = 0
+  const f = await liveSyncFixture(
+    {
+      getMessages: async () => {
+        // 请求途中目录把会话标记为运行中（另一台设备或 TUI 发起的运行）：这一页归 /live 所有。
+        Object.assign(f.state, { streaming: true, recovering: true, loaded: false })
+        return {
+          messages: [{ id: 'persisted', role: 'user', text: 'persisted' }],
+          pageInfo: { start: 0, end: 1, total: 1, hasMore: false, nextCursor: null },
+        }
+      },
+      getLiveSession: async () => {
+        liveReads++
+        return {
+          messages: [
+            { id: 'persisted', role: 'user', text: 'persisted' },
+            { id: 'live-agent', role: 'agent', text: 'working', streaming: true },
+          ],
+          streaming: true,
+        }
+      },
+    },
+    {},
+  )
+  await f.commands.loadSessionMessages('session')
+  // 丢掉的页不能把空转录标成“已加载”（否则先闪出问候页），并且立即读 /live，不等轮询间隔。
+  assert.equal(f.state.loading, false)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(liveReads, 1)
+  assert.equal(f.state.loaded, true)
+  assert.deepEqual(
+    f.state.messages.map((message) => message.id),
+    ['persisted', 'live-agent'],
+  )
+})
+
 test('retry aborts when an intervening latest user identity invalidates the captured turn', async () => {
   let calls = 0
   const f = promptFixture(

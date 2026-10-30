@@ -35,6 +35,8 @@ type VirtualMessageTranscriptProps = {
   onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
   onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
+  /** 已加载的消息是否从会话开头开始：只有这样才数得出“第 N 轮”。 */
+  turnsKnown?: boolean
 }
 
 function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
@@ -76,6 +78,8 @@ function useTranscriptScrollMargin(
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure)
     observer?.observe(scrollElement)
     if (prefixRef.current) observer?.observe(prefixRef.current)
+    // 内容锚定底部时，列表变高会把它自己往上推：列表尺寸变化也要重测偏移。
+    observer?.observe(listElement)
     window.addEventListener('resize', scheduleMeasure)
     return () => {
       observer?.disconnect()
@@ -104,6 +108,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   onBranchFromHere,
   onCreateChildSession,
   onRetryLastTurn,
+  turnsKnown = false,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
@@ -126,6 +131,17 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     }
     return result
   }, [messages])
+  // 第 N 轮 = 截至这条消息的用户消息数；更早的历史还没加载时数不准，干脆不给。
+  const turnByIndex = useMemo(() => {
+    if (!turnsKnown) return null
+    const result: number[] = Array.from({ length: messages.length })
+    let turns = 0
+    for (let index = 0; index < messages.length; index += 1) {
+      if (messages[index]?.role === 'user') turns += 1
+      result[index] = turns
+    }
+    return result
+  }, [messages, turnsKnown])
   const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
   const getItemKey = useCallback(
     (index: number) => messageKeys[index] ?? `transcript-message-${index}`,
@@ -276,6 +292,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               retryUserMessageId={isLatestAgent ? retryUserIdByIndex[virtualItem.index] : undefined}
               hideErrorNotice={isLatestAgent && Boolean(message.error)}
               onRetryLastTurn={onRetryLastTurn}
+              latest={isLatestAgent}
+              turn={turnByIndex?.[virtualItem.index] || undefined}
             />
           </div>
         )

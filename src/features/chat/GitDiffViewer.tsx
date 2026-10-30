@@ -5,9 +5,17 @@ import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileDiff, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { parseUnifiedDiff, type GitDiffCell, type GitDiffFile, type GitDiffRow } from './git-diff'
+import {
+  parseUnifiedDiff,
+  unifiedDiffLines,
+  type GitDiffCell,
+  type GitDiffFile,
+  type GitDiffRow,
+  type UnifiedDiffLine,
+} from './git-diff'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 type DiffFileEntry = {
   file: GitDiffFile
@@ -38,6 +46,14 @@ function DiffCell({ side, cell }: { side: 'old' | 'next'; cell: GitDiffCell }) {
   )
 }
 
+// 紧凑并排（检查器详情区）：两栏各占一半、长行换行，新旧两侧都在视野里。用内联样式覆盖
+// 对话框并排渲染器的 880px 最小宽度与 440px 栏宽，两种形态共用同一套行结构。
+const COMPACT_SPLIT_LIST = { minWidth: 0 } as const
+const COMPACT_SPLIT_ROW = {
+  minWidth: 0,
+  gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
+} as const
+
 type VirtualDiffItem =
   | { kind: 'header'; hunkIndex: number; header: string }
   | { kind: 'row'; hunkIndex: number; rowIndex: number; row: GitDiffRow }
@@ -45,9 +61,12 @@ type VirtualDiffItem =
 function VirtualDiffRows({
   file,
   scrollElement,
+  compact = false,
 }: {
   file: GitDiffFile
   scrollElement: HTMLDivElement | null
+  // 窄容器（检查器详情区）：两栏各占一半、长行换行，新旧两侧都在视野里，不用 880px 的最小宽度。
+  compact?: boolean
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -105,9 +124,11 @@ function VirtualDiffRows({
     <div
       className="relative min-w-[880px] w-full"
       data-pisper-diff-row-count={items.length}
+      data-diff-mode={compact ? 'split-compact' : 'split'}
       data-pisper-rendered-count={virtualItems.length}
       ref={listRef}
-      style={{ height: `${virtualizer.getTotalSize()}px` }}
+      // 紧凑并排去掉 880px 的最小宽度（对话框里的并排渲染器保持不变）。
+      style={{ height: `${virtualizer.getTotalSize()}px`, ...(compact ? COMPACT_SPLIT_LIST : {}) }}
     >
       {virtualItems.map((virtualItem) => {
         const item = items[virtualItem.index]
@@ -128,7 +149,10 @@ function VirtualDiffRows({
                 {item.row.text}
               </div>
             ) : (
-              <div className="grid min-w-[880px] grid-cols-[minmax(440px,1fr)_minmax(440px,1fr)]">
+              <div
+                className="grid min-w-[880px] grid-cols-[minmax(440px,1fr)_minmax(440px,1fr)]"
+                style={compact ? COMPACT_SPLIT_ROW : undefined}
+              >
                 <DiffCell side="old" cell={item.row.old} />
                 <DiffCell side="next" cell={item.row.next} />
               </div>
@@ -136,6 +160,146 @@ function VirtualDiffRows({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// 统一视图（检查器“改动”标签的默认视图，规格 4.4）：等宽 12/20、新旧两列行号、+/− 符号、词级高亮、hunk 标题。
+// 长行不换行也不截断：行保持单行，整个差异区横向滚动；列表宽度按最长行的字符数撑开。
+const UNIFIED_ROW_HEIGHT = 20
+const UNIFIED_GUTTER_PX = 96
+
+function markedText(text: string, mark: [number, number] | null, tone: 'added' | 'deleted') {
+  if (!mark || mark[0] >= mark[1]) return text || '\u00a0'
+  const chars = Array.from(text)
+  return (
+    <>
+      {chars.slice(0, mark[0]).join('')}
+      <mark
+        className={cn(
+          'rounded-[2px] text-inherit',
+          tone === 'added' ? 'bg-diff-add-mark' : 'bg-diff-del-mark',
+        )}
+      >
+        {chars.slice(mark[0], mark[1]).join('')}
+      </mark>
+      {chars.slice(mark[1]).join('')}
+    </>
+  )
+}
+
+function UnifiedRow({ line }: { line: UnifiedDiffLine }) {
+  if (line.kind !== 'line')
+    return (
+      <div
+        className={cn(
+          'git-diff-hunk-header h-5 bg-surface-subtle px-3 text-content-muted',
+          line.kind === 'meta' && 'italic',
+        )}
+      >
+        {line.text}
+      </div>
+    )
+  const marker = line.tone === 'added' ? '+' : line.tone === 'deleted' ? '−' : ' '
+  return (
+    <div
+      className={cn(
+        'git-diff-unified-row grid h-5 grid-cols-[40px_40px_16px_max-content]',
+        line.tone === 'added' && 'bg-diff-add',
+        line.tone === 'deleted' && 'bg-diff-del',
+      )}
+      data-tone={line.tone}
+    >
+      <span className="pr-2 text-right text-code-gutter select-none">{line.oldLine ?? ''}</span>
+      <span className="pr-2 text-right text-code-gutter select-none">{line.newLine ?? ''}</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'text-center select-none',
+          line.tone === 'added' && 'text-st-done',
+          line.tone === 'deleted' && 'text-st-fail',
+        )}
+      >
+        {marker}
+      </span>
+      <code className="pr-4 font-[inherit] text-content">
+        {line.tone === 'context'
+          ? line.text || '\u00a0'
+          : markedText(line.text, line.mark, line.tone)}
+      </code>
+    </div>
+  )
+}
+
+function UnifiedDiffRows({
+  file,
+  scrollElement,
+}: {
+  file: GitDiffFile
+  scrollElement: HTMLDivElement | null
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+  const lines = useMemo(() => unifiedDiffLines(file), [file])
+  // 等宽字体下按最长行的字符数撑开列表，横向滚动范围才准确（制表符按 4 列计）。
+  const widestChars = useMemo(
+    () =>
+      lines.reduce(
+        (widest, line) => Math.max(widest, Array.from(line.text.replace(/\t/g, '    ')).length),
+        0,
+      ),
+    [lines],
+  )
+
+  useLayoutEffect(() => {
+    const listElement = listRef.current
+    if (!scrollElement || !listElement) return undefined
+    const measure = () => {
+      const next = Math.max(
+        0,
+        listElement.getBoundingClientRect().top -
+          scrollElement.getBoundingClientRect().top +
+          scrollElement.scrollTop,
+      )
+      setScrollMargin((current) => (Math.abs(current - next) < 1 ? current : next))
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(scrollElement)
+    observer?.observe(listElement)
+    return () => observer?.disconnect()
+  }, [scrollElement])
+
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    useFlushSync: false,
+    count: lines.length,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => UNIFIED_ROW_HEIGHT,
+    overscan: 24,
+    scrollMargin,
+  })
+  const virtualItems = virtualizer.getVirtualItems()
+
+  return (
+    <div
+      ref={listRef}
+      className="relative font-mono text-[12px] leading-5 tabular-nums [tab-size:4] whitespace-pre"
+      data-pisper-diff-row-count={lines.length}
+      data-diff-mode="unified"
+      style={{
+        height: `${virtualizer.getTotalSize()}px`,
+        minWidth: `calc(${widestChars}ch + ${UNIFIED_GUTTER_PX + 16}px)`,
+      }}
+    >
+      {virtualItems.map((virtualItem) => (
+        <div
+          key={virtualItem.key}
+          className="absolute left-0 w-full"
+          style={{ top: `${virtualItem.start - scrollMargin}px` }}
+        >
+          <UnifiedRow line={lines[virtualItem.index]} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -367,16 +531,21 @@ export function GitDiffDialog({
 }
 
 // 内嵌差异复用相同解析与虚拟行；每个文件有独立的有界滚动容器。
+// mode 选统一 / 并排；fill 时滚动容器填满父级剩余高度（检查器“改动”标签的详情区），否则最高 320px。
 export function InlineGitDiff({
   diff,
   truncated,
   position,
   onReading = () => {},
+  mode = 'split',
+  fill = false,
 }: {
   diff: string
   truncated?: boolean
   position?: ResourceReadingPosition
   onReading?: (position: ResourceReadingPosition) => void
+  mode?: 'unified' | 'split'
+  fill?: boolean
 }) {
   const { t } = useI18n()
   const files = useMemo(() => parseUnifiedDiff(diff), [diff])
@@ -385,7 +554,7 @@ export function InlineGitDiff({
     onReading,
   )
   return (
-    <div>
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
       {truncated && (
         <p className="px-3 py-2 text-xs text-content-muted">
           {t('chat:chatMessage.filePreviewTruncated')}
@@ -394,20 +563,34 @@ export function InlineGitDiff({
       <div
         ref={setScrollElement}
         tabIndex={0}
-        className="max-h-80 min-w-0 overflow-auto border-y border-border bg-background"
+        aria-label={t('chat:focusSession.gitViewDiff')}
+        data-diff-scroll
+        className={cn(
+          'min-w-0 overflow-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+          fill ? 'min-h-0 flex-1 bg-panel' : 'max-h-80 border-y border-border bg-background',
+        )}
       >
         {!files.length || files.every((file) => !file.hunks.length) ? (
           <p className="p-3 text-xs text-content-muted">
             {t('chat:focusSession.gitDiffNoTextChanges')}
           </p>
         ) : (
-          files.map((file, index) => (
-            <VirtualDiffRows
-              key={`${file.path}-${index}`}
-              file={file}
-              scrollElement={scrollElement}
-            />
-          ))
+          files.map((file, index) =>
+            mode === 'unified' ? (
+              <UnifiedDiffRows
+                key={`${file.path}-${index}`}
+                file={file}
+                scrollElement={scrollElement}
+              />
+            ) : (
+              <VirtualDiffRows
+                key={`${file.path}-${index}`}
+                file={file}
+                scrollElement={scrollElement}
+                compact={fill}
+              />
+            ),
+          )
         )}
       </div>
     </div>

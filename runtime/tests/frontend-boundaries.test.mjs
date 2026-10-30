@@ -220,3 +220,40 @@ test('the shell keeps board data and title bar extras out of the startup bundle'
     for (const dependency of graph.get(resolve(root, file)))
       assert.equal(feature(dependency.path), undefined, `${file} -> ${name(dependency.path)}`)
 })
+
+test('no route reaches the retired Dockview split view or its vendor code', () => {
+  // 第 3 期退役 Dockview 的挂载：会话页只有单会话视图 + 检查器标签。分屏代码（ChatDockView、
+  // Dock 预览面板）留到第 6 期清理时删除，但从入口出发（含懒加载路由）任何运行时导入都不能再到达它们，
+  // 也不能有文件在运行时导入 dockview（只允许 import type，构建时被擦除）。
+  const retired = new Set(
+    ['ChatDockView.tsx', 'WebPreviewDockPanel.tsx'].map((file) =>
+      resolve(root, 'src/features/chat', file),
+    ),
+  )
+  const reachable = new Set()
+  const visit = (path) => {
+    if (reachable.has(path)) return
+    reachable.add(path)
+    for (const dependency of graph.get(path) || []) if (!dependency.typeOnly) visit(dependency.path)
+  }
+  visit(resolve(root, 'src/main.tsx'))
+  // 会话路由确实在图里（懒加载边也算），否则这条守卫会因为图不完整而空转。
+  for (const file of [
+    'src/app/route-elements.tsx',
+    'src/app/SessionShell.tsx',
+    'src/features/chat/ChatPage.tsx',
+    'src/features/chat/SessionWorkspace.tsx',
+    'src/features/chat/SessionInspector.tsx',
+    'src/features/board/SessionLaneStrip.tsx',
+  ])
+    assert.ok(reachable.has(resolve(root, file)), `${file} must be reachable from the entry`)
+  for (const path of reachable) {
+    assert.ok(!retired.has(path), `${name(path)} must stay unmounted`)
+    const source = files.get(path)
+    assert.doesNotMatch(
+      source,
+      /(?:^|\n)\s*import\s+(?!type\b)[^'"]*?['"]dockview(?:-core|-react)?(?:\/[^'"]*)?['"]|import\(\s*['"]dockview/,
+      `${name(path)} imports Dockview at runtime`,
+    )
+  }
+})

@@ -10,10 +10,11 @@ import {
   type Ref,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowRight, Check, ChevronDown, PanelLeftClose } from 'lucide-react'
+import { ArrowDown, ArrowRight, Check, ChevronDown, PanelLeftClose, Plus } from 'lucide-react'
 import type { BoardDoneWindow, BoardLane } from '@shared/session-board-status.mjs'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { AgentCard, type AgentCardHandlers } from './AgentCard'
 import type { BoardItem } from './board-model'
@@ -69,6 +71,8 @@ type LaneColumnProps = {
   onOpenHistory: () => void
   // 首次运行（目录里一个会话都没有）时“切到 7 天”没有意义，不显示。
   offerWeek?: boolean
+  // 运行中泳道底部的“再派发一个并行代理”槽位：点击聚焦启动台（规格 3.6）。
+  onDispatch?: () => void
   laneRef?: Ref<LaneHandle>
 }
 
@@ -85,9 +89,11 @@ export function LaneColumn({
   onCollapse,
   onOpenHistory,
   offerWeek = true,
+  onDispatch,
   laneRef,
 }: LaneColumnProps) {
   const { t } = useI18n()
+  const newTaskKey = useShortcutLabel('primaryAction')
   const labels = useLaneLabels()
   const { lane } = entry
   const headingId = `board-lane-${lane}`
@@ -372,6 +378,19 @@ export function LaneColumn({
           </div>
         ) : (
           <div className="flex flex-col gap-2">{shown.map(card)}</div>
+        )}
+        {lane === 'running' && onDispatch && (
+          // 新卡片按开始时间追加在这个槽位上方，正在看的卡片不会跳位置。
+          <button
+            type="button"
+            data-lane-dispatch
+            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-card border border-dashed border-stroke text-xs font-medium text-content-secondary hover:border-stroke-strong hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            onClick={onDispatch}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            {t('board:lane.dispatchParallel')}
+            {newTaskKey && <Kbd aria-hidden="true">{newTaskKey}</Kbd>}
+          </button>
         )}
         {lane === 'done' && (
           <Button

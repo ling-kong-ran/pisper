@@ -19,7 +19,10 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
   const input = panel.getByRole('textbox', { name: '临时聊天消息', exact: true })
   const send = panel.getByRole('button', { name: '发送临时消息', exact: true })
   const stop = panel.getByRole('button', { name: '停止临时回复', exact: true })
-  const closeTab = page.getByRole('button', { name: '关闭辅助页面 · 临时聊天', exact: true })
+  // 桌面会话页：侧聊是检查器里可关闭的标签；手机外壳（第 1 期形态）仍是会话上下文的辅助页面。
+  const closeTab = page
+    .getByRole('button', { name: '关闭“侧聊”', exact: true })
+    .or(page.getByRole('button', { name: '关闭辅助页面 · 临时聊天', exact: true }))
   const contextWasOpen = await page.locator('[data-session-context-panel]').isVisible()
   const selectedTab = page.getByRole('tab', { selected: true }).first()
   const previousTab = (await selectedTab.count()) ? await selectedTab.textContent() : null
@@ -45,6 +48,18 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     for (const { url, handler } of fixtureRoutes.splice(0)) await page.unroute(url, handler)
   }
   async function openSideChat() {
+    // 桌面会话页的入口是页头的“侧聊”：在检查器里打开（或切到）唯一的侧聊标签。
+    const headerEntry = page.locator('[data-session-header] [data-session-side-chat]')
+    if (await headerEntry.isVisible()) {
+      await headerEntry.click()
+      await input.waitFor()
+      assert.equal(await page.locator('[data-inspector-tab-id="side-chat"]').count(), 1)
+      assert.equal(
+        await page.locator('[data-inspector-tab-id="side-chat"]').getAttribute('aria-selected'),
+        'true',
+      )
+      return
+    }
     const add = page.getByRole('button', { name: '新增辅助页面', exact: true })
     if (!(await add.isVisible())) {
       await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
@@ -95,7 +110,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
       'Temporary chat stays compact without duplicating the parent toolbar',
     )
     report.checks.push(
-      'Temporary chat opens from the auxiliary-page menu without creating a session; repeated opening selects its single tab and keeps the parent draft active',
+      'Temporary chat opens from the session header 侧聊 button as an inspector tab without creating a session; repeated opening selects its single tab and keeps the parent draft active',
     )
 
     stage = 'send'
@@ -335,14 +350,18 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     await restoreBrowserTime?.()
     // 不删除传入的父会话；调用方最终关闭 Runtime 并统一清理隔离数据。
     if (await closeTab.isVisible()) await closeTab.click()
+    // “返回对话”属于手机外壳的内容视图：在恢复视口（换回桌面会话页）之前收起，
+    // 否则布局切换会让刚找到的按钮卸载。
+    if (!contextWasOpen) {
+      const close = page.getByRole('button', { name: '返回对话', exact: true }).last()
+      if (await close.isVisible()) await close.click()
+    }
     if (viewport) await page.setViewportSize(viewport)
     if (contextWasOpen && previousTab) {
       const tab = page.getByRole('tab', { name: previousTab, exact: true })
       if (await tab.isVisible()) await tab.click()
-    } else if (!contextWasOpen) {
-      const close = page.getByRole('button', { name: '返回对话', exact: true }).last()
-      if (await close.isVisible()) await close.click()
     }
+    await mainInput.waitFor({ timeout: 10000 }).catch(() => {})
     if (await mainInput.isVisible()) await mainInput.fill(mainDraft)
   }
 }

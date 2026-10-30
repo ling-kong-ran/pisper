@@ -8,13 +8,17 @@ import {
   BOARD_SESSIONS_QUERY_KEY,
   beginBoardAction,
   boardActionKey,
+  boardApprovalDetail,
+  boardDismissAttentionAvailable,
+  boardSessionApprovals,
   clearBoardPatch,
-  confirmBoardSessions,
+  confirmBoardSession,
   endBoardAction,
   ownBoardStream,
+  refreshBoardFeed,
   removeBoardApproval,
   restoreBoardApproval,
-  useBoardOverlay,
+  updateBoardFeedSession,
   type BoardSessionPatch,
   type BoardSessionsData,
 } from './board-store'
@@ -35,7 +39,7 @@ const pendingResult = (): BoardActionResult => ({
 })
 
 function refreshInBackground() {
-  void confirmBoardSessions().catch(() => undefined)
+  void refreshBoardFeed().catch(() => undefined)
 }
 
 type ApprovalOptions = {
@@ -50,10 +54,11 @@ async function resolveApproval(
   approved: boolean,
   { confirmCritical = false }: ApprovalOptions,
 ): Promise<BoardActionResult> {
-  const entry = useBoardOverlay.getState().live[sessionId]
-  const approval = entry?.approvals.find((item) => item.id === approvalId)
-  // 没有详情时既看不到完整命令也判断不了危险等级，同样必须先经过确认层。
-  if (approved && (!approval || approval.severity === 'critical') && !confirmCritical)
+  // 可批准的详情：/live 的完整详情，或预览完整的 card 审批；预览被截断时视同没有详情。
+  const approval = boardApprovalDetail(sessionId, approvalId)
+  // 没有完整详情时既看不到完整命令也判断不了危险等级：任何入口（包括已经过确认层的）
+  // 都不发批准请求，确认层只能确认它展示过的完整参数。critical 另须经过确认层。
+  if (approved && (!approval || (approval.severity === 'critical' && !confirmCritical)))
     return {
       ok: false,
       reason: 'confirmation-required',
@@ -62,8 +67,8 @@ async function resolveApproval(
   const kind = approved ? 'approve' : 'deny'
   const key = boardActionKey(kind, sessionId, approvalId)
   if (!beginBoardAction(key, kind)) return pendingResult()
+  const remaining = boardSessionApprovals(sessionId).filter((item) => item.id !== approvalId)
   removeBoardApproval(sessionId, approvalId)
-  const remaining = (entry?.approvals ?? []).filter((item) => item.id !== approvalId)
   // 最后一条审批处理后运行恢复，卡片先回到“运行中”；仍有其他审批时保持在“需要你”。
   const token = remaining.length
     ? null
@@ -78,7 +83,12 @@ async function resolveApproval(
     return { ok: false, reason: 'failed', error }
   }
   try {
-    await confirmBoardSessions()
+    // 事件流在线时等这张卡片不再带着这条审批的那一帧；其余数据源立即补读。
+    await confirmBoardSession(
+      sessionId,
+      (entry) => !entry || !entry.card.approvals.some((item) => item.id === approvalId),
+      { fresh: true },
+    )
   } catch {
     // 动作已成功；刷新失败时撤掉补丁回到最后一份权威快照，下一轮轮询会补齐。
   } finally {
@@ -116,7 +126,7 @@ export async function retryBoardSession(sessionId: string): Promise<BoardActionR
     return { ok: false, reason: 'failed', error }
   }
   try {
-    await confirmBoardSessions()
+    await confirmBoardSession(sessionId, (entry) => !entry || entry.session.streaming === true)
   } catch {
     // 运行已受理；刷新失败只影响展示，下一轮轮询会补齐。
   } finally {
@@ -126,8 +136,15 @@ export async function retryBoardSession(sessionId: string): Promise<BoardActionR
   return { ok: true }
 }
 
-// 服务端确认的整理字段直接写回权威缓存，与侧栏现有做法一致。
+// 服务端确认的整理字段直接写回权威缓存（与侧栏现有做法一致），同时写进看板条目。
 function writeOrganization(update: SessionOrganizationUpdate) {
+  updateBoardFeedSession(update.id, {
+    pinned: update.pinned,
+    archived: update.archived,
+    unread: update.unread,
+    needsAttention: update.needsAttention,
+    attentionReason: update.attentionReason,
+  })
   queryClient.setQueryData<BoardSessionsData>(BOARD_SESSIONS_QUERY_KEY, (current) =>
     current
       ? {
@@ -153,7 +170,7 @@ async function organize(
   sessionId: string,
   kind: 'markHandled' | 'pin' | 'archive',
   patch: BoardSessionPatch,
-  request: { pinned?: boolean; archived?: boolean; read?: boolean },
+  request: { pinned?: boolean; archived?: boolean; read?: boolean; dismissAttention?: true },
 ): Promise<BoardActionResult> {
   const key = boardActionKey(kind, sessionId)
   if (!beginBoardAction(key, kind)) return pendingResult()
@@ -170,8 +187,17 @@ async function organize(
   }
 }
 
-// 第 1 期 Runtime 的“已读”不会清掉失败标记；看板把已读的失败视为已处理（失败 · 已查看）。
+// 标记已处理：第 2 期 Runtime（board.view）用 dismissAttention 在服务端清掉失败注意力，
+// 卡片靠 card.outcome 显示“失败 · 已查看”；旧 Runtime 的“已读”不清失败标记，
+// 看板把已读的失败视为已处理（客户端推导）。
 export function markBoardSessionHandled(sessionId: string) {
+  if (boardDismissAttentionAvailable())
+    return organize(
+      sessionId,
+      'markHandled',
+      { unread: false, needsAttention: false, attentionReason: null },
+      { read: true, dismissAttention: true },
+    )
   return organize(sessionId, 'markHandled', { unread: false }, { read: true })
 }
 

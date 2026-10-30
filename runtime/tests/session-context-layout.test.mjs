@@ -1,3 +1,5 @@
+// 旧上下文面板的纯逻辑：手机外壳的单会话视图（TaskWorkspace）仍在用；桌面会话页的检查器
+// 复用其中的 shouldRevealSessionContext（经 useSessionContextAutoReveal），布局守卫见 session-page-shell。
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {

@@ -7,7 +7,13 @@ import type { NotificationSettingsData } from '@/types/notifications'
 import type { AppUpdateController } from '@/types/update'
 import type { WorkflowActions } from '@/types/workflow'
 
-export type Notify = (message: string, tone?: ToastTone) => void
+// 提示可以附带一个动作按钮（例如派发失败后的“重新打开”），点按后提示随之关闭。
+export type NotifyAction = { label: string; onAction: () => void }
+export type Notify = (
+  message: string,
+  tone?: ToastTone,
+  options?: { action?: NotifyAction },
+) => void
 
 // 本地路径 reveal 结果通知事件：Markdown 链接组件只负责发射，
 // 应用壳（App.tsx）统一监听并走全站 Toast，避免在 Markdown 静态闭包里
@@ -32,4 +38,6 @@ export type AppRouteContext = {
   setNotificationSettings: (settings: NotificationSettingsData) => void
   appUpdate: AppUpdateController
   registerWorkflowActions: (actions: WorkflowActions) => () => void
+  // 新任务：看板桌面版由启动台认领并聚焦，其余情况（含手机看板）由应用壳打开派发浮层。
+  startNewTask: () => void
 }

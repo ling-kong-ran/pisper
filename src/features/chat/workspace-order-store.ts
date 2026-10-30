@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   NO_WORKSPACE_KEY,
+  moveWorkspaceInOrder,
   normalizeWorkspaceOrder,
   reconcileWorkspaceOrder,
   workspaceKey,
@@ -16,7 +17,13 @@ type WorkspacePreferences = {
 
 type WorkspaceOrderState = WorkspacePreferences & {
   rememberWorkspaces: (keys: readonly string[]) => void
+  // keys 是当前列出的全部项目键：移动只发生在它们之间，未列出的旧目录不受影响。
+  moveWorkspace: (key: string, offset: -1 | 1, keys: readonly string[]) => void
   setWorkspaceName: (cwd: string, name: string) => void
+}
+
+function sameOrder(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length && left.every((key, index) => key === right[index])
 }
 
 function validWorkspaceKey(cwd: string) {
@@ -47,8 +54,13 @@ export const useWorkspaceOrderStore = create<WorkspaceOrderState>()(
       rememberWorkspaces: (keys) => {
         const current = get().order
         const order = reconcileWorkspaceOrder(current, keys)
-        if (order.length === current.length && order.every((key, index) => key === current[index]))
-          return
+        if (sameOrder(order, current)) return
+        set({ order })
+      },
+      moveWorkspace: (key, offset, keys) => {
+        const current = get().order
+        const order = moveWorkspaceInOrder(current, keys, key, offset)
+        if (sameOrder(order, current)) return
         set({ order })
       },
       setWorkspaceName: (cwd, value) => {

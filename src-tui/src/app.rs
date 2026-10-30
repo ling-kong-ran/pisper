@@ -174,6 +174,38 @@ pub struct Approval {
     pub args: Value,
     pub risk: String,
     pub reason: String,
+    /// Runtime 给出的危险等级原文（第 2 期起有 standard / critical；旧 Runtime 为空）。
+    pub severity: String,
+}
+
+/// 命令守卫 warn 级拦截的 reason 前缀；与 shared/session-board-status.mjs 的同名常量一致。
+const COMMAND_GUARD_REASON_PREFIX: &str = "命令守卫拦截";
+
+impl Approval {
+    /// 是否为 critical 审批：Runtime 给了 standard / critical 就照用；缺失或未知取值时按
+    /// shared/session-board-status.mjs 的 deriveApprovalSeverity 规则表降级判断（同一张表）。
+    pub fn is_critical(&self) -> bool {
+        match self.severity.as_str() {
+            "critical" => true,
+            "standard" => false,
+            _ => derive_critical_approval(&self.tool_name, &self.args, &self.reason),
+        }
+    }
+}
+
+/// 规则表：命令守卫拦截，或规格 3.5 列出的高风险工具（plugin_create、全局 skill_create、
+/// 浏览器点击 / 输入）。
+fn derive_critical_approval(tool_name: &str, args: &Value, reason: &str) -> bool {
+    if reason.trim_start().starts_with(COMMAND_GUARD_REASON_PREFIX) {
+        return true;
+    }
+    let field = |name: &str| args.get(name).and_then(Value::as_str).unwrap_or_default();
+    match tool_name {
+        "plugin_create" => true,
+        "skill_create" => field("scope") == "global",
+        "browser_automation" => matches!(field("action"), "click" | "type"),
+        _ => false,
+    }
 }
 
 /// 附件草稿：发送前暂存在输入侧，提交时转成真实路径列表。
@@ -372,6 +404,9 @@ pub struct App {
     pub approval: Option<Approval>,
     pending_approvals: VecDeque<Approval>,
     approval_resolving: bool,
+    /// 正在二次确认的 critical 审批 id：critical 不能一步批准，第一次 Y 只进入确认，
+    /// 再按 Y 或 Enter 才发出批准。按 id 记录，可见审批换了就自动失效。
+    approval_confirming: Option<String>,
     pub approval_scroll: Cell<u16>,
     pub approval_max_scroll: Cell<u16>,
     pub attachments: Vec<AttachmentDraft>,
@@ -527,6 +562,7 @@ impl App {
             approval: None,
             pending_approvals: VecDeque::new(),
             approval_resolving: false,
+            approval_confirming: None,
             approval_scroll: Cell::new(0),
             approval_max_scroll: Cell::new(0),
             attachments: Vec::new(),
@@ -882,6 +918,14 @@ impl App {
         self.approval_resolving
     }
 
+    /// 当前可见的 critical 审批是否处在二次确认步骤。
+    pub fn approval_is_confirming(&self) -> bool {
+        match (&self.approval, &self.approval_confirming) {
+            (Some(approval), Some(id)) => approval.id == *id,
+            _ => false,
+        }
+    }
+
     /// 入队审批：相同 id 覆盖；当前无可见审批时直接成为可见审批。
     fn enqueue_approval(&mut self, approval: Approval) {
         if self
@@ -929,6 +973,7 @@ impl App {
         self.approval = None;
         self.pending_approvals.clear();
         self.approval_resolving = false;
+        self.approval_confirming = None;
         self.approval_scroll.set(0);
         self.approval_max_scroll.set(0);
     }
@@ -1508,9 +1553,21 @@ impl App {
             };
         }
         if let Some(approval) = self.approval.clone() {
-            // 有可见审批时，只响应 Y/N/Esc 与滚动键。
+            // 有可见审批时，只响应 Y/N/Esc（critical 确认步骤里还有 Enter）与滚动键。
+            let confirming = self.approval_is_confirming();
             return match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') if !self.approval_resolving => {
+                KeyCode::Char('y') | KeyCode::Char('Y')
+                    if !self.approval_resolving && approval.is_critical() && !confirming =>
+                {
+                    // critical 在任何入口都不能一步批准：第一次 Y 只进入确认步骤。
+                    self.approval_confirming = Some(approval.id);
+                    self.status = "critical approval: press Y or Enter again to allow".to_owned();
+                    Action::None
+                }
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter
+                    if !self.approval_resolving && (confirming || key.code != KeyCode::Enter) =>
+                {
+                    self.approval_confirming = None;
                     self.approval_resolving = true;
                     self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
@@ -1518,9 +1575,16 @@ impl App {
                         approved: true,
                     }
                 }
+                KeyCode::Esc if confirming && !self.approval_resolving => {
+                    // 确认步骤里 Esc 只退回，不拒绝：避免想取消确认时误把请求拒掉。
+                    self.approval_confirming = None;
+                    self.status = "approval required".to_owned();
+                    Action::None
+                }
                 KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc
                     if !self.approval_resolving =>
                 {
+                    self.approval_confirming = None;
                     self.approval_resolving = true;
                     self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
@@ -3411,6 +3475,7 @@ impl App {
                     args: event.data["args"].clone(),
                     risk: string_field(&event.data, "risk"),
                     reason: string_field(&event.data, "reason"),
+                    severity: string_field(&event.data, "severity"),
                 });
                 self.approval_scroll.set(0);
                 self.approval_max_scroll.set(0);
@@ -4116,9 +4181,10 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::{
-        advance_typewriter, apply_patch, attachment_draft, Action, App, Approval, AttachmentDraft,
-        LiveTurn, RunPhase, SettingsPicker, SlashCategory, View, HISTORY_IDLE_EVICT_DELAY,
-        HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
+        advance_typewriter, apply_patch, attachment_draft, derive_critical_approval, Action, App,
+        Approval, AttachmentDraft, LiveTurn, RunPhase, SettingsPicker, SlashCategory, View,
+        HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES,
+        PAGE_SCROLL_STEP,
     };
     use crate::disclosure::{thinking_key, ExpandKey, FINISH_NOTICE};
     use crate::model::{
@@ -4315,6 +4381,7 @@ mod tests {
                 args: json!({ "command": "date" }),
                 risk: "high".to_owned(),
                 reason: "Runs as the current OS user.".to_owned(),
+                severity: String::new(),
             });
             app.approval_scroll.set(3);
             app.approval_max_scroll.set(8);
@@ -4339,6 +4406,113 @@ mod tests {
         }
     }
 
+    /// critical 审批不能一步批准：第一次 Y 只进入确认，Esc 退回而不拒绝，再按 Y 或 Enter 才发出批准。
+    #[test]
+    fn critical_approvals_need_a_second_keypress() {
+        let critical =
+            |severity: &str, tool_name: &str, args: serde_json::Value, reason: &str| Approval {
+                id: "approval-critical".to_owned(),
+                tool_name: tool_name.to_owned(),
+                args,
+                risk: "high".to_owned(),
+                reason: reason.to_owned(),
+                severity: severity.to_owned(),
+            };
+        let y = || KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+        for (confirm_key, approval) in [
+            (
+                KeyCode::Char('y'),
+                critical(
+                    "critical",
+                    "bash",
+                    json!({ "command": "git push --force" }),
+                    "",
+                ),
+            ),
+            (
+                KeyCode::Enter,
+                // 旧 Runtime 没有 severity：按共享规则表（命令守卫前缀）降级判断。
+                critical(
+                    "",
+                    "bash",
+                    json!({ "command": "rm -rf build" }),
+                    "命令守卫拦截：删除",
+                ),
+            ),
+            (
+                KeyCode::Char('Y'),
+                // 未知的 severity 取值同样走规则表。
+                critical("future-level", "plugin_create", json!({}), ""),
+            ),
+        ] {
+            let mut app = test_app(Vec::new());
+            assert!(approval.is_critical());
+            app.approval = Some(approval);
+            assert!(matches!(app.handle_key(y()), Action::None));
+            assert!(app.approval_is_confirming());
+            assert!(!app.approval_is_resolving());
+            // Esc 只退回确认步骤，不拒绝。
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+                Action::None
+            ));
+            assert!(!app.approval_is_confirming());
+            assert!(app.approval.is_some());
+            assert!(matches!(app.handle_key(y()), Action::None));
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(confirm_key, KeyModifiers::NONE)),
+                Action::ResolveApproval { id, approved: true } if id == "approval-critical"
+            ));
+            assert!(!app.approval_is_confirming());
+            assert!(app.approval_is_resolving());
+        }
+
+        // 标准审批保持一步批准；Enter 不会误批准标准审批。
+        let mut app = test_app(Vec::new());
+        app.approval = Some(critical(
+            "standard",
+            "bash",
+            json!({ "command": "npm test" }),
+            "命令守卫拦截：Runtime 已判定为 standard",
+        ));
+        assert!(!app.approval.as_ref().is_some_and(Approval::is_critical));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::None
+        ));
+        assert!(matches!(
+            app.handle_key(y()),
+            Action::ResolveApproval { approved: true, .. }
+        ));
+
+        // 规则表的其余条目与 shared/session-board-status.mjs 一致。
+        assert!(derive_critical_approval(
+            "skill_create",
+            &json!({ "scope": "global" }),
+            ""
+        ));
+        assert!(!derive_critical_approval(
+            "skill_create",
+            &json!({ "scope": "project" }),
+            ""
+        ));
+        assert!(derive_critical_approval(
+            "browser_automation",
+            &json!({ "action": "type" }),
+            ""
+        ));
+        assert!(!derive_critical_approval(
+            "browser_automation",
+            &json!({ "action": "open" }),
+            ""
+        ));
+        assert!(!derive_critical_approval(
+            "bash",
+            &json!({ "command": "ls" }),
+            "  "
+        ));
+    }
+
     /// 验证审批面板的键盘滚动（方向键/翻页/Home/End）有界且不越界。
     #[test]
     fn approval_command_supports_bounded_keyboard_scrolling() {
@@ -4349,6 +4523,7 @@ mod tests {
             args: json!({ "command": "one\ntwo\nthree" }),
             risk: "high".to_owned(),
             reason: "Runs as the current OS user.".to_owned(),
+            severity: String::new(),
         });
         app.approval_max_scroll.set(12);
 
@@ -4379,6 +4554,7 @@ mod tests {
             args: json!({ "command": "date" }),
             risk: "high".to_owned(),
             reason: "Runs as the current OS user.".to_owned(),
+            severity: String::new(),
         });
 
         assert!(matches!(
@@ -4552,6 +4728,40 @@ mod tests {
         assert_eq!(approval.risk, "high");
         assert_eq!(app.approval_scroll.get(), 0);
         assert_eq!(app.approval_max_scroll.get(), 0);
+    }
+
+    /// 第 2 期审批事件新增 severity（以及将来可能的其它字段）：TUI 忽略未知字段，照常排队待审。
+    #[test]
+    fn permission_events_tolerate_severity_and_unknown_fields() {
+        let mut app = test_app(Vec::new());
+        app.set_input("clean build");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        for severity in ["critical", "standard", "some-future-level"] {
+            app.apply_stream_event(StreamEvent {
+                name: "permission_request".to_owned(),
+                data: json!({
+                    "id": format!("approval-{severity}"),
+                    "sessionId": "session-1",
+                    "toolName": "bash",
+                    "toolCallId": "call-1",
+                    "args": { "command": "rm -r build" },
+                    "mode": "auto",
+                    "risk": "high",
+                    "severity": severity,
+                    "reason": "命令守卫拦截：递归删除（rm -r）。请确认后执行。",
+                    "createdAt": "2026-10-29T02:00:00.000Z",
+                    "futureField": { "nested": true }
+                }),
+                id: None,
+            });
+        }
+
+        assert_eq!(app.approval_count(), 3);
+        let approval = app.approval.as_ref().unwrap();
+        assert_eq!(approval.id, "approval-critical");
+        assert_eq!(approval.args["command"], "rm -r build");
+        assert_eq!(approval.risk, "high");
+        assert!(approval.reason.starts_with("命令守卫拦截"));
     }
 
     /// 验证多个审批请求排队，按 id 逐个解决后从队列移除。

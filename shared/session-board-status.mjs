@@ -10,6 +10,14 @@ export const BOARD_STATUSES = Object.freeze(
 )
 export const APPROVAL_SEVERITIES = Object.freeze(/** @type {const} */ (['standard', 'critical']))
 export const BOARD_DONE_WINDOWS = Object.freeze(/** @type {const} */ (['today', '7d']))
+// card.boardStatus：泳道之外多一个 idle，表示“不上看板”（已归档或时间窗外的空闲会话）。
+export const BOARD_CARD_STATUSES = Object.freeze(
+  /** @type {const} */ (['attention', 'running', 'queued', 'done', 'idle']),
+)
+// card.outcome：最近一次运行的结局。只有 Runtime 能可靠区分“用户停止”与“正常完成”时才给出。
+export const BOARD_CARD_OUTCOMES = Object.freeze(
+  /** @type {const} */ (['completed', 'failed', 'stopped']),
+)
 // 命令守卫 warn 级拦截写入 approvals[].reason 的固定前缀，见
 // runtime/services/session-permission-service.mjs 的 permissionRequirement()。
 export const COMMAND_GUARD_REASON_PREFIX = '命令守卫拦截'
@@ -22,6 +30,8 @@ const DONE_WINDOW_DAYS = { today: 1, '7d': 7 }
  * @typedef {(typeof BOARD_STATUSES)[number]} BoardStatus
  * @typedef {(typeof APPROVAL_SEVERITIES)[number]} ApprovalSeverity
  * @typedef {(typeof BOARD_DONE_WINDOWS)[number]} BoardDoneWindow
+ * @typedef {(typeof BOARD_CARD_STATUSES)[number]} BoardCardStatus
+ * @typedef {(typeof BOARD_CARD_OUTCOMES)[number]} BoardCardOutcome
  * @typedef {{ askUser?: boolean, sessionQueue?: boolean }} BoardCapabilities
  * @typedef {{
  *   now: number | string | Date,
@@ -93,6 +103,16 @@ export function isBoardStatus(value) {
   )
 }
 
+// 项目键：与前端 src/features/chat/session-workspaces.ts 的 workspaceKey 同一规则。
+// view=board 的 cwd 筛选按它比较，客户端传来的目录与会话目录写法不同（尾斜杠、反斜杠、盘符大小写）也能命中。
+/** @param {unknown} cwd */
+export function boardWorkspaceKey(cwd) {
+  const path = (typeof cwd === 'string' ? cwd : '').trim().replace(/\\/g, '/')
+  // 根目录也是可选项目，不能在移除尾斜杠时与“无工作区”合并。
+  const normalized = /^\/+$/u.test(path) ? '/' : path.replace(/\/+$/, '')
+  return /^[A-Za-z]:(?:\/|$)/.test(normalized) ? normalized.toLowerCase() : normalized
+}
+
 // 规格 3.5 列为 critical 的非 bash 请求：安装全局插件、全局写入（全局技能）、可能提交表单的浏览器交互。
 // 旧 Runtime 没有 severity 字段，按工具名与参数降级判断，与第 2 期 Runtime 的 severity 判定保持一致。
 const BROWSER_SUBMIT_ACTIONS = new Set(['click', 'type'])
@@ -107,8 +127,23 @@ function criticalTool(toolName, args) {
 }
 
 /**
- * 审批危险等级：新 Runtime 直接给 severity；旧 Runtime 降级判断——命令守卫的 reason 前缀，
+ * 危险等级规则表（不看 severity 字段）：命令守卫 warn 级拦截的 reason 前缀，
  * 或者规格 3.5 列出的高风险工具（plugin_create、全局 skill_create、浏览器点击 / 输入）。
+ * Runtime 的 session-permission-service 用它给 approvals[].severity 赋值，
+ * 前端对旧 Runtime 的降级判断也走这里，两端是同一份规则。
+ * @param {unknown} approval
+ * @returns {ApprovalSeverity}
+ */
+export function deriveApprovalSeverity(approval) {
+  const value = record(approval)
+  const reason = typeof value.reason === 'string' ? value.reason.trimStart() : ''
+  if (reason.startsWith(COMMAND_GUARD_REASON_PREFIX)) return 'critical'
+  const toolName = typeof value.toolName === 'string' ? value.toolName : ''
+  return criticalTool(toolName, record(value.args)) ? 'critical' : 'standard'
+}
+
+/**
+ * 审批危险等级：新 Runtime 直接给 severity；旧 Runtime 按 deriveApprovalSeverity 降级判断。
  * 判断不了一律 standard（界面仍须展示完整命令或参数）。未知 severity 取值同样走降级判断。
  * @param {unknown} approval
  * @returns {ApprovalSeverity}
@@ -116,10 +151,7 @@ function criticalTool(toolName, args) {
 export function approvalSeverity(approval) {
   const value = record(approval)
   if (value.severity === 'critical' || value.severity === 'standard') return value.severity
-  const reason = typeof value.reason === 'string' ? value.reason.trimStart() : ''
-  if (reason.startsWith(COMMAND_GUARD_REASON_PREFIX)) return 'critical'
-  const toolName = typeof value.toolName === 'string' ? value.toolName : ''
-  return criticalTool(toolName, record(value.args)) ? 'critical' : 'standard'
+  return deriveApprovalSeverity(value)
 }
 
 // 多条审批里取最早的创建时间作为等待起点；没有可用时间时返回 null。
@@ -144,8 +176,10 @@ function queueEntry(session, card) {
  * 推导单个会话在看板上的泳道与状态。
  * - 已归档，或既不需要你、也没在运行、时间窗内既没完成也没活动、又没置顶的旧会话：lane 为 null（不上看板）。
  * - 没有 askUser / sessionQueue 能力时永不产生 question / queued，即使 Runtime 发来了对应字段。
- * - 失败在打开或标记已处理（unread 变为 false）后离开“需要你”，以“失败 · 已查看”留在已完成泳道。
- * - 当前没有字段能区分中止与正常完成，stopped 只保留在枚举里，暂不产生。
+ * - 失败在打开或标记已处理（unread 变为 false，或 Runtime 清掉了失败注意力）后离开“需要你”，
+ *   以“失败 · 已查看”留在已完成泳道；注意力被清掉后靠 card.outcome === 'failed' 认出这次失败。
+ * - 只有 card.outcome === 'stopped'（第 2 期 Runtime 能可靠区分用户停止）时才产生 stopped，
+ *   旧 Runtime 没有 card，停止的运行仍归为已完成。
  * @param {unknown} input
  * @param {BoardStatusOptions} options
  * @returns {BoardStatusResult}
@@ -200,6 +234,9 @@ export function deriveBoardStatus(input, options) {
   if (failed && session.unread !== false) {
     return result('attention', 'failed', completedAt ?? modified)
   }
+  // 失败注意力已被清掉（dismissAttention）：仍按“失败 · 已查看”展示，而不是伪装成正常完成。
+  const handledFailure = failed || card.outcome === 'failed'
+  const stopped = !handledFailure && card.outcome === 'stopped'
   // 空会话（从未发出消息）的 modified 只是创建时间，不算“今天有活动”。
   const messageCount = session.messageCount
   const hasContent = typeof messageCount !== 'number' || messageCount > 0 || completedAt !== null
@@ -208,9 +245,9 @@ export function deriveBoardStatus(input, options) {
     (hasContent && isWithinDoneWindow(modified, windowOptions))
   return result(
     recent || pinned ? 'done' : null,
-    failed ? 'failed' : 'done',
+    handledFailure ? 'failed' : stopped ? 'stopped' : 'done',
     completedAt ?? modified,
-    failed,
+    handledFailure,
   )
 }
 

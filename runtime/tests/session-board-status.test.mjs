@@ -2,11 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   APPROVAL_SEVERITIES,
+  BOARD_CARD_OUTCOMES,
+  BOARD_CARD_STATUSES,
   BOARD_LANES,
   BOARD_STATUSES,
   COMMAND_GUARD_REASON_PREFIX,
   approvalSeverity,
+  boardWorkspaceKey,
   compareBoardItems,
+  deriveApprovalSeverity,
   deriveBoardStatus,
   isBoardLane,
   isBoardStatus,
@@ -376,4 +380,104 @@ test('lane comparator follows the fixed per-lane ordering', () => {
     compareBoardItems({ id: 'a', lane: 'done', since: 1 }, { id: 'b', lane: 'done', since: 1 }) < 0,
   )
   assert.equal(compareBoardItems({ id: 'a', lane: 'done' }, { id: 'a', lane: 'done' }), 0)
+})
+
+test('card outcome distinguishes a stopped run from a normal completion', () => {
+  assert.deepEqual([...BOARD_CARD_STATUSES], ['attention', 'running', 'queued', 'done', 'idle'])
+  assert.deepEqual([...BOARD_CARD_OUTCOMES], ['completed', 'failed', 'stopped'])
+  const base = { modified: at('2026-10-29T09:00:00'), messageCount: 4 }
+  assert.deepEqual(derive({ ...base, card: { outcome: 'stopped' } }), {
+    lane: 'done',
+    status: 'stopped',
+    handled: false,
+    since: Date.parse(base.modified),
+  })
+  // 旧 Runtime 没有 card，未知 outcome 取值同样按已完成处理。
+  assert.equal(derive(base).status, 'done')
+  assert.equal(derive({ ...base, card: { outcome: 'paused' } }).status, 'done')
+  assert.equal(derive({ ...base, card: { outcome: 'completed' } }).status, 'done')
+  // 运行中优先于上一轮的结局。
+  assert.equal(derive({ ...base, streaming: true, card: { outcome: 'stopped' } }).status, 'running')
+})
+
+test('a dismissed failure stays visible as failed but handled instead of done', () => {
+  const failedAt = at('2026-10-29T08:00:00')
+  const dismissed = {
+    needsAttention: false,
+    attentionReason: null,
+    unread: true,
+    lastCompletedAt: failedAt,
+    modified: failedAt,
+    card: { outcome: 'failed' },
+  }
+  assert.deepEqual(derive(dismissed), {
+    lane: 'done',
+    status: 'failed',
+    handled: true,
+    since: Date.parse(failedAt),
+  })
+  // 失败标记仍在且未读时照旧留在“需要你”。
+  assert.equal(
+    derive({ ...dismissed, needsAttention: true, attentionReason: 'failure' }).lane,
+    'attention',
+  )
+})
+
+test('workspace keys match the frontend project grouping rule', () => {
+  assert.equal(boardWorkspaceKey('/repo/app/'), '/repo/app')
+  assert.equal(boardWorkspaceKey('  /repo/app  '), '/repo/app')
+  assert.equal(boardWorkspaceKey('C:\\Repo\\App\\'), 'c:/repo/app')
+  assert.equal(boardWorkspaceKey('///'), '/')
+  assert.equal(boardWorkspaceKey(''), '')
+  assert.equal(boardWorkspaceKey(null), '')
+  assert.equal(boardWorkspaceKey('/Repo/Case'), '/Repo/Case')
+})
+
+test('the severity rule table ignores the field and is what approvalSeverity falls back to', () => {
+  const guarded = {
+    toolName: 'bash',
+    reason: `${COMMAND_GUARD_REASON_PREFIX}：递归删除（rm -r）。`,
+  }
+  assert.equal(deriveApprovalSeverity(guarded), 'critical')
+  assert.equal(deriveApprovalSeverity({ ...guarded, severity: 'standard' }), 'critical')
+  assert.equal(approvalSeverity({ ...guarded, severity: 'standard' }), 'standard')
+  assert.equal(deriveApprovalSeverity({ toolName: 'plugin_create' }), 'critical')
+  assert.equal(
+    deriveApprovalSeverity({ toolName: 'skill_create', args: { scope: 'global' } }),
+    'critical',
+  )
+  assert.equal(
+    deriveApprovalSeverity({ toolName: 'browser_automation', args: { action: 'type' } }),
+    'critical',
+  )
+  assert.equal(
+    deriveApprovalSeverity({ toolName: 'bash', args: { command: 'npm test' } }),
+    'standard',
+  )
+  assert.equal(deriveApprovalSeverity({ toolName: 'edit', args: { path: 'a.ts' } }), 'standard')
+  assert.equal(deriveApprovalSeverity('garbage'), 'standard')
+})
+
+test('the runtime board project key and the client workspace key stay the same rule', async () => {
+  // view=board 的 cwd 筛选按 Runtime 的 boardWorkspaceKey 比较，前端项目按 workspaceKey 分组：
+  // 两份实现任何一份单独改动都会让筛选与项目键悄悄对不上。
+  const { workspaceKey } = await import('../../src/features/chat/session-workspaces.ts')
+  for (const cwd of [
+    '',
+    '   ',
+    '/',
+    '///',
+    '/work/app',
+    '/work/app/',
+    '/work/app///',
+    '  /work/app  ',
+    'C:\\Users\\Dev\\App\\',
+    'c:/users/dev/app',
+    'D:',
+    'D:\\',
+    '\\\\server\\share\\repo\\',
+    'relative/dir/',
+    '/工作/项目/',
+  ])
+    assert.equal(boardWorkspaceKey(cwd), workspaceKey(cwd), JSON.stringify(cwd))
 })

@@ -4,6 +4,14 @@
 // 不被遮挡、无硬裁切、无横向滚动）、泳道与空泳道竖条、内联批准与重试、critical 只开确认层、
 // 舰队计量、⌘1/2/3、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、今天没有活动时的看板骨架、
 // 手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
+// 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
+// 另有一段把能力里的 board.* 去掉，验证旧桌面 Runtime 退回第 1 期的 /api/sessions + /live 路径；
+// 再用被测的真实 Runtime 提供 /api/board/events（长连接），核对每个标签页只有 1 条连接、快照与增量、
+// 页面隐藏时断开、回到可见后带 after 重连。
+// 第 3 期会话页：隔离 Runtime 里写入一条真实会话（转录、/live 来自真实 Runtime），看板与泳道条仍由
+// 固定数据提供；覆盖泳道条内联允许 / critical 只开确认层、⌘J 代理面板、⌥↑/⌥↓ 切换、⌘I 检查器、
+// ⌘[ 返回并把焦点还给来源卡片、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
+// 以及手机 390 的会话页仍可用。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -12,10 +20,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import {
+  BOARD_SESSION_ID,
+  BOARD_SESSION_TITLE,
   boardFixture,
   desktopBridgeScript,
   installBoardFixture,
   plainDesktopBridgeScript,
+  writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -34,6 +45,8 @@ process.env.PI_SKIP_VERSION_CHECK = '1'
 process.env.PI_TELEMETRY = '0'
 process.env.PISPER_AGENT_DIR = dataDir
 process.env.PISPER_WORKSPACE_DIR = workspace
+// 会话页用的真实会话：只写进本次的临时数据目录。
+await writeBoardSessionFixture(join(dataDir, 'sessions'), workspace)
 const { createPisperRuntime } = await import('../runtime/app-runtime.mjs')
 const app = await createPisperRuntime({
   root,
@@ -53,7 +66,7 @@ const report = { status: 'running', checks: [], geometry: [], pageErrors: [] }
 let browser
 let failurePage
 
-async function newContext(options, { bridge, mobileApp, sessions } = {}) {
+async function newContext(options, { bridge, mobileApp, sessions, protocol } = {}) {
   const context = await browser.newContext({ locale: 'zh-CN', ...options })
   await context.addInitScript(() => {
     try {
@@ -63,7 +76,7 @@ async function newContext(options, { bridge, mobileApp, sessions } = {}) {
   })
   if (bridge) await context.addInitScript(bridge)
   if (mobileApp) await context.addInitScript('window.__PISPER_MOBILE_APP__ = true')
-  const fixture = await installBoardFixture(context, { sessions })
+  const fixture = await installBoardFixture(context, { sessions, protocol })
   // 更新检查不是本冒烟的验收目标，固定结果避免依赖网络。
   await context.route('**/api/app-update*', (route) =>
     route.fulfill({ json: { state: 'current', checkedAt: Date.now() } }),
@@ -530,6 +543,659 @@ try {
   }
   report.checks.push(
     'Desktop windows narrowed to 1000px and 600px (with and without the custom title bar) keep the desktop title bar and never mount the phone shell; a 600px browser does',
+  )
+
+  // 6. 第 2 期数据源：Runtime 声明 board.view / board.events 时看板走事件流，卡片显示 card 摘要
+  // （运行中尾巴与活动脚注、失败摘要、已完成结果摘要与改动统计、上下文百分比），运行中泳道底部有
+  // “再派发一个并行代理”槽位；旧桌面 Runtime（能力里没有 board.*）退回第 1 期路径且没有错误。
+  {
+    const { context, fixture } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { bridge: desktopBridgeScript },
+    )
+    const page = await openBoard(context, 'board feed')
+    await page.locator('[data-board-card="fx-running"] [data-card-tail]').waitFor()
+    assert.ok(fixture.eventRequests.length >= 1, 'the board opens the event stream')
+    assert.equal(fixture.eventRequests[0], null, 'the first connection asks for a snapshot')
+    assert.match(
+      await page.locator('[data-board-card="fx-running"] [data-card-tail]').innerText(),
+      /rejects expired token/,
+    )
+    assert.equal(
+      await page.locator('[data-board-card="fx-running"] [data-tail-fail]').count(),
+      1,
+      'only the failing tail line is marked red',
+    )
+    assert.match(
+      await page.locator('[data-board-card="fx-failed"] [data-card-error]').innerText(),
+      /3 failed, 41 passed/,
+    )
+    assert.match(
+      await page.locator('[data-board-card="fx-done-unread"] [data-card-preview]').innerText(),
+      /LCP/,
+    )
+    assert.match(
+      await page.locator('[data-board-card="fx-done-unread"]').innerText(),
+      /6 个文件\s*\+214\s*−97/,
+    )
+    assert.match(
+      await page.locator('[data-board-card="fx-running"] [data-card-meta]').innerText(),
+      /上下文 41%/,
+    )
+    // 有 card 时不再为审批卡单独取 /live，也不再轮询完整目录之外的 /change-summary。
+    const lateRequests = []
+    page.on('request', (request) => lateRequests.push(new URL(request.url()).pathname))
+    await page.waitForTimeout(2_500)
+    assert.equal(
+      lateRequests.filter((path) => /\/live$|\/change-summary$/.test(path)).length,
+      0,
+      `no /live or /change-summary while cards carry the details: ${lateRequests.join(', ')}`,
+    )
+    // 带 after 重连（固定数据每次连接发完就结束，前端按 1 秒间隔重连）。
+    assert.ok(
+      fixture.eventRequests.some((after) => after !== null),
+      `reconnects carry after: ${JSON.stringify(fixture.eventRequests)}`,
+    )
+    await page.locator('[data-lane-dispatch]').click()
+    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-launch-input'))
+    await geometry(page, 'board feed')
+    await context.close()
+  }
+  {
+    const { context, fixture } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { bridge: desktopBridgeScript, protocol: 'legacy' },
+    )
+    const requests = []
+    context.on('request', (request) => requests.push(new URL(request.url())))
+    const page = await openBoard(context, 'old runtime')
+    await waitForApprovals(page)
+    await page.locator('[data-board-card="fx-running"][data-lane="running"]').waitFor()
+    assert.equal(fixture.eventRequests.length, 0)
+    assert.equal(
+      requests.filter((url) => url.pathname === '/api/board/events').length,
+      0,
+      'an old runtime never gets a board event stream request',
+    )
+    assert.equal(
+      requests.filter((url) => url.searchParams.get('view') === 'board').length,
+      0,
+      'an old runtime never gets view=board',
+    )
+    assert.ok(
+      requests.some((url) => /\/live$/.test(url.pathname)),
+      'approval cards use /live',
+    )
+    assert.equal(await page.locator('[data-card-tail]').count(), 0, 'no empty tail boxes')
+    assert.match(
+      await page.locator('[data-board-card="fx-running"] [data-card-meta]').innerText(),
+      /6 条消息/,
+    )
+    await context.close()
+  }
+  report.checks.push(
+    'Board feed: with board.view/board.events the board opens the event stream (snapshot first, then reconnects with after), shows running tails with the failing line in red, failure summaries, done previews with change stats and context %, takes approvals from cards without /live or /change-summary, and the running lane slot focuses the launch console; an old runtime without board.* falls back to /api/sessions + /live with no event-stream or view=board requests and no empty tail boxes',
+  )
+
+  // 6b. 真实 Runtime 的看板事件流（不经固定数据）：每个标签页只有 1 条长连接，先收快照、随后收增量；
+  // 去会话页再回来仍是同一条；页面隐藏时断开，回到可见后带 after 重连。页面可见性用改写
+  // visibilityState 模拟（浏览器模拟，不等于 WebView 或真机的前后台切换）。
+  {
+    const hub = app.runtime?.boardEvents
+    assert.ok(hub, 'the runtime exposes its board event hub')
+    const context = await browser.newContext({
+      locale: 'zh-CN',
+      viewport: { width: 1440, height: 900 },
+      colorScheme: 'light',
+    })
+    await context.addInitScript(() => {
+      try {
+        localStorage.setItem('pisper-language', 'zh-CN')
+        localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+      } catch {}
+      let hidden = false
+      Object.defineProperty(Document.prototype, 'visibilityState', {
+        configurable: true,
+        get: () => (hidden ? 'hidden' : 'visible'),
+      })
+      Object.defineProperty(Document.prototype, 'hidden', { configurable: true, get: () => hidden })
+      window.__setHidden = (value) => {
+        hidden = value
+        document.dispatchEvent(new Event('visibilitychange'))
+      }
+    })
+    await context.route('**/api/app-update*', (route) =>
+      route.fulfill({ json: { state: 'current', checkedAt: Date.now() } }),
+    )
+    const streams = []
+    context.on('request', (request) => {
+      const url = new URL(request.url())
+      if (url.pathname === '/api/board/events') streams.push(url.searchParams.get('after'))
+    })
+    const connections = () => hub.stats().connections
+    const until = async (predicate, label, timeout = 15_000) => {
+      const deadline = Date.now() + timeout
+      while (!predicate()) {
+        if (Date.now() > deadline) throw new Error(`timed out: ${label}`)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+    const page = await openBoard(context, 'live board events')
+    const card = page.locator(`[data-board-card="${BOARD_SESSION_ID}"]`)
+    await card.waitFor({ timeout: 20_000 })
+    await until(() => connections() === 1, 'one live board stream')
+    await page.waitForTimeout(2_500)
+    assert.equal(connections(), 1, 'one tab keeps exactly one board event stream')
+    assert.equal(streams.length, 1, `no reconnect while the stream is healthy: ${streams}`)
+    assert.equal(streams[0], null, 'the first connection asks for a snapshot')
+    // 增量：置顶经真实接口写入，事件流推送 session_card，卡片出现置顶标记（不靠目录轮询）。
+    const before = streams.length
+    const pin = await fetch(`${base}/api/sessions/${BOARD_SESSION_ID}/organization`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: true }),
+    })
+    assert.equal(pin.ok, true)
+    await card.getByLabel('已置顶', { exact: true }).waitFor({ timeout: 10_000 })
+    assert.equal(streams.length, before, 'the increment arrives on the same connection')
+    // 会话页与返回：看板 store 在路由间共享，不新开第二条连接。
+    await card.click({ position: { x: 60, y: 14 } })
+    await page.locator('[data-lane-strip]').waitFor({ timeout: 30_000 })
+    await page.waitForTimeout(1_000)
+    assert.equal(connections(), 1, 'the session page reuses the board stream')
+    await page.keyboard.press(`${mod}+BracketLeft`)
+    await page.locator('[data-board-root]').waitFor()
+    await page.waitForTimeout(1_000)
+    assert.equal(connections(), 1, 'returning to the board keeps one stream')
+    // 隐藏断开、可见后带 after 重连。
+    await page.evaluate(() => window.__setHidden(true))
+    await until(() => connections() === 0, 'hidden page closes the stream')
+    const hiddenAt = streams.length
+    await page.waitForTimeout(1_500)
+    assert.equal(streams.length, hiddenAt, 'a hidden page does not reconnect')
+    await page.evaluate(() => window.__setHidden(false))
+    await until(() => connections() === 1, 'visible page reconnects')
+    const resumed = streams.at(-1)
+    assert.ok(resumed !== null && /^\d+$/.test(resumed), `reconnects with after: ${resumed}`)
+    const unpin = await fetch(`${base}/api/sessions/${BOARD_SESSION_ID}/organization`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: false }),
+    })
+    assert.equal(unpin.ok, true)
+    await card.getByLabel('已置顶', { exact: true }).waitFor({ state: 'detached', timeout: 10_000 })
+    await context.close()
+    await until(() => connections() === 0, 'closing the tab releases the stream')
+  }
+  report.checks.push(
+    'Live runtime board events: one tab holds exactly one /api/board/events connection (snapshot first, a pin increment arrives on the same connection, the session page and the way back reuse it); hiding the page closes it and becoming visible reconnects with after',
+  )
+
+  // 7. 第 3 期会话页：真实会话（隔离 Runtime 里的 JSONL）放进固定数据的“运行中”泳道。
+  // /live 取真实 Runtime 的结果，只把运行状态改成运行中；停止请求在浏览器边界记录，不发给 Runtime。
+  const realList = await fetch(`${base}/api/sessions`).then((response) => response.json())
+  const realItem = realList.sessions.find((session) => session.id === BOARD_SESSION_ID)
+  assert.ok(realItem, 'the isolated runtime lists the session-page fixture')
+  const sessionBoard = [
+    ...boardFixture().sessions,
+    { ...realItem, pinned: false, unread: false, needsAttention: false, streaming: true },
+  ]
+  const startedAt = new Date(Date.now() - 12_000).toISOString()
+  async function sessionContext(options, extra = {}) {
+    const { context, fixture } = await newContext(options, { ...extra, sessions: sessionBoard })
+    const aborts = []
+    await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/live`), async (route) => {
+      const response = await route.fetch()
+      const live = await response.json().catch(() => ({}))
+      await route.fulfill({
+        response,
+        json: { ...live, streaming: true, startedAt, lastActivityAt: new Date().toISOString() },
+      })
+    })
+    await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/abort$`), async (route) => {
+      aborts.push(route.request().method())
+      await route.fulfill({ json: { ok: true } })
+    })
+    return { context, fixture, aborts }
+  }
+  async function openSession(page) {
+    await page.goto(`${base}/#/board/${BOARD_SESSION_ID}`)
+    await page.locator('.focus-composer textarea').first().waitFor({ timeout: 30_000 })
+    await page.getByText('已完成重构，全部测试通过。').first().waitFor({ timeout: 30_000 })
+  }
+  // 几何：横向滚动、右上 144px、标题栏 + 泳道条 + 页头的高度，泳道条与检查器里的控件没有越出视口、
+  // 也没有被别的元素挡住（取控件中心点命中测试）。
+  // 覆盖层打开时盖住对话列右侧（含页头右端）是设计本身，那时只核对泳道条与检查器里的控件。
+  function sessionGeometry(page, { header = true } = {}) {
+    return page.evaluate((includeHeader) => {
+      const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect() ?? null
+      const header = rect('[data-session-header]')
+      const strip = rect('[data-lane-strip]')
+      const overlay = rect('[data-inspector-overlay]')
+      const blocked = [
+        ...document.querySelectorAll(
+          '[data-session-inspector] button, [data-session-inspector] [role="tab"], [data-lane-strip] button' +
+            (includeHeader ? ', [data-session-header] button' : ''),
+        ),
+      ]
+        .filter((element) => {
+          const box = element.getBoundingClientRect()
+          if (!box.width || !box.height || getComputedStyle(element).visibility === 'hidden')
+            return false
+          if (box.right > innerWidth + 0.5 || box.bottom > innerHeight + 0.5 || box.left < -0.5)
+            return true
+          // 芯片行可以横向滚动；只核对行内可见的控件。
+          const row = element.closest('[data-strip-row]')?.getBoundingClientRect()
+          if (row && (box.left < row.left - 0.5 || box.right > row.right + 0.5)) return false
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+          return Boolean(hit && !element.contains(hit) && !hit.contains(element))
+        })
+        .map((element) => element.getAttribute('aria-label') || element.textContent?.trim())
+      const intrusions = window.pisperDesktop?.customTitlebar
+        ? [...document.querySelectorAll('button, a[href], input, [role="tab"]')]
+            .filter((element) => !element.closest('.desktop-window-controls'))
+            .filter((element) => {
+              const box = element.getBoundingClientRect()
+              return box.width > 0 && box.top < 48 && box.right > innerWidth - 144 + 0.5
+            })
+            .map((element) => element.getAttribute('aria-label') || element.textContent?.trim())
+        : []
+      return {
+        horizontalScroll:
+          document.documentElement.scrollWidth > innerWidth ||
+          document.body.scrollWidth > innerWidth,
+        headerBottom: header ? Math.round(header.bottom) : null,
+        headerHeight: header ? Math.round(header.height) : null,
+        stripHeight: strip ? Math.round(strip.height) : null,
+        workspace:
+          document
+            .querySelector('[data-session-workspace]')
+            ?.getAttribute('data-session-workspace') ?? null,
+        overlay: overlay
+          ? {
+              top: Math.round(overlay.top),
+              right: Math.round(overlay.right),
+              bottom: Math.round(overlay.bottom),
+              width: Math.round(overlay.width),
+            }
+          : null,
+        blocked,
+        intrusions,
+      }
+    }, header)
+  }
+
+  // 7a. 1440×900：泳道条、确认层、内联允许、⌘J、⌘I、⌥↑/⌥↓、Esc、⌘[。
+  {
+    const { context, fixture, aborts } = await sessionContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { bridge: desktopBridgeScript },
+    )
+    const page = await openBoard(context, 'session page')
+    await waitForApprovals(page)
+    const realCard = page.locator(`[data-board-card="${BOARD_SESSION_ID}"][data-lane="running"]`)
+    await realCard.waitFor()
+    await settle(page)
+    // 打开一个本客户端不持有运行流的运行中会话时，转录先显示加载态、立即读 /live，
+    // 不能先闪出空会话的问候页（旧工作台的“夜深啦…”）再跳成对话。
+    await page.evaluate(() => {
+      window.__greetingSeen = false
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('[data-testid="workbench-greeting"]'))
+          window.__greetingSeen = true
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+      window.__greetingObserver = observer
+    })
+    // 从卡片打开（点标题区域，避开卡片上的按钮），之后 ⌘[ 要把焦点还给这张卡片。
+    const openedAt = Date.now()
+    await realCard.click({ position: { x: 60, y: 14 } })
+    await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
+    const strip = page.locator('[data-lane-strip]')
+    await strip.waitFor({ timeout: 30_000 })
+    await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
+    await page.locator(`[data-strip-chip="${BOARD_SESSION_ID}"][data-current]`).waitFor()
+    // 转录来自真实 Runtime：从看板卡片打开也要读到这条会话自己的历史。
+    await page.getByText('已完成重构，全部测试通过。').first().waitFor({ timeout: 30_000 })
+    const transcriptAfter = Date.now() - openedAt
+    const greetingSeen = await page.evaluate(() => {
+      window.__greetingObserver?.disconnect()
+      return window.__greetingSeen
+    })
+    assert.equal(greetingSeen, false, 'opening a running session never flashes the empty greeting')
+    report.checks.push(
+      `Opening a running session from its card shows loading, never the empty-session greeting; the conversation appeared after ${transcriptAfter}ms`,
+    )
+    await settle(page)
+    const geo = await sessionGeometry(page)
+    assert.equal(geo.horizontalScroll, false, 'session page: no horizontal scroll')
+    assert.equal(geo.stripHeight, 52, `session page: 52px lane strip ${JSON.stringify(geo)}`)
+    assert.equal(geo.headerHeight, 44, 'session page: 44px session header')
+    assert.equal(geo.workspace, 'aside', 'wide session page docks the inspector')
+    assert.deepEqual(geo.intrusions, [], 'session page: top-right 144px stays free')
+    assert.equal(await page.locator('[data-session-title]').innerText(), BOARD_SESSION_TITLE)
+    await page.screenshot({ path: join(output, 'session-1440.png') })
+
+    // critical 芯片只有[查看]：打开看板同一个确认层，Esc 关闭它，不批准、也不停止运行。
+    const criticalChip = page.locator('[data-strip-chip="fx-critical"]')
+    await criticalChip.locator('[data-strip-review]').waitFor({ timeout: 20_000 })
+    assert.equal(await criticalChip.locator('[data-strip-approve]').count(), 0)
+    await criticalChip.locator('[data-strip-review]').click()
+    const confirm = page.getByRole('dialog', { name: '确认高风险操作', exact: true })
+    await confirm.waitFor()
+    await confirm.getByText('git push --force-with-lease origin fix/ci').first().waitFor()
+    await page.keyboard.press('Escape')
+    await confirm.waitFor({ state: 'hidden' })
+    assert.equal(fixture.posts.length, 0, 'the strip review button never approves')
+    assert.deepEqual(aborts, [], 'Esc on the confirmation layer does not stop the run')
+    assert.equal(page.url().endsWith(`#/board/${BOARD_SESSION_ID}`), true)
+
+    // standard 芯片内联允许：一次 POST，请求体与看板一致。
+    const [approveResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname ===
+            '/api/sessions/fx-standard/approvals/approval-standard',
+      ),
+      page.locator('[data-strip-chip="fx-standard"] [data-strip-approve]').click(),
+    ])
+    assert.equal(approveResponse.request().postData(), JSON.stringify({ approved: true }))
+    assert.deepEqual(fixture.posts, [
+      {
+        method: 'POST',
+        path: '/api/sessions/fx-standard/approvals/approval-standard',
+        body: { approved: true },
+      },
+    ])
+    report.checks.push(
+      'Session page lane strip: the critical chip only offers 查看, which opens the shared confirmation layer (Esc closes it without approving or stopping); the standard chip approves inline with one POST {"approved":true}',
+    )
+
+    // ⌘J：左侧代理面板按泳道分组，critical 行只有查看；Esc 关闭并把焦点还回输入框，不停止运行。
+    const prompt = page.locator('.focus-composer textarea')
+    await prompt.click()
+    await page.keyboard.press(`${mod}+KeyJ`)
+    const panel = page.locator('[data-agent-panel]')
+    await panel.waitFor()
+    const lanes = await panel
+      .locator('[data-agent-lane]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-agent-lane')))
+    assert.equal(lanes[0], 'attention', `agent panel groups by lane: ${lanes}`)
+    assert.ok(lanes.includes('running'), `agent panel lists running agents: ${lanes}`)
+    assert.equal(
+      await panel.locator('[data-agent-row="fx-critical"] [data-strip-approve]').count(),
+      0,
+    )
+    assert.equal(
+      await panel.locator('[data-agent-row="fx-critical"] [data-strip-review]').count(),
+      1,
+    )
+    const box = await panel.boundingBox()
+    assert.ok(
+      Math.round(box.width) === 320 && box.x <= 1,
+      `agent panel geometry ${JSON.stringify(box)}`,
+    )
+    await page.keyboard.press('Escape')
+    await panel.waitFor({ state: 'detached' })
+    await page.waitForFunction(() => document.activeElement?.matches('.focus-composer textarea'))
+    assert.deepEqual(aborts, [], 'Esc on the agent panel does not stop the run')
+    report.checks.push(
+      '⌘J opens the 320px agent panel grouped by lane (critical rows only offer 查看); Esc closes it, returns focus to the composer and does not stop the run',
+    )
+
+    // ⌘I：输入框内也能开合检查器。
+    await prompt.click()
+    await page.keyboard.press(`${mod}+KeyI`)
+    await page.locator('[data-session-inspector]').waitFor({ state: 'detached' })
+    await page.keyboard.press(`${mod}+KeyI`)
+    await page.locator('[data-session-inspector]').waitFor()
+    report.checks.push('⌘I closes and reopens the docked inspector from inside the composer')
+
+    // ⌥↓ / ⌥↑：按泳道条顺序换代理，只换路由（草稿按会话保留），浏览器后退回到看板。
+    await prompt.fill('会话页的未发送草稿')
+    await page.keyboard.press('Alt+ArrowDown')
+    await page.waitForFunction((id) => !location.hash.endsWith(id), BOARD_SESSION_ID)
+    const next = await page.evaluate(() => location.hash)
+    assert.match(next, /^#\/board\/fx-/, 'Alt+ArrowDown opens the next agent on the strip')
+    await page.locator('[data-lane-strip]').waitFor()
+    await page.keyboard.press('Alt+ArrowUp')
+    await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
+    await prompt.waitFor()
+    await page.waitForFunction(
+      () => document.querySelector('.focus-composer textarea')?.value === '会话页的未发送草稿',
+    )
+    await prompt.fill('')
+    // 连按：路由在 transition 里提交，⌥↓ 的新会话还没换上来时就按 ⌥↑，要从刚发出的目标算起，
+    // 回到原会话（曾偶发落到原会话的上一个代理，或被当成“已在原会话”丢掉）。
+    await page.keyboard.press('Alt+ArrowDown')
+    await page.keyboard.press('Alt+ArrowUp')
+    await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
+    await page.locator(`[data-strip-chip="${BOARD_SESSION_ID}"][data-current]`).waitFor()
+    assert.equal(
+      await page.evaluate(() => location.hash),
+      `#/board/${BOARD_SESSION_ID}`,
+      'back-to-back ⌥↓ ⌥↑ returns to the starting session',
+    )
+    report.checks.push(
+      '⌥↓ / ⌥↑ switch agents along the strip by route and keep each session draft; back-to-back presses start from the switch that has not committed yet',
+    )
+
+    // 运行中按 Esc：只停止当前运行（POST /abort 一次），不离开会话页。
+    await prompt.click()
+    await page.keyboard.press('Escape')
+    const deadline = Date.now() + 5_000
+    while (!aborts.length && Date.now() < deadline) await page.waitForTimeout(100)
+    assert.deepEqual(aborts, ['POST'], 'Esc while running stops the run once')
+    await page.waitForTimeout(300)
+    assert.equal(
+      await page.evaluate(() => location.hash),
+      `#/board/${BOARD_SESSION_ID}`,
+      'Esc never leaves the session page',
+    )
+    report.checks.push('Esc while running sends one POST /abort and stays on the session page')
+
+    // ⌘[：回到看板，焦点落在打开它的卡片上。
+    await page.keyboard.press(`${mod}+BracketLeft`)
+    await page.locator('[data-board-root]').waitFor()
+    await page.waitForFunction(
+      (id) =>
+        document.activeElement?.closest('[data-board-card]')?.getAttribute('data-board-card') ===
+        id,
+      BOARD_SESSION_ID,
+      { timeout: 10_000 },
+    )
+    report.checks.push('⌘[ returns to the board and focuses the card the session was opened from')
+    await context.close()
+  }
+
+  // 7b. 1080×680 + 模拟 Windows 自绘标题栏：泳道条 36px 单行，检查器是覆盖层（默认关闭），
+  // 打开后在视口内、控件无裁切无遮挡、无横向滚动；Esc 先关覆盖层，不停止运行也不离开。
+  {
+    const { context, aborts } = await sessionContext(
+      { viewport: { width: 1080, height: 680 }, colorScheme: 'light' },
+      { bridge: desktopBridgeScript },
+    )
+    const page = await openBoard(context, 'session 1080')
+    await openSession(page)
+    await page.locator('[data-lane-strip]').waitFor()
+    await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
+    await settle(page)
+    let geo = await sessionGeometry(page)
+    assert.equal(geo.stripHeight, 36, `1080: single-line strip ${JSON.stringify(geo)}`)
+    assert.ok(geo.headerBottom !== null && geo.headerBottom <= 128, `1080: chrome ≤ 128px`)
+    assert.equal(geo.workspace, 'overlay')
+    assert.equal(await page.locator('[data-session-inspector]').count(), 0, 'overlay starts closed')
+    assert.equal(geo.horizontalScroll, false)
+    assert.deepEqual(geo.intrusions, [], '1080: top-right 144px stays free')
+    assert.deepEqual(geo.blocked, [], '1080: no clipped or covered controls')
+    // 在输入框里 ⌘I 打开覆盖层（不抢焦点）、Esc 关闭：焦点留在输入框，不被挪到页头开关，也不停止运行。
+    const composerInput = page.locator('.focus-composer textarea').first()
+    await composerInput.click()
+    await page.keyboard.press(`${mod}+KeyI`)
+    await page.locator('[data-inspector-overlay]').waitFor()
+    await page.keyboard.press('Escape')
+    await page.locator('[data-inspector-overlay]').waitFor({ state: 'detached' })
+    await page.waitForTimeout(100)
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
+      true,
+      'closing the overlay with Esc keeps focus in the composer',
+    )
+    assert.deepEqual(aborts, [], 'Esc closes the overlay and does not stop the run')
+    await page.locator('[data-inspector-toggle]').click()
+    await page.locator('[data-inspector-overlay]').waitFor()
+    await page.locator('[data-session-inspector]').waitFor()
+    await settle(page)
+    // 覆盖层从页头下方开始，并给对话内容让出宽度：停止键、发送键与页头按钮都能点到。
+    const reachable = await page.evaluate(() =>
+      [
+        '[data-run-stop]',
+        '.focus-composer .send-button',
+        '[data-inspector-toggle]',
+        '[data-session-header] [id$="-more"]',
+      ].map((selector) => {
+        const element = document.querySelector(selector)
+        const box = element?.getBoundingClientRect()
+        if (!element || !box?.width) return [selector, 'missing']
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return [selector, Boolean(hit && (element === hit || element.contains(hit)))]
+      }),
+    )
+    assert.deepEqual(
+      reachable.filter(([, ok]) => ok !== true),
+      [],
+      `1080 overlay leaves stop, send and header controls reachable ${JSON.stringify(reachable)}`,
+    )
+    geo = await sessionGeometry(page)
+    assert.ok(
+      geo.overlay &&
+        geo.overlay.width === 420 &&
+        geo.overlay.right <= 1080 &&
+        geo.overlay.bottom <= 680 &&
+        geo.overlay.top >= 48,
+      `1080: overlay inside the viewport below the title bar ${JSON.stringify(geo.overlay)}`,
+    )
+    assert.equal(
+      await page.locator('[data-slot="sheet-overlay"], [data-slot="dialog-overlay"]').count(),
+      0,
+      'the inspector overlay has no scrim',
+    )
+    assert.equal(geo.horizontalScroll, false, '1080: no horizontal scroll with the overlay open')
+    assert.deepEqual(geo.intrusions, [], '1080 overlay: top-right 144px stays free')
+    assert.deepEqual(geo.blocked, [], '1080 overlay: no clipped or covered controls')
+    await page.screenshot({ path: join(output, 'session-1080-overlay.png') })
+    await page.locator('[data-session-header]').click({ position: { x: 300, y: 20 } })
+    await page.keyboard.press('Escape')
+    await page.locator('[data-inspector-overlay]').waitFor({ state: 'detached' })
+    await page.waitForTimeout(300)
+    assert.deepEqual(aborts, [], 'Esc closes the overlay first and does not stop the run')
+    assert.equal(await page.evaluate(() => location.hash), `#/board/${BOARD_SESSION_ID}`)
+    await context.close()
+  }
+  report.checks.push(
+    '1080x680 with the simulated custom title bar: 36px single-line strip, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header, the conversation makes room so stop, send and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; ⌘I/Esc from the composer keeps focus there, and Esc closes the overlay without stopping the run',
+  )
+
+  // 7c. 手机 App 390×844：会话页保持手机外壳的单会话视图（第 4 期再重做），输入框与返回看板可用。
+  {
+    const { context } = await sessionContext(
+      {
+        viewport: { width: 390, height: 844 },
+        colorScheme: 'light',
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+      },
+      { mobileApp: true },
+    )
+    const page = await openBoard(context, 'session phone')
+    await openSession(page)
+    const phone = await page.evaluate(() => ({
+      strip: document.querySelectorAll('[data-lane-strip]').length,
+      shell: document.querySelector('[data-session-shell]')?.getAttribute('data-session-shell'),
+      tabBar: Boolean(document.querySelector('[data-testid="mobile-tab-bar"]')),
+      horizontalScroll: document.documentElement.scrollWidth > innerWidth,
+    }))
+    assert.deepEqual(phone, { strip: 0, shell: 'phone', tabBar: true, horizontalScroll: false })
+    const prompt = page.locator('.focus-composer textarea')
+    assert.equal(await prompt.isVisible(), true)
+    await prompt.fill('手机会话页的草稿')
+    assert.equal(await prompt.inputValue(), '手机会话页的草稿')
+    const back = page.getByRole('button', { name: /^返回看板/ })
+    const backBox = await back.boundingBox()
+    assert.ok(backBox && backBox.height >= 44, `phone back target ${JSON.stringify(backBox)}`)
+    await page.screenshot({ path: join(output, 'session-phone.png') })
+    await back.click()
+    await page.locator('[data-board-root]').waitFor()
+    await context.close()
+  }
+  report.checks.push(
+    'Phone app 390x844: the session page keeps the phone single-session view (no lane strip, bottom tab bar, composer usable, 44px back-to-board target, no horizontal scroll)',
+  )
+
+  // 7d. 会话页头“⋯ › 重命名会话”（旧侧栏的右键重命名随外壳退役）：空白名不能保存、取消不发请求；
+  // 保存经真实 Runtime 的 PATCH，页头标题与 Runtime 同步。这一段会话不在运行（运行中不允许改名）。
+  {
+    const { context, fixture } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      {
+        bridge: desktopBridgeScript,
+        sessions: [
+          ...boardFixture().sessions,
+          { ...realItem, pinned: false, unread: false, needsAttention: false, streaming: false },
+        ],
+      },
+    )
+    // /live 直接交给真实 Runtime（空闲）；改名请求转发给 Runtime 后同步写进看板目录的固定数据，
+    // 这样之后的目录刷新不会把标题改回去。
+    await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/live`), (route) =>
+      route.continue(),
+    )
+    const renames = []
+    await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}$`), async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback()
+      const response = await route.fetch()
+      const body = await response.json().catch(() => ({}))
+      renames.push({ status: response.status(), name: body.name })
+      if (response.ok()) fixture.update(BOARD_SESSION_ID, { name: body.name })
+      await route.fulfill({ response, json: body })
+    })
+    const page = await openBoard(context, 'session rename')
+    await page.goto(`${base}/#/board/${BOARD_SESSION_ID}`)
+    const title = page.locator('[data-session-header] [data-session-title]')
+    await title.filter({ hasText: BOARD_SESSION_TITLE }).waitFor({ timeout: 30_000 })
+    const openRename = async () => {
+      await page.locator('[data-session-header] [aria-label="项目与任务设置"]').click()
+      await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
+      await dialog.waitFor()
+      return dialog
+    }
+    let dialog = await openRename()
+    assert.equal(await dialog.getByRole('textbox').inputValue(), BOARD_SESSION_TITLE)
+    await dialog.getByRole('textbox').fill('   ')
+    assert.equal(await dialog.getByRole('button', { name: '保存', exact: true }).isDisabled(), true)
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+    assert.deepEqual(renames, [], 'a cancelled rename sends nothing')
+    const renamed = '登录流程重构 · 已改名'
+    dialog = await openRename()
+    await dialog.getByRole('textbox').fill(`  ${renamed}  `)
+    await dialog.getByRole('button', { name: '保存', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+    await title.filter({ hasText: renamed }).waitFor()
+    assert.deepEqual(renames, [{ status: 200, name: renamed }])
+    const stored = await fetch(`${base}/api/sessions`).then((response) => response.json())
+    assert.equal(
+      stored.sessions.find((session) => session.id === BOARD_SESSION_ID)?.name,
+      renamed,
+      'the runtime stores the trimmed name',
+    )
+    await context.close()
+  }
+  report.checks.push(
+    'Session header ⋯ › 重命名会话: a blank name cannot be saved and cancelling sends nothing; saving trims the name, PATCHes the real runtime once and updates the header title',
   )
 
   assert.deepEqual(report.pageErrors, [])

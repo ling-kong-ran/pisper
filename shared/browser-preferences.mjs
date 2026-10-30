@@ -4,6 +4,8 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // UI Store v2：UI/代码数值字号分别默认14/12，旧三档恢复13.5/14/14.5；不保存输入草稿。
   'pisper-ui',
   'pisper-session-context-layout',
+  // 会话页检查器：开关、当前标签、宽度与改动 / 终端子视图（规格 4.4）。
+  'pisper-session-inspector',
   'pisper-composer-toolbar',
   // 旧键保留在恢复白名单中，输入栏 Store 首次读取时迁到新名称。
   'pisper-zcode-composer-toolbar',

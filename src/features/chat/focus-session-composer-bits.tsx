@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
+import { formatCompactDuration, formatTokenCount } from '@/lib/format'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { QueueSection } from '@/components/ai-elements/queue'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatStepDuration } from '@/features/chat/run-activity-presentation'
 import { runDurationMs } from '@/features/chat/run-activity'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
@@ -56,6 +57,17 @@ export function QueuedInputsTray({
                   className="line-clamp-2 min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]"
                   title={item.text}
                 >
+                  {/* 运行中 ↵ 排队（followUp，本轮结束后再交给代理）与 ⌥↵ 插话（steer，下一步就读到）分开标注。 */}
+                  {(item.behavior === 'followUp' || item.behavior === 'steer') && (
+                    <span
+                      className="mr-1.5 inline-flex h-4.5 items-center rounded-xs bg-surface-muted px-1 align-[1px] text-[11px] font-medium text-content-secondary"
+                      data-queued-behavior={item.behavior}
+                    >
+                      {item.behavior === 'followUp'
+                        ? t('board:composer.queuedFollowUp')
+                        : t('board:composer.queuedSteer')}
+                    </span>
+                  )}
                   {item.text}
                 </span>
                 <Tooltip>
@@ -120,6 +132,7 @@ function runningToolTarget(activity?: EntityRecord | null) {
 }
 
 // 每秒刷新只留在这段计时文字内，避免整个输入区随计时器重渲染；缺少开始时间时不以 0 冒充。
+// 与会话页头、泳道条同一种紧凑写法（27s、1m07s），同一个运行不出现两种计时格式。
 function RunElapsed({ startedAt }: { startedAt?: string | null }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -130,18 +143,72 @@ function RunElapsed({ startedAt }: { startedAt?: string | null }) {
   if (!elapsed) return null
   return (
     <>
-      <span aria-hidden="true" className="text-content-faint">
+      <span aria-hidden="true" className="text-content-muted">
         ·
       </span>
-      <span aria-hidden="true" className="shrink-0 text-content-secondary tabular-nums">
-        {formatStepDuration(elapsed, true)}
+      <span aria-hidden="true" className="shrink-0 font-mono font-medium text-content tabular-nums">
+        {formatCompactDuration(elapsed)}
       </span>
     </>
   )
 }
 
-// 输入框顶部的集成运行条：轨道指示 + 强调色「运行中」+ 工具/计时/命令 + 真实停止按钮，
-// 底边一条强调色进度细线。空闲时整条隐藏；压缩上下文时改用警示色且不提供停止。
+// 会话页运行条右侧的实时读数（规格 4.3）：上下文、Token、缓存命中、排队条数。
+// 只显示真实拿到的数；拿不到的那一项整段不出现，不用 0 或“—”占位。
+export type ComposerRunMetrics = {
+  contextPercent: number | null
+  tokens: number | null
+  cacheHitRate: number | null
+  queued: number
+}
+
+function RunMetrics({ metrics }: { metrics: ComposerRunMetrics }) {
+  const { t } = useI18n()
+  // 会话路由随页加载看板命名空间，运行条读数文案在那里（不占入口常驻的 chat 命名空间）。
+  const parts = [
+    metrics.contextPercent != null && {
+      key: 'context',
+      text: t('board:composer.context', { percent: Math.round(metrics.contextPercent) }),
+      hide: '@max-[520px]/runbar:hidden',
+    },
+    metrics.tokens != null &&
+      metrics.tokens > 0 && {
+        key: 'tokens',
+        text: t('board:composer.tokens', { tokens: formatTokenCount(metrics.tokens) }),
+        hide: '@max-[600px]/runbar:hidden',
+      },
+    metrics.cacheHitRate != null && {
+      key: 'cache',
+      text: t('board:composer.cacheHit', { percent: Math.round(metrics.cacheHitRate) }),
+      hide: '@max-[680px]/runbar:hidden',
+    },
+    metrics.queued > 0 && {
+      key: 'queued',
+      text: t('board:composer.queued', { count: metrics.queued }),
+      hide: '',
+    },
+  ].filter((part): part is { key: string; text: string; hide: string } => Boolean(part))
+  if (!parts.length) return null
+  return (
+    <span
+      className="flex flex-none items-center gap-2 text-content-secondary tabular-nums"
+      data-run-metrics
+    >
+      {parts.map((part) => (
+        <span key={part.key} className={`flex flex-none items-center gap-2 ${part.hide}`}>
+          <span aria-hidden="true" className="text-content-muted">
+            ·
+          </span>
+          {part.text}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+// 输入框顶部的集成运行条：运行中字形 + “运行中”（运行青）+ 工具/计时/命令 + 实时读数 + 真实停止按钮，
+// 底边一条运行青的不确定进度线（只动 transform，减少动效时隐藏）。空闲时整条隐藏；压缩上下文时改用警示色且不提供停止。
+// 运行条是唯一的停止入口：发送键不兼作停止。
 export function ComposerStatusPill({
   compaction,
   streaming,
@@ -150,6 +217,7 @@ export function ComposerStatusPill({
   activity,
   stopping = false,
   onStop,
+  metrics,
 }: {
   compaction?: EntityRecord | null
   streaming?: boolean
@@ -158,6 +226,7 @@ export function ComposerStatusPill({
   activity?: EntityRecord | null
   stopping?: boolean
   onStop?: () => void
+  metrics?: ComposerRunMetrics | null
 }) {
   const { t } = useI18n()
   const compacting = Boolean(compaction?.active)
@@ -165,63 +234,75 @@ export function ComposerStatusPill({
   const target = tool ? runningToolTarget(activity) : ''
   return (
     <div
-      className={`focus-composer-status [&.idle]:hidden [&.running]:border-star-border [&.running]:bg-star-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-4 text-xs text-content-muted pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
+      className={`focus-composer-status @container/runbar [&.idle]:hidden [&.running]:border-st-run-border [&.running]:bg-st-run-soft relative flex h-[34px] min-w-0 shrink-0 items-center gap-2 rounded-t-[inherit] border-b pr-1 pl-3.5 text-xs text-content-secondary pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:pr-0 max-[650px]:pl-3.5 max-[650px]:text-[13px] ${compaction?.active ? 'compacting border-stroke-soft bg-warning-soft text-[var(--warning-strong)]' : streaming ? 'running' : 'idle'}`}
+      data-run-bar={compacting ? 'compacting' : streaming ? 'running' : undefined}
     >
       <span role="status" aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2">
-        <OrbitSpinner className={`size-3.5 ${compacting ? 'text-warning-strong' : ''}`} />
+        {compacting ? (
+          <OrbitSpinner className="size-3.5 text-warning-strong" />
+        ) : (
+          <StatusGlyph status="run" className="size-3.5 text-st-run" />
+        )}
         <span
-          className={`shrink-0 font-medium ${compacting ? 'text-warning-strong' : 'text-accent-fg'}`}
+          className={`shrink-0 font-semibold ${compacting ? 'text-warning-strong' : 'text-st-run'}`}
         >
           {compacting ? t('chat:focusSession.compactingContext') : t('chat:focusSession.running')}
         </span>
-        {streaming && <RunElapsed startedAt={startedAt} />}
         {tool ? (
           <>
-            <span aria-hidden="true" className="text-content-faint">
+            <span aria-hidden="true" className="text-content-muted">
               ·
             </span>
-            <span className="shrink-0 font-mono font-medium text-content-secondary">
+            <span className="shrink-0 font-mono font-semibold text-content">
               {String(activity?.name || '')}
             </span>
-            {target && (
-              <span className="min-w-0 truncate font-mono text-content-muted" title={target}>
-                {target}
-              </span>
-            )}
           </>
-        ) : (
-          streaming &&
-          statusLabel && (
-            <>
-              <span aria-hidden="true" className="text-content-faint">
-                ·
-              </span>
-              <span className="min-w-0 truncate text-content-secondary">{statusLabel}</span>
-            </>
-          )
-        )}
+        ) : null}
+        {streaming && <RunElapsed startedAt={startedAt} />}
+        {tool
+          ? target && (
+              <>
+                <span aria-hidden="true" className="text-content-muted">
+                  ·
+                </span>
+                <span className="min-w-0 truncate font-mono text-content-secondary" title={target}>
+                  {target}
+                </span>
+              </>
+            )
+          : streaming &&
+            statusLabel && (
+              <>
+                <span aria-hidden="true" className="text-content-muted">
+                  ·
+                </span>
+                <span className="min-w-0 truncate text-content-secondary">{statusLabel}</span>
+              </>
+            )}
+        {streaming && !compacting && metrics && <RunMetrics metrics={metrics} />}
       </span>
       {streaming && onStop && (
         <button
           type="button"
-          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-1.5 text-xs text-content-secondary transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:border-l max-[650px]:border-star-border max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:font-medium max-[650px]:text-danger max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
+          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm bg-solid pr-1 pl-2 text-xs font-medium text-content shadow-[inset_0_0_0_1px_var(--stroke-strong)] transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:bg-transparent max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:text-st-fail max-[650px]:shadow-[inset_1px_0_0_var(--st-run-border)] max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
           aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
           title={t('chat:focusSession.stopRunShortcut')}
           aria-busy={stopping || undefined}
           disabled={stopping}
           onClick={onStop}
+          data-run-stop
         >
-          <Kbd className="max-[650px]:hidden pointer-coarse:hidden">Esc</Kbd>
-          <Square size={10} fill="currentColor" className="hidden max-[650px]:block" />
+          <Square size={10} fill="currentColor" className="text-st-fail" aria-hidden="true" />
           {stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
+          <Kbd className="max-[650px]:hidden pointer-coarse:hidden">Esc</Kbd>
         </button>
       )}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-px h-px overflow-hidden"
+        className="pointer-events-none absolute inset-x-0 -bottom-px h-[2px] overflow-hidden [:root[data-motion=reduced]_&]:hidden motion-reduce:[:root:not([data-motion=full])_&]:hidden"
       >
         <span
-          className={`block h-full w-[38%] animate-[hairline-sweep_1.4s_var(--ease)_infinite] ${compacting ? 'bg-warning-strong' : 'bg-star'}`}
+          className={`block h-full w-[30%] animate-[hairline-sweep_1.8s_var(--ease)_infinite] ${compacting ? 'bg-warning-strong' : 'bg-st-run-fill'}`}
         />
       </span>
     </div>

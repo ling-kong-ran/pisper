@@ -2,6 +2,8 @@
 // 整卡参与 roving tabindex：只有当前卡片在 Tab 序列里，卡内按钮也随之进出 Tab 序列。
 // 一张卡片最多一个主操作（--star）：标准审批的“允许”、失败的“重试”；琥珀只用于需要你的元素。
 // 批准前必须看到完整命令：命令框最多显示 3 行，超出用“展开”，从不截断文本本身。
+// 第 2 期 card 摘要有数据才显示（运行中尾巴、失败摘要、结果摘要、改动统计、上下文百分比）；
+// 没有 card 的降级形态保持第 1 期：一行活动、“N 条消息”、按需读 /change-summary。
 import {
   memo,
   useEffect,
@@ -51,13 +53,17 @@ import {
   boardCardTone,
   boardEdgeWidth,
   boardSubAgent,
+  contextPercent,
   elapsedSince,
   guardReasonSummary,
   isGuardReason,
   messageCount,
   modelShortLabel,
   projectLabel,
+  tailLineFailed,
+  visibleChangeStats,
 } from './card-presentation'
+import { useRunningMotion } from './useRunningMotion'
 
 export type AgentCardHandlers = {
   onFocusCard: (sessionId: string) => void
@@ -272,6 +278,56 @@ function ChangeStats({
   )
 }
 
+// card 自带的改动统计（Runtime 在写入类工具结束时缓存）：有它就不再单独读 /change-summary。
+function CardChangeStats({
+  files,
+  added,
+  removed,
+}: {
+  files: number
+  added: number
+  removed: number
+}) {
+  const { t } = useI18n()
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
+      <span>{t('board:card.files', { count: files })}</span>
+      <span className="font-mono text-st-done tabular-nums">+{added}</span>
+      <span className="font-mono text-st-fail tabular-nums">−{removed}</span>
+    </span>
+  )
+}
+
+// 等宽尾巴：最后 2–3 行输出，失败行标红；运行中最后一行带闪烁光标（离屏时静止）。
+// 不用 role="log"：尾巴每 250ms 更新一次，持续播报会淹没读屏，需要时由用户打开会话查看。
+function TailWell({ lines, label, cursor }: { lines: string[]; label: string; cursor: boolean }) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      data-card-tail
+      className="min-w-0 rounded-sm border border-well-stroke bg-well px-2.5 py-1.5 font-mono text-xs leading-5"
+    >
+      {lines.map((line, index) => (
+        <p
+          key={index}
+          data-tail-fail={tailLineFailed(line) || undefined}
+          className={cn('truncate', tailLineFailed(line) ? 'text-st-fail' : 'text-well-text')}
+        >
+          {line}
+          {cursor && index === lines.length - 1 && (
+            <span
+              aria-hidden="true"
+              data-tail-cursor
+              className="ml-0.5 inline-block h-3 w-1.5 translate-y-0.5 bg-well-muted animate-[caret-blink_1s_steps(1,end)_infinite]"
+            />
+          )}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 function Duration({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex flex-none items-baseline gap-1 text-xs whitespace-nowrap text-content-muted">
@@ -291,10 +347,22 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
   const critical = approval?.severity === 'critical'
   const restCritical = item.approvals.slice(1).some((entry) => entry.severity === 'critical')
   const subAgent = boardSubAgent(item)
+  const agentCounts = item.agents
   const model = modelShortLabel(item.session.model)
   const messages = messageCount(item)
+  const context = contextPercent(item)
+  // 第 N 轮 / 上下文：Runtime 给出上下文用量时显示百分比，否则如实写消息条数，不从条数估算轮次。
+  const countLabel =
+    context !== null
+      ? t('board:card.context', { pct: context })
+      : messages > 0
+        ? t('board:card.messages', { count: messages })
+        : ''
   const project = item.cwd ? projectLabel(item.cwd) : ''
-  const meta = useMetaFit(`${project}\u0000${model}\u0000${messages}`)
+  const meta = useMetaFit(`${project}\u0000${model}\u0000${countLabel}`)
+  const cardRef = useRef<HTMLElement>(null)
+  const running = item.status === 'running'
+  const motion = useRunningMotion(cardRef, running)
   const elapsed = elapsedSince(item.since, now)
   const statusLabel =
     item.status === 'failed' && item.handled
@@ -370,9 +438,22 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
           starting: t('board:activity.starting'),
           thinking: t('board:activity.thinking'),
           responding: t('board:activity.responding'),
+          compacting: t('board:activity.compacting'),
         } as Record<string, string>
       )[activity.stage] || t('board:activity.working')
     return <p className="truncate text-xs text-content-secondary">{stage}</p>
+  }
+
+  // 运行中：有尾巴时先放等宽尾巴，活动行作为脚注；降级形态只有一行活动，卡片保持矮小。
+  const runningBody = () => {
+    const activity = activityLine()
+    if (!item.tail.length) return activity
+    return (
+      <div className="grid min-w-0 gap-1.5">
+        <TailWell lines={item.tail} label={t('board:card.tail')} cursor={motion.spin} />
+        {activity}
+      </div>
+    )
   }
 
   const approvalBody = () => {
@@ -508,16 +589,34 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 3)
+    // card 的错误摘要只有一行；再补上失败前最后的输出（最多 2 行），失败行标红，帮助判断。
+    const tail = item.tail.slice(-Math.max(0, 3 - lines.length))
     return (
       <div className="grid min-w-0 gap-2">
-        {lines.length > 0 && (
-          <div className="min-w-0 rounded-sm border border-well-stroke bg-well px-2.5 py-1.5 font-mono text-xs leading-5">
-            <p className="truncate text-st-fail">
-              <span aria-hidden="true">× </span>
-              {lines[0]}
-            </p>
+        {(lines.length > 0 || tail.length > 0) && (
+          <div
+            data-card-error
+            className="min-w-0 rounded-sm border border-well-stroke bg-well px-2.5 py-1.5 font-mono text-xs leading-5"
+          >
+            {lines.length > 0 && (
+              <p className="truncate text-st-fail">
+                <span aria-hidden="true">× </span>
+                {lines[0]}
+              </p>
+            )}
             {lines.slice(1).map((line, index) => (
               <p key={index} className="truncate text-well-muted">
+                {line}
+              </p>
+            ))}
+            {tail.map((line, index) => (
+              <p
+                key={`tail-${index}`}
+                className={cn(
+                  'truncate',
+                  tailLineFailed(line) ? 'text-st-fail' : 'text-well-muted',
+                )}
+              >
                 {line}
               </p>
             ))}
@@ -568,28 +667,45 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
     )
   }
 
+  const cardStats = visibleChangeStats(item)
+  // card 带了改动统计（哪怕是 unavailable）就不再单独读 /change-summary；没有 card 时按需懒加载。
+  const lazyStats = !item.changeStats
   const doneBody = () => (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <ChangeStats
-        sessionId={item.id}
-        completedAt={
-          typeof item.session.lastCompletedAt === 'string' ? item.session.lastCompletedAt : null
-        }
-      />
-      <div className="ml-auto flex items-center gap-1">
-        <Button variant="outline" size={buttonSize} tabIndex={tabIndex} onClick={open}>
-          <FileDiff aria-hidden="true" />
-          {t('board:card.viewChanges')}
-        </Button>
-        <Button
-          variant="ghost"
-          size={buttonSize}
-          tabIndex={tabIndex}
-          disabled={handlers.isPending('archive', item.id)}
-          onClick={() => handlers.onArchive(item)}
+    <div className="grid min-w-0 gap-2">
+      {item.preview && (
+        <p
+          data-card-preview
+          className="line-clamp-2 text-xs leading-5 break-words text-content-secondary"
         >
-          {t('board:card.archive')}
-        </Button>
+          {item.preview}
+        </p>
+      )}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {cardStats ? (
+          <CardChangeStats {...cardStats} />
+        ) : lazyStats ? (
+          <ChangeStats
+            sessionId={item.id}
+            completedAt={
+              typeof item.session.lastCompletedAt === 'string' ? item.session.lastCompletedAt : null
+            }
+          />
+        ) : null}
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="outline" size={buttonSize} tabIndex={tabIndex} onClick={open}>
+            <FileDiff aria-hidden="true" />
+            {t('board:card.viewChanges')}
+          </Button>
+          <Button
+            variant="ghost"
+            size={buttonSize}
+            tabIndex={tabIndex}
+            disabled={handlers.isPending('archive', item.id)}
+            onClick={() => handlers.onArchive(item)}
+          >
+            {t('board:card.archive')}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -600,13 +716,14 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       : item.status === 'failed'
         ? failureBody()
         : item.status === 'running'
-          ? activityLine()
+          ? runningBody()
           : item.lane === 'done'
             ? doneBody()
             : null
 
   return (
     <article
+      ref={cardRef}
       data-board-card={item.id}
       data-lane={item.lane}
       data-status={item.status}
@@ -634,13 +751,23 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       <span
         aria-hidden="true"
         data-card-edge
-        className={cn('absolute inset-y-0 left-0', EDGE_CLASSES[tone])}
+        className={cn('absolute inset-y-0 left-0 overflow-hidden', EDGE_CLASSES[tone])}
         style={{ width: edge }}
-      />
+      >
+        {/* 运行中沿边扫光：只动 transform；离屏、超过 6 张或减少动效时不挂载。 */}
+        {motion.sweep && (
+          <span
+            data-card-sweep
+            className="absolute inset-x-0 top-0 h-1/3 -translate-y-full bg-linear-to-b from-transparent via-solid/80 to-transparent animate-[edge-sweep_2.4s_linear_infinite]"
+          />
+        )}
+      </span>
       <div className="flex min-w-0 items-center gap-2">
         <StatusTag
           status={BOARD_STATUS_GLYPHS[item.status]}
           tone={item.status === 'failed' ? 'fail' : undefined}
+          // 运行中图标只在卡片可见时旋转。
+          spin={running ? motion.spin : undefined}
         >
           {statusLabel}
         </StatusTag>
@@ -706,7 +833,7 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       >
         {title}
       </h3>
-      {(project || model || messages > 0) && (
+      {(project || model || countLabel) && (
         <p
           ref={meta.ref}
           className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs whitespace-nowrap text-content-muted data-overflowing:[mask-image:linear-gradient(to_right,black_calc(100%-20px),transparent)]"
@@ -729,25 +856,49 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
               <span>{model}</span>
             </span>
           )}
-          {messages > 0 && meta.fit !== 'projectOnly' && (
-            <span data-meta-part="count" className="flex flex-none items-center gap-1.5">
+          {countLabel && meta.fit !== 'projectOnly' && (
+            <span
+              data-meta-part="count"
+              data-meta-context={context !== null || undefined}
+              className="flex flex-none items-center gap-1.5"
+            >
               <span aria-hidden="true">·</span>
-              {t('board:card.messages', { count: messages })}
+              <span className={cn(context !== null && 'tabular-nums')}>{countLabel}</span>
             </span>
           )}
         </p>
       )}
       {body && <div className="mt-1 min-w-0">{body}</div>}
-      {subAgent && (
-        <p className="flex min-w-0 items-center gap-1.5 border-t border-stroke-soft pt-2 text-xs text-content-secondary">
+      {(subAgent || (agentCounts && agentCounts.running > 0)) && (
+        <p
+          data-card-agents
+          className="flex min-w-0 items-center gap-1.5 border-t border-stroke-soft pt-2 text-xs text-content-secondary"
+        >
           <CornerDownRight className="size-3.5 flex-none text-content-muted" aria-hidden="true" />
           <span className="flex-none">{t('board:card.subAgent')}</span>
           <span aria-hidden="true">·</span>
-          <span className="min-w-0 truncate">{subAgent.name}</span>
-          {subAgent.extra > 0 && (
-            <span className="flex-none font-mono tabular-nums text-content-muted">
-              +{subAgent.extra}
+          <span className="min-w-0 truncate">
+            {subAgent?.name ||
+              t('board:card.subAgentsRunning', { count: agentCounts?.running ?? 0 })}
+          </span>
+          {agentCounts ? (
+            // card 的汇总包含已结束的子代理：显示“运行中 / 总数”，比名字后的 +N 更完整。
+            <span
+              className="ml-auto flex-none font-mono tabular-nums text-content-muted"
+              title={t('board:card.subAgentProgress', agentCounts)}
+            >
+              <span aria-hidden="true">
+                {agentCounts.running}/{agentCounts.total}
+              </span>
+              <span className="sr-only">{t('board:card.subAgentProgress', agentCounts)}</span>
             </span>
+          ) : (
+            subAgent &&
+            subAgent.extra > 0 && (
+              <span className="flex-none font-mono tabular-nums text-content-muted">
+                +{subAgent.extra}
+              </span>
+            )
           )}
         </p>
       )}

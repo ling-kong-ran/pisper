@@ -1,5 +1,5 @@
 // 会话工作流运行记录：展示会话关联的工作流运行历史与状态。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, CircleX, Square, Workflow, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,14 @@ function statusCopy(status: string, t: ReturnType<typeof useI18n>['t']) {
   return t('chat:workflowRun.interrupted')
 }
 
-export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
+// empty：会话页“⋯ → 工作流运行记录”对话框里没有记录时的说明；输入框上方的内联列表不传，保持不占位。
+export function SessionWorkflowRuns({
+  sessionId,
+  empty = null,
+}: {
+  sessionId: string
+  empty?: ReactNode
+}) {
   const { t } = useI18n()
   const [runs, setRuns] = useState<EntityRecord[]>([])
   const [expanded, setExpanded] = useState('')
@@ -39,7 +46,7 @@ export function SessionWorkflowRuns({ sessionId }: { sessionId: string }) {
     return () => window.clearInterval(timer)
   }, [load])
 
-  if (!runs.length) return null
+  if (!runs.length) return empty
   // 与工具活动日志同一语言：一张细线卡片，运行逐行以发丝线分隔；状态方块同时带形状与颜色，
   // 运行中使用品牌轨道指示，计数与进度用等宽数字。
   const context =

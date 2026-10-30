@@ -40,6 +40,40 @@ const RECOVERY_EMPTY_GRACE_MS = 10_000
 
 type SessionsUpdate = SessionSummary[] | ((current: SessionSummary[]) => SessionSummary[])
 type SessionCatalogData = { sessions: SessionSummary[] }
+type ChatConfigData = Awaited<ReturnType<typeof chatApi.getConfig>>
+
+// 可用模型与默认模型的口径：只列已配置且启用的服务商里的对话模型。
+function configModels(
+  configData: ChatConfigData,
+  t: ReturnType<typeof useI18n>['t'],
+): { defaultModel: string; availableModels: ModelOption[] } {
+  return {
+    defaultModel: configData.model
+      ? `${configData.provider}/${configData.model}`
+      : t('chat:chatPage.noModelConfigured'),
+    availableModels: configData.providers.flatMap((provider) =>
+      provider.configured && provider.enabled
+        ? provider.models
+            .filter((item) => item.kind === 'chat')
+            .map((item) => ({
+              key: `${provider.id}/${item.id}`,
+              provider: provider.id,
+              modelId: item.id,
+              label: item.name || item.id,
+              providerName: provider.name || provider.id,
+            }))
+        : [],
+    ),
+  }
+}
+
+// 会话页离开再进入（看板 ↔ 会话）时，目录与配置都已在共享缓存里：直接用缓存起步，
+// 不再显示“正在唤醒”、也不重新拉整个目录。目录由看板 store 持续保鲜（事件流或轮询）。
+function cachedCatalog(queryClient: ReturnType<typeof useQueryClient>) {
+  const sessions = queryClient.getQueryData<SessionCatalogData>(SESSIONS_QUERY_KEY)?.sessions
+  const config = queryClient.getQueryData<ChatConfigData>(['config'])
+  return Array.isArray(sessions) && sessions.length && config ? { sessions, config } : null
+}
 
 type SessionCatalogOptions = {
   notify: Notify
@@ -52,15 +86,20 @@ type CreateSessionOptions = {
 export function useSessionCatalog({ notify }: SessionCatalogOptions) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
-  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [seed] = useState(() => cachedCatalog(queryClient))
+  const [sessions, setSessions] = useState<SessionSummary[]>(() => seed?.sessions ?? [])
   const [activeId, setActiveId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
   const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!seed)
   const [globalError, setGlobalError] = useState('')
-  const [defaultModel, setDefaultModel] = useState(() => t('chat:chatPage.waitingForConfiguration'))
-  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+  const [defaultModel, setDefaultModel] = useState(() =>
+    seed ? configModels(seed.config, t).defaultModel : t('chat:chatPage.waitingForConfiguration'),
+  )
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>(() =>
+    seed ? configModels(seed.config, t).availableModels : [],
+  )
   const sessionsRef = useRef(sessions)
   const sessionStatesRef = useRef(sessionStates)
   // 面板级订阅：每个 Dock 面板只关心自己会话的 state，
@@ -376,29 +415,15 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     let active = true
     let titleRevision = titleReconciler.getRevision()
     // 懒加载聊天页可能晚于壳层请求完成，首次读取也须复用尚未失效的共享快照。
-    Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
+    const initial: Promise<[SessionCatalogData, ChatConfigData]> = seed
+      ? Promise.resolve([{ sessions: seed.sessions }, seed.config])
+      : Promise.all([chatApi.listSessions({ refresh: false }), chatApi.getConfig()])
+    initial
       .then(async ([sessionData, configData]) => {
         if (!active) return
-        setDefaultModel(
-          configData.model
-            ? `${configData.provider}/${configData.model}`
-            : t('chat:chatPage.noModelConfigured'),
-        )
-        setAvailableModels(
-          configData.providers.flatMap((provider) =>
-            provider.configured && provider.enabled
-              ? provider.models
-                  .filter((item) => item.kind === 'chat')
-                  .map((item) => ({
-                    key: `${provider.id}/${item.id}`,
-                    provider: provider.id,
-                    modelId: item.id,
-                    label: item.name || item.id,
-                    providerName: provider.name || provider.id,
-                  }))
-              : [],
-          ),
-        )
+        const models = configModels(configData, t)
+        setDefaultModel(models.defaultModel)
+        setAvailableModels(models.availableModels)
         let list = sessionData.sessions
         if (
           !list.length &&
@@ -468,7 +493,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     return () => {
       active = false
     }
-  }, [notify, t, titleReconciler, updateSessionState, updateSessions])
+  }, [notify, seed, t, titleReconciler, updateSessionState, updateSessions])
 
   useEffect(() => {
     if (activeId) pageStateStorage.setItem(STORAGE_KEYS.activeSession, activeId)

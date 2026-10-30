@@ -12,10 +12,10 @@ export type FleetSummaryResult = FleetSummary & {
 }
 
 export function useFleetSummary(): FleetSummaryResult {
-  const { query, items, capabilities } = useBoardItems('today')
+  const { query, items, capabilities, isLoading } = useBoardItems('today')
   const summary = useMemo(() => summarizeFleet(items), [items])
   return useMemo(
-    () => ({ ...summary, capabilities, isLoading: query.isPending, error: query.error ?? null }),
-    [capabilities, query.error, query.isPending, summary],
+    () => ({ ...summary, capabilities, isLoading, error: query.error ?? null }),
+    [capabilities, isLoading, query.error, summary],
   )
 }

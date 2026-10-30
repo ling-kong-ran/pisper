@@ -19,9 +19,16 @@ import type { AgentCardHandlers } from './AgentCard'
 import type { ApprovalConfirmTarget } from './ApprovalConfirm'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
-import { clearBoardReturn, peekBoardReturn, rememberBoardReturn } from './board-return'
+import {
+  boardReturnRect,
+  clearBoardReturn,
+  flipFrom,
+  freshReturnRect,
+  peekBoardReturn,
+  rememberBoardReturn,
+} from './board-return'
 import type { LaneHandle } from './LaneColumn'
-import { collapseCard } from './useLaneMotion'
+import { collapseCard, motionReduced } from './useLaneMotion'
 import { useBoardActions } from './useBoardActions'
 
 export type BoardNavLane = { lane: BoardLane; items: BoardItem[] }
@@ -142,7 +149,13 @@ export function useBoardController({
             (element.hasAttribute('data-board-matrix') ? 'matrix' : 'sections')
           scroll[key] = element.scrollTop
         })
-      rememberBoardReturn({ focusId: sessionId, scroll })
+      // 来源卡片的位置交给会话页泳道条：卡片缩进它在泳道条里的芯片（FLIP，只动 transform）。
+      const origin = boardReturnRect(cardIn(rootRef.current, sessionId))
+      rememberBoardReturn({
+        focusId: sessionId,
+        scroll,
+        ...(origin ? { origin: { ...origin, at: Date.now() } } : {}),
+      })
       onOpenSession(sessionId)
     },
     [onOpenSession, rootRef],
@@ -210,7 +223,9 @@ export function useBoardController({
             sessionId: confirmSession,
             title: confirmTitle,
             cwd: confirmCwd,
-            approval: shownApproval,
+            // 与泳道条一致：截断的预览不能拿来批准，确认层显示“正在读取审批详情”并禁用确认，
+            // 等 /live 给出完整参数（读取失败时一直保持禁用）。
+            approval: shownApproval && !shownApproval.truncated ? shownApproval : null,
           }
         : null,
     [confirmCwd, confirmSession, confirmTitle, shownApproval],
@@ -485,6 +500,10 @@ export function useBoardController({
       })
     if (allIds.includes(state.focusId)) {
       setActiveId(state.focusId)
+      // 从泳道条返回：卡片从它在泳道条里的芯片位置展开回去（减少动效时跳过）。
+      const from = freshReturnRect(state.from)
+      const card = cardIn(rootRef.current, state.focusId)
+      if (from && card && !motionReduced()) flipFrom(card, from)
       requestAnimationFrame(() =>
         cardIn(rootRef.current, state.focusId)?.focus({ preventScroll: true }),
       )
@@ -516,5 +535,140 @@ export function useBoardController({
     exitTriage,
     skipFlipRef,
     bindings,
+  }
+}
+
+// —— 会话页泳道条与代理面板的审批 ——
+// 与看板控制器同一套规则：标准审批一步允许；critical（或拿不到完整详情）只打开确认层，
+// 只有确认层（按住 0.6 秒或层内 ↵）回调 confirmStripApproval 才带 confirmCritical。
+// 放在本文件里，是为了让“能批准 critical 的代码只在控制器文件里”这条源码守卫继续成立。
+type StripConfirmState = {
+  sessionId: string
+  approvalId: string
+  title: string
+  cwd: string
+  snapshot: BoardApproval | null
+  pending: boolean
+  error: string
+}
+
+export function useStripApprovals({
+  attentionAll,
+  notify,
+}: {
+  attentionAll: readonly BoardItem[]
+  notify: Notify
+}) {
+  const { t } = useI18n()
+  const actions = useBoardActions()
+  const actionsRef = useRef(actions)
+  actionsRef.current = actions
+  const [confirm, setConfirm] = useState<StripConfirmState | null>(null)
+
+  const report = useCallback(
+    (result: Awaited<ReturnType<typeof actions.approve>>) => {
+      if (result.ok || result.reason === 'pending') return
+      notify(t('board:action.failed'), 'error')
+    },
+    [notify, t],
+  )
+
+  const review = useCallback((item: BoardItem, approval: BoardApproval | null) => {
+    setConfirm({
+      sessionId: item.id,
+      approvalId: approval?.id ?? '',
+      title: item.title,
+      cwd: item.cwd,
+      snapshot: approval,
+      pending: false,
+      error: '',
+    })
+  }, [])
+
+  const approve = useCallback(
+    (item: BoardItem, approval: BoardApproval) => {
+      if (approval.severity === 'critical' || approval.truncated) {
+        review(item, approval)
+        return
+      }
+      void actionsRef.current
+        .approve(item.id, approval.id, { confirmCritical: false })
+        .then((result) => {
+          if (!result.ok && result.reason === 'confirmation-required') review(item, approval)
+          else report(result)
+        })
+    },
+    [report, review],
+  )
+
+  const deny = useCallback(
+    (item: BoardItem, approval: BoardApproval) => {
+      void actionsRef.current.deny(item.id, approval.id).then(report)
+    },
+    [report],
+  )
+
+  const retry = useCallback(
+    (item: BoardItem) => {
+      void actionsRef.current.retry(item.id).then(report)
+    },
+    [report],
+  )
+
+  // 确认层展示的审批按 id 从最新数据解析；别处处理掉时关闭并说明。
+  const item = confirm ? attentionAll.find((entry) => entry.id === confirm.sessionId) : undefined
+  const live = confirm
+    ? ((confirm.approvalId
+        ? item?.approvals.find((entry) => entry.id === confirm.approvalId)
+        : item?.approvals[0]) ?? null)
+    : null
+  const shown = live ?? (confirm?.pending ? confirm.snapshot : null)
+  const target = useMemo<ApprovalConfirmTarget | null>(
+    () =>
+      confirm
+        ? {
+            sessionId: confirm.sessionId,
+            title: item?.title || confirm.title,
+            cwd: item?.cwd ?? confirm.cwd,
+            // 截断的预览不能用来批准：等 /live 给出完整参数。
+            approval: shown && !shown.truncated ? shown : null,
+          }
+        : null,
+    [confirm, item?.cwd, item?.title, shown],
+  )
+  const gone =
+    Boolean(confirm) &&
+    !confirm?.pending &&
+    (!item || item.status !== 'approval' || (item.approvalsState === 'ready' && !live))
+  useEffect(() => {
+    if (!gone) return
+    setConfirm(null)
+    notify(t('board:confirm.resolvedElsewhere'))
+  }, [gone, notify, t])
+
+  const confirmStripApproval = useCallback(async () => {
+    const current = confirm
+    const approval = target?.approval
+    if (!current || !approval || current.pending) return
+    setConfirm({ ...current, approvalId: approval.id, snapshot: approval, pending: true })
+    const result = await actionsRef.current.approve(current.sessionId, approval.id, {
+      confirmCritical: true,
+    })
+    if (result.ok) setConfirm(null)
+    else if (result.reason !== 'pending')
+      setConfirm((state) =>
+        state ? { ...state, pending: false, error: t('board:action.failed') } : state,
+      )
+  }, [confirm, t, target?.approval])
+
+  return {
+    approve,
+    deny,
+    retry,
+    review,
+    isPending: actions.isPending,
+    confirm: confirm ? { target, pending: confirm.pending, error: confirm.error } : null,
+    closeConfirm: () => setConfirm(null),
+    confirmStripApproval,
   }
 }

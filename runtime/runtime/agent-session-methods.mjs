@@ -13,6 +13,8 @@ import {
   sessionInputQueueRevision,
   withdrawQueuedSessionInput,
 } from './session-input-queue.mjs'
+import { normalizePersistedCard, projectSessionCard } from '../services/session-card-summary.mjs'
+import { buildBoardView, sortBoardViewItems } from '../services/session-board-view.mjs'
 
 // 非常驻会话的模型选择：与常驻路径共用同一套绑定推导（显式 model_change 优先于
 // provider 回显），避免网关改写回显后思考等级对齐到错误模型。
@@ -49,6 +51,60 @@ function supportsLightweightSessionConfiguration(runtime) {
 export const agentSessionMethods = {
   async listSessions() {
     return this.sessionLifecycle.listSessions()
+  },
+
+  // 看板卡片：事件摘要（内存）+ 落盘摘要（已加载的元数据）+ 审批 / 子代理 / 排队的实时状态。
+  // 全部来自内存，不打开会话文件、不读消息分页。
+  boardCardFor(session, { now, doneWindow, timeZoneOffsetMinutes }) {
+    const id = session.id
+    return projectSessionCard({
+      session,
+      entry: this.sessionCards?.entry(id) || null,
+      persisted: normalizePersistedCard(this.sessionMeta?.[id]?.boardCard),
+      live: this.liveSessions?.get(id) || null,
+      approvals: this.permissions.getPending(id),
+      agents: this.multiAgents.summaries(id),
+      now,
+      doneWindow,
+      timeZoneOffsetMinutes,
+    })
+  },
+
+  // GET /api/sessions?view=board：现有列表字段 + card，按看板资格过滤后游标分页。
+  // revision 是读取前的事件流修订号，客户端可带 after=revision 接上 /api/board/events 而不漏变化。
+  async listBoardSessions({ cwds, lanes, limit, cursor, doneWindow, timeZoneOffsetMinutes }) {
+    const revision = this.boardEvents?.revision ?? null
+    const now = Date.now()
+    const items = (await this.listSessions()).map((session) => ({
+      ...session,
+      card: this.boardCardFor(session, { now, doneWindow, timeZoneOffsetMinutes }),
+    }))
+    const view = buildBoardView(items, { cwds, lanes, limit, cursor })
+    return {
+      view: 'board',
+      sessions: view.sessions,
+      nextCursor: view.nextCursor,
+      total: view.total,
+      ...(revision !== null ? { revision } : {}),
+    }
+  },
+
+  // 看板事件流的数据源：ids 为空时返回全部会话（快照），否则只投影这些会话。
+  // 不上看板（idle）或已不存在的会话映射为 null，集线器据此发 removed。
+  async boardHubItems(ids) {
+    const now = Date.now()
+    const wanted = ids ? new Set(ids) : null
+    const projected = []
+    for (const session of await this.listSessions()) {
+      if (wanted && !wanted.has(session.id)) continue
+      projected.push({ ...session, card: this.boardCardFor(session, { now, doneWindow: '7d' }) })
+    }
+    const result = new Map()
+    for (const { card, ...session } of sortBoardViewItems(projected))
+      result.set(session.id, { id: session.id, session, card })
+    for (const item of projected) if (!result.has(item.id)) result.set(item.id, null)
+    for (const id of wanted || []) if (!result.has(id)) result.set(id, null)
+    return result
   },
 
   async createSession(name, cwd) {

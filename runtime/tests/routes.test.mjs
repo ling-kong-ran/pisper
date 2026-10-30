@@ -142,4 +142,8 @@ test('the retired widgets settings tab and legacy callers redirect to the compon
     app,
     /if \(nextSection === 'interface' && view === 'widgets'\) routerNavigate\(PAGE_PATHS\.components\)/,
   )
+  // 应用内链接直接指向组件页，旧地址只留给外部书签，不再多转一跳。
+  const toolPage = await readFile('src/features/custom-ui/CustomUiToolPage.tsx', 'utf8')
+  assert.match(toolPage, /<Link to=\{PAGE_PATHS\.components\}>/)
+  assert.doesNotMatch(toolPage, /view=widgets/)
 })

@@ -20,6 +20,8 @@ export function TaskFileDiff({
   revision = 0,
   position,
   onReading,
+  mode,
+  fill = false,
 }: {
   sessionId: string
   path: string
@@ -27,6 +29,9 @@ export function TaskFileDiff({
   revision?: number
   position?: ResourceReadingPosition
   onReading?: (position: ResourceReadingPosition) => void
+  // 检查器“改动”详情区：统一 / 并排视图，并让差异区填满剩余高度。
+  mode?: 'unified' | 'split'
+  fill?: boolean
 }) {
   const { t } = useI18n()
   const query = useQuery<{ diff: string; diffTruncated?: boolean }>({
@@ -61,6 +66,8 @@ export function TaskFileDiff({
         onReading={onReading}
         diff={query.data.diff}
         truncated={query.data.diffTruncated}
+        mode={mode}
+        fill={fill}
       />
     </Suspense>
   )

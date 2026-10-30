@@ -235,6 +235,7 @@
   "shell.systemInfo": "系统信息",
   "shell.todayTokens": "今日 {tokens} tok",
   "shell.memory": "内存 {size}",
+  "shell.subAgents": "子代理 {running}/{max}",
   "shell.untitledSession": "未命名会话",
   "shell.backToBoard": "看板",
   "shell.backToBoardLabel": "返回看板",

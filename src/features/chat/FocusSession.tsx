@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom'
-import { useContext } from 'react'
+import { Fragment, useContext, useMemo } from 'react'
 import { SessionRouteLeading } from './session-route-chrome'
+import { SessionPageChromeContext, TranscriptMetaContext } from './session-workspace-context'
+import { SessionPageHeader } from './SessionPageHeader'
 import { TaskWorkspaceSlots } from './task-workspace-context'
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
@@ -74,9 +76,16 @@ import type { FocusSessionProps } from '@/features/chat/focus-session-props'
 import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
+import { steerBindingFor } from '@/features/chat/composer-run-input'
 import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
-import { matchesShortcut, shortcutEventBlocked, useShortcutLabel } from '@/lib/shortcuts'
+import {
+  formatShortcut,
+  isEditableTarget,
+  matchesShortcut,
+  shortcutEventBlocked,
+  useShortcutLabel,
+} from '@/lib/shortcuts'
 
 export type { FocusSessionProps }
 
@@ -107,6 +116,22 @@ const TRAY_FLOATING_SELECTOR = [
   '.composer-tool-tray-shell',
   TRAY_CHILD_FLOATING_SELECTOR,
 ].join(', ')
+
+// Esc 先交给打开的菜单、弹层、对话框（与 BackNavigation 同一判定），它们都关着才轮到“停止运行”。
+function escapeLayerOpen() {
+  return (
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        `[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], ${TRAY_CHILD_FLOATING_SELECTOR}`,
+      ),
+    ].some(
+      (element) =>
+        element.dataset.state !== 'closed' &&
+        element.getAttribute('aria-hidden') !== 'true' &&
+        element.getClientRects().length > 0,
+    ) || Boolean(document.querySelector('.composer-tool-tray-shell'))
+  )
+}
 
 export const FocusSession = memo(function FocusSession({
   session,
@@ -188,6 +213,8 @@ export const FocusSession = memo(function FocusSession({
   const slots = useContext(TaskWorkspaceSlots)
   // 会话页（路由模式）的返回入口：放在顶栏最左侧，不再单独占一行。
   const routeLeading = useContext(SessionRouteLeading)
+  // 会话页（桌面布局）：页头换成 44px 会话页头，返回入口在泳道条上。
+  const pageChrome = useContext(SessionPageChromeContext)
   const { t, language } = useI18n()
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const theme = useUiStore((state) => state.theme)
@@ -215,12 +242,22 @@ export const FocusSession = memo(function FocusSession({
   const [scrollRequest, setScrollRequest] = useState(0)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  const panelRootRef = useRef<HTMLDivElement>(null)
+  // 会话页运行中：↵ 排队（followUp）、⌥↵ 插话（steer）。提交前记下这次的方式，表单提交时读取后复位。
+  const runningBehaviorRef = useRef<'followUp' | 'steer'>('followUp')
+  const steerShortcut = steerBindingFor(shortcuts.sendMessage)
+  const SEND_SHORTCUT = useShortcutLabel('sendMessage')
   // 语音实时转写与草稿的合并基准：录音开始时记住原文本，部分转写反复覆盖增量段。
   const voiceDraftBaseRef = useRef<string | null>(null)
   useEffect(() => {
     if (!shortcutEnabled) return
     const focusComposer = (event: KeyboardEvent) => {
-      if (!shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.voiceInput))
+      // 语音键在详情行里时，语音快捷键先把详情行展开；会话页的语音键常驻工具条，不需要。
+      if (
+        !pageChrome &&
+        !shortcutEventBlocked(event) &&
+        matchesShortcut(event, shortcuts.voiceInput)
+      )
         setDetailsOpen(true)
       if (!shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.focusComposer)) {
         event.preventDefault()
@@ -229,7 +266,7 @@ export const FocusSession = memo(function FocusSession({
     }
     window.addEventListener('keydown', focusComposer)
     return () => window.removeEventListener('keydown', focusComposer)
-  }, [shortcutEnabled, shortcuts.focusComposer, shortcuts.voiceInput])
+  }, [pageChrome, shortcutEnabled, shortcuts.focusComposer, shortcuts.voiceInput])
   const toolbarRef = useRef<HTMLDivElement>(null)
   const toolTrayAnchorRef = useRef<HTMLButtonElement>(null)
   const toolTrayMenuRef = useRef<HTMLDivElement>(null)
@@ -257,13 +294,16 @@ export const FocusSession = memo(function FocusSession({
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
     : t('chat:focusSession.expandQuickActions')
+  // 会话页（桌面布局）的输入框：“描述下一步，/ 使用命令”（规格 4.3）；运行中的 ↵ / ⌥↵ 写在工具条提示里。
   const composerPlaceholder = mobileLayout
     ? streaming
       ? t('chat:focusSession.addGuidanceForTheRunningAgent')
       : t('chat:workbench.composerPlaceholder')
-    : streaming
-      ? t('chat:focusSession.runningAgentComposerHint')
-      : t('chat:focusSession.composerHint')
+    : pageChrome
+      ? t('board:composer.placeholder')
+      : streaming
+        ? t('chat:focusSession.runningAgentComposerHint')
+        : t('chat:focusSession.composerHint')
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
 
@@ -318,6 +358,87 @@ export const FocusSession = memo(function FocusSession({
     setToolsOpen,
     requestTranscriptBottom,
   })
+  // 会话页 Esc（规格 2.8）：有打开的菜单 / 浮层时先交给它们；都关着且正在运行时停止运行。
+  // Esc 永远不用于返回。只认会话对话列（页头、转录、输入框）或页面本身的焦点，
+  // 检查器里的终端、侧聊输入框等有自己的 Esc 语义，不在这里截走。
+  const stopRef = useRef(stop)
+  stopRef.current = stop
+  useEffect(() => {
+    if (!pageChrome || !shortcutEnabled || !streaming) return undefined
+    const layered = new WeakSet<Event>()
+    // 捕获阶段记下“按下时有没有浮层开着”：浮层在冒泡前就可能已经关掉，不能等冒泡时再看。
+    const capture = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && escapeLayerOpen()) layered.add(event)
+    }
+    const bubble = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229 ||
+        layered.has(event)
+      )
+        return
+      const target = event.target
+      const root = panelRootRef.current
+      const inConversation =
+        target === document.body ||
+        target === document.documentElement ||
+        (target instanceof Element &&
+          Boolean(target.closest('[data-session-conversation]')) &&
+          !target.closest('.terminal-panel, .xterm'))
+      if (!root || !inConversation) return
+      // 输入框之外的可编辑控件（例如改名框）按自己的语义处理 Esc。
+      if (isEditableTarget(target) && target !== promptRef.current) return
+      event.preventDefault()
+      void stopRef.current()
+    }
+    window.addEventListener('keydown', capture, true)
+    window.addEventListener('keydown', bubble)
+    return () => {
+      window.removeEventListener('keydown', capture, true)
+      window.removeEventListener('keydown', bubble)
+    }
+  }, [pageChrome, shortcutEnabled, streaming])
+  // 输入框工具条与会话页头“⋯ → 目标模式”共用：切换前先暂停与新模式不一致的进行中目标。
+  const changeExecutionMode = (nextMode: typeof composerExecutionMode) => {
+    if (goal?.status === 'active' && (nextMode === 'plan' || nextMode !== goal.mode))
+      void requestGoalPause().catch(() => {})
+    setComposerExecutionMode(nextMode)
+    void onRunModeChange(nextMode)
+  }
+  // 会话页的代理信息行：当前模型（显示名）与审批模式，只挂在最新一条回复上。
+  const currentModel = pendingRuntimeSelection?.model || model || ''
+  const modelLabel =
+    availableModels.find((item) => item.key === currentModel)?.label ||
+    currentModel.split('/').at(-1) ||
+    ''
+  const approvalModeLabel =
+    executionMode === 'full-access'
+      ? t('chat:focusSession.fullAccess')
+      : executionMode === 'workspace-write'
+        ? t('chat:focusSession.workspaceWrite')
+        : t('chat:focusSession.approvalRequired')
+  const transcriptMeta = useMemo(
+    () => (pageChrome ? { model: modelLabel, approvalMode: approvalModeLabel } : null),
+    [approvalModeLabel, modelLabel, pageChrome],
+  )
+  // 运行条读数只在会话页显示；数值都来自会话已有的用量快照，拿不到的项不显示。
+  const contextPercent = Number(contextUsage?.percent)
+  const processedTokens = Number(sessionUsage?.processedTokens)
+  const cacheHitRate = Number(sessionUsage?.cacheHitRate)
+  const runMetrics = pageChrome
+    ? {
+        contextPercent:
+          contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null,
+        tokens: Number.isFinite(processedTokens) && processedTokens > 0 ? processedTokens : null,
+        cacheHitRate:
+          sessionUsage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
+            ? Math.max(0, cacheHitRate)
+            : null,
+        queued: queuedInputs.length,
+      }
+    : null
   const latestAgentMessage = messages.at(-1)?.role === 'agent' ? messages.at(-1) : null
   const currentError =
     submitError || error || (!streaming ? String(latestAgentMessage?.error || '') : '')
@@ -444,12 +565,7 @@ export const FocusSession = memo(function FocusSession({
           composerExecutionMode === 'team' ? setTeamTokenBudget : setGoalTokenBudget
         }
         onSaveTokenBudget={(tokenBudget) => onGoalBudgetChange?.(tokenBudget)}
-        onChange={(nextMode) => {
-          if (goal?.status === 'active' && (nextMode === 'plan' || nextMode !== goal.mode))
-            void requestGoalPause().catch(() => {})
-          setComposerExecutionMode(nextMode)
-          void onRunModeChange(nextMode)
-        }}
+        onChange={changeExecutionMode}
       />
     ) : null,
     commands: (
@@ -495,11 +611,72 @@ export const FocusSession = memo(function FocusSession({
   const availableComposerToolIds = COMPOSER_TOOL_IDS.filter((id) => composerTools[id] !== null)
   // Plan 是默认值时可退入「+」；切到 Goal/Team 或目标运行中必须常驻，否则手机上看不到生效的执行模式。
   const runModeEngaged = composerExecutionMode !== 'plan' || goal?.status === 'active'
+  const voiceInput = (
+    <VoiceInputControl
+      sessionId={session.id}
+      shortcutEnabled={shortcutEnabled}
+      onLiveText={(text) => {
+        if (text === null) {
+          // 录音取消/失败：回滚到录音前的草稿。
+          if (voiceDraftBaseRef.current !== null) {
+            applyVoiceDraft(voiceDraftBaseRef.current)
+            voiceDraftBaseRef.current = null
+          }
+          return
+        }
+        if (voiceDraftBaseRef.current === null) {
+          voiceDraftBaseRef.current = (promptRef.current?.value ?? value).trimEnd()
+        }
+        const base = voiceDraftBaseRef.current
+        applyVoiceDraft(base && text ? `${base}\n${text}` : base || text)
+      }}
+      onInsert={(transcript) => {
+        // 最终转写替换实时部分文本（基准段 + 终稿）。
+        const base = voiceDraftBaseRef.current ?? (promptRef.current?.value ?? value).trimEnd()
+        voiceDraftBaseRef.current = null
+        applyVoiceDraft(base ? `${base}\n${transcript}` : transcript)
+        requestAnimationFrame(() => promptRef.current?.focus())
+      }}
+    />
+  )
+  // 会话页运行中提示“↵ 排队 · ⌥↵ 插话”只在运行中、工具区放得下时出现（触屏另由样式隐藏）。
+  const runningHintVisible = Boolean(
+    pageChrome && streaming && steerShortcut && toolbarCapacity >= 15.5,
+  )
+  const composerExtras = pageChrome ? (
+    <>
+      <div
+        className="composer-toolbar-slot flex flex-none items-center"
+        data-composer-extra="voice"
+      >
+        {voiceInput}
+      </div>
+      {runningHintVisible && steerShortcut && (
+        <span
+          className="max-w-[240px] min-w-0 flex-none truncate px-1 text-xs text-content-muted pointer-coarse:hidden"
+          data-composer-hint
+          title={t('board:composer.runningHint', {
+            queue: SEND_SHORTCUT,
+            steer: formatShortcut(steerShortcut),
+          })}
+        >
+          {t('board:composer.runningHint', {
+            queue: SEND_SHORTCUT,
+            steer: formatShortcut(steerShortcut),
+          })}
+        </span>
+      )}
+    </>
+  ) : null
   const toolbarAllocation = allocateComposerToolbar(
     toolbarLayout,
     availableComposerToolIds,
     // Respect the actual composer width; small layouts may move secondary settings into +.
-    Math.max(toolbarCapacity, mobileLayout ? 5 : 8.5),
+    // 会话页的语音键与运行中提示也占工具区：先扣掉它们，再按槽位分配其余工具。
+    Math.max(
+      toolbarCapacity - (pageChrome ? 1 : 0) - (runningHintVisible ? 6 : 0),
+      mobileLayout ? 5 : 8.5,
+    ),
     // 按 40px 槽位计：窄屏审批芯片约 70px、执行模式图标 48px，模型按「名称 · 思考等级」的理想宽度计。
     mobileLayout
       ? { permission: 1.75, 'run-mode': 1.2, model: 4.4 }
@@ -511,7 +688,23 @@ export const FocusSession = memo(function FocusSession({
         : ['permission', 'model']
       : [],
   )
-  const renderComposerTool = (id: ComposerToolId) => (
+  const renderComposerTool = (
+    id: ComposerToolId,
+    _index?: number,
+    list?: readonly ComposerToolId[],
+  ) => {
+    const slot = renderComposerSlot(id)
+    // 会话页工具条顺序（规格 4.3）：… 语音、运行中提示、模型胶囊、发送。语音与提示排在模型胶囊之前。
+    if (composerExtras && id === 'model' && list === toolbarAllocation.inline)
+      return (
+        <Fragment key={id}>
+          {composerExtras}
+          {slot}
+        </Fragment>
+      )
+    return slot
+  }
+  const renderComposerSlot = (id: ComposerToolId) => (
     <div
       className={cn(
         'composer-toolbar-slot flex min-w-0 flex-none items-center gap-2',
@@ -555,7 +748,78 @@ export const FocusSession = memo(function FocusSession({
       <span className="truncate">{workspaceName(cwd, language)}</span>
     </button>
   )
-  const headerBlock = (
+  const terminalMenuItem = window.pisperDesktop?.terminalProfiles &&
+    runtimeFeatureAvailable(capabilities, 'terminal') && (
+      <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}>
+        <TerminalSquare />
+        {t('navigation:pageHeader.toggleTerminal')}
+      </DropdownMenuItem>
+    )
+  const pageHeaderBlock = pageChrome && (
+    <SessionTreeControl
+      visible={messages.length > 0}
+      open={sessionTreeOpen}
+      sessionId={session.id}
+      streaming={Boolean(streaming)}
+      revision={sessionTreeRevision}
+      pulseToken={sessionTreePulse}
+      onOpenChange={setSessionTreeOpen}
+      onNavigated={async (editorText) => {
+        if (editorText !== null) applyWelcomeChip(editorText)
+        await onTreeNavigated?.()
+        requestTranscriptBottom()
+      }}
+      onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
+    >
+      {(_recallItem, tree) => (
+        <SessionPageHeader
+          session={session}
+          cwd={cwd || ''}
+          streaming={Boolean(streaming)}
+          runStartedAt={runStartedAt}
+          approvals={approvals.length}
+          failed={Boolean(!streaming && (error || latestAgentMessage?.error))}
+          stopped={Boolean(!streaming && runStopped)}
+          usage={
+            <ContextUsageIndicator
+              usage={contextUsage}
+              sessionUsage={sessionUsage}
+              model={model}
+              availableModels={availableModels}
+              onThresholdChange={onCompactionThresholdChange}
+              compact
+            />
+          }
+          treeAvailable={messages.length > 0}
+          branches={tree.branches}
+          onOpenTree={tree.open}
+          onRename={onRename}
+          onWorkspace={onWorkspace}
+          workspaceDisabled={Boolean(streaming || switchingCwd)}
+          onCompact={onCompact ? () => void compactContext() : undefined}
+          compactDisabled={Boolean(
+            streaming || compactingManually || compaction?.active || messages.length === 0,
+          )}
+          goalAvailable={goalsAvailable}
+          goalEngaged={composerExecutionMode === 'goal'}
+          goalDisabled={Boolean(streaming)}
+          onToggleGoal={() =>
+            changeExecutionMode(composerExecutionMode === 'goal' ? 'plan' : 'goal')
+          }
+          workflowsAvailable={workflowsAvailable}
+          onVoiceMode={() => setVoiceModeOpen(true)}
+          notify={notify ?? (() => undefined)}
+          extraItems={
+            <>
+              {terminalMenuItem}
+              <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
+            </>
+          }
+        />
+      )}
+    </SessionTreeControl>
+  )
+  const headerBlock = pageHeaderBlock || (
     <SessionTreeControl
       visible={messages.length > 0}
       open={sessionTreeOpen}
@@ -580,15 +844,7 @@ export const FocusSession = memo(function FocusSession({
           notify={notify}
           actions={
             <>
-              {window.pisperDesktop?.terminalProfiles &&
-                runtimeFeatureAvailable(capabilities, 'terminal') && (
-                  <DropdownMenuItem
-                    onSelect={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}
-                  >
-                    <TerminalSquare />
-                    {t('navigation:pageHeader.toggleTerminal')}
-                  </DropdownMenuItem>
-                )}
+              {terminalMenuItem}
               {recallItem}
               <DropdownMenuItem
                 aria-controls={contextPanelId}
@@ -726,6 +982,7 @@ export const FocusSession = memo(function FocusSession({
       </button>
       <div className="focus-composer-visible-tools flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {toolbarAllocation.inline.map(renderComposerTool)}
+        {composerExtras && !toolbarAllocation.inline.includes('model') && composerExtras}
       </div>
       <ComposerToolTray
         placement="top"
@@ -785,14 +1042,22 @@ export const FocusSession = memo(function FocusSession({
           'before:pointer-events-none before:absolute before:inset-x-0 before:-top-9 before:h-9 before:bg-linear-to-b before:from-transparent before:to-panel',
       )}
       onSubmit={(event) => {
+        // 这次提交的运行中方式读完即复位：发送键与 ↵ 都是排队，只有 ⌥↵ 是插话。
+        const behavior = runningBehaviorRef.current
+        runningBehaviorRef.current = 'followUp'
         if (!streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)) {
           event.preventDefault()
           return
         }
-        void submit(event)
+        void submit(event, pageChrome ? behavior : 'steer')
       }}
     >
-      <ToolApproval approvals={approvals} onResolve={onApproval} />
+      <ToolApproval
+        approvals={approvals}
+        onResolve={onApproval}
+        sessionTitle={session.name || session.id}
+        cwd={cwd || ''}
+      />
       {queuedInputs.length > 0 && (
         <QueuedInputsTray
           queuedInputs={queuedInputs}
@@ -844,6 +1109,7 @@ export const FocusSession = memo(function FocusSession({
           activity={currentActivity}
           stopping={stopping}
           onStop={() => void stop()}
+          metrics={runMetrics}
         />
         <AttachmentTray
           attachments={selection.attachments}
@@ -873,13 +1139,28 @@ export const FocusSession = memo(function FocusSession({
           onKeyDown={(event) => {
             // 保留换行与中英文组词，只在当前发送绑定精确匹配时提交。
             const composing = event.nativeEvent.isComposing || imeComposingRef.current
+            // 会话页运行中 ⌥↵：插话（steer），代理在下一步就读到；普通 ↵ 仍走发送绑定 → 排队（followUp）。
+            if (
+              pageChrome &&
+              streaming &&
+              !composing &&
+              steerShortcut &&
+              matchesShortcut(event.nativeEvent, steerShortcut)
+            ) {
+              event.preventDefault()
+              runningBehaviorRef.current = 'steer'
+              event.currentTarget.form?.requestSubmit()
+              return
+            }
             if (!composing && matchesShortcut(event.nativeEvent, shortcuts.sendMessage)) {
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()
             }
             // 运行条提示「Esc 停止」：输入框内按 Esc 中断当前运行；命令菜单等已处理的 Esc 不再重复响应，
             // 工具托盘打开时 Esc 只收起托盘（托盘监听在 document 上，晚于这里触发）。
+            // 会话页由页面级监听统一处理（先关浮层、再停止），这里不重复。
             if (
+              !pageChrome &&
               streaming &&
               !composing &&
               !toolsOpen &&
@@ -956,33 +1237,7 @@ export const FocusSession = memo(function FocusSession({
             >
               <AudioLines size={17} />
             </button>
-            <VoiceInputControl
-              sessionId={session.id}
-              shortcutEnabled={shortcutEnabled}
-              onLiveText={(text) => {
-                if (text === null) {
-                  // 录音取消/失败：回滚到录音前的草稿。
-                  if (voiceDraftBaseRef.current !== null) {
-                    applyVoiceDraft(voiceDraftBaseRef.current)
-                    voiceDraftBaseRef.current = null
-                  }
-                  return
-                }
-                if (voiceDraftBaseRef.current === null) {
-                  voiceDraftBaseRef.current = (promptRef.current?.value ?? value).trimEnd()
-                }
-                const base = voiceDraftBaseRef.current
-                applyVoiceDraft(base && text ? `${base}\n${text}` : base || text)
-              }}
-              onInsert={(transcript) => {
-                // 最终转写替换实时部分文本（基准段 + 终稿）。
-                const base =
-                  voiceDraftBaseRef.current ?? (promptRef.current?.value ?? value).trimEnd()
-                voiceDraftBaseRef.current = null
-                applyVoiceDraft(base ? `${base}\n${transcript}` : transcript)
-                requestAnimationFrame(() => promptRef.current?.focus())
-              }}
-            />
+            {!pageChrome && voiceInput}
           </>
         </div>
       </div>
@@ -1003,6 +1258,7 @@ export const FocusSession = memo(function FocusSession({
       data-chat-message-style="bubble"
     >
       <div
+        ref={panelRootRef}
         className={cn(
           'flex h-full min-h-0 min-w-0 flex-1 flex-col',
           hasConversation ? 'overflow-hidden' : 'overflow-auto',
@@ -1016,7 +1272,13 @@ export const FocusSession = memo(function FocusSession({
               : null}
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-chat-region="messages">
-          {transcriptBlock}
+          {transcriptMeta ? (
+            <TranscriptMetaContext.Provider value={transcriptMeta}>
+              {transcriptBlock}
+            </TranscriptMetaContext.Provider>
+          ) : (
+            transcriptBlock
+          )}
         </div>
         <div className="shrink-0" data-chat-region="composer">
           {composerBlock}

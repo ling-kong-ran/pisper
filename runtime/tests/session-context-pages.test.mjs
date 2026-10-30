@@ -1,3 +1,5 @@
+// 会话上下文页 store 仍是“打开资源”请求的公共入口：手机外壳的上下文面板直接显示它，
+// 桌面会话页检查器订阅它并切到对应标签（映射守卫见 session-page-shell 与 web-preview）。
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {

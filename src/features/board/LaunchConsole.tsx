@@ -1,10 +1,12 @@
 // 启动台：“在 [项目 ▾] 中 描述任务…”。↵ 派发并留在原地，⌘↵ 派发后打开该会话，⇧↵ 换行；
 // 输入为空或光标在开头时 Tab 循环最近用过的项目。芯片（模型 + 思考档位、审批模式、Plan 模式）
-// 的上次选择记在 pisper-launch-defaults。草稿沿用 composer-drafts，派发失败时原样放回。
+// 的上次选择记在 pisper-launch-defaults（“完全访问”只对当前草稿生效，派发后回到安全模式）。
+// 草稿沿用 composer-drafts，派发失败时原样放回，并同步给所有挂着的启动台实例。
 // 看板仪表区、空看板的放大形态、派发浮层与手机底部表单共用这一个组件，只换外形。
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -59,6 +61,17 @@ import { useLaunchOptions, type LaunchModelOption } from './useLaunchOptions'
 // 启动台草稿与会话草稿共用同一套存储，键名不会与会话 id 冲突。
 export const LAUNCH_DRAFT_KEY = 'board:launch'
 
+// composer-drafts 没有订阅机制：派发失败放回草稿时，由这里通知所有挂着的启动台实例重读，
+// 否则浮层关闭后重新打开、或仪表区与浮层同时存在时，界面会显示不含被放回描述的旧文本。
+const launchDraftListeners = new Set<(text: string) => void>()
+
+function restoreLaunchDraft(prompt: string) {
+  const current = readComposerDraft(LAUNCH_DRAFT_KEY).text
+  const restored = current.trim() ? `${prompt}\n${current}` : prompt
+  updateComposerDraft(LAUNCH_DRAFT_KEY, { text: restored })
+  for (const listener of launchDraftListeners) listener(restored)
+}
+
 export type LaunchConsoleVariant = 'deck' | 'collapsed' | 'hero' | 'overlay' | 'sheet'
 
 // fill：空看板的“试试”建议只填入草稿并聚焦，不重建组件（派发中的状态与错误随之保留）。
@@ -71,6 +84,9 @@ export type LaunchConsoleProps = {
   compactChips?: boolean
   // 派发被 Runtime 受理后回调；open 表示用户按了 ⌘↵，宿主负责打开会话。
   onDispatched?: (sessionId: string, options: { open: boolean }) => void
+  // 派发失败时本实例已经卸载（例如浮层在发送途中被关闭）：错误行没人看得到，交给宿主用全局提示。
+  // 草稿此时已经放回 composer-drafts，宿主只需提供“重新打开”的入口。
+  onDetachedFailure?: (message: string) => void
   onConfigureModels: () => void
   className?: string
 }
@@ -125,7 +141,15 @@ function caretAtStart(element: HTMLTextAreaElement) {
 
 export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>(
   function LaunchConsole(
-    { variant, autoFocus, compactChips, onDispatched, onConfigureModels, className },
+    {
+      variant,
+      autoFocus,
+      compactChips,
+      onDispatched,
+      onDetachedFailure,
+      onConfigureModels,
+      className,
+    },
     ref,
   ) {
     const { t } = useI18n()
@@ -137,8 +161,21 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const [value, setValueState] = useState(() => readComposerDraft(LAUNCH_DRAFT_KEY).text)
     const [error, setError] = useState<LaunchError | null>(null)
     const [pending, setPending] = useState(0)
+    // 本次草稿临时选了“完全访问”：不写进偏好，派发后回到记住的安全模式。
+    const [fullAccess, setFullAccess] = useState(false)
+    const mountedRef = useRef(true)
     const inputId = `launch-input-${variant}`
     const errorId = `launch-error-${variant}`
+
+    useEffect(() => {
+      mountedRef.current = true
+      const listener = (text: string) => setValueState(text)
+      launchDraftListeners.add(listener)
+      return () => {
+        mountedRef.current = false
+        launchDraftListeners.delete(listener)
+      }
+    }, [])
 
     const setValue = useCallback((next: string) => {
       setValueState(next)
@@ -171,7 +208,9 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const shownThinking =
       thinkingLevel ||
       (thinkingLevels.includes(options.defaultThinkingLevel) ? options.defaultThinkingLevel : '')
-    const executionMode: LaunchExecutionMode = defaults.executionMode || 'approval-required'
+    const executionMode: LaunchExecutionMode = fullAccess
+      ? 'full-access'
+      : defaults.executionMode || 'approval-required'
     const runMode: LaunchRunMode =
       defaults.runMode === 'team' && !options.teamAvailable
         ? 'plan'
@@ -221,6 +260,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       clearComposerDraft(LAUNCH_DRAFT_KEY)
       inputRef.current?.focus()
       setPending((count) => count + 1)
+      // 完全访问只作用于这一次派发：偏好里保留原来的安全模式，下一条草稿回到安全模式。
+      setFullAccess(false)
       defaults.rememberLaunch({
         cwd,
         model: modelKnown ? model : '',
@@ -234,28 +275,25 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           cwd,
           model: modelKnown ? model : '',
           thinkingLevel,
-          executionMode: defaults.executionMode ? executionMode : '',
+          executionMode: fullAccess ? 'full-access' : defaults.executionMode,
           runMode,
         })
         onDispatched?.(sessionId, { open })
       } catch (cause) {
-        const current = readComposerDraft(LAUNCH_DRAFT_KEY).text
-        const restored = current.trim() ? `${prompt}\n${current}` : prompt
-        setValue(restored)
+        restoreLaunchDraft(prompt)
         const detail =
           cause instanceof BoardLaunchError
             ? cause.message
             : cause instanceof Error
               ? cause.message
               : ''
-        setError({
-          message: detail
-            ? t('board:launch.failedWithReason', { reason: detail })
-            : t('board:launch.failed'),
-          noModel: false,
-        })
+        const message = detail
+          ? t('board:launch.failedWithReason', { reason: detail })
+          : t('board:launch.failed')
+        if (mountedRef.current) setError({ message, noModel: false })
+        else onDetachedFailure?.(message)
       } finally {
-        setPending((count) => Math.max(0, count - 1))
+        if (mountedRef.current) setPending((count) => Math.max(0, count - 1))
       }
     }
 
@@ -411,9 +449,9 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <DropdownMenuTrigger asChild>
             <Chip
               size={chipSize}
-              title={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}`}
-              aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}`}
-              // 完全访问会跳过所有审批且会被记住：窄宽度下也写出文字并用警示色，避免悄悄沿用。
+              title={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+              aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
+              // 完全访问会跳过所有审批：窄宽度下也写出文字并用警示色，派发前一眼能看到。
               className={cn(
                 executionMode === 'full-access' &&
                   'border-st-attn-border bg-st-attn-soft text-st-attn',
@@ -430,13 +468,25 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={executionMode}
-              onValueChange={(next) =>
-                defaults.rememberLaunch({ executionMode: next as LaunchExecutionMode })
-              }
+              onValueChange={(next) => {
+                const mode = next as LaunchExecutionMode
+                setFullAccess(mode === 'full-access')
+                // 安全模式照常记住；完全访问只留在本次草稿里。
+                if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
+              }}
             >
               {LAUNCH_EXECUTION_MODES.map((mode) => (
                 <DropdownMenuRadioItem key={mode} value={mode}>
-                  {labels.execution[mode]}
+                  {mode === 'full-access' ? (
+                    <span className="flex min-w-0 flex-col">
+                      <span>{labels.execution[mode]}</span>
+                      <span className="text-xs text-content-muted">
+                        {t('board:launch.fullAccessOnce')}
+                      </span>
+                    </span>
+                  ) : (
+                    labels.execution[mode]
+                  )}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>

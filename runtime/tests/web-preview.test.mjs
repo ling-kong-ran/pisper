@@ -48,15 +48,17 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
 })
 
 test('application routes external links into the session inspector web preview', async () => {
-  const [app, provider, chatPage, dockView, dockHook, dockPanel, component] = await Promise.all([
-    readFile('src/App.tsx', 'utf8'),
-    readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
-    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
-    readFile('src/features/chat/ChatDockView.tsx', 'utf8'),
-    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
-    readFile('src/features/chat/WebPreviewDockPanel.tsx', 'utf8'),
-    readFile('src/components/ai-elements/web-preview.tsx', 'utf8'),
-  ])
+  const [app, provider, chatPage, workspace, inspector, browserPane, component] = await Promise.all(
+    [
+      readFile('src/App.tsx', 'utf8'),
+      readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
+      readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+      readFile('src/features/chat/SessionWorkspace.tsx', 'utf8'),
+      readFile('src/features/chat/SessionInspector.tsx', 'utf8'),
+      readFile('src/features/chat/SessionBrowserPane.tsx', 'utf8'),
+      readFile('src/components/ai-elements/web-preview.tsx', 'utf8'),
+    ],
+  )
 
   assert.match(app, /<WebPreviewProvider \/>/)
   assert.match(provider, /requestWebPreview\(url\)/)
@@ -85,17 +87,24 @@ test('application routes external links into the session inspector web preview',
   )
   assert.match(chatPage, /if \(url\) openWebPreviewInSessionContext\(routeTarget, url\)/)
   assert.match(chatPage, /addEventListener\(WEB_PREVIEW_OPEN_EVENT, openPreview\)/)
-  // 桌面多标签 Dock 的右侧预览面板保留到第 3 期会话页重建时再定去留。
-  assert.match(dockView, /webPreview: WebPreviewDockPanel/)
-  assert.match(dockHook, /component: 'webPreview'/)
-  assert.match(dockHook, /direction: 'right' as const/)
-  assert.match(dockHook, /existing\.api\.updateParameters\(\{ url: request\.url \}\)/)
-  assert.match(dockHook, /if \(sessionId\) setActiveId\(sessionId\)/)
-  assert.match(dockHook, /panel\.api\.component !== 'session'/)
-  assert.match(dockPanel, /window\.open\(currentUrl, '_blank', 'noopener,noreferrer'\)/)
-  assert.match(dockPanel, /api\.onDidVisibilityChange/)
-  assert.match(dockPanel, /if \(!visible\) return null/)
-  assert.match(dockPanel, /<WebPreviewBody/)
+  // 第 3 期定案：桌面多标签 Dock 的右侧预览面板随 Dockview 一起退役（不再挂载），
+  // 预览落到会话页检查器的“预览”标签。请求写进会话上下文页 store，检查器订阅它：
+  // 浏览器页被激活或换了地址就切到“预览”标签并打开检查器。
+  assert.match(workspace, /case 'browser':\s*return \{ tab: 'preview' \}/)
+  assert.match(workspace, /useContextPagesStore\.subscribe\(\(state, previous\) => \{/)
+  assert.match(workspace, /\(page\.kind === 'browser' && page\.url !== previousPage\?\.url\)/)
+  assert.match(workspace, /if \(changed\) reveal\(page\.kind\)/)
+  assert.match(inspector, /if \(tab === 'preview'\) return 'browser'/)
+  assert.match(
+    inspector,
+    /<BrowserPane[\s\S]*?update\(sessionId, 'browser', \{ type: 'browser', id: page\.id, \.\.\.patch \}\)/,
+  )
+  // 检查器收起时整个面板不渲染：预览 iframe 只在“预览”标签可见时存在（取代 Dock 面板的可见性判断）。
+  assert.match(workspace, /const inspector = open && \(/)
+  assert.match(inspector, /\} else if \(tab === 'preview'\) \{/)
+  assert.match(browserPane, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/)
+  assert.match(browserPane, /normalizeWebPreviewInput\(draft, window\.location\.href\)/)
+  assert.match(browserPane, /<WebPreviewBody src=\{url\}/)
   assert.match(
     component,
     /sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"/,

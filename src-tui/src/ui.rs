@@ -3946,7 +3946,12 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     let Some(approval) = &app.approval else {
         return;
     };
-    let (risk, risk_color) = approval_risk(approval);
+    let (risk, risk_color) = if approval.is_critical() {
+        // Runtime 的 risk 文案与 severity 不一定一致：critical 一律按 Critical 呈现。
+        ("Critical".to_owned(), RED)
+    } else {
+        approval_risk(approval)
+    };
     let risk_title = if risk == "Unspecified" {
         "Unspecified risk".to_owned()
     } else {
@@ -4019,11 +4024,49 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
         );
     }
 
+    let critical = approval.is_critical();
     let mut actions = if app.approval_is_resolving() {
         vec![Span::styled(
             "Resolving approval...",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         )]
+    } else if app.approval_is_confirming() {
+        // critical 的确认步骤：再按一次才批准，Esc 只退回。
+        vec![
+            Span::styled(
+                "Allow this critical request? ",
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "[Y/Enter]",
+                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Allow  ", Style::default().fg(TEXT)),
+            Span::styled("[Esc]", Style::default().fg(MUTED)),
+            Span::styled(" Back  ", Style::default().fg(TEXT)),
+            Span::styled("[N]", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
+            Span::styled(" Deny", Style::default().fg(TEXT)),
+        ]
+    } else if critical {
+        vec![
+            Span::styled(
+                "[N/Esc]",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" Deny  ", Style::default().fg(TEXT)),
+            Span::styled(
+                "[Y]",
+                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if rows[2].width >= 52 {
+                    " Allow… (critical, asks to confirm)"
+                } else {
+                    " Allow…"
+                },
+                Style::default().fg(TEXT),
+            ),
+        ]
     } else if rows[2].width >= 68 {
         vec![
             Span::styled("Press ", Style::default().fg(MUTED)),
@@ -5345,6 +5388,7 @@ mod tests {
                 risk: "high".to_owned(),
                 reason: "Runs as the current OS user and may access files or network services."
                     .to_owned(),
+                severity: String::new(),
             });
 
             let backend = TestBackend::new(width, height);
@@ -5411,6 +5455,7 @@ mod tests {
             args: serde_json::json!({ "command": command }),
             risk: "high".to_owned(),
             reason: "DO NOT HIDE THIS REASON".to_owned(),
+            severity: String::new(),
         });
 
         let mut terminal = Terminal::new(TestBackend::new(80, 16)).unwrap();

@@ -214,6 +214,11 @@ export class AgentRuntimeFacade {
     const remove = async () => {
       const result = await this.sessionLifecycle.deleteSession(id)
       await this.getFileChangesService().clear(id)
+      if (result) {
+        // 删除后丢掉内存摘要，并让看板事件流对在线客户端发 removed。
+        this.sessionCards?.forget(id, { deleted: true })
+        this.boardEvents?.touch(id)
+      }
       return result
     }
     return this.sideChats ? this.sideChats.deleteWithChildren(id, remove) : remove()
@@ -267,6 +272,10 @@ export class AgentRuntimeFacade {
         return await this.runSessionPrompt(value, options)
       } finally {
         value.runActive = false
+        // 运行收尾的两次落盘发生在 done/error 帧之后：落盘慢于看板 flush 时，最后一帧
+        // 仍读到 runActive=true。这里在真正放下运行标记后再失效一次活动投影，
+        // 经 onInvalidate 让看板事件流补发一帧“已结束”，/live 缓存也随之失效。
+        this.streamProjection.invalidate(id, { transcript: false, activity: true, usage: false })
         const forceDisposed = value.forceDisposed
         delete value.abortedAt
         delete value.forceDisposed
@@ -788,6 +797,9 @@ export class AgentRuntimeFacade {
 
   // 全局关闭流程：清理定时器、后台服务与挂起的写盘任务，保证进程可干净退出。
   async dispose() {
+    // 先断开看板事件流：关闭期间不再为在线客户端生成卡片增量。
+    this.boardEvents?.dispose()
+    this.sessionCards?.dispose()
     await this.memoryCapture.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null

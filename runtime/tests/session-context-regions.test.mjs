@@ -1,3 +1,5 @@
+// 手机外壳的单会话视图（TaskWorkspace）仍用 SessionContextLayout；桌面会话页检查器的
+// 阅读顺序与分隔条守卫见 session-page-shell（第 3 期）。
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createElement } from 'react'

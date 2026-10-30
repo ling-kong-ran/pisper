@@ -1,6 +1,6 @@
 // 会话树对话框：会话从属关系（父子）的树形浏览。
 // 数据请求与状态留在本文件；渲染拆到 session-tree-* 子组件，纯算法在 session-tree-model。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { TreePine, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
@@ -35,10 +35,16 @@ export function SessionTreeDialog({
   onClose,
   onNavigated,
   onCreateChildSession,
+  initialView = 'conversation',
+  returnFocusRef,
 }: {
   open: boolean
   sessionId: string
   streaming: boolean
+  // 会话页头的“标签”入口直接打开“已标记”页签，“分支”入口打开对话树。
+  initialView?: TreeView
+  // 打开对话框的页头按钮（“分支”“标签”）；为空时退回到会话页头的“⋯”。
+  returnFocusRef?: RefObject<HTMLElement | null>
   onClose: () => void
   onNavigated: (editorText: string | null) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
@@ -70,7 +76,7 @@ export function SessionTreeDialog({
   useEffect(() => {
     if (!open || !sessionId) return
     let cancelled = false
-    setView('conversation')
+    setView(initialView)
     setMobilePane('list')
     setQuery('')
     setLoading(true)
@@ -91,6 +97,8 @@ export function SessionTreeDialog({
     return () => {
       cancelled = true
     }
+    // initialView 只在打开那一刻生效；打开期间用户切换页签不应被它拉回。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sessionId])
 
   // 弹窗关闭后立即释放可能超过万条的树数据，避免长期占用前端内存。
@@ -338,7 +346,10 @@ export function SessionTreeDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
         onCloseAutoFocus={(event) => {
-          const trigger = document.getElementById(`task-${sessionId}-more`)
+          const opener = returnFocusRef?.current
+          const trigger = opener?.isConnected
+            ? opener
+            : document.getElementById(`task-${sessionId}-more`)
           // 菜单项已经卸载；只恢复仍然处于活动任务中的稳定入口，避免抢走切换后的焦点。
           if (trigger?.closest('[data-task-workspace]')?.getAttribute('data-active') === 'true') {
             event.preventDefault()

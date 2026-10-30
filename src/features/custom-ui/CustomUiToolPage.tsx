@@ -2,6 +2,7 @@ import { PageFrame } from '@/components/app/PageFrame'
 import { PageState } from '@/components/app/PageState'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Settings2 } from 'lucide-react'
+import { PAGE_PATHS } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { useCustomUiComponents } from './useCustomUiComponents'
@@ -25,7 +26,8 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
             </Link>
           </Button>
           <Button variant="ghost" size="sm" className="max-[650px]:h-11" asChild>
-            <Link to="/config/interface?view=widgets">
+            {/* 组件管理已迁到“组件”标签，直接链过去，不再经界面设置的旧地址转一跳。 */}
+            <Link to={PAGE_PATHS.components}>
               <Settings2 />
               {t('custom-ui:tool.openSettings')}
             </Link>

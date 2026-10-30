@@ -2,8 +2,9 @@
 // 40px 泳道跳转条（需要你选中时琥珀实心），以及纵向堆叠、标题吸顶的泳道区段。
 // 卡片圆角 12（--r-card 在手机外壳下放大），审批卡的拒绝 / 允许是各占一半的 44px 大按钮。
 // 新任务走底部标签栏中间的按钮 → 派发底部表单；空看板时直接在页内放一个启动台。
+// 筛选菜单底部放“新建项目…”“管理项目…”：手机没有页头的“项目 ▾”，项目入口并在这里。
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { ArrowRight, ListFilter, Search } from 'lucide-react'
+import { ArrowRight, FolderCog, FolderPlus, ListFilter, Search } from 'lucide-react'
 import type { BoardLane } from '@shared/session-board-status.mjs'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
@@ -12,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -39,6 +41,9 @@ type PhoneBoardProps = {
   announcement: string
   onConfigureModels: () => void
   onOpenHistory: () => void
+  projectPicking: boolean
+  onNewProject: () => void
+  onManageProjects: () => void
 }
 
 const LANE_TONES: Record<BoardLane, string> = {
@@ -67,6 +72,9 @@ export function PhoneBoard({
   announcement,
   onConfigureModels,
   onOpenHistory,
+  projectPicking,
+  onNewProject,
+  onManageProjects,
 }: PhoneBoardProps) {
   const { t } = useI18n()
   const labels = useLaneLabels()
@@ -348,6 +356,19 @@ export function PhoneBoard({
                 ))}
               </>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="min-h-11"
+              disabled={projectPicking}
+              onSelect={onNewProject}
+            >
+              <FolderPlus aria-hidden="true" />
+              {t('board:project.new')}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="min-h-11" onSelect={onManageProjects}>
+              <FolderCog aria-hidden="true" />
+              {t('board:project.manage')}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>

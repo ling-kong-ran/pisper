@@ -23,7 +23,10 @@ function runningState() {
 }
 function fixture() {
   const modules = {
-    '@tanstack/react-query': { useQueryClient: () => ({ setQueryData: () => {} }) },
+    // 目录 hook 挂载时会先看共享缓存里有没有现成的目录与配置（会话页离开再进入不重新加载）；这里没有。
+    '@tanstack/react-query': {
+      useQueryClient: () => ({ setQueryData: () => {}, getQueryData: () => undefined }),
+    },
     react: {
       useState: (value) => [typeof value === 'function' ? value() : value, () => {}],
       useRef: (value) => ({ current: value }),

@@ -13,6 +13,9 @@ import {
   waitForAgentMailbox,
 } from '../runtime/agent-runtime.mjs'
 import { classifyTeamTaskError } from '../services/team-workflow.mjs'
+import { parseBoardViewQuery } from '../http/routes/board.mjs'
+import { sessionRuntimeRoutes } from '../http/routes/sessions-runtime.mjs'
+import { deriveBoardStatus } from '../../shared/session-board-status.mjs'
 import { applyTextPatch } from '../../src/lib/api.ts'
 import { shouldRetainClosedSessionState } from '../../src/lib/session-state.ts'
 
@@ -1762,4 +1765,297 @@ test('empty active sessions tolerate a JSONL file that has not been created yet'
   const page = await runtime.getSessionMessagePage('session-empty', { limit: 40 })
   assert.deepEqual(page.messages, [])
   assert.deepEqual(page.pageInfo, { start: 0, end: 0, total: 0, hasMore: false, nextCursor: null })
+})
+
+// 第 2 期看板卡片：由同一份运行事件增量维护，/live 带 runId，结局（完成 / 失败 / 停止）落盘为精简摘要。
+function scriptedBoardSession(id, script) {
+  const listeners = new Set()
+  const session = {
+    sessionId: id,
+    isStreaming: false,
+    model: { provider: 'openai', id: 'gpt-5.4' },
+    thinkingLevel: 'medium',
+    messages: [{ role: 'user', content: 'Earlier', timestamp: 1 }],
+    agent: { state: { systemPrompt: '' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    abort: async () => {},
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    async prompt() {
+      session.isStreaming = true
+      try {
+        await script((event) => {
+          for (const listener of listeners) listener(event)
+        }, session)
+      } finally {
+        session.isStreaming = false
+      }
+    },
+  }
+  return session
+}
+
+async function boardRuntime(t, prefix) {
+  const directory = await mkdtemp(join(tmpdir(), prefix))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.settingsManager = { getGlobalSettings: () => ({}) }
+  runtime.archiveAttachments = async () => []
+  runtime.captureConversationMemory = async () => []
+  runtime.memory = { relevantContext: async () => ({ text: '' }) }
+  t.after(() => runtime.dispose().catch(() => {}))
+  const install = (session) => {
+    const value = { session, cwd: directory, name: 'Board card', baseToolNames: [] }
+    runtime.sessions.set(session.sessionId, value)
+    runtime.getOrCreateSession = async () => value
+    return value
+  }
+  const boardItem = async (id) =>
+    (await runtime.listBoardSessions(parseBoardViewQuery(new URLSearchParams()))).sessions.find(
+      (session) => session.id === id,
+    )
+  return { directory, runtime, install, boardItem }
+}
+
+test('board cards follow run events, expose runId on /live and persist a compact summary', async (t) => {
+  const { runtime, install, boardItem } = await boardRuntime(t, 'pisper-board-card-')
+  let during = null
+  let liveDuring = null
+  const session = scriptedBoardSession('session-board-card', async (emit, current) => {
+    emit({ type: 'agent_start' })
+    emit({ type: 'turn_start' })
+    emit({
+      type: 'tool_execution_start',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      args: { command: 'npm test -- --reporter=dot', apiKey: 'local-value' },
+    })
+    emit({
+      type: 'tool_execution_update',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      partialResult: {
+        content: [
+          { type: 'text', text: 'start\n\u001b[31mFAIL\u001b[0m a.test.ts\r\nrunning 3/4' },
+        ],
+      },
+    })
+    during = await boardItem(current.sessionId)
+    liveDuring = await runtime.getSessionLive(current.sessionId)
+    emit({
+      type: 'tool_execution_end',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      result: { content: [{ type: 'text', text: 'done' }] },
+      isError: false,
+    })
+    const assistant = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '\n全部测试通过。\n细节在下面' }],
+      stopReason: 'stop',
+      timestamp: 2,
+    }
+    current.messages.push(assistant)
+    emit({
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta: '全部测试通过。' },
+    })
+    emit({ type: 'message_end', message: assistant })
+    emit({ type: 'agent_end', messages: [assistant], willRetry: false })
+  })
+  install(session)
+
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Run the tests.',
+    runId: 'run_boardCard01',
+    send: () => {},
+  })
+
+  assert.equal(liveDuring.runId, 'run_boardCard01')
+  assert.equal(during.streaming, true)
+  assert.equal(during.card.boardStatus, 'running')
+  assert.equal(during.card.runId, 'run_boardCard01')
+  assert.deepEqual(during.card.activity, {
+    type: 'tool',
+    name: 'bash',
+    argsSummary: 'npm test -- --reporter=dot',
+    startedAt: during.card.activity.startedAt,
+  })
+  assert.deepEqual(during.card.tail, ['start', 'FAIL a.test.ts', 'running 3/4'])
+  assert.ok(during.card.startedAt)
+
+  const after = await boardItem(session.sessionId)
+  assert.equal(after.streaming, false)
+  assert.equal(after.card.boardStatus, 'done')
+  assert.equal(after.card.outcome, 'completed')
+  assert.equal(after.card.lastAssistantPreview, '全部测试通过。')
+  assert.ok(after.card.finishedAt)
+  assert.equal(Object.hasOwn(after.card, 'activity'), false)
+  assert.equal(Object.hasOwn(after.card, 'tail'), false)
+  assert.equal(Object.hasOwn(after.card, 'error'), false)
+  assert.equal((await runtime.getSessionLive(session.sessionId)).runId, 'run_boardCard01')
+
+  const persisted = runtime.sessionMeta[session.sessionId].boardCard
+  assert.equal(persisted.outcome, 'completed')
+  assert.equal(persisted.lastAssistantPreview, '全部测试通过。')
+  assert.equal(Object.hasOwn(persisted, 'tail'), false)
+
+  // 模拟 Runtime 重启：内存摘要与 live 状态都没了，卡片仍由落盘摘要给出，且不再声称可挂接的 runId。
+  runtime.sessionCards.forget(session.sessionId)
+  runtime.liveSessions.delete(session.sessionId)
+  const restored = await boardItem(session.sessionId)
+  assert.equal(restored.card.outcome, 'completed')
+  assert.equal(restored.card.lastAssistantPreview, '全部测试通过。')
+  assert.equal(Object.hasOwn(restored.card, 'runId'), false)
+  assert.equal((await runtime.getSessionLive(session.sessionId)).runId, null)
+})
+
+test('an explicit stop is reported as stopped instead of completed', async (t) => {
+  const { runtime, install, boardItem } = await boardRuntime(t, 'pisper-board-stop-')
+  const session = scriptedBoardSession('session-board-stop', async (emit, current) => {
+    emit({ type: 'agent_start' })
+    await runtime.abortSession(current.sessionId)
+    current.messages.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: '写到一半' }],
+      stopReason: 'aborted',
+      timestamp: 2,
+    })
+  })
+  install(session)
+  await runtime.streamPrompt({ sessionId: session.sessionId, message: 'Go.', send: () => {} })
+
+  const item = await boardItem(session.sessionId)
+  assert.equal(item.card.outcome, 'stopped')
+  assert.equal(item.card.boardStatus, 'done')
+  assert.equal(Object.hasOwn(item.card, 'error'), false)
+  assert.equal(deriveBoardStatus(item, { now: Date.now() }).status, 'stopped')
+  assert.equal(runtime.sessionMeta[session.sessionId].boardCard.outcome, 'stopped')
+})
+
+test('a failed run needs attention until dismissAttention clears it, then stays failed but handled', async (t) => {
+  const { runtime, install, boardItem } = await boardRuntime(t, 'pisper-board-failure-')
+  const session = scriptedBoardSession('session-board-failure', async (emit, current) => {
+    emit({ type: 'agent_start' })
+    emit({
+      type: 'tool_execution_start',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+    })
+    emit({
+      type: 'tool_execution_end',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      result: { content: [{ type: 'text', text: '3 failed, 41 passed\nexit 1' }] },
+      isError: true,
+    })
+    current.messages.push({
+      role: 'assistant',
+      content: [],
+      stopReason: 'error',
+      errorMessage: `429 Too Many Requests ${'限'.repeat(400)}`,
+      timestamp: 2,
+    })
+  })
+  install(session)
+  await runtime.streamPrompt({ sessionId: session.sessionId, message: 'Go.', send: () => {} })
+
+  const failed = await boardItem(session.sessionId)
+  assert.equal(failed.attentionReason, 'failure')
+  assert.equal(failed.card.boardStatus, 'attention')
+  assert.equal(failed.card.outcome, 'failed')
+  assert.equal(failed.card.error.kind, 'model')
+  assert.equal([...failed.card.error.message].length, 240)
+  assert.deepEqual(failed.card.tail, ['3 failed, 41 passed', 'exit 1'])
+
+  const organizationRoute = sessionRuntimeRoutes.find(
+    (route) => route.method === 'PATCH' && route.path === '/api/sessions/:sessionId/organization',
+  )
+  const patch = async (input) => {
+    let response
+    await organizationRoute.handler({
+      runtime,
+      params: { sessionId: session.sessionId },
+      body: async () => input,
+      json: (status, value) => {
+        response = { status, value }
+      },
+    })
+    return response
+  }
+  const rejected = await patch({ dismissAttention: false })
+  assert.equal(rejected.status, 400)
+  assert.equal(rejected.value.code, 'invalid_session_organization')
+
+  const dismissed = await patch({ dismissAttention: true })
+  assert.equal(dismissed.status, 200)
+  assert.equal(dismissed.value.needsAttention, false)
+  assert.equal(dismissed.value.attentionReason, null)
+  // 只清注意力，不改已读状态。
+  assert.equal(dismissed.value.unread, true)
+
+  const handled = await boardItem(session.sessionId)
+  assert.equal(handled.card.boardStatus, 'done')
+  assert.equal(handled.card.outcome, 'failed')
+  assert.deepEqual(deriveBoardStatus(handled, { now: Date.now() }), {
+    lane: 'done',
+    status: 'failed',
+    handled: true,
+    since: Date.parse(handled.lastCompletedAt),
+  })
+})
+
+test('the board event stream ends a run with a not-running frame even when finishing writes are slow', async (t) => {
+  const { runtime, install } = await boardRuntime(t, 'pisper-board-slow-finish-')
+  const session = scriptedBoardSession('session-board-slow-finish', async (emit, current) => {
+    emit({ type: 'agent_start' })
+    emit({ type: 'turn_start' })
+    const assistant = {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'ok' }],
+      stopReason: 'stop',
+      timestamp: 2,
+    }
+    current.messages.push(assistant)
+    emit({ type: 'message_end', message: assistant })
+    emit({ type: 'agent_end', messages: [assistant], willRetry: false })
+  })
+  install(session)
+
+  const frames = []
+  const connection = runtime.boardEvents.connect({
+    after: null,
+    send: (event, data) => {
+      if (event === 'session_card' && data?.id === session.sessionId) frames.push(data)
+    },
+    close: () => {},
+  })
+  t.after(() => connection.detach())
+  await connection.ready
+
+  // 慢磁盘：运行收尾的元数据落盘晚于看板 flush（移动端、杀软扫描下常见）。
+  const save = runtime.saveSessionMeta.bind(runtime)
+  runtime.saveSessionMeta = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    return save()
+  }
+  t.after(() => {
+    runtime.saveSessionMeta = save
+  })
+  await runtime.streamPrompt({ sessionId: session.sessionId, message: 'Go.', send: () => {} })
+
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline && frames.at(-1)?.session?.streaming !== false) {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  const last = frames.at(-1)
+  assert.ok(last, 'the run produced at least one card frame')
+  assert.equal(last.session.streaming, false)
+  assert.equal(last.card.boardStatus, 'done')
+  assert.equal(last.card.outcome, 'completed')
 })

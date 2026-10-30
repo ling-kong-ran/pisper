@@ -132,6 +132,7 @@ mod tests {
             args: serde_json::json!({ "command": "npm test" }),
             risk: "high".to_owned(),
             reason: "Runs a command outside the workspace.".to_owned(),
+            severity: String::new(),
         };
 
         assert_eq!(

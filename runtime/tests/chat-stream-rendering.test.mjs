@@ -121,8 +121,10 @@ test('composer is the sole persistent Agent run status surface', async () => {
   assert.match(focus, /focus-composer-status/)
   assert.match(focus, /compaction\?\.active \? 'compacting[^']*' : streaming \? 'running' : 'idle'/)
   assert.doesNotMatch(focus, /focusSession\.agentRunning/)
-  // 运行条用强调色底与「运行中」文字表示运行，不再整体染成成功绿。
-  assert.match(focus, /\[&\.running\]:border-star-border[^`]*\[&\.running\]:bg-star-soft/)
+  // 运行条用运行青（--st-run-*）底与「运行中」文字表示运行，不再整体染成成功绿；
+  // 强调色（--star，默认石墨）只留给主操作（规格 1 原则 2、6.1）。
+  assert.match(focus, /\[&\.running\]:border-st-run-border[^`]*\[&\.running\]:bg-st-run-soft/)
+  assert.doesNotMatch(focus, /\[&\.running\]:(?:border|bg)-star/)
   assert.doesNotMatch(focus, /\[&\.running\]:text-\[var\(--success-strong\)\]/)
   assert.match(focus, /compacting[^']*text-\[var\(--warning-strong\)\]/)
   assert.match(focus, /\[&\.idle\]:hidden/)
@@ -152,16 +154,27 @@ test('all chats expose their working directory in the title header, not in the c
 })
 
 test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
-  const [focus, message, transcript] = await Promise.all([
+  const [focus, message, transcript, pageHeader, shell] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
+    readFile('src/app/SessionShell.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
+  // 手机外壳仍是旧的任务顶栏。
   assert.match(
     focus,
     /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
+  // 第 3 期桌面会话页：44px 会话页头取代旧顶栏，标题只出现这一次（15/600，可点改名），没有头像卡片；
+  // 外壳本身（泳道条与返回键）不再重复标题。
+  assert.match(focus, /const headerBlock = pageHeaderBlock \|\| \(/)
+  assert.match(pageHeader, /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/)
+  assert.match(pageHeader, /text-\[15px\] leading-6 font-semibold[\s\S]{0,300}onClick=\{onRename\}/)
+  assert.equal(pageHeader.match(/data-session-title/g)?.length, 1)
+  assert.doesNotMatch(pageHeader, /Avatar|BrandLogo/)
+  assert.doesNotMatch(shell, /session\.name|data-session-title|pageHeader\.newChat/)
   assert.doesNotMatch(focus, /sessionActionsMenu|<SessionActionsMenu/)
   assert.match(message, /<BrandLogo size=\{22\} \/>/)
   assert.doesNotMatch(message, /AgentStatusAvatar/)

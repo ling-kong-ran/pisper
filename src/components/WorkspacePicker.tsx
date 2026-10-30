@@ -22,6 +22,8 @@ type WorkspacePickerProps = {
   description?: string
   onOpenChange: (open: boolean) => void
   onSelect: (path: string) => void | Promise<void>
+  // 关闭时焦点默认回到打开前的位置；调用方选完目录要把焦点交给别处（例如启动台）时接管。
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function WorkspacePicker({
@@ -30,6 +32,7 @@ export function WorkspacePicker({
   description,
   onOpenChange,
   onSelect,
+  onCloseAutoFocus,
 }: WorkspacePickerProps) {
   const { t } = useI18n()
   const [path, setPath] = useState(initialPath)
@@ -111,7 +114,11 @@ export function WorkspacePicker({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !busyRef.current && onOpenChange(nextOpen)}>
-      <DialogContent showCloseButton={!busy} className="sm:max-w-lg">
+      <DialogContent
+        showCloseButton={!busy}
+        className="sm:max-w-lg"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>{t('common:workspacePicker.setWorkingDirectory')}</DialogTitle>
           <DialogDescription>

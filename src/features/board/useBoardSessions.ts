@@ -8,7 +8,7 @@ import {
   type BoardItem,
   type BoardProject,
 } from './board-model'
-import { refreshBoardSessions } from './board-store'
+import { refreshBoardFeed } from './board-store'
 import { useBoardViewStore, type BoardViewPreferences } from './board-view-store'
 import { useBoardItems, type BoardRuntimeCapabilities } from './useBoardItems'
 
@@ -40,7 +40,7 @@ export function useBoardSessions(): BoardSessionsResult {
   const laneFilter = useBoardViewStore((state) => state.lanes)
   const collapsedLanes = useBoardViewStore((state) => state.collapsedLanes)
   const doneWindow = useBoardViewStore((state) => state.doneWindow)
-  const { query, items: all, capabilities } = useBoardItems(doneWindow)
+  const { query, items: all, capabilities, isLoading } = useBoardItems(doneWindow)
   const items = useMemo(
     () => filterBoardItems(all, { lanes: laneFilter, projects: projectFilter }),
     [all, laneFilter, projectFilter],
@@ -50,8 +50,10 @@ export function useBoardSessions(): BoardSessionsResult {
   const attentionAll = useMemo(() => all.filter((item) => item.lane === 'attention'), [all])
   const sessions = query.data?.sessions
   // 空草稿会话（没有任何消息）不算历史：它们本来就不上看板。
+  // 目录还没读到（看板条目先到）时不下“首次运行”的结论。
   const catalogEmpty = useMemo(
     () =>
+      Boolean(sessions) &&
       !(sessions ?? []).some(
         (session) =>
           session.archived !== true &&
@@ -64,7 +66,7 @@ export function useBoardSessions(): BoardSessionsResult {
     [collapsedLanes, doneWindow, groupBy, laneFilter, projectFilter],
   )
   const refresh = useCallback(async () => {
-    await refreshBoardSessions()
+    await refreshBoardFeed()
   }, [])
   return {
     items,
@@ -75,7 +77,7 @@ export function useBoardSessions(): BoardSessionsResult {
     catalogEmpty,
     view,
     capabilities,
-    isLoading: query.isPending,
+    isLoading,
     isRefreshing: query.isFetching && !query.isPending,
     error: query.error ?? null,
     refresh,

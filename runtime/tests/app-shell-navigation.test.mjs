@@ -171,6 +171,23 @@ test('fleet system info shows only values the runtime actually reported', () => 
   })
 })
 
+test('fleet system info shows sub-agent slots only when the runtime reports the limit', () => {
+  // 第 2 期 Runtime 的诊断接口带 subAgents（只增字段）：浮层底部显示“子代理 x/4”。
+  assert.deepEqual(
+    parseFleetSystemInfo(undefined, { subAgents: { running: 1, maxConcurrent: 4 } }).subAgents,
+    { running: 1, max: 4 },
+  )
+  // 旧 Runtime 没有这个字段，或数据不完整、不合法：不显示，绝不用常量 4 冒充。
+  for (const diagnostics of [
+    {},
+    { subAgents: { running: 1 } },
+    { subAgents: { running: 1, maxConcurrent: 0 } },
+    { subAgents: { running: -1, maxConcurrent: 4 } },
+    { subAgents: { running: '1', maxConcurrent: 4 } },
+  ])
+    assert.equal('subAgents' in parseFleetSystemInfo(undefined, diagnostics), false)
+})
+
 test('compact durations stay short and never go negative', () => {
   assert.equal(formatCompactDuration(-5), '0s')
   assert.equal(formatCompactDuration(42_000), '42s')

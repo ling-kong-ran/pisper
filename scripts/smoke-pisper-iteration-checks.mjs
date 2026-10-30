@@ -1,6 +1,7 @@
 // 新一轮界面行为验收；调用方必须提供隔离运行时和本地 CLI 导入 mock。
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
+import { boardFixture, installBoardFixture } from './fixtures/board-fixture.mjs'
 export async function verifyPisperIteration({
   page,
   base,
@@ -122,6 +123,92 @@ export async function verifyPisperIteration({
   assert.equal(await fontInput.inputValue(), '14')
   report.checks.push(
     'The numeric UI font size scales the active settings-section row and persists; root spacing, the 32px section row and 16px icon remain unchanged',
+  )
+
+  // 旧侧栏 36px 会话行随外壳退役；界面字号改为钉住看板卡片行（标题 base、元信息 xs）与会话页
+  // 泳道条芯片（xs）的缩放，泳道条保持 52px、页面不横向滚动。看板与泳道条的数据由看板固定数据在
+  // 浏览器边界提供（独立的浏览器上下文，不影响上面的页面），会话页用本次隔离 Runtime 里的真实会话。
+  {
+    // 前面的步骤可能已经删掉了带消息的会话；泳道条只需要一条 Runtime 认识的会话来打开会话页。
+    const listed = (await api('/api/sessions')).sessions
+    const real =
+      listed.find((session) => session.messageCount > 0) ??
+      listed[0] ??
+      (await api('/api/sessions', 'POST', { name: 'PI font scale fixture' }))
+    assert.ok(real?.id, 'the isolated runtime has a session for the session page')
+    const context = await page
+      .context()
+      .browser()
+      .newContext({
+        viewport: { width: 1440, height: 900 },
+        locale: 'zh-CN',
+      })
+    try {
+      await context.addInitScript(() => {
+        try {
+          localStorage.setItem('pisper-language', 'zh-CN')
+          localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
+        } catch {}
+      })
+      await installBoardFixture(context, {
+        sessions: [
+          ...boardFixture().sessions,
+          { ...real, pinned: false, unread: false, needsAttention: false, streaming: true },
+        ],
+      })
+      const scaled = await context.newPage()
+      const card = scaled.locator('[data-board-card="fx-standard"]')
+      const chip = scaled.locator('[data-strip-chip="fx-standard"]')
+      // 字号断言取文本所在元素（没有子元素、文字等于标题）的计算字号。
+      const titleFont = (scope, title) =>
+        scope.evaluate((root, text) => {
+          const node = [root, ...root.querySelectorAll('*')].find(
+            (element) => !element.children.length && element.textContent.trim() === text,
+          )
+          return node ? parseFloat(getComputedStyle(node).fontSize) : null
+        }, title)
+      for (const size of [12, 16, 14]) {
+        await scaled.goto(base + '/#/config/interface')
+        await scaled.getByText('高级', { exact: true }).click()
+        const input = scaled.getByRole('spinbutton', { name: '界面字号', exact: true })
+        await input.fill(String(size))
+        await input.press('Enter')
+        await scaled.waitForFunction(
+          (expected) =>
+            getComputedStyle(document.documentElement).getPropertyValue('--ui-font-size').trim() ===
+            `${expected}px`,
+          size,
+        )
+        const xs = Math.round((12 * size) / 14)
+        await scaled.goto(base + '/#/board')
+        await card.waitFor({ timeout: 30000 })
+        assert.equal(await titleFont(card, '补充登录模块的单元测试'), size, `card title at ${size}`)
+        assert.equal(
+          await card
+            .locator('[data-card-meta]')
+            .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+          xs,
+          `card meta row at ${size}`,
+        )
+        await scaled.goto(base + `/#/board/${real.id}`)
+        await chip.waitFor({ timeout: 30000 })
+        assert.equal(await titleFont(chip, '补充登录模块的单元测试'), xs, `strip chip at ${size}`)
+        const layout = await scaled.evaluate(() => ({
+          strip: Math.round(
+            document.querySelector('[data-lane-strip]').getBoundingClientRect().height,
+          ),
+          horizontalScroll: document.documentElement.scrollWidth > innerWidth,
+          root: getComputedStyle(document.documentElement).fontSize,
+        }))
+        assert.deepEqual(layout, { strip: 52, horizontalScroll: false, root: '16px' })
+      }
+      await scaled.screenshot({ path: join(output, 'strip-font-scale.png') })
+    } finally {
+      await context.close()
+    }
+  }
+  report.checks.push(
+    'The numeric UI font size scales board card rows (title base, meta xs) and lane strip chips (xs) at 12/16/14 px while the strip stays 52px, the root stays 16px and nothing scrolls horizontally',
   )
 
   const openWorkflowSettings = async () => {

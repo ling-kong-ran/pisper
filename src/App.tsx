@@ -20,7 +20,12 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate, type NavigateOptions } from 'react-router-dom'
 import { createPrimaryActionRegistry } from '@/app/primary-action'
-import { LOCAL_REVEAL_NOTICE_EVENT, type AppRouteContext } from '@/app/route-context'
+import {
+  LOCAL_REVEAL_NOTICE_EVENT,
+  type AppRouteContext,
+  type Notify,
+  type NotifyAction,
+} from '@/app/route-context'
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
@@ -173,6 +178,7 @@ type ToastState = {
   id: number
   message: string
   tone: ToastTone
+  action?: NotifyAction
 }
 
 // 渲染通知模板：把 {{a.b}} 占位符替换为事件数据中的嵌套字段值，
@@ -357,9 +363,9 @@ function App() {
   }, [theme])
 
   // 每条通知独立完成展示，避免连续成功/失败反馈互相覆盖。
-  const notify = useCallback((message: string, tone: ToastTone = 'success') => {
+  const notify = useCallback<Notify>((message, tone = 'success', options) => {
     toastSequence.current += 1
-    const next = { id: toastSequence.current, message, tone }
+    const next = { id: toastSequence.current, message, tone, action: options?.action }
     setToastQueue((queue) => [...queue, next])
   }, [])
 
@@ -515,6 +521,15 @@ function App() {
       else notify(t('board:launch.dispatched'))
     },
     [notify, openSession, t],
+  )
+
+  // 浮层在发送途中被关闭、随后派发失败：草稿已放回，用全局提示报错并给出重新打开的入口。
+  const dispatchFailedAfterClose = useCallback(
+    (message: string) =>
+      notify(message, 'error', {
+        action: { label: t('board:dispatch.reopen'), onAction: () => setDispatchOpen(true) },
+      }),
+    [notify, t],
   )
 
   // 新会话（命令面板、历史页等旧入口）：直接进入新建会话页。
@@ -792,6 +807,7 @@ function App() {
     setNotificationSettings: updateNotificationSettings,
     appUpdate,
     registerWorkflowActions,
+    startNewTask: () => startNewTask('board'),
   }
   // 会话页回看板、从“更多”进入的功能页回更多：手机返回键与页头“‹ 更多”共用这一层级。
   const moreOwned = shellTab === 'more' && page !== 'more'
@@ -1028,6 +1044,8 @@ function App() {
               open
               message={toast.message}
               tone={toast.tone}
+              action={toast.action}
+              duration={toast.action ? 10_000 : undefined}
               closeLabel={t('common:ui.closeDialog')}
               onOpenChange={(open) =>
                 !open && setToastQueue((queue) => queue.filter((entry) => entry.id !== toast.id))
@@ -1088,6 +1106,7 @@ function App() {
                 phone={phoneShell}
                 onOpenChange={setDispatchOpen}
                 onDispatched={taskDispatched}
+                onDetachedFailure={dispatchFailedAfterClose}
                 onConfigureModels={() => routerNavigate('/config/models')}
               />
             )}

@@ -9,6 +9,7 @@ import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
 import { SecureRefRegistry } from './computer-use-secure-refs.mjs'
+import { deriveApprovalSeverity } from '../../shared/session-board-status.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
 export const DEFAULT_PERMISSION_MODE = 'auto'
@@ -232,6 +233,7 @@ export class SessionPermissionService {
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
     computerUseSecureRefs = new SecureRefRegistry(),
+    onEvent,
   } = {}) {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
@@ -245,6 +247,8 @@ export class SessionPermissionService {
     this.resolved = new Map()
     this.remembered = new Map()
     this.emitters = new Map()
+    // 审批事件观察者（看板事件流）：不依赖本轮运行是否挂着 emitter，后台子代理的审批也能上看板。
+    this.onEvent = typeof onEvent === 'function' ? onEvent : null
     this.installedSessions = new WeakSet()
   }
 
@@ -273,6 +277,9 @@ export class SessionPermissionService {
   emit(sessionId, event, data) {
     try {
       this.emitters.get(sessionId)?.(event, data)
+    } catch {}
+    try {
+      this.onEvent?.(sessionId, event, data)
     } catch {}
   }
 
@@ -465,6 +472,9 @@ export class SessionPermissionService {
       args: safeArgs(args),
       mode,
       risk,
+      // 危险等级与前端降级判断共用 shared/session-board-status.mjs 的同一张规则表（规格 3.5）：
+      // critical 在任何入口都不能一步批准；旧客户端忽略这个字段。
+      severity: deriveApprovalSeverity({ toolName, args, reason }),
       reason,
       createdAt,
       ...(fileChange ? { fileChange: publicFileChange(fileChange) } : {}),

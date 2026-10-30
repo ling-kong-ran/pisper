@@ -162,6 +162,9 @@ import {
 import { archivePreviewImagePart, dispatchToolPreviewImage } from './tool-preview-images.mjs'
 import { releaseConsumedSessionInput, sessionInputQueueRevision } from './session-input-queue.mjs'
 import { createRequestTimingTracker, sessionRequestTiming } from './request-timing.mjs'
+import { SessionCardSummaries } from '../services/session-card-summary.mjs'
+import { BoardEventHub } from '../services/board-event-hub.mjs'
+import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -548,6 +551,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
+      onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
@@ -608,6 +612,18 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         maxSourceBytes: this.maxSessionHistoryCacheSourceBytes,
         maxEstimatedBytes: this.maxSessionHistoryCacheEstimatedBytes,
       }),
+      onInvalidate: (id) => this.boardEvents?.touch(id),
+    })
+    // 看板卡片摘要（事件增量维护）与看板事件流集线器；两者构造时都不启动任何定时器。
+    this.sessionCards = new SessionCardSummaries({
+      loadChangeSummary: (id) => this.getSessionChangeSummary(id),
+      persist: (id, card, { save }) => this.persistBoardCard(id, card, save),
+      onChange: (id) => this.boardEvents?.touch(id),
+    })
+    this.boardEvents = new BoardEventHub({
+      listItems: (ids) => this.boardHubItems(ids),
+      snapshotLimit: BOARD_SNAPSHOT_LIMIT,
+      onError: () => console.warn('看板事件流刷新失败。'),
     })
     this.toolActivation = new ToolActivation({
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
@@ -1032,6 +1048,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return {
       ...this.sessionLifecycle.getRuntimeDiagnostics(),
       projectionCache: this.streamProjection.cache.stats(),
+      // 只增字段：子代理占用的并发槽位与上限，看板舰队计量浮层显示“子代理 x/4”。
+      ...(this.multiAgents
+        ? {
+            subAgents: {
+              running: this.multiAgents.executingCount(),
+              maxConcurrent: this.multiAgents.maxConcurrent,
+            },
+          }
+        : {}),
     }
   }
 
@@ -1921,12 +1946,28 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       goalTokenBudget = null,
       isolatedContext = false,
       mobileClient = false,
+      runId = '',
       send,
     },
   ) {
+    // 看板摘要只跟踪会出现在看板上的会话；侧聊不上看板，不占摘要缓存。
+    // 每个流事件都会走到这里，判定结果在本轮内不变，只算一次。
+    let cardId = null
+    const boardCardId = () => {
+      if (cardId !== null) return cardId
+      const id = value.session?.sessionId || sessionId || ''
+      cardId = id && !this.sideChats?.isSideChat(id) ? id : ''
+      return cardId
+    }
     const emit = (event, data) => {
       this.streamProjection.invalidate(data?.sessionId || sessionId || '')
       send(event, data)
+      try {
+        const id = boardCardId()
+        if (id) this.sessionCards.observe(id, event, data)
+      } catch {
+        // 卡片摘要是旁路统计，任何异常都不能打断 Agent 流。
+      }
       try {
         const observedSessionId = data?.sessionId || sessionId || ''
         if (!this.sideChats?.isSideChat(observedSessionId))
@@ -2030,6 +2071,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     live.attachTeam = attachTeam
     live.queueRevision = sessionInputQueueRevision(session)
+    // runId 由 HTTP 层登记（只有经 /api/chat 或 /retry 发起的运行才有）；渠道、工作流等内部运行没有。
+    if (typeof runId === 'string' && /^run_[A-Za-z0-9_-]{1,64}$/.test(runId)) live.runId = runId
+    if (boardCardId())
+      this.sessionCards.beginRun(session.sessionId, { runId: live.runId, startedAt })
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
@@ -2525,8 +2570,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
       await pendingGoalAccounting
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
-      // 模型返回的最后一轮若带错误信息，视为本轮失败。
-      if (last?.errorMessage) throw new Error(last.errorMessage)
+      // 模型返回的最后一轮若带错误信息，视为本轮失败；看板卡片据 boardErrorKind 区分模型错误与运行时错误。
+      if (last?.errorMessage)
+        throw Object.assign(new Error(last.errorMessage), { boardErrorKind: 'model' })
       const assistantText = textFromContent(last?.content)
       live.text = assistantText || live.text
       // 团队总结只在 team 轮次回写；plan 轮（含刚暂停目标的轮次）不覆盖既有总结。
@@ -2539,6 +2585,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       // 回合边界条目随 done 直接下发：前端就地补全消息元数据，结束后不再整页重拉历史。
       const turnBoundaryEntryId = findLastMessageEntryId(session.sessionManager, 'assistant')
+      if (boardCardId()) this.finishBoardCard(session.sessionId, value, live)
       emit('done', {
         turnBoundaryEntryId,
         queueRevision: sessionInputQueueRevision(session),
@@ -2588,6 +2635,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
       if (this.goals.get(session.sessionId)?.status === 'active')
         await this.pauseSessionGoal(session.sessionId)
+      if (boardCardId()) this.finishBoardCard(session.sessionId, value, live, error)
       emit('error', {
         queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,
@@ -2643,6 +2691,38 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
   async captureConversationMemory(input) {
     return this.memoryCapture.capture(input)
+  }
+
+  // 一轮运行收尾时记下看板卡片的结局。value.abortedAt 只由显式停止（POST /abort、渠道 /stop、
+  // MCP abort）写入，且每轮开始时清空，所以能可靠地把“已停止”与正常完成 / 失败区分开。
+  finishBoardCard(sessionId, value, live, error = null) {
+    try {
+      const failed = Boolean(error) && !value.abortedAt
+      const persisted = this.sessionCards.finishRun(sessionId, {
+        outcome: value.abortedAt ? 'stopped' : failed ? 'failed' : 'completed',
+        finishedAt: live.finishedAt,
+        error: failed
+          ? { message: live.error, kind: error?.boardErrorKind === 'model' ? 'model' : 'runtime' }
+          : null,
+        text: live.text,
+        contextPercent: live.contextUsage?.percent,
+        totalTokens: live.sessionUsage?.totalTokens,
+      })
+      // 只改内存里的元数据，本轮 finally 的 saveSessionMeta 统一落盘。
+      if (persisted) this.persistBoardCard(sessionId, persisted, false)
+    } catch {
+      console.warn('看板卡片摘要记录失败。')
+    }
+  }
+
+  // 精简摘要写进会话元数据（pisper-sessions.json 的 boardCard），Runtime 重启后已落盘会话靠它出卡片。
+  persistBoardCard(sessionId, card, save = false) {
+    // 运行途中被删除的会话：收尾时不再写回只有 boardCard 的孤儿元数据。
+    if (this.sessionCards?.isDeleted(sessionId)) return
+    const meta = this.sessionMeta[sessionId]
+    if (!meta && !this.sessions.has(sessionId) && !this.pendingSessions.has(sessionId)) return
+    this.sessionMeta[sessionId] = { ...(meta || {}), boardCard: card }
+    if (save) void this.saveSessionMeta().catch(() => console.warn('看板卡片摘要保存失败。'))
   }
 }
 Object.assign(AgentRuntimeService.prototype, agentSessionMethods)

@@ -152,3 +152,31 @@ export function projectDisambiguation(
       hints.set(project.key, shortPath(project.cwd))
   return hints
 }
+
+// 尾巴里哪些行算“失败行”（标红）：测试框架的失败计数、FAIL / ERR! 前缀、✗ 标记、error / panic 等关键词，
+// 以及非零退出码。“0 failed / 0 errors”这类成功摘要不标红。只影响颜色，文本原样显示。
+export function tailLineFailed(line: string) {
+  const text = line.trim()
+  if (!text) return false
+  if (/\b[1-9]\d* (?:failed|failing|errors?)\b/i.test(text)) return true
+  if (/\b0 (?:failed|failing|errors?)\b/i.test(text)) return false
+  return /^FAIL\b|\bERR!|^[✗✘×]|\b(?:error|failed|failure|fatal|panic|exception|traceback)\b|\bexit (?:code )?[1-9]/i.test(
+    text,
+  )
+}
+
+// 上下文用量（card.contextPct）显示为整数百分比；没有数据时返回 null，元信息行退回“N 条消息”。
+export function contextPercent(item: Pick<BoardItem, 'contextPct'>) {
+  const value = item.contextPct
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(100, Math.max(0, Math.round(value)))
+    : null
+}
+
+// 改动统计只在确知（known / partial）且确有文件改动时显示；unavailable 不再去读 /change-summary。
+export function visibleChangeStats(item: Pick<BoardItem, 'changeStats'>) {
+  const stats = item.changeStats
+  if (!stats || (stats.status !== 'known' && stats.status !== 'partial') || !stats.files)
+    return null
+  return { files: stats.files, added: stats.added ?? 0, removed: stats.removed ?? 0 }
+}

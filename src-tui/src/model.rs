@@ -643,7 +643,7 @@ pub enum RuntimeEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{MessagePage, SessionSummary, SessionUsage, VcsChanges};
+    use super::{MessagePage, SessionSummary, SessionUsage, SessionsResponse, VcsChanges};
 
     /// 验证历史工具时间戳兼容 ISO 字符串与毫秒整数两种格式（非法 ISO 归零）。
     #[test]
@@ -856,5 +856,70 @@ mod tests {
         assert!(legacy.name.is_empty());
         assert!(legacy.cwd.is_empty());
         assert!(!legacy.streaming);
+    }
+
+    /// 第 2 期看板字段（card、runId、审批 severity、未知 attentionReason 取值、
+    /// view=board 的顶层分页字段）对 TUI 都是可忽略的增量，不能让会话列表解析失败。
+    #[test]
+    fn session_list_tolerates_board_view_extensions() {
+        let response: SessionsResponse = serde_json::from_value(serde_json::json!({
+            "view": "board",
+            "nextCursor": "WzEsMCwxNzYxNzAwMDAwMDAwLCJzZXNzaW9uIl0",
+            "total": 2,
+            "revision": 1_761_700_000_000_u64,
+            "sessions": [
+                {
+                    "id": "board",
+                    "name": "看板会话",
+                    "cwd": "/workspace/project",
+                    "streaming": true,
+                    "executionMode": "workspace-write",
+                    "needsAttention": true,
+                    "attentionReason": "question",
+                    "runId": "run_abc",
+                    "card": {
+                        "boardStatus": "attention",
+                        "runId": "run_abc",
+                        "activity": {
+                            "type": "tool",
+                            "name": "bash",
+                            "argsSummary": "npm test",
+                            "startedAt": null
+                        },
+                        "approvals": [{
+                            "id": "approval-1",
+                            "toolName": "bash",
+                            "argsPreview": "rm -r build",
+                            "argsTruncated": false,
+                            "risk": "high",
+                            "severity": "critical",
+                            "reason": "命令守卫拦截：递归删除（rm -r）。",
+                            "createdAt": "2026-10-29T02:00:00.000Z"
+                        }],
+                        "tail": ["FAIL a.test.ts", "running 3/4"],
+                        "agents": { "running": 1, "total": 2 },
+                        "usage": { "totalTokens": 4200 },
+                        "outcome": "stopped",
+                        "changeStats": { "added": null, "removed": 3, "files": 1, "status": "partial" },
+                        "futureField": { "nested": [1, 2, 3] }
+                    }
+                },
+                {
+                    "id": "idle",
+                    "attentionReason": "some-future-reason",
+                    "card": { "boardStatus": "idle" }
+                }
+            ]
+        }))
+        .unwrap();
+        assert_eq!(response.sessions.len(), 2);
+        let board = &response.sessions[0];
+        assert_eq!(board.id, "board");
+        assert_eq!(board.name, "看板会话");
+        assert_eq!(board.cwd, "/workspace/project");
+        assert!(board.streaming);
+        assert_eq!(board.execution_mode, "workspace-write");
+        assert_eq!(response.sessions[1].id, "idle");
+        assert!(response.sessions[1].name.is_empty());
     }
 }

@@ -1,6 +1,6 @@
 // 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
 // 长代码自动展开，附件与工具调用内嵌展示。
-import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Check,
@@ -50,6 +50,7 @@ import { ChatRequestNotice } from './ChatRequestNotice'
 import { chatApi } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
+import { TranscriptMetaContext } from './session-workspace-context'
 import { Message as AiMessage } from '@/components/ai-elements/message-shell'
 
 type PreviewImage = { attachment: ChatAttachment; source: string; attachmentIndex: number }
@@ -686,6 +687,10 @@ type FocusChatMessageProps = {
   retryUserMessageId?: string
   hideErrorNotice?: boolean
   onRetryLastTurn: () => Promise<void> | void
+  /** 是否最新一条助手回复：会话页信息行只在这一条上写当前模型与审批模式。 */
+  latest?: boolean
+  /** 第几轮（从整段会话开头数用户消息）；只加载了部分历史时不知道，传 undefined 不显示。 */
+  turn?: number
 }
 
 function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProps) {
@@ -701,7 +706,9 @@ function focusPropsEqual(prev: FocusChatMessageProps, next: FocusChatMessageProp
     prev.onCreateChildSession === next.onCreateChildSession &&
     prev.retryUserMessageId === next.retryUserMessageId &&
     prev.hideErrorNotice === next.hideErrorNotice &&
-    prev.onRetryLastTurn === next.onRetryLastTurn
+    prev.onRetryLastTurn === next.onRetryLastTurn &&
+    prev.latest === next.latest &&
+    prev.turn === next.turn
   )
 }
 
@@ -718,8 +725,12 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   retryUserMessageId,
   hideErrorNotice,
   onRetryLastTurn,
+  latest = false,
+  turn,
 }: FocusChatMessageProps) {
   const { t, language } = useI18n()
+  // 会话页（桌面布局）提供信息行数据；手机外壳与旧入口没有，保持原来的“Pisper”抬头。
+  const meta = useContext(TranscriptMetaContext)
   const [branching, setBranching] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -766,6 +777,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     >
       {showAgentHead && (
         // 抬头：墨色品牌键帽 + 名称；运行中追加轨道指示，时间使用等宽数字。
+        // 会话页的代理信息行（规格 4.3）：最新回复写当前模型与审批模式，所有回复都写第 N 轮（已知时）。
         <div className="agent-message-head mb-2 flex h-6 min-w-0 items-center gap-2 text-[13px]">
           <span
             className="agent-message-mark grid size-[22px] flex-none place-items-center"
@@ -774,7 +786,25 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           >
             <BrandLogo size={22} />
           </span>
-          <span className="font-semibold text-foreground">Pisper</span>
+          <span className="min-w-0 truncate font-semibold text-foreground">
+            {meta && latest && meta.model ? meta.model : 'Pisper'}
+          </span>
+          {meta &&
+            [
+              turn ? t('board:transcript.turn', { count: turn }) : '',
+              latest ? meta.approvalMode : '',
+            ]
+              .filter(Boolean)
+              .map((part) => (
+                <span
+                  key={part}
+                  className="flex min-w-0 flex-none items-center gap-2 text-[12px] text-content-muted tabular-nums"
+                  data-agent-meta
+                >
+                  <span aria-hidden="true">·</span>
+                  {part}
+                </span>
+              ))}
           {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}
           {timestamp && (
             <time
@@ -804,7 +834,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)] [font-family:var(--font-content-family)] font-[400]',
               message.role === 'agent'
                 ? 'w-full max-w-full rounded-none border-0 bg-transparent pt-1 leading-[1.625] [&_h1]:text-[1.5em]! [&_h1]:leading-[1.333333]! [&_h2]:text-[1.25em]! [&_h2]:leading-[1.4]! [&_h3]:text-[1.125em]! [&_h3]:leading-[1.555556]! [&_h1]:mt-[1em]! [&_h2]:mt-[1em]! [&_h3]:mt-[1em]! [&_h1]:mb-[.25em]! [&_h2]:mb-[.25em]! [&_h3]:mb-[.25em]! [&_li]:py-0! [&_li+li]:mt-[.25em]! [&_p]:mt-0! [&_p]:mb-[.25em]! [&_ul]:my-[.25em]! [&_ol]:my-[.25em]! [&_.markdown-content>p:first-child]:mt-0! [&_.markdown-content>p:last-child]:mb-0!'
-                : "rounded-[12px_12px_3px_12px] border-0 bg-[var(--user-bubble-bg)] px-[14px] py-[10px] text-[length:calc(var(--app-message-font-size)*.9375)]! leading-[1.6] text-[var(--user-bubble-text)] shadow-none [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [&_code]:bg-panel [&_code]:shadow-[0_0_0_1px_var(--stroke-soft)] [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
+                : "rounded-[12px_12px_4px_12px] border-0 bg-[var(--user-bubble-bg)] px-[14px] py-[10px] text-[length:calc(var(--app-message-font-size)*.9375)]! leading-[1.6] text-[var(--user-bubble-text)] shadow-[inset_0_0_0_1px_var(--stroke-soft)] [&_.markdown-content>p]:my-0! [&_h1]:text-inherit! [&_h2]:text-inherit! [&_h3]:text-inherit! [&_h4]:text-inherit! [&_a]:text-inherit! [&_blockquote]:text-inherit! [&_code]:bg-panel [&_code]:shadow-[0_0_0_1px_var(--stroke-soft)] [[data-chat-message-style='plain']_&]:rounded-none [[data-chat-message-style='plain']_&]:bg-transparent [[data-chat-message-style='plain']_&]:px-0 [[data-chat-message-style='plain']_&]:py-1",
             )}
           >
             {displayText}

@@ -4,6 +4,8 @@ import { projectStoredTeam } from '../../services/team-workflow.mjs'
 import { SessionOrganizationInputError } from '../../services/chat-session-organization.mjs'
 import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 import { SideChatError } from '../../services/side-chat-service.mjs'
+import { BoardViewQueryError } from '../../services/session-board-view.mjs'
+import { parseBoardViewQuery } from './board.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -145,8 +147,21 @@ const routes = [
   {
     method: 'GET',
     path: '/api/sessions',
-    async handler({ runtime, json }) {
-      json(200, { sessions: await runtime.listSessions() })
+    async handler({ runtime, url, json }) {
+      // 默认列表的形状与行为保持不变（包括忽略 ?limit）；只有显式 view=board 才走看板视图。
+      if (
+        url?.searchParams.get('view') !== 'board' ||
+        typeof runtime.listBoardSessions !== 'function'
+      ) {
+        json(200, { sessions: await runtime.listSessions() })
+        return
+      }
+      try {
+        json(200, await runtime.listBoardSessions(parseBoardViewQuery(url.searchParams)))
+      } catch (error) {
+        if (!(error instanceof BoardViewQueryError)) throw error
+        json(error.statusCode, { error: error.message, code: error.code })
+      }
     },
   },
   {
@@ -601,12 +616,13 @@ const routes = [
       // 先完成树导航与输入恢复，再开启 SSE：无可重试内容时按普通错误返回。
       const prepared = await runtime.prepareLastTurnRetry(params.sessionId)
       startSse()
-      startRun({ kind: 'chat', sessionId: params.sessionId })
+      const runId = startRun({ kind: 'chat', sessionId: params.sessionId })?.runId
       await runtime.streamPrompt({
         sessionId: params.sessionId,
         message: prepared.message,
         attachments: prepared.attachments,
         mobileClient: isMobileAppRequest(runtime, req),
+        runId,
         send: sendSse,
       })
     },
@@ -642,7 +658,7 @@ const routes = [
       }
       startSse()
       // 登记为可重挂的 run：首帧发出 runId，客户端断线后可按游标续传。
-      startRun({ kind: 'chat', sessionId: String(input.sessionId || '') })
+      const runId = startRun({ kind: 'chat', sessionId: String(input.sessionId || '') })?.runId
       if (invocation?.kind === 'workflow') {
         const result = await runtime.runWorkflow(String(invocation.resourceId || ''), {
           trigger: 'chat',
@@ -677,6 +693,8 @@ const routes = [
         teamMode: Boolean(input.teamMode),
         goalTokenBudget: input.goalTokenBudget == null ? null : Number(input.goalTokenBudget),
         mobileClient: isMobileAppRequest(runtime, req),
+        // run 由 HTTP 层登记：/live 与看板卡片据此告诉其它客户端去 /api/runs/:runId/events 挂接。
+        runId,
         send: sendSse,
       })
     },

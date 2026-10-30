@@ -232,6 +232,13 @@ test('only the confirmation layer may approve critical requests', async () => {
       )
     } else assert.equal(uses, 0, file)
   }
+  // 看板主确认层（卡片、键盘 A、逐个处理）与泳道条一致：截断的预览不交给确认层，
+  // 确认层因此显示“正在读取审批详情”且确认键禁用，直到 /live 给出完整参数。
+  const mainController = sources.find(([file]) => file === 'useBoardController.ts')[1]
+  assert.match(
+    mainController,
+    /approval: shownApproval && !shownApproval\.truncated \? shownApproval : null/,
+  )
   // 按住 0.6 秒才确认；按钮的点击（空格/回车）不能绕过按住时长，层内 ↵ 不在“取消”上时才确认。
   const confirmLayer = sources.find(([file]) => file === 'ApprovalConfirm.tsx')[1]
   assert.match(confirmLayer, /export const APPROVAL_HOLD_MS = 600\b/)
@@ -268,4 +275,34 @@ test('board UI keeps runs alive and reuses the existing create-and-send API', as
     assert.doesNotMatch(source, /\bfetch\(/, `${file} must not call fetch`)
     assert.doesNotMatch(source, /refetchInterval/, `${file} must not poll on its own`)
   }
+})
+
+test('full access stays in the current draft and a detached dispatch failure reaches a global toast', async () => {
+  const [launchConsole, overlay, app, toast] = await Promise.all(
+    [
+      'src/features/board/LaunchConsole.tsx',
+      'src/features/board/DispatchOverlay.tsx',
+      'src/App.tsx',
+      'src/components/ui/toast.tsx',
+    ].map((file) => readFile(join(root, file), 'utf8')),
+  )
+  // 审批模式芯片：安全模式照常记住，完全访问只放进本实例的草稿状态；派发时立即回到安全模式。
+  assert.match(launchConsole, /setFullAccess\(mode === 'full-access'\)/)
+  assert.match(
+    launchConsole,
+    /if \(mode !== 'full-access'\) defaults\.rememberLaunch\(\{ executionMode: mode \}\)/,
+  )
+  assert.match(launchConsole, /setFullAccess\(false\)\s+defaults\.rememberLaunch\(/)
+  // 失败时草稿先放回 composer-drafts（并同步给其他启动台实例），已卸载的实例把错误交给宿主。
+  assert.match(
+    launchConsole,
+    /restoreLaunchDraft\(prompt\)[\s\S]{0,400}if \(mountedRef\.current\) setError\(\{ message, noModel: false \}\)\s+else onDetachedFailure\?\.\(message\)/,
+  )
+  assert.match(overlay, /onDetachedFailure=\{onDetachedFailure\}/)
+  assert.match(app, /onDetachedFailure=\{dispatchFailedAfterClose\}/)
+  assert.match(
+    app,
+    /action: \{ label: t\('board:dispatch\.reopen'\), onAction: \(\) => setDispatchOpen\(true\) \}/,
+  )
+  assert.match(toast, /<ToastPrimitive\.Action altText=\{action\.label\} asChild>/)
 })

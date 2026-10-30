@@ -11,6 +11,7 @@ import {
 } from './response.mjs'
 import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
+import { boardRoutes } from './routes/board.mjs'
 import { customUiRoutes } from './routes/custom-ui.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
@@ -45,6 +46,7 @@ const registry = createRouteRegistry([
   ...directoryPickerRoutes,
   ...desktopRoutes,
   ...customUiRoutes,
+  ...boardRoutes,
 ])
 
 // 错误信息对外统一脱敏，避免把密钥/令牌泄漏到响应体。
@@ -81,6 +83,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/sessions\/[^/]+\/(?:git|vcs)(?:\/|$)/, feature: 'vcs' },
   { pattern: /^\/api\/sessions\/[^/]+\/goal(?:\/|$)/, feature: 'goals' },
   { pattern: /^\/api\/sessions\/[^/]+\/workflow-runs(?:\/|$)/, feature: 'workflows' },
+  { pattern: /^\/api\/board\/events$/, feature: 'board.events' },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

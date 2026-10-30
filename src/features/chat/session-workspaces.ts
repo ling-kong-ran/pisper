@@ -61,6 +61,23 @@ export function reconcileWorkspaceOrder(order: readonly string[], keys: readonly
   return normalizeWorkspaceOrder([...order, ...keys])
 }
 
+// 在当前列出的项目之间移动一位：只交换这两个键在完整顺序里的位置。
+// 暂时没列出的旧目录保留原位（与 reconcileWorkspaceOrder 一样，看不见不代表已删除）。
+export function moveWorkspaceInOrder(
+  order: readonly string[],
+  keys: readonly string[],
+  key: string,
+  offset: -1 | 1,
+) {
+  const full = reconcileWorkspaceOrder(order, keys)
+  const listed = new Set(normalizeWorkspaceOrder(keys))
+  const sequence = full.filter((item) => listed.has(item))
+  const index = sequence.indexOf(key)
+  const other = sequence[index + offset]
+  if (index < 0 || other === undefined) return full
+  return full.map((item) => (item === key ? other : item === other ? key : item))
+}
+
 export function orderWorkspaceGroups<T extends WorkspaceSession>(
   groups: readonly WorkspaceSessionGroup<T>[],
   order: readonly string[],

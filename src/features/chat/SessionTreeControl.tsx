@@ -5,6 +5,8 @@ import { useI18n } from '@/app/use-i18n'
 import { chatApi } from './chat-api'
 import { SessionTreeDialog } from './SessionTreeDialog'
 
+export type SessionTreeView = 'conversation' | 'labeled'
+
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 
 export function SessionTreeControl({
@@ -28,12 +30,22 @@ export function SessionTreeControl({
   onOpenChange: (open: boolean) => void
   onNavigated: (editorText: string | null) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
-  children: (menuItem: ReactNode) => ReactNode
+  // 第二个参数给会话页头用：分支数与按页签打开会话树（“分支”“标签”两个入口）。
+  children: (
+    menuItem: ReactNode,
+    tree: {
+      branches: number
+      open: (view?: SessionTreeView, opener?: HTMLElement | null) => void
+    },
+  ) => ReactNode
 }) {
   const { t } = useI18n()
   const [branches, setBranches] = useState(0)
+  const [initialView, setInitialView] = useState<SessionTreeView>('conversation')
   const [pulsing, setPulsing] = useState(false)
   const openFrame = useRef(0)
+  // 从页头按钮打开时记住按钮，关闭后焦点回到它；从“⋯”菜单打开时为空，对话框退回到“⋯”。
+  const opener = useRef<HTMLElement | null>(null)
   useEffect(() => () => cancelAnimationFrame(openFrame.current), [])
 
   useEffect(() => {
@@ -65,6 +77,8 @@ export function SessionTreeControl({
       data-pisper-recall-pulse={pulsing || undefined}
       onSelect={() => {
         // 先让菜单完成关闭与焦点恢复，再由独立挂载的对话框接管焦点。
+        opener.current = null
+        setInitialView('conversation')
         cancelAnimationFrame(openFrame.current)
         openFrame.current = requestAnimationFrame(() => onOpenChange(true))
       }}
@@ -82,10 +96,20 @@ export function SessionTreeControl({
   ) : null
   return (
     <>
-      {children(menuItem)}
+      {children(menuItem, {
+        branches,
+        open: (view = 'conversation', from = null) => {
+          opener.current = from
+          setInitialView(view)
+          cancelAnimationFrame(openFrame.current)
+          openFrame.current = requestAnimationFrame(() => onOpenChange(true))
+        },
+      })}
       {visible && (
         <SessionTreeDialog
           open={open}
+          initialView={initialView}
+          returnFocusRef={opener}
           sessionId={sessionId}
           streaming={streaming}
           onClose={() => onOpenChange(false)}

@@ -17,10 +17,13 @@ export const customUiRoutes = [
   {
     method: 'POST',
     path: '/api/custom-ui/import',
-    async handler({ services, bodyBuffer, json }) {
+    async handler({ runtime, services, bodyBuffer, json }) {
       try {
         const bytes = await bodyBuffer(16 * 1024 * 1024)
-        json(201, await customUiUnavailable(services).importBundle(bytes))
+        const imported = await customUiUnavailable(services).importBundle(bytes)
+        // 第 1 期组件仍是 custom-ui：安装 / 覆盖更新后通知看板事件流（component_changed）。
+        if (typeof imported?.id === 'string') runtime?.boardEvents?.componentChanged(imported.id)
+        json(201, imported)
       } catch (error) {
         if (!(error instanceof CustomUiImportError)) throw error
         json(error.statusCode, { code: error.code, error: error.code })

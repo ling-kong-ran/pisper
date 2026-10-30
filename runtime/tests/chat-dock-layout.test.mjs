@@ -98,8 +98,24 @@ test('session open requests accept horizontal and vertical dispositions', () => 
   assert.equal(parseSessionOpenRequest('{"sessionId":"alpha","disposition":"bottom"}'), null)
 })
 
-test('task workspaces use lazy desktop splits while preserving mobile session management', async () => {
-  const [dock, focus, dockHook, history, page, catalog, app, header, actions] = await Promise.all([
+// 第 3 期退役 Dockview 的挂载（规格 10 第 3 期）：会话页（/board/:sessionId）是唯一挂载聊天页的路由，
+// 只挂 URL 指定的一个会话；桌面布局里会话面板换成“页头 + 对话 + 检查器标签”的会话工作区，
+// 分屏与多标签不再出现在任何入口（ChatDockView / use-chat-dock 的分屏代码留到第 6 期清理时删除）。
+test('the session page mounts one session with the inspector, offers no dock splits and keeps mobile session management', async () => {
+  const [
+    dock,
+    focus,
+    dockHook,
+    history,
+    page,
+    catalog,
+    app,
+    header,
+    actions,
+    shell,
+    routes,
+    workspace,
+  ] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
@@ -109,22 +125,28 @@ test('task workspaces use lazy desktop splits while preserving mobile session ma
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/features/chat/SessionActionsMenu.tsx', 'utf8'),
+    readFile('src/app/SessionShell.tsx', 'utf8'),
+    readFile('src/app/route-elements.tsx', 'utf8'),
+    readFile('src/features/chat/SessionWorkspace.tsx', 'utf8'),
   ])
-  assert.match(dock, /splitDockPanel\(panelId, 'above'\)/)
-  assert.match(dock, /splitDockPanel\(panelId, 'below'\)/)
-  assert.doesNotMatch(focus, /onSplitTop|onSplitBottom|<SessionActionsMenu/)
-  assert.match(focus, /onClick=\{onRename\}/)
-  assert.match(focus, /onClick=\{onWorkspace\}/)
-  assert.match(dockHook, /splitDockPanel\(panel\.id, 'above'\)/)
-  assert.match(dockHook, /splitDockPanel\(panel\.id, 'below'\)/)
-  assert.match(history, /<DropdownMenu>/)
-  assert.match(history, /requestSessionSelection\(id\)/)
-  assert.doesNotMatch(history, /splitTo(?:Left|Right|Top|Bottom)/)
-  assert.match(actions, /canSplit &&[\s\n]*splitActions\.map/)
-  assert.match(page, /singleSessionLayout: mobileLayout/)
-  assert.match(page, /<LazyChatDockView/)
-  assert.match(page, /<MobileSessionPanel/)
-  assert.match(dock, /<TaskWorkspace/)
+  // 聊天页只由会话路由经 SessionShell 挂载，并且总带着路由会话 id：聊天页永远处于路由模式。
+  assert.equal(routes.match(/import\('@\/features\/chat\/ChatPage'\)/g)?.length, 1)
+  assert.match(
+    routes.slice(routes.indexOf('export async function sessionRoute')),
+    /^export async function sessionRoute\(\) \{[\s\S]*?import\('@\/features\/chat\/ChatPage'\)/,
+  )
+  assert.match(shell, /<ChatPage[\s\S]*?routeSessionId=\{sessionId\}/)
+  assert.match(page, /const routeMode = routeSessionId !== undefined/)
+  // 路由模式下分屏永远不可用，会话面板固定为单会话、不可分屏、不可关闭。
+  assert.match(page, /splitAvailable: !mobileLayout && !routeMode/)
+  assert.match(page, /singleSessionLayout: mobileLayout \|\| routeMode/)
+  assert.match(page, /openRoutedSession: routeMode \? onRouteSessionChange : undefined/)
+  assert.doesNotMatch(page, /ChatDockView/)
+  assert.match(
+    page,
+    /\) : routeTarget \? \(\s*<SingleSessionPanel\s+sessionId=\{routeTarget\}\s+onCreateSession=\{createSession\}\s*\/>/,
+  )
+  assert.match(page, /<SingleSessionPanel onCreateSession=\{createSession\} \/>/)
   const singlePanel = dock.slice(
     dock.indexOf('export function SingleSessionPanel'),
     dock.indexOf('type MobileSessionPanelProps'),
@@ -132,6 +154,28 @@ test('task workspaces use lazy desktop splits while preserving mobile session ma
   assert.match(singlePanel, /key=\{activeId\}/)
   assert.match(singlePanel, /canSplitPanel=\{false\}/)
   assert.match(singlePanel, /canClosePanel=\{false\}/)
+  // 分屏菜单项只在 canSplit 时出现（会话页从不传 true）。
+  assert.match(actions, /canSplit &&[\s\n]*splitActions\.map/)
+  assert.doesNotMatch(focus, /onSplitTop|onSplitBottom|<SessionActionsMenu/)
+  // 会话页布局：面板渲染会话工作区（页头 + 对话 + 检查器），其余入口才是旧的任务工作区。
+  assert.match(dock, /\{pageChrome \? \(\s*\/\/[^\n]*\n\s*<SessionWorkspace/)
+  assert.match(dock, /<TaskWorkspace/)
+  assert.match(workspace, /const SessionInspector = lazy\(/)
+  assert.match(workspace, /<SessionInspector\s+panelId=\{panelId\}\s+sessionId=\{sessionId\}/)
+  // 改名与换工作区：旧顶栏与会话页头都直接可点。
+  assert.match(focus, /onClick=\{onRename\}/)
+  assert.match(focus, /onClick=\{onWorkspace\}/)
+  assert.match(focus, /onRename=\{onRename\}\s+onWorkspace=\{onWorkspace\}/)
+  // 历史页打开会话只发选中请求，不提供分屏。
+  assert.match(history, /<DropdownMenu>/)
+  assert.match(history, /requestSessionSelection\(id\)/)
+  assert.doesNotMatch(history, /splitTo(?:Left|Right|Top|Bottom)/)
+  assert.match(page, /<MobileSessionPanel/)
+  // 单会话布局下“打开会话”不创建 Dock 面板：路由模式交回路由切换，其余只切换活动会话。
+  assert.match(
+    dockHook,
+    /if \(singleSessionLayoutRef\.current\) \{\s*if \(sessionId && openRoutedSessionRef\.current\) \{\s*openRoutedSessionRef\.current\(sessionId\)\s*return true/,
+  )
   assert.match(
     dockHook,
     /if \(singleSessionLayoutRef\.current\) \{[\s\S]*?setActiveId\(sessionId\)[\s\S]*?return true/,
@@ -188,6 +232,8 @@ test('移动端前台恢复会先校准本机 Runtime，再保留瞬时空目录
   )
 })
 
+// 第 3 期起 Dockview 不再挂载，这里钉住的是存量保护：只有真正初始化过的 Dock 才会写回布局，
+// 会话页（从不初始化 Dock）不会覆盖用户在 Runtime 里保存的旧分屏布局，回滚到旧版本时仍可恢复。
 test('dock layout persistence flushes before suspension through the Runtime queue', async () => {
   const dockHook = await readFile('src/features/chat/use-chat-dock.ts', 'utf8')
   assert.match(dockHook, /const persistDockLayout = useCallback/)

@@ -1,11 +1,15 @@
 // 看板页头（52px）：标题与副标题、注意力胶囊、项目筛选、状态筛选、“泳道 / 项目”分组切换与 ⋯ 菜单。
 // 胶囊用 --st-attn-soft 浅底 + 琥珀描边，只有左侧小图标块是实心琥珀，避免和泳道连成一片橙色。
 // 宽度不足 1280 时项目筛选收成下拉，分组切换只显示图标（3.11）。
+// 新建项目、管理项目放在“项目 ▾”下拉里：项目筛选是下拉时并入其中，是分段控件（或还没有卡片）时
+// 另放一个“项目 ▾”按钮。
 import {
   Check,
   ChevronDown,
   Ellipsis,
   Folder,
+  FolderCog,
+  FolderPlus,
   ListFilter,
   PanelTopClose,
   PanelTopOpen,
@@ -64,6 +68,10 @@ type BoardHeaderProps = {
   onClearLanes: () => void
   onGroupBy: (groupBy: BoardGrouping) => void
   onDeckCollapsed: (collapsed: boolean) => void
+  // 正在打开系统目录对话框：“新建项目…”暂不可用，避免叠加窗口。
+  projectPicking: boolean
+  onNewProject: () => void
+  onManageProjects: () => void
 }
 
 // 分段控件里最多放 3 个项目；更多时（或窄宽度）改用下拉，避免把右侧挤出页头。
@@ -90,6 +98,9 @@ export function BoardHeader({
   onClearLanes,
   onGroupBy,
   onDeckCollapsed,
+  projectPicking,
+  onNewProject,
+  onManageProjects,
 }: BoardHeaderProps) {
   const { t } = useI18n()
   const laneLabels = useLaneLabels()
@@ -107,6 +118,39 @@ export function BoardHeader({
     laneFilter.length === 0
       ? t('board:filter.allStatuses')
       : laneFilter.map((lane) => laneLabels.name[lane]).join(' · ')
+  const projectItems = (
+    <>
+      <DropdownMenuItem disabled={projectPicking} onSelect={onNewProject}>
+        <FolderPlus aria-hidden="true" />
+        {t('board:project.new')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onManageProjects}>
+        <FolderCog aria-hidden="true" />
+        {t('board:project.manage')}
+      </DropdownMenuItem>
+    </>
+  )
+  // 项目筛选不是下拉（分段控件、没有项目或还没有卡片）时，单独给一个“项目 ▾”。
+  const projectMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-none"
+          aria-label={t('board:project.menu')}
+          title={t('board:project.menu')}
+        >
+          <FolderCog aria-hidden="true" />
+          <span className={cn(narrow && 'max-[1179px]:sr-only')}>{t('board:filter.projects')}</span>
+          <ChevronDown aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {projectItems}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
   const breakdown = [
     attention.approvals ? t('board:attention.approvals', { count: attention.approvals }) : '',
     attention.questions ? t('board:attention.questions', { count: attention.questions }) : '',
@@ -176,9 +220,11 @@ export function BoardHeader({
         </p>
       ) : null}
       <span className="min-w-0 flex-1" />
-      {/* 空看板没有可筛选或分组的卡片，右侧控件整组隐藏。 */}
+      {/* 空看板没有可筛选或分组的卡片，右侧只留“项目 ▾”（新建、管理项目）。 */}
+      {total === 0 && ready && projectMenu}
       {total > 0 && (
         <>
+          {projects.length === 0 && projectMenu}
           {projects.length > 0 &&
             (segmented ? (
               <SegmentedControl
@@ -255,9 +301,12 @@ export function BoardHeader({
                       </span>
                     </DropdownMenuCheckboxItem>
                   ))}
+                  <DropdownMenuSeparator />
+                  {projectItems}
                 </DropdownMenuContent>
               </DropdownMenu>
             ))}
+          {projects.length > 0 && segmented && projectMenu}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
