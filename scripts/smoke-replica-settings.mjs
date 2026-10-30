@@ -522,9 +522,23 @@ try {
     'steerMessage',
     'shortcutHelp',
     'showBoard',
+    'openSession',
     'boardApprove',
   ])
     assert.equal(await shortcutCard.locator(`#shortcut-${action}`).count(), 1, action)
+  // 标签按标题栏顺序编号（⌘1 会话 … ⌘4 更多）；⌘[ 的“返回看板”已退役，不再列出。
+  assert.equal(await shortcutCard.locator('#shortcut-backToBoard').count(), 0)
+  for (const [action, digit] of [
+    ['openSession', '1'],
+    ['openBoard', '2'],
+    ['openComponents', '3'],
+    ['openMore', '4'],
+  ])
+    assert.match(
+      (await shortcutCard.locator(`#shortcut-${action}`).innerText()).replace(/\s+/g, ''),
+      new RegExp(`${digit}$`),
+      action,
+    )
   const storedShortcuts = () =>
     page.evaluate(() => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}'))
   const recordShortcut = async (action, keys) => {
@@ -556,7 +570,7 @@ try {
     () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
   )
   console.log(
-    'PASS shortcut settings: global/board/session groups with six read-only fixed keys, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
+    'PASS shortcut settings: global/board/session groups with six read-only fixed keys, tabs numbered ⌘1 session … ⌘4 more with no ⌘[ row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
   )
   for (const scenario of [
     { name: 'light-1280', width: 1280, theme: 'light', longLabels: false },

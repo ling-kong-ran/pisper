@@ -5,7 +5,7 @@ import { BackNavigation } from '@/components/layout/BackNavigation'
 // 一级导航（会话/看板/组件/更多/设置）在标题栏里；主页 '/' 是会话（上次停留的会话或新任务草稿）。
 // 设置页的分区导航在设置内容区左侧。
 // 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
-// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/, 一级标签、⌥A 跳到需要你、⌘[ / ⇧⌘B 会话页打开看板、` 终端、/ 搜索、
+// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/4/, 一级标签、⌥A 跳到需要你、⇧⌘B 会话页打开看板、` 终端、/ 搜索、
 // Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
@@ -530,10 +530,11 @@ function App() {
     [routerNavigate, sessionRouteMounted],
   )
 
-  // 新任务：看板页先请求看板认领（聚焦启动台）；没有视图认领或在其他页面时打开派发浮层。
+  // 新任务：自带新任务输入框的页面先认领——看板聚焦启动台；主页的新任务草稿认领 ⌘N 与标题栏“新任务”，
+  // 聚焦草稿输入框（会话页的页面 id 也是 session，但那里没有认领者）。没有视图认领时打开派发浮层。
   const startNewTask = useCallback(
     (source: BoardNewTaskSource) => {
-      if (page === 'board' && requestBoardNewTask(source)) return
+      if ((page === 'board' || page === 'session') && requestBoardNewTask(source)) return
       setDispatchOpen(true)
     },
     [page],
@@ -952,11 +953,11 @@ function App() {
                   : undefined
               }
               onSettings={() => selectShellTab('settings')}
+              onOpenSession={() => selectShellTab('session')}
               onOpenBoard={() => selectShellTab('board')}
               onOpenComponents={() => selectShellTab('components')}
               onOpenMore={() => selectShellTab('more')}
               onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
-              onBackToBoard={page === 'session' ? backToBoard : undefined}
               onShowBoard={page === 'session' ? backToBoard : undefined}
               onShortcutHelp={() => setShortcutHelpOpen(true)}
             />

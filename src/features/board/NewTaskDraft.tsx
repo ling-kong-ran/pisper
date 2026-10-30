@@ -3,10 +3,17 @@
 // pisper-launch-defaults）；进入草稿不建任何会话，发出第一条消息时才建，宿主随即以 replace 打开它。
 // 桌面：会话页头 44 + 空转录 + 768 宽的输入框；手机：56 顶栏（左侧看板入口）+ 代理条 + 停靠底部的输入框，
 // 底部安全区由这里让出，软键盘弹起时沿用 MobileViewportStabilizer 随可视视口移动。
-import type { ReactNode } from 'react'
+// 草稿本身就是“新任务”：挂载期间认领 ⌘N 与标题栏“新任务”的请求（见 new-task.ts），聚焦草稿而不叠派发浮层。
+import { useRef, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
-import { LaunchConsole } from './LaunchConsole'
+import { LaunchConsole, type LaunchConsoleHandle } from './LaunchConsole'
+import { useBoardNewTaskHandler, type BoardNewTaskSource } from './new-task'
+
+// 草稿认领的来源：⌘N（随改绑）与标着同一个 ⌘N 的标题栏“新任务”按钮，二者在草稿上做同一件事。
+// 命令面板的“新会话”照旧打开派发浮层：它在面板对话框里执行，对话框关闭时把焦点还回打开前的位置，
+// 在这里聚焦草稿会被立刻撤销，命令看起来就什么也没做。手机标签栏在主页隐藏，不会发来请求。
+const DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set(['shortcut', 'titlebar'])
 
 export type NewTaskDraftProps = {
   phone: boolean
@@ -29,6 +36,15 @@ export function NewTaskDraft({
   onConfigureModels,
 }: NewTaskDraftProps) {
   const { t } = useI18n()
+  const consoleRef = useRef<LaunchConsoleHandle>(null)
+  // 与看板认领 ⌘N 聚焦启动台同一条路径：应用壳只有一个按键入口（AppShortcuts 的 primaryAction 绑定，改绑照常
+  // 生效），新任务请求先问当前页有没有自己的输入框。认领时聚焦草稿并把光标放到末尾，不在新任务草稿上
+  // 再叠一个新任务浮层。手机草稿不自动聚焦是为了落地时不弹软键盘；硬件键盘的 ⌘N 是明确操作，照样聚焦。
+  useBoardNewTaskHandler(({ source }) => {
+    if (!DRAFT_CLAIMED_SOURCES.has(source) || !consoleRef.current) return false
+    consoleRef.current.focusEnd()
+    return true
+  })
   const intro = (
     <div className="flex min-w-0 flex-col items-start gap-2" data-new-task-intro>
       <span
@@ -46,6 +62,7 @@ export function NewTaskDraft({
   const composer = (
     <LaunchConsole
       variant="composer"
+      ref={consoleRef}
       touch={phone}
       compactChips={phone}
       // 手机上自动聚焦会立刻弹出软键盘，挡住草稿说明；桌面直接可以输入。

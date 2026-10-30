@@ -610,7 +610,7 @@ test('escape never leaves the session page; returning to the board needs an expl
       ].map(async (file) => [file, await read(file)]),
     ),
   )
-  // 会话页外壳与看板入口不监听键盘：去看板只认看板入口、⌘[ / ⇧⌘B（应用级快捷键）、看板标签与
+  // 会话页外壳与看板入口不监听键盘：去看板只认看板入口、⇧⌘B（应用级快捷键）、看板标签与
   // 浏览器 / 原生返回。
   for (const file of [
     'src/app/SessionShell.tsx',
@@ -634,11 +634,13 @@ test('escape never leaves the session page; returning to the board needs an expl
     sources['src/features/chat/SessionWorkspace.tsx'],
     /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/,
   )
-  // ⌘[ 是返回看板、⇧⌘B 是打开看板的默认键；Esc 不能被设成它们（校验拒绝，归一化退回默认值）。
+  // ⇧⌘B 是打开看板、⌘2 是看板标签的默认键（⌘[ 的返回看板已退役）；Esc 不能被设成离开会话页的动作
+  //（校验拒绝，归一化退回默认值）。
   const shortcuts = await import('../../shared/shortcuts.mjs')
-  assert.equal(shortcuts.DEFAULT_SHORTCUTS.backToBoard, 'Mod+BracketLeft')
+  assert.equal(shortcuts.SHORTCUT_ACTIONS.includes('backToBoard'), false)
   assert.equal(shortcuts.DEFAULT_SHORTCUTS.showBoard, 'Mod+Shift+KeyB')
-  for (const action of ['backToBoard', 'showBoard']) {
+  assert.equal(shortcuts.DEFAULT_SHORTCUTS.openBoard, 'Mod+Digit2')
+  for (const action of ['showBoard', 'openBoard', 'openSession']) {
     for (const binding of ['Escape', 'Mod+Escape'])
       assert.throws(
         () =>

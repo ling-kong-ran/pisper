@@ -49,7 +49,7 @@ export function AppTitlebar({
   const paletteShortcut = useShortcutLabel('commandPalette')
   const newTaskShortcut = useShortcutLabel('primaryAction')
   const tabShortcuts: Record<ShellTab, string> = {
-    session: '',
+    session: useShortcutLabel('openSession'),
     board: useShortcutLabel('openBoard'),
     components: useShortcutLabel('openComponents'),
     more: useShortcutLabel('openMore'),

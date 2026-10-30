@@ -2,7 +2,7 @@
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
 // 覆盖第 1 期验收：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
 // 不被遮挡、无硬裁切、无横向滚动）、泳道与空泳道竖条、内联批准与重试、critical 只开确认层、
-// 舰队计量、⌘1/2/3、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、今天没有活动时的看板骨架、
+// 舰队计量、⌘2/3/4、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、今天没有活动时的看板骨架、
 // 手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
 // 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
 // 另有一段把能力里的 board.* 去掉，验证旧桌面 Runtime 退回第 1 期的 /api/sessions + /live 路径；
@@ -10,9 +10,10 @@
 // 页面隐藏时断开、回到可见后带 after 重连。
 // 第 3 期会话页：隔离 Runtime 里写入一条真实会话（转录、/live 来自真实 Runtime），看板与泳道条仍由
 // 固定数据提供；覆盖泳道条内联允许 / critical 只开确认层、⌘J 代理面板、⌥↑/⌥↓ 切换、⌘I 检查器、
-// ⌘[ 返回并把焦点还给来源卡片、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
+// ⇧⌘B 回到看板并把焦点还给来源卡片、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
 // 以及手机 390 的会话页仍可用。
-// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查。
+// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查（标签按 ⌘1 会话…⌘4 更多编号，
+// ⌘[ 已退役）。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -367,11 +368,11 @@ try {
     assert.equal(await page.getByRole('dialog').count(), 0)
     report.checks.push('⌘N on the board focuses the launch console instead of opening an overlay')
 
-    // ⌘1 / ⌘2 / ⌘3 切换主标签；输入框内带修饰键的快捷键同样生效。
+    // ⌘2 / ⌘3 / ⌘4 切换看板 / 组件 / 更多（⌘1 是“会话”，见 smoke-session-home）；输入框内带修饰键的快捷键同样生效。
     for (const [key, hash, tab] of [
-      ['Digit2', '#/components', 'components'],
-      ['Digit3', '#/more', 'more'],
-      ['Digit1', '#/board', 'board'],
+      ['Digit3', '#/components', 'components'],
+      ['Digit4', '#/more', 'more'],
+      ['Digit2', '#/board', 'board'],
     ]) {
       await page.keyboard.press(`${mod}+${key}`)
       await page.waitForFunction((expected) => location.hash === expected, hash)
@@ -380,7 +381,7 @@ try {
         .waitFor()
     }
     await page.locator('[data-board-root]').waitFor()
-    report.checks.push('⌘2 / ⌘3 / ⌘1 switch to components, more and back to the board')
+    report.checks.push('⌘3 / ⌘4 / ⌘2 switch to components, more and back to the board')
     await context.close()
   }
 
@@ -704,7 +705,7 @@ try {
     await page.locator('[data-lane-strip]').waitFor({ timeout: 30_000 })
     await page.waitForTimeout(1_000)
     assert.equal(connections(), 1, 'the session page reuses the board stream')
-    await page.keyboard.press(`${mod}+BracketLeft`)
+    await page.keyboard.press(`${mod}+Shift+KeyB`)
     await page.locator('[data-board-root]').waitFor()
     await page.waitForTimeout(1_000)
     assert.equal(connections(), 1, 'returning to the board keeps one stream')
@@ -826,7 +827,7 @@ try {
     }, header)
   }
 
-  // 7a. 1440×900：泳道条、确认层、内联允许、⌘J、⌘I、⌥↑/⌥↓、Esc、⌘[。
+  // 7a. 1440×900：泳道条、确认层、内联允许、⌘J、⌘I、⌥↑/⌥↓、Esc、⇧⌘B（⌘[ 已退役，不再离开会话页）。
   {
     const { context, fixture, aborts } = await sessionContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -848,7 +849,7 @@ try {
       observer.observe(document.body, { childList: true, subtree: true })
       window.__greetingObserver = observer
     })
-    // 从卡片打开（点标题区域，避开卡片上的按钮），之后 ⌘[ 要把焦点还给这张卡片。
+    // 从卡片打开（点标题区域，避开卡片上的按钮），之后 ⇧⌘B 回到看板要把焦点还给这张卡片。
     const openedAt = Date.now()
     await realCard.click({ position: { x: 60, y: 14 } })
     await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
@@ -996,8 +997,16 @@ try {
     )
     report.checks.push('Esc while running sends one POST /abort and stays on the session page')
 
-    // ⌘[：回到看板，焦点落在打开它的卡片上。
+    // ⌘[ 已退役：不再离开会话页。
     await page.keyboard.press(`${mod}+BracketLeft`)
+    await page.waitForTimeout(400)
+    assert.equal(
+      await page.evaluate(() => location.hash),
+      `#/board/${BOARD_SESSION_ID}`,
+      '⌘[ no longer leaves the session page',
+    )
+    // ⇧⌘B：打开看板，焦点落在打开它的卡片上。
+    await page.keyboard.press(`${mod}+Shift+KeyB`)
     await page.locator('[data-board-root]').waitFor()
     await page.waitForFunction(
       (id) =>
@@ -1006,7 +1015,9 @@ try {
       BOARD_SESSION_ID,
       { timeout: 10_000 },
     )
-    report.checks.push('⌘[ returns to the board and focuses the card the session was opened from')
+    report.checks.push(
+      '⌘[ no longer navigates; ⇧⌘B opens the board and focuses the card the session was opened from',
+    )
     await context.close()
   }
 
@@ -1245,6 +1256,19 @@ try {
       ['global', 'board', 'session'],
     )
     assert.match((await helpRow('agentPanel').innerText()).replace(/\s+/g, ' '), /J/)
+    // 一级标签按标题栏顺序编号：会话 1、看板 2、组件 3、更多 4；⌘[ 的“返回看板”不再列出。
+    for (const [action, digit] of [
+      ['openSession', '1'],
+      ['openBoard', '2'],
+      ['openComponents', '3'],
+      ['openMore', '4'],
+    ])
+      assert.deepEqual(
+        await helpRow(action).locator('[data-slot="kbd"]').allTextContents(),
+        [mod === 'Meta' ? 'Cmd' : 'Ctrl', digit],
+        action,
+      )
+    assert.equal(await helpRow('backToBoard').count(), 0)
     await page.keyboard.press('Escape')
     await help.waitFor({ state: 'detached' })
     assert.deepEqual(aborts, [], 'Esc in the shortcut help never stops the run')

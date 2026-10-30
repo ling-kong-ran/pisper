@@ -349,5 +349,6 @@
   "home.loadFailedHint": "Your last session can't be confirmed right now. Retry, or start a new task instead.",
   "home.startDraft": "Start a new task",
   "home.goHome": "Go to home",
-  "shortcuts.showBoard": "Open board (lane strip board entry)"
+  "shortcuts.showBoard": "Open board (lane strip board entry)",
+  "shortcuts.openSession": "Open session home"
 }

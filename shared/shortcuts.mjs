@@ -12,7 +12,6 @@ export const SHORTCUT_ACTIONS = Object.freeze([
   'openComponents',
   'openMore',
   'jumpToAttention',
-  'backToBoard',
   // 会话页：⌘J 代理面板、⌘I 检查器、⌥↑/⌥↓ 切换代理、运行中插话（独立动作，不再由发送键派生）、⌘/ 速查。
   'agentPanel',
   'toggleInspector',
@@ -22,6 +21,8 @@ export const SHORTCUT_ACTIONS = Object.freeze([
   'shortcutHelp',
   // 主页改为会话后，会话页泳道条最左侧的“看板”入口（打开看板，push 到 /board）。
   'showBoard',
+  // 标题栏第一个标签“会话”（主页：上次停留的会话或新任务草稿）。新动作追加在末尾，旧动作的顺序不变。
+  'openSession',
 ])
 
 export const DEFAULT_SHORTCUTS = Object.freeze({
@@ -34,12 +35,12 @@ export const DEFAULT_SHORTCUTS = Object.freeze({
   focusComposer: 'Mod+Shift+KeyL',
   sendMessage: 'Enter',
   voiceInput: 'F8',
-  // 一级标签与并行感知：⌘1/⌘2/⌘3 切换看板/组件/更多，⌥A 只跳到等待最久的需要你事项，⌘[ 从会话返回看板。
-  openBoard: 'Mod+Digit1',
-  openComponents: 'Mod+Digit2',
-  openMore: 'Mod+Digit3',
+  // 一级标签按标题栏顺序编号：⌘1 会话（openSession，在表末尾）、⌘2 看板、⌘3 组件、⌘4 更多；
+  // ⌥A 只跳到等待最久的需要你事项。旧的 ⌘[“从会话返回看板”已退役，会话页去看板用 ⇧⌘B（showBoard）。
+  openBoard: 'Mod+Digit2',
+  openComponents: 'Mod+Digit3',
+  openMore: 'Mod+Digit4',
   jumpToAttention: 'Alt+KeyA',
-  backToBoard: 'Mod+BracketLeft',
   agentPanel: 'Mod+KeyJ',
   toggleInspector: 'Mod+KeyI',
   previousAgent: 'Alt+ArrowUp',
@@ -48,6 +49,7 @@ export const DEFAULT_SHORTCUTS = Object.freeze({
   shortcutHelp: 'Mod+Slash',
   // 负责人要的 ⌘B 已是隐藏动作 toggleSidebar 的默认键（同一张表里不能重复），改用 ⇧⌘B（仍取 Board 的 B）。
   showBoard: 'Mod+Shift+KeyB',
+  openSession: 'Mod+Digit1',
 })
 
 const MODIFIERS = ['Mod', 'Ctrl', 'Meta', 'Alt', 'Shift']
@@ -252,8 +254,31 @@ export function validateShortcutBindings(input) {
   return bindings
 }
 
+// 标签重新编号之前的默认键（看板 ⌘1、组件 ⌘2、更多 ⌘3）。
+const LEGACY_TAB_SHORTCUTS = Object.freeze({
+  openBoard: 'Mod+Digit1',
+  openComponents: 'Mod+Digit2',
+  openMore: 'Mod+Digit3',
+})
+// 后移顺序：从 ⌘4 往回，前一个让出的键才轮到后一个；最后“会话”接手 ⌘1。
+const RENUMBERED_TABS = Object.freeze(['openMore', 'openComponents', 'openBoard', 'openSession'])
+
+// 没有 openSession 的表来自标签重新编号之前的版本。三个标签键都还是旧默认（用户没动过）时整体后移一位，
+// 让没改过键的人拿到与标签顺序一致的新布局；每一步只移到没被其他动作占用的键上，移不动就保持原样，
+// 后面的随之留在原处，“会话”最后补默认键或未绑定。改过其中任何一个就一律不动：自定义优先于新布局。
+function renumberLegacyTabs(bindings) {
+  for (const [action, binding] of Object.entries(LEGACY_TAB_SHORTCUTS)) {
+    if (bindings[action] !== binding) return
+  }
+  for (const action of RENUMBERED_TABS) {
+    const target = DEFAULT_SHORTCUTS[action]
+    if (!findShortcutConflict(bindings, action, target)) bindings[action] = target
+  }
+}
+
 // 旧版本保存的绑定表缺少后来新增的动作：缺失项补默认键，但默认键已被用户占用时补为未绑定，
-// 已有的自定义与禁用设置原样保留；未知动作直接丢弃。只有补齐后仍不合法才整体回到默认。
+// 已有的自定义与禁用设置原样保留；未知动作（含已退役的 backToBoard）直接丢弃，它占过的键随之空出。
+// 只有补齐后仍不合法才整体回到默认。表里已有 openSession 时不再迁移，所以重复归一化结果不变。
 function withAddedActions(input) {
   if (
     !input ||
@@ -269,6 +294,7 @@ function withAddedActions(input) {
   }
   const bindings = {}
   for (const action of known) bindings[action] = input[action]
+  if (!Object.hasOwn(bindings, 'openSession')) renumberLegacyTabs(bindings)
   for (const action of SHORTCUT_ACTIONS) {
     if (Object.hasOwn(bindings, action)) continue
     const fallback = DEFAULT_SHORTCUTS[action]

@@ -148,12 +148,15 @@ test('palette navigation and page meta cover the new shell pages', () => {
 })
 
 test('shell shortcuts have defaults and older saved maps gain them without losing customisations', () => {
-  assert.equal(DEFAULT_SHORTCUTS.openBoard, 'Mod+Digit1')
-  assert.equal(DEFAULT_SHORTCUTS.openComponents, 'Mod+Digit2')
-  assert.equal(DEFAULT_SHORTCUTS.openMore, 'Mod+Digit3')
+  // 一级标签按标题栏顺序编号：⌘1 会话、⌘2 看板、⌘3 组件、⌘4 更多；⌘[ 的“返回看板”已退役。
+  assert.equal(DEFAULT_SHORTCUTS.openSession, 'Mod+Digit1')
+  assert.equal(DEFAULT_SHORTCUTS.openBoard, 'Mod+Digit2')
+  assert.equal(DEFAULT_SHORTCUTS.openComponents, 'Mod+Digit3')
+  assert.equal(DEFAULT_SHORTCUTS.openMore, 'Mod+Digit4')
   assert.equal(DEFAULT_SHORTCUTS.jumpToAttention, 'Alt+KeyA')
-  assert.equal(DEFAULT_SHORTCUTS.backToBoard, 'Mod+BracketLeft')
-  assert.equal(normalizeShortcutBindings(DEFAULT_SHORTCUTS).openBoard, 'Mod+Digit1')
+  assert.equal(Object.hasOwn(DEFAULT_SHORTCUTS, 'backToBoard'), false)
+  assert.equal(SHORTCUT_ACTIONS.includes('backToBoard'), false)
+  assert.equal(normalizeShortcutBindings(DEFAULT_SHORTCUTS).openBoard, 'Mod+Digit2')
   const legacy = {
     commandPalette: 'F2',
     primaryAction: null,
@@ -172,7 +175,10 @@ test('shell shortcuts have defaults and older saved maps gain them without losin
   assert.equal(migrated.primaryAction, null)
   assert.equal(migrated.voiceInput, 'Alt+KeyA')
   assert.equal(migrated.jumpToAttention, null)
-  assert.equal(migrated.openMore, 'Mod+Digit3')
+  // 这张表早于一级标签：标签动作直接补新默认键（含“会话”的 ⌘1）。
+  assert.equal(migrated.openSession, 'Mod+Digit1')
+  assert.equal(migrated.openBoard, 'Mod+Digit2')
+  assert.equal(migrated.openMore, 'Mod+Digit4')
   // 未知动作被丢弃，不会让整张表回到默认。
   assert.equal(normalizeShortcutBindings({ ...legacy, retired: 'F3' }).commandPalette, 'F2')
   assert.equal(
@@ -180,8 +186,15 @@ test('shell shortcuts have defaults and older saved maps gain them without losin
     true,
   )
   assert.equal(
-    matchesShortcut({ code: 'BracketLeft', metaKey: true }, DEFAULT_SHORTCUTS.backToBoard, true),
+    matchesShortcut({ code: 'Digit1', metaKey: true }, DEFAULT_SHORTCUTS.openSession, true),
     true,
+  )
+  // ⌘[ 不再是任何动作的默认键。
+  assert.equal(
+    SHORTCUT_ACTIONS.some((action) =>
+      matchesShortcut({ code: 'BracketLeft', metaKey: true }, DEFAULT_SHORTCUTS[action], true),
+    ),
+    false,
   )
 })
 

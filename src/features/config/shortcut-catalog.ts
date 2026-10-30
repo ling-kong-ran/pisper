@@ -40,6 +40,8 @@ export const SHORTCUT_GROUPS: readonly {
     entries: [
       app('commandPalette'),
       app('primaryAction'),
+      // 一级标签按标题栏顺序列出：会话 ⌘1、看板 ⌘2、组件 ⌘3、更多 ⌘4。
+      app('openSession'),
       app('openBoard'),
       app('openComponents'),
       app('openMore'),
@@ -72,7 +74,6 @@ export const SHORTCUT_GROUPS: readonly {
     id: 'session',
     entries: [
       app('showBoard'),
-      app('backToBoard'),
       app('previousAgent'),
       app('nextAgent'),
       app('agentPanel'),
@@ -121,7 +122,6 @@ export function useShortcutCatalogText() {
     openComponents: t('config:shortcuts.openComponents'),
     openMore: t('config:shortcuts.openMore'),
     jumpToAttention: t('config:shortcuts.jumpToAttention'),
-    backToBoard: t('config:shortcuts.backToBoard'),
     agentPanel: t('board:shortcuts.agentPanel'),
     toggleInspector: t('board:shortcuts.toggleInspector'),
     previousAgent: t('board:shortcuts.previousAgent'),
@@ -129,6 +129,7 @@ export function useShortcutCatalogText() {
     steerMessage: t('board:shortcuts.steerMessage'),
     shortcutHelp: t('board:shortcuts.shortcutHelp'),
     showBoard: t('board:shortcuts.showBoard'),
+    openSession: t('board:shortcuts.openSession'),
   }
   const boardActions: Record<BoardShortcutAction, string> = {
     boardNext: t('config:shortcuts.boardNext'),

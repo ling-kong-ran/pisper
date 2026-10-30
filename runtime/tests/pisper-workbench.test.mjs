@@ -85,12 +85,12 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   )
   assert.match(app, /\{sharedPageHeader && \(/)
   // 新任务只有一条路径：⌘N、标题栏、手机居中按钮与命令面板都交给 startNewTask，
-  // 看板认领时聚焦启动台，否则打开派发浮层。
+  // 看板认领时聚焦启动台、主页的新任务草稿认领时聚焦草稿，否则打开派发浮层。
   for (const source of ['shortcut', 'titlebar', 'tabbar', 'palette'])
     assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
   assert.match(
     app,
-    /if \(page === 'board' && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+    /if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
   )
   // 旧调用方在会话页里新建会话仍走就地创建事件。
   assert.match(app, /requestSessionCreation\(''\)/)

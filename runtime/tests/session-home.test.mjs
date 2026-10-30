@@ -259,6 +259,9 @@ test('the shell wires the session tab to the home, back to history, and the boar
   assert.match(app, /homeEntry: isHomeEntry\(location\.state\)/)
   assert.match(app, /if \(parent === -1\) routerNavigate\(-1\)/)
   assert.match(app, /onShowBoard=\{page === 'session' \? backToBoard : undefined\}/)
+  // ⌘1（openSession）与点“会话”标签同一个入口：主页逻辑，从不建会话；⌘[ 的返回看板已不再接线。
+  assert.match(app, /onOpenSession=\{\(\) => selectShellTab\('session'\)\}/)
+  assert.doesNotMatch(app, /onBackToBoard/)
   // 兼容垫片 navigate('chat') 没有待打开的会话时回主页；Runtime 裁掉的页面回主页。
   assert.match(app, /\? sessionPath\(intent\.sessionId\)\s+: HOME_PATH,/)
   assert.match(app, /routerNavigate\(HOME_PATH, \{ replace: true \}\)/)
@@ -324,7 +327,8 @@ test('on the home page the shell navigates itself: no session route is mounted t
 })
 
 test('"open board" is its own rebindable shortcut; ⌘B stays with the hidden sidebar toggle', async () => {
-  assert.equal(SHORTCUT_ACTIONS.at(-1), 'showBoard')
+  // showBoard 之后只追加了“会话”标签动作（openSession）。
+  assert.deepEqual(SHORTCUT_ACTIONS.slice(-2), ['showBoard', 'openSession'])
   assert.equal(DEFAULT_SHORTCUTS.showBoard, 'Mod+Shift+KeyB')
   // ⌘B 是隐藏动作 toggleSidebar 的默认键：同一张表不能重复，因此默认改用 ⇧⌘B。
   assert.equal(DEFAULT_SHORTCUTS.toggleSidebar, 'Mod+KeyB')
@@ -346,9 +350,50 @@ test('"open board" is its own rebindable shortcut; ⌘B stays with the hidden si
     readFile('src/features/config/shortcut-catalog.ts', 'utf8'),
     readFile('src/components/layout/AppShortcuts.tsx', 'utf8'),
   ])
-  assert.match(catalog, /app\('showBoard'\),\s+app\('backToBoard'\)/)
+  // 会话组的第一行是“打开看板”；⌘[ 的“返回看板”已退役，不再列出。
+  assert.match(
+    catalog,
+    /id: 'session',\s+entries: \[\s+app\('showBoard'\),\s+app\('previousAgent'\)/,
+  )
+  assert.doesNotMatch(catalog, /backToBoard/)
   assert.match(catalog, /showBoard: t\('board:shortcuts\.showBoard'\)/)
   assert.match(shortcuts, /matchesShortcut\(event, bindings\.showBoard\)\) action = onShowBoard/)
+})
+
+test('new-task requests on the home draft focus the draft instead of stacking the dispatch overlay', async () => {
+  const [app, home, draft, launch] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/app/SessionHome.tsx', 'utf8'),
+    readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
+    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+  ])
+  // 按键只有 AppShortcuts 一个入口（primaryAction 绑定，改绑照常生效），⌘N 与标题栏按钮都交给 startNewTask。
+  assert.match(app, /onPrimary=\{\(\) => startNewTask\('shortcut'\)\}/)
+  assert.match(app, /onNewTask=\{\(\) => startNewTask\('titlebar'\)\}/)
+  // 主页的页面 id 也是 session：先问当前页有没有认领者，没有才打开派发浮层。
+  assert.match(
+    app,
+    /if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+  )
+  // 认领者只有新任务草稿本身：主页只在落到草稿时挂它，加载中 / 错误态与真实会话页没有认领者。
+  assert.match(home, /if \(landing\.kind === 'draft'\)\s+body = \(\s+<NewTaskDraft/)
+  // 只认领 ⌘N 与标着同一个 ⌘N 的标题栏按钮；命令面板的“新会话”照旧开浮层（面板关闭会把焦点还回去）。
+  assert.match(
+    draft,
+    /DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set\(\['shortcut', 'titlebar'\]\)/,
+  )
+  assert.match(
+    draft,
+    /useBoardNewTaskHandler\(\(\{ source \}\) => \{\s+if \(!DRAFT_CLAIMED_SOURCES\.has\(source\) \|\| !consoleRef\.current\) return false\s+consoleRef\.current\.focusEnd\(\)\s+return true\s+\}\)/,
+  )
+  assert.match(draft, /variant="composer"\s+ref=\{consoleRef\}/)
+  // 草稿不自己听键盘，不出现第二个 ⌘N 监听。
+  assert.doesNotMatch(draft, /keydown|addEventListener\(|matchesShortcut|bindings\.primaryAction/)
+  // 聚焦时光标放到末尾，接着已写的内容往下写；设置选区不会滚动，长草稿要手动滚到底才看得到光标。
+  assert.match(
+    launch,
+    /focusEnd: \(\) => \{\s+const input = inputRef\.current\s+if \(!input\) return\s+input\.focus\(\)\s+input\.setSelectionRange\(input\.value\.length, input\.value\.length\)\s+(?:\/\/[^\n]*\s+)?input\.scrollTop = input\.scrollHeight\s+\}/,
+  )
 })
 
 test('title bar renders five tabs in order and lights the session tab on the home', () => {
@@ -370,6 +415,13 @@ test('title bar renders five tabs in order and lights the session tab on the hom
     ['session'],
   )
   assert.match(html, /lucide-session-bubble/)
+  // 五个标签都在提示里标出自己的快捷键（⌘1–⌘4 与 ⌘,），“会话”也不例外。
+  assert.deepEqual(
+    [...html.matchAll(/title="[^"]*\((Ctrl|Cmd) \+ ([^)]+)\)"[^>]*data-shell-tab="(\w+)"/g)].map(
+      (match) => `${match[3]}:${match[2]}`,
+    ),
+    ['session:1', 'board:2', 'components:3', 'more:4', 'settings:,'],
+  )
 })
 
 test('phone More lists the components page as a tile; desktop keeps it as a primary tab', () => {

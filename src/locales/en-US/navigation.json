@@ -227,7 +227,6 @@
   "shell.untitledSession": "Untitled session",
   "shell.backToBoard": "Board",
   "shell.backToBoardLabel": "Back to board",
-  "shell.backToBoardShortcut": "Back to board ({shortcut})",
   "shell.backToBoardAttention": "Back to board, {count} need you",
   "shell.sessionNotFound": "Session not found",
   "shell.sessionNotFoundHint": "It may have been deleted, or the link is incomplete.",

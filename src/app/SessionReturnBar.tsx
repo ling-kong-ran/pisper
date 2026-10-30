@@ -1,13 +1,12 @@
 // 已停止挂载：主页改为会话后，会话页的看板入口换成 BoardEntry（打开看板，不再是返回）；本文件留到第 6 期删除。
-// 会话页的返回入口（第 1 期过渡）：“← 看板 ⌘[”。不再单独占一行——由会话顶栏放在最左侧
+// ⌘[“返回看板”动作已退役，这里不再显示快捷键，只保留按钮本身以便原样删除。
+// 会话页的返回入口（第 1 期过渡）：“← 看板”。不再单独占一行——由会话顶栏放在最左侧
 // （桌面在工作区 / 标题之前，手机放进顶栏左侧留出的位置），标题栏 + 会话顶栏合计 96px。
-// 手机上带琥珀的需要你计数（规格 7.3）。第 3 期由泳道条取代；Esc 不用于返回，只认按钮、⌘[ 与浏览器后退。
+// 手机上带琥珀的需要你计数（规格 7.3）。第 3 期由泳道条取代；Esc 不用于返回，只认按钮与浏览器后退。
 import { ArrowLeft, ChevronLeft } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { Kbd } from '@/components/ui/kbd'
 import { useFleetSummary } from '@/features/board/public'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
-import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 
 type SessionReturnBarProps = {
@@ -17,15 +16,12 @@ type SessionReturnBarProps = {
 export function SessionReturnBar({ onBack }: SessionReturnBarProps) {
   const { t } = useI18n()
   const phone = usePhoneShell()
-  const shortcut = useShortcutLabel('backToBoard')
   const fleet = useFleetSummary()
   const attention = phone ? fleet.attention : 0
   const label =
     attention > 0
       ? t('navigation:shell.backToBoardAttention', { count: attention })
-      : shortcut && !phone
-        ? t('navigation:shell.backToBoardShortcut', { shortcut })
-        : t('navigation:shell.backToBoardLabel')
+      : t('navigation:shell.backToBoardLabel')
   return (
     <button
       type="button"
@@ -50,11 +46,6 @@ export function SessionReturnBar({ onBack }: SessionReturnBarProps) {
         >
           {attention}
         </span>
-      )}
-      {shortcut && !phone && (
-        <Kbd aria-hidden="true" className="max-[650px]:hidden pointer-coarse:hidden">
-          {shortcut}
-        </Kbd>
       )}
     </button>
   )

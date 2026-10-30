@@ -750,8 +750,43 @@ async function verifyPhoneShell(boardSessions) {
   const homeEntry = await page.locator('[data-board-entry]').boundingBox()
   assert.ok(homeEntry && homeEntry.height >= 43.5, `home board entry ${JSON.stringify(homeEntry)}`)
   assert.equal(await nativeBack(page), false, 'Android back on the home draft hands over')
+  // 手机草稿不自动聚焦（落地不弹软键盘）；硬件键盘的 ⌘N 是明确操作：聚焦草稿，不打开派发底部表单。
+  const draftFocused = () =>
+    page.evaluate(
+      () =>
+        document.activeElement?.hasAttribute('data-launch-input') === true &&
+        document.activeElement.closest('[data-new-task-draft="phone"]') !== null,
+    )
+  assert.equal(await draftFocused(), false, 'the phone draft is not autofocused')
+  // 应用级快捷键层（AppShortcuts）懒加载：冷启动约 1 秒内按键还没有监听者，直接丢失（不会误开表单），
+  // 没有可等的 DOM 信号。所以重复按 ⌘N 直到快捷键层第一次响应，再断言这次响应是聚焦草稿而不是打开底部表单。
+  const newTaskKey = `${process.platform === 'darwin' ? 'Meta' : 'Control'}+KeyN`
+  for (let attempt = 0; ; attempt += 1) {
+    await page.keyboard.press(newTaskKey)
+    const answered = await page
+      .waitForFunction(
+        () =>
+          Boolean(document.activeElement?.closest('[data-new-task-draft="phone"]')) ||
+          document.querySelector('[role="dialog"]') !== null,
+        undefined,
+        { timeout: 500 },
+      )
+      .then(
+        () => true,
+        () => false,
+      )
+    if (answered) break
+    assert.ok(attempt < 20, 'the app shortcut layer never answered a hardware ⌘N')
+  }
+  assert.equal(await draftFocused(), true, 'hardware ⌘N focuses the phone draft')
+  await page.waitForTimeout(300)
+  assert.equal(await page.getByRole('dialog').count(), 0, 'hardware ⌘N opens no dispatch sheet')
+  await page.evaluate(
+    () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
+  )
+  assert.equal(await draftFocused(), false)
   report.checks.push(
-    'Phone home: a fresh device lands on the new-task draft in the phone session shell without the tab bar; the 看板 entry is ≥44px; Android back on the home hands over to the platform',
+    'Phone home: a fresh device lands on the new-task draft in the phone session shell without the tab bar (draft not autofocused; a hardware ⌘N focuses it without opening the dispatch sheet); the 看板 entry is ≥44px; Android back on the home hands over to the platform',
   )
 
   // 看板：标签栏、徽标、安全区、跳转条与区段、审批卡、派发底部表单、软键盘。

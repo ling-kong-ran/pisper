@@ -227,7 +227,6 @@
   "shell.untitledSession": "未命名会话",
   "shell.backToBoard": "看板",
   "shell.backToBoardLabel": "返回看板",
-  "shell.backToBoardShortcut": "返回看板（{shortcut}）",
   "shell.backToBoardAttention": "返回看板，{count} 项需要你",
   "shell.sessionNotFound": "找不到这个会话",
   "shell.sessionNotFoundHint": "它可能已被删除，或链接不完整。",

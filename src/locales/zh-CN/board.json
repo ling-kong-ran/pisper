@@ -349,5 +349,6 @@
   "home.loadFailedHint": "暂时无法确认上次停留的会话。可以重试，或直接开始一个新任务。",
   "home.startDraft": "开始新任务",
   "home.goHome": "回到主页",
-  "shortcuts.showBoard": "打开看板（泳道条的看板入口）"
+  "shortcuts.showBoard": "打开看板（泳道条的看板入口）",
+  "shortcuts.openSession": "打开会话主页"
 }

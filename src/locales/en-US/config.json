@@ -669,7 +669,6 @@
   "shortcuts.openComponents": "Open components",
   "shortcuts.openMore": "Open More",
   "shortcuts.jumpToAttention": "Jump to the item waiting longest",
-  "shortcuts.backToBoard": "Back to board from a session",
   "shortcuts.boardNext": "Next card in lane",
   "shortcuts.boardPrevious": "Previous card in lane",
   "shortcuts.boardLaneLeft": "Lane to the left",

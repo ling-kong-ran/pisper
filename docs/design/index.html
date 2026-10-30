@@ -137,7 +137,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <dl>
           <dt>打开应用</dt><dd>回到上次停留的会话</dd>
           <dt>没有可回的</dt><dd>显示新任务草稿；发出第一条消息时才建会话</dd>
-          <dt>去看板</dt><dd>泳道条最左侧“看板”、<kbd>⇧⌘B</kbd>、标题栏标签</dd>
+          <dt>标签键</dt><dd>按标题栏顺序：<kbd>⌘1</kbd> 会话、<kbd>⌘2</kbd> 看板、<kbd>⌘3</kbd> 组件、<kbd>⌘4</kbd> 更多、<kbd>⌘,</kbd> 设置</dd>
+          <dt>去看板</dt><dd>泳道条最左侧“看板”、<kbd>⇧⌘B</kbd>、<kbd>⌘2</kbd>、标题栏标签</dd>
           <dt>换代理</dt><dd>泳道条、<kbd>⌥↑</kbd><kbd>⌥↓</kbd>、<kbd>⌘J</kbd> 代理面板</dd>
         </dl>
       </div>
@@ -163,6 +164,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ol>
     <ul class="notes">
       <li class="change">打开看板的默认键是 <kbd>⇧⌘B</kbd>，不是 <kbd>⌘B</kbd>：<kbd>⌘B</kbd> 已被隐藏的“切换侧栏”占用，可在设置里改绑。</li>
+      <li class="change">标签键按标题栏顺序重排为 <kbd>⌘1</kbd>–<kbd>⌘4</kbd>，旧的 <kbd>⌘[</kbd>“从会话返回看板”已去掉；没改过这几个键的人升级后自动换到新布局，改过的保持原样。</li>
+      <li class="change">主页新任务草稿上按 <kbd>⌘N</kbd> 或点标题栏“新任务”，直接聚焦草稿输入框，不再叠一层派发浮层。</li>
     </ul>
     <div class="shots">
       <figure><button type="button" data-full="built/shortcuts-settings-1440-light.png" aria-label="放大：快捷键设置"><img src="built/shortcuts-settings-1440-light.png" alt="设置 → 快捷键：全局、看板、会话三组，可改绑" loading="lazy"></button>
@@ -215,7 +218,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <figcaption><span class="chip built">已实现 · 第 4 期</span>平板 1024 × 768（触屏）</figcaption></figure>
     </div>
     <ul class="notes">
-      <li>设计稿顶部的“CI 状态”“今日用量”是固定到看板的组件，在第 5 期做。</li>
+      <li class="change">设计稿顶部的“CI 状态”“今日用量”只是组件放在看板上的样子。组件不固定在看板：看板、会话面板、更多页面、浮窗四种位置平级，新组件不自动放到任何地方，工作室没有“固定到看板”主按钮。</li>
       <li>“排队”泳道要等 Runtime 的排队能力，在第 6 期做，现在不显示。</li>
       <li>没有会话的空项目会留在项目列表里（登记的项目），“管理项目”里可以只移除登记。</li>
       <li class="change">看板不再是首页，功能全部保留：点卡片进会话，浏览器后退回看板。</li>
@@ -285,7 +288,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">0–1</span><span class="what">新视觉 token、标题栏外壳、看板 MVP</span><span class="chip built">已推送 bfd689b1</span></div>
       <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
       <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
-      <div class="phase"><span class="n">5</span><span class="what">组件工作室、固定到看板的组件</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">5</span><span class="what">组件工作室、组件放置（不固定在看板）</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">6</span><span class="what">ask_user、排队泳道、导出、思考用时、目录变更事件；删除旧外壳要先经你同意</span><span class="chip">未开始</span></div>
     </div>
   </section>

@@ -145,11 +145,15 @@ try {
       .locator('[data-shell-tab][aria-current="page"]')
       .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab')))
   assert.deepEqual(await current(), ['board'])
+  // 标签提示按标题栏顺序标出快捷键：会话 ⌘1、看板 ⌘2（“会话”也带自己的键）。
   assert.match(
     await primary.locator('[data-shell-tab="board"]').getAttribute('title'),
-    /^看板 \(.+1\)$/,
+    /^看板 \(.+2\)$/,
   )
-  assert.equal(await primary.locator('[data-shell-tab="session"]').getAttribute('title'), '会话')
+  assert.match(
+    await primary.locator('[data-shell-tab="session"]').getAttribute('title'),
+    /^会话 \(.+1\)$/,
+  )
   await primary.getByRole('button', { name: '组件', exact: true }).click()
   assert.equal(await page.getByTestId('opened').textContent(), 'tab:components')
   assert.deepEqual(await current(), ['components'])

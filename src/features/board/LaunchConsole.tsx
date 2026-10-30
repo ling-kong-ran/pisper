@@ -67,7 +67,8 @@ import { useLaunchOptions, type LaunchModelOption } from './useLaunchOptions'
 
 // 启动台草稿与会话草稿共用同一套存储，键名不会与会话 id 冲突。
 export const LAUNCH_DRAFT_KEY = 'board:launch'
-// 会话主页的新任务草稿单独一份：⌘N 派发浮层可以叠在草稿上面，共用一份会让两边的文本互相串改。
+// 会话主页的新任务草稿单独一份：草稿上的 ⌘N 与标题栏“新任务”改为聚焦草稿，但派发浮层仍可能叠在草稿上面
+//（命令面板的“新会话”，或主页还在加载时打开了浮层、随后落到草稿），共用一份会让两边的文本互相串改。
 const HOME_DRAFT_KEY = 'home:new'
 
 // composer-drafts 没有订阅机制：派发失败放回草稿时，由这里通知挂着同一份草稿的启动台实例重读，
@@ -84,7 +85,12 @@ function restoreDraftText(key: string, prompt: string) {
 export type LaunchConsoleVariant = 'deck' | 'collapsed' | 'hero' | 'overlay' | 'sheet' | 'composer'
 
 // fill：空看板的“试试”建议只填入草稿并聚焦，不重建组件（派发中的状态与错误随之保留）。
-export type LaunchConsoleHandle = { focus: () => void; fill: (text: string) => void }
+// focusEnd：聚焦并把光标放到末尾（主页草稿认领 ⌘N 时用，接着已写的内容往下写）。
+export type LaunchConsoleHandle = {
+  focus: () => void
+  focusEnd: () => void
+  fill: (text: string) => void
+}
 
 export type LaunchConsoleProps = {
   variant: LaunchConsoleVariant
@@ -207,6 +213,14 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       ref,
       () => ({
         focus: () => inputRef.current?.focus(),
+        focusEnd: () => {
+          const input = inputRef.current
+          if (!input) return
+          input.focus()
+          input.setSelectionRange(input.value.length, input.value.length)
+          // Chromium 系（含 WebView2、Android WebView）设置选区不会滚动：长草稿超过高度上限时光标落在可见区之下，要手动滚到底。
+          input.scrollTop = input.scrollHeight
+        },
         fill: (text: string) => {
           setValue(text)
           inputRef.current?.focus()
