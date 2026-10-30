@@ -25,8 +25,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     app::{
-        App, Approval, LiveTurn, RunPhase, RunStatus, SettingsPicker, SlashCategory, SlashKind,
-        View,
+        App, Approval, LiveTurn, PendingQuestion, RunPhase, RunStatus, SettingsPicker,
+        SlashCategory, SlashKind, View,
     },
     disclosure::{
         format_elapsed, thinking_key, tool_arguments, tool_command, tool_group_key, tool_key,
@@ -255,13 +255,19 @@ pub fn draw_in(frame: &mut Frame, app: &App, area: Rect) {
 fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
-    if app.approval.is_some() {
+    // 审批优先；没有可见审批时才显示等你回答的问题，两者共用同一个底部面板位置。
+    if app.approval.is_some() || app.question.is_some() {
         let chat_minimum = if area.height >= 16 { 3 } else { 0 };
+        let panel_height = if app.approval.is_some() {
+            approval_panel_height(app, area)
+        } else {
+            question_panel_height(app, area)
+        };
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(chat_minimum),
-                Constraint::Length(approval_panel_height(app, area)),
+                Constraint::Length(panel_height),
                 Constraint::Length(1),
             ])
             .split(area);
@@ -269,7 +275,11 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
             View::Chat => render_chat(frame, app, chunks[0]),
             View::Changes => render_changes(frame, app, chunks[0]),
         }
-        render_approval(frame, app, chunks[1]);
+        if app.approval.is_some() {
+            render_approval(frame, app, chunks[1]);
+        } else {
+            render_question(frame, app, chunks[1]);
+        }
         render_status(frame, app, chunks[2]);
         return;
     }
@@ -2835,6 +2845,7 @@ fn status_line(
 fn run_status_spans(app: &App, run: &RunStatus, density: StatusDensity) -> Vec<Span<'static>> {
     let (label, color) = match &run.phase {
         RunPhase::Approval => ("approval required".to_owned(), AMBER),
+        RunPhase::Question => ("waiting for your answer".to_owned(), AMBER),
         RunPhase::Compacting => ("compacting context".to_owned(), ACCENT),
         RunPhase::Thinking => ("thinking".to_owned(), ACCENT),
         RunPhase::Responding => ("responding".to_owned(), ACCENT),
@@ -2852,7 +2863,7 @@ fn run_status_spans(app: &App, run: &RunStatus, density: StatusDensity) -> Vec<S
         RunPhase::Reconnecting => (single_line(&app.status, 28), AMBER),
     };
     let mut spans = Vec::new();
-    if matches!(run.phase, RunPhase::Approval) {
+    if matches!(run.phase, RunPhase::Approval | RunPhase::Question) {
         spans.push(Span::styled("◆ ", Style::default().fg(AMBER)));
     } else if density.wave {
         spans.extend(run_animation_spans(app.status_frame));
@@ -2873,7 +2884,7 @@ fn run_status_spans(app: &App, run: &RunStatus, density: StatusDensity) -> Vec<S
             Style::default().fg(MUTED),
         ));
     }
-    if density.stop_hint && !matches!(run.phase, RunPhase::Approval) {
+    if density.stop_hint && !matches!(run.phase, RunPhase::Approval | RunPhase::Question) {
         spans.push(Span::styled("  ctrl+c stop", Style::default().fg(FAINT)));
     }
     spans
@@ -4096,6 +4107,160 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// 当前题目的正文与选项：数字键序号 + 选中标记（单选 ●/○，多选 [x]/[ ]）。
+fn question_body_text(question: &PendingQuestion) -> Text<'static> {
+    let index = question
+        .current
+        .min(question.questions.len().saturating_sub(1));
+    let Some(item) = question.questions.get(index) else {
+        return Text::default();
+    };
+    let picks = question.selected.get(index).cloned().unwrap_or_default();
+    let mut lines = vec![Line::from(Span::styled(
+        item.question.clone(),
+        Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+    ))];
+    for (option_index, option) in item.options.iter().enumerate() {
+        let chosen = picks.contains(&option_index);
+        let marker = match (item.multi_select, chosen) {
+            (true, true) => "[x]",
+            (true, false) => "[ ]",
+            (false, true) => "●",
+            (false, false) => "○",
+        };
+        let style = if chosen {
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(TEXT)
+        };
+        let mut spans = vec![
+            Span::styled(
+                format!(" {} ", option_index + 1),
+                Style::default().fg(MUTED),
+            ),
+            Span::styled(format!("{marker} "), style),
+            Span::styled(option.label.clone(), style),
+        ];
+        if !option.description.is_empty() {
+            spans.push(Span::styled(
+                format!("  {}", option.description),
+                Style::default().fg(MUTED),
+            ));
+        }
+        lines.push(Line::from(spans));
+    }
+    lines.push(Line::from(Span::styled(
+        "Other / free-text answers: reply in the Pisper app",
+        Style::default().fg(FAINT),
+    )));
+    Text::from(lines)
+}
+
+/// 问题面板高度：标题 + 正文 + 选项 + 操作行，不压垮聊天区。
+fn question_panel_height(app: &App, area: Rect) -> u16 {
+    let Some(question) = &app.question else {
+        return 0;
+    };
+    let inner_width = area.width.saturating_sub(4).max(1);
+    let body_lines = Paragraph::new(question_body_text(question))
+        .wrap(Wrap { trim: false })
+        .line_count(inner_width);
+    let desired = body_lines.saturating_add(3).max(6).min(u16::MAX as usize) as u16;
+    let chat_reserve = if area.height >= 16 { 3 } else { 0 };
+    let maximum = area
+        .height
+        .saturating_sub(3)
+        .saturating_sub(chat_reserve)
+        .max(1);
+    desired.min(maximum)
+}
+
+/// 渲染等你回答（ask_user）面板：琥珀边框，标题写题号与短标题，底部是按键提示。
+fn render_question(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(question) = &app.question else {
+        return;
+    };
+    let total = question.questions.len();
+    let current = question.current.min(total.saturating_sub(1));
+    let header = question
+        .questions
+        .get(current)
+        .map(|item| item.header.clone())
+        .unwrap_or_default();
+    let position = if total > 1 {
+        format!(" {}/{total}", current + 1)
+    } else {
+        String::new()
+    };
+    let block = Block::default()
+        .title(Line::from(vec![
+            Span::styled(
+                format!(" Question{position} "),
+                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!(" {header} "), Style::default().fg(TEXT)),
+        ]))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(AMBER))
+        .style(Style::default().bg(SURFACE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.height == 0 {
+        return;
+    }
+    let action_height = 1.min(inner.height);
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(action_height)])
+        .split(inner);
+    if rows[0].height > 0 {
+        frame.render_widget(
+            Paragraph::new(question_body_text(question))
+                .wrap(Wrap { trim: false })
+                .style(Style::default().bg(SURFACE)),
+            rows[0],
+        );
+    }
+    let key = |label: &'static str| {
+        Span::styled(
+            label,
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        )
+    };
+    let hint = |label: String| Span::styled(label, Style::default().fg(TEXT));
+    let actions = if app.question_is_resolving() {
+        vec![Span::styled(
+            "Sending answer...",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        )]
+    } else {
+        let mut spans = vec![key("[1-6]"), hint(" choose  ".to_owned())];
+        if total > 1 {
+            spans.push(key("[Tab]"));
+            spans.push(hint(" next  ".to_owned()));
+        }
+        let left = question.unanswered();
+        let single_click = total == 1 && !question.questions[0].multi_select;
+        if !single_click {
+            spans.push(key("[Enter]"));
+            spans.push(hint(if left > 0 {
+                format!(" submit ({left} left)  ")
+            } else {
+                " submit  ".to_owned()
+            }));
+        }
+        spans.push(key("[S]"));
+        spans.push(hint(" skip".to_owned()));
+        spans
+    };
+    if rows[1].height > 0 {
+        frame.render_widget(
+            Paragraph::new(Line::from(actions)).style(Style::default().bg(SURFACE)),
+            rows[1],
+        );
+    }
+}
+
 /// 计算输入框可见窗口：保证光标可见，超宽时滚动（按字符显示宽度）。
 fn visible_input(input: &[char], cursor: usize, available: usize) -> (String, usize) {
     if input.is_empty() || available == 0 {
@@ -4284,6 +4449,37 @@ mod tests {
                     .collect::<String>()
             })
             .collect()
+    }
+
+    /// 等你回答面板：显示题号、标题、选项与按键提示，审批同时存在时让位给审批。
+    #[test]
+    fn question_panel_renders_options_and_key_hints() {
+        let mut app = App::new(
+            Vec::new(),
+            SessionSummary {
+                id: "session-question".to_owned(),
+                cwd: "/workspace".to_owned(),
+                ..SessionSummary::default()
+            },
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.question = crate::app::PendingQuestion::from_event(&serde_json::json!({
+            "id": "q_render-1",
+            "questions": [
+                { "header": "DB", "question": "Which database?", "options": [{ "label": "Postgres", "description": "Recommended" }, { "label": "SQLite" }] },
+                { "header": "Env", "question": "Where?", "options": [{ "label": "staging" }, { "label": "prod" }], "multiSelect": true }
+            ]
+        }));
+        let text = buffer_rows(&render_test_buffer(&app, 100, 30), 100, 30).join("\n");
+        assert!(text.contains("Question 1/2"), "{text}");
+        assert!(text.contains("Which database?"), "{text}");
+        assert!(text.contains("Postgres"), "{text}");
+        assert!(text.contains("Recommended"), "{text}");
+        assert!(text.contains("[Enter] submit (2 left)"), "{text}");
+        assert!(text.contains("[S] skip"), "{text}");
     }
 
     /// 用指定尺寸的 TestBackend 渲染应用并返回整帧 buffer。

@@ -13,6 +13,7 @@ import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { isSideChatId } from '../services/side-chat-service.mjs'
 import { parseSessionModelRef } from './session-model-ref.mjs'
+import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   applySessionOrganizationPatch,
   parseSessionOrganizationPatch,
@@ -69,6 +70,7 @@ export class SessionLifecycle {
     getMultiAgents,
     getTeamWorkflows,
     getPermissions,
+    getQuestions,
     getBrowserAutomation,
     getExecutionMode,
     resolveDirectory,
@@ -104,6 +106,8 @@ export class SessionLifecycle {
     this.getMultiAgents = getMultiAgents
     this.getTeamWorkflows = getTeamWorkflows
     this.getPermissions = getPermissions
+    // 提问服务（ask_user）是可选依赖：没有时等同于没有待回答的问题。
+    this.getQuestions = typeof getQuestions === 'function' ? getQuestions : () => null
     this.getBrowserAutomation = getBrowserAutomation
     this.getExecutionMode = getExecutionMode
     this.resolveDirectory = resolveDirectory
@@ -180,6 +184,7 @@ export class SessionLifecycle {
     this.pendingSessions.delete(id)
     this.liveSessions.delete(id)
     this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
+    this.getQuestions()?.cancelSession(id, '会话运行时已从内存释放。')
     try {
       value.session.dispose()
     } finally {
@@ -361,6 +366,11 @@ export class SessionLifecycle {
       if (!parentId) continue
       childrenByParent.set(parentId, [...(childrenByParent.get(parentId) || []), childId])
     }
+    const pendingQuestionsFor = (id) => this.getQuestions()?.getPending(id) || []
+    const questionField = (pending) => {
+      const question = projectQuestionSummary(pending)
+      return question ? { question } : {}
+    }
     const sessionValue = (id, value) => ({
       permissionMode:
         sessionMeta[id]?.permissionMode ||
@@ -386,7 +396,13 @@ export class SessionLifecycle {
           ? { childSessionIds: childrenByParent.get(id) }
           : null,
       ...value,
-      ...projectSessionOrganization(sessionMeta[id], this.getPermissions().getPending(id).length),
+      ...projectSessionOrganization(
+        sessionMeta[id],
+        this.getPermissions().getPending(id).length,
+        pendingQuestionsFor(id).length,
+      ),
+      // 等你回答（ask_user）：只在有待回答的问题时出现，旧客户端忽略这个字段。
+      ...questionField(pendingQuestionsFor(id)),
     })
     const result = sessions.map((session) => {
       const active = this.sessions.get(session.id)
@@ -1371,6 +1387,8 @@ export class SessionLifecycle {
     await this.pauseSessionGoal(id)
     this.getMultiAgents().abortParent(id)
     this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
+    // 停止运行即取消问题（规格 8.4）：代理拿到 cancelled，不会把沉默当成回答。
+    this.getQuestions()?.cancelSession(id, '运行已停止。')
     if (live) {
       const finishedAt = new Date().toISOString()
       live.streaming = false
@@ -1405,6 +1423,7 @@ export class SessionLifecycle {
     await this.getBrowserAutomation().closeSession(id)
     await this.getMultiAgents().removeParent(id)
     this.getPermissions().resolveSession(id, false, '会话已删除，工具未执行。')
+    this.getQuestions()?.cancelSession(id, '会话已删除。')
     const active = this.sessions.get(id)
     const pending = this.pendingSessions.get(id)
     this.pendingSessions.delete(id)

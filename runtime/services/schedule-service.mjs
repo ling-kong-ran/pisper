@@ -412,6 +412,8 @@ export class ScheduleService {
               model: task.model,
               executionMode: task.executionMode,
               isolatedContext: true,
+              // 定时任务没有人在场，不提供 ask_user（规格 8.4）。
+              unattended: true,
             })
       const summary = String(result.text || '任务已完成。')
         .trim()

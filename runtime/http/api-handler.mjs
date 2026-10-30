@@ -84,6 +84,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/sessions\/[^/]+\/goal(?:\/|$)/, feature: 'goals' },
   { pattern: /^\/api\/sessions\/[^/]+\/workflow-runs(?:\/|$)/, feature: 'workflows' },
   { pattern: /^\/api\/board\/events$/, feature: 'board.events' },
+  { pattern: /^\/api\/sessions\/[^/]+\/questions(?:\/|$)/, feature: 'askUser' },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

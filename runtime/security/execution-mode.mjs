@@ -35,6 +35,8 @@ const INTERNAL_SAFE_TOOLS = new Set([
   'call_tool',
   'get_goal',
   'update_goal',
+  // 只读模式下也能提问：问题不读写任何东西。
+  'ask_user',
   ...PLAN_READ_TOOL_NAMES,
   'list_agents',
   'send_message',

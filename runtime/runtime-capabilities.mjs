@@ -92,6 +92,8 @@ function buildCapabilities({
     // 看板视图与事件流只依赖内存中的会话摘要，桌面与两种手机档案都提供。
     'board.view': true,
     'board.events': true,
+    // ask_user（等你回答）：只依赖内存里的待回答队列，各档案都提供。
+    askUser: true,
   }
   return Object.freeze({
     version: 1,

@@ -34,6 +34,7 @@ import {
  *   tail?: string[],
  *   agents?: { running: number, total: number },
  *   usage?: { totalTokens: number },
+ *   question?: Record<string, unknown>,
  * }} SessionCard
  * @typedef {{
  *   v: 1,
@@ -753,6 +754,8 @@ function liveActivity(activity) {
  *   live?: Record<string, unknown> | null,
  *   approvals?: readonly unknown[],
  *   agents?: readonly unknown[],
+ *   question?: Record<string, unknown> | null,
+ *   capabilities?: import('../../shared/session-board-status.mjs').BoardCapabilities,
  *   now?: number,
  *   doneWindow?: BoardDoneWindow,
  *   timeZoneOffsetMinutes?: number,
@@ -766,6 +769,8 @@ export function projectSessionCard({
   live = null,
   approvals = [],
   agents = [],
+  question = null,
+  capabilities = {},
   now = Date.now(),
   doneWindow = '7d',
   timeZoneOffsetMinutes,
@@ -819,12 +824,19 @@ export function projectSessionCard({
   }
   const totalTokens = entry?.totalTokens ?? persisted?.usage?.totalTokens ?? null
   if (totalTokens !== null) card.usage = { totalTokens }
+  // 等你回答（ask_user）：问题摘要已在提问服务里归一化、限长，原样带上。
+  if (question) card.question = question
   const derived = deriveBoardStatus(
     {
       ...session,
-      card: { approvals: projected, startedAt: card.startedAt, outcome: card.outcome },
+      card: {
+        approvals: projected,
+        startedAt: card.startedAt,
+        outcome: card.outcome,
+        ...(card.question ? { question: card.question } : {}),
+      },
     },
-    { now, doneWindow, timeZoneOffsetMinutes },
+    { now, doneWindow, timeZoneOffsetMinutes, capabilities },
   )
   return { boardStatus: derived.lane ?? 'idle', ...card }
 }

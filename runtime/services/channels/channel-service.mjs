@@ -168,6 +168,24 @@ function normalizeState(stored) {
   return defaultState()
 }
 
+// ask_user 在渠道里的等待通知：问题与选项编号列出，提示去 Pisper 应用里回答。
+export function channelQuestionText(data) {
+  const questions = Array.isArray(data?.questions) ? data.questions : []
+  const lines = ['代理在等你回答：']
+  questions.forEach((question, index) => {
+    const prefix = questions.length > 1 ? `${index + 1}. ` : ''
+    lines.push(
+      `${prefix}${String(question?.question || '')}${question?.multiSelect ? '（可多选）' : ''}`,
+    )
+    const options = Array.isArray(question?.options) ? question.options : []
+    options.forEach((option, optionIndex) => {
+      lines.push(`   ${String.fromCharCode(65 + optionIndex)}. ${String(option?.label || '')}`)
+    })
+  })
+  lines.push('请在 Pisper 应用里点选回答。')
+  return lines.join('\n')
+}
+
 export class ChannelService {
   constructor({ path, cwd, agent, gatewayFactories = {}, onboardingFactories = {} }) {
     this.path = path
@@ -727,6 +745,11 @@ export class ChannelService {
               .send(message, {
                 text: `需要审批：${data.toolName || '工具'}\n${data.reason || ''}\n请回复 /approve 批准，或 /deny 拒绝。`,
               })
+              .catch(() => {})
+          } else if (event === 'question_request') {
+            // 渠道只带出问题与选项文字，回答在应用里完成（规格 8.4；渠道回复映射是后续工作）。
+            void this.gateways[platform]
+              .send(message, { text: channelQuestionText(data) })
               .catch(() => {})
           } else if (event === 'permission_resolved' && this.state.scopes[key]) {
             delete this.state.scopes[key].pendingApprovalId

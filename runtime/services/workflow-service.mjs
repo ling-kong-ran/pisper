@@ -1047,6 +1047,8 @@ export class WorkflowService {
           attachments: media.attachments,
           cwd: workflow.cwd,
           title: `工作流 · ${workflow.name}`,
+          // 工作流节点没有人在场，不提供 ask_user（规格 8.4）。
+          unattended: true,
           model: node.model || workflow.model,
           executionMode: node.executionMode,
           isolatedContext: true,

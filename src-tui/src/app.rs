@@ -182,6 +182,112 @@ pub struct Approval {
     pub severity: String,
 }
 
+/// ask_user 的一个选项（规格 8.4）。字段缺省时容忍，Runtime 新增字段一律忽略。
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct QuestionOption {
+    pub label: String,
+    pub description: String,
+}
+
+/// ask_user 的一道题：标题、正文、2–6 个选项、是否多选。
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct QuestionItem {
+    pub header: String,
+    pub question: String,
+    pub options: Vec<QuestionOption>,
+    pub multi_select: bool,
+}
+
+/// 等你回答的一组问题（1–4 题）与本地的点选状态。
+/// TUI 只支持点选；“其他”自由回答在应用里完成（数字键对应选项序号）。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PendingQuestion {
+    pub id: String,
+    pub questions: Vec<QuestionItem>,
+    /// 每题已选的选项下标（单选题最多一个）。
+    pub selected: Vec<Vec<usize>>,
+    /// 当前聚焦的题目下标。
+    pub current: usize,
+}
+
+impl PendingQuestion {
+    /// 从 question_request 事件构造；没有 id 或没有可用题目时返回 None（坏数据不挡住界面）。
+    pub fn from_event(data: &Value) -> Option<Self> {
+        let id = data["id"].as_str().unwrap_or_default().to_owned();
+        let questions: Vec<QuestionItem> =
+            serde_json::from_value::<Vec<QuestionItem>>(data["questions"].clone())
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|item| !item.options.is_empty())
+                .collect();
+        if id.is_empty() || questions.is_empty() {
+            return None;
+        }
+        let selected = vec![Vec::new(); questions.len()];
+        Some(Self {
+            id,
+            questions,
+            selected,
+            current: 0,
+        })
+    }
+
+    /// 还没回答的题数。
+    pub fn unanswered(&self) -> usize {
+        self.selected
+            .iter()
+            .filter(|items| items.is_empty())
+            .count()
+    }
+
+    /// 选中当前题的第 index 个选项：单选替换，多选切换。
+    fn choose(&mut self, index: usize) -> bool {
+        let Some(question) = self.questions.get(self.current) else {
+            return false;
+        };
+        if index >= question.options.len() {
+            return false;
+        }
+        let picks = &mut self.selected[self.current];
+        if question.multi_select {
+            if let Some(position) = picks.iter().position(|item| *item == index) {
+                picks.remove(position);
+            } else {
+                picks.push(index);
+                picks.sort_unstable();
+            }
+        } else {
+            *picks = vec![index];
+        }
+        true
+    }
+
+    /// 只有一题且单选时，点一下就提交（与 Web 的一击提交一致）。
+    fn submits_on_choice(&self) -> bool {
+        self.questions.len() == 1 && !self.questions[0].multi_select
+    }
+
+    /// POST /questions/:id 的请求体：每题已选选项的文字。
+    pub fn answer_body(&self) -> Value {
+        let answers: Vec<Value> = self
+            .questions
+            .iter()
+            .zip(&self.selected)
+            .map(|(question, picks)| {
+                let labels: Vec<&str> = picks
+                    .iter()
+                    .filter_map(|index| question.options.get(*index))
+                    .map(|option| option.label.as_str())
+                    .collect();
+                serde_json::json!({ "selected": labels })
+            })
+            .collect();
+        serde_json::json!({ "answers": answers })
+    }
+}
+
 /// 命令守卫 warn 级拦截的 reason 前缀；与 shared/session-board-status.mjs 的同名常量一致。
 const COMMAND_GUARD_REASON_PREFIX: &str = "命令守卫拦截";
 
@@ -308,6 +414,12 @@ pub enum Action {
     SwitchSession { id: String, request_id: u64 },
     /// 解析一个审批请求。
     ResolveApproval { id: String, approved: bool },
+    /// 回答或跳过 ask_user 的问题；body 是 POST /questions/:id 的请求体。
+    AnswerQuestion {
+        id: String,
+        body: Value,
+        skipped: bool,
+    },
     /// 刷新工作区变更。
     RefreshVcs,
     /// 提交工作区变更（带提交信息）。
@@ -412,6 +524,9 @@ pub struct App {
     approval_shown_at: Option<Instant>,
     pub approval_scroll: Cell<u16>,
     pub approval_max_scroll: Cell<u16>,
+    /// 等你回答（ask_user）：审批优先显示，没有可见审批时才显示问题。
+    pub question: Option<PendingQuestion>,
+    question_resolving: bool,
     pub attachments: Vec<AttachmentDraft>,
     pub path_picker: bool,
     pub path_input: Vec<char>,
@@ -459,6 +574,8 @@ pub struct App {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunPhase {
     Approval,
+    /// 等你回答（ask_user）。
+    Question,
     Compacting,
     Thinking,
     Tool {
@@ -568,6 +685,8 @@ impl App {
             approval_shown_at: None,
             approval_scroll: Cell::new(0),
             approval_max_scroll: Cell::new(0),
+            question: None,
+            question_resolving: false,
             attachments: Vec::new(),
             path_picker: false,
             path_input: Vec::new(),
@@ -672,6 +791,7 @@ impl App {
     /// 输入框是否处于可接受输入状态：无审批、无路径/会话/设置/API Key 弹窗。
     pub fn accepts_composer_input(&self) -> bool {
         self.approval.is_none()
+            && self.question.is_none()
             && !self.path_picker
             && !self.session_picker
             && self.settings_picker.is_none()
@@ -694,7 +814,7 @@ impl App {
     /// 状态栏运行概况：未运行且无待审批时返回 None。`wall_ms` 为当前墙钟毫秒，
     /// 用于计算 Runtime 以时间戳下发的工具耗时。
     pub fn run_status(&self, now: Instant, wall_ms: u64) -> Option<RunStatus> {
-        if !self.is_running_state() && self.approval.is_none() {
+        if !self.is_running_state() && self.approval.is_none() && self.question.is_none() {
             return None;
         }
         let elapsed = self
@@ -714,6 +834,8 @@ impl App {
             .unwrap_or_default();
         let phase = if self.approval.is_some() {
             RunPhase::Approval
+        } else if self.question.is_some() {
+            RunPhase::Question
         } else if self.compacting_context {
             RunPhase::Compacting
         } else if self.is_streaming() && self.status.starts_with("reconnecting stream") {
@@ -743,7 +865,10 @@ impl App {
 
     /// 是否需要每秒刷新（运行计时、停顿提示或结束摘要仍在展示）。
     pub fn needs_clock(&self, now: Instant) -> bool {
-        self.is_running_state() || self.approval.is_some() || self.run_finish_notice(now).is_some()
+        self.is_running_state()
+            || self.approval.is_some()
+            || self.question.is_some()
+            || self.run_finish_notice(now).is_some()
     }
 
     fn begin_run_clock(&mut self) {
@@ -973,8 +1098,99 @@ impl App {
         self.approval_resolving = false;
     }
 
-    /// 清空全部审批状态（运行结束/失败/中止时调用）。
+    /// 有可见问题时的按键：数字键 1–6 点选当前题，Tab / ← → 换题，Enter 提交，S 跳过。
+    /// 只有一题且单选时，数字键点一下即提交。Esc 不跳过，免得误触丢掉问题。
+    fn handle_question_key(&mut self, key: KeyEvent) -> Action {
+        if self.question_resolving {
+            return Action::None;
+        }
+        let Some(question) = self.question.as_mut() else {
+            return Action::None;
+        };
+        let count = question.questions.len();
+        match key.code {
+            KeyCode::Char(digit @ '1'..='6') => {
+                let index = digit as usize - '1' as usize;
+                if !question.choose(index) {
+                    return Action::None;
+                }
+                if question.submits_on_choice() {
+                    return self.submit_question(false);
+                }
+                let current = question.current;
+                if !question.questions[current].multi_select && current + 1 < count {
+                    question.current = current + 1;
+                }
+                Action::None
+            }
+            KeyCode::Tab | KeyCode::Right | KeyCode::Down => {
+                question.current = (question.current + 1) % count;
+                Action::None
+            }
+            KeyCode::BackTab | KeyCode::Left | KeyCode::Up => {
+                question.current = (question.current + count - 1) % count;
+                Action::None
+            }
+            KeyCode::Enter => {
+                let left = question.unanswered();
+                if left > 0 {
+                    self.status = format!("{left} question(s) left to answer");
+                    self.status_error = false;
+                    return Action::None;
+                }
+                self.submit_question(false)
+            }
+            KeyCode::Char('s') | KeyCode::Char('S') => self.submit_question(true),
+            _ => Action::None,
+        }
+    }
+
+    fn submit_question(&mut self, skipped: bool) -> Action {
+        let Some(question) = self.question.as_ref() else {
+            return Action::None;
+        };
+        let body = if skipped {
+            serde_json::json!({ "skip": true })
+        } else {
+            question.answer_body()
+        };
+        let id = question.id.clone();
+        self.question_resolving = true;
+        self.status = if skipped {
+            "skipping question"
+        } else {
+            "sending answer"
+        }
+        .to_owned();
+        Action::AnswerQuestion { id, body, skipped }
+    }
+
+    /// 是否正在向 Runtime 提交回答。
+    pub fn question_is_resolving(&self) -> bool {
+        self.question_resolving
+    }
+
+    /// 回答已被 Runtime 接受，或 Runtime 告知这组问题已结束（question_resolved）。
+    pub fn question_resolution_succeeded(&mut self, id: &str) {
+        if self
+            .question
+            .as_ref()
+            .is_some_and(|question| question.id == id)
+        {
+            self.question = None;
+            self.question_resolving = false;
+        }
+    }
+
+    /// 回答提交失败：复位提交中标记，让用户能重新回答。
+    pub fn question_resolution_failed(&mut self) {
+        self.question_resolving = false;
+    }
+
+    /// 清空全部审批与提问状态（运行结束/失败/中止时调用）：停止运行即取消问题（规格 8.4）。
     fn clear_approvals(&mut self) {
+        self.question = None;
+        self.question_resolving = false;
         self.approval = None;
         self.approval_shown_at = None;
         self.pending_approvals.clear();
@@ -1545,7 +1761,7 @@ impl App {
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             // Ctrl+C：运行中先中止，第二次再按强制退出；空闲时直接退出。
-            return if self.is_streaming() || self.approval.is_some() {
+            return if self.is_streaming() || self.approval.is_some() || self.question.is_some() {
                 self.clear_approvals();
                 if self.abort_pressed {
                     Action::Quit
@@ -1556,6 +1772,9 @@ impl App {
             } else {
                 Action::Quit
             };
+        }
+        if self.approval.is_none() && self.question.is_some() {
+            return self.handle_question_key(key);
         }
         if let Some(approval) = self.approval.clone() {
             // 有可见审批时，只响应 Y/N/Esc 与滚动键。critical 也是按一次 Y 批准
@@ -3372,6 +3591,10 @@ impl App {
             self.approval_resolution_succeeded(&string_field(&event.data, "id"));
             return;
         }
+        if event.name == "question_resolved" {
+            self.question_resolution_succeeded(&string_field(&event.data, "id"));
+            return;
+        }
         if self.live.is_none() {
             return;
         }
@@ -3473,6 +3696,14 @@ impl App {
                 self.approval_scroll.set(0);
                 self.approval_max_scroll.set(0);
                 self.status = "approval required".to_owned();
+            }
+            "question_request" => {
+                sync_live_display(live);
+                if let Some(question) = PendingQuestion::from_event(&event.data) {
+                    self.question = Some(question);
+                    self.question_resolving = false;
+                    self.status = "question waiting".to_owned();
+                }
             }
             "session_title" => {
                 self.session.name = string_field(&event.data, "name");
@@ -4834,6 +5065,159 @@ mod tests {
         assert_eq!(approval.risk, "high");
         assert_eq!(app.approval_scroll.get(), 0);
         assert_eq!(app.approval_max_scroll.get(), 0);
+    }
+
+    /// 起一轮运行并送入一组 ask_user 问题（附带 Runtime 将来可能新增的字段）。
+    fn app_with_question(questions: serde_json::Value) -> App {
+        let mut app = test_app(Vec::new());
+        app.set_input("pick a database");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        app.apply_stream_event(StreamEvent {
+            name: "question_request".to_owned(),
+            data: json!({
+                "id": "q_question-1",
+                "questionId": "q_question-1",
+                "sessionId": "session-1",
+                "toolCallId": "call-1",
+                "createdAt": "2026-10-30T10:00:00.000Z",
+                "futureField": { "nested": true },
+                "questions": questions,
+            }),
+            id: None,
+        });
+        app
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    /// 一题单选：数字键点一下即提交；面板期间输入框不接受打字。
+    #[test]
+    fn single_choice_question_submits_on_one_keypress() {
+        let mut app = app_with_question(json!([{
+            "header": "DB",
+            "question": "Which database?",
+            "options": [{ "label": "Postgres", "description": "Recommended" }, { "label": "SQLite" }],
+            "multiSelect": false,
+            "unknown": 1
+        }]));
+        let question = app.question.as_ref().unwrap();
+        assert_eq!(question.id, "q_question-1");
+        assert_eq!(question.questions[0].options[0].description, "Recommended");
+        assert!(!app.accepts_composer_input());
+        assert!(matches!(
+            app.run_status(Instant::now(), 0).unwrap().phase,
+            RunPhase::Question
+        ));
+        // 超出选项数的数字键不做事。
+        assert!(matches!(
+            app.handle_key(key(KeyCode::Char('5'))),
+            Action::None
+        ));
+        match app.handle_key(key(KeyCode::Char('2'))) {
+            Action::AnswerQuestion { id, body, skipped } => {
+                assert_eq!(id, "q_question-1");
+                assert!(!skipped);
+                assert_eq!(body, json!({ "answers": [{ "selected": ["SQLite"] }] }));
+            }
+            _ => panic!("unexpected action"),
+        }
+        assert!(app.question_is_resolving());
+        // 提交中不重复提交。
+        assert!(matches!(
+            app.handle_key(key(KeyCode::Char('1'))),
+            Action::None
+        ));
+        app.question_resolution_succeeded("q_question-1");
+        assert!(app.question.is_none());
+        assert!(app.accepts_composer_input());
+    }
+
+    /// 多题：单选题选完自动跳到下一题，多选题数字键切换；没答完时 Enter 不提交，S 跳过。
+    #[test]
+    fn multi_question_flow_requires_every_answer_and_supports_skip() {
+        let questions = json!([
+            { "header": "DB", "question": "Which database?", "options": [{ "label": "Postgres" }, { "label": "SQLite" }] },
+            { "header": "Env", "question": "Where?", "options": [{ "label": "staging" }, { "label": "prod" }, { "label": "preview" }], "multiSelect": true }
+        ]);
+        let mut app = app_with_question(questions.clone());
+        assert!(matches!(app.handle_key(key(KeyCode::Enter)), Action::None));
+        assert!(app.status.contains("2 question(s) left"));
+        assert!(matches!(
+            app.handle_key(key(KeyCode::Char('1'))),
+            Action::None
+        ));
+        assert_eq!(app.question.as_ref().unwrap().current, 1);
+        app.handle_key(key(KeyCode::Char('3')));
+        app.handle_key(key(KeyCode::Char('1')));
+        app.handle_key(key(KeyCode::Char('3')));
+        assert_eq!(app.question.as_ref().unwrap().selected[1], vec![0]);
+        app.handle_key(key(KeyCode::Char('2')));
+        app.handle_key(key(KeyCode::Tab));
+        assert_eq!(app.question.as_ref().unwrap().current, 0);
+        match app.handle_key(key(KeyCode::Enter)) {
+            Action::AnswerQuestion { body, skipped, .. } => {
+                assert!(!skipped);
+                assert_eq!(
+                    body,
+                    json!({ "answers": [{ "selected": ["Postgres"] }, { "selected": ["staging", "prod"] }] })
+                );
+            }
+            _ => panic!("unexpected action"),
+        }
+        // 提交失败后可以重来；S 跳过。
+        app.question_resolution_failed();
+        match app.handle_key(key(KeyCode::Char('s'))) {
+            Action::AnswerQuestion { body, skipped, .. } => {
+                assert!(skipped);
+                assert_eq!(body, json!({ "skip": true }));
+            }
+            _ => panic!("unexpected action"),
+        }
+        // Esc 不跳过问题。
+        let mut fresh = app_with_question(questions);
+        assert!(matches!(fresh.handle_key(key(KeyCode::Esc)), Action::None));
+        assert!(fresh.question.is_some());
+    }
+
+    /// 别处回答（question_resolved）、运行结束或坏数据：问题面板都不会卡住。
+    #[test]
+    fn question_clears_on_resolution_and_on_run_end_and_ignores_bad_data() {
+        let questions =
+            json!([{ "question": "Go?", "options": [{ "label": "Yes" }, { "label": "No" }] }]);
+        let mut app = app_with_question(questions.clone());
+        app.apply_stream_event(StreamEvent {
+            name: "question_resolved".to_owned(),
+            data: json!({ "id": "q_other", "outcome": "answered" }),
+            id: None,
+        });
+        assert!(app.question.is_some());
+        app.apply_stream_event(StreamEvent {
+            name: "question_resolved".to_owned(),
+            data: json!({ "id": "q_question-1", "outcome": "answered" }),
+            id: None,
+        });
+        assert!(app.question.is_none());
+
+        let mut app = app_with_question(questions);
+        app.apply_stream_event(StreamEvent {
+            name: "done".to_owned(),
+            data: json!({ "text": "ok" }),
+            id: None,
+        });
+        assert!(app.question.is_none());
+
+        let app = app_with_question(json!("not a list"));
+        assert!(app.question.is_none());
+        let mut app = app_with_question(json!([{ "question": "No options", "options": [] }]));
+        assert!(app.question.is_none());
+        app.apply_stream_event(StreamEvent {
+            name: "question_request".to_owned(),
+            data: json!({ "questions": [{ "question": "x", "options": [{ "label": "a" }, { "label": "b" }] }] }),
+            id: None,
+        });
+        assert!(app.question.is_none());
     }
 
     /// 第 2 期审批事件新增 severity（以及将来可能的其它字段）：TUI 忽略未知字段，照常排队待审。

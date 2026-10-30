@@ -516,6 +516,25 @@ impl ApiClient {
         Ok(())
     }
 
+    /// 回答或跳过 ask_user 的问题：POST `/api/sessions/:id/questions/:questionId`。
+    pub async fn answer_question(
+        &self,
+        session_id: &str,
+        question_id: &str,
+        body: &Value,
+    ) -> Result<()> {
+        let session = encode_segment(session_id);
+        let question = encode_segment(question_id);
+        let _: Value = self
+            .send_json(
+                reqwest::Method::POST,
+                &format!("/api/sessions/{session}/questions/{question}"),
+                body,
+            )
+            .await?;
+        Ok(())
+    }
+
     /// 建立对话流：POST `/api/chat` 后逐块消费 SSE，
     /// 每个事件（含终态 `done`/`error`）经 sender 转发回主事件循环。
     /// 传输层在终态前断开时凭 run 头帧的 runId 与 SSE id 游标经

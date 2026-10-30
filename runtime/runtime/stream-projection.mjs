@@ -671,6 +671,7 @@ export class StreamProjection {
     teamWorkflows,
     multiAgents,
     permissions,
+    questions,
     settingsManager,
     modelRuntime,
     compactionThresholdPercent,
@@ -695,6 +696,8 @@ export class StreamProjection {
     this.teamWorkflows = teamWorkflows
     this.multiAgents = multiAgents
     this.permissions = permissions
+    // ask_user 的待回答问题；旧装配（测试）没有传时视为没有问题。
+    this.questions = questions || { getPending: () => [] }
     this.settingsManager = settingsManager
     this.modelRuntime = modelRuntime
     this.compactionThresholdPercent = compactionThresholdPercent
@@ -1173,7 +1176,7 @@ export class StreamProjection {
     }
   }
 
-  liveToken(id, active, live, approvals) {
+  liveToken(id, active, live, approvals, questions = []) {
     const messages = active?.session?.messages || []
     return [
       active,
@@ -1190,6 +1193,8 @@ export class StreamProjection {
       approvals,
       approvals.length,
       approvals.at(-1),
+      questions.length,
+      questions.at(-1),
     ]
   }
 
@@ -1200,10 +1205,11 @@ export class StreamProjection {
     if (active) this.touchSessionRuntime(active)
     const live = this.liveSessions().get(id)
     const approvals = this.permissions.getPending(id)
+    const questions = this.questions.getPending(id)
     // 历史读取期间可能继续入队；队列内容与修订号必须来自同一次同步快照。
     const queuedInputs = queuedSessionInputs(active?.session)
     const queueRevision = sessionInputQueueRevision(active?.session)
-    const token = this.liveToken(id, active, live, approvals)
+    const token = this.liveToken(id, active, live, approvals, questions)
     if (active || live) {
       const cached = this.cache.liveSnapshot(id, token)
       if (cached.hit) return cached.value
@@ -1293,6 +1299,8 @@ export class StreamProjection {
       promptCache: live?.promptCache || active?.promptCache || null,
       compaction: live?.compaction || null,
       approvals,
+      // 只做加法：有待回答的问题时才带，旧客户端忽略。
+      ...(questions.length ? { questions } : {}),
       pageInfo: page.pageInfo,
     }
     return active || live ? this.cache.storeLiveSnapshot(id, token, value) : value

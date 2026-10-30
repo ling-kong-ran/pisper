@@ -96,6 +96,8 @@ import {
 } from '../services/asset-content.mjs'
 import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
+import { ASK_USER_TOOL_NAME, createAskUserTool } from '../tools/app/ask-user.mjs'
+import { SessionQuestionService } from '../services/session-question-service.mjs'
 import {
   createPlanTools,
   PLAN_ALL_TOOL_NAMES,
@@ -553,6 +555,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getToolRisk: (toolName) => this.getToolRisk(toolName),
       onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
+    // ask_user 的待回答问题：事件同时推给本轮运行流与看板事件流（后台运行的提问也进“需要你”）。
+    this.questions = new SessionQuestionService({
+      onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
+    })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
       path: join(dataDir, 'pisper-agents.json'),
@@ -596,6 +602,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       teamWorkflows: { get: (id) => this.getTeamProjection(id, { compact: true }) },
       multiAgents: { summaries: (id) => this.multiAgents.summaries(id) },
       permissions: { getPending: (id) => this.permissions.getPending(id) },
+      questions: { getPending: (id) => this.questions.getPending(id) },
       settingsManager: () => this.settingsManager,
       modelRuntime: () => this.modelRuntime,
       compactionThresholdPercent: () => this.compactionThresholdPercent,
@@ -671,6 +678,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         remove: (id) => this.teamWorkflows.remove(id),
       }),
       getPermissions: () => this.permissions,
+      getQuestions: () => this.questions,
       getBrowserAutomation: () => this.browserAutomation,
       getExecutionMode: (id) => this.getSessionExecutionMode(id),
       resolveDirectory,
@@ -1616,6 +1624,21 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
       : []
     const planReader = planTools.find((tool) => tool.name === 'get_plan')
+    // ask_user 只给主会话：子代理继承的工具里没有它；没人在场的运行（unattendedRun）由激活过滤与执行时双重拦下。
+    const askUserTools = this.capabilities.features.askUser
+      ? [
+          createAskUserTool({
+            isAvailable: () => !runtimeValue?.unattendedRun,
+            requestAnswers: ({ toolCallId, questions, signal }) =>
+              this.questions.request({
+                sessionId: runtimeSession?.sessionId || runtimeSessionId,
+                toolCallId,
+                questions,
+                signal,
+              }),
+          }),
+        ]
+      : []
     // Pi 引擎惰性持久化会话文件（首条助手消息时才写盘）。若对话在模型回复前被打断，
     // 磁盘上将没有文件；这里强制先落盘，保证会话在常驻运行时被释放后仍可寻址/恢复。
     await ensureSessionFilePersisted(sessionManager, name, effectiveCwd)
@@ -1778,6 +1801,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...(this.capabilities.features.goals ? GOAL_TOOL_NAMES : []),
         ...(this.capabilities.features.plans ? PLAN_ALL_TOOL_NAMES : []),
         ...(this.capabilities.features.multiAgent ? MULTI_AGENT_TOOL_NAMES : []),
+        ...(this.capabilities.features.askUser ? [ASK_USER_TOOL_NAME] : []),
       ],
       customTools: [
         await createCompressedReadTool(effectiveCwd),
@@ -1787,6 +1811,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...goalTools,
         ...planTools,
         ...multiAgentTools,
+        ...askUserTools,
       ],
     })
     installTransientStreamRetry(session)
@@ -1946,10 +1971,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       goalTokenBudget = null,
       isolatedContext = false,
       mobileClient = false,
+      unattended = false,
       runId = '',
       send,
     },
   ) {
+    // 没有人在场的运行（定时任务、工作流节点、外部 MCP 调用）：本轮不提供 ask_user（规格 8.4）。
+    value.unattendedRun = Boolean(unattended)
     // 看板摘要只跟踪会出现在看板上的会话；侧聊不上看板，不占摘要缓存。
     // 每个流事件都会走到这里，判定结果在本轮内不变，只算一次。
     let cardId = null
@@ -2539,6 +2567,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     })
     this.permissions.attachEmitter(session.sessionId, emit)
+    this.questions.attachEmitter(session.sessionId, emit)
     const detachMobileOperations = mobileClient
       ? this.mobileOperations.attach(session.sessionId, emit)
       : () => {}
@@ -2666,6 +2695,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       unsubscribe()
       detachMobileOperations()
       this.permissions.detachEmitter(session.sessionId, emit)
+      this.questions.detachEmitter(session.sessionId, emit)
       if (this.goalEmitters.get(session.sessionId) === emit)
         this.goalEmitters.delete(session.sessionId)
       if (this.planEmitters.get(session.sessionId) === emit)

@@ -415,6 +415,7 @@ export class AgentRuntimeFacade {
     teamMode = false,
     isolatedContext = false,
     requestedToolNames,
+    unattended = false,
     onSession,
     onEvent,
   }) {
@@ -457,6 +458,7 @@ export class AgentRuntimeFacade {
       teamMode,
       isolatedContext,
       requestedToolNames,
+      unattended,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
         if (event === 'text_delta') text += data?.delta || ''
@@ -829,6 +831,7 @@ export class AgentRuntimeFacade {
     await this.browserAutomation.dispose()
     this.mobileOperations.dispose()
     this.permissions.dispose()
+    this.questions?.dispose()
     await this.disposeSessions()
     await this.sandbox?.close?.()
     this.pendingSessions.clear()

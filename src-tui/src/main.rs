@@ -609,6 +609,30 @@ async fn run_event_loop(
                                 app.finish_context_compaction(context_usage, error);
                                 false
                             }
+                            RuntimeEvent::QuestionAnswered {
+                                session_id,
+                                question_id,
+                                skipped,
+                                result,
+                            } => {
+                                if app.session.id == session_id {
+                                    match result {
+                                        Ok(()) => {
+                                            app.question_resolution_succeeded(&question_id);
+                                            app.status =
+                                                if skipped { "question skipped" } else { "answered" }
+                                                    .to_owned();
+                                            app.status_error = false;
+                                        }
+                                        Err(error) => {
+                                            app.question_resolution_failed();
+                                            app.status = format!("answer failed · {error}");
+                                            app.status_error = true;
+                                        }
+                                    }
+                                }
+                                false
+                            }
                             RuntimeEvent::ApprovalResolved {
                                 session_id,
                                 approval_id,
@@ -1203,6 +1227,23 @@ async fn execute_action(
                     session_id,
                     approval_id: id,
                     approved,
+                    result,
+                });
+            });
+        }
+        Action::AnswerQuestion { id, body, skipped } => {
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            tokio::spawn(async move {
+                let result = api
+                    .answer_question(&session_id, &id, &body)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::QuestionAnswered {
+                    session_id,
+                    question_id: id,
+                    skipped,
                     result,
                 });
             });

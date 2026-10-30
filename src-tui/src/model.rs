@@ -634,6 +634,13 @@ pub enum RuntimeEvent {
         approved: bool,
         result: Result<(), String>,
     },
+    /// 回答 / 跳过 ask_user 问题的结果。
+    QuestionAnswered {
+        session_id: String,
+        question_id: String,
+        skipped: bool,
+        result: Result<(), String>,
+    },
     /// 版本控制查询/提交/推送/回退的结果。
     VcsResult {
         session_id: String,
@@ -876,6 +883,16 @@ mod tests {
                     "executionMode": "workspace-write",
                     "needsAttention": true,
                     "attentionReason": "question",
+                    "question": {
+                        "id": "q_fixture-1",
+                        "prompt": "Which database?",
+                        "options": ["Postgres", "SQLite"],
+                        "multiSelect": false,
+                        "allowFreeText": true,
+                        "count": 1,
+                        "createdAt": "2026-10-29T02:00:00.000Z",
+                        "questions": [{ "header": "DB", "question": "Which database?", "options": [{ "label": "Postgres" }], "multiSelect": false }]
+                    },
                     "runId": "run_abc",
                     "card": {
                         "boardStatus": "attention",

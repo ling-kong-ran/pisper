@@ -4,6 +4,7 @@ import { projectStoredTeam } from '../../services/team-workflow.mjs'
 import { SessionOrganizationInputError } from '../../services/chat-session-organization.mjs'
 import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 import { SideChatError } from '../../services/side-chat-service.mjs'
+import { QuestionInputError, isQuestionId } from '../../services/session-question-service.mjs'
 import { BoardViewQueryError } from '../../services/session-board-view.mjs'
 import { parseBoardViewQuery } from './board.mjs'
 function isMobileAppRequest(runtime, req) {
@@ -482,6 +483,38 @@ const routes = [
         Boolean((await body()).approved),
       )
       if (!resolution.found) json(404, { error: '授权请求不存在。' })
+      else json(200, resolution)
+    },
+  },
+  {
+    // 回答或跳过 ask_user 的问题（规格 8.4）：{answers: [{selected: [label…], other?}]} 或 {skip: true}。
+    // 输入按 unknown 校验、限长；重复回答返回结构化冲突，客户端据此刷新而不是重试。
+    method: 'POST',
+    path: '/api/sessions/:sessionId/questions/:questionId',
+    async handler({ runtime, params, body, json }) {
+      if (!isQuestionId(params.questionId)) {
+        json(404, { error: '问题不存在。', code: 'question_not_found' })
+        return
+      }
+      let resolution
+      try {
+        resolution = runtime.answerSessionQuestion(
+          params.sessionId,
+          params.questionId,
+          await body(),
+        )
+      } catch (error) {
+        if (!(error instanceof QuestionInputError)) throw error
+        json(400, { error: error.message, code: error.code })
+        return
+      }
+      if (!resolution.found) json(404, { error: '问题不存在。', code: 'question_not_found' })
+      else if (resolution.alreadyResolved)
+        json(409, {
+          error: '这组问题已经处理过了。',
+          code: 'question_already_resolved',
+          ...resolution,
+        })
       else json(200, resolution)
     },
   },

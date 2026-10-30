@@ -1,5 +1,6 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
+import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import { modelThinkingState } from './provider-preferences.mjs'
 import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
@@ -64,6 +65,8 @@ export const agentSessionMethods = {
       live: this.liveSessions?.get(id) || null,
       approvals: this.permissions.getPending(id),
       agents: this.multiAgents.summaries(id),
+      question: projectQuestionSummary(this.questions?.getPending(id) || []),
+      capabilities: { askUser: this.capabilities?.features?.askUser === true },
       now,
       doneWindow,
       timeZoneOffsetMinutes,
@@ -463,6 +466,12 @@ export const agentSessionMethods = {
 
   resolveToolApproval(sessionId, approvalId, approved) {
     return this.permissions.resolve(sessionId, approvalId, approved)
+  },
+
+  // 回答 / 跳过 ask_user 的问题；输入非法时抛 QuestionInputError，由 HTTP 层转成 400。
+  answerSessionQuestion(sessionId, questionId, input) {
+    if (!this.questions) return { found: false, alreadyResolved: false, questionId, sessionId }
+    return this.questions.answer(sessionId, questionId, input)
   },
 
   resolveMobileOperation(sessionId, operationId, input) {

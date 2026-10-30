@@ -272,6 +272,8 @@ export function registerMcpHostTools(server, context) {
           const output = await runtime.promptFromChannel({
             sessionId: id,
             message: input.message,
+            // 外部 MCP 客户端发起的运行由调用方代理驱动，应用里没人等着回答，不提供 ask_user。
+            unattended: true,
             goalMode: Boolean(input.goalMode || input.teamMode),
             teamMode: Boolean(input.teamMode),
             onEvent: (event, data) => {

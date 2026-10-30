@@ -1,11 +1,19 @@
 import { MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
 import { GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
+import { ASK_USER_TOOL_NAME } from '../tools/app/ask-user.mjs'
 import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
+
+// 本轮屏蔽的工具：隔离上下文的屏蔽项，加上没人在场的运行里的 ask_user。
+function runBlockedToolNames(value) {
+  const blocked = new Set(value?.blockedToolNames || [])
+  if (value?.unattendedRun) blocked.add(ASK_USER_TOOL_NAME)
+  return blocked
+}
 
 // 工具激活策略：根据执行模式/目标状态/用户请求动态启用工具，并同步系统提示。
 // 工具在会话中可能被“提升”（promoted）——即模型可直接调用，而非常驻可见。
@@ -28,7 +36,7 @@ export class ToolActivation {
 
   // 可选工具集合：基础工具 + 计划兼容工具 + 多 Agent 工具，扣除隔离上下文屏蔽项。
   optionalToolNames(value) {
-    const blockedToolNames = new Set(value?.blockedToolNames || [])
+    const blockedToolNames = runBlockedToolNames(value)
     return [
       ...(value?.baseToolNames || []),
       ...(value?.session?.getAllTools?.() || []).map((tool) => tool.name),
@@ -41,7 +49,7 @@ export class ToolActivation {
   syncGoalTools(value, goal) {
     if (!value?.session) return
     const mode = this.getExecutionMode(value.session.sessionId)
-    const blockedToolNames = new Set(value.blockedToolNames || [])
+    const blockedToolNames = runBlockedToolNames(value)
     const availableToolNames = [
       ...(value.baseToolNames || []),
       TOOL_DISCOVERY_NAME,
@@ -49,6 +57,7 @@ export class ToolActivation {
       ...PLAN_ALL_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
+      ASK_USER_TOOL_NAME,
     ].filter((name) => !blockedToolNames.has(name))
     const names = selectedToolNames({
       availableToolNames,

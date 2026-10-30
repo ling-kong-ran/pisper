@@ -38,10 +38,22 @@ export function normalizeSessionOrganization(meta) {
   }
 }
 
-/** @param {unknown} meta @param {number} [pendingApprovalCount] */
-export function projectSessionOrganization(meta, pendingApprovalCount = 0) {
+// 注意力原因的优先级：批准 > 等你回答（ask_user）> 失败。'question' 是新枚举值，旧客户端要容忍。
+/** @param {unknown} meta @param {number} [pendingApprovalCount] @param {number} [pendingQuestionCount] */
+export function projectSessionOrganization(
+  meta,
+  pendingApprovalCount = 0,
+  pendingQuestionCount = 0,
+) {
   const state = normalizeSessionOrganization(meta)
-  const attentionReason = pendingApprovalCount > 0 ? 'approval' : state.failed ? 'failure' : null
+  const attentionReason =
+    pendingApprovalCount > 0
+      ? 'approval'
+      : pendingQuestionCount > 0
+        ? 'question'
+        : state.failed
+          ? 'failure'
+          : null
   return {
     pinned: state.pinned,
     archived: state.archived,

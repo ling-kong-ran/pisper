@@ -32,7 +32,8 @@ const TOOL_RISKS = new Map([
   ['list_team_members', 'low'],
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
-const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', ...PLAN_ALL_TOOL_NAMES])
+// ask_user 不是权限：问题本身就是等用户决定，再叠一层审批只会让用户点两次（规格 8.4）。
+const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'ask_user', ...PLAN_ALL_TOOL_NAMES])
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map((item) => stableValue(item))

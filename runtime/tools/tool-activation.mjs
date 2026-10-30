@@ -18,6 +18,8 @@ const HOT_TOOL_SET = new Set([
   'followup_task',
   'wait_agent',
   'interrupt_agent',
+  // ask_user 常驻可见：代理需要在分歧时直接问，而不是先 discover_tools。
+  'ask_user',
 ])
 
 export function schemaOnlyToolDefinition(tool) {
