@@ -154,19 +154,32 @@ test('all chats expose their working directory in the title header, not in the c
 })
 
 test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
-  const [focus, message, transcript, pageHeader, shell] = await Promise.all([
+  const [focus, message, transcript, pageHeader, shell, phoneHeader] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/ChatMessage.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
     readFile('src/app/SessionShell.tsx', 'utf8'),
+    readFile('src/features/chat/SessionPhoneHeader.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
-  // 手机外壳仍是旧的任务顶栏。
+  // 旧的任务顶栏只留给非路由的旧入口（第 6 期删除）。
   assert.match(
     focus,
     /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
+  // 第 4 期手机会话页（规格 7.3）：56px 手机顶栏取代旧任务顶栏，标题同样只出现一次、点按改名、没有头像卡片。
+  assert.match(focus, /phonePage \? \(\s*<SessionPhoneHeader\b/)
+  assert.match(
+    phoneHeader,
+    /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
+  )
+  assert.equal(phoneHeader.match(/data-session-title/g)?.length, 1)
+  assert.match(
+    phoneHeader,
+    /onClick=\{actions\.onRename\}[\s\S]{0,40}<span className="truncate" data-session-title>/,
+  )
+  assert.doesNotMatch(phoneHeader, /Avatar|BrandLogo/)
   // 第 3 期桌面会话页：44px 会话页头取代旧顶栏，标题只出现这一次（15/600，可点改名），没有头像卡片；
   // 外壳本身（泳道条与返回键）不再重复标题。
   assert.match(focus, /const headerBlock = pageHeaderBlock \|\| \(/)

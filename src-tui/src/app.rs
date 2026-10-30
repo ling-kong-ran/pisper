@@ -83,6 +83,10 @@ pub(crate) fn mouse_capture_enabled() -> bool {
 }
 // 整页滚动步长。
 const PAGE_SCROLL_STEP: u16 = 8;
+/// critical 审批刚出现的这段时间里忽略 Y：审批面板一出现就接管全部按键，审批出现前正在输入框里
+/// 打字的人，下一个字母恰好是 y 就会直接批准（例如 git push --force）。只忽略、不进入任何确认状态，
+/// 过了这段时间按一次 Y 照常批准（负责人决定的“一次 y”不变）。
+const CRITICAL_APPROVAL_KEY_GUARD: Duration = Duration::from_millis(400);
 
 /// 主视图：对话 / 工作区变更。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -404,9 +408,8 @@ pub struct App {
     pub approval: Option<Approval>,
     pending_approvals: VecDeque<Approval>,
     approval_resolving: bool,
-    /// 正在二次确认的 critical 审批 id：critical 不能一步批准，第一次 Y 只进入确认，
-    /// 再按 Y 或 Enter 才发出批准。按 id 记录，可见审批换了就自动失效。
-    approval_confirming: Option<String>,
+    /// 当前可见审批变为可见的时刻（见 CRITICAL_APPROVAL_KEY_GUARD）；直接赋值 approval 时为 None，不设防。
+    approval_shown_at: Option<Instant>,
     pub approval_scroll: Cell<u16>,
     pub approval_max_scroll: Cell<u16>,
     pub attachments: Vec<AttachmentDraft>,
@@ -562,7 +565,7 @@ impl App {
             approval: None,
             pending_approvals: VecDeque::new(),
             approval_resolving: false,
-            approval_confirming: None,
+            approval_shown_at: None,
             approval_scroll: Cell::new(0),
             approval_max_scroll: Cell::new(0),
             attachments: Vec::new(),
@@ -918,14 +921,6 @@ impl App {
         self.approval_resolving
     }
 
-    /// 当前可见的 critical 审批是否处在二次确认步骤。
-    pub fn approval_is_confirming(&self) -> bool {
-        match (&self.approval, &self.approval_confirming) {
-            (Some(approval), Some(id)) => approval.id == *id,
-            _ => false,
-        }
-    }
-
     /// 入队审批：相同 id 覆盖；当前无可见审批时直接成为可见审批。
     fn enqueue_approval(&mut self, approval: Approval) {
         if self
@@ -942,9 +937,18 @@ impl App {
             *existing = approval;
         } else if self.approval.is_none() {
             self.approval = Some(approval);
+            self.approval_shown_at = Some(Instant::now());
         } else {
             self.pending_approvals.push_back(approval);
         }
+    }
+
+    /// critical 审批刚变为可见、还在防误触时间内：此时的 Y 视为审批出现前的打字余波，忽略。
+    fn critical_approval_key_guarded(&self, approval: &Approval) -> bool {
+        approval.is_critical()
+            && self
+                .approval_shown_at
+                .is_some_and(|shown| shown.elapsed() < CRITICAL_APPROVAL_KEY_GUARD)
     }
 
     /// 审批解析成功：可见审批出队并展示下一个排队审批。
@@ -955,6 +959,7 @@ impl App {
             .is_some_and(|approval| approval.id == id)
         {
             self.approval = self.pending_approvals.pop_front();
+            self.approval_shown_at = self.approval.as_ref().map(|_| Instant::now());
             self.approval_resolving = false;
             self.approval_scroll.set(0);
             self.approval_max_scroll.set(0);
@@ -971,9 +976,9 @@ impl App {
     /// 清空全部审批状态（运行结束/失败/中止时调用）。
     fn clear_approvals(&mut self) {
         self.approval = None;
+        self.approval_shown_at = None;
         self.pending_approvals.clear();
         self.approval_resolving = false;
-        self.approval_confirming = None;
         self.approval_scroll.set(0);
         self.approval_max_scroll.set(0);
     }
@@ -1553,21 +1558,16 @@ impl App {
             };
         }
         if let Some(approval) = self.approval.clone() {
-            // 有可见审批时，只响应 Y/N/Esc（critical 确认步骤里还有 Enter）与滚动键。
-            let confirming = self.approval_is_confirming();
+            // 有可见审批时，只响应 Y/N/Esc 与滚动键。critical 也是按一次 Y 批准
+            // （负责人决定取消两步确认），醒目提示由审批面板负责；它刚出现的一小段时间内的 Y 忽略。
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y')
-                    if !self.approval_resolving && approval.is_critical() && !confirming =>
+                    if !self.approval_resolving
+                        && self.critical_approval_key_guarded(&approval) =>
                 {
-                    // critical 在任何入口都不能一步批准：第一次 Y 只进入确认步骤。
-                    self.approval_confirming = Some(approval.id);
-                    self.status = "critical approval: press Y or Enter again to allow".to_owned();
                     Action::None
                 }
-                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter
-                    if !self.approval_resolving && (confirming || key.code != KeyCode::Enter) =>
-                {
-                    self.approval_confirming = None;
+                KeyCode::Char('y') | KeyCode::Char('Y') if !self.approval_resolving => {
                     self.approval_resolving = true;
                     self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
@@ -1575,16 +1575,9 @@ impl App {
                         approved: true,
                     }
                 }
-                KeyCode::Esc if confirming && !self.approval_resolving => {
-                    // 确认步骤里 Esc 只退回，不拒绝：避免想取消确认时误把请求拒掉。
-                    self.approval_confirming = None;
-                    self.status = "approval required".to_owned();
-                    Action::None
-                }
                 KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc
                     if !self.approval_resolving =>
                 {
-                    self.approval_confirming = None;
                     self.approval_resolving = true;
                     self.status = "resolving approval".to_owned();
                     Action::ResolveApproval {
@@ -4183,8 +4176,8 @@ mod tests {
     use super::{
         advance_typewriter, apply_patch, attachment_draft, derive_critical_approval, Action, App,
         Approval, AttachmentDraft, LiveTurn, RunPhase, SettingsPicker, SlashCategory, View,
-        HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES,
-        PAGE_SCROLL_STEP,
+        CRITICAL_APPROVAL_KEY_GUARD, HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT,
+        MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::disclosure::{thinking_key, ExpandKey, FINISH_NOTICE};
     use crate::model::{
@@ -4406,9 +4399,13 @@ mod tests {
         }
     }
 
-    /// critical 审批不能一步批准：第一次 Y 只进入确认，Esc 退回而不拒绝，再按 Y 或 Enter 才发出批准。
+    /// critical 审批与标准审批一样按一次 Y 批准（负责人决定取消 TUI 的两步确认），
+    /// 但审批面板必须醒目标出“高风险”、原因与完整命令。
     #[test]
-    fn critical_approvals_need_a_second_keypress() {
+    fn critical_approvals_resolve_with_one_keypress_and_render_high_risk() {
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
         let critical =
             |severity: &str, tool_name: &str, args: serde_json::Value, reason: &str| Approval {
                 id: "approval-critical".to_owned(),
@@ -4419,18 +4416,21 @@ mod tests {
                 severity: severity.to_owned(),
             };
         let y = || KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-        for (confirm_key, approval) in [
+        let long_tail = "--exclude node_modules --exclude target --exclude dist --exclude release";
+        for (approve_key, approval, expected_reason, expected_command) in [
             (
                 KeyCode::Char('y'),
                 critical(
                     "critical",
                     "bash",
-                    json!({ "command": "git push --force" }),
-                    "",
+                    json!({ "command": format!("git push --force origin main {long_tail}") }),
+                    "命令守卫拦截：改写远端分支",
                 ),
+                "改写远端分支",
+                "--exclude release",
             ),
             (
-                KeyCode::Enter,
+                KeyCode::Char('Y'),
                 // 旧 Runtime 没有 severity：按共享规则表（命令守卫前缀）降级判断。
                 critical(
                     "",
@@ -4438,36 +4438,74 @@ mod tests {
                     json!({ "command": "rm -rf build" }),
                     "命令守卫拦截：删除",
                 ),
+                "命令守卫拦截：删除",
+                "rm -rf build",
             ),
             (
-                KeyCode::Char('Y'),
-                // 未知的 severity 取值同样走规则表。
-                critical("future-level", "plugin_create", json!({}), ""),
+                KeyCode::Char('y'),
+                // 未知的 severity 取值同样走规则表；没有原因时明确写出“未提供”。
+                critical(
+                    "future-level",
+                    "plugin_create",
+                    json!({ "name": "demo" }),
+                    "",
+                ),
+                "Not provided by the runtime",
+                "\"name\":\"demo\"",
             ),
         ] {
             let mut app = test_app(Vec::new());
             assert!(approval.is_critical());
             app.approval = Some(approval);
-            assert!(matches!(app.handle_key(y()), Action::None));
-            assert!(app.approval_is_confirming());
-            assert!(!app.approval_is_resolving());
-            // Esc 只退回确认步骤，不拒绝。
+
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal.draw(|frame| crate::ui::draw(frame, &app)).unwrap();
+            let buffer = terminal.backend().buffer();
+            let rendered = (0..24)
+                .map(|y| {
+                    (0..80)
+                        .filter_map(|x| buffer.cell((x, y)))
+                        .map(|cell| cell.symbol())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            // 宽字符在测试缓冲区里会占两格（第二格是空格），按去掉空格后的文本比较。
+            let compact = rendered.replace(' ', "");
+            let contains = |needle: &str| compact.contains(&needle.replace(' ', ""));
+            assert!(rendered.contains("HIGH RISK"), "{rendered}");
+            assert!(contains(expected_reason), "{rendered}");
+            // 长命令换行显示，不截断：命令尾部也必须出现在面板里。
+            assert!(contains(expected_command), "{rendered}");
+            assert!(!rendered.contains("Allow…"), "{rendered}");
+            assert!(!rendered.contains("confirm"), "{rendered}");
+
             assert!(matches!(
-                app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
-                Action::None
-            ));
-            assert!(!app.approval_is_confirming());
-            assert!(app.approval.is_some());
-            assert!(matches!(app.handle_key(y()), Action::None));
-            assert!(matches!(
-                app.handle_key(KeyEvent::new(confirm_key, KeyModifiers::NONE)),
+                app.handle_key(KeyEvent::new(approve_key, KeyModifiers::NONE)),
                 Action::ResolveApproval { id, approved: true } if id == "approval-critical"
             ));
-            assert!(!app.approval_is_confirming());
             assert!(app.approval_is_resolving());
         }
 
-        // 标准审批保持一步批准；Enter 不会误批准标准审批。
+        // N / Esc 照旧一步拒绝 critical 审批。
+        for deny_key in [KeyCode::Char('n'), KeyCode::Esc] {
+            let mut app = test_app(Vec::new());
+            app.approval = Some(critical(
+                "critical",
+                "bash",
+                json!({ "command": "git push --force" }),
+                "",
+            ));
+            assert!(matches!(
+                app.handle_key(KeyEvent::new(deny_key, KeyModifiers::NONE)),
+                Action::ResolveApproval {
+                    approved: false,
+                    ..
+                }
+            ));
+        }
+
+        // 标准审批同样一步批准；Enter 不批准任何审批。
         let mut app = test_app(Vec::new());
         app.approval = Some(critical(
             "standard",
@@ -4476,6 +4514,9 @@ mod tests {
             "命令守卫拦截：Runtime 已判定为 standard",
         ));
         assert!(!app.approval.as_ref().is_some_and(Approval::is_critical));
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| crate::ui::draw(frame, &app)).unwrap();
+        assert!(!format!("{:?}", terminal.backend().buffer()).contains("HIGH RISK"));
         assert!(matches!(
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
             Action::None
@@ -4511,6 +4552,71 @@ mod tests {
             &json!({ "command": "ls" }),
             "  "
         ));
+    }
+
+    /// critical 审批刚出现时的 Y 是审批出现前的打字余波：忽略，不批准、不进入任何确认状态；
+    /// 过了防误触时间按一次 Y 照常批准。标准审批与拒绝键不受影响。
+    #[test]
+    fn critical_approval_ignores_y_typed_right_as_it_appears() {
+        let approval = |id: &str, severity: &str, command: &str| Approval {
+            id: id.to_owned(),
+            tool_name: "bash".to_owned(),
+            args: json!({ "command": command }),
+            risk: "high".to_owned(),
+            reason: "命令守卫拦截：改写远端分支".to_owned(),
+            severity: severity.to_owned(),
+        };
+        let y = || KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+
+        let mut app = test_app(Vec::new());
+        app.enqueue_approval(approval("critical-1", "critical", "git push --force"));
+        assert!(matches!(app.handle_key(y()), Action::None));
+        assert!(!app.approval_is_resolving());
+        assert_eq!(
+            app.approval.as_ref().map(|item| item.id.as_str()),
+            Some("critical-1")
+        );
+        // 防误触时间过后，按一次 Y 就批准。
+        app.approval_shown_at = Instant::now().checked_sub(CRITICAL_APPROVAL_KEY_GUARD * 2);
+        assert!(matches!(
+            app.handle_key(y()),
+            Action::ResolveApproval { id, approved: true } if id == "critical-1"
+        ));
+
+        // 拒绝不设防：刚出现时按 N 照常拒绝。
+        let mut app = test_app(Vec::new());
+        app.enqueue_approval(approval("critical-2", "critical", "git push --force"));
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+            Action::ResolveApproval {
+                approved: false,
+                ..
+            }
+        ));
+
+        // 标准审批刚出现时按 Y 照常批准。
+        let mut app = test_app(Vec::new());
+        app.enqueue_approval(approval("standard-1", "standard", "npm test"));
+        assert!(matches!(
+            app.handle_key(y()),
+            Action::ResolveApproval { approved: true, .. }
+        ));
+
+        // 排队的 critical 审批在前一个解决后才变为可见，从那一刻重新计时。
+        let mut app = test_app(Vec::new());
+        app.enqueue_approval(approval("standard-2", "standard", "npm test"));
+        app.enqueue_approval(approval("critical-3", "critical", "rm -rf build"));
+        assert!(matches!(
+            app.handle_key(y()),
+            Action::ResolveApproval { id, approved: true } if id == "standard-2"
+        ));
+        app.approval_resolution_succeeded("standard-2");
+        assert_eq!(
+            app.approval.as_ref().map(|item| item.id.as_str()),
+            Some("critical-3")
+        );
+        assert!(matches!(app.handle_key(y()), Action::None));
+        assert!(!app.approval_is_resolving());
     }
 
     /// 验证审批面板的键盘滚动（方向键/翻页/Home/End）有界且不越界。

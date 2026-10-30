@@ -8,6 +8,11 @@ import {
   getMoreNavigation,
 } from '../../src/app/more-navigation.ts'
 import { SHELL_TAB_PAGES } from '../../src/app/shell-tabs.ts'
+import { parseDisconnectedChannelCount } from '../../src/features/channels/channel-status.ts'
+import { requestCommandPalette, takeCommandPaletteQuery } from '../../src/features/chat/events.ts'
+import { parseOnlineMcpCount } from '../../src/features/mcp/mcp-status.ts'
+import { parseEnabledScheduleCount } from '../../src/features/schedules/schedule-status.ts'
+import { parseRunningWorkflowCount } from '../../src/features/workflows/workflow-status.ts'
 import { LEGACY_RUNTIME_CAPABILITIES } from '../../src/types/runtime-capabilities.ts'
 
 // “更多”启动台取代旧功能栏分组（activity-navigation）在外壳里的角色（规格 2.5）。
@@ -188,4 +193,53 @@ test('more search filters tiles by name, description or group and drops empty gr
   )
   assert.equal(filterMoreNavigation(groups, '   ').length, groups.length)
   assert.deepEqual(filterMoreNavigation(groups, 'no-such-feature'), [])
+})
+
+test('more tile badges read only honest counts and reject malformed payloads', () => {
+  // 角标数据来自 Runtime 的只读接口，按不可信数据校验：非法结构抛错（角标不显示），不猜数字。
+  assert.equal(parseRunningWorkflowCount({ limits: { running: 2, maxConcurrent: 4 } }), 2)
+  assert.throws(() => parseRunningWorkflowCount({ limits: { running: '2' } }))
+  assert.throws(() => parseRunningWorkflowCount({}))
+  assert.equal(
+    parseEnabledScheduleCount({
+      tasks: [{ enabled: true }, { enabled: false }, null, { enabled: 1 }],
+    }),
+    1,
+  )
+  assert.throws(() => parseEnabledScheduleCount({ tasks: {} }))
+  // 渠道：启用但没连上的才算断开；连接中 / 重连中、已停用、未配置都不算。
+  assert.equal(
+    parseDisconnectedChannelCount({
+      connections: {
+        feishu: { enabled: true, status: 'failed' },
+        weixin: { enabled: true, status: 'idle' },
+        qq: { enabled: true, status: 'reconnecting' },
+        telegram: { enabled: false, status: 'failed' },
+        other: null,
+        connected: { enabled: true, status: 'connected' },
+      },
+    }),
+    2,
+  )
+  assert.throws(() => parseDisconnectedChannelCount({ connections: [] }))
+  assert.equal(parseOnlineMcpCount({ metrics: { onlineServices: 3 } }), 3)
+  assert.throws(() => parseOnlineMcpCount({ metrics: { onlineServices: -1 } }))
+})
+
+test('the more search hands its keyword to the command palette exactly once', () => {
+  const events = []
+  globalThis.window ??= new EventTarget()
+  const listener = (event) => events.push(event.type)
+  window.addEventListener('pisper:command-palette-requested', listener)
+  try {
+    requestCommandPalette('主题')
+    assert.equal(takeCommandPaletteQuery(), '主题')
+    assert.equal(takeCommandPaletteQuery(), '')
+    // 直接作按钮 onClick 时传进来的是点击事件：不当作关键词。
+    requestCommandPalette({ type: 'click' })
+    assert.equal(takeCommandPaletteQuery(), '')
+    assert.equal(events.length, 2)
+  } finally {
+    window.removeEventListener('pisper:command-palette-requested', listener)
+  }
 })

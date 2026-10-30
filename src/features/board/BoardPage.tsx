@@ -9,8 +9,11 @@ import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { useMediaQuery } from '@/hooks/use-mobile'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
+import { useTabletApp } from '@/hooks/usePhoneShell'
 import { QuickPromptIdeas, updateComposerDraft } from '@/features/chat/public-launch'
+import { useRegisteredProjectsStore } from '@/features/chat/registered-projects-store'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -18,7 +21,13 @@ import { ApprovalConfirm } from './ApprovalConfirm'
 import { BoardHeader, type BoardHeaderProject } from './BoardHeader'
 import { projectLabel } from './card-presentation'
 import { useLaneLabels } from './lane-labels'
-import { boardLaneLayout, laneGridTemplate, visibleLaneItems } from './lane-layout'
+import {
+  boardLaneLayout,
+  laneGridTemplate,
+  TABLET_COMPACT_LANES,
+  TABLET_FULL_LANES_QUERY,
+  visibleLaneItems,
+} from './lane-layout'
 import { LaneColumn, type LaneHandle } from './LaneColumn'
 import { LAUNCH_DRAFT_KEY, LaunchConsole, type LaunchConsoleHandle } from './LaunchConsole'
 import { useBoardNewTaskHandler } from './new-task'
@@ -26,6 +35,7 @@ import { PhoneBoard } from './PhoneBoard'
 import { ProjectMatrix, type ProjectRow } from './ProjectMatrix'
 import { useBoardViewStore } from './board-view-store'
 import { sortProjectsByOrder } from './board-model'
+import { withRegisteredProjects } from './board-projects'
 import { useLaunchDefaultsStore } from './launch-defaults-store'
 import { useBoardController, type BoardNavLane } from './useBoardController'
 import { useBoardSessions } from './useBoardSessions'
@@ -69,6 +79,8 @@ function useElementWidth<T extends HTMLElement>() {
   return [ref, width] as const
 }
 
+const NO_LANES: readonly BoardLane[] = []
+
 export function BoardPage(props: BoardPageProps) {
   const phone = usePhoneShell()
   return <BoardView key={phone ? 'phone' : 'desktop'} {...props} phone={phone} />
@@ -91,6 +103,7 @@ function BoardView({
   const view = useBoardViewStore()
   const workspaceNames = useWorkspaceOrderStore((state) => state.names)
   const workspaceOrder = useWorkspaceOrderStore((state) => state.order)
+  const registeredProjects = useRegisteredProjectsStore((state) => state.projects)
   const [rootRef, rootWidth] = useElementWidth<HTMLDivElement>()
   const lanesRef = useRef<HTMLDivElement>(null)
   const consoleRef = useRef<LaunchConsoleHandle>(null)
@@ -102,6 +115,9 @@ function BoardView({
     (state) => state.capabilities.features.goals !== false,
   )
   const narrow = rootWidth > 0 && rootWidth < 1280
+  // 平板窄屏（手机 App，960–1179）：排队与已完成固定收成竖条，点开可临时展开。
+  const tabletWide = useMediaQuery(TABLET_FULL_LANES_QUERY)
+  const compactLanes = useTabletApp() && !tabletWide && !phone ? TABLET_COMPACT_LANES : NO_LANES
   const groupBy = view.groupBy
   const ready = !board.isLoading && !(board.error && board.total === 0)
   // 今天没有卡片（首次运行或只是今天还没有活动）：照常渲染看板骨架——需要你、运行中收成竖条，
@@ -136,20 +152,26 @@ function BoardView({
         lanes: visibleLanes,
         collapsed: view.collapsedLanes.filter((lane) => lane === 'done'),
         peeked,
+        compact: compactLanes,
       }),
-    [counts, peeked, view.collapsedLanes, visibleLanes],
+    [compactLanes, counts, peeked, view.collapsedLanes, visibleLanes],
   )
   const template = laneGridTemplate(layout, rootWidth - 32)
 
   const headerProjects = useMemo<BoardHeaderProject[]>(
     () =>
-      sortProjectsByOrder(board.projects, workspaceOrder).map((project) => ({
+      // 还没有会话（或今天没有卡片）的登记项目也要能在项目筛选里选到，计 0 张卡；
+      // 按项目分组时它们没有卡片，不出横带（见下方 projectRows 的过滤）。
+      sortProjectsByOrder(
+        withRegisteredProjects(board.projects, registeredProjects),
+        workspaceOrder,
+      ).map((project) => ({
         ...project,
         label:
           workspaceNames[project.key] ||
           (project.cwd ? projectLabel(project.cwd) : t('board:filter.noProject')),
       })),
-    [board.projects, t, workspaceNames, workspaceOrder],
+    [board.projects, registeredProjects, t, workspaceNames, workspaceOrder],
   )
 
   const projectRows = useMemo<ProjectRow[]>(
@@ -418,6 +440,7 @@ function BoardView({
                   else laneHandles.current.delete(entry.lane)
                 }}
                 entry={entry}
+                compact={compactLanes.includes(entry.lane)}
                 items={board.lanes[entry.lane]}
                 now={now}
                 activeId={controller.activeId}

@@ -1,5 +1,6 @@
 // 会话页检查器（规格 4.4）：固定标签 改动 N / 终端 / 文件 / 预览 / 计划（有目标、计划或团队时）
-// | 组件标签（来自“会话面板”放置，现有数据有就显示）| +。本阶段把现有面板组件原样挂进各标签，
+// | 组件标签（来自“会话面板”放置，现有数据有就显示）| +。手机外壳里是底部表单（规格 7.3），
+// 标签与内容组件相同，改动的 diff 在窄宽度下自动是统一视图、长行横向滚动。本阶段把现有面板组件原样挂进各标签，
 // 标签内容的重做在下一阶段。每个会话各标签的阅读位置、终端资源与预览地址仍存在
 // session-context-pages-store（与旧上下文面板、网页预览请求共用），开关 / 当前标签 / 宽度是全局偏好。
 import { Suspense, useEffect, useRef, type KeyboardEvent } from 'react'
@@ -53,7 +54,8 @@ type SessionInspectorProps = {
   // 计划标签只在有目标、计划或团队时出现。
   planTab: boolean
   sources: TaskSource[]
-  mode: 'aside' | 'overlay'
+  // sheet：手机外壳的底部表单，标签与关闭键放大到 44px，不显示组件标签入口。
+  mode: 'aside' | 'overlay' | 'sheet'
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onClose: () => void
   onOpenComponents?: () => void
@@ -92,6 +94,7 @@ export function SessionInspector({
   onOpenComponents,
 }: SessionInspectorProps) {
   const { t } = useI18n()
+  const sheet = mode === 'sheet'
   const terminal = useTerminalService()
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const terminalAvailable = Boolean(terminal) && runtimeFeatureAvailable(capabilities, 'terminal')
@@ -112,6 +115,12 @@ export function SessionInspector({
   const kind = pageKind(tab, terminalView, changesView)
   const page = kind ? pages.find((entry) => entry.kind === kind) : undefined
   const listRef = useRef<HTMLDivElement>(null)
+  // 标签多于一行能放下时（窄检查器、手机表单里加了计划与侧聊），选中的标签滚进可见区域。
+  useEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [tab])
 
   // 当前标签需要的上下文页不存在时创建一页（只为可见标签创建，不预建全部）。
   useEffect(() => {
@@ -168,6 +177,11 @@ export function SessionInspector({
         id: sideChat.id,
       })
     setTab('changes')
+    // 手机底部表单：关掉侧聊就回到对话（侧聊从“⋯”打开，表单是为它弹出的），不停在“改动”上。
+    if (sheet) {
+      onClose()
+      return
+    }
     requestAnimationFrame(() => document.getElementById(`${panelId}-changes-tab`)?.focus())
   }
 
@@ -318,7 +332,14 @@ export function SessionInspector({
       data-inspector-tab={tab}
       className="flex h-full min-h-0 w-full min-w-0 flex-col bg-panel text-content"
     >
-      <header className="flex h-11 shrink-0 items-center gap-1 border-b border-stroke-soft pr-1.5 pl-2">
+      <header
+        className={cn(
+          'flex shrink-0 items-center gap-1 border-b border-stroke-soft pr-1.5 pl-2',
+          // 触屏（手机 App 平板的覆盖层、触屏电脑）与手机表单一样用 52px 标签行：标签行是横向滚动容器，
+          // 会裁掉伪元素外扩，标签只能把可见高度抬到 44px。
+          sheet ? 'h-[52px]' : 'h-11 pointer-coarse:h-[52px]',
+        )}
+      >
         <div
           ref={listRef}
           role="tablist"
@@ -339,14 +360,18 @@ export function SessionInspector({
                 tabIndex={selected ? 0 : -1}
                 data-inspector-tab-id={id}
                 className={cn(
-                  'flex h-8 flex-none items-center gap-1.5 rounded-sm px-2 text-[13px] whitespace-nowrap transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                  'flex flex-none items-center gap-1.5 rounded-sm px-2 text-[13px] whitespace-nowrap transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                  sheet
+                    ? 'h-11 min-w-11 justify-center px-2.5'
+                    : 'h-8 pointer-coarse:h-11 pointer-coarse:min-w-11',
                   selected
                     ? 'bg-solid font-medium text-content shadow-edge ring-1 ring-stroke-strong ring-inset'
                     : 'text-content-secondary hover:bg-surface-hover hover:text-content',
                 )}
                 onClick={() => setTab(id)}
               >
-                <Icon className="size-3.5" aria-hidden="true" />
+                {/* 390 宽的底部表单放不下图标加文字的五个标签：只留文字。 */}
+                {!sheet && <Icon className="size-3.5" aria-hidden="true" />}
                 {label}
               </button>
             )
@@ -356,54 +381,58 @@ export function SessionInspector({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className={cn(sheet && 'size-11')}
               aria-label={t('board:inspector.closeTab', { tab: t('board:inspector.sideChat') })}
               onClick={closeSideChat}
             >
               <X aria-hidden="true" />
             </Button>
           )}
-          <span aria-hidden="true" className="mx-1 h-4 w-px flex-none bg-stroke" />
-          {/* 组件标签来自“会话面板”放置；现有组件还没有这种放置，没有数据就不显示任何组件标签。 */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="flex-none"
-                aria-label={t('board:inspector.add')}
-                title={t('board:inspector.add')}
-              >
-                <Plus aria-hidden="true" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 text-xs">
-              <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
-              {onOpenComponents && (
+          {/* 组件标签来自“会话面板”放置；现有组件还没有这种放置，没有数据就不显示任何组件标签。
+              手机底部表单只放规格 7.3 的固定标签，不提供“+”。 */}
+          {!sheet && <span aria-hidden="true" className="mx-1 h-4 w-px flex-none bg-stroke" />}
+          {!sheet && (
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
                   type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="self-start"
-                  onClick={onOpenComponents}
+                  variant="ghost"
+                  size="icon-sm"
+                  className="flex-none"
+                  aria-label={t('board:inspector.add')}
+                  title={t('board:inspector.add')}
                 >
-                  {t('board:inspector.openComponents')}
+                  <Plus aria-hidden="true" />
                 </Button>
-              )}
-            </PopoverContent>
-          </Popover>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 text-xs">
+                <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
+                {onOpenComponents && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="self-start"
+                    onClick={onOpenComponents}
+                  >
+                    {t('board:inspector.openComponents')}
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="flex-none"
+          className={cn('flex-none', sheet && 'size-11')}
           aria-label={t('board:inspector.close')}
           title={t('board:inspector.close')}
           aria-controls={panelId}
           onClick={onClose}
         >
-          {mode === 'overlay' ? <X aria-hidden="true" /> : <PanelRightClose aria-hidden="true" />}
+          {mode === 'aside' ? <PanelRightClose aria-hidden="true" /> : <X aria-hidden="true" />}
         </Button>
       </header>
       <div

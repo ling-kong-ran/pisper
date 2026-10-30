@@ -1,76 +1,28 @@
-// 界面设置组合外观与独立组件入口；独立组件的管理视图已迁到“组件”标签页。
-import { lazy, Suspense, type ReactNode } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
+// 界面设置：外观设置之上放一条“组件已移到 组件 页 →”的跳转（规格 2.6）。独立组件的导入、预览与
+// 悬浮显示都在“组件”标签里管理，设置里不再有“独立组件”标签；旧链接 ?view=widgets（含更早的
+// ?view=layout）直接反向重定向到组件页。文案在随设置路由加载的 custom-ui 命名空间里，不占入口包。
+import type { ReactNode } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { PAGE_PATHS } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
-import { ensureCustomUiMessages } from '@/app/i18n'
-import type { Notify } from '@/app/route-context'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-const CustomUiPage = lazy(async () => {
-  const [{ CustomUiPage }] = await Promise.all([
-    import('@/features/custom-ui/public'),
-    ensureCustomUiMessages(),
-  ])
-  return { default: CustomUiPage }
-})
 
-export function ChatAppearancePage({
-  appearance,
-  notify,
-}: {
-  appearance: ReactNode
-  notify: Notify
-}) {
+export function ChatAppearancePage({ appearance }: { appearance: ReactNode }) {
   const { t } = useI18n()
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const view = params.get('view')
-  const tab = view === 'layout' || view === 'widgets' ? 'widgets' : 'appearance'
-  // 独立组件已迁到“组件”标签：旧链接 ?view=widgets（含更早的 layout）反向重定向过去。
-  // 这里的标签页本身留到第 4 期设置重组时移除，点它同样会落到组件页。
-  if (tab === 'widgets') return <Navigate to={PAGE_PATHS.components} replace />
+  if (view === 'layout' || view === 'widgets')
+    return <Navigate to={PAGE_PATHS.components} replace />
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => {
-        setParams(
-          (current) => {
-            const next = new URLSearchParams(current)
-            if (value === 'appearance') next.delete('view')
-            else next.set('view', value)
-            return next
-          },
-          { replace: true },
-        )
-      }}
-      className="min-h-full min-w-0 gap-4"
-    >
-      {/* 触屏与窄窗下分段项本身达到 44px 触控高度，轨道随之撑高。 */}
-      <TabsList
-        aria-label={t('config:interfaceSettings.tabsLabel')}
-        className="max-w-full pointer-coarse:h-auto max-[650px]:h-auto"
+    <div className="flex min-h-full min-w-0 flex-col gap-4">
+      <Link
+        to={PAGE_PATHS.components}
+        data-components-moved
+        className="group flex min-h-11 w-fit max-w-full items-center gap-x-2 gap-y-0.5 rounded-md border border-stroke bg-solid px-3 py-2 text-sm text-content-secondary transition-colors duration-(--d-fast) hover:border-stroke-strong hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus max-[650px]:w-full max-[650px]:flex-wrap"
       >
-        <TabsTrigger
-          value="appearance"
-          className="px-3 pointer-coarse:min-h-11 max-[650px]:min-h-11"
-        >
-          {t('config:interfaceSettings.appearanceTab')}
-        </TabsTrigger>
-        <TabsTrigger value="widgets" className="px-3 pointer-coarse:min-h-11 max-[650px]:min-h-11">
-          {t('config:interfaceSettings.customUiTab')}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="appearance" className="min-w-0">
-        {appearance}
-      </TabsContent>
-      <TabsContent
-        value="widgets"
-        className="min-h-0 min-w-0 flex-1"
-        data-config-card="interface-custom-ui"
-      >
-        <Suspense fallback={<p role="status">{t('common:webPreview.loading')}</p>}>
-          <CustomUiPage notify={notify} embedded />
-        </Suspense>
-      </TabsContent>
-    </Tabs>
+        <span className="font-medium text-content">{t('custom-ui:moved.title')}</span>
+        <span className="text-xs text-content-muted">{t('custom-ui:moved.hint')}</span>
+      </Link>
+      {appearance}
+    </div>
   )
 }

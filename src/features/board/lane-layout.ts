@@ -18,6 +18,9 @@ export const LANE_GAP = 12
 export const LANE_VIRTUALIZE_THRESHOLD = 30
 // 已完成泳道最多展示的卡片数；更多的去“全部历史会话”。
 export const DONE_LANE_LIMIT = 20
+// 平板（手机 App，规格 7.6）：宽度不足 1180 时只展开需要你与运行中，排队与已完成收成竖条。
+export const TABLET_FULL_LANES_QUERY = '(min-width: 1180px)'
+export const TABLET_COMPACT_LANES: readonly BoardLane[] = Object.freeze(['queued', 'done'])
 
 export type LaneMode = 'expanded' | 'rail'
 
@@ -25,8 +28,8 @@ export type LaneLayoutEntry = {
   lane: BoardLane
   mode: LaneMode
   count: number
-  // 竖条的成因：空泳道（点击临时展开）还是手动折叠（点击取消折叠并记住）。
-  railReason: 'empty' | 'collapsed' | null
+  // 竖条的成因：空泳道或平板窄屏收起（点击临时展开），还是手动折叠（点击取消折叠并记住）。
+  railReason: 'empty' | 'collapsed' | 'compact' | null
 }
 
 export type LaneLayoutInput = {
@@ -35,8 +38,10 @@ export type LaneLayoutInput = {
   lanes?: readonly BoardLane[]
   // 用户手动折叠的泳道（持久化在 pisper-board-view，界面只开放已完成）。
   collapsed?: readonly BoardLane[]
-  // 本次会话里点击竖条临时展开的空泳道。
+  // 本次会话里点击竖条临时展开的泳道。
   peeked?: readonly BoardLane[]
+  // 版面不够时固定收成竖条的泳道（平板窄屏）；同样可以点开临时展开。
+  compact?: readonly BoardLane[]
 }
 
 export function boardLaneLayout({
@@ -44,11 +49,14 @@ export function boardLaneLayout({
   lanes = BOARD_LANES,
   collapsed = [],
   peeked = [],
+  compact = [],
 }: LaneLayoutInput): LaneLayoutEntry[] {
   return lanes.map((lane) => {
     const count = Math.max(0, counts[lane] ?? 0)
     if (collapsed.includes(lane) && !peeked.includes(lane))
       return { lane, mode: 'rail', count, railReason: 'collapsed' }
+    if (compact.includes(lane) && !peeked.includes(lane))
+      return { lane, mode: 'rail', count, railReason: 'compact' }
     if (count === 0 && !peeked.includes(lane))
       return { lane, mode: 'rail', count, railReason: 'empty' }
     return { lane, mode: 'expanded', count, railReason: null }

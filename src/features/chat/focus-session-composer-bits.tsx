@@ -1,6 +1,6 @@
 // 聚焦会话输入区的小型展示组件：排队托盘、资源调用芯片、输入框顶部的运行条、
 // 手动压缩按钮与按草稿、队列和准备状态选择的发送/停止按钮。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Braces, Minimize2, RefreshCw, ArrowUp, Square, Undo2, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
@@ -284,7 +284,7 @@ export function ComposerStatusPill({
       {streaming && onStop && (
         <button
           type="button"
-          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm bg-solid pr-1 pl-2 text-xs font-medium text-content shadow-[inset_0_0_0_1px_var(--stroke-strong)] transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:bg-transparent max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:text-st-fail max-[650px]:shadow-[inset_1px_0_0_var(--st-run-border)] max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
+          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-sm bg-solid pr-1 pl-2 text-xs font-medium text-content shadow-[inset_0_0_0_1px_var(--stroke-strong)] transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:rounded-none max-[650px]:rounded-tr-[inherit] max-[650px]:bg-transparent max-[650px]:px-3.5 max-[650px]:text-[13px] max-[650px]:shadow-[inset_1px_0_0_var(--st-run-border)] max-[650px]:active:bg-danger-soft pointer-coarse:h-11"
           aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
           title={t('chat:focusSession.stopRunShortcut')}
           aria-busy={stopping || undefined}
@@ -357,6 +357,8 @@ export function ComposerSendButton({
   canQueue = false,
   blockedReason,
   disabled,
+  onLongPress,
+  longPressHint,
 }: {
   streaming?: boolean
   queueing: boolean
@@ -367,9 +369,25 @@ export function ComposerSendButton({
   canQueue?: boolean
   blockedReason?: string
   disabled: boolean
+  // 触屏长按（≥500ms）的替代动作：手机会话页运行中长按发送键是“插话”（触屏没有 ⌥↵）。
+  onLongPress?: () => void
+  longPressHint?: string
 }) {
   const { t } = useI18n()
   const sendShortcut = useShortcutLabel('sendMessage')
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 长按已经触发时，松手后的 click 不再提交第二次。
+  const longPressed = useRef(false)
+  const clearPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+    pressTimer.current = null
+  }
+  useEffect(() => {
+    const timer = pressTimer
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
+  }, [])
   // 发送键只负责发送；运行中有草稿时把补充说明排入队列，停止只由运行条上的停止键负责。
   const waitingForDraft = Boolean(streaming && !(hasDraft && canQueue))
   const busy = queueing || submitting || stopping || preparing
@@ -382,12 +400,36 @@ export function ComposerSendButton({
   return (
     <button
       type="submit"
-      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
+      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-md border border-transparent bg-star text-on-accent shadow-primary transition-colors select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none aria-disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 max-[650px]:rounded-xl pointer-coarse:size-11 pointer-coarse:min-w-11"
       title={blockedReason || (!busy && sendShortcut ? `${label} (${sendShortcut})` : label)}
       aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
       aria-busy={busy || undefined}
       aria-disabled={unavailable || undefined}
+      aria-description={onLongPress ? longPressHint : undefined}
+      data-long-press={onLongPress ? 'steer' : undefined}
+      onPointerDown={(event) => {
+        longPressed.current = false
+        if (!onLongPress || unavailable || event.pointerType === 'mouse') return
+        clearPress()
+        pressTimer.current = setTimeout(() => {
+          pressTimer.current = null
+          longPressed.current = true
+          onLongPress()
+        }, 500)
+      }}
+      onPointerUp={clearPress}
+      onPointerCancel={clearPress}
+      onPointerLeave={clearPress}
+      // 长按时不弹系统菜单（Android 长按约 500ms 会派发 contextmenu）。
+      onContextMenu={(event) => {
+        if (onLongPress) event.preventDefault()
+      }}
       onClick={(event) => {
+        if (longPressed.current) {
+          longPressed.current = false
+          event.preventDefault()
+          return
+        }
         if (unavailable) event.preventDefault()
       }}
       disabled={!blockedReason && unavailable}

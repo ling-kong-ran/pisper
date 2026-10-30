@@ -15,7 +15,8 @@ function hasOverlay() {
 }
 
 // 原生返回通过同一个 Escape 路径委派给现有弹层，未消费时再交给路由层的上级页面
-// （会话页回看板、从“更多”进入的功能页回更多），都不处理才交回平台。
+// （见 shell-tabs.shellBackPath：会话主页是根，点进来的会话回来处，一级页回主页，更多的子页回更多），
+// 都不处理才交回平台。
 // 路由层返回只挂在原生返回上：键盘 Esc 永远不用于离开页面。
 export function BackNavigation({ onRouteBack }: { onRouteBack?: () => boolean }) {
   const routeBackRef = useRef(onRouteBack)

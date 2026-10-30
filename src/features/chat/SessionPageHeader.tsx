@@ -2,51 +2,38 @@
 // 分支（追忆分支 · 会话树）、侧聊、标签（Turn 标签）、“⋯”菜单与检查器开关。
 // 取代第 1 期的过渡返回条：返回入口在泳道条最左侧，标题只出现这一次。
 // “⋯”里的每一项都复用现有实现：重命名 / 移动工作区 / 压缩上下文 / 目标模式 / 工作流运行记录 / 语音模式 / 归档。
-import { useContext, useEffect, useState, type ReactNode } from 'react'
+// 触屏（pointer: coarse）：右侧按钮本来就抬到 44px，页头加高到 48px 才完整放得下（44px 页头扣掉底边只剩 43，
+// 上缘那半像素会落到泳道条上）；标题与项目标签保持可见尺寸，命中区用伪元素补到 44px。
+import { useContext, type ReactNode } from 'react'
 import {
-  Archive,
-  AudioLines,
-  FolderOpen,
   GitBranch,
   MessageSquare,
   MoreHorizontal,
   PanelRight,
   PanelRightClose,
   Pencil,
-  Shrink,
   Tag,
-  Target,
-  Workflow,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import { StatusTag } from '@/components/app/StatusTag'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { formatCompactDuration, workspaceName } from '@/lib/format'
+import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { formatShortcut } from '@/lib/shortcuts'
+import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
+import { useShortcutStore } from '@/stores/shortcut-store'
 import type { SessionSummary } from '@/types/chat'
-import { updateSessionOrganization } from './session-organization-api'
-import { useContextPagesStore } from './session-context-pages-store'
-import { SessionInspectorContext, SessionPageChromeContext } from './session-workspace-context'
+import { openSessionSideChat, useRunElapsed, useSessionMenu } from './session-header-menu'
+import { SessionInspectorContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
-import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 
 type SessionPageHeaderProps = {
   session: SessionSummary
@@ -77,19 +64,6 @@ type SessionPageHeaderProps = {
   extraItems?: ReactNode
 }
 
-// 运行时长每秒推进；页面隐藏时浏览器会节流定时器，回到前台立即补一次。
-function useElapsed(startedAt: string | null | undefined, running: boolean) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!running) return
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(timer)
-  }, [running])
-  const start = startedAt ? Date.parse(startedAt) : Number.NaN
-  return running && Number.isFinite(start) ? Math.max(0, now - start) : null
-}
-
 export function SessionPageHeader({
   session,
   cwd,
@@ -118,13 +92,30 @@ export function SessionPageHeader({
 }: SessionPageHeaderProps) {
   const { t, language } = useI18n()
   const inspector = useContext(SessionInspectorContext)
-  const chrome = useContext(SessionPageChromeContext)
-  const elapsed = useElapsed(runStartedAt, streaming)
-  const [workflowsOpen, setWorkflowsOpen] = useState(false)
-  const [archiving, setArchiving] = useState(false)
+  const elapsed = useRunElapsed(runStartedAt, streaming)
+  const menu = useSessionMenu(session, {
+    onRename,
+    onWorkspace,
+    workspaceDisabled,
+    onCompact,
+    compactDisabled,
+    goalAvailable,
+    goalEngaged,
+    goalDisabled,
+    onToggleGoal,
+    workflowsAvailable,
+    onVoiceMode,
+    notify,
+    extraItems,
+  })
   const title = session.name || t('navigation:pageHeader.newChat')
   const project = workspaceName(cwd, language)
-  const inspectorShortcut = formatShortcut('Mod+KeyI')
+  // 检查器开关显示当前绑定（可在设置里改绑或禁用）；禁用时只读“检查器”。
+  const inspectorBinding = useShortcutStore((state) => state.bindings.toggleInspector)
+  const inspectorShortcut = formatShortcut(inspectorBinding)
+  const inspectorLabel = inspectorShortcut
+    ? t('board:session.inspectorShortcut', { shortcut: inspectorShortcut })
+    : t('board:inspector.label')
 
   const status =
     approvals > 0 ? (
@@ -147,28 +138,7 @@ export function SessionPageHeader({
       </StatusTag>
     ) : null
 
-  const openSideChat = () => {
-    // 侧聊是检查器里的临时标签：已有侧聊页就切过去，没有就新建一页。
-    useContextPagesStore.getState().update(session.id, 'side-chat', {
-      type: 'open',
-      kind: 'side-chat',
-    })
-    inspector?.show('side-chat')
-  }
-
-  const archive = async () => {
-    if (archiving) return
-    setArchiving(true)
-    try {
-      await updateSessionOrganization(session.id, { archived: true })
-      notify(t('board:action.archived', { title }))
-      chrome?.onArchived?.(session.id)
-    } catch {
-      notify(t('board:action.failed'), 'error')
-    } finally {
-      setArchiving(false)
-    }
-  }
+  const openSideChat = () => openSessionSideChat(session.id, inspector)
 
   const iconButton =
     'h-8 gap-1.5 px-2 text-[13px] font-normal text-content-secondary hover:text-content pointer-coarse:h-11'
@@ -176,12 +146,15 @@ export function SessionPageHeader({
     <header
       data-session-header
       data-window-drag-region
-      className="flex h-11 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4"
+      className="flex h-11 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4 pointer-coarse:h-12"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2" data-window-drag-region>
         <button
           type="button"
-          className="group inline-flex min-w-0 shrink items-center gap-1.5 rounded-sm px-1 py-0.5 text-[15px] leading-6 font-semibold text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+          className={cn(
+            'group inline-flex min-w-0 shrink items-center gap-1.5 rounded-sm px-1 py-0.5 text-[15px] leading-6 font-semibold text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+            TOUCH_HIT_AREA,
+          )}
           title={t('chat:focusSession.renameChat')}
           aria-label={`${title} · ${t('chat:focusSession.renameChat')}`}
           onClick={onRename}
@@ -198,7 +171,10 @@ export function SessionPageHeader({
             只去掉悬停反馈，并在提示与描述里说明原因。 */}
         <button
           type="button"
-          className="inline-flex h-6 max-w-[160px] min-w-0 flex-none items-center gap-1 rounded-xs border border-stroke bg-surface-muted px-1.5 font-mono text-xs text-content-secondary hover:bg-surface-hover hover:text-content disabled:cursor-default disabled:hover:bg-surface-muted disabled:hover:text-content-secondary @max-[560px]:hidden"
+          className={cn(
+            'inline-flex h-6 max-w-[160px] min-w-0 flex-none items-center gap-1 rounded-xs border border-stroke bg-surface-muted px-1.5 font-mono text-xs text-content-secondary hover:bg-surface-hover hover:text-content disabled:cursor-default disabled:hover:bg-surface-muted disabled:hover:text-content-secondary @max-[560px]:hidden',
+            TOUCH_HIT_AREA,
+          )}
           title={
             workspaceDisabled
               ? `${cwd}\n${t('chat:chatPage.stopTheActiveRunBeforeChangingTheWorkspace')}`
@@ -287,48 +263,7 @@ export function SessionPageHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-56">
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              {t('chat:focusSession.renameChat')}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={workspaceDisabled} onSelect={onWorkspace}>
-              <FolderOpen />
-              {t('board:session.moveWorkspace')}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={compactDisabled || !onCompact}
-              onSelect={() => onCompact?.()}
-            >
-              <Shrink />
-              {t('chat:focusSession.compactContextNow')}
-            </DropdownMenuItem>
-            {goalAvailable && (
-              <DropdownMenuCheckboxItem
-                checked={goalEngaged}
-                disabled={goalDisabled}
-                onCheckedChange={onToggleGoal}
-              >
-                <Target />
-                {t('board:session.goalMode')}
-              </DropdownMenuCheckboxItem>
-            )}
-            {workflowsAvailable && (
-              <DropdownMenuItem onSelect={() => setWorkflowsOpen(true)}>
-                <Workflow />
-                {t('board:session.workflowRuns')}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={onVoiceMode}>
-              <AudioLines />
-              {t('chat:voiceMode.open')}
-            </DropdownMenuItem>
-            {extraItems && <DropdownMenuSeparator />}
-            {extraItems}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={archiving} onSelect={() => void archive()}>
-              <Archive />
-              {t('board:card.archive')}
-            </DropdownMenuItem>
+            {menu.items}
           </DropdownMenuContent>
         </DropdownMenu>
         {inspector && (
@@ -343,8 +278,9 @@ export function SessionPageHeader({
             data-inspector-toggle
             aria-controls={inspector.panelId}
             aria-expanded={inspector.open}
-            aria-label={t('board:session.inspectorShortcut', { shortcut: inspectorShortcut })}
-            title={t('board:session.inspectorShortcut', { shortcut: inspectorShortcut })}
+            aria-label={inspectorLabel}
+            title={inspectorLabel}
+            aria-keyshortcuts={ariaKeyShortcuts(inspectorBinding)}
             onClick={inspector.toggle}
           >
             {inspector.open ? (
@@ -352,28 +288,11 @@ export function SessionPageHeader({
             ) : (
               <PanelRight aria-hidden="true" />
             )}
-            <Kbd className="sr-only">{inspectorShortcut}</Kbd>
+            {inspectorShortcut && <Kbd className="sr-only">{inspectorShortcut}</Kbd>}
           </Button>
         )}
       </div>
-      <Dialog open={workflowsOpen} onOpenChange={setWorkflowsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t('board:session.workflowRuns')}</DialogTitle>
-            <DialogDescription>{title}</DialogDescription>
-          </DialogHeader>
-          {workflowsOpen && (
-            <SessionWorkflowRuns
-              sessionId={session.id}
-              empty={
-                <p className="py-6 text-center text-sm text-content-muted">
-                  {t('board:session.workflowRunsEmpty')}
-                </p>
-              }
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {menu.dialog}
     </header>
   )
 }

@@ -57,6 +57,8 @@ type MoreNavigationOptions = {
   mobileApp?: boolean
   // 放在“更多页面”位置的已安装组件；缺省时只给出“+ 添加”。
   components?: readonly MoreComponentEntry[]
+  // 手机外壳：底部标签栏没有“组件”，组件页的入口挪进“我的组件”分组的第一格。
+  componentsTile?: boolean
 }
 
 export function getMoreNavigation(
@@ -65,6 +67,7 @@ export function getMoreNavigation(
     capabilities = LEGACY_RUNTIME_CAPABILITIES,
     mobileApp = false,
     components = [],
+    componentsTile = false,
   }: MoreNavigationOptions = {},
 ): MoreGroup[] {
   const page = (
@@ -164,6 +167,15 @@ export function getMoreNavigation(
       id: 'components',
       label: t('navigation:more.groupComponents'),
       tiles: [
+        componentsTile
+          ? {
+              key: 'shell:components',
+              label: t('navigation:shell.components'),
+              description: t('navigation:navigation.componentsDescription'),
+              icon: Blocks,
+              destination: { type: 'page', id: 'components' },
+            }
+          : null,
         ...components.map((component): MoreTile => ({
           key: `component:${component.id}`,
           label: component.name,

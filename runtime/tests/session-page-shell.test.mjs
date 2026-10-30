@@ -68,6 +68,14 @@ test('the lane strip shrinks in the four spec steps and never drops attention ti
   assert.equal(stripLayout({ ...base, width: 4000, compact: true }).attentionLines, 1)
   // 只有两个需要你时第 4 步不收胶囊。
   assert.equal(stripLayout({ ...base, attention: 2, width: 10, compact: false }).attentionShown, 2)
+  // 估算放得下、实测仍溢出（中英混排标题等）时，界面逐级抬高最低收缩步；越界值夹在 0–4。
+  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: 2 }).level, 2)
+  assert.equal(
+    stripLayout({ ...base, width: 4000, compact: false, minLevel: 2 }).runningMode,
+    'capsule',
+  )
+  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: 9 }).level, 4)
+  assert.equal(stripLayout({ ...base, width: 4000, compact: false, minLevel: -3 }).level, 0)
 })
 
 test('chips with inline actions and the current chip get room for their titles', () => {
@@ -244,13 +252,25 @@ test('session page layout: lane strip above the chat, inspector overlay under 12
   ])
   const session = routes
   assert.match(routes, /SESSION_COMPACT_QUERY = '\(max-width: 1279px\), \(max-height: 760px\)'/)
-  // 手机外壳保持原来的单会话视图；手机 App 平板走桌面布局但检查器始终是覆盖层。
+  // 手机 App 平板走桌面布局但检查器始终是覆盖层。手机外壳（第 4 期，规格 7.3）不挂泳道条，
+  // 换成同一份会话页契约加上看板领域的代理条（phoneChrome），看板入口在手机顶栏最左侧。
   assert.match(session, /const pageLayout = !phone \|\| tablet/)
   assert.match(session, /overlayOnly: mobileApp/)
   assert.match(session, /\{pageLayout && \(\s*<SessionLaneStrip/)
-  assert.match(session, /pageChrome=\{pageLayout \? pageChrome : undefined\}/)
-  // 切换代理替换历史记录：浏览器后退直接回看板。
-  assert.match(session, /navigate\(sessionPath\(id\), \{ replace: true \}\)/)
+  assert.match(session, /pageChrome=\{pageLayout \? pageChrome : phoneChrome\}/)
+  assert.match(
+    session,
+    /const phoneChrome = useMemo\(\s*\(\) => \(\{\s*\.\.\.pageChrome,\s*phone: \{\s*strip: \(\s*<PhoneAgentStrip currentId=\{sessionId\} notify=\{notify\} onOpenSession=\{switchSession\} \/>/,
+  )
+  assert.match(
+    session,
+    /routeLeading=\{pageLayout \? undefined : <BoardEntry onOpenBoard=\{openBoard\} \/>\}/,
+  )
+  // 切换代理替换历史记录：浏览器后退回到来处；从主页落地的会话保留主页标记（仍是返回的根）。
+  assert.match(
+    session,
+    /navigate\(sessionPath\(id\), \{ replace: true, state: entryStateRef\.current \}\)/,
+  )
   const loaders = await read('src/app/route-elements.tsx')
   const loader = loaders.slice(
     loaders.indexOf('export async function sessionRoute'),
@@ -263,7 +283,9 @@ test('session page layout: lane strip above the chat, inspector overlay under 12
   // 页头 44px，⌘I 开关检查器；覆盖层 420px、无遮罩、--sh-float。
   assert.match(header, /className="flex h-11 min-w-0 shrink-0/)
   assert.match(header, /data-inspector-toggle/)
-  assert.match(workspace, /export const INSPECTOR_SHORTCUT = 'Mod\+KeyI'/)
+  // 第 4 期起 ⌘I 是 shortcut-store 里的 toggleInspector（默认 Mod+KeyI，见 shortcuts.test），改绑后立即生效。
+  assert.match(workspace, /useShortcutStore\(\(state\) => state\.bindings\.toggleInspector\)/)
+  assert.match(workspace, /matchesShortcut\(event, inspectorBinding\)/)
   assert.match(workspace, /data-inspector-overlay[\s\S]{0,200}shadow-float/)
   assert.doesNotMatch(workspace, /overlay-scrim|backdrop/)
   assert.match(workspace, /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/)
@@ -328,9 +350,14 @@ test('the session strip reads the board store and keeps escape for overlays only
   // 数据只来自看板 store（同一个所有者）：不新开轮询、事件流或 fetch。
   assert.match(strip, /useBoardItems\('today'\)/)
   assert.doesNotMatch(strip, /fetch\(|setInterval|openBoardEvents|EventSource/)
-  assert.match(strip, /export const AGENT_PANEL_SHORTCUT = 'Mod\+KeyJ'/)
+  // 第 4 期起 ⌘J、⌥↑ / ⌥↓ 读 shortcut-store 的当前绑定（默认键见 shortcuts.test），可改绑。
+  assert.match(strip, /useShortcutStore\(\(state\) => state\.bindings\.agentPanel\)/)
+  assert.match(strip, /matchesShortcut\(event, panelBinding\)/)
   // ⌥↑ / ⌥↓ 只换路由，不批准也不返回；Esc 只关预览和面板。
-  assert.match(strip, /event\.key !== 'ArrowUp' && event\.key !== 'ArrowDown'/)
+  assert.match(
+    strip,
+    /matchesShortcut\(event, nextBinding\)[\s\S]{0,80}matchesShortcut\(event, previousBinding\)/,
+  )
   assert.doesNotMatch(strip, /Escape[\s\S]{0,120}(onOpenSession|navigate)/)
   assert.match(panel, /side="left"/)
   assert.match(panel, /width: 320/)
@@ -565,7 +592,13 @@ test('escape never leaves the session page; returning to the board needs an expl
     await Promise.all(
       [
         'src/app/SessionShell.tsx',
-        'src/app/SessionReturnBar.tsx',
+        // 第 4 期主页改为会话：泳道条最左侧与手机顶栏左侧是看板入口（BoardEntry），旧的“‹ 看板”
+        // 返回条（SessionReturnBar）不再挂载；主页草稿与手机会话页的新部件同样不得用 Esc 离开。
+        'src/app/BoardEntry.tsx',
+        'src/app/SessionHome.tsx',
+        'src/features/board/NewTaskDraft.tsx',
+        'src/features/board/PhoneAgentStrip.tsx',
+        'src/features/chat/SessionPhoneHeader.tsx',
         'src/features/board/SessionLaneStrip.tsx',
         'src/features/board/AgentPanel.tsx',
         'src/features/board/AgentMiniCard.tsx',
@@ -577,9 +610,14 @@ test('escape never leaves the session page; returning to the board needs an expl
       ].map(async (file) => [file, await read(file)]),
     ),
   )
-  // 会话页外壳不监听键盘：返回只认返回键、⌘[（应用级快捷键）、看板标签与浏览器 / 原生返回。
-  assert.doesNotMatch(sources['src/app/SessionShell.tsx'], /keydown|Escape|onKeyDown/)
-  assert.doesNotMatch(sources['src/app/SessionReturnBar.tsx'], /keydown|Escape|onKeyDown/)
+  // 会话页外壳与看板入口不监听键盘：去看板只认看板入口、⌘[ / ⇧⌘B（应用级快捷键）、看板标签与
+  // 浏览器 / 原生返回。
+  for (const file of [
+    'src/app/SessionShell.tsx',
+    'src/app/BoardEntry.tsx',
+    'src/app/SessionHome.tsx',
+  ])
+    assert.doesNotMatch(sources[file], /keydown|Escape|onKeyDown/, file)
   // 任何 Esc 处理附近都不出现路由跳转或返回动作。
   for (const [file, source] of Object.entries(sources)) {
     for (const match of source.matchAll(/'Escape'/g)) {
@@ -596,22 +634,26 @@ test('escape never leaves the session page; returning to the board needs an expl
     sources['src/features/chat/SessionWorkspace.tsx'],
     /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/,
   )
-  // ⌘[ 是返回看板的默认键；Esc 不能被设成返回看板（校验拒绝，归一化退回默认值）。
+  // ⌘[ 是返回看板、⇧⌘B 是打开看板的默认键；Esc 不能被设成它们（校验拒绝，归一化退回默认值）。
   const shortcuts = await import('../../shared/shortcuts.mjs')
   assert.equal(shortcuts.DEFAULT_SHORTCUTS.backToBoard, 'Mod+BracketLeft')
-  for (const binding of ['Escape', 'Mod+Escape'])
-    assert.throws(
-      () =>
-        shortcuts.validateShortcutBindings({
-          ...shortcuts.DEFAULT_SHORTCUTS,
-          backToBoard: binding,
-        }),
-      (error) => error instanceof shortcuts.ShortcutValidationError,
+  assert.equal(shortcuts.DEFAULT_SHORTCUTS.showBoard, 'Mod+Shift+KeyB')
+  for (const action of ['backToBoard', 'showBoard']) {
+    for (const binding of ['Escape', 'Mod+Escape'])
+      assert.throws(
+        () =>
+          shortcuts.validateShortcutBindings({
+            ...shortcuts.DEFAULT_SHORTCUTS,
+            [action]: binding,
+          }),
+        (error) => error instanceof shortcuts.ShortcutValidationError,
+        `${action} ${binding}`,
+      )
+    assert.equal(
+      shortcuts.normalizeShortcutBindings({ [action]: 'Escape' })[action],
+      shortcuts.DEFAULT_SHORTCUTS[action],
     )
-  assert.equal(
-    shortcuts.normalizeShortcutBindings({ backToBoard: 'Escape' }).backToBoard,
-    'Mod+BracketLeft',
-  )
+  }
   // 键盘 Esc 走 BackNavigation 的返回层，路由层返回只挂在手机原生返回上（行为见 back-navigation.test.mjs）。
   const app = await read('src/App.tsx')
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)
@@ -670,6 +712,8 @@ test('the inspector sits after the conversation with a keyboard separator only w
     /width - SESSION_INSPECTOR_OVERLAY_WIDTH >= SESSION_CONVERSATION_MIN_WIDTH\s*\?\s*SESSION_INSPECTOR_OVERLAY_WIDTH\s*:\s*0/,
   )
   assert.match(workspace, /style=\{overlayInset \? \{ paddingRight: overlayInset \} : undefined\}/)
-  // 收起时对话列独占：检查器只在 open 时渲染。
-  assert.match(workspace, /\{overlayMode && open && \(/)
+  // 收起时对话列独占：检查器只在 open 时渲染。例外只有手机底部表单的退场动画期间（sheetLeaving 只在手机表单时
+  // 成立，退场结束即卸载）；右侧覆盖层分支走到时一定是打开的。
+  assert.match(workspace, /const sheetLeaving = sheetMode && sheetPresence\.leaving/)
+  assert.match(workspace, /\{overlayMode && \(open \|\| sheetLeaving\) && \(/)
 })

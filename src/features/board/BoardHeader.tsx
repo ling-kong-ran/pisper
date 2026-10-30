@@ -3,6 +3,8 @@
 // 宽度不足 1280 时项目筛选收成下拉，分组切换只显示图标（3.11）。
 // 新建项目、管理项目放在“项目 ▾”下拉里：项目筛选是下拉时并入其中，是分段控件（或还没有卡片）时
 // 另放一个“项目 ▾”按钮。
+// 触屏：筛选、分组与 ⋯ 都是 44px（按钮与分段控件的触屏尺寸）；胶囊里的“逐个处理”保持 24px 可见高度，
+// 命中区用伪元素补到 44px（页头 52px，伪元素不出页头）。
 import {
   Check,
   ChevronDown,
@@ -30,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
 import type { BoardProject } from './board-model'
 import type { BoardGrouping } from './board-view-store'
@@ -198,7 +201,7 @@ export function BoardHeader({
           <Button
             variant="outline"
             size="xs"
-            className="flex-none bg-solid"
+            className={cn('flex-none bg-solid', TOUCH_HIT_AREA)}
             aria-keyshortcuts={triageKey || undefined}
             onClick={onTriage}
           >
@@ -269,7 +272,12 @@ export function BoardHeader({
                     <ChevronDown aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
+                <DropdownMenuContent
+                  align="end"
+                  // 登记的空项目会让列表变长：项目列表单独滚动，“新建项目… / 管理项目…”固定在底部，
+                  // 不会被 320px 上限截成半行。
+                  className="flex max-h-[min(30rem,var(--radix-dropdown-menu-content-available-height))] w-64 flex-col overflow-y-hidden"
+                >
                   <DropdownMenuLabel>{t('board:filter.projects')}</DropdownMenuLabel>
                   <DropdownMenuCheckboxItem
                     checked={projectFilter.length === 0}
@@ -281,26 +289,31 @@ export function BoardHeader({
                     </span>
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
-                  {projects.map((project) => (
-                    <DropdownMenuCheckboxItem
-                      key={project.key}
-                      checked={projectFilter.includes(project.key)}
-                      onCheckedChange={() => onToggleProject(project.key)}
-                      title={project.cwd}
-                    >
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate font-mono text-xs">{project.label}</span>
-                        {hints.get(project.key) && (
-                          <span className="truncate font-mono text-xs text-content-muted">
-                            {hints.get(project.key)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="ml-auto font-mono text-xs text-content-muted tabular-nums">
-                        {project.count}
-                      </span>
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  <div
+                    className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1"
+                    data-project-filter-list
+                  >
+                    {projects.map((project) => (
+                      <DropdownMenuCheckboxItem
+                        key={project.key}
+                        checked={projectFilter.includes(project.key)}
+                        onCheckedChange={() => onToggleProject(project.key)}
+                        title={project.cwd}
+                      >
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate font-mono text-xs">{project.label}</span>
+                          {hints.get(project.key) && (
+                            <span className="truncate font-mono text-xs text-content-muted">
+                              {hints.get(project.key)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="ml-auto font-mono text-xs text-content-muted tabular-nums">
+                          {project.count}
+                        </span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </div>
                   <DropdownMenuSeparator />
                   {projectItems}
                 </DropdownMenuContent>

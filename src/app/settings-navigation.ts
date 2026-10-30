@@ -147,12 +147,6 @@ export function getSettingsNavigation(
           destination: { type: 'page', id: 'channels' },
         },
         ...runtimeConnectionItems,
-        {
-          key: 'config:notifications',
-          label: t('config:configPage.notifications'),
-          icon: Bell,
-          destination: { type: 'config', id: 'notifications' },
-        },
       ],
     },
     {
@@ -163,6 +157,12 @@ export function getSettingsNavigation(
           label: t('config:configPage.interface'),
           icon: Monitor,
           destination: { type: 'config', id: 'interface' },
+        },
+        {
+          key: 'config:notifications',
+          label: t('config:configPage.notifications'),
+          icon: Bell,
+          destination: { type: 'config', id: 'notifications' },
         },
         {
           key: 'config:shortcuts',

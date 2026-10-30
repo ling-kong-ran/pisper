@@ -1,4 +1,6 @@
-// 命令面板的页面分组：一级标签（看板/组件/更多/设置）在前，“更多”里的功能页在后。
+// 命令面板的页面分组：一级标签（会话/看板/组件/更多/设置）在前，“更多”里的功能页在后。
+// “会话”用兼容页面 id 'chat'：应用壳的 navigate('chat') 没有待打开的会话时落到主页（上次停留的会话或
+// 新任务草稿），不会像 'session'（/board/new）那样一进入就建会话。
 // 用数组而非对象保持分组顺序稳定；图标较多，只随命令面板懒加载。
 import {
   Blocks,
@@ -7,6 +9,7 @@ import {
   FolderOpen,
   History,
   LayoutGrid,
+  MessageSquare,
   Plug,
   RadioTower,
   Server,
@@ -27,6 +30,7 @@ export function getNavigation(
   capabilities: RuntimeCapabilities = LEGACY_RUNTIME_CAPABILITIES,
 ): Navigation {
   const shell: Navigation[number][1] = [
+    ['chat', t('navigation:navigation.chat'), MessageSquare],
     ['board', t('navigation:shell.board'), LaneBarsIcon],
     ['components', t('navigation:shell.components'), Blocks],
     ['more', t('navigation:shell.more'), LayoutGrid],

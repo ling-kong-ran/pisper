@@ -1,19 +1,28 @@
 // 会话页（桌面布局）的外壳契约：路由传入的页面形态，以及页头与检查器之间的开关通道。
 // 只放类型与上下文，不导入任何组件，页头、工作区与检查器都可以依赖它而不形成环。
-import { createContext } from 'react'
+import { createContext, type ReactNode } from 'react'
 import type { SessionInspectorTab } from './session-inspector-store'
 
-// 会话页由应用壳注入：有值时单会话视图换成“页头 44 + 对话 + 检查器”的会话页布局，
-// 没有值（手机外壳、旧入口）时保持原来的单会话视图。
+// 会话页由应用壳注入：有值时单会话视图换成“页头 + 对话 + 检查器”的会话页布局，
+// 没有值（旧入口）时保持原来的单会话视图。
 export type SessionPageChrome = {
   // ≤1279 宽或 ≤760 高：检查器默认关闭，改为右侧滑出的 420px 覆盖层。
   compact: boolean
   // 手机 App 平板：始终用覆盖层（规格 7.6）。
   overlayOnly: boolean
+  // 手机外壳（phoneShell）的会话页（规格 7.3）：顶栏 56 + 代理条 + 对话，检查器改为底部表单。
+  // 代理条由应用壳从看板领域取来，聊天领域只负责摆放，不反向依赖看板。
+  phone?: SessionPhoneChrome
   // 检查器“+”里去组件页设置“会话面板”放置。
   onOpenComponents?: () => void
-  // 归档后离开会话页，回到看板。
+  // 归档后离开会话页，回到主页（会话做主页：上次会话已不可用，显示新任务草稿）。
   onArchived?: (sessionId: string) => void
+  // “找不到这个会话”的出口：回到主页（上次停留的会话或新任务草稿）；旧入口没有时回看板。
+  onHome?: () => void
+}
+
+export type SessionPhoneChrome = {
+  strip: ReactNode
 }
 
 export const SessionPageChromeContext = createContext<SessionPageChrome | null>(null)
@@ -21,7 +30,8 @@ export const SessionPageChromeContext = createContext<SessionPageChrome | null>(
 export type SessionInspectorControl = {
   // 检查器当前是否可见（并排展开或覆盖层打开）。
   open: boolean
-  mode: 'aside' | 'overlay'
+  // sheet：手机外壳的底部表单。
+  mode: 'aside' | 'overlay' | 'sheet'
   panelId: string
   toggle: () => void
   show: (tab: SessionInspectorTab) => void

@@ -1,7 +1,10 @@
 // “更多”启动台：全页磁贴，分组与去向来自 more-navigation，桌面与手机共用（手机三列）。
-// 页头搜索框第 1 期按名称、描述与分组筛选磁贴；“我的组件”列出放在更多页面位置的已安装组件。
+// 页头搜索框与 ⌘K 同源：按名称、描述与分组筛选磁贴（与面板的“更多”分组同一份页面清单），
+// 同时列出命中的设置项（设置搜索索引），并可带着关键词转到命令面板继续搜会话、标签与命令。
+// 磁贴角标（工作流运行中、定时任务启用、渠道断开、MCP 在线）见 useMoreTileBadges。
+// “我的组件”列出放在更多页面位置的已安装组件。
 import { useId, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronRight, Command, Search, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   countMoreTiles,
@@ -11,10 +14,18 @@ import {
   type MoreDestination,
   type MoreTile,
 } from '@/app/more-navigation'
+import { useMoreTileBadges, type MoreTileBadge } from '@/app/useMoreTileBadges'
 import { Button } from '@/components/ui/button'
+import { requestCommandPalette } from '@/features/chat/events'
+import {
+  requestConfigCardHighlight,
+  searchConfig,
+  type ConfigSearchMatch,
+} from '@/features/config/config-search'
 import { useCustomUiComponents } from '@/features/custom-ui/catalog'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useClientStore } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
@@ -29,6 +40,8 @@ export function MorePage({ onOpen }: MorePageProps) {
   const paletteShortcut = useShortcutLabel('commandPalette')
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
+  // 手机外壳的底部标签栏没有“组件”：组件页入口作为“我的组件”的第一格出现在这里。
+  const phone = usePhoneShell()
   const catalog = useCustomUiComponents()
   // 内置组件（如 Pisper Island）是浮窗，不占“更多页面”位置。
   const components = useMemo(
@@ -39,14 +52,63 @@ export function MorePage({ onOpen }: MorePageProps) {
     [catalog.data],
   )
   const groups = useMemo(
-    () => getMoreNavigation(t, { capabilities, mobileApp, components }),
-    [capabilities, components, mobileApp, t],
+    () => getMoreNavigation(t, { capabilities, mobileApp, components, componentsTile: phone }),
+    [capabilities, components, mobileApp, phone, t],
   )
   const visible = useMemo(
     () => filterMoreNavigation(groups, query, language),
     [groups, language, query],
   )
   const counts = countMoreTiles(groups)
+  const tileKeys = useMemo(
+    () => new Set(groups.flatMap((group) => group.tiles.map((tile) => tile.key))),
+    [groups],
+  )
+  const badges = useMoreTileBadges(t, tileKeys)
+  // 设置项与 ⌘K 的设置搜索同一份索引；只列前几条，其余在设置页的搜索里看。
+  const settingsMatches = useMemo(
+    () =>
+      query.trim()
+        ? searchConfig(query, language, { capabilities, mobileApp }).slice(0, SETTINGS_RESULT_LIMIT)
+        : [],
+    [capabilities, language, mobileApp, query],
+  )
+  const openSetting = (match: ConfigSearchMatch) => {
+    // 已迁到组件页的“独立组件”条目直接去组件页；其余先登记卡片高亮，再切到对应设置分区。
+    if (match.entry.card === 'interface-custom-ui') {
+      onOpen({ type: 'page', id: 'components' })
+      return
+    }
+    requestConfigCardHighlight(match.entry.card, match.entry.section, {
+      targetId: match.entry.targetId,
+      targetText: match.title,
+      expandGroup: match.entry.expandGroup,
+    })
+    onOpen({ type: 'config', id: match.entry.section })
+  }
+  const searchPalette = (
+    <Button
+      variant="outline"
+      className="h-auto min-h-11 w-full justify-start gap-2.5 py-2 text-left whitespace-normal"
+      data-more-palette-search
+      onClick={() => requestCommandPalette(query.trim())}
+    >
+      {/* 手机没有 ⌘ 键：触屏上用搜索图标表示“交给命令面板继续搜”。 */}
+      {phone ? (
+        <Search className="flex-none" aria-hidden="true" />
+      ) : (
+        <Command className="flex-none" aria-hidden="true" />
+      )}
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm text-content">
+          {t('navigation:more.searchPalette', { query: query.trim() })}
+        </span>
+        <span className="text-xs font-normal text-content-muted">
+          {t('navigation:more.searchPaletteHint')}
+        </span>
+      </span>
+    </Button>
+  )
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto bg-background">
@@ -93,15 +155,18 @@ export function MorePage({ onOpen }: MorePageProps) {
             )}
           </label>
         </header>
-        {visible.length === 0 ? (
+        {visible.length === 0 && settingsMatches.length === 0 ? (
           <div role="status" className="flex flex-col items-center gap-2 py-16 text-center">
             <p className="text-sm font-medium text-content">{t('navigation:more.noResults')}</p>
             <p className="max-w-sm text-xs text-content-muted">
               {t('navigation:more.noResultsHint', { shortcut: paletteShortcut || '⌘K' })}
             </p>
-            <Button variant="secondary" className="mt-2" onClick={() => setQuery('')}>
-              {t('navigation:more.clearSearch')}
-            </Button>
+            <div className="mt-2 flex w-full max-w-sm flex-col gap-2">
+              {searchPalette}
+              <Button variant="secondary" className="min-h-11" onClick={() => setQuery('')}>
+                {t('navigation:more.clearSearch')}
+              </Button>
+            </div>
           </div>
         ) : (
           visible.map((group) => {
@@ -121,7 +186,7 @@ export function MorePage({ onOpen }: MorePageProps) {
                 <ul className="grid grid-cols-3 gap-3 max-[650px]:gap-2">
                   {group.tiles.map((tile) => (
                     <li key={tile.key} className="min-w-0">
-                      <MoreTileButton tile={tile} onOpen={onOpen} />
+                      <MoreTileButton tile={tile} badge={badges.get(tile.key)} onOpen={onOpen} />
                     </li>
                   ))}
                 </ul>
@@ -142,22 +207,74 @@ export function MorePage({ onOpen }: MorePageProps) {
             )
           })
         )}
+        {query.trim() && (visible.length > 0 || settingsMatches.length > 0) && (
+          <section aria-labelledby={`${headingId}-search`} className="flex flex-col gap-2.5">
+            <h2
+              id={`${headingId}-search`}
+              className="flex items-center gap-3 text-xs font-semibold tracking-[.02em] text-content-secondary after:h-px after:flex-1 after:bg-stroke-soft"
+            >
+              {t('navigation:more.settingsResults')}
+            </h2>
+            {settingsMatches.length > 0 && (
+              <ul
+                data-more-settings-results
+                className="flex flex-col divide-y divide-stroke-soft overflow-hidden rounded-card border border-stroke bg-solid"
+              >
+                {settingsMatches.map((match) => (
+                  <li key={match.entry.id}>
+                    <button
+                      type="button"
+                      className="flex min-h-11 w-full min-w-0 items-center gap-3 px-3.5 py-2 text-left transition-colors duration-(--d-fast) hover:bg-surface-hover focus-visible:-outline-offset-2"
+                      onClick={() => openSetting(match)}
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm text-content">{match.title}</span>
+                        {match.sectionTitle !== match.title && (
+                          <span className="truncate text-xs text-content-muted">
+                            {match.sectionTitle}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronRight
+                        className="size-4 flex-none text-content-muted"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {searchPalette}
+          </section>
+        )}
       </div>
     </div>
   )
 }
 
+// 角标色：运行中用运行青，断开用琥珀（需要人处理），启用 / 在线只是计数，用中性色。
+const BADGE_TONES: Record<MoreTileBadge['tone'], { text: string; dot: string }> = {
+  run: { text: 'text-st-run', dot: 'bg-st-run-fill' },
+  attn: { text: 'text-st-attn', dot: 'bg-st-attn-solid' },
+  neutral: { text: 'text-content-secondary', dot: 'bg-content-muted' },
+}
+const SETTINGS_RESULT_LIMIT = 6
+
 function MoreTileButton({
   tile,
+  badge,
   onOpen,
 }: {
   tile: MoreTile
+  badge?: MoreTileBadge
   onOpen: (destination: MoreDestination) => void
 }) {
   const { t } = useI18n()
   const Icon = tile.icon
   const disabled = Boolean(tile.disabledReason)
-  const add = tile.destination.type === 'page' && tile.destination.id === 'components'
+  // 只有“我的组件”末格的“+ 添加”是虚线占位；手机上导航用的“组件”磁贴（shell:components）也去组件页，
+  // 但它是普通入口，不能画成待添加的空位。
+  const add = tile.key === 'page:components'
   return (
     <button
       type="button"
@@ -170,7 +287,7 @@ function MoreTileButton({
           : undefined
       }
       className={cn(
-        'flex h-full min-h-[116px] w-full min-w-0 flex-col items-start gap-2 rounded-card border bg-solid p-3.5 text-left shadow-card transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus max-[650px]:min-h-[132px] max-[650px]:p-3',
+        'relative flex h-full min-h-[116px] w-full min-w-0 flex-col items-start gap-2 rounded-card border bg-solid p-3.5 text-left shadow-card transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus max-[650px]:min-h-[132px] max-[650px]:p-3',
         add
           ? 'border-dashed border-stroke-strong bg-transparent shadow-none hover:bg-surface-hover'
           : 'border-stroke hover:border-stroke-strong',
@@ -182,12 +299,28 @@ function MoreTileButton({
     >
       <span
         className={cn(
-          'grid size-9 flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset',
+          'grid size-9 flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset max-[650px]:size-8',
           disabled && 'text-content-muted',
         )}
       >
         <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
       </span>
+      {badge && !disabled && (
+        <span
+          data-more-badge={badge.tone}
+          className={cn(
+            // 手机三列磁贴很窄：图标缩到 32px、角标贴近右上角，给“1 运行中”留足宽度。
+            'absolute top-3 right-3 flex max-w-[calc(100%-64px)] items-center gap-1 text-xs font-medium whitespace-nowrap tabular-nums max-[650px]:top-2.5 max-[650px]:right-2 max-[650px]:max-w-[calc(100%-50px)]',
+            BADGE_TONES[badge.tone].text,
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn('size-1.5 flex-none rounded-full', BADGE_TONES[badge.tone].dot)}
+          />
+          <span className="truncate">{badge.label}</span>
+        </span>
+      )}
       <span
         className={cn(
           'max-w-full truncate text-sm font-semibold text-content',

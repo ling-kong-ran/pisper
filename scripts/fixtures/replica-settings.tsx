@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { i18n } from '@/app/i18n'
+import { ensureBoardMessages, ensureCustomUiMessages, i18n } from '@/app/i18n'
+import { ChatAppearancePage } from '@/app/ChatAppearancePage'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { useUiStore } from '@/stores/ui-store'
 import { PageFrame } from '@/components/app/PageFrame'
 import MarkdownMessage from '@/components/MarkdownMessage'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ModelsSettings } from '@/features/config/ModelsSettings'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { MemoryPage } from '@/features/memory/MemoryPage'
 import { InterfaceSettings } from '@/features/config/InterfaceSettings'
+import { ShortcutSettings } from '@/features/config/ShortcutSettings'
 import { requestConfigCardHighlight, useConfigCardHighlight } from '@/features/config/config-search'
 
 const notices: string[] = []
@@ -110,7 +112,29 @@ export function MemoryFixture() {
     </>
   )
 }
+// 第 4 期设置：界面页顶部“组件已移到 组件 页 →”（取代“独立组件”标签，旧 ?view=widgets 链接重定向到组件页）。
+export function InterfacePageFixture() {
+  const legacy = params.get('legacy') === 'widgets'
+  return (
+    <MemoryRouter initialEntries={[`/config/interface${legacy ? '?view=widgets' : ''}`]}>
+      <Routes>
+        <Route
+          path="/config/interface"
+          element={
+            <PageFrame variant="settings">
+              <ChatAppearancePage appearance={<InterfaceSettings notify={notify} />} />
+            </PageFrame>
+          }
+        />
+        <Route path="/components" element={<p data-testid="components-route">components</p>} />
+      </Routes>
+    </MemoryRouter>
+  )
+}
 const params = new URLSearchParams(location.search)
+// 新动作（代理面板、检查器、切换代理、插话、速查、打开看板）的文案在看板命名空间，组件跳转在组件命名空间：
+// 与设置路由一样先加载再渲染。
+await Promise.all([ensureBoardMessages(), ensureCustomUiMessages()])
 if (params.get('longLabels') === '1') {
   // 仅隔离 fixture 的文案压力输入，不改变产品资源或把测试文案当成参考取证。
   const labels = {
@@ -169,6 +193,12 @@ export function Fixture() {
     <TooltipProvider>
       {view === 'models' ? (
         <ModelFixture />
+      ) : view === 'interface-page' ? (
+        <InterfacePageFixture />
+      ) : view === 'shortcuts' ? (
+        <PageFrame variant="settings">
+          <ShortcutSettings requestConfirm={() => Promise.resolve(true)} />
+        </PageFrame>
       ) : view === 'search' ? (
         <SearchFixture />
       ) : view === 'appearance' || view === 'typography' ? (

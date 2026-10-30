@@ -3,6 +3,8 @@
 // 的上次选择记在 pisper-launch-defaults（“完全访问”只对当前草稿生效，派发后回到安全模式）。
 // 草稿沿用 composer-drafts，派发失败时原样放回，并同步给所有挂着的启动台实例。
 // 看板仪表区、空看板的放大形态、派发浮层与手机底部表单共用这一个组件，只换外形。
+// composer：会话主页的“新任务”草稿输入框（会话页输入框的外形）。↵ 发出第一条消息时才建会话，
+// 宿主随即以 replace 打开它；草稿期间只发一次，不像启动台那样连发。
 import {
   forwardRef,
   useCallback,
@@ -15,6 +17,7 @@ import {
 } from 'react'
 import {
   ArrowRight,
+  ArrowUp,
   BadgeCheck,
   Bot,
   ChevronDown,
@@ -46,8 +49,12 @@ import {
   readComposerDraft,
   updateComposerDraft,
 } from '@/features/chat/public-launch'
-import { useShortcutLabel } from '@/lib/shortcuts'
+import { SCROLL_FADE_CLASS, useScrollFade } from '@/hooks/useScrollFade'
+import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
+import { formatShortcut, matchesShortcut, useShortcutLabel } from '@/lib/shortcuts'
+import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
+import { useShortcutStore } from '@/stores/shortcut-store'
 import { BoardLaunchError, launchBoardTask } from './board-launch'
 import { projectDisambiguation } from './card-presentation'
 import {
@@ -60,19 +67,21 @@ import { useLaunchOptions, type LaunchModelOption } from './useLaunchOptions'
 
 // 启动台草稿与会话草稿共用同一套存储，键名不会与会话 id 冲突。
 export const LAUNCH_DRAFT_KEY = 'board:launch'
+// 会话主页的新任务草稿单独一份：⌘N 派发浮层可以叠在草稿上面，共用一份会让两边的文本互相串改。
+const HOME_DRAFT_KEY = 'home:new'
 
-// composer-drafts 没有订阅机制：派发失败放回草稿时，由这里通知所有挂着的启动台实例重读，
+// composer-drafts 没有订阅机制：派发失败放回草稿时，由这里通知挂着同一份草稿的启动台实例重读，
 // 否则浮层关闭后重新打开、或仪表区与浮层同时存在时，界面会显示不含被放回描述的旧文本。
-const launchDraftListeners = new Set<(text: string) => void>()
+const launchDraftListeners = new Set<{ key: string; apply: (text: string) => void }>()
 
-function restoreLaunchDraft(prompt: string) {
-  const current = readComposerDraft(LAUNCH_DRAFT_KEY).text
+function restoreDraftText(key: string, prompt: string) {
+  const current = readComposerDraft(key).text
   const restored = current.trim() ? `${prompt}\n${current}` : prompt
-  updateComposerDraft(LAUNCH_DRAFT_KEY, { text: restored })
-  for (const listener of launchDraftListeners) listener(restored)
+  updateComposerDraft(key, { text: restored })
+  for (const listener of launchDraftListeners) if (listener.key === key) listener.apply(restored)
 }
 
-export type LaunchConsoleVariant = 'deck' | 'collapsed' | 'hero' | 'overlay' | 'sheet'
+export type LaunchConsoleVariant = 'deck' | 'collapsed' | 'hero' | 'overlay' | 'sheet' | 'composer'
 
 // fill：空看板的“试试”建议只填入草稿并聚焦，不重建组件（派发中的状态与错误随之保留）。
 export type LaunchConsoleHandle = { focus: () => void; fill: (text: string) => void }
@@ -82,6 +91,8 @@ export type LaunchConsoleProps = {
   autoFocus?: boolean
   // 1080 等窄宽度：模型只显示短名，审批模式只显示图标（配提示文字）。
   compactChips?: boolean
+  // composer：触屏（手机外壳）用不带键盘提示的占位与 44px 发送键。
+  touch?: boolean
   // 派发被 Runtime 受理后回调；open 表示用户按了 ⌘↵，宿主负责打开会话。
   onDispatched?: (sessionId: string, options: { open: boolean }) => void
   // 派发失败时本实例已经卸载（例如浮层在发送途中被关闭）：错误行没人看得到，交给宿主用全局提示。
@@ -145,6 +156,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       variant,
       autoFocus,
       compactChips,
+      touch,
       onDispatched,
       onDetachedFailure,
       onConfigureModels,
@@ -157,8 +169,14 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const options = useLaunchOptions()
     const defaults = useLaunchDefaultsStore()
     const newTaskKey = useShortcutLabel('primaryAction')
+    // 会话主页的草稿输入框与会话页输入框同一套发送键（设置 → 快捷键的 sendMessage）：改成 ⌘↵ 后 ↵ 只换行，
+    // 不会在草稿上误建会话。启动台其余外形仍是 ↵ 派发、⌘↵ 派发并打开。
+    const sendBinding = useShortcutStore((state) => state.bindings.sendMessage)
     const inputRef = useRef<HTMLTextAreaElement>(null)
-    const [value, setValueState] = useState(() => readComposerDraft(LAUNCH_DRAFT_KEY).text)
+    const chipRowRef = useRef<HTMLDivElement>(null)
+    const draftKey = variant === 'composer' ? HOME_DRAFT_KEY : LAUNCH_DRAFT_KEY
+    const restoreLaunchDraft = (prompt: string) => restoreDraftText(draftKey, prompt)
+    const [value, setValueState] = useState(() => readComposerDraft(draftKey).text)
     const [error, setError] = useState<LaunchError | null>(null)
     const [pending, setPending] = useState(0)
     // 本次草稿临时选了“完全访问”：不写进偏好，派发后回到记住的安全模式。
@@ -169,18 +187,21 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
 
     useEffect(() => {
       mountedRef.current = true
-      const listener = (text: string) => setValueState(text)
+      const listener = { key: draftKey, apply: (text: string) => setValueState(text) }
       launchDraftListeners.add(listener)
       return () => {
         mountedRef.current = false
         launchDraftListeners.delete(listener)
       }
-    }, [])
+    }, [draftKey])
 
-    const setValue = useCallback((next: string) => {
-      setValueState(next)
-      updateComposerDraft(LAUNCH_DRAFT_KEY, { text: next })
-    }, [])
+    const setValue = useCallback(
+      (next: string) => {
+        setValueState(next)
+        updateComposerDraft(draftKey, { text: next })
+      },
+      [draftKey],
+    )
 
     useImperativeHandle(
       ref,
@@ -228,8 +249,9 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       return [{ key: defaults.cwd, cwd: defaults.cwd, label }, ...options.projects]
     }, [defaults.cwd, options.projects])
     const projectHints = useMemo(() => projectDisambiguation(projects), [projects])
-    // 没有记住的目录时沿用最近项目；都没有时交给 Runtime 默认目录。
-    const cwd = defaults.cwd || projects[0]?.cwd || ''
+    // 没有记住的目录时沿用最近有会话的项目（登记的空项目虽排在列表前面，不作隐式默认）；
+    // 都没有时交给 Runtime 默认目录。
+    const cwd = defaults.cwd || options.defaultCwd || projects[0]?.cwd || ''
     const project = projects.find((item) => item.cwd === cwd)
     const noModel = !options.loading && !options.error && options.models.length === 0
 
@@ -244,12 +266,20 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       return true
     }
 
+    const composer = variant === 'composer'
+    // 芯片文字变化（换项目、换模型、完全访问）会改变溢出量，作为重新测量的键。
+    const chipFade = useScrollFade(
+      chipRowRef,
+      composer ? `${cwd}|${model}|${executionMode}|${runMode}` : '',
+    )
     const dispatch = async (open: boolean) => {
       const prompt = value.trim()
       if (!prompt) {
         inputRef.current?.focus()
         return
       }
+      // 草稿只建一个会话：第一条还在发送时不再受理，避免连按建出两个会话。
+      if (composer && pending > 0) return
       if (noModel) {
         setError({ message: t('board:launch.noModel'), noModel: true })
         return
@@ -257,7 +287,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       setError(null)
       // 先清空输入并保持焦点，马上可以写下一个想法；失败时把这段描述放回草稿。
       setValue('')
-      clearComposerDraft(LAUNCH_DRAFT_KEY)
+      clearComposerDraft(draftKey)
       inputRef.current?.focus()
       setPending((count) => count + 1)
       // 完全访问只作用于这一次派发：偏好里保留原来的安全模式，下一条草稿回到安全模式。
@@ -299,7 +329,14 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
 
     const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.nativeEvent.isComposing || event.keyCode === 229) return
-      if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+      if (composer) {
+        if (matchesShortcut(event.nativeEvent, sendBinding)) {
+          event.preventDefault()
+          // 草稿只建一个会话，发出后宿主总是打开它，不区分“留在原地”。
+          void dispatch(true)
+          return
+        }
+      } else if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
         event.preventDefault()
         void dispatch(event.metaKey || event.ctrlKey)
         return
@@ -320,7 +357,11 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const collapsed = variant === 'collapsed'
     const lines = value.split('\n').length
     const rows = collapsed ? 1 : Math.min(roomy ? 6 : 3, Math.max(roomy ? 3 : 1, lines))
-    const chipSize = variant === 'sheet' ? 'default' : 'sm'
+    const chipSize = variant === 'sheet' || composer ? 'default' : 'sm'
+    // 触屏上的 24px 小芯片：芯片行里与“派发”（触屏 44px）同一行，可见高度直接抬到 44；
+    // 输入框里的项目芯片保持可见尺寸，命中区用伪元素补到 44（单行启动台的输入框只有 32px 高）。
+    const rowChipTouch = chipSize === 'sm' ? 'pointer-coarse:min-h-11' : undefined
+    const projectChipTouch = chipSize === 'sm' ? TOUCH_HIT_AREA : undefined
     const ExecutionIcon = EXECUTION_ICONS[executionMode]
     const RunModeIcon = RUN_MODE_ICONS[runMode]
     const modelLabel = currentModel
@@ -337,7 +378,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           {/* 派发目标仓库最不能看错：芯片正文至少 8 个字符，悬停给完整路径。 */}
           <Chip
             size={chipSize}
-            className="max-w-[24ch] font-mono"
+            // 手机草稿的工具行还要放模型与审批芯片：项目芯片收到 14ch，完整路径在菜单与悬停里。
+            className={cn(composer && touch ? 'max-w-[14ch]' : 'max-w-[24ch]', projectChipTouch)}
             title={project?.cwd || undefined}
             aria-label={t('board:launch.projectLabel', {
               project: project
@@ -348,13 +390,18 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             })}
           >
             <Folder aria-hidden="true" />
-            <span className="min-w-[8ch] truncate">
+            {/* 目录名是机器路径，用等宽；“默认目录”是中文说明，不用等宽字体（规格 6.4）。 */}
+            <span className={cn('truncate', project?.label ? 'min-w-[8ch] font-mono' : 'min-w-0')}>
               {project?.label || t('board:launch.defaultProject')}
             </span>
             <ChevronDown aria-hidden="true" />
           </Chip>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+        <DropdownMenuContent
+          align="start"
+          // 登记的空项目会让列表变长：最多用到视口可用高度，不在 320px 处把末项截半。
+          className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
+        >
           <DropdownMenuLabel>{t('board:launch.projects')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={cwd}
@@ -384,16 +431,25 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
 
     const chips = (
       <div
+        ref={chipRowRef}
+        data-fade={composer ? chipFade : undefined}
+        data-launch-chips
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden',
-          variant === 'sheet' && 'flex-wrap overflow-visible',
+          'flex min-w-0 flex-1 items-center gap-1.5',
+          variant === 'sheet'
+            ? 'flex-wrap overflow-visible'
+            : // 输入框工具行：窄屏放不下时横向滑动，不截断芯片；被裁的一端渐隐，提示还能滑。
+              composer
+              ? cn('overflow-x-auto [scrollbar-width:none]', SCROLL_FADE_CLASS)
+              : 'overflow-hidden',
         )}
       >
+        {composer && projectChip}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Chip
               size={chipSize}
-              className="min-w-0 max-w-[24ch]"
+              className={cn('min-w-0 max-w-[24ch]', rowChipTouch)}
               title={t('board:launch.modelTitle', { model: modelLabel })}
               aria-label={t('board:launch.modelTitle', { model: modelLabel })}
             >
@@ -453,6 +509,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
               aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
               // 完全访问会跳过所有审批：窄宽度下也写出文字并用警示色，派发前一眼能看到。
               className={cn(
+                rowChipTouch,
                 executionMode === 'full-access' &&
                   'border-st-attn-border bg-st-attn-soft text-st-attn',
               )}
@@ -496,6 +553,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <DropdownMenuTrigger asChild>
             <Chip
               size={chipSize}
+              className={rowChipTouch}
               title={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
               aria-label={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
             >
@@ -523,31 +581,54 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       </div>
     )
 
-    const submit = (
-      <Button
-        type="button"
-        size={variant === 'sheet' ? 'lg' : 'sm'}
-        className={cn('flex-none', variant === 'sheet' && 'min-h-11 w-full px-4')}
-        onClick={() => void dispatch(false)}
-        aria-keyshortcuts="Enter"
-      >
-        {t('board:launch.dispatch')}
-        <CornerDownLeft aria-hidden="true" className="opacity-70" />
-      </Button>
-    )
+    const submit =
+      composer && touch ? (
+        // 手机草稿：44px 图标发送键（与会话页输入框一致），把工具行的宽度留给芯片。
+        <Button
+          type="button"
+          size="icon"
+          className="size-11 flex-none"
+          disabled={pending > 0}
+          aria-label={t('board:home.send')}
+          onClick={() => void dispatch(false)}
+        >
+          <ArrowUp aria-hidden="true" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          size={variant === 'sheet' ? 'lg' : 'sm'}
+          className={cn(
+            'flex-none',
+            variant === 'sheet' && 'min-h-11 w-full px-4',
+            composer && 'pointer-coarse:min-h-11',
+          )}
+          disabled={composer && pending > 0}
+          onClick={() => void dispatch(false)}
+          aria-keyshortcuts={composer ? ariaKeyShortcuts(sendBinding) : 'Enter'}
+        >
+          {composer ? t('board:home.send') : t('board:launch.dispatch')}
+          <CornerDownLeft aria-hidden="true" className="opacity-70" />
+        </Button>
+      )
 
+    // 手机底部表单（含手机空看板）：“在 [项目 ▾] 中”单独一行，输入框占满下一行。
+    // 同一行并排时输入框只剩项目芯片让出的宽度，390 宽下只有约 112px。
+    const stacked = variant === 'sheet'
     const input = (
       <div
         className={cn(
           'flex min-w-0 flex-1 items-start gap-1.5 rounded-sm border border-control bg-panel px-2 transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring',
-          collapsed ? 'h-8 items-center' : 'py-1',
-          variant === 'sheet' && 'min-h-11 py-1.5',
+          // 触屏：单行启动台的输入框加高到 46px，里面的文本框才有 44px 可点高度。
+          collapsed ? 'h-8 items-center pointer-coarse:h-[46px]' : 'py-1',
+          stacked && 'min-h-11 flex-wrap gap-y-1 py-1.5',
         )}
       >
         <span
           className={cn(
             'flex flex-none items-center gap-1 text-sm text-content-muted',
             !collapsed && 'pt-0.5',
+            stacked && 'max-w-full min-w-0',
           )}
         >
           <span aria-hidden="true">{t('board:launch.in')}</span>
@@ -579,8 +660,11 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
           className={cn(
             'min-w-0 flex-1 resize-none bg-transparent text-sm leading-6 text-content caret-st-attn-fill outline-none placeholder:text-content-muted',
-            collapsed && 'h-8 overflow-hidden py-1 leading-6 whitespace-nowrap',
-            variant === 'sheet' && 'text-[calc(var(--text-base)+1px)]',
+            collapsed &&
+              'h-8 overflow-hidden py-1 leading-6 whitespace-nowrap pointer-coarse:h-11 pointer-coarse:py-2.5',
+            // 触屏：仪表区的单行文本框至少 44px 高（多行与浮层本来就更高）。
+            !collapsed && !stacked && 'pointer-coarse:min-h-11',
+            stacked && 'min-h-11 w-full basis-full text-[calc(var(--text-base)+1px)]',
           )}
         />
       </div>
@@ -599,10 +683,60 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     )
 
     const status = pending > 0 && (
-      <span role="status" className="text-xs text-content-muted">
-        {t('board:launch.sending', { count: pending })}
+      <span role="status" className="flex-none text-xs text-content-muted">
+        {composer ? t('board:home.sending') : t('board:launch.sending', { count: pending })}
       </span>
     )
+
+    if (composer)
+      return (
+        <section
+          aria-label={t('board:home.composerLabel')}
+          data-launch-console={variant}
+          // 与会话页输入框同一外形：22 圆角卡片（窄屏 16）、聚焦描边，工具行在下方。
+          className={cn(
+            'flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-panel shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring max-[650px]:rounded-2xl',
+            className,
+          )}
+        >
+          <label htmlFor={inputId} className="sr-only">
+            {t('board:launch.inputLabel')}
+          </label>
+          <textarea
+            ref={inputRef}
+            id={inputId}
+            data-launch-input
+            autoFocus={autoFocus}
+            rows={Math.min(6, Math.max(2, lines))}
+            value={value}
+            placeholder={
+              touch
+                ? t('board:home.placeholderTouch')
+                : sendBinding
+                  ? t('board:home.placeholder', { send: formatShortcut(sendBinding) })
+                  : t('board:home.placeholderUnbound')
+            }
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+            aria-keyshortcuts={ariaKeyShortcuts(sendBinding)}
+            onChange={(event) => {
+              setValue(event.target.value)
+              if (error && !error.noModel) setError(null)
+            }}
+            onKeyDown={keyDown}
+            className={cn(
+              'max-h-[220px] min-h-11 w-full min-w-0 resize-none bg-transparent px-4 pt-3 pb-1 text-[length:calc(var(--app-message-font-size)*.9375)] leading-5 text-content outline-none placeholder:text-content-muted max-[650px]:px-3.5',
+              touch && 'text-[length:var(--app-message-font-size)]',
+            )}
+          />
+          {errorLine && <div className="px-4 max-[650px]:px-3.5">{errorLine}</div>}
+          <div className="flex min-w-0 items-center gap-2 px-2.5 pt-1 pb-2.5">
+            {chips}
+            {status}
+            {submit}
+          </div>
+        </section>
+      )
 
     if (collapsed)
       return (
@@ -610,7 +744,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           aria-label={t('board:launch.title')}
           data-launch-console={variant}
           className={cn(
-            'flex h-11 min-w-0 items-center gap-2 rounded-card border border-stroke bg-solid px-2 shadow-card',
+            'flex h-11 min-w-0 items-center gap-2 rounded-card border border-stroke bg-solid px-2 shadow-card pointer-coarse:h-13',
             className,
           )}
         >

@@ -1,4 +1,5 @@
-// @public 项目（按工作目录分组的会话）的整理操作：删除项目连同其全部会话、改显示名、选新项目目录。
+// @public 项目（按工作目录分组的会话）的整理操作：删除项目连同其全部会话、移除没有会话的登记项目、
+// 改显示名、选新项目目录。
 // 看板的“项目 ▾”、项目横带“⋯”与“管理项目”共用这里；确认文案、删除语义与原侧栏一致：
 // 删除前重新读取完整目录（不依赖搜索结果或看板筛选），确认框写出完整路径与会话数，
 // 逐个删除并只把接口确认成功的计入，失败或无法复核时如实报告剩余数量。
@@ -11,6 +12,7 @@ import { pageStateStorage } from '@/lib/page-state-storage'
 import { pickSystemDirectory, type SystemDirectoryPick } from '@/lib/pick-system-directory'
 import { fetchStartupQuery } from '@/lib/startup-queries'
 import { announceActiveSession, announceSessionsUpdated } from './events'
+import { useRegisteredProjectsStore } from './registered-projects-store'
 import {
   deleteSessionsSequentially,
   NO_WORKSPACE_KEY,
@@ -131,12 +133,29 @@ export async function deleteWorkspaceProject(
       )
       return 'partial'
     }
+    // 会话已全部删掉：项目若是登记过的空项目入口，也一并取消登记，免得它以“0 个会话”留在列表里。
+    if (project.cwd) useRegisteredProjectsStore.getState().unregisterProject(project.cwd)
     notify(t('navigation:appSidebar.projectDeleted', { project: label }))
     return 'deleted'
   } catch (error) {
     notify(error instanceof Error ? error.message : String(error), 'error')
     return 'failed'
   }
+}
+
+/**
+ * 移除没有会话的登记项目：只取消本机登记，不发删除请求，也不碰目录与文件。
+ * 返回是否真的移除了（目录本来没登记时返回 false 且不提示）。
+ */
+export function removeRegisteredProject(
+  project: WorkspaceProject,
+  { t, notify }: Pick<ProjectActionContext, 't' | 'notify'>,
+) {
+  if (!project.cwd || project.key === NO_WORKSPACE_KEY) return false
+  const removed = useRegisteredProjectsStore.getState().unregisterProject(project.cwd)
+  if (removed)
+    notify(t('navigation:appSidebar.projectRemoved', { project: projectScopeLabel(project) }))
+  return removed
 }
 
 function saveProjectName(

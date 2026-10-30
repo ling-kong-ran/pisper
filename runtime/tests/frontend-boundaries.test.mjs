@@ -257,3 +257,43 @@ test('no route reaches the retired Dockview split view or its vendor code', () =
     )
   }
 })
+
+test('the dormant three-pane phone shell and the retired sidebar shell never load from the entry', () => {
+  // 第 4 期手机外壳换成底部标签栏 + 单屏页面（规格 7.7）：旧三栏外壳、旧手机标签栏、会话上下文全屏页、
+  // 旧侧栏与活动栏、“‹ 看板”返回条只停止挂载，源码留到第 6 期删除（需负责人同意）。从入口出发
+  // （含懒加载路由）的运行时导入都不能再到达它们；删除文件后这条守卫照样成立。
+  const dormant = new Set(
+    [
+      'src/components/layout/MobileThreePane.tsx',
+      'src/components/layout/MobileShellContext.tsx',
+      'src/components/layout/mobile-shell-layout.ts',
+      'src/components/layout/MobileTabBar.tsx',
+      'src/app/mobile/MobileContextScreen.tsx',
+      'src/app/SessionReturnBar.tsx',
+      'src/app/WorkbenchNavigation.tsx',
+      'src/app/activity-navigation.ts',
+      'src/components/layout/AppSidebar.tsx',
+      'src/components/layout/ActivityRail.tsx',
+      'src/features/chat/ProjectTaskList.tsx',
+    ].map((file) => resolve(root, file)),
+  )
+  const reachable = new Set()
+  const visit = (path) => {
+    if (reachable.has(path)) return
+    reachable.add(path)
+    for (const dependency of graph.get(path) || []) if (!dependency.typeOnly) visit(dependency.path)
+  }
+  visit(resolve(root, 'src/main.tsx'))
+  // 新外壳确实在图里，避免图不完整时空转。
+  for (const file of [
+    'src/app/ShellTabBar.tsx',
+    'src/app/AppTitlebar.tsx',
+    'src/app/MorePage.tsx',
+    'src/app/SessionHome.tsx',
+    'src/features/board/PhoneBoard.tsx',
+    'src/features/board/PhoneAgentStrip.tsx',
+    'src/features/chat/SessionPhoneHeader.tsx',
+  ])
+    assert.ok(reachable.has(resolve(root, file)), `${file} must be reachable from the entry`)
+  for (const path of dormant) assert.ok(!reachable.has(path), `${name(path)} must stay unmounted`)
+})

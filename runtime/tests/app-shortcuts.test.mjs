@@ -19,6 +19,8 @@ function fixture({
   // 外壳只在有处理对象时传入：⌥A 需要有等待中的事项，⌘[ 只在会话页可用。
   attention = true,
   session = true,
+  // ⌘/ 快捷键速查（第 4 期新增）：外壳总会传入处理函数，这里可以关掉以验证不消费。
+  help = true,
   platform = 'Win32',
 } = {}) {
   const handlers = new Set()
@@ -83,6 +85,7 @@ function fixture({
     onOpenMore: () => calls.push('more'),
     onJumpToAttention: attention ? () => calls.push('attention') : undefined,
     onBackToBoard: session ? () => calls.push('back') : undefined,
+    onShortcutHelp: help ? () => calls.push('help') : undefined,
   })
   const press = (code, properties = {}) => {
     const event = {
@@ -234,4 +237,24 @@ test('disabled and rebound keys never dispatch their old action; unsupported ter
     assert.equal(f.press(code).defaultPrevented, false)
   f.press('F9', { ctrlKey: false })
   assert.deepEqual(f.calls, ['palette'])
+})
+
+test('the shortcut help chord works inside inputs, follows rebinding and never steals bare slash', () => {
+  const f = fixture()
+  const target = new f.Element('textarea')
+  assert.equal(f.press('Slash', { target }).defaultPrevented, true)
+  assert.deepEqual(f.calls, ['help'])
+  // 裸 / 仍是“聚焦搜索”（输入框外），不会打开速查。
+  f.calls.length = 0
+  assert.equal(f.press('Slash', { ctrlKey: false }).defaultPrevented, true)
+  assert.deepEqual(f.calls, ['search'])
+  const rebound = fixture({
+    bindings: { ...shortcuts.DEFAULT_SHORTCUTS, shortcutHelp: 'F6' },
+  })
+  assert.equal(rebound.press('Slash').defaultPrevented, false)
+  rebound.press('F6', { ctrlKey: false })
+  assert.deepEqual(rebound.calls, ['help'])
+  const missing = fixture({ help: false })
+  assert.equal(missing.press('Slash').defaultPrevented, false)
+  assert.deepEqual(missing.calls, [])
 })

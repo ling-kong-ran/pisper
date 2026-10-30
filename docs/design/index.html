@@ -69,6 +69,7 @@ dd { margin: 0; min-width: 0; }
 /* 截图对照 */
 .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .shots.phones { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+@media (min-width: 900px) { .shots.phones { grid-template-columns: repeat(4, 1fr); } }
 figure { margin: 0; display: grid; gap: 8px; min-width: 0; align-content: start; }
 figure button { all: unset; cursor: zoom-in; display: block; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
 figure button:focus-visible { outline: 2px solid var(--run); outline-offset: 2px; }
@@ -108,7 +109,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 第 4 期进行中</div>
+    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 第 4 期已完成</div>
     <h1>Pisper 整体设计</h1>
     <p class="lede">界面设计评审用，不随 Pages 发布。按页面排开：每节左边是定稿时选中的设计稿，右边是已经做出来的界面。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
     <div class="legend"><span>文件夹：drafts/ 设计稿（浅色与深色），built/ 已实现截图</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
@@ -117,7 +118,15 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
   <section aria-labelledby="nav-h">
     <div class="sec-head">
       <h2 id="nav-h">导航：会话做主页</h2>
-      <p class="lede">你刚定下的三条已经排进第 4 期，接在手机会话页之后做，完成后和第 4 期其他内容一起给你看截图。</p>
+      <p class="lede">第 4 期已做完：打开应用回到上次停留的会话，没有可回的就显示新任务草稿。</p>
+    </div>
+    <div class="shots">
+      <figure><button type="button" data-full="built/home-draft-1440-light.png" aria-label="放大：新任务草稿"><img src="built/home-draft-1440-light.png" alt="主页新任务草稿：发出第一条消息时才建会话" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>没有可回的会话：新任务草稿</figcaption></figure>
+      <figure><button type="button" data-full="built/home-last-session-1440-light.png" aria-label="放大：回到上次的会话"><img src="built/home-last-session-1440-light.png" alt="打开应用回到上次停留的会话，标题栏点亮“会话”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>回到上次停留的会话</figcaption></figure>
+      <figure><button type="button" data-full="built/board-1080-titlebar-light.png" aria-label="放大：1080 宽桌面窗口"><img src="built/board-1080-titlebar-light.png" alt="1080 × 680 自绘标题栏，五个标签不溢出" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>1080 × 680 自绘标题栏</figcaption></figure>
     </div>
     <div class="nav-grid">
       <div class="panel">
@@ -128,7 +137,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <dl>
           <dt>打开应用</dt><dd>回到上次停留的会话</dd>
           <dt>没有可回的</dt><dd>显示新任务草稿；发出第一条消息时才建会话</dd>
-          <dt>去看板</dt><dd>泳道条最左侧“看板”、<kbd>⌘B</kbd>、标题栏标签</dd>
+          <dt>去看板</dt><dd>泳道条最左侧“看板”、<kbd>⇧⌘B</kbd>、标题栏标签</dd>
           <dt>换代理</dt><dd>泳道条、<kbd>⌥↑</kbd><kbd>⌥↓</kbd>、<kbd>⌘J</kbd> 代理面板</dd>
         </dl>
       </div>
@@ -148,10 +157,19 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     <ol class="flow-steps">
       <li><b>打开应用</b>：上次停留的会话还在 → 进入该会话</li>
       <li><b>已归档或删除</b> → 新任务草稿，发出第一条消息后才建会话并进入</li>
-      <li><b>会话 → 看板</b>：泳道条最左侧“看板”入口、<kbd>⌘B</kbd>、标题栏“看板”标签</li>
+      <li><b>会话 → 看板</b>：泳道条最左侧“看板”入口、<kbd>⇧⌘B</kbd>、标题栏“看板”标签</li>
       <li><b>看板 → 会话</b>：点卡片；浏览器后退回到看板</li>
       <li><b>会话 → 另一个代理</b>：泳道条、<kbd>⌥↑</kbd><kbd>⌥↓</kbd>、<kbd>⌘J</kbd> 代理面板</li>
     </ol>
+    <ul class="notes">
+      <li class="change">打开看板的默认键是 <kbd>⇧⌘B</kbd>，不是 <kbd>⌘B</kbd>：<kbd>⌘B</kbd> 已被隐藏的“切换侧栏”占用，可在设置里改绑。</li>
+    </ul>
+    <div class="shots">
+      <figure><button type="button" data-full="built/shortcuts-settings-1440-light.png" aria-label="放大：快捷键设置"><img src="built/shortcuts-settings-1440-light.png" alt="设置 → 快捷键：全局、看板、会话三组，可改绑" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>设置 → 快捷键（可改绑）</figcaption></figure>
+      <figure><button type="button" data-full="built/shortcuts-help-1440-light.png" aria-label="放大：快捷键速查"><img src="built/shortcuts-help-1440-light.png" alt="⌘/ 打开的快捷键速查，显示当前绑定" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span><kbd>⌘/</kbd> 快捷键速查</figcaption></figure>
+    </div>
   </section>
 
   <section aria-labelledby="session-h">
@@ -168,12 +186,15 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <figcaption><span class="chip built">已实现 · 第 3 期</span><kbd>⌘J</kbd> 全部代理面板</figcaption></figure>
       <figure><button type="button" data-full="built/session-1080-overlay-light.png" aria-label="放大：1080 宽窗口"><img src="built/session-1080-overlay-light.png" alt="1080 宽窗口下检查器以覆盖层打开" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · 第 3 期</span>1080 × 680，检查器为覆盖层</figcaption></figure>
+      <figure><button type="button" data-full="built/tablet-session-1024-light.png" aria-label="放大：平板会话页"><img src="built/tablet-session-1024-light.png" alt="手机 App 平板 1024 × 768：桌面布局，触屏下泳道条加高" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>平板 1024 × 768（触屏）</figcaption></figure>
     </div>
     <ul class="notes">
       <li>设计稿左边是一列代理；定稿改成顶部泳道条（窄窗口 36px 单行），把宽度留给对话。完整列表用 <kbd>⌘J</kbd> 打开。</li>
       <li>检查器标签：改动、终端、文件、预览、计划。宽度 ≥1280 并排 456px，更窄时是 420px 覆盖层，<kbd>⌘I</kbd> 开关。</li>
       <li>高风险审批在任何网页入口都要按住 0.6 秒确认；TUI 已按你的意见改回按一次 y。</li>
-      <li class="change">泳道条最左边现在是“‹ 看板”返回键，第 4 期改成“看板”入口；标题栏点亮的是“会话”。</li>
+      <li class="change">泳道条最左边从“‹ 看板”返回键改成了“看板”入口；标题栏点亮的是“会话”。</li>
+      <li class="change">只在触屏上（平板、触屏电脑）控件放大到至少 44px：单行泳道条 36→48、会话页头 44→48、检查器标签行 44→52。鼠标设备不变。</li>
       <li class="change">设计稿右下角的“在编辑器打开”按你的决定暂不做。</li>
     </ul>
   </section>
@@ -190,11 +211,13 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <figcaption><span class="chip built">已实现 · 第 2 期</span>事件流驱动</figcaption></figure>
       <figure><button type="button" data-full="built/manage-projects-light.png" aria-label="放大：管理项目"><img src="built/manage-projects-light.png" alt="管理项目对话框：排序、改名、删除" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · 第 2 期</span>管理项目</figcaption></figure>
+      <figure><button type="button" data-full="built/tablet-board-1024-light.png" aria-label="放大：平板看板"><img src="built/tablet-board-1024-light.png" alt="平板 1024 × 768 看板：已完成泳道收成窄条" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>平板 1024 × 768（触屏）</figcaption></figure>
     </div>
     <ul class="notes">
       <li>设计稿顶部的“CI 状态”“今日用量”是固定到看板的组件，在第 5 期做。</li>
       <li>“排队”泳道要等 Runtime 的排队能力，在第 6 期做，现在不显示。</li>
-      <li>没有会话的空项目第 4 期会留在项目列表里（登记的项目）。</li>
+      <li>没有会话的空项目会留在项目列表里（登记的项目），“管理项目”里可以只移除登记。</li>
       <li class="change">看板不再是首页，功能全部保留：点卡片进会话，浏览器后退回看板。</li>
     </ul>
   </section>
@@ -217,15 +240,33 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
   <section aria-labelledby="phone-h">
     <div class="sec-head">
       <h2 id="phone-h">手机</h2>
-      <p class="lede">390 × 844，触控目标至少 44px。第 4 期正在做，完成后把实拍截图补进 built/。</p>
+      <p class="lede">390 × 844，触控目标至少 44px。宽屏下每行第一张是设计稿，后面三张是第 4 期实拍（headless Chromium，不是真机）。</p>
     </div>
     <div class="shots phones">
       <figure><button type="button" data-full="drafts/mobile-session-light.png" aria-label="放大：手机会话设计稿"><img src="drafts/mobile-session-light.png" alt="手机会话设计稿：顶栏、代理条、对话、输入框" loading="lazy"></button>
         <figcaption><span class="chip draft">设计稿</span>会话（主页）</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-session-light.png" aria-label="放大：已实现的手机会话页"><img src="built/phone-session-light.png" alt="已实现的手机会话页：看板 3 入口、代理条、对话、输入框" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>会话</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-session-dark.png" aria-label="放大：手机会话页深色"><img src="built/phone-session-dark.png" alt="手机会话页深色" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>会话（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-changes-sheet-light.png" aria-label="放大：改动底部表单"><img src="built/phone-changes-sheet-light.png" alt="“+N 改动”打开的检查器底部表单" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>“+2 改动”底部表单</figcaption></figure>
       <figure><button type="button" data-full="drafts/mobile-board-light.png" aria-label="放大：手机看板设计稿"><img src="drafts/mobile-board-light.png" alt="手机看板设计稿：泳道跳转条与审批卡片" loading="lazy"></button>
         <figcaption><span class="chip draft">设计稿</span>看板</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-board-light.png" aria-label="放大：已实现的手机看板"><img src="built/phone-board-light.png" alt="已实现的手机看板：跳转条、失败与高风险审批卡、底部标签栏" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>看板</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-board-dark.png" aria-label="放大：手机看板深色"><img src="built/phone-board-dark.png" alt="手机看板深色" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>看板（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-critical-sheet-light.png" aria-label="放大：高风险审批表单"><img src="built/phone-critical-sheet-light.png" alt="代理条上点开高风险审批：允许…需要按住确认" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>代理条操作表单（高风险）</figcaption></figure>
       <figure><button type="button" data-full="drafts/mobile-more-light.png" aria-label="放大：手机更多设计稿"><img src="drafts/mobile-more-light.png" alt="手机更多设计稿：三列分组磁贴" loading="lazy"></button>
         <figcaption><span class="chip draft">设计稿</span>更多</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-more-light.png" aria-label="放大：已实现的更多"><img src="built/phone-more-light.png" alt="已实现的更多页：搜索与分组磁贴" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>更多</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-dispatch-sheet-light.png" aria-label="放大：新任务表单"><img src="built/phone-dispatch-sheet-light.png" alt="中间“＋”打开的新任务表单，输入框占满整行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>“＋ 新任务”表单</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-settings-light.png" aria-label="放大：手机设置"><img src="built/phone-settings-light.png" alt="手机设置页" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · 第 4 期</span>设置</figcaption></figure>
     </div>
     <ul class="notes">
       <li>会话页：点代理条上的芯片打开操作表单，能直接批准、回答、重试别的代理，不用离开当前会话。</li>
@@ -243,7 +284,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     <div class="phases">
       <div class="phase"><span class="n">0–1</span><span class="what">新视觉 token、标题栏外壳、看板 MVP</span><span class="chip built">已推送 bfd689b1</span></div>
       <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
-      <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip wip">进行中</span></div>
+      <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
       <div class="phase"><span class="n">5</span><span class="what">组件工作室、固定到看板的组件</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">6</span><span class="what">ask_user、排队泳道、导出、思考用时、目录变更事件；删除旧外壳要先经你同意</span><span class="chip">未开始</span></div>
     </div>

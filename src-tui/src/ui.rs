@@ -3887,7 +3887,13 @@ fn approval_risk(approval: &Approval) -> (String, Color) {
     )
 }
 
-/// 审批原因行（风险 + 原因）。
+/// critical 审批的醒目徽标样式：红底深色粗体，单色终端下也靠反色区分。
+fn high_risk_badge_style() -> Style {
+    Style::default().fg(BG).bg(RED).add_modifier(Modifier::BOLD)
+}
+
+/// 审批原因行（风险 + 原因）。critical 审批按一次 Y 即批准（没有二次确认），
+/// 所以这里改为红底“HIGH RISK”徽标加红色原因，确保按键前一眼能看到风险。
 fn approval_reason_text(approval: &Approval) -> Text<'static> {
     let (risk, risk_color) = approval_risk(approval);
     let reason = if approval.reason.trim().is_empty() {
@@ -3895,6 +3901,20 @@ fn approval_reason_text(approval: &Approval) -> Text<'static> {
     } else {
         approval.reason.clone()
     };
+    if approval.is_critical() {
+        return Text::from(Line::from(vec![
+            Span::styled(" HIGH RISK ", high_risk_badge_style()),
+            Span::raw(" "),
+            Span::styled(
+                "Reason · ",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                reason,
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
     Text::from(Line::from(vec![
         Span::styled(
             "Risk · ",
@@ -3946,16 +3966,17 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     let Some(approval) = &app.approval else {
         return;
     };
-    let (risk, risk_color) = if approval.is_critical() {
-        // Runtime 的 risk 文案与 severity 不一定一致：critical 一律按 Critical 呈现。
-        ("Critical".to_owned(), RED)
+    // Runtime 的 risk 文案与 severity 不一定一致：critical 一律按红底“HIGH RISK”呈现。
+    let (risk_title, risk_color, risk_title_style) = if approval.is_critical() {
+        ("HIGH RISK".to_owned(), RED, high_risk_badge_style())
     } else {
-        approval_risk(approval)
-    };
-    let risk_title = if risk == "Unspecified" {
-        "Unspecified risk".to_owned()
-    } else {
-        format!("{risk} risk")
+        let (risk, color) = approval_risk(approval);
+        let title = if risk == "Unspecified" {
+            "Unspecified risk".to_owned()
+        } else {
+            format!("{risk} risk")
+        };
+        (title, color, Style::default().fg(color))
     };
     let position = if app.approval_count() > 1 {
         format!("  1/{}", app.approval_count())
@@ -3968,7 +3989,7 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
                 format!(" Approval{position} "),
                 Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(format!(" {risk_title} "), Style::default().fg(risk_color)),
+            Span::styled(format!(" {risk_title} "), risk_title_style),
             Span::styled(
                 format!(" {} ", approval.tool_name),
                 Style::default().fg(TEXT),
@@ -4024,49 +4045,11 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
         );
     }
 
-    let critical = approval.is_critical();
     let mut actions = if app.approval_is_resolving() {
         vec![Span::styled(
             "Resolving approval...",
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         )]
-    } else if app.approval_is_confirming() {
-        // critical 的确认步骤：再按一次才批准，Esc 只退回。
-        vec![
-            Span::styled(
-                "Allow this critical request? ",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "[Y/Enter]",
-                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Allow  ", Style::default().fg(TEXT)),
-            Span::styled("[Esc]", Style::default().fg(MUTED)),
-            Span::styled(" Back  ", Style::default().fg(TEXT)),
-            Span::styled("[N]", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
-            Span::styled(" Deny", Style::default().fg(TEXT)),
-        ]
-    } else if critical {
-        vec![
-            Span::styled(
-                "[N/Esc]",
-                Style::default().fg(RED).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" Deny  ", Style::default().fg(TEXT)),
-            Span::styled(
-                "[Y]",
-                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                if rows[2].width >= 52 {
-                    " Allow… (critical, asks to confirm)"
-                } else {
-                    " Allow…"
-                },
-                Style::default().fg(TEXT),
-            ),
-        ]
     } else if rows[2].width >= 68 {
         vec![
             Span::styled("Press ", Style::default().fg(MUTED)),

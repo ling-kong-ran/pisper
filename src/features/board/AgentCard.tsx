@@ -44,7 +44,9 @@ import {
 import { Kbd } from '@/components/ui/kbd'
 import { getSessionChangeSummary } from '@/features/chat/public-launch'
 import { formatCompactDuration, relativeTime } from '@/lib/format'
+import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { useShortcutStore } from '@/stores/shortcut-store'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import {
@@ -342,6 +344,10 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
   const tone = boardCardTone(item)
   const edge = boardEdgeWidth(item)
   const tabIndex = active ? 0 : -1
+  // 卡片上的键帽与 aria-keyshortcuts 跟随“设置 → 快捷键”里看板单字母键的当前绑定。
+  const approveKey = formatShortcut(useShortcutStore((state) => state.boardBindings.boardApprove))
+  const denyKey = formatShortcut(useShortcutStore((state) => state.boardBindings.boardDeny))
+  const retryKey = formatShortcut(useShortcutStore((state) => state.boardBindings.boardRetry))
   const approval = item.approvals[0] ?? null
   // 标签、按钮样式与实际动作都看同一条审批（第一条）；其余审批的最高等级只在“还有 N 条”里提示。
   const critical = approval?.severity === 'critical'
@@ -397,8 +403,13 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
     )
 
   const open = () => handlers.onOpen(item.id)
+  // 按下落在卡片里的按钮等控件上时，这一次点击不算“打开卡片”：按下到松开之间版面若移动了
+  // （例如泳道的溢出摘要收起），浏览器会把 click 派发给两者的共同祖先，不能因此误开会话。
+  const pressOnControlRef = useRef(false)
   const clickCard = (event: MouseEvent<HTMLElement>) => {
-    if (interactiveTarget(event.target)) return
+    const pressedControl = pressOnControlRef.current
+    pressOnControlRef.current = false
+    if (pressedControl || interactiveTarget(event.target)) return
     open()
   }
   const keyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -533,13 +544,13 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
             tabIndex={tabIndex}
             disabled={approving || denying}
             loading={denying}
-            aria-keyshortcuts="D"
+            aria-keyshortcuts={denyKey || undefined}
             className={cn(phone && 'min-h-11')}
             onClick={() => handlers.onDeny(item, approval)}
           >
             <X aria-hidden="true" />
             {t('board:card.deny')}
-            {!phone && <Kbd className="ml-0.5">D</Kbd>}
+            {!phone && denyKey && <Kbd className="ml-0.5">{denyKey}</Kbd>}
           </Button>
           <Button
             variant={critical ? 'outline' : 'default'}
@@ -547,21 +558,21 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
             tabIndex={tabIndex}
             disabled={approving || denying}
             loading={approving}
-            aria-keyshortcuts="A"
+            aria-keyshortcuts={approveKey || undefined}
             aria-haspopup={critical ? 'dialog' : undefined}
             className={cn(phone && 'min-h-11')}
             onClick={() => handlers.onApprove(item, approval)}
           >
             <Check aria-hidden="true" />
             {critical ? t('board:card.approveCritical') : t('board:card.approve')}
-            {!phone && (
+            {!phone && approveKey && (
               <Kbd
                 className={cn(
                   'ml-0.5',
                   !critical && 'border-transparent bg-on-accent/15 text-on-accent',
                 )}
               >
-                A
+                {approveKey}
               </Kbd>
             )}
           </Button>
@@ -639,14 +650,16 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
               tabIndex={tabIndex}
               loading={retrying}
               disabled={retrying}
-              aria-keyshortcuts="R"
+              aria-keyshortcuts={retryKey || undefined}
               className={cn(phone && 'min-h-11')}
               onClick={() => handlers.onRetry(item)}
             >
               <RotateCcw aria-hidden="true" />
               {t('board:card.retry')}
-              {!phone && (
-                <Kbd className="ml-0.5 border-transparent bg-on-accent/15 text-on-accent">R</Kbd>
+              {!phone && retryKey && (
+                <Kbd className="ml-0.5 border-transparent bg-on-accent/15 text-on-accent">
+                  {retryKey}
+                </Kbd>
               )}
             </Button>
           ) : (
@@ -734,6 +747,9 @@ function AgentCardComponent({ item, now, phone, active, dimmed, handlers }: Agen
       onFocus={(event) => {
         if (event.target === event.currentTarget || event.currentTarget.contains(event.target))
           handlers.onFocusCard(item.id)
+      }}
+      onPointerDownCapture={(event) => {
+        pressOnControlRef.current = interactiveTarget(event.target)
       }}
       onClick={clickCard}
       onKeyDown={keyDown}

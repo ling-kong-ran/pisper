@@ -4,21 +4,17 @@
 // 播报走 aria-live polite，并在 1.2 秒内合并多条，避免一次轮询刷屏。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { BoardLane } from '@shared/session-board-status.mjs'
+import { motionReduced } from '@/lib/motion'
 import type { BoardItem } from './board-model'
+
+// 看板各处沿用从这里导入；判断本身放在 lib，会话页的底部表单退场也用同一份。
+export { motionReduced }
 
 const LANE_EASE = 'cubic-bezier(.19,1,.22,1)'
 const LANE_DURATION_MS = 240
 const PULSE_MS = 600
 const COLLAPSE_MS = 180
 const ANNOUNCE_WINDOW_MS = 1_200
-
-export function motionReduced() {
-  if (typeof document === 'undefined') return true
-  const motion = document.documentElement.dataset.motion
-  if (motion === 'reduced') return true
-  if (motion === 'full') return false
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 function motionAllowed() {
   return !motionReduced() && document.visibilityState !== 'hidden'

@@ -13,6 +13,15 @@ export const SHORTCUT_ACTIONS = Object.freeze([
   'openMore',
   'jumpToAttention',
   'backToBoard',
+  // 会话页：⌘J 代理面板、⌘I 检查器、⌥↑/⌥↓ 切换代理、运行中插话（独立动作，不再由发送键派生）、⌘/ 速查。
+  'agentPanel',
+  'toggleInspector',
+  'previousAgent',
+  'nextAgent',
+  'steerMessage',
+  'shortcutHelp',
+  // 主页改为会话后，会话页泳道条最左侧的“看板”入口（打开看板，push 到 /board）。
+  'showBoard',
 ])
 
 export const DEFAULT_SHORTCUTS = Object.freeze({
@@ -31,6 +40,14 @@ export const DEFAULT_SHORTCUTS = Object.freeze({
   openMore: 'Mod+Digit3',
   jumpToAttention: 'Alt+KeyA',
   backToBoard: 'Mod+BracketLeft',
+  agentPanel: 'Mod+KeyJ',
+  toggleInspector: 'Mod+KeyI',
+  previousAgent: 'Alt+ArrowUp',
+  nextAgent: 'Alt+ArrowDown',
+  steerMessage: 'Alt+Enter',
+  shortcutHelp: 'Mod+Slash',
+  // 负责人要的 ⌘B 已是隐藏动作 toggleSidebar 的默认键（同一张表里不能重复），改用 ⇧⌘B（仍取 Board 的 B）。
+  showBoard: 'Mod+Shift+KeyB',
 })
 
 const MODIFIERS = ['Mod', 'Ctrl', 'Meta', 'Alt', 'Shift']
@@ -116,7 +133,7 @@ function parseShortcut(binding) {
   const parts = binding.split('+')
   const code = parts.pop()
   if (
-    !/^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|F([1-9]|1[0-2])|Enter)$/.test(code) &&
+    !/^(Key[A-Z]|Digit[0-9]|Numpad[0-9]|F([1-9]|1[0-2])|Enter|Arrow(Up|Down))$/.test(code) &&
     !CHARACTER_CODES.has(code)
   ) {
     return null
@@ -140,6 +157,8 @@ function parseShortcut(binding) {
 
 function isAllowed(shortcut, action = null) {
   const { code, primary, alt, shift } = shortcut
+  // 方向键只开放 ⌥↑ / ⌥↓：加 ⌘/Ctrl 或 Shift 是文本跳转与选择，⌥←/→ 是浏览器前进后退。
+  if (code.startsWith('Arrow')) return alt && !primary && !shift
   if (code === 'Enter' && shift && !primary && !alt) return false
   if (alt && (code === 'F4' || code === 'Space')) return false
   if (primary && code === 'F4') return false
@@ -280,7 +299,7 @@ function eventCode(event) {
   if (typeof key !== 'string') return null
   if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
   if (/^[0-9]$/.test(key)) return `Digit${key}`
-  if (key === 'Enter' || /^F([1-9]|1[0-2])$/.test(key)) return key
+  if (/^(Enter|Arrow(Up|Down)|F([1-9]|1[0-2]))$/.test(key)) return key
   return KEY_CODES.get(key) || null
 }
 
@@ -363,6 +382,8 @@ export function formatShortcut(binding, mac = false) {
     NumpadMultiply: 'Num *',
     NumpadDivide: 'Num /',
     NumpadDecimal: 'Num .',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
   }
   const code = shortcut.code
   parts.push(labels[code] || code.replace(/^Key|^Digit/, '').replace(/^Numpad/, 'Num '))

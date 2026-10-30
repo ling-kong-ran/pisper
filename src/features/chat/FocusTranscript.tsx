@@ -9,10 +9,12 @@ import {
   type UIEvent,
   type ReactNode,
 } from 'react'
-import { ArrowDown, GitFork, RefreshCw } from 'lucide-react'
+import { ArrowDown, ChevronRight, GitFork, RefreshCw } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
+import { cn } from '@/lib/utils'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
 import { type SessionOpenRequest } from './dock-layout'
 import {
@@ -22,6 +24,7 @@ import {
   getSessionMessageTarget,
 } from './events'
 import { activityScrollVersion } from './run-activity'
+import { earlierTurnSummary } from './transcript-turns'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 import { WorkbenchGreeting } from './WorkbenchGreeting'
 import { useContextPagesStore } from './session-context-pages-store'
@@ -66,6 +69,8 @@ type FocusTranscriptProps = {
   onRetryLastTurn: () => Promise<void> | void
   onPromptSelect?: (prompt: string) => void
   onWorkspace?: () => void
+  // 手机会话页：只展开最新一轮，之前的对话收成“上一轮”摘要胶囊（规格 7.3），点开显示完整历史。
+  collapseEarlierTurns?: boolean
 }
 
 function TranscriptLoading({ label }: { label: string }) {
@@ -126,8 +131,10 @@ export function FocusTranscript({
   onBranchFromHere,
   onCreateChildSession,
   onRetryLastTurn,
+  collapseEarlierTurns = false,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
+  const [earlierOpen, setEarlierOpen] = useState(false)
   const olderRequestRef = useRef<object | null>(null)
   const [loadingLatest, setLoadingLatest] = useState(false)
   const activeSessionRef = useRef(sessionId)
@@ -138,6 +145,13 @@ export function FocusTranscript({
   }, [sessionId])
   const transcriptPrefixRef = useRef<HTMLDivElement>(null)
   const [targetEntryId, setTargetEntryId] = useState(() => getSessionMessageTarget(sessionId))
+  const earlier = useMemo(
+    () => (collapseEarlierTurns ? earlierTurnSummary(messages, { turnsKnown: !hasOlder }) : null),
+    [collapseEarlierTurns, hasOlder, messages],
+  )
+  // 要跳到某一轮（例如从标签打开）时不收起，否则目标可能落在胶囊里。
+  const collapsed = Boolean(earlier) && !earlierOpen && !targetEntryId
+  const shownMessages = collapsed && earlier ? messages.slice(earlier.latestIndex) : messages
   const lastMessage = messages[messages.length - 1]
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
@@ -248,9 +262,10 @@ export function FocusTranscript({
           conversationScrollTop: event.currentTarget.scrollTop,
         })
       }
-      if (event.currentTarget.scrollTop <= 96) void loadOlder()
+      // 收起更早的对话时不自动翻页：胶囊之上没有可读内容，翻页只会白白拉历史。
+      if (!collapsed && event.currentTarget.scrollTop <= 96) void loadOlder()
     },
-    [loadOlder, sessionId, transcriptLoadState],
+    [collapsed, loadOlder, sessionId, transcriptLoadState],
   )
 
   useLayoutEffect(() => {
@@ -314,7 +329,50 @@ export function FocusTranscript({
               </span>
             </div>
           )}
-          {(hasOlder || loadingOlder || olderError) && (
+          {collapsed && earlier && (
+            <div className="flex justify-center pb-3">
+              <button
+                type="button"
+                data-earlier-turns={earlier.turnBase}
+                aria-expanded={false}
+                aria-label={t('board:phone.earlierTurns', {
+                  summary: [
+                    earlier.previous.turn
+                      ? t('board:transcript.turn', { count: earlier.previous.turn })
+                      : t('board:phone.previousTurn'),
+                    earlier.previous.text,
+                  ]
+                    .filter(Boolean)
+                    .join(' · '),
+                })}
+                className="inline-flex min-h-11 max-w-full min-w-0 items-center gap-1.5 rounded-full px-3 text-xs text-content-muted ring-1 ring-stroke ring-inset transition-colors duration-(--d-fast) hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                onClick={() => setEarlierOpen(true)}
+              >
+                <StatusGlyph
+                  status={earlier.previous.failed ? 'failed' : 'done'}
+                  className={cn(
+                    'size-3.5 flex-none',
+                    earlier.previous.failed ? 'text-st-fail' : 'text-st-done',
+                  )}
+                />
+                <span className="min-w-0 truncate">
+                  {[
+                    earlier.previous.turn
+                      ? t('board:transcript.turn', { count: earlier.previous.turn })
+                      : t('board:phone.previousTurn'),
+                    earlier.previous.text,
+                    earlier.previous.operations
+                      ? t('board:transcript.operations', { count: earlier.previous.operations })
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+                <ChevronRight className="size-3.5 flex-none" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+          {!collapsed && (hasOlder || loadingOlder || olderError) && (
             <div className="history-page-loader flex w-[min(var(--chat-content-width,1040px),100%)] min-h-[42px] items-center justify-center gap-[7px] [margin:0_auto_18px] text-[var(--text-muted)] text-[12px]">
               {olderError ? (
                 <Button
@@ -366,7 +424,7 @@ export function FocusTranscript({
               key={sessionId}
               layoutMeasurementKey={layoutMeasurementKey}
               sessionId={sessionId}
-              messages={messages}
+              messages={shownMessages}
               historical={hasNewer}
               streaming={streaming}
               latestRunProps={latestRunProps}
@@ -384,15 +442,17 @@ export function FocusTranscript({
               onCreateChildSession={onCreateChildSession}
               onRetryLastTurn={onRetryLastTurn}
               turnsKnown={!hasOlder}
+              turnBase={collapsed && earlier ? earlier.turnBase : 0}
             />
           </div>
         )}
       </div>
       {transcriptLoadState === 'ready' && messages.length > 0 && (
-        // 顶部渐隐：滚动中的内容在页头下方柔和淡出，不与页头细线硬切。
+        // 顶部渐隐：滚动中的内容在页头下方柔和淡出，不与页头细线硬切。手机代理条下方没有细线分隔，
+        // 24px 只能盖住半行信息行，加高到 40px。
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-6 bg-linear-to-b from-panel to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-6 bg-linear-to-b from-panel to-transparent max-[650px]:h-10"
         />
       )}
       {(hasUnread || hasNewer) && (

@@ -1,5 +1,7 @@
+// 设置 → 快捷键（规格 2.8）：按“全局 / 看板 / 会话”分组列出全部绑定，分组与 ⌘/ 速查共用
+// shortcut-catalog。可改绑的条目走录制控件；方向键、Enter、Esc、Shift + Enter 等固定别名只读列出。
 import { useState, type KeyboardEvent } from 'react'
-import { ChevronDown, Ellipsis, Keyboard, RotateCcw, X } from 'lucide-react'
+import { Ellipsis, RotateCcw, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -27,20 +29,14 @@ import {
 } from '@/lib/shortcuts'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { SettingsGroup } from './settings-primitives'
-
-const COMMON_SHORTCUTS: ShortcutAction[] = [
-  'voiceInput',
-  'sendMessage',
-  'commandPalette',
-  'primaryAction',
-  'openBoard',
-  'jumpToAttention',
-]
-// 新外壳没有侧栏，“展开 / 收起侧栏”不再有作用；绑定仍保留在存储里，只是不在设置里列出。
-const HIDDEN_SHORTCUTS: ShortcutAction[] = ['toggleSidebar']
-const MORE_SHORTCUTS = SHORTCUT_ACTIONS.filter(
-  (action) => !COMMON_SHORTCUTS.includes(action) && !HIDDEN_SHORTCUTS.includes(action),
-)
+import {
+  HIDDEN_SHORTCUTS,
+  SHORTCUT_GROUPS,
+  shortcutEntryKey,
+  useShortcutCatalogText,
+  type ShortcutEntry,
+} from './shortcut-catalog'
+import { ShortcutKeys } from './ShortcutKeys'
 
 export function ShortcutSettings({
   requestConfirm,
@@ -59,33 +55,9 @@ export function ShortcutSettings({
     message: string
   } | null>(null)
   const [saved, setSaved] = useState(false)
-  const labels: Record<ShortcutAction, string> = {
-    commandPalette: t('config:shortcuts.commandPalette'),
-    primaryAction: t('config:shortcuts.primaryAction'),
-    focusSearch: t('config:shortcuts.focusSearch'),
-    toggleSidebar: t('config:shortcuts.toggleSidebar'),
-    toggleTerminal: t('config:shortcuts.toggleTerminal'),
-    openSettings: t('config:shortcuts.openSettings'),
-    focusComposer: t('config:shortcuts.focusComposer'),
-    sendMessage: t('config:shortcuts.sendMessage'),
-    voiceInput: t('config:shortcuts.voiceInput'),
-    openBoard: t('config:shortcuts.openBoard'),
-    openComponents: t('config:shortcuts.openComponents'),
-    openMore: t('config:shortcuts.openMore'),
-    jumpToAttention: t('config:shortcuts.jumpToAttention'),
-    backToBoard: t('config:shortcuts.backToBoard'),
-  }
-  const boardLabels: Record<BoardShortcutAction, string> = {
-    boardNext: t('config:shortcuts.boardNext'),
-    boardPrevious: t('config:shortcuts.boardPrevious'),
-    boardLaneLeft: t('config:shortcuts.boardLaneLeft'),
-    boardLaneRight: t('config:shortcuts.boardLaneRight'),
-    boardApprove: t('config:shortcuts.boardApprove'),
-    boardDeny: t('config:shortcuts.boardDeny'),
-    boardRetry: t('config:shortcuts.boardRetry'),
-    boardTriage: t('config:shortcuts.boardTriage'),
-    boardToggleGrouping: t('config:shortcuts.boardToggleGrouping'),
-  }
+  const text = useShortcutCatalogText()
+  const labels = text.actions
+  const boardLabels = text.boardActions
   // 看板单字母键：只接受不带修饰键的字母，同表内不能重复。
   const changeBoard = (action: BoardShortcutAction, binding: string | null) => {
     setSaved(false)
@@ -293,15 +265,38 @@ export function ShortcutSettings({
     )
   }
 
+  // 固定别名：只读参考，与可改绑行对齐到同一列，标明“固定”。
+  const renderEntry = (entry: ShortcutEntry) => {
+    if (entry.kind !== 'fixed') return renderShortcut(entry.action)
+    return (
+      <div
+        key={shortcutEntryKey(entry)}
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-2 py-2.5"
+        data-shortcut-fixed={entry.id}
+      >
+        <span className="min-w-0 text-sm text-content-secondary">
+          {text.label(entry)}
+          <span className="ml-1.5 text-xs text-content-muted">{t('board:shortcuts.fixed')}</span>
+        </span>
+        <div className="flex max-w-full min-w-0 items-center gap-1 max-[650px]:w-full">
+          <ShortcutKeys
+            keys={entry.keys}
+            className="h-8.5 w-44 justify-center px-2.5 max-[650px]:flex-1"
+          />
+          {/* 占住“⋯”菜单那一列，键帽与可改绑行的录制框对齐。 */}
+          <span
+            aria-hidden="true"
+            className="size-7 flex-none pointer-coarse:size-11 max-[650px]:size-11"
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section className="w-full min-w-0" data-config-card="shortcuts-bindings">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Keyboard className="size-4 text-content-muted" aria-hidden="true" />
-          <h2 className="text-[15px] leading-6 font-medium text-content">
-            {t('config:configPage.shortcuts')}
-          </h2>
-        </div>
+      {/* 页标题已经是“快捷键”，这里不再重复卡片标题，只留“全部恢复默认”。 */}
+      <div className="mb-1 flex items-center justify-end gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -314,22 +309,24 @@ export function ShortcutSettings({
           <RotateCcw className="size-4" />
         </Button>
       </div>
-      <SettingsGroup>{COMMON_SHORTCUTS.map(renderShortcut)}</SettingsGroup>
-      <details className="group mt-3" onToggle={() => setRecording(null)}>
-        <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1.5 rounded-sm text-sm text-content-secondary hover:text-content max-[650px]:min-h-11 [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="size-4 -rotate-90 text-content-muted transition-transform group-open:rotate-0" />
-          {t('config:shortcuts.more')}
-        </summary>
-        <SettingsGroup className="mt-2">{MORE_SHORTCUTS.map(renderShortcut)}</SettingsGroup>
-      </details>
-      <details className="group/board mt-1" onToggle={() => setRecording(null)}>
-        <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1.5 rounded-sm text-sm text-content-secondary hover:text-content max-[650px]:min-h-11 [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="size-4 -rotate-90 text-content-muted transition-transform group-open/board:rotate-0" />
-          {t('config:shortcuts.boardGroup')}
-        </summary>
-        <p className="mt-1 text-xs text-content-muted">{t('config:shortcuts.boardGroupHint')}</p>
-        <SettingsGroup className="mt-2">{BOARD_SHORTCUT_ACTIONS.map(renderShortcut)}</SettingsGroup>
-      </details>
+      <div className="flex flex-col gap-5">
+        {SHORTCUT_GROUPS.map((group) => (
+          <section
+            key={group.id}
+            aria-labelledby={`shortcut-group-${group.id}`}
+            data-shortcut-group={group.id}
+          >
+            <h3
+              id={`shortcut-group-${group.id}`}
+              className="text-[13px] leading-6 font-semibold text-content"
+            >
+              {text.groups[group.id].title}
+            </h3>
+            <p className="mb-2 text-xs text-content-muted">{text.groups[group.id].hint}</p>
+            <SettingsGroup>{group.entries.map(renderEntry)}</SettingsGroup>
+          </section>
+        ))}
+      </div>
       <div className="mt-3 min-h-5 text-xs text-content-muted" role="status" aria-live="polite">
         {error?.action === null ? (
           <span className="text-destructive">{error.message}</span>

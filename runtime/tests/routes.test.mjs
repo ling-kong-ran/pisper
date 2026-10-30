@@ -7,16 +7,18 @@ import { transformSync } from 'esbuild'
 import { matchRoutes } from 'react-router'
 import * as routes from '../../src/app/routes.ts'
 
-const { legacyHashPath, pageFromPath, pagePath, workflowPath } = routes
+const { HOME_PATH, legacyHashPath, pageFromPath, pagePath, workflowPath } = routes
 const require = createRequire(import.meta.url)
 
 test('page ids map to stable application paths', () => {
-  // 看板是首页：未知页面 id 回到看板；/chat 只保留为兼容入口，由路由层重定向。
+  // 主页是会话（第 4 期负责人决定）：未知页面 id 回到主页 '/'；看板仍是 /board；
+  // /chat 只保留为兼容入口，由路由层重定向到主页。
   assert.equal(pagePath('board'), '/board')
   assert.equal(pagePath('chat'), '/chat')
   assert.equal(pagePath('chatHistory'), '/chat/history')
   assert.equal(pagePath('workflowCreate'), '/workflows/new')
-  assert.equal(pagePath('unknown'), '/board')
+  assert.equal(HOME_PATH, '/')
+  assert.equal(pagePath('unknown'), HOME_PATH)
 })
 
 test('router paths resolve to page ids and tolerate trailing slashes', () => {
@@ -70,7 +72,7 @@ async function routerTable() {
   return { table: module.exports.router, Navigate }
 }
 
-test('home, the retired chat page and unknown paths all land on the board', async () => {
+test('the index renders the session home; the retired chat page and unknown paths land on it', async () => {
   const { table, Navigate } = await routerTable()
   const destination = (path) => {
     const matched = matchRoutes(table, path)
@@ -79,8 +81,11 @@ test('home, the retired chat page and unknown paths all land on the board', asyn
     if (leaf.element?.type === Navigate) return { redirect: leaf.element.props.to }
     return { lazy: leaf.lazy?.displayName || '' }
   }
-  for (const path of ['/', '/chat', '/chat/', '/no-such-page', '/config/models/extra'])
-    assert.deepEqual(destination(path), { redirect: '/board' }, path)
+  // 主页 '/' 是会话主页的懒加载落地（上次停留的会话或新任务草稿），不是重定向；
+  // 旧的 /chat 与未知路径回到主页，任何入口都不再重定向到看板。
+  assert.deepEqual(destination(HOME_PATH), { lazy: 'homeRoute' })
+  for (const path of ['/chat', '/chat/', '/no-such-page', '/config/models/extra'])
+    assert.deepEqual(destination(path), { redirect: HOME_PATH }, path)
   assert.deepEqual(destination('/config'), { redirect: '/config/models' })
   assert.deepEqual(destination('/board'), { lazy: 'boardRoute' })
   assert.deepEqual(destination('/board/abc'), { lazy: 'sessionRoute' })
@@ -88,6 +93,8 @@ test('home, the retired chat page and unknown paths all land on the board', asyn
   assert.deepEqual(destination('/more'), { lazy: 'moreRoute' })
   // 组件标签直接渲染组件管理页，不再反向跳到“设置 → 界面 → 独立组件”。
   assert.deepEqual(destination('/components'), { lazy: 'componentsRoute' })
+  // 组件详情（手机上列表 → 详情各一屏）与组件列表是同一个懒加载路由。
+  assert.deepEqual(destination('/components/game-assets'), { lazy: 'componentsRoute' })
   assert.deepEqual(destination('/tools/components/game-assets'), { lazy: 'customComponentRoute' })
   assert.deepEqual(destination('/chat/history'), { lazy: 'chatHistoryRoute' })
   assert.deepEqual(destination('/config/interface'), { lazy: 'configRoute' })
@@ -100,19 +107,20 @@ test('the retired widgets settings tab and legacy callers redirect to the compon
     jsx: 'automatic',
   }).code
   const Navigate = () => null
+  const Link = () => null
   const render = (search) => {
     const module = { exports: {} }
     const modules = {
       react: require('react'),
       'react/jsx-runtime': require('react/jsx-runtime'),
       'react-router-dom': {
+        Link,
         Navigate,
         useSearchParams: () => [new URLSearchParams(search), () => {}],
       },
       '@/app/routes': routes,
       '@/app/use-i18n': { useI18n: () => ({ t: (key) => key }) },
-      '@/app/i18n': { ensureCustomUiMessages: async () => {} },
-      '@/components/ui/tabs': { Tabs: 'tabs', TabsContent: 'c', TabsList: 'l', TabsTrigger: 't' },
+      // 不再提供标签页组件与 custom-ui 文案加载器：界面设置重新嵌入组件管理或标签页时这里直接报错。
     }
     runInNewContext(code, {
       module,
@@ -122,7 +130,7 @@ test('the retired widgets settings tab and legacy callers redirect to the compon
         return modules[id]
       },
     })
-    return module.exports.ChatAppearancePage({ appearance: 'appearance', notify() {} })
+    return module.exports.ChatAppearancePage({ appearance: 'appearance' })
   }
   for (const search of ['view=widgets', 'view=layout']) {
     const element = render(search)
@@ -130,11 +138,20 @@ test('the retired widgets settings tab and legacy callers redirect to the compon
     assert.equal(element.props.to, '/components')
     assert.equal(element.props.replace, true)
   }
-  assert.notEqual(render('').type, Navigate)
+  // 第 4 期设置重组（规格 2.6）：界面设置不再有“外观 / 独立组件”标签页，外观区之上只有一条
+  // “组件已移到 组件 页 →”链接，组件页之外不再嵌入组件管理视图。
+  const page = render('')
+  assert.notEqual(page.type, Navigate)
+  const children = [page.props.children].flat()
+  const moved = children.find((child) => child?.type === Link)
+  assert.equal(moved?.props.to, '/components')
+  assert.equal(moved?.props['data-components-moved'], true)
+  assert.ok(children.includes('appearance'), 'appearance settings stay on the page')
+  assert.equal(children.length, 2)
   // 这个页面就是 /config/interface 实际渲染的界面设置（配置路由把外观区交给它）。
   assert.match(
     await readFile('src/app/route-elements.tsx', 'utf8'),
-    /renderInterfaceSettings=\{\(appearance\) => \(\s*<ChatAppearancePage appearance=\{appearance\}/,
+    /renderInterfaceSettings=\{\(appearance\) => \(?\s*<ChatAppearancePage appearance=\{appearance\}/,
   )
   // 设置搜索等旧调用方传 view=widgets 时，应用壳直接去组件页而不是落到界面设置。
   const app = await readFile('src/App.tsx', 'utf8')

@@ -526,9 +526,15 @@ export function ChatPage({
                           title={t('navigation:shell.sessionNotFound')}
                           description={t('navigation:shell.sessionNotFoundHint')}
                           action={
-                            <Button variant="secondary" onClick={() => navigate('board')}>
-                              {t('navigation:shell.backToBoardLabel')}
-                            </Button>
+                            pageChrome?.onHome ? (
+                              <Button variant="secondary" onClick={pageChrome.onHome}>
+                                {t('board:home.goHome')}
+                              </Button>
+                            ) : (
+                              <Button variant="secondary" onClick={() => navigate('board')}>
+                                {t('navigation:shell.backToBoardLabel')}
+                              </Button>
+                            )
                           }
                         />
                       ) : routeTarget ? (

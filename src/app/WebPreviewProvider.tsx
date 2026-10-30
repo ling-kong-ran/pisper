@@ -5,7 +5,7 @@
 // 不为了显示网页去新建空会话，直接在外部浏览器打开。
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { pageFromPath, sessionPath } from '@/app/routes'
+import { sessionIdFromPath, sessionPath } from '@/app/routes'
 import { STORAGE_KEYS } from '@/app/storage'
 import { requestWebPreview } from '@/features/chat/web-preview-events'
 import { pageStateStorage } from '@/lib/page-state-storage'
@@ -37,7 +37,8 @@ export function WebPreviewProvider() {
       if (!url) return
       event.preventDefault()
       event.stopPropagation()
-      if (pageFromPath(location.pathname) === 'session') {
+      // 只有会话路由（/board/:id）挂着检查器；主页（'/'）虽归会话页 id，却没有会话可接收预览。
+      if (sessionIdFromPath(location.pathname)) {
         requestWebPreview(url)
         return
       }

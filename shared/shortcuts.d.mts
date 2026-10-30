@@ -13,6 +13,13 @@ export const SHORTCUT_ACTIONS: readonly [
   'openMore',
   'jumpToAttention',
   'backToBoard',
+  'agentPanel',
+  'toggleInspector',
+  'previousAgent',
+  'nextAgent',
+  'steerMessage',
+  'shortcutHelp',
+  'showBoard',
 ]
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]

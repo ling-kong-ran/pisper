@@ -18,6 +18,8 @@ import {
   LANE_MIN_WIDTH,
   LANE_MIN_WIDTH_FLOOR,
   LANE_RAIL_WIDTH,
+  TABLET_COMPACT_LANES,
+  TABLET_FULL_LANES_QUERY,
   boardLaneLayout,
   hiddenBelowCount,
   laneGridTemplate,
@@ -73,6 +75,43 @@ test('empty lanes collapse to 56px rails while non-empty lanes share weighted wi
   )
 })
 
+test('tablet compact lanes rail queued and done but still open on demand', () => {
+  // 规格 7.6：手机 App 平板宽度 960–1179 时只展开需要你与运行中，排队与已完成收成竖条。
+  assert.deepEqual([...TABLET_COMPACT_LANES], ['queued', 'done'])
+  assert.equal(TABLET_FULL_LANES_QUERY, '(min-width: 1180px)')
+  const compact = boardLaneLayout({
+    counts: counts(2, 1, 1, 3),
+    compact: TABLET_COMPACT_LANES,
+  })
+  assert.deepEqual(
+    compact.map(({ lane, mode, railReason }) => [lane, mode, railReason]),
+    [
+      ['attention', 'expanded', null],
+      ['running', 'expanded', null],
+      ['queued', 'rail', 'compact'],
+      ['done', 'rail', 'compact'],
+    ],
+  )
+  // 竖条点开是临时展开；手动折叠的已完成仍按折叠处理。
+  const peeked = boardLaneLayout({
+    counts: counts(2, 1, 1, 3),
+    lanes: ['attention', 'running', 'done'],
+    compact: TABLET_COMPACT_LANES,
+    peeked: ['done'],
+  })
+  assert.deepEqual(
+    peeked.map(({ mode }) => mode),
+    ['expanded', 'expanded', 'expanded'],
+  )
+  const collapsed = boardLaneLayout({
+    counts: counts(2, 1, 0, 3),
+    lanes: ['attention', 'running', 'done'],
+    compact: TABLET_COMPACT_LANES,
+    collapsed: ['done'],
+  })
+  assert.equal(collapsed[2].railReason, 'collapsed')
+})
+
 test('a lone expanded lane fills the remaining width instead of a fraction of it', () => {
   // 今天没有活动时只展开已完成泳道：.9fr 单独使用只会分走 90% 的剩余空间，右侧留出一条空白。
   const layout = boardLaneLayout({
@@ -102,6 +141,33 @@ test('done lane caps at 20 cards and long lanes switch to virtual lists', () => 
   assert.equal(laneShouldVirtualize(30), false)
   assert.equal(laneShouldVirtualize(31), true)
   assert.equal(hiddenBelowCount([100, 380, 420, 900], 400), 2)
+})
+
+// smoke-board-ui 偶发“点 fx-standard 的允许却打开了会话页”（第 4 期查清）：按下按钮时卡片获得焦点，
+// 泳道重新渲染时把早已排好的溢出摘要收起，滚到底的滚动区变高 36px，按钮在按下与松开之间下移，
+// click 被派发到两者的共同祖先（卡片正文）→ 打开会话。两层保护：
+// 1) 泳道在按住期间冻结屏幕上的溢出摘要，松开或取消后再显示最新测量；
+// 2) 卡片记住按下是否落在控件上，这样的点击永远不当作“打开卡片”。
+test('a press that starts on a card control never opens the session, and lanes hold still while pressed', async () => {
+  const lane = await readFile('src/features/board/LaneColumn.tsx', 'utf8')
+  assert.match(lane, /const overflowCount = frozenHidden \?\? hidden/)
+  assert.match(lane, /\{overflowCount > 0 && \(/)
+  assert.doesNotMatch(lane, /\{hidden > 0 && \(/, 'the footer must render the frozen count')
+  assert.match(
+    lane,
+    /onPointerDownCapture=\{\(\) => \{\s*pressedRef\.current = true\s*setFrozenHidden\(shownOverflowRef\.current\)/,
+  )
+  for (const type of ['pointerup', 'pointercancel'])
+    assert.match(lane, new RegExp(`window\\.addEventListener\\('${type}', release, true\\)`))
+  const card = await readFile('src/features/board/AgentCard.tsx', 'utf8')
+  assert.match(
+    card,
+    /onPointerDownCapture=\{\(event\) => \{\s*pressOnControlRef\.current = interactiveTarget\(event\.target\)/,
+  )
+  assert.match(
+    card,
+    /if \(pressedControl \|\| interactiveTarget\(event\.target\)\) return\s*open\(\)/,
+  )
 })
 
 test('card presentation shows only data the runtime provides', () => {

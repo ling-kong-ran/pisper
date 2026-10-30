@@ -215,6 +215,15 @@ test('board and new shell sources never need the bare colour allowlist', async (
     'src/components/layout/SettingsSectionNav.tsx',
     'src/components/ui/chip.tsx',
     'src/components/ui/segmented-control.tsx',
+    // 第 4 期：会话主页、看板入口、手机会话页顶栏与底部表单、更多角标、快捷键速查。
+    'src/app/BoardEntry.tsx',
+    'src/app/SessionHome.tsx',
+    'src/app/useMoreTileBadges.ts',
+    'src/components/app/SheetDragHandle.tsx',
+    'src/features/chat/SessionPhoneHeader.tsx',
+    'src/features/chat/session-header-menu.tsx',
+    'src/features/config/ShortcutHelpDialog.tsx',
+    'src/features/config/ShortcutKeys.tsx',
   ]
   const boardFiles = (await sourceFiles(path.resolve('src/features/board'), /\.(?:ts|tsx)$/)).map(
     (file) => path.relative(process.cwd(), file).split(path.sep).join('/'),

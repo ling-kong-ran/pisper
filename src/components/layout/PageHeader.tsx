@@ -1,5 +1,7 @@
 // 页头：48px 面包屑顶栏（所属标签 / 当前页）+ 搜索框 + 主操作按钮 + 主题/终端等工具。
-// 设置分区在顶栏下方另起 20/600 页标题；手机宽度改为 52px 居中标题栏 + 一行搜索与主操作。
+// 设置分区在顶栏下方另起 20/600 页标题；手机宽度与看板、更多同一套页头：56px 行内左对齐的 24/650 标题
+// + 12px 说明，从“更多”进入时左侧是 44px 的“‹ 更多”文字返回键；下面一行是搜索与主操作。
+// 手机页头不放主题键（主题在“设置 → 界面”）。
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
 // 从“更多”进入的功能页，面包屑上一级是可点的“‹ 更多”；窗口按钮已移到应用标题栏，页头不再为它留白。
 import type { ReactNode, RefObject } from 'react'
@@ -106,13 +108,14 @@ export function PageHeader({
         : primaryActions[page]
   const desktop = Boolean(desktopPlatform)
   // 面包屑上一级：归设置的页面归「设置」，“更多”里的功能页归「更多」（可点返回）；
-  // 一级标签页（组件、更多本身）没有上一级。
+  // 一级标签页（组件、更多本身）没有上一级。手机没有“组件”标签，组件页从“更多”进入，
+  // 应用壳此时传入 onBackToMore，同样显示“‹ 更多”。
   const parent =
     page === 'chat'
       ? ''
       : (settingsOwned ?? SETTINGS_PAGES.has(page))
         ? t('navigation:navigation.settings')
-        : MORE_PAGES.has(page)
+        : MORE_PAGES.has(page) || onBackToMore
           ? t('navigation:shell.more')
           : ''
   // 设置分区的语义标题是下方 20/600 大标题（随界面字号等比缩放）；顶栏里的当前项只作面包屑显示。
@@ -138,22 +141,23 @@ export function PageHeader({
         <div
           className={cn(
             'mr-auto flex min-w-0 items-center gap-1.5 text-[13px]',
-            // 手机：52px 居中标题 + 12px 说明；两侧各让出 44px 给抽屉键与主题键。
-            'max-[650px]:h-[52px] max-[650px]:basis-full max-[650px]:flex-col max-[650px]:justify-center max-[650px]:gap-0 max-[650px]:px-11 max-[650px]:text-center',
+            // 手机：56px 行，左对齐大标题，说明跟在标题后（放不下时先截说明）。
+            'max-[650px]:h-14 max-[650px]:basis-full max-[650px]:gap-2',
             page === 'chat' && 'max-[650px]:h-auto max-[650px]:basis-auto max-[650px]:px-0',
           )}
         >
           {parent && onBackToMore && !(settingsOwned ?? SETTINGS_PAGES.has(page)) ? (
             <>
-              {/* 桌面是面包屑里的“‹ 更多”；手机收成标题左侧 44px 的返回键，与居中标题同一行。 */}
+              {/* 桌面是面包屑里的“‹ 更多”；手机是标题左侧 44px 高的文字返回键（规格 2.1）。 */}
               <button
                 type="button"
-                className="-ml-1.5 flex h-7 shrink-0 items-center gap-0.5 rounded-sm pr-1.5 pl-1 text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:absolute max-[650px]:top-1 max-[650px]:left-1 max-[650px]:ml-0 max-[650px]:size-11 max-[650px]:justify-center max-[650px]:px-0"
+                data-back-to-more
+                className="-ml-1.5 flex h-7 shrink-0 items-center gap-0.5 rounded-sm pr-1.5 pl-1 text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:-ml-3 max-[650px]:h-11 max-[650px]:min-w-11 max-[650px]:pr-2 max-[650px]:text-sm max-[650px]:text-content-secondary"
                 aria-label={t('navigation:shell.backToMoreLabel')}
                 onClick={onBackToMore}
               >
-                <ChevronLeft className="size-4 max-[650px]:size-[22px]" aria-hidden="true" />
-                <span className="max-[650px]:sr-only">{parent}</span>
+                <ChevronLeft className="size-4 max-[650px]:size-5" aria-hidden="true" />
+                <span>{parent}</span>
               </button>
               <span aria-hidden="true" className="shrink-0 text-content-faint max-[650px]:hidden">
                 /
@@ -169,12 +173,12 @@ export function PageHeader({
               </>
             )
           )}
-          <CurrentCrumb className="max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:text-base max-[650px]:font-semibold max-[650px]:tracking-[-.01em]">
+          <CurrentCrumb className="max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:min-w-0 max-[650px]:text-2xl max-[650px]:leading-8 max-[650px]:font-[650] max-[650px]:tracking-[-.015em]">
             {meta[0]}
           </CurrentCrumb>
-          {/* 页面说明：桌面跟在标题后作次要文字，窄于 900px 时收起；手机作为居中标题下的副标题行。 */}
+          {/* 页面说明：桌面跟在标题后作次要文字，窄于 900px 时收起；手机跟在大标题后，只占剩余宽度。 */}
           {page !== 'chat' && page !== 'config' && meta[1] && (
-            <p className="ml-1.5 min-w-0 truncate text-xs text-content-muted max-[900px]:hidden max-[650px]:ml-0 max-[650px]:block max-[650px]:max-w-full">
+            <p className="ml-1.5 min-w-0 truncate text-xs text-content-muted max-[900px]:hidden max-[650px]:ml-0 max-[650px]:block max-[650px]:flex-1 max-[650px]:basis-0">
               {meta[1]}
             </p>
           )}
@@ -293,10 +297,7 @@ export function PageHeader({
               compact
               theme={theme}
               onCycle={onCycleTheme}
-              className={cn(
-                page !== 'chat' &&
-                  'pointer-coarse:size-11 max-[650px]:absolute max-[650px]:top-1 max-[650px]:right-1 max-[650px]:size-11',
-              )}
+              className={cn(page !== 'chat' && 'pointer-coarse:size-11 max-[650px]:hidden')}
             />
           )}
         </div>

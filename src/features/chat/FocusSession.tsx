@@ -3,6 +3,7 @@ import { Fragment, useContext, useMemo } from 'react'
 import { SessionRouteLeading } from './session-route-chrome'
 import { SessionPageChromeContext, TranscriptMetaContext } from './session-workspace-context'
 import { SessionPageHeader } from './SessionPageHeader'
+import { SessionPhoneHeader } from './SessionPhoneHeader'
 import { TaskWorkspaceSlots } from './task-workspace-context'
 // 聚焦会话视图：单会话沉浸式聊天页（大输入框 + 完整转录）。
 // 拆分说明：props 类型在 focus-session-props，composer 状态与提交逻辑在
@@ -14,6 +15,7 @@ import {
   AudioLines,
   Braces,
   Command,
+  CornerDownRight,
   FolderOpen,
   PanelRightClose,
   PanelRightOpen,
@@ -76,7 +78,6 @@ import type { FocusSessionProps } from '@/features/chat/focus-session-props'
 import { useFocusSessionStatusLabel } from '@/features/chat/focus-session-status'
 import { useComposerToolbarCapacity } from '@/features/chat/use-composer-toolbar-capacity'
 import { useFocusComposer } from '@/features/chat/use-focus-composer'
-import { steerBindingFor } from '@/features/chat/composer-run-input'
 import { useComposerToolbarStore } from '@/features/chat/composer-toolbar-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import {
@@ -213,8 +214,12 @@ export const FocusSession = memo(function FocusSession({
   const slots = useContext(TaskWorkspaceSlots)
   // 会话页（路由模式）的返回入口：放在顶栏最左侧，不再单独占一行。
   const routeLeading = useContext(SessionRouteLeading)
-  // 会话页（桌面布局）：页头换成 44px 会话页头，返回入口在泳道条上。
+  // 会话页：桌面布局的页头换成 44px 会话页头，返回入口在泳道条上；
+  // 手机外壳（pageChrome.phone）换成 56px 顶栏，返回入口在顶栏左侧。
   const pageChrome = useContext(SessionPageChromeContext)
+  const phonePage = Boolean(pageChrome?.phone)
+  // 桌面会话页独有的部分：运行条读数、工具条上的语音键与“↵ 排队 · ⌥↵ 插话”提示。
+  const deskPage = Boolean(pageChrome) && !phonePage
   const { t, language } = useI18n()
   const cycleTheme = useUiStore((state) => state.cycleTheme)
   const theme = useUiStore((state) => state.theme)
@@ -245,19 +250,21 @@ export const FocusSession = memo(function FocusSession({
   const panelRootRef = useRef<HTMLDivElement>(null)
   // 会话页运行中：↵ 排队（followUp）、⌥↵ 插话（steer）。提交前记下这次的方式，表单提交时读取后复位。
   const runningBehaviorRef = useRef<'followUp' | 'steer'>('followUp')
-  const steerShortcut = steerBindingFor(shortcuts.sendMessage)
+  // 插话键是独立绑定（默认 ⌥↵，可在设置里改绑或禁用），不再由发送键派生。
+  const steerShortcut = shortcuts.steerMessage
+  // 触屏没有 ⌥：手机会话页运行中长按发送键或在“+”托盘里选“插话发送”，都走同一条提交路径。
+  const submitSteer = () => {
+    runningBehaviorRef.current = 'steer'
+    promptRef.current?.form?.requestSubmit()
+  }
   const SEND_SHORTCUT = useShortcutLabel('sendMessage')
   // 语音实时转写与草稿的合并基准：录音开始时记住原文本，部分转写反复覆盖增量段。
   const voiceDraftBaseRef = useRef<string | null>(null)
   useEffect(() => {
     if (!shortcutEnabled) return
     const focusComposer = (event: KeyboardEvent) => {
-      // 语音键在详情行里时，语音快捷键先把详情行展开；会话页的语音键常驻工具条，不需要。
-      if (
-        !pageChrome &&
-        !shortcutEventBlocked(event) &&
-        matchesShortcut(event, shortcuts.voiceInput)
-      )
+      // 语音键在详情行里时，语音快捷键先把详情行展开；桌面会话页的语音键常驻工具条，不需要。
+      if (!deskPage && !shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.voiceInput))
         setDetailsOpen(true)
       if (!shortcutEventBlocked(event) && matchesShortcut(event, shortcuts.focusComposer)) {
         event.preventDefault()
@@ -266,7 +273,7 @@ export const FocusSession = memo(function FocusSession({
     }
     window.addEventListener('keydown', focusComposer)
     return () => window.removeEventListener('keydown', focusComposer)
-  }, [pageChrome, shortcutEnabled, shortcuts.focusComposer, shortcuts.voiceInput])
+  }, [deskPage, shortcutEnabled, shortcuts.focusComposer, shortcuts.voiceInput])
   const toolbarRef = useRef<HTMLDivElement>(null)
   const toolTrayAnchorRef = useRef<HTMLButtonElement>(null)
   const toolTrayMenuRef = useRef<HTMLDivElement>(null)
@@ -294,16 +301,18 @@ export const FocusSession = memo(function FocusSession({
   const quickActionsLabel = toolsOpen
     ? t('chat:focusSession.collapseQuickActions')
     : t('chat:focusSession.expandQuickActions')
-  // 会话页（桌面布局）的输入框：“描述下一步，/ 使用命令”（规格 4.3）；运行中的 ↵ / ⌥↵ 写在工具条提示里。
+  // 会话页的输入框（桌面与手机外壳）：“描述下一步，/ 使用命令”（规格 4.3 / 7.3）；
+  // 桌面运行中的 ↵ / ⌥↵ 写在工具条提示里，手机的插话在发送键长按与“+”托盘里。
+  const pagePlaceholder = pageChrome ? t('board:composer.placeholder') : ''
   const composerPlaceholder = mobileLayout
-    ? streaming
-      ? t('chat:focusSession.addGuidanceForTheRunningAgent')
-      : t('chat:workbench.composerPlaceholder')
-    : pageChrome
-      ? t('board:composer.placeholder')
-      : streaming
+    ? pagePlaceholder ||
+      (streaming
+        ? t('chat:focusSession.addGuidanceForTheRunningAgent')
+        : t('chat:workbench.composerPlaceholder'))
+    : pagePlaceholder ||
+      (streaming
         ? t('chat:focusSession.runningAgentComposerHint')
-        : t('chat:focusSession.composerHint')
+        : t('chat:focusSession.composerHint'))
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
 
@@ -371,8 +380,11 @@ export const FocusSession = memo(function FocusSession({
       if (event.key === 'Escape' && escapeLayerOpen()) layered.add(event)
     }
     const bubble = (event: KeyboardEvent) => {
+      // 原生返回键（Android、手机 App 平板）由 BackNavigation 合成一个 Esc 交给浮层：
+      // 它不是用户按下的 Esc，不能被当成“停止运行”，没有浮层时要落到路由返回。
       if (
         event.key !== 'Escape' ||
+        !event.isTrusted ||
         event.defaultPrevented ||
         event.isComposing ||
         event.keyCode === 229 ||
@@ -423,11 +435,12 @@ export const FocusSession = memo(function FocusSession({
     () => (pageChrome ? { model: modelLabel, approvalMode: approvalModeLabel } : null),
     [approvalModeLabel, modelLabel, pageChrome],
   )
-  // 运行条读数只在会话页显示；数值都来自会话已有的用量快照，拿不到的项不显示。
+  // 运行条读数只在桌面会话页显示（手机运行条只有“运行中 · 工具 · 时长 [停止]”）；
+  // 数值都来自会话已有的用量快照，拿不到的项不显示。
   const contextPercent = Number(contextUsage?.percent)
   const processedTokens = Number(sessionUsage?.processedTokens)
   const cacheHitRate = Number(sessionUsage?.cacheHitRate)
-  const runMetrics = pageChrome
+  const runMetrics = deskPage
     ? {
         contextPercent:
           contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null,
@@ -641,9 +654,9 @@ export const FocusSession = memo(function FocusSession({
   )
   // 会话页运行中提示“↵ 排队 · ⌥↵ 插话”只在运行中、工具区放得下时出现（触屏另由样式隐藏）。
   const runningHintVisible = Boolean(
-    pageChrome && streaming && steerShortcut && toolbarCapacity >= 15.5,
+    deskPage && streaming && steerShortcut && toolbarCapacity >= 15.5,
   )
-  const composerExtras = pageChrome ? (
+  const composerExtras = deskPage ? (
     <>
       <div
         className="composer-toolbar-slot flex flex-none items-center"
@@ -674,7 +687,7 @@ export const FocusSession = memo(function FocusSession({
     // Respect the actual composer width; small layouts may move secondary settings into +.
     // 会话页的语音键与运行中提示也占工具区：先扣掉它们，再按槽位分配其余工具。
     Math.max(
-      toolbarCapacity - (pageChrome ? 1 : 0) - (runningHintVisible ? 6 : 0),
+      toolbarCapacity - (deskPage ? 1 : 0) - (runningHintVisible ? 6 : 0),
       mobileLayout ? 5 : 8.5,
     ),
     // 按 40px 槽位计：窄屏审批芯片约 70px、执行模式图标 48px，模型按「名称 · 思考等级」的理想宽度计。
@@ -755,6 +768,37 @@ export const FocusSession = memo(function FocusSession({
         {t('navigation:pageHeader.toggleTerminal')}
       </DropdownMenuItem>
     )
+  // 两种会话页头共用的数据与操作（菜单项都复用现有实现）。
+  const sessionHeaderProps = {
+    session,
+    cwd: cwd || '',
+    streaming: Boolean(streaming),
+    runStartedAt,
+    approvals: approvals.length,
+    failed: Boolean(!streaming && (error || latestAgentMessage?.error)),
+    stopped: Boolean(!streaming && runStopped),
+    treeAvailable: messages.length > 0,
+    onRename,
+    onWorkspace,
+    workspaceDisabled: Boolean(streaming || switchingCwd),
+    onCompact: onCompact ? () => void compactContext() : undefined,
+    compactDisabled: Boolean(
+      streaming || compactingManually || compaction?.active || messages.length === 0,
+    ),
+    goalAvailable: goalsAvailable,
+    goalEngaged: composerExecutionMode === 'goal',
+    goalDisabled: Boolean(streaming),
+    onToggleGoal: () => changeExecutionMode(composerExecutionMode === 'goal' ? 'plan' : 'goal'),
+    workflowsAvailable,
+    onVoiceMode: () => setVoiceModeOpen(true),
+    notify: notify ?? (() => undefined),
+    extraItems: (
+      <>
+        {terminalMenuItem}
+        <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
+      </>
+    ),
+  }
   const pageHeaderBlock = pageChrome && (
     <SessionTreeControl
       visible={messages.length > 0}
@@ -771,52 +815,32 @@ export const FocusSession = memo(function FocusSession({
       }}
       onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
     >
-      {(_recallItem, tree) => (
-        <SessionPageHeader
-          session={session}
-          cwd={cwd || ''}
-          streaming={Boolean(streaming)}
-          runStartedAt={runStartedAt}
-          approvals={approvals.length}
-          failed={Boolean(!streaming && (error || latestAgentMessage?.error))}
-          stopped={Boolean(!streaming && runStopped)}
-          usage={
-            <ContextUsageIndicator
-              usage={contextUsage}
-              sessionUsage={sessionUsage}
-              model={model}
-              availableModels={availableModels}
-              onThresholdChange={onCompactionThresholdChange}
-              compact
-            />
-          }
-          treeAvailable={messages.length > 0}
-          branches={tree.branches}
-          onOpenTree={tree.open}
-          onRename={onRename}
-          onWorkspace={onWorkspace}
-          workspaceDisabled={Boolean(streaming || switchingCwd)}
-          onCompact={onCompact ? () => void compactContext() : undefined}
-          compactDisabled={Boolean(
-            streaming || compactingManually || compaction?.active || messages.length === 0,
-          )}
-          goalAvailable={goalsAvailable}
-          goalEngaged={composerExecutionMode === 'goal'}
-          goalDisabled={Boolean(streaming)}
-          onToggleGoal={() =>
-            changeExecutionMode(composerExecutionMode === 'goal' ? 'plan' : 'goal')
-          }
-          workflowsAvailable={workflowsAvailable}
-          onVoiceMode={() => setVoiceModeOpen(true)}
-          notify={notify ?? (() => undefined)}
-          extraItems={
-            <>
-              {terminalMenuItem}
-              <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
-            </>
-          }
-        />
-      )}
+      {(_recallItem, tree) =>
+        phonePage ? (
+          <SessionPhoneHeader
+            {...sessionHeaderProps}
+            leading={routeLeading}
+            branches={tree.branches}
+            onOpenTree={tree.open}
+          />
+        ) : (
+          <SessionPageHeader
+            {...sessionHeaderProps}
+            usage={
+              <ContextUsageIndicator
+                usage={contextUsage}
+                sessionUsage={sessionUsage}
+                model={model}
+                availableModels={availableModels}
+                onThresholdChange={onCompactionThresholdChange}
+                compact
+              />
+            }
+            branches={tree.branches}
+            onOpenTree={tree.open}
+          />
+        )
+      }
     </SessionTreeControl>
   )
   const headerBlock = pageHeaderBlock || (
@@ -961,6 +985,7 @@ export const FocusSession = memo(function FocusSession({
       onRetryLastTurn={onRetryLastTurn}
       onPromptSelect={applyWelcomeChip}
       onWorkspace={onWorkspace}
+      collapseEarlierTurns={phonePage}
     />
   )
   const toolsBlock = (
@@ -992,6 +1017,28 @@ export const FocusSession = memo(function FocusSession({
         anchorRef={toolTrayAnchorRef}
         menuRef={toolTrayMenuRef}
       >
+        {phonePage && streaming && (
+          <button
+            type="button"
+            data-composer-steer
+            className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-sm pr-2 text-left text-[13px] text-content hover:bg-surface-hover disabled:cursor-default disabled:opacity-50"
+            disabled={!value.trim() && !selection.attachments.length && !invocation}
+            onClick={() => {
+              setToolsOpen(false)
+              submitSteer()
+            }}
+          >
+            <span className="grid size-11 shrink-0 place-items-center text-content-muted">
+              <CornerDownRight size={16} aria-hidden="true" />
+            </span>
+            <span className="grid min-w-0">
+              <span>{t('board:composer.steerNow')}</span>
+              <span className="truncate text-xs text-content-muted">
+                {t('board:composer.steerHint')}
+              </span>
+            </span>
+          </button>
+        )}
         {toolbarAllocation.overflow.map(renderComposerTool)}
         <button
           type="button"
@@ -1198,6 +1245,8 @@ export const FocusSession = memo(function FocusSession({
                 queueing ||
                 (!value.trim() && !selection.attachments.length && !invocation))
             }
+            onLongPress={phonePage && streaming ? submitSteer : undefined}
+            longPressHint={t('board:composer.longPressSteer')}
           />
         </div>
       </div>
@@ -1237,7 +1286,7 @@ export const FocusSession = memo(function FocusSession({
             >
               <AudioLines size={17} />
             </button>
-            {!pageChrome && voiceInput}
+            {!deskPage && voiceInput}
           </>
         </div>
       </div>

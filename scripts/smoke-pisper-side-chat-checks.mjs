@@ -60,6 +60,20 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
       )
       return
     }
+    // 第 4 期手机会话页：⋯ → 侧聊，在检查器底部表单里打开侧聊标签。
+    const phoneHeader = page.locator('[data-session-header="phone"]')
+    if (await phoneHeader.isVisible()) {
+      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+      await page.getByRole('menuitem', { name: '侧聊', exact: true }).click()
+      await input.waitFor()
+      assert.equal(
+        await page
+          .locator('[data-inspector-sheet] [data-inspector-tab-id="side-chat"]')
+          .getAttribute('aria-selected'),
+        'true',
+      )
+      return
+    }
     const add = page.getByRole('button', { name: '新增辅助页面', exact: true })
     if (!(await add.isVisible())) {
       await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
@@ -170,8 +184,8 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     await page.setViewportSize({ width: 390, height: 844 })
     // 手机外壳下会话页使用单面内容视图；返回只隐藏内容，保留临时聊天状态。
     await page.locator('html[data-phone-shell]').waitFor({ state: 'attached' })
-    await mainInput.waitFor({ state: 'hidden' })
-    await page.locator('[data-session-context-panel]').waitFor()
+    await page.locator('[data-session-header="phone"]').waitFor()
+    await openSideChat()
     assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
     await panel.waitFor({ state: 'hidden' })
     await openSideChat()

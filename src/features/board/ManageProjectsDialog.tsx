@@ -1,8 +1,17 @@
-// 管理项目：列出完整会话目录里的全部项目（含只剩归档会话的），可以调整顺序、改显示名、
-// 恢复目录名和删除项目。顺序与显示名写进 workspace-order-store，看板页头、按项目分组与启动台共用；
-// 删除沿用原侧栏的确认文案与“连同会话一起删除”的接口（经 useProjectCommands → project-actions）。
+// 管理项目：列出完整会话目录里的全部项目（含只剩归档会话的）与还没有会话的登记项目，
+// 可以调整顺序、改显示名、恢复目录名，以及删除或移除项目。顺序与显示名写进 workspace-order-store，
+// 看板页头、按项目分组与启动台共用。有会话的项目“连同会话一起删除”沿用原侧栏的确认文案与接口
+// （经 useProjectCommands → project-actions）；没有会话的登记项目只是“移除项目”（取消登记）。
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, FolderPlus, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  FolderMinus,
+  FolderPlus,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,24 +24,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrbitSpinner } from '@/components/ui/spinner'
-import { groupSessionsByWorkspace, NO_WORKSPACE_KEY } from '@/features/chat/session-workspaces'
+import { useRegisteredProjectsStore } from '@/features/chat/registered-projects-store'
+import { NO_WORKSPACE_KEY } from '@/features/chat/session-workspaces'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { cn } from '@/lib/utils'
-import { sortProjectsByOrder } from './board-model'
-import { projectLabel, shortPath } from './card-presentation'
+import { managedProjects, type ManagedProject } from './board-projects'
+import { shortPath } from './card-presentation'
 import type { ProjectCommands } from './useProjectCommands'
 import { useSessionListQuery } from './useSessionListQuery'
 
 type CatalogSession = { id: string; cwd?: string }
-
-export type ManagedProject = {
-  key: string
-  cwd: string
-  label: string
-  folderLabel: string
-  custom: boolean
-  count: number
-}
 
 type ManageProjectsDialogProps = {
   open: boolean
@@ -48,31 +49,27 @@ export function ManageProjectsDialog({ open, onOpenChange, commands }: ManagePro
   const catalog = useSessionListQuery<{ sessions: CatalogSession[] }>()
   const order = useWorkspaceOrderStore((state) => state.order)
   const names = useWorkspaceOrderStore((state) => state.names)
+  const registered = useRegisteredProjectsStore((state) => state.projects)
   const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
   const moveWorkspace = useWorkspaceOrderStore((state) => state.moveWorkspace)
   const listRef = useRef<HTMLUListElement>(null)
   const doneRef = useRef<HTMLButtonElement>(null)
   // 上移 / 下移后行的 DOM 会被搬动，焦点要跟着回到同一行的同一个按钮（到边界时换成另一个方向）。
   const [focusTarget, setFocusTarget] = useState<{ key: string; offset: -1 | 1 } | null>(null)
+  // 删除或移除一行后，它的按钮随行消失：焦点交给补上来的相邻行的同一个键，没有了就交给“完成”。
+  const [removedFocus, setRemovedFocus] = useState<{ key: string; next: string } | null>(null)
 
-  const projects = useMemo<ManagedProject[]>(() => {
-    const groups = groupSessionsByWorkspace(catalog.data?.sessions ?? [])
-    return sortProjectsByOrder(
-      groups.map((group) => {
-        const folderLabel = group.cwd ? projectLabel(group.cwd) : t('board:filter.noProject')
-        const custom = group.key !== NO_WORKSPACE_KEY ? names[group.key] || '' : ''
-        return {
-          key: group.key,
-          cwd: group.cwd,
-          label: custom || folderLabel,
-          folderLabel,
-          custom: Boolean(custom),
-          count: group.sessions.length,
-        }
-      }),
-      order,
-    )
-  }, [catalog.data, names, order, t])
+  const projects = useMemo(
+    () =>
+      managedProjects(
+        catalog.data?.sessions ?? [],
+        registered,
+        names,
+        order,
+        t('board:filter.noProject'),
+      ),
+    [catalog.data, names, order, registered, t],
+  )
   const keys = useMemo(() => projects.map((project) => project.key), [projects])
 
   // 打开时把当前看到的顺序写进偏好：之后的上移 / 下移与看板页头都以它为准。
@@ -95,9 +92,29 @@ export function ManageProjectsDialog({ open, onOpenChange, commands }: ManagePro
     setFocusTarget(null)
   }, [focusTarget, projects])
 
+  useEffect(() => {
+    if (!removedFocus) return
+    setRemovedFocus(null)
+    // 行还在（取消、失败或只删了一部分）：焦点留在原处。
+    if (projects.some((project) => project.key === removedFocus.key)) return
+    const next = removedFocus.next
+      ? listRef.current?.querySelector<HTMLButtonElement>(
+          `[data-project-remove][data-project-key="${CSS.escape(removedFocus.next)}"]`,
+        )
+      : null
+    ;(next ?? doneRef.current)?.focus()
+  }, [projects, removedFocus])
+
   const move = (project: ManagedProject, offset: -1 | 1) => {
     moveWorkspace(project.key, offset, keys)
     setFocusTarget({ key: project.key, offset })
+  }
+
+  const removeRow = async (project: ManagedProject, index: number) => {
+    const next = projects[index + 1]?.key ?? projects[index - 1]?.key ?? ''
+    if (project.count === 0) commands.unregister(project)
+    else await commands.remove(project)
+    setRemovedFocus({ key: project.key, next })
   }
 
   const deleting = Boolean(commands.busyKey)
@@ -136,10 +153,16 @@ export function ManageProjectsDialog({ open, onOpenChange, commands }: ManagePro
         {projects.map((project, index) => {
           const busy = commands.busyKey === project.key
           const named = project.cwd && project.key !== NO_WORKSPACE_KEY
+          // 没有会话的项目只能来自登记：移除只是取消登记；有会话的才是“连同会话一起删除”。
+          const removeOnly = project.count === 0
+          const removeLabel = removeOnly
+            ? t('board:project.removeNamed', { project: project.label })
+            : t('board:project.deleteWithChatsNamed', { project: project.label })
           return (
             <li
               key={project.key}
               data-project-row={project.key}
+              data-project-registered-only={removeOnly || undefined}
               aria-busy={busy || undefined}
               className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2"
             >
@@ -224,13 +247,21 @@ export function ManageProjectsDialog({ open, onOpenChange, commands }: ManagePro
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className={cn(ROW_ICON_BUTTON, 'text-danger hover:text-danger')}
+                  className={cn(ROW_ICON_BUTTON, !removeOnly && 'text-danger hover:text-danger')}
                   disabled={deleting}
-                  aria-label={t('board:project.deleteNamed', { project: project.label })}
-                  title={t('board:project.deleteNamed', { project: project.label })}
-                  onClick={() => void commands.remove(project)}
+                  data-project-remove={removeOnly ? 'unregister' : 'delete'}
+                  data-project-key={project.key}
+                  aria-label={removeLabel}
+                  title={removeLabel}
+                  onClick={() => void removeRow(project, index)}
                 >
-                  {busy ? <OrbitSpinner className="size-4" /> : <Trash2 aria-hidden="true" />}
+                  {busy ? (
+                    <OrbitSpinner className="size-4" />
+                  ) : removeOnly ? (
+                    <FolderMinus aria-hidden="true" />
+                  ) : (
+                    <Trash2 aria-hidden="true" />
+                  )}
                 </Button>
               </span>
             </li>

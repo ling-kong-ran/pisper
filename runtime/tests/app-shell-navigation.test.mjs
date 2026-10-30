@@ -10,14 +10,23 @@ import {
   normalizeShortcutBindings,
 } from '../../shared/shortcuts.mjs'
 import {
+  HOME_ENTRY_STATE,
+  HOME_PATH,
   NEW_SESSION_ROUTE_ID,
+  componentPath,
+  isHomeEntry,
   legacyHashPath,
   pageFromPath,
   pagePath,
   sessionIdFromPath,
   sessionPath,
 } from '../../src/app/routes.ts'
-import { SHELL_TABS, SHELL_TAB_PAGES, activeShellTab } from '../../src/app/shell-tabs.ts'
+import {
+  SHELL_TABS,
+  SHELL_TAB_PAGES,
+  activeShellTab,
+  shellBackPath,
+} from '../../src/app/shell-tabs.ts'
 // “更多”启动台的分组、能力裁剪与平台禁用在 more-navigation.test.mjs。
 import { MORE_PAGES } from '../../src/app/more-navigation.ts'
 import { getPageMeta } from '../../src/app/navigation.ts'
@@ -37,11 +46,14 @@ function capabilities(features = {}) {
   }
 }
 
-test('the board is the home route and sessions live under /board/:sessionId', () => {
+test('the session home owns "/" while the board and sessions keep their /board paths', () => {
+  // 第 4 期主页改为会话（负责人决定）：'/' 归会话页，未知页面 id 回主页；看板仍在 /board，
+  // 会话仍挂在 /board/:sessionId 下（旧链接、通知与 TUI 不受影响）。
   assert.equal(pagePath('board'), '/board')
   assert.equal(pagePath('more'), '/more')
   assert.equal(pagePath('session'), `/board/${NEW_SESSION_ROUTE_ID}`)
-  assert.equal(pagePath('unknown'), '/board')
+  assert.equal(pagePath('unknown'), HOME_PATH)
+  assert.equal(pageFromPath(HOME_PATH), 'session')
   assert.equal(pageFromPath('/board'), 'board')
   assert.equal(pageFromPath('/board/'), 'board')
   assert.equal(pageFromPath('/board/abc-1'), 'session')
@@ -64,11 +76,14 @@ test('legacy hashes keep resolving and never create a session on startup', () =>
 })
 
 test('each page lights exactly one primary tab, honouring the entry origin of dual-owned pages', () => {
-  assert.deepEqual([...SHELL_TABS], ['board', 'components', 'more', 'settings'])
+  // 第 4 期：会话 / 看板 / 组件 / 更多 / 设置；“会话”标签另走主页逻辑，不在 SHELL_TAB_PAGES 里。
+  assert.deepEqual([...SHELL_TABS], ['session', 'board', 'components', 'more', 'settings'])
   assert.equal(SHELL_TAB_PAGES.settings, 'config')
+  assert.equal('session' in SHELL_TAB_PAGES, false)
   const tab = (page, state) => activeShellTab(page, settingsOwnsPage(page, state))
   assert.equal(tab('board'), 'board')
-  assert.equal(tab('session'), 'board')
+  assert.equal(tab('session'), 'session')
+  assert.equal(tab('chat'), 'session')
   assert.equal(tab('components'), 'components')
   assert.equal(tab('more'), 'more')
   assert.equal(tab('assets'), 'more')
@@ -83,11 +98,46 @@ test('each page lights exactly one primary tab, honouring the entry origin of du
     assert.ok(MORE_PAGES.has(page), page)
 })
 
+test('component detail routes stay on the components tab and native back walks the shell hierarchy', () => {
+  // 组件列表与详情：/components/:componentId 仍归“组件”标签。
+  assert.equal(pageFromPath('/components/game-assets'), 'components')
+  assert.equal(pageFromPath('/components/game-assets/'), 'components')
+  assert.equal(pageFromPath('/components/a/b'), null)
+  assert.equal(componentPath('a b'), '/components/a%20b')
+  assert.equal(componentPath(''), '/components')
+  // 规格 7.1：弹层关掉之后，原生返回按层级走——更多的子页回更多，组件详情回列表。
+  // 第 4 期主页改为会话：看板与其余一级标签页回主页；会话是根或走历史回到来处（细则见 session-home.test）。
+  const back = (path, state, canGoBack = false) => {
+    const page = pageFromPath(path)
+    return shellBackPath(page, path, settingsOwnsPage(page, state), {
+      homeEntry: isHomeEntry(state),
+      canGoBack,
+    })
+  }
+  assert.equal(back(HOME_PATH), null)
+  assert.equal(back('/board'), HOME_PATH)
+  assert.equal(back('/board/abc'), null)
+  assert.equal(back('/board/abc', undefined, true), -1)
+  assert.equal(back('/board/abc', HOME_ENTRY_STATE, true), null)
+  assert.equal(back('/more'), HOME_PATH)
+  assert.equal(back('/assets'), '/more')
+  assert.equal(back('/chat/history'), '/more')
+  assert.equal(back('/workflows/new'), '/more')
+  assert.equal(back('/tools/components/game-assets'), '/more')
+  assert.equal(back('/plugins', ACTIVITY_NAVIGATION_STATE), '/more')
+  // 从设置进入的插件页、设置各分区都是“设置”标签的同级页，回主页。
+  assert.equal(back('/plugins'), HOME_PATH)
+  assert.equal(back('/config/interface'), HOME_PATH)
+  assert.equal(back('/components'), HOME_PATH)
+  assert.equal(back('/components/game-assets'), '/components')
+})
+
 test('palette navigation and page meta cover the new shell pages', () => {
   const [[, shell], [, features]] = getNavigation(t, capabilities({ mcp: false }))
+  // “会话”用兼容页面 id 'chat'：navigate('chat') 没有待打开的会话时落到主页，不建会话。
   assert.deepEqual(
     shell.map(([page]) => page),
-    ['board', 'components', 'more', 'config'],
+    ['chat', 'board', 'components', 'more', 'config'],
   )
   assert.equal(
     features.some(([page]) => page === 'mcp'),
@@ -218,7 +268,7 @@ test('the desktop title bar is the only primary navigation and reserves the wind
   assert.match(root, /\bh-12\b/)
   assert.match(root, /\bpr-3\b/)
   assert.match(root, /\[\[data-custom-titlebar\]_&amp;\]:pr-\[144px\]/)
-  // 四个主标签按顺序出现在一个带名称的导航里，当前标签用 aria-current 表达。
+  // 五个主标签（会话 / 看板 / 组件 / 更多 / 设置）按顺序出现在一个带名称的导航里，当前标签用 aria-current 表达。
   const tabs = [...html.matchAll(/data-shell-tab="(\w+)"/g)].map((match) => match[1])
   assert.deepEqual(tabs, [...SHELL_TABS])
   assert.match(html, /<nav aria-label="[^"]+"/)
@@ -247,8 +297,8 @@ test('the desktop title bar is the only primary navigation and reserves the wind
     app,
     /\{window\.pisperDesktop\?\.customTitlebar && \(\s*<Suspense fallback=\{null\}>\s*<DesktopWindowControls \/>/,
   )
-  // 窄化的桌面窗口永远不进手机外壳，标题栏始终保留（规格 2.7）。
-  assert.match(app, /const phoneShell = mobileLayout && !window\.pisperDesktop/)
+  // 窄化的桌面窗口永远不进手机外壳，标题栏始终保留（规格 2.7）；手机 App 平板也走桌面布局（规格 7.6）。
+  assert.match(app, /const phoneShell = mobileLayout && !window\.pisperDesktop && !tabletApp/)
   // 三个 44px 窗口按钮叠在标题栏右上角：总宽 132px 落在 144px 预留区内，高度与标题栏同为 48px。
   assert.match(
     controls,

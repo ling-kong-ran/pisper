@@ -35,6 +35,9 @@ specimens.push(
 const errors = []
 const metrics = []
 const server = await createServer({
+  // 独立的依赖预构建缓存：不与仓库共享的 node_modules/.vite（同时被开发服务器使用）互相改写，
+  // 避免“vite config has changed”触发的重新预构建在页面使用中途整页重载。
+  cacheDir: join(output, 'vite-cache'),
   server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
   appType: 'custom',
   plugins: [

@@ -2,9 +2,10 @@ import { BackNavigation } from '@/components/layout/BackNavigation'
 // 应用外壳：持有全站共享状态（当前页/搜索词/活动会话/Toast/对话框/通知
 // 设置/更新控制器/工作流动作），组装 48px 应用标题栏 + 全宽内容区（页头 + Outlet）
 // + 手机底部标签栏，并通过 Outlet 上下文向各页面注入公共能力。桌面没有侧栏与活动栏，
-// 一级导航（看板/组件/更多/设置）在标题栏里；设置页的分区导航在设置内容区左侧。
+// 一级导航（会话/看板/组件/更多/设置）在标题栏里；主页 '/' 是会话（上次停留的会话或新任务草稿）。
+// 设置页的分区导航在设置内容区左侧。
 // 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
-// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/, 一级标签、⌥A 跳到需要你、⌘[ 返回看板、` 终端、/ 搜索、
+// （⌘K 命令面板、⌘N 新任务、⌘1/2/3/, 一级标签、⌥A 跳到需要你、⌘[ / ⇧⌘B 会话页打开看板、` 终端、/ 搜索、
 // Esc 逐层关闭）与浏览器通知轮询。
 import {
   lazy,
@@ -30,8 +31,17 @@ import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
 import { MORE_SEARCH_INPUT_ID } from '@/app/more-pages'
-import { PAGE_IDS, PAGE_PATHS, pageFromPath, pagePath, sessionPath } from '@/app/routes'
-import { activeShellTab, SHELL_TAB_PAGES, type ShellTab } from '@/app/shell-tabs'
+import {
+  HOME_PATH,
+  isHomeEntry,
+  PAGE_IDS,
+  PAGE_PATHS,
+  pageFromPath,
+  pagePath,
+  sessionIdFromPath,
+  sessionPath,
+} from '@/app/routes'
+import { activeShellTab, SHELL_TAB_PAGES, shellBackPath, type ShellTab } from '@/app/shell-tabs'
 import { AppTitlebar } from '@/app/AppTitlebar'
 import {
   CONFIG_SECTIONS,
@@ -71,7 +81,7 @@ import {
 import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { useAppDialog } from '@/hooks/useAppDialog'
-import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { useIsPhoneViewport, useIsTabletViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import { shouldShowModelOnboarding, type ModelOnboardingConfig } from '@/features/config/public'
 import { useUiStore } from '@/stores/ui-store'
@@ -160,6 +170,14 @@ const DispatchOverlay = lazy(async () => {
   ])
   return { default: DispatchOverlay }
 })
+// ⌘/ 快捷键速查：文案同样在看板命名空间里，随对话框按需注册。
+const ShortcutHelpDialog = lazy(async () => {
+  const [{ ShortcutHelpDialog }] = await Promise.all([
+    import('@/features/config/ShortcutHelpDialog'),
+    ensureBoardMessages(),
+  ])
+  return { default: ShortcutHelpDialog }
+})
 
 const PageHeader = lazy(() =>
   import('@/components/layout/PageHeader').then((module) => ({ default: module.PageHeader })),
@@ -221,9 +239,11 @@ function App() {
   const loadRuntimeCapabilities = useRuntimeCapabilitiesStore((state) => state.load)
   const pageMeta = useMemo(() => getPageMeta(t), [t])
   const page = pageFromPath(location.pathname) || 'board'
+  // 主页（'/'）的页面 id 也是 'session'，但挂的是主页落地（草稿 / 加载 / 错误态），不是会话路由：
+  // 打开或新建会话的请求在主页上没人就地接收，外壳必须自己导航。只有 /board/:id（含 /board/new）算已挂载。
+  const sessionRouteMounted = Boolean(sessionIdFromPath(location.pathname))
   // 同时挂在“更多”与设置导航下的页面按进入来源确定唯一归属，壳层各处共用这一结论。
   const settingsOwned = settingsOwnsPage(page, location.state)
-  const shellTab = activeShellTab(page, settingsOwned)
   const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
@@ -233,14 +253,20 @@ function App() {
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
+  // 平板（手机 App，≥960×640）走桌面布局：顶部 48px 栏、设置分区导航；返回键与软键盘仍按移动端处理。
+  const tabletApp = useIsTabletViewport() && mobileApp
+  const phoneLayout = mobileLayout && !tabletApp
   // 底部标签栏只给真实手机端；桌面壳窗口拖窄时仍保留标题栏，避免与 Windows 自绘窗口按钮冲突。
-  const phoneShell = mobileLayout && !window.pisperDesktop
+  const phoneShell = mobileLayout && !window.pisperDesktop && !tabletApp
+  // 手机没有“组件”标签，组件页归“更多”点亮。
+  const shellTab = activeShellTab(page, settingsOwned, phoneShell)
   useEffect(() => {
     // 底部表单等经 Portal 挂到 body 的界面按根节点属性适配手机外壳（圆角、安全区）。
     document.documentElement.toggleAttribute('data-phone-shell', phoneShell)
   }, [phoneShell])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [dispatchOpen, setDispatchOpen] = useState(false)
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   // 等待最久的需要你事项：由舰队计量（桌面）或底部标签栏（手机）上报，⌥A 只据此跳转。
   const [longestWaitingId, setLongestWaitingId] = useState('')
   const theme = useUiStore((state) => state.theme)
@@ -469,39 +495,39 @@ function App() {
 
   // 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
   // navigate('chat') 是旧调用方的兼容垫片：先 requestSessionSelection(id) / requestSessionCreation()
-  // 再 navigate('chat')。会话页已挂载时请求已被它就地处理；否则按待处理意图去 '/board/:id'、
-  // '/board/new'（新建），没有意图时回到看板。
+  // 再 navigate('chat')。会话路由已挂载时请求已被它就地处理；否则（含主页）按待处理意图去 '/board/:id'、
+  // '/board/new'（新建），没有意图时回到主页（会话）。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next) || !runtimePageAvailable(capabilities, next)) return
       if (next === 'chat') {
-        if (page !== 'session') {
+        if (!sessionRouteMounted) {
           const intent = peekSessionNavigationIntent()
           routerNavigate(
             intent?.type === 'create'
               ? sessionPath()
               : intent?.type === 'open'
                 ? sessionPath(intent.sessionId)
-                : PAGE_PATHS.board,
+                : HOME_PATH,
             options,
           )
         }
       } else routerNavigate(pagePath(next), options)
       setQuery('')
     },
-    [capabilities, page, routerNavigate],
+    [capabilities, routerNavigate, sessionRouteMounted],
   )
 
-  // 打开会话：URL 是会话页的选中依据。会话页已挂载时选择事件由它就地转成路由切换，
-  // 外壳不再重复导航，避免同一地址被压入两次历史。
+  // 打开会话：URL 是会话页的选中依据。会话路由已挂载时选择事件由它就地转成路由切换，
+  // 外壳不再重复导航，避免同一地址被压入两次历史；主页与其他页面由外壳导航过去。
   const openSession = useCallback(
     (id: string, targetEntryId = '') => {
       if (!id) return
       requestSessionSelection(id, 'open', targetEntryId)
-      if (page !== 'session') routerNavigate(sessionPath(id))
+      if (!sessionRouteMounted) routerNavigate(sessionPath(id))
       setQuery('')
     },
-    [page, routerNavigate],
+    [routerNavigate, sessionRouteMounted],
   )
 
   // 新任务：看板页先请求看板认领（聚焦启动台）；没有视图认领或在其他页面时打开派发浮层。
@@ -534,14 +560,14 @@ function App() {
 
   // 新会话（命令面板、历史页等旧入口）：直接进入新建会话页。
   const startNewChat = useCallback(() => {
-    if (page === 'session') requestSessionCreation('')
+    if (sessionRouteMounted) requestSessionCreation('')
     else routerNavigate(sessionPath())
     setQuery('')
-  }, [page, routerNavigate])
+  }, [routerNavigate, sessionRouteMounted])
 
   useEffect(() => {
     if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
-      routerNavigate(PAGE_PATHS.board, { replace: true })
+      routerNavigate(HOME_PATH, { replace: true })
       return
     }
     if (page === 'config' && requestedConfigSection !== configSection) {
@@ -571,13 +597,17 @@ function App() {
     [capabilities, routerNavigate],
   )
 
-  // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。
+  // 一级标签：设置标签回到模型分区（与旧功能栏的设置键一致）。“会话”走与 '/' 相同的主页逻辑
+  // （上次停留的会话或新任务草稿）；已在会话页或主页时不再压入历史。
   const selectShellTab = useCallback(
     (tab: ShellTab) => {
-      if (tab === 'settings') setConfigSection('models')
+      if (tab === 'session') {
+        if (page !== 'session') routerNavigate(HOME_PATH)
+        setQuery('')
+      } else if (tab === 'settings') setConfigSection('models')
       else navigate(SHELL_TAB_PAGES[tab])
     },
-    [navigate, setConfigSection],
+    [navigate, page, routerNavigate, setConfigSection],
   )
 
   const dismissModelOnboarding = useCallback(() => {
@@ -809,16 +839,24 @@ function App() {
     registerWorkflowActions,
     startNewTask: () => startNewTask('board'),
   }
-  // 会话页回看板、从“更多”进入的功能页回更多：手机返回键与页头“‹ 更多”共用这一层级。
+  // 从“更多”进入的功能页：页头显示“‹ 更多”。
   const moreOwned = shellTab === 'more' && page !== 'more'
   const backToBoard = useCallback(() => routerNavigate(PAGE_PATHS.board), [routerNavigate])
   const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
+  // 手机原生返回的路由层级（shellBackPath）：会话主页是根（主页与从主页落地的会话交还平台），
+  // 从看板等页面点进来的会话走历史回到来处，一级标签页回主页，更多的子页回更多，组件详情回列表。
+  // 路由历史下标（React Router 写在 history.state.idx）判断当前条目之前还有没有应用内条目。
   const routeBack = useCallback(() => {
-    if (page === 'session') backToBoard()
-    else if (moreOwned) backToMore()
-    else return false
-    return true
-  }, [backToBoard, backToMore, moreOwned, page])
+    const index: unknown = window.history.state?.idx
+    const parent = shellBackPath(page, location.pathname, settingsOwned, {
+      phone: phoneShell,
+      homeEntry: isHomeEntry(location.state),
+      canGoBack: typeof index === 'number' && index > 0,
+    })
+    if (parent === -1) routerNavigate(-1)
+    else if (parent) routerNavigate(parent)
+    return parent !== null
+  }, [location.pathname, location.state, page, phoneShell, routerNavigate, settingsOwned])
   const jumpToAttention = useCallback(() => {
     if (longestWaitingId) openSession(longestWaitingId)
   }, [longestWaitingId, openSession])
@@ -829,8 +867,15 @@ function App() {
     else searchInputRef.current?.focus()
   }, [page])
   // 看板、会话页与更多页自带页头；其余功能页沿用共享页头（面包屑、搜索、主操作）。
+  // 会话页与主页隐藏底部标签栏（规格 7.3）：看板入口在顶栏左侧，返回走系统返回键；组件仍挂着（不渲染），
+  // ⌥A 的等待最久事项照常更新。懒加载期间的占位也随之省掉。
+  const tabBarFallback =
+    page === 'session' ? null : <div className="h-14 flex-none" aria-hidden="true" />
   const sharedPageHeader = !['board', 'session', 'more', 'chat'].includes(page)
-  const settingsLayout = settingsOwned && !mobileLayout
+  const settingsLayout = settingsOwned && !phoneLayout
+  // 手机用横滑分区条；平板（手机 App）与桌面一样用左侧分区导航。
+  const mobileSettingsNav =
+    clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && settingsOwned && !tabletApp
 
   if (!startupReady || !capabilitiesLoaded)
     return (
@@ -862,12 +907,14 @@ function App() {
       <TerminalProvider bridge={window.pisperDesktop}>
         <div
           ref={appShellRef}
-          // 手机外壳的顶部安全区由外壳底色铺满：看板与更多页的页头是页面底色（--bg），其余页面是纸面，
-          // 状态栏区域跟随当前页头，避免出现一条白带接灰色页头的两段色。
-          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel [&[data-phone-shell][data-shell-canvas]]:bg-background pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
+          // 手机外壳的顶部安全区由外壳底色铺满：看板与更多页的页头是页面底色（--bg），会话页是外壳灰，
+          // 其余页面是纸面；状态栏区域跟随当前页头，避免出现一条白带接灰色页头的两段色。
+          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel [&[data-phone-shell][data-shell-canvas]]:bg-background [&[data-phone-shell][data-shell-chrome]]:bg-chrome pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
           data-mobile-app={mobileLayout || undefined}
           data-phone-shell={phoneShell || undefined}
           data-shell-canvas={page === 'board' || page === 'more' || undefined}
+          // 手机会话页的顶栏与代理条是外壳灰（规格 7.3），状态栏区域跟着它。
+          data-shell-chrome={page === 'session' || undefined}
           data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
         >
           {window.pisperDesktop?.customTitlebar && (
@@ -910,6 +957,8 @@ function App() {
               onOpenMore={() => selectShellTab('more')}
               onJumpToAttention={longestWaitingId ? jumpToAttention : undefined}
               onBackToBoard={page === 'session' ? backToBoard : undefined}
+              onShowBoard={page === 'session' ? backToBoard : undefined}
+              onShortcutHelp={() => setShortcutHelpOpen(true)}
             />
           </Suspense>
           {/* 桌面（含手机 App 以外的窄窗口）由标题栏承载一级导航；手机外壳改用底部标签栏。 */}
@@ -923,8 +972,8 @@ function App() {
                 appUpdate.status &&
                 ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
                   <Suspense fallback={null}>
-                    {/* 沿用原侧栏的更新提示，收成 32px 图标键放进标题栏。 */}
-                    <div className="flex-none [&>button]:size-8 [&>button]:min-h-0">
+                    {/* 沿用原侧栏的更新提示，收成 32px 图标键放进标题栏；触屏与“新任务”一样抬到 44px。 */}
+                    <div className="flex-none [&>button]:size-8 [&>button]:min-h-0 pointer-coarse:[&>button]:size-11">
                       <SidebarUpdateStatus
                         update={appUpdate}
                         collapsed
@@ -994,7 +1043,7 @@ function App() {
                   />
                 </Suspense>
               )}
-              {clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && settingsOwned && (
+              {mobileSettingsNav && (
                 <MobileSettingsNavigation
                   page={page}
                   configSection={configSection}
@@ -1026,8 +1075,9 @@ function App() {
             </main>
           </div>
           {phoneShell && (
-            <Suspense fallback={<div className="h-14 flex-none" aria-hidden="true" />}>
+            <Suspense fallback={tabBarFallback}>
               <ShellTabBar
+                hidden={page === 'session'}
                 activeTab={shellTab}
                 onSelectTab={selectShellTab}
                 onNewTask={() => startNewTask('tabbar')}
@@ -1098,6 +1148,13 @@ function App() {
               />
             )}
             {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
+            {shortcutHelpOpen && (
+              <ShortcutHelpDialog
+                open
+                onOpenChange={setShortcutHelpOpen}
+                onCustomize={() => routerNavigate('/config/shortcuts')}
+              />
+            )}
           </Suspense>
           <Suspense fallback={null}>
             {dispatchOpen && (

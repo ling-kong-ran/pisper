@@ -30,6 +30,7 @@ import { FieldLabel } from '@/components/ui/field'
 import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
+import { takeCommandPaletteQuery } from '@/features/chat/events'
 
 import { AppCardHeader } from '@/components/ui/app-primitives'
 
@@ -80,7 +81,8 @@ export function CommandPalette({
   const composing = useRef(false)
   const pendingRef = useRef(false)
   const pointerPosition = useRef({ x: -1, y: -1 })
-  const [query, setQuery] = useState('')
+  // 从“更多”页搜索框转来时带着关键词打开（与 ⌘K 同一份数据源）；⌘K 直接打开时为空。
+  const [query, setQuery] = useState(takeCommandPaletteQuery)
   const keyword = query.trim()
   const sessionQuery = useQuery(startupQueryOptions<{ sessions?: SessionSummary[] }>('sessions'))
   const { isError: sessionsError, refetch: refetchSessions } = sessionQuery

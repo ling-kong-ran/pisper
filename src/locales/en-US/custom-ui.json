@@ -43,5 +43,10 @@
   "customUiPage.permissionGameAssetsRead": "Read asset projects and results",
   "customUiPage.permissionGameAssetsWrite": "Edit asset projects and process images",
   "customUiPage.permissionGameAssetsRun": "Run and stop asset generation",
-  "bridge.gameAssetBusy": "Asset requests are busy. Wait for current operations and retry."
+  "bridge.gameAssetBusy": "Asset requests are busy. Wait for current operations and retry.",
+  "moved.title": "Components moved to the Components tab →",
+  "moved.hint": "Import, preview and floating display are managed there",
+  "phone.allComponents": "All components",
+  "phone.missingTitle": "Component not found",
+  "phone.missingHint": "It may have been removed or renamed. Go back to the list to choose again, or rescan."
 }

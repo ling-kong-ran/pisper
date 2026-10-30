@@ -12,7 +12,7 @@ import {
 test('English interface translations resolve static and interpolated messages', () => {
   assert.equal(translateText('navigation:navigation.settings', 'en-US'), 'Settings')
   assert.equal(translateText('navigation:navigation.app', 'en-US'), 'App')
-  assert.equal(translateText('navigation:navigation.chat', 'en-US'), 'Chats')
+  assert.equal(translateText('navigation:navigation.chat', 'en-US'), 'Sessions')
   assert.equal(translateText('plugins:toolLabels.read', 'en-US'), 'Read files')
   assert.equal(
     translateText('config:languageSettings.displayLanguage', 'en-US'),

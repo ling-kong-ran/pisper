@@ -10,6 +10,8 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // 旧键保留在恢复白名单中，输入栏 Store 首次读取时迁到新名称。
   'pisper-zcode-composer-toolbar',
   'pisper-workspace-order',
+  // 登记的项目（空项目）：经“新建项目…”选过、可能还没有会话的目录列表，与会话目录按工作区键合并。
+  'pisper-registered-projects',
   // 看板视图（分组、项目/状态筛选、折叠泳道、已完成时间窗）与启动台上次的选择。
   'pisper-board-view',
   'pisper-launch-defaults',
@@ -20,6 +22,9 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // 看板单字母快捷键（J/K/H/L、A/D/R、T、G）与应用级绑定分表保存。
   'pisper-board-shortcuts',
   'pisper-active-session',
+  // 会话主页：本设备上次停留的会话 id（进入真实会话时写入）。镜像只走本机 /api/local，远程监听返回 404，
+  // 因此天然按设备记、不跨设备同步；读出时按不可信输入校验并限长（src/app/session-home.ts）。
+  'pisper-last-session',
   'pisper-mobile-session-tabs',
   'pisper-terminal-panel',
   'pisper-model-onboarding-v1-dismissed',

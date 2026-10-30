@@ -6,6 +6,7 @@ import { ArrowRight, RotateCcw, ShieldAlert } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Button } from '@/components/ui/button'
+import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
@@ -50,9 +51,16 @@ export function StripItemActions({
   const buttonSize = size === 'chip' ? 'toolbar' : 'default'
   const button =
     size === 'chip'
-      ? // 芯片里的键固定 24px（规格 4.2）；触屏上用伪元素把点击区上下各扩 8px，不撑高 36px 单行泳道条。
-        "relative h-6 min-w-6 rounded-sm px-1.5 text-xs pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']"
-      : 'h-7 px-2 text-xs pointer-coarse:h-11'
+      ? // 芯片里的键在鼠标设备上固定 24px 高（规格 4.2）。触屏上可见宽度补到 44（并排的 拒绝 / 允许
+        // 不靠横向外扩，免得互相抢点），高度撑满芯片内框（单行 26、双行 38，外层动作容器同样 self-stretch），
+        // 再由伪元素补到 44px。不撑满时 44px 热区会盖住键上下方仍显示为芯片的部分（双行芯片每侧约 7px），
+        // 点芯片的人会误触批准 / 拒绝；撑满后键所在的竖列整列都是键，芯片其余部分只打开会话，
+        // 多出的热区只落在芯片 1px 边框和条带空白上，不撑高芯片。
+        cn(
+          'relative h-6 min-w-6 rounded-sm px-1.5 text-xs pointer-coarse:h-auto pointer-coarse:min-w-11 pointer-coarse:self-stretch',
+          TOUCH_HIT_AREA,
+        )
+      : 'h-7 px-2 text-xs pointer-coarse:h-11 pointer-coarse:min-w-11'
   if (item.status === 'approval') {
     // critical、截断的预览或详情未到：只有“查看”，打开确认层核对完整参数。
     if (!approval || approval.severity === 'critical' || approval.truncated)
@@ -171,7 +179,8 @@ export function AgentMiniRow({
       data-lane={item.lane}
       data-current={current || undefined}
       className={cn(
-        'relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-hover',
+        // 整行是打开会话的按钮：触屏上单行条目（没有细节行）也至少 44px 高。
+        'relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-hover pointer-coarse:min-h-11',
         current && 'bg-solid ring-1 ring-stroke-strong ring-inset',
       )}
     >

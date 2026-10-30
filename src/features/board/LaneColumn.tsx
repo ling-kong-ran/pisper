@@ -3,6 +3,7 @@
 // 卡片超过 30 张改用虚拟列表；已完成最多 20 张，后面接“全部历史会话 →”。
 import {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -23,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useShortcutLabel } from '@/lib/shortcuts'
+import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
 import { AgentCard, type AgentCardHandlers } from './AgentCard'
 import type { BoardItem } from './board-model'
@@ -67,6 +69,8 @@ type LaneColumnProps = {
   doneWindow: BoardDoneWindow
   onDoneWindowChange: (window: BoardDoneWindow) => void
   onPeek: (lane: BoardLane, peeked: boolean) => void
+  // 平板窄屏固定收成竖条的泳道：展开只是临时的，头部给出收回键，已完成的折叠键也只收回不记住。
+  compact?: boolean
   onCollapse: (lane: BoardLane, collapsed: boolean) => void
   onOpenHistory: () => void
   // 首次运行（目录里一个会话都没有）时“切到 7 天”没有意义，不显示。
@@ -86,6 +90,7 @@ export function LaneColumn({
   doneWindow,
   onDoneWindowChange,
   onPeek,
+  compact = false,
   onCollapse,
   onOpenHistory,
   offerWeek = true,
@@ -109,6 +114,29 @@ export function LaneColumn({
     getItemKey: (index) => shown[index]?.id ?? index,
   })
   const [hidden, setHidden] = useState(0)
+  // 按住指针期间冻结溢出摘要：摘要在滚动区之外，它消失会让滚动区变高，滚到底时卡片整体下移 36px（触屏 48px）。
+  // 按下与松开于是落在不同元素上，click 落到卡片本身（打开会话）而不是按下的按钮。测量可能早在按下前
+  // 就排好了渲染，所以冻结的是“屏幕上正显示的”数量，而不是拦截测量；松开（或取消）后再显示最新值。
+  const [frozenHidden, setFrozenHidden] = useState<number | null>(null)
+  const overflowCount = frozenHidden ?? hidden
+  const shownOverflowRef = useRef(0)
+  const pressedRef = useRef(false)
+  useLayoutEffect(() => {
+    shownOverflowRef.current = overflowCount
+  }, [overflowCount])
+  useEffect(() => {
+    const release = () => {
+      if (!pressedRef.current) return
+      pressedRef.current = false
+      setFrozenHidden(null)
+    }
+    window.addEventListener('pointerup', release, true)
+    window.addEventListener('pointercancel', release, true)
+    return () => {
+      window.removeEventListener('pointerup', release, true)
+      window.removeEventListener('pointercancel', release, true)
+    }
+  }, [])
 
   // 溢出摘要：数一数可视区底部以下还有几张卡片；虚拟列表按索引估算。
   const measureOverflow = useCallback(() => {
@@ -219,8 +247,8 @@ export function LaneColumn({
 
   const overflowLabel =
     lane === 'attention'
-      ? t('board:lane.moreAttention', { count: hidden })
-      : t('board:lane.more', { count: hidden })
+      ? t('board:lane.moreAttention', { count: overflowCount })
+      : t('board:lane.more', { count: overflowCount })
   const revealHidden = () => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -251,6 +279,10 @@ export function LaneColumn({
       aria-labelledby={headingId}
       data-board-lane={lane}
       data-lane-mode="expanded"
+      onPointerDownCapture={() => {
+        pressedRef.current = true
+        setFrozenHidden(shownOverflowRef.current)
+      }}
       className={cn(
         'flex min-h-0 min-w-0 flex-col rounded-lg border border-stroke-soft bg-lane transition-opacity duration-(--d-fast)',
         dimmed && 'opacity-50',
@@ -305,7 +337,7 @@ export function LaneColumn({
               className="text-content-muted"
               aria-label={t('board:lane.collapse', { lane: labels.name[lane] })}
               title={t('board:lane.collapse', { lane: labels.name[lane] })}
-              onClick={() => onCollapse(lane, true)}
+              onClick={() => (compact ? onPeek(lane, false) : onCollapse(lane, true))}
             >
               <PanelLeftClose aria-hidden="true" />
             </Button>
@@ -313,8 +345,8 @@ export function LaneColumn({
         ) : (
           <span className="min-w-0 truncate text-xs text-content-muted">{labels.order[lane]}</span>
         )}
-        {/* 已完成泳道有自己的折叠键；其余空泳道临时展开后用这个键收回竖条。 */}
-        {entry.count === 0 && lane !== 'done' && (
+        {/* 已完成泳道有自己的折叠键；其余空泳道（或平板窄屏收起的泳道）临时展开后用这个键收回竖条。 */}
+        {(entry.count === 0 || compact) && lane !== 'done' && (
           <Button
             variant="ghost"
             size="icon-xs"
@@ -406,14 +438,16 @@ export function LaneColumn({
           </Button>
         )}
       </div>
-      {/* 溢出摘要吸附在泳道底部、滚动区之外：不盖住卡片上的按钮，滚到底后自动消失。 */}
-      {hidden > 0 && (
-        <div className="flex h-9 flex-none items-center justify-center border-t border-stroke-soft px-2">
+      {/* 溢出摘要吸附在泳道底部、滚动区之外：不盖住卡片上的按钮，滚到底后自动消失。
+          触屏：底栏加高到 48px，胶囊可见尺寸不变，命中区用伪元素补到 44px 且不越过底栏伸进卡片区。 */}
+      {overflowCount > 0 && (
+        <div className="flex h-9 flex-none items-center justify-center border-t border-stroke-soft px-2 pointer-coarse:h-12">
           <button
             type="button"
             data-lane-overflow={lane}
             className={cn(
               'flex h-7 items-center gap-1 rounded-full border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+              TOUCH_HIT_AREA,
               lane === 'attention'
                 ? 'border-st-attn-border bg-st-attn-soft text-st-attn'
                 : 'border-stroke bg-solid text-content-secondary',

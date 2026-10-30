@@ -13,6 +13,9 @@ export async function verifyReplicaControls() {
   const root = fileURLToPath(new URL('../', import.meta.url))
   const server = await createServer({
     configFile: false,
+    // 独立的依赖预构建缓存：不与仓库共享的 node_modules/.vite（同时被开发服务器使用）互相改写，
+    // 避免“vite config has changed”触发的重新预构建在页面使用中途整页重载。
+    cacheDir: join(output, 'vite-cache'),
     root,
     plugins: [
       react(),

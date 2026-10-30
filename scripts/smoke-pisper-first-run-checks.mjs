@@ -195,7 +195,7 @@ export async function verifyFirstRunSetup({
       return next
     }
     const onboarding = () => page.getByRole('dialog', { name: '先连接一个模型', exact: true })
-    // 新外壳首页是看板：看板根节点就绪即应用可用（旧的 /chat 入口也会重定向到这里）。
+    // 这一段显式进入 /board（主页改为会话后 / 落在上次的会话或新任务草稿）：看板根节点就绪即应用可用。
     const chatReady = () => page.locator('[data-board-root]').waitFor()
 
     stage = 'desktop-dismiss'

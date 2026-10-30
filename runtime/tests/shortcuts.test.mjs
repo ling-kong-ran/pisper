@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
+  BOARD_SHORTCUT_ACTIONS,
   DEFAULT_SHORTCUTS,
   SHORTCUT_ACTIONS,
   ShortcutValidationError,
@@ -44,6 +46,15 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'openMore',
     'jumpToAttention',
     'backToBoard',
+    // 第 4 期：会话页的 ⌘J / ⌘I / ⌥↑⌥↓ / 插话与 ⌘/ 速查进入同一张表，可以改绑。
+    'agentPanel',
+    'toggleInspector',
+    'previousAgent',
+    'nextAgent',
+    'steerMessage',
+    'shortcutHelp',
+    // 第 4 期主页改为会话：“打开看板”是独立动作（⌘B 已被隐藏的 toggleSidebar 占用，默认 ⇧⌘B）。
+    'showBoard',
   ])
   assert.deepEqual(Object.values(DEFAULT_SHORTCUTS), [
     'Mod+KeyK',
@@ -60,6 +71,13 @@ test('shortcut defaults preserve the action order and are valid immutable templa
     'Mod+Digit3',
     'Alt+KeyA',
     'Mod+BracketLeft',
+    'Mod+KeyJ',
+    'Mod+KeyI',
+    'Alt+ArrowUp',
+    'Alt+ArrowDown',
+    'Alt+Enter',
+    'Mod+Slash',
+    'Mod+Shift+KeyB',
   ])
   assert.deepEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
   assert.notEqual(validateShortcutBindings(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS)
@@ -402,4 +420,161 @@ test('display uses platform labels and human-readable keys', () => {
   assert.equal(formatShortcut('Slash'), '/')
   assert.equal(formatShortcut(null), '')
   assert.equal(formatShortcut('bad'), '')
+})
+
+// —— 第 4 期：会话页快捷键可改绑 ——
+
+const PRE_SESSION_ACTIONS = [
+  'commandPalette',
+  'primaryAction',
+  'focusSearch',
+  'toggleSidebar',
+  'toggleTerminal',
+  'openSettings',
+  'focusComposer',
+  'sendMessage',
+  'voiceInput',
+  'openBoard',
+  'openComponents',
+  'openMore',
+  'jumpToAttention',
+  'backToBoard',
+]
+
+test('maps saved before the session actions gain their defaults without losing user bindings', () => {
+  const legacy = Object.fromEntries(
+    PRE_SESSION_ACTIONS.map((action) => [action, DEFAULT_SHORTCUTS[action]]),
+  )
+  assert.deepEqual(normalizeShortcutBindings(legacy), DEFAULT_SHORTCUTS)
+  // 用户已经把别的动作绑到 ⌘J / ⌘I / ⌥↵ / ⌘/ 上：新动作补成未绑定，不抢走已保存的键。
+  const custom = {
+    ...legacy,
+    voiceInput: 'Mod+KeyJ',
+    focusComposer: 'Ctrl+KeyI',
+    sendMessage: 'Alt+Enter',
+    commandPalette: 'Mod+Slash',
+  }
+  const migrated = normalizeShortcutBindings(custom)
+  assert.equal(migrated.voiceInput, 'Mod+KeyJ')
+  assert.equal(migrated.focusComposer, 'Ctrl+KeyI')
+  assert.equal(migrated.sendMessage, 'Alt+Enter')
+  assert.equal(migrated.commandPalette, 'Mod+Slash')
+  assert.equal(migrated.agentPanel, null)
+  assert.equal(migrated.toggleInspector, null)
+  assert.equal(migrated.steerMessage, null)
+  assert.equal(migrated.shortcutHelp, null)
+  assert.equal(migrated.previousAgent, 'Alt+ArrowUp')
+  assert.equal(migrated.nextAgent, 'Alt+ArrowDown')
+  assert.deepEqual(validateShortcutBindings(migrated), migrated)
+  // 已保存的完整新表原样保留（包括被禁用的新动作）。
+  const saved = { ...DEFAULT_SHORTCUTS, agentPanel: 'F6', steerMessage: null }
+  assert.deepEqual(normalizeShortcutBindings(JSON.parse(JSON.stringify(saved))), saved)
+})
+
+test('only Alt with Up or Down is accepted for arrow keys', () => {
+  const swapped = { ...DEFAULT_SHORTCUTS, previousAgent: 'Alt+ArrowDown', nextAgent: 'Alt+ArrowUp' }
+  assert.deepEqual(validateShortcutBindings(swapped), swapped)
+  const freed = { ...DEFAULT_SHORTCUTS, previousAgent: null, voiceInput: 'Alt+ArrowUp' }
+  assert.deepEqual(validateShortcutBindings(freed), freed)
+  invalid(bindingsWith('voiceInput', 'Alt+ArrowUp'), 'conflict')
+  for (const binding of [
+    'ArrowUp',
+    'Shift+ArrowUp',
+    'Mod+ArrowUp',
+    'Ctrl+ArrowDown',
+    'Meta+ArrowDown',
+    'Alt+Shift+ArrowUp',
+    'Mod+Alt+ArrowDown',
+    'Alt+ArrowLeft',
+    'Alt+ArrowRight',
+  ]) {
+    invalid(bindingsWith('previousAgent', binding))
+    assert.equal(matchesShortcut(event(binding.split('+').pop()), binding), false)
+  }
+  assert.equal(shortcutFromEvent(event('ArrowUp', { altKey: true })), 'Alt+ArrowUp')
+  assert.equal(shortcutFromEvent({ key: 'ArrowDown', altKey: true }), 'Alt+ArrowDown')
+  assert.equal(shortcutFromEvent(event('ArrowUp', { altKey: true, shiftKey: true })), null)
+  assert.equal(shortcutFromEvent(event('ArrowLeft', { altKey: true })), null)
+  assert.equal(shortcutFromEvent(event('ArrowUp')), null)
+  assert.equal(matchesShortcut(event('ArrowDown', { altKey: true }), 'Alt+ArrowDown'), true)
+  assert.equal(
+    matchesShortcut(event('ArrowDown', { altKey: true, metaKey: true }), 'Alt+ArrowDown', true),
+    false,
+  )
+  assert.equal(formatShortcut('Alt+ArrowUp'), 'Alt + ↑')
+  assert.equal(formatShortcut('Alt+ArrowDown', true), 'Alt + ↓')
+})
+
+test('steer is its own binding and never collides with send', () => {
+  assert.equal(DEFAULT_SHORTCUTS.steerMessage, 'Alt+Enter')
+  // 发送改成 ⌘↵ 不再顺带改掉插话键。
+  const send = validateShortcutBindings(bindingsWith('sendMessage', 'Mod+Enter'))
+  assert.equal(send.steerMessage, 'Alt+Enter')
+  invalid(bindingsWith('sendMessage', 'Alt+Enter'), 'conflict')
+  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'sendMessage', 'Alt+Enter'), 'steerMessage')
+  // 裸 Enter 只属于发送；插话可以改到别的修饰键组合或禁用。
+  invalid(bindingsWith('steerMessage', 'Enter'))
+  for (const binding of ['Mod+Enter', 'Mod+Alt+Enter', 'Alt+KeyS', null]) {
+    assert.equal(
+      validateShortcutBindings(bindingsWith('steerMessage', binding)).steerMessage,
+      binding,
+    )
+  }
+  assert.equal(matchesShortcut(event('Enter', { altKey: true }), 'Alt+Enter'), true)
+  assert.equal(matchesShortcut(event('Enter'), 'Alt+Enter'), false)
+  assert.equal(matchesShortcut(event('Enter', { altKey: true }), 'Enter'), false)
+})
+
+test('the session and help defaults record, match and conflict like other chords', () => {
+  assert.equal(shortcutFromEvent(event('KeyJ', { metaKey: true }), true), 'Mod+KeyJ')
+  assert.equal(shortcutFromEvent(event('Slash', { ctrlKey: true })), 'Mod+Slash')
+  assert.equal(matchesShortcut(event('Slash', { ctrlKey: true }), 'Mod+Slash'), true)
+  // ⌘/ 与裸 / （聚焦搜索）互不冲突；⌘J 改到 ⌘I 会与检查器冲突。
+  assert.equal(findShortcutConflict(DEFAULT_SHORTCUTS, 'shortcutHelp', 'Mod+Slash'), null)
+  assert.equal(
+    findShortcutConflict(DEFAULT_SHORTCUTS, 'agentPanel', 'Ctrl+KeyI'),
+    'toggleInspector',
+  )
+  assert.equal(formatShortcut('Mod+Slash', true), 'Cmd + /')
+  assert.equal(formatShortcut('Mod+KeyJ'), 'Ctrl + J')
+})
+
+test('settings and the ⌘/ help list every visible action exactly once from one catalog', async () => {
+  const [catalog, settings, help, app] = await Promise.all([
+    readFile('src/features/config/shortcut-catalog.ts', 'utf8'),
+    readFile('src/features/config/ShortcutSettings.tsx', 'utf8'),
+    readFile('src/features/config/ShortcutHelpDialog.tsx', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+  ])
+  const listed = (kind) =>
+    [...catalog.matchAll(new RegExp(`\\b${kind}\\('(\\w+)'\\)`, 'g'))].map((match) => match[1])
+  // 侧栏开关在新外壳里没有作用，只保留存储，不列出。
+  assert.deepEqual(
+    listed('app').sort(),
+    SHORTCUT_ACTIONS.filter((action) => action !== 'toggleSidebar').sort(),
+  )
+  assert.deepEqual(listed('board').sort(), [...BOARD_SHORTCUT_ACTIONS].sort())
+  assert.match(catalog, /HIDDEN_SHORTCUTS: readonly ShortcutAction\[\] = \['toggleSidebar'\]/)
+  // 两处都从同一份目录渲染，按键读 shortcut-store。
+  for (const source of [settings, help]) assert.match(source, /SHORTCUT_GROUPS\.map/)
+  assert.match(help, /useShortcutStore\(\(state\) => state\.bindings\)/)
+  // 速查对话框与它的文案按需加载，不进入入口包。
+  assert.match(
+    app,
+    /const ShortcutHelpDialog = lazy\(async \(\) => \{[\s\S]{0,200}import\('@\/features\/config\/ShortcutHelpDialog'\),\s*ensureBoardMessages\(\)/,
+  )
+  assert.match(app, /onShortcutHelp=\{\(\) => setShortcutHelpOpen\(true\)\}/)
+})
+
+test('the composer steers with its own binding instead of deriving it from send', async () => {
+  const [focus, header] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
+  ])
+  assert.match(focus, /const steerShortcut = shortcuts\.steerMessage/)
+  assert.doesNotMatch(focus, /steerBindingFor/)
+  assert.match(focus, /matchesShortcut\(event\.nativeEvent, steerShortcut\)/)
+  // 页头检查器开关显示当前绑定，不再写死 Mod+KeyI。
+  assert.match(header, /state\.bindings\.toggleInspector/)
+  assert.doesNotMatch(header, /'Mod\+KeyI'/)
 })

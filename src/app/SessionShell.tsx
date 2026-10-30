@@ -1,12 +1,18 @@
 // 会话页外壳（规格 4.1）：标题栏 48 → 泳道条 52（≤1279 宽或 ≤760 高时 36 单行）→ 会话页头 44 + 对话 + 检查器。
 // 泳道条是看板折叠后的形态（看板领域），对话与检查器是聊天领域的单会话视图；两者都读同一个看板 store。
-// URL 里的 sessionId 是选中依据：切换代理只换路由（replace，浏览器后退直接回看板），看板 store 不变；
+// URL 里的 sessionId 是选中依据：切换代理只换路由（replace，浏览器后退回到来处），看板 store 不变；
 // 路由组件在会话之间保持挂载，会话目录与转录状态不随切换重载。
-// 手机外壳保持第 1 期的单会话视图（第 4 期重做）；手机 App 平板（≥960×640）走桌面布局、检查器为覆盖层。
+// 主页是会话（负责人决定）：泳道条最左侧是看板入口（打开看板，push 到 /board），不再是返回键；
+// 进入真实会话时记下“上次停留的会话”，主页据此落地；归档当前会话后回到主页（此时显示新任务草稿）。
+// replace 切换时保留历史状态，从主页落地的会话切换代理后仍是根（手机原生返回交还平台）。
+// 手机外壳（规格 7.3）：顶栏 56（左侧“看板 N”入口带需要你计数）+ 代理条 + 对话，检查器改为底部表单；
+// 代理条来自看板领域，由这里交给会话页摆放。手机 App 平板（≥960×640）走桌面布局、检查器为覆盖层。
 // 本模块随会话路由按需加载，不进入入口包；聊天页由路由加载器单独懒加载后传入。
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useSessionListQuery } from '@/features/board/public'
 import {
+  PhoneAgentStrip,
   SessionLaneStrip,
   effectiveStripCurrent,
   type PendingStripSwitch,
@@ -15,8 +21,9 @@ import type { ChatPage as ChatPageComponent } from '@/features/chat/ChatPage'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useClientStore } from '@/stores/client-store'
 import type { AppRouteContext } from './route-context'
-import { NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
-import { SessionReturnBar } from './SessionReturnBar'
+import { BoardEntry } from './BoardEntry'
+import { HOME_PATH, NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
+import { forgetLastSession, rememberLastSession } from './session-home'
 
 export const SESSION_COMPACT_QUERY = '(max-width: 1279px), (max-height: 760px)'
 export const SESSION_TABLET_QUERY = '(min-width: 960px) and (min-height: 640px)'
@@ -41,6 +48,7 @@ type SessionShellProps = {
 
 export function SessionShell({ context, ChatPage }: SessionShellProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { sessionId = '' } = useParams()
   const phone = usePhoneShell()
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
@@ -49,14 +57,29 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
   const pageLayout = !phone || tablet
   const currentRef = useRef(sessionId)
   currentRef.current = sessionId
+  // 当前历史条目的状态（主页落地标记）：replace 时原样带上，push 新条目时不带。
+  const entryStateRef = useRef<unknown>(location.state)
+  entryStateRef.current = location.state
   const openSession = useCallback(
     (id: string) => {
       if (!id || id === currentRef.current) return
-      navigate(sessionPath(id), { replace: currentRef.current === NEW_SESSION_ROUTE_ID })
+      const replace = currentRef.current === NEW_SESSION_ROUTE_ID
+      navigate(sessionPath(id), { replace, state: replace ? entryStateRef.current : undefined })
     },
     [navigate],
   )
-  // 泳道条 / ⌥↑⌥↓ / ⌘J 切换代理：替换当前历史记录，浏览器后退仍然直接回到看板。
+  // 进入真实会话（非 'new'）时记下“上次停留的会话”；泳道条 / ⌥↑⌥↓ 切换同样经过这里。
+  // 只记目录里确实存在的 id，错误链接不会顶掉上一条有效记录。
+  const catalog = useSessionListQuery()
+  const known = Boolean(
+    sessionId &&
+    sessionId !== NEW_SESSION_ROUTE_ID &&
+    catalog.data?.sessions.some((session) => session.id === sessionId),
+  )
+  useEffect(() => {
+    if (known) rememberLastSession(sessionId)
+  }, [known, sessionId])
+  // 泳道条 / ⌥↑⌥↓ / ⌘J 切换代理：替换当前历史记录（保留主页落地标记），浏览器后退回到来处。
   // 路由在 transition 里提交，新会话还在加载时 sessionId 仍是旧值；记下已发出的目标，
   // 连按时以它为当前会话（effectiveStripCurrent），界面换过去之后清掉。
   const pendingSwitchRef = useRef<PendingStripSwitch | null>(null)
@@ -73,19 +96,39 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       const from = currentRef.current
       if (!id || id === effectiveStripCurrent(from, pendingSwitchRef.current)) return
       pendingSwitchRef.current = { from, to: id }
-      navigate(sessionPath(id), { replace: true })
+      navigate(sessionPath(id), { replace: true, state: entryStateRef.current })
     },
     [navigate],
   )
-  const backToBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
+  // 看板入口：打开看板（push），浏览器后退回到这个会话。
+  const openBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
   const pageChrome = useMemo(
     () => ({
       compact,
       overlayOnly: mobileApp,
       onOpenComponents: () => navigate(PAGE_PATHS.components),
-      onArchived: () => navigate(PAGE_PATHS.board),
+      // 归档当前会话后回到主页：先清掉“上次停留”，主页随即显示新任务草稿，不再跳看板。
+      onArchived: (id: string) => {
+        forgetLastSession(id)
+        navigate(HOME_PATH, { replace: true })
+      },
+      // “找不到这个会话”（已删除或链接错误）：回到主页（上次停留的会话或新任务草稿）。
+      onHome: () => navigate(HOME_PATH),
     }),
     [compact, mobileApp, navigate],
+  )
+  // 手机外壳：同一份会话页契约，加上代理条；代理条切换代理与桌面泳道条一样只替换路由。
+  const notify = context.notify
+  const phoneChrome = useMemo(
+    () => ({
+      ...pageChrome,
+      phone: {
+        strip: (
+          <PhoneAgentStrip currentId={sessionId} notify={notify} onOpenSession={switchSession} />
+        ),
+      },
+    }),
+    [notify, pageChrome, sessionId, switchSession],
   )
   return (
     <div
@@ -96,7 +139,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
         <SessionLaneStrip
           currentId={sessionId}
           compact={compact}
-          leading={<SessionReturnBar onBack={backToBoard} />}
+          leading={<BoardEntry onOpenBoard={openBoard} />}
           notify={context.notify}
           onOpenSession={switchSession}
           resolveCurrentId={resolveCurrentId}
@@ -114,9 +157,9 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
           requestConfirm={context.requestConfirm}
           routeSessionId={sessionId}
           onRouteSessionChange={openSession}
-          // 手机外壳：返回入口放进会话顶栏最左侧；桌面布局的返回键在泳道条上。
-          routeLeading={pageLayout ? undefined : <SessionReturnBar onBack={backToBoard} />}
-          pageChrome={pageLayout ? pageChrome : undefined}
+          // 手机外壳：看板入口放进会话顶栏最左侧；桌面布局的看板入口在泳道条上。
+          routeLeading={pageLayout ? undefined : <BoardEntry onOpenBoard={openBoard} />}
+          pageChrome={pageLayout ? pageChrome : phoneChrome}
         />
       </div>
     </div>

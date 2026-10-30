@@ -41,6 +41,8 @@ export type StripLayoutInput = {
   done: boolean
   // 36px 单行模式：需要你芯片本来就只有一行。
   compact: boolean
+  // 实测仍放不下时（估算偏小：中英混排标题、字体回退）由界面逐级抬高的最低收缩步，缺省 0。
+  minLevel?: number
 }
 
 export type StripLayout = {
@@ -121,8 +123,11 @@ export function stripLayout(input: StripLayoutInput): StripLayout {
     },
   ]
   // 没有运行中芯片时，第 1、2 步不改变任何东西，直接看下一步。
+  const minLevel = Math.max(0, Math.min(4, Math.floor(input.minLevel ?? 0)))
   const chosen =
-    steps.find((step) => stripRequiredWidth(input, step) <= input.width) ?? steps[steps.length - 1]
+    steps.find(
+      (step) => step.level >= minLevel && stripRequiredWidth(input, step) <= input.width,
+    ) ?? steps[steps.length - 1]
   return { ...chosen, actionChipWidth: actionChipWidth(input, chosen) }
 }
 

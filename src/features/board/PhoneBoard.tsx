@@ -82,6 +82,8 @@ export function PhoneBoard({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const lanes = availableLanes.filter((lane) => !view.lanes.length || view.lanes.includes(lane))
   const [current, setCurrent] = useState<BoardLane>(lanes[0] ?? 'attention')
+  // 最近一次在跳转条上点的泳道；用户自己拖动列表后作废。
+  const jumpTargetRef = useRef<BoardLane | null>(null)
   const lanesKey = lanes.join(',')
 
   // 跳转条跟随滚动：标题已经滚过顶部的最后一个区段就是当前区段。
@@ -91,22 +93,41 @@ export function PhoneBoard({
     let frame = 0
     const update = () => {
       const top = scroller.getBoundingClientRect().top
+      const sections = [...scroller.querySelectorAll<HTMLElement>('[data-board-section]')]
       let active: BoardLane | null = null
-      scroller.querySelectorAll<HTMLElement>('[data-board-section]').forEach((section) => {
+      for (const section of sections)
         if (section.getBoundingClientRect().top - top <= 12)
           active = section.dataset.boardSection as BoardLane
-      })
+      // 滚到底时，末尾较短的区段（常见是“已完成”）到不了顶部：不能让前一个区段抢走选中，
+      // 否则点了“已完成”却点亮“运行中”。到底后以露出标题的最后一个区段为准，刚点过的泳道优先。
+      const atBottom =
+        scroller.scrollTop > 0 &&
+        scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+      if (atBottom) {
+        const visible = sections
+          .filter((section) => section.getBoundingClientRect().top - top < scroller.clientHeight)
+          .map((section) => section.dataset.boardSection as BoardLane)
+        const target = jumpTargetRef.current
+        active = (target && visible.includes(target) ? target : visible.at(-1)) ?? active
+      }
       setCurrent((value) => active ?? (lanesKey.split(',')[0] as BoardLane | undefined) ?? value)
     }
     const schedule = () => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(update)
     }
+    const release = () => {
+      jumpTargetRef.current = null
+    }
     update()
     scroller.addEventListener('scroll', schedule, { passive: true })
+    scroller.addEventListener('pointerdown', release, { passive: true })
+    scroller.addEventListener('wheel', release, { passive: true })
     return () => {
       cancelAnimationFrame(frame)
       scroller.removeEventListener('scroll', schedule)
+      scroller.removeEventListener('pointerdown', release)
+      scroller.removeEventListener('wheel', release)
     }
     // 区段由筛选与内容决定：二者变化时重新计算一次当前区段即可。
   }, [lanesKey, board.items.length])
@@ -115,6 +136,7 @@ export function PhoneBoard({
     const scroller = scrollerRef.current
     const section = scroller?.querySelector<HTMLElement>(`[data-board-section="${lane}"]`)
     if (!scroller || !section) return
+    jumpTargetRef.current = lane
     scroller.scrollTo({ top: section.offsetTop, behavior: 'smooth' })
     setCurrent(lane)
   }

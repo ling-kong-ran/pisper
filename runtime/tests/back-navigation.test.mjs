@@ -41,8 +41,9 @@ test('most recently mounted sibling wins and disposed layers cannot intercept ba
 })
 
 // 原生返回（Android 返回键经 __pisperRequestBack 进入）的分层：先关弹层与返回层，
-// 都没有时才交给路由层的上级页面（会话页回看板、从“更多”进入的功能页回更多），
-// 仍不处理才交回平台。键盘 Esc 永远不用于离开页面（规格 2.8）。
+// 都没有时才交给路由层的上级页面（shellBackPath：更多的子页回更多、一级页回主页、
+// 从看板点进的会话走历史回到来处），会话主页是根，路由层不处理时交回平台。
+// 键盘 Esc 永远不用于离开页面（规格 2.8）。层级本身见 android-back-navigation / session-home。
 const backNavigationCode = transformSync(
   await readFile('src/components/layout/BackNavigation.tsx', 'utf8'),
   { loader: 'tsx', format: 'cjs' },
@@ -127,10 +128,10 @@ test('native back closes layers first, then walks up the route hierarchy, then y
   })
   assert.equal(f.requestBack(), true)
   assert.deepEqual(calls, ['sheet'])
-  // 没有返回层时交给路由层：会话页回看板、“更多”进入的功能页回更多。
+  // 没有返回层时交给路由层：回到上一级页面（更多的子页回更多、一级页回主页）。
   assert.equal(f.requestBack(), true)
   assert.deepEqual(calls, ['sheet', 'route'])
-  // 路由层也不处理（已在一级页面）时交还平台的默认返回。
+  // 路由层也不处理（已在根：会话主页或从主页落地的会话）时交还平台的默认返回。
   routeHandled = false
   assert.equal(f.requestBack(), false)
   // 打开的弹层由它自己的 Escape 处理，返回不会越过它离开页面。

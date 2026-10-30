@@ -37,6 +37,8 @@ type VirtualMessageTranscriptProps = {
   onRetryLastTurn: () => Promise<void> | void
   /** 已加载的消息是否从会话开头开始：只有这样才数得出“第 N 轮”。 */
   turnsKnown?: boolean
+  // 列表前面被收起的用户消息条数（手机会话页的“上一轮”胶囊）：第 N 轮从它之后接着数。
+  turnBase?: number
 }
 
 function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
@@ -109,6 +111,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   onCreateChildSession,
   onRetryLastTurn,
   turnsKnown = false,
+  turnBase = 0,
 }: VirtualMessageTranscriptProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
@@ -135,13 +138,13 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   const turnByIndex = useMemo(() => {
     if (!turnsKnown) return null
     const result: number[] = Array.from({ length: messages.length })
-    let turns = 0
+    let turns = turnBase
     for (let index = 0; index < messages.length; index += 1) {
       if (messages[index]?.role === 'user') turns += 1
       result[index] = turns
     }
     return result
-  }, [messages, turnsKnown])
+  }, [messages, turnBase, turnsKnown])
   const scrollMargin = useTranscriptScrollMargin(scrollElement, prefixRef, listRef)
   const getItemKey = useCallback(
     (index: number) => messageKeys[index] ?? `transcript-message-${index}`,

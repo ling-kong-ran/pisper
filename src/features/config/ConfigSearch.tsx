@@ -59,6 +59,11 @@ export function ConfigSearchBox({
   const select = (match: ConfigSearchMatch) => {
     setOpen(false)
     onQueryChange('')
+    // 独立组件已迁到组件页：不登记卡片高亮（设置里已没有这张卡），由应用壳直接去 /components。
+    if (match.entry.card === 'interface-custom-ui') {
+      onSelect(match.entry.section, 'widgets')
+      return
+    }
     // 先登记高亮请求再切分区：跨分区时由 ConfigPage 在新区内容挂载后消费，
     // 同分区时由事件监听即时触发。
     requestConfigCardHighlight(match.entry.card, match.entry.section, {
@@ -66,11 +71,7 @@ export function ConfigSearchBox({
       targetText: match.title,
       expandGroup: match.entry.expandGroup,
     })
-    if (match.entry.section === 'interface') {
-      const view = match.entry.card === 'interface-custom-ui' ? 'widgets' : 'appearance'
-      // 同一分区内也需要切换标签，路由查询参数仍由应用壳统一生成。
-      onSelect(match.entry.section, view)
-    } else onSelect(match.entry.section)
+    onSelect(match.entry.section)
   }
 
   const showDropdown = open && query.trim().length > 0

@@ -69,8 +69,18 @@ function parseSessionMessageTarget(raw: string | null): SessionMessageTarget | n
 }
 
 // 请求打开命令面板（广播给应用壳）。
-export function requestCommandPalette() {
+// 可带一个初始关键词（“更多”页搜索框的“在命令面板中继续搜索”）：先记下，面板挂载时取走一次。
+// 也直接用作按钮的 onClick，这时传进来的是点击事件，只认字符串。
+let pendingPaletteQuery = ''
+export function requestCommandPalette(query: unknown = '') {
+  pendingPaletteQuery = typeof query === 'string' ? query.slice(0, 200) : ''
   window.dispatchEvent(new Event(COMMAND_PALETTE_REQUESTED_EVENT))
+}
+
+export function takeCommandPaletteQuery() {
+  const query = pendingPaletteQuery
+  pendingPaletteQuery = ''
+  return query
 }
 
 // 请求创建会话（带工作目录与可选的自动发送提示词）：持久化请求并广播；

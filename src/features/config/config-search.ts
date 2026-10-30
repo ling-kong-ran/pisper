@@ -1,4 +1,6 @@
-// 设置搜索索引：覆盖各设置分区（分区级条目）与分区内设置卡片（卡片级条目）。
+// @public 设置搜索索引：覆盖各设置分区（分区级条目）与分区内设置卡片（卡片级条目）。
+// 对外只承诺 searchConfig、requestConfigCardHighlight 与条目类型（“更多”页搜索复用同一索引）；
+// 其余导出是设置页内部实现。
 // 每个条目的标题同时收录 zh-CN 与 en-US 两套文案，实现跨语言别名匹配
 // （输入 "model" 命中「模型配置」、输入「通知」命中 Notifications）；
 // 另用硬编码别名表补充常见口语词（provider/主题/宠物/更新/远程 等）。
@@ -23,6 +25,8 @@ export type ConfigSearchEntry = {
   expandGroup?: string
   // 卡片标题的 i18n key（渲染时按当前语言取文案）
   titleKey: string
+  // 次级面包屑的 i18n key；缺省时用所属分区名（已迁出设置的条目写明去向）。
+  sectionTitleKey?: string
   // 硬编码双语别名：只参与匹配，不参与展示
   keywords?: readonly string[]
 }
@@ -178,11 +182,13 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     keywords: ['template', '模板', '通知模板'],
   },
   // —— interface 分区卡片 ——
+  // 独立组件已迁到“组件”标签（规格 2.6）：条目保留以便搜到，选中后直接去组件页。
   {
     id: 'interface-custom-ui',
     section: 'interface',
     card: 'interface-custom-ui',
-    titleKey: 'config:interfaceSettings.customUiTab',
+    titleKey: 'navigation:shell.components',
+    sectionTitleKey: 'custom-ui:moved.title',
     keywords: [
       'custom ui',
       'standalone widgets',
@@ -429,7 +435,10 @@ export function searchConfig(
     const match: ConfigSearchMatch = {
       entry,
       title: translateText(entry.titleKey, language),
-      sectionTitle: translateText(SECTION_TITLE_KEYS[entry.section], language),
+      sectionTitle: translateText(
+        entry.sectionTitleKey || SECTION_TITLE_KEYS[entry.section],
+        language,
+      ),
     }
     const dedupeKey = `${entry.section}|${match.title}`
     if (seen.has(dedupeKey)) continue

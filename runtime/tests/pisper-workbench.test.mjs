@@ -97,7 +97,8 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
   assert.match(focus, /<QuickPromptIdeas/)
   assert.match(focus, /<ExecutionModeSelect/)
-  // 命令面板与“更多”只列出 Runtime 未裁剪的页面；壳层兜底把不可用页面送回看板。
+  // 命令面板与“更多”只列出 Runtime 未裁剪的页面；壳层兜底把不可用页面送回主页
+  // （第 4 期主页改为会话，与未知路径一致；主页本身不建会话）。
   assert.match(
     palette,
     /features\.filter\(\(\[page\]\) => runtimePageAvailable\(capabilities, page\)\)/,
@@ -105,7 +106,7 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   assert.match(more, /runtimePageAvailable\(capabilities, id\)/)
   assert.match(
     app,
-    /if \(capabilitiesLoaded && !runtimePageAvailable\(capabilities, page\)\) \{\s*routerNavigate\(PAGE_PATHS\.board, \{ replace: true \}\)/,
+    /if \(capabilitiesLoaded && !runtimePageAvailable\(capabilities, page\)\) \{\s*routerNavigate\(HOME_PATH, \{ replace: true \}\)/,
   )
   // 设置标签与 ⌘, 落到模型分区，与旧功能栏的设置键一致。
   assert.match(app, /if \(tab === 'settings'\) setConfigSection\('models'\)/)

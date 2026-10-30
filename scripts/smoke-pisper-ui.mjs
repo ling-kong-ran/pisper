@@ -402,7 +402,7 @@ try {
     await titlebar
       .locator('[data-shell-tab]')
       .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab'))),
-    ['board', 'components', 'more', 'settings'],
+    ['session', 'board', 'components', 'more', 'settings'],
   )
   await shellTab('more').click()
   await page.locator('[data-more-tile="page:workflows"]').waitFor()
@@ -914,14 +914,14 @@ try {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    // 手机外壳保留第 1 期的单会话标题行（“项目与任务设置”“置顶摘要”）；桌面会话页头右端依次是
-    // 侧聊、⋯（项目与任务设置）与检查器开关，置顶摘要与新建标签页的职责由检查器承担。
+    // 手机会话页是第 4 期的 56px 顶栏（右端只有 ⋯ 项目与任务设置，侧聊与检查器都在 ⋯ 里）；桌面会话页头
+    // 右端依次是侧聊、⋯（项目与任务设置）与检查器开关，置顶摘要与新建标签页的职责由检查器承担。
     const phoneLayout = width <= 650
     const taskHeader = page.locator(
-      phoneLayout ? '.workbench-chat-header' : '[data-session-header]',
+      phoneLayout ? '[data-session-header="phone"]' : '[data-session-header]',
     )
     const headerControls = phoneLayout
-      ? ['[aria-label="项目与任务设置"]', '[aria-label="置顶摘要"]']
+      ? ['[aria-label="项目与任务设置"]']
       : ['[data-session-side-chat]', '[aria-label="项目与任务设置"]', '[data-inspector-toggle]']
     await taskHeader.locator(headerControls.at(-1)).waitFor()
     await taskHeader.evaluate(async (header) => {
@@ -978,18 +978,17 @@ try {
         document.documentElement.style.setProperty('--pisper-safe-area-bottom', '16px')
       })
       await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-      await page.getByRole('menuitem', { name: '打开会话上下文', exact: true }).click()
-      const content = page.locator('[data-session-context-panel]')
+      await page.getByRole('menuitem', { name: '改动、终端、文件与预览', exact: true }).click()
+      const content = page.locator('[data-inspector-sheet]')
       await content.waitFor()
-      const bounds = await content.evaluate((element) => {
+      await content.evaluate((el) =>
+        Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {}))),
+      )
+      const bounds = await content.locator('[data-session-inspector]').evaluate((element) => {
         const rect = element.getBoundingClientRect()
         return { top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight }
       })
       assert.ok(bounds.top >= 24 && bounds.bottom <= bounds.viewportHeight - 16)
-      await content
-        .getByRole('button', { name: /关闭辅助页面/ })
-        .first()
-        .click()
       assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
       await content.waitFor({ state: 'hidden' })
       await page.evaluate(() => {
@@ -997,7 +996,7 @@ try {
         document.documentElement.style.removeProperty('--pisper-safe-area-bottom')
       })
       report.checks.push(
-        '390px single content view respects system safe areas, tab close remains operable, and one native back returns to the conversation',
+        '390px phone inspector sheet (⋯ › 改动、终端、文件与预览) respects system safe areas and one native back closes it back to the conversation',
       )
     }
     const inline = page.locator('.focus-composer-visible-tools')
@@ -1591,7 +1590,8 @@ try {
     }
   }
   await page.setViewportSize({ width: 650, height: 700 })
-  await page.getByTestId('mobile-tab-bar').waitFor()
+  await page.locator('[data-session-header="phone"]').waitFor()
+  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
   assert.equal(await titlebar.count(), 0)
   assert.equal(
     await page.evaluate(() => document.documentElement.hasAttribute('data-phone-shell')),
@@ -1607,7 +1607,8 @@ try {
   await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
-  await titlebar.locator('[data-shell-tab="board"][aria-current="page"]').waitFor()
+  // 主页改为会话：会话页点亮“会话”标签。
+  await titlebar.locator('[data-shell-tab="session"][aria-current="page"]').waitFor()
   await page.reload()
   await titlebar.waitFor()
   await prompt.waitFor()
@@ -1619,8 +1620,8 @@ try {
     await page.keyboard.press('Escape')
     await preservedContextSheet.waitFor({ state: 'hidden' })
   }
-  await page.getByTestId('mobile-tab-bar').waitFor()
-  assert.equal(await page.getByTestId('mobile-tab-bar').isVisible(), true)
+  await page.locator('[data-session-header="phone"]').waitFor()
+  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
   assert.equal(await titlebar.count(), 0)
   await page.setViewportSize(desktopViewport)
   await titlebar.waitFor()
@@ -1636,14 +1637,15 @@ try {
   assert.equal(await page.getByRole('tab', { name: '会话布局' }).count(), 0)
   // 旧的 /chat 入口回到看板；会话草稿仍在原会话里。
   await page.goto(base + '/#/chat')
-  await page.waitForURL('**/#/board')
-  await page.locator('[data-board-root]').waitFor()
+  // 主页改为会话：/chat 回到主页（上次停留的会话或新任务草稿），不再回看板。
+  await page.waitForURL((url) => /^#\/board\/[^/]+$/.test(url.hash) || url.hash === '#/')
+  await page.locator('[data-session-shell]').waitFor()
   await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')
   assert.equal(await page.getByRole('button', { name: '会话布局' }).count(), 0)
   report.checks.push(
-    'Old widget-settings links open the Components tab, /chat returns to the board, the removed chat layout switcher stays absent and navigation preserves the chat draft',
+    'Old widget-settings links open the Components tab, /chat returns to the home (last session or new-task draft), the removed chat layout switcher stays absent and navigation preserves the chat draft',
   )
 
   await verifyRemoteWorkspaceSettings({ browser, base, report, output })

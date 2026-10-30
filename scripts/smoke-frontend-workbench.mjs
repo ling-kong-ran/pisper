@@ -268,7 +268,8 @@ try {
     0,
     'the session page embeds the single-session view without Dockview',
   )
-  const returnBar = page.getByRole('button', { name: /^返回看板/ })
+  // 主页改为会话后，泳道条左端是“打开看板”入口（push 到 /board），焦点仍回到来源卡片。
+  const returnBar = page.getByRole('button', { name: /^打开看板/ })
   await returnBar.waitFor()
   await page.getByText('Task A', { exact: true }).first().waitFor()
   await returnBar.click()
@@ -543,57 +544,52 @@ try {
     savedReadingPosition,
   )
   await page.setViewportSize({ width: 390, height: 844 })
-  // 手机外壳保留第 1 期的单会话视图（第 4 期再重做）：没有泳道条与检查器，标题行换成 44px 触控尺寸，
-  // 桌面检查器打开过的资源页在手机上是只显示内容的单面视图。
+  // 第 4 期手机会话页：56px 顶栏（⋯ 是 44px 触控目标），没有泳道条与并排检查器；桌面检查器打开过的
+  // 预览不会让手机落在只显示内容的视图上，对话与未发送草稿照常可见。
   await page.waitForFunction(
     () =>
       document.querySelector('#task-a-more')?.getBoundingClientRect().height >= 44 &&
-      !document.querySelector('.mobile-session-shell'),
+      document.querySelector('[data-session-header="phone"]'),
   )
   assert.equal(await page.locator('[data-lane-strip], [data-session-inspector]').count(), 0)
   const mobilePane = page.locator('[data-task-workspace="a"]')
-  assert.equal(
-    await mobilePane.locator('.focus-composer textarea').isVisible(),
-    false,
-    'content-only view must hide the conversation',
-  )
-  // 手机标题行只保留“项目与任务设置”和“置顶摘要”；新建标签页已收进更多菜单（标签条另有加号）。
-  for (const name of ['项目与任务设置', '置顶摘要'])
-    assert.equal(
-      await mobilePane.getByRole('button', { name, exact: true }).isVisible(),
-      true,
-      `task header keeps ${name} visible in content mode`,
-    )
-  await mobilePane.getByRole('button', { name: '置顶摘要', exact: true }).click()
-  const sheet = page.getByRole('dialog', { name: '置顶摘要', exact: true })
+  await mobilePane.locator('.focus-composer textarea').waitFor({ state: 'visible' })
+  assert.equal(await mobilePane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
+  // ⋯ → “改动、终端、文件与预览”：检查器是底部表单（模态、困住焦点、在可视区内）；
+  // 系统返回键先关表单，资源页与草稿都保留，回到对话。
+  await mobilePane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  await page.getByRole('menuitem', { name: '改动、终端、文件与预览', exact: true }).click()
+  const sheet = page.locator('[data-inspector-sheet]')
   await sheet.waitFor()
+  await sheet.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))),
+  )
   await page.screenshot({
-    path: join(output, 'summary-mobile.png'),
+    path: join(output, 'inspector-sheet-mobile.png'),
     animations: 'disabled',
   })
   const sheetBox = await sheet.boundingBox()
   assert.ok(
-    sheetBox.x >= 44 && sheetBox.y >= 0 && sheetBox.y + sheetBox.height <= 845,
-    'summary sheet must fit inside the usable viewport',
+    sheetBox.x >= 0 && sheetBox.y >= 0 && sheetBox.y + sheetBox.height <= 845,
+    'inspector sheet must fit inside the usable viewport',
   )
-  await sheet.getByRole('button', { name: '关闭摘要', exact: true }).focus()
+  await sheet.locator('button').first().focus()
   for (let index = 0; index < 10; index++) {
     await page.keyboard.press('Tab')
     assert.equal(
       await sheet.evaluate((el) => el.contains(document.activeElement)),
       true,
-      'mobile summary traps keyboard focus',
+      'mobile inspector sheet traps keyboard focus',
     )
   }
   assert.equal(
     await page.locator('body').evaluate((el) => getComputedStyle(el).pointerEvents),
     'none',
-    'background cannot receive pointer input while summary is modal',
+    'background cannot receive pointer input while the sheet is modal',
   )
-  await sheet.press('Escape')
-  await page.waitForFunction(() => document.activeElement?.id === 'task-a-summary-toggle')
   const pagesBeforeBack = await page.evaluate(() => window.workbenchFixture.state().a.pages.length)
   assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
+  await sheet.waitFor({ state: 'detached' })
   assert.equal(
     await page.evaluate(() => window.workbenchFixture.state().a.pages.length),
     pagesBeforeBack,
@@ -843,7 +839,7 @@ try {
   await runningPage.goto(fixtureUrl('a'))
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
   await runningPage.getByText('Running task output', { exact: true }).waitFor()
-  await runningPage.getByRole('button', { name: /^返回看板/ }).click()
+  await runningPage.getByRole('button', { name: /^打开看板/ }).click()
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ state: 'detached' })
   await runningPage.locator('[data-board-card="a"][data-lane="running"]').waitFor()
   await runningPage.waitForRequest(

@@ -1,6 +1,10 @@
 // 会话页（/board/:sessionId，桌面布局）的单会话工作区：对话列（页头 44 + 计划细进度 + 转录与输入框）
 // + 检查器。宽屏时检查器 456px 并排、可拖宽、可收起；≤1279 宽或 ≤760 高（以及手机 App 平板）时默认关闭，
 // 改为从右侧滑出的 420px 覆盖层（无遮罩，--sh-float）。⌘I 开关检查器。
+// 手机外壳（规格 7.3）：页头换成 56px 顶栏，下面是应用壳交来的代理条；检查器改为底部表单
+//（改动 / 终端 / 文件 / 预览），由顶栏的“+N 改动 ›”或“⋯”打开，拖拽条、关闭键、Esc 与 Android 返回键都先关表单。
+// 表单关闭时播放与滑入对应的退场动画，只为退场多挂载一会儿（useExitPresence：动画结束或兜底超时即卸载，
+// 减少动效时立即卸载），焦点回到打开它的入口（通常是“+N 改动”）。
 // 外部的“打开资源”请求（网页预览、任务内容请求、运行结束后的自动展示）仍写进 session-context-pages-store，
 // 这里订阅它并切到对应标签，所以这些入口不需要知道会话页换了布局。
 import {
@@ -17,10 +21,14 @@ import {
   type ReactNode,
 } from 'react'
 import { useI18n } from '@/app/use-i18n'
+import { SheetDragHandle } from '@/components/app/SheetDragHandle'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { useBackLayer } from '@/hooks/use-back-layer'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
-import { matchesShortcut, shortcutEventBlocked } from '@/lib/shortcuts'
+import { useExitPresence } from '@/hooks/useExitPresence'
+import { matchesShortcut, optionTypingInEditable, shortcutEventBlocked } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { useShortcutStore } from '@/stores/shortcut-store'
 import type { ChatMessage, EntityRecord, Plan, TeamState } from '@/types/chat'
 import { TASK_VIEW_WILL_CHANGE } from './events'
 import { TASK_CONTENT_REQUESTED, parseTaskContentRequest } from './public-workspace'
@@ -48,7 +56,6 @@ const SessionInspector = lazy(() =>
   import('./SessionInspector').then((module) => ({ default: module.SessionInspector })),
 )
 
-export const INSPECTOR_SHORTCUT = 'Mod+KeyI'
 const EMPTY_ACTIVITY: readonly EntityRecord[] = []
 
 // 上下文页种类 → 检查器标签与子视图：外部请求打开某种资源时切到对应位置。
@@ -76,6 +83,17 @@ function inspectorTarget(kind: SessionContextTab): {
     default:
       return null
   }
+}
+
+// 底部表单关闭后焦点的去处：打开时的焦点元素。从“⋯”菜单项打开时菜单随即卸载，改记菜单的触发键
+//（Radix 菜单内容用 aria-labelledby 指向它）；焦点已在表单里或在 body 上时不记，关闭时退回“+N 改动”。
+function sheetFocusReturnTarget(active: Element | null): HTMLElement | null {
+  if (!(active instanceof HTMLElement) || active === document.body) return null
+  if (active.closest('[data-inspector-sheet]')) return null
+  const menu = active.closest('[role="menu"]')
+  if (!menu) return active
+  const trigger = menu.getAttribute('aria-labelledby')
+  return trigger ? document.getElementById(trigger) : null
 }
 
 function planProgress(plan: Plan | null) {
@@ -117,7 +135,11 @@ export function SessionWorkspace({
 }) {
   const { t } = useI18n()
   const chrome = useContext(SessionPageChromeContext)
-  const overlayMode = Boolean(chrome?.compact || chrome?.overlayOnly)
+  const phone = chrome?.phone ?? null
+  // 手机外壳：检查器是底部表单。它与紧凑窗口的覆盖层同属“不并排”的临时层：
+  // 默认关闭、不写持久化偏好、运行结束不自动弹出，Esc 与原生返回先关它。
+  const sheetMode = Boolean(phone)
+  const overlayMode = sheetMode || Boolean(chrome?.compact || chrome?.overlayOnly)
   const [headerHost, setHeaderHost] = useState<HTMLDivElement | null>(null)
   const [sourceActionHost, setSourceActionHost] = useState<HTMLDivElement | null>(null)
   const slots = useMemo(
@@ -135,6 +157,11 @@ export function SessionWorkspace({
     if (!overlayMode) setOverlayOpen(false)
   }, [overlayMode])
   const open = overlayMode ? overlayOpen : asideOpen
+  // 手机底部表单关闭后只为退场动画多挂载一会儿，退场结束（或兜底超时、减少动效时立即）就与检查器面板一起卸载。
+  // 只跟踪表单：覆盖层与并排检查器仍是关闭即卸载。
+  const sheetPresence = useExitPresence(sheetMode && open)
+  const sheetLeaving = sheetMode && sheetPresence.leaving
+  const sheetOpenerRef = useRef<HTMLElement | null>(null)
   const panelId = `session-${sessionId}-inspector`
   const root = useRef<HTMLDivElement>(null)
   const [width, setRootWidth] = useState(0)
@@ -163,10 +190,15 @@ export function SessionWorkspace({
   const setOpen = useCallback(
     (next: boolean) => {
       window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
+      // 表单挂载时焦点会被移进表单：打开入口要在这一刻记下，关闭后把焦点送回去。
+      if (sheetMode && next) {
+        const opener = sheetFocusReturnTarget(document.activeElement)
+        if (opener) sheetOpenerRef.current = opener
+      }
       if (overlayMode) setOverlayOpen(next)
       else setAsideOpen(next)
     },
-    [overlayMode, setAsideOpen],
+    [overlayMode, setAsideOpen, sheetMode],
   )
   const show = useCallback(
     (tab: SessionInspectorTab) => {
@@ -191,9 +223,26 @@ export function SessionWorkspace({
         ?.focus(),
     )
   }, [panelId, setOpen])
+  // 表单卸载（退场结束）后焦点回到打开它的入口；入口已不在（例如改动清零后芯片消失）时退回“+N 改动”或“⋯”。
+  const returnSheetFocus = useCallback(
+    (event: Event) => {
+      event.preventDefault()
+      const opener = sheetOpenerRef.current
+      sheetOpenerRef.current = null
+      const target =
+        (opener?.isConnected ? opener : null) ??
+        document.querySelector<HTMLElement>(
+          `[data-session-changes][aria-controls="${CSS.escape(panelId)}"]`,
+        ) ??
+        document.getElementById(`task-${sessionId}-more`)
+      target?.focus({ preventScroll: true })
+    },
+    [panelId, sessionId],
+  )
+  const mode = sheetMode ? 'sheet' : overlayMode ? 'overlay' : 'aside'
   const control = useMemo<SessionInspectorControl>(
-    () => ({ open, mode: overlayMode ? 'overlay' : 'aside', panelId, toggle, show }),
-    [open, overlayMode, panelId, show, toggle],
+    () => ({ open, mode, panelId, toggle, show }),
+    [open, mode, panelId, show, toggle],
   )
 
   // 外部请求（网页预览、旧的任务内容事件、自动展示）→ 切到对应标签并打开检查器。
@@ -234,7 +283,7 @@ export function SessionWorkspace({
     window.addEventListener(TASK_CONTENT_REQUESTED, request)
     return () => window.removeEventListener(TASK_CONTENT_REQUESTED, request)
   }, [active, sessionId])
-  // 运行结束且本轮留下改动：宽屏时自动展开“改动 · 本会话”；覆盖层不自动弹出，避免盖住刚出来的回复。
+  // 运行结束且本轮留下改动：宽屏时自动展开“改动 · 本会话”；覆盖层与底部表单不自动弹出，避免盖住刚出来的回复。
   useSessionContextAutoReveal({
     sessionId,
     streaming,
@@ -245,18 +294,22 @@ export function SessionWorkspace({
     onReveal: () => reveal('files'),
   })
 
-  // ⌘I：开关检查器（应用级组合键，输入框内同样生效）。
+  // ⌘I：开关检查器（应用级组合键，输入框内同样生效）；读 shortcut-store 的当前绑定，改绑后立即生效。
+  const inspectorBinding = useShortcutStore((state) => state.bindings.toggleInspector)
   useEffect(() => {
     if (!active) return
     const keydown = (event: KeyboardEvent) => {
-      if (!matchesShortcut(event, INSPECTOR_SHORTCUT) || shortcutEventBlocked(event)) return
+      if (!matchesShortcut(event, inspectorBinding) || shortcutEventBlocked(event)) return
+      // 改绑成 ⌥ + 字母时，macOS 输入框里的 ⌥ 组合是在打特殊字符，交还输入框。
+      if (optionTypingInEditable(event) && event.key.length === 1) return
       event.preventDefault()
       toggle()
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
-  }, [active, toggle])
-  // 覆盖层是浮层：Esc / 原生返回先关它（Esc 永远不用于离开会话页）。
+  }, [active, inspectorBinding, toggle])
+  // 覆盖层是浮层：Esc / 原生返回先关它（Esc 永远不用于离开会话页）。底部表单本身是对话框，
+  // Esc 与原生返回先由它处理；这里的返回层只是兜底，两者不会同时生效。
   useBackLayer(active && overlayMode && overlayOpen, 100, close)
 
   // —— 宽屏拖宽 ——
@@ -287,10 +340,14 @@ export function SessionWorkspace({
   // 紧凑窗口打开覆盖层时，宽度允许就给对话内容让出覆盖层的位置（布局变化，不是动画）：
   // 转录与输入框在剩余宽度里重新居中，停止键与发送键不会被盖住。放不下时保持纯覆盖。
   const overlayInset =
-    overlayMode && open && width - SESSION_INSPECTOR_OVERLAY_WIDTH >= SESSION_CONVERSATION_MIN_WIDTH
+    overlayMode &&
+    !sheetMode &&
+    open &&
+    width - SESSION_INSPECTOR_OVERLAY_WIDTH >= SESSION_CONVERSATION_MIN_WIDTH
       ? SESSION_INSPECTOR_OVERLAY_WIDTH
       : 0
-  const inspector = open && (
+  // 检查器收起时整个面板不渲染（预览 iframe 只在“预览”标签可见时存在）；手机表单的退场期间例外，退场结束即卸载。
+  const inspector = (open || sheetLeaving) && (
     <Suspense
       fallback={
         <p role="status" className="p-4 text-sm text-content-muted">
@@ -309,7 +366,7 @@ export function SessionWorkspace({
         activity={activity}
         planTab={planTab}
         sources={sources}
-        mode={overlayMode ? 'overlay' : 'aside'}
+        mode={mode}
         requestConfirm={requestConfirm}
         onClose={close}
         onOpenComponents={chrome?.onOpenComponents}
@@ -325,12 +382,18 @@ export function SessionWorkspace({
           id={`task-${sessionId}-workspace`}
           tabIndex={-1}
           data-task-workspace={sessionId}
-          data-session-workspace={overlayMode ? 'overlay' : 'aside'}
+          data-session-workspace={mode}
           data-active={active}
-          className="relative flex h-full min-h-0 min-w-0 overflow-hidden bg-panel"
+          className={cn(
+            'relative flex h-full min-h-0 min-w-0 overflow-hidden bg-panel',
+            // 手机会话页没有底部标签栏：输入框自己让出底部安全区，软键盘弹起时贴着键盘。
+            sheetMode &&
+              "pb-[var(--pisper-safe-area-bottom)] [[data-mobile-keyboard='open']_&]:pb-0",
+          )}
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-session-conversation>
             <div ref={setHeaderHost} className="@container shrink-0" data-task-header />
+            {phone?.strip}
             {progress && (
               <div
                 role="progressbar"
@@ -401,18 +464,53 @@ export function SessionWorkspace({
               </aside>
             </>
           )}
-          {overlayMode && open && (
-            <aside
-              ref={asideRef}
-              data-inspector-overlay
-              className={cn(
-                'absolute right-0 bottom-0 z-30 max-w-[calc(100%-24px)] overflow-hidden border-l border-stroke bg-panel shadow-float',
-                'animate-in fade-in-0 slide-in-from-right-4 duration-(--d-base) ease-(--ease-enter)',
+          {overlayMode && (open || sheetLeaving) && (
+            // 覆盖层与手机底部表单同属临时层：手机是表单（拖拽条、关闭键、Esc 与 Android 返回键都先关它，
+            // 关闭后以 data-state=closed 播完退场动画再卸载，不留空白），其余是右侧覆盖层（关闭即卸载）。
+            <>
+              {sheetMode ? (
+                <Sheet open={open} onOpenChange={(next) => !next && close()}>
+                  <SheetContent
+                    side="bottom"
+                    showCloseButton={false}
+                    data-inspector-sheet
+                    data-sheet-leaving={sheetLeaving || undefined}
+                    // 退场动画结束就卸载整块表单；子元素冒上来的动画事件不算。
+                    onAnimationEnd={(event) => {
+                      if (event.target === event.currentTarget && !open) sheetPresence.finish()
+                    }}
+                    onCloseAutoFocus={returnSheetFocus}
+                    // 高度固定（覆盖底部表单默认的 h-auto）：切换标签时表单不跳；顶部留出状态栏与一截转录，
+                    // 提示这是临时浮层。底色与检查器正文同为 --panel，拖拽条与底部安全区不出现色带（深色明显）。
+                    // 不传 aria-describedby：Radix 自动关联下面的 sr-only 说明。
+                    className="gap-0 data-[side=bottom]:h-[min(86dvh,calc(100dvh-var(--pisper-safe-area-top)-48px))] overflow-hidden rounded-t-(--r-sheet) bg-panel p-0 pb-[var(--pisper-safe-area-bottom)]"
+                  >
+                    <SheetTitle className="sr-only">{t('board:inspector.label')}</SheetTitle>
+                    <SheetDescription className="sr-only">
+                      {t('board:phone.inspectorDescription')}
+                    </SheetDescription>
+                    <SheetDragHandle onDismiss={close} />
+                    {/* 检查器内容里的分段控件（本会话 / 工作区、统一 / 并排、终端 / 进程）在表单里放大到 44px 触控目标。 */}
+                    <div className="flex min-h-0 flex-1 flex-col [&_[data-slot=segmented-control]]:h-11 [&_[data-slot=segmented-control-item]]:h-10 [&_[data-slot=segmented-control-item]]:px-3">
+                      {inspector}
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                // sheetLeaving 只在手机表单时成立：走到这里时覆盖层一定是打开的。
+                <aside
+                  ref={asideRef}
+                  data-inspector-overlay
+                  className={cn(
+                    'absolute right-0 bottom-0 z-30 max-w-[calc(100%-24px)] overflow-hidden border-l border-stroke bg-panel shadow-float',
+                    'animate-in fade-in-0 slide-in-from-right-4 duration-(--d-base) ease-(--ease-enter)',
+                  )}
+                  style={{ width: SESSION_INSPECTOR_OVERLAY_WIDTH, top: headerHeight }}
+                >
+                  {inspector}
+                </aside>
               )}
-              style={{ width: SESSION_INSPECTOR_OVERLAY_WIDTH, top: headerHeight }}
-            >
-              {inspector}
-            </aside>
+            </>
           )}
         </div>
       </SessionInspectorContext.Provider>

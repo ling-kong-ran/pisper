@@ -12,6 +12,7 @@
 // 固定数据提供；覆盖泳道条内联允许 / critical 只开确认层、⌘J 代理面板、⌥↑/⌥↓ 切换、⌘I 检查器、
 // ⌘[ 返回并把焦点还给来源卡片、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
 // 以及手机 390 的会话页仍可用。
+// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -491,7 +492,7 @@ try {
       await tabBar
         .locator('[data-shell-tab]')
         .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab'))),
-      ['board', 'components', 'more', 'settings'],
+      ['session', 'board', 'more', 'settings'],
     )
     for (const box of await tabBar
       .locator('button')
@@ -510,7 +511,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Phone app 390x844 (light/dark): bottom tab bar 看板 · 组件 · 新任务 · 更多 · 设置 with the amber count badge on 看板 across pages, no desktop title bar, no horizontal scroll',
+    'Phone app 390x844 (light/dark): bottom tab bar 会话 · 看板 · 新任务 · 更多 · 设置 with the amber count badge on 看板 across pages, no desktop title bar, no horizontal scroll',
   )
 
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。
@@ -1097,7 +1098,8 @@ try {
     '1080x680 with the simulated custom title bar: 36px single-line strip, chrome ≤ 128px, the inspector is a 420px overlay without a scrim below the session header, the conversation makes room so stop, send and header controls stay reachable, nothing clipped, covered or in the top-right 144px, no horizontal scroll; ⌘I/Esc from the composer keeps focus there, and Esc closes the overlay without stopping the run',
   )
 
-  // 7c. 手机 App 390×844：会话页保持手机外壳的单会话视图（第 4 期再重做），输入框与返回看板可用。
+  // 7c. 手机 App 390×844：第 4 期手机会话页（顶栏左侧“看板 ▲N”入口、无泳道条、隐藏底部标签栏），
+  // 输入框可用；完整的代理条 / 底部表单 / 返回键覆盖在 smoke-mobile-shell。
   {
     const { context } = await sessionContext(
       {
@@ -1117,12 +1119,12 @@ try {
       tabBar: Boolean(document.querySelector('[data-testid="mobile-tab-bar"]')),
       horizontalScroll: document.documentElement.scrollWidth > innerWidth,
     }))
-    assert.deepEqual(phone, { strip: 0, shell: 'phone', tabBar: true, horizontalScroll: false })
+    assert.deepEqual(phone, { strip: 0, shell: 'phone', tabBar: false, horizontalScroll: false })
     const prompt = page.locator('.focus-composer textarea')
     assert.equal(await prompt.isVisible(), true)
     await prompt.fill('手机会话页的草稿')
     assert.equal(await prompt.inputValue(), '手机会话页的草稿')
-    const back = page.getByRole('button', { name: /^返回看板/ })
+    const back = page.getByRole('button', { name: /^打开看板/ })
     const backBox = await back.boundingBox()
     assert.ok(backBox && backBox.height >= 44, `phone back target ${JSON.stringify(backBox)}`)
     await page.screenshot({ path: join(output, 'session-phone.png') })
@@ -1131,7 +1133,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Phone app 390x844: the session page keeps the phone single-session view (no lane strip, bottom tab bar, composer usable, 44px back-to-board target, no horizontal scroll)',
+    'Phone app 390x844: the phone session page (no lane strip, no bottom tab bar, composer usable, 44px open-board entry, no horizontal scroll)',
   )
 
   // 7d. 会话页头“⋯ › 重命名会话”（旧侧栏的右键重命名随外壳退役）：空白名不能保存、取消不发请求；
@@ -1196,6 +1198,156 @@ try {
   }
   report.checks.push(
     'Session header ⋯ › 重命名会话: a blank name cannot be saved and cancelling sends nothing; saving trims the name, PATCHes the real runtime once and updates the header title',
+  )
+
+  // 7e. 第 4 期快捷键改绑：⌘J / ⌘I / ⌥↑⌥↓ / 插话 / ⌘/ 都在 shortcut-store，可在“设置 → 快捷键”改绑；
+  // 改绑立即生效、旧键失效，标签与 aria-keyshortcuts 跟随；⌘/ 速查列出当前绑定，Esc 关闭不停止运行。
+  // 最后恢复默认（偏好经 Runtime 同步，免得影响之后的上下文）。
+  {
+    const { context, aborts } = await sessionContext({
+      viewport: { width: 1440, height: 900 },
+      colorScheme: 'light',
+    })
+    const inputs = []
+    await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/input$`), async (route) => {
+      inputs.push(route.request().postDataJSON())
+      await route.fulfill({
+        json: { ok: true, inputId: `in-${inputs.length}`, queueRevision: inputs.length },
+      })
+    })
+    const page = await openBoard(context, 'shortcut rebinding')
+    const composer = page.locator('.focus-composer textarea').first()
+    const panel = page.locator('[data-agent-panel]')
+    const inspector = page.locator('[data-session-inspector]')
+    const agentsButton = page.locator('[data-strip-agents]')
+    const help = page.locator('[data-shortcut-help]')
+    const helpRow = (key) => help.locator(`[data-shortcut-help-entry="${key}"]`)
+    const keyName = mod === 'Meta' ? '⌘' : 'Ctrl'
+    const ariaMod = mod === 'Meta' ? 'Meta' : 'Control'
+    const waitForInputs = async (count) => {
+      for (let i = 0; i < 30 && inputs.length < count; i += 1) await page.waitForTimeout(100)
+    }
+    const openRunningSession = async () => {
+      await openSession(page)
+      await page.locator('[data-run-bar="running"]').waitFor({ timeout: 30_000 })
+      await page.locator('[data-lane-strip]').waitFor()
+    }
+    await openRunningSession()
+    assert.equal(await agentsButton.getAttribute('aria-keyshortcuts'), `${ariaMod}+J`)
+    // ⌘/ 速查（默认键）：三组，列出 ⌘J；Esc 关闭、焦点回到输入框、不停止运行。
+    await composer.click()
+    await page.keyboard.press(`${mod}+Slash`)
+    await help.waitFor({ timeout: 10_000 })
+    assert.deepEqual(
+      await help
+        .locator('[data-shortcut-help-group]')
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-help-group'))),
+      ['global', 'board', 'session'],
+    )
+    assert.match((await helpRow('agentPanel').innerText()).replace(/\s+/g, ' '), /J/)
+    await page.keyboard.press('Escape')
+    await help.waitFor({ state: 'detached' })
+    assert.deepEqual(aborts, [], 'Esc in the shortcut help never stops the run')
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.matches('.focus-composer textarea')),
+      true,
+    )
+
+    // 设置 → 快捷键：代理面板 F6、检查器 F7、插话 ⌘↵。
+    await page.goto(`${base}/#/config/shortcuts`)
+    const card = page.locator('[data-config-card="shortcuts-bindings"]')
+    await card.waitFor({ timeout: 30_000 })
+    const record = async (action, keys) => {
+      await card.locator(`#shortcut-${action}`).click()
+      await page.keyboard.press(keys)
+      await page.waitForFunction(
+        (id) => document.querySelector(`#shortcut-${id}`)?.getAttribute('aria-pressed') !== 'true',
+        action,
+      )
+    }
+    await record('agentPanel', 'F6')
+    await record('toggleInspector', 'F7')
+    await record('steerMessage', `${mod}+Enter`)
+
+    // 回到会话页：旧键失效、新键生效，标签跟随。
+    await openRunningSession()
+    assert.equal(await agentsButton.getAttribute('aria-label'), '全部代理（F6）')
+    assert.equal(await agentsButton.getAttribute('aria-keyshortcuts'), 'F6')
+    await composer.click()
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await page.waitForTimeout(400)
+    assert.equal(await panel.count(), 0, 'the old ⌘J no longer opens the agent panel')
+    await page.keyboard.press('F6')
+    await panel.waitFor({ timeout: 5000 })
+    await page.keyboard.press('Escape')
+    await panel.waitFor({ state: 'detached' })
+    const inspectorOpen = async () => (await inspector.count()) > 0
+    const before = await inspectorOpen()
+    await composer.click()
+    await page.keyboard.press(`${mod}+KeyI`)
+    await page.waitForTimeout(300)
+    assert.equal(await inspectorOpen(), before, 'the old ⌘I no longer toggles the inspector')
+    await page.keyboard.press('F7')
+    await page.waitForFunction(
+      (open) => !!document.querySelector('[data-session-inspector]') !== open,
+      before,
+    )
+    await page.keyboard.press('F7')
+    await page.waitForFunction(
+      (open) => !!document.querySelector('[data-session-inspector]') === open,
+      before,
+    )
+    assert.equal(
+      (await page.locator('[data-composer-hint]').innerText()).trim(),
+      `运行中 Enter 排队 · ${keyName} + Enter 插话`,
+    )
+    await composer.fill('改绑后插话')
+    await composer.press('Alt+Enter')
+    await page.waitForTimeout(500)
+    assert.equal(inputs.length, 0, 'the old ⌥↵ no longer steers')
+    await composer.fill('改绑后插话')
+    await composer.press(`${mod}+Enter`)
+    await waitForInputs(1)
+    assert.deepEqual(
+      inputs.map((input) => input?.behavior),
+      ['steer'],
+    )
+    await page.waitForFunction(
+      () => document.querySelector('.focus-composer textarea')?.value === '',
+    )
+    await composer.fill('排队一条')
+    await composer.press('Enter')
+    await waitForInputs(2)
+    assert.deepEqual(
+      inputs.map((input) => input?.behavior),
+      ['steer', 'followUp'],
+    )
+    // 速查显示改绑后的键，并能跳到设置里改绑。
+    await composer.click()
+    await page.keyboard.press(`${mod}+Slash`)
+    await help.waitFor({ timeout: 10_000 })
+    assert.match(await helpRow('agentPanel').innerText(), /F6/)
+    assert.match(await helpRow('toggleInspector').innerText(), /F7/)
+    await help.getByRole('button', { name: '在设置中改绑', exact: true }).click()
+    await card.waitFor({ timeout: 30_000 })
+    assert.ok(page.url().includes('/config/shortcuts'))
+    // 恢复默认：⌘J 重新打开代理面板。
+    await card.getByRole('button', { name: '恢复默认', exact: true }).click()
+    const confirm = page.getByRole('alertdialog').or(page.getByRole('dialog'))
+    await confirm.getByRole('button', { name: '恢复默认', exact: true }).click()
+    await page.waitForFunction(
+      () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
+    )
+    await openRunningSession()
+    await composer.click()
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await panel.waitFor({ timeout: 5000 })
+    await page.keyboard.press('Escape')
+    assert.deepEqual(aborts, [], 'no Esc in this section stops the run')
+    await context.close()
+  }
+  report.checks.push(
+    'Shortcut rebinding: ⌘/ help lists global/board/session bindings and Esc closes it without stopping the run; after rebinding the agent panel to F6, the inspector to F7 and steer to ⌘↵ in Settings → Shortcuts, the old keys stop working, the new ones work at once, labels and aria-keyshortcuts follow, the help shows the new keys and links back to Settings; reset restores ⌘J',
   )
 
   assert.deepEqual(report.pageErrors, [])

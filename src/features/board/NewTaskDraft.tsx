@@ -1,0 +1,108 @@
+// 会话主页的“新任务”草稿（主页改为会话）：会话页外壳 + 空转录 + 输入框。上次停留的会话不存在、
+// 已归档或已删除时由应用壳的主页显示。项目、模型、审批与运行模式沿用启动台（含登记的空项目与
+// pisper-launch-defaults）；进入草稿不建任何会话，发出第一条消息时才建，宿主随即以 replace 打开它。
+// 桌面：会话页头 44 + 空转录 + 768 宽的输入框；手机：56 顶栏（左侧看板入口）+ 代理条 + 停靠底部的输入框，
+// 底部安全区由这里让出，软键盘弹起时沿用 MobileViewportStabilizer 随可视视口移动。
+import type { ReactNode } from 'react'
+import { useI18n } from '@/app/use-i18n'
+import { SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
+import { LaunchConsole } from './LaunchConsole'
+
+export type NewTaskDraftProps = {
+  phone: boolean
+  // 手机顶栏左侧（应用壳的看板入口）与顶栏下方的代理条；桌面由泳道条承担。
+  leading?: ReactNode
+  strip?: ReactNode
+  // 第一条消息被 Runtime 受理：新会话 id。
+  onDispatched: (sessionId: string) => void
+  // 发送途中草稿已卸载（例如切去了看板）时的失败：草稿已放回，由宿主用全局提示报错。
+  onDetachedFailure: (message: string) => void
+  onConfigureModels: () => void
+}
+
+export function NewTaskDraft({
+  phone,
+  leading,
+  strip,
+  onDispatched,
+  onDetachedFailure,
+  onConfigureModels,
+}: NewTaskDraftProps) {
+  const { t } = useI18n()
+  const intro = (
+    <div className="flex min-w-0 flex-col items-start gap-2" data-new-task-intro>
+      <span
+        aria-hidden="true"
+        className="grid size-9 place-items-center rounded-md border border-stroke bg-solid text-content-muted shadow-edge"
+      >
+        <SessionBubbleIcon className="size-[18px]" strokeWidth={1.75} />
+      </span>
+      <h2 className="text-xl font-semibold tracking-[-.01em] text-content max-[650px]:text-lg">
+        {t('board:home.draftHeading')}
+      </h2>
+      <p className="text-sm leading-6 text-content-muted">{t('board:home.draftHint')}</p>
+    </div>
+  )
+  const composer = (
+    <LaunchConsole
+      variant="composer"
+      touch={phone}
+      compactChips={phone}
+      // 手机上自动聚焦会立刻弹出软键盘，挡住草稿说明；桌面直接可以输入。
+      autoFocus={!phone}
+      onDispatched={(sessionId) => onDispatched(sessionId)}
+      onDetachedFailure={onDetachedFailure}
+      onConfigureModels={onConfigureModels}
+    />
+  )
+
+  if (phone)
+    return (
+      <div
+        className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel pb-[var(--pisper-safe-area-bottom)] [[data-mobile-keyboard='open']_&]:pb-0"
+        data-new-task-draft="phone"
+      >
+        <header
+          data-session-header="draft"
+          className="flex h-14 min-w-0 shrink-0 items-center gap-1 bg-chrome px-1"
+        >
+          <div className="flex flex-none items-center">{leading}</div>
+          <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
+            <h1 className="max-w-full truncate px-1.5 text-[15px] leading-5 font-semibold text-content">
+              {t('board:home.draftTitle')}
+            </h1>
+            <p className="max-w-full truncate text-xs leading-5 text-content-muted">
+              {t('board:home.draftSubtitle')}
+            </p>
+          </div>
+          {/* 与左侧入口等宽的占位，让标题在顶栏里居中。 */}
+          <span aria-hidden="true" className="w-11 flex-none" />
+        </header>
+        {strip}
+        <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto px-4 pt-4 pb-5">
+          {intro}
+        </div>
+        <div className="shrink-0 px-3 pt-1 pb-2.5">{composer}</div>
+      </div>
+    )
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel" data-new-task-draft="desktop">
+      <header
+        data-session-header="draft"
+        className="flex h-11 min-w-0 shrink-0 items-center gap-2 border-b border-stroke-soft pr-2 pl-4"
+      >
+        <h1 className="flex-none text-[15px] leading-6 font-semibold text-content">
+          {t('board:home.draftTitle')}
+        </h1>
+        <span className="min-w-0 truncate text-xs text-content-muted">
+          {t('board:home.draftSubtitle')}
+        </span>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto">
+        <div className="mx-auto w-[min(768px,calc(100%_-_48px))] pt-8 pb-6">{intro}</div>
+      </div>
+      <div className="mx-auto w-[min(768px,calc(100%_-_48px))] shrink-0 pt-2 pb-3">{composer}</div>
+    </div>
+  )
+}

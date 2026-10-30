@@ -415,16 +415,23 @@ test('settings keep an in-page section navigation without the application sideba
     app,
     /<div[\s\S]*?className=\{`page-content[\s\S]*?page-\$\{page\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
-  assert.match(app, /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\)/)
+  // 手机用横滑分区条；手机 App 平板（≥960×640，规格 7.6）与桌面一样用左侧分区导航。
+  assert.match(
+    app,
+    /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\) && settingsOwned && !tabletApp/,
+  )
   assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
   // 一级导航始终是标题栏（手机外壳为底部标签栏），设置页不再用设置导航替换应用侧栏；
-  // 当前页点亮哪个标签只由 activeShellTab(page, settingsOwned) 决定。
-  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
+  // 当前页点亮哪个标签只由 activeShellTab(page, settingsOwned, phoneShell) 决定
+  // （手机没有“组件”标签，组件页点亮“更多”）。会话页与主页隐藏手机标签栏（规格 7.3）。
+  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned, phoneShell\)/)
   assert.match(app, /<AppTitlebar\s+activeTab=\{shellTab\}/)
-  assert.match(app, /<ShellTabBar\s+activeTab=\{shellTab\}/)
+  assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}\s+activeTab=\{shellTab\}/)
   assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
-  // 桌面设置页在内容区左侧有自己的分区导航；手机仍用横滑分区条。
-  assert.match(app, /const settingsLayout = settingsOwned && !mobileLayout/)
+  // 桌面与手机 App 平板的设置页在内容区左侧有自己的分区导航；手机仍用横滑分区条。
+  assert.match(app, /const tabletApp = useIsTabletViewport\(\) && mobileApp/)
+  assert.match(app, /const phoneLayout = mobileLayout && !tabletApp/)
+  assert.match(app, /const settingsLayout = settingsOwned && !phoneLayout/)
   assert.match(
     app,
     /\{settingsLayout && \([\s\S]*?<SettingsSectionNav\s+page=\{page\}\s+configSection=\{configSection\}\s+mobileApp=\{mobileApp\}\s+onNavigate=\{navigateSettings\}/,
@@ -432,8 +439,13 @@ test('settings keep an in-page section navigation without the application sideba
   assert.match(sectionNav, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(sectionNav, /aria-label=\{t\('config:settingsShell\.settingsNavigation'\)\}/)
   assert.match(sectionNav, /aria-current=\{active \? 'page' : undefined\}/)
-  // 功能页入口在“更多”启动台，按 Runtime 能力与客户端形态裁剪。
-  assert.match(more, /getMoreNavigation\(t, \{ capabilities, mobileApp, components \}\)/)
+  // 功能页入口在“更多”启动台，按 Runtime 能力与客户端形态裁剪；手机外壳没有“组件”标签，
+  // 组件页作为“更多”里的磁贴出现（只在 phoneShell 下）。
+  assert.match(
+    more,
+    /getMoreNavigation\(t, \{ capabilities, mobileApp, components, componentsTile: phone \}\)/,
+  )
+  assert.match(more, /const phone = usePhoneShell\(\)/)
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
@@ -528,8 +540,14 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   assert.doesNotMatch(appearance, /ChatLayoutEditor|interface-chat-layout/)
   assert.doesNotMatch(chat, /useChatLayoutStore|canvasHasKind/)
   assert.doesNotMatch(router, /from '@\/features\//)
-  assert.match(appearance, /import\('@\/features\/custom-ui\/public'\)/)
+  // 第 4 期起界面设置不再嵌入组件管理（“独立组件”标签已移除，只留跳到组件页的链接）：
+  // 组件管理只随组件路由懒加载，设置页不再拉取 custom-ui 的任何代码。
+  assert.doesNotMatch(appearance, /@\/features\/custom-ui|CustomUiPage/)
   assert.doesNotMatch(appearance, /from '@\/features\//)
+  const componentsLoader = routeElements.slice(
+    routeElements.indexOf('export async function componentsRoute'),
+  )
+  assert.match(componentsLoader.slice(0, 200), /import\('@\/features\/custom-ui\/public'\)/)
   assert.doesNotMatch(main, /react-bits\.css|dockview\.css|@xyflow\/react\/dist\/style\.css/)
   // 桌面分屏按需加载；手机只显示所选任务，不能把 Dockview 样式拖入入口。
   assert.doesNotMatch(chat, /dockview-react\/dist\/styles\/dockview\.css/)

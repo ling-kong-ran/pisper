@@ -6,12 +6,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { chromium } from 'playwright-core'
+import { startSmokeStyleServer } from './fixtures/smoke-style-server.mjs'
 import { AgentRuntimeService } from '../runtime/runtime/agent-runtime.mjs'
 import { ensureSessionFilePersisted } from '../runtime/runtime/session-file-persist.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const origin = new URL(process.argv[2] || 'http://127.0.0.1:5173').origin
-assert(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(origin).hostname))
+// 显式传入地址时沿用（例如对着正在运行的开发服务器复核）；不传时自带只提供样式与字体的服务，
+// CI 与本机都不依赖外部开发服务器。
+let origin = process.argv[2] ? new URL(process.argv[2]).origin : ''
+assert(!origin || ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(origin).hostname))
 const executablePath =
   process.env.PISPER_SMOKE_BROWSER ||
   [
@@ -103,7 +106,12 @@ const html = `<!doctype html><html lang="zh-CN"><head>
 const runtimes = []
 const directories = []
 let browser
+let styleServer = null
 try {
+  if (!origin) {
+    styleServer = await startSmokeStyleServer(root)
+    origin = styleServer.origin
+  }
   browser = await chromium.launch({ executablePath, headless: true })
   for (const width of [1440, 390]) {
     const directory = await mkdtemp(join(tmpdir(), 'pisper-session-rename-data-'))
@@ -384,7 +392,11 @@ try {
   }
 } finally {
   try {
-    await browser?.close()
+    try {
+      await browser?.close()
+    } finally {
+      await styleServer?.close()
+    }
   } finally {
     const writes = await Promise.allSettled(runtimes.map((runtime) => runtime.sessionMetaWrite))
     await Promise.all(

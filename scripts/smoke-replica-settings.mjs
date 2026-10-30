@@ -468,6 +468,96 @@ try {
   console.log(
     'PASS independent numeric typography, draft validation, one commit and reload recovery',
   )
+
+  // 第 4 期：界面页把“独立组件”标签换成跳到组件页的链接（旧 ?view=widgets 重定向过去）；
+  // 强调色第一项是默认的“石墨”，选别的再选回来都只写一次偏好。
+  // 前面的外观段落写过自定义强调色：清掉界面偏好，从全新设备的默认值开始。
+  await page.evaluate(() => localStorage.removeItem('pisper-ui'))
+  await page.goto(`${url}/?view=interface-page`)
+  const moved = page.locator('[data-components-moved]')
+  await moved.waitFor()
+  assert.match(await moved.innerText(), /组件已移到 组件 页 →/)
+  assert.equal(await page.getByRole('tab').count(), 0, 'settings no longer has a widgets tab')
+  assert.ok((await moved.boundingBox()).height >= 44, 'the moved link is a 44px target')
+  const accent = page.getByRole('combobox', { name: '强调色', exact: true })
+  assert.match(await accent.innerText(), /石墨/, 'graphite is the default accent')
+  await accent.click()
+  const accentOptions = await page.getByRole('option').allInnerTexts()
+  assert.equal(accentOptions[0].trim(), '石墨', 'graphite is the first accent preset')
+  await page.getByRole('option', { name: 'Pisper 蓝', exact: true }).click()
+  const storedUi = () => page.evaluate(() => JSON.parse(localStorage.getItem('pisper-ui')).state)
+  assert.equal((await storedUi()).accent, 'blue')
+  await accent.click()
+  await page.getByRole('option', { name: '石墨', exact: true }).click()
+  assert.equal((await storedUi()).accent, 'neutral')
+  await moved.click()
+  await page.getByTestId('components-route').waitFor()
+  await page.goto(`${url}/?view=interface-page&legacy=widgets`)
+  await page.getByTestId('components-route').waitFor()
+  console.log(
+    'PASS interface settings: the components-moved link replaces the widgets tab (legacy ?view=widgets redirects), graphite is the first and default accent and persists',
+  )
+
+  // 第 4 期快捷键：全局 / 看板 / 会话三组，固定键只读；新动作可改绑、冲突与不可用组合被拒、恢复默认。
+  await page.goto(`${url}/?view=shortcuts`)
+  const shortcutCard = page.locator('[data-config-card="shortcuts-bindings"]')
+  await shortcutCard.waitFor()
+  assert.deepEqual(
+    await shortcutCard
+      .locator('[data-shortcut-group]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-group'))),
+    ['global', 'board', 'session'],
+  )
+  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 6)
+  assert.equal(
+    await shortcutCard.locator('[data-shortcut-fixed] [data-shortcut-recorder]').count(),
+    0,
+    'fixed keys are listed read-only',
+  )
+  for (const action of [
+    'agentPanel',
+    'toggleInspector',
+    'previousAgent',
+    'nextAgent',
+    'steerMessage',
+    'shortcutHelp',
+    'showBoard',
+    'boardApprove',
+  ])
+    assert.equal(await shortcutCard.locator(`#shortcut-${action}`).count(), 1, action)
+  const storedShortcuts = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}'))
+  const recordShortcut = async (action, keys) => {
+    await shortcutCard.locator(`#shortcut-${action}`).click()
+    await page.keyboard.press(keys)
+  }
+  await recordShortcut('agentPanel', 'F6')
+  await page.waitForFunction(
+    () => document.querySelector('#shortcut-agentPanel')?.textContent.replace(/\s+/g, '') === 'F6',
+  )
+  assert.equal((await storedShortcuts()).agentPanel, 'F6')
+  await recordShortcut('nextAgent', 'Alt+ArrowUp')
+  const nextAgentError = shortcutCard.locator('#shortcut-error-nextAgent')
+  await nextAgentError.waitFor()
+  assert.match(await nextAgentError.innerText(), /切换到上一个代理/)
+  await page.keyboard.press('Escape')
+  await recordShortcut('nextAgent', 'Control+ArrowDown')
+  await page.waitForFunction(() =>
+    /不可用/.test(document.querySelector('#shortcut-error-nextAgent')?.textContent || ''),
+  )
+  await page.keyboard.press('Escape')
+  assert.equal(
+    (await storedShortcuts()).nextAgent,
+    'Alt+ArrowDown',
+    'rejected recordings keep the previous binding',
+  )
+  await shortcutCard.getByRole('button', { name: '恢复默认', exact: true }).click()
+  await page.waitForFunction(
+    () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
+  )
+  console.log(
+    'PASS shortcut settings: global/board/session groups with six read-only fixed keys, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
+  )
   for (const scenario of [
     { name: 'light-1280', width: 1280, theme: 'light', longLabels: false },
     { name: 'dark-1280', width: 1280, theme: 'dark', longLabels: false },

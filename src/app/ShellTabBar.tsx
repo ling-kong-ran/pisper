@@ -1,22 +1,27 @@
-// 手机底部标签栏（只在 phoneShell 下挂载）：看板 · 组件 · [居中新任务] · 更多 · 设置。
-// “看板”标签在任何页面都带琥珀实心的需要你计数徽标，离开看板也不会错过等你的事项。
-// 键盘弹起时整栏隐藏，避免压住输入框；选中只用强调色文字与顶边刻度，不加底色块。
+// 手机底部标签栏（只在 phoneShell 下挂载）：会话 · 看板 · [居中新任务] · 更多 · 设置（主页是会话；
+// “组件”挪进“更多”的磁贴）。“看板”标签在任何页面都带琥珀实心的需要你计数徽标，离开看板也不会错过等你的事项。
+// 键盘弹起时整栏隐藏，避免压住输入框；会话页与主页整栏不渲染（看板入口在顶栏左侧，返回走系统返回键）。
+// 选中只用强调色文字与顶边刻度，不加底色块。
 import { useEffect } from 'react'
-import { Blocks, LayoutGrid, Plus, Settings, type LucideIcon } from 'lucide-react'
+import { LayoutGrid, Plus, Settings, type LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import type { ShellTab } from '@/app/shell-tabs'
-import { LaneBarsIcon } from '@/components/app/LaneBarsIcon'
+import type { PHONE_SHELL_TABS, ShellTab } from '@/app/shell-tabs'
+import { LaneBarsIcon, SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
 import { useFleetSummary } from '@/features/board/public'
 import { cn } from '@/lib/utils'
 
-const TAB_ICONS: Record<ShellTab, LucideIcon> = {
+type PhoneTab = (typeof PHONE_SHELL_TABS)[number]
+
+const TAB_ICONS: Record<PhoneTab, LucideIcon> = {
+  session: SessionBubbleIcon,
   board: LaneBarsIcon,
-  components: Blocks,
   more: LayoutGrid,
   settings: Settings,
 }
 
 type ShellTabBarProps = {
+  // 会话页不显示标签栏，但仍订阅舰队计量，让外壳的 ⌥A 目标保持最新。
+  hidden?: boolean
   activeTab: ShellTab | null
   onSelectTab: (tab: ShellTab) => void
   onNewTask: () => void
@@ -25,6 +30,7 @@ type ShellTabBarProps = {
 }
 
 export function ShellTabBar({
+  hidden = false,
   activeTab,
   onSelectTab,
   onNewTask,
@@ -35,13 +41,14 @@ export function ShellTabBar({
   const attention = fleet.attention
   const longestId = fleet.longestWaiting?.sessionId || ''
   useEffect(() => onLongestWaitingChange?.(longestId), [longestId, onLongestWaitingChange])
-  const labels: Record<ShellTab, string> = {
+  if (hidden) return null
+  const labels: Record<PhoneTab, string> = {
+    session: t('navigation:navigation.chat'),
     board: t('navigation:shell.board'),
-    components: t('navigation:shell.components'),
     more: t('navigation:shell.more'),
     settings: t('navigation:navigation.settings'),
   }
-  const tab = (id: ShellTab) => {
+  const tab = (id: PhoneTab) => {
     const Icon = TAB_ICONS[id]
     const active = activeTab === id
     const badge = id === 'board' && attention > 0
@@ -84,8 +91,8 @@ export function ShellTabBar({
       data-testid="mobile-tab-bar"
       className="mobile-tab-bar grid flex-none grid-cols-5 items-center border-t border-stroke bg-panel pb-[var(--pisper-safe-area-bottom)] [[data-mobile-keyboard='open']_&]:hidden"
     >
+      {tab('session')}
       {tab('board')}
-      {tab('components')}
       <div className="flex h-14 items-center justify-center">
         <button
           type="button"

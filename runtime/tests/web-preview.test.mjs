@@ -9,6 +9,12 @@ import {
 import { openWebPreviewInSessionContext } from '../../src/features/chat/session-web-preview.ts'
 import { useContextPagesStore } from '../../src/features/chat/session-context-pages-store.ts'
 import { previewSessionTarget } from '../../src/app/web-preview-target.ts'
+import {
+  EXIT_PRESENCE_FALLBACK_MS,
+  exitPresenceMounted,
+  finishExitPresence,
+  nextExitPresence,
+} from '../../src/hooks/useExitPresence.ts'
 
 test('external http links open in the in-app preview while internal and special links keep native behavior', () => {
   const baseUrl = 'http://127.0.0.1:5173/chat'
@@ -100,7 +106,16 @@ test('application routes external links into the session inspector web preview',
     /<BrowserPane[\s\S]*?update\(sessionId, 'browser', \{ type: 'browser', id: page\.id, \.\.\.patch \}\)/,
   )
   // 检查器收起时整个面板不渲染：预览 iframe 只在“预览”标签可见时存在（取代 Dock 面板的可见性判断）。
-  assert.match(workspace, /const inspector = open && \(/)
+  // 手机底部表单关闭后要播退场动画：面板只在退场期间多挂载，关闭且退场结束（动画结束、兜底超时或减少动效）
+  // 即不渲染；sheetLeaving 只在手机表单时成立，覆盖层与并排检查器仍是关闭即卸载。退场状态机见下一条测试。
+  assert.match(workspace, /const sheetPresence = useExitPresence\(sheetMode && open\)/)
+  assert.match(workspace, /const sheetLeaving = sheetMode && sheetPresence\.leaving/)
+  assert.match(workspace, /const inspector = \(open \|\| sheetLeaving\) && \(/)
+  assert.match(
+    workspace,
+    /onAnimationEnd=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget && !open\) sheetPresence\.finish\(\)/,
+  )
+  assert.match(workspace, /\{!overlayMode && open && \(/)
   assert.match(inspector, /\} else if \(tab === 'preview'\) \{/)
   assert.match(browserPane, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/)
   assert.match(browserPane, /normalizeWebPreviewInput\(draft, window\.location\.href\)/)
@@ -110,6 +125,34 @@ test('application routes external links into the session inspector web preview',
     /sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"/,
   )
   assert.match(component, /WebPreviewContext\.Provider/)
+})
+
+test('the phone inspector sheet stays mounted only for its exit transition', async () => {
+  const presence = await readFile('src/hooks/useExitPresence.ts', 'utf8')
+  const closed = { open: false, leaving: false }
+  const shown = nextExitPresence(closed, true)
+  assert.deepEqual(shown, { open: true, leaving: false })
+  assert.equal(exitPresenceMounted(shown), true)
+  // 关闭：同一次渲染进入退场，仍然挂载（播放退场动画）。
+  const leaving = nextExitPresence(shown, false)
+  assert.deepEqual(leaving, { open: false, leaving: true })
+  assert.equal(exitPresenceMounted(leaving), true)
+  // 关闭且退场结束 → 不渲染（预览 iframe 随之卸载）。
+  const gone = finishExitPresence(leaving)
+  assert.deepEqual(gone, closed)
+  assert.equal(exitPresenceMounted(gone), false)
+  assert.equal(exitPresenceMounted(closed), false)
+  // 退场途中重新打开：取消退场；迟到的结束事件或兜底超时不会把打开的表单卸掉。
+  const reopened = nextExitPresence(leaving, true)
+  assert.deepEqual(reopened, { open: true, leaving: false })
+  assert.equal(finishExitPresence(reopened), reopened)
+  assert.equal(nextExitPresence(reopened, true), reopened)
+  // 兜底超时有上限：漏掉 animationend 时表单也不会一直挂着；减少动效时不等动画，绘制前就卸载。
+  assert.ok(EXIT_PRESENCE_FALLBACK_MS > 180 && EXIT_PRESENCE_FALLBACK_MS <= 1000)
+  assert.match(
+    presence,
+    /if \(motionReduced\(\)\) \{\s*finish\(\)\s*return\s*\}\s*const timer = window\.setTimeout\(finish, fallbackMs\)\s*return \(\) => window\.clearTimeout\(timer\)/,
+  )
 })
 
 test('link previews only target a live, unarchived session from the catalog cache', () => {

@@ -18,7 +18,7 @@ const server = await createServer({
       name: 'replica-shell-fixture',
       configureServer(server) {
         server.middlewares.use(async (request, response, next) => {
-          if (request.url !== '/__shell') return next()
+          if (request.url.split('?')[0] !== '/__shell') return next()
           response.setHeader('Content-Type', 'text/html')
           response.end(
             await server.transformIndexHtml(
@@ -63,6 +63,22 @@ try {
     },
     { id: 'fail', name: 'Failure conversation', modified: '2026-10-19T00:00:00Z' },
   ]
+  // 手机标签栏的看板徽标：两个失败的会话落在“需要你”（不依赖 /live 的审批详情）。
+  const phoneSessions = [
+    ...sessions,
+    ...['first', 'second'].map((id) => ({
+      id: `needs-${id}`,
+      name: `Needs ${id}`,
+      cwd: '/fixture',
+      created: '2026-10-20T08:00:00Z',
+      modified: '2026-10-20T08:30:00Z',
+      lastCompletedAt: '2026-10-20T08:30:00Z',
+      streaming: false,
+      needsAttention: true,
+      attentionReason: 'failure',
+      unread: true,
+    })),
+  ]
   let failLabels = false
   let releaseLabels
   let signalLabelRequest
@@ -103,50 +119,212 @@ try {
     return route.fulfill({ json: {} })
   })
   const url = `http://127.0.0.1:${server.httpServer.address().port}/__shell`
+  // 48px 标题栏：会话 / 看板 / 组件 / 更多 / 设置，点亮当前标签，标签提示带快捷键；
+  // 搜索在 1280 以下收成 32px 图标，960 以下标签只留图标（文字仍是无障碍名称），始终不横向溢出。
   await page.goto(url)
-  const handle = page.getByTestId('sidebar-resize-handle')
-  await handle.waitFor()
-  assert.equal(await handle.getAttribute('aria-valuenow'), '340')
-  await handle.focus()
-  await handle.press('ArrowRight')
-  assert.equal(await page.getByTestId('preferred').textContent(), '350')
-  await handle.press('End')
-  assert.equal(await page.getByTestId('preferred').textContent(), '520')
-  await page.reload()
-  await handle.waitFor()
-  assert.equal(await handle.getAttribute('aria-valuenow'), '520')
-  const box = await handle.boundingBox()
-  await page.mouse.move(box.x + box.width / 2, box.y + 100)
-  await page.mouse.down()
-  await page.mouse.move(box.x - 80, box.y + 100)
-  assert.equal(
-    await page.getByTestId('preferred').textContent(),
-    '520',
-    'drag preview does not persist every pointer event',
-  )
-  await page.mouse.up()
-  assert.ok(Number(await page.getByTestId('preferred').textContent()) < 450)
-  const persistedWidth = await page.getByTestId('preferred').textContent()
-  for (const viewportWidth of [650, 651, 767]) {
-    await page.setViewportSize({ width: viewportWidth, height: 800 })
-    await handle.waitFor({ state: 'hidden' })
-    const trigger = page.getByTestId('sidebar-toggle')
-    await trigger.click()
-    const sidebar = page.getByRole('dialog')
-    await sidebar.waitFor()
-    assert.equal(await sidebar.getAttribute('data-mobile'), 'true')
-    await page.keyboard.press('Escape')
-    await sidebar.waitFor({ state: 'hidden' })
+  const titlebar = page.locator('[data-app-titlebar]')
+  await titlebar.waitFor()
+  const primary = titlebar.getByRole('navigation', { name: '主导航', exact: true })
+  const tabIds = await primary
+    .locator('[data-shell-tab]')
+    .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab')))
+  assert.deepEqual(tabIds, ['session', 'board', 'components', 'more', 'settings'])
+  for (const [id, name] of [
+    ['session', '会话'],
+    ['board', '看板'],
+    ['components', '组件'],
+    ['more', '更多'],
+    ['settings', '设置'],
+  ])
     assert.equal(
-      await trigger.evaluate((element) => element === document.activeElement),
-      true,
-      `sidebar at ${viewportWidth}px returns focus to its trigger`,
+      await primary.getByRole('button', { name, exact: true }).getAttribute('data-shell-tab'),
+      id,
+    )
+  const current = () =>
+    primary
+      .locator('[data-shell-tab][aria-current="page"]')
+      .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab')))
+  assert.deepEqual(await current(), ['board'])
+  assert.match(
+    await primary.locator('[data-shell-tab="board"]').getAttribute('title'),
+    /^看板 \(.+1\)$/,
+  )
+  assert.equal(await primary.locator('[data-shell-tab="session"]').getAttribute('title'), '会话')
+  await primary.getByRole('button', { name: '组件', exact: true }).click()
+  assert.equal(await page.getByTestId('opened').textContent(), 'tab:components')
+  assert.deepEqual(await current(), ['components'])
+  // 键盘：Tab 进入标签，Enter 选中。
+  await primary.locator('[data-shell-tab="session"]').focus()
+  await page.keyboard.press('Tab')
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('data-shell-tab')),
+    'board',
+  )
+  await page.keyboard.press('Enter')
+  assert.deepEqual(await current(), ['board'])
+  await titlebar.getByRole('button', { name: /^新任务/ }).click()
+  assert.equal(await page.getByTestId('new-tasks').textContent(), '1')
+  const titlebarMetrics = () =>
+    titlebar.evaluate((bar) => {
+      const search = bar.querySelector('button[aria-label="搜索代理、会话、标签与命令"]')
+      const label = bar.querySelector('[data-shell-tab="board"] span')
+      return {
+        height: bar.getBoundingClientRect().height,
+        overflow: bar.scrollWidth > bar.clientWidth + 1,
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+        searchWidth: Math.round(search.getBoundingClientRect().width),
+        tabLabelVisible: label.getBoundingClientRect().width > 1,
+        rightmost: Math.max(
+          ...[...bar.querySelectorAll('button')].map(
+            (button) => button.getBoundingClientRect().right,
+          ),
+        ),
+      }
+    })
+  for (const [width, search, labels] of [
+    [1440, 'wide', true],
+    [1280, 'wide', true],
+    [1270, 32, true],
+    [1080, 32, true],
+    [960, 32, true],
+    [950, 32, false],
+  ]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.waitForFunction((expected) => window.innerWidth === expected, width)
+    const metrics = await titlebarMetrics()
+    assert.equal(metrics.height, 48, `title bar height at ${width}px`)
+    assert.equal(metrics.overflow || metrics.pageOverflow, false, `no overflow at ${width}px`)
+    if (search === 'wide') assert.ok(metrics.searchWidth > 200, `search field at ${width}px`)
+    else assert.equal(metrics.searchWidth, search, `search collapses to an icon at ${width}px`)
+    assert.equal(metrics.tabLabelVisible, labels, `tab labels at ${width}px`)
+  }
+  // 窄于 960 时标签文字只对读屏可见，名称不变。（Tailwind v4 的 max-[959px] 是 width < 959，取 950 避开边界。）
+  assert.equal(
+    await primary.getByRole('button', { name: '看板', exact: true }).getAttribute('data-shell-tab'),
+    'board',
+  )
+  // Windows 自绘标题栏：右侧 144px 让给窗口按钮，最小窗口 1080 时也不越界。
+  await page.goto(`${url}?custom=1`)
+  await titlebar.waitFor()
+  for (const width of [1080, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.waitForFunction((expected) => window.innerWidth === expected, width)
+    const metrics = await titlebarMetrics()
+    assert.ok(
+      metrics.rightmost <= width - 144 + 0.5,
+      `custom title bar keeps the 144px window-control corner free at ${width}px: ${metrics.rightmost}`,
+    )
+    assert.equal(metrics.overflow || metrics.pageOverflow, false)
+  }
+  await page.setViewportSize({ width: 1200, height: 800 })
+  await page.goto(url)
+  await titlebar.waitFor()
+  await titlebar.getByRole('button', { name: '搜索代理、会话、标签与命令', exact: true }).click()
+  await page.getByRole('combobox').waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('combobox').waitFor({ state: 'detached' })
+  // 更多页搜索框把关键词带进命令面板（同一份数据源）。
+  await page.getByTestId('launch-query').click()
+  await page.getByRole('combobox').waitFor()
+  assert.equal(await page.getByRole('combobox').inputValue(), 'Alpha')
+  await page.getByRole('option').filter({ hasText: 'Alpha conversation' }).waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('combobox').waitFor({ state: 'detached' })
+  console.log(
+    'PASS replica shell title bar: five tabs in order with the current tab lit, shortcut titles, keyboard selection, new task, 1440/1280/1270/1080/960/950 collapse without overflow, 144px custom title bar corner, search and More-search keyword hand-off to the palette',
+  )
+
+  // 手机底部标签栏：会话 · 看板 · [新任务 52×40] · 更多 · 设置；看板徽标在任何选中标签下都在；
+  // 让出底部安全区；软键盘弹起时整栏隐藏；会话页（hidden）不渲染。
+  const phonePage = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    locale: 'zh-CN',
+    timezoneId: 'Asia/Shanghai',
+    hasTouch: true,
+    isMobile: true,
+    deviceScaleFactor: 2,
+  })
+  await phonePage.clock.setFixedTime(new Date('2026-10-20T09:00:00Z'))
+  phonePage.setDefaultTimeout(6000)
+  phonePage.on('pageerror', (error) => errors.push(`phone: ${error.message}`))
+  await phonePage.route('**/api/**', (route) => {
+    const pathname = new URL(route.request().url()).pathname
+    if (pathname === '/api/sessions') return route.fulfill({ json: { sessions: phoneSessions } })
+    if (/\/api\/sessions\/[^/]+\/live$/.test(pathname))
+      return route.fulfill({ json: { streaming: false, approvals: [] } })
+    return route.fulfill({ json: {} })
+  })
+  await phonePage.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () =>
+      document.documentElement.style.setProperty('--pisper-safe-area-bottom', '34px'),
+    )
+  })
+  await phonePage.goto(`${url}?phone=1`)
+  const tabBar = phonePage.getByTestId('mobile-tab-bar')
+  await tabBar.waitFor()
+  const boardTab = tabBar.locator('[data-shell-tab="board"]')
+  await phonePage.waitForFunction(
+    () =>
+      document.querySelector('[data-shell-tab="board"]')?.getAttribute('aria-label') ===
+      '看板, 2 项需要你',
+  )
+  const bar = await tabBar.evaluate((nav) => ({
+    order: [...nav.children].map(
+      (child) =>
+        child.getAttribute('data-shell-tab') || (child.querySelector('button') ? 'new' : ''),
+    ),
+    newTask: (() => {
+      const button = nav.querySelector(':scope > div > button')
+      const box = button.getBoundingClientRect()
+      return { name: button.getAttribute('aria-label'), width: box.width, height: box.height }
+    })(),
+    heights: [...nav.querySelectorAll('[data-shell-tab]')].map(
+      (tab) => tab.getBoundingClientRect().height,
+    ),
+    paddingBottom: getComputedStyle(nav).paddingBottom,
+    badge: nav.querySelector('[data-shell-tab="board"] [aria-hidden="true"].rounded-full')
+      ?.textContent,
+  }))
+  assert.deepEqual(bar.order, ['session', 'board', 'new', 'more', 'settings'])
+  assert.deepEqual(bar.newTask, { name: '新任务', width: 52, height: 40 })
+  assert.ok(
+    bar.heights.every((height) => height === 56),
+    JSON.stringify(bar.heights),
+  )
+  assert.equal(bar.paddingBottom, '34px')
+  assert.equal(bar.badge, '2')
+  for (const tab of ['session', 'more', 'settings', null]) {
+    await phonePage.evaluate((tab) => window.shellControls.setActive(tab), tab)
+    assert.equal(
+      await boardTab.getAttribute('aria-label'),
+      '看板, 2 项需要你',
+      `the board badge stays while ${tab} is active`,
     )
   }
-  await page.setViewportSize({ width: 768, height: 800 })
-  await handle.waitFor()
-  assert.equal(await page.getByRole('dialog').count(), 0)
-  assert.equal(await page.getByTestId('preferred').textContent(), persistedWidth)
+  await tabBar.getByRole('button', { name: '更多', exact: true }).click()
+  assert.equal(await phonePage.getByTestId('opened').textContent(), 'tab:more')
+  assert.equal(await tabBar.locator('[data-shell-tab="more"]').getAttribute('aria-current'), 'page')
+  await tabBar.getByRole('button', { name: '新任务', exact: true }).click()
+  assert.equal(await phonePage.getByTestId('new-tasks').textContent(), '1')
+  await phonePage.evaluate(() => {
+    document.querySelector('.app-shell').dataset.mobileKeyboard = 'open'
+  })
+  assert.equal(await tabBar.isVisible(), false, 'the tab bar yields to the software keyboard')
+  await phonePage.evaluate(() => {
+    delete document.querySelector('.app-shell').dataset.mobileKeyboard
+  })
+  assert.equal(await tabBar.isVisible(), true)
+  await phonePage.evaluate(() => window.shellControls.setHidden(true))
+  await tabBar.waitFor({ state: 'detached' })
+  await phonePage.screenshot({ path: join(output, 'tab-bar-hidden.png') })
+  await phonePage.evaluate(() => window.shellControls.setHidden(false))
+  await tabBar.waitFor()
+  await phonePage.screenshot({ path: join(output, 'tab-bar.png') })
+  await phonePage.close()
+  console.log(
+    'PASS replica shell tab bar: order with the 52x40 new task button, 56px tabs, 34px safe area, board badge on every tab, keyboard hides it, hidden renders nothing',
+  )
+
   await page.setViewportSize({ width: 1200, height: 800 })
   await page.getByTestId('launch').click()
   const input = page.getByRole('combobox')
@@ -279,7 +457,7 @@ try {
     ),
   )
   console.log(
-    `PASS replica shell: resize/restore, 650/651/767/768 breakpoint/focus, IME, grouped Tab, errors/retry, pointer stability; snapshots ${output}`,
+    `PASS replica shell palette: IME, grouped Tab, errors/retry, pointer stability, narrow layout; snapshots ${output}`,
   )
 } finally {
   await browser?.close()

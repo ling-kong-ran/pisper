@@ -1,7 +1,7 @@
 // 路由 → 页面的懒加载映射：每页一个 async 工厂，首屏只加载看板。
 // 页面组件从 Outlet 上下文取公共能力并显式透传给具体页面，保持
 // 页面与壳的依赖边界清晰（页面不直接读全局单例）。
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   ensureBoardMessages,
   ensureChannelsMessages,
@@ -11,7 +11,7 @@ import {
 } from './i18n'
 import { ACTIVITY_NAVIGATION_STATE } from './settings-navigation'
 import type { AppRouteContext } from './route-context'
-import { pagePath, sessionPath } from './routes'
+import { componentPath, pagePath, sessionPath } from './routes'
 
 // 从 Outlet 上下文取公共能力（壳层注入），各路由组件用它透传 props。
 function useAppRouteContext() {
@@ -67,6 +67,23 @@ export async function sessionRoute() {
   }
 
   return { Component: SessionRoute }
+}
+
+// 会话主页（'/'）：上次停留的会话或“新任务”草稿。落地逻辑与草稿随这里按需加载，不进入入口包；
+// 多数落地会马上切到上次的会话，顺手预取会话路由（聊天页仍只从 sessionRoute 加载；不等待，草稿不被它拖慢）。
+export async function homeRoute() {
+  void sessionRoute().catch(() => undefined)
+  const [{ SessionHome }] = await Promise.all([
+    import('@/app/SessionHome'),
+    // 看板入口、泳道条与草稿的文案都在看板命名空间里。
+    ensureBoardMessages(),
+  ])
+
+  function HomeRoute() {
+    return <SessionHome context={useAppRouteContext()} />
+  }
+
+  return { Component: HomeRoute }
 }
 
 export async function moreRoute() {
@@ -175,6 +192,10 @@ export async function configRoute() {
   const [{ ConfigPage }, { ChatAppearancePage }] = await Promise.all([
     import('@/features/config/ConfigPage'),
     import('@/app/ChatAppearancePage'),
+    // “设置 → 快捷键”里会话页与看板相关的新动作文案在看板命名空间里（不占入口包）。
+    ensureBoardMessages(),
+    // “界面”里“组件已移到 组件 页 →”的文案在组件命名空间里。
+    ensureCustomUiMessages(),
   ])
 
   function ConfigRoute() {
@@ -187,9 +208,7 @@ export async function configRoute() {
         onBrowserNotificationChange={context.setNotificationSettings}
         requestConfirm={context.requestConfirm}
         update={context.appUpdate}
-        renderInterfaceSettings={(appearance) => (
-          <ChatAppearancePage appearance={appearance} notify={context.notify} />
-        )}
+        renderInterfaceSettings={(appearance) => <ChatAppearancePage appearance={appearance} />}
       />
     )
   }
@@ -274,6 +293,16 @@ export async function skillsRoute() {
 
 // “组件”标签页：第 1 期在新外壳里渲染现有的独立组件管理视图（原 设置 → 界面 → 独立组件），
 // 第 5 期换成三栏组件工作室。
+// 从手机组件列表 push 进详情的历史条目带这个标记（见 ComponentsRoute）。
+const COMPONENT_LIST_ENTRY = Object.freeze({ componentFromList: true })
+function isComponentListEntry(state: unknown) {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    (state as { componentFromList?: unknown }).componentFromList === true
+  )
+}
+
 export async function componentsRoute() {
   const [{ CustomUiPage }] = await Promise.all([
     import('@/features/custom-ui/public'),
@@ -281,7 +310,22 @@ export async function componentsRoute() {
   ])
   function ComponentsRoute() {
     const context = useAppRouteContext()
-    return <CustomUiPage notify={context.notify} />
+    const navigate = useNavigate()
+    const location = useLocation()
+    const { componentId = '' } = useParams()
+    // 选中项写进路由（/components/:componentId）：手机上列表 → 详情各占一屏，返回键回到列表；
+    // 桌面在双栏里切换选中项用 replace，不在历史里堆积。
+    // 手机详情的“‹ 全部组件”：详情是从列表 push 进来的就退回那一条，否则再 push 一条列表会让
+    // 浏览器后退又回到详情；直接打开的详情（深链）用 replace 换成列表。
+    const select = (id: string, replace: boolean) => {
+      if (!id && !replace && isComponentListEntry(location.state)) navigate(-1)
+      else
+        navigate(componentPath(id), {
+          replace: replace || !id,
+          state: id && !replace ? COMPONENT_LIST_ENTRY : undefined,
+        })
+    }
+    return <CustomUiPage notify={context.notify} selectedId={componentId} onSelect={select} />
   }
   return { Component: ComponentsRoute }
 }

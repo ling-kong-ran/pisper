@@ -2,10 +2,14 @@ import { PageFrame } from '@/components/app/PageFrame'
 // 自定义组件页：加载 dataDir/custom-ui/ 下用户自写的静态 UI 组件，
 // 左侧组件列表 + 右侧沙箱 iframe 渲染。组件与应用的交互全部经过
 // component-bridge 的 postMessage 代理（权限按 manifest 声明过滤）。
+// 手机外壳（规格 7.5）：列表 → 详情两级，每级一屏、44px 触控；选中项由路由 /components/:id 承载，
+// 手机返回键经应用壳的路由层级回到列表。组件工作室（第 5 期）会替换这一页。
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Blocks,
+  ChevronLeft,
+  ChevronRight,
   FolderCode,
   FolderUp,
   PanelsTopLeft,
@@ -27,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrbitSpinner } from '@/components/ui/spinner'
+import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
 import { ApiError } from '@/lib/http'
 import type { Notify } from '@/app/route-context'
@@ -40,6 +45,10 @@ import type { CustomUiComponent } from './custom-ui-api'
 type CustomUiPageProps = {
   embedded?: boolean
   notify: Notify
+  // 路由里的选中组件；缺省时页面自己记住选中项（嵌入用法）。
+  selectedId?: string
+  // 选中或回到列表（id 为空）；replace 为真时替换当前历史记录（桌面双栏内切换）。
+  onSelect?: (id: string, replace: boolean) => void
 }
 
 function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t']) {
@@ -59,16 +68,22 @@ function ComponentStage({
   notify,
   floating,
   onToggleFloating,
+  phone = false,
 }: {
   component: CustomUiComponent
   notify: Notify
   floating: boolean
   onToggleFloating: () => void
+  // 手机详情屏：舞台给到一屏可用高度，头部操作换行成 44px 大按钮。
+  phone?: boolean
 }) {
   const { t } = useI18n()
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-stroke bg-panel">
+    <section
+      data-component-stage={component.id}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-stroke bg-panel"
+    >
       {/* 头部：名称 15/500 + 内置徽标 + 等宽版本号，操作在右；说明与权限在下方细线区内。 */}
       <header className="flex min-w-0 flex-wrap items-center gap-2 border-b border-stroke-soft px-3.5 py-2.5">
         <strong className="min-w-0 flex-1 truncate text-[15px] font-medium">
@@ -80,7 +95,13 @@ function ComponentStage({
             v{component.version}
           </span>
         )}
-        <span className="flex flex-wrap items-center gap-1.5">
+        {/* 手机详情屏：操作单独成一行、各占一半，名称不被挤成省略号。 */}
+        <span
+          className={cn(
+            'flex flex-wrap items-center gap-1.5',
+            phone && 'grid w-full grid-cols-2 gap-2',
+          )}
+        >
           <Button variant="secondary" size="sm" className="max-[650px]:h-11" asChild>
             <Link to={`/tools/components/${encodeURIComponent(component.id)}`}>
               {t('custom-ui:customUiPage.openComponent')}
@@ -115,7 +136,12 @@ function ComponentStage({
           </div>
         )}
         {/* 组件舞台是一口凹陷的井：代码井底色 + 细线，与外层纸面拉开层次。 */}
-        <div className="min-h-[240px] flex-1 overflow-hidden rounded-md border border-stroke-soft bg-code">
+        <div
+          className={cn(
+            'min-h-[240px] flex-1 overflow-hidden rounded-md border border-stroke-soft bg-code',
+            phone && 'min-h-[min(420px,55dvh)]',
+          )}
+        >
           <CustomUiFrame component={component} notify={notify} />
         </div>
       </div>
@@ -123,12 +149,23 @@ function ComponentStage({
   )
 }
 
-export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
+export function CustomUiPage({
+  notify,
+  embedded = false,
+  selectedId: routeSelectedId,
+  onSelect,
+}: CustomUiPageProps) {
   const { t } = useI18n()
+  const phone = usePhoneShell() && !embedded
   const catalog = useCustomUiComponents()
   const components = catalog.data?.components || []
   const root = catalog.data?.root || ''
-  const [selectedId, setSelectedId] = useState('')
+  const [localSelectedId, setLocalSelectedId] = useState('')
+  const selectedId = onSelect ? routeSelectedId || '' : localSelectedId
+  const setSelectedId = (id: string, replace = true) => {
+    if (onSelect) onSelect(id, replace)
+    else setLocalSelectedId(id)
+  }
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
   const [importedName, setImportedName] = useState('')
@@ -313,6 +350,122 @@ export function CustomUiPage({ notify, embedded = false }: CustomUiPageProps) {
           }
         />
       </div>
+    )
+  }
+
+  // 手机：列表与详情各占一屏。详情屏顶部是“‹ 全部组件”，与手机返回键同一去向。
+  if (phone) {
+    const backToList = () => setSelectedId('', false)
+    const detail = selectedId ? components.find((item) => item.id === selectedId) || null : null
+    if (selectedId)
+      return (
+        <PageFrame variant="collection">
+          <div data-components-phone="detail" className="flex min-w-0 flex-col gap-3">
+            {importNotice}
+            <Button
+              variant="ghost"
+              className="-ml-2 min-h-11 w-fit px-2 text-content-secondary"
+              onClick={backToList}
+            >
+              <ChevronLeft aria-hidden="true" />
+              {t('custom-ui:phone.allComponents')}
+            </Button>
+            {detail ? (
+              <ComponentStage
+                key={`${detail.id}:${catalog.dataUpdatedAt}`}
+                component={detail}
+                notify={notify}
+                floating={floatingIds.includes(detail.id)}
+                onToggleFloating={toggleFloating}
+                phone
+              />
+            ) : (
+              <PageState
+                kind="empty"
+                title={t('custom-ui:phone.missingTitle')}
+                description={t('custom-ui:phone.missingHint')}
+                action={
+                  <Button variant="secondary" className="min-h-11" onClick={backToList}>
+                    {t('custom-ui:phone.allComponents')}
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        </PageFrame>
+      )
+    return (
+      <PageFrame variant="collection">
+        <div data-components-phone="list" className="flex min-w-0 flex-col gap-3">
+          {importPanel}
+          {importNotice}
+          {error && (
+            <AppNotice>
+              <FolderCode size={14} />
+              <span>{error}</span>
+            </AppNotice>
+          )}
+          {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
+          <section
+            aria-label={t('custom-ui:customUiPage.installedComponents', {
+              count: components.length,
+            })}
+            className="flex flex-col overflow-hidden rounded-md border border-stroke bg-panel"
+          >
+            <header className="flex min-h-11 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle pl-3.5">
+              <span className="text-xs font-medium text-content-secondary tabular-nums">
+                {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11"
+                aria-label={t('custom-ui:customUiPage.rescan')}
+                disabled={refreshing}
+                onClick={() => void catalog.refetch()}
+              >
+                <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />
+              </Button>
+            </header>
+            <ul className="flex flex-col divide-y divide-stroke-soft">
+              {components.map((component) => (
+                <li key={component.id}>
+                  <button
+                    type="button"
+                    data-component-row={component.id}
+                    className="flex min-h-14 w-full min-w-0 items-center gap-3 px-3.5 py-2 text-left transition-colors duration-(--d-fast) hover:bg-surface-subtle focus-visible:-outline-offset-2 active:bg-surface-subtle"
+                    onClick={() => setSelectedId(component.id, false)}
+                  >
+                    <span className="grid size-9 flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset">
+                      <Blocks className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <strong className="min-w-0 truncate text-sm font-medium text-content">
+                          {customUiComponentLabel(component, t)}
+                        </strong>
+                        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
+                      </span>
+                      <small className="truncate text-xs text-content-muted">
+                        {component.description
+                          ? customUiComponentDescription(component, t)
+                          : component.id}
+                      </small>
+                    </span>
+                    <ChevronRight
+                      className="size-4 flex-none text-content-muted"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <p className="text-xs leading-relaxed break-all text-content-muted">
+            {t('custom-ui:customUiPage.directoryHint', { path: root })}
+          </p>
+        </div>
+      </PageFrame>
     )
   }
 
