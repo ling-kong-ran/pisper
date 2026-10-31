@@ -966,13 +966,13 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     <ul class="notes">
       <li>旧组件：规格 5.10 写“旧组件文件不自动删除”，负责人改为启动时一次性原样移进回收站 <code>custom-ui-trash/</code>（文件不抹掉，A8 才有恢复界面）；旧 iframe 路由给 410 兼容桩（规格 8.6 原写“不删除任何 Runtime 代码”）。</li>
       <li>模块地址是路径 <code>/r/:rev/</code> 而不是 <code>module.js?rev=</code>；版本快照放在组件目录外 <code>custom-ui-versions/</code>（避免热重载循环）；渲染计时用提交哨兵（生产包没有 React Profiler）。</li>
-      <li>提示词卡片结果行是看板泳道状态 + [打开会话]，没有“v3 已生成 · 写入 … · 18s”、改动文件芯片、“基于 vN”与模型芯片；预览区交叉淡入与“已热重载”圆点脉冲没做；工作室只预览选中的放置位置，不并排预览会话面板标签与通知样式。</li>
+      <li>提示词卡片结果行是看板泳道状态 + [打开会话]；“vN 已生成 · 写入 …”、改动文件芯片、“基于 vN”、预览淡入与圆点脉冲在 A8 补上，模型芯片仍没做；工作室只预览选中的放置位置，不并排预览会话面板标签与通知样式。</li>
       <li>htm 的许可证是 Apache-2.0（规格写 MIT），原文与第三方声明已入库；手机“组件”入口在 功能 › 扩展 › 组件工作室（规格 2.7 / 7.1 的标签栏已在 A4 退役）。</li>
     </ul>
-    <h3>要等 A8 的</h3>
+    <h3>A7 时留给 A8 的（A8 已做，见下一节）</h3>
     <ul class="notes">
-      <li>导入：暂存与信任确认（现在 [导入 ZIP] 置灰，<code>POST /import</code> 一律结构化拒绝、不写文件）。</li>
-      <li>版本列表与回滚（错误卡“回滚到 vN”）、导出 ZIP、能力调用台账与 [撤销]、回收站 7 天清理与恢复界面（启动迁移移进去的旧组件也在那里）。</li>
+      <li>导入：暂存与信任确认 —— A8 已做。</li>
+      <li>版本列表与回滚（错误卡“回滚到 vN”）、导出 ZIP、能力调用台账与 [撤销]、回收站 7 天清理与恢复界面 —— A8 已做。</li>
       <li>真实模型跑一次完整生成（技能展开 + component_create 写入 + 热重载）：冒烟拦截了 <code>/api/chat</code>，只验证了消息形状与会话归属。</li>
     </ul>
     <h3>已知问题（截图时发现）</h3>
@@ -988,8 +988,68 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <li>工作室的选中组件、预览档位、筛选只在页面内存，不新增偏好键；预览用选中的放置实例（属性、存储都是它的），没有实例时用“预览属性（不保存）”。</li>
       <li>绑定会话名固定为“生成组件 · 名称”，消息首行 <code>/skill:pisper-component</code> 只在会话为空时加；会话正在运行时再点生成会排队，不打断；[让代理修复] 带“消息 + 调用栈前 1 KB”。</li>
       <li>浮窗没有保存位置时停在右下角、向上叠；组件工作室里浮窗层隐藏（实例仍挂着）。浮窗关闭 = 实例停用，工作室磁贴可重新打开。</li>
-      <li>安全模式：初始加载阶段正常刷新 / 关窗会同步清哨兵；询问只在启动时有哨兵且有已启用实例才懒加载；桌面“以安全模式重启”推迟到 A8（原 5b，负责人决定）。</li>
+      <li>安全模式：初始加载阶段正常刷新 / 关窗会同步清哨兵；询问只在启动时有哨兵且有已启用实例才懒加载；桌面“以安全模式重启”推迟到 A8（原 5b，负责人决定；A8 因本机无法编译 Tauri 仍没做，见 A8 一节）。</li>
       <li>[生成] 键位提示随平台：macOS “Cmd + Enter”，其余 “Ctrl + Enter”；错误码一律有中文 / 英文静态文案，不显示原始码。</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="dir-a8-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a8-built-h">方向 A · A8 已实现（组件信任与生命周期）</h2>
+      <p class="lede">他人分享的组件先暂存、看过再信任；每次写入都留版本，可对比、可回滚、可导出；能力清单看得见“用了什么”并能撤销；删除先进回收站。拍法同 A7：生产构建 + 隔离 Runtime + 虚构数据（“每周摘要”是虚构的分享组件，源码里故意留了一处直连 fetch 与 localStorage），headless Chromium、1x、zh-CN，桌面 1440 × 900、手机 390 × 844（模拟，不是真机）。</p>
+    </div>
+    <h3>导入与信任确认（规格 5.7）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a8-trust-dialog-1440-light.png" aria-label="放大：实现：信任确认表：标题“检查并信任 · 每周摘要 v1.2.0”，副标题是文件名、体积与整个 ZIP 的 sha256；左侧文件芯片与带高亮的源码；右侧 manifest（id、入口、放置位置）、声明的能力（网络 api.github.com、组件存储）、静态扫描与声明对照（stats.example.net 未声明、直连 fetch 标红，localStorage 值得留意）与固定说明；底部 [丢弃] [取消] [信任并启用]"><img src="built/a8-trust-dialog-1440-light.png" alt="实现：信任确认表：标题“检查并信任 · 每周摘要 v1.2.0”，副标题是文件名、体积与整个 ZIP 的 sha256；左侧文件芯片与带高亮的源码；右侧 manifest（id、入口、放置位置）、声明的能力（网络 api.github.com、组件存储）、静态扫描与声明对照（stats.example.net 未声明、直连 fetch 标红，localStorage 值得留意）与固定说明；底部 [丢弃] [取消] [信任并启用]" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>信任确认表</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-trust-dialog-1440-dark.png" aria-label="放大：实现：信任确认表（深色）"><img src="built/a8-trust-dialog-1440-dark.png" alt="实现：信任确认表（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>信任确认表（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-staged-row-light.png" aria-label="放大：实现：组件库最前面的待确认导入行：琥珀虚线框“weekly-digest.zip · 他人分享 · 原生运行”，说明“需要你确认来源……没确认之前它不会运行”，按钮 [检查源码并信任]；“需处理”计入它"><img src="built/a8-staged-row-light.png" alt="实现：组件库最前面的待确认导入行：琥珀虚线框“weekly-digest.zip · 他人分享 · 原生运行”，说明“需要你确认来源……没确认之前它不会运行”，按钮 [检查源码并信任]；“需处理”计入它" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>待确认导入行（[取消] 之后）</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-trust-replace-diff-light.png" aria-label="放大：实现：替换导入：右上说明“已安装同名组件 v1.0.0：信任后会替换它，替换前的内容保留为一个版本，可以回滚”，[查看与已安装版本的差异] 之后左栏换成内嵌的统一 diff（会话改动用的同一个查看器）"><img src="built/a8-trust-replace-diff-light.png" alt="实现：替换导入：右上说明“已安装同名组件 v1.0.0：信任后会替换它，替换前的内容保留为一个版本，可以回滚”，[查看与已安装版本的差异] 之后左栏换成内嵌的统一 diff（会话改动用的同一个查看器）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>替换导入与内嵌 diff</figcaption></figure>
+    </div>
+    <h3>版本、对比、回滚与导出（规格 5.9、5.6）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a8-studio-versions-light.png" aria-label="放大：实现：工作室：提示词卡片右上“基于 v3 修改”，结果行“v3 已生成 · 写入 component.js style.css · 由代理生成 · 刚刚”与改动芯片 component.js +1 −1、style.css +2；设置栏“使用的能力”里“发送通知”已撤销、可 [恢复]；版本段“v3 当前 · 由代理生成 · 提醒文案改成“到期前””，下面 v2、v1 各有 [对比] [回滚]，吸底多了 [导出 ZIP]"><img src="built/a8-studio-versions-light.png" alt="实现：工作室：提示词卡片右上“基于 v3 修改”，结果行“v3 已生成 · 写入 component.js style.css · 由代理生成 · 刚刚”与改动芯片 component.js +1 −1、style.css +2；设置栏“使用的能力”里“发送通知”已撤销、可 [恢复]；版本段“v3 当前 · 由代理生成 · 提醒文案改成“到期前””，下面 v2、v1 各有 [对比] [回滚]，吸底多了 [导出 ZIP]" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>提示词结果行与版本段</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-version-diff-light.png" aria-label="放大：实现：[对比] v1 → 当前 v3：会话改动的 diff 查看器（内嵌在对话框里，抽屉模式下也能用），只显示改动的块"><img src="built/a8-version-diff-light.png" alt="实现：[对比] v1 → 当前 v3：会话改动的 diff 查看器（内嵌在对话框里，抽屉模式下也能用），只显示改动的块" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>版本对比</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-error-rollback-overview-light.png" aria-label="放大：实现：全部代理右栏：替换导入了一份会崩溃的便签 0.2.0，卡片就地显示错误卡“渲染出错，已隔离此组件”，操作是 查看错误 · 重新加载 · 回滚到 v1 · 让代理修复；其他卡片不受影响"><img src="built/a8-error-rollback-overview-light.png" alt="实现：全部代理右栏：替换导入了一份会崩溃的便签 0.2.0，卡片就地显示错误卡“渲染出错，已隔离此组件”，操作是 查看错误 · 重新加载 · 回滚到 v1 · 让代理修复；其他卡片不受影响" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>错误卡 [回滚到 vN]（全部代理）</figcaption></figure>
+    </div>
+    <h3>能力台账与撤销、回收站（规格 5.4、5.9）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a8-capabilities-usage-light.png" aria-label="放大：实现：便签的“使用的能力”：组件存储 64 KB · 保存便签内容 · “最近 刚刚 · set · 今天 1 次”，右侧 [撤销]；下面是未声明清单与固定说明"><img src="built/a8-capabilities-usage-light.png" alt="实现：便签的“使用的能力”：组件存储 64 KB · 保存便签内容 · “最近 刚刚 · set · 今天 1 次”，右侧 [撤销]；下面是未声明清单与固定说明" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>能力台账与 [撤销]</figcaption></figure>
+      <figure><button type="button" data-full="built/a8-trash-light.png" aria-label="放大：实现：回收站对话框：“今日用量 v1.0.0 · 刚刚删除 · 1 处放置 · 7 天后清除”带 [恢复] [永久删除]；“旧版天气 v0.9.0 · 旧版组件 · 启动时移入 · 不自动清除”只有 [永久删除]；组件库里回滚后的便签不再挂错误条"><img src="built/a8-trash-light.png" alt="实现：回收站对话框：“今日用量 v1.0.0 · 刚刚删除 · 1 处放置 · 7 天后清除”带 [恢复] [永久删除]；“旧版天气 v0.9.0 · 旧版组件 · 启动时移入 · 不自动清除”只有 [永久删除]；组件库里回滚后的便签不再挂错误条" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>回收站</figcaption></figure>
+    </div>
+    <h3>手机（390）</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/a8-phone-versions-light.png" aria-label="放大：实现：手机组件详情下半：使用的能力（发送通知已撤销 · 恢复）、放置位置、版本 v3 当前 / v2 [对比] [回滚]，其后是 [导出 ZIP] 与删除"><img src="built/a8-phone-versions-light.png" alt="实现：手机组件详情下半：使用的能力（发送通知已撤销 · 恢复）、放置位置、版本 v3 当前 / v2 [对比] [回滚]，其后是 [导出 ZIP] 与删除" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A8</span>手机详情：台账、版本与导出</figcaption></figure>
+    </div>
+    <h3>和规格 / 计划的差异（待你确认）</h3>
+    <ul class="notes">
+      <li>目录的 <code>features.trash</code> 保持 <code>'move'</code>，回收站可恢复另用 <code>trashRestore</code> 表示：A7 前端把其他值当成“没有删除”会隐藏删除键（只做加法，规格 5.11 没写开关名）。</li>
+      <li>导入路由沿用 <code>POST /api/custom-ui/import?stage=1</code>；替换不另开 <code>PUT …?replace=</code>，而是暂存时自动判断同 id 已安装、信任时先快照再替换（确认表写明“会替换”，并给出 diff）。</li>
+      <li>[取消] 只关掉确认表，待确认的那一行留在组件库；另有 [丢弃] 删除暂存。规格只写了 [信任并启用] [取消]。</li>
+      <li>会话读取（sessions.read）的台账按“每个实例读过一次”计，不按每次渲染计（它是渲染期的 hook，按次数会刷爆计数）；台账只记方法与主机，不记路径、查询参数与正文。</li>
+      <li>预览热重载是新内容 120ms 淡入（旧实例已卸载，严格的交叉淡入要保留旧 DOM）；“已热重载”圆点脉冲一次，减少动态时不播。</li>
+    </ul>
+    <h3>没做 / 未验证</h3>
+    <ul class="notes">
+      <li>桌面托盘“以安全模式重启”：本机没有 pkg-config / WebKitGTK，src-tauri 编译不了，写了也验不了，没做；可用的办法是 <code>?safe-mode=components</code>、启动时的自动询问与工作室“全部停用”。</li>
+      <li>提示词卡片的模型芯片没做：绑定会话沿用会话自己的模型，要换在打开的会话里换。工作室仍只预览选中的放置位置，不并排预览会话面板标签与通知样式。</li>
+      <li>真实分享包的端到端（另一台机器导出 → 这台导入）与真实模型生成没跑；冒烟用的是脚本里拼出的 ZIP。</li>
+    </ul>
+    <h3>替你做的决定（完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li>启动迁移移进回收站的旧组件（之前的组件，按你“都删除”的要求移入）不参与 7 天自动清理：它们是你回滚旧版本前唯一能手动移回的副本，只在你点“永久删除”时才删；也不能“恢复”（旧机制已删除）。</li>
+      <li>静态扫描分三档：直连 fetch / XHR / WebSocket / eval / new Function 标红（绕过 Pisper 接口或动态执行代码），document.cookie / localStorage / 直接请求 /api/ 标“值得留意”，动态 import() 只列出；主机与网络代理同一套匹配规则。</li>
+      <li>导入的组件信任后来源记为“他人分享 · 已信任”，立即启用；回收站恢复时放置实例按原样重建，放不下的（例如单实例位置已被占用）跳过。</li>
+      <li>导出 ZIP 固定文件时间，同一份内容两次导出字节相同（便于核对 sha256）。</li>
     </ul>
   </section>
 
@@ -1007,7 +1067,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片、全部代理行内点选与侧栏</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板（11 个功能页 + 设置六个分区）与浮层（⌘K、派发、引导、侧聊、会话树、配对），旧状态色与旧顶栏清理</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A7</span><span class="what">原生组件核心闭环：工作室三栏与手机列表 → 详情、四种放置宿主（全部代理右栏、会话面板、功能 › 我的组件、浮窗）、代理生成与修复；删除旧 iframe 组件与专注岛</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A8</span><span class="what">组件信任与生命周期：导入暂存与信任确认、版本回滚、导出、回收站</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A8</span><span class="what">组件信任与生命周期：导入暂存与信任确认（静态扫描、sha256、替换 diff）、版本对比与回滚、导出 ZIP、回收站恢复与 7 天清理、能力台账与撤销</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A9</span><span class="what">收尾：排队、导出、思考用时、目录变更事件</span><span class="chip">未开始</span></div>
     </div>
   </section>
