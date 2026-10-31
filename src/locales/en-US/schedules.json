@@ -79,5 +79,13 @@
   "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "You can continue setting the run time and notification channels after creation.",
   "schedulesPage.notificationChannelsHelp": "Choose channels to notify when the task finishes",
   "schedulesPage.configured": "Configured",
-  "schedulesPage.notConfigured": "Not configured"
+  "schedulesPage.notConfigured": "Not configured",
+  "schedulesPage.lede": "Start a chat or run a workflow on a schedule, and send the result to notifications and channels.",
+  "schedulesPage.loadFailed": "Could not load scheduled tasks",
+  "schedulesPage.newTask": "New task",
+  "schedulesPage.tasks": "Tasks",
+  "schedulesPage.enabledCount": "{count} enabled",
+  "schedulesPage.toggleTaskDetails": "Show or hide settings for {name}",
+  "schedulesPage.noMatchingTasks": "No tasks match your search",
+  "schedulesPage.enableTaskName": "Enable {name}"
 }

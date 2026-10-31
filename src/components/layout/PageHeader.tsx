@@ -8,17 +8,7 @@
 // 功能页（只属于“功能”，规格 2.6 双归属已退役）面包屑上一级是可点的“‹ 功能”（手机标签栏 A4 前仍叫“更多”）。没有应用标题栏了：Windows 自绘标题栏时
 // 页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
 import type { ReactNode, RefObject } from 'react'
-import {
-  ChevronLeft,
-  Plus,
-  Rocket,
-  Save,
-  Search,
-  Square,
-  TerminalSquare,
-  Play,
-  type LucideIcon,
-} from 'lucide-react'
+import { ChevronLeft, Plus, Search, TerminalSquare, type LucideIcon } from 'lucide-react'
 import { MORE_PAGES } from '@/app/more-pages'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
@@ -26,13 +16,6 @@ import { useShortcutLabel } from '@/lib/shortcuts'
 
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
-
-type WorkflowActions = {
-  busy: boolean
-  running: boolean
-  save: () => void
-  run: () => void
-}
 
 type PageHeaderProps = {
   elementRef?: RefObject<HTMLElement | null>
@@ -48,7 +31,6 @@ type PageHeaderProps = {
   searchSlot?: ReactNode
   actionsSlot?: ReactNode
   searchInputRef: RefObject<HTMLInputElement | null>
-  workflowActions: WorkflowActions | null
   desktopPlatform: string
   mobileApp?: boolean
   terminalOpen: boolean
@@ -71,7 +53,6 @@ export function PageHeader({
   searchSlot,
   actionsSlot,
   searchInputRef,
-  workflowActions,
   desktopPlatform,
   mobileApp = false,
   terminalOpen,
@@ -83,12 +64,9 @@ export function PageHeader({
   const primaryShortcut = useShortcutLabel('primaryAction')
   const terminalShortcut = useShortcutLabel('toggleTerminal')
   const searchShortcut = useShortcutLabel('focusSearch')
+  // 功能页（工作流、定时任务、渠道等）的主操作都在各自的工具行里（规格 A6），共享页头只剩设置 › 模型。
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
-    channels: [t('navigation:pageHeader.connectChannel'), Plus],
-    schedules: [t('navigation:pageHeader.newTask'), Plus],
     config: [t('navigation:pageHeader.quickSetup'), Plus],
-    workflows: [t('navigation:pageHeader.newWorkflow'), Plus],
-    workflowCreate: [t('navigation:pageHeader.publish'), Rocket],
   }
   const primary: [string, LucideIcon] | null | undefined =
     page === 'config' && configSection !== 'models'
@@ -190,37 +168,13 @@ export function PageHeader({
         <div
           className={cn(
             'flex min-w-0 items-center justify-end gap-1.5 max-[650px]:grid max-[650px]:w-full max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:justify-stretch max-[650px]:gap-2',
-            page === 'workflowCreate' &&
-              'max-[650px]:grid-cols-[repeat(3,auto)] max-[650px]:justify-end',
             page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
             desktop && '[-webkit-app-region:no-drag]',
           )}
         >
-          {page === 'workflowCreate' ? (
-            <>
-              <Button
-                variant="outline"
-                className="max-[650px]:col-auto max-[650px]:row-start-1 max-[650px]:h-11"
-                disabled={!workflowActions || workflowActions.busy || workflowActions.running}
-                onClick={() => workflowActions?.save()}
-              >
-                <Save size={15} />
-                {t('navigation:pageHeader.saveDraft')}
-              </Button>
-              <Button
-                className="max-[650px]:col-auto max-[650px]:row-start-1 max-[650px]:h-11"
-                disabled={!workflowActions || workflowActions.busy}
-                onClick={() => workflowActions?.run()}
-              >
-                {workflowActions?.running ? <Square size={15} /> : <Play size={15} />}
-                {workflowActions?.running
-                  ? t('navigation:pageHeader.stop')
-                  : t('navigation:pageHeader.testRun')}
-              </Button>
-            </>
-          ) : page === 'chat' ||
-            page === 'customComponentTool' ||
-            page === 'components' ? null : page === 'config' ? (
+          {page === 'chat' ||
+          page === 'customComponentTool' ||
+          page === 'components' ? null : page === 'config' ? (
             searchSlot
           ) : (
             <label
@@ -245,9 +199,7 @@ export function PageHeader({
           {actionsSlot}
           {primary && (
             <Button
-              variant={
-                page === 'config' ? 'ghost' : page === 'workflowCreate' ? 'outline' : 'default'
-              }
+              variant={page === 'config' ? 'ghost' : 'default'}
               className={cn(
                 'max-[650px]:col-start-2 max-[650px]:row-start-1 max-[650px]:h-11',
                 page === 'chat' && mobileApp && 'hidden',
@@ -261,7 +213,6 @@ export function PageHeader({
                   : primary[0]
               }
               onClick={onPrimary}
-              disabled={page === 'workflowCreate' && (!workflowActions || workflowActions.busy)}
             >
               {(() => {
                 const PrimaryIcon = primary[1]

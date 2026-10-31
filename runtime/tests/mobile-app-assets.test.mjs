@@ -137,10 +137,13 @@ test('iOS 工程重生成保留现有链接参数并幂等补齐原生依赖', (
 })
 
 test('移动端删除配对使用应用确认框且运行按钮不能被窄屏压缩', async () => {
-  const [page, settings] = await Promise.all([
+  // 手机服务器是功能页（A6 第 3 批）：ConfigPage 把它交给 DeviceFeaturePage，由后者挂载同一个设置组件。
+  const [config, page, settings] = await Promise.all([
     readFile('src/features/config/ConfigPage.tsx', 'utf8'),
+    readFile('src/features/config/DeviceFeaturePage.tsx', 'utf8'),
     readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
   ])
+  assert.match(config, /<DeviceFeaturePage\b[\s\S]*?requestConfirm=\{requestConfirm\}/)
   assert.match(page, /<MobileServerSettings requestConfirm=\{requestConfirm\}/)
   assert.doesNotMatch(settings, /window\.confirm/)
   assert.match(settings, /const approved = await requestConfirm\(/)

@@ -21,9 +21,10 @@ import {
 import type { Translate } from '@/app/navigation'
 import type { PageId } from '@/app/routes'
 import {
+  deviceFeatureSupport,
   LEGACY_RUNTIME_CAPABILITIES,
-  runtimeConfigSectionAvailable,
   runtimePageAvailable,
+  type DeviceFeatureSection,
   type RuntimeCapabilities,
 } from '@/types/runtime-capabilities'
 
@@ -80,8 +81,14 @@ export function getMoreNavigation(
     runtimePageAvailable(capabilities, id)
       ? { key: `page:${id}`, label, description, icon, destination: { type: 'page', id } }
       : null
+  // 平台判断集中在 deviceFeatureSupport（与三个设备页同一份结论）：Runtime 裁掉的隐藏，
+  // 只在另一端提供的显示为禁用并写明原因（桌面宠物在手机上）；手机 App 上远程访问换成“手机服务器”。
+  const support = (section: DeviceFeatureSection) =>
+    deviceFeatureSupport(capabilities, section, { mobileApp })
+  const remoteAccess = support('remote-access')
+  const desktopPet = support('desktop-pet')
   const devices: Array<MoreTile | null> = [
-    mobileApp
+    support('mobile-server').supported
       ? {
           key: 'config:mobile-server',
           label: t('config:configPage.mobileServer'),
@@ -89,7 +96,7 @@ export function getMoreNavigation(
           icon: MonitorSmartphone,
           destination: { type: 'config', id: 'mobile-server' },
         }
-      : runtimeConfigSectionAvailable(capabilities, 'remote-access')
+      : remoteAccess.supported
         ? {
             key: 'config:remote-access',
             label: t('config:configPage.remoteAccess'),
@@ -98,15 +105,14 @@ export function getMoreNavigation(
             destination: { type: 'config', id: 'remote-access' },
           }
         : null,
-    // 桌面宠物只在桌面端可用：手机端显示禁用并写明原因；桌面 Runtime 裁掉时才隐藏。
-    mobileApp || runtimeConfigSectionAvailable(capabilities, 'desktop-pet')
+    desktopPet.supported || desktopPet.reason === 'desktop-only'
       ? {
           key: 'config:desktop-pet',
           label: t('config:configPage.desktopPet'),
           description: t('navigation:more.desktopPetHint'),
           icon: Bot,
           destination: { type: 'config', id: 'desktop-pet' },
-          ...(mobileApp ? { disabledReason: t('navigation:more.desktopOnly') } : {}),
+          ...(desktopPet.supported ? {} : { disabledReason: t('navigation:more.desktopOnly') }),
         }
       : null,
   ]

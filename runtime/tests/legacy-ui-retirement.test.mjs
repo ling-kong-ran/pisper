@@ -44,7 +44,11 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.match(styles, /--card: var\(--panel\)/)
   assert.match(styles, /--ring: var\(--focus\)/)
   assert.match(styles, /--shadow-surface: var\(--sh-surface\)/)
-  assert.match(schedules, /<ListDetailLayout/)
+  // 定时任务改用功能页模板（A6 第 3 批）：任务是可展开的列表行，不再叠列表 / 详情两栏；
+  // ListDetailLayout 原语本身的单栏 / 双栏切换仍受下面的断言保护（页内展开没有第二个滚动区）。
+  assert.match(schedules, /<FeaturePage\b/)
+  assert.match(schedules, /<FeatureRow\b[\s\S]*?onExpandedChange=/)
+  assert.doesNotMatch(schedules, /<ListDetailLayout\b/)
   assert.match(listDetail, /grid-cols-1 @min-\[760px\]\/list-detail:grid-cols-/)
   assert.match(listDetail, /min-w-0 overflow-hidden/)
   assert.doesNotMatch(schedules, /!grid-cols-\[310px_minmax\(0,1fr\)\]/)

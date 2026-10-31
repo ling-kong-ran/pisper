@@ -891,13 +891,40 @@ try {
     beforeAdd,
   )
   await page.getByRole('textbox', { name: '搜索节点', exact: true }).waitFor({ state: 'hidden' })
+  // 编辑器只有一条自己的页头（A6 第 3 批，全宽例外）：52px 拖拽区里是“‹ 工作流 / 新建工作流 · 名称”与
+  // 工具、保存草稿 / 试运行 / 发布；共享页头不再叠在上面，控件都在页头里。
+  const editorHeader = await page.locator('[data-workflow-editor-header]').evaluate((header) => ({
+    height: header.getBoundingClientRect().height,
+    drag: header.hasAttribute('data-window-drag-region'),
+    heading: header.querySelector('h1')?.textContent,
+    // 手机外壳的 56px 顶栏（页名）不是共享页头。
+    shared: [...document.querySelectorAll('main > header:not([data-phone-topbar])')].map((node) =>
+      node.outerHTML.slice(0, 200),
+    ),
+    commands: [...header.querySelectorAll('button')].map((button) => button.textContent.trim()),
+  }))
+  assert.ok(editorHeader.height >= 52, `editor header ${editorHeader.height}px`)
+  assert.equal(editorHeader.drag, true)
+  assert.equal(editorHeader.heading, '新建工作流')
+  assert.deepEqual(editorHeader.shared, [], 'no shared page header above the editor')
+  for (const label of ['保存草稿', '试运行', '发布'])
+    assert.ok(editorHeader.commands.includes(label), `${label} in the editor header`)
   await page.getByRole('button', { name: '返回工作流', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/workflows')
-  // 列表页（79d0a896 起没有“使用工作流”入口）：以新建入口和工作流列表标题确认回到列表。
+  // 列表页（功能页模板）：以工具行的新建入口和“工作流 · N”分区标题确认回到列表。
   await page.getByRole('button', { name: '新建工作流', exact: true }).waitFor()
-  await page.getByRole('heading', { name: /^工作流 \d+$/, level: 2 }).waitFor()
+  await page.getByRole('heading', { name: /^工作流 · \d+$/, level: 2 }).waitFor()
+  // 页内搜索（“/”聚焦）只筛列表，Esc 清空不离开；行名就是“编辑: 名称”的打开按钮。
+  await page.keyboard.press('/')
+  await page.waitForFunction(() => document.activeElement?.id === 'feature-page-search')
+  await page.keyboard.type('no-such-workflow-fixture')
+  await page.getByText('还没有符合条件的工作流', { exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  assert.equal(await page.locator('#feature-page-search').inputValue(), '')
+  assert.equal(new URL(page.url()).hash, '#/workflows')
+  await page.locator('[data-workflow-id] [data-feature-row-open]').first().waitFor()
   report.checks.push(
-    'Searchable node palette adds an inpaint node through the UI; explicit Back to workflows returns to the list',
+    'Searchable node palette adds an inpaint node through the UI; the editor has a single 52px drag-region header (‹ 工作流 / 新建工作流, 保存草稿 / 试运行 / 发布) with no shared header; Back to workflows returns to the feature-template list (工作流 · N), whose “/” search filters rows and Esc clears in place',
   )
   assert.deepEqual(report.errors, [])
   report.status = 'passed'

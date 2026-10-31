@@ -79,5 +79,13 @@
   "schedulesPage.youCanContinueSettingTheRunTimeAndNotificationChannelsAfterCreation": "创建后可继续设置运行时间和通知渠道。",
   "schedulesPage.notificationChannelsHelp": "选择任务完成后需要通知的渠道",
   "schedulesPage.configured": "已配置",
-  "schedulesPage.notConfigured": "未配置"
+  "schedulesPage.notConfigured": "未配置",
+  "schedulesPage.lede": "按时间自动发起对话或运行工作流，结果可以推送到通知与渠道。",
+  "schedulesPage.loadFailed": "定时任务读取失败",
+  "schedulesPage.newTask": "新建任务",
+  "schedulesPage.tasks": "任务",
+  "schedulesPage.enabledCount": "{count} 个启用",
+  "schedulesPage.toggleTaskDetails": "展开或收起 {name} 的设置",
+  "schedulesPage.noMatchingTasks": "没有符合搜索的任务",
+  "schedulesPage.enableTaskName": "启用 {name}"
 }

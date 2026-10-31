@@ -119,5 +119,15 @@
   "channelsPage.twoWayCapability": "Two-way capability",
   "channelsPage.useApplicationDefaultModel": "Use application default model",
   "channelsPage.waitingForTheFirstReplyFromAfar": "Waiting for the first reply from afar",
-  "channelsPage.webSocketReceivesDirectMessagesAndGroupMentions": "WebSocket receives direct messages and group @ mentions."
+  "channelsPage.webSocketReceivesDirectMessagesAndGroupMentions": "WebSocket receives direct messages and group @ mentions.",
+  "channelsPage.lede": "Connect Feishu, WeChat, QQ and Telegram to talk with Pisper from your chat apps.",
+  "channelsPage.loadFailed": "Could not load channels",
+  "channelsPage.disconnectedCount": "{count} disconnected",
+  "channelsPage.togglePlatformDetails": "Show or hide settings for {name}",
+  "channelsPage.noMatchingChannels": "No channels match your search",
+  "channelsPage.noMatchingChats": "No channel chats match your search",
+  "channelsPage.searchPlaceholder": "Search channels and chats",
+  "channelsPage.paused": "Paused",
+  "channelsPage.disconnected": "Disconnected",
+  "channelsPage.notConnectedHint": "Not connected yet. Use the connect button on the right to scan or enter bot credentials; once connected you can adjust the reply model, approval mode and access scope here."
 }

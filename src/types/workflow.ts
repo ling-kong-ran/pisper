@@ -1,10 +1,6 @@
-// 工作流编辑器向壳层暴露的动作：保存/运行及忙碌状态，
-// 供页头按钮与全局快捷键（Cmd+N 主操作）统一触发。
+// 工作流编辑器向应用壳报告的状态：只剩“新建 / 编辑”，供手机顶栏的页名使用。
+// 保存、试运行、发布等按钮在编辑器自己的 52px 页头里（规格 A6 第 3 批），不再经壳层转发。
 export type WorkflowActions = {
-  busy: boolean
-  running: boolean
-  save: () => void | Promise<unknown>
-  run: () => void | Promise<unknown>
-  // 新建与编辑共用 /workflows/:id 路由；只有已存在的工作流才算编辑，页头据此区分标题。
+  // 新建与编辑共用 /workflows/:id 路由；只有已存在的工作流才算编辑，标题据此区分。
   editing: boolean
 }

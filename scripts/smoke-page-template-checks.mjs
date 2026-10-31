@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 
-// A6 功能页模板（第 1 批插件 / 技能 / MCP，第 2 批历史会话 / 资产 / 星忆）：标题上方“‹ 功能”、h1、工具行、列表行；居中 760 栏、自己的滚动区不横向溢出。
+// A6 功能页模板（第 1 批插件 / 技能 / MCP，第 2 批历史会话 / 资产 / 星忆，第 3 批工作流 / 定时任务 / 渠道 /
+// 远程访问 / 桌面宠物）：标题上方“‹ 功能”、h1、工具行、列表行；居中 760 栏、自己的滚动区不横向溢出。
 // 桌面：顶栏 52 只是拖拽区，控件都在它下面。手机外壳（≤390）：h1 只给读屏、“‹ 功能”与所有触控目标 ≥44。
 const FEATURE_TEMPLATE_ROUTES = new Set([
   '/plugins',
@@ -10,6 +11,11 @@ const FEATURE_TEMPLATE_ROUTES = new Set([
   '/chat/history',
   '/assets',
   '/memory',
+  '/workflows',
+  '/schedules',
+  '/channels',
+  '/config/remote-access',
+  '/config/desktop-pet',
 ])
 
 async function verifyFeatureTemplate(page, route, width) {
@@ -129,6 +135,8 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
         '/plugins',
         '/workflows',
         '/workflows/new',
+        '/config/remote-access',
+        '/config/desktop-pet',
         '/config/interface?view=widgets',
       ]) {
         await page.goto(base + '/#' + route)
@@ -160,25 +168,27 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
         )
         if (FEATURE_TEMPLATE_ROUTES.has(route)) await verifyFeatureTemplate(page, route, width)
         if (route === '/schedules') {
-          const list = page.locator('[data-slot="page-list"]')
-          await list.getByRole('button', { name: /Template verification/ }).click()
-          const detail = page.locator('[data-slot="page-detail"]')
-          await detail.waitFor({ state: 'visible' })
-          // 列表/详情按容器宽度（760px）而不是视口切换单栏；新外壳没有侧栏和活动栏，
-          // 800px 视口下内容区已够宽，两栏并排。手机宽度必须是单栏。
-          const stacked = await list.evaluate(
-            (el) =>
-              el.closest('[class*="@container/list-detail"]').getBoundingClientRect().width < 760,
+          // 定时任务改用功能页模板（A6 第 3 批）：任务是可展开的行，名称按钮带 aria-expanded / aria-controls，
+          // 详情（编辑表单与最近执行）在行下方原位展开、以任务名命名的区域；再按一次收起。不再有列表 / 详情两栏。
+          const toggle = page.locator('[data-feature-row-toggle]').filter({
+            hasText: 'Template verification',
+          })
+          await toggle.click()
+          const region = page.getByRole('region', { name: /Template verification/ })
+          await region.waitFor()
+          assert.equal(await toggle.getAttribute('aria-expanded'), 'true')
+          assert.equal(await toggle.getAttribute('aria-controls'), await region.getAttribute('id'))
+          await region.getByRole('button', { name: '保存任务', exact: true }).waitFor()
+          const regionOverflow = await page
+            .locator('[data-feature-scroller]')
+            .evaluate((el) => el.scrollWidth - el.clientWidth)
+          assert.ok(
+            regionOverflow <= 1,
+            `${width}px expanded schedule overflows: ${regionOverflow}`,
           )
-          if (width <= 390) assert.equal(stacked, true, `${width}px schedules stack list/detail`)
-          if (stacked) {
-            assert.equal(await list.isVisible(), false)
-            assert.equal(await page.evaluate(() => window.__pisperRequestBack()), true)
-            await list.waitFor({ state: 'visible' })
-            assert.equal(await detail.isVisible(), false)
-            await list.getByRole('button', { name: /Template verification/ }).click()
-            await detail.waitFor({ state: 'visible' })
-          }
+          await toggle.click()
+          await region.waitFor({ state: 'detached' })
+          assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
         }
       }
       await page.screenshot({
@@ -203,6 +213,8 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
         '/plugins',
         '/workflows',
         '/workflows/new',
+        '/config/remote-access',
+        '/config/desktop-pet',
         '/config/interface',
       ]) {
         await page.goto(base + '/#' + route)
@@ -243,7 +255,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       .filter({ hasText: 'Template fixture load failure' })
       .waitFor({ state: 'hidden' })
     report.checks.push(
-      'Four page templates plus the A6 feature-page template (plugins / skills / MCP / chat history / assets / memory: ‹ 功能 above the h1, ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, list/detail native back, embedded catalog, and settings error/retry',
+      'Four page templates plus the A6 feature-page template (plugins / skills / MCP / chat history / assets / memory / workflows / schedules / channels / remote access / desktop pet: ‹ 功能 above the h1, ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, schedule rows expand in place (aria-expanded / region) without overflow, embedded catalog, and settings error/retry',
     )
   } finally {
     await page.unroute('**/api/settings/notifications')

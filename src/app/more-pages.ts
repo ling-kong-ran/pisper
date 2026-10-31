@@ -28,6 +28,9 @@ export const FEATURE_TEMPLATE_PAGES: ReadonlySet<string> = new Set([
   'chatHistory',
   'assets',
   'memory',
+  'workflows',
+  'schedules',
+  'channels',
 ])
 
 // 功能页模板里搜索框的 DOM id：外壳的“/ 聚焦搜索”在这些页上落到这里（同一时刻只挂一页）。

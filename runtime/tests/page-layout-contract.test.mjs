@@ -41,7 +41,6 @@ test('shared primitives have no business ancestor selectors or feature imports',
     'app/PageFrame.tsx',
     'app/PageState.tsx',
     'app/ListDetailLayout.tsx',
-    'app/PageToolbar.tsx',
     'app/FeaturePage.tsx',
   ]) {
     const source = await readFile(new URL(`../../src/components/${file}`, import.meta.url), 'utf8')

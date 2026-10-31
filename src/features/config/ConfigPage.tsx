@@ -1,18 +1,16 @@
 import { PageFrame } from '@/components/app/PageFrame'
-// 配置页：按分区（模型/通知/界面/桌面宠物/更新/运行时等）组织设置卡片，
-// 每个分区一个设置组件，共享设置原语（SettingsCard 等）。
+// 配置页：按分区（模型/通知/界面/快捷键/更新/关于）组织设置卡片，
+// 每个分区一个设置组件，共享设置原语（SettingsCard 等）。/config 下的远程访问、手机服务器、
+// 桌面宠物是功能页，交给 DeviceFeaturePage（功能页模板）。
 // 内容根带 data-config-card="section" 锚点，供设置搜索结果跳转高亮定位。
 import type { ReactNode } from 'react'
 import { AboutSettings } from './AboutSettings'
 import { CONFIG_SECTION_ANCHOR, useConfigCardHighlight } from './config-search'
-import { DesktopPetSettings } from './DesktopPetSettings'
+import { DeviceFeaturePage } from './DeviceFeaturePage'
 import { InterfaceSettings } from './InterfaceSettings'
 import { ShortcutSettings } from './ShortcutSettings'
 import { ModelsSettings } from './ModelsSettings'
-import { MobileServerSettings } from './MobileServerSettings'
 import { NotificationSettings } from './NotificationSettings'
-import { RemoteAccessSettings } from './RemoteAccessSettings'
-import { RemoteWorkspaceSettings } from './RemoteWorkspaceSettings'
 import { UpdateSettings } from './UpdateSettings'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -23,6 +21,8 @@ type ConfigPageProps = {
   notify: Notify
   registerPrimaryAction: (action: () => void) => () => void
   section: string
+  // 远程访问 / 手机服务器 / 桌面宠物是功能页：从功能进入时由应用壳给出“‹ 功能”（规格 2.4）。
+  onBackToFeatures?: () => void
   onBrowserNotificationChange?: (settings: NotificationSettingsData) => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   update: AppUpdateController
@@ -33,6 +33,7 @@ export function ConfigPage({
   notify,
   registerPrimaryAction,
   section,
+  onBackToFeatures,
   onBrowserNotificationChange,
   requestConfirm,
   update,
@@ -40,6 +41,16 @@ export function ConfigPage({
 }: ConfigPageProps) {
   // 分区切换后消费搜索跳转的高亮请求（同分区点击由事件即时触发）。
   const searchTarget = useConfigCardHighlight(section)
+  // 功能 › 设备与连接的三个分区不是设置：用功能页模板，不套设置的 PageFrame（规格 2.4、A6 第 3 批）。
+  if (section === 'remote-access' || section === 'mobile-server' || section === 'desktop-pet')
+    return (
+      <DeviceFeaturePage
+        section={section}
+        notify={notify}
+        requestConfirm={requestConfirm}
+        onBack={onBackToFeatures}
+      />
+    )
   let content
   if (section === 'notifications') {
     content = (
@@ -59,17 +70,6 @@ export function ConfigPage({
     content = renderInterfaceSettings ? renderInterfaceSettings(appearance) : appearance
   } else if (section === 'shortcuts') {
     content = <ShortcutSettings requestConfirm={requestConfirm} />
-  } else if (section === 'desktop-pet') {
-    content = <DesktopPetSettings notify={notify} requestConfirm={requestConfirm} />
-  } else if (section === 'mobile-server') {
-    content = <MobileServerSettings requestConfirm={requestConfirm} />
-  } else if (section === 'remote-access') {
-    content = (
-      <div className="flex flex-col gap-4">
-        <RemoteWorkspaceSettings requestConfirm={requestConfirm} />
-        {!window.__PISPER_REMOTE_WORKSPACE__ && <RemoteAccessSettings notify={notify} />}
-      </div>
-    )
   } else if (section === 'updates') {
     content = <UpdateSettings notify={notify} update={update} />
   } else if (section === 'about') {

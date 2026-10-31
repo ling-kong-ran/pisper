@@ -155,7 +155,6 @@ export function Fixture() {
                 onMenu={() => {}}
                 onPrimary={() => setOpened('primary')}
                 searchInputRef={searchInputRef}
-                workflowActions={null}
                 desktopPlatform=""
                 terminalOpen={false}
                 onToggleTerminal={() => {}}

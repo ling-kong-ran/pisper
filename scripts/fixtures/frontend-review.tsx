@@ -98,7 +98,6 @@ function NavigationFixture() {
           onMenu={() => {}}
           onPrimary={() => {}}
           searchInputRef={searchInputRef}
-          workflowActions={null}
           desktopPlatform=""
           terminalOpen={false}
           onToggleTerminal={() => {}}

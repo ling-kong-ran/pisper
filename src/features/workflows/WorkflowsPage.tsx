@@ -1,17 +1,41 @@
-import { PageFrame } from '@/components/app/PageFrame'
-import { PageState } from '@/components/app/PageState'
-import { PageToolbar } from '@/components/app/PageToolbar'
-// 工作流页面：列表视图 + 编辑器（路由 /workflows/:id）的宿主，
-// 管理工作流目录、保存与运行，并向壳层注册主操作。
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+// 工作流：列表页（功能页模板，规格 v2 第 10 节 A6 第 3 批）+ 节点编辑器（路由 /workflows/:id，全宽例外）。
+// 列表页的搜索、导入与“新建工作流”都在页面自己的工具行里；编辑器只有一条 52px 页头（‹ 工作流 · 标题 ·
+// 添加节点 / 工作流设置 / 保存草稿 / 试运行 / 发布），下面画布与属性栏铺满剩余空间。
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import '@xyflow/react/dist/style.css'
-import { AlertTriangle, ArrowLeft, PanelRight, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronLeft,
+  FileUp,
+  PanelRight,
+  Play,
+  Plus,
+  RefreshCw,
+  Rocket,
+  Save,
+  Settings2,
+  Square,
+} from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
+import { getWorkflowEditorMeta } from '@/app/navigation'
 import { PAGE_PATHS, workflowPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
+import { FeaturePage, FeatureSearch, FeatureToolbar } from '@/components/app/FeaturePage'
+import { PageFrame } from '@/components/app/PageFrame'
+import { PageState } from '@/components/app/PageState'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { usePhoneShell } from '@/hooks/usePhoneShell'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { WorkflowActions } from '@/types/workflow'
@@ -51,12 +75,13 @@ import {
 type WorkflowsPageProps = {
   notify: Notify
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
-  query?: string
+  // “‹ 功能”：从功能进入时由应用壳给出（规格 2.4）。
+  onBack?: () => void
 }
 
 type WorkflowBuilderProps = {
   notify: Notify
-  registerPrimaryAction: (action: () => void | Promise<unknown>) => () => void
+  // 应用壳只用它判断“新建 / 编辑”标题（手机顶栏的页名）；按钮都在编辑器自己的页头里。
   registerWorkflowActions?: (actions: WorkflowActions) => () => void
 }
 
@@ -70,17 +95,13 @@ function WorkflowError({ message }: { message: string }) {
   )
 }
 
-// 加载态沿用页面状态原语：品牌轨道指示 + 标题，不再自绘卡片。
-function WorkflowLoading({ label }: { label: string }) {
-  return <PageState kind="loading" title={label} />
-}
-
-// 编辑器工具条按钮：桌面 28px，手机与粗指针下撑到 44px 触控目标。
+// 编辑器页头按钮：桌面 28px，手机与粗指针下撑到 44px 触控目标。
 const TOOLBAR_BUTTON = 'max-[650px]:h-11 pointer-coarse:h-11'
 
-export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsPageProps) {
+export function WorkflowsPage({ notify, requestConfirm, onBack }: WorkflowsPageProps) {
   const { t, language } = useI18n()
   const navigate = useNavigate()
+  const searchShortcut = useShortcutLabel('focusSearch')
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedView = searchParams.get('view')
   const view: WorkflowView =
@@ -92,72 +113,242 @@ export function WorkflowsPage({ notify, requestConfirm, query = '' }: WorkflowsP
       else params.set('view', next)
       return params
     })
+  // 搜索词由页面自己持有（换页即清空，与原共享页头一致）。
+  const [query, setQuery] = useState('')
   const catalog = useWorkflowCatalog({ notify, requestConfirm, query })
   const [runTarget, setRunTarget] = useState<Workflow | null>(null)
-
-  if (catalog.loading) {
-    return <WorkflowLoading label={t('workflows:workflowsPage.loadingWorkflows')} />
-  }
+  const fileRef = useRef<HTMLInputElement>(null)
+  const needle = query.trim().toLocaleLowerCase()
+  const visibleRuns = needle
+    ? catalog.data.runs.filter((run) =>
+        `${run.workflowName || run.workflowId}`.toLocaleLowerCase().includes(needle),
+      )
+    : catalog.data.runs
+  const title = t('navigation:navigation.workflows')
 
   return (
-    <PageFrame variant="collection">
-      <div className="flex min-w-0 flex-col gap-3">
-        {runTarget && (
-          <WorkflowRunDialog
-            workflow={runTarget}
-            onClose={() => setRunTarget(null)}
-            onRun={(inputs) => catalog.runWorkflow(runTarget, inputs)}
-          />
-        )}
-        <WorkflowError message={catalog.error} />
-        <PageToolbar>
-          <WorkflowViewTabs value={view} t={t} onChange={setView} />
-          <WorkflowOperationsSummary data={catalog.data} t={t} />
-        </PageToolbar>
-        {view === 'workflows' ? (
-          <WorkflowAssetList
-            workflows={catalog.visibleWorkflows}
-            runs={catalog.data.runs}
-            busyId={catalog.busyId}
-            language={language}
-            t={t}
-            onRun={setRunTarget}
-            onEdit={(workflowId) => navigate(workflowPath(workflowId))}
-            onDuplicate={(workflow) => void catalog.duplicateWorkflow(workflow)}
-            onExport={(workflow) => void catalog.exportWorkflow(workflow)}
-            onImport={(value) => void catalog.importWorkflow(value)}
-            onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
-          />
-        ) : view === 'runs' ? (
-          <WorkflowRunHistory
-            runs={catalog.data.runs}
-            busyId={catalog.busyId}
-            language={language}
-            t={t}
-            onStop={(run) => void catalog.stopRun(run)}
-            onRetry={(run) => void catalog.retryRun(run)}
-            onApproval={(run, nodeId, approved) =>
-              void catalog.resolveApproval(run, nodeId, approved)
-            }
-          />
-        ) : (
-          <WorkflowTemplateGallery
-            t={t}
-            onOpenTemplate={(templateId) =>
-              navigate(`${workflowPath('new')}?template=${encodeURIComponent(templateId)}`)
-            }
-          />
-        )}
-      </div>
-    </PageFrame>
+    <FeaturePage
+      title={title}
+      description={t('workflows:workflowsPage.lede')}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('navigation:pageHeader.searchPage', { page: title })}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-9"
+                onClick={() => fileRef.current?.click()}
+              >
+                <FileUp />
+                {t('workflows:workflowsPage.import')}
+              </Button>
+              <input
+                ref={fileRef}
+                // 隐藏的文件选择框：由“导入”按钮代为点开，不占位也不进 Tab 顺序。
+                hidden
+                type="file"
+                accept="application/zip,.zip"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.currentTarget.value = ''
+                  if (file) void catalog.importWorkflow(file)
+                }}
+              />
+              <Button type="button" className="h-9" onClick={() => navigate(workflowPath('new'))}>
+                <Plus />
+                {t('workflows:workflowsPage.newWorkflow')}
+              </Button>
+            </>
+          }
+          filters={
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <WorkflowViewTabs value={view} t={t} onChange={setView} />
+              {!catalog.loading && <WorkflowOperationsSummary data={catalog.data} t={t} />}
+            </div>
+          }
+        />
+      }
+    >
+      {runTarget && (
+        <WorkflowRunDialog
+          workflow={runTarget}
+          onClose={() => setRunTarget(null)}
+          onRun={(inputs) => catalog.runWorkflow(runTarget, inputs)}
+        />
+      )}
+      {catalog.loading ? (
+        <PageState kind="loading" title={t('workflows:workflowsPage.loadingWorkflows')} />
+      ) : catalog.error && !catalog.loaded ? (
+        // 首次读取失败不显示成“还没有工作流”：写明错误并给重试（老问题，原来是空列表 + 顶部错误条）。
+        <PageState
+          kind="error"
+          title={t('workflows:workflowsPage.loadFailed')}
+          description={catalog.error}
+          action={
+            <Button
+              variant="secondary"
+              className="max-[650px]:h-11"
+              onClick={() => void catalog.reload()}
+            >
+              <RefreshCw />
+              {t('workflows:workflowsPage.retryLoading')}
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          {catalog.error && (
+            <div className="mt-4">
+              <WorkflowError message={catalog.error} />
+            </div>
+          )}
+          {view === 'workflows' ? (
+            <WorkflowAssetList
+              workflows={catalog.visibleWorkflows}
+              runs={catalog.data.runs}
+              busyId={catalog.busyId}
+              query={query}
+              language={language}
+              t={t}
+              onRun={setRunTarget}
+              onEdit={(workflowId) => navigate(workflowPath(workflowId))}
+              onDuplicate={(workflow) => void catalog.duplicateWorkflow(workflow)}
+              onExport={(workflow) => void catalog.exportWorkflow(workflow)}
+              onDelete={(workflow) => void catalog.removeWorkflow(workflow)}
+            />
+          ) : view === 'runs' ? (
+            <WorkflowRunHistory
+              runs={visibleRuns}
+              busyId={catalog.busyId}
+              language={language}
+              t={t}
+              onStop={(run) => void catalog.stopRun(run)}
+              onRetry={(run) => void catalog.retryRun(run)}
+              onApproval={(run, nodeId, approved) =>
+                void catalog.resolveApproval(run, nodeId, approved)
+              }
+            />
+          ) : (
+            <WorkflowTemplateGallery
+              query={query}
+              t={t}
+              onOpenTemplate={(templateId) =>
+                navigate(`${workflowPath('new')}?template=${encodeURIComponent(templateId)}`)
+              }
+            />
+          )}
+        </>
+      )}
+    </FeaturePage>
   )
 }
 
-export function WorkflowBuilder({
-  notify,
-  registerPrimaryAction,
-  registerWorkflowActions,
-}: WorkflowBuilderProps) {
+// 编辑器页头（规格 2.7“节点编辑器全宽例外”，只统一页头与返回）：一条 52px 顶栏，与会话页顶栏同一结构——
+// 空白处是窗口拖拽区（控件不拖），Windows 自绘标题栏时右侧让出 144px；左侧“‹ 工作流”回列表，
+// h1 是“新建 / 编辑工作流”（手机上页名在外壳顶栏，h1 只给读屏），后面是工作流名称；右侧是编辑工具与保存 / 试运行 / 发布。
+function WorkflowEditorHeader({
+  title,
+  name,
+  tools,
+  commands,
+  onBack,
+  t,
+}: {
+  title: string
+  name?: string
+  tools?: ReactNode
+  commands?: ReactNode
+  onBack: () => void
+  t: ReturnType<typeof useI18n>['t']
+}) {
+  const phone = usePhoneShell()
+  return (
+    <header
+      data-workflow-editor-header
+      data-focus-region="header"
+      data-window-drag-region
+      className="@container/workflow-header flex min-h-[52px] min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-stroke-soft py-2 pr-3 pl-3 [[data-custom-titlebar]_&]:pr-[144px] max-[650px]:pb-2.5 max-[650px]:pt-0"
+    >
+      <div
+        className="flex min-w-0 flex-1 basis-56 items-center gap-1 max-[650px]:basis-0"
+        data-window-drag-region
+      >
+        <nav aria-label={t('workflows:workflowsPage.editorNavigation')} className="flex-none">
+          <button
+            type="button"
+            data-back-to-workflows
+            aria-label={t('workflows:workflowsPage.backToWorkflows')}
+            onClick={onBack}
+            className="inline-flex h-7 items-center gap-0.5 rounded-[var(--r-sm)] pr-1.5 pl-0.5 text-[13px] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus max-[650px]:-ml-1.5 max-[650px]:h-11 max-[650px]:min-w-11 max-[650px]:pr-2 max-[650px]:text-sm max-[650px]:text-content-secondary pointer-coarse:h-11"
+          >
+            <ChevronLeft className="size-4 max-[650px]:size-5" aria-hidden="true" />
+            <span>{t('workflows:workflowsPage.workflows')}</span>
+          </button>
+        </nav>
+        <span aria-hidden="true" className={cn('text-content-faint', phone && 'hidden')}>
+          /
+        </span>
+        <h1
+          className={cn(
+            'flex-none text-[13px] leading-5 font-medium text-content',
+            phone && 'sr-only',
+          )}
+        >
+          {title}
+        </h1>
+        {name && (
+          <p
+            data-workflow-name
+            className="min-w-0 truncate pl-1 text-[13px] text-content-muted max-[650px]:text-sm max-[650px]:text-content"
+            title={name}
+          >
+            {name}
+          </p>
+        )}
+      </div>
+      {tools && (
+        <div className="flex flex-none items-center gap-1 max-[650px]:[&_button]:h-11 max-[650px]:[&_button]:min-w-11 max-[650px]:[&_button]:px-2.5 pointer-coarse:[&_button]:h-11">
+          {tools}
+        </div>
+      )}
+      {commands && (
+        <>
+          {tools && (
+            <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-stroke max-[650px]:hidden" />
+          )}
+          <div className="flex flex-none items-center gap-1.5 max-[650px]:grid max-[650px]:w-full max-[650px]:grid-cols-3 max-[650px]:[&_button]:h-11 pointer-coarse:[&_button]:h-11">
+            {commands}
+          </div>
+        </>
+      )}
+    </header>
+  )
+}
+
+// 编辑器工具的文字：桌面写全，手机只留图标（读屏名称不变，触控目标 44）。
+function ToolLabel({ children }: { children: ReactNode }) {
+  return <span className="max-[650px]:sr-only">{children}</span>
+}
+
+export function WorkflowBuilder({ notify, registerWorkflowActions }: WorkflowBuilderProps) {
   const { t, language } = useI18n()
   const navigate = useNavigate()
   const { workflowId = 'new' } = useParams()
@@ -194,29 +385,11 @@ export function WorkflowBuilder({
     if (!busy && !running) setRunDialogOpen(true)
   }, [busy, running])
 
-  usePagePrimaryAction(registerPrimaryAction, publishWorkflow)
-  useEffect(
-    () =>
-      registerWorkflowActions?.({
-        save: () => saveWorkflow('draft'),
-        run: running ? stopWorkflow : openRunDialog,
-        busy: busy || editor.loading || !editor.draft,
-        running,
-        // 草稿有 id 才是已保存的工作流；加载前按路由推断，找不到的 id 会落到空白草稿，仍算新建。
-        editing: editor.draft ? Boolean(editor.draft.id) : workflowId !== 'new',
-      }),
-    [
-      busy,
-      editor.draft,
-      editor.loading,
-      registerWorkflowActions,
-      openRunDialog,
-      running,
-      saveWorkflow,
-      stopWorkflow,
-      workflowId,
-    ],
-  )
+  // 草稿有 id 才是已保存的工作流；加载前按路由推断，找不到的 id 会落到空白草稿，仍算新建。
+  const editing = editor.draft ? Boolean(editor.draft.id) : workflowId !== 'new'
+  useEffect(() => registerWorkflowActions?.({ editing }), [editing, registerWorkflowActions])
+  const title = getWorkflowEditorMeta(t, editing)[0]
+  const backToList = () => navigate(PAGE_PATHS.workflows)
 
   // 只在运行进行中把本次运行的节点状态投到画布上；运行结束后画布回到纯编辑视图。
   const runningNodes = editor.running ? editor.currentRun?.nodes : undefined
@@ -225,33 +398,41 @@ export function WorkflowBuilder({
     [runningNodes],
   )
 
-  if (editor.loading) {
-    return <WorkflowLoading label={t('workflows:workflowsPage.loadingWorkflowEditor')} />
-  }
-  if (!editor.draft) {
+  // 读取中与读取失败也保留页头（返回与标题），页面不跳。
+  if (editor.loading || !editor.draft) {
     return (
-      <PageState
-        kind="error"
-        title={t('workflows:workflowsPage.workflowEditorLoadFailed')}
-        description={editor.error}
-        action={
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button onClick={editor.retryLoad}>
-              <RefreshCw className="size-4" />
-              {t('workflows:workflowsPage.retryLoading')}
-            </Button>
-            <Button variant="outline" onClick={() => navigate(PAGE_PATHS.workflows)}>
-              {t('workflows:workflowsPage.backToWorkflows')}
-            </Button>
-          </div>
-        }
-      />
+      <PageFrame variant="workbench">
+        <div className="workflow-editor-page flex h-full min-h-0 min-w-0 flex-col">
+          <WorkflowEditorHeader title={title} onBack={backToList} t={t} />
+          {editor.loading ? (
+            <PageState kind="loading" title={t('workflows:workflowsPage.loadingWorkflowEditor')} />
+          ) : (
+            <PageState
+              kind="error"
+              title={t('workflows:workflowsPage.workflowEditorLoadFailed')}
+              description={editor.error}
+              action={
+                <div className="flex flex-wrap justify-center gap-2 max-[650px]:[&>button]:h-11">
+                  <Button onClick={editor.retryLoad}>
+                    <RefreshCw className="size-4" />
+                    {t('workflows:workflowsPage.retryLoading')}
+                  </Button>
+                  <Button variant="outline" onClick={backToList}>
+                    {t('workflows:workflowsPage.backToWorkflows')}
+                  </Button>
+                </div>
+              }
+            />
+          )}
+        </div>
+      </PageFrame>
     )
   }
+  const draft = editor.draft
 
   const inspector = (
     <WorkflowNodeInspector
-      draft={editor.draft}
+      draft={draft}
       catalog={editor.catalog}
       selectedNode={editor.selectedNode}
       selectedEdge={editor.selectedEdge}
@@ -284,77 +465,103 @@ export function WorkflowBuilder({
 
   return (
     <PageFrame variant="workbench">
-      {/* 编辑器铺满主纸面：顶部 44px 工具条与运行条以细线分隔，画布与右侧属性栏占满剩余高度。 */}
+      {/* 编辑器铺满主纸面：52px 页头与运行条以细线分隔，画布与右侧属性栏占满剩余高度。 */}
       <div
         ref={editorElement}
         className="workflow-editor-page @container/workflow flex h-full min-h-0 min-w-0 flex-col"
       >
         {runDialogOpen && (
           <WorkflowRunDialog
-            workflow={editor.draft}
+            workflow={draft}
             onClose={() => setRunDialogOpen(false)}
             onRun={runWorkflow}
           />
         )}
-        <div className="flex min-h-11 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-stroke-soft px-2 py-1.5">
-          <nav aria-label={t('workflows:workflowsPage.editorNavigation')}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={TOOLBAR_BUTTON}
-              onClick={() => navigate(PAGE_PATHS.workflows)}
-            >
-              <ArrowLeft />
-              {t('workflows:workflowsPage.backToWorkflows')}
-            </Button>
-          </nav>
-          <span
-            aria-hidden="true"
-            className="hidden h-4 w-px bg-stroke @min-[640px]/workflow:block"
-          />
-          <p className="min-w-0 flex-1 truncate px-1 text-sm font-medium" title={editor.draft.name}>
-            {editor.draft.name}
-          </p>
-          <div className="flex flex-wrap items-center gap-1 max-[480px]:w-full max-[480px]:justify-end">
-            <WorkflowNodePalette
-              nodeCount={editor.draft.nodes.length}
-              t={t}
-              onAddNode={editor.addNode}
-            />
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className={TOOLBAR_BUTTON}>
-                  <Settings2 />
-                  {t('workflows:workflowsPage.workflowSettings')}
+        <WorkflowEditorHeader
+          title={title}
+          name={draft.name}
+          onBack={backToList}
+          t={t}
+          tools={
+            <>
+              <WorkflowNodePalette
+                nodeCount={draft.nodes.length}
+                t={t}
+                onAddNode={editor.addNode}
+              />
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={TOOLBAR_BUTTON}
+                    title={t('workflows:workflowsPage.workflowSettings')}
+                  >
+                    <Settings2 />
+                    <ToolLabel>{t('workflows:workflowsPage.workflowSettings')}</ToolLabel>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-xl">
+                  <DialogHeader>
+                    <DialogTitle>{t('workflows:workflowsPage.workflowSettings')}</DialogTitle>
+                    <DialogDescription>
+                      {t('workflows:editor.settingsDescription')}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <WorkflowSettings
+                    draft={draft}
+                    catalog={editor.catalog}
+                    t={t}
+                    onUpdateDraft={editor.updateDraft}
+                    onInputUploadBusy={editor.onInputUploadBusy}
+                  />
+                </DialogContent>
+              </Dialog>
+              {wideEditor === false && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={TOOLBAR_BUTTON}
+                  title={t('workflows:editor.nodeProperties')}
+                  onClick={() => setInspectorOpen(true)}
+                >
+                  <PanelRight />
+                  <ToolLabel>{t('workflows:editor.nodeProperties')}</ToolLabel>
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>{t('workflows:workflowsPage.workflowSettings')}</DialogTitle>
-                  <DialogDescription>{t('workflows:editor.settingsDescription')}</DialogDescription>
-                </DialogHeader>
-                <WorkflowSettings
-                  draft={editor.draft}
-                  catalog={editor.catalog}
-                  t={t}
-                  onUpdateDraft={editor.updateDraft}
-                  onInputUploadBusy={editor.onInputUploadBusy}
-                />
-              </DialogContent>
-            </Dialog>
-            {wideEditor === false && (
+              )}
+            </>
+          }
+          commands={
+            <>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className={TOOLBAR_BUTTON}
-                onClick={() => setInspectorOpen(true)}
+                disabled={busy || running}
+                onClick={() => void saveWorkflow('draft')}
               >
-                <PanelRight />
-                {t('workflows:editor.nodeProperties')}
+                <Save />
+                {t('workflows:editor.saveDraft')}
               </Button>
-            )}
-          </div>
-        </div>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => (running ? void stopWorkflow() : openRunDialog())}
+              >
+                {running ? <Square /> : <Play />}
+                {running ? t('workflows:workflowsPage.stop') : t('workflows:editor.testRun')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => void publishWorkflow()}
+              >
+                <Rocket />
+                {t('workflows:editor.publish')}
+              </Button>
+            </>
+          }
+        />
         {editor.error && (
           <div className="shrink-0 px-3 pt-3">
             <WorkflowError message={editor.error} />
@@ -371,7 +578,7 @@ export function WorkflowBuilder({
         >
           {wideEditor !== null && (
             <WorkflowEditorCanvas
-              draft={editor.draft}
+              draft={draft}
               selectedNodeId={editor.selectedNodeId}
               selectedEdgeId={editor.selectedEdgeId}
               nodeStatus={runningNodeStatus}

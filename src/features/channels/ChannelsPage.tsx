@@ -1,8 +1,18 @@
-import { PageFrame } from '@/components/app/PageFrame'
-import { ListDetailLayout } from '@/components/app/ListDetailLayout'
-import { InlineEmptyState } from '@/components/app/PageState'
-// 渠道页：外部消息渠道（飞书/微信/QQ/Telegram）连接管理、状态与测试。
-import { useCallback, useEffect, useState } from 'react'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
+import {
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
+// 渠道页（功能页模板，规格 v2 第 10 节 A6 第 3 批）：外部消息渠道（飞书 / 微信 / QQ / Telegram）每个平台一行，
+// 右侧是状态与连接 / 重新连接；展开在行下方调整该平台的设置。下面是已绑定的渠道会话。
+// “断开”（启用了却没连上）是琥珀——需要人去处理（规格 2.7）；其余状态中性。
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Bot,
@@ -18,14 +28,7 @@ import {
   Unplug,
   X,
 } from 'lucide-react'
-import {
-  AppSwitch as Toggle,
-  StatusBadge as Badge,
-  AppCardHeader,
-  AppError,
-  AppEmptyState,
-  AppNotice,
-} from '@/components/ui/app-primitives'
+import { AppSwitch as Toggle, AppCardHeader, AppNotice } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -33,7 +36,7 @@ import { apiJson } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { relativeTime } from '@/lib/format'
 import { APP_NAME } from '@/app/brand'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import type { LucideIcon } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -55,7 +58,6 @@ type OnboardingStatus =
   | 'completed'
   | 'failed'
   | 'cancelled'
-type BadgeTone = 'blue' | 'green' | 'red' | 'amber' | 'gray'
 type ProviderDefinition = { Icon: LucideIcon }
 type ReplyModel = { provider: string; model: string }
 type ChannelConnection = {
@@ -116,7 +118,8 @@ type ManualOnboardingDescriptor = {
 }
 type ChannelsPageProps = {
   notify: Notify
-  registerPrimaryAction: (action: () => void) => () => void
+  // “‹ 功能”：从功能进入时由应用壳给出（规格 2.4）。
+  onBack?: () => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 type OnboardingModalProps = {
@@ -136,19 +139,12 @@ const PROVIDERS: Record<ChannelPlatform, ProviderDefinition> = {
 }
 const PROVIDER_ENTRIES = Object.entries(PROVIDERS) as Array<[ChannelPlatform, ProviderDefinition]>
 
-// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题。
-const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
-const CARD_HEAD =
-  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-4 py-1.5'
-const ICON_KEY =
-  'grid size-8 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-4'
-const SELECTED_TICK = 'absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star'
 // 只读键值行：左侧弱化标签，右侧值单行省略。
 const KEY_VALUE =
   'flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft py-1.5 text-sm first:border-t-0 [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
-// 标签在左的表单行：双栏布局时 168px 标签列，窄屏堆叠。
+// 标签在左的表单行：页面栏够宽时 168px 标签列，窄屏堆叠。
 const FORM_ROW =
-  'grid min-w-0 gap-1.5 border-t border-stroke-soft py-3 @min-[760px]/list-detail:grid-cols-[168px_minmax(0,1fr)] @min-[760px]/list-detail:items-center @min-[760px]/list-detail:gap-4'
+  'grid min-w-0 gap-1.5 border-t border-stroke-soft py-3 @min-[600px]/page:grid-cols-[168px_minmax(0,1fr)] @min-[600px]/page:items-center @min-[600px]/page:gap-4'
 const FORM_LABEL = 'text-sm font-medium text-content'
 // 渠道弹窗沿用全局 .modal 浮层：纯色遮罩（无背景模糊）、浮层底色 + 环线投影。
 const MODAL_BACKDROP =
@@ -158,14 +154,6 @@ const MODAL_SURFACE =
 // 说明条保持单色：强调色只留给选中、焦点与主操作。
 const NOTICE =
   'border border-stroke-soft bg-surface-subtle text-content-secondary [&_strong]:text-content [&>svg]:mt-0.5 [&>svg]:shrink-0'
-const LIVE_DOT: Record<ChannelStatus, string> = {
-  connected: 'bg-success shadow-[0_0_0_3px_var(--success-soft)]',
-  connecting: '',
-  reconnecting: '',
-  failed: 'bg-danger shadow-[0_0_0_3px_var(--danger-soft)]',
-  idle: 'bg-content-faint',
-}
-
 function providerName(platform: ChannelPlatform, t: ReturnType<typeof useI18n>['t']) {
   if (platform === 'feishu') return t('channels:channelsPage.feishu')
   if (platform === 'weixin') return t('channels:channelsPage.weChat')
@@ -218,25 +206,6 @@ function channelStatusLabel(status: ChannelStatus, t: ReturnType<typeof useI18n>
   return t('channels:channelsPage.notConnected')
 }
 
-function channelStatusTone(status: ChannelStatus): BadgeTone {
-  if (status === 'connected') return 'green'
-  if (status === 'connecting' || status === 'reconnecting') return 'amber'
-  if (status === 'failed') return 'red'
-  return 'gray'
-}
-
-// 连接中/重连中属于「运行」状态，徽标内带品牌轨道指示。
-function ChannelStatusBadge({ status }: { status: ChannelStatus }) {
-  const { t } = useI18n()
-  const busy = status === 'connecting' || status === 'reconnecting'
-  return (
-    <Badge tone={channelStatusTone(status)} className="gap-1">
-      {busy && <OrbitSpinner className="size-3 text-current" />}
-      {channelStatusLabel(status, t)}
-    </Badge>
-  )
-}
-
 function onboardingStatusLabel(status: OnboardingStatus, t: ReturnType<typeof useI18n>['t']) {
   if (status === 'starting') return t('channels:channelsPage.requestingLoginQrCode')
   if (status === 'waiting') return t('channels:channelsPage.scanAndConfirmConnection')
@@ -260,9 +229,7 @@ function errorMessage(caught: unknown) {
   return caught instanceof Error ? caught.message : String(caught)
 }
 
-export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: ChannelsPageProps) {
-  const [detailOpen, setDetailOpen] = useState(false)
-
+export function ChannelsPage({ notify, onBack, requestConfirm }: ChannelsPageProps) {
   const { t, language } = useI18n()
   const [data, setData] = useState<ChannelsData>({
     providers: [],
@@ -271,26 +238,32 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
     models: [],
   })
   const [loading, setLoading] = useState(true)
+  // 至少读成功过一次：首次读取失败显示可重试的错误，而不是“全部未连接”。
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
-  const [selectedPlatform, setSelectedPlatform] = useState<ChannelPlatform>('feishu')
+  // 展开的平台（同一时刻只展开一行）：设置、工作目录草稿都属于它；收起时为空。
+  const [expandedPlatform, setExpandedPlatform] = useState<ChannelPlatform | ''>('')
+  // 搜索词由页面自己持有（换页即清空），同时筛选平台与渠道会话。
+  const [query, setQuery] = useState('')
   const [onboarding, setOnboarding] = useState<OnboardingJob | null>(null)
   const [starting, setStarting] = useState<ChannelPlatform | ''>('')
   const [saving, setSaving] = useState(false)
   const [cwd, setCwd] = useState('')
 
-  // 加载渠道连接状态，并同步选中平台的默认工作目录。
+  // 加载渠道连接状态，并同步展开平台的默认工作目录。
   const load = useCallback(async () => {
     try {
       setError('')
       const result = await apiJson<ChannelsData>('/api/channels')
       setData(result)
-      setCwd(result.connections?.[selectedPlatform]?.defaultCwd || '')
+      setLoaded(true)
+      if (expandedPlatform) setCwd(result.connections?.[expandedPlatform]?.defaultCwd || '')
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
       setLoading(false)
     }
-  }, [selectedPlatform])
+  }, [expandedPlatform])
 
   useEffect(() => {
     load()
@@ -346,7 +319,6 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
       })
       if (!approved) return
     }
-    setSelectedPlatform(platform)
     setStarting(platform)
     setOnboarding({ platform, status: 'starting' })
     try {
@@ -368,8 +340,6 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
       setStarting('')
     }
   }
-
-  usePagePrimaryAction(registerPrimaryAction, () => beginOnboarding(selectedPlatform))
 
   const closeOnboarding = async () => {
     if (onboarding?.id && !['completed', 'failed', 'cancelled'].includes(onboarding.status))
@@ -464,474 +434,583 @@ export function ChannelsPage({ notify, registerPrimaryAction, requestConfirm }: 
 
   if (loading)
     return (
-      <AppEmptyState>
-        <OrbitSpinner className="size-5" />
-        <h2>{t('channels:channelsPage.loadingChannels')}</h2>
-      </AppEmptyState>
+      <ChannelsFrame onBack={onBack} query={query} onQueryChange={setQuery}>
+        <PageState kind="loading" title={t('channels:channelsPage.loadingChannels')} />
+      </ChannelsFrame>
     )
-  const selectedConnection = data.connections?.[selectedPlatform]
-  const SelectedIcon = PROVIDERS[selectedPlatform].Icon
-  const selectedStatus = selectedConnection?.status || 'idle'
-  return (
-    <PageFrame variant="list-detail">
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        {error && (
-          <AppError>
-            <AlertTriangle size={13} />
-            {error}
-          </AppError>
-        )}
-        <ListDetailLayout
-          selected={detailOpen}
-          onBack={() => setDetailOpen(false)}
-          backLabel={t('common:pageTemplate.backToList')}
-          list={
-            <section className="min-w-0">
-              {/* 列表标题 12/500 弱化文字 + 等宽计数，与其它列表页同一节奏。 */}
-              <h2 className="flex h-[30px] items-end justify-between px-1 pb-1.5 text-xs font-medium tracking-[.02em] text-content-muted">
-                <span>{t('channels:channelsPage.platforms')}</span>
-                <span className="font-normal tabular-nums">{PROVIDER_ENTRIES.length}</span>
-              </h2>
-              <ul className="flex flex-col gap-0.5">
-                {PROVIDER_ENTRIES.map(([platform, provider]) => {
-                  const connection = data.connections?.[platform]
-                  const status = connection?.status || 'idle'
-                  const active = selectedPlatform === platform
-                  const Icon = provider.Icon
-                  return (
-                    <li
-                      className={cn(
-                        'provider-card channel-platform-card relative rounded-md transition-colors duration-(--d-fast) hover:bg-surface-subtle',
-                        active && 'selected bg-surface-muted hover:bg-surface-muted',
-                      )}
-                      key={platform}
-                    >
-                      {/* 选中行：次级表面 + 3px 强调色刻度，两种主题下都不只靠底色区分。 */}
-                      {active && <i aria-hidden="true" className={SELECTED_TICK} />}
-                      <button
-                        type="button"
-                        aria-current={active || undefined}
-                        className="grid min-h-[60px] w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 pr-2.5 pl-3 text-left focus-visible:-outline-offset-2"
-                        onClick={() => {
-                          setDetailOpen(true)
-                          setSelectedPlatform(platform)
-                          setCwd(connection?.defaultCwd || '')
-                        }}
-                      >
-                        <span className={ICON_KEY}>
-                          <Icon />
-                        </span>
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <strong className="truncate text-sm font-medium text-content max-[650px]:text-[15px]">
-                            {providerTitle(platform, t)}
-                          </strong>
-                          <small className="truncate text-xs text-content-muted">
-                            {providerTransport(platform, t)}
-                          </small>
-                        </span>
-                        <ChannelStatusBadge status={status} />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          }
-          detail={
-            <div className="flex min-w-0 flex-col gap-4">
-              <section className={CARD}>
-                <header className="flex min-w-0 flex-wrap items-center gap-3 px-4 py-3.5">
-                  <span className={ICON_KEY}>
-                    <SelectedIcon />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="flex min-w-0 flex-wrap items-center gap-2 text-[15px] leading-6 font-medium text-content">
-                      {providerTitle(selectedPlatform, t)}
-                      <ChannelStatusBadge status={selectedStatus} />
-                    </h2>
-                    <p className="truncate text-xs text-content-muted">
-                      {providerTransport(selectedPlatform, t)}
-                    </p>
-                  </div>
-                  {/* 页头已有同一动作的强调色主按钮，这里用键帽，避免一屏两个实心强调键。 */}
-                  <Button
-                    variant="secondary"
-                    className="max-[650px]:h-11 max-[650px]:w-full"
-                    loading={starting === selectedPlatform}
-                    disabled={starting === selectedPlatform}
-                    onClick={() => beginOnboarding(selectedPlatform)}
-                  >
-                    <Plus />
-                    {connectActionLabel(selectedPlatform, Boolean(selectedConnection), t)}
-                  </Button>
-                </header>
-                <dl className="border-t border-stroke-soft px-4 py-1">
-                  <div className={KEY_VALUE}>
-                    <dt>{t('channels:channelsPage.twoWayCapability')}</dt>
-                    <dd>{providerCapability(selectedPlatform, t)}</dd>
-                  </div>
-                  <div className={KEY_VALUE}>
-                    <dt>{t('channels:channelsPage.replyModel')}</dt>
-                    <dd className={selectedConnection?.replyModel ? 'font-mono' : undefined}>
-                      {selectedConnection?.replyModel
-                        ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
-                        : t('channels:channelsPage.useApplicationDefaultModel')}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-              {selectedConnection && (
-                <section className={cn('test-panel', CARD)}>
-                  <header className={CARD_HEAD}>
-                    <h2 className="text-sm font-medium text-content">
-                      {t('channels:channelsPage.nameSettings', {
-                        name: providerName(selectedPlatform, t),
-                      })}
-                    </h2>
-                  </header>
-                  <div className="px-4 pb-1">
-                    <div
-                      className={cn(
-                        'channel-live-status flex min-w-0 items-center gap-2.5 py-3',
-                        selectedConnection.status,
-                      )}
-                    >
-                      {selectedConnection.status === 'connecting' ||
-                      selectedConnection.status === 'reconnecting' ? (
-                        <OrbitSpinner className="channel-status-dot" />
-                      ) : (
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            'channel-status-dot mx-1 size-2 shrink-0 rounded-full',
-                            LIVE_DOT[selectedConnection.status],
-                          )}
-                        />
-                      )}
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <strong className="text-sm font-medium text-content">
-                          {channelStatusLabel(selectedConnection.status, t)}
-                        </strong>
-                        <small
-                          className={cn(
-                            'truncate text-xs tabular-nums',
-                            selectedConnection.lastError ? 'text-danger' : 'text-content-muted',
-                          )}
-                        >
-                          {selectedConnection.lastError ||
-                            (selectedConnection.status === 'connected'
-                              ? t('channels:channelsPage.connectedTime', {
-                                  time: relativeTime(selectedConnection.connectedAt, language),
-                                })
-                              : t('channels:channelsPage.establishingPersistentConnection'))}
-                        </small>
-                      </div>
-                    </div>
-                    <div className="modal-toggle-row flex min-w-0 items-center justify-between gap-4 border-t border-stroke-soft py-3">
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <strong className="text-sm font-medium text-content">
-                          {t('channels:channelsPage.enableThisChannel')}
-                        </strong>
-                        <small className="text-xs text-content-muted">
-                          {t(
-                            'channels:channelsPage.turnOffToDisconnectWhileKeepingSignInCredentials',
-                          )}
-                        </small>
-                      </span>
-                      <Toggle
-                        value={selectedConnection.enabled}
-                        disabled={saving}
-                        ariaLabel={t('channels:channelsPage.enableThisChannel')}
-                        onChange={(enabled) =>
-                          update(
-                            selectedPlatform,
-                            { enabled },
-                            enabled
-                              ? t('channels:channelsPage.channelEnabled')
-                              : t('channels:channelsPage.channelPaused'),
-                          )
-                        }
-                      />
-                    </div>
-                    <label className={FORM_ROW}>
-                      <span className={FORM_LABEL}>{t('channels:channelsPage.replyModel')}</span>
-                      <AppSelect
-                        value={
-                          selectedConnection.replyModel
-                            ? `${selectedConnection.replyModel.provider}/${selectedConnection.replyModel.model}`
-                            : ''
-                        }
-                        onChange={(event) => {
-                          const [provider, ...parts] = event.target.value.split('/')
-                          update(
-                            selectedPlatform,
-                            {
-                              replyModel: event.target.value
-                                ? { provider, model: parts.join('/') }
-                                : null,
-                            },
-                            t('channels:channelsPage.channelReplyModelUpdated'),
-                          )
-                        }}
-                      >
-                        <option value="">
-                          {t('channels:channelsPage.useApplicationDefaultModel')}
-                        </option>
-                        {data.models.map((model) => (
-                          <option
-                            value={`${model.provider}/${model.model}`}
-                            key={`${model.provider}/${model.model}`}
-                          >
-                            {model.label}
-                          </option>
-                        ))}
-                      </AppSelect>
-                    </label>
-                    <label className={FORM_ROW}>
-                      <span className={FORM_LABEL}>{t('channels:channelsPage.approvalMode')}</span>
-                      <AppSelect
-                        value={selectedConnection.executionMode}
-                        onChange={(event) =>
-                          update(
-                            selectedPlatform,
-                            {
-                              executionMode: event.target
-                                .value as ChannelConnection['executionMode'],
-                            },
-                            t('channels:channelsPage.approvalModeUpdated'),
-                          )
-                        }
-                      >
-                        <option value="approval-required">
-                          {t('channels:channelsPage.approvalRequired')}
-                        </option>
-                        <option value="workspace-write">
-                          {t('channels:channelsPage.workspaceWrite')}
-                        </option>
-                        <option value="full-access">{t('channels:channelsPage.fullAccess')}</option>
-                      </AppSelect>
-                    </label>
-                    <label className={FORM_ROW}>
-                      <span className={FORM_LABEL}>{t('channels:channelsPage.executionMode')}</span>
-                      <AppSelect
-                        value={selectedConnection.runMode}
-                        onChange={(event) =>
-                          update(
-                            selectedPlatform,
-                            { runMode: event.target.value as ChannelConnection['runMode'] },
-                            t('channels:channelsPage.executionModeUpdated'),
-                          )
-                        }
-                      >
-                        <option value="plan">{t('channels:channelsPage.planMode')}</option>
-                        <option value="goal">{t('channels:channelsPage.goalMode')}</option>
-                        <option value="team">{t('channels:channelsPage.teamMode')}</option>
-                      </AppSelect>
-                    </label>
-                    <label className={FORM_ROW}>
-                      <span className={FORM_LABEL}>{t('channels:channelsPage.accessScope')}</span>
-                      <AppSelect
-                        value={selectedConnection.accessMode}
-                        onChange={(event) =>
-                          update(
-                            selectedPlatform,
-                            { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
-                            t('channels:channelsPage.accessScopeUpdated'),
-                          )
-                        }
-                      >
-                        <option value="owner" disabled={!selectedConnection.ownerConfigured}>
-                          {t('channels:channelsPage.qrCodeOwnerOnly')}
-                        </option>
-                        <option value="all">
-                          {selectedPlatform === 'feishu'
-                            ? t('channels:channelsPage.allMembersInTheCurrentTenant')
-                            : selectedPlatform === 'weixin'
-                              ? t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')
-                              : t('channels:channelsPage.allUsersWhoMessageTheBot')}
-                        </option>
-                      </AppSelect>
-                    </label>
-                    <label className={FORM_ROW}>
-                      <span className={FORM_LABEL}>
-                        {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
-                      </span>
-                      <span className="channel-setting-input grid h-[34px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-sm border border-control bg-panel py-0.5 pr-0.5 pl-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11">
-                        <FolderOpen className="size-3.5" />
-                        <input
-                          className="min-w-0 border-0 bg-transparent font-mono text-xs text-content outline-none"
-                          value={cwd}
-                          onChange={(event) => setCwd(event.target.value)}
-                        />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="max-[650px]:h-9"
-                          disabled={saving || cwd === selectedConnection.defaultCwd}
-                          onClick={() =>
-                            update(
-                              selectedPlatform,
-                              { defaultCwd: cwd },
-                              t('channels:channelsPage.defaultWorkingDirectorySaved'),
-                            )
-                          }
-                        >
-                          {t('channels:channelsPage.save')}
-                        </Button>
-                      </span>
-                    </label>
-                    <AppNotice className={cn('mb-3', NOTICE)}>
-                      <ShieldCheck size={15} />
-                      <span>
-                        <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
-                        <small>
-                          {t(
-                            'channels:channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode',
-                          )}
-                        </small>
-                      </span>
-                    </AppNotice>
-                  </div>
-                  <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke-soft bg-surface-subtle px-4 py-2.5">
-                    <Button
-                      variant="ghost"
-                      className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
-                      onClick={() => remove(selectedPlatform)}
-                    >
-                      <Unplug />
-                      {t('channels:channelsPage.disconnect')}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="max-[650px]:h-11"
-                      onClick={() => reconnect(selectedPlatform)}
-                      disabled={saving}
-                    >
-                      <RefreshCw />
-                      {t('channels:channelsPage.reconnect')}
-                    </Button>
-                  </footer>
-                </section>
-              )}
-              <section className={CARD}>
-                <header className={CARD_HEAD}>
-                  <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
-                    {t('channels:channelsPage.channelChats')}
-                  </h2>
-                  <span className="text-xs text-content-muted tabular-nums">
-                    {t('channels:channelsPage.countLinked', { count: data.scopes.length })}
-                  </span>
-                </header>
-                {data.scopes.length ? (
-                  <ul className="divide-y divide-stroke-soft">
-                    {data.scopes.map((scope) => (
-                      <li
-                        className="route-row grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5"
-                        key={scope.key}
-                      >
-                        <span className={ICON_KEY}>
-                          {scope.platform === 'feishu' ? (
-                            <MessageSquare />
-                          ) : scope.platform === 'telegram' ? (
-                            <Send />
-                          ) : (
-                            <MessageCircle />
-                          )}
-                        </span>
-                        <div className="channel-route-copy flex min-w-0 flex-col gap-0.5">
-                          <strong className="flex min-w-0 items-center gap-2 text-sm font-medium text-content">
-                            <span className="truncate">{scope.title}</span>
-                            <Badge tone="gray">{providerName(scope.platform, t)}</Badge>
-                          </strong>
-                          <small className="flex min-w-0 gap-1.5 text-xs text-content-secondary">
-                            <span className="truncate">
-                              {scope.lastMessage || t('channels:channelsPage.noMessages')}
-                            </span>
-                            <span className="shrink-0 text-content-muted tabular-nums">
-                              {relativeTime(scope.updatedAt, language)}
-                            </span>
-                          </small>
-                          <small className="truncate font-mono text-xs text-content-muted">
-                            {scope.model || t('channels:channelsPage.defaultModel')} · {scope.cwd}
-                          </small>
-                        </div>
-                        <div className="channel-route-controls flex items-center gap-1.5">
-                          <Badge tone="green">{t('channels:channelsPage.twoWay')}</Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
-                            title={t('channels:channelsPage.resetChat')}
-                            aria-label={`${t('channels:channelsPage.resetChat')}: ${scope.title}`}
-                            onClick={() => resetScope(scope)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <InlineEmptyState
-                    compact
-                    title={t('channels:channelsPage.waitingForTheFirstReplyFromAfar')}
-                    description={t(
-                      'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
-                    )}
-                  />
-                )}
-              </section>
-            </div>
+  if (error && !loaded)
+    return (
+      // 首次读取失败不显示成“全部未连接”：写明错误并给重试（老问题，原来是默认空数据 + 顶部错误条）。
+      <ChannelsFrame onBack={onBack} query={query} onQueryChange={setQuery}>
+        <PageState
+          kind="error"
+          title={t('channels:channelsPage.loadFailed')}
+          description={error}
+          action={
+            <Button
+              variant="secondary"
+              className="max-[650px]:h-11"
+              onClick={() => {
+                setLoading(true)
+                void load()
+              }}
+            >
+              {t('common:pageTemplate.retry')}
+            </Button>
           }
         />
-
-        {onboarding && (
-          <OnboardingModal
-            job={onboarding}
-            onClose={closeOnboarding}
-            onRetry={() => beginOnboarding(onboarding.platform)}
-            onSubmitCredentials={async (credentials) => {
-              try {
-                const result = await apiJson<
-                  Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor | ChannelsData
-                >(`/api/channels/${onboarding.platform}/onboarding`, {
-                  method: 'POST',
-                  body: JSON.stringify(credentials),
-                })
-                if ('connections' in result) {
-                  setData(result)
-                  setOnboarding(null)
-                  notify(
-                    t('channels:channelsPage.nameTwoWayConnectionEstablished', {
-                      name: providerName(onboarding.platform, t),
-                    }),
+      </ChannelsFrame>
+    )
+  const needle = query.trim().toLocaleLowerCase()
+  const visiblePlatforms = PROVIDER_ENTRIES.filter(([platform]) =>
+    `${providerTitle(platform, t)} ${providerName(platform, t)}`
+      .toLocaleLowerCase()
+      .includes(needle),
+  )
+  const visibleScopes = needle
+    ? data.scopes.filter((scope) =>
+        `${scope.title} ${scope.lastMessage || ''} ${providerName(scope.platform, t)}`
+          .toLocaleLowerCase()
+          .includes(needle),
+      )
+    : data.scopes
+  const disconnected = PROVIDER_ENTRIES.filter(
+    ([platform]) => channelState(data.connections?.[platform]) === 'disconnected',
+  ).length
+  return (
+    <ChannelsFrame onBack={onBack} query={query} onQueryChange={setQuery}>
+      {error && (
+        <p
+          role="alert"
+          className="mt-4 flex items-start gap-1.5 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
+        >
+          <AlertTriangle className="mt-px size-3.5 flex-none" aria-hidden="true" />
+          {error}
+        </p>
+      )}
+      <FeatureSection
+        title={t('channels:channelsPage.platforms')}
+        count={PROVIDER_ENTRIES.length}
+        meta={
+          disconnected ? (
+            // 断开是需要人处理的事：与功能索引的“1 断开”同一条规则，琥珀（规格 2.7、6.1）。
+            <span data-channels-disconnected className="font-medium text-st-attn">
+              {t('channels:channelsPage.disconnectedCount', { count: disconnected })}
+            </span>
+          ) : undefined
+        }
+      >
+        {visiblePlatforms.length ? (
+          <FeatureList>
+            {visiblePlatforms.map(([platform, provider]) => {
+              const connection = data.connections?.[platform]
+              const expanded = expandedPlatform === platform
+              const Icon = provider.Icon
+              return (
+                <FeatureRow
+                  key={platform}
+                  data-channel-platform={platform}
+                  className="channel-platform-card"
+                  icon={<Icon />}
+                  name={providerTitle(platform, t)}
+                  description={providerTransport(platform, t)}
+                  status={<ChannelStateLabel connection={connection} />}
+                  actions={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={starting === platform}
+                      disabled={starting === platform}
+                      title={connectActionLabel(platform, Boolean(connection), t)}
+                      onClick={() => void beginOnboarding(platform)}
+                    >
+                      {connection ? <RefreshCw /> : <Plus />}
+                      <span className="max-[650px]:sr-only">
+                        {connectActionLabel(platform, Boolean(connection), t)}
+                      </span>
+                    </Button>
+                  }
+                  expanded={expanded}
+                  onExpandedChange={(open) => {
+                    setExpandedPlatform(open ? platform : '')
+                    if (open) setCwd(connection?.defaultCwd || '')
+                  }}
+                  toggleLabel={t('channels:channelsPage.togglePlatformDetails', {
+                    name: providerName(platform, t),
+                  })}
+                  detail={
+                    expanded ? (
+                      <ChannelPlatformDetail
+                        platform={platform}
+                        connection={connection}
+                        models={data.models}
+                        cwd={cwd}
+                        saving={saving}
+                        onCwdChange={setCwd}
+                        onUpdate={update}
+                        onReconnect={reconnect}
+                        onRemove={remove}
+                      />
+                    ) : null
+                  }
+                />
+              )
+            })}
+          </FeatureList>
+        ) : (
+          <InlineEmptyState compact title={t('channels:channelsPage.noMatchingChannels')} />
+        )}
+      </FeatureSection>
+      <FeatureSection
+        title={t('channels:channelsPage.channelChats')}
+        count={data.scopes.length}
+        description={t(
+          'channels:channelsPage.onceConnectedMessagesFromSupportedChannelsWillArriveHereInPisper',
+        )}
+      >
+        {visibleScopes.length ? (
+          <FeatureList>
+            {visibleScopes.map((scope) => (
+              <FeatureRow
+                key={scope.key}
+                data-channel-scope={scope.key}
+                className="route-row"
+                icon={
+                  scope.platform === 'feishu' ? (
+                    <MessageSquare />
+                  ) : scope.platform === 'telegram' ? (
+                    <Send />
+                  ) : (
+                    <MessageCircle />
                   )
-                  await load()
-                } else if ('mode' in result && result.mode === 'manual') {
-                  setOnboarding({
-                    ...result,
-                    platform: onboarding.platform,
-                    status: 'starting',
-                    manual: true,
-                  })
-                } else {
-                  setOnboarding({
-                    ...result,
-                    platform: onboarding.platform,
-                    manual: result.mode === 'manual',
-                  })
                 }
-              } catch (caught) {
-                setOnboarding((current) =>
-                  current ? { ...current, status: 'failed', error: errorMessage(caught) } : current,
-                )
-              }
-            }}
-            notify={notify}
+                name={scope.title}
+                nameMeta={providerName(scope.platform, t)}
+                description={scope.lastMessage || t('channels:channelsPage.noMessages')}
+                meta={
+                  <span className="truncate font-mono">
+                    {scope.model || t('channels:channelsPage.defaultModel')} · {scope.cwd}
+                  </span>
+                }
+                status={relativeTime(scope.updatedAt, language)}
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
+                    title={t('channels:channelsPage.resetChat')}
+                    aria-label={`${t('channels:channelsPage.resetChat')}: ${scope.title}`}
+                    onClick={() => void resetScope(scope)}
+                  >
+                    <Trash2 />
+                  </Button>
+                }
+              />
+            ))}
+          </FeatureList>
+        ) : (
+          <InlineEmptyState
+            title={
+              data.scopes.length
+                ? t('channels:channelsPage.noMatchingChats')
+                : t('channels:channelsPage.waitingForTheFirstReplyFromAfar')
+            }
           />
         )}
-      </div>
-    </PageFrame>
+      </FeatureSection>
+
+      {onboarding && (
+        <OnboardingModal
+          job={onboarding}
+          onClose={closeOnboarding}
+          onRetry={() => beginOnboarding(onboarding.platform)}
+          onSubmitCredentials={async (credentials) => {
+            try {
+              const result = await apiJson<
+                Omit<OnboardingJob, 'platform'> | ManualOnboardingDescriptor | ChannelsData
+              >(`/api/channels/${onboarding.platform}/onboarding`, {
+                method: 'POST',
+                body: JSON.stringify(credentials),
+              })
+              if ('connections' in result) {
+                setData(result)
+                setOnboarding(null)
+                notify(
+                  t('channels:channelsPage.nameTwoWayConnectionEstablished', {
+                    name: providerName(onboarding.platform, t),
+                  }),
+                )
+                await load()
+              } else if ('mode' in result && result.mode === 'manual') {
+                setOnboarding({
+                  ...result,
+                  platform: onboarding.platform,
+                  status: 'starting',
+                  manual: true,
+                })
+              } else {
+                setOnboarding({
+                  ...result,
+                  platform: onboarding.platform,
+                  manual: result.mode === 'manual',
+                })
+              }
+            } catch (caught) {
+              setOnboarding((current) =>
+                current ? { ...current, status: 'failed', error: errorMessage(caught) } : current,
+              )
+            }
+          }}
+          notify={notify}
+        />
+      )}
+    </ChannelsFrame>
+  )
+}
+
+// 页面骨架：标题、一句说明、“‹ 功能”与工具行（搜索平台与渠道会话）；读取中 / 失败也保留它们。
+function ChannelsFrame({
+  onBack,
+  query,
+  onQueryChange,
+  children,
+}: {
+  onBack?: () => void
+  query: string
+  onQueryChange: (value: string) => void
+  children: ReactNode
+}) {
+  const { t } = useI18n()
+  const searchShortcut = useShortcutLabel('focusSearch')
+  const title = t('navigation:navigation.channels')
+  return (
+    <FeaturePage
+      title={title}
+      description={t('channels:channelsPage.lede')}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={onQueryChange}
+              placeholder={t('channels:channelsPage.searchPlaceholder')}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
+        />
+      }
+    >
+      {children}
+    </FeaturePage>
+  )
+}
+
+// 渠道的人话状态（与功能索引角标 parseDisconnectedChannelCount 同一判断）：启用了却没连上 = 断开，需要人处理；
+// 正在连接 / 重连中不算断开；没配置过的平台只是“未连接”，暂停的渠道是“已暂停”。
+type ChannelState = 'none' | 'paused' | 'live' | 'busy' | 'disconnected'
+
+function channelState(connection: ChannelConnection | null | undefined): ChannelState {
+  if (!connection) return 'none'
+  if (connection.enabled === false) return 'paused'
+  if (connection.status === 'connected') return 'live'
+  if (connection.status === 'connecting' || connection.status === 'reconnecting') return 'busy'
+  return 'disconnected'
+}
+
+// 行右侧的状态（规格 2.7、6.1）：只有“断开”是琥珀圆点 + 琥珀文字，其余（在线、连接中、未连接、已暂停）中性。
+function ChannelStateLabel({ connection }: { connection: ChannelConnection | null | undefined }) {
+  const { t } = useI18n()
+  const state = channelState(connection)
+  const label =
+    state === 'none'
+      ? t('channels:channelsPage.notConnected')
+      : state === 'paused'
+        ? t('channels:channelsPage.paused')
+        : state === 'disconnected'
+          ? connection?.status === 'failed'
+            ? t('channels:channelsPage.connectionFailed')
+            : t('channels:channelsPage.disconnected')
+          : channelStatusLabel(connection?.status || 'idle', t)
+  return (
+    <span
+      data-channel-state={state}
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap',
+        state === 'disconnected' ? 'font-medium text-st-attn' : 'text-content-secondary',
+      )}
+    >
+      {state === 'disconnected' ? (
+        <StatusGlyph status="attention" className="size-3.5" />
+      ) : state === 'busy' ? (
+        <StatusGlyph status="run" className="size-3.5" />
+      ) : state === 'live' ? (
+        <StatusGlyph status="done" className="size-3.5" />
+      ) : null}
+      {label}
+    </span>
+  )
+}
+
+type ChannelPatch = Partial<
+  Pick<
+    ChannelConnection,
+    'enabled' | 'accessMode' | 'defaultCwd' | 'replyModel' | 'executionMode' | 'runMode'
+  >
+>
+
+// 展开的平台：能力与回复模型说明；已连接时是原“{平台}设置”（实时状态、启用、回复模型、审批与执行模式、
+// 访问范围、默认工作目录、安全边界）与“解除连接 / 重连”。每项改动立即保存，与原来一致。
+function ChannelPlatformDetail({
+  platform,
+  connection,
+  models,
+  cwd,
+  saving,
+  onCwdChange,
+  onUpdate,
+  onReconnect,
+  onRemove,
+}: {
+  platform: ChannelPlatform
+  connection: ChannelConnection | null | undefined
+  models: ChannelModel[]
+  cwd: string
+  saving: boolean
+  onCwdChange: (value: string) => void
+  onUpdate: (platform: ChannelPlatform, patch: ChannelPatch, success: string) => void
+  onReconnect: (platform: ChannelPlatform) => void
+  onRemove: (platform: ChannelPlatform) => void
+}) {
+  const { t, language } = useI18n()
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <dl className="rounded-[var(--r-md)] border border-stroke px-3 py-0.5">
+        <div className={KEY_VALUE}>
+          <dt>{t('channels:channelsPage.twoWayCapability')}</dt>
+          <dd>{providerCapability(platform, t)}</dd>
+        </div>
+        <div className={KEY_VALUE}>
+          <dt>{t('channels:channelsPage.replyModel')}</dt>
+          <dd className={connection?.replyModel ? 'font-mono' : undefined}>
+            {connection?.replyModel
+              ? `${connection.replyModel.provider}/${connection.replyModel.model}`
+              : t('channels:channelsPage.useApplicationDefaultModel')}
+          </dd>
+        </div>
+      </dl>
+      {connection ? (
+        <section
+          className="test-panel min-w-0"
+          aria-label={t('channels:channelsPage.nameSettings', { name: providerName(platform, t) })}
+        >
+          <div
+            className={cn(
+              'channel-live-status flex min-w-0 items-center gap-2.5 py-2',
+              connection.status,
+            )}
+          >
+            <ChannelStateLabel connection={connection} />
+            <small
+              className={cn(
+                'min-w-0 truncate text-xs tabular-nums',
+                connection.lastError ? 'text-content-secondary' : 'text-content-muted',
+              )}
+            >
+              {connection.lastError ||
+                (connection.status === 'connected'
+                  ? t('channels:channelsPage.connectedTime', {
+                      time: relativeTime(connection.connectedAt, language),
+                    })
+                  : t('channels:channelsPage.establishingPersistentConnection'))}
+            </small>
+          </div>
+          <div className="modal-toggle-row flex min-w-0 items-center justify-between gap-4 border-t border-stroke-soft py-3">
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <strong className="text-sm font-medium text-content">
+                {t('channels:channelsPage.enableThisChannel')}
+              </strong>
+              <small className="text-xs text-content-muted">
+                {t('channels:channelsPage.turnOffToDisconnectWhileKeepingSignInCredentials')}
+              </small>
+            </span>
+            <Toggle
+              value={connection.enabled}
+              disabled={saving}
+              ariaLabel={t('channels:channelsPage.enableThisChannel')}
+              onChange={(enabled) =>
+                onUpdate(
+                  platform,
+                  { enabled },
+                  enabled
+                    ? t('channels:channelsPage.channelEnabled')
+                    : t('channels:channelsPage.channelPaused'),
+                )
+              }
+            />
+          </div>
+          <label className={FORM_ROW}>
+            <span className={FORM_LABEL}>{t('channels:channelsPage.replyModel')}</span>
+            <AppSelect
+              value={
+                connection.replyModel
+                  ? `${connection.replyModel.provider}/${connection.replyModel.model}`
+                  : ''
+              }
+              onChange={(event) => {
+                const [provider, ...parts] = event.target.value.split('/')
+                onUpdate(
+                  platform,
+                  {
+                    replyModel: event.target.value ? { provider, model: parts.join('/') } : null,
+                  },
+                  t('channels:channelsPage.channelReplyModelUpdated'),
+                )
+              }}
+            >
+              <option value="">{t('channels:channelsPage.useApplicationDefaultModel')}</option>
+              {models.map((model) => (
+                <option
+                  value={`${model.provider}/${model.model}`}
+                  key={`${model.provider}/${model.model}`}
+                >
+                  {model.label}
+                </option>
+              ))}
+            </AppSelect>
+          </label>
+          <label className={FORM_ROW}>
+            <span className={FORM_LABEL}>{t('channels:channelsPage.approvalMode')}</span>
+            <AppSelect
+              value={connection.executionMode}
+              onChange={(event) =>
+                onUpdate(
+                  platform,
+                  { executionMode: event.target.value as ChannelConnection['executionMode'] },
+                  t('channels:channelsPage.approvalModeUpdated'),
+                )
+              }
+            >
+              <option value="approval-required">
+                {t('channels:channelsPage.approvalRequired')}
+              </option>
+              <option value="workspace-write">{t('channels:channelsPage.workspaceWrite')}</option>
+              <option value="full-access">{t('channels:channelsPage.fullAccess')}</option>
+            </AppSelect>
+          </label>
+          <label className={FORM_ROW}>
+            <span className={FORM_LABEL}>{t('channels:channelsPage.executionMode')}</span>
+            <AppSelect
+              value={connection.runMode}
+              onChange={(event) =>
+                onUpdate(
+                  platform,
+                  { runMode: event.target.value as ChannelConnection['runMode'] },
+                  t('channels:channelsPage.executionModeUpdated'),
+                )
+              }
+            >
+              <option value="plan">{t('channels:channelsPage.planMode')}</option>
+              <option value="goal">{t('channels:channelsPage.goalMode')}</option>
+              <option value="team">{t('channels:channelsPage.teamMode')}</option>
+            </AppSelect>
+          </label>
+          <label className={FORM_ROW}>
+            <span className={FORM_LABEL}>{t('channels:channelsPage.accessScope')}</span>
+            <AppSelect
+              value={connection.accessMode}
+              onChange={(event) =>
+                onUpdate(
+                  platform,
+                  { accessMode: event.target.value === 'all' ? 'all' : 'owner' },
+                  t('channels:channelsPage.accessScopeUpdated'),
+                )
+              }
+            >
+              <option value="owner" disabled={!connection.ownerConfigured}>
+                {t('channels:channelsPage.qrCodeOwnerOnly')}
+              </option>
+              <option value="all">
+                {platform === 'feishu'
+                  ? t('channels:channelsPage.allMembersInTheCurrentTenant')
+                  : platform === 'weixin'
+                    ? t('channels:channelsPage.allWeChatUsersWhoMessageTheBot')
+                    : t('channels:channelsPage.allUsersWhoMessageTheBot')}
+              </option>
+            </AppSelect>
+          </label>
+          <label className={FORM_ROW}>
+            <span className={FORM_LABEL}>
+              {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
+            </span>
+            <span className="channel-setting-input grid h-[34px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-sm border border-control bg-panel py-0.5 pr-0.5 pl-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11">
+              <FolderOpen className="size-3.5" />
+              <input
+                className="min-w-0 border-0 bg-transparent font-mono text-xs text-content outline-none"
+                value={cwd}
+                onChange={(event) => onCwdChange(event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="max-[650px]:h-9"
+                disabled={saving || cwd === connection.defaultCwd}
+                onClick={() =>
+                  onUpdate(
+                    platform,
+                    { defaultCwd: cwd },
+                    t('channels:channelsPage.defaultWorkingDirectorySaved'),
+                  )
+                }
+              >
+                {t('channels:channelsPage.save')}
+              </Button>
+            </span>
+          </label>
+          <AppNotice className={cn('mt-1', NOTICE)}>
+            <ShieldCheck size={15} />
+            <span>
+              <strong>{t('channels:channelsPage.localSecurityBoundary')}</strong>
+              <small>
+                {t('channels:channelsPage.ownerOnlyAccessRespectsToolPermissionsAndExecutionMode')}
+              </small>
+            </span>
+          </AppNotice>
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 max-[650px]:[&>button]:h-11">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger hover:bg-danger-soft hover:text-danger"
+              onClick={() => onRemove(platform)}
+            >
+              <Unplug />
+              {t('channels:channelsPage.disconnect')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onReconnect(platform)}
+              disabled={saving}
+            >
+              <RefreshCw />
+              {t('channels:channelsPage.reconnect')}
+            </Button>
+          </div>
+        </section>
+      ) : (
+        <p className="text-xs leading-relaxed text-content-muted">
+          {t('channels:channelsPage.notConnectedHint')}
+        </p>
+      )}
+    </div>
   )
 }
 

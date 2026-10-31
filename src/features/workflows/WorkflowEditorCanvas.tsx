@@ -42,9 +42,10 @@ export function WorkflowNodePalette({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        {/* 编辑器页头里的工具键：手机只留图标（读屏名称不变），触控高度由页头统一抬到 44。 */}
+        <Button variant="outline" size="sm" title={t('workflows:editor.addNode')}>
           <Plus />
-          {t('workflows:editor.addNode')}
+          <span className="max-[650px]:sr-only">{t('workflows:editor.addNode')}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

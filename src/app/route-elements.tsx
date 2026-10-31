@@ -157,7 +157,7 @@ export async function channelsRoute() {
     return (
       <ChannelsPage
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
+        onBack={context.onBackToFeatures}
         requestConfirm={context.requestConfirm}
       />
     )
@@ -174,7 +174,7 @@ export async function schedulesRoute() {
     return (
       <SchedulesPage
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
+        onBack={context.onBackToFeatures}
         requestConfirm={context.requestConfirm}
         openNotificationSettings={context.openNotificationSettings}
       />
@@ -201,6 +201,7 @@ export async function configRoute() {
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
         section={context.configSection}
+        onBackToFeatures={context.onBackToFeatures}
         onBrowserNotificationChange={context.setNotificationSettings}
         requestConfirm={context.requestConfirm}
         update={context.appUpdate}
@@ -345,8 +346,8 @@ export async function workflowsRoute() {
     const context = useAppRouteContext()
     return (
       <WorkflowsPage
-        query={context.query}
         notify={context.notify}
+        onBack={context.onBackToFeatures}
         requestConfirm={context.requestConfirm}
       />
     )
@@ -366,7 +367,6 @@ export async function workflowBuilderRoute() {
     return (
       <WorkflowBuilder
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
         registerWorkflowActions={context.registerWorkflowActions}
       />
     )

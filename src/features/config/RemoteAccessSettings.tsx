@@ -1,14 +1,26 @@
 import './remote-workspace-messages'
-// 远程访问设置：开关局域网监听、展示接入地址与证书指纹、
-// 生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
-import { useCallback, useEffect, useState } from 'react'
-import { Check, MonitorSmartphone, QrCode, RefreshCw, Smartphone, X } from 'lucide-react'
+// 远程访问（功能 › 设备与连接，功能页模板的分区与列表行）：开关局域网监听、系统防火墙状态、
+// 待审批的连接、生成配对二维码、管理已配对设备（吊销）。数据全部来自 runtime 的 /api/remote/*。
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import {
+  Check,
+  MonitorSmartphone,
+  QrCode,
+  RefreshCw,
+  ShieldCheck,
+  Smartphone,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
+import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
+import type { StatusGlyphKind } from '@/components/app/status-glyph-kinds'
 import { apiJson } from '@/lib/api'
 import { relativeTime } from '@/lib/format'
-import { SettingsCard as Panel, SettingsSwitch as Switch } from './settings-primitives'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import {
@@ -233,13 +245,38 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
     }
   }
 
-  if (loadError) {
-    return <Panel className="p-4 text-sm text-content-muted">{loadError}</Panel>
+  if (loadError && !status) {
+    return (
+      <PageState
+        kind="error"
+        title={t('config:remoteAccess.loadFailed')}
+        action={
+          <Button variant="secondary" className="max-[650px]:h-11" onClick={() => void refresh()}>
+            <RefreshCw />
+            {t('config:remoteAccess.refresh')}
+          </Button>
+        }
+      />
+    )
   }
-  if (!status) return null
+  if (!status) return <PageState kind="loading" title={t('config:remoteAccess.loading')} />
+
+  // 监听状态：启动失败要人处理（琥珀）；正在接受连接、已关闭、正在启动都是中性（规格 6.1）。
+  const listenState = status.error
+    ? 'failed'
+    : status.listening
+      ? 'on'
+      : status.enabled
+        ? 'starting'
+        : 'off'
+  // 防火墙：还没确认放行（需要授权、授权取消、出错、规则未清理）要人回来处理，琥珀；其余中性。
+  const firewallAttention =
+    firewall !== null &&
+    !firewall.busy &&
+    ['needs_authorization', 'cancelled', 'error', 'cleanup_pending'].includes(firewall.state)
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       <Dialog open={pairingOpen && pairing !== null} onOpenChange={setPairingOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -301,233 +338,282 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
         </DialogContent>
       </Dialog>
 
-      <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-main">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <span
-              className={cn(
-                'grid size-9.5 flex-none place-items-center rounded-lg border border-key-border bg-key shadow-key',
-                status.enabled ? 'text-accent-fg' : 'text-content-muted',
-              )}
-            >
-              <MonitorSmartphone size={18} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-[15px]! leading-6 font-medium text-content">
-                {t('config:remoteAccess.title')}
-              </h2>
-              <p className="mt-0.5 text-xs leading-[1.55] text-content-muted">
-                {t('config:remoteAccess.description')}
-              </p>
-            </div>
-          </div>
-          <Switch
-            value={status.enabled}
-            disabled={busy}
-            onChange={(checked) => void toggleEnabled(checked)}
-            ariaLabel={t('config:remoteAccess.title')}
+      {/* 读到之后的刷新失败：写在最上面，已显示的状态保留（原来整页换成一行错误）。 */}
+      {loadError && (
+        <p
+          role="alert"
+          className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs text-danger"
+        >
+          {loadError}
+        </p>
+      )}
+      <FeatureSection
+        title={t('config:remoteAccess.thisComputer')}
+        data-config-card="remote-access-main"
+      >
+        <FeatureList>
+          <FeatureRow
+            icon={<MonitorSmartphone />}
+            name={t('config:remoteAccess.allowConnections')}
+            description={t('config:remoteAccess.description')}
+            status={
+              <StateText
+                attention={listenState === 'failed'}
+                glyph={listenState === 'on' ? 'done' : listenState === 'starting' ? 'run' : null}
+              >
+                {listenState === 'failed'
+                  ? t('config:remoteAccess.stateFailed')
+                  : listenState === 'on'
+                    ? t('config:remoteAccess.stateListening')
+                    : listenState === 'starting'
+                      ? t('config:remoteAccess.stateStarting')
+                      : t('config:remoteAccess.stateOff')}
+              </StateText>
+            }
+            actions={
+              <Switch
+                checked={status.enabled}
+                disabled={busy}
+                onCheckedChange={(checked) => void toggleEnabled(checked)}
+                aria-label={t('config:remoteAccess.title')}
+              />
+            }
+            detail={
+              status.error ? (
+                <p className="text-xs leading-relaxed [overflow-wrap:anywhere] text-st-attn">
+                  {t('config:remoteAccess.listenFailed', { message: status.error })}
+                </p>
+              ) : undefined
+            }
           />
-        </div>
-        {status.error ? (
-          <p className="rounded-sm bg-danger-soft px-3 py-2 text-xs text-danger">
-            {t('config:remoteAccess.listenFailed', { message: status.error })}
-          </p>
-        ) : null}
-      </Panel>
-
-      {firewall ? (
-        <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-medium text-content">
-              {t('config:remoteAccess.firewallTitle')}
-            </h3>
-            {status.enabled || firewall.state === 'cleanup_pending' ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="pointer-coarse:h-11"
-                disabled={busy || firewall.busy}
-                onClick={() => void retryFirewall()}
-              >
-                {busy || firewall.busy ? <OrbitSpinner className="text-current" /> : <RefreshCw />}
-                {status.enabled
-                  ? t('config:remoteAccess.firewallRetry')
-                  : t('config:remoteAccess.firewallRetryCleanup')}
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-sm text-content-secondary">
-            {firewall.busy
-              ? t('config:remoteAccess.firewallWorking')
-              : firewallStates[firewall.state]}
-          </p>
-          {firewall.reason && firewallReasons[firewall.reason] ? (
-            <p className="text-xs text-content-muted">{firewallReasons[firewall.reason]}</p>
-          ) : null}
-          {status.enabled ? (
-            <p className="text-xs leading-relaxed text-content-muted">
-              {firewall.scope === 'application'
-                ? t('config:remoteAccess.firewallApplicationScope')
-                : firewall.scope === 'program_port'
-                  ? t('config:remoteAccess.firewallProgramPortScope', {
-                      port: firewall.port ?? '—',
-                    })
-                  : t('config:remoteAccess.firewallPortScope', { port: firewall.port ?? '—' })}
-            </p>
-          ) : null}
-          <p className="text-xs leading-relaxed text-content-muted">
-            {t('config:remoteAccess.firewallReachability')}
-          </p>
-          {firewall.checkedAt ? (
-            <p className="text-xs text-content-muted tabular-nums">
-              {t('config:remoteAccess.firewallCheckedAt', {
-                time: relativeTime(firewall.checkedAt, language),
-              })}
-            </p>
-          ) : null}
-        </Panel>
-      ) : null}
-
-      {status.listening && approvals.length ? (
-        <Panel className="flex flex-col gap-3 p-4" aria-live="polite">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-content">
-            <Smartphone size={16} aria-hidden="true" className="text-content-muted" />
-            {t('config:remoteAccess.pendingApprovals')}
-          </h3>
-          <p className="text-xs leading-relaxed text-content-muted">
-            {t('config:remoteAccess.pendingApprovalsDescription')}
-          </p>
-          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
-            {approvals.map((approval) => (
-              <li
-                key={approval.id}
-                className="flex min-h-12 items-center justify-between gap-3 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-content">
-                    {approval.deviceName}
-                  </div>
-                  <div className="text-xs text-content-muted tabular-nums">
-                    {t('config:remoteAccess.requestedAt', {
-                      time: relativeTime(approval.requestedAt, language),
-                    })}
-                  </div>
-                  <code className="block truncate font-mono text-xs text-content-muted">
-                    {t('config:remoteAccess.requestSource', { ip: approval.ip })}
-                  </code>
-                </div>
-                <div className="flex flex-none items-center gap-1">
+          {firewall ? (
+            <FeatureRow
+              aria-live="polite"
+              icon={<ShieldCheck />}
+              name={t('config:remoteAccess.firewallTitle')}
+              description={
+                firewall.busy
+                  ? t('config:remoteAccess.firewallWorking')
+                  : firewallStates[firewall.state]
+              }
+              status={
+                firewall.busy ? (
+                  <StateText glyph="run">{t('config:remoteAccess.firewallChecking')}</StateText>
+                ) : firewallAttention ? (
+                  <StateText attention>{t('config:remoteAccess.firewallNeedsYou')}</StateText>
+                ) : undefined
+              }
+              actions={
+                status.enabled || firewall.state === 'cleanup_pending' ? (
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="pointer-coarse:h-11"
-                    disabled={approvalBusy === approval.id}
-                    onClick={() => void decideApproval(approval, false)}
+                    variant="secondary"
+                    disabled={busy || firewall.busy}
+                    onClick={() => void retryFirewall()}
                   >
-                    <X />
-                    {t('config:remoteAccess.reject')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="pointer-coarse:h-11"
-                    disabled={approvalBusy === approval.id}
-                    onClick={() => void decideApproval(approval, true)}
-                  >
-                    {approvalBusy === approval.id ? (
+                    {busy || firewall.busy ? (
                       <OrbitSpinner className="text-current" />
                     ) : (
-                      <Check />
+                      <RefreshCw />
                     )}
-                    {t('config:remoteAccess.approve')}
+                    {status.enabled
+                      ? t('config:remoteAccess.firewallRetry')
+                      : t('config:remoteAccess.firewallRetryCleanup')}
                   </Button>
+                ) : undefined
+              }
+              detail={
+                <div className="flex flex-col gap-1.5 text-xs leading-relaxed text-content-muted">
+                  {firewall.reason && firewallReasons[firewall.reason] ? (
+                    <p className="text-content-secondary">{firewallReasons[firewall.reason]}</p>
+                  ) : null}
+                  {status.enabled ? (
+                    <p>
+                      {firewall.scope === 'application'
+                        ? t('config:remoteAccess.firewallApplicationScope')
+                        : firewall.scope === 'program_port'
+                          ? t('config:remoteAccess.firewallProgramPortScope', {
+                              port: firewall.port ?? '—',
+                            })
+                          : t('config:remoteAccess.firewallPortScope', {
+                              port: firewall.port ?? '—',
+                            })}
+                    </p>
+                  ) : null}
+                  <p>{t('config:remoteAccess.firewallReachability')}</p>
+                  {firewall.checkedAt ? (
+                    <p className="tabular-nums">
+                      {t('config:remoteAccess.firewallCheckedAt', {
+                        time: relativeTime(firewall.checkedAt, language),
+                      })}
+                    </p>
+                  ) : null}
                 </div>
-              </li>
+              }
+            />
+          ) : null}
+        </FeatureList>
+      </FeatureSection>
+
+      {status.listening && approvals.length ? (
+        // 待审批的连接是需要你的事：分区标题旁琥珀计数，行内“拒绝 / 批准”（规格 6.1）。
+        <FeatureSection
+          aria-live="polite"
+          title={t('config:remoteAccess.pendingApprovals')}
+          count={approvals.length}
+          meta={
+            <span className="font-medium text-st-attn">
+              {t('config:remoteAccess.waitingForYou')}
+            </span>
+          }
+          description={t('config:remoteAccess.pendingApprovalsDescription')}
+        >
+          <FeatureList>
+            {approvals.map((approval) => (
+              <FeatureRow
+                key={approval.id}
+                data-pairing-request={approval.id}
+                icon={<Smartphone />}
+                name={approval.deviceName}
+                description={
+                  <span className="font-mono">
+                    {t('config:remoteAccess.requestSource', { ip: approval.ip })}
+                  </span>
+                }
+                meta={t('config:remoteAccess.requestedAt', {
+                  time: relativeTime(approval.requestedAt, language),
+                })}
+                actions={
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={approvalBusy === approval.id}
+                      onClick={() => void decideApproval(approval, false)}
+                    >
+                      <X />
+                      {t('config:remoteAccess.reject')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={approvalBusy === approval.id}
+                      onClick={() => void decideApproval(approval, true)}
+                    >
+                      {approvalBusy === approval.id ? (
+                        <OrbitSpinner className="text-current" />
+                      ) : (
+                        <Check />
+                      )}
+                      {t('config:remoteAccess.approve')}
+                    </Button>
+                  </>
+                }
+              />
             ))}
-          </ul>
-        </Panel>
+          </FeatureList>
+        </FeatureSection>
       ) : null}
 
       {status.listening ? (
-        <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-pairing">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-medium text-content">
-              <QrCode size={16} aria-hidden="true" className="text-content-muted" />
-              {t('config:remoteAccess.pairing')}
-            </h3>
-            <Button
-              size="sm"
-              className="pointer-coarse:h-11"
-              disabled={busy}
-              onClick={() => void generatePairingCode()}
-            >
-              {busy ? <OrbitSpinner className="text-current" /> : <QrCode />}
-              {busy ? t('config:remoteAccess.generatingQr') : t('config:remoteAccess.generateQr')}
-            </Button>
-          </div>
-          <p className="text-xs leading-[1.6] text-content-muted">
-            {t('config:remoteAccess.pairingDescription')}
-          </p>
-          {pairingError && !pairingOpen ? (
-            <p className="text-xs leading-relaxed text-danger" aria-live="polite">
-              {pairingError}
-            </p>
-          ) : null}
-        </Panel>
+        <FeatureSection
+          title={t('config:remoteAccess.pairing')}
+          data-config-card="remote-access-pairing"
+        >
+          <FeatureList>
+            <FeatureRow
+              icon={<QrCode />}
+              name={t('config:remoteAccess.pairWithPhone')}
+              description={t('config:remoteAccess.pairingDescription')}
+              actions={
+                <Button size="sm" disabled={busy} onClick={() => void generatePairingCode()}>
+                  {busy ? <OrbitSpinner className="text-current" /> : <QrCode />}
+                  {busy
+                    ? t('config:remoteAccess.generatingQr')
+                    : t('config:remoteAccess.generateQr')}
+                </Button>
+              }
+              detail={
+                pairingError && !pairingOpen ? (
+                  <p className="text-xs leading-relaxed text-danger" aria-live="polite">
+                    {pairingError}
+                  </p>
+                ) : undefined
+              }
+            />
+          </FeatureList>
+        </FeatureSection>
       ) : null}
 
-      <Panel className="flex flex-col gap-3 p-4" data-config-card="remote-access-devices">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-content">
-            <Smartphone size={16} aria-hidden="true" className="text-content-muted" />
-            {t('config:remoteAccess.devices')}
-          </h3>
+      <FeatureSection
+        title={t('config:remoteAccess.devices')}
+        count={devices.length}
+        data-config-card="remote-access-devices"
+        actions={
           <Button
             size="icon-sm"
             variant="ghost"
-            className="pointer-coarse:size-11"
+            className="pointer-coarse:size-11 max-[650px]:size-11"
             onClick={() => void refresh()}
             aria-label={t('config:remoteAccess.refresh')}
+            title={t('config:remoteAccess.refresh')}
           >
-            <RefreshCw size={14} />
+            <RefreshCw />
           </Button>
-        </div>
+        }
+      >
         {devices.length === 0 ? (
-          <p className="text-xs text-content-muted">{t('config:remoteAccess.noDevices')}</p>
+          <InlineEmptyState compact title={t('config:remoteAccess.noDevices')} />
         ) : (
-          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
+          <FeatureList>
             {devices.map((device) => (
-              <li
+              <FeatureRow
                 key={device.id}
-                className="flex min-h-12 items-center justify-between gap-3 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-content">
-                    {device.name}
-                    {device.current ? (
-                      <span className="ml-2 text-xs font-normal text-content-muted">
-                        {t('config:remoteAccess.currentDevice')}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="text-xs text-content-muted tabular-nums">
-                    {t('config:remoteAccess.lastSeen', {
-                      time: relativeTime(device.lastSeenAt, language),
-                    })}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="hover:bg-danger-soft hover:text-danger pointer-coarse:h-11"
-                  onClick={() => void revokeDevice(device)}
-                >
-                  {t('config:remoteAccess.revoke')}
-                </Button>
-              </li>
+                icon={<Smartphone />}
+                name={device.name}
+                nameMeta={device.current ? t('config:remoteAccess.currentDevice') : undefined}
+                description={t('config:remoteAccess.lastSeen', {
+                  time: relativeTime(device.lastSeenAt, language),
+                })}
+                actions={
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="hover:bg-danger-soft hover:text-danger"
+                    aria-label={`${t('config:remoteAccess.revoke')}: ${device.name}`}
+                    onClick={() => void revokeDevice(device)}
+                  >
+                    {t('config:remoteAccess.revoke')}
+                  </Button>
+                }
+              />
             ))}
-          </ul>
+          </FeatureList>
         )}
-      </Panel>
-    </div>
+      </FeatureSection>
+    </>
+  )
+}
+
+// 行右侧的状态文字：字形 + 文字；需要你时是琥珀圆点 + 琥珀文字，其余中性（规格 6.1、6.5）。
+function StateText({
+  attention = false,
+  glyph = null,
+  children,
+}: {
+  attention?: boolean
+  glyph?: StatusGlyphKind | null
+  children: ReactNode
+}) {
+  const kind = attention ? 'attention' : glyph
+  return (
+    <span
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap',
+        attention ? 'font-medium text-st-attn' : 'text-content-secondary',
+      )}
+    >
+      {kind && <StatusGlyph status={kind} className="size-3.5" />}
+      {children}
+    </span>
   )
 }

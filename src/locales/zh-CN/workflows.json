@@ -498,5 +498,18 @@
   "editor.executionSettings": "运行与错误处理",
   "workbench.invalid": "请检查名称、参考图片、动作、方向与帧数；最多 8 个动作、512 帧。",
   "workbench.customized": "此工作流已在画布自定义，请在画布继续编辑，避免覆盖节点结构。",
-  "workbench.description": "游戏素材工作台创建的可复用工作流。"
+  "workbench.description": "游戏素材工作台创建的可复用工作流。",
+  "workflowsPage.lede": "把多步任务连成节点图，手动、定时或从渠道触发运行。",
+  "workflowsPage.loadFailed": "工作流读取失败",
+  "workflowsPage.newWorkflow": "新建工作流",
+  "workflowsPage.publishedCount": "{count} 个已发布",
+  "workflowsPage.noWorkflowsYet": "还没有工作流",
+  "workflowsPage.waitingApprovalCount": "{count} 个等你审批",
+  "workflowsPage.toggleRunDetails": "展开或收起 {name} 的运行明细",
+  "workflowsPage.templatesHint": "选一个模板，在编辑器里打开一份新的草稿。",
+  "workflowsPage.useTemplate": "用模板新建：{name}",
+  "workflowsPage.noMatchingTemplates": "没有符合搜索的模板",
+  "editor.saveDraft": "保存草稿",
+  "editor.testRun": "试运行",
+  "editor.publish": "发布"
 }

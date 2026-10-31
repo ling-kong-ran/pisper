@@ -498,5 +498,18 @@
   "editor.executionSettings": "Execution and error handling",
   "workbench.invalid": "Check the name, reference, actions, directions and frame count. Up to 8 actions and 512 frames are supported.",
   "workbench.customized": "This workflow was customized on the canvas. Continue editing there to preserve its graph.",
-  "workbench.description": "A reusable workflow created in the Game Asset Workbench."
+  "workbench.description": "A reusable workflow created in the Game Asset Workbench.",
+  "workflowsPage.lede": "Chain multi-step work into a node graph and run it manually, on a schedule or from a channel.",
+  "workflowsPage.loadFailed": "Could not load workflows",
+  "workflowsPage.newWorkflow": "New workflow",
+  "workflowsPage.publishedCount": "{count} published",
+  "workflowsPage.noWorkflowsYet": "No workflows yet",
+  "workflowsPage.waitingApprovalCount": "{count} waiting for your approval",
+  "workflowsPage.toggleRunDetails": "Show or hide run details for {name}",
+  "workflowsPage.templatesHint": "Pick a template to open a new draft in the editor.",
+  "workflowsPage.useTemplate": "New from template: {name}",
+  "workflowsPage.noMatchingTemplates": "No templates match your search",
+  "editor.saveDraft": "Save draft",
+  "editor.testRun": "Test run",
+  "editor.publish": "Publish"
 }

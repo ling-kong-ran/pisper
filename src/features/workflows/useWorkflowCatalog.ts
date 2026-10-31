@@ -69,6 +69,8 @@ export function useWorkflowCatalog({
   const [data, setData] = useState<WorkflowsData>(EMPTY_WORKFLOWS_DATA)
   const [filter, setFilter] = useState<WorkflowFilter>('all')
   const [loading, setLoading] = useState(true)
+  // 至少读成功过一次：首次读取失败时页面显示可重试的错误，而不是空列表。
+  const [loaded, setLoaded] = useState(false)
   const [busyId, setBusyId] = useState('')
   const [error, setError] = useState('')
   const transfer = useRef<AbortController | null>(null)
@@ -77,6 +79,7 @@ export function useWorkflowCatalog({
   const load = useCallback(async () => {
     try {
       setData(await apiJson<WorkflowsData>('/api/workflows'))
+      setLoaded(true)
       setError('')
     } catch (caught) {
       setError(workflowErrorMessage(caught))
@@ -311,11 +314,19 @@ export function useWorkflowCatalog({
     [load, notify, requestConfirm, t],
   )
 
+  // 首次读取失败后的“重试”：回到读取中，读完再决定显示列表还是错误。
+  const reload = useCallback(async () => {
+    setLoading(true)
+    await load()
+  }, [load])
+
   return {
     data,
     filter,
     setFilter,
     loading,
+    loaded,
+    reload,
     busyId,
     error,
     visibleWorkflows,

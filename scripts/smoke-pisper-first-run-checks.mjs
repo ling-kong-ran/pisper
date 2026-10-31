@@ -343,8 +343,12 @@ export async function verifyFirstRunSetup({
     await chatReady()
     assert.equal(await onboarding().count(), 0)
     await page.goto(base + '/#/channels')
-    // 渠道页（1d7eee0f 起）只给选中的平台渲染标题（标题里还带连接状态），其余平台是列表项。
-    await page.getByRole('heading', { name: /^飞书应用机器人/ }).waitFor()
+    // 渠道页（A6 第 3 批起是功能页模板）：页标题 h1“渠道”，每个平台一行，平台名是懒加载的渠道文案。
+    await page.getByRole('heading', { level: 1, name: '渠道', exact: true }).waitFor()
+    await page
+      .locator('[data-channel-platform="feishu"]')
+      .getByText('飞书应用机器人', { exact: true })
+      .waitFor()
     await page.getByText('Telegram 机器人', { exact: true }).first().waitFor()
     assert.equal(
       await page.getByText('channels:channelsPage.feishuAppBot', { exact: true }).count(),

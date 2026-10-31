@@ -129,3 +129,23 @@ export function runtimeConfigSectionAvailable(capabilities: RuntimeCapabilities,
   const feature = CONFIG_FEATURES[section]
   return !feature || runtimeFeatureAvailable(capabilities, feature)
 }
+
+// 功能 › 设备与连接（规格 2.5、2.7）的平台判断集中在这里：功能索引的卡片与三个页面本身读同一份结论。
+// 远程访问只在桌面（手机 App 换成“手机服务器”）；桌面宠物只在桌面；Runtime 裁掉能力时为 runtime。
+// 卡片按 runtime 隐藏、按 desktop-only / mobile-only 显示为禁用并写明原因；页面在不支持时显示禁用行与原因，不去调用接口。
+export type DeviceFeatureSection = 'remote-access' | 'mobile-server' | 'desktop-pet'
+export type DeviceFeatureSupport =
+  { supported: true } | { supported: false; reason: 'desktop-only' | 'mobile-only' | 'runtime' }
+
+export function deviceFeatureSupport(
+  capabilities: RuntimeCapabilities,
+  section: DeviceFeatureSection,
+  { mobileApp }: { mobileApp: boolean },
+): DeviceFeatureSupport {
+  if (section === 'mobile-server')
+    return mobileApp ? { supported: true } : { supported: false, reason: 'mobile-only' }
+  if (mobileApp) return { supported: false, reason: 'desktop-only' }
+  return runtimeConfigSectionAvailable(capabilities, section)
+    ? { supported: true }
+    : { supported: false, reason: 'runtime' }
+}

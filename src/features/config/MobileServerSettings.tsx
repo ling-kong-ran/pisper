@@ -1,19 +1,12 @@
-// 移动端「服务器」设置页：列出壳内已配对的桌面端，支持配对、切换与删除。
+// 手机服务器（功能 › 设备与连接，手机 App 才有；功能页模板的分区与列表行）：当前连接、本机运行，
+// 以及壳内已配对的桌面端（连接、删除、添加服务器）。
 // 数据来自移动端壳（Tauri 命令），配对与令牌管理始终不经过 Runtime。
 import { useCallback, useEffect, useState } from 'react'
-import {
-  AlertCircle,
-  CheckCircle2,
-  MonitorSmartphone,
-  Plus,
-  Server,
-  Smartphone,
-  Trash2,
-} from 'lucide-react'
+import { AlertCircle, Plus, Server, Smartphone, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { SettingsCard as Panel, SettingsCardHeader } from './settings-primitives'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { InlineEmptyState } from '@/components/app/PageState'
+import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { MobilePairingDialog } from './MobilePairingDialog'
 import { Button } from '@/components/ui/button'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -128,96 +121,99 @@ export function MobileServerSettings({
     : remoteActive
       ? t('config:mobileServer.current')
       : t('config:mobileServer.empty')
-  const StatusIcon = connected ? CheckCircle2 : AlertCircle
+  const transportLabel = (transport: string) =>
+    transport === 'iroh'
+      ? t('config:mobileServer.transportP2p')
+      : t('config:mobileServer.transportLan')
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
+      {/* 当前连接：中性一行（原来连上时是绿色条，规格 6.1 红绿不表示状态）。 */}
       <div
-        className={cn(
-          'flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 text-xs',
-          connected
-            ? 'border-success-border bg-success-soft text-success-strong'
-            : 'border-stroke bg-surface-subtle text-content-muted',
-        )}
+        className="mt-5 flex min-h-11 items-center gap-2 rounded-[var(--r-md)] border border-stroke bg-surface-subtle px-3 py-2 text-xs text-content-secondary"
         role="status"
         aria-live="polite"
       >
-        <StatusIcon size={15} aria-hidden="true" />
+        {connected ? (
+          <StatusGlyph status="done" className="size-3.5" />
+        ) : (
+          <AlertCircle className="size-3.5 flex-none text-content-muted" aria-hidden="true" />
+        )}
         <span className="min-w-0 flex-1 truncate">{statusLabel}</span>
         {state?.activeTransport ? (
-          <span className="flex-none font-mono text-xs opacity-80">
-            {state.activeTransport === 'iroh'
-              ? t('config:mobileServer.transportP2p')
-              : t('config:mobileServer.transportLan')}
+          <span className="flex-none font-mono text-xs text-content-muted">
+            {transportLabel(state.activeTransport)}
           </span>
         ) : null}
       </div>
       <MobilePairingDialog open={pairingOpen} onOpenChange={setPairingOpen} />
-      <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-main">
-        <SettingsCardHeader
-          icon={<MonitorSmartphone size={18} />}
-          title={t('config:mobileServer.title')}
-          description={t('config:mobileServer.description')}
-          action={
-            <Button
-              size="sm"
-              className="pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:px-3"
-              onClick={() => setPairingOpen(true)}
-            >
-              <Plus size={14} />
-              {t('config:mobileServer.addServer')}
-            </Button>
-          }
-        />
-        {error ? <p className="text-xs text-danger">{error}</p> : null}
-      </Panel>
+      {error ? (
+        <p role="alert" className="mt-3 text-xs text-danger">
+          {error}
+        </p>
+      ) : null}
 
-      <Panel className="flex flex-col gap-3 p-4" data-config-card="mobile-server-local">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <SettingsCardHeader
-            className="min-w-0 flex-1 basis-64"
-            active={localActive}
-            icon={<Smartphone size={18} />}
-            title={
-              <span className="flex flex-wrap items-center gap-2">
-                {t('config:mobileServer.localTitle')}
-                {localActive ? (
-                  <Badge variant="accent">{t('config:mobileServer.currentLocal')}</Badge>
-                ) : null}
-              </span>
-            }
+      <FeatureSection
+        title={t('config:mobileServer.localTitle')}
+        data-config-card="mobile-server-local"
+      >
+        <FeatureList>
+          <FeatureRow
+            icon={<Smartphone />}
+            name={t('config:mobileServer.localTitle')}
             description={t('config:mobileServer.localDescription')}
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            className="flex-none max-[650px]:h-11 max-[650px]:px-3 pointer-coarse:h-11"
-            disabled={localActive || Boolean(busyId)}
-            onClick={() =>
-              void (async () => {
-                setBusyId('mobile_enter_local')
-                try {
-                  // 壳只启动同源 Node Runtime，并返回它的认证入口。
-                  const updated = await invokeMobile<MobileState>('mobile_enter_local')
-                  if (updated.onDevice.url) window.location.replace(updated.onDevice.url)
-                } catch (cause) {
-                  setError(String(cause))
-                } finally {
-                  setBusyId('')
-                }
-              })()
+            status={
+              localActive ? (
+                <span className="inline-flex items-center gap-1 text-content-secondary">
+                  <StatusGlyph status="done" className="size-3.5" />
+                  {t('config:mobileServer.currentLocal')}
+                </span>
+              ) : undefined
             }
-          >
-            {localActive
-              ? t('config:mobileServer.currentLocal')
-              : t('config:mobileServer.enterLocal')}
-          </Button>
-        </div>
-      </Panel>
+            actions={
+              localActive ? undefined : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex-none max-[650px]:h-11 max-[650px]:px-3 pointer-coarse:h-11"
+                  disabled={Boolean(busyId)}
+                  onClick={() =>
+                    void (async () => {
+                      setBusyId('mobile_enter_local')
+                      try {
+                        // 壳只启动同源 Node Runtime，并返回它的认证入口。
+                        const updated = await invokeMobile<MobileState>('mobile_enter_local')
+                        if (updated.onDevice.url) window.location.replace(updated.onDevice.url)
+                      } catch (cause) {
+                        setError(String(cause))
+                      } finally {
+                        setBusyId('')
+                      }
+                    })()
+                  }
+                >
+                  {t('config:mobileServer.enterLocal')}
+                </Button>
+              )
+            }
+          />
+        </FeatureList>
+      </FeatureSection>
 
-      <Panel className="flex flex-col gap-3 p-4">
+      <FeatureSection
+        title={t('config:mobileServer.title')}
+        count={state?.servers?.length ?? 0}
+        data-config-card="mobile-server-main"
+        description={t('config:mobileServer.description')}
+        actions={
+          <Button size="sm" onClick={() => setPairingOpen(true)}>
+            <Plus />
+            {t('config:mobileServer.addServer')}
+          </Button>
+        }
+      >
         {state?.servers?.length ? (
-          <ul className="divide-y divide-stroke-soft rounded-md border border-stroke">
+          <FeatureList>
             {state.servers.map((server) => {
               const active = state.mode === 'remote' && server.id === state.activeId
               const directEndpoint = server.endpoints.find((endpoint) => endpoint.url)
@@ -226,73 +222,64 @@ export function MobileServerSettings({
                 directEndpoint?.url ||
                 (irohEndpoint?.nodeId ? `Iroh ${irohEndpoint.nodeId.slice(0, 12)}` : 'Iroh')
               return (
-                <li
+                <FeatureRow
                   key={server.id}
-                  className="flex min-h-12 items-center justify-between gap-3 px-3 py-2 max-[650px]:flex-wrap max-[650px]:items-start"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Server size={15} aria-hidden="true" className="flex-none text-content-muted" />
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-content">
-                        <span className="truncate">{server.name}</span>
-                        {active ? (
-                          <Badge variant="accent">{t('config:mobileServer.current')}</Badge>
-                        ) : null}
-                      </div>
-                      <div className="truncate font-mono text-xs text-content-muted">
-                        {endpointLabel}
-                        <span className="ml-2 font-sans">
-                          {directEndpoint && irohEndpoint
-                            ? t('config:mobileServer.transportLanP2p')
-                            : irohEndpoint
-                              ? t('config:mobileServer.transportP2p')
-                              : t('config:mobileServer.transportLan')}
-                        </span>
-                      </div>
-                      {active && state.activeTransport ? (
-                        <div className="text-xs text-accent-fg">
-                          {t('config:mobileServer.activeTransport', {
-                            transport:
-                              state.activeTransport === 'iroh'
-                                ? t('config:mobileServer.transportP2p')
-                                : t('config:mobileServer.transportLan'),
-                          })}
-                        </div>
+                  data-mobile-server={server.id}
+                  icon={<Server />}
+                  name={server.name}
+                  nameMeta={
+                    directEndpoint && irohEndpoint
+                      ? t('config:mobileServer.transportLanP2p')
+                      : irohEndpoint
+                        ? t('config:mobileServer.transportP2p')
+                        : t('config:mobileServer.transportLan')
+                  }
+                  description={<span className="font-mono">{endpointLabel}</span>}
+                  status={
+                    active ? (
+                      <span className="inline-flex items-center gap-1 text-content-secondary">
+                        <StatusGlyph status="done" className="size-3.5" />
+                        {state.activeTransport
+                          ? t('config:mobileServer.activeTransport', {
+                              transport: transportLabel(state.activeTransport),
+                            })
+                          : t('config:mobileServer.current')}
+                      </span>
+                    ) : undefined
+                  }
+                  actions={
+                    <>
+                      {!active ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busyId === server.id}
+                          onClick={() => void selectServer(server.id)}
+                        >
+                          {t('config:mobileServer.connect')}
+                        </Button>
                       ) : null}
-                    </div>
-                  </div>
-                  <div className="flex flex-none items-center gap-1">
-                    {!active ? (
                       <Button
-                        size="sm"
+                        size="icon-sm"
                         variant="ghost"
-                        className="pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:px-3"
-                        disabled={busyId === server.id}
-                        onClick={() => void selectServer(server.id)}
+                        className="hover:bg-danger-soft hover:text-danger max-[650px]:size-11 pointer-coarse:size-11"
+                        aria-label={t('config:mobileServer.forget')}
+                        title={t('config:mobileServer.forget')}
+                        disabled={Boolean(busyId)}
+                        onClick={() => void forgetServer(server)}
                       >
-                        {t('config:mobileServer.connect')}
+                        <Trash2 />
                       </Button>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="hover:bg-danger-soft hover:text-danger pointer-coarse:size-11 max-[650px]:size-11"
-                      aria-label={t('config:mobileServer.forget')}
-                      title={t('config:mobileServer.forget')}
-                      disabled={Boolean(busyId)}
-                      onClick={() => void forgetServer(server)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                </li>
+                    </>
+                  }
+                />
               )
             })}
-          </ul>
+          </FeatureList>
         ) : (
-          <p className="text-xs text-content-muted">{t('config:mobileServer.empty')}</p>
+          <InlineEmptyState compact title={t('config:mobileServer.empty')} />
         )}
-      </Panel>
-    </div>
+      </FeatureSection>
+    </>
   )
 }

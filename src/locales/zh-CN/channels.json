@@ -119,5 +119,15 @@
   "channelsPage.twoWayCapability": "双向能力",
   "channelsPage.useApplicationDefaultModel": "跟随应用默认模型",
   "channelsPage.waitingForTheFirstReplyFromAfar": "等待远方的第一声回应",
-  "channelsPage.webSocketReceivesDirectMessagesAndGroupMentions": "WebSocket 接收私聊和群聊 @ 消息。"
+  "channelsPage.webSocketReceivesDirectMessagesAndGroupMentions": "WebSocket 接收私聊和群聊 @ 消息。",
+  "channelsPage.lede": "连接飞书、微信、QQ 与 Telegram，在聊天软件里和 Pisper 双向对话。",
+  "channelsPage.loadFailed": "渠道读取失败",
+  "channelsPage.disconnectedCount": "{count} 个断开",
+  "channelsPage.togglePlatformDetails": "展开或收起 {name} 的设置",
+  "channelsPage.noMatchingChannels": "没有符合搜索的渠道",
+  "channelsPage.noMatchingChats": "没有符合搜索的渠道会话",
+  "channelsPage.searchPlaceholder": "搜索渠道与渠道会话",
+  "channelsPage.paused": "已暂停",
+  "channelsPage.disconnected": "已断开",
+  "channelsPage.notConnectedHint": "还没有连接。点右侧的连接按钮扫码或填写机器人凭据，连上后可以在这里调整回复模型、审批模式与访问范围。"
 }

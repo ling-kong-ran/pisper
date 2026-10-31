@@ -535,8 +535,8 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     primaryActions.invoke()
   }, [primaryActions])
 
-  // 注册工作流编辑器的动作（保存/运行），供页头按钮触发；
-  // 返回注销函数，新动作注册时若仍指向旧值则清除。
+  // 工作流编辑器报告“新建 / 编辑”（手机顶栏页名用）；按钮在编辑器自己的页头里。
+  // 返回注销函数，新状态注册时若仍指向旧值则清除。
   const registerWorkflowActions = useCallback((actions: WorkflowActions) => {
     setWorkflowActions(actions)
     return () => setWorkflowActions((current) => (current === actions ? null : current))
@@ -777,15 +777,13 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [openSession, routerNavigate],
   )
 
-  // 主操作分发：按当前页面决定触发哪个动作（新建会话/新建工作流/快捷创建）；
-  // 配置页非 models 分区时不响应，避免误触发。
+  // 共享页头的主操作分发：功能页（含工作流、定时任务、渠道）的主操作都在自己的工具行里（规格 A6），
+  // 共享页头只剩设置 › 模型的“快速配置”；配置页非 models 分区时不响应，避免误触发。
   const handlePrimary = useCallback(() => {
     if (page === 'config' && configSection !== 'models') return
-    if (['session', 'config', 'channels', 'schedules', 'workflowCreate'].includes(page))
-      invokePrimaryAction()
-    else if (page === 'workflows') navigate('workflowCreate')
+    if (['session', 'config'].includes(page)) invokePrimaryAction()
     else setModal(page)
-  }, [configSection, invokePrimaryAction, navigate, page])
+  }, [configSection, invokePrimaryAction, page])
 
   useEffect(() => {
     const openCommandPalette = () => {
@@ -966,16 +964,18 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       }
     } else searchInputRef.current?.focus()
   }, [page, phoneShell])
-  // 看板、会话页、功能索引与改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）自带页头；
-  // 其余功能页在 A6 逐批迁移前沿用共享页头（面包屑、搜索、主操作）。
+  // 看板、会话页、功能索引、改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）、/config 下的三个设备页
+  // （同样是功能页模板）与工作流节点编辑器（全宽例外，自己的 52px 页头）自带页头；
+  // 其余页面（设置分区、组件工作室）在 A6 第 4 批与 A7 之前沿用共享页头（面包屑、搜索、主操作）。
   // 手机外壳（规格 7.1）：底部标签栏退役；会话页与主页有自己的顶栏，其余页面顶上是一条 56px 顶栏
   // （☰ 带需要你计数 · 页面标题 · ✎ 新任务），懒加载期间先占住高度，页面不跳。
   const phoneTopBar = phoneShell && page !== 'session'
   // 手机设置（规格 7.4）：/config 是分区列表（不挂设置内容与页头），/config/<分区> 顶上一条“‹ 设置”回列表。
   const phoneSettingsList = phoneShell && settingsOwned && /^\/config\/?$/.test(location.pathname)
   const sharedPageHeader =
-    !['board', 'session', 'more', 'chat'].includes(page) &&
+    !['board', 'session', 'more', 'chat', 'workflowCreate'].includes(page) &&
     !FEATURE_TEMPLATE_PAGES.has(page) &&
+    !(page === 'config' && !settingsOwned) &&
     !phoneSettingsList
   // 设置外壳（侧栏换成设置目录）：桌面外壳（任何宽度）与手机 App 平板；手机外壳是列表 → 分区。
   const settingsLayout = settingsOwned && !phoneShell
@@ -1206,7 +1206,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     onPrimary={handlePrimary}
                     searchSlot={settingsOwned && !settingsLayout ? configSearch() : undefined}
                     searchInputRef={searchInputRef}
-                    workflowActions={workflowActions}
                     desktopPlatform={window.pisperDesktop?.platform || ''}
                     mobileApp={mobileApp}
                     terminalOpen={terminalOpen}

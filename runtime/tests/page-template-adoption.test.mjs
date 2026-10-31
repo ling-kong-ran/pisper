@@ -10,18 +10,23 @@ const FEATURE_TEMPLATE_SOURCES = {
   chatHistory: 'chat/ChatHistoryPage',
   assets: 'assets/AssetsPage',
   memory: 'memory/MemoryPage',
+  workflows: 'workflows/WorkflowsPage',
+  schedules: 'schedules/SchedulesPage',
+  channels: 'channels/ChannelsPage',
+}
+
+// 同一文件里还有别的页面时只核对列表页那一段：工作流文件里的节点编辑器是全宽例外（PageFrame workbench）。
+function templateSource(path, source) {
+  if (path !== 'workflows/WorkflowsPage') return source
+  return source.slice(
+    source.indexOf('export function WorkflowsPage('),
+    source.indexOf('function WorkflowEditorHeader('),
+  )
 }
 
 test('migrated route pages give scroll and outer spacing ownership to a page template', async () => {
   // 还没迁到功能页模板的页面：PageFrame 承担滚动与外边距。
-  const paths = [
-    'config/ConfigPage',
-    'schedules/SchedulesPage',
-    'channels/ChannelsPage',
-    'workflows/WorkflowsPage',
-    'custom-ui/CustomUiPage',
-    'custom-ui/CustomUiToolPage',
-  ]
+  const paths = ['config/ConfigPage', 'custom-ui/CustomUiPage', 'custom-ui/CustomUiToolPage']
   for (const path of paths) {
     const source = await readFile(`src/features/${path}.tsx`, 'utf8')
     assert.match(source, /<PageFrame\b/, path)
@@ -29,7 +34,9 @@ test('migrated route pages give scroll and outer spacing ownership to a page tem
   // 已迁到功能页模板的页面：FeaturePage 承担滚动区、居中 760 栏、页标题与工具行；不再叠 PageFrame
   // 或列表 / 详情两栏（行内展开取代右侧详情），也不再向壳层注册页头主操作（主操作在自己的工具行里）。
   for (const path of Object.values(FEATURE_TEMPLATE_SOURCES)) {
-    const source = await readFile(`src/features/${path}.tsx`, 'utf8')
+    const file = await readFile(`src/features/${path}.tsx`, 'utf8')
+    assert.doesNotMatch(file, /usePagePrimaryAction|registerPrimaryAction/, path)
+    const source = templateSource(path, file)
     assert.match(source, /<FeaturePage\b/, path)
     assert.match(source, /<FeatureToolbar\b/, path)
     assert.doesNotMatch(source, /<PageFrame\b|<ListDetailLayout\b|usePagePrimaryAction/, path)
@@ -112,4 +119,73 @@ test('feature-template pages are exactly the pages that render the template and 
     assert.match(route, /onBack=\{context\.onBackToFeatures\}/, page)
     assert.doesNotMatch(route, /query=\{context\.query\}|registerPrimaryAction/, page)
   }
+})
+
+test('the workflow node editor stays full width with one 52px header of its own', async () => {
+  const [page, app, routes] = await Promise.all([
+    readFile('src/features/workflows/WorkflowsPage.tsx', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/app/route-elements.tsx', 'utf8'),
+  ])
+  // 规格 2.7“节点编辑器全宽例外”：画布 + 属性栏铺满主区（PageFrame workbench），只统一页头与返回——
+  // 共享页头不再叠在编辑器上，编辑器自己的页头是 52px 拖拽区（控件不拖），Windows 自绘标题栏让出 144px。
+  const editor = page.slice(page.indexOf('function WorkflowEditorHeader('))
+  assert.match(editor, /<PageFrame variant="workbench">/)
+  assert.match(
+    editor,
+    /data-workflow-editor-header\s+data-focus-region="header"\s+data-window-drag-region\s+className="[^"]*min-h-\[52px\][^"]*\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/,
+  )
+  // 返回回到列表（读屏名“返回工作流”），h1 是新建 / 编辑标题，手机上只给读屏（页名在外壳顶栏）。
+  assert.match(editor, /aria-label=\{t\('workflows:workflowsPage\.backToWorkflows'\)\}/)
+  assert.match(editor, /<h1\s+className=\{cn\([\s\S]*?phone && 'sr-only'/)
+  // 保存草稿 / 试运行 / 发布在编辑器页头里直接调用，读取中与失败时页头（返回与标题）也在。
+  assert.match(editor, /saveWorkflow\('draft'\)/)
+  assert.match(editor, /void publishWorkflow\(\)/)
+  assert.match(editor, /running \? void stopWorkflow\(\) : openRunDialog\(\)/)
+  assert.match(editor, /<WorkflowEditorHeader title=\{title\} onBack=\{backToList\} t=\{t\} \/>/)
+  assert.match(app, /\['board', 'session', 'more', 'chat', 'workflowCreate'\]\.includes\(page\)/)
+  const builder = routes.slice(routes.indexOf('<WorkflowBuilder'))
+  assert.doesNotMatch(builder.slice(0, builder.indexOf('/>')), /registerPrimaryAction/)
+})
+
+test('device pages under /config open as feature-template pages with centralized platform support', async () => {
+  const [config, device, app, routes, capabilities, more, remote, pet, server, workspace] =
+    await Promise.all([
+      readFile('src/features/config/ConfigPage.tsx', 'utf8'),
+      readFile('src/features/config/DeviceFeaturePage.tsx', 'utf8'),
+      readFile('src/App.tsx', 'utf8'),
+      readFile('src/app/route-elements.tsx', 'utf8'),
+      readFile('src/types/runtime-capabilities.ts', 'utf8'),
+      readFile('src/app/more-navigation.ts', 'utf8'),
+      readFile('src/features/config/RemoteAccessSettings.tsx', 'utf8'),
+      readFile('src/features/config/DesktopPetSettings.tsx', 'utf8'),
+      readFile('src/features/config/MobileServerSettings.tsx', 'utf8'),
+      readFile('src/features/config/RemoteWorkspaceSettings.tsx', 'utf8'),
+    ])
+  // /config/remote-access、mobile-server、desktop-pet（规格 2.4）交给 DeviceFeaturePage：功能页模板，不套设置的 PageFrame。
+  assert.match(
+    config,
+    /if \(section === 'remote-access' \|\| section === 'mobile-server' \|\| section === 'desktop-pet'\)\s*return \(\s*<DeviceFeaturePage/,
+  )
+  assert.match(device, /<FeaturePage\b/)
+  assert.match(device, /back=\{\s*onBack && \{/)
+  assert.doesNotMatch(device, /<PageFrame\b/)
+  // 设置搜索跳到这三个分区仍按分区锚点定位。
+  assert.match(device, /data-config-card=\{CONFIG_SECTION_ANCHOR\}/)
+  // 共享页头不在这三页上渲染；路由把“‹ 功能”的返回动作交给 ConfigPage。
+  assert.match(app, /!\(page === 'config' && !settingsOwned\) &&/)
+  assert.match(routes, /onBackToFeatures=\{context\.onBackToFeatures\}/)
+  // 平台判断集中在 deviceFeatureSupport：功能索引的卡片与页面读同一份结论；页面不支持时显示禁用开关并写原因。
+  assert.match(capabilities, /export function deviceFeatureSupport\(/)
+  assert.match(more, /deviceFeatureSupport\(capabilities, section, \{ mobileApp \}\)/)
+  assert.match(device, /deviceFeatureSupport\(capabilities, section, \{ mobileApp \}\)/)
+  assert.match(device, /<Switch checked=\{false\} disabled aria-label=\{name\} \/>/)
+  // 内容是功能页的分区与列表行，不再是设置卡片墙。
+  for (const [name, source] of Object.entries({ remote, pet, server, workspace })) {
+    assert.match(source, /<FeatureSection\b/, name)
+    assert.doesNotMatch(source, /SettingsCard\b|SettingsCardHeader|<Panel\b/, name)
+  }
+  // 琥珀只给需要你的事：启动失败、防火墙待授权、待审批连接；连上的手机服务器不再是绿色条。
+  assert.match(remote, /attention=\{listenState === 'failed'\}/)
+  assert.doesNotMatch(server, /bg-success-soft|text-success-strong/)
 })
