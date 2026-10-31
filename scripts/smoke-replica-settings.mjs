@@ -508,7 +508,7 @@ try {
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-group'))),
     ['global', 'sidebar', 'board', 'session'],
   )
-  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 8)
+  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 9)
   assert.equal(
     await shortcutCard.locator('[data-shortcut-fixed] [data-shortcut-recorder]').count(),
     0,
@@ -578,7 +578,7 @@ try {
     () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
   )
   console.log(
-    'PASS shortcut settings: global/sidebar/all-agents/session groups with eight read-only fixed keys, ⌘1 all agents and ⌘2 features, session home / components / side chat unbound, ⇧⌘B session tree and F6 focus regions listed, no ⌘[ or showBoard row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
+    'PASS shortcut settings: global/sidebar/all-agents/session groups with nine read-only fixed keys, ⌘1 all agents and ⌘2 features, session home / components / side chat unbound, ⇧⌘B session tree and F6 focus regions listed, no ⌘[ or showBoard row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
   )
   for (const scenario of [
     { name: 'light-1280', width: 1280, theme: 'light', longLabels: false },
