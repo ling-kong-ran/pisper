@@ -54,6 +54,13 @@ function readPreference(): SidebarPreference {
 }
 
 type SidebarState = SidebarPreference & {
+  // 页面要求的默认窄轨（组件工作室，规格 2.3 / 5.1）：只在内存里，进入页面时收成窄轨、离开时回到偏好。
+  // 期间用户亲手展开 / 收起（按钮、⌘B）只改本次停留，不写进 'pisper-sidebar'，离开后偏好原样。
+  // collapsed 始终是实际渲染的状态，preferenceCollapsed 是落盘的用户偏好。
+  routeRail: boolean
+  preferenceCollapsed: boolean
+  enterRouteRail: () => void
+  leaveRouteRail: () => void
   // 收起时 ⌘J / ⌥A 临时展开侧栏（规格 2.8）：只在内存里，不落盘，焦点离开侧栏后由外壳收回。
   peeking: boolean
   // 手机外壳的抽屉（规格 7.1）：内容与桌面侧栏相同，只用 ☰ 打开；只在内存里，不落盘。
@@ -67,27 +74,36 @@ type SidebarState = SidebarPreference & {
 
 export const useSidebarStore = create<SidebarState>((set, get) => {
   const save = (patch: Partial<SidebarPreference>) => {
-    const next = { ...get(), ...patch }
+    const current = get()
+    const next = { ...current, collapsed: current.preferenceCollapsed, ...patch }
     // 存储不可用（隐私模式、配额）时界面照常切换，只是这次选择不会保留到下次启动。
     try {
       pageStateStorage.setItem(STORAGE_KEYS.sidebar, serializeSidebarPreference(next))
     } catch {
       // 忽略：侧栏状态不是关键数据。
     }
-    set(patch)
+    set(patch.collapsed === undefined ? patch : { ...patch, preferenceCollapsed: patch.collapsed })
   }
+  // 页面默认窄轨期间的收起 / 展开只改实际状态，不落盘。
+  const applyCollapsed = (collapsed: boolean) => {
+    set({ peeking: false })
+    if (get().routeRail) set({ collapsed })
+    else save({ collapsed })
+  }
+  const initial = readPreference()
   return {
-    ...readPreference(),
+    ...initial,
+    preferenceCollapsed: initial.collapsed,
+    routeRail: false,
     peeking: false,
     drawerOpen: false,
     // 亲手收起或展开都结束临时展开，避免“收起”按钮按下去侧栏却还开着。
-    setCollapsed: (collapsed) => {
-      set({ peeking: false })
-      save({ collapsed })
-    },
-    toggleCollapsed: () => {
-      set({ peeking: false })
-      save({ collapsed: !get().collapsed })
+    setCollapsed: (collapsed) => applyCollapsed(collapsed),
+    toggleCollapsed: () => applyCollapsed(!get().collapsed),
+    enterRouteRail: () => set({ routeRail: true, collapsed: true, peeking: false }),
+    leaveRouteRail: () => {
+      if (!get().routeRail) return
+      set({ routeRail: false, collapsed: get().preferenceCollapsed, peeking: false })
     },
     setDoneCollapsed: (doneCollapsed) => save({ doneCollapsed }),
     setPeeking: (peeking) => set({ peeking }),
@@ -98,7 +114,13 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
 // 其他标签页改了侧栏偏好时跟着变（与 shortcut-store 一致）；只在浏览器环境挂监听。
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key === STORAGE_KEYS.sidebar || event.key === null)
-      useSidebarStore.setState(readPreference())
+    if (event.key !== STORAGE_KEYS.sidebar && event.key !== null) return
+    const preference = readPreference()
+    // 页面默认窄轨期间只更新偏好，实际状态等离开页面时再跟上。
+    useSidebarStore.setState((state) =>
+      state.routeRail
+        ? { doneCollapsed: preference.doneCollapsed, preferenceCollapsed: preference.collapsed }
+        : { ...preference, preferenceCollapsed: preference.collapsed },
+    )
   })
 }

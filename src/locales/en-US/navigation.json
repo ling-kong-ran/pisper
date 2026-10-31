@@ -20,7 +20,7 @@
   "navigation.mcpDescription": "Connect external capabilities while protecting every permission boundary",
   "navigation.skills": "Skills",
   "navigation.components": "Custom components",
-  "navigation.componentsDescription": "View and manage manually installed standalone components",
+  "navigation.componentsDescription": "Preview, place and generate native components",
   "navigation.skillsDescription": "Collect reusable techniques so capabilities can be invoked by each task",
   "navigation.workflows": "Workflows",
   "navigation.workflowsDescription": "Create, run and manage reusable workflows.",

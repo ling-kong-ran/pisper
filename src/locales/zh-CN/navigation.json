@@ -20,7 +20,7 @@
   "navigation.mcpDescription": "连接外部能力，也守住每一道权限边界",
   "navigation.skills": "技能",
   "navigation.components": "自定义组件",
-  "navigation.componentsDescription": "查看和管理手动安装的独立组件",
+  "navigation.componentsDescription": "预览、放置与生成原生组件",
   "navigation.skillsDescription": "收纳可复用的技艺，让能力随任务被唤醒",
   "navigation.workflows": "工作流",
   "navigation.workflowsDescription": "创建、运行和管理可复用的流程。",

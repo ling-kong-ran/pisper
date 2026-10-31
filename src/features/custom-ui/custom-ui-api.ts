@@ -9,7 +9,7 @@ import type {
   OverviewCardSize,
   PropsSchema,
 } from '@shared/custom-ui-manifest.mjs'
-import { ApiError, requestJson } from '@/lib/http'
+import { ApiError, requestJson, requestText } from '@/lib/http'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -520,6 +520,12 @@ export function componentErrorCode(error: unknown): string | null {
   return typeof code === 'string' && /^[a-z0-9_]{1,64}$/.test(code) ? code : null
 }
 
+/** 带字段级清单的错误（component_props_invalid 等）：取出 errors，非这类错误返回空数组。 */
+export function componentFieldErrors(error: unknown): ComponentFieldError[] {
+  if (!(error instanceof ApiError) || !error.data) return []
+  return parseFieldErrors(error.data.errors)
+}
+
 const componentPath = (id: string) => `/api/custom-ui/components/${encodeURIComponent(id)}`
 
 /** 模块 URL：rev 放在路径里，组件内相对导入与样式落在同一个 r/<rev>/ 前缀下（计划 §3.6）。 */
@@ -530,6 +536,11 @@ export function componentModuleUrl(id: string, rev: string, path: string): strin
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/')}`
+}
+
+/** 工作室源码页：按 rev 路由读一个文件的文本（manifest.json 不经模块路由服务，界面改显示规范化后的 manifest）。 */
+export function readComponentSource(id: string, rev: string, path: string, signal?: AbortSignal) {
+  return requestText(componentModuleUrl(id, rev, path), { signal })
 }
 
 export function listComponentCatalog(signal?: AbortSignal): Promise<ComponentCatalog> {

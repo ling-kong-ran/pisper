@@ -60,6 +60,8 @@ export type ComponentHostProps = {
   onOpenSession?(id: string): void
   // [让代理修复]（S7 接线）：没有传时不显示这个按钮。
   onRequestFix?(summary: string): void
+  // 每次宿主发起的提交耗时（毫秒）：工作室状态栏“渲染 N ms”用（只量宿主渲染，见 commit-timer）。
+  onCommitSample?(durationMs: number): void
   className?: string
 }
 
@@ -78,6 +80,7 @@ export function ComponentHost({
   notify,
   onOpenSession,
   onRequestFix,
+  onCommitSample,
   className,
 }: ComponentHostProps) {
   const { t, language } = useI18n()
@@ -184,6 +187,7 @@ export function ComponentHost({
             onCallbackError={() => breaker.record(key)}
             onCommit={(sample, first) => {
               if (first) safeMode.endLoad(key)
+              if (sample) onCommitSample?.(sample.duration)
               // 只在警告第一次出现时记录并显示；之后每次提交都写状态会形成重渲染循环。
               if (sample?.warning && slow === null) {
                 const duration = Math.round(sample.duration)

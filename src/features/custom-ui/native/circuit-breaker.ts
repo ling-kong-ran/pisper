@@ -21,6 +21,8 @@ export type CircuitBreaker = {
   pause(key: string): void
   resume(key: string): void
   isPaused(key: string): boolean
+  // 本页里崩溃过（还在记录里）或被暂停：工作室“需处理”筛选用。
+  hasTrouble(key: string): boolean
   subscribe(listener: () => void): () => void
   // useSyncExternalStore 的快照：任一实例状态变化都会换一个新数字。
   version(): number
@@ -55,6 +57,10 @@ export function createCircuitBreaker({
       changed()
     },
     isPaused: (key) => states.get(key)?.paused === true,
+    hasTrouble: (key) => {
+      const state = states.get(key)
+      return Boolean(state && (state.paused || state.crashes.length > 0))
+    },
     subscribe(listener) {
       listeners.add(listener)
       return () => {

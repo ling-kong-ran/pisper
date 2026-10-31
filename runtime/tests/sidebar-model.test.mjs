@@ -20,7 +20,9 @@ import {
   DEFAULT_SIDEBAR_PREFERENCE,
   parseSidebarPreference,
   serializeSidebarPreference,
+  useSidebarStore,
 } from '../../src/stores/sidebar-store.ts'
+import { pageStateStorage } from '../../src/lib/page-state-storage.ts'
 
 const NOW = Date.parse('2026-10-29T10:00:00.000Z')
 const iso = (offsetMs) => new Date(NOW + offsetMs).toISOString()
@@ -454,4 +456,48 @@ test('the all-agents sidebar is a status / project filter over the same board-vi
   // 页内不再有筛选控件：“/”的目标从分组切换挪到侧栏；侧栏收成窄轨（或手机没有侧栏）时页内补一行筛选说明。
   assert.doesNotMatch(board, /BOARD_FILTER_ID/)
   assert.match(board, /ready && filtered && \(sidebarCollapsed \|\| phone\) && model\.total > 0/)
+})
+
+test('the component studio rails the sidebar for its visit without touching the saved preference', (t) => {
+  // 规格 2.3 / 5.1：进入工作室时侧栏默认收成窄轨；用户在工作室里展开 / 收起只改本次停留；
+  // 离开后回到 'pisper-sidebar' 里的偏好，偏好本身从头到尾没被写过。
+  // Node 里没有 window：给 page-state-storage 一个内存版的 localStorage / sessionStorage。
+  const memory = () => {
+    const map = new Map()
+    return {
+      getItem: (key) => (map.has(key) ? map.get(key) : null),
+      setItem: (key, value) => map.set(key, String(value)),
+      removeItem: (key) => map.delete(key),
+    }
+  }
+  const hadWindow = 'window' in globalThis
+  const previousWindow = globalThis.window
+  globalThis.window = { localStorage: memory(), sessionStorage: memory() }
+  t.after(() => {
+    if (hadWindow) globalThis.window = previousWindow
+    else delete globalThis.window
+  })
+  const sidebar = () => useSidebarStore.getState()
+  const saved = () => parseSidebarPreference(pageStateStorage.getItem(STORAGE_KEYS.sidebar))
+  for (const preferred of [false, true]) {
+    sidebar().setCollapsed(preferred)
+    assert.equal(saved().collapsed, preferred)
+    sidebar().enterRouteRail()
+    assert.equal(sidebar().collapsed, true)
+    assert.equal(sidebar().routeRail, true)
+    sidebar().toggleCollapsed()
+    assert.equal(sidebar().collapsed, false, 'the user can expand it inside the studio')
+    sidebar().setDoneCollapsed(true)
+    assert.equal(saved().collapsed, preferred, 'expanding inside the studio is not persisted')
+    assert.equal(saved().doneCollapsed, true, 'other preferences still save normally')
+    sidebar().setCollapsed(true)
+    assert.equal(saved().collapsed, preferred)
+    sidebar().leaveRouteRail()
+    assert.equal(sidebar().routeRail, false)
+    assert.equal(sidebar().collapsed, preferred, 'leaving restores the preference')
+    sidebar().leaveRouteRail()
+    assert.equal(sidebar().collapsed, preferred, 'leaving twice is harmless')
+    sidebar().setDoneCollapsed(false)
+  }
+  sidebar().setCollapsed(false)
 })

@@ -62,6 +62,11 @@ function useInstancesQuery(available: boolean) {
   })
 }
 
+/** 全部实例（含已停用的）：组件工作室按组件列出放置与属性；与放置宿主共用同一份缓存。 */
+export function useComponentInstanceList() {
+  return useInstancesQuery(useComponentsAvailable())
+}
+
 export type PlacedComponent = { instance: ComponentInstance; component: ComponentRow }
 
 /**

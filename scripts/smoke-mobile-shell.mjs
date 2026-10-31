@@ -1179,6 +1179,29 @@ async function verifyPhoneShell(boardSessions) {
   // 手机宽预览：原生组件在真实宿主里渲染，不出现横向滚动。
   await page.locator('[data-component-preview] [data-fixture-card]').waitFor({ timeout: 30000 })
   assert.equal(await noHorizontalScroll(page), true)
+  // 详情依次是预览、属性、能力、放置（规格 7.4）；放置磁贴触控 ≥44px，浮窗磁贴注明手机上不显示。
+  const detailOrder = await page.evaluate(() => {
+    const detail = document.querySelector('[data-components-phone="detail"]')
+    const marks = ['[data-component-preview]', '[data-props-form]', '[data-placement-tile]']
+    return marks.map((selector) => {
+      const node = detail?.querySelector(selector)
+      return node ? Math.round(node.getBoundingClientRect().top + window.scrollY) : -1
+    })
+  })
+  assert.ok(
+    detailOrder.every((top, index) => top >= 0 && (index === 0 || top > detailOrder[index - 1])),
+    JSON.stringify(detailOrder),
+  )
+  const featureTile = page.locator('[data-placement-tile="feature-page"] button[role="checkbox"]')
+  const featureTileBox = await featureTile.evaluate((node) => {
+    const rect = node.closest('label').getBoundingClientRect()
+    return { height: Math.round(rect.height) }
+  })
+  assert.ok(featureTileBox.height >= 44, JSON.stringify(featureTileBox))
+  assert.match(
+    await page.locator('[data-placement-tile="floating"]').textContent(),
+    /浮窗|手机上不显示/,
+  )
   const phoneHeader = await page.evaluate(() => {
     const back = document.querySelector('[data-back-to-more]')
     const header = back?.closest('header')
@@ -1207,7 +1230,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-new-task-draft="phone"]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
-    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
+    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders, the detail reads preview → props → placements with ≥44px placement tiles, and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
   )
 
   // 设置（规格 7.4）：抽屉底部“设置”进分区列表（56 行），点“界面”进分区，顶上“‹ 设置”；返回键从分区回列表。

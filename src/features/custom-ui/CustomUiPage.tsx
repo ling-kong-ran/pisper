@@ -1,364 +1,253 @@
 import { PageFrame } from '@/components/app/PageFrame'
-// 组件页（A7 S4 过渡版，S5 换成三栏组件工作室）：原生组件（v2）与无法读取的目录列在左边，
-// 右边是选中组件的预览（ComponentHost，preview 模式）加启用开关与删除（移入回收站）。
-// 旧 iframe 组件与专注岛已删除：启动迁移把旧组件移进回收站，迁移后才手放进来的旧格式目录这里不展示（负责人决定）。
-// 手机外壳（规格 7.5）：列表 → 详情两级，每级一屏、44px 触控；选中项由路由 /components/:id 承载。
-import { Suspense, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Blocks, ChevronLeft, ChevronRight, FolderCode, RefreshCw, Trash2 } from 'lucide-react'
+// 组件工作室（规格 5.1，A7 S5）：桌面三栏——组件库 284 | 工作台 | 设置 372。进入时应用侧栏收成窄轨
+// （只在本次停留期间，不改 'pisper-sidebar' 偏好）；页面宽度放不下三栏（窗口 <1440 或用户展开侧栏）时
+// 右侧设置栏改为抽屉。手机外壳（规格 7.4）：列表 → 详情两级，详情依次是预览、属性、能力、放置。
+// 选中项由路由 /components/:id 承载；筛选、预览档位、选中实例等界面状态只在内存里（计划 §4.7 不新增偏好键）。
+// 旧 iframe 组件已删除：启动迁移把它们移进回收站，迁移后手放的旧格式目录这里不展示（负责人决定）。
 import {
-  FLOATING_DEFAULT_SIZE,
-  OVERVIEW_CARD_DIMENSIONS,
-  type ComponentSurface,
-} from '@shared/custom-ui-manifest.mjs'
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { ChevronLeft, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
-import { AppNotice } from '@/components/ui/app-primitives'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
-import { cn } from '@/lib/utils'
+import { useSidebarStore } from '@/stores/sidebar-store'
 import type { Notify } from '@/app/route-context'
-import { deleteComponent, setComponentEnabled, type ComponentRow } from './custom-ui-api'
-import { LazyComponentHost, useComponentCatalog, useComponentsAvailable } from './placements'
-import { customUiQueryKeys } from './query-keys'
+import type { ComponentInstance, ComponentRow } from './custom-ui-api'
+import { componentCircuitBreaker } from './native/host-runtime'
+import { useElementBox } from './native/size'
+import { useComponentCatalog, useComponentInstanceList, useComponentsAvailable } from './placements'
+import { createCommitStore } from './studio/commit-store'
+import { PreviewBar, PreviewStage } from './studio/PreviewStage'
+import type { PreviewDraft } from './studio/PropsForm'
+import { StudioImportButton, StudioLibrary, StudioRow } from './studio/StudioLibrary'
+import {
+  CapabilitiesSection,
+  DeleteComponentButton,
+  ErrorList,
+  IdentityRow,
+  PlacementSection,
+  PropsSection,
+  StudioSettings,
+} from './studio/StudioSettings'
+import { SettingsDrawerButton, StudioWorkbench, type WorkbenchTab } from './studio/StudioWorkbench'
+import { NewComponentMenu } from './studio/NewComponentMenu'
+import {
+  STUDIO_INLINE_SETTINGS_MIN,
+  componentDisplayName,
+  filterStudioRows,
+  instanceTarget,
+  previewTargets,
+  resolveSelection,
+  studioFilterCounts,
+  visibleStudioRows,
+  type PreviewTarget,
+  type PreviewWindow,
+  type StudioFilter,
+} from './studio/studio-model'
+import { useStudioActions } from './studio/use-studio-actions'
 
 type CustomUiPageProps = {
-  embedded?: boolean
   notify: Notify
-  // 路由里的选中组件；缺省时页面自己记住选中项（嵌入用法）。
+  // 路由里的选中组件（/components/:id）；空串表示没有指定。
   selectedId?: string
-  // 选中或回到列表（id 为空）；replace 为真时替换当前历史记录（桌面双栏内切换）。
-  onSelect?: (id: string, replace: boolean) => void
+  // 选中或回到列表（id 为空）；replace 为真时替换当前历史记录（桌面三栏内切换）。
+  onSelect: (id: string, replace: boolean) => void
 }
 
-type Translate = ReturnType<typeof useI18n>['t']
+// 本页上次选中的组件：不带 id 回到工作室时沿用（只在内存里，刷新即忘）。
+let rememberedSelection = ''
 
-// 列表只放原生组件与无法读取的目录：旧 iframe 组件已不再支持，不展示（负责人决定）。
-function visibleRows(rows: readonly ComponentRow[]) {
-  return rows.filter((row) => row.kind !== 'legacy')
-}
+const EMPTY_INSTANCES: ComponentInstance[] = []
 
-function rowName(row: ComponentRow, language: string) {
-  const i18n = row.manifest?.i18n as Record<string, { name?: string } | undefined> | undefined
-  return i18n?.[language]?.name || row.name || row.id
-}
-
-// 错误码的静态文案表：check-i18n 只认 t() 的字面量键，所以逐个写出；没有文案的码原样显示。
-function errorLabel(code: string, t: Translate) {
-  const labels: Record<string, string> = {
-    manifest_missing: t('custom-ui:errors.manifest_missing'),
-    manifest_too_large: t('custom-ui:errors.manifest_too_large'),
-    manifest_json_invalid: t('custom-ui:errors.manifest_json_invalid'),
-    manifest_not_object: t('custom-ui:errors.manifest_not_object'),
-    entry_missing: t('custom-ui:errors.entry_missing'),
-    style_missing: t('custom-ui:errors.style_missing'),
-    component_too_large: t('custom-ui:errors.component_too_large'),
-  }
-  return labels[code] || code
-}
-
-function statusLabel(row: ComponentRow, t: Translate) {
-  if (row.kind === 'broken') return t('custom-ui:studio.statusBroken')
-  if (row.status !== 'ready') return t('custom-ui:studio.statusInvalid')
-  return row.enabled ? t('custom-ui:studio.statusEnabled') : t('custom-ui:studio.statusDisabled')
-}
-
-// 预览放置：manifest 声明的第一个放置位置（缺省视为四处都允许，取“功能页”整页）。
-function previewSurface(row: ComponentRow): ComponentSurface {
-  return row.manifest?.placements[0]?.surface ?? 'feature-page'
-}
-
-function previewBox(row: ComponentRow, surface: ComponentSurface) {
-  const placement = row.manifest?.placements.find((entry) => entry.surface === surface)
-  if (surface === 'overview-card') {
-    const size = placement?.sizes?.[0] ?? 'S'
-    return { size, ...OVERVIEW_CARD_DIMENSIONS[size] }
-  }
-  if (surface === 'floating') return { size: null, ...(placement?.size ?? FLOATING_DEFAULT_SIZE) }
-  return { size: null, w: 0, h: 0 }
-}
-
-function ComponentDetail({
-  row,
-  notify,
-  canDelete,
-  phone = false,
-  onDeleted,
-}: {
-  row: ComponentRow
-  notify: Notify
-  canDelete: boolean
-  phone?: boolean
-  onDeleted: () => void
-}) {
-  const { t, language } = useI18n()
-  const client = useQueryClient()
-  const [busy, setBusy] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const name = rowName(row, language)
-  const surface = previewSurface(row)
-  const box = previewBox(row, surface)
-  const toggle = async (enabled: boolean) => {
-    setBusy(true)
-    try {
-      await setComponentEnabled(row.id, enabled)
-      await client.invalidateQueries({ queryKey: customUiQueryKeys.all })
-    } catch {
-      notify(t('custom-ui:studio.toggleFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const remove = async () => {
-    setBusy(true)
-    try {
-      await deleteComponent(row.id)
-      setConfirming(false)
-      notify(t('custom-ui:studio.deleted', { name }))
-      await client.invalidateQueries({ queryKey: customUiQueryKeys.all })
-      onDeleted()
-    } catch {
-      notify(t('custom-ui:studio.deleteFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
+/**
+ * 桌面工作室的外框：量页面宽度决定设置栏并排还是放进抽屉（规格 5.1）。
+ * 单独成组件是为了让量尺寸的元素随它一起挂载（页面先渲染加载态时，量尺寸的 effect 不会落空）。
+ */
+function StudioFrame({ children }: { children: (inline: boolean) => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const box = useElementBox(ref)
+  const inline = box.measured && box.width >= STUDIO_INLINE_SETTINGS_MIN
   return (
-    <section
-      data-component-stage={row.id}
-      data-component-kind={row.kind}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-stroke bg-panel"
-    >
-      <header className="flex min-w-0 flex-wrap items-center gap-2 border-b border-stroke-soft px-3.5 py-2.5">
-        <strong className="min-w-0 flex-1 truncate text-[15px] font-medium">{name}</strong>
-        {row.version && (
-          <span className="flex-none font-mono text-xs text-content-muted tabular-nums">
-            v{row.version}
-          </span>
-        )}
-        <span
-          className={cn(
-            'flex flex-wrap items-center gap-2',
-            phone && 'grid w-full grid-cols-2 gap-2',
-          )}
-        >
-          {row.kind === 'native' && (
-            <label className="inline-flex min-h-8 items-center gap-2 text-xs text-content-secondary max-[650px]:min-h-11">
-              <Switch
-                checked={row.enabled}
-                disabled={busy}
-                aria-label={t('custom-ui:studio.enable')}
-                data-component-enable
-                onCheckedChange={(checked) => void toggle(checked)}
-              />
-              {t('custom-ui:studio.enable')}
-            </label>
-          )}
-          {canDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="max-[650px]:h-11"
-              disabled={busy}
-              data-component-delete
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2 />
-              {t('custom-ui:studio.delete')}
-            </Button>
-          )}
-        </span>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
-        {row.description && (
-          <p className="text-sm leading-relaxed text-content-secondary">{row.description}</p>
-        )}
-        <p className="text-xs leading-relaxed break-all text-content-muted">
-          {t('custom-ui:studio.directory', { path: row.directory })}
-        </p>
-        {row.errors.length > 0 && (
-          <ul
-            role="alert"
-            data-component-errors
-            className="flex flex-col gap-1 rounded-md border border-stroke-soft bg-surface-subtle px-3 py-2 text-xs text-content-secondary"
-          >
-            {row.errors.map((error) => (
-              <li key={`${error.path}:${error.code}`} className="min-w-0 break-all">
-                {error.path && <code className="mr-1.5 font-mono">{error.path}</code>}
-                {errorLabel(error.code, t)}
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* 预览舞台：凹陷的代码井底色 + 细线；总览卡片与浮窗按实际尺寸 1:1 渲染。 */}
-        {row.kind === 'native' && row.status === 'ready' ? (
-          <div
-            data-component-preview
-            className={cn(
-              'flex min-h-[240px] flex-1 items-start justify-center overflow-auto rounded-md border border-stroke-soft bg-code p-3',
-              phone && 'min-h-[min(420px,55dvh)]',
-            )}
-          >
-            <div
-              className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-stroke bg-panel"
-              style={
-                box.w
-                  ? { width: box.w, maxWidth: '100%', height: box.h }
-                  : { width: '100%', minHeight: 320, alignSelf: 'stretch' }
-              }
-            >
-              <Suspense fallback={null}>
-                <LazyComponentHost
-                  // 按 rev 重挂：热重载后预览加载新模块（ComponentHost 自己也按 instanceId@rev 重挂）。
-                  key={`${row.id}@${row.rev}`}
-                  component={row}
-                  instance={{
-                    instanceId: `preview:${row.id}`,
-                    surface,
-                    props: {},
-                    size: box.size,
-                  }}
-                  preview
-                  notify={(message) => notify(message)}
-                  className="h-full"
-                />
-              </Suspense>
-            </div>
-          </div>
-        ) : (
-          <InlineEmptyState
-            className="flex-1"
-            title={
-              row.kind === 'broken'
-                ? t('custom-ui:studio.brokenTitle')
-                : t('custom-ui:studio.invalidTitle')
-            }
-            description={
-              row.kind === 'broken'
-                ? t('custom-ui:studio.brokenHint')
-                : t('custom-ui:studio.invalidHint')
-            }
-          />
-        )}
-      </div>
-      <Dialog open={confirming} onOpenChange={(open) => !open && !busy && setConfirming(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('custom-ui:studio.deleteTitle', { name })}</DialogTitle>
-            <DialogDescription>{t('custom-ui:studio.deleteHint')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
-              {t('custom-ui:studio.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              data-component-delete-confirm
-              onClick={() => void remove()}
-            >
-              {t('custom-ui:studio.delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </section>
-  )
-}
-
-function RowButton({
-  row,
-  active,
-  phone,
-  onSelect,
-}: {
-  row: ComponentRow
-  active: boolean
-  phone: boolean
-  onSelect: () => void
-}) {
-  const { t, language } = useI18n()
-  const attention = row.status !== 'ready'
-  return (
-    <button
-      type="button"
-      data-component-row={row.id}
-      data-component-kind={row.kind}
-      aria-current={active || undefined}
-      onClick={onSelect}
-      className={cn(
-        'flex w-full min-w-0 items-center gap-3 text-left transition-colors duration-(--d-fast) focus-visible:-outline-offset-2',
-        phone
-          ? 'min-h-14 px-3.5 py-2 hover:bg-surface-subtle active:bg-surface-subtle'
-          : cn(
-              'rounded-sm px-2.5 py-2 max-[650px]:min-h-11',
-              active
-                ? 'bg-surface-muted text-content'
-                : 'text-content-secondary hover:bg-surface-subtle',
-            ),
-      )}
-    >
-      <span
-        className={cn(
-          'grid flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset',
-          phone ? 'size-9' : 'size-7',
-        )}
+    <PageFrame variant="workbench">
+      <div
+        ref={ref}
+        data-component-studio
+        data-studio-settings-mode={inline ? 'inline' : 'drawer'}
+        className="h-full min-h-0"
       >
-        <Blocks className={phone ? 'size-[18px]' : 'size-3.5'} strokeWidth={1.75} aria-hidden />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-2">
-          <strong className="min-w-0 flex-1 truncate text-sm font-medium">
-            {rowName(row, language)}
-          </strong>
-          {/* 需要处理（manifest 有错、目录无法读取）用中性徽标：琥珀只表示“需要你”的代理状态。 */}
-          <Badge className={cn(attention && 'text-content-secondary')}>{statusLabel(row, t)}</Badge>
-        </span>
-        <small className="truncate font-mono text-xs text-content-muted">
-          {row.version ? `${row.id} · v${row.version}` : row.id}
-        </small>
-      </span>
-      {phone && <ChevronRight className="size-4 flex-none text-content-muted" aria-hidden="true" />}
-    </button>
+        {children(inline)}
+      </div>
+    </PageFrame>
   )
+}
+
+/** 进入工作室时应用侧栏收成窄轨，离开时回到用户偏好（规格 2.3 / 5.1）。 */
+function useStudioRail(enabled: boolean) {
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const sidebar = useSidebarStore.getState()
+    sidebar.enterRouteRail()
+    return () => useSidebarStore.getState().leaveRouteRail()
+  }, [enabled])
+}
+
+/** 本页里崩溃过或被暂停的组件（预览实例或它的任一放置实例）：“需处理”筛选与行内错误条。 */
+function useTroubledComponents(
+  rows: readonly ComponentRow[],
+  instances: readonly ComponentInstance[],
+): ReadonlySet<string> {
+  const breaker = componentCircuitBreaker()
+  const [version, setVersion] = useState(() => breaker.version())
+  useEffect(() => breaker.subscribe(() => setVersion(breaker.version())), [breaker])
+  // 组件文件变了（热重载，新 rev）就清掉预览实例的崩溃记录：新代码重新计数。
+  const revs = useRef(new Map<string, string>())
+  useEffect(() => {
+    for (const row of rows) {
+      const previous = revs.current.get(row.id)
+      if (previous && row.rev && previous !== row.rev) breaker.resume(`preview:${row.id}`)
+      if (row.rev) revs.current.set(row.id, row.rev)
+    }
+  }, [breaker, rows])
+  return useMemo(() => {
+    void version
+    const troubled = new Set<string>()
+    for (const row of rows) {
+      if (
+        breaker.hasTrouble(`preview:${row.id}`) ||
+        instances.some(
+          (instance) => instance.componentId === row.id && breaker.hasTrouble(instance.instanceId),
+        )
+      )
+        troubled.add(row.id)
+    }
+    return troubled
+  }, [breaker, instances, rows, version])
+}
+
+/** 预览档位、选中实例与属性草稿：随选中的组件切换，草稿按“组件 + 实例”分键，换了就回到已保存的值。 */
+function usePreviewState(row: ComponentRow | null, instances: readonly ComponentInstance[]) {
+  const [targetState, setTargetState] = useState<{ id: string; target: PreviewTarget } | null>(null)
+  const [instanceState, setInstanceState] = useState<{ id: string; instanceId: string | null }>({
+    id: '',
+    instanceId: null,
+  })
+  const [window, setWindow] = useState<PreviewWindow>('standard')
+  const targets = previewTargets(row?.manifest)
+  const own = row ? instances.filter((instance) => instance.componentId === row.id) : []
+  // 用户明确选了“预览属性”（null）就保持；选过的实例被删了，或还没选过，回到第一个放置。
+  const chosen = row && instanceState.id === row.id ? instanceState.instanceId : undefined
+  const instanceId =
+    chosen === null
+      ? null
+      : chosen && own.some((item) => item.instanceId === chosen)
+        ? chosen
+        : (own[0]?.instanceId ?? null)
+  const instance = own.find((item) => item.instanceId === instanceId) ?? null
+  const target =
+    row && targetState?.id === row.id && targets.includes(targetState.target)
+      ? targetState.target
+      : instance && targets.includes(instanceTarget(instance))
+        ? instanceTarget(instance)
+        : (targets[0] ?? 'feature-page')
+  const draftKey = `${row?.id ?? ''}:${instanceId ?? 'preview'}`
+  const [draft, setDraft] = useState<PreviewDraft & { key: string }>({
+    key: '',
+    title: '',
+    props: {},
+  })
+  const onPreview = useCallback(
+    (next: PreviewDraft) => setDraft({ key: draftKey, ...next }),
+    [draftKey],
+  )
+  const effectiveDraft =
+    draft.key === draftKey ? draft : { title: instance?.title ?? '', props: instance?.props ?? {} }
+  return {
+    target,
+    window,
+    instanceId,
+    draft: effectiveDraft,
+    onPreview,
+    setWindow,
+    setTarget: (next: PreviewTarget) => row && setTargetState({ id: row.id, target: next }),
+    selectInstance: (next: string | null) => {
+      if (!row) return
+      setInstanceState({ id: row.id, instanceId: next })
+      const picked = own.find((item) => item.instanceId === next)
+      if (picked && targets.includes(instanceTarget(picked)))
+        setTargetState({ id: row.id, target: instanceTarget(picked) })
+    },
+  }
 }
 
 export function CustomUiPage({
   notify,
-  embedded = false,
-  selectedId: routeSelectedId,
+  selectedId: routeSelectedId = '',
   onSelect,
 }: CustomUiPageProps) {
-  const { t } = useI18n()
-  const phone = usePhoneShell() && !embedded
+  const { t, language } = useI18n()
+  const phone = usePhoneShell()
   const available = useComponentsAvailable()
   const catalog = useComponentCatalog()
-  const rows = visibleRows(catalog.data?.components || [])
+  const instanceList = useComponentInstanceList()
+  const instances = instanceList.data?.instances ?? EMPTY_INSTANCES
+  const actions = useStudioActions(notify)
+  const rows = useMemo(() => visibleStudioRows(catalog.data?.components ?? []), [catalog.data])
   const root = catalog.data?.root || ''
   const canDelete = catalog.data?.features.trash === 'move'
-  const [localSelectedId, setLocalSelectedId] = useState('')
-  const selectedId = onSelect ? routeSelectedId || '' : localSelectedId
-  const setSelectedId = (id: string, replace = true) => {
-    if (onSelect) onSelect(id, replace)
-    else setLocalSelectedId(id)
+  const [filter, setFilter] = useState<StudioFilter>('all')
+  const [query, setQuery] = useState('')
+  const [tab, setTab] = useState<WorkbenchTab>('preview')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [reloadToken, setReloadToken] = useState(0)
+  const [commits] = useState(createCommitStore)
+  const troubled = useTroubledComponents(rows, instances)
+  const selected = phone
+    ? (rows.find((row) => row.id === routeSelectedId) ?? null)
+    : resolveSelection(rows, routeSelectedId, rememberedSelection)
+  const selectedId = selected?.id ?? ''
+  useEffect(() => {
+    if (selectedId) rememberedSelection = selectedId
+  }, [selectedId])
+  const preview = usePreviewState(selected, instances)
+  useStudioRail(!phone && available && !catalog.data?.legacyShape)
+
+  const select = (id: string) => {
+    setTab('preview')
+    onSelect(id, true)
   }
-  const refreshing = catalog.isFetching
-  const selected = rows.find((item) => item.id === selectedId) || rows[0] || null
+  const create = async (
+    template: Parameters<typeof actions.createFromTemplate>[0],
+    name?: string,
+  ) => {
+    const row = await actions.createFromTemplate(template, name)
+    if (row) {
+      setFilter('all')
+      setQuery('')
+      onSelect(row.id, !phone)
+      notify(t('custom-ui:studio.created', { name: componentDisplayName(row, language) }))
+    }
+    return row
+  }
 
   // 旧 Runtime（没有 components.native，或列表是旧形状）：如实说明不支持，不展示旧组件当成可用。
   if (!available || catalog.data?.legacyShape)
     return (
-      <PageFrame variant="collection" embedded={embedded}>
+      <PageFrame variant="collection">
         <PageState
           kind="empty"
           title={t('custom-ui:studio.unsupportedTitle')}
@@ -368,73 +257,42 @@ export function CustomUiPage({
     )
   if (catalog.isPending)
     return <PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />
-
-  const error = catalog.error ? t('custom-ui:widget.catalogFailed') : ''
-  const rescan = (
-    <Button
-      variant="ghost"
-      size="icon"
-      className={phone ? 'size-11' : 'size-8 max-[650px]:size-11'}
-      title={t('custom-ui:customUiPage.rescan')}
-      aria-label={t('custom-ui:customUiPage.rescan')}
-      disabled={refreshing}
-      onClick={() => void catalog.refetch()}
-    >
-      <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-    </Button>
-  )
-
-  if (!rows.length && !error) {
+  if (catalog.error && !catalog.data)
     return (
-      <PageFrame variant="collection" embedded={embedded}>
-        <InlineEmptyState
-          className="flex-1"
-          title={t('custom-ui:customUiPage.emptyTitle')}
-          description={
-            <>
-              {t('custom-ui:customUiPage.emptyHint')}
-              {root && (
-                <code className="mx-auto mt-2 block max-w-full rounded-xs bg-inline-code px-2 py-1 font-mono text-xs break-all text-content-secondary">
-                  {root}
-                </code>
-              )}
-              <span className="mt-2 block">
-                {t('custom-ui:customUiPage.directoryLocationHint')}
-              </span>
-            </>
-          }
+      <PageFrame variant="collection">
+        <PageState
+          kind="error"
+          title={t('custom-ui:widget.catalogFailed')}
           action={
-            <Button
-              variant="secondary"
-              size="sm"
-              className="max-[650px]:h-11"
-              disabled={refreshing}
-              onClick={() => void catalog.refetch()}
-            >
-              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
-              {t('custom-ui:customUiPage.rescan')}
+            <Button variant="secondary" size="sm" onClick={() => void catalog.refetch()}>
+              {t('custom-ui:widget.retry')}
             </Button>
           }
         />
       </PageFrame>
     )
-  }
 
-  const errorNotice = error && (
-    <AppNotice>
-      <FolderCode size={14} />
-      <span>{error}</span>
-    </AppNotice>
+  const counts = studioFilterCounts(rows, troubled)
+  const filtered = filterStudioRows(rows, { filter, query, language, troubled })
+  const emptyHint = (
+    <>
+      {t('custom-ui:customUiPage.emptyHint')}
+      {root && (
+        <code className="mx-auto mt-2 block max-w-full rounded-xs bg-inline-code px-2 py-1 font-mono text-xs break-all text-content-secondary">
+          {root}
+        </code>
+      )}
+      <span className="mt-2 block">{t('custom-ui:customUiPage.directoryLocationHint')}</span>
+    </>
   )
 
-  // 手机：列表与详情各占一屏。详情屏顶部是“‹ 全部组件”，与手机返回键同一去向。
+  // —— 手机：列表与详情各占一屏 ——
   if (phone) {
-    const backToList = () => setSelectedId('', false)
-    const detail = selectedId ? rows.find((item) => item.id === selectedId) || null : null
-    if (selectedId)
+    const backToList = () => onSelect('', false)
+    if (routeSelectedId)
       return (
         <PageFrame variant="collection">
-          <div data-components-phone="detail" className="flex min-w-0 flex-col gap-3">
+          <div data-components-phone="detail" className="flex min-w-0 flex-col gap-4">
             <Button
               variant="ghost"
               className="-ml-2 min-h-11 w-fit px-2 text-content-secondary"
@@ -443,14 +301,60 @@ export function CustomUiPage({
               <ChevronLeft aria-hidden="true" />
               {t('custom-ui:phone.allComponents')}
             </Button>
-            {detail ? (
-              <ComponentDetail
-                row={detail}
-                notify={notify}
-                canDelete={canDelete}
-                phone
-                onDeleted={backToList}
-              />
+            {selected ? (
+              <div
+                data-component-stage={selected.id}
+                data-component-kind={selected.kind}
+                className="flex min-w-0 flex-col gap-5"
+              >
+                <IdentityRow row={selected} actions={actions} />
+                <ErrorList row={selected} />
+                {selected.kind === 'native' && selected.status === 'ready' && selected.manifest && (
+                  <>
+                    <section className="flex flex-col gap-2">
+                      <PreviewBar
+                        manifest={selected.manifest}
+                        target={preview.target}
+                        window="standard"
+                        phone
+                        onTarget={preview.setTarget}
+                        onWindow={preview.setWindow}
+                      />
+                      <PreviewStage
+                        key={reloadToken}
+                        row={selected}
+                        target={preview.target}
+                        window="standard"
+                        instanceId={preview.instanceId}
+                        title={preview.draft.title}
+                        props={preview.draft.props}
+                        phone
+                        notify={notify}
+                        commits={commits}
+                      />
+                    </section>
+                    <PropsSection
+                      row={selected}
+                      instances={instances}
+                      selectedInstanceId={preview.instanceId}
+                      notify={notify}
+                      actions={actions}
+                      onSelectInstance={preview.selectInstance}
+                      onPreview={preview.onPreview}
+                    />
+                    <CapabilitiesSection row={selected} />
+                    <PlacementSection row={selected} instances={instances} actions={actions} />
+                  </>
+                )}
+                {canDelete && (
+                  <DeleteComponentButton
+                    row={selected}
+                    actions={actions}
+                    variant="button"
+                    onDeleted={backToList}
+                  />
+                )}
+              </div>
             ) : (
               <PageState
                 kind="empty"
@@ -469,30 +373,33 @@ export function CustomUiPage({
     return (
       <PageFrame variant="collection">
         <div data-components-phone="list" className="flex min-w-0 flex-col gap-3">
-          {errorNotice}
-          <section
-            aria-label={t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
-            className="flex flex-col overflow-hidden rounded-md border border-stroke bg-panel"
-          >
-            <header className="flex min-h-11 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle pl-3.5">
-              <span className="text-xs font-medium text-content-secondary tabular-nums">
-                {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
-              </span>
-              {rescan}
-            </header>
-            <ul className="flex flex-col divide-y divide-stroke-soft">
+          <div className="flex items-center gap-2">
+            <span className="mr-auto text-sm font-medium text-content-secondary tabular-nums">
+              {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
+            </span>
+            <StudioImportButton className="min-h-11" />
+            <NewComponentMenu onCreate={create} className="min-h-11" />
+          </div>
+          {rows.length ? (
+            <ul className="flex flex-col divide-y divide-stroke overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-panel">
               {rows.map((row) => (
                 <li key={row.id}>
-                  <RowButton
+                  <StudioRow
                     row={row}
+                    instances={instances}
                     active={false}
                     phone
-                    onSelect={() => setSelectedId(row.id, false)}
+                    onSelect={() => onSelect(row.id, false)}
                   />
                 </li>
               ))}
             </ul>
-          </section>
+          ) : (
+            <InlineEmptyState
+              title={t('custom-ui:customUiPage.emptyTitle')}
+              description={emptyHint}
+            />
+          )}
           <p className="text-xs leading-relaxed break-all text-content-muted">
             {t('custom-ui:customUiPage.directoryHint', { path: root })}
           </p>
@@ -501,56 +408,128 @@ export function CustomUiPage({
     )
   }
 
+  // —— 桌面三栏 ——
+  const settings = selected && (
+    <StudioSettings
+      key={selected.id}
+      row={selected}
+      instances={instances}
+      selectedInstanceId={preview.instanceId}
+      canDelete={canDelete}
+      notify={notify}
+      actions={actions}
+      onSelectInstance={preview.selectInstance}
+      onPreview={preview.onPreview}
+      onViewSource={() => {
+        setTab('source')
+        setDrawerOpen(false)
+      }}
+      onDeleted={() => onSelect('', true)}
+    />
+  )
   return (
-    <PageFrame variant="collection" embedded={embedded}>
-      <div className="flex min-w-0 flex-col gap-3">
-        {errorNotice}
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-stroke bg-panel">
-            <header className="flex min-h-10 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle py-1 pr-1.5 pl-3.5">
-              <span className="text-xs font-medium text-content-secondary tabular-nums">
-                {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
-              </span>
-              {rescan}
-            </header>
-            <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto p-1.5">
-              {rows.map((row) => {
-                const active = row.id === selected?.id
-                return (
-                  <li key={row.id} className="relative">
-                    {active && (
-                      <i
-                        aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-[3px] rounded-r-[3px] bg-content-muted"
-                      />
-                    )}
-                    <RowButton
-                      row={row}
-                      active={active}
-                      phone={false}
-                      onSelect={() => setSelectedId(row.id)}
-                    />
-                  </li>
-                )
-              })}
-            </ul>
-            <p className="mt-auto border-t border-stroke-soft px-3.5 py-2.5 text-xs leading-relaxed break-all text-content-muted">
-              {t('custom-ui:customUiPage.directoryHint', { path: root })}
-            </p>
-          </section>
-          {selected ? (
-            <ComponentDetail
-              key={selected.id}
-              row={selected}
-              notify={notify}
-              canDelete={canDelete}
-              onDeleted={() => setSelectedId('')}
+    <StudioFrame>
+      {(inline) => (
+        <>
+          <div
+            data-studio-columns
+            className={
+              inline
+                ? 'grid h-full min-h-0 grid-cols-[284px_minmax(0,1fr)_372px]'
+                : 'grid h-full min-h-0 grid-cols-[284px_minmax(0,1fr)]'
+            }
+          >
+            <StudioLibrary
+              rows={filtered}
+              allCount={rows.length}
+              counts={counts}
+              instances={instances}
+              selectedId={selected?.id ?? ''}
+              troubled={troubled}
+              filter={filter}
+              query={query}
+              root={root}
+              onFilter={setFilter}
+              onQuery={setQuery}
+              onSelect={select}
+              onCreate={create}
+              onOpenLogs={(id) => {
+                onSelect(id, true)
+                setTab('logs')
+              }}
+              onReload={(id) => {
+                componentCircuitBreaker().resume(`preview:${id}`)
+                setReloadToken((value) => value + 1)
+                setTab('preview')
+                onSelect(id, true)
+              }}
             />
-          ) : (
-            <InlineEmptyState title={t('custom-ui:customUiPage.selectComponent')} />
+            {selected ? (
+              <StudioWorkbench
+                key={`${selected.id}#${reloadToken}`}
+                row={selected}
+                tab={tab}
+                target={preview.target}
+                window={preview.window}
+                instanceId={preview.instanceId}
+                draft={preview.draft}
+                notify={notify}
+                commits={commits}
+                settingsButton={
+                  !inline && <SettingsDrawerButton onOpen={() => setDrawerOpen(true)} />
+                }
+                onTab={setTab}
+                onTarget={preview.setTarget}
+                onWindow={preview.setWindow}
+              />
+            ) : (
+              <InlineEmptyState
+                className="min-h-0"
+                title={
+                  rows.length
+                    ? t('custom-ui:phone.missingTitle')
+                    : t('custom-ui:customUiPage.emptyTitle')
+                }
+                description={rows.length ? t('custom-ui:phone.missingHint') : emptyHint}
+              />
+            )}
+            {inline && selected && (
+              <aside
+                aria-label={t('custom-ui:studio.settings')}
+                className="flex min-h-0 min-w-0 flex-col border-l border-stroke"
+              >
+                {settings}
+              </aside>
+            )}
+          </div>
+          {!inline && (
+            <Sheet open={drawerOpen && Boolean(selected)} onOpenChange={setDrawerOpen}>
+              <SheetContent
+                side="right"
+                showCloseButton={false}
+                data-studio-settings-drawer
+                className="w-[372px] max-w-[calc(100vw-48px)] gap-0 p-0 sm:max-w-[372px]"
+              >
+                <SheetHeader className="flex-row items-center justify-between border-b border-stroke px-4 py-2.5">
+                  <SheetTitle className="text-sm">{t('custom-ui:studio.settings')}</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    {t('custom-ui:studio.settingsHint')}
+                  </SheetDescription>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t('custom-ui:studio.closeSettings')}
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    <X />
+                  </Button>
+                </SheetHeader>
+                <div className="min-h-0 flex-1">{settings}</div>
+              </SheetContent>
+            </Sheet>
           )}
-        </div>
-      </div>
-    </PageFrame>
+        </>
+      )}
+    </StudioFrame>
   )
 }

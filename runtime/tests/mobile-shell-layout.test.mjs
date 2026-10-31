@@ -140,7 +140,8 @@ test('phone-only surfaces read the shared phone-shell gate instead of a viewport
     'src/app/SessionShell.tsx': /const phone = usePhoneShell\(\)/,
     'src/app/MorePage.tsx': /const phone = usePhoneShell\(\)/,
     'src/app/SessionHome.tsx': /const phone = usePhoneShell\(\)/,
-    'src/features/custom-ui/CustomUiPage.tsx': /const phone = usePhoneShell\(\) && !embedded/,
+    // 组件工作室不再有嵌入用法（A7 S5 去掉 embedded）：门控就是共享 Hook 本身。
+    'src/features/custom-ui/CustomUiPage.tsx': /const phone = usePhoneShell\(\)$/m,
     'src/features/chat/ToolApproval.tsx': /const phone = usePhoneShell\(\)/,
   }
   for (const [file, pattern] of Object.entries(gated))

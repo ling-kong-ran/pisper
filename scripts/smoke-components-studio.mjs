@@ -1,4 +1,4 @@
-// 原生组件冒烟（A7 S4，计划 §6 S4）：真实生产构建 + 隔离的临时 Runtime（数据目录在临时目录里，不连模型、不写真实数据）。
+// 原生组件冒烟（A7 S4 起，计划 §6 S4–S5）：真实生产构建 + 隔离的临时 Runtime（数据目录在临时目录里，不连模型、不写真实数据）。
 // 种子：手放的原生组件、会抛错的原生组件、一个旧版 iframe 组件（启动迁移应把它移进回收站，负责人决定），
 // 启动后再放一个坏目录；经 API 建 feature-page 与 floating 实例。覆盖：
 // - 组件页（S4 过渡版）只列原生行与坏目录行，没有旧版行；旧组件文件原样在 custom-ui-trash 里
@@ -8,6 +8,9 @@
 // - ?safe-mode=components 下只显示占位卡；安全模式哨兵还在时先询问，选“正常加载”后才加载
 // - 热重载：改写 component.js 后预览内容随 rev 更新
 // - 坏目录行可删除（移入回收站）；1440 与 1080 宽都没有横向滚动
+// S5 组件工作室：进入时侧栏收成窄轨、离开后回到偏好；1440 三栏、1080 设置栏改为抽屉；
+// 从模板新建「便签」没有默认放置，经放置磁贴放到功能页与浮窗、再移出；属性非法值被 Runtime 拒绝并定位到字段，
+// 改对后保存进实例；源码页与日志页；深色主题下渲染（手机列表 → 详情见 smoke-mobile-shell）。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
@@ -72,6 +75,28 @@ await writeComponent(
     placements: [{ surface: 'feature-page' }],
   },
   "export default function Crash() {\n  throw new Error('fixture crash')\n}\n",
+)
+await writeComponent(
+  'props-card',
+  {
+    runtime: 'native',
+    name: '属性卡片',
+    version: '1.0.0',
+    placements: [{ surface: 'feature-page' }],
+    props: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', title: '标签', maxLength: 20 },
+        interval: { type: 'integer', title: '间隔', minimum: 10, maximum: 600, 'x-unit': '秒' },
+      },
+    },
+  },
+  [
+    'export default function Props({ ctx, props }) {',
+    "  return ctx.html`<p data-fixture-props=${String(props.interval ?? '')}>${props.label ?? ''}</p>`",
+    '}',
+    '',
+  ].join('\n'),
 )
 const legacyDir = await writeComponent('legacy-old', {
   name: '旧版组件',
@@ -187,14 +212,14 @@ try {
           nodes.map((node) => `${node.dataset.componentRow}:${node.dataset.componentKind}`),
         )
     ).sort(),
-    ['crasher:native', 'native-ok:native'],
+    ['crasher:native', 'native-ok:native', 'props-card:native'],
   )
   await page.locator('[data-component-row="native-ok"]').click()
   await page.locator('[data-component-preview] [data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
   assert.equal(await noHorizontalScroll(page), true)
   await page.screenshot({ path: join(output, 'studio-1440.png') })
   report.checks.push(
-    'Studio (S4 transitional) lists native rows only; the preview renders through ComponentHost + htm',
+    'Studio lists native rows only; the preview renders through ComponentHost + htm',
   )
 
   // 3. 经 API 放置：feature-page 与 floating 实例。
@@ -292,6 +317,8 @@ try {
   await page.locator('[data-component-preview] [data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
   await writeFile(join(componentsRoot, 'native-ok', 'component.js'), cardSource('v2'))
   await page.locator('[data-component-preview] [data-fixture-ok="v2"]').waitFor({ timeout: 30_000 })
+  // 页头“已热重载 · N 秒前”（中性灰，不用绿色）。
+  assert.match(await page.locator('[data-studio-reloaded]').textContent(), /已热重载 · \d+ 秒前/)
   report.checks.push(
     'Hot reload: rewriting component.js updates the preview through the watcher and a new rev',
   )
@@ -303,7 +330,9 @@ try {
   await brokenRow.waitFor({ timeout: 30_000 })
   await brokenRow.click()
   await page.locator('[data-component-stage="broken-dir"] [data-component-errors]').waitFor()
-  await page.locator('[data-component-stage="broken-dir"] [data-component-delete]').click()
+  // 删除在设置栏吸底的 ⋯ 菜单里（规格 5.1）。
+  await page.locator('[data-studio-settings] [data-component-more]').click()
+  await page.locator('[role="menuitem"][data-component-delete]').click()
   await page.locator('[data-component-delete-confirm]').click()
   await brokenRow.waitFor({ state: 'detached', timeout: 30_000 })
   assert.equal(existsSync(join(componentsRoot, 'broken-dir')), false)
@@ -319,13 +348,147 @@ try {
     'A broken directory dropped in after startup is listed as unreadable and can be deleted into the trash',
   )
 
+  // S5-1. 三栏与窄轨：1440 时设置栏并排；侧栏只在工作室里收成窄轨，偏好没被改写。
+  await page.goto(`${base}/#/components/native-ok`)
+  await page
+    .locator('[data-component-studio][data-studio-settings-mode="inline"] [data-studio-settings]')
+    .waitFor({ timeout: 30_000 })
+  assert.equal(
+    await page.locator('[data-shell-sidebar]').getAttribute('data-shell-sidebar'),
+    'rail',
+  )
+  assert.equal(await noHorizontalScroll(page), true)
+  report.checks.push('Studio at 1440: three columns with inline settings and the sidebar railed')
+
+  // S5-2. 从模板新建「便签」：选中新行，没有任何放置（规格 5.2：没有默认位置）。
+  await page.locator('[data-component-new]').click()
+  await page.locator('[data-component-new-template="notes"]').click()
+  await page.waitForURL((url) => url.hash === '#/components/notes', { timeout: 30_000 })
+  await page.locator('[data-component-row="notes"][aria-current="true"]').waitFor()
+  const notesInstances = async () =>
+    (await api(page, 'GET', '/api/custom-ui/instances')).body.instances.filter(
+      (entry) => entry.componentId === 'notes',
+    )
+  assert.deepEqual(await notesInstances(), [])
+  assert.match(
+    await page.locator('[data-component-row="notes"] [data-component-row-detail]').textContent(),
+    /未放置/,
+  )
+  // 便签声明了存储：预览里加载出 textarea（ctx.storage 走真实 Runtime）。
+  await page.locator('[data-component-preview] textarea').waitFor({ timeout: 30_000 })
+
+  // S5-3. 放置磁贴：功能页 + 浮窗；浮窗真的出现；再从磁贴移出浮窗（实例删除）。
+  for (const surface of ['feature-page', 'floating']) {
+    await page.locator(`[data-placement-tile="${surface}"] button[role="checkbox"]`).click()
+    await page.locator(`[data-placement-tile="${surface}"][data-placement-checked]`).waitFor()
+  }
+  const placedNotes = await notesInstances()
+  assert.deepEqual(placedNotes.map((entry) => entry.surface).sort(), ['feature-page', 'floating'])
+  const notesFloating = placedNotes.find((entry) => entry.surface === 'floating')
+  await page
+    .locator(`[data-floating-widget="${notesFloating.instanceId}"] textarea`)
+    .waitFor({ timeout: 30_000 })
+  assert.match(
+    await page.locator('[data-component-row="notes"] [data-component-row-detail]').textContent(),
+    /功能页 · 浮窗/,
+  )
+  await page.locator('[data-placement-tile="floating"] button[role="checkbox"]').click()
+  await page
+    .locator(`[data-floating-widget="${notesFloating.instanceId}"]`)
+    .waitFor({ state: 'detached', timeout: 30_000 })
+  assert.deepEqual(
+    (await notesInstances()).map((entry) => entry.surface),
+    ['feature-page'],
+  )
+  report.checks.push(
+    'New from the 便签 template creates no placement; tiles place it on the feature page and as a floating widget (rendered), and unchecking removes the floating one',
+  )
+
+  // S5-4. 属性：放到功能页后编辑实例属性；越界值被 Runtime 拒绝并定位到字段，改对后保存进实例。
+  await page.locator('[data-component-row="props-card"]').click()
+  await page.locator('[data-placement-tile="feature-page"] button[role="checkbox"]').click()
+  await page.locator('[data-placement-tile="feature-page"][data-placement-checked]').waitFor()
+  const propsInstance = async () =>
+    (await api(page, 'GET', '/api/custom-ui/instances')).body.instances.find(
+      (entry) => entry.componentId === 'props-card',
+    )
+  const propsId = (await propsInstance()).instanceId
+  await page.locator(`[data-props-form="${propsId}"]`).waitFor()
+  const intervalField = page.locator('[data-props-field$="-interval"]')
+  await intervalField.locator('input').fill('5')
+  await page.locator('[data-props-field$="-label"] input').fill('冒烟')
+  await page.locator('[data-props-save]').click()
+  await intervalField.locator('[data-props-error]').waitFor({ timeout: 10_000 })
+  assert.match(await intervalField.locator('[data-props-error]').textContent(), /超出允许的范围/)
+  assert.equal(await intervalField.locator('input').getAttribute('aria-invalid'), 'true')
+  assert.deepEqual((await propsInstance()).props, {}, 'rejected props are not saved')
+  await intervalField.locator('input').fill('30')
+  await page.locator('[data-props-save]').click()
+  await page.waitForFunction(() => !document.querySelector('[data-props-error]'), undefined, {
+    timeout: 10_000,
+  })
+  await page.waitForTimeout(300)
+  assert.deepEqual((await propsInstance()).props, { label: '冒烟', interval: 30 })
+  await page.locator('[data-component-preview] [data-fixture-props="30"]').waitFor()
+  report.checks.push(
+    'Props form: an out-of-range value is rejected by the Runtime and pinned to its field; the corrected values save into the instance and the preview follows',
+  )
+
+  // S5-5. 源码与日志。
+  await page.getByRole('radio', { name: '源码' }).click()
+  await page
+    .locator('[data-studio-source-code="component.js"]')
+    .filter({ hasText: 'export default function Props' })
+    .waitFor({ timeout: 30_000 })
+  await page.getByRole('radio', { name: '日志' }).click()
+  await page.locator('[data-studio-logs]').waitFor()
+  await page.getByRole('radio', { name: '预览' }).click()
+  report.checks.push('Source view reads files by rev; the log view opens')
+
   // 9. 1080 宽：没有横向滚动。
   await page.setViewportSize({ width: 1080, height: 680 })
   await settle(page)
   assert.equal(await noHorizontalScroll(page), true)
   await page.screenshot({ path: join(output, 'studio-1080.png') })
-  report.checks.push('No horizontal scroll at 1080×680')
+  // 1080：设置栏放不下，改为抽屉；页头按钮打开，Esc 关闭。
+  await page.locator('[data-studio-settings-mode="drawer"]').waitFor()
+  assert.equal(await page.locator('[data-studio-settings]').count(), 0)
+  await page.locator('[data-studio-settings-open]').click()
+  await page.locator('[data-studio-settings-drawer] [data-studio-settings]').waitFor()
+  assert.equal(await noHorizontalScroll(page), true)
+  await page.keyboard.press('Escape')
+  await page.locator('[data-studio-settings-drawer]').waitFor({ state: 'detached' })
+  report.checks.push('No horizontal scroll at 1080×680; settings move into a drawer')
+
+  // 离开工作室：侧栏回到偏好（默认展开）。
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${base}/#/more`)
+  await page.locator('[data-shell-sidebar="expanded"]').waitFor({ timeout: 30_000 })
+  report.checks.push('Leaving the studio restores the expanded sidebar')
+  // 安全模式哨兵在初始实例提交 3 秒后才清掉（经 /api/local 同步到 Runtime）：等它清掉再关，
+  // 否则下一个上下文会读到“上次加载组件时可能卡死”的询问。
+  await page.waitForTimeout(3_500)
   await context.close()
+
+  // 深色主题：工作室照常渲染，预览跟随应用主题。
+  const darkContext = await newContext({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: 'dark',
+  })
+  const darkPage = await openPage(darkContext, 'dark', '#/components/native-ok')
+  await darkPage
+    .locator('[data-component-preview] [data-fixture-ok="v2"]')
+    .waitFor({ timeout: 60_000 })
+  assert.equal(
+    await darkPage.evaluate(() => document.documentElement.classList.contains('dark')),
+    true,
+  )
+  assert.equal(await noHorizontalScroll(darkPage), true)
+  await darkPage.screenshot({ path: join(output, 'studio-1440-dark.png') })
+  // 预览挂载后等哨兵清掉（3 秒）再关，免得下一个上下文读到“上次可能卡死”。
+  await darkPage.waitForTimeout(3_500)
+  await darkContext.close()
+  report.checks.push('Dark theme: the studio and its preview render without horizontal scroll')
 
   // 10. ?safe-mode=components：所有原生组件只显示占位卡。
   const safeContext = await newContext({ viewport: { width: 1440, height: 900 } })
@@ -352,26 +515,29 @@ try {
   const sentinel = JSON.stringify({
     loading: { at: new Date().toISOString(), instanceIds: [created[0].instanceId] },
   })
-  const promptContext = await newContext(
-    { viewport: { width: 1440, height: 900 } },
-    {
-      initScripts: [
-        [
-          (value) => {
-            // 只在第一次导航前写入：选择之后哨兵被清掉，不能每次导航都重新放回去。
-            if (sessionStorage.getItem('fixture-sentinel')) return
-            sessionStorage.setItem('fixture-sentinel', '1')
-            localStorage.setItem('pisper-components-safe-mode', value)
-          },
-          sentinel,
-        ],
-      ],
-    },
-  )
+  // 哨兵经 /api/local 同步到 Runtime（启动时以 Runtime 的版本为准）：直接写进 Runtime 镜像，
+  // 再整页重新加载，模拟“上次启动加载组件时卡死”。只往 localStorage 写会被更新的镜像版本覆盖。
+  const promptContext = await newContext({ viewport: { width: 1440, height: 900 } })
   const promptPage = await promptContext.newPage()
   failurePage = promptPage
   promptPage.on('pageerror', (error) => report.pageErrors.push(`prompt: ${error.message}`))
+  await promptPage.goto(`${base}/#/more`)
+  await promptPage.locator('[data-shell-sidebar]').waitFor({ timeout: 60_000 })
+  const stored = await promptPage.evaluate(async (value) => {
+    const revision = Date.now() * 1000 + 1_000_000
+    const response = await fetch('/api/local/browser-preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: { 'pisper-components-safe-mode': value },
+        revisions: { 'pisper-components-safe-mode': revision },
+      }),
+    })
+    return response.status
+  }, sentinel)
+  assert.ok(stored >= 200 && stored < 300, `sentinel stored ${stored}`)
   await promptPage.goto(`${base}/#/tools/components/native-ok`)
+  await promptPage.reload()
   await promptPage.locator('[data-components-safe-mode-prompt]').waitFor({ timeout: 60_000 })
   await promptPage
     .locator('[data-feature-page-host="native-ok"] [data-component-state="safe-mode"]')
