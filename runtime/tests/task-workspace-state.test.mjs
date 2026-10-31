@@ -119,3 +119,14 @@ test('late terminal creation binds only its original page and never reopens a cl
   state = update(state, { type: 'close', id })
   assert.equal(update(state, { type: 'resource', id, resourceId: 'pty-b' }), state)
 })
+
+test('the transcript saves its reading position before it unmounts on a plain route switch', async () => {
+  // 侧栏 / ⌥↑⌥↓ / 后退直接换路由，没有“导航前”通知；最后一次滚动的 scroll 事件可能晚于卸载。
+  // 布局 effect 的清理在 DOM 移除前运行，必须在那里补存阅读位置（test:workbench 的“切换会话保存阅读位置”曾因此偶发失败）。
+  const { readFile } = await import('node:fs/promises')
+  const source = await readFile('src/features/chat/FocusTranscript.tsx', 'utf8')
+  assert.match(
+    source,
+    /useLayoutEffect\(\(\) => \{\s*const element = transcriptElement\s*if \(!element \|\| transcriptLoadState !== 'ready'\) return\s*return \(\) => \{\s*if \(element\.clientHeight <= 0\) return[\s\S]{0,300}conversationScrollTop: element\.scrollTop,/,
+  )
+})

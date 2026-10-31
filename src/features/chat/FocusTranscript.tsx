@@ -219,6 +219,22 @@ export function FocusTranscript({
       window.removeEventListener('pointerdown', save, true)
     }
   }, [sessionId, transcriptElement, transcriptLoadState])
+  // 路由直接换会话（侧栏、⌥↑⌥↓、浏览器后退）时没有“导航前”通知：最后一次滚动的 scroll 事件还没派发，
+  // 转录就卸载了，阅读位置会停在上一次保存的值上。布局 effect 的清理在 DOM 移除之前运行，此刻 scrollTop 仍可读，
+  // 在这里补存一次（同一个元素换会话时，清理闭包里是旧会话 id，存给旧会话）。
+  useLayoutEffect(() => {
+    const element = transcriptElement
+    if (!element || transcriptLoadState !== 'ready') return
+    return () => {
+      if (element.clientHeight <= 0) return
+      const store = useContextPagesStore.getState()
+      if (store.sessions[sessionId]?.conversationScrollTop !== element.scrollTop)
+        store.update(sessionId, 'files', {
+          type: 'workspace',
+          conversationScrollTop: element.scrollTop,
+        })
+    }
+  }, [sessionId, transcriptElement, transcriptLoadState])
   const latestRunProps = useMemo(
     () => ({
       streaming,
