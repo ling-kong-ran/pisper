@@ -102,7 +102,12 @@ export function ConfigSearchBox({
           // 分区导航较窄：占位文字放不下时以省略号收尾，不在词中间硬裁。
           placement === 'sidebar' && 'h-8 border-key-border bg-key pr-9 text-ellipsis shadow-key',
         )}
-        placeholder={t('config:configSearch.placeholder')}
+        placeholder={
+          // 侧栏只有 268 宽：长占位会被截成半个英文词，换短的。
+          placement === 'sidebar'
+            ? t('config:configSearch.placeholderShort')
+            : t('config:configSearch.placeholder')
+        }
         onChange={(event) => {
           onQueryChange(event.target.value)
           setOpen(true)

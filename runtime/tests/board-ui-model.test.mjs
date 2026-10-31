@@ -390,13 +390,33 @@ test('only the confirmation layer may approve critical requests', async () => {
     /const review = useCallback\(\s*\(item: BoardItem, approval: BoardApproval \| null\) => \{\s*if \(criticalInSession\) openSession\(item\.id\)\s*else openConfirm\(item, approval\)/,
   )
   assert.match(controller, /result\.reason === 'confirmation-required'\) review\(item, approval\)/)
-  // 键盘 A：critical、截断或详情未到时桌面什么也不做，手机只打开确认层；只有普通批准交给 onApprove。
+  // 键盘 A / D 与行上按钮、侧栏同一条规则：只有 sidebarQuickAction 判为 decide 的行一步允许 / 拒绝，
+  // 处理的是它指定的那条审批（不是盲取 approvals[0]）；其余桌面什么也不做，手机 A 只打开确认层。
+  // 拒绝在桌面同样受此限（高风险、截断、详情未到都不能在列表上被拒掉，规格 3.5）。
   assert.match(
     controller,
-    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,360}if \(!approval \|\| approval\.truncated \|\| approval\.severity === 'critical'\) \{\s*if \(!criticalInSession\) openConfirm\(item, approval \?\? null\)\s*\} else handlers\.onApprove\(item, approval\)/,
+    /function decidableApproval\(item: BoardItem\): BoardApproval \| null \{\s*const quick = sidebarQuickAction\(item\)\s*if \(quick\.kind !== 'decide'\) return null\s*return item\.approvals\.find\(\(entry\) => entry\.id === quick\.approvalId\) \?\? null/,
   )
+  assert.match(
+    controller,
+    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,600}const approval = decidableApproval\(item\)\s*if \(approval\) handlers\.onApprove\(item, approval\)\s*else if \(!criticalInSession\) openConfirm\(item, item\.approvals\[0\] \?\? null\)/,
+  )
+  assert.match(
+    controller,
+    /matchesBoardShortcut\(event, bindings\.boardDeny\)[\s\S]{0,400}const approval = criticalInSession \? decidableApproval\(item\) : \(item\.approvals\[0\] \?\? null\)\s*if \(approval\) handlers\.onDeny\(item, approval\)/,
+  )
+  // 一步允许 / 拒绝只有这两处调用，键盘没有绕过 decidableApproval 的第二条路径。
+  assert.equal(controller.match(/handlers\.onApprove\(/g)?.length, 1)
+  assert.equal(controller.match(/handlers\.onDeny\(/g)?.length, 1)
   const page = sources.find(([file]) => file === 'BoardPage.tsx')[1]
   assert.match(page, /criticalInSession: true/)
+  // 按项目分组的上移 / 下移与首末判断只在画出来的项目分区之间（登记了但今天没有代理、被筛选清空的项目不参与），
+  // 每次点击都看得见变化。
+  assert.match(
+    page,
+    /const projectKeys = useMemo\(\s*\(\) =>\s*model\.sections\.flatMap\(\(section\) =>\s*section\.kind === 'project' && projectByKey\.has\(section\.key\)/,
+  )
+  assert.match(page, /moveWorkspace\(project\.key, offset, projectKeys\)/)
   // 全部代理行：一步“拒绝 / 允许”只给 sidebar-model 判定为普通批准（详情已到、未截断、standard）的行，
   // 其余一律“打开处理”；行本身只把动作交回控制器，不直接调用批准接口。
   const row = sources.find(([file]) => file === 'OverviewRow.tsx')[1]

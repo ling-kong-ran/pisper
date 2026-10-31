@@ -390,6 +390,8 @@ try {
     await projectButton.focus()
     await page.keyboard.press('Space')
     assert.equal(await projectButton.getAttribute('aria-pressed'), 'true')
+    // 只筛了项目时“全部”不再按下（否则“全部 7”读起来像主区在显示全部 7 个）。
+    assert.equal(await filter('all').getAttribute('aria-pressed'), 'false')
     const visible = await page
       .locator('[data-board-card]')
       .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-board-card')))
@@ -415,13 +417,51 @@ try {
       'All agents sidebar (spec 2.3): no session rows; status filters 全部 7 · 需要你 3 (amber) · 运行中 2 · 今天完成 2 (no 排队 without sessionQueue) and one row per project whose counts add up to 7; 运行中 narrows the list through pisper-board-view (aria-pressed, no duplicate in-page filter line while the sidebar is expanded) and a second click clears it; ↑ / ↓ / Home / End walk the filters, Space toggles a project filter; / focuses 全部; the 项目 ⋯ menu offers 添加项目 and opens 管理项目',
     )
 
-    // 行内容（规格 3.3）：普通批准第 2 行“请求执行 bash”+ 完整命令（不截断）与“拒绝 D · 允许 A”；
+    // 行内容（规格 3.3）：普通批准第 1 行状态“等你批准 · bash”、第 2 行直接是完整命令（不截断）与“拒绝 D · 允许 A”；
     // 高风险“高风险 · 改写远端分支”（琥珀文字）只有“打开处理”；失败一行等宽摘要与“日志 · 重试 R”；
     // 运行中当前活动与子代理数；今天完成的结果摘要与改动统计。一行最多一个石墨主操作。
     const row = (id) => page.locator(`[data-board-card="${id}"]`)
-    assert.match(await row('fx-standard').innerText(), /请求执行 bash/)
+    assert.match(
+      await row('fx-standard').locator('[data-row-status]').innerText(),
+      /^等你批准 · bash$/,
+    )
     const command = await row('fx-standard').locator('[data-command-text]').innerText()
     assert.match(command, /--reporter=verbose$/, 'the full command is shown, never truncated')
+    // 命令只在空白处换行：每个片段是一个原子行内框，“--coverage.include”“-n1”不会在连字符后断成两段
+    // 读起来像两个参数；没有一条视觉行以 “-” 结尾（片段本身比一行还宽时除外，fixture 里没有）。
+    const hyphenBreaks = await page
+      .locator('[data-overview] [data-command-text]')
+      .evaluateAll((nodes) =>
+        nodes.flatMap((pre) => {
+          const width = pre.clientWidth
+          return [...pre.querySelectorAll('[data-command-token]')]
+            .filter((token) => token.scrollWidth <= width && token.getClientRects().length > 0)
+            .filter((token) => token.getBoundingClientRect().height > 21)
+            .map((token) => token.textContent)
+        }),
+      )
+    assert.deepEqual(hyphenBreaks, [], 'command tokens never wrap inside themselves')
+    assert.equal(
+      await row('fx-standard').locator('[data-command-text]').textContent(),
+      '$ ' + command.replace(/^\$\s*/, ''),
+      'copied text stays the original command (no soft hyphens or joiners)',
+    )
+    const rowHeights = await page
+      .locator('[data-board-card]')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => [
+          node.getAttribute('data-board-card'),
+          node.getBoundingClientRect().height,
+        ]),
+      )
+    for (const [id, height] of rowHeights)
+      assert.ok(height >= 52 && height <= 96, `${id} row height ${height} within 52–96`)
+    // 行 ⋯ 不占位：时间列贴着行的右内边距（12px），悬停时 ⋯ 盖在时间的位置上。
+    const timeGap = await row('fx-done-unread').evaluate((node) => {
+      const time = node.querySelector('[data-row-time]').getBoundingClientRect()
+      return Math.round(node.getBoundingClientRect().right - time.right)
+    })
+    assert.ok(timeGap <= 13, `time sits at the row's right edge (${timeGap}px)`)
     await row('fx-standard').getByRole('button', { name: /^拒绝/ }).waitFor()
     const critical = row('fx-critical')
     assert.match(
@@ -440,6 +480,13 @@ try {
     assert.match(await critical.innerText(), /git push --force-with-lease origin fix\/ci/)
     await critical.getByRole('button', { name: '打开处理' }).waitFor()
     assert.equal(await critical.getByRole('button', { name: /^(允许|拒绝)/ }).count(), 0)
+    // 高风险说明是命令的前缀：不随命令一起被选中复制。
+    assert.equal(
+      await critical
+        .locator('[data-command-text] [data-severity="critical"]')
+        .evaluate((node) => getComputedStyle(node.parentElement).userSelect),
+      'none',
+    )
     assert.match(
       await row('fx-failed').locator('[data-card-error]').innerText(),
       /3 failed, 41 passed/,
@@ -467,7 +514,7 @@ try {
     for (const entry of primaries)
       assert.ok(entry.primary <= 1, `${entry.id} has at most one primary action`)
     report.checks.push(
-      'Rows: a standard approval shows 请求执行 bash with the full untruncated command and 拒绝 / 允许; the critical row shows amber “高风险 · 改写远端分支” with the full command and only 打开处理; the failed row has a mono summary with 日志 / 重试; running rows show the current activity and 子代理 1/2; the done row shows its preview and “6 个文件 +214 −97”; no row has more than one primary action',
+      'Rows: a standard approval shows “等你批准 · bash” on line 1 and the full untruncated command on line 2 (wrapped only at spaces, copied text unchanged) with 拒绝 / 允许; every row is 52–96 tall and the time column sits at the right edge; the critical row shows amber “高风险 · 改写远端分支” with the full command and only 打开处理; the failed row has a mono summary with 日志 / 重试; running rows show the current activity and 子代理 1/2; the done row shows its preview and “6 个文件 +214 −97”; no row has more than one primary action',
     )
 
     // T 进入逐个处理：其余分组降到 50%，底部提示条；J 只在需要你之间走；Esc 退出。
@@ -488,6 +535,16 @@ try {
       )
     await opacityOf('fx-running', '0.5')
     await opacityOf('fx-critical', '1')
+    // 其余分组整体退后：分组标题与“全部历史会话”一起降到 50%，需要你的标题不变。
+    await page.waitForFunction(
+      () =>
+        getComputedStyle(document.querySelector('[data-overview-heading="running"]')).opacity ===
+          '0.5' &&
+        getComputedStyle(document.querySelector('[data-overview-history]').parentElement)
+          .opacity === '0.5' &&
+        getComputedStyle(document.querySelector('[data-overview-heading="attention"]')).opacity ===
+          '1',
+    )
     for (let step = 0; step < 4; step += 1) {
       await page.keyboard.press('j')
       await page.waitForTimeout(80)
@@ -501,7 +558,7 @@ try {
     await triageBar.waitFor({ state: 'hidden' })
     await opacityOf('fx-running', '1')
     report.checks.push(
-      'T enters triage with the bottom bar “逐个处理 1/3 · A 允许 · D 拒绝 · R 重试 · ↵ 打开 · Esc 退出” (no answer hint without askUser), other groups drop to 50%, J only walks the needs-you rows, Esc exits',
+      'T enters triage with the bottom bar “逐个处理 1/3 · A 允许 · D 拒绝 · R 重试 · ↵ 打开 · Esc 退出” (no answer hint without askUser), other groups (rows, their headings and the history link) drop to 50%, J only walks the needs-you rows, Esc exits',
     )
 
     // J 从空白处移动焦点：行的 2px 焦点环必须真的画出来（--focus 色），不能被 outline-none 吃掉。
@@ -537,11 +594,17 @@ try {
       'J shows a visible 2px --focus ring on the focused row and only one row is in the Tab order; A / D / R with no row focused send nothing and open nothing',
     )
 
-    // critical：键盘 A 什么也不做（没有确认层，也不批准）；↵ 打开会话处理，⌘1 回来焦点还给这一行。
+    // critical：键盘 A、D 都什么也不做（没有确认层，也不批准或拒绝，与行上只有“打开处理”一致）；
+    // ↵ 打开会话处理，⌘1 回来焦点还给这一行。
     await critical.focus()
     await page.keyboard.press('a')
+    await page.keyboard.press('d')
     await page.waitForTimeout(400)
-    assert.equal(fixture.posts.length, 0, 'keyboard A on a critical row must not approve')
+    assert.equal(
+      fixture.posts.length,
+      0,
+      'keyboard A / D on a critical row must not approve or deny',
+    )
     assert.equal(await page.getByRole('dialog').count(), 0, 'no confirmation layer on this page')
     assert.equal(await page.evaluate(() => location.hash), '#/board')
     await page.keyboard.press('Enter')
@@ -555,7 +618,7 @@ try {
     )
     assert.equal(fixture.posts.length, 0)
     report.checks.push(
-      'Critical approval: keyboard A does nothing (no confirmation layer, no POST); ↵ opens the session to handle it and ⌘1 returns focus to the same row',
+      'Critical approval: keyboard A and D do nothing (no confirmation layer, no POST); ↵ opens the session to handle it and ⌘1 returns focus to the same row',
     )
 
     // standard：焦点在行上按 A，发出正确的 POST；行收起后进运行中，焦点落到下一条需要你。
@@ -822,7 +885,9 @@ try {
   }
 
   // 3c. 超过 30 行改用虚拟列表（规格 3.3）：只渲染可视附近的行；J 走到列表末尾时仍能聚焦到当时不在 DOM 里的行。
+  // ⌥A 在列表滚到底时也能把焦点交给顶上（没挂载的）需要你那一行，且不动筛选；当前行被滚出可视窗口时仍挂着，焦点不丢。
   {
+    const failed = boardFixture().sessions.find((session) => session.id === 'fx-failed')
     const base = boardFixture().sessions.find((session) => session.id === 'fx-done-unread')
     const many = Array.from({ length: 40 }, (_, index) => ({
       ...base,
@@ -834,14 +899,14 @@ try {
     }))
     const { context } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
-      { bridge: desktopBridgeScript, sessions: many, protocol: 'legacy' },
+      { bridge: desktopBridgeScript, sessions: [failed, ...many], protocol: 'legacy' },
     )
     const page = await openBoard(context, 'virtual list')
     await page.locator('[data-overview-list][data-virtual]').waitFor()
     const rendered = await page.locator('[data-board-card]').count()
     assert.ok(rendered > 0 && rendered < 40, `virtual list renders a window of rows: ${rendered}`)
     await page.locator('[data-board-card]').first().focus()
-    for (let step = 0; step < 39; step += 1) await page.keyboard.press('j')
+    for (let step = 0; step < 40; step += 1) await page.keyboard.press('j')
     await page
       .waitForFunction(
         () => document.activeElement?.getAttribute('data-board-card') === 'fx-many-39',
@@ -854,8 +919,37 @@ try {
         )
         throw new Error(`J did not reach the last row in the virtual list (active: ${active})`)
       })
+    // 列表在底部，需要你那一行（fx-failed，在最上面）不在 DOM 里：⌥A 仍把焦点交给它，不清筛选。
+    assert.equal(await page.locator('[data-board-card="fx-failed"]').count(), 0)
+    const viewBefore = await page.evaluate(() => localStorage.getItem('pisper-board-view'))
+    await page.keyboard.press('Alt+KeyA')
+    await page
+      .waitForFunction(
+        () => document.activeElement?.getAttribute('data-board-card') === 'fx-failed',
+        null,
+        { timeout: 10_000 },
+      )
+      .catch(async () => {
+        const active = await page.evaluate(() =>
+          document.activeElement?.getAttribute('data-board-card'),
+        )
+        throw new Error(
+          `⌥A did not reach the needs-you row in the virtual list (active: ${active})`,
+        )
+      })
+    assert.equal(await page.evaluate(() => localStorage.getItem('pisper-board-view')), viewBefore)
+    // 滚轮把当前行滚出可视窗口：它仍挂着（唯一 tabIndex=0 的行），焦点不掉到 body 上。
+    await page.locator('[data-overview-scroller]').evaluate((node) => {
+      node.scrollTop = node.scrollHeight
+    })
+    await page.waitForTimeout(300)
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute('data-board-card')),
+      'fx-failed',
+    )
+    assert.equal(await page.locator('[data-board-card][tabindex="0"]').count(), 1)
     report.checks.push(
-      'More than 30 rows switch to a virtual list that renders a window of rows; J still walks to the last row',
+      'More than 30 rows switch to a virtual list that renders a window of rows; J still walks to the last row; with the list at the bottom ⌥A focuses the unmounted needs-you row at the top without touching filters; scrolling the active row out of view keeps it mounted, focused and tabbable',
     )
     await context.close()
   }

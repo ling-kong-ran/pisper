@@ -31,6 +31,7 @@
   "status.stopped": "Stopped",
   "filter.projects": "Projects",
   "filter.projectsTitle": "Project: {projects}",
+  "filter.listSeparator": ", ",
   "filter.statuses": "Status",
   "filter.statusTitle": "Status: {statuses}",
   "filter.noProject": "No folder set",

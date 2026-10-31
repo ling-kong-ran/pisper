@@ -51,6 +51,7 @@ const backNavigationCode = transformSync(
 
 function backFixture({ onRouteBack, overlay = false } = {}) {
   const stack = createBackStack()
+  const nativeBack = new WeakSet()
   const listeners = { capture: new Set(), bubble: new Set() }
   class KeyboardEvent {
     constructor(type, init = {}) {
@@ -98,7 +99,8 @@ function backFixture({ onRouteBack, overlay = false } = {}) {
           useEffect: (effect) => cleanups.push(effect()),
           useRef: (value) => ({ current: value }),
         }
-      if (id === '@/lib/back-navigation') return { appBackStack: stack }
+      if (id === '@/lib/back-navigation')
+        return { appBackStack: stack, markNativeBack: (event) => nativeBack.add(event) }
       throw new Error(`unexpected dependency ${id}`)
     },
   })
@@ -111,6 +113,9 @@ function backFixture({ onRouteBack, overlay = false } = {}) {
       dispatch(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, ...init })),
     unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
     window,
+    document,
+    dispatch,
+    nativeBack,
   }
 }
 
@@ -159,7 +164,7 @@ test('keyboard Escape only dismisses layers and never leaves the page', () => {
 
 // 设置整页的“← 返回 Esc”（规格 2.3）是“Esc 不离开页面”的唯一例外：useEscapeLeave 只在按键没被别人
 // 处理、没有弹层、焦点不在输入框、没有修饰键与输入法组合时离开；有返回层时 BackNavigation 先接住。
-const escapeLeaveCode = transformSync(await readFile('src/hooks/use-escape-leave.ts', 'utf8'), {
+const escapeLeaveCode = transformSync(await readFile('src/hooks/useEscapeLeave.ts', 'utf8'), {
   loader: 'ts',
   format: 'cjs',
 }).code
@@ -178,7 +183,11 @@ function mountEscapeLeave(f, onLeave) {
           useEffect: (effect) => cleanups.push(effect()),
           useRef: (value) => ({ current: value }),
         }
-      if (id === '@/lib/back-navigation') return { hasOpenOverlay: () => f.state.overlay }
+      if (id === '@/lib/back-navigation')
+        return {
+          hasOpenOverlay: () => f.state.overlay,
+          isNativeBack: (event) => f.nativeBack.has(event),
+        }
       if (id === '@/lib/shortcuts')
         return { isEditableTarget: (target) => Boolean(target?.editable) }
       throw new Error(`unexpected dependency ${id}`)
@@ -216,4 +225,37 @@ test('the settings page Escape leaves only when nothing else claims the key', ()
   unmount()
   assert.equal(f.pressEscape(), true)
   assert.deepEqual(calls, ['layer', 'leave'])
+})
+
+// 平板 App 的设置外壳：原生返回合成的 Escape 先被 useEscapeLeave 接住，按原路退回（leaveSettings），
+// 不落到 shellBackPath 的“一级页回主页”；焦点在输入框里（设置搜索）也一样，键盘 Esc 在输入框里仍属于输入框。
+test('native back in the settings shell leaves settings the way it came, even from a text field', () => {
+  const calls = []
+  const f = backFixture({ onRouteBack: () => calls.push('route') > 0 })
+  const unmount = mountEscapeLeave(f, () => calls.push('leave'))
+  assert.equal(f.requestBack(), true)
+  assert.deepEqual(calls, ['leave'])
+  const field = { editable: true }
+  field.dispatchEvent = (event) => {
+    event.target = field
+    return f.dispatch(event)
+  }
+  f.document.activeElement = field
+  assert.equal(f.requestBack(), true)
+  assert.deepEqual(calls, ['leave', 'leave'])
+  // 键盘 Esc 在输入框里不离开设置。
+  assert.equal(f.pressEscape({ target: field }), true)
+  assert.deepEqual(calls, ['leave', 'leave'])
+  // 有返回层时先关它，这一下不离开。
+  const remove = f.stack.register(100, () => {
+    calls.push('layer')
+    remove()
+  })
+  assert.equal(f.requestBack(), true)
+  assert.deepEqual(calls, ['leave', 'leave', 'layer'])
+  unmount()
+  // 设置外壳卸载后（手机设置等）原生返回交给路由层。
+  f.document.activeElement = null
+  assert.equal(f.requestBack(), true)
+  assert.deepEqual(calls, ['leave', 'leave', 'layer', 'route'])
 })

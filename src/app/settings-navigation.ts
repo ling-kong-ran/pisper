@@ -81,6 +81,25 @@ export function configSectionLabel(t: Translate, section: string) {
   }
 }
 
+// 设置目录里的短名（规格 2.6“模型 · 界面 · 通知 · 快捷键 · 更新 · 关于”）：目录上方已有“设置”标题，
+// 每行再带“设置 / 配置”是重复，268 宽的侧栏也放不下。页头、面包屑与 ⌘K 仍用 configSectionLabel 的完整名。
+function settingsSectionShortLabel(t: Translate, section: SettingsSection) {
+  switch (section) {
+    case 'interface':
+      return t('config:settingsShell.section.interface')
+    case 'notifications':
+      return t('config:settingsShell.section.notifications')
+    case 'shortcuts':
+      return t('config:settingsShell.section.shortcuts')
+    case 'updates':
+      return t('config:settingsShell.section.updates')
+    case 'about':
+      return t('config:settingsShell.section.about')
+    default:
+      return t('config:settingsShell.section.models')
+  }
+}
+
 // 设置目录：按 Runtime 能力裁掉不可用的分区。桌面设置侧栏与手机设置分区条共用。
 export function getSettingsNavigation(
   t: Translate,
@@ -90,7 +109,7 @@ export function getSettingsNavigation(
     runtimeConfigSectionAvailable(capabilities, section),
   ).map((section) => ({
     section,
-    label: configSectionLabel(t, section),
+    label: settingsSectionShortLabel(t, section),
     icon: SECTION_ICONS[section],
   }))
 }

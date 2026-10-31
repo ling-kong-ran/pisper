@@ -239,6 +239,16 @@ test('reasons combine and anything without full standard approval details opens 
     { ...base, status: 'approval', approvals: [{ id: 'p1', truncated: true }] },
     { ...base, status: 'approval', severity: null },
     { ...base, status: 'approval', approvals: [] },
+    // 第一条是普通批准，但后面还排着高风险（行的 severity 取最高）：整行只能打开处理。
+    {
+      ...base,
+      status: 'approval',
+      severity: 'critical',
+      approvals: [
+        { id: 'p1', toolName: 'bash', severity: 'standard' },
+        { id: 'p2', toolName: 'bash', severity: 'critical' },
+      ],
+    },
   ])
     assert.deepEqual(sidebarQuickAction(item), { kind: 'open' }, JSON.stringify(item))
   assert.deepEqual(sidebarQuickAction({ ...base, status: 'approval' }), {

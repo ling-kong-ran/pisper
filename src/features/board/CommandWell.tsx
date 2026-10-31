@@ -1,7 +1,10 @@
 // 审批命令：可换行，最多 3 行；内容超出时出现“展开”。文本始终完整，只是被裁在可视高度里（批准前绝不截断）。
-// 先在空白处断行，单个词比一行还长时才拆词（overflow-wrap:anywhere），分支名与路径不会被拆在中间。
+// 只在空白处断行：浏览器默认会在连字符后断行，把 `--coverage.include` 拆成“--”与“coverage.include”、
+// `-n1` 拆成“-”与“n1”，读起来像两个参数，审批人会误读。所以每个非空白片段包成一个 inline-block
+// （原子行内框，内部不参与外层断行）；只有单个片段比一行还宽时，它在自己的框里任意位置断开（break-all）。
+// 不插入软连字符或 U+2011，复制出的文本与原命令一致。
 // well：手机卡片里的等宽框；plain：全部代理行的第 2 行（无框，规格 3.3）。
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 
@@ -12,9 +15,12 @@ export function CommandWell({
   args = false,
   variant = 'well',
   tabIndex,
+  lead,
 }: {
   text: string
   prefix: string
+  // 命令前的说明（全部代理高风险行的“高风险 · 改写远端分支”），不随命令一起被选中复制。
+  lead?: ReactNode
   phone?: boolean
   // 参数清单（没有命令和路径的审批）：读屏名与“展开”文案按参数说。
   args?: boolean
@@ -37,6 +43,7 @@ export function CommandWell({
     return () => observer.disconnect()
   }, [expanded, text])
   const plain = variant === 'plain'
+  const parts = useMemo(() => text.split(/(\s+)/).filter(Boolean), [text])
   const toggle = (overflowing || expanded) && (
     <button
       type="button"
@@ -64,18 +71,32 @@ export function CommandWell({
       data-command-text
       aria-label={args ? t('board:confirm.fullArgs') : undefined}
       className={cn(
-        'min-w-0 font-mono text-xs leading-5 whitespace-pre-wrap wrap-anywhere',
+        'min-w-0 font-mono text-xs leading-5 whitespace-pre-wrap',
         plain ? 'text-content-secondary' : 'text-well-text',
-        !expanded && 'line-clamp-3',
+        // max-h 兜底：单个超长片段是一个多行 inline-block，line-clamp 只按行框数，管不住它。
+        !expanded && 'line-clamp-3 max-h-15',
         phone && 'text-sm',
       )}
     >
+      {lead && <span className="font-sans select-none">{lead}</span>}
       {prefix && (
         <span className={cn('select-none', plain ? 'text-content-muted' : 'text-well-muted')}>
           {prefix}{' '}
         </span>
       )}
-      {text}
+      {parts.map((part, index) =>
+        /^\s+$/.test(part) ? (
+          part
+        ) : (
+          <span
+            key={index}
+            data-command-token
+            className="inline-block max-w-full align-top break-all"
+          >
+            {part}
+          </span>
+        ),
+      )}
     </pre>
   )
   if (plain)

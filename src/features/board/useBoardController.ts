@@ -21,6 +21,7 @@ import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import { clearBoardReturn, peekBoardReturn, rememberBoardReturn } from './board-return'
 import { collapseRow, OVERVIEW_ROW_COLLAPSE_MS } from './row-motion'
+import { sidebarQuickAction } from './sidebar-model'
 import { useBoardActions } from './useBoardActions'
 
 // 确认层只记住会话与审批 id：渲染时从最新数据取审批，详情晚到会更新，别处处理掉会关闭。
@@ -68,6 +69,13 @@ function cardIn(root: HTMLElement | null, sessionId: string) {
 
 function scrollKey(element: HTMLElement) {
   return element.hasAttribute('data-overview-scroller') ? 'overview' : 'sections'
+}
+
+// 键盘 A / D 能一步处理的那条审批：sidebarQuickAction 判为 decide 时取它指定的审批，否则没有。
+function decidableApproval(item: BoardItem): BoardApproval | null {
+  const quick = sidebarQuickAction(item)
+  if (quick.kind !== 'decide') return null
+  return item.approvals.find((entry) => entry.id === quick.approvalId) ?? null
 }
 
 function nextFrame() {
@@ -433,19 +441,22 @@ export function useBoardController({
         matchesBoardShortcut(event, bindings.boardApprove) &&
         item?.status === 'approval'
       ) {
-        const approval = item.approvals[0]
-        // critical 或详情未到：桌面什么也不做（行上只有“打开处理”，↵ 进会话），手机只打开确认层。
-        if (!approval || approval.truncated || approval.severity === 'critical') {
-          if (!criticalInSession) openConfirm(item, approval ?? null)
-        } else handlers.onApprove(item, approval)
+        // 与行上按钮、侧栏同一条规则（sidebarQuickAction）：只有详情已到、全部是普通批准、没有同时在等的问题
+        // 才一步允许，且允许的是行上显示的那条；其余桌面什么也不做（行上只有“打开处理”，↵ 进会话），
+        // 手机只打开确认层。只看 approvals[0] 会在后面还排着 critical 时把整行当成普通批准。
+        const approval = decidableApproval(item)
+        if (approval) handlers.onApprove(item, approval)
+        else if (!criticalInSession) openConfirm(item, item.approvals[0] ?? null)
       } else if (
         acting &&
         matchesBoardShortcut(event, bindings.boardDeny) &&
-        item?.status === 'approval' &&
-        item.approvals[0]
-      )
-        handlers.onDeny(item, item.approvals[0])
-      else if (
+        item?.status === 'approval'
+      ) {
+        // 拒绝同样只作用于看得见完整命令的普通批准：高风险只能在会话里处理（规格 3.5），
+        // 截断或还在加载的审批不能在列表上被拒掉。手机看板（A4 前）保留原行为：拒绝第一条。
+        const approval = criticalInSession ? decidableApproval(item) : (item.approvals[0] ?? null)
+        if (approval) handlers.onDeny(item, approval)
+      } else if (
         acting &&
         matchesBoardShortcut(event, bindings.boardRetry) &&
         item?.status === 'failed' &&
@@ -473,7 +484,28 @@ export function useBoardController({
     triage,
   ])
 
-  // —— 从会话返回：恢复滚动位置，焦点回到来源行 ——
+  // —— 离开这一页时记下位置 ——
+  // 去设置、功能或别的会话（⌘,、⌘2、侧栏入口）也要能回到原处（规格 2.3“返回时焦点回到原来的会话行”）：
+  // 卸载时焦点还在某一行里就记下那一行，滚动位置总是记下。从行打开会话时 openSession 已经记过
+  // （来源行就是被打开的那行），不覆盖。React 卸载时先跑这里的清理、后摘 DOM，此刻焦点与 scrollTop 仍可读。
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    return () => {
+      if (!root || peekBoardReturn()) return
+      const active = document.activeElement
+      const row =
+        active instanceof HTMLElement && root.contains(active)
+          ? active.closest<HTMLElement>('[data-board-card]')
+          : null
+      const scroll: Record<string, number> = {}
+      root.querySelectorAll<HTMLElement>(SCROLLERS).forEach((element) => {
+        scroll[scrollKey(element)] = element.scrollTop
+      })
+      rememberBoardReturn({ focusId: row?.dataset.boardCard ?? '', scroll })
+    }
+  }, [rootRef])
+
+  // —— 回到这一页：恢复滚动位置，焦点回到来源行 ——
   useLayoutEffect(() => {
     const state = peekBoardReturn()
     if (!state || !ready || !allIds.length) return
@@ -484,9 +516,13 @@ export function useBoardController({
     })
     if (allIds.includes(state.focusId)) {
       setActiveId(state.focusId)
-      requestAnimationFrame(() =>
-        cardIn(rootRef.current, state.focusId)?.focus({ preventScroll: true }),
-      )
+      // 虚拟列表里行可能还没按新的滚动位置画出来：经 reveal 取（必要时滚到它），不直接查 DOM。
+      requestAnimationFrame(() => {
+        void (async () => {
+          const revealed = revealRef.current ? await revealRef.current(state.focusId) : null
+          ;(revealed ?? cardIn(rootRef.current, state.focusId))?.focus({ preventScroll: true })
+        })()
+      })
     }
   }, [allIds, ready, rootRef])
 

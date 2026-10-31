@@ -667,7 +667,8 @@ try {
 
   await page
     .getByRole('navigation', { name: '设置导航', exact: true })
-    .getByRole('button', { name: '界面设置', exact: true })
+    // 设置目录用短名（规格 2.6）；页头 h1 仍是完整名“界面设置”。
+    .getByRole('button', { name: '界面', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
   // A3 设置整页：侧栏整块换成设置目录（规格 2.3），当前分区在目录里点亮。

@@ -45,6 +45,7 @@ import {
   formatSidebarWait,
   reasonText,
 } from './sidebar-presentation'
+import { requestOverviewFocus } from './overview-focus'
 import { collapseRow, motionAllowed, SIDEBAR_ROW_COLLAPSE_MS } from './row-motion'
 import { SessionRowMenu } from './SessionRowMenu'
 import { SIDEBAR_COMMAND_EVENT, type SidebarCommand } from './sidebar-commands'
@@ -162,19 +163,15 @@ export function SidebarCommands({
         return
       }
       // 全部代理页（桌面）：侧栏是筛选，代理只在主区列一次（规格 2.3），⌥A 把焦点交给主区那一行，
-      // 被当前筛选藏起来时先清掉筛选；⌘J 聚焦按下的那个筛选。
+      // 被当前筛选藏起来时先清掉筛选（由页面判断，见 overview-focus）；⌘J 聚焦按下的那个筛选。
       const overview = document.querySelector('[data-overview]')
       if (command.kind === 'focus-attention') {
         const target = current.longestWaitingId
         if (!target) return
         if (overview) {
-          const find = () =>
-            document.querySelector<HTMLElement>(
-              `[data-overview] [data-board-card="${CSS.escape(target)}"]`,
-            ) ?? undefined
-          const view = useBoardViewStore.getState()
-          if (!find() && (view.lanes.length || view.projects.length)) view.clearFilters()
-          focusWhenReady(find)
+          // 交给页面：虚拟列表（>30 行）里不在视口的行没挂载，DOM 里找不到不代表被筛选藏起来，
+          // 页面按模型判断，需要时滚到那一行或清筛选。
+          requestOverviewFocus(target)
           return
         }
         if (sidebar.collapsed) sidebar.setPeeking(true)

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { appBackStack } from '@/lib/back-navigation'
+import { appBackStack, markNativeBack } from '@/lib/back-navigation'
 
 function hasOverlay() {
   return [
@@ -18,6 +18,8 @@ function hasOverlay() {
 // （见 shell-tabs.shellBackPath：会话主页是根，点进来的会话回来处，一级页回主页，更多的子页回更多），
 // 都不处理才交回平台。
 // 路由层返回只挂在原生返回上：键盘 Esc 永远不用于离开页面。
+// 设置整页（平板 App 的设置外壳）挂着 useEscapeLeave：合成的 Escape 先被它接住，原生返回因此按原路退回
+// 进入设置前的那一页（leaveSettings，规格 2.3），不走 shellBackPath 的“一级页回主页”；焦点在输入框里也一样（见 markNativeBack）。
 export function BackNavigation({ onRouteBack }: { onRouteBack?: () => boolean }) {
   const routeBackRef = useRef(onRouteBack)
   routeBackRef.current = onRouteBack
@@ -39,6 +41,7 @@ export function BackNavigation({ onRouteBack }: { onRouteBack?: () => boolean })
     const request = () => {
       const overlay = hasOverlay()
       const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      markNativeBack(event)
       ;(document.activeElement || document.body).dispatchEvent(event)
       if (overlay || event.defaultPrevented) return true
       return routeBackRef.current?.() ?? false

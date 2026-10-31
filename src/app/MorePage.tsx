@@ -4,7 +4,7 @@
 // 同时列出命中的设置项（设置搜索索引），并可带着关键词转到命令面板继续搜会话、标签与命令。
 // 卡片角标（工作流运行中、定时任务启用、渠道断开、MCP 在线）见 useMoreTileBadges。
 // “我的组件”列出以整页打开的已安装组件，最后一行是“+ 放置组件”（去组件工作室）。
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { ChevronRight, Command, Search, X } from 'lucide-react'
 import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
@@ -38,6 +38,14 @@ type MorePageProps = {
 
 const SETTINGS_RESULT_LIMIT = 6
 const TILE_SELECTOR = '[data-more-tile]'
+
+// 离开功能索引时的来源卡片：从卡片进插件页等，再点“‹ 功能”或后退回来时，焦点回到这张卡片（规格 2.3）。
+// 只保存在内存里，与全部代理的 board-return 一样，刷新后不恢复。
+let returnTileKey = ''
+
+function tileByKey(root: ParentNode | null, key: string) {
+  return root?.querySelector<HTMLElement>(`[data-more-tile="${CSS.escape(key)}"]`) ?? null
+}
 
 export function MorePage({ onOpen }: MorePageProps) {
   const { t, language } = useI18n()
@@ -124,6 +132,38 @@ export function MorePage({ onOpen }: MorePageProps) {
     </Button>
   )
   const groupHeading = 'mb-2 text-[13px] font-medium text-content-muted'
+
+  // 卸载时焦点在某张卡片上（键盘 ↵、点击后跳走）就记下它；回来挂载时把焦点还给它。
+  // 卡片可能晚一点才画出来（“我的组件”等组件目录），逐帧找，最多 20 帧。
+  useLayoutEffect(() => {
+    // 不挂 ref：页面根节点的写法由整页模板守卫按源码钉着；卸载清理时这个节点还在文档里。
+    const root = document.querySelector<HTMLElement>('[data-features-index]')
+    const key = returnTileKey
+    returnTileKey = ''
+    let frame = 0
+    let handle = 0
+    let restored = !key
+    const attempt = () => {
+      const tile = tileByKey(root, key)
+      if (tile) {
+        tile.focus()
+        restored = true
+      } else if ((frame += 1) < 20) handle = requestAnimationFrame(attempt)
+      else restored = true
+    }
+    if (key) handle = requestAnimationFrame(attempt)
+    return () => {
+      cancelAnimationFrame(handle)
+      // 还没来得及还焦点就卸载（开发模式 StrictMode 的二次挂载）：把来源卡片留给下一次挂载。
+      if (!restored) returnTileKey = key
+      const active = document.activeElement
+      const tile =
+        active instanceof HTMLElement && root?.contains(active)
+          ? active.closest<HTMLElement>(TILE_SELECTOR)
+          : null
+      if (tile?.dataset.moreTile) returnTileKey = tile.dataset.moreTile
+    }
+  }, [])
 
   return (
     <div data-features-index className="flex h-full min-h-0 w-full flex-col bg-background">
@@ -370,7 +410,10 @@ function MoreTileButton({
         disabled ? 'cursor-not-allowed' : 'hover:bg-surface-hover',
       )}
       onClick={() => {
-        if (!disabled) onOpen(tile.destination)
+        if (disabled) return
+        // Safari 点击按钮不给它焦点：卸载时看不到焦点卡片，这里先记下来源。
+        returnTileKey = tile.key
+        onOpen(tile.destination)
       }}
     >
       <span

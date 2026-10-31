@@ -933,12 +933,28 @@ try {
         (element) => !element.closest('[data-shell-sidebar]'),
       ).length,
       search: Boolean(document.querySelector('[data-settings-sidebar] input')),
+      placeholder: document
+        .querySelector('[data-settings-sidebar] input')
+        ?.getAttribute('placeholder'),
+      labels: [...document.querySelectorAll('[data-settings-section]')].map((button) =>
+        button.textContent.trim(),
+      ),
       hint: document.querySelector('[data-settings-features-link]')?.textContent?.trim(),
       fleet: document.querySelector('[data-sidebar-fleet-line]')?.textContent?.trim(),
       fleetLabel: document.querySelector('[data-sidebar-fleet-line]')?.getAttribute('aria-label'),
     }))
+    // 目录是短名（规格 2.6），“关于”后面跟版本号；侧栏搜索框用短占位，不被截成半个英文词。
+    assert.deepEqual(shell.labels.slice(0, 5), ['模型', '界面', '通知', '快捷键', '更新'])
+    assert.match(shell.labels[5], /^关于/)
+    assert.equal(shell.placeholder, '搜索设置')
     assert.deepEqual(
-      { ...shell, fleet: undefined, fleetLabel: undefined },
+      {
+        ...shell,
+        fleet: undefined,
+        fleetLabel: undefined,
+        labels: undefined,
+        placeholder: undefined,
+      },
       {
         width: 268,
         sections: [
@@ -956,6 +972,8 @@ try {
         hint: '插件、MCP、技能等在“功能”里',
         fleet: undefined,
         fleetLabel: undefined,
+        labels: undefined,
+        placeholder: undefined,
       },
     )
     assert.match(shell.fleet, /3 个需要你\s*·\s*3 个运行中/)
@@ -1021,8 +1039,30 @@ try {
       await sidebar.locator('[data-sidebar-filter="all"]').getAttribute('aria-pressed'),
       'true',
     )
+    // 从全部代理去设置（Esc 返回）或功能（⌘2 → ⌘1）再回来：焦点回到原来的那一行（规格 2.3）。
+    const boardRowId = await page
+      .locator('[data-overview] [data-board-card]')
+      .nth(1)
+      .getAttribute('data-board-card')
+    const focusedBoardRow = (id) =>
+      page.waitForFunction(
+        (target) => document.activeElement?.getAttribute('data-board-card') === target,
+        id,
+        { timeout: 10_000 },
+      )
+    await page.locator(`[data-overview] [data-board-card="${boardRowId}"]`).focus()
+    await page.keyboard.press(`${mod}+Comma`)
+    await settings.locator('[data-settings-sidebar]').waitFor()
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => location.hash === '#/board')
+    await focusedBoardRow(boardRowId)
+    await page.keyboard.press(`${mod}+Digit2`)
+    await page.waitForFunction(() => location.hash === '#/more')
+    await page.keyboard.press(`${mod}+Digit1`)
+    await page.waitForFunction(() => location.hash === '#/board')
+    await focusedBoardRow(boardRowId)
     report.checks.push(
-      'From a session, ⌘, then 通知 then “← 返回” goes back to the same session and focus returns to its sidebar row; in settings ⌥A focuses the bottom status line and ⌘J the open section; the status line opens 全部代理 with the status filter cleared',
+      'From a session, ⌘, then 通知 then “← 返回” goes back to the same session and focus returns to its sidebar row; in settings ⌥A focuses the bottom status line and ⌘J the open section; the status line opens 全部代理 with the status filter cleared; from 全部代理, ⌘, then Esc and ⌘2 then ⌘1 both return focus to the row that had it',
     )
 
     // 5d. 双归属退役：远程访问（/config 下）与插件是功能页——点亮“功能”、页头“‹ 功能”、侧栏是常规会话分组。
@@ -1331,12 +1371,18 @@ try {
       opened.push(`${key} → ${new URL(page.url()).hash}`)
       await back.click()
       await page.waitForFunction(() => location.hash === '#/more')
+      // 回到索引后焦点还给来源卡片（规格 2.3）。
+      await page.waitForFunction(
+        (target) => document.activeElement?.getAttribute('data-more-tile') === target,
+        key,
+        { timeout: 10_000 },
+      )
     }
     assert.ok(opened.some((entry) => entry.startsWith('page:components → #/components')))
     assert.ok(opened.some((entry) => entry.startsWith('config:remote-access → #/config/')))
     report.features = opened
     report.checks.push(
-      `Every features card opens its page with 功能 lit and “‹ 功能” (返回功能) back to the index: ${opened.length} pages incl. 组件工作室 and /config/remote-access`,
+      `Every features card opens its page with 功能 lit and “‹ 功能” (返回功能) back to the index, focus returning to the card: ${opened.length} pages incl. 组件工作室 and /config/remote-access`,
     )
 
     // 6e. 1080 宽：栏宽随主区收窄（仍两列、居中、无横向滚动）；深色截图。高度取第 1 节同一档 680

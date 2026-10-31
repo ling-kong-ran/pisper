@@ -72,7 +72,13 @@ test('the settings directory lists only application settings; device and extensi
     items.map((item) => item.section),
     ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'],
   )
-  for (const item of items) assert.equal(typeof item.label, 'string')
+  // 目录用短名（规格 2.6）：页头与 ⌘K 的“模型配置 / 界面设置”等完整名不进目录。
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'].map(
+      (section) => `config:settingsShell.section.${section}`,
+    ),
+  )
   for (const mobileApp of [false, true]) {
     const keys = getMoreNavigation((key) => key, { mobileApp }).flatMap((group) =>
       group.tiles.map((tile) => tile.key),

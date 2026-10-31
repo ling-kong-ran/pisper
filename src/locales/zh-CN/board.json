@@ -31,6 +31,7 @@
   "status.stopped": "已停止",
   "filter.projects": "项目",
   "filter.projectsTitle": "项目：{projects}",
+  "filter.listSeparator": "、",
   "filter.statuses": "状态",
   "filter.statusTitle": "状态：{statuses}",
   "filter.noProject": "未设置目录",

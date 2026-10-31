@@ -3,7 +3,8 @@
 // 分组标题的 ⋯ 里是“添加项目 / 管理项目”）。代理只在主区列一次，侧栏不再重复列出会话行。
 // 筛选状态就是 /board 的 pisper-board-view（useBoardViewStore）：与主区、窄轨计数、页内“清除筛选”同一份，
 // 不新增偏好键。计数与主区同一份“出现在全部代理上的代理”（overview-model），按筛选前计。
-// 点一行只看这一项，再点一次回到全部；“全部”清掉状态筛选。按钮带 aria-pressed，↑ / ↓ 在筛选之间移动。
+// 点一行只看这一项，再点一次回到全部；“全部”清掉状态与项目两种筛选，也只在两者都没筛选时按下
+// （只筛了项目时“全部 7”若仍按下，读起来像主区在显示全部 7 个）。按钮带 aria-pressed，↑ / ↓ 在筛选之间移动。
 // 本模块随看板 store 懒加载（入口预算），和会话分组同一个块。
 import {
   lazy,
@@ -84,6 +85,7 @@ export function SidebarBoardFilters({
   const projectFilter = useBoardViewStore((state) => state.projects)
   const setLaneFilter = useBoardViewStore((state) => state.setLaneFilter)
   const setProjectFilter = useBoardViewStore((state) => state.setProjectFilter)
+  const clearFilters = useBoardViewStore((state) => state.clearFilters)
   const counts = useMemo(
     () => overviewFilterCounts(items, { now: minute, capabilities }),
     [capabilities, items, minute],
@@ -163,7 +165,7 @@ export function SidebarBoardFilters({
             <FilterButton
               id={BOARD_FILTER_ID}
               filter="all"
-              pressed={lanes.length === 0}
+              pressed={lanes.length === 0 && projectFilter.length === 0}
               label={t('board:sidebar.filter.all')}
               count={counts.total}
               icon={
@@ -173,7 +175,7 @@ export function SidebarBoardFilters({
                   aria-hidden="true"
                 />
               }
-              onClick={() => setLaneFilter([])}
+              onClick={clearFilters}
             />
           </li>
           {statusRows.map(({ lane, glyph }) => {

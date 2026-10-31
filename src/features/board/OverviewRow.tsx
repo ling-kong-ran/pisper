@@ -143,6 +143,12 @@ function OverviewRowComponent({
   else if (item.lane === 'queued') statusText = t('board:status.queued')
   else statusText = item.unread ? t('board:overview.doneUnread') : t('board:status.done')
 
+  // 审批详情已到时，第 1 行状态文字后跟工具名（“等你批准 · bash”），取代原来单独一行的“请求执行 bash”。
+  const toolName =
+    item.status === 'approval' && item.approvalsState === 'ready' && approval
+      ? approval.toolName || '—'
+      : ''
+
   // —— 右侧时间：需要你等待时长、运行中计时、今天完成的完成时刻 ——
   let time = ''
   let timeLabel = ''
@@ -189,32 +195,38 @@ function OverviewRowComponent({
       const reasonLine = !commandText && approval.reason && !guardReason ? approval.reason : ''
       const rest = item.approvals.length - 1
       const restCritical = item.approvals.slice(1).some((entry) => entry.severity === 'critical')
+      // 高风险说明作为命令的前缀（样稿“高风险 · git push --force…”），工具名并进第 1 行状态文字：
+      // 第 2 行直接就是命令，1–2 行命令的行高留在规格 3.3 的 52–96 之内。
+      const criticalLead = critical ? (
+        <span data-severity="critical" className="font-medium text-warning-strong">
+          {riskReason
+            ? t('board:card.criticalWithReason', { reason: riskReason })
+            : t('board:card.critical')}
+          <span aria-hidden="true"> · </span>
+        </span>
+      ) : null
       detail = (
         <div className="grid min-w-0 gap-0.5">
-          <p className="min-w-0 truncate text-xs leading-5 text-content-muted">
-            {critical && (
-              <span data-severity="critical" className="font-medium text-warning-strong">
-                {riskReason
-                  ? t('board:card.criticalWithReason', { reason: riskReason })
-                  : t('board:card.critical')}
-                <span aria-hidden="true"> · </span>
-              </span>
-            )}
-            {t('board:card.requests')}{' '}
-            <b className="font-mono font-medium text-content-secondary">
-              {approval.toolName || '—'}
-            </b>
-          </p>
           {commandText ? (
             <CommandWell
               text={commandText}
               prefix={isBash ? '$' : ''}
               variant="plain"
               tabIndex={tabIndex}
+              lead={criticalLead}
             />
           ) : argsText ? (
-            <CommandWell text={argsText} prefix="" variant="plain" args tabIndex={tabIndex} />
-          ) : null}
+            <CommandWell
+              text={argsText}
+              prefix=""
+              variant="plain"
+              args
+              tabIndex={tabIndex}
+              lead={criticalLead}
+            />
+          ) : (
+            criticalLead && <p className="min-w-0 truncate text-xs leading-5">{criticalLead}</p>
+          )}
           {reasonLine && (
             <p className="min-w-0 text-xs break-words text-content-secondary">{reasonLine}</p>
           )}
@@ -423,6 +435,14 @@ function OverviewRowComponent({
             )}
           >
             {statusText}
+            {toolName && (
+              <>
+                <span aria-hidden="true"> · </span>
+                <b data-row-tool className="font-mono font-medium">
+                  {toolName}
+                </b>
+              </>
+            )}
           </span>
           {project && (
             <span
@@ -446,25 +466,35 @@ function OverviewRowComponent({
       </div>
       <div className="flex min-h-[30px] items-center gap-2 self-start">
         {actions && <div className="flex items-center gap-1.5">{actions}</div>}
-        {time && (
-          <span
-            className={cn(
-              'min-w-[44px] text-right text-xs text-content-muted tabular-nums',
-              item.lane === 'running' && 'font-mono text-content-secondary',
-            )}
-          >
-            <span aria-hidden="true">{time}</span>
-            <span className="sr-only">{timeLabel}</span>
-          </span>
-        )}
-        <SessionRowMenu
-          row={{ id: item.id, title, pinned: item.pinned }}
-          actions={menu}
-          canMarkHandled={attention && item.status === 'failed'}
-          align="end"
-          tabIndex={tabIndex}
-          className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
-        />
+        {/* 时间贴着列表右缘；⋯ 不另占位，悬停 / 聚焦 / 菜单打开时浮在时间的位置上并盖住它
+            （触屏常显，回到文档流里排在时间右侧）。没有时间的行给 ⋯ 留出自己的宽度，不压到操作按钮上。 */}
+        <div
+          className={cn(
+            'relative flex min-h-[30px] items-center justify-end pointer-coarse:gap-2',
+            !time && 'min-w-[26px]',
+          )}
+        >
+          {time && (
+            <span
+              data-row-time
+              className={cn(
+                'min-w-[44px] text-right text-xs text-content-muted tabular-nums transition-opacity duration-(--d-fast) group-focus-within/row:opacity-0 group-hover/row:opacity-0 group-has-[[data-state=open]]/row:opacity-0 pointer-coarse:opacity-100',
+                item.lane === 'running' && 'font-mono text-content-secondary',
+              )}
+            >
+              <span aria-hidden="true">{time}</span>
+              <span className="sr-only">{timeLabel}</span>
+            </span>
+          )}
+          <SessionRowMenu
+            row={{ id: item.id, title, pinned: item.pinned }}
+            actions={menu}
+            canMarkHandled={attention && item.status === 'failed'}
+            align="end"
+            tabIndex={tabIndex}
+            className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:static pointer-coarse:translate-y-0 pointer-coarse:opacity-100"
+          />
+        </div>
       </div>
     </article>
   )

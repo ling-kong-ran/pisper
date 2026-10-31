@@ -14,7 +14,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual'
 import { ArrowRight, ChevronDown, ChevronRight, Folder, SquarePen, X } from 'lucide-react'
 import type { BoardLane } from '@shared/session-board-status.mjs'
 import { APP_NAME } from '@/app/brand'
@@ -33,6 +33,7 @@ import { useSidebarStore } from '@/stores/sidebar-store'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import type { BoardItem } from './board-model'
 import { useBoardViewStore } from './board-view-store'
+import { OVERVIEW_FOCUS_EVENT, type OverviewFocusDetail } from './overview-focus'
 import { useLaneLabels } from './lane-labels'
 import { useLaunchDefaultsStore } from './launch-defaults-store'
 import {
@@ -169,12 +170,21 @@ function OverviewPage({
   }, [doneCollapsed, model.sections])
   const rowCount = model.order.length
   const virtual = overviewShouldVirtualize(rowCount)
+  // 虚拟列表始终挂着当前行（roving tabindex 唯一 tabIndex=0 的那行）：滚轮把它滚出可视窗口时，
+  // Tab 仍能进入列表，聚焦中的行也不会被卸载、把焦点丢到 body 上。值在控制器算出 activeId 后同一次渲染里更新。
+  const activeIndexRef = useRef(-1)
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLElement>({
     count: virtual ? entries.length : 0,
     getScrollElement: () => scrollerRef.current,
     estimateSize: (index) => (entries[index]?.kind === 'row' ? 64 : 40),
     overscan: 8,
     getItemKey: (index) => entries[index]?.key ?? index,
+    rangeExtractor: (range: Range) => {
+      const indexes = defaultRangeExtractor(range)
+      const active = activeIndexRef.current
+      if (active < 0 || active >= range.count || indexes.includes(active)) return indexes
+      return [...indexes, active].sort((left, right) => left - right)
+    },
   })
   const reveal = useCallback(
     async (sessionId: string) => {
@@ -207,7 +217,44 @@ function OverviewPage({
     onOpenSession,
     onToggleGrouping: () => view.setGroupBy(view.groupBy === 'lane' ? 'project' : 'lane'),
   })
-  const menu = useSessionRowActions({ notify, requestText, onOpenSession })
+  activeIndexRef.current = virtual
+    ? entries.findIndex((entry) => entry.kind === 'row' && entry.key === controller.activeId)
+    : -1
+  // 行 ⋯ 的“打开会话”走控制器：与点行、↵ 一样记下滚动位置与来源行，回来时恢复。
+  const menu = useSessionRowActions({
+    notify,
+    requestText,
+    onOpenSession: controller.handlers.onOpen,
+  })
+
+  // ⌥A（侧栏命令）在这一页把焦点交给等待最久的那一行：经控制器 focusCard（虚拟列表里先滚到它），
+  // 只有它确实被当前筛选藏起来时才清筛选，等它回到列表再聚焦；不按 DOM 里有没有来判断。
+  const [pendingFocus, setPendingFocus] = useState('')
+  const focusCard = controller.focusCard
+  const orderRef = useRef(model.order)
+  orderRef.current = model.order
+  const attentionAllRef = useRef(model.attentionAll)
+  attentionAllRef.current = model.attentionAll
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const sessionId = (event as CustomEvent<OverviewFocusDetail>).detail?.sessionId
+      if (!sessionId) return
+      if (orderRef.current.some((item) => item.id === sessionId)) {
+        void focusCard(sessionId)
+        return
+      }
+      if (!attentionAllRef.current.some((item) => item.id === sessionId)) return
+      setPendingFocus(sessionId)
+      useBoardViewStore.getState().clearFilters()
+    }
+    window.addEventListener(OVERVIEW_FOCUS_EVENT, listener)
+    return () => window.removeEventListener(OVERVIEW_FOCUS_EVENT, listener)
+  }, [focusCard])
+  useEffect(() => {
+    if (!pendingFocus || !model.order.some((item) => item.id === pendingFocus)) return
+    setPendingFocus('')
+    void focusCard(pendingFocus)
+  }, [focusCard, model.order, pendingFocus])
   const announcement = useBoardAnnouncer({
     items: board.all,
     laneName: laneLabels.name,
@@ -231,7 +278,15 @@ function OverviewPage({
   const [manageMounted, setManageMounted] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const moveWorkspace = useWorkspaceOrderStore((state) => state.moveWorkspace)
-  const projectKeys = useMemo(() => projects.map((project) => project.key), [projects])
+  // 上移 / 下移只在主区画出来的项目分区之间换位：登记了但今天没有代理、或被当前筛选清空的项目
+  // 不出现在列表里，和它换位看不出任何变化；第一个 / 最后一个也按看得见的分区算。
+  const projectKeys = useMemo(
+    () =>
+      model.sections.flatMap((section) =>
+        section.kind === 'project' && projectByKey.has(section.key) ? [section.key] : [],
+      ),
+    [model.sections, projectByKey],
+  )
   const projectActions = useMemo<ProjectSectionActions>(
     () => ({
       onNewTask: (project: LabeledProject) => {
@@ -274,6 +329,7 @@ function OverviewPage({
           lane={entry.section.id}
           count={entry.section.items.length}
           collapsed={entry.section.id === 'done' && doneCollapsed}
+          dimmed={Boolean(triage) && entry.section.id !== 'attention'}
           onToggle={
             entry.section.id === 'done'
               ? () => view.setLaneCollapsed('done', !doneCollapsed)
@@ -293,7 +349,12 @@ function OverviewPage({
       )
     if (entry.kind === 'empty')
       return (
-        <p className="py-2 pr-3 pl-[40px] text-xs leading-5 text-content-muted">
+        <p
+          className={cn(
+            'py-2 pr-3 pl-[40px] text-xs leading-5 text-content-muted',
+            triage && entry.lane !== 'attention' && 'opacity-50',
+          )}
+        >
           {entry.lane === 'attention'
             ? t('board:sidebar.emptyAttention')
             : t('board:sidebar.emptyRunning')}
@@ -492,7 +553,7 @@ function OverviewPage({
             )}
             {content}
             {ready && model.total > 0 && !model.filteredEmpty && (
-              <div className="mt-3 pl-1">
+              <div className={cn('mt-3 pl-1', triage && 'opacity-50')}>
                 <HistoryLink onClick={onOpenHistory} />
               </div>
             )}
@@ -628,11 +689,15 @@ function FilterLine({
   onClear: () => void
 }) {
   const { t } = useI18n()
+  // 列表分隔符随语言（中文“、”，英文“, ”）：手机看板存下的旧多选筛选在这里仍可能是多项。
+  const separator = t('board:filter.listSeparator')
   const parts = [
     lanes.length
-      ? t('board:filter.statusTitle', { statuses: lanes.map((lane) => laneName[lane]).join('、') })
+      ? t('board:filter.statusTitle', {
+          statuses: lanes.map((lane) => laneName[lane]).join(separator),
+        })
       : '',
-    projects.length ? t('board:filter.projectsTitle', { projects: projects.join('、') }) : '',
+    projects.length ? t('board:filter.projectsTitle', { projects: projects.join(separator) }) : '',
   ].filter(Boolean)
   return (
     <div
@@ -653,12 +718,15 @@ function StatusHeading({
   lane,
   count,
   collapsed,
+  dimmed,
   onToggle,
 }: {
   spaced: boolean
   lane: BoardLane
   count: number
   collapsed: boolean
+  // 逐个处理时需要你以外的分组整体退后到 50%（规格 3.3），标题与行一起淡化。
+  dimmed: boolean
   onToggle?: () => void
 }) {
   const { t } = useI18n()
@@ -699,7 +767,15 @@ function StatusHeading({
     amber ? 'text-warning-strong' : 'text-content-secondary',
   )
   return (
-    <h2 id={id} data-overview-heading={lane} className={cn('m-0', spaced && 'mt-5')}>
+    <h2
+      id={id}
+      data-overview-heading={lane}
+      className={cn(
+        'm-0 transition-opacity duration-(--d-fast)',
+        spaced && 'mt-5',
+        dimmed && 'opacity-50',
+      )}
+    >
       {onToggle ? (
         <button
           type="button"

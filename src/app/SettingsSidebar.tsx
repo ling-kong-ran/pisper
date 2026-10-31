@@ -10,7 +10,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { getSettingsNavigation } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { Kbd } from '@/components/ui/kbd'
-import { useEscapeLeave } from '@/hooks/use-escape-leave'
+import { useEscapeLeave } from '@/hooks/useEscapeLeave'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
