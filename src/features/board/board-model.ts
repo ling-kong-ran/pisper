@@ -13,6 +13,7 @@ import {
   type BoardStatus,
 } from '@shared/session-board-status.mjs'
 import { sessionWorkspaceKey } from '@/features/chat/session-workspaces'
+import { parsePendingQuestion, type PendingQuestion } from '@/features/chat/session-questions'
 import type { SessionSummary } from '@/types/chat'
 import {
   truncateCodePoints,
@@ -62,6 +63,10 @@ export type BoardItem = {
   contextPct: number | null
   // 子代理汇总（排队、启动与运行中 / 总数）。
   agents: { running: number; total: number } | null
+  // 代理的提问（ask_user，A5）：会话摘要里最早的一组待回答问题；只在状态是“等你回答”时有值。
+  question: PendingQuestion | null
+  // 这组提问里的问题数（侧栏原因“等你回答 · N 个问题”）。
+  questionCount: number | null
 }
 
 export type BoardBuildOptions = {
@@ -217,6 +222,10 @@ export function buildBoardItems(
             : 'loading'
     const running = derived.lane === 'running'
     const failed = derived.status === 'failed'
+    const question =
+      derived.status === 'question'
+        ? parsePendingQuestion((session as Record<string, unknown>).question)
+        : null
     items.push({
       id: session.id,
       session,
@@ -243,6 +252,8 @@ export function buildBoardItems(
       changeStats: card?.changeStats ?? null,
       contextPct: card?.contextPct ?? null,
       agents: card?.agents ?? null,
+      question,
+      questionCount: question ? question.questions.length : null,
     })
   }
   return items.sort(compareBoardItems)

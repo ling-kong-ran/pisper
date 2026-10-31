@@ -1179,6 +1179,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     page === 'session' ? sessionIdFromPath(location.pathname) : null
                   }
                   onOpenSession={openSidebarSession}
+                  onWaiting={({ title, reason }) =>
+                    browserNotify('chat.waiting', { chat: { title, tool: reason, reason } })
+                  }
                 />
               </Suspense>
             }

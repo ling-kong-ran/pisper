@@ -2,6 +2,7 @@
 // 乐观更新、失败回滚与缓存失效都在 board-actions 中完成；这里只暴露进行中状态供按钮禁用。
 import { useMemo } from 'react'
 import {
+  answerBoardQuestion,
   approveBoardApproval,
   archiveBoardSession,
   denyBoardApproval,
@@ -26,6 +27,7 @@ export function useBoardActions() {
       pin: pinBoardSession,
       archive: archiveBoardSession,
       rename: renameBoardSession,
+      answer: answerBoardQuestion,
       pending,
       isPending: (kind: BoardActionKind, sessionId: string, approvalId = '') =>
         Boolean(pending[boardActionKey(kind, sessionId, approvalId)]),

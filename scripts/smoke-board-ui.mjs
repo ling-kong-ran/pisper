@@ -30,6 +30,9 @@ import {
   desktopBridgeScript,
   installBoardFixture,
   plainDesktopBridgeScript,
+  QUESTION_ID,
+  QUESTION_SESSION_ID,
+  questionFixtureSession,
   writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
 
@@ -524,7 +527,8 @@ try {
     await triageBar.waitFor()
     assert.match(await triageBar.innerText(), /逐个处理 1\/3/)
     assert.match(await triageBar.innerText(), /允许[\s\S]*拒绝[\s\S]*重试[\s\S]*打开[\s\S]*退出/)
-    assert.doesNotMatch(await triageBar.innerText(), /回答/, 'no answer hint without askUser')
+    // A5 起 Runtime 声明 askUser：提示条带“1–4 回答”（没有这个能力的旧 Runtime 不写，见 overview 单测）。
+    assert.match(await triageBar.innerText(), /1–4[\s\S]*回答/, 'the answer hint follows askUser')
     // 透明度有一次 --d-fast 的过渡：等它走完再读。
     const opacityOf = (id, value) =>
       page.waitForFunction(
@@ -1016,6 +1020,76 @@ try {
   }
   report.checks.push(
     'Phone app 390x844 (light/dark): 56px top bar with ☰ + amber needs-you count that stays on other pages, 44px touch targets, 需要你 rendered as cards, no tab bar, no desktop title bar, no horizontal scroll',
+  )
+
+  // 4b. 代理的提问（ask_user，规格 v2 第 8.4、3.3 节，能力 askUser）：侧栏行写“等你回答”、只能“打开”；
+  // 全部代理行写问题正文，一题单选、选项 ≤4 时选项是胶囊，点一下只发一次回答、行离开“需要你”；手机卡片同样点选（44px）。
+  for (const phone of [false, true]) {
+    const { context, fixture } = await newContext(
+      phone
+        ? {
+            viewport: { width: 390, height: 844 },
+            isMobile: true,
+            hasTouch: true,
+            colorScheme: 'light',
+          }
+        : { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { mobileApp: phone, sessions: [...boardFixture().sessions, questionFixtureSession()] },
+    )
+    const page = await openBoard(context, phone ? 'question phone' : 'question desktop')
+    const row = page.locator(`[data-board-card="${QUESTION_SESSION_ID}"]`)
+    await row.waitFor({ timeout: 30000 })
+    assert.equal(await row.getAttribute('data-status'), 'question')
+    assert.match(await row.locator('[data-row-question]').innerText(), /会话存储用哪种？/)
+    const pills = row.locator('[data-question-pill]')
+    assert.deepEqual(
+      await pills.evaluateAll((nodes) => nodes.map((node) => node.dataset.questionPill)),
+      ['SQLite', 'Postgres'],
+    )
+    if (phone) {
+      assert.equal(await row.getAttribute('data-overview-card'), 'true')
+      for (const box of await pills.evaluateAll((nodes) =>
+        nodes.map((node) => node.getBoundingClientRect().height),
+      ))
+        assert.ok(box >= 44, `phone question pill ${box}`)
+    } else {
+      // 侧栏（全部代理页的侧栏是筛选，换到功能页看会话分组）：等你回答，快捷处理只有“打开”。
+      await page.goto(base + '/#/more')
+      const sidebarRow = page.locator(`[data-sidebar-row="${QUESTION_SESSION_ID}"]`)
+      await sidebarRow.waitFor()
+      assert.match(await sidebarRow.getAttribute('aria-label'), /等你回答/)
+      assert.match(
+        await page
+          .locator(`[data-sidebar-item="${QUESTION_SESSION_ID}"] [data-sidebar-quick] button`)
+          .first()
+          .evaluate((node) => node.textContent),
+        /^打开/,
+      )
+      await page.goto(base + '/#/board')
+      await pills.first().waitFor()
+    }
+    await pills.first().click()
+    for (let i = 0; i < 30 && fixture.posts.length < 1; i += 1) await page.waitForTimeout(100)
+    await page.waitForTimeout(500)
+    assert.deepEqual(
+      fixture.posts.map((post) => [post.path, post.body]),
+      [
+        [
+          `/api/sessions/${QUESTION_SESSION_ID}/questions/${QUESTION_ID}`,
+          { answers: [{ selected: ['SQLite'] }] },
+        ],
+      ],
+    )
+    await page.waitForFunction(
+      (id) => document.querySelector(`[data-board-card="${id}"]`)?.dataset.lane !== 'attention',
+      QUESTION_SESSION_ID,
+      { timeout: 10000 },
+    )
+    await page.screenshot({ path: join(output, `question-${phone ? 'phone' : 'desktop'}.png`) })
+    await context.close()
+  }
+  report.checks.push(
+    'Agent questions (askUser): the sidebar row reads 等你回答 and only offers 打开; the 全部代理 row shows the question and, for one single-select question, option pills (44px on the phone card) where one click sends exactly one answer {selected:[label]} and the row leaves 需要你',
   )
 
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。

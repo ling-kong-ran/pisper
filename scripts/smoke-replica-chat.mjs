@@ -381,6 +381,78 @@ try {
   await card.locator('[data-approval-primary]').click()
   await page.waitForFunction(() => window.replicaChat.evidence.approvals.length === 2)
   await card.waitFor({ state: 'detached' })
+
+  // 代理的提问（规格 v2 第 8.4 节）：问题卡在输入框上方、与输入框同宽；多题时逐个点选，全部有答案才能提交，
+  // 数字键选当前问题的选项；“其他…”可写文字；回答后下一组顶上来，一题单选点一下即提交；跳过发 {skip:true}。
+  await page.goto(
+    `http://127.0.0.1:${server.httpServer.address().port}/__chat?layout=page&questions=1`,
+  )
+  await input.waitFor({ timeout: 45000 })
+  const questionCard = page.locator('[data-question-card="q_fixture-multi-0001"]')
+  await questionCard.waitFor()
+  const questionBox = await questionCard.boundingBox()
+  const composerWidth = (await page.locator('.focus-composer').boundingBox()).width
+  assert.ok(
+    Math.abs(questionBox.width - composerWidth) < 1,
+    'the question card matches the composer',
+  )
+  const submit = questionCard.locator('[data-question-submit]')
+  assert.equal(await submit.isDisabled(), true, 'submit waits until every question has an answer')
+  // 焦点在卡片里：数字 2 选第一题（单选）的第 2 项，焦点留在卡片里。
+  await questionCard.locator('[data-question-option="SQLite"]').focus()
+  await page.keyboard.press('Digit2')
+  assert.equal(
+    await questionCard.locator('[data-question-option="Postgres"]').getAttribute('aria-checked'),
+    'true',
+  )
+  assert.equal(await submit.isDisabled(), true)
+  // 第二题多选：点两项，再写一段“其他”。
+  await questionCard.locator('[data-question-option="单测"]').click()
+  await questionCard.locator('[data-question-option="契约"]').click()
+  await questionCard.locator('[data-question-other="1"]').click()
+  await questionCard.getByRole('textbox').fill('再加一条回归')
+  assert.equal(await submit.isDisabled(), false)
+  await submit.click()
+  await page.waitForFunction(() => window.replicaChat.evidence.answers.length === 1)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.answers), [
+    [
+      'q_fixture-multi-0001',
+      {
+        answers: [
+          { selected: ['Postgres'] },
+          { selected: ['单测', '契约'], other: '再加一条回归' },
+        ],
+      },
+    ],
+  ])
+  // 下一组（一题单选）：点一下即提交，没有“提交”键。
+  const single = page.locator('[data-question-card="q_fixture-single-001"]')
+  await single.waitFor()
+  assert.equal(await single.locator('[data-question-submit]').count(), 0)
+  await page.screenshot({ path: join(output, 'question-card.png') })
+  await single.locator('[data-question-option="release"]').click()
+  await page.waitForFunction(() => window.replicaChat.evidence.answers.length === 2)
+  assert.deepEqual((await page.evaluate(() => window.replicaChat.evidence.answers))[1], [
+    'q_fixture-single-001',
+    { answers: [{ selected: ['release'] }] },
+  ])
+  await single.waitFor({ state: 'detached' })
+  // 跳过：重新载入，第一组直接跳过。
+  await page.reload()
+  await questionCard.waitFor()
+  await questionCard.locator('[data-question-skip]').click()
+  await page.waitForFunction(() => window.replicaChat.evidence.answers.length === 1)
+  assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.answers), [
+    ['q_fixture-multi-0001', { skip: true }],
+  ])
+  // 审批与提问同时在等：审批卡先处理，提问只留一行。
+  await page.goto(
+    `http://127.0.0.1:${server.httpServer.address().port}/__chat?layout=page&approvals=1&questions=1`,
+  )
+  await page.locator('[data-approval-current]').waitFor()
+  await page.locator('[data-question-more]').waitFor()
+  assert.equal(await page.locator('[data-question-card]').count(), 0)
+
   assert.deepEqual(errors, [])
   await writeFile(
     join(output, 'metrics.json'),

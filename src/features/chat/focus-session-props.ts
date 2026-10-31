@@ -78,6 +78,12 @@ export type FocusSessionProps = {
   onCompact?: () => Promise<void> | void
   onCompactionThresholdChange?: (thresholdPercent: number) => Promise<void> | void
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
+  // 代理的提问（ask_user，A5）：Runtime 的待回答问题原样传入，由问题卡解析。
+  questions?: EntityRecord[]
+  onAnswerQuestion?: (
+    questionId: string,
+    body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
+  ) => Promise<void>
   onWorkspace: () => void
   onRename: () => void
   onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void

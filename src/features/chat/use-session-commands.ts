@@ -495,6 +495,30 @@ export function useSessionCommands({
     [notify, syncLiveSession, t, updateSessionState],
   )
 
+  // 回答代理的提问（ask_user）：POST 成功后移除本地问题；问题已在别处回答（409）或不存在（404）时
+  // 用服务端快照接管，再抛给问题卡提示，答案留在卡片里。
+  const answerQuestion = useCallback(
+    async (
+      sessionId: string,
+      questionId: string,
+      body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
+    ) => {
+      try {
+        await chatApi.answerQuestion(sessionId, questionId, body)
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          questions: (current.questions || []).filter(
+            (item) => (item.id ?? item.questionId) !== questionId,
+          ),
+        }))
+      } catch (error) {
+        await syncLiveSession(sessionId, { force: true })
+        throw error
+      }
+    },
+    [syncLiveSession, updateSessionState],
+  )
+
   // 切换会话工作目录（流式中忽略），成功后同步摘要。
   const switchSessionCwd = useCallback(
     async (session: SessionSummary, cwd: string) => {
@@ -587,5 +611,6 @@ export function useSessionCommands({
     switchSessionExecutionMode,
     switchSessionRunMode,
     resolveToolApproval,
+    answerQuestion,
   }
 }

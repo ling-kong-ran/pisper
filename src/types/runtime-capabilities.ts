@@ -29,6 +29,9 @@ export type RuntimeFeature =
   | 'desktopPet'
   | 'board.view'
   | 'board.events'
+  | 'askUser'
+  | 'sessionQueue'
+  | 'sessionExport'
 
 export type RuntimeCapabilities = {
   version: number
@@ -77,6 +80,10 @@ const fullFeatures = {
   // 第 2 期才有的看板接口：没有能力接口的旧 Runtime 一定不支持，按降级矩阵退回轮询 /api/sessions。
   'board.view': false,
   'board.events': false,
+  // 方向 A 的新能力（规格 8.4、A9）：旧 Runtime 没有声明时前端永不出现“等你回答”、排队与导出。
+  askUser: false,
+  sessionQueue: false,
+  sessionExport: false,
 } satisfies Record<RuntimeFeature, boolean>
 
 // 老版本 Runtime 没有能力接口；保持原有全功能导航，避免升级前的远程桌面被误裁剪。

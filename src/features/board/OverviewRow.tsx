@@ -28,6 +28,7 @@ import {
   visibleChangeStats,
 } from './card-presentation'
 import { CardChangeStats, ChangeStats } from './ChangeStats'
+import { inlineQuestionOptions } from '@/features/chat/session-questions'
 import { CommandWell } from './CommandWell'
 import { SessionRowMenu } from './SessionRowMenu'
 import { sidebarQuickAction, sidebarReasons } from './sidebar-model'
@@ -282,8 +283,69 @@ function OverviewRowComponent({
       )
     } else actions = openButton
   } else if (item.status === 'question') {
-    // 问题正文与选项胶囊在 A5（askUser）接入；在那之前只能进会话回答。
-    actions = openButton
+    // 代理的提问（规格 3.3、8.4）：第 2 行是问题正文（多题时写题数）；只有一题、单选、选项 ≤4 时，
+    // 选项是胶囊按钮，点一下即提交（自动换行，“其他…”进会话写文字）；其余“打开处理”。
+    const question = item.question
+    const inline = inlineQuestionOptions(question)
+    const answering = question ? handlers.isPending('answer', item.id, question.id) : false
+    const first = question?.questions[0]
+    detail = question ? (
+      <div className="grid min-w-0 gap-1.5">
+        <p data-row-question className="min-w-0 text-[13px] leading-5 break-words text-content">
+          {first?.header && <span className="text-content-muted">{first.header} · </span>}
+          {first?.question}
+          {question.questions.length > 1 && (
+            <span className="text-content-muted">
+              {' '}
+              · {t('board:sidebar.reason.questions', { count: question.questions.length })}
+            </span>
+          )}
+        </p>
+        {inline && (
+          <div
+            data-question-pills
+            role="group"
+            aria-label={first?.question}
+            className="flex min-w-0 flex-wrap gap-1.5"
+          >
+            {inline.map((label, index) => (
+              <Button
+                key={label}
+                variant="outline"
+                size="sm"
+                tabIndex={tabIndex}
+                disabled={answering}
+                data-question-pill={label}
+                aria-label={t('board:question.answerNamed', { title, option: label })}
+                aria-keyshortcuts={String(index + 1)}
+                className={cn('h-auto min-h-7 max-w-full whitespace-normal', card && 'min-h-11')}
+                onClick={() => handlers.onAnswer(item, label)}
+              >
+                {!card && (
+                  <span
+                    aria-hidden="true"
+                    className="font-mono text-[11px] opacity-60 pointer-coarse:hidden"
+                  >
+                    {index + 1}
+                  </span>
+                )}
+                <span className="break-words text-left">{label}</span>
+              </Button>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              tabIndex={tabIndex}
+              className={cn('h-auto min-h-7', card && 'min-h-11')}
+              onClick={open}
+            >
+              {t('board:question.other')}
+            </Button>
+          </div>
+        )}
+      </div>
+    ) : null
+    actions = inline ? null : openButton
   } else if (item.status === 'failed' && attention) {
     const summary =
       firstLine(item.error) || [...item.tail].reverse().find(tailLineFailed)?.trim() || ''

@@ -63,6 +63,11 @@ export type ChatDockContextValue = {
   switchSessionExecutionMode: (sessionId: string, mode: string) => Promise<boolean>
   switchSessionRunMode: (sessionId: string, mode: string) => Promise<boolean>
   resolveToolApproval: (sessionId: string, approvalId: string, approved: boolean) => Promise<void>
+  answerQuestion: (
+    sessionId: string,
+    questionId: string,
+    body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
+  ) => Promise<void>
   selectSessionWorkspace: (session: SessionSummary) => Promise<void>
   renameSession: (session: SessionSummary) => Promise<void>
   branchFromEntry: (session: SessionSummary, boundaryEntryId: string) => Promise<void>

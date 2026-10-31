@@ -515,6 +515,17 @@ export const chatApi = {
       },
     ),
 
+  // 回答代理的提问（ask_user，能力 askUser）：{ answers: [{ selected, other? }] } 或 { skip: true }。
+  answerQuestion: (
+    sessionId: string,
+    questionId: string,
+    body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
+  ) =>
+    requestJson<ApiRecord>(
+      `${sessionPath(sessionId)}/questions/${encodeURIComponent(questionId)}`,
+      { method: 'POST', data: body },
+    ),
+
   updateCwd: (sessionId: string, cwd: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/cwd`, {
       method: 'PUT',

@@ -297,6 +297,49 @@ const sessionIdFrom = (request) =>
 // 在浏览器上下文安装拦截。状态是可变的：批准后会话进入运行中，拒绝后进入已完成，
 // 重试后失败卡片进入运行中，这样冒烟能看到真实的换泳道结果，而不只是请求发出。
 // 所有写请求记录在 posts 里，供冒烟断言请求路径与请求体。
+// 代理的提问（ask_user，A5）：一个等你回答的会话，一题单选、两个选项，可以在全部代理行内点选。
+// 不在默认会话里（其余冒烟的“3 个需要你”计数不变），需要的冒烟自己加进 sessions。
+export const QUESTION_SESSION_ID = 'fx-question'
+export const QUESTION_ID = 'q_fixture-question-1'
+export function questionFixtureSession(now = Date.now()) {
+  const createdAt = new Date(now - 45_000).toISOString()
+  return {
+    id: QUESTION_SESSION_ID,
+    name: '选择会话存储',
+    firstMessage: '选择会话存储',
+    messageCount: 3,
+    cwd: '/home/dev/pisper',
+    model: 'openai/gpt-5.6-luna',
+    created: new Date(now - 600_000).toISOString(),
+    modified: createdAt,
+    streaming: false,
+    needsAttention: true,
+    attentionReason: 'question',
+    unread: true,
+    question: {
+      id: QUESTION_ID,
+      prompt: '会话存储用哪种？',
+      header: '存储',
+      options: ['SQLite', 'Postgres'],
+      multiSelect: false,
+      allowFreeText: true,
+      count: 1,
+      createdAt,
+      questions: [
+        {
+          header: '存储',
+          question: '会话存储用哪种？',
+          options: [
+            { label: 'SQLite', description: '单机、零配置' },
+            { label: 'Postgres', description: '已有连接池' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    },
+  }
+}
+
 export async function installBoardFixture(
   context,
   { now = Date.now(), sessions, protocol = 'board' } = {},
@@ -429,6 +472,18 @@ export async function installBoardFixture(
         : { ...settled, streaming: false, lastCompletedAt: new Date().toISOString() },
     )
     await route.fulfill({ json: { ok: true } })
+  })
+  // 回答提问：记下请求，会话离开“需要你”、回到运行中（与 Runtime 一致：回答后代理继续）。
+  await context.route(/\/api\/sessions\/[^/]+\/questions\/[^/]+$/, async (route) => {
+    const request = route.request()
+    const id = sessionIdFrom(request)
+    state.posts.push({
+      method: request.method(),
+      path: new URL(request.url()).pathname,
+      body: JSON.parse(request.postData() || '{}'),
+    })
+    update(id, { needsAttention: false, attentionReason: null, question: null, streaming: true })
+    await route.fulfill({ json: { ok: true, outcome: 'answered' } })
   })
   await context.route(/\/api\/sessions\/[^/]+\/retry$/, async (route) => {
     const request = route.request()

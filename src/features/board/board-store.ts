@@ -101,7 +101,7 @@ export type BoardSessionPatch = Partial<
 >
 
 export type BoardActionKind =
-  'approve' | 'deny' | 'retry' | 'markHandled' | 'pin' | 'archive' | 'rename'
+  'approve' | 'deny' | 'retry' | 'markHandled' | 'pin' | 'archive' | 'rename' | 'answer'
 
 export type BoardOverlayState = {
   // 第 2 期 Runtime 的看板条目与 card；旧 Runtime（legacy）时为空且 ready 为 false。

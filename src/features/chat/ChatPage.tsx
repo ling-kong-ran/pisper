@@ -421,6 +421,7 @@ export function ChatPage({
       switchSessionExecutionMode: sessionCommands.switchSessionExecutionMode,
       switchSessionRunMode: sessionCommands.switchSessionRunMode,
       resolveToolApproval: sessionCommands.resolveToolApproval,
+      answerQuestion: sessionCommands.answerQuestion,
       selectSessionWorkspace: sessionCommands.selectSessionWorkspace,
       renameSession: sessionCommands.renameSession,
       branchFromEntry,

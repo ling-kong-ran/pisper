@@ -58,6 +58,8 @@ import { TaskWorkspaceHeader } from './TaskWorkspaceHeader'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
+import { QuestionCard } from './QuestionCard'
+import { parsePendingQuestions } from './session-questions'
 import { openVisualPromptEntry } from './visual-prompt-entry'
 import { VoiceInputControl } from './VoiceInputControl'
 import { VoiceModeOverlay } from './VoiceModeOverlay'
@@ -149,6 +151,7 @@ export const FocusSession = memo(function FocusSession({
   runStopped,
   runNotice,
   approvals,
+  questions,
   error,
   pendingAsset,
   contextOpen,
@@ -169,6 +172,7 @@ export const FocusSession = memo(function FocusSession({
   onGoalPause,
   onGoalBudgetChange,
   onApproval,
+  onAnswerQuestion,
   onWorkspace,
   onRename,
   onBranchFromHere,
@@ -607,6 +611,7 @@ export const FocusSession = memo(function FocusSession({
       </DropdownMenuItem>
     )
   // 两种会话页头共用的数据与操作（菜单项都复用现有实现）。
+  const pendingQuestions = useMemo(() => parsePendingQuestions(questions), [questions])
   const sessionMenuProps = {
     session,
     cwd: cwd || '',
@@ -852,6 +857,16 @@ export const FocusSession = memo(function FocusSession({
         sessionTitle={session.name || session.id}
         cwd={cwd || ''}
       />
+      {pendingQuestions[0] && onAnswerQuestion && (
+        // 代理的提问（规格 8.4）：与审批卡同一位置；审批在前时只留一行提示（一屏只突出一张）。
+        <QuestionCard
+          key={pendingQuestions[0].id}
+          question={pendingQuestions[0]}
+          more={pendingQuestions.length - 1}
+          collapsed={approvals.length > 0}
+          onAnswer={onAnswerQuestion}
+        />
+      )}
       {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
       {invocation && (
         <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />

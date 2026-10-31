@@ -114,6 +114,9 @@ export type SidebarCommandsProps = {
   // 用来在“从全部代理、设置、功能等页面回到原会话”时把焦点还给原来的会话行（规格 2.3）。
   renderedSessionId: string | null
   onOpenSession: (sessionId: string) => void
+  // 新进入“需要你”的批准与提问：应用壳据此发“等待用户确认”（chat.waiting）系统通知（规格 8.4：与审批相同的通知）。
+  // 失败不在这里通知（运行结束已有完成 / 失败的通知）。
+  onWaiting?: (waiting: { title: string; reason: string }) => void
 }
 
 // 无界面的命令处理：⌘J / ⌥A / ⌥↑⌥↓ 由外壳的快捷键层转成事件交到这里。展开与收起时都挂着，
@@ -123,6 +126,7 @@ export function SidebarCommands({
   resolveCurrentId,
   renderedSessionId,
   onOpenSession,
+  onWaiting,
 }: SidebarCommandsProps) {
   const { t } = useI18n()
   const { model, isLoading } = useSidebarModel()
@@ -233,6 +237,8 @@ export function SidebarCommands({
   }, [renderedSessionId])
 
   // 新进入“需要你”的行经 polite 读屏播报（“修复 CI 失败 需要你：等你批准”）；首次载入的既有事项不播。
+  const onWaitingRef = useRef(onWaiting)
+  onWaitingRef.current = onWaiting
   const seenRef = useRef<Set<string> | null>(null)
   const [announcement, setAnnouncement] = useState('')
   useEffect(() => {
@@ -244,6 +250,9 @@ export function SidebarCommands({
     if (!previous) return
     const added = rows.filter((row) => !previous.has(row.id))
     if (!added.length) return
+    for (const row of added)
+      if (row.reasons.some((reason) => reason.kind === 'approval' || reason.kind === 'question'))
+        onWaitingRef.current?.({ title: row.title, reason: reasonText(t, row.reasons) })
     setAnnouncement(
       added
         .map((row) =>

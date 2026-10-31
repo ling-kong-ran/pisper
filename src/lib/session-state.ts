@@ -11,6 +11,7 @@ export const DEFAULT_SESSION_STATE: SessionState = Object.freeze({
   messages: [],
   tools: [],
   approvals: [],
+  questions: [],
   agents: [],
   team: null,
   currentActivity: null,

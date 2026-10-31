@@ -364,5 +364,17 @@
   "overview.projectAttention_one": "{count} needs you",
   "overview.projectRunning": "{count} running",
   "overview.projectQueued": "{count} queued",
-  "overview.projectDone": "{count} done today"
+  "overview.projectDone": "{count} done today",
+  "question.title": "The agent is asking you",
+  "question.label": "Agent question",
+  "question.waiting": "{count} more questions are waiting for you",
+  "question.moreAfter": "{count} more after this",
+  "question.failed": "Couldn't send the answer. Try again (it may have been answered elsewhere).",
+  "question.other": "Other…",
+  "question.otherLabel": "Other answer: {question}",
+  "question.otherPlaceholder": "Write your answer",
+  "question.skip": "Skip",
+  "question.submit": "Submit",
+  "question.answerNamed": "Answer “{title}”: {option}",
+  "question.open": "Open to answer"
 }

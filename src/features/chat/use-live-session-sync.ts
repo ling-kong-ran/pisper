@@ -197,6 +197,8 @@ export function reconcileLiveSnapshot(
     sessionUsage: data.sessionUsage ?? current.sessionUsage ?? null,
     compaction: data.compaction ?? current.compaction ?? null,
     approvals: data.approvals || [],
+    // 旧 Runtime 的 /live 没有 questions：沿用事件流已经收到的，不清空。
+    questions: Array.isArray(data.questions) ? data.questions : current.questions || [],
     agents: data.agents || [],
     currentActivity: data.streaming
       ? data.currentActivity || current.currentActivity || null

@@ -134,6 +134,12 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       onCompact: () => context?.compactSession(sessionId),
       onApproval: (approvalId: string, approved: boolean) =>
         context?.resolveToolApproval(sessionId, approvalId, approved),
+      onAnswerQuestion: async (
+        questionId: string,
+        body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
+      ) => {
+        await context?.answerQuestion(sessionId, questionId, body)
+      },
       onWorkspace: () => {
         if (session) void context?.selectSessionWorkspace(session)
       },
@@ -256,6 +262,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       runStopped={state.runStopped}
       runNotice={state.runNotice}
       approvals={state.approvals || EMPTY_LIST}
+      questions={state.questions || EMPTY_LIST}
       error={state.error || (context.activeId === sessionId ? context.globalError : '')}
       pendingAsset={pending}
       onAssetConsumed={context.onAssetConsumed}

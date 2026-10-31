@@ -1,5 +1,6 @@
 // 看板内联动作：乐观补丁只叠加在看板视图上，失败时撤掉补丁并恢复审批详情，
 // 结束后统一刷新权威缓存。动作从不抛出，结果对象交给界面决定如何提示。
+import { chatApi } from '@/features/chat/chat-api'
 import { announceSessionsUpdated, type SessionOrganizationUpdate } from '@/features/chat/events'
 import { queryClient } from '@/lib/startup-queries'
 import { boardApi } from './board-api'
@@ -108,6 +109,39 @@ export function approveBoardApproval(
 
 export function denyBoardApproval(sessionId: string, approvalId: string) {
   return resolveApproval(sessionId, approvalId, false, {})
+}
+
+// 行内回答代理的提问（规格 3.3：只有一题单选、选项 ≤4 时）：一次点选只发一次请求；成功后卡片先回到“运行中”，
+// 等权威快照不再带这组提问；失败（含已在别处回答的 409）撤掉补丁，交给界面提示。
+export async function answerBoardQuestion(
+  sessionId: string,
+  questionId: string,
+  label: string,
+): Promise<BoardActionResult> {
+  const key = boardActionKey('answer', sessionId, questionId)
+  if (!beginBoardAction(key, 'answer')) return pendingResult()
+  const token = applyBoardPatch(sessionId, {
+    needsAttention: false,
+    attentionReason: null,
+    streaming: true,
+  })
+  try {
+    await chatApi.answerQuestion(sessionId, questionId, { answers: [{ selected: [label] }] })
+  } catch (error) {
+    clearBoardPatch(sessionId, token)
+    endBoardAction(key)
+    refreshInBackground()
+    return { ok: false, reason: 'failed', error }
+  }
+  try {
+    await confirmBoardSession(sessionId, undefined, { fresh: true })
+  } catch {
+    // 动作已成功；刷新失败时下一轮轮询会补齐。
+  } finally {
+    clearBoardPatch(sessionId, token)
+    endBoardAction(key)
+  }
+  return { ok: true }
 }
 
 export async function retryBoardSession(sessionId: string): Promise<BoardActionResult> {

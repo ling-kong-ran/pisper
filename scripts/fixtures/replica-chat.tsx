@@ -21,6 +21,42 @@ const search = new URLSearchParams(location.search)
 const pageLayout = search.get('layout') === 'page'
 // ?approvals=1：两条待批（一条命令守卫拦截的 critical、一条普通），核对内联批准卡与按住允许。
 const withApprovals = search.get('approvals') === '1'
+// ?questions=1：两组提问（先是两题含多选的一组，回答后是一题单选），核对问题卡的点选、提交与跳过。
+const initialQuestions: EntityRecord[] =
+  search.get('questions') === '1'
+    ? [
+        {
+          id: 'q_fixture-multi-0001',
+          createdAt: '2026-10-31T08:00:00.000Z',
+          questions: [
+            {
+              header: '存储',
+              question: '会话存储用哪种？',
+              options: [{ label: 'SQLite', description: '单机' }, { label: 'Postgres' }],
+              multiSelect: false,
+            },
+            {
+              header: '测试',
+              question: '要补哪些测试？',
+              options: [{ label: '单测' }, { label: '冒烟' }, { label: '契约' }],
+              multiSelect: true,
+            },
+          ],
+        },
+        {
+          id: 'q_fixture-single-001',
+          createdAt: '2026-10-31T08:01:00.000Z',
+          questions: [
+            {
+              header: '分支',
+              question: '提交到哪个分支？',
+              options: [{ label: 'main' }, { label: 'release' }],
+              multiSelect: false,
+            },
+          ],
+        },
+      ]
+    : []
 const initialApprovals: EntityRecord[] = withApprovals
   ? [
       {
@@ -92,6 +128,7 @@ const evidence = {
   behaviors: [] as (string | null)[],
   withdrawn: [] as string[],
   approvals: [] as [string, boolean][],
+  answers: [] as [string, unknown][],
 }
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
@@ -101,6 +138,7 @@ export function Fixture() {
   const [queued, setQueued] = useState<EntityRecord[]>([])
   const [ran, setRan] = useState(false)
   const [approvals, setApprovals] = useState<EntityRecord[]>(initialApprovals)
+  const [questions, setQuestions] = useState<EntityRecord[]>(initialQuestions)
   const [history, setHistory] = useState({ ...DEFAULT_SESSION_STATE, messages: specimens })
   const loadOlder = () => {
     const start = Math.max(
@@ -144,6 +182,12 @@ export function Fixture() {
     onThinkingLevelChange: noop,
     onExecutionModeChange: () => true,
     onRunModeChange: () => true,
+    questions,
+    onAnswerQuestion: (questionId, body) => {
+      evidence.answers.push([questionId, body])
+      setQuestions((current) => current.filter((item) => item.id !== questionId))
+      return Promise.resolve()
+    },
     onApproval: (id, approved) => {
       evidence.approvals.push([id, approved])
       setApprovals((current) => current.filter((item) => item.id !== id))

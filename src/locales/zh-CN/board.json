@@ -355,5 +355,17 @@
   "overview.projectAttention": "{count} 个需要你",
   "overview.projectRunning": "{count} 个运行中",
   "overview.projectQueued": "{count} 个排队",
-  "overview.projectDone": "{count} 个今天完成"
+  "overview.projectDone": "{count} 个今天完成",
+  "question.title": "代理在问你",
+  "question.label": "代理的提问",
+  "question.waiting": "还有 {count} 个提问等你回答",
+  "question.moreAfter": "之后还有 {count} 个",
+  "question.failed": "没能提交回答，请再试一次（可能已经在别处回答过）",
+  "question.other": "其他…",
+  "question.otherLabel": "其他回答：{question}",
+  "question.otherPlaceholder": "写下你的回答",
+  "question.skip": "跳过",
+  "question.submit": "提交",
+  "question.answerNamed": "回答“{title}”：{option}",
+  "question.open": "打开回答"
 }

@@ -150,6 +150,8 @@ export type SessionState = EntityRecord & {
   messages: ChatMessage[]
   tools: ToolActivity[]
   approvals: EntityRecord[]
+  // 代理的提问（ask_user，A5）：按原样保存 Runtime 的待回答问题，界面用 session-questions 解析。
+  questions?: EntityRecord[]
   agents: EntityRecord[]
   currentActivity: EntityRecord | null
   activityFeed: EntityRecord[]

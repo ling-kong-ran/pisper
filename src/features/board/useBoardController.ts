@@ -20,6 +20,7 @@ import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import { clearBoardReturn, peekBoardReturn, rememberBoardReturn } from './board-return'
 import { collapseRow, OVERVIEW_ROW_COLLAPSE_MS } from './row-motion'
+import { inlineQuestionOptions } from '@/features/chat/session-questions'
 import { sidebarQuickAction } from './sidebar-model'
 import { useBoardActions } from './useBoardActions'
 
@@ -30,12 +31,14 @@ export type BoardRowHandlers = {
   onApprove: (item: BoardItem, approval: BoardApproval) => void
   onDeny: (item: BoardItem, approval: BoardApproval) => void
   onRetry: (item: BoardItem) => void
+  // 行内回答代理的提问（只有一题单选、选项 ≤4 时，规格 3.3）。
+  onAnswer: (item: BoardItem, label: string) => void
   onMarkHandled: (item: BoardItem) => void
   onPin: (item: BoardItem) => void
   onArchive: (item: BoardItem) => void
   onCopyLink: (item: BoardItem) => void
   isPending: (
-    kind: 'approve' | 'deny' | 'retry' | 'archive' | 'pin',
+    kind: 'approve' | 'deny' | 'retry' | 'archive' | 'pin' | 'answer',
     sessionId: string,
     approvalId?: string,
   ) => boolean
@@ -231,6 +234,21 @@ export function useBoardController({
           if (result.ok && followUp) void focusCard(followUp)
         })()
       },
+      onAnswer: (item, label) => {
+        const question = item.question
+        if (!question || !inlineQuestionOptions(question)?.includes(label)) {
+          openSession(item.id)
+          return
+        }
+        const followUp = nextAttentionId(item.id)
+        void (async () => {
+          await collapse(item.id)
+          const result = await actionsRef.current.answer(item.id, question.id, label)
+          if (!result.ok) restore(item.id)
+          reportFailure(result)
+          if (result.ok && followUp) void focusCard(followUp)
+        })()
+      },
       onMarkHandled: (item) => void actionsRef.current.markHandled(item.id).then(reportFailure),
       onPin: (item) => void actionsRef.current.pin(item.id, !item.pinned).then(reportFailure),
       onArchive: (item) =>
@@ -337,6 +355,10 @@ export function useBoardController({
       // 焦点在空白处时按 A、D、R 不能落到“第一行”上，避免误批准或误重试。
       const acting = onCard || Boolean(triage)
       const item = orderRef.current.find((entry) => entry.id === effectiveActiveId)
+      const inlineAnswer =
+        acting && plain && /^[1-4]$/.test(event.key) && item?.status === 'question'
+          ? inlineQuestionOptions(item.question)?.[Number(event.key) - 1]
+          : undefined
       let handled = true
       if (event.key === 'Escape' && triage) exitTriage()
       else if (
@@ -379,6 +401,9 @@ export function useBoardController({
         item.lane === 'attention'
       )
         handlers.onRetry(item)
+      else if (item && inlineAnswer)
+        // 逐个处理与聚焦的行上 1–4 直接回答一题单选的提问（提示条“1–4 回答”）。
+        handlers.onAnswer(item, inlineAnswer)
       else if (event.key === 'Enter' && plain && !onCard && item && triage) openSession(item.id)
       else handled = false
       if (handled) event.preventDefault()

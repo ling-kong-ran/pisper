@@ -507,6 +507,29 @@ export function createStreamEventDispatcher({
         lastActivityAt: eventAt,
         approvals: (current.approvals || []).filter((item) => item.id !== data.id),
       }))
+    } else if (event === 'question_request') {
+      // 代理的提问（ask_user）：与审批一样放进会话状态，问题卡随即出现；回答或取消后由 question_resolved 移除。
+      toolScheduler.flush()
+      const questionId = typeof data.id === 'string' ? data.id : data.questionId
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        lastActivityAt: eventAt,
+        questions: [
+          ...(current.questions || []).filter(
+            (item) => (item.id ?? item.questionId) !== questionId,
+          ),
+          data,
+        ],
+      }))
+    } else if (event === 'question_resolved') {
+      const questionId = typeof data.questionId === 'string' ? data.questionId : data.id
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        lastActivityAt: eventAt,
+        questions: (current.questions || []).filter(
+          (item) => (item.id ?? item.questionId) !== questionId,
+        ),
+      }))
     } else if (event === 'generated_asset') {
       updateSessionState(sessionId, (current) => ({
         ...current,
