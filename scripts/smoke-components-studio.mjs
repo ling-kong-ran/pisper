@@ -833,9 +833,34 @@ try {
   const agentContext = await newContext({ viewport: { width: 1440, height: 900 } })
   const chats = []
   const heldRuns = []
+  // /api/chat 被拦截，真实 Runtime 从没跑过这些会话：目录里它们一直是 streaming:false、0 条消息。
+  // 看板的“运行中”以 Runtime 为准（乐观补丁在确认后最多 4 秒撤掉），不补这一层，检查“运行中”就是在赌
+  // 那 4 秒窗口（负载高时偶发失败，A7 全量检查复现过）。这里让会话目录如实反映“正在跑”：
+  // 收到过 /api/chat 的会话在 /api/sessions 的响应里标成 streaming、至少 1 条消息，直到放行终态帧；
+  // 事件流断开，看板退回按目录轮询，读到的就是这份响应。
+  const runningIds = new Set()
+  const markRunning = (value) => {
+    if (Array.isArray(value)) return value.map(markRunning)
+    if (!value || typeof value !== 'object') return value
+    const next = Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, markRunning(item)]),
+    )
+    if (typeof next.id === 'string' && runningIds.has(next.id) && 'streaming' in next) {
+      next.streaming = true
+      next.messageCount = Math.max(1, Number(next.messageCount) || 0)
+    }
+    return next
+  }
+  await agentContext.route('**/api/board/events*', (route) => route.abort())
+  await agentContext.route(/\/api\/sessions(?:\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    const response = await route.fetch()
+    await route.fulfill({ response, json: markRunning(await response.json()) })
+  })
   await agentContext.route('**/api/chat', async (route) => {
     const body = JSON.parse(route.request().postData() || '{}')
     chats.push(body)
+    if (typeof body.sessionId === 'string') runningIds.add(body.sessionId)
     await route.fulfill({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
@@ -937,7 +962,8 @@ try {
   report.checks.push(
     'New → blank with a description creates the component and hands the description to its bound session',
   )
-  // 放行挂着的续传：终态帧结束本客户端持有的运行流。
+  // 放行挂着的续传：终态帧结束本客户端持有的运行流；目录也不再报“正在跑”。
+  runningIds.clear()
   for (const route of heldRuns.splice(0))
     await route
       .fulfill({

@@ -1021,7 +1021,10 @@ try {
     await prompt.click()
     await page.keyboard.press(`${mod}+Comma`)
     await settings.locator('[data-sidebar-fleet-line]').waitFor()
-    await page.locator('main').click({ position: { x: 600, y: 600 } })
+    // 让焦点离开侧栏再按 ⌥A。原来点 main 的固定坐标 (600, 600)：模型分区加载完后那里可能正好是
+    // “快速配置模型”按钮，对话框抢走焦点后偶发超时（A7 全量检查时出现）。直接让当前焦点失焦，与位置无关。
+    await page.evaluate(() => document.activeElement?.blur?.())
+    await page.waitForFunction(() => !document.activeElement?.closest('[data-settings-sidebar]'))
     await page.keyboard.press('Alt+KeyA')
     await page.waitForFunction(() =>
       document.activeElement?.hasAttribute('data-sidebar-fleet-line'),
