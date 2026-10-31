@@ -503,14 +503,14 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-feature-light.png" aria-label="放大：效果图：功能页 · 插件"><img src="drafts/redesign/claude-sidebar/desktop-feature-light.png" alt="效果图：功能页 · 插件" loading="lazy"></button>
         <figcaption><span class="chip draft">效果图</span>功能页 · 插件</figcaption></figure>
       <figure><button type="button" data-full="built/a3-feature-page-origin-1440-light.png" aria-label="放大：实现：从功能点开插件，侧栏点亮“功能”，页头“‹ 功能 / 插件”；页面内容仍是现有插件页"><img src="built/a3-feature-page-origin-1440-light.png" alt="实现：从功能点开插件，侧栏点亮“功能”，页头“‹ 功能 / 插件”；页面内容仍是现有插件页" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现 · A3</span>“‹ 功能”返回（页面模板在 A6）</figcaption></figure>
+        <figcaption><span class="chip built">已实现 · A3</span>“‹ 功能”返回（A6 的功能页模板见下方“A6 已实现”）</figcaption></figure>
     </div>
     <h3>设置整页</h3>
     <div class="shots pairs">
       <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-settings-light.png" aria-label="放大：效果图：设置 › 模型"><img src="drafts/redesign/claude-sidebar/desktop-settings-light.png" alt="效果图：设置 › 模型" loading="lazy"></button>
         <figcaption><span class="chip draft">效果图</span>设置 › 模型</figcaption></figure>
       <figure><button type="button" data-full="built/a3-settings-models-1440-light.png" aria-label="放大：实现：设置整页：侧栏“← 返回 Esc”、设置、搜索、模型 · 界面 · 通知 · 快捷键 · 更新 · 关于、去功能的提示，底部“3 个需要你 · 2 个运行中”；主区仍是旧的模型配置页（隔离 Runtime 没有供应商）"><img src="built/a3-settings-models-1440-light.png" alt="实现：设置整页：侧栏“← 返回 Esc”、设置、搜索、模型 · 界面 · 通知 · 快捷键 · 更新 · 关于、去功能的提示，底部“3 个需要你 · 2 个运行中”；主区仍是旧的模型配置页（隔离 Runtime 没有供应商）" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现 · A3</span>设置 › 模型（主区内容在 A6）</figcaption></figure>
+        <figcaption><span class="chip built">已实现 · A3</span>设置 › 模型（A3 时的主区；A6 重做后见下方）</figcaption></figure>
       <figure><button type="button" data-full="built/a3-settings-interface-1440-light.png" aria-label="放大：实现：设置 › 界面：语言在界面里，顶上是“组件已移到 功能 › 组件工作室 →”迁移提示"><img src="built/a3-settings-interface-1440-light.png" alt="实现：设置 › 界面：语言在界面里，顶上是“组件已移到 功能 › 组件工作室 →”迁移提示" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · A3</span>设置 › 界面（语言在这里）</figcaption></figure>
       <figure><button type="button" data-full="built/a3-settings-shortcuts-1440-dark.png" aria-label="放大：实现：设置 › 快捷键（深色）：全局一组含 Ctrl+1 全部代理、Ctrl+2 功能、Alt+A、F6"><img src="built/a3-settings-shortcuts-1440-dark.png" alt="实现：设置 › 快捷键（深色）：全局一组含 Ctrl+1 全部代理、Ctrl+2 功能、Alt+A、F6" loading="lazy"></button>
@@ -529,8 +529,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <li>右侧“已放置的组件”卡片和 1080–1279 宽时页头的“组件 N”按钮：A7（布局位置已留好）。</li>
       <li>“排队”分组、“升级 Vite 到 7 · 排队 #1”与“立即开始”：要 Runtime 的 <code>sessionQueue</code>（A9）；没有这个能力时不显示分组，不做假数据。</li>
       <li>“批准 · 2 个问题”、行内选项胶囊与逐个处理里的“1–4 回答”：要 <code>askUser</code>（A5）。</li>
-      <li>设置主区内容：效果图“模型”页的默认模型 / 思考强度 / 辅助模型 / 提供方列表是 A6 第 4 批；现在主区仍是旧页头（面包屑“设置 / 模型配置”+ 大标题 + 快速设置），和侧栏的“设置”标题有重复。截图里模型页是空的，是因为隔离 Runtime 没有配供应商。</li>
-      <li>功能页模板（居中 760 栏、“‹ 功能”在标题上方、工具行、列表行）：A6 第 1 批；现在“‹ 功能”在页头面包屑里，页面内容是现有的插件页。</li>
+      <li>设置主区内容（默认模型 / 思考强度 / 提供方列表、去掉重复的面包屑与大标题）：已在 A6 完成，见下方“A6 已实现”；效果图里的“辅助模型”Runtime 没有对应字段，没有做。</li>
+      <li>功能页模板（居中 760 栏、“‹ 功能”在标题上方、工具行、列表行）：已在 A6 完成，见下方“A6 已实现”。</li>
       <li>手机：“更多”改名“功能”、抽屉取代底部标签栏、手机全部代理：A4。“我的组件”里的实际放置：A7。</li>
     </ul>
     <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
@@ -766,6 +766,117 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a6-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a6-built-h">方向 A · A6 已实现（功能页与浮层）</h2>
+      <p class="lede">一套功能页模板（顶上 52 只是拖拽区；“‹ 功能”在标题上方；居中 760 栏：页标题、一句说明、工具行、细线列表行；加载 / 空 / 错误状态留在页内，标题与工具行不动），插件、技能、MCP、历史会话、资产、星忆、工作流、定时任务、渠道、远程访问、桌面宠物和设置六个分区都用它；工作流节点编辑器是全宽例外，只有一条自己的页头。浮层按效果图重做：⌘K、派发、新手引导、会话树、侧聊、手机配对。旧状态色别名与旧顶栏删除。拍法：zh-CN、headless Chromium，生产构建 + 隔离 Runtime，看板与各功能页的数据是路由注入的虚构数据（项目、服务、时间都是编的）；1080 那两张模拟 Windows 自绘标题栏，手机是 390 × 844 模拟手机 App（2x），都不是真机。</p>
+    </div>
+    <h3>功能页模板</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-feature-light.png" aria-label="放大：效果图：功能页 · 插件"><img src="drafts/redesign/claude-sidebar/desktop-feature-light.png" alt="效果图：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-plugins-1440-light.png" aria-label="放大：实现：插件：‹ 功能、标题与说明、搜索 + 安装插件 + 保存策略、全部 / 内置 / 本地，工具目录一行一个工具（名称 + 等宽 id、分类 · 风险、开关），右端箭头展开详情"><img src="built/a6-plugins-1440-light.png" alt="实现：插件：‹ 功能、标题与说明、搜索 + 安装插件 + 保存策略、全部 / 内置 / 本地，工具目录一行一个工具（名称 + 等宽 id、分类 · 风险、开关），右端箭头展开详情" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>插件：工具行 + 列表行</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-plugins-1440-dark.png" aria-label="放大：实现：插件（深色）"><img src="built/a6-plugins-1440-dark.png" alt="实现：插件（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>插件（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-plugins-1080-titlebar-light.png" aria-label="放大：实现：1080 × 680 模拟自绘标题栏：顶上 52 只有拖拽区，右上 144 只留窗口按钮"><img src="built/a6-plugins-1080-titlebar-light.png" alt="实现：1080 × 680 模拟自绘标题栏：顶上 52 只有拖拽区，右上 144 只留窗口按钮" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>1080 自绘标题栏</figcaption></figure>
+    </div>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a6-skills-1440-light.png" aria-label="放大：实现：技能：全局 / 项目两个分区，名称等宽、两行摘要、启停开关"><img src="built/a6-skills-1440-light.png" alt="实现：技能：全局 / 项目两个分区，名称等宽、两行摘要、启停开关" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>技能</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-mcp-1440-light.png" aria-label="放大：实现：MCP：服务分区标题旁“2/4 在线 · 24h 错误率”，离线服务是琥珀（需要人处理），其余中性"><img src="built/a6-mcp-1440-light.png" alt="实现：MCP：服务分区标题旁“2/4 在线 · 24h 错误率”，离线服务是琥珀（需要人处理），其余中性" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>MCP（离线是琥珀）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-history-1440-light.png" aria-label="放大：实现：历史会话：名称即打开按钮、首条消息一行、附注行；工具行主操作“新任务”"><img src="built/a6-history-1440-light.png" alt="实现：历史会话：名称即打开按钮、首条消息一行、附注行；工具行主操作“新任务”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>历史会话</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-assets-1440-light.png" aria-label="放大：实现：资产：36px 缩略图行，名称即预览"><img src="built/a6-assets-1440-light.png" alt="实现：资产：36px 缩略图行，名称即预览" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>资产</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-memory-1440-light.png" aria-label="放大：实现：星忆：星图保留为页内默认视图，星域与星辰分区"><img src="built/a6-memory-1440-light.png" alt="实现：星忆：星图保留为页内默认视图，星域与星辰分区" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>星忆（保留星图）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-workflows-1440-light.png" aria-label="放大：实现：工作流列表：名称即编辑，行内只留运行与 ⋯"><img src="built/a6-workflows-1440-light.png" alt="实现：工作流列表：名称即编辑，行内只留运行与 ⋯" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>工作流</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-schedules-1440-light.png" aria-label="放大：实现：定时任务：一行一个任务，右侧下次运行 / 暂停，点名称原位展开"><img src="built/a6-schedules-1440-light.png" alt="实现：定时任务：一行一个任务，右侧下次运行 / 暂停，点名称原位展开" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>定时任务</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-channels-1440-light.png" aria-label="放大：实现：渠道：微信“连接失败”和分区标题旁“1 个断开”是琥珀，其余中性；按钮“重新连接 飞书”"><img src="built/a6-channels-1440-light.png" alt="实现：渠道：微信“连接失败”和分区标题旁“1 个断开”是琥珀，其余中性；按钮“重新连接 飞书”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>渠道（断开是琥珀）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-channels-1440-dark.png" aria-label="放大：实现：渠道（深色）"><img src="built/a6-channels-1440-dark.png" alt="实现：渠道（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>渠道（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-remote-access-1440-light.png" aria-label="放大：实现：远程访问：本机 → 待审批（琥珀）→ 配对 → 已配对设备 → 远程工作区"><img src="built/a6-remote-access-1440-light.png" alt="实现：远程访问：本机 → 待审批（琥珀）→ 配对 → 已配对设备 → 远程工作区" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>远程访问</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-desktop-pet-1440-light.png" aria-label="放大：实现：桌面宠物：列表行，正在使用的是石墨刻度 + 文字"><img src="built/a6-desktop-pet-1440-light.png" alt="实现：桌面宠物：列表行，正在使用的是石墨刻度 + 文字" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>桌面宠物</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-workflow-editor-1080-titlebar-light.png" aria-label="放大：实现：工作流节点编辑器在 1080 + 自绘标题栏：一条 52 页头，工具只留图标，保存草稿 / 试运行 / 发布不换行"><img src="built/a6-workflow-editor-1080-titlebar-light.png" alt="实现：工作流节点编辑器在 1080 + 自绘标题栏：一条 52 页头，工具只留图标，保存草稿 / 试运行 / 发布不换行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>节点编辑器（全宽例外）</figcaption></figure>
+    </div>
+    <h3>设置分区</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-settings-light.png" aria-label="放大：效果图：设置 › 模型"><img src="drafts/redesign/claude-sidebar/desktop-settings-light.png" alt="效果图：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>设置 › 模型</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-models-1440-light.png" aria-label="放大：实现：设置 › 模型：页标题是短名“模型”，快速设置，默认模型 / 思考强度 / 可用工具三行，提供方分区一行一个（默认 · 已连接 / 未连接），末尾“添加提供方”"><img src="built/a6-settings-models-1440-light.png" alt="实现：设置 › 模型：页标题是短名“模型”，快速设置，默认模型 / 思考强度 / 可用工具三行，提供方分区一行一个（默认 · 已连接 / 未连接），末尾“添加提供方”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>模型：默认值三行 + 提供方行</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-models-expanded-1440-light.png" aria-label="放大：实现：展开 OpenAI：启用开关与 ⋯、标签在左的连接表单、模型表与保存，原位展开不跳页"><img src="built/a6-settings-models-expanded-1440-light.png" alt="实现：展开 OpenAI：启用开关与 ⋯、标签在左的连接表单、模型表与保存，原位展开不跳页" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>提供方行内展开</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-models-1440-dark.png" aria-label="放大：实现：设置 › 模型（深色）"><img src="built/a6-settings-models-1440-dark.png" alt="实现：设置 › 模型（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>模型（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-interface-1440-light.png" aria-label="放大：实现：设置 › 界面"><img src="built/a6-settings-interface-1440-light.png" alt="实现：设置 › 界面" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>界面</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-notifications-1440-light.png" aria-label="放大：实现：设置 › 通知：第一行“系统通知”，等待授权是琥珀"><img src="built/a6-settings-notifications-1440-light.png" alt="实现：设置 › 通知：第一行“系统通知”，等待授权是琥珀" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>通知</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-shortcuts-1440-light.png" aria-label="放大：实现：设置 › 快捷键：“恢复默认”是第一个分区标题右侧的文字按钮"><img src="built/a6-settings-shortcuts-1440-light.png" alt="实现：设置 › 快捷键：“恢复默认”是第一个分区标题右侧的文字按钮" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>快捷键</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-updates-1440-light.png" aria-label="放大：实现：设置 › 更新：分区标题 + 细线行，左缘与页标题对齐；检查失败是中性提示，不是红色横幅"><img src="built/a6-settings-updates-1440-light.png" alt="实现：设置 › 更新：分区标题 + 细线行，左缘与页标题对齐；检查失败是中性提示，不是红色横幅" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>更新</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-settings-about-1440-light.png" aria-label="放大：实现：设置 › 关于"><img src="built/a6-settings-about-1440-light.png" alt="实现：设置 › 关于" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>关于</figcaption></figure>
+    </div>
+    <h3>浮层</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-palette-dark.png" aria-label="放大：效果图：⌘K 命令面板（深色）"><img src="drafts/redesign/claude-sidebar/extra-palette-dark.png" alt="效果图：⌘K 命令面板（深色）" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>⌘K（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-palette-1440-dark.png" aria-label="放大：实现：⌘K：620 宽，代理与会话 → 会话标记 → 操作 → 页面，底部键位提示（深色）"><img src="built/a6-palette-1440-dark.png" alt="实现：⌘K：620 宽，代理与会话 → 会话标记 → 操作 → 页面，底部键位提示（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>⌘K（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-palette-1440-light.png" aria-label="放大：实现：⌘K（浅色）"><img src="built/a6-palette-1440-light.png" alt="实现：⌘K（浅色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>⌘K（浅色）</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-dispatch-light.png" aria-label="放大：效果图：⌘N 派发新任务"><img src="drafts/redesign/claude-sidebar/extra-dispatch-light.png" alt="效果图：⌘N 派发新任务" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>派发</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-dispatch-1440-light.png" aria-label="放大：实现：派发：顶行“新任务 … Esc”、无框输入、[项目] [盾牌] … [模型] [派发 ↵]、底部说明"><img src="built/a6-dispatch-1440-light.png" alt="实现：派发：顶行“新任务 … Esc”、无框输入、[项目] [盾牌] … [模型] [派发 ↵]、底部说明" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>派发</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-session-tree-1440-light.png" aria-label="放大：实现：会话树对话框"><img src="built/a6-session-tree-1440-light.png" alt="实现：会话树对话框" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>会话树</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-side-chat-1440-light.png" aria-label="放大：实现：检查器里的侧聊：22 圆角输入框 + 圆形发送键"><img src="built/a6-side-chat-1440-light.png" alt="实现：检查器里的侧聊：22 圆角输入框 + 圆形发送键" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>侧聊</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-onboarding-1440-light.png" aria-label="放大：实现：新手引导：实心弹层、细线编号的两步说明，没有加深遮罩"><img src="built/a6-onboarding-1440-light.png" alt="实现：新手引导：实心弹层、细线编号的两步说明，没有加深遮罩" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>新手引导</figcaption></figure>
+    </div>
+    <h3>手机（390）</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/a6-phone-plugins-light.png" aria-label="放大：实现：手机插件：页名在顶栏，h1 只给读屏，“‹ 功能”44，主操作在搜索下一行"><img src="built/a6-phone-plugins-light.png" alt="实现：手机插件：页名在顶栏，h1 只给读屏，“‹ 功能”44，主操作在搜索下一行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>插件</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-history-light.png" aria-label="放大：实现：手机历史会话：顶栏已有 ✎ 新任务，工具行不再重复"><img src="built/a6-phone-history-light.png" alt="实现：手机历史会话：顶栏已有 ✎ 新任务，工具行不再重复" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>历史会话</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-channels-light.png" aria-label="放大：实现：手机渠道：行按钮只留图标，44 × 44"><img src="built/a6-phone-channels-light.png" alt="实现：手机渠道：行按钮只留图标，44 × 44" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>渠道</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-schedules-expanded-light.png" aria-label="放大：实现：手机定时任务展开一行：下拉、输入框、按钮都是 44 高"><img src="built/a6-phone-schedules-expanded-light.png" alt="实现：手机定时任务展开一行：下拉、输入框、按钮都是 44 高" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>定时任务展开</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-settings-models-light.png" aria-label="放大：实现：手机设置 › 模型：‹ 设置 + 设置搜索，默认值三行上下堆叠"><img src="built/a6-phone-settings-models-light.png" alt="实现：手机设置 › 模型：‹ 设置 + 设置搜索，默认值三行上下堆叠" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>设置 › 模型</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-dispatch-light.png" aria-label="放大：实现：手机派发底部表单：与桌面同一条芯片工具行 [项目] [盾牌] [模型] [派发]，都是 44 高；说明写“抽屉的「运行中」”"><img src="built/a6-phone-dispatch-light.png" alt="实现：手机派发底部表单：与桌面同一条芯片工具行 [项目] [盾牌] [模型] [派发]，都是 44 高；说明写“抽屉的「运行中」”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>派发底部表单</figcaption></figure>
+      <figure><button type="button" data-full="built/a6-phone-pairing-light.png" aria-label="放大：实现：手机 App 配对：附近服务器细线列表，按钮 44"><img src="built/a6-phone-pairing-light.png" alt="实现：手机 App 配对：附近服务器细线列表，按钮 44" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A6</span>配对</figcaption></figure>
+    </div>
+    <h3>和效果图不一样，是规格定的或替你做的决定（完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li class="change">设置 › 模型没有“辅助模型”一行：Runtime 没有生成标题 / 压缩上下文用的模型字段，不做假控件。思考强度是下拉（Runtime 有 off / minimal / low / medium / high / xhigh 六档），不是四段分段。</li>
+      <li class="change">提供方行用功能页模板同一种行内展开（点名称或右端箭头），不是效果图的“管理”按钮；进入页面全部收起，一次只展开一行，收起或换展开另一行不丢未保存的修改。可用工具（原“Agent 运行策略”卡片）也成了默认值的一行，选中即保存。</li>
+      <li class="change">功能页与设置里读取或操作失败的提示是中性底 + 细线 + 警示图标（不是红色横幅）；红色只留给删除类按钮与表单字段错误，琥珀只给需要你处理的（MCP 离线、渠道断开、等你批准、等待通知授权）。</li>
+      <li class="change">效果图里命令面板会话行右侧的实时状态（运行中 / 需要你）没有做：面板数据来自会话列表，右侧仍是相对时间。弹层“淡入 + 上移 4px”动效没有做（会冲掉对话框的居中位移）。</li>
+      <li>⌘K、派发、配对这些由按钮或快捷键打开的浮层，关闭后焦点回到打开它的按钮或输入框；执行的命令已经把焦点交给新页面时不抢回来。</li>
+      <li>手机派发的项目芯片最多 13 个字符宽、可以再收窄，完整路径在悬停、读屏名称和菜单里（桌面仍至少显示 8 个字符）。</li>
+      <li>组件工作室与“我的组件”整页还用旧的共享页头：A7 重做组件时一起换。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="phase-h">
     <div class="sec-head">
       <h2 id="phase-h">进度</h2>
@@ -778,7 +889,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">A3</span><span class="what">全部代理分组列表（删除看板泳道）、侧栏随页面变化（筛选 / 设置目录）、功能索引、设置整页与双归属退役</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A4</span><span class="what">手机与平板：顶栏 ☰ + 抽屉、全部代理卡片、会话菜单与芯片底部表单、设置列表 → 分区，删除手机标签栏、手机看板、代理条与 dockview</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片、全部代理行内点选与侧栏</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A6</span><span class="what">功能页模板与浮层（⌘K、派发、引导、侧聊、会话树、配对）</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A6</span><span class="what">功能页模板（11 个功能页 + 设置六个分区）与浮层（⌘K、派发、引导、侧聊、会话树、配对），旧状态色与旧顶栏清理</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A7–A8</span><span class="what">组件工作室：核心闭环 → 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A9</span><span class="what">收尾：排队、导出、思考用时、目录变更事件</span><span class="chip">未开始</span></div>
     </div>
