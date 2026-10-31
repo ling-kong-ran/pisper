@@ -295,3 +295,18 @@ test('dispose releases animation frames and input listeners without late writes'
   assert.equal(f.node.scrollTop, top)
   assert.deepEqual(f.unread, [])
 })
+
+test('an upward write between animation frames stops following before its scroll event arrives', (t) => {
+  const f = fixture(t)
+  f.node.scrollHeight += 800
+  f.controller.contentChanged()
+  f.tick()
+  // 外部代码直接改 scrollTop（例如切换会话前恢复阅读位置），scroll 事件还没派发。
+  f.node.scrollTop = 120
+  f.settle()
+  assert.equal(f.node.scrollTop, 120)
+  f.node.scrollHeight += 400
+  f.controller.contentChanged()
+  f.settle()
+  assert.equal(f.node.scrollTop, 120)
+})

@@ -82,6 +82,12 @@ export function createScrollFollowController(
   const step = (timestamp: number) => {
     frame = null
     if (disposed || !pinned || interacting()) return
+    // 两帧之间有人把位置往上改了（恢复阅读位置、跳到某条消息，scroll 事件还没派发），
+    // 这不是本控制器写的：放弃贴底，否则下一步会把刚设好的位置拉回底部。
+    if (node.scrollTop < lastTop - 1 && bottom() - node.scrollTop > 1) {
+      pauseFollowing()
+      return
+    }
     const target = bottom()
     const gap = target - node.scrollTop
     const elapsed = lastTime === null ? 1000 / 60 : Math.min(64, timestamp - lastTime)

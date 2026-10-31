@@ -102,17 +102,27 @@ export function ChatPage({
   const resumeSyncRef = useRef<Promise<void> | null>(null)
   const catalog = useSessionCatalog({ notify })
   const markingReadRef = useRef(new Set<string>())
+  // 每个会话的这一段“未读”只自动标记一次：标记失败或服务端仍回 unread 时，
+  // 不能因为目录刷新又触发标记——那会和目录刷新互相触发，形成每秒几十次的请求风暴。
+  // 会话回到已读后清掉记录；页面重新可见时允许再试一次。
+  const markedReadRef = useRef(new Set<string>())
   useEffect(() => {
-    const markViewed = () => {
+    for (const id of markedReadRef.current) {
+      if (!catalog.sessions.some((session) => session.id === id && session.unread))
+        markedReadRef.current.delete(id)
+    }
+    const markViewed = (event?: Event) => {
       const id = catalog.activeId
       if (
         !id ||
         document.visibilityState !== 'visible' ||
         !catalog.sessions.some((session) => session.id === id && session.unread) ||
-        markingReadRef.current.has(id)
+        markingReadRef.current.has(id) ||
+        (!event && markedReadRef.current.has(id))
       )
         return
       markingReadRef.current.add(id)
+      markedReadRef.current.add(id)
       void updateSessionOrganization(id, { read: true })
         .catch(() => undefined)
         .finally(() => markingReadRef.current.delete(id))
