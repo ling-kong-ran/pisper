@@ -416,6 +416,7 @@ function OverviewRowComponent({
             {title}
           </span>
           <span
+            data-row-status
             className={cn(
               'flex-none text-xs',
               attention ? 'text-warning-strong' : 'text-content-muted',

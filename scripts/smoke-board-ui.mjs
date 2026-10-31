@@ -2,7 +2,7 @@
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
 // 规格 v2 第 3 节（A3 取代泳道）：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
 // 不被遮挡、无硬裁切、无横向滚动）、按状态分组的列表（最大 880 居中）与按项目分组、行内批准与重试、
-// critical 只能打开处理（进会话）、侧栏分组与计数、⌘1 / ⌘2、⌘N 与“新任务”打开派发对话框、逐个处理
+// critical 只能打开处理（进会话）、侧栏的状态 / 项目筛选与计数（规格 2.3）、⌘1 / ⌘2、⌘N 与“新任务”打开派发对话框、逐个处理
 // （其余分组 50%、只在需要你之间走）、行焦点环、未聚焦时动作键无效、项目 ⋯（重命名、恢复、管理项目）、
 // 今天完成折叠、筛选说明与清除、空状态、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
 // 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
@@ -187,14 +187,15 @@ async function geometry(page, label) {
   return result
 }
 
-// 侧栏分组标题上的计数（需要你 / 运行中），等到与期望一致。
-async function waitForSidebarCounts(page, expected) {
+// 全部代理页侧栏状态筛选上的计数（规格 2.3：这一页侧栏是筛选，不列会话行），等到与期望一致。
+async function waitForFilterCounts(page, expected) {
   await page.waitForFunction(
     (counts) =>
       Object.entries(counts).every(
-        ([group, count]) =>
-          document.querySelector(`[data-sidebar-group="${group}"] [data-sidebar-count]`)
-            ?.textContent === String(count),
+        ([filter, count]) =>
+          document.querySelector(
+            `[data-shell-sidebar] [data-sidebar-filter="${filter}"] [data-sidebar-filter-count]`,
+          )?.textContent === String(count),
       ),
     expected,
     { timeout: 15_000 },
@@ -309,7 +310,7 @@ try {
     '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: the 268px sidebar stays expanded, no title bar, no horizontal scroll, top-right 144px free of interactive elements, no hard-clipped buttons; the page is 全部代理 with “7 个代理 · 4 个项目 · 2 个在运行”, a centred list ≤880 grouped 需要你 (longest wait first) → 运行中 → 今天完成, no lanes, no launch console, no widget column, rows 52–96 tall',
   )
 
-  // 2. 1440 浅色上的交互：侧栏分组与计数、逐个处理、critical 只能打开处理、普通批准、重试、快捷键、
+  // 2. 1440 浅色上的交互：侧栏筛选与计数（规格 2.3）、逐个处理、critical 只能打开处理、普通批准、重试、快捷键、
   // 派发对话框、按项目分组与项目 ⋯、行 ⋯ 菜单。
   {
     const { context, fixture } = await newContext(
@@ -318,41 +319,100 @@ try {
     )
     const page = await openBoard(context, 'interactions')
     await waitForApprovals(page)
-    // 侧栏（取代舰队计量）：需要你 3、运行中 2；需要你行读出“标题，原因，已等时长”，第 2 行只有中文原因；
-    // 悬停或聚焦后普通批准露出“拒绝 / 允许”，critical 与失败只露出“打开”。这里只看不点，批准留给会话页一节。
+    // 侧栏随页面变化（规格 2.3）：全部代理页的侧栏不列会话行（代理只在主区列一次），收成状态与项目两组筛选，
+    // 各带计数（与主区同一份代理、按筛选前计）。需要你行的快捷处理与读屏名称在会话页一节（7a）与 smoke-sidebar 核对。
     const sidebar = page.locator('[data-shell-sidebar]')
-    await sidebar.locator('[data-sidebar-row="fx-standard"]').waitFor()
-    await waitForSidebarCounts(page, { attention: 3, running: 2 })
-    const sidebarItem = (id) => sidebar.locator(`[data-sidebar-item="${id}"]`)
-    const sidebarRow = (id) => sidebar.locator(`[data-sidebar-row="${id}"]`)
-    assert.match(
-      await sidebarRow('fx-standard').getAttribute('aria-label'),
-      /，等你批准，已等 \d+[smhd]$/,
-    )
-    assert.match(await sidebarRow('fx-critical').getAttribute('aria-label'), /，高风险批准，已等 /)
-    assert.match(await sidebarRow('fx-failed').getAttribute('aria-label'), /，运行失败，已等 /)
-    assert.doesNotMatch(await sidebarRow('fx-critical').innerText(), /git push/)
-    await sidebarRow('fx-standard').focus()
-    await sidebarItem('fx-standard').getByRole('button', { name: /^允许/ }).waitFor()
-    await sidebarItem('fx-standard').getByRole('button', { name: /^拒绝/ }).waitFor()
-    for (const id of ['fx-critical', 'fx-failed']) {
-      await sidebarRow(id).hover()
-      await sidebarItem(id).getByRole('button', { name: /^打开/ }).waitFor()
-      assert.equal(
-        await sidebarItem(id)
-          .getByRole('button', { name: /^(允许|拒绝)/ })
-          .count(),
-        0,
+    const filter = (id) => sidebar.locator(`[data-sidebar-filter="${id}"]`)
+    await waitForFilterCounts(page, { all: 7, attention: 3, running: 2, done: 2 })
+    assert.equal(await sidebar.locator('[data-sidebar-row]').count(), 0, 'no session rows here')
+    assert.equal(await filter('queued').count(), 0, 'no queue filter without sessionQueue')
+    const filterState = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-filter]')].map(
+          (button) => [button.dataset.sidebarFilter, button.getAttribute('aria-pressed')],
+        ),
       )
-    }
-    // A 在 critical 行上不批准任何东西（只有普通批准能一步处理）。
-    await sidebarRow('fx-critical').focus()
-    await page.keyboard.press('a')
-    await page.waitForTimeout(400)
-    assert.equal(fixture.posts.length, 0, 'A on a critical sidebar row approves nothing')
-    assert.equal(await page.evaluate(() => location.hash), '#/board')
+    const projectFilters = (await filterState()).filter(([id]) => id.startsWith('project:'))
+    assert.ok(projectFilters.length >= 3, `one filter row per project ${projectFilters}`)
+    const projectTotal = await sidebar
+      .locator('[data-sidebar-filter^="project:"] [data-sidebar-filter-count]')
+      .evaluateAll((nodes) => nodes.reduce((sum, node) => sum + Number(node.textContent), 0))
+    assert.equal(projectTotal, 7, 'project counts add up to all agents')
+    assert.equal(await filter('all').getAttribute('aria-pressed'), 'true')
+    assert.equal(await filter('all').getAttribute('id'), 'board-filter')
+    // 需要你计数为琥珀（规格 6.1 琥珀只表示需要你），运行中不是。
+    const amber = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--warning-strong)'
+      document.body.append(probe)
+      const color = getComputedStyle(probe).color
+      probe.remove()
+      const count = (id) =>
+        getComputedStyle(
+          document.querySelector(
+            `[data-shell-sidebar] [data-sidebar-filter="${id}"] [data-sidebar-filter-count]`,
+          ),
+        ).color
+      return { amber: color, attention: count('attention'), running: count('running') }
+    })
+    assert.equal(amber.attention, amber.amber)
+    assert.notEqual(amber.running, amber.amber)
+    // 点“运行中”：主区只剩运行中（与 pisper-board-view 同一份筛选），再点一次回到全部。
+    await filter('running').click()
+    assert.equal(await filter('running').getAttribute('aria-pressed'), 'true')
+    assert.equal(await filter('all').getAttribute('aria-pressed'), 'false')
+    await page.locator('[data-board-card="fx-standard"]').waitFor({ state: 'detached' })
+    await page.locator('[data-board-card="fx-running"]').waitFor()
+    await page.waitForFunction(() =>
+      JSON.parse(localStorage.getItem('pisper-board-view') || '{}').state?.lanes?.includes(
+        'running',
+      ),
+    )
+    // 侧栏展开时筛选看得见，页内不再重复一行筛选说明。
+    assert.equal(await page.locator('[data-overview-filter]').count(), 0)
+    await filter('running').click()
+    await page.locator('[data-board-card="fx-standard"]').waitFor()
+    // 项目筛选：只看一个项目，计数不随状态筛选变；键盘 ↑ / ↓ 在筛选之间移动，空格切换。
+    const [firstProject] = projectFilters[0]
+    await filter('all').focus()
+    await page.keyboard.press('ArrowDown')
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-filter')),
+      'attention',
+    )
+    await page.keyboard.press('End')
+    await page.keyboard.press('Home')
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-filter')),
+      'all',
+    )
+    const projectButton = sidebar.locator(`[data-sidebar-filter="${firstProject}"]`)
+    await projectButton.focus()
+    await page.keyboard.press('Space')
+    assert.equal(await projectButton.getAttribute('aria-pressed'), 'true')
+    const visible = await page
+      .locator('[data-board-card]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-board-card')))
+    assert.ok(visible.length > 0 && visible.length < 7, `project filter narrows ${visible}`)
+    await page.keyboard.press('Space')
+    assert.equal(await projectButton.getAttribute('aria-pressed'), 'false')
+    await page.locator('[data-board-card="fx-done-unread"]').waitFor()
+    // “/”聚焦侧栏的第一个筛选（全部）。
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press('/')
+    await page.waitForFunction(() => document.activeElement?.id === 'board-filter')
+    // 项目组 ⋯：添加项目、管理项目（沿用项目命令与管理对话框）。
+    await sidebar.locator('[data-sidebar-projects-menu]').click()
+    const projectMenu = page.getByRole('menu')
+    await projectMenu.getByRole('menuitem', { name: '添加项目…' }).waitFor()
+    await projectMenu.getByRole('menuitem', { name: '管理项目…' }).click()
+    const manageFromSidebar = page.getByRole('dialog', { name: '管理项目' })
+    await manageFromSidebar.waitFor()
+    await page.keyboard.press('Escape')
+    await manageFromSidebar.waitFor({ state: 'hidden' })
+    await page.screenshot({ path: join(output, 'board-sidebar-filters.png') })
     report.checks.push(
-      'Sidebar groups count 3 needing you and 2 running; needs-you rows read “title，reason，waited” with only a Chinese reason (no command); a focused standard approval reveals 拒绝 / 允许, critical and failed rows only reveal 打开, and A on a critical row sends nothing',
+      'All agents sidebar (spec 2.3): no session rows; status filters 全部 7 · 需要你 3 (amber) · 运行中 2 · 今天完成 2 (no 排队 without sessionQueue) and one row per project whose counts add up to 7; 运行中 narrows the list through pisper-board-view (aria-pressed, no duplicate in-page filter line while the sidebar is expanded) and a second click clears it; ↑ / ↓ / Home / End walk the filters, Space toggles a project filter; / focuses 全部; the 项目 ⋯ menu offers 添加项目 and opens 管理项目',
     )
 
     // 行内容（规格 3.3）：普通批准第 2 行“请求执行 bash”+ 完整命令（不截断）与“拒绝 D · 允许 A”；
@@ -543,9 +603,9 @@ try {
     ])
     await page.locator('[data-board-card="fx-failed"][data-lane="running"]').waitFor()
     assert.equal(fixture.posts.at(-1).path, '/api/sessions/fx-failed/retry')
-    await waitForSidebarCounts(page, { attention: 1, running: 4 })
+    await waitForFilterCounts(page, { attention: 1, running: 4 })
     report.checks.push(
-      'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar groups follow',
+      'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar filter counts follow',
     )
 
     // 这一页没有任务输入框：⌘N 与页头“新任务”都打开派发对话框，Esc 关闭后留在全部代理。
@@ -665,12 +725,8 @@ try {
     const attention = page.locator('[data-overview-section="attention"]')
     await attention.getByText('没有等你处理的事', { exact: true }).waitFor()
     assert.equal(await attention.locator('[data-overview-count]').innerText(), '0')
-    // 侧栏的需要你分组计数为 0，照常留着标题与一句“没有等你处理的事”（取代舰队计量的“全部顺畅”）。
-    await waitForSidebarCounts(page, { attention: 0, running: 2 })
-    await page
-      .locator('[data-sidebar-group="attention"]')
-      .getByText('没有等你处理的事', { exact: true })
-      .waitFor()
+    // 侧栏的需要你筛选计数为 0：照常列出（变灰、不染琥珀）。
+    await waitForFilterCounts(page, { attention: 0, running: 2 })
     const doneToggle = page
       .locator('[data-overview-heading="done"]')
       .getByRole('button', { name: /今天完成/ })
@@ -687,10 +743,10 @@ try {
     await doneToggle.click()
     await page.locator('[data-board-card="fx-done-unread"]').waitFor()
     report.checks.push(
-      'With nothing needing you the 需要你 heading reads 0 with a quiet empty line (sidebar too); 今天完成 collapses and expands again, stored in pisper-board-view',
+      'With nothing needing you the 需要你 heading reads 0 with a quiet empty line (the sidebar filter reads 0 too); 今天完成 collapses and expands again, stored in pisper-board-view',
     )
     // ⌘B 收起为 60px 窄轨：四个入口图标 + 两个计数（需要你 0 变灰不消失、运行中 2）+ 设置；
-    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view），页上写明筛选并可清除；再按 ⌘B 展开。
+    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view），侧栏收起时页上写明筛选并可清除；再按 ⌘B 展开。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyB`)
     const rail = page.locator('[data-shell-sidebar="rail"]')

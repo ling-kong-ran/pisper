@@ -16,6 +16,7 @@ import {
 import {
   OVERVIEW_VIRTUALIZE_THRESHOLD,
   buildOverviewModel,
+  overviewFilterCounts,
   overviewItems,
   overviewShouldVirtualize,
 } from '../../src/features/board/overview-model.ts'
@@ -192,6 +193,34 @@ test('overview filters by status and project from pisper-board-view and reports 
   assert.equal(none.filteredEmpty, true)
   assert.deepEqual(none.sections, [])
   assert.equal(buildOverviewModel([], { now: NOW, groupBy: 'lane' }).filteredEmpty, false)
+})
+
+test('the all-agents sidebar filters count the same agents as the page, before any filter', () => {
+  // 规格 2.3：全部代理页侧栏的状态 / 项目筛选各带计数；与主区同一份代理（归档、更早完成、无能力的排队不算），
+  // 按筛选前计——点了状态筛选，项目计数不跟着变。
+  const yesterday = NOW - 26 * 3_600_000
+  const items = [
+    card('a1', 'attention', { workspaceKey: '/p/a' }),
+    card('a2', 'attention', { workspaceKey: '/p/b' }),
+    card('r1', 'running', { workspaceKey: '/p/a' }),
+    card('q1', 'queued', { workspaceKey: '/p/b' }),
+    card('d1', 'done', { workspaceKey: '/p/a' }),
+    card('old', 'done', { workspaceKey: '/p/c', since: yesterday }),
+    card('gone', 'running', { workspaceKey: '/p/c', session: { id: 'gone', archived: true } }),
+  ]
+  assert.deepEqual(overviewFilterCounts(items, { now: NOW }), {
+    total: 4,
+    lanes: { attention: 2, running: 1, queued: 0, done: 1 },
+    projects: { '/p/a': 3, '/p/b': 1 },
+  })
+  const queue = overviewFilterCounts(items, { now: NOW, capabilities: { sessionQueue: true } })
+  assert.equal(queue.total, 5)
+  assert.equal(queue.lanes.queued, 1)
+  assert.equal(queue.projects['/p/b'], 2)
+  // 与主区的统计一致。
+  const model = buildOverviewModel(items, { now: NOW, groupBy: 'lane', lanes: ['running'] })
+  assert.equal(model.total, 4)
+  assert.deepEqual(model.counts, overviewFilterCounts(items, { now: NOW }).lanes)
 })
 
 test('overview switches to a virtual list above 30 rows', () => {

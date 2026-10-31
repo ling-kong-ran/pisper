@@ -20,14 +20,15 @@ export const SHELL_TAB_PAGES: Readonly<Record<Exclude<ShellTab, 'session'>, Page
   })
 
 // 当前页面点亮哪个一级入口（桌面侧栏的“全部代理 / 功能 / 设置”与手机标签栏共用）。
-// 插件、星忆等页同时挂在“功能”和“设置”下，归属沿用 settingsOwnsPage 的进入来源判定：
-// settingsOwned 为真时只点亮“设置”。会话页与主页归“会话”，看板归“看板”（侧栏的“全部代理”），
-// 组件工作室与其余功能页归“更多”（侧栏的“功能”）。
+// settingsOwned 来自 settingsOwnsRoute：只有 /config 下的应用设置分区归“设置”（规格 2.6）；
+// 插件、星忆等功能页只有一个家（“功能”），/config 下的远程访问 / 手机服务器 / 桌面宠物同样归“功能”。
+// 会话页与主页归“会话”，看板归“看板”（侧栏的“全部代理”），组件工作室与其余功能页归“更多”（侧栏的“功能”）。
 export function activeShellTab(page: string, settingsOwned: boolean): ShellTab | null {
   if (settingsOwned) return 'settings'
   if (page === 'session' || page === 'chat') return 'session'
   if (page === 'board') return 'board'
-  if (page === 'components' || page === 'more' || MORE_PAGES.has(page)) return 'more'
+  if (page === 'components' || page === 'more' || page === 'config' || MORE_PAGES.has(page))
+    return 'more'
   return null
 }
 
@@ -75,7 +76,7 @@ export type ShellBackContext = {
 // - 从看板等页面点进来的会话：返回 -1，走历史回到来处；冷启动直接打开的会话链接没有来处，同样交还平台；
 // - 更多的子页 → 更多；组件详情 → 组件列表；手机上组件列表 → 更多；
 // - 看板、组件（桌面 / 平板）、更多、设置等一级页 → 主页。
-// 只给原生返回用，键盘 Esc 永远不离开页面。
+// 只给原生返回用；键盘 Esc 不离开页面，唯一例外是设置整页侧栏上写明的“← 返回 Esc”（SettingsSidebar，规格 2.3）。
 export function shellBackPath(
   page: string,
   pathname: string,

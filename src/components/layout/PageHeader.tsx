@@ -4,7 +4,7 @@
 // + 12px 说明，从“更多”进入时左侧是 44px 的“‹ 更多”文字返回键；下面一行是搜索与主操作。
 // 手机页头不放主题键（主题在“设置 → 界面”）。
 // 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
-// 从“更多”进入的功能页，面包屑上一级是可点的“‹ 更多”。没有应用标题栏了：Windows 自绘标题栏时
+// 功能页（只属于“功能”，规格 2.6 双归属已退役）面包屑上一级是可点的“‹ 功能”（手机标签栏 A4 前仍叫“更多”）。没有应用标题栏了：Windows 自绘标题栏时
 // 页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
 import type { ReactNode, RefObject } from 'react'
 import {
@@ -20,7 +20,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { MORE_PAGES } from '@/app/more-pages'
-import { SETTINGS_PAGES } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -39,7 +38,7 @@ type PageHeaderProps = {
   elementRef?: RefObject<HTMLElement | null>
   meta: readonly [string, string]
   page: string
-  // 与侧栏一致：从功能栏分组进入的插件等页面包屑归该分组，缺省时按页面集合判断。
+  // 当前路由用设置外壳（/config 下的应用设置分区）；缺省按 page === 'config' 判断。
   settingsOwned?: boolean
   query: string
   setQuery: (query: string) => void
@@ -54,8 +53,10 @@ type PageHeaderProps = {
   mobileApp?: boolean
   terminalOpen: boolean
   onToggleTerminal: () => void
-  // 当前页从“更多”进入（或只属于“更多”）时提供，渲染“‹ 更多”返回。
+  // 当前页属于“功能”时提供，渲染“‹ 功能”返回。
   onBackToMore?: () => void
+  // 手机外壳（底部标签栏仍叫“更多”，A4 换抽屉）：返回键沿用“‹ 更多”。
+  phoneShell?: boolean
 }
 
 export function PageHeader({
@@ -76,6 +77,7 @@ export function PageHeader({
   terminalOpen,
   onToggleTerminal,
   onBackToMore,
+  phoneShell = false,
 }: PageHeaderProps) {
   const { t } = useI18n()
   const primaryShortcut = useShortcutLabel('primaryAction')
@@ -103,16 +105,19 @@ export function PageHeader({
           : null
         : primaryActions[page]
   const desktop = Boolean(desktopPlatform)
-  // 面包屑上一级：归设置的页面归「设置」，“更多”里的功能页归「更多」（可点返回）；
-  // 一级标签页（组件、更多本身）没有上一级。手机没有“组件”标签，组件页从“更多”进入，
+  // 面包屑上一级：设置分区归「设置」，功能页（含 /config 下的远程访问等）归「功能」（可点返回）；
+  // 一级页（组件、功能本身）没有上一级。手机没有“组件”标签，组件页从“更多”进入，
   // 应用壳此时传入 onBackToMore，同样显示“‹ 更多”。
+  const inSettings = settingsOwned ?? page === 'config'
   const parent =
     page === 'chat'
       ? ''
-      : (settingsOwned ?? SETTINGS_PAGES.has(page))
+      : inSettings
         ? t('navigation:navigation.settings')
         : MORE_PAGES.has(page) || onBackToMore
-          ? t('navigation:shell.more')
+          ? phoneShell
+            ? t('navigation:shell.more')
+            : t('navigation:sidebar.features')
           : ''
   // 设置分区的语义标题是下方 20/600 大标题（随界面字号等比缩放）；顶栏里的当前项只作面包屑显示。
   const titleBlock = page === 'config'
@@ -145,14 +150,18 @@ export function PageHeader({
             page === 'chat' && 'max-[650px]:h-auto max-[650px]:basis-auto max-[650px]:px-0',
           )}
         >
-          {parent && onBackToMore && !(settingsOwned ?? SETTINGS_PAGES.has(page)) ? (
+          {parent && onBackToMore && !inSettings ? (
             <>
               {/* 桌面是面包屑里的“‹ 更多”；手机是标题左侧 44px 高的文字返回键（规格 2.1）。 */}
               <button
                 type="button"
                 data-back-to-more
                 className="-ml-1.5 flex h-7 shrink-0 items-center gap-0.5 rounded-sm pr-1.5 pl-1 text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:-ml-3 max-[650px]:h-11 max-[650px]:min-w-11 max-[650px]:pr-2 max-[650px]:text-sm max-[650px]:text-content-secondary"
-                aria-label={t('navigation:shell.backToMoreLabel')}
+                aria-label={
+                  phoneShell
+                    ? t('navigation:shell.backToMoreLabel')
+                    : t('navigation:shell.backToFeaturesLabel')
+                }
                 onClick={onBackToMore}
               >
                 <ChevronLeft className="size-4 max-[650px]:size-5" aria-hidden="true" />

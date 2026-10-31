@@ -3,7 +3,8 @@ import { BackNavigation } from '@/components/layout/BackNavigation'
 // 设置/更新控制器/工作流动作），组装 左侧侧栏（268，⌘B 收起为 60 窄轨）+ 主区（页头 + Outlet）
 // + 手机底部标签栏，并通过 Outlet 上下文向各页面注入公共能力。规格 v2：没有标题栏了，
 // 一级入口（新任务 / 搜索 / 全部代理 / 功能 / 设置）与按状态分组的会话都在侧栏里；
-// 主页 '/' 是会话（上次停留的会话或新任务草稿）。设置页的分区导航暂在设置内容区左侧（A3 移进侧栏）。
+// 主页 '/' 是会话（上次停留的会话或新任务草稿）。侧栏随页面变化（规格 2.3）：全部代理页是状态 / 项目筛选，
+// 设置整页换成“← 返回 Esc”+ 设置目录（主区只有内容）。
 // 启动时探测是否已配置可用 Provider，未配置则展示可跳过的新手引导；同时提供全局快捷键
 // （⌘K 命令面板、⌘N 新任务、⌘B 侧栏、⌘J 聚焦会话列表、⌘1 全部代理、⌘2 功能、⌘, 设置、
 // ⌥A 聚焦等待最久的需要你、⌥↑⌥↓ 切换会话、` 终端、/ 搜索、Esc 逐层关闭）与浏览器通知轮询。
@@ -52,13 +53,7 @@ import {
   type ShellTab,
 } from '@/app/shell-tabs'
 import { ShellSidebar, SidebarSessionsFallback, type ShellSidebarEntry } from '@/app/ShellSidebar'
-import {
-  CONFIG_SECTIONS,
-  getSettingsNavigation,
-  SETTINGS_PAGES,
-  settingsOwnsPage,
-  type SettingsDestination,
-} from '@/app/settings-navigation'
+import { CONFIG_SECTIONS, configSectionLabel, settingsOwnsRoute } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { ensureBoardMessages, ensureCustomUiMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
@@ -174,16 +169,22 @@ const SidebarRailCounts = lazy(() =>
 const SidebarCommands = lazy(() =>
   loadSidebarSessions().then((module) => ({ default: module.SidebarCommands })),
 )
+// 全部代理页的侧栏筛选与设置页底部的状态行：同一个看板块。
+const SidebarBoardFilters = lazy(() =>
+  loadSidebarSessions().then((module) => ({ default: module.SidebarBoardFilters })),
+)
+const SidebarFleetLine = lazy(() =>
+  loadSidebarSessions().then((module) => ({ default: module.SidebarFleetLine })),
+)
 // 手机标签栏依赖看板数据层（单一轮询者）；按需加载，不进入启动包。
 const ShellTabBar = lazy(() =>
   import('@/app/ShellTabBar').then((module) => ({ default: module.ShellTabBar })),
 )
 // 更新提示只在确有可用更新时加载，常驻侧栏不为它增加启动体积。
 const SidebarUpdateStatus = lazy(() => import('@/components/layout/SidebarUpdateStatus'))
-const SettingsSectionNav = lazy(() =>
-  import('@/components/layout/SettingsSectionNav').then((module) => ({
-    default: module.SettingsSectionNav,
-  })),
+// 设置整页的侧栏（设置目录）：只在设置页按需加载。
+const SettingsSidebar = lazy(() =>
+  import('@/app/SettingsSidebar').then((module) => ({ default: module.SettingsSidebar })),
 )
 // 派发浮层的文案在看板命名空间里，随浮层一起按需注册。
 const DispatchOverlay = lazy(async () => {
@@ -271,8 +272,15 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   // 主页（'/'）的页面 id 也是 'session'，但挂的是主页落地（草稿 / 加载 / 错误态），不是会话路由：
   // 打开或新建会话的请求在主页上没人就地接收，外壳必须自己导航。只有 /board/:id（含 /board/new）算已挂载。
   const sessionRouteMounted = Boolean(sessionIdFromPath(location.pathname))
-  // 同时挂在“更多”与设置导航下的页面按进入来源确定唯一归属，壳层各处共用这一结论。
-  const settingsOwned = settingsOwnsPage(page, location.state)
+  const requestedConfigSection =
+    page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
+  const configSection =
+    CONFIG_SECTIONS.has(requestedConfigSection) &&
+    runtimeConfigSectionAvailable(capabilities, requestedConfigSection)
+      ? requestedConfigSection
+      : 'models'
+  // 只有 /config 下的应用设置分区用设置外壳；远程访问 / 手机服务器 / 桌面宠物与插件等都是功能页（规格 2.6）。
+  const settingsOwned = settingsOwnsRoute(page, configSection)
   const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
   const [activeSessionId, setActiveSessionId] = useState(
@@ -322,13 +330,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const toast = toastQueue[0]
   const [modal, setModal] = useState<string | null>(null)
   const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
-  const requestedConfigSection =
-    page === 'config' ? decodePathSegment(location.pathname.split('/')[2] || 'models') : 'models'
-  const configSection =
-    CONFIG_SECTIONS.has(requestedConfigSection) &&
-    runtimeConfigSectionAvailable(capabilities, requestedConfigSection)
-      ? requestedConfigSection
-      : 'models'
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const {
     data: configData,
@@ -729,14 +730,26 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [setConfigSection],
   )
 
-  // 设置导航统一入口：配置分区 vs 独立设置页两种跳转。
-  const navigateSettings = useCallback(
-    (destination: SettingsDestination) => {
-      if (destination.type === 'config') setConfigSection(destination.id)
-      else navigate(destination.id)
-    },
-    [navigate, setConfigSection],
-  )
+  // 离开设置整页（“← 返回”与 Esc，规格 2.3）：回到进入设置前的那一页。记下进入设置时的历史下标，
+  // 之后在设置里切换分区（每次压一条）也能一次退回原处，那一页的历史状态（主页落地标记、全部代理的滚动）原样还在；
+  // 冷启动就在设置里（前面没有应用内条目）时去主页。焦点回到原会话行由 SidebarCommands 负责。
+  const settingsEntryRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!settingsOwned) {
+      settingsEntryRef.current = null
+      return
+    }
+    if (settingsEntryRef.current !== null) return
+    const index: unknown = window.history.state?.idx
+    settingsEntryRef.current = typeof index === 'number' ? index : 0
+  }, [location.key, settingsOwned])
+  const leaveSettings = useCallback(() => {
+    const entry = settingsEntryRef.current
+    const index: unknown = window.history.state?.idx
+    if (entry !== null && entry > 0 && typeof index === 'number' && index >= entry)
+      routerNavigate(-(index - entry + 1))
+    else routerNavigate(HOME_PATH)
+  }, [routerNavigate])
 
   // 解析会话工作目录：从会话列表查 cwd（供终端绑定工作区）。
   const resolveSessionCwd = useCallback(async (sessionId: string) => {
@@ -884,12 +897,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
           mobileLayout ? '' : t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
         ]
       : page === 'config'
-        ? [
-            getSettingsNavigation(t, { mobileApp, capabilities })
-              .flatMap((group) => group.items)
-              .find((item) => item.key === `config:${configSection}`)?.label || pageMeta.config[0],
-            '',
-          ]
+        ? [configSectionLabel(t, configSection), '']
         : page === 'workflowCreate'
           ? // 编辑器挂载前（懒加载）按路由段推断；挂载后以编辑器判断为准（不存在的 id 打开的是空白新建草稿）。
             getWorkflowEditorMeta(
@@ -927,7 +935,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     registerWorkflowActions,
     startNewTask: () => startNewTask('board'),
   }
-  // 从“更多”进入的功能页：页头显示“‹ 更多”。
+  // 功能页（含 /config 下的远程访问、手机服务器、桌面宠物）：页头显示“‹ 功能”（手机标签栏 A4 前仍叫“更多”）。
   const moreOwned = shellTab === 'more' && page !== 'more'
   const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
   // 手机原生返回的路由层级（shellBackPath）：会话主页是根（主页与从主页落地的会话交还平台），
@@ -949,20 +957,31 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   }, [longestWaitingId, openSession])
   const focusPageSearch = useCallback(() => {
     if (page === 'more') document.getElementById(MORE_SEARCH_INPUT_ID)?.focus()
-    // 看板页的 / 聚焦筛选（项目筛选控件；没有项目时是状态筛选）。
-    else if (page === 'board') document.getElementById(BOARD_FILTER_ID)?.focus()
-    else searchInputRef.current?.focus()
-  }, [page])
+    // 全部代理页的 / 聚焦侧栏筛选（规格 2.3、2.8）；侧栏收成窄轨时先临时展开再聚焦。
+    else if (page === 'board') {
+      const filter = document.getElementById(BOARD_FILTER_ID)
+      if (filter) filter.focus()
+      else if (!phoneShell && useSidebarStore.getState().collapsed) {
+        useSidebarStore.getState().setPeeking(true)
+        let frames = 0
+        const attempt = () => {
+          const target = document.getElementById(BOARD_FILTER_ID)
+          if (target) target.focus()
+          else if ((frames += 1) < 20) requestAnimationFrame(attempt)
+        }
+        requestAnimationFrame(attempt)
+      }
+    } else searchInputRef.current?.focus()
+  }, [page, phoneShell])
   // 看板、会话页与更多页自带页头；其余功能页沿用共享页头（面包屑、搜索、主操作）。
   // 会话页与主页隐藏底部标签栏（规格 7.3）：看板入口在顶栏左侧，返回走系统返回键；组件仍挂着（不渲染），
   // ⌥A 的等待最久事项照常更新。懒加载期间的占位也随之省掉。
   const tabBarFallback =
     page === 'session' ? null : <div className="h-14 flex-none" aria-hidden="true" />
   const sharedPageHeader = !['board', 'session', 'more', 'chat'].includes(page)
+  // 设置外壳（侧栏换成设置目录）：桌面与手机 App 平板；手机仍用横滑分区条（列表 → 分区在 A4）。
   const settingsLayout = settingsOwned && !phoneLayout
-  // 手机用横滑分区条；平板（手机 App）与桌面一样用左侧分区导航。
-  const mobileSettingsNav =
-    clientLoaded && mobileLayout && SETTINGS_PAGES.has(page) && settingsOwned && !tabletApp
+  const mobileSettingsNav = clientLoaded && mobileLayout && settingsOwned && !tabletApp
 
   if (!startupReady || !capabilitiesLoaded)
     return (
@@ -1087,16 +1106,54 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 onOpenSettings={() => selectShellTab('settings')}
                 content={
                   <Suspense fallback={<SidebarSessionsFallback />}>
-                    <SidebarSessions
-                      currentId={sessionIdFromPath(location.pathname)}
-                      notify={notify}
-                      requestText={appDialog.prompt}
-                      onOpenSession={openSidebarSession}
-                      onOpenBoard={() => selectShellTab('board')}
-                      onOpenHistory={() => navigate('chatHistory')}
-                      onArchived={sidebarArchived}
-                    />
+                    {/* 全部代理页：会话分组收成状态 / 项目筛选，代理只在主区列一次（规格 2.3）。 */}
+                    {page === 'board' ? (
+                      <SidebarBoardFilters
+                        notify={notify}
+                        requestConfirm={appDialog.confirm}
+                        requestText={appDialog.prompt}
+                        onNewTask={() => startNewTask('sidebar')}
+                        onOpenHistory={() => navigate('chatHistory')}
+                      />
+                    ) : (
+                      <SidebarSessions
+                        currentId={sessionIdFromPath(location.pathname)}
+                        notify={notify}
+                        requestText={appDialog.prompt}
+                        onOpenSession={openSidebarSession}
+                        onOpenBoard={() => selectShellTab('board')}
+                        onOpenHistory={() => navigate('chatHistory')}
+                        onArchived={sidebarArchived}
+                      />
+                    )}
                   </Suspense>
+                }
+                takeover={
+                  settingsLayout ? (
+                    <Suspense
+                      fallback={
+                        <nav
+                          aria-busy="true"
+                          aria-label={t('config:settingsShell.settingsNavigation')}
+                          className="flex-1"
+                        />
+                      }
+                    >
+                      <SettingsSidebar
+                        configSection={configSection}
+                        onSelectSection={setConfigSection}
+                        onBack={leaveSettings}
+                        onOpenFeatures={() => selectShellTab('more')}
+                        search={configSearch('sidebar')}
+                        version={appUpdate.info?.version}
+                        footer={
+                          <Suspense fallback={null}>
+                            <SidebarFleetLine onOpenBoard={() => selectShellTab('board')} />
+                          </Suspense>
+                        }
+                      />
+                    </Suspense>
+                  ) : undefined
                 }
                 railCounts={
                   <Suspense fallback={<SidebarSessionsFallback collapsed />}>
@@ -1132,26 +1189,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 />
               </Suspense>
             )}
-            {settingsLayout && (
-              <Suspense
-                fallback={
-                  <nav
-                    aria-busy="true"
-                    aria-label={t('config:settingsShell.settingsNavigation')}
-                    className="w-[232px] flex-none border-r border-stroke-soft bg-panel"
-                  />
-                }
-              >
-                <SettingsSectionNav
-                  page={page}
-                  configSection={configSection}
-                  mobileApp={mobileApp}
-                  onNavigate={navigateSettings}
-                  search={page === 'config' ? configSearch('sidebar') : undefined}
-                  version={appUpdate.info?.version}
-                />
-              </Suspense>
-            )}
             <main
               data-focus-region="main"
               className="main-surface relative flex min-w-0 flex-1 flex-col overflow-hidden bg-panel"
@@ -1168,7 +1205,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     configSection={configSection}
                     onMenu={() => setPaletteOpen(true)}
                     onPrimary={handlePrimary}
-                    searchSlot={page === 'config' && !settingsLayout ? configSearch() : undefined}
+                    searchSlot={settingsOwned && !settingsLayout ? configSearch() : undefined}
                     searchInputRef={searchInputRef}
                     workflowActions={workflowActions}
                     desktopPlatform={window.pisperDesktop?.platform || ''}
@@ -1176,15 +1213,14 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     terminalOpen={terminalOpen}
                     onToggleTerminal={() => setTerminalOpen((value) => !value)}
                     onBackToMore={moreOwned ? backToMore : undefined}
+                    phoneShell={phoneShell}
                   />
                 </Suspense>
               )}
               {mobileSettingsNav && (
                 <MobileSettingsNavigation
-                  page={page}
                   configSection={configSection}
-                  mobileApp={mobileApp}
-                  onNavigate={navigateSettings}
+                  onNavigate={setConfigSection}
                 />
               )}
               <div

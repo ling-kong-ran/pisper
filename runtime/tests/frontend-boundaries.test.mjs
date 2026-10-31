@@ -192,12 +192,12 @@ test('optional application widgets stay lazy and page header consumes feature-fr
 
 test('the shell keeps board data and sidebar groups out of the startup bundle', () => {
   const appDependencies = graph.get(resolve(root, 'src/App.tsx'))
-  // 侧栏的会话分组与窄轨计数、手机标签栏与派发浮层依赖看板数据层（单一轮询者），设置分区导航只在
-  // 设置页需要：都按需加载。应用壳静态只认看板的两份轻量契约（新任务、侧栏命令），二者都没有导入。
+  // 侧栏的会话分组、全部代理页的筛选、设置页底部状态行与窄轨计数、手机标签栏与派发浮层依赖看板数据层
+  // （单一轮询者），设置整页的侧栏（设置目录）只在设置页需要：都按需加载。应用壳静态只认看板的两份轻量契约（新任务、侧栏命令），二者都没有导入。
   for (const file of [
     'src/features/board/sidebar.ts',
     'src/app/ShellTabBar.tsx',
-    'src/components/layout/SettingsSectionNav.tsx',
+    'src/app/SettingsSidebar.tsx',
     'src/features/board/DispatchOverlay.tsx',
   ]) {
     const dependency = appDependencies.find((entry) => entry.path === resolve(root, file))

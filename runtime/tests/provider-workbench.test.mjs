@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getProviderWorkbenchState } from '../../src/features/config/provider-workbench-state.ts'
+import { getMoreNavigation } from '../../src/app/more-navigation.ts'
 import { getSettingsNavigation } from '../../src/app/settings-navigation.ts'
 
 const provider = (id, overrides = {}) => ({
@@ -62,23 +63,22 @@ test('a fresh provider configuration renders an empty workbench without selectin
   }
 })
 
-test('unified settings includes models and appearance alongside platform-specific settings', () => {
+test('the settings directory lists only application settings; device and extension pages live under Features', () => {
+  // 规格 2.6：设置目录 = 模型 · 界面 · 通知 · 快捷键 · 更新 · 关于（界面里含语言、主题等）。
+  // 远程访问 / 手机服务器 / 桌面宠物与插件、MCP、技能、星忆、渠道只在“功能”里（双归属退役），
+  // 平台差异（桌面远程访问、手机服务器）随之由功能索引表达。
+  const items = getSettingsNavigation((key) => key)
+  assert.deepEqual(
+    items.map((item) => item.section),
+    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'],
+  )
+  for (const item of items) assert.equal(typeof item.label, 'string')
   for (const mobileApp of [false, true]) {
-    const items = getSettingsNavigation((key) => key, { mobileApp }).flatMap((group) => group.items)
-    for (const id of ['models', 'interface', 'about', 'notifications']) {
-      assert.deepEqual(items.find((item) => item.key === `config:${id}`)?.destination, {
-        type: 'config',
-        id,
-      })
-    }
-    assert.equal(
-      items.some((item) => item.key === 'config:mobile-server'),
-      mobileApp,
+    const keys = getMoreNavigation((key) => key, { mobileApp }).flatMap((group) =>
+      group.tiles.map((tile) => tile.key),
     )
-    assert.equal(
-      items.some((item) => item.key === 'config:remote-access'),
-      !mobileApp,
-    )
-    assert.equal(new Set(items.map((item) => item.key)).size, items.length)
+    assert.equal(keys.includes('config:mobile-server'), mobileApp)
+    assert.equal(keys.includes('config:remote-access'), !mobileApp)
+    assert.ok(keys.includes('config:desktop-pet'))
   }
 })

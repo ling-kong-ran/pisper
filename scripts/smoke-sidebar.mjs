@@ -6,6 +6,9 @@
 // 快捷处理（悬停 / 聚焦后普通批准一步允许或拒绝，只发一次请求、行收起）；⌥A 聚焦等待最久的行 → A 批准；
 // ⌥↑ / ⌥↓ 按侧栏顺序 replace 切换；⌘B；⌘J（收起时临时展开）；F6 在侧栏、顶栏、对话、输入框之间切换；
 // 从全部代理 / 设置返回时焦点回到原会话行；1x 截图里运行中的弧与完成逐像素可区分（排队见 smoke-replica-shell）。
+// A3（规格 2.3、2.6）：侧栏随页面变化——全部代理页收成状态 / 项目筛选（不列会话行，⌘J / ⌥A 改落到筛选与主区行），
+// 设置整页换成“← 返回 Esc”+ 设置目录 + 底部状态行（收起时也是整块 268），Esc 与“← 返回”回到进入设置前的页面，
+// 输入框里的 Esc 不离开；远程访问等 /config 功能页与插件页归“功能”（页头“‹ 功能”，不用设置外壳）。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -170,7 +173,7 @@ async function geometry(page, label) {
     const sidebar = document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect()
     const covered = [
       ...document.querySelectorAll(
-        '[data-shell-sidebar] [data-sidebar-entry], [data-shell-sidebar] [data-sidebar-row], [data-shell-sidebar] [data-rail-count]',
+        '[data-shell-sidebar] [data-sidebar-entry], [data-shell-sidebar] [data-sidebar-row], [data-shell-sidebar] [data-rail-count], [data-shell-sidebar] [data-sidebar-filter], [data-shell-sidebar] [data-settings-section], [data-shell-sidebar] [data-settings-back], [data-shell-sidebar] [data-sidebar-fleet-line]',
       ),
     ]
       .filter((element) => {
@@ -810,6 +813,251 @@ try {
       'Leaving the session for all agents (⌘1) or settings (⌘,) and coming back puts focus on the original session row in the sidebar',
     )
     assert.deepEqual(aborts, [], 'no sidebar shortcut stops a run')
+    await ensureExpanded(page)
+    await context.close()
+  }
+
+  // 5. 侧栏随页面变化（A3，规格 2.3 / 2.6）：全部代理页的筛选形态与设置整页。
+  {
+    const { context, aborts } = await newContext({
+      viewport: { width: 1440, height: 900 },
+      colorScheme: 'light',
+    })
+    const page = await openSession(context, 'page-shaped sidebar')
+    const prompt = page.locator('.focus-composer textarea').first()
+    const sidebar = page.locator('[data-shell-sidebar]')
+    const active = () =>
+      page.evaluate(() => {
+        const element = document.activeElement
+        return {
+          filter: element?.getAttribute('data-sidebar-filter') ?? null,
+          card: element?.getAttribute('data-board-card') ?? null,
+          lane: element?.getAttribute('data-lane') ?? null,
+          section: element?.getAttribute('data-settings-section') ?? null,
+          fleet: element?.hasAttribute('data-sidebar-fleet-line') ?? false,
+          row: element?.getAttribute('data-sidebar-row') ?? null,
+        }
+      })
+
+    // 5a. 全部代理页：侧栏不列会话行，只有状态 / 项目筛选，计数与侧栏分组一致（需要你 3、运行中 3）。
+    await prompt.click()
+    await page.keyboard.press(`${mod}+Digit1`)
+    await page.waitForFunction(() => location.hash === '#/board')
+    await sidebar.locator('[data-sidebar-filters]').waitFor()
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-sidebar-filter="attention"] [data-sidebar-filter-count]')
+          ?.textContent === '3' &&
+        document.querySelector('[data-sidebar-filter="running"] [data-sidebar-filter-count]')
+          ?.textContent === '3',
+    )
+    assert.equal(await sidebar.locator('[data-sidebar-row]').count(), 0)
+    assert.deepEqual(
+      await sidebar
+        .locator('[data-sidebar-filter]:not([data-sidebar-filter^="project:"])')
+        .evaluateAll((nodes) => nodes.map((node) => node.dataset.sidebarFilter)),
+      ['all', 'attention', 'running', 'done'],
+    )
+    assert.equal(
+      await sidebar.locator('[data-sidebar-entry="board"]').getAttribute('aria-current'),
+      'page',
+    )
+    await geometry(page, 'all agents filters 1440')
+    // ⌘J 聚焦按下的筛选（全部）；⌥A 把焦点交给主区等待最久的那一行，不批准、不导航。
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await page.waitForFunction(
+      () => document.activeElement?.getAttribute('data-sidebar-filter') === 'all',
+    )
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('ArrowDown')
+    assert.equal((await active()).filter, 'running')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-sidebar-filter="running"]')?.getAttribute('aria-pressed') ===
+        'true',
+    )
+    await page.locator('[data-board-root] [data-lane="attention"]').first().waitFor({
+      state: 'detached',
+    })
+    // 被“运行中”筛选藏起来的需要你：⌥A 先清掉筛选再聚焦那一行。
+    await page.keyboard.press('Alt+KeyA')
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.getAttribute('data-lane') === 'attention' &&
+        document.activeElement?.closest('[data-overview]') !== null,
+    )
+    assert.equal(
+      await sidebar.locator('[data-sidebar-filter="all"]').getAttribute('aria-pressed'),
+      'true',
+    )
+    assert.equal(await page.evaluate(() => location.hash), '#/board')
+    // 收起成窄轨时 ⌘J 临时展开，焦点落到筛选上；Esc 收回。
+    await page.keyboard.press(`${mod}+KeyB`)
+    await page.locator('[data-shell-sidebar="rail"]').waitFor()
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await page.locator('[data-shell-sidebar-peek] [data-sidebar-filters]').waitFor()
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.closest('[data-shell-sidebar-peek]') &&
+        document.activeElement?.hasAttribute('data-sidebar-filter'),
+    )
+    await page.keyboard.press('Escape')
+    await page.locator('[data-shell-sidebar-peek]').waitFor({ state: 'detached' })
+    await page.screenshot({ path: join(output, 'all-agents-filters-rail.png') })
+    report.checks.push(
+      'All agents page: the sidebar lists no sessions, only status filters (全部 · 需要你 3 · 运行中 3 · 今天完成; no 排队 without sessionQueue) and project filters; ⌘J focuses the pressed filter, ↓ / ↵ pick 运行中, ⌥A clears the filter that hid the longest-waiting row and focuses it in the main list without approving; collapsed, ⌘J peeks the filters and Esc folds them back',
+    )
+
+    // 5b. 设置整页（收起状态下也整块 268）：“← 返回 Esc”、设置目录 6 项、搜索、功能链接、底部状态行；
+    // 主区没有第三列导航。切换分区后 Esc 一次退回全部代理（进入设置前的那一页）。
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press(`${mod}+Comma`)
+    await page.waitForFunction(() => location.hash === '#/config/models')
+    const settings = page.locator('[data-shell-sidebar="settings"]')
+    await settings.locator('[data-settings-sidebar]').waitFor()
+    await settings.locator('[data-sidebar-fleet-line]').waitFor()
+    const shell = await page.evaluate(() => ({
+      width: Math.round(
+        document.querySelector('[data-shell-sidebar]')?.getBoundingClientRect().width ?? 0,
+      ),
+      sections: [...document.querySelectorAll('[data-settings-section]')].map((button) => [
+        button.getAttribute('data-settings-section'),
+        button.getAttribute('aria-current'),
+      ]),
+      back: document.querySelector('[data-settings-back]')?.textContent?.trim(),
+      entries: document.querySelectorAll('[data-shell-sidebar] [data-sidebar-entry]').length,
+      // 设置导航只在侧栏里，主区不再叠第三列。
+      thirdColumn: [...document.querySelectorAll('[aria-label="设置导航"]')].filter(
+        (element) => !element.closest('[data-shell-sidebar]'),
+      ).length,
+      search: Boolean(document.querySelector('[data-settings-sidebar] input')),
+      hint: document.querySelector('[data-settings-features-link]')?.textContent?.trim(),
+      fleet: document.querySelector('[data-sidebar-fleet-line]')?.textContent?.trim(),
+      fleetLabel: document.querySelector('[data-sidebar-fleet-line]')?.getAttribute('aria-label'),
+    }))
+    assert.deepEqual(
+      { ...shell, fleet: undefined, fleetLabel: undefined },
+      {
+        width: 268,
+        sections: [
+          ['models', 'page'],
+          ['interface', null],
+          ['notifications', null],
+          ['shortcuts', null],
+          ['updates', null],
+          ['about', null],
+        ],
+        back: '返回',
+        entries: 0,
+        thirdColumn: 0,
+        search: true,
+        hint: '插件、MCP、技能等在“功能”里',
+        fleet: undefined,
+        fleetLabel: undefined,
+      },
+    )
+    assert.match(shell.fleet, /3 个需要你\s*·\s*3 个运行中/)
+    assert.equal(shell.fleetLabel, '3 个代理需要你，3 个运行中，打开全部代理')
+    await geometry(page, 'settings shell 1440 (rail preference)')
+    await page.screenshot({ path: join(output, 'settings-shell-light.png') })
+    await settings.locator('[data-settings-section="interface"]').click()
+    await page.waitForFunction(() => location.hash === '#/config/interface')
+    assert.equal(
+      await settings.locator('[data-settings-section="interface"]').getAttribute('aria-current'),
+      'page',
+    )
+    // 设置搜索框里的 Esc 只清空 / 收起搜索，不离开设置。
+    const search = settings.locator('input').first()
+    await search.fill('主题')
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    assert.equal(await page.evaluate(() => location.hash), '#/config/interface')
+    // 焦点不在输入框：Esc 回到进入设置前的全部代理（一次退回，不是上一个分区）。
+    await settings.locator('[data-settings-section="interface"]').focus()
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => location.hash === '#/board')
+    await page.locator('[data-shell-sidebar="rail"]').waitFor()
+    report.checks.push(
+      'Settings take over the sidebar as a full 268px page even with the rail preference: ← 返回 + Esc, 设置 with exactly 模型 · 界面 · 通知 · 快捷键 · 更新 · 关于 (aria-current on the open section), the settings search, “插件、MCP、技能等在“功能”里 →” and “● 3 个需要你 · ◠ 3 个运行中 ›”; no entries, no third navigation column, top-right 144px free; Esc inside the search box stays, Esc elsewhere goes back to 全部代理 in one step after switching sections, and the rail comes back',
+    )
+    await page.keyboard.press(`${mod}+KeyB`)
+    await page.locator('[data-shell-sidebar="expanded"]').waitFor()
+
+    // 5c. 从会话进设置：“← 返回”回到原会话、焦点回到原会话行；底部状态行打开全部代理（清掉状态筛选）。
+    await page.goto(`${base}/#/board/${BOARD_SESSION_ID}`)
+    await prompt.waitFor()
+    await sidebar.locator(`[data-sidebar-row="${BOARD_SESSION_ID}"]`).waitFor()
+    await prompt.click()
+    await page.keyboard.press(`${mod}+Comma`)
+    await settings.locator('[data-settings-sidebar]').waitFor()
+    await settings.locator('[data-settings-section="notifications"]').click()
+    await page.waitForFunction(() => location.hash === '#/config/notifications')
+    await settings.locator('[data-settings-back]').click()
+    await page.waitForFunction((id) => location.hash === `#/board/${id}`, BOARD_SESSION_ID)
+    await page.waitForFunction(
+      (id) => document.activeElement?.getAttribute('data-sidebar-row') === id,
+      BOARD_SESSION_ID,
+    )
+    // ⌥A / ⌘J 在设置里：落到底部状态行 / 当前分区，不临时展开别的东西。
+    await prompt.click()
+    await page.keyboard.press(`${mod}+Comma`)
+    await settings.locator('[data-sidebar-fleet-line]').waitFor()
+    await page.locator('main').click({ position: { x: 600, y: 600 } })
+    await page.keyboard.press('Alt+KeyA')
+    await page.waitForFunction(() =>
+      document.activeElement?.hasAttribute('data-sidebar-fleet-line'),
+    )
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await page.waitForFunction(
+      () => document.activeElement?.getAttribute('data-settings-section') === 'models',
+    )
+    await settings.locator('[data-sidebar-fleet-line]').click()
+    await page.waitForFunction(() => location.hash === '#/board')
+    await sidebar.locator('[data-sidebar-filters]').waitFor()
+    assert.equal(
+      await sidebar.locator('[data-sidebar-filter="all"]').getAttribute('aria-pressed'),
+      'true',
+    )
+    report.checks.push(
+      'From a session, ⌘, then 通知 then “← 返回” goes back to the same session and focus returns to its sidebar row; in settings ⌥A focuses the bottom status line and ⌘J the open section; the status line opens 全部代理 with the status filter cleared',
+    )
+
+    // 5d. 双归属退役：远程访问（/config 下）与插件是功能页——点亮“功能”、页头“‹ 功能”、侧栏是常规会话分组。
+    for (const path of ['/config/remote-access', '/plugins']) {
+      await page.goto(`${base}/#${path}`)
+      await page.locator('[data-back-to-more]').waitFor({ timeout: 30_000 })
+      assert.equal(await page.locator('[data-shell-sidebar="settings"]').count(), 0, path)
+      assert.equal(
+        await sidebar.locator('[data-sidebar-entry="features"]').getAttribute('aria-current'),
+        'page',
+        path,
+      )
+      assert.equal(await page.locator('[data-back-to-more]').innerText(), '功能')
+      assert.equal(await page.locator('[data-back-to-more]').getAttribute('aria-label'), '返回功能')
+    }
+    await page.locator('[data-back-to-more]').click()
+    await page.waitForFunction(() => location.hash === '#/more')
+    // 设置目录里的“在功能里 →”同样去功能。
+    await page.keyboard.press(`${mod}+Comma`)
+    await settings.locator('[data-settings-features-link]').click()
+    await page.waitForFunction(() => location.hash === '#/more')
+    await page.locator('[data-shell-sidebar="expanded"]').waitFor()
+    report.checks.push(
+      'Remote access (/config/remote-access) and plugins open as feature pages: 功能 is lit, the header shows “‹ 功能” (返回功能) back to the index, no settings sidebar; the settings link “在功能里 →” opens the index too',
+    )
+
+    // 深色下的设置整页截图（对照用）。
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.keyboard.press(`${mod}+Comma`)
+    await settings.locator('[data-sidebar-fleet-line]').waitFor()
+    await settle(page)
+    await geometry(page, 'settings shell 1440 dark')
+    await page.screenshot({ path: join(output, 'settings-shell-dark.png') })
+    assert.deepEqual(aborts, [], 'no page-shaped sidebar action stops a run')
+    await resetBoardView()
     await ensureExpanded(page)
     await context.close()
   }

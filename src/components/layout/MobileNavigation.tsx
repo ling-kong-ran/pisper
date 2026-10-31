@@ -1,40 +1,25 @@
-// 移动端设置横滑条；主导航由常驻功能栏统一提供。
+// 移动端设置横滑条：与桌面设置侧栏同一份设置目录（getSettingsNavigation，规格 2.6 只有应用设置）；
+// 插件、远程访问 / 手机服务器、桌面宠物等功能页只在“更多”（功能）里。列表 → 分区的手机设置在 A4。
 import { useEffect, useMemo, useRef } from 'react'
-import {
-  getSettingsNavigation,
-  settingsNavigationKey,
-  type SettingsDestination,
-} from '@/app/settings-navigation'
+import { getSettingsNavigation } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
 type MobileSettingsNavigationProps = {
-  page: string
   configSection: string
-  mobileApp: boolean
-  onNavigate: (destination: SettingsDestination) => void
+  onNavigate: (section: string) => void
 }
 
 export function MobileSettingsNavigation({
-  page,
   configSection,
-  mobileApp,
   onNavigate,
 }: MobileSettingsNavigationProps) {
   const { t } = useI18n()
-  const activeKey = settingsNavigationKey(page, configSection)
+  const activeKey = configSection
   const activeItemRef = useRef<HTMLButtonElement | null>(null)
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
-  const items = useMemo(
-    () =>
-      getSettingsNavigation(t, { mobileApp, capabilities })
-        .flatMap((group) => group.items)
-        .filter(
-          (item) => item.destination.type !== 'config' || item.destination.id !== 'desktop-pet',
-        ),
-    [capabilities, mobileApp, t],
-  )
+  const items = useMemo(() => getSettingsNavigation(t, { capabilities }), [capabilities, t])
 
   useEffect(() => {
     // 横滑导航可能比屏幕宽；切页后把当前项送回可视区，避免用户再寻找高亮项。
@@ -52,7 +37,7 @@ export function MobileSettingsNavigation({
       data-mobile-navigation="settings"
     >
       {items.map((item) => {
-        const active = activeKey === item.key
+        const active = activeKey === item.section
         const Icon = item.icon
         return (
           <button
@@ -64,8 +49,8 @@ export function MobileSettingsNavigation({
                 ? 'border-star-border bg-star-soft font-medium text-star-strong'
                 : 'border-stroke text-content-secondary active:bg-surface-subtle',
             )}
-            key={item.key}
-            onClick={() => onNavigate(item.destination)}
+            key={item.section}
+            onClick={() => onNavigate(item.section)}
             ref={active ? activeItemRef : undefined}
           >
             <Icon aria-hidden="true" size={16} />

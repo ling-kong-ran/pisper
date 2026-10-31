@@ -92,7 +92,7 @@ export async function verifyPisperIteration({
     'Model editor saves image-only capabilities on the existing connection, preserves failed drafts, and persists chat+image/reasoning/vision/token limits after reload',
   )
 
-  // 界面字号是 11–16px 的数字输入（旧的小/标准/大三档已退役）；设置页左侧分区导航的当前行
+  // 界面字号是 11–16px 的数字输入（旧的小/标准/大三档已退役）；设置目录（A3 起在侧栏里）的当前行
   // 随界面字号缩放，行高、图标与根字号保持不变。旧侧栏 36px 行随外壳退役，分区导航行高为 32px。
   await page.goto(base + '/#/config/interface')
   await page.getByText('高级', { exact: true }).click()
@@ -125,7 +125,8 @@ export async function verifyPisperIteration({
     'The numeric UI font size scales the active settings-section row and persists; root spacing, the 32px section row and 16px icon remain unchanged',
   )
 
-  // 旧侧栏 36px 会话行随外壳退役；界面字号改为钉住看板卡片行（标题 base、元信息 xs）与会话页
+  // 旧侧栏 36px 会话行随外壳退役；界面字号改为钉住全部代理的行（标题 base、状态文字 xs；A3 起行取代卡片，
+  // 卡片的元信息行随泳道退役，等价的 xs 文字是标题后的状态 data-row-status）与会话页
   // 泳道条芯片（xs）的缩放，泳道条保持 52px、页面不横向滚动。看板与泳道条的数据由看板固定数据在
   // 浏览器边界提供（独立的浏览器上下文，不影响上面的页面），会话页用本次隔离 Runtime 里的真实会话。
   {
@@ -186,10 +187,10 @@ export async function verifyPisperIteration({
         assert.equal(await titleFont(card, '补充登录模块的单元测试'), size, `card title at ${size}`)
         assert.equal(
           await card
-            .locator('[data-card-meta]')
+            .locator('[data-row-status]')
             .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
           xs,
-          `card meta row at ${size}`,
+          `row status text at ${size}`,
         )
         await scaled.goto(base + `/#/board/${real.id}`)
         await row.waitFor({ timeout: 30000 })
@@ -209,7 +210,7 @@ export async function verifyPisperIteration({
     }
   }
   report.checks.push(
-    'The numeric UI font size scales board card rows (title base, meta xs) and sidebar session rows (base) at 12/16/14 px while the sidebar stays 268px, the root stays 16px and nothing scrolls horizontally',
+    'The numeric UI font size scales all-agents rows (title base, status xs) and sidebar session rows (base) at 12/16/14 px while the sidebar stays 268px, the root stays 16px and nothing scrolls horizontally',
   )
 
   const openWorkflowSettings = async () => {

@@ -3,7 +3,9 @@
 // 四个入口图标 + 需要你 / 运行中两个计数（插槽）+ 底部设置。收起状态存在 pisper-sidebar（sidebar-store）。
 // 任何宽度下默认展开占位：并行可见度优先，只有用户自己收起才变窄轨。
 // 分组区是插槽：会话页与普通页放看板领域的会话分组（随看板 store 懒加载，先画骨架行）；
-// 全部代理页的筛选形态与设置目录（A3）换成各自的内容，外壳不变。
+// 全部代理页换成状态 / 项目筛选（规格 2.3），外壳不变。设置整页用 takeover 整块换掉侧栏内容
+// （“← 返回 Esc”+ 设置目录，规格 2.3、2.6）：设置目录是那一页唯一的导航，所以不随收起偏好变窄轨，
+// 也不改动收起偏好，离开设置后照旧。
 // 收起时 ⌘J / ⌥A 临时展开（peeking）：展开的侧栏浮在主区上方，焦点离开或 Esc 时收回，不改变用户的收起偏好。
 // Windows 自绘标题栏时品牌行空白处是拖拽区（交互元素由 DesktopWindowControls 排除）。
 // 本模块进入口包，只放静态外壳；看板数据层、分组与计数都在插槽里按需加载。
@@ -42,6 +44,8 @@ export type ShellSidebarProps = {
   railCounts: ReactNode
   // 有可用更新时的图标键（沿用 SidebarUpdateStatus），展开与窄轨都显示在设置旁。
   update?: ReactNode
+  // 整块替换侧栏内容（设置整页）；给出时忽略收起状态，宽度固定 268。
+  takeover?: ReactNode
 }
 
 const ROW =
@@ -52,7 +56,8 @@ const RAIL_BUTTON =
   'grid size-10 place-items-center rounded-[var(--r-md)] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus pointer-coarse:size-11'
 
 export function ShellSidebar(props: ShellSidebarProps) {
-  const collapsed = useSidebarStore((state) => state.collapsed)
+  const takeover = props.takeover
+  const collapsed = useSidebarStore((state) => state.collapsed) && !takeover
   const peeking = useSidebarStore((state) => state.peeking)
   const setPeeking = useSidebarStore((state) => state.setPeeking)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -66,6 +71,11 @@ export function ShellSidebar(props: ShellSidebarProps) {
     if (active && active !== document.body && rootRef.current?.contains(active)) return
     rootRef.current?.querySelector<HTMLElement>('[data-sidebar-toggle]')?.focus()
   }, [collapsed])
+
+  // 设置整页不随收起偏好变窄轨，也没有临时展开：进入设置前若正临时展开着，收回去，离开设置后不会冒出浮层。
+  useEffect(() => {
+    if (takeover && peeking) setPeeking(false)
+  }, [peeking, setPeeking, takeover])
 
   // 临时展开：焦点或指针离开浮层（菜单等弹层除外）、按 Esc 时收回窄轨。
   useEffect(() => {
@@ -100,7 +110,7 @@ export function ShellSidebar(props: ShellSidebarProps) {
   return (
     <div
       ref={rootRef}
-      data-shell-sidebar={collapsed ? 'rail' : 'expanded'}
+      data-shell-sidebar={takeover ? 'settings' : collapsed ? 'rail' : 'expanded'}
       data-focus-region="sidebar"
       onFocus={() => {
         focusInsideRef.current = true
@@ -118,12 +128,14 @@ export function ShellSidebar(props: ShellSidebarProps) {
     >
       {/* 宽度 180ms 过渡的同时，换上来的内容（展开时的文字、收起时的窄轨计数）120ms 淡入（规格 6.6）；
           只用 opacity，减少动效时不播。 */}
-      <div
-        key={collapsed ? 'rail' : 'expanded'}
-        className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-(--d-fast) motion-reduce:animate-none"
-      >
-        {collapsed ? <SidebarRail {...props} /> : <SidebarExpanded {...props} />}
-      </div>
+      {takeover ?? (
+        <div
+          key={collapsed ? 'rail' : 'expanded'}
+          className="flex min-h-0 flex-1 flex-col animate-in fade-in duration-(--d-fast) motion-reduce:animate-none"
+        >
+          {collapsed ? <SidebarRail {...props} /> : <SidebarExpanded {...props} />}
+        </div>
+      )}
       {collapsed && peeking && (
         <div
           ref={overlayRef}

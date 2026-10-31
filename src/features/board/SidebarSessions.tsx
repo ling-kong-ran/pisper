@@ -81,6 +81,13 @@ function sidebarRows(root: ParentNode | null) {
 // unclaimed：只在焦点无主（落在 body 上，或仍在侧栏里）时才移动，不抢页面自己放好的焦点。
 function focusSidebarRow(
   pick: (rows: HTMLElement[]) => HTMLElement | undefined,
+  options: { unclaimed?: boolean } = {},
+) {
+  focusWhenReady(() => pick(sidebarRows(document.querySelector('[data-sidebar-groups]'))), options)
+}
+
+function focusWhenReady(
+  find: () => HTMLElement | undefined,
   { unclaimed = false }: { unclaimed?: boolean } = {},
 ) {
   let frames = 0
@@ -88,7 +95,7 @@ function focusSidebarRow(
     const active = document.activeElement
     if (unclaimed && active && active !== document.body && !active.closest('[data-shell-sidebar]'))
       return
-    const target = pick(sidebarRows(document.querySelector('[data-sidebar-groups]')))
+    const target = find()
     if (target) {
       target.focus()
       target.scrollIntoView?.({ block: 'nearest' })
@@ -143,14 +150,49 @@ export function SidebarCommands({
         return
       }
       const sidebar = useSidebarStore.getState()
+      // 设置整页：侧栏是设置目录（规格 2.3），没有会话行。⌥A 落到底部的“● N 个需要你”状态行（回车去全部代理），
+      // ⌘J 落到当前设置分区；不临时展开。
+      const settings = document.querySelector('[data-settings-sidebar]')
+      if (settings) {
+        const selector =
+          command.kind === 'focus-attention'
+            ? '[data-sidebar-fleet-line]'
+            : '[data-settings-section][aria-current="page"]'
+        focusWhenReady(() => settings.querySelector<HTMLElement>(selector) ?? undefined)
+        return
+      }
+      // 全部代理页（桌面）：侧栏是筛选，代理只在主区列一次（规格 2.3），⌥A 把焦点交给主区那一行，
+      // 被当前筛选藏起来时先清掉筛选；⌘J 聚焦按下的那个筛选。
+      const overview = document.querySelector('[data-overview]')
       if (command.kind === 'focus-attention') {
         const target = current.longestWaitingId
         if (!target) return
+        if (overview) {
+          const find = () =>
+            document.querySelector<HTMLElement>(
+              `[data-overview] [data-board-card="${CSS.escape(target)}"]`,
+            ) ?? undefined
+          const view = useBoardViewStore.getState()
+          if (!find() && (view.lanes.length || view.projects.length)) view.clearFilters()
+          focusWhenReady(find)
+          return
+        }
         if (sidebar.collapsed) sidebar.setPeeking(true)
         focusSidebarRow((rows) => rows.find((row) => row.dataset.sidebarRow === target))
         return
       }
       if (sidebar.collapsed) sidebar.setPeeking(true)
+      if (overview) {
+        focusWhenReady(() => {
+          const filters = document.querySelector('[data-shell-sidebar] [data-sidebar-filters]')
+          return (
+            filters?.querySelector<HTMLElement>('[data-sidebar-filter][aria-pressed="true"]') ??
+            filters?.querySelector<HTMLElement>('[data-sidebar-filter]') ??
+            undefined
+          )
+        })
+        return
+      }
       const currentId = propsRef.current.resolveCurrentId()
       focusSidebarRow((rows) => rows.find((row) => row.dataset.sidebarRow === currentId) ?? rows[0])
     }
@@ -268,6 +310,53 @@ export function SidebarRailCounts({ onOpenBoard }: SidebarRailCountsProps) {
         </span>
       </button>
     </div>
+  )
+}
+
+export type SidebarFleetLineProps = {
+  // 点开回到全部代理（清掉状态筛选：这一行同时说的是需要你与运行中两组）。
+  onOpenBoard: () => void
+}
+
+// 设置整页的侧栏底部常驻一行“● 3 个需要你 · ◠ 3 个运行中 ›”（规格 2.3）：在设置里也看得到谁在等你。
+// 数据同侧栏分组（useSidebarModel → 看板 store），需要你为 0 时不染琥珀。
+export function SidebarFleetLine({ onOpenBoard }: SidebarFleetLineProps) {
+  const { t } = useI18n()
+  const { model, isLoading } = useSidebarModel()
+  const setLaneFilter = useBoardViewStore((state) => state.setLaneFilter)
+  const attention = model.counts.attention
+  const running = model.counts.running
+  return (
+    <button
+      type="button"
+      data-sidebar-fleet-line
+      aria-busy={isLoading || undefined}
+      aria-label={t('board:sidebar.fleet.label', { attention, running })}
+      className="flex h-10 w-full min-w-0 items-center gap-1.5 rounded-[var(--r-md)] px-2.5 text-left text-[12.5px] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
+      onClick={() => {
+        setLaneFilter([])
+        onOpenBoard()
+      }}
+    >
+      <StatusGlyph
+        status="attention"
+        className={cn('size-3.5 flex-none', attention === 0 && 'text-content-faint')}
+      />
+      <span
+        data-sidebar-fleet="attention"
+        className={cn('truncate', attention > 0 && 'font-medium text-warning-strong')}
+      >
+        {t('board:sidebar.fleet.attention', { count: attention })}
+      </span>
+      <span aria-hidden="true" className="text-content-faint">
+        ·
+      </span>
+      <StatusGlyph status="run" spin={running > 0} className="size-3.5 flex-none" />
+      <span data-sidebar-fleet="running" className="truncate">
+        {t('board:sidebar.fleet.running', { count: running })}
+      </span>
+      <ChevronRight className="ml-auto size-3.5 flex-none text-content-muted" aria-hidden="true" />
+    </button>
   )
 }
 

@@ -107,7 +107,8 @@ function backFixture({ onRouteBack, overlay = false } = {}) {
     stack,
     state: fixtureState,
     requestBack: () => window.__pisperRequestBack(),
-    pressEscape: () => dispatch(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })),
+    pressEscape: (init = {}) =>
+      dispatch(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, ...init })),
     unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
     window,
   }
@@ -154,4 +155,65 @@ test('keyboard Escape only dismisses layers and never leaves the page', () => {
   // 桌面不传路由层返回：原生返回在没有返回层时直接交还平台。
   const desktop = backFixture()
   assert.equal(desktop.requestBack(), false)
+})
+
+// 设置整页的“← 返回 Esc”（规格 2.3）是“Esc 不离开页面”的唯一例外：useEscapeLeave 只在按键没被别人
+// 处理、没有弹层、焦点不在输入框、没有修饰键与输入法组合时离开；有返回层时 BackNavigation 先接住。
+const escapeLeaveCode = transformSync(await readFile('src/hooks/use-escape-leave.ts', 'utf8'), {
+  loader: 'ts',
+  format: 'cjs',
+}).code
+
+function mountEscapeLeave(f, onLeave) {
+  const cleanups = []
+  const module = { exports: {} }
+  runInNewContext(escapeLeaveCode, {
+    module,
+    exports: module.exports,
+    window: f.window,
+    WeakSet,
+    require: (id) => {
+      if (id === 'react')
+        return {
+          useEffect: (effect) => cleanups.push(effect()),
+          useRef: (value) => ({ current: value }),
+        }
+      if (id === '@/lib/back-navigation') return { hasOpenOverlay: () => f.state.overlay }
+      if (id === '@/lib/shortcuts')
+        return { isEditableTarget: (target) => Boolean(target?.editable) }
+      throw new Error(`unexpected dependency ${id}`)
+    },
+  })
+  module.exports.useEscapeLeave(onLeave)
+  return () => cleanups.forEach((cleanup) => cleanup?.())
+}
+
+test('the settings page Escape leaves only when nothing else claims the key', () => {
+  const calls = []
+  const f = backFixture()
+  const unmount = mountEscapeLeave(f, () => calls.push('leave'))
+  // 焦点在输入框（设置搜索、API Key 输入）、带修饰键、输入法组合中：不离开。
+  assert.equal(f.pressEscape({ target: { editable: true } }), true)
+  assert.equal(f.pressEscape({ shiftKey: true }), true)
+  assert.equal(f.pressEscape({ isComposing: true }), true)
+  assert.deepEqual(calls, [])
+  // 有打开着的弹层：Esc 交给弹层。
+  f.state.overlay = true
+  assert.equal(f.pressEscape(), true)
+  assert.deepEqual(calls, [])
+  f.state.overlay = false
+  // 有返回层（例如列表详情的窄屏详情）：BackNavigation 先关它，这一下不离开设置。
+  const remove = f.stack.register(100, () => {
+    calls.push('layer')
+    remove()
+  })
+  assert.equal(f.pressEscape(), false)
+  assert.deepEqual(calls, ['layer'])
+  // 什么都没有接住：离开设置，并标记已处理。
+  assert.equal(f.pressEscape(), false)
+  assert.deepEqual(calls, ['layer', 'leave'])
+  assert.equal(f.pressEscape({ key: 'Enter' }), true)
+  unmount()
+  assert.equal(f.pressEscape(), true)
+  assert.deepEqual(calls, ['layer', 'leave'])
 })

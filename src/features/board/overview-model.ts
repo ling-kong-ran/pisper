@@ -184,3 +184,28 @@ export function buildOverviewModel(
     filteredEmpty: items.length > 0 && visible.length === 0,
   }
 }
+
+export type OverviewFilterCounts = {
+  // 全部代理上出现的代理总数（侧栏“全部”）。
+  total: number
+  // 各状态的数量（侧栏状态筛选）。
+  lanes: OverviewCounts
+  // 每个项目（工作区键）的代理数（侧栏项目筛选）；没有代理的项目不在表里，按 0 显示。
+  projects: Readonly<Record<string, number>>
+}
+
+// 全部代理页侧栏筛选上的计数（规格 2.3）：与主区同一份“出现在全部代理上的代理”，都按筛选前计——
+// 筛选是“看哪一部分”，计数告诉你每一部分有多少，点了状态筛选后项目计数不跟着变，免得数字来回跳。
+export function overviewFilterCounts(
+  source: readonly BoardItem[],
+  options: Pick<OverviewOptions, 'now' | 'capabilities' | 'timeZoneOffsetMinutes'>,
+): OverviewFilterCounts {
+  const lanes = emptyCounts()
+  const projects: Record<string, number> = {}
+  const items = overviewItems(source, options)
+  for (const item of items) {
+    lanes[item.lane] += 1
+    projects[item.workspaceKey] = (projects[item.workspaceKey] ?? 0) + 1
+  }
+  return { total: items.length, lanes, projects }
+}

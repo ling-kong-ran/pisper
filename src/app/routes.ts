@@ -46,7 +46,8 @@ export function pagePath(page: string) {
 }
 
 // 从主页落地（或经“会话”标签回到主页）的会话页带这个历史状态：它是根，手机原生返回交还平台；
-// 泳道条切换代理（replace）时随之保留。字段与“从更多进入”的 navOrigin 同名，二者互斥。
+// 侧栏切换会话（replace）时随之保留。旧版“从更多进入”在同一字段写过 'activity'（双归属已退役），
+// 旧历史条目里可能还留着它，按非主页落地处理。
 export const HOME_ENTRY_STATE = Object.freeze({ navOrigin: 'home' })
 
 export function isHomeEntry(state: unknown) {

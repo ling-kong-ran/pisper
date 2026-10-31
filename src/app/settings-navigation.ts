@@ -1,209 +1,96 @@
-// 设置页导航：把配置分区（models/notifications/...）与独立设置页面
-// （插件/MCP/技能/记忆/渠道）组织成分组式侧边栏。destination 区分
-// “配置分区”与“独立页面”两种跳转目标，供壳层统一处理高亮。
-import {
-  Bell,
-  Bot,
-  Brain,
-  Info,
-  Keyboard,
-  Monitor,
-  MonitorSmartphone,
-  Plug,
-  RadioTower,
-  RefreshCw,
-  Server,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react'
+// 设置目录（规格 v2 第 2.6 节）：设置只放应用本身的设置——模型 · 界面 · 通知 · 快捷键 · 更新 · 关于。
+// 插件、MCP、技能、星忆、渠道、远程访问 / 手机服务器、桌面宠物只在“功能”里（只有一个家）：
+// 旧的双归属机制（SETTINGS_PAGES 里的功能页、从功能栏进入时写进历史条目的 ACTIVITY_NAVIGATION_STATE）已退役。
+// /config/remote-access、/config/mobile-server、/config/desktop-pet 路径不变（旧链接、通知、守卫照常），
+// 但它们作为功能页打开：点亮“功能”、页头“‹ 功能”、不用设置外壳。
+// 纯数据与判断，不依赖 React；桌面设置侧栏、手机设置分区条与页头共用同一份结论。
+import { Bell, Bot, Info, Keyboard, Monitor, RefreshCw, type LucideIcon } from 'lucide-react'
 import type { Translate } from '@/app/navigation'
 import {
   LEGACY_RUNTIME_CAPABILITIES,
   runtimeConfigSectionAvailable,
-  runtimePageAvailable,
   type RuntimeCapabilities,
 } from '@/types/runtime-capabilities'
 
-export type SettingsDestination = { type: 'config'; id: string } | { type: 'page'; id: string }
-
-export type SettingsNavigationGroup = {
-  label: string
-  items: Array<{
-    key: string
-    label: string
-    icon: LucideIcon
-    destination: SettingsDestination
-  }>
-}
-
-export const CONFIG_SECTIONS = new Set([
+// 设置外壳里的分区，按目录顺序。
+export const APP_SETTINGS_SECTIONS = Object.freeze([
   'models',
-  'notifications',
   'interface',
+  'notifications',
   'shortcuts',
-  'desktop-pet',
   'updates',
+  'about',
+] as const)
+
+// 挂在 /config/:section 下、但属于“功能 › 设备与连接”的分区（规格 2.4、2.7）。
+export const FEATURE_CONFIG_SECTIONS: ReadonlySet<string> = new Set([
   'remote-access',
   'mobile-server',
-  'about',
+  'desktop-pet',
 ])
 
-export const SETTINGS_PAGES = new Set(['config', 'channels', 'plugins', 'memory', 'mcp', 'skills'])
+// /config/:section 认得的全部分区：未知分区回退到模型。
+export const CONFIG_SECTIONS: ReadonlySet<string> = new Set([
+  ...APP_SETTINGS_SECTIONS,
+  ...FEATURE_CONFIG_SECTIONS,
+])
 
-// 插件、星忆、渠道等独立设置页同时挂在功能栏分组下。为让功能栏、底栏、侧栏、面包屑和
-// 手机设置分区条对同一路由只认一个归属：从功能栏/底栏分组进入时把来源写进历史条目的 state，
-// 前进后退与刷新都能还原进入时的上下文；其余入口（设置导航、地址栏、命令面板）默认归设置。
-export const ACTIVITY_NAVIGATION_STATE = Object.freeze({ navOrigin: 'activity' })
+export type SettingsSection = (typeof APP_SETTINGS_SECTIONS)[number]
 
-export function settingsOwnsPage(page: string, locationState: unknown) {
-  if (page === 'config') return true
-  if (!SETTINGS_PAGES.has(page)) return false
-  return !(
-    typeof locationState === 'object' &&
-    locationState !== null &&
-    (locationState as { navOrigin?: unknown }).navOrigin === ACTIVITY_NAVIGATION_STATE.navOrigin
-  )
+export type SettingsNavigationItem = {
+  section: SettingsSection
+  label: string
+  icon: LucideIcon
 }
 
-// 设置侧边栏分组导航（Agent/能力/上下文/连接/应用）。
-// mobileApp 为 true 时（手机经代理访问），用「服务器」替代桌面端的远程访问管理面。
+// 当前路由是否用设置外壳（侧栏换成设置目录）：只有 /config 下的应用设置分区。
+export function settingsOwnsRoute(page: string, configSection: string) {
+  return page === 'config' && !FEATURE_CONFIG_SECTIONS.has(configSection)
+}
+
+const SECTION_ICONS: Readonly<Record<SettingsSection, LucideIcon>> = {
+  models: Bot,
+  interface: Monitor,
+  notifications: Bell,
+  shortcuts: Keyboard,
+  updates: RefreshCw,
+  about: Info,
+}
+
+// /config/:section 的显示名（设置分区与三个功能页都用）。
+export function configSectionLabel(t: Translate, section: string) {
+  switch (section) {
+    case 'interface':
+      return t('config:configPage.interface')
+    case 'notifications':
+      return t('config:configPage.notifications')
+    case 'shortcuts':
+      return t('config:configPage.shortcuts')
+    case 'updates':
+      return t('config:configPage.appUpdates')
+    case 'about':
+      return t('config:configPage.about')
+    case 'remote-access':
+      return t('config:configPage.remoteAccess')
+    case 'mobile-server':
+      return t('config:configPage.mobileServer')
+    case 'desktop-pet':
+      return t('config:configPage.desktopPet')
+    default:
+      return t('config:configPage.models')
+  }
+}
+
+// 设置目录：按 Runtime 能力裁掉不可用的分区。桌面设置侧栏与手机设置分区条共用。
 export function getSettingsNavigation(
   t: Translate,
-  {
-    mobileApp = false,
-    capabilities = LEGACY_RUNTIME_CAPABILITIES,
-  }: { mobileApp?: boolean; capabilities?: RuntimeCapabilities } = {},
-): SettingsNavigationGroup[] {
-  const runtimeConnectionItems: SettingsNavigationGroup['items'] = mobileApp
-    ? [
-        {
-          key: 'config:mobile-server',
-          label: t('config:configPage.mobileServer'),
-          icon: MonitorSmartphone,
-          destination: { type: 'config', id: 'mobile-server' },
-        },
-      ]
-    : [
-        {
-          key: 'config:remote-access',
-          label: t('config:configPage.remoteAccess'),
-          icon: MonitorSmartphone,
-          destination: { type: 'config', id: 'remote-access' },
-        },
-      ]
-  const groups: SettingsNavigationGroup[] = [
-    {
-      label: t('config:settingsShell.agent'),
-      items: [
-        {
-          key: 'config:models',
-          label: t('config:configPage.models'),
-          icon: Bot,
-          destination: { type: 'config', id: 'models' },
-        },
-      ],
-    },
-    {
-      label: t('config:settingsShell.agentCapabilities'),
-      items: [
-        {
-          key: 'page:plugins',
-          label: t('navigation:navigation.plugins'),
-          icon: Plug,
-          destination: { type: 'page', id: 'plugins' },
-        },
-        {
-          key: 'page:mcp',
-          label: t('navigation:navigation.mcp'),
-          icon: Server,
-          destination: { type: 'page', id: 'mcp' },
-        },
-        {
-          key: 'page:skills',
-          label: t('navigation:navigation.skills'),
-          icon: Sparkles,
-          destination: { type: 'page', id: 'skills' },
-        },
-      ],
-    },
-    {
-      label: t('config:settingsShell.contextAndData'),
-      items: [
-        {
-          key: 'page:memory',
-          label: t('navigation:navigation.memory'),
-          icon: Brain,
-          destination: { type: 'page', id: 'memory' },
-        },
-      ],
-    },
-    {
-      label: t('config:settingsShell.connections'),
-      items: [
-        {
-          key: 'page:channels',
-          label: t('navigation:navigation.channels'),
-          icon: RadioTower,
-          destination: { type: 'page', id: 'channels' },
-        },
-        ...runtimeConnectionItems,
-      ],
-    },
-    {
-      label: t('config:settingsShell.application'),
-      items: [
-        {
-          key: 'config:interface',
-          label: t('config:configPage.interface'),
-          icon: Monitor,
-          destination: { type: 'config', id: 'interface' },
-        },
-        {
-          key: 'config:notifications',
-          label: t('config:configPage.notifications'),
-          icon: Bell,
-          destination: { type: 'config', id: 'notifications' },
-        },
-        {
-          key: 'config:shortcuts',
-          label: t('config:configPage.shortcuts'),
-          icon: Keyboard,
-          destination: { type: 'config', id: 'shortcuts' },
-        },
-        {
-          key: 'config:desktop-pet',
-          label: t('config:configPage.desktopPet'),
-          icon: Bot,
-          destination: { type: 'config', id: 'desktop-pet' },
-        },
-        {
-          key: 'config:updates',
-          label: t('config:configPage.appUpdates'),
-          icon: RefreshCw,
-          destination: { type: 'config', id: 'updates' },
-        },
-        {
-          key: 'config:about',
-          label: t('config:configPage.about'),
-          icon: Info,
-          destination: { type: 'config', id: 'about' },
-        },
-      ],
-    },
-  ]
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) =>
-        item.destination.type === 'config'
-          ? runtimeConfigSectionAvailable(capabilities, item.destination.id)
-          : runtimePageAvailable(capabilities, item.destination.id),
-      ),
-    }))
-    .filter((group) => group.items.length > 0)
-}
-
-// 设置导航高亮键：配置分区用 config:section，独立页面用 page:id。
-export function settingsNavigationKey(page: string, configSection: string) {
-  return page === 'config' ? `config:${configSection}` : `page:${page}`
+  { capabilities = LEGACY_RUNTIME_CAPABILITIES }: { capabilities?: RuntimeCapabilities } = {},
+): SettingsNavigationItem[] {
+  return APP_SETTINGS_SECTIONS.filter((section) =>
+    runtimeConfigSectionAvailable(capabilities, section),
+  ).map((section) => ({
+    section,
+    label: configSectionLabel(t, section),
+    icon: SECTION_ICONS[section],
+  }))
 }

@@ -211,7 +211,8 @@ test('board and new shell sources never need the bare colour allowlist', async (
     'src/components/app/LaneBarsIcon.tsx',
     'src/components/app/StatusGlyph.tsx',
     'src/components/app/StatusTag.tsx',
-    'src/components/layout/SettingsSectionNav.tsx',
+    // A3：设置整页的侧栏（设置目录）取代内容区左侧的 SettingsSectionNav。
+    'src/app/SettingsSidebar.tsx',
     'src/components/ui/chip.tsx',
     'src/components/ui/segmented-control.tsx',
     // 第 4 期：会话主页、看板入口、手机会话页顶栏与底部表单、更多角标、快捷键速查。

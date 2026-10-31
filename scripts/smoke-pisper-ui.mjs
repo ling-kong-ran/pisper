@@ -387,19 +387,22 @@ try {
       localStorage.setItem('pisper-model-onboarding-v1-dismissed', '1')
     } catch {}
   })
-  // 新外壳首页是看板：空看板时启动台放大居中，下方给“试试”建议；点建议只填草稿，不派发。
+  // 全部代理（A3 取代泳道与启动台，规格 3.1）：空的全部代理只有一句“还没有代理在运行”+“新任务”，
+  // 没有任务输入框和“试试”建议；“新任务”打开派发对话框，Esc 关闭、什么都不派发。
   await page.goto(base + '/#/board')
-  await page.locator('[data-board-root]').waitFor({ timeout: 60000 })
-  const launchInput = page.locator('[data-launch-input]')
-  await launchInput.waitFor({ timeout: 60000 })
-  const suggestions = page.getByRole('region', { name: '试试这些任务', exact: true })
-  await suggestions.getByRole('button', { name: '解释代码', exact: true }).click()
-  await page.waitForFunction(() => document.querySelector('[data-launch-input]')?.value.length > 0)
+  const boardRoot = page.locator('[data-board-root]')
+  await boardRoot.waitFor({ timeout: 60000 })
+  await boardRoot.getByText('还没有代理在运行', { exact: true }).waitFor({ timeout: 60000 })
+  assert.equal(await page.locator('[data-launch-input]').count(), 0)
+  assert.equal(await page.getByRole('region', { name: '试试这些任务' }).count(), 0)
+  await boardRoot.getByRole('button', { name: '新任务', exact: true }).click()
+  const dispatchDialog = page.getByRole('dialog', { name: '新任务', exact: true })
+  await dispatchDialog.waitFor()
+  await page.keyboard.press('Escape')
+  await dispatchDialog.waitFor({ state: 'hidden' })
   assert.equal(report.requests, 0)
-  assert.ok((await suggestions.boundingBox()).y > (await launchInput.boundingBox()).y)
-  await launchInput.fill('')
   report.checks.push(
-    'Empty board centres the launch console with task suggestions below it; clicking a suggestion fills but never sends',
+    'Empty 全部代理 shows only “还没有代理在运行” and 新任务 (no launch console, no suggestions); 新任务 opens the dispatch dialog and Esc closes it without sending',
   )
   // 规格 v2：没有标题栏，一级入口在侧栏（全部代理 / 功能 / 设置）；旧的“组件”标签归“功能”。
   const titlebar = page.locator('[data-shell-sidebar]')
@@ -667,14 +670,19 @@ try {
     .getByRole('button', { name: '界面设置', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
-  await titlebar.locator('[data-sidebar-entry="settings"][aria-current="page"]').waitFor()
+  // A3 设置整页：侧栏整块换成设置目录（规格 2.3），当前分区在目录里点亮。
+  await page
+    .locator(
+      '[data-shell-sidebar="settings"] [data-settings-section="interface"][aria-current="page"]',
+    )
+    .waitFor()
   // 空会话不上看板；经会话链接回到会话页（同一文档内的哈希跳转，不刷新），草稿仍在。
   await page.goto(base + '/' + sessionHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'return home keeps this draft')
   await prompt.fill('')
   report.checks.push(
-    '32px send button; title bar tabs board/components/more/settings with workflows on More; Settings opens the section navigation and returning through the session link restores the conversation draft',
+    '32px send button; sidebar entries board/features/settings with workflows on 功能; Settings take over the sidebar with the section directory and returning through the session link restores the conversation draft',
     'Provider navigation shows configured or custom connections with one Quick setup entry and no preset catalog',
   )
 
@@ -1658,7 +1666,11 @@ try {
   assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
   await shellTab('settings').click()
   await page.waitForURL('**/#/config/models')
-  await titlebar.locator('[data-sidebar-entry="settings"][aria-current="page"]').waitFor()
+  await page
+    .locator(
+      '[data-shell-sidebar="settings"] [data-settings-section="models"][aria-current="page"]',
+    )
+    .waitFor()
   await page.goto(base + '/' + layoutHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'layout and titlebar draft')

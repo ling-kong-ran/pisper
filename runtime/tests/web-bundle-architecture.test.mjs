@@ -445,11 +445,22 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(routes, /input\.includeTree === false/)
 })
 
-test('settings keep an in-page section navigation without the application sidebar and stay reachable in the mobile shell', async () => {
-  const [app, sectionNav, more, mobileNavigation, settingsNavigation, styles] = await Promise.all([
+test('settings take over the sidebar as a full page, feature pages have one home and the mobile shell keeps its section strip', async () => {
+  const [
+    app,
+    settingsSidebar,
+    shellSidebar,
+    more,
+    routes,
+    mobileNavigation,
+    settingsNavigation,
+    styles,
+  ] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/components/layout/SettingsSectionNav.tsx', 'utf8'),
+    readFile('src/app/SettingsSidebar.tsx', 'utf8'),
+    readFile('src/app/ShellSidebar.tsx', 'utf8'),
     readFile('src/app/MorePage.tsx', 'utf8'),
+    readFile('src/app/route-elements.tsx', 'utf8'),
     readFile('src/components/layout/MobileNavigation.tsx', 'utf8'),
     readFile('src/app/settings-navigation.ts', 'utf8'),
     readFile('src/index.css', 'utf8'),
@@ -460,44 +471,78 @@ test('settings keep an in-page section navigation without the application sideba
     app,
     /<div[\s\S]*?className=\{`page-content[\s\S]*?page-\$\{page\}[\s\S]*?key=\{page\}[\s\S]*?<Outlet/,
   )
-  // 手机用横滑分区条；手机 App 平板（≥960×640，规格 7.6）与桌面一样用左侧分区导航。
-  assert.match(
-    app,
-    /clientLoaded && mobileLayout && SETTINGS_PAGES\.has\(page\) && settingsOwned && !tabletApp/,
-  )
-  assert.match(app, /<MobileSettingsNavigation[\s\S]*?mobileApp=\{mobileApp\}/)
-  // 一级导航始终是应用侧栏（手机外壳为底部标签栏）；设置整页换侧栏内容是 A3，这一期设置分区导航
-  // 仍在内容区左侧。当前页点亮哪个入口只由 activeShellTab(page, settingsOwned) 决定
-  // （组件工作室归“功能”）。会话页与主页隐藏手机标签栏（规格 7.3）。
-  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
-  assert.match(app, /<ShellSidebar\s+active=\{sidebarActive\}/)
-  assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}\s+activeTab=\{shellTab\}/)
-  assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
-  // 桌面与手机 App 平板的设置页在内容区左侧有自己的分区导航；手机仍用横滑分区条。
+  // 规格 2.3 / 2.6：设置整页时侧栏整块换成“← 返回 Esc”+ 设置目录，主区只有内容，不再叠第三列分区导航
+  // （原 SettingsSectionNav 已删除）。只有 /config 下的应用设置分区用设置外壳。
+  assert.doesNotMatch(app, /SettingsSectionNav/)
+  assert.match(app, /const settingsOwned = settingsOwnsRoute\(page, configSection\)/)
   assert.match(app, /const tabletApp = useIsTabletViewport\(\) && mobileApp/)
   assert.match(app, /const phoneLayout = mobileLayout && !tabletApp/)
   assert.match(app, /const settingsLayout = settingsOwned && !phoneLayout/)
   assert.match(
     app,
-    /\{settingsLayout && \([\s\S]*?<SettingsSectionNav\s+page=\{page\}\s+configSection=\{configSection\}\s+mobileApp=\{mobileApp\}\s+onNavigate=\{navigateSettings\}/,
+    /takeover=\{\s*settingsLayout \? \([\s\S]*?<SettingsSidebar\s+configSection=\{configSection\}\s+onSelectSection=\{setConfigSection\}\s+onBack=\{leaveSettings\}\s+onOpenFeatures=\{\(\) => selectShellTab\('more'\)\}\s+search=\{configSearch\('sidebar'\)\}[\s\S]*?<SidebarFleetLine onOpenBoard=\{\(\) => selectShellTab\('board'\)\} \/>/,
   )
-  assert.match(sectionNav, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
-  assert.match(sectionNav, /aria-label=\{t\('config:settingsShell\.settingsNavigation'\)\}/)
-  assert.match(sectionNav, /aria-current=\{active \? 'page' : undefined\}/)
-  // 功能页入口在“更多”（v2 改名“功能”）启动台，按 Runtime 能力与客户端形态裁剪；手机标签栏与 v2 桌面
-  // 都没有“组件”入口，组件页作为“功能”里的磁贴出现。
+  // “← 返回”与 Esc 回到进入设置前的那一页（历史下标差一次退回；冷启动在设置里时去主页）。
+  const leave = app.slice(app.indexOf('const leaveSettings = useCallback'))
+  assert.match(
+    leave.slice(0, leave.indexOf('}, [')),
+    /routerNavigate\(-\(index - entry \+ 1\)\)\s+else routerNavigate\(HOME_PATH\)/,
+  )
+  // 设置外壳不随收起偏好变窄轨，也不临时展开。
+  assert.match(
+    shellSidebar,
+    /const collapsed = useSidebarStore\(\(state\) => state\.collapsed\) && !takeover/,
+  )
+  assert.match(
+    shellSidebar,
+    /data-shell-sidebar=\{takeover \? 'settings' : collapsed \? 'rail' : 'expanded'\}/,
+  )
+  // 设置目录、当前分区 aria-current；Esc 返回的规则在 useEscapeLeave（行为见 back-navigation.test）。
+  assert.match(settingsSidebar, /getSettingsNavigation\(t, \{ capabilities \}\)/)
+  assert.match(settingsSidebar, /aria-label=\{t\('config:settingsShell\.settingsNavigation'\)\}/)
+  assert.match(settingsSidebar, /aria-current=\{active \? 'page' : undefined\}/)
+  assert.match(settingsSidebar, /aria-keyshortcuts="Escape"/)
+  assert.match(settingsSidebar, /useEscapeLeave\(onBack\)/)
+  assert.match(settingsSidebar, /t\('config:settingsShell\.featuresHint'\)/)
+  // 全部代理页的侧栏是状态 / 项目筛选，代理只在主区列一次（规格 2.3）。
+  assert.match(app, /\{page === 'board' \? \(\s*<SidebarBoardFilters/)
+  // 手机仍用横滑分区条（列表 → 分区在 A4），与桌面同一份设置目录。
+  assert.match(
+    app,
+    /const mobileSettingsNav = clientLoaded && mobileLayout && settingsOwned && !tabletApp/,
+  )
+  assert.match(app, /<MobileSettingsNavigation[\s\S]*?onNavigate=\{setConfigSection\}/)
+  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ capabilities \}\)/)
+  assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
+  assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
+  // 一级导航始终是应用侧栏（手机外壳为底部标签栏）；当前页点亮哪个入口只由 activeShellTab(page, settingsOwned) 决定。
+  assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
+  assert.match(app, /<ShellSidebar\s+active=\{sidebarActive\}/)
+  assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}\s+activeTab=\{shellTab\}/)
+  assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
+  assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
+  // 双归属退役：设置目录只有应用设置；功能页不再靠历史条目里的进入来源决定归属。
+  assert.match(
+    settingsNavigation,
+    /APP_SETTINGS_SECTIONS = Object\.freeze\(\[\s*'models',\s*'interface',\s*'notifications',\s*'shortcuts',\s*'updates',\s*'about',\s*\] as const\)/,
+  )
+  assert.match(
+    settingsNavigation,
+    /FEATURE_CONFIG_SECTIONS[\s\S]*'remote-access',\s*'mobile-server',\s*'desktop-pet'/,
+  )
+  assert.doesNotMatch(
+    settingsNavigation,
+    /export const SETTINGS_PAGES|export const ACTIVITY_NAVIGATION_STATE/,
+  )
+  assert.doesNotMatch(routes, /ACTIVITY_NAVIGATION_STATE|navOrigin/)
+  assert.doesNotMatch(app, /SETTINGS_PAGES|ACTIVITY_NAVIGATION_STATE/)
+  assert.doesNotMatch(settingsNavigation, /mobile-device|mobileDevice/)
+  // 功能页入口在“功能”索引，按 Runtime 能力与客户端形态裁剪；手机标签栏与 v2 桌面都没有“组件”入口。
   assert.match(
     more,
     /getMoreNavigation\(t, \{ capabilities, mobileApp, components, componentsTile: true \}\)/,
   )
   assert.match(more, /const phone = usePhoneShell\(\)/)
-  assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ mobileApp, capabilities \}\)/)
-  assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
-  assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
-  assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
-  assert.match(settingsNavigation, /getSettingsNavigation/)
-  assert.match(settingsNavigation, /config:mobile-server[\s\S]*config:notifications/)
-  assert.doesNotMatch(settingsNavigation, /mobile-device|mobileDevice/)
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
 })
 

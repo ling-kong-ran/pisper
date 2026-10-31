@@ -9,7 +9,6 @@ import {
   ensureMcpMessages,
   ensureWorkflowMessages,
 } from './i18n'
-import { ACTIVITY_NAVIGATION_STATE } from './settings-navigation'
 import type { AppRouteContext } from './route-context'
 import { componentPath, pagePath, sessionPath } from './routes'
 
@@ -95,14 +94,11 @@ export async function moreRoute() {
     return (
       <MorePage
         onOpen={(destination) => {
-          // 从“更多”进入的功能页写入来源，插件、星忆等双归属页面据此点亮“更多”并显示“‹ 更多”。
-          if (destination.type === 'page')
-            navigate(pagePath(destination.id), { state: ACTIVITY_NAVIGATION_STATE })
+          // 功能页只有一个家（规格 2.6，双归属退役）：不再往历史条目里写进入来源。
+          // 远程访问 / 手机服务器 / 桌面宠物仍在 /config/:section，作为功能页打开（点亮“功能”、页头“‹ 功能”）。
+          if (destination.type === 'page') navigate(pagePath(destination.id))
           else if (destination.type === 'config') context.setConfigSection(destination.id)
-          else
-            navigate(`/tools/components/${encodeURIComponent(destination.id)}`, {
-              state: ACTIVITY_NAVIGATION_STATE,
-            })
+          else navigate(`/tools/components/${encodeURIComponent(destination.id)}`)
         }}
       />
     )

@@ -33,7 +33,7 @@ import {
 import { MORE_PAGES } from '../../src/app/more-navigation.ts'
 import { getPageMeta } from '../../src/app/navigation.ts'
 import { getNavigation } from '../../src/app/palette-navigation.ts'
-import { ACTIVITY_NAVIGATION_STATE, settingsOwnsPage } from '../../src/app/settings-navigation.ts'
+import { settingsOwnsRoute } from '../../src/app/settings-navigation.ts'
 import { LEGACY_RUNTIME_CAPABILITIES } from '../../src/types/runtime-capabilities.ts'
 import { parseFleetSystemInfo } from '../../src/features/board/useFleetSystemInfo.ts'
 import { formatCompactDuration } from '../../src/lib/format.ts'
@@ -77,14 +77,15 @@ test('legacy hashes keep resolving and never create a session on startup', () =>
   assert.equal(legacyHashPath('#/board'), null)
 })
 
-test('each page lights exactly one primary entry, honouring the entry origin of dual-owned pages', () => {
+test('each page lights exactly one primary entry; feature pages have a single home under 功能', () => {
   // 规格 v2：桌面标题栏标签退役，一级入口在侧栏（全部代理 / 功能 / 设置）；手机标签栏（A4 前）仍是
   // 会话 / 看板 / 更多 / 设置。“会话”另走主页逻辑，不在 SHELL_TAB_PAGES 里；组件工作室不再是一级入口。
   assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
   assert.equal('components' in SHELL_TAB_PAGES, false)
   assert.equal(SHELL_TAB_PAGES.settings, 'config')
   assert.equal('session' in SHELL_TAB_PAGES, false)
-  const tab = (page, state) => activeShellTab(page, settingsOwnsPage(page, state))
+  // 双归属退役（规格 2.6）：归属只看路由，不再看历史条目里的进入来源；/config 的分区决定设置还是功能。
+  const tab = (page, section = 'models') => activeShellTab(page, settingsOwnsRoute(page, section))
   assert.equal(tab('board'), 'board')
   assert.equal(tab('session'), 'session')
   assert.equal(tab('chat'), 'session')
@@ -94,11 +95,13 @@ test('each page lights exactly one primary entry, honouring the entry origin of 
   assert.equal(tab('assets'), 'more')
   assert.equal(tab('workflowCreate'), 'more')
   assert.equal(tab('customComponentTool'), 'more')
-  assert.equal(tab('config'), 'settings')
-  // 插件、星忆等页：从设置进入点亮设置，从“更多”进入点亮更多。
-  assert.equal(tab('plugins'), 'settings')
-  assert.equal(tab('plugins', ACTIVITY_NAVIGATION_STATE), 'more')
-  assert.equal(tab('memory', ACTIVITY_NAVIGATION_STATE), 'more')
+  for (const section of ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'])
+    assert.equal(tab('config', section), 'settings', section)
+  // 插件、MCP、技能、星忆、渠道只在功能里；/config 下的远程访问、手机服务器、桌面宠物同样是功能页。
+  for (const page of ['plugins', 'mcp', 'skills', 'memory', 'channels'])
+    assert.equal(tab(page), 'more', page)
+  for (const section of ['remote-access', 'mobile-server', 'desktop-pet'])
+    assert.equal(tab('config', section), 'more', section)
   for (const page of ['chatHistory', 'assets', 'memory', 'workflows', 'schedules', 'channels'])
     assert.ok(MORE_PAGES.has(page), page)
 })
@@ -114,7 +117,7 @@ test('component detail routes stay on the components tab and native back walks t
   // 第 4 期主页改为会话：看板与其余一级标签页回主页；会话是根或走历史回到来处（细则见 session-home.test）。
   const back = (path, state, canGoBack = false) => {
     const page = pageFromPath(path)
-    return shellBackPath(page, path, settingsOwnsPage(page, state), {
+    return shellBackPath(page, path, settingsOwnsRoute(page, path.split('/')[2] || 'models'), {
       homeEntry: isHomeEntry(state),
       canGoBack,
     })
@@ -129,9 +132,11 @@ test('component detail routes stay on the components tab and native back walks t
   assert.equal(back('/chat/history'), '/more')
   assert.equal(back('/workflows/new'), '/more')
   assert.equal(back('/tools/components/game-assets'), '/more')
-  assert.equal(back('/plugins', ACTIVITY_NAVIGATION_STATE), '/more')
-  // 从设置进入的插件页、设置各分区都是“设置”标签的同级页，回主页。
-  assert.equal(back('/plugins'), HOME_PATH)
+  // 功能页（含 /config 下的远程访问等）回功能；设置各分区是“设置”标签的同级页，回主页。
+  assert.equal(back('/plugins'), '/more')
+  assert.equal(back('/plugins', { navOrigin: 'activity' }), '/more')
+  assert.equal(back('/config/remote-access'), '/more')
+  assert.equal(back('/config/desktop-pet'), '/more')
   assert.equal(back('/config/interface'), HOME_PATH)
   assert.equal(back('/components'), HOME_PATH)
   assert.equal(back('/components/game-assets'), '/components')

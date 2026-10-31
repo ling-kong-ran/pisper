@@ -23,7 +23,7 @@ import {
   sessionPath,
 } from '../../src/app/routes.ts'
 import { PHONE_SHELL_TABS, activeShellTab, shellBackPath } from '../../src/app/shell-tabs.ts'
-import { ACTIVITY_NAVIGATION_STATE, settingsOwnsPage } from '../../src/app/settings-navigation.ts'
+import { settingsOwnsRoute } from '../../src/app/settings-navigation.ts'
 import { getMoreNavigation } from '../../src/app/more-navigation.ts'
 import { getNavigation } from '../../src/app/palette-navigation.ts'
 import { ShellSidebar } from '../../src/app/ShellSidebar.tsx'
@@ -45,10 +45,11 @@ test('the home route is the session page: / belongs to the session tab and unkno
   // 旧的 #chat 仍经 /chat 兼容入口（路由层重定向到主页），#session 不能借启动悄悄建会话。
   assert.equal(legacyHashPath('#chat'), '/chat')
   assert.equal(legacyHashPath('#session'), null)
-  // 主页落地标记与“从更多进入”共用 navOrigin 字段，二者互斥。
+  // 主页落地标记用 navOrigin 字段；旧版“从更多进入”写的 { navOrigin: 'activity' } 不算主页落地
+  // （双归属已退役，旧历史条目里可能还留着它）。
   assert.equal(isHomeEntry(HOME_ENTRY_STATE), true)
   assert.equal(isHomeEntry({ navOrigin: 'home' }), true)
-  assert.equal(isHomeEntry(ACTIVITY_NAVIGATION_STATE), false)
+  assert.equal(isHomeEntry({ navOrigin: 'activity' }), false)
   for (const value of [null, undefined, 'home', 1, {}, { navOrigin: 'HOME' }])
     assert.equal(isHomeEntry(value), false)
 })
@@ -196,9 +197,10 @@ test('primary entries: the session page and home light "session", the board ligh
   // 手机标签栏：会话 · 看板 · [新任务] · 更多 · 设置；桌面侧栏的入口用同一份归属结论
   // （board → 全部代理、more → 功能、settings → 设置；会话页由会话行自己点亮）。
   assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
-  const tab = (path, state) => {
+  // 归属只看路由（双归属退役）：/config 的分区决定设置还是功能。
+  const tab = (path) => {
     const page = pageFromPath(path)
-    return activeShellTab(page, settingsOwnsPage(page, state))
+    return activeShellTab(page, settingsOwnsRoute(page, path.split('/')[2] || 'models'))
   }
   assert.equal(tab('/'), 'session')
   assert.equal(tab('/board/abc'), 'session')
@@ -208,18 +210,19 @@ test('primary entries: the session page and home light "session", the board ligh
   // 组件工作室不再是一级入口：桌面与手机都点亮“功能 / 更多”。
   assert.equal(tab('/components'), 'more')
   assert.equal(tab('/components/x'), 'more')
-  assert.equal(tab('/components', ACTIVITY_NAVIGATION_STATE), 'more')
   assert.equal(tab('/more'), 'more')
   assert.equal(tab('/assets'), 'more')
   assert.equal(tab('/config/models'), 'settings')
-  assert.equal(tab('/plugins'), 'settings')
-  assert.equal(tab('/plugins', ACTIVITY_NAVIGATION_STATE), 'more')
+  assert.equal(tab('/config/about'), 'settings')
+  assert.equal(tab('/plugins'), 'more')
+  assert.equal(tab('/config/remote-access'), 'more')
+  assert.equal(tab('/config/mobile-server'), 'more')
 })
 
 test('native back: the session home is the root, opened sessions go back where they came from, top-level pages go home', () => {
   const back = (path, { state, phone = false, canGoBack = false } = {}) => {
     const page = pageFromPath(path)
-    return shellBackPath(page, path, settingsOwnsPage(page, state), {
+    return shellBackPath(page, path, settingsOwnsRoute(page, path.split('/')[2] || 'models'), {
       phone,
       homeEntry: isHomeEntry(state),
       canGoBack,
@@ -234,18 +237,19 @@ test('native back: the session home is the root, opened sessions go back where t
   assert.equal(back('/board/abc', { canGoBack: false }), null)
   assert.equal(back('/board/new', { canGoBack: true }), -1)
   // 一级页回主页。
-  for (const path of ['/board', '/more', '/config/models', '/config/interface', '/plugins'])
+  for (const path of ['/board', '/more', '/config/models', '/config/interface'])
     assert.equal(back(path), HOME_PATH, path)
   assert.equal(back('/components'), HOME_PATH)
   // 更多的子页回更多；组件详情回列表；手机上组件列表回更多。
   assert.equal(back('/assets'), '/more')
   assert.equal(back('/chat/history'), '/more')
-  assert.equal(back('/plugins', { state: ACTIVITY_NAVIGATION_STATE }), '/more')
+  assert.equal(back('/plugins'), '/more')
+  assert.equal(back('/config/desktop-pet'), '/more')
   assert.equal(back('/tools/components/game-assets'), '/more')
   assert.equal(back('/components/game-assets'), '/components')
   assert.equal(back('/components/game-assets', { phone: true }), '/components')
   assert.equal(back('/components', { phone: true }), '/more')
-  assert.equal(back('/components', { state: ACTIVITY_NAVIGATION_STATE, phone: true }), '/more')
+  assert.equal(back('/components', { state: { navOrigin: 'activity' }, phone: true }), '/more')
 })
 
 test('the shell wires the session tab to the home, back to history, and the board entry to its own shortcut', async () => {

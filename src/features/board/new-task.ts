@@ -39,5 +39,6 @@ export function useBoardNewTaskHandler(
   }, [enabled])
 }
 
-// 看板页“/ 聚焦筛选”的目标：页头的项目筛选控件。应用壳的 focusSearch 在看板页聚焦它。
+// 全部代理页“/ 聚焦筛选”的目标：侧栏状态筛选的第一项“全部”（规格 2.3、2.8）。
+// 应用壳的 focusSearch 在全部代理页聚焦它；侧栏收成窄轨时先临时展开。
 export const BOARD_FILTER_ID = 'board-filter'

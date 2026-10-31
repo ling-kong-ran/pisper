@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { HOME_ENTRY_STATE, isHomeEntry, pageFromPath } from '../../src/app/routes.ts'
-import { ACTIVITY_NAVIGATION_STATE, settingsOwnsPage } from '../../src/app/settings-navigation.ts'
+import { settingsOwnsRoute } from '../../src/app/settings-navigation.ts'
 import { shellBackPath } from '../../src/app/shell-tabs.ts'
 
 test('native back delegates only to the trusted app and retains the platform fallback', async () => {
@@ -51,7 +51,8 @@ test('repeated native back from any page climbs to the session home and then yie
     let currentState = state
     for (let step = 0; step < 6; step += 1) {
       const page = pageFromPath(current)
-      const parent = shellBackPath(page, current, settingsOwnsPage(page, currentState), {
+      const section = current.split('/')[2] || 'models'
+      const parent = shellBackPath(page, current, settingsOwnsRoute(page, section), {
         phone,
         homeEntry: isHomeEntry(currentState),
         canGoBack: false,
@@ -71,11 +72,11 @@ test('repeated native back from any page climbs to the session home and then yie
   assert.deepEqual(climb('/board'), ['/board', '/'])
   assert.deepEqual(climb('/config/interface'), ['/config/interface', '/'])
   assert.deepEqual(climb('/assets'), ['/assets', '/more', '/'])
-  assert.deepEqual(climb('/plugins', { state: ACTIVITY_NAVIGATION_STATE }), [
-    '/plugins',
-    '/more',
-    '/',
-  ])
+  // 双归属退役（规格 2.6）：插件只在功能里，旧版写进历史条目的进入来源不再影响上一级；
+  // /config 下的远程访问 / 手机服务器 / 桌面宠物是功能页，同样先回功能。
+  for (const state of [undefined, { navOrigin: 'activity' }])
+    assert.deepEqual(climb('/plugins', { state }), ['/plugins', '/more', '/'])
+  assert.deepEqual(climb('/config/mobile-server'), ['/config/mobile-server', '/more', '/'])
   assert.deepEqual(climb('/components/game-assets'), [
     '/components/game-assets',
     '/components',

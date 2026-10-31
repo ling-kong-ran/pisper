@@ -29,12 +29,12 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import { formatFileSize, formatTokenCount } from '@/lib/format'
 import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { useSidebarStore } from '@/stores/sidebar-store'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import type { BoardItem } from './board-model'
 import { useBoardViewStore } from './board-view-store'
 import { useLaneLabels } from './lane-labels'
 import { useLaunchDefaultsStore } from './launch-defaults-store'
-import { BOARD_FILTER_ID } from './new-task'
 import {
   buildOverviewModel,
   overviewShouldVirtualize,
@@ -108,6 +108,7 @@ function OverviewPage({
   const { t } = useI18n()
   const board = useBoardSessions({ doneWindow: 'today' })
   const view = useBoardViewStore()
+  const sidebarCollapsed = useSidebarStore((state) => state.collapsed)
   const laneLabels = useLaneLabels()
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -459,7 +460,6 @@ function OverviewPage({
               </div>
               {ready && model.total > 0 && (
                 <SegmentedControl
-                  id={BOARD_FILTER_ID}
                   size="default"
                   aria-label={t('board:group.label')}
                   aria-keyshortcuts={formatShortcut(bindings.boardToggleGrouping) || undefined}
@@ -478,7 +478,9 @@ function OverviewPage({
                 </Button>
               )}
             </header>
-            {ready && filtered && model.total > 0 && (
+            {/* 筛选在侧栏里看得见（规格 2.3）；侧栏收成窄轨时筛选不在界面上，页内补一行说明与“清除筛选”，
+                免得窄轨计数点进来后看不出被筛过。 */}
+            {ready && filtered && sidebarCollapsed && model.total > 0 && (
               <FilterLine
                 lanes={view.lanes}
                 projects={view.projects

@@ -417,3 +417,31 @@ test('the sidebar preference is registered, read through page-state storage and 
   )
   assert.equal(Object.hasOwn(STORAGE_KEYS, 'sidebarCollapsed'), false)
 })
+
+test('the all-agents sidebar is a status / project filter over the same board-view state', async () => {
+  const [filters, app, board] = await Promise.all([
+    readFile('src/features/board/SidebarFilters.tsx', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/board/BoardPage.tsx', 'utf8'),
+  ])
+  // 规格 2.3：全部代理页侧栏不列会话行（代理只在主区列一次），只有状态与项目两组筛选。
+  assert.match(app, /\{page === 'board' \? \(\s*<SidebarBoardFilters/)
+  assert.doesNotMatch(filters, /data-sidebar-row|SidebarRowItem/)
+  // 筛选就是 /board 的 pisper-board-view：同一个 store，不新增偏好键；窄轨计数（setLaneFilter）同样写它。
+  assert.match(filters, /useBoardViewStore\(\(state\) => state\.setLaneFilter\)/)
+  assert.match(filters, /useBoardViewStore\(\(state\) => state\.setProjectFilter\)/)
+  assert.doesNotMatch(filters, /localStorage|pageStateStorage/)
+  // 按钮语义：aria-pressed；“/ 聚焦筛选”落在第一项“全部”；排队只在 sessionQueue 能力且确有排队时出现。
+  assert.match(filters, /aria-pressed=\{pressed\}/)
+  assert.match(filters, /id=\{BOARD_FILTER_ID\}\s+filter="all"/)
+  assert.match(
+    filters,
+    /lane !== 'queued' \|\| \(capabilities\.sessionQueue === true && counts\.lanes\.queued > 0\)/,
+  )
+  // 项目组 ⋯：添加项目（选目录 → 派发）与管理项目，沿用 useProjectCommands / ManageProjectsDialog。
+  assert.match(filters, /commands\.newProject\(\)/)
+  assert.match(filters, /<ManageProjectsDialog\s+open=\{manageOpen\}/)
+  // 页内不再有筛选控件：“/”的目标从分组切换挪到侧栏；侧栏收成窄轨时页内补一行筛选说明。
+  assert.doesNotMatch(board, /BOARD_FILTER_ID/)
+  assert.match(board, /ready && filtered && sidebarCollapsed && model\.total > 0/)
+})

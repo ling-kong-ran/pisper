@@ -146,6 +146,7 @@
   "shell.sessionNotFound": "Session not found",
   "shell.sessionNotFoundHint": "It may have been deleted, or the link is incomplete.",
   "shell.backToMoreLabel": "Back to More",
+  "shell.backToFeaturesLabel": "Back to Features",
   "shell.tabBarAttention": "{count} need you",
   "more.title": "More",
   "more.summary": "{features} features · {components} components",
