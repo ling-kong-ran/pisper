@@ -523,7 +523,7 @@ test('HTTP 路由：经鉴权链进入；应用请求里的 Cookie 与 Authoriza
   const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-fetch-'))
   const { proxy } = proxyFor(upstream)
   const service = new CustomUiService({ dataDir: directory, fetchProxy: proxy })
-  service.start({ hostVersion: '0.6.5' })
+  await service.start({ hostVersion: '0.6.5' })
   const write = async (id, manifest) => {
     await mkdir(join(service.root, id), { recursive: true })
     await writeFile(join(service.root, id, 'manifest.json'), JSON.stringify(manifest))

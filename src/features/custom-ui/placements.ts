@@ -32,17 +32,22 @@ export function useComponentsAvailable(): boolean {
   return useRuntimeCapabilitiesStore((state) => state.capabilities.features['components.native'])
 }
 
-export function useComponentCatalog() {
-  const available = useComponentsAvailable()
-  useComponentChangeSync(available)
-  return useQuery({
+/** 目录查询的共享选项：所有放置与组件页读同一份缓存，最后一个使用者离开时才取消请求。 */
+export function componentCatalogQueryOptions(enabled = true) {
+  return {
     queryKey: customUiQueryKeys.catalog(),
-    queryFn: ({ signal }) => listComponentCatalog(signal),
-    enabled: available,
+    queryFn: ({ signal }: { signal?: AbortSignal }) => listComponentCatalog(signal),
+    enabled,
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
-  })
+  } as const
+}
+
+export function useComponentCatalog() {
+  const available = useComponentsAvailable()
+  useComponentChangeSync(available)
+  return useQuery(componentCatalogQueryOptions(available))
 }
 
 function useInstancesQuery(available: boolean) {
@@ -73,14 +78,7 @@ export function useComponentInstances(surface: ComponentSurface) {
       ),
     [instances.data, surface],
   )
-  const catalog = useQuery({
-    queryKey: customUiQueryKeys.catalog(),
-    queryFn: ({ signal }) => listComponentCatalog(signal),
-    enabled: available && candidates.length > 0,
-    staleTime: 30_000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  })
+  const catalog = useQuery(componentCatalogQueryOptions(available && candidates.length > 0))
   const placed = useMemo(() => {
     if (!catalog.data) return []
     const rows = new Map(catalog.data.components.map((row) => [row.id, row]))
@@ -98,7 +96,21 @@ export function useComponentInstances(surface: ComponentSurface) {
     revision: instances.data?.revision ?? null,
     isLoading: available && (instances.isPending || (candidates.length > 0 && catalog.isPending)),
     error: instances.error ?? catalog.error ?? null,
+    refetch: () => {
+      void instances.refetch()
+      if (candidates.length) void catalog.refetch()
+    },
   }
+}
+
+/** 已启用的实例数（任何放置位置）：应用壳据此决定要不要懒加载安全模式询问。没有实例时什么都不加载。 */
+export function useEnabledComponentInstanceCount(): number {
+  const available = useComponentsAvailable()
+  const instances = useInstancesQuery(available)
+  return useMemo(
+    () => (instances.data?.instances ?? []).filter((instance) => instance.enabled).length,
+    [instances.data],
+  )
 }
 
 /** 功能 › 我的组件：feature-page 实例 join 目录，只要可渲染的，名称按当前语言选。 */
@@ -120,8 +132,17 @@ export function useFeaturePageComponents() {
 }
 
 // 宿主本体与 custom-ui 文案一起按需加载；放置宿主只在有实例时渲染它。
+const loadHosts = () =>
+  Promise.all([import('./hosts'), ensureCustomUiMessages()]).then(([module]) => module)
+
 export const LazyComponentHost = lazy(() =>
-  Promise.all([import('./hosts'), ensureCustomUiMessages()]).then(([module]) => ({
-    default: module.ComponentHost,
-  })),
+  loadHosts().then((module) => ({ default: module.ComponentHost })),
+)
+// 浮窗放置：floating 实例数 > 0 且不在手机外壳时由应用壳渲染。
+export const LazyFloatingComponents = lazy(() =>
+  loadHosts().then((module) => ({ default: module.FloatingComponents })),
+)
+// 安全模式询问：上次加载组件时可能卡死（哨兵还在）才显示；有已启用实例时由应用壳渲染。
+export const LazySafeModePrompt = lazy(() =>
+  loadHosts().then((module) => ({ default: module.SafeModePrompt })),
 )

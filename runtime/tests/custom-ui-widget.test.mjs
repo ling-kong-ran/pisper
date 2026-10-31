@@ -1,67 +1,45 @@
+// 原生组件目录的共享查询（A7 S4 起取代旧 iframe 组件的 useCustomUiComponents）：所有放置宿主与组件页
+// 读同一份缓存，只请求一次；只有最后一个使用者离开时才取消请求。旧 iframe 组件的视图凭证与桥测试随旧机制删除。
 import assert from 'node:assert/strict'
-import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { listCustomUiComponents } from '../../src/features/custom-ui/custom-ui-api.ts'
-import { customUiComponentsQueryOptions } from '../../src/features/custom-ui/useCustomUiComponents.ts'
-import { attachComponentBridge } from '../../src/features/custom-ui/component-bridge.ts'
-import { startCustomUiView } from '../../src/features/custom-ui/custom-ui-view.ts'
-import { customUiComponentLabel } from '../../src/features/custom-ui/custom-ui-labels.ts'
+import { componentCatalogQueryOptions } from '../../src/features/custom-ui/placements.ts'
 
-const component = {
+const ROW = {
   id: 'fixture',
+  kind: 'native',
+  status: 'ready',
   name: 'Fixture',
-  version: '1',
+  version: '1.0.0',
   description: '',
-  entry: 'index.html',
-  permissions: ['config.read', 'sessions.read', 'notify'],
-  entryUrl: '',
-  directory: '',
+  directory: '~/.pisper/agent/custom-ui/fixture',
+  enabled: true,
+  source: 'local',
+  rev: 'a'.repeat(24),
+  entry: 'component.js',
+  manifest: {
+    id: 'fixture',
+    runtime: 'native',
+    name: 'Fixture',
+    version: '1.0.0',
+    description: '',
+    entry: 'component.js',
+    styles: [],
+    icon: '',
+    i18n: {},
+    props: null,
+    placements: [{ surface: 'feature-page' }],
+    capabilities: {},
+    sdk: 1,
+    minHostVersion: '',
+  },
+  errors: [],
+  updatedAt: '2026-10-31T00:00:00.000Z',
 }
-const view = {
-  id: 'a'.repeat(64),
-  entryUrl: `/api/custom-ui/render/${'a'.repeat(64)}/assets/index.html`,
-}
-
-function browserFixture(t) {
-  const observed = []
-  const root = { lang: 'zh-CN', classList: { contains: () => false } }
-  const host = Object.assign(new EventTarget(), { location: { origin: 'http://localhost' } })
-  const posts = []
-  const iframe = { contentWindow: { postMessage: (data) => posts.push(data) } }
-  for (const [key, value] of Object.entries({
-    window: host,
-    document: { documentElement: root },
-    getComputedStyle: () => ({ getPropertyValue: () => '' }),
-    MutationObserver: class {
-      disconnected = false
-      constructor(callback) {
-        this.callback = callback
-        observed.push(this)
-      }
-      observe() {}
-      disconnect() {
-        this.disconnected = true
-      }
-    },
-  })) {
-    const old = Object.getOwnPropertyDescriptor(globalThis, key)
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
-    t.after(() => (old ? Object.defineProperty(globalThis, key, old) : delete globalThis[key]))
-  }
-  return {
-    iframe,
-    posts,
-    observed,
-    send(method, id = 1, params = {}, source = iframe.contentWindow) {
-      const event = new Event('message')
-      Object.defineProperties(event, {
-        source: { value: source },
-        data: { value: { pisperBridge: 1, id, method, params } },
-      })
-      host.dispatchEvent(event)
-    },
-  }
+const CATALOG = {
+  root: '~/.pisper/agent/custom-ui',
+  features: { import: false, versions: false, export: false, trash: 'move' },
+  components: [ROW],
 }
 
 test('component catalog shares one read and only aborts when its final consumer leaves', async (t) => {
@@ -72,8 +50,7 @@ test('component catalog shares one read and only aborts when its final consumer 
   t.mock.method(globalThis, 'fetch', async (_url, { signal }) => {
     requests += 1
     requestSignal = signal
-    if (requests > 1)
-      return Response.json({ root: '~/.pisper/agent/custom-ui', components: [component] })
+    if (requests > 1) return Response.json(CATALOG)
     entered.resolve()
     return new Promise((_resolve, reject) =>
       signal.addEventListener(
@@ -87,8 +64,8 @@ test('component catalog shares one read and only aborts when its final consumer 
     )
   })
   const client = new QueryClient()
-  const a = new QueryObserver(client, customUiComponentsQueryOptions()).subscribe(() => {})
-  const b = new QueryObserver(client, customUiComponentsQueryOptions()).subscribe(() => {})
+  const a = new QueryObserver(client, componentCatalogQueryOptions()).subscribe(() => {})
+  const b = new QueryObserver(client, componentCatalogQueryOptions()).subscribe(() => {})
   try {
     await entered.promise
     assert.equal(requests, 1)
@@ -96,8 +73,10 @@ test('component catalog shares one read and only aborts when its final consumer 
     assert.equal(requestSignal.aborted, false)
     b()
     await aborted.promise
-    const next = await client.fetchQuery(customUiComponentsQueryOptions())
+    const next = await client.fetchQuery(componentCatalogQueryOptions())
     assert.equal(next.components[0].id, 'fixture')
+    assert.equal(next.components[0].kind, 'native')
+    assert.equal(next.legacyShape, false)
     assert.equal(requests, 2)
   } finally {
     a()
@@ -107,156 +86,21 @@ test('component catalog shares one read and only aborts when its final consumer 
   }
 })
 
-test('catalog accepts built-in metadata and rejects malformed optional fields', async (t) => {
-  const builtIn = { ...component, id: 'pisper-island', builtIn: true }
-  let data = { root: 'custom-ui', components: [builtIn] }
-  t.mock.method(globalThis, 'fetch', async () => Response.json(data))
-  assert.equal((await listCustomUiComponents()).components[0].builtIn, true)
-  assert.equal(
-    customUiComponentLabel(builtIn, (key) => key),
-    'custom-ui:builtIn.islandName',
-  )
-  assert.equal(
-    customUiComponentLabel({ ...builtIn, builtIn: false }, () => 'translated'),
-    'Fixture',
-  )
-  data = { ...data, components: [{ ...builtIn, builtIn: 'yes' }] }
-  await assert.rejects(listCustomUiComponents(), /Invalid custom UI component response/)
-})
-
-test('canvas preview renders a bridge with no config, session or notification permissions', async (t) => {
-  const fixture = browserFixture(t)
-  let notifications = 0
-  t.mock.method(globalThis, 'fetch', () => assert.fail('preview must not access application data'))
-  const stop = attachComponentBridge(fixture.iframe, {
-    component,
-    preview: true,
-    locale: 'en-US',
-    notify: () => notifications++,
+test('catalog query is disabled until the Runtime declares components.native', async (t) => {
+  let requests = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests += 1
+    return Response.json(CATALOG)
   })
+  const client = new QueryClient()
+  const observer = new QueryObserver(client, componentCatalogQueryOptions(false))
+  const stop = observer.subscribe(() => {})
   try {
-    fixture.send('ready', 1)
-    fixture.send('getConfig', 2)
-    fixture.send('listSessions', 3)
-    fixture.send('notify', 4, { message: 'not sent' })
-    fixture.send('ready', 5, {}, {})
-    await setImmediate()
-    const responses = fixture.posts.filter((entry) => entry.id)
-    assert.deepEqual(
-      responses.map((entry) => [entry.id, entry.ok]),
-      [
-        [1, true],
-        [2, false],
-        [3, false],
-        [4, false],
-      ],
-    )
-    assert.deepEqual(responses[0].result.component.permissions, [])
-    assert.equal(responses[0].result.locale, 'en-US')
-    assert.equal(responses[0].result.theme.locale, 'en-US')
-    assert.equal(notifications, 0)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.equal(requests, 0)
+    assert.equal(observer.getCurrentResult().fetchStatus, 'idle')
   } finally {
     stop()
+    client.clear()
   }
-  assert.equal(fixture.observed[0].disconnected, true)
-})
-
-test('unmount aborts bridge reads and suppresses late replies, themes and notifications', async (t) => {
-  const fixture = browserFixture(t)
-  const entered = Promise.withResolvers()
-  const response = Promise.withResolvers()
-  let requestSignal
-  let notifications = 0
-  t.mock.method(globalThis, 'fetch', async (_url, { signal }) => {
-    requestSignal = signal
-    entered.resolve()
-    return response.promise
-  })
-  const stop = attachComponentBridge(fixture.iframe, { component, notify: () => notifications++ })
-  fixture.send('getConfig')
-  await entered.promise
-  stop()
-  assert.equal(requestSignal.aborted, true)
-  const count = fixture.posts.length
-  response.resolve(Response.json({ example: 'late data' }))
-  fixture.send('notify', 2, { message: 'not sent after removal' })
-  fixture.observed[0].callback()
-  await setImmediate()
-  assert.equal(fixture.posts.length, count)
-  assert.equal(notifications, 0)
-})
-
-test('mounted widget view renews then releases its lease exactly once on removal', async (t) => {
-  browserFixture(t)
-  t.mock.timers.enable({ apis: ['setTimeout'] })
-  const methods = []
-  t.mock.method(globalThis, 'fetch', async (_url, options) => {
-    methods.push(options.method)
-    return Response.json(options.method === 'POST' ? view : {})
-  })
-  const loaded = Promise.withResolvers()
-  const stop = startCustomUiView(component.id, loaded.resolve, () =>
-    assert.fail('view should load'),
-  )
-  assert.deepEqual(await loaded.promise, view)
-  t.mock.timers.tick(60_000)
-  await setImmediate()
-  assert.deepEqual(methods, ['POST', 'PUT'])
-  stop()
-  stop()
-  await setImmediate()
-  t.mock.timers.tick(120_000)
-  await setImmediate()
-  assert.deepEqual(methods, ['POST', 'PUT', 'DELETE'])
-})
-
-test('a view created after removal is revoked without displaying or renewing it', async (t) => {
-  browserFixture(t)
-  const entered = Promise.withResolvers()
-  const response = Promise.withResolvers()
-  const released = Promise.withResolvers()
-  let signal
-  t.mock.method(globalThis, 'fetch', async (_url, options) => {
-    if (options.method === 'POST') {
-      signal = options.signal
-      entered.resolve()
-      return response.promise
-    }
-    assert.equal(options.method, 'DELETE')
-    released.resolve()
-    return Response.json({})
-  })
-  const stop = startCustomUiView(
-    component.id,
-    () => assert.fail('removed view must not render'),
-    () => assert.fail('removed view must not report failure'),
-  )
-  await entered.promise
-  stop()
-  assert.equal(signal.aborted, true)
-  response.resolve(Response.json(view))
-  await released.promise
-})
-
-test('renewal failure stops a widget and revokes its lease before retry', async (t) => {
-  browserFixture(t)
-  t.mock.timers.enable({ apis: ['setTimeout'] })
-  const methods = []
-  t.mock.method(globalThis, 'fetch', async (_url, options) => {
-    methods.push(options.method)
-    if (options.method === 'PUT') return Response.json({ error: 'expired' }, { status: 404 })
-    return Response.json(options.method === 'POST' ? view : {})
-  })
-  const loaded = Promise.withResolvers()
-  let failures = 0
-  const stop = startCustomUiView(component.id, loaded.resolve, () => failures++)
-  await loaded.promise
-  t.mock.timers.tick(60_000)
-  await setImmediate()
-  assert.equal(failures, 1)
-  assert.deepEqual(methods, ['POST', 'PUT', 'DELETE'])
-  stop()
-  t.mock.timers.tick(120_000)
-  await setImmediate()
-  assert.deepEqual(methods, ['POST', 'PUT', 'DELETE'])
 })

@@ -204,7 +204,7 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
       'custom ui',
       'standalone widgets',
       'component',
-      'html',
+      'native',
       'manifest',
       '独立组件',
       '自定义组件',

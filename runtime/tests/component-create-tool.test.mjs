@@ -23,7 +23,7 @@ async function fixture(t) {
   t.after(() => rm(dataDir, { recursive: true, force: true }))
   const service = new CustomUiService({ dataDir })
   const events = []
-  service.start({ onChange: (id, detail) => events.push({ id, ...detail }) })
+  await service.start({ onChange: (id, detail) => events.push({ id, ...detail }) })
   t.after(() => service.dispose())
   const calls = []
   const runtime = service.agentInterface()

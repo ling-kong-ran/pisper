@@ -17,7 +17,10 @@ async function fixture(t) {
     randomId: () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`,
   })
   const events = []
-  service.start({ onChange: (id, detail) => events.push({ id, ...detail }), hostVersion: '0.6.5' })
+  await service.start({
+    onChange: (id, detail) => events.push({ id, ...detail }),
+    hostVersion: '0.6.5',
+  })
   return { dataDir, service, events }
 }
 

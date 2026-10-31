@@ -206,7 +206,7 @@ Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；�
 
 Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立更新，失败自动回退到内置版本。桌面端提供统一组件检查入口；移动 App 使用独立发布清单。
 
-独立 UI 组件可在「功能 → 扩展 → 组件工作室」导入文件夹或 ZIP；导入后会出现在「功能 → 我的组件」。游戏素材工作台不再内置，源码位于 [pisper-components](https://github.com/ling-kong-ran/pisper-components)。
+「功能 → 扩展 → 组件工作室」管理原生组件：代理用 `component_create` 生成，或把含 `manifest.json`（`runtime: "native"`）与 `component.js` 的文件夹放进数据目录的 `custom-ui/`，改动会自动热重载；放到「功能页」的组件出现在「功能 → 我的组件」。旧版 iframe 组件与内置专注岛已不再支持：升级后首次启动会把旧组件文件夹原样移到数据目录的 `custom-ui-trash/`。
 
 ## 📚 文档
 

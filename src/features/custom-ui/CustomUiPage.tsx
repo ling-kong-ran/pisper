@@ -1,22 +1,16 @@
 import { PageFrame } from '@/components/app/PageFrame'
-// 自定义组件页：加载 dataDir/custom-ui/ 下用户自写的静态 UI 组件，
-// 左侧组件列表 + 右侧沙箱 iframe 渲染。组件与应用的交互全部经过
-// component-bridge 的 postMessage 代理（权限按 manifest 声明过滤）。
-// 手机外壳（规格 7.5）：列表 → 详情两级，每级一屏、44px 触控；选中项由路由 /components/:id 承载，
-// 手机返回键经应用壳的路由层级回到列表。组件工作室（第 5 期）会替换这一页。
-import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+// 组件页（A7 S4 过渡版，S5 换成三栏组件工作室）：原生组件（v2）与无法读取的目录列在左边，
+// 右边是选中组件的预览（ComponentHost，preview 模式）加启用开关与删除（移入回收站）。
+// 旧 iframe 组件与专注岛已删除：启动迁移把旧组件移进回收站，迁移后才手放进来的旧格式目录这里不展示（负责人决定）。
+// 手机外壳（规格 7.5）：列表 → 详情两级，每级一屏、44px 触控；选中项由路由 /components/:id 承载。
+import { Suspense, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Blocks, ChevronLeft, ChevronRight, FolderCode, RefreshCw, Trash2 } from 'lucide-react'
 import {
-  Blocks,
-  ChevronLeft,
-  ChevronRight,
-  FolderCode,
-  FolderUp,
-  PanelsTopLeft,
-  RefreshCw,
-  ShieldCheck,
-  Upload,
-} from 'lucide-react'
+  FLOATING_DEFAULT_SIZE,
+  OVERVIEW_CARD_DIMENSIONS,
+  type ComponentSurface,
+} from '@shared/custom-ui-manifest.mjs'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
 import { AppNotice } from '@/components/ui/app-primitives'
@@ -30,17 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { OrbitSpinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
-import { ApiError } from '@/lib/http'
 import type { Notify } from '@/app/route-context'
-import { CustomUiFrame } from './CustomUiFrame'
-import { importCustomUiBundle } from './custom-ui-api'
-import { useCustomUiComponents } from './useCustomUiComponents'
-import { customUiComponentLabel, customUiComponentDescription } from './custom-ui-labels'
-import { resolveFloatingWidgetIds, useFloatingWidgetsStore } from './floating-widgets-store'
-import type { CustomUiComponent } from './custom-ui-api'
+import { deleteComponent, setComponentEnabled, type ComponentRow } from './custom-ui-api'
+import { LazyComponentHost, useComponentCatalog, useComponentsAvailable } from './placements'
+import { customUiQueryKeys } from './query-keys'
 
 type CustomUiPageProps = {
   embedded?: boolean
@@ -51,101 +41,295 @@ type CustomUiPageProps = {
   onSelect?: (id: string, replace: boolean) => void
 }
 
-function permissionLabel(permission: string, t: ReturnType<typeof useI18n>['t']) {
-  if (permission === 'config.read') return t('custom-ui:customUiPage.permissionConfigRead')
-  if (permission === 'sessions.read') return t('custom-ui:customUiPage.permissionSessionsRead')
-  if (permission === 'notify') return t('custom-ui:customUiPage.permissionNotify')
-  if (permission === 'game-assets.read') return t('custom-ui:customUiPage.permissionGameAssetsRead')
-  if (permission === 'game-assets.write')
-    return t('custom-ui:customUiPage.permissionGameAssetsWrite')
-  if (permission === 'game-assets.run') return t('custom-ui:customUiPage.permissionGameAssetsRun')
-  return permission
+type Translate = ReturnType<typeof useI18n>['t']
+
+// 列表只放原生组件与无法读取的目录：旧 iframe 组件已不再支持，不展示（负责人决定）。
+function visibleRows(rows: readonly ComponentRow[]) {
+  return rows.filter((row) => row.kind !== 'legacy')
 }
 
-// 单个组件的渲染面板：iframe 以 opaque origin 沙箱加载，挂载后接桥。
-function ComponentStage({
-  component,
-  notify,
-  floating,
-  onToggleFloating,
-  phone = false,
-}: {
-  component: CustomUiComponent
-  notify: Notify
-  floating: boolean
-  onToggleFloating: () => void
-  // 手机详情屏：舞台给到一屏可用高度，头部操作换行成 44px 大按钮。
-  phone?: boolean
-}) {
-  const { t } = useI18n()
+function rowName(row: ComponentRow, language: string) {
+  const i18n = row.manifest?.i18n as Record<string, { name?: string } | undefined> | undefined
+  return i18n?.[language]?.name || row.name || row.id
+}
 
+// 错误码的静态文案表：check-i18n 只认 t() 的字面量键，所以逐个写出；没有文案的码原样显示。
+function errorLabel(code: string, t: Translate) {
+  const labels: Record<string, string> = {
+    manifest_missing: t('custom-ui:errors.manifest_missing'),
+    manifest_too_large: t('custom-ui:errors.manifest_too_large'),
+    manifest_json_invalid: t('custom-ui:errors.manifest_json_invalid'),
+    manifest_not_object: t('custom-ui:errors.manifest_not_object'),
+    entry_missing: t('custom-ui:errors.entry_missing'),
+    style_missing: t('custom-ui:errors.style_missing'),
+    component_too_large: t('custom-ui:errors.component_too_large'),
+  }
+  return labels[code] || code
+}
+
+function statusLabel(row: ComponentRow, t: Translate) {
+  if (row.kind === 'broken') return t('custom-ui:studio.statusBroken')
+  if (row.status !== 'ready') return t('custom-ui:studio.statusInvalid')
+  return row.enabled ? t('custom-ui:studio.statusEnabled') : t('custom-ui:studio.statusDisabled')
+}
+
+// 预览放置：manifest 声明的第一个放置位置（缺省视为四处都允许，取“功能页”整页）。
+function previewSurface(row: ComponentRow): ComponentSurface {
+  return row.manifest?.placements[0]?.surface ?? 'feature-page'
+}
+
+function previewBox(row: ComponentRow, surface: ComponentSurface) {
+  const placement = row.manifest?.placements.find((entry) => entry.surface === surface)
+  if (surface === 'overview-card') {
+    const size = placement?.sizes?.[0] ?? 'S'
+    return { size, ...OVERVIEW_CARD_DIMENSIONS[size] }
+  }
+  if (surface === 'floating') return { size: null, ...(placement?.size ?? FLOATING_DEFAULT_SIZE) }
+  return { size: null, w: 0, h: 0 }
+}
+
+function ComponentDetail({
+  row,
+  notify,
+  canDelete,
+  phone = false,
+  onDeleted,
+}: {
+  row: ComponentRow
+  notify: Notify
+  canDelete: boolean
+  phone?: boolean
+  onDeleted: () => void
+}) {
+  const { t, language } = useI18n()
+  const client = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const name = rowName(row, language)
+  const surface = previewSurface(row)
+  const box = previewBox(row, surface)
+  const toggle = async (enabled: boolean) => {
+    setBusy(true)
+    try {
+      await setComponentEnabled(row.id, enabled)
+      await client.invalidateQueries({ queryKey: customUiQueryKeys.all })
+    } catch {
+      notify(t('custom-ui:studio.toggleFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await deleteComponent(row.id)
+      setConfirming(false)
+      notify(t('custom-ui:studio.deleted', { name }))
+      await client.invalidateQueries({ queryKey: customUiQueryKeys.all })
+      onDeleted()
+    } catch {
+      notify(t('custom-ui:studio.deleteFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <section
-      data-component-stage={component.id}
+      data-component-stage={row.id}
+      data-component-kind={row.kind}
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-stroke bg-panel"
     >
-      {/* 头部：名称 15/500 + 内置徽标 + 等宽版本号，操作在右；说明与权限在下方细线区内。 */}
       <header className="flex min-w-0 flex-wrap items-center gap-2 border-b border-stroke-soft px-3.5 py-2.5">
-        <strong className="min-w-0 flex-1 truncate text-[15px] font-medium">
-          {customUiComponentLabel(component, t)}
-        </strong>
-        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
-        {component.version && (
+        <strong className="min-w-0 flex-1 truncate text-[15px] font-medium">{name}</strong>
+        {row.version && (
           <span className="flex-none font-mono text-xs text-content-muted tabular-nums">
-            v{component.version}
+            v{row.version}
           </span>
         )}
-        {/* 手机详情屏：操作单独成一行、各占一半，名称不被挤成省略号。 */}
         <span
           className={cn(
-            'flex flex-wrap items-center gap-1.5',
+            'flex flex-wrap items-center gap-2',
             phone && 'grid w-full grid-cols-2 gap-2',
           )}
         >
-          <Button variant="secondary" size="sm" className="max-[650px]:h-11" asChild>
-            <Link to={`/tools/components/${encodeURIComponent(component.id)}`}>
-              {t('custom-ui:customUiPage.openComponent')}
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-pressed={floating}
-            title={t('custom-ui:floating.hint')}
-            className="aria-pressed:bg-star-soft aria-pressed:text-star-strong max-[650px]:h-11"
-            onClick={onToggleFloating}
-          >
-            <PanelsTopLeft />
-            {floating ? t('custom-ui:floating.hide') : t('custom-ui:floating.show')}
-          </Button>
+          {row.kind === 'native' && (
+            <label className="inline-flex min-h-8 items-center gap-2 text-xs text-content-secondary max-[650px]:min-h-11">
+              <Switch
+                checked={row.enabled}
+                disabled={busy}
+                aria-label={t('custom-ui:studio.enable')}
+                data-component-enable
+                onCheckedChange={(checked) => void toggle(checked)}
+              />
+              {t('custom-ui:studio.enable')}
+            </label>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-[650px]:h-11"
+              disabled={busy}
+              data-component-delete
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 />
+              {t('custom-ui:studio.delete')}
+            </Button>
+          )}
         </span>
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-3.5">
-        <p className="text-xs leading-relaxed text-content-muted">{t('custom-ui:floating.hint')}</p>
-        {component.description && (
-          <p className="text-sm leading-relaxed text-content-secondary">
-            {customUiComponentDescription(component, t)}
-          </p>
+        {row.description && (
+          <p className="text-sm leading-relaxed text-content-secondary">{row.description}</p>
         )}
-        {component.permissions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-content-muted">
-            <ShieldCheck className="size-3.5 flex-none" aria-hidden="true" />
-            {component.permissions.map((permission) => (
-              <Badge key={permission}>{permissionLabel(permission, t)}</Badge>
+        <p className="text-xs leading-relaxed break-all text-content-muted">
+          {t('custom-ui:studio.directory', { path: row.directory })}
+        </p>
+        {row.errors.length > 0 && (
+          <ul
+            role="alert"
+            data-component-errors
+            className="flex flex-col gap-1 rounded-md border border-stroke-soft bg-surface-subtle px-3 py-2 text-xs text-content-secondary"
+          >
+            {row.errors.map((error) => (
+              <li key={`${error.path}:${error.code}`} className="min-w-0 break-all">
+                {error.path && <code className="mr-1.5 font-mono">{error.path}</code>}
+                {errorLabel(error.code, t)}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-        {/* 组件舞台是一口凹陷的井：代码井底色 + 细线，与外层纸面拉开层次。 */}
-        <div
-          className={cn(
-            'min-h-[240px] flex-1 overflow-hidden rounded-md border border-stroke-soft bg-code',
-            phone && 'min-h-[min(420px,55dvh)]',
-          )}
-        >
-          <CustomUiFrame component={component} notify={notify} />
-        </div>
+        {/* 预览舞台：凹陷的代码井底色 + 细线；总览卡片与浮窗按实际尺寸 1:1 渲染。 */}
+        {row.kind === 'native' && row.status === 'ready' ? (
+          <div
+            data-component-preview
+            className={cn(
+              'flex min-h-[240px] flex-1 items-start justify-center overflow-auto rounded-md border border-stroke-soft bg-code p-3',
+              phone && 'min-h-[min(420px,55dvh)]',
+            )}
+          >
+            <div
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-stroke bg-panel"
+              style={
+                box.w
+                  ? { width: box.w, maxWidth: '100%', height: box.h }
+                  : { width: '100%', minHeight: 320, alignSelf: 'stretch' }
+              }
+            >
+              <Suspense fallback={null}>
+                <LazyComponentHost
+                  // 按 rev 重挂：热重载后预览加载新模块（ComponentHost 自己也按 instanceId@rev 重挂）。
+                  key={`${row.id}@${row.rev}`}
+                  component={row}
+                  instance={{
+                    instanceId: `preview:${row.id}`,
+                    surface,
+                    props: {},
+                    size: box.size,
+                  }}
+                  preview
+                  notify={(message) => notify(message)}
+                  className="h-full"
+                />
+              </Suspense>
+            </div>
+          </div>
+        ) : (
+          <InlineEmptyState
+            className="flex-1"
+            title={
+              row.kind === 'broken'
+                ? t('custom-ui:studio.brokenTitle')
+                : t('custom-ui:studio.invalidTitle')
+            }
+            description={
+              row.kind === 'broken'
+                ? t('custom-ui:studio.brokenHint')
+                : t('custom-ui:studio.invalidHint')
+            }
+          />
+        )}
       </div>
+      <Dialog open={confirming} onOpenChange={(open) => !open && !busy && setConfirming(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('custom-ui:studio.deleteTitle', { name })}</DialogTitle>
+            <DialogDescription>{t('custom-ui:studio.deleteHint')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
+              {t('custom-ui:studio.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              data-component-delete-confirm
+              onClick={() => void remove()}
+            >
+              {t('custom-ui:studio.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
+  )
+}
+
+function RowButton({
+  row,
+  active,
+  phone,
+  onSelect,
+}: {
+  row: ComponentRow
+  active: boolean
+  phone: boolean
+  onSelect: () => void
+}) {
+  const { t, language } = useI18n()
+  const attention = row.status !== 'ready'
+  return (
+    <button
+      type="button"
+      data-component-row={row.id}
+      data-component-kind={row.kind}
+      aria-current={active || undefined}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full min-w-0 items-center gap-3 text-left transition-colors duration-(--d-fast) focus-visible:-outline-offset-2',
+        phone
+          ? 'min-h-14 px-3.5 py-2 hover:bg-surface-subtle active:bg-surface-subtle'
+          : cn(
+              'rounded-sm px-2.5 py-2 max-[650px]:min-h-11',
+              active
+                ? 'bg-surface-muted text-content'
+                : 'text-content-secondary hover:bg-surface-subtle',
+            ),
+      )}
+    >
+      <span
+        className={cn(
+          'grid flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset',
+          phone ? 'size-9' : 'size-7',
+        )}
+      >
+        <Blocks className={phone ? 'size-[18px]' : 'size-3.5'} strokeWidth={1.75} aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 items-center gap-2">
+          <strong className="min-w-0 flex-1 truncate text-sm font-medium">
+            {rowName(row, language)}
+          </strong>
+          {/* 需要处理（manifest 有错、目录无法读取）用中性徽标：琥珀只表示“需要你”的代理状态。 */}
+          <Badge className={cn(attention && 'text-content-secondary')}>{statusLabel(row, t)}</Badge>
+        </span>
+        <small className="truncate font-mono text-xs text-content-muted">
+          {row.version ? `${row.id} · v${row.version}` : row.id}
+        </small>
+      </span>
+      {phone && <ChevronRight className="size-4 flex-none text-content-muted" aria-hidden="true" />}
+    </button>
   )
 }
 
@@ -157,169 +341,52 @@ export function CustomUiPage({
 }: CustomUiPageProps) {
   const { t } = useI18n()
   const phone = usePhoneShell() && !embedded
-  const catalog = useCustomUiComponents()
-  const components = catalog.data?.components || []
+  const available = useComponentsAvailable()
+  const catalog = useComponentCatalog()
+  const rows = visibleRows(catalog.data?.components || [])
   const root = catalog.data?.root || ''
+  const canDelete = catalog.data?.features.trash === 'move'
   const [localSelectedId, setLocalSelectedId] = useState('')
   const selectedId = onSelect ? routeSelectedId || '' : localSelectedId
   const setSelectedId = (id: string, replace = true) => {
     if (onSelect) onSelect(id, replace)
     else setLocalSelectedId(id)
   }
-  const [importing, setImporting] = useState(false)
-  const [importError, setImportError] = useState('')
-  const [importedName, setImportedName] = useState('')
-  const zipInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
-  const loading = catalog.isPending
   const refreshing = catalog.isFetching
-  const error = catalog.error ? t('custom-ui:widget.catalogFailed') : ''
-  const selected = components.find((item) => item.id === selectedId) || components[0] || null
-  const prefs = useFloatingWidgetsStore((state) => state.prefs)
-  const storageError = useFloatingWidgetsStore((state) => state.storageError)
-  const floatingIds = resolveFloatingWidgetIds([], prefs)
-  const toggleFloating = () => {
-    if (!selected) return
-    try {
-      useFloatingWidgetsStore.getState().setVisible(selected.id, !floatingIds.includes(selected.id))
-    } catch {
-      notify(t('custom-ui:floating.storageFailed'))
-    }
-  }
+  const selected = rows.find((item) => item.id === selectedId) || rows[0] || null
 
-  const install = async (bundle: Blob) => {
-    setImporting(true)
-    setImportError('')
-    try {
-      const result = await importCustomUiBundle(bundle)
-      await catalog.refetch()
-      setSelectedId(result.id)
-      setImportedName(result.name)
-    } catch (caught) {
-      const code = caught instanceof ApiError ? caught.data?.code : undefined
-      setImportError(
-        code === 'component_already_installed'
-          ? t('custom-ui:customUiPage.importExists')
-          : t('custom-ui:customUiPage.importFailed'),
-      )
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const importFolder = async (files: File[]) => {
-    setImporting(true)
-    setImportError('')
-    try {
-      const selected = files.filter((file) => !file.name.startsWith('.'))
-      if (!selected.length || selected.reduce((sum, file) => sum + file.size, 0) > 15 * 1024 * 1024)
-        throw new Error('Invalid component folder')
-      const entries: Record<string, Uint8Array> = {}
-      for (const file of selected) {
-        const path = file.webkitRelativePath || file.name
-        entries[path] = new Uint8Array(await file.arrayBuffer())
-      }
-      const { zipSync } = await import('fflate')
-      await install(new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }))
-    } catch {
-      setImportError(t('custom-ui:customUiPage.importFailed'))
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const importPanel = (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <input
-        ref={(node) => {
-          folderInputRef.current = node
-          node?.setAttribute('webkitdirectory', '')
-        }}
-        type="file"
-        multiple
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-        onChange={(event) => {
-          const files = [...(event.currentTarget.files || [])]
-          event.currentTarget.value = ''
-          if (files.length) void importFolder(files)
-        }}
-      />
-      <input
-        ref={zipInputRef}
-        type="file"
-        accept=".zip,application/zip"
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0]
-          if (file) void install(file)
-          event.currentTarget.value = ''
-        }}
-      />
-      <Button
-        variant="secondary"
-        size="sm"
-        className="max-[650px]:h-11"
-        disabled={importing}
-        onClick={() => folderInputRef.current?.click()}
-      >
-        <FolderUp />
-        {t('custom-ui:customUiPage.importFolder')}
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="max-[650px]:h-11"
-        disabled={importing}
-        onClick={() => zipInputRef.current?.click()}
-      >
-        <Upload />
-        {t('custom-ui:customUiPage.importZip')}
-      </Button>
-      {importing && (
-        <span role="status" className="inline-flex items-center gap-1.5 text-xs text-content-muted">
-          <OrbitSpinner className="size-3.5" />
-          {t('custom-ui:customUiPage.importing')}
-        </span>
-      )}
-      {importError && (
-        <span role="alert" className="text-xs text-danger">
-          {importError}
-        </span>
-      )}
-    </div>
-  )
-
-  const importNotice = (
-    <Dialog open={Boolean(importedName)} onOpenChange={(open) => !open && setImportedName('')}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('custom-ui:customUiPage.imported', { name: importedName })}</DialogTitle>
-          <DialogDescription>{t('custom-ui:customUiPage.restartHint')}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setImportedName('')}>
-            {t('custom-ui:customUiPage.restartLater')}
-          </Button>
-          <Button onClick={() => window.location.reload()}>
-            {t('custom-ui:customUiPage.reloadNow')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-
-  if (loading) return <PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />
-
-  if (!components.length && !error) {
+  // 旧 Runtime（没有 components.native，或列表是旧形状）：如实说明不支持，不展示旧组件当成可用。
+  if (!available || catalog.data?.legacyShape)
     return (
-      <div className="flex min-h-[100%] min-w-0 flex-col gap-[12px]">
-        {importPanel}
-        {importNotice}
-        {/* 空状态：星轨插画 + 说明 + 等宽目录路径，重新扫描是唯一的操作。 */}
+      <PageFrame variant="collection" embedded={embedded}>
+        <PageState
+          kind="empty"
+          title={t('custom-ui:studio.unsupportedTitle')}
+          description={t('custom-ui:studio.unsupportedHint')}
+        />
+      </PageFrame>
+    )
+  if (catalog.isPending)
+    return <PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />
+
+  const error = catalog.error ? t('custom-ui:widget.catalogFailed') : ''
+  const rescan = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={phone ? 'size-11' : 'size-8 max-[650px]:size-11'}
+      title={t('custom-ui:customUiPage.rescan')}
+      aria-label={t('custom-ui:customUiPage.rescan')}
+      disabled={refreshing}
+      onClick={() => void catalog.refetch()}
+    >
+      <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
+    </Button>
+  )
+
+  if (!rows.length && !error) {
+    return (
+      <PageFrame variant="collection" embedded={embedded}>
         <InlineEmptyState
           className="flex-1"
           title={t('custom-ui:customUiPage.emptyTitle')}
@@ -349,19 +416,25 @@ export function CustomUiPage({
             </Button>
           }
         />
-      </div>
+      </PageFrame>
     )
   }
+
+  const errorNotice = error && (
+    <AppNotice>
+      <FolderCode size={14} />
+      <span>{error}</span>
+    </AppNotice>
+  )
 
   // 手机：列表与详情各占一屏。详情屏顶部是“‹ 全部组件”，与手机返回键同一去向。
   if (phone) {
     const backToList = () => setSelectedId('', false)
-    const detail = selectedId ? components.find((item) => item.id === selectedId) || null : null
+    const detail = selectedId ? rows.find((item) => item.id === selectedId) || null : null
     if (selectedId)
       return (
         <PageFrame variant="collection">
           <div data-components-phone="detail" className="flex min-w-0 flex-col gap-3">
-            {importNotice}
             <Button
               variant="ghost"
               className="-ml-2 min-h-11 w-fit px-2 text-content-secondary"
@@ -371,13 +444,12 @@ export function CustomUiPage({
               {t('custom-ui:phone.allComponents')}
             </Button>
             {detail ? (
-              <ComponentStage
-                key={`${detail.id}:${catalog.dataUpdatedAt}`}
-                component={detail}
+              <ComponentDetail
+                row={detail}
                 notify={notify}
-                floating={floatingIds.includes(detail.id)}
-                onToggleFloating={toggleFloating}
+                canDelete={canDelete}
                 phone
+                onDeleted={backToList}
               />
             ) : (
               <PageState
@@ -397,66 +469,26 @@ export function CustomUiPage({
     return (
       <PageFrame variant="collection">
         <div data-components-phone="list" className="flex min-w-0 flex-col gap-3">
-          {importPanel}
-          {importNotice}
-          {error && (
-            <AppNotice>
-              <FolderCode size={14} />
-              <span>{error}</span>
-            </AppNotice>
-          )}
-          {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
+          {errorNotice}
           <section
-            aria-label={t('custom-ui:customUiPage.installedComponents', {
-              count: components.length,
-            })}
+            aria-label={t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
             className="flex flex-col overflow-hidden rounded-md border border-stroke bg-panel"
           >
             <header className="flex min-h-11 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle pl-3.5">
               <span className="text-xs font-medium text-content-secondary tabular-nums">
-                {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
+                {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-11"
-                aria-label={t('custom-ui:customUiPage.rescan')}
-                disabled={refreshing}
-                onClick={() => void catalog.refetch()}
-              >
-                <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />
-              </Button>
+              {rescan}
             </header>
             <ul className="flex flex-col divide-y divide-stroke-soft">
-              {components.map((component) => (
-                <li key={component.id}>
-                  <button
-                    type="button"
-                    data-component-row={component.id}
-                    className="flex min-h-14 w-full min-w-0 items-center gap-3 px-3.5 py-2 text-left transition-colors duration-(--d-fast) hover:bg-surface-subtle focus-visible:-outline-offset-2 active:bg-surface-subtle"
-                    onClick={() => setSelectedId(component.id, false)}
-                  >
-                    <span className="grid size-9 flex-none place-items-center rounded-md bg-surface-muted text-content-secondary ring-1 ring-stroke-soft ring-inset">
-                      <Blocks className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <strong className="min-w-0 truncate text-sm font-medium text-content">
-                          {customUiComponentLabel(component, t)}
-                        </strong>
-                        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
-                      </span>
-                      <small className="truncate text-xs text-content-muted">
-                        {component.description
-                          ? customUiComponentDescription(component, t)
-                          : component.id}
-                      </small>
-                    </span>
-                    <ChevronRight
-                      className="size-4 flex-none text-content-muted"
-                      aria-hidden="true"
-                    />
-                  </button>
+              {rows.map((row) => (
+                <li key={row.id}>
+                  <RowButton
+                    row={row}
+                    active={false}
+                    phone
+                    onSelect={() => setSelectedId(row.id, false)}
+                  />
                 </li>
               ))}
             </ul>
@@ -472,70 +504,32 @@ export function CustomUiPage({
   return (
     <PageFrame variant="collection" embedded={embedded}>
       <div className="flex min-w-0 flex-col gap-3">
-        {importPanel}
-        {importNotice}
-        {error && (
-          <AppNotice>
-            <FolderCode size={14} />
-            <span>{error}</span>
-          </AppNotice>
-        )}
-        {storageError && <AppNotice>{t('custom-ui:floating.storageFailed')}</AppNotice>}
+        {errorNotice}
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-          {/* 组件清单：细线卡片，选中行为次级表面 + 3px 强调色刻度；组件 id 用等宽字。 */}
           <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-stroke bg-panel">
             <header className="flex min-h-10 items-center justify-between gap-2 border-b border-stroke-soft bg-surface-subtle py-1 pr-1.5 pl-3.5">
               <span className="text-xs font-medium text-content-secondary tabular-nums">
-                {t('custom-ui:customUiPage.installedComponents', { count: components.length })}
+                {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
               </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="max-[650px]:size-11"
-                title={t('custom-ui:customUiPage.rescan')}
-                aria-label={t('custom-ui:customUiPage.rescan')}
-                disabled={refreshing}
-                onClick={() => void catalog.refetch()}
-              >
-                <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
-              </Button>
+              {rescan}
             </header>
             <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto p-1.5">
-              {components.map((component) => {
-                const active = component.id === selected?.id
+              {rows.map((row) => {
+                const active = row.id === selected?.id
                 return (
-                  <li key={component.id} className="relative">
+                  <li key={row.id} className="relative">
                     {active && (
                       <i
                         aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-[3px] rounded-r-[3px] bg-star"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-r-[3px] bg-content-muted"
                       />
                     )}
-                    <button
-                      type="button"
-                      aria-current={active || undefined}
-                      onClick={() => setSelectedId(component.id)}
-                      className={cn(
-                        'flex w-full min-w-0 flex-col gap-0.5 rounded-sm px-2.5 py-2 text-left transition-colors duration-(--d-fast) focus-visible:-outline-offset-2 max-[650px]:min-h-11',
-                        active
-                          ? 'bg-surface-muted text-content'
-                          : 'text-content-secondary hover:bg-surface-subtle',
-                      )}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <Blocks
-                          className="size-3.5 flex-none text-content-muted"
-                          aria-hidden="true"
-                        />
-                        <strong className="min-w-0 flex-1 truncate text-sm font-medium">
-                          {customUiComponentLabel(component, t)}
-                        </strong>
-                        {component.builtIn && <Badge>{t('custom-ui:builtIn.badge')}</Badge>}
-                      </span>
-                      <small className="truncate pl-5.5 font-mono text-xs text-content-muted">
-                        {component.id}
-                      </small>
-                    </button>
+                    <RowButton
+                      row={row}
+                      active={active}
+                      phone={false}
+                      onSelect={() => setSelectedId(row.id)}
+                    />
                   </li>
                 )
               })}
@@ -545,12 +539,12 @@ export function CustomUiPage({
             </p>
           </section>
           {selected ? (
-            <ComponentStage
-              key={`${selected.id}:${catalog.dataUpdatedAt}`}
-              component={selected}
+            <ComponentDetail
+              key={selected.id}
+              row={selected}
               notify={notify}
-              floating={floatingIds.includes(selected.id)}
-              onToggleFloating={toggleFloating}
+              canDelete={canDelete}
+              onDeleted={() => setSelectedId('')}
             />
           ) : (
             <InlineEmptyState title={t('custom-ui:customUiPage.selectComponent')} />

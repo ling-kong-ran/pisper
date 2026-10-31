@@ -28,7 +28,6 @@ import { CustomUiService } from './services/custom-ui-service.mjs'
 import { BrowserPreferencesService } from './services/browser-preferences-service.mjs'
 import { McpHostService } from './services/mcp-host-service.mjs'
 import { createMcpHostAdapter } from './runtime/mcp-host-adapter.mjs'
-import { handleCustomUiResource } from './http/routes/custom-ui.mjs'
 import { handleLocalBrowserPreferences } from './http/local-browser-preferences.mjs'
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
@@ -420,15 +419,6 @@ export async function createPisperRuntime({
     const activePort = typeof address === 'object' && address ? address.port : port
     const origin = `http://${host}:${activePort}`
     const url = new URL(req.url || '/', req.headers.host ? `http://${req.headers.host}` : origin)
-    if (
-      await handleCustomUiResource(req, res, url, {
-        customUi,
-        remoteAccess,
-        remote: isRemoteListener,
-        json: (status, value) => sendJson(res, status, value),
-      })
-    )
-      return
     // 鉴权分层：回环监听走桌面 Cookie 引导；远程监听走设备 Bearer 令牌。
     if (isRemoteListener) {
       req.pisperRemote = true

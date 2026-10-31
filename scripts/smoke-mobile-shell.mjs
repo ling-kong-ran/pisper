@@ -458,24 +458,31 @@ process.env.PI_TELEMETRY = '0'
 process.env.PISPER_AGENT_DIR = dataDir
 process.env.PISPER_WORKSPACE_DIR = workspace
 await writeBoardSessionFixture(join(dataDir, 'sessions'), workspace)
-// 一个已安装的旧版 iframe 组件：组件列表、详情与更多页都能看到真实条目。
+// 一个手放的原生组件（列表 → 详情 → 手机宽预览），外加一个旧版 iframe 组件：
+// 负责人决定之前的组件都删除，Runtime 启动迁移把旧组件移进回收站，列表里不再出现它。
 const componentDir = join(dataDir, 'custom-ui', 'game-asset-demo')
 await mkdir(componentDir, { recursive: true })
 await writeFile(
   join(componentDir, 'manifest.json'),
   JSON.stringify({
-    id: 'game-asset-demo',
-    name: '游戏素材工作台',
+    runtime: 'native',
+    name: '游戏素材看板',
     version: '1.2.0',
-    description: '旧版组件 · 沙箱运行',
-    entry: 'index.html',
-    permissions: ['notify'],
+    description: '原生组件 · 手放',
+    placements: [{ surface: 'feature-page' }],
   }),
 )
 await writeFile(
-  join(componentDir, 'index.html'),
-  '<!doctype html><meta charset="utf-8"><body>fixture component</body>',
+  join(componentDir, 'component.js'),
+  'export default function Card({ ctx }) {\n  return ctx.html`<p data-fixture-card>fixture component</p>`\n}\n',
 )
+const legacyDir = join(dataDir, 'custom-ui', 'old-iframe')
+await mkdir(legacyDir, { recursive: true })
+await writeFile(
+  join(legacyDir, 'manifest.json'),
+  JSON.stringify({ name: '旧版组件', entry: 'index.html', permissions: ['notify'] }),
+)
+await writeFile(join(legacyDir, 'index.html'), '<!doctype html><body>legacy</body>')
 
 const now = Date.now()
 const iso = (offset) => new Date(now + offset).toISOString()
@@ -1154,9 +1161,24 @@ async function verifyPhoneShell(boardSessions) {
   const row = page.locator('[data-component-row="game-asset-demo"]')
   const rowBox = await row.boundingBox()
   assert.ok(rowBox && rowBox.height >= 44, `component row ${JSON.stringify(rowBox)}`)
+  // 旧版组件已被启动迁移移进回收站：列表里只有原生行，文件原样在 custom-ui-trash 里。
+  assert.equal(await page.locator('[data-component-row]').count(), 1)
+  assert.equal(await page.locator('[data-component-kind="legacy"]').count(), 0)
+  assert.equal(existsSync(legacyDir), false, 'legacy component moved out of custom-ui/')
+  const trashed = (await readdir(join(dataDir, 'custom-ui-trash'))).filter((name) =>
+    name.startsWith('old-iframe-'),
+  )
+  assert.equal(trashed.length, 1, 'legacy component kept in the trash')
+  assert.match(
+    await readFile(join(dataDir, 'custom-ui-trash', trashed[0], 'component', 'index.html'), 'utf8'),
+    /legacy/,
+  )
   await row.click()
   await page.locator('[data-components-phone="detail"]').waitFor()
   assert.equal(hashOf(page), '#/components/game-asset-demo')
+  // 手机宽预览：原生组件在真实宿主里渲染，不出现横向滚动。
+  await page.locator('[data-component-preview] [data-fixture-card]').waitFor({ timeout: 30000 })
+  assert.equal(await noHorizontalScroll(page), true)
   const phoneHeader = await page.evaluate(() => {
     const back = document.querySelector('[data-back-to-more]')
     const header = back?.closest('header')
@@ -1185,7 +1207,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-new-task-draft="phone"]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
-    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
+    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
   )
 
   // 设置（规格 7.4）：抽屉底部“设置”进分区列表（56 行），点“界面”进分区，顶上“‹ 设置”；返回键从分区回列表。

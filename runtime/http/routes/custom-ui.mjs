@@ -1,20 +1,14 @@
-// 自定义 UI 组件路由：组件清单、资产服务（沙箱 iframe 加载）与桥接脚本。
-// 旧资产路由保留三级路径兼容；凭证预览支持嵌套资源，由服务层限制目录边界。
-// A7 新增原生组件（v2）路由：describe、按 rev 服务模块、创建 / 启用 / 删除组件、放置实例。
-// 新路由全部走现有鉴权链（没有鉴权前旁路），请求体按小上限读取后当作 unknown 交给服务层校验。
+// 原生组件（v2）路由：组件目录、describe、按 rev 服务模块、创建 / 启用 / 删除组件、放置实例、
+// 组件存储、网络代理、错误日志与绑定会话。全部走现有鉴权链（没有鉴权前旁路），
+// 请求体按小上限读取后当作 unknown 交给服务层校验。
+// A7 S4 删除旧 iframe 机制：视图凭证、桥脚本与沙箱资产路由改为 410 兼容桩（旧前端拿到结构化错误而不是 404），
+// 鉴权前的 /api/custom-ui/render/* 入口整个删除（Runtime 不再有鉴权前旁路）；导入一律结构化拒绝。
 import { normalizeSessionOrganization } from '../../services/chat-session-organization.mjs'
 import { CustomUiError } from '../../services/custom-ui-error.mjs'
-import { CustomUiImportError } from '../../services/custom-ui-import.mjs'
 
 function customUiUnavailable(services) {
   if (!services.customUi) throw new Error('当前 Runtime 不支持自定义 UI 组件。')
   return services.customUi
-}
-
-function serveComponentAsset(services, params, res, json) {
-  const customUi = customUiUnavailable(services)
-  const path = [params.asset1, params.asset2, params.asset3].filter(Boolean).join('/')
-  return customUi.serveAsset({ id: params.componentId, path, res, json })
 }
 
 // 结构化错误统一写成 { code, error: code, ...details }；其他异常交给 api-handler 的通用处理。
@@ -241,146 +235,44 @@ const nativeComponentRoutes = [
   },
 ]
 
+// 旧 iframe 机制的兼容桩：至少保留到 A8 之后（计划 §2.3）。不读请求体、不碰组件目录。
+function legacyRemoved({ json }) {
+  json(410, { code: 'custom_ui_legacy_removed', error: 'custom_ui_legacy_removed' })
+}
+
+const legacyRemovedRoutes = [
+  ['POST', '/api/custom-ui/components/:componentId/views'],
+  ['PUT', '/api/custom-ui/views/:viewId'],
+  ['DELETE', '/api/custom-ui/views/:viewId'],
+  ['GET', '/api/custom-ui/bridge.js'],
+  ['GET', '/api/custom-ui/components/:componentId/assets/:asset1'],
+  ['GET', '/api/custom-ui/components/:componentId/assets/:asset1/:asset2'],
+  ['GET', '/api/custom-ui/components/:componentId/assets/:asset1/:asset2/:asset3'],
+].map(([method, path]) => ({ method, path, handler: legacyRemoved }))
+
 export const customUiRoutes = [
   ...nativeComponentRoutes,
   {
-    method: 'POST',
-    path: '/api/custom-ui/import',
-    async handler({ runtime, services, bodyBuffer, json }) {
-      try {
-        const bytes = await bodyBuffer(16 * 1024 * 1024)
-        const imported = await customUiUnavailable(services).importBundle(bytes)
-        // 第 1 期组件仍是 custom-ui：安装 / 覆盖更新后通知看板事件流（component_changed）。
-        if (typeof imported?.id === 'string') runtime?.boardEvents?.componentChanged(imported.id)
-        json(201, imported)
-      } catch (error) {
-        if (!(error instanceof CustomUiImportError)) throw error
-        json(error.statusCode, { code: error.code, error: error.code })
-      }
-    },
-  },
-  {
-    method: 'POST',
-    path: '/api/custom-ui/components/:componentId/views',
-    async handler({ services, params, req, body, json }) {
-      const input = await body()
-      if (
-        !input ||
-        typeof input.origin !== 'string' ||
-        Object.keys(input).some((key) => key !== 'origin')
-      ) {
-        throw Object.assign(new Error('组件来源无效。'), { statusCode: 400 })
-      }
-      json(
-        200,
-        await customUiUnavailable(services).createView(
-          params.componentId,
-          req.pisperDevice?.id || 'local',
-          input.origin,
-        ),
-      )
-    },
-  },
-  {
-    method: 'PUT',
-    path: '/api/custom-ui/views/:viewId',
-    handler({ services, params, req, json }) {
-      customUiUnavailable(services).renewView(params.viewId, req.pisperDevice?.id || 'local')
-      json(200, { ok: true })
-    },
-  },
-  {
-    method: 'DELETE',
-    path: '/api/custom-ui/views/:viewId',
-    handler({ services, params, req, json }) {
-      customUiUnavailable(services).revokeView(params.viewId, req.pisperDevice?.id || 'local')
-      json(200, { ok: true })
-    },
-  },
-  {
     method: 'GET',
     path: '/api/custom-ui/components',
-    async handler({ services, json }) {
-      json(200, await customUiUnavailable(services).listComponents())
-    },
+    handler: nativeRoute(async ({ services, json }) => {
+      json(200, await customUiUnavailable(services).catalog())
+    }),
   },
   {
-    method: 'GET',
-    path: '/api/custom-ui/bridge.js',
-    handler({ services, res }) {
-      const script = customUiUnavailable(services).bridgeScript()
-      res.writeHead(200, {
-        'Content-Type': 'text/javascript; charset=utf-8',
-        'Content-Length': Buffer.byteLength(script),
-        'Cache-Control': 'no-cache',
-        'X-Content-Type-Options': 'nosniff',
-      })
-      res.end(script)
-    },
+    // 5a 不安装任何包：只解包判断格式后结构化拒绝（服务层 rejectImport），不写文件、不发 component_changed。
+    method: 'POST',
+    path: '/api/custom-ui/import',
+    handler: nativeRoute(async ({ services, bodyBuffer }) => {
+      const customUi = customUiUnavailable(services)
+      let bytes
+      try {
+        bytes = await bodyBuffer(16 * 1024 * 1024)
+      } catch {
+        throw new CustomUiError('component_archive_too_large', 413)
+      }
+      await customUi.rejectImport(bytes)
+    }),
   },
-  {
-    method: 'GET',
-    path: '/api/custom-ui/components/:componentId/assets/:asset1',
-    async handler({ services, params, res, json }) {
-      await serveComponentAsset(services, params, res, json)
-    },
-  },
-  {
-    method: 'GET',
-    path: '/api/custom-ui/components/:componentId/assets/:asset1/:asset2',
-    async handler({ services, params, res, json }) {
-      await serveComponentAsset(services, params, res, json)
-    },
-  },
-  {
-    method: 'GET',
-    path: '/api/custom-ui/components/:componentId/assets/:asset1/:asset2/:asset3',
-    async handler({ services, params, res, json }) {
-      await serveComponentAsset(services, params, res, json)
-    },
-  },
+  ...legacyRemovedRoutes,
 ]
-
-// 此入口位于 Cookie/Bearer 鉴权前，但只接受短期组件凭证和 GET；不能分发其他 API。
-export async function handleCustomUiResource(
-  req,
-  res,
-  url,
-  { customUi, remoteAccess, remote = false, json },
-) {
-  if (!url.pathname.startsWith('/api/custom-ui/render/')) return false
-  const match = /^\/api\/custom-ui\/render\/([a-f0-9]{64})\/(bridge\.js|assets\/(.+))$/.exec(
-    url.pathname,
-  )
-  const view = match && customUi.getView(match[1])
-  const device = view && view.owner !== 'local' ? remoteAccess?.getDevice(view.owner) : null
-  if (
-    req.method !== 'GET' ||
-    !view ||
-    (remote && view.owner === 'local') ||
-    (view.owner !== 'local' && (!device || device.revokedAt))
-  ) {
-    json(404, { error: '组件预览不存在或已过期。' })
-    return true
-  }
-  const resourceBase = `${view.origin}/api/custom-ui/render/${match[1]}/`
-  if (match[2] === 'bridge.js') {
-    const script = customUi.bridgeScript()
-    res.writeHead(200, {
-      ...customUi.assetHeaders(resourceBase),
-      'Content-Type': 'text/javascript; charset=utf-8',
-    })
-    res.end(script)
-  } else {
-    let path
-    try {
-      path = decodeURIComponent(match[3])
-    } catch {
-      json(404, { error: '组件资源不存在。' })
-      return true
-    }
-    if (device) remoteAccess.trackResponse(device.id, res)
-    await customUi.serveAsset({ id: view.componentId, path, res, json, resourceBase })
-  }
-  return true
-}

@@ -66,7 +66,7 @@ import {
   settingsSectionShortLabel,
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import { ensureBoardMessages, ensureCustomUiMessages } from '@/app/i18n'
+import { ensureBoardMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WebPreviewProvider } from '@/app/WebPreviewProvider'
@@ -122,13 +122,10 @@ const DesktopWindowControls = lazy(() =>
     default: m.DesktopWindowControls,
   })),
 )
-const FloatingWidgets = lazy(async () => {
-  const [{ FloatingWidgets }] = await Promise.all([
-    import('@/app/FloatingWidgets'),
-    ensureCustomUiMessages(),
-  ])
-  return { default: FloatingWidgets }
-})
+// 浮窗轻量层：没有实例时只多一次实例查询；宿主与 custom-ui 文案由它在实例数 > 0 时自己懒加载。
+const FloatingWidgets = lazy(() =>
+  import('@/app/FloatingWidgets').then((m) => ({ default: m.FloatingWidgets })),
+)
 // 命令面板的页面分组带一组图标，与面板一起按需加载；分组随语言与 Runtime 能力即时计算。
 const CommandPalette = lazy(async () => {
   const [{ CommandPalette }, { getNavigation }] = await Promise.all([

@@ -15,7 +15,7 @@ async function fixture(t, options = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-storage-'))
   t.after(() => rm(dataDir, { recursive: true, force: true }))
   const service = new CustomUiService({ dataDir, ...options })
-  service.start({ hostVersion: '0.6.5' })
+  await service.start({ hostVersion: '0.6.5' })
   t.after(() => service.dispose())
   const write = async (id, manifest) => {
     await mkdir(join(service.root, id), { recursive: true })

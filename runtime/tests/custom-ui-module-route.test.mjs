@@ -29,7 +29,10 @@ async function startServer(t, { capabilities } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-module-'))
   const service = new CustomUiService({ dataDir: directory })
   const events = []
-  service.start({ onChange: (id, detail) => events.push({ id, ...detail }), hostVersion: '0.6.5' })
+  await service.start({
+    onChange: (id, detail) => events.push({ id, ...detail }),
+    hostVersion: '0.6.5',
+  })
   const handler = createApiHandler({ capabilities }, { customUi: service })
   const server = createServer(async (req, res) => {
     const origin = `http://127.0.0.1:${server.address().port}`
@@ -313,7 +316,7 @@ test('describe 返回行、文件清单、错误与 unsupported 扫描；损坏�
   }
 })
 
-test('GET /api/custom-ui/components 这一阶段保持旧输出', async (t) => {
+test('GET /api/custom-ui/components 返回 v2 目录（A7 S4 切换）：旧组件是 legacy 行，没有旧字段与内置组件', async (t) => {
   const { service, callJson } = await startServer(t)
   await writeComponent(
     service.root,
@@ -323,10 +326,23 @@ test('GET /api/custom-ui/components 这一阶段保持旧输出', async (t) => {
   )
   const listed = await callJson('GET', '/api/custom-ui/components')
   assert.equal(listed.status, 200)
+  assert.deepEqual(listed.body.features, {
+    import: false,
+    versions: false,
+    export: false,
+    trash: 'move',
+  })
   const old = listed.body.components.find((component) => component.id === 'old')
-  assert.deepEqual(old.permissions, ['notify'])
-  assert.match(old.entryUrl, /\/assets\/index\.html$/)
-  assert.ok(listed.body.components.some((component) => component.builtIn))
+  assert.equal(old.kind, 'legacy')
+  assert.equal(old.status, 'unsupported')
+  assert.equal(old.permissions, undefined)
+  assert.equal(old.entryUrl, undefined)
+  assert.equal(
+    listed.body.components.some(
+      (component) => component.builtIn || component.id === 'pisper-island',
+    ),
+    false,
+  )
 })
 
 test('模板创建：201、没有默认放置、id 自动去重；保留 id、非法 id、已存在与超大请求被拒绝', async (t) => {

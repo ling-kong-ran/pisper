@@ -1,22 +1,17 @@
-// 自定义 UI 组件服务：扫描 dataDir/custom-ui/<component-id>/ 下用户自写的
-// 静态组件（manifest.json + HTML/JS/CSS），向前端提供组件清单、沙箱 iframe
-// 资产与 postMessage 桥接脚本。
+// 原生组件（v2）服务：扫描 dataDir/custom-ui/<component-id>/ 下的组件目录并分类（native / legacy / broken），
+// 计算内容哈希并按 rev 服务 ESM 模块，管理启用状态、放置实例、模板创建、代理写入、组件存储、
+// 网络代理、错误日志与文件监听。
 //
-// 安全模型：
-// - 组件资产以 iframe sandbox="allow-scripts"（不含 allow-same-origin）加载，
-//   处于 opaque origin，无法直接访问主站 API/DOM/存储；
-//   与应用的交互只能走父页面代理的 postMessage 桥，能力按 manifest.permissions 过滤。
-// - 资产读取限制在组件目录内：拒绝绝对路径、.. 穿越与符号链接逃逸；
-//   manifest.json 与隐藏文件永不作为资产返回。
-// - 用户可本机放置目录，或经鉴权 API 导入 ZIP；Runtime 不做远程下载。
+// 安全模型（规格 5.10）：
+// - 原生组件与应用同源执行（负责人已接受）；能力清单只是透明手段，Runtime 侧的网络代理与存储按声明放行。
+// - 文件读取限制在组件目录内：拒绝绝对路径、.. 穿越、隐藏段与符号链接逃逸；manifest.json 永不作为资源返回。
+// - 全部接口走现有鉴权链，没有鉴权前旁路。
 //
-// A7 起同一个服务也承载原生组件（v2）：目录分类、内容哈希、按 rev 服务 ESM 模块、启用状态、
-// 放置实例与模板创建；旧 iframe 机制在 S4 删除前保持原样，GET /api/custom-ui/components 仍是旧输出。
-import { randomBytes } from 'node:crypto'
-import { parse, serialize } from 'parse5'
+// A7 S4 起旧 iframe 机制（沙箱资产、视图凭证、postMessage 桥、内置专注岛）整体删除；旧路由由
+// routes/custom-ui.mjs 的 410 兼容桩接住。启动时的一次性迁移把旧 iframe 组件与坏目录移进回收站（负责人决定）。
 import { createReadStream } from 'node:fs'
-import { lstat, readFile, readdir, rm, stat } from 'node:fs/promises'
-import { extname, isAbsolute, join, normalize, sep } from 'node:path'
+import { lstat, readFile, readdir, rm } from 'node:fs/promises'
+import { extname, join } from 'node:path'
 import {
   RESERVED_COMPONENT_IDS,
   classifyManifest,
@@ -26,10 +21,13 @@ import {
   toWellFormed,
   validateComponentProps,
 } from '../../shared/custom-ui-manifest.mjs'
-import { readJson } from '../storage/json-file.mjs'
+import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { displayCustomUiPath } from './custom-ui-path.mjs'
-import { BUILTIN_CUSTOM_UI_COMPONENTS } from './custom-ui-builtins.mjs'
-import { importCustomUiZip, CUSTOM_UI_MANIFEST_MAX_BYTES } from './custom-ui-import.mjs'
+import {
+  CUSTOM_UI_MANIFEST_MAX_BYTES,
+  CustomUiImportError,
+  unpackCustomUiZip,
+} from './custom-ui-import.mjs'
 import { CustomUiError } from './custom-ui-error.mjs'
 import {
   ComponentHasher,
@@ -60,150 +58,17 @@ import {
 // 组件 id 即目录名：只允许安全的文件名字符，避免路径与 URL 编码问题。
 const COMPONENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/
 
-// manifest 声明的桥接能力白名单；父页面按声明过滤 postMessage 方法。
-export const CUSTOM_UI_PERMISSIONS = Object.freeze([
-  // 只读数据
-  'config.read',
-  'sessions.read',
-  'game-assets.read',
-  // 工作流写入与运行独立授权；只读组件不能上传素材或启动任务。
-  'game-assets.write',
-  'game-assets.run',
-  // 交互反馈
-  'notify',
-])
-
-const ASSET_MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.htm': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-}
-
-// 资产大小上限：组件应是轻量静态页面，防止把目录当成文件服务器滥用。
+// 单个资源大小上限：组件应是轻量模块，防止把目录当成文件服务器滥用。
 const MAX_ASSET_BYTES = 8 * 1024 * 1024
 const MAX_MANIFEST_BYTES = CUSTOM_UI_MANIFEST_MAX_BYTES
-const VIEW_TTL_MS = 5 * 60_000
-const MAX_VIEWS = 128
 
-function asRecord(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : null
-}
-
-// 归一化 manifest；非法字段抛错（带组件 id，便于用户定位自己的配置问题）。
-export function normalizeComponentManifest(id, raw) {
-  const manifest = asRecord(raw)
-  if (!manifest) throw new Error(`组件 ${id} 的 manifest.json 必须是 JSON 对象。`)
-  const name = String(manifest.name || '').trim()
-  if (!name || name.length > 120) throw new Error(`组件 ${id} 的 name 缺失或过长。`)
-  const entry = String(manifest.entry || 'index.html').trim() || 'index.html'
-  if (isAbsolute(entry) || entry.includes('..') || entry.startsWith('/'))
-    throw new Error(`组件 ${id} 的 entry 必须是目录内的相对路径。`)
-  const version = String(manifest.version || '')
-    .trim()
-    .slice(0, 64)
-  const description = String(manifest.description || '')
-    .trim()
-    .slice(0, 500)
-  const rawPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : []
-  const permissions = [
-    ...new Set(
-      rawPermissions
-        .map((item) => String(item || '').trim())
-        .filter((item) => CUSTOM_UI_PERMISSIONS.includes(item)),
-    ),
-  ]
-  return { id, name, version, description, entry, permissions }
-}
-
-// postMessage 桥接脚本：组件 HTML 通过 <script src="/api/custom-ui/bridge.js"> 引入，
-// 获得 window.pisper 调用面；所有请求经父页面代理并携带请求 id 配对响应。
-// 注意：脚本运行在 opaque origin，不能 fetch 主站 API，也不能读父页面任何状态。
-const BRIDGE_SCRIPT = String.raw`// Pisper 自定义 UI 桥：与父页面（应用壳）通过 postMessage 通信。
-(function () {
-  if (window.pisper) return
-  var nextId = 1
-  var pending = new Map()
-  var themeListeners = new Set()
-  function post(method, params) {
-    return new Promise(function (resolve, reject) {
-      var id = nextId++
-      pending.set(id, { resolve: resolve, reject: reject })
-      parent.postMessage({ pisperBridge: 1, id: id, method: method, params: params || {} }, '*')
-    })
-  }
-  window.addEventListener('message', function (event) {
-    var data = event.data
-    if (event.source !== parent || !data || data.pisperBridge !== 1) return
-    if (data.type === 'theme') {
-      applyTheme(data.theme || {})
-      themeListeners.forEach(function (listener) {
-        try { listener(data.theme || {}) } catch (error) { console.error(error) }
-      })
-      return
-    }
-    var slot = pending.get(data.id)
-    if (!slot) return
-    pending.delete(data.id)
-    if (data.ok) {
-      // 握手响应携带主题：就绪即应用，保证首帧渲染不闪烁。
-      if (data.result && data.result.theme) applyTheme(data.result.theme)
-      slot.resolve(data.result)
-    } else {
-      slot.reject(new Error(String(data.error || 'Pisper bridge call failed')))
-    }
-  })
-  function applyTheme(theme) {
-    var root = document.documentElement
-    root.dataset.pisperTheme = theme.mode === 'dark' ? 'dark' : 'light'
-    root.style.colorScheme = root.dataset.pisperTheme
-    var vars = theme.variables || {}
-    Object.keys(vars).forEach(function (name) {
-      if (/^--[a-z0-9-]+$/i.test(name)) root.style.setProperty(name, String(vars[name]))
-    })
-  }
-  window.pisper = {
-    // 握手：返回组件信息、声明的能力与当前主题。
-    ready: function () { return post('ready') },
-    getConfig: function () { return post('getConfig') },
-    listSessions: function (params) { return post('listSessions', params) },
-    gameAssets: {
-      list: function (params) { return post('gameAssets.list', params) },
-      save: function (params) { return post('gameAssets.save', params) },
-      run: function (params) { return post('gameAssets.run', params) },
-      stop: function (params) { return post('gameAssets.stop', params) },
-      uploadImage: function (params) { return post('gameAssets.uploadImage', params) },
-      image: function (params) { return post('gameAssets.image', params) },
-      process: function (params) { return post('gameAssets.process', params) },
-      engine: function (params) { return post('gameAssets.engine', params) },
-      export: function (params) { return post('gameAssets.export', params) },
-      editFrames: function (params) { return post('gameAssets.editFrames', params) },
-      remove: function (params) { return post('gameAssets.remove', params) },
-    },
-    notify: function (message, kind) { return post('notify', { message: message, kind: kind }) },
-    onThemeChanged: function (listener) {
-      themeListeners.add(listener)
-      return function () { themeListeners.delete(listener) }
-    },
-  }
-})()
-`
+// 一次性迁移的记录文件：写入后不再自动移动任何目录（之后手放的坏目录可见、可删，不会被启动悄悄移走）。
+const LEGACY_MIGRATION_FILE = 'custom-ui-migrations.json'
 
 export class CustomUiService {
   constructor({
     dataDir,
     now = Date.now,
-    builtinComponents = BUILTIN_CUSTOM_UI_COMPONENTS,
     randomId,
     renameDirectory,
     fetchProxy,
@@ -212,12 +77,11 @@ export class CustomUiService {
   }) {
     this.root = join(dataDir, 'custom-ui')
     this.now = now
-    this.views = new Map()
-    this.builtins = new Map(builtinComponents.map((component) => [component.id, component]))
     // 原生组件（v2）的存储：版本快照、回收站与组件存储都在被监听、被服务的 custom-ui/ 之外。
     this.versionsRoot = join(dataDir, 'custom-ui-versions')
     this.trashRoot = join(dataDir, 'custom-ui-trash')
     this.dataRoot = join(dataDir, 'custom-ui-data')
+    this.migrationPath = join(dataDir, LEGACY_MIGRATION_FILE)
     this.state = new CustomUiStateStore({ path: join(dataDir, 'custom-ui-state.json'), now })
     this.instanceStore = new CustomUiInstanceStore({
       path: join(dataDir, 'custom-ui-instances.json'),
@@ -230,6 +94,9 @@ export class CustomUiService {
     this.locks = new Map()
     this.hostVersion = null
     this.onChange = null
+    // 启动迁移（旧组件移入回收站）完成前，目录列表先等它，界面不会闪出一批马上消失的旧行。
+    /** @type {Promise<unknown> | null} */
+    this.migration = null
     // S2：网络代理、组件存储、错误环形缓冲与文件监听。代理与错误日志只在内存里保存统计。
     this.fetchProxy = fetchProxy || new ComponentFetchProxy({ now })
     this.errorLog = errorLog || new ComponentErrorLog({ now })
@@ -251,63 +118,7 @@ export class CustomUiService {
     }
   }
 
-  async importBundle(bytes) {
-    return importCustomUiZip({
-      root: this.root,
-      bytes,
-      normalizeManifest: normalizeComponentManifest,
-      reservedIds: [...this.builtins.keys()],
-    })
-  }
-
-  // 仅由已鉴权的父页面签发；凭证只能读取单个组件静态资源，不能用于任何应用 API。
-  async createView(id, owner = 'local', origin = 'http://localhost') {
-    let source
-    try {
-      source = new URL(origin)
-    } catch {
-      throw Object.assign(new Error('组件来源无效。'), { statusCode: 400 })
-    }
-    if (!['http:', 'https:'].includes(source.protocol) || source.origin !== origin) {
-      throw Object.assign(new Error('组件来源无效。'), { statusCode: 400 })
-    }
-    if (!COMPONENT_ID_PATTERN.test(id))
-      throw Object.assign(new Error('组件不存在。'), { statusCode: 404 })
-    const manifest = await this.readManifest(id)
-    if (!manifest || !(await this.resolveAssetPath(id, manifest.entry))) {
-      throw Object.assign(new Error('组件资源不存在。'), { statusCode: 404 })
-    }
-    for (const key of this.views.keys()) this.getView(key)
-    if (this.views.size >= MAX_VIEWS)
-      throw Object.assign(new Error('组件预览数量已达上限。'), { statusCode: 429 })
-    const viewId = randomBytes(32).toString('hex')
-    this.views.set(viewId, { componentId: id, owner, origin, expiresAt: this.now() + VIEW_TTL_MS })
-    return {
-      id: viewId,
-      entryUrl: `/api/custom-ui/render/${viewId}/assets/${manifest.entry.split('/').map(encodeURIComponent).join('/')}`,
-    }
-  }
-
-  getView(id) {
-    const view = this.views.get(id)
-    if (view && view.expiresAt > this.now()) return view
-    this.views.delete(id)
-    return null
-  }
-
-  renewView(id, owner = 'local') {
-    const view = this.getView(id)
-    if (!view || view.owner !== owner)
-      throw Object.assign(new Error('组件预览已过期。'), { statusCode: 404 })
-    view.expiresAt = this.now() + VIEW_TTL_MS
-  }
-
-  revokeView(id, owner = 'local') {
-    if (this.views.get(id)?.owner === owner) this.views.delete(id)
-  }
-
   dispose() {
-    this.views.clear()
     this.onChange = null
     this.watcher?.dispose()
     this.watcher = null
@@ -318,147 +129,105 @@ export class CustomUiService {
     return join(this.root, id)
   }
 
-  async readManifest(id) {
-    const builtin = this.builtins.get(id)
-    if (builtin) return normalizeComponentManifest(id, builtin.manifest)
-    const manifestPath = join(this.componentDir(id), 'manifest.json')
-    const info = await stat(manifestPath).catch(() => null)
-    if (!info?.isFile() || info.size > MAX_MANIFEST_BYTES) return null
-    const raw = await readJson(manifestPath, null).catch(() => null)
-    if (raw === null) return null
+  /**
+   * POST /api/custom-ui/import：5a 不安装任何包（导入暂存与信任确认在 A8）。只解包判断格式后结构化拒绝，
+   * 不写任何文件：旧 iframe 格式 → component_legacy_unsupported，原生格式 → component_import_unavailable，
+   * 坏包沿用 component_archive_* / component_manifest_*。
+   * @param {Uint8Array} bytes
+   * @returns {never | Promise<never>}
+   */
+  async rejectImport(bytes) {
+    let unpacked
     try {
-      return normalizeComponentManifest(id, raw)
+      unpacked = unpackCustomUiZip(bytes)
+    } catch (error) {
+      if (error instanceof CustomUiImportError)
+        throw new CustomUiError(error.code, error.statusCode)
+      throw error
+    }
+    const manifestBytes = unpacked.assets.get('manifest.json')
+    if (!manifestBytes || manifestBytes.byteLength > MAX_MANIFEST_BYTES)
+      throw new CustomUiError('component_manifest_invalid', 400)
+    let raw
+    try {
+      raw = JSON.parse(manifestBytes.toString('utf8'))
     } catch {
-      // manifest 非法的组件不进入列表，错误详情由 describeComponent 暴露。
-      return null
+      throw new CustomUiError('component_manifest_invalid', 400)
     }
+    const kind = classifyManifest(raw)
+    if (kind === 'broken') throw new CustomUiError('component_manifest_invalid', 400)
+    if (kind === 'legacy') throw new CustomUiError('component_legacy_unsupported', 409)
+    throw new CustomUiError('component_import_unavailable', 409)
   }
 
-  // 列出全部可用组件（含目录路径，方便用户放置/编辑文件）。
-  async listComponents() {
-    const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
-    const components = [...this.builtins.values()].map((component) => ({
-      ...normalizeComponentManifest(component.id, component.manifest),
-      entryUrl: `/api/custom-ui/components/${encodeURIComponent(component.id)}/assets/${component.manifest.entry}`,
-      directory: '',
-      builtIn: true,
-    }))
+  /**
+   * 启动时的一次性迁移（负责人决定，覆盖计划 §2.7 / 规格 5.10 的“旧组件文件不自动删除”）：
+   * custom-ui/ 下所有非原生组件目录（旧 iframe 组件 legacy、坏目录 broken）整体移进回收站
+   * custom-ui-trash/<id>-<UTC>/（与 DELETE 同一路径；回滚旧版本前可以手动移回），并清掉它们的实例、
+   * 状态与存储文件。原生组件（含 manifest 有错的原生组件）一个都不动；回收站同名加后缀，不覆盖。
+   * 全部移动成功才写记录文件，此后不再自动移动；中途失败下次启动重试（重试只会再移旧组件，幂等）。
+   * 不在 custom-ui/ 列表里出现的目录（名字不合法、点开头、符号链接）不碰。
+   * @returns {Promise<{ status: 'done' | 'skipped' | 'partial', moved: { id: string, kind: string, trashedAs: string }[] }>}
+   */
+  async retireLegacyComponents() {
+    const recorded = await readJson(this.migrationPath, null).catch(() => null)
+    if (recorded && typeof recorded === 'object' && typeof recorded.legacyRetiredAt === 'string')
+      return { status: 'skipped', moved: [] }
+    const entries = await readdir(this.root, { withFileTypes: true }).catch((error) =>
+      error?.code === 'ENOENT' ? [] : null,
+    )
+    // 目录读不了（权限等）：不写记录，下次启动再试。
+    if (!entries) return { status: 'partial', moved: [] }
+    const moved = []
+    let failed = false
     for (const entry of entries) {
-      if (
-        !entry.isDirectory() ||
-        !COMPONENT_ID_PATTERN.test(entry.name) ||
-        this.builtins.has(entry.name)
-      )
-        continue
-      const manifest = await this.readManifest(entry.name)
-      if (!manifest) continue
-      components.push({
-        ...manifest,
-        entryUrl: `/api/custom-ui/components/${encodeURIComponent(manifest.id)}/assets/${manifest.entry
-          .split('/')
-          .map(encodeURIComponent)
-          .join('/')}`,
-        directory: displayCustomUiPath(this.componentDir(manifest.id)),
-      })
-    }
-    components.sort((left, right) => left.name.localeCompare(right.name))
-    return { root: displayCustomUiPath(this.root), components }
-  }
-
-  // 资产解析：返回组件目录内的绝对路径；任何越界尝试返回 null。
-  async resolveAssetPath(id, relativePath) {
-    if (!COMPONENT_ID_PATTERN.test(id)) return null
-    const rawPath = String(relativePath || '')
-    if (isAbsolute(rawPath) || rawPath.split(/[/\\]/).some((part) => part === '..')) return null
-    const relative = normalize(rawPath)
-    if (!relative || relative.startsWith('..') || isAbsolute(relative)) return null
-    const segments = relative.split(sep)
-    if (segments.some((segment) => segment.startsWith('.'))) return null
-    // manifest 属于配置元数据，不作为静态资产提供。
-    if (segments.length === 1 && segments[0] === 'manifest.json') return null
-    const builtin = this.builtins.get(id)
-    if (builtin) {
-      // 内置 ID 为保留项，缺失资源也不回退到同名用户目录。
-      const assetPath = segments.join('/')
-      if (!Object.hasOwn(builtin.assets, assetPath)) return null
-      const content = builtin.assets[assetPath]
-      return { assetPath, content, size: Buffer.byteLength(content) }
-    }
-    // 用户目录的越界、隐藏段与符号链接防护已迁到 custom-ui-files.mjs，原生模块路由共用同一份。
-    return resolveComponentFile(this.root, id, rawPath, { maxBytes: MAX_ASSET_BYTES })
-  }
-
-  // 直接写出资产响应（流式 + 内容类型 + 禁止缓存：用户本地迭代组件时立即生效）。
-  async serveAsset({ id, path, res, json, resourceBase }) {
-    const target = await this.resolveAssetPath(id, path)
-    if (!target) {
-      json(404, { error: '组件资源不存在。' })
-      return
-    }
-    const mime =
-      ASSET_MIME[extname(target.assetPath ?? target.file).toLowerCase()] ||
-      'application/octet-stream'
-    const headers = this.assetHeaders(resourceBase)
-    // 保留旧的受鉴权资产 URL，但同样强制 CSP 沙箱；只有凭证入口改写桥脚本地址。
-    if (resourceBase && mime.startsWith('text/html')) {
-      const document = parse(target.content ?? (await readFile(target.file, 'utf8')))
-      const rewriteBridge = (node) => {
-        if (node.tagName === 'script') {
-          const src = node.attrs?.find((attribute) => attribute.name === 'src')
-          if (src?.value === '/api/custom-ui/bridge.js') src.value = `${resourceBase}bridge.js`
-        }
-        for (const child of node.childNodes || []) rewriteBridge(child)
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      if (!COMPONENT_ID_PATTERN.test(entry.name)) continue
+      const id = entry.name
+      try {
+        const result = await this.withComponentLock(id, async () => {
+          const inspected = await this.inspect(id)
+          if (!inspected || inspected.row.kind === 'native') return null
+          const state = await this.state.get(id)
+          const { instances } = await this.instanceStore.list()
+          const trashedAs = await moveComponentToTrash({
+            root: this.root,
+            trashRoot: this.trashRoot,
+            dataRoot: this.dataRoot,
+            id,
+            now: this.now,
+            meta: {
+              reason: 'legacy-retired',
+              kind: inspected.row.kind,
+              state,
+              instances: instances.filter((instance) => instance.componentId === id),
+            },
+            ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+          })
+          this.hasher.invalidate(this.componentDir(id))
+          this.storage.forget(id)
+          this.errorLog.forget(id)
+          this.fetchProxy.forget(id)
+          await this.instanceStore.removeForComponent(id)
+          await this.state.remove(id)
+          this.notify(id, { rev: null, reason: 'deleted' })
+          return { id, kind: inspected.row.kind, trashedAs }
+        })
+        if (result) moved.push(result)
+      } catch {
+        // 单个目录移动失败（被占用、权限）不影响其他目录；不写记录，下次启动重试。
+        failed = true
       }
-      rewriteBridge(document)
-      const html = serialize(document)
-      res.writeHead(200, {
-        ...headers,
-        'Content-Type': mime,
-        'Content-Length': Buffer.byteLength(html),
-      })
-      res.end(html)
-      return
     }
-    res.writeHead(200, { ...headers, 'Content-Type': mime, 'Content-Length': target.size })
-    if (target.content !== undefined) {
-      res.end(target.content)
-      return
-    }
-    createReadStream(target.file)
-      .on('error', () => {
-        if (!res.headersSent) json(404, { error: '组件资源不存在。' })
-        else res.destroy()
-      })
-      .pipe(res)
+    if (failed) return { status: 'partial', moved }
+    await writeJsonAtomic(this.migrationPath, {
+      version: 1,
+      legacyRetiredAt: new Date(this.now()).toISOString(),
+      // 只记 id、分类与回收站里的名字（不记完整路径），方便用户回滚前找回。
+      moved,
+    }).catch(() => {})
+    return { status: 'done', moved }
   }
-
-  assetHeaders(resourceBase) {
-    const source = resourceBase || "'none'"
-    return {
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'no-referrer',
-      'Access-Control-Allow-Origin': '*',
-      // sandbox 必须出现在 HTTP 响应中，直接打开 HTML/SVG 也不能成为主站同源文档。
-      'Content-Security-Policy': [
-        'sandbox allow-scripts',
-        "default-src 'none'",
-        `script-src 'unsafe-inline' ${source}`,
-        `style-src 'unsafe-inline' ${source}`,
-        `img-src data: blob: ${source}`,
-        `font-src data: ${source}`,
-        `connect-src ${source}`,
-        "base-uri 'none'",
-        "form-action 'none'",
-        "frame-ancestors 'self'",
-      ].join('; '),
-    }
-  }
-
-  bridgeScript() {
-    return BRIDGE_SCRIPT
-  }
-
   // ── 原生组件（v2）────────────────────────────────────────────────────
 
   /**
@@ -471,7 +240,9 @@ export class CustomUiService {
   start({ onChange, hostVersion = null, watch = false } = {}) {
     this.onChange = typeof onChange === 'function' ? onChange : null
     this.hostVersion = typeof hostVersion === 'string' && hostVersion ? hostVersion : null
-    const tasks = [this.cleanupImportStaging()]
+    // 迁移先于监听登记：监听器看到的删除事件与迁移自己发的 deleted 按内容键去重。
+    this.migration ??= this.retireLegacyComponents().catch(() => ({ status: 'partial', moved: [] }))
+    const tasks = [this.migration, this.cleanupImportStaging()]
     if (watch && !this.watcher) {
       this.watcher = this.createWatcher({
         root: this.root,
@@ -658,8 +429,10 @@ export class CustomUiService {
     return { row, manifest: errors.length ? null : manifest, raw }
   }
 
-  /** v2 组件列表（S4 起由 GET /api/custom-ui/components 返回；这一阶段只供新接口与测试使用）。 */
+  /** v2 组件列表（GET /api/custom-ui/components）。 */
   async catalog() {
+    // 启动迁移还没跑完时先等它（永不拒绝），列表里不会先出现马上被移走的旧行。
+    if (this.migration) await this.migration
     const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
     const components = []
     for (const entry of entries) {
@@ -772,7 +545,7 @@ export class CustomUiService {
     if (input.id !== undefined) {
       if (typeof input.id !== 'string' || !COMPONENT_ID_PATTERN.test(input.id))
         throw new CustomUiError('component_id_invalid', 400)
-      if (RESERVED_COMPONENT_IDS.includes(input.id) || this.builtins.has(input.id))
+      if (RESERVED_COMPONENT_IDS.includes(input.id))
         throw new CustomUiError('component_id_reserved', 409)
       id = input.id
     } else {
@@ -793,7 +566,7 @@ export class CustomUiService {
     const stem = COMPONENT_ID_PATTERN.test(base) ? base : 'component'
     for (let suffix = 1; suffix < 1000; suffix += 1) {
       const candidate = suffix === 1 ? stem : `${stem.slice(0, 60)}-${suffix}`
-      if (RESERVED_COMPONENT_IDS.includes(candidate) || this.builtins.has(candidate)) continue
+      if (RESERVED_COMPONENT_IDS.includes(candidate)) continue
       if (!(await lstat(this.componentDir(candidate)).catch(() => null))) return candidate
     }
     throw new CustomUiError('component_already_installed', 409)
@@ -811,8 +584,7 @@ export class CustomUiService {
       throw new CustomUiError('component_request_invalid', 400)
     if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
       throw new CustomUiError('component_id_invalid', 400)
-    if (RESERVED_COMPONENT_IDS.includes(id) || this.builtins.has(id))
-      throw new CustomUiError('component_id_reserved', 409)
+    if (RESERVED_COMPONENT_IDS.includes(id)) throw new CustomUiError('component_id_reserved', 409)
     const files = Array.isArray(input.files) ? input.files : []
     const deleteFiles = Array.isArray(input.deleteFiles) ? input.deleteFiles : []
     const errors = validateWriteFiles(files, deleteFiles)

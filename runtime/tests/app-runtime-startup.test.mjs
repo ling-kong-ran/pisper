@@ -146,11 +146,8 @@ test('smokes that start a dev Vite server use their own dependency cache', async
     }
   }
   // 扫描确实覆盖到了已知的开发 Runtime 与 Vite 冒烟，避免正则失配时空转。
-  for (const name of [
-    'smoke-pisper-first-run-checks.mjs',
-    'smoke-workflows-ui.mjs',
-    'smoke-game-asset-workbench.mjs',
-  ])
+  // A7 S4 删除了 smoke-game-asset-workbench.mjs（旧 iframe 桥的冒烟）；剩下的两个开发 Runtime 冒烟仍防空转。
+  for (const name of ['smoke-pisper-first-run-checks.mjs', 'smoke-workflows-ui.mjs'])
     assert.ok(devRuntimes.includes(name), name)
   for (const name of ['smoke-frontend-workbench.mjs', 'smoke-replica-shell.mjs'])
     assert.ok(viteServers.includes(name), name)

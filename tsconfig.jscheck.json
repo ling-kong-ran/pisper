@@ -21,7 +21,6 @@
     "runtime/services/session-board-view.mjs",
     "runtime/services/board-event-hub.mjs",
     "runtime/services/browser-preferences-service.mjs",
-    "runtime/services/custom-ui-builtins.mjs",
     "runtime/services/custom-ui-path.mjs",
     "shared/custom-ui-manifest.mjs",
     "runtime/services/custom-ui-error.mjs",

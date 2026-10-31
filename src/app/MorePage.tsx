@@ -25,7 +25,7 @@ import {
   searchConfig,
   type ConfigSearchMatch,
 } from '@/features/config/config-search'
-import { useCustomUiComponents } from '@/features/custom-ui/catalog'
+import { useFeaturePageComponents } from '@/features/custom-ui/placements'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
@@ -58,14 +58,16 @@ export function MorePage({ onOpen }: MorePageProps) {
   // 手机外壳：没有 52 顶栏拖拽区，卡片排成一列 56 行；标题与底部标签栏一致，A4 换抽屉前仍叫“更多”。
   const phone = usePhoneShell()
   const title = t('navigation:more.title')
-  const catalog = useCustomUiComponents()
-  // 内置组件（如 Pisper Island）是浮窗，不占整页位置。
+  // “我的组件”= 放到“功能页”的原生组件实例（只要可渲染的：实例已启用、组件原生 ready 且已启用）。
+  const featureComponents = useFeaturePageComponents()
   const components = useMemo(
     () =>
-      (catalog.data?.components || [])
-        .filter((component) => !component.builtIn)
-        .map(({ id, name, description }) => ({ id, name, description })),
-    [catalog.data],
+      featureComponents.items.map(({ componentId, name, description }) => ({
+        id: componentId,
+        name,
+        description,
+      })),
+    [featureComponents.items],
   )
   const groups = useMemo(
     () => getMoreNavigation(t, { capabilities, mobileApp, components }),
@@ -282,18 +284,18 @@ export function MorePage({ onOpen }: MorePageProps) {
                       </li>
                     ))}
                   </ul>
-                  {group.id === 'components' && !query && catalog.isPending && (
+                  {group.id === 'components' && !query && featureComponents.isLoading && (
                     <p role="status" className="mt-2 text-xs text-content-muted">
                       {t('navigation:more.componentsLoading')}
                     </p>
                   )}
-                  {group.id === 'components' && !query && catalog.isError && (
+                  {group.id === 'components' && !query && Boolean(featureComponents.error) && (
                     <p
                       role="alert"
                       className="mt-2 flex items-center gap-2 text-xs text-content-muted"
                     >
                       {t('navigation:more.componentsError')}
-                      <Button variant="ghost" size="xs" onClick={() => void catalog.refetch()}>
+                      <Button variant="ghost" size="xs" onClick={featureComponents.refetch}>
                         {t('navigation:more.retry')}
                       </Button>
                     </p>
