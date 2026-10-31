@@ -93,7 +93,7 @@ export function ShortcutHelpDialog({
                 key={group.id}
                 aria-labelledby={`shortcut-help-${group.id}`}
                 data-shortcut-help-group={group.id}
-                // 看板分组最长，单独占一列；全局与会话在另一列上下排。
+                // 全部代理分组最长，单独占一列；全局与会话在另一列上下排。
                 className={group.id === 'board' ? 'min-[720px]:row-span-2' : undefined}
               >
                 <h3

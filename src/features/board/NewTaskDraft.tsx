@@ -17,7 +17,7 @@ const DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set(['shortcu
 
 export type NewTaskDraftProps = {
   phone: boolean
-  // 手机顶栏左侧（应用壳的看板入口）与顶栏下方的代理条；桌面由泳道条承担。
+  // 手机顶栏左侧（应用壳的看板入口）与顶栏下方的代理条；桌面不传，入口与代理都在应用侧栏里。
   leading?: ReactNode
   strip?: ReactNode
   // 第一条消息被 Runtime 受理：新会话 id。

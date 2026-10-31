@@ -206,7 +206,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 
 Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated independently, with automatic rollback to the bundled version on component failure. Desktop provides one component-update entry; the mobile App uses its own release manifest.
 
-Standalone UI components can be imported from a folder or ZIP under Settings → Interface → Custom components. They appear in More Tools after reloading the interface. The Game Asset Workbench is no longer bundled; its source lives in [pisper-components](https://github.com/ling-kong-ran/pisper-components).
+Standalone UI components can be imported from a folder or ZIP in Features → Extensions → Component studio. Imported components appear under Features → My components. The Game Asset Workbench is no longer bundled; its source lives in [pisper-components](https://github.com/ling-kong-ran/pisper-components).
 
 ## 📚 Docs
 

@@ -291,7 +291,7 @@
   "home.draftTitle": "New task",
   "home.draftSubtitle": "A session is created when you send the first message",
   "home.draftHeading": "Start a new task",
-  "home.draftHint": "Pick a project and describe the task. After the first message this becomes its session; other agents stay on the board.",
+  "home.draftHint": "Pick a project and describe the task. After the first message this becomes its session; other agents stay in All agents.",
   "home.composerLabel": "New task composer",
   "home.placeholder": "Describe the task… ({send} sends, Tab switches project)",
   "home.placeholderUnbound": "Describe the task… (Tab switches project)",

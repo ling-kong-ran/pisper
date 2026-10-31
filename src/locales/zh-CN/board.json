@@ -287,7 +287,7 @@
   "home.draftTitle": "新任务",
   "home.draftSubtitle": "发出第一条消息时才会创建会话",
   "home.draftHeading": "从一个新任务开始",
-  "home.draftHint": "选好项目，描述要做的事。发出第一条消息后，这里就是它的会话；其他代理都在看板上。",
+  "home.draftHint": "选好项目，描述要做的事。发出第一条消息后，这里就是它的会话；其他代理都在“全部代理”里。",
   "home.composerLabel": "新任务输入框",
   "home.placeholder": "描述要做的事…（{send} 发送，Tab 切换项目）",
   "home.placeholderUnbound": "描述要做的事…（Tab 切换项目）",

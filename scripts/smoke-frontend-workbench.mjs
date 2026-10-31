@@ -60,9 +60,11 @@ const server = await createServer({
             return
           }
           if (url.pathname === '/__workbench' || url.pathname === '/__review') {
+            // 夹具页声明一个空图标：完整 Chrome（PISPER_UI_BROWSER_PATH）会主动请求 /favicon.ico，404 记成控制台错误，
+            // 让“无控制台错误”的断言随浏览器种类变化；headless shell 不请求。
             const html = await server.transformIndexHtml(
               '/__workbench',
-              `<!doctype html><html lang="zh-CN"><head><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="stylesheet" href="/dist/assets/${css}"/></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/${url.pathname === '/__review' ? 'frontend-review' : 'frontend-workbench'}.tsx"></script></body></html>`,
+              `<!doctype html><html lang="zh-CN"><head><meta name="viewport" content="width=device-width,initial-scale=1"/><link rel="icon" href="data:,"/><link rel="stylesheet" href="/dist/assets/${css}"/></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/${url.pathname === '/__review' ? 'frontend-review' : 'frontend-workbench'}.tsx"></script></body></html>`,
             )
             res.setHeader('Content-Type', 'text/html')
             res.end(html)
