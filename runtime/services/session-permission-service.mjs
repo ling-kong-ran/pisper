@@ -208,6 +208,19 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
       reason: `${toolName} 将修改当前工作区中的文件，需要确认后执行。`,
     }
   }
+  // 组件写入按普通写文件处理（负责人决定，规格 5.2）：auto / full-access 直接放行（上面已返回），
+  // ask 模式审批一次；不进 plugin_create 的无条件确认，也不按“工作区之外”阻断——组件目录本来就在数据目录。
+  // 理由文案不带真实路径（AGENTS：不输出完整个人路径），id 不合法时不回显原文。
+  if (toolName === 'component_create') {
+    const id =
+      typeof args?.id === 'string' && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(args.id)
+        ? args.id
+        : '（无效 id）'
+    return {
+      risk: 'high',
+      reason: `component_create 将写入组件 ${id}（数据目录/custom-ui/${id}），需要确认后执行。`,
+    }
+  }
   if (toolName === 'bash') {
     return {
       risk: 'high',

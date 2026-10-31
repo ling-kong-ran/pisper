@@ -389,6 +389,8 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
     await this.toolPlugins.ensureDefaultTools(['plugin_create'], 'pluginCreateToolV1')
+    // 原生组件写入工具（A7）：既有安装若已物化 enabledTools，也补上它。
+    await this.toolPlugins.ensureDefaultTools(['component_create'], 'componentCreateToolV1')
     await this.toolPlugins.ensureDefaultTools(['mobile_device'], 'mobileDeviceToolV2')
     // 生图默认开放：既有安装若已物化 enabledTools（如旧版 workspace 预设），需迁移补齐。
     await this.toolPlugins.ensureDefaultTools(['generate_visual'], 'visualGenerateToolV1')

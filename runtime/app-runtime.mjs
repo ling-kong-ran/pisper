@@ -303,6 +303,8 @@ export async function createPisperRuntime({
       appVersion: packageJson.version,
       browserAutomationDriver,
       capabilities,
+      // component_create 只拿窄接口 {writeComponent, describe}，不接触实例、存储或旧 iframe 机制。
+      customUi: customUi.agentInterface(),
       eventObserver: (payload) => {
         // 事件观察全部 best-effort：桌面宠物或外部观察者抛错不能中断 Agent 流。
         try {
@@ -367,9 +369,11 @@ export async function createPisperRuntime({
       })
     }
     // 原生组件的变化经看板事件流通知前端（component_changed）；应用版本用于 manifest 的 minHostVersion。
-    customUi.start({
+    // 文件监听在后台启动（unref，不拖住退出），close() 里经 customUi.dispose() 停掉。
+    void customUi.start({
       onChange: (id, detail) => runtime?.boardEvents?.componentChanged(id, detail),
       hostVersion: packageJson.version,
+      watch: true,
     })
     handleApi = apiHandlerModule.createApiHandler(runtime, {
       updates,

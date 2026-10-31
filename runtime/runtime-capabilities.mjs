@@ -23,6 +23,8 @@ function supportedTools(features) {
     'edit',
     'write',
     'skill_create',
+    // 原生组件不需要编译器，三个档案都能写组件（components.native 恒为 true）。
+    'component_create',
     'web_search',
     // 设备操作由当前手机 App 执行，不依赖 Node 宿主的内建模块。
     'mobile_device',

@@ -148,6 +148,29 @@ test('plugin_create still requests approval outside full-access', () => {
   })
 })
 
+test('component_create follows the session permission mode like an ordinary file write', () => {
+  // 审批模式可见；ask 审批一次；workspace-write（auto）与 full-access 直接放行；组件目录在工作区之外也不阻断。
+  for (const mode of ['approval-required', 'workspace-write', 'full-access'])
+    assert.deepEqual(filterToolsForExecutionMode(['component_create'], mode), ['component_create'])
+  const base = { cwd: process.cwd(), toolName: 'component_create', args: { id: 'ci-status' } }
+  assert.deepEqual(
+    permissionRequirement({ ...base, mode: 'ask', executionMode: 'approval-required' }),
+    {
+      risk: 'high',
+      reason:
+        'component_create 将写入组件 ci-status（数据目录/custom-ui/ci-status），需要确认后执行。',
+    },
+  )
+  assert.equal(
+    permissionRequirement({ ...base, mode: 'auto', executionMode: 'workspace-write' }),
+    null,
+  )
+  assert.equal(
+    permissionRequirement({ ...base, mode: 'ignore', executionMode: 'full-access' }),
+    null,
+  )
+})
+
 test('full-access execution does not request per-tool approval', () => {
   for (const [toolName, args] of [
     ['bash', { command: 'npm test' }],

@@ -9,6 +9,7 @@ import {
   readFile,
   readdir,
   realpath,
+  rename,
   rm,
   rmdir,
   writeFile,
@@ -438,6 +439,8 @@ export class SkillsService {
     configPath,
     extensionFactories = [],
     computerUseAvailable = true,
+    builtinSkills = [],
+    builtinSkillsDir,
   } = {}) {
     this.path = path
     this.agentDir = agentDir
@@ -448,6 +451,10 @@ export class SkillsService {
     this.createPackageManager = createPackageManager || null
     this.extensionFactories = extensionFactories
     this.computerUseAvailable = computerUseAvailable
+    // 随应用发布的内置技能（例如 pisper-component）：内容是 JS 字符串，init() 时写到 builtin-skills/，
+    // 作为全局技能出现在技能页（可停用、不可卸载）。
+    this.builtinSkills = Array.isArray(builtinSkills) ? builtinSkills : []
+    this.builtinSkillsDir = builtinSkillsDir || join(agentDir, 'builtin-skills')
     this.state = { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }
     this.write = Promise.resolve()
     this.createWrite = Promise.resolve()
@@ -461,6 +468,36 @@ export class SkillsService {
     this.state = normalizeState(
       await readJson(this.path, { version: SKILLS_STATE_VERSION, overrides: {}, installed: {} }),
     )
+    await this.writeBuiltinSkills()
+  }
+
+  // 内置技能按内容比对写入：内容没变就不动文件（不改 mtime、不触发技能缓存失效），
+  // 变了才“临时文件 + rename”原子替换。只管清单里的文件，不删除目录里的其他文件。
+  // 写入失败只记一条不含路径的警告：技能缺失不能阻止 Runtime 启动。
+  async writeBuiltinSkills() {
+    for (const skill of this.builtinSkills) {
+      if (!skill || !SKILL_NAME_PATTERN.test(String(skill.name))) continue
+      const dir = join(this.builtinSkillsDir, skill.name)
+      try {
+        await mkdir(dir, { recursive: true, mode: 0o700 })
+        for (const [name, content] of Object.entries(skill.files || {})) {
+          if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name) || typeof content !== 'string')
+            continue
+          const file = join(dir, name)
+          const digest = createHash('sha256').update(content).digest('hex')
+          const current = await readFile(file).catch(() => null)
+          if (current && createHash('sha256').update(current).digest('hex') === digest) continue
+          const temporary = `${file}.${process.pid}.${digest.slice(0, 12)}.tmp`
+          await writeFile(temporary, content, { encoding: 'utf8', mode: 0o600 })
+          await rename(temporary, file).catch(async (error) => {
+            await rm(temporary, { force: true }).catch(() => {})
+            throw error
+          })
+        }
+      } catch {
+        console.warn('内置技能写入失败。')
+      }
+    }
   }
 
   save() {
@@ -599,6 +636,16 @@ export class SkillsService {
           source: 'auto',
           scope: 'user',
           origin: 'top-level',
+          baseDir: this.agentDir,
+        },
+      },
+      {
+        path: this.builtinSkillsDir,
+        enabled: true,
+        metadata: {
+          source: 'auto',
+          scope: 'user',
+          origin: 'builtin',
           baseDir: this.agentDir,
         },
       },

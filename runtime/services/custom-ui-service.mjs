@@ -15,7 +15,7 @@
 import { randomBytes } from 'node:crypto'
 import { parse, serialize } from 'parse5'
 import { createReadStream } from 'node:fs'
-import { lstat, readFile, readdir, stat } from 'node:fs/promises'
+import { lstat, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { extname, isAbsolute, join, normalize, sep } from 'node:path'
 import {
   RESERVED_COMPONENT_IDS,
@@ -47,6 +47,10 @@ import {
   parseInstanceTitle,
 } from './custom-ui-instances.mjs'
 import { CustomUiStateStore } from './custom-ui-state.mjs'
+import { ComponentErrorLog } from './custom-ui-errors.mjs'
+import { ComponentFetchProxy } from './custom-ui-fetch-proxy.mjs'
+import { CustomUiStorage } from './custom-ui-storage.mjs'
+import { ComponentWatcher } from './custom-ui-watcher.mjs'
 import {
   COMPONENT_TEMPLATES,
   buildComponentTemplate,
@@ -202,6 +206,9 @@ export class CustomUiService {
     builtinComponents = BUILTIN_CUSTOM_UI_COMPONENTS,
     randomId,
     renameDirectory,
+    fetchProxy,
+    errorLog,
+    createWatcher,
   }) {
     this.root = join(dataDir, 'custom-ui')
     this.now = now
@@ -223,6 +230,18 @@ export class CustomUiService {
     this.locks = new Map()
     this.hostVersion = null
     this.onChange = null
+    // S2：网络代理、组件存储、错误环形缓冲与文件监听。代理与错误日志只在内存里保存统计。
+    this.fetchProxy = fetchProxy || new ComponentFetchProxy({ now })
+    this.errorLog = errorLog || new ComponentErrorLog({ now })
+    this.storage = new CustomUiStorage({ root: this.dataRoot, now })
+    /** @type {(options: { root: string, onChange: (id: string) => void }) => { start: () => Promise<unknown>, dispose: () => void }} */
+    this.createWatcher = createWatcher || ((options) => new ComponentWatcher(options))
+    /** @type {{ start: () => Promise<unknown>, dispose: () => void } | null} */
+    this.watcher = null
+    // 每个组件最近一次通知的内容键（rev，或非 ready 时的状态与错误）：监听器据此去重，
+    // 工具写入后立即发的事件与随后监听器的事件不会重复。
+    /** @type {Map<string, string>} */
+    this.notifiedKeys = new Map()
     this.instances = {
       list: (surface) => this.listInstances(surface),
       create: (input) => this.createInstance(input),
@@ -290,6 +309,8 @@ export class CustomUiService {
   dispose() {
     this.views.clear()
     this.onChange = null
+    this.watcher?.dispose()
+    this.watcher = null
   }
 
   // 组件目录绝对路径；目录不存在视为无组件。
@@ -441,13 +462,61 @@ export class CustomUiService {
   // ── 原生组件（v2）────────────────────────────────────────────────────
 
   /**
-   * 由 app-runtime 在 base ready 之后调用：登记变化通知（看板事件流）与应用版本（minHostVersion）。
-   * 文件监听在 S2 接入；导入本模块不会启动任何长期副作用。
-   * @param {{ onChange?: (id: string, detail: { rev?: string | null, reason: string }) => void, hostVersion?: string | null }} [options]
+   * 由 app-runtime 在 base ready 之前的装配阶段调用：登记变化通知（看板事件流）与应用版本（minHostVersion），
+   * 并在后台启动文件监听、清理残留的导入暂存目录。导入本模块不会启动任何长期副作用。
+   * 返回的 Promise 永不拒绝（监听失败会退回轮询，清理失败只是留下残留目录），调用方可以不等。
+   * 监听要显式 watch:true（app-runtime 打开）：测试与一次性调用方不需要后台监听。
+   * @param {{ onChange?: (id: string, detail: { rev?: string | null, reason: string }) => void, hostVersion?: string | null, watch?: boolean }} [options]
    */
-  start({ onChange, hostVersion = null } = {}) {
+  start({ onChange, hostVersion = null, watch = false } = {}) {
     this.onChange = typeof onChange === 'function' ? onChange : null
     this.hostVersion = typeof hostVersion === 'string' && hostVersion ? hostVersion : null
+    const tasks = [this.cleanupImportStaging()]
+    if (watch && !this.watcher) {
+      this.watcher = this.createWatcher({
+        root: this.root,
+        onChange: (id) => {
+          void this.handleWatchedChange(id).catch(() => {})
+        },
+      })
+      tasks.push(this.watcher.start())
+    }
+    return Promise.allSettled(tasks).then(() => undefined)
+  }
+
+  /**
+   * 旧 ZIP 导入在 custom-ui/.component-import-* 里解包，进程中途退出会留下残留目录。
+   * 只删超过 10 分钟的（同一数据目录可能有另一个进程正在导入）；.component-old-* 不碰：
+   * 写入器交换中断时它可能是组件唯一的副本。
+   */
+  async cleanupImportStaging() {
+    const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
+    const cutoff = this.now() - 10 * 60_000
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('.component-import-')) continue
+      const path = join(this.root, entry.name)
+      const info = await lstat(path).catch(() => null)
+      if (!info?.isDirectory() || info.mtimeMs > cutoff) continue
+      await rm(path, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  /**
+   * 监听器回调：重新算 rev，与上次通知的内容键相同就不发（写入器自己已经发过）。
+   * @param {string} id
+   */
+  async handleWatchedChange(id) {
+    this.hasher.invalidate(this.componentDir(id))
+    const inspected = await this.inspect(id)
+    if (!inspected) {
+      // 目录没了（手动删除）；DELETE 接口自己已经发过 deleted，这里不重复。
+      if (this.notifiedKeys.get(id) === 'deleted') return
+      this.notify(id, { rev: null, reason: 'deleted' })
+      return
+    }
+    const key = changeKey(inspected.row)
+    if (this.notifiedKeys.get(id) === key) return
+    this.notify(id, { rev: inspected.row.rev ?? null, reason: 'files' }, key)
   }
 
   /** 代理工具只拿窄接口：写入组件与描述组件，不接触实例、存储或旧 iframe 机制。 */
@@ -458,7 +527,15 @@ export class CustomUiService {
     }
   }
 
-  notify(id, detail) {
+  /**
+   * @param {string} id
+   * @param {{ rev?: string | null, reason: string }} detail
+   * @param {string} [key] 去重用的内容键；不给时按 rev 推断（实例变化不改内容键）
+   */
+  notify(id, detail, key) {
+    if (key) this.notifiedKeys.set(id, key)
+    else if (detail.reason === 'deleted') this.notifiedKeys.set(id, 'deleted')
+    else if (detail.rev) this.notifiedKeys.set(id, detail.rev)
     try {
       this.onChange?.(id, detail)
     } catch {
@@ -663,6 +740,10 @@ export class CustomUiService {
         ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
       })
       this.hasher.invalidate(this.componentDir(id))
+      // 存储文件已随组件进了回收站：丢掉缓存，避免旧值在同名新组件里复活；内存里的日志与网络统计一并清掉。
+      this.storage.forget(id)
+      this.errorLog.forget(id)
+      this.fetchProxy.forget(id)
       await this.instanceStore.removeForComponent(id)
       await this.state.remove(id)
       this.notify(id, { rev: null, reason: 'deleted' })
@@ -816,7 +897,11 @@ export class CustomUiService {
       else if (source === 'agent') await this.state.update(id, { enabled: true, source })
       const written = await this.inspect(id)
       const rev = written?.row.rev ?? null
-      this.notify(id, { rev, reason: mode === 'create' ? 'created' : 'files' })
+      this.notify(
+        id,
+        { rev, reason: mode === 'create' ? 'created' : 'files' },
+        written ? changeKey(written.row) : undefined,
+      )
       return {
         id,
         mode,
@@ -892,6 +977,105 @@ export class CustomUiService {
         stream.destroy()
         resolveStream()
       })
+    })
+  }
+
+  // ── 运行期能力：存储、网络代理、错误日志（S2）──
+
+  /**
+   * 能力接口的组件前提：原生且可运行（ready）。停用的组件仍可在工作室预览，所以存储不要求 enabled；
+   * 网络代理按计划 §3.7 另外要求 enabled。
+   * @param {string} id
+   */
+  async runnableComponent(id) {
+    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
+      throw new CustomUiError('component_not_found', 404)
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind === 'legacy')
+      throw new CustomUiError('component_legacy_unsupported', 409)
+    if (!inspected.manifest) throw new CustomUiError('component_invalid', 409)
+    return { row: inspected.row, manifest: inspected.manifest }
+  }
+
+  /** @param {string} id */
+  async storageQuota(id) {
+    const { manifest } = await this.runnableComponent(id)
+    const storage = manifest.capabilities.storage
+    if (!storage)
+      throw new CustomUiError('component_capability_denied', 403, { capability: 'storage' })
+    return storage.quotaKb * 1024
+  }
+
+  /** @param {string} id @param {unknown} key */
+  async storageGet(id, key) {
+    await this.storageQuota(id)
+    return this.storage.get(id, key)
+  }
+
+  /** @param {string} id @param {unknown} key @param {unknown} input */
+  async storageSet(id, key, input) {
+    const quotaBytes = await this.storageQuota(id)
+    return this.storage.set(id, key, input, quotaBytes)
+  }
+
+  /** @param {string} id @param {unknown} key */
+  async storageRemove(id, key) {
+    await this.storageQuota(id)
+    return this.storage.remove(id, key)
+  }
+
+  /** @param {string} id @param {unknown} input */
+  async fetchForComponent(id, input) {
+    const { row, manifest } = await this.runnableComponent(id)
+    if (!row.enabled) throw new CustomUiError('component_disabled', 409)
+    return this.fetchProxy.fetch(id, manifest.capabilities.network, input)
+  }
+
+  /** @param {string} id @param {unknown} input */
+  async reportError(id, input) {
+    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
+      throw new CustomUiError('component_not_found', 404)
+    await this.requireComponent(id)
+    return this.errorLog.record(id, input)
+  }
+
+  /** @param {string} id */
+  async listErrors(id) {
+    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
+      throw new CustomUiError('component_not_found', 404)
+    await this.requireComponent(id)
+    return { ...this.errorLog.list(id), network: this.fetchProxy.networkStats(id) }
+  }
+
+  /**
+   * 工作室“生成”的绑定会话（计划 §5.4）：状态里记着的会话还在且没归档就复用，否则新建
+   * “生成组件 · <名称>”会话（cwd 是组件目录）并记下 id。会话的创建与查询由调用方注入，领域规则留在这里。
+   * @param {string} id
+   * @param {{
+   *   createSession: (name: string, cwd: string) => Promise<{ id: string }>,
+   *   findSession: (sessionId: string) => Promise<{ archived?: boolean } | null>,
+   * }} sessions
+   */
+  async ensureAgentSession(id, { createSession, findSession }) {
+    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
+      throw new CustomUiError('component_not_found', 404)
+    return this.withComponentLock(id, async () => {
+      const inspected = await this.requireComponent(id)
+      if (inspected.row.kind === 'legacy')
+        throw new CustomUiError('component_legacy_unsupported', 409)
+      if (inspected.row.kind === 'broken') throw new CustomUiError('component_invalid', 409)
+      const state = await this.state.get(id)
+      const bound = state?.boundSessionId
+      if (typeof bound === 'string' && bound) {
+        const session = await findSession(bound).catch(() => null)
+        if (session && session.archived !== true)
+          return { sessionId: bound, created: false, command: '/skill:pisper-component' }
+      }
+      const created = await createSession(`生成组件 · ${inspected.row.name}`, this.componentDir(id))
+      if (!created || typeof created.id !== 'string' || !created.id)
+        throw new Error('component session was not created')
+      await this.state.update(id, { boundSessionId: created.id })
+      return { sessionId: created.id, created: true, command: '/skill:pisper-component' }
     })
   }
 
@@ -998,6 +1182,14 @@ export class CustomUiService {
 }
 
 // ── 原生组件的输入校验辅助（纯函数，按不可信 unknown 处理）──
+
+/**
+ * 去重用的内容键：ready 时就是 rev；否则是状态加错误清单（错误变了也要通知工作室）。
+ * @param {{ rev?: string, status: string, errors: unknown[] }} row
+ */
+function changeKey(row) {
+  return row.rev || `${row.status}:${JSON.stringify(row.errors)}`
+}
 
 const WRITE_EXTENSIONS = new Set(['.js', '.mjs', '.css', '.json', '.svg'])
 const MAX_WRITE_FILES = 32

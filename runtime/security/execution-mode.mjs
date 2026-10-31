@@ -16,6 +16,8 @@ const APPROVAL_TOOLS = new Set([
   'bash',
   'skill_create',
   'plugin_create',
+  // 组件写入按普通写文件处理：审批模式下可见、逐次审批（负责人决定，规格 5.2）。
+  'component_create',
   'generate_visual',
   'computer-use',
   ...OFFICIAL_COMPUTER_USE_TOOL_NAMES,

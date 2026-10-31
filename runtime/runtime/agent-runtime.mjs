@@ -95,6 +95,7 @@ import {
   safeAttachmentName,
 } from '../services/asset-content.mjs'
 import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/registry.mjs'
+import { BUILTIN_SKILLS } from '../services/custom-ui-sdk-docs.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { ASK_USER_TOOL_NAME, createAskUserTool } from '../tools/app/ask-user.mjs'
 import { SessionQuestionService } from '../services/session-question-service.mjs'
@@ -358,6 +359,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     browserAutomationDriver,
     capabilities = desktopRuntimeCapabilities(),
     eventObserver,
+    customUi = null,
   } = {}) {
     super()
     this.cwd = normalizeWorkspacePath(cwd)
@@ -365,6 +367,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.eventObserver = typeof eventObserver === 'function' ? eventObserver : null
     this.capabilities = capabilities
     this.dataDir = dataDir
+    // 原生组件写入的窄接口（app-runtime 注入 CustomUiService.agentInterface()）；没有时 component_create 报未初始化。
+    this.customUi = customUi
     this.providerUserAgent = String(appVersion || '').trim()
       ? `Pisper/${String(appVersion).trim()}`
       : 'Pisper'
@@ -481,6 +485,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         return SettingsManager.create(skillsCwd, this.dataDir)
       },
       extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
+      // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）。
+      builtinSkills: BUILTIN_SKILLS,
+      builtinSkillsDir: join(dataDir, 'builtin-skills'),
     })
     this.channels = new ChannelService({
       path: join(dataDir, 'pisper-channels.json'),
@@ -1726,6 +1733,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           skillsRuntime: this.skills,
           onSkillsChanged: () => this.invalidateSessionRuntimes(),
           pluginRuntime: this.toolPlugins,
+          componentRuntime: this.customUi,
+          sessionId: runtimeSessionId,
           executionMode,
           onPluginsChanged: () => this.invalidateSessionRuntimes(),
           onGeneratedFile: ({ path }) =>

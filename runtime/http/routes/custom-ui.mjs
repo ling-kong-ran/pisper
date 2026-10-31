@@ -2,6 +2,7 @@
 // 旧资产路由保留三级路径兼容；凭证预览支持嵌套资源，由服务层限制目录边界。
 // A7 新增原生组件（v2）路由：describe、按 rev 服务模块、创建 / 启用 / 删除组件、放置实例。
 // 新路由全部走现有鉴权链（没有鉴权前旁路），请求体按小上限读取后当作 unknown 交给服务层校验。
+import { normalizeSessionOrganization } from '../../services/chat-session-organization.mjs'
 import { CustomUiError } from '../../services/custom-ui-error.mjs'
 import { CustomUiImportError } from '../../services/custom-ui-import.mjs'
 
@@ -104,6 +105,94 @@ const nativeComponentRoutes = [
     method: 'GET',
     path: '/api/custom-ui/components/:componentId/r/:rev/:asset1/:asset2/:asset3',
     handler: nativeRoute(serveModule),
+  },
+  // ── S2：组件存储、网络代理、错误日志、绑定会话 ──
+  {
+    method: 'GET',
+    path: '/api/custom-ui/components/:componentId/storage/:key',
+    handler: nativeRoute(async ({ services, params, json }) => {
+      json(200, await customUiUnavailable(services).storageGet(params.componentId, params.key))
+    }),
+  },
+  {
+    method: 'PUT',
+    path: '/api/custom-ui/components/:componentId/storage/:key',
+    handler: nativeRoute(async (context) => {
+      const input = await readJsonBody(context, 1024 * 1024)
+      context.json(
+        200,
+        await customUiUnavailable(context.services).storageSet(
+          context.params.componentId,
+          context.params.key,
+          input,
+        ),
+      )
+    }),
+  },
+  {
+    method: 'DELETE',
+    path: '/api/custom-ui/components/:componentId/storage/:key',
+    handler: nativeRoute(async ({ services, params, json }) => {
+      json(200, await customUiUnavailable(services).storageRemove(params.componentId, params.key))
+    }),
+  },
+  {
+    method: 'POST',
+    path: '/api/custom-ui/components/:componentId/fetch',
+    handler: nativeRoute(async (context) => {
+      const input = await readJsonBody(context, 512 * 1024)
+      context.json(
+        200,
+        await customUiUnavailable(context.services).fetchForComponent(
+          context.params.componentId,
+          input,
+        ),
+      )
+    }),
+  },
+  {
+    method: 'POST',
+    path: '/api/custom-ui/components/:componentId/errors',
+    handler: nativeRoute(async (context) => {
+      const input = await readJsonBody(context, 16 * 1024)
+      context.json(
+        202,
+        await customUiUnavailable(context.services).reportError(context.params.componentId, input),
+      )
+    }),
+  },
+  {
+    method: 'GET',
+    path: '/api/custom-ui/components/:componentId/errors',
+    handler: nativeRoute(async ({ services, params, json }) => {
+      json(200, await customUiUnavailable(services).listErrors(params.componentId))
+    }),
+  },
+  {
+    method: 'POST',
+    path: '/api/custom-ui/components/:componentId/session',
+    handler: nativeRoute(async (context) => {
+      const input = await readJsonBody(context, 1024)
+      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length)
+        throw new CustomUiError('component_request_invalid', 400)
+      const { runtime } = context
+      if (!runtime?.createSession || !runtime?.findSessionInfo)
+        throw new Error('当前 Runtime 不支持代理会话。')
+      context.json(
+        200,
+        await customUiUnavailable(context.services).ensureAgentSession(context.params.componentId, {
+          createSession: (name, cwd) => runtime.createSession(name, cwd),
+          // 归档的绑定会话不再复用：用户已经把它收起来了，新生成从一个新会话开始。
+          findSession: async (sessionId) => {
+            const info = await runtime.findSessionInfo(sessionId)
+            if (!info) return null
+            return {
+              archived: normalizeSessionOrganization(runtime.sessionMeta?.[sessionId]).archived,
+            }
+          },
+        }),
+      )
+    }),
   },
   {
     method: 'GET',

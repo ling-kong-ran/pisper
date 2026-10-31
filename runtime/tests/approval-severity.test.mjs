@@ -60,6 +60,14 @@ const CASES = [
     severity: 'critical',
   },
   {
+    // 负责人决定：组件写入按普通写文件处理，不算 critical（不需要按住确认）。
+    name: 'native component write',
+    mode: 'ask',
+    toolName: 'component_create',
+    args: { mode: 'create', id: 'ci-status' },
+    severity: 'standard',
+  },
+  {
     name: 'browser interaction that may submit a form',
     mode: 'auto',
     toolName: 'browser_automation',

@@ -602,3 +602,45 @@ test('skills dashboard separates global skills from the requested project worksp
   assert.equal(dashboardB.counts.global, 2)
   assert.equal(dashboardB.counts.project, 1)
 })
+
+test('skills service writes built-in skills under builtin-skills and ignores unsafe entries', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skills-builtin-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  await mkdir(cwd, { recursive: true })
+  await writeSkill(join(agentDir, 'skills', 'docs-search'), 'docs-search', 'Search docs.')
+  const settingsManager = SettingsManager.inMemory({ enableSkillCommands: true })
+  const skillBody = '---\nname: bundled-helper\ndescription: Bundled helper.\n---\n\n# Helper\n'
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => settingsManager,
+    builtinSkills: [
+      {
+        name: 'bundled-helper',
+        files: { 'SKILL.md': skillBody, '../escape.md': 'x', 'a/b.md': 'x' },
+      },
+      { name: '../outside', files: { 'SKILL.md': skillBody } },
+    ],
+  })
+  await service.init()
+  // 缺省目录是 <agentDir>/builtin-skills；不合法的技能名与带路径的文件名一律跳过（防路径穿越）。
+  assert.equal(
+    await readFile(join(agentDir, 'builtin-skills', 'bundled-helper', 'SKILL.md'), 'utf8'),
+    skillBody,
+  )
+  assert.equal(existsSync(join(agentDir, 'builtin-skills', 'escape.md')), false)
+  assert.equal(existsSync(join(agentDir, 'builtin-skills', 'bundled-helper', 'a')), false)
+  assert.equal(existsSync(join(directory, 'outside')), false)
+  assert.equal(existsSync(join(agentDir, 'outside')), false)
+  const dashboard = await service.dashboard({ force: true })
+  const names = dashboard.skills.map((skill) => skill.name).sort()
+  assert.deepEqual(names, ['bundled-helper', 'docs-search'])
+  const bundled = dashboard.skills.find((skill) => skill.name === 'bundled-helper')
+  assert.equal(bundled.sourceInfo.origin, 'builtin')
+  assert.equal(bundled.removable, false)
+  // 技能页“全局”位置不变：内置技能不占用户技能目录。
+  assert.equal(dashboard.locations.global, join(agentDir, 'skills'))
+})

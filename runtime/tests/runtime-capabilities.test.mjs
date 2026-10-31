@@ -35,6 +35,7 @@ test('mobile embedded profile derives degradation from actual host modules', asy
   assert.equal(capabilities.features.computerUse, false)
   assert.equal(capabilities.features.workflows, false)
   assert.deepEqual(capabilities.tools, [
+    'component_create',
     'edit',
     'generate_visual',
     'ls',
@@ -152,6 +153,8 @@ test('embedded profile initializes the shared Agent runtime with only supported 
   assert.ok(tools.includes('edit'))
   assert.ok(tools.includes('web_search'))
   assert.ok(tools.includes('mobile_device'))
+  // 原生组件不需要编译器：手机嵌入式 Runtime 也提供 component_create。
+  assert.ok(tools.includes('component_create'))
   for (const unavailable of [
     'bash',
     'grep',

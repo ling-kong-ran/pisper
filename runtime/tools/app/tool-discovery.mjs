@@ -215,6 +215,17 @@ const TOOL_ALIASES = {
     '生成工具',
     '可复用工具',
   ],
+  component_create: [
+    'component',
+    'widget',
+    'create component',
+    'ui component',
+    'card',
+    '组件',
+    '创建组件',
+    '小组件',
+    '卡片',
+  ],
   spawn_agent: [
     'subagent',
     'delegate',

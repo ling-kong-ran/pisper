@@ -86,6 +86,7 @@ export const TOOL_PRESETS = {
     'bash',
     'skill_create',
     'plugin_create',
+    'component_create',
     'web_search',
     'browser_automation',
     'generate_visual',
