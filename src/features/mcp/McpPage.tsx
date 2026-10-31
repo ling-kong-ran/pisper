@@ -1,89 +1,53 @@
-import { PageFrame } from '@/components/app/PageFrame'
-import { ListDetailLayout } from '@/components/app/ListDetailLayout'
-import { InlineEmptyState } from '@/components/app/PageState'
-// MCP 页面负责选择与操作编排；远程快照和请求生命周期由领域查询层持有。
-import { useCallback, useState, type ReactNode } from 'react'
-import { Check, History, RefreshCw, Server, Trash2, Wrench, X } from 'lucide-react'
+// MCP 页（功能 › 扩展 › MCP）：页面负责选择与操作编排；远程快照和请求生命周期由领域查询层持有。
+// 外形用功能页模板（规格 A6 第 1 批）：工具行放搜索与主操作“添加服务”；内置服务、外部服务、工具能力
+// 都是列表行。服务行展开后是原右侧检查器的内容（传输方式、地址、延迟、认证、最近调用、测试与删除），
+// 服务的启停开关直接在行上；数据流与改版前相同。
+import {
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { useCallback, useState } from 'react'
+import { Check, History, Plus, RefreshCw, Server, Trash2, Wrench, X } from 'lucide-react'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import { useI18n } from '@/app/use-i18n'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { OrbitSpinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { Alert } from '@/components/ui/alert'
 import { mcpApi, type McpService, type McpTool } from './mcp-api'
 import { McpHostPanel } from './McpHostPanel'
 import { useMcpDashboard } from './useMcpDashboard'
 import { relativeTime } from '@/lib/format'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import type { Notify } from '@/app/route-context'
 import type { I18nValues } from '@/app/i18n'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 type McpPageProps = {
   notify: Notify
-  query?: string
-  registerPrimaryAction: (action: () => void) => () => void
+  // 从功能进入时由应用壳提供：标题上方的“‹ 功能”。
+  onBack?: () => void
   requestText?: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
 type Translate = (message: string, values?: I18nValues) => string
-type McpTone = 'ok' | 'warn' | 'default' | 'bad'
 
-// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
-const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
-const CARD_HEAD =
-  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
-const ICON_KEY =
-  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
-const SELECTED_TICK = 'absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star'
-// 只读键值行：左侧弱化标签，右侧值单行省略；路径、地址等用等宽字。
-const KEY_VALUE =
-  'key-value flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft text-sm [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
+// 展开详情里的只读键值：左侧弱化标签，右侧值可换行；路径、地址等用等宽字。
+const KEY_VALUES =
+  'grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-content-soft [&_dt]:text-content-muted [&>div]:contents'
 
-function CardTitle({ children, count }: { children: ReactNode; count?: ReactNode }) {
-  return (
-    <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
-      {children}
-      {count !== undefined && (
-        <span className="font-normal text-content-muted tabular-nums">{count}</span>
-      )}
-    </h2>
-  )
-}
-
-// 计量读数：12px 标签 + 20px 等宽数字，说明文字弱化；数值保持墨色，不做彩色强调。
-function McpMetric({
-  value,
-  label,
-  note,
-}: {
-  value: ReactNode
-  label: ReactNode
-  note: ReactNode
-}) {
-  return (
-    <div className="metric flex min-w-0 flex-col gap-1 px-3.5 py-3 max-[650px]:px-3">
-      <small className="truncate text-xs text-content-muted">{label}</small>
-      <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
-        <strong className="text-3xl leading-7 font-medium text-content tabular-nums">
-          {value}
-        </strong>
-        <span className="truncate text-xs text-content-muted tabular-nums">{note}</span>
-      </span>
-    </div>
-  )
-}
-
-function McpBadge({ children, tone }: { children: ReactNode; tone: McpTone }) {
-  return <Badge variant={tone}>{children}</Badge>
-}
-
-function mcpStatusMeta(status: string | undefined, t: Translate): [string, McpTone] {
-  if (status === 'online') return [t('mcp:online'), 'ok']
-  if (status === 'connecting') return [t('mcp:connecting'), 'warn']
-  if (status === 'unauthorized') return [t('mcp:unauthorized'), 'default']
-  if (status === 'disabled') return [t('mcp:disabled'), 'default']
-  return [t('mcp:offline'), 'bad']
+// 服务状态：形状 + 文字。琥珀只表示“需要你”（规格 6.1）——离线与未授权要人去处理（与渠道“断开”同一规则），
+// 在线、连接中、已禁用都是中性灰。
+function mcpStatusMeta(status: string | undefined, t: Translate): [string, boolean] {
+  if (status === 'online') return [t('mcp:online'), false]
+  if (status === 'connecting') return [t('mcp:connecting'), false]
+  if (status === 'unauthorized') return [t('mcp:unauthorized'), true]
+  if (status === 'disabled') return [t('mcp:disabled'), false]
+  return [t('mcp:offline'), true]
 }
 
 function mcpRiskLabel(risk: unknown, t: Translate) {
@@ -93,26 +57,20 @@ function mcpRiskLabel(risk: unknown, t: Translate) {
   return String(risk || '')
 }
 
-function mcpAuthLabel(service: McpService | null, t: Translate) {
-  if (!service) return '—'
+function mcpAuthLabel(service: McpService, t: Translate) {
   if (service.auth === 'headers') return t('mcp:countRequestHeaders', { count: service.authCount })
   if (service.auth === 'environment') return t('mcp:configuredEnvironmentVariables')
   if (service.auth === 'local') return t('mcp:localProcess')
   return t('mcp:none')
 }
 
-export function McpPage({
-  notify,
-  query = '',
-  registerPrimaryAction,
-  requestText,
-  requestConfirm,
-}: McpPageProps) {
-  const [detailOpen, setDetailOpen] = useState(false)
-
+export function McpPage({ notify, onBack, requestText, requestConfirm }: McpPageProps) {
   const { t, language } = useI18n()
+  const searchShortcut = useShortcutLabel('focusSearch')
   const { data, busy, loading, error, change, reload } = useMcpDashboard()
-  const [selectedId, setSelectedId] = useState('')
+  const [query, setQuery] = useState('')
+  // 展开详情的服务（同一时刻只展开一行，原右侧检查器的“当前服务”）。
+  const [expandedId, setExpandedId] = useState('')
 
   const addService = useCallback(async () => {
     const spec = await requestText?.({
@@ -135,7 +93,7 @@ export function McpPage({
     if (approved === false) return
     try {
       const result = await change(() => mcpApi.add(spec))
-      setSelectedId(result.services.at(-1)?.id || result.services[0]?.id || '')
+      setExpandedId(result.services.at(-1)?.id || '')
       notify(t('mcp:mcpServerAdded'), 'success')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -143,23 +101,14 @@ export function McpPage({
     }
   }, [change, notify, requestConfirm, requestText, t])
 
-  usePagePrimaryAction(registerPrimaryAction, addService)
-
+  const normalizedQuery = query.trim().toLowerCase()
   const services = data?.services || []
   const visibleServices = services.filter((service) =>
-    `${service.name} ${service.endpoint}`.toLowerCase().includes(query.toLowerCase()),
+    `${service.name} ${service.endpoint}`.toLowerCase().includes(normalizedQuery),
   )
-  const selected =
-    services.find((service) => service.id === selectedId) ||
-    visibleServices[0] ||
-    services[0] ||
-    null
   const tools = (data?.tools || []).filter((tool) =>
-    `${tool.name} ${tool.serviceName} ${tool.description}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
+    `${tool.name} ${tool.serviceName} ${tool.description}`.toLowerCase().includes(normalizedQuery),
   )
-  const calls = (data?.calls || []).filter((call) => !selected || call.serviceId === selected.id)
   const metrics = data?.metrics || {
     totalServices: 0,
     onlineServices: 0,
@@ -176,20 +125,18 @@ export function McpPage({
     }
   }
 
-  const toggleServer = async (enabled: boolean) => {
-    if (!selected) return
+  const toggleServer = async (service: McpService, enabled: boolean) => {
     try {
-      await change(() => mcpApi.setServerEnabled(selected.id, enabled))
+      await change(() => mcpApi.setServerEnabled(service.id, enabled))
       notify(enabled ? t('mcp:mcpServerEnabled') : t('mcp:mcpServerDisabled'), 'success')
     } catch (caught) {
       notify(caught instanceof Error ? caught.message : String(caught), 'error')
     }
   }
 
-  const testConnection = async () => {
-    if (!selected) return
+  const testConnection = async (service: McpService) => {
     try {
-      await change(() => mcpApi.test(selected.id))
+      await change(() => mcpApi.test(service.id))
       notify(t('mcp:mcpConnectionTestPassed'), 'success')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -197,8 +144,7 @@ export function McpPage({
     }
   }
 
-  const deleteServer = async () => {
-    if (!selected) return
+  const deleteServer = async (service: McpService) => {
     const approved = await requestConfirm?.({
       title: t('mcp:deleteMCPServer'),
       message: t('mcp:afterDeletionToolsFromThisServerWillBeRemovedFromSubsequentAgentRuns'),
@@ -207,8 +153,8 @@ export function McpPage({
     })
     if (approved === false) return
     try {
-      const result = await change(() => mcpApi.remove(selected.id))
-      setSelectedId(result?.services[0]?.id || '')
+      await change(() => mcpApi.remove(service.id))
+      setExpandedId('')
       notify(t('mcp:mcpServerDeleted'), 'success')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -216,332 +162,332 @@ export function McpPage({
     }
   }
 
-  return (
-    <PageFrame variant="list-detail">
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
-          {loading && !error && (
-            <p
-              role="status"
-              className="flex items-center gap-2 px-4 py-3 text-xs text-content-muted @min-[760px]/page:px-6"
-            >
-              <OrbitSpinner className="size-3.5" />
-              {t('mcp:loading')}
+  // 服务展开详情：说明或错误、连接信息、最近调用（最多 8 条），底部删除与测试连接。
+  const renderServiceDetail = (service: McpService) => {
+    const calls = (data?.calls || []).filter((call) => call.serviceId === service.id)
+    return (
+      <div className="mcp-service-detail grid gap-3">
+        <p
+          className={cn(
+            'text-xs leading-normal [overflow-wrap:anywhere]',
+            service.error ? 'font-mono text-content-secondary' : 'text-content-muted',
+          )}
+        >
+          {service.error ||
+            t(
+              'mcp:thisServerExposesToolsThroughAStandardMCPTransportEnabledToolsAreRegisteredInNewAgentRuntimes',
+            )}
+        </p>
+        <dl className={KEY_VALUES}>
+          {(
+            [
+              [
+                t('mcp:transport'),
+                service.transport === 'stdio'
+                  ? 'stdio'
+                  : service.transport === 'sse'
+                    ? 'HTTP + SSE'
+                    : 'Streamable HTTP',
+                false,
+              ],
+              ...(service.transport === 'stdio'
+                ? [
+                    [t('mcp:executable'), service.command || '—', true],
+                    [t('mcp:workingDirectory'), service.workingDirectory || '—', true],
+                  ]
+                : [[t('mcp:serverAddress'), service.endpoint || '—', true]]),
+              [
+                t('mcp:latency'),
+                service.latencyMs == null ? '—' : `${service.latencyMs} ms`,
+                false,
+              ],
+              [
+                t('mcp:lastPing'),
+                service.lastPingAt ? relativeTime(service.lastPingAt, language) : '—',
+                false,
+              ],
+              [t('mcp:authentication'), mcpAuthLabel(service, t), false],
+            ] as Array<[string, string, boolean]>
+          ).map(([label, value, mono]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd className={mono ? 'font-mono' : 'tabular-nums'}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <section className="mcp-calls-panel min-w-0" aria-label={t('mcp:recentCalls')}>
+          <h3 className="mb-1 text-xs font-medium text-content-muted tabular-nums">
+            {t('mcp:recentCalls')}
+            {calls.length > 0 && <span> · {Math.min(calls.length, 8)}</span>}
+          </h3>
+          {calls.length ? (
+            <ul role="list" className="m-0 list-none divide-y divide-stroke p-0">
+              {calls.slice(0, 8).map((activity) => {
+                const ok = activity.status === 'ok'
+                return (
+                  <li
+                    className={cn(
+                      'activity-row grid min-h-10 min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 py-1.5',
+                      ok ? 'completed' : 'failed',
+                    )}
+                    key={activity.id}
+                  >
+                    {/* 结果用形状（勾 / 叉）+ 文字区分，中性灰：历史调用不是要人处理的事（规格 6.1、6.5）。 */}
+                    <span
+                      aria-hidden="true"
+                      className="grid size-4 place-items-center text-content-muted [&_svg]:size-3.5 [&_svg]:stroke-[2]"
+                    >
+                      {ok ? <Check /> : <X />}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <strong className="truncate font-mono text-xs font-medium text-content">
+                        {activity.toolName}
+                      </strong>
+                      <small className="truncate text-xs text-content-muted">
+                        {ok ? t('mcp:callSucceeded') : activity.error || t('mcp:callFailed')}
+                      </small>
+                    </span>
+                    <span className="flex flex-col items-end text-xs text-content-muted tabular-nums">
+                      <span className="text-content-secondary">{activity.durationMs} ms</span>
+                      <span>{relativeTime(activity.timestamp, language)}</span>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <p className="flex items-center gap-1.5 py-1 text-xs text-content-muted">
+              <History className="size-3.5" aria-hidden="true" />
+              {t('mcp:noRecentCalls')}
             </p>
           )}
-          {error && (
-            <Alert
-              role="status"
-              className="mx-4 my-3 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere] @min-[760px]/page:mx-6"
-            >
-              <span>{error.message}</span>
-              <Button variant="ghost" disabled={busy} onClick={() => void reload()}>
-                {t('mcp:retry')}
-              </Button>
-            </Alert>
-          )}
-          {data && (
-            <ListDetailLayout
-              selected={detailOpen}
-              onBack={() => setDetailOpen(false)}
-              backLabel={t('common:pageTemplate.backToList')}
-              list={
-                <section className="min-w-0">
-                  {/* 列表标题 12/500 弱化文字 + 等宽计数，与其它列表页同一节奏。 */}
-                  <h2 className="flex h-[30px] items-end justify-between px-1 pb-1.5 text-xs font-medium tracking-[.02em] text-content-muted">
-                    <span>{t('mcp:services')}</span>
-                    <span className="font-normal tabular-nums">{visibleServices.length}</span>
-                  </h2>
-                  {visibleServices.length ? (
-                    <ul className="flex flex-col gap-0.5">
-                      {visibleServices.map((service) => {
-                        const [label, tone] = mcpStatusMeta(service.status, t)
-                        const active = selected?.id === service.id
-                        const location =
-                          service.transport === 'stdio'
-                            ? service.workingDirectory || service.command
-                            : service.endpoint
-                        return (
-                          <li
-                            className={cn(
-                              'relative rounded-md transition-colors duration-(--d-fast) hover:bg-surface-subtle',
-                              active && 'bg-surface-muted hover:bg-surface-muted',
-                            )}
-                            key={service.id}
-                          >
-                            {active && <i aria-hidden="true" className={SELECTED_TICK} />}
-                            <button
-                              type="button"
-                              aria-current={active || undefined}
-                              className={cn(
-                                'service-row grid min-h-[56px] w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 pr-2.5 pl-3 text-left focus-visible:-outline-offset-2',
-                                active && 'active',
-                              )}
-                              onClick={() => {
-                                setDetailOpen(true)
-                                setSelectedId(service.id)
-                              }}
-                            >
-                              <span className={ICON_KEY}>
-                                <Server />
-                              </span>
-                              <span className="flex min-w-0 flex-col gap-0.5">
-                                <strong className="truncate text-sm font-medium text-content max-[650px]:text-[15px]">
-                                  {service.name}
-                                </strong>
-                                <small
-                                  className="truncate font-mono text-xs text-content-muted"
-                                  title={location}
-                                >
-                                  {location}
-                                </small>
-                              </span>
-                              <McpBadge tone={tone}>{label}</McpBadge>
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  ) : (
-                    <InlineEmptyState title={t('mcp:noServerConfigured')} />
-                  )}
-                </section>
-              }
-              detail={
-                <div className="flex min-w-0 flex-col gap-4">
-                  <div
-                    className={cn('metric-grid grid grid-cols-3 divide-x divide-stroke-soft', CARD)}
-                  >
-                    <McpMetric
-                      value={String(metrics.onlineServices)}
-                      label={t('mcp:onlineServices')}
-                      note={t('mcp:countServicesTotal', { count: metrics.totalServices })}
-                    />
-                    <McpMetric
-                      value={String(metrics.availableTools)}
-                      label={t('mcp:availableTools')}
-                      note={t('mcp:countRestrictedTools', { count: metrics.restrictedTools })}
-                    />
-                    <McpMetric
-                      value={`${metrics.errorRate}%`}
-                      label={t('mcp:errorRate')}
-                      note="24h"
-                    />
-                  </div>
-                  <section className={cn('mcp-tools-panel', CARD)}>
-                    <header className={CARD_HEAD}>
-                      <CardTitle count={tools.length}>{t('mcp:toolCapabilities')}</CardTitle>
-                    </header>
-                    {tools.length ? (
-                      <ul className="divide-y divide-stroke-soft">
-                        {tools.map((tool) => (
-                          <li
-                            className="tool-row grid min-h-[52px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2 pr-3 pl-3.5"
-                            key={tool.piName}
-                          >
-                            <span className="flex min-w-0 flex-col gap-0.5">
-                              <strong className="truncate font-mono text-[13px] font-medium text-content">
-                                {tool.name}
-                              </strong>
-                              <small className="flex min-w-0 gap-1.5 text-xs text-content-muted">
-                                <span className="shrink-0 font-mono">{tool.serviceName}</span>
-                                <span aria-hidden="true" className="text-content-faint">
-                                  ·
-                                </span>
-                                <span className="truncate">{tool.description}</span>
-                              </small>
-                            </span>
-                            <McpBadge
-                              tone={
-                                tool.risk === 'high' || tool.risk === '高风险'
-                                  ? 'bad'
-                                  : tool.risk === 'medium' || tool.risk === '中风险'
-                                    ? 'warn'
-                                    : 'ok'
-                              }
-                            >
-                              {mcpRiskLabel(tool.risk, t)}
-                            </McpBadge>
-                            <Switch
-                              checked={Boolean(tool.enabled)}
-                              disabled={busy || !tool.serviceEnabled}
-                              aria-label={t('mcp:toggleToolName', { name: tool.name })}
-                              onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <InlineEmptyState compact icon={Wrench} title={t('mcp:noToolsAvailable')} />
-                    )}
-                  </section>
-                </div>
-              }
-              inspector={
-                <div className="flex min-w-0 flex-col gap-4">
-                  <section className={CARD}>
-                    <header className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-2.5">
-                      <small className="text-xs font-medium tracking-[.02em] text-content-muted">
-                        {t('mcp:currentService')}
-                      </small>
-                      <h2 className="truncate text-[15px] leading-6 font-medium text-content">
-                        {selected?.name || t('mcp:noServerConfigured')}
-                      </h2>
-                      <p
-                        className={cn(
-                          'text-xs leading-normal [overflow-wrap:anywhere]',
-                          selected?.error ? 'font-mono text-danger' : 'text-content-muted',
-                        )}
-                      >
-                        {selected?.error ||
-                          (selected
-                            ? t(
-                                'mcp:thisServerExposesToolsThroughAStandardMCPTransportEnabledToolsAreRegisteredInNewAgentRuntimes',
-                              )
-                            : t(
-                                'mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer',
-                              ))}
-                      </p>
-                    </header>
-                    <dl className="px-3.5">
-                      {(
-                        [
-                          [
-                            t('mcp:transport'),
-                            selected?.transport === 'stdio'
-                              ? 'stdio'
-                              : selected?.transport === 'sse'
-                                ? 'HTTP + SSE'
-                                : 'Streamable HTTP',
-                            false,
-                          ],
-                          ...(selected?.transport === 'stdio'
-                            ? [
-                                [t('mcp:executable'), selected.command || '—', true],
-                                [t('mcp:workingDirectory'), selected.workingDirectory || '—', true],
-                              ]
-                            : [[t('mcp:serverAddress'), selected?.endpoint || '—', true]]),
-                          [
-                            t('mcp:latency'),
-                            selected?.latencyMs == null ? '—' : `${selected.latencyMs} ms`,
-                            false,
-                          ],
-                          [
-                            t('mcp:lastPing'),
-                            selected?.lastPingAt
-                              ? relativeTime(selected.lastPingAt, language)
-                              : '—',
-                            false,
-                          ],
-                          [t('mcp:authentication'), mcpAuthLabel(selected, t), false],
-                        ] as Array<[string, string, boolean]>
-                      ).map(([label, value, mono]) => (
-                        <div className={KEY_VALUE} key={label}>
-                          <dt>{label}</dt>
-                          <dd className={mono ? 'font-mono text-xs' : 'tabular-nums'} title={value}>
-                            {value}
-                          </dd>
-                        </div>
-                      ))}
-                      <div className="toggle-line flex min-h-[40px] items-center justify-between gap-3 border-t border-stroke-soft text-sm">
-                        <span className="font-medium text-content">{t('mcp:serverEnabled')}</span>
-                        <Switch
-                          checked={Boolean(selected?.enabled)}
-                          disabled={!selected || busy}
-                          aria-label={t('mcp:toggleMCPServer')}
-                          onCheckedChange={(enabled) => void toggleServer(enabled)}
-                        />
-                      </div>
-                    </dl>
-                    <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-stroke-soft bg-surface-subtle px-3.5 py-2.5">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
-                        disabled={!selected || busy}
-                        onClick={deleteServer}
-                      >
-                        <Trash2 data-icon="inline-start" />
-                        {t('mcp:delete')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="max-[650px]:h-11"
-                        loading={busy}
-                        disabled={!selected?.enabled || busy}
-                        onClick={testConnection}
-                      >
-                        <RefreshCw data-icon="inline-start" />
-                        {t('mcp:testConnection')}
-                      </Button>
-                    </footer>
-                  </section>
-                  <section className={cn('mcp-calls-panel', CARD)}>
-                    <header className={CARD_HEAD}>
-                      <CardTitle count={calls.length ? Math.min(calls.length, 8) : undefined}>
-                        {t('mcp:recentCalls')}
-                      </CardTitle>
-                    </header>
-                    {calls.length ? (
-                      <ul className="divide-y divide-stroke-soft">
-                        {calls.slice(0, 8).map((activity) => {
-                          const ok = activity.status === 'ok'
-                          return (
-                            <li
-                              className={cn(
-                                'activity-row grid min-h-[44px] min-w-0 grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2.5 py-2 pr-3.5 pl-3.5',
-                                ok ? 'completed' : 'failed',
-                              )}
-                              key={activity.id}
-                            >
-                              {/* 状态方块同时用形状（勾/叉）和颜色表达结果。 */}
-                              <span
-                                className={cn(
-                                  'grid size-[18px] place-items-center rounded-xs [&_svg]:size-3 [&_svg]:stroke-[2.5]',
-                                  ok
-                                    ? 'bg-success-soft text-success'
-                                    : 'bg-danger-soft text-danger',
-                                )}
-                              >
-                                {ok ? <Check /> : <X />}
-                              </span>
-                              <span className="flex min-w-0 flex-col gap-0.5">
-                                <strong className="truncate font-mono text-xs font-medium text-content">
-                                  {activity.toolName}
-                                </strong>
-                                <small
-                                  className={cn(
-                                    'truncate text-xs',
-                                    ok ? 'text-content-muted' : 'text-danger',
-                                  )}
-                                >
-                                  {ok
-                                    ? t('mcp:callSucceeded')
-                                    : activity.error || t('mcp:callFailed')}
-                                </small>
-                              </span>
-                              <span className="flex flex-col items-end gap-0.5 text-xs text-content-muted tabular-nums">
-                                <span className="text-content-secondary">
-                                  {activity.durationMs} ms
-                                </span>
-                                <span>{relativeTime(activity.timestamp, language)}</span>
-                              </span>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    ) : (
-                      <InlineEmptyState compact icon={History} title={t('mcp:noRecentCalls')} />
-                    )}
-                  </section>
-                </div>
-              }
-            />
-          )}
+        </section>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+            disabled={busy}
+            onClick={() => void deleteServer(service)}
+          >
+            <Trash2 data-icon="inline-start" />
+            {t('mcp:delete')}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="max-[650px]:h-11"
+            loading={busy}
+            disabled={!service.enabled || busy}
+            onClick={() => void testConnection(service)}
+          >
+            <RefreshCw data-icon="inline-start" />
+            {t('mcp:testConnection')}
+          </Button>
         </div>
       </div>
-    </PageFrame>
+    )
+  }
+
+  return (
+    <FeaturePage
+      title={t('navigation:navigation.mcp')}
+      description={t('mcp:lede')}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('navigation:pageHeader.searchServicesOrTools')}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
+          actions={
+            // 主操作（原共享页头的“添加服务”）。
+            <Button
+              type="button"
+              className="h-9"
+              data-mcp-add
+              disabled={busy}
+              onClick={() => void addService()}
+            >
+              <Plus />
+              {t('navigation:pageHeader.addService')}
+            </Button>
+          }
+        />
+      }
+    >
+      <McpHostPanel notify={notify} requestConfirm={requestConfirm} />
+      {loading && !data && !error ? (
+        <PageState kind="loading" title={t('mcp:loading')} />
+      ) : !data && error ? (
+        <PageState
+          kind="error"
+          title={t('mcp:loading')}
+          description={error.message}
+          action={
+            <Button
+              variant="secondary"
+              className="max-[650px]:h-11"
+              disabled={busy}
+              onClick={() => void reload()}
+            >
+              {t('mcp:retry')}
+            </Button>
+          }
+        />
+      ) : (
+        data && (
+          <>
+            {error && (
+              <Alert
+                role="status"
+                className="mt-4 flex min-w-0 items-center justify-between gap-3 text-muted-foreground [overflow-wrap:anywhere]"
+              >
+                <span>{error.message}</span>
+                <Button
+                  variant="ghost"
+                  className="max-[650px]:h-11"
+                  disabled={busy}
+                  onClick={() => void reload()}
+                >
+                  {t('mcp:retry')}
+                </Button>
+              </Alert>
+            )}
+            <FeatureSection
+              className="mcp-services"
+              title={t('mcp:services')}
+              count={visibleServices.length}
+              meta={
+                services.length > 0 &&
+                t('mcp:serviceSummary', {
+                  online: metrics.onlineServices,
+                  total: metrics.totalServices,
+                  rate: metrics.errorRate,
+                })
+              }
+            >
+              {visibleServices.length ? (
+                <FeatureList>
+                  {visibleServices.map((service) => {
+                    const [label, attention] = mcpStatusMeta(service.status, t)
+                    const location =
+                      service.transport === 'stdio'
+                        ? service.workingDirectory || service.command
+                        : service.endpoint
+                    return (
+                      <FeatureRow
+                        key={service.id}
+                        className="service-row"
+                        data-mcp-service={service.id}
+                        icon={<Server />}
+                        name={service.name}
+                        description={
+                          <span className="font-mono text-xs" title={location}>
+                            {location}
+                          </span>
+                        }
+                        status={
+                          <span
+                            data-mcp-status={service.status || 'offline'}
+                            className={cn(
+                              'flex items-center gap-1.5',
+                              attention && 'font-medium text-st-attn',
+                            )}
+                          >
+                            {attention && (
+                              <span
+                                aria-hidden="true"
+                                className="size-2 flex-none rounded-full bg-st-attn-fill"
+                              />
+                            )}
+                            {label}
+                          </span>
+                        }
+                        actions={
+                          <Switch
+                            checked={service.enabled}
+                            disabled={busy}
+                            aria-label={t('mcp:toggleServiceName', { name: service.name })}
+                            onCheckedChange={(enabled) => void toggleServer(service, enabled)}
+                          />
+                        }
+                        expanded={expandedId === service.id}
+                        onExpandedChange={(open) => setExpandedId(open ? service.id : '')}
+                        toggleLabel={t('mcp:toggleServiceDetails', { name: service.name })}
+                        detail={renderServiceDetail(service)}
+                      />
+                    )
+                  })}
+                </FeatureList>
+              ) : (
+                <InlineEmptyState
+                  icon={Server}
+                  title={t('mcp:noServerConfigured')}
+                  description={
+                    services.length
+                      ? undefined
+                      : t('mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer')
+                  }
+                />
+              )}
+            </FeatureSection>
+            <FeatureSection
+              className="mcp-tools-panel"
+              title={t('mcp:toolCapabilities')}
+              count={tools.length}
+              meta={
+                metrics.restrictedTools > 0 &&
+                t('mcp:toolSummary', { count: metrics.restrictedTools })
+              }
+            >
+              {tools.length ? (
+                <FeatureList>
+                  {tools.map((tool) => (
+                    <FeatureRow
+                      key={tool.piName}
+                      className="tool-row"
+                      data-mcp-tool={tool.piName}
+                      icon={<Wrench />}
+                      name={<span className="font-mono">{tool.name}</span>}
+                      description={
+                        <>
+                          <span className="font-mono">{tool.serviceName}</span>
+                          {tool.description && <> · {tool.description}</>}
+                        </>
+                      }
+                      // 风险写成文字（规格 6.1：红绿不用于状态）。
+                      status={mcpRiskLabel(tool.risk, t)}
+                      actions={
+                        <Switch
+                          checked={Boolean(tool.enabled)}
+                          disabled={busy || !tool.serviceEnabled}
+                          aria-label={t('mcp:toggleToolName', { name: tool.name })}
+                          onCheckedChange={(enabled) => void toggleTool(tool, enabled)}
+                        />
+                      }
+                    />
+                  ))}
+                </FeatureList>
+              ) : (
+                <InlineEmptyState compact icon={Wrench} title={t('mcp:noToolsAvailable')} />
+              )}
+            </FeatureSection>
+          </>
+        )
+      )}
+    </FeaturePage>
   )
 }

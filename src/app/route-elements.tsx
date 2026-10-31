@@ -219,9 +219,8 @@ export async function pluginsRoute() {
     const context = useAppRouteContext()
     return (
       <PluginsPage
-        query={context.query}
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
+        onBack={context.onBackToFeatures}
         requestText={context.requestText}
         requestConfirm={context.requestConfirm}
       />
@@ -256,9 +255,8 @@ export async function mcpRoute() {
     const context = useAppRouteContext()
     return (
       <McpPage
-        query={context.query}
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
+        onBack={context.onBackToFeatures}
         requestText={context.requestText}
         requestConfirm={context.requestConfirm}
       />
@@ -274,10 +272,9 @@ export async function skillsRoute() {
     const context = useAppRouteContext()
     return (
       <SkillsPage
-        query={context.query}
         activeSessionId={context.activeSessionId}
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
+        onBack={context.onBackToFeatures}
         requestText={context.requestText}
         requestConfirm={context.requestConfirm}
       />

@@ -370,7 +370,10 @@ test('the sidebar is the only primary navigation and windows keep the control co
     readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
     readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
   ])
-  const overview = await readFile('src/features/board/BoardPage.tsx', 'utf8')
+  const [overview, featurePage] = await Promise.all([
+    readFile('src/features/board/BoardPage.tsx', 'utf8'),
+    readFile('src/components/app/FeaturePage.tsx', 'utf8'),
+  ])
   // 外壳根节点按桥接能力标记自绘标题栏，窗口按钮只在这时挂载。
   assert.match(
     app,
@@ -394,6 +397,12 @@ test('the sidebar is the only primary navigation and windows keep the control co
   assert.match(
     overview,
     /\{!phone && <div data-window-drag-region aria-hidden="true" className="h-\[52px\] flex-none" \/>\}\s*<div\s+ref=\{scrollerRef\}\s+data-overview-scroller/,
+  )
+  // 功能页模板（A6，插件 / 技能 / MCP 起）：同样是一条没有控件的 52 拖拽区，“‹ 功能”、标题与工具行都在下方的
+  // 滚动区里，右上角 144px 天然空着；手机外壳由外壳顶栏代替这一条。
+  assert.match(
+    featurePage,
+    /\{!phone && <div data-window-drag-region aria-hidden="true" className="h-\[52px\] flex-none" \/>\}\s*<div\s+data-feature-scroller/,
   )
   // 三个 44px 窗口按钮叠在主区右上角：总宽 132px 落在 144px 预留区内。
   assert.match(

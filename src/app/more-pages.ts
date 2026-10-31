@@ -18,3 +18,10 @@ export const MORE_PAGES: ReadonlySet<string> = new Set([
   'mcp',
   'customComponentTool',
 ])
+
+// 已改用功能页模板（src/components/app/FeaturePage.tsx，规格 A6）的页面：页头、搜索与主操作都在页面自己的
+// 滚动区里，应用壳不再渲染共享页头（PageHeader）。A6 后面几批迁移一页就加一页，守卫逐页核对。
+export const FEATURE_TEMPLATE_PAGES: ReadonlySet<string> = new Set(['plugins', 'skills', 'mcp'])
+
+// 功能页模板里搜索框的 DOM id：外壳的“/ 聚焦搜索”在这些页上落到这里（同一时刻只挂一页）。
+export const FEATURE_SEARCH_INPUT_ID = 'feature-page-search'

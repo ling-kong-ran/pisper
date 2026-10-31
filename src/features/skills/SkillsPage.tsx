@@ -1,22 +1,24 @@
-import { PageFrame } from '@/components/app/PageFrame'
-import { ListDetailLayout } from '@/components/app/ListDetailLayout'
-import { InlineEmptyState } from '@/components/app/PageState'
-// 技能页：查看/安装/卸载 Agent 技能包，展示技能说明与封面。
-import { useCallback, useEffect, useState } from 'react'
-import { FileCode2, Image, Package, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
-import { useI18n } from '@/app/use-i18n'
+// 技能页（功能 › 扩展 › 技能）：查看 / 导入 / 卸载 Agent 技能，启停与触发条件，已配置的技能包。
+// 外形用功能页模板（规格 A6 第 1 批）：工具行放搜索、分类筛选与主操作“导入全局 Skill”；全局 / 项目技能与
+// 技能包都是列表行，点行在下方展开详情（原右侧检查器的内容）；数据流与改版前相同。
 import {
-  AppSwitch as Toggle,
-  SegmentedTabs as Segmented,
-  StatusBadge as Badge,
-  AppEmptyState,
-} from '@/components/ui/app-primitives'
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { useCallback, useEffect, useState } from 'react'
+import { FileCode2, Image, Package, Plus, Save, Sparkles, Trash2, Wrench } from 'lucide-react'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
+import { useI18n } from '@/app/use-i18n'
+import { AppSwitch as Toggle, SegmentedTabs as Segmented } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { OrbitSpinner } from '@/components/ui/spinner'
-import { cn } from '@/lib/utils'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { apiJson } from '@/lib/api'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { EntityRecord } from '@/types/chat'
@@ -41,9 +43,9 @@ type SkillsData = EntityRecord & {
 }
 type SkillsPageProps = {
   notify: Notify
-  query?: string
   activeSessionId?: string
-  registerPrimaryAction: (action: () => void) => () => void
+  // 从功能进入时由应用壳提供：标题上方的“‹ 功能”。
+  onBack?: () => void
   requestText?: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
@@ -59,16 +61,9 @@ const SKILL_FILTERS: SkillFilter[] = [
   'privileged',
 ]
 
-// 卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
-const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
-const CARD_HEAD =
-  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
-const ICON_KEY =
-  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
-const SELECTED_TICK = 'absolute inset-y-2.5 left-0 w-[3px] rounded-r-[3px] bg-star'
-// 只读键值行：左侧弱化标签，右侧值单行省略。
-const KEY_VALUE =
-  'key-value flex min-h-[34px] min-w-0 items-center justify-between gap-4 border-t border-stroke-soft text-sm [&>dt]:shrink-0 [&>dt]:text-content-muted [&>dd]:min-w-0 [&>dd]:truncate [&>dd]:text-right [&>dd]:text-content'
+// 展开详情里的只读键值：左侧弱化标签，右侧值可换行（路径、来源很长）。
+const KEY_VALUES =
+  'grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-content-soft [&_dt]:text-content-muted [&>div]:contents'
 
 function skillsApiPath(path: string, activeSessionId = '') {
   if (!activeSessionId) return path
@@ -113,30 +108,30 @@ function skillMatchesFilter(skill: Skill, filter: SkillFilter) {
 
 export function SkillsPage({
   notify,
-  query = '',
   activeSessionId = '',
-  registerPrimaryAction,
+  onBack,
   requestText,
   requestConfirm,
 }: SkillsPageProps) {
-  const [detailOpen, setDetailOpen] = useState(false)
-
   const { t } = useI18n()
+  const searchShortcut = useShortcutLabel('focusSearch')
+  const [query, setQuery] = useState('')
   const [data, setData] = useState<SkillsData | null>(null)
-  const [selectedId, setSelectedId] = useState('')
+  // 展开详情的技能（同一时刻只展开一行，原右侧检查器的“选中技能”）。
+  const [expandedId, setExpandedId] = useState('')
   const [filter, setFilter] = useState<SkillFilter>('all')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [, setError] = useState('')
+  const [error, setError] = useState('')
 
-  // 加载技能列表（按活动会话作用域取项目技能），失效选中回退首项。
+  // 加载技能列表（按活动会话作用域取项目技能）；展开的技能不存在了就收起。
   const load = useCallback(async () => {
     setError('')
     try {
       const result = await apiJson<SkillsData>(skillsApiPath('/api/skills', activeSessionId))
       setData(result)
-      setSelectedId((current) =>
-        result.skills.some((skill) => skill.id === current) ? current : result.skills[0]?.id || '',
+      setExpandedId((current) =>
+        result.skills.some((skill) => skill.id === current) ? current : '',
       )
       return result
     } catch (caught) {
@@ -151,7 +146,7 @@ export function SkillsPage({
     void load()
   }, [load])
 
-  // 安装技能：询问来源 → 风险确认 → POST 安装并选中新技能；
+  // 安装技能：询问来源 → 风险确认 → POST 安装并展开新技能；
   // 来源支持本地路径/npm 包/GitHub 仓库。
   const installSkill = useCallback(async () => {
     const source = await requestText?.({
@@ -183,7 +178,7 @@ export function SkillsPage({
         },
       )
       setData(result)
-      setSelectedId(result.installed?.[0]?.id || result.skills[0]?.id || '')
+      setExpandedId(result.installed?.[0]?.id || '')
       notify(t('skills:skillsPage.skillInstalledAndLoadedIntoTheAgentRuntime'), 'success')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -194,32 +189,17 @@ export function SkillsPage({
     }
   }, [activeSessionId, notify, requestConfirm, requestText, t])
 
-  usePagePrimaryAction(registerPrimaryAction, installSkill)
-
-  if (loading && !data) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <AppEmptyState>
-          <OrbitSpinner className="size-5" />
-          <h2>{t('skills:skillsPage.loadingSkills')}</h2>
-          <p>{t('skills:skillsPage.scanningSkillDirectoriesAndConfiguredPackages')}</p>
-        </AppEmptyState>
-      </div>
-    )
-  }
-
   const skills = data?.skills || []
+  const normalizedQuery = query.trim().toLowerCase()
   const filteredSkills = skills.filter(
     (skill) =>
       skillMatchesFilter(skill, filter) &&
-      `${skill.name} ${skill.description}`.toLowerCase().includes(query.toLowerCase()),
+      `${skill.name} ${skill.description}`.toLowerCase().includes(normalizedQuery),
   )
   const allGlobalSkills = skills.filter((skill) => skill.sourceInfo?.scope !== 'project')
   const allProjectSkills = skills.filter((skill) => skill.sourceInfo?.scope === 'project')
   const globalSkills = filteredSkills.filter((skill) => skill.sourceInfo?.scope !== 'project')
   const projectSkills = filteredSkills.filter((skill) => skill.sourceInfo?.scope === 'project')
-  const selected =
-    skills.find((skill) => skill.id === selectedId) || filteredSkills[0] || skills[0] || null
   const packages = (data?.packages || [])
     .map((item) => ({
       source: item.source,
@@ -230,11 +210,8 @@ export function SkillsPage({
       status: item.installed
         ? t('skills:skillsPage.locallyReady')
         : t('skills:skillsPage.notMaterialized'),
-      tone: item.installed ? 'green' : 'gray',
     }))
-    .filter((item) =>
-      `${item.source} ${item.description}`.toLowerCase().includes(query.toLowerCase()),
-    )
+    .filter((item) => `${item.source} ${item.description}`.toLowerCase().includes(normalizedQuery))
 
   // 更新技能（启停/模型调用等）：PATCH 并就地更新列表与统计。
   const updateSkill = async (skill: Skill | null, patch: Partial<Skill>) => {
@@ -290,8 +267,8 @@ export function SkillsPage({
   }
 
   // 卸载技能（确认后），仅可移除的（非内置）技能可卸载。
-  const uninstallSkill = async () => {
-    if (!selected?.removable) return
+  const uninstallSkill = async (skill: Skill) => {
+    if (!skill.removable) return
     const approved = await requestConfirm?.({
       title: t('skills:skillsPage.uninstallSkill'),
       message: t(
@@ -304,12 +281,11 @@ export function SkillsPage({
     setBusy(true)
     setError('')
     try {
-      await apiJson(
-        skillsApiPath(`/api/skills/${encodeURIComponent(selected.id)}`, activeSessionId),
-        { method: 'DELETE' },
-      )
-      const result = await load()
-      setSelectedId(result?.skills[0]?.id || '')
+      await apiJson(skillsApiPath(`/api/skills/${encodeURIComponent(skill.id)}`, activeSessionId), {
+        method: 'DELETE',
+      })
+      await load()
+      setExpandedId('')
       notify(t('skills:skillsPage.skillUninstalled'), 'success')
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
@@ -320,6 +296,111 @@ export function SkillsPage({
     }
   }
 
+  // 展开详情：完整说明、触发方式 / 权限 / 范围 / 版本 / 来源、触发条件，底部卸载或保存设置。
+  const renderSkillDetail = (skill: Skill) => (
+    <div className="skill-detail grid gap-3">
+      <p className="text-sm leading-relaxed whitespace-pre-line text-content-soft">
+        {skill.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
+      </p>
+      <dl className={KEY_VALUES}>
+        {(
+          [
+            [
+              t('skills:skillsPage.triggerMode'),
+              skill.modelInvocationEnabled
+                ? t('skills:skillsPage.automaticManual')
+                : t('skills:skillsPage.manualOnly'),
+              false,
+            ],
+            [
+              t('skills:skillsPage.permissions'),
+              skill.allowedTools?.length
+                ? skill.allowedTools.join(', ')
+                : t('skills:skillsPage.usesChatToolPermissions'),
+              Boolean(skill.allowedTools?.length),
+            ],
+            [
+              t('skills:skillsPage.scope'),
+              skill.sourceInfo?.scope === 'project'
+                ? t('skills:skillsPage.project')
+                : t('skills:skillsPage.global'),
+              false,
+            ],
+            [t('skills:skillsPage.version'), skill.version || 'latest', true],
+            [t('skills:skillsPage.source'), skill.source || '—', true],
+          ] as Array<[string, string, boolean]>
+        ).map(([label, value, mono]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd className={mono ? 'font-mono' : undefined}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <fieldset className="grid min-w-0 gap-0.5">
+        <legend className="mb-1 text-xs font-medium text-content-muted">
+          {t('skills:skillsPage.triggerConditions')}
+        </legend>
+        {(
+          [
+            [
+              t('skills:skillsPage.allowAutomaticModelInvocation'),
+              Boolean(skill.modelInvocationEnabled),
+              false,
+              (checked) => void updateSkill(skill, { modelInvocationEnabled: checked }),
+            ],
+            [t('skills:skillsPage.supportManualSkillCommand'), Boolean(skill.command), true],
+            [
+              t('skills:skillsPage.projectScopedSkill'),
+              skill.sourceInfo?.scope === 'project',
+              true,
+            ],
+            [
+              t('skills:skillsPage.declaresRequiredTools'),
+              Boolean(skill.allowedTools?.length),
+              true,
+            ],
+          ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
+        ).map(([item, checked, disabled, onChange]) => (
+          <label
+            key={item}
+            className="check-row flex min-h-8 items-center gap-2.5 text-sm text-content has-disabled:text-content-muted max-[650px]:min-h-11"
+          >
+            <Checkbox
+              checked={checked}
+              disabled={busy || disabled}
+              onCheckedChange={(next) => onChange?.(next === true)}
+            />
+            <span>{item}</span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="flex justify-end">
+        {skill.removable ? (
+          <Button
+            variant="ghost"
+            className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+            disabled={busy}
+            onClick={() => void uninstallSkill(skill)}
+          >
+            <Trash2 />
+            {t('skills:skillsPage.uninstallSkill')}
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            className="max-[650px]:h-11"
+            loading={busy}
+            disabled={busy}
+            onClick={saveSettings}
+          >
+            <Save />
+            {t('skills:skillsPage.saveSettings')}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
   const renderSkillScope = (
     title: string,
     scopedSkills: Skill[],
@@ -327,85 +408,90 @@ export function SkillsPage({
     emptyMessage: string,
     workspace = '',
   ) => (
-    <section className="skill-scope min-w-0 [.skill-scope+&]:mt-3 [.skill-scope+&]:border-t [.skill-scope+&]:border-stroke-soft [.skill-scope+&]:pt-2">
-      {/* 分组标题 12/500 弱化文字 + 等宽目录与计数。 */}
-      <div className="skill-scope-head flex min-w-0 items-end justify-between gap-2.5 px-1 pt-1.5 pb-1.5">
-        <div className="min-w-0">
-          <h2 className="text-xs font-medium tracking-[.02em] text-content-muted">{title}</h2>
-          {workspace && (
-            <small
-              className="block truncate font-mono text-xs text-content-muted"
-              title={workspace}
-            >
-              {workspace}
-            </small>
-          )}
-        </div>
-        <span className="shrink-0 text-xs text-content-muted tabular-nums">
-          {scopedSkills.length}
-        </span>
-      </div>
+    <FeatureSection
+      className="skill-scope"
+      title={title}
+      count={scopedSkills.length}
+      // 技能所在目录：等宽、可换行，路径很长时不撑破一列。
+      description={workspace && <span className="font-mono">{workspace}</span>}
+    >
       {scopedSkills.length ? (
-        <ul className="flex flex-col gap-0.5">
+        <FeatureList>
           {scopedSkills.map((skill) => {
             const Icon = skillIcon(skill)
-            const active = selected?.id === skill.id
             return (
-              <li
-                className={cn(
-                  'skill-row relative grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md pr-2.5 transition-colors duration-(--d-fast) hover:bg-surface-subtle',
-                  active && 'selected bg-surface-muted hover:bg-surface-muted',
-                )}
+              <FeatureRow
                 key={skill.id}
-              >
-                {active && <i aria-hidden="true" className={SELECTED_TICK} />}
-                <button
-                  type="button"
-                  aria-current={active || undefined}
-                  className="skill-row-main grid min-h-[56px] min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-2 pl-3 text-left focus-visible:-outline-offset-2 [&_small]:text-xs [&_small]:leading-[1.45] [&_small]:text-content-muted"
-                  onClick={() => {
-                    setDetailOpen(true)
-                    setSelectedId(skill.id)
-                  }}
-                >
-                  <span className={ICON_KEY}>
-                    <Icon />
-                  </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <strong className="truncate font-mono text-[13px] font-medium text-content">
-                      {skill.name}
-                    </strong>
-                    <small className="line-clamp-2" title={skill.description}>
-                      {skill.description}
-                    </small>
-                  </span>
-                </button>
-                <Toggle
-                  value={skill.enabled}
-                  disabled={busy}
-                  ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
-                  onChange={(enabled) => void updateSkill(skill, { enabled })}
-                />
-              </li>
+                className="skill-row"
+                data-skill-row={skill.id}
+                icon={<Icon />}
+                name={<span className="font-mono">{skill.name}</span>}
+                // 行里只放摘要（最多两行），完整说明在展开的详情里。
+                description={skill.description}
+                actions={
+                  <Toggle
+                    value={skill.enabled}
+                    disabled={busy}
+                    ariaLabel={t('skills:skillsPage.toggleSkillName', { name: skill.name })}
+                    onChange={(enabled) => void updateSkill(skill, { enabled })}
+                  />
+                }
+                expanded={expandedId === skill.id}
+                onExpandedChange={(open) => setExpandedId(open ? skill.id : '')}
+                toggleLabel={t('skills:skillsPage.toggleSkillDetails', { name: skill.name })}
+                detail={renderSkillDetail(skill)}
+              />
             )
           })}
-        </ul>
+        </FeatureList>
       ) : (
-        <p className="skills-empty-copy px-1 py-2 text-xs leading-normal text-content-muted">
+        <p className="skills-empty-copy border-t border-stroke py-3 text-xs leading-normal text-content-muted">
           {allScopedSkills.length
             ? t('skills:skillsPage.noSkillsMatchTheCurrentFilter')
             : emptyMessage}
         </p>
       )}
-    </section>
+    </FeatureSection>
   )
 
+  const title = t('navigation:navigation.skills')
   return (
-    <PageFrame variant="list-detail">
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col">
-          {/* 筛选条位于列表/详情之上，细线分隔；分段控件横向可滚动，不撑破窄屏。 */}
-          <div className="shrink-0 border-b border-stroke-soft px-3 py-2.5 @min-[760px]/page:px-4">
+    <FeaturePage
+      title={title}
+      description={t('skills:skillsPage.lede')}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('navigation:pageHeader.searchPage', { page: title })}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
+          actions={
+            // 主操作（原共享页头的“导入全局 Skill”）。
+            <Button
+              type="button"
+              className="h-9"
+              data-skills-install
+              disabled={busy || !data}
+              onClick={() => void installSkill()}
+            >
+              <Plus />
+              {t('navigation:pageHeader.installSkill')}
+            </Button>
+          }
+          filters={
             <Segmented
               options={SKILL_FILTERS.map((item) => skillFilterLabel(item, t))}
               value={skillFilterLabel(filter, t)}
@@ -415,216 +501,99 @@ export function SkillsPage({
                 )
               }
             />
-          </div>
-          <ListDetailLayout
-            selected={detailOpen}
-            onBack={() => setDetailOpen(false)}
-            backLabel={t('common:pageTemplate.backToList')}
-            list={
-              <div className="min-w-0">
-                <Button
-                  variant="secondary"
-                  className="mb-3 h-11 w-full @min-[760px]/list-detail:hidden"
-                  onClick={() => setDetailOpen(true)}
-                >
-                  <Package />
-                  {t('skills:skillsPage.configuredSkillPackages')}
-                </Button>
-                {filter !== 'project' &&
-                  renderSkillScope(
-                    t('skills:skillsPage.globalSkills'),
-                    globalSkills,
-                    allGlobalSkills,
-                    t('skills:skillsPage.noGlobalSkills'),
-                    data?.locations?.global || '~/.pisper/agent/skills',
-                  )}
-                {filter !== 'global' &&
-                  renderSkillScope(
-                    t('skills:skillsPage.projectSkills'),
-                    projectSkills,
-                    allProjectSkills,
-                    t('skills:skillsPage.noProjectSkills'),
-                    data?.locations?.project ||
-                      (data?.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
-                  )}
-              </div>
-            }
-            detail={
-              <section className={CARD}>
-                <header className={CARD_HEAD}>
-                  <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
-                    {t('skills:skillsPage.configuredSkillPackages')}
-                    <span className="font-normal text-content-muted tabular-nums">
-                      {packages.length}
-                    </span>
-                  </h2>
-                </header>
-                {packages.length ? (
-                  <ul className="divide-y divide-stroke-soft">
-                    {packages.map((item) => (
-                      <li
-                        className="market-row grid min-h-[52px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 pr-3.5 pl-3.5"
-                        key={item.source}
-                      >
-                        <span className={ICON_KEY}>
-                          <Package />
-                        </span>
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <strong
-                            className="truncate font-mono text-xs font-medium text-content"
-                            title={item.source}
-                          >
-                            {item.source}
-                          </strong>
-                          <small className="truncate text-xs text-content-muted">
-                            {item.description}
-                          </small>
-                        </span>
-                        <Badge tone={item.tone as 'green' | 'gray'}>{item.status}</Badge>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <InlineEmptyState
-                    compact
-                    icon={Package}
-                    title={t(
-                      'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
-                    )}
+          }
+        />
+      }
+    >
+      {loading && !data ? (
+        <PageState
+          kind="loading"
+          title={t('skills:skillsPage.loadingSkills')}
+          description={t('skills:skillsPage.scanningSkillDirectoriesAndConfiguredPackages')}
+        />
+      ) : !data ? (
+        // 读取失败不显示成“没有技能”：写明错误并给重试（规格 1.5 诚实降级）。
+        <PageState
+          kind="error"
+          title={t('skills:skillsPage.loadingSkills')}
+          description={error}
+          action={
+            <Button
+              variant="secondary"
+              className="max-[650px]:h-11"
+              loading={loading}
+              disabled={loading}
+              onClick={() => {
+                setLoading(true)
+                void load()
+              }}
+            >
+              {t('common:pageTemplate.retry')}
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          {/* 读取成功后的操作失败（启停、保存、卸载）：写在列表上方，不再静默吞掉。 */}
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
+            >
+              {error}
+            </p>
+          )}
+          {filter !== 'project' &&
+            renderSkillScope(
+              t('skills:skillsPage.globalSkills'),
+              globalSkills,
+              allGlobalSkills,
+              t('skills:skillsPage.noGlobalSkills'),
+              data.locations?.global || '~/.pisper/agent/skills',
+            )}
+          {filter !== 'global' &&
+            renderSkillScope(
+              t('skills:skillsPage.projectSkills'),
+              projectSkills,
+              allProjectSkills,
+              t('skills:skillsPage.noProjectSkills'),
+              data.locations?.project ||
+                (data.cwd ? `${data.cwd.replace(/[\\/]$/, '')}/.pisper/skills` : ''),
+            )}
+          <FeatureSection
+            className="skill-packages"
+            title={t('skills:skillsPage.configuredSkillPackages')}
+            count={packages.length}
+          >
+            {packages.length ? (
+              <FeatureList>
+                {packages.map((item) => (
+                  <FeatureRow
+                    key={item.source}
+                    className="market-row"
+                    icon={<Package />}
+                    name={
+                      <span className="font-mono" title={item.source}>
+                        {item.source}
+                      </span>
+                    }
+                    description={item.description}
+                    status={item.status}
                   />
+                ))}
+              </FeatureList>
+            ) : (
+              <InlineEmptyState
+                compact
+                icon={Package}
+                title={t(
+                  'skills:skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere',
                 )}
-              </section>
-            }
-            inspector={
-              <div className="flex min-w-0 flex-col gap-4">
-                <section className={CARD}>
-                  <header className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-2.5">
-                    <small className="text-xs font-medium tracking-[.02em] text-content-muted">
-                      {t('skills:skillsPage.selectedSkill')}
-                    </small>
-                    <h2
-                      className={cn(
-                        'truncate text-[15px] leading-6 font-medium text-content',
-                        selected && 'font-mono',
-                      )}
-                    >
-                      {selected?.name || t('skills:skillsPage.noSkillAvailable')}
-                    </h2>
-                    <p className="text-xs leading-normal text-content-secondary">
-                      {selected?.description || t('skills:skillsPage.addGlobalOrProjectSkill')}
-                    </p>
-                  </header>
-                  <dl className="px-3.5">
-                    {(
-                      [
-                        [
-                          t('skills:skillsPage.triggerMode'),
-                          selected?.modelInvocationEnabled
-                            ? t('skills:skillsPage.automaticManual')
-                            : t('skills:skillsPage.manualOnly'),
-                          false,
-                        ],
-                        [
-                          t('skills:skillsPage.permissions'),
-                          selected?.allowedTools?.length
-                            ? selected.allowedTools.join(', ')
-                            : t('skills:skillsPage.usesChatToolPermissions'),
-                          Boolean(selected?.allowedTools?.length),
-                        ],
-                        [
-                          t('skills:skillsPage.scope'),
-                          selected?.sourceInfo?.scope === 'project'
-                            ? t('skills:skillsPage.project')
-                            : t('skills:skillsPage.global'),
-                          false,
-                        ],
-                        [t('skills:skillsPage.version'), selected?.version || 'latest', true],
-                        [t('skills:skillsPage.source'), selected?.source || '—', true],
-                      ] as Array<[string, string, boolean]>
-                    ).map(([label, value, mono]) => (
-                      <div className={KEY_VALUE} key={label}>
-                        <dt>{label}</dt>
-                        <dd className={mono ? 'font-mono text-xs' : undefined} title={value}>
-                          {value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <footer className="flex justify-end border-t border-stroke-soft bg-surface-subtle px-3.5 py-2.5">
-                    {selected?.removable ? (
-                      <Button
-                        variant="ghost"
-                        className="text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
-                        disabled={busy}
-                        onClick={uninstallSkill}
-                      >
-                        <Trash2 />
-                        {t('skills:skillsPage.uninstallSkill')}
-                      </Button>
-                    ) : (
-                      <Button
-                        className="max-[650px]:h-11"
-                        loading={busy}
-                        disabled={busy}
-                        onClick={saveSettings}
-                      >
-                        <Save />
-                        {t('skills:skillsPage.saveSettings')}
-                      </Button>
-                    )}
-                  </footer>
-                </section>
-                <section className={CARD}>
-                  <header className={CARD_HEAD}>
-                    <h2 className="text-sm font-medium text-content">
-                      {t('skills:skillsPage.triggerConditions')}
-                    </h2>
-                  </header>
-                  <ul className="divide-y divide-stroke-soft">
-                    {(
-                      [
-                        [
-                          t('skills:skillsPage.allowAutomaticModelInvocation'),
-                          Boolean(selected?.modelInvocationEnabled),
-                          false,
-                          (checked) =>
-                            void updateSkill(selected, { modelInvocationEnabled: checked }),
-                        ],
-                        [
-                          t('skills:skillsPage.supportManualSkillCommand'),
-                          Boolean(selected?.command),
-                          true,
-                        ],
-                        [
-                          t('skills:skillsPage.projectScopedSkill'),
-                          selected?.sourceInfo?.scope === 'project',
-                          true,
-                        ],
-                        [
-                          t('skills:skillsPage.declaresRequiredTools'),
-                          Boolean(selected?.allowedTools?.length),
-                          true,
-                        ],
-                      ] as Array<[string, boolean, boolean, ((checked: boolean) => void)?]>
-                    ).map(([item, checked, disabled, onChange]) => (
-                      <li key={item}>
-                        <label className="check-row flex min-h-[40px] items-center gap-2.5 px-3.5 text-sm text-content has-disabled:text-content-muted max-[650px]:min-h-11">
-                          <Checkbox
-                            checked={checked}
-                            disabled={!selected || busy || disabled}
-                            onCheckedChange={(next) => onChange?.(next === true)}
-                          />
-                          <span>{item}</span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </div>
-            }
-          />
-        </div>
-      </div>
-    </PageFrame>
+              />
+            )}
+          </FeatureSection>
+        </>
+      )}
+    </FeaturePage>
   )
 }

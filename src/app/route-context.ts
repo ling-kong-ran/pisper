@@ -40,4 +40,6 @@ export type AppRouteContext = {
   registerWorkflowActions: (actions: WorkflowActions) => () => void
   // 新任务：看板桌面版由启动台认领并聚焦，其余情况（含手机看板）由应用壳打开派发浮层。
   startNewTask: () => void
+  // 当前页属于“功能”时提供：功能页模板在标题上方渲染“‹ 功能”（规格 2.4），点它回到功能索引。
+  onBackToFeatures?: () => void
 }

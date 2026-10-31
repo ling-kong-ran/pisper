@@ -1,4 +1,5 @@
 // 页头：48px 面包屑顶栏（所属入口 / 当前页）+ 搜索框 + 主操作按钮 + 终端等工具。
+// A6 起逐批退役：已改用功能页模板（src/components/app/FeaturePage.tsx，FEATURE_TEMPLATE_PAGES）的页面不再渲染它。
 // 主题切换不在页头（规格 v2 第 2.5 节）：设置 › 界面与 ⌘K“切换主题”。
 // 设置分区在顶栏下方另起 20/600 页标题；手机宽度与看板、更多同一套页头：56px 行内左对齐的 24/650 标题
 // + 12px 说明，从“更多”进入时左侧是 44px 的“‹ 更多”文字返回键；下面一行是搜索与主操作。
@@ -89,10 +90,7 @@ export function PageHeader({
     channels: [t('navigation:pageHeader.connectChannel'), Plus],
     schedules: [t('navigation:pageHeader.newTask'), Plus],
     config: [t('navigation:pageHeader.quickSetup'), Plus],
-    plugins: [t('navigation:pageHeader.savePolicy'), Save],
     memory: [t('navigation:pageHeader.addMemory'), Plus],
-    mcp: [t('navigation:pageHeader.addService'), Plus],
-    skills: [t('navigation:pageHeader.installSkill'), Plus],
     workflows: [t('navigation:pageHeader.newWorkflow'), Plus],
     workflowCreate: [t('navigation:pageHeader.publish'), Rocket],
   }
@@ -240,11 +238,9 @@ export function PageHeader({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={
-                  page === 'mcp'
-                    ? t('navigation:pageHeader.searchServicesOrTools')
-                    : page === 'memory'
-                      ? t('navigation:pageHeader.searchMemoriesOrFiles')
-                      : t('navigation:pageHeader.searchPage', { page: meta[0] })
+                  page === 'memory'
+                    ? t('navigation:pageHeader.searchMemoriesOrFiles')
+                    : t('navigation:pageHeader.searchPage', { page: meta[0] })
                 }
               />
               {searchShortcut && !query && (

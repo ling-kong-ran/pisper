@@ -1,19 +1,28 @@
-import { PageFrame } from '@/components/app/PageFrame'
-import { PageToolbar } from '@/components/app/PageToolbar'
-import { InlineEmptyState } from '@/components/app/PageState'
-// 插件页：浏览/启停/卸载工具插件，展示启用统计与状态。
+// 插件页（功能 › 扩展 › 插件）：浏览 / 启停 / 卸载工具插件，配置 Web 搜索，安装 Pi Extension。
+// 外形用功能页模板（规格 A6 第 1 批）：工具行放搜索、来源筛选与主操作“保存策略”，工具与扩展都是列表行，
+// 行内展开详情；数据流（草稿 → 保存策略、卸载前先保存）与改版前相同。
+import {
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { InlineEmptyState, PageState } from '@/components/app/PageState'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
-  ChevronDown,
   Eye,
   ExternalLink,
   FileCode2,
   FolderOpen,
   Globe2,
   Image,
+  Package,
   PackagePlus,
   Plug,
+  Save,
   Search,
   Server,
   ShieldAlert,
@@ -23,9 +32,7 @@ import { AppSelect } from '@/components/AppSelect'
 import {
   AppSwitch as Toggle,
   SegmentedTabs as Segmented,
-  StatusBadge as Badge,
   AppError,
-  AppEmptyState,
 } from '@/components/ui/app-primitives'
 import {
   AlertDialog,
@@ -39,8 +46,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import { apiJson } from '@/lib/api'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
@@ -69,9 +77,9 @@ import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 type PluginsPageProps = {
-  query?: string
   notify: Notify
-  registerPrimaryAction: (action: () => void) => () => void
+  // 从功能进入时由应用壳提供：标题上方的“‹ 功能”。
+  onBack?: () => void
   requestText?: (options?: PromptDialogOptions) => Promise<string | null>
   requestConfirm?: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
@@ -123,14 +131,6 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   browser_automation: Globe2,
   generate_visual: Image,
 }
-
-// 目录卡片：1px 描边 + r-md，无投影；卡片头位于次级表面，13/500 标题 + 等宽计数。
-const CARD = 'min-w-0 overflow-hidden rounded-md border border-stroke bg-panel'
-const CARD_HEAD =
-  'flex min-h-11 min-w-0 items-center justify-between gap-3 border-b border-stroke-soft bg-surface-subtle px-3.5 py-1.5'
-// 单色键帽图标：工具类别靠图形区分，不用彩色底。
-const ICON_KEY =
-  'grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key [&_svg]:size-3.5'
 
 function sourceLabel(source: SourceFilter, t: ReturnType<typeof useI18n>['t']) {
   if (source === 'builtin') return t('plugins:pluginsPage.builtIn')
@@ -209,7 +209,7 @@ function WebSearchEditor({
 }) {
   const { t } = useI18n()
   return (
-    <div className="plugin-tool-config grid gap-2.5 border-t border-stroke-soft pt-3 [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
+    <div className="plugin-tool-config grid gap-2.5 border-t border-stroke pt-3 [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label>
           {t('plugins:pluginsPage.defaultLanguage')}
@@ -371,34 +371,68 @@ function ExtensionMarket({
   })).filter((group) => group.items.length > 0)
 
   return (
-    <section className={cn('plugin-market mt-4', CARD)}>
-      <header className={cn(CARD_HEAD, 'flex-wrap')}>
-        <h2 className="text-sm font-medium text-content">
-          {t('plugins:pluginsPage.extensionMarket')}
-        </h2>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button asChild variant="ghost" size="sm" className="max-[650px]:h-11">
-            <a href="https://pi.dev/packages" target="_blank" rel="noreferrer">
-              <ExternalLink />
-              {t('plugins:pluginsPage.openPackageCatalog')}
-            </a>
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="max-[650px]:h-11"
-            onClick={installCustom}
-            disabled={Boolean(busy)}
-          >
-            <PackagePlus />
-            {t('plugins:pluginsPage.installExtension')}
-          </Button>
-        </div>
-      </header>
-      <div className="grid gap-3 p-3.5">
+    <>
+      {/* 已安装的 Extension 按资源类型分组（工具 / Prompt / Skill），每个都是一行，右侧“卸载”。 */}
+      {installedGroups.map((group) => (
+        <FeatureSection
+          key={group.type}
+          className="plugin-installed-extensions"
+          title={`${t('plugins:pluginsPage.installedExtensions')} · ${extensionResourceLabel(group.type, t)}`}
+          count={group.items.length}
+        >
+          <FeatureList>
+            {group.items.map((item) => (
+              <FeatureRow
+                key={`${group.type}:${item.scope}:${item.source}`}
+                icon={<Package />}
+                name={<span className="font-mono">{item.name}</span>}
+                nameMeta={`v${item.version}`}
+                description={<span className="font-mono text-xs">{item.source}</span>}
+                actions={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-content-muted hover:bg-danger-soft hover:text-danger"
+                    loading={busy === item.source}
+                    disabled={Boolean(busy)}
+                    onClick={() => void uninstall(item)}
+                  >
+                    <Trash2 />
+                    {t('plugins:pluginsPage.uninstallExtension')}
+                  </Button>
+                }
+              />
+            ))}
+          </FeatureList>
+        </FeatureSection>
+      ))}
+      <FeatureSection
+        className="plugin-market"
+        title={t('plugins:pluginsPage.extensionMarket')}
+        actions={
+          <>
+            <Button asChild variant="ghost" size="sm">
+              <a href="https://pi.dev/packages" target="_blank" rel="noreferrer">
+                <ExternalLink />
+                {t('plugins:pluginsPage.openPackageCatalog')}
+              </a>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={installCustom}
+              disabled={Boolean(busy)}
+            >
+              <PackagePlus />
+              {t('plugins:pluginsPage.installExtension')}
+            </Button>
+          </>
+        }
+      >
         <form
-          className="flex min-w-0 gap-2"
+          className="mb-3 flex min-w-0 gap-2"
           onSubmit={(event) => {
             event.preventDefault()
             void load(marketQuery)
@@ -423,85 +457,29 @@ function ExtensionMarket({
           </Button>
         </form>
         {marketError && (
-          <p role="alert" className="text-xs text-danger">
+          <p role="alert" className="mb-3 text-xs text-danger">
             {marketError}
           </p>
         )}
-        {installedGroups.length > 0 && (
-          <div className="grid gap-2">
-            <h3 className="text-xs font-medium tracking-[.02em] text-content-muted">
-              {t('plugins:pluginsPage.installedExtensions')}
-            </h3>
-            {installedGroups.map((group) => (
-              <section
-                className="overflow-hidden rounded-md border border-stroke-soft"
-                key={group.type}
-              >
-                <h4 className="border-b border-stroke-soft bg-surface-subtle px-3 py-1.5 text-xs font-medium text-content-secondary">
-                  {extensionResourceLabel(group.type, t)}
-                </h4>
-                <ul className="divide-y divide-stroke-soft">
-                  {group.items.map((item) => (
-                    <li
-                      className="flex min-w-0 items-center justify-between gap-2 py-1.5 pr-1.5 pl-3"
-                      key={`${group.type}:${item.scope}:${item.source}`}
-                    >
-                      <span className="min-w-0">
-                        <strong className="block truncate font-mono text-xs font-medium text-content">
-                          {item.name}
-                        </strong>
-                        <small className="block truncate font-mono text-xs text-content-muted">
-                          {item.source} · v{item.version}
-                        </small>
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
-                        loading={busy === item.source}
-                        disabled={Boolean(busy)}
-                        onClick={() => void uninstall(item)}
-                      >
-                        <Trash2 />
-                        {t('plugins:pluginsPage.uninstallExtension')}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
         {visiblePackages.length > 0 && (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(230px,100%),1fr))] gap-2">
+          // 目录结果也是列表行（不是卡片墙）：名称、说明（最多两行）、发布日期，右侧“安装 / 已安装”。
+          <FeatureList>
             {visiblePackages.slice(0, 12).map((item: EntityRecord) => {
               const isInstalled = installed.some(
                 (entry) => entry.name === item.name || entry.source === `npm:${item.name}`,
               )
               return (
-                <li
-                  className="grid min-w-0 content-start gap-1.5 rounded-md border border-stroke bg-panel p-3"
+                <FeatureRow
                   key={item.name}
-                >
-                  <strong
-                    className="truncate font-mono text-xs font-medium text-content"
-                    title={item.name}
-                  >
-                    {item.name}
-                  </strong>
-                  <p className="line-clamp-3 min-h-[54px] text-xs leading-[1.5] text-content-secondary">
-                    {item.description}
-                  </p>
-                  <div className="flex items-center justify-between gap-2">
-                    <small className="text-xs text-content-muted tabular-nums">
-                      {item.published}
-                    </small>
+                  icon={<Package />}
+                  name={<span className="font-mono">{item.name}</span>}
+                  description={item.description}
+                  status={item.published}
+                  actions={
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      className="max-[650px]:h-11"
                       loading={busy === item.name}
                       disabled={isInstalled || Boolean(busy)}
                       onClick={() => void install(item.name)}
@@ -510,28 +488,24 @@ function ExtensionMarket({
                         ? t('plugins:pluginsPage.installed')
                         : t('plugins:pluginsPage.installExtension')}
                     </Button>
-                  </div>
-                </li>
+                  }
+                />
               )
             })}
-          </ul>
+          </FeatureList>
         )}
-      </div>
-    </section>
+      </FeatureSection>
+    </>
   )
 }
 
-export function PluginsPage({
-  query = '',
-  notify,
-  registerPrimaryAction,
-  requestText,
-  requestConfirm,
-}: PluginsPageProps) {
+export function PluginsPage({ notify, onBack, requestText, requestConfirm }: PluginsPageProps) {
   const { t } = useI18n()
+  const searchShortcut = useShortcutLabel('focusSearch')
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const customPluginsAvailable = runtimeFeatureAvailable(capabilities, 'plugins')
   const sourceFilters = customPluginsAvailable ? SOURCE_FILTERS : SOURCE_FILTERS.slice(0, 2)
+  const [query, setQuery] = useState('')
   const [data, setData] = useState<PluginsData | null>(null)
   const [draft, setDraft] = useState<InstalledPlugin[]>([])
   const [expandedName, setExpandedName] = useState('')
@@ -548,6 +522,7 @@ export function PluginsPage({
   const [removeTarget, setRemoveTarget] = useState<ToolEntry | null>(null)
   const [removing, setRemoving] = useState(false)
   const [error, setError] = useState('')
+  const [retrying, setRetrying] = useState(false)
 
   // 应用插件数据：写入列表、草稿和 Web 搜索配置。
   const applyData = useCallback((result: PluginsData) => {
@@ -606,8 +581,6 @@ export function PluginsPage({
       setSaving(false)
     }
   }, [applyData, data, dirty, draft, draftEnabled, notify, saving, t, webSearch])
-
-  usePagePrimaryAction(registerPrimaryAction, save)
 
   // 测试 Web 搜索配置：调运行时试搜索并提示结果条数。
   const testWebSearch = async () => {
@@ -679,21 +652,7 @@ export function PluginsPage({
     }
   }
 
-  if (!data) {
-    return (
-      <AppEmptyState>
-        <OrbitSpinner className="size-5" />
-        <h2>{t('plugins:pluginsPage.loadingToolPlugins')}</h2>
-        {error && (
-          <AppError>
-            <AlertTriangle size={13} />
-            {error}
-          </AppError>
-        )}
-      </AppEmptyState>
-    )
-  }
-
+  const title = t('navigation:navigation.plugins')
   const normalizedQuery = query.trim().toLowerCase()
   const filtered = entries.filter((tool) => {
     if (sourceFilter !== 'all' && tool.pluginSource !== sourceFilter) return false
@@ -710,249 +669,262 @@ export function PluginsPage({
   })
 
   return (
-    <PageFrame variant="collection">
-      {/* 工具栏自带 16px 下边距，这里不再叠加 gap，两张卡片之间单独留 16px。 */}
-      <div className="flex min-w-0 flex-col">
-        <PageToolbar
+    <FeaturePage
+      title={title}
+      description={t('plugins:pluginsPage.lede')}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('navigation:pageHeader.searchPage', { page: title })}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
           actions={
-            customPluginsAvailable && (
+            <>
+              {customPluginsAvailable && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-9"
+                  disabled={!data}
+                  onClick={() => requireSavedPluginState() && setInstallOpen(true)}
+                >
+                  <PackagePlus />
+                  {t('plugins:pluginsPage.installPlugin')}
+                </Button>
+              )}
+              {/* 主操作（原共享页头的“保存策略”）：没有改动时点它只提示“没有变化”，与改版前一致。 */}
               <Button
                 type="button"
+                className="h-9"
+                data-plugins-save
+                loading={saving}
+                disabled={!data || saving}
+                onClick={() => void save()}
+              >
+                <Save />
+                {t('plugins:pluginsPage.savePolicy')}
+              </Button>
+            </>
+          }
+          filters={
+            <Segmented
+              options={sourceFilters.map((source) => sourceLabel(source, t))}
+              value={sourceLabel(sourceFilter, t)}
+              onChange={(label) =>
+                setSourceFilter(
+                  sourceFilters.find((source) => sourceLabel(source, t) === label) || 'all',
+                )
+              }
+            />
+          }
+        />
+      }
+    >
+      {!data ? (
+        error ? (
+          <PageState
+            kind="error"
+            title={t('plugins:pluginsPage.loadingToolPlugins')}
+            description={error}
+            action={
+              <Button
                 variant="secondary"
                 className="max-[650px]:h-11"
-                onClick={() => requireSavedPluginState() && setInstallOpen(true)}
+                loading={retrying}
+                disabled={retrying}
+                onClick={() => {
+                  setRetrying(true)
+                  void load().finally(() => setRetrying(false))
+                }}
               >
-                <PackagePlus />
-                {t('plugins:pluginsPage.installPlugin')}
+                {t('common:pageTemplate.retry')}
               </Button>
-            )
-          }
-        >
-          <Segmented
-            options={sourceFilters.map((source) => sourceLabel(source, t))}
-            value={sourceLabel(sourceFilter, t)}
-            onChange={(label) =>
-              setSourceFilter(
-                sourceFilters.find((source) => sourceLabel(source, t) === label) || 'all',
-              )
             }
           />
-        </PageToolbar>
-
-        <section className={CARD}>
-          <header className={cn('plugin-catalog-heading', CARD_HEAD)}>
-            <h2 className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-content">
-              {t('plugins:pluginsPage.toolCatalog')}
-              <span className="font-normal text-content-muted tabular-nums">{filtered.length}</span>
-            </h2>
-            <span className="plugin-catalog-summary flex min-w-0 flex-wrap items-center justify-end gap-2 text-xs text-content-secondary tabular-nums">
-              {dirty && <Badge tone="amber">{t('plugins:pluginsPage.unsaved')}</Badge>}
-              <span>
-                <strong className="font-medium text-content">
-                  {entries.filter((tool) => tool.enabled).length}
-                </strong>
-                /{entries.length} {t('plugins:pluginsPage.enabled2')}
+        ) : (
+          <PageState kind="loading" title={t('plugins:pluginsPage.loadingToolPlugins')} />
+        )
+      ) : (
+        <>
+          <FeatureSection
+            className="plugin-catalog"
+            title={t('plugins:pluginsPage.toolCatalog')}
+            count={filtered.length}
+            meta={
+              <span className="plugin-catalog-summary">
+                {entries.filter((tool) => tool.enabled).length}/{entries.length}{' '}
+                {t('plugins:pluginsPage.enabled2')}
               </span>
-            </span>
-          </header>
-          {filtered.length ? (
-            <ul className="plugin-tool-grid divide-y divide-stroke-soft">
-              {filtered.map((tool) => {
-                const open = expandedName === tool.name
-                const Icon = TOOL_ICONS[tool.name] || Plug
-                return (
-                  <li
-                    className="plugin-tool-card group/tool min-w-0"
-                    data-open={open || undefined}
-                    key={tool.name}
-                  >
-                    <div className="plugin-tool-card-head grid min-h-[52px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5 pr-2 pl-3.5 transition-colors duration-(--d-fast) group-data-open/tool:bg-surface-subtle hover:bg-surface-subtle max-[650px]:pl-3">
-                      {/* 宽屏把风险等级与路径范围展开成两列（与详情同源），窄屏只留名称。 */}
-                      <button
-                        type="button"
-                        className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-3 self-stretch text-left focus-visible:-outline-offset-2 @min-[880px]/page:grid-cols-[28px_minmax(0,1fr)_96px_minmax(0,200px)]"
-                        aria-expanded={open}
-                        onClick={() =>
-                          setExpandedName((current) => (current === tool.name ? '' : tool.name))
-                        }
-                      >
-                        <span className={ICON_KEY}>
-                          <Icon />
-                        </span>
-                        <span className="plugin-tool-title flex min-w-0 flex-col gap-0.5">
-                          <strong
-                            className="truncate text-sm font-medium text-content"
-                            title={displayToolName(tool, t)}
-                          >
-                            {displayToolName(tool, t)}
-                          </strong>
-                          <small className="flex min-w-0 items-baseline gap-1.5 text-xs text-content-muted">
-                            <code className="min-w-0 truncate font-mono">{tool.name}</code>
-                            <span aria-hidden="true" className="text-content-faint">
-                              ·
-                            </span>
-                            <span className="shrink-0">{displayPluginName(tool, t)}</span>
-                          </small>
-                        </span>
-                        {/* 风险等级用 6px 状态点承载颜色，文字保持中性，避免整列告警色。 */}
-                        <span className="hidden items-center gap-1.5 text-xs text-content-secondary @min-[880px]/page:flex">
-                          <i
-                            aria-hidden="true"
-                            className={cn(
-                              'size-1.5 shrink-0 rounded-full',
-                              isHighRisk(tool.risk)
-                                ? 'bg-danger'
-                                : isMediumRisk(tool.risk)
-                                  ? 'bg-warning-strong'
-                                  : 'bg-content-faint',
-                            )}
-                          />
-                          {toolRiskLabel(tool.risk, t)}
-                        </span>
-                        <span className="hidden truncate text-xs text-content-muted @min-[880px]/page:block">
-                          {toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}
-                        </span>
-                      </button>
-                      <span className="plugin-tool-trailing inline-flex items-center gap-2">
-                        {!tool.pluginBuiltIn && (
-                          <Badge tone="amber">{t('plugins:pluginsPage.local')}</Badge>
-                        )}
+            }
+            actions={
+              // 未保存是中性提示（琥珀只表示“需要你”，规格 6.1）；保存键就在工具行里。
+              dirty && (
+                <span
+                  data-plugins-unsaved
+                  className="flex items-center gap-1.5 text-xs font-medium text-content-secondary"
+                >
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-content-secondary" />
+                  {t('plugins:pluginsPage.unsaved')}
+                </span>
+              )
+            }
+          >
+            {filtered.length ? (
+              <FeatureList className="plugin-tool-grid">
+                {filtered.map((tool) => {
+                  const Icon = TOOL_ICONS[tool.name] || Plug
+                  const name = displayToolName(tool, t)
+                  return (
+                    <FeatureRow
+                      key={tool.name}
+                      className="plugin-tool-card"
+                      data-plugin-tool={tool.name}
+                      icon={<Icon />}
+                      name={<span title={name}>{name}</span>}
+                      nameMeta={tool.name}
+                      // 风险等级写成文字，不用红 / 琥珀圆点（规格 6.1：状态与风险靠文字和形状）。
+                      description={`${displayPluginName(tool, t)} · ${toolRiskLabel(tool.risk, t)}`}
+                      status={!tool.pluginBuiltIn ? t('plugins:pluginsPage.local') : undefined}
+                      actions={
                         <Toggle
                           value={tool.enabled}
                           onChange={(enabled) =>
                             toggleCapability(tool.pluginId, tool.name, enabled)
                           }
-                          ariaLabel={displayToolName(tool, t)}
+                          ariaLabel={name}
                         />
-                        <button
-                          type="button"
-                          className="plugin-tool-chevron grid size-7 place-items-center rounded-sm text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content max-[650px]:size-11 [&_svg]:transition-transform [&_svg]:duration-(--d-base) [&[aria-expanded=true]_svg]:rotate-180"
-                          aria-label={t('plugins:pluginsPage.toggleToolDetails', {
-                            name: displayToolName(tool, t),
-                          })}
-                          aria-expanded={open}
-                          onClick={() =>
-                            setExpandedName((current) => (current === tool.name ? '' : tool.name))
-                          }
-                        >
-                          <ChevronDown className="size-4" />
-                        </button>
-                      </span>
-                    </div>
-
-                    {open && (
-                      <div className="plugin-tool-details grid gap-3 border-t border-stroke-soft bg-surface-subtle py-3 pr-3.5 pl-[54px] max-[650px]:pl-3">
-                        <p className="text-sm leading-relaxed text-content-soft">
-                          {toolDescription({ id: tool.name, description: tool.description }, t)}
-                        </p>
-                        <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-content-soft [&_dt]:text-content-muted [&>div]:contents">
-                          <div>
-                            <dt>{t('plugins:pluginsPage.source')}</dt>
-                            <dd className="tabular-nums">
-                              {displayPluginName(tool, t)}
-                              {!tool.pluginBuiltIn && ` · v${tool.pluginVersion}`}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>{t('plugins:pluginsPage.riskLevel')}</dt>
-                            <dd className={isHighRisk(tool.risk) ? 'text-danger!' : ''}>
-                              {toolRiskLabel(tool.risk, t)}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>{t('plugins:pluginsPage.pathScope')}</dt>
-                            <dd>{toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}</dd>
-                          </div>
-                          {!tool.pluginBuiltIn && (
+                      }
+                      expanded={expandedName === tool.name}
+                      onExpandedChange={(open) => setExpandedName(open ? tool.name : '')}
+                      toggleLabel={t('plugins:pluginsPage.toggleToolDetails', { name })}
+                      detail={
+                        <div className="plugin-tool-details grid gap-3">
+                          <p className="text-sm leading-relaxed text-content-soft">
+                            {toolDescription({ id: tool.name, description: tool.description }, t)}
+                          </p>
+                          <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere] [&_dd]:text-content-soft [&_dt]:text-content-muted [&>div]:contents">
                             <div>
-                              <dt>{t('plugins:pluginsPage.executionMode')}</dt>
-                              <dd>{t('plugins:pluginsPage.fullAccessOnly')}</dd>
+                              <dt>{t('plugins:pluginsPage.source')}</dt>
+                              <dd className="tabular-nums">
+                                {displayPluginName(tool, t)}
+                                {!tool.pluginBuiltIn && ` · v${tool.pluginVersion}`}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>{t('plugins:pluginsPage.riskLevel')}</dt>
+                              <dd
+                                className={cn(
+                                  (isHighRisk(tool.risk) || isMediumRisk(tool.risk)) &&
+                                    'font-medium text-content!',
+                                )}
+                              >
+                                {toolRiskLabel(tool.risk, t)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>{t('plugins:pluginsPage.pathScope')}</dt>
+                              <dd>{toolScopeLabel({ id: tool.name, scope: tool.scope }, t)}</dd>
+                            </div>
+                            {!tool.pluginBuiltIn && (
+                              <div>
+                                <dt>{t('plugins:pluginsPage.executionMode')}</dt>
+                                <dd>{t('plugins:pluginsPage.fullAccessOnly')}</dd>
+                              </div>
+                            )}
+                          </dl>
+
+                          {!tool.pluginBuiltIn && (
+                            <div className="plugin-tool-warning flex items-start gap-2 rounded-sm bg-surface-subtle p-2.5 text-xs leading-normal text-content-secondary">
+                              <ShieldAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                              <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
                             </div>
                           )}
-                        </dl>
 
-                        {!tool.pluginBuiltIn && (
-                          <div className="plugin-tool-warning flex items-start gap-2 rounded-sm bg-warning-soft p-2.5 text-xs leading-normal text-warning-strong">
-                            <ShieldAlert className="mt-px size-3.5 shrink-0" />
-                            <span>{t('plugins:pluginsPage.localPluginSecurityWarning')}</span>
-                          </div>
-                        )}
+                          {tool.name === 'web_search' && (
+                            <WebSearchEditor
+                              value={webSearch}
+                              testing={testingSearch}
+                              onChange={setWebSearch}
+                              onTest={testWebSearch}
+                            />
+                          )}
 
-                        {tool.name === 'web_search' && (
-                          <WebSearchEditor
-                            value={webSearch}
-                            testing={testingSearch}
-                            onChange={setWebSearch}
-                            onTest={testWebSearch}
-                          />
-                        )}
-
-                        {!tool.pluginBuiltIn && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="justify-self-end text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
-                            onClick={() => requireSavedPluginState() && setRemoveTarget(tool)}
-                          >
-                            <Trash2 />
-                            {t('plugins:pluginsPage.uninstallPlugin')}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <InlineEmptyState compact title={t('plugins:pluginsPage.noMatchingTools')} />
-          )}
-        </section>
-
-        <ExtensionMarket
-          query={query}
-          notify={notify}
-          requestText={requestText}
-          requestConfirm={requestConfirm}
-        />
-
-        {customPluginsAvailable && (
-          <PluginInstallDialog
-            open={installOpen}
-            onOpenChange={setInstallOpen}
-            onInstalled={load}
-          />
-        )}
-        <AlertDialog
-          open={Boolean(removeTarget)}
-          onOpenChange={(open) => !open && !removing && setRemoveTarget(null)}
-        >
-          <AlertDialogContent className="z-[220]">
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('plugins:pluginsPage.uninstallPlugin')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('plugins:pluginsPage.uninstallPluginDescription', {
-                  name: removeTarget?.pluginName || '',
+                          {!tool.pluginBuiltIn && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="justify-self-end text-danger hover:bg-danger-soft hover:text-danger max-[650px]:h-11"
+                              onClick={() => requireSavedPluginState() && setRemoveTarget(tool)}
+                            >
+                              <Trash2 />
+                              {t('plugins:pluginsPage.uninstallPlugin')}
+                            </Button>
+                          )}
+                        </div>
+                      }
+                    />
+                  )
                 })}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={removing}>{t('common:ui.cancel')}</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" disabled={removing} onClick={uninstall}>
-                {removing && <OrbitSpinner className="text-current" />}
-                {t('plugins:pluginsPage.uninstallPlugin')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </FeatureList>
+            ) : (
+              <InlineEmptyState compact title={t('plugins:pluginsPage.noMatchingTools')} />
+            )}
+          </FeatureSection>
 
-        {error && (
-          <AppError className="fixed right-6 bottom-6 z-[21] max-w-[360px] border border-danger-border shadow-float">
-            <AlertTriangle size={13} />
-            {error}
-          </AppError>
-        )}
-      </div>
-    </PageFrame>
+          <ExtensionMarket
+            query={query}
+            notify={notify}
+            requestText={requestText}
+            requestConfirm={requestConfirm}
+          />
+        </>
+      )}
+
+      {customPluginsAvailable && (
+        <PluginInstallDialog open={installOpen} onOpenChange={setInstallOpen} onInstalled={load} />
+      )}
+      <AlertDialog
+        open={Boolean(removeTarget)}
+        onOpenChange={(open) => !open && !removing && setRemoveTarget(null)}
+      >
+        <AlertDialogContent className="z-[220]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('plugins:pluginsPage.uninstallPlugin')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('plugins:pluginsPage.uninstallPluginDescription', {
+                name: removeTarget?.pluginName || '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>{t('common:ui.cancel')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={removing} onClick={uninstall}>
+              {removing && <OrbitSpinner className="text-current" />}
+              {t('plugins:pluginsPage.uninstallPlugin')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {error && data && (
+        <AppError className="fixed right-6 bottom-6 z-[21] max-w-[360px] border border-danger-border shadow-float">
+          <AlertTriangle size={13} />
+          {error}
+        </AppError>
+      )}
+    </FeaturePage>
   )
 }

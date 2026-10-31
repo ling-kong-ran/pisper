@@ -25,7 +25,6 @@
   "skillsPage.manualOnly": "Manual only",
   "skillsPage.noGlobalSkills": "No global Skills. Import one into ~/.pisper/agent/skills.",
   "skillsPage.noProjectSkills": "This workspace has no project Skills. Add one under .pisper/skills in the current workspace.",
-  "skillsPage.noSkillAvailable": "No Skill available",
   "skillsPage.noSkillInstalled": "No skill installed",
   "skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere": "No skill packages are configured yet. After you install a skill, its source will appear here.",
   "skillsPage.noSkillsInstalledYetUseInstallSkillInTheUpperRightToAddALocalDirectoryNpmPackageOrGitSource": "No skills installed yet. Use “Install skill” in the upper-right to add a local directory, npm package, or git source.",
@@ -40,7 +39,6 @@
   "skillsPage.saveSettings": "Save settings",
   "skillsPage.scanningSkillDirectoriesAndConfiguredPackages": "Scanning global Skills and current project Skills",
   "skillsPage.scope": "Scope",
-  "skillsPage.selectedSkill": "Selected skill",
   "skillsPage.skillInstalledAndLoadedIntoTheAgentRuntime": "Global Skill imported and loaded into the agent runtime",
   "skillsPage.skillSettingsSavedAndReloaded": "Skill settings saved and reloaded",
   "skillsPage.skillSource": "Skill source",
@@ -57,5 +55,7 @@
   "skillsPage.userScopedConfiguration": "User-scoped configuration",
   "skillsPage.usesChatToolPermissions": "Uses chat tool permissions",
   "skillsPage.useTheButtonInTheUpperRightToInstallAnAgentSkillsCompatibleSkill": "Use the button in the upper-right to install an Agent Skills-compatible skill.",
-  "skillsPage.version": "Version"
+  "skillsPage.version": "Version",
+  "skillsPage.lede": "Skills are reusable instructions and scripts for agents. Invoke them with /skill or let the model call them automatically.",
+  "skillsPage.toggleSkillDetails": "Expand or collapse details for {name}"
 }

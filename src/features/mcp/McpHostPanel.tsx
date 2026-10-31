@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, KeyRound, RefreshCw, Server } from 'lucide-react'
 
 import { useI18n } from '@/app/use-i18n'
+import { FeatureList, FeatureRow } from '@/components/app/FeaturePage'
 import { Alert } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import {
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
@@ -163,75 +164,92 @@ export function McpHostPanel({
 
   return (
     <>
-      {/* 内置服务是整页的状态带：位于列表/详情之上，细线分隔，不再叠一层卡片。 */}
-      <section className="flex shrink-0 flex-col gap-2.5 border-b border-stroke-soft px-4 py-3 @min-[760px]/page:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className="grid size-8 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key"
-              aria-hidden="true"
-            >
-              <Server className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-medium text-content">{t('mcp:hostTitle')}</h2>
-                {status && (
-                  <Badge variant={status.listening ? 'ok' : status.enabled ? 'bad' : 'default'}>
-                    {status.listening
-                      ? t('mcp:hostReady')
-                      : status.enabled
-                        ? t('mcp:hostUnavailable')
-                        : t('mcp:disabled')}
-                  </Badge>
+      {/* 内置服务（Pisper 自己作为 MCP 服务）：功能页模板里的一行，开关在右侧；可连接时下方常显地址与“查看连接配置”。 */}
+      <FeatureList className="mcp-host mt-7">
+        <FeatureRow
+          data-mcp-host
+          icon={<Server />}
+          name={t('mcp:hostTitle')}
+          description={t('mcp:hostDescription')}
+          status={
+            status && (
+              <span
+                className={cn(
+                  'flex items-center gap-1.5',
+                  // 开着却没能启动是要人处理的事：琥珀（规格 6.1）；可连接、已禁用是中性灰。
+                  !status.listening && status.enabled && 'font-medium text-st-attn',
                 )}
-              </div>
-              <p className="max-w-2xl text-xs leading-5 text-content-muted">
-                {t('mcp:hostDescription')}
-              </p>
-            </div>
-          </div>
-          <label className="flex shrink-0 items-center gap-2.5 text-xs text-content-secondary">
-            {t('mcp:hostEnabled')}
+              >
+                {!status.listening && status.enabled && (
+                  <span
+                    aria-hidden="true"
+                    className="size-2 flex-none rounded-full bg-st-attn-fill"
+                  />
+                )}
+                {status.listening
+                  ? t('mcp:hostReady')
+                  : status.enabled
+                    ? t('mcp:hostUnavailable')
+                    : t('mcp:disabled')}
+              </span>
+            )
+          }
+          actions={
             <Switch
               checked={Boolean(status?.enabled)}
               disabled={!status || updating}
               aria-label={t('mcp:hostEnabled')}
+              title={t('mcp:hostEnabled')}
               onCheckedChange={(enabled) => void toggle(enabled)}
             />
-          </label>
-        </div>
-        {statusQuery.isPending && <p className="text-xs text-content-muted">{t('mcp:loading')}</p>}
-        {statusQuery.error && (
-          <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>{statusQuery.error.message}</span>
-            <Button size="sm" variant="ghost" onClick={() => void statusQuery.refetch()}>
-              {t('mcp:retry')}
-            </Button>
-          </Alert>
-        )}
-        {status?.error && (
-          <Alert role="status" className="text-xs text-muted-foreground">
-            {status.error}
-          </Alert>
-        )}
-        {status?.listening && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-11 max-[650px]:pl-0">
-            <code className="max-w-full min-w-0 rounded-xs border border-stroke bg-code px-2 py-0.5 font-mono text-xs break-all text-content">
-              {status.url}
-            </code>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="max-[650px]:h-11"
-              onClick={() => void loadCredentials()}
-            >
-              <KeyRound data-icon="inline-start" />
-              {t('mcp:hostShowConfig')}
-            </Button>
-          </div>
-        )}
-      </section>
+          }
+          detail={
+            statusQuery.isPending || statusQuery.error || status?.error || status?.listening ? (
+              <div className="grid gap-2">
+                {statusQuery.isPending && (
+                  <p role="status" className="text-xs text-content-muted">
+                    {t('mcp:loading')}
+                  </p>
+                )}
+                {statusQuery.error && (
+                  <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{statusQuery.error.message}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="max-[650px]:h-11"
+                      onClick={() => void statusQuery.refetch()}
+                    >
+                      {t('mcp:retry')}
+                    </Button>
+                  </Alert>
+                )}
+                {status?.error && (
+                  <Alert role="status" className="text-xs text-muted-foreground">
+                    {status.error}
+                  </Alert>
+                )}
+                {status?.listening && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <code className="max-w-full min-w-0 rounded-xs border border-stroke bg-code px-2 py-0.5 font-mono text-xs break-all text-content">
+                      {status.url}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="max-[650px]:h-11"
+                      onClick={() => void loadCredentials()}
+                    >
+                      <KeyRound data-icon="inline-start" />
+                      {t('mcp:hostShowConfig')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
+      </FeatureList>
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] sm:max-w-xl">
           <DialogHeader className="min-w-0 pr-8 text-left">

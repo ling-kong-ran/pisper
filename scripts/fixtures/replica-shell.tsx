@@ -1,5 +1,6 @@
 // 应用外壳复刻夹具（规格 v2 第 2.1 节，A1 重写）：真实的侧栏外壳（ShellSidebar，268 / 60 窄轨）、
-// 共享页头（PageHeader，Windows 自绘标题栏时右侧让出 144px）、手机外壳（A4：顶栏 PhoneTopBar + 抽屉 PhoneDrawer）
+// 共享页头（PageHeader，Windows 自绘标题栏时右侧让出 144px）、功能页模板（FeaturePage，?feature=1：
+// 顶栏 52 只是拖拽区，页头在下方滚动区里）、手机外壳（A4：顶栏 PhoneTopBar + 抽屉 PhoneDrawer）
 // 与命令面板。
 // 会话分组与窄轨计数是看板领域的懒加载块，这里换成固定的占位行，只验外壳本身的结构、尺寸与键盘行为；
 // 分组的真实数据与快捷处理在 smoke-board-ui / smoke-sidebar 里覆盖。
@@ -16,12 +17,23 @@ import { PhoneDrawer } from '@/app/PhoneDrawer'
 import { PhoneTopBar } from '@/app/PhoneTopBar'
 import { CommandPalette } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
+import {
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { COMMAND_PALETTE_REQUESTED_EVENT, requestCommandPalette } from '@/features/chat/events'
 import '@/index.css'
 
 const params = new URLSearchParams(location.search)
 const phone = params.get('phone') === '1'
 const customTitlebar = params.get('custom') === '1'
+const feature = params.get('feature') === '1'
 
 const navigation: Array<[string, Array<[string, string, typeof Settings]>]> = [
   ['Fixture', [['config', 'Settings', Settings]]],
@@ -90,7 +102,50 @@ export function Fixture() {
                 onSearch={() => setOpen(true)}
               />
             )}
-            {!phone && (
+            {!phone && feature && (
+              <FeaturePage
+                title="插件"
+                description="管理代理可以调用的工具与 Pi Extension。"
+                back={{ label: '功能', ariaLabel: '返回功能', onBack: () => setOpened('back') }}
+                toolbar={
+                  <FeatureToolbar
+                    search={
+                      <FeatureSearch
+                        id="feature-page-search"
+                        value=""
+                        onValueChange={() => {}}
+                        placeholder="搜索插件"
+                        shortcut="/"
+                        clearLabel="清除搜索"
+                      />
+                    }
+                    actions={
+                      <>
+                        <Button variant="secondary" className="h-9">
+                          安装插件
+                        </Button>
+                        <Button className="h-9" onClick={() => setOpened('primary')}>
+                          保存策略
+                        </Button>
+                      </>
+                    }
+                  />
+                }
+              >
+                <FeatureSection title="工具目录" count={1}>
+                  <FeatureList>
+                    <FeatureRow
+                      name="联网搜索"
+                      nameMeta="web_search"
+                      description="搜索 · 中风险"
+                      actions={<Switch checked aria-label="联网搜索" />}
+                    />
+                  </FeatureList>
+                </FeatureSection>
+                <output data-testid="opened">{opened}</output>
+              </FeaturePage>
+            )}
+            {!phone && !feature && (
               <PageHeader
                 meta={['资产', '']}
                 page="assets"
@@ -106,22 +161,24 @@ export function Fixture() {
                 onToggleTerminal={() => {}}
               />
             )}
-            <div className="flex flex-col items-start gap-2 p-4">
-              <button data-testid="launch" onClick={() => setOpen(true)}>
-                Search
-              </button>
-              <button data-testid="launch-query" onClick={() => requestCommandPalette('Alpha')}>
-                Search Alpha
-              </button>
-              <div data-testid="glyph-legend" className="flex gap-4 bg-sidebar p-2">
-                {/* 与侧栏行一致：运行中 phase 0、不转（截图时动画也会停在起点）。 */}
-                <StatusGlyph data-legend="run" status="run" spin={false} />
-                <StatusGlyph data-legend="queued" status="queued" />
-                <StatusGlyph data-legend="done" status="done" />
+            {!feature && (
+              <div className="flex flex-col items-start gap-2 p-4">
+                <button data-testid="launch" onClick={() => setOpen(true)}>
+                  Search
+                </button>
+                <button data-testid="launch-query" onClick={() => requestCommandPalette('Alpha')}>
+                  Search Alpha
+                </button>
+                <div data-testid="glyph-legend" className="flex gap-4 bg-sidebar p-2">
+                  {/* 与侧栏行一致：运行中 phase 0、不转（截图时动画也会停在起点）。 */}
+                  <StatusGlyph data-legend="run" status="run" spin={false} />
+                  <StatusGlyph data-legend="queued" status="queued" />
+                  <StatusGlyph data-legend="done" status="done" />
+                </div>
+                <output data-testid="opened">{opened}</output>
+                <output data-testid="new-tasks">{newTasks}</output>
               </div>
-              <output data-testid="opened">{opened}</output>
-              <output data-testid="new-tasks">{newTasks}</output>
-            </div>
+            )}
           </main>
         </div>
         {phone && (

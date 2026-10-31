@@ -256,6 +256,66 @@ try {
     1,
     'the sidebar brand row is a window drag region',
   )
+  // 功能页模板（A6，插件 / 技能 / MCP 起）：主区顶栏 52 是没有控件的拖拽区，“‹ 功能”、标题与工具行都在它
+  // 下方，所以自绘标题栏时右上角 144px 天然空着（1080 最小窗口也一样）；内容栏不超过 760（含内边距 808）。
+  await page.goto(`${url}?custom=1&feature=1`)
+  await sidebar.waitFor()
+  for (const width of [1080, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.waitForFunction((expected) => window.innerWidth === expected, width)
+    const template = await page.evaluate(() => {
+      const main = document.querySelector('main')
+      const top = main.getBoundingClientRect().top
+      const drag = main.querySelector('[data-page-template="feature"] > [data-window-drag-region]')
+      const controls = [...main.querySelectorAll('button, input, a[href], [role="switch"]')].filter(
+        (node) => node.getClientRects().length > 0,
+      )
+      const boxes = controls.map((node) => node.getBoundingClientRect())
+      return {
+        drag: drag ? Math.round(drag.getBoundingClientRect().height) : 0,
+        dragControls: drag?.querySelectorAll('button, input, a, [role="switch"]').length ?? -1,
+        topmost: Math.min(...boxes.map((box) => box.top - top)),
+        cornerHits: boxes.filter((box) => box.right > innerWidth - 144 && box.top - top < 52)
+          .length,
+        column: Math.round(
+          main.querySelector('[data-feature-column]').getBoundingClientRect().width,
+        ),
+        heading: main.querySelector('h1')?.textContent,
+        headingBelowBack:
+          main.querySelector('h1').getBoundingClientRect().top >
+          main.querySelector('[data-back-to-more]').getBoundingClientRect().bottom - 1,
+        overflow: document.documentElement.scrollWidth > innerWidth + 1,
+      }
+    })
+    assert.deepEqual(
+      {
+        drag: template.drag,
+        dragControls: template.dragControls,
+        cornerHits: template.cornerHits,
+        heading: template.heading,
+        headingBelowBack: template.headingBelowBack,
+        overflow: template.overflow,
+      },
+      {
+        drag: 52,
+        dragControls: 0,
+        cornerHits: 0,
+        heading: '插件',
+        headingBelowBack: true,
+        overflow: false,
+      },
+      `feature template at ${width}px: ${JSON.stringify(template)}`,
+    )
+    assert.ok(template.topmost >= 52, `controls start below the drag bar: ${template.topmost}`)
+    assert.ok(template.column <= 808, `760 content column (+48 padding): ${template.column}`)
+  }
+  // “‹ 功能”的读屏名称是“返回功能”，点它交给调用方（应用壳回到功能索引）；“/”认识的搜索框 id 不变。
+  const featureBack = page.locator('[data-back-to-more]')
+  assert.equal(await featureBack.getAttribute('aria-label'), '返回功能')
+  assert.equal((await featureBack.innerText()).trim(), '功能')
+  await featureBack.click()
+  assert.equal(await page.getByTestId('opened').textContent(), 'back')
+  assert.equal(await page.locator('#feature-page-search').count(), 1)
   await page.setViewportSize({ width: 1200, height: 800 })
   await page.goto(url)
   await sidebar.waitFor()
@@ -340,7 +400,7 @@ try {
     else document.documentElement.dataset.theme = value
   }, originalTheme)
   console.log(
-    'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header, 1x running arc / queued ring / done tick distinguishable pixel by pixel in light and dark, search opens the palette with a 切换主题 command, More-search keyword hand-off',
+    'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header and on the feature-page template (52 drag-only bar, 760 column, ‹ 功能 above the title), 1x running arc / queued ring / done tick distinguishable pixel by pixel in light and dark, search opens the palette with a 切换主题 command, More-search keyword hand-off',
   )
 
   // 手机外壳（A4）：顶栏 ☰ + 抽屉取代底部标签栏。

@@ -157,5 +157,6 @@
   "pluginsPage.extensionInstalled": "Extension installed. Start a new session to load it.",
   "pluginsPage.extensionUninstalled": "Extension uninstalled. Start a new session to stop using it.",
   "pluginsPage.uninstallExtensionDescription": "Uninstall {name} and its Pi Extension configuration?",
-  "pluginsPage.installed": "Installed"
+  "pluginsPage.installed": "Installed",
+  "pluginsPage.lede": "Manage the tools and Pi extensions agents can call. Changes apply from the next agent request after you save the policy."
 }

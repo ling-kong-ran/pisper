@@ -25,7 +25,6 @@
   "skillsPage.manualOnly": "仅手动",
   "skillsPage.noGlobalSkills": "尚无全局 Skill。可导入到 ~/.pisper/agent/skills。",
   "skillsPage.noProjectSkills": "当前工作区没有项目 Skill。请将 Skill 放入当前工作区的 .pisper/skills。",
-  "skillsPage.noSkillAvailable": "暂无可用 Skill",
   "skillsPage.noSkillInstalled": "尚未安装技能",
   "skillsPage.noSkillPackagesAreConfiguredYetAfterYouInstallASkillItsSourceWillAppearHere": "当前没有已配置技能包。安装技能后，对应来源会出现在这里。",
   "skillsPage.noSkillsInstalledYetUseInstallSkillInTheUpperRightToAddALocalDirectoryNpmPackageOrGitSource": "尚未安装技能。请用右上角“安装技能”接入本地目录、npm 或 git 来源。",
@@ -40,7 +39,6 @@
   "skillsPage.saveSettings": "保存设置",
   "skillsPage.scanningSkillDirectoriesAndConfiguredPackages": "正在扫描全局 Skill 与当前项目 Skill",
   "skillsPage.scope": "范围",
-  "skillsPage.selectedSkill": "选中技能",
   "skillsPage.skillInstalledAndLoadedIntoTheAgentRuntime": "全局 Skill 已导入并载入 Agent Runtime",
   "skillsPage.skillSettingsSavedAndReloaded": "技能设置已保存并重新载入",
   "skillsPage.skillSource": "技能来源",
@@ -57,5 +55,7 @@
   "skillsPage.userScopedConfiguration": "用户级配置",
   "skillsPage.usesChatToolPermissions": "按会话工具权限",
   "skillsPage.useTheButtonInTheUpperRightToInstallAnAgentSkillsCompatibleSkill": "使用右上角按钮安装符合 Agent Skills 标准的技能。",
-  "skillsPage.version": "版本"
+  "skillsPage.version": "版本",
+  "skillsPage.lede": "技能是给代理的可复用说明与脚本：可以用 /skill 手动调用，也可以允许模型自动调用。",
+  "skillsPage.toggleSkillDetails": "展开或收起 {name} 的详情"
 }

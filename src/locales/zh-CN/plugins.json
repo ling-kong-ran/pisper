@@ -157,5 +157,6 @@
   "pluginsPage.extensionInstalled": "Extension 已安装；请新建会话使其生效。",
   "pluginsPage.extensionUninstalled": "Extension 已卸载；请新建会话使其停止生效。",
   "pluginsPage.uninstallExtensionDescription": "卸载 {name} 及其所有 Pi Extension 配置？",
-  "pluginsPage.installed": "已安装"
+  "pluginsPage.installed": "已安装",
+  "pluginsPage.lede": "管理代理可以调用的工具与 Pi Extension。启停改动在“保存策略”后，从下一次代理请求开始生效。"
 }

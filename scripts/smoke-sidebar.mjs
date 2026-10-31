@@ -982,10 +982,8 @@ try {
     await page.screenshot({ path: join(output, 'settings-shell-light.png') })
     await settings.locator('[data-settings-section="interface"]').click()
     await page.waitForFunction(() => location.hash === '#/config/interface')
-    assert.equal(
-      await settings.locator('[data-settings-section="interface"]').getAttribute('aria-current'),
-      'page',
-    )
+    // 哈希先变、React 后提交：等目录行点亮，而不是在提交前读一次属性（偶发 null !== 'page'）。
+    await settings.locator('[data-settings-section="interface"][aria-current="page"]').waitFor()
     // 设置搜索框里的 Esc 只清空 / 收起搜索，不离开设置。
     const search = settings.locator('input').first()
     await search.fill('主题')

@@ -31,7 +31,11 @@ import {
 import { STORAGE_KEYS } from '@/app/storage'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { getPageMeta, getWorkflowEditorMeta } from '@/app/navigation'
-import { MORE_SEARCH_INPUT_ID } from '@/app/more-pages'
+import {
+  FEATURE_SEARCH_INPUT_ID,
+  FEATURE_TEMPLATE_PAGES,
+  MORE_SEARCH_INPUT_ID,
+} from '@/app/more-pages'
 import {
   HOME_ENTRY_STATE,
   HOME_PATH,
@@ -786,18 +790,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const handlePrimary = useCallback(() => {
     if (page === 'config' && configSection !== 'models') return
     if (
-      [
-        'session',
-        'config',
-        'assets',
-        'plugins',
-        'channels',
-        'schedules',
-        'memory',
-        'mcp',
-        'skills',
-        'workflowCreate',
-      ].includes(page)
+      ['session', 'config', 'assets', 'channels', 'schedules', 'memory', 'workflowCreate'].includes(
+        page,
+      )
     )
       invokePrimaryAction()
     else if (page === 'chatHistory') startNewChat()
@@ -924,6 +919,10 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     setNotificationSettings(settings)
   }, [])
 
+  // 功能页（含 /config 下的远程访问、手机服务器、桌面宠物）：页头显示“‹ 功能”；
+  // 改用功能页模板的页面由页面自己在标题上方渲染，经路由上下文拿到同一个返回动作。
+  const moreOwned = shellTab === 'more' && page !== 'more'
+  const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
   const routeContext: AppRouteContext = {
     query,
     activeSessionId,
@@ -943,10 +942,8 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     appUpdate,
     registerWorkflowActions,
     startNewTask: () => startNewTask('board'),
+    onBackToFeatures: moreOwned ? backToMore : undefined,
   }
-  // 功能页（含 /config 下的远程访问、手机服务器、桌面宠物）：页头显示“‹ 功能”（手机标签栏 A4 前仍叫“更多”）。
-  const moreOwned = shellTab === 'more' && page !== 'more'
-  const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
   // 手机原生返回的路由层级（shellBackPath）：会话主页是根（主页与从主页落地的会话交还平台），
   // 从看板等页面点进来的会话走历史回到来处，一级标签页回主页，更多的子页回更多，组件详情回列表。
   // 路由历史下标（React Router 写在 history.state.idx）判断当前条目之前还有没有应用内条目。
@@ -963,6 +960,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   }, [location.pathname, location.state, page, phoneShell, routerNavigate, settingsOwned])
   const focusPageSearch = useCallback(() => {
     if (page === 'more') document.getElementById(MORE_SEARCH_INPUT_ID)?.focus()
+    // 功能页模板：搜索框在页面自己的工具行里（规格 A6）。
+    else if (FEATURE_TEMPLATE_PAGES.has(page))
+      document.getElementById(FEATURE_SEARCH_INPUT_ID)?.focus()
     // 全部代理页的 / 聚焦侧栏筛选（规格 2.3、2.8）；侧栏收成窄轨时先临时展开再聚焦。
     else if (page === 'board') {
       const filter = document.getElementById(BOARD_FILTER_ID)
@@ -979,14 +979,17 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       }
     } else searchInputRef.current?.focus()
   }, [page, phoneShell])
-  // 看板、会话页与更多页自带页头；其余功能页沿用共享页头（面包屑、搜索、主操作）。
+  // 看板、会话页、功能索引与改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）自带页头；
+  // 其余功能页在 A6 逐批迁移前沿用共享页头（面包屑、搜索、主操作）。
   // 手机外壳（规格 7.1）：底部标签栏退役；会话页与主页有自己的顶栏，其余页面顶上是一条 56px 顶栏
   // （☰ 带需要你计数 · 页面标题 · ✎ 新任务），懒加载期间先占住高度，页面不跳。
   const phoneTopBar = phoneShell && page !== 'session'
   // 手机设置（规格 7.4）：/config 是分区列表（不挂设置内容与页头），/config/<分区> 顶上一条“‹ 设置”回列表。
   const phoneSettingsList = phoneShell && settingsOwned && /^\/config\/?$/.test(location.pathname)
   const sharedPageHeader =
-    !['board', 'session', 'more', 'chat'].includes(page) && !phoneSettingsList
+    !['board', 'session', 'more', 'chat'].includes(page) &&
+    !FEATURE_TEMPLATE_PAGES.has(page) &&
+    !phoneSettingsList
   // 设置外壳（侧栏换成设置目录）：桌面外壳（任何宽度）与手机 App 平板；手机外壳是列表 → 分区。
   const settingsLayout = settingsOwned && !phoneShell
 
