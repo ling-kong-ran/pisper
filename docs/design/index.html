@@ -424,7 +424,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         </div>
         <dl>
           <dt>打开应用</dt><dd>回到上次停留的会话，没有就是新任务草稿（不变）</dd>
-          <dt>侧栏分组</dt><dd>需要你 → 运行中 → 置顶 → 今天完成 → 历史会话；“排队”等 A9 的 Runtime 能力</dd>
+          <dt>侧栏分组</dt><dd>需要你 → 运行中 → 排队 → 置顶 → 今天完成 → 历史会话；“排队”A9 已做（见 A9 一节）</dd>
           <dt>入口键</dt><dd><kbd>⌘N</kbd> 新任务、<kbd>⌘K</kbd> 搜索、<kbd>⌘1</kbd> 全部代理、<kbd>⌘2</kbd> 功能、<kbd>⌘,</kbd> 设置</dd>
           <dt>侧栏</dt><dd><kbd>⌘B</kbd> 收起成窄轨、<kbd>⌘J</kbd> 聚焦会话列表、<kbd>⌥A</kbd> 聚焦等最久的需要你、<kbd>⌥↑</kbd><kbd>⌥↓</kbd> 按侧栏顺序换会话、<kbd>F6</kbd> 在侧栏 / 顶栏 / 对话 / 输入框之间切换</dd>
           <dt>会话页</dt><dd><kbd>⌘I</kbd> 检查器、<kbd>⇧⌘B</kbd> 会话树、<kbd>⇧Tab</kbd> 换执行方式、<kbd>Esc</kbd> 先关弹层再停止</dd>
@@ -445,9 +445,9 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
     <h3>效果图里有、要等后面几期的</h3>
     <ul class="notes">
-      <li>“排队”分组和托盘里的排队行：要 Runtime 的 <code>sessionQueue</code>（A9）。</li>
+      <li>“排队”分组和全部代理的排队行：A9 已做（<code>sessionQueue</code>，见 A9 一节）。</li>
       <li>“代理在问你 · 2 个问题”卡片和侧栏的“2 个问题”：要 <code>askUser</code>（A5）。</li>
-      <li>“思考 6.2s ›”与导出：要 Runtime 的思考用时与导出能力（A9）。检查器里的组件标签：A7 已做（“覆盖率”只是效果图里的示例组件，不内置）。</li>
+      <li>“思考 6.2s”与导出：A9 已做（见 A9 一节）。检查器里的组件标签：A7 已做（“覆盖率”只是效果图里的示例组件，不内置）。</li>
       <li>品牌标记沿用现有的 ✦ 图标，效果图的紫色 P 只是出图时的占位。</li>
     </ul>
     <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
@@ -524,7 +524,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     <h3>效果图里有、要等后面几期的</h3>
     <ul class="notes">
       <li>右侧“已放置的组件”卡片和 1080–1279 宽时页头的“组件 N”按钮：A7 已做，见“方向 A · A7 已实现”。</li>
-      <li>“排队”分组、“升级 Vite 到 7 · 排队 #1”与“立即开始”：要 Runtime 的 <code>sessionQueue</code>（A9）；没有这个能力时不显示分组，不做假数据。</li>
+      <li>“排队”分组、“升级 Vite 到 7 · 排队 #1”与“立即开始”：A9 已做（<code>sessionQueue</code>）；没有这个能力时不显示分组，不做假数据。</li>
       <li>“批准 · 2 个问题”、行内选项胶囊与逐个处理里的“1–4 回答”：要 <code>askUser</code>（A5）。</li>
       <li>设置主区内容（默认模型 / 思考强度 / 提供方列表、去掉重复的面包屑与大标题）：已在 A6 完成，见下方“A6 已实现”；效果图里的“辅助模型”Runtime 没有对应字段，没有做。</li>
       <li>功能页模板（居中 760 栏、“‹ 功能”在标题上方、工具行、列表行）：已在 A6 完成，见下方“A6 已实现”。</li>
@@ -672,7 +672,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
     <h3>效果图里有、要等后面几期的</h3>
     <ul class="notes">
-      <li>“2 个问题”与选项胶囊、提问底部表单：A5。排队分组与“#1”：A9。会话菜单“导出”：A9。全部代理末尾的组件卡：A7 已做。</li>
+      <li>“2 个问题”与选项胶囊、提问底部表单：A5。排队分组与“#1”、会话菜单“导出”：A9 已做。全部代理末尾的组件卡：A7 已做。</li>
       <li>会话顶栏右侧效果图是带角标的改动图标，实现一致；没有改动时那里是 ✎ 新任务。</li>
     </ul>
     <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
@@ -882,7 +882,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     <ul class="notes">
       <li>设置 › 模型的“辅助模型”一行：Runtime 没有生成标题 / 压缩上下文用的模型字段，不做假控件；要等 Runtime 加字段（未排期）。</li>
       <li>组件工作室与“我的组件”整页仍用旧的共享页头：A7 已换成面包屑页头（“功能 / 组件工作室”“功能 / 我的组件”），手机详情的“‹ 功能”与“‹ 全部组件”两级返回留到共享页头退役。</li>
-      <li>表单与对话框里的提交失败提示（AppError，约 40 处）仍是红字：留给 A9 或专门一批统一。</li>
+      <li>表单与对话框里的提交失败提示（AppError，约 40 处）仍是红字：A9 没有做（不在 A9 的范围里），留给专门一批统一。</li>
       <li>定时任务离开页面时的未保存拦截：留给专门一批（收起 / 换行已经不丢草稿）。</li>
     </ul>
     <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
@@ -1053,6 +1053,51 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a9-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a9-built-h">方向 A · A9 已实现（排队、导出、思考用时、目录事件）</h2>
+      <p class="lede">收尾一期：排在某个会话之后启动（能力 sessionQueue）、会话导出 Markdown（sessionExport）、代理信息行的思考用时、看板事件流的目录变更事件，以及三项遗留。拍法同 A4 / A5：生产构建 + 隔离 Runtime，全部代理的数据由看板夹具在浏览器边界提供（虚构的项目与命令），会话页的转录来自写进临时目录的虚构会话，思考用时在浏览器边界补上；headless Chromium、1x、zh-CN。</p>
+    </div>
+    <h3>排队（规格 2.1 / 3.3 / 8.4）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a9-overview-queue-1440-light.png" aria-label="放大：实现：全部代理“排队 2”：每行写“排在「重构登录流程」之后 · 第 1 位”“排在「补登录模块的单元测试」之后 · 第 2 位”（排队链），唯一的操作是 [立即开始]；状态图形是浅灰虚线圈；侧栏筛选“排队 2”"><img src="built/a9-overview-queue-1440-light.png" alt="实现：全部代理“排队 2”：每行写“排在「重构登录流程」之后 · 第 1 位”“排在「补登录模块的单元测试」之后 · 第 2 位”（排队链），唯一的操作是 [立即开始]；状态图形是浅灰虚线圈；侧栏筛选“排队 2”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>全部代理的排队行</figcaption></figure>
+      <figure><button type="button" data-full="built/a9-overview-queue-1440-dark.png" aria-label="放大：实现：全部代理的排队行（深色）"><img src="built/a9-overview-queue-1440-dark.png" alt="实现：全部代理的排队行（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>排队行（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a9-sidebar-queue-light.png" aria-label="放大：实现：侧栏会话分组“排队 2”：两行标题 + 队列序号 #1、#2，虚线圈图形；在“运行中”与“置顶”之间"><img src="built/a9-sidebar-queue-light.png" alt="实现：侧栏会话分组“排队 2”：两行标题 + 队列序号 #1、#2，虚线圈图形；在“运行中”与“置顶”之间" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>侧栏“排队”分组</figcaption></figure>
+      <figure><button type="button" data-full="built/a9-dispatch-start-after-light.png" aria-label="放大：实现：派发对话框的“立即开始 ▾”芯片展开：“什么时候开始”下列出运行中与排队中的会话，末尾说明“等它这一轮结束（完成、失败或停止都算）再开始”"><img src="built/a9-dispatch-start-after-light.png" alt="实现：派发对话框的“立即开始 ▾”芯片展开：“什么时候开始”下列出运行中与排队中的会话，末尾说明“等它这一轮结束（完成、失败或停止都算）再开始”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>派发对话框：排在…之后</figcaption></figure>
+      <figure><button type="button" data-full="built/a9-dispatch-start-after-chosen-light.png" aria-label="放大：实现：选了“重构登录流程”之后，芯片写“等「重构…」”，工具行上方一句“排在「重构登录流程」之后：它这一轮结束时自动开始。”；窄工具行里项目、模型芯片一起收窄"><img src="built/a9-dispatch-start-after-chosen-light.png" alt="实现：选了“重构登录流程”之后，芯片写“等「重构…」”，工具行上方一句“排在「重构登录流程」之后：它这一轮结束时自动开始。”；窄工具行里项目、模型芯片一起收窄" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>选定之后</figcaption></figure>
+    </div>
+    <h3>导出与思考用时（规格 2.5 / 4.2）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a9-session-menu-export-light.png" aria-label="放大：实现：会话标题 ▾ 菜单：重命名会话 · 侧聊 · 导出 Markdown · 归档 | 移动工作区 · 压缩上下文 · 目标模式 · 工作流运行记录 · 语音"><img src="built/a9-session-menu-export-light.png" alt="实现：会话标题 ▾ 菜单：重命名会话 · 侧聊 · 导出 Markdown · 归档 | 移动工作区 · 压缩上下文 · 目标模式 · 工作流运行记录 · 语音" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>标题菜单的“导出 Markdown”</figcaption></figure>
+      <figure><button type="button" data-full="built/a9-session-thinking-light.png" aria-label="放大：实现：代理信息行“GPT-5.6 Luna 思考 6.2s”；侧栏也出现“排队 2”分组"><img src="built/a9-session-thinking-light.png" alt="实现：代理信息行“GPT-5.6 Luna 思考 6.2s”；侧栏也出现“排队 2”分组" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>代理信息行的思考用时</figcaption></figure>
+    </div>
+    <h3>手机（390）</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/a9-phone-queue-light.png" aria-label="放大：实现：手机全部代理的排队行：44 高的 [立即开始]，第二行“排在「…」之后 · 第 N 位”"><img src="built/a9-phone-queue-light.png" alt="实现：手机全部代理的排队行：44 高的 [立即开始]，第二行“排在「…」之后 · 第 N 位”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A9</span>手机排队行</figcaption></figure>
+    </div>
+    <h3>和规格不一样的地方 / 替你做的决定</h3>
+    <ul class="notes">
+      <li>“排在…之后”只列运行中与排队中的会话（只有它们还会“结束一次”）；只对当前这一条草稿生效，派发后回到“立即开始”。前置会话恰好已经结束时 Runtime 直接启动。</li>
+      <li>排队的会话由 Runtime 在后台启动，本客户端不持有运行流；Runtime 重启后自动启动排队的会话（Runtime 部分的决定）。没有做“同一工作区自动串行”（规格第 11 节第 5 问）。</li>
+      <li>导出的文件名按会话标题（去掉路径分隔与保留字符），内容只读已投影的转录：不含思考过程与完整的本机路径。</li>
+      <li>思考用时一分钟内写“6.2s”，更长写“1m 12s”；没有数据的回复不显示（不写 0）。</li>
+      <li>通知抢 Esc：菜单、弹层或对话框开着时出现通知，一次 Esc 同时撤掉通知并关掉那一层（之前只关通知）。</li>
+      <li>冒烟浏览器环境变量统一为 <code>PISPER_SMOKE_BROWSER</code>，旧名 <code>PISPER_UI_BROWSER_PATH</code> 仍认；route.fetch 的连接级重取做成共用助手 <code>scripts/fixtures/route-fetch.mjs</code>。</li>
+    </ul>
+    <h3>未验证</h3>
+    <ul class="notes">
+      <li>真实模型跑一轮的思考计时（截图在浏览器边界补的 thinkingMs）、Runtime 重启后排队会话的自动启动（有单测，没有端到端）、手机真机。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="phase-h">
     <div class="sec-head">
       <h2 id="phase-h">进度</h2>
@@ -1068,7 +1113,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板（11 个功能页 + 设置六个分区）与浮层（⌘K、派发、引导、侧聊、会话树、配对），旧状态色与旧顶栏清理</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A7</span><span class="what">原生组件核心闭环：工作室三栏与手机列表 → 详情、四种放置宿主（全部代理右栏、会话面板、功能 › 我的组件、浮窗）、代理生成与修复；删除旧 iframe 组件与专注岛</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A8</span><span class="what">组件信任与生命周期：导入暂存与信任确认（静态扫描、sha256、替换 diff）、版本对比与回滚、导出 ZIP、回收站恢复与 7 天清理、能力台账与撤销</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A9</span><span class="what">收尾：排队、导出、思考用时、目录变更事件</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A9</span><span class="what">收尾：排队与“排在…之后”、导出 Markdown、思考用时、目录变更事件；通知抢 Esc、冒烟共用助手与环境变量统一</span><span class="chip built">已完成</span></div>
     </div>
   </section>
 </div>
