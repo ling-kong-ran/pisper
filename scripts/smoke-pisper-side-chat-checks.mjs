@@ -63,11 +63,11 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
       )
       return
     }
-    // 第 4 期手机会话页：⋯ → 侧聊，在检查器底部表单里打开侧聊标签。
+    // 手机会话页（规格 v2 第 7.2 节）：标题 ▾ → 侧聊，在检查器底部表单里打开侧聊标签。
     const phoneHeader = page.locator('[data-session-header="phone"]')
     if (await phoneHeader.isVisible()) {
-      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-      await page.getByRole('menuitem', { name: '侧聊', exact: true }).click()
+      await page.locator('[data-session-menu-trigger]').click()
+      await page.locator('[data-session-menu-sheet] [data-session-side-chat]').click()
       await input.waitFor()
       assert.equal(
         await page

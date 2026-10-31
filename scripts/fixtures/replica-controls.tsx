@@ -56,7 +56,7 @@ const fixtureDialog = {
 function WorkspaceMenuFixture() {
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
-  const [closed, setClosed] = useState(0)
+  const [renames, setRenames] = useState(0)
   window.replicaControls.setTheme = useUiStore.getState().setTheme
   // 夹具转接系统媒体输入；菜单、主题动作与颜色决策都消费生产实现。
   useEffect(() => {
@@ -76,14 +76,13 @@ function WorkspaceMenuFixture() {
     <div data-testid="workspace-menu-fixture">
       <TaskWorkspaceHeader
         sessionId="control-probe"
-        onRename={() => {}}
+        onRename={() => setRenames((count) => count + 1)}
         onWorkspace={() => {}}
-        onClose={() => setClosed((count) => count + 1)}
         actions={<ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />}
       >
         <span>Workspace menu fixture</span>
       </TaskWorkspaceHeader>
-      <output data-testid="closed-panes">{closed}</output>
+      <output data-testid="renames">{renames}</output>
     </div>
   )
 }

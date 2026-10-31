@@ -1,5 +1,6 @@
 // 应用外壳复刻夹具（规格 v2 第 2.1 节，A1 重写）：真实的侧栏外壳（ShellSidebar，268 / 60 窄轨）、
-// 共享页头（PageHeader，Windows 自绘标题栏时右侧让出 144px）、手机底部标签栏（ShellTabBar）与命令面板。
+// 共享页头（PageHeader，Windows 自绘标题栏时右侧让出 144px）、手机外壳（A4：顶栏 PhoneTopBar + 抽屉 PhoneDrawer）
+// 与命令面板。
 // 会话分组与窄轨计数是看板领域的懒加载块，这里换成固定的占位行，只验外壳本身的结构、尺寸与键盘行为；
 // 分组的真实数据与快捷处理在 smoke-board-ui / smoke-sidebar 里覆盖。
 // 图形图例：侧栏底色上的 16px 运行中 / 排队 / 今天完成（排队分组要等 Runtime 声明 sessionQueue，
@@ -11,8 +12,8 @@ import { Settings } from 'lucide-react'
 import { AppProviders } from '@/app/providers'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { ShellSidebar, type ShellSidebarEntry } from '@/app/ShellSidebar'
-import { ShellTabBar } from '@/app/ShellTabBar'
-import type { ShellTab } from '@/app/shell-tabs'
+import { PhoneDrawer } from '@/app/PhoneDrawer'
+import { PhoneTopBar } from '@/app/PhoneTopBar'
 import { CommandPalette } from '@/components/layout/AppOverlays'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { COMMAND_PALETTE_REQUESTED_EVENT, requestCommandPalette } from '@/features/chat/events'
@@ -29,8 +30,7 @@ const navigation: Array<[string, Array<[string, string, typeof Settings]>]> = [
 declare global {
   interface Window {
     shellControls?: {
-      setActive: (tab: ShellTab | null) => void
-      setHidden: (hidden: boolean) => void
+      setEntry: (entry: ShellSidebarEntry | null) => void
     }
   }
 }
@@ -38,22 +38,16 @@ declare global {
 export function Fixture() {
   const [open, setOpen] = useState(false)
   const [opened, setOpened] = useState('')
-  const [active, setActive] = useState<ShellTab | null>('board')
   const [entry, setEntry] = useState<ShellSidebarEntry | null>('board')
-  const [hidden, setHidden] = useState(false)
   const [newTasks, setNewTasks] = useState(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  window.shellControls = { setActive, setHidden }
+  window.shellControls = { setEntry }
   // “更多”页搜索框把关键词交给命令面板：与应用壳一样监听请求事件再打开。
   useEffect(() => {
     const show = () => setOpen(true)
     window.addEventListener(COMMAND_PALETTE_REQUESTED_EVENT, show)
     return () => window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, show)
   }, [])
-  const select = (tab: ShellTab) => {
-    setActive(tab)
-    setOpened(`tab:${tab}`)
-  }
   const selectEntry = (next: ShellSidebarEntry) => {
     setEntry(next)
     setOpened(`entry:${next}`)
@@ -89,6 +83,13 @@ export function Fixture() {
             />
           )}
           <main className="relative flex min-w-0 flex-1 flex-col bg-panel">
+            {phone && (
+              <PhoneTopBar
+                title="全部代理"
+                onNewTask={() => setNewTasks((count) => count + 1)}
+                onSearch={() => setOpen(true)}
+              />
+            )}
             {!phone && (
               <PageHeader
                 meta={['资产', '']}
@@ -124,11 +125,24 @@ export function Fixture() {
           </main>
         </div>
         {phone && (
-          <ShellTabBar
-            hidden={hidden}
-            activeTab={active}
-            onSelectTab={select}
+          <PhoneDrawer
+            active={entry}
+            onSearch={() => setOpen(true)}
             onNewTask={() => setNewTasks((count) => count + 1)}
+            onOpenBoard={() => selectEntry('board')}
+            onOpenFeatures={() => selectEntry('features')}
+            onOpenSettings={() => selectEntry('settings')}
+            content={
+              <ul data-testid="drawer-groups-slot" className="m-0 flex list-none flex-col p-0">
+                {['修复 CI 失败', '重构登录流程'].map((title) => (
+                  <li key={title}>
+                    <a href={`#${title}`} className="flex h-11 items-center px-2.5 text-base">
+                      {title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            }
           />
         )}
       </div>

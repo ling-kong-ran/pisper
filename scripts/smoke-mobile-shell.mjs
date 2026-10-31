@@ -1,17 +1,17 @@
 // 手机外壳冒烟（第 4 期重写）。两部分，都只用本机浏览器、不启动模型、不读用户配置：
 // 1. 组件夹具（scripts/fixtures/mobile-shell.jsx）：新外壳仍在使用的真实组件——看板“新建项目…”、
 //    工作目录选择器（含 Android SAF 导入）、附件的系统选择器、检查器底部表单里的改动与终端。
-// 2. 真实生产构建（dist）+ 进程内隔离 Runtime（临时数据目录、随机端口）；看板、/live 与审批在浏览器
+// 2. 真实生产构建（dist）+ 进程内隔离 Runtime（临时数据目录、随机端口）；全部代理、/live 与审批在浏览器
 //    边界用 scripts/fixtures/board-fixture.mjs 固定，会话页的转录来自写进临时目录的真实会话：
-//    - 390×844 手机 App：主页（会话）草稿与返回根、底部标签栏（会话 · 看板 · [新任务] · 更多 · 设置）
-//      与看板徽标、安全区、软键盘收起标签栏、看板跳转条与区段、审批卡（standard 一次允许只发 1 次 POST；
-//      critical 只开按住确认表单）、派发底部表单、更多磁贴与角标、组件列表 → 详情、设置；
-//    - 手机会话页：隐藏标签栏、顶栏看板入口、代理条操作表单、“+N 改动”检查器底部表单、
-//      Android 返回键先关表单再回上一级；
-//    - 平板 1024×768（手机 App）：桌面布局、泳道收缩规则、检查器覆盖层；
+//    - 390×844 手机 App（规格 v2 第 7 节）：主页（会话）草稿与返回根、顶栏 ☰（琥珀计数）+ 抽屉（入口、会话分组、
+//      抽屉里一步处理普通批准）、安全区、软键盘、全部代理卡片（standard 一次允许只发 1 次 POST；critical 只有“打开处理”）、
+//      派发底部表单、功能一列行与角标、组件列表 → 详情、设置列表 → 分区；
+//    - 手机会话页：顶栏 ☰ / 标题 ▾ / 改动芯片，没有代理条；会话菜单与输入框芯片的底部表单；改动芯片打开检查器底部表单；
+//      Android 返回键先关表单 / 抽屉再回上一级；
+//    - 平板 1024×768（手机 App）：桌面布局、全部代理分组列表、检查器覆盖层；
 //    - 窄宽度桌面模拟（pisperDesktop + customTitlebar）：不进手机外壳，标题栏无遮挡。
 //    - 冷启动快捷键（手机与 1440 桌面）：外壳第一次画出来就按一次 ⌘N / ⌘1，生效且只生效一次；
-//      手机看板上“会话主页”键紧接 ⌘N，请求等主页提交后交给草稿（快捷键 v2 里会话主页默认未绑定，
+//      全部代理上“会话主页”键紧接 ⌘N，请求等主页提交后交给草稿（快捷键 v2 里会话主页默认未绑定，
 //      冒烟把它改绑到 ⌘9）。
 // 浏览器模拟不等于真机（安全区、软键盘、返回键）或 Tauri / WebView 验证。
 import assert from 'node:assert/strict'
@@ -744,17 +744,16 @@ async function pressAfterFirstPaint(page, key) {
   await page.keyboard.press(key)
   return page.evaluate(() => Math.round(window.__firstPaint.key - window.__firstPaint.painted))
 }
-// 点亮的一级入口：手机标签栏的标签，或桌面侧栏的入口（全部代理 → board、功能 → more、设置 → settings）。
+// 点亮的一级入口：桌面侧栏的入口（全部代理 → board、功能 → more、设置 → settings）；手机见 drawerCurrent。
 const activeTabs = (page) =>
   page.evaluate(() =>
     [
       ...document.querySelectorAll(
-        '[data-shell-tab][aria-current="page"], [data-shell-sidebar] [data-sidebar-entry][aria-current="page"]',
+        '[data-shell-sidebar] [data-sidebar-entry][aria-current="page"]',
       ),
     ].map(
       (tab) =>
-        tab.dataset.shellTab ||
-        { board: 'board', features: 'more', settings: 'settings' }[tab.dataset.sidebarEntry],
+        ({ board: 'board', features: 'more', settings: 'settings' })[tab.dataset.sidebarEntry],
     ),
   )
 const noHorizontalScroll = (page) =>
@@ -773,22 +772,50 @@ async function resetLastSession() {
   assert.ok(response.ok, `reset last session: ${response.status}`)
 }
 
-// critical 卡片的审批详情来自 /live（错峰拉取）；详情到达前“允许…”不可点，先等它就绪。
-async function waitForApprovals(page) {
-  for (const id of ['fx-critical', 'fx-standard'])
-    await page
-      .locator(`[data-board-card="${id}"]`)
-      .getByRole('button', { name: id === 'fx-critical' ? '允许…' : '允许', exact: true })
-      .and(page.locator(':enabled'))
-      .waitFor({ timeout: 20000 })
-}
-
 const phoneViewport = {
   viewport: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,
   deviceScaleFactor: 2,
   colorScheme: 'light',
+}
+
+// 手机外壳的一级入口点亮在抽屉里（规格 7.1）：打开抽屉读 aria-current，再用 Esc 关上（焦点回到 ☰）。
+async function drawerCurrent(page) {
+  await page.locator('[data-phone-menu]').first().click()
+  const drawer = page.locator('[data-phone-drawer]')
+  await drawer.waitFor()
+  const current = await drawer
+    .locator('[data-drawer-entry][aria-current="page"]')
+    .evaluateAll((nodes) =>
+      nodes.map(
+        (node) =>
+          ({ board: 'board', features: 'more', settings: 'settings' })[node.dataset.drawerEntry],
+      ),
+    )
+  await page.keyboard.press('Escape')
+  await drawer.waitFor({ state: 'detached' })
+  return current
+}
+
+async function openDrawerEntry(page, entry) {
+  await page.locator('[data-phone-menu]').first().click()
+  const drawer = page.locator('[data-phone-drawer]')
+  await drawer.waitFor()
+  await drawer.locator(`[data-drawer-entry="${entry}"]`).click()
+  await drawer.waitFor({ state: 'detached' })
+}
+
+// 需要你卡片的审批详情来自 /live（错峰拉取）：普通批准的“允许”可点、高风险的“高风险”说明出现后再操作。
+async function waitForApprovalCards(page) {
+  await page
+    .locator('[data-board-card="fx-standard"][data-overview-card]')
+    .getByRole('button', { name: /^允许/ })
+    .and(page.locator(':enabled'))
+    .waitFor({ timeout: 20000 })
+  await page
+    .locator('[data-board-card="fx-critical"][data-overview-card] [data-severity="critical"]')
+    .waitFor({ timeout: 20000 })
 }
 
 async function verifyPhoneShell(boardSessions) {
@@ -799,7 +826,7 @@ async function verifyPhoneShell(boardSessions) {
     keyboard: true,
     sessions: boardSessions,
   })
-  // 主页是会话：全新设备落在新任务草稿（手机会话外壳，不显示标签栏）；主页是返回的根。
+  // 主页是会话：全新设备落在新任务草稿（手机会话外壳）；主页是返回的根。
   // 冷启动：草稿第一次画出来就按一次硬件键盘 ⌘N。快捷键层随外壳同步加载、在提交阶段挂监听，草稿也在
   // 提交阶段认领新任务请求，所以这一下不会丢，也不会因为草稿还没登记而改开派发底部表单。
   await context.addInitScript(firstPaintProbe, '[data-new-task-draft="phone"]')
@@ -831,122 +858,151 @@ async function verifyPhoneShell(boardSessions) {
   )
   assert.equal(await draftFocused(), false)
   assert.equal(await page.locator('[data-session-shell="phone"]').count(), 1)
-  assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
-  const homeEntry = await page.locator('[data-board-entry]').boundingBox()
-  assert.ok(homeEntry && homeEntry.height >= 43.5, `home board entry ${JSON.stringify(homeEntry)}`)
+  assert.equal(await page.locator('[data-testid="mobile-tab-bar"], [data-shell-tab]').count(), 0)
+  const homeMenu = await page.locator('[data-phone-menu]').boundingBox()
+  assert.ok(homeMenu && homeMenu.height >= 43.5, `home ☰ ${JSON.stringify(homeMenu)}`)
   assert.equal(await nativeBack(page), false, 'Android back on the home draft hands over')
   report.checks.push(
-    `Phone home: a fresh device lands on the new-task draft in the phone session shell without the tab bar (draft not autofocused; a single hardware ⌘N pressed ${coldDelay}ms after the draft's first paint focuses it without opening the dispatch sheet); the 看板 entry is ≥44px; Android back on the home hands over to the platform`,
+    `Phone home: a fresh device lands on the new-task draft in the phone session shell, no tab bar (draft not autofocused; a single hardware ⌘N pressed ${coldDelay}ms after the draft's first paint focuses it without opening the dispatch sheet); ☰ is ≥44px; Android back on the home hands over to the platform`,
   )
 
-  // 看板：标签栏、徽标、安全区、跳转条与区段、审批卡、派发底部表单、软键盘。
-  await page.locator('[data-board-entry]').click()
+  // 抽屉（规格 7.1）：min(320, 85vw)，搜索 · ✎ · 全部代理 · 功能 · 会话分组 · 设置；普通批准行下方常驻 44px 拒绝 / 允许，
+  // 高风险与失败行只能点开；返回键先关抽屉，焦点回到 ☰。
+  await page.locator('[data-phone-menu]').click()
+  const drawer = page.locator('[data-phone-drawer]')
+  await drawer.waitFor()
+  await drawer.locator('[data-sidebar-row="fx-standard"]').waitFor({ timeout: 30000 })
+  await drawer
+    .locator('[data-sidebar-item="fx-standard"] [data-sidebar-drawer-actions]')
+    .waitFor({ timeout: 20000 })
+  const drawerFacts = await drawer.evaluate((panel) => {
+    const height = (node) => Math.round(node.getBoundingClientRect().height)
+    return {
+      width: Math.round(panel.getBoundingClientRect().width),
+      entries: [...panel.querySelectorAll('[data-drawer-entry]')].map((node) => [
+        node.dataset.drawerEntry,
+        height(node),
+      ]),
+      search: height(panel.querySelector('[data-drawer-search]')),
+      rows: [...panel.querySelectorAll('[data-sidebar-row]')].map((row) => [
+        row.dataset.sidebarGroupRow,
+        height(row),
+      ]),
+      actions: [...panel.querySelectorAll('[data-sidebar-drawer-actions]')].map((node) => [
+        node.closest('[data-sidebar-item]').dataset.sidebarItem,
+        [...node.querySelectorAll('button')].map((button) => [button.textContent, height(button)]),
+      ]),
+    }
+  })
+  assert.equal(drawerFacts.width, 320)
+  assert.deepEqual(drawerFacts.entries, [
+    ['board', 44],
+    ['features', 44],
+    ['settings', 44],
+  ])
+  assert.equal(drawerFacts.search, 44)
+  assert.ok(
+    drawerFacts.rows.every(([group, h]) => h === (group === 'attention' ? 56 : 44)),
+    JSON.stringify(drawerFacts.rows),
+  )
+  assert.deepEqual(drawerFacts.actions, [
+    [
+      'fx-standard',
+      [
+        ['拒绝', 44],
+        ['允许', 44],
+      ],
+    ],
+  ])
+  await page.screenshot({ path: join(output, 'phone-drawer.png') })
+  assert.equal(await nativeBack(page), true, 'Android back closes the drawer first')
+  await drawer.waitFor({ state: 'detached' })
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-phone-menu'))
+  assert.equal(hashOf(page), '#/')
+  report.checks.push(
+    'Phone drawer: 320 wide with a 44px search, 新任务, 全部代理 / 功能 / 设置 entries (44px), session rows 56 (需要你) / 44; only the standard approval carries 44px 拒绝 / 允许 (critical and failed rows only open); Android back closes it first and focus returns to ☰',
+  )
+
+  // 全部代理：顶栏 56（☰ + 琥珀“● 3”、页名、搜索、✎），44px 分段，需要你是卡片、其余是行；没有标签栏与标题栏。
+  await openDrawerEntry(page, 'board')
   await page.waitForURL((url) => url.hash === '#/board')
-  const tabBar = page.getByTestId('mobile-tab-bar')
-  await tabBar.waitFor()
-  await page.locator('[data-board-card]').first().waitFor({ timeout: 30000 })
-  await waitForApprovals(page)
+  await page.locator('[data-overview-card]').first().waitFor({ timeout: 30000 })
+  await waitForApprovalCards(page)
   assert.equal(
     await page.evaluate(() => document.documentElement.hasAttribute('data-phone-shell')),
     true,
   )
   assert.equal(await page.locator('[data-app-titlebar], [data-shell-sidebar]').count(), 0)
-  const bar = await tabBar.evaluate((nav) => ({
-    order: [...nav.children].map(
-      (child) => child.dataset.shellTab || (child.querySelector('button') ? 'new' : ''),
-    ),
-    paddingBottom: getComputedStyle(nav).paddingBottom,
-    tabs: [...nav.querySelectorAll('[data-shell-tab]')].map((tab) => {
-      const box = tab.getBoundingClientRect()
-      return { id: tab.dataset.shellTab, width: box.width, height: box.height }
-    }),
-    newTask: (() => {
-      const button = nav.querySelector(':scope > div > button')
-      const box = button.getBoundingClientRect()
-      return { label: button.getAttribute('aria-label'), width: box.width, height: box.height }
-    })(),
-    bottomGap: window.innerHeight - nav.getBoundingClientRect().bottom,
-  }))
-  assert.deepEqual(bar.order, ['session', 'board', 'new', 'more', 'settings'])
-  assert.deepEqual(bar.newTask, { label: '新任务', width: 52, height: 40 })
-  for (const tab of bar.tabs)
-    assert.ok(tab.height >= 56 && tab.width >= 44, `tab touch target ${JSON.stringify(tab)}`)
-  assert.equal(bar.paddingBottom, '34px', 'the tab bar keeps clear of the bottom safe area')
-  assert.ok(Math.abs(bar.bottomGap) < 1, `tab bar sits on the bottom edge ${bar.bottomGap}`)
-  const boardTab = tabBar.locator('[data-shell-tab="board"]')
   await page.waitForFunction(
     () =>
       document
-        .querySelector('[data-testid="mobile-tab-bar"] [data-shell-tab="board"]')
-        ?.getAttribute('aria-label') === '看板, 3 项需要你',
+        .querySelector('[data-phone-topbar] [data-phone-menu]')
+        ?.getAttribute('aria-label') === '打开导航，3 个需要你',
   )
-  assert.deepEqual(await activeTabs(page), ['board'])
-  assert.equal((await boardTab.innerText()).replace(/\s+/g, ''), '3看板')
+  const top = await page.evaluate(() => {
+    const bar = document.querySelector('[data-phone-topbar]')
+    const box = (node) => {
+      const rect = node.getBoundingClientRect()
+      return { width: Math.round(rect.width), height: Math.round(rect.height) }
+    }
+    const segmented = document.querySelector(
+      '[data-board-root] [role="radiogroup"], [data-board-root] [role="tablist"]',
+    )
+    return {
+      height: Math.round(bar.getBoundingClientRect().height),
+      top: Math.round(bar.getBoundingClientRect().top),
+      title: bar.querySelector('[data-phone-title]').textContent,
+      badge: bar.querySelector('[data-phone-attention]')?.textContent,
+      search: box(bar.querySelector('[data-phone-search]')),
+      newTask: box(bar.querySelector('[data-phone-new-task]')),
+      segmented: segmented ? Math.round(segmented.getBoundingClientRect().height) : 0,
+      cards: [...document.querySelectorAll('[data-overview-card]')].map(
+        (card) => card.dataset.boardCard,
+      ),
+      rows: [...document.querySelectorAll('[data-overview-row]:not([data-overview-card])')].map(
+        (row) => row.dataset.lane,
+      ),
+      h1: [...document.querySelectorAll('h1')].map((node) => node.textContent),
+    }
+  })
+  assert.equal(top.height, 56)
+  assert.equal(top.top, 47, 'the top bar sits under the top safe area')
+  assert.equal(top.title, '全部代理')
+  assert.equal(top.badge, '3')
+  assert.deepEqual(top.search, { width: 44, height: 44 })
+  assert.deepEqual(top.newTask, { width: 44, height: 44 })
+  assert.equal(top.segmented, 44)
+  assert.deepEqual(top.cards.toSorted(), ['fx-critical', 'fx-failed', 'fx-standard'])
+  assert.ok(top.rows.length > 0 && !top.rows.includes('attention'), JSON.stringify(top.rows))
+  assert.deepEqual(top.h1, ['全部代理'], 'one h1 (visually hidden) per page')
   assert.equal(await noHorizontalScroll(page), true)
   await page.screenshot({ path: join(output, 'phone-board.png') })
   report.checks.push(
-    'Phone tab bar: 会话 · 看板 · [新任务 52×40] · 更多 · 设置, 56px tabs, 34px bottom safe area, 看板 lit with the amber 3 badge, no title bar, no horizontal scroll',
+    'Phone 全部代理: 56px top bar under the 47px safe area with ☰ + amber 3, the page name, 44px search and ✎; a 44px 按状态 / 按项目 segment; the three 需要你 items are cards and the rest stay rows; one (visually hidden) h1; no tab bar, title bar or sidebar; no horizontal scroll',
   )
 
-  const jumpBar = page.getByRole('navigation', { name: '跳到泳道', exact: true })
-  const chips = await jumpBar
-    .getByRole('button')
+  // 卡片（规格 7.3）：高风险只有“打开处理”，不能一步批准；普通批准 [拒绝][允许] 44px，一次点击只发 1 次 POST；
+  // 失败 [日志][重试] 44px。
+  const critical = page.locator('[data-board-card="fx-critical"][data-overview-card]')
+  assert.deepEqual(await critical.locator('[data-card-actions] button').allInnerTexts(), [
+    '打开处理',
+  ])
+  assert.equal(await critical.getByRole('button', { name: /^允许/ }).count(), 0)
+  const failedButtons = await page
+    .locator('[data-board-card="fx-failed"] [data-card-actions] button')
     .evaluateAll((buttons) =>
-      buttons.map((button) => [button.textContent.trim(), button.getAttribute('aria-current')]),
+      buttons.map((button) => [
+        button.innerText.trim(),
+        Math.round(button.getBoundingClientRect().height),
+      ]),
     )
-  assert.deepEqual(
-    chips.map(([text]) => text.replace(/\d+$/, '')),
-    ['需要你', '运行中', '已完成'],
-  )
-  assert.equal(chips[0][1], 'true', 'the attention chip starts selected')
-  assert.deepEqual(
-    await page
-      .locator('[data-board-section]')
-      .evaluateAll((sections) => sections.map((section) => section.dataset.boardSection)),
-    ['attention', 'running', 'done'],
-  )
-  for (const box of await jumpBar
-    .getByRole('button')
-    .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height)))
-    assert.ok(box >= 40, `jump chip height ${box}`)
-  // 点“已完成”：滚到该区段（末尾区段较短时滚到底），选中留在“已完成”，平滑滚动结束后也不被前一个区段抢走。
-  const doneSelected = () =>
-    page.evaluate(() => {
-      const scroller = document.querySelector('[data-board-sections]')
-      const section = scroller?.querySelector('[data-board-section="done"]')
-      const chip = [...document.querySelectorAll('nav[aria-label="跳到泳道"] button')].find(
-        (button) => button.textContent.trim().startsWith('已完成'),
-      )
-      const offset = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top
-      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
-      return chip?.getAttribute('aria-current') === 'true' && (Math.abs(offset) < 16 || atBottom)
-    })
-  await jumpBar.getByRole('button', { name: /^已完成/ }).click()
-  for (let i = 0; i < 40 && !(await doneSelected()); i += 1) await page.waitForTimeout(100)
-  await page.waitForTimeout(600)
-  assert.equal(await doneSelected(), true, 'tapping 已完成 keeps it selected after scrolling')
-  await jumpBar.getByRole('button', { name: /^需要你/ }).click()
-  await page.waitForFunction(() => document.querySelector('[data-board-sections]')?.scrollTop === 0)
-  report.checks.push(
-    'Phone board jump bar: 需要你 / 运行中 / 已完成 chips (queued hidden without the capability), attention selected first; tapping 已完成 scrolls its section to the top and selects it; sections follow the lane order',
-  )
-
-  // critical：“允许…”只打开按住确认表单；轻点按住键不批准；返回键先关表单，仍在看板。
-  const critical = page.locator('[data-board-card="fx-critical"]')
-  await critical.getByRole('button', { name: '允许…', exact: true }).click()
-  const confirm = page.getByRole('dialog', { name: '确认高风险操作', exact: true })
-  await confirm.waitFor()
-  await confirm.locator('[data-approval-hold]').tap()
-  await page.waitForTimeout(300)
-  assert.equal(fixture.posts.length, 0, 'critical 允许… and a tap on the hold button never approve')
-  assert.equal(await nativeBack(page), true)
-  await confirm.waitFor({ state: 'detached' })
-  assert.equal(hashOf(page), '#/board')
-  assert.equal(fixture.posts.length, 0)
-  // standard：一次点击只发 1 次 POST。
+  assert.deepEqual(failedButtons, [
+    ['日志', 44],
+    ['重试', 44],
+  ])
   const standardAllow = page
-    .locator('[data-board-card="fx-standard"]')
-    .getByRole('button', { name: '允许', exact: true })
+    .locator('[data-board-card="fx-standard"][data-overview-card]')
+    .getByRole('button', { name: /^允许/ })
   const allowBox = await standardAllow.boundingBox()
   assert.ok(allowBox && allowBox.height >= 44, `approve touch target ${JSON.stringify(allowBox)}`)
   await standardAllow.click()
@@ -956,13 +1012,13 @@ async function verifyPhoneShell(boardSessions) {
     fixture.posts.map((post) => [post.path, post.body]),
     [['/api/sessions/fx-standard/approvals/approval-standard', { approved: true }]],
   )
-  assert.equal(hashOf(page), '#/board', 'approving inline stays on the board')
+  assert.equal(hashOf(page), '#/board', 'approving inline stays on 全部代理')
   report.checks.push(
-    'Phone approval cards: critical 允许… only opens the hold-to-confirm sheet (a tap never approves; Android back closes it first and stays on the board); standard 允许 (≥44px) sends exactly one POST {approved:true}',
+    'Phone cards: critical shows only 打开处理 (no one-step approval anywhere on the page); failed shows 44px 日志 / 重试; standard 允许 (≥44px) sends exactly one POST {approved:true} and stays on 全部代理',
   )
 
-  // 新任务：派发底部表单；返回键先关表单。
-  await tabBar.getByRole('button', { name: '新任务', exact: true }).click()
+  // 新任务：顶栏 ✎ 打开派发底部表单；返回键先关表单。
+  await page.locator('[data-phone-topbar] [data-phone-new-task]').click()
   const dispatch = page.getByRole('dialog', { name: '新任务', exact: true })
   await dispatch.waitFor()
   await dispatch.locator('[data-launch-console="sheet"]').waitFor()
@@ -973,20 +1029,19 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await nativeBack(page), true)
   await dispatch.waitFor({ state: 'detached' })
   assert.equal(hashOf(page), '#/board')
-  // 软键盘弹起：外壳随可视视口收缩，标签栏让出高度；收起后回来。
+  // 软键盘弹起：外壳随可视视口收缩（没有底部条要让位）；收起后回来。
   await page.evaluate(() => window.__setKeyboard(336))
   await page.waitForFunction(
     () => document.querySelector('.app-shell')?.dataset.mobileKeyboard === 'open',
   )
-  assert.equal(await tabBar.isVisible(), false, 'the tab bar yields to the software keyboard')
+  assert.equal(await page.locator('[data-phone-topbar]').isVisible(), true)
   await page.evaluate(() => window.__setKeyboard(0))
   await page.waitForFunction(() => !document.querySelector('.app-shell')?.dataset.mobileKeyboard)
-  assert.equal(await tabBar.isVisible(), true)
   report.checks.push(
-    'Phone 新任务 opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input under the project row (Android back closes it first); the software keyboard hides the tab bar and it returns when the keyboard closes',
+    'Phone ✎ opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input under the project row (Android back closes it first); the software keyboard shrinks the shell and nothing sits at the bottom edge',
   )
 
-  // 看板上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是看板（手机看板不认领，
+  // 全部代理上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是全部代理（不认领，
   // 旧逻辑会打开派发底部表单）。外壳按路由器的最新去向判断，请求等主页提交后交给草稿：聚焦草稿、不开表单，只执行一次。
   await page.keyboard.press(`${MOD_KEY}+Digit9`)
   await page.keyboard.press(`${MOD_KEY}+KeyN`)
@@ -1002,23 +1057,21 @@ async function verifyPhoneShell(boardSessions) {
   await page.evaluate(
     () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
   )
-  await page.locator('[data-board-entry]').click()
-  await page.waitForURL((url) => url.hash === '#/board')
-  await tabBar.waitFor()
   report.checks.push(
-    'Phone race: the rebound session-home key then ⌘N at once from the board lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving board)',
+    'Phone race: the rebound session-home key then ⌘N at once from 全部代理 lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving page)',
   )
 
-  // 更多：磁贴、角标、组件磁贴；组件列表 → 详情；返回键沿层级回到主页。
-  await tabBar.locator('[data-shell-tab="more"]').click()
+  // 功能：一列 56 行与角标、组件工作室；组件列表 → 详情（页头“‹ 功能”44px，页名在顶栏）；返回键沿层级回到主页。
+  await openDrawerEntry(page, 'features')
   await page.waitForURL((url) => url.hash === '#/more')
   await page.locator('[data-more-tile]').first().waitFor()
   await page.locator('[data-more-badge]').nth(3).waitFor({ timeout: 20000 })
-  assert.deepEqual(await activeTabs(page), ['more'])
+  assert.equal(await page.locator('[data-phone-topbar] [data-phone-title]').textContent(), '功能')
+  assert.deepEqual(await drawerCurrent(page), ['more'])
   assert.equal(
-    await boardTab.getAttribute('aria-label'),
-    '看板, 2 项需要你',
-    'the badge follows the approval on every page',
+    await page.locator('[data-phone-menu]').getAttribute('aria-label'),
+    '打开导航，2 个需要你',
+    'the count follows the approval on every page',
   )
   const badges = await page
     .locator('[data-more-badge]')
@@ -1034,8 +1087,6 @@ async function verifyPhoneShell(boardSessions) {
     'page:schedules:neutral:2 启用',
     'page:workflows:run:1 运行中',
   ])
-  // 组件工作室在“扩展”里（A3，规格 2.7）：普通入口，不能画成“+ 放置组件”那种虚线空位；
-  // 手机是一列 56 行（规格 7.4），每行至少 44 高、占满内容宽。
   const componentsTile = page.locator(
     '[data-more-group="extensions"] [data-more-tile="page:components"]',
   )
@@ -1067,28 +1118,25 @@ async function verifyPhoneShell(boardSessions) {
   await page.waitForURL((url) => url.hash === '#/components')
   const list = page.locator('[data-components-phone="list"]')
   await list.waitFor()
-  assert.deepEqual(await activeTabs(page), ['more'], 'components opened from 更多 keep 更多 lit')
+  assert.deepEqual(await drawerCurrent(page), ['more'], 'components keep 功能 lit')
   const row = page.locator('[data-component-row="game-asset-demo"]')
   const rowBox = await row.boundingBox()
   assert.ok(rowBox && rowBox.height >= 44, `component row ${JSON.stringify(rowBox)}`)
   await row.click()
   await page.locator('[data-components-phone="detail"]').waitFor()
   assert.equal(hashOf(page), '#/components/game-asset-demo')
-  // 手机页头：左对齐 24px 大标题与 44px 高的“‹ 更多”文字返回键，不放主题键。
   const phoneHeader = await page.evaluate(() => {
     const back = document.querySelector('[data-back-to-more]')
     const header = back?.closest('header')
-    const title = header?.querySelector('h1')
     return {
       back: back ? Math.round(back.getBoundingClientRect().height) : 0,
       backText: back?.textContent?.trim(),
-      titleSize: title ? getComputedStyle(title).fontSize : '',
       theme: [...(header?.querySelectorAll('[data-testid="theme-toggle"]') ?? [])].filter(
         (node) => node.getClientRects().length > 0,
       ).length,
     }
   })
-  assert.deepEqual(phoneHeader, { back: 44, backText: '更多', titleSize: '24px', theme: 0 })
+  assert.deepEqual(phoneHeader, { back: 44, backText: '功能', theme: 0 })
   // “‹ 全部组件”退回列表那一条历史：浏览器后退不会又回到详情。
   await page.getByRole('button', { name: '全部组件', exact: true }).click()
   await list.waitFor()
@@ -1105,26 +1153,50 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-new-task-draft="phone"]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
-    'Phone 更多 (功能 index): one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows) with 更多 lit; Android back walks detail → list → 更多 → home, and the home hands over to the platform',
+    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
   )
 
-  // 设置：手机分区导航，“独立组件”标签换成跳到组件页的链接；看板徽标仍在。
-  await page.goto(app.url + '/#/config/interface')
-  await page.locator('[data-components-moved]').waitFor({ timeout: 30000 })
-  assert.equal(await page.locator('[data-mobile-navigation="settings"]').count(), 1)
-  assert.equal(await page.getByRole('tab', { name: /独立组件/ }).count(), 0)
-  assert.deepEqual(await activeTabs(page), ['settings'])
-  assert.equal(
-    await boardTab.getAttribute('aria-label'),
-    '看板, 2 项需要你',
-    'the badge follows the approval on every page',
+  // 设置（规格 7.4）：抽屉底部“设置”进分区列表（56 行），点“界面”进分区，顶上“‹ 设置”；返回键从分区回列表。
+  await openDrawerEntry(page, 'settings')
+  await page.waitForURL((url) => url.hash === '#/config')
+  const sections = page.locator('[data-mobile-navigation="settings"] [data-settings-section]')
+  await sections.first().waitFor({ timeout: 30000 })
+  const sectionRows = await sections.evaluateAll((nodes) =>
+    nodes.map((node) => [
+      node.dataset.settingsSection,
+      Math.round(node.getBoundingClientRect().height),
+    ]),
   )
+  assert.deepEqual(
+    sectionRows.map(([section]) => section),
+    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'],
+  )
+  assert.ok(
+    sectionRows.every(([, h]) => h >= 56),
+    JSON.stringify(sectionRows),
+  )
+  assert.equal(await page.locator('[data-phone-topbar] [data-phone-title]').textContent(), '设置')
+  assert.equal(await page.locator('[data-settings-features-hint]').count(), 1)
+  await page.screenshot({ path: join(output, 'phone-settings-list.png') })
+  await page.locator('[data-settings-section="interface"]').click()
+  await page.waitForURL((url) => url.hash === '#/config/interface')
+  await page.locator('[data-components-moved]').waitFor({ timeout: 30000 })
+  const back = await page.locator('[data-settings-back]').boundingBox()
+  assert.ok(back && back.height >= 44, `settings back ${JSON.stringify(back)}`)
+  assert.equal(await page.getByRole('tab', { name: /独立组件/ }).count(), 0)
+  assert.deepEqual(await drawerCurrent(page), ['settings'])
   assert.equal(await noHorizontalScroll(page), true)
   await page.screenshot({ path: join(output, 'phone-settings.png') })
+  assert.equal(await nativeBack(page), true)
+  await page.waitForURL((url) => url.hash === '#/config')
+  await page.locator('[data-settings-section="interface"]').click()
+  await page.locator('[data-settings-back]').click()
+  await page.waitForURL((url) => url.hash === '#/config')
+  await page.locator('[data-settings-section="interface"]').click()
   await page.locator('[data-components-moved]').click()
   await page.waitForURL((url) => url.hash === '#/components')
   report.checks.push(
-    'Phone settings: mobile section navigation, the standalone-widgets tab is replaced by a link to /components, 设置 lit and the board badge kept',
+    'Phone settings: the drawer opens the section list (模型 · 界面 · 通知 · 快捷键 · 更新 · 关于, rows ≥56, the “in 功能” hint); a section shows a 44px “‹ 设置” and 设置 lit; Android back and “‹ 设置” return to the list; the standalone-widgets tab is replaced by a link to /components',
   )
   await context.close()
 }
@@ -1137,96 +1209,142 @@ async function verifyPhoneSession(boardSessions) {
     sessions: boardSessions,
   })
   const page = await openPage(context, 'phone session', '#/board')
-  await page.getByTestId('mobile-tab-bar').waitFor({ timeout: 60000 })
-  await waitForApprovals(page)
+  await page.locator('[data-phone-topbar]').waitFor({ timeout: 60000 })
+  await waitForApprovalCards(page)
   await page.locator(`[data-board-card="${BOARD_SESSION_ID}"]`).click()
   await page.waitForURL((url) => url.hash === `#/board/${BOARD_SESSION_ID}`)
   const header = page.locator('[data-session-header="phone"]')
   await header.waitFor({ timeout: 30000 })
-  await page.locator('[data-agent-chip="fx-critical"]').waitFor({ timeout: 30000 })
   await page.locator('[data-session-changes]').waitFor({ timeout: 30000 })
   const facts = await page.evaluate(() => {
-    const entry = document.querySelector('[data-board-entry]')
-    const box = entry.getBoundingClientRect()
+    const box = (node) => {
+      const rect = node.getBoundingClientRect()
+      return { width: Math.round(rect.width), height: Math.round(rect.height) }
+    }
+    const menu = document.querySelector('[data-session-header="phone"] [data-phone-menu]')
     return {
       shell: document.querySelector('[data-session-shell]')?.dataset.sessionShell,
       workspace: document.querySelector('[data-session-workspace]')?.dataset.sessionWorkspace,
-      tabBar: document.querySelectorAll('[data-testid="mobile-tab-bar"]').length,
-      laneStrip: document.querySelectorAll('[data-lane-strip]').length,
+      tabBar: document.querySelectorAll('[data-testid="mobile-tab-bar"], [data-shell-tab]').length,
+      strips: document.querySelectorAll('[data-lane-strip], [data-agent-strip], [data-agent-chip]')
+        .length,
       headerHeight: Math.round(
         document.querySelector('[data-session-header="phone"]').getBoundingClientRect().height,
       ),
-      entry: { label: entry.getAttribute('aria-label'), height: box.height, width: box.width },
-      chips: [...document.querySelectorAll('[data-agent-chip]')].map((chip) => ({
-        id: chip.dataset.agentChip,
-        lane: chip.dataset.lane,
-        height: Math.round(chip.getBoundingClientRect().height),
-      })),
+      menu: { label: menu.getAttribute('aria-label'), ...box(menu) },
+      title: box(document.querySelector('[data-session-menu-trigger]')),
+      changes: {
+        count: document.querySelector('[data-session-changes]').dataset.sessionChanges,
+        ...box(document.querySelector('[data-session-changes]')),
+      },
+      newTask: document.querySelectorAll('[data-session-header="phone"] [data-phone-new-task]')
+        .length,
       horizontalScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
     }
   })
   assert.equal(facts.shell, 'phone')
   assert.equal(facts.workspace, 'sheet')
-  assert.equal(facts.tabBar, 0, 'the session page hides the tab bar')
-  assert.equal(facts.laneStrip, 0)
+  assert.equal(facts.tabBar, 0)
+  assert.equal(facts.strips, 0, 'no agent strip on the phone session page (规格 7.2)')
   assert.equal(facts.headerHeight, 56)
-  assert.equal(facts.entry.label, '打开看板，3 项需要你')
-  assert.ok(facts.entry.height >= 44 && facts.entry.width >= 44, JSON.stringify(facts.entry))
-  assert.equal(facts.chips[0].lane, 'attention', 'attention chips come first')
-  assert.ok(
-    facts.chips.every((chip) => chip.height >= 44),
-    JSON.stringify(facts.chips),
-  )
+  assert.equal(facts.menu.label, '打开导航，3 个需要你')
+  assert.ok(facts.menu.height >= 44 && facts.menu.width >= 44, JSON.stringify(facts.menu))
+  assert.ok(facts.title.height >= 44, JSON.stringify(facts.title))
+  assert.deepEqual(facts.changes, { count: '2', width: 44, height: 44 })
+  assert.equal(facts.newTask, 0, 'with changes the right slot is the changes chip, not ✎')
   assert.equal(facts.horizontalScroll, false)
   await page.screenshot({ path: join(output, 'phone-session.png') })
   report.checks.push(
-    'Phone session page: phone shell with the 56px top bar, no tab bar and no lane strip, the 看板 entry announces 3 items needing you (≥44px), 44px agent chips with attention first',
+    'Phone session page: phone shell with the 56px top bar (☰ announcing 3 needing you, 44px title ▾, 44px changes chip “2” instead of ✎), no tab bar and no agent strip',
   )
 
-  // 代理条 → critical 操作表单：只有“允许…”，进入按住确认表单；返回键先关表单，留在会话页。
-  await page.locator('[data-agent-chip="fx-critical"]').click()
-  const criticalSheet = page.locator('[data-agent-sheet="fx-critical"]')
-  await criticalSheet.waitFor()
-  await criticalSheet
-    .locator('[data-agent-sheet-command]')
-    .getByText('git push --force-with-lease origin fix/ci')
-    .waitFor()
-  assert.equal(
-    await criticalSheet
-      .locator('[data-agent-sheet-approve]')
-      .getAttribute('data-agent-sheet-approve'),
-    'critical',
+  // 标题 ▾ → 会话菜单底部表单：会话树 · 侧聊 · 检查器 | 重命名 · 归档 | …，行高 48；返回键先关表单。
+  await page.locator('[data-session-menu-trigger]').click()
+  const menuSheet = page.locator('[data-session-menu-sheet]')
+  await menuSheet.waitFor()
+  const menuRows = await menuSheet.locator('button').evaluateAll((buttons) =>
+    buttons.map((button) => ({
+      text: button.innerText.trim().split('\n')[0],
+      height: Math.round(button.getBoundingClientRect().height),
+      marker:
+        [...button.attributes].find(
+          (attr) => attr.name.startsWith('data-session-') || attr.name === 'data-inspector-toggle',
+        )?.name ?? '',
+    })),
   )
-  assert.equal(
-    (await criticalSheet.locator('[data-agent-sheet-approve]').innerText()).trim(),
-    '允许…',
+  assert.ok(
+    menuRows.every((entry) => entry.height >= 48),
+    JSON.stringify(menuRows),
   )
-  await criticalSheet.locator('[data-agent-sheet-approve]').click()
-  const confirm = page.getByRole('dialog', { name: '确认高风险操作', exact: true })
-  await confirm.waitFor()
-  await confirm.locator('[data-approval-hold]').tap()
-  await page.waitForTimeout(300)
-  assert.equal(fixture.posts.length, 0, 'the agent sheet never approves critical in one step')
+  assert.deepEqual(
+    menuRows.slice(0, 3).map((entry) => entry.marker),
+    ['data-session-tree', 'data-session-side-chat', 'data-inspector-toggle'],
+  )
+  assert.ok(
+    menuRows.some((entry) => entry.text === '重命名会话'),
+    JSON.stringify(menuRows),
+  )
+  assert.ok(
+    menuRows.some((entry) => entry.text === '归档'),
+    JSON.stringify(menuRows),
+  )
+  await page.screenshot({ path: join(output, 'phone-session-menu.png') })
   assert.equal(await nativeBack(page), true)
-  await confirm.waitFor({ state: 'detached' })
+  await menuSheet.waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
-  // standard：表单里一步允许，只发 1 次 POST，不离开当前会话。
-  await page.locator('[data-agent-chip="fx-standard"]').click()
-  const standardSheet = page.locator('[data-agent-sheet="fx-standard"]')
-  await standardSheet.waitFor()
-  await standardSheet.locator('[data-agent-sheet-approve="standard"]').click()
-  await standardSheet.waitFor({ state: 'detached' })
+  report.checks.push(
+    'Phone title ▾ opens the session menu bottom sheet (会话树 · 侧聊 · 检查器 first, then 重命名 · 归档 · …, rows ≥48px); Android back closes it on the session page',
+  )
+
+  // 抽屉里一步处理普通批准（规格 7.2）：只发 1 次 POST，不离开当前会话；高风险行没有批准键。
+  await page.locator('[data-session-header="phone"] [data-phone-menu]').click()
+  const drawer = page.locator('[data-phone-drawer]')
+  await drawer.waitFor()
+  const standardActions = drawer.locator(
+    '[data-sidebar-item="fx-standard"] [data-sidebar-drawer-actions]',
+  )
+  await standardActions.waitFor({ timeout: 20000 })
+  assert.equal(
+    await drawer.locator('[data-sidebar-item="fx-critical"] [data-sidebar-drawer-actions]').count(),
+    0,
+  )
+  await standardActions.getByRole('button', { name: /允许/ }).click()
+  for (let i = 0; i < 30 && fixture.posts.length < 1; i += 1) await page.waitForTimeout(100)
   await page.waitForTimeout(500)
   assert.deepEqual(
     fixture.posts.map((post) => [post.path, post.body]),
     [['/api/sessions/fx-standard/approvals/approval-standard', { approved: true }]],
   )
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
+  assert.equal(await nativeBack(page), true, 'Android back closes the drawer first')
+  await drawer.waitFor({ state: 'detached' })
   report.checks.push(
-    'Phone agent strip: the critical chip sheet shows the full command and only 允许…, which opens the hold-to-confirm sheet (a tap never approves; Android back closes it on the session page); the standard chip approves with exactly one POST without leaving the session',
+    'Phone drawer on the session page: the standard approval is handled in one step with exactly one POST without leaving the session; the critical row has no approve key; Android back closes the drawer first',
   )
 
-  // “+N 改动 ›” → 检查器底部表单（改动 / 终端 / 文件 / 预览）；返回键先关表单，再回到看板。
+  // 输入框芯片（规格 7.2）：盾牌与模型芯片 44px，点开各自的底部表单；返回键先关表单。
+  const chips = await page.evaluate(() =>
+    ['[data-composer-mode]', '.model-effort-pill'].map((selector) =>
+      Math.round(document.querySelector(selector)?.getBoundingClientRect().height ?? 0),
+    ),
+  )
+  assert.deepEqual(chips, [44, 44])
+  for (const selector of ['[data-composer-mode]', '.model-effort-pill']) {
+    await page.locator(selector).click()
+    const sheet = page.locator('[data-popover-sheet]')
+    await sheet.waitFor()
+    assert.equal(await sheet.getAttribute('data-side'), 'bottom')
+    if (selector === '[data-composer-mode]')
+      await page.screenshot({ path: join(output, 'phone-mode-sheet.png') })
+    assert.equal(await nativeBack(page), true)
+    await sheet.waitFor({ state: 'detached' })
+  }
+  assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
+  report.checks.push(
+    'Phone composer chips: the 44px shield and model chips open bottom sheets (not popovers); Android back closes each first',
+  )
+
+  // 改动芯片 → 检查器底部表单（改动 / 终端 / 文件 / 预览）；返回键先关表单，再回到全部代理。
   await page.locator('[data-session-changes]').click()
   const inspector = page.locator('[data-inspector-sheet]')
   await inspector.waitFor()
@@ -1321,9 +1439,9 @@ async function verifyPhoneSession(boardSessions) {
   assert.deepEqual(aborts, [], 'closing sheets never stops the run')
   assert.equal(await nativeBack(page), true)
   await page.waitForURL((url) => url.hash === '#/board')
-  await page.getByTestId('mobile-tab-bar').waitFor()
+  await page.locator('[data-phone-topbar]').waitFor()
   report.checks.push(
-    'Phone +N 改动 › opens the inspector bottom sheet with 44px 改动 / 终端 / 文件 / 预览 tabs; Android back closes the sheet first (it stays mounted in its closed state for the exit transition, unmounts after it, and focus returns to +N 改动; reopening during the exit keeps it open; with reduced motion it unmounts at once), the next back returns to the board where the tab bar is back, and nothing stops the run',
+    'Phone changes chip opens the inspector bottom sheet with 44px 改动 / 终端 / 文件 / 预览 tabs; Android back closes the sheet first (it stays mounted in its closed state for the exit transition, unmounts after it, and focus returns to the chip; reopening during the exit keeps it open; with reduced motion it unmounts at once), the next back returns to 全部代理, and nothing stops the run',
   )
   await context.close()
 }
@@ -1444,7 +1562,9 @@ async function verifyColdStartShortcuts(boardSessions) {
     await page.waitForURL((url) => url.hash === '#/board', { timeout: 5000 })
     await page.locator('[data-board-root]').waitFor({ timeout: 30000 })
     assert.equal(await page.evaluate(() => window.history.state?.idx), 1, `${label}: one push`)
-    assert.deepEqual(await activeTabs(page), ['board'])
+    assert.deepEqual(label === 'phone' ? await drawerCurrent(page) : await activeTabs(page), [
+      'board',
+    ])
     if (label === 'desktop') {
       await page.goto(app.url + '/#/more')
       await page.reload()

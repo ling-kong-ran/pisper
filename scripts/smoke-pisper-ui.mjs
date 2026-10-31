@@ -967,14 +967,14 @@ try {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.waitForFunction((expected) => window.innerWidth === expected, width)
-    // 手机会话页是第 4 期的 56px 顶栏（右端只有 ⋯ 项目与任务设置，侧聊与检查器都在 ⋯ 里）；桌面会话顶栏
-    // （规格 v2 第 4.1 节）左边是标题 ▾ 菜单，右端只有改动按钮（兼检查器开关）。
+    // 手机会话页是 56px 顶栏（规格 v2 第 7.2 节：☰ · 标题 ▾，侧聊与检查器都在标题 ▾ 的会话菜单里）；
+    // 桌面会话顶栏（规格 4.1）左边是标题 ▾ 菜单，右端只有改动按钮（兼检查器开关）。
     const phoneLayout = width <= 650
     const taskHeader = page.locator(
       phoneLayout ? '[data-session-header="phone"]' : '[data-session-header]',
     )
     const headerControls = phoneLayout
-      ? ['[aria-label="项目与任务设置"]']
+      ? ['[data-phone-menu]', '[data-session-menu-trigger]']
       : ['[data-session-menu]', '[data-inspector-toggle]']
     await taskHeader.locator(headerControls.at(-1)).waitFor()
     await taskHeader.evaluate(async (header) => {
@@ -1030,8 +1030,8 @@ try {
         document.documentElement.style.setProperty('--pisper-safe-area-top', '24px')
         document.documentElement.style.setProperty('--pisper-safe-area-bottom', '16px')
       })
-      await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-      await page.getByRole('menuitem', { name: '改动、终端、文件与预览', exact: true }).click()
+      await page.locator('[data-session-menu-trigger]').click()
+      await page.locator('[data-session-menu-sheet] [data-inspector-toggle]').click()
       const content = page.locator('[data-inspector-sheet]')
       await content.waitFor()
       await content.evaluate((el) =>
@@ -1101,47 +1101,52 @@ try {
     await page.screenshot({ path: join(output, `light-${width}.png`), animations: 'disabled' })
   }
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-  // 规格 v2 第 2.5 节：桌面标题菜单不再放主题项（主题在 ⌘K 与设置 › 界面）；“⋯”里的主题切换只留在
-  // 手机顶栏（A4 前），所以主题循环在 390 宽的手机顶栏上验证，结束后回到 1440。
-  await page.setViewportSize({ width: 390, height: 900 })
-  await page.waitForFunction(() => window.innerWidth === 390)
-  const themeToggle = page.getByTestId('theme-toggle')
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
+  // 规格 v2 第 2.5 节：主题不再在页头或会话菜单里（A4 起手机会话菜单也去掉了），入口是 ⌘K“切换主题”与设置 › 界面。
+  // 循环顺序 浅色 → 跟随系统 → 深色 → 浅色；只有跟随系统时随操作系统变化；刷新后保留。
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.waitForFunction(() => window.innerWidth === 1440)
+  const storedTheme = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('pisper-ui') || '{}')?.state?.theme)
+  const cycleTheme = async () => {
+    await page.locator('[data-shell-sidebar]').getByRole('button', { name: /^搜索/ }).click()
+    const palette = page.getByRole('combobox')
+    await palette.waitFor()
+    await palette.fill('切换主题')
+    await page.getByRole('option', { name: /切换主题/ }).click()
+    await palette.waitFor({ state: 'detached' })
+  }
   await page.emulateMedia({ colorScheme: 'light' })
-  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
-  await themeToggle.click()
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：跟随系统，点击切换为深色')
+  for (let i = 0; i < 3 && (await storedTheme()) !== 'light'; i += 1) await cycleTheme()
+  assert.equal(await storedTheme(), 'light')
+  await cycleTheme()
+  assert.equal(await storedTheme(), 'system')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await page.emulateMedia({ colorScheme: 'light' })
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-  await themeToggle.click()
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
+  await cycleTheme()
+  assert.equal(await storedTheme(), 'dark')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-  await themeToggle.click()
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：浅色，点击切换为跟随系统')
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-  await themeToggle.click()
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await themeToggle.click()
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
+  await cycleTheme()
+  assert.equal(await storedTheme(), 'light')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.waitForTimeout(200)
+  assert.equal(
+    await page.evaluate(() => document.documentElement.dataset.theme),
+    'light',
+    'an explicit light theme ignores the OS',
+  )
+  await cycleTheme()
+  await cycleTheme()
+  assert.equal(await storedTheme(), 'dark')
   await page.reload()
   await prompt.waitFor()
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-  await page.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await themeToggle.waitFor()
-  assert.equal(await themeToggle.getAttribute('aria-label'), '主题：深色，点击切换为浅色')
-  await page.keyboard.press('Escape')
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.waitForFunction(() => window.innerWidth === 1440)
+  assert.equal(await storedTheme(), 'dark')
   await page.locator('[data-session-header] [data-session-menu]').waitFor()
   report.checks.push(
-    'Theme toggle cycles system/dark/light with current and next labels, follows OS changes only in system mode and persists after reload',
+    'Theme command (⌘K 切换主题) cycles light → system → dark → light, follows OS changes only in system mode and persists after reload',
   )
   await prompt.focus()
   await page.screenshot({ path: join(output, 'dark-1440.png'), animations: 'disabled' })

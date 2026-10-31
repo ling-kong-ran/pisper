@@ -254,9 +254,10 @@ export async function verifyReplicaControls() {
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
     await themeItem.click()
     await workspaceMore.click()
-    await page.getByRole('menuitem', { name: 'Close pane', exact: true }).click()
+    // A4 起旧顶栏没有“关闭窗格”（分屏已删）：用“重命名”验证菜单项执行一次并关上菜单。
+    await page.getByRole('menuitem', { name: 'Rename chat', exact: true }).click()
     await menu.waitFor({ state: 'hidden' })
-    assert.equal(await page.getByTestId('closed-panes').textContent(), '1')
+    assert.equal(await page.getByTestId('renames').textContent(), '1')
     await page.getByTestId('dialog-trigger').click()
     const dialog = page.getByRole('dialog', { name: 'Nested controls', exact: true })
     await dialog.waitFor()

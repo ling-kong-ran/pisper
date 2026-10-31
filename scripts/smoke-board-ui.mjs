@@ -954,7 +954,8 @@ try {
     await context.close()
   }
 
-  // 4. 手机 App（390×844）：底部标签栏、看板标签的需要你徽标，没有桌面标题栏。
+  // 4. 手机 App（390×844，规格 v2 第 7.1、7.3 节）：顶栏 ☰ 旁琥珀需要你计数（离开全部代理也在），没有标签栏与桌面标题栏；
+  // 需要你是卡片、其余是行。
   for (const colorScheme of ['light', 'dark']) {
     const { context } = await newContext(
       {
@@ -967,46 +968,54 @@ try {
       { mobileApp: true },
     )
     const page = await openBoard(context, `phone ${colorScheme}`)
-    const tabBar = page.getByTestId('mobile-tab-bar')
-    await tabBar.waitFor()
+    const topBar = page.locator('[data-phone-topbar]')
+    await topBar.waitFor()
     assert.equal(
       await page.evaluate(() => document.documentElement.hasAttribute('data-phone-shell')),
       true,
     )
-    assert.equal(await page.locator('[data-app-titlebar]').count(), 0)
-    const boardTab = tabBar.locator('[data-shell-tab="board"]')
+    assert.equal(
+      await page
+        .locator('[data-app-titlebar], [data-testid="mobile-tab-bar"], [data-shell-tab]')
+        .count(),
+      0,
+    )
+    const menu = topBar.locator('[data-phone-menu]')
     await page.waitForFunction(
       () =>
         document
-          .querySelector('[data-testid="mobile-tab-bar"] [data-shell-tab="board"]')
-          ?.getAttribute('aria-label') === '看板, 3 项需要你',
+          .querySelector('[data-phone-topbar] [data-phone-menu]')
+          ?.getAttribute('aria-label') === '打开导航，3 个需要你',
     )
-    assert.equal(await boardTab.getAttribute('aria-current'), 'page')
-    assert.equal((await boardTab.innerText()).replace(/\s+/g, ''), '3看板')
-    assert.deepEqual(
-      await tabBar
-        .locator('[data-shell-tab]')
-        .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-shell-tab'))),
-      ['session', 'board', 'more', 'settings'],
-    )
-    for (const box of await tabBar
+    assert.equal(await menu.locator('[data-phone-attention]').innerText(), '3')
+    for (const box of await topBar
       .locator('button')
       .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().toJSON())))
-      assert.ok(box.height >= 40 && box.width >= 44, `tab bar touch target ${JSON.stringify(box)}`)
-    await page.locator('[data-board-section="attention"]').waitFor()
+      assert.ok(box.height >= 44 && box.width >= 44, `top bar touch target ${JSON.stringify(box)}`)
+    await page.locator('[data-overview-card]').first().waitFor()
+    assert.equal(
+      await page
+        .locator('[data-overview-card]')
+        .evaluateAll((cards) => cards.every((card) => card.dataset.lane === 'attention')),
+      true,
+    )
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,
     )
     await page.screenshot({ path: join(output, `phone-${colorScheme}.png`) })
-    // 离开看板后，看板标签仍带计数徽标。
-    await tabBar.locator('[data-shell-tab="more"]').click()
-    await page.waitForFunction(() => location.hash === '#/more')
-    assert.equal(await boardTab.getAttribute('aria-label'), '看板, 3 项需要你')
+    // 离开全部代理后，☰ 旁仍带计数。
+    await page.goto(page.url().replace(/#.*$/, '#/more'))
+    await page.locator('[data-phone-topbar] [data-phone-menu]').waitFor()
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-phone-menu]')?.getAttribute('aria-label') ===
+        '打开导航，3 个需要你',
+    )
     await context.close()
   }
   report.checks.push(
-    'Phone app 390x844 (light/dark): bottom tab bar 会话 · 看板 · 新任务 · 更多 · 设置 with the amber count badge on 看板 across pages, no desktop title bar, no horizontal scroll',
+    'Phone app 390x844 (light/dark): 56px top bar with ☰ + amber needs-you count that stays on other pages, 44px touch targets, 需要你 rendered as cards, no tab bar, no desktop title bar, no horizontal scroll',
   )
 
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。
@@ -1028,12 +1037,12 @@ try {
     )
     if (bridge) {
       assert.equal(phoneShell, false, `${label}: desktop window must not enter the phone shell`)
-      assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
+      assert.equal(await page.locator('[data-phone-topbar], [data-phone-drawer]').count(), 0)
       assert.equal(await page.locator('[data-shell-sidebar]').isVisible(), true)
     } else {
       // 对照组：普通浏览器低于手机断点时进入手机外壳，证明上面的门控确实生效。
       assert.equal(phoneShell, true, `${label}: a phone-width browser uses the phone shell`)
-      await page.getByTestId('mobile-tab-bar').waitFor()
+      await page.locator('[data-phone-topbar]').waitFor()
     }
     await context.close()
   }
@@ -1725,16 +1734,18 @@ try {
     assert.equal(await prompt.isVisible(), true)
     await prompt.fill('手机会话页的草稿')
     assert.equal(await prompt.inputValue(), '手机会话页的草稿')
-    const back = page.getByRole('button', { name: /^打开看板/ })
-    const backBox = await back.boundingBox()
-    assert.ok(backBox && backBox.height >= 44, `phone back target ${JSON.stringify(backBox)}`)
+    // 回全部代理：☰ 打开抽屉（规格 7.1，取代第 4 期的“看板 N”入口），入口 44px。
+    const menu = page.locator('[data-session-header="phone"] [data-phone-menu]')
+    const menuBox = await menu.boundingBox()
+    assert.ok(menuBox && menuBox.height >= 44, `phone menu target ${JSON.stringify(menuBox)}`)
     await page.screenshot({ path: join(output, 'session-phone.png') })
-    await back.click()
+    await menu.click()
+    await page.locator('[data-phone-drawer] [data-drawer-entry="board"]').click()
     await page.locator('[data-board-root]').waitFor()
     await context.close()
   }
   report.checks.push(
-    'Phone app 390x844: the phone session page (no lane strip, no bottom tab bar, composer usable, 44px open-board entry, no horizontal scroll)',
+    'Phone app 390x844: the phone session page (no lane strip, no bottom tab bar, composer usable, 44px ☰ that opens the drawer back to 全部代理, no horizontal scroll)',
   )
 
   // 7d. 会话页头“⋯ › 重命名会话”（旧侧栏的右键重命名随外壳退役）：空白名不能保存、取消不发请求；

@@ -343,7 +343,8 @@ try {
   await initialPane.waitFor()
 
   await page.setViewportSize({ width: 320, height: 1000 })
-  const mobileMore = page.getByRole('button', { name: '项目与任务设置', exact: true })
+  // 手机会话顶栏（规格 v2 第 7.2 节）：标题 ▾ 是 44px 触控目标，会话操作都在它打开的底部表单里。
+  const mobileMore = page.locator('[data-session-menu-trigger]')
   await mobileMore.waitFor()
   await mobileMore.evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))),
@@ -553,21 +554,21 @@ try {
     savedReadingPosition,
   )
   await page.setViewportSize({ width: 390, height: 844 })
-  // 第 4 期手机会话页：56px 顶栏（⋯ 是 44px 触控目标），没有泳道条与并排检查器；桌面检查器打开过的
+  // 手机会话页：56px 顶栏（标题 ▾ 是 44px 触控目标），没有泳道条与并排检查器；桌面检查器打开过的
   // 预览不会让手机落在只显示内容的视图上，对话与未发送草稿照常可见。
   await page.waitForFunction(
     () =>
-      document.querySelector('#task-a-more')?.getBoundingClientRect().height >= 44 &&
+      document.querySelector('[data-session-menu-trigger]')?.getBoundingClientRect().height >= 44 &&
       document.querySelector('[data-session-header="phone"]'),
   )
   assert.equal(await page.locator('[data-lane-strip], [data-session-inspector]').count(), 0)
   const mobilePane = page.locator('[data-task-workspace="a"]')
   await mobilePane.locator('.focus-composer textarea').waitFor({ state: 'visible' })
   assert.equal(await mobilePane.locator('.focus-composer textarea').inputValue(), 'A 的未发送草稿')
-  // ⋯ → “改动、终端、文件与预览”：检查器是底部表单（模态、困住焦点、在可视区内）；
+  // 标题 ▾ → “改动、终端、文件与预览”：检查器是底部表单（模态、困住焦点、在可视区内）；
   // 系统返回键先关表单，资源页与草稿都保留，回到对话。
-  await mobilePane.getByRole('button', { name: '项目与任务设置', exact: true }).click()
-  await page.getByRole('menuitem', { name: '改动、终端、文件与预览', exact: true }).click()
+  await mobilePane.locator('[data-session-menu-trigger]').click()
+  await page.locator('[data-session-menu-sheet] [data-inspector-toggle]').click()
   const sheet = page.locator('[data-inspector-sheet]')
   await sheet.waitFor()
   await sheet.evaluate((element) =>

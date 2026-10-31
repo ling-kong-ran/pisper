@@ -63,7 +63,7 @@ try {
     },
     { id: 'fail', name: 'Failure conversation', modified: '2026-10-19T00:00:00Z' },
   ]
-  // 手机标签栏的看板徽标：两个失败的会话落在“需要你”（不依赖 /live 的审批详情）。
+  // 手机顶栏 ☰ 旁的需要你计数：两个失败的会话落在“需要你”（不依赖 /live 的审批详情）。
   const phoneSessions = [
     ...sessions,
     ...['first', 'second'].map((id) => ({
@@ -343,8 +343,7 @@ try {
     'PASS replica shell sidebar: five entries in order with the current one lit and its shortcut shown, keyboard selection, new task, 268px at 1440/1080/960 without overflow or divider, collapse to the 60px rail and back keeping focus on the toggle, persisted in pisper-sidebar, 144px custom title bar corner on the page header, 1x running arc / queued ring / done tick distinguishable pixel by pixel in light and dark, search opens the palette with a 切换主题 command, More-search keyword hand-off',
   )
 
-  // 手机底部标签栏：会话 · 看板 · [新任务 52×40] · 更多 · 设置；看板徽标在任何选中标签下都在；
-  // 让出底部安全区；软键盘弹起时整栏隐藏；会话页（hidden）不渲染。
+  // 手机外壳（A4）：顶栏 ☰ + 抽屉取代底部标签栏。
   const phonePage = await browser.newPage({
     viewport: { width: 390, height: 844 },
     locale: 'zh-CN',
@@ -369,69 +368,83 @@ try {
     )
   })
   await phonePage.goto(`${url}?phone=1`)
-  const tabBar = phonePage.getByTestId('mobile-tab-bar')
-  await tabBar.waitFor()
-  const boardTab = tabBar.locator('[data-shell-tab="board"]')
+  // 手机外壳（规格 v2 第 7.1 节）：没有底部标签栏；顶栏 56 = ☰（带需要你计数）· 页名 · 搜索 · ✎，☰ 打开抽屉。
+  const topBar = phonePage.locator('[data-phone-topbar]')
+  await topBar.waitFor()
+  assert.equal(
+    await phonePage.locator('[data-testid="mobile-tab-bar"], [data-shell-tab]').count(),
+    0,
+  )
+  const menu = topBar.locator('[data-phone-menu]')
   await phonePage.waitForFunction(
     () =>
-      document.querySelector('[data-shell-tab="board"]')?.getAttribute('aria-label') ===
-      '看板, 2 项需要你',
+      document.querySelector('[data-phone-menu]')?.getAttribute('aria-label') ===
+      '打开导航，2 个需要你',
   )
-  const bar = await tabBar.evaluate((nav) => ({
-    order: [...nav.children].map(
-      (child) =>
-        child.getAttribute('data-shell-tab') || (child.querySelector('button') ? 'new' : ''),
-    ),
-    newTask: (() => {
-      const button = nav.querySelector(':scope > div > button')
-      const box = button.getBoundingClientRect()
-      return { name: button.getAttribute('aria-label'), width: box.width, height: box.height }
-    })(),
-    heights: [...nav.querySelectorAll('[data-shell-tab]')].map(
-      (tab) => tab.getBoundingClientRect().height,
-    ),
-    paddingBottom: getComputedStyle(nav).paddingBottom,
-    badge: nav.querySelector('[data-shell-tab="board"] [aria-hidden="true"].rounded-full')
-      ?.textContent,
-  }))
-  assert.deepEqual(bar.order, ['session', 'board', 'new', 'more', 'settings'])
-  assert.deepEqual(bar.newTask, { name: '新任务', width: 52, height: 40 })
-  assert.ok(
-    bar.heights.every((height) => height === 56),
-    JSON.stringify(bar.heights),
-  )
-  assert.equal(bar.paddingBottom, '34px')
+  const bar = await topBar.evaluate((header) => {
+    const box = (element) => {
+      const rect = element.getBoundingClientRect()
+      return { width: Math.round(rect.width), height: Math.round(rect.height) }
+    }
+    const title = header.querySelector('[data-phone-title]').getBoundingClientRect()
+    return {
+      height: Math.round(header.getBoundingClientRect().height),
+      menu: box(header.querySelector('[data-phone-menu]')),
+      search: box(header.querySelector('[data-phone-search]')),
+      newTask: box(header.querySelector('[data-phone-new-task]')),
+      badge: header.querySelector('[data-phone-attention]')?.textContent,
+      titleCenter: Math.round(title.left + title.width / 2),
+      width: Math.round(header.getBoundingClientRect().width),
+    }
+  })
+  assert.equal(bar.height, 56)
+  assert.ok(bar.menu.height >= 44 && bar.menu.width >= 44, JSON.stringify(bar.menu))
+  assert.deepEqual(bar.search, { width: 44, height: 44 })
+  assert.deepEqual(bar.newTask, { width: 44, height: 44 })
   assert.equal(bar.badge, '2')
-  for (const tab of ['session', 'more', 'settings', null]) {
-    await phonePage.evaluate((tab) => window.shellControls.setActive(tab), tab)
-    assert.equal(
-      await boardTab.getAttribute('aria-label'),
-      '看板, 2 项需要你',
-      `the board badge stays while ${tab} is active`,
-    )
-  }
-  await tabBar.getByRole('button', { name: '更多', exact: true }).click()
-  assert.equal(await phonePage.getByTestId('opened').textContent(), 'tab:more')
-  assert.equal(await tabBar.locator('[data-shell-tab="more"]').getAttribute('aria-current'), 'page')
-  await tabBar.getByRole('button', { name: '新任务', exact: true }).click()
+  assert.ok(Math.abs(bar.titleCenter - bar.width / 2) <= 2, JSON.stringify(bar))
+  await topBar.getByRole('button', { name: '新任务', exact: true }).click()
   assert.equal(await phonePage.getByTestId('new-tasks').textContent(), '1')
-  await phonePage.evaluate(() => {
-    document.querySelector('.app-shell').dataset.mobileKeyboard = 'open'
-  })
-  assert.equal(await tabBar.isVisible(), false, 'the tab bar yields to the software keyboard')
-  await phonePage.evaluate(() => {
-    delete document.querySelector('.app-shell').dataset.mobileKeyboard
-  })
-  assert.equal(await tabBar.isVisible(), true)
-  await phonePage.evaluate(() => window.shellControls.setHidden(true))
-  await tabBar.waitFor({ state: 'detached' })
-  await phonePage.screenshot({ path: join(output, 'tab-bar-hidden.png') })
-  await phonePage.evaluate(() => window.shellControls.setHidden(false))
-  await tabBar.waitFor()
-  await phonePage.screenshot({ path: join(output, 'tab-bar.png') })
+  // 抽屉：min(320, 85vw)，搜索 · ✎ · 全部代理 · 功能 · 会话分组 · 设置；入口 44px；Esc 关闭后焦点回到 ☰。
+  await menu.click()
+  const drawer = phonePage.locator('[data-phone-drawer]')
+  await drawer.waitFor()
+  assert.equal(await menu.getAttribute('aria-expanded'), 'true')
+  const layout = await drawer.evaluate((panel) => ({
+    width: Math.round(panel.getBoundingClientRect().width),
+    entries: [...panel.querySelectorAll('[data-drawer-entry]')].map((entry) => [
+      entry.getAttribute('data-drawer-entry'),
+      Math.round(entry.getBoundingClientRect().height),
+    ]),
+    groups: Boolean(panel.querySelector('[data-testid="drawer-groups-slot"]')),
+    current: panel.querySelector('[aria-current="page"]')?.getAttribute('data-drawer-entry'),
+  }))
+  assert.equal(layout.width, 320)
+  assert.deepEqual(layout.entries, [
+    ['board', 44],
+    ['features', 44],
+    ['settings', 44],
+  ])
+  assert.equal(layout.groups, true)
+  assert.equal(layout.current, 'board')
+  await phonePage.screenshot({ path: join(output, 'phone-drawer.png') })
+  await phonePage.keyboard.press('Escape')
+  await drawer.waitFor({ state: 'detached' })
+  await phonePage.waitForFunction(() => document.activeElement?.hasAttribute('data-phone-menu'))
+  // 入口先关抽屉再执行。
+  await menu.click()
+  await drawer.waitFor()
+  await drawer.locator('[data-drawer-entry="features"]').click()
+  await drawer.waitFor({ state: 'detached' })
+  assert.equal(await phonePage.getByTestId('opened').textContent(), 'entry:features')
+  await menu.click()
+  await drawer.locator('[data-drawer-new-task]').click()
+  await drawer.waitFor({ state: 'detached' })
+  assert.equal(await phonePage.getByTestId('new-tasks').textContent(), '2')
+  await phonePage.screenshot({ path: join(output, 'phone-top-bar.png') })
   await phonePage.close()
   console.log(
-    'PASS replica shell tab bar: order with the 52x40 new task button, 56px tabs, 34px safe area, board badge on every tab, keyboard hides it, hidden renders nothing',
+    'PASS replica shell phone top bar and drawer: no tab bar, 56px top bar with ☰ + amber count, centred title, 44px search / new task; drawer 320 wide with 44px entries, current entry, Esc returns focus to ☰, entries close the drawer first',
   )
 
   await page.setViewportSize({ width: 1200, height: 800 })

@@ -73,7 +73,8 @@ function KeyHint({ binding }: { binding: string | null }) {
   const label = binding && /^Key[A-Z]$/.test(binding) ? binding.slice(3) : ''
   if (!label) return null
   return (
-    <span aria-hidden="true" className="font-normal opacity-60">
+    // 触屏（手机 App 平板）没有键盘：不画键帽。
+    <span aria-hidden="true" className="font-normal opacity-60 pointer-coarse:hidden">
       {label}
     </span>
   )
@@ -176,7 +177,7 @@ function OverviewRowComponent({
       {t('board:overview.openToHandle')}
       {/* 手机卡片没有键盘：不写 ↵ 键帽。 */}
       {!card && (
-        <span aria-hidden="true" className="font-normal opacity-60">
+        <span aria-hidden="true" className="font-normal opacity-60 pointer-coarse:hidden">
           ↵
         </span>
       )}

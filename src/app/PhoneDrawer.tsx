@@ -77,6 +77,13 @@ export function PhoneDrawer({
         side="left"
         showCloseButton={false}
         data-phone-drawer
+        // 抽屉由 ☰ 经 store 打开（不是 Radix 的触发键）：关上后把焦点明确还给看得见的那个 ☰。
+        onCloseAutoFocus={(event) => {
+          const menu = document.querySelector<HTMLElement>('[data-phone-menu]')
+          if (!menu) return
+          event.preventDefault()
+          menu.focus()
+        }}
         aria-describedby={undefined}
         className="w-[min(320px,85vw)] gap-0 border-stroke-soft bg-sidebar p-0 pt-[var(--pisper-safe-area-top)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] data-[side=left]:w-[min(320px,85vw)] data-[side=left]:max-w-none"
       >
