@@ -617,13 +617,82 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a4-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a4-built-h">方向 A · A4 已实现（手机与平板）</h2>
+      <p class="lede">底部标签栏、手机看板和代理条都退役了：顶栏左边是 ☰（旁边琥珀“● 3”），点开是和桌面侧栏同样内容的抽屉；手机全部代理和桌面同一页，需要你的事项是卡片。拍法：390 × 844 与 1024 × 768，zh-CN、1x、headless Chromium 模拟手机 App，隔离 Runtime 加虚构的看板数据；不是真机，安全区、软键盘、返回键都是模拟。</p>
+    </div>
+    <h3>全部代理</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/phone-overview-light.png" aria-label="放大：效果图：手机全部代理"><img src="drafts/redesign/claude-sidebar/phone-overview-light.png" alt="效果图：手机全部代理" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>全部代理</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-board-light.png" aria-label="放大：实现：顶栏 ☰ ● 3 · 全部代理 · 搜索 · ✎，44px 分段，需要你三张卡片（失败 日志 / 重试、高风险只有打开处理、普通批准 拒绝 / 允许，命令完整显示），运行中是列表行"><img src="built/a4-phone-board-light.png" alt="实现：顶栏 ☰ ● 3 · 全部代理 · 搜索 · ✎，44px 分段，需要你三张卡片（失败 日志 / 重试、高风险只有打开处理、普通批准 拒绝 / 允许，命令完整显示），运行中是列表行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>全部代理（卡片 + 行）</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-board-dark.png" aria-label="放大：实现：手机全部代理（深色）"><img src="built/a4-phone-board-dark.png" alt="实现：手机全部代理（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>全部代理（深色）</figcaption></figure>
+    </div>
+    <h3>抽屉</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-phone-drawer-light.png" aria-label="放大：效果图：手机侧栏抽屉"><img src="drafts/redesign/claude-sidebar/extra-phone-drawer-light.png" alt="效果图：手机侧栏抽屉" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>抽屉</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-drawer-light.png" aria-label="放大：实现：抽屉：搜索与新任务、全部代理、功能、需要你分组（普通批准行下方常驻 44px 拒绝 / 允许）、运行中、置顶、今天完成、历史会话、设置"><img src="built/a4-phone-drawer-light.png" alt="实现：抽屉：搜索与新任务、全部代理、功能、需要你分组（普通批准行下方常驻 44px 拒绝 / 允许）、运行中、置顶、今天完成、历史会话、设置" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>抽屉：普通批准一步处理</figcaption></figure>
+    </div>
+    <h3>会话页</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/phone-session-light.png" aria-label="放大：效果图：手机会话"><img src="drafts/redesign/claude-sidebar/phone-session-light.png" alt="效果图：手机会话" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>会话</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-session-light.png" aria-label="放大：实现：顶栏 ☰ ● 3 · 标题 ▾ / 项目 · 运行中 3m11s · 改动芯片 2，托盘“运行中 3:11 · 停止”，输入框 + · 盾牌芯片 · 模型芯片 · 发送"><img src="built/a4-phone-session-light.png" alt="实现：顶栏 ☰ ● 3 · 标题 ▾ / 项目 · 运行中 3m11s · 改动芯片 2，托盘“运行中 3:11 · 停止”，输入框 + · 盾牌芯片 · 模型芯片 · 发送" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>会话：标题 ▾、改动芯片</figcaption></figure>
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-phone-session-menu-light.png" aria-label="放大：效果图：手机会话菜单"><img src="drafts/redesign/claude-sidebar/extra-phone-session-menu-light.png" alt="效果图：手机会话菜单" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>会话菜单</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-session-menu-light.png" aria-label="放大：实现：标题 ▾ 打开的会话菜单底部表单：会话树、侧聊、检查器 | 重命名、归档 | 移动工作区、压缩上下文（2%）、目标模式、工作流运行记录、语音模式；运行中时移动工作区、压缩与目标模式不可用"><img src="built/a4-phone-session-menu-light.png" alt="实现：标题 ▾ 打开的会话菜单底部表单：会话树、侧聊、检查器 | 重命名、归档 | 移动工作区、压缩上下文（2%）、目标模式、工作流运行记录、语音模式；运行中时移动工作区、压缩与目标模式不可用" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>会话菜单底部表单</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-mode-sheet-light.png" aria-label="放大：实现：盾牌芯片打开的底部表单：审批模式与执行方式"><img src="built/a4-phone-mode-sheet-light.png" alt="实现：盾牌芯片打开的底部表单：审批模式与执行方式" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>芯片打开底部表单</figcaption></figure>
+    </div>
+    <h3>主页、功能、设置、平板</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/a4-phone-home-light.png" aria-label="放大：实现：主页新任务草稿，顶栏左边 ☰ ● 3"><img src="built/a4-phone-home-light.png" alt="实现：主页新任务草稿，顶栏左边 ☰ ● 3" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>主页草稿</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-features-light.png" aria-label="放大：实现：手机功能：页名在顶栏，一列 56 行，渠道“1 断开”琥珀角标"><img src="built/a4-phone-features-light.png" alt="实现：手机功能：页名在顶栏，一列 56 行，渠道“1 断开”琥珀角标" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>功能</figcaption></figure>
+      <figure><button type="button" data-full="built/a4-phone-settings-list-light.png" aria-label="放大：实现：手机设置分区列表：模型 · 界面 · 通知 · 快捷键 · 更新 · 关于，下面“插件、MCP、技能等在功能里”"><img src="built/a4-phone-settings-list-light.png" alt="实现：手机设置分区列表：模型 · 界面 · 通知 · 快捷键 · 更新 · 关于，下面“插件、MCP、技能等在功能里”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>设置：列表 → 分区</figcaption></figure>
+    </div>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a4-tablet-board-light.png" aria-label="放大：实现：平板 1024 × 768（手机 App）：桌面布局，侧栏展开，全部代理分组列表，触屏上不画键帽"><img src="built/a4-tablet-board-light.png" alt="实现：平板 1024 × 768（手机 App）：桌面布局，侧栏展开，全部代理分组列表，触屏上不画键帽" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A4</span>平板 1024 × 768</figcaption></figure>
+    </div>
+    <h3>和效果图不一样，是规格定的</h3>
+    <ul class="notes">
+      <li class="change">需要你的普通批准卡片显示完整命令（最多 3 行再“展开完整命令”），效果图截成一行；批准前绝不截断（规格 3.3）。</li>
+      <li class="change">抽屉里需要你的普通批准行下方常驻“拒绝 / 允许”（规格 7.2“抽屉里一步处理普通批准”，效果图没画按钮）。</li>
+      <li class="change">高风险批准在手机上同样只有“打开处理”，进会话按住确认；第 4 期手机看板上的确认表单删除了（规格 3.5）。</li>
+    </ul>
+    <h3>效果图里有、要等后面几期的</h3>
+    <ul class="notes">
+      <li>“2 个问题”与选项胶囊、提问底部表单：A5。排队分组与“#1”：A9。会话菜单“导出”：A9。全部代理末尾的组件卡：A7。</li>
+      <li>会话顶栏右侧效果图是带角标的改动图标，实现一致；没有改动时那里是 ✎ 新任务。</li>
+    </ul>
+    <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li>顶栏的页名只是看得见的文字，每页自己的 h1 在手机上视觉隐藏，避免一页两个 h1；功能子页保留“‹ 功能”（iOS 没有返回键）。</li>
+      <li>会话菜单多一行“检查器（改动、终端、文件与预览）”：没有改动时顶栏右侧是 ✎，没有别的入口进终端 / 文件 / 预览；会话树一行只写分支数，不写标记数；手机菜单不再放主题和终端。</li>
+      <li>只有需要你是卡片，运行中、排队、今天完成仍是列表行（与效果图一致）；卡片和行上都不画键帽，平板触屏也不画。</li>
+      <li>设置：/config 是分区列表，分区页顶上“‹ 设置”，Android 返回键从分区回列表；桌面外壳任何宽度都用设置目录侧栏（横滑分区条退役）。</li>
+      <li>盾牌与模型芯片在手机上是底部表单，“+”菜单仍是下拉菜单。</li>
+      <li>删除了 Dockview 依赖与休眠的三栏手机外壳；Runtime 里存的旧分屏布局不删也不读写，回滚旧版本时原样可用。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="phone-h">
     <div class="sec-head">
-      <h2 id="phone-h">手机</h2>
-      <p class="lede">390 × 844，触控目标至少 44px。宽屏下每行第一张是第 1 期设计稿，后面三张是第 4 期实拍（headless Chromium，不是真机）。手机外壳 A1+A2 没有动，A4 才按方向 A 改成抽屉；在那之前这里仍是现状。例外是“更多”页：它和桌面“功能”共用一页，A3 起已经是一列 56 行（最后一张，1x），标签栏和页标题仍叫“更多”到 A4。</p>
+      <h2 id="phone-h">已被取代：第 4 期手机外壳（A4 取代）</h2>
+      <p class="lede">这一节只留作对照：底部标签栏、手机看板、代理条在 A4 已删除，现状见上一节“方向 A · A4 已实现”。390 × 844，宽屏下每行第一张是第 1 期设计稿，后面是第 4 期实拍（headless Chromium，不是真机）。例外是“更多”页：它和桌面“功能”共用一页，A3 起已经是一列 56 行（最后一张，1x），标签栏和页标题仍叫“更多”到 A4。</p>
     </div>
     <div class="panel">
-      <h3>手机底部标签栏（A4 前）</h3>
+      <h3>手机底部标签栏（第 4 期，A4 已删除）</h3>
       <div class="tabs" aria-label="手机标签">
         <span class="tab on">会话</span><span class="tab">看板 ▲3</span><span class="tab star">＋ 新任务</span><span class="tab">更多</span><span class="tab">设置</span>
       </div>
@@ -681,7 +750,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
       <div class="phase"><span class="n">A1–A2</span><span class="what">方向 A：视觉 token v2、侧栏外壳与会话分组、快捷键 v2；会话顶栏、按需检查器、托盘与输入区、内联批准卡、会话树三页与 6 个老问题</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A3</span><span class="what">全部代理分组列表（删除看板泳道）、侧栏随页面变化（筛选 / 设置目录）、功能索引、设置整页与双归属退役</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A4</span><span class="what">手机与平板：抽屉侧栏、返回键、触控目标，删除手机标签栏与 dockview</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A4</span><span class="what">手机与平板：顶栏 ☰ + 抽屉、全部代理卡片、会话菜单与芯片底部表单、设置列表 → 分区，删除手机标签栏、手机看板、代理条与 dockview</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片与侧栏</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板与浮层（⌘K、派发、引导、侧聊、会话树、配对）</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A7–A8</span><span class="what">组件工作室：核心闭环 → 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
