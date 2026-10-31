@@ -1064,10 +1064,15 @@ fn push_message(
     if message.role != "agent" {
         return;
     }
+    let before_activity = lines.len();
     if let Some(activity) = &message.run_activity {
         push_activity(lines, activity, width, expanded, targets);
     }
     if !message.text.is_empty() {
+        // 思考 / 工具树之后空一行再接正文：树的收尾行和回复首行贴在一起时，扫读时分不清哪段是回答。
+        if lines.len() > before_activity {
+            lines.push(Line::default());
+        }
         push_markdown(lines, "", ACCENT, &message.text, prose_width);
     }
     push_attachment_lines(lines, &message.attachments, prose_width, thumbnails);
@@ -1140,6 +1145,10 @@ fn push_live(
         rail.close_last(lines);
     }
     if !live.text.is_empty() {
+        // 与历史消息一致：活动树和流式正文之间留一行。
+        if rail.started {
+            lines.push(Line::default());
+        }
         push_markdown(
             lines,
             "",
@@ -1650,10 +1659,11 @@ fn tool_spans(
 fn tool_duration(tool: &ToolActivity, wall_ms: u64) -> String {
     if tool.finished_at > tool.started_at && tool.started_at > 0 {
         let elapsed = tool.finished_at - tool.started_at;
+        // 与运行中的实时计时（“12s”）同一写法，数字和单位之间不留空格。
         if elapsed >= 1000 {
-            format!("{:.1} s", elapsed as f64 / 1000.0)
+            format!("{:.1}s", elapsed as f64 / 1000.0)
         } else {
-            format!("{elapsed} ms")
+            format!("{elapsed}ms")
         }
     } else if tool.status == "running" {
         if tool.started_at > 0 && wall_ms >= tool.started_at {
@@ -2926,8 +2936,13 @@ fn picker_highlight_style() -> Style {
 
 /// 计算 Slash 目录弹窗区域：位于输入框上方，高度随条目数自适应。
 fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
-    let desired_height = (item_count.min(8) as u16)
-        .saturating_mul(2)
+    let rows_per_item = if slash_single_line(composer.width.saturating_sub(2)) {
+        1
+    } else {
+        2
+    };
+    let desired_height = (item_count.min(16 / rows_per_item) as u16)
+        .saturating_mul(rows_per_item as u16)
         .saturating_add(5)
         .clamp(7, SLASH_HEIGHT);
     let available_height = composer.y.saturating_sub(2).max(1);
@@ -2938,6 +2953,11 @@ fn slash_menu_area(composer: Rect, item_count: usize) -> Rect {
         composer.width.max(1),
         height,
     )
+}
+
+/// 斜杠菜单够宽时命令和说明放在同一行：两行一项时一屏只看得到 8 项。
+fn slash_single_line(inner_width: u16) -> bool {
+    inner_width >= 60
 }
 
 /// 渲染 Slash 目录：分类页签 + 命令列表 + 底部操作提示。
@@ -2969,6 +2989,12 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
         .split(inner);
     let counts = app.slash_kind_counts();
     let category = |value, label| {
+        let empty = match value {
+            SlashCategory::Tools => counts.0 == 0,
+            SlashCategory::Skills => counts.1 == 0,
+            SlashCategory::Commands => counts.2 == 0,
+            SlashCategory::All => false,
+        };
         Span::styled(
             label,
             if app.slash_category == value {
@@ -2976,6 +3002,9 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
                     .fg(ACCENT)
                     .bg(RAISED)
                     .add_modifier(Modifier::BOLD)
+            } else if empty {
+                // 没有匹配项的分类变暗，←→ 切换时也会跳过它。
+                Style::default().fg(FAINT)
             } else {
                 Style::default().fg(MUTED)
             },
@@ -3004,14 +3033,45 @@ fn render_slash(frame: &mut Frame, app: &App, composer: Rect) {
         sections[0],
     );
 
-    let command_width = sections[1].width.saturating_sub(8).clamp(8, 34) as usize;
-    let detail_width = sections[1].width.saturating_sub(8) as usize;
+    let single = slash_single_line(sections[1].width);
+    let command_width = if single {
+        items
+            .iter()
+            .map(|item| item.command.width())
+            .max()
+            .unwrap_or(0)
+            .clamp(8, 24)
+    } else {
+        sections[1].width.saturating_sub(8).clamp(8, 34) as usize
+    };
+    let detail_width = if single {
+        (sections[1].width as usize).saturating_sub(command_width + 9)
+    } else {
+        sections[1].width.saturating_sub(8) as usize
+    };
     let rows = items.iter().map(|item| {
         let (kind, color) = match item.kind {
             SlashKind::Tool => ("T", ACCENT),
             SlashKind::Skill => ("S", VIOLET),
             SlashKind::Command => ("C", AMBER),
         };
+        if single {
+            return ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!(" {kind}  "),
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    padded_single_line(&item.command, command_width),
+                    Style::default().fg(TEXT).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("  "),
+                Span::styled(
+                    single_line(&item.detail, detail_width),
+                    Style::default().fg(MUTED),
+                ),
+            ]));
+        }
         ListItem::new(vec![
             Line::from(vec![
                 Span::styled(
@@ -3173,17 +3233,26 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         sessions
             .iter()
             .map(|session| {
-                let streaming = if session.streaming { " · running" } else { "" };
                 let loading = if app.session_loading.as_deref() == Some(session.id.as_str()) {
                     " · loading…"
                 } else {
                     ""
                 };
                 let workspace = shorten_path(&session.cwd);
-                let modified = format_session_time(&session.modified, now);
+                // 运行中的会话修改时间停在这一轮开始前，写“9h ago”反而像是早就不动了；
+                // 直接写 running。当前打开的会话标 current，免得选回自己。
+                let (modified, modified_color) = if session.streaming {
+                    ("running".to_owned(), ACCENT)
+                } else {
+                    (format_session_time(&session.modified, now), BLUE)
+                };
                 let mut metadata = vec![Span::raw("   ")];
                 if !modified.is_empty() {
-                    metadata.push(Span::styled(modified, Style::default().fg(BLUE)));
+                    metadata.push(Span::styled(modified, Style::default().fg(modified_color)));
+                    metadata.push(Span::styled(" · ", Style::default().fg(FAINT)));
+                }
+                if session.id == app.session.id {
+                    metadata.push(Span::styled("current", Style::default().fg(MUTED)));
                     metadata.push(Span::styled(" · ", Style::default().fg(FAINT)));
                 }
                 metadata.push(Span::styled(
@@ -3192,7 +3261,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
                 ));
                 let model = if show_model {
                     single_line(
-                        &format!("{}{}{}", display_model(&session.model), streaming, loading),
+                        &format!("{}{}", display_model(&session.model), loading),
                         model_width,
                     )
                 } else {
@@ -4022,16 +4091,27 @@ fn render_approval(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         0
     };
+    let command = Paragraph::new(approval_command_text(approval)).wrap(Wrap { trim: false });
+    // 原因紧跟在命令下面，空出来的高度留在原因和按键之间：面板有最小高度，短命令时
+    // 原因原来被压到底部，和命令之间隔着一大块空白，像是两件不相干的事。
+    let command_room = content_height.saturating_sub(reason_height);
+    let command_lines = command
+        .line_count(inner.width.max(1))
+        .min(u16::MAX as usize) as u16;
+    let command_height = command_lines.clamp(1.min(command_room), command_room);
+    let gap = u16::from(reason_height > 0 && command_room > command_height);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(1),
+            Constraint::Length(command_height),
+            Constraint::Length(gap),
             Constraint::Length(reason_height),
+            Constraint::Min(0),
             Constraint::Length(action_height),
         ])
         .split(inner);
+    let rows = [rows[0], rows[2], rows[4]];
 
-    let command = Paragraph::new(approval_command_text(approval)).wrap(Wrap { trim: false });
     let max_scroll = command
         .line_count(rows[0].width.max(1))
         .saturating_sub(rows[0].height as usize)
@@ -4530,6 +4610,36 @@ mod tests {
             Vec::new(),
             Vec::new(),
         )
+    }
+
+    /// 回复正文和上面的活动树之间空一行；工具耗时写成“2.5s”，与运行中的计时同一写法。
+    #[test]
+    fn reply_text_is_separated_from_the_activity_tree() {
+        let app = command_test_app();
+        let (width, height) = (100, 30);
+        let rows = buffer_rows(&render_test_buffer(&app, width, height), width, height);
+        let tool = rows
+            .iter()
+            .position(|line| line.contains("bash") && line.contains('▸'))
+            .expect("tool row");
+        assert!(rows[tool].contains("2.5s"), "{}", rows[tool]);
+        let reply = rows
+            .iter()
+            .position(|line| line.contains("Tests finished."))
+            .expect("reply row");
+        assert_eq!(reply, tool + 2, "{}", rows.join("\n"));
+        assert!(rows[tool + 1].trim().is_empty());
+        assert_eq!(
+            super::tool_duration(
+                &ToolActivity {
+                    started_at: 1_000,
+                    finished_at: 1_400,
+                    ..ToolActivity::default()
+                },
+                0
+            ),
+            "400ms"
+        );
     }
 
     /// 验证点击折叠的命令行可展开完整命令、参数与输出（去掉 ANSI 颜色），再次点击收起。
@@ -5594,6 +5704,21 @@ mod tests {
             assert!(rendered.contains("Allow"));
             assert!(rendered.contains("[N"));
             assert!(rendered.contains("Deny"));
+            // 原因紧跟在命令下方（中间至多空一行），不被压到面板底部。
+            if height >= 24 {
+                let command = rows
+                    .iter()
+                    .position(|row| row.contains("date +%A"))
+                    .unwrap();
+                let reason = rows
+                    .iter()
+                    .position(|row| row.contains("Reason ·"))
+                    .unwrap();
+                assert!(
+                    reason > command && reason - command <= 2,
+                    "{width}x{height}\n{rendered}"
+                );
+            }
             if width > CONVERSATION_WIDTH {
                 let title = rows
                     .iter()
@@ -5688,6 +5813,54 @@ mod tests {
         assert!(rendered.contains(&selected));
         assert!(!rendered.contains(&first));
         assert!(rendered.contains(&format!("{}/{}", items.len(), items.len())));
+    }
+
+    /// 够宽时斜杠菜单一项一行（命令与说明同行），一屏能看到的项多一倍；窄时仍是两行。
+    #[test]
+    fn wide_slash_menu_puts_each_command_on_one_line() {
+        let session = SessionSummary {
+            id: "session-1".to_owned(),
+            cwd: "/workspace".to_owned(),
+            ..SessionSummary::default()
+        };
+        let mut app = App::new(
+            vec![session.clone()],
+            session,
+            Vec::new(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        app.input = vec!['/'];
+        app.input_cursor = 1;
+        let items = app.slash_items();
+        let first = &items[0];
+        for (width, single) in [(120_u16, true), (50, false)] {
+            let mut terminal = Terminal::new(TestBackend::new(width, 40)).unwrap();
+            terminal
+                .draw(|frame| {
+                    render_slash(frame, &app, ratatui::layout::Rect::new(0, 37, width, 2));
+                })
+                .unwrap();
+            let rows = buffer_rows(terminal.backend().buffer(), width, 40);
+            let row = rows
+                .iter()
+                .position(|line| line.contains(&first.command))
+                .unwrap();
+            let detail: String = first.detail.chars().take(12).collect();
+            assert_eq!(
+                rows[row].contains(&detail),
+                single,
+                "{width}: {}",
+                rows[row]
+            );
+            if !single {
+                assert!(rows[row + 1].contains(&detail));
+            }
+        }
+        let wide = slash_menu_area(ratatui::layout::Rect::new(0, 37, 120, 2), items.len());
+        let narrow = slash_menu_area(ratatui::layout::Rect::new(0, 37, 50, 2), items.len());
+        assert_eq!(wide.height, narrow.height);
     }
 
     /// 验证斜杠菜单与输入框共享内容轨道（不覆盖输入区）。
@@ -5816,6 +5989,14 @@ mod tests {
         let rendered = format!("{:?}", terminal.backend().buffer());
         assert!(rendered.contains("Timed conversation"));
         assert!(rendered.contains("1970-01-01"));
+
+        // 运行中的会话不写过时的修改时间，写 running；当前打开的会话标 current。
+        app.sessions[0].streaming = true;
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        let running = buffer_rows(terminal.backend().buffer(), 80, 24).join("\n");
+        assert!(running.contains("running · current"), "{running}");
+        assert!(!running.contains("1970-01-01"), "{running}");
+        app.sessions[0].streaming = false;
 
         app.begin_session_list_load(false);
         terminal.draw(|frame| draw(frame, &app)).unwrap();

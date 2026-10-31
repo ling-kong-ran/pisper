@@ -242,6 +242,14 @@ impl PendingQuestion {
             .count()
     }
 
+    /// 第一道还没回答的题（从当前题往后找，找不到再从头找）。
+    fn first_unanswered(&self) -> Option<usize> {
+        let count = self.selected.len();
+        (0..count)
+            .map(|offset| (self.current + offset) % count)
+            .find(|&index| self.selected[index].is_empty())
+    }
+
     /// 选中当前题的第 index 个选项：单选替换，多选切换。
     fn choose(&mut self, index: usize) -> bool {
         let Some(question) = self.questions.get(self.current) else {
@@ -1134,6 +1142,10 @@ impl App {
             KeyCode::Enter => {
                 let left = question.unanswered();
                 if left > 0 {
+                    // 没答完时直接把焦点带到下一道没答的题，省得再按 Tab 去找。
+                    if let Some(index) = question.first_unanswered() {
+                        question.current = index;
+                    }
                     self.status = format!("{left} question(s) left to answer");
                     self.status_error = false;
                     return Action::None;
@@ -1721,11 +1733,26 @@ impl App {
 
     /// 循环切换 Slash 分类。
     fn cycle_slash_category(&mut self, forward: bool) {
-        self.slash_category = if forward {
-            self.slash_category.next()
-        } else {
-            self.slash_category.previous()
-        };
+        // 跳过没有匹配项的分类：停在空页签上只会看到一个空列表。“全部”总是可停。
+        let (tools, skills, commands) = self.slash_kind_counts();
+        let mut category = self.slash_category;
+        for _ in 0..4 {
+            category = if forward {
+                category.next()
+            } else {
+                category.previous()
+            };
+            let empty = match category {
+                SlashCategory::All => false,
+                SlashCategory::Tools => tools == 0,
+                SlashCategory::Skills => skills == 0,
+                SlashCategory::Commands => commands == 0,
+            };
+            if !empty {
+                break;
+            }
+        }
+        self.slash_category = category;
         self.slash_selected = 0;
     }
 
@@ -5134,6 +5161,29 @@ mod tests {
         assert!(app.accepts_composer_input());
     }
 
+    /// 没答完时按 Enter：不提交，焦点跳到下一道没答的题（从当前题往后找，再回到开头）。
+    #[test]
+    fn enter_with_unanswered_questions_focuses_the_next_unanswered_one() {
+        let mut app = app_with_question(json!([
+            { "header": "A", "question": "First?", "options": [{ "label": "a1" }, { "label": "a2" }] },
+            { "header": "B", "question": "Second?", "options": [{ "label": "b1" }, { "label": "b2" }] },
+            { "header": "C", "question": "Third?", "options": [{ "label": "c1" }, { "label": "c2" }] }
+        ]));
+        // 答第一题后焦点自动到第二题；跳到第三题答掉，再回到第二题之前的位置按 Enter。
+        app.handle_key(key(KeyCode::Char('1')));
+        app.handle_key(key(KeyCode::Tab));
+        app.handle_key(key(KeyCode::Char('2')));
+        assert_eq!(app.question.as_ref().unwrap().current, 2);
+        assert!(matches!(app.handle_key(key(KeyCode::Enter)), Action::None));
+        assert_eq!(app.question.as_ref().unwrap().current, 1);
+        assert!(app.status.contains("1 question(s) left"));
+        app.handle_key(key(KeyCode::Char('1')));
+        assert!(matches!(
+            app.handle_key(key(KeyCode::Enter)),
+            Action::AnswerQuestion { skipped: false, .. }
+        ));
+    }
+
     /// 多题：单选题选完自动跳到下一题，多选题数字键切换；没答完时 Enter 不提交，S 跳过。
     #[test]
     fn multi_question_flow_requires_every_answer_and_supports_skip() {
@@ -6708,6 +6758,19 @@ mod tests {
         app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
         assert_eq!(app.vcs_selected, 0);
         assert_eq!(app.vcs_scroll.get(), 0);
+    }
+
+    /// 没有工具和技能时，←→ 在“全部”和“命令”之间切换，不停在空分类上。
+    #[test]
+    fn slash_category_cycling_skips_empty_categories() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/");
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        assert_eq!(app.slash_category, SlashCategory::Commands);
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        assert_eq!(app.slash_category, SlashCategory::All);
+        app.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        assert_eq!(app.slash_category, SlashCategory::Commands);
     }
 
     /// 验证斜杠分类循环（右/左箭头）不影响 Tab 补全。
