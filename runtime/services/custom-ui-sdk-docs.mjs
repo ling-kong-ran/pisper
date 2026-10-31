@@ -104,7 +104,7 @@ export interface ThemeInfo {
   density: string
   fontSize: string
   radius: string
-  /** 读取 CSS 变量当前值，例如 token('--color-st-run') */
+  /** 读取 CSS 变量当前值，例如 token('--st-run') */
   token(name: string): string
 }
 
@@ -369,7 +369,8 @@ export default function CiStatus({ props, size, placement, ctx }) {
 
 ## 9. 样式
 
-- 优先用 \`ctx.ui\` 组件，以及 \`style={{ … }}\` 里的 CSS 变量：\`var(--color-content-muted)\`、\`var(--color-content-secondary)\`、\`var(--color-stroke)\`、\`var(--color-surface-subtle)\`、\`var(--color-st-run)\`、\`var(--color-st-attn)\`、\`var(--color-st-fail)\` 等；它们自动跟随明暗主题。
+- 优先用 \`ctx.ui\` 组件，以及 \`style={{ … }}\` 里的 CSS 变量：\`var(--text)\`、\`var(--text-secondary)\`、\`var(--text-muted)\`、\`var(--stroke)\`、\`var(--surface-subtle)\`、\`var(--surface-active)\`、\`var(--st-run)\`、\`var(--st-attn)\`、\`var(--st-fail)\` 等；它们自动跟随明暗主题。
+- 不要写 \`var(--color-…)\`：那是应用 CSS 编译期的别名，运行时不存在，写了只会退回继承的颜色。
 - **组件源码里写的 Tailwind 类不会被编译**，只有应用 CSS 里恰好存在的类才有效——不要依赖它。
 - 需要更多样式就写自己的 \`.css\` 并在 \`manifest.styles\` 声明；选择器加上组件前缀（例如 \`.ci-status-row\`），因为 CSS 作用于整个页面。
 - 琥珀色（attn）只表示“需要你处理”，不要拿来做装饰。

@@ -40,7 +40,7 @@ export default function UsageToday({ size, ctx }) {
     }
   }
   const tokenText = measured ? formatTokens(tokens) : '—'
-  const muted = { color: 'var(--color-content-muted)', fontSize: 12 }
+  const muted = { color: 'var(--text-muted)', fontSize: 12 }
   const number = { fontSize: 24, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
   if (size.compact) {
     return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 2, padding: '10px 12px', boxSizing: 'border-box' }}>
@@ -107,7 +107,7 @@ export default function Notes({ placement, ctx }) {
       aria-label=${'$'}{t('label')}
       style=${'$'}{{ flex: 1, minHeight: 64, resize: 'none' }}
     />
-    <div role="status" aria-live="polite" style=${'$'}{{ color: 'var(--color-content-muted)', fontSize: 12, minHeight: 16 }}>${'$'}{label}</div>
+    <div role="status" aria-live="polite" style=${'$'}{{ color: 'var(--text-muted)', fontSize: 12, minHeight: 16 }}>${'$'}{label}</div>
   </div>${'`'}
 }
 `
@@ -122,7 +122,7 @@ export default function Component({ ctx }) {
   const { html, t } = ctx
   return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center', height: '100%', padding: '10px 12px', boxSizing: 'border-box' }}>
     <strong style=${'$'}{{ fontWeight: 600 }}>${'$'}{NAME}</strong>
-    <span style=${'$'}{{ color: 'var(--color-content-muted)', fontSize: 12 }}>${'$'}{t('hint')}</span>
+    <span style=${'$'}{{ color: 'var(--text-muted)', fontSize: 12 }}>${'$'}{t('hint')}</span>
   </div>${'`'}
 }
 `

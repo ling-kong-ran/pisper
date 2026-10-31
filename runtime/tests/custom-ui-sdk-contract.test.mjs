@@ -13,6 +13,7 @@ import {
   PISPER_COMPONENT_SKILL_MD,
 } from '../services/custom-ui-sdk-docs.mjs'
 import { findBareImports } from '../services/custom-ui-service.mjs'
+import { buildComponentTemplate, COMPONENT_TEMPLATES } from '../services/custom-ui-templates.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
 
 /** 取 .d.ts 里某个 interface 的直接成员名（两个空格缩进的行）。 */
@@ -46,6 +47,30 @@ test('技能里的示例 component.js 没有裸导入（与写入校验同一条
   )
   assert.ok(example)
   assert.deepEqual(findBareImports(example[1]), [])
+})
+
+test('技能、.d.ts 与内置模板只引用运行时真实存在的 CSS 变量（不写 Tailwind 的 --color-* 编译期别名）', async () => {
+  // src/index.css 的 @theme inline 只在编译期展开，--color-* 不会出现在运行时 CSS 里；组件写了它只会退回继承色。
+  // 运行时可用的是 @theme 之前 :root / 主题块里声明的变量。
+  const css = await readFile(new URL('../../src/index.css', import.meta.url), 'utf8')
+  const themeStart = css.indexOf('@theme inline {')
+  assert.ok(themeStart > 0)
+  const declared = new Set(
+    [...css.slice(0, themeStart).matchAll(/(--[a-zA-Z0-9-]+)\s*:/g)].map((match) => match[1]),
+  )
+  const sources = [
+    PISPER_COMPONENT_SKILL_MD,
+    PISPER_COMPONENT_DTS,
+    ...COMPONENT_TEMPLATES.flatMap((template) =>
+      buildComponentTemplate(template).files.map((file) => file.content),
+    ),
+  ]
+  const referenced = new Set()
+  for (const source of sources)
+    for (const match of source.matchAll(/(?:var\(|token\(')(--[a-zA-Z0-9-]+)[)']/g))
+      referenced.add(match[1])
+  assert.ok(referenced.has('--text-muted'))
+  for (const name of referenced) assert.ok(declared.has(name), `${name} 在运行时 CSS 里不存在`)
 })
 
 async function skillsService(t) {
