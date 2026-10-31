@@ -38,6 +38,12 @@ export function createScrollFollowController(
 
   const bottom = () => Math.max(0, node.scrollHeight - node.clientHeight)
   const interacting = () => pointerDown || touchPoint !== null
+  // 程序滚动期间 scroll 事件不参与判断；这段时间里有人把位置往上改了（恢复阅读位置、跳到某条消息，
+  // 事件可能还没派发或被当成程序滚动忽略），不是本控制器写的：要放弃贴底，否则下一帧会把它拉回底部。
+  // 虚拟行重测也会在这段时间里把位置往上校正，但幅度小；只把明显的跳动（超过半屏、且离底部超过阈值）当成外部改动。
+  const movedUpExternally = () =>
+    lastTop - node.scrollTop > Math.max(threshold, node.clientHeight / 2) &&
+    bottom() - node.scrollTop > threshold
   const setUnread = (value: boolean) => {
     if (unread === value) return
     unread = value
@@ -65,6 +71,10 @@ export function createScrollFollowController(
     releaseFrame = requestFrame(() => {
       releaseFrame = requestFrame(() => {
         releaseFrame = null
+        if (movedUpExternally()) {
+          pauseFollowing()
+          return
+        }
         // 抵达后仍可能有 Markdown 或虚拟行布局收尾；目标稳定后才交还事件判断。
         if (pinned && !interacting() && Math.abs(bottom() - node.scrollTop) > 1) {
           maintainBottom()
@@ -82,9 +92,7 @@ export function createScrollFollowController(
   const step = (timestamp: number) => {
     frame = null
     if (disposed || !pinned || interacting()) return
-    // 两帧之间有人把位置往上改了（恢复阅读位置、跳到某条消息，scroll 事件还没派发），
-    // 这不是本控制器写的：放弃贴底，否则下一步会把刚设好的位置拉回底部。
-    if (node.scrollTop < lastTop - 1 && bottom() - node.scrollTop > 1) {
+    if (movedUpExternally()) {
       pauseFollowing()
       return
     }
@@ -122,9 +130,14 @@ export function createScrollFollowController(
     maintainBottom()
   }
   const onScroll = () => {
+    if (disposed) return
+    // 程序滚动期间不更新 lastTop：本控制器的写入已经记过，留着它才能认出外部的跳动。
+    if (programmatic) {
+      if (movedUpExternally()) pauseFollowing()
+      return
+    }
     const delta = node.scrollTop - lastTop
     lastTop = node.scrollTop
-    if (programmatic || disposed) return
     // 小幅上翻也要脱离，不能因为仍在贴底阈值内而立即抢回滚动权。
     // 但视口变高（如输入区收起）时浏览器会把 scrollTop 向上夹回底部，这不是用户意图；
     // 真实上翻已由滚轮、键盘和触摸各自处理，这里只在离开底部时才视为上翻。

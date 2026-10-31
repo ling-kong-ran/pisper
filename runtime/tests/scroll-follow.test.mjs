@@ -310,3 +310,16 @@ test('an upward write between animation frames stops following before its scroll
   f.settle()
   assert.equal(f.node.scrollTop, 120)
 })
+
+test('an upward write during the release frames after arriving at the bottom is kept', (t) => {
+  const f = fixture(t, { reducedMotion: () => true })
+  f.node.scrollHeight += 300
+  f.controller.contentChanged()
+  f.tick()
+  assert.equal(f.node.scrollTop, 1000)
+  // 已抵达底部、仍在两帧释放窗口里：此时的 scroll 事件被当成程序滚动忽略。
+  f.scroll(120)
+  f.node.scrollHeight += 200
+  f.settle()
+  assert.equal(f.node.scrollTop, 120)
+})
