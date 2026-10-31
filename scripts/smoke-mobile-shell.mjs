@@ -1330,9 +1330,11 @@ async function verifyTablet(boardSessions) {
     entries: [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-entry]')].map(
       (entry) => entry.dataset.sidebarEntry,
     ),
-    lanes: [...document.querySelectorAll('[data-board-lane]')].map(
-      (lane) => `${lane.dataset.boardLane}:${lane.dataset.laneMode}`,
+    // 平板（手机 App ≥960×640）用桌面的全部代理（A3 取代泳道）：分组列表，没有泳道。
+    sections: [...document.querySelectorAll('[data-overview-section]')].map(
+      (section) => section.dataset.overviewSection,
     ),
+    lanes: document.querySelectorAll('[data-board-lane]').length,
     windowControls: document.querySelectorAll('.desktop-window-controls').length,
     horizontalScroll: document.documentElement.scrollWidth > window.innerWidth + 1,
   }))
@@ -1342,7 +1344,8 @@ async function verifyTablet(boardSessions) {
     titlebar: false,
     tabBar: false,
     entries: ['newTask', 'search', 'board', 'features', 'settings'],
-    lanes: ['attention:expanded', 'running:expanded', 'done:rail'],
+    sections: ['attention', 'running', 'done'],
+    lanes: 0,
     windowControls: 0,
     horizontalScroll: false,
   })
@@ -1394,7 +1397,7 @@ async function verifyTablet(boardSessions) {
   await inspector.waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
   report.checks.push(
-    'Tablet 1024x768 (phone app): desktop layout with the expanded 268px sidebar (five entries, no window controls, no title bar) and no tab bar; below 1180 only 需要你 and 运行中 lanes are expanded; on the session page the current session row is lit, sidebar rows and entries are at least 44px on touch and hover-only quick actions never show there; the session inspector is an overlay that Android back closes first',
+    'Tablet 1024x768 (phone app): desktop layout with the expanded 268px sidebar (five entries, no window controls, no title bar) and no tab bar; 全部代理 is the grouped list (需要你 · 运行中 · 今天完成, no lanes); on the session page the current session row is lit, sidebar rows and entries are at least 44px on touch and hover-only quick actions never show there; the session inspector is an overlay that Android back closes first',
   )
   await context.close()
 }

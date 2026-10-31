@@ -142,7 +142,7 @@
   "shell.search": "搜索代理、会话、标签与命令",
   "shell.newTask": "新任务",
   "shell.untitledSession": "未命名会话",
-  "shell.backToBoardLabel": "返回看板",
+  "shell.backToBoardLabel": "返回全部代理",
   "shell.sessionNotFound": "找不到这个会话",
   "shell.sessionNotFoundHint": "它可能已被删除，或链接不完整。",
   "shell.backToMoreLabel": "返回更多",

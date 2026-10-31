@@ -3,6 +3,27 @@
 // 运行中：实时计时“3:12”（超过一小时“1:02:05”），配等宽数字；
 // 今天完成：完成时刻“14:05”（24 小时制，按本机时区）。
 // 非法或负数一律按 0 处理，缺失的时间返回空串，由界面隐藏。
+import type { SidebarReason } from './sidebar-model'
+
+type Translate = (key: string, params?: Record<string, unknown>) => string
+
+// “需要你”的中文原因（侧栏行、全部代理行、读屏播报共用）：键写成字面量（i18n 检查要求），
+// 组合时按“失败 → 批准 → 问题”的顺序用“ · ”连接。
+export function reasonText(t: Translate, reasons: readonly SidebarReason[]) {
+  return reasons
+    .map((reason, index) => {
+      if (reason.kind === 'failed') return t('board:sidebar.reason.failed')
+      if (reason.kind === 'approval')
+        return reason.critical
+          ? t('board:sidebar.reason.criticalApproval')
+          : t('board:sidebar.reason.approval')
+      if (reason.count === null) return t('board:sidebar.reason.question')
+      return index === 0
+        ? t('board:sidebar.reason.questions', { count: reason.count })
+        : t('board:sidebar.reason.questionCount', { count: reason.count })
+    })
+    .join(' · ')
+}
 
 export function formatSidebarWait(milliseconds: number | null) {
   if (milliseconds === null || !Number.isFinite(milliseconds)) return ''

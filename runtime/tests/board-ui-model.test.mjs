@@ -14,19 +14,11 @@ import {
   validateShortcutBindings,
 } from '../../shared/shortcuts.mjs'
 import {
-  DONE_LANE_LIMIT,
-  LANE_MIN_WIDTH,
-  LANE_MIN_WIDTH_FLOOR,
-  LANE_RAIL_WIDTH,
-  TABLET_COMPACT_LANES,
-  TABLET_FULL_LANES_QUERY,
-  boardLaneLayout,
-  hiddenBelowCount,
-  laneGridTemplate,
-  laneMinWidth,
-  laneShouldVirtualize,
-  visibleLaneItems,
-} from '../../src/features/board/lane-layout.ts'
+  OVERVIEW_VIRTUALIZE_THRESHOLD,
+  buildOverviewModel,
+  overviewItems,
+  overviewShouldVirtualize,
+} from '../../src/features/board/overview-model.ts'
 import {
   boardCardTone,
   boardEdgeWidth,
@@ -39,135 +31,199 @@ import {
 } from '../../src/features/board/card-presentation.ts'
 
 const root = resolve(import.meta.dirname, '../..')
-const counts = (attention, running, queued, done) => ({ attention, running, queued, done })
-
-test('empty lanes collapse to 56px rails while non-empty lanes share weighted widths', () => {
-  const layout = boardLaneLayout({
-    counts: counts(2, 0, 0, 3),
-    lanes: ['attention', 'running', 'done'],
-  })
-  assert.deepEqual(
-    layout.map(({ lane, mode, railReason }) => [lane, mode, railReason]),
-    [
-      ['attention', 'expanded', null],
-      ['running', 'rail', 'empty'],
-      ['done', 'expanded', null],
-    ],
-  )
-  assert.equal(
-    laneGridTemplate(layout, 1408),
-    `minmax(${LANE_MIN_WIDTH}px, 1.24fr) ${LANE_RAIL_WIDTH}px minmax(${LANE_MIN_WIDTH}px, 0.9fr)`,
-  )
-  // 点开空泳道只是临时展开；手动折叠的已完成泳道即使有卡片也收成竖条。
-  const peeked = boardLaneLayout({
-    counts: counts(0, 0, 0, 4),
-    lanes: ['attention', 'running', 'done'],
-    peeked: ['attention'],
-    collapsed: ['done'],
-  })
-  assert.deepEqual(
-    peeked.map(({ mode, railReason }) => [mode, railReason]),
-    [
-      ['expanded', null],
-      ['rail', 'empty'],
-      ['rail', 'collapsed'],
-    ],
-  )
-})
-
-test('tablet compact lanes rail queued and done but still open on demand', () => {
-  // 规格 7.6：手机 App 平板宽度 960–1179 时只展开需要你与运行中，排队与已完成收成竖条。
-  assert.deepEqual([...TABLET_COMPACT_LANES], ['queued', 'done'])
-  assert.equal(TABLET_FULL_LANES_QUERY, '(min-width: 1180px)')
-  const compact = boardLaneLayout({
-    counts: counts(2, 1, 1, 3),
-    compact: TABLET_COMPACT_LANES,
-  })
-  assert.deepEqual(
-    compact.map(({ lane, mode, railReason }) => [lane, mode, railReason]),
-    [
-      ['attention', 'expanded', null],
-      ['running', 'expanded', null],
-      ['queued', 'rail', 'compact'],
-      ['done', 'rail', 'compact'],
-    ],
-  )
-  // 竖条点开是临时展开；手动折叠的已完成仍按折叠处理。
-  const peeked = boardLaneLayout({
-    counts: counts(2, 1, 1, 3),
-    lanes: ['attention', 'running', 'done'],
-    compact: TABLET_COMPACT_LANES,
-    peeked: ['done'],
-  })
-  assert.deepEqual(
-    peeked.map(({ mode }) => mode),
-    ['expanded', 'expanded', 'expanded'],
-  )
-  const collapsed = boardLaneLayout({
-    counts: counts(2, 1, 0, 3),
-    lanes: ['attention', 'running', 'done'],
-    compact: TABLET_COMPACT_LANES,
-    collapsed: ['done'],
-  })
-  assert.equal(collapsed[2].railReason, 'collapsed')
-})
-
-test('a lone expanded lane fills the remaining width instead of a fraction of it', () => {
-  // 今天没有活动时只展开已完成泳道：.9fr 单独使用只会分走 90% 的剩余空间，右侧留出一条空白。
-  const layout = boardLaneLayout({
-    counts: counts(0, 0, 0, 0),
-    lanes: ['attention', 'running', 'done'],
-    peeked: ['done'],
-  })
-  assert.equal(
-    laneGridTemplate(layout, 1408),
-    `${LANE_RAIL_WIDTH}px ${LANE_RAIL_WIDTH}px minmax(${LANE_MIN_WIDTH}px, 1fr)`,
-  )
-})
-
-test('lane minimum width shrinks at 1080 so four expanded lanes never scroll sideways', () => {
-  const four = boardLaneLayout({ counts: counts(1, 1, 1, 1) })
-  // 1080 宽窗口减去 16px 外边距：四条泳道各自让到等分宽度。
-  assert.equal(laneMinWidth(four, 1048), Math.floor((1048 - 3 * 12) / 4))
-  assert.equal(laneMinWidth(four, 1408), LANE_MIN_WIDTH)
-  assert.equal(laneMinWidth(four, 600), LANE_MIN_WIDTH_FLOOR)
-  assert.equal(laneMinWidth([], 0), LANE_MIN_WIDTH)
-})
-
-test('done lane caps at 20 cards and long lanes switch to virtual lists', () => {
-  const items = Array.from({ length: 31 }, (_, index) => index)
-  assert.equal(visibleLaneItems('done', items).length, DONE_LANE_LIMIT)
-  assert.equal(visibleLaneItems('running', items).length, 31)
-  assert.equal(laneShouldVirtualize(30), false)
-  assert.equal(laneShouldVirtualize(31), true)
-  assert.equal(hiddenBelowCount([100, 380, 420, 900], 400), 2)
-})
-
-// smoke-board-ui 偶发“点 fx-standard 的允许却打开了会话页”（第 4 期查清）：按下按钮时卡片获得焦点，
-// 泳道重新渲染时把早已排好的溢出摘要收起，滚到底的滚动区变高 36px，按钮在按下与松开之间下移，
-// click 被派发到两者的共同祖先（卡片正文）→ 打开会话。两层保护：
-// 1) 泳道在按住期间冻结屏幕上的溢出摘要，松开或取消后再显示最新测量；
-// 2) 卡片记住按下是否落在控件上，这样的点击永远不当作“打开卡片”。
-test('a press that starts on a card control never opens the session, and lanes hold still while pressed', async () => {
-  const lane = await readFile('src/features/board/LaneColumn.tsx', 'utf8')
-  assert.match(lane, /const overflowCount = frozenHidden \?\? hidden/)
-  assert.match(lane, /\{overflowCount > 0 && \(/)
-  assert.doesNotMatch(lane, /\{hidden > 0 && \(/, 'the footer must render the frozen count')
-  assert.match(
+// 全部代理（规格 v2 第 3.2 节）的分组模型：用最小的卡片数据构造，只给模型读到的字段。
+const NOW = Date.parse('2026-10-31T12:00:00')
+const at = (minutesAgo) => NOW - minutesAgo * 60_000
+function card(id, lane, extra = {}) {
+  return {
+    id,
+    title: id,
     lane,
-    /onPointerDownCapture=\{\(\) => \{\s*pressedRef\.current = true\s*setFrozenHidden\(shownOverflowRef\.current\)/,
+    status:
+      lane === 'attention'
+        ? 'approval'
+        : lane === 'running'
+          ? 'running'
+          : lane === 'queued'
+            ? 'queued'
+            : 'done',
+    since: at(10),
+    startedAt: null,
+    pinned: false,
+    unread: false,
+    approvals: [],
+    approvalsState: 'none',
+    severity: null,
+    workspaceKey: extra.workspaceKey ?? '/p/a',
+    cwd: extra.workspaceKey ?? '/p/a',
+    session: { id, archived: false },
+    ...extra,
+  }
+}
+
+test('overview groups by status in the fixed order and sorts each group by its own rule', () => {
+  const items = [
+    card('done-old', 'done', { since: at(90) }),
+    card('wait-short', 'attention', { since: at(2) }),
+    card('run-late', 'running', { startedAt: at(1) }),
+    card('done-new', 'done', { since: at(5) }),
+    card('wait-long', 'attention', { since: at(30) }),
+    card('run-early', 'running', { startedAt: at(20) }),
+  ]
+  const model = buildOverviewModel(items, { now: NOW, groupBy: 'lane' })
+  assert.deepEqual(
+    model.sections.map((section) => [section.id, section.items.map((item) => item.id)]),
+    [
+      // 需要你：等待最久在前；运行中：按开始时间；今天完成：完成时间倒序。
+      ['attention', ['wait-long', 'wait-short']],
+      ['running', ['run-early', 'run-late']],
+      ['done', ['done-new', 'done-old']],
+    ],
   )
-  for (const type of ['pointerup', 'pointercancel'])
-    assert.match(lane, new RegExp(`window\\.addEventListener\\('${type}', release, true\\)`))
-  const card = await readFile('src/features/board/AgentCard.tsx', 'utf8')
-  assert.match(
-    card,
-    /onPointerDownCapture=\{\(event\) => \{\s*pressOnControlRef\.current = interactiveTarget\(event\.target\)/,
+  assert.deepEqual(
+    model.order.map((item) => item.id),
+    ['wait-long', 'wait-short', 'run-early', 'run-late', 'done-new', 'done-old'],
   )
-  assert.match(
-    card,
-    /if \(pressedControl \|\| interactiveTarget\(event\.target\)\) return\s*open\(\)/,
+  assert.deepEqual(
+    model.attention.map((item) => item.id),
+    ['wait-long', 'wait-short'],
   )
+  assert.equal(model.total, 6)
+  assert.equal(model.running, 2)
+  // 折叠的今天完成只留标题，不进键盘顺序。
+  const collapsed = buildOverviewModel(items, { now: NOW, groupBy: 'lane', doneCollapsed: true })
+  assert.equal(collapsed.sections.at(-1).items.length, 2)
+  assert.deepEqual(
+    collapsed.order.map((item) => item.id),
+    ['wait-long', 'wait-short', 'run-early', 'run-late'],
+  )
+})
+
+test('overview keeps the needs-you and running headings, hides queued without sessionQueue and drops archived or older done sessions', () => {
+  const yesterday = NOW - 26 * 3_600_000
+  const items = [
+    card('queued', 'queued'),
+    card('archived', 'running', { session: { id: 'archived', archived: true } }),
+    // 置顶但昨天完成：在侧栏“置顶”里，不冒充“今天完成”。
+    card('pinned-old', 'done', { pinned: true, since: yesterday }),
+    card('done-today', 'done'),
+  ]
+  const model = buildOverviewModel(items, { now: NOW, groupBy: 'lane' })
+  assert.deepEqual(
+    model.sections.map((section) => [section.id, section.items.length]),
+    [
+      ['attention', 0],
+      ['running', 0],
+      ['done', 1],
+    ],
+  )
+  assert.equal(model.total, 1)
+  const queue = buildOverviewModel(items, {
+    now: NOW,
+    groupBy: 'lane',
+    capabilities: { sessionQueue: true },
+  })
+  assert.deepEqual(
+    queue.sections.map((section) => section.id),
+    ['attention', 'running', 'queued', 'done'],
+  )
+  assert.deepEqual(
+    overviewItems(items, { now: NOW }).map((item) => item.id),
+    ['done-today'],
+  )
+})
+
+test('overview groups by project in the remembered order with per-status counts, still sorted by status', () => {
+  const items = [
+    card('a-done', 'done', { workspaceKey: '/p/a' }),
+    card('b-run', 'running', { workspaceKey: '/p/b', startedAt: at(3) }),
+    card('a-wait', 'attention', { workspaceKey: '/p/a' }),
+    card('c-new', 'running', { workspaceKey: '/p/c' }),
+  ]
+  const model = buildOverviewModel(items, {
+    now: NOW,
+    groupBy: 'project',
+    projectOrder: [
+      { key: '/p/b', cwd: '/p/b' },
+      { key: '/p/empty', cwd: '/p/empty' },
+      { key: '/p/a', cwd: '/p/a' },
+    ],
+  })
+  // 记住顺序的项目在前（没有代理的项目不出分区），没记过的按出现顺序排在后面。
+  assert.deepEqual(
+    model.sections.map((section) => [section.key, section.items.map((item) => item.id)]),
+    [
+      ['/p/b', ['b-run']],
+      ['/p/a', ['a-wait', 'a-done']],
+      ['/p/c', ['c-new']],
+    ],
+  )
+  assert.deepEqual(model.sections[1].counts, { attention: 1, running: 0, queued: 0, done: 1 })
+  assert.equal(model.projectCount, 3)
+  // 逐个处理只在需要你之间走，按页面上的顺序。
+  assert.deepEqual(
+    model.attention.map((item) => item.id),
+    ['a-wait'],
+  )
+})
+
+test('overview filters by status and project from pisper-board-view and reports an empty filter honestly', () => {
+  const items = [
+    card('a-wait', 'attention', { workspaceKey: '/p/a' }),
+    card('b-run', 'running', { workspaceKey: '/p/b' }),
+  ]
+  const running = buildOverviewModel(items, { now: NOW, groupBy: 'lane', lanes: ['running'] })
+  assert.deepEqual(
+    running.sections.map((section) => [section.id, section.items.length]),
+    [['running', 1]],
+  )
+  // 筛选不影响页头统计与逐个处理的范围（被筛掉的需要你由页面先清除筛选再开始）。
+  assert.equal(running.total, 2)
+  assert.deepEqual(running.attention, [])
+  assert.deepEqual(
+    running.attentionAll.map((item) => item.id),
+    ['a-wait'],
+  )
+  const none = buildOverviewModel(items, {
+    now: NOW,
+    groupBy: 'project',
+    lanes: ['done'],
+  })
+  assert.equal(none.filteredEmpty, true)
+  assert.deepEqual(none.sections, [])
+  assert.equal(buildOverviewModel([], { now: NOW, groupBy: 'lane' }).filteredEmpty, false)
+})
+
+test('overview switches to a virtual list above 30 rows', () => {
+  assert.equal(OVERVIEW_VIRTUALIZE_THRESHOLD, 30)
+  assert.equal(overviewShouldVirtualize(30), false)
+  assert.equal(overviewShouldVirtualize(31), true)
+})
+
+// smoke-board-ui 偶发“点 fx-standard 的允许却打开了会话页”（第 4 期查清）：按下按钮与松开之间版面移动，
+// click 被派发到两者的共同祖先（卡片 / 行本身）→ 打开会话。行与手机卡片都记住按下是否落在控件上，
+// 这样的点击永远不当作“打开”。（泳道冻结溢出摘要的那一层随泳道退役。）
+test('a press that starts on a row or card control never opens the session', async () => {
+  for (const file of ['src/features/board/AgentCard.tsx', 'src/features/board/OverviewRow.tsx']) {
+    const source = await readFile(file, 'utf8')
+    assert.match(
+      source,
+      /onPointerDownCapture=\{\(event\) => \{\s*pressOnControlRef\.current = interactiveTarget\(event\.target\)/,
+      file,
+    )
+    assert.match(
+      source,
+      /if \(pressedControl \|\| interactiveTarget\(event\.target\)\) return\s*open\(\)/,
+      file,
+    )
+    // 按钮里的图标是 SVG：判断控件时必须按 Element（A3 查清：按 HTMLElement 判断时点 ⋯ 的圆点会打开会话）。
+    assert.match(source, /target instanceof Element &&\s*Boolean\(target\.closest\(/, file)
+    assert.doesNotMatch(
+      source,
+      /target instanceof HTMLElement &&\s*Boolean\(target\.closest\(/,
+      file,
+    )
+  }
 })
 
 test('card presentation shows only data the runtime provides', () => {
@@ -216,6 +272,33 @@ test('board single-letter shortcuts are a separate table and never relax app-lev
     'boardApprove',
   )
   assert.deepEqual(normalizeBoardShortcutBindings('broken'), DEFAULT_BOARD_SHORTCUTS)
+  // 规格 2.8：泳道退役后 H / L（切泳道）不再是动作；旧版存下的表读进来时丢掉这两项，其余绑定原样保留，
+  // H、L 空出来可以改绑给别的动作。（旧版读新表时缺的两项按默认补回，见 normalizeBoardShortcutBindings 的同一规则。）
+  assert.deepEqual(
+    [...BOARD_SHORTCUT_ACTIONS],
+    [
+      'boardNext',
+      'boardPrevious',
+      'boardApprove',
+      'boardDeny',
+      'boardRetry',
+      'boardTriage',
+      'boardToggleGrouping',
+    ],
+  )
+  assert.deepEqual(
+    normalizeBoardShortcutBindings({
+      ...DEFAULT_BOARD_SHORTCUTS,
+      boardLaneLeft: 'KeyH',
+      boardLaneRight: 'KeyL',
+      boardTriage: 'KeyX',
+    }),
+    { ...DEFAULT_BOARD_SHORTCUTS, boardTriage: 'KeyX' },
+  )
+  assert.equal(
+    validateBoardShortcutBindings({ ...DEFAULT_BOARD_SHORTCUTS, boardTriage: 'KeyH' }).boardTriage,
+    'KeyH',
+  )
   // 旧数据缺项时补默认；默认键已被占用则补为未绑定。
   const migrated = normalizeBoardShortcutBindings({ boardNext: 'KeyK' })
   assert.equal(migrated.boardNext, 'KeyK')
@@ -267,16 +350,33 @@ test('only the confirmation layer may approve critical requests', async () => {
       ['true', true],
     ],
   )
+  // critical 不一步允许：桌面全部代理（criticalInSession）进会话处理（规格 3.5“全部代理只显示打开处理”），
+  // 手机看板（A4 前）只打开确认层。Runtime 回 confirmation-required 时同样走这条路。
   assert.match(
     controller,
-    /onApprove: \(item, approval\) => \{[\s\S]{0,160}if \(approval\.severity === 'critical'\) \{\s*openConfirm\(item, approval\)\s*return/,
+    /onApprove: \(item, approval\) => \{[\s\S]{0,200}if \(approval\.severity === 'critical'\) \{\s*review\(item, approval\)\s*return/,
   )
   assert.match(
     controller,
-    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,240}if \(!approval \|\| approval\.severity === 'critical'\) openConfirm\(item, approval \?\? null\)/,
+    /const review = useCallback\(\s*\(item: BoardItem, approval: BoardApproval \| null\) => \{\s*if \(criticalInSession\) openSession\(item\.id\)\s*else openConfirm\(item, approval\)/,
   )
-  // 允许 / 拒绝 / 重试只作用于聚焦的卡片或逐个处理中的卡片（规格 2.8）；焦点在空白处
-  // （body、泳道空白）时按键不能落到“第一张卡片”上。J/K/H/L、T、G 不受此限。
+  assert.match(controller, /result\.reason === 'confirmation-required'\) review\(item, approval\)/)
+  // 键盘 A：critical、截断或详情未到时桌面什么也不做，手机只打开确认层；只有普通批准交给 onApprove。
+  assert.match(
+    controller,
+    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,360}if \(!approval \|\| approval\.truncated \|\| approval\.severity === 'critical'\) \{\s*if \(!criticalInSession\) openConfirm\(item, approval \?\? null\)\s*\} else handlers\.onApprove\(item, approval\)/,
+  )
+  const page = sources.find(([file]) => file === 'BoardPage.tsx')[1]
+  assert.match(page, /criticalInSession: true/)
+  // 全部代理行：一步“拒绝 / 允许”只给 sidebar-model 判定为普通批准（详情已到、未截断、standard）的行，
+  // 其余一律“打开处理”；行本身只把动作交回控制器，不直接调用批准接口。
+  const row = sources.find(([file]) => file === 'OverviewRow.tsx')[1]
+  assert.match(row, /const quick = sidebarQuickAction\(item\)/)
+  assert.match(row, /if \(quick\.kind === 'decide' && approval\) \{/)
+  assert.match(row, /\} else actions = openButton/)
+  assert.doesNotMatch(row, /\.approve\(|approveBoardApproval|useBoardActions|confirmCritical/)
+  // 允许 / 拒绝 / 重试只作用于聚焦的行或逐个处理中的行（规格 2.8）；焦点在空白处
+  // （body、列表空白）时按键不能落到“第一行”上。J/K、T、G 不受此限。
   assert.match(controller, /const acting = onCard \|\| Boolean\(triage\)/)
   for (const binding of ['boardApprove', 'boardDeny', 'boardRetry'])
     assert.match(
@@ -290,10 +390,10 @@ test('only the confirmation layer may approve critical requests', async () => {
       ?.length,
     3,
   )
-  // 确认层是 confirmApproval 唯一的调用方（桌面对话框与手机底部表单共用）。
+  // 确认层是 confirmApproval 唯一的调用方：只剩手机底部表单（桌面全部代理不再有确认层，高风险进会话）。
   for (const [file, source] of sources) {
     const uses = source.match(/controller\.confirmApproval\(\)/g)?.length || 0
-    if (file === 'BoardPage.tsx' || file === 'PhoneBoard.tsx') {
+    if (file === 'PhoneBoard.tsx') {
       assert.equal(uses, 1, file)
       assert.match(
         source,
@@ -301,7 +401,7 @@ test('only the confirmation layer may approve critical requests', async () => {
       )
     } else assert.equal(uses, 0, file)
   }
-  // 看板主确认层（卡片、键盘 A、逐个处理）与泳道条一致：截断的预览不交给确认层，
+  // 手机看板的确认层（卡片、键盘 A、逐个处理）：截断的预览不交给确认层，
   // 确认层因此显示“正在读取审批详情”且确认键禁用，直到 /live 给出完整参数。
   const mainController = sources.find(([file]) => file === 'useBoardController.ts')[1]
   assert.match(

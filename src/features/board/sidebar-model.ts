@@ -131,8 +131,11 @@ function finite(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-// 缺少时间的行排在组末，不把“未知”当成最早或最新；同值按 id 保证稳定。
-function byTime<T extends { id: string }>(time: (row: T) => number | null, descending = false) {
+// 缺少时间的行排在组末，不把“未知”当成最早或最新；同值按 id 保证稳定。全部代理的组内排序同样用它。
+export function byTime<T extends { id: string }>(
+  time: (row: T) => number | null,
+  descending = false,
+) {
   return (left: T, right: T) => {
     const a = finite(time(left))
     const b = finite(time(right))

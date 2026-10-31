@@ -2,7 +2,7 @@
 // 离屏即停；扫光同时最多 6 张，按进入可视区的先后分配，前面的卡片离开后后面的自动补上。
 // 减少动效偏好下扫光不挂载；页面隐藏时由全局的 data-page-visibility 规则暂停所有动画。
 import { useEffect, useId, useState, useSyncExternalStore, type RefObject } from 'react'
-import { motionReduced } from './useLaneMotion'
+import { motionReduced } from './row-motion'
 
 export const MAX_SWEEPING_CARDS = 6
 

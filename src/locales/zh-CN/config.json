@@ -671,13 +671,11 @@
   "shortcuts.openComponents": "打开组件工作室",
   "shortcuts.openMore": "打开功能",
   "shortcuts.jumpToAttention": "聚焦等待最久的需要你（再按 A / D 处理，↵ 打开）",
-  "shortcuts.boardNext": "泳道内下一张卡片",
-  "shortcuts.boardPrevious": "泳道内上一张卡片",
-  "shortcuts.boardLaneLeft": "切换到左侧泳道",
-  "shortcuts.boardLaneRight": "切换到右侧泳道",
-  "shortcuts.boardApprove": "允许（高风险只打开确认层）",
+  "shortcuts.boardNext": "下一个代理",
+  "shortcuts.boardPrevious": "上一个代理",
+  "shortcuts.boardApprove": "允许普通批准（高风险进会话处理）",
   "shortcuts.boardDeny": "拒绝",
   "shortcuts.boardRetry": "重试失败的任务",
   "shortcuts.boardTriage": "逐个处理需要你的事项",
-  "shortcuts.boardToggleGrouping": "切换泳道 / 项目分组"
+  "shortcuts.boardToggleGrouping": "切换按状态 / 按项目"
 }

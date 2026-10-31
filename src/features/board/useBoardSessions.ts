@@ -1,6 +1,6 @@
 // 看板主数据：带泳道推导、视图偏好筛选与固定排序的卡片，以及加载与错误状态。
 import { useCallback, useMemo } from 'react'
-import type { BoardLane } from '@shared/session-board-status.mjs'
+import type { BoardDoneWindow, BoardLane } from '@shared/session-board-status.mjs'
 import {
   boardProjects,
   filterBoardItems,
@@ -13,6 +13,8 @@ import { useBoardViewStore, type BoardViewPreferences } from './board-view-store
 import { useBoardItems, type BoardRuntimeCapabilities } from './useBoardItems'
 
 export type BoardSessionsResult = {
+  // 筛选前的全部卡片（按泳道规则排序）：全部代理页自己按分组规则推导（overview-model）。
+  all: BoardItem[]
   // 已按项目与状态筛选、按泳道规则排序。
   items: BoardItem[]
   lanes: Record<BoardLane, BoardItem[]>
@@ -34,12 +36,16 @@ export type BoardSessionsResult = {
   refresh: () => Promise<void>
 }
 
-export function useBoardSessions(): BoardSessionsResult {
+// doneWindow：桌面全部代理固定“今天完成”（规格 3.2），手机看板（A4 前）仍读偏好里的时间窗。
+export function useBoardSessions({
+  doneWindow: fixedWindow,
+}: { doneWindow?: BoardDoneWindow } = {}): BoardSessionsResult {
   const groupBy = useBoardViewStore((state) => state.groupBy)
   const projectFilter = useBoardViewStore((state) => state.projects)
   const laneFilter = useBoardViewStore((state) => state.lanes)
   const collapsedLanes = useBoardViewStore((state) => state.collapsedLanes)
-  const doneWindow = useBoardViewStore((state) => state.doneWindow)
+  const preferredWindow = useBoardViewStore((state) => state.doneWindow)
+  const doneWindow = fixedWindow ?? preferredWindow
   const { query, items: all, capabilities, isLoading } = useBoardItems(doneWindow)
   const items = useMemo(
     () => filterBoardItems(all, { lanes: laneFilter, projects: projectFilter }),
@@ -69,6 +75,7 @@ export function useBoardSessions(): BoardSessionsResult {
     await refreshBoardFeed()
   }, [])
   return {
+    all,
     items,
     lanes,
     projects,

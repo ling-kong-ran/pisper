@@ -1,6 +1,7 @@
-// 看板交互控制：卡片动作（批准 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档 / 复制链接）、
-// critical 确认层、roving 焦点、单字母快捷键、逐个处理模式，以及从会话返回时的滚动与焦点恢复。
-// 桌面泳道、项目矩阵与手机区段共用这一份控制逻辑，只换渲染。
+// 全部代理（与手机看板）的交互控制：行动作（批准 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档 / 复制链接）、
+// critical 的处理方式、roving 焦点、单字母快捷键、逐个处理模式，以及从会话返回时的滚动与焦点恢复。
+// 桌面全部代理与手机区段共用这一份控制逻辑，只换渲染。
+// critical 审批：桌面全部代理只能“打开处理”进会话（规格 3.5，criticalInSession），手机看板仍用确认层（A4 前）。
 import {
   useCallback,
   useEffect,
@@ -10,7 +11,6 @@ import {
   useState,
   type RefObject,
 } from 'react'
-import type { BoardLane } from '@shared/session-board-status.mjs'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { isEditableTarget, matchesBoardShortcut, shortcutEventBlocked } from '@/lib/shortcuts'
@@ -19,19 +19,9 @@ import type { AgentCardHandlers } from './AgentCard'
 import type { ApprovalConfirmTarget } from './ApprovalConfirm'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
-import {
-  boardReturnRect,
-  clearBoardReturn,
-  flipFrom,
-  freshReturnRect,
-  peekBoardReturn,
-  rememberBoardReturn,
-} from './board-return'
-import type { LaneHandle } from './LaneColumn'
-import { collapseCard, motionReduced } from './useLaneMotion'
+import { clearBoardReturn, peekBoardReturn, rememberBoardReturn } from './board-return'
+import { collapseRow, OVERVIEW_ROW_COLLAPSE_MS } from './row-motion'
 import { useBoardActions } from './useBoardActions'
-
-export type BoardNavLane = { lane: BoardLane; items: BoardItem[] }
 
 // 确认层只记住会话与审批 id：渲染时从最新数据取审批，详情晚到会更新，别处处理掉会关闭。
 // snapshot 只在提交途中兜底（乐观更新会先把审批从卡片上拿掉）。
@@ -49,14 +39,18 @@ type TriageState = { total: number; finished: boolean }
 
 type ControllerOptions = {
   rootRef: RefObject<HTMLElement | null>
-  navLanes: readonly BoardNavLane[]
-  // 当前筛选下可见的需要你卡片（键盘与逐个处理在它们之间移动）。
+  // 页面上看得见的行，自上而下（键盘 J / K、↑ / ↓ 按它移动）。
+  order: readonly BoardItem[]
+  // 当前筛选下可见的需要你（键盘与逐个处理在它们之间移动）。
   attention: readonly BoardItem[]
-  // 筛选前的全部需要你卡片：确认层解析最新审批、逐个处理判断有没有被筛选藏起来的事项。
+  // 筛选前的全部需要你：确认层解析最新审批、逐个处理判断有没有被筛选藏起来的事项。
   attentionAll: readonly BoardItem[]
-  // 逐个处理时有事项被筛选藏起来：由页面清除筛选，让它们回到泳道里。
+  // 逐个处理时有事项被筛选藏起来：由页面清除筛选，让它们回到列表里。
   onRevealAttention?: () => void
-  laneHandles: RefObject<Map<BoardLane, LaneHandle>>
+  // 虚拟列表里不在 DOM 的行：先滚到它再返回元素；没有时直接按 data-board-card 查找。
+  reveal?: (sessionId: string) => Promise<HTMLElement | null>
+  // critical 只能进会话处理（桌面全部代理，规格 3.5）；false 时打开确认层（手机看板）。
+  criticalInSession?: boolean
   ready: boolean
   notify: Notify
   sessionHref: (sessionId: string) => string
@@ -65,9 +59,15 @@ type ControllerOptions = {
 }
 
 const TRIAGE_FINISHED_MS = 1_600
+// 记住滚动位置的容器：桌面列表与手机区段。
+const SCROLLERS = '[data-overview-scroller], [data-board-sections]'
 
 function cardIn(root: HTMLElement | null, sessionId: string) {
   return root?.querySelector<HTMLElement>(`[data-board-card="${CSS.escape(sessionId)}"]`) ?? null
+}
+
+function scrollKey(element: HTMLElement) {
+  return element.hasAttribute('data-overview-scroller') ? 'overview' : 'sections'
 }
 
 function nextFrame() {
@@ -76,11 +76,12 @@ function nextFrame() {
 
 export function useBoardController({
   rootRef,
-  navLanes,
+  order,
   attention,
   attentionAll,
   onRevealAttention,
-  laneHandles,
+  reveal,
+  criticalInSession = false,
   ready,
   notify,
   sessionHref,
@@ -93,42 +94,36 @@ export function useBoardController({
   const [activeId, setActiveId] = useState('')
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [triage, setTriage] = useState<TriageState | null>(null)
-  const skipFlipRef = useRef(new Set<string>())
   const actionsRef = useRef(actions)
   actionsRef.current = actions
-  const navRef = useRef(navLanes)
-  navRef.current = navLanes
+  const orderRef = useRef(order)
+  orderRef.current = order
   const attentionRef = useRef(attention)
   attentionRef.current = attention
   const attentionAllRef = useRef(attentionAll)
   attentionAllRef.current = attentionAll
+  const revealRef = useRef(reveal)
+  revealRef.current = reveal
   const [triageRequested, setTriageRequested] = useState(false)
 
-  const allIds = useMemo(
-    () => navLanes.flatMap((lane) => lane.items.map((item) => item.id)),
-    [navLanes],
-  )
-  // 当前卡片消失（换泳道后被筛掉、归档）时退回第一张，保证 Tab 总能进入卡片区。
+  const allIds = useMemo(() => order.map((item) => item.id), [order])
+  // 当前行消失（换分组后被筛掉、归档）时退回第一行，保证 Tab 总能进入列表。
   const effectiveActiveId = allIds.includes(activeId) ? activeId : (allIds[0] ?? '')
 
   const focusCard = useCallback(
     async (sessionId: string) => {
       if (!sessionId) return
       setActiveId(sessionId)
-      const lane = navRef.current.find((entry) =>
-        entry.items.some((item) => item.id === sessionId),
-      )?.lane
-      const handle = lane ? laneHandles.current?.get(lane) : undefined
       await nextFrame()
-      const element = handle ? await handle.reveal(sessionId) : cardIn(rootRef.current, sessionId)
-      const target = element ?? cardIn(rootRef.current, sessionId)
+      const revealed = revealRef.current ? await revealRef.current(sessionId) : null
+      const target = revealed ?? cardIn(rootRef.current, sessionId)
       target?.scrollIntoView({ block: 'nearest' })
       target?.focus({ preventScroll: true })
     },
-    [laneHandles, rootRef],
+    [rootRef],
   )
 
-  // 下一张需要你卡片：优先排在它后面的那张，已是最后一张时退回前一张。
+  // 下一条需要你：优先排在它后面的那条，已是最后一条时退回前一条。
   const nextAttentionId = useCallback((sessionId: string) => {
     const list = attentionRef.current
     const index = list.findIndex((item) => item.id === sessionId)
@@ -139,23 +134,10 @@ export function useBoardController({
   const openSession = useCallback(
     (sessionId: string) => {
       const scroll: Record<string, number> = {}
-      rootRef.current
-        ?.querySelectorAll<HTMLElement>(
-          '[data-lane-scroller], [data-board-matrix], [data-board-sections]',
-        )
-        .forEach((element) => {
-          const key =
-            element.dataset.laneScroller ??
-            (element.hasAttribute('data-board-matrix') ? 'matrix' : 'sections')
-          scroll[key] = element.scrollTop
-        })
-      // 来源卡片的位置交给会话页泳道条：卡片缩进它在泳道条里的芯片（FLIP，只动 transform）。
-      const origin = boardReturnRect(cardIn(rootRef.current, sessionId))
-      rememberBoardReturn({
-        focusId: sessionId,
-        scroll,
-        ...(origin ? { origin: { ...origin, at: Date.now() } } : {}),
+      rootRef.current?.querySelectorAll<HTMLElement>(SCROLLERS).forEach((element) => {
+        scroll[scrollKey(element)] = element.scrollTop
       })
+      rememberBoardReturn({ focusId: sessionId, scroll })
       onOpenSession(sessionId)
     },
     [onOpenSession, rootRef],
@@ -169,26 +151,37 @@ export function useBoardController({
     [notify, t],
   )
 
+  // 处理后行以 scaleY + 透明度收起（180ms），焦点落到下一条需要你；失败时撤掉收起，行原样回来。
+  const collapse = useCallback(
+    (sessionId: string) =>
+      collapseRow(cardIn(rootRef.current, sessionId), {
+        duration: OVERVIEW_ROW_COLLAPSE_MS,
+        scale: 0.9,
+      }),
+    [rootRef],
+  )
+  const restore = useCallback(
+    (sessionId: string) =>
+      cardIn(rootRef.current, sessionId)
+        ?.getAnimations()
+        .forEach((animation) => animation.cancel()),
+    [rootRef],
+  )
+
   const approveNow = useCallback(
     async (item: BoardItem, approval: BoardApproval, confirmCritical: boolean) => {
       const followUp = nextAttentionId(item.id)
       const leaving = item.approvals.length <= 1
-      if (leaving) {
-        skipFlipRef.current.add(item.id)
-        await collapseCard(cardIn(rootRef.current, item.id))
-      }
+      if (leaving) await collapse(item.id)
       const result = await actionsRef.current.approve(item.id, approval.id, { confirmCritical })
       if (!result.ok) {
-        skipFlipRef.current.delete(item.id)
-        cardIn(rootRef.current, item.id)
-          ?.getAnimations()
-          .forEach((animation) => animation.cancel())
+        restore(item.id)
         return result
       }
       if (leaving && followUp) void focusCard(followUp)
       return result
     },
-    [focusCard, nextAttentionId, rootRef],
+    [collapse, focusCard, nextAttentionId, restore],
   )
 
   const openConfirm = useCallback((item: BoardItem, approval: BoardApproval | null) => {
@@ -202,6 +195,15 @@ export function useBoardController({
       error: '',
     })
   }, [])
+
+  // critical（或拿不到完整详情）的去处：桌面进会话处理，手机打开确认层。
+  const review = useCallback(
+    (item: BoardItem, approval: BoardApproval | null) => {
+      if (criticalInSession) openSession(item.id)
+      else openConfirm(item, approval)
+    },
+    [criticalInSession, openConfirm, openSession],
+  )
 
   // 确认层展示的审批：按 id 取最新数据；打开时详情还没到（id 为空）就取卡片上的第一条。
   const confirmItem = confirm
@@ -223,7 +225,7 @@ export function useBoardController({
             sessionId: confirmSession,
             title: confirmTitle,
             cwd: confirmCwd,
-            // 与泳道条一致：截断的预览不能拿来批准，确认层显示“正在读取审批详情”并禁用确认，
+            // 截断的预览不能拿来批准，确认层显示“正在读取审批详情”并禁用确认，
             // 等 /live 给出完整参数（读取失败时一直保持禁用）。
             approval: shownApproval && !shownApproval.truncated ? shownApproval : null,
           }
@@ -248,29 +250,36 @@ export function useBoardController({
       onFocusCard: setActiveId,
       onOpen: openSession,
       onApprove: (item, approval) => {
-        // critical（或拿不到详情）只打开确认层；标准审批一步允许。
+        // critical 不一步允许：桌面进会话处理，手机打开确认层；标准审批一步允许。
         if (approval.severity === 'critical') {
-          openConfirm(item, approval)
+          review(item, approval)
           return
         }
         void approveNow(item, approval, false).then((result) => {
-          if (!result.ok && result.reason === 'confirmation-required') openConfirm(item, approval)
+          if (!result.ok && result.reason === 'confirmation-required') review(item, approval)
           else reportFailure(result)
         })
       },
       onDeny: (item, approval) => {
         const followUp = nextAttentionId(item.id)
-        void actionsRef.current.deny(item.id, approval.id).then((result) => {
+        const leaving = item.approvals.length <= 1
+        void (async () => {
+          if (leaving) await collapse(item.id)
+          const result = await actionsRef.current.deny(item.id, approval.id)
+          if (!result.ok) restore(item.id)
           reportFailure(result)
-          if (result.ok && item.approvals.length <= 1 && followUp) void focusCard(followUp)
-        })
+          if (result.ok && leaving && followUp) void focusCard(followUp)
+        })()
       },
       onRetry: (item) => {
         const followUp = nextAttentionId(item.id)
-        void actionsRef.current.retry(item.id).then((result) => {
+        void (async () => {
+          await collapse(item.id)
+          const result = await actionsRef.current.retry(item.id)
+          if (!result.ok) restore(item.id)
           reportFailure(result)
           if (result.ok && followUp) void focusCard(followUp)
-        })
+        })()
       },
       onMarkHandled: (item) => void actionsRef.current.markHandled(item.id).then(reportFailure),
       onPin: (item) => void actionsRef.current.pin(item.id, !item.pinned).then(reportFailure),
@@ -296,12 +305,14 @@ export function useBoardController({
     [
       actions,
       approveNow,
+      collapse,
       focusCard,
       nextAttentionId,
       notify,
-      openConfirm,
       openSession,
       reportFailure,
+      restore,
+      review,
       sessionHref,
       t,
     ],
@@ -332,7 +343,7 @@ export function useBoardController({
   }, [approveNow, confirm, confirmTarget?.approval, t])
 
   // —— 逐个处理 ——
-  // 范围是全部需要你事项：有事项被当前筛选藏起来时先请页面清除筛选，等它们回到泳道再开始。
+  // 范围是全部需要你事项：有事项被当前筛选藏起来时先请页面清除筛选，等它们回到列表再开始。
   const startTriage = useCallback(() => {
     const hidden = attentionAllRef.current.length - attentionRef.current.length
     if (hidden > 0 && onRevealAttention) {
@@ -376,27 +387,16 @@ export function useBoardController({
   }, [triage?.finished])
 
   // —— 键盘 ——
+  // 逐个处理时只在需要你之间走；平时在看得见的全部行之间走（规格 3.3）。
   const move = useCallback(
-    (delta: number, laneDelta: number) => {
-      const lanes = navRef.current.filter((entry) => entry.items.length > 0)
-      if (!lanes.length) return
-      let laneIndex = lanes.findIndex((entry) =>
-        entry.items.some((item) => item.id === effectiveActiveId),
-      )
-      let index =
-        laneIndex < 0
-          ? 0
-          : lanes[laneIndex].items.findIndex((item) => item.id === effectiveActiveId)
-      if (laneIndex < 0) laneIndex = 0
-      if (laneDelta) {
-        laneIndex = Math.max(0, Math.min(lanes.length - 1, laneIndex + laneDelta))
-        index = Math.min(index, lanes[laneIndex].items.length - 1)
-      } else {
-        index = Math.max(0, Math.min(lanes[laneIndex].items.length - 1, index + delta))
-      }
-      void focusCard(lanes[laneIndex].items[index].id)
+    (delta: number) => {
+      const list = triage ? attentionRef.current : orderRef.current
+      if (!list.length) return
+      const index = list.findIndex((item) => item.id === effectiveActiveId)
+      const next = index < 0 ? 0 : Math.max(0, Math.min(list.length - 1, index + delta))
+      void focusCard(list[next].id)
     },
-    [effectiveActiveId, focusCard],
+    [effectiveActiveId, focusCard, triage],
   )
 
   useEffect(() => {
@@ -408,34 +408,22 @@ export function useBoardController({
       const inBoard = Boolean(target && root?.contains(target)) || target === document.body
       if (!inBoard) return
       const plain = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
-      // 允许 / 拒绝 / 重试只作用于真正聚焦的卡片（或逐个处理中程序聚焦的那张）：
-      // 焦点在空白处时按 A、D、R 不能落到“第一张卡片”上，避免误批准或误重试。
+      // 允许 / 拒绝 / 重试只作用于真正聚焦的行（或逐个处理中程序聚焦的那条）：
+      // 焦点在空白处时按 A、D、R 不能落到“第一行”上，避免误批准或误重试。
       const acting = onCard || Boolean(triage)
-      const item = navRef.current
-        .flatMap((lane) => lane.items)
-        .find((entry) => entry.id === effectiveActiveId)
+      const item = orderRef.current.find((entry) => entry.id === effectiveActiveId)
       let handled = true
       if (event.key === 'Escape' && triage) exitTriage()
       else if (
         matchesBoardShortcut(event, bindings.boardNext) ||
         (onCard && plain && event.key === 'ArrowDown')
       )
-        move(1, 0)
+        move(1)
       else if (
         matchesBoardShortcut(event, bindings.boardPrevious) ||
         (onCard && plain && event.key === 'ArrowUp')
       )
-        move(-1, 0)
-      else if (
-        matchesBoardShortcut(event, bindings.boardLaneLeft) ||
-        (onCard && plain && event.key === 'ArrowLeft')
-      )
-        move(0, -1)
-      else if (
-        matchesBoardShortcut(event, bindings.boardLaneRight) ||
-        (onCard && plain && event.key === 'ArrowRight')
-      )
-        move(0, 1)
+        move(-1)
       else if (matchesBoardShortcut(event, bindings.boardToggleGrouping)) onToggleGrouping()
       else if (matchesBoardShortcut(event, bindings.boardTriage)) {
         if (triage) exitTriage()
@@ -446,9 +434,10 @@ export function useBoardController({
         item?.status === 'approval'
       ) {
         const approval = item.approvals[0]
-        // 详情未到时 A 也只打开确认层（层内显示加载中，不可批准）。
-        if (!approval || approval.severity === 'critical') openConfirm(item, approval ?? null)
-        else handlers.onApprove(item, approval)
+        // critical 或详情未到：桌面什么也不做（行上只有“打开处理”，↵ 进会话），手机只打开确认层。
+        if (!approval || approval.truncated || approval.severity === 'critical') {
+          if (!criticalInSession) openConfirm(item, approval ?? null)
+        } else handlers.onApprove(item, approval)
       } else if (
         acting &&
         matchesBoardShortcut(event, bindings.boardDeny) &&
@@ -471,6 +460,7 @@ export function useBoardController({
     return () => window.removeEventListener('keydown', keydown)
   }, [
     bindings,
+    criticalInSession,
     effectiveActiveId,
     exitTriage,
     handlers,
@@ -483,27 +473,17 @@ export function useBoardController({
     triage,
   ])
 
-  // —— 从会话返回：恢复各泳道滚动位置，焦点回到来源卡片 ——
+  // —— 从会话返回：恢复滚动位置，焦点回到来源行 ——
   useLayoutEffect(() => {
     const state = peekBoardReturn()
     if (!state || !ready || !allIds.length) return
     clearBoardReturn()
-    rootRef.current
-      ?.querySelectorAll<HTMLElement>(
-        '[data-lane-scroller], [data-board-matrix], [data-board-sections]',
-      )
-      .forEach((element) => {
-        const key =
-          element.dataset.laneScroller ??
-          (element.hasAttribute('data-board-matrix') ? 'matrix' : 'sections')
-        if (key in state.scroll) element.scrollTop = state.scroll[key]
-      })
+    rootRef.current?.querySelectorAll<HTMLElement>(SCROLLERS).forEach((element) => {
+      const key = scrollKey(element)
+      if (key in state.scroll) element.scrollTop = state.scroll[key]
+    })
     if (allIds.includes(state.focusId)) {
       setActiveId(state.focusId)
-      // 从泳道条返回：卡片从它在泳道条里的芯片位置展开回去（减少动效时跳过）。
-      const from = freshReturnRect(state.from)
-      const card = cardIn(rootRef.current, state.focusId)
-      if (from && card && !motionReduced()) flipFrom(card, from)
       requestAnimationFrame(() =>
         cardIn(rootRef.current, state.focusId)?.focus({ preventScroll: true }),
       )
@@ -533,7 +513,6 @@ export function useBoardController({
     triage: triage ? { ...triage, index: triageIndex } : null,
     startTriage,
     exitTriage,
-    skipFlipRef,
     bindings,
   }
 }

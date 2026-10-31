@@ -10,7 +10,7 @@ export type PageMeta = readonly [string, string]
 // 页面元信息（标题/描述）表：供页头与文档标题使用，全部翻译化。
 export function getPageMeta(t: Translate = (value) => value): Record<PageId, PageMeta> {
   return {
-    board: [t('navigation:shell.board'), t('navigation:shell.boardDescription')],
+    board: [t('navigation:sidebar.allAgents'), t('navigation:shell.boardDescription')],
     session: [t('navigation:navigation.chat'), ''],
     more: [t('navigation:shell.more'), t('navigation:shell.moreDescription')],
     chat: [t('navigation:navigation.chat'), t('navigation:navigation.chatDescription')],

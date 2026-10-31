@@ -25,7 +25,6 @@ import {
   FileCheck2,
   Folder,
   ListTodo,
-  Plus,
   Shield,
   ShieldAlert,
   Target,
@@ -44,7 +43,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Kbd } from '@/components/ui/kbd'
 import {
   clearComposerDraft,
   readComposerDraft,
@@ -52,7 +50,7 @@ import {
 } from '@/features/chat/public-launch'
 import { SCROLL_FADE_CLASS, useScrollFade } from '@/hooks/useScrollFade'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
-import { formatShortcut, matchesShortcut, useShortcutLabel } from '@/lib/shortcuts'
+import { formatShortcut, matchesShortcut } from '@/lib/shortcuts'
 import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
@@ -83,7 +81,8 @@ function restoreDraftText(key: string, prompt: string) {
   for (const listener of launchDraftListeners) if (listener.key === key) listener.apply(restored)
 }
 
-export type LaunchConsoleVariant = 'deck' | 'collapsed' | 'hero' | 'overlay' | 'sheet' | 'composer'
+// 看板时期的仪表区启动台（deck / hero / collapsed）随泳道退役（A3）：全部代理没有任务输入框，新任务走派发对话框。
+export type LaunchConsoleVariant = 'overlay' | 'sheet' | 'composer'
 
 // fill：空看板的“试试”建议只填入草稿并聚焦，不重建组件（派发中的状态与错误随之保留）。
 // focusEnd：聚焦并把光标放到末尾（主页草稿认领 ⌘N 时用，接着已写的内容往下写）。
@@ -96,7 +95,7 @@ export type LaunchConsoleHandle = {
 export type LaunchConsoleProps = {
   variant: LaunchConsoleVariant
   autoFocus?: boolean
-  // 1080 等窄宽度：模型只显示短名，审批模式只显示图标（配提示文字）。
+  // 窄宽度（主页草稿 1080 宽）：模型只显示短名，审批模式只显示图标（配提示文字）。
   compactChips?: boolean
   // composer：触屏（手机外壳）用不带键盘提示的占位与 44px 发送键。
   touch?: boolean
@@ -175,7 +174,6 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const labels = useLaunchLabels()
     const options = useLaunchOptions()
     const defaults = useLaunchDefaultsStore()
-    const newTaskKey = useShortcutLabel('primaryAction')
     // 会话主页的草稿输入框与会话页输入框同一套发送键（设置 → 快捷键的 sendMessage）：改成 ⌘↵ 后 ↵ 只换行，
     // 不会在草稿上误建会话。启动台其余外形仍是 ↵ 派发、⌘↵ 派发并打开。
     const sendBinding = useShortcutStore((state) => state.bindings.sendMessage)
@@ -368,10 +366,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         event.preventDefault()
     }
 
-    const roomy = variant === 'hero' || variant === 'overlay' || variant === 'sheet'
-    const collapsed = variant === 'collapsed'
     const lines = value.split('\n').length
-    const rows = collapsed ? 1 : Math.min(roomy ? 6 : 3, Math.max(roomy ? 3 : 1, lines))
+    const rows = Math.min(6, Math.max(3, lines))
     const chipSize = variant === 'sheet' || composer ? 'default' : 'sm'
     // 触屏上的 24px 小芯片：芯片行里与“派发”（触屏 44px）同一行，可见高度直接抬到 44；
     // 输入框里的项目芯片保持可见尺寸，命中区用伪元素补到 44（单行启动台的输入框只有 32px 高）。
@@ -735,15 +731,14 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       <div
         className={cn(
           'flex min-w-0 flex-1 items-start gap-1.5 rounded-sm border border-control bg-panel px-2 transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring',
-          // 触屏：单行启动台的输入框加高到 46px，里面的文本框才有 44px 可点高度。
-          collapsed ? 'h-8 items-center pointer-coarse:h-[46px]' : 'py-1',
+          'py-1',
           stacked && 'min-h-11 flex-wrap gap-y-1 py-1.5',
         )}
       >
         <span
           className={cn(
             'flex flex-none items-center gap-1 text-sm text-content-muted',
-            !collapsed && 'pt-0.5',
+            'pt-0.5',
             stacked && 'max-w-full min-w-0',
           )}
         >
@@ -776,10 +771,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
           className={cn(
             'min-w-0 flex-1 resize-none bg-transparent text-sm leading-6 text-content caret-st-attn-fill outline-none placeholder:text-content-muted',
-            collapsed &&
-              'h-8 overflow-hidden py-1 leading-6 whitespace-nowrap pointer-coarse:h-11 pointer-coarse:py-2.5',
-            // 触屏：仪表区的单行文本框至少 44px 高（多行与浮层本来就更高）。
-            !collapsed && !stacked && 'pointer-coarse:min-h-11',
+            // 触屏：文本框至少 44px 高。
+            !stacked && 'pointer-coarse:min-h-11',
             stacked && 'min-h-11 w-full basis-full text-[calc(var(--text-base)+1px)]',
           )}
         />
@@ -855,50 +848,12 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         </section>
       )
 
-    if (collapsed)
-      return (
-        <section
-          aria-label={t('board:launch.title')}
-          data-launch-console={variant}
-          className={cn(
-            'flex h-11 min-w-0 items-center gap-2 rounded-card border border-stroke bg-solid px-2 shadow-card pointer-coarse:h-13',
-            className,
-          )}
-        >
-          <span className="flex flex-none items-center gap-1 pl-1 text-sm font-semibold text-content">
-            <Plus className="size-4 text-content-muted" aria-hidden="true" />
-            {t('board:launch.title')}
-          </span>
-          {input}
-          {status}
-          {submit}
-          {error && <span className="sr-only">{error.message}</span>}
-        </section>
-      )
-
     return (
       <section
         aria-label={t('board:launch.title')}
         data-launch-console={variant}
-        className={cn(
-          'flex min-w-0 flex-col gap-2',
-          variant === 'deck' && 'rounded-card border border-stroke bg-solid p-3 shadow-card',
-          variant === 'hero' && 'rounded-card border border-stroke bg-solid p-4 shadow-card',
-          className,
-        )}
+        className={cn('flex min-w-0 flex-col gap-2', className)}
       >
-        {(variant === 'deck' || variant === 'hero') && (
-          <header className="flex min-w-0 items-center gap-2">
-            <Plus className="size-4 flex-none text-content-muted" aria-hidden="true" />
-            <h2 className="flex-none text-sm font-semibold text-content">
-              {t('board:launch.title')}
-            </h2>
-            {newTaskKey && <Kbd>{newTaskKey}</Kbd>}
-            <span className="min-w-0 truncate text-xs text-content-muted">
-              {t('board:launch.hint')}
-            </span>
-          </header>
-        )}
         {input}
         {errorLine}
         {variant === 'sheet' ? (

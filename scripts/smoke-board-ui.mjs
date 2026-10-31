@@ -1,9 +1,10 @@
-// 看板与新外壳冒烟：真实生产构建 + 隔离的临时 Runtime；会话列表、/live、审批与重试
+// 全部代理（原看板）与新外壳冒烟：真实生产构建 + 隔离的临时 Runtime；会话列表、/live、审批与重试
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
-// 覆盖第 1 期验收：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
-// 不被遮挡、无硬裁切、无横向滚动）、泳道与空泳道竖条、内联批准与重试、critical 只开确认层、
-// 侧栏分组与计数（规格 v2：取代舰队计量）、⌘1 / ⌘2、⌘N、逐个处理、卡片焦点环、未聚焦时动作键无效、
-// 今天没有活动时的看板骨架、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
+// 规格 v2 第 3 节（A3 取代泳道）：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
+// 不被遮挡、无硬裁切、无横向滚动）、按状态分组的列表（最大 880 居中）与按项目分组、行内批准与重试、
+// critical 只能打开处理（进会话）、侧栏分组与计数、⌘1 / ⌘2、⌘N 与“新任务”打开派发对话框、逐个处理
+// （其余分组 50%、只在需要你之间走）、行焦点环、未聚焦时动作键无效、项目 ⋯（重命名、恢复、管理项目）、
+// 今天完成折叠、筛选说明与清除、空状态、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
 // 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
 // 另有一段把能力里的 board.* 去掉，验证旧桌面 Runtime 退回第 1 期的 /api/sessions + /live 路径；
 // 再用被测的真实 Runtime 提供 /api/board/events（长连接），核对每个标签页只有 1 条连接、快照与增量、
@@ -96,14 +97,25 @@ async function openBoard(context, label) {
   return page
 }
 
-// critical 卡片的审批详情来自 /live（错峰拉取）；详情到达前“允许…”不可点，先等它就绪。
+// 审批详情来自 /live（错峰拉取）或 card：详情到达前普通批准没有“允许”、高风险看不到“高风险”说明，先等它就绪。
 async function waitForApprovals(page) {
-  for (const id of ['fx-critical', 'fx-standard'])
-    await page
-      .locator(`[data-board-card="${id}"]`)
-      .getByRole('button', { name: id === 'fx-critical' ? '允许…' : '允许' })
-      .and(page.locator(':enabled'))
-      .waitFor({ timeout: 20000 })
+  await page
+    .locator('[data-board-card="fx-critical"] [data-severity="critical"]')
+    .waitFor({ timeout: 20000 })
+  await page
+    .locator('[data-board-card="fx-standard"]')
+    .getByRole('button', { name: /^允许/ })
+    .and(page.locator(':enabled'))
+    .waitFor({ timeout: 20000 })
+}
+
+// 行所在的分区（按状态分组时是 attention / running / queued / done）。
+function rowSection(page, id) {
+  return page
+    .locator(`[data-board-card="${id}"]`)
+    .evaluate((row) =>
+      row.closest('[data-overview-section]')?.getAttribute('data-overview-section'),
+    )
 }
 
 async function settle(page) {
@@ -157,9 +169,14 @@ async function geometry(page, label) {
       clipped,
       cardOverflow,
       windowControls: document.querySelectorAll('.desktop-window-controls button').length,
-      lanes: [...document.querySelectorAll('[data-board-lane]')].map(
-        (lane) => `${lane.getAttribute('data-board-lane')}:${lane.getAttribute('data-lane-mode')}`,
+      sections: [...document.querySelectorAll('[data-overview-section]')].map((section) =>
+        section.getAttribute('data-overview-section'),
       ),
+      list:
+        document.querySelector('[data-overview-list]')?.getBoundingClientRect().toJSON() ?? null,
+      main:
+        document.querySelector('[data-overview-scroller]')?.getBoundingClientRect().toJSON() ??
+        null,
     }
   })
   report.geometry.push({ label, ...result })
@@ -207,7 +224,7 @@ try {
         : {}),
   })
 
-  // 1. 桌面尺寸 × 主题矩阵：每一档都注入自绘标题栏桥接，检查几何与泳道结构。
+  // 1. 桌面尺寸 × 主题矩阵：每一档都注入自绘标题栏桥接，检查几何与分组列表结构。
   for (const [width, height] of [
     [1440, 900],
     [1080, 680],
@@ -234,34 +251,66 @@ try {
       assert.equal(await page.locator('[data-app-titlebar]').count(), 0)
       assert.equal(await page.locator('[data-custom-titlebar]').count(), 1)
       assert.equal(await page.getByTestId('mobile-tab-bar').count(), 0)
+      assert.equal(
+        await page.locator('[data-board-root] h1').innerText(),
+        '全部代理',
+        `${label}: the page is called 全部代理`,
+      )
+      assert.match(
+        await page.locator('[data-overview-summary]').innerText(),
+        /^7 个代理 · 4 个项目 · 2 个在运行$/,
+      )
       const result = await geometry(page, label)
       assert.equal(
         result.windowControls,
         3,
         `${label}: three window buttons in the top-right corner`,
       )
-      // 第 1 期 Runtime 不声明 sessionQueue：排队泳道整条隐藏，其余三条都有卡片时全部展开。
-      assert.deepEqual(result.lanes, ['attention:expanded', 'running:expanded', 'done:expanded'])
-      for (const [lane, ids] of Object.entries({
+      // 泳道、启动台与任务输入框都退役了：这一页只有分组列表。
+      assert.equal(await page.locator('[data-board-lane], [data-launch-console]').count(), 0)
+      // 第 1 期 Runtime 不声明 sessionQueue：没有排队分组；需要你 → 运行中 → 今天完成。
+      assert.deepEqual(result.sections, ['attention', 'running', 'done'])
+      for (const [section, ids] of Object.entries({
         attention: ['fx-critical', 'fx-standard', 'fx-failed'],
         running: ['fx-running', 'fx-running-agents'],
         done: ['fx-done-unread', 'fx-done-pinned'],
       }))
         for (const id of ids)
-          assert.equal(
-            await page.locator(`[data-board-card="${id}"]`).getAttribute('data-lane'),
-            lane,
-            `${label}: ${id} sits in ${lane}`,
-          )
+          assert.equal(await rowSection(page, id), section, `${label}: ${id} sits in ${section}`)
+      // 需要你按等待时长（最久的在前）。
+      assert.deepEqual(
+        await page
+          .locator('[data-overview-section="attention"] [data-board-card]')
+          .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-board-card'))),
+        ['fx-failed', 'fx-critical', 'fx-standard'],
+      )
+      // 居中的列表最大 880（规格 3.1）；没有组件时不出现右侧组件栏，也不留空位。
+      assert.ok(
+        result.list.width <= 880.5,
+        `${label}: list is at most 880 wide (${result.list.width})`,
+      )
+      const leftGap = result.list.left - result.main.left
+      const rightGap = result.main.right - result.list.right
+      assert.ok(
+        Math.abs(leftGap - rightGap) <= 24,
+        `${label}: list is centred (${leftGap}/${rightGap})`,
+      )
+      assert.equal(await page.locator('[data-overview-widgets]').count(), 0)
+      // 行高随内容 52–96（普通批准的完整命令最多 3 行时会更高，这里只看没有命令的行）。
+      for (const id of ['fx-running', 'fx-done-pinned', 'fx-failed']) {
+        const box = await page.locator(`[data-board-card="${id}"]`).boundingBox()
+        assert.ok(box.height >= 52 && box.height <= 96, `${label}: ${id} row is ${box.height}px`)
+      }
       await page.screenshot({ path: join(output, `board-${width}-${colorScheme}.png`) })
       await context.close()
     }
   }
   report.checks.push(
-    '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: the 268px sidebar stays expanded, no title bar, no horizontal scroll, top-right 144px free of interactive elements, no hard-clipped buttons; lanes attention/running/done expanded, queued hidden without the sessionQueue capability',
+    '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: the 268px sidebar stays expanded, no title bar, no horizontal scroll, top-right 144px free of interactive elements, no hard-clipped buttons; the page is 全部代理 with “7 个代理 · 4 个项目 · 2 个在运行”, a centred list ≤880 grouped 需要你 (longest wait first) → 运行中 → 今天完成, no lanes, no launch console, no widget column, rows 52–96 tall',
   )
 
-  // 2. 1440 浅色上的交互：侧栏分组与计数、逐个处理、critical 确认层、standard 内联批准、重试、快捷键。
+  // 2. 1440 浅色上的交互：侧栏分组与计数、逐个处理、critical 只能打开处理、普通批准、重试、快捷键、
+  // 派发对话框、按项目分组与项目 ⋯、行 ⋯ 菜单。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -306,19 +355,96 @@ try {
       'Sidebar groups count 3 needing you and 2 running; needs-you rows read “title，reason，waited” with only a Chinese reason (no command); a focused standard approval reveals 拒绝 / 允许, critical and failed rows only reveal 打开, and A on a critical row sends nothing',
     )
 
-    // T 进入逐个处理（其余泳道变暗，底部提示条），Esc 退出。
-    await page.locator('[data-board-card="fx-critical"]').focus()
+    // 行内容（规格 3.3）：普通批准第 2 行“请求执行 bash”+ 完整命令（不截断）与“拒绝 D · 允许 A”；
+    // 高风险“高风险 · 改写远端分支”（琥珀文字）只有“打开处理”；失败一行等宽摘要与“日志 · 重试 R”；
+    // 运行中当前活动与子代理数；今天完成的结果摘要与改动统计。一行最多一个石墨主操作。
+    const row = (id) => page.locator(`[data-board-card="${id}"]`)
+    assert.match(await row('fx-standard').innerText(), /请求执行 bash/)
+    const command = await row('fx-standard').locator('[data-command-text]').innerText()
+    assert.match(command, /--reporter=verbose$/, 'the full command is shown, never truncated')
+    await row('fx-standard').getByRole('button', { name: /^拒绝/ }).waitFor()
+    const critical = row('fx-critical')
+    assert.match(
+      await critical.locator('[data-severity="critical"]').innerText(),
+      /高风险 · 改写远端分支/,
+    )
+    const criticalColor = await critical.locator('[data-severity="critical"]').evaluate((node) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--warning-strong)'
+      document.body.append(probe)
+      const amber = getComputedStyle(probe).color
+      probe.remove()
+      return { color: getComputedStyle(node).color, amber }
+    })
+    assert.equal(criticalColor.color, criticalColor.amber, 'high risk is amber text, not red')
+    assert.match(await critical.innerText(), /git push --force-with-lease origin fix\/ci/)
+    await critical.getByRole('button', { name: '打开处理' }).waitFor()
+    assert.equal(await critical.getByRole('button', { name: /^(允许|拒绝)/ }).count(), 0)
+    assert.match(
+      await row('fx-failed').locator('[data-card-error]').innerText(),
+      /3 failed, 41 passed/,
+    )
+    await row('fx-failed').getByRole('button', { name: '日志', exact: true }).waitFor()
+    await row('fx-failed').getByRole('button', { name: /^重试/ }).waitFor()
+    assert.match(
+      await row('fx-running').locator('[data-card-activity]').innerText(),
+      /bash · npm test/,
+    )
+    assert.match(
+      await row('fx-running-agents').locator('[data-card-agents]').innerText(),
+      /子代理 1\/2/,
+    )
+    assert.match(await row('fx-done-unread').locator('[data-card-preview]').innerText(), /LCP/)
+    assert.match(await row('fx-done-unread').innerText(), /6 个文件\s*\+214\s*−97/)
+    const primaries = await page.locator('[data-board-card]').evaluateAll((rows) =>
+      rows.map((node) => ({
+        id: node.getAttribute('data-board-card'),
+        primary: [...node.querySelectorAll('button')].filter(
+          (button) => button.getAttribute('data-variant') === 'default',
+        ).length,
+      })),
+    )
+    for (const entry of primaries)
+      assert.ok(entry.primary <= 1, `${entry.id} has at most one primary action`)
+    report.checks.push(
+      'Rows: a standard approval shows 请求执行 bash with the full untruncated command and 拒绝 / 允许; the critical row shows amber “高风险 · 改写远端分支” with the full command and only 打开处理; the failed row has a mono summary with 日志 / 重试; running rows show the current activity and 子代理 1/2; the done row shows its preview and “6 个文件 +214 −97”; no row has more than one primary action',
+    )
+
+    // T 进入逐个处理：其余分组降到 50%，底部提示条；J 只在需要你之间走；Esc 退出。
+    await critical.focus()
     await page.keyboard.press('t')
     const triageBar = page.locator('[data-triage-bar]')
     await triageBar.waitFor()
     assert.match(await triageBar.innerText(), /逐个处理 1\/3/)
+    assert.match(await triageBar.innerText(), /允许[\s\S]*拒绝[\s\S]*重试[\s\S]*打开[\s\S]*退出/)
+    assert.doesNotMatch(await triageBar.innerText(), /回答/, 'no answer hint without askUser')
+    // 透明度有一次 --d-fast 的过渡：等它走完再读。
+    const opacityOf = (id, value) =>
+      page.waitForFunction(
+        ([target, expected]) =>
+          getComputedStyle(document.querySelector(`[data-board-card="${target}"]`)).opacity ===
+          expected,
+        [id, value],
+      )
+    await opacityOf('fx-running', '0.5')
+    await opacityOf('fx-critical', '1')
+    for (let step = 0; step < 4; step += 1) {
+      await page.keyboard.press('j')
+      await page.waitForTimeout(80)
+      assert.equal(
+        await page.evaluate(() => document.activeElement?.getAttribute('data-lane')),
+        'attention',
+        'triage only walks the needs-you rows',
+      )
+    }
     await page.keyboard.press('Escape')
     await triageBar.waitFor({ state: 'hidden' })
+    await opacityOf('fx-running', '1')
     report.checks.push(
-      'T enters triage with a progress bar over the three attention items; Esc exits',
+      'T enters triage with the bottom bar “逐个处理 1/3 · A 允许 · D 拒绝 · R 重试 · ↵ 打开 · Esc 退出” (no answer hint without askUser), other groups drop to 50%, J only walks the needs-you rows, Esc exits',
     )
 
-    // J 从空白处移动焦点：卡片的 2px 焦点环必须真的画出来（--focus 色），不能被 outline-none 吃掉。
+    // J 从空白处移动焦点：行的 2px 焦点环必须真的画出来（--focus 色），不能被 outline-none 吃掉。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press('j')
     await page.waitForFunction(() => document.activeElement?.hasAttribute('data-board-card'))
@@ -336,46 +462,45 @@ try {
         focus,
       }
     })
-    assert.notEqual(ring.style, 'none', 'the focused card shows an outline')
+    assert.notEqual(ring.style, 'none', 'the focused row shows an outline')
     assert.equal(ring.width, '2px')
     assert.equal(ring.color, ring.focus, 'the focus ring uses --focus')
-    // 焦点不在任何卡片上时，A / D / R 不能落到“第一张卡片”上。
+    // 只有当前行在 Tab 序列里（roving tabindex）。
+    assert.equal(await page.locator('[data-board-card][tabindex="0"]').count(), 1)
+    // 焦点不在任何行上时，A / D / R 不能落到“第一行”上。
     await page.evaluate(() => document.activeElement?.blur())
     for (const key of ['r', 'a', 'd']) await page.keyboard.press(key)
     await page.waitForTimeout(500)
-    assert.equal(fixture.posts.length, 0, 'action keys without a focused card send nothing')
+    assert.equal(fixture.posts.length, 0, 'action keys without a focused row send nothing')
     assert.equal(await page.getByRole('dialog').count(), 0)
     report.checks.push(
-      'J shows a visible 2px --focus ring on the focused card; A / D / R with no card focused send nothing and open nothing',
+      'J shows a visible 2px --focus ring on the focused row and only one row is in the Tab order; A / D / R with no row focused send nothing and open nothing',
     )
 
-    // critical：点“允许…”与键盘 A 都只打开确认层，不发出批准请求。
-    const critical = page.locator('[data-board-card="fx-critical"]')
-    const confirm = page.getByRole('dialog', { name: '确认高风险操作', exact: true })
-    await critical.getByRole('button', { name: '允许…' }).click()
-    await confirm.waitFor()
-    await confirm.getByText('git push --force-with-lease origin fix/ci').first().waitFor()
-    assert.equal(fixture.posts.length, 0, 'clicking 允许… must not approve')
-    await page.keyboard.press('Escape')
-    await confirm.waitFor({ state: 'hidden' })
+    // critical：键盘 A 什么也不做（没有确认层，也不批准）；↵ 打开会话处理，⌘1 回来焦点还给这一行。
     await critical.focus()
     await page.keyboard.press('a')
-    await confirm.waitFor()
-    assert.equal(
-      await page.evaluate(() => document.activeElement?.hasAttribute('data-approval-hold')),
-      true,
-      'the confirmation layer focuses the hold button',
+    await page.waitForTimeout(400)
+    assert.equal(fixture.posts.length, 0, 'keyboard A on a critical row must not approve')
+    assert.equal(await page.getByRole('dialog').count(), 0, 'no confirmation layer on this page')
+    assert.equal(await page.evaluate(() => location.hash), '#/board')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => location.hash === '#/board/fx-critical')
+    await page.keyboard.press(`${mod}+Digit1`)
+    await page.locator('[data-board-root]').waitFor()
+    await page.waitForFunction(
+      () => document.activeElement?.getAttribute('data-board-card') === 'fx-critical',
+      null,
+      { timeout: 10_000 },
     )
-    assert.equal(fixture.posts.length, 0, 'keyboard A on a critical card must not approve')
-    await page.keyboard.press('Escape')
-    await confirm.waitFor({ state: 'hidden' })
-    assert.equal(await critical.getAttribute('data-lane'), 'attention')
+    assert.equal(fixture.posts.length, 0)
     report.checks.push(
-      'Critical approval: both the 允许… button and keyboard A only open the confirmation layer; no POST is sent',
+      'Critical approval: keyboard A does nothing (no confirmation layer, no POST); ↵ opens the session to handle it and ⌘1 returns focus to the same row',
     )
 
-    // standard：一键允许发出正确的 POST，卡片换到运行中。
-    // 等响应而不是请求：路由回调记录请求体发生在请求发出之后。
+    // standard：焦点在行上按 A，发出正确的 POST；行收起后进运行中，焦点落到下一条需要你。
+    await waitForApprovals(page)
+    await row('fx-standard').focus()
     const [approveResponse] = await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -383,10 +508,7 @@ try {
           new URL(response.url()).pathname ===
             '/api/sessions/fx-standard/approvals/approval-standard',
       ),
-      page
-        .locator('[data-board-card="fx-standard"]')
-        .getByRole('button', { name: /^允许( A)?$/ })
-        .click(),
+      page.keyboard.press('a'),
     ])
     assert.equal(approveResponse.request().postData(), JSON.stringify({ approved: true }))
     assert.deepEqual(fixture.posts, [
@@ -397,34 +519,117 @@ try {
       },
     ])
     await page.locator('[data-board-card="fx-standard"][data-lane="running"]').waitFor()
+    assert.equal(await rowSection(page, 'fx-standard'), 'running')
+    await page.waitForFunction(() => {
+      const active = document.activeElement
+      return (
+        active?.hasAttribute('data-board-card') && active.getAttribute('data-lane') === 'attention'
+      )
+    })
+    // 收起动画停在透明的行在新分组里原样出现。
+    await opacityOf('fx-standard', '1')
     report.checks.push(
-      'Standard approval 允许 sends POST /api/sessions/fx-standard/approvals/approval-standard {"approved":true} and the card moves to running',
+      'Standard approval: A on the focused row sends POST /api/sessions/fx-standard/approvals/approval-standard {"approved":true}, the row moves to 运行中 and focus lands on the next needs-you row',
     )
 
-    // 失败卡片重试：POST /retry（SSE），卡片进入运行中。
+    // 失败行重试：POST /retry（SSE），行进入运行中，侧栏计数跟着变。
     await Promise.all([
       page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
           new URL(response.url()).pathname === '/api/sessions/fx-failed/retry',
       ),
-      page.locator('[data-board-card="fx-failed"]').getByRole('button', { name: /^重试/ }).click(),
+      row('fx-failed').getByRole('button', { name: /^重试/ }).click(),
     ])
     await page.locator('[data-board-card="fx-failed"][data-lane="running"]').waitFor()
     assert.equal(fixture.posts.at(-1).path, '/api/sessions/fx-failed/retry')
     await waitForSidebarCounts(page, { attention: 1, running: 4 })
     report.checks.push(
-      'Failed card 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar groups follow',
+      'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar groups follow',
     )
 
-    // ⌘N 在看板上聚焦启动台，不打开派发浮层。
+    // 这一页没有任务输入框：⌘N 与页头“新任务”都打开派发对话框，Esc 关闭后留在全部代理。
+    const dispatch = page.getByRole('dialog', { name: '新任务', exact: true })
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyN`)
-    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-launch-input'))
-    assert.equal(await page.getByRole('dialog').count(), 0)
-    report.checks.push('⌘N on the board focuses the launch console instead of opening an overlay')
+    await dispatch.waitFor()
+    await page.keyboard.press('Escape')
+    await dispatch.waitFor({ state: 'hidden' })
+    await page.locator('[data-board-root] header').getByRole('button', { name: '新任务' }).click()
+    await dispatch.waitFor()
+    await page.keyboard.press('Escape')
+    await dispatch.waitFor({ state: 'hidden' })
+    assert.equal(await page.evaluate(() => location.hash), '#/board')
+    report.checks.push(
+      '⌘N and the header 新任务 button both open the dispatch dialog; Esc closes it and stays on 全部代理',
+    )
+
+    // 副标题悬停提示：子代理 x/4 · 今日 tok · 内存（拿不到的项不显示，不造数字）。
+    await page.locator('[data-overview-summary]').focus()
+    const system = page.locator('[data-overview-system]').first()
+    await system.waitFor()
+    await page.waitForFunction(
+      () => !/正在读取/.test(document.querySelector('[data-overview-system]')?.textContent || ''),
+    )
+    assert.match(await system.innerText(), /今日 .+ tok|内存 |子代理 |暂时读不到系统信息/)
+    await page.keyboard.press('Escape')
+    report.checks.push(
+      'The summary line is focusable and its tooltip lists sub-agent slots, today tokens and memory when the runtime reports them',
+    )
+
+    // G 切到按项目：每个项目一个分区，标题带各状态计数，区内仍按状态；项目 ⋯ 重命名 / 恢复目录名 / 管理项目。
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press('g')
+    const pisper = page.locator('[data-overview-heading="/home/dev/pisper"]')
+    await pisper.waitFor()
+    assert.match(await pisper.innerText(), /pisper[\s\S]*2 个运行中 · 1 个今天完成/)
+    assert.equal(
+      await page.locator('[data-board-root] [role="radio"][aria-checked="true"]').innerText(),
+      '按项目',
+    )
+    assert.deepEqual(
+      await page
+        .locator('[data-overview-section="/home/dev/pisper"] [data-board-card]')
+        .evaluateAll((rows) => rows.map((node) => node.getAttribute('data-lane'))),
+      ['running', 'running', 'done'],
+    )
+    await pisper.getByRole('button', { name: 'pisper 的操作' }).click()
+    for (const name of ['在此项目新建任务', '重命名…', '上移', '下移', '管理项目…', '删除项目…'])
+      await page.getByRole('menuitem', { name }).waitFor()
+    await page.getByRole('menuitem', { name: '重命名…' }).click()
+    const renameDialog = page.getByRole('dialog', { name: '重命名项目' })
+    await renameDialog.getByRole('textbox').fill('pisper-app')
+    await renameDialog.getByRole('button', { name: '保存' }).click()
+    await pisper.getByText('pisper-app', { exact: true }).waitFor()
+    await pisper.getByRole('button', { name: 'pisper-app 的操作' }).click()
+    await page.getByRole('menuitem', { name: '恢复目录名' }).click()
+    await pisper.getByText('pisper', { exact: true }).waitFor()
+    await pisper.getByRole('button', { name: 'pisper 的操作' }).click()
+    await page.getByRole('menuitem', { name: '管理项目…' }).click()
+    const manage = page.getByRole('dialog', { name: '管理项目' })
+    await manage.waitFor()
+    await manage.getByRole('button', { name: '完成' }).click()
+    await manage.waitFor({ state: 'hidden' })
+    await page.keyboard.press('g')
+    await page.locator('[data-overview-section="attention"]').waitFor()
+    report.checks.push(
+      'G switches to 按项目: one section per project with per-status counts (rows still sorted by status); the project ⋯ offers new task here / rename / move up / move down / manage / delete, rename and reset the display name work, 管理项目… opens the dialog; G switches back',
+    )
+
+    // 行 ⋯ 菜单与侧栏行相同。
+    await row('fx-running').hover()
+    await row('fx-running')
+      .getByRole('button', { name: /的更多操作$/ })
+      .click()
+    for (const name of ['打开会话', '置顶', '重命名', '复制会话链接', '归档'])
+      await page.getByRole('menuitem', { name, exact: true }).waitFor()
+    await page.keyboard.press('Escape')
+    report.checks.push(
+      'The row ⋯ menu matches the sidebar row menu (打开会话 · 置顶 · 重命名 · 复制会话链接 · 归档)',
+    )
 
     // 快捷键 v2：⌘2 功能（更多）、⌘1 全部代理（看板）；组件工作室默认未绑定（⌘3 不再消费）。
+    await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+Digit3`)
     await page.waitForTimeout(300)
     assert.equal(await page.evaluate(() => location.hash), '#/board', '⌘3 is unbound by default')
@@ -439,11 +644,15 @@ try {
         .waitFor()
     }
     await page.locator('[data-board-root]').waitFor()
-    report.checks.push('⌘2 / ⌘1 switch to more and back to the board; ⌘3 is unbound by default')
+    assert.equal(await page.title(), '全部代理 · Pisper')
+    report.checks.push(
+      '⌘2 / ⌘1 switch to 功能 and back to 全部代理 (document title 全部代理); ⌘3 is unbound by default',
+    )
+    await resetBoardView()
     await context.close()
   }
 
-  // 3. 空泳道竖条：没有需要你的事项时，需要你泳道收成“已清空”竖条；已完成可手动折叠再展开。
+  // 3. 没有需要你：需要你分组留标题与一句安静的空状态；今天完成可折叠再展开（存 pisper-board-view）。
   {
     const { context } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -452,30 +661,36 @@ try {
         sessions: boardFixture().sessions.filter((session) => !session.needsAttention),
       },
     )
-    const page = await openBoard(context, 'empty lane')
-    const attention = page.locator('[data-board-lane="attention"]')
-    await attention.and(page.locator('[data-lane-mode="rail"]')).waitFor()
-    assert.match(await attention.innerText(), /已清空/)
-    const railWidth = (await attention.boundingBox()).width
-    assert.ok(Math.abs(railWidth - 56) <= 1, `empty lane rail is 56px wide: ${railWidth}`)
+    const page = await openBoard(context, 'no attention')
+    const attention = page.locator('[data-overview-section="attention"]')
+    await attention.getByText('没有等你处理的事', { exact: true }).waitFor()
+    assert.equal(await attention.locator('[data-overview-count]').innerText(), '0')
     // 侧栏的需要你分组计数为 0，照常留着标题与一句“没有等你处理的事”（取代舰队计量的“全部顺畅”）。
     await waitForSidebarCounts(page, { attention: 0, running: 2 })
     await page
       .locator('[data-sidebar-group="attention"]')
       .getByText('没有等你处理的事', { exact: true })
       .waitFor()
-    await page.getByRole('button', { name: '折叠“已完成”', exact: true }).first().click()
-    const done = page.locator('[data-board-lane="done"]')
-    await done.and(page.locator('[data-lane-mode="rail"]')).waitFor()
-    await geometry(page, 'empty lane rails')
-    await page.screenshot({ path: join(output, 'board-rails.png') })
-    await done.getByRole('button', { name: /展开已折叠的泳道/ }).click()
-    await done.and(page.locator('[data-lane-mode="expanded"]')).waitFor()
+    const doneToggle = page
+      .locator('[data-overview-heading="done"]')
+      .getByRole('button', { name: /今天完成/ })
+    await doneToggle.click()
+    assert.equal(await doneToggle.getAttribute('aria-expanded'), 'false')
+    assert.equal(await page.locator('[data-board-card="fx-done-unread"]').count(), 0)
+    await page.waitForFunction(() =>
+      JSON.parse(localStorage.getItem('pisper-board-view') || '{}').state?.collapsedLanes?.includes(
+        'done',
+      ),
+    )
+    await geometry(page, 'done collapsed')
+    await page.screenshot({ path: join(output, 'board-done-collapsed.png') })
+    await doneToggle.click()
+    await page.locator('[data-board-card="fx-done-unread"]').waitFor()
     report.checks.push(
-      'An empty attention lane collapses to a 56px “已清空” rail, the sidebar needs-you group reads 0 with a quiet empty line, and the done lane collapses to a rail and expands again',
+      'With nothing needing you the 需要你 heading reads 0 with a quiet empty line (sidebar too); 今天完成 collapses and expands again, stored in pisper-board-view',
     )
     // ⌘B 收起为 60px 窄轨：四个入口图标 + 两个计数（需要你 0 变灰不消失、运行中 2）+ 设置；
-    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view）；再按 ⌘B 展开（偏好经 Runtime 同步，恢复原状）。
+    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view），页上写明筛选并可清除；再按 ⌘B 展开。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyB`)
     const rail = page.locator('[data-shell-sidebar="rail"]')
@@ -498,6 +713,10 @@ try {
     )
     assert.equal(await page.locator('[data-board-card="fx-done-unread"]').count(), 0)
     await page.locator('[data-board-card="fx-running"]').waitFor()
+    const filterLine = page.locator('[data-overview-filter]')
+    assert.match(await filterLine.innerText(), /状态：运行中/)
+    await filterLine.getByRole('button', { name: '清除筛选' }).click()
+    await page.locator('[data-board-card="fx-done-unread"]').waitFor()
     await page.keyboard.press(`${mod}+KeyB`)
     await page.locator('[data-shell-sidebar="expanded"]').waitFor()
     await page.waitForFunction(() =>
@@ -506,13 +725,13 @@ try {
     // 筛选偏好经 Runtime 镜像同步：清掉，免得影响之后的上下文。
     await resetBoardView()
     report.checks.push(
-      '⌘B collapses the sidebar to the 60px rail with a greyed 0 needs-you count and 2 running; the running count opens all agents filtered to running; ⌘B expands it again',
+      '⌘B collapses the sidebar to the 60px rail with a greyed 0 needs-you count and 2 running; the running count opens all agents filtered to running with a 状态：运行中 line whose 清除筛选 brings everything back; ⌘B expands it again',
     )
     await context.close()
   }
 
-  // 3b. 今天没有活动（只有 2 天前完成的会话）：照常显示看板骨架，已完成泳道保留时间窗切换与历史入口，
-  // 不能把有历史的用户提示成“还没有任务”，也不能退回旧首页式的居中输入框。
+  // 3b. 今天没有活动（只有 2 天前完成的会话）：一句“还没有代理在运行”+“新任务”与历史入口，
+  // 不放“试试”建议，也不退回旧首页式的居中输入框。
   {
     const old = new Date(Date.now() - 2 * 86_400_000).toISOString()
     const sessions = boardFixture()
@@ -530,26 +749,57 @@ try {
       { bridge: desktopBridgeScript, sessions },
     )
     const page = await openBoard(context, 'quiet board')
-    await page.getByRole('heading', { name: '今天还没有活动', exact: true }).waitFor()
+    const empty = page.locator('[data-overview-empty]')
+    await empty.getByText('还没有代理在运行', { exact: true }).waitFor()
+    assert.equal(await page.locator('[data-board-card], [data-launch-console]').count(), 0)
     assert.equal(await page.getByRole('heading', { name: '还没有任务', exact: true }).count(), 0)
-    const done = page.locator('[data-board-lane="done"]')
-    await done.and(page.locator('[data-lane-mode="expanded"]')).waitFor()
-    await page
-      .locator('[data-board-lane="attention"][data-lane-mode="rail"]')
-      .getByText('已清空')
-      .waitFor()
-    await done.getByRole('button', { name: /全部历史会话/ }).waitFor()
-    await page.locator('[data-attention-capsule]').getByText('没有需要你处理的事项').waitFor()
+    await empty.getByRole('button', { name: /全部历史会话/ }).waitFor()
     await geometry(page, 'quiet board')
     await page.screenshot({ path: join(output, 'board-quiet.png') })
-    await done.getByRole('button', { name: '切到 7 天', exact: true }).click()
-    await page.locator('[data-board-card="fx-done-unread"][data-lane="done"]').waitFor()
-    // 时间窗经 Runtime 同步持久化：恢复默认，避免影响后面的场景。
-    await done.getByRole('button', { name: '7 天', exact: true }).click()
-    await page.getByRole('menuitemradio', { name: '今天', exact: true }).click()
-    await page.getByRole('heading', { name: '今天还没有活动', exact: true }).waitFor()
+    await empty.getByRole('button', { name: '新任务' }).click()
+    await page.getByRole('dialog', { name: '新任务', exact: true }).waitFor()
+    await page.keyboard.press('Escape')
     report.checks.push(
-      'No activity today (only sessions finished 2 days ago): the board skeleton stays (attention rail “已清空”, done lane expanded) with the 7-day switch and 全部历史会话; switching to 7 days shows the older cards',
+      'No activity today (only sessions finished 2 days ago): one line “还没有代理在运行” with 新任务 (opens the dispatch dialog) and 全部历史会话, no suggestions, no rows and no launch console',
+    )
+    await context.close()
+  }
+
+  // 3c. 超过 30 行改用虚拟列表（规格 3.3）：只渲染可视附近的行；J 走到列表末尾时仍能聚焦到当时不在 DOM 里的行。
+  {
+    const base = boardFixture().sessions.find((session) => session.id === 'fx-done-unread')
+    const many = Array.from({ length: 40 }, (_, index) => ({
+      ...base,
+      id: `fx-many-${String(index).padStart(2, '0')}`,
+      name: `批量任务 ${index + 1}`,
+      firstMessage: `批量任务 ${index + 1}`,
+      pinned: false,
+      unread: false,
+    }))
+    const { context } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { bridge: desktopBridgeScript, sessions: many, protocol: 'legacy' },
+    )
+    const page = await openBoard(context, 'virtual list')
+    await page.locator('[data-overview-list][data-virtual]').waitFor()
+    const rendered = await page.locator('[data-board-card]').count()
+    assert.ok(rendered > 0 && rendered < 40, `virtual list renders a window of rows: ${rendered}`)
+    await page.locator('[data-board-card]').first().focus()
+    for (let step = 0; step < 39; step += 1) await page.keyboard.press('j')
+    await page
+      .waitForFunction(
+        () => document.activeElement?.getAttribute('data-board-card') === 'fx-many-39',
+        null,
+        { timeout: 10_000 },
+      )
+      .catch(async () => {
+        const active = await page.evaluate(() =>
+          document.activeElement?.getAttribute('data-board-card'),
+        )
+        throw new Error(`J did not reach the last row in the virtual list (active: ${active})`)
+      })
+    report.checks.push(
+      'More than 30 rows switch to a virtual list that renders a window of rows; J still walks to the last row',
     )
     await context.close()
   }
@@ -641,26 +891,21 @@ try {
     'Desktop windows narrowed to 1000px and 600px (with and without the custom title bar) keep the sidebar shell and never mount the phone shell; a 600px browser does',
   )
 
-  // 6. 第 2 期数据源：Runtime 声明 board.view / board.events 时看板走事件流，卡片显示 card 摘要
-  // （运行中尾巴与活动脚注、失败摘要、已完成结果摘要与改动统计、上下文百分比），运行中泳道底部有
-  // “再派发一个并行代理”槽位；旧桌面 Runtime（能力里没有 board.*）退回第 1 期路径且没有错误。
+  // 6. 第 2 期数据源：Runtime 声明 board.view / board.events 时全部代理走事件流，行显示 card 摘要
+  // （运行中的当前活动、失败摘要、今天完成的结果摘要与改动统计）；旧桌面 Runtime（能力里没有 board.*）
+  // 退回第 1 期路径且没有错误。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
       { bridge: desktopBridgeScript },
     )
     const page = await openBoard(context, 'board feed')
-    await page.locator('[data-board-card="fx-running"] [data-card-tail]').waitFor()
+    await page.locator('[data-board-card="fx-running"] [data-card-activity]').waitFor()
     assert.ok(fixture.eventRequests.length >= 1, 'the board opens the event stream')
     assert.equal(fixture.eventRequests[0], null, 'the first connection asks for a snapshot')
     assert.match(
-      await page.locator('[data-board-card="fx-running"] [data-card-tail]').innerText(),
-      /rejects expired token/,
-    )
-    assert.equal(
-      await page.locator('[data-board-card="fx-running"] [data-tail-fail]').count(),
-      1,
-      'only the failing tail line is marked red',
+      await page.locator('[data-board-card="fx-running"] [data-card-activity]').innerText(),
+      /bash · npm test -- --runInBand/,
     )
     assert.match(
       await page.locator('[data-board-card="fx-failed"] [data-card-error]').innerText(),
@@ -674,11 +919,7 @@ try {
       await page.locator('[data-board-card="fx-done-unread"]').innerText(),
       /6 个文件\s*\+214\s*−97/,
     )
-    assert.match(
-      await page.locator('[data-board-card="fx-running"] [data-card-meta]').innerText(),
-      /上下文 41%/,
-    )
-    // 有 card 时不再为审批卡单独取 /live，也不再轮询完整目录之外的 /change-summary。
+    // 有 card 时不再为审批行单独取 /live，也不再轮询完整目录之外的 /change-summary。
     const lateRequests = []
     page.on('request', (request) => lateRequests.push(new URL(request.url()).pathname))
     await page.waitForTimeout(2_500)
@@ -692,8 +933,6 @@ try {
       fixture.eventRequests.some((after) => after !== null),
       `reconnects carry after: ${JSON.stringify(fixture.eventRequests)}`,
     )
-    await page.locator('[data-lane-dispatch]').click()
-    await page.waitForFunction(() => document.activeElement?.hasAttribute('data-launch-input'))
     await geometry(page, 'board feed')
     await context.close()
   }
@@ -720,17 +959,21 @@ try {
     )
     assert.ok(
       requests.some((url) => /\/live$/.test(url.pathname)),
-      'approval cards use /live',
+      'approval rows use /live',
     )
-    assert.equal(await page.locator('[data-card-tail]').count(), 0, 'no empty tail boxes')
-    assert.match(
-      await page.locator('[data-board-card="fx-running"] [data-card-meta]').innerText(),
-      /6 条消息/,
+    // 没有 card：运行中不造活动行，今天完成的改动统计只为可视区内的行懒读 /change-summary。
+    assert.equal(
+      await page.locator('[data-board-card="fx-running"] [data-card-activity]').count(),
+      0,
     )
+    await page
+      .locator('[data-board-card="fx-done-unread"]')
+      .getByText('6 个文件')
+      .waitFor({ timeout: 15_000 })
     await context.close()
   }
   report.checks.push(
-    'Board feed: with board.view/board.events the board opens the event stream (snapshot first, then reconnects with after), shows running tails with the failing line in red, failure summaries, done previews with change stats and context %, takes approvals from cards without /live or /change-summary, and the running lane slot focuses the launch console; an old runtime without board.* falls back to /api/sessions + /live with no event-stream or view=board requests and no empty tail boxes',
+    'Board feed: with board.view/board.events the page opens the event stream (snapshot first, then reconnects with after), shows the running activity, failure summary, done preview with change stats, and takes approvals from cards without /live or /change-summary; an old runtime without board.* falls back to /api/sessions + /live with no event-stream or view=board requests, no invented activity line, and lazily reads change stats',
   )
 
   // 6b. 真实 Runtime 的看板事件流（不经固定数据）：每个标签页只有 1 条长连接，先收快照、随后收增量；

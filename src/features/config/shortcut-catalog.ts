@@ -15,7 +15,6 @@ export type FixedShortcutId =
   | 'sidebarMove'
   | 'sidebarOpen'
   | 'boardMove'
-  | 'boardSwitchLane'
   | 'boardOpen'
   | 'boardExitTriage'
   | 'newline'
@@ -76,9 +75,6 @@ export const SHORTCUT_GROUPS: readonly {
       board('boardNext'),
       board('boardPrevious'),
       fixed('boardMove', ['↑'], ['↓']),
-      board('boardLaneLeft'),
-      board('boardLaneRight'),
-      fixed('boardSwitchLane', ['←'], ['→']),
       fixed('boardOpen', ['Enter']),
       board('boardApprove'),
       board('boardDeny'),
@@ -152,8 +148,6 @@ export function useShortcutCatalogText() {
   const boardActions: Record<BoardShortcutAction, string> = {
     boardNext: t('config:shortcuts.boardNext'),
     boardPrevious: t('config:shortcuts.boardPrevious'),
-    boardLaneLeft: t('config:shortcuts.boardLaneLeft'),
-    boardLaneRight: t('config:shortcuts.boardLaneRight'),
     boardApprove: t('config:shortcuts.boardApprove'),
     boardDeny: t('config:shortcuts.boardDeny'),
     boardRetry: t('config:shortcuts.boardRetry'),
@@ -164,7 +158,6 @@ export function useShortcutCatalogText() {
     sidebarMove: t('board:shortcuts.sidebarMove'),
     sidebarOpen: t('board:shortcuts.sidebarOpen'),
     boardMove: t('board:shortcuts.boardMove'),
-    boardSwitchLane: t('board:shortcuts.boardSwitchLane'),
     boardOpen: t('board:shortcuts.boardOpen'),
     boardExitTriage: t('board:shortcuts.boardExitTriage'),
     newline: t('board:shortcuts.newline'),

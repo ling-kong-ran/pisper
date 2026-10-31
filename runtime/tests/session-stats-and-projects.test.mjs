@@ -76,17 +76,29 @@ test('request timing accrues per-turn first-token and duration stats on sessionM
 })
 
 test('sidebar and usage popover wire project context menu and session stats panel', async () => {
-  const [sidebar, controls, focus, app, routeElements, history, runtime, projection] =
-    await Promise.all([
-      source('../../src/features/board/SidebarSessions.tsx'),
-      source('../../src/features/chat/FocusRuntimeControls.tsx'),
-      source('../../src/features/chat/FocusSession.tsx'),
-      source('../../src/App.tsx'),
-      source('../../src/app/route-elements.tsx'),
-      source('../../src/features/chat/ChatHistoryPage.tsx'),
-      source('../../runtime/runtime/agent-runtime.mjs'),
-      source('../../runtime/runtime/stream-projection.mjs'),
-    ])
+  const [
+    sidebar,
+    rowMenu,
+    rowActions,
+    controls,
+    focus,
+    app,
+    routeElements,
+    history,
+    runtime,
+    projection,
+  ] = await Promise.all([
+    source('../../src/features/board/SidebarSessions.tsx'),
+    source('../../src/features/board/SessionRowMenu.tsx'),
+    source('../../src/features/board/useSessionRowActions.ts'),
+    source('../../src/features/chat/FocusRuntimeControls.tsx'),
+    source('../../src/features/chat/FocusSession.tsx'),
+    source('../../src/App.tsx'),
+    source('../../src/app/route-elements.tsx'),
+    source('../../src/features/chat/ChatHistoryPage.tsx'),
+    source('../../runtime/runtime/agent-runtime.mjs'),
+    source('../../runtime/runtime/stream-projection.mjs'),
+  ])
 
   // 旧侧栏（AppSidebar / ProjectTaskList）已删除。会话的打开/重命名/删除由“功能 › 历史会话”承担，
   // v2 侧栏的会话行菜单（打开、置顶、重命名、归档、标记已处理、复制链接）只复用看板动作：
@@ -102,15 +114,26 @@ test('sidebar and usage popover wire project context menu and session stats pane
   assert.match(history, /onSelect=\{\(\) => void renameSession\(session\)\}/)
   assert.match(history, /onSelect=\{\(\) => void deleteSession\(session\)\}/)
   assert.match(history, /chat:chatHistoryPage\.renameChat/)
+  // 行菜单与动作抽成 SessionRowMenu / useSessionRowActions，侧栏与全部代理行共用（A3，规格 3.3“⋯ 菜单同侧栏行”）。
+  assert.match(sidebar, /<SessionRowMenu\b/)
+  assert.match(
+    sidebar,
+    /useSessionRowActions\(\{ notify, requestText, onOpenSession, onArchived \}\)/,
+  )
   for (const item of ['open', 'pin', 'unpin', 'rename', 'markHandled', 'copyLink', 'archive'])
-    assert.match(sidebar, new RegExp(`t\\('board:menu\\.${item}'\\)`), item)
-  assert.match(sidebar, /actionsRef\.current\.rename\(row\.id, trimmed\)/)
+    assert.match(rowMenu, new RegExp(`t\\('board:menu\\.${item}'\\)`), item)
+  assert.match(rowActions, /actionsRef\.current\.rename\(row\.id, trimmed\)/)
+  assert.match(
+    rowActions,
+    /requestText: \(options\?: PromptDialogOptions\) => Promise<string \| null>/,
+  )
   assert.match(
     sidebar,
     /requestText: \(options\?: PromptDialogOptions\) => Promise<string \| null>/,
   )
-  // 侧栏不删除会话（删除只在历史会话里，带确认）。
-  assert.doesNotMatch(sidebar, /method: 'DELETE'|deleteSession/)
+  // 侧栏与全部代理行不删除会话（删除只在历史会话里，带确认）。
+  for (const file of [sidebar, rowMenu, rowActions])
+    assert.doesNotMatch(file, /method: 'DELETE'|deleteSession/)
 
   // 统计弹窗：模型芯片弹层底部的用量段内嵌详细统计面板（规格 v2 第 2.5 节），FocusSession 传入数据源。
   assert.match(controls, /export function SessionStatsPanel/)

@@ -73,8 +73,6 @@ export function formatShortcut(binding: string | null, mac?: boolean): string
 export const BOARD_SHORTCUT_ACTIONS: readonly [
   'boardNext',
   'boardPrevious',
-  'boardLaneLeft',
-  'boardLaneRight',
   'boardApprove',
   'boardDeny',
   'boardRetry',

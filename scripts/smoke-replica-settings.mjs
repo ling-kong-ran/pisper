@@ -508,7 +508,8 @@ try {
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-shortcut-group'))),
     ['global', 'sidebar', 'board', 'session'],
   )
-  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 9)
+  // A3 退役看板的 ←/→ 换泳道（boardSwitchLane）：固定键从 9 个变成 8 个。
+  assert.equal(await shortcutCard.locator('[data-shortcut-fixed]').count(), 8)
   assert.equal(
     await shortcutCard.locator('[data-shortcut-fixed] [data-shortcut-recorder]').count(),
     0,
@@ -531,7 +532,8 @@ try {
   ])
     assert.equal(await shortcutCard.locator(`#shortcut-${action}`).count(), 1, action)
   // 侧栏入口 ⌘1 全部代理、⌘2 功能；会话主页、组件工作室与侧聊默认未绑定；⌘[ 与 showBoard 已退役，不再列出。
-  for (const retired of ['backToBoard', 'showBoard'])
+  // 泳道退役（A3）：H / L 切泳道不再是可改绑的动作。
+  for (const retired of ['backToBoard', 'showBoard', 'boardLaneLeft', 'boardLaneRight'])
     assert.equal(await shortcutCard.locator(`#shortcut-${retired}`).count(), 0, retired)
   for (const [action, expected] of [
     ['openBoard', /1$/],
@@ -578,7 +580,7 @@ try {
     () => JSON.parse(localStorage.getItem('pisper-shortcuts') || '{}').agentPanel === 'Mod+KeyJ',
   )
   console.log(
-    'PASS shortcut settings: global/sidebar/all-agents/session groups with nine read-only fixed keys, ⌘1 all agents and ⌘2 features, session home / components / side chat unbound, ⇧⌘B session tree and F6 focus regions listed, no ⌘[ or showBoard row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
+    'PASS shortcut settings: global/sidebar/all-agents/session groups with eight read-only fixed keys (←/→ lane switching retired), ⌘1 all agents and ⌘2 features, session home / components / side chat unbound, ⇧⌘B session tree and F6 focus regions listed, no ⌘[ or showBoard row, new actions rebind and persist, conflicts and reserved arrow combinations are refused, reset restores defaults',
   )
   for (const scenario of [
     { name: 'light-1280', width: 1280, theme: 'light', longLabels: false },

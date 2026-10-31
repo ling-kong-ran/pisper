@@ -6,7 +6,6 @@
 // 没有 card 的降级形态保持第 1 期：一行活动、“N 条消息”、按需读 /change-summary。
 import {
   memo,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -14,7 +13,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   Archive,
@@ -42,7 +40,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Kbd } from '@/components/ui/kbd'
-import { getSessionChangeSummary } from '@/features/chat/public-launch'
 import { formatCompactDuration, relativeTime } from '@/lib/format'
 import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -65,6 +62,8 @@ import {
   tailLineFailed,
   visibleChangeStats,
 } from './card-presentation'
+import { CardChangeStats, ChangeStats } from './ChangeStats'
+import { CommandWell } from './CommandWell'
 import { useRunningMotion } from './useRunningMotion'
 
 export type AgentCardHandlers = {
@@ -106,74 +105,12 @@ const BORDER_CLASSES = {
   fail: 'border-st-fail-border',
 } as const
 
+// 用 Element 而不是 HTMLElement：按钮里的图标是 SVG（lucide 的 circle / path），点在图标上时
+// 事件目标是 SVGElement，按 HTMLElement 判断会漏掉，点 ⋯ 或“允许”的图标就会顺带打开会话。
 function interactiveTarget(target: EventTarget | null) {
   return (
-    target instanceof HTMLElement &&
+    target instanceof Element &&
     Boolean(target.closest('button, a, input, textarea, [role="menuitem"], [data-card-stop]'))
-  )
-}
-
-// 命令框：可换行，最多 3 行；内容超出时出现“展开”。文本始终完整，只是被裁在可视高度里。
-// 先在空白处断行，单个词比一行还长时才拆词（overflow-wrap:anywhere），分支名与路径不会被拆在中间。
-function CommandWell({
-  text,
-  prefix,
-  phone,
-  args = false,
-}: {
-  text: string
-  prefix: string
-  phone: boolean
-  // 参数清单（没有命令和路径的审批）：读屏名与“展开”文案按参数说。
-  args?: boolean
-}) {
-  const { t } = useI18n()
-  const ref = useRef<HTMLPreElement>(null)
-  const [overflowing, setOverflowing] = useState(false)
-  const [expanded, setExpanded] = useState(false)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node || expanded) return
-    const measure = () => setOverflowing(node.scrollHeight > node.clientHeight + 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [expanded, text])
-  return (
-    <div className="min-w-0 rounded-sm border border-well-stroke bg-well">
-      {/* 内边距放在外层：折叠到 3 行时，第 4 行不会从内边距里露出半截。 */}
-      <div className="px-2.5 py-1.5">
-        <pre
-          ref={ref}
-          aria-label={args ? t('board:confirm.fullArgs') : undefined}
-          className={cn(
-            'min-w-0 font-mono text-xs leading-5 whitespace-pre-wrap wrap-anywhere text-well-text',
-            !expanded && 'line-clamp-3',
-            phone && 'text-sm',
-          )}
-        >
-          {prefix && <span className="text-well-muted select-none">{prefix} </span>}
-          {text}
-        </pre>
-      </div>
-      {(overflowing || expanded) && (
-        <button
-          type="button"
-          data-card-stop
-          className="w-full border-t border-well-stroke px-2.5 py-1 text-left text-xs text-content-secondary hover:text-content focus-visible:outline-2 focus-visible:outline-focus pointer-coarse:min-h-11"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded
-            ? t('board:card.collapse')
-            : args
-              ? t('board:card.expandArgs')
-              : t('board:card.expand')}
-        </button>
-      )}
-    </div>
   )
 }
 
@@ -231,73 +168,6 @@ function useMetaFit(texts: string) {
     return () => observer.disconnect()
   }, [fit, texts])
   return { ref, fit, overflowing }
-}
-
-// 改动统计：只为进入可视区的已完成卡片请求 /change-summary，与历史页的指示器共用同一份缓存。
-function ChangeStats({
-  sessionId,
-  completedAt,
-}: {
-  sessionId: string
-  completedAt: string | null
-}) {
-  const { t } = useI18n()
-  const anchor = useRef<HTMLSpanElement>(null)
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const node = anchor.current
-    if (!node || visible) return
-    if (typeof IntersectionObserver === 'undefined') {
-      setVisible(true)
-      return
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '120px' },
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [visible])
-  const { data } = useQuery({
-    queryKey: ['session-change-summary', sessionId, completedAt],
-    queryFn: () => getSessionChangeSummary(sessionId),
-    enabled: visible,
-    staleTime: 60_000,
-    retry: 0,
-  })
-  if (data?.status !== 'known' || !data.changedFiles) return <span ref={anchor} />
-  return (
-    <span ref={anchor} className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
-      <span>{t('board:card.files', { count: data.changedFiles })}</span>
-      <span className="font-mono text-st-done tabular-nums">+{data.added || 0}</span>
-      <span className="font-mono text-st-fail tabular-nums">−{data.removed || 0}</span>
-    </span>
-  )
-}
-
-// card 自带的改动统计（Runtime 在写入类工具结束时缓存）：有它就不再单独读 /change-summary。
-function CardChangeStats({
-  files,
-  added,
-  removed,
-}: {
-  files: number
-  added: number
-  removed: number
-}) {
-  const { t } = useI18n()
-  return (
-    <span className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
-      <span>{t('board:card.files', { count: files })}</span>
-      <span className="font-mono text-st-done tabular-nums">+{added}</span>
-      <span className="font-mono text-st-fail tabular-nums">−{removed}</span>
-    </span>
-  )
 }
 
 // 等宽尾巴：最后 2–3 行输出，失败行标红；运行中最后一行带闪烁光标（离屏时静止）。

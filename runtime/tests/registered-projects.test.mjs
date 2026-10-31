@@ -265,13 +265,15 @@ test('board project lists read registrations through the shared store and merge 
   const read = (path) => readFile(path, 'utf8')
   const [launch, page, dialog, commands] = await Promise.all([
     read('src/features/board/useLaunchOptions.ts'),
-    read('src/features/board/BoardPage.tsx'),
+    // 全部代理与手机看板的项目列表都经 useLabeledProjects 合并登记项目（A3 起）。
+    read('src/features/board/useLabeledProjects.ts'),
     read('src/features/board/ManageProjectsDialog.tsx'),
     read('src/features/board/useProjectCommands.ts'),
   ])
   assert.match(launch, /recentLaunchProjects\(list \?\? \[\], registered, names\)/)
   assert.match(launch, /defaultLaunchCwd\(list \?\? \[\], projects\)/)
-  assert.match(page, /withRegisteredProjects\(board\.projects, registeredProjects\)/)
+  assert.match(page, /withRegisteredProjects\(\[\.\.\.projects\], registered\)/)
+  assert.match(page, /useRegisteredProjectsStore\(\(state\) => state\.projects\)/)
   assert.match(dialog, /managedProjects\(/)
   // 没有会话的行只取消登记；有会话的才走“连同会话一起删除”。
   assert.match(dialog, /if \(project\.count === 0\) commands\.unregister\(project\)/)

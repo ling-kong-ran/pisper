@@ -671,13 +671,11 @@
   "shortcuts.openComponents": "Open Component studio",
   "shortcuts.openMore": "Open Features",
   "shortcuts.jumpToAttention": "Focus the longest-waiting item that needs you (then A / D, ↵ to open)",
-  "shortcuts.boardNext": "Next card in lane",
-  "shortcuts.boardPrevious": "Previous card in lane",
-  "shortcuts.boardLaneLeft": "Lane to the left",
-  "shortcuts.boardLaneRight": "Lane to the right",
-  "shortcuts.boardApprove": "Allow (high risk opens confirmation)",
+  "shortcuts.boardNext": "Next agent",
+  "shortcuts.boardPrevious": "Previous agent",
+  "shortcuts.boardApprove": "Allow a standard approval (high risk opens the session)",
   "shortcuts.boardDeny": "Deny",
   "shortcuts.boardRetry": "Retry failed task",
   "shortcuts.boardTriage": "Triage items that need you",
-  "shortcuts.boardToggleGrouping": "Toggle lane / project grouping"
+  "shortcuts.boardToggleGrouping": "Toggle by status / by project"
 }

@@ -28,11 +28,10 @@ test('migrated route pages give scroll and outer spacing ownership to a page tem
 })
 
 test('full-bleed shell pages own their scroll instead of the padded page container', async () => {
-  const [app, more, board, lane] = await Promise.all([
+  const [app, more, board] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/app/MorePage.tsx', 'utf8'),
     readFile('src/features/board/BoardPage.tsx', 'utf8'),
-    readFile('src/features/board/LaneColumn.tsx', 'utf8'),
   ])
   // 看板与更多页不走 PageFrame：外壳给它们无留白、不滚动的容器，滚动由页面自己承担；
   // 会话页沿用聊天页的弹性容器，下方终端展开时对话区随之让高。
@@ -48,11 +47,8 @@ test('full-bleed shell pages own their scroll instead of the padded page contain
   assert.match(more, /<div className="h-full min-h-0 w-full overflow-y-auto bg-background">/)
   assert.match(
     board,
-    /data-board-root\s+className="relative flex h-full min-h-0 w-full min-w-0 flex-col/,
+    /data-board-root\s+data-overview\s+className="relative flex h-full min-h-0 w-full min-w-0 flex-col/,
   )
-  // 看板各泳道独立滚动，页面本身不出现整页滚动条。
-  assert.match(
-    lane,
-    /data-lane-scroller=\{lane\}\s+className="relative min-h-0 flex-1 overflow-y-auto/,
-  )
+  // 全部代理（A3 取代泳道）：顶栏 52 固定，分组列表在自己的滚动区里滚动，外壳容器不出现整页滚动条。
+  assert.match(board, /data-overview-scroller\s+className="min-h-0 flex-1 overflow-y-auto/)
 })

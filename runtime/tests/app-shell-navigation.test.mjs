@@ -362,9 +362,9 @@ test('the sidebar is the only primary navigation and windows keep the control co
     readFile('src/components/layout/DesktopWindowControls.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
-    readFile('src/features/board/BoardHeader.tsx', 'utf8'),
     readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
   ])
+  const overview = await readFile('src/features/board/BoardPage.tsx', 'utf8')
   // 外壳根节点按桥接能力标记自绘标题栏，窗口按钮只在这时挂载。
   assert.match(
     app,
@@ -383,6 +383,12 @@ test('the sidebar is the only primary navigation and windows keep the control co
     assert.match(header, /\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/)
     assert.match(header, /data-window-drag-region/)
   }
+  // 全部代理（A3，取代泳道页的 BoardHeader）：主区顶栏 52 是一条没有任何控件的拖拽区，页头（标题、分组方式、
+  // 新任务）在它下方的滚动区里，因此右上角 144px 天然空着，不需要再让位。
+  assert.match(
+    overview,
+    /<div data-window-drag-region aria-hidden="true" className="h-\[52px\] flex-none" \/>\s*<div\s+ref=\{scrollerRef\}\s+data-overview-scroller/,
+  )
   // 三个 44px 窗口按钮叠在主区右上角：总宽 132px 落在 144px 预留区内。
   assert.match(
     controls,

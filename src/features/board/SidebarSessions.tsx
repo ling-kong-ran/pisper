@@ -18,34 +18,24 @@ import {
   type ReactNode,
 } from 'react'
 import { useHref } from 'react-router-dom'
-import { ChevronDown, ChevronRight, History, MoreHorizontal, Pin } from 'lucide-react'
+import { ChevronDown, ChevronRight, History, Pin } from 'lucide-react'
 import type { BoardLane } from '@shared/session-board-status.mjs'
 import type { Notify } from '@/app/route-context'
 import { sessionPath } from '@/app/routes'
-import { forgetLastSession } from '@/app/session-home'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import type { PromptDialogOptions } from '@/hooks/useAppDialog'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { matchesBoardShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
-import type { BoardActionResult } from './board-actions'
 import { useBoardViewStore } from './board-view-store'
 import {
   adjacentSidebarSession,
   type SidebarAttentionRow,
   type SidebarGroup,
   type SidebarGroupId,
-  type SidebarReason,
   type SidebarRow,
 } from './sidebar-model'
 import {
@@ -53,39 +43,20 @@ import {
   formatSidebarDay,
   formatSidebarTime,
   formatSidebarWait,
+  reasonText,
 } from './sidebar-presentation'
+import { collapseRow, motionAllowed, SIDEBAR_ROW_COLLAPSE_MS } from './row-motion'
+import { SessionRowMenu } from './SessionRowMenu'
 import { SIDEBAR_COMMAND_EVENT, type SidebarCommand } from './sidebar-commands'
 import { useBoardActions } from './useBoardActions'
-import { motionReduced } from './useLaneMotion'
 import { useNow } from './useNow'
+import { useSessionRowActions, type SessionRowActions } from './useSessionRowActions'
 import { useSidebarModel } from './useSidebarModel'
 
-const ROW_COLLAPSE_MS = 160
 const ROW_EXPAND_MS = 160
 const RING_MS = 600
 
-function motionAllowed() {
-  return !motionReduced() && document.visibilityState !== 'hidden'
-}
-
 type Translate = ReturnType<typeof useI18n>['t']
-
-// 原因文字：键写成字面量（i18n 检查要求），组合时按“失败 → 批准 → 问题”的顺序用“ · ”连接。
-function reasonText(t: Translate, reasons: readonly SidebarReason[]) {
-  return reasons
-    .map((reason, index) => {
-      if (reason.kind === 'failed') return t('board:sidebar.reason.failed')
-      if (reason.kind === 'approval')
-        return reason.critical
-          ? t('board:sidebar.reason.criticalApproval')
-          : t('board:sidebar.reason.approval')
-      if (reason.count === null) return t('board:sidebar.reason.question')
-      return index === 0
-        ? t('board:sidebar.reason.questions', { count: reason.count })
-        : t('board:sidebar.reason.questionCount', { count: reason.count })
-    })
-    .join(' · ')
-}
 
 function groupTitle(t: Translate, id: SidebarGroupId) {
   switch (id) {
@@ -100,14 +71,6 @@ function groupTitle(t: Translate, id: SidebarGroupId) {
     default:
       return t('board:sidebar.group.done')
   }
-}
-
-// 复制会话链接：沿用当前地址的协议、主机与路由形式（哈希路由时链接也带 #），与全部代理页一致。
-function sessionHref(id: string) {
-  const { origin, pathname, search, hash } = window.location
-  return hash.startsWith('#/')
-    ? `${origin}${pathname}${search}#${sessionPath(id)}`
-    : `${origin}${sessionPath(id)}`
 }
 
 function sidebarRows(root: ParentNode | null) {
@@ -376,13 +339,8 @@ export function SidebarSessions({
     setFresh(new Set(added.map((row) => row.id)))
   }, [attentionRows, isLoading])
 
-  const report = useCallback(
-    (result: BoardActionResult) => {
-      if (result.ok || result.reason === 'pending') return
-      notify(t('board:action.failed'), 'error')
-    },
-    [notify, t],
-  )
+  const rowActions = useSessionRowActions({ notify, requestText, onOpenSession, onArchived })
+  const report = rowActions.report
 
   // 普通批准一步处理：先收起（160ms），动作失败时恢复；需要确认（详情变化、变成高风险）时改为打开会话。
   const decide = useCallback(
@@ -403,7 +361,7 @@ export function SidebarSessions({
       // 动作与收起同时开始；收起播完才把行藏起来，失败时撤掉收起、行原样回来。
       let failed = false
       const collapsed = leaves
-        ? collapseRow(element).then(() => {
+        ? collapseRow(element, { duration: SIDEBAR_ROW_COLLAPSE_MS, scale: 0.6 }).then(() => {
             if (!failed) markLeaving(row.id, true)
           })
         : Promise.resolve()
@@ -439,55 +397,12 @@ export function SidebarSessions({
     })
   }, [attentionRows])
 
-  const rename = useCallback(
-    async (row: SidebarRow) => {
-      const name = await requestText({
-        title: t('board:sidebar.renameTitle'),
-        inputLabel: t('board:sidebar.renameLabel'),
-        value: row.title,
-        confirmLabel: t('board:sidebar.renameSave'),
-        maxLength: 200,
-      })
-      const trimmed = name?.trim()
-      if (!trimmed || trimmed === row.title) return
-      const result = await actionsRef.current.rename(row.id, trimmed)
-      if (result.ok) notify(t('board:sidebar.renamed'))
-      else report(result)
-    },
-    [notify, report, requestText, t],
-  )
-
   const handlers: RowHandlers = useMemo(
     () => ({
-      open: (row) => onOpenSession(row.id),
+      ...rowActions,
       decide: (row, approve, element) => void decide(row, approve, element),
-      pin: (row) => void actionsRef.current.pin(row.id, !row.pinned).then(report),
-      rename: (row) => void rename(row),
-      archive: (row) =>
-        void actionsRef.current.archive(row.id, true).then((result) => {
-          if (!result.ok) {
-            report(result)
-            return
-          }
-          notify(t('board:action.archived', { title: row.title }))
-          // 归档的是“上次停留的会话”时清掉记录，主页随后显示新任务草稿，不再落回它。
-          forgetLastSession(row.id)
-          onArchived(row.id)
-        }),
-      markHandled: (row) => void actionsRef.current.markHandled(row.id).then(report),
-      copyLink: (row) => {
-        const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined
-        if (!clipboard) {
-          notify(t('board:action.copyFailed'), 'error')
-          return
-        }
-        void clipboard.writeText(sessionHref(row.id)).then(
-          () => notify(t('board:action.copied')),
-          () => notify(t('board:action.copyFailed'), 'error'),
-        )
-      },
     }),
-    [decide, notify, onArchived, onOpenSession, rename, report, t],
+    [decide, rowActions],
   )
 
   // 行间键盘：↑ / ↓ 移动，↵ 由链接本身打开；需要你行上 A / D 处理普通批准（跟随全部代理的改绑）。
@@ -600,25 +515,6 @@ function plainClick(event: ReactMouseEvent) {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 }
 
-// 处理后的收起：scaleY + 透明度 160ms；行随后隐藏，下一行顶上来。
-function collapseRow(element: HTMLElement | null) {
-  if (!element || !motionAllowed() || typeof element.animate !== 'function')
-    return Promise.resolve()
-  element.style.transformOrigin = 'top center'
-  return element
-    .animate(
-      [
-        { transform: 'scaleY(1)', opacity: 1 },
-        { transform: 'scaleY(.6)', opacity: 0 },
-      ],
-      { duration: ROW_COLLAPSE_MS, easing: 'ease-in', fill: 'forwards' },
-    )
-    .finished.then(
-      () => undefined,
-      () => undefined,
-    )
-}
-
 export function SidebarSkeleton({ label }: { label: string }) {
   return (
     <div
@@ -724,14 +620,8 @@ function SidebarGroupSection({
   )
 }
 
-type RowHandlers = {
-  open: (row: SidebarRow) => void
+type RowHandlers = SessionRowActions & {
   decide: (row: SidebarAttentionRow, approve: boolean, element: HTMLElement | null) => void
-  pin: (row: SidebarRow) => void
-  rename: (row: SidebarRow) => void
-  archive: (row: SidebarRow) => void
-  markHandled: (row: SidebarRow) => void
-  copyLink: (row: SidebarRow) => void
 }
 
 function SidebarRowItem({
@@ -982,40 +872,14 @@ function SidebarRowItem({
               </span>
             </button>
           ))}
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t('board:sidebar.rowMenu', { title: row.title })}
-              className="grid size-[26px] flex-none place-items-center rounded-[var(--r-sm)] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-active hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-            >
-              <MoreHorizontal className="size-4" aria-hidden="true" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="right" className="min-w-44">
-            <DropdownMenuItem onSelect={() => handlers.open(row)}>
-              {t('board:menu.open')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => handlers.pin(row)}>
-              {row.pinned ? t('board:menu.unpin') : t('board:menu.pin')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => handlers.rename(row)}>
-              {t('board:menu.rename')}
-            </DropdownMenuItem>
-            {row.group === 'attention' && row.status === 'failed' && (
-              <DropdownMenuItem onSelect={() => handlers.markHandled(row)}>
-                {t('board:menu.markHandled')}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => handlers.copyLink(row)}>
-              {t('board:menu.copyLink')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => handlers.archive(row)}>
-              {t('board:menu.archive')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SessionRowMenu
+          row={row}
+          actions={handlers}
+          canMarkHandled={row.group === 'attention' && row.status === 'failed'}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          side="right"
+        />
       </div>
     </li>
   )

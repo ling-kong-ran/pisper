@@ -148,9 +148,10 @@ test('phone-only surfaces read the shared phone-shell gate instead of a viewport
   for (const [file, pattern] of Object.entries(gated))
     assert.match(await readFile(file, 'utf8'), pattern, file)
   const board = await readFile('src/features/board/BoardPage.tsx', 'utf8')
+  // 手机看板与桌面全部代理是两个不同的组件：切换外壳时整页换掉，不共用任何状态（原来靠 key 区分）。
   assert.match(
     board,
-    /<BoardView key=\{phone \? 'phone' : 'desktop'\} \{\.\.\.props\} phone=\{phone\} \/>/,
+    /if \(phone\) return <PhoneBoard \{\.\.\.props\} \/>\s*return <OverviewPage \{\.\.\.props\} \/>/,
   )
   assert.match(
     await readFile('src/features/board/usePhoneShell.ts', 'utf8'),

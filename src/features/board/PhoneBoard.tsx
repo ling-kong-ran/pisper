@@ -3,9 +3,20 @@
 // 卡片圆角 12（--r-card 在手机外壳下放大），审批卡的拒绝 / 允许是各占一半的 44px 大按钮。
 // 新任务走底部标签栏中间的按钮 → 派发底部表单；空看板时直接在页内放一个启动台。
 // 筛选菜单底部放“新建项目…”“管理项目…”：手机没有页头的“项目 ▾”，项目入口并在这里。
-import { useEffect, useRef, useState, type RefObject } from 'react'
+// 第 4 期手机外壳的看板，A4 换成手机全部代理时整体删除；桌面全部代理在 BoardPage（规格 v2 第 3 节）。
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { ArrowRight, FolderCog, FolderPlus, ListFilter, Search } from 'lucide-react'
-import type { BoardLane } from '@shared/session-board-status.mjs'
+import { BOARD_LANES, type BoardLane } from '@shared/session-board-status.mjs'
+import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
@@ -19,23 +30,154 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { requestCommandPalette } from '@/features/chat/events'
+import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import { cn } from '@/lib/utils'
 import { AgentCard } from './AgentCard'
 import { ApprovalConfirm } from './ApprovalConfirm'
-import type { BoardHeaderProject } from './BoardHeader'
+import type { BoardItem } from './board-model'
 import { useBoardViewStore } from './board-view-store'
 import { LaneGlyph } from './LaneGlyph'
 import { useLaneLabels } from './lane-labels'
-import { visibleLaneItems } from './lane-layout'
 import { LaunchConsole } from './LaunchConsole'
-import type { useBoardController } from './useBoardController'
-import type { BoardSessionsResult } from './useBoardSessions'
+import { useBoardAnnouncer } from './useBoardAnnouncer'
+import { useBoardController } from './useBoardController'
+import { useBoardSessions, type BoardSessionsResult } from './useBoardSessions'
+import { useLabeledProjects, type LabeledProject } from './useLabeledProjects'
+import { useNow } from './useNow'
+import { useProjectCommands } from './useProjectCommands'
 
-type PhoneBoardProps = {
+// 管理项目对话框与手动填写目录的对话框（系统目录对话框不可用时）只在打开时需要：按需加载。
+const WorkspacePicker = lazy(() =>
+  import('@/components/WorkspacePicker').then((module) => ({ default: module.WorkspacePicker })),
+)
+const ManageProjectsDialog = lazy(() =>
+  import('./ManageProjectsDialog').then((module) => ({ default: module.ManageProjectsDialog })),
+)
+
+// 已完成区段最多展示的卡片数；更多的去“全部历史会话”。
+const DONE_SECTION_LIMIT = 20
+
+function sectionItems(lane: BoardLane, items: readonly BoardItem[]) {
+  return lane === 'done' ? items.slice(0, DONE_SECTION_LIMIT) : [...items]
+}
+
+export type PhoneBoardProps = {
+  onOpenSession: (sessionId: string) => void
+  onOpenHistory: () => void
+  onConfigureModels: () => void
+  sessionHref: (sessionId: string) => string
+  notify: Notify
+  requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
+  requestText: (options?: PromptDialogOptions) => Promise<string | null>
+  // 手机由应用壳打开派发底部表单（新项目选好之后也走这里）。
+  onNewTask: () => void
+}
+
+// 手机看板的数据与交互编排：看板数据、控制器（critical 走确认层）、读屏播报与项目入口。
+export function PhoneBoard({
+  onOpenSession,
+  onOpenHistory,
+  onConfigureModels,
+  sessionHref,
+  notify,
+  requestConfirm,
+  requestText,
+  onNewTask,
+}: PhoneBoardProps) {
+  const { t } = useI18n()
+  const board = useBoardSessions()
+  const laneLabels = useLaneLabels()
+  const view = useBoardViewStore()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [manageMounted, setManageMounted] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
+  const availableLanes = useMemo(
+    () => BOARD_LANES.filter((lane) => lane !== 'queued' || board.capabilities.sessionQueue),
+    [board.capabilities.sessionQueue],
+  )
+  const visibleLanes = useMemo(
+    () => availableLanes.filter((lane) => !view.lanes.length || view.lanes.includes(lane)),
+    [availableLanes, view.lanes],
+  )
+  const projects = useLabeledProjects(board.projects)
+  const order = useMemo(
+    () => visibleLanes.flatMap((lane) => sectionItems(lane, board.lanes[lane])),
+    [board.lanes, visibleLanes],
+  )
+  const controller = useBoardController({
+    rootRef,
+    order,
+    attention: board.lanes.attention,
+    attentionAll: board.attentionAll,
+    onRevealAttention: view.clearFilters,
+    ready: !board.isLoading,
+    notify,
+    sessionHref,
+    onOpenSession,
+    onToggleGrouping: () => view.setGroupBy(view.groupBy === 'lane' ? 'project' : 'lane'),
+  })
+  const announcement = useBoardAnnouncer({
+    items: board.items,
+    laneName: laneLabels.name,
+    template: useCallback(
+      (title: string, lane: string) => t('board:announce.moved', { title, lane }),
+      [t],
+    ),
+    separator: t('board:sidebar.announceSeparator'),
+    skipAttention: false,
+  })
+  const ticking = board.attentionAll.length > 0 || board.lanes.running.length > 0
+  const now = useNow(ticking)
+  const commands = useProjectCommands({
+    notify,
+    requestConfirm,
+    requestText,
+    onProjectChosen: onNewTask,
+    announceChoice: false,
+  })
+  const { mounted: pickerMounted, ...pickerProps } = commands.picker
+  return (
+    <>
+      <PhoneBoardView
+        rootRef={rootRef}
+        board={board}
+        availableLanes={availableLanes}
+        projects={projects}
+        now={now}
+        controller={controller}
+        announcement={announcement}
+        onConfigureModels={onConfigureModels}
+        onOpenHistory={onOpenHistory}
+        projectPicking={commands.picking}
+        onNewProject={() => void commands.newProject()}
+        onManageProjects={() => {
+          setManageMounted(true)
+          setManageOpen(true)
+        }}
+      />
+      {pickerMounted && (
+        <Suspense fallback={null}>
+          <WorkspacePicker {...pickerProps} />
+        </Suspense>
+      )}
+      {manageMounted && (
+        <Suspense fallback={null}>
+          <ManageProjectsDialog
+            open={manageOpen}
+            onOpenChange={setManageOpen}
+            commands={commands}
+          />
+        </Suspense>
+      )}
+    </>
+  )
+}
+
+type PhoneBoardViewProps = {
   rootRef: RefObject<HTMLDivElement | null>
   board: BoardSessionsResult
   availableLanes: readonly BoardLane[]
-  projects: BoardHeaderProject[]
+  projects: LabeledProject[]
   now: number
   controller: ReturnType<typeof useBoardController>
   announcement: string
@@ -62,7 +204,7 @@ const JUMP_SELECTED: Record<BoardLane, string> = {
   done: 'border-st-done-border bg-st-done-soft text-st-done',
 }
 
-export function PhoneBoard({
+function PhoneBoardView({
   rootRef,
   board,
   availableLanes,
@@ -75,7 +217,7 @@ export function PhoneBoard({
   projectPicking,
   onNewProject,
   onManageProjects,
-}: PhoneBoardProps) {
+}: PhoneBoardViewProps) {
   const { t } = useI18n()
   const labels = useLaneLabels()
   const view = useBoardViewStore()
@@ -213,7 +355,7 @@ export function PhoneBoard({
           )}
           {(board.items.length > 0 || board.total === 0) &&
             lanes.map((lane) => {
-              const items = visibleLaneItems(lane, board.lanes[lane])
+              const items = sectionItems(lane, board.lanes[lane])
               const headingId = `board-section-${lane}`
               return (
                 <section

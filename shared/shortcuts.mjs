@@ -456,14 +456,12 @@ export function formatShortcut(binding, mac = false) {
 }
 
 // —— 看板单字母快捷键 ——
-// 看板上的 J/K/H/L、A/D/R、T、G 是单字母键：只在看板页且焦点不在输入框时生效，
+// 全部代理页的 J/K、A/D/R、T、G 是单字母键：只在全部代理页且焦点不在输入框时生效，
 // 因此与应用级组合键分开登记、分开校验，不放宽上面“裸字母键保留给打字”的规则。
 // 只接受不带修饰键的 KeyA–KeyZ；方向键、↵、Esc 是固定别名，不可改绑。
 export const BOARD_SHORTCUT_ACTIONS = Object.freeze([
   'boardNext',
   'boardPrevious',
-  'boardLaneLeft',
-  'boardLaneRight',
   'boardApprove',
   'boardDeny',
   'boardRetry',
@@ -474,8 +472,6 @@ export const BOARD_SHORTCUT_ACTIONS = Object.freeze([
 export const DEFAULT_BOARD_SHORTCUTS = Object.freeze({
   boardNext: 'KeyJ',
   boardPrevious: 'KeyK',
-  boardLaneLeft: 'KeyH',
-  boardLaneRight: 'KeyL',
   boardApprove: 'KeyA',
   boardDeny: 'KeyD',
   boardRetry: 'KeyR',

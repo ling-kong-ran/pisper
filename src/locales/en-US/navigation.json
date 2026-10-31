@@ -142,7 +142,7 @@
   "shell.search": "Search agents, sessions, labels and commands",
   "shell.newTask": "New task",
   "shell.untitledSession": "Untitled session",
-  "shell.backToBoardLabel": "Back to board",
+  "shell.backToBoardLabel": "Back to All agents",
   "shell.sessionNotFound": "Session not found",
   "shell.sessionNotFoundHint": "It may have been deleted, or the link is incomplete.",
   "shell.backToMoreLabel": "Back to More",
