@@ -47,6 +47,17 @@ export function errorDetails(error: unknown): { message: string; stack?: string 
   return { message: formatLogArguments([error]) }
 }
 
+// [让代理修复] 带上的错误摘要（计划 §5.4 第 4 步）：消息一行 + 调用栈前 1 KB；
+// 调用栈第一行通常就是消息本身，不重复。
+const FIX_STACK_MAX = 1024
+
+export function componentFixSummary(message: string, stack?: string): string {
+  const head = message.trim()
+  const trace = (stack ?? '').trim()
+  const body = trace.startsWith(head) ? trace.slice(head.length).trim() : trace
+  return body ? `${head}\n${body.slice(0, FIX_STACK_MAX)}` : head
+}
+
 export type ComponentLogBuffer = {
   append(entry: ComponentLogEntry): void
   read(componentId: string): ComponentLogEntry[]

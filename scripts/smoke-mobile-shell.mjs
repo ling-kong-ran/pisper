@@ -1207,6 +1207,18 @@ async function verifyPhoneShell(boardSessions) {
     await page.locator('[data-placement-tile="floating"]').textContent(),
     /浮窗|手机上不显示/,
   )
+  // S7：提示词底部表单（规格 7.4）：详情里的“用提示词生成或修改”≥44px，打开底部表单、输入框可见；Esc 收起，不发送。
+  const promptOpen = page.locator('[data-component-prompt-open]')
+  const promptOpenBox = await promptOpen.boundingBox()
+  assert.ok(promptOpenBox && promptOpenBox.height >= 44, JSON.stringify(promptOpenBox))
+  await promptOpen.click()
+  const promptSheet = page.locator('[data-component-prompt-sheet]')
+  await promptSheet.locator('[data-component-prompt-input]').waitFor()
+  const sheetBox = await promptSheet.boundingBox()
+  assert.ok(sheetBox && Math.round(sheetBox.y + sheetBox.height) >= 843, JSON.stringify(sheetBox))
+  assert.equal(await promptSheet.locator('[data-component-generate]').isDisabled(), true)
+  await page.keyboard.press('Escape')
+  await promptSheet.waitFor({ state: 'detached' })
   const phoneHeader = await page.evaluate(() => {
     const back = document.querySelector('[data-back-to-more]')
     const header = back?.closest('header')
@@ -1235,7 +1247,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-new-task-draft="phone"]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
-    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders, the detail reads preview → props → placements with ≥44px placement tiles, and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
+    'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders, the detail reads preview → props → placements with ≥44px placement tiles and a ≥44px “用提示词生成或修改” that opens the bottom prompt sheet, and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
   )
 
   // 全部代理末尾的组件卡（规格 3.4、7.3，A7 S6）：全宽、内容区高 120（S）、排在列表之后；

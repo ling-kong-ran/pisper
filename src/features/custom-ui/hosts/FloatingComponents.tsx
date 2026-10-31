@@ -23,6 +23,7 @@ import { useFloatingPlacementStore } from '@/features/custom-ui/floating-placeme
 import { ComponentHost } from '@/features/custom-ui/native/ComponentHost'
 import type { PlacedComponent } from '@/features/custom-ui/placements'
 import { customUiQueryKeys } from '@/features/custom-ui/query-keys'
+import { useComponentFix } from '@/features/custom-ui/studio/use-component-agent'
 
 type DragState = {
   pointerId: number
@@ -65,6 +66,7 @@ function FloatingComponent({
 }) {
   const { t } = useI18n()
   const { instance, component } = placed
+  const fix = useComponentFix(component, notify)
   const key = floatingPlacementKey(instance.instanceId, false)
   const saved = useFloatingPlacementStore(
     (state) => state.positions.find((item) => item.key === key)?.position,
@@ -270,6 +272,7 @@ function FloatingComponent({
             props: instance.props,
           }}
           notify={notify}
+          onRequestFix={fix}
           className="h-full"
         />
       </div>

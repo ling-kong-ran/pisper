@@ -11,6 +11,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
 import type { ComponentInstance, ComponentRow } from '@/features/custom-ui/custom-ui-api'
 import { componentLogBuffer } from '@/features/custom-ui/native/host-runtime'
+import { componentFixSummary } from '@/features/custom-ui/native/log'
 import { NewComponentMenu } from './NewComponentMenu'
 import {
   componentDisplayName,
@@ -117,27 +118,31 @@ export function StudioRow({
   )
 }
 
-// 本页崩溃过 / 被暂停的组件：行下原地展开的错误条，带最近一条错误与两个动作。
+// 本页崩溃过 / 被暂停的组件：行下原地展开的错误条，带最近一条错误与 [查看错误] [重新加载] [让代理修复]。
 function CrashStrip({
   componentId,
   onOpenLogs,
   onReload,
+  onRequestFix,
 }: {
   componentId: string
   onOpenLogs: () => void
   onReload: () => void
+  onRequestFix?: (summary: string) => void
 }) {
   const { t } = useI18n()
   const buffer = componentLogBuffer()
-  const message = useSyncExternalStore(
+  // 返回缓冲里的条目本身（引用稳定），useSyncExternalStore 不会因每次新建对象而反复重渲染。
+  const latest = useSyncExternalStore(
     (listener) => buffer.subscribe(listener),
     () => {
       const entries = buffer.read(componentId)
       for (let index = entries.length - 1; index >= 0; index -= 1)
-        if (entries[index].level === 'error') return entries[index].message
-      return ''
+        if (entries[index].level === 'error') return entries[index]
+      return null
     },
   )
+  const message = latest?.message ?? ''
   return (
     <div
       role="alert"
@@ -160,6 +165,16 @@ function CrashStrip({
         <Button size="xs" variant="secondary" onClick={onReload}>
           {t('custom-ui:host.reload')}
         </Button>
+        {onRequestFix && message && (
+          <Button
+            size="xs"
+            variant="ghost"
+            data-component-crash-fix={componentId}
+            onClick={() => onRequestFix(componentFixSummary(message, latest?.stack))}
+          >
+            {t('custom-ui:host.askAgentFix')}
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -201,6 +216,7 @@ export function StudioLibrary({
   onCreate,
   onOpenLogs,
   onReload,
+  onRequestFix,
   footer,
 }: {
   rows: readonly ComponentRow[]
@@ -215,9 +231,15 @@ export function StudioLibrary({
   onFilter: (filter: StudioFilter) => void
   onQuery: (query: string) => void
   onSelect: (id: string) => void
-  onCreate: (template: StudioTemplate, name?: string) => Promise<ComponentRow | null>
+  onCreate: (
+    template: StudioTemplate,
+    name?: string,
+    prompt?: string,
+  ) => Promise<ComponentRow | null>
   onOpenLogs: (id: string) => void
   onReload: (id: string) => void
+  // 崩溃条的 [让代理修复]：错误摘要交给这个组件的绑定会话。
+  onRequestFix?: (row: ComponentRow, summary: string) => void
   footer?: ReactNode
 }) {
   const { t } = useI18n()
@@ -281,6 +303,7 @@ export function StudioLibrary({
                 componentId={row.id}
                 onOpenLogs={() => onOpenLogs(row.id)}
                 onReload={() => onReload(row.id)}
+                onRequestFix={onRequestFix && ((summary) => onRequestFix(row, summary))}
               />
             )}
           </li>

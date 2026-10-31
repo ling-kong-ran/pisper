@@ -9,7 +9,36 @@ import { PAGE_PATHS, componentPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import type { Notify } from '@/app/route-context'
+import type { ComponentRow } from './custom-ui-api'
 import { LazyComponentHost, useComponentInstances } from './placements'
+import { useComponentFix } from './studio/use-component-agent'
+
+// 整页宿主里的组件：错误卡的 [让代理修复] 交给这个组件的绑定会话。
+function FeaturePageHost({
+  component,
+  instance,
+  notify,
+}: {
+  component: ComponentRow
+  instance: { instanceId: string; title: string; props: Record<string, unknown> }
+  notify: Notify
+}) {
+  const fix = useComponentFix(component, notify)
+  return (
+    <LazyComponentHost
+      component={component}
+      instance={{
+        instanceId: instance.instanceId,
+        surface: 'feature-page',
+        title: instance.title,
+        props: instance.props,
+      }}
+      notify={(message) => notify(message)}
+      onRequestFix={fix}
+      className="h-full"
+    />
+  )
+}
 
 export function CustomUiToolPage({ componentId, notify }: { componentId: string; notify: Notify }) {
   const { t } = useI18n()
@@ -48,17 +77,11 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
             <Suspense
               fallback={<PageState kind="loading" title={t('custom-ui:customUiPage.loading')} />}
             >
-              <LazyComponentHost
+              <FeaturePageHost
                 key={placed.instance.instanceId}
                 component={placed.component}
-                instance={{
-                  instanceId: placed.instance.instanceId,
-                  surface: 'feature-page',
-                  title: placed.instance.title,
-                  props: placed.instance.props,
-                }}
-                notify={(message) => notify(message)}
-                className="h-full"
+                instance={placed.instance}
+                notify={notify}
               />
             </Suspense>
           ) : result.isLoading ? (

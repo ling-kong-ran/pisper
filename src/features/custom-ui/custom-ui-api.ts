@@ -10,6 +10,7 @@ import type {
   PropsSchema,
 } from '@shared/custom-ui-manifest.mjs'
 import { ApiError, requestJson, requestText } from '@/lib/http'
+import type { SessionSummary } from '@/types/chat'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -694,5 +695,40 @@ export function componentFetch(id: string, request: ComponentFetchRequest, signa
     // 代理自己有 10 秒总超时；这里留出余量，避免客户端先超时、把 504 误报成网络错误。
     timeout: 15_000,
     parse: parseComponentFetchResult,
+  })
+}
+
+// —— 绑定会话（计划 §5.4）：工作室“生成”与“让代理修复”先建 / 复用这个组件的代理会话 ——
+
+export type ComponentAgentSession = {
+  sessionId: string
+  created: boolean
+  // 会话为空时放在提示词前的技能命令（'/skill:pisper-component'）。
+  command: string
+  // 新建时 Runtime 带回的会话摘要（只加字段，旧 Runtime 没有）：交给看板并入缓存。
+  session: SessionSummary | null
+}
+
+const SESSION_ID = /^[A-Za-z0-9._:-]{1,128}$/
+const SKILL_COMMAND = /^\/skill:[a-z0-9][a-z0-9-]{0,63}$/
+
+export function parseComponentAgentSession(value: unknown): ComponentAgentSession {
+  if (!isRecord(value) || typeof value.sessionId !== 'string' || !SESSION_ID.test(value.sessionId))
+    throw new Error('Invalid custom UI session response')
+  const command =
+    typeof value.command === 'string' && SKILL_COMMAND.test(value.command) ? value.command : ''
+  const session =
+    isRecord(value.session) && value.session.id === value.sessionId
+      ? // 会话摘要沿用聊天接口的既有约定（requestJson<SessionSummary>）：只核对 id 与绑定的会话一致。
+        (value.session as SessionSummary)
+      : null
+  return { sessionId: value.sessionId, created: value.created === true, command, session }
+}
+
+export function requestComponentAgentSession(id: string): Promise<ComponentAgentSession> {
+  return requestJson(`${componentPath(id)}/session`, {
+    method: 'POST',
+    body: {},
+    parse: parseComponentAgentSession,
   })
 }

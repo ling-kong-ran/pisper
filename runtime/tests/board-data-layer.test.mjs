@@ -57,6 +57,7 @@ import {
   discardUnsentLaunchSession,
   isUnsentLaunchSession,
   launchBoardTask,
+  sendBoardTaskMessage,
 } from '../../src/features/board/board-launch.ts'
 import { sortProjectsByOrder } from '../../src/features/board/board-model.ts'
 
@@ -1675,4 +1676,124 @@ test('a silent half-open event stream is dropped by the idle watchdog and resume
   const opened = calls.filter((call) => call.path.startsWith('/api/board/events'))
   assert.equal(opened.at(-1).path, '/api/board/events?after=8')
   assert.equal(boardEventsConnected(), true)
+})
+
+// —— 给已有会话发任务消息（组件工作室的“生成”“让代理修复”，计划 §5.4）——
+
+test('a task message to an empty bound session starts with the skill command and a space, and runs on the board', async (t) => {
+  globalThis.window = new EventTarget()
+  t.after(() => {
+    delete globalThis.window
+  })
+  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
+  const finish = deferred()
+  const calls = installFetch((path) => {
+    if (path === '/api/sessions/bound/live')
+      return json({ id: 'bound', streaming: false, messages: [] })
+    if (path === '/api/chat')
+      return sseResponse(['event: run\ndata: {"runId":"r","sessionId":"bound"}\n\n'], {
+        hold: finish.promise,
+      })
+    return json({ sessions: [] })
+  })
+  const result = await sendBoardTaskMessage({
+    sessionId: 'bound',
+    prompt: '  做一个 CI 状态卡片  ',
+    commandWhenEmpty: '/skill:pisper-component',
+    created: { ...createdSession, id: 'bound', cwd: '/data/custom-ui/ci' },
+  })
+  assert.deepEqual(result, { sessionId: 'bound', queued: false })
+  const chat = calls.find((call) => call.path === '/api/chat')
+  // 命令后必须是空格：Pi 按第一个空格切技能名，换行会把提示词也并进技能名。
+  assert.equal(chat.body.message, '/skill:pisper-component 做一个 CI 状态卡片')
+  assert.equal(chat.body.sessionId, 'bound')
+  assert.equal(chat.body.goalMode, false)
+  // 新会话立即进入权威缓存，并由本客户端持有运行流（侧栏“运行中”）。
+  const cached = queryClient.getQueryData(BOARD_SESSIONS_QUERY_KEY).sessions
+  assert.equal(cached[0].id, 'bound')
+  assert.equal(cached[0].firstMessage, '做一个 CI 状态卡片')
+  assert.ok(useBoardOverlay.getState().localRuns.bound)
+  finish.resolve()
+})
+
+test('a task message to a session that already has messages is sent without the skill command', async (t) => {
+  globalThis.window = new EventTarget()
+  t.after(() => {
+    delete globalThis.window
+  })
+  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, {
+    sessions: [{ ...createdSession, id: 'bound' }],
+  })
+  const finish = deferred()
+  const calls = installFetch((path) => {
+    if (path === '/api/sessions/bound/live')
+      return json({ id: 'bound', streaming: false, messages: [{ id: 'm', role: 'user' }] })
+    if (path === '/api/chat')
+      return sseResponse(['event: run\ndata: {"runId":"r","sessionId":"bound"}\n\n'], {
+        hold: finish.promise,
+      })
+    return json({ sessions: [] })
+  })
+  await sendBoardTaskMessage({
+    sessionId: 'bound',
+    prompt: '修复以下错误：\nTypeError: x',
+    commandWhenEmpty: '/skill:pisper-component',
+  })
+  assert.equal(
+    calls.find((call) => call.path === '/api/chat').body.message,
+    '修复以下错误：\nTypeError: x',
+  )
+  finish.resolve()
+})
+
+test('a task message to a running session is queued as a follow-up instead of interrupting it', async (t) => {
+  globalThis.window = new EventTarget()
+  t.after(() => {
+    delete globalThis.window
+  })
+  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
+  const calls = installFetch((path) => {
+    if (path === '/api/sessions/bound/live')
+      return json({ id: 'bound', streaming: true, messages: [{ id: 'm', role: 'user' }] })
+    if (path === '/api/sessions/bound/input')
+      return json({ queued: true, inputId: 'i', pendingMessageCount: 1 })
+    return json({ sessions: [] })
+  })
+  const result = await sendBoardTaskMessage({ sessionId: 'bound', prompt: '再加一个图例' })
+  assert.deepEqual(result, { sessionId: 'bound', queued: true })
+  const input = calls.find((call) => call.path === '/api/sessions/bound/input')
+  assert.deepEqual(input.body, { message: '再加一个图例', attachments: [], behavior: 'followUp' })
+  assert.ok(!calls.some((call) => call.path === '/api/chat'))
+  assert.deepEqual(useBoardOverlay.getState().patches, {})
+})
+
+test("a rejected task message keeps the caller's session and rejects with the send stage", async (t) => {
+  globalThis.window = new EventTarget()
+  t.after(() => {
+    delete globalThis.window
+  })
+  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
+  const calls = installFetch((path) => {
+    if (path === '/api/sessions/bound/live')
+      return json({ id: 'bound', streaming: false, messages: [] })
+    if (path === '/api/chat') return json({ error: 'busy' }, 409)
+    return json({ sessions: [] })
+  })
+  await assert.rejects(
+    sendBoardTaskMessage({ sessionId: 'bound', prompt: 'x' }),
+    (error) => error instanceof BoardLaunchError && error.stage === 'send',
+  )
+  assert.ok(!calls.some((call) => call.method === 'DELETE'))
+  assert.deepEqual(useBoardOverlay.getState().patches, {})
+  // 空提示词与不像技能命令的前缀直接拒绝，不发请求。
+  const before = calls.length
+  await assert.rejects(
+    sendBoardTaskMessage({ sessionId: 'bound', prompt: '   ' }),
+    BoardLaunchError,
+  )
+  await assert.rejects(
+    sendBoardTaskMessage({ sessionId: 'bound', prompt: 'x', commandWhenEmpty: '/skill:a\nb' }),
+    BoardLaunchError,
+  )
+  assert.equal(calls.length, before)
 })

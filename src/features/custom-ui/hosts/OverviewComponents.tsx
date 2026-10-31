@@ -28,6 +28,7 @@ import { ComponentHost } from '@/features/custom-ui/native/ComponentHost'
 import { componentInstancesQueryOptions } from '@/features/custom-ui/queries'
 import { surfaceLabel } from '@/features/custom-ui/studio/labels'
 import { surfaceDeclared } from '@/features/custom-ui/studio/studio-model'
+import { useComponentFix } from '@/features/custom-ui/studio/use-component-agent'
 import { useStudioActions } from '@/features/custom-ui/studio/use-studio-actions'
 
 type PlacedCard = { instance: ComponentInstance; component: ComponentRow }
@@ -183,6 +184,7 @@ function OverviewCard({
   const { instance, component } = placed
   const size = instance.size === 'M' ? 'M' : 'S'
   const label = cardLabel(placed, language)
+  const fix = useComponentFix(component, notify)
   return (
     <article
       aria-label={label}
@@ -217,6 +219,7 @@ function OverviewCard({
           }}
           notify={notify}
           onOpenSession={onOpenSession}
+          onRequestFix={fix}
           className="h-full"
         />
       </div>

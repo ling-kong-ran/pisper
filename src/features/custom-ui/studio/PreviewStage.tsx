@@ -13,6 +13,7 @@ import type { ComponentErrorsData, ComponentRow } from '@/features/custom-ui/cus
 import { ComponentHost } from '@/features/custom-ui/native/ComponentHost'
 import { componentModuleLoader } from '@/features/custom-ui/native/host-runtime'
 import type { CommitStore } from './commit-store'
+import { useComponentFix } from './use-component-agent'
 import { surfaceLabel, targetLabel } from './labels'
 import {
   previewFrame,
@@ -102,6 +103,7 @@ export function PreviewStage({
   commits: CommitStore
 }) {
   const { t } = useI18n()
+  const fix = useComponentFix(row, notify)
   const frame = previewFrame(target, row.manifest, phone ? 'standard' : window)
   const surface = targetSurface(target)
   // 手机上舞台只有屏幕宽：总览卡片在手机全部代理里本来就是全宽（规格 7.3），其余固定宽度的框不超过舞台。
@@ -154,6 +156,7 @@ export function PreviewStage({
             }}
             preview
             notify={(message) => notify(message)}
+            onRequestFix={fix}
             onCommitSample={(duration) => commits.set(duration)}
             className="h-full"
           />

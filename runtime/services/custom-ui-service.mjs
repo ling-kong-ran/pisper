@@ -847,7 +847,13 @@ export class CustomUiService {
       if (!created || typeof created.id !== 'string' || !created.id)
         throw new Error('component session was not created')
       await this.state.update(id, { boundSessionId: created.id })
-      return { sessionId: created.id, created: true, command: '/skill:pisper-component' }
+      // 只加字段：带上新会话的摘要（与 POST /api/sessions 的返回同形），客户端不等下一轮轮询就能把它放进“运行中”。
+      return {
+        sessionId: created.id,
+        created: true,
+        command: '/skill:pisper-component',
+        session: created,
+      }
     })
   }
 

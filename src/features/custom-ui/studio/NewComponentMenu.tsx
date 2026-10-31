@@ -1,5 +1,6 @@
-// [新建 ▾]（规格 5.1、计划 §5.4–5.5）：空白组件（填名称）或从内置模板“今日用量”“便签”开始。
-// 模板只生成到工作室、不放置；空白组件的提示词生成在 S7 接上（提示词卡片），这里只建目录。
+// [新建 ▾]（规格 5.1、计划 §5.4–5.5）：空白组件（名称 + 可选的一句话描述）或从内置模板“今日用量”“便签”开始。
+// 模板只生成到工作室、不放置、不开会话；空白组件填了描述时，建好目录后由调用方交给代理生成（绑定会话）。
+// 桌面是对话框，手机是提示词底部表单（规格 7.4“新建用提示词底部表单”）。
 import { useState } from 'react'
 import { ChevronDown, Plus } from 'lucide-react'
 import { COMPONENT_NAME_MAX } from './studio-model'
@@ -22,35 +23,90 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { ComponentRow } from '@/features/custom-ui/custom-ui-api'
+import { AGENT_PROMPT_MAX } from './use-component-agent'
 import type { StudioTemplate } from './use-studio-actions'
 
 export function NewComponentMenu({
   onCreate,
+  phone = false,
   className,
 }: {
-  // 返回新建的行（失败时为 null，提示由动作层负责）。
-  onCreate: (template: StudioTemplate, name?: string) => Promise<ComponentRow | null>
+  // 返回新建的行（失败时为 null，提示由动作层负责）；prompt 非空时调用方建好后交给代理生成。
+  onCreate: (
+    template: StudioTemplate,
+    name?: string,
+    prompt?: string,
+  ) => Promise<ComponentRow | null>
+  phone?: boolean
   className?: string
 }) {
   const { t } = useI18n()
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
+  const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
-  const create = async (template: StudioTemplate, value?: string) => {
+  const create = async (template: StudioTemplate, value?: string, description?: string) => {
     setBusy(true)
     try {
-      const row = await onCreate(template, value)
+      const row = await onCreate(template, value, description)
       if (row) {
         setNaming(false)
         setName('')
+        setPrompt('')
       }
     } finally {
       setBusy(false)
     }
   }
   const trimmed = name.trim()
+  const described = prompt.trim()
+  const submit = () => {
+    if (trimmed) void create('blank', trimmed, described || undefined)
+  }
+  const fields = (
+    <>
+      <Input
+        autoFocus
+        value={name}
+        maxLength={COMPONENT_NAME_MAX}
+        aria-label={t('custom-ui:studio.componentName')}
+        placeholder={t('custom-ui:studio.componentNamePlaceholder')}
+        data-component-new-name
+        className={phone ? 'min-h-11' : undefined}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <Textarea
+        rows={3}
+        value={prompt}
+        maxLength={AGENT_PROMPT_MAX}
+        aria-label={t('custom-ui:agent.newPromptLabel')}
+        placeholder={t('custom-ui:agent.newPromptPlaceholder')}
+        data-component-new-prompt
+        className="max-h-48 resize-none"
+        onChange={(event) => setPrompt(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return
+          if (event.nativeEvent.isComposing) return
+          event.preventDefault()
+          submit()
+        }}
+      />
+    </>
+  )
+  const submitLabel = described
+    ? t('custom-ui:agent.createAndGenerate')
+    : t('custom-ui:studio.create')
   return (
     <>
       <DropdownMenu>
@@ -89,44 +145,74 @@ export function NewComponentMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Dialog open={naming} onOpenChange={(open) => !busy && setNaming(open)}>
-        <DialogContent>
-          <form
-            className="contents"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (trimmed) void create('blank', trimmed)
-            }}
+      {phone ? (
+        <Sheet open={naming} onOpenChange={(open) => !busy && setNaming(open)}>
+          <SheetContent
+            side="bottom"
+            data-component-new-sheet
+            className="gap-0 rounded-t-[var(--r-lg)] p-0"
           >
-            <DialogHeader>
-              <DialogTitle>{t('custom-ui:studio.newBlankTitle')}</DialogTitle>
-              <DialogDescription>{t('custom-ui:studio.newBlankHint')}</DialogDescription>
-            </DialogHeader>
-            <Input
-              autoFocus
-              value={name}
-              maxLength={COMPONENT_NAME_MAX}
-              aria-label={t('custom-ui:studio.componentName')}
-              placeholder={t('custom-ui:studio.componentNamePlaceholder')}
-              data-component-new-name
-              onChange={(event) => setName(event.target.value)}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => setNaming(false)}
-              >
-                {t('custom-ui:studio.cancel')}
-              </Button>
-              <Button type="submit" disabled={busy || !trimmed}>
-                {t('custom-ui:studio.create')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <form
+              className="flex flex-col gap-3 px-4 pt-4 pb-[max(16px,env(safe-area-inset-bottom))]"
+              onSubmit={(event) => {
+                event.preventDefault()
+                submit()
+              }}
+            >
+              <SheetHeader className="p-0">
+                <SheetTitle>{t('custom-ui:studio.newBlankTitle')}</SheetTitle>
+                <SheetDescription>{t('custom-ui:studio.newBlankHint')}</SheetDescription>
+              </SheetHeader>
+              {fields}
+              <SheetFooter className="flex-row p-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 flex-1"
+                  disabled={busy}
+                  onClick={() => setNaming(false)}
+                >
+                  {t('custom-ui:studio.cancel')}
+                </Button>
+                <Button type="submit" className="min-h-11 flex-1" disabled={busy || !trimmed}>
+                  {submitLabel}
+                </Button>
+              </SheetFooter>
+            </form>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={naming} onOpenChange={(open) => !busy && setNaming(open)}>
+          <DialogContent>
+            <form
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                submit()
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>{t('custom-ui:studio.newBlankTitle')}</DialogTitle>
+                <DialogDescription>{t('custom-ui:studio.newBlankHint')}</DialogDescription>
+              </DialogHeader>
+              {fields}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setNaming(false)}
+                >
+                  {t('custom-ui:studio.cancel')}
+                </Button>
+                <Button type="submit" disabled={busy || !trimmed}>
+                  {submitLabel}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   )
 }

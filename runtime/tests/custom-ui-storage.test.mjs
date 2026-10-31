@@ -200,7 +200,12 @@ test('绑定会话：首次新建“生成组件 · 名称”（cwd 是组件目
     findSession: async (id) => sessions.get(id) || null,
   }
   const first = await service.ensureAgentSession('ci', deps)
-  assert.deepEqual(first, { sessionId: 's1', created: true, command: '/skill:pisper-component' })
+  assert.deepEqual(first, {
+    sessionId: 's1',
+    created: true,
+    command: '/skill:pisper-component',
+    session: { id: 's1' },
+  })
   assert.deepEqual(created[0], {
     id: 's1',
     name: '生成组件 · CI 状态',
@@ -299,9 +304,17 @@ test('HTTP：存储、错误与会话路由走鉴权链，请求体超限 413，
   const session = await call('POST', `${base}/session`, {})
   assert.deepEqual(session, {
     status: 200,
-    body: { sessionId: 'session-1', created: true, command: '/skill:pisper-component' },
+    // 只加字段：新建时带回会话摘要（与 POST /api/sessions 同形）；复用时没有。
+    body: {
+      sessionId: 'session-1',
+      created: true,
+      command: '/skill:pisper-component',
+      session: { id: 'session-1' },
+    },
   })
-  assert.equal((await call('POST', `${base}/session`, {})).body.created, false)
+  const reused = (await call('POST', `${base}/session`, {})).body
+  assert.equal(reused.created, false)
+  assert.equal(Object.hasOwn(reused, 'session'), false)
   assert.equal(sessionsCreated.length, 1)
   // 会话被归档后不再复用。
   runtime.sessionMeta['session-1'] = { organization: { archived: true } }

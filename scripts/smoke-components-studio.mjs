@@ -15,6 +15,8 @@
 // ⋯ → 换个位置把卡片移到功能页；1080×680（自绘标题栏）收成页头“组件 N”弹层，右上 144px 不被挡、没有横向滚动；
 // 会话检查器的组件标签按实例范围过滤（其他项目的实例不出现），“+”里改为“仅此项目”后出现并选中，
 // ctx.session 是当前会话，方向键在固定标签与组件标签之间移动（手机末尾全宽与浮窗不显示见 smoke-mobile-shell）。
+// S7 代理生成闭环：提示词卡片 ⌘↵ → 绑定会话（消息以 '/skill:pisper-component ' 开头，拦截 /api/chat、不连模型）
+// 出现在侧栏“运行中”；错误卡 [让代理修复] 带错误摘要；“空白 + 描述”新建后交给代理生成。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
@@ -756,6 +758,128 @@ try {
   )
   await hostPage.waitForTimeout(3_500)
   await hostContext.close()
+
+  // 13. S7 代理生成闭环：拦截 /api/chat（不连模型），断言消息以 '/skill:pisper-component ' 开头（命令后是空格）；
+  // 绑定会话“生成组件 · <名称>”由真实 Runtime 建在组件目录下，并出现在侧栏“运行中”；
+  // 错误卡的 [让代理修复] 带上错误摘要；“空白 + 描述”新建后交给代理生成。
+  const agentContext = await newContext({ viewport: { width: 1440, height: 900 } })
+  const chats = []
+  const heldRuns = []
+  await agentContext.route('**/api/chat', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}')
+    chats.push(body)
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: `event: run\ndata: ${JSON.stringify({ runId: `smoke-run-${chats.length}`, sessionId: body.sessionId })}\n\n`,
+    })
+  })
+  // 断流后的续传一直挂着：运行流由看板 store 持有，会话保持“运行中”，直到冒烟结束放行终态帧。
+  await agentContext.route('**/api/runs/**', (route) => {
+    heldRuns.push(route)
+  })
+  const chatCount = async (count) => {
+    const deadline = Date.now() + 30_000
+    while (chats.length < count) {
+      if (Date.now() > deadline)
+        throw new Error(`expected ${count} /api/chat requests, saw ${chats.length}`)
+      await new Promise((done) => setTimeout(done, 100))
+    }
+  }
+  const agentPage = await openPage(agentContext, 'agent', '#/components/native-ok')
+  const promptInput = agentPage.locator(
+    '[data-component-prompt="native-ok"] [data-component-prompt-input]',
+  )
+  await promptInput.waitFor({ timeout: 30_000 })
+  assert.equal(
+    await agentPage
+      .locator('[data-component-prompt="native-ok"] [data-component-generate]')
+      .isDisabled(),
+    true,
+    'generate is disabled without a prompt',
+  )
+  await promptInput.fill('显示今天每个项目的任务数')
+  await promptInput.press('Control+Enter')
+  await chatCount(1)
+  await agentPage
+    .locator('[data-component-prompt="native-ok"] [data-component-agent-status]')
+    .waitFor({ timeout: 30_000 })
+  assert.equal(chats.length, 1)
+  assert.equal(chats[0].message, '/skill:pisper-component 显示今天每个项目的任务数')
+  const boundId = chats[0].sessionId
+  assert.ok(boundId, 'bound session id')
+  assert.equal(await promptInput.inputValue(), '', 'prompt clears after hand-off')
+  const boundState = JSON.parse(await readFile(join(dataDir, 'custom-ui-state.json'), 'utf8'))
+  assert.equal(JSON.stringify(boundState).includes(boundId), true, 'bound session recorded')
+  await agentPage.locator('[data-component-agent-status="running"]').waitFor({ timeout: 30_000 })
+  // 离开工作室（侧栏从窄轨回到展开），会话在侧栏“运行中”分组里，标题是“生成组件 · 原生卡片”。
+  await agentPage.evaluate(() => {
+    window.location.hash = '#/more'
+  })
+  const runningRow = agentPage.locator(
+    `[data-sidebar-group="running"] [data-sidebar-row="${boundId}"][data-sidebar-group-row="running"]`,
+  )
+  await runningRow.waitFor({ timeout: 30_000 })
+  assert.match(await runningRow.textContent(), /生成组件 · 原生卡片/)
+  await agentPage.screenshot({ path: join(output, 'agent-running-sidebar.png') })
+  report.checks.push(
+    'Prompt card: ⌘↵ hands the prompt to a bound “生成组件 · 名称” session created by the Runtime; the message starts with “/skill:pisper-component ” (space), the session is recorded and shows under Running in the sidebar',
+  )
+
+  // 错误卡 [让代理修复]：同样建绑定会话，提示词是“修复以下错误：”+ 错误摘要（含消息与调用栈）。
+  await agentPage.evaluate(() => {
+    window.location.hash = '#/components/crasher'
+  })
+  const fixHost = agentPage.locator('[data-component-preview] [data-component-host="crasher"]')
+  await fixHost.getByRole('button', { name: '让代理修复' }).click({ timeout: 30_000 })
+  await chatCount(2)
+  await agentPage
+    .locator('[data-component-prompt="crasher"] [data-component-agent-status]')
+    .waitFor({ timeout: 30_000 })
+  assert.equal(chats.length, 2)
+  assert.notEqual(chats[1].sessionId, boundId, 'each component has its own bound session')
+  assert.match(chats[1].message, /^\/skill:pisper-component 修复以下错误：\nError: fixture crash\n/)
+  assert.ok(chats[1].message.length < 2_000, 'fix summary stays short')
+  report.checks.push(
+    '[让代理修复] on the error card sends “修复以下错误：” with the error message and stack excerpt to the crashing component’s own bound session',
+  )
+
+  // 空白 + 描述：建好目录后交给代理生成。
+  await agentPage.locator('[data-component-new]').first().click()
+  await agentPage.locator('[data-component-new-blank]').click()
+  await agentPage.locator('[data-component-new-name]').fill('天气')
+  await agentPage.locator('[data-component-new-prompt]').fill('显示上海今天的天气')
+  await agentPage.getByRole('button', { name: '创建并生成' }).click()
+  await agentPage.waitForFunction(
+    () => location.hash.startsWith('#/components/') && !location.hash.endsWith('crasher'),
+    null,
+    {
+      timeout: 30_000,
+    },
+  )
+  await chatCount(3)
+  assert.equal(chats.length, 3)
+  assert.equal(chats[2].message, '/skill:pisper-component 显示上海今天的天气')
+  const blankId = decodeURIComponent(
+    (await agentPage.evaluate(() => location.hash)).split('/').pop(),
+  )
+  assert.equal(existsSync(join(componentsRoot, blankId, 'component.js')), true)
+  assert.equal(await noHorizontalScroll(agentPage), true)
+  await agentPage.screenshot({ path: join(output, 'agent-prompt-card.png') })
+  report.checks.push(
+    'New → blank with a description creates the component and hands the description to its bound session',
+  )
+  // 放行挂着的续传：终态帧结束本客户端持有的运行流。
+  for (const route of heldRuns.splice(0))
+    await route
+      .fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: 'event: done\ndata: {}\n\n',
+      })
+      .catch(() => {})
+  await agentPage.waitForTimeout(3_500)
+  await agentContext.close()
 
   assert.deepEqual(report.pageErrors, [])
   report.status = 'passed'

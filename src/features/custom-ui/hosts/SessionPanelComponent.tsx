@@ -6,6 +6,7 @@ import type { ComponentInstance, ComponentRow } from '@/features/custom-ui/custo
 import { ComponentHost } from '@/features/custom-ui/native/ComponentHost'
 import type { ComponentSessionInfo } from '@/features/custom-ui/native/sdk'
 import { useComponentSessionList } from '@/features/custom-ui/native/sessions-source'
+import { useComponentFix } from '@/features/custom-ui/studio/use-component-agent'
 
 export type SessionPanelComponentProps = {
   placed: { instance: ComponentInstance; component: ComponentRow }
@@ -31,6 +32,7 @@ export function SessionPanelComponent({
     [cwd, sessionId, status, summary?.cwd, title],
   )
   const { instance, component } = placed
+  const fix = useComponentFix(component, notify)
   return (
     <div
       data-session-panel-component={instance.instanceId}
@@ -49,6 +51,7 @@ export function SessionPanelComponent({
         session={session}
         notify={notify}
         onOpenSession={onOpenSession}
+        onRequestFix={fix}
         className="h-full"
       />
     </div>

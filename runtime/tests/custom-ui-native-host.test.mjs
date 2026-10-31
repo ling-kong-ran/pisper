@@ -24,6 +24,7 @@ import {
 } from '../../src/features/custom-ui/change-sync.ts'
 import {
   componentModuleUrl,
+  parseComponentAgentSession,
   parseComponentCatalog,
   parseComponentErrors,
   parseComponentInstances,
@@ -36,6 +37,7 @@ import {
 } from '../../src/features/custom-ui/native/circuit-breaker.ts'
 import { createCommitTimer } from '../../src/features/custom-ui/native/commit-timer.ts'
 import {
+  componentFixSummary,
   createComponentLogger,
   createErrorReporter,
   createLogBuffer,
@@ -1039,4 +1041,48 @@ test('内置模板经 htm + ctx v1 真实渲染（服务端渲染，不跑 effec
     assert.match(markup, expected, `${template} @ ${surface}`)
     runtime.dispose()
   }
+})
+
+test('绑定会话响应按不可信数据解析：会话 id 与技能命令有格式要求，摘要只在 id 一致时采用', () => {
+  assert.deepEqual(
+    parseComponentAgentSession({
+      sessionId: 's-1',
+      created: true,
+      command: '/skill:pisper-component',
+      session: { id: 's-1', cwd: '/data/custom-ui/ci' },
+    }),
+    {
+      sessionId: 's-1',
+      created: true,
+      command: '/skill:pisper-component',
+      session: { id: 's-1', cwd: '/data/custom-ui/ci' },
+    },
+  )
+  // 旧 Runtime 没有 session 字段；摘要的 id 对不上就不用；命令不像技能命令就当没有。
+  assert.deepEqual(
+    parseComponentAgentSession({ sessionId: 's-2', created: false, command: '/skill:x\nrm' }),
+    { sessionId: 's-2', created: false, command: '', session: null },
+  )
+  assert.equal(
+    parseComponentAgentSession({ sessionId: 's-3', created: 1, session: { id: 'other' } }).session,
+    null,
+  )
+  for (const value of [
+    null,
+    {},
+    { sessionId: '' },
+    { sessionId: 'a b' },
+    { sessionId: 'x'.repeat(129) },
+  ])
+    assert.throws(() => parseComponentAgentSession(value), JSON.stringify(value))
+})
+
+test('[让代理修复] 的错误摘要是消息加调用栈前 1 KB，调用栈开头重复的消息不再写一遍', () => {
+  assert.equal(componentFixSummary('TypeError: x', undefined), 'TypeError: x')
+  assert.equal(
+    componentFixSummary('TypeError: x', 'TypeError: x\n    at Card (r/abc/component.js:3:9)'),
+    'TypeError: x\nat Card (r/abc/component.js:3:9)',
+  )
+  const long = componentFixSummary('Error: y', `at ${'a'.repeat(3000)}`)
+  assert.equal(long.length, 'Error: y\n'.length + 1024)
 })

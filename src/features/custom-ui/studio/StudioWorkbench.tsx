@@ -1,5 +1,6 @@
 // 工作室中栏 · 工作台（规格 5.1）：页头（名称 · 版本 · “已热重载 · N 秒前”，中性灰）与“预览 / 源码 / 日志”分段；
-// 预览页是预览栏 + 点阵舞台 + 状态栏。提示词卡片（代理生成）在 S7 接上，这里不放占位。
+// 页头下是提示词卡片（代理生成 / 修改，坏目录没有 manifest、代理无从改起，不显示），三个分段共用，草稿不随切换丢失；
+// 预览页是预览栏 + 点阵舞台 + 状态栏。
 import { useEffect, useState, type ReactNode } from 'react'
 import { Settings2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -15,6 +16,7 @@ import type { CommitStore } from './commit-store'
 import { PreviewBar, PreviewStage, StudioStatusBar } from './PreviewStage'
 import { useComponentErrors } from './use-component-errors'
 import { ErrorList } from './StudioSettings'
+import { PromptCard } from './PromptCard'
 import { SourceView } from './SourceView'
 import { componentDisplayName, type PreviewTarget, type PreviewWindow } from './studio-model'
 
@@ -119,6 +121,7 @@ export function StudioWorkbench({
         </span>
       </header>
       <div className={cn('flex min-h-0 flex-1 flex-col gap-3 px-5 pt-4 pb-3')}>
+        {row.kind === 'native' && <PromptCard row={row} notify={notify} className="flex-none" />}
         {tab === 'source' ? (
           <SourceView row={row} />
         ) : tab === 'logs' ? (

@@ -166,6 +166,7 @@ test('lightweight public contracts do not pull feature pages into their import g
     'board/new-task.ts',
     'board/public.ts',
     'chat/public-launch.ts',
+    'board/public-launch.ts',
     'custom-ui/placements.ts',
   ])
     visit(resolve(root, 'src/features', file))

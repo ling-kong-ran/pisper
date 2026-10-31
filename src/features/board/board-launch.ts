@@ -12,6 +12,7 @@ import type { SessionSummary } from '@/types/chat'
 import {
   applyBoardPatch,
   BOARD_SESSIONS_QUERY_KEY,
+  BoardRunActiveError,
   clearBoardPatch,
   confirmBoardSession,
   confirmBoardSessions,
@@ -172,4 +173,83 @@ export async function launchBoardTask(request: BoardLaunchRequest): Promise<stri
     .catch(() => undefined)
     .finally(() => clearBoardPatch(sessionId, token))
   return sessionId
+}
+
+export type BoardTaskMessage = {
+  sessionId: string
+  prompt: string
+  // 会话还没有任何消息时放在提示词前的命令（例如 '/skill:pisper-component'）。命令与提示词之间必须是空格：
+  // Pi 只按第一个空格切出技能名，换行会让后面的提示词也被当成技能名的一部分。
+  commandWhenEmpty?: string
+  // 调用方刚建好的会话摘要（与 POST /api/sessions 同形）：并入权威缓存，卡片不等下一轮轮询就出现在“运行中”。
+  created?: SessionSummary | null
+}
+
+export type BoardTaskMessageResult = { sessionId: string; queued: boolean }
+
+const SKILL_COMMAND = /^\/[a-z][a-z0-9:-]{0,63}$/
+
+/**
+ * 给一个已有会话发一条任务消息（计划 §4.1 / §5.4：组件工作室的“生成”与“让代理修复”）。
+ * 与派发新任务同一套流所有权：会话空闲时由看板 store 持有运行流（ownBoardStream），Runtime 受理即返回，
+ * 卡片随之进入“运行中”；会话正在运行（或本客户端已持有它的流）时排在当前运行之后（followUp），不打断它。
+ * reject 为 BoardLaunchError（stage 'send'）；不会删除会话——它是调用方的，不是这里新建的。
+ */
+export async function sendBoardTaskMessage(
+  input: BoardTaskMessage,
+): Promise<BoardTaskMessageResult> {
+  const { sessionId } = input
+  const prompt = input.prompt.trim().slice(0, MAX_PROMPT_CHARS)
+  if (!sessionId || !prompt)
+    throw new BoardLaunchError('send', new Error('empty prompt'), sessionId)
+  const command = input.commandWhenEmpty?.trim() ?? ''
+  if (command && !SKILL_COMMAND.test(command))
+    throw new BoardLaunchError('send', new Error('invalid command'), sessionId)
+  let live: unknown
+  try {
+    live = await chatApi.getLiveSession(sessionId)
+  } catch (error) {
+    throw new BoardLaunchError('send', error, sessionId)
+  }
+  const record = live && typeof live === 'object' ? (live as Record<string, unknown>) : {}
+  const empty = Array.isArray(record.messages) && record.messages.length === 0
+  const message = empty && command ? `${command} ${prompt}` : prompt
+  const queue = async () => {
+    try {
+      await chatApi.queueInput(sessionId, message, [], 'followUp')
+    } catch (error) {
+      throw new BoardLaunchError('send', error, sessionId)
+    }
+    return { sessionId, queued: true }
+  }
+  if (record.streaming === true) return queue()
+  if (input.created?.id === sessionId)
+    mergeCreatedSession({ ...input.created, firstMessage: prompt, messageCount: 1 })
+  else if (
+    !queryClient
+      .getQueryData<BoardSessionsData>(BOARD_SESSIONS_QUERY_KEY)
+      ?.sessions.some((session) => session.id === sessionId)
+  )
+    // 缓存里还没有这个会话（例如在别的设备上建的）：补读一次，补丁与本地运行等它出现后生效。
+    void invalidateStartupQuery('sessions')
+  const token = applyBoardPatch(sessionId, { streaming: true })
+  try {
+    await ownBoardStream(sessionId, 'launch', (onEvent, signal) =>
+      chatApi.openStream(
+        { sessionId, message, attachments: [], goalMode: false, teamMode: false },
+        onEvent,
+        { signal },
+      ),
+    )
+  } catch (error) {
+    clearBoardPatch(sessionId, token)
+    // 本客户端已持有这条会话的流（上一条还没跑完）：排在后面，与聊天页运行中发送一致。
+    if (error instanceof BoardRunActiveError) return queue()
+    void confirmBoardSessions().catch(() => undefined)
+    throw new BoardLaunchError('send', error, sessionId)
+  }
+  void confirmBoardSession(sessionId, (entry) => Boolean(entry))
+    .catch(() => undefined)
+    .finally(() => clearBoardPatch(sessionId, token))
+  return { sessionId, queued: false }
 }

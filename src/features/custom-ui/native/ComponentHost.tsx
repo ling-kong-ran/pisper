@@ -34,7 +34,12 @@ import {
   componentStyleRegistry,
   createComponentServices,
 } from './host-runtime'
-import { createComponentLogger, errorDetails, type ComponentLogger } from './log'
+import {
+  componentFixSummary,
+  createComponentLogger,
+  errorDetails,
+  type ComponentLogger,
+} from './log'
 import { ComponentLoadError } from './module-loader'
 import { createComponentRuntime, type ComponentRuntime, type ComponentSessionInfo } from './sdk'
 import { ComponentSessionFeed } from './sessions-source'
@@ -58,7 +63,7 @@ export type ComponentHostProps = {
   session?: ComponentSessionInfo
   notify(message: string): void
   onOpenSession?(id: string): void
-  // [让代理修复]（S7 接线）：没有传时不显示这个按钮。
+  // [让代理修复]：收到“消息 + 调用栈前 1 KB”的摘要，交给组件的绑定会话；没有传时不显示这个按钮。
   onRequestFix?(summary: string): void
   // 每次宿主发起的提交耗时（毫秒）：工作室状态栏“渲染 N ms”用（只量宿主渲染，见 commit-timer）。
   onCommitSample?(durationMs: number): void
@@ -387,7 +392,7 @@ function ErrorCard({
             <Button
               size="xs"
               variant="ghost"
-              onClick={() => onRequestFix(`${load ? 'load' : 'render'}: ${details.message}`)}
+              onClick={() => onRequestFix(componentFixSummary(details.message, details.stack))}
             >
               {t('custom-ui:host.askAgentFix')}
             </Button>

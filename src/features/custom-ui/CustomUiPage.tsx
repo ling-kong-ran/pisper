@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ChevronLeft, X } from 'lucide-react'
+import { ChevronLeft, Sparkles, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,8 @@ import {
 } from './studio/StudioSettings'
 import { SettingsDrawerButton, StudioWorkbench, type WorkbenchTab } from './studio/StudioWorkbench'
 import { NewComponentMenu } from './studio/NewComponentMenu'
+import { PromptCard } from './studio/PromptCard'
+import { useComponentAgent } from './studio/use-component-agent'
 import {
   STUDIO_INLINE_SETTINGS_MIN,
   componentDisplayName,
@@ -225,6 +227,8 @@ export function CustomUiPage({
   const instanceList = useComponentInstanceList()
   const instances = instanceList.data?.instances ?? EMPTY_INSTANCES
   const actions = useStudioActions(notify)
+  const agent = useComponentAgent(notify)
+  const [promptSheet, setPromptSheet] = useState(false)
   const rows = useMemo(() => visibleStudioRows(catalog.data?.components ?? []), [catalog.data])
   const root = catalog.data?.root || ''
   const canDelete = catalog.data?.features.trash === 'move'
@@ -253,13 +257,16 @@ export function CustomUiPage({
   const create = async (
     template: Parameters<typeof actions.createFromTemplate>[0],
     name?: string,
+    prompt?: string,
   ) => {
     const row = await actions.createFromTemplate(template, name)
     if (row) {
       setFilter('all')
       setQuery('')
       onSelect(row.id, !phone)
-      notify(t('custom-ui:studio.created', { name: componentDisplayName(row, language) }))
+      // 空白 + 提示词（计划 §5.4 第 5 步）：目录建好后交给代理生成，提示由代理那一步给出；只建目录时提示“已创建”。
+      if (prompt?.trim()) void agent.generate(row, prompt)
+      else notify(t('custom-ui:studio.created', { name: componentDisplayName(row, language) }))
     }
     return row
   }
@@ -329,6 +336,43 @@ export function CustomUiPage({
               >
                 <IdentityRow row={selected} actions={actions} />
                 <ErrorList row={selected} />
+                {selected.kind === 'native' && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      data-component-prompt-open
+                      className="min-h-11 w-full"
+                      onClick={() => setPromptSheet(true)}
+                    >
+                      <Sparkles />
+                      {t('custom-ui:agent.editWithPrompt')}
+                    </Button>
+                    {/* 手机的提示词底部表单（规格 7.4）：与桌面提示词卡片同一个组件，交给代理后收起。 */}
+                    <Sheet open={promptSheet} onOpenChange={setPromptSheet}>
+                      <SheetContent
+                        side="bottom"
+                        data-component-prompt-sheet
+                        className="gap-0 rounded-t-[var(--r-lg)] p-0"
+                      >
+                        <SheetHeader className="px-4 pt-4 pb-0">
+                          <SheetTitle>{componentDisplayName(selected, language)}</SheetTitle>
+                          <SheetDescription className="sr-only">
+                            {t('custom-ui:agent.promptTitle')}
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+                          <PromptCard
+                            row={selected}
+                            notify={notify}
+                            autoFocus
+                            className="border-0 bg-transparent p-0"
+                            onSent={() => setPromptSheet(false)}
+                          />
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  </>
+                )}
                 {selected.kind === 'native' && selected.status === 'ready' && selected.manifest && (
                   <>
                     <section className="flex flex-col gap-2">
@@ -398,7 +442,7 @@ export function CustomUiPage({
               {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
             </span>
             <StudioImportButton className="min-h-11" />
-            <NewComponentMenu onCreate={create} className="min-h-11" />
+            <NewComponentMenu onCreate={create} phone className="min-h-11" />
           </div>
           {rows.length ? (
             <ul className="flex flex-col divide-y divide-stroke overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-panel">
@@ -477,6 +521,7 @@ export function CustomUiPage({
                 onSelect(id, true)
                 setTab('logs')
               }}
+              onRequestFix={(row, summary) => void agent.fix(row, summary)}
               onReload={(id) => {
                 componentCircuitBreaker().resume(`preview:${id}`)
                 setReloadToken((value) => value + 1)
