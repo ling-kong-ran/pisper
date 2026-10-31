@@ -133,10 +133,10 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">PISPER 界面重建 · 2026-10-30 · 方向 A 实施中</div>
+    <div class="eyebrow">PISPER 界面重建 · 2026-10-31 · 方向 A 实施中（A1–A3 已完成）</div>
     <h1>Pisper 整体设计</h1>
-    <p class="lede">界面设计评审用，不随 Pages 发布。最上面是整体重设计的四个方向（已选 A · Claude 式侧栏）；接着是方向 A 已经做出来的部分，效果图与实现并排；第 1–4 期的桌面截图收进“已被取代”的折叠区，手机和组件两节在 A4、A7 之前仍按原样。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
-    <div class="legend"><span>文件夹：drafts/ 设计稿（drafts/redesign/ 是四个新方向），built/ 已实现截图（a12- 开头是方向 A 的 A1+A2）</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
+    <p class="lede">界面设计评审用，不随 Pages 发布。最上面是整体重设计的四个方向（已选 A · Claude 式侧栏）；接着是方向 A 已经做出来的部分（A1+A2、A3），效果图与实现并排；第 1–4 期的桌面截图和 A1+A2 时期的看板泳道收进“已被取代”的折叠区，手机和组件两节在 A4、A7 之前仍按原样。设计稿只作视觉参考，和规格冲突时以规格为准。点任意截图看大图。</p>
+    <div class="legend"><span>文件夹：drafts/ 设计稿（drafts/redesign/ 是四个新方向），built/ 已实现截图（a12- 开头是方向 A 的 A1+A2，a3- 开头是 A3）</span><span><span class="sw"></span>琥珀底的条目：按你的决定和设计稿不一样的地方</span></div>
   </header>
 
   <section aria-labelledby="redesign-h">
@@ -431,10 +431,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         </dl>
       </div>
       <div class="panel">
-        <h3>全部代理（看板）现在的样子</h3>
-        <p>泳道页本身 A3 才改成分组列表，这一期只换了外壳：侧栏点亮“全部代理”，页面照常可用。</p>
-        <figure><button type="button" data-full="built/a12-board-1440-light.png" aria-label="放大：实现：A3 之前的看板泳道页在新侧栏外壳里"><img src="built/a12-board-1440-light.png" alt="实现：A3 之前的看板泳道页在新侧栏外壳里" loading="lazy"></button>
-          <figcaption><span class="chip wip">A3 重做</span>看板泳道页（新外壳）</figcaption></figure>
+        <h3>全部代理（看板）</h3>
+        <p>A1+A2 只换了外壳，泳道页本身在 A3 改成分组列表，见下一节“方向 A · A3 已实现”。A1+A2 时期的泳道截图收进“已被取代”。</p>
       </div>
     </div>
     <h3>和效果图不一样，是规格定的</h3>
@@ -466,14 +464,103 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a3-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a3-built-h">方向 A · A3 已实现</h2>
+      <p class="lede">全部代理（取代看板泳道）、侧栏随页面变化、功能索引、设置整页。拍法同上一节：zh-CN、1x、headless Chromium，隔离 Runtime 加虚构的看板数据（项目、命令、时间都是编的）；功能卡片的四个角标是固定的假数据，用来看琥珀只落在渠道上。1440 的截图用原生标题栏，1080 那张模拟 Windows 自绘标题栏，不代表 WebView2 或真机验证。</p>
+    </div>
+    <h3>全部代理 · 按项目</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-overview-light.png" aria-label="放大：效果图：全部代理（按项目）"><img src="drafts/redesign/claude-sidebar/desktop-overview-light.png" alt="效果图：全部代理（按项目）" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>全部代理 · 按项目</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-overview-project-1440-light.png" aria-label="放大：实现：按项目分组，分区标题带各状态计数与项目 ⋯，侧栏是状态 / 项目筛选"><img src="built/a3-overview-project-1440-light.png" alt="实现：按项目分组，分区标题带各状态计数与项目 ⋯，侧栏是状态 / 项目筛选" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>按项目：分区计数、项目 ⋯、侧栏筛选</figcaption></figure>
+    </div>
+    <h3>全部代理 · 按状态（默认）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a3-overview-status-1440-light.png" aria-label="放大：实现：按状态分组：需要你 3（失败日志 / 重试、高风险只给打开处理、普通批准拒绝 / 允许）、运行中 2、今天完成 2、全部历史会话"><img src="built/a3-overview-status-1440-light.png" alt="实现：按状态分组：需要你 3（失败日志 / 重试、高风险只给打开处理、普通批准拒绝 / 允许）、运行中 2、今天完成 2、全部历史会话" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>需要你 → 运行中 → 今天完成</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-overview-status-1440-dark.png" aria-label="放大：实现：按状态分组（深色）"><img src="built/a3-overview-status-1440-dark.png" alt="实现：按状态分组（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>按状态（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-overview-triage-1440-light.png" aria-label="放大：实现：逐个处理：其余分组降到 50%，底部提示条“逐个处理 1/3 · A 允许 · D 拒绝 · R 重试 · ↵ 打开 · Esc 退出”"><img src="built/a3-overview-triage-1440-light.png" alt="实现：逐个处理：其余分组降到 50%，底部提示条“逐个处理 1/3 · A 允许 · D 拒绝 · R 重试 · ↵ 打开 · Esc 退出”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>逐个处理 <kbd>T</kbd>：提示条 + 其余 50%</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-overview-1080-light.png" aria-label="放大：实现：1080 × 680 模拟自绘标题栏，右上 144px 只留窗口按钮，长标题与项目名省略"><img src="built/a3-overview-1080-light.png" alt="实现：1080 × 680 模拟自绘标题栏，右上 144px 只留窗口按钮，长标题与项目名省略" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>1080 × 680 自绘标题栏</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-overview-empty-1440-light.png" aria-label="放大：实现：空状态：还没有代理在运行 + 新任务，侧栏计数全为 0"><img src="built/a3-overview-empty-1440-light.png" alt="实现：空状态：还没有代理在运行 + 新任务，侧栏计数全为 0" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>空状态（没有历史会话时不给“全部历史会话 →”）</figcaption></figure>
+    </div>
+    <h3>功能（原“更多”）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-features-light.png" aria-label="放大：效果图：功能索引"><img src="drafts/redesign/claude-sidebar/extra-features-light.png" alt="效果图：功能索引" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>功能索引</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-features-1440-light.png" aria-label="放大：实现：功能索引：居中 760 栏、两列卡片行、渠道“1 断开”是唯一的琥珀角标、我的组件末行“+ 放置组件”"><img src="built/a3-features-1440-light.png" alt="实现：功能索引：居中 760 栏、两列卡片行、渠道“1 断开”是唯一的琥珀角标、我的组件末行“+ 放置组件”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>居中 760 栏、两列卡片行</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-features-1440-dark.png" aria-label="放大：实现：功能索引（深色）"><img src="built/a3-features-1440-dark.png" alt="实现：功能索引（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>功能索引（深色）</figcaption></figure>
+    </div>
+    <h3>从功能进入的功能页</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-feature-light.png" aria-label="放大：效果图：功能页 · 插件"><img src="drafts/redesign/claude-sidebar/desktop-feature-light.png" alt="效果图：功能页 · 插件" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>功能页 · 插件</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-feature-page-origin-1440-light.png" aria-label="放大：实现：从功能点开插件，侧栏点亮“功能”，页头“‹ 功能 / 插件”；页面内容仍是现有插件页"><img src="built/a3-feature-page-origin-1440-light.png" alt="实现：从功能点开插件，侧栏点亮“功能”，页头“‹ 功能 / 插件”；页面内容仍是现有插件页" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>“‹ 功能”返回（页面模板在 A6）</figcaption></figure>
+    </div>
+    <h3>设置整页</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-settings-light.png" aria-label="放大：效果图：设置 › 模型"><img src="drafts/redesign/claude-sidebar/desktop-settings-light.png" alt="效果图：设置 › 模型" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>设置 › 模型</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-settings-models-1440-light.png" aria-label="放大：实现：设置整页：侧栏“← 返回 Esc”、设置、搜索、模型 · 界面 · 通知 · 快捷键 · 更新 · 关于、去功能的提示，底部“3 个需要你 · 2 个运行中”；主区仍是旧的模型配置页（隔离 Runtime 没有供应商）"><img src="built/a3-settings-models-1440-light.png" alt="实现：设置整页：侧栏“← 返回 Esc”、设置、搜索、模型 · 界面 · 通知 · 快捷键 · 更新 · 关于、去功能的提示，底部“3 个需要你 · 2 个运行中”；主区仍是旧的模型配置页（隔离 Runtime 没有供应商）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>设置 › 模型（主区内容在 A6）</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-settings-interface-1440-light.png" aria-label="放大：实现：设置 › 界面：语言在界面里，顶上是“组件已移到 功能 › 组件工作室 →”迁移提示"><img src="built/a3-settings-interface-1440-light.png" alt="实现：设置 › 界面：语言在界面里，顶上是“组件已移到 功能 › 组件工作室 →”迁移提示" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>设置 › 界面（语言在这里）</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-settings-shortcuts-1440-dark.png" aria-label="放大：实现：设置 › 快捷键（深色）：全局一组含 Ctrl+1 全部代理、Ctrl+2 功能、Alt+A、F6"><img src="built/a3-settings-shortcuts-1440-dark.png" alt="实现：设置 › 快捷键（深色）：全局一组含 Ctrl+1 全部代理、Ctrl+2 功能、Alt+A、F6" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>设置 › 快捷键（深色）</figcaption></figure>
+    </div>
+    <h3>和效果图不一样，是规格定的</h3>
+    <ul class="notes">
+      <li class="change">全部代理右侧不画“已放置的组件”栏：320 栏只在真的放了组件时出现，不留空位、不放占位（规格 3.1）。现在还没有组件能放，所以页面是单列居中。</li>
+      <li class="change">全部代理页头右侧多一个次要样式的“新任务”按钮（规格 3.1）；副标题只写“7 个代理 · 4 个项目 · 2 个在运行”，不写“用左侧筛选状态或项目”。</li>
+      <li class="change">功能卡片是两列，不是效果图的三列；“我的组件”末行是“+ 放置组件”（去组件工作室），不是“新建组件”（规格 2.7）。</li>
+      <li class="change">功能卡片的角标里只有渠道“1 断开”用琥珀，工作流“1 运行中”、定时任务“2 启用”、MCP“3 在线”是中性灰（规格 2.7、6.1：琥珀只表示需要你）。</li>
+      <li class="change">设置目录没有单独的“语言”，语言在“界面”里（规格 2.6）。</li>
+    </ul>
+    <h3>效果图里有、要等后面几期的</h3>
+    <ul class="notes">
+      <li>右侧“已放置的组件”卡片和 1080–1279 宽时页头的“组件 N”按钮：A7（布局位置已留好）。</li>
+      <li>“排队”分组、“升级 Vite 到 7 · 排队 #1”与“立即开始”：要 Runtime 的 <code>sessionQueue</code>（A9）；没有这个能力时不显示分组，不做假数据。</li>
+      <li>“批准 · 2 个问题”、行内选项胶囊与逐个处理里的“1–4 回答”：要 <code>askUser</code>（A5）。</li>
+      <li>设置主区内容：效果图“模型”页的默认模型 / 思考强度 / 辅助模型 / 提供方列表是 A6 第 4 批；现在主区仍是旧页头（面包屑“设置 / 模型配置”+ 大标题 + 快速设置），和侧栏的“设置”标题有重复。截图里模型页是空的，是因为隔离 Runtime 没有配供应商。</li>
+      <li>功能页模板（居中 760 栏、“‹ 功能”在标题上方、工具行、列表行）：A6 第 1 批；现在“‹ 功能”在页头面包屑里，页面内容是现有的插件页。</li>
+      <li>手机：“更多”改名“功能”、抽屉取代底部标签栏、手机全部代理：A4。“我的组件”里的实际放置：A7。</li>
+    </ul>
+    <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li>行右侧的时间和侧栏同一种写法：需要你写等待时长（18m），运行中实时计时（3:12），今天完成写完成时刻（14:05）；效果图写的是“26 分钟前”。</li>
+      <li>审批行把工具名并进第 1 行（“等你批准 · bash”），第 2 行直接是完整命令，只在空白处换行；高风险说明作为命令前缀，复制命令时不带它。不单列一行“请求执行 bash”，行高才能留在 52–96。</li>
+      <li>运行中第 2 行写“工具 · 摘要 · 耗时 ↳ 子代理 1/2”，没有工具活动时退回最后一行输出或模型阶段；不显示上下文百分比和输出尾巴。</li>
+      <li>高风险批准在全部代理上只有“打开处理 ↵”，键盘 <kbd>A</kbd> / <kbd>D</kbd> 也不处理它（与侧栏同一条规则）；普通批准点“允许”时 Runtime 要求确认，也改为打开会话。桌面不再弹确认层。</li>
+      <li>“今天完成”只列今天完成的；置顶但更早完成的会话只在侧栏“置顶”里。按状态时“需要你”“运行中”为 0 也留标题和一句空状态，排队、今天完成没有就不出现；“全部历史会话 →”固定在列表末尾。</li>
+      <li>项目 ⋯ 是 在此项目新建任务 · 重命名… · 恢复目录名 · 上移 / 下移 · 管理项目… · 删除项目…（规格只写了重命名、排序、删除）；侧栏项目组 ⋯ 只有“添加项目…”“管理项目…”。</li>
+      <li>侧栏筛选是单选，再点一次回到全部；计数按筛选前算，登记了但今天没代理的项目也列一行、计 0；“全部”只在状态和项目都没筛选时按下。页内“状态：… 清除筛选”一行只在侧栏收成窄轨时出现。</li>
+      <li>全部代理页侧栏没有会话行，<kbd>⌥A</kbd> 把焦点交给主区等待最久的那一行，<kbd>⌘J</kbd> 聚焦按下的筛选，<kbd>/</kbd> 聚焦侧栏“全部”；设置里 <kbd>⌥A</kbd> 落到底部状态行。</li>
+      <li>设置整页不管侧栏是否收成窄轨都整块显示；“← 返回”和 <kbd>Esc</kbd> 一次退回进入设置前那一页（中间切过几个分区也一样），焦点回原来的行；焦点在输入框或有弹层时 <kbd>Esc</kbd> 不离开。底部状态行点开回全部代理并清掉状态筛选。</li>
+      <li>设置目录行沿用原分区导航的 32px 行高、16px 图标、字号跟随界面字号（效果图 34px）。</li>
+      <li>双归属退役后，插件、MCP、技能、星忆、渠道、远程访问、手机服务器、桌面宠物一律点亮“功能”、页头“‹ 功能”，不看从哪里进来；设置搜索仍能搜到远程访问等设置项，选中打开对应功能页。组件工作室列表的原生返回回功能。</li>
+      <li>功能卡片说明是一句固定文字，不写效果图里“全部 142 个”“5 个已安装”这类实时数字（没有对应接口，只有四个角标是真数据）。卡片之间另加方向键：←/→ 阅读顺序，↑/↓ 上下一行，第一行 ↑ 回搜索框。</li>
+      <li>手机“更多”这一期就换成一列 56 行，页标题和底部标签栏仍叫“更多 / 看板”，A4 换抽屉时一起改名。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="superseded-h">
     <div class="sec-head">
-      <h2 id="superseded-h">已被取代：第 1–4 期的桌面外壳</h2>
-      <p class="lede">标题栏标签、泳道条、<kbd>⌘J</kbd> 代理面板、会话页头 44 在 A1+A2 已经退役，下面这些截图和说明不再是现状，只留作对照。现状见上一节。</p>
+      <h2 id="superseded-h">已被取代：第 1–4 期的桌面外壳与看板泳道</h2>
+      <p class="lede">标题栏标签、泳道条、<kbd>⌘J</kbd> 代理面板、会话页头 44 在 A1+A2 已经退役；看板泳道、设置的分区导航列与双归属、三列“更多”磁贴在 A3 退役。下面这些截图和说明不再是现状，只留作对照。现状见上面两节。</p>
     </div>
     <details>
-      <summary>展开第 1–4 期的桌面截图与说明（标题栏 + 泳道条）</summary>
+      <summary>展开第 1–4 期与 A1+A2 时期的桌面截图与说明（标题栏、泳道条、看板泳道、旧设置）</summary>
     <div class="shots">
+      <figure><button type="button" data-full="built/a12-board-1440-light.png" aria-label="放大：A1+A2 时期：看板泳道页在新侧栏外壳里（A3 改成全部代理分组列表）"><img src="built/a12-board-1440-light.png" alt="A1+A2 时期：看板泳道页在新侧栏外壳里（A3 改成全部代理分组列表）" loading="lazy"></button>
+        <figcaption><span class="chip built">A1+A2</span>看板泳道页（新外壳，A3 取代）</figcaption></figure>
       <figure><button type="button" data-full="drafts/desktop-session-light.png" aria-label="放大：第 1 期会话页设计稿：左侧代理列表、中间对话、右侧改动检查器"><img src="drafts/desktop-session-light.png" alt="第 1 期会话页设计稿：左侧代理列表、中间对话、右侧改动检查器" loading="lazy"></button>
         <figcaption><span class="chip draft">旧设计稿</span>会话页 1440 × 900</figcaption></figure>
       <figure><button type="button" data-full="built/session-1440-running-light.png" aria-label="放大：第 3 期会话页：顶部泳道条、对话、右侧改动检查器"><img src="built/session-1440-running-light.png" alt="第 3 期会话页：顶部泳道条、对话、右侧改动检查器" loading="lazy"></button>
@@ -491,7 +578,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <figure><button type="button" data-full="built/board-1080-titlebar-light.png" aria-label="放大：1080 × 680 自绘标题栏，五个标签不溢出"><img src="built/board-1080-titlebar-light.png" alt="1080 × 680 自绘标题栏，五个标签不溢出" loading="lazy"></button>
         <figcaption><span class="chip built">第 4 期</span>1080 × 680 自绘标题栏</figcaption></figure>
       <figure><button type="button" data-full="built/shortcuts-settings-1440-light.png" aria-label="放大：设置 → 快捷键：全局、看板、会话三组，可改绑"><img src="built/shortcuts-settings-1440-light.png" alt="设置 → 快捷键：全局、看板、会话三组，可改绑" loading="lazy"></button>
-        <figcaption><span class="chip built">第 4 期</span>设置 → 快捷键（设置整页在 A3）</figcaption></figure>
+        <figcaption><span class="chip built">第 4 期</span>设置 → 快捷键（A3 起是设置整页）</figcaption></figure>
       <figure><button type="button" data-full="built/shortcuts-help-1440-light.png" aria-label="放大：⌘/ 打开的快捷键速查（第 4 期分组）"><img src="built/shortcuts-help-1440-light.png" alt="⌘/ 打开的快捷键速查（第 4 期分组）" loading="lazy"></button>
         <figcaption><span class="chip built">第 4 期</span><kbd>⌘/</kbd> 快捷键速查（旧分组）</figcaption></figure>
       <figure><button type="button" data-full="built/board-1440-light.png" aria-label="放大：标题栏外壳下的看板：需要你、运行中、已完成三条泳道"><img src="built/board-1440-light.png" alt="标题栏外壳下的看板：需要你、运行中、已完成三条泳道" loading="lazy"></button>
@@ -505,7 +592,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <li>第 4 期的导航：标题栏五个标签 会话 · 看板 · 组件 · 更多 · 设置，<kbd>⌘1</kbd>–<kbd>⌘4</kbd> 按标题栏顺序；泳道条最左侧“看板”入口、<kbd>⇧⌘B</kbd> 去看板；<kbd>⌘J</kbd> 代理面板换代理。A1 起由侧栏入口与 <kbd>⌘1</kbd> 全部代理、<kbd>⌘2</kbd> 功能取代，<kbd>⇧⌘B</kbd> 改给会话树。</li>
         <li>第 3–4 期会话页：标题栏 48 → 泳道条 52 → 会话页头 44 + 对话 + 检查器（≥1280 默认并排 456px）。A2 换成侧栏 + 52 顶栏 + 默认关着的检查器。</li>
         <li>只在触屏上控件放大到至少 44px（泳道条 36→48、页头 44→48、检查器标签行 44→52）：A1 起侧栏行与入口在触屏抬到 44px，平板整体在 A4 重做。</li>
-        <li>看板是第 2 期的四条泳道（排队泳道等 Runtime 能力）；A3 改成“全部代理”分组列表，泳道代码在那一期删除。</li>
+        <li>看板是第 2 期的四条泳道（排队泳道等 Runtime 能力）；A3 改成“全部代理”分组列表，泳道代码（LaneColumn、看板页头、项目矩阵、泳道布局与动效）、启动台与 <kbd>H</kbd> / <kbd>L</kbd> 换泳道已删除。</li>
+        <li>旧设置：主区左侧 232 宽的分区导航列，插件、MCP 等既在设置里又在“更多”里（双归属）。A3 起设置是整页，侧栏换成设置目录，功能页只在“功能”里。</li>
       </ul>
     </details>
   </section>
@@ -532,7 +620,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
   <section aria-labelledby="phone-h">
     <div class="sec-head">
       <h2 id="phone-h">手机</h2>
-      <p class="lede">390 × 844，触控目标至少 44px。宽屏下每行第一张是第 1 期设计稿，后面三张是第 4 期实拍（headless Chromium，不是真机）。手机外壳 A1+A2 没有动，A4 才按方向 A 改成抽屉；在那之前这里仍是现状。</p>
+      <p class="lede">390 × 844，触控目标至少 44px。宽屏下每行第一张是第 1 期设计稿，后面三张是第 4 期实拍（headless Chromium，不是真机）。手机外壳 A1+A2 没有动，A4 才按方向 A 改成抽屉；在那之前这里仍是现状。例外是“更多”页：它和桌面“功能”共用一页，A3 起已经是一列 56 行（最后一张，1x），标签栏和页标题仍叫“更多”到 A4。</p>
     </div>
     <div class="panel">
       <h3>手机底部标签栏（A4 前）</h3>
@@ -566,11 +654,13 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <figure><button type="button" data-full="drafts/mobile-more-light.png" aria-label="放大：手机更多设计稿"><img src="drafts/mobile-more-light.png" alt="手机更多设计稿：三列分组磁贴" loading="lazy"></button>
         <figcaption><span class="chip draft">设计稿</span>更多</figcaption></figure>
       <figure><button type="button" data-full="built/phone-more-light.png" aria-label="放大：已实现的更多"><img src="built/phone-more-light.png" alt="已实现的更多页：搜索与分组磁贴" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现 · 第 4 期</span>更多</figcaption></figure>
+        <figcaption><span class="chip built">第 4 期</span>更多（三列磁贴，A3 取代）</figcaption></figure>
       <figure><button type="button" data-full="built/phone-dispatch-sheet-light.png" aria-label="放大：新任务表单"><img src="built/phone-dispatch-sheet-light.png" alt="中间“＋”打开的新任务表单，输入框占满整行" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · 第 4 期</span>“＋ 新任务”表单</figcaption></figure>
       <figure><button type="button" data-full="built/phone-settings-light.png" aria-label="放大：手机设置"><img src="built/phone-settings-light.png" alt="手机设置页" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · 第 4 期</span>设置</figcaption></figure>
+      <figure><button type="button" data-full="built/a3-phone-more-light.png" aria-label="放大：A3 起的手机“更多”：一列 56 行卡片、渠道“1 断开”琥珀角标、底部标签栏仍在"><img src="built/a3-phone-more-light.png" alt="A3 起的手机“更多”：一列 56 行卡片、渠道“1 断开”琥珀角标、底部标签栏仍在" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A3</span>更多：一列 56 行</figcaption></figure>
     </div>
     <ul class="notes">
       <li>会话页：点代理条上的芯片打开操作表单，能直接批准、回答、重试别的代理，不用离开当前会话。</li>
@@ -590,7 +680,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">2–3</span><span class="what">看板事件流、会话页新外壳、管理项目</span><span class="chip built">已推送 0e9233bf</span></div>
       <div class="phase"><span class="n">4</span><span class="what">快捷键改绑、空项目、手机外壳与会话页、会话做主页</span><span class="chip built">已完成</span></div>
       <div class="phase"><span class="n">A1–A2</span><span class="what">方向 A：视觉 token v2、侧栏外壳与会话分组、快捷键 v2；会话顶栏、按需检查器、托盘与输入区、内联批准卡、会话树三页与 6 个老问题</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A3</span><span class="what">全部代理分组列表（删除看板泳道）、功能索引、设置整页</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A3</span><span class="what">全部代理分组列表（删除看板泳道）、侧栏随页面变化（筛选 / 设置目录）、功能索引、设置整页与双归属退役</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A4</span><span class="what">手机与平板：抽屉侧栏、返回键、触控目标，删除手机标签栏与 dockview</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片与侧栏</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板与浮层（⌘K、派发、引导、侧聊、会话树、配对）</span><span class="chip">未开始</span></div>
