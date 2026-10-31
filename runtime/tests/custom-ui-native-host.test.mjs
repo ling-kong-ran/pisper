@@ -393,6 +393,49 @@ test('安全模式：URL 参数、哨兵解析、写入时机、3 秒后清除�
   })
   assert.equal(broken.mode(), 'normal')
   assert.doesNotThrow(() => broken.beginLoad('a'))
+
+  // 评审返修：初始加载的 3 秒内正常刷新 / 关窗（卸载处理器跑得到）清掉哨兵，下次启动不误报；
+  // 阶段结束后卸载监听撤掉，之后卸载不再写存储。
+  values.clear()
+  const unloads = []
+  let stops = 0
+  const timers = []
+  const reloaded = createSafeModeController({
+    storage,
+    search: '',
+    schedule: (callback) => timers.push(callback),
+    cancel: () => {},
+    listenUnload: (handler) => {
+      unloads.push(handler)
+      return () => stops++
+    },
+  })
+  reloaded.beginLoad('x')
+  reloaded.beginLoad('y')
+  assert.equal(unloads.length, 1, '整个初始阶段只挂一次卸载监听')
+  assert.ok(values.has(SAFE_MODE_PREFERENCE_KEY))
+  unloads[0]()
+  assert.equal(values.has(SAFE_MODE_PREFERENCE_KEY), false)
+  assert.equal(createSafeModeController({ storage, search: '' }).mode(), 'normal')
+  const settled = createSafeModeController({
+    storage,
+    search: '',
+    schedule: (callback) => timers.push(callback),
+    cancel: () => {},
+    listenUnload: (handler) => {
+      unloads.push(handler)
+      return () => stops++
+    },
+  })
+  settled.beginLoad('z')
+  settled.endLoad('z')
+  timers.at(-1)()
+  assert.equal(stops, 1, '初始阶段结束时撤掉卸载监听')
+  values.set(SAFE_MODE_PREFERENCE_KEY, 'kept')
+  unloads.at(-1)()
+  assert.equal(values.get(SAFE_MODE_PREFERENCE_KEY), 'kept')
+  reloaded.dispose()
+  assert.equal(stops, 2, 'dispose 也撤掉卸载监听')
 })
 
 test('ctx 的成员与 CTX_V1_KEYS 一致，ui 子集与 UI_KIT_V1_KEYS 一致', async () => {

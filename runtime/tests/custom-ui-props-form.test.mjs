@@ -3,6 +3,7 @@
 //   x-i18n 标题），表单值 ↔ 实例属性的换算，Runtime 字段级错误定位到字段；
 // - studio-model：可见行、筛选与搜索、放置摘要、预览档位与舞台尺寸、选中项。
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   normalizeNativeManifest,
@@ -31,6 +32,7 @@ import {
   surfaceDeclared,
   visibleStudioRows,
 } from '../../src/features/custom-ui/studio/studio-model.ts'
+import { componentErrorText } from '../../src/features/custom-ui/studio/error-text.ts'
 
 function manifestWith(extra = {}) {
   const { manifest, errors } = normalizeNativeManifest('ci', {
@@ -312,4 +314,64 @@ test('selection prefers the route id, then the remembered one, then the first ro
   // 路由给了不存在的 id：如实显示“找不到”，不悄悄换成别的组件。
   assert.equal(resolveSelection(rows, 'gone', 'c'), null)
   assert.equal(resolveSelection([], '', ''), null)
+})
+
+// 评审返修：工作室列表 / 设置栏 / 手机列表把错误码原样显示过（如旧放置名 board-card 的
+// placement_surface_invalid）。shared 的 manifest 校验、写入与放置相关的 Runtime 错误码都必须有文案，
+// 新增错误码忘了配文案在这里失败。组件自己经 ctx 拿到的 fetch / storage / 错误上报码不在工作室显示，不在此列。
+test('工作室会显示的错误码都有中英文案，参数会填进文案', () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+  const codes = new Set()
+  const collect = (source, pattern) => {
+    for (const match of source.matchAll(pattern)) codes.add(match[1])
+  }
+  const manifestSource = read('../../shared/custom-ui-manifest.mjs')
+  collect(manifestSource, /fail\(\s*errors,\s*(?:'[^']*'|`[^`]*`|[\w.]+),\s*'([a-z0-9_]+)'/g)
+  collect(manifestSource, /code: '([a-z0-9_]+)'/g)
+  for (const path of [
+    '../services/custom-ui-service.mjs',
+    '../services/custom-ui-instances.mjs',
+    '../services/custom-ui-files.mjs',
+    '../http/routes/custom-ui.mjs',
+  ]) {
+    const source = read(path)
+    collect(source, /CustomUiError\(\s*'([a-z0-9_]+)'/g)
+    collect(source, /code: '([a-z0-9_]+)'/g)
+    collect(source, /error = '([a-z0-9_]+)'/g)
+  }
+  // 导入 ZIP 留到 A8（工作室入口置灰）；旧 iframe 路由的 410 兼容桩只给旧客户端看。
+  codes.delete('component_archive_too_large')
+  codes.delete('custom_ui_legacy_removed')
+  assert.ok(codes.size > 80, `只收集到 ${codes.size} 个错误码，正则可能失效`)
+  const zh = JSON.parse(read('../../src/locales/zh-CN/custom-ui.json'))
+  const en = JSON.parse(read('../../src/locales/en-US/custom-ui.json'))
+  const missing = []
+  for (const code of codes) {
+    let key = null
+    componentErrorText(code, (k) => {
+      key = k
+      return k
+    })
+    if (!key) missing.push(`${code}（error-text.ts 没有）`)
+    else if (!zh[key.replace(/^custom-ui:/, '')] || !en[key.replace(/^custom-ui:/, '')])
+      missing.push(`${code}（${key} 缺中文或英文）`)
+  }
+  assert.deepEqual(missing, [])
+
+  const fill = (key, values = {}) =>
+    zh[key.replace(/^custom-ui:/, '')].replace(/\{(\w+)\}/g, (_, name) => String(values[name]))
+  assert.equal(
+    componentErrorText('placement_surface_invalid', fill, { surface: 'board-card' }),
+    '没有“board-card”这个放置位置（可选 overview-card、session-panel、feature-page、floating）',
+  )
+  assert.equal(
+    componentErrorText('component_file_too_large', fill, { max: 256 * 1024 }),
+    '单个文件超过 256 KB',
+  )
+  assert.equal(
+    componentErrorText('host_too_old', fill, { required: '9.0.0' }),
+    '需要 Pisper 9.0.0 或更新版本',
+  )
+  // 表里没有的码原样显示，不伪装成别的错误。
+  assert.equal(componentErrorText('something_new', fill), 'something_new')
 })

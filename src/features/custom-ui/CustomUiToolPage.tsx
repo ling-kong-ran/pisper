@@ -2,7 +2,7 @@
 // feature-page 实例。没有实例（或组件停用、不可运行）时如实说明，并给出“在工作室打开”。
 import { Suspense } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Settings2 } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import { PageFrame } from '@/components/app/PageFrame'
 import { PageState } from '@/components/app/PageState'
 import { PAGE_PATHS, componentPath } from '@/app/routes'
@@ -50,12 +50,7 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
     <PageFrame variant="workbench">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-1 border-b border-stroke-soft px-2 py-1.5">
-          <Button variant="ghost" size="sm" className="max-[650px]:h-11" asChild>
-            <Link to="/more">
-              <ArrowLeft />
-              {t('custom-ui:tool.back')}
-            </Link>
-          </Button>
+          {/* 返回只有页头面包屑的“‹ 功能”一处，工具条不再叠第二个返回。 */}
           {placed && (
             <strong className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
               {placed.instance.title || placed.component.manifest?.name || placed.component.name}

@@ -1,8 +1,8 @@
 // 安全模式询问（计划 §4.3）：上次加载组件时页面可能卡死（哨兵还在），这次启动先不加载任何组件，
 // 由这里问一次：保持安全模式 / 正常加载 / 全部停用。只在 mode === 'pending' 时出现；
-// 应用壳的轻量层（FloatingWidgets）在有已启用实例时才懒加载本文件，选择之前各宿主一直显示安全模式占位卡。
+// 应用壳的轻量层（FloatingWidgets）在有已启用实例且偏好里有哨兵时才懒加载本文件（独立的动态入口，
+// 不经过 hosts.ts、不加载宿主核心与 htm），选择之前各宿主一直显示安全模式占位卡。
 import { useState, useSyncExternalStore } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,13 +13,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { listComponentCatalog, setComponentEnabled } from '@/features/custom-ui/custom-ui-api'
-import { componentSafeMode } from '@/features/custom-ui/native/host-runtime'
-import { customUiQueryKeys } from '@/features/custom-ui/query-keys'
+import { componentSafeMode } from '@/features/custom-ui/native/safe-mode-instance'
 
-export function SafeModePrompt({ notify }: { notify: (message: string) => void }) {
+export function SafeModePrompt({
+  notify,
+  disableAll: disableAllComponents,
+}: {
+  notify: (message: string) => void
+  // 停用全部已启用的原生组件，返回是否全部成功（请求与缓存作废由轻量层 placements.ts 提供：
+  // 询问本身只依赖控制器与对话框，懒加载时不再拆出额外的共享块）。
+  disableAll: () => Promise<boolean>
+}) {
   const { t } = useI18n()
-  const client = useQueryClient()
   const controller = componentSafeMode()
   const mode = useSyncExternalStore(controller.subscribe, controller.mode, controller.mode)
   const [busy, setBusy] = useState(false)
@@ -27,16 +32,9 @@ export function SafeModePrompt({ notify }: { notify: (message: string) => void }
   const disableAll = async () => {
     setBusy(true)
     try {
-      const catalog = await listComponentCatalog()
-      const enabled = catalog.components.filter((row) => row.kind === 'native' && row.enabled)
-      // 逐个停用：一个失败不影响其他组件；失败的数量如实提示，不当作全部成功。
-      const results = await Promise.allSettled(
-        enabled.map((row) => setComponentEnabled(row.id, false)),
-      )
-      if (results.some((result) => result.status === 'rejected'))
-        notify(t('custom-ui:safeMode.disableFailed'))
+      // 逐个停用：一个失败不影响其他组件；失败如实提示，不当作全部成功。
+      if (!(await disableAllComponents())) notify(t('custom-ui:safeMode.disableFailed'))
       controller.resolve('normal')
-      void client.invalidateQueries({ queryKey: customUiQueryKeys.all })
     } catch {
       notify(t('custom-ui:safeMode.disableFailed'))
     } finally {

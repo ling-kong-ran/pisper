@@ -249,15 +249,27 @@ try {
 
   // 4. 浮窗：渲染、拖动、关闭。
   const floating = page.locator(`[data-floating-widget="${floatingId}"]`)
-  await floating.locator('[data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
-  // 同一组件同时在预览与浮窗里渲染：两个实例互不影响。
+  // 同一组件同时在预览与浮窗里渲染：两个实例互不影响。工作室里浮窗层隐藏但仍挂着（评审返修）。
+  await floating.locator('[data-fixture-ok="v1"]').waitFor({ state: 'attached', timeout: 30_000 })
   await page.locator('[data-component-preview] [data-fixture-ok="v1"]').waitFor({ timeout: 10_000 })
+  assert.equal(await page.locator('[data-floating-custom-ui]').isHidden(), true)
+  // 离开工作室：同一个实例原样出现（没有重挂）。
+  await page.goto(`${base}/#/more`)
+  await floating.locator('[data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
   const before = await floating.boundingBox()
+  // 没有保存位置时停在右下角，不压住页头与第一屏内容（评审返修）。
+  const viewport = page.viewportSize()
+  assert.ok(
+    before.x + before.width >= viewport.width - 40 &&
+      before.y + before.height >= viewport.height - 40,
+    `floating default ${JSON.stringify(before)}`,
+  )
   const handle = floating.locator('[data-floating-move]')
   const handleBox = await handle.boundingBox()
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
   await page.mouse.down()
-  await page.mouse.move(handleBox.x - 120, handleBox.y + 80, { steps: 8 })
+  // 未定位的浮窗默认在右下角（评审返修），往左上拖。
+  await page.mouse.move(handleBox.x - 120, handleBox.y - 80, { steps: 8 })
   await page.mouse.up()
   await settle(page)
   const after = await floating.boundingBox()
@@ -279,8 +291,10 @@ try {
     false,
   )
   report.checks.push(
-    'Floating instance renders at its manifest size, drags (position saved under the instanceId) and closing PATCHes enabled:false',
+    'Floating instance stays mounted but hidden in the studio, shows elsewhere in the bottom-right corner, drags (position saved under the instanceId) and closing PATCHes enabled:false',
   )
+  await page.goto(`${base}/#/components/native-ok`)
+  await page.locator('[data-component-preview] [data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
 
   // 5. 崩溃隔离：错误卡；“重新加载”两次（共 3 次崩溃）→ 已暂停；恢复后再次渲染（又一张错误卡）。
   await page.locator('[data-component-row="crasher"]').click()
@@ -398,9 +412,10 @@ try {
   const placedNotes = await notesInstances()
   assert.deepEqual(placedNotes.map((entry) => entry.surface).sort(), ['feature-page', 'floating'])
   const notesFloating = placedNotes.find((entry) => entry.surface === 'floating')
+  // 工作室里浮窗层隐藏：实例挂着（textarea 已渲染），只是不可见。
   await page
     .locator(`[data-floating-widget="${notesFloating.instanceId}"] textarea`)
-    .waitFor({ timeout: 30_000 })
+    .waitFor({ state: 'attached', timeout: 30_000 })
   assert.match(
     await page.locator('[data-component-row="notes"] [data-component-row-detail]').textContent(),
     /功能页 · 浮窗/,
@@ -466,12 +481,19 @@ try {
   // 1080：设置栏放不下，改为抽屉；页头按钮打开，Esc 关闭。
   await page.locator('[data-studio-settings-mode="drawer"]').waitFor()
   assert.equal(await page.locator('[data-studio-settings]').count(), 0)
-  await page.locator('[data-studio-settings-open]').click()
+  // 键盘打开（聚焦 [设置] 按 Enter），Esc 关闭后焦点回到 [设置]（评审返修：原来落到 body）。
+  await page.locator('[data-studio-settings-open]').focus()
+  await page.keyboard.press('Enter')
   await page.locator('[data-studio-settings-drawer] [data-studio-settings]').waitFor()
   assert.equal(await noHorizontalScroll(page), true)
   await page.keyboard.press('Escape')
   await page.locator('[data-studio-settings-drawer]').waitFor({ state: 'detached' })
-  report.checks.push('No horizontal scroll at 1080×680; settings move into a drawer')
+  await page.waitForFunction(() =>
+    document.activeElement?.hasAttribute('data-studio-settings-open'),
+  )
+  report.checks.push(
+    'No horizontal scroll at 1080×680; settings move into a drawer opened from the keyboard, and Esc returns focus to [设置]',
+  )
 
   // 离开工作室：侧栏回到偏好（默认展开）。
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -660,6 +682,13 @@ try {
     size: 'S',
   })
   assert.equal(extra.status, 201, JSON.stringify(extra))
+  // 第三张（M + S + S）：1080×680 的弹层放不下，必须滚动而不是把卡片压扁（评审返修）。
+  const third = await api(hostPage, 'POST', '/api/custom-ui/instances', {
+    componentId: 'panel-card',
+    surface: 'overview-card',
+    size: 'S',
+  })
+  assert.equal(third.status, 201, JSON.stringify(third))
   report.checks.push(
     'Card ⋯ → 换个位置 moves the card to the feature page (new instance first, then the card is removed)',
   )
@@ -670,10 +699,10 @@ try {
   assert.equal(await hostPage.locator('[data-overview-widgets]').count(), 0)
   const trigger = hostPage.locator('[data-overview-components-trigger]')
   await trigger.waitFor({ timeout: 30_000 })
-  assert.equal((await trigger.textContent()).trim(), '组件 2')
+  assert.equal((await trigger.textContent()).trim(), '组件 3')
   await trigger.click()
   const popover = hostPage.locator('[data-overview-components="popover"]')
-  await popover.locator('[data-fixture-panel="overview-card"]').nth(1).waitFor({ timeout: 30_000 })
+  await popover.locator('[data-fixture-panel="overview-card"]').nth(2).waitFor({ timeout: 30_000 })
   const layout1080 = await hostPage.evaluate(() => {
     const popover = document.querySelector('[data-overview-components="popover"]')
     const box = popover.getBoundingClientRect()
@@ -692,13 +721,22 @@ try {
         const rect = body.getBoundingClientRect()
         return `${Math.round(rect.width)}x${Math.round(rect.height)}`
       }),
+      // 卡片外框 = 36 卡片头 + 内容区，不被弹层的 flex 列压扁；组件读到的 ctx.size 与内容区一致。
+      cards: [...popover.querySelectorAll('[data-overview-component]')].map((card) => {
+        const body = card.querySelector('[data-overview-component-body]')
+        const panel = card.querySelector('[data-fixture-panel]')
+        return `${Math.round(card.getBoundingClientRect().height - body.getBoundingClientRect().height)}:${panel?.dataset.size}`
+      }),
+      scrolls: popover.scrollHeight > popover.clientHeight,
       intrusions,
     }
   })
   assert.deepEqual(layout1080, {
     customTitlebar: 1,
     inside: true,
-    bodies: ['320x248', '320x120'],
+    bodies: ['320x248', '320x120', '320x120'],
+    cards: ['36:320x248', '36:320x120', '36:320x120'],
+    scrolls: true,
     intrusions: [],
   })
   assert.equal(await noHorizontalScroll(hostPage), true)
@@ -755,6 +793,26 @@ try {
   await hostPage.screenshot({ path: join(output, 'session-panel-1440.png') })
   report.checks.push(
     'Session inspector: a session-panel instance scoped to another project stays hidden; “+” → 仅此项目 re-scopes it, the tab appears selected and renders with ctx.session = this session at the inspector width; arrow keys move across fixed and component tabs',
+  )
+
+  // 工作室预览与全部代理卡片 1:1（评审返修）：预览框描边不占布局，组件拿到的正好是标注的 320×248 / 320×120。
+  await hostPage.goto(`${base}/#/components/panel-card`)
+  for (const [label, expected] of [
+    ['总览 M', '320x248'],
+    ['总览 S', '320x120'],
+  ]) {
+    await hostPage.getByRole('radio', { name: label, exact: true }).click()
+    const previewPanel = hostPage.locator(
+      `[data-component-preview] [data-fixture-panel="overview-card"][data-size="${expected}"]`,
+    )
+    await previewPanel.waitFor({ timeout: 30_000 })
+    const frame = await hostPage
+      .locator('[data-component-preview-frame]')
+      .evaluate((node) => `${node.clientWidth}x${node.clientHeight}`)
+    assert.equal(frame, expected, `${label} preview frame`)
+  }
+  report.checks.push(
+    'Studio preview is 1:1 with the all-agents card: the component gets exactly 320×248 (M) and 320×120 (S) inside the preview frame',
   )
   await hostPage.waitForTimeout(3_500)
   await hostContext.close()

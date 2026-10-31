@@ -1,11 +1,15 @@
 // 安全模式（规格 5.6、计划 §4.3）：同步死循环无法捕获，只能在下次启动时避开。
 // - URL 带 ?safe-mode=components：本页所有原生组件只显示占位卡。
 // - 自动哨兵：首次挂载原生实例前同步写偏好 pisper-components-safe-mode = {loading:{at, instanceIds}}，
-//   所有初始实例提交完 3 秒后清掉。下次启动时哨兵还在，说明上次加载组件时页面可能卡死：
+//   所有初始实例提交完 3 秒后清掉；这 3 秒内正常刷新 / 关窗（beforeunload、pagehide）也同步清掉——
+//   真卡死时主线程被占住，跑不到这些处理器，所以“哨兵还在”仍可靠表示上次卡死（评审返修：原来 3 秒内刷新会误报）。
+//   下次启动时哨兵还在，说明上次加载组件时页面可能卡死：
 //   先不加载（mode 'pending'），由应用壳的轻量层询问用户（S4 接线）。
 // 状态机与存储读写都可注入，便于测试；默认实例在首次使用时创建（模块导入没有副作用）。
 
-export const SAFE_MODE_PREFERENCE_KEY = 'pisper-components-safe-mode'
+import { SAFE_MODE_PREFERENCE_KEY } from '@/features/custom-ui/safe-mode-sentinel'
+
+export { SAFE_MODE_PREFERENCE_KEY }
 export const SAFE_MODE_SEARCH_PARAM = 'safe-mode'
 export const SAFE_MODE_SEARCH_VALUE = 'components'
 export const SAFE_MODE_CLEAR_DELAY_MS = 3_000
@@ -65,18 +69,32 @@ export type SafeModeController = {
   dispose(): void
 }
 
+// 页面正常卸载的信号：beforeunload 先于 page-state-storage 的 pagehide 镜像补发，清哨兵的删除能随那一批发出；
+// pagehide（捕获阶段）兜底移动端不触发 beforeunload 的情况。只在初始加载阶段挂着。
+function listenPageUnload(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => {}
+  window.addEventListener('beforeunload', handler)
+  window.addEventListener('pagehide', handler, { capture: true })
+  return () => {
+    window.removeEventListener('beforeunload', handler)
+    window.removeEventListener('pagehide', handler, { capture: true })
+  }
+}
+
 export function createSafeModeController({
   storage,
   search,
   now = () => Date.now(),
   schedule = (callback, ms) => setTimeout(callback, ms),
   cancel = (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  listenUnload = listenPageUnload,
 }: {
   storage: SafeModeStorage
   search: string
   now?: () => number
   schedule?: (callback: () => void, ms: number) => unknown
   cancel?: (handle: unknown) => void
+  listenUnload?: (handler: () => void) => () => void
 }): SafeModeController {
   const listeners = new Set<() => void>()
   const read = () => {
@@ -102,6 +120,11 @@ export function createSafeModeController({
   const loading = new Set<string>()
   const started: string[] = []
   let clearTimer: unknown = null
+  let stopUnload: (() => void) | null = null
+  const finishLoading = () => {
+    stopUnload?.()
+    stopUnload = null
+  }
   const changed = () => {
     for (const listener of [...listeners]) listener()
   }
@@ -115,6 +138,10 @@ export function createSafeModeController({
         clearTimer = null
       }
       phase = 'loading'
+      // 正常卸载不是卡死：清掉哨兵，下次启动不询问。卸载后不再有写入，阶段不必改。
+      stopUnload ??= listenUnload(() => {
+        if (phase === 'loading') write(null)
+      })
       loading.add(instanceKey)
       if (!started.includes(instanceKey) && started.length < MAX_SENTINEL_INSTANCES)
         started.push(instanceKey)
@@ -126,6 +153,7 @@ export function createSafeModeController({
         clearTimer = null
         if (loading.size) return
         phase = 'done'
+        finishLoading()
         write(null)
       }, SAFE_MODE_CLEAR_DELAY_MS)
     },
@@ -145,6 +173,7 @@ export function createSafeModeController({
     dispose() {
       if (clearTimer !== null) cancel(clearTimer)
       clearTimer = null
+      finishLoading()
       listeners.clear()
     },
   }

@@ -8,6 +8,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   copyFile,
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -224,6 +225,26 @@ export async function renameWithRetry(from, to, renameDirectory = rename) {
  * @typedef {{ path: string, content: string | Uint8Array }} ComponentFileWrite
  */
 
+/** @param {string} path */
+function linkedPathError(path) {
+  return Object.assign(new Error('component path is linked'), { code: 'ELINKED', path })
+}
+
+/**
+ * 写入 / 删除路径的上级目录在暂存副本里不能是符号链接或普通文件：否则 mkdir / writeFile / rm
+ * 会穿过链接落到组件目录之外。
+ * @param {string} stage
+ * @param {string} path
+ */
+async function assertNoLinkedAncestor(stage, path) {
+  const segments = path.split('/')
+  for (let depth = 1; depth < segments.length; depth += 1) {
+    const info = await lstat(join(stage, ...segments.slice(0, depth))).catch(() => null)
+    if (!info) return
+    if (!info.isDirectory()) throw linkedPathError(path)
+  }
+}
+
 /**
  * 写入组件目录：先在 custom-ui/.component-write-* 里拼好完整目录，再 rename 交换，
  * 监听器与列表只会看到写入前或写入后的完整状态。
@@ -263,16 +284,23 @@ export async function writeComponentDirectory({
   try {
     if (mode === 'update') {
       const listed = await listComponentFiles(target)
-      for (const entry of listed.files) {
-        const content = await readFile(entry.file)
-        previous.set(entry.path, content)
-        const destination = join(stage, ...entry.path.split('/'))
-        await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
-        await writeFile(destination, content, { flag: 'wx', mode: 0o600 })
-      }
+      // 扫描超限时清单只是前一部分：拿它重建目录会丢掉其余文件（连 manifest.json 都可能丢），直接拒绝。
+      if (listed.error) throw Object.assign(new Error(listed.error), { code: 'ETOOLARGE' })
+      for (const entry of listed.files) previous.set(entry.path, await readFile(entry.file))
+      // 暂存目录是原目录的完整副本：点开头的条目（.git、.env、编辑器配置）与符号链接都不在
+      // 遍历清单里，只复制清单会在交换后把它们永久删掉；链接按原样复制，不跟随。
+      await cp(target, stage, {
+        recursive: true,
+        verbatimSymlinks: true,
+        preserveTimestamps: true,
+      })
+    }
+    for (const path of [...deleteFiles, ...files.map((file) => file.path)]) {
+      await assertNoLinkedAncestor(stage, path)
     }
     for (const path of deleteFiles) {
       const segments = path.split('/')
+      // 末段是符号链接时 rm 只删链接本身，不跟随到目录外。
       await rm(join(stage, ...segments), { force: true })
       // 删掉文件后留下的空目录一并清掉；rmdir 遇到非空目录会失败，正好在那里停下。
       for (let depth = segments.length - 1; depth > 0; depth -= 1) {
@@ -286,6 +314,9 @@ export async function writeComponentDirectory({
     for (const file of files) {
       const destination = join(stage, ...file.path.split('/'))
       await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
+      // 目标是符号链接时 writeFile 会写到链接指向的目录外文件；拒绝而不是悄悄把链接换成普通文件。
+      const info = await lstat(destination).catch(() => null)
+      if (info && !info.isFile()) throw linkedPathError(file.path)
       await writeFile(destination, file.content, { mode: 0o600 })
     }
     if (mode === 'update') {
@@ -334,6 +365,9 @@ export async function snapshotComponent({
 }) {
   if (!COMPONENT_ID_PATTERN.test(id)) throw new Error('component id invalid')
   const listed = await listComponentFiles(dir)
+  // 快照只收写入器可能改写的文件（遍历清单）：点开头的条目与符号链接写入器从不改动、
+  // 交换时原样保留，不必进快照（.git 之类每版复制一份太大）。清单不完整时不能当成快照。
+  if (listed.error) throw Object.assign(new Error(listed.error), { code: 'ETOOLARGE' })
   if (!listed.files.length) return null
   const base = join(versionsRoot, id)
   const indexPath = join(base, 'index.json')

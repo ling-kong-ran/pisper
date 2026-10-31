@@ -25,6 +25,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import type { Notify } from '@/app/route-context'
@@ -229,6 +230,8 @@ export function CustomUiPage({
   const actions = useStudioActions(notify)
   const agent = useComponentAgent(notify)
   const [promptSheet, setPromptSheet] = useState(false)
+  // 受控底部表单没有 SheetTrigger：关闭后把焦点还给“用提示词生成或修改”。
+  const returnPromptFocus = useOverlayFocusReturn(promptSheet)
   const rows = useMemo(() => visibleStudioRows(catalog.data?.components ?? []), [catalog.data])
   const root = catalog.data?.root || ''
   const canDelete = catalog.data?.features.trash === 'move'
@@ -236,6 +239,8 @@ export function CustomUiPage({
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<WorkbenchTab>('preview')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 设置抽屉由 [设置] 按钮的回调打开（没有 SheetTrigger）：关闭后把焦点还给它。
+  const returnDrawerFocus = useOverlayFocusReturn(drawerOpen)
   const [reloadToken, setReloadToken] = useState(0)
   const [commits] = useState(createCommitStore)
   const troubled = useTroubledComponents(rows, instances)
@@ -351,6 +356,7 @@ export function CustomUiPage({
                     <Sheet open={promptSheet} onOpenChange={setPromptSheet}>
                       <SheetContent
                         side="bottom"
+                        onCloseAutoFocus={returnPromptFocus}
                         data-component-prompt-sheet
                         className="gap-0 rounded-t-[var(--r-lg)] p-0"
                       >
@@ -572,6 +578,7 @@ export function CustomUiPage({
               <SheetContent
                 side="right"
                 showCloseButton={false}
+                onCloseAutoFocus={returnDrawerFocus}
                 data-studio-settings-drawer
                 className="w-[372px] max-w-[calc(100vw-48px)] gap-0 p-0 sm:max-w-[372px]"
               >

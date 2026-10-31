@@ -392,7 +392,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const [primaryActions] = useState(createPrimaryActionRegistry)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const appShellRef = useRef<HTMLDivElement>(null)
-  const pageHeaderRef = useRef<HTMLElement>(null)
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
@@ -1192,7 +1191,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               {sharedPageHeader && (
                 <Suspense fallback={null}>
                   <PageHeader
-                    elementRef={pageHeaderRef}
                     meta={activeMeta}
                     page={page}
                     desktopPlatform={window.pisperDesktop?.platform || ''}
@@ -1274,7 +1272,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
             </Suspense>
           )}
           <Suspense fallback={null}>
-            <FloatingWidgets anchorRef={pageHeaderRef} notify={notify} />
+            <FloatingWidgets notify={notify} />
           </Suspense>
           {toast && (
             <AppToast

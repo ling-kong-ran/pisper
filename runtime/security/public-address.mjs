@@ -29,6 +29,7 @@ const BLOCKED_IPV4_SUBNETS = Object.freeze([
 /** @type {readonly [string, number][]} */
 const BLOCKED_IPV6_SUBNETS = Object.freeze([
   ['::', 96], // 未指定、回环 ::1 与已废弃的 IPv4 兼容地址 ::a.b.c.d
+  ['::ffff:0:0:0', 96], // IPv4 转换地址（RFC 6145 / SIIT）：部署了转换器的网络会把它送到内网 IPv4
   ['64:ff9b::', 96], // NAT64 公共前缀：可映射到任意 IPv4（含内网）
   ['64:ff9b:1::', 48], // NAT64 本地前缀
   ['100::', 64], // 丢弃

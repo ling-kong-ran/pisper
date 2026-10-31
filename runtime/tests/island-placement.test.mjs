@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  DEFAULT_FLOATING_PLACEMENT,
   defaultFloatingPlacement,
   FLOATING_PLACEMENT_LIMIT,
   floatingPlacementKey,
@@ -14,44 +13,32 @@ import {
 const bounds = { width: 1000, height: 700 }
 const widget = { width: 380, height: 88 }
 
-test('default placement aligns the widget center with the page header and clamps near edges', () => {
-  const smallWidget = { width: 380, height: 64 }
-  const anchor = { x: 200, y: 24, width: 800, height: 80 }
-  const position = defaultFloatingPlacement(bounds, smallWidget, anchor)
-  assert.deepEqual(floatingPositionPixels(position, bounds, smallWidget), { x: 410, y: 32 })
-  assert.deepEqual(defaultFloatingPlacement(bounds, smallWidget), DEFAULT_FLOATING_PLACEMENT)
-  assert.deepEqual(
-    defaultFloatingPlacement(bounds, smallWidget, { x: -500, y: -500, width: 1, height: 1 }),
-    { x: 0, y: 0 },
-  )
-  assert.deepEqual(defaultFloatingPlacement({ width: 200, height: 40 }, smallWidget, anchor), {
-    x: 0.5,
-    y: 0,
+// 评审返修（A7）：未定位的浮窗停在右下角、向上叠，一列放不下向左错开，不再压在页头中线下方的第一屏内容上。
+test('unpositioned floating widgets start in the bottom-right corner and stack upward', () => {
+  const card = { width: 260, height: 96 }
+  const pixels = (index, area = bounds) =>
+    floatingPositionPixels(defaultFloatingPlacement(area, card, index), area, card)
+  assert.deepEqual(pixels(0), { x: 732, y: 596 })
+  assert.deepEqual(pixels(1), { x: 732, y: 488 })
+  assert.deepEqual(pixels(2), { x: 732, y: 380 })
+  // 一列放 6 个（(700 - 96 - 16) / 108 + 1）；第 7 个起向左错开一列。
+  assert.deepEqual(pixels(6), { x: 460, y: 596 })
+  const positions = [0, 1, 2, 3, 4, 5, 6, 7].map((index) => pixels(index))
+  assert.equal(new Set(positions.map((value) => `${value.x},${value.y}`)).size, positions.length)
+  for (const position of positions) {
+    assert.ok(position.x >= 0 && position.x <= bounds.width - card.width)
+    assert.ok(position.y >= 0 && position.y <= bounds.height - card.height)
+  }
+  // 区域比浮窗还小或还没量到尺寸：贴右下（归一化 1, 1），不出现 NaN。
+  assert.deepEqual(defaultFloatingPlacement({ width: 200, height: 40 }, card), { x: 1, y: 1 })
+  assert.deepEqual(defaultFloatingPlacement({ width: 0, height: 0 }, { width: 0, height: 0 }), {
+    x: 1,
+    y: 1,
   })
 })
 
-test('unpositioned widgets stack below the header and cascade inside a short viewport', () => {
-  const anchor = { x: 0, y: 0, width: 1000, height: 52 }
-  const card = { width: 380, height: 240 }
-  const first = defaultFloatingPlacement(bounds, card, anchor, 1)
-  const second = defaultFloatingPlacement(bounds, card, anchor, 2)
-  const third = defaultFloatingPlacement(bounds, card, anchor, 3)
-  assert.deepEqual(floatingPositionPixels(first, bounds, card), { x: 310, y: 64 })
-  assert.deepEqual(floatingPositionPixels(second, bounds, card), { x: 310, y: 316 })
-  assert.deepEqual(floatingPositionPixels(third, bounds, card), { x: 334, y: 460 })
-  const short = { width: 400, height: 280 }
-  const positions = [1, 2, 3].map((index) =>
-    floatingPositionPixels(defaultFloatingPlacement(short, card, anchor, index), short, card),
-  )
-  assert.equal(new Set(positions.map((value) => `${value.x},${value.y}`)).size, 3)
-  for (const position of positions) {
-    assert.ok(position.x >= 0 && position.x <= 20)
-    assert.ok(position.y >= 0 && position.y <= 40)
-  }
-})
-
-test('floating widgets start at the top center and remain inside resized viewport bounds', () => {
-  assert.deepEqual(floatingPositionPixels(DEFAULT_FLOATING_PLACEMENT, bounds, widget), {
+test('floating positions remain inside resized viewport bounds', () => {
+  assert.deepEqual(floatingPositionPixels({ x: 0.5, y: 0 }, bounds, widget), {
     x: 310,
     y: 0,
   })
@@ -67,12 +54,7 @@ test('floating widgets start at the top center and remain inside resized viewpor
 })
 
 test('pointer and keyboard deltas use the same bounded normalized positioning', () => {
-  const moved = moveFloatingPlacement(
-    DEFAULT_FLOATING_PLACEMENT,
-    { x: 124, y: 306 },
-    bounds,
-    widget,
-  )
+  const moved = moveFloatingPlacement({ x: 0.5, y: 0 }, { x: 124, y: 306 }, bounds, widget)
   assert.deepEqual(moved, { x: 0.7, y: 0.5 })
   assert.deepEqual(moveFloatingPlacement(moved, { x: 100000, y: -100000 }, bounds, widget), {
     x: 1,

@@ -211,6 +211,10 @@ test('地址判定：IPv4 / IPv6 私网、回环、链路本地、映射地址�
     'fe80::1%eth0',
     'ff02::1',
     '64:ff9b::a00:1',
+    // IPv4 转换地址（RFC 6145 / SIIT，::ffff:0:a.b.c.d），评审返修补上。
+    '::ffff:0:7f00:1',
+    '::ffff:0:a00:1',
+    '::ffff:0:8.8.8.8',
     '2002:7f00:1::1',
     'not-an-ip',
     '',
@@ -388,6 +392,8 @@ test('DNS 解析到回环 / 私网 / 链路本地 / CGNAT / IPv6 回环 / 映射
     403,
   )
   assert.equal(upstream.requests.length, 0)
+  // 被阻断的请求没有连到主机，不计入工作室状态栏的“网络 N 次 · 主机”。
+  assert.deepEqual(proxy.networkStats('demo'), { count: 0, lastAt: null, hosts: {} })
 })
 
 test('连接只用校验过的地址：lookup 只调用一次，没有第二次解析的机会（防 DNS rebinding）', async (t) => {

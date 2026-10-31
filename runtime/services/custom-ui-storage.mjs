@@ -34,11 +34,11 @@ function strictJson(value, depth = 0) {
   if (typeof value === 'string') return toWellFormed(value)
   if (Array.isArray(value)) return value.map((item) => strictJson(item, depth + 1))
   if (isRecord(value)) {
-    /** @type {Record<string, unknown>} */
-    const result = {}
-    for (const [key, item] of Object.entries(value))
-      result[toWellFormed(key)] = strictJson(item, depth + 1)
-    return result
+    // Object.fromEntries 建的是自有属性：键为 "__proto__" 时 result[key] = … 会改临时对象的原型、
+    // 悄悄丢掉这个值却仍返回 ok（评审返修）；JSON.parse 本来就把它当普通键。
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [toWellFormed(key), strictJson(item, depth + 1)]),
+    )
   }
   throw new CustomUiError('component_storage_value_invalid', 400)
 }

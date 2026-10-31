@@ -611,8 +611,10 @@ export class CustomUiService {
         throw new CustomUiError('component_manifest_invalid', 400, { errors: normalized.errors })
       const manifest = normalized.manifest
       const dir = this.componentDir(id)
-      const current =
-        mode === 'update' ? (await listComponentFiles(dir)).files.map((entry) => entry.path) : []
+      const listed = mode === 'update' ? await listComponentFiles(dir) : null
+      // 目录超限时清单不完整：合并校验与写入都会基于残缺的文件集，宁可拒绝也不丢文件。
+      if (listed?.error) throw new CustomUiError(listed.error, 413)
+      const current = listed ? listed.files.map((entry) => entry.path) : []
       const merged = new Set(current.filter((path) => !deleteFiles.includes(path)))
       for (const file of files) merged.add(file.path)
       merged.add('manifest.json')
@@ -640,6 +642,10 @@ export class CustomUiService {
           dir,
           now: this.now,
           summary,
+        }).catch((error) => {
+          // 校验之后目录被外部改到超限：同样拒绝，不写任何东西。
+          if (error?.code === 'ETOOLARGE') throw new CustomUiError('component_too_large', 413)
+          throw error
         })
       }
       const writes = [
@@ -662,6 +668,11 @@ export class CustomUiService {
       } catch (error) {
         if (error?.code === 'EEXIST') throw new CustomUiError('component_already_installed', 409)
         if (error?.code === 'ENOENT') throw new CustomUiError('component_not_found', 404)
+        if (error?.code === 'ETOOLARGE') throw new CustomUiError('component_too_large', 413)
+        if (error?.code === 'ELINKED')
+          throw new CustomUiError('component_files_invalid', 400, {
+            errors: [{ path: error.path, code: 'path_not_writable' }],
+          })
         throw error
       }
       this.hasher.invalidate(dir)

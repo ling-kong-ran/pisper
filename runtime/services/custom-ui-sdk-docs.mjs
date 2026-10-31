@@ -291,7 +291,7 @@ export default function CiStatus({ props, size, placement, ctx }) {
   if (state.status === 'loading') return html\`<\${ui.Skeleton} style=\${{ height: '100%' }} />\`
   if (state.status === 'error') return html\`<div role="alert">\${state.message}</div>\`
   if (state.status === 'empty') return html\`<\${ui.Empty} title=\${t('empty')} />\`
-  return html\`<ul style=\${{ margin: 0, padding: 0, listStyle: 'none' }}>
+  return html\`<ul style=\${{ margin: 0, padding: '10px 12px', listStyle: 'none' }}>
     \${state.runs.slice(0, size.compact ? 1 : 3).map(
       (run) => html\`<li key=\${run.id}>\${run.name} · \${run.conclusion || run.status}</li>\`,
     )}
@@ -354,6 +354,7 @@ export default function CiStatus({ props, size, placement, ctx }) {
 | \`floating\` | manifest 声明的 \`{w, h}\`（缺省 320×200） | 桌面浮窗，手机上不显示 |
 
 - 卡片头（标题、菜单）由宿主绘制，组件只画内容区；容器 \`overflow: hidden\`。
+- 内容区**没有内边距**，组件自己留白：根元素建议 \`padding: '10px 12px'\`（与宿主卡片头的 12px 左缩进对齐），否则文字会贴着卡片边。
 - **必须能在最小尺寸下渲染**：S 只有 120 高；\`size.compact\`（宽 < 300）时只显示最关键的信息。
 - 不要假设固定像素，跟着 \`ctx.size\` 布局。
 

@@ -1,7 +1,17 @@
 // 原生组件写入器（模板创建与 S2 的 component_create 共用）：暂存 + rename 交换、版本快照上限、
 // 结构化校验清单（裸导入、HTML、entry 缺失、保留 id、旧版占用）、内容哈希与模板源码可解析。
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -85,6 +95,97 @@ test('create 与 update：update 前快照，交换后没有暂存目录残留�
     index.snapshots.map((item) => [item.n, item.summary]),
     [[1, '简化']],
   )
+})
+
+test('update 原样保留点开头的条目与符号链接，不穿过链接写到目录外', async (t) => {
+  const { dataDir, service, agent } = await fixture(t)
+  await agent.writeComponent({
+    mode: 'create',
+    id: 'notes',
+    manifest,
+    files: [{ path: 'component.js', content: 'export default () => 1\n' }],
+  })
+  const dir = join(service.root, 'notes')
+  const outside = join(dataDir, 'outside')
+  await mkdir(outside)
+  await writeFile(join(outside, 'secret.txt'), 'keep\n')
+  await writeFile(join(outside, 'secret.js'), 'keep\n')
+  await mkdir(join(dir, '.git'))
+  await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+  await writeFile(join(dir, '.env'), 'TOKEN=x\n')
+  await writeFile(join(dir, 'notes.txt'), 'n\n')
+  await symlink('notes.txt', join(dir, 'link.txt'))
+  await symlink(outside, join(dir, 'linked'))
+  await symlink(join(outside, 'secret.txt'), join(dir, 'secret.js'))
+
+  const updated = await agent.writeComponent({
+    mode: 'update',
+    id: 'notes',
+    files: [{ path: 'component.js', content: 'export default () => 2\n' }],
+  })
+  assert.equal(updated.status, 'ready')
+  assert.deepEqual((await readdir(dir)).sort(), [
+    '.env',
+    '.git',
+    'component.js',
+    'link.txt',
+    'linked',
+    'manifest.json',
+    'notes.txt',
+    'secret.js',
+  ])
+  assert.equal(await readFile(join(dir, '.git', 'HEAD'), 'utf8'), 'ref: refs/heads/main\n')
+  assert.equal(await readFile(join(dir, '.env'), 'utf8'), 'TOKEN=x\n')
+  assert.equal(await readlink(join(dir, 'link.txt')), 'notes.txt')
+  assert.ok((await lstat(join(dir, 'linked'))).isSymbolicLink())
+  assert.match(await readFile(join(dir, 'component.js'), 'utf8'), /=> 2/)
+
+  // 写入路径的上级是链接、或目标本身是链接：拒绝，目录外文件与组件目录都不变。
+  for (const path of ['linked/secret.js', 'secret.js']) {
+    await rejectsWith(
+      agent.writeComponent({ mode: 'update', id: 'notes', files: [{ path, content: 'pwned' }] }),
+      'component_files_invalid',
+      ['path_not_writable'],
+    )
+  }
+  await rejectsWith(
+    agent.writeComponent({ mode: 'update', id: 'notes', deleteFiles: ['linked/secret.js'] }),
+    'component_files_invalid',
+    ['path_not_writable'],
+  )
+  assert.equal(await readFile(join(outside, 'secret.txt'), 'utf8'), 'keep\n')
+  assert.equal(await readFile(join(outside, 'secret.js'), 'utf8'), 'keep\n')
+  assert.ok((await lstat(join(dir, 'secret.js'))).isSymbolicLink())
+  assert.deepEqual(
+    (await readdir(service.root)).filter((name) => name.startsWith('.')),
+    [],
+  )
+})
+
+test('目录超出扫描上限时 update 直接拒绝，不快照也不改动任何文件', async (t) => {
+  const { dataDir, service, agent } = await fixture(t)
+  await agent.writeComponent({
+    mode: 'create',
+    id: 'deep',
+    manifest,
+    files: [{ path: 'component.js', content: 'export default () => 1\n' }],
+  })
+  const dir = join(service.root, 'deep')
+  await mkdir(join(dir, 'a', 'b', 'c', 'd', 'e'), { recursive: true })
+  await writeFile(join(dir, 'a', 'b', 'c', 'd', 'e', 'deep.js'), 'x\n')
+  await writeFile(join(dir, 'notes.txt'), 'n\n')
+  const before = (await readdir(dir)).sort()
+  await rejectsWith(
+    agent.writeComponent({
+      mode: 'update',
+      id: 'deep',
+      files: [{ path: 'component.js', content: 'export default () => 2\n' }],
+    }),
+    'component_too_large',
+  )
+  assert.deepEqual((await readdir(dir)).sort(), before)
+  assert.match(await readFile(join(dir, 'component.js'), 'utf8'), /=> 1/)
+  assert.equal(await lstat(join(dataDir, 'custom-ui-versions', 'deep')).catch(() => null), null)
 })
 
 test('快照最多保留 20 份，删掉最旧的', async (t) => {

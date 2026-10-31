@@ -1,7 +1,7 @@
 // [新建 ▾]（规格 5.1、计划 §5.4–5.5）：空白组件（名称 + 可选的一句话描述）或从内置模板“今日用量”“便签”开始。
 // 模板只生成到工作室、不放置、不开会话；空白组件填了描述时，建好目录后由调用方交给代理生成（绑定会话）。
 // 桌面是对话框，手机是提示词底部表单（规格 7.4“新建用提示词底部表单”）。
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { ChevronDown, Plus } from 'lucide-react'
 import { COMPONENT_NAME_MAX } from './studio-model'
 import { useI18n } from '@/app/use-i18n'
@@ -32,6 +32,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { cn } from '@/lib/utils'
 import type { ComponentRow } from '@/features/custom-ui/custom-ui-api'
 import { AGENT_PROMPT_MAX } from './use-component-agent'
@@ -56,6 +58,11 @@ export function NewComponentMenu({
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
+  // 对话框从菜单项打开（没有 DialogTrigger）：关闭后焦点还给 [新建 ▾]；建好后焦点交给新选中的行时不抢。
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const returnFocus = useOverlayFocusReturn(naming, triggerRef)
+  const nameId = useId()
+  const promptId = useId()
   const create = async (template: StudioTemplate, value?: string, description?: string) => {
     setBusy(true)
     try {
@@ -74,23 +81,30 @@ export function NewComponentMenu({
   const submit = () => {
     if (trimmed) void create('blank', trimmed, described || undefined)
   }
+  // 可见标签（占位文字一输入就消失，不能当标签用）。
   const fields = (
     <>
+      <Label htmlFor={nameId} className="-mb-1.5 text-xs text-content-secondary">
+        {t('custom-ui:studio.componentName')}
+      </Label>
       <Input
+        id={nameId}
         autoFocus
         value={name}
         maxLength={COMPONENT_NAME_MAX}
-        aria-label={t('custom-ui:studio.componentName')}
         placeholder={t('custom-ui:studio.componentNamePlaceholder')}
         data-component-new-name
         className={phone ? 'min-h-11' : undefined}
         onChange={(event) => setName(event.target.value)}
       />
+      <Label htmlFor={promptId} className="-mb-1.5 text-xs text-content-secondary">
+        {t('custom-ui:agent.newPromptLabel')}
+      </Label>
       <Textarea
+        id={promptId}
         rows={3}
         value={prompt}
         maxLength={AGENT_PROMPT_MAX}
-        aria-label={t('custom-ui:agent.newPromptLabel')}
         placeholder={t('custom-ui:agent.newPromptPlaceholder')}
         data-component-new-prompt
         className="max-h-48 resize-none"
@@ -112,6 +126,7 @@ export function NewComponentMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={triggerRef}
             size="sm"
             variant="secondary"
             disabled={busy}
@@ -149,6 +164,7 @@ export function NewComponentMenu({
         <Sheet open={naming} onOpenChange={(open) => !busy && setNaming(open)}>
           <SheetContent
             side="bottom"
+            onCloseAutoFocus={returnFocus}
             data-component-new-sheet
             className="gap-0 rounded-t-[var(--r-lg)] p-0"
           >
@@ -183,7 +199,7 @@ export function NewComponentMenu({
         </Sheet>
       ) : (
         <Dialog open={naming} onOpenChange={(open) => !busy && setNaming(open)}>
-          <DialogContent>
+          <DialogContent onCloseAutoFocus={returnFocus}>
             <form
               className="contents"
               onSubmit={(event) => {

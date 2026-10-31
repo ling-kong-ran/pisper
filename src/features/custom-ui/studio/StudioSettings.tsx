@@ -2,7 +2,7 @@
 // 放置位置（四个平级磁贴）、吸底操作栏（[放置到… ▾] · [查看源码] · ⋯ 删除组件）。
 // 窗口 <1440 或侧栏展开时整栏改放进右侧抽屉，内容不变；手机详情按“预览 · 属性 · 能力 · 放置”顺序复用各段。
 // 版本与导出（规格 5.9）在 A8，这里不显示占位。
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import {
   AppWindow,
   Blocks,
@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { cn } from '@/lib/utils'
 import { useBoardSessions } from '@/features/board/public'
 import type {
@@ -173,8 +174,8 @@ export function ErrorList({ row }: { row: ComponentRow }) {
   const { t } = useI18n()
   if (!row.errors.length) return null
   return (
+    // 静态错误清单（选中一个有错的组件就会出现）不用 alert：读屏会把它当紧急通知打断朗读。
     <ul
-      role="alert"
       data-component-errors
       className="flex flex-col gap-1 rounded-[var(--r-md)] border border-stroke bg-surface-subtle px-3 py-2 text-xs text-content-secondary"
     >
@@ -371,6 +372,8 @@ export function PlacementSection({
   const [cardSize, setCardSize] = useState<OverviewCardSize>(defaultCardSize(row.manifest))
   const [scope, setScope] = useState<ComponentInstanceScope>({ type: 'all' })
   const [confirmRemove, setConfirmRemove] = useState<ComponentInstance[] | null>(null)
+  // 确认框由磁贴的勾选框打开（没有 DialogTrigger）：关闭后把焦点还给它，键盘与读屏不丢位置。
+  const returnRemoveFocus = useOverlayFocusReturn(confirmRemove !== null)
   const placeable = canPlace(row)
   const own = instances.filter((instance) => instance.componentId === row.id)
   const declaredSizes =
@@ -497,7 +500,7 @@ export function PlacementSection({
         open={confirmRemove !== null}
         onOpenChange={(open) => !open && setConfirmRemove(null)}
       >
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={returnRemoveFocus}>
           <DialogHeader>
             <DialogTitle>
               {t('custom-ui:studio.unplaceAllTitle', { count: confirmRemove?.length ?? 0 })}
@@ -601,6 +604,9 @@ export function DeleteComponentButton({
   const { t, language } = useI18n()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 从 ⋯ 菜单项打开时记下的菜单项会随菜单卸载：兜底还给 ⋯ 按钮（删除成功后行没了，就不归还）。
+  const moreRef = useRef<HTMLButtonElement>(null)
+  const returnFocus = useOverlayFocusReturn(confirming, moreRef)
   const name = componentDisplayName(row, language)
   const remove = async () => {
     setBusy(true)
@@ -616,6 +622,7 @@ export function DeleteComponentButton({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              ref={moreRef}
               size="icon-sm"
               variant="ghost"
               aria-label={t('custom-ui:studio.more')}
@@ -648,7 +655,7 @@ export function DeleteComponentButton({
         </Button>
       )}
       <Dialog open={confirming} onOpenChange={(open) => !open && !busy && setConfirming(false)}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={returnFocus}>
           <DialogHeader>
             <DialogTitle>{t('custom-ui:studio.deleteTitle', { name })}</DialogTitle>
             <DialogDescription>{t('custom-ui:studio.deleteHint')}</DialogDescription>

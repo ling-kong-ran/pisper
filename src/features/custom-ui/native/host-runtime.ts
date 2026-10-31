@@ -1,6 +1,5 @@
 // 组件宿主的页面级单例与真实服务接线：模块加载器、样式注册表、熔断、安全模式、日志缓冲与上报器，
 // 以及 ctx 背后的请求函数。全部惰性创建（首次调用时），模块导入没有副作用。
-import { pageStateStorage } from '@/lib/page-state-storage'
 import {
   componentErrorCode,
   componentFetch,
@@ -17,14 +16,12 @@ import {
   type ErrorReporter,
 } from './log'
 import { createModuleLoader, createStyleRegistry, type ModuleLoader } from './module-loader'
-import { createSafeModeController, type SafeModeController } from './safe-mode'
 import { toComponentRequestError, type ComponentServices } from './sdk'
 import { componentSessionFeed, useComponentSessionList } from './sessions-source'
 
 let loader: ModuleLoader | null = null
 let styles: ReturnType<typeof createStyleRegistry> | null = null
 let breaker: CircuitBreaker | null = null
-let safeMode: SafeModeController | null = null
 let logBuffer: ComponentLogBuffer | null = null
 let reporter: ErrorReporter | null = null
 
@@ -44,13 +41,8 @@ export function componentCircuitBreaker(): CircuitBreaker {
   return breaker
 }
 
-export function componentSafeMode(): SafeModeController {
-  safeMode ??= createSafeModeController({
-    storage: pageStateStorage,
-    search: typeof window === 'undefined' ? '' : window.location.search,
-  })
-  return safeMode
-}
+// 安全模式单例在 safe-mode-instance.ts（询问组件也用它，不经过这里的重依赖）。
+export { componentSafeMode } from './safe-mode-instance'
 
 export function componentLogBuffer(): ComponentLogBuffer {
   logBuffer ??= createLogBuffer()

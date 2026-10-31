@@ -1,41 +1,36 @@
 export type FloatingPlacement = { x: number; y: number }
 export type FloatingSize = { width: number; height: number }
-export type FloatingAnchor = FloatingPlacement & FloatingSize
 export type SavedFloatingPlacement = { key: string; position: FloatingPlacement }
 
-export const DEFAULT_FLOATING_PLACEMENT: FloatingPlacement = { x: 0.5, y: 0 }
 export const FLOATING_PLACEMENT_LIMIT = 128
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value))
 const extent = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0)
 
+// 没有保存位置的浮窗停在可用区的右下角、依次向上叠，一列放不下再向左错开一列（评审返修）：
+// 页头、全部代理第一屏的“需要你”、工作台页头与提示词卡片都在上方，右下角最少挡主要内容（规格 6.1）。
+// 原来沿用专注岛的“页头中线下方居中”，组件浮窗比岛大得多，默认就压在需要你的第一行上。
+const FLOATING_INSET = 8
+const FLOATING_GAP = 12
+
 export function defaultFloatingPlacement(
   bounds: FloatingSize,
   widget: FloatingSize,
-  anchor?: FloatingAnchor,
   stackIndex = 0,
 ): FloatingPlacement {
-  if (!anchor && stackIndex === 0) return DEFAULT_FLOATING_PLACEMENT
   const width = Math.max(0, extent(bounds.width) - extent(widget.width))
   const height = Math.max(0, extent(bounds.height) - extent(widget.height))
-  const center = anchor ? anchor.x + anchor.width / 2 : bounds.width / 2
-  let x = center - widget.width / 2
-  let y = anchor ? anchor.y + anchor.height / 2 - widget.height / 2 : 0
-  if (stackIndex > 0) {
-    const start = Math.max(0, anchor ? anchor.y + anchor.height + 12 : 76)
-    const stride = widget.height + 12
-    const fit = Math.max(0, Math.floor((height - start) / stride) + 1)
-    if (stackIndex <= fit) y = start + (stackIndex - 1) * stride
-    else {
-      // 空间不足时错开工具条，避免所有未定位组件完全重叠。
-      const overflow = stackIndex - fit
-      x += 24 * overflow
-      y = Math.max(0, height - (((overflow - 1) * 24) % Math.max(1, height)))
-    }
-  }
+  const usable = Math.max(0, height - 2 * FLOATING_INSET)
+  const stride = extent(widget.height) + FLOATING_GAP
+  const perColumn = stride ? Math.floor(usable / stride) + 1 : 1
+  const index = Math.max(0, Math.floor(stackIndex))
+  const column = Math.floor(index / perColumn)
+  const row = index % perColumn
+  const x = width - FLOATING_INSET - column * (extent(widget.width) + FLOATING_GAP)
+  const y = height - FLOATING_INSET - row * stride
   return {
-    x: width ? clamp(x / width) : 0.5,
-    y: height ? clamp(y / height) : 0,
+    x: width ? clamp(x / width) : 1,
+    y: height ? clamp(y / height) : 1,
   }
 }
 

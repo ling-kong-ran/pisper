@@ -10,8 +10,14 @@ import { useI18n } from '@/app/use-i18n'
 import { subscribeComponentChanges } from '@/features/board/component-changes'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { createComponentChangeSync } from './change-sync'
-import type { ComponentInstance, ComponentRow } from './custom-ui-api'
+import {
+  listComponentCatalog,
+  setComponentEnabled,
+  type ComponentInstance,
+  type ComponentRow,
+} from './custom-ui-api'
 import { componentCatalogQueryOptions, componentInstancesQueryOptions } from './queries'
+import { customUiQueryKeys } from './query-keys'
 import { sessionScopeMatches } from './session-scope'
 
 export type { ComponentCatalog, ComponentInstance, ComponentRow } from './custom-ui-api'
@@ -144,10 +150,29 @@ export const LazyComponentHost = lazy(() =>
 export const LazyFloatingComponents = lazy(() =>
   loadHosts().then((module) => ({ default: module.FloatingComponents })),
 )
-// 安全模式询问：上次加载组件时可能卡死（哨兵还在）才显示；有已启用实例时由应用壳渲染。
+// 安全模式询问：上次加载组件时可能卡死（哨兵还在）才显示；有已启用实例且偏好里有哨兵时由应用壳渲染。
+// 独立的动态入口（评审返修，计划 §4.3“询问放在轻量层、不加载 htm”）：不经过 hosts.ts，只带询问本身。
 export const LazySafeModePrompt = lazy(() =>
-  loadHosts().then((module) => ({ default: module.SafeModePrompt })),
+  Promise.all([import('./hosts/SafeModePrompt'), ensureCustomUiMessages()]).then(([module]) => ({
+    default: module.SafeModePrompt,
+  })),
 )
+export { hasSafeModeSentinel } from './safe-mode-sentinel'
+
+// 安全模式询问的“全部停用”：逐个停用已启用的原生组件（一个失败不影响其他），返回是否全部成功；
+// 之后作废组件缓存，各宿主按新状态重渲染。放在轻量层，询问组件本身不依赖请求与查询客户端。
+export function useDisableAllComponents(): () => Promise<boolean> {
+  const client = useQueryClient()
+  return async () => {
+    const catalog = await listComponentCatalog()
+    const enabled = catalog.components.filter((row) => row.kind === 'native' && row.enabled)
+    const results = await Promise.allSettled(
+      enabled.map((row) => setComponentEnabled(row.id, false)),
+    )
+    void client.invalidateQueries({ queryKey: customUiQueryKeys.all })
+    return results.every((result) => result.status === 'fulfilled')
+  }
+}
 // 全部代理的组件卡：右栏（≥1280）、页头“组件 N”弹层（1080–1279）、手机列表末尾；有总览实例时由全部代理页渲染。
 export const LazyOverviewComponents = lazy(() =>
   loadHosts().then((module) => ({ default: module.OverviewComponents })),

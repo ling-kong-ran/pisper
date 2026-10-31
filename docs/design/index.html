@@ -894,6 +894,68 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a7-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a7-built-h">方向 A · A7 已实现（原生组件核心闭环）</h2>
+      <p class="lede">描述 → 代理生成 → 预览 → 填属性 → 放置；四种放置平级：全部代理右栏、会话面板、功能 › 我的组件、浮窗。旧 iframe 机制与专注岛已删除。</p>
+    </div>
+    <h3>组件工作室</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/desktop-components-light.png" aria-label="放大：组件工作室设计稿"><img src="drafts/desktop-components-light.png" alt="组件工作室设计稿：左侧组件列表、中间预览、右侧属性与版本" loading="lazy"></button>
+        <figcaption><span class="chip draft">设计稿</span>组件工作室</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-studio-1440-light.png" aria-label="放大：实现：工作室 1440：进入时侧栏收成窄轨，284 组件库 | 工作台（提示词卡片、预览栏、1:1 预览框 320×248、状态栏）| 372 设置栏（属性表单、使用的能力、放置位置）"><img src="built/a7-studio-1440-light.png" alt="实现：工作室 1440：进入时侧栏收成窄轨，284 组件库 | 工作台（提示词卡片、预览栏、1:1 预览框 320×248、状态栏）| 372 设置栏（属性表单、使用的能力、放置位置）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>1440 三栏，预览与卡片 1:1</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-studio-1440-dark.png" aria-label="放大：实现：工作室（深色）"><img src="built/a7-studio-1440-dark.png" alt="实现：工作室（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>工作室（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-studio-1080-drawer-light.png" aria-label="放大：实现：1080：设置栏改为右侧抽屉，[放置到… ▾] 与 [查看源码] 在抽屉底部；关闭后焦点回到 [设置]"><img src="built/a7-studio-1080-drawer-light.png" alt="实现：1080：设置栏改为右侧抽屉，[放置到… ▾] 与 [查看源码] 在抽屉底部；关闭后焦点回到 [设置]" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>1080 设置抽屉</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-studio-bad-manifest-1440-light.png" aria-label="放大：实现：manifest 写了旧放置名 board-card：列表行与错误清单显示中文说明“没有“board-card”这个放置位置（可选 …）”，不再是原始错误码"><img src="built/a7-studio-bad-manifest-1440-light.png" alt="实现：manifest 写了旧放置名 board-card：列表行与错误清单显示中文说明“没有“board-card”这个放置位置（可选 …）”，不再是原始错误码" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>坏 manifest 的中文说明</figcaption></figure>
+    </div>
+    <h3>四种放置</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="drafts/redesign/claude-sidebar/desktop-overview-light.png" aria-label="放大：效果图：全部代理"><img src="drafts/redesign/claude-sidebar/desktop-overview-light.png" alt="效果图：全部代理" loading="lazy"></button>
+        <figcaption><span class="chip draft">效果图</span>全部代理</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-overview-1440-light.png" aria-label="放大：实现：全部代理 1440：右侧 320 组件栏“已放置的组件”，卡片头由宿主画（名称 · 组件 · ⋯），内容区 M 320×248 / S 320×120；崩溃组件原位隔离；浮窗默认停在右下角，不压需要你的第一行"><img src="built/a7-overview-1440-light.png" alt="实现：全部代理 1440：右侧 320 组件栏“已放置的组件”，卡片头由宿主画（名称 · 组件 · ⋯），内容区 M 320×248 / S 320×120；崩溃组件原位隔离；浮窗默认停在右下角，不压需要你的第一行" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>全部代理右栏（浮窗在右下角）</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-overview-1440-dark.png" aria-label="放大：实现：全部代理右栏（深色）"><img src="built/a7-overview-1440-dark.png" alt="实现：全部代理右栏（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>全部代理右栏（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-overview-1080-popover-light.png" aria-label="放大：实现：1080 × 680：组件收进页头“组件 3”弹层，卡片保持 36 + 内容区的高度，弹层内部滚动"><img src="built/a7-overview-1080-popover-light.png" alt="实现：1080 × 680：组件收进页头“组件 3”弹层，卡片保持 36 + 内容区的高度，弹层内部滚动" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>1080 “组件 N”弹层（可滚动）</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-session-panel-1440-light.png" aria-label="放大：实现：会话检查器：固定标签后是组件标签“CI 状态”与“+”，组件拿到检查器宽度"><img src="built/a7-session-panel-1440-light.png" alt="实现：会话检查器：固定标签后是组件标签“CI 状态”与“+”，组件拿到检查器宽度" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>会话面板组件标签</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-feature-page-1440-light.png" aria-label="放大：实现：功能 › 我的组件整页：面包屑“功能 / 我的组件”，工具条只有组件名与“管理组件”，不再叠第二个返回"><img src="built/a7-feature-page-1440-light.png" alt="实现：功能 › 我的组件整页：面包屑“功能 / 我的组件”，工具条只有组件名与“管理组件”，不再叠第二个返回" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>功能页整页</figcaption></figure>
+    </div>
+    <h3>手机（390）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a7-phone-list-light.png" aria-label="放大：实现：手机组件列表：一行一个组件，需处理的行有说明"><img src="built/a7-phone-list-light.png" alt="实现：手机组件列表：一行一个组件，需处理的行有说明" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>手机组件列表</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-phone-detail-light.png" aria-label="放大：实现：手机详情：身份行 → 用提示词生成或修改 → 预览 → 属性 → 放置"><img src="built/a7-phone-detail-light.png" alt="实现：手机详情：身份行 → 用提示词生成或修改 → 预览 → 属性 → 放置" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>手机详情</figcaption></figure>
+      <figure><button type="button" data-full="built/a7-phone-overview-end-light.png" aria-label="放大：实现：手机全部代理：组件卡排在列表末尾，全宽；浮窗在手机上不显示"><img src="built/a7-phone-overview-end-light.png" alt="实现：手机全部代理：组件卡排在列表末尾，全宽；浮窗在手机上不显示" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A7</span>手机全部代理末尾</figcaption></figure>
+    </div>
+    <h3>和效果图不一样，是规格定的</h3>
+    <ul class="notes">
+      <li class="change">组件不固定在全部代理：四种放置平级，新组件不自动放到任何位置；全部代理只有放了组件才出现右栏（规格 5.5、3.4）。</li>
+      <li class="change">“编辑中 / 已热重载”用中性灰；琥珀只表示需要你（规格 5.1、6.1）。崩溃行的失败圆点也是中性灰。</li>
+      <li class="change">旧 iframe 组件与专注岛整体删除，已安装的旧组件启动时原样移进回收站（负责人决定）。</li>
+    </ul>
+    <h3>效果图里有、要等后面几期的</h3>
+    <ul class="notes">
+      <li>A8：导入暂存与信任确认、版本列表与回滚、导出 ZIP、能力台账与撤销、回收站恢复。</li>
+      <li>提示词卡片结果行的“v3 已生成 · 写入 … · 18s”、改动文件芯片、“基于 vN”与模型芯片；预览区交叉淡入与热重载圆点脉冲（A8 / A9）。</li>
+    </ul>
+    <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li>没有保存位置的浮窗默认停在右下角、向上叠；组件工作室里浮窗层隐藏（实例仍挂着，离开工作室原样出现），工作室用自己的浮窗预览档位。</li>
+      <li>预览框描边不占布局，组件在工作室拿到的尺寸与全部代理卡片 1:1；手机预览是全宽，只标尺寸档。</li>
+      <li>安全模式哨兵在初始加载的 3 秒内正常刷新或关窗时同步清掉，不再误报“上次加载组件时页面可能卡死”；询问只在启动时有哨兵才懒加载。</li>
+      <li>[生成] 键位提示随平台：macOS “Cmd + Enter”，其余 “Ctrl + Enter”（与侧栏同一个格式化）。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="phase-h">
     <div class="sec-head">
       <h2 id="phase-h">进度</h2>
@@ -907,7 +969,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">A4</span><span class="what">手机与平板：顶栏 ☰ + 抽屉、全部代理卡片、会话菜单与芯片底部表单、设置列表 → 分区，删除手机标签栏、手机看板、代理条与 dockview</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片、全部代理行内点选与侧栏</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板（11 个功能页 + 设置六个分区）与浮层（⌘K、派发、引导、侧聊、会话树、配对），旧状态色与旧顶栏清理</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A7–A8</span><span class="what">组件工作室：核心闭环 → 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A7</span><span class="what">原生组件核心闭环：工作室三栏与手机列表 → 详情、四种放置宿主、代理生成与修复；删除旧 iframe 组件与专注岛</span><span class="chip built">已完成（本地）</span></div>
+      <div class="phase"><span class="n">A8</span><span class="what">组件信任与生命周期：导入暂存与信任确认、版本回滚、导出、回收站</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A9</span><span class="what">收尾：排队、导出、思考用时、目录变更事件</span><span class="chip">未开始</span></div>
     </div>
   </section>

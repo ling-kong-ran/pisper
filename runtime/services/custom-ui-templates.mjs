@@ -43,12 +43,12 @@ export default function UsageToday({ size, ctx }) {
   const muted = { color: 'var(--color-content-muted)', fontSize: 12 }
   const number = { fontSize: 24, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }
   if (size.compact) {
-    return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 2 }}>
+    return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: 2, padding: '10px 12px', boxSizing: 'border-box' }}>
       <div style=${'$'}{number}>${'$'}{today.length}</div>
       <div style=${'$'}{muted}>${'$'}{tokenText}</div>
     </div>${'`'}
   }
-  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', justifyContent: 'center' }}>
+  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', justifyContent: 'center', padding: '10px 12px', boxSizing: 'border-box' }}>
     <div style=${'$'}{{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
       <div><div style=${'$'}{number}>${'$'}{today.length}</div><div style=${'$'}{muted}>${'$'}{t('sessions')}</div></div>
       <div><div style=${'$'}{number}>${'$'}{tokenText}</div><div style=${'$'}{muted}>${'$'}{t('tokens')}</div></div>
@@ -98,7 +98,7 @@ export default function Notes({ placement, ctx }) {
   }
 
   const label = status === 'error' ? t('error') : status === 'saved' ? t('saved') : status === 'saving' ? t('saving') : ''
-  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
+  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%', padding: '10px 12px', boxSizing: 'border-box' }}>
     <${'$'}{ui.Textarea}
       value=${'$'}{text}
       onChange=${'$'}{onChange}
@@ -120,7 +120,7 @@ const NAME = ${JSON.stringify(name)}
 
 export default function Component({ ctx }) {
   const { html, t } = ctx
-  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center', height: '100%' }}>
+  return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center', height: '100%', padding: '10px 12px', boxSizing: 'border-box' }}>
     <strong style=${'$'}{{ fontWeight: 600 }}>${'$'}{NAME}</strong>
     <span style=${'$'}{{ color: 'var(--color-content-muted)', fontSize: 12 }}>${'$'}{t('hint')}</span>
   </div>${'`'}

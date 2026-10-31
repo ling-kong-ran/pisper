@@ -15,7 +15,6 @@ import {
   floatingPlacementKey,
   floatingPositionPixels,
   moveFloatingPlacement,
-  type FloatingAnchor,
   type FloatingPlacement,
   type FloatingSize,
 } from '@/features/custom-ui/floating-placement'
@@ -52,14 +51,12 @@ function floatingSize(placed: PlacedComponent) {
 function FloatingComponent({
   placed,
   boundaryRef,
-  anchorRef,
   notify,
   onClose,
   stackIndex,
 }: {
   placed: PlacedComponent
   boundaryRef: RefObject<HTMLDivElement | null>
-  anchorRef?: RefObject<HTMLElement | null>
   notify: (message: string) => void
   onClose: (instanceId: string) => void
   stackIndex: number
@@ -74,13 +71,11 @@ function FloatingComponent({
   const elementRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const [draft, setDraft] = useState<FloatingPlacement | null>(null)
-  const [sizes, setSizes] = useState<{
-    bounds: FloatingSize
-    widget: FloatingSize
-    anchor?: FloatingAnchor
-  }>({ bounds: EMPTY_SIZE, widget: EMPTY_SIZE })
-  const position =
-    saved ?? defaultFloatingPlacement(sizes.bounds, sizes.widget, sizes.anchor, stackIndex + 1)
+  const [sizes, setSizes] = useState<{ bounds: FloatingSize; widget: FloatingSize }>({
+    bounds: EMPTY_SIZE,
+    widget: EMPTY_SIZE,
+  })
+  const position = saved ?? defaultFloatingPlacement(sizes.bounds, sizes.widget, stackIndex)
   const helpId = useId()
   const size = floatingSize(placed)
   const label = instance.title || component.manifest?.name || component.name
@@ -89,43 +84,21 @@ function FloatingComponent({
     const boundary = boundaryRef.current
     const element = elementRef.current
     if (!boundary || !element) return
-    let observedAnchor: HTMLElement | null = null
-    const observer = new ResizeObserver(() => measure())
     const measure = () => {
-      const anchor = anchorRef?.current
-      if (anchor !== observedAnchor) {
-        if (observedAnchor) observer.unobserve(observedAnchor)
-        observedAnchor = anchor ?? null
-        if (anchor) observer.observe(anchor)
-      }
-      const boundaryRect = boundary.getBoundingClientRect()
-      const anchorRect = anchor?.getBoundingClientRect()
       const next = {
         bounds: { width: boundary.clientWidth, height: boundary.clientHeight },
         widget: { width: element.offsetWidth, height: element.offsetHeight },
-        anchor:
-          anchorRect && anchorRect.width > 0 && anchorRect.height > 0
-            ? {
-                x: anchorRect.left - boundaryRect.left,
-                y: anchorRect.top - boundaryRect.top,
-                width: anchorRect.width,
-                height: anchorRect.height,
-              }
-            : undefined,
       }
       setSizes((current) =>
         current.bounds.width === next.bounds.width &&
         current.bounds.height === next.bounds.height &&
         current.widget.width === next.widget.width &&
-        current.widget.height === next.widget.height &&
-        current.anchor?.x === next.anchor?.x &&
-        current.anchor?.y === next.anchor?.y &&
-        current.anchor?.width === next.anchor?.width &&
-        current.anchor?.height === next.anchor?.height
+        current.widget.height === next.widget.height
           ? current
           : next,
       )
     }
+    const observer = new ResizeObserver(() => measure())
     measure()
     observer.observe(boundary)
     observer.observe(element)
@@ -134,7 +107,7 @@ function FloatingComponent({
       observer.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [boundaryRef, anchorRef])
+  }, [boundaryRef])
 
   useEffect(() => {
     setDraft(null)
@@ -283,11 +256,12 @@ function FloatingComponent({
 export function FloatingComponents({
   placed,
   notify,
-  anchorRef,
+  hidden = false,
 }: {
   placed: readonly PlacedComponent[]
   notify: (message: string) => void
-  anchorRef?: RefObject<HTMLElement | null>
+  // 组件工作室里隐藏整层：实例保持挂载（状态、计时器不丢），离开工作室时原样出现。
+  hidden?: boolean
 }) {
   const { t } = useI18n()
   const client = useQueryClient()
@@ -308,6 +282,7 @@ export function FloatingComponents({
     <div
       ref={boundaryRef}
       className="pointer-events-none fixed inset-x-2 top-12 bottom-2 z-40 overflow-hidden"
+      hidden={hidden}
       data-floating-custom-ui
     >
       {placed.map((entry, index) => (
@@ -315,7 +290,6 @@ export function FloatingComponents({
           key={entry.instance.instanceId}
           placed={entry}
           boundaryRef={boundaryRef}
-          anchorRef={anchorRef}
           notify={notify}
           onClose={close}
           stackIndex={index}

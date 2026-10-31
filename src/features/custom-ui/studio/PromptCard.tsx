@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { useBoardSessions } from '@/features/board/public'
 import type { ComponentRow } from '@/features/custom-ui/custom-ui-api'
@@ -150,7 +151,10 @@ export function PromptCard({
         >
           {pending && <Spinner />}
           {pending ? t('custom-ui:agent.sending') : t('custom-ui:agent.generate')}
-          {!pending && <Kbd className="bg-transparent text-current">⌘↵</Kbd>}
+          {/* 与侧栏、快捷键设置同一个格式化：macOS 显示 Cmd，其余平台显示 Ctrl。 */}
+          {!pending && (
+            <Kbd className="bg-transparent text-current">{formatShortcut('Mod+Enter')}</Kbd>
+          )}
         </Button>
       </div>
     </form>

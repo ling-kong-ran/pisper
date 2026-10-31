@@ -37,10 +37,8 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
       t('navigation:navigation.workflows'),
       t('navigation:navigation.workflowsDescription'),
     ],
-    customComponentTool: [
-      t('navigation:navigation.components'),
-      t('navigation:navigation.componentsDescription'),
-    ],
+    // 功能 › 我的组件的整页：面包屑写所属分组，组件名在页内工具条上；不借用工作室的说明文字。
+    customComponentTool: [t('navigation:more.groupComponents'), ''],
     workflowCreate: getWorkflowEditorMeta(t, false),
   }
 }

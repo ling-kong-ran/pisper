@@ -96,6 +96,12 @@ test('存储配额：按整个文件字节数计算，超出 413 且不落盘；
   const raw = await readFile(join(dataDir, 'custom-ui-data', 'notes.json'), 'utf8')
   assert.doesNotMatch(raw, /\\ud800/i)
   assert.equal((await service.storageGet('notes', 'a')).value, 'bad � surrogate')
+  // "__proto__" 是普通键：原样存下、读回，不改原型也不悄悄丢值（评审返修）。
+  await service.storageSet('notes', 'a', JSON.parse('{"value":{"__proto__":{"x":1},"y":2}}'))
+  const stored = (await service.storageGet('notes', 'a')).value
+  assert.equal(JSON.stringify(stored), '{"__proto__":{"x":1},"y":2}')
+  assert.equal(Object.getPrototypeOf(stored), Object.prototype)
+  assert.equal({}.x, undefined)
 })
 
 test('存储并发写按组件串行：同一毫秒的多次写入都不丢', async (t) => {

@@ -360,7 +360,8 @@ function staticClosure(...starts) {
 }
 
 test('native component SDK and hosts stay behind lazy boundaries (A7 S3)', () => {
-  // 原生组件（规格 5.6、计划 §4.6）：htm、native/*、studio/*、hosts/* 只能从 hosts.ts / public.ts 的动态边界进入。
+  // 原生组件（规格 5.6、计划 §4.6）：htm、native/*、studio/*、hosts/* 只能从 hosts.ts / public.ts 的动态边界进入
+  // （安全模式询问 hosts/SafeModePrompt.tsx 是 placements 的另一个动态入口，闭包见下）。
   // 入口闭包（main.tsx 与无条件加载的 mount-app.tsx）不得静态到达任何 custom-ui 文件或 htm。
   const entry = staticClosure('src/main.tsx', 'src/mount-app.tsx')
   assert.ok(entry.has(resolve(root, 'src/App.tsx')), 'entry closure must include the app shell')
@@ -407,6 +408,27 @@ test('native component SDK and hosts stay behind lazy boundaries (A7 S3)', () =>
         (entry) => entry.dynamic && entry.path === resolve(root, 'src/features/custom-ui/hosts.ts'),
       ),
   )
+  // 安全模式询问是 placements 的独立动态入口（评审返修，计划 §4.3）：每次有已启用实例的启动都可能加载它，
+  // 它的静态闭包不得到达 hosts.ts、宿主核心（host-runtime / ComponentHost）、studio/ 或 htm。
+  assert.ok(
+    graph
+      .get(resolve(root, 'src/features/custom-ui/placements.ts'))
+      .some(
+        (entry) =>
+          entry.dynamic &&
+          entry.path === resolve(root, 'src/features/custom-ui/hosts/SafeModePrompt.tsx'),
+      ),
+  )
+  for (const path of staticClosure('src/features/custom-ui/hosts/SafeModePrompt.tsx')) {
+    assert.doesNotMatch(
+      name(path),
+      /^src\/features\/custom-ui\/(?:hosts\.ts|native\/(?:html|host-runtime|ComponentHost|sdk|module-loader)\.tsx?|studio\/)/,
+      `SafeModePrompt.tsx loads ${name(path)}`,
+    )
+    for (const entryImport of packageImports.get(path) || [])
+      if (!entryImport.dynamic)
+        assert.notEqual(entryImport.specifier, 'htm', `${name(path)} pulls htm into the prompt`)
+  }
   // htm 只出现在 native/html.ts 一处。
   for (const [path, imports] of packageImports)
     if (imports.some((entry) => entry.specifier === 'htm'))

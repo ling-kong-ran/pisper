@@ -191,7 +191,7 @@ function OverviewCard({
       data-overview-component={instance.instanceId}
       data-overview-component-id={component.id}
       data-overview-component-size={size}
-      className="overflow-hidden rounded-[var(--r-lg)] bg-panel ring-1 ring-stroke"
+      className="flex-none overflow-hidden rounded-[var(--r-lg)] bg-panel ring-1 ring-stroke"
     >
       <header className="flex h-9 items-center gap-2 border-b border-stroke-soft pr-1 pl-3 pointer-coarse:h-12">
         <h3 className="min-w-0 flex-1 truncate text-[13px] leading-5 font-medium text-content">
@@ -202,7 +202,8 @@ function OverviewCard({
         </span>
         <CardMenu placed={placed} label={label} instances={instances} notify={notify} />
       </header>
-      {/* 内容区固定高度（S 120 / M 248），宽度随栏宽（桌面正好 320）；组件只负责这一块，溢出裁掉。 */}
+      {/* 内容区固定高度（S 120 / M 248），宽度随栏宽（桌面正好 320）；组件只负责这一块，溢出裁掉。
+          卡片本身 flex-none：弹层是限高的 flex 列，允许收缩时外框会被压扁、裁掉内容区下半截而不滚动。 */}
       <div
         data-overview-component-body
         className="overflow-hidden"
@@ -237,7 +238,7 @@ function PlaceLink({ className }: { className?: string }) {
       data-overview-component-place
       onClick={() => navigate(PAGE_PATHS.components)}
       className={cn(
-        'flex h-9 w-full items-center justify-center gap-1.5 rounded-[var(--r-lg)] border border-dashed border-stroke-strong text-[12.5px] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11',
+        'flex h-9 w-full flex-none items-center justify-center gap-1.5 rounded-[var(--r-lg)] border border-dashed border-stroke-strong text-[12.5px] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11',
         className,
       )}
     >

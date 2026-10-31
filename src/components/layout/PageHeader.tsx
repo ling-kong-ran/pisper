@@ -5,7 +5,6 @@
 // 主题切换不在页头（规格 v2 第 2.5 节）：设置 › 界面与 ⌘K“切换主题”。
 // 从“功能”进入时面包屑上一级是可点的“‹ 功能”；手机是标题左侧 44px 的文字返回键（iOS 没有返回键）。
 // 没有应用标题栏了：Windows 自绘标题栏时页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
-import type { RefObject } from 'react'
 import { ChevronLeft, TerminalSquare } from 'lucide-react'
 import { MORE_PAGES } from '@/app/more-pages'
 import { useI18n } from '@/app/use-i18n'
@@ -15,7 +14,6 @@ import { useShortcutLabel } from '@/lib/shortcuts'
 import { Button } from '@/components/ui/button'
 
 type PageHeaderProps = {
-  elementRef?: RefObject<HTMLElement | null>
   meta: readonly [string, string]
   page: string
   desktopPlatform: string
@@ -28,7 +26,6 @@ type PageHeaderProps = {
 }
 
 export function PageHeader({
-  elementRef,
   meta,
   page,
   desktopPlatform,
@@ -45,7 +42,6 @@ export function PageHeader({
 
   return (
     <header
-      ref={elementRef}
       data-focus-region="header"
       data-window-drag-region
       className={cn(

@@ -3,9 +3,10 @@
 // （没有 DialogTrigger，例如 ⌘K、派发、配对）时焦点会落到 body，键盘与读屏用户丢失位置。
 // 打开时（布局阶段，早于对话框把焦点移进内容）记下当时的焦点；关闭时只在焦点无处可去（body）时归还——
 // 执行的命令若已把焦点交给新页面（例如打开会话后的输入框），不抢回来。
-import { useCallback, useLayoutEffect, useRef } from 'react'
+// 从下拉菜单项打开时，记下的是随菜单卸载的菜单项：传 fallback（通常是菜单的触发按钮）兜底。
+import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react'
 
-export function useOverlayFocusReturn(open: boolean) {
+export function useOverlayFocusReturn(open: boolean, fallback?: RefObject<HTMLElement | null>) {
   const opener = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     if (!open) return
@@ -13,13 +14,17 @@ export function useOverlayFocusReturn(open: boolean) {
     opener.current = active instanceof HTMLElement && active !== document.body ? active : null
   }, [open])
   // 交给 DialogContent / SheetContent 的 onCloseAutoFocus。
-  return useCallback((event: Event) => {
-    const target = opener.current
-    opener.current = null
-    const active = document.activeElement
-    if (active && active !== document.body) return
-    if (!target?.isConnected) return
-    event.preventDefault()
-    target.focus({ preventScroll: true })
-  }, [])
+  return useCallback(
+    (event: Event) => {
+      const recorded = opener.current
+      opener.current = null
+      const active = document.activeElement
+      if (active && active !== document.body) return
+      const target = recorded?.isConnected ? recorded : fallback?.current
+      if (!target?.isConnected) return
+      event.preventDefault()
+      target.focus({ preventScroll: true })
+    },
+    [fallback],
+  )
 }

@@ -435,7 +435,6 @@ export class ComponentFetchProxy {
     let body = parsed.body
     const headers = { ...parsed.headers }
     let redirected = false
-    this.record(componentId, url.hostname)
     try {
       for (let hop = 0; ; hop += 1) {
         const addresses = await raceAbort(this.resolve(url.hostname))
@@ -467,6 +466,9 @@ export class ComponentFetchProxy {
           redirected = true
           continue
         }
+        // 统计口径：拿到上游最终响应（任何状态码）的请求才计入，记最终主机（评审返修）。
+        // 被地址阻断、解析失败、超时或重定向超限的请求没有连到这台主机，不能在状态栏显示成“用过的主机”。
+        this.record(componentId, url.hostname)
         const bytes =
           method === 'HEAD' ? Buffer.alloc(0) : await this.readBody(response, controller.signal)
         const contentType = String(response.headers['content-type'] || '')

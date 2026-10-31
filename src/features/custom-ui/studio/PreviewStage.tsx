@@ -129,10 +129,11 @@ export function PreviewStage({
           </span>
         )}
       </p>
+      {/* 描边用 ring（不占布局），组件拿到的内容区正好是标注的尺寸，与全部代理卡片 1:1（规格 5.1）。 */}
       <div
         data-component-preview-frame
         className={cn(
-          'flex min-w-0 flex-col overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-panel shadow-edge',
+          'flex min-w-0 flex-col overflow-hidden rounded-[var(--r-lg)] bg-panel shadow-edge ring-1 ring-stroke',
           fill ? 'min-h-[320px] flex-1' : 'flex-none',
         )}
         style={{

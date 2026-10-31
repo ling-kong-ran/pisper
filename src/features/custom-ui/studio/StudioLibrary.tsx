@@ -144,8 +144,9 @@ function CrashStrip({
   )
   const message = latest?.message ?? ''
   return (
+    // 礼貌的 status 而不是 alert：几行同时崩溃时不会一起抢断朗读。
     <div
-      role="alert"
+      role="status"
       data-component-crash={componentId}
       className="mx-1 mt-1 mb-1.5 flex flex-col gap-1.5 rounded-[var(--r-md)] border border-stroke bg-surface-subtle px-2.5 py-2"
     >

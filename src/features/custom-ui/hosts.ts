@@ -3,7 +3,6 @@
 export { ComponentHost } from './native/ComponentHost'
 export type { ComponentHostInstance, ComponentHostProps } from './native/ComponentHost'
 export { FloatingComponents } from './hosts/FloatingComponents'
-export { SafeModePrompt } from './hosts/SafeModePrompt'
 export { OverviewComponents } from './hosts/OverviewComponents'
 export type { OverviewComponentsLayout, OverviewComponentsProps } from './hosts/OverviewComponents'
 export { SessionPanelComponent } from './hosts/SessionPanelComponent'
