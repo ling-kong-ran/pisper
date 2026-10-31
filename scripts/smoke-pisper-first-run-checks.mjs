@@ -271,10 +271,10 @@ export async function verifyFirstRunSetup({
       await connections.getByRole('navigation', { name: '连接', exact: true }).count(),
       0,
     )
+    // “快速设置”在设置页自己的工具行（A6）；开发模式下页面懒加载，等它就绪后再检查入口数量。
     const quickSetup = page
-      .locator('main > header')
-      .getByRole('button', { name: '快速设置', exact: true })
-    // 开发模式下页面和应用标题栏分开懒加载，等标题栏就绪后再检查入口数量。
+      .locator('main [data-settings-quick-setup]')
+      .and(page.getByRole('button', { name: '快速设置', exact: true }))
     await quickSetup.waitFor()
     assert.equal(await page.getByRole('button', { name: '快速设置', exact: true }).count(), 1)
     assert.equal(await quickSetup.count(), 1)

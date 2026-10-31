@@ -1,13 +1,13 @@
 // 只注入父组件生命周期输入与 HTTP 数据；被验收的资源和模板均为生产组件。
 import { createRoot } from 'react-dom/client'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { LanguageProvider } from '@/app/i18n-provider'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/startup-queries'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { BackNavigation } from '@/components/layout/BackNavigation'
-import { ListDetailLayout } from '@/components/app/ListDetailLayout'
+import { FeatureList, FeatureRow } from '@/components/app/FeaturePage'
 import { SessionFilesPane } from '@/features/chat/SessionFilesPane'
 import { createContextPages } from '@/features/chat/session-context-pages'
 import { SkillsPage } from '@/features/skills/SkillsPage'
@@ -74,7 +74,6 @@ function WelcomeFixture() {
 // 规格 v2 的应用侧栏（取代旧的 AppSidebar + WorkbenchHeader 与它的手机抽屉）：真实外壳组件 + 共享页头，
 // 分组区与窄轨计数换成固定占位，只验收起 / 展开的键盘焦点与结构。
 function NavigationFixture() {
-  const searchInputRef = useRef<HTMLInputElement>(null)
   return (
     <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       <ShellSidebar
@@ -89,15 +88,10 @@ function NavigationFixture() {
       />
       <main style={{ flex: 1, minWidth: 0 }}>
         <input aria-label="Workspace draft" />
+        {/* 共享页头（A6 起只剩组件页在用）：会话页从不挂它，页面说明为空时不渲染说明。 */}
         <PageHeader
-          meta={['Fixture conversation', 'Fixture description']}
-          page="chat"
-          query=""
-          setQuery={() => {}}
-          configSection="models"
-          onMenu={() => {}}
-          onPrimary={() => {}}
-          searchInputRef={searchInputRef}
+          meta={['Fixture page', '']}
+          page="components"
           desktopPlatform=""
           terminalOpen={false}
           onToggleTerminal={() => {}}
@@ -139,7 +133,7 @@ function AppearanceFixture({ startFromModels = false }: { startFromModels?: bool
 function ReviewFixture() {
   const mode = new URL(location.href).searchParams.get('mode')
   const [streaming, setStreaming] = useState(false)
-  const [selected, setSelected] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [view, setView] = useState(createContextPages('files').pages[0].view)
   return (
     <QueryClientProvider client={queryClient}>
@@ -167,23 +161,20 @@ function ReviewFixture() {
               />
             </>
           ) : mode === 'skills' ? (
-            <SkillsPage
-              notify={() => {}}
-              query="only-package"
-              registerPrimaryAction={() => () => {}}
-            />
+            // 技能页自持搜索框（A6 第 1 批起不再接收壳层的 query / 主操作注册）。
+            <SkillsPage notify={() => {}} />
           ) : (
-            <ListDetailLayout
-              selected={selected}
-              onBack={() => setSelected(false)}
-              backLabel="Back to list"
-              list={
-                <Button id="fixture-row" onClick={() => setSelected(true)}>
-                  Open row
-                </Button>
-              }
-              detail={<input aria-label="Detail field" />}
-            />
+            // 列表 / 详情两栏（ListDetailLayout）随 A6 退役：功能页的“详情”是行内展开（FeatureRow）。
+            <FeatureList>
+              <FeatureRow
+                name="Open row"
+                description="Fixture row"
+                expanded={expanded}
+                onExpandedChange={setExpanded}
+                toggleLabel="Open row"
+                detail={<input aria-label="Detail field" />}
+              />
+            </FeatureList>
           )}
         </div>
       </TooltipProvider>

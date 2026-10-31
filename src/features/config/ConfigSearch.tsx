@@ -1,4 +1,4 @@
-// 设置搜索框：位于设置页 PageHeader 区域（shadcn Input + Search 图标，Esc 清空）。
+// 设置搜索框：桌面在设置侧栏、手机外壳在“‹ 设置”下面（shadcn Input + Search 图标，Esc 清空）；手机 44 高、16px 字（iOS 不放大）。
 // 输入时按跨语言索引搜索设置分区与卡片，结果以下拉列表展示；
 // 点击结果跳转到对应分区并高亮目标卡片（见 config-search.ts）。
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
@@ -98,6 +98,7 @@ export function ConfigSearchBox({
         aria-label={t('navigation:pageHeader.search')}
         className={cn(
           'h-8.5 pl-8 text-sm pointer-coarse:min-h-11',
+          placement !== 'sidebar' && 'max-[650px]:h-11 max-[650px]:text-[16px]',
           // 侧栏搜索是一枚平键：键帽面 + 键帽描边，右侧留出快捷键小键帽的位置。
           // 分区导航较窄：占位文字放不下时以省略号收尾，不在词中间硬裁。
           placement === 'sidebar' && 'h-8 border-key-border bg-key pr-9 text-ellipsis shadow-key',

@@ -89,7 +89,7 @@ export function ProviderDiscovery({
             : t('config:configPage.unableToReadTheConfigurationFile')
 
   return (
-    <SettingsCard className="mb-3 p-4 py-3.5">
+    <SettingsCard className="mb-3 py-3.5">
       <div className="flex items-center gap-2.5 max-[650px]:flex-wrap">
         <button
           type="button"

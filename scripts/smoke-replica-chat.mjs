@@ -66,6 +66,9 @@ try {
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__chat`)
   const input = page.locator('.focus-composer textarea')
   await input.waitFor({ timeout: 45000 })
+  // A6：夹具不再有非路由的旧顶栏，会话一律带会话页的真实页头（标题 ▾ 菜单），旧的 48px 顶栏不再出现。
+  await page.locator('[data-session-header]').waitFor()
+  assert.equal(await page.locator('.workbench-chat-header').count(), 0)
   await page.locator('[data-pisper-message-id="agent"] h1').waitFor()
   const metrics = await page.locator('.focus-composer').evaluate((element) => {
     const input = element.querySelector('textarea')

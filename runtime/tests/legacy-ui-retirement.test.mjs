@@ -28,12 +28,12 @@ test('business UI no longer depends on the legacy primitive barrel', async () =>
 })
 
 test('app primitives compose shadcn controls and share project Tailwind tokens', async () => {
-  const [primitives, settings, styles, schedules, listDetail] = await Promise.all([
+  const [primitives, settings, styles, schedules, featurePage] = await Promise.all([
     readFile('src/components/ui/app-primitives.tsx', 'utf8'),
     readFile('src/features/config/settings-primitives.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
     readFile('src/features/schedules/SchedulesPage.tsx', 'utf8'),
-    readFile('src/components/app/ListDetailLayout.tsx', 'utf8'),
+    readFile('src/components/app/FeaturePage.tsx', 'utf8'),
   ])
 
   for (const primitive of ['badge', 'card', 'switch', 'tabs']) {
@@ -44,13 +44,16 @@ test('app primitives compose shadcn controls and share project Tailwind tokens',
   assert.match(styles, /--card: var\(--panel\)/)
   assert.match(styles, /--ring: var\(--focus\)/)
   assert.match(styles, /--shadow-surface: var\(--sh-surface\)/)
-  // 定时任务改用功能页模板（A6 第 3 批）：任务是可展开的列表行，不再叠列表 / 详情两栏；
-  // ListDetailLayout 原语本身的单栏 / 双栏切换仍受下面的断言保护（页内展开没有第二个滚动区）。
+  // 定时任务改用功能页模板（A6 第 3 批）：任务是可展开的列表行，不再叠列表 / 详情两栏。
+  // ListDetailLayout 原语在 A6 末已没有调用方并删除；取代它“单栏 / 双栏切换不横向溢出”的保护：
+  // 功能页模板只有一个纵向滚动区（禁止横向滚动），展开的详情是行下方的 region、受名称按钮 aria-controls 控制。
   assert.match(schedules, /<FeaturePage\b/)
   assert.match(schedules, /<FeatureRow\b[\s\S]*?onExpandedChange=/)
   assert.doesNotMatch(schedules, /<ListDetailLayout\b/)
-  assert.match(listDetail, /grid-cols-1 @min-\[760px\]\/list-detail:grid-cols-/)
-  assert.match(listDetail, /min-w-0 overflow-hidden/)
+  await assert.rejects(readFile('src/components/app/ListDetailLayout.tsx', 'utf8'))
+  assert.match(featurePage, /data-feature-scroller[\s\S]*?overflow-x-hidden overflow-y-auto/)
+  assert.match(featurePage, /aria-controls=\{expanded \? detailId : undefined\}/)
+  assert.match(featurePage, /id=\{detailId\}\s+role="region"/)
   assert.doesNotMatch(schedules, /!grid-cols-\[310px_minmax\(0,1fr\)\]/)
   assert.doesNotMatch(schedules, /minmax\(420px,1fr\)/)
   assert.doesNotMatch(styles, /\.panel(?:\W|$)/)
@@ -83,11 +86,15 @@ test('modal surfaces stay scrollable within low-height viewports', async () => {
     dialog,
     /function DialogBody[\s\S]*?min-h-0 flex-1 overflow-y-auto overscroll-contain/,
   )
+  // 命令面板（AppOverlays 里只剩它；页头的“快速创建”假表单已删）：结果列表按可视高度封顶并独立滚动，
+  // 矮窗口里弹层顶部不低于 16px（取代原快速创建对话框的 100dvh 上限断言）。
+  assert.doesNotMatch(overlays, /export function QuickCreate\b/)
+  assert.match(overlays, /role="listbox"/)
   assert.match(
     overlays,
-    /className="modal[^"\n]*max-h-\[calc\(100dvh_-_40px\)\][^"\n]*overflow-y-auto/,
+    /max-h-\[min\(440px,max\(120px,calc\(90dvh-104px\)\)\)\] overflow-y-auto overscroll-contain/,
   )
-  assert.match(overlays, /max-\[650px\]:max-h-\[calc\(100dvh_-_16px\)\]/)
+  assert.match(overlays, /top-\[max\(16px,/)
   assert.doesNotMatch(styles, /\.directory-browser/)
   assert.match(dialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)
   assert.match(alertDialog, /max-h-\[calc\(100dvh-2rem\)\].*overflow-y-auto.*overscroll-contain/)

@@ -239,7 +239,9 @@ test('mobile chat sends with Enter and keeps the fixed composer toolbar on touch
   // 工具行固定（[+] 盾牌 模型 发送），不再按宽度把工具挪进收纳区；手机上同样是 44px 触控目标。
   assert.doesNotMatch(focusSession, /toolbarAllocation|ComposerToolTray|useComposerToolbarCapacity/)
   assert.match(focusSession, /onLongPress=\{phonePage && streaming \? submitSteer : undefined\}/)
-  assert.match(pageHeader, /page === 'chat'[\s\S]*?!min-h-12[\s\S]*?max-\[650px\]:!flex-nowrap/)
+  // 会话页从不渲染共享页头（A6 起共享页头只剩组件页）：原先页头里 page === 'chat' 的手机单行写法随之删除，
+  // 保护改为“共享页头不挂在会话 / 聊天页上、页头源码里也没有聊天专属分支”。
+  assert.doesNotMatch(pageHeader, /page === 'chat'/)
   assert.doesNotMatch(zh['composer.placeholderRunningTouch'], /Shift|Enter|Alt|⌥/)
   assert.doesNotMatch(en['composer.placeholderRunningTouch'], /Shift|Enter|Alt|⌥/)
 })

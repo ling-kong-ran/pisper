@@ -17,13 +17,21 @@ const FEATURE_TEMPLATE_ROUTES = new Set([
   '/config/remote-access',
   '/config/desktop-pet',
 ])
+// A6 第 4 批：设置分区用同一个模板（没有“‹ 功能”，页标题是短名）。设置内容本身的控件不在这条检查里量 44，
+// 手机上只量页头与工具行（“快速设置”）；设置搜索在“‹ 设置”下面，由 smoke-mobile-shell 量。
+const SETTINGS_TEMPLATE_ROUTES = new Map([
+  ['/config/models', '模型'],
+  ['/config/interface', '界面'],
+])
 
-async function verifyFeatureTemplate(page, route, width) {
+async function verifyFeatureTemplate(page, route, width, { settings = '' } = {}) {
   const template = page.locator('.page-content > [data-page-template="feature"]')
   await template.waitFor()
   // 等数据读完：分区出现，或读完后只有空状态（历史会话没有会话时没有分区）。
   await template
-    .locator('[data-feature-section], [data-feature-column] > [aria-busy="false"]')
+    .locator(
+      '[data-feature-section], [data-feature-column] > [aria-busy="false"], [data-config-card="section"]',
+    )
     .first()
     .waitFor({ timeout: 30000 })
   const facts = await template.evaluate((root) => {
@@ -36,7 +44,11 @@ async function verifyFeatureTemplate(page, route, width) {
     const style = getComputedStyle(heading)
     // 开关的可视轨道是 34×20，热区由 ::after 扩到 58×44（基础组件约定），按热区计。
     const targets = [
-      ...root.querySelectorAll('button, input, a[href], [role="switch"], [role="tab"]'),
+      ...root.querySelectorAll(
+        root.hasAttribute('data-settings-page')
+          ? 'header button, [data-feature-toolbar] button, [data-feature-toolbar] input'
+          : 'button, input, a[href], [role="switch"], [role="tab"]',
+      ),
     ]
       .filter((node) => node.getClientRects().length > 0)
       .map((node) => {
@@ -77,8 +89,14 @@ async function verifyFeatureTemplate(page, route, width) {
     facts.column - facts.columnPadding <= 760.5,
     `${width}px ${route} content column ${facts.column - facts.columnPadding}px`,
   )
-  assert.equal(facts.backText, '功能', `${route} back text`)
-  assert.equal(facts.backLabel, '返回功能', `${route} back label`)
+  if (settings) {
+    // 设置分区：没有“‹ 功能”（返回在设置侧栏 / 手机“‹ 设置”），h1 是目录里的短名。
+    assert.equal(facts.backText, undefined, `${route} settings have no ‹ 功能`)
+    assert.equal(facts.heading, settings, `${route} settings title is the short name`)
+  } else {
+    assert.equal(facts.backText, '功能', `${route} back text`)
+    assert.equal(facts.backLabel, '返回功能', `${route} back label`)
+  }
   const phone = await page.evaluate(
     () =>
       document.documentElement.hasAttribute('data-phone-shell') ||
@@ -91,7 +109,8 @@ async function verifyFeatureTemplate(page, route, width) {
       `${width}px ${route} h1 is only for screen readers on the phone`,
     )
     assert.equal(facts.drag, 0, `${route} phone has no drag bar`)
-    assert.ok(facts.backHeight >= 44, `${width}px ${route} ‹ 功能 ${facts.backHeight}px`)
+    if (!settings)
+      assert.ok(facts.backHeight >= 44, `${width}px ${route} ‹ 功能 ${facts.backHeight}px`)
     const small = facts.targets.filter((target) => target.height < 44)
     assert.deepEqual(small, [], `${width}px ${route} touch targets under 44px`)
   } else {
@@ -167,6 +186,10 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
           `${route} app host must not own a second page scroll`,
         )
         if (FEATURE_TEMPLATE_ROUTES.has(route)) await verifyFeatureTemplate(page, route, width)
+        if (SETTINGS_TEMPLATE_ROUTES.has(route))
+          await verifyFeatureTemplate(page, route, width, {
+            settings: SETTINGS_TEMPLATE_ROUTES.get(route),
+          })
         if (route === '/schedules') {
           // 定时任务改用功能页模板（A6 第 3 批）：任务是可展开的行，名称按钮带 aria-expanded / aria-controls，
           // 详情（编辑表单与最近执行）在行下方原位展开、以任务名命名的区域；再按一次收起。不再有列表 / 详情两栏。
@@ -235,7 +258,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
     await page.getByRole('option', { name: 'Simplified Chinese', exact: true }).click()
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto(base + '/#/config/notifications')
-    await page.locator('[data-page-template="settings"]').waitFor()
+    await page.locator('[data-settings-page="notifications"]').waitFor()
     // 配置读取失败必须保留可重试错误，不显示为成功或空配置。
     // 刷新时应用壳的启动查询与设置页各读一次通知配置，每次注入的失败都记为预期。
     await page.route('**/api/settings/notifications', (route) => {
@@ -255,7 +278,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       .filter({ hasText: 'Template fixture load failure' })
       .waitFor({ state: 'hidden' })
     report.checks.push(
-      'Four page templates plus the A6 feature-page template (plugins / skills / MCP / chat history / assets / memory / workflows / schedules / channels / remote access / desktop pet: ‹ 功能 above the h1, ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, schedule rows expand in place (aria-expanded / region) without overflow, embedded catalog, and settings error/retry',
+      'Four page templates plus the A6 feature-page template (plugins / skills / MCP / chat history / assets / memory / workflows / schedules / channels / remote access / desktop pet: ‹ 功能 above the h1; settings models / interface: short-name h1, no ‹ 功能; ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, schedule rows expand in place (aria-expanded / region) without overflow, embedded catalog, and settings error/retry',
     )
   } finally {
     await page.unroute('**/api/settings/notifications')

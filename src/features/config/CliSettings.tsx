@@ -79,7 +79,7 @@ export function CliSettings({ notify }: { notify: Notify }) {
             : t('config:cliSettings.notInstalled')
 
   return (
-    <Panel className="p-4 py-4" data-config-card="updates-cli">
+    <Panel className="py-4" data-config-card="updates-cli">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
         <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content shadow-key">
           <Terminal size={18} aria-hidden="true" />

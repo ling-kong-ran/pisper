@@ -118,7 +118,7 @@
   "launch.dispatched": "已派发，可在全部代理查看进度",
   "launch.fullAccessOnce": "仅本次派发，不会被记住",
   "dispatch.title": "新任务",
-  "dispatch.description": "在 [项目] 中描述任务；派发后留在当前页。",
+  "dispatch.description": "派发后留在当前页面，新代理会出现在侧栏「运行中」。",
   "dispatch.hint": "↵ 派发 · ⌘/Ctrl+↵ 派发并打开 · ⇧↵ 换行",
   "dispatch.reopen": "重新打开",
   "project.actionsFor": "{project} 的操作",

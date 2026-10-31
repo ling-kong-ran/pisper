@@ -880,28 +880,46 @@ try {
       errors.push(`${message.text()} ${message.location()?.url || ''}`.trim())
   })
   reviewPage.on('pageerror', (error) => errors.push(error.message))
+  // R6（A6 起）：列表 / 详情两栏退役，详情是功能页行内展开。键盘展开后焦点留在行名按钮上、详情紧随其后可 Tab 进入；
+  // 再按收起，焦点仍在行名按钮（取代原“进入详情转移焦点 / 返回恢复列表焦点”）。
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=focus`)
-  await reviewPage.getByRole('button', { name: 'Open row', exact: true }).press('Enter')
+  const rowToggle = reviewPage.locator('[data-feature-row-toggle]')
+  await rowToggle.focus()
+  await rowToggle.press('Enter')
+  const detailId = await rowToggle.getAttribute('aria-controls')
   reviewExpect(
-    await reviewPage
-      .locator('[data-slot="page-detail"]')
-      .evaluate((el) => el.contains(document.activeElement)),
-    'R6: entering details transfers keyboard focus',
+    (await rowToggle.getAttribute('aria-expanded')) === 'true' &&
+      Boolean(detailId) &&
+      (await reviewPage.locator(`[id="${detailId}"][role="region"]`).count()) === 1 &&
+      (await rowToggle.evaluate((el) => el === document.activeElement)),
+    'R6: expanding a row keeps focus on its toggle and exposes the controlled detail region',
   )
-  await reviewPage.getByRole('button', { name: 'Back to list', exact: true }).press('Enter')
+  await reviewPage.keyboard.press('Tab')
   reviewExpect(
-    await reviewPage.evaluate(() => document.activeElement?.id === 'fixture-row'),
-    'R6: back restores list trigger focus',
+    await reviewPage.evaluate(
+      () => document.activeElement?.getAttribute('aria-label') === 'Detail field',
+    ),
+    'R6: the expanded detail is next in the Tab order',
   )
+  await rowToggle.focus()
+  await rowToggle.press('Enter')
+  reviewExpect(
+    (await rowToggle.getAttribute('aria-expanded')) === 'false' &&
+      (await rowToggle.evaluate((el) => el === document.activeElement)),
+    'R6: collapsing keeps focus on the row toggle',
+  )
+  // R7（A6 起技能页是功能页模板，搜索框在页内工具行）：手机宽度下只命中技能包的搜索，
+  // “已配置技能包”分区与包行仍然可达（滚到可见），页面不横向溢出。
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=skills`)
   await reviewPage.getByText('npm:only-package', { exact: true }).waitFor({ state: 'attached' })
-  const packageEntry = reviewPage.getByRole('button', { name: '已配置技能包', exact: true })
-  const reachable = (await packageEntry.count()) > 0 && (await packageEntry.isVisible())
+  await reviewPage.locator('#feature-page-search').fill('only-package')
+  const packageRow = reviewPage.getByText('npm:only-package', { exact: true })
+  await packageRow.scrollIntoViewIfNeeded()
+  const reachable =
+    (await reviewPage.locator('.skill-packages').count()) === 1 &&
+    (await packageRow.isVisible()) &&
+    (await reviewPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   reviewExpect(reachable, 'R7: package-only search remains reachable on mobile')
-  if (reachable) {
-    await packageEntry.click()
-    await reviewPage.getByText('npm:only-package', { exact: true }).waitFor()
-  }
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=snapshot`)
   await reviewPage.locator('button[title="snapshot.txt"]').click()
   await reviewPage.getByText('old snapshot', { exact: true }).waitFor()

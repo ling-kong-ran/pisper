@@ -283,7 +283,7 @@ export function QuickSetupWizard({
     >
       <DialogContent
         showCloseButton={false}
-        className="modal z-[80] block max-h-[calc(100dvh_-_40px)] w-[calc(100%_-_40px)] max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-stroke bg-solid p-[18px] shadow-float sm:max-w-lg max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:w-[calc(100%_-_16px)]"
+        className="modal z-[80] block max-h-[calc(100dvh_-_40px)] w-[calc(100%_-_40px)] max-w-lg overflow-y-auto overscroll-contain rounded-[var(--r-lg)] border border-stroke bg-solid p-[18px] shadow-float sm:max-w-lg max-[650px]:max-h-[calc(100dvh_-_16px)] max-[650px]:w-[calc(100%_-_16px)]"
         overlayClassName="z-[70] bg-[var(--modal-overlay)]"
         aria-busy={busy}
         onEscapeKeyDown={(event) => {

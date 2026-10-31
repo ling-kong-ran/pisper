@@ -37,7 +37,7 @@ const metrics = {
     css: 'all current dist/assets/*.css, sorted by filename',
     animations: 'disabled for screenshots; finite popover animations settled before measurement',
     reducedMotion: 'reduce',
-    fixtureSurface: 'real PageFrame settings content, without App shell',
+    fixtureSurface: 'real settings content in the FeaturePage template (A6), without App shell',
   },
   browser: null,
   cssFiles: cssFiles.map(({ content: _content, ...metadata }) => metadata),

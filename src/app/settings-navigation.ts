@@ -43,6 +43,10 @@ export type SettingsNavigationItem = {
   icon: LucideIcon
 }
 
+export function isSettingsSection(section: string): section is SettingsSection {
+  return (APP_SETTINGS_SECTIONS as readonly string[]).includes(section)
+}
+
 // 当前路由是否用设置外壳（侧栏换成设置目录）：只有 /config 下的应用设置分区。
 export function settingsOwnsRoute(page: string, configSection: string) {
   return page === 'config' && !FEATURE_CONFIG_SECTIONS.has(configSection)
@@ -82,8 +86,9 @@ export function configSectionLabel(t: Translate, section: string) {
 }
 
 // 设置目录里的短名（规格 2.6“模型 · 界面 · 通知 · 快捷键 · 更新 · 关于”）：目录上方已有“设置”标题，
-// 每行再带“设置 / 配置”是重复，268 宽的侧栏也放不下。页头、面包屑与 ⌘K 仍用 configSectionLabel 的完整名。
-function settingsSectionShortLabel(t: Translate, section: SettingsSection) {
+// 每行再带“设置 / 配置”是重复，268 宽的侧栏也放不下。设置主区的页标题与手机顶栏页名同样用短名
+// （A6 第 4 批：主区不再重复“设置 / 模型配置”面包屑）；⌘K 仍用 configSectionLabel 的完整名，便于搜索。
+export function settingsSectionShortLabel(t: Translate, section: SettingsSection) {
   switch (section) {
     case 'interface':
       return t('config:settingsShell.section.interface')

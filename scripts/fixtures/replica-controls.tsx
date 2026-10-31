@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { I18nextProvider } from 'react-i18next'
 import { i18n } from '@/app/i18n'
@@ -22,9 +22,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
-import { TaskWorkspaceHeader } from '@/features/chat/TaskWorkspaceHeader'
-import { resolveDarkTheme } from '@/app/ui-preferences'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SessionPageHeader } from '@/features/chat/SessionPageHeader'
+import { ensureBoardMessages } from '@/app/i18n'
 import { useUiStore, type ThemeMode } from '@/stores/ui-store'
 import { AppDialog } from '@/components/layout/AppDialog'
 import '@/index.css'
@@ -53,37 +53,37 @@ const fixtureDialog = {
   value: 'Draft',
 } as const
 
+// 会话页的真实页头（标题 ▾ 菜单）：取代 A6 退役的非路由旧顶栏 TaskWorkspaceHeader。
+// 改动数查询在夹具里读不到（没有 Runtime），页头照常只显示检查器图标。
+const headerQueries = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 function WorkspaceMenuFixture() {
-  const theme = useUiStore((state) => state.theme)
-  const cycleTheme = useUiStore((state) => state.cycleTheme)
   const [renames, setRenames] = useState(0)
   window.replicaControls.setTheme = useUiStore.getState().setTheme
-  // 夹具转接系统媒体输入；菜单、主题动作与颜色决策都消费生产实现。
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => {
-      const dark = resolveDarkTheme(theme, media.matches)
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-      document.documentElement.classList.toggle('dark', dark)
-    }
-    apply()
-    if (theme === 'system') {
-      media.addEventListener('change', apply)
-      return () => media.removeEventListener('change', apply)
-    }
-  }, [theme])
   return (
-    <div data-testid="workspace-menu-fixture">
-      <TaskWorkspaceHeader
-        sessionId="control-probe"
-        onRename={() => setRenames((count) => count + 1)}
-        onWorkspace={() => {}}
-        actions={<ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />}
-      >
-        <span>Workspace menu fixture</span>
-      </TaskWorkspaceHeader>
-      <output data-testid="renames">{renames}</output>
-    </div>
+    <QueryClientProvider client={headerQueries}>
+      <div data-testid="workspace-menu-fixture">
+        <SessionPageHeader
+          session={{ id: 'control-probe', name: 'Workspace menu fixture' }}
+          cwd="/fixture/control-probe"
+          streaming={false}
+          treeAvailable={false}
+          branches={0}
+          onOpenTree={() => {}}
+          onRename={() => setRenames((count) => count + 1)}
+          onWorkspace={() => {}}
+          workspaceDisabled={false}
+          compactDisabled
+          goalAvailable={false}
+          goalEngaged={false}
+          goalDisabled
+          onToggleGoal={() => {}}
+          workflowsAvailable={false}
+          onVoiceMode={() => {}}
+          notify={() => {}}
+        />
+        <output data-testid="renames">{renames}</output>
+      </div>
+    </QueryClientProvider>
   )
 }
 
@@ -261,6 +261,8 @@ export function ControlsFixture() {
 }
 
 await i18n.changeLanguage('en-US')
+// 会话页头的文案在看板命名空间（与会话路由加载时一致）。
+await ensureBoardMessages()
 createRoot(document.getElementById('root')!).render(
   <I18nextProvider i18n={i18n}>
     <ControlsFixture />

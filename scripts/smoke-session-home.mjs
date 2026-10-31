@@ -255,9 +255,10 @@ try {
   const paletteInput = page.locator('input[role="combobox"]')
   await page.keyboard.press(`${mod}+KeyK`)
   await paletteInput.waitFor()
+  // A6 起这一项叫“新任务”（同一个派发入口），旧名“新会话”仍能搜到它。
   await paletteInput.fill('新会话')
   await page
-    .getByRole('option', { name: /新会话/ })
+    .getByRole('option', { name: /新任务/ })
     .first()
     .click()
   const stackedOverlay = page.locator('[data-launch-console="overlay"] [data-launch-input]')

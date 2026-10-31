@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { compile } from '@tailwindcss/node'
@@ -97,7 +97,6 @@ const WCAG_PAIRS = {
     ['--text-muted', '--solid', TEXT],
     ['--text-muted', '--surface-subtle', TEXT],
     ['--text-muted', '--well-bg', TEXT],
-    ['--text-muted', '--lane-bg', TEXT],
     ['--text-muted', '--surface-muted', TEXT],
     ['--text-secondary', '--surface-hover', TEXT],
     ['--text-secondary', '--surface-active', TEXT],
@@ -125,7 +124,6 @@ const WCAG_PAIRS = {
     ['--focus', '--bg', BOUNDARY],
     ['--focus', '--panel', BOUNDARY],
     ['--focus', '--sidebar-bg', BOUNDARY],
-    ['--focus', '--lane-bg', BOUNDARY],
   ],
   dark: [
     ['--text-muted', '--bg', TEXT],
@@ -134,7 +132,6 @@ const WCAG_PAIRS = {
     ['--text-muted', '--solid', TEXT],
     ['--text-muted', '--surface-subtle', TEXT],
     ['--text-muted', '--well-bg', TEXT],
-    ['--text-muted', '--lane-bg', TEXT],
     ['--text-muted', '--surface-muted', TEXT],
     ['--text-secondary', '--surface-hover', TEXT],
     ['--text-secondary', '--surface-active', TEXT],
@@ -162,7 +159,6 @@ const WCAG_PAIRS = {
     ['--focus', '--bg', BOUNDARY],
     ['--focus', '--panel', BOUNDARY],
     ['--focus', '--sidebar-bg', BOUNDARY],
-    ['--focus', '--lane-bg', BOUNDARY],
   ],
 }
 for (const mode of ['light', 'dark']) {
@@ -194,7 +190,6 @@ test('used semantic utilities generate declarations from the production Tailwind
     ['bg-st-attn-solid', 'background-color'],
     ['border-st-attn-ring', 'border-color'],
     ['text-on-attn', 'color'],
-    ['bg-lane', 'background-color'],
     ['bg-well', 'background-color'],
     ['border-well-stroke', 'border-color'],
     ['text-well-text', 'color'],
@@ -264,7 +259,6 @@ const STATUS_TOKENS = [
   '--st-attn-solid',
   '--st-attn-ring',
   '--on-attn',
-  '--hatch-attn',
   '--warning-soft',
   '--warning-strong',
   '--warning-border',
@@ -298,7 +292,6 @@ test('user accent changes leave primary actions, hover surfaces and semantic sta
         '--primary-foreground',
         '--accent',
         '--accent-foreground',
-        '--status-blue',
         '--success',
         '--danger',
         ...STATUS_TOKENS,
@@ -365,7 +358,6 @@ test('new layout tokens resolve in both themes and cards round up on the phone s
     const resolve = theme(mode, 'neutral')
     for (const token of [
       ...STATUS_TOKENS,
-      '--lane-bg',
       '--well-bg',
       '--well-stroke',
       '--well-text',
@@ -378,10 +370,8 @@ test('new layout tokens resolve in both themes and cards round up on the phone s
       '--sh-1',
       '--sh-float',
       '--edge-highlight',
-      '--d-lane',
     ])
       assert.ok(resolve(token), `${mode} ${token}`)
-    assert.match(resolve('--hatch-attn'), /^repeating-linear-gradient\(/)
   }
   // 规格 6.4：会话行、列表行、小卡片 10，弹层与对话框 14，按钮芯片 6。
   assert.equal(theme('light', 'neutral')('--r-card'), '10px')
@@ -395,7 +385,47 @@ test('new layout tokens resolve in both themes and cards round up on the phone s
     theme('light', 'neutral', '', { 'phone-shell': true, radius: 'sharp' })('--r-card'),
     'calc(7px + 4px)',
   )
-  assert.equal(theme('light', 'neutral')('--d-lane'), '240ms')
+})
+
+// 规格 6.2：旧状态色别名（--status-*）只为未重做的功能页保留，A6 期功能页全部重做后清理；
+// 斜纹警示线、泳道底色 / 动效与只为旧页面保留的紫色、通知、审批描边 token 同时退役。
+// 取代原先“这些别名必须存在且不随强调色变色”的断言：现在它们不得再出现，状态色只有 --st-* 一族。
+test('retired status aliases and legacy page tokens stay removed', async () => {
+  const retired = [
+    '--status-blue',
+    '--status-green',
+    '--status-muted',
+    '--hatch-attn',
+    '--lane-bg',
+    '--color-lane',
+    '--d-lane',
+    '--blue',
+    '--blue-soft',
+    '--violet-border',
+    '--violet-soft',
+    '--violet-strong',
+    '--workflow-violet',
+    '--approval-border',
+    '--notification-border',
+    '--notification-soft',
+    '--warning-code-bg',
+  ]
+  for (const token of retired)
+    assert.doesNotMatch(css, new RegExp(`${token}\\s*:`), `${token} is defined again`)
+  // 信息色跟运行中同一个中性墨色（不再经旧别名转一道）。
+  assert.match(css, /--color-info: var\(--st-run\);/)
+  const pattern = new RegExp(`var\\(\\s*(?:${retired.join('|')})\\b|\\b(?:bg|text|border)-lane\\b`)
+  const offenders = []
+  const walk = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name)
+      if (entry.isDirectory()) await walk(file)
+      else if (/\.(?:tsx?|css)$/.test(entry.name) && pattern.test(await readFile(file, 'utf8')))
+        offenders.push(file)
+    }
+  }
+  await walk(path.resolve('src'))
+  assert.deepEqual(offenders, [])
 })
 
 test('message surfaces remain subdued while text stays readable in both themes', () => {

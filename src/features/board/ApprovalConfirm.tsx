@@ -1,9 +1,12 @@
 // 高风险批准的确认层：critical（命令守卫拦截等）或详情未知的审批，在卡片上点“允许…”或按 A
 // 都只会打开这里。确认层展示完整参数、工作目录与守卫原因，按住按钮 0.6 秒或在层内按 ↵ 才真正批准。
+// 按住键是 A2 的通用 HoldToConfirmButton（与对话里的内联卡片同一个组件，A6 合并）：鼠标 / 触控 / 空格按住，
+// 回车交给确认层（层内 ↵ 即确认），点击与读屏的直接激活都不确认。
 // 桌面是居中对话框，手机外壳是带拖拽条的底部表单。⌥A 与舰队浮层永远不会走到这里之外的批准路径。
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { HoldToConfirmButton } from '@/components/app/HoldToConfirmButton'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -25,8 +28,6 @@ import { cn } from '@/lib/utils'
 import type { BoardApproval } from './board-api'
 import { approvalArgsText, isGuardReason } from './card-presentation'
 
-export const APPROVAL_HOLD_MS = 600
-
 // approval 是渲染时从看板最新数据解析出的那条审批：详情晚到时确认层随之更新，
 // 在别处处理掉时由控制器关闭确认层；null 表示详情还没到，此时不能批准。
 export type ApprovalConfirmTarget = {
@@ -43,69 +44,6 @@ type ApprovalConfirmProps = {
   error: string
   onConfirm: () => void
   onOpenChange: (open: boolean) => void
-}
-
-// 按住确认：按下开始计时并播放进度条，松开或移出即取消；到时只触发一次。
-function HoldToConfirm({
-  disabled,
-  onConfirm,
-  label,
-  className,
-}: {
-  disabled: boolean
-  onConfirm: () => void
-  label: string
-  className?: string
-}) {
-  const [holding, setHolding] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cancel = () => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = null
-    setHolding(false)
-  }
-  useEffect(() => cancel, [])
-  const start = (event: PointerEvent<HTMLButtonElement>) => {
-    if (disabled || event.button !== 0) return
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    setHolding(true)
-    timer.current = setTimeout(() => {
-      timer.current = null
-      setHolding(false)
-      onConfirm()
-    }, APPROVAL_HOLD_MS)
-  }
-  return (
-    <Button
-      type="button"
-      variant="default"
-      disabled={disabled}
-      // 手机上按住是批准 critical 的唯一方式：禁止触摸滚动、长按菜单与系统长按气泡打断按住
-      // （Android 长按阈值约 500ms，比 600ms 短），配合 pointer capture 让轻微移动也不取消。
-      className={cn(
-        'relative touch-none overflow-hidden select-none [-webkit-touch-callout:none]',
-        className,
-      )}
-      onPointerDown={start}
-      onPointerUp={cancel}
-      onPointerCancel={cancel}
-      onPointerLeave={cancel}
-      onContextMenu={(event) => event.preventDefault()}
-      data-approval-hold
-      // 键盘用户在确认层内按 ↵ 确认（层级处理），这里不让空格/回车绕过按住时长。
-      onClick={(event) => event.preventDefault()}
-      aria-describedby="approval-hold-hint"
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-0 origin-left scale-x-0 bg-on-accent/20',
-          holding && 'scale-x-100 transition-transform duration-[600ms] ease-linear',
-        )}
-      />
-      <span className="relative">{label}</span>
-    </Button>
-  )
 }
 
 export function ApprovalConfirm({
@@ -215,12 +153,16 @@ export function ApprovalConfirm({
       >
         {t('board:confirm.cancel')}
       </Button>
-      <HoldToConfirm
+      <HoldToConfirmButton
         disabled={pending || !approval}
-        label={pending ? t('board:confirm.approving') : t('board:confirm.hold')}
         onConfirm={onConfirm}
+        enterPassesThrough
+        data-approval-hold
+        aria-describedby="approval-hold-hint"
         className={cn('min-h-9 px-4', phone && 'min-h-11 flex-1')}
-      />
+      >
+        {pending ? t('board:confirm.approving') : t('board:confirm.hold')}
+      </HoldToConfirmButton>
     </>
   )
   if (phone)

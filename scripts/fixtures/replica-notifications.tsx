@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { useState } from 'react'
 import { NotificationSettings } from '@/features/config/NotificationSettings'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { PageFrame } from '@/components/app/PageFrame'
+import { FeaturePage } from '@/components/app/FeaturePage'
 import type { NotificationSettingsData } from '@/types/notifications'
 
 const evidence = {
@@ -38,12 +38,12 @@ export function Fixture() {
             Unmount notifications
           </button>
           {mounted && (
-            <PageFrame variant="settings">
+            <FeaturePage title="通知">
               <NotificationSettings
                 notify={notify}
                 onBrowserNotificationChange={onSettingsChange}
               />
-            </PageFrame>
+            </FeaturePage>
           )}
         </div>
       </TooltipProvider>

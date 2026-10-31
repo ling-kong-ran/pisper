@@ -118,7 +118,7 @@
   "launch.dispatched": "Dispatched. Follow its progress in All agents.",
   "launch.fullAccessOnce": "This dispatch only, not remembered",
   "dispatch.title": "New task",
-  "dispatch.description": "Describe the task in a project. You stay on this page after dispatching.",
+  "dispatch.description": "You stay on this page; the new agent shows up under Running in the sidebar.",
   "dispatch.hint": "↵ dispatch · ⌘/Ctrl+↵ dispatch and open · ⇧↵ new line",
   "dispatch.reopen": "Reopen",
   "project.actionsFor": "Actions for {project}",

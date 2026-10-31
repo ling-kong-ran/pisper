@@ -448,7 +448,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             // 草稿输入框里的模型芯片与会话页一致：无描边、靠右（规格 v2 第 4.3 节）。
             className={cn(
               'min-w-0 max-w-[24ch]',
-              composer && 'border-transparent bg-transparent',
+              (composer || variant === 'overlay') && 'border-transparent bg-transparent',
               rowChipTouch,
             )}
             title={t('board:launch.modelTitle', { model: modelLabel })}
@@ -841,6 +841,55 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           {errorLine && <div className="px-4 max-[650px]:px-3.5">{errorLine}</div>}
           <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-2" data-launch-toolbar>
             {chips}
+            {status}
+            <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
+            {submit}
+          </div>
+        </section>
+      )
+
+    // 桌面派发对话框（规格 2.5，效果图 extra-dispatch-light.png）：无框的大输入区在上，下面一条工具行
+    // [项目 ▾]（描边）[盾牌 审批 · 执行方式 ▾] … [模型 · 思考 ▾] [派发 ↵]，与主页新任务草稿同一套芯片；
+    // 键位不变（↵ 派发、⌘↵ 派发并打开、⇧↵ 换行、Tab 在开头切项目）。
+    if (variant === 'overlay')
+      return (
+        <section
+          aria-label={t('board:launch.title')}
+          data-launch-console={variant}
+          className={cn('flex min-w-0 flex-col', className)}
+        >
+          <label htmlFor={inputId} className="sr-only">
+            {t('board:launch.inputLabel')}
+          </label>
+          <textarea
+            ref={inputRef}
+            id={inputId}
+            data-launch-input
+            autoFocus={autoFocus}
+            rows={Math.min(8, Math.max(3, lines))}
+            value={value}
+            placeholder={t('board:launch.placeholder')}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+            aria-keyshortcuts="Enter Meta+Enter Control+Enter Shift+Enter"
+            onChange={(event) => {
+              setValue(event.target.value)
+              if (error && !error.noModel) setError(null)
+            }}
+            onKeyDown={keyDown}
+            // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
+            className="max-h-[240px] min-h-[72px] w-full min-w-0 resize-none bg-transparent px-5 pt-1 pb-2 text-[15px] leading-6 text-content caret-st-attn-fill outline-none placeholder:text-content-muted"
+          />
+          {errorLine && <div className="px-5 pb-1">{errorLine}</div>}
+          <div className="flex min-w-0 items-center gap-1.5 px-3 pb-3" data-launch-toolbar>
+            <div
+              ref={chipRowRef}
+              data-launch-chips
+              className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+            >
+              {projectChip}
+              {modeMenu}
+            </div>
             {status}
             <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
             {submit}

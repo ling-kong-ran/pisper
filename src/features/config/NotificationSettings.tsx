@@ -429,10 +429,7 @@ export function NotificationSettings({
             </Button>
           </div>
         ))}
-      <Panel
-        className="browser-notification-card p-4 py-4"
-        data-config-card="notifications-browser"
-      >
+      <Panel className="browser-notification-card py-4" data-config-card="notifications-browser">
         {/* 通道总开关：键帽图标 + 标题/说明 + 权限读数徽标 + 开关；窄屏徽标与开关换到下一行。 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span

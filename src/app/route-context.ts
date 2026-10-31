@@ -27,6 +27,9 @@ export type AppRouteContext = {
   notify: Notify
   browserNotify: (event: string, data: unknown, options?: { force?: boolean }) => void
   registerPrimaryAction: (action: () => void) => () => void
+  // 触发页面注册的主操作：设置 › 模型的“快速设置”按钮在页面自己的工具行里（A6 第 4 批，共享页头退役），
+  // 注册表仍由应用壳持有——新手引导“去设置”要在模型页挂载前把快速设置排进队列。
+  invokePrimaryAction: () => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   onUseAsset: (asset: ChatAttachment) => void

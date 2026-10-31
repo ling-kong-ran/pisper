@@ -1,38 +1,24 @@
-// 页头：48px 面包屑顶栏（所属入口 / 当前页）+ 搜索框 + 主操作按钮 + 终端等工具。
-// A6 起逐批退役：已改用功能页模板（src/components/app/FeaturePage.tsx，FEATURE_TEMPLATE_PAGES）的页面不再渲染它。
+// 共享页头：48px 面包屑顶栏（所属入口 / 当前页）+ 终端开关。
+// A6 起逐批退役：功能页（src/components/app/FeaturePage.tsx，FEATURE_TEMPLATE_PAGES）与设置分区（A6 第 4 批，
+// 同一模板）都自带页头，现在只剩组件工作室与“我的组件”整页在用，A7 重做组件时一并退役。
+// 页面搜索与主操作都已挪进各页自己的工具行，这里不再有搜索框与主操作注册表的按钮。
 // 主题切换不在页头（规格 v2 第 2.5 节）：设置 › 界面与 ⌘K“切换主题”。
-// 设置分区在顶栏下方另起 20/600 页标题；手机宽度与看板、更多同一套页头：56px 行内左对齐的 24/650 标题
-// + 12px 说明，从“更多”进入时左侧是 44px 的“‹ 更多”文字返回键；下面一行是搜索与主操作。
-// 手机页头不放主题键（主题在“设置 → 界面”）。
-// 主操作按页面注册（注册表机制），不同页面显示不同的按钮文案与图标。
-// 功能页（只属于“功能”，规格 2.6 双归属已退役）面包屑上一级是可点的“‹ 功能”（手机标签栏 A4 前仍叫“更多”）。没有应用标题栏了：Windows 自绘标题栏时
-// 页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
-import type { ReactNode, RefObject } from 'react'
-import { ChevronLeft, Plus, Search, TerminalSquare, type LucideIcon } from 'lucide-react'
+// 从“功能”进入时面包屑上一级是可点的“‹ 功能”；手机是标题左侧 44px 的文字返回键（iOS 没有返回键）。
+// 没有应用标题栏了：Windows 自绘标题栏时页头空白处是拖拽区，右侧预留 144px 给窗口按钮（macOS / Linux 只留 12px）。
+import type { RefObject } from 'react'
+import { ChevronLeft, TerminalSquare } from 'lucide-react'
 import { MORE_PAGES } from '@/app/more-pages'
 import { useI18n } from '@/app/use-i18n'
 import { cn } from '@/lib/utils'
 import { useShortcutLabel } from '@/lib/shortcuts'
 
 import { Button } from '@/components/ui/button'
-import { Kbd } from '@/components/ui/kbd'
 
 type PageHeaderProps = {
   elementRef?: RefObject<HTMLElement | null>
   meta: readonly [string, string]
   page: string
-  // 当前路由用设置外壳（/config 下的应用设置分区）；缺省按 page === 'config' 判断。
-  settingsOwned?: boolean
-  query: string
-  setQuery: (query: string) => void
-  configSection: string
-  onMenu: () => void
-  onPrimary: () => void
-  searchSlot?: ReactNode
-  actionsSlot?: ReactNode
-  searchInputRef: RefObject<HTMLInputElement | null>
   desktopPlatform: string
-  mobileApp?: boolean
   terminalOpen: boolean
   onToggleTerminal: () => void
   // 当前页属于“功能”时提供，渲染“‹ 功能”返回。
@@ -45,53 +31,17 @@ export function PageHeader({
   elementRef,
   meta,
   page,
-  settingsOwned,
-  query,
-  setQuery,
-  configSection,
-  onPrimary,
-  searchSlot,
-  actionsSlot,
-  searchInputRef,
   desktopPlatform,
-  mobileApp = false,
   terminalOpen,
   onToggleTerminal,
   onBackToMore,
   phoneShell = false,
 }: PageHeaderProps) {
   const { t } = useI18n()
-  const primaryShortcut = useShortcutLabel('primaryAction')
   const terminalShortcut = useShortcutLabel('toggleTerminal')
-  const searchShortcut = useShortcutLabel('focusSearch')
-  // 功能页（工作流、定时任务、渠道等）的主操作都在各自的工具行里（规格 A6），共享页头只剩设置 › 模型。
-  const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
-    config: [t('navigation:pageHeader.quickSetup'), Plus],
-  }
-  const primary: [string, LucideIcon] | null | undefined =
-    page === 'config' && configSection !== 'models'
-      ? null
-      : page === 'chat'
-        ? mobileApp
-          ? [t('navigation:pageHeader.newChat'), Plus]
-          : null
-        : primaryActions[page]
   const desktop = Boolean(desktopPlatform)
-  // 面包屑上一级：设置分区归「设置」，功能页（含 /config 下的远程访问等）归「功能」（可点返回）；
-  // 一级页（组件、功能本身）没有上一级。手机没有“组件”标签，组件页从“更多”进入，
-  // 应用壳此时传入 onBackToMore，同样显示“‹ 更多”。
-  const inSettings = settingsOwned ?? page === 'config'
-  const parent =
-    page === 'chat'
-      ? ''
-      : inSettings
-        ? t('navigation:navigation.settings')
-        : MORE_PAGES.has(page) || onBackToMore
-          ? t('navigation:sidebar.features')
-          : ''
-  // 设置分区的语义标题是下方 20/600 大标题（随界面字号等比缩放）；顶栏里的当前项只作面包屑显示。
-  const titleBlock = page === 'config'
-  const CurrentCrumb = titleBlock ? 'span' : 'h1'
+  // 面包屑上一级：功能页归「功能」（从功能进入时可点返回）；一级页没有上一级。
+  const parent = MORE_PAGES.has(page) || onBackToMore ? t('navigation:sidebar.features') : ''
 
   return (
     <header
@@ -106,7 +56,6 @@ export function PageHeader({
       <div
         className={cn(
           'flex min-h-12 items-center gap-2 border-b border-stroke-soft py-1.5 pr-2.5 in-data-[density=compact]:min-h-11 max-[650px]:min-h-0 max-[650px]:flex-wrap max-[650px]:gap-x-2 max-[650px]:gap-y-0 max-[650px]:border-b-0 max-[650px]:px-4 max-[650px]:pt-0 max-[650px]:pb-3',
-          page === 'chat' && '!min-h-12 px-4 !py-1.5 max-[650px]:!flex-nowrap',
           'pl-[calc(16px+var(--workbench-leading-inset,0px))] max-[650px]:pl-4',
           // Windows 自绘标题栏：右上角 144px 是窗口按钮。
           '[[data-custom-titlebar]_&]:pr-[144px]',
@@ -115,17 +64,15 @@ export function PageHeader({
         <div
           className={cn(
             'mr-auto flex min-w-0 items-center gap-1.5 text-[13px]',
-            // 手机：56px 行，左对齐大标题，说明跟在标题后（放不下时先截说明）。
+            // 手机：56px 行，左对齐大标题。
             'max-[650px]:h-14 max-[650px]:basis-full max-[650px]:gap-2',
-            page === 'chat' && 'max-[650px]:h-auto max-[650px]:basis-auto max-[650px]:px-0',
             // 手机外壳：标题在顶栏里，这一行只剩“‹ 功能”（44px）；没有返回时整行只留给读屏的标题。
-            phoneShell &&
-              (parent && onBackToMore && !inSettings ? 'max-[650px]:h-11' : 'max-[650px]:h-0'),
+            phoneShell && (parent && onBackToMore ? 'max-[650px]:h-11' : 'max-[650px]:h-0'),
           )}
         >
-          {parent && onBackToMore && !inSettings ? (
+          {parent && onBackToMore ? (
             <>
-              {/* 桌面是面包屑里的“‹ 更多”；手机是标题左侧 44px 高的文字返回键（规格 2.1）。 */}
+              {/* 桌面是面包屑里的“‹ 功能”；手机是标题左侧 44px 高的文字返回键（规格 2.1）。 */}
               <button
                 type="button"
                 data-back-to-more
@@ -150,78 +97,23 @@ export function PageHeader({
               </>
             )
           )}
-          <CurrentCrumb
+          <h1
             className={cn(
               'max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:min-w-0 max-[650px]:text-2xl max-[650px]:leading-8 max-[650px]:font-[650] max-[650px]:tracking-[-.015em]',
               phoneShell && 'sr-only',
             )}
           >
             {meta[0]}
-          </CurrentCrumb>
-          {/* 页面说明：桌面跟在标题后作次要文字，窄于 900px 时收起；手机跟在大标题后，只占剩余宽度。 */}
-          {page !== 'chat' && page !== 'config' && meta[1] && !phoneShell && (
+          </h1>
+          {/* 页面说明：桌面跟在标题后作次要文字，窄于 900px 时收起。 */}
+          {meta[1] && !phoneShell && (
             <p className="ml-1.5 min-w-0 truncate text-xs text-content-muted max-[900px]:hidden max-[650px]:ml-0 max-[650px]:block max-[650px]:flex-1 max-[650px]:basis-0">
               {meta[1]}
             </p>
           )}
         </div>
-        <div
-          className={cn(
-            'flex min-w-0 items-center justify-end gap-1.5 max-[650px]:grid max-[650px]:w-full max-[650px]:grid-cols-[minmax(0,1fr)_auto] max-[650px]:justify-stretch max-[650px]:gap-2',
-            page === 'chat' && 'max-[650px]:!flex max-[650px]:!w-auto max-[650px]:shrink-0',
-            desktop && '[-webkit-app-region:no-drag]',
-          )}
-        >
-          {page === 'chat' ||
-          page === 'customComponentTool' ||
-          page === 'components' ? null : page === 'config' ? (
-            searchSlot
-          ) : (
-            <label
-              className="flex h-8 w-[min(240px,24vw)] min-w-32 shrink items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[900px]:w-[190px] max-[650px]:col-start-1 max-[650px]:row-start-1 max-[650px]:h-11 max-[650px]:w-full max-[650px]:min-w-0 max-[650px]:rounded-[10px] max-[650px]:border-transparent max-[650px]:bg-surface-muted max-[650px]:px-3"
-              title={t('navigation:pageHeader.search')}
-            >
-              <Search size={15} className="shrink-0" />
-              <input
-                className="w-full min-w-0 border-0 bg-transparent text-[length:var(--app-font-size)] font-normal text-content caret-focus outline-none max-[650px]:text-[16px]"
-                ref={searchInputRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('navigation:pageHeader.searchPage', { page: meta[0] })}
-              />
-              {searchShortcut && !query && (
-                <Kbd aria-hidden="true" className="max-[650px]:hidden pointer-coarse:hidden">
-                  {searchShortcut}
-                </Kbd>
-              )}
-            </label>
-          )}
-          {actionsSlot}
-          {primary && (
-            <Button
-              variant={page === 'config' ? 'ghost' : 'default'}
-              className={cn(
-                'max-[650px]:col-start-2 max-[650px]:row-start-1 max-[650px]:h-11',
-                page === 'chat' && mobileApp && 'hidden',
-              )}
-              title={
-                primaryShortcut
-                  ? t('navigation:pageHeader.primaryActionShortcut', {
-                      action: primary[0],
-                      shortcut: primaryShortcut,
-                    })
-                  : primary[0]
-              }
-              onClick={onPrimary}
-            >
-              {(() => {
-                const PrimaryIcon = primary[1]
-                return <PrimaryIcon size={15} />
-              })()}
-              {primary[0]}
-            </Button>
-          )}
-          {desktop && (
+        {desktop && (
+          <div className="flex min-w-0 items-center justify-end gap-1.5 [-webkit-app-region:no-drag]">
             <Button
               variant="ghost"
               size="icon"
@@ -240,21 +132,9 @@ export function PageHeader({
             >
               <TerminalSquare size={16} />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-      {titleBlock && (
-        <div
-          className={cn(
-            'mx-auto w-full px-4 pt-7 pb-5 @min-[760px]/page-header:px-10 max-[650px]:sr-only',
-            configSection === 'models' ? 'max-w-[1040px]' : 'max-w-[776px]',
-          )}
-        >
-          <h1 className="text-[length:calc(var(--ui-font-size)*10/7)] leading-[1.3] font-semibold tracking-[-.015em] text-content">
-            {meta[0]}
-          </h1>
-        </div>
-      )}
     </header>
   )
 }

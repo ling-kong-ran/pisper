@@ -63,7 +63,8 @@ function DialogOverlay({
   )
 }
 
-// 对话框：实心底、r-lg、浮层阴影（含 1px 描边环），无模糊遮罩；页脚落在次级表面上。
+// 对话框：实心底、r-lg（规格 6.4：弹层、对话框 14，随 data-radius 缩放）、浮层阴影（含 1px 描边环），
+// 无模糊遮罩；页脚落在次级表面上。
 function DialogContent({
   className,
   overlayClassName,
@@ -118,7 +119,7 @@ function DialogContent({
           if (busy) event.preventDefault()
         }}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-float duration-[var(--duration-fast,150ms)] outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
+          'fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-[var(--r-lg)] bg-popover p-4 text-sm text-popover-foreground shadow-float duration-[var(--duration-fast,150ms)] outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
           size === 'default' && 'max-w-[min(92vw,520px)]',
           size === 'compact' && 'max-w-[min(92vw,430px)]',
           size === 'wide' && 'max-w-[min(92vw,600px)]',
@@ -181,7 +182,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        '-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t border-stroke bg-surface-subtle px-4 py-3 sm:flex-row sm:justify-end',
+        '-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-[var(--r-lg)] border-t border-stroke bg-surface-subtle px-4 py-3 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}

@@ -404,7 +404,7 @@ export function UpdateSettings({
 
       {!mobile && <CliSettings notify={notify} />}
 
-      <Panel className="p-4 py-4">
+      <Panel className="py-4">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle
             title={

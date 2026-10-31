@@ -25,8 +25,9 @@ function templateSource(path, source) {
 }
 
 test('migrated route pages give scroll and outer spacing ownership to a page template', async () => {
-  // 还没迁到功能页模板的页面：PageFrame 承担滚动与外边距。
-  const paths = ['config/ConfigPage', 'custom-ui/CustomUiPage', 'custom-ui/CustomUiToolPage']
+  // 还没迁到功能页模板的页面（组件工作室与“我的组件”整页，A7）：PageFrame 承担滚动与外边距。
+  // 设置分区（ConfigPage）在 A6 第 4 批改用功能页模板，见下方“设置分区”一条。
+  const paths = ['custom-ui/CustomUiPage', 'custom-ui/CustomUiToolPage']
   for (const path of paths) {
     const source = await readFile(`src/features/${path}.tsx`, 'utf8')
     assert.match(source, /<PageFrame\b/, path)
@@ -99,7 +100,7 @@ test('feature-template pages are exactly the pages that render the template and 
     ?.map((entry) => entry.slice(1, -1))
   assert.deepEqual(declared?.sort(), Object.keys(FEATURE_TEMPLATE_SOURCES).sort())
   // 共享页头（面包屑、搜索、主操作）不在这些页上渲染，“/”落到页面工具行的搜索框。
-  assert.match(app, /!FEATURE_TEMPLATE_PAGES\.has\(page\) &&/)
+  assert.match(app, /!FEATURE_TEMPLATE_PAGES\.has\(page\)/)
   assert.match(
     app,
     /else if \(FEATURE_TEMPLATE_PAGES\.has\(page\)\)\s*document\.getElementById\(FEATURE_SEARCH_INPUT_ID\)\?\.focus\(\)/,
@@ -143,7 +144,10 @@ test('the workflow node editor stays full width with one 52px header of its own'
   assert.match(editor, /void publishWorkflow\(\)/)
   assert.match(editor, /running \? void stopWorkflow\(\) : openRunDialog\(\)/)
   assert.match(editor, /<WorkflowEditorHeader title=\{title\} onBack=\{backToList\} t=\{t\} \/>/)
-  assert.match(app, /\['board', 'session', 'more', 'chat', 'workflowCreate'\]\.includes\(page\)/)
+  assert.match(
+    app,
+    /\['board', 'session', 'more', 'chat', 'workflowCreate', 'config'\]\.includes\(page\)/,
+  )
   const builder = routes.slice(routes.indexOf('<WorkflowBuilder'))
   assert.doesNotMatch(builder.slice(0, builder.indexOf('/>')), /registerPrimaryAction/)
 })
@@ -172,8 +176,8 @@ test('device pages under /config open as feature-template pages with centralized
   assert.doesNotMatch(device, /<PageFrame\b/)
   // 设置搜索跳到这三个分区仍按分区锚点定位。
   assert.match(device, /data-config-card=\{CONFIG_SECTION_ANCHOR\}/)
-  // 共享页头不在这三页上渲染；路由把“‹ 功能”的返回动作交给 ConfigPage。
-  assert.match(app, /!\(page === 'config' && !settingsOwned\) &&/)
+  // 共享页头不在 /config 下渲染（设备页与设置分区都用模板）；路由把“‹ 功能”的返回动作交给 ConfigPage。
+  assert.match(app, /'workflowCreate', 'config'\]\.includes\(page\)/)
   assert.match(routes, /onBackToFeatures=\{context\.onBackToFeatures\}/)
   // 平台判断集中在 deviceFeatureSupport：功能索引的卡片与页面读同一份结论；页面不支持时显示禁用开关并写原因。
   assert.match(capabilities, /export function deviceFeatureSupport\(/)
@@ -188,4 +192,55 @@ test('device pages under /config open as feature-template pages with centralized
   // 琥珀只给需要你的事：启动失败、防火墙待授权、待审批连接；连上的手机服务器不再是绿色条。
   assert.match(remote, /attention=\{listenState === 'failed'\}/)
   assert.doesNotMatch(server, /bg-success-soft|text-success-strong/)
+})
+
+// A6 第 4 批（规格 2.6、6.4，效果图 desktop-settings-light.png）：设置分区与功能页同一个模板——52 拖拽区、
+// 自己的滚动区、居中 760 栏；页标题是目录里的短名（模型 / 界面…）加一句说明，主区不再重复“设置 / 模型配置”
+// 面包屑与第二个大标题。设置搜索在桌面设置侧栏、手机“‹ 设置”下面；“快速设置”在页内工具行，
+// 仍经应用壳的主操作注册表触发（新手引导可以在模型页挂载前排队）。取代原“ConfigPage 必须用 PageFrame”。
+test('settings sections render in the feature-page template without a duplicate breadcrumb or title', async () => {
+  const [config, app, routes, navigation, header, primitives] = await Promise.all([
+    readFile('src/features/config/ConfigPage.tsx', 'utf8'),
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/app/route-elements.tsx', 'utf8'),
+    readFile('src/app/settings-navigation.ts', 'utf8'),
+    readFile('src/components/layout/PageHeader.tsx', 'utf8'),
+    readFile('src/features/config/settings-primitives.tsx', 'utf8'),
+  ])
+  assert.match(
+    config,
+    /<FeaturePage\s+data-settings-page=\{current\}\s+title=\{settingsSectionShortLabel\(t, current\)\}/,
+  )
+  assert.match(config, /description=\{settingsLede\(t, current\)\}/)
+  assert.doesNotMatch(config, /<PageFrame\b|settings-wide/)
+  assert.match(config, /data-config-card=\{CONFIG_SECTION_ANCHOR\}/)
+  // 快速设置：页内按钮 → 壳层注册表（模型分区注册），路由把触发函数交给页面。
+  assert.match(config, /data-settings-quick-setup onClick=\{invokePrimaryAction\}/)
+  assert.match(routes, /invokePrimaryAction=\{context\.invokePrimaryAction\}/)
+  assert.match(app, /invokePrimaryAction,\n\s+pendingAsset/)
+  // 短名在设置目录、页标题与手机顶栏页名三处共用一个函数。
+  assert.match(navigation, /export function settingsSectionShortLabel\(/)
+  assert.match(
+    app,
+    /settingsOwned && isSettingsSection\(configSection\)\s*\?\s*settingsSectionShortLabel\(t, configSection\)/,
+  )
+  // 共享页头里设置专属的面包屑、大标题、搜索槽与主操作都已移除。
+  assert.doesNotMatch(
+    header,
+    /titleBlock|searchSlot|settingsOwned|configSection|onPrimary|quickSetup/,
+  )
+  // 手机设置分区：“‹ 设置”下面是设置搜索，不随内容滚走。
+  assert.match(
+    app,
+    /<MobileSettingsBack onBack=\{\(\) => routerNavigate\(SETTINGS_LIST_PATH\)\} \/>\s*<div data-mobile-settings-search[^>]*>\s*\{configSearch\(\)\}/,
+  )
+  // 设置是细线分隔的一行行设置，不是带框卡片墙（规格 6.4）。
+  assert.match(
+    primitives,
+    /export function SettingsCard\b[\s\S]*?rounded-none border-x-0 border-t border-b-0/,
+  )
+  assert.match(
+    primitives,
+    /export function SettingsGroup\b[\s\S]*?divide-y divide-stroke-soft border-y border-stroke-soft/,
+  )
 })

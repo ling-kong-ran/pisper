@@ -236,27 +236,20 @@ export async function verifyReplicaControls() {
     await page.getByRole('menuitemcheckbox', { name: 'Close after checking' }).click()
     await menu.waitFor({ state: 'hidden' })
 
-    await page.evaluate(() => {
-      window.replicaControls.setTheme('light')
-    })
+    // 会话页真实页头的标题 ▾ 菜单（A6 起取代旧顶栏 TaskWorkspaceHeader，同一个 id task-<id>-more）：
+    // “重命名”执行一次并关上菜单，焦点回到标题键。主题切换不在会话菜单里了（规格 2.5：⌘K“切换主题”与设置 › 界面），
+    // 跟随系统的循环由 smoke-session-home 经 ⌘K 覆盖。
     const workspaceMore = page.locator('#task-control-probe-more')
-    const themeItem = page.getByTestId('theme-toggle')
     await workspaceMore.click()
-    await themeItem.click()
-    await workspaceMore.click()
-    assert.equal(
-      await themeItem.getAttribute('aria-label'),
-      'Theme: Follow system. Click to switch to Dark.',
-    )
-    await page.emulateMedia({ colorScheme: 'dark' })
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-    await page.emulateMedia({ colorScheme: 'light' })
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
-    await themeItem.click()
-    await workspaceMore.click()
-    // A4 起旧顶栏没有“关闭窗格”（分屏已删）：用“重命名”验证菜单项执行一次并关上菜单。
+    await menu.waitFor()
+    assert.equal(await workspaceMore.getAttribute('aria-expanded'), 'true')
     await page.getByRole('menuitem', { name: 'Rename chat', exact: true }).click()
     await menu.waitFor({ state: 'hidden' })
+    await page.waitForFunction(
+      () => document.activeElement?.id === 'task-control-probe-more',
+      undefined,
+      { timeout: 2000 },
+    )
     assert.equal(await page.getByTestId('renames').textContent(), '1')
     await page.getByTestId('dialog-trigger').click()
     const dialog = page.getByRole('dialog', { name: 'Nested controls', exact: true })

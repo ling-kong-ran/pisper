@@ -1186,6 +1186,16 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await page.getByRole('tab', { name: /独立组件/ }).count(), 0)
   assert.deepEqual(await drawerCurrent(page), ['settings'])
   assert.equal(await noHorizontalScroll(page), true)
+  // A6：分区页与功能页同一模板——页名（短名“界面”）在外壳顶栏，页面 h1 只给读屏；设置搜索紧跟“‹ 设置”，触控 ≥44。
+  assert.equal(await page.locator('[data-phone-title]').innerText(), '界面')
+  const settingsHeading = page.locator('[data-settings-page="interface"] h1')
+  assert.equal(await settingsHeading.innerText(), '界面')
+  assert.match(await settingsHeading.getAttribute('class'), /\bsr-only\b/)
+  const settingsSearch = await page.locator('[data-mobile-settings-search] input').boundingBox()
+  assert.ok(
+    settingsSearch && settingsSearch.height >= 44 && settingsSearch.y > back.y,
+    `settings search ${JSON.stringify(settingsSearch)}`,
+  )
   await page.screenshot({ path: join(output, 'phone-settings.png') })
   assert.equal(await nativeBack(page), true)
   await page.waitForURL((url) => url.hash === '#/config')
@@ -1196,7 +1206,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-components-moved]').click()
   await page.waitForURL((url) => url.hash === '#/components')
   report.checks.push(
-    'Phone settings: the drawer opens the section list (模型 · 界面 · 通知 · 快捷键 · 更新 · 关于, rows ≥56, the “in 功能” hint); a section shows a 44px “‹ 设置” and 设置 lit; Android back and “‹ 设置” return to the list; the standalone-widgets tab is replaced by a link to /components',
+    'Phone settings: the drawer opens the section list (模型 · 界面 · 通知 · 快捷键 · 更新 · 关于, rows ≥56, the “in 功能” hint); a section shows a 44px “‹ 设置” with the ≥44px settings search under it, the short page name in the top bar (h1 sr-only), and 设置 lit; Android back and “‹ 设置” return to the list; the standalone-widgets tab is replaced by a link to /components',
   )
   await context.close()
 }

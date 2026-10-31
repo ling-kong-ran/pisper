@@ -58,7 +58,13 @@ import {
   type ShellTab,
 } from '@/app/shell-tabs'
 import { ShellSidebar, SidebarSessionsFallback, type ShellSidebarEntry } from '@/app/ShellSidebar'
-import { CONFIG_SECTIONS, configSectionLabel, settingsOwnsRoute } from '@/app/settings-navigation'
+import {
+  CONFIG_SECTIONS,
+  configSectionLabel,
+  isSettingsSection,
+  settingsOwnsRoute,
+  settingsSectionShortLabel,
+} from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { ensureBoardMessages, ensureCustomUiMessages } from '@/app/i18n'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
@@ -139,9 +145,6 @@ const CommandPalette = lazy(async () => {
 })
 const AppDialog = lazy(() =>
   import('@/components/layout/AppDialog').then((module) => ({ default: module.AppDialog })),
-)
-const QuickCreate = lazy(() =>
-  import('@/components/layout/AppOverlays').then((module) => ({ default: module.QuickCreate })),
 )
 const WebDesktopPet = lazy(() =>
   import('@/features/desktop-pet/WebDesktopPet').then((module) => ({
@@ -337,7 +340,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const motion = useUiStore((state) => state.motion)
   const [toastQueue, setToastQueue] = useState<ToastState[]>([])
   const toast = toastQueue[0]
-  const [modal, setModal] = useState<string | null>(null)
   const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const {
@@ -777,17 +779,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [openSession, routerNavigate],
   )
 
-  // 共享页头的主操作分发：功能页（含工作流、定时任务、渠道）的主操作都在自己的工具行里（规格 A6），
-  // 共享页头只剩设置 › 模型的“快速配置”；配置页非 models 分区时不响应，避免误触发。
-  const handlePrimary = useCallback(() => {
-    if (page === 'config' && configSection !== 'models') return
-    if (['session', 'config'].includes(page)) invokePrimaryAction()
-    else setModal(page)
-  }, [configSection, invokePrimaryAction, page])
-
   useEffect(() => {
     const openCommandPalette = () => {
-      if (!appDialog.dialog && !modal && !modelOnboardingOpen) setPaletteOpen(true)
+      if (!appDialog.dialog && !modelOnboardingOpen) setPaletteOpen(true)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
@@ -795,11 +789,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
         if (paletteOpen) {
           setPaletteOpen(false)
           event.preventDefault()
-        } else if (modal) {
-          setModal(null)
-          event.preventDefault()
         }
-
         return
       }
     }
@@ -809,7 +799,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener(COMMAND_PALETTE_REQUESTED_EVENT, openCommandPalette)
     }
-  }, [appDialog.dialog, modal, modelOnboardingOpen, paletteOpen])
+  }, [appDialog.dialog, modelOnboardingOpen, paletteOpen])
 
   const startupConfigHandled = useRef(false)
   useEffect(() => {
@@ -886,7 +876,13 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
           mobileLayout ? '' : t('common:app.dragTabsOrSplitChatsInAnyDirectionFromTheSessionList'),
         ]
       : page === 'config'
-        ? [configSectionLabel(t, configSection), '']
+        ? // 设置分区（含手机顶栏页名）用目录里的短名“模型 / 界面…”；/config 下的设备页仍用完整名。
+          [
+            settingsOwned && isSettingsSection(configSection)
+              ? settingsSectionShortLabel(t, configSection)
+              : configSectionLabel(t, configSection),
+            '',
+          ]
         : page === 'workflowCreate'
           ? // 编辑器挂载前（懒加载）按路由段推断；挂载后以编辑器判断为准（不存在的 id 打开的是空白新建草稿）。
             getWorkflowEditorMeta(
@@ -915,6 +911,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     notify,
     browserNotify,
     registerPrimaryAction,
+    invokePrimaryAction,
     pendingAsset,
     onAssetConsumed: () => setPendingAsset(null),
     onUseAsset: useAsset,
@@ -964,19 +961,17 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       }
     } else searchInputRef.current?.focus()
   }, [page, phoneShell])
-  // 看板、会话页、功能索引、改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）、/config 下的三个设备页
-  // （同样是功能页模板）与工作流节点编辑器（全宽例外，自己的 52px 页头）自带页头；
-  // 其余页面（设置分区、组件工作室）在 A6 第 4 批与 A7 之前沿用共享页头（面包屑、搜索、主操作）。
+  // 看板、会话页、功能索引、改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）、/config 下的全部分区
+  // （设置分区与三个设备页都用功能页模板，A6 第 3、4 批）与工作流节点编辑器（全宽例外，自己的 52px 页头）自带页头；
+  // 只剩组件工作室与“我的组件”整页在 A7 之前沿用共享页头（面包屑与终端开关）。
   // 手机外壳（规格 7.1）：底部标签栏退役；会话页与主页有自己的顶栏，其余页面顶上是一条 56px 顶栏
   // （☰ 带需要你计数 · 页面标题 · ✎ 新任务），懒加载期间先占住高度，页面不跳。
   const phoneTopBar = phoneShell && page !== 'session'
   // 手机设置（规格 7.4）：/config 是分区列表（不挂设置内容与页头），/config/<分区> 顶上一条“‹ 设置”回列表。
   const phoneSettingsList = phoneShell && settingsOwned && /^\/config\/?$/.test(location.pathname)
   const sharedPageHeader =
-    !['board', 'session', 'more', 'chat', 'workflowCreate'].includes(page) &&
-    !FEATURE_TEMPLATE_PAGES.has(page) &&
-    !(page === 'config' && !settingsOwned) &&
-    !phoneSettingsList
+    !['board', 'session', 'more', 'chat', 'workflowCreate', 'config'].includes(page) &&
+    !FEATURE_TEMPLATE_PAGES.has(page)
   // 设置外壳（侧栏换成设置目录）：桌面外壳（任何宽度）与手机 App 平板；手机外壳是列表 → 分区。
   const settingsLayout = settingsOwned && !phoneShell
 
@@ -1042,7 +1037,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
           <BackNavigation onRouteBack={mobileLayout ? routeBack : undefined} />
           <AppShortcuts
             blocked={Boolean(
-              appDialog.dialog || modal || modelOnboardingOpen || paletteOpen || dispatchOpen,
+              appDialog.dialog || modelOnboardingOpen || paletteOpen || dispatchOpen,
             )}
             onCommandPalette={() => setPaletteOpen(true)}
             onPrimary={() => startNewTask('shortcut')}
@@ -1189,8 +1184,14 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 </Suspense>
               )}
               {phoneShell && settingsOwned && !phoneSettingsList && (
-                // 手机设置分区：“‹ 设置”在最上面，回到分区列表（规格 7.4）。
-                <MobileSettingsBack onBack={() => routerNavigate(SETTINGS_LIST_PATH)} />
+                // 手机设置分区：“‹ 设置”在最上面，回到分区列表（规格 7.4）；设置搜索紧跟其下（桌面在设置侧栏里），
+                // 不随分区内容滚走。分区页自己的 h1 在手机上只给读屏，页名在外壳顶栏。
+                <>
+                  <MobileSettingsBack onBack={() => routerNavigate(SETTINGS_LIST_PATH)} />
+                  <div data-mobile-settings-search className="flex-none px-4 pb-1">
+                    {configSearch()}
+                  </div>
+                </>
               )}
               {sharedPageHeader && (
                 <Suspense fallback={null}>
@@ -1198,16 +1199,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     elementRef={pageHeaderRef}
                     meta={activeMeta}
                     page={page}
-                    settingsOwned={settingsOwned}
-                    query={query}
-                    setQuery={setQuery}
-                    configSection={configSection}
-                    onMenu={() => setPaletteOpen(true)}
-                    onPrimary={handlePrimary}
-                    searchSlot={settingsOwned && !settingsLayout ? configSearch() : undefined}
-                    searchInputRef={searchInputRef}
                     desktopPlatform={window.pisperDesktop?.platform || ''}
-                    mobileApp={mobileApp}
                     terminalOpen={terminalOpen}
                     onToggleTerminal={() => setTerminalOpen((value) => !value)}
                     onBackToMore={moreOwned ? backToMore : undefined}
@@ -1360,7 +1352,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 onToggleTheme={cycleTheme}
               />
             )}
-            {modal && <QuickCreate type={modal} close={() => setModal(null)} notify={notify} />}
             {shortcutHelpOpen && (
               <ShortcutHelpDialog
                 open

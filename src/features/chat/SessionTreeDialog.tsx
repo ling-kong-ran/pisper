@@ -380,15 +380,18 @@ export function SessionTreeDialog({
             trigger.focus()
           }
         }}
-        className={`chat-resource-dialog session-tree-dialog grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
+        className={`chat-resource-dialog session-tree-dialog grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden border border-stroke bg-solid p-0 ${mobileLayout ? '!h-[calc(100dvh_-_16px)] !w-[calc(100vw_-_16px)] !max-w-none' : '!h-[min(760px,calc(100dvh_-_32px))] !w-[min(1120px,calc(100vw_-_32px))] !max-w-[1120px]'}`}
         showCloseButton={false}
       >
         <div className="chat-resource-head flex items-start justify-between gap-4 border-b border-stroke-soft px-[18px] pt-4 pb-3.5 max-[650px]:p-3.5 [&_[data-slot='dialog-description']]:mt-0.5 [&_[data-slot='dialog-description']]:text-xs [&_[data-slot='dialog-description']]:text-content-muted [&_[data-slot='dialog-title']]:text-base [&_[data-slot='dialog-title']]:font-semibold">
           <div>
-            <div className="session-tree-title flex items-center gap-2.5">
-              <span className="grid size-[30px] place-items-center rounded-sm border border-key-border bg-key text-content-secondary shadow-key">
-                <GitFork size={16} />
-              </span>
+            {/* 方向 A：标题前只放 ⑂ 图标（与顶栏入口同一个），不再是键帽方块。 */}
+            <div className="session-tree-title flex items-center gap-2">
+              <GitFork
+                className="size-4 text-content-muted"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
               <DialogTitle>{t('chat:sessionTree.title')}</DialogTitle>
             </div>
             <DialogDescription>
@@ -411,7 +414,7 @@ export function SessionTreeDialog({
           </Button>
         </div>
         <div
-          className={`chat-resource-body session-tree-layout grid min-h-0 overflow-hidden bg-surface-subtle ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
+          className={`chat-resource-body session-tree-layout grid min-h-0 overflow-hidden bg-background ${mobileLayout ? 'grid-cols-1 grid-rows-[minmax(0,1fr)]' : '!grid-cols-[minmax(0,1fr)_292px]'}`}
         >
           {(!mobileLayout || mobilePane === 'list') && (
             <SessionTreeBrowser

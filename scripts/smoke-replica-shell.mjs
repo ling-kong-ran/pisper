@@ -515,7 +515,8 @@ try {
   await dialog.evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished)),
   )
-  assert.ok(Math.abs((await dialog.boundingBox()).width - 520) < 1)
+  // A6：命令面板 620 宽（效果图 extra-palette-dark.png）。
+  assert.ok(Math.abs((await dialog.boundingBox()).width - 620) < 1)
   await input.dispatchEvent('compositionstart')
   await input.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
   await input.dispatchEvent('keydown', { key: 'Escape', isComposing: true })
@@ -525,6 +526,13 @@ try {
     'IME confirmation and cancellation must not activate or dismiss',
   )
   await input.dispatchEvent('compositionend')
+  // Tab 跳到下一组的第一项：分组按显示顺序（代理与会话 → 会话标记 → 操作 → 页面），方向键与 Tab 走同一个顺序。
+  const groupOrder = await page.evaluate(() =>
+    [...document.querySelectorAll('[role=listbox] [role=group]')].map((group) =>
+      group.getAttribute('aria-label'),
+    ),
+  )
+  assert.ok(groupOrder.length >= 2, JSON.stringify(groupOrder))
   await input.press('Tab')
   const activeGroup = await input.evaluate((element) =>
     document
@@ -532,7 +540,7 @@ try {
       .closest('[role=group]')
       .getAttribute('aria-label'),
   )
-  assert.match(activeGroup, /页面|Pages/)
+  assert.equal(activeGroup, groupOrder[1])
   failLabels = true
   await input.fill('Alpha')
   const retry = page
@@ -558,8 +566,10 @@ try {
   await page.evaluate(() => {
     window.dispatchEvent(new Event('focus'))
   })
-  // 改查询后重新请求，指针进入已有会话结果时冻结快照。
+  // 改查询后重新请求，指针进入已有会话结果时冻结快照。A6 起会话组排在最前，结果行位置不随查询变化：
+  // 先把指针移出列表，再“进入”会话行，才是一次真实的指针进入。
   await input.fill('Alph')
+  await page.mouse.move(10, 10)
   await page.getByRole('option').filter({ hasText: 'Alpha conversation' }).hover()
   await page.waitForFunction(
     () => document.querySelector('[role=listbox]')?.getAttribute('aria-busy') === 'true',

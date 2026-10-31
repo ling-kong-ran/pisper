@@ -37,9 +37,9 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
   }
 
   return (
-    // 单行细线卡：与外观分组同一视觉层级，标题 13/500、说明 12px，控件右对齐。
+    // 单行设置：与外观分组同一视觉层级（上下细线，没有圆角框），标题 13/500、说明 12px，控件右对齐。
     <div
-      className="flex flex-row flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-md border border-stroke bg-panel px-4 py-3"
+      className="flex flex-row flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-stroke-soft py-3"
       data-config-card="interface-language"
     >
       <div className="min-w-0 flex-1 basis-40">

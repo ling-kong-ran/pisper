@@ -458,7 +458,9 @@ try {
   await prompt.fill('return home keeps this draft')
   await shellTab('settings').click()
   await page.locator('[data-model-provider-split-panel]').waitFor()
-  await page.getByRole('heading', { name: '模型配置', level: 1, exact: true }).waitFor()
+  // A6：设置分区的页标题是目录里的短名（主区不再重复“设置 / 模型配置”面包屑与大标题）。
+  await page.getByRole('heading', { name: '模型', level: 1, exact: true }).waitFor()
+  assert.equal(await page.getByText('模型配置', { exact: true }).count(), 0)
   assert.match(page.url(), /config\/models/)
   const connectionList = page
     .locator('[data-model-provider-split-panel]')
@@ -485,8 +487,8 @@ try {
   report.checks.push(
     'Default provider badge remains on the default connection when viewing another connection',
   )
-  const quickSetup = page.locator('main > header').getByRole('button', {
-    name: '快速设置',
+  // “快速设置”在页内工具行（A6，共享页头退役）。
+  const quickSetup = page.locator('main [data-settings-quick-setup]').getByText('快速设置', {
     exact: true,
   })
   assert.equal(await quickSetup.count(), 1)
@@ -667,7 +669,7 @@ try {
 
   await page
     .getByRole('navigation', { name: '设置导航', exact: true })
-    // 设置目录用短名（规格 2.6）；页头 h1 仍是完整名“界面设置”。
+    // 设置目录与页标题都用短名（规格 2.6，A6 起主区页标题也是“界面”）。
     .getByRole('button', { name: '界面', exact: true })
     .click()
   await page.waitForURL('**/#/config/interface')
@@ -1597,12 +1599,13 @@ try {
     ['/components', 'components', '组件工作室'],
     ['/more', 'more', '功能'],
     ...[
-      ['models', 'models-connections', '模型配置'],
-      ['notifications', 'notifications-browser', '通知设置'],
-      ['interface', 'interface-appearance', '界面设置'],
+      // 设置分区的 h1 是短名（A6）；远程访问 / 桌面宠物是功能页，仍是完整名。
+      ['models', 'models-connections', '模型'],
+      ['notifications', 'notifications-browser', '通知'],
+      ['interface', 'interface-appearance', '界面'],
       ['shortcuts', 'shortcuts-bindings', '快捷键'],
       ['desktop-pet', 'desktop-pet-settings', '桌面宠物'],
-      ['updates', 'updates-main', '应用更新'],
+      ['updates', 'updates-main', '更新'],
       ['remote-access', 'remote-access-main', '远程访问'],
       ['about', 'about-project', '关于'],
     ].map(([section, anchor, heading]) => ['/config/' + section, 'config', heading, anchor]),

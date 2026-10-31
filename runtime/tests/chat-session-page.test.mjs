@@ -111,10 +111,10 @@ test('the session page mounts one session with the inspector and no dock, splits
   assert.match(dock, /<TaskWorkspace/)
   assert.match(workspace, /const SessionInspector = lazy\(/)
   assert.match(workspace, /<SessionInspector\s+panelId=\{panelId\}\s+sessionId=\{sessionId\}/)
-  // 改名与换工作区：旧顶栏与会话页头都直接可点。
-  assert.match(focus, /onClick=\{onRename\}/)
-  assert.match(focus, /onClick=\{onWorkspace\}/)
-  assert.match(focus, /onRename=\{onRename\}\s+onWorkspace=\{onWorkspace\}/)
+  // 改名与换工作区：A6 起旧顶栏退役，两者都在会话页头的标题菜单里（桌面下拉与手机底部表单同一份数据）。
+  assert.match(focus, /const sessionMenuProps = \{[\s\S]*?onRename,\s+onWorkspace,/)
+  assert.match(focus, /<SessionPageHeader\s+\{\.\.\.sessionMenuProps\}/)
+  assert.match(focus, /<SessionPhoneHeader\s+\{\.\.\.sessionMenuProps\}/)
   // 历史页打开会话只发选中请求，不提供分屏。
   assert.match(history, /<DropdownMenu>/)
   assert.match(history, /requestSessionSelection\(id\)/)
@@ -127,9 +127,9 @@ test('the session page mounts one session with the inspector and no dock, splits
   assert.match(catalog, /inheritRecentCwd = true/)
   assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
   assert.match(page, /preserveExistingOnEmpty: true/)
-  assert.match(app, /mobileApp=\{mobileApp\}/)
-  assert.match(header, /page === 'chat'[\s\S]*mobileApp[\s\S]*newChat/)
-  assert.match(header, /page === 'chat' && mobileApp && 'hidden'/)
+  // 共享页头的“新会话”主操作随 A6 退役（会话页从不挂共享页头）；手机上新建只走外壳顶栏 ✎ → 派发底部表单。
+  assert.doesNotMatch(header, /page === 'chat'|newChat|onPrimary/)
+  assert.match(app, /onNewTask=\{\(\) => startNewTask\('topbar'\)\}/)
   assert.doesNotMatch(focus, /WorkspaceTrustNotice/)
 })
 

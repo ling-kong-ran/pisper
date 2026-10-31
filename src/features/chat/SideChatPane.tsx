@@ -181,8 +181,9 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
             }
           }}
         />
-        {/* 与主输入框同一语言：≥3:1 的控件边框 + 聚焦光环，发送键是唯一的强调色实心键。 */}
-        <div className="flex min-w-0 items-end gap-2 rounded-xl border border-control bg-panel p-2 shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring">
+        {/* 与主输入框同一语言（方向 A，A6 第 4 批）：22 圆角卡片、≥3:1 的控件边框 + 聚焦光环，
+            发送键是同一枚石墨圆键。 */}
+        <div className="flex min-w-0 items-end gap-2 rounded-[var(--composer-radius,22px)] border border-control bg-panel py-2 pr-2 pl-3 shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring">
           <textarea
             ref={inputRef}
             rows={2}
@@ -212,7 +213,7 @@ export function SideChatPane({ parentId, active }: { parentId: string; active: b
           <Button
             type={streaming ? 'button' : 'submit'}
             size="icon"
-            className="size-8 shrink-0 rounded-md max-[650px]:size-11 pointer-coarse:size-11"
+            className="size-8 shrink-0 rounded-full max-[650px]:size-11 pointer-coarse:size-11"
             aria-label={streaming ? t('chat:sideChat.stop') : t('chat:sideChat.send')}
             disabled={
               streaming

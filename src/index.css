@@ -31,7 +31,8 @@
    （--key-bg 面 + --key-border 边 + --key-shadow 投影），其余元素平铺在细线之后。
    收敛约定：新代码一律使用 @theme 映射出的工具类（bg-key、border-control、
    text-accent-fg、shadow-float、bg-code、rounded-* 等）；--r-*、--sh-* 及
-   --blue、--accent-soft 等语义别名为存量代码保留，新增样式禁止再引用。
+   --accent-soft 等语义别名为存量代码保留，新增样式禁止再引用。旧状态色别名（--status-*）、
+   斜纹警示线、泳道底色与只为旧功能页保留的紫色 / 通知 / 审批描边 token 已在 A6 末清理（规格 6.2）。
    数字（时间、计数、时长、百分比）统一使用 Tailwind 的 tabular-nums。 */
 :root {
   color-scheme: light;
@@ -67,16 +68,12 @@
   --brand-blue-strong: #2b38c4;
   --brand-blue-soft: #eef0fe;
   --brand-blue-border: #c7ccfb;
-  --blue: var(--star);
-  --blue-soft: var(--star-soft);
   --accent-soft: var(--star-soft);
   --accent-strong: var(--star-strong);
   --accent-border: var(--star-border);
   --accent-ring: rgba(27, 27, 26, .12);
   --focus: var(--brand-blue);
   --focus-ring: rgba(61, 75, 239, .24);
-  /* 旧状态色别名：只为尚未重做的功能页保留，指向新的中性值；A6 期功能页重做后清理。 */
-  --status-blue: var(--st-run);
   --selection-ring: rgba(27, 27, 26, .08);
   --node-pulse-color: rgba(27, 27, 26, .3);
 
@@ -129,11 +126,8 @@
   --warning-strong: #8a5300;
   --warning-border: #eed3a3;
   --warning-subtle: #fefaf3;
-  --warning-code-bg: #451a03;
   /* 信息色与运行中同色族，浅底跟随运行浅底，避免青色文字落在蓝紫底上。 */
   --info-soft: var(--st-run-soft);
-  --status-green: var(--st-done-fill);
-  --status-muted: var(--text-muted);
 
   /* ── 状态族（--st-*）：独立于强调色，任何强调色预设都不得覆写。
      墨水（无后缀）用于文字和图标（≥4.5:1）；-fill 用于条带与形状；-soft / -border 是浅底与描边。
@@ -150,8 +144,6 @@
   --st-attn-solid: var(--amber);
   --st-attn-ring: var(--warning-strong);
   --on-attn: #1c1204;
-  /* 斜纹警示线（v2 不再使用）：泳道看板在 A3 期删除前仍引用，保留定义以免旧界面失色。 */
-  --hatch-attn: repeating-linear-gradient(135deg, var(--st-attn-fill) 0 6px, transparent 6px 12px);
   --st-fail: var(--text-muted);
   --st-fail-fill: var(--text-muted);
   --st-fail-soft: var(--surface-subtle);
@@ -164,8 +156,7 @@
   --st-queue-fill: var(--text-muted);
   --st-queue-soft: var(--surface-subtle);
   --st-queue-border: var(--stroke-strong);
-  --lane-bg: var(--sidebar-bg);
-  /* 井：用户消息、代码头、命令输出、托盘的浅底（规格 6.2 与 --surface-subtle 同值）；--lane-bg 仅供退役中的泳道页。 */
+  /* 井：用户消息、代码头、命令输出、托盘的浅底（规格 6.2 与 --surface-subtle 同值）。 */
   --well-bg: var(--surface-subtle);
   --well-stroke: var(--stroke);
   --well-text: var(--text-soft);
@@ -234,7 +225,6 @@
   --d1: var(--duration-fast);
   --d2: var(--duration-normal);
   /* 泳道迁移：卡片 FLIP 换泳道的时长，配合 --ease-enter。 */
-  --d-lane: 240ms;
 
   /* ── 字体：数值档位由 ui-preferences 按用户字号内联覆盖 ── */
   --ui-font-size: 14px;
@@ -295,13 +285,6 @@
   --canvas-grid: var(--stroke);
   --canvas-edge: #a1a1a8;
   --node-shadow: #17171a;
-  --violet-border: #c9c4d9;
-  --violet-soft: #f2f0f6;
-  --violet-strong: #6e6899;
-  --workflow-violet: #8378b0;
-  --approval-border: var(--success-border);
-  --notification-border: var(--stroke-strong);
-  --notification-soft: var(--surface-subtle);
   --modal-overlay: var(--overlay-scrim);
   --shadow: rgba(16, 16, 24, .1);
   --shadow-strong: rgba(16, 16, 24, .3);
@@ -454,7 +437,6 @@
   --warning-strong: #f5b866;
   --warning-border: rgba(240, 162, 56, .34);
   --warning-subtle: rgba(240, 162, 56, .06);
-  --warning-code-bg: #401703;
   /* 状态族暗色值：:root 中的 --st-* 都是指向中性文字色与琥珀的别名，随上面的暗色语义色自动换值。 */
   /* 深色下实心琥珀本体对纸面已达 7.9:1，不需要内描边。 */
   --st-attn-ring: transparent;
@@ -491,10 +473,6 @@
   --floating-shadow: rgba(0, 0, 0, .6);
   --canvas-edge: #55555e;
   --node-shadow: #000;
-  --violet-border: #4a4a5e;
-  --violet-soft: #23232e;
-  --violet-strong: #a8a8cd;
-  --workflow-violet: #9e9ecc;
   --shadow: rgba(0, 0, 0, .5);
   --shadow-strong: rgba(0, 0, 0, .65);
   --agent-body-start: #38a5dd;
@@ -891,7 +869,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --color-st-queue-fill: var(--st-queue-fill);
   --color-st-queue-soft: var(--st-queue-soft);
   --color-st-queue-border: var(--st-queue-border);
-  --color-lane: var(--lane-bg);
   --color-well: var(--well-bg);
   --color-well-stroke: var(--well-stroke);
   --color-well-text: var(--well-text);
@@ -913,7 +890,7 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   --font-mono: var(--font-code-family);
   --font-heading: var(--font-sans);
   --font-sans: var(--app-font-family);
-  --color-info: var(--status-blue);
+  --color-info: var(--st-run);
   --color-info-soft: var(--info-soft);
   --color-primary-hover: var(--primary-hover);
   --color-brand: var(--brand-blue-strong);

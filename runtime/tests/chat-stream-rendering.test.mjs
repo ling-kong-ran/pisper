@@ -131,27 +131,23 @@ test('composer tray is the sole persistent Agent run status surface', () => {
 })
 
 test('all chats expose their working directory in the title header, not in the composer or welcome screen', async () => {
-  const [focus, transcript, chinese, english] = await Promise.all([
+  const [focus, transcript, pageHeader, menu] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/locales/zh-CN/chat.json', 'utf8'),
-    readFile('src/locales/en-US/chat.json', 'utf8'),
+    readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
+    readFile('src/features/chat/session-header-menu.tsx', 'utf8'),
   ])
-  assert.match(focus, /cwd=\{cwd\}/)
-  assert.match(focus, /onWorkspace=\{onWorkspace\}/)
-  assert.match(focus, /header-workspace/)
-  assert.match(focus, /workspaceName\(cwd, language\)/)
-  assert.match(focus, /aria-label=\{t\('chat:focusSession\.changeWorkingDirectoryWorkspace'/)
-  assert.match(focus, /onClick=\{onWorkspace\}/)
-  assert.match(focus, /const headerBlock[\s\S]*\{workspaceBlock\}[\s\S]*onClick=\{onRename\}/)
+  // A6 起旧顶栏的“工作区 / 标题”按钮退役：工作目录在会话页头标题旁的等宽项目名（悬停给完整路径），
+  // 换工作区是标题菜单里的“移动工作区”；输入框与欢迎屏都不显示目录。
+  assert.match(focus, /cwd: cwd \|\| ''/)
+  assert.match(pageHeader, /const project = workspaceName\(cwd, language\)/)
+  assert.match(pageHeader, /title=\{cwd\}\s+data-session-project/)
+  assert.match(menu, /key: 'workspace',[\s\S]*?onSelect: actions\.onWorkspace/)
   assert.doesNotMatch(
     focus.slice(focus.indexOf('const composerBlock')),
-    /kind="workspace"|workspaceBlock/,
+    /kind="workspace"|workspaceBlock|header-workspace/,
   )
   assert.doesNotMatch(transcript, /welcome-workspace/)
-  // 目录按钮的无障碍名称两种语言都有（原“工作目录”键没有任何调用方，随 A2 清理未用文案删除）。
-  assert.match(chinese, /"focusSession\.changeWorkingDirectoryWorkspace": /)
-  assert.match(english, /"focusSession\.changeWorkingDirectoryWorkspace": /)
 })
 
 test('conversation layout keeps a compact title header without a persistent avatar card', async () => {
@@ -164,11 +160,10 @@ test('conversation layout keeps a compact title header without a persistent avat
     readFile('src/features/chat/SessionPhoneHeader.tsx', 'utf8'),
   ])
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
-  // 旧的任务顶栏只留给非路由的旧入口（第 6 期删除）。
-  assert.match(
-    focus,
-    /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
-  )
+  // 旧的任务顶栏（非路由入口）在 A6 删除：FocusSession 只有会话页的两种页头，没有带页面外壳之外的回退顶栏。
+  assert.doesNotMatch(focus, /TaskWorkspaceHeader|ThemeToggleButton/)
+  assert.match(focus, /const headerBlock = pageHeaderBlock\n/)
+  assert.match(pageHeader, /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/)
   // 手机会话页（规格 v2 第 7.2 节）：56px 手机顶栏取代旧任务顶栏，标题同样只出现一次、没有头像卡片；
   // 标题 ▾ 打开会话菜单底部表单，表单里的会话操作与桌面标题菜单同一份数据（重命名是其中一项）。
   assert.match(focus, /phonePage \? \(\s*<SessionPhoneHeader\b/)
@@ -185,8 +180,6 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.doesNotMatch(phoneHeader, /Avatar|BrandLogo/)
   // 桌面会话顶栏（规格 v2 第 4.1 节，52px）：标题只出现这一次（15px），是标题 ▾ 菜单的触发键，
   // 菜单第一项就是重命名（原来“点标题改名”的等价入口）；没有头像卡片，外壳本身不再重复标题。
-  assert.match(focus, /const headerBlock = pageHeaderBlock \|\| \(/)
-  assert.match(pageHeader, /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/)
   assert.match(
     pageHeader,
     /<DropdownMenuTrigger asChild>[\s\S]{0,600}text-\[15px\] leading-6[\s\S]{0,800}data-session-title[\s\S]{0,400}<DropdownMenuContent[^>]*>\s*\{menu\.items\}/,

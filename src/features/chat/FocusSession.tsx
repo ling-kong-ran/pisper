@@ -11,19 +11,7 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
 import { lazy, memo, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
-import {
-  Braces,
-  CornerDownRight,
-  FolderOpen,
-  ImagePlus,
-  Mic,
-  PanelRightClose,
-  PanelRightOpen,
-  Paperclip,
-  Plus,
-  TerminalSquare,
-  Pencil,
-} from 'lucide-react'
+import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   DropdownMenu,
@@ -32,12 +20,8 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { OrbitSpinner } from '@/components/ui/spinner'
-import { ThemeToggleButton } from '@/components/layout/ThemeToggleButton'
-import { useUiStore } from '@/stores/ui-store'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
-import { workspaceName } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -54,7 +38,6 @@ import { ComposerModeChip } from './ComposerModeChip'
 import { nextComposerRunMode } from './composer-run-mode'
 import { ContextUsageSection, ModelThinkingControl } from './FocusRuntimeControls'
 import { FocusTranscript } from './FocusTranscript'
-import { TaskWorkspaceHeader } from './TaskWorkspaceHeader'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
 import { ToolApproval } from './ToolApproval'
@@ -154,10 +137,6 @@ export const FocusSession = memo(function FocusSession({
   questions,
   error,
   pendingAsset,
-  contextOpen,
-  contextCompact,
-  contextPanelId,
-  onToggleContext,
   notify,
   onOpenModelSettings,
   onAssetConsumed,
@@ -191,15 +170,11 @@ export const FocusSession = memo(function FocusSession({
   // 手机外壳（pageChrome.phone）换成 56px 顶栏，返回入口在顶栏左侧。
   const pageChrome = useContext(SessionPageChromeContext)
   const phonePage = Boolean(pageChrome?.phone)
-  const { t, language } = useI18n()
-  const cycleTheme = useUiStore((state) => state.cycleTheme)
-  const theme = useUiStore((state) => state.theme)
+  const { t } = useI18n()
   const shortcuts = useShortcutStore((state) => state.bindings)
   const mobileApp = useIsMobileApp()
   const phoneViewport = useIsPhoneViewport()
   const mobileLayout = mobileApp || phoneViewport
-  // 手机顶栏只属于手机外壳；桌面壳窄窗口仍用工作区 / 标题的桌面写法，避免与自绘窗口按钮冲突。
-  const phoneShell = mobileLayout && !window.pisperDesktop
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
@@ -587,29 +562,6 @@ export const FocusSession = memo(function FocusSession({
       }
     />
   )
-  const workspaceBlock = (
-    <button
-      type="button"
-      // 窄容器下与分隔符一起隐藏：只剩 32px 文件夹图标既不达触控尺寸又留下孤立的“/”；更多菜单仍可改工作目录。
-      className="header-workspace inline-flex h-8 min-w-0 max-w-[150px] shrink items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 max-[650px]:h-11 pointer-coarse:h-11 @max-[520px]:hidden"
-      title={cwd}
-      aria-label={t('chat:focusSession.changeWorkingDirectoryWorkspace', {
-        workspace: workspaceName(cwd, language),
-      })}
-      onClick={onWorkspace}
-      disabled={streaming || switchingCwd}
-    >
-      <FolderOpen size={12} />
-      <span className="truncate">{workspaceName(cwd, language)}</span>
-    </button>
-  )
-  const terminalMenuItem = window.pisperDesktop?.terminalProfiles &&
-    runtimeFeatureAvailable(capabilities, 'terminal') && (
-      <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event('pisper:toggle-terminal'))}>
-        <TerminalSquare />
-        {t('navigation:pageHeader.toggleTerminal')}
-      </DropdownMenuItem>
-    )
   // 两种会话页头共用的数据与操作（菜单项都复用现有实现）。
   const pendingQuestions = useMemo(() => parsePendingQuestions(questions), [questions])
   const sessionMenuProps = {
@@ -673,112 +625,9 @@ export const FocusSession = memo(function FocusSession({
       }
     </SessionTreeControl>
   )
-  const headerBlock = pageHeaderBlock || (
-    <SessionTreeControl
-      visible={messages.length > 0}
-      open={sessionTreeOpen}
-      sessionId={session.id}
-      streaming={Boolean(streaming)}
-      revision={sessionTreeRevision}
-      pulseToken={sessionTreePulse}
-      onOpenChange={setSessionTreeOpen}
-      onNavigated={async (editorText) => {
-        if (editorText !== null) applyWelcomeChip(editorText)
-        await onTreeNavigated?.()
-        requestTranscriptBottom()
-      }}
-      onCreateChildSession={(entryId) => onCreateChildSession(entryId)}
-      notify={notify}
-    >
-      {(recallItem) => (
-        <TaskWorkspaceHeader
-          onRename={onRename}
-          onWorkspace={onWorkspace}
-          sessionId={session.id}
-          notify={notify}
-          actions={
-            <>
-              {terminalMenuItem}
-              {recallItem}
-              <DropdownMenuItem
-                aria-controls={contextPanelId}
-                onSelect={() => onToggleContext(!contextOpen)}
-              >
-                {contextOpen ? <PanelRightClose /> : <PanelRightOpen />}
-                {contextOpen ? t('chat:sessionContext.close') : t('chat:sessionContext.open')}
-              </DropdownMenuItem>
-              <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
-            </>
-          }
-          data-window-drag-region
-          data-context-aside={(contextOpen && !contextCompact) || undefined}
-          className={cn(
-            'workbench-chat-header relative z-4 h-14 shrink-0 items-center gap-2 border-0 bg-transparent pr-4 pl-[calc(16px+var(--workbench-leading-inset,0px))] py-1',
-            // 手机单行顶栏：左侧让出与右侧两枚 44px 按钮等宽的位置（浮动菜单键落在其中），标题才能真正居中。
-            phoneShell && 'gap-0 pr-1 pl-[92px]',
-          )}
-        >
-          {phoneShell && routeLeading && (
-            // 手机顶栏左侧本就为菜单键留出了位置，返回入口放在这里，标题仍然居中。
-            <div className="absolute top-1/2 left-1 z-1 -translate-y-1/2">{routeLeading}</div>
-          )}
-          <div className="flex min-w-0 flex-1 items-center gap-1" data-window-drag-region>
-            {!phoneShell && routeLeading && (
-              <>
-                {routeLeading}
-                <span aria-hidden="true" className="mx-1 h-4 w-px flex-none bg-stroke" />
-              </>
-            )}
-            {!phoneShell && (
-              <>
-                {workspaceBlock}
-                <span className="text-muted-foreground/40 @max-[520px]:hidden" aria-hidden="true">
-                  /
-                </span>
-              </>
-            )}
-            <button
-              type="button"
-              className={cn(
-                'group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] font-medium hover:bg-muted max-[650px]:min-h-11 pointer-coarse:min-h-11',
-                // 手机按设计稿两行居中：16/600 会话标题 + 12px 工作区与运行状态，整块仍是一个 44px 重命名目标。
-                phoneShell && 'min-h-11 flex-1 flex-col justify-center gap-0 py-0 text-center',
-              )}
-              title={t('chat:focusSession.renameChat')}
-              aria-label={t('chat:focusSession.renameChat')}
-              onClick={onRename}
-            >
-              <span
-                className={cn(
-                  'truncate',
-                  phoneShell && 'max-w-full text-lg leading-[1.3] font-semibold',
-                )}
-              >
-                {session.name || t('navigation:pageHeader.newChat')}
-              </span>
-              {phoneShell ? (
-                <span className="flex max-w-full items-center gap-1.5 text-xs leading-[1.3] font-normal text-content-muted">
-                  <span className="truncate">{workspaceName(cwd, language)}</span>
-                  {streaming && (
-                    <>
-                      <OrbitSpinner className="size-3" />
-                      <span className="shrink-0">{t('chat:focusSession.running')}</span>
-                    </>
-                  )}
-                </span>
-              ) : (
-                <Pencil
-                  size={12}
-                  aria-hidden="true"
-                  className="shrink-0 opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60"
-                />
-              )}
-            </button>
-          </div>
-        </TaskWorkspaceHeader>
-      )}
-    </SessionTreeControl>
-  )
+  // 非路由的旧单会话顶栏已在 A6 退役：会话只在会话页（路由，带 pageChrome）里渲染，
+  // 页头一律是 SessionPageHeader / SessionPhoneHeader；没有页面外壳时不画页头。
+  const headerBlock = pageHeaderBlock
   const transcriptBlock = (
     <FocusTranscript
       key="transcript"

@@ -418,6 +418,7 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
                   size="icon-sm"
                   variant="ghost"
                   disabled={discovering || busy !== null}
+                  className="pointer-coarse:size-11"
                   aria-label={t('config:mobileServer.rediscover')}
                   onClick={() => void discoverLan()}
                 >
@@ -425,13 +426,14 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
                 </Button>
               </div>
               {discovered.length ? (
-                <ul className="grid max-h-44 gap-1.5 overflow-y-auto">
+                // 方向 A：附近的服务器是细线分隔的列表行（不是一摞带框小卡片），行内按钮触屏 44。
+                <ul className="m-0 grid max-h-44 list-none divide-y divide-stroke-soft overflow-y-auto border-y border-stroke-soft p-0">
                   {discovered.map((server) => {
                     const connecting = busy === `lan:${server.id}`
                     return (
                       <li
                         key={server.id}
-                        className="flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2"
+                        className="flex min-h-12 items-center justify-between gap-3 py-2"
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <Server className="size-4 flex-none text-muted-foreground" />
@@ -444,6 +446,7 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
                         </div>
                         <Button
                           size="sm"
+                          className="pointer-coarse:min-h-11"
                           disabled={busy !== null}
                           onClick={() => void pairLan(server)}
                         >
@@ -462,12 +465,22 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
                 </p>
               )}
               {discoveryError ? (
-                <p className="text-xs leading-relaxed text-destructive">{discoveryError}</p>
+                // 发现失败是已发生的结果，不是表单错误：中性文字 + 读屏播报（规格 6.1 红色只给删除与表单校验）。
+                <p role="alert" className="text-xs leading-relaxed text-content-secondary">
+                  {discoveryError}
+                </p>
               ) : null}
               {lanStatus ? (
-                <div className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2">
-                  <p className="text-xs leading-relaxed">{lanStatus}</p>
-                  <Button size="sm" variant="outline" onClick={() => void cancelLanPairing()}>
+                <div className="flex items-center justify-between gap-3 rounded-[var(--r-md)] bg-surface-subtle px-3 py-2">
+                  <p role="status" className="text-xs leading-relaxed">
+                    {lanStatus}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="pointer-coarse:min-h-11"
+                    onClick={() => void cancelLanPairing()}
+                  >
                     {t('config:mobileServer.cancelRequest')}
                   </Button>
                 </div>
@@ -481,12 +494,20 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
               </span>
             </div>
 
-            <Button className="w-full" disabled={busy !== null} onClick={() => void scan()}>
+            <Button
+              className="w-full pointer-coarse:min-h-11"
+              disabled={busy !== null}
+              onClick={() => void scan()}
+            >
               {busy === 'scan' ? <LoaderCircle className="animate-spin" /> : <QrCode />}
               {t('config:mobileServer.scan')}
             </Button>
 
-            {error ? <p className="text-xs leading-relaxed text-destructive">{error}</p> : null}
+            {error ? (
+              <p role="alert" className="text-xs leading-relaxed text-content-secondary">
+                {error}
+              </p>
+            ) : null}
           </>
         )}
       </DialogContent>

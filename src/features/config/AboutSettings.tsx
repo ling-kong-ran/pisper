@@ -107,7 +107,7 @@ export function AboutSettings({ update, notify }: { update: AppUpdateController;
         </SettingsGroup>
       </section>
 
-      <Panel className="p-4 py-4" data-config-card="about-support">
+      <Panel className="py-4" data-config-card="about-support">
         <div className="flex flex-wrap items-center justify-between gap-4 max-[540px]:flex-col max-[540px]:items-stretch">
           <div className="min-w-0 flex-1">
             <SectionTitle title={t('config:aboutSettings.supportPisper')} />

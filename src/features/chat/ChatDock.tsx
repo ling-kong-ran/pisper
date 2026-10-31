@@ -1,4 +1,3 @@
-import { TASK_VIEW_WILL_CHANGE } from './events'
 // 聊天页的会话视图容器：会话页只挂一个会话（SingleSessionPanel），把会话状态与回调接到 FocusSession。
 // 第 3 期起分屏不再挂载，A4 删除了分屏面板、手机会话标签与分屏库依赖。
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
@@ -13,7 +12,6 @@ import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
 import { TaskWorkspace } from './TaskWorkspace'
 import { SessionWorkspace } from './SessionWorkspace'
 import { SessionPageChromeContext } from './session-workspace-context'
-import { useContextPagesStore } from './session-context-pages-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { FocusSession } from './FocusSession'
@@ -60,10 +58,6 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
   const context = useContext(ChatDockContext)
   const pageChrome = useContext(SessionPageChromeContext)
   const capabilities = useRuntimeCapabilitiesStore((store) => store.capabilities)
-  const contentOpen = useContextPagesStore(
-    (store) => store.sessions[sessionId]?.contentOpen || false,
-  )
-  const updateWorkspace = useContextPagesStore((store) => store.update)
 
   // 面板只订阅自己会话的 state：其它会话的流式帧不会触发本面板重渲染。
   const subscribeSessionState = context?.subscribeSessionState
@@ -154,13 +148,6 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       },
       onRetryLastTurn: () => context?.retryLastTurn(sessionId),
       onTreeNavigated: () => context?.reloadSessionBranch(sessionId),
-      onToggleContext: (open: boolean) => {
-        window.dispatchEvent(new Event(TASK_VIEW_WILL_CHANGE))
-        const workspace = useContextPagesStore.getState().sessions[sessionId]
-        if (open && !workspace?.pages.length)
-          updateWorkspace(sessionId, 'files', { type: 'open', kind: 'files' })
-        else updateWorkspace(sessionId, 'files', { type: 'workspace', contentOpen: open })
-      },
       onSend: (
         value: string,
         attachments: ChatAttachment[],
@@ -190,7 +177,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onAbort: () => context?.abort(sessionId),
     }),
-    [context, sessionId, session, panelId, updateWorkspace],
+    [context, sessionId, session],
   )
 
   if (!context || !session) {
@@ -269,9 +256,6 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       notify={context.notify}
       onOpenModelSettings={context.openModelSettings}
       onCompactionThresholdChange={context.setCompactionThreshold}
-      contextOpen={contentOpen}
-      contextCompact={context.mobileLayout}
-      contextPanelId={`${panelId || `mobile-${sessionId}`}-context`}
       {...handlers}
     />
   )

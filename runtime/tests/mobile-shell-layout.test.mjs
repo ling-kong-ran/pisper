@@ -210,12 +210,13 @@ test('every phone approval entry keeps critical approvals out of one-step approv
   )
   assert.match(toolApproval, /<ApprovalConfirm[\s\S]{0,300}phone=\{phone\}/)
   // 确认层：手机是底部表单；按住 600ms 才确认，点击不能绕过，详情未到时不能按住。
-  assert.match(confirm, /export const APPROVAL_HOLD_MS = 600/)
+  // 按住键是通用 HoldToConfirmButton（A6 合并；600ms 与“点击不确认”由它的守卫钉住），不给 onActivate。
+  assert.match(confirm, /<HoldToConfirmButton\b/)
+  assert.doesNotMatch(confirm, /onActivate=/)
   assert.match(
     confirm,
     /if \(phone\)\s*return \(\s*<Sheet open=\{open\} onOpenChange=\{onOpenChange\}>/,
   )
-  assert.match(confirm, /onClick=\{\(event\) => event\.preventDefault\(\)\}/)
   assert.match(confirm, /disabled=\{pending \|\| !approval\}/)
   // 抽屉里的一步处理只给普通批准（sidebarQuickAction 判为 decide 的行），高风险与详情未到的行只能打开；
   // 批准走与侧栏快捷处理同一个 decide（confirmCritical: false，Runtime 认为需要确认时改为打开会话）。

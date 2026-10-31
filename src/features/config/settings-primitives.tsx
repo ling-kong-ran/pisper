@@ -1,5 +1,6 @@
-// 设置页共享原语：SettingsCard / Field 等分组卡片组件，
-// 保证各配置分区视觉一致。
+// 设置页共享原语：SettingsCard / Group / Field 等分组组件，保证各配置分区视觉一致。
+// 方向 A（规格 2.6、6.4，效果图 desktop-settings-light.png）：设置是居中 760 栏里的一行行设置，
+// 行与行之间只有细线，不再是一摞带框卡片；层次靠分区标题与一级明度差。
 import type { ComponentProps, ReactNode } from 'react'
 import {
   AppCard,
@@ -12,7 +13,19 @@ import { cn } from '@/lib/utils'
 
 export type SettingsBadgeTone = StatusBadgeTone
 
-export const SettingsCard = AppCard
+// 分组：上缘一条细线、没有左右描边与底色，内容与页标题左缘对齐（调用方的 className 仍可加上下间距）。
+export function SettingsCard({ className, ...props }: ComponentProps<typeof AppCard>) {
+  return (
+    <AppCard
+      data-settings-card
+      className={cn(
+        'rounded-none border-x-0 border-t border-b-0 border-stroke-soft bg-transparent px-0',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
 export const SettingsSectionTitle = AppSectionTitle
 export const SettingsBadge = StatusBadge
 
@@ -20,14 +33,15 @@ export function SettingsSwitch(props: ComponentProps<typeof AppSwitch>) {
   return <AppSwitch density="compact" {...props} />
 }
 
-// 细线分组卡：1px 描边、r-md、行间只用柔和细线；行本身（SettingsRow 等）不再各自带框，
-// 这样同一卡片里的设置读起来像仪表面板而不是一摞小卡片。
-// @container/card 供卡内表单在窄宽度下改为上下堆叠。
+// 细线分组：上下各一条细线、行间只用柔和细线，没有圆角框与左右内边距；行本身（SettingsRow 等）不各自带框，
+// 这样同一组设置读起来像效果图里的一列设置行而不是一摞小卡片。
+// @container/card 供组内表单在窄宽度下改为上下堆叠。
 export function SettingsGroup({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
+      data-settings-group
       className={cn(
-        '@container/card min-w-0 divide-y divide-stroke-soft rounded-md border border-stroke bg-panel px-4',
+        '@container/card min-w-0 divide-y divide-stroke-soft border-y border-stroke-soft',
         className,
       )}
       {...props}

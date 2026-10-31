@@ -200,6 +200,7 @@ export async function configRoute() {
       <ConfigPage
         notify={context.notify}
         registerPrimaryAction={context.registerPrimaryAction}
+        invokePrimaryAction={context.invokePrimaryAction}
         section={context.configSection}
         onBackToFeatures={context.onBackToFeatures}
         onBrowserNotificationChange={context.setNotificationSettings}

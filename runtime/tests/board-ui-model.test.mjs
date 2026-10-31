@@ -447,9 +447,21 @@ test('critical requests are never approved from the board or the sidebar', async
     if (file !== 'ApprovalConfirm.tsx' && file !== 'approval-confirm.ts')
       assert.doesNotMatch(source, /<ApprovalConfirm\b/, file)
   // 按住 0.6 秒才确认；按钮的点击（空格/回车）不能绕过按住时长，层内 ↵ 不在“取消”上时才确认。
+  // A6 起确认层用 A2 的通用 HoldToConfirmButton（600ms、点击只走 onActivate，见 session-page-content 守卫）：
+  // 这里不给 onActivate（读屏的直接激活不批准），回车交给层内处理（enterPassesThrough），空格仍须按住。
   const confirmLayer = sources.find(([file]) => file === 'ApprovalConfirm.tsx')[1]
-  assert.match(confirmLayer, /export const APPROVAL_HOLD_MS = 600\b/)
-  assert.match(confirmLayer, /onClick=\{\(event\) => event\.preventDefault\(\)\}/)
+  const holdButton = await readFile(
+    join(root, 'src/components/app/HoldToConfirmButton.tsx'),
+    'utf8',
+  )
+  assert.match(holdButton, /export const HOLD_TO_CONFIRM_MS = 600\b/)
+  assert.match(holdButton, /onClick=\{\(event\) => \{\s*event\.preventDefault\(\)/)
+  assert.match(holdButton, /!\(enterPassesThrough && key === 'Enter'\)/)
+  assert.match(
+    confirmLayer,
+    /<HoldToConfirmButton\b[\s\S]*?enterPassesThrough[\s\S]*?data-approval-hold/,
+  )
+  assert.doesNotMatch(confirmLayer, /onActivate=|function HoldToConfirm\b|setTimeout\(/)
   assert.match(confirmLayer, /closest\('\[data-approval-cancel\]'\)\) return/)
   // 看板之外没有任何代码能调用看板的批准动作。
   const outside = []

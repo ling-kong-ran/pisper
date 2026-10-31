@@ -15,10 +15,10 @@ import { DEFAULT_SESSION_STATE } from '@/lib/session-state'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
 import '@/index.css'
 
-// ?layout=page：按桌面会话页（/board/:id）的方式渲染——提供会话页外壳上下文（页头、会话页输入框），
-// 并先注册会话页文案（与会话路由加载时一致）。不带参数时是手机外壳与旧入口仍在用的单会话视图。
+// 一律按桌面会话页（/board/:id）的方式渲染——提供会话页外壳上下文（真实会话页头、会话页输入框），
+// 并先注册会话页文案（与会话路由加载时一致）。A6 起非路由的旧单会话视图（TaskWorkspaceHeader 顶栏）已退役，
+// ?layout=page 参数保留只为兼容旧链接，不再区分两种外观。
 const search = new URLSearchParams(location.search)
-const pageLayout = search.get('layout') === 'page'
 // ?approvals=1：两条待批（一条命令守卫拦截的 critical、一条普通），核对内联批准卡与按住允许。
 const withApprovals = search.get('approvals') === '1'
 // ?questions=1：两组提问（先是两题含多选的一组，回答后是一题单选），核对问题卡的点选、提交与跳过。
@@ -83,7 +83,7 @@ const runningFeed: EntityRecord[] = [
 ]
 // 运行结束后同一组操作都已完成：工具组应自动折叠成一行。
 const finishedFeed: EntityRecord[] = runningFeed.map((item) => ({ ...item, status: 'done' }))
-if (pageLayout) await ensureBoardMessages()
+await ensureBoardMessages()
 const pageChrome = { compact: false, overlayOnly: false }
 
 const noop = () => {}
@@ -174,10 +174,6 @@ export function Fixture() {
     queuedInputs: queued,
     runStartedAt: streaming ? new Date(Date.now() - 192_000).toISOString() : null,
     streaming,
-    contextOpen: false,
-    contextCompact: false,
-    contextPanelId: 'context',
-    onToggleContext: noop,
     onModelChange: noop,
     onThinkingLevelChange: noop,
     onExecutionModeChange: () => true,
@@ -253,12 +249,10 @@ export function Fixture() {
       older: loadOlder,
     },
   })
-  return pageLayout ? (
+  return (
     <SessionPageChromeContext.Provider value={pageChrome}>
       <FocusSession {...props} />
     </SessionPageChromeContext.Provider>
-  ) : (
-    <FocusSession {...props} />
   )
 }
 

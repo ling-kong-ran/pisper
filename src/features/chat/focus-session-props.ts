@@ -60,10 +60,6 @@ export type FocusSessionProps = {
   approvals: EntityRecord[]
   error?: string
   pendingAsset?: ChatAttachment | null
-  contextOpen: boolean
-  contextCompact: boolean
-  contextPanelId: string
-  onToggleContext: (open: boolean) => void
   notify?: Notify
   onOpenModelSettings?: () => void
   onAssetConsumed?: () => void

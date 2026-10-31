@@ -7,7 +7,7 @@
 // 图形图例：侧栏底色上的 16px 运行中 / 排队 / 今天完成（排队分组要等 Runtime 声明 sessionQueue，
 // 真实侧栏里还没有排队行），供冒烟在 1x 截图上逐像素比较三者是否可区分（规格 9.2）。
 // 页面状态只在内存里：选中的入口、派发次数与命令面板打开的目标都写进 <output>，由冒烟脚本读取。
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Settings } from 'lucide-react'
 import { AppProviders } from '@/app/providers'
@@ -52,7 +52,6 @@ export function Fixture() {
   const [opened, setOpened] = useState('')
   const [entry, setEntry] = useState<ShellSidebarEntry | null>('board')
   const [newTasks, setNewTasks] = useState(0)
-  const searchInputRef = useRef<HTMLInputElement>(null)
   window.shellControls = { setEntry }
   // “更多”页搜索框把关键词交给命令面板：与应用壳一样监听请求事件再打开。
   useEffect(() => {
@@ -146,16 +145,11 @@ export function Fixture() {
               </FeaturePage>
             )}
             {!phone && !feature && (
+              // 共享页头（A6 起只剩组件页在用）：桌面壳才有右侧的终端开关，用它量自绘标题栏右上角 144px。
               <PageHeader
-                meta={['资产', '']}
-                page="assets"
-                query=""
-                setQuery={() => {}}
-                configSection="models"
-                onMenu={() => {}}
-                onPrimary={() => setOpened('primary')}
-                searchInputRef={searchInputRef}
-                desktopPlatform=""
+                meta={['组件工作室', '']}
+                page="components"
+                desktopPlatform="win32"
                 terminalOpen={false}
                 onToggleTerminal={() => {}}
               />

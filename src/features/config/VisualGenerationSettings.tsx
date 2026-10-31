@@ -182,7 +182,7 @@ export function VisualGenerationSettings({
   return (
     <section className="mt-3">
       {/* 当前视觉模型摘要卡：键帽图标 + 读数（提供方 / 模型），右侧测试与快速设置 */}
-      <SettingsCard className="mb-3 p-4 py-3.5" data-config-card="models-visual">
+      <SettingsCard className="mb-3 py-3.5" data-config-card="models-visual">
         <div className="flex flex-wrap items-center gap-3">
           <span
             aria-hidden="true"
@@ -296,7 +296,7 @@ export function VisualGenerationSettings({
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <SettingsCard className="mt-2 p-4 py-4">
+          <SettingsCard className="mt-2 py-4">
             {/* 与对话连接管理共用同一套卡片网格，保证两边样式一致 */}
             <ConnectionCardGrid
               providers={visualProviders}

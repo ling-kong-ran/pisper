@@ -234,8 +234,9 @@ test('session page layout: no lane strip above the chat, inspector overlay under
   assert.match(workspace, /data-inspector-overlay[\s\S]{0,400}shadow-float/)
   assert.doesNotMatch(workspace, /overlay-scrim|backdrop/)
   assert.match(workspace, /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/)
-  // 页头只在会话页布局里替换旧顶栏；旧顶栏（手机外壳）保持不变。
-  assert.match(focus, /const headerBlock = pageHeaderBlock \|\| \(/)
+  // 页头只有会话页的两种（桌面 SessionPageHeader / 手机 SessionPhoneHeader）；旧顶栏的回退在 A6 删除。
+  assert.match(focus, /const headerBlock = pageHeaderBlock\n/)
+  assert.doesNotMatch(focus, /TaskWorkspaceHeader/)
   assert.match(dock, /pageChrome \? \(\s*\/\/[^\n]*\n\s*<SessionWorkspace/)
   assert.match(
     page,

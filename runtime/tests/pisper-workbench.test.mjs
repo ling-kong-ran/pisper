@@ -82,11 +82,11 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     assert.doesNotMatch(imports, new RegExp(`\\b${retired}\\b`), `${retired} must not be imported`)
   }
   // 看板、会话页、更多页、工作流节点编辑器（全宽例外，自己的 52px 页头）、改用功能页模板的页面与
-  // /config 下的三个设备页（功能页，不归设置外壳）自带页头；其余页面沿用共享页头（A6 第 4 批 / A7 前）。
+  // /config 下的全部分区（设置分区与三个设备页都用功能页模板，A6 第 3、4 批；手机设置列表自带列表）自带页头；
+  // 只剩组件页沿用共享页头（A7 前）。
   assert.match(
     app,
-    // 手机设置的分区列表（/config）自带列表，不挂共享页头；功能页模板的页面按 FEATURE_TEMPLATE_PAGES 判断。
-    /const sharedPageHeader =\s*!\['board', 'session', 'more', 'chat', 'workflowCreate'\]\.includes\(page\) &&\s*!FEATURE_TEMPLATE_PAGES\.has\(page\) &&\s*!\(page === 'config' && !settingsOwned\) &&\s*!phoneSettingsList/,
+    /const sharedPageHeader =\s*!\['board', 'session', 'more', 'chat', 'workflowCreate', 'config'\]\.includes\(page\) &&\s*!FEATURE_TEMPLATE_PAGES\.has\(page\)\n/,
   )
   assert.match(app, /\{sharedPageHeader && \(/)
   // 新任务只有一条路径：⌘N、侧栏 / 抽屉“新任务”、手机顶栏 ✎ 与命令面板都交给 startNewTask，

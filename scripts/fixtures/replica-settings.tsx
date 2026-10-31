@@ -4,7 +4,7 @@ import { ensureBoardMessages, ensureCustomUiMessages, i18n } from '@/app/i18n'
 import { ChatAppearancePage } from '@/app/ChatAppearancePage'
 import { applyUiPreferenceAttributes, resolveDarkTheme } from '@/app/ui-preferences'
 import { useUiStore } from '@/stores/ui-store'
-import { PageFrame } from '@/components/app/PageFrame'
+import { FeaturePage } from '@/components/app/FeaturePage'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ModelsSettings } from '@/features/config/ModelsSettings'
@@ -115,9 +115,9 @@ export function InterfacePageFixture() {
         <Route
           path="/config/interface"
           element={
-            <PageFrame variant="settings">
+            <FeaturePage title="界面">
               <ChatAppearancePage appearance={<InterfaceSettings notify={notify} />} />
-            </PageFrame>
+            </FeaturePage>
           }
         />
         <Route path="/components" element={<p data-testid="components-route">components</p>} />
@@ -190,13 +190,13 @@ export function Fixture() {
       ) : view === 'interface-page' ? (
         <InterfacePageFixture />
       ) : view === 'shortcuts' ? (
-        <PageFrame variant="settings">
+        <FeaturePage title="快捷键">
           <ShortcutSettings requestConfirm={() => Promise.resolve(true)} />
-        </PageFrame>
+        </FeaturePage>
       ) : view === 'search' ? (
         <SearchFixture />
       ) : view === 'appearance' || view === 'typography' ? (
-        <PageFrame variant="settings">
+        <FeaturePage title="界面">
           <InterfaceSettings notify={notify} />
           {view === 'typography' && (
             <div data-testid="typography-sample" className="text-[length:var(--font-content-size)]">
@@ -205,7 +205,7 @@ export function Fixture() {
               </MarkdownMessage>
             </div>
           )}
-        </PageFrame>
+        </FeaturePage>
       ) : (
         <MemoryFixture />
       )}

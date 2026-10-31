@@ -15,12 +15,16 @@ type HoldToConfirmButtonProps = Omit<
   onConfirm: () => void
   // 没有按住过程的激活（读屏的“双击”、程序化点击）：通常打开确认对话框。
   onActivate?: () => void
+  // 回车不计时、交给外层：确认层本身就是第二步，层内按 ↵ 直接确认（ApprovalConfirm），
+  // 只有空格走按住。回车的默认点击照样被 onClick 拦下，不会绕过外层的判断。
+  enterPassesThrough?: boolean
   children: ReactNode
 }
 
 export function HoldToConfirmButton({
   onConfirm,
   onActivate,
+  enterPassesThrough = false,
   disabled,
   className,
   children,
@@ -43,7 +47,8 @@ export function HoldToConfirmButton({
       onConfirm()
     }, HOLD_TO_CONFIRM_MS)
   }
-  const holdKey = (key: string) => key === ' ' || key === 'Enter'
+  const holdKey = (key: string) =>
+    (key === ' ' || key === 'Enter') && !(enterPassesThrough && key === 'Enter')
   return (
     <Button
       type="button"
