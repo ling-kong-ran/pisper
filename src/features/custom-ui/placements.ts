@@ -10,13 +10,9 @@ import { useI18n } from '@/app/use-i18n'
 import { subscribeComponentChanges } from '@/features/board/component-changes'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { createComponentChangeSync } from './change-sync'
-import {
-  listComponentCatalog,
-  listComponentInstances,
-  type ComponentInstance,
-  type ComponentRow,
-} from './custom-ui-api'
-import { customUiQueryKeys } from './query-keys'
+import type { ComponentInstance, ComponentRow } from './custom-ui-api'
+import { componentCatalogQueryOptions, componentInstancesQueryOptions } from './queries'
+import { sessionScopeMatches } from './session-scope'
 
 export type { ComponentCatalog, ComponentInstance, ComponentRow } from './custom-ui-api'
 
@@ -32,17 +28,8 @@ export function useComponentsAvailable(): boolean {
   return useRuntimeCapabilitiesStore((state) => state.capabilities.features['components.native'])
 }
 
-/** 目录查询的共享选项：所有放置与组件页读同一份缓存，最后一个使用者离开时才取消请求。 */
-export function componentCatalogQueryOptions(enabled = true) {
-  return {
-    queryKey: customUiQueryKeys.catalog(),
-    queryFn: ({ signal }: { signal?: AbortSignal }) => listComponentCatalog(signal),
-    enabled,
-    staleTime: 30_000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  } as const
-}
+// 目录查询的共享选项（定义在 queries.ts，宿主与这里共用）。
+export { componentCatalogQueryOptions } from './queries'
 
 export function useComponentCatalog() {
   const available = useComponentsAvailable()
@@ -52,14 +39,7 @@ export function useComponentCatalog() {
 
 function useInstancesQuery(available: boolean) {
   useComponentChangeSync(available)
-  return useQuery({
-    queryKey: customUiQueryKeys.instances(),
-    queryFn: ({ signal }) => listComponentInstances(signal),
-    enabled: available,
-    staleTime: 30_000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  })
+  return useQuery(componentInstancesQueryOptions(available))
 }
 
 /** 全部实例（含已停用的）：组件工作室按组件列出放置与属性；与放置宿主共用同一份缓存。 */
@@ -108,6 +88,23 @@ export function useComponentInstances(surface: ComponentSurface) {
   }
 }
 
+/**
+ * 会话检查器的组件标签：session-panel 的可渲染实例，按实例范围过滤到当前会话的项目（所有会话 / 指定项目）。
+ * 名称按当前语言；实例有标题时用标题。
+ */
+export function sessionPanelTabs(
+  placed: readonly PlacedComponent[],
+  cwd: string,
+  language: 'zh-CN' | 'en-US',
+) {
+  return placed
+    .filter(({ instance }) => sessionScopeMatches(instance.scope, cwd))
+    .map(({ instance, component }) => ({
+      id: instance.instanceId,
+      label: instance.title || component.manifest?.i18n[language]?.name || component.name,
+    }))
+}
+
 /** 已启用的实例数（任何放置位置）：应用壳据此决定要不要懒加载安全模式询问。没有实例时什么都不加载。 */
 export function useEnabledComponentInstanceCount(): number {
   const available = useComponentsAvailable()
@@ -150,4 +147,15 @@ export const LazyFloatingComponents = lazy(() =>
 // 安全模式询问：上次加载组件时可能卡死（哨兵还在）才显示；有已启用实例时由应用壳渲染。
 export const LazySafeModePrompt = lazy(() =>
   loadHosts().then((module) => ({ default: module.SafeModePrompt })),
+)
+// 全部代理的组件卡：右栏（≥1280）、页头“组件 N”弹层（1080–1279）、手机列表末尾；有总览实例时由全部代理页渲染。
+export const LazyOverviewComponents = lazy(() =>
+  loadHosts().then((module) => ({ default: module.OverviewComponents })),
+)
+// 会话检查器的组件标签内容与“+”选择器：由会话页外壳经 SessionPageChrome.componentTabs 交给检查器。
+export const LazySessionPanelComponent = lazy(() =>
+  loadHosts().then((module) => ({ default: module.SessionPanelComponent })),
+)
+export const LazySessionComponentAddMenu = lazy(() =>
+  loadHosts().then((module) => ({ default: module.SessionComponentAddMenu })),
 )

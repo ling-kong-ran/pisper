@@ -217,5 +217,18 @@
   "studio.windowMin": "最小 1080",
   "studio.windowStandard": "标准",
   "studio.workbench": "工作台",
-  "studio.workbenchView": "工作台视图"
+  "studio.workbenchView": "工作台视图",
+  "overview.heading": "已放置的组件",
+  "overview.trigger": "组件 {count}",
+  "overview.badge": "组件",
+  "overview.menu": "“{name}”的组件菜单",
+  "overview.settings": "设置",
+  "overview.move": "换个位置",
+  "overview.moved": "已移到{place}。",
+  "overview.remove": "移出全部代理",
+  "overview.removed": "已移出“{name}”。",
+  "overview.place": "放置组件",
+  "sessionPanel.addHint": "放到会话面板的组件会作为标签出现在这里。",
+  "sessionPanel.empty": "还没有可以放到会话面板的组件：组件需要已启用，并在 manifest 里声明“会话面板”放置。",
+  "sessionPanel.thisProject": "仅此项目"
 }

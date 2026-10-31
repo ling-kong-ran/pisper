@@ -6,14 +6,32 @@
 // replace 切换时保留历史状态，从主页落地的会话切换代理后仍是根（手机原生返回交还平台）。
 // 手机外壳（规格 v2 第 7.1、7.2 节）：顶栏 56（左侧 ☰ 带需要你计数，点开抽屉）+ 对话，检查器改为底部表单；
 // 第 4 期的代理条与“看板 N”入口退役，并行的代理在抽屉里。手机 App 平板（≥960×640）走桌面布局、检查器为覆盖层。
+// 检查器的组件标签（“会话面板”放置，规格 4.4）由这里按放置实例构造（SessionPageChrome.componentTabs），
+// 聊天领域只认类型契约；组件宿主经 placements.ts 的懒加载边界进入，没有实例时不加载。
 // 本模块随会话路由按需加载，不进入入口包；聊天页由路由加载器单独懒加载后传入。
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useSessionListQuery } from '@/features/board/public'
 import type { ChatPage as ChatPageComponent } from '@/features/chat/ChatPage'
+import type { SessionComponentTabs } from '@/features/chat/session-workspace-context'
+import {
+  LazySessionComponentAddMenu,
+  LazySessionPanelComponent,
+  sessionPanelTabs,
+  useComponentInstances,
+} from '@/features/custom-ui/placements'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useClientStore } from '@/stores/client-store'
 import type { AppRouteContext } from './route-context'
+import { useI18n } from './use-i18n'
 import { PhoneMenuButton } from './PhoneMenuButton'
 import { HOME_PATH, NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
 import { forgetLastSession, rememberLastSession } from './session-home'
@@ -72,11 +90,13 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
   useEffect(() => {
     if (known) rememberLastSession(sessionId)
   }, [known, sessionId])
+  const componentTabs = useSessionComponentTabs(context.notify, openSession)
   const pageChrome = useMemo(
     () => ({
       compact,
       overlayOnly: mobileApp,
       onOpenComponents: () => navigate(PAGE_PATHS.components),
+      componentTabs,
       // 归档当前会话后回到主页：先清掉“上次停留”，主页随即显示新任务草稿，不再跳看板。
       onArchived: (id: string) => {
         forgetLastSession(id)
@@ -85,7 +105,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       // “找不到这个会话”（已删除或链接错误）：回到主页（上次停留的会话或新任务草稿）。
       onHome: () => navigate(HOME_PATH),
     }),
-    [compact, mobileApp, navigate],
+    [compact, mobileApp, navigate, componentTabs],
   )
   // 手机外壳：同一份会话页契约，加上顶栏 ✎（没有改动时）打开派发表单。
   const startNewTask = context.startNewTask
@@ -117,4 +137,38 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       </div>
     </div>
   )
+}
+
+// 组件标签：session-panel 的可渲染实例，按范围过滤到当前会话的项目；Runtime 没有原生组件能力时不提供（检查器只留提示）。
+function useSessionComponentTabs(
+  notify: (message: string) => void,
+  openSession: (id: string) => void,
+): SessionComponentTabs | undefined {
+  const { language } = useI18n()
+  const { available, placed } = useComponentInstances('session-panel')
+  return useMemo(() => {
+    if (!available) return undefined
+    return {
+      tabs: (cwd) => sessionPanelTabs(placed, cwd, language),
+      render: (id, { sessionId, cwd }) => {
+        const entry = placed.find((item) => item.instance.instanceId === id)
+        return entry ? (
+          <Suspense fallback={null}>
+            <LazySessionPanelComponent
+              placed={entry}
+              sessionId={sessionId}
+              cwd={cwd}
+              notify={notify}
+              onOpenSession={openSession}
+            />
+          </Suspense>
+        ) : null
+      },
+      addMenu: ({ cwd, onAdded }) => (
+        <Suspense fallback={null}>
+          <LazySessionComponentAddMenu cwd={cwd} notify={notify} onAdded={onAdded} />
+        </Suspense>
+      ),
+    }
+  }, [available, language, notify, openSession, placed])
 }

@@ -501,6 +501,9 @@ try {
   await page.waitForURL((url) => url.hash === '#/board')
   // 从全部代理点这个会话的行回到会话（push，后退回全部代理）；改绑的会话主页键同样回到上次的会话。
   // A3 起全部代理页的侧栏只有状态 / 项目筛选、不列会话行（规格 2.3），代理只在主区列一次，所以点主区的行。
+  // 侧栏随路由换成筛选是懒加载的：先等筛选出现、会话行卸载，再断言（只等不放宽，负载高时 URL 先于侧栏更新）。
+  await page.locator('[data-shell-sidebar] [data-sidebar-filters]').waitFor({ timeout: 10000 })
+  await sessionRow.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
   assert.equal(
     await sessionRow.count(),
     0,

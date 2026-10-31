@@ -1,9 +1,9 @@
 // 会话页检查器（规格 v2 第 4.4 节）：固定标签 改动 N / 终端 / 文件 / 预览 / 计划（有目标、计划或团队时）
-// / 侧聊（打开时）| 组件标签（来自“会话面板”放置，现有数据有就显示）| +。宽屏停靠时标签行 52px，与会话顶栏齐平。手机外壳里是底部表单（规格 7.3），
+// / 侧聊（打开时）| 组件标签（“会话面板”放置，按实例范围过滤到本会话的项目）| +。宽屏停靠时标签行 52px，与会话顶栏齐平。手机外壳里是底部表单（规格 7.3），
 // 标签与内容组件相同，改动的 diff 在窄宽度下自动是统一视图、长行横向滚动。本阶段把现有面板组件原样挂进各标签，
 // 标签内容的重做在下一阶段。每个会话各标签的阅读位置、终端资源与预览地址仍存在
 // session-context-pages-store（与旧上下文面板、网页预览请求共用），开关 / 当前标签 / 宽度是全局偏好。
-import { Suspense, useEffect, useRef, type KeyboardEvent } from 'react'
+import { Suspense, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   FileDiff,
@@ -37,6 +37,7 @@ import { InspectorChanges } from './InspectorChanges'
 import type { ContextPageView, SessionContextTab } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
 import { useSessionInspectorStore, type SessionInspectorTab } from './session-inspector-store'
+import type { SessionComponentTabs } from './session-workspace-context'
 import { SideChatPane } from './SideChatPane'
 import { TaskSourcesPane } from './TaskSourcesPane'
 import type { TaskSource } from './task-sources'
@@ -59,6 +60,8 @@ type SessionInspectorProps = {
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   onClose: () => void
   onOpenComponents?: () => void
+  // 组件标签与“+”选择器（应用壳构造，见 SessionPageChrome.componentTabs）；手机底部表单不显示。
+  componentTabs?: SessionComponentTabs
   // 覆盖层由用户打开时，挂载后把焦点放到当前标签上（无遮罩覆盖层的焦点管理，规格 4.4）。
   autoFocus?: boolean
 }
@@ -94,6 +97,7 @@ export function SessionInspector({
   requestConfirm,
   onClose,
   onOpenComponents,
+  componentTabs,
   autoFocus = false,
 }: SessionInspectorProps) {
   const { t } = useI18n()
@@ -117,13 +121,23 @@ export function SessionInspector({
       : storedTab
   const kind = pageKind(tab, terminalView, changesView)
   const page = kind ? pages.find((entry) => entry.kind === kind) : undefined
+  // 组件标签（规格 7.3：手机底部表单不显示）。选中的组件标签只在本地状态里，不写进 pisper-session-inspector：
+  // 偏好的规范化会丢弃未知值，持久化契约保持不变；标签消失（换到范围之外的会话、实例被移出）时退回固定标签。
+  const componentTabList = !sheet && componentTabs ? componentTabs.tabs(cwd) : []
+  const [componentTab, setComponentTab] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const activeComponent = componentTabList.some((entry) => entry.id === componentTab)
+    ? componentTab
+    : null
+  // 外部切换固定标签（改动按钮、⌘I、侧聊打开）时让出组件标签。
+  useEffect(() => setComponentTab(null), [storedTab])
   const listRef = useRef<HTMLDivElement>(null)
   // 标签多于一行能放下时（窄检查器、手机表单里加了计划与侧聊），选中的标签滚进可见区域。
   useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
       ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  }, [tab])
+  }, [tab, activeComponent])
 
   // 只在挂载那一刻看 autoFocus：等菜单等浮层先把焦点还给各自的触发键，再移进面板。
   const autoFocusRef = useRef(autoFocus)
@@ -200,18 +214,33 @@ export function SessionInspector({
     requestAnimationFrame(() => document.getElementById(`${panelId}-changes-tab`)?.focus())
   }
 
+  const componentTabId = (id: string) => `${panelId}-component-${id}-tab`
+  const selectFixed = (id: SessionInspectorTab) => {
+    setComponentTab(null)
+    setTab(id)
+  }
+  // 方向键在固定标签与组件标签之间连续移动（一个 tablist，roving tabindex）。
   const tabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const index = tabs.findIndex((entry) => entry.id === tab)
+    const order: { fixed?: SessionInspectorTab; component?: string; id: string }[] = [
+      ...tabs.map((entry) => ({ fixed: entry.id, id: `${panelId}-${entry.id}-tab` })),
+      ...componentTabList.map((entry) => ({ component: entry.id, id: componentTabId(entry.id) })),
+    ]
+    const index = order.findIndex((entry) =>
+      activeComponent ? entry.component === activeComponent : entry.fixed === tab,
+    )
     const next =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? tabs.length - 1
-          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
-    setTab(tabs[next].id)
-    requestAnimationFrame(() => document.getElementById(`${panelId}-${tabs[next].id}-tab`)?.focus())
+      order[
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? order.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + order.length) % order.length
+      ]
+    if (next.component) setComponentTab(next.component)
+    else if (next.fixed) selectFixed(next.fixed)
+    requestAnimationFrame(() => document.getElementById(next.id)?.focus())
   }
 
   const loading = (
@@ -221,7 +250,9 @@ export function SessionInspector({
   )
 
   let body
-  if (tab === 'changes') {
+  if (activeComponent && componentTabs) {
+    body = componentTabs.render(activeComponent, { sessionId, cwd })
+  } else if (tab === 'changes') {
     body = (
       <InspectorChanges
         sessionId={sessionId}
@@ -345,6 +376,7 @@ export function SessionInspector({
       aria-label={t('board:inspector.label')}
       data-session-inspector={mode}
       data-inspector-tab={tab}
+      data-inspector-component={activeComponent ?? undefined}
       className="flex h-full min-h-0 w-full min-w-0 flex-col bg-panel text-content"
     >
       <header
@@ -370,7 +402,7 @@ export function SessionInspector({
           onKeyDown={tabKeyDown}
         >
           {tabs.map(({ id, icon: Icon, label }) => {
-            const selected = id === tab
+            const selected = !activeComponent && id === tab
             return (
               <button
                 key={id}
@@ -390,7 +422,7 @@ export function SessionInspector({
                     ? 'bg-solid font-medium text-content shadow-edge ring-1 ring-stroke-strong ring-inset'
                     : 'text-content-secondary hover:bg-surface-hover hover:text-content',
                 )}
-                onClick={() => setTab(id)}
+                onClick={() => selectFixed(id)}
               >
                 {/* 390 宽的底部表单放不下图标加文字的五个标签：只留文字。 */}
                 {!sheet && <Icon className="size-3.5" aria-hidden="true" />}
@@ -398,7 +430,7 @@ export function SessionInspector({
               </button>
             )
           })}
-          {tab === 'side-chat' && (
+          {!activeComponent && tab === 'side-chat' && (
             <Button
               type="button"
               variant="ghost"
@@ -410,11 +442,36 @@ export function SessionInspector({
               <X aria-hidden="true" />
             </Button>
           )}
-          {/* 组件标签来自“会话面板”放置；现有组件还没有这种放置，没有数据就不显示任何组件标签。
-              手机底部表单只放规格 7.3 的固定标签，不提供“+”。 */}
+          {/* 组件标签来自“会话面板”放置（竖线之后、“+”之前）；没有实例就不显示任何组件标签。
+              手机底部表单只放规格 7.3 的固定标签，不显示组件标签，也不提供“+”。 */}
           {!sheet && <span aria-hidden="true" className="mx-1 h-4 w-px flex-none bg-stroke" />}
+          {componentTabList.map(({ id, label }) => {
+            const selected = id === activeComponent
+            return (
+              <button
+                key={id}
+                id={componentTabId(id)}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`${panelId}-body`}
+                tabIndex={selected ? 0 : -1}
+                // 不用 data-inspector-tab-id：那是固定标签的标记，既有冒烟按它数标签。
+                data-inspector-component-tab={id}
+                className={cn(
+                  'flex h-8 max-w-40 flex-none items-center rounded-sm px-2 text-[13px] whitespace-nowrap transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11 pointer-coarse:min-w-11',
+                  selected
+                    ? 'bg-solid font-medium text-content shadow-edge ring-1 ring-stroke-strong ring-inset'
+                    : 'text-content-secondary hover:bg-surface-hover hover:text-content',
+                )}
+                onClick={() => setComponentTab(id)}
+              >
+                <span className="truncate">{label}</span>
+              </button>
+            )
+          })}
           {!sheet && (
-            <Popover>
+            <Popover open={addOpen} onOpenChange={setAddOpen}>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
@@ -423,12 +480,23 @@ export function SessionInspector({
                   className="flex-none"
                   aria-label={t('board:inspector.add')}
                   title={t('board:inspector.add')}
+                  data-inspector-component-add
                 >
                   <Plus aria-hidden="true" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-64 text-xs">
-                <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
+                {componentTabs?.addMenu ? (
+                  componentTabs.addMenu({
+                    cwd,
+                    onAdded: (id) => {
+                      setComponentTab(id)
+                      setAddOpen(false)
+                    },
+                  })
+                ) : (
+                  <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
+                )}
                 {onOpenComponents && (
                   <Button
                     type="button"
@@ -460,7 +528,9 @@ export function SessionInspector({
       <div
         id={`${panelId}-body`}
         role="tabpanel"
-        aria-labelledby={`${panelId}-${tab}-tab`}
+        aria-labelledby={
+          activeComponent ? componentTabId(activeComponent) : `${panelId}-${tab}-tab`
+        }
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {body}

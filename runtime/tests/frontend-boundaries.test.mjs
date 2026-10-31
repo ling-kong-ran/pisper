@@ -417,3 +417,45 @@ test('native component SDK and hosts stay behind lazy boundaries (A7 S3)', () =>
       assert.notEqual(feature(path), 'custom-ui', `${file} reaches ${name(path)}`)
   assert.deepEqual(graph.get(resolve(root, 'src/features/board/component-changes.ts')), [])
 })
+
+test('placement hosts reach custom-ui only through placements.ts (A7 S6)', () => {
+  // 全部代理页（overview-card）与会话页外壳（session-panel）只静态导入 placements.ts，宿主本体经懒加载边界进入；
+  // 检查器属于聊天领域，只认 SessionPageChrome.componentTabs 的类型契约，不依赖组件系统。
+  for (const file of ['src/features/board/BoardPage.tsx', 'src/app/SessionShell.tsx']) {
+    const direct = graph
+      .get(resolve(root, file))
+      .filter((entry) => !entry.dynamic && !entry.typeOnly && feature(entry.path) === 'custom-ui')
+      .map((entry) => name(entry.path))
+    assert.deepEqual(direct, ['src/features/custom-ui/placements.ts'], file)
+    for (const path of staticClosure(file))
+      assert.doesNotMatch(
+        name(path),
+        /^src\/features\/custom-ui\/(?:native|studio|hosts)\/|^src\/features\/custom-ui\/hosts\.ts$/,
+        `${file} statically loads ${name(path)}`,
+      )
+  }
+  for (const file of [
+    'src/features/chat/SessionInspector.tsx',
+    'src/features/chat/SessionWorkspace.tsx',
+    'src/features/chat/session-workspace-context.ts',
+  ])
+    for (const path of staticClosure(file))
+      assert.notEqual(feature(path), 'custom-ui', `${file} reaches ${name(path)}`)
+  // 三个宿主确实挂在 hosts.ts 的动态边界后面（守卫不空转），且它们不在运行时导入 placements.ts。
+  const hosts = graph
+    .get(resolve(root, 'src/features/custom-ui/hosts.ts'))
+    .map((entry) => name(entry.path))
+  for (const file of [
+    'OverviewComponents.tsx',
+    'SessionPanelComponent.tsx',
+    'SessionComponentAddMenu.tsx',
+  ]) {
+    assert.ok(hosts.includes(`src/features/custom-ui/hosts/${file}`), file)
+    for (const path of staticClosure(`src/features/custom-ui/hosts/${file}`))
+      assert.notEqual(
+        name(path),
+        'src/features/custom-ui/placements.ts',
+        `${file} imports placements`,
+      )
+  }
+})

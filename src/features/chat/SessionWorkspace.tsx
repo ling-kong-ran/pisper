@@ -426,6 +426,7 @@ export function SessionWorkspace({
         requestConfirm={requestConfirm}
         onClose={close}
         onOpenComponents={chrome?.onOpenComponents}
+        componentTabs={chrome?.componentTabs}
         autoFocus={mode === 'overlay' && focusOnOpen}
       />
     </Suspense>

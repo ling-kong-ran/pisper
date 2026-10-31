@@ -206,7 +206,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 
 Desktop, TUI, Runtime, and the mobile App are versioned, signed, and updated independently, with automatic rollback to the bundled version on component failure. Desktop provides one component-update entry; the mobile App uses its own release manifest.
 
-Native components are managed in Features → Extensions → Component studio: an agent generates them with `component_create`, or you drop a folder with `manifest.json` (`runtime: "native"`) and `component.js` into `custom-ui/` in the data directory, and changes hot-reload automatically. Components placed on a feature page appear under Features → My components. Legacy iframe components and the built-in focus island are no longer supported: the first start after upgrading moves old component folders, unchanged, to `custom-ui-trash/` in the data directory.
+Native components are managed in Features → Extensions → Component studio: an agent generates them with `component_create`, or you drop a folder with `manifest.json` (`runtime: "native"`) and `component.js` into `custom-ui/` in the data directory, and changes hot-reload automatically. A component can be placed in four spots: the component column on the right of All agents (folded into a “Components N” header button in narrow windows, listed after the agents on phones), a component tab in the session inspector (all sessions or one project), a full page under Features → My components, and a floating window (not shown on phones). Legacy iframe components and the built-in focus island are no longer supported: the first start after upgrading moves old component folders, unchanged, to `custom-ui-trash/` in the data directory.
 
 ## 📚 Docs
 

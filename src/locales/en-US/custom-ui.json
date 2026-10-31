@@ -217,5 +217,18 @@
   "studio.windowMin": "Min 1080",
   "studio.windowStandard": "Standard",
   "studio.workbench": "Workbench",
-  "studio.workbenchView": "Workbench view"
+  "studio.workbenchView": "Workbench view",
+  "overview.heading": "Placed components",
+  "overview.trigger": "Components {count}",
+  "overview.badge": "Component",
+  "overview.menu": "Component menu for “{name}”",
+  "overview.settings": "Settings",
+  "overview.move": "Move to",
+  "overview.moved": "Moved to {place}.",
+  "overview.remove": "Remove from All agents",
+  "overview.removed": "Removed “{name}”.",
+  "overview.place": "Place a component",
+  "sessionPanel.addHint": "Components placed in the session panel show up here as tabs.",
+  "sessionPanel.empty": "No component can go in the session panel yet: it must be enabled and declare the “Session panel” placement in its manifest.",
+  "sessionPanel.thisProject": "This project only"
 }

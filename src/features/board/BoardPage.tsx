@@ -2,7 +2,8 @@
 // + 居中的分组列表（最大 880）。按状态：需要你 → 运行中 → 排队 → 今天完成；按项目：每个项目一个分区，
 // 区内仍按状态。每个代理一行（OverviewRow），行内一步处理普通批准与重试；高风险、提问只能打开处理。
 // 这一页没有任务输入框：“新任务”与 ⌘N 打开派发对话框（不认领新任务请求，交给应用壳）。
-// 右侧 320 的组件栏（overview-card 放置）在 A7 才有组件：没有组件时不渲染、不留空位。
+// 右侧 320 的组件栏（overview-card 放置，规格 3.1、3.4）：放了组件才出现，不留空位、不放占位；
+// 1080–1279 宽收成页头的“组件 N”弹层，手机排在列表末尾、全宽。组件宿主经 placements.ts 懒加载，没有实例时不加载。
 // 数据只读看板 store（useBoardSessions），不新开轮询。手机外壳（规格 v2 第 7.3 节）是同一页：
 // 标题与 ✎ 在外壳顶栏里，页内只有 44px 的“按状态 / 按项目”分段；需要你的行变成卡片（44px 按钮），
 // 其余仍是列表行。第 4 期的手机看板（泳道跳转条、卡片墙、确认层）随之退役，高风险一律进会话按住确认。
@@ -33,6 +34,8 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
+import { LazyOverviewComponents, useComponentInstances } from '@/features/custom-ui/placements'
+import { useMediaQuery } from '@/hooks/use-mobile'
 import type { BoardItem } from './board-model'
 import { useBoardViewStore } from './board-view-store'
 import { OVERVIEW_FOCUS_EVENT, type OverviewFocusDetail } from './overview-focus'
@@ -75,9 +78,10 @@ export type BoardPageProps = {
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
   // 新任务：交给应用壳打开派发对话框（桌面）或底部表单（手机）。
   onNewTask: () => void
-  // 组件栏（overview-card 放置，A7）：有组件时才传，页面据此在右侧留 320 栏。
-  widgets?: ReactNode
 }
+
+// 组件栏并排的最小窗口宽度（规格 3.1）：更窄时收进页头“组件 N”弹层。
+const OVERVIEW_WIDGETS_QUERY = '(min-width: 1280px)'
 
 export function BoardPage(props: BoardPageProps) {
   const phone = usePhoneShell()
@@ -107,10 +111,28 @@ function OverviewPage({
   requestConfirm,
   requestText,
   onNewTask,
-  widgets,
   phone,
 }: BoardPageProps & { phone: boolean }) {
   const { t } = useI18n()
+  const overviewCards = useComponentInstances('overview-card').placed
+  const widgetsWide = useMediaQuery(OVERVIEW_WIDGETS_QUERY)
+  const cardsLayout: 'column' | 'popover' | 'phone' | null = !overviewCards.length
+    ? null
+    : phone
+      ? 'phone'
+      : widgetsWide
+        ? 'column'
+        : 'popover'
+  const overviewComponents = (layout: 'column' | 'popover' | 'phone') => (
+    <Suspense fallback={null}>
+      <LazyOverviewComponents
+        placed={overviewCards}
+        layout={layout}
+        notify={notify}
+        onOpenSession={onOpenSession}
+      />
+    </Suspense>
+  )
   const board = useBoardSessions({ doneWindow: 'today' })
   const view = useBoardViewStore()
   const sidebarCollapsed = useSidebarStore((state) => state.collapsed)
@@ -508,7 +530,7 @@ function OverviewPage({
         <div
           className={cn(
             'mx-auto flex w-full gap-10 px-6 max-[650px]:px-4',
-            widgets ? 'max-w-[1280px]' : 'max-w-[928px]',
+            cardsLayout === 'column' ? 'max-w-[1280px]' : 'max-w-[928px]',
           )}
         >
           <div className="min-w-0 flex-1">
@@ -564,6 +586,7 @@ function OverviewPage({
                     ]}
                   />
                 )}
+                {cardsLayout === 'popover' && overviewComponents('popover')}
                 {ready && model.total > 0 && (
                   <Button variant="outline" onClick={onNewTask}>
                     <SquarePen aria-hidden="true" />
@@ -590,15 +613,21 @@ function OverviewPage({
                 <HistoryLink onClick={onOpenHistory} />
               </div>
             )}
+            {/* 手机：组件卡排在列表末尾、全宽（规格 3.4、7.3）。 */}
+            {cardsLayout === 'phone' && (
+              <section aria-label={t('board:overview.widgets')} data-overview-widgets="phone">
+                {overviewComponents('phone')}
+              </section>
+            )}
           </div>
-          {/* 组件栏（A7）：只有放了组件时才出现，不留空位、不放占位（规格 3.1）。 */}
-          {widgets && (
+          {/* 组件栏：只有放了组件时才出现，不留空位、不放占位（规格 3.1）；<1280 收进页头弹层。 */}
+          {cardsLayout === 'column' && (
             <aside
-              data-overview-widgets
+              data-overview-widgets="column"
               aria-label={t('board:overview.widgets')}
-              className="w-80 flex-none max-[1279px]:hidden"
+              className={cn('w-80 flex-none', triage && 'opacity-50')}
             >
-              {widgets}
+              {overviewComponents('column')}
             </aside>
           )}
         </div>

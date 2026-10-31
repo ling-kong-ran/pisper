@@ -469,7 +469,12 @@ await writeFile(
     name: '游戏素材看板',
     version: '1.2.0',
     description: '原生组件 · 手放',
-    placements: [{ surface: 'feature-page' }],
+    // 总览卡片与浮窗（A7 S6）：手机全部代理末尾全宽的组件卡；浮窗在手机外壳不显示。
+    placements: [
+      { surface: 'feature-page' },
+      { surface: 'overview-card', sizes: ['S'] },
+      { surface: 'floating' },
+    ],
   }),
 )
 await writeFile(
@@ -1231,6 +1236,75 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
     'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders, the detail reads preview → props → placements with ≥44px placement tiles, and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
+  )
+
+  // 全部代理末尾的组件卡（规格 3.4、7.3，A7 S6）：全宽、内容区高 120（S）、排在列表之后；
+  // 浮窗实例在手机外壳不显示（实例保留，负责人决定）。看完移出，后面的平板与桌面检查不受影响。
+  const phonePlaced = []
+  for (const payload of [
+    { componentId: 'game-asset-demo', surface: 'overview-card', size: 'S' },
+    { componentId: 'game-asset-demo', surface: 'floating' },
+  ]) {
+    const result = await page.evaluate(async (body) => {
+      const response = await fetch('/api/custom-ui/instances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      return { status: response.status, body: await response.json().catch(() => null) }
+    }, payload)
+    assert.equal(result.status, 201, JSON.stringify(result))
+    phonePlaced.push(result.body.instance.instanceId)
+  }
+  // 看板事件流在这里是固定数据（没有 component_changed），实例缓存不会自己作废：重新加载页面读新实例。
+  // 上面的手机预览刚写过安全模式哨兵（初始实例提交 3 秒后才清）：等它清掉再重新加载，免得被“上次可能卡死”询问。
+  await page.waitForTimeout(3500)
+  await page.reload()
+  await page.locator('[data-phone-menu]').first().waitFor({ timeout: 30000 })
+  await openDrawerEntry(page, 'board')
+  await page.waitForURL((url) => url.hash === '#/board')
+  const phoneCard = page.locator('[data-overview-widgets="phone"] [data-overview-component]')
+  await phoneCard.locator('[data-fixture-card]').waitFor({ timeout: 30000 })
+  await phoneCard.scrollIntoViewIfNeeded()
+  const phoneCardLayout = await page.evaluate(() => {
+    const card = document.querySelector('[data-overview-widgets="phone"] [data-overview-component]')
+    const box = card.getBoundingClientRect()
+    const body = card.querySelector('[data-overview-component-body]').getBoundingClientRect()
+    const sections = [...document.querySelectorAll('[data-overview-section]')]
+    const menu = card.querySelector('[data-overview-component-menu]').getBoundingClientRect()
+    return {
+      width: Math.round(box.width),
+      gutter: Math.round(box.left),
+      body: `${Math.round(body.width)}x${Math.round(body.height)}`,
+      afterList: sections.length > 0 && box.top >= sections.at(-1).getBoundingClientRect().bottom,
+      floating: document.querySelectorAll('[data-floating-custom-ui]').length,
+      menu: Math.round(Math.min(menu.width, menu.height)),
+    }
+  })
+  assert.deepEqual(phoneCardLayout, {
+    width: 358,
+    gutter: 16,
+    body: '358x120',
+    afterList: true,
+    floating: 0,
+    menu: 44,
+  })
+  assert.equal(await noHorizontalScroll(page), true)
+  await page.screenshot({ path: join(output, 'phone-board-components.png') })
+  // 安全模式哨兵在初始实例提交 3 秒后清掉：等它清掉再移出，后面的上下文不会被“上次可能卡死”询问。
+  await page.waitForTimeout(3500)
+  for (const instanceId of phonePlaced) {
+    const status = await page.evaluate(
+      async (id) => (await fetch(`/api/custom-ui/instances/${id}`, { method: 'DELETE' })).status,
+      instanceId,
+    )
+    assert.equal(status, 200)
+  }
+  await page.reload()
+  await page.locator('[data-phone-menu]').first().waitFor({ timeout: 30000 })
+  assert.equal(await phoneCard.count(), 0)
+  report.checks.push(
+    'Phone 全部代理: an overview-card instance renders after the list, full width (358 in the 16px gutters) with a 120 content area and a 44px ⋯; the floating instance stays hidden in the phone shell',
   )
 
   // 设置（规格 7.4）：抽屉底部“设置”进分区列表（56 行），点“界面”进分区，顶上“‹ 设置”；返回键从分区回列表。

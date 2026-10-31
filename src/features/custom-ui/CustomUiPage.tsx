@@ -13,6 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ChevronLeft, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
@@ -139,14 +140,32 @@ function useTroubledComponents(
   }, [breaker, instances, rows, version])
 }
 
+/** 路由状态里指定的放置实例（全部代理组件卡 ⋯ → 设置）：工作室打开时选中它，属性表单编辑的就是这张卡。 */
+function requestedInstanceId(state: unknown): string {
+  if (typeof state !== 'object' || state === null) return ''
+  const value = (state as { componentInstanceId?: unknown }).componentInstanceId
+  return typeof value === 'string' && value.length <= 64 ? value : ''
+}
+
 /** 预览档位、选中实例与属性草稿：随选中的组件切换，草稿按“组件 + 实例”分键，换了就回到已保存的值。 */
-function usePreviewState(row: ComponentRow | null, instances: readonly ComponentInstance[]) {
+function usePreviewState(
+  row: ComponentRow | null,
+  instances: readonly ComponentInstance[],
+  requestedInstance: string,
+) {
   const [targetState, setTargetState] = useState<{ id: string; target: PreviewTarget } | null>(null)
   const [instanceState, setInstanceState] = useState<{ id: string; instanceId: string | null }>({
     id: '',
     instanceId: null,
   })
   const [window, setWindow] = useState<PreviewWindow>('standard')
+  const rowId = row?.id ?? ''
+  // 带着实例进来（或换了一张卡）时选中它；预览档位随之回到这个实例所在的放置。
+  useEffect(() => {
+    if (!rowId || !requestedInstance) return
+    setInstanceState({ id: rowId, instanceId: requestedInstance })
+    setTargetState(null)
+  }, [requestedInstance, rowId])
   const targets = previewTargets(row?.manifest)
   const own = row ? instances.filter((instance) => instance.componentId === row.id) : []
   // 用户明确选了“预览属性”（null）就保持；选过的实例被删了，或还没选过，回到第一个放置。
@@ -223,7 +242,8 @@ export function CustomUiPage({
   useEffect(() => {
     if (selectedId) rememberedSelection = selectedId
   }, [selectedId])
-  const preview = usePreviewState(selected, instances)
+  const location = useLocation()
+  const preview = usePreviewState(selected, instances, requestedInstanceId(location.state))
   useStudioRail(!phone && available && !catalog.data?.legacyShape)
 
   const select = (id: string) => {

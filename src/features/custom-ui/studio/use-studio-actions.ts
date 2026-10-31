@@ -66,6 +66,9 @@ export function useStudioActions(notify: (message: string) => void) {
           surface: ComponentSurface
           size?: OverviewCardSize
           scope?: ComponentInstanceScope
+          // 换个位置（总览卡片 ⋯）：新建时带上原卡片的标题与属性；重新打开已有实例时保留它自己的。
+          title?: string
+          props?: Record<string, unknown>
         },
       ) => {
         const existing =

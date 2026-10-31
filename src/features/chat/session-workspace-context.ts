@@ -1,6 +1,6 @@
 // 会话页（桌面布局）的外壳契约：路由传入的页面形态，以及页头与检查器之间的开关通道。
 // 只放类型与上下文，不导入任何组件，页头、工作区与检查器都可以依赖它而不形成环。
-import { createContext } from 'react'
+import { createContext, type ReactNode } from 'react'
 import type { SessionInspectorTab } from './session-inspector-store'
 
 // 会话页由应用壳注入：有值时单会话视图换成“页头 + 对话 + 检查器”的会话页布局，
@@ -15,10 +15,24 @@ export type SessionPageChrome = {
   phone?: SessionPhoneChrome
   // 检查器“+”里去组件页设置“会话面板”放置。
   onOpenComponents?: () => void
+  // 组件标签（“会话面板”放置，规格 4.4）：由应用壳按放置实例构造；聊天领域只认这份类型契约，不依赖组件系统。
+  // 没有值（旧 Runtime、没有组件能力）时检查器只显示固定标签，“+”里是去组件页的提示。
+  componentTabs?: SessionComponentTabs
   // 归档后离开会话页，回到主页（会话做主页：上次会话已不可用，显示新任务草稿）。
   onArchived?: (sessionId: string) => void
   // “找不到这个会话”的出口：回到主页（上次停留的会话或新任务草稿）；旧入口没有时回看板。
   onHome?: () => void
+}
+
+export type SessionComponentTab = { id: string; label: string }
+
+export type SessionComponentTabs = {
+  // 当前会话（按项目目录）可见的组件标签，id 是放置实例 id。
+  tabs: (cwd: string) => SessionComponentTab[]
+  // 标签内容：铺满检查器的标签内容区。
+  render: (id: string, context: { sessionId: string; cwd: string }) => ReactNode
+  // “+”弹层里的组件选择器；放好后 onAdded 切到新标签并关掉弹层。
+  addMenu?: (context: { cwd: string; onAdded: (id: string) => void }) => ReactNode
 }
 
 export type SessionPhoneChrome = {

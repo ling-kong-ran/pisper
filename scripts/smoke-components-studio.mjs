@@ -11,6 +11,10 @@
 // S5 组件工作室：进入时侧栏收成窄轨、离开后回到偏好；1440 三栏、1080 设置栏改为抽屉；
 // 从模板新建「便签」没有默认放置，经放置磁贴放到功能页与浮窗、再移出；属性非法值被 Runtime 拒绝并定位到字段，
 // 改对后保存进实例；源码页与日志页；深色主题下渲染（手机列表 → 详情见 smoke-mobile-shell）。
+// S6 放置宿主：没有总览实例时全部代理页没有组件栏；1440 右侧 320 栏里 S 卡内容区 320×120、M 卡 320×248，
+// ⋯ → 换个位置把卡片移到功能页；1080×680（自绘标题栏）收成页头“组件 N”弹层，右上 144px 不被挡、没有横向滚动；
+// 会话检查器的组件标签按实例范围过滤（其他项目的实例不出现），“+”里改为“仅此项目”后出现并选中，
+// ctx.session 是当前会话，方向键在固定标签与组件标签之间移动（手机末尾全宽与浮窗不显示见 smoke-mobile-shell）。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
@@ -19,7 +23,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
-import { desktopBridgeScript } from './fixtures/board-fixture.mjs'
+import {
+  BOARD_SESSION_ID,
+  BOARD_SESSION_TITLE,
+  desktopBridgeScript,
+  writeBoardSessionFixture,
+} from './fixtures/board-fixture.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-components-'))
@@ -104,6 +113,8 @@ const legacyDir = await writeComponent('legacy-old', {
   permissions: ['notify'],
 })
 await writeFile(join(legacyDir, 'index.html'), '<!doctype html><body>legacy</body>')
+// S6：一条真实会话（项目 = workspace），会话检查器的组件标签按它的项目过滤。
+await writeBoardSessionFixture(join(dataDir, 'sessions'), workspace)
 
 const { createPisperRuntime } = await import('../runtime/app-runtime.mjs')
 const app = await createPisperRuntime({
@@ -547,10 +558,204 @@ try {
   await promptPage
     .locator('[data-feature-page-host="native-ok"] [data-fixture-ok="v2"]')
     .waitFor({ timeout: 30_000 })
+  // 正常加载后哨兵重新写入，3 秒后清掉：等它清掉再关，下一个上下文不会再被询问。
+  await promptPage.waitForTimeout(3_500)
   await promptContext.close()
   report.checks.push(
     'A stale safe-mode sentinel asks first (components stay as placeholders) and loads normally after “正常加载”',
   )
+
+  // 12. S6 放置宿主：全部代理右栏 / 页头弹层（overview-card）、会话检查器组件标签与“+”（session-panel）。
+  await writeComponent(
+    'panel-card',
+    {
+      runtime: 'native',
+      name: '面板卡片',
+      version: '1.0.0',
+      placements: [
+        { surface: 'overview-card', sizes: ['S', 'M'] },
+        { surface: 'session-panel' },
+        { surface: 'feature-page' },
+      ],
+    },
+    [
+      'export default function Panel({ ctx, placement, size }) {',
+      "  return ctx.html`<div data-fixture-panel=${placement.surface} data-size=${size.width + 'x' + size.height} data-session=${ctx.session ? ctx.session.title : ''} style=${{ padding: '8px' }}>面板 ${placement.surface}</div>`",
+      '}',
+      '',
+    ].join('\n'),
+  )
+  const hostContext = await newContext({ viewport: { width: 1440, height: 900 } })
+  const hostPage = await openPage(hostContext, 'hosts', '#/board')
+  await hostPage.locator('[data-overview]').waitFor({ timeout: 60_000 })
+  // 手放的组件经文件监听出现在目录里（默认启用）。
+  for (let attempt = 0; ; attempt += 1) {
+    const catalog = await api(hostPage, 'GET', '/api/custom-ui/components')
+    const row = catalog.body?.components?.find((entry) => entry.id === 'panel-card')
+    if (row?.status === 'ready' && row.enabled) break
+    assert.ok(attempt < 60, `panel-card never became ready: ${JSON.stringify(row)}`)
+    await hostPage.waitForTimeout(250)
+  }
+  // 没有总览实例：没有组件栏、没有“组件 N”，页面与以前一样（列表最大 880 居中）。
+  await settle(hostPage)
+  assert.equal(await hostPage.locator('[data-overview-widgets]').count(), 0)
+  assert.equal(await hostPage.locator('[data-overview-components-trigger]').count(), 0)
+  const cards = []
+  for (const size of ['S', 'M']) {
+    const result = await api(hostPage, 'POST', '/api/custom-ui/instances', {
+      componentId: 'panel-card',
+      surface: 'overview-card',
+      size,
+    })
+    assert.equal(result.status, 201, JSON.stringify(result))
+    cards.push(result.body.instance.instanceId)
+  }
+  const column = hostPage.locator('aside[data-overview-widgets="column"]')
+  await column.locator('[data-fixture-panel="overview-card"]').nth(1).waitFor({ timeout: 30_000 })
+  const cardBoxes = await column.evaluate((aside) => ({
+    aside: Math.round(aside.getBoundingClientRect().width),
+    cards: [...aside.querySelectorAll('[data-overview-component]')].map((card) => {
+      const body = card.querySelector('[data-overview-component-body]').getBoundingClientRect()
+      return {
+        size: card.dataset.overviewComponentSize,
+        body: `${Math.round(body.width)}x${Math.round(body.height)}`,
+        ctx: card.querySelector('[data-fixture-panel]')?.dataset.size,
+        title: card.querySelector('h3')?.textContent,
+      }
+    }),
+  }))
+  assert.deepEqual(cardBoxes, {
+    aside: 320,
+    cards: [
+      { size: 'S', body: '320x120', ctx: '320x120', title: '面板卡片' },
+      { size: 'M', body: '320x248', ctx: '320x248', title: '面板卡片' },
+    ],
+  })
+  assert.equal(await noHorizontalScroll(hostPage), true)
+  await hostPage.screenshot({ path: join(output, 'overview-1440.png') })
+  report.checks.push(
+    'All agents at 1440: no component column without overview instances; with them a 320 column whose S / M content areas are 320×120 / 320×248 (ctx.size matches), host-drawn headers, no horizontal scroll',
+  )
+
+  // ⋯ → 换个位置 → 功能页：先放到功能页，成功后才移出这张卡（属性一起带过去）。
+  await column
+    .locator(`[data-overview-component="${cards[0]}"] [data-overview-component-menu]`)
+    .click()
+  await hostPage.locator('[data-overview-component-move]').click()
+  await hostPage.locator('[data-overview-component-move-to="feature-page"]').click()
+  await column.locator(`[data-overview-component="${cards[0]}"]`).waitFor({ state: 'detached' })
+  const afterMove = (await api(hostPage, 'GET', '/api/custom-ui/instances')).body.instances.filter(
+    (entry) => entry.componentId === 'panel-card',
+  )
+  assert.deepEqual(afterMove.map((entry) => entry.surface).sort(), [
+    'feature-page',
+    'overview-card',
+  ])
+  // 再放一张 S，1080 时弹层里有两张。
+  const extra = await api(hostPage, 'POST', '/api/custom-ui/instances', {
+    componentId: 'panel-card',
+    surface: 'overview-card',
+    size: 'S',
+  })
+  assert.equal(extra.status, 201, JSON.stringify(extra))
+  report.checks.push(
+    'Card ⋯ → 换个位置 moves the card to the feature page (new instance first, then the card is removed)',
+  )
+
+  // 1080×680（自绘标题栏）：组件栏收进页头“组件 N”弹层；右上 144px 不被挡，没有横向滚动。
+  await hostPage.setViewportSize({ width: 1080, height: 680 })
+  await settle(hostPage)
+  assert.equal(await hostPage.locator('[data-overview-widgets]').count(), 0)
+  const trigger = hostPage.locator('[data-overview-components-trigger]')
+  await trigger.waitFor({ timeout: 30_000 })
+  assert.equal((await trigger.textContent()).trim(), '组件 2')
+  await trigger.click()
+  const popover = hostPage.locator('[data-overview-components="popover"]')
+  await popover.locator('[data-fixture-panel="overview-card"]').nth(1).waitFor({ timeout: 30_000 })
+  const layout1080 = await hostPage.evaluate(() => {
+    const popover = document.querySelector('[data-overview-components="popover"]')
+    const box = popover.getBoundingClientRect()
+    const intrusions = [...document.querySelectorAll('button, a[href], input, [role="tab"]')]
+      .filter((element) => !element.closest('.desktop-window-controls'))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect()
+        return rect.width > 0 && rect.top < 48 && rect.right > innerWidth - 144 + 0.5
+      })
+      .map((element) => element.getAttribute('aria-label') || element.textContent?.trim())
+    return {
+      customTitlebar: document.querySelectorAll('[data-custom-titlebar]').length,
+      inside:
+        box.left >= 0 && box.right <= innerWidth && box.top >= 48 && box.bottom <= innerHeight,
+      bodies: [...popover.querySelectorAll('[data-overview-component-body]')].map((body) => {
+        const rect = body.getBoundingClientRect()
+        return `${Math.round(rect.width)}x${Math.round(rect.height)}`
+      }),
+      intrusions,
+    }
+  })
+  assert.deepEqual(layout1080, {
+    customTitlebar: 1,
+    inside: true,
+    bodies: ['320x248', '320x120'],
+    intrusions: [],
+  })
+  assert.equal(await noHorizontalScroll(hostPage), true)
+  await hostPage.screenshot({ path: join(output, 'overview-1080-popover.png') })
+  await hostPage.keyboard.press('Escape')
+  await popover.waitFor({ state: 'detached' })
+  report.checks.push(
+    'All agents at 1080×680 with the custom title bar: cards fold into the header “组件 N” popover (320 wide, inside the window, below 48px), nothing enters the 144px corner, no horizontal scroll',
+  )
+
+  // 会话检查器：实例范围是另一个项目时不出现；“+”里改为“仅此项目”后出现并选中。
+  await hostPage.setViewportSize({ width: 1440, height: 900 })
+  const panel = await api(hostPage, 'POST', '/api/custom-ui/instances', {
+    componentId: 'panel-card',
+    surface: 'session-panel',
+    scope: { type: 'project', cwd: join(output, 'elsewhere') },
+  })
+  assert.equal(panel.status, 201, JSON.stringify(panel))
+  const panelId = panel.body.instance.instanceId
+  await hostPage.goto(`${base}/#/board/${encodeURIComponent(BOARD_SESSION_ID)}`)
+  await hostPage.locator('[data-session-workspace]').waitFor({ timeout: 60_000 })
+  await hostPage.keyboard.press('Control+KeyI')
+  const inspector = hostPage.locator('[data-inspector-aside] [data-session-inspector]')
+  await inspector.waitFor({ timeout: 30_000 })
+  await inspector.locator('[data-inspector-tab-id="changes"]').waitFor()
+  await settle(hostPage)
+  assert.equal(await inspector.locator('[data-inspector-component-tab]').count(), 0)
+  await inspector.locator('[data-inspector-component-add]').click()
+  const candidate = hostPage.locator('[data-session-component-candidate="panel-card"]')
+  await candidate.waitFor({ timeout: 30_000 })
+  await candidate.locator('[data-session-component-scope="project"]').click()
+  const componentTab = inspector.locator(`[data-inspector-component-tab="${panelId}"]`)
+  await componentTab.waitFor({ timeout: 30_000 })
+  assert.equal(await componentTab.getAttribute('aria-selected'), 'true')
+  const panelHost = inspector.locator('[data-fixture-panel="session-panel"]')
+  await panelHost.waitFor({ timeout: 30_000 })
+  assert.equal(await panelHost.getAttribute('data-session'), BOARD_SESSION_TITLE)
+  const panelWidth = Number((await panelHost.getAttribute('data-size')).split('x')[0])
+  assert.ok(panelWidth >= 440 && panelWidth <= 456, `session panel width ${panelWidth}`)
+  const scoped = (await api(hostPage, 'GET', '/api/custom-ui/instances')).body.instances.find(
+    (entry) => entry.instanceId === panelId,
+  )
+  assert.deepEqual(scoped.scope, { type: 'project', cwd: workspace })
+  // 只有一个 tablist：方向键从组件标签回到最后一个固定标签，再回来。
+  await componentTab.focus()
+  await hostPage.keyboard.press('ArrowLeft')
+  await settle(hostPage)
+  assert.equal(await componentTab.getAttribute('aria-selected'), 'false')
+  assert.equal(await inspector.getAttribute('data-inspector-component'), null)
+  await hostPage.keyboard.press('ArrowRight')
+  await settle(hostPage)
+  assert.equal(await componentTab.getAttribute('aria-selected'), 'true')
+  assert.equal(await noHorizontalScroll(hostPage), true)
+  await hostPage.screenshot({ path: join(output, 'session-panel-1440.png') })
+  report.checks.push(
+    'Session inspector: a session-panel instance scoped to another project stays hidden; “+” → 仅此项目 re-scopes it, the tab appears selected and renders with ctx.session = this session at the inspector width; arrow keys move across fixed and component tabs',
+  )
+  await hostPage.waitForTimeout(3_500)
+  await hostContext.close()
 
   assert.deepEqual(report.pageErrors, [])
   report.status = 'passed'
