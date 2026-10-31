@@ -476,8 +476,14 @@ try {
   }
   await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
-  // 从全部代理点侧栏的会话行回到会话（push，后退回看板）；改绑的会话主页键同样回到上次的会话。
-  await sessionRow.click()
+  // 从全部代理点这个会话的行回到会话（push，后退回全部代理）；改绑的会话主页键同样回到上次的会话。
+  // A3 起全部代理页的侧栏只有状态 / 项目筛选、不列会话行（规格 2.3），代理只在主区列一次，所以点主区的行。
+  assert.equal(
+    await sessionRow.count(),
+    0,
+    'the all-agents sidebar lists filters, not session rows',
+  )
+  await page.locator(`[data-board-card="${id}"]`).click()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   await page.goBack()
   await page.waitForURL((url) => url.hash === '#/board')

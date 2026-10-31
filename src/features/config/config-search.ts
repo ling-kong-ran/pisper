@@ -182,7 +182,7 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     keywords: ['template', '模板', '通知模板'],
   },
   // —— interface 分区卡片 ——
-  // 独立组件已迁到“组件”标签（规格 2.6）：条目保留以便搜到，选中后直接去组件页。
+  // 独立组件已迁到组件工作室（功能 › 扩展，规格 2.6 / 2.7）：条目保留以便搜到，选中后直接去组件页。
   {
     id: 'interface-custom-ui',
     section: 'interface',

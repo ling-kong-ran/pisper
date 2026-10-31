@@ -537,11 +537,9 @@ test('settings take over the sidebar as a full page, feature pages have one home
   assert.doesNotMatch(routes, /ACTIVITY_NAVIGATION_STATE|navOrigin/)
   assert.doesNotMatch(app, /SETTINGS_PAGES|ACTIVITY_NAVIGATION_STATE/)
   assert.doesNotMatch(settingsNavigation, /mobile-device|mobileDevice/)
-  // 功能页入口在“功能”索引，按 Runtime 能力与客户端形态裁剪；手机标签栏与 v2 桌面都没有“组件”入口。
-  assert.match(
-    more,
-    /getMoreNavigation\(t, \{ capabilities, mobileApp, components, componentsTile: true \}\)/,
-  )
+  // 功能页入口在“功能”索引，按 Runtime 能力与客户端形态裁剪；手机标签栏与 v2 桌面都没有“组件”入口，
+  // 组件工作室在“功能 › 扩展”（分组见 more-navigation.test）。
+  assert.match(more, /getMoreNavigation\(t, \{ capabilities, mobileApp, components \}\)/)
   assert.match(more, /const phone = usePhoneShell\(\)/)
   assert.doesNotMatch(styles, /\.settings-shell|\.settings-nav|\.settings-content/)
 })

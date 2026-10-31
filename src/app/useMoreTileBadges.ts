@@ -1,5 +1,5 @@
-// “更多”磁贴角标（规格 2.5）：工作流运行中、定时任务启用数、渠道断开数（琥珀：需要人处理）、MCP 在线数。
-// 每项只在对应磁贴可见（Runtime 没有裁掉）时读取，随更多页懒加载；数据所有者是 React Query 缓存，
+// “功能”卡片角标（规格 2.7）：工作流运行中、定时任务启用数、渠道断开数（琥珀：需要人处理）、MCP 在线数。
+// 每项只在对应卡片可见（Runtime 没有裁掉）时读取，随功能页懒加载；数据所有者是 React Query 缓存，
 // 离开页面即停止轮询。读取失败或数量为 0 时不显示角标，不用占位数字伪装。
 import { useQuery } from '@tanstack/react-query'
 import type { Translate } from '@/app/navigation'

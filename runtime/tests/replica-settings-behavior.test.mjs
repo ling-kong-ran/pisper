@@ -51,8 +51,13 @@ test('the retired standalone widgets tab is still found by search and leads to t
   // 面包屑文案在随设置路由加载的 custom-ui 命名空间里，先装上再取译文。
   await ensureCustomUiMessages()
   for (const [query, language, title, breadcrumb] of [
-    ['独立组件', 'zh-CN', '组件', '组件已移到 组件 页 →'],
-    ['standalone widgets', 'en-US', 'Components', 'Components moved to the Components tab →'],
+    ['独立组件', 'zh-CN', '组件工作室', '组件已移到 功能 › 组件工作室 →'],
+    [
+      'standalone widgets',
+      'en-US',
+      'Component studio',
+      'Components moved to Features › Component studio →',
+    ],
   ]) {
     const hits = searchConfig(query, language)
     assert.deepEqual(

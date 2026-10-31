@@ -1,7 +1,8 @@
-// “更多”启动台的分组与磁贴（桌面与手机共用同一套数据）。取代旧功能栏分组 activity-navigation
-// 在外壳里的角色：Runtime 裁掉的页面直接隐藏，只在部分平台提供的能力显示为禁用并写明原因。
-// 纯数据、翻译由调用方注入；不依赖 Feature，页头面包屑与守卫测试可以直接读取。
+// “功能”索引（原“更多”，路径 /more 不变）的分组与卡片（桌面与手机共用同一套数据，规格 2.7）。
+// 取代旧功能栏分组 activity-navigation 在外壳里的角色：Runtime 裁掉的页面直接隐藏，
+// 只在部分平台提供的能力显示为禁用并写明原因。纯数据、翻译由调用方注入；不依赖 Feature，守卫测试可以直接读取。
 import {
+  AppWindow,
   Blocks,
   Bot,
   Brain,
@@ -35,7 +36,7 @@ export type MoreTile = {
   description: string
   icon: LucideIcon
   destination: MoreDestination
-  // 平台不支持时显示为禁用磁贴，原因写在描述位置，不能只靠变灰表达。
+  // 平台不支持时显示为禁用卡片，原因写在说明位置，不能只靠变灰表达。
   disabledReason?: string
 }
 
@@ -49,16 +50,17 @@ export type MoreGroup = {
 
 export type MoreComponentEntry = { id: string; name: string; description?: string }
 
+// “我的组件”末行“+ 放置组件”的键：它不是一个功能，是空位，画成虚线。
+export const ADD_COMPONENT_KEY = 'add:component'
+
 export { MORE_PAGES, MORE_SEARCH_INPUT_ID } from '@/app/more-pages'
 
 type MoreNavigationOptions = {
   capabilities?: RuntimeCapabilities
-  // 手机 App 经代理访问：远程访问换成“服务器”，桌面宠物显示为禁用。
+  // 手机 App 经代理访问：远程访问换成“手机服务器”，桌面宠物显示为禁用。
   mobileApp?: boolean
-  // 放在“更多页面”位置的已安装组件；缺省时只给出“+ 添加”。
+  // 以整页打开的已安装组件（/tools/components/:id）；缺省时“我的组件”只有“+ 放置组件”。
   components?: readonly MoreComponentEntry[]
-  // 组件页的入口放进“我的组件”分组的第一格：手机标签栏没有“组件”，v2 桌面也不再有组件标签。
-  componentsTile?: boolean
 }
 
 export function getMoreNavigation(
@@ -67,7 +69,6 @@ export function getMoreNavigation(
     capabilities = LEGACY_RUNTIME_CAPABILITIES,
     mobileApp = false,
     components = [],
-    componentsTile = false,
   }: MoreNavigationOptions = {},
 ): MoreGroup[] {
   const page = (
@@ -160,6 +161,14 @@ export function getMoreNavigation(
           Sparkles,
         ),
         page('mcp', t('navigation:navigation.mcp'), t('navigation:more.mcpHint'), Server),
+        // 组件工作室不再是一级入口（规格 2.4 / 2.7）：桌面与手机都从“功能 › 扩展”进入。
+        {
+          key: 'page:components',
+          label: t('navigation:shell.components'),
+          description: t('navigation:more.componentStudioHint'),
+          icon: Blocks,
+          destination: { type: 'page', id: 'components' },
+        },
       ],
     },
     { id: 'devices', label: t('navigation:more.groupDevices'), tiles: devices },
@@ -167,26 +176,16 @@ export function getMoreNavigation(
       id: 'components',
       label: t('navigation:more.groupComponents'),
       tiles: [
-        componentsTile
-          ? {
-              key: 'shell:components',
-              label: t('navigation:shell.components'),
-              // 手机三列磁贴在 360px 宽时只有约 6 个汉字宽：用磁贴专用的短说明，页面元信息里的长说明留给页头与命令面板。
-              description: t('navigation:more.componentsHint'),
-              icon: Blocks,
-              destination: { type: 'page', id: 'components' },
-            }
-          : null,
         ...components.map((component): MoreTile => ({
           key: `component:${component.id}`,
           label: component.name,
           description: component.description || t('navigation:more.componentHint'),
-          icon: Blocks,
+          icon: AppWindow,
           destination: { type: 'component', id: component.id },
         })),
-        // 最后一格固定是“+ 添加”，去组件页导入或创建。
+        // 最后一行固定是“+ 放置组件”，去组件工作室创建或导入；没有组件时整组只有它（规格 2.7）。
         {
-          key: 'page:components',
+          key: ADD_COMPONENT_KEY,
           label: t('navigation:more.addComponent'),
           description: t('navigation:more.addComponentHint'),
           icon: Plus,
@@ -204,7 +203,7 @@ export function getMoreNavigation(
     .filter((group) => group.tiles.length > 0)
 }
 
-// 磁贴名称筛选：按名称、描述与所属分组做不区分大小写的包含匹配；空关键词返回原分组。
+// 搜索筛选：按名称、描述与所属分组做不区分大小写的包含匹配；空关键词返回原分组。
 export function filterMoreNavigation(groups: readonly MoreGroup[], query: string, locale?: string) {
   const needle = query.trim().toLocaleLowerCase(locale)
   if (!needle) return [...groups]
@@ -218,18 +217,4 @@ export function filterMoreNavigation(groups: readonly MoreGroup[], query: string
       ),
     }))
     .filter((group) => group.tiles.length > 0)
-}
-
-// “更多”页头副标题计数：功能磁贴（不含“+ 添加”与组件）与已安装组件分开计数。
-export function countMoreTiles(groups: readonly MoreGroup[]) {
-  let features = 0
-  let components = 0
-  for (const group of groups) {
-    for (const tile of group.tiles) {
-      if (tile.destination.type === 'component') components += 1
-      else if (!(tile.destination.type === 'page' && tile.destination.id === 'components'))
-        features += 1
-    }
-  }
-  return { features, components }
 }

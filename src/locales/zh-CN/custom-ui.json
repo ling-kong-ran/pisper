@@ -44,8 +44,8 @@
   "customUiPage.permissionGameAssetsWrite": "编辑素材项目与处理图片",
   "customUiPage.permissionGameAssetsRun": "运行与停止素材生成",
   "bridge.gameAssetBusy": "素材请求繁忙，请等待当前操作完成后重试。",
-  "moved.title": "组件已移到 组件 页 →",
-  "moved.hint": "导入、预览与悬浮显示都在组件页管理",
+  "moved.title": "组件已移到 功能 › 组件工作室 →",
+  "moved.hint": "导入、预览与悬浮显示都在组件工作室管理",
   "phone.allComponents": "全部组件",
   "phone.missingTitle": "找不到这个组件",
   "phone.missingHint": "它可能已被移除或改名。回到列表重新选择，或点重新扫描。"

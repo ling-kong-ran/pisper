@@ -63,7 +63,7 @@ export function sessionTabNavigation({
 export const COMPONENT_DETAIL_PATTERN = /^\/components\/([^/]+)\/?$/
 
 export type ShellBackContext = {
-  // 手机外壳（不含平板）：组件列表返回更多；桌面与平板的组件列表是功能页之一，同样回到更多。
+  // 手机外壳（不含平板）。组件工作室归“功能 › 扩展”（规格 2.4）后上一级不再分端，留着给 A4 的抽屉返回规则。
   phone?: boolean
   // 当前历史条目是从主页落地的会话（HOME_ENTRY_STATE），或就是主页本身。
   homeEntry?: boolean
@@ -74,22 +74,21 @@ export type ShellBackContext = {
 // 手机原生返回（含平板）在弹层、底部表单都关掉之后按这里返回上一级（规格 7.1，主页改为会话）：
 // - 会话主页是根：主页 '/'、从主页落地的会话（含泳道条 replace 切换后的会话）返回 null，交还平台；
 // - 从看板等页面点进来的会话：返回 -1，走历史回到来处；冷启动直接打开的会话链接没有来处，同样交还平台；
-// - 更多的子页 → 更多；组件详情 → 组件列表；手机上组件列表 → 更多；
-// - 看板、组件（桌面 / 平板）、更多、设置等一级页 → 主页。
+// - 功能的子页（含组件工作室）→ 功能；组件详情 → 组件列表；
+// - 看板、功能、设置等一级页 → 主页。
 // 只给原生返回用；键盘 Esc 不离开页面，唯一例外是设置整页侧栏上写明的“← 返回 Esc”（SettingsSidebar，规格 2.3）。
 export function shellBackPath(
   page: string,
   pathname: string,
   settingsOwned: boolean,
-  { phone = false, homeEntry = false, canGoBack = false }: ShellBackContext = {},
+  { homeEntry = false, canGoBack = false }: ShellBackContext = {},
 ): string | -1 | null {
   if (page === 'session') {
     if (homeEntry || pathname === HOME_PATH || pathname === '') return null
     return canGoBack ? -1 : null
   }
   if (page === 'components' && COMPONENT_DETAIL_PATTERN.test(pathname)) return '/components'
-  // 桌面 / 平板的组件列表原是一级标签，返回主页；手机上它从“更多”进入，返回更多（行为不变）。
-  if (page === 'components' && !phone) return HOME_PATH
+  // 组件工作室不再是一级标签（规格 2.4 / 2.7）：桌面、平板与手机的组件列表都回到功能。
   const tab = activeShellTab(page, settingsOwned)
   if (tab === 'more' && page !== 'more') return '/more'
   return HOME_PATH

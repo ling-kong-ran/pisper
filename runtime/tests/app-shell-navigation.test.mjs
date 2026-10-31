@@ -138,7 +138,8 @@ test('component detail routes stay on the components tab and native back walks t
   assert.equal(back('/config/remote-access'), '/more')
   assert.equal(back('/config/desktop-pet'), '/more')
   assert.equal(back('/config/interface'), HOME_PATH)
-  assert.equal(back('/components'), HOME_PATH)
+  // 组件工作室归“功能 › 扩展”（规格 2.4 / 2.7），不再是一级页：组件列表回功能。
+  assert.equal(back('/components'), '/more')
   assert.equal(back('/components/game-assets'), '/components')
 })
 

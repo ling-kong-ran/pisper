@@ -77,16 +77,12 @@ test('repeated native back from any page climbs to the session home and then yie
   for (const state of [undefined, { navOrigin: 'activity' }])
     assert.deepEqual(climb('/plugins', { state }), ['/plugins', '/more', '/'])
   assert.deepEqual(climb('/config/mobile-server'), ['/config/mobile-server', '/more', '/'])
-  assert.deepEqual(climb('/components/game-assets'), [
-    '/components/game-assets',
-    '/components',
-    '/',
-  ])
-  // 手机没有“组件”标签：组件详情 → 列表 → 更多 → 主页。
-  assert.deepEqual(climb('/components/game-assets', { phone: true }), [
-    '/components/game-assets',
-    '/components',
-    '/more',
-    '/',
-  ])
+  // 组件工作室在“功能 › 扩展”（规格 2.4 / 2.7），桌面、平板与手机同一条：组件详情 → 列表 → 功能 → 主页。
+  for (const phone of [false, true])
+    assert.deepEqual(climb('/components/game-assets', { phone }), [
+      '/components/game-assets',
+      '/components',
+      '/more',
+      '/',
+    ])
 })

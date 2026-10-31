@@ -44,8 +44,8 @@
   "customUiPage.permissionGameAssetsWrite": "Edit asset projects and process images",
   "customUiPage.permissionGameAssetsRun": "Run and stop asset generation",
   "bridge.gameAssetBusy": "Asset requests are busy. Wait for current operations and retry.",
-  "moved.title": "Components moved to the Components tab →",
-  "moved.hint": "Import, preview and floating display are managed there",
+  "moved.title": "Components moved to Features › Component studio →",
+  "moved.hint": "Import, preview and floating display are managed in the studio",
   "phone.allComponents": "All components",
   "phone.missingTitle": "Component not found",
   "phone.missingHint": "It may have been removed or renamed. Go back to the list to choose again, or rescan."

@@ -239,8 +239,8 @@ test('native back: the session home is the root, opened sessions go back where t
   // 一级页回主页。
   for (const path of ['/board', '/more', '/config/models', '/config/interface'])
     assert.equal(back(path), HOME_PATH, path)
-  assert.equal(back('/components'), HOME_PATH)
-  // 更多的子页回更多；组件详情回列表；手机上组件列表回更多。
+  // 功能的子页回功能（组件工作室在“功能 › 扩展”，组件列表同样回功能）；组件详情回列表。
+  assert.equal(back('/components'), '/more')
   assert.equal(back('/assets'), '/more')
   assert.equal(back('/chat/history'), '/more')
   assert.equal(back('/plugins'), '/more')
@@ -451,18 +451,23 @@ test('the sidebar lists its entries in order, lights none on the home, and shows
   )
 })
 
-test('More lists the components page as a tile now that it is not a primary entry', () => {
-  const group = (options) =>
-    getMoreNavigation(t, options).find((item) => item.id === 'components')?.tiles || []
-  assert.equal(
-    group({}).some((tile) => tile.key === 'shell:components'),
-    false,
-  )
-  const phone = group({ componentsTile: true })
-  assert.equal(phone[0].key, 'shell:components')
-  assert.deepEqual(phone[0].destination, { type: 'page', id: 'components' })
-  // 最后一格仍是“+ 添加”。
-  assert.equal(phone.at(-1).key, 'page:components')
+test('功能 lists the component studio under 扩展 now that it is not a primary entry', () => {
+  // 桌面与手机同一份：组件工作室在“扩展”里（规格 2.7），“我的组件”最后一行是去工作室的“+ 放置组件”。
+  for (const mobileApp of [false, true]) {
+    const groups = getMoreNavigation(t, { mobileApp })
+    const studio = groups
+      .find((item) => item.id === 'extensions')
+      ?.tiles.filter(
+        (tile) => tile.destination.type === 'page' && tile.destination.id === 'components',
+      )
+    assert.deepEqual(
+      studio?.map((tile) => tile.key),
+      ['page:components'],
+    )
+    const mine = groups.find((item) => item.id === 'components')?.tiles || []
+    assert.equal(mine.at(-1)?.key, 'add:component')
+    assert.deepEqual(mine.at(-1)?.destination, { type: 'page', id: 'components' })
+  }
   // 命令面板：“会话”用兼容页面 id 'chat'（navigate('chat') 落到主页，不建会话）。
   const [[, shell]] = getNavigation(t)
   assert.deepEqual(

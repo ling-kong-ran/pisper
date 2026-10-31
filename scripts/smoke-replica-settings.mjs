@@ -476,7 +476,7 @@ try {
   await page.goto(`${url}/?view=interface-page`)
   const moved = page.locator('[data-components-moved]')
   await moved.waitFor()
-  assert.match(await moved.innerText(), /组件已移到 组件 页 →/)
+  assert.match(await moved.innerText(), /组件已移到 功能 › 组件工作室 →/)
   assert.equal(await page.getByRole('tab').count(), 0, 'settings no longer has a widgets tab')
   assert.ok((await moved.boundingBox()).height >= 44, 'the moved link is a 44px target')
   const accent = page.getByRole('combobox', { name: '强调色', exact: true })

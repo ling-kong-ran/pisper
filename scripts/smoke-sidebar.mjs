@@ -1062,6 +1062,307 @@ try {
     await context.close()
   }
 
+  // 6. 功能索引（A3，规格 2.7）：居中 760 栏、两列卡片行、分组顺序与组件工作室的位置、角标（只有渠道断开是琥珀）、
+  //    “/”与方向键、搜索与空结果，以及每张卡片打开的功能页都点亮“功能”、页头“‹ 功能”并能退回索引。
+  {
+    const { context } = await newContext({
+      viewport: { width: 1440, height: 900 },
+      colorScheme: 'light',
+    })
+    // 角标只在浏览器边界模拟四个读接口的计数；逐页打开之前撤掉，功能页读真实 Runtime。
+    const badgeRoutes = [
+      [
+        '**/api/workflows',
+        (route) =>
+          route.request().method() === 'GET'
+            ? route.fulfill({
+                json: { workflows: [], runs: [], limits: { maxConcurrent: 4, running: 1 } },
+              })
+            : route.fallback(),
+      ],
+      [
+        '**/api/schedules',
+        (route) =>
+          route.request().method() === 'GET'
+            ? route.fulfill({
+                json: {
+                  tasks: [
+                    { id: 'a', enabled: true },
+                    { id: 'b', enabled: true },
+                    { id: 'c', enabled: false },
+                  ],
+                  runs: [],
+                },
+              })
+            : route.fallback(),
+      ],
+      [
+        '**/api/channels',
+        (route) =>
+          route.request().method() === 'GET'
+            ? route.fulfill({
+                json: {
+                  providers: [],
+                  connections: {
+                    feishu: { enabled: true, status: 'failed' },
+                    weixin: { enabled: true, status: 'connected' },
+                  },
+                  scopes: [],
+                  models: [],
+                },
+              })
+            : route.fallback(),
+      ],
+      [
+        '**/api/mcp?refresh=0',
+        (route) =>
+          route.fulfill({
+            json: {
+              services: [],
+              tools: [],
+              calls: [],
+              metrics: {
+                totalServices: 3,
+                onlineServices: 3,
+                availableTools: 0,
+                restrictedTools: 0,
+                errorRate: 0,
+              },
+            },
+          }),
+      ],
+    ]
+    for (const [url, handler] of badgeRoutes) await context.route(url, handler)
+    const page = await openSession(context, 'features index')
+    const sidebar = page.locator('[data-shell-sidebar]')
+    const focusedTile = () =>
+      page.evaluate(() => document.activeElement?.getAttribute('data-more-tile') ?? null)
+
+    // 6a. ⌘2 打开功能：侧栏点亮“功能”，标题与文档标题都是“功能”，分组顺序与组件工作室在“扩展”末尾。
+    await page.locator('.focus-composer textarea').first().click()
+    await page.keyboard.press(`${mod}+Digit2`)
+    await page.waitForFunction(() => location.hash === '#/more')
+    await page.locator('[data-more-badge]').nth(3).waitFor({ timeout: 20_000 })
+    assert.equal(
+      await sidebar.locator('[data-sidebar-entry="features"]').getAttribute('aria-current'),
+      'page',
+    )
+    assert.equal(await page.locator('main h1').first().innerText(), '功能')
+    assert.equal(await page.title(), '功能 · Pisper')
+    assert.equal(
+      await page.locator('#more-page-search').getAttribute('placeholder'),
+      '搜索功能、设置与命令',
+    )
+    const layout = await page.evaluate(() => {
+      const main = document.querySelector('main').getBoundingClientRect()
+      const groups = [...document.querySelectorAll('[data-more-group]')].map((group) => ({
+        id: group.getAttribute('data-more-group'),
+        heading: group.querySelector('h2').textContent,
+        tiles: [...group.querySelectorAll('[data-more-tile]')].map((tile) => {
+          const box = tile.getBoundingClientRect()
+          return {
+            key: tile.getAttribute('data-more-tile'),
+            left: Math.round(box.left),
+            top: Math.round(box.top),
+            width: Math.round(box.width),
+            height: Math.round(box.height),
+            border: getComputedStyle(tile).borderTopStyle,
+          }
+        }),
+      }))
+      const list = document.querySelector('[data-more-group] ul').getBoundingClientRect()
+      return {
+        groups,
+        listWidth: Math.round(list.width),
+        offCenter: Math.abs(list.left + list.width / 2 - (main.left + main.width / 2)),
+      }
+    })
+    assert.deepEqual(
+      layout.groups.map((group) => [group.id, group.heading]),
+      [
+        ['sessions', '会话与资料'],
+        ['automation', '自动化'],
+        ['extensions', '扩展'],
+        ['devices', '设备与连接'],
+        ['components', '我的组件'],
+      ],
+    )
+    const keysOf = (id) => layout.groups.find((group) => group.id === id).tiles.map((t) => t.key)
+    assert.deepEqual(keysOf('sessions'), ['page:chatHistory', 'page:assets', 'page:memory'])
+    assert.deepEqual(keysOf('automation'), ['page:workflows', 'page:schedules', 'page:channels'])
+    assert.deepEqual(keysOf('extensions'), [
+      'page:plugins',
+      'page:skills',
+      'page:mcp',
+      'page:components',
+    ])
+    assert.equal(keysOf('components').at(-1), 'add:component')
+    // 居中 760 栏、两列：同一行两张等宽卡片（(760 − 8) / 2），第三张换到下一行左列；卡片行至少 64 高。
+    assert.equal(layout.listWidth, 760)
+    assert.ok(layout.offCenter <= 1, `features column is centered (${layout.offCenter})`)
+    const [first, second, third] = layout.groups[0].tiles
+    assert.equal(first.top, second.top)
+    assert.equal(third.left, first.left)
+    assert.ok(third.top > first.top)
+    assert.deepEqual([first.width, second.width], [376, 376])
+    const allTiles = layout.groups.flatMap((group) => group.tiles)
+    assert.ok(
+      allTiles.every((tile) => tile.height >= 64),
+      JSON.stringify(allTiles),
+    )
+    // 只有“+ 放置组件”是虚线空位；组件工作室是普通入口。
+    assert.deepEqual(
+      allTiles.filter((tile) => tile.border === 'dashed').map((tile) => tile.key),
+      ['add:component'],
+    )
+    // 角标：渠道“1 断开”是唯一的琥珀（--warning-strong 文字 + 琥珀圆点），其余是中性计数。
+    const badges = await page.locator('[data-more-badge]').evaluateAll((nodes) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--warning-strong)'
+      document.body.append(probe)
+      const amber = getComputedStyle(probe).color
+      probe.remove()
+      return nodes.map((node) => ({
+        key: node.closest('[data-more-tile]').dataset.moreTile,
+        tone: node.dataset.moreBadge,
+        text: node.textContent.trim(),
+        amber: getComputedStyle(node).color === amber,
+        dot: node.querySelector('.rounded-full') !== null,
+      }))
+    })
+    assert.deepEqual(
+      badges.toSorted((a, b) => a.key.localeCompare(b.key)),
+      [
+        { key: 'page:channels', tone: 'attn', text: '1 断开', amber: true, dot: true },
+        { key: 'page:mcp', tone: 'neutral', text: '3 在线', amber: false, dot: false },
+        { key: 'page:schedules', tone: 'neutral', text: '2 启用', amber: false, dot: false },
+        { key: 'page:workflows', tone: 'run', text: '1 运行中', amber: false, dot: false },
+      ],
+    )
+    await settle(page)
+    await geometry(page, 'features 1440 light')
+    await page.screenshot({ path: join(output, 'features-1440-light.png') })
+    report.checks.push(
+      'Features (⌘2): 功能 lit, h1 and document title 功能, groups 会话与资料 · 自动化 · 扩展 (with 组件工作室 last) · 设备与连接 · 我的组件 (ending in the dashed + 放置组件); a centered 760 column of two equal 376px card columns ≥64px tall; only the channel badge “1 断开” is amber, the other counts are neutral',
+    )
+
+    // 6b. 键盘：“/”聚焦搜索，↓ 进第一张卡片，→ / ↓ / ↑ 在两列之间按位置移动，第一行 ↑ 回搜索框；焦点环 2px。
+    await page.locator('main h1').first().click()
+    await page.keyboard.press('Slash')
+    await page.waitForFunction(() => document.activeElement?.id === 'more-page-search')
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await focusedTile(), 'page:chatHistory')
+    const ring = await page.evaluate(() => {
+      const style = getComputedStyle(document.activeElement)
+      return `${style.outlineStyle} ${style.outlineWidth}`
+    })
+    assert.equal(ring, 'solid 2px')
+    await page.keyboard.press('ArrowRight')
+    assert.equal(await focusedTile(), 'page:assets')
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await focusedTile(), 'page:memory')
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await focusedTile(), 'page:workflows')
+    await page.keyboard.press('ArrowUp')
+    assert.equal(await focusedTile(), 'page:memory')
+    await page.keyboard.press('Home')
+    assert.equal(await focusedTile(), 'page:chatHistory')
+    await page.keyboard.press('ArrowUp')
+    await page.waitForFunction(() => document.activeElement?.id === 'more-page-search')
+    await page.keyboard.press('End')
+    // 在搜索框里 End 只是移动光标；Tab 依次走到每张卡片（禁用的也能聚焦，读得到原因）。
+    await page.keyboard.press('Tab')
+    assert.equal(await focusedTile(), 'page:chatHistory')
+    await page.keyboard.press('Tab')
+    assert.equal(await focusedTile(), 'page:assets')
+
+    // 6c. 搜索：关键词筛卡片并列出命中的设置项；↓ ↵ 打开结果；空结果写明并可清除；Esc 清空。
+    await page.keyboard.press('Slash')
+    await page.keyboard.type('mcp')
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-more-tile]')]
+          .map((tile) => tile.getAttribute('data-more-tile'))
+          .join() === 'page:mcp',
+    )
+    await page.locator('[data-more-palette-search]').waitFor()
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await focusedTile(), 'page:mcp')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => location.hash === '#/mcp')
+    await page.locator('[data-back-to-more]').click()
+    await page.waitForFunction(() => location.hash === '#/more')
+    await page.locator('#more-page-search').fill('没有这个功能-zz')
+    const empty = page.locator('[data-features-empty]')
+    await empty.waitFor()
+    assert.equal(await empty.getAttribute('role'), 'status')
+    await empty.getByRole('button', { name: '清除搜索', exact: true }).click()
+    await page.locator('[data-more-tile="page:chatHistory"]').waitFor()
+    await page.locator('#more-page-search').fill('技能')
+    await page.locator('#more-page-search').press('Escape')
+    assert.equal(await page.locator('#more-page-search').inputValue(), '')
+    assert.equal(page.url().endsWith('#/more'), true, 'Esc in the search box clears, never leaves')
+    report.checks.push(
+      'Features keyboard: “/” focuses the search, ↓ enters the first card (2px focus ring), → / ↓ / ↑ move by position across the two columns and groups, Home goes to the first card, ↑ from the first row returns to the search, Tab walks the cards; typing “mcp” leaves only MCP plus the palette hand-off, ↓ ↵ opens it; no match shows a status with 清除搜索; Esc clears the query without leaving',
+    )
+
+    // 6d. 每张卡片打开的功能页（含组件工作室与 /config 下的远程访问 / 桌面宠物）都点亮“功能”、
+    //     页头“‹ 功能”（返回功能），点它回到索引。
+    for (const [url, handler] of badgeRoutes) await context.unroute(url, handler)
+    const destinations = allTiles
+      .map((tile) => tile.key)
+      .filter((key) => key !== 'add:component' && !key.startsWith('component:'))
+    const opened = []
+    for (const key of destinations) {
+      const tile = page.locator(`[data-more-tile="${key}"]`)
+      await tile.waitFor()
+      if ((await tile.getAttribute('aria-disabled')) === 'true') continue
+      await tile.click()
+      await page.waitForFunction(() => location.hash !== '#/more')
+      const back = page.locator('[data-back-to-more]')
+      await back.waitFor({ timeout: 30_000 })
+      assert.equal(await back.innerText(), '功能', key)
+      assert.equal(await back.getAttribute('aria-label'), '返回功能', key)
+      assert.equal(
+        await sidebar.locator('[data-sidebar-entry="features"]').getAttribute('aria-current'),
+        'page',
+        key,
+      )
+      opened.push(`${key} → ${new URL(page.url()).hash}`)
+      await back.click()
+      await page.waitForFunction(() => location.hash === '#/more')
+    }
+    assert.ok(opened.some((entry) => entry.startsWith('page:components → #/components')))
+    assert.ok(opened.some((entry) => entry.startsWith('config:remote-access → #/config/')))
+    report.features = opened
+    report.checks.push(
+      `Every features card opens its page with 功能 lit and “‹ 功能” (返回功能) back to the index: ${opened.length} pages incl. 组件工作室 and /config/remote-access`,
+    )
+
+    // 6e. 1080 宽：栏宽随主区收窄（仍两列、居中、无横向滚动）；深色截图。高度取第 1 节同一档 680
+    //     （侧栏列表在设置行下面滚动，720 高时“今天完成”最后一行正好半截压在设置行下，几何自查会把它算作被挡）。
+    await page.setViewportSize({ width: 1080, height: 680 })
+    await settle(page)
+    const narrow = await page.evaluate(() => {
+      const tiles = [...document.querySelectorAll('[data-more-group="sessions"] [data-more-tile]')]
+      const [a, b] = tiles.map((tile) => tile.getBoundingClientRect())
+      return { sameRow: Math.round(a.top) === Math.round(b.top), width: Math.round(a.width) }
+    })
+    assert.equal(narrow.sameRow, true)
+    assert.ok(narrow.width >= 300, `1080 card width ${narrow.width}`)
+    await geometry(page, 'features 1080 light')
+    await page.screenshot({ path: join(output, 'features-1080-light.png') })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await settle(page)
+    await geometry(page, 'features 1440 dark')
+    await page.screenshot({ path: join(output, 'features-1440-dark.png') })
+    report.checks.push(
+      'Features at 1080: still two columns side by side, no horizontal scroll, top-right 144px free; dark screenshot',
+    )
+    await context.close()
+  }
+
   assert.deepEqual(report.pageErrors, [])
   report.status = 'passed'
   console.log(JSON.stringify(report, null, 2))

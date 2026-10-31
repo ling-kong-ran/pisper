@@ -12,7 +12,7 @@ export function getPageMeta(t: Translate = (value) => value): Record<PageId, Pag
   return {
     board: [t('navigation:sidebar.allAgents'), t('navigation:shell.boardDescription')],
     session: [t('navigation:navigation.chat'), ''],
-    more: [t('navigation:shell.more'), t('navigation:shell.moreDescription')],
+    more: [t('navigation:sidebar.features'), t('navigation:shell.moreDescription')],
     chat: [t('navigation:navigation.chat'), t('navigation:navigation.chatDescription')],
     chatHistory: [
       t('navigation:navigation.chatHistory'),

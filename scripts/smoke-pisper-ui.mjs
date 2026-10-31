@@ -1588,8 +1588,8 @@ try {
     ['/skills', 'skills', '技能'],
     ['/memory', 'memory', '星忆'],
     ['/channels', 'channels', '渠道'],
-    ['/components', 'components', '组件'],
-    ['/more', 'more', '更多'],
+    ['/components', 'components', '组件工作室'],
+    ['/more', 'more', '功能'],
     ...[
       ['models', 'models-connections', '模型配置'],
       ['notifications', 'notifications-browser', '通知设置'],

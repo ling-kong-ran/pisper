@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
+  ADD_COMPONENT_KEY,
   MORE_PAGES,
-  countMoreTiles,
   filterMoreNavigation,
   getMoreNavigation,
 } from '../../src/app/more-navigation.ts'
@@ -59,9 +59,10 @@ test('more launcher groups follow the spec order and hide runtime-trimmed pages'
     [
       ['sessions', ['page:chatHistory', 'page:assets', 'page:memory']],
       ['automation', ['page:workflows', 'page:schedules', 'page:channels']],
-      ['extensions', ['page:plugins', 'page:skills', 'page:mcp']],
+      // 组件工作室归“扩展”（规格 2.7），不再是一级入口；“我的组件”没有组件时只有“+ 放置组件”。
+      ['extensions', ['page:plugins', 'page:skills', 'page:mcp', 'page:components']],
       ['devices', ['config:remote-access', 'config:desktop-pet']],
-      ['components', ['page:components']],
+      ['components', [ADD_COMPONENT_KEY]],
     ],
   )
   const trimmed = getMoreNavigation(t, {
@@ -92,7 +93,7 @@ test('capability trimming hides exactly the unavailable pages and keeps the rest
   )
   assert.deepEqual(
     groups.find((group) => group.id === 'extensions').tiles.map((tile) => tile.key),
-    ['page:plugins'],
+    ['page:plugins', 'page:components'],
   )
   for (const page of ['assets', 'memory', 'skills', 'mcp'])
     assert.equal(pageTiles(groups).includes(page), false, page)
@@ -127,7 +128,7 @@ test('every destination of the retired activity rail stays reachable from the ne
   }
 })
 
-test('tiles are unique, described and own the More tab when opened', () => {
+test('cards are unique, described and light 功能 when opened', () => {
   for (const options of [{}, { mobileApp: true }]) {
     const groups = getMoreNavigation(t, {
       ...options,
@@ -140,32 +141,39 @@ test('tiles are unique, described and own the More tab when opened', () => {
       assert.ok(tile.description, tile.key)
       assert.ok(tile.icon, tile.key)
     }
-    // 从“更多”打开的功能页点亮“更多”标签（组件页除外，它本身是一级标签）。
+    // 从功能索引打开的功能页点亮“功能”（组件工作室由 activeShellTab 单独归到“功能”，见 app-shell-navigation）。
     for (const page of pageTiles(groups))
       assert.ok(page === 'components' || MORE_PAGES.has(page), page)
   }
 })
 
-test('built-in tile descriptions fit the 360px phone tile without mid-phrase breaks', async () => {
-  // 手机三列磁贴在 360px 宽时说明只有约 78px：12px 中文一行最多 6 个字，再长就会在词中间折行
-  // （如“生成的图 / 片与文件”）；英文最多两行、只在空格处折行，所以限总长与最长单词。真实折行由更多页截图核对。
+test('built-in card descriptions fit one line of the two-column card and the 56px phone row', async () => {
+  // 规格 2.7 / 7.4：说明只有一行（卡片里 truncate）。760 栏两列卡片的说明区约 200px（去掉图标、内边距与角标），
+  // 手机一列 56 行约 220px：12px 中文最多 16 个字，英文按约 6.5px 一个字符放 30 个；
+  // 超出就会被省略号截掉半句，所以内置说明按这个宽度写短。真实宽度由 smoke-sidebar 的功能索引一节核对。
   const [zh, en] = await Promise.all(
     ['zh-CN', 'en-US'].map(async (language) =>
       JSON.parse(await readFile(`src/locales/${language}/navigation.json`, 'utf8')),
     ),
   )
   const keys = new Set()
-  for (const options of [{}, { mobileApp: true, componentsTile: true }])
+  for (const options of [{}, { mobileApp: true }])
     for (const tile of tiles(
       getMoreNavigation(t, { ...options, components: [{ id: 'game-assets', name: 'x' }] }),
     ))
       for (const value of [tile.description, tile.disabledReason])
         if (value) keys.add(value.replace(/^navigation:/, ''))
-  assert.ok(keys.has('more.componentsHint') && keys.has('more.desktopOnly'))
+  for (const key of [
+    'more.componentStudioHint',
+    'more.desktopOnly',
+    'more.componentHint',
+    'more.addComponentHint',
+    'more.mobileServerHint',
+  ])
+    assert.ok(keys.has(key), key)
   for (const key of keys) {
-    assert.ok(zh[key] && [...zh[key]].length <= 6, `zh-CN ${key}: ${zh[key]}`)
-    assert.ok(en[key] && en[key].length <= 25, `en-US ${key}: ${en[key]}`)
-    assert.ok(Math.max(...en[key].split(' ').map((word) => word.length)) <= 11, en[key])
+    assert.ok(zh[key] && [...zh[key]].length <= 16, `zh-CN ${key}: ${zh[key]}`)
+    assert.ok(en[key] && en[key].length <= 30, `en-US ${key}: ${en[key]}`)
   }
 })
 
@@ -189,21 +197,26 @@ test('phones swap in the server tile and show desktop pet disabled with a reason
   )
 })
 
-test('my components list installed tools and always end with the add tile', () => {
+test('my components list installed full-page components and always end with “+ 放置组件”', () => {
   const groups = getMoreNavigation(t, {
     components: [{ id: 'game-assets', name: '游戏素材工作台', description: '' }],
   })
   const components = groups.find((group) => group.id === 'components')
   assert.deepEqual(
-    components.tiles.map((tile) => tile.destination),
+    components.tiles.map((tile) => [tile.key, tile.destination]),
     [
-      { type: 'component', id: 'game-assets' },
-      { type: 'page', id: 'components' },
+      ['component:game-assets', { type: 'component', id: 'game-assets' }],
+      // 末行是空位“+ 放置组件”，去组件工作室创建或导入（A7 前没有 feature-page 放置）。
+      [ADD_COMPONENT_KEY, { type: 'page', id: 'components' }],
     ],
   )
   assert.equal(components.tiles[0].description, 'navigation:more.componentHint')
-  assert.deepEqual(countMoreTiles(groups), { features: 11, components: 1 })
-  assert.deepEqual(countMoreTiles(getMoreNavigation(t)), { features: 11, components: 0 })
+  assert.equal(components.tiles.at(-1).label, 'navigation:more.addComponent')
+  // 组件工作室是“扩展”里的普通入口，不能与“+ 放置组件”共用键（页面按键决定画成虚线空位）。
+  const studio = groups.find((group) => group.id === 'extensions').tiles.at(-1)
+  assert.equal(studio.key, 'page:components')
+  assert.equal(studio.label, 'navigation:shell.components')
+  assert.notEqual(studio.key, ADD_COMPONENT_KEY)
 })
 
 test('more search filters tiles by name, description or group and drops empty groups', () => {

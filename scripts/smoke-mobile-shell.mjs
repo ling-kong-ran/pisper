@@ -1034,13 +1034,33 @@ async function verifyPhoneShell(boardSessions) {
     'page:schedules:neutral:2 启用',
     'page:workflows:run:1 运行中',
   ])
-  const componentsTile = page.locator('[data-more-tile="shell:components"]')
+  // 组件工作室在“扩展”里（A3，规格 2.7）：普通入口，不能画成“+ 放置组件”那种虚线空位；
+  // 手机是一列 56 行（规格 7.4），每行至少 44 高、占满内容宽。
+  const componentsTile = page.locator(
+    '[data-more-group="extensions"] [data-more-tile="page:components"]',
+  )
   await componentsTile.waitFor()
-  // “组件”是普通入口磁贴，不能画成“+ 添加”那种虚线空位。
   assert.equal(
     await componentsTile.evaluate((node) => getComputedStyle(node).borderTopStyle),
     'solid',
   )
+  assert.equal(
+    await page
+      .locator('[data-more-tile="add:component"]')
+      .evaluate((node) => getComputedStyle(node).borderTopStyle),
+    'dashed',
+  )
+  const phoneRows = await page.locator('[data-more-tile]').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect()
+      return { left: Math.round(box.left), width: Math.round(box.width), height: box.height }
+    }),
+  )
+  assert.ok(
+    phoneRows.every((row) => row.height >= 44 && row.left === phoneRows[0].left),
+    JSON.stringify(phoneRows),
+  )
+  assert.equal(new Set(phoneRows.map((row) => row.width)).size, 1, JSON.stringify(phoneRows))
   assert.equal(await noHorizontalScroll(page), true)
   await page.screenshot({ path: join(output, 'phone-more.png') })
   await componentsTile.click()
@@ -1085,7 +1105,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.locator('[data-new-task-draft="phone"]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
-    'Phone 更多: tiles with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges and the 组件 tile; components list → detail (≥44px rows) with 更多 lit; Android back walks detail → list → 更多 → home, and the home hands over to the platform',
+    'Phone 更多 (功能 index): one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows) with 更多 lit; Android back walks detail → list → 更多 → home, and the home hands over to the platform',
   )
 
   // 设置：手机分区导航，“独立组件”标签换成跳到组件页的链接；看板徽标仍在。
