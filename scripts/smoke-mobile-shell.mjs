@@ -1040,7 +1040,7 @@ async function verifyPhoneShell(boardSessions) {
   const sheetInput = await dispatch.locator('[data-launch-input]').boundingBox()
   assert.ok(sheetInput && sheetInput.width >= 300, `dispatch textarea width ${sheetInput?.width}`)
   assert.ok(sheetInput.height >= 44, `dispatch textarea height ${sheetInput.height}`)
-  // A6 评审返修：与桌面派发同一条芯片工具行 [项目] [盾牌] … [模型] [派发]，每个 ≥44，一行放下（不换行）；
+  // A6 评审返修：与桌面派发同一条芯片工具行 [项目] [盾牌] [排队] … [模型] [派发]，每个 ≥44，一行放下（不换行）；
   // 没有“在 [项目] 中”前缀与单独的 Plan 芯片；说明指向抽屉的“运行中”（手机没有侧栏）。
   const sheetToolbar = await dispatch.locator('[data-launch-toolbar] button').evaluateAll((nodes) =>
     nodes.map((node) => {
@@ -1053,11 +1053,13 @@ async function verifyPhoneShell(boardSessions) {
       }
     }),
   )
-  assert.equal(sheetToolbar.length, 4, JSON.stringify(sheetToolbar))
+  // A9：有运行中的会话且 Runtime 声明 sessionQueue 时多一枚“什么时候开始”（立即开始 / 排在…之后），手机上只留图标。
+  assert.equal(sheetToolbar.length, 5, JSON.stringify(sheetToolbar))
   assert.match(sheetToolbar[0].name, /^项目/)
   assert.match(sheetToolbar[1].name, /^审批模式/)
-  assert.match(sheetToolbar[2].name, /^模型/)
-  assert.equal(sheetToolbar[3].name, '派发')
+  assert.match(sheetToolbar[2].name, /^什么时候开始 · 立即开始/)
+  assert.match(sheetToolbar[3].name, /^模型/)
+  assert.equal(sheetToolbar[4].name, '派发')
   for (const item of sheetToolbar)
     assert.ok(
       item.height >= 44 && item.width >= 44,
