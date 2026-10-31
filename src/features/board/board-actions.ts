@@ -144,6 +144,34 @@ export async function answerBoardQuestion(
   return { ok: true }
 }
 
+/**
+ * 排队行的“立即开始”（A9，规格 3.3）：跳过等待，Runtime 在后台启动这个会话。先乐观地挪进“运行中”，
+ * 失败时撤掉补丁、补读一次（例如前置会话刚好结束，会话已经自己开始了）。
+ */
+export async function startQueuedBoardSession(sessionId: string): Promise<BoardActionResult> {
+  const key = boardActionKey('start', sessionId)
+  if (!beginBoardAction(key, 'start')) return pendingResult()
+  // 运行中优先于排队（shared/session-board-status）：只补 streaming 就能挪进“运行中”。
+  const token = applyBoardPatch(sessionId, { streaming: true })
+  try {
+    await chatApi.startQueuedSession(sessionId)
+  } catch (error) {
+    clearBoardPatch(sessionId, token)
+    endBoardAction(key)
+    refreshInBackground()
+    return { ok: false, reason: 'failed', error }
+  }
+  try {
+    await confirmBoardSession(sessionId, undefined, { fresh: true })
+  } catch {
+    // 动作已成功；刷新失败时下一轮轮询会补齐。
+  } finally {
+    clearBoardPatch(sessionId, token)
+    endBoardAction(key)
+  }
+  return { ok: true }
+}
+
 export async function retryBoardSession(sessionId: string): Promise<BoardActionResult> {
   const key = boardActionKey('retry', sessionId)
   if (!beginBoardAction(key, 'retry')) return pendingResult()

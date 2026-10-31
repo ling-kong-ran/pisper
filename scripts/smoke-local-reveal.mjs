@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { chromium } from 'playwright-core'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const fixturePath = String.raw`C:\Users\Administrator\generated\visuals\chibi_character_replacement_corrected.gif`
@@ -45,7 +46,7 @@ let browser
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const executablePath =
-    process.env.PISPER_SMOKE_BROWSER ||
+    SMOKE_BROWSER ||
     [
       chromium.executablePath(),
       'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',

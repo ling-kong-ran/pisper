@@ -1,6 +1,7 @@
 // Browser + real isolated Runtime memory lifecycle; candidate seeding bypasses the LLM only.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
 
 export async function verifyMemoryLifecycle({ page, base, api, runtime, report, output }) {
   await page.goto(base + '/#/memory')
@@ -64,7 +65,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
   await page.route('**/api/memory?**', async (route) => {
     if (new URL(route.request().url()).searchParams.get('query') !== 'nebula')
       return route.continue()
-    const response = await route.fetch()
+    const response = await fetchIdempotent(route)
     await searchRelease.promise
     await route.fulfill({ response })
   })

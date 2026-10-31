@@ -358,6 +358,41 @@ test('queued shows only with the sessionQueue capability and in queue order', ()
   assert.equal(empty.longestWaitingId, null)
 })
 
+test('queued board items carry the queue position and the title of the session they wait for (A9)', () => {
+  const sessions = [
+    { id: 'run', name: '重构登录流程', streaming: true, modified: iso(-MIN) },
+    {
+      id: 'q1',
+      name: '补测试',
+      modified: iso(-MIN),
+      queue: { position: 1, startAfter: 'run', createdAt: iso(-30_000) },
+    },
+    {
+      id: 'q2',
+      name: '更新说明',
+      modified: iso(-MIN),
+      queue: { position: 'x', startAfter: 'gone', createdAt: iso(-20_000) },
+    },
+  ]
+  const empty = { live: {}, localRuns: {}, runningSince: {}, patches: {} }
+  const items = buildBoardItems(sessions, empty, {
+    now: NOW,
+    capabilities: { sessionQueue: true },
+    doneWindow: '7d',
+  })
+  const byId = Object.fromEntries(items.map((item) => [item.id, item]))
+  assert.equal(byId.q1.lane, 'queued')
+  assert.equal(byId.q1.queuePosition, 1)
+  assert.deepEqual(byId.q1.queue, { startAfter: 'run', startAfterTitle: '重构登录流程' })
+  // 位置不是正整数时按“未知”；前置会话不在目录里时标题为空串（界面写“等前一个任务结束”）。
+  assert.equal(byId.q2.queuePosition, null)
+  assert.deepEqual(byId.q2.queue, { startAfter: 'gone', startAfterTitle: '' })
+  assert.equal(byId.run.queue, null)
+  // 没有 sessionQueue 能力：不进排队，也不带排队字段。
+  const plain = buildBoardItems(sessions, empty, { now: NOW, doneWindow: '7d' })
+  assert.ok(plain.every((item) => item.lane !== 'queued' && item.queue === null))
+})
+
 test('junk rows, duplicates and missing times never throw or reorder unpredictably', () => {
   const row = (id, since) => ({
     id,

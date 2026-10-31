@@ -9,6 +9,7 @@ import { chromium } from 'playwright-core'
 import { startSmokeStyleServer } from './fixtures/smoke-style-server.mjs'
 import { AgentRuntimeService } from '../runtime/runtime/agent-runtime.mjs'
 import { ensureSessionFilePersisted } from '../runtime/runtime/session-file-persist.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 // 显式传入地址时沿用（例如对着正在运行的开发服务器复核）；不传时自带只提供样式与字体的服务，
@@ -16,7 +17,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 let origin = process.argv[2] ? new URL(process.argv[2]).origin : ''
 assert(!origin || ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(origin).hostname))
 const executablePath =
-  process.env.PISPER_SMOKE_BROWSER ||
+  SMOKE_BROWSER ||
   [
     chromium.executablePath(),
     join(

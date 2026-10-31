@@ -29,6 +29,8 @@ export type BoardLaunchRequest = {
   thinkingLevel: string
   executionMode: LaunchExecutionMode | ''
   runMode: LaunchRunMode
+  // 排在这个会话之后启动（A9，能力 sessionQueue）；不给表示立即开始。
+  startAfter?: string
 }
 
 export type BoardLaunchStage = 'create' | 'configure' | 'send'
@@ -145,6 +147,7 @@ export async function launchBoardTask(request: BoardLaunchRequest): Promise<stri
     await discardUnsentLaunchSession(sessionId)
     throw new BoardLaunchError('configure', error, sessionId)
   }
+  if (request.startAfter) return queueLaunchedSession(sessionId, created, prompt, request)
   mergeCreatedSession({ ...created, firstMessage: prompt, messageCount: 1 })
   // 首轮受理前就让卡片出现在“运行中”；失败时撤掉补丁，空会话不上看板。
   const token = applyBoardPatch(sessionId, { streaming: true })
@@ -172,6 +175,40 @@ export async function launchBoardTask(request: BoardLaunchRequest): Promise<stri
   void confirmBoardSession(sessionId, (entry) => Boolean(entry))
     .catch(() => undefined)
     .finally(() => clearBoardPatch(sessionId, token))
+  return sessionId
+}
+
+/**
+ * 排在 X 之后（规格 8.4）：首条消息交给 Runtime 的启动队列，不在这里发送，也不由看板持有运行流——
+ * 等 X 这一轮结束时 Runtime 在后台启动它。X 已经结束时 Runtime 直接启动（started）。
+ * 登记失败按“发送失败”处理：清理空会话、抛 BoardLaunchError('send')。
+ */
+async function queueLaunchedSession(
+  sessionId: string,
+  created: SessionSummary,
+  prompt: string,
+  request: BoardLaunchRequest,
+) {
+  let result: Record<string, unknown>
+  try {
+    result = await chatApi.enqueueSessionStart(sessionId, {
+      startAfter: request.startAfter ?? '',
+      message: prompt,
+      runMode: request.runMode,
+    })
+  } catch (error) {
+    if (sendRejected(error)) await discardUnsentLaunchSession(sessionId)
+    void confirmBoardSessions().catch(() => undefined)
+    throw new BoardLaunchError('send', error, sessionId)
+  }
+  const queue = result && typeof result.queue === 'object' ? result.queue : null
+  // 排队的会话还没有消息：带上 Runtime 给的 queue 并进目录，卡片马上出现在“排队”；直接启动的进“运行中”。
+  mergeCreatedSession({
+    ...created,
+    firstMessage: prompt,
+    ...(queue ? { queue } : { messageCount: 1, streaming: true }),
+  })
+  void confirmBoardSession(sessionId, (entry) => Boolean(entry)).catch(() => undefined)
   return sessionId
 }
 

@@ -3,6 +3,7 @@
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
 import { streamEventsWithResume } from '@/lib/api'
 import {
+  requestBlob,
   requestJson as requestHttpJson,
   waitForMobileRuntimeReady,
   type HttpRequestOptions,
@@ -524,6 +525,22 @@ export const chatApi = {
     requestJson<ApiRecord>(
       `${sessionPath(sessionId)}/questions/${encodeURIComponent(questionId)}`,
       { method: 'POST', data: body },
+    ),
+
+  // 排在 X 之后启动（A9，能力 sessionQueue）：{startAfter, message, runMode}；前置会话已经结束时直接启动。
+  enqueueSessionStart: (
+    sessionId: string,
+    body: { startAfter: string; message: string; runMode: string },
+  ) => requestJson<ApiRecord>(`${sessionPath(sessionId)}/queue`, { method: 'POST', data: body }),
+
+  startQueuedSession: (sessionId: string) =>
+    requestJson<ApiRecord>(`${sessionPath(sessionId)}/queue/start`, { method: 'POST', data: {} }),
+
+  // 会话导出 Markdown（A9，能力 sessionExport）：附件下载，文件名在 Content-Disposition 里。
+  exportSessionMarkdown: (sessionId: string, language: string) =>
+    requestBlob(
+      `${sessionPath(sessionId)}/export?format=markdown&lang=${language === 'en-US' ? 'en-US' : 'zh-CN'}`,
+      { timeout: 60_000 },
     ),
 
   updateCwd: (sessionId: string, cwd: string) =>

@@ -8,6 +8,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { deriveApprovalSeverity, deriveBoardStatus } from '../../shared/session-board-status.mjs'
+import { fetchIdempotent } from './route-fetch.mjs'
 
 export const GUARD_PREFIX = '命令守卫拦截'
 
@@ -262,7 +263,8 @@ function fixtureBoardItem(state, session) {
   const approvals = (state.live[session.id]?.approvals ?? []).map(cardApproval)
   const derived = deriveBoardStatus(
     { ...session, card: { approvals, outcome: state.cards[session.id]?.outcome } },
-    { now: Date.now(), doneWindow: '7d' },
+    // sessionQueue 只影响带 queue 的会话（A9 的排队夹具），其余会话的推导不变。
+    { now: Date.now(), doneWindow: '7d', capabilities: { sessionQueue: true } },
   )
   if (!derived.lane) return null
   const extra = { ...(state.cards[session.id] ?? {}) }
@@ -340,6 +342,28 @@ export function questionFixtureSession(now = Date.now()) {
   }
 }
 
+// 排队（sessionQueue，A9）：一个排在“重构登录流程”（fx-running）之后的会话，还没有消息。
+// 同样不在默认会话里，需要的冒烟自己加进 sessions。
+export const QUEUED_SESSION_ID = 'fx-queued'
+export function queuedFixtureSession(now = Date.now()) {
+  return {
+    id: QUEUED_SESSION_ID,
+    name: '补登录模块的单元测试',
+    firstMessage: '补登录模块的单元测试',
+    messageCount: 0,
+    cwd: '/home/dev/pisper',
+    model: 'openai/gpt-5.6-luna',
+    created: new Date(now - 120_000).toISOString(),
+    modified: new Date(now - 120_000).toISOString(),
+    streaming: false,
+    queue: {
+      position: 1,
+      startAfter: 'fx-running',
+      createdAt: new Date(now - 120_000).toISOString(),
+    },
+  }
+}
+
 export async function installBoardFixture(
   context,
   { now = Date.now(), sessions, protocol = 'board' } = {},
@@ -373,7 +397,7 @@ export async function installBoardFixture(
   if (protocol === 'legacy') {
     // 旧桌面 Runtime：能力接口里没有 board.view / board.events。
     await context.route(/\/api\/runtime\/capabilities(\?.*)?$/, async (route) => {
-      const response = await route.fetch()
+      const response = await fetchIdempotent(route)
       const data = await response.json().catch(() => ({}))
       const features = { ...(data.features ?? {}) }
       delete features['board.view']
@@ -485,6 +509,38 @@ export async function installBoardFixture(
     update(id, { needsAttention: false, attentionReason: null, question: null, streaming: true })
     await route.fulfill({ json: { ok: true, outcome: 'answered' } })
   })
+  // 排队（A9）：登记“排在 X 之后”与“立即开始”。真实 Runtime 不知道夹具里的会话，这里按 Runtime 的返回形状应答，
+  // 并把会话放进夹具目录（派发对话框新建的会话来自真实 Runtime，原本不在夹具里）。
+  await context.route(/\/api\/sessions\/[^/]+\/queue(\/start)?$/, async (route) => {
+    const request = route.request()
+    if (request.method() !== 'POST') return route.continue()
+    const id = sessionIdFrom(request)
+    const path = new URL(request.url()).pathname
+    const body = JSON.parse(request.postData() || '{}')
+    state.posts.push({ method: request.method(), path, body })
+    if (path.endsWith('/start')) {
+      update(id, { queue: null, streaming: true, messageCount: 1 })
+      await route.fulfill({ json: { started: true } })
+      return
+    }
+    const queue = { position: 1, startAfter: body.startAfter, createdAt: new Date().toISOString() }
+    if (!state.sessions.some((session) => session.id === id))
+      state.sessions = [
+        {
+          id,
+          name: '',
+          firstMessage: body.message,
+          messageCount: 0,
+          cwd: '/home/dev/pisper',
+          created: queue.createdAt,
+          modified: queue.createdAt,
+          streaming: false,
+        },
+        ...state.sessions,
+      ]
+    update(id, { queue })
+    await route.fulfill({ json: { queued: true, queue } })
+  })
   await context.route(/\/api\/sessions\/[^/]+\/retry$/, async (route) => {
     const request = route.request()
     const id = sessionIdFrom(request)
@@ -510,7 +566,7 @@ export async function installBoardFixture(
   // 注入一个已配置的对话模型，让启动台芯片有内容；真实配置的其余字段原样保留。
   await context.route(/\/api\/config(\?.*)?$/, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    const response = await route.fetch()
+    const response = await fetchIdempotent(route)
     const data = await response.json().catch(() => ({}))
     const providers = Array.isArray(data.providers) ? data.providers : []
     await route.fulfill({

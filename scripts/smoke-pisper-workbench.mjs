@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { chromium } from 'playwright-core'
 import { writeFile } from 'node:fs/promises'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 if (process.env.PISPER_SMOKE_ISOLATED !== '1')
   throw new Error('Use an isolated runtime and set PISPER_SMOKE_ISOLATED=1')
 const base = new URL(process.env.PISPER_SMOKE_BASE_URL || 'http://127.0.0.1:5189')
@@ -13,9 +14,7 @@ const output =
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({
   headless: true,
-  ...(process.env.PISPER_SMOKE_BROWSER
-    ? { executablePath: process.env.PISPER_SMOKE_BROWSER }
-    : { channel: 'msedge' }),
+  ...(SMOKE_BROWSER ? { executablePath: SMOKE_BROWSER } : { channel: 'msedge' }),
 })
 const reports = []
 try {

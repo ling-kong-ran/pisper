@@ -1,12 +1,13 @@
 // 会话顶栏（桌面 52px 的标题 ▾ 菜单）与手机顶栏（56px 的标题 ▾ 底部表单）共用的部分：运行时长、归档、侧聊入口，
 // 以及两端相同的会话操作。菜单项先整理成一份数据（entries），桌面渲染成下拉菜单，手机渲染成底部表单的行。顺序按规格 v2 第 2.5 节“会话其余操作”：重命名 · 侧聊 · 归档 | 移动工作区 ·
-// 压缩上下文（带当前用量）· 目标模式 · 工作流运行记录 · 语音模式。“导出”要到 A9 才有 Runtime 能力，
-// 这之前不显示（不放一个点了没反应的项）。每一项都只调用现有实现，两种页头不各写一份。
+// 压缩上下文（带当前用量）· 目标模式 · 工作流运行记录 · 语音模式。“导出 Markdown”（A9）只在 Runtime 声明
+// sessionExport 时出现（不放一个点了没反应的项）。每一项都只调用现有实现，两种页头不各写一份。
 import { Fragment, useContext, useEffect, useState, type ReactNode } from 'react'
 import {
   type LucideIcon,
   Archive,
   AudioLines,
+  FileDown,
   FolderOpen,
   MessageSquare,
   Pencil,
@@ -29,7 +30,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { SessionSummary } from '@/types/chat'
+import { chatApi } from './chat-api'
 import { updateSessionOrganization } from './session-organization-api'
 import { useContextPagesStore } from './session-context-pages-store'
 import { SessionPageChromeContext, type SessionInspectorControl } from './session-workspace-context'
@@ -98,10 +101,14 @@ export type SessionMenuEntry = {
 // “⋯”菜单的公共段与工作流运行记录对话框：调用方把返回的 items 放进自己的 DropdownMenuContent，
 // dialog 放在菜单之外（菜单关闭后对话框仍要留着）。
 export function useSessionMenu(session: SessionSummary, actions: SessionMenuActions) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const chrome = useContext(SessionPageChromeContext)
   const [workflowsOpen, setWorkflowsOpen] = useState(false)
   const [archiving, setArchiving] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const exportAvailable = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features.sessionExport === true,
+  )
   const title = session.name || t('navigation:pageHeader.newChat')
   const { notify } = actions
 
@@ -116,6 +123,27 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       notify(t('board:action.failed'), 'error')
     } finally {
       setArchiving(false)
+    }
+  }
+
+  // 导出 Markdown（规格 2.5 / 7.4，A9）：Runtime 只读已投影的转录，不含思考过程与完整个人路径；
+  // 这里只负责下载。文件名按会话标题去掉路径分隔与保留字符。
+  const exportMarkdown = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const blob = await chatApi.exportSessionMarkdown(session.id, language)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${title.replace(/[\\/:*?"<>|\p{Cc}]/gu, '-').slice(0, 80) || 'session'}.md`
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      notify(t('chat:sessionMenu.exported', { title }))
+    } catch {
+      notify(t('chat:sessionMenu.exportFailed'), 'error')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -139,6 +167,18 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
             label: t('board:inspector.sideChat'),
             onSelect: actions.onSideChat,
             marker: 'session-side-chat',
+          },
+        ]
+      : []),
+    ...(exportAvailable
+      ? [
+          {
+            key: 'export',
+            icon: FileDown,
+            label: t('chat:sessionMenu.exportMarkdown'),
+            onSelect: () => void exportMarkdown(),
+            disabled: exporting,
+            marker: 'session-export',
           },
         ]
       : []),

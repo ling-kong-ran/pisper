@@ -13,6 +13,8 @@ import { verifyFirstRunSetup } from './smoke-pisper-first-run-checks.mjs'
 import { verifySideChat } from './smoke-pisper-side-chat-checks.mjs'
 import { verifySessionTreeLifecycle } from './smoke-pisper-tree-checks.mjs'
 import { DEFAULT_BRANCH } from '../shared/app-update.mjs'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 // Every held test response has a bounded wait, including failure-injection paths.
 async function within(promise, label, ms = 30000) {
   let timer
@@ -314,8 +316,8 @@ try {
   report.checks.push('real provider configuration API with isolated loopback fixture')
   browser = await chromium.launch({
     headless: true,
-    ...(process.env.PISPER_UI_BROWSER_PATH
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),
@@ -329,7 +331,7 @@ try {
   if (process.env.PISPER_UI_DEBUG_LAYERS === '1') {
     // 只在隔离故障诊断中暴露依赖自己的层栈，不改变注册/事件时序或产品文件。
     await page.route('**/assets/*.js', async (route) => {
-      const response = await route.fetch()
+      const response = await fetchIdempotent(route)
       let body = await response.text()
       const match = body.match(
         /(\w+)=\w+\.createContext\(\{layers:new Set,layersWithOutsidePointerEventsDisabled:new Set,branches:new Set,dismissableSurfaces:new Set\}\)/,

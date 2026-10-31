@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'vite'
 import { chromium } from 'playwright-core'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 // 新外壳工作台验收：看板（/board）→ 会话页（/board/:id，单会话视图，不挂载 Dockview）。
 // 会话时间相对当前时间生成，四个任务都落在看板的“已完成”泳道里，可以从卡片打开。
@@ -60,7 +61,7 @@ const server = await createServer({
             return
           }
           if (url.pathname === '/__workbench' || url.pathname === '/__review') {
-            // 夹具页声明一个空图标：完整 Chrome（PISPER_UI_BROWSER_PATH）会主动请求 /favicon.ico，404 记成控制台错误，
+            // 夹具页声明一个空图标：完整 Chrome（PISPER_SMOKE_BROWSER）会主动请求 /favicon.ico，404 记成控制台错误，
             // 让“无控制台错误”的断言随浏览器种类变化；headless shell 不请求。
             const html = await server.transformIndexHtml(
               '/__workbench',
@@ -231,8 +232,8 @@ try {
   const address = server.httpServer.address()
   browser = await chromium.launch({
     headless: true,
-    ...(process.env.PISPER_UI_BROWSER_PATH
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),

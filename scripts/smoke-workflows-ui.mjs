@@ -8,6 +8,7 @@ import { chromium } from 'playwright-core'
 import { createServer } from 'node:net'
 import { SPRITE_ENGINE_CATALOG } from '../shared/sprite-engine-catalog.mjs'
 import { decodeWorkflowBundle } from '../runtime/services/workflow-bundle-archive.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const development = process.argv.includes('--dev')
@@ -31,7 +32,7 @@ async function developmentPort() {
     )
   }
 }
-const browserPath = process.env.PISPER_UI_BROWSER_PATH || chromium.executablePath()
+const browserPath = SMOKE_BROWSER || chromium.executablePath()
 const output = await mkdtemp(join(tmpdir(), 'pisper-workflows-ui-'))
 const dataDir = join(output, 'agent')
 const workspace = join(output, 'workspace')

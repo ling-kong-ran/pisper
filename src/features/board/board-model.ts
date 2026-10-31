@@ -69,6 +69,22 @@ export type BoardItem = {
   questionCount: number | null
   // 会话报告的 token 总用量（card.usage.totalTokens）；没有卡片摘要时为 null。原生组件 ctx.sessions 用。
   totalTokens: number | null
+  // 排队（sessionQueue，A9）：第几位、排在哪个会话之后（标题按当前目录解析，找不到时为空串）。只在排队泳道有值。
+  queuePosition: number | null
+  queue: { startAfter: string; startAfterTitle: string } | null
+}
+
+/** 会话摘要里的排队信息（Runtime 只做加法的字段 queue {position, startAfter, createdAt}），按不可信数据读。 */
+function sessionQueue(session: SessionSummary) {
+  const raw = (session as Record<string, unknown>).queue
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const value = raw as Record<string, unknown>
+  const startAfter = typeof value.startAfter === 'string' ? value.startAfter : ''
+  const position =
+    typeof value.position === 'number' && Number.isSafeInteger(value.position) && value.position > 0
+      ? value.position
+      : null
+  return { startAfter, position }
 }
 
 export type BoardBuildOptions = {
@@ -187,7 +203,13 @@ export function buildBoardItems(
 ): BoardItem[] {
   const items: BoardItem[] = []
   const pending = overlay.pending ?? {}
-  for (const { session: source, card } of boardSources(sessions, overlay)) {
+  const sources = boardSources(sessions, overlay)
+  // 排队行要写“排在 X 之后”：X 可能不在看板上（例如已完成很久），在完整目录里也找一找。
+  const titles = new Map<string, string>()
+  for (const session of sessions)
+    if (session?.id) titles.set(session.id, boardSessionTitle(session))
+  for (const { session } of sources) titles.set(session.id, boardSessionTitle(session))
+  for (const { session: source, card } of sources) {
     const session = patchedSession(source, overlay.patches)
     const localRun = overlay.localRuns[session.id]
     const live = overlay.live[session.id]
@@ -257,9 +279,20 @@ export function buildBoardItems(
       question,
       questionCount: question ? question.questions.length : null,
       totalTokens: card?.totalTokens ?? null,
+      ...queueFields(derived.lane, session, titles),
     })
   }
   return items.sort(compareBoardItems)
+}
+
+function queueFields(lane: BoardLane, session: SessionSummary, titles: Map<string, string>) {
+  const queue = lane === 'queued' ? sessionQueue(session) : null
+  return {
+    queuePosition: queue?.position ?? null,
+    queue: queue
+      ? { startAfter: queue.startAfter, startAfterTitle: titles.get(queue.startAfter) ?? '' }
+      : null,
+  }
 }
 
 export function filterBoardItems(items: readonly BoardItem[], { lanes, projects }: BoardFilter) {

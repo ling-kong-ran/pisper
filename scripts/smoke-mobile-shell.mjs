@@ -30,6 +30,8 @@ import {
   installBoardFixture,
   writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const output = await mkdtemp(join(tmpdir(), 'pisper-mobile-shell-'))
@@ -660,7 +662,7 @@ async function newContext(
   )
   // 真实会话的运行态与改动：在浏览器边界补上运行中的工具与 2 个改动文件。
   await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/live`), async (route) => {
-    const response = await route.fetch()
+    const response = await fetchIdempotent(route)
     const live = await response.json().catch(() => ({}))
     await route.fulfill({
       response,
@@ -1845,7 +1847,7 @@ async function verifyNarrowDesktop(boardSessions) {
 }
 
 try {
-  const executablePath = process.env.PISPER_SMOKE_BROWSER || chromium.executablePath()
+  const executablePath = SMOKE_BROWSER || chromium.executablePath()
   assert(
     existsSync(executablePath),
     'Install Chromium with npx playwright-core install chromium, or set PISPER_SMOKE_BROWSER.',

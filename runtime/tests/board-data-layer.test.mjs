@@ -1216,8 +1216,18 @@ test('the feed reducer replaces on snapshots and drops duplicate, out-of-order a
   assert.equal(result.feed.revision, 13)
   feed = result.feed
   // 心跳推进修订号；removed 删掉条目并要求补读目录。
-  feed = applyBoardFeedEvent(feed, 'heartbeat', { revision: 20, at: 'x' }).feed
-  assert.equal(feed.revision, 20)
+  feed = applyBoardFeedEvent(feed, 'heartbeat', { revision: 18, at: 'x' }).feed
+  assert.equal(feed.revision, 18)
+  // catalog_changed（A9）：只推进修订号、要求补读目录，条目不变；旧修订号的重复帧忽略。
+  result = applyBoardFeedEvent(feed, 'catalog_changed', { revision: 20 })
+  assert.equal(result.effects.catalog, true)
+  assert.equal(result.feed.entries, feed.entries)
+  assert.equal(result.feed.revision, 20)
+  assert.equal(
+    applyBoardFeedEvent(result.feed, 'catalog_changed', { revision: 19 }).effects.catalog,
+    false,
+  )
+  feed = result.feed
   result = applyBoardFeedEvent(feed, 'session_card', { revision: 21, id: 'run', removed: true })
   assert.deepEqual(result.effects.removed, ['run'])
   feed = result.feed

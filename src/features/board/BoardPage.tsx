@@ -400,6 +400,7 @@ function OverviewPage({
         handlers={controller.handlers}
         menu={menu}
         card={card}
+        onStartNow={controller.handlers.onStartNow}
       />
     )
     return card ? <div className="py-1">{row}</div> : row

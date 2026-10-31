@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { BoardLaunchError, launchBoardTask } from './board-launch'
 import { projectDisambiguation } from './card-presentation'
+import { StartAfterChip } from './StartAfterChip'
 import {
   LAUNCH_EXECUTION_MODES,
   useLaunchDefaultsStore,
@@ -168,6 +169,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const [pending, setPending] = useState(0)
     // 本次草稿临时选了“完全访问”：不写进偏好，派发后回到记住的安全模式。
     const [fullAccess, setFullAccess] = useState(false)
+    // “排在…之后”（A9，sessionQueue）：只对这一条草稿生效，派发后回到“立即开始”。
+    const [startAfter, setStartAfter] = useState('')
     const mountedRef = useRef(true)
     const inputId = `launch-input-${variant}`
     const errorId = `launch-error-${variant}`
@@ -294,6 +297,9 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         executionMode,
         runMode,
       })
+      // “排在…之后”同样只作用于这一次派发。
+      const after = startAfter
+      setStartAfter('')
       try {
         const sessionId = await launchBoardTask({
           prompt,
@@ -302,10 +308,12 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           thinkingLevel,
           executionMode: fullAccess ? 'full-access' : defaults.executionMode,
           runMode,
+          ...(after ? { startAfter: after } : {}),
         })
         onDispatched?.(sessionId, { open })
       } catch (cause) {
         restoreLaunchDraft(prompt)
+        if (mountedRef.current && after) setStartAfter(after)
         const detail =
           cause instanceof BoardLaunchError
             ? cause.message
@@ -581,6 +589,16 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       </DropdownMenu>
     )
 
+    const startAfterChip = (
+      <StartAfterChip
+        value={startAfter}
+        onChange={setStartAfter}
+        size={chipSize}
+        compact={compact}
+        className={cn(rowChipTouch, sheet && 'flex-none')}
+      />
+    )
+
     const chips = (
       <div
         ref={chipRowRef}
@@ -594,6 +612,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       >
         {projectChip}
         {modeMenu}
+        {startAfterChip}
       </div>
     )
 
@@ -749,6 +768,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           >
             {projectChip}
             {modeMenu}
+            {startAfterChip}
           </div>
           {status}
           <span className="flex min-w-0 shrink items-center">{modelMenu}</span>

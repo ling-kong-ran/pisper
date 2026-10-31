@@ -336,7 +336,11 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const radius = useUiStore((state) => state.radius)
   const motion = useUiStore((state) => state.motion)
   const [toastQueue, setToastQueue] = useState<ToastState[]>([])
-  const toast = toastQueue[0]
+  // 转交 Esc 期间先不挂下一条通知（见下方 Esc 处理）：否则它一挂上又成了最上层。
+  const [toastHeld, setToastHeld] = useState(false)
+  const toast = toastHeld ? undefined : toastQueue[0]
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [modelOnboardingOpen, setModelOnboardingOpen] = useState(false)
   const [pendingAsset, setPendingAsset] = useState<PendingAsset | null>(null)
   const {
@@ -440,6 +444,40 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     toastSequence.current += 1
     const next = { id: toastSequence.current, message, tone, action: options?.action }
     setToastQueue((queue) => [...queue, next])
+  }, [])
+
+  // 通知抢 Esc（规格 A9 遗留）：Radix 把后出现的通知当成最上层的可关闭层，菜单、弹层或对话框开着时按 Esc
+  // 只会关掉通知、菜单还在。这里在文档捕获阶段（应用启动时登记，早于任何 Radix 层）接住这次 Esc：撤掉通知，
+  // 等它的层卸下（两帧）后把 Esc 重发给原来的焦点，由真正打开着的那一层处理。重发的事件不是用户触发的，不会再被接住。
+  useEffect(() => {
+    const OPEN_OVERLAY =
+      '[data-radix-popper-content-wrapper], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+    const onKeyDown = (event: KeyboardEvent) => {
+      const current = toastRef.current
+      if (event.key !== 'Escape' || !event.isTrusted || !current) return
+      if (!document.querySelector(OPEN_OVERLAY)) return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      const target =
+        document.activeElement instanceof HTMLElement ? document.activeElement : document.body
+      setToastHeld(true)
+      setToastQueue((queue) => queue.filter((entry) => entry.id !== current.id))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          target.dispatchEvent(
+            new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              bubbles: true,
+              cancelable: true,
+            }),
+          )
+          setToastHeld(false)
+        }),
+      )
+    }
+    document.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => document.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [])
 
   useEffect(() => {

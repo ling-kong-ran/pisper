@@ -102,7 +102,7 @@ export type BoardSessionPatch = Partial<
 >
 
 export type BoardActionKind =
-  'approve' | 'deny' | 'retry' | 'markHandled' | 'pin' | 'archive' | 'rename' | 'answer'
+  'approve' | 'deny' | 'retry' | 'markHandled' | 'pin' | 'archive' | 'rename' | 'answer' | 'start'
 
 export type BoardOverlayState = {
   // 第 2 期 Runtime 的看板条目与 card；旧 Runtime（legacy）时为空且 ready 为 false。
@@ -670,7 +670,10 @@ function connectEvents() {
 function handleFeedEvent(event: string, data: unknown): BoardFeedEffects {
   const result = applyBoardFeedEvent(useBoardOverlay.getState().feed, event, data)
   // 心跳只推进修订号：读者只订阅条目与分钟级时钟，不会因此重算；也不必重新安排 /live。
-  commitFeed(result, event === 'heartbeat' || event === 'component_changed')
+  commitFeed(
+    result,
+    event === 'heartbeat' || event === 'component_changed' || event === 'catalog_changed',
+  )
   // 组件宿主按 component_changed 作废组件查询；重连快照可能跨过了组件事件，再通知一次 '*'。
   notifyComponentFeedEvent(event, data, result.effects.changed)
   return result.effects
@@ -682,7 +685,8 @@ function commitFeed(
 ) {
   if (effects.changed) useBoardOverlay.setState({ feed: { ...feed, mode: sync.mode } })
   if (effects.upserts.length) upsertCatalogRows(effects.upserts)
-  if (effects.removed.length || effects.resync) scheduleCatalogRefresh()
+  // catalog_changed（A9）：看板外的会话改名、归档、删除没有卡片增量，靠它补读目录，事件流在线时不再轮询目录。
+  if (effects.removed.length || effects.resync || effects.catalog) scheduleCatalogRefresh()
   if (effects.changed && !quiet) reconcileLiveDetails()
 }
 

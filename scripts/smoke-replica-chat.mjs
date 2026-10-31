@@ -70,6 +70,11 @@ try {
   await page.locator('[data-session-header]').waitFor()
   assert.equal(await page.locator('.workbench-chat-header').count(), 0)
   await page.locator('[data-pisper-message-id="agent"] h1').waitFor()
+  // A9：代理信息行的思考用时（Runtime 在回复上带 thinkingMs）。
+  assert.equal(
+    await page.locator('[data-pisper-message-id="agent"] [data-agent-thinking]').innerText(),
+    '思考 6.2s',
+  )
   const metrics = await page.locator('.focus-composer').evaluate((element) => {
     const input = element.querySelector('textarea')
     return {

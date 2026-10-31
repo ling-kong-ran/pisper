@@ -7,6 +7,7 @@ import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { chromium } from 'playwright-core'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 export async function verifyReplicaControls() {
   const output = await mkdtemp(join(tmpdir(), 'pisper-replica-controls-'))
@@ -73,9 +74,7 @@ export async function verifyReplicaControls() {
     await server.listen()
     browser = await chromium.launch({
       headless: true,
-      ...(process.env.PISPER_SMOKE_BROWSER
-        ? { executablePath: process.env.PISPER_SMOKE_BROWSER }
-        : {}),
+      ...(SMOKE_BROWSER ? { executablePath: SMOKE_BROWSER } : {}),
     })
     const page = await browser.newPage({ viewport: { width: 900, height: 560 } })
     page.setDefaultTimeout(5000)

@@ -668,6 +668,13 @@ function MessageTreeLabel({
 }
 
 // 回复时间：今天只显示时分，更早的补上月日；无可信时间戳（如流式中）时不显示。
+// 思考用时的显示：一分钟内保留一位小数（“6.2s”），更长写成“1m 12s”。
+function formatThinkingDuration(ms: number) {
+  if (ms < 60_000) return `${(Math.max(ms, 100) / 1000).toFixed(1)}s`
+  const seconds = Math.round(ms / 1000)
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 function messageTime(value: unknown, language: string) {
   if (typeof value !== 'number' && typeof value !== 'string') return null
   const date = new Date(value)
@@ -769,6 +776,18 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   )
 
   const timestamp = message.role === 'agent' ? messageTime(message.timestamp, language) : null
+  // 思考用时（A9）：Runtime 在代理回复上带 thinkingMs（按不可信数据读，非正数不显示）。
+  const thinkingMs =
+    message.role === 'agent' &&
+    typeof message.thinkingMs === 'number' &&
+    Number.isFinite(message.thinkingMs) &&
+    message.thinkingMs > 0
+      ? message.thinkingMs
+      : null
+  const thinking =
+    thinkingMs === null
+      ? ''
+      : t('chat:chatMessage.thinkingTime', { duration: formatThinkingDuration(thinkingMs) })
   // 智能体抬头只在这条回复确有内容时出现，空白完成态不留下孤立的名字行。
   const showAgentHead =
     message.role === 'agent' &&
@@ -799,7 +818,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
     >
       {showAgentHead && (
         // 代理信息行（规格 v2 第 4.2 节）：墨色品牌键帽 + 名称；会话页最新一条回复写当前模型。
-        // 运行中追加轨道指示，时间使用等宽数字。思考用时等 Runtime 提供后（A9）接在模型后面。
+        // 运行中追加轨道指示，时间使用等宽数字。思考用时（A9：Runtime 在回复上带 thinkingMs）接在模型后面。
         <div className="agent-message-head mb-2 flex h-6 min-w-0 items-center gap-2 text-[13px]">
           <span
             className="agent-message-mark grid size-[22px] flex-none place-items-center"
@@ -814,6 +833,14 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           >
             {meta && latest && meta.model ? meta.model : 'Pisper'}
           </span>
+          {thinking && (
+            <span
+              className="flex-none text-[12px] text-content-muted tabular-nums"
+              data-agent-thinking={thinkingMs ?? undefined}
+            >
+              {thinking}
+            </span>
+          )}
           {agentState === 'thinking' && <OrbitSpinner className="size-3.5" />}
           {turnLabel && (
             // 打过标记的回合在信息行写出标记名；点它打开同一个标记弹层改名或删除。

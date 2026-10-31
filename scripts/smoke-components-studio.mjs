@@ -33,6 +33,8 @@ import {
   desktopBridgeScript,
   writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-components-'))
@@ -191,8 +193,8 @@ async function settle(page) {
 try {
   browser = await chromium.launch({
     headless: true,
-    ...((process.env.PISPER_UI_BROWSER_PATH ?? process.env.PISPER_SMOKE_BROWSER)
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH ?? process.env.PISPER_SMOKE_BROWSER }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),
@@ -856,7 +858,7 @@ try {
   await agentContext.route('**/api/board/events*', (route) => route.abort())
   await agentContext.route(/\/api\/sessions(?:\?.*)?$/, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
-    const response = await route.fetch()
+    const response = await fetchIdempotent(route)
     await route.fulfill({ response, json: markRunning(await response.json()) })
   })
   await agentContext.route('**/api/chat', async (route) => {

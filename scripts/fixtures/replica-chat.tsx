@@ -112,7 +112,8 @@ const value = 'fixed specimen'
 \`\`\``
 const specimens: ChatMessage[] = [
   { id: 'user', role: 'user', text: '用户第一段。\n\n用户第二段。' },
-  { id: 'agent', role: 'agent', text: markdown },
+  // thinkingMs：A9 的思考用时，信息行应写“思考 6.2s”。
+  { id: 'agent', role: 'agent', text: markdown, thinkingMs: 6200 },
 ]
 const rows = (start: number, count: number): ChatMessage[] =>
   Array.from({ length: count }, (_, i) => ({

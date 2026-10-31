@@ -15,6 +15,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-session-home-'))
@@ -57,24 +59,9 @@ async function sessionCount() {
   return (list.sessions || []).length
 }
 
-// Playwright 的 route.fetch 走它自己的长连接池，池里的空闲连接没有超时（Node 只用服务器的 Keep-Alive
-// 提示去缩短已有的超时，Playwright 的连接池没设超时，提示不起作用）；运行时服务器空闲 6 秒（5 秒加 1 秒缓冲）
-// 就关掉长连接。两边同在这个进程里，负载下事件循环变慢时，route.fetch 可能恰好把请求写进服务器同一轮要关的
-// 旧连接，服务器先关后读，得到 read ECONNRESET（调用日志只有“→ GET”、没有响应）。
-// 只对幂等的 GET 用：连接级错误时坏连接已被销毁，换新连接重取，最多三次；每次重取都记进报告，不静默吞掉。
-async function fetchIdempotent(route) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await route.fetch()
-    } catch (error) {
-      const message = String(error?.message || error)
-      if (attempt >= 3 || !/ECONNRESET|socket hang up|EPIPE/.test(message)) throw error
-      report.routeRetries.push(
-        `${new URL(route.request().url()).pathname}: ${message.split('\n')[0]}`,
-      )
-    }
-  }
-}
+// route.fetch 的连接级重取（共用助手，原因见 fixtures/route-fetch.mjs）；每次重取记进报告。
+const fetchIdempotentLogged = (route) =>
+  fetchIdempotent(route, { onRetry: (detail) => report.routeRetries.push(detail) })
 
 async function newContext(options) {
   const context = await browser.newContext({ locale: 'zh-CN', ...options })
@@ -93,7 +80,7 @@ async function newContext(options) {
     if (route.request().method() !== 'GET') return route.continue()
     let response
     try {
-      response = await fetchIdempotent(route)
+      response = await fetchIdempotentLogged(route)
     } catch (error) {
       // 路由回调里抛出的异常会变成未处理的拒绝，直接打崩冒烟、跳过收尾：记进报告并中止这次请求，
       // 由结尾的断言以正常失败收尾。
@@ -171,8 +158,8 @@ const sessionRoute = /^#\/board\/(?!new$)[^/]+$/
 try {
   browser = await chromium.launch({
     headless: true,
-    ...(process.env.PISPER_UI_BROWSER_PATH
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),

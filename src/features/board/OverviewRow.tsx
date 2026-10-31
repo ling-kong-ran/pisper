@@ -56,7 +56,7 @@ export type OverviewRowProps = {
   menu: SessionRowActions
   // 手机外壳：需要你的行画成卡片，按钮 44px。
   card?: boolean
-  // 排队行的“立即开始”：sessionQueue（A9）提供之前为空，不显示按钮。
+  // 排队行的“立即开始”（A9，sessionQueue）：没有传时不显示按钮。
   onStartNow?: (item: BoardItem) => void
 }
 
@@ -430,9 +430,27 @@ function OverviewRowComponent({
         </p>
       )
   } else if (item.lane === 'queued') {
+    // 规格 3.3：排队行写原因与“第 N 位”，唯一的操作是“立即开始”。
+    const reason = item.queue?.startAfterTitle
+      ? t('board:overview.queuedAfter', { title: item.queue.startAfterTitle })
+      : t('board:overview.queuedAfterUnknown')
+    detail = (
+      <p data-queue-detail className="min-w-0 truncate text-xs leading-5 text-content-secondary">
+        {item.queuePosition
+          ? `${reason} · ${t('board:overview.queuePosition', { n: item.queuePosition })}`
+          : reason}
+      </p>
+    )
     if (onStartNow)
       actions = (
-        <Button variant="outline" size="sm" tabIndex={tabIndex} onClick={() => onStartNow(item)}>
+        <Button
+          variant="outline"
+          size="sm"
+          tabIndex={tabIndex}
+          disabled={handlers.isPending('start', item.id)}
+          data-start-now={item.id}
+          onClick={() => onStartNow(item)}
+        >
           {t('board:overview.startNow')}
         </Button>
       )

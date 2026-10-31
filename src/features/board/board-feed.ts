@@ -48,6 +48,8 @@ export type BoardFeedEffects = {
   reconnect: boolean
   // 快照被截断（超过 500 条）。
   truncated: boolean
+  // 收到 catalog_changed（A9）：不在看板上的会话改名 / 归档 / 删除了，目录需要补读（不必等快照）。
+  catalog: boolean
   // 状态有变化，需要写回 store。
   changed: boolean
 }
@@ -63,6 +65,7 @@ function noEffects(): BoardFeedEffects {
     resync: false,
     reconnect: false,
     truncated: false,
+    catalog: false,
     changed: false,
   }
 }
@@ -140,9 +143,10 @@ export function applyBoardFeedEvent(
   if (feed.awaitingSnapshot || revision === null) return unchanged
   // 重复或乱序：修订号不超过已见修订号的帧已经包含在当前状态里。
   if (feed.revision !== null && revision <= feed.revision) return unchanged
-  if (event === 'heartbeat' || event === 'component_changed') {
+  if (event === 'heartbeat' || event === 'component_changed' || event === 'catalog_changed') {
     const effects = noEffects()
     effects.changed = true
+    effects.catalog = event === 'catalog_changed'
     return { feed: { ...feed, revision, updatedAt: now }, effects }
   }
   if (event !== 'session_card') return unchanged

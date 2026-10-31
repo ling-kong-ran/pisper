@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { chromium } from 'playwright-core'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const origin = process.argv[2] || 'http://127.0.0.1:5173'
@@ -42,7 +43,7 @@ const fixture = await build({
   loader: { '.css': 'empty' },
 })
 const executablePath =
-  process.env.PISPER_SMOKE_BROWSER ||
+  SMOKE_BROWSER ||
   [
     chromium.executablePath(),
     '/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev',

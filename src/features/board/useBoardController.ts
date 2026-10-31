@@ -33,12 +33,14 @@ export type BoardRowHandlers = {
   onRetry: (item: BoardItem) => void
   // 行内回答代理的提问（只有一题单选、选项 ≤4 时，规格 3.3）。
   onAnswer: (item: BoardItem, label: string) => void
+  // 排队行的“立即开始”（A9，sessionQueue）。
+  onStartNow: (item: BoardItem) => void
   onMarkHandled: (item: BoardItem) => void
   onPin: (item: BoardItem) => void
   onArchive: (item: BoardItem) => void
   onCopyLink: (item: BoardItem) => void
   isPending: (
-    kind: 'approve' | 'deny' | 'retry' | 'archive' | 'pin' | 'answer',
+    kind: 'approve' | 'deny' | 'retry' | 'archive' | 'pin' | 'answer' | 'start',
     sessionId: string,
     approvalId?: string,
   ) => boolean
@@ -249,6 +251,7 @@ export function useBoardController({
           if (result.ok && followUp) void focusCard(followUp)
         })()
       },
+      onStartNow: (item) => void actionsRef.current.startNow(item.id).then(reportFailure),
       onMarkHandled: (item) => void actionsRef.current.markHandled(item.id).then(reportFailure),
       onPin: (item) => void actionsRef.current.pin(item.id, !item.pinned).then(reportFailure),
       onArchive: (item) =>

@@ -23,6 +23,8 @@ import {
   installBoardFixture,
   writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-sidebar-'))
@@ -90,7 +92,7 @@ async function newContext(options, { sessions = baseSessions(), prepare } = {}) 
   )
   const aborts = []
   await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/live`), async (route) => {
-    const response = await route.fetch()
+    const response = await fetchIdempotent(route)
     const live = await response.json().catch(() => ({}))
     await route.fulfill({
       response,
@@ -244,8 +246,8 @@ function jaccard(a, b) {
 try {
   browser = await chromium.launch({
     headless: true,
-    ...((process.env.PISPER_UI_BROWSER_PATH ?? process.env.PISPER_SMOKE_BROWSER)
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH ?? process.env.PISPER_SMOKE_BROWSER }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),

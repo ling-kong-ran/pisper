@@ -18,7 +18,7 @@
 // ⌘2 功能，⌘[ 已退役）。泳道条、⌘J 代理面板与标题栏舰队计量已在 v2（A1）删除。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,9 +32,13 @@ import {
   plainDesktopBridgeScript,
   QUESTION_ID,
   QUESTION_SESSION_ID,
+  QUEUED_SESSION_ID,
   questionFixtureSession,
+  queuedFixtureSession,
   writeBoardSessionFixture,
 } from './fixtures/board-fixture.mjs'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-board-ui-'))
@@ -221,8 +225,8 @@ async function resetBoardView() {
 try {
   browser = await chromium.launch({
     headless: true,
-    ...(process.env.PISPER_UI_BROWSER_PATH
-      ? { executablePath: process.env.PISPER_UI_BROWSER_PATH }
+    ...(SMOKE_BROWSER
+      ? { executablePath: SMOKE_BROWSER }
       : process.platform === 'win32'
         ? { channel: 'msedge' }
         : {}),
@@ -755,6 +759,26 @@ try {
       'The row ⋯ menu matches the sidebar row menu (打开会话 · 置顶 · 重命名 · 复制会话链接 · 归档)',
     )
 
+    // A9 遗留：菜单开着时弹出通知，Radix 把通知当成最上层；一次 Esc 也必须关掉菜单（不是只关通知）。
+    await row('fx-running').hover()
+    await row('fx-running')
+      .getByRole('button', { name: /的更多操作$/ })
+      .click()
+    const rowMenu = page.getByRole('menu')
+    await rowMenu.waitFor()
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new CustomEvent('pisper:local-reveal-notice', { detail: { message: '通知抢 Esc 检查' } }),
+      ),
+    )
+    const notice = page.getByText('通知抢 Esc 检查').first()
+    await notice.waitFor()
+    await page.keyboard.press('Escape')
+    await rowMenu.waitFor({ state: 'detached', timeout: 5_000 })
+    report.checks.push(
+      'A toast that appears while a menu is open does not steal Esc: one Esc closes the menu (and the toast)',
+    )
+
     // 快捷键 v2：⌘2 功能（更多）、⌘1 全部代理（看板）；组件工作室默认未绑定（⌘3 不再消费）。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+Digit3`)
@@ -1092,6 +1116,101 @@ try {
     'Agent questions (askUser): the sidebar row reads 等你回答 and only offers 打开; the 全部代理 row shows the question and, for one single-select question, option pills (44px on the phone card) where one click sends exactly one answer {selected:[label]} and the row leaves 需要你',
   )
 
+  // 4c. 排队（sessionQueue，A9）：排队行写“排在「X」之后 · 第 N 位”与唯一的 [立即开始]；侧栏“排队”分组带 #N；
+  // 派发对话框选“排在…之后”，首条消息交给 Runtime 的启动队列（POST …/queue），新会话出现在排队里。
+  {
+    const { context, fixture } = await newContext(
+      { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
+      { sessions: [...boardFixture().sessions, queuedFixtureSession()] },
+    )
+    const page = await openBoard(context, 'queue')
+    const runningTitle = boardFixture().sessions.find((session) => session.id === 'fx-running').name
+    const queuedRow = page.locator(`[data-board-card="${QUEUED_SESSION_ID}"]`)
+    await queuedRow.waitFor({ timeout: 30000 })
+    assert.equal(await queuedRow.getAttribute('data-lane'), 'queued')
+    assert.equal(
+      await queuedRow.locator('[data-queue-detail]').innerText(),
+      `排在「${runningTitle}」之后 · 第 1 位`,
+    )
+    await page.goto(base + '/#/more')
+    const queuedSidebarRow = page.locator(
+      `[data-sidebar-group="queued"] [data-sidebar-row="${QUEUED_SESSION_ID}"]`,
+    )
+    await queuedSidebarRow.waitFor({ timeout: 30000 })
+    assert.match(await queuedSidebarRow.innerText(), /#1/)
+    await page.goto(base + '/#/board')
+    await queuedRow.locator(`[data-start-now="${QUEUED_SESSION_ID}"]`).click()
+    for (let i = 0; i < 30 && fixture.posts.length < 1; i += 1) await page.waitForTimeout(100)
+    assert.deepEqual(
+      fixture.posts.map((post) => post.path),
+      [`/api/sessions/${QUEUED_SESSION_ID}/queue/start`],
+    )
+    await page.waitForFunction(
+      (id) => document.querySelector(`[data-board-card="${id}"]`)?.dataset.lane === 'running',
+      QUEUED_SESSION_ID,
+      { timeout: 10000 },
+    )
+
+    // 派发对话框：“立即开始 ▾” → 选运行中的会话 → 派发；请求体带 startAfter 与原消息，不走 /api/chat。
+    // 夹具项目的目录在本机不存在：建会话交给这里应答（模型与模式与启动台默认一致，不触发写配置的请求）。
+    await context.route(/\/api\/sessions$/, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback()
+      const body = JSON.parse(route.request().postData() || '{}')
+      await route.fulfill({
+        status: 201,
+        json: {
+          id: 'fx-dispatched',
+          name: '',
+          cwd: body.cwd || '/home/dev/pisper',
+          model: 'openai/gpt-5.6-luna',
+          thinkingLevel: 'medium',
+          executionMode: 'approval-required',
+          runMode: 'plan',
+          messageCount: 0,
+          streaming: false,
+          created: new Date().toISOString(),
+          modified: new Date().toISOString(),
+        },
+      })
+    })
+    const chats = []
+    await context.route('**/api/chat', (route) => {
+      chats.push(route.request().url())
+      return route.fulfill({ status: 500, json: { error: 'should not stream' } })
+    })
+    await page.locator('[data-board-root] h1').click()
+    await page.keyboard.press(`${mod}+KeyN`)
+    const dispatchDialog = page.getByRole('dialog', { name: '新任务', exact: true })
+    await dispatchDialog.waitFor()
+    await dispatchDialog.locator('[data-launch-input]').fill('等重构完再补文档')
+    await dispatchDialog.locator('[data-launch-start-after="now"]').click()
+    await page.locator('[data-start-after-option="fx-running"]').click()
+    await dispatchDialog.locator('[data-launch-start-after="fx-running"]').waitFor()
+    await page.screenshot({ path: join(output, 'queue-dispatch.png') })
+    await dispatchDialog.locator('[data-launch-input]').press('Enter')
+    for (let i = 0; i < 100 && fixture.posts.length < 2; i += 1) await page.waitForTimeout(100)
+    const enqueue = fixture.posts.at(-1)
+    assert.match(enqueue.path, /^\/api\/sessions\/[^/]+\/queue$/)
+    assert.deepEqual(enqueue.body, {
+      startAfter: 'fx-running',
+      message: '等重构完再补文档',
+      runMode: 'plan',
+    })
+    assert.deepEqual(chats, [], 'a queued dispatch does not open a run stream')
+    const newId = decodeURIComponent(enqueue.path.split('/')[3])
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(
+      (id) => document.querySelector(`[data-board-card="${id}"]`)?.dataset.lane === 'queued',
+      newId,
+      { timeout: 15000 },
+    )
+    await page.screenshot({ path: join(output, 'queue-desktop.png') })
+    await context.close()
+  }
+  report.checks.push(
+    'Queue (sessionQueue): the queued row reads 排在「重构登录流程」之后 · 第 1 位 with a single 立即开始 that POSTs …/queue/start and moves it to 运行中; the sidebar 排队 group shows #1; the dispatch dialog chip 立即开始 ▾ → 排在 X 之后 sends {startAfter, message, runMode} to …/queue without opening a run stream, and the new session appears under 排队',
+  )
+
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。
   for (const [width, bridge] of [
     [1000, plainDesktopBridgeScript],
@@ -1317,7 +1436,7 @@ try {
     const { context, fixture } = await newContext(options, { ...extra, sessions: sessionBoard })
     const aborts = []
     await context.route(new RegExp(`/api/sessions/${BOARD_SESSION_ID}/live`), async (route) => {
-      const response = await route.fetch()
+      const response = await fetchIdempotent(route)
       const live = await response.json().catch(() => ({}))
       await route.fulfill({
         response,
@@ -1853,6 +1972,19 @@ try {
     await page.goto(`${base}/#/board/${BOARD_SESSION_ID}`)
     const title = page.locator('[data-session-header] [data-session-title]')
     await title.filter({ hasText: BOARD_SESSION_TITLE }).waitFor({ timeout: 30_000 })
+    // A9：标题 ▾ 菜单的“导出 Markdown”（sessionExport）下载真实 Runtime 导出的转录（不含思考过程与完整路径）。
+    await page.locator('[data-session-header] [data-session-menu]').click()
+    const [exported] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('menuitem', { name: '导出 Markdown', exact: true }).click(),
+    ])
+    assert.equal(exported.suggestedFilename(), `${BOARD_SESSION_TITLE}.md`)
+    const markdown = await readFile(await exported.path(), 'utf8')
+    assert.match(markdown, new RegExp(`^# ${BOARD_SESSION_TITLE}`, 'm'))
+    assert.ok(!markdown.includes(output), 'the export never contains the full local workspace path')
+    report.checks.push(
+      'Session title menu 导出 Markdown downloads <title>.md from the Runtime (title heading, no full local path)',
+    )
     const openRename = async () => {
       await page.locator('[data-session-header] [data-session-menu]').click()
       await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()

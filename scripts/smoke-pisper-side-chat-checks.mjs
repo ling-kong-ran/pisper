@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
+import { fetchIdempotent } from './fixtures/route-fetch.mjs'
 
 // 只使用调用方创建的隔离 Runtime 和本地模型；不连接用户正在运行的 dev 服务。
 export async function verifySideChat({ page, base, api, report, output, parentSessionId }) {
@@ -228,7 +229,7 @@ export async function verifySideChat({ page, base, api, report, output, parentSe
     const resolutions = []
     // 模型夹具只输出文本；仅补充 live 审批投影来检查 UI 把允许动作交给正确会话。
     await addFixtureRoute(`/api/sessions/${sideId}/live`, async (route) => {
-      const response = await route.fetch()
+      const response = await fetchIdempotent(route)
       assert.equal(response.ok(), true)
       const snapshot = await response.json()
       await route.fulfill({

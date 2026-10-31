@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { chromium } from 'playwright-core'
+import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const output = await mkdtemp(join(tmpdir(), 'pisper-replica-settings-'))
@@ -91,7 +92,7 @@ let browser
 try {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const executablePath =
-    process.env.PISPER_SMOKE_BROWSER ||
+    SMOKE_BROWSER ||
     [
       chromium.executablePath(),
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
