@@ -38,6 +38,7 @@ import {
   type BoardFeedMode,
   type BoardFeedState,
 } from './board-feed'
+import { notifyComponentFeedEvent } from './component-changes'
 
 export const BOARD_SESSIONS_QUERY_KEY = SESSIONS_QUERY_KEY
 export const BOARD_POLL_INTERVAL_MS = 3_000
@@ -670,6 +671,8 @@ function handleFeedEvent(event: string, data: unknown): BoardFeedEffects {
   const result = applyBoardFeedEvent(useBoardOverlay.getState().feed, event, data)
   // 心跳只推进修订号：读者只订阅条目与分钟级时钟，不会因此重算；也不必重新安排 /live。
   commitFeed(result, event === 'heartbeat' || event === 'component_changed')
+  // 组件宿主按 component_changed 作废组件查询；重连快照可能跨过了组件事件，再通知一次 '*'。
+  notifyComponentFeedEvent(event, data, result.effects.changed)
   return result.effects
 }
 

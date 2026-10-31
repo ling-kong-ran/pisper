@@ -235,6 +235,18 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
   ]) {
     if (eagerVendorNames.has(name)) failures.push(`route-only vendor is eager: ${name}`)
   }
+  // 原生组件宿主（A7，计划 §4.6）：htm 与 src/features/custom-ui/ 只能从懒加载边界进入，入口闭包里出现即失败。
+  // 共享 chunk 在清单里以 _<name>-<hash>.js 为键，源码键只出现在入口与动态入口上；所以同时按键与 chunk 名判断，
+  // 源码层面的完整静态闭包由 runtime/tests/frontend-boundaries.test.mjs 守住。
+  for (const key of report.entryClosure) {
+    const chunkName = report.manifest[key]?.name || ''
+    if (
+      key.startsWith('src/features/custom-ui/') ||
+      key.includes('node_modules/htm/') ||
+      /^htm(?:[.-]|$)/.test(chunkName)
+    )
+      failures.push(`native component host is eager: ${key}`)
+  }
 
   for (const source of ROUTE_SOURCES) {
     if (!report.manifest[source]?.isDynamicEntry) failures.push(`route is not lazy: ${source}`)

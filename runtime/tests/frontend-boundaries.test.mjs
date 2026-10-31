@@ -25,8 +25,11 @@ const files = new Map(
   await Promise.all(paths.map(async (path) => [path, await readFile(path, 'utf8')])),
 )
 const graph = new Map()
+// 每个文件的包导入（非 @/ 与相对路径）：只记运行时导入，供“轻量入口不得到达 htm / shared 组件规范化”守卫使用。
+const packageImports = new Map()
 for (const [path, source] of files) {
   const dependencies = []
+  const packages = []
   const visit = (node) => {
     if (!node || typeof node !== 'object') return
     if (
@@ -38,6 +41,14 @@ for (const [path, source] of files) {
       ].includes(node.type)
     ) {
       const specifier = node.source?.value
+      if (
+        typeof specifier === 'string' &&
+        !specifier.startsWith('@/') &&
+        !specifier.startsWith('.') &&
+        node.importKind !== 'type' &&
+        node.exportKind !== 'type'
+      )
+        packages.push({ specifier, dynamic: node.type === 'ImportExpression' })
       if (
         typeof specifier === 'string' &&
         (specifier.startsWith('@/') || specifier.startsWith('.'))
@@ -73,6 +84,7 @@ for (const [path, source] of files) {
     }),
   )
   graph.set(path, dependencies)
+  packageImports.set(path, packages)
 }
 
 const name = (path) => relative(root, path).replaceAll('\\', '/')
@@ -154,6 +166,7 @@ test('lightweight public contracts do not pull feature pages into their import g
     'board/new-task.ts',
     'board/public.ts',
     'chat/public-launch.ts',
+    'custom-ui/placements.ts',
   ])
     visit(resolve(root, 'src/features', file))
 })
@@ -330,4 +343,77 @@ test('the dormant three-pane phone shell and the retired sidebar shell never loa
   ])
     assert.ok(reachable.has(resolve(root, file)), `${file} must be reachable from the entry`)
   for (const path of dormant) assert.ok(!reachable.has(path), `${name(path)} must stay unmounted`)
+})
+
+// 静态（运行时、非 import type）可达的文件集合；动态 import() 是懒加载边界，不跟。
+function staticClosure(...starts) {
+  const reachable = new Set()
+  const visit = (path) => {
+    if (reachable.has(path)) return
+    reachable.add(path)
+    for (const dependency of graph.get(path) || [])
+      if (!dependency.dynamic && !dependency.typeOnly) visit(dependency.path)
+  }
+  for (const start of starts) visit(resolve(root, start))
+  return reachable
+}
+
+test('native component SDK and hosts stay behind lazy boundaries (A7 S3)', () => {
+  // 原生组件（规格 5.6、计划 §4.6）：htm、native/*、studio/*、hosts/* 只能从 hosts.ts / public.ts 的动态边界进入。
+  // 入口闭包（main.tsx 与无条件加载的 mount-app.tsx）不得静态到达任何 custom-ui 文件或 htm。
+  const entry = staticClosure('src/main.tsx', 'src/mount-app.tsx')
+  assert.ok(entry.has(resolve(root, 'src/App.tsx')), 'entry closure must include the app shell')
+  for (const path of entry) {
+    assert.notEqual(feature(path), 'custom-ui', `entry statically loads ${name(path)}`)
+    for (const entryImport of packageImports.get(path) || [])
+      if (!entryImport.dynamic)
+        assert.notEqual(entryImport.specifier, 'htm', `${name(path)} pulls htm into the entry`)
+  }
+  // 应用壳本身没有任何 custom-ui 的静态依赖（浮窗、组件页都经 import() 进入）。
+  const appStatic = graph
+    .get(resolve(root, 'src/App.tsx'))
+    .filter((entry) => !entry.dynamic && !entry.typeOnly && feature(entry.path) === 'custom-ui')
+  assert.deepEqual(
+    appStatic.map((entry) => name(entry.path)),
+    [],
+  )
+
+  // placements.ts 是放置宿主唯一允许静态导入的 custom-ui 文件：它的静态闭包不得到达页面、native/、studio/、
+  // hosts/，也不得导入 htm 或 shared 的 manifest 规范化（宿主本体经 LazyComponentHost 懒加载）。
+  const placements = staticClosure('src/features/custom-ui/placements.ts')
+  assert.ok(placements.has(resolve(root, 'src/features/custom-ui/custom-ui-api.ts')))
+  for (const path of placements) {
+    assert.doesNotMatch(
+      name(path),
+      /Page\.tsx$|^src\/features\/custom-ui\/(?:native|studio|hosts)\/|^src\/features\/custom-ui\/hosts\.ts$/,
+      `placements.ts loads ${name(path)}`,
+    )
+    for (const entryImport of packageImports.get(path) || []) {
+      if (entryImport.dynamic) continue
+      assert.notEqual(entryImport.specifier, 'htm', `${name(path)} imports htm`)
+      assert.doesNotMatch(
+        entryImport.specifier,
+        /custom-ui-manifest\.mjs$/,
+        `${name(path)} imports the manifest normalizer at runtime`,
+      )
+    }
+  }
+  // 宿主本体确实经 placements 的懒加载边界可达，守卫不会因为图不完整而空转。
+  assert.ok(
+    graph
+      .get(resolve(root, 'src/features/custom-ui/placements.ts'))
+      .some(
+        (entry) => entry.dynamic && entry.path === resolve(root, 'src/features/custom-ui/hosts.ts'),
+      ),
+  )
+  // htm 只出现在 native/html.ts 一处。
+  for (const [path, imports] of packageImports)
+    if (imports.some((entry) => entry.specifier === 'htm'))
+      assert.equal(name(path), 'src/features/custom-ui/native/html.ts')
+
+  // 看板公共契约（及组件变化订阅）不得反向到达 custom-ui：组件宿主建在看板数据之上。
+  for (const file of ['board/public.ts', 'board/component-changes.ts'])
+    for (const path of staticClosure(`src/features/${file}`))
+      assert.notEqual(feature(path), 'custom-ui', `${file} reaches ${name(path)}`)
+  assert.deepEqual(graph.get(resolve(root, 'src/features/board/component-changes.ts')), [])
 })

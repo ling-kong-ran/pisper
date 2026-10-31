@@ -122,6 +122,7 @@
     "embla-carousel-react": "^8.6.0",
     "esbuild": "0.28.1",
     "hast-util-raw": "9.1.0",
+    "htm": "3.1.1",
     "i18next": "^26.3.6",
     "js-yaml": "^4.3.1",
     "lucide-react": "^1.24.0",

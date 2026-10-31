@@ -171,3 +171,20 @@ test('workbench bundle rejects split-view code and decorative welcome styles', (
   assert.ok(failures.includes('retired split-view vendor must not be bundled'))
   assert.ok(failures.includes('PI welcome must not load decorative React Bits CSS'))
 })
+
+test('native component host code and htm never enter the entry closure', () => {
+  // A7（计划 §4.6）：组件宿主、SDK 与 htm 只经懒加载边界进入；入口闭包里出现任何一个都失败。
+  const report = passingReport()
+  report.manifest['src/features/custom-ui/hosts.ts'] = {
+    file: 'assets/hosts.js',
+    isDynamicEntry: true,
+    imports: [],
+  }
+  report.manifest['_htm.module-abc.js'] = { file: 'assets/htm.js', name: 'htm.module', imports: [] }
+  assert.deepEqual(validateBundle(report), [], 'lazy host chunks are allowed')
+  report.entryClosure.add('src/features/custom-ui/hosts.ts')
+  report.entryClosure.add('_htm.module-abc.js')
+  const failures = validateBundle(report)
+  assert.ok(failures.includes('native component host is eager: src/features/custom-ui/hosts.ts'))
+  assert.ok(failures.includes('native component host is eager: _htm.module-abc.js'))
+})

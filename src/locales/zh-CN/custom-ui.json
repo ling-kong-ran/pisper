@@ -48,5 +48,19 @@
   "moved.hint": "导入、预览与悬浮显示都在组件工作室管理",
   "phone.allComponents": "全部组件",
   "phone.missingTitle": "找不到这个组件",
-  "phone.missingHint": "它可能已被移除或改名。回到列表重新选择，或点重新扫描。"
+  "phone.missingHint": "它可能已被移除或改名。回到列表重新选择，或点重新扫描。",
+  "host.unavailableTitle": "组件暂时不可用",
+  "host.safeModeTitle": "安全模式",
+  "host.safeModeHint": "安全模式下不加载组件。",
+  "host.pausedTitle": "已暂停",
+  "host.pausedHint": "这个组件 60 秒内出错 3 次，已自动暂停。",
+  "host.resume": "恢复",
+  "host.renderErrorTitle": "渲染出错，已隔离此组件",
+  "host.loadErrorTitle": "组件加载失败，已隔离此组件",
+  "host.viewError": "查看错误",
+  "host.hideError": "收起错误",
+  "host.reload": "重新加载",
+  "host.askAgentFix": "让代理修复",
+  "host.slowWarning": "渲染较慢（{ms} ms）",
+  "host.pause": "暂停"
 }

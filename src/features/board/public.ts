@@ -12,6 +12,13 @@ export {
   type BoardNewTaskSource,
 } from './new-task'
 export { BOARD_SESSIONS_QUERY_KEY } from './board-store'
+export {
+  parseComponentChange,
+  subscribeComponentChanges,
+  type ComponentChange,
+  type ComponentChangeListener,
+  type ComponentChangeReason,
+} from './component-changes'
 export { boardSessionTitle } from './board-model'
 export type { BoardSessionsData, BoardActionKind } from './board-store'
 export type { BoardActionResult } from './board-actions'

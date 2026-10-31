@@ -20,6 +20,9 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper-launch-defaults',
   'pisper-floating-widgets',
   'pisper-floating-placement',
+  // 原生组件安全模式哨兵（src/features/custom-ui/native/safe-mode.ts 是唯一读写方）：首次加载组件前写入、
+  // 全部初始实例提交 3 秒后清掉；下次启动还在就先不加载组件、询问是否停用。经 /api/local 镜像，按设备记。
+  'pisper-components-safe-mode',
   'pisper-language',
   'pisper-shortcuts',
   // 看板单字母快捷键（J/K/H/L、A/D/R、T、G）与应用级绑定分表保存。

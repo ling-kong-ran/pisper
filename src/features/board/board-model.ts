@@ -67,6 +67,8 @@ export type BoardItem = {
   question: PendingQuestion | null
   // 这组提问里的问题数（侧栏原因“等你回答 · N 个问题”）。
   questionCount: number | null
+  // 会话报告的 token 总用量（card.usage.totalTokens）；没有卡片摘要时为 null。原生组件 ctx.sessions 用。
+  totalTokens: number | null
 }
 
 export type BoardBuildOptions = {
@@ -254,6 +256,7 @@ export function buildBoardItems(
       agents: card?.agents ?? null,
       question,
       questionCount: question ? question.questions.length : null,
+      totalTokens: card?.totalTokens ?? null,
     })
   }
   return items.sort(compareBoardItems)
