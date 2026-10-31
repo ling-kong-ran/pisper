@@ -45,7 +45,9 @@ export function WorkflowNodePalette({
         {/* 编辑器页头里的工具键：手机只留图标（读屏名称不变），触控高度由页头统一抬到 44。 */}
         <Button variant="outline" size="sm" title={t('workflows:editor.addNode')}>
           <Plus />
-          <span className="max-[650px]:sr-only">{t('workflows:editor.addNode')}</span>
+          <span className="max-[650px]:sr-only @max-[760px]/workflow-header:sr-only">
+            {t('workflows:editor.addNode')}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

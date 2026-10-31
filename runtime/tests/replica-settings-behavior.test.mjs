@@ -8,9 +8,10 @@ test('search targets request expansion of the group that owns the control', () =
   const policy = searchConfig('运行策略', 'zh-CN').find(
     ({ entry }) => entry.id === 'models-runtime-policy',
   )?.entry
-  assert.equal(policy?.card, 'models-advanced')
+  // A6 评审返修：思考强度与可用工具是页标题下的默认值行，常显，不再需要展开“更多设置”。
+  assert.equal(policy?.card, 'models-current-model')
   assert.equal(policy?.targetId, 'models-runtime-policy')
-  assert.equal(policy?.expandGroup, 'models-advanced')
+  assert.equal(policy?.expandGroup, undefined)
   const visual = searchConfig('visual', 'en-US').find(
     ({ entry }) => entry.id === 'models-visual',
   )?.entry

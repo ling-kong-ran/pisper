@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle,
   Download,
   ExternalLink,
   File,
@@ -18,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -337,16 +337,12 @@ export function AssetsPage({
         >
           {/* 同一条件刷新失败：保留可操作的结果，错误与重试写在列表上方。 */}
           {result.isError && (
-            <div
-              role="alert"
-              className="mb-2 flex flex-wrap items-center gap-2 rounded-[var(--r-md)] border border-danger-border bg-danger-soft py-1 pr-1 pl-3 text-xs text-danger"
-            >
-              <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-                {result.error.message}
-              </span>
-              {retry}
-            </div>
+            <FeatureAlert className="mt-0 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="min-w-0 flex-1">{result.error.message}</span>
+                {retry}
+              </div>
+            </FeatureAlert>
           )}
           {assets.length ? (
             <FeatureList>
@@ -554,14 +550,7 @@ function AssetRow({
           </Button>
         </div>
       }
-      detail={
-        error ? (
-          <p role="alert" className="flex gap-1.5 text-xs [overflow-wrap:anywhere] text-danger">
-            <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-            {error}
-          </p>
-        ) : undefined
-      }
+      detail={error ? <FeatureAlert className="mt-0">{error}</FeatureAlert> : undefined}
     />
   )
 }

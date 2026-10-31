@@ -244,3 +244,63 @@ test('settings sections render in the feature-page template without a duplicate 
     /export function SettingsGroup\b[\s\S]*?divide-y divide-stroke-soft border-y border-stroke-soft/,
   )
 })
+
+// A6 评审返修：错误态与失败提示。
+// 1) PageState 错误态（role="alert"）的标题不能沿用“加载中”的文案，否则读屏把失败播报成“正在加载”；
+// 2) 读取或操作失败是已发生的结果（规格 6.1）：用模板的中性 FeatureAlert，不再是红底红字横幅。
+//    红色只留给删除类按钮文字与表单字段错误，所以模板页里不应再出现“红边 + 红底”的提示条。
+test('feature pages title their error states as failures and show failures as neutral alerts', async () => {
+  const sources = [
+    ...Object.values(FEATURE_TEMPLATE_SOURCES),
+    'config/DesktopPetSettings',
+    'config/RemoteAccessSettings',
+    'config/MobileServerSettings',
+    'config/RemoteWorkspaceSettings',
+    'config/UpdateSettings',
+    'config/CliSettings',
+    'config/ModelsSettings',
+    'config/ModelDefaultsSettings',
+    'config/ProviderConnectionEditor',
+  ]
+  for (const path of sources) {
+    const source = await readFile(`src/features/${path}.tsx`, 'utf8')
+    for (const block of source.match(/<PageState\s+kind="error"[\s\S]*?\/>/g) || []) {
+      const title = block.match(/title=\{t\('([^']+)'/)?.[1] || ''
+      assert.doesNotMatch(title, /loading|Loading/, `${path}: ${title}`)
+    }
+    assert.doesNotMatch(
+      source,
+      /border-danger-border bg-danger-soft|bg-danger-soft px-2\.5 py-2/,
+      path,
+    )
+    assert.doesNotMatch(
+      source,
+      /role="alert"[^>]*text-danger|text-danger[^"]*"\s*>\s*\{(?:error|loadError)/,
+      path,
+    )
+  }
+  const template = await readFile('src/components/app/FeaturePage.tsx', 'utf8')
+  const alert = template.slice(template.indexOf('export function FeatureAlert('))
+  assert.match(alert.slice(0, 800), /role="alert"/)
+  assert.match(alert.slice(0, 800), /border-stroke bg-surface-subtle/)
+  assert.doesNotMatch(alert.slice(0, 800), /danger|warning|amber|st-attn/)
+})
+
+// 定时任务行内展开取代列表 / 详情两栏后，收起或换展开另一行不能丢未保存的修改
+// （替代已删除的 ListDetailLayout“两个视图常驻、未保存内容保留”的渲染测试）：草稿按任务 id 保存，
+// 没改过的任务直接用服务端副本；收起只改展开的 id，不清草稿。
+test('schedules keep unsaved edits per task while rows collapse and expand', async () => {
+  const source = await readFile('src/features/schedules/SchedulesPage.tsx', 'utf8')
+  assert.match(source, /useState<Record<string, ScheduleDraft>>\(\{\}\)/)
+  assert.match(
+    source,
+    /const draft = selected \? \(drafts\[selected\.id\] \?\? taskDraft\(selected\)\) : null/,
+  )
+  assert.match(source, /onExpandedChange=\{\(open\) => setSelectedId\(open \? task\.id : ''\)\}/)
+  assert.doesNotMatch(source, /setDraft\(/)
+  // 保存成功只丢弃该任务的草稿。
+  assert.match(
+    source,
+    /Object\.entries\(current\)\.filter\(\(\[id\]\) => id !== result\.task\.id\)/,
+  )
+})

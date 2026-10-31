@@ -24,6 +24,7 @@ import { STORAGE_KEYS } from '@/app/storage'
 import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -48,6 +49,7 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
 import { useShortcutLabel } from '@/lib/shortcuts'
+import { usePhoneShell } from '@/hooks/usePhoneShell'
 import {
   fetchStartupQuery,
   queryClient,
@@ -104,6 +106,7 @@ export function ChatHistoryPage({
   requestText,
 }: ChatHistoryPageProps) {
   const { t, language } = useI18n()
+  const phone = usePhoneShell()
   const searchShortcut = useShortcutLabel('focusSearch')
   // 搜索词归页面自己（换页即清空，与原共享页头一致）；外壳的“/”按固定 id 聚焦这里的搜索框。
   const [query, setQuery] = useState('')
@@ -334,7 +337,9 @@ export function ChatHistoryPage({
             />
           }
           actions={
-            onNewTask && (
+            onNewTask &&
+            // 手机外壳的顶栏右侧已经有 ✎ 新任务，这里不再重复一个全宽主按钮。
+            !phone && (
               // 主操作（原共享页头的“新会话”）：与侧栏“新任务”、⌘N 同一个派发对话框（规格 2.5）。
               <Button type="button" className="h-9" onClick={onNewTask}>
                 <SquarePen />
@@ -429,14 +434,7 @@ export function ChatHistoryPage({
       ) : (
         <>
           {/* 读取成功后的操作失败（重命名、整理、删除）与刷新失败：写在列表上方，列表保留。 */}
-          {(error || listError) && (
-            <p
-              role="alert"
-              className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-            >
-              {error || listError}
-            </p>
-          )}
+          {(error || listError) && <FeatureAlert>{error || listError}</FeatureAlert>}
           {visible.total ? (
             <div className="chat-history-list">
               {visible.groups.map((group) => (

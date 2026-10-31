@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Channel } from '@tauri-apps/api/core'
 import { ArrowLeft, LoaderCircle, QrCode, Radar, RefreshCw, ScanLine, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -100,6 +101,8 @@ function wait(milliseconds: number) {
 
 export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogProps) {
   const { t } = useI18n()
+  // “添加服务器”等按钮在别的组件里打开它（没有 DialogTrigger）：关闭后焦点回到那个按钮。
+  const returnFocus = useOverlayFocusReturn(open)
   const [busy, setBusy] = useState<string | null>(null)
   const [scannerActive, setScannerActive] = useState(false)
   const [discovered, setDiscovered] = useState<DiscoveredServer[]>([])
@@ -356,6 +359,7 @@ export function MobilePairingDialog({ open, onOpenChange }: MobilePairingDialogP
             : 'sm:max-w-md'
         }
         onPointerDownOutside={scannerActive ? (event) => event.preventDefault() : undefined}
+        onCloseAutoFocus={returnFocus}
       >
         {scannerActive ? (
           <div className="flex h-dvh w-screen flex-col overflow-hidden">

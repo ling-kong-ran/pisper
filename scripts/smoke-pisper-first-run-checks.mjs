@@ -265,12 +265,10 @@ export async function verifyFirstRunSetup({
     assert.match(page.url(), /#\/config\/models/)
     await wizard.getByRole('button', { name: '关闭对话框', exact: true }).click()
     await wizard.waitFor({ state: 'hidden' })
-    const connections = page.locator('[data-model-provider-split-panel]')
+    // 提供方分区（A6 评审返修）：没有连接时是空态加“添加提供方”，没有任何提供方行。
+    const connections = page.locator('[data-model-provider-list]')
     await connections.getByText('尚未添加供应商', { exact: true }).waitFor()
-    assert.equal(
-      await connections.getByRole('navigation', { name: '连接', exact: true }).count(),
-      0,
-    )
+    assert.equal(await connections.locator('[data-feature-row]').count(), 0)
     // “快速设置”在设置页自己的工具行（A6）；开发模式下页面懒加载，等它就绪后再检查入口数量。
     const quickSetup = page
       .locator('main [data-settings-quick-setup]')
@@ -315,15 +313,19 @@ export async function verifyFirstRunSetup({
     assert.equal(created.defaultModel, modelId)
     assert.equal(saved.defaultProvider || saved.provider, created.id)
     assert.equal(saved.defaultModel || saved.model, modelId)
-    const providerButton = connections
-      .getByRole('navigation', { name: '连接', exact: true })
-      .getByRole('button', { name: connectionName, exact: true })
-    await providerButton.getByText('默认', { exact: true }).waitFor()
-    // 连接详情头部的默认徽标（1d7eee0f 起文案为“默认”，不再是“默认供应商”）。
+    // 新建的连接所在行展开（向导完成后选中它），行右侧带“默认”；页标题下的默认模型一行显示它的模型。
+    const providerButton = connections.getByRole('button', { name: connectionName, exact: true })
+    await providerButton.waitFor()
+    assert.equal(await providerButton.getAttribute('aria-expanded'), 'true')
     await connections
-      .locator('h2', { hasText: connectionName })
-      .locator('..')
-      .getByText('默认', { exact: true })
+      .locator('[data-feature-row]')
+      .filter({ has: page.getByRole('button', { name: connectionName, exact: true }) })
+      .locator('[data-provider-default]')
+      .waitFor()
+    await page
+      .locator('[data-config-target="models-runtime-policy"]')
+      .getByText(` · ${connectionName}`)
+      .first()
       .waitFor()
     await page.screenshot({ path: join(output, 'first-run-configured.png') })
     report.checks.push(

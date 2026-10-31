@@ -11,6 +11,7 @@ import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -648,14 +649,7 @@ export function MemoryPage({ notify, onBack, requestConfirm }: MemoryPageProps) 
       ) : (
         <>
           {/* 读到之后的失败（刷新、删除、处理草稿）：写在最上面，数据保留。 */}
-          {error && (
-            <p
-              role="alert"
-              className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-            >
-              {error}
-            </p>
-          )}
+          {error && <FeatureAlert>{error}</FeatureAlert>}
           <FeatureSection
             title={t('memory:memoryPage.memorySpaces')}
             count={data.spaces.length}
@@ -922,7 +916,6 @@ export function MemoryPage({ notify, onBack, requestConfirm }: MemoryPageProps) 
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-danger hover:bg-danger-soft hover:text-danger"
                           disabled={Boolean(resolvingCandidateId)}
                           onClick={() => void resolveCandidate(candidate, 'reject')}
                         >

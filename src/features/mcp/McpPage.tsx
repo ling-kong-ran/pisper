@@ -334,7 +334,7 @@ export function McpPage({ notify, onBack, requestText, requestConfirm }: McpPage
       ) : !data && error ? (
         <PageState
           kind="error"
-          title={t('mcp:loading')}
+          title={t('mcp:loadFailed')}
           description={error.message}
           action={
             <Button
@@ -436,11 +436,7 @@ export function McpPage({ notify, onBack, requestText, requestConfirm }: McpPage
                 <InlineEmptyState
                   icon={Server}
                   title={t('mcp:noServerConfigured')}
-                  description={
-                    services.length
-                      ? undefined
-                      : t('mcp:useTheButtonInTheUpperRightToAddAStreamableHTTPOrStdioMCPServer')
-                  }
+                  description={services.length ? undefined : t('mcp:emptyAddHint')}
                 />
               )}
             </FeatureSection>

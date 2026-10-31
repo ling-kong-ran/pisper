@@ -21,6 +21,7 @@
   "skillsPage.installedSkills": "已安装技能",
   "skillsPage.installSkill": "安装技能",
   "skillsPage.loadingSkills": "正在加载技能",
+  "skillsPage.loadFailed": "技能读取失败",
   "skillsPage.locallyReady": "本地已就绪",
   "skillsPage.manualOnly": "仅手动",
   "skillsPage.noGlobalSkills": "尚无全局 Skill。可导入到 ~/.pisper/agent/skills。",
@@ -54,7 +55,6 @@
   "skillsPage.uninstallSkill": "卸载技能",
   "skillsPage.userScopedConfiguration": "用户级配置",
   "skillsPage.usesChatToolPermissions": "按会话工具权限",
-  "skillsPage.useTheButtonInTheUpperRightToInstallAnAgentSkillsCompatibleSkill": "使用右上角按钮安装符合 Agent Skills 标准的技能。",
   "skillsPage.version": "版本",
   "skillsPage.lede": "技能是给代理的可复用说明与脚本：可以用 /skill 手动调用，也可以允许模型自动调用。",
   "skillsPage.toggleSkillDetails": "展开或收起 {name} 的详情"

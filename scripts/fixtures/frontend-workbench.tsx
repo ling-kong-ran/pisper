@@ -64,7 +64,6 @@ const pageRequests: string[] = []
 function Shell() {
   const [notice, setNotice] = useState('')
   const context: Partial<AppRouteContext> = {
-    query: '',
     activeSessionId: '',
     navigate: (page) => pageRequests.push(page),
     notify: setNotice,

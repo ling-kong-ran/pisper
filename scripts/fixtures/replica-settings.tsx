@@ -67,11 +67,11 @@ export function ModelFixture() {
   const target = useConfigCardHighlight('models')
   return (
     <MemoryRouter>
+      {/* 与 config-search 的条目一致：运行策略是页标题下常显的默认值行，不需要展开分组。 */}
       <button
         onClick={() =>
-          requestConfigCardHighlight('models-advanced', 'models', {
+          requestConfigCardHighlight('models-current-model', 'models', {
             targetId: 'models-runtime-policy',
-            expandGroup: 'models-advanced',
           })
         }
       >

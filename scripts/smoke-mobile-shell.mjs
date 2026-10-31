@@ -1022,12 +1022,44 @@ async function verifyPhoneShell(boardSessions) {
   const dispatch = page.getByRole('dialog', { name: '新任务', exact: true })
   await dispatch.waitFor()
   await dispatch.locator('[data-launch-console="sheet"]').waitFor()
-  // 输入框单独占一行（“在 [项目 ▾] 中”在上一行）：390 宽下不能被项目芯片挤到一百多像素宽。
+  // 输入框占满表单宽度：390 宽下不能被项目芯片挤到一百多像素宽。
   const sheetInput = await dispatch.locator('[data-launch-input]').boundingBox()
   assert.ok(sheetInput && sheetInput.width >= 300, `dispatch textarea width ${sheetInput?.width}`)
   assert.ok(sheetInput.height >= 44, `dispatch textarea height ${sheetInput.height}`)
+  // A6 评审返修：与桌面派发同一条芯片工具行 [项目] [盾牌] … [模型] [派发]，每个 ≥44，一行放下（不换行）；
+  // 没有“在 [项目] 中”前缀与单独的 Plan 芯片；说明指向抽屉的“运行中”（手机没有侧栏）。
+  const sheetToolbar = await dispatch.locator('[data-launch-toolbar] button').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect()
+      return {
+        name: node.getAttribute('aria-label') || node.textContent.trim(),
+        width: box.width,
+        height: box.height,
+        top: Math.round(box.top),
+      }
+    }),
+  )
+  assert.equal(sheetToolbar.length, 4, JSON.stringify(sheetToolbar))
+  assert.match(sheetToolbar[0].name, /^项目/)
+  assert.match(sheetToolbar[1].name, /^审批模式/)
+  assert.match(sheetToolbar[2].name, /^模型/)
+  assert.equal(sheetToolbar[3].name, '派发')
+  for (const item of sheetToolbar)
+    assert.ok(
+      item.height >= 44 && item.width >= 44,
+      `dispatch toolbar target ${JSON.stringify(item)}`,
+    )
+  assert.equal(new Set(sheetToolbar.map((item) => item.top)).size, 1, 'one toolbar row')
+  assert.equal(await dispatch.getByText('在', { exact: true }).count(), 0)
+  await dispatch.getByText('派发后留在当前页面，新代理会出现在抽屉的「运行中」。').waitFor()
   assert.equal(await nativeBack(page), true)
   await dispatch.waitFor({ state: 'detached' })
+  // 关闭后焦点回到打开它的顶栏 ✎（Radix 只会还给 DialogTrigger，这里没有）。
+  await page.waitForFunction(
+    () => document.activeElement?.matches('[data-phone-topbar] [data-phone-new-task]'),
+    undefined,
+    { timeout: 3000 },
+  )
   assert.equal(hashOf(page), '#/board')
   // 软键盘弹起：外壳随可视视口收缩（没有底部条要让位）；收起后回来。
   await page.evaluate(() => window.__setKeyboard(336))
@@ -1038,7 +1070,7 @@ async function verifyPhoneShell(boardSessions) {
   await page.evaluate(() => window.__setKeyboard(0))
   await page.waitForFunction(() => !document.querySelector('.app-shell')?.dataset.mobileKeyboard)
   report.checks.push(
-    'Phone ✎ opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input under the project row (Android back closes it first); the software keyboard shrinks the shell and nothing sits at the bottom edge',
+    'Phone ✎ opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input and one toolbar row [项目] [盾牌] [模型] [派发] of ≥44 targets (Android back closes it first and focus returns to ✎); the software keyboard shrinks the shell and nothing sits at the bottom edge',
   )
 
   // 全部代理上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是全部代理（不认领，

@@ -1,5 +1,6 @@
 import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -536,9 +537,11 @@ export function SchedulesPage({
     workflows: [],
     defaultCwd: '',
   })
-  // 展开的任务就是正在编辑的任务（同一时刻只展开一行）；收起时草稿随之丢弃，与原来切换选中项一致。
+  // 展开的任务就是正在编辑的任务（同一时刻只展开一行）。草稿按任务 id 保存在页面驻留期间：
+  // 收起、换展开另一行再回来，未保存的修改都还在（原列表 / 详情两栏切换时详情常驻，编辑不丢）；
+  // 没改过的任务不存草稿，直接用服务端副本，轮询刷新后读数也跟着更新。保存成功或任务被删除时丢弃该任务的草稿。
   const [selectedId, setSelectedId] = useState('')
-  const [draft, setDraft] = useState<ScheduleDraft | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, ScheduleDraft>>({})
   const [loading, setLoading] = useState(true)
   // 至少读成功过一次：首次读取失败显示可重试的错误，不显示成“时间轴尚未点亮”。
   const [loaded, setLoaded] = useState(false)
@@ -557,6 +560,12 @@ export function SchedulesPage({
       setLoaded(true)
       setLoadError('')
       setSelectedId((current) => (result.tasks.some((task) => task.id === current) ? current : ''))
+      setDrafts((current) => {
+        const kept = Object.entries(current).filter(([id]) =>
+          result.tasks.some((task) => task.id === id),
+        )
+        return kept.length === Object.keys(current).length ? current : Object.fromEntries(kept)
+      })
     } catch (caught) {
       setLoadError(caught instanceof Error ? caught.message : String(caught))
     } finally {
@@ -577,11 +586,7 @@ export function SchedulesPage({
 
   const selected = data.tasks.find((task) => task.id === selectedId)
   const availableWorkflows = data.workflows || []
-  useEffect(() => {
-    setDraft((current) =>
-      selected ? (current?.id === selected.id ? current : taskDraft(selected)) : null,
-    )
-  }, [selected])
+  const draft = selected ? (drafts[selected.id] ?? taskDraft(selected)) : null
   const runs = useMemo(
     () =>
       data.runs
@@ -602,8 +607,14 @@ export function SchedulesPage({
       )
     : data.tasks
   const enabledCount = data.tasks.filter((task) => task.enabled).length
-  const updateDraft = (patch: Partial<ScheduleDraft>) =>
-    setDraft((current) => (current ? { ...current, ...patch } : current))
+  const updateDraft = (patch: Partial<ScheduleDraft>) => {
+    if (!selected) return
+    const base = taskDraft(selected)
+    setDrafts((current) => ({
+      ...current,
+      [base.id]: { ...(current[base.id] ?? base), ...patch },
+    }))
+  }
   const toggleNotification = (target: NotificationTarget) => {
     if (!draft) return
     updateDraft({
@@ -627,7 +638,9 @@ export function SchedulesPage({
         },
       )
       setData(result.state)
-      setDraft(taskDraft(result.task))
+      setDrafts((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => id !== result.task.id)),
+      )
       notify(t('schedules:schedulesPage.scheduledTaskSaved'))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -767,15 +780,7 @@ export function SchedulesPage({
       ) : (
         <>
           {/* 读到之后的操作失败（保存、运行、删除）与刷新失败：写在列表上方，列表保留。 */}
-          {(error || loadError) && (
-            <p
-              role="alert"
-              className="mt-4 flex items-start gap-1.5 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-            >
-              <AlertTriangle className="mt-px size-3.5 flex-none" aria-hidden="true" />
-              {error || loadError}
-            </p>
-          )}
+          {(error || loadError) && <FeatureAlert>{error || loadError}</FeatureAlert>}
           <FeatureSection
             title={t('schedules:schedulesPage.tasks')}
             count={data.tasks.length}

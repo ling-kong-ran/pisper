@@ -909,6 +909,36 @@ try {
   assert.deepEqual(editorHeader.shared, [], 'no shared page header above the editor')
   for (const label of ['保存草稿', '试运行', '发布'])
     assert.ok(editorHeader.commands.includes(label), `${label} in the editor header`)
+  // 最小窗口 1080×680 + Windows 自绘标题栏（右侧让出 144，A6 评审返修）：工具只留图标，页头仍是一行 52，
+  // 三个命令不掉到第二行。这里直接给外壳打上自绘标题栏的标记，只量布局。
+  const viewportBefore = page.viewportSize()
+  await page.setViewportSize({ width: 1080, height: 680 })
+  await page.evaluate(() =>
+    document.querySelector('.app-shell')?.setAttribute('data-custom-titlebar', 'true'),
+  )
+  const narrowHeader = await page.locator('[data-workflow-editor-header]').evaluate((header) => ({
+    height: header.getBoundingClientRect().height,
+    right: getComputedStyle(header).paddingRight,
+    centers: [...header.querySelectorAll('button')]
+      .filter((button) => button.getClientRects().length)
+      .map((button) => {
+        const box = button.getBoundingClientRect()
+        return Math.round(box.top + box.height / 2)
+      }),
+  }))
+  assert.equal(narrowHeader.right, '144px')
+  assert.ok(
+    narrowHeader.height <= 53,
+    `1080 titlebar editor header ${JSON.stringify(narrowHeader)}`,
+  )
+  assert.ok(
+    Math.max(...narrowHeader.centers) - Math.min(...narrowHeader.centers) <= 2,
+    `one header row ${JSON.stringify(narrowHeader)}`,
+  )
+  await page.evaluate(() =>
+    document.querySelector('.app-shell')?.removeAttribute('data-custom-titlebar'),
+  )
+  await page.setViewportSize(viewportBefore)
   await page.getByRole('button', { name: '返回工作流', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/workflows')
   // 列表页（功能页模板）：以工具行的新建入口和“工作流 · N”分区标题确认回到列表。

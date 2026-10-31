@@ -86,6 +86,7 @@
   "pluginsPage.english": "英语",
   "pluginsPage.highRisk": "高风险",
   "pluginsPage.loadingToolPlugins": "正在加载工具插件",
+  "pluginsPage.loadFailed": "工具插件读取失败",
   "pluginsPage.disableThisTool": "禁用此工具",
   "pluginsPage.policySaved": "策略已保存",
   "pluginsPage.disable": "禁用",

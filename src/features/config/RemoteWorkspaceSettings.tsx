@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import type { RemoteWorkspaceSummary } from '@/types/remote-workspace'
-import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { SettingsField } from './settings-primitives'
 
 export function RemoteWorkspaceSettings({
@@ -230,14 +230,7 @@ export function RemoteWorkspaceSettings({
           </div>
         </form>
       </div>
-      {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-sm bg-danger-soft px-2.5 py-2 text-sm break-words text-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <FeatureAlert className="mt-3">{error}</FeatureAlert>}
       <p className="mt-3 text-xs leading-relaxed text-content-muted">
         {t('remote-workspace:isolation')}
       </p>

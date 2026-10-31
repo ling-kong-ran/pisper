@@ -20,6 +20,7 @@ import { startupQueryOptions } from '@/lib/startup-queries'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { relativeTime } from '@/lib/format'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
 import { chatApi, type SessionTreeLabelMatch } from '@/features/chat/chat-api'
@@ -88,6 +89,8 @@ export function CommandPalette({
   const newTaskShortcut = useShortcutLabel('primaryAction')
   const terminalShortcut = useShortcutLabel('toggleTerminal')
   const listId = useId()
+  // 面板按需挂载、没有 DialogTrigger：关闭后焦点回到打开它的侧栏“搜索”或原来的输入位置。
+  const returnFocus = useOverlayFocusReturn(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const composing = useRef(false)
@@ -381,6 +384,7 @@ export function CommandPalette({
         showCloseButton={false}
         aria-busy={Boolean(pendingEntryId)}
         data-command-palette
+        onCloseAutoFocus={returnFocus}
         onEscapeKeyDown={(event) => {
           if (composing.current || pendingRef.current) event.preventDefault()
         }}

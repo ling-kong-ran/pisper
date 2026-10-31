@@ -141,12 +141,20 @@ test('feature page template: drag-only top bar, centered 760 column, back above 
   assert.match(html, /<ul role="list" data-feature-list="true"/)
   assert.equal(html.match(/data-feature-row="true"/g)?.length, 2)
   // 可展开的行：名称区是带 aria-expanded / aria-controls 的按钮，详情是以行名命名的区域；箭头不进 Tab 顺序。
-  assert.match(html, /data-feature-row-toggle="true" aria-expanded="true" aria-controls="([^"]+)"/)
-  const controls = html.match(/aria-controls="([^"]+)"/)[1]
+  // 按钮的读屏名称只取行名（与详情区域同一个 id），说明作为描述——不把附注、两行说明整段读成名称（A6 评审返修）。
+  const toggle = html.match(
+    /data-feature-row-toggle="true" aria-labelledby="([^"]+)" aria-describedby="([^"]+)" aria-expanded="true" aria-controls="([^"]+)"/,
+  )
+  assert.ok(toggle, 'toggle names itself by the row name and describes itself by the description')
+  const [, nameId, descriptionId, controls] = toggle
+  assert.match(html, new RegExp(`<span id="${nameId}"[^>]*>web_search</span>`))
+  assert.match(html, new RegExp(`<span id="${descriptionId}"[^>]*>联网搜索</span>`))
   assert.match(
     html,
     new RegExp(
-      `id="${controls}" role="region" aria-labelledby="[^"]+" data-feature-row-detail="true"`,
+      `id="${controls}" role="region" aria-labelledby="${nameId}" data-feature-row-detail="true" class="[^"]*` +
+        // 详情里的原生控件在手机上统一抬到 44（下拉、输入框、按钮；开关与复选框除外）。
+        `max-\\[650px\\]:\\[&amp;_button:not\\(\\[role=switch\\]\\)\\]:min-h-11[^"]*max-\\[650px\\]:\\[&amp;_select\\]:min-h-11`,
     ),
   )
   assert.match(html, /tabindex="-1" aria-hidden="true" title="展开 web_search 的详情"/)

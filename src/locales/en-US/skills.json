@@ -21,6 +21,7 @@
   "skillsPage.installedSkills": "Installed skills",
   "skillsPage.installSkill": "Install skill",
   "skillsPage.loadingSkills": "Loading skills",
+  "skillsPage.loadFailed": "Couldn’t load skills",
   "skillsPage.locallyReady": "Locally ready",
   "skillsPage.manualOnly": "Manual only",
   "skillsPage.noGlobalSkills": "No global Skills. Import one into ~/.pisper/agent/skills.",
@@ -54,7 +55,6 @@
   "skillsPage.uninstallSkill": "Uninstall skill",
   "skillsPage.userScopedConfiguration": "User-scoped configuration",
   "skillsPage.usesChatToolPermissions": "Uses chat tool permissions",
-  "skillsPage.useTheButtonInTheUpperRightToInstallAnAgentSkillsCompatibleSkill": "Use the button in the upper-right to install an Agent Skills-compatible skill.",
   "skillsPage.version": "Version",
   "skillsPage.lede": "Skills are reusable instructions and scripts for agents. Invoke them with /skill or let the model call them automatically.",
   "skillsPage.toggleSkillDetails": "Expand or collapse details for {name}"

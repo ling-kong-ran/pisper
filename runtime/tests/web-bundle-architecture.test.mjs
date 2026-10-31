@@ -564,17 +564,25 @@ test('mobile shell keeps navigation in the viewport and model settings retain re
   )
   assert.match(app, /app-body[^"\n]*min-h-0[^"\n]*flex-1[^"\n]*overflow-hidden/)
   assert.equal(app.match(/data-mobile-app=\{mobileLayout \|\| undefined\}/g)?.length, 2)
-  // 模型设置页为单列扁平结构：摘要 + 发现 + 连接列表 + 运行策略 + 视觉生成
+  // 模型设置页为单列扁平结构（A6 评审返修，效果图 desktop-settings-light.png）：
+  // 默认值三行（默认模型 / 思考强度 / 可用工具）+ 提供方行 + 折叠的更多设置（发现 + 视觉生成）。
   assert.doesNotMatch(models, /!grid-cols-/)
+  assert.match(models, /<ModelDefaultsSettings/)
   assert.match(models, /<ProviderWorkbench/)
   const workbench = await readFile('src/features/config/ProviderWorkbench.tsx', 'utf8')
-  // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界。
-  assert.match(workbench, /data-model-provider-split-panel/)
-  assert.match(workbench, /<nav[\s\S]*?aria-label=\{t\('config:configPage.connections'\)\}/)
+  // 布局与窄屏可读性由 smoke-pisper-ui 行为验收；这里保护统一连接工作台的职责边界：
+  // 提供方是功能页模板的行（FeatureRow，行内展开编辑），不再是左导航 + 右详情卡的两栏。
+  assert.match(workbench, /data-model-provider-list/)
+  assert.match(workbench, /<FeatureRow\b/)
+  assert.doesNotMatch(workbench, /<nav\b|data-model-provider-split-panel/)
   assert.match(workbench, /<ProviderConnectionEditor/)
   assert.match(workbench, /<ProviderModelEditor/)
   assert.doesNotMatch(workbench, /<Tabs|<ProviderConfigModal/)
-  assert.match(models, /<RuntimePolicySettings/)
+  const defaults = await readFile('src/features/config/ModelDefaultsSettings.tsx', 'utf8')
+  // 运行策略（思考强度、可用工具）在默认值行里，仍只走 PUT /api/config 且不改默认提供方。
+  assert.match(defaults, /data-config-target="models-runtime-policy"/)
+  assert.match(defaults, /setAsDefault: false/)
+  assert.doesNotMatch(models, /<RuntimePolicySettings/)
   assert.match(models, /<VisualGenerationSettings/)
   assert.match(connectionList, /value=\{provider\.configured && provider\.enabled\}/)
   assert.match(connectionList, /<Badge variant="accent">/)

@@ -86,6 +86,7 @@
   "pluginsPage.english": "English",
   "pluginsPage.highRisk": "High risk",
   "pluginsPage.loadingToolPlugins": "Loading tool plugins",
+  "pluginsPage.loadFailed": "Couldn’t load tool plugins",
   "pluginsPage.disableThisTool": "Disable this tool",
   "pluginsPage.policySaved": "Policy saved",
   "pluginsPage.disable": "Disable",

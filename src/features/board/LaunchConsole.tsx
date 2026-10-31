@@ -18,18 +18,12 @@ import {
 import {
   ArrowRight,
   ArrowUp,
-  BadgeCheck,
   Bot,
   ChevronDown,
   CornerDownLeft,
-  FileCheck2,
   Folder,
-  ListTodo,
   Shield,
   ShieldAlert,
-  Target,
-  Users,
-  type LucideIcon,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
@@ -109,18 +103,6 @@ export type LaunchConsoleProps = {
 }
 
 type LaunchError = { message: string; noModel: boolean }
-
-const EXECUTION_ICONS: Record<LaunchExecutionMode, LucideIcon> = {
-  'approval-required': FileCheck2,
-  'workspace-write': BadgeCheck,
-  'full-access': ShieldAlert,
-}
-
-const RUN_MODE_ICONS: Record<LaunchRunMode, LucideIcon> = {
-  plan: ListTodo,
-  goal: Target,
-  team: Users,
-}
 
 function useLaunchLabels() {
   const { t } = useI18n()
@@ -367,16 +349,20 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     }
 
     const lines = value.split('\n').length
-    const rows = Math.min(6, Math.max(3, lines))
-    const chipSize = variant === 'sheet' || composer ? 'default' : 'sm'
-    // 触屏上的 24px 小芯片：芯片行里与“派发”（触屏 44px）同一行，可见高度直接抬到 44；
-    // 输入框里的项目芯片保持可见尺寸，命中区用伪元素补到 44（单行启动台的输入框只有 32px 高）。
-    const rowChipTouch = chipSize === 'sm' ? 'pointer-coarse:min-h-11' : undefined
-    const projectChipTouch = chipSize === 'sm' ? TOUCH_HIT_AREA : undefined
-    const ExecutionIcon = EXECUTION_ICONS[executionMode]
-    const RunModeIcon = RUN_MODE_ICONS[runMode]
+    const sheet = variant === 'sheet'
+    // 手机底部表单与桌面派发同一条芯片工具行，宽度只有 358：模型只显示短名，Plan + 安全模式的盾牌只留图标。
+    const compact = compactChips || sheet
+    const chipSize = sheet || composer ? 'default' : 'sm'
+    // 手机底部表单：芯片与派发键都是 44 高（规格 7，触控目标 ≥44）。
+    // 桌面对话框的 24px 小芯片：触屏时可见高度直接抬到 44；项目芯片的命中区用伪元素补到 44。
+    const rowChipTouch = sheet
+      ? 'min-h-11'
+      : chipSize === 'sm'
+        ? 'pointer-coarse:min-h-11'
+        : undefined
+    const projectChipTouch = sheet ? 'min-h-11' : chipSize === 'sm' ? TOUCH_HIT_AREA : undefined
     const modelLabel = currentModel
-      ? compactChips
+      ? compact
         ? currentModel.label
         : `${currentModel.label}${shownThinking ? ` · ${labels.thinking(shownThinking)}` : ''}`
       : model
@@ -390,7 +376,15 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <Chip
             size={chipSize}
             // 手机草稿的工具行还要放模型与审批芯片：项目芯片收到 14ch，完整路径在菜单与悬停里。
-            className={cn(composer && touch ? 'max-w-[14ch]' : 'max-w-[24ch]', projectChipTouch)}
+            // 手机底部表单的工具行只有 358 宽：项目芯片可以继续收窄（完整路径在菜单与悬停里），给盾牌与模型留位置。
+            className={cn(
+              sheet
+                ? 'max-w-[13ch] min-w-0 shrink'
+                : composer && touch
+                  ? 'max-w-[14ch]'
+                  : 'max-w-[24ch]',
+              projectChipTouch,
+            )}
             title={project?.cwd || undefined}
             aria-label={t('board:launch.projectLabel', {
               project: project
@@ -402,7 +396,13 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           >
             <Folder aria-hidden="true" />
             {/* 目录名是机器路径，用等宽；“默认目录”是中文说明，不用等宽字体（规格 6.4）。 */}
-            <span className={cn('truncate', project?.label ? 'min-w-[8ch] font-mono' : 'min-w-0')}>
+            <span
+              className={cn(
+                'truncate',
+                project?.label && !sheet ? 'min-w-[8ch] font-mono' : 'min-w-0',
+                project?.label && sheet && 'font-mono',
+              )}
+            >
               {project?.label || t('board:launch.defaultProject')}
             </span>
             <ChevronDown aria-hidden="true" />
@@ -447,8 +447,9 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             size={chipSize}
             // 草稿输入框里的模型芯片与会话页一致：无描边、靠右（规格 v2 第 4.3 节）。
             className={cn(
-              'min-w-0 max-w-[24ch]',
-              (composer || variant === 'overlay') && 'border-transparent bg-transparent',
+              // 手机底部表单：与项目芯片分剩下的宽度，各自最多 13ch。
+              sheet ? 'max-w-[13ch] min-w-0' : 'min-w-0 max-w-[24ch]',
+              (composer || variant === 'overlay' || sheet) && 'border-transparent bg-transparent',
               rowChipTouch,
             )}
             title={t('board:launch.modelTitle', { model: modelLabel })}
@@ -501,87 +502,6 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         </DropdownMenuContent>
       </DropdownMenu>
     )
-    const approvalMenu = (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Chip
-            size={chipSize}
-            title={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
-            aria-label={`${t('chat:focusSession.approvalMode')} · ${labels.execution[executionMode]}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
-            // 完全访问会跳过所有审批：窄宽度下也写出文字并用警示色，派发前一眼能看到。
-            className={cn(
-              rowChipTouch,
-              executionMode === 'full-access' &&
-                'border-st-attn-border bg-st-attn-soft text-st-attn',
-            )}
-          >
-            <ExecutionIcon aria-hidden="true" />
-            {(!compactChips || executionMode === 'full-access') && (
-              <span className="truncate">{labels.execution[executionMode]}</span>
-            )}
-            <ChevronDown aria-hidden="true" />
-          </Chip>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={executionMode}
-            onValueChange={(next) => {
-              const mode = next as LaunchExecutionMode
-              setFullAccess(mode === 'full-access')
-              // 安全模式照常记住；完全访问只留在本次草稿里。
-              if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
-            }}
-          >
-            {LAUNCH_EXECUTION_MODES.map((mode) => (
-              <DropdownMenuRadioItem key={mode} value={mode}>
-                {mode === 'full-access' ? (
-                  <span className="flex min-w-0 flex-col">
-                    <span>{labels.execution[mode]}</span>
-                    <span className="text-xs text-content-muted">
-                      {t('board:launch.fullAccessOnce')}
-                    </span>
-                  </span>
-                ) : (
-                  labels.execution[mode]
-                )}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-    const runModeMenu = (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Chip
-            size={chipSize}
-            className={rowChipTouch}
-            title={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
-            aria-label={`${t('chat:focusSession.executionMode')} · ${labels.runMode[runMode]}`}
-          >
-            <RunModeIcon aria-hidden="true" />
-            {!compactChips && <span className="truncate">{labels.runMode[runMode]}</span>}
-            <ChevronDown aria-hidden="true" />
-          </Chip>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuLabel>{t('chat:focusSession.executionMode')}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={runMode}
-            onValueChange={(next) => defaults.rememberLaunch({ runMode: next as LaunchRunMode })}
-          >
-            <DropdownMenuRadioItem value="plan">{labels.runMode.plan}</DropdownMenuRadioItem>
-            {options.goalsAvailable && (
-              <DropdownMenuRadioItem value="goal">{labels.runMode.goal}</DropdownMenuRadioItem>
-            )}
-            {options.teamAvailable && (
-              <DropdownMenuRadioItem value="team">{labels.runMode.team}</DropdownMenuRadioItem>
-            )}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
     // 主页新任务草稿的工具行与会话页输入框一致（规格 v2 第 4.3 节）：审批模式与执行方式合在一枚盾牌芯片里，
     // 模型芯片靠右、紧挨石墨圆形发送键。完全访问只对本次草稿生效，芯片用盾牌警示图标与文字区分，不染琥珀。
     const ModeIcon = executionMode === 'full-access' ? ShieldAlert : Shield
@@ -594,16 +514,19 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         <DropdownMenuTrigger asChild>
           <Chip
             size={chipSize}
-            className={cn('min-w-0 max-w-[26ch] border-transparent bg-transparent', rowChipTouch)}
+            className={cn(
+              'min-w-0 max-w-[26ch] border-transparent bg-transparent',
+              // 手机底部表单只剩盾牌图标：不让它被项目芯片挤没。
+              sheet && 'flex-none',
+              rowChipTouch,
+            )}
             title={`${t('chat:focusSession.approvalMode')} · ${modeLabel}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
             aria-label={`${t('chat:focusSession.approvalMode')} · ${modeLabel}${fullAccess ? ` · ${t('board:launch.fullAccessOnce')}` : ''}`}
             data-launch-mode={`${runMode}:${executionMode}`}
           >
             <ModeIcon aria-hidden="true" />
             <span className="truncate">
-              {compactChips && runMode === 'plan' && executionMode !== 'full-access'
-                ? ''
-                : modeLabel}
+              {compact && runMode === 'plan' && executionMode !== 'full-access' ? '' : modeLabel}
             </span>
             <ChevronDown aria-hidden="true" />
           </Chip>
@@ -661,30 +584,16 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const chips = (
       <div
         ref={chipRowRef}
-        data-fade={composer ? chipFade : undefined}
+        data-fade={chipFade}
         data-launch-chips
+        // 输入框工具行：窄屏放不下时横向滑动，不截断芯片；被裁的一端渐隐，提示还能滑。
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5',
-          variant === 'sheet'
-            ? 'flex-wrap overflow-visible'
-            : // 输入框工具行：窄屏放不下时横向滑动，不截断芯片；被裁的一端渐隐，提示还能滑。
-              composer
-              ? cn('overflow-x-auto [scrollbar-width:none]', SCROLL_FADE_CLASS)
-              : 'overflow-hidden',
+          'flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]',
+          SCROLL_FADE_CLASS,
         )}
       >
-        {composer ? (
-          <>
-            {projectChip}
-            {modeMenu}
-          </>
-        ) : (
-          <>
-            {modelMenu}
-            {approvalMenu}
-            {runModeMenu}
-          </>
-        )}
+        {projectChip}
+        {modeMenu}
       </div>
     )
 
@@ -709,74 +618,15 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     ) : (
       <Button
         type="button"
-        size={variant === 'sheet' ? 'lg' : 'sm'}
-        className={cn(
-          'flex-none',
-          variant === 'sheet' && 'min-h-11 w-full px-4',
-          composer && 'pointer-coarse:min-h-11',
-        )}
-        disabled={composer && pending > 0}
+        size="sm"
+        className={cn('flex-none', sheet && 'min-h-11 px-4')}
         onClick={() => void dispatch(false)}
-        aria-keyshortcuts={composer ? ariaKeyShortcuts(sendBinding) : 'Enter'}
+        aria-keyshortcuts="Enter"
       >
-        {composer ? t('board:home.send') : t('board:launch.dispatch')}
-        <CornerDownLeft aria-hidden="true" className="opacity-70" />
+        {t('board:launch.dispatch')}
+        {/* 手机没有回车键位提示：只写“派发”。 */}
+        {!sheet && <CornerDownLeft aria-hidden="true" className="opacity-70" />}
       </Button>
-    )
-
-    // 手机底部表单（含手机空看板）：“在 [项目 ▾] 中”单独一行，输入框占满下一行。
-    // 同一行并排时输入框只剩项目芯片让出的宽度，390 宽下只有约 112px。
-    const stacked = variant === 'sheet'
-    const input = (
-      <div
-        className={cn(
-          'flex min-w-0 flex-1 items-start gap-1.5 rounded-sm border border-control bg-panel px-2 transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring',
-          'py-1',
-          stacked && 'min-h-11 flex-wrap gap-y-1 py-1.5',
-        )}
-      >
-        <span
-          className={cn(
-            'flex flex-none items-center gap-1 text-sm text-content-muted',
-            'pt-0.5',
-            stacked && 'max-w-full min-w-0',
-          )}
-        >
-          <span aria-hidden="true">{t('board:launch.in')}</span>
-          {projectChip}
-          <span aria-hidden="true">{t('board:launch.inSuffix')}</span>
-        </span>
-        <label htmlFor={inputId} className="sr-only">
-          {t('board:launch.inputLabel')}
-        </label>
-        <textarea
-          ref={inputRef}
-          id={inputId}
-          data-launch-input
-          autoFocus={autoFocus}
-          rows={rows}
-          value={value}
-          // 触屏没有 Tab：手机底部表单用不带键盘提示的占位文字。
-          placeholder={
-            variant === 'sheet' ? t('board:launch.placeholderTouch') : t('board:launch.placeholder')
-          }
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          aria-keyshortcuts="Enter Meta+Enter Control+Enter Shift+Enter"
-          onChange={(event) => {
-            setValue(event.target.value)
-            if (error && !error.noModel) setError(null)
-          }}
-          onKeyDown={keyDown}
-          // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
-          className={cn(
-            'min-w-0 flex-1 resize-none bg-transparent text-sm leading-6 text-content caret-st-attn-fill outline-none placeholder:text-content-muted',
-            // 触屏：文本框至少 44px 高。
-            !stacked && 'pointer-coarse:min-h-11',
-            stacked && 'min-h-11 w-full basis-full text-[calc(var(--text-base)+1px)]',
-          )}
-        />
-      </div>
     )
 
     const errorLine = error && (
@@ -851,74 +701,59 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     // 桌面派发对话框（规格 2.5，效果图 extra-dispatch-light.png）：无框的大输入区在上，下面一条工具行
     // [项目 ▾]（描边）[盾牌 审批 · 执行方式 ▾] … [模型 · 思考 ▾] [派发 ↵]，与主页新任务草稿同一套芯片；
     // 键位不变（↵ 派发、⌘↵ 派发并打开、⇧↵ 换行、Tab 在开头切项目）。
-    if (variant === 'overlay')
-      return (
-        <section
-          aria-label={t('board:launch.title')}
-          data-launch-console={variant}
-          className={cn('flex min-w-0 flex-col', className)}
-        >
-          <label htmlFor={inputId} className="sr-only">
-            {t('board:launch.inputLabel')}
-          </label>
-          <textarea
-            ref={inputRef}
-            id={inputId}
-            data-launch-input
-            autoFocus={autoFocus}
-            rows={Math.min(8, Math.max(3, lines))}
-            value={value}
-            placeholder={t('board:launch.placeholder')}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? errorId : undefined}
-            aria-keyshortcuts="Enter Meta+Enter Control+Enter Shift+Enter"
-            onChange={(event) => {
-              setValue(event.target.value)
-              if (error && !error.noModel) setError(null)
-            }}
-            onKeyDown={keyDown}
-            // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
-            className="max-h-[240px] min-h-[72px] w-full min-w-0 resize-none bg-transparent px-5 pt-1 pb-2 text-[15px] leading-6 text-content caret-st-attn-fill outline-none placeholder:text-content-muted"
-          />
-          {errorLine && <div className="px-5 pb-1">{errorLine}</div>}
-          <div className="flex min-w-0 items-center gap-1.5 px-3 pb-3" data-launch-toolbar>
-            <div
-              ref={chipRowRef}
-              data-launch-chips
-              className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
-            >
-              {projectChip}
-              {modeMenu}
-            </div>
-            {status}
-            <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
-            {submit}
-          </div>
-        </section>
-      )
-
+    // 手机底部表单（规格 7.2）用同一条工具行，芯片与派发键都是 44 高；输入框带细线外框、16px 字（iOS 不放大），
+    // 占满表单宽度。原先“在 [项目] 中”前缀 + 模型 / 审批 / Plan 三枚芯片换行的旧布局随之删除。
     return (
       <section
         aria-label={t('board:launch.title')}
         data-launch-console={variant}
-        className={cn('flex min-w-0 flex-col gap-2', className)}
+        className={cn('flex min-w-0 flex-col', className)}
       >
-        {input}
-        {errorLine}
-        {variant === 'sheet' ? (
-          // 手机底部表单：芯片自由换行，派发键独占一行的 44px 大按钮。
-          <>
-            {chips}
-            {status}
-            {submit}
-          </>
-        ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            {chips}
-            {status}
-            {submit}
+        <label htmlFor={inputId} className="sr-only">
+          {t('board:launch.inputLabel')}
+        </label>
+        <textarea
+          ref={inputRef}
+          id={inputId}
+          data-launch-input
+          autoFocus={autoFocus}
+          rows={Math.min(8, Math.max(3, lines))}
+          value={value}
+          // 触屏没有 Tab：手机底部表单用不带键盘提示的占位文字。
+          placeholder={sheet ? t('board:launch.placeholderTouch') : t('board:launch.placeholder')}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          aria-keyshortcuts="Enter Meta+Enter Control+Enter Shift+Enter"
+          onChange={(event) => {
+            setValue(event.target.value)
+            if (error && !error.noModel) setError(null)
+          }}
+          onKeyDown={keyDown}
+          // 启动台是“轮到你了”的输入位：琥珀光标是规格允许的唯一例外。
+          className={cn(
+            'w-full min-w-0 resize-none bg-transparent text-content caret-st-attn-fill outline-none placeholder:text-content-muted',
+            sheet
+              ? 'max-h-[40dvh] min-h-[88px] rounded-[var(--r-md)] border border-control bg-panel px-3 py-2.5 text-[16px] leading-6 transition-[border-color,box-shadow] duration-(--d-fast) focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring'
+              : 'max-h-[240px] min-h-[72px] px-5 pt-1 pb-2 text-[15px] leading-6',
+          )}
+        />
+        {errorLine && <div className={sheet ? 'pt-1.5' : 'px-5 pb-1'}>{errorLine}</div>}
+        <div
+          className={cn('flex min-w-0 items-center gap-1.5', sheet ? 'pt-2' : 'px-3 pb-3')}
+          data-launch-toolbar
+        >
+          <div
+            ref={chipRowRef}
+            data-launch-chips
+            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+          >
+            {projectChip}
+            {modeMenu}
           </div>
-        )}
+          {status}
+          <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
+          {submit}
+        </div>
       </section>
     )
   },

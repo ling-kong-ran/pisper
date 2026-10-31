@@ -1,4 +1,6 @@
-// 模型设置：连接列表/详情分栏；保留本地导入、快速向导及运行策略。
+// 设置 › 模型（方向 A，效果图 desktop-settings-light.png、样稿 settings.html）：页标题下面是默认值三行
+// （默认模型、思考强度、可用工具，选中即保存），然后是“提供方”分区（每个提供方一行，原位展开编辑连接与模型，
+// 末尾“添加提供方”走快速设置），最后是折叠的“更多设置”（本地配置导入、图片 / 视频模型）。
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
@@ -12,7 +14,7 @@ import { ProviderConfigModal } from './ProviderDialogs'
 import { ProviderDiscovery } from './ProviderDiscovery'
 import { providerDiscoveryImportableCount } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
-import { RuntimePolicySettings } from './RuntimeSettings'
+import { ModelDefaultsSettings } from './ModelDefaultsSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
 import { VisualGenerationSettings } from './VisualGenerationSettings'
 import type { Notify } from '@/app/route-context'
@@ -21,7 +23,8 @@ import type { ProviderConfig, ProviderType } from './config-types'
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
-import { AppError, AppEmptyState } from '@/components/ui/app-primitives'
+import { FeatureAlert } from '@/components/app/FeaturePage'
+import { PageState } from '@/components/app/PageState'
 
 // 连接管理区展开状态持久化：用户显式展开后记住选择，否则保持折叠。
 const MANAGE_CONNECTIONS_STORAGE_KEY = 'pisper.config.manageConnectionsOpen'
@@ -91,21 +94,30 @@ export function ModelsSettings({
   usePagePrimaryAction(registerPrimaryAction, () => setWizard({ providerType: 'chat' }))
 
   if (!config) {
-    return (
-      <AppEmptyState>
-        <OrbitSpinner className="size-6" />
-        <h2>{t('config:configPage.loadingModelCatalog')}</h2>
-        <p>{t('config:configPage.readingProvidersAndAuthenticationStatus')}</p>
-        {settings.error && <AppError>{settings.error}</AppError>}
-      </AppEmptyState>
+    return settings.error && !settings.loading ? (
+      <PageState
+        kind="error"
+        title={t('config:providerWorkbench.loadFailed')}
+        description={settings.error}
+        action={
+          <Button
+            variant="secondary"
+            className="max-[650px]:h-11"
+            onClick={() => void settings.reload()}
+          >
+            {t('common:pageTemplate.retry')}
+          </Button>
+        }
+      />
+    ) : (
+      <PageState
+        kind="loading"
+        title={t('config:configPage.loadingModelCatalog')}
+        description={t('config:configPage.readingProvidersAndAuthenticationStatus')}
+      />
     )
   }
 
-  const defaultProviderId = config.defaultProvider || config.provider
-  const defaultProvider = config.providers.find(
-    (item) => item.id === defaultProviderId && item.configured,
-  )
-  const defaultModel = config.defaultModel || config.model
   // 扫描结果只提供轻提示，不覆盖用户的折叠偏好，也不自动展开管理区。
   const manageOpenEffective = manageOpen ?? false
   const importableCount = providerDiscoveryImportableCount(discovery.discovery)
@@ -118,26 +130,13 @@ export function ModelsSettings({
 
   return (
     <>
-      {/* 页头大标题下的 13px 说明行：当前默认模型（等宽 ID）与本地配置接入读数。 */}
-      <div className="mb-5 grid min-w-0 gap-1 text-sm text-content-muted">
-        {defaultProvider && defaultModel && (
-          <p className="min-w-0 truncate">
-            {t('config:configPage.currentChatModel')} ·{' '}
-            <span className="font-medium text-content">{defaultProvider.name}</span>
-            {' / '}
-            <span className="font-mono text-[12.5px] text-content">{defaultModel}</span>
-          </p>
-        )}
-        <p className="flex min-w-0 items-center gap-2 text-xs tabular-nums" role="status">
-          {discovery.discovering && <OrbitSpinner className="size-3" />}
-          {discovery.discovering
-            ? t('config:providerWorkbench.scanningLocal')
-            : t('config:providerWorkbench.localImportStatus', {
-                imported: discovery.autoImport.imported,
-                skipped: discovery.autoImport.skipped,
-              })}
-        </p>
-      </div>
+      <ModelDefaultsSettings
+        config={config}
+        notify={notify}
+        busy={Boolean(settings.settingDefault || settings.toggling)}
+        onConfigChanged={settings.applyConfig}
+        onSetDefaultModel={settings.setDefaultChatModel}
+      />
       <ProviderWorkbench
         config={config}
         selectedProviderId={selectedProviderId}
@@ -157,8 +156,20 @@ export function ModelsSettings({
         onSetDefault={settings.setDefaultProvider}
         onSetDefaultModel={settings.setProviderDefaultModel}
         onAddConnection={() => setWizard({ providerType: 'chat' })}
+        meta={
+          // 本地配置（Claude Code / Codex）自动接入的读数，跟在分区标题后面。
+          <span className="inline-flex items-center gap-1.5" role="status">
+            {discovery.discovering && <OrbitSpinner className="size-3" />}
+            {discovery.discovering
+              ? t('config:providerWorkbench.scanningLocal')
+              : t('config:providerWorkbench.localImportStatus', {
+                  imported: discovery.autoImport.imported,
+                  skipped: discovery.autoImport.skipped,
+                })}
+          </span>
+        }
       />
-      {settings.error && <AppError>{settings.error}</AppError>}
+      {settings.error && <FeatureAlert>{settings.error}</FeatureAlert>}
       {importableCount > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-content-muted">
           <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>
@@ -208,13 +219,6 @@ export function ModelsSettings({
             onRefresh={discovery.refresh}
             onImport={discovery.importProvider}
           />
-          <div data-config-target="models-runtime-policy" className="mt-3">
-            <RuntimePolicySettings
-              config={config}
-              notify={notify}
-              onConfigChanged={settings.applyConfig}
-            />
-          </div>
           <VisualGenerationSettings
             config={config}
             notify={notify}
@@ -227,9 +231,12 @@ export function ModelsSettings({
               const provider = config.providers.find((item) => item.id === providerId)
               if (provider) {
                 setSelectedProviderId(provider.id)
-                document
-                  .querySelector('[data-model-provider-split-panel]')
-                  ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                // 展开的提供方行在下一帧才渲染，等它出现再滚过去。
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector(`[data-provider-row="${CSS.escape(provider.id)}"]`)
+                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+                )
               }
             }}
           />

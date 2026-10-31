@@ -2,6 +2,7 @@
 // 外形用功能页模板（规格 A6 第 1 批）：工具行放搜索、分类筛选与主操作“导入全局 Skill”；全局 / 项目技能与
 // 技能包都是列表行，点行在下方展开详情（原右侧检查器的内容）；数据流与改版前相同。
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -515,7 +516,7 @@ export function SkillsPage({
         // 读取失败不显示成“没有技能”：写明错误并给重试（规格 1.5 诚实降级）。
         <PageState
           kind="error"
-          title={t('skills:skillsPage.loadingSkills')}
+          title={t('skills:skillsPage.loadFailed')}
           description={error}
           action={
             <Button
@@ -535,14 +536,7 @@ export function SkillsPage({
       ) : (
         <>
           {/* 读取成功后的操作失败（启停、保存、卸载）：写在列表上方，不再静默吞掉。 */}
-          {error && (
-            <p
-              role="alert"
-              className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-            >
-              {error}
-            </p>
-          )}
+          {error && <FeatureAlert>{error}</FeatureAlert>}
           {filter !== 'project' &&
             renderSkillScope(
               t('skills:skillsPage.globalSkills'),

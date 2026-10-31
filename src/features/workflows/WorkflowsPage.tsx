@@ -344,8 +344,11 @@ function WorkflowEditorHeader({
 }
 
 // 编辑器工具的文字：桌面写全，手机只留图标（读屏名称不变，触控目标 44）。
+// 页头不够宽时（1080 窗口 + Windows 自绘标题栏右侧让出 144）也只留图标，三个命令不必掉到第二行，页头保持一行 52。
 function ToolLabel({ children }: { children: ReactNode }) {
-  return <span className="max-[650px]:sr-only">{children}</span>
+  return (
+    <span className="max-[650px]:sr-only @max-[760px]/workflow-header:sr-only">{children}</span>
+  )
 }
 
 export function WorkflowBuilder({ notify, registerWorkflowActions }: WorkflowBuilderProps) {

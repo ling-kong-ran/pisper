@@ -7,6 +7,7 @@ import { AppSelect } from '@/components/AppSelect'
 import { cn } from '@/lib/utils'
 import { providerApiOptions } from './provider-constants'
 import { providerApi } from './provider-api'
+import { FeatureAlert } from '@/components/app/FeaturePage'
 import { SettingsField } from './settings-primitives'
 import type { ConfigData, ProviderConfig } from './config-types'
 export type ProviderConnectionDraft = { name: string; api: string; baseUrl: string; apiKey: string }
@@ -36,7 +37,7 @@ export function ProviderConnectionEditor({
   draft: ProviderConnectionDraft
   onDraftChange: (draft: ProviderConnectionDraft | undefined) => void
   onSavingChange: (saving: boolean) => void
-  // 详情卡在表单字段与底部保存栏之间插入的内容（模型表）；保存栏因此落在卡片底边。
+  // 详情在表单字段与底部保存栏之间插入的内容（模型表）；保存栏因此落在详情底边。
   children?: ReactNode
 }) {
   const { t } = useI18n()
@@ -66,7 +67,8 @@ export function ProviderConnectionEditor({
   }
   return (
     <form onSubmit={(event) => void save(event)} data-provider-connection-editor>
-      <fieldset disabled={saving} className="min-w-0 divide-y divide-stroke-soft px-4 py-1">
+      {/* 字段在提供方行的详情里原位展开，左缘与行名对齐，不再有卡片内边距。 */}
+      <fieldset disabled={saving} className="min-w-0 divide-y divide-stroke-soft">
         <SettingsField label={t('config:configPage.displayName')} htmlFor={`${fieldId}-name`}>
           <Input
             id={`${fieldId}-name`}
@@ -121,21 +123,15 @@ export function ProviderConnectionEditor({
           />
         </SettingsField>
       </fieldset>
-      {error && (
-        <p
-          role="alert"
-          className="mx-4 mb-3 rounded-sm bg-danger-soft px-2.5 py-2 text-sm text-danger"
-        >
-          {error}
-        </p>
-      )}
+      {/* 保存失败是已发生的结果，不是字段校验错误：中性提示（规格 6.1）。 */}
+      {error && <FeatureAlert className="mt-2 mb-3">{error}</FeatureAlert>}
       {children}
-      {/* 保存栏常驻卡片底边：无改动时禁用，避免出现/消失造成布局跳动；
-          有改动时吸附在滚动视口底部，模型很多也不必翻过整张模型表才能保存。 */}
+      {/* 保存栏常驻详情底边：无改动时禁用，避免出现/消失造成布局跳动；
+          有改动时吸附在滚动视口底部（纸面底色盖住下面滚过的行），模型很多也不必翻过整张模型表才能保存。 */}
       <div
         className={cn(
-          'flex flex-wrap items-center justify-end gap-2 border-t border-stroke bg-surface-subtle px-4 py-3',
-          dirty && 'sticky bottom-0 z-[1]',
+          'flex flex-wrap items-center justify-end gap-2 border-t border-stroke-soft py-3',
+          dirty && 'sticky bottom-0 z-[1] bg-background',
         )}
       >
         {dirty && (

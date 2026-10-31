@@ -287,33 +287,35 @@ export function ShortcutSettings({
 
   return (
     <section className="w-full min-w-0" data-config-card="shortcuts-bindings">
-      {/* 页标题已经是“快捷键”，这里不再重复卡片标题，只留“全部恢复默认”。 */}
-      <div className="mb-1 flex items-center justify-end gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="pointer-coarse:size-11 max-[650px]:size-11"
-          disabled={!changed}
-          title={t('config:shortcuts.resetAll')}
-          aria-label={t('config:shortcuts.resetAll')}
-          onClick={() => void reset()}
-        >
-          <RotateCcw className="size-4" />
-        </Button>
-      </div>
       <div className="flex flex-col gap-5">
-        {SHORTCUT_GROUPS.map((group) => (
+        {SHORTCUT_GROUPS.map((group, index) => (
           <section
             key={group.id}
             aria-labelledby={`shortcut-group-${group.id}`}
             data-shortcut-group={group.id}
           >
-            <h3
-              id={`shortcut-group-${group.id}`}
-              className="text-[13px] leading-6 font-semibold text-content"
-            >
-              {text.groups[group.id].title}
-            </h3>
+            {/* “全部恢复默认”是带文字的按钮，放在第一个分区标题右侧（原先是页面右上角一个孤立的 ↺ 图标）。 */}
+            <div className="flex min-h-7 items-center justify-between gap-3">
+              <h3
+                id={`shortcut-group-${group.id}`}
+                className="text-[13px] leading-6 font-semibold text-content"
+              >
+                {text.groups[group.id].title}
+              </h3>
+              {index === 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-shortcuts-reset-all
+                  className="-mr-2 text-content-secondary max-[650px]:h-11 pointer-coarse:h-11"
+                  disabled={!changed}
+                  onClick={() => void reset()}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  {t('config:shortcuts.resetAll')}
+                </Button>
+              )}
+            </div>
             <p className="mb-2 text-xs text-content-muted">{text.groups[group.id].hint}</p>
             <SettingsGroup>{group.entries.map(renderEntry)}</SettingsGroup>
           </section>

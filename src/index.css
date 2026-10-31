@@ -224,7 +224,6 @@
   --duration-slow: 300ms;
   --d1: var(--duration-fast);
   --d2: var(--duration-normal);
-  /* 泳道迁移：卡片 FLIP 换泳道的时长，配合 --ease-enter。 */
 
   /* ── 字体：数值档位由 ui-preferences 按用户字号内联覆盖 ── */
   --ui-font-size: 14px;

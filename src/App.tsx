@@ -905,7 +905,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const moreOwned = shellTab === 'more' && page !== 'more'
   const backToMore = useCallback(() => routerNavigate(PAGE_PATHS.more), [routerNavigate])
   const routeContext: AppRouteContext = {
-    query,
     activeSessionId,
     navigate,
     notify,

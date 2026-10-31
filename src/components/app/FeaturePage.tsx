@@ -6,7 +6,7 @@
 // “‹ 功能”保留为 44px 文字返回键（iOS 没有返回键）；触控目标 ≥44，一列，不横向滚动。
 // 本组件不含业务语义：标题、文案、搜索框、按钮与行内容都由调用方经参数与插槽传入。
 import { useId, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
-import { ChevronDown, ChevronLeft, Search, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronLeft, Search, X } from 'lucide-react'
 import { Kbd } from '@/components/ui/kbd'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
@@ -231,6 +231,29 @@ export function FeatureSection({
   )
 }
 
+// 页内失败提示：读取或操作失败（刷新、保存、启停、删除）是已经发生的结果，不是表单校验错误，也不是“需要你”，
+// 所以用中性底 + 1px 细线 + 警示图标（规格 6.1：红色只留给删除类按钮文字与表单字段错误，琥珀只表示需要你）；
+// role="alert" 让读屏立即播报。数据保留在下方，失败提示只写在列表上方。
+export function FeatureAlert({ className, children, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      role="alert"
+      data-feature-alert
+      {...props}
+      className={cn(
+        'mt-4 flex min-w-0 items-start gap-2 rounded-[var(--r-md)] border border-stroke bg-surface-subtle px-3 py-2 text-xs leading-relaxed [overflow-wrap:anywhere] text-content-secondary',
+        className,
+      )}
+    >
+      <AlertTriangle
+        className="mt-[3px] size-3.5 flex-none text-content-muted"
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+}
+
 // 列表：上缘一条细线，行之间细线分隔；role="list" 让 Safari 在去掉列表样式后仍读出列表语义。
 export function FeatureList({ className, ...props }: ComponentProps<'ul'>) {
   return (
@@ -256,6 +279,11 @@ const PHONE_ROW_COLUMNS: Record<number, string> = {
   2: 'max-[650px]:grid-cols-[minmax(0,1fr)_auto]',
   3: 'max-[650px]:grid-cols-[minmax(0,1fr)_auto_auto]',
 }
+
+// 详情里的表单控件（下拉、输入框、文件夹 / 测试等按钮）在手机上统一抬到 44：详情内容由各页传入，
+// 由容器给后代统一加，与右侧 actions 的做法一样，避免逐页漏改（开关、复选框、滑块不受影响）。
+const DETAIL_TOUCH_TARGETS =
+  'max-[650px]:[&_button:not([role=switch])]:min-h-11 max-[650px]:[&_input:not([type=checkbox]):not([type=radio]):not([type=range])]:min-h-11 max-[650px]:[&_select]:min-h-11'
 
 // 列表行：图标 36 · 名称（可带等宽版本号等附注）+ 一句说明 · 右侧状态 · 操作（开关、按钮）。
 // 同时给了 detail 与 onExpandedChange 时行可展开（只给 detail 则常显在行下方）：名称区是带 aria-expanded 的按钮，右端的折叠箭头只是鼠标与触屏的大热区
@@ -297,6 +325,7 @@ export function FeatureRow({
   openLabel?: string
 }) {
   const nameId = useId()
+  const descriptionId = useId()
   const detailId = useId()
   const expandable = detail !== undefined && Boolean(onExpandedChange) && !onOpen
   const toggle = () => onExpandedChange?.(!expanded)
@@ -322,7 +351,10 @@ export function FeatureRow({
           )}
         </span>
         {description && (
-          <span className="line-clamp-2 text-[13px] leading-[1.45] [overflow-wrap:anywhere] text-content-muted">
+          <span
+            id={descriptionId}
+            className="line-clamp-2 text-[13px] leading-[1.45] [overflow-wrap:anywhere] text-content-muted"
+          >
             {description}
           </span>
         )}
@@ -368,6 +400,10 @@ export function FeatureRow({
           <button
             type="button"
             data-feature-row-toggle
+            // 读屏名称只取行名（与详情 region 同一个名字），说明作为描述：否则聚焦时会把图标、附注、
+            // 两行说明与附注行整段读一遍。
+            aria-labelledby={nameId}
+            aria-describedby={description ? descriptionId : undefined}
             aria-expanded={expanded}
             aria-controls={expanded ? detailId : undefined}
             onClick={toggle}
@@ -419,7 +455,11 @@ export function FeatureRow({
               role="region"
               aria-labelledby={nameId}
               data-feature-row-detail
-              className={cn('min-w-0 pb-4 max-[650px]:pl-0', icon ? 'pl-[50px]' : 'pl-0')}
+              className={cn(
+                'min-w-0 pb-4 max-[650px]:pl-0',
+                DETAIL_TOUCH_TARGETS,
+                icon ? 'pl-[50px]' : 'pl-0',
+              )}
             >
               {detail}
             </div>
@@ -428,7 +468,11 @@ export function FeatureRow({
             // 没有折叠开关时 detail 常显：行的附加信息（例如服务地址与“查看连接配置”、行内操作的错误）。
             <div
               data-feature-row-detail
-              className={cn('min-w-0 pb-3 max-[650px]:pl-0', icon ? 'pl-[50px]' : 'pl-0')}
+              className={cn(
+                'min-w-0 pb-3 max-[650px]:pl-0',
+                DETAIL_TOUCH_TARGETS,
+                icon ? 'pl-[50px]' : 'pl-0',
+              )}
             >
               {detail}
             </div>

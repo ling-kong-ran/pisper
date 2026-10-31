@@ -148,14 +148,25 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     titleKey: 'config:configPage.manageConnections',
     keywords: ['provider', 'connection', 'api key', 'import', '连接', '供应商', '导入', '密钥'],
   },
+  // 思考强度与可用工具（A6 评审返修）挪到页标题下的默认值三行，不再藏在“更多设置”里，搜到时不用先展开。
   {
     id: 'models-runtime-policy',
     section: 'models',
-    card: 'models-advanced',
+    card: 'models-current-model',
     targetId: 'models-runtime-policy',
-    expandGroup: 'models-advanced',
     titleKey: 'config:configPage.agentRuntimePolicy',
-    keywords: ['runtime', 'agent', 'policy', '运行策略', '运行时', '执行策略'],
+    keywords: [
+      'runtime',
+      'agent',
+      'policy',
+      'thinking',
+      'tools',
+      '运行策略',
+      '运行时',
+      '执行策略',
+      '思考强度',
+      '可用工具',
+    ],
   },
   {
     id: 'models-visual',

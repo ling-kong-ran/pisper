@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
-import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import type { StatusGlyphKind } from '@/components/app/status-glyph-kinds'
@@ -292,7 +292,12 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               />
             ) : null}
             {pairingError ? (
-              <p className="text-center text-xs leading-relaxed text-danger">{pairingError}</p>
+              <p
+                role="alert"
+                className="text-center text-xs leading-relaxed text-content-secondary"
+              >
+                {pairingError}
+              </p>
             ) : null}
             {pairing ? (
               <div className="text-center">
@@ -339,14 +344,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
       </Dialog>
 
       {/* 读到之后的刷新失败：写在最上面，已显示的状态保留（原来整页换成一行错误）。 */}
-      {loadError && (
-        <p
-          role="alert"
-          className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs text-danger"
-        >
-          {loadError}
-        </p>
-      )}
+      {loadError && <FeatureAlert>{loadError}</FeatureAlert>}
       <FeatureSection
         title={t('config:remoteAccess.thisComputer')}
         data-config-card="remote-access-main"
@@ -534,7 +532,7 @@ export function RemoteAccessSettings({ notify }: { notify: Notify }) {
               }
               detail={
                 pairingError && !pairingOpen ? (
-                  <p className="text-xs leading-relaxed text-danger" aria-live="polite">
+                  <p className="text-xs leading-relaxed text-content-secondary" aria-live="polite">
                     {pairingError}
                   </p>
                 ) : undefined

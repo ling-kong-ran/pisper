@@ -151,6 +151,48 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     [applyConfig, notify, t],
   )
 
+  // 设置 › 模型的“默认模型”一行：跨提供方选一个对话模型作为新会话默认值。
+  // 先写该提供方的默认模型，再（如果换了提供方）把它设为默认提供方——沿用两个已有接口，不新增协议字段。
+  const setDefaultChatModel = useCallback(
+    async (provider: ProviderConfig, model: string) => {
+      setSettingDefault(provider.id)
+      setError('')
+      try {
+        let updated = await apiJson<ConfigData>('/api/config', {
+          method: 'PUT',
+          body: JSON.stringify({ provider: provider.id, model, setAsDefault: false }),
+        })
+        if ((updated.defaultProvider || updated.provider) !== provider.id)
+          updated = await apiJson<ConfigData>('/api/config', {
+            method: 'PUT',
+            body: JSON.stringify({ provider: provider.id, setAsDefault: true }),
+          })
+        applyConfig(updated)
+        notify(t('config:configPage.defaultProviderUpdated', { name: provider.name }))
+      } catch (caught) {
+        setError(errorMessage(caught))
+      } finally {
+        setSettingDefault('')
+      }
+    },
+    [applyConfig, notify, t],
+  )
+
+  // 首次读取失败后的“重新读取”：错误态写明原因并给重试（规格 1.5 诚实降级）。
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const revision = configRevision.current
+    try {
+      const data = await apiJson<ConfigData>('/api/config')
+      if (mounted.current && configRevision.current === revision) applyConfig(data)
+    } catch (caught) {
+      if (mounted.current) setError(errorMessage(caught))
+    } finally {
+      if (mounted.current) setLoading(false)
+    }
+  }, [applyConfig])
+
   const deleteModel = useCallback(
     async (provider: ProviderConfig, model: ProviderModel) => {
       const approved = await requestConfirm({
@@ -210,7 +252,9 @@ export function useProvidersConfig({ notify, requestConfirm, t }: UseProvidersCo
     applyConfig,
     refreshConfig,
     setDefaultProvider,
+    setDefaultChatModel,
     setProviderDefaultModel,
+    reload,
     toggleProvider,
     deleteProvider,
     deleteModel,

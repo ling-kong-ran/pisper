@@ -405,12 +405,9 @@ export function NotificationSettings({
           : permission === 'checking'
             ? t('config:notificationSettings.checking')
             : t('config:notificationSettings.waitingForPermission')
+  // 只有“等你授权”是需要你（琥珀，规格 6.1）；被拦截、已关闭、不支持是已经发生的结果，用中性读数而不是红色。
   const permissionTone =
-    permission === 'granted'
-      ? 'green'
-      : permission === 'default' || permission === 'checking'
-        ? 'amber'
-        : 'red'
+    permission === 'granted' ? 'green' : permission === 'default' ? 'amber' : 'gray'
 
   return (
     <div className="flex flex-col gap-6">
@@ -443,7 +440,7 @@ export function NotificationSettings({
           </span>
           <div className="min-w-0 flex-1 basis-48">
             <p className="text-sm font-medium text-content">
-              {t('config:notificationSettings.notification')}
+              {t('config:notificationSettings.systemNotificationChannel')}
             </p>
             <p className="mt-0.5 text-xs leading-[1.45] text-content-muted">
               {t(
@@ -454,7 +451,7 @@ export function NotificationSettings({
           <div className="ml-auto flex items-center gap-3">
             <Badge tone={permissionTone}>{permissionLabel}</Badge>
             <Toggle
-              ariaLabel={t('config:notificationSettings.notification')}
+              ariaLabel={t('config:notificationSettings.systemNotificationChannel')}
               value={data.browser.enabled}
               disabled={browserSaving || permission === 'checking'}
               onChange={updateBrowser}

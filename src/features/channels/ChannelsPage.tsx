@@ -1,5 +1,6 @@
 import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -479,15 +480,7 @@ export function ChannelsPage({ notify, onBack, requestConfirm }: ChannelsPagePro
   ).length
   return (
     <ChannelsFrame onBack={onBack} query={query} onQueryChange={setQuery}>
-      {error && (
-        <p
-          role="alert"
-          className="mt-4 flex items-start gap-1.5 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-        >
-          <AlertTriangle className="mt-px size-3.5 flex-none" aria-hidden="true" />
-          {error}
-        </p>
-      )}
+      {error && <FeatureAlert>{error}</FeatureAlert>}
       <FeatureSection
         title={t('channels:channelsPage.platforms')}
         count={PROVIDER_ENTRIES.length}
@@ -519,6 +512,8 @@ export function ChannelsPage({ notify, onBack, requestConfirm }: ChannelsPagePro
                     <Button
                       variant="secondary"
                       size="sm"
+                      // 手机上只剩图标（文字 sr-only），宽度也要抬到 44，不只是高度。
+                      className="max-[650px]:min-w-11"
                       loading={starting === platform}
                       disabled={starting === platform}
                       title={connectActionLabel(platform, Boolean(connection), t)}
@@ -1163,7 +1158,7 @@ function OnboardingModal({
         {(!manual || job.id || terminal) && (
           <div
             className={cn(
-              'feishu-qr-stage mt-3.5 flex min-h-[min(330px,52dvh)] flex-col items-center justify-center gap-2.5 rounded-md border border-stroke bg-surface-subtle p-4 text-center [&_img]:w-[248px] [&_img]:max-w-[86%] [&_img]:rounded-md [&_img]:border [&_img]:border-stroke [&_img]:bg-[var(--lightbox-action-bg)] [&_img]:p-2 [&_p]:max-w-[330px] [&_p]:text-xs [&_p]:leading-normal [&_p]:text-danger [&_small]:text-xs [&_small]:text-content-muted [&_small]:tabular-nums [&_strong]:text-sm [&_strong]:font-medium [&.completed]:text-success [&.failed]:text-danger',
+              'feishu-qr-stage mt-3.5 flex min-h-[min(330px,52dvh)] flex-col items-center justify-center gap-2.5 rounded-md border border-stroke bg-surface-subtle p-4 text-center [&_img]:w-[248px] [&_img]:max-w-[86%] [&_img]:rounded-md [&_img]:border [&_img]:border-stroke [&_img]:bg-[var(--lightbox-action-bg)] [&_img]:p-2 [&_p]:max-w-[330px] [&_p]:text-xs [&_p]:leading-normal [&_p]:text-content-secondary [&_small]:text-xs [&_small]:text-content-muted [&_small]:tabular-nums [&_strong]:text-sm [&_strong]:font-medium [&.completed]:text-success [&.failed]:text-content-secondary',
               job.status,
             )}
           >

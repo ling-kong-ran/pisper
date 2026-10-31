@@ -2,14 +2,12 @@
 import { CheckCircle2, Download, Terminal, Trash2, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
-import { SettingsBadge as Badge, SettingsCard as Panel } from './settings-primitives'
+import { FeatureAlert, FeatureSection } from '@/components/app/FeaturePage'
 import type { Notify } from '@/app/route-context'
 import type { DesktopCliStatus } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
-
-import { AppError, AppNotice } from '@/components/ui/app-primitives'
 
 export function CliSettings({ notify }: { notify: Notify }) {
   const { t } = useI18n()
@@ -78,63 +76,49 @@ export function CliSettings({ notify }: { notify: Notify }) {
             ? t('config:cliSettings.installed')
             : t('config:cliSettings.notInstalled')
 
+  // 与更新页其他分区同一结构（分区标题 + 细线内容，左缘与页标题对齐）；状态读数中性。
   return (
-    <Panel className="py-4" data-config-card="updates-cli">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
-        <span className="grid size-9.5 shrink-0 place-items-center rounded-lg border border-key-border bg-key text-content shadow-key">
-          <Terminal size={18} aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-[15px]! leading-6 font-medium text-content">
-            {t('config:cliSettings.title')}
-          </h2>
-          <p className="mt-0.5 text-xs leading-[1.55] text-content-muted">
-            {t('config:cliSettings.description')}
-          </p>
-        </div>
-        <Badge
-          className="self-center"
-          tone={
-            status?.installed && !status.needsRepair
-              ? 'green'
-              : status?.needsRepair
-                ? 'blue'
-                : 'gray'
-          }
-        >
-          {stateLabel}
-        </Badge>
-      </div>
-
+    <FeatureSection
+      data-config-card="updates-cli"
+      title={t('config:cliSettings.title')}
+      description={t('config:cliSettings.description')}
+      actions={<span className="text-xs text-content-secondary">{stateLabel}</span>}
+    >
       {status && (
-        <AppNotice className="mt-4 [&_small]:[overflow-wrap:anywhere] [&_small]:font-mono [&_small]:text-xs">
+        <div className="flex min-w-0 items-start gap-3 border-t border-stroke py-3">
           {status.installed && !status.needsRepair ? (
-            <CheckCircle2 size={16} />
+            <CheckCircle2
+              className="mt-0.5 shrink-0 text-content-muted"
+              size={16}
+              aria-hidden="true"
+            />
           ) : (
-            <Terminal size={16} />
+            <Terminal className="mt-0.5 shrink-0 text-content-muted" size={16} aria-hidden="true" />
           )}
-          <span>
-            <strong>
+          <div className="grid min-w-0 gap-0.5">
+            <strong className="text-sm font-medium text-content">
               {status.installed
                 ? t('config:cliSettings.commandReady', { command: status.command })
                 : t('config:cliSettings.commandNotInstalled', { command: status.command })}
             </strong>
-            <small>{status.installPath}</small>
+            <small className="font-mono text-xs [overflow-wrap:anywhere] text-content-muted">
+              {status.installPath}
+            </small>
             {status.installed && (
-              <small>
+              <small className="text-xs text-content-muted">
                 {status.pathConfigured
                   ? t('config:cliSettings.pathConfigured')
                   : t('config:cliSettings.pathNeedsRepair')}
               </small>
             )}
-          </span>
-        </AppNotice>
+          </div>
+        </div>
       )}
 
-      {error && <AppError>{error}</AppError>}
+      {error && <FeatureAlert>{error}</FeatureAlert>}
 
       {supported && (
-        <div className="mt-3.5 flex justify-end gap-2 max-[650px]:flex-wrap">
+        <div className="mt-3 flex gap-2 max-[650px]:flex-wrap">
           {status?.installed && (
             <Button
               type="button"
@@ -177,6 +161,6 @@ export function CliSettings({ notify }: { notify: Notify }) {
           {t('config:cliSettings.restartTerminal')}
         </small>
       )}
-    </Panel>
+    </FeatureSection>
   )
 }

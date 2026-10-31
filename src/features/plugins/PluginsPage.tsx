@@ -2,6 +2,7 @@
 // 外形用功能页模板（规格 A6 第 1 批）：工具行放搜索、来源筛选与主操作“保存策略”，工具与扩展都是列表行，
 // 行内展开详情；数据流（草稿 → 保存策略、卸载前先保存）与改版前相同。
 import {
+  FeatureAlert,
   FeatureList,
   FeaturePage,
   FeatureRow,
@@ -456,11 +457,7 @@ function ExtensionMarket({
             {t('plugins:pluginsPage.search')}
           </Button>
         </form>
-        {marketError && (
-          <p role="alert" className="mb-3 text-xs text-danger">
-            {marketError}
-          </p>
-        )}
+        {marketError && <FeatureAlert className="mt-0 mb-3">{marketError}</FeatureAlert>}
         {visiblePackages.length > 0 && (
           // 目录结果也是列表行（不是卡片墙）：名称、说明（最多两行）、发布日期，右侧“安装 / 已安装”。
           <FeatureList>
@@ -737,7 +734,7 @@ export function PluginsPage({ notify, onBack, requestText, requestConfirm }: Plu
         error ? (
           <PageState
             kind="error"
-            title={t('plugins:pluginsPage.loadingToolPlugins')}
+            title={t('plugins:pluginsPage.loadFailed')}
             description={error}
             action={
               <Button

@@ -460,6 +460,28 @@ try {
   await page.keyboard.press('Escape')
   await page.locator('[data-launch-console="overlay"]').waitFor({ state: 'detached' })
   assert.equal(hashOf(page), `#/board/${id}`)
+  // A6 评审返修：派发与 ⌘K 没有 DialogTrigger，关闭后焦点要回到打开它的地方（Radix 默认落到 body）。
+  // 键盘在侧栏“新任务”“搜索”上按 Enter 打开、Esc 关闭，焦点回到同一个侧栏按钮；⌘N 从输入框打开的回到输入框。
+  await page.waitForFunction(
+    () => document.activeElement?.matches('.focus-composer textarea'),
+    undefined,
+    { timeout: 3000 },
+  )
+  for (const [entry, opened] of [
+    ['[data-shell-sidebar] [data-sidebar-entry="newTask"]', '[data-launch-console="overlay"]'],
+    ['[data-shell-sidebar] [data-sidebar-entry="search"]', '[data-command-palette]'],
+  ]) {
+    await page.locator(entry).focus()
+    await page.keyboard.press('Enter')
+    await page.locator(opened).waitFor()
+    await page.keyboard.press('Escape')
+    await page.locator(opened).waitFor({ state: 'detached' })
+    await page.waitForFunction(
+      (selector) => document.activeElement === document.querySelector(selector),
+      entry,
+      { timeout: 3000 },
+    )
+  }
   // ⇧⌘B 归会话树（规格 v2 第 2.8 节），不再离开会话页：会话有对话（顶栏有 ⑂）时打开会话树，Esc 关掉；
   // ⌘1 从输入框里打开看板。
   await page.locator('.focus-composer textarea').first().click()

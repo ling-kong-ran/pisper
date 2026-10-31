@@ -457,35 +457,65 @@ try {
   })
   await prompt.fill('return home keeps this draft')
   await shellTab('settings').click()
-  await page.locator('[data-model-provider-split-panel]').waitFor()
+  await page.locator('[data-model-provider-list]').waitFor()
   // A6：设置分区的页标题是目录里的短名（主区不再重复“设置 / 模型配置”面包屑与大标题）。
   await page.getByRole('heading', { name: '模型', level: 1, exact: true }).waitFor()
   assert.equal(await page.getByText('模型配置', { exact: true }).count(), 0)
   assert.match(page.url(), /config\/models/)
-  const connectionList = page
-    .locator('[data-model-provider-split-panel]')
-    .getByRole('navigation', { name: '连接', exact: true })
+  // A6 评审返修：提供方是 FeatureRow 行（效果图 desktop-settings-light.png），展开一行原位编辑；
+  // 行的折叠键读屏名称就是提供方名称（aria-labelledby 指向行名），展开状态用 aria-expanded。
+  const connectionList = page.locator('[data-model-provider-list]')
+  const providerToggles = connectionList.locator('[data-feature-row-toggle]')
   const visibleProviders = (await api('/api/config')).providers.filter(
     (item) => item.configured || item.custom,
   )
   assert.deepEqual(
-    await connectionList
-      .getByRole('button')
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))),
+    await providerToggles.evaluateAll((nodes) =>
+      nodes.map(
+        (node) => document.getElementById(node.getAttribute('aria-labelledby')).textContent,
+      ),
+    ),
     visibleProviders.map((item) => item.name),
   )
+  // 进入页面时全部收起（效果图），默认值三行在提供方分区上面。
+  assert.deepEqual(
+    await providerToggles.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('aria-expanded')),
+    ),
+    visibleProviders.map(() => 'false'),
+  )
+  await page
+    .locator('[data-config-target="models-runtime-policy"]')
+    .getByText('默认模型', { exact: true })
+    .waitFor()
+  const providerRow = (name) =>
+    connectionList.locator('[data-feature-row]').filter({
+      has: page.getByRole('button', { name, exact: true }),
+    })
   const defaultConnection = connectionList.getByRole('button', {
     name: 'PI Local UI Test',
     exact: true,
   })
-  await defaultConnection.getByText('默认', { exact: true }).waitFor()
+  await providerRow('PI Local UI Test').locator('[data-provider-default]').waitFor()
   await connectionList.getByRole('button', { name: 'PI Alternate UI Test', exact: true }).click()
-  assert.equal(await defaultConnection.getByText('默认', { exact: true }).isVisible(), true)
-  assert.equal(await defaultConnection.getAttribute('aria-current'), null)
-  assert.equal(await connectionList.getByText('默认', { exact: true }).count(), 1)
+  assert.equal(
+    await connectionList
+      .getByRole('button', { name: 'PI Alternate UI Test', exact: true })
+      .getAttribute('aria-expanded'),
+    'true',
+  )
+  assert.equal(
+    await providerRow('PI Local UI Test').locator('[data-provider-default]').isVisible(),
+    true,
+  )
+  assert.equal(await defaultConnection.getAttribute('aria-expanded'), 'false')
+  assert.equal(await connectionList.locator('[data-provider-default]').count(), 1)
   await defaultConnection.click()
+  assert.equal(await defaultConnection.getAttribute('aria-expanded'), 'true')
+  // 同一时刻只展开一行。
+  assert.equal(await connectionList.locator('[data-provider-connection-editor]').count(), 1)
   report.checks.push(
-    'Default provider badge remains on the default connection when viewing another connection',
+    'Provider rows start collapsed under the defaults rows; the default marker stays on the default provider while another row is expanded; one row open at a time',
   )
   // “快速设置”在页内工具行（A6，共享页头退役）。
   const quickSetup = page.locator('main [data-settings-quick-setup]').getByText('快速设置', {
@@ -513,7 +543,7 @@ try {
   const savedProviderName = 'PI UI Saved During Catalog Refresh'
   await nameInput.fill(savedProviderName)
   await configForm.getByRole('button', { name: '保存修改', exact: true }).click()
-  await page.getByRole('heading', { name: savedProviderName, exact: true }).waitFor()
+  await connectionList.getByRole('button', { name: savedProviderName, exact: true }).waitFor()
   const staleCatalogFinished = page.waitForEvent('requestfinished', {
     predicate: (request) => request.url().endsWith('/api/providers/models/refresh'),
   })
@@ -528,14 +558,18 @@ try {
     'late catalog response must not overwrite a saved connection',
   )
   assert.equal(
-    await page.locator('[data-model-provider-split-panel] h2').textContent(),
+    await connectionList
+      .locator('[data-feature-row][data-expanded="true"] [data-feature-row-toggle]')
+      .evaluate(
+        (node) => document.getElementById(node.getAttribute('aria-labelledby')).textContent,
+      ),
     savedProviderName,
-    'late catalog must preserve the saved provider heading',
+    'late catalog must preserve the saved provider name on the expanded row',
   )
   await page.unroute('**/api/providers/models/refresh')
   await nameInput.fill(originalProviderName)
   await configForm.getByRole('button', { name: '保存修改', exact: true }).click()
-  await page.getByRole('heading', { name: originalProviderName, exact: true }).waitFor()
+  await connectionList.getByRole('button', { name: originalProviderName, exact: true }).waitFor()
   report.checks.push(
     'late background catalog refresh cannot overwrite a newly saved provider configuration',
   )
@@ -604,8 +638,7 @@ try {
     await editor.getByText(`PI fixture rejected batch ${outcome}`, { exact: true }).waitFor()
     assert.match(connectionId, /^custom-[0-9a-f]{32}$/)
     assert.equal(
-      await page
-        .locator('[data-model-provider-split-panel]')
+      await connectionList
         .getByRole('button', { name: connectionName, exact: true, includeHidden: true })
         .count(),
       1,
@@ -617,7 +650,7 @@ try {
       await editor.getByRole('button', { name: '关闭对话框', exact: true }).click()
     }
     await editor.waitFor({ state: 'hidden' })
-    await page.getByRole('heading', { name: connectionName, exact: true }).waitFor()
+    await connectionList.getByRole('button', { name: connectionName, exact: true }).waitFor()
     const savedProvider = (await api('/api/config')).providers.find(
       (item) => item.id === connectionId,
     )
@@ -634,9 +667,9 @@ try {
     assert.equal(
       await connectionList
         .getByRole('button', { name: connectionName, exact: true })
-        .getAttribute('aria-current'),
+        .getAttribute('aria-expanded'),
       'true',
-      'a committed connection stays selected after retry or close',
+      'a committed connection stays expanded after retry or close',
     )
     const deleteModel = page.getByRole('button', { name: `删除模型 ${model}`, exact: true })
     await deleteModel.click()
@@ -658,12 +691,12 @@ try {
     assert.ok(remainingProvider.configured, 'deleting a model retains the connection and key')
     assert.ok(!remainingProvider.models.some((item) => item.id === model))
     assert.equal(remainingProvider.models.length, outcome === 'retry' ? 1 : 0)
-    await page.getByRole('heading', { name: connectionName, exact: true }).waitFor()
-    await page.getByRole('button', { name: originalProviderName, exact: true }).click()
+    await connectionList.getByRole('button', { name: connectionName, exact: true }).waitFor()
+    await connectionList.getByRole('button', { name: originalProviderName, exact: true }).click()
     await api(`/api/providers/${connectionId}`, 'DELETE')
   }
   report.checks.push(
-    'Quick setup discovers models or accepts manual IDs after discovery failure; partial creation stays visible and selected, retry creates only once, and close retains the saved connection',
+    'Quick setup discovers models or accepts manual IDs after discovery failure; partial creation stays visible and expanded, retry creates only once, and close retains the saved connection',
     'Model deletion supports cancel and confirmation, removes only the selected model, and retains an empty provider connection after the last model is deleted',
   )
 

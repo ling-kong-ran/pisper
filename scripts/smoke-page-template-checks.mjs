@@ -209,9 +209,37 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
             regionOverflow <= 1,
             `${width}px expanded schedule overflows: ${regionOverflow}`,
           )
+          // 手机宽度（A6 评审返修）：展开后详情里的原生控件（下拉、输入框、按钮）也 ≥44，不只量收起的行。
+          if (width <= 390) {
+            const small = await region
+              .locator(
+                'select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), button:not([role=switch])',
+              )
+              .evaluateAll((nodes) =>
+                nodes
+                  .filter((node) => node.getClientRects().length)
+                  .map((node) => ({
+                    name: (node.getAttribute('aria-label') || node.textContent || node.name || '')
+                      .trim()
+                      .slice(0, 30),
+                    height: node.getBoundingClientRect().height,
+                  }))
+                  .filter((item) => item.height < 43.5),
+              )
+            assert.deepEqual(small, [], `${width}px expanded schedule targets below 44px`)
+          }
+          // 收起再展开同一行：未保存的修改还在（草稿按任务 id 保存，替代已删除的列表 / 详情常驻保护）。
+          const draftField = region.locator('textarea').first()
+          const draftBefore = await draftField.inputValue()
+          await draftField.fill(`${draftBefore} (unsaved ${width})`)
           await toggle.click()
           await region.waitFor({ state: 'detached' })
           assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
+          await toggle.click()
+          await region.waitFor()
+          assert.equal(await draftField.inputValue(), `${draftBefore} (unsaved ${width})`)
+          await toggle.click()
+          await region.waitFor({ state: 'detached' })
         }
       }
       await page.screenshot({

@@ -1,9 +1,11 @@
 // 派发浮层：按 ⌘N 或点“新任务”时出现，字段与看板启动台相同（项目、模型 + 思考档位、
 // 审批模式、Plan 模式）。桌面是 640px 的对话框（方向 A，效果图 extra-dispatch-light.png）：
-// 顶部一行“新任务 … Esc”，无框输入区，芯片工具行，底部一条细线隔开的说明；手机外壳是带拖拽条的底部表单。
+// 顶部一行“新任务 … Esc”，无框输入区，芯片工具行，底部一条细线隔开的说明；手机外壳是带拖拽条的底部表单
+// （同一条芯片工具行，44 高）。
 // ↵ 派发后关闭浮层、留在当前页；⌘↵ 派发后打开该会话。运行流由看板 store 持有，关闭浮层不影响运行。
 import { Info } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import {
   Dialog,
   DialogClose,
@@ -40,6 +42,8 @@ export function DispatchOverlay({
   onConfigureModels,
 }: DispatchOverlayProps) {
   const { t } = useI18n()
+  // 由侧栏“新任务”、⌘N 或顶栏 ✎ 打开，没有 DialogTrigger：关闭后焦点回到打开它的按钮。
+  const returnFocus = useOverlayFocusReturn(open)
   const consoleBody = (
     <LaunchConsole
       variant={phone ? 'sheet' : 'overlay'}
@@ -59,6 +63,7 @@ export function DispatchOverlay({
           side="bottom"
           showCloseButton={false}
           aria-describedby="board-dispatch-description"
+          onCloseAutoFocus={returnFocus}
           className="max-h-[90dvh] gap-3 overflow-y-auto rounded-t-(--r-sheet) px-4 pt-2 pb-[calc(16px+var(--pisper-safe-area-bottom))]"
         >
           <span
@@ -67,8 +72,9 @@ export function DispatchOverlay({
           />
           <SheetHeader className="p-0">
             <SheetTitle>{t('board:dispatch.title')}</SheetTitle>
+            {/* 手机没有侧栏，新代理出现在抽屉的“运行中”。 */}
             <SheetDescription id="board-dispatch-description">
-              {t('board:dispatch.description')}
+              {t('board:dispatch.descriptionPhone')}
             </SheetDescription>
           </SheetHeader>
           {consoleBody}
@@ -81,6 +87,7 @@ export function DispatchOverlay({
         showCloseButton={false}
         aria-describedby="board-dispatch-description"
         data-dispatch-dialog
+        onCloseAutoFocus={returnFocus}
         // 640 宽、r-lg、实心底（规格 6.4）；上缘在视口 1/7 处，不压在页面正中，长任务描述向下长。
         className="top-[max(16px,13vh)] max-w-[min(92vw,640px)] translate-y-0 gap-0 overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-solid p-0"
       >

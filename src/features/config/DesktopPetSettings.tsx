@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Blend, Cat, Check, Download, ExternalLink, Search, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { PageState } from '@/components/app/PageState'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Switch } from '@/components/ui/switch'
@@ -229,14 +229,7 @@ export function DesktopPetSettings({ notify, requestConfirm }: DesktopPetSetting
 
   return (
     <>
-      {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-[var(--r-md)] border border-danger-border bg-danger-soft px-3 py-2 text-xs [overflow-wrap:anywhere] text-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <FeatureAlert>{error}</FeatureAlert>}
       <FeatureSection
         title={t('config:desktopPetSettings.displayTitle')}
         data-config-card="desktop-pet-settings"

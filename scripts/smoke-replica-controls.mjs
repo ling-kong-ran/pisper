@@ -238,7 +238,7 @@ export async function verifyReplicaControls() {
 
     // 会话页真实页头的标题 ▾ 菜单（A6 起取代旧顶栏 TaskWorkspaceHeader，同一个 id task-<id>-more）：
     // “重命名”执行一次并关上菜单，焦点回到标题键。主题切换不在会话菜单里了（规格 2.5：⌘K“切换主题”与设置 › 界面），
-    // 跟随系统的循环由 smoke-session-home 经 ⌘K 覆盖。
+    // 跟随系统的循环由 smoke-pisper-ui 经 ⌘K“切换主题”覆盖。
     const workspaceMore = page.locator('#task-control-probe-more')
     await workspaceMore.click()
     await menu.waitFor()

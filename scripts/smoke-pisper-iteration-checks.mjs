@@ -12,9 +12,10 @@ export async function verifyPisperIteration({
   alternate,
 }) {
   await page.goto(base + '/#/config/models')
-  const panel = page.locator('[data-model-provider-split-panel]')
+  // 提供方行（A6 评审返修）：行名即折叠键的读屏名称，展开一行原位编辑；收起或换展开另一行，草稿都留着。
+  const panel = page.locator('[data-model-provider-list]')
   await panel.waitFor()
-  const connections = panel.getByRole('navigation', { name: '连接', exact: true })
+  const connections = panel
   await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()
   const form = panel.locator('[data-provider-connection-editor]')
   const name = form.getByLabel('显示名称', { exact: true })
@@ -22,10 +23,15 @@ export async function verifyPisperIteration({
   await connections.getByRole('button', { name: 'PI Alternate UI Test', exact: true }).click()
   await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()
   assert.equal(await name.inputValue(), 'PI unsaved connection draft')
+  // 收起同一行再展开，草稿同样保留。
+  await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()
+  assert.equal(await form.count(), 0)
+  await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()
+  assert.equal(await name.inputValue(), 'PI unsaved connection draft')
   await name.fill('PI Local UI Test')
   await page.getByText('本地配置自动接入 · 新增 0 项 · 待检查 0 项', { exact: true }).waitFor()
   report.checks.push(
-    'Provider switch preserves an unsaved connection draft in memory; local import counts interpolate',
+    'Switching or collapsing provider rows preserves an unsaved connection draft in memory; local import counts interpolate',
   )
 
   const modelId = 'pi-image-capability-ui'

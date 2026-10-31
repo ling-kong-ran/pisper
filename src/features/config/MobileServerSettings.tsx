@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Plus, Server, Smartphone, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
+import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { InlineEmptyState } from '@/components/app/PageState'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { MobilePairingDialog } from './MobilePairingDialog'
@@ -147,11 +147,7 @@ export function MobileServerSettings({
         ) : null}
       </div>
       <MobilePairingDialog open={pairingOpen} onOpenChange={setPairingOpen} />
-      {error ? (
-        <p role="alert" className="mt-3 text-xs text-danger">
-          {error}
-        </p>
-      ) : null}
+      {error ? <FeatureAlert className="mt-3">{error}</FeatureAlert> : null}
 
       <FeatureSection
         title={t('config:mobileServer.localTitle')}

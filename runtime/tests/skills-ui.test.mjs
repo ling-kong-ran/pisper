@@ -15,7 +15,8 @@ test('skill list items clamp long descriptions instead of growing with full text
   )
   assert.match(
     template,
-    /\{description && \(\s*<span className="line-clamp-2 [^"]*">\s*\{description\}/,
+    // 说明 span 带 id（A6 评审返修：展开键用 aria-describedby 指向它），仍是最多两行。
+    /\{description && \(\s*<span\s+id=\{descriptionId\}\s+className="line-clamp-2 [^"]*"\s*>\s*\{description\}/,
   )
   const detail = source.slice(source.indexOf('const renderSkillDetail'))
   assert.match(detail, /whitespace-pre-line text-content-soft">\s*\{skill\.description \|\|/)

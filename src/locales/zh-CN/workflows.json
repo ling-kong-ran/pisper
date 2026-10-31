@@ -139,7 +139,7 @@
   "workflowsPage.nodeModel": "节点模型",
   "workflowsPage.nodeName": "节点名称",
   "workflowsPage.noMatchingWorkflows": "还没有符合条件的工作流",
-  "workflowsPage.emptyHint": "点右上角“新建工作流”开始，或从模板、文件导入。",
+  "workflowsPage.emptyHint": "点“新建工作流”开始，或从模板、文件导入。",
   "workflowsPage.noRunHistory": "暂无运行记录",
   "workflowsPage.notEnabled": "未启用",
   "workflowsPage.outputPort": "输出端口",
