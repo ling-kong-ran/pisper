@@ -13,16 +13,21 @@ import {
 const bounds = { width: 1000, height: 700 }
 const widget = { width: 380, height: 88 }
 
-// 评审返修（A7）：未定位的浮窗停在右下角、向上叠，一列放不下向左错开，不再压在页头中线下方的第一屏内容上。
-test('unpositioned floating widgets start in the bottom-right corner and stack upward', () => {
+// 评审返修（A7）：未定位的浮窗停在右下角、向上叠，一列放不下向左错开，不再压在页头中线下方的第一屏内容上；
+// 底部让出 160px 输入框区，不压住发送键。
+test('unpositioned floating widgets start bottom-right above the composer and stack upward', () => {
   const card = { width: 260, height: 96 }
   const pixels = (index, area = bounds) =>
     floatingPositionPixels(defaultFloatingPlacement(area, card, index), area, card)
-  assert.deepEqual(pixels(0), { x: 732, y: 596 })
-  assert.deepEqual(pixels(1), { x: 732, y: 488 })
-  assert.deepEqual(pixels(2), { x: 732, y: 380 })
-  // 一列放 6 个（(700 - 96 - 16) / 108 + 1）；第 7 个起向左错开一列。
-  assert.deepEqual(pixels(6), { x: 460, y: 596 })
+  assert.deepEqual(pixels(0), { x: 732, y: 444 })
+  assert.deepEqual(pixels(1), { x: 732, y: 336 })
+  assert.deepEqual(pixels(2), { x: 732, y: 228 })
+  // 一列放 5 个（(700 - 96 - 160 - 8) / 108 + 1）；第 6 个起向左错开一列。
+  assert.deepEqual(pixels(5), { x: 460, y: 444 })
+  // 底边都在输入框区之上。
+  for (const index of [0, 1, 2, 3, 4]) assert.ok(pixels(index).y + card.height <= 700 - 160)
+  // 可用高度不足输入框区：退到顶部。
+  assert.equal(pixels(0, { width: 1000, height: 200 }).y, 0)
   const positions = [0, 1, 2, 3, 4, 5, 6, 7].map((index) => pixels(index))
   assert.equal(new Set(positions.map((value) => `${value.x},${value.y}`)).size, positions.length)
   for (const position of positions) {

@@ -470,48 +470,49 @@ export function SessionInspector({
               </button>
             )
           })}
-          {!sheet && (
-            <Popover open={addOpen} onOpenChange={setAddOpen}>
-              <PopoverTrigger asChild>
+        </div>
+        {/* “+”不是标签：放在可横滚的标签行之外，组件标签多了也不会被挤出可视区，方向键也不会落到它上面。 */}
+        {!sheet && (
+          <Popover open={addOpen} onOpenChange={setAddOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="flex-none"
+                aria-label={t('board:inspector.add')}
+                title={t('board:inspector.add')}
+                data-inspector-component-add
+              >
+                <Plus aria-hidden="true" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 text-xs">
+              {componentTabs?.addMenu ? (
+                componentTabs.addMenu({
+                  cwd,
+                  onAdded: (id) => {
+                    setComponentTab(id)
+                    setAddOpen(false)
+                  },
+                })
+              ) : (
+                <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
+              )}
+              {onOpenComponents && (
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="flex-none"
-                  aria-label={t('board:inspector.add')}
-                  title={t('board:inspector.add')}
-                  data-inspector-component-add
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  onClick={onOpenComponents}
                 >
-                  <Plus aria-hidden="true" />
+                  {t('board:inspector.openComponents')}
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 text-xs">
-                {componentTabs?.addMenu ? (
-                  componentTabs.addMenu({
-                    cwd,
-                    onAdded: (id) => {
-                      setComponentTab(id)
-                      setAddOpen(false)
-                    },
-                  })
-                ) : (
-                  <p className="text-content-secondary">{t('board:inspector.addHint')}</p>
-                )}
-                {onOpenComponents && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="self-start"
-                    onClick={onOpenComponents}
-                  >
-                    {t('board:inspector.openComponents')}
-                  </Button>
-                )}
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        )}
         <Button
           type="button"
           variant="ghost"

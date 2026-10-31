@@ -257,11 +257,12 @@ try {
   await page.goto(`${base}/#/more`)
   await floating.locator('[data-fixture-ok="v1"]').waitFor({ timeout: 30_000 })
   const before = await floating.boundingBox()
-  // 没有保存位置时停在右下角，不压住页头与第一屏内容（评审返修）。
+  // 没有保存位置时停在右下角，不压住页头与第一屏内容（评审返修）；底部让出输入框区（底边在视口底 160px 以上）。
   const viewport = page.viewportSize()
   assert.ok(
     before.x + before.width >= viewport.width - 40 &&
-      before.y + before.height >= viewport.height - 40,
+      before.y + before.height <= viewport.height - 160 &&
+      before.y + before.height >= viewport.height - 220,
     `floating default ${JSON.stringify(before)}`,
   )
   const handle = floating.locator('[data-floating-move]')
@@ -789,10 +790,19 @@ try {
   await hostPage.keyboard.press('ArrowRight')
   await settle(hostPage)
   assert.equal(await componentTab.getAttribute('aria-selected'), 'true')
+  // “+”在横滚标签行之外：组件标签再多也完整可见、可点（A7 截图发现两个组件标签时被挤出可视区）。
+  const addVisible = await inspector
+    .locator('[data-inspector-component-add]')
+    .evaluate((button) => {
+      const box = button.getBoundingClientRect()
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+      return Boolean(hit && button.contains(hit)) && !button.closest('[role="tablist"]')
+    })
+  assert.equal(addVisible, true)
   assert.equal(await noHorizontalScroll(hostPage), true)
   await hostPage.screenshot({ path: join(output, 'session-panel-1440.png') })
   report.checks.push(
-    'Session inspector: a session-panel instance scoped to another project stays hidden; “+” → 仅此项目 re-scopes it, the tab appears selected and renders with ctx.session = this session at the inspector width; arrow keys move across fixed and component tabs',
+    'Session inspector: a session-panel instance scoped to another project stays hidden; “+” → 仅此项目 re-scopes it, the tab appears selected and renders with ctx.session = this session at the inspector width; arrow keys move across fixed and component tabs; “+” stays outside the scrolling tab row',
   )
 
   // 工作室预览与全部代理卡片 1:1（评审返修）：预览框描边不占布局，组件拿到的正好是标注的 320×248 / 320×120。

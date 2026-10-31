@@ -933,7 +933,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <figcaption><span class="chip built">已实现 · A7</span>1080 “组件 N”弹层</figcaption></figure>
       <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" aria-label="放大：效果图：会话检查器"><img src="drafts/redesign/claude-sidebar/extra-session-inspector-rail-light.png" alt="效果图：会话检查器" loading="lazy"></button>
         <figcaption><span class="chip draft">效果图</span>会话检查器</figcaption></figure>
-      <figure><button type="button" data-full="built/a7-inspector-component-tab-light.png" aria-label="放大：实现：会话检查器：固定标签（改动 / 终端 / 文件 / 预览）后是组件标签“发布倒计时”“便签”，选中的组件拿到检查器宽度；两枚组件标签时标签行末的“+”被挤出可视区（已知问题，见下）"><img src="built/a7-inspector-component-tab-light.png" alt="实现：会话检查器：固定标签（改动 / 终端 / 文件 / 预览）后是组件标签“发布倒计时”“便签”，选中的组件拿到检查器宽度；两枚组件标签时标签行末的“+”被挤出可视区（已知问题，见下）" loading="lazy"></button>
+      <figure><button type="button" data-full="built/a7-inspector-component-tab-light.png" aria-label="放大：实现：会话检查器：固定标签（改动 / 终端 / 文件 / 预览）后是组件标签“发布倒计时”“便签”，选中的组件拿到检查器宽度；“+”移出了可横滚的标签行，组件标签再多也完整可见"><img src="built/a7-inspector-component-tab-light.png" alt="实现：会话检查器：固定标签（改动 / 终端 / 文件 / 预览）后是组件标签“发布倒计时”“便签”，选中的组件拿到检查器宽度；“+”移出了可横滚的标签行，组件标签再多也完整可见" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · A7</span>检查器组件标签</figcaption></figure>
       <figure><button type="button" data-full="drafts/redesign/claude-sidebar/extra-features-light.png" aria-label="放大：效果图：功能索引"><img src="drafts/redesign/claude-sidebar/extra-features-light.png" alt="效果图：功能索引" loading="lazy"></button>
         <figcaption><span class="chip draft">效果图</span>功能索引</figcaption></figure>
@@ -941,7 +941,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
         <figcaption><span class="chip built">已实现 · A7</span>功能 › 我的组件</figcaption></figure>
       <figure><button type="button" data-full="built/a7-feature-page-component-light.png" aria-label="放大：实现：功能 › 我的组件整页：面包屑“功能 / 我的组件”，工具条只有组件名与“管理组件”，组件铺满主区"><img src="built/a7-feature-page-component-light.png" alt="实现：功能 › 我的组件整页：面包屑“功能 / 我的组件”，工具条只有组件名与“管理组件”，组件铺满主区" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · A7</span>功能页整页</figcaption></figure>
-      <figure><button type="button" data-full="built/a7-floating-light.png" aria-label="放大：实现：浮窗：今日用量 260×96 没有保存位置时停在右下角；在会话页它压住了输入框右端的模型选择与发送按钮（已知问题，见下；可拖开，位置按设备记住）"><img src="built/a7-floating-light.png" alt="实现：浮窗：今日用量 260×96 没有保存位置时停在右下角；在会话页它压住了输入框右端的模型选择与发送按钮（已知问题，见下；可拖开，位置按设备记住）" loading="lazy"></button>
+      <figure><button type="button" data-full="built/a7-floating-light.png" aria-label="放大：实现：浮窗：今日用量 260×96 没有保存位置时停在右下角、底边让出输入框区（160px），不再压住模型选择与发送按钮；可拖开，位置按设备记住"><img src="built/a7-floating-light.png" alt="实现：浮窗：今日用量 260×96 没有保存位置时停在右下角、底边让出输入框区（160px），不再压住模型选择与发送按钮；可拖开，位置按设备记住" loading="lazy"></button>
         <figcaption><span class="chip built">已实现 · A7</span>浮窗（默认右下角）</figcaption></figure>
     </div>
     <h3>手机（390）</h3>
@@ -977,8 +977,8 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
     <h3>已知问题（截图时发现）</h3>
     <ul class="notes">
-      <li>浮窗默认位置（右下角）在会话页压住输入框的模型选择与发送按钮，在放了组件的全部代理压住右栏底部；可拖开，拖过的位置按设备记住。默认位置怎么避开输入区留给下一批（组件内容区以外没有通用的“避让区”）。</li>
-      <li>检查器 456 宽、两枚组件标签时，标签行末尾的“+”被挤到可视区外（只露出边缘），要先收起检查器里的固定标签或拖宽检查器才点得到。</li>
+      <li>已修：浮窗默认位置（右下角）原来贴底，在会话页压住输入框的模型选择与发送按钮；现在底部让出 160px 输入框区再向上叠。代价是会盖住一部分对话正文（可滚动）或全部代理右栏的中下部，可拖开，位置按设备记住。</li>
+      <li>已修：检查器 456 宽、两枚组件标签时，标签行末尾的“+”曾被挤到可视区外；“+”不是标签，现已移出可横滚的标签行，固定在关闭键左侧，方向键也不再落到它上面。</li>
       <li>已修：SDK 文档与内置模板写的 <code>var(--color-content-muted)</code> 等是 Tailwind 的编译期别名，运行时不存在，组件里的辅助文字退回了正文颜色；改为运行时变量 <code>--text-muted</code> 等，并加了契约测试（截图已是修复后的效果）。</li>
     </ul>
     <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>

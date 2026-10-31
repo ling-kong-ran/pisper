@@ -10,8 +10,11 @@ const extent = (value: number) => (Number.isFinite(value) ? Math.max(0, value) :
 // 没有保存位置的浮窗停在可用区的右下角、依次向上叠，一列放不下再向左错开一列（评审返修）：
 // 页头、全部代理第一屏的“需要你”、工作台页头与提示词卡片都在上方，右下角最少挡主要内容（规格 6.1）。
 // 原来沿用专注岛的“页头中线下方居中”，组件浮窗比岛大得多，默认就压在需要你的第一行上。
+// 底部再让出输入框区（运行条 + 输入框约 140px）：贴底时正好压住发送键与模型选择（A7 截图核对时发现）。
+// 盖住可滚动的对话正文比盖住操作控件代价小；可用高度不足时退到顶部，不出界。
 const FLOATING_INSET = 8
 const FLOATING_GAP = 12
+const FLOATING_BOTTOM_RESERVE = 160
 
 export function defaultFloatingPlacement(
   bounds: FloatingSize,
@@ -20,14 +23,15 @@ export function defaultFloatingPlacement(
 ): FloatingPlacement {
   const width = Math.max(0, extent(bounds.width) - extent(widget.width))
   const height = Math.max(0, extent(bounds.height) - extent(widget.height))
-  const usable = Math.max(0, height - 2 * FLOATING_INSET)
+  const base = Math.max(0, height - FLOATING_BOTTOM_RESERVE)
+  const usable = Math.max(0, base - FLOATING_INSET)
   const stride = extent(widget.height) + FLOATING_GAP
   const perColumn = stride ? Math.floor(usable / stride) + 1 : 1
   const index = Math.max(0, Math.floor(stackIndex))
   const column = Math.floor(index / perColumn)
   const row = index % perColumn
   const x = width - FLOATING_INSET - column * (extent(widget.width) + FLOATING_GAP)
-  const y = height - FLOATING_INSET - row * stride
+  const y = base - row * stride
   return {
     x: width ? clamp(x / width) : 1,
     y: height ? clamp(y / height) : 1,
