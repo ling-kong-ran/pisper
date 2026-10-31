@@ -7,6 +7,9 @@ const FEATURE_TEMPLATE_SOURCES = {
   plugins: 'plugins/PluginsPage',
   skills: 'skills/SkillsPage',
   mcp: 'mcp/McpPage',
+  chatHistory: 'chat/ChatHistoryPage',
+  assets: 'assets/AssetsPage',
+  memory: 'memory/MemoryPage',
 }
 
 test('migrated route pages give scroll and outer spacing ownership to a page template', async () => {
@@ -15,8 +18,6 @@ test('migrated route pages give scroll and outer spacing ownership to a page tem
     'config/ConfigPage',
     'schedules/SchedulesPage',
     'channels/ChannelsPage',
-    'memory/MemoryPage',
-    'assets/AssetsPage',
     'workflows/WorkflowsPage',
     'custom-ui/CustomUiPage',
     'custom-ui/CustomUiToolPage',

@@ -285,6 +285,8 @@
   "chatHistoryPage.allChatsShown": "All {count} chats shown",
   "chatHistoryPage.chatDeleted": "Chat deleted",
   "chatHistoryPage.chatHistory": "Chat history",
+  "chatHistoryPage.lede": "Every conversation, archived ones included. Open a row to pick it back up.",
+  "chatHistoryPage.loadFailed": "Couldn’t load chat history",
   "chatHistoryPage.chatTitle": "Chat title",
   "chatHistoryPage.chatTitleUpdated": "Chat title updated",
   "chatHistoryPage.countChatHistoryItems": "{count} chat history items",

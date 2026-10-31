@@ -1,15 +1,25 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 
-// A6 功能页模板（插件 / 技能 / MCP 起）：标题上方“‹ 功能”、h1、工具行、列表行；居中 760 栏、自己的滚动区不横向溢出。
+// A6 功能页模板（第 1 批插件 / 技能 / MCP，第 2 批历史会话 / 资产 / 星忆）：标题上方“‹ 功能”、h1、工具行、列表行；居中 760 栏、自己的滚动区不横向溢出。
 // 桌面：顶栏 52 只是拖拽区，控件都在它下面。手机外壳（≤390）：h1 只给读屏、“‹ 功能”与所有触控目标 ≥44。
-const FEATURE_TEMPLATE_ROUTES = new Set(['/plugins', '/skills', '/mcp'])
+const FEATURE_TEMPLATE_ROUTES = new Set([
+  '/plugins',
+  '/skills',
+  '/mcp',
+  '/chat/history',
+  '/assets',
+  '/memory',
+])
 
 async function verifyFeatureTemplate(page, route, width) {
   const template = page.locator('.page-content > [data-page-template="feature"]')
   await template.waitFor()
-  // 等数据读完：分区出现（技能页在空环境里可能没有任何行，只有空状态）。
-  await template.locator('[data-feature-section]').first().waitFor({ timeout: 30000 })
+  // 等数据读完：分区出现，或读完后只有空状态（历史会话没有会话时没有分区）。
+  await template
+    .locator('[data-feature-section], [data-feature-column] > [aria-busy="false"]')
+    .first()
+    .waitFor({ timeout: 30000 })
   const facts = await template.evaluate((root) => {
     const scroller = root.querySelector('[data-feature-scroller]')
     const column = root.querySelector('[data-feature-column]')
@@ -115,6 +125,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
         '/channels',
         '/memory',
         '/assets',
+        '/chat/history',
         '/plugins',
         '/workflows',
         '/workflows/new',
@@ -188,6 +199,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
         '/channels',
         '/memory',
         '/assets',
+        '/chat/history',
         '/plugins',
         '/workflows',
         '/workflows/new',
@@ -231,7 +243,7 @@ export async function verifyPageTemplates({ page, base, api, workspace, output, 
       .filter({ hasText: 'Template fixture load failure' })
       .waitFor({ state: 'hidden' })
     report.checks.push(
-      'Four page templates plus the A6 feature-page template (plugins / skills / MCP: ‹ 功能 above the h1, ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, list/detail native back, embedded catalog, and settings error/retry',
+      'Four page templates plus the A6 feature-page template (plugins / skills / MCP / chat history / assets / memory: ‹ 功能 above the h1, ≤760 column, no horizontal scroll, 52 drag-only bar on desktop, sr-only h1 and ≥44px touch targets on the phone): actual Chinese/English routes at 1600/1280/800/390/320px, large font, no duplicate host scrolling, list/detail native back, embedded catalog, and settings error/retry',
     )
   } finally {
     await page.unroute('**/api/settings/notifications')

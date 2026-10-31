@@ -1,4 +1,6 @@
-// 资产页面持有筛选和动作意图；服务器实体只归同域 Query 缓存。
+// 资产页（功能 › 会话与资料）：页面持有搜索、筛选和动作意图；服务器实体只归同域 Query 缓存。
+// 用功能页模板（规格 v2 第 10 节 A6 第 2 批）：“‹ 功能”· 标题 · 工具行（搜索、添加链接；筛选菜单与已生效条件、刷新）·
+// 资产列表行（缩略图、名称即预览、大小 / 链接与来源、行内操作）。
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -15,10 +17,17 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { PageFrame } from '@/components/app/PageFrame'
-import { PageToolbar } from '@/components/app/PageToolbar'
+import {
+  FeatureList,
+  FeaturePage,
+  FeatureRow,
+  FeatureSearch,
+  FeatureSection,
+  FeatureToolbar,
+} from '@/components/app/FeaturePage'
+import { PageState } from '@/components/app/PageState'
+import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
 import { useI18n } from '@/app/use-i18n'
-import { AppCard, AppEmptyState } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,10 +39,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { StarOrbit } from '@/components/StarOrbit'
 import { OrbitSpinner } from '@/components/ui/spinner'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { formatFileSize } from '@/lib/format'
+import { useShortcutLabel } from '@/lib/shortcuts'
 import { canOpenAssetInApplication, openAssetInApplication } from '@/lib/open-asset'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
@@ -44,10 +52,10 @@ import { assetMediaUrl, assetsApi, type Asset, type AssetKind } from './assets-a
 import { ASSETS_LIST_KEY, assetsListQueryOptions, refreshAssetLists } from './assets-queries'
 
 type AssetsPageProps = {
-  query?: string
   activeSessionId?: string | null
+  // 从“功能”进入时由应用壳提供，渲染标题上方的“‹ 功能”。
+  onBack?: () => void
   notify: Notify
-  registerPrimaryAction: (action: () => void) => () => void
   onUse: (asset: ChatAttachment) => void
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
 }
@@ -62,15 +70,17 @@ function kindLabel(kind: AssetKind, t: ReturnType<typeof useI18n>['t']) {
 }
 
 export function AssetsPage({
-  query = '',
   activeSessionId,
+  onBack,
   notify,
-  registerPrimaryAction,
   onUse,
   requestConfirm,
 }: AssetsPageProps) {
   const { t } = useI18n()
   const client = useQueryClient()
+  const searchShortcut = useShortcutLabel('focusSearch')
+  // 搜索词归页面自己（换页即清空，与原共享页头一致）；外壳的“/”按固定 id 聚焦这里的搜索框。
+  const [query, setQuery] = useState('')
   const [kind, setKind] = useState<AssetKind>('all')
   const [current, setCurrent] = useState(false)
   const [linkOpen, setLinkOpen] = useState(false)
@@ -87,7 +97,6 @@ export function AssetsPage({
   const actionLocks = useRef(new Map<string, { action: Action; controller?: AbortController }>())
   const [pending, setPending] = useState<Record<string, Action | undefined>>({})
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({})
-  usePagePrimaryAction(registerPrimaryAction, () => setLinkOpen(true))
   const noSession = current && !activeSessionId
   const result = useQuery({
     ...assetsListQueryOptions({ query, kind, sessionId: current ? activeSessionId : '' }),
@@ -166,145 +175,183 @@ export function AssetsPage({
   // 已生效的筛选条件是「开启」态芯片：强调色软底 + 强调描边，点击即移除该条件。
   const chip =
     'border-star-border bg-star-soft text-star-strong hover:bg-star-soft hover:text-star-strong max-[650px]:h-11'
+  const title = t('navigation:navigation.assets')
+  const retry = (
+    <Button
+      variant="secondary"
+      size="sm"
+      className="max-[650px]:h-11"
+      onClick={() => {
+        void result.refetch()
+      }}
+    >
+      {t('assets:assetsPage.retry')}
+    </Button>
+  )
   return (
-    <PageFrame variant="collection" scrollMode="content">
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
-        <div className="shrink-0">
-          <PageToolbar
-            actions={
+    <FeaturePage
+      title={title}
+      description={t(
+        'assets:assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically',
+      )}
+      back={
+        onBack && {
+          label: t('navigation:sidebar.features'),
+          ariaLabel: t('navigation:shell.backToFeaturesLabel'),
+          onBack,
+        }
+      }
+      toolbar={
+        <FeatureToolbar
+          search={
+            <FeatureSearch
+              id={FEATURE_SEARCH_INPUT_ID}
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t('navigation:pageHeader.searchPage', { page: title })}
+              shortcut={searchShortcut}
+              clearLabel={t('navigation:more.clearSearch')}
+            />
+          }
+          actions={
+            // 主操作（原共享页头的“添加链接”）。
+            <Button type="button" className="h-9" onClick={() => setLinkOpen(true)}>
+              <Link2 />
+              {t('assets:assetsPage.addLink')}
+            </Button>
+          }
+          filters={
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    ref={fallbackRef}
+                    variant="secondary"
+                    size="sm"
+                    className="max-[650px]:h-11"
+                  >
+                    <ListFilter />
+                    {t('assets:assetsPage.filters')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>{t('assets:assetsPage.assetType')}</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={kind}
+                    onValueChange={(value) => {
+                      if (KINDS.includes(value as AssetKind)) setKind(value as AssetKind)
+                    }}
+                  >
+                    {KINDS.map((item) => (
+                      <DropdownMenuRadioItem
+                        key={item}
+                        value={item}
+                        className="max-[650px]:min-h-11"
+                        onSelect={(event) => event.preventDefault()}
+                      >
+                        {kindLabel(item, t)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={current}
+                    className="max-[650px]:min-h-11"
+                    onCheckedChange={(value) => setCurrent(value === true)}
+                  >
+                    {t('assets:assetsPage.fromCurrentChat')}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {kind !== 'all' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={chip}
+                  onClick={() => setKind('all')}
+                  aria-label={t('assets:assetsPage.removeFilter', { filter: kindLabel(kind, t) })}
+                >
+                  {kindLabel(kind, t)}
+                  <X />
+                </Button>
+              )}
+              {current && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={chip}
+                  onClick={() => setCurrent(false)}
+                  aria-label={t('assets:assetsPage.removeFilter', {
+                    filter: t('assets:assetsPage.fromCurrentChat'),
+                  })}
+                >
+                  {t('assets:assetsPage.fromCurrentChat')}
+                  <X />
+                </Button>
+              )}
               <Button
                 variant="ghost"
-                size="icon"
-                className="max-[650px]:size-11"
+                size="icon-sm"
+                className="ml-auto text-content-muted max-[650px]:size-11 pointer-coarse:size-11"
                 loading={result.isFetching && !noSession}
                 disabled={noSession || result.isFetching}
                 aria-label={t('assets:assetsPage.refreshAssets')}
+                title={t('assets:assetsPage.refreshAssets')}
                 onClick={() => {
                   void result.refetch()
                 }}
               >
                 <RefreshCw />
               </Button>
-            }
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button ref={fallbackRef} variant="secondary" className="max-[650px]:h-11">
-                  <ListFilter />
-                  {t('assets:assetsPage.filters')}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>{t('assets:assetsPage.assetType')}</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={kind}
-                  onValueChange={(value) => {
-                    if (KINDS.includes(value as AssetKind)) setKind(value as AssetKind)
-                  }}
-                >
-                  {KINDS.map((item) => (
-                    <DropdownMenuRadioItem
-                      key={item}
-                      value={item}
-                      onSelect={(event) => event.preventDefault()}
-                    >
-                      {kindLabel(item, t)}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={current}
-                  onCheckedChange={(value) => setCurrent(value === true)}
-                >
-                  {t('assets:assetsPage.fromCurrentChat')}
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {kind !== 'all' && (
-              <Button
-                variant="outline"
-                size="sm"
-                className={chip}
-                onClick={() => setKind('all')}
-                aria-label={t('assets:assetsPage.removeFilter', { filter: kindLabel(kind, t) })}
-              >
-                {kindLabel(kind, t)}
-                <X />
-              </Button>
-            )}
-            {current && (
-              <Button
-                variant="outline"
-                size="sm"
-                className={chip}
-                onClick={() => setCurrent(false)}
-                aria-label={t('assets:assetsPage.removeFilter', {
-                  filter: t('assets:assetsPage.fromCurrentChat'),
-                })}
-              >
-                {t('assets:assetsPage.fromCurrentChat')}
-                <X />
-              </Button>
-            )}
-          </PageToolbar>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-content-muted">
-            <span aria-live="polite">
-              {assets && (
-                <>
-                  <strong className="font-medium text-content tabular-nums">{assets.length}</strong>{' '}
-                  {t('assets:assetsPage.assets')}
-                </>
-              )}
-            </span>
-            <span className="min-w-0">
-              {t('assets:assetsPage.conversationAttachmentsAndAgentOutputsGatherHereAutomatically')}
-            </span>
-          </div>
-          {!noSession && result.isError && (
+            </div>
+          }
+        />
+      }
+    >
+      {noSession ? (
+        <PageState kind="empty" title={t('assets:assetsPage.noActiveSession')} />
+      ) : result.isPending && !result.isError ? (
+        <PageState kind="loading" title={t('assets:assetsPage.loadingAssets')} />
+      ) : !assets ? (
+        // 首次读取失败（含换了搜索词后的读取）：写明错误并给重试，不显示成“还没有资产”。
+        <PageState
+          kind="error"
+          title={t('assets:assetsPage.loadFailed')}
+          description={result.error?.message}
+          action={retry}
+        />
+      ) : (
+        <FeatureSection
+          data-assets-results
+          title={kindLabel(kind, t)}
+          count={assets.length}
+          meta={
+            // 刷新中保留现有结果，只在分区标题旁说一句。
+            result.isFetching && (
+              <span role="status" className="inline-flex items-center gap-1.5">
+                <OrbitSpinner className="size-3.5" />
+                {t('assets:assetsPage.refreshingAssets')}
+              </span>
+            )
+          }
+        >
+          {/* 同一条件刷新失败：保留可操作的结果，错误与重试写在列表上方。 */}
+          {result.isError && (
             <div
               role="alert"
-              className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-danger-border bg-danger-soft py-1 pr-1 pl-3 text-sm text-danger"
+              className="mb-2 flex flex-wrap items-center gap-2 rounded-[var(--r-md)] border border-danger-border bg-danger-soft py-1 pr-1 pl-3 text-xs text-danger"
             >
-              <AlertTriangle className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1 break-words">{result.error.message}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-danger"
-                onClick={() => {
-                  void result.refetch()
-                }}
-              >
-                {t('assets:assetsPage.retry')}
-              </Button>
+              <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                {result.error.message}
+              </span>
+              {retry}
             </div>
           )}
-          {!noSession && result.isFetching && result.data && (
-            <p role="status" className="mt-2 flex items-center gap-1.5 text-xs text-content-muted">
-              <OrbitSpinner className="size-3.5" />
-              {t('assets:assetsPage.refreshingAssets')}
-            </p>
-          )}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-assets-results>
-          {noSession ? (
-            <AppEmptyState>
-              {/* 包一层，避免空状态容器给首个 svg 再套一圈虚线圆：星轨插画自带轨道。 */}
-              <span aria-hidden="true">
-                <StarOrbit size={54} />
-              </span>
-              <h2>{t('assets:assetsPage.noActiveSession')}</h2>
-            </AppEmptyState>
-          ) : result.isPending ? (
-            <AppEmptyState>
-              <OrbitSpinner className="size-5" />
-              <h2 role="status">{t('assets:assetsPage.loadingAssets')}</h2>
-            </AppEmptyState>
-          ) : assets?.length ? (
-            <div className="asset-grid grid auto-rows-[minmax(292px,auto)] grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] content-start gap-3 p-px">
+          {assets.length ? (
+            <FeatureList>
               {assets.map((asset) => (
-                <AssetCard
+                <AssetRow
                   key={asset.id}
                   asset={asset}
                   busy={pending[asset.id]}
@@ -317,64 +364,60 @@ export function AssetsPage({
                   }}
                 />
               ))}
-            </div>
-          ) : !result.isError ? (
-            <AppEmptyState>
-              {/* 包一层，避免空状态容器给首个 svg 再套一圈虚线圆：星轨插画自带轨道。 */}
-              <span aria-hidden="true">
-                <StarOrbit size={54} />
-              </span>
-              <h2>{emptyTitle}</h2>
-              <p>
-                {current || filtered
-                  ? t('assets:assetsPage.tryOtherFilters')
-                  : t(
-                      'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
-                    )}
-              </p>
-              {!current && !filtered && (
-                <Button className="mt-4 max-[650px]:h-11" onClick={() => setLinkOpen(true)}>
-                  <Link2 />
-                  {t('assets:assetsPage.addLink')}
-                </Button>
-              )}
-            </AppEmptyState>
-          ) : null}
-        </div>
-        {preview && (
-          <AssetPreviewDialog
-            key={preview.generation}
-            {...preview}
-            fallback={() => fallbackRef.current}
-            onClose={() => setPreview(null)}
-            onUse={() => {
-              void act(preview.asset, 'use')
-            }}
-            onOpen={() => {
-              void act(preview.asset, 'open')
-            }}
-            busy={pending[preview.asset.id]}
-            actionError={actionErrors[preview.asset.id]}
-          />
-        )}
-        {linkOpen && (
-          <AssetLinkDialog
-            onClose={() => setLinkOpen(false)}
-            onCreated={() => {
-              if (mounted.current) {
-                setLinkOpen(false)
-                notify(t('assets:assetsPage.linkAssetAdded'))
-              }
-              void refreshAssetLists(client)
-            }}
-          />
-        )}
-      </div>
-    </PageFrame>
+            </FeatureList>
+          ) : (
+            !result.isError && (
+              <PageState
+                kind="empty"
+                title={emptyTitle}
+                description={
+                  current || filtered
+                    ? t('assets:assetsPage.tryOtherFilters')
+                    : t(
+                        'assets:assetsPage.bringInALinkOrAttachAFileInAConversationPisperWillGatherTheOutputsCreatedAlongTheWay',
+                      )
+                }
+              />
+            )
+          )}
+        </FeatureSection>
+      )}
+      {preview && (
+        <AssetPreviewDialog
+          key={preview.generation}
+          {...preview}
+          fallback={() => fallbackRef.current}
+          onClose={() => setPreview(null)}
+          onUse={() => {
+            void act(preview.asset, 'use')
+          }}
+          onOpen={() => {
+            void act(preview.asset, 'open')
+          }}
+          busy={pending[preview.asset.id]}
+          actionError={actionErrors[preview.asset.id]}
+        />
+      )}
+      {linkOpen && (
+        <AssetLinkDialog
+          onClose={() => setLinkOpen(false)}
+          onCreated={() => {
+            if (mounted.current) {
+              setLinkOpen(false)
+              notify(t('assets:assetsPage.linkAssetAdded'))
+            }
+            void refreshAssetLists(client)
+          }}
+        />
+      )}
+    </FeaturePage>
   )
 }
 
-function AssetCard({
+// 资产行（规格 A6：列表行而不是卡片墙）：左侧 36 缩略图（图片 / 视频首帧，读不出来时换类型图标），
+// 名称区是“预览”按钮；附注是扩展名或域名，说明是大小或链接 · 来源，再下一行是来自哪个会话。
+// 右侧：用于对话 · 打开 / 下载 · 删除；手机上按钮只留图标（读屏名称不变），名称不被挤掉。
+function AssetRow({
   asset,
   busy,
   error,
@@ -392,136 +435,133 @@ function AssetCard({
   const video = asset.mimeType?.startsWith('video/')
   const Icon =
     asset.kind === 'image' ? FileImage : video ? FileVideo : asset.kind === 'link' ? Link2 : File
-  // 预览角标只复述已有元数据：链接显示域名，文件显示扩展名，均用等宽字。
+  // 附注只复述已有元数据：链接显示域名，文件显示扩展名，均用等宽字。
   const tag =
     asset.kind === 'link'
       ? asset.url && new URL(asset.url).hostname
       : /\.([a-z0-9]{1,6})$/i.exec(asset.name)?.[1]
+  const thumbnail =
+    !failed && asset.kind === 'image' ? (
+      <img
+        className="size-full rounded-[inherit] object-cover"
+        src={assetMediaUrl(asset.id)}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    ) : !failed && video ? (
+      <video
+        className="size-full rounded-[inherit] object-cover"
+        src={assetMediaUrl(asset.id)}
+        muted
+        preload="metadata"
+        onError={() => setFailed(true)}
+      />
+    ) : (
+      <Icon />
+    )
   return (
-    <AppCard
-      className="asset-card flex h-full min-h-[292px] min-w-0 flex-col overflow-hidden p-0 py-0"
+    <FeatureRow
+      className="asset-row"
       data-asset-id={asset.id}
-    >
-      <button
-        className="asset-preview relative grid h-44 w-full shrink-0 place-items-center overflow-hidden border-b border-stroke-soft bg-surface-subtle text-content-faint focus-visible:-outline-offset-2"
-        aria-label={`${t('assets:assetsPage.preview')}: ${asset.name}`}
-        onClick={(event) => onPreview(event.currentTarget)}
-      >
-        {!failed && asset.kind === 'image' ? (
-          <img
-            className="size-full object-cover"
-            src={assetMediaUrl(asset.id)}
-            alt=""
-            onError={() => setFailed(true)}
-          />
-        ) : !failed && video ? (
-          <video
-            className="size-full object-cover"
-            src={assetMediaUrl(asset.id)}
-            muted
-            preload="metadata"
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <Icon className="size-8" strokeWidth={1.5} />
-        )}
-        {tag && (
-          <span className="absolute top-2 left-2 max-w-[calc(100%-16px)] truncate rounded-xs border border-stroke bg-panel px-1.5 font-mono text-xs leading-5 text-content-secondary">
-            {tag}
-          </span>
-        )}
-        {failed && (
-          <span className="absolute bottom-2 max-w-[calc(100%-16px)] rounded-xs bg-panel px-2 text-xs leading-5 text-content-muted">
-            {t('assets:assetsPage.mediaFailed')}
-          </span>
-        )}
-      </button>
-      <div className="flex min-w-0 flex-col gap-1 px-3 pt-2.5">
-        <strong
-          className="line-clamp-2 text-sm font-medium text-content [overflow-wrap:anywhere]"
-          title={asset.name}
-        >
-          {asset.name}
-        </strong>
-        <span className="flex min-w-0 items-center gap-1.5 text-xs text-content-muted">
+      icon={thumbnail}
+      onOpen={(event) => onPreview(event.currentTarget)}
+      openLabel={`${t('assets:assetsPage.preview')}: ${asset.name}`}
+      name={<span title={asset.name}>{asset.name}</span>}
+      nameMeta={tag || undefined}
+      description={
+        <>
           <span
-            className={
-              asset.kind === 'link' ? 'min-w-0 truncate font-mono' : 'shrink-0 tabular-nums'
-            }
+            className={asset.kind === 'link' ? 'font-mono' : 'tabular-nums'}
             title={asset.kind === 'link' ? asset.url : undefined}
           >
             {asset.kind === 'link' ? asset.url : formatFileSize(asset.size)}
           </span>
-          <span aria-hidden="true" className="text-content-faint">
-            ·
-          </span>
-          <span className="shrink-0">
-            {asset.source === 'agent'
-              ? t('assets:assetsPage.agentOutputs')
-              : asset.source === 'attachment'
-                ? t('assets:assetsPage.chatAttachments')
-                : t('assets:assetsPage.manualUploads')}
-          </span>
-        </span>
-        {asset.sessionName && (
-          <small className="truncate text-xs text-content-muted" title={asset.sessionName}>
-            {t('assets:assetsPage.fromName', { name: asset.sessionName })}
-          </small>
-        )}
-      </div>
-      {/* 卡片内只放键帽与幽灵按钮：页面唯一的强调色实心键留给页头的「添加链接」。 */}
-      <div className="asset-card-actions flex-none mt-auto flex flex-wrap items-center gap-1.5 p-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="max-[650px]:h-11"
-          disabled={Boolean(busy)}
-          loading={busy === 'use'}
-          onClick={() => onAction('use')}
-        >
-          <Paperclip />
-          {t('assets:assetsPage.useInChat')}
-        </Button>
-        {asset.kind === 'link' ? (
-          <Button asChild variant="ghost" size="sm" className="max-[650px]:h-11">
-            <a href={asset.url} target="_blank" rel="noreferrer">
-              <ExternalLink />
-              {t('assets:assetsPage.open')}
-            </a>
+          <span aria-hidden="true"> · </span>
+          {asset.source === 'agent'
+            ? t('assets:assetsPage.agentOutputs')
+            : asset.source === 'attachment'
+              ? t('assets:assetsPage.chatAttachments')
+              : t('assets:assetsPage.manualUploads')}
+        </>
+      }
+      meta={
+        (asset.sessionName || failed) && (
+          <>
+            {asset.sessionName && (
+              <span className="min-w-0 truncate" title={asset.sessionName}>
+                {t('assets:assetsPage.fromName', { name: asset.sessionName })}
+              </span>
+            )}
+            {asset.sessionName && failed && <span aria-hidden="true">·</span>}
+            {failed && <span className="shrink-0">{t('assets:assetsPage.mediaFailed')}</span>}
+          </>
+        )
+      }
+      actions={
+        // 行内只放键帽与幽灵按钮：页面唯一的实心主操作留给工具行的「添加链接」。
+        <div className="asset-row-actions flex items-center gap-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="max-[650px]:size-11 max-[650px]:px-0"
+            disabled={Boolean(busy)}
+            loading={busy === 'use'}
+            onClick={() => onAction('use')}
+          >
+            <Paperclip />
+            <span className="max-[650px]:sr-only">{t('assets:assetsPage.useInChat')}</span>
           </Button>
-        ) : (
+          {asset.kind === 'link' ? (
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="max-[650px]:size-11 max-[650px]:px-0"
+            >
+              <a href={asset.url} target="_blank" rel="noreferrer">
+                <ExternalLink />
+                <span className="max-[650px]:sr-only">{t('assets:assetsPage.open')}</span>
+              </a>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-[650px]:size-11 max-[650px]:px-0"
+              disabled={Boolean(busy)}
+              loading={busy === 'open'}
+              onClick={() => onAction('open')}
+            >
+              {canOpenAssetInApplication() ? <ExternalLink /> : <Download />}
+              <span className="max-[650px]:sr-only">
+                {canOpenAssetInApplication()
+                  ? t('assets:assetsPage.openInApplication')
+                  : t('assets:assetsPage.download')}
+              </span>
+            </Button>
+          )}
           <Button
             variant="ghost"
-            size="sm"
-            className="max-[650px]:h-11"
+            size="icon-sm"
+            className="text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
             disabled={Boolean(busy)}
-            loading={busy === 'open'}
-            onClick={() => onAction('open')}
+            loading={busy === 'delete'}
+            aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
+            onClick={() => onAction('delete')}
           >
-            {canOpenAssetInApplication() ? <ExternalLink /> : <Download />}
-            {canOpenAssetInApplication()
-              ? t('assets:assetsPage.openInApplication')
-              : t('assets:assetsPage.download')}
+            <Trash2 />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto text-content-muted hover:bg-danger-soft hover:text-danger max-[650px]:size-11"
-          disabled={Boolean(busy)}
-          loading={busy === 'delete'}
-          aria-label={`${t('assets:assetsPage.deleteAsset')}: ${asset.name}`}
-          onClick={() => onAction('delete')}
-        >
-          <Trash2 />
-        </Button>
-      </div>
-      {error && (
-        <p role="alert" className="mx-3 mb-3 flex gap-1.5 text-xs break-words text-danger">
-          <AlertTriangle className="mt-px size-3.5 shrink-0" />
-          {error}
-        </p>
-      )}
-    </AppCard>
+        </div>
+      }
+      detail={
+        error ? (
+          <p role="alert" className="flex gap-1.5 text-xs [overflow-wrap:anywhere] text-danger">
+            <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+            {error}
+          </p>
+        ) : undefined
+      }
+    />
   )
 }

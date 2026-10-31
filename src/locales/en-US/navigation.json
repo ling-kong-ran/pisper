@@ -83,8 +83,6 @@
   "appSidebar.viewAll": "View all",
   "appSidebar.viewAllCountChats": "View all {count} chats",
   "appSidebar.viewUpdateDetails": "View update details",
-  "pageHeader.addLink": "Add link",
-  "pageHeader.addMemory": "Add memory",
   "pageHeader.quickSetup": "Quick setup",
   "pageHeader.addService": "Add service",
   "pageHeader.connectChannel": "Connect channel",

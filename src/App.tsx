@@ -76,7 +76,6 @@ import {
   peekSessionNavigationIntent,
   requestSessionCommand,
   requestSessionSelection,
-  requestSessionCreation,
 } from '@/features/chat/events'
 import {
   BOARD_FILTER_ID,
@@ -622,13 +621,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [notify, t],
   )
 
-  // 新会话（命令面板、历史页等旧入口）：直接进入新建会话页。
-  const startNewChat = useCallback(() => {
-    if (sessionRouteMounted) requestSessionCreation('')
-    else routerNavigate(sessionPath())
-    setQuery('')
-  }, [routerNavigate, sessionRouteMounted])
-
   useEffect(() => {
     if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
       routerNavigate(HOME_PATH, { replace: true })
@@ -789,16 +781,11 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   // 配置页非 models 分区时不响应，避免误触发。
   const handlePrimary = useCallback(() => {
     if (page === 'config' && configSection !== 'models') return
-    if (
-      ['session', 'config', 'assets', 'channels', 'schedules', 'memory', 'workflowCreate'].includes(
-        page,
-      )
-    )
+    if (['session', 'config', 'channels', 'schedules', 'workflowCreate'].includes(page))
       invokePrimaryAction()
-    else if (page === 'chatHistory') startNewChat()
     else if (page === 'workflows') navigate('workflowCreate')
     else setModal(page)
-  }, [configSection, invokePrimaryAction, navigate, page, startNewChat])
+  }, [configSection, invokePrimaryAction, navigate, page])
 
   useEffect(() => {
     const openCommandPalette = () => {
@@ -1231,7 +1218,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               )}
               <div
                 // 会话页沿用聊天页的内容区布局：可收缩的 flex 容器，下方终端面板展开时对话区随之让高。
-                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'session' || page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['board', 'more', 'config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
+                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'session' || page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['board', 'more', 'config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'chatHistory', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
                 key={page}
               >
                 {phoneSettingsList ? (

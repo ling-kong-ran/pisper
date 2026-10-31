@@ -218,3 +218,43 @@ test('feature page template on the phone shell: title only for screen readers, 4
     /data-feature-row-status="true" class="[^"]*max-\[650px\]:col-start-1 max-\[650px\]:row-start-2/,
   )
 })
+
+test('feature rows can open (history session, asset preview) and carry a one-line meta under the description', () => {
+  const html = renderWithViewport(
+    false,
+    h(
+      FeatureList,
+      null,
+      h(FeatureRow, {
+        name: '迁移支付回调',
+        description: '把回调改成队列',
+        meta: h('span', null, 'pisper · 12 条消息'),
+        status: '3 分钟前',
+        actions: h('button', { type: 'button', 'aria-label': '更多操作' }, '⋯'),
+        onOpen() {},
+        openLabel: '打开会话 迁移支付回调',
+        // 打开与展开二选一：给了 onOpen 时即使传了展开参数也不渲染折叠开关。
+        detail: h('p', null, '错误'),
+        onExpandedChange() {},
+      }),
+    ),
+  )
+  // 名称区是一个打开按钮，读屏名称由调用方给出；整行悬停变底色（向两侧让出内边距）。
+  assert.match(
+    html,
+    /<button type="button" data-feature-row-open="true" aria-label="打开会话 迁移支付回调"[^>]*class="[^"]*min-h-11/,
+  )
+  assert.match(
+    html,
+    /class="grid [^"]*-mx-2 rounded-\[var\(--r-md\)\] px-2[^"]*hover:bg-surface-hover/,
+  )
+  assert.doesNotMatch(html, /data-feature-row-toggle|aria-expanded/)
+  // 附注一行：在说明下面、按钮里面（属于这一行的读屏文字），单行不换行。
+  assert.match(
+    html,
+    /把回调改成队列<\/span><span data-feature-row-meta="true" class="[^"]*whitespace-nowrap[^"]*"><span>pisper · 12 条消息<\/span><\/span>/,
+  )
+  // 没有图标的行：手机上第二行的状态与常显详情不再按图标宽度缩进。
+  assert.match(html, /data-feature-row-status="true" class="(?![^"]*pl-\[42px\])[^"]*"/)
+  assert.match(html, /data-feature-row-detail="true" class="[^"]*pl-0/)
+})

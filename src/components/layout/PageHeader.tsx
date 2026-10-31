@@ -10,7 +10,6 @@
 import type { ReactNode, RefObject } from 'react'
 import {
   ChevronLeft,
-  Link2,
   Plus,
   Rocket,
   Save,
@@ -85,12 +84,9 @@ export function PageHeader({
   const terminalShortcut = useShortcutLabel('toggleTerminal')
   const searchShortcut = useShortcutLabel('focusSearch')
   const primaryActions: Partial<Record<string, [string, LucideIcon]>> = {
-    chatHistory: [t('navigation:pageHeader.newChat'), Plus],
-    assets: [t('navigation:pageHeader.addLink'), Link2],
     channels: [t('navigation:pageHeader.connectChannel'), Plus],
     schedules: [t('navigation:pageHeader.newTask'), Plus],
     config: [t('navigation:pageHeader.quickSetup'), Plus],
-    memory: [t('navigation:pageHeader.addMemory'), Plus],
     workflows: [t('navigation:pageHeader.newWorkflow'), Plus],
     workflowCreate: [t('navigation:pageHeader.publish'), Rocket],
   }
@@ -237,11 +233,7 @@ export function PageHeader({
                 ref={searchInputRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={
-                  page === 'memory'
-                    ? t('navigation:pageHeader.searchMemoriesOrFiles')
-                    : t('navigation:pageHeader.searchPage', { page: meta[0] })
-                }
+                placeholder={t('navigation:pageHeader.searchPage', { page: meta[0] })}
               />
               {searchShortcut && !query && (
                 <Kbd aria-hidden="true" className="max-[650px]:hidden pointer-coarse:hidden">

@@ -102,13 +102,7 @@ export function MemoryFixture() {
   return (
     <>
       <button onClick={() => setMounted(false)}>Unmount memory</button>
-      {mounted && (
-        <MemoryPage
-          notify={notify}
-          registerPrimaryAction={registerPrimaryAction}
-          requestConfirm={() => Promise.resolve(true)}
-        />
-      )}
+      {mounted && <MemoryPage notify={notify} requestConfirm={() => Promise.resolve(true)} />}
     </>
   )
 }

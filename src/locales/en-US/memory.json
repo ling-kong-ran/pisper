@@ -88,5 +88,11 @@
   "memoryPage.invalidAutoApproveThreshold": "Invalid automatic approval threshold response",
   "memoryPage.loadingAutoApproveThreshold": "Loading automatic approval threshold…",
   "memoryPage.autoApproveThresholdUnavailable": "Unable to read or save the automatic approval threshold.",
-  "memoryPage.retryAutoApproveThreshold": "Retry"
+  "memoryPage.retryAutoApproveThreshold": "Retry",
+  "memoryPage.lede": "Preferences, decisions and facts agents remember across chats, grouped into spaces. View them as a star map or a list.",
+  "memoryPage.galaxyView": "Star map",
+  "memoryPage.listView": "List",
+  "memoryPage.loadFailed": "Couldn’t load memories",
+  "memoryPage.noMemoriesInSpace": "No memories in this space yet.",
+  "memoryPage.noMatchingMemories": "No matching memories"
 }

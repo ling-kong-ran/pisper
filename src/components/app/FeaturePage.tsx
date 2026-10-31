@@ -5,7 +5,7 @@
 // 手机外壳（规格 7.1、7.4）：页名在外壳顶栏里，这里的 h1 只给读屏（sr-only），说明也省掉；
 // “‹ 功能”保留为 44px 文字返回键（iOS 没有返回键）；触控目标 ≥44，一列，不横向滚动。
 // 本组件不含业务语义：标题、文案、搜索框、按钮与行内容都由调用方经参数与插槽传入。
-import { useId, type ComponentProps, type ReactNode } from 'react'
+import { useId, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, Search, X } from 'lucide-react'
 import { Kbd } from '@/components/ui/kbd'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
@@ -260,18 +260,23 @@ const PHONE_ROW_COLUMNS: Record<number, string> = {
 // 列表行：图标 36 · 名称（可带等宽版本号等附注）+ 一句说明 · 右侧状态 · 操作（开关、按钮）。
 // 同时给了 detail 与 onExpandedChange 时行可展开（只给 detail 则常显在行下方）：名称区是带 aria-expanded 的按钮，右端的折叠箭头只是鼠标与触屏的大热区
 // （不进 Tab 顺序，读屏也不重复读）；详情在行下方原位展开，与名称左缘对齐。
-// 手机：状态挪到名称下面一行（与说明左缘对齐），右侧只留操作与箭头，避免挤掉名称。
+// 给了 onOpen 的行（历史会话打开会话、资产打开预览）：名称区是一个打开按钮（openLabel 是读屏名称），悬停整行变底色；
+// 打开与展开二选一。meta 是说明下面一行 12px 的附注（工作区、消息数等），单行不换行。
+// 手机：状态挪到名称下面一行（有图标时与说明左缘对齐），右侧只留操作与箭头，避免挤掉名称。
 export function FeatureRow({
   icon,
   name,
   nameMeta,
   description,
+  meta,
   status,
   actions,
   detail,
   expanded = false,
   onExpandedChange,
   toggleLabel,
+  onOpen,
+  openLabel,
   className,
   ...props
 }: Omit<ComponentProps<'li'>, 'title'> & {
@@ -279,6 +284,7 @@ export function FeatureRow({
   name: ReactNode
   nameMeta?: ReactNode
   description?: ReactNode
+  meta?: ReactNode
   status?: ReactNode
   actions?: ReactNode
   detail?: ReactNode
@@ -286,10 +292,13 @@ export function FeatureRow({
   onExpandedChange?: (expanded: boolean) => void
   // 折叠箭头的悬停提示（例如“展开 web_search 的详情”）。
   toggleLabel?: string
+  // 点名称区打开（事件的 currentTarget 是打开按钮，调用方可用它在关闭浮层后找回焦点）。
+  onOpen?: (event: MouseEvent<HTMLButtonElement>) => void
+  openLabel?: string
 }) {
   const nameId = useId()
   const detailId = useId()
-  const expandable = detail !== undefined && Boolean(onExpandedChange)
+  const expandable = detail !== undefined && Boolean(onExpandedChange) && !onOpen
   const toggle = () => onExpandedChange?.(!expanded)
   const lead = (
     <>
@@ -317,6 +326,14 @@ export function FeatureRow({
             {description}
           </span>
         )}
+        {meta && (
+          <span
+            data-feature-row-meta
+            className="flex min-w-0 items-center gap-x-1.5 overflow-hidden text-xs leading-[1.5] whitespace-nowrap text-content-muted"
+          >
+            {meta}
+          </span>
+        )}
       </span>
     </>
   )
@@ -332,9 +349,22 @@ export function FeatureRow({
           'grid min-h-16 min-w-0 items-center gap-x-3 py-3 max-[650px]:min-h-14 max-[650px]:gap-x-2 max-[650px]:py-2',
           ROW_COLUMNS[1 + Number(Boolean(status)) + Number(Boolean(actions)) + Number(expandable)],
           PHONE_ROW_COLUMNS[1 + Number(Boolean(actions)) + Number(expandable)],
+          // 可打开的行：整行悬停变底色；向两侧各让出 8px 内边距，文字不贴着底色边缘。
+          onOpen &&
+            '-mx-2 rounded-[var(--r-md)] px-2 transition-colors duration-(--d-fast) hover:bg-surface-hover',
         )}
       >
-        {expandable ? (
+        {onOpen ? (
+          <button
+            type="button"
+            data-feature-row-open
+            aria-label={openLabel}
+            onClick={onOpen}
+            className="flex min-h-11 min-w-0 items-center gap-3.5 self-stretch rounded-[var(--r-sm)] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus max-[650px]:gap-2.5"
+          >
+            {lead}
+          </button>
+        ) : expandable ? (
           <button
             type="button"
             data-feature-row-toggle
@@ -351,7 +381,10 @@ export function FeatureRow({
         {status && (
           <div
             data-feature-row-status
-            className="flex max-w-[220px] min-w-0 items-center justify-end gap-1.5 text-right text-xs text-content-muted tabular-nums max-[650px]:col-start-1 max-[650px]:row-start-2 max-[650px]:max-w-none max-[650px]:justify-start max-[650px]:pl-[42px] max-[650px]:text-left"
+            className={cn(
+              'flex max-w-[220px] min-w-0 items-center justify-end gap-1.5 text-right text-xs text-content-muted tabular-nums max-[650px]:col-start-1 max-[650px]:row-start-2 max-[650px]:max-w-none max-[650px]:justify-start max-[650px]:text-left',
+              icon && 'max-[650px]:pl-[42px]',
+            )}
           >
             {status}
           </div>
@@ -386,14 +419,17 @@ export function FeatureRow({
               role="region"
               aria-labelledby={nameId}
               data-feature-row-detail
-              className="min-w-0 pb-4 pl-[50px] max-[650px]:pl-0"
+              className={cn('min-w-0 pb-4 max-[650px]:pl-0', icon ? 'pl-[50px]' : 'pl-0')}
             >
               {detail}
             </div>
           )
         : detail !== undefined && (
-            // 没有折叠开关时 detail 常显：行的附加信息（例如服务地址与“查看连接配置”）。
-            <div data-feature-row-detail className="min-w-0 pb-3 pl-[50px] max-[650px]:pl-0">
+            // 没有折叠开关时 detail 常显：行的附加信息（例如服务地址与“查看连接配置”、行内操作的错误）。
+            <div
+              data-feature-row-detail
+              className={cn('min-w-0 pb-3 max-[650px]:pl-0', icon ? 'pl-[50px]' : 'pl-0')}
+            >
               {detail}
             </div>
           )}

@@ -161,7 +161,11 @@ try {
   await page
     .getByRole('button', { name: 'Preview: Slow text', exact: true })
     .waitFor({ timeout: 45000 })
-  const search = page.getByRole('textbox', { name: 'Fixture search' })
+  // 搜索框与“添加链接”在页面自己的工具行里（A6 功能页模板）。
+  const search = page.locator('#feature-page-search')
+  const addLink = page
+    .locator('[data-feature-actions]')
+    .getByRole('button', { name: 'Add link', exact: true })
   await search.fill('slow')
   await started.promise
   await search.fill('fast')
@@ -286,12 +290,15 @@ try {
   await dialog.waitFor({ state: 'hidden' })
   await previewSlow.click()
   await dialog.locator('[data-asset-plain]').waitFor()
-  await page.evaluate(() => window.assetFixture.setQuery('empty'))
-  await page.locator('[data-asset-id]').waitFor({ state: 'hidden' })
+  // 预览期间资产从结果里消失（对话框挡住了工具行，经共享缓存让列表重读）：关闭后焦点回到筛选按钮。
+  listEmpty = true
+  await page.evaluate(() => window.assetFixture.refresh())
+  await page.locator('[data-asset-id]').first().waitFor({ state: 'detached' })
   await dialog.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
   await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Filters')
-  await search.fill('')
+  listEmpty = false
+  await page.getByRole('button', { name: 'Refresh assets', exact: true }).click()
   await page.getByRole('button', { name: 'Preview: Notes.md', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Preview: Notes.md', exact: true }).click()
   await dialog.getByRole('heading', { name: 'Preview heading', exact: true }).waitFor()
@@ -431,7 +438,7 @@ try {
   deleteRelease.resolve()
   await page.locator('[data-asset-id="binary"]').waitFor({ state: 'hidden' })
   assert.equal(deletes, 1)
-  await page.getByRole('button', { name: 'New link', exact: true }).click()
+  await addLink.click()
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Draft link')
   await dialog.getByRole('textbox', { name: 'URL', exact: true }).fill('https://example.com/docs')
   const postStarted = deferred(),
@@ -484,7 +491,7 @@ try {
       }),
     })
   })
-  await page.getByRole('button', { name: 'New link', exact: true }).click()
+  await addLink.click()
   await dialog.getByRole('textbox', { name: 'URL', exact: true }).fill('https://example.com/docs')
   await dialog.getByRole('button', { name: 'Add link', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
@@ -499,7 +506,8 @@ try {
     ),
     1,
   )
-  // 同一真实模板验证独立结果滚动、临界宽度与低高度 Dialog footer。
+  // 同一真实模板验证页面唯一的滚动区、临界宽度与低高度 Dialog footer。
+  // A6 功能页模板：标题、工具行与结果在同一个滚动区里（[data-feature-scroller]），外层宿主不滚动、不横向溢出。
   for (const [width, height, language, large, dark] of [
     [1280, 900, 'en-US', false, false],
     [759, 700, 'en-US', false, false],
@@ -519,13 +527,22 @@ try {
       (language === 'en-US' ? 1 : 0)
     )
       await page.getByRole('button', { name: 'Language', exact: true }).click()
-    const results = page.locator('[data-assets-results]')
-    const before = await page.locator('[data-slot="page-toolbar"]').boundingBox()
+    const results = page.locator('[data-feature-scroller]')
     await results.evaluate((element) => {
       element.scrollTop = element.scrollHeight
     })
-    const after = await page.locator('[data-slot="page-toolbar"]').boundingBox()
-    assert.equal(before.y, after.y)
+    const host = await page.locator('main').evaluate((element) => ({
+      height: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      width: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }))
+    assert.ok(
+      host.scrollHeight <= host.height + 1 && host.scrollWidth <= host.width + 1,
+      `${width}px host must not own a second scroll: ${JSON.stringify(host)}`,
+    )
+    assert.equal(await page.locator('[data-feature-column]').count(), 1)
+    assert.ok((await page.locator('[data-feature-column]').evaluate((el) => el.clientWidth)) <= 808)
     const geometry = await results.evaluate((element) => ({
       width: element.clientWidth,
       scrollWidth: element.scrollWidth,
@@ -596,7 +613,7 @@ try {
     JSON.stringify({
       output,
       checks: [
-        'obsolete query cannot replace current results',
+        'obsolete query cannot replace current results (page-owned search box)',
         'filter menu remains open with independent removable conditions',
         'preview opens while loading, cancels on close and restores focus',
         'plain/markdown/binary preview semantics',
@@ -604,7 +621,7 @@ try {
         'first-error/no-match/refresh-error distinguish and retain data',
         'current scope and action reads cannot leak across sessions',
         'image retry and per-asset mutation gates',
-        'desktop/759/761/390/low-height, two languages, large type and dark theme',
+        'feature-page template: single page scroller without horizontal overflow at desktop/759/761/390/low-height, two languages, large type and dark theme',
       ],
       errors,
     }),

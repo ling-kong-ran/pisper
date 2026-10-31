@@ -66,7 +66,7 @@ const fixture = await build({
           <div data-smoke-layout>
             <aside data-smoke-catalog-view><CatalogMirror /></aside>
             <main data-smoke-history>
-              <ChatHistoryPage {...props} query="" />
+              <ChatHistoryPage {...props} />
             </main>
             <div data-smoke-notices>
               {notice && <div role={notice.tone === 'error' ? 'alert' : 'status'}>{notice.message}</div>}

@@ -88,5 +88,11 @@
   "memoryPage.invalidAutoApproveThreshold": "自动确认阈值响应无效",
   "memoryPage.loadingAutoApproveThreshold": "正在读取自动确认阈值…",
   "memoryPage.autoApproveThresholdUnavailable": "无法读取或保存自动确认阈值。",
-  "memoryPage.retryAutoApproveThreshold": "重试"
+  "memoryPage.retryAutoApproveThreshold": "重试",
+  "memoryPage.lede": "代理跨会话记住的偏好、决策与事实，按星域分组；可以在星图或列表里查看。",
+  "memoryPage.galaxyView": "星图",
+  "memoryPage.listView": "列表",
+  "memoryPage.loadFailed": "星忆读取失败",
+  "memoryPage.noMemoriesInSpace": "这片星域还没有星辰。",
+  "memoryPage.noMatchingMemories": "没有匹配的星辰"
 }

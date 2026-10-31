@@ -101,8 +101,8 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     app,
     /const source = pendingNewTask\.current\s+if \(!source \|\| requestedPathname\(readRouter\(\)\) !== location\.pathname\) return\s+pendingNewTask\.current = null\s+startNewTask\(source\)/,
   )
-  // 旧调用方在会话页里新建会话仍走就地创建事件。
-  assert.match(app, /requestSessionCreation\(''\)/)
+  // 旧的“新会话”入口（历史页页头）随 A6 退役：外壳只剩派发对话框一条新建路径，不再就地发创建事件。
+  assert.doesNotMatch(app, /requestSessionCreation\(''\)/)
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
   assert.match(focus, /<QuickPromptIdeas/)
   // 审批模式与执行方式在输入框的盾牌芯片里（规格 v2 第 2.5 节）。

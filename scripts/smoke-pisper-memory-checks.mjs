@@ -4,8 +4,10 @@ import { join } from 'node:path'
 
 export async function verifyMemoryLifecycle({ page, base, api, runtime, report, output }) {
   await page.goto(base + '/#/memory')
-  const layout = page.locator('.page-memory [data-page-template="list-detail"]')
+  // A6 第 2 批：星忆用功能页模板；星图是默认视图，选中星辰的详情在星图下方的区域里。
+  const layout = page.locator('.page-memory [data-page-template="feature"]')
   await layout.waitFor()
+  await layout.locator('[data-feature-section]').first().waitFor()
   await layout.getByRole('button', { name: '新建星域', exact: true }).click()
   let dialog = page.getByRole('dialog', { name: '新建星域', exact: true })
   await dialog.getByLabel('星域名称', { exact: true }).fill('PI memory space')
@@ -21,7 +23,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     .fill('Persistent acceptance fixture with nebula keyword.')
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
-  const details = layout.locator('[data-slot="page-inspector"]')
+  const details = layout.locator('[data-memory-detail]')
   await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
   await details.getByRole('button', { name: '编辑', exact: true }).click()
   dialog = page.getByRole('dialog', { name: '编辑星辰', exact: true })
@@ -32,7 +34,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
   await dialog.waitFor({ state: 'hidden' })
   await details.getByText('Edited nebula memory is durable.', { exact: true }).waitFor()
   await page.reload()
-  await layout.getByRole('button', { name: /^PI memory space / }).click()
+  await layout.getByRole('button', { name: 'PI memory space', exact: true }).click()
   await details.getByText('Edited nebula memory is durable.', { exact: true }).waitFor()
   const search = page.getByPlaceholder('搜索星辰或文件', { exact: true })
   await Promise.all([
@@ -100,6 +102,22 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
   await search.fill('')
   await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
   report.checks.push('Late memory search responses cannot restore nodes from a superseded query')
+  // 列表视图：每颗星辰一行，展开是与星图下方同一份详情（编辑 / 删除）；切回星图仍是原来的选中。
+  await layout.getByRole('tab', { name: '列表', exact: true }).click()
+  const listRow = layout.locator('[data-memory-node]').filter({ hasText: 'PI memory searchable' })
+  const listToggle = listRow.locator('[data-feature-row-toggle]')
+  assert.equal(await listToggle.getAttribute('aria-expanded'), 'false')
+  await listToggle.click()
+  assert.equal(await listToggle.getAttribute('aria-expanded'), 'true')
+  await listRow
+    .getByRole('region', { name: 'PI memory searchable' })
+    .getByRole('button', { name: '编辑', exact: true })
+    .waitFor()
+  await layout.getByRole('tab', { name: '星图', exact: true }).click()
+  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
+  report.checks.push(
+    'Memory list view expands a node into the same detail as the star map; the star map stays the default view',
+  )
   await layout.getByRole('button', { name: '重命名', exact: true }).click()
   dialog = page.getByRole('dialog', { name: '重命名星域', exact: true })
   await dialog.getByLabel('星域名称', { exact: true }).fill('PI renamed memory space')
@@ -158,8 +176,11 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
   await dialog.waitFor({ state: 'hidden' })
   assert.ok(!(await api('/api/memory')).spaces.some((s) => s.id === space.id))
   await page.reload()
-  await layout.waitFor()
-  assert.equal(await layout.getByRole('button', { name: /^PI renamed memory space / }).count(), 0)
+  await layout.locator('[data-feature-section]').first().waitFor()
+  assert.equal(
+    await layout.getByRole('button', { name: 'PI renamed memory space', exact: true }).count(),
+    0,
+  )
   report.checks.push(
     'Memory and space deletion use confirmation dialogs and stay deleted after reload',
   )

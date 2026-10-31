@@ -83,8 +83,6 @@
   "appSidebar.viewAll": "查看全部",
   "appSidebar.viewAllCountChats": "查看全部历史会话，共 {count} 个",
   "appSidebar.viewUpdateDetails": "点击查看更新",
-  "pageHeader.addLink": "添加链接",
-  "pageHeader.addMemory": "点亮星辰",
   "pageHeader.quickSetup": "快速设置",
   "pageHeader.addService": "添加服务",
   "pageHeader.connectChannel": "连接渠道",

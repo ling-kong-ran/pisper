@@ -285,6 +285,8 @@
   "chatHistoryPage.allChatsShown": "已显示全部 {count} 条会话",
   "chatHistoryPage.chatDeleted": "会话已删除",
   "chatHistoryPage.chatHistory": "历史会话",
+  "chatHistoryPage.lede": "全部会话都在这里，含已归档的；点一行回到那次对话。",
+  "chatHistoryPage.loadFailed": "历史会话读取失败",
   "chatHistoryPage.chatTitle": "会话标题",
   "chatHistoryPage.chatTitleUpdated": "会话标题已更新",
   "chatHistoryPage.countChatHistoryItems": "{count} 个历史会话",

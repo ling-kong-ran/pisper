@@ -285,11 +285,12 @@ test('the shell wires the session tab to the home, back to history, and the boar
 })
 
 test('on the home page the shell navigates itself: no session route is mounted there to take requests', async () => {
-  const [app, preview, home, launch] = await Promise.all([
+  const [app, preview, home, launch, routes] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
     readFile('src/app/SessionHome.tsx', 'utf8'),
     readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+    readFile('src/app/route-elements.tsx', 'utf8'),
   ])
   // '/' 的页面 id 是 'session'，挂的却是 SessionHome：判断“会话路由已挂载”只能看 /board/:id。
   assert.match(
@@ -306,15 +307,15 @@ test('on the home page the shell navigates itself: no session route is mounted t
     body('openSession'),
     /if \(!sessionRouteMounted\) routerNavigate\(sessionPath\(id\)\)/,
   )
-  // 兼容垫片 navigate('chat') 与新会话：同样按“会话路由是否挂载”决定，而不是 page === 'session'。
+  // 兼容垫片 navigate('chat')：同样按“会话路由是否挂载”决定，而不是 page === 'session'。
   assert.match(
     body('navigate'),
     /if \(!sessionRouteMounted\) \{\s*const intent = peekSessionNavigationIntent\(\)/,
   )
-  assert.match(
-    app,
-    /if \(sessionRouteMounted\) requestSessionCreation\(''\)\s+else routerNavigate\(sessionPath\(\)\)/,
-  )
+  // 旧的“新会话”入口（历史页页头主操作）随 A6 退役：历史页工具行的“新任务”与侧栏、⌘N 同走 startNewTask
+  // （派发对话框，规格 2.5），外壳里不再有另一条按页面判断的新建会话路径。
+  assert.doesNotMatch(app, /const startNewChat\b|requestSessionCreation\(''\)/)
+  assert.match(routes, /<ChatHistoryPage[\s\S]*?onNewTask=\{context\.startNewTask\}/)
   for (const name of ['openSession', 'navigate'])
     assert.doesNotMatch(body(name), /page !== 'session'|page === 'session'/, name)
   // 外链预览：只有会话路由挂着检查器，主页按“不在会话页”处理（带请求跳到最近的会话）。

@@ -72,7 +72,7 @@ const BARE_COLOR_ALLOWLIST = [
     reason: '扫码取景框外的相机画面遮罩（9999px 阴影挖空），恒定压暗实时画面，不随主题翻转',
   },
   {
-    file: 'src/features/memory/MemoryPage.tsx',
+    file: 'src/features/memory/MemoryGalaxy.tsx',
     literal: 'rgba(',
     count: 4,
     reason: '星忆星系是恒定深空场景，核心辉光不随主题翻转（负责人保留的 Memory glow）',

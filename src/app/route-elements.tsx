@@ -114,8 +114,9 @@ export async function chatHistoryRoute() {
     const context = useAppRouteContext()
     return (
       <ChatHistoryPage
-        query={context.query}
         navigate={context.navigate}
+        onBack={context.onBackToFeatures}
+        onNewTask={context.startNewTask}
         notify={context.notify}
         requestConfirm={context.requestConfirm}
         requestText={context.requestText}
@@ -133,10 +134,9 @@ export async function assetsRoute() {
     const context = useAppRouteContext()
     return (
       <AssetsPage
-        query={context.query}
         activeSessionId={context.activeSessionId}
+        onBack={context.onBackToFeatures}
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
         requestConfirm={context.requestConfirm}
         onUse={context.onUseAsset}
       />
@@ -237,9 +237,8 @@ export async function memoryRoute() {
     const context = useAppRouteContext()
     return (
       <MemoryPage
-        query={context.query}
+        onBack={context.onBackToFeatures}
         notify={context.notify}
-        registerPrimaryAction={context.registerPrimaryAction}
         requestConfirm={context.requestConfirm}
       />
     )
