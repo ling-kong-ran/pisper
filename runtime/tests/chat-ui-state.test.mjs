@@ -327,7 +327,7 @@ test('workspace groups create chats with their exact working directory', async (
   assert.match(events, /localStorage\.setItem\(STORAGE_KEYS\.sessionCreateRequest/)
   assert.match(events, /localStorage\.removeItem\(STORAGE_KEYS\.sessionCreateRequest\)/)
   assert.match(chatPage, /addEventListener\(SESSION_CREATE_REQUESTED_EVENT, createRequested\)/)
-  assert.match(chatPage, /createSession\(undefined, request\.cwd\)/)
+  assert.match(chatPage, /createSession\(request\.cwd\)/)
   assert.match(
     catalog,
     /createSessionRecord = useCallback\(\s*\(cwd = '', \{ inheritRecentCwd = true \}: CreateSessionOptions = \{\}\) =>/,

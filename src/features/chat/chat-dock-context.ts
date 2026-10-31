@@ -1,4 +1,4 @@
-// 会话打开请求 / Dock 布局事件的处理封装，供各组件复用。
+// 聊天页交给会话视图（SessionPanel）的低频数据与稳定回调；分屏相关字段随 Dockview 在 A4 删除。
 import { createContext } from 'react'
 import type { Notify } from '@/app/route-context'
 import type {
@@ -9,7 +9,6 @@ import type {
   SessionState,
   SessionSummary,
 } from '@/types/chat'
-import type { SessionOpenDisposition } from './dock-layout'
 import type { WithdrawnInput } from './chat-api'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
@@ -23,11 +22,7 @@ export type ChatDockContextValue = {
   availableModels: ModelOption[]
   globalError: string
   activeId: string
-  compactDock: boolean
   mobileLayout: boolean
-  // 只有挂载 Dock 的多会话布局能分屏；会话页（路由模式）与手机单会话视图不提供拆分入口，
-  // 否则“拆分到右侧”只会换掉当前会话。
-  splitAvailable: boolean
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   sessionTreePulseSessionId: string
   sessionTreePulseToken: number
@@ -73,8 +68,6 @@ export type ChatDockContextValue = {
   branchFromEntry: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
   createChildSession: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
   reloadSessionBranch: (sessionId: string) => Promise<void>
-  splitDockPanel: (panelId: string, direction: Exclude<SessionOpenDisposition, 'open'>) => void
-  closeDockPanel: (panelId: string) => void
 }
 
 export const ChatDockContext = createContext<ChatDockContextValue | null>(null)

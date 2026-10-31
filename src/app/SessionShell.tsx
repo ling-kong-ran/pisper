@@ -4,22 +4,17 @@
 // 路由组件在会话之间保持挂载，会话目录与转录状态不随切换重载。
 // 进入真实会话时记下“上次停留的会话”，主页据此落地；归档当前会话后回到主页（此时显示新任务草稿）。
 // replace 切换时保留历史状态，从主页落地的会话切换代理后仍是根（手机原生返回交还平台）。
-// 手机外壳（规格 7.3）：顶栏 56（左侧“看板 N”入口带需要你计数）+ 代理条 + 对话，检查器改为底部表单；
-// 代理条来自看板领域，由这里交给会话页摆放。手机 App 平板（≥960×640）走桌面布局、检查器为覆盖层。
+// 手机外壳（规格 v2 第 7.1、7.2 节）：顶栏 56（左侧 ☰ 带需要你计数，点开抽屉）+ 对话，检查器改为底部表单；
+// 第 4 期的代理条与“看板 N”入口退役，并行的代理在抽屉里。手机 App 平板（≥960×640）走桌面布局、检查器为覆盖层。
 // 本模块随会话路由按需加载，不进入入口包；聊天页由路由加载器单独懒加载后传入。
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useSessionListQuery } from '@/features/board/public'
-import {
-  PhoneAgentStrip,
-  effectiveStripCurrent,
-  type PendingStripSwitch,
-} from '@/features/board/session-strip'
 import type { ChatPage as ChatPageComponent } from '@/features/chat/ChatPage'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useClientStore } from '@/stores/client-store'
 import type { AppRouteContext } from './route-context'
-import { BoardEntry } from './BoardEntry'
+import { PhoneMenuButton } from './PhoneMenuButton'
 import { HOME_PATH, NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
 import { forgetLastSession, rememberLastSession } from './session-home'
 
@@ -77,25 +72,6 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
   useEffect(() => {
     if (known) rememberLastSession(sessionId)
   }, [known, sessionId])
-  // 手机代理条切换代理：替换当前历史记录（保留主页落地标记），浏览器后退回到来处。
-  // 路由在 transition 里提交，新会话还在加载时 sessionId 仍是旧值；记下已发出的目标，
-  // 连按时以它为当前会话（effectiveStripCurrent），界面换过去之后清掉。
-  const pendingSwitchRef = useRef<PendingStripSwitch | null>(null)
-  useEffect(() => {
-    if (pendingSwitchRef.current && pendingSwitchRef.current.from !== sessionId)
-      pendingSwitchRef.current = null
-  }, [sessionId])
-  const switchSession = useCallback(
-    (id: string) => {
-      const from = currentRef.current
-      if (!id || id === effectiveStripCurrent(from, pendingSwitchRef.current)) return
-      pendingSwitchRef.current = { from, to: id }
-      navigate(sessionPath(id), { replace: true, state: entryStateRef.current })
-    },
-    [navigate],
-  )
-  // 手机顶栏的看板入口：打开看板（push），浏览器后退回到这个会话（桌面的入口在侧栏）。
-  const openBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
   const pageChrome = useMemo(
     () => ({
       compact,
@@ -111,18 +87,11 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     }),
     [compact, mobileApp, navigate],
   )
-  // 手机外壳：同一份会话页契约，加上代理条；代理条切换代理与桌面泳道条一样只替换路由。
-  const notify = context.notify
+  // 手机外壳：同一份会话页契约，加上顶栏 ✎（没有改动时）打开派发表单。
+  const startNewTask = context.startNewTask
   const phoneChrome = useMemo(
-    () => ({
-      ...pageChrome,
-      phone: {
-        strip: (
-          <PhoneAgentStrip currentId={sessionId} notify={notify} onOpenSession={switchSession} />
-        ),
-      },
-    }),
-    [notify, pageChrome, sessionId, switchSession],
+    () => ({ ...pageChrome, phone: { onNewTask: startNewTask } }),
+    [pageChrome, startNewTask],
   )
   return (
     <div
@@ -141,8 +110,8 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
           requestConfirm={context.requestConfirm}
           routeSessionId={sessionId}
           onRouteSessionChange={openSession}
-          // 手机外壳：看板入口放进会话顶栏最左侧；桌面布局的入口在应用侧栏里。
-          routeLeading={pageLayout ? undefined : <BoardEntry onOpenBoard={openBoard} />}
+          // 手机外壳：☰（抽屉）放进会话顶栏最左侧；桌面布局的入口在应用侧栏里。
+          routeLeading={pageLayout ? undefined : <PhoneMenuButton />}
           pageChrome={pageLayout ? pageChrome : phoneChrome}
         />
       </div>

@@ -22,7 +22,7 @@ import {
   sessionPath,
 } from '../../src/app/routes.ts'
 import {
-  PHONE_SHELL_TABS,
+  SHELL_TABS,
   SHELL_TAB_PAGES,
   activeShellTab,
   requestedPathname,
@@ -80,7 +80,7 @@ test('legacy hashes keep resolving and never create a session on startup', () =>
 test('each page lights exactly one primary entry; feature pages have a single home under 功能', () => {
   // 规格 v2：桌面标题栏标签退役，一级入口在侧栏（全部代理 / 功能 / 设置）；手机标签栏（A4 前）仍是
   // 会话 / 看板 / 更多 / 设置。“会话”另走主页逻辑，不在 SHELL_TAB_PAGES 里；组件工作室不再是一级入口。
-  assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
+  assert.deepEqual([...SHELL_TABS], ['session', 'board', 'more', 'settings'])
   assert.equal('components' in SHELL_TAB_PAGES, false)
   assert.equal(SHELL_TAB_PAGES.settings, 'config')
   assert.equal('session' in SHELL_TAB_PAGES, false)
@@ -390,10 +390,10 @@ test('the sidebar is the only primary navigation and windows keep the control co
     assert.match(header, /data-window-drag-region/)
   }
   // 全部代理（A3，取代泳道页的 BoardHeader）：主区顶栏 52 是一条没有任何控件的拖拽区，页头（标题、分组方式、
-  // 新任务）在它下方的滚动区里，因此右上角 144px 天然空着，不需要再让位。
+  // 新任务）在它下方的滚动区里，因此右上角 144px 天然空着，不需要再让位。手机外壳由外壳顶栏代替这一条。
   assert.match(
     overview,
-    /<div data-window-drag-region aria-hidden="true" className="h-\[52px\] flex-none" \/>\s*<div\s+ref=\{scrollerRef\}\s+data-overview-scroller/,
+    /\{!phone && <div data-window-drag-region aria-hidden="true" className="h-\[52px\] flex-none" \/>\}\s*<div\s+ref=\{scrollerRef\}\s+data-overview-scroller/,
   )
   // 三个 44px 窗口按钮叠在主区右上角：总宽 132px 落在 144px 预留区内。
   assert.match(

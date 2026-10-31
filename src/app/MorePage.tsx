@@ -57,7 +57,7 @@ export function MorePage({ onOpen }: MorePageProps) {
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   // 手机外壳：没有 52 顶栏拖拽区，卡片排成一列 56 行；标题与底部标签栏一致，A4 换抽屉前仍叫“更多”。
   const phone = usePhoneShell()
-  const title = phone ? t('navigation:shell.more') : t('navigation:more.title')
+  const title = t('navigation:more.title')
   const catalog = useCustomUiComponents()
   // 内置组件（如 Pisper Island）是浮窗，不占整页位置。
   const components = useMemo(
@@ -179,19 +179,28 @@ export function MorePage({ onOpen }: MorePageProps) {
           className="mx-auto flex w-full max-w-[808px] flex-col px-6 pb-16 max-[650px]:px-4 max-[650px]:pt-4 max-[650px]:pb-8"
         >
           <header data-focus-region="header" className="flex flex-col">
+            {/* 手机：页名在外壳顶栏里，这里的 h1 只给读屏（规格 7.1），说明也省掉。 */}
             <h1
               id={headingId}
-              className="text-2xl leading-8 font-semibold tracking-[-.01em] text-content"
+              className={cn(
+                'text-2xl leading-8 font-semibold tracking-[-.01em] text-content',
+                phone && 'sr-only',
+              )}
             >
               {title}
             </h1>
-            <p className="mt-1 text-sm text-content-muted">
+            <p className={cn('mt-1 text-sm text-content-muted', phone && 'hidden')}>
               {/* 手机没有实体键盘：不写快捷键，只说命令面板。 */}
               {paletteShortcut && !phone
                 ? t('navigation:more.lede', { shortcut: paletteShortcut })
                 : t('navigation:more.ledeNoShortcut')}
             </p>
-            <label className="relative mt-5 flex h-9 w-full items-center gap-2 rounded-[var(--r-md)] border border-control bg-panel px-3 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11">
+            <label
+              className={cn(
+                'relative mt-5 flex h-9 w-full items-center gap-2 rounded-[var(--r-md)] border border-control bg-panel px-3 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11',
+                phone && 'mt-0',
+              )}
+            >
               <Search className="size-4 flex-none" aria-hidden="true" />
               <span className="sr-only">{t('navigation:more.search')}</span>
               <input

@@ -1,12 +1,12 @@
 // @public 轻量契约：应用壳无须加载看板数据层即可派发；不导入页面，也没有导入副作用。
-// “请求新任务”契约：⌘N、侧栏“新任务”、手机居中按钮与命令面板都只发这一个事件。
+// “请求新任务”契约：⌘N、侧栏 / 抽屉“新任务”、手机顶栏 ✎ 与命令面板都只发这一个事件。
 // 看板页挂载启动台后认领事件（preventDefault）并聚焦启动台；没有视图认领时，
 // 应用壳打开派发浮层。事件只携带来源，不携带草稿，草稿由启动台/浮层自己持有。
 import { useLayoutEffect, useRef } from 'react'
 
 export const BOARD_NEW_TASK_EVENT = 'pisper:board-new-task'
 
-export type BoardNewTaskSource = 'shortcut' | 'sidebar' | 'tabbar' | 'palette' | 'board'
+export type BoardNewTaskSource = 'shortcut' | 'sidebar' | 'topbar' | 'palette' | 'board'
 
 export type BoardNewTaskRequest = { source: BoardNewTaskSource }
 

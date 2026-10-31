@@ -211,8 +211,8 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
     check(`${name} gzip`, report.fileMetrics.get(report.manifest[key].file).gzip, limit)
   }
 
-  // Dockview 分屏已退役（规格 v2 第 9.1 节，ChatDockView 已删除）：聊天代码只剩对它的类型引用，
-  // 任何路由都不应再打出分屏运行时；下方同时禁止其进入 eager 依赖图。
+  // Dockview 分屏已退役（规格 v2 第 9.1 节；A4 卸载了 dockview-react）：任何路由都不应再打出分屏运行时，
+  // 依赖被重新引入时这里与下方的 eager 依赖图检查都会报出来。
   if (report.keyByName.has('vendor-dockview'))
     failures.push('retired split-view vendor must not be bundled')
   const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []

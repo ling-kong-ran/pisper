@@ -3,6 +3,7 @@
 // 一行最多一个主操作（石墨）：普通批准的“允许”、失败的“重试”、高风险 / 提问 / 详情未到的“打开处理”。
 // 批准前必须看到完整命令：命令最多显示 3 行，超出用“展开”，从不截断文本本身（CommandWell）。
 // 琥珀只用于需要你：圆点、原因文字、高风险说明；diff 统计用红绿（规格 6.1 例外）。
+// 手机（规格 v2 第 7.3 节）：需要你的行变成卡片（圆角 14），操作是整行宽的 44px 按钮；其余状态仍是列表行。
 import {
   memo,
   useLayoutEffect,
@@ -17,7 +18,6 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Button } from '@/components/ui/button'
 import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
-import type { AgentCardHandlers } from './AgentCard'
 import type { BoardItem } from './board-model'
 import {
   approvalArgsText,
@@ -37,6 +37,7 @@ import {
   formatSidebarWait,
   reasonText,
 } from './sidebar-presentation'
+import type { BoardRowHandlers } from './useBoardController'
 import type { SessionRowActions } from './useSessionRowActions'
 
 export type OverviewRowProps = {
@@ -50,8 +51,10 @@ export type OverviewRowProps = {
   // 运行中弧的相位（0–1），同组多行错开。
   phase?: number
   bindings: { approve: string | null; deny: string | null; retry: string | null }
-  handlers: AgentCardHandlers
+  handlers: BoardRowHandlers
   menu: SessionRowActions
+  // 手机外壳：需要你的行画成卡片，按钮 44px。
+  card?: boolean
   // 排队行的“立即开始”：sessionQueue（A9）提供之前为空，不显示按钮。
   onStartNow?: (item: BoardItem) => void
 }
@@ -96,6 +99,7 @@ function OverviewRowComponent({
   handlers,
   menu,
   onStartNow,
+  card = false,
 }: OverviewRowProps) {
   const { t } = useI18n()
   const rowRef = useRef<HTMLElement>(null)
@@ -170,9 +174,12 @@ function OverviewRowComponent({
   const openButton = (
     <Button size="sm" tabIndex={tabIndex} onClick={open}>
       {t('board:overview.openToHandle')}
-      <span aria-hidden="true" className="font-normal opacity-60">
-        ↵
-      </span>
+      {/* 手机卡片没有键盘：不写 ↵ 键帽。 */}
+      {!card && (
+        <span aria-hidden="true" className="font-normal opacity-60">
+          ↵
+        </span>
+      )}
     </Button>
   )
 
@@ -386,6 +393,98 @@ function OverviewRowComponent({
       />
     ) : null
   }
+
+  // 手机卡片（规格 7.3）：第 1 行状态点 · 标题 · 等待时长，第 2 行原因 · 项目，然后是完整命令或失败摘要，
+  // 最后是整行宽的 44px 按钮（普通批准 [拒绝][允许]，失败 [日志][重试]，其余一个“打开处理”）。
+  if (card && attention)
+    return (
+      <article
+        ref={rowRef}
+        data-board-card={item.id}
+        data-overview-row
+        data-overview-card
+        data-lane={item.lane}
+        data-status={item.status}
+        data-severity={item.severity ?? undefined}
+        tabIndex={tabIndex}
+        aria-label={t('board:card.label', { title, status: statusText })}
+        aria-keyshortcuts="Enter"
+        onFocus={(event) => {
+          if (event.target === event.currentTarget || event.currentTarget.contains(event.target))
+            handlers.onFocusCard(item.id)
+        }}
+        onPointerDownCapture={(event) => {
+          pressOnControlRef.current = interactiveTarget(event.target)
+        }}
+        onClick={clickRow}
+        onKeyDown={keyDown}
+        className={cn(
+          'relative flex min-w-0 cursor-pointer flex-col gap-2 rounded-[14px] border border-st-attn-border bg-panel p-3.5 shadow-edge transition-opacity duration-(--d-fast) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
+          dimmed && 'opacity-50',
+        )}
+      >
+        <div className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-x-2.5">
+          <span className="mt-0.5 grid size-4 place-items-center">
+            <StatusGlyph status={boardStatusGlyph(item)} phase={phase} />
+          </span>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="min-w-0 truncate text-base leading-5 font-medium text-content">{title}</p>
+            <p className="flex min-w-0 items-baseline gap-1 text-xs leading-5">
+              <span data-row-status className="flex-none text-warning-strong">
+                {statusText}
+                {toolName && (
+                  <>
+                    <span aria-hidden="true"> · </span>
+                    <b data-row-tool className="font-mono font-medium">
+                      {toolName}
+                    </b>
+                  </>
+                )}
+              </span>
+              {project && (
+                <>
+                  <span aria-hidden="true" className="text-content-faint">
+                    ·
+                  </span>
+                  <span
+                    data-row-project
+                    className="min-w-0 truncate font-mono text-content-muted"
+                    title={item.cwd || undefined}
+                  >
+                    {project}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            {time && (
+              <span data-row-time className="text-xs text-content-muted tabular-nums">
+                <span aria-hidden="true">{time}</span>
+                <span className="sr-only">{timeLabel}</span>
+              </span>
+            )}
+            <SessionRowMenu
+              row={{ id: item.id, title, pinned: item.pinned }}
+              actions={menu}
+              canMarkHandled={item.status === 'failed'}
+              align="end"
+              tabIndex={tabIndex}
+              className="size-11"
+            />
+          </div>
+        </div>
+        {detail && <div className="min-w-0 pl-[26px]">{detail}</div>}
+        {actions && (
+          <div
+            data-card-actions
+            className="grid grid-cols-2 gap-2 [&>button]:h-11 [&>button]:w-full [&>button]:text-sm [&>button:only-child]:col-span-2"
+          >
+            {actions}
+          </div>
+        )}
+      </article>
+    )
 
   return (
     <article

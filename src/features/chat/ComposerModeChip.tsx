@@ -19,7 +19,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { PopoverSheet } from '@/components/app/PopoverSheet'
 import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { EntityRecord } from '@/types/chat'
@@ -98,7 +98,10 @@ export function ComposerModeChip({
   tokenBudget,
   onTokenBudgetChange,
   onSaveTokenBudget,
+  sheet = false,
 }: {
+  // 手机会话页：弹层换成底部表单（规格 7.2）。
+  sheet?: boolean
   approvalMode: string
   onApprovalModeChange: (mode: string) => void
   approvalDisabled?: boolean
@@ -213,8 +216,15 @@ export function ComposerModeChip({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <PopoverSheet
+      sheet={sheet}
+      title={label}
+      open={open}
+      onOpenChange={setOpen}
+      align="start"
+      side="top"
+      className="composer-mode-popover w-[300px] max-w-[calc(100vw_-_24px)] gap-1 p-1"
+      trigger={
         <button
           type="button"
           className="composer-mode-chip inline-flex h-7 max-w-[220px] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:max-w-[160px] max-[650px]:border-stroke max-[650px]:px-2.5 pointer-coarse:h-11"
@@ -226,115 +236,110 @@ export function ComposerModeChip({
           <span className="min-w-0 truncate">{chipLabel}</span>
           <ChevronDown size={14} className="shrink-0 opacity-70" aria-hidden="true" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        className="composer-mode-popover w-[300px] max-w-[calc(100vw_-_24px)] gap-1 p-1"
-      >
-        <Section label={t('chat:focusSession.approvalMode')}>
-          {approvalOptions.map((option) => (
-            <OptionRow
-              key={option.value}
-              option={option}
-              selected={option.value === approval.value}
-              disabled={approvalDisabled}
-              // 选定即关闭弹层（与原审批菜单一致）；完全访问的确认对话框由调用方弹出。
-              onSelect={(mode) => {
-                setOpen(false)
-                onApprovalModeChange(mode)
-              }}
-            />
-          ))}
-        </Section>
-        {runOptions.length > 1 && (
-          <>
-            <div role="separator" className="mx-1 h-px bg-stroke-soft" />
-            <Section
-              label={t('chat:focusSession.executionMode')}
-              hint={
-                <span className="flex items-center gap-1 font-normal">
-                  {t('board:composer.cycleRunMode')}
-                  <Kbd>⇧Tab</Kbd>
-                </span>
-              }
-            >
-              {runOptions.map((option) => (
-                <OptionRow
-                  key={option.value}
-                  option={option}
-                  selected={option.value === selectedRun}
-                  disabled={runModeDisabled}
-                  onSelect={(mode) => {
-                    // 选 Goal / Team 时留在弹层里，方便接着填预算；回到 Plan 直接关闭。
-                    if (mode === 'plan') setOpen(false)
-                    onRunModeChange(mode)
+      }
+    >
+      <Section label={t('chat:focusSession.approvalMode')}>
+        {approvalOptions.map((option) => (
+          <OptionRow
+            key={option.value}
+            option={option}
+            selected={option.value === approval.value}
+            disabled={approvalDisabled}
+            // 选定即关闭弹层（与原审批菜单一致）；完全访问的确认对话框由调用方弹出。
+            onSelect={(mode) => {
+              setOpen(false)
+              onApprovalModeChange(mode)
+            }}
+          />
+        ))}
+      </Section>
+      {runOptions.length > 1 && (
+        <>
+          <div role="separator" className="mx-1 h-px bg-stroke-soft" />
+          <Section
+            label={t('chat:focusSession.executionMode')}
+            hint={
+              <span className="flex items-center gap-1 font-normal">
+                {t('board:composer.cycleRunMode')}
+                <Kbd>⇧Tab</Kbd>
+              </span>
+            }
+          >
+            {runOptions.map((option) => (
+              <OptionRow
+                key={option.value}
+                option={option}
+                selected={option.value === selectedRun}
+                disabled={runModeDisabled}
+                onSelect={(mode) => {
+                  // 选 Goal / Team 时留在弹层里，方便接着填预算；回到 Plan 直接关闭。
+                  if (mode === 'plan') setOpen(false)
+                  onRunModeChange(mode)
+                }}
+              />
+            ))}
+          </Section>
+          {(engaged || hasExistingGoal) && (
+            <div className="grid gap-1 px-2 pt-1 pb-1.5 text-xs">
+              {usage && <p className="text-content-muted tabular-nums">{usage}</p>}
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
+                <label
+                  htmlFor="goal-token-budget-input"
+                  className="font-medium text-content-secondary"
+                >
+                  {budgetLabel}
+                </label>
+                <input
+                  id="goal-token-budget-input"
+                  type="number"
+                  min={MIN_GOAL_TOKEN_BUDGET}
+                  step={1000}
+                  value={tokenBudget ?? ''}
+                  placeholder={t('chat:focusSession.goalTokenBudgetUnlimited')}
+                  aria-label={budgetLabel}
+                  disabled={savingBudget}
+                  className="h-8 w-full min-w-0 rounded-sm border border-control bg-panel px-2 text-[13px] text-inherit tabular-nums focus:border-focus focus:ring-3 focus:ring-focus-ring focus:outline-none"
+                  onChange={(event) => {
+                    const raw = event.target.value.trim()
+                    if (!raw) {
+                      onTokenBudgetChange(null)
+                      return
+                    }
+                    const next = Number(raw)
+                    if (Number.isFinite(next))
+                      onTokenBudgetChange(Math.max(MIN_GOAL_TOKEN_BUDGET, Math.round(next)))
                   }}
                 />
-              ))}
-            </Section>
-            {(engaged || hasExistingGoal) && (
-              <div className="grid gap-1 px-2 pt-1 pb-1.5 text-xs">
-                {usage && <p className="text-content-muted tabular-nums">{usage}</p>}
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
-                  <label
-                    htmlFor="goal-token-budget-input"
-                    className="font-medium text-content-secondary"
-                  >
-                    {budgetLabel}
-                  </label>
-                  <input
-                    id="goal-token-budget-input"
-                    type="number"
-                    min={MIN_GOAL_TOKEN_BUDGET}
-                    step={1000}
-                    value={tokenBudget ?? ''}
-                    placeholder={t('chat:focusSession.goalTokenBudgetUnlimited')}
-                    aria-label={budgetLabel}
+                {hasExistingGoal && budgetDirty ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={savingBudget}
-                    className="h-8 w-full min-w-0 rounded-sm border border-control bg-panel px-2 text-[13px] text-inherit tabular-nums focus:border-focus focus:ring-3 focus:ring-focus-ring focus:outline-none"
-                    onChange={(event) => {
-                      const raw = event.target.value.trim()
-                      if (!raw) {
-                        onTokenBudgetChange(null)
-                        return
-                      }
-                      const next = Number(raw)
-                      if (Number.isFinite(next))
-                        onTokenBudgetChange(Math.max(MIN_GOAL_TOKEN_BUDGET, Math.round(next)))
-                    }}
-                  />
-                  {hasExistingGoal && budgetDirty ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={savingBudget}
-                      onClick={() => void saveBudget()}
-                    >
-                      {savingBudget ? (
-                        <RefreshCw className="animate-spin" size={12} />
-                      ) : (
-                        <Check size={12} />
-                      )}
-                      {t('chat:focusSession.goalBudgetSave')}
-                    </Button>
-                  ) : (
-                    <span />
-                  )}
-                </div>
-                <small className="text-content-muted">
-                  {selectedRun === 'team'
-                    ? t('chat:focusSession.teamTokenBudgetHint')
-                    : hasExistingGoal
-                      ? t('chat:focusSession.goalTokenBudgetUpdateHint')
-                      : t('chat:focusSession.goalTokenBudgetHint')}
-                </small>
+                    onClick={() => void saveBudget()}
+                  >
+                    {savingBudget ? (
+                      <RefreshCw className="animate-spin" size={12} />
+                    ) : (
+                      <Check size={12} />
+                    )}
+                    {t('chat:focusSession.goalBudgetSave')}
+                  </Button>
+                ) : (
+                  <span />
+                )}
               </div>
-            )}
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+              <small className="text-content-muted">
+                {selectedRun === 'team'
+                  ? t('chat:focusSession.teamTokenBudgetHint')
+                  : hasExistingGoal
+                    ? t('chat:focusSession.goalTokenBudgetUpdateHint')
+                    : t('chat:focusSession.goalTokenBudgetHint')}
+              </small>
+            </div>
+          )}
+        </>
+      )}
+    </PopoverSheet>
   )
 }

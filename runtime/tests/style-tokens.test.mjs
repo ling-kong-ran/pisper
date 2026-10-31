@@ -207,8 +207,10 @@ test('board and new shell sources never need the bare colour allowlist', async (
     // 规格 v2（A1）：侧栏外壳取代标题栏、舰队计量与“‹ 看板”返回条（三者已删除）。
     'src/app/ShellSidebar.tsx',
     'src/app/MorePage.tsx',
-    'src/app/ShellTabBar.tsx',
-    'src/components/app/LaneBarsIcon.tsx',
+    // A4：手机外壳的顶栏、☰ 与抽屉取代底部标签栏。
+    'src/app/PhoneTopBar.tsx',
+    'src/app/PhoneMenuButton.tsx',
+    'src/app/PhoneDrawer.tsx',
     'src/components/app/StatusGlyph.tsx',
     'src/components/app/StatusTag.tsx',
     // A3：设置整页的侧栏（设置目录）取代内容区左侧的 SettingsSectionNav。
@@ -216,7 +218,6 @@ test('board and new shell sources never need the bare colour allowlist', async (
     'src/components/ui/chip.tsx',
     'src/components/ui/segmented-control.tsx',
     // 第 4 期：会话主页、看板入口、手机会话页顶栏与底部表单、更多角标、快捷键速查。
-    'src/app/BoardEntry.tsx',
     'src/app/SessionHome.tsx',
     'src/app/useMoreTileBadges.ts',
     'src/components/app/SheetDragHandle.tsx',
@@ -228,7 +229,7 @@ test('board and new shell sources never need the bare colour allowlist', async (
   const boardFiles = (await sourceFiles(path.resolve('src/features/board'), /\.(?:ts|tsx)$/)).map(
     (file) => path.relative(process.cwd(), file).split(path.sep).join('/'),
   )
-  assert.ok(boardFiles.includes('src/features/board/AgentCard.tsx'))
+  assert.ok(boardFiles.includes('src/features/board/OverviewRow.tsx'))
   const files = [...boardFiles, ...shellFiles]
   const violations = []
   for (const file of files) {

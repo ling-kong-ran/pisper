@@ -35,7 +35,6 @@ const VENDOR_CHUNK_PRIORITIES = [
   ['vendor-state', 95],
   ['vendor-ui', 94],
   ['vendor-shiki-runtime', 90],
-  ['vendor-dockview', 80],
   ['vendor-xyflow', 70],
   ['vendor-motion', 60],
   ['vendor-markdown-plugins', 50],
@@ -74,13 +73,6 @@ export function vendorChunkForModule(moduleId: string) {
     )
   )
     return 'vendor-ui'
-
-  if (
-    ['dockview', 'dockview-core', 'dockview-react'].some((packageName) =>
-      isPackage(id, packageName),
-    )
-  )
-    return 'vendor-dockview'
 
   if (
     isPackage(id, '@xyflow/react') ||

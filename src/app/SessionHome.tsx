@@ -10,11 +10,11 @@ import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { useSessionListQuery } from '@/features/board/public'
-import { NewTaskDraft, PhoneAgentStrip } from '@/features/board/session-strip'
+import { NewTaskDraft } from '@/features/board/session-strip'
 import { usePhoneShell, useTabletApp } from '@/hooks/usePhoneShell'
-import { BoardEntry } from './BoardEntry'
+import { PhoneMenuButton } from './PhoneMenuButton'
 import type { AppRouteContext } from './route-context'
-import { HOME_ENTRY_STATE, PAGE_PATHS, sessionPath } from './routes'
+import { HOME_ENTRY_STATE, sessionPath } from './routes'
 import { homeLanding, readLastSession } from './session-home'
 
 export function SessionHome({ context }: { context: AppRouteContext }) {
@@ -65,11 +65,10 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
     [navigate, notify, t],
   )
   useEffect(() => openHomeSession(target), [openHomeSession, target])
-  const openBoard = useCallback(() => navigate(PAGE_PATHS.board), [navigate])
   const detachedFailure = useCallback((message: string) => notify(message, 'error'), [notify])
   const configureModels = useCallback(() => navigate('/config/models'), [navigate])
-  // 手机顶栏的看板入口；桌面的入口在应用侧栏里。
-  const entry = <BoardEntry onOpenBoard={openBoard} />
+  // 手机顶栏左侧的 ☰（抽屉）；桌面的入口在应用侧栏里。
+  const entry = <PhoneMenuButton />
 
   let body
   if (landing.kind === 'draft')
@@ -77,11 +76,6 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
       <NewTaskDraft
         phone={!pageLayout}
         leading={entry}
-        strip={
-          pageLayout ? undefined : (
-            <PhoneAgentStrip currentId="" notify={notify} onOpenSession={openHomeSession} />
-          )
-        }
         onDispatched={openHomeSession}
         onDetachedFailure={detachedFailure}
         onConfigureModels={configureModels}
@@ -91,7 +85,7 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
     body = (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-panel">
         {!pageLayout && (
-          <header className="flex h-14 shrink-0 items-center bg-chrome px-1">{entry}</header>
+          <header className="flex h-14 shrink-0 items-center bg-panel px-1">{entry}</header>
         )}
         <div className="flex min-h-0 flex-1 items-center justify-center">
           {landing.kind === 'error' ? (

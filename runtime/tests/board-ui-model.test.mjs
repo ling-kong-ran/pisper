@@ -233,8 +233,16 @@ test('overview switches to a virtual list above 30 rows', () => {
 // click 被派发到两者的共同祖先（卡片 / 行本身）→ 打开会话。行与手机卡片都记住按下是否落在控件上，
 // 这样的点击永远不当作“打开”。（泳道冻结溢出摘要的那一层随泳道退役。）
 test('a press that starts on a row or card control never opens the session', async () => {
-  for (const file of ['src/features/board/AgentCard.tsx', 'src/features/board/OverviewRow.tsx']) {
+  // A4 起手机卡片也是 OverviewRow（AgentCard 随手机看板删除）：桌面行与手机卡片两处都要守住。
+  for (const file of ['src/features/board/OverviewRow.tsx']) {
     const source = await readFile(file, 'utf8')
+    assert.equal(
+      source.match(
+        /onPointerDownCapture=\{\(event\) => \{\s*pressOnControlRef\.current = interactiveTarget\(event\.target\)/g,
+      )?.length,
+      2,
+      'row and phone card',
+    )
     assert.match(
       source,
       /onPointerDownCapture=\{\(event\) => \{\s*pressOnControlRef\.current = interactiveTarget\(event\.target\)/,
@@ -349,67 +357,62 @@ async function boardSources() {
   )
 }
 
-test('only the confirmation layer may approve critical requests', async () => {
+test('critical requests are never approved from the board or the sidebar', async () => {
   const sources = await boardSources()
+  // A4 起手机卡片与桌面行同一页、同一个控制器：看板领域没有任何代码能带 confirmCritical: true，
+  // critical 一律进会话，在会话审批面板的按住确认层（ApprovalConfirm）里批准（规格 3.5）。
   const callers = sources
     .filter(([, source]) => /confirmCritical:\s*true/.test(source))
     .map(([file]) => file)
-  assert.deepEqual(callers, ['useBoardController.ts'])
+  assert.deepEqual(callers, [])
   const controller = sources.find(([file]) => file === 'useBoardController.ts')[1]
-  // 允许 critical 的唯一路径是 confirmApproval（按住 0.6 秒或层内回车后调用）。
-  const confirmBody = controller.slice(controller.indexOf('const confirmApproval'))
-  assert.match(confirmBody.slice(0, 900), /confirmCritical: true/)
+  assert.doesNotMatch(
+    controller,
+    /confirmApproval|openConfirm|criticalInSession|ApprovalConfirmTarget/,
+  )
   // 侧栏的快捷处理（取代舰队计量浮层）只对 sidebar-model 判定为普通批准的行一步允许，
   // 且永远不带确认：critical、详情未到或截断的一律“打开”进会话。
   const sidebar = sources.find(([file]) => file === 'SidebarSessions.tsx')[1]
   const sidebarApprovals = [...sidebar.matchAll(/\.approve\([^)]*\)/g)].map((match) => match[0])
   assert.deepEqual(sidebarApprovals, ['.approve(row.id, approvalId, { confirmCritical: false })'])
   assert.match(sidebar, /if \(row\.quickAction\.kind !== 'decide'\) \{\s*onOpenSession\(row\.id\)/)
-
-  // 控制器内部的 approveNow 第三个参数就是 confirmCritical：只有 confirmApproval 能传 true，
-  // 卡片按钮与 A 键都传 false；critical 或详情未到时 A 只打开确认层。
-  const approveNowCalls = [...controller.matchAll(/approveNow\(item, approval, (\w+)\)/g)]
-  assert.deepEqual(
-    approveNowCalls.map((match) => [
-      match[1],
-      match.index > controller.indexOf('const confirmApproval'),
-    ]),
-    [
-      ['false', false],
-      ['true', true],
-    ],
-  )
-  // critical 不一步允许：桌面全部代理（criticalInSession）进会话处理（规格 3.5“全部代理只显示打开处理”），
-  // 手机看板（A4 前）只打开确认层。Runtime 回 confirmation-required 时同样走这条路。
+  // 控制器只有一处批准调用，固定 confirmCritical: false。
+  assert.equal(controller.match(/actionsRef\.current\.approve\(/g)?.length, 1)
   assert.match(
     controller,
-    /onApprove: \(item, approval\) => \{[\s\S]{0,200}if \(approval\.severity === 'critical'\) \{\s*review\(item, approval\)\s*return/,
+    /actionsRef\.current\.approve\(item\.id, approval\.id, \{\s*confirmCritical: false,\s*\}\)/,
   )
+  // critical 不一步允许，进会话处理（规格 3.5“全部代理只显示打开处理”）；Runtime 回 confirmation-required 时同样进会话。
   assert.match(
     controller,
-    /const review = useCallback\(\s*\(item: BoardItem, approval: BoardApproval \| null\) => \{\s*if \(criticalInSession\) openSession\(item\.id\)\s*else openConfirm\(item, approval\)/,
+    /onApprove: \(item, approval\) => \{[\s\S]{0,200}if \(approval\.severity === 'critical'\) \{\s*openSession\(item\.id\)\s*return/,
   )
-  assert.match(controller, /result\.reason === 'confirmation-required'\) review\(item, approval\)/)
+  assert.match(controller, /result\.reason === 'confirmation-required'\) openSession\(item\.id\)/)
+  // 会话审批面板：critical 的“允许…”只打开确认层，确认层回调才真正批准。
+  const toolApproval = await readFile(join(root, 'src/features/chat/ToolApproval.tsx'), 'utf8')
+  assert.match(
+    toolApproval,
+    /onClick=\{\(\) => \(critical \? setConfirming\(true\) : resolve\(true\)\)\}/,
+  )
   // 键盘 A / D 与行上按钮、侧栏同一条规则：只有 sidebarQuickAction 判为 decide 的行一步允许 / 拒绝，
-  // 处理的是它指定的那条审批（不是盲取 approvals[0]）；其余桌面什么也不做，手机 A 只打开确认层。
-  // 拒绝在桌面同样受此限（高风险、截断、详情未到都不能在列表上被拒掉，规格 3.5）。
+  // 处理的是它指定的那条审批（不是盲取 approvals[0]）；其余什么也不做（进会话处理）。
+  // 拒绝同样受此限（高风险、截断、详情未到都不能在列表上被拒掉，规格 3.5）。
   assert.match(
     controller,
     /function decidableApproval\(item: BoardItem\): BoardApproval \| null \{\s*const quick = sidebarQuickAction\(item\)\s*if \(quick\.kind !== 'decide'\) return null\s*return item\.approvals\.find\(\(entry\) => entry\.id === quick\.approvalId\) \?\? null/,
   )
   assert.match(
     controller,
-    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,600}const approval = decidableApproval\(item\)\s*if \(approval\) handlers\.onApprove\(item, approval\)\s*else if \(!criticalInSession\) openConfirm\(item, item\.approvals\[0\] \?\? null\)/,
+    /matchesBoardShortcut\(event, bindings\.boardApprove\)[\s\S]{0,600}const approval = decidableApproval\(item\)\s*if \(approval\) handlers\.onApprove\(item, approval\)\s*\} else if/,
   )
   assert.match(
     controller,
-    /matchesBoardShortcut\(event, bindings\.boardDeny\)[\s\S]{0,400}const approval = criticalInSession \? decidableApproval\(item\) : \(item\.approvals\[0\] \?\? null\)\s*if \(approval\) handlers\.onDeny\(item, approval\)/,
+    /matchesBoardShortcut\(event, bindings\.boardDeny\)[\s\S]{0,400}const approval = decidableApproval\(item\)\s*if \(approval\) handlers\.onDeny\(item, approval\)/,
   )
   // 一步允许 / 拒绝只有这两处调用，键盘没有绕过 decidableApproval 的第二条路径。
   assert.equal(controller.match(/handlers\.onApprove\(/g)?.length, 1)
   assert.equal(controller.match(/handlers\.onDeny\(/g)?.length, 1)
   const page = sources.find(([file]) => file === 'BoardPage.tsx')[1]
-  assert.match(page, /criticalInSession: true/)
   // 按项目分组的上移 / 下移与首末判断只在画出来的项目分区之间（登记了但今天没有代理、被筛选清空的项目不参与），
   // 每次点击都看得见变化。
   assert.match(
@@ -439,32 +442,15 @@ test('only the confirmation layer may approve critical requests', async () => {
       ?.length,
     3,
   )
-  // 确认层是 confirmApproval 唯一的调用方：只剩手机底部表单（桌面全部代理不再有确认层，高风险进会话）。
-  for (const [file, source] of sources) {
-    const uses = source.match(/controller\.confirmApproval\(\)/g)?.length || 0
-    if (file === 'PhoneBoard.tsx') {
-      assert.equal(uses, 1, file)
-      assert.match(
-        source,
-        /<ApprovalConfirm[\s\S]*?onConfirm=\{\(\) => void controller\.confirmApproval\(\)\}/,
-      )
-    } else assert.equal(uses, 0, file)
-  }
-  // 手机看板的确认层（卡片、键盘 A、逐个处理）：截断的预览不交给确认层，
-  // 确认层因此显示“正在读取审批详情”且确认键禁用，直到 /live 给出完整参数。
-  const mainController = sources.find(([file]) => file === 'useBoardController.ts')[1]
-  assert.match(
-    mainController,
-    /approval: shownApproval && !shownApproval\.truncated \? shownApproval : null/,
-  )
+  // 看板领域里没有页面再挂确认层（A4 起手机看板退役，高风险一律进会话）；确认层组件留给会话审批面板。
+  for (const [file, source] of sources)
+    if (file !== 'ApprovalConfirm.tsx' && file !== 'approval-confirm.ts')
+      assert.doesNotMatch(source, /<ApprovalConfirm\b/, file)
   // 按住 0.6 秒才确认；按钮的点击（空格/回车）不能绕过按住时长，层内 ↵ 不在“取消”上时才确认。
   const confirmLayer = sources.find(([file]) => file === 'ApprovalConfirm.tsx')[1]
   assert.match(confirmLayer, /export const APPROVAL_HOLD_MS = 600\b/)
   assert.match(confirmLayer, /onClick=\{\(event\) => event\.preventDefault\(\)\}/)
   assert.match(confirmLayer, /closest\('\[data-approval-cancel\]'\)\) return/)
-  // 卡片只把动作交回控制器，不直接调用批准接口。
-  const card = sources.find(([file]) => file === 'AgentCard.tsx')[1]
-  assert.doesNotMatch(card, /\.approve\(|approveBoardApproval|useBoardActions/)
   // 看板之外没有任何代码能调用看板的批准动作。
   const outside = []
   const scan = async (directory) => {

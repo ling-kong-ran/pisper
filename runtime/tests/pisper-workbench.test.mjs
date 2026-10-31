@@ -56,10 +56,10 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     readFile('src/app/more-navigation.ts', 'utf8'),
   ])
   assert.doesNotMatch(app, /<ChatLayoutSwitcher|<ChatLayoutNavigation|<StatusBar/)
-  // 规格 v2：一级导航在 268 侧栏（手机外壳换成底部标签栏）；旧的侧栏、活动栏、工作台页头、
-  // 侧栏会话列表与 48px 标题栏都已删除，不能再被挂载或导入。
+  // 规格 v2：一级导航在 268 侧栏（手机外壳换成顶栏 ☰ + 抽屉，规格 7.1）；旧的侧栏、活动栏、工作台页头、
+  // 侧栏会话列表、48px 标题栏与手机底部标签栏都已删除，不能再被挂载或导入。
   assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
-  assert.match(app, /\{phoneShell && \([\s\S]{0,120}<ShellTabBar\b/)
+  assert.match(app, /\{phoneShell && \([\s\S]{0,120}<PhoneDrawer\b/)
   // 静态与懒加载的导入都算：只把源码留在仓库里，不把它们带进外壳的模块图。
   const imports = [...app.matchAll(/^import\s[\s\S]*?\sfrom\s+'[^']+'|\bimport\('[^']+'\)/gm)].join(
     '\n',
@@ -76,6 +76,7 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     'SidebarProvider',
     'SidebarInset',
     'MobileThreePane',
+    'ShellTabBar',
   ]) {
     assert.doesNotMatch(app, new RegExp(`<${retired}\\b`), `${retired} must not be mounted`)
     assert.doesNotMatch(imports, new RegExp(`\\b${retired}\\b`), `${retired} must not be imported`)
@@ -83,12 +84,13 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   // 看板、会话页与更多页自带页头；其余功能页沿用共享页头。
   assert.match(
     app,
-    /const sharedPageHeader = !\['board', 'session', 'more', 'chat'\]\.includes\(page\)/,
+    // 手机设置的分区列表（/config）自带列表，不挂共享页头。
+    /const sharedPageHeader =\s*!\['board', 'session', 'more', 'chat'\]\.includes\(page\) && !phoneSettingsList/,
   )
   assert.match(app, /\{sharedPageHeader && \(/)
-  // 新任务只有一条路径：⌘N、侧栏“新任务”、手机居中按钮与命令面板都交给 startNewTask，
+  // 新任务只有一条路径：⌘N、侧栏 / 抽屉“新任务”、手机顶栏 ✎ 与命令面板都交给 startNewTask，
   // 看板认领时聚焦启动台、主页的新任务草稿认领时聚焦草稿，否则打开派发浮层。
-  for (const source of ['shortcut', 'sidebar', 'tabbar', 'palette'])
+  for (const source of ['shortcut', 'sidebar', 'topbar', 'palette'])
     assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
   assert.match(
     app,
@@ -116,8 +118,11 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
     app,
     /if \(capabilitiesLoaded && !runtimePageAvailable\(capabilities, page\)\) \{\s*routerNavigate\(HOME_PATH, \{ replace: true \}\)/,
   )
-  // 设置标签与 ⌘, 落到模型分区，与旧功能栏的设置键一致。
-  assert.match(app, /if \(tab === 'settings'\) setConfigSection\('models'\)/)
+  // 设置入口与 ⌘, 在桌面落到模型分区（与旧功能栏的设置键一致）；手机外壳先到分区列表（规格 7.4）。
+  assert.match(
+    app,
+    /\} else if \(tab === 'settings'\) \{[\s\S]{0,160}if \(phoneShell\) routerNavigate\(SETTINGS_LIST_PATH\)\s*else setConfigSection\('models'\)/,
+  )
   assert.match(app, /onSettings=\{\(\) => selectShellTab\('settings'\)\}/)
 })
 

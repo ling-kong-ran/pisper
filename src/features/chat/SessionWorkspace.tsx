@@ -450,7 +450,6 @@ export function SessionWorkspace({
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-session-conversation>
             <div ref={setHeaderHost} className="@container shrink-0" data-task-header />
-            {phone?.strip}
             {progress && (
               // 运行中的计划（规格 4.1）：顶栏下方一条 2px 细进度，右侧“计划 2/4”打开检查器的计划标签看详情。
               // 读数浮在转录上方，不另占一行高度。

@@ -50,7 +50,7 @@ test('model chip popover carries usage readings and voice controls stay mounted 
   )
   assert.match(controls, /chat:focusSession\.cacheHitRateUnavailable/)
   assert.match(controls, /formatTokenCount\(sessionUsage\?\.reasoning\)/)
-  assert.match(controls, /\{usage\}\s*<\/PopoverContent>/)
+  assert.match(controls, /\{usage\}\s*<\/PopoverSheet>/)
   // 详情行与语音模式键退役；语音输入组件常驻工具行（menu 形态），录音状态不会因菜单关闭而卸载。
   assert.doesNotMatch(focus, /composer-details|detailsOpen|usageBlock|AudioLines/)
   assert.match(focus, /\{voiceInput\}\s*<div className="flex min-w-0 shrink items-center/)

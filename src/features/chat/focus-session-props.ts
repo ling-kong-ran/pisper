@@ -60,9 +60,6 @@ export type FocusSessionProps = {
   approvals: EntityRecord[]
   error?: string
   pendingAsset?: ChatAttachment | null
-  canSplit?: boolean
-  // 是否提供「关闭面板」入口：移动端单会话视图没有可关闭的面板。
-  canClosePanel?: boolean
   contextOpen: boolean
   contextCompact: boolean
   contextPanelId: string
@@ -87,11 +84,6 @@ export type FocusSessionProps = {
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
   onTreeNavigated?: () => Promise<void> | void
-  onSplitLeft: () => void
-  onSplitRight: () => void
-  onSplitTop: () => void
-  onSplitBottom: () => void
-  onClosePanel: () => void
   onSend: (
     value: string,
     attachments: ChatAttachment[],

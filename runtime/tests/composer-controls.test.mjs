@@ -142,9 +142,24 @@ test('composer exposes a session thinking-level control wired to the shared API'
 
 test('the shield chip combines approval mode and run mode in one portaled popover', async () => {
   const chip = await readFile('src/features/chat/ComposerModeChip.tsx', 'utf8')
-  // Radix Popover 走 portal，不被输入区裁切；两组选项都是 radiogroup / radio。
-  assert.match(chip, /<Popover open=\{open\} onOpenChange=\{setOpen\}>/)
-  assert.match(chip, /<PopoverContent[\s\S]*?className="composer-mode-popover/)
+  // 桌面是 Radix Popover（走 portal，不被输入区裁切），手机会话页同一份内容换成底部表单（规格 7.2，
+  // PopoverSheet）；两组选项都是 radiogroup / radio。
+  assert.match(
+    chip,
+    /<PopoverSheet\s+sheet=\{sheet\}[\s\S]{0,120}open=\{open\}\s+onOpenChange=\{setOpen\}[\s\S]{0,80}className="composer-mode-popover/,
+  )
+  const popoverSheet = await readFile('src/components/app/PopoverSheet.tsx', 'utf8')
+  assert.match(
+    popoverSheet,
+    /if \(!sheet\)\s*return \(\s*<Popover open=\{open\} onOpenChange=\{setOpen\}>/,
+  )
+  assert.match(
+    popoverSheet,
+    /<Sheet open=\{open\} onOpenChange=\{setOpen\}>\s*<SheetContent\s+side="bottom"/,
+  )
+  const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
+  assert.match(focus, /<ComposerModeChip\s+sheet=\{phonePage\}/)
+  assert.match(focus, /<ModelThinkingControl\s+sheet=\{phonePage\}/)
   assert.equal((chip.match(/<Section\b/g) || []).length, 2)
   assert.match(chip, /role="radiogroup"/)
   assert.match(chip, /role="radio"/)

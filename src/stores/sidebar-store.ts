@@ -56,10 +56,13 @@ function readPreference(): SidebarPreference {
 type SidebarState = SidebarPreference & {
   // 收起时 ⌘J / ⌥A 临时展开侧栏（规格 2.8）：只在内存里，不落盘，焦点离开侧栏后由外壳收回。
   peeking: boolean
+  // 手机外壳的抽屉（规格 7.1）：内容与桌面侧栏相同，只用 ☰ 打开；只在内存里，不落盘。
+  drawerOpen: boolean
   setCollapsed: (collapsed: boolean) => void
   toggleCollapsed: () => void
   setDoneCollapsed: (collapsed: boolean) => void
   setPeeking: (peeking: boolean) => void
+  setDrawerOpen: (open: boolean) => void
 }
 
 export const useSidebarStore = create<SidebarState>((set, get) => {
@@ -76,6 +79,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
   return {
     ...readPreference(),
     peeking: false,
+    drawerOpen: false,
     // 亲手收起或展开都结束临时展开，避免“收起”按钮按下去侧栏却还开着。
     setCollapsed: (collapsed) => {
       set({ peeking: false })
@@ -87,6 +91,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
     },
     setDoneCollapsed: (doneCollapsed) => save({ doneCollapsed }),
     setPeeking: (peeking) => set({ peeking }),
+    setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
   }
 })
 

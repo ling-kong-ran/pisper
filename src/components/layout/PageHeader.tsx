@@ -55,7 +55,7 @@ type PageHeaderProps = {
   onToggleTerminal: () => void
   // 当前页属于“功能”时提供，渲染“‹ 功能”返回。
   onBackToMore?: () => void
-  // 手机外壳（底部标签栏仍叫“更多”，A4 换抽屉）：返回键沿用“‹ 更多”。
+  // 手机外壳（规格 7.1）：页名在外壳顶栏里，这里的标题只给读屏；“‹ 功能”返回保留（iOS 没有返回键）。
   phoneShell?: boolean
 }
 
@@ -115,9 +115,7 @@ export function PageHeader({
       : inSettings
         ? t('navigation:navigation.settings')
         : MORE_PAGES.has(page) || onBackToMore
-          ? phoneShell
-            ? t('navigation:shell.more')
-            : t('navigation:sidebar.features')
+          ? t('navigation:sidebar.features')
           : ''
   // 设置分区的语义标题是下方 20/600 大标题（随界面字号等比缩放）；顶栏里的当前项只作面包屑显示。
   const titleBlock = page === 'config'
@@ -148,6 +146,9 @@ export function PageHeader({
             // 手机：56px 行，左对齐大标题，说明跟在标题后（放不下时先截说明）。
             'max-[650px]:h-14 max-[650px]:basis-full max-[650px]:gap-2',
             page === 'chat' && 'max-[650px]:h-auto max-[650px]:basis-auto max-[650px]:px-0',
+            // 手机外壳：标题在顶栏里，这一行只剩“‹ 功能”（44px）；没有返回时整行只留给读屏的标题。
+            phoneShell &&
+              (parent && onBackToMore && !inSettings ? 'max-[650px]:h-11' : 'max-[650px]:h-0'),
           )}
         >
           {parent && onBackToMore && !inSettings ? (
@@ -157,11 +158,7 @@ export function PageHeader({
                 type="button"
                 data-back-to-more
                 className="-ml-1.5 flex h-7 shrink-0 items-center gap-0.5 rounded-sm pr-1.5 pl-1 text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:-ml-3 max-[650px]:h-11 max-[650px]:min-w-11 max-[650px]:pr-2 max-[650px]:text-sm max-[650px]:text-content-secondary"
-                aria-label={
-                  phoneShell
-                    ? t('navigation:shell.backToMoreLabel')
-                    : t('navigation:shell.backToFeaturesLabel')
-                }
+                aria-label={t('navigation:shell.backToFeaturesLabel')}
                 onClick={onBackToMore}
               >
                 <ChevronLeft className="size-4 max-[650px]:size-5" aria-hidden="true" />
@@ -181,11 +178,16 @@ export function PageHeader({
               </>
             )
           )}
-          <CurrentCrumb className="max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:min-w-0 max-[650px]:text-2xl max-[650px]:leading-8 max-[650px]:font-[650] max-[650px]:tracking-[-.015em]">
+          <CurrentCrumb
+            className={cn(
+              'max-w-full min-w-[4em] truncate text-[13px] leading-5 font-medium text-content max-[650px]:min-w-0 max-[650px]:text-2xl max-[650px]:leading-8 max-[650px]:font-[650] max-[650px]:tracking-[-.015em]',
+              phoneShell && 'sr-only',
+            )}
+          >
             {meta[0]}
           </CurrentCrumb>
           {/* 页面说明：桌面跟在标题后作次要文字，窄于 900px 时收起；手机跟在大标题后，只占剩余宽度。 */}
-          {page !== 'chat' && page !== 'config' && meta[1] && (
+          {page !== 'chat' && page !== 'config' && meta[1] && !phoneShell && (
             <p className="ml-1.5 min-w-0 truncate text-xs text-content-muted max-[900px]:hidden max-[650px]:ml-0 max-[650px]:block max-[650px]:flex-1 max-[650px]:basis-0">
               {meta[1]}
             </p>

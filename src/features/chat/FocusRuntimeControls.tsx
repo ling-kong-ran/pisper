@@ -4,7 +4,7 @@ import { Bot, Brain, ChevronRight, ChevronsUpDown } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { PopoverSheet } from '@/components/app/PopoverSheet'
 import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
@@ -446,7 +446,10 @@ export function ModelThinkingControl({
   deferred = false,
   pendingModel = false,
   usage,
+  sheet = false,
 }: {
+  // 手机会话页：弹层换成底部表单（规格 7.2）。
+  sheet?: boolean
   model: string
   models: ModelOption[]
   onModelChange: (model: string) => void
@@ -501,8 +504,14 @@ export function ModelThinkingControl({
     }
   }
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <PopoverSheet
+      sheet={sheet}
+      title={t('chat:focusSession.modelAndThinking')}
+      align="end"
+      side="top"
+      sideOffset={8}
+      className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] gap-0 p-1"
+      trigger={
         <button
           type="button"
           className="model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:border-stroke max-[650px]:pr-2 max-[650px]:pl-2.5 max-[650px]:text-sm pointer-coarse:h-11"
@@ -518,139 +527,133 @@ export function ModelThinkingControl({
           </span>
           <ChevronsUpDown size={14} className="shrink-0 text-content-muted" aria-hidden="true" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        side="top"
-        sideOffset={8}
-        className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] gap-0 p-1"
-      >
-        {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。
+      }
+    >
+      {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。
             模型行带 1px 描边，而透明选择器只铺满内边距盒；行高取 52px，
             保证有无服务商副标题时可点区域都不低于 48px。 */}
-        <div className="model-effort-model flex flex-col gap-1.5 p-1.5 pb-2">
-          <span className="px-0.5 text-xs font-medium text-content-muted">
-            {t('chat:focusSession.toolbarModel')}
-          </span>
-          <SessionModelSelect
-            showLabel
-            value={model}
-            models={models}
-            onChange={onModelChange}
-            disabled={modelDisabled || saving}
-            className="h-auto min-h-13 w-full border-control bg-panel px-2 py-1.5 text-content [&>span]:flex-1"
-            displayLabel={
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-muted shadow-key">
-                  <Bot size={15} aria-hidden="true" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col text-left">
-                  <span className="truncate text-[13px] leading-5 font-medium">{modelLabel}</span>
-                  {currentModel?.providerName && (
-                    <span className="truncate text-xs leading-4 text-content-muted">
-                      {currentModel.providerName}
-                    </span>
-                  )}
-                </span>
-                <ChevronsUpDown
-                  size={14}
-                  className="shrink-0 text-content-muted"
-                  aria-hidden="true"
-                />
+      <div className="model-effort-model flex flex-col gap-1.5 p-1.5 pb-2">
+        <span className="px-0.5 text-xs font-medium text-content-muted">
+          {t('chat:focusSession.toolbarModel')}
+        </span>
+        <SessionModelSelect
+          showLabel
+          value={model}
+          models={models}
+          onChange={onModelChange}
+          disabled={modelDisabled || saving}
+          className="h-auto min-h-13 w-full border-control bg-panel px-2 py-1.5 text-content [&>span]:flex-1"
+          displayLabel={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-muted shadow-key">
+                <Bot size={15} aria-hidden="true" />
               </span>
-            }
-          />
-        </div>
-        {supported && (
-          <div className="border-t border-stroke-soft p-1.5 pt-2">
-            <div className="flex items-baseline justify-between px-0.5 pb-1">
-              <span className="text-xs font-medium text-content-muted">
-                {t('chat:focusSession.thinkingLevelTitle')}
+              <span className="flex min-w-0 flex-1 flex-col text-left">
+                <span className="truncate text-[13px] leading-5 font-medium">{modelLabel}</span>
+                {currentModel?.providerName && (
+                  <span className="truncate text-xs leading-4 text-content-muted">
+                    {currentModel.providerName}
+                  </span>
+                )}
               </span>
-              <span
-                className="model-effort-heading text-[13px] leading-5 font-medium text-accent-fg"
-                aria-live="polite"
-              >
-                {effortLabel}
-              </span>
-            </div>
-            {/* 仪表式刻度：4px 轨道 + 每档一根刻度线；轨道两端对齐滑块圆心（滑块 24px）。 */}
-            <div
-              className="relative h-7"
-              style={
-                {
-                  '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
-                } as React.CSSProperties
-              }
-            >
-              <div aria-hidden="true" className="effort-track absolute inset-x-3 inset-y-0">
-                <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-surface-active">
-                  <div className="h-full bg-star" style={{ width: 'var(--effort-fill)' }} />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-between">
-                  {levels.map((level) => (
-                    <i key={level} className="h-2.5 w-px bg-stroke-strong" />
-                  ))}
-                </div>
-              </div>
-              <input
-                className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
-                type="range"
-                min={0}
-                max={Math.max(1, levels.length - 1)}
-                step={1}
-                value={selected}
-                disabled={disabled}
-                aria-label={t('chat:focusSession.currentThinkingLevel')}
-                aria-valuetext={effortLabel}
-                onChange={(event) => setDraft(Number(event.currentTarget.value))}
-                onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
-                onBlur={(event) => void commit(Number(event.currentTarget.value))}
-                onKeyUp={(event) => {
-                  if (
-                    [
-                      'ArrowLeft',
-                      'ArrowRight',
-                      'ArrowUp',
-                      'ArrowDown',
-                      'Home',
-                      'End',
-                      'PageUp',
-                      'PageDown',
-                    ].includes(event.key)
-                  )
-                    void commit(Number(event.currentTarget.value))
-                }}
-              />
-            </div>
-            {levels.length > 1 && (
-              <div
-                className="flex justify-between px-0.5 pt-1 text-xs text-content-muted"
+              <ChevronsUpDown
+                size={14}
+                className="shrink-0 text-content-muted"
                 aria-hidden="true"
-              >
-                <span>{thinkingLevelLabel(t, levels[0])}</span>
-                <span>{thinkingLevelLabel(t, levels.at(-1) || '')}</span>
-              </div>
-            )}
+              />
+            </span>
+          }
+        />
+      </div>
+      {supported && (
+        <div className="border-t border-stroke-soft p-1.5 pt-2">
+          <div className="flex items-baseline justify-between px-0.5 pb-1">
+            <span className="text-xs font-medium text-content-muted">
+              {t('chat:focusSession.thinkingLevelTitle')}
+            </span>
+            <span
+              className="model-effort-heading text-[13px] leading-5 font-medium text-accent-fg"
+              aria-live="polite"
+            >
+              {effortLabel}
+            </span>
           </div>
-        )}
-        {deferred && (
-          <p className="px-2 pt-1 pb-2 text-xs leading-4 text-content-muted" role="status">
-            {t('chat:focusSession.runtimeSelectionDeferred')}
-          </p>
-        )}
-        {(!supported || levels.length === 1) && (
-          <p
-            className="border-t border-stroke-soft px-2 pt-2 pb-1.5 text-xs leading-relaxed text-content-muted"
-            role="status"
+          {/* 仪表式刻度：4px 轨道 + 每档一根刻度线；轨道两端对齐滑块圆心（滑块 24px）。 */}
+          <div
+            className="relative h-7"
+            style={
+              {
+                '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
+              } as React.CSSProperties
+            }
           >
-            {supported
-              ? t('chat:focusSession.thinkingLevelFixed', { level: effortLabel })
-              : effortHint}
-          </p>
-        )}
-        {usage}
-      </PopoverContent>
-    </Popover>
+            <div aria-hidden="true" className="effort-track absolute inset-x-3 inset-y-0">
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-surface-active">
+                <div className="h-full bg-star" style={{ width: 'var(--effort-fill)' }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-between">
+                {levels.map((level) => (
+                  <i key={level} className="h-2.5 w-px bg-stroke-strong" />
+                ))}
+              </div>
+            </div>
+            <input
+              className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
+              type="range"
+              min={0}
+              max={Math.max(1, levels.length - 1)}
+              step={1}
+              value={selected}
+              disabled={disabled}
+              aria-label={t('chat:focusSession.currentThinkingLevel')}
+              aria-valuetext={effortLabel}
+              onChange={(event) => setDraft(Number(event.currentTarget.value))}
+              onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
+              onBlur={(event) => void commit(Number(event.currentTarget.value))}
+              onKeyUp={(event) => {
+                if (
+                  [
+                    'ArrowLeft',
+                    'ArrowRight',
+                    'ArrowUp',
+                    'ArrowDown',
+                    'Home',
+                    'End',
+                    'PageUp',
+                    'PageDown',
+                  ].includes(event.key)
+                )
+                  void commit(Number(event.currentTarget.value))
+              }}
+            />
+          </div>
+          {levels.length > 1 && (
+            <div
+              className="flex justify-between px-0.5 pt-1 text-xs text-content-muted"
+              aria-hidden="true"
+            >
+              <span>{thinkingLevelLabel(t, levels[0])}</span>
+              <span>{thinkingLevelLabel(t, levels.at(-1) || '')}</span>
+            </div>
+          )}
+        </div>
+      )}
+      {deferred && (
+        <p className="px-2 pt-1 pb-2 text-xs leading-4 text-content-muted" role="status">
+          {t('chat:focusSession.runtimeSelectionDeferred')}
+        </p>
+      )}
+      {(!supported || levels.length === 1) && (
+        <p
+          className="border-t border-stroke-soft px-2 pt-2 pb-1.5 text-xs leading-relaxed text-content-muted"
+          role="status"
+        >
+          {supported
+            ? t('chat:focusSession.thinkingLevelFixed', { level: effortLabel })
+            : effortHint}
+        </p>
+      )}
+      {usage}
+    </PopoverSheet>
   )
 }

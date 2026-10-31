@@ -819,10 +819,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* 运行进度细线：不确定进度时沿底边横扫，只动 transform；减少动态时由全局规则停住。 */
 @keyframes hairline-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-/* 运行中卡片沿状态边的纵向扫光（规格 6.6）：只动 transform；离屏与超过 6 张时由组件不挂载。 */
-@keyframes edge-sweep { from { transform: translateY(-100%); } to { transform: translateY(300%); } }
-/* 等宽尾巴的光标闪烁：配合 steps 做阶跃，只动 opacity。 */
-@keyframes caret-blink { 50% { opacity: 0; } }
 
 @media (max-width: 900px) {
   body { overflow: auto; }

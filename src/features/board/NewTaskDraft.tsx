@@ -6,7 +6,7 @@
 // 草稿本身就是“新任务”：挂载期间认领 ⌘N 与侧栏“新任务”的请求（见 new-task.ts），聚焦草稿而不叠派发浮层。
 import { useRef, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
-import { SessionBubbleIcon } from '@/components/app/LaneBarsIcon'
+import { MessageSquare } from 'lucide-react'
 import { LaunchConsole, type LaunchConsoleHandle } from './LaunchConsole'
 import { useBoardNewTaskHandler, type BoardNewTaskSource } from './new-task'
 
@@ -17,9 +17,8 @@ const DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set(['shortcu
 
 export type NewTaskDraftProps = {
   phone: boolean
-  // 手机顶栏左侧（应用壳的看板入口）与顶栏下方的代理条；桌面不传，入口与代理都在应用侧栏里。
+  // 手机顶栏左侧（应用壳的 ☰，点开抽屉）；桌面不传，入口与代理都在应用侧栏里。
   leading?: ReactNode
-  strip?: ReactNode
   // 第一条消息被 Runtime 受理：新会话 id。
   onDispatched: (sessionId: string) => void
   // 发送途中草稿已卸载（例如切去了看板）时的失败：草稿已放回，由宿主用全局提示报错。
@@ -30,7 +29,6 @@ export type NewTaskDraftProps = {
 export function NewTaskDraft({
   phone,
   leading,
-  strip,
   onDispatched,
   onDetachedFailure,
   onConfigureModels,
@@ -51,7 +49,7 @@ export function NewTaskDraft({
         aria-hidden="true"
         className="grid size-9 place-items-center rounded-md border border-stroke bg-solid text-content-muted shadow-edge"
       >
-        <SessionBubbleIcon className="size-[18px]" strokeWidth={1.75} />
+        <MessageSquare className="size-[18px]" strokeWidth={1.75} />
       </span>
       <h2 className="text-xl font-semibold tracking-[-.01em] text-content max-[650px]:text-lg">
         {t('board:home.draftHeading')}
@@ -82,10 +80,10 @@ export function NewTaskDraft({
         <header
           data-session-header="draft"
           data-focus-region="header"
-          className="flex h-14 min-w-0 shrink-0 items-center gap-1 bg-chrome px-1"
+          className="grid h-14 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center bg-panel px-1"
         >
-          <div className="flex flex-none items-center">{leading}</div>
-          <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
+          <div className="flex min-w-0 items-center">{leading}</div>
+          <div className="flex max-w-[min(58vw,260px)] min-w-0 flex-col items-center justify-center">
             <h1 className="max-w-full truncate px-1.5 text-[15px] leading-5 font-semibold text-content">
               {t('board:home.draftTitle')}
             </h1>
@@ -93,10 +91,9 @@ export function NewTaskDraft({
               {t('board:home.draftSubtitle')}
             </p>
           </div>
-          {/* 与左侧入口等宽的占位，让标题在顶栏里居中。 */}
-          <span aria-hidden="true" className="w-11 flex-none" />
+          {/* 三栏网格让标题在顶栏里居中；右栏留空（草稿本身就是新任务）。 */}
+          <span aria-hidden="true" />
         </header>
-        {strip}
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto px-4 pt-4 pb-5">
           {intro}
         </div>

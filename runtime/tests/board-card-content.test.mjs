@@ -13,7 +13,6 @@ import {
   tailLineFailed,
   visibleChangeStats,
 } from '../../src/features/board/card-presentation.ts'
-import { MAX_SWEEPING_CARDS } from '../../src/features/board/useRunningMotion.ts'
 
 const NOW = Date.parse('2026-10-29T10:00:00.000Z')
 const iso = (offsetMs) => new Date(NOW + offsetMs).toISOString()
@@ -294,19 +293,13 @@ test('tail lines are marked failed only on real failure signals', () => {
   assert.equal(visibleChangeStats({ changeStats: { status: 'known', files: 0 } }), null)
 })
 
-test('running motion stays bounded, pauses offscreen and respects reduced motion', async () => {
-  assert.equal(MAX_SWEEPING_CARDS, 6)
-  const [card, motion, styles] = await Promise.all([
-    readFile('src/features/board/AgentCard.tsx', 'utf8'),
-    readFile('src/features/board/useRunningMotion.ts', 'utf8'),
+test('rows and phone cards carry no looping card motion beyond the status glyph', async () => {
+  // A4 起手机卡片也是 OverviewRow：第 4 期卡片墙的沿边扫光与尾巴光标（AgentCard / useRunningMotion）随之删除，
+  // 运行中的动效只剩状态图形自己的转动（它在减少动效时停转，见 status-primitives.test）。
+  const [row, styles] = await Promise.all([
+    readFile('src/features/board/OverviewRow.tsx', 'utf8'),
     readFile('src/index.css', 'utf8'),
   ])
-  // 扫光只在分到名额时挂载；图标旋转跟随可见性；动效只动 transform / opacity。
-  assert.match(card, /motion\.sweep && \(/)
-  assert.match(card, /spin=\{running \? motion\.spin : undefined\}/)
-  assert.match(card, /cursor=\{motion\.spin\}/)
-  assert.match(motion, /IntersectionObserver/)
-  assert.match(motion, /!motionReduced\(\)/)
-  assert.match(styles, /@keyframes edge-sweep \{ from \{ transform: translateY\(-100%\); \}/)
-  assert.match(styles, /@keyframes caret-blink \{ 50% \{ opacity: 0; \} \}/)
+  assert.doesNotMatch(row, /sweep|caret|IntersectionObserver|animate-/)
+  assert.doesNotMatch(styles, /@keyframes (?:edge-sweep|caret-blink)\b/)
 })

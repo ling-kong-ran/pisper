@@ -1,7 +1,8 @@
-// 全部代理（与手机看板）的交互控制：行动作（批准 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档 / 复制链接）、
+// 全部代理的交互控制：行动作（批准 / 拒绝 / 重试 / 标记已处理 / 置顶 / 归档 / 复制链接）、
 // critical 的处理方式、roving 焦点、单字母快捷键、逐个处理模式，以及从会话返回时的滚动与焦点恢复。
-// 桌面全部代理与手机区段共用这一份控制逻辑，只换渲染。
-// critical 审批：桌面全部代理只能“打开处理”进会话（规格 3.5，criticalInSession），手机看板仍用确认层（A4 前）。
+// 桌面行与手机卡片（规格 v2 第 7.3 节）共用这一份控制逻辑，只换渲染。
+// critical 审批（或 Runtime 要求确认）一律“打开处理”进会话，在会话里按住确认（规格 3.5）：
+// 这一页没有确认层，也从不带 confirmCritical。
 import {
   useCallback,
   useEffect,
@@ -15,8 +16,6 @@ import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { isEditableTarget, matchesBoardShortcut, shortcutEventBlocked } from '@/lib/shortcuts'
 import { useShortcutStore } from '@/stores/shortcut-store'
-import type { AgentCardHandlers } from './AgentCard'
-import type { ApprovalConfirmTarget } from './ApprovalConfirm'
 import type { BoardApproval } from './board-api'
 import type { BoardItem } from './board-model'
 import { clearBoardReturn, peekBoardReturn, rememberBoardReturn } from './board-return'
@@ -24,16 +23,22 @@ import { collapseRow, OVERVIEW_ROW_COLLAPSE_MS } from './row-motion'
 import { sidebarQuickAction } from './sidebar-model'
 import { useBoardActions } from './useBoardActions'
 
-// 确认层只记住会话与审批 id：渲染时从最新数据取审批，详情晚到会更新，别处处理掉会关闭。
-// snapshot 只在提交途中兜底（乐观更新会先把审批从卡片上拿掉）。
-type ConfirmState = {
-  sessionId: string
-  approvalId: string
-  title: string
-  cwd: string
-  snapshot: BoardApproval | null
-  pending: boolean
-  error: string
+// 全部代理行（桌面行与手机卡片）交给控制器的动作。
+export type BoardRowHandlers = {
+  onFocusCard: (sessionId: string) => void
+  onOpen: (sessionId: string) => void
+  onApprove: (item: BoardItem, approval: BoardApproval) => void
+  onDeny: (item: BoardItem, approval: BoardApproval) => void
+  onRetry: (item: BoardItem) => void
+  onMarkHandled: (item: BoardItem) => void
+  onPin: (item: BoardItem) => void
+  onArchive: (item: BoardItem) => void
+  onCopyLink: (item: BoardItem) => void
+  isPending: (
+    kind: 'approve' | 'deny' | 'retry' | 'archive' | 'pin',
+    sessionId: string,
+    approvalId?: string,
+  ) => boolean
 }
 
 type TriageState = { total: number; finished: boolean }
@@ -44,14 +49,12 @@ type ControllerOptions = {
   order: readonly BoardItem[]
   // 当前筛选下可见的需要你（键盘与逐个处理在它们之间移动）。
   attention: readonly BoardItem[]
-  // 筛选前的全部需要你：确认层解析最新审批、逐个处理判断有没有被筛选藏起来的事项。
+  // 筛选前的全部需要你：逐个处理判断有没有被筛选藏起来的事项。
   attentionAll: readonly BoardItem[]
   // 逐个处理时有事项被筛选藏起来：由页面清除筛选，让它们回到列表里。
   onRevealAttention?: () => void
   // 虚拟列表里不在 DOM 的行：先滚到它再返回元素；没有时直接按 data-board-card 查找。
   reveal?: (sessionId: string) => Promise<HTMLElement | null>
-  // critical 只能进会话处理（桌面全部代理，规格 3.5）；false 时打开确认层（手机看板）。
-  criticalInSession?: boolean
   ready: boolean
   notify: Notify
   sessionHref: (sessionId: string) => string
@@ -60,15 +63,15 @@ type ControllerOptions = {
 }
 
 const TRIAGE_FINISHED_MS = 1_600
-// 记住滚动位置的容器：桌面列表与手机区段。
-const SCROLLERS = '[data-overview-scroller], [data-board-sections]'
+// 记住滚动位置的容器：全部代理列表（桌面与手机同一个滚动区）。
+const SCROLLERS = '[data-overview-scroller]'
 
 function cardIn(root: HTMLElement | null, sessionId: string) {
   return root?.querySelector<HTMLElement>(`[data-board-card="${CSS.escape(sessionId)}"]`) ?? null
 }
 
 function scrollKey(element: HTMLElement) {
-  return element.hasAttribute('data-overview-scroller') ? 'overview' : 'sections'
+  return element.dataset.overviewScroller !== undefined ? 'overview' : 'other'
 }
 
 // 键盘 A / D 能一步处理的那条审批：sidebarQuickAction 判为 decide 时取它指定的审批，否则没有。
@@ -89,7 +92,6 @@ export function useBoardController({
   attentionAll,
   onRevealAttention,
   reveal,
-  criticalInSession = false,
   ready,
   notify,
   sessionHref,
@@ -100,7 +102,6 @@ export function useBoardController({
   const actions = useBoardActions()
   const bindings = useShortcutStore((state) => state.boardBindings)
   const [activeId, setActiveId] = useState('')
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [triage, setTriage] = useState<TriageState | null>(null)
   const actionsRef = useRef(actions)
   actionsRef.current = actions
@@ -177,11 +178,13 @@ export function useBoardController({
   )
 
   const approveNow = useCallback(
-    async (item: BoardItem, approval: BoardApproval, confirmCritical: boolean) => {
+    async (item: BoardItem, approval: BoardApproval) => {
       const followUp = nextAttentionId(item.id)
       const leaving = item.approvals.length <= 1
       if (leaving) await collapse(item.id)
-      const result = await actionsRef.current.approve(item.id, approval.id, { confirmCritical })
+      const result = await actionsRef.current.approve(item.id, approval.id, {
+        confirmCritical: false,
+      })
       if (!result.ok) {
         restore(item.id)
         return result
@@ -192,79 +195,18 @@ export function useBoardController({
     [collapse, focusCard, nextAttentionId, restore],
   )
 
-  const openConfirm = useCallback((item: BoardItem, approval: BoardApproval | null) => {
-    setConfirm({
-      sessionId: item.id,
-      approvalId: approval?.id ?? '',
-      title: item.title,
-      cwd: item.cwd,
-      snapshot: approval,
-      pending: false,
-      error: '',
-    })
-  }, [])
-
-  // critical（或拿不到完整详情）的去处：桌面进会话处理，手机打开确认层。
-  const review = useCallback(
-    (item: BoardItem, approval: BoardApproval | null) => {
-      if (criticalInSession) openSession(item.id)
-      else openConfirm(item, approval)
-    },
-    [criticalInSession, openConfirm, openSession],
-  )
-
-  // 确认层展示的审批：按 id 取最新数据；打开时详情还没到（id 为空）就取卡片上的第一条。
-  const confirmItem = confirm
-    ? attentionAll.find((entry) => entry.id === confirm.sessionId)
-    : undefined
-  const liveApproval = confirm
-    ? ((confirm.approvalId
-        ? confirmItem?.approvals.find((entry) => entry.id === confirm.approvalId)
-        : confirmItem?.approvals[0]) ?? null)
-    : null
-  const shownApproval = liveApproval ?? (confirm?.pending ? confirm.snapshot : null)
-  const confirmTitle = confirmItem?.title || confirm?.title || ''
-  const confirmCwd = confirmItem?.cwd ?? confirm?.cwd ?? ''
-  const confirmSession = confirm?.sessionId ?? ''
-  const confirmTarget = useMemo<ApprovalConfirmTarget | null>(
-    () =>
-      confirmSession
-        ? {
-            sessionId: confirmSession,
-            title: confirmTitle,
-            cwd: confirmCwd,
-            // 截断的预览不能拿来批准，确认层显示“正在读取审批详情”并禁用确认，
-            // 等 /live 给出完整参数（读取失败时一直保持禁用）。
-            approval: shownApproval && !shownApproval.truncated ? shownApproval : null,
-          }
-        : null,
-    [confirmCwd, confirmSession, confirmTitle, shownApproval],
-  )
-  // 审批在别处（会话页、另一台设备）被处理掉：关闭确认层并说明，而不是停在一条已失效的审批上。
-  const confirmGone =
-    Boolean(confirm) &&
-    !confirm?.pending &&
-    (!confirmItem ||
-      confirmItem.status !== 'approval' ||
-      (confirmItem.approvalsState === 'ready' && !liveApproval))
-  useEffect(() => {
-    if (!confirmGone) return
-    setConfirm(null)
-    notify(t('board:confirm.resolvedElsewhere'))
-  }, [confirmGone, notify, t])
-
-  const handlers = useMemo<AgentCardHandlers>(
+  const handlers = useMemo<BoardRowHandlers>(
     () => ({
       onFocusCard: setActiveId,
       onOpen: openSession,
       onApprove: (item, approval) => {
-        // critical 不一步允许：桌面进会话处理，手机打开确认层；标准审批一步允许。
+        // critical 不一步允许，进会话按住确认；Runtime 回 confirmation-required（详情变了）时同样进会话。
         if (approval.severity === 'critical') {
-          review(item, approval)
+          openSession(item.id)
           return
         }
-        void approveNow(item, approval, false).then((result) => {
-          if (!result.ok && result.reason === 'confirmation-required') review(item, approval)
+        void approveNow(item, approval).then((result) => {
+          if (!result.ok && result.reason === 'confirmation-required') openSession(item.id)
           else reportFailure(result)
         })
       },
@@ -320,35 +262,10 @@ export function useBoardController({
       openSession,
       reportFailure,
       restore,
-      review,
       sessionHref,
       t,
     ],
   )
-
-  const confirmApproval = useCallback(async () => {
-    const current = confirm
-    const approval = confirmTarget?.approval
-    if (!current || !approval || current.pending) return
-    setConfirm({
-      ...current,
-      approvalId: approval.id,
-      snapshot: approval,
-      pending: true,
-      error: '',
-    })
-    const item = [...attentionAllRef.current].find((entry) => entry.id === current.sessionId)
-    const result = item
-      ? await approveNow(item, approval, true)
-      : await actionsRef.current.approve(current.sessionId, approval.id, {
-          confirmCritical: true,
-        })
-    if (result.ok) setConfirm(null)
-    else if (result.reason !== 'pending')
-      setConfirm((state) =>
-        state ? { ...state, pending: false, error: t('board:action.failed') } : state,
-      )
-  }, [approveNow, confirm, confirmTarget?.approval, t])
 
   // —— 逐个处理 ——
   // 范围是全部需要你事项：有事项被当前筛选藏起来时先请页面清除筛选，等它们回到列表再开始。
@@ -442,19 +359,18 @@ export function useBoardController({
         item?.status === 'approval'
       ) {
         // 与行上按钮、侧栏同一条规则（sidebarQuickAction）：只有详情已到、全部是普通批准、没有同时在等的问题
-        // 才一步允许，且允许的是行上显示的那条；其余桌面什么也不做（行上只有“打开处理”，↵ 进会话），
-        // 手机只打开确认层。只看 approvals[0] 会在后面还排着 critical 时把整行当成普通批准。
+        // 才一步允许，且允许的是行上显示的那条；其余什么也不做（行上只有“打开处理”，↵ 进会话）。
+        // 只看 approvals[0] 会在后面还排着 critical 时把整行当成普通批准。
         const approval = decidableApproval(item)
         if (approval) handlers.onApprove(item, approval)
-        else if (!criticalInSession) openConfirm(item, item.approvals[0] ?? null)
       } else if (
         acting &&
         matchesBoardShortcut(event, bindings.boardDeny) &&
         item?.status === 'approval'
       ) {
         // 拒绝同样只作用于看得见完整命令的普通批准：高风险只能在会话里处理（规格 3.5），
-        // 截断或还在加载的审批不能在列表上被拒掉。手机看板（A4 前）保留原行为：拒绝第一条。
-        const approval = criticalInSession ? decidableApproval(item) : (item.approvals[0] ?? null)
+        // 截断或还在加载的审批不能在列表上被拒掉。
+        const approval = decidableApproval(item)
         if (approval) handlers.onDeny(item, approval)
       } else if (
         acting &&
@@ -471,13 +387,11 @@ export function useBoardController({
     return () => window.removeEventListener('keydown', keydown)
   }, [
     bindings,
-    criticalInSession,
     effectiveActiveId,
     exitTriage,
     handlers,
     move,
     onToggleGrouping,
-    openConfirm,
     openSession,
     rootRef,
     startTriage,
@@ -535,155 +449,9 @@ export function useBoardController({
     handlers,
     activeId: effectiveActiveId,
     focusCard,
-    confirm: confirm
-      ? {
-          target: confirmTarget as ApprovalConfirmTarget,
-          pending: confirm.pending,
-          error: confirm.error,
-        }
-      : null,
-    setConfirmOpen: (open: boolean) => {
-      if (!open) setConfirm(null)
-    },
-    confirmApproval,
     triage: triage ? { ...triage, index: triageIndex } : null,
     startTriage,
     exitTriage,
     bindings,
-  }
-}
-
-// —— 会话页泳道条与代理面板的审批 ——
-// 与看板控制器同一套规则：标准审批一步允许；critical（或拿不到完整详情）只打开确认层，
-// 只有确认层（按住 0.6 秒或层内 ↵）回调 confirmStripApproval 才带 confirmCritical。
-// 放在本文件里，是为了让“能批准 critical 的代码只在控制器文件里”这条源码守卫继续成立。
-type StripConfirmState = {
-  sessionId: string
-  approvalId: string
-  title: string
-  cwd: string
-  snapshot: BoardApproval | null
-  pending: boolean
-  error: string
-}
-
-export function useStripApprovals({
-  attentionAll,
-  notify,
-}: {
-  attentionAll: readonly BoardItem[]
-  notify: Notify
-}) {
-  const { t } = useI18n()
-  const actions = useBoardActions()
-  const actionsRef = useRef(actions)
-  actionsRef.current = actions
-  const [confirm, setConfirm] = useState<StripConfirmState | null>(null)
-
-  const report = useCallback(
-    (result: Awaited<ReturnType<typeof actions.approve>>) => {
-      if (result.ok || result.reason === 'pending') return
-      notify(t('board:action.failed'), 'error')
-    },
-    [notify, t],
-  )
-
-  const review = useCallback((item: BoardItem, approval: BoardApproval | null) => {
-    setConfirm({
-      sessionId: item.id,
-      approvalId: approval?.id ?? '',
-      title: item.title,
-      cwd: item.cwd,
-      snapshot: approval,
-      pending: false,
-      error: '',
-    })
-  }, [])
-
-  const approve = useCallback(
-    (item: BoardItem, approval: BoardApproval) => {
-      if (approval.severity === 'critical' || approval.truncated) {
-        review(item, approval)
-        return
-      }
-      void actionsRef.current
-        .approve(item.id, approval.id, { confirmCritical: false })
-        .then((result) => {
-          if (!result.ok && result.reason === 'confirmation-required') review(item, approval)
-          else report(result)
-        })
-    },
-    [report, review],
-  )
-
-  const deny = useCallback(
-    (item: BoardItem, approval: BoardApproval) => {
-      void actionsRef.current.deny(item.id, approval.id).then(report)
-    },
-    [report],
-  )
-
-  const retry = useCallback(
-    (item: BoardItem) => {
-      void actionsRef.current.retry(item.id).then(report)
-    },
-    [report],
-  )
-
-  // 确认层展示的审批按 id 从最新数据解析；别处处理掉时关闭并说明。
-  const item = confirm ? attentionAll.find((entry) => entry.id === confirm.sessionId) : undefined
-  const live = confirm
-    ? ((confirm.approvalId
-        ? item?.approvals.find((entry) => entry.id === confirm.approvalId)
-        : item?.approvals[0]) ?? null)
-    : null
-  const shown = live ?? (confirm?.pending ? confirm.snapshot : null)
-  const target = useMemo<ApprovalConfirmTarget | null>(
-    () =>
-      confirm
-        ? {
-            sessionId: confirm.sessionId,
-            title: item?.title || confirm.title,
-            cwd: item?.cwd ?? confirm.cwd,
-            // 截断的预览不能用来批准：等 /live 给出完整参数。
-            approval: shown && !shown.truncated ? shown : null,
-          }
-        : null,
-    [confirm, item?.cwd, item?.title, shown],
-  )
-  const gone =
-    Boolean(confirm) &&
-    !confirm?.pending &&
-    (!item || item.status !== 'approval' || (item.approvalsState === 'ready' && !live))
-  useEffect(() => {
-    if (!gone) return
-    setConfirm(null)
-    notify(t('board:confirm.resolvedElsewhere'))
-  }, [gone, notify, t])
-
-  const confirmStripApproval = useCallback(async () => {
-    const current = confirm
-    const approval = target?.approval
-    if (!current || !approval || current.pending) return
-    setConfirm({ ...current, approvalId: approval.id, snapshot: approval, pending: true })
-    const result = await actionsRef.current.approve(current.sessionId, approval.id, {
-      confirmCritical: true,
-    })
-    if (result.ok) setConfirm(null)
-    else if (result.reason !== 'pending')
-      setConfirm((state) =>
-        state ? { ...state, pending: false, error: t('board:action.failed') } : state,
-      )
-  }, [confirm, t, target?.approval])
-
-  return {
-    approve,
-    deny,
-    retry,
-    review,
-    isPending: actions.isPending,
-    confirm: confirm ? { target, pending: confirm.pending, error: confirm.error } : null,
-    closeConfirm: () => setConfirm(null),
-    confirmStripApproval,
   }
 }

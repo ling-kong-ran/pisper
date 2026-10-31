@@ -151,8 +151,6 @@ export const FocusSession = memo(function FocusSession({
   approvals,
   error,
   pendingAsset,
-  canClosePanel,
-  onClosePanel,
   contextOpen,
   contextCompact,
   contextPanelId,
@@ -542,6 +540,7 @@ export const FocusSession = memo(function FocusSession({
   )
   const modeChip = (
     <ComposerModeChip
+      sheet={phonePage}
       approvalMode={executionMode}
       onApprovalModeChange={onExecutionModeChange}
       approvalDisabled={switchingPermission}
@@ -560,6 +559,7 @@ export const FocusSession = memo(function FocusSession({
   )
   const modelChip = (
     <ModelThinkingControl
+      sheet={phonePage}
       model={pendingRuntimeSelection?.model || model}
       models={availableModels}
       onModelChange={onModelChange}
@@ -652,13 +652,7 @@ export const FocusSession = memo(function FocusSession({
             approvals={approvals.length}
             failed={Boolean(!streaming && (error || latestAgentMessage?.error))}
             stopped={Boolean(!streaming && runStopped)}
-            // 手机顶栏（A4 前）的“⋯”仍带桌面终端与主题项；桌面标题菜单按规格 2.5 不再放它们（⌘K / ⌘` 与设置里有）。
-            extraItems={
-              <>
-                {terminalMenuItem}
-                <ThemeToggleButton menuItem theme={theme} onCycle={cycleTheme} />
-              </>
-            }
+            contextPercent={runMetricsContextPercent}
             leading={routeLeading}
             branches={tree.branches}
             onOpenTree={tree.open}
@@ -695,7 +689,6 @@ export const FocusSession = memo(function FocusSession({
         <TaskWorkspaceHeader
           onRename={onRename}
           onWorkspace={onWorkspace}
-          onClose={canClosePanel ? onClosePanel : undefined}
           sessionId={session.id}
           notify={notify}
           actions={

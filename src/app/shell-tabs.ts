@@ -1,15 +1,15 @@
-// 一级入口的纯数据模型：手机底部标签栏的标签顺序与去向、“当前页归哪个入口”，以及路由竞态用的去向判断。
-// 不依赖 Feature 与 React，桌面侧栏入口、手机标签栏、快捷键和守卫测试共用同一份结论。
-// 规格 v2 第 2.4 节：桌面标题栏的标签（会话 / 看板 / 组件 / 更多 / 设置）已退役，一级入口在侧栏里；
-// 这里只剩手机标签栏（A4 改为抽屉）沿用的四个标签。“组件”不是一级入口，组件工作室归“功能”点亮。
+// 一级入口的纯数据模型：入口的去向、“当前页归哪个入口”，以及路由竞态用的去向判断。
+// 不依赖 Feature 与 React，桌面侧栏入口、手机抽屉、快捷键和守卫测试共用同一份结论。
+// 规格 v2 第 2.4、7.1 节：桌面标题栏的标签与手机底部标签栏都已退役，一级入口在侧栏 / 抽屉里；
+// “组件”不是一级入口，组件工作室归“功能”点亮。
 // 主页是会话（负责人决定）：“会话”的去向是主页 '/'（上次停留的会话或新任务草稿），
 // 不是 PAGE_PATHS.session（'/board/new' 进入即新建会话）。
 import { MORE_PAGES } from '@/app/more-pages'
-import { HOME_PATH, pageFromPath, type PageId } from '@/app/routes'
+import { HOME_PATH, pageFromPath, SETTINGS_LIST_PATH, type PageId } from '@/app/routes'
 
-// 手机底部标签栏：会话 · 看板 · [居中新任务] · 更多 · 设置。
-export const PHONE_SHELL_TABS = Object.freeze(['session', 'board', 'more', 'settings'] as const)
-export type ShellTab = (typeof PHONE_SHELL_TABS)[number]
+// 一级入口：会话（主页）· 全部代理 · 功能 · 设置（侧栏与抽屉的顺序）。
+export const SHELL_TABS = Object.freeze(['session', 'board', 'more', 'settings'] as const)
+export type ShellTab = (typeof SHELL_TABS)[number]
 
 // 入口对应的页面 id；“会话”另走主页逻辑（见 App.selectShellTab），设置落到 config 的默认分区（模型）。
 export const SHELL_TAB_PAGES: Readonly<Record<Exclude<ShellTab, 'session'>, PageId>> =
@@ -19,7 +19,7 @@ export const SHELL_TAB_PAGES: Readonly<Record<Exclude<ShellTab, 'session'>, Page
     settings: 'config',
   })
 
-// 当前页面点亮哪个一级入口（桌面侧栏的“全部代理 / 功能 / 设置”与手机标签栏共用）。
+// 当前页面点亮哪个一级入口（桌面侧栏与手机抽屉的“全部代理 / 功能 / 设置”共用）。
 // settingsOwned 来自 settingsOwnsRoute：只有 /config 下的应用设置分区归“设置”（规格 2.6）；
 // 插件、星忆等功能页只有一个家（“功能”），/config 下的远程访问 / 手机服务器 / 桌面宠物同样归“功能”。
 // 会话页与主页归“会话”，看板归“看板”（侧栏的“全部代理”），组件工作室与其余功能页归“更多”（侧栏的“功能”）。
@@ -63,7 +63,7 @@ export function sessionTabNavigation({
 export const COMPONENT_DETAIL_PATTERN = /^\/components\/([^/]+)\/?$/
 
 export type ShellBackContext = {
-  // 手机外壳（不含平板）。组件工作室归“功能 › 扩展”（规格 2.4）后上一级不再分端，留着给 A4 的抽屉返回规则。
+  // 手机外壳（不含平板）：设置分区返回分区列表（规格 7.4）。
   phone?: boolean
   // 当前历史条目是从主页落地的会话（HOME_ENTRY_STATE），或就是主页本身。
   homeEntry?: boolean
@@ -72,7 +72,7 @@ export type ShellBackContext = {
 }
 
 // 手机原生返回（含平板）在弹层、底部表单都关掉之后按这里返回上一级（规格 7.1，主页改为会话）：
-// - 会话主页是根：主页 '/'、从主页落地的会话（含泳道条 replace 切换后的会话）返回 null，交还平台；
+// - 会话主页是根：主页 '/'、从主页落地的会话（含抽屉里 replace 切换后的会话）返回 null，交还平台；
 // - 从看板等页面点进来的会话：返回 -1，走历史回到来处；冷启动直接打开的会话链接没有来处，同样交还平台；
 // - 功能的子页（含组件工作室）→ 功能；组件详情 → 组件列表；
 // - 看板、功能、设置等一级页 → 主页。设置整页挂着 useEscapeLeave 时（平板 App 的设置外壳），原生返回先被它接住，
@@ -82,13 +82,15 @@ export function shellBackPath(
   page: string,
   pathname: string,
   settingsOwned: boolean,
-  { homeEntry = false, canGoBack = false }: ShellBackContext = {},
+  { phone = false, homeEntry = false, canGoBack = false }: ShellBackContext = {},
 ): string | -1 | null {
   if (page === 'session') {
     if (homeEntry || pathname === HOME_PATH || pathname === '') return null
     return canGoBack ? -1 : null
   }
   if (page === 'components' && COMPONENT_DETAIL_PATTERN.test(pathname)) return '/components'
+  // 手机设置是列表 → 分区（规格 7.4）：分区页返回分区列表，列表再返回主页。
+  if (phone && settingsOwned && /^\/config\/[^/]+/.test(pathname)) return SETTINGS_LIST_PATH
   // 组件工作室不再是一级标签（规格 2.4 / 2.7）：桌面、平板与手机的组件列表都回到功能。
   const tab = activeShellTab(page, settingsOwned)
   if (tab === 'more' && page !== 'more') return '/more'

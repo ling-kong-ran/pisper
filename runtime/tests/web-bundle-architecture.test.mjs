@@ -7,7 +7,8 @@ test('vendor chunk classification is stable and preserves Shiki dynamic modules'
   const modulePath = (name, file = 'index.js') => `C:/repo/node_modules/${name}/${file}`
 
   assert.equal(vendorChunkForModule(modulePath('react-dom', 'client.js')), 'vendor-react')
-  assert.equal(vendorChunkForModule(modulePath('dockview-core')), 'vendor-dockview')
+  // A4 卸载了 dockview：不再为它分包（被重新引入时 check-bundle-budget 会报出来）。
+  assert.equal(vendorChunkForModule(modulePath('dockview-core')), undefined)
   assert.equal(vendorChunkForModule(modulePath('@xyflow/react')), 'vendor-xyflow')
   assert.equal(vendorChunkForModule(modulePath('d3-selection')), 'vendor-xyflow')
   assert.equal(vendorChunkForModule(modulePath('motion', 'react.js')), 'vendor-motion')
@@ -209,8 +210,7 @@ test('chat resource picker remains visible above dock splits with a readable pri
 })
 
 test('mobile chat sends with Enter and keeps the fixed composer toolbar on touch', async () => {
-  const [dock, focusSession, pageHeader, zhBoard, enBoard] = await Promise.all([
-    readFile('src/features/chat/use-chat-dock.ts', 'utf8'),
+  const [focusSession, pageHeader, zhBoard, enBoard] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/locales/zh-CN/board.json', 'utf8'),
@@ -219,8 +219,6 @@ test('mobile chat sends with Enter and keeps the fixed composer toolbar on touch
   const zh = JSON.parse(zhBoard)
   const en = JSON.parse(enBoard)
 
-  assert.match(dock, /if \(compactDock \|\| panel\.group\.size <= 1\) return \[closeItem\]/)
-  assert.doesNotMatch(dock, /disabled: compactDock/)
   assert.match(focusSession, /const mobileApp = useIsMobileApp\(\)/)
   assert.match(
     focusSession,
@@ -445,7 +443,7 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(routes, /input\.includeTree === false/)
 })
 
-test('settings take over the sidebar as a full page, feature pages have one home and the mobile shell keeps its section strip', async () => {
+test('settings take over the sidebar as a full page, feature pages have one home and the phone shell lists sections first', async () => {
   const [
     app,
     settingsSidebar,
@@ -476,8 +474,8 @@ test('settings take over the sidebar as a full page, feature pages have one home
   assert.doesNotMatch(app, /SettingsSectionNav/)
   assert.match(app, /const settingsOwned = settingsOwnsRoute\(page, configSection\)/)
   assert.match(app, /const tabletApp = useIsTabletViewport\(\) && mobileApp/)
-  assert.match(app, /const phoneLayout = mobileLayout && !tabletApp/)
-  assert.match(app, /const settingsLayout = settingsOwned && !phoneLayout/)
+  // 设置外壳：桌面外壳（任何宽度）与平板；手机外壳是列表 → 分区。
+  assert.match(app, /const settingsLayout = settingsOwned && !phoneShell/)
   assert.match(
     app,
     /takeover=\{\s*settingsLayout \? \([\s\S]*?<SettingsSidebar\s+configSection=\{configSection\}\s+onSelectSection=\{setConfigSection\}\s+onBack=\{leaveSettings\}\s+onOpenFeatures=\{\(\) => selectShellTab\('more'\)\}\s+search=\{configSearch\('sidebar'\)\}[\s\S]*?<SidebarFleetLine onOpenBoard=\{\(\) => selectShellTab\('board'\)\} \/>/,
@@ -506,19 +504,24 @@ test('settings take over the sidebar as a full page, feature pages have one home
   assert.match(settingsSidebar, /t\('config:settingsShell\.featuresHint'\)/)
   // 全部代理页的侧栏是状态 / 项目筛选，代理只在主区列一次（规格 2.3）。
   assert.match(app, /\{page === 'board' \? \(\s*<SidebarBoardFilters/)
-  // 手机仍用横滑分区条（列表 → 分区在 A4），与桌面同一份设置目录。
+  // 手机外壳是列表 → 分区（规格 7.4），与桌面同一份设置目录：/config 是分区列表，分区页顶上“‹ 设置”。
   assert.match(
     app,
-    /const mobileSettingsNav = clientLoaded && mobileLayout && settingsOwned && !tabletApp/,
+    /const phoneSettingsList = phoneShell && settingsOwned && \/\^\\\/config\\\/\?\$\/\.test\(location\.pathname\)/,
   )
-  assert.match(app, /<MobileSettingsNavigation[\s\S]*?onNavigate=\{setConfigSection\}/)
+  assert.match(app, /<MobileSettingsList\s+onNavigate=\{setConfigSection\}/)
+  assert.match(
+    app,
+    /<MobileSettingsBack onBack=\{\(\) => routerNavigate\(SETTINGS_LIST_PATH\)\} \/>/,
+  )
   assert.match(mobileNavigation, /getSettingsNavigation\(t, \{ capabilities \}\)/)
   assert.match(mobileNavigation, /useRuntimeCapabilitiesStore/)
   assert.match(mobileNavigation, /data-mobile-navigation="settings"/)
-  // 一级导航始终是应用侧栏（手机外壳为底部标签栏）；当前页点亮哪个入口只由 activeShellTab(page, settingsOwned) 决定。
+  // 一级导航始终是应用侧栏（手机外壳为同样内容的抽屉）；当前页点亮哪个入口只由 activeShellTab(page, settingsOwned) 决定。
   assert.match(app, /const shellTab = activeShellTab\(page, settingsOwned\)/)
   assert.match(app, /<ShellSidebar\s+active=\{sidebarActive\}/)
-  assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}\s+activeTab=\{shellTab\}/)
+  assert.match(app, /<PhoneDrawer\s+active=\{sidebarActive\}/)
+  assert.doesNotMatch(app, /<ShellTabBar\b/)
   assert.doesNotMatch(app, /<WorkbenchNavigation\b|<WorkbenchHeader\b|<AppSidebar\b/)
   assert.doesNotMatch(app, /<MobilePrimaryNavigation/)
   // 双归属退役：设置目录只有应用设置；功能页不再靠历史条目里的进入来源决定归属。
@@ -641,12 +644,9 @@ test('route code and route-specific vendor styles remain lazy', async () => {
   // 第 3 期起聊天页不再挂载分屏视图，v2（A1）删除了 ChatDockView：Dockview 的运行时与样式不进入任何路由。
   assert.doesNotMatch(chat, /ChatDockView|dockview-react\/dist/)
   await assert.rejects(readFile('src/features/chat/ChatDockView.tsx', 'utf8'), { code: 'ENOENT' })
-  assert.match(chat, /<MobileSessionPanel/)
-  assert.match(chat, /singleSessionLayout: mobileLayout/)
-  assert.match(chatDock, /className="mobile-session-tabs/)
-  assert.match(chatDock, /role="tablist"/)
-  assert.doesNotMatch(chatDock, /MOBILE_SESSION_TAB_LIMIT/)
-  assert.match(chatDock, /STORAGE_KEYS\.mobileSessionTabs/)
+  // A4：手机会话标签（MobileSessionPanel）随手机外壳退役，手机与桌面同样只挂当前会话；
+  // 并行的会话在抽屉里（规格 7.1）。
+  assert.doesNotMatch(chat + chatDock, /MobileSessionPanel|mobile-session-tabs|role="tablist"/)
   assert.match(chatDock, /onCreateSession/)
   assert.doesNotMatch(styles, /dockview/)
   assert.match(workflows, /import '@xyflow\/react\/dist\/style\.css'/)

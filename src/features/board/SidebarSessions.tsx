@@ -151,6 +151,21 @@ export function SidebarCommands({
         return
       }
       const sidebar = useSidebarStore.getState()
+      // 手机外壳（外接键盘）：没有常驻侧栏，⌘J / ⌥A 打开抽屉（内容与桌面侧栏相同，规格 7.1）再聚焦对应的行。
+      if (document.documentElement.hasAttribute('data-phone-shell')) {
+        const target =
+          command.kind === 'focus-attention'
+            ? current.longestWaitingId
+            : propsRef.current.resolveCurrentId()
+        if (command.kind === 'focus-attention' && !target) return
+        sidebar.setDrawerOpen(true)
+        focusSidebarRow(
+          (rows) =>
+            rows.find((row) => row.dataset.sidebarRow === target) ??
+            (command.kind === 'focus-list' ? rows[0] : undefined),
+        )
+        return
+      }
       // 设置整页：侧栏是设置目录（规格 2.3），没有会话行。⌥A 落到底部的“● N 个需要你”状态行（回车去全部代理），
       // ⌘J 落到当前设置分区；不临时展开。
       const settings = document.querySelector('[data-settings-sidebar]')
@@ -367,6 +382,8 @@ export type SidebarSessionsProps = {
   onOpenHistory: () => void
   // 归档成功：归档的是当前会话时由外壳回到主页。
   onArchived: (sessionId: string) => void
+  // 手机抽屉（规格 7.1）：没有悬停，普通批准的“拒绝 / 允许”常驻在行下面（44px），一步处理。
+  drawer?: boolean
 }
 
 export function SidebarSessions({
@@ -377,6 +394,7 @@ export function SidebarSessions({
   onOpenBoard,
   onOpenHistory,
   onArchived,
+  drawer = false,
 }: SidebarSessionsProps) {
   const { t } = useI18n()
   const { model, isLoading, error, refetch } = useSidebarModel()
@@ -575,6 +593,7 @@ export function SidebarSessions({
                 approveBinding={boardBindings.boardApprove}
                 denyBinding={boardBindings.boardDeny}
                 onKeyDown={onRowKeyDown}
+                drawer={drawer}
               />
             ))}
           </SidebarGroupSection>
@@ -721,6 +740,7 @@ function SidebarRowItem({
   approveBinding,
   denyBinding,
   onKeyDown,
+  drawer = false,
 }: {
   row: SidebarRow
   href: string
@@ -732,6 +752,7 @@ function SidebarRowItem({
   approveBinding: string | null
   denyBinding: string | null
   onKeyDown: (event: ReactKeyboardEvent<HTMLAnchorElement>, row: SidebarRow) => void
+  drawer?: boolean
 }) {
   const { t } = useI18n()
   const itemRef = useRef<HTMLLIElement>(null)
@@ -824,7 +845,13 @@ function SidebarRowItem({
         aria-label={label}
         className={cn(
           'flex min-w-0 items-center gap-2.5 rounded-[var(--r-md)] px-2.5 text-base text-content [transition:color_var(--d-fast),background-color_var(--d-fast),padding-right_0s_80ms] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
-          attention ? 'h-12 pointer-coarse:h-14' : 'h-9 pointer-coarse:h-11',
+          attention
+            ? drawer
+              ? 'h-14'
+              : 'h-12 pointer-coarse:h-14'
+            : drawer
+              ? 'h-11'
+              : 'h-9 pointer-coarse:h-11',
           quickRoom,
           current ? 'bg-surface-active' : 'group-hover/row:bg-surface-hover',
         )}
@@ -903,12 +930,39 @@ function SidebarRowItem({
           </span>
         )}
       </a>
+      {drawer && row.group === 'attention' && row.quickAction.kind === 'decide' && (
+        // 抽屉（手机）：没有悬停，“拒绝 / 允许”常驻在行下面，44px 触控目标，对齐标题。
+        <div data-sidebar-drawer-actions className="flex gap-2 pr-2.5 pb-1.5 pl-[36px]">
+          <button
+            type="button"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center rounded-[var(--r-md)] bg-solid text-sm font-medium text-content ring-1 ring-stroke-strong ring-inset focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus active:bg-surface-hover"
+            aria-label={t('board:sidebar.denyNamed', { title: row.title })}
+            onClick={(event) =>
+              handlers.decide(row, false, event.currentTarget.closest('[data-sidebar-item]'))
+            }
+          >
+            {t('board:sidebar.deny')}
+          </button>
+          <button
+            type="button"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center rounded-[var(--r-md)] bg-star text-sm font-medium text-on-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus active:bg-star-hover"
+            aria-label={t('board:sidebar.approveNamed', { title: row.title })}
+            onClick={(event) =>
+              handlers.decide(row, true, event.currentTarget.closest('[data-sidebar-item]'))
+            }
+          >
+            {t('board:sidebar.approve')}
+          </button>
+        </div>
+      )}
       <div
         ref={quickRef}
         data-sidebar-quick
         className={cn(
           'absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-1',
           reveal,
+          // 抽屉里批准键常驻在行下面，不再叠一层悬停快捷处理。
+          drawer && 'hidden',
         )}
       >
         {row.group === 'attention' &&

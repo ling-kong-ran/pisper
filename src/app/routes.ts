@@ -29,6 +29,9 @@ export const PAGE_PATHS = Object.freeze({
   config: '/config/models',
 } as const)
 
+// 手机外壳的设置分区列表（规格 7.4，列表 → 分区）：不是独立页面 id，仍归 config。
+export const SETTINGS_LIST_PATH = '/config'
+
 export type PageId = keyof typeof PAGE_PATHS
 
 export const PAGE_IDS: ReadonlySet<string> = new Set(Object.keys(PAGE_PATHS))

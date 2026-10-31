@@ -1,25 +1,14 @@
-import { useContext, useRef, type ComponentProps, type ReactNode } from 'react'
-import {
-  ListFilter,
-  MoreHorizontal,
-  Plus,
-  Pencil,
-  FolderOpen,
-  X,
-  PanelLeft,
-  PanelRight,
-  PanelTop,
-  PanelBottom,
-} from 'lucide-react'
+// 非路由的旧单会话视图顶栏（48px）：会话页（路由）一律用 SessionPageHeader / SessionPhoneHeader。
+// 只剩回放冒烟的夹具在渲染没有页面外壳的 FocusSession；A4 删除了分屏菜单与“关闭窗格”（Dockview 已删），
+// 整个组件在 A6 重做浮层时随夹具一起退役。
+import { useContext, type ComponentProps, type ReactNode } from 'react'
+import { ListFilter, MoreHorizontal, Plus, Pencil, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useI18n } from '@/app/use-i18n'
@@ -27,15 +16,12 @@ import type { Notify } from '@/app/route-context'
 import { cn } from '@/lib/utils'
 import { useContextPagesStore } from './session-context-pages-store'
 import { ChatDockContext } from './chat-dock-context'
-import { requestSessionSelection } from './events'
-import type { SessionSplitDisposition } from './dock-layout'
 
 export function TaskWorkspaceHeader({
   sessionId,
   notify,
   onRename,
   onWorkspace,
-  onClose,
   actions,
   children,
   className,
@@ -45,7 +31,6 @@ export function TaskWorkspaceHeader({
   notify?: Notify
   onRename: () => void
   onWorkspace: () => void
-  onClose?: () => void
   actions?: ReactNode
 }) {
   const { t } = useI18n()
@@ -53,14 +38,6 @@ export function TaskWorkspaceHeader({
   const summaryOpen = useContextPagesStore(
     (store) => store.sessions[sessionId]?.summaryOpen || false,
   )
-  const splitTarget = useRef('')
-  const splitDirections: Array<[SessionSplitDisposition, string, typeof PanelLeft]> = [
-    ['left', t('chat:focusSession.splitToLeft'), PanelLeft],
-    ['right', t('chat:focusSession.splitToRight'), PanelRight],
-    ['above', t('chat:focusSession.splitToTop'), PanelTop],
-    ['below', t('chat:focusSession.splitToBottom'), PanelBottom],
-  ]
-  const others = context?.sessions.filter((session) => session.id !== sessionId) || []
   const openNewContentTab = () => {
     const result = useContextPagesStore
       .getState()
@@ -85,11 +62,7 @@ export function TaskWorkspaceHeader({
       )}
     >
       {children}
-      <DropdownMenu
-        onOpenChange={(open) => {
-          if (open) splitTarget.current = ''
-        }}
-      >
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -104,14 +77,6 @@ export function TaskWorkspaceHeader({
         <DropdownMenuContent
           align="end"
           className="min-w-56 max-[650px]:[&_[data-slot=dropdown-menu-item]]:min-h-11"
-          onCloseAutoFocus={(event) => {
-            if (!splitTarget.current) return
-            event.preventDefault()
-            const target = splitTarget.current
-            requestAnimationFrame(() =>
-              document.getElementById(`task-${target}-workspace`)?.focus(),
-            )
-          }}
         >
           <DropdownMenuItem onSelect={onRename}>
             <Pencil />
@@ -129,41 +94,6 @@ export function TaskWorkspaceHeader({
           )}
           {actions && <DropdownMenuSeparator />}
           {actions}
-          {context?.splitAvailable && others.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              {splitDirections.map(([direction, label, Icon]) => (
-                <DropdownMenuSub key={direction}>
-                  <DropdownMenuSubTrigger>
-                    <Icon />
-                    {label}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {others.map((session) => (
-                      <DropdownMenuItem
-                        key={session.id}
-                        onSelect={() => {
-                          splitTarget.current = session.id
-                          requestSessionSelection(session.id, direction)
-                        }}
-                      >
-                        {session.name || t('chat:chatPage.untitledChat')}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ))}
-            </>
-          )}
-          {onClose && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onClose}>
-                <X />
-                {t('chat:workbench.closePane')}
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <Button

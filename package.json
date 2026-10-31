@@ -119,7 +119,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "dockview-react": "^7.0.4",
     "embla-carousel-react": "^8.6.0",
     "esbuild": "0.28.1",
     "hast-util-raw": "9.1.0",

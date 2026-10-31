@@ -3,7 +3,6 @@
 // 任何内部打开会话的动作都交回路由，再由 URL 回写活动会话。
 // 第 3 期起 Dockview 多标签与分屏不再挂载（代码留到清理期删除）：单会话视图是唯一形态。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { DockviewGroupPanel } from 'dockview-react'
 import { useI18n } from '@/app/use-i18n'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { PageState } from '@/components/app/PageState'
@@ -16,10 +15,10 @@ import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { MobileSessionPanel, SingleSessionPanel } from './ChatDock'
+import { SingleSessionPanel } from './ChatDock'
 import { chatApi } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
-import { useChatDock } from './use-chat-dock'
+import { useSessionSelection } from './use-session-selection'
 import { useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
@@ -144,19 +143,10 @@ export function ChatPage({
     updateSessions: catalog.updateSessions,
     pollOnly: boardEvents ? catalog.activeId || null : undefined,
   })
-  const dock = useChatDock({
-    sessions: catalog.sessions,
-    sessionsRef: catalog.sessionsRef,
-    sessionStates: catalog.sessionStates,
-    activeId: catalog.activeId,
+  const selection = useSessionSelection({
     setActiveId: catalog.setActiveId,
-    loading: catalog.loading,
-    localStreamSessionsRef,
     loadSessionMessages: liveSync.loadSessionMessages,
-    releaseSessionState: catalog.releaseSessionState,
-    singleSessionLayout: mobileLayout || routeMode,
     openRoutedSession: routeMode ? onRouteSessionChange : undefined,
-    notify,
   })
   const createSessionRecord = catalog.createSessionRecord
   const loadSessionMessages = liveSync.loadSessionMessages
@@ -164,13 +154,11 @@ export function ChatPage({
   const sessionStatesRef = catalog.sessionStatesRef
   const syncLiveSession = liveSync.syncLiveSession
   const setGlobalError = catalog.setGlobalError
-  const openSessionInDock = dock.openSessionInDock
-  const moveSessionToGroup = dock.moveSessionToGroup
+  const openSession = selection.openSession
   const [recallPulse, setRecallPulse] = useState({ sessionId: '', token: 0 })
-  // 新建会话：先创建记录（带可选 cwd），再在 Dock 打开，
-  // 若指定了目标分组则把面板移动到该组。
+  // 新建会话：先创建记录（带可选 cwd），再打开它（会话页交给路由）。
   const createSession = useCallback(
-    async (targetGroup?: DockviewGroupPanel, cwd = '') => {
+    async (cwd = '') => {
       let mobileState: MobileRuntimeState | null = null
       if (mobileApp) {
         // 手机本机模式不能使用桌面会话路径；只有已配对且明确处于远程模式才继承它。
@@ -179,11 +167,10 @@ export function ChatPage({
       const inheritRecentCwd = shouldInheritRecentSessionCwd(mobileApp, mobileState)
       const sessionId = await createSessionRecord(cwd, { inheritRecentCwd })
       if (!sessionId) return ''
-      const opened = openSessionInDock(sessionId)
-      if (opened) moveSessionToGroup(sessionId, targetGroup)
+      openSession(sessionId)
       return sessionId
     },
-    [createSessionRecord, mobileApp, moveSessionToGroup, openSessionInDock],
+    [createSessionRecord, mobileApp, openSession],
   )
   usePagePrimaryAction(registerPrimaryAction, createSession)
 
@@ -262,7 +249,7 @@ export function ChatPage({
       if (!request) return false
       if (awaitingNewRoute) newRouteHandledRef.current = true
       void (async () => {
-        const sessionId = await createSession(undefined, request.cwd)
+        const sessionId = await createSession(request.cwd)
         if (sessionId && request.prompt) void sendPrompt(request.prompt, sessionId)
       })()
       return true
@@ -383,17 +370,17 @@ export function ChatPage({
       try {
         setGlobalError('')
         const created = await chatApi.deriveSession(session.id, boundaryEntryId, name)
-        // 目录刷新不抢先选中子会话，只由 Dock 执行一次切换。延时再次打开会覆盖
+        // 目录刷新不抢先选中子会话，只在这里切换一次。延时再次打开会覆盖
         // 用户紧接着发起的「返回原对话」；动画不能拥有会话选择状态。
         await refreshSessions()
-        openSessionInDock(created.id)
+        openSession(created.id)
         setRecallPulse((current) => ({ sessionId: created.id, token: current.token + 1 }))
         notify(t('chat:chatPage.childChatCreated'))
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))
       }
     },
-    [notify, openSessionInDock, refreshSessions, requestText, setGlobalError, t],
+    [notify, openSession, refreshSessions, requestText, setGlobalError, t],
   )
 
   const openModelSettings = useCallback(() => navigate('config'), [navigate])
@@ -409,9 +396,7 @@ export function ChatPage({
       availableModels: catalog.availableModels,
       globalError: catalog.globalError,
       activeId: catalog.activeId,
-      compactDock: dock.compactDock,
       mobileLayout,
-      splitAvailable: !mobileLayout && !routeMode,
       requestConfirm,
       sessionTreePulseSessionId: recallPulse.sessionId,
       sessionTreePulseToken: recallPulse.token,
@@ -441,8 +426,6 @@ export function ChatPage({
       branchFromEntry,
       createChildSession,
       reloadSessionBranch,
-      splitDockPanel: dock.splitDockPanel,
-      closeDockPanel: dock.closeDockPanel,
     }),
     [
       catalog.sessions,
@@ -452,11 +435,7 @@ export function ChatPage({
       catalog.availableModels,
       catalog.globalError,
       catalog.activeId,
-      dock.compactDock,
-      dock.splitDockPanel,
-      dock.closeDockPanel,
       mobileLayout,
-      routeMode,
       requestConfirm,
       recallPulse.sessionId,
       recallPulse.token,
@@ -582,13 +561,6 @@ export function ChatPage({
                       ) : (
                         <PageState kind="loading" title={t('chat:chatPage.wakingTheAgent')} />
                       )
-                    ) : mobileLayout ? (
-                      <MobileSessionPanel
-                        sessionIds={dock.mobileSessionIds}
-                        onSelectSession={dock.openSessionInDock}
-                        onCreateSession={createSession}
-                        onOpenHistory={() => navigate('chatHistory')}
-                      />
                     ) : (
                       <SingleSessionPanel onCreateSession={createSession} />
                     ))}

@@ -192,11 +192,12 @@ test('optional application widgets stay lazy and page header consumes feature-fr
 
 test('the shell keeps board data and sidebar groups out of the startup bundle', () => {
   const appDependencies = graph.get(resolve(root, 'src/App.tsx'))
-  // 侧栏的会话分组、全部代理页的筛选、设置页底部状态行与窄轨计数、手机标签栏与派发浮层依赖看板数据层
-  // （单一轮询者），设置整页的侧栏（设置目录）只在设置页需要：都按需加载。应用壳静态只认看板的两份轻量契约（新任务、侧栏命令），二者都没有导入。
+  // 侧栏的会话分组、全部代理页的筛选、设置页底部状态行与窄轨计数、手机顶栏（☰ 计数）与抽屉、派发浮层
+  // 依赖看板数据层（单一轮询者），设置整页的侧栏（设置目录）只在设置页需要：都按需加载。应用壳静态只认看板的两份轻量契约（新任务、侧栏命令），二者都没有导入。
   for (const file of [
     'src/features/board/sidebar.ts',
-    'src/app/ShellTabBar.tsx',
+    'src/app/PhoneTopBar.tsx',
+    'src/app/PhoneDrawer.tsx',
     'src/app/SettingsSidebar.tsx',
     'src/features/board/DispatchOverlay.tsx',
   ]) {
@@ -228,8 +229,8 @@ test('the shell keeps board data and sidebar groups out of the startup bundle', 
 
 test('no route reaches the retired Dockview split view or its vendor code', () => {
   // 第 3 期退役 Dockview 的挂载，v2（A1）删除了分屏视图（ChatDockView、Dock 预览面板）：
-  // 它们不能再出现在源码里，从入口出发（含懒加载路由）也不能有文件在运行时导入 dockview
-  // （只允许 import type，构建时被擦除；聊天容器里剩下的休眠类型引用留给 A2 清理）。
+  // 它们不能再出现在源码里；A4 卸载了 dockview-react，从入口出发（含懒加载路由）任何文件都不能再导入
+  // dockview（连 import type 也不行）。
   const retired = new Set(
     ['ChatDockView.tsx', 'WebPreviewDockPanel.tsx'].map((file) =>
       resolve(root, 'src/features/chat', file),
@@ -258,7 +259,7 @@ test('no route reaches the retired Dockview split view or its vendor code', () =
     const source = files.get(path)
     assert.doesNotMatch(
       source,
-      /(?:^|\n)\s*import\s+(?!type\b)[^'"]*?['"]dockview(?:-core|-react)?(?:\/[^'"]*)?['"]|import\(\s*['"]dockview/,
+      /(?:^|\n)\s*import\s+[^'"]*?['"]dockview(?:-core|-react)?(?:\/[^'"]*)?['"]|import\(\s*['"]dockview/,
       `${name(path)} imports Dockview at runtime`,
     )
   }
@@ -285,18 +286,30 @@ test('the dormant three-pane phone shell and the retired sidebar shell never loa
     'src/features/board/AgentPanel.tsx',
     'src/features/board/AgentMiniCard.tsx',
     'src/features/board/useFleetSummary.ts',
+    // A4（规格 7.1、7.6）：手机底部标签栏、会话页“看板 N”入口与代理条退役，换成顶栏 ☰ + 抽屉。
+    'src/app/ShellTabBar.tsx',
+    'src/app/BoardEntry.tsx',
+    'src/features/board/PhoneAgentStrip.tsx',
+    'src/features/board/phone-strip.ts',
+    'src/features/board/strip-layout.ts',
+    'src/features/board/strip-presentation.ts',
+    'src/components/app/LaneBarsIcon.tsx',
+    // A4（规格 7.3）：手机看板（泳道跳转条、卡片墙、确认层）并进全部代理页的手机卡片。
+    'src/features/board/PhoneBoard.tsx',
+    'src/features/board/AgentCard.tsx',
+    'src/features/board/LaneGlyph.tsx',
+    'src/features/board/useRunningMotion.ts',
+    // A4（规格 7.6）：休眠的三栏手机外壳、会话上下文全屏页、手机会话标签与 Dockview 分屏一并删除。
+    'src/components/layout/MobileThreePane.tsx',
+    'src/components/layout/MobileShellContext.tsx',
+    'src/components/layout/mobile-shell-layout.ts',
+    'src/app/mobile/MobileContextScreen.tsx',
+    'src/features/chat/use-chat-dock.ts',
+    'src/features/chat/dock-layout.ts',
+    'src/features/chat/SessionActionsMenu.tsx',
   ].map((file) => resolve(root, file))
   for (const path of deleted) assert.ok(!files.has(path), `${name(path)} must stay deleted`)
-  const dormant = new Set(
-    [
-      'src/components/layout/MobileThreePane.tsx',
-      'src/components/layout/MobileShellContext.tsx',
-      'src/components/layout/mobile-shell-layout.ts',
-      'src/app/mobile/MobileContextScreen.tsx',
-    ]
-      .map((file) => resolve(root, file))
-      .concat(deleted),
-  )
+  const dormant = new Set(deleted)
   const reachable = new Set()
   const visit = (path) => {
     if (reachable.has(path)) return
@@ -306,12 +319,13 @@ test('the dormant three-pane phone shell and the retired sidebar shell never loa
   visit(resolve(root, 'src/main.tsx'))
   // 新外壳确实在图里，避免图不完整时空转。
   for (const file of [
-    'src/app/ShellTabBar.tsx',
+    'src/app/PhoneTopBar.tsx',
+    'src/app/PhoneDrawer.tsx',
+    'src/app/PhoneMenuButton.tsx',
     'src/app/ShellSidebar.tsx',
     'src/app/MorePage.tsx',
     'src/app/SessionHome.tsx',
-    'src/features/board/PhoneBoard.tsx',
-    'src/features/board/PhoneAgentStrip.tsx',
+    'src/features/board/OverviewRow.tsx',
     'src/features/chat/SessionPhoneHeader.tsx',
   ])
     assert.ok(reachable.has(resolve(root, file)), `${file} must be reachable from the entry`)

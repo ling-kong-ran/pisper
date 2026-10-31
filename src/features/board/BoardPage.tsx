@@ -3,7 +3,9 @@
 // 区内仍按状态。每个代理一行（OverviewRow），行内一步处理普通批准与重试；高风险、提问只能打开处理。
 // 这一页没有任务输入框：“新任务”与 ⌘N 打开派发对话框（不认领新任务请求，交给应用壳）。
 // 右侧 320 的组件栏（overview-card 放置）在 A7 才有组件：没有组件时不渲染、不留空位。
-// 数据只读看板 store（useBoardSessions），不新开轮询；手机外壳仍是第 4 期的手机看板（A4 前）。
+// 数据只读看板 store（useBoardSessions），不新开轮询。手机外壳（规格 v2 第 7.3 节）是同一页：
+// 标题与 ✎ 在外壳顶栏里，页内只有 44px 的“按状态 / 按项目”分段；需要你的行变成卡片（44px 按钮），
+// 其余仍是列表行。第 4 期的手机看板（泳道跳转条、卡片墙、确认层）随之退役，高风险一律进会话按住确认。
 import {
   lazy,
   Suspense,
@@ -43,7 +45,6 @@ import {
   type OverviewSection,
 } from './overview-model'
 import { OverviewRow } from './OverviewRow'
-import { PhoneBoard } from './PhoneBoard'
 import { ProjectSectionMenu, type ProjectSectionActions } from './ProjectSectionMenu'
 import { useBoardAnnouncer } from './useBoardAnnouncer'
 import { useBoardController } from './useBoardController'
@@ -54,6 +55,8 @@ import { useMinute, useNow } from './useNow'
 import { usePhoneShell } from './usePhoneShell'
 import { useProjectCommands } from './useProjectCommands'
 import { useSessionRowActions } from './useSessionRowActions'
+
+const NO_ROW_BINDINGS = Object.freeze({ approve: null, deny: null, retry: null })
 
 const WorkspacePicker = lazy(() =>
   import('@/components/WorkspacePicker').then((module) => ({ default: module.WorkspacePicker })),
@@ -86,8 +89,8 @@ export function BoardPage(props: BoardPageProps) {
       document.title = APP_NAME
     }
   }, [t])
-  if (phone) return <PhoneBoard {...props} />
-  return <OverviewPage {...props} />
+  // 切换外壳时整页换掉（key），不沿用另一种形态的焦点与滚动状态。
+  return <OverviewPage key={phone ? 'phone' : 'desktop'} {...props} phone={phone} />
 }
 
 // 列表的扁平条目：分区标题、行、分区的空状态。虚拟列表与直接渲染共用同一份顺序。
@@ -105,7 +108,8 @@ function OverviewPage({
   requestText,
   onNewTask,
   widgets,
-}: BoardPageProps) {
+  phone,
+}: BoardPageProps & { phone: boolean }) {
   const { t } = useI18n()
   const board = useBoardSessions({ doneWindow: 'today' })
   const view = useBoardViewStore()
@@ -210,7 +214,6 @@ function OverviewPage({
     attentionAll: model.attentionAll,
     onRevealAttention: view.clearFilters,
     reveal,
-    criticalInSession: true,
     ready: !board.isLoading,
     notify,
     sessionHref,
@@ -361,7 +364,8 @@ function OverviewPage({
         </p>
       )
     const item = entry.item
-    return (
+    const card = phone && item.lane === 'attention'
+    const row = (
       <OverviewRow
         item={item}
         now={now}
@@ -369,11 +373,14 @@ function OverviewPage({
         active={item.id === controller.activeId}
         dimmed={Boolean(triage) && item.lane !== 'attention'}
         phase={entry.phase}
-        bindings={rowBindings}
+        // 手机没有键盘单字母键：按钮上不写 A / D / R 键帽。
+        bindings={phone ? NO_ROW_BINDINGS : rowBindings}
         handlers={controller.handlers}
         menu={menu}
+        card={card}
       />
     )
+    return card ? <div className="py-1">{row}</div> : row
   }
 
   let content: ReactNode
@@ -466,9 +473,11 @@ function OverviewPage({
                 <ul className="m-0 flex list-none flex-col p-0">
                   {rows.map((entry) => (
                     // 行与行之间一条 1px 细线，从标题文字处开始（左侧让出状态图形）。
+                    // 手机卡片之间不画细线，卡片自带边框与间距。
                     <li
                       key={entry.key}
-                      className="relative [&+&]:before:absolute [&+&]:before:top-0 [&+&]:before:right-3 [&+&]:before:left-10 [&+&]:before:h-px [&+&]:before:bg-stroke"
+                      data-card={(phone && entry.item.lane === 'attention') || undefined}
+                      className="relative [&+&]:before:absolute [&+&]:before:top-0 [&+&]:before:right-3 [&+&]:before:left-10 [&+&]:before:h-px [&+&]:before:bg-stroke data-[card]:before:hidden [[data-card]+&]:before:hidden"
                     >
                       {renderEntry(entry)}
                     </li>
@@ -489,8 +498,8 @@ function OverviewPage({
       data-overview
       className="relative flex h-full min-h-0 w-full min-w-0 flex-col bg-background"
     >
-      {/* 主区顶栏 52：没有控件，只作 Windows 自绘标题栏的拖拽区（右侧 144px 留给窗口按钮）。 */}
-      <div data-window-drag-region aria-hidden="true" className="h-[52px] flex-none" />
+      {/* 主区顶栏 52：没有控件，只作 Windows 自绘标题栏的拖拽区（右侧 144px 留给窗口按钮）；手机由外壳顶栏代替。 */}
+      {!phone && <div data-window-drag-region aria-hidden="true" className="h-[52px] flex-none" />}
       <div
         ref={scrollerRef}
         data-overview-scroller
@@ -503,45 +512,69 @@ function OverviewPage({
           )}
         >
           <div className="min-w-0 flex-1">
-            <header
-              data-focus-region="header"
-              className="mb-5 flex min-w-0 flex-wrap items-end gap-x-4 gap-y-3"
-            >
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl leading-8 font-semibold tracking-[-.01em] text-content">
-                  {t('board:page.title')}
-                </h1>
+            {phone && (
+              // 手机：页名在外壳顶栏里，这里的 h1 只给读屏。
+              <h1 className="sr-only">{t('board:page.title')}</h1>
+            )}
+            {phone ? (
+              // 手机：标题、搜索与 ✎ 在外壳顶栏，页内只留 44px 高的分组方式分段（规格 7.3）。
+              ready &&
+              model.total > 0 && (
+                <div className="sticky top-0 z-[1] -mx-4 mb-2 bg-background px-4 pt-1 pb-2">
+                  <SegmentedControl
+                    size="default"
+                    aria-label={t('board:group.label')}
+                    value={view.groupBy}
+                    onValueChange={view.setGroupBy}
+                    className="grid h-11 w-full grid-cols-2 [&>button]:h-full"
+                    options={[
+                      { value: 'lane', label: t('board:group.lane') },
+                      { value: 'project', label: t('board:group.project') },
+                    ]}
+                  />
+                </div>
+              )
+            ) : (
+              <header
+                data-focus-region="header"
+                className="mb-5 flex min-w-0 flex-wrap items-end gap-x-4 gap-y-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl leading-8 font-semibold tracking-[-.01em] text-content">
+                    {t('board:page.title')}
+                  </h1>
+                  {ready && model.total > 0 && (
+                    <FleetSummary
+                      agents={model.total}
+                      projects={model.projectCount}
+                      running={model.running}
+                    />
+                  )}
+                </div>
                 {ready && model.total > 0 && (
-                  <FleetSummary
-                    agents={model.total}
-                    projects={model.projectCount}
-                    running={model.running}
+                  <SegmentedControl
+                    size="default"
+                    aria-label={t('board:group.label')}
+                    aria-keyshortcuts={formatShortcut(bindings.boardToggleGrouping) || undefined}
+                    value={view.groupBy}
+                    onValueChange={view.setGroupBy}
+                    options={[
+                      { value: 'lane', label: t('board:group.lane') },
+                      { value: 'project', label: t('board:group.project') },
+                    ]}
                   />
                 )}
-              </div>
-              {ready && model.total > 0 && (
-                <SegmentedControl
-                  size="default"
-                  aria-label={t('board:group.label')}
-                  aria-keyshortcuts={formatShortcut(bindings.boardToggleGrouping) || undefined}
-                  value={view.groupBy}
-                  onValueChange={view.setGroupBy}
-                  options={[
-                    { value: 'lane', label: t('board:group.lane') },
-                    { value: 'project', label: t('board:group.project') },
-                  ]}
-                />
-              )}
-              {ready && model.total > 0 && (
-                <Button variant="outline" onClick={onNewTask}>
-                  <SquarePen aria-hidden="true" />
-                  {t('board:overview.newTask')}
-                </Button>
-              )}
-            </header>
+                {ready && model.total > 0 && (
+                  <Button variant="outline" onClick={onNewTask}>
+                    <SquarePen aria-hidden="true" />
+                    {t('board:overview.newTask')}
+                  </Button>
+                )}
+              </header>
+            )}
             {/* 筛选在侧栏里看得见（规格 2.3）；侧栏收成窄轨时筛选不在界面上，页内补一行说明与“清除筛选”，
                 免得窄轨计数点进来后看不出被筛过。 */}
-            {ready && filtered && sidebarCollapsed && model.total > 0 && (
+            {ready && filtered && (sidebarCollapsed || phone) && model.total > 0 && (
               <FilterLine
                 lanes={view.lanes}
                 projects={view.projects

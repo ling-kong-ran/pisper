@@ -8,7 +8,7 @@ import {
   createSessionOpenRequest,
   parseSessionOpenRequest,
   type SessionOpenDisposition,
-} from './dock-layout'
+} from './session-open-request'
 
 export const TASK_VIEW_WILL_CHANGE = 'pisper:task-view-will-change'
 export const SESSION_NAVIGATION_WILL_CHANGE = 'pisper:session-navigation-will-change'

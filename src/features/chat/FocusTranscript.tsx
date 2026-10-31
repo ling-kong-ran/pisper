@@ -17,7 +17,7 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { cn } from '@/lib/utils'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
-import { type SessionOpenRequest } from './dock-layout'
+import { type SessionOpenRequest } from './session-open-request'
 import {
   SESSION_SELECTED_EVENT,
   SESSION_NAVIGATION_WILL_CHANGE,

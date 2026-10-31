@@ -169,17 +169,19 @@ test('conversation layout keeps a compact title header without a persistent avat
     focus,
     /<TaskWorkspaceHeader[\s\S]*session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
-  // 第 4 期手机会话页（规格 7.3）：56px 手机顶栏取代旧任务顶栏，标题同样只出现一次、点按改名、没有头像卡片。
+  // 手机会话页（规格 v2 第 7.2 节）：56px 手机顶栏取代旧任务顶栏，标题同样只出现一次、没有头像卡片；
+  // 标题 ▾ 打开会话菜单底部表单，表单里的会话操作与桌面标题菜单同一份数据（重命名是其中一项）。
   assert.match(focus, /phonePage \? \(\s*<SessionPhoneHeader\b/)
   assert.match(
     phoneHeader,
     /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/,
   )
-  assert.equal(phoneHeader.match(/data-session-title/g)?.length, 1)
+  assert.equal(phoneHeader.match(/data-session-title\b/g)?.length, 1)
   assert.match(
     phoneHeader,
-    /onClick=\{actions\.onRename\}[\s\S]{0,40}<span className="truncate" data-session-title>/,
+    /data-session-menu-trigger[\s\S]{0,600}onClick=\{\(\) => setMenuOpen\(true\)\}[\s\S]{0,300}<span className="truncate" data-session-title>/,
   )
+  assert.match(phoneHeader, /\.\.\.menu\.entries\.map\(/)
   assert.doesNotMatch(phoneHeader, /Avatar|BrandLogo/)
   // 桌面会话顶栏（规格 v2 第 4.1 节，52px）：标题只出现这一次（15px），是标题 ▾ 菜单的触发键，
   // 菜单第一项就是重命名（原来“点标题改名”的等价入口）；没有头像卡片，外壳本身不再重复标题。
@@ -190,10 +192,12 @@ test('conversation layout keeps a compact title header without a persistent avat
     /<DropdownMenuTrigger asChild>[\s\S]{0,600}text-\[15px\] leading-6[\s\S]{0,800}data-session-title[\s\S]{0,400}<DropdownMenuContent[^>]*>\s*\{menu\.items\}/,
   )
   const headerMenu = await readFile('src/features/chat/session-header-menu.tsx', 'utf8')
+  // 菜单项是一份数据（entries），第一项是重命名；桌面下拉菜单按它渲染。
   assert.match(
     headerMenu,
-    /const items = \(\s*<>\s*<DropdownMenuItem onSelect=\{actions\.onRename\}>/,
+    /const entries: SessionMenuEntry\[\] = \[\s*\{\s*key: 'rename',[\s\S]{0,120}onSelect: actions\.onRename,/,
   )
+  assert.match(headerMenu, /const items = \(\s*<>\s*\{entries\.map\(/)
   assert.equal(pageHeader.match(/data-session-title/g)?.length, 1)
   assert.doesNotMatch(pageHeader, /Avatar|BrandLogo/)
   assert.doesNotMatch(shell, /session\.name|data-session-title|pageHeader\.newChat/)
@@ -504,9 +508,10 @@ test('chat keeps hidden panels and continuous canvas work out of the renderer', 
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
     readFile('src/components/react-bits/AsciiText.tsx', 'utf8'),
   ])
-  assert.match(dock, /api\.onDidVisibilityChange/)
-  assert.match(dock, /if \(!visible\) return null/)
-  // 隐藏面板不渲染 SessionPanel，其加载消息/思考状态的 effect 随卸载跳过。
+  // A4 起没有分屏面板：聊天页只挂当前会话一个 SessionPanel（按会话 key 重挂），别的会话不渲染，
+  // 加载消息 / 思考状态的 effect 也只为它运行。
+  assert.match(dock, /<SessionPanel\s+key=\{activeId\}/)
+  assert.equal(dock.match(/<SessionPanel\b/g)?.length, 1)
   assert.match(dock, /if \(sessionId\) void loadMessages\?\.\(sessionId/)
   assert.match(dispatcher, /tools: pushCurrentActivity\(current\.tools, activity\)/)
   assert.match(ascii, /new ResizeObserver\(draw\)/)

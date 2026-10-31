@@ -378,14 +378,14 @@ test('chat orchestration keeps lifecycle owners independent from its page', asyn
       'src/features/chat/ChatPage.tsx',
       'src/features/chat/FocusSession.tsx',
       'src/features/chat/FocusTranscript.tsx',
-      'src/features/chat/use-chat-dock.ts',
+      'src/features/chat/use-session-selection.ts',
       'src/features/chat/use-live-session-sync.ts',
       'src/features/chat/use-prompt-commands.ts',
     ].map((path) => readFile(resolve(root, path), 'utf8')),
   )
   // 原行数门槛改由这里的编排约束和 frontend-boundaries 中的真实依赖检查保护。
   assert.match(chatPage, /useSessionCatalog/)
-  assert.match(chatPage, /useChatDock/)
+  assert.match(chatPage, /useSessionSelection/)
   assert.match(chatPage, /useLiveSessionSync/)
   assert.match(chatPage, /usePromptCommands/)
   assert.doesNotMatch(chatPage, /chatPage\.deriveChatDescription/)

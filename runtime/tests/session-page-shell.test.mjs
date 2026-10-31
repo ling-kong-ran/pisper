@@ -1,42 +1,20 @@
 // 会话页外壳（规格 v2 第 4.1 / 4.4 / 4.6 节）：并行的代理在应用侧栏里，会话页没有泳道条与 ⌘J 代理面板；
-// 检查器偏好，以及“critical 审批在任何入口都不能一步批准”在侧栏、手机代理条与会话审批面板上的源码守卫。
+// 检查器偏好，以及“critical 审批在任何入口都不能一步批准”在侧栏（含手机抽屉）与会话审批面板上的源码守卫。
 // 第 3 期的泳道条收缩顺序与迷你卡片守卫随泳道条退役（A1）；等价的保护改为侧栏分组模型
 // （sidebar-model.test.mjs：长列表规则、只有完整的普通批准才能一步处理、⌥↑⌥↓ 顺序）与下面的源码守卫。
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import { effectiveStripCurrent, stripOrder } from '../../src/features/board/strip-layout.ts'
 import { requestedPathname } from '../../src/app/shell-tabs.ts'
 import { sessionIdFromPath } from '../../src/app/routes.ts'
 
 const root = resolve(import.meta.dirname, '../..')
 const read = (path) => readFile(resolve(root, path), 'utf8')
-test('the phone agent strip keeps the lane order of the retired desktop strip', () => {
-  // 手机代理条（A4 前）沿用需要你 → 运行中 → 排队 → 已完成的顺序；桌面的切换顺序改为侧栏可见顺序。
-  const order = stripOrder([
-    { id: 'd1', lane: 'done' },
-    { id: 'r1', lane: 'running' },
-    { id: 'a1', lane: 'attention' },
-    { id: 'q1', lane: 'queued' },
-    { id: 'a2', lane: 'attention' },
-  ])
-  assert.deepEqual(
-    order.map((item) => item.id),
-    ['a1', 'a2', 'r1', 'q1', 'd1'],
-  )
-})
-
 // 路由在 transition 里提交：⌥↓ 之后 URL 已换、界面还停在原会话时立刻再按 ⌥↑，
 // 必须以刚发出的目标为起点，回到原会话，而不是从原会话再算一次邻居（smoke-board-ui 7a 曾偶发失败）。
 test('rapid option-arrow presses start from the switch that has not committed yet', async () => {
-  // 手机代理条：界面仍停在 r2、已发出去 r3 的切换时，以 r3 为起点。
-  const pending = { from: 'r2', to: 'r3' }
-  assert.equal(effectiveStripCurrent('r2', pending), 'r3')
-  assert.equal(effectiveStripCurrent('r3', pending), 'r3')
-  assert.equal(effectiveStripCurrent('a1', pending), 'a1')
-  assert.equal(effectiveStripCurrent('r2', null), 'r2')
-  // 桌面侧栏：当前会话读路由器的最新去向（navigate 同步改它），⌥↓ 之后 URL 已换、界面还停在原会话时
+  // 桌面侧栏与手机抽屉（A4 起手机代理条退役，切换代理走同一个 openSidebarSession）：当前会话读路由器的最新去向（navigate 同步改它），⌥↓ 之后 URL 已换、界面还停在原会话时
   // 立刻再按 ⌥↑，起点已经是刚发出的目标（smoke-board-ui 7a 曾因只看渲染状态偶发失败）。
   const loading = {
     location: { pathname: '/board/r2' },
@@ -48,8 +26,7 @@ test('rapid option-arrow presses start from the switch that has not committed ye
     read('src/App.tsx'),
     read('src/features/board/SidebarSessions.tsx'),
   ])
-  assert.match(shell, /pendingSwitchRef\.current = \{ from, to: id \}/)
-  assert.match(shell, /id === effectiveStripCurrent\(from, pendingSwitchRef\.current\)/)
+  assert.doesNotMatch(shell, /pendingSwitchRef|effectiveStripCurrent/)
   assert.match(
     app,
     /const currentSessionTarget = useCallback\(\s*\(\) => sessionIdFromPath\(requestedPathname\(readRouter\(\)\)\),/,
@@ -214,24 +191,16 @@ test('session page layout: no lane strip above the chat, inspector overlay under
   const session = routes
   assert.match(routes, /SESSION_COMPACT_QUERY = '\(max-width: 1279px\), \(max-height: 760px\)'/)
   // 手机 App 平板走桌面布局但检查器始终是覆盖层。规格 v2：桌面会话页不再有泳道条，并行的代理在
-  // 应用侧栏里；手机外壳（A4 前）是同一份会话页契约加上看板领域的代理条（phoneChrome），看板入口在手机顶栏最左侧。
+  // 应用侧栏里；手机外壳是同一份会话页契约加上顶栏 ✎（phoneChrome），☰（抽屉）在手机顶栏最左侧。
   assert.match(session, /const pageLayout = !phone \|\| tablet/)
   assert.match(session, /overlayOnly: mobileApp/)
   assert.doesNotMatch(session, /SessionLaneStrip|AgentPanel|resolveCurrentId/)
   assert.match(session, /pageChrome=\{pageLayout \? pageChrome : phoneChrome\}/)
   assert.match(
     session,
-    /const phoneChrome = useMemo\(\s*\(\) => \(\{\s*\.\.\.pageChrome,\s*phone: \{\s*strip: \(\s*<PhoneAgentStrip currentId=\{sessionId\} notify=\{notify\} onOpenSession=\{switchSession\} \/>/,
+    /const phoneChrome = useMemo\(\s*\(\) => \(\{ \.\.\.pageChrome, phone: \{ onNewTask: startNewTask \} \}\),/,
   )
-  assert.match(
-    session,
-    /routeLeading=\{pageLayout \? undefined : <BoardEntry onOpenBoard=\{openBoard\} \/>\}/,
-  )
-  // 切换代理替换历史记录：浏览器后退回到来处；从主页落地的会话保留主页标记（仍是返回的根）。
-  assert.match(
-    session,
-    /navigate\(sessionPath\(id\), \{ replace: true, state: entryStateRef\.current \}\)/,
-  )
+  assert.match(session, /routeLeading=\{pageLayout \? undefined : <PhoneMenuButton \/>\}/)
   const loaders = await read('src/app/route-elements.tsx')
   const loader = loaders.slice(
     loaders.indexOf('export async function sessionRoute'),
@@ -274,11 +243,9 @@ test('session page layout: no lane strip above the chat, inspector overlay under
   )
 })
 
-test('critical approvals cannot be approved in one step from the sidebar, the phone strip or the session', async () => {
-  const [sidebar, phoneStrip, controller, toolApproval] = await Promise.all([
+test('critical approvals cannot be approved in one step from the sidebar, the phone drawer or the session', async () => {
+  const [sidebar, toolApproval] = await Promise.all([
     read('src/features/board/SidebarSessions.tsx'),
-    read('src/features/board/PhoneAgentStrip.tsx'),
-    read('src/features/board/useBoardController.ts'),
     read('src/features/chat/ToolApproval.tsx'),
   ])
   // 侧栏快捷处理：只有 sidebar-model 判为 decide（完整详情、普通、无同时在等的问题）的行有“允许 / 拒绝”，
@@ -292,20 +259,13 @@ test('critical approvals cannot be approved in one step from the sidebar, the ph
     sidebar,
     /if \(result\.reason === 'confirmation-required'\) onOpenSession\(row\.id\)/,
   )
-  // 手机代理条只把动作交回 useStripApprovals，不直接调批准接口。
-  assert.doesNotMatch(phoneStrip, /approveBoardApproval|useBoardActions|confirmCritical/)
-  assert.equal(phoneStrip.match(/confirmStripApproval\(\)/g)?.length, 1)
-  assert.match(phoneStrip, /onConfirm=\{\(\) => void approvals\.confirmStripApproval\(\)\}/)
-  const hook = controller.slice(controller.indexOf('export function useStripApprovals'))
+  // 手机抽屉（规格 7.2“抽屉里一步处理普通批准”）用同一组行与同一个 decide：常驻的“拒绝 / 允许”
+  // 也只出现在 decide 行上，不另开批准路径；第 4 期代理条的确认层随代理条退役（critical 进会话按住确认）。
   assert.match(
-    hook,
-    /if \(approval\.severity === 'critical' \|\| approval\.truncated\) \{\s*review\(item, approval\)\s*return/,
+    sidebar,
+    /\{drawer && row\.group === 'attention' && row\.quickAction\.kind === 'decide' && \(/,
   )
-  assert.equal(hook.match(/confirmCritical: true/g)?.length, 1)
-  assert.match(
-    hook.slice(hook.indexOf('const confirmStripApproval')),
-    /^const confirmStripApproval = useCallback\(async \(\) => \{[\s\S]{0,400}confirmCritical: true/,
-  )
+  assert.equal(sidebar.match(/handlers\.decide\(row, true,/g)?.length, 2)
   // 会话审批面板：critical 的“允许…”只打开确认层，确认层回调才真正批准。
   assert.match(toolApproval, /const critical = approvalSeverity\(approval\) === 'critical'/)
   assert.match(
@@ -398,12 +358,11 @@ test('escape never leaves the session page; returning to the board needs an expl
     await Promise.all(
       [
         'src/app/SessionShell.tsx',
-        // 第 4 期主页改为会话：手机顶栏左侧是看板入口（BoardEntry）；v2 的侧栏外壳与会话分组、
+        // 手机顶栏左侧是 ☰（PhoneMenuButton，A4 起取代看板入口与代理条）；v2 的侧栏外壳与会话分组、
         // 主页草稿与手机会话页的部件同样不得用 Esc 离开。
-        'src/app/BoardEntry.tsx',
+        'src/app/PhoneMenuButton.tsx',
         'src/app/SessionHome.tsx',
         'src/features/board/NewTaskDraft.tsx',
-        'src/features/board/PhoneAgentStrip.tsx',
         'src/features/chat/SessionPhoneHeader.tsx',
         'src/app/ShellSidebar.tsx',
         'src/features/board/SidebarSessions.tsx',
@@ -419,7 +378,7 @@ test('escape never leaves the session page; returning to the board needs an expl
   // 浏览器 / 原生返回。
   for (const file of [
     'src/app/SessionShell.tsx',
-    'src/app/BoardEntry.tsx',
+    'src/app/PhoneMenuButton.tsx',
     'src/app/SessionHome.tsx',
   ])
     assert.doesNotMatch(sources[file], /keydown|Escape|onKeyDown/, file)

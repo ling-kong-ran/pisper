@@ -1,35 +1,13 @@
-// 第 4 期手机会话页（规格 7.3）：代理条的条目与顺序、“上一轮”摘要胶囊的推导，
-// 以及“critical 审批在手机代理条上也不能一步批准”、会话页隐藏底部标签栏、原生返回不会停止运行的源码守卫。
+// 手机会话页（规格 v2 第 7.2 节）：“上一轮”摘要胶囊的推导，以及顶栏 ☰ / 标题 ▾ / ✎ 的接线、
+// 检查器底部表单、原生返回不会停止运行的源码守卫。第 4 期的代理条与底部标签栏在 A4 退役（并行的代理在抽屉里）。
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import { phoneStripItems } from '../../src/features/board/phone-strip.ts'
 import { earlierTurnSummary } from '../../src/features/chat/transcript-turns.ts'
 
 const root = resolve(import.meta.dirname, '../..')
 const read = (path) => readFile(resolve(root, path), 'utf8')
-
-test('the phone agent strip lists attention, then running, keeps the current session and drops other done agents', () => {
-  const items = [
-    { id: 'done-a', lane: 'done' },
-    { id: 'run-a', lane: 'running' },
-    { id: 'attn-a', lane: 'attention' },
-    { id: 'queued-a', lane: 'queued' },
-    { id: 'current', lane: 'done' },
-    { id: 'attn-b', lane: 'attention' },
-  ]
-  assert.deepEqual(
-    phoneStripItems(items, 'current', { queue: false }).map((item) => item.id),
-    ['attn-a', 'attn-b', 'run-a', 'current'],
-  )
-  // 排队只在 Runtime 声明排队能力时出现，位置在运行中之后。
-  assert.deepEqual(
-    phoneStripItems(items, 'run-a', { queue: true }).map((item) => item.id),
-    ['attn-a', 'attn-b', 'run-a', 'queued-a'],
-  )
-  assert.deepEqual(phoneStripItems([], 'missing', { queue: true }), [])
-})
 
 test('earlier turns collapse into one capsule that summarises the previous turn', () => {
   const user = (id, text) => ({ id, role: 'user', text })
@@ -78,44 +56,22 @@ test('the transcript only collapses on the phone page and keeps turn numbers con
   assert.match(virtual, /let turns = turnBase/)
 })
 
-test('critical approvals cannot be approved in one step from the phone agent strip', async () => {
-  const [strip, shell] = await Promise.all([
-    read('src/features/board/PhoneAgentStrip.tsx'),
+test('the phone session header takes the drawer button from the shell and never imports the board', async () => {
+  const [shell, home, header, workspace] = await Promise.all([
     read('src/app/SessionShell.tsx'),
+    read('src/app/SessionHome.tsx'),
+    read('src/features/chat/SessionPhoneHeader.tsx'),
+    read('src/features/chat/SessionWorkspace.tsx'),
   ])
-  // 只把动作交回 useStripApprovals，不直接调批准接口，也不新开数据连接。
-  assert.doesNotMatch(
-    strip,
-    /approveBoardApproval|useBoardActions|confirmCritical|fetch\(|EventSource/,
-  )
-  assert.equal(strip.match(/useBoardItems\(/g)?.length, 1)
-  assert.match(strip, /const \{ items, capabilities, isLoading \} = useBoardItems\('today'\)/)
-  // 截断的预览或详情未到：只能查看；critical 的“允许…”只打开确认表单（onReview）。
-  assert.match(
-    strip,
-    /const reviewOnly = item\.status === 'approval' && \(!approval \|\| approval\.truncated\)/,
-  )
-  assert.match(
-    strip,
-    /data-agent-sheet-approve="critical"\s*onClick=\{\(\) => onReview\(item, approval\)\}/,
-  )
-  // 一步允许只出现在 standard 分支，且它走 useStripApprovals.approve（critical 在那里也会改走确认层）。
-  assert.equal(strip.match(/data-agent-sheet-approve="standard"/g)?.length, 1)
-  assert.match(
-    strip,
-    /onApprove=\{\(item, approval\) => \{\s*close\(\)\s*approvals\.approve\(item, approval\)/,
-  )
-  // 唯一的 confirmStripApproval 调用方是按住确认表单。
-  assert.equal(strip.match(/confirmStripApproval\(\)/g)?.length, 1)
-  assert.match(
-    strip,
-    /<ApprovalConfirm[\s\S]*?phone\s*pending[\s\S]*?onConfirm=\{\(\) => void approvals\.confirmStripApproval\(\)\}/,
-  )
-  // 应用壳把代理条交给手机会话页摆放；聊天领域不导入看板。
-  assert.match(
-    shell,
-    /<PhoneAgentStrip currentId=\{sessionId\} notify=\{notify\} onOpenSession=\{switchSession\} \/>/,
-  )
+  // 应用壳把 ☰（带需要你计数）交给手机会话页与主页摆放，没有改动时的 ✎ 走应用壳的新任务。
+  assert.match(shell, /routeLeading=\{pageLayout \? undefined : <PhoneMenuButton \/>\}/)
+  assert.match(shell, /\(\{ \.\.\.pageChrome, phone: \{ onNewTask: startNewTask \} \}\)/)
+  assert.match(home, /const entry = <PhoneMenuButton \/>/)
+  assert.doesNotMatch(shell + home, /PhoneAgentStrip|BoardEntry|switchSession/)
+  // 顶栏右侧：有改动是改动芯片（打开检查器表单），没有改动是 ✎；会话页下方不再有代理条。
+  assert.match(header, /changedFiles > 0 && inspector \?[\s\S]{0,200}data-session-changes=/)
+  assert.match(header, /onClick=\{chrome\.phone\.onNewTask\}/)
+  assert.doesNotMatch(workspace, /phone\?\.strip/)
   for (const file of [
     'src/features/chat/SessionWorkspace.tsx',
     'src/features/chat/SessionPhoneHeader.tsx',
@@ -124,19 +80,18 @@ test('critical approvals cannot be approved in one step from the phone agent str
     assert.doesNotMatch(await read(file), /@\/features\/board/, file)
 })
 
-test('the phone session page hides the tab bar, uses a bottom sheet inspector and never stops a run on native back', async () => {
-  const [app, tabBar, workspace, inspector, focus] = await Promise.all([
+test('the phone session page has no tab bar, uses a bottom sheet inspector and never stops a run on native back', async () => {
+  const [app, workspace, inspector, focus] = await Promise.all([
     read('src/App.tsx'),
-    read('src/app/ShellTabBar.tsx'),
     read('src/features/chat/SessionWorkspace.tsx'),
     read('src/features/chat/SessionInspector.tsx'),
     read('src/features/chat/FocusSession.tsx'),
   ])
-  // 标签栏在会话页不渲染，但仍挂着更新 ⌥A 的等待最久事项。
-  assert.match(app, /<ShellTabBar\s+hidden=\{page === 'session'\}/)
+  // 底部标签栏退役；手机外壳的 ⌥A（外接键盘）交给侧栏命令层打开抽屉，不再由标签栏上报等待最久事项。
+  assert.doesNotMatch(app, /ShellTabBar|onLongestWaitingChange|longestWaitingId/)
   assert.match(
-    tabBar,
-    /useEffect\(\(\) => onLongestWaitingChange\?\.\(longestId\)[^\n]*\n\s*if \(hidden\) return null/,
+    app,
+    /onJumpToAttention=\{\(\) => requestSidebarCommand\(\{ kind: 'focus-attention' \}\)\}/,
   )
   // 底部表单与覆盖层同属临时层：不写持久化偏好，不在运行结束时自动弹出，关闭后卸载。
   // 表单关闭时先以关闭态（Sheet open={open} → data-state=closed）播完退场动画，只在退场期间多挂载

@@ -153,11 +153,6 @@ export function Fixture() {
     onBranchFromHere: noop,
     onCreateChildSession: noop,
     onRetryLastTurn: noop,
-    onSplitLeft: noop,
-    onSplitRight: noop,
-    onSplitTop: noop,
-    onSplitBottom: noop,
-    onClosePanel: noop,
     onSend: (_text, attachments, _goal, _team, _budget, _invocation, onAccepted) => {
       evidence.sends += 1
       evidence.attachments = attachments.length

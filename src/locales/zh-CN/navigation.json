@@ -147,7 +147,6 @@
   "shell.sessionNotFoundHint": "它可能已被删除，或链接不完整。",
   "shell.backToMoreLabel": "返回更多",
   "shell.backToFeaturesLabel": "返回功能",
-  "shell.tabBarAttention": "{count} 项需要你",
   "more.title": "功能",
   "more.lede": "不常驻的能力都在这里，也都能用 {shortcut} 直接打开。",
   "more.ledeNoShortcut": "不常驻的能力都在这里，也都能在命令面板里直接打开。",
@@ -197,5 +196,9 @@
   "sidebar.features": "功能",
   "sidebar.loading": "正在加载会话",
   "appOverlays.toggleTheme": "切换主题",
-  "sidebar.search": "搜索"
+  "sidebar.search": "搜索",
+  "phone.menu": "打开导航",
+  "phone.menuAttention": "打开导航，{count} 个需要你",
+  "phone.drawer": "导航",
+  "phone.drawerHint": "搜索、新任务、全部代理、功能、会话与设置"
 }

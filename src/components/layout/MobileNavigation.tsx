@@ -1,63 +1,88 @@
-// 移动端设置横滑条：与桌面设置侧栏同一份设置目录（getSettingsNavigation，规格 2.6 只有应用设置）；
-// 插件、远程访问 / 手机服务器、桌面宠物等功能页只在“更多”（功能）里。列表 → 分区的手机设置在 A4。
-import { useEffect, useMemo, useRef } from 'react'
+// 手机设置（规格 v2 第 7.4、2.6 节）：列表 → 分区。/config 是分区列表（与桌面设置目录同一份
+// getSettingsNavigation，只有应用设置），点一行进入 /config/<分区>；分区页顶上是“‹ 设置”回到列表
+// （iOS 没有返回键，Android 返回键同样回列表，见 shell-tabs.shellBackPath）。
+// 列表最后一行“插件、MCP、技能等在 功能 里 →”：这些页只在功能里（双归属已退役）。
+// 第 4 期的横滑分区条随之退役。
+import { useMemo } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getSettingsNavigation } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
-import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 
-type MobileSettingsNavigationProps = {
-  configSection: string
-  onNavigate: (section: string) => void
-}
+const ROW =
+  'flex min-h-14 w-full min-w-0 items-center gap-3 px-4 text-left text-base text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover'
 
-export function MobileSettingsNavigation({
-  configSection,
+export function MobileSettingsList({
   onNavigate,
-}: MobileSettingsNavigationProps) {
+  onOpenFeatures,
+}: {
+  onNavigate: (section: string) => void
+  onOpenFeatures: () => void
+}) {
   const { t } = useI18n()
-  const activeKey = configSection
-  const activeItemRef = useRef<HTMLButtonElement | null>(null)
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const items = useMemo(() => getSettingsNavigation(t, { capabilities }), [capabilities, t])
-
-  useEffect(() => {
-    // 横滑导航可能比屏幕宽；切页后把当前项送回可视区，避免用户再寻找高亮项。
-    activeItemRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    })
-  }, [activeKey])
-
   return (
-    <nav
-      aria-label={t('config:settingsShell.settingsNavigation')}
-      className="flex flex-none gap-2 overflow-x-auto border-b border-stroke-soft px-4 pt-1 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      data-mobile-navigation="settings"
-    >
-      {items.map((item) => {
-        const active = activeKey === item.section
-        const Icon = item.icon
-        return (
-          <button
-            aria-current={active ? 'page' : undefined}
-            // 横滑分区是 44px 触控标签：选中用强调色浅底 + 强调色描边与文字，不靠细微底色差。
-            className={cn(
-              'flex h-11 flex-none items-center gap-1.5 rounded-md border px-3 text-[13px] transition-colors duration-[var(--d-fast)]',
-              active
-                ? 'border-star-border bg-star-soft font-medium text-star-strong'
-                : 'border-stroke text-content-secondary active:bg-surface-subtle',
-            )}
-            key={item.section}
-            onClick={() => onNavigate(item.section)}
-            ref={active ? activeItemRef : undefined}
-          >
-            <Icon aria-hidden="true" size={16} />
-            <span>{item.label}</span>
-          </button>
-        )
-      })}
-    </nav>
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background">
+      {/* 页名在外壳顶栏里，这里的 h1 只给读屏。 */}
+      <h1 className="sr-only">{t('navigation:navigation.settings')}</h1>
+      <nav
+        aria-label={t('config:settingsShell.settingsNavigation')}
+        data-mobile-navigation="settings"
+        className="mx-4 mt-2 overflow-hidden rounded-[14px] border border-stroke-soft bg-panel"
+      >
+        <ul className="m-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-stroke-soft">
+          {items.map((item) => {
+            const Icon = item.icon
+            return (
+              <li key={item.section}>
+                <button
+                  type="button"
+                  data-settings-section={item.section}
+                  className={ROW}
+                  onClick={() => onNavigate(item.section)}
+                >
+                  <Icon
+                    className="size-[18px] flex-none text-content-secondary"
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <ChevronRight
+                    className="size-4 flex-none text-content-faint"
+                    aria-hidden="true"
+                  />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+      <button
+        type="button"
+        data-settings-features-hint
+        className="mx-4 mt-3 flex min-h-11 items-center rounded-[var(--r-md)] px-1 text-left text-sm text-content-muted focus-visible:outline-2 focus-visible:outline-focus active:text-content"
+        onClick={onOpenFeatures}
+      >
+        {t('config:settingsShell.featuresHint')}
+      </button>
+    </div>
+  )
+}
+
+export function MobileSettingsBack({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="flex flex-none px-2 pt-1">
+      <button
+        type="button"
+        data-settings-back
+        className="flex h-11 items-center gap-0.5 rounded-[var(--r-md)] pr-3 pl-1 text-sm text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover"
+        onClick={onBack}
+      >
+        <ChevronLeft className="size-5" aria-hidden="true" />
+        {t('navigation:navigation.settings')}
+      </button>
+    </div>
   )
 }

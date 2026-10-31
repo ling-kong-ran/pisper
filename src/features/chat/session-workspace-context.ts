@@ -1,6 +1,6 @@
 // 会话页（桌面布局）的外壳契约：路由传入的页面形态，以及页头与检查器之间的开关通道。
 // 只放类型与上下文，不导入任何组件，页头、工作区与检查器都可以依赖它而不形成环。
-import { createContext, type ReactNode } from 'react'
+import { createContext } from 'react'
 import type { SessionInspectorTab } from './session-inspector-store'
 
 // 会话页由应用壳注入：有值时单会话视图换成“页头 + 对话 + 检查器”的会话页布局，
@@ -10,8 +10,8 @@ export type SessionPageChrome = {
   compact: boolean
   // 手机 App 平板：始终用覆盖层（规格 7.6）。
   overlayOnly: boolean
-  // 手机外壳（phoneShell）的会话页（规格 7.3）：顶栏 56 + 代理条 + 对话，检查器改为底部表单。
-  // 代理条由应用壳从看板领域取来，聊天领域只负责摆放，不反向依赖看板。
+  // 手机外壳（phoneShell）的会话页（规格 v2 第 7.2 节）：顶栏 56 + 对话，检查器改为底部表单。
+  // 第 4 期的代理条退役（并行的代理在抽屉里）；没有改动时顶栏右侧的 ✎ 交给应用壳打开派发表单。
   phone?: SessionPhoneChrome
   // 检查器“+”里去组件页设置“会话面板”放置。
   onOpenComponents?: () => void
@@ -22,7 +22,7 @@ export type SessionPageChrome = {
 }
 
 export type SessionPhoneChrome = {
-  strip: ReactNode
+  onNewTask: () => void
 }
 
 export const SessionPageChromeContext = createContext<SessionPageChrome | null>(null)

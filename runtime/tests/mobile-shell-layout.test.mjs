@@ -1,19 +1,14 @@
 // 第 4 期手机外壳（规格 2.7、7.6、7.7）：phoneShell = 移动布局 && 不是桌面壳 && 不是手机 App 平板。
 // 窄化的桌面窗口永远不进手机外壳（Tauri 最小窗口 1080，浏览器里也要求 !window.pisperDesktop）；
 // 手机 App 在 ≥960×640 的视口里走桌面布局。手机专属界面只认这一份判断。
-// 旧的三栏手机外壳（MobileThreePane / mobile-shell-layout.ts）已停止挂载，源码保留到第 6 期删除
-// （需负责人同意）；文件末尾三条守卫只保护这份休眠代码本身，删除模块时随之删除。
+// 旧的三栏手机外壳（MobileThreePane / mobile-shell-layout.ts）在 A4 删除（规格 7.6，负责人已同意），
+// 只保护那份休眠代码本身的三条守卫随之删除；平板阈值改为直接钉住尺寸表。
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { transformSync } from 'esbuild'
-import {
-  resolveMobileShellMode,
-  moveMobileShellPane,
-  swipeDeltaToDirection,
-} from '../../src/components/layout/mobile-shell-layout.ts'
 import { TABLET_VIEWPORT_QUERY } from '../../src/hooks/use-mobile.ts'
 
 const compile = async (file) =>
@@ -103,19 +98,19 @@ test('the tablet boundary is one 960×640 rule shared by the shell, the session 
     session.match(/export const SESSION_TABLET_QUERY = '([^']+)'/)?.[1],
     TABLET_VIEWPORT_QUERY,
   )
-  // 平板阈值沿用休眠三栏外壳的 pad 边界：同一组尺寸给出同样的结论。
-  for (const [width, height] of [
-    [390, 844],
-    [844, 390],
-    [959, 768],
-    [1024, 639],
-    [960, 640],
-    [1024, 768],
-    [1366, 1024],
+  // 平板阈值（≥960×640，规格 7.5）：手机竖横屏与差一点的尺寸都还是手机外壳。
+  for (const [width, height, tablet] of [
+    [390, 844, false],
+    [844, 390, false],
+    [959, 768, false],
+    [1024, 639, false],
+    [960, 640, true],
+    [1024, 768, true],
+    [1366, 1024, true],
   ])
     assert.equal(
       shellFor({ width, height, mobileApp: true }).tabletApp,
-      resolveMobileShellMode(width, height) === 'pad',
+      tablet,
       `${width}×${height}`,
     )
 })
@@ -125,21 +120,24 @@ test('the app shell derives the phone shell from the same inputs as the shared h
   assert.match(app, /const mobileLayout = mobileApp \|\| phoneViewport/)
   assert.match(app, /const tabletApp = useIsTabletViewport\(\) && mobileApp/)
   assert.match(app, /const phoneShell = mobileLayout && !window\.pisperDesktop && !tabletApp/)
-  // 根节点标记供经 Portal 挂到 body 的底部表单适配手机外壳；侧栏外壳与底部标签栏二选一。
+  // 根节点标记供经 Portal 挂到 body 的底部表单适配手机外壳；侧栏外壳与手机抽屉二选一（规格 v2 第 7.1 节），
+  // 手机外壳在会话页与主页以外的页面顶上加一条 56px 顶栏（☰ · 标题 · ✎）。
   assert.match(app, /document\.documentElement\.toggleAttribute\('data-phone-shell', phoneShell\)/)
   assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
-  assert.match(app, /\{phoneShell && \(\s*<Suspense fallback=\{tabBarFallback\}>\s*<ShellTabBar\b/)
+  assert.match(app, /\{phoneShell && \(\s*<Suspense fallback=\{null\}>\s*<PhoneDrawer\b/)
+  assert.match(app, /const phoneTopBar = phoneShell && page !== 'session'/)
+  assert.match(app, /\{phoneTopBar && \(\s*<Suspense[\s\S]{0,160}<PhoneTopBar\b/)
+  assert.doesNotMatch(app, /ShellTabBar|tabBarFallback/)
   // 平板仍按移动端处理原生返回（BackNavigation）与软键盘，只是布局换成桌面。
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)
 })
 
 test('phone-only surfaces read the shared phone-shell gate instead of a viewport check', async () => {
-  // 手机看板、手机会话页（代理条 / 顶栏看板入口）、更多里的组件磁贴、组件列表 → 详情、主页草稿
+  // 手机全部代理、手机会话页（顶栏 ☰）、功能里的组件行、组件列表 → 详情、主页草稿
   // 与会话审批的底部确认表单：都只在 usePhoneShell() 为真时出现。
   const gated = {
     'src/features/board/BoardPage.tsx': /const phone = usePhoneShell\(\)/,
     'src/app/SessionShell.tsx': /const phone = usePhoneShell\(\)/,
-    'src/app/BoardEntry.tsx': /const phone = usePhoneShell\(\)/,
     'src/app/MorePage.tsx': /const phone = usePhoneShell\(\)/,
     'src/app/SessionHome.tsx': /const phone = usePhoneShell\(\)/,
     'src/features/custom-ui/CustomUiPage.tsx': /const phone = usePhoneShell\(\) && !embedded/,
@@ -148,10 +146,11 @@ test('phone-only surfaces read the shared phone-shell gate instead of a viewport
   for (const [file, pattern] of Object.entries(gated))
     assert.match(await readFile(file, 'utf8'), pattern, file)
   const board = await readFile('src/features/board/BoardPage.tsx', 'utf8')
-  // 手机看板与桌面全部代理是两个不同的组件：切换外壳时整页换掉，不共用任何状态（原来靠 key 区分）。
+  // 手机全部代理与桌面是同一页的两种形态（规格 v2 第 7.3 节）：切换外壳时用 key 整页换掉，
+  // 不沿用另一种形态的焦点与滚动状态。
   assert.match(
     board,
-    /if \(phone\) return <PhoneBoard \{\.\.\.props\} \/>\s*return <OverviewPage \{\.\.\.props\} \/>/,
+    /return <OverviewPage key=\{phone \? 'phone' : 'desktop'\} \{\.\.\.props\} phone=\{phone\} \/>/,
   )
   assert.match(
     await readFile('src/features/board/usePhoneShell.ts', 'utf8'),
@@ -184,34 +183,32 @@ test('phone-only surfaces read the shared phone-shell gate instead of a viewport
   }
 })
 
-test('every phone approval entry keeps critical approvals behind the hold-to-confirm sheet', async () => {
-  const [board, card, toolApproval, confirm, tabBar, header, entry] = await Promise.all(
-    [
-      'src/features/board/PhoneBoard.tsx',
-      'src/features/board/AgentCard.tsx',
-      'src/features/chat/ToolApproval.tsx',
-      'src/features/board/ApprovalConfirm.tsx',
-      'src/app/ShellTabBar.tsx',
-      'src/features/chat/SessionPhoneHeader.tsx',
-      'src/app/BoardEntry.tsx',
-    ].map((file) => readFile(file, 'utf8')),
-  )
-  // 手机看板：卡片按钮只把动作交给看板控制器（critical 在那里只打开确认层，见 board-ui-model.test），
-  // 确认层是同一个按住 0.6 秒的底部表单，按住结束才调 confirmApproval。
-  assert.match(card, /onClick=\{\(\) => handlers\.onApprove\(item, approval\)\}/)
-  assert.match(card, /aria-haspopup=\{critical \? 'dialog' : undefined\}/)
-  assert.match(board, /handlers=\{controller\.handlers\}/)
-  assert.match(
-    board,
-    /<ApprovalConfirm[\s\S]{0,120}\bphone\b[\s\S]{0,200}onConfirm=\{\(\) => void controller\.confirmApproval\(\)\}/,
-  )
+test('every phone approval entry keeps critical approvals out of one-step approval', async () => {
+  const [board, row, toolApproval, confirm, menuButton, topBar, drawer, header, sessions] =
+    await Promise.all(
+      [
+        'src/features/board/BoardPage.tsx',
+        'src/features/board/OverviewRow.tsx',
+        'src/features/chat/ToolApproval.tsx',
+        'src/features/board/ApprovalConfirm.tsx',
+        'src/app/PhoneMenuButton.tsx',
+        'src/app/PhoneTopBar.tsx',
+        'src/app/PhoneDrawer.tsx',
+        'src/features/chat/SessionPhoneHeader.tsx',
+        'src/features/board/SidebarSessions.tsx',
+      ].map((file) => readFile(file, 'utf8')),
+    )
+  // 手机全部代理（规格 7.3）：卡片与桌面行同一个 OverviewRow，“允许”只在 sidebarQuickAction 判为 decide 的
+  // 普通批准上出现，高风险只有“打开处理”（进会话按住确认），控制器之外不批准。
+  assert.match(row, /if \(quick\.kind === 'decide' && approval\) \{/)
+  assert.match(row, /onClick=\{\(\) => handlers\.onApprove\(item, approval\)\}/)
+  assert.doesNotMatch(board + row, /approveBoardApproval|confirmCritical|\.approve\(/)
   // 手机会话页的审批面板：critical 的“允许…”只打开确认层（底部表单形态）。
   assert.match(
     toolApproval,
     /onClick=\{\(\) => \(critical \? setConfirming\(true\) : resolve\(true\)\)\}/,
   )
   assert.match(toolApproval, /<ApprovalConfirm[\s\S]{0,300}phone=\{phone\}/)
-  // 代理条操作表单（PhoneAgentStrip）的同一约束见 phone-session-page.test。
   // 确认层：手机是底部表单；按住 600ms 才确认，点击不能绕过，详情未到时不能按住。
   assert.match(confirm, /export const APPROVAL_HOLD_MS = 600/)
   assert.match(
@@ -220,65 +217,26 @@ test('every phone approval entry keeps critical approvals behind the hold-to-con
   )
   assert.match(confirm, /onClick=\{\(event\) => event\.preventDefault\(\)\}/)
   assert.match(confirm, /disabled=\{pending \|\| !approval\}/)
-  // 标签栏、手机顶栏与看板入口只显示计数或跳转，从不批准。
+  // 抽屉里的一步处理只给普通批准（sidebarQuickAction 判为 decide 的行），高风险与详情未到的行只能打开；
+  // 批准走与侧栏快捷处理同一个 decide（confirmCritical: false，Runtime 认为需要确认时改为打开会话）。
+  assert.match(
+    sessions,
+    /\{drawer && row\.group === 'attention' && row\.quickAction\.kind === 'decide' && \(/,
+  )
+  assert.match(
+    sessions,
+    /actionsRef\.current\.approve\(row\.id, approvalId, \{ confirmCritical: false \}\)/,
+  )
+  // ☰、手机顶栏、抽屉外壳与会话顶栏只显示计数或跳转，从不批准。
   for (const [file, source] of [
-    ['ShellTabBar', tabBar],
+    ['PhoneMenuButton', menuButton],
+    ['PhoneTopBar', topBar],
+    ['PhoneDrawer', drawer],
     ['SessionPhoneHeader', header],
-    ['BoardEntry', entry],
   ])
     assert.doesNotMatch(
       source,
       /\.approve\(|approveBoardApproval|confirmCritical|resolve\(true\)/,
       file,
     )
-  for (const [file, source] of [
-    ['PhoneBoard', board],
-    ['AgentCard', card],
-  ])
-    assert.doesNotMatch(source, /approveBoardApproval|confirmCritical|\.approve\(/, file)
-})
-
-// —— 休眠的三栏手机外壳（第 6 期删除，需负责人同意）——
-
-test('dormant pane model: compact and short landscape viewports stay on one pane', () => {
-  for (const [width, height] of [
-    [390, 844],
-    [844, 390],
-    [959, 768],
-    [1024, 639],
-  ]) {
-    assert.equal(resolveMobileShellMode(width, height), 'phone')
-  }
-  for (const [width, height] of [
-    [960, 640],
-    [1024, 768],
-    [1366, 1024],
-  ]) {
-    assert.equal(resolveMobileShellMode(width, height), 'pad')
-  }
-})
-
-test('dormant pane model: horizontal navigation traverses sessions, conversation and workspace without wrapping', () => {
-  assert.equal(moveMobileShellPane('chat', -1), 'sessions')
-  assert.equal(moveMobileShellPane('chat', 1), 'context')
-  assert.equal(moveMobileShellPane('sessions', 1), 'chat')
-  assert.equal(moveMobileShellPane('context', -1), 'chat')
-  assert.equal(moveMobileShellPane('sessions', -1), 'sessions')
-  assert.equal(moveMobileShellPane('context', 1), 'context')
-})
-
-test('dormant pane model: vertical scrolling, short gestures and ambiguous diagonals never switch panes', () => {
-  for (const [dx, dy] of [
-    [0, 100],
-    [47, 0],
-    [-47, 0],
-    [90, 100],
-    [-100, -90],
-  ]) {
-    assert.equal(swipeDeltaToDirection(dx, dy), 0)
-  }
-  assert.equal(swipeDeltaToDirection(-48, 0), 1)
-  assert.equal(swipeDeltaToDirection(48, 0), -1)
-  assert.equal(swipeDeltaToDirection(-120, 50), 1)
-  assert.equal(swipeDeltaToDirection(120, -50), -1)
 })

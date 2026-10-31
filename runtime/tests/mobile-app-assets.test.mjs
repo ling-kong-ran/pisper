@@ -349,13 +349,17 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(stabilizer, /viewport\?\.addEventListener\('resize', schedule\)/)
   assert.match(stabilizer, /viewport\?\.addEventListener\('scroll', schedule\)/)
   assert.match(stabilizer, /shell\.dataset\.mobileKeyboard = 'open'/)
-  // 手机外壳的一级导航是底部标签栏（规格 7.1）：软键盘打开时整条收起，不占输入区域高度；
-  // 外壳的底部安全区留白也随之归零。旧的底部主导航不再保留。
+  // 手机外壳没有底部导航了（规格 v2 第 7.1 节：顶栏 ☰ + 抽屉）：软键盘打开时底部没有任何条占输入区高度；
+  // 会话页输入框自己让出底部安全区，键盘弹起时归零贴着键盘。旧的底部主导航与标签栏都不再保留。
   assert.doesNotMatch(navigation, /data-mobile-navigation="primary"/)
-  const tabBar = await readFile(new URL('../../src/app/ShellTabBar.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(app, /mobile-tab-bar|ShellTabBar/)
+  const workspace = await readFile(
+    new URL('../../src/features/chat/SessionWorkspace.tsx', import.meta.url),
+    'utf8',
+  )
   assert.match(
-    tabBar,
-    /data-testid="mobile-tab-bar"\s+className="[^"]*\[\[data-mobile-keyboard='open'\]_&\]:hidden"/,
+    workspace,
+    /sheetMode &&\s+"pb-\[var\(--pisper-safe-area-bottom\)\] \[\[data-mobile-keyboard='open'\]_&\]:pb-0"/,
   )
   assert.match(app, /app-shell[^"\n]*\[&\[data-mobile-keyboard='open'\]\]:pb-0/)
   assert.match(stabilizer, /document\.addEventListener\('touchstart', handleTouch, true\)/)

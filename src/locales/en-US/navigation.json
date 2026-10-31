@@ -147,7 +147,6 @@
   "shell.sessionNotFoundHint": "It may have been deleted, or the link is incomplete.",
   "shell.backToMoreLabel": "Back to More",
   "shell.backToFeaturesLabel": "Back to Features",
-  "shell.tabBarAttention": "{count} need you",
   "more.title": "Features",
   "more.lede": "Everything that isn’t always on screen lives here, and opens straight from {shortcut} too.",
   "more.ledeNoShortcut": "Everything that isn’t always on screen lives here, and opens straight from the command palette too.",
@@ -197,5 +196,9 @@
   "sidebar.features": "Features",
   "sidebar.loading": "Loading sessions",
   "appOverlays.toggleTheme": "Switch theme",
-  "sidebar.search": "Search"
+  "sidebar.search": "Search",
+  "phone.menu": "Open navigation",
+  "phone.menuAttention": "Open navigation, {count} need you",
+  "phone.drawer": "Navigation",
+  "phone.drawerHint": "Search, new task, all agents, features, sessions and settings"
 }

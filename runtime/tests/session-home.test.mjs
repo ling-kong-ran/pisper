@@ -22,7 +22,7 @@ import {
   pagePath,
   sessionPath,
 } from '../../src/app/routes.ts'
-import { PHONE_SHELL_TABS, activeShellTab, shellBackPath } from '../../src/app/shell-tabs.ts'
+import { SHELL_TABS, activeShellTab, shellBackPath } from '../../src/app/shell-tabs.ts'
 import { settingsOwnsRoute } from '../../src/app/settings-navigation.ts'
 import { getMoreNavigation } from '../../src/app/more-navigation.ts'
 import { getNavigation } from '../../src/app/palette-navigation.ts'
@@ -98,19 +98,19 @@ test('the home landing never creates a session; the draft creates one only on th
   // 目录读取失败给出错误态与重试，不静默回落；明确选择后才进草稿。
   assert.match(home, /kind="error"/)
   assert.match(home, /sessions\.refetch\(\)/)
-  // 会话页：只记目录里确实存在的会话；归档后清掉记录回主页；切换代理保留主页落地标记。
+  // 会话页：只记目录里确实存在的会话；归档后清掉记录回主页。
   assert.match(shell, /if \(known\) rememberLastSession\(sessionId\)/)
   assert.match(shell, /forgetLastSession\(id\)\s+navigate\(HOME_PATH, \{ replace: true \}\)/)
+  // 切换代理（桌面侧栏与手机抽屉同一个入口 openSidebarSession）：会话之间 replace 并沿用当前条目的状态，
+  // 从主页落地的会话切换后仍是根；主页草稿上打开的会话同样标为主页落地。
+  const app = await readFile('src/App.tsx', 'utf8')
   assert.match(
-    shell,
-    /navigate\(sessionPath\(id\), \{ replace: true, state: entryStateRef\.current \}\)/,
+    app,
+    /const state = target === HOME_PATH \? HOME_ENTRY_STATE : router\.location\.state\s+routerNavigate\(sessionPath\(id\), \{ replace: true, state \}\)/,
   )
-  // 看板入口只剩手机顶栏（A4 前）；桌面会话页没有泳道条，入口在应用侧栏。
-  assert.match(
-    shell,
-    /routeLeading=\{pageLayout \? undefined : <BoardEntry onOpenBoard=\{openBoard\} \/>\}/,
-  )
-  assert.doesNotMatch(shell, /SessionReturnBar|SessionLaneStrip/)
+  // 手机顶栏左侧是 ☰（抽屉）；桌面会话页没有泳道条，入口在应用侧栏。
+  assert.match(shell, /routeLeading=\{pageLayout \? undefined : <PhoneMenuButton \/>\}/)
+  assert.doesNotMatch(shell, /SessionReturnBar|SessionLaneStrip|BoardEntry|PhoneAgentStrip/)
   assert.doesNotMatch(home, /SessionLaneStrip/)
 })
 
@@ -196,7 +196,7 @@ test('last-session preference is per device, validated as untrusted input and on
 test('primary entries: the session page and home light "session", the board lights "board"', () => {
   // 手机标签栏：会话 · 看板 · [新任务] · 更多 · 设置；桌面侧栏的入口用同一份归属结论
   // （board → 全部代理、more → 功能、settings → 设置；会话页由会话行自己点亮）。
-  assert.deepEqual([...PHONE_SHELL_TABS], ['session', 'board', 'more', 'settings'])
+  assert.deepEqual([...SHELL_TABS], ['session', 'board', 'more', 'settings'])
   // 归属只看路由（双归属退役）：/config 的分区决定设置还是功能。
   const tab = (path) => {
     const page = pageFromPath(path)
@@ -277,11 +277,11 @@ test('the shell wires the session tab to the home, back to history, and the boar
   assert.match(app, /routerNavigate\(HOME_PATH, \{ replace: true \}\)/)
   // 键盘 Esc 仍只走返回层；路由层返回只挂在手机原生返回上。
   assert.match(app, /<BackNavigation onRouteBack=\{mobileLayout \? routeBack : undefined\} \/>/)
-  const entry = await readFile('src/app/BoardEntry.tsx', 'utf8')
-  assert.doesNotMatch(entry, /keydown|Escape|onKeyDown/)
-  // 手机顶栏的看板入口与侧栏“全部代理”都标出 openBoard 的当前绑定（⌘1）。
-  assert.match(entry, /state\.bindings\.openBoard/)
-  assert.match(app, /onOpenBoard=\{\(\) => selectShellTab\('board'\)\}/)
+  // 手机的 ☰ 与抽屉只认点击（抽屉由 Radix 对话框处理 Esc / 返回键关闭），不自己监听按键离开页面。
+  for (const file of ['src/app/PhoneMenuButton.tsx', 'src/app/PhoneDrawer.tsx'])
+    assert.doesNotMatch(await readFile(file, 'utf8'), /keydown|onKeyDown|'Escape'/, file)
+  // 侧栏与抽屉的“全部代理”走同一个入口（⌘1 同样经 selectShellTab）。
+  assert.equal(app.match(/onOpenBoard=\{\(\) => selectShellTab\('board'\)\}/g)?.length >= 2, true)
 })
 
 test('on the home page the shell navigates itself: no session route is mounted there to take requests', async () => {

@@ -451,7 +451,7 @@ test('the all-agents sidebar is a status / project filter over the same board-vi
   // 项目组 ⋯：添加项目（选目录 → 派发）与管理项目，沿用 useProjectCommands / ManageProjectsDialog。
   assert.match(filters, /commands\.newProject\(\)/)
   assert.match(filters, /<ManageProjectsDialog\s+open=\{manageOpen\}/)
-  // 页内不再有筛选控件：“/”的目标从分组切换挪到侧栏；侧栏收成窄轨时页内补一行筛选说明。
+  // 页内不再有筛选控件：“/”的目标从分组切换挪到侧栏；侧栏收成窄轨（或手机没有侧栏）时页内补一行筛选说明。
   assert.doesNotMatch(board, /BOARD_FILTER_ID/)
-  assert.match(board, /ready && filtered && sidebarCollapsed && model\.total > 0/)
+  assert.match(board, /ready && filtered && \(sidebarCollapsed \|\| phone\) && model\.total > 0/)
 })
