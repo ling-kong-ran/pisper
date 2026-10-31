@@ -686,6 +686,32 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="dir-a5-built-h">
+    <div class="sec-head">
+      <h2 id="dir-a5-built-h">方向 A · A5 已实现（代理的提问）</h2>
+      <p class="lede">代理需要你选择时会提问（ask_user）：会话进入“需要你”，原因写“等你回答”。全部代理上一题单选、选项 ≤4 的提问可以直接点选项回答；会话页里是与审批卡同一位置的问题卡。效果图里只画了“2 个问题”的原因，没有单独的问题卡效果图。截图用虚构的提问数据；会话页那张来自回放夹具（不是真实模型发起的提问）。</p>
+    </div>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/a5-overview-question-1440-light.png" aria-label="放大：实现：全部代理“选择会话存储 · 等你回答 · 1 个问题”，第 2 行是问题，下面是 1 SQLite / 2 Postgres / 其他… 胶囊"><img src="built/a5-overview-question-1440-light.png" alt="实现：全部代理“选择会话存储 · 等你回答 · 1 个问题”，第 2 行是问题，下面是 1 SQLite / 2 Postgres / 其他… 胶囊" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A5</span>全部代理行内点选</figcaption></figure>
+      <figure><button type="button" data-full="built/a5-session-question-card-light.png" aria-label="放大：实现：会话页问题卡：输入框上方、与输入框同宽，问题“提交到哪个分支？”，选项 1 main / 2 release / 其他…，右下“跳过”"><img src="built/a5-session-question-card-light.png" alt="实现：会话页问题卡：输入框上方、与输入框同宽，问题“提交到哪个分支？”，选项 1 main / 2 release / 其他…，右下“跳过”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A5</span>会话页问题卡（一题单选点一下即提交）</figcaption></figure>
+      <figure><button type="button" data-full="built/a5-sidebar-question-1440-light.png" aria-label="放大：实现：侧栏需要你行“选择会话存储 · 等你回答 · 1 个问题”，悬停只给“打开”"><img src="built/a5-sidebar-question-1440-light.png" alt="实现：侧栏需要你行“选择会话存储 · 等你回答 · 1 个问题”，悬停只给“打开”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A5</span>侧栏：等你回答，只能打开</figcaption></figure>
+    </div>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/a5-phone-question-card-light.png" aria-label="放大：实现：手机全部代理的提问卡片：问题与 44px 选项胶囊（SQLite / Postgres / 其他…）"><img src="built/a5-phone-question-card-light.png" alt="实现：手机全部代理的提问卡片：问题与 44px 选项胶囊（SQLite / Postgres / 其他…）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现 · A5</span>手机卡片：44px 选项</figcaption></figure>
+    </div>
+    <h3>替你做的决定（待你确认，完整列表见 decisions.md）</h3>
+    <ul class="notes">
+      <li>手机会话页的提问也是输入框上方的内联卡片（44px 选项），没有另做底部表单。</li>
+      <li>多题的提问在一张卡里依次列出全部问题，数字键 1–6 作用于第一个还没答的问题；审批和提问同时在等时审批先处理，提问只留一行。</li>
+      <li>全部代理的行内胶囊后面多一个“其他…”（进会话写文字）；聚焦行或逐个处理时 1–4 直接回答。</li>
+      <li>顺手修了两个老问题：前端把 Runtime 声明的 askUser 能力丢掉了（“等你回答”永远不会出现）；“等待用户确认”通知模板从来没被调用，批准也不发——现在批准和提问都会发。</li>
+    </ul>
+  </section>
+
   <section aria-labelledby="phone-h">
     <div class="sec-head">
       <h2 id="phone-h">已被取代：第 4 期手机外壳（A4 取代）</h2>
@@ -751,7 +777,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
       <div class="phase"><span class="n">A1–A2</span><span class="what">方向 A：视觉 token v2、侧栏外壳与会话分组、快捷键 v2；会话顶栏、按需检查器、托盘与输入区、内联批准卡、会话树三页与 6 个老问题</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A3</span><span class="what">全部代理分组列表（删除看板泳道）、侧栏随页面变化（筛选 / 设置目录）、功能索引、设置整页与双归属退役</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A4</span><span class="what">手机与平板：顶栏 ☰ + 抽屉、全部代理卡片、会话菜单与芯片底部表单、设置列表 → 分区，删除手机标签栏、手机看板、代理条与 dockview</span><span class="chip built">已完成（本地）</span></div>
-      <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片与侧栏</span><span class="chip">未开始</span></div>
+      <div class="phase"><span class="n">A5</span><span class="what">问题选项 ask_user：Runtime 工具、TUI、对话卡片、全部代理行内点选与侧栏</span><span class="chip built">已完成（本地）</span></div>
       <div class="phase"><span class="n">A6</span><span class="what">功能页模板与浮层（⌘K、派发、引导、侧聊、会话树、配对）</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A7–A8</span><span class="what">组件工作室：核心闭环 → 信任与生命周期；删除旧 iframe 组件</span><span class="chip">未开始</span></div>
       <div class="phase"><span class="n">A9</span><span class="what">收尾：排队、导出、思考用时、目录变更事件</span><span class="chip">未开始</span></div>
