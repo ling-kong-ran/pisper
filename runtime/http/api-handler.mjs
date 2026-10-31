@@ -85,6 +85,12 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/sessions\/[^/]+\/workflow-runs(?:\/|$)/, feature: 'workflows' },
   { pattern: /^\/api\/board\/events$/, feature: 'board.events' },
   { pattern: /^\/api\/sessions\/[^/]+\/questions(?:\/|$)/, feature: 'askUser' },
+  // 原生组件的新接口；组件列表与旧 iframe 路由不在其中，旧行为不受这项能力影响。
+  {
+    pattern:
+      /^\/api\/custom-ui\/(?:instances(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|storage|errors|session)(?:\/|$))/,
+    feature: 'components.native',
+  },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

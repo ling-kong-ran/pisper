@@ -196,6 +196,42 @@ test('capability-gated API groups map to their owning runtime feature', () => {
   assert.equal(requiredRuntimeFeature('/api/sessions'), '')
 })
 
+test('原生组件能力：三种档案都提供且不让桌面变成降级；新接口按能力门控，旧组件接口不受影响', async () => {
+  const full = { childProcess: true, workerThreads: true, sqlite: true, wasm: true }
+  for (const profile of ['desktop', 'mobile-embedded', 'mobile-store']) {
+    const capabilities = await resolveRuntimeCapabilities({
+      environment: { PISPER_RUNTIME_PROFILE: profile },
+      moduleSupport: profile === 'desktop' ? full : unavailableModules,
+    })
+    assert.equal(capabilities.features['components.native'], true, profile)
+  }
+  const desktop = await resolveRuntimeCapabilities({ environment: {}, moduleSupport: full })
+  assert.equal(desktop.degraded, false)
+  for (const path of [
+    '/api/custom-ui/instances',
+    '/api/custom-ui/instances/abc',
+    '/api/custom-ui/components/demo/r/0123456789abcdef01234567/component.js',
+    '/api/custom-ui/components/demo/describe',
+    '/api/custom-ui/components/demo/fetch',
+    '/api/custom-ui/components/demo/storage/key',
+    '/api/custom-ui/components/demo/errors',
+    '/api/custom-ui/components/demo/session',
+  ]) {
+    assert.equal(requiredRuntimeFeature(path), 'components.native', path)
+  }
+  for (const path of [
+    '/api/custom-ui/components',
+    '/api/custom-ui/components/demo',
+    '/api/custom-ui/components/demo/views',
+    '/api/custom-ui/components/demo/assets/index.html',
+    '/api/custom-ui/bridge.js',
+    '/api/custom-ui/import',
+    '/api/custom-ui/instancesx',
+  ]) {
+    assert.equal(requiredRuntimeFeature(path), '', path)
+  }
+})
+
 test('Pi compatibility patch removes eager optional builtin imports from headless paths', async () => {
   const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
   const piRoot = join(repositoryRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist')

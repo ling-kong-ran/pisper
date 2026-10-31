@@ -30,6 +30,7 @@ export type RuntimeFeature =
   | 'board.view'
   | 'board.events'
   | 'askUser'
+  | 'components.native'
   | 'sessionQueue'
   | 'sessionExport'
 
@@ -84,6 +85,8 @@ const fullFeatures = {
   askUser: false,
   sessionQueue: false,
   sessionExport: false,
+  // 原生组件（A7）：旧 Runtime 只有 iframe 组件，没有声明时组件页按旧版显示“不再支持”，宿主不请求实例。
+  'components.native': false,
 } satisfies Record<RuntimeFeature, boolean>
 
 // 老版本 Runtime 没有能力接口；保持原有全功能导航，避免升级前的远程桌面被误裁剪。

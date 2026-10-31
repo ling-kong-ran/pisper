@@ -94,6 +94,8 @@ function buildCapabilities({
     'board.events': true,
     // ask_user（等你回答）：只依赖内存里的待回答队列，各档案都提供。
     askUser: true,
+    // 原生组件（A7）：同源 ESM 模块 + JSON 文件存储，不需要编译器或原生二进制，三种档案都提供。
+    'components.native': true,
   }
   return Object.freeze({
     version: 1,

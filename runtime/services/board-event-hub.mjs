@@ -45,6 +45,8 @@ const DEFAULT_MAX_DIRTY = 4096
 const DEFAULT_MAX_QUEUED_PER_CONNECTION = 1024
 // 记住最近判定过“不上看板”的会话，避免它们每次变化都重复发 removed。
 const MAX_ELIGIBILITY_ENTRIES = 4096
+// component_changed 的 reason 取值（A7，计划 §3.10）。
+const COMPONENT_CHANGE_REASONS = new Set(['files', 'state', 'instances', 'deleted', 'created'])
 
 export class BoardEventsLimitError extends Error {
   constructor() {
@@ -132,11 +134,24 @@ export class BoardEventHub {
     if (this.connections.size) this.scheduleFlush(this.coalesceMs)
   }
 
-  /** 组件（第 1 期为 custom-ui 安装 / 更新）变化通知。 @param {string} componentId */
-  componentChanged(componentId) {
+  /**
+   * 组件变化通知。revision 仍是看板修订号；A7 只做加法：rev 是组件内容哈希（只有 ready 的组件有），
+   * reason 说明变化来源（files / state / instances / deleted / created），旧客户端忽略这两个字段。
+   * @param {string} componentId
+   * @param {{ rev?: string | null, reason?: string }} [detail]
+   */
+  componentChanged(componentId, { rev, reason } = {}) {
     if (this.disposed || typeof componentId !== 'string' || !componentId) return
+    /** @type {{ rev?: string, reason?: string }} */
+    const extra = {}
+    if (typeof rev === 'string' && /^[a-f0-9]{24}$/.test(rev)) extra.rev = rev
+    if (typeof reason === 'string' && COMPONENT_CHANGE_REASONS.has(reason)) extra.reason = reason
     this.enqueue(async () => {
-      this.publish('component_changed', '', (revision) => ({ id: componentId, revision }))
+      this.publish('component_changed', '', (revision) => ({
+        id: componentId,
+        revision,
+        ...extra,
+      }))
     })
   }
 

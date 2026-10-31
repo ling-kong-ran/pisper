@@ -127,6 +127,26 @@ test('a new connection gets a snapshot, then per-session card deltas and removal
   hub.componentChanged('weather-widget')
   await waitFor(() => client.events('component_changed').length)
   assert.equal(client.events('component_changed')[0].data.id, 'weather-widget')
+  // 旧签名只带 id 与看板修订号，不多出字段。
+  assert.deepEqual(Object.keys(client.events('component_changed')[0].data).sort(), [
+    'id',
+    'revision',
+  ])
+
+  // A7 只做加法：rev（内容哈希）与 reason；非法取值丢弃而不是原样转发。
+  hub.componentChanged('notes', { rev: 'a1b2c3d4e5f6a7b8c9d0e1f2', reason: 'files' })
+  hub.componentChanged('notes', { rev: 'not-a-hash', reason: 'exploded' })
+  hub.componentChanged('notes', { rev: null, reason: 'deleted' })
+  await waitFor(() => client.events('component_changed').length === 4)
+  const [, files, invalid, deleted] = client.events('component_changed')
+  assert.equal(files.data.rev, 'a1b2c3d4e5f6a7b8c9d0e1f2')
+  assert.equal(files.data.reason, 'files')
+  assert.ok(files.data.revision > client.events('component_changed')[0].data.revision)
+  assert.deepEqual(Object.keys(invalid.data).sort(), ['id', 'revision'])
+  assert.deepEqual(
+    { ...deleted.data, revision: 0 },
+    { id: 'notes', revision: 0, reason: 'deleted' },
+  )
 
   connection.detach()
   assert.deepEqual(hub.stats().connections, 0)

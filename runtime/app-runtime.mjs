@@ -366,6 +366,11 @@ export async function createPisperRuntime({
         appType: 'spa',
       })
     }
+    // 原生组件的变化经看板事件流通知前端（component_changed）；应用版本用于 manifest 的 minHostVersion。
+    customUi.start({
+      onChange: (id, detail) => runtime?.boardEvents?.componentChanged(id, detail),
+      hostVersion: packageJson.version,
+    })
     handleApi = apiHandlerModule.createApiHandler(runtime, {
       updates,
       desktopPet,

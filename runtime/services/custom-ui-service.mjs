@@ -9,15 +9,49 @@
 // - 资产读取限制在组件目录内：拒绝绝对路径、.. 穿越与符号链接逃逸；
 //   manifest.json 与隐藏文件永不作为资产返回。
 // - 用户可本机放置目录，或经鉴权 API 导入 ZIP；Runtime 不做远程下载。
+//
+// A7 起同一个服务也承载原生组件（v2）：目录分类、内容哈希、按 rev 服务 ESM 模块、启用状态、
+// 放置实例与模板创建；旧 iframe 机制在 S4 删除前保持原样，GET /api/custom-ui/components 仍是旧输出。
 import { randomBytes } from 'node:crypto'
 import { parse, serialize } from 'parse5'
 import { createReadStream } from 'node:fs'
-import { readFile, readdir, realpath, stat } from 'node:fs/promises'
-import { extname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
+import { lstat, readFile, readdir, stat } from 'node:fs/promises'
+import { extname, isAbsolute, join, normalize, sep } from 'node:path'
+import {
+  RESERVED_COMPONENT_IDS,
+  classifyManifest,
+  isSafeComponentPath,
+  manifestPlacement,
+  normalizeNativeManifest,
+  toWellFormed,
+  validateComponentProps,
+} from '../../shared/custom-ui-manifest.mjs'
 import { readJson } from '../storage/json-file.mjs'
 import { displayCustomUiPath } from './custom-ui-path.mjs'
 import { BUILTIN_CUSTOM_UI_COMPONENTS } from './custom-ui-builtins.mjs'
 import { importCustomUiZip, CUSTOM_UI_MANIFEST_MAX_BYTES } from './custom-ui-import.mjs'
+import { CustomUiError } from './custom-ui-error.mjs'
+import {
+  ComponentHasher,
+  componentFileType,
+  listComponentFiles,
+  moveComponentToTrash,
+  resolveComponentFile,
+  snapshotComponent,
+  writeComponentDirectory,
+} from './custom-ui-files.mjs'
+import {
+  CustomUiInstanceStore,
+  isComponentSurface,
+  parseInstanceScope,
+  parseInstanceTitle,
+} from './custom-ui-instances.mjs'
+import { CustomUiStateStore } from './custom-ui-state.mjs'
+import {
+  COMPONENT_TEMPLATES,
+  buildComponentTemplate,
+  templateDefaultId,
+} from './custom-ui-templates.mjs'
 
 // 组件 id 即目录名：只允许安全的文件名字符，避免路径与 URL 编码问题。
 const COMPONENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/
@@ -162,11 +196,40 @@ const BRIDGE_SCRIPT = String.raw`// Pisper 自定义 UI 桥：与父页面（应
 `
 
 export class CustomUiService {
-  constructor({ dataDir, now = Date.now, builtinComponents = BUILTIN_CUSTOM_UI_COMPONENTS }) {
+  constructor({
+    dataDir,
+    now = Date.now,
+    builtinComponents = BUILTIN_CUSTOM_UI_COMPONENTS,
+    randomId,
+    renameDirectory,
+  }) {
     this.root = join(dataDir, 'custom-ui')
     this.now = now
     this.views = new Map()
     this.builtins = new Map(builtinComponents.map((component) => [component.id, component]))
+    // 原生组件（v2）的存储：版本快照、回收站与组件存储都在被监听、被服务的 custom-ui/ 之外。
+    this.versionsRoot = join(dataDir, 'custom-ui-versions')
+    this.trashRoot = join(dataDir, 'custom-ui-trash')
+    this.dataRoot = join(dataDir, 'custom-ui-data')
+    this.state = new CustomUiStateStore({ path: join(dataDir, 'custom-ui-state.json'), now })
+    this.instanceStore = new CustomUiInstanceStore({
+      path: join(dataDir, 'custom-ui-instances.json'),
+      now,
+      ...(randomId ? { randomId } : {}),
+    })
+    this.hasher = new ComponentHasher()
+    this.renameDirectory = renameDirectory
+    /** @type {Map<string, Promise<unknown>>} */
+    this.locks = new Map()
+    this.hostVersion = null
+    this.onChange = null
+    this.instances = {
+      list: (surface) => this.listInstances(surface),
+      create: (input) => this.createInstance(input),
+      update: (instanceId, patch) => this.updateInstance(instanceId, patch),
+      remove: (instanceId) => this.removeInstance(instanceId),
+      reorder: (input) => this.reorderInstances(input),
+    }
   }
 
   async importBundle(bytes) {
@@ -226,6 +289,7 @@ export class CustomUiService {
 
   dispose() {
     this.views.clear()
+    this.onChange = null
   }
 
   // 组件目录绝对路径；目录不存在视为无组件。
@@ -299,20 +363,8 @@ export class CustomUiService {
       const content = builtin.assets[assetPath]
       return { assetPath, content, size: Buffer.byteLength(content) }
     }
-    const dir = resolve(this.componentDir(id))
-    const file = resolve(dir, relative)
-    if (file !== dir && !file.startsWith(`${dir}${sep}`)) return null
-    // 符号链接防护：realpath 后仍须落在组件目录内。
-    const info = await stat(file).catch(() => null)
-    if (!info?.isFile() || info.size > MAX_ASSET_BYTES) return null
-    const [realFile, realDir, realRoot] = await Promise.all([
-      realpath(file).catch(() => ''),
-      realpath(dir).catch(() => ''),
-      realpath(this.root).catch(() => ''),
-    ])
-    if (!realRoot || !realDir.startsWith(`${realRoot}${sep}`)) return null
-    if (!realFile || (realFile !== realDir && !realFile.startsWith(`${realDir}${sep}`))) return null
-    return { file, size: info.size }
+    // 用户目录的越界、隐藏段与符号链接防护已迁到 custom-ui-files.mjs，原生模块路由共用同一份。
+    return resolveComponentFile(this.root, id, rawPath, { maxBytes: MAX_ASSET_BYTES })
   }
 
   // 直接写出资产响应（流式 + 内容类型 + 禁止缓存：用户本地迭代组件时立即生效）。
@@ -385,4 +437,716 @@ export class CustomUiService {
   bridgeScript() {
     return BRIDGE_SCRIPT
   }
+
+  // ── 原生组件（v2）────────────────────────────────────────────────────
+
+  /**
+   * 由 app-runtime 在 base ready 之后调用：登记变化通知（看板事件流）与应用版本（minHostVersion）。
+   * 文件监听在 S2 接入；导入本模块不会启动任何长期副作用。
+   * @param {{ onChange?: (id: string, detail: { rev?: string | null, reason: string }) => void, hostVersion?: string | null }} [options]
+   */
+  start({ onChange, hostVersion = null } = {}) {
+    this.onChange = typeof onChange === 'function' ? onChange : null
+    this.hostVersion = typeof hostVersion === 'string' && hostVersion ? hostVersion : null
+  }
+
+  /** 代理工具只拿窄接口：写入组件与描述组件，不接触实例、存储或旧 iframe 机制。 */
+  agentInterface() {
+    return {
+      writeComponent: (input, options) => this.writeComponent(input, options),
+      describe: (id) => this.describe(id),
+    }
+  }
+
+  notify(id, detail) {
+    try {
+      this.onChange?.(id, detail)
+    } catch {
+      // 事件流只是通知：通知失败不能让已经落盘的写入报错。
+    }
+  }
+
+  // 每个组件一条串行链：写入、快照、删除不交错。
+  withComponentLock(id, task) {
+    const previous = this.locks.get(id) || Promise.resolve()
+    const next = previous.catch(() => {}).then(task)
+    const settled = next.catch(() => {})
+    this.locks.set(id, settled)
+    settled.then(() => {
+      if (this.locks.get(id) === settled) this.locks.delete(id)
+    })
+    return next
+  }
+
+  /**
+   * 读取并分类一个组件目录：native（ready / invalid）、legacy（unsupported）、broken（invalid）。
+   * 目录不存在返回 null。
+   */
+  async inspect(id) {
+    if (!COMPONENT_ID_PATTERN.test(id)) return null
+    const dir = this.componentDir(id)
+    const dirInfo = await lstat(dir).catch(() => null)
+    if (!dirInfo?.isDirectory()) return null
+    const state = await this.state.get(id)
+    const manifestPath = join(dir, 'manifest.json')
+    const manifestInfo = await lstat(manifestPath).catch(() => null)
+    const base = {
+      id,
+      directory: displayCustomUiPath(dir),
+      enabled: false,
+      source: state?.source || 'local',
+      entry: '',
+      errors: [],
+      updatedAt: new Date(Math.max(dirInfo.mtimeMs, manifestInfo?.mtimeMs || 0)).toISOString(),
+    }
+    const broken = (code) => ({
+      row: {
+        ...base,
+        kind: 'broken',
+        status: 'invalid',
+        name: id,
+        version: '',
+        description: '',
+        errors: [{ path: 'manifest.json', code }],
+      },
+      manifest: null,
+      raw: null,
+    })
+    if (!manifestInfo?.isFile()) return broken('manifest_missing')
+    if (manifestInfo.size > MAX_MANIFEST_BYTES) return broken('manifest_too_large')
+    let raw
+    try {
+      raw = JSON.parse(await readFile(manifestPath, 'utf8'))
+    } catch {
+      return broken('manifest_json_invalid')
+    }
+    const kind = classifyManifest(raw)
+    if (kind === 'broken') return broken('manifest_not_object')
+    const text = (value, max) =>
+      typeof value === 'string' ? toWellFormed(value.trim()).slice(0, max) : ''
+    if (kind === 'legacy') {
+      return {
+        row: {
+          ...base,
+          kind: 'legacy',
+          status: 'unsupported',
+          name: text(raw.name, 120) || id,
+          version: text(raw.version, 64),
+          description: text(raw.description, 500),
+        },
+        manifest: null,
+        raw,
+      }
+    }
+    const normalized = normalizeNativeManifest(id, raw, { hostVersion: this.hostVersion })
+    const nativeBase = {
+      ...base,
+      kind: 'native',
+      enabled: state ? state.enabled : true,
+      name: normalized.manifest?.name || text(raw.name, 120) || id,
+      version: normalized.manifest?.version || text(raw.version, 64),
+      description: normalized.manifest?.description || text(raw.description, 500),
+      entry: normalized.manifest?.entry || '',
+    }
+    if (!normalized.manifest) {
+      return {
+        row: { ...nativeBase, status: 'invalid', errors: normalized.errors },
+        manifest: null,
+        raw,
+      }
+    }
+    const manifest = normalized.manifest
+    const hashed = await this.hasher.compute(dir)
+    const newest = hashed.files.reduce(
+      (latest, entry) => Math.max(latest, entry.mtimeMs),
+      Date.parse(base.updatedAt),
+    )
+    const errors = []
+    if (hashed.error) errors.push({ path: '', code: hashed.error })
+    else {
+      const paths = new Set(hashed.files.map((entry) => entry.path))
+      if (!paths.has(manifest.entry)) errors.push({ path: 'entry', code: 'entry_missing' })
+      manifest.styles.forEach((style, index) => {
+        if (!paths.has(style)) errors.push({ path: `styles.${index}`, code: 'style_missing' })
+      })
+    }
+    const row = {
+      ...nativeBase,
+      status: errors.length ? 'invalid' : 'ready',
+      ...(errors.length ? {} : { rev: hashed.rev }),
+      manifest,
+      errors,
+      updatedAt: new Date(newest).toISOString(),
+    }
+    return { row, manifest: errors.length ? null : manifest, raw }
+  }
+
+  /** v2 组件列表（S4 起由 GET /api/custom-ui/components 返回；这一阶段只供新接口与测试使用）。 */
+  async catalog() {
+    const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
+    const components = []
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      if (!COMPONENT_ID_PATTERN.test(entry.name)) continue
+      const inspected = await this.inspect(entry.name)
+      if (inspected) components.push(inspected.row)
+    }
+    components.sort(
+      (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+    )
+    return {
+      root: displayCustomUiPath(this.root),
+      // 5a 没有导入、版本与导出；删除是移入回收站。前端据此置灰按钮，不新增值为 false 的 Runtime 能力。
+      features: { import: false, versions: false, export: false, trash: 'move' },
+      components,
+    }
+  }
+
+  async requireComponent(id) {
+    const inspected = await this.inspect(id)
+    if (!inspected) throw new CustomUiError('component_not_found', 404)
+    return inspected
+  }
+
+  async describe(id) {
+    const inspected = await this.requireComponent(id)
+    const listed = await listComponentFiles(this.componentDir(id))
+    return {
+      component: inspected.row,
+      files: listed.files.map((entry) => ({
+        path: entry.path,
+        size: entry.size,
+        type: componentFileType(entry.path) || 'application/octet-stream',
+      })),
+      errors: inspected.row.errors,
+      // 静态扫描在 A8 的导入信任确认里做；这里如实标注 unsupported，不返回空结果冒充“已扫描”。
+      scan: { status: 'unsupported' },
+    }
+  }
+
+  async setEnabled(id, input) {
+    if (
+      !input ||
+      typeof input !== 'object' ||
+      Array.isArray(input) ||
+      typeof input.enabled !== 'boolean' ||
+      Object.keys(input).some((key) => key !== 'enabled')
+    )
+      throw new CustomUiError('component_request_invalid', 400)
+    return this.withComponentLock(id, async () => {
+      const inspected = await this.requireComponent(id)
+      if (inspected.row.kind === 'legacy')
+        throw new CustomUiError('component_legacy_unsupported', 409)
+      if (inspected.row.kind === 'broken') throw new CustomUiError('component_invalid', 409)
+      await this.state.update(id, { enabled: input.enabled })
+      const next = await this.requireComponent(id)
+      this.notify(id, { rev: next.row.rev ?? null, reason: 'state' })
+      return { component: next.row }
+    })
+  }
+
+  async deleteComponent(id) {
+    if (!COMPONENT_ID_PATTERN.test(id)) throw new CustomUiError('component_not_found', 404)
+    return this.withComponentLock(id, async () => {
+      await this.requireComponent(id)
+      const state = await this.state.get(id)
+      const { instances } = await this.instanceStore.list()
+      const owned = instances.filter((instance) => instance.componentId === id)
+      // 先移动目录：移动失败时实例与状态都还在，不会出现“组件还在、放置没了”。
+      const trashedAs = await moveComponentToTrash({
+        root: this.root,
+        trashRoot: this.trashRoot,
+        dataRoot: this.dataRoot,
+        id,
+        now: this.now,
+        meta: { state, instances: owned },
+        ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+      })
+      this.hasher.invalidate(this.componentDir(id))
+      await this.instanceStore.removeForComponent(id)
+      await this.state.remove(id)
+      this.notify(id, { rev: null, reason: 'deleted' })
+      return { ok: true, trashedAs }
+    })
+  }
+
+  /**
+   * 从内置模板创建：只创建，不放置，也不开会话（计划 §5.4、§5.5）。
+   * 没给 id 时用模板默认 id，被占用就加 -2、-3…；明确给了 id 而被占用则报 component_already_installed。
+   */
+  async createFromTemplate(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      throw new CustomUiError('component_request_invalid', 400)
+    if (Object.keys(input).some((key) => !['template', 'name', 'id'].includes(key)))
+      throw new CustomUiError('component_request_invalid', 400)
+    if (!COMPONENT_TEMPLATES.includes(input.template))
+      throw new CustomUiError('component_template_invalid', 400)
+    let name = ''
+    if (input.name !== undefined) {
+      if (typeof input.name !== 'string') throw new CustomUiError('component_name_invalid', 400)
+      name = toWellFormed(input.name.trim())
+      if (name.length > 120) throw new CustomUiError('component_name_invalid', 400)
+    }
+    let id
+    if (input.id !== undefined) {
+      if (typeof input.id !== 'string' || !COMPONENT_ID_PATTERN.test(input.id))
+        throw new CustomUiError('component_id_invalid', 400)
+      if (RESERVED_COMPONENT_IDS.includes(input.id) || this.builtins.has(input.id))
+        throw new CustomUiError('component_id_reserved', 409)
+      id = input.id
+    } else {
+      id = await this.availableId(
+        input.template === 'blank' ? slugify(name) : templateDefaultId(input.template),
+      )
+    }
+    const template = buildComponentTemplate(input.template, { name })
+    const result = await this.writeComponent(
+      { mode: 'create', id, manifest: template.manifest, files: template.files },
+      { source: 'template' },
+    )
+    const inspected = await this.requireComponent(result.id)
+    return { component: inspected.row }
+  }
+
+  async availableId(base) {
+    const stem = COMPONENT_ID_PATTERN.test(base) ? base : 'component'
+    for (let suffix = 1; suffix < 1000; suffix += 1) {
+      const candidate = suffix === 1 ? stem : `${stem.slice(0, 60)}-${suffix}`
+      if (RESERVED_COMPONENT_IDS.includes(candidate) || this.builtins.has(candidate)) continue
+      if (!(await lstat(this.componentDir(candidate)).catch(() => null))) return candidate
+    }
+    throw new CustomUiError('component_already_installed', 409)
+  }
+
+  /**
+   * 写入一个原生组件（模板创建与 S2 的 component_create 工具共用）。所有校验错误都以结构化清单返回，
+   * 方便代理自己改。update 前先快照到 custom-ui-versions/<id>/<n>/。
+   * @param {{ mode: 'create' | 'update', id: string, manifest?: unknown, files?: { path: string, content: string }[], deleteFiles?: string[], summary?: string }} input
+   * @param {{ source?: 'agent' | 'template' | 'local', sessionId?: string }} [options]
+   */
+  async writeComponent(input, { source = 'agent' } = {}) {
+    const { mode, id } = input || {}
+    if (mode !== 'create' && mode !== 'update')
+      throw new CustomUiError('component_request_invalid', 400)
+    if (typeof id !== 'string' || !COMPONENT_ID_PATTERN.test(id))
+      throw new CustomUiError('component_id_invalid', 400)
+    if (RESERVED_COMPONENT_IDS.includes(id) || this.builtins.has(id))
+      throw new CustomUiError('component_id_reserved', 409)
+    const files = Array.isArray(input.files) ? input.files : []
+    const deleteFiles = Array.isArray(input.deleteFiles) ? input.deleteFiles : []
+    const errors = validateWriteFiles(files, deleteFiles)
+    if (errors.length) throw new CustomUiError('component_files_invalid', 400, { errors })
+    const summary =
+      typeof input.summary === 'string' ? toWellFormed(input.summary).slice(0, 200) : ''
+    return this.withComponentLock(id, async () => {
+      const existing = await this.inspect(id)
+      if (mode === 'create' && existing) {
+        if (existing.row.kind === 'legacy')
+          throw new CustomUiError('component_id_taken_by_legacy', 409)
+        throw new CustomUiError('component_already_installed', 409)
+      }
+      if (mode === 'update' && !existing) throw new CustomUiError('component_not_found', 404)
+      if (mode === 'update' && existing.row.kind === 'legacy')
+        throw new CustomUiError('component_id_taken_by_legacy', 409)
+      const rawManifest = input.manifest !== undefined ? input.manifest : existing?.raw
+      if (mode === 'create' && input.manifest === undefined)
+        throw new CustomUiError('component_manifest_invalid', 400, {
+          errors: [{ path: 'manifest', code: 'manifest_missing' }],
+        })
+      const normalized = normalizeNativeManifest(id, rawManifest, { hostVersion: this.hostVersion })
+      if (!normalized.manifest)
+        throw new CustomUiError('component_manifest_invalid', 400, { errors: normalized.errors })
+      const manifest = normalized.manifest
+      const dir = this.componentDir(id)
+      const current =
+        mode === 'update' ? (await listComponentFiles(dir)).files.map((entry) => entry.path) : []
+      const merged = new Set(current.filter((path) => !deleteFiles.includes(path)))
+      for (const file of files) merged.add(file.path)
+      merged.add('manifest.json')
+      const mergedErrors = []
+      if (!merged.has(manifest.entry))
+        mergedErrors.push({
+          path: 'entry',
+          code: 'entry_missing',
+          params: { entry: manifest.entry },
+        })
+      manifest.styles.forEach((style, index) => {
+        if (!merged.has(style))
+          mergedErrors.push({ path: `styles.${index}`, code: 'style_missing' })
+      })
+      for (const path of merged) {
+        if (/\.html?$/i.test(path)) mergedErrors.push({ path, code: 'component_html_unsupported' })
+      }
+      if (mergedErrors.length)
+        throw new CustomUiError('component_files_invalid', 400, { errors: mergedErrors })
+      let snapshot = null
+      if (mode === 'update') {
+        snapshot = await snapshotComponent({
+          versionsRoot: this.versionsRoot,
+          id,
+          dir,
+          now: this.now,
+          summary,
+        })
+      }
+      const writes = [
+        ...files,
+        // manifest 落盘的是调用方给的原文（已校验），保留作者自己的字段与格式意图。
+        ...(input.manifest !== undefined
+          ? [{ path: 'manifest.json', content: `${JSON.stringify(input.manifest, null, 2)}\n` }]
+          : []),
+      ]
+      let previous
+      try {
+        ;({ previous } = await writeComponentDirectory({
+          root: this.root,
+          id,
+          mode,
+          files: writes,
+          deleteFiles,
+          ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+        }))
+      } catch (error) {
+        if (error?.code === 'EEXIST') throw new CustomUiError('component_already_installed', 409)
+        if (error?.code === 'ENOENT') throw new CustomUiError('component_not_found', 404)
+        throw error
+      }
+      this.hasher.invalidate(dir)
+      if (mode === 'create') await this.state.update(id, { enabled: true, source })
+      else if (source === 'agent') await this.state.update(id, { enabled: true, source })
+      const written = await this.inspect(id)
+      const rev = written?.row.rev ?? null
+      this.notify(id, { rev, reason: mode === 'create' ? 'created' : 'files' })
+      return {
+        id,
+        mode,
+        version: manifest.version,
+        rev,
+        status: written?.row.status || 'invalid',
+        files: writes.map((file) => ({
+          path: file.path,
+          bytes: Buffer.byteLength(file.content),
+          ...lineDelta(previous.get(file.path), file.content),
+        })),
+        deleted: deleteFiles.filter((path) => previous.has(path)),
+        snapshot: snapshot?.n ?? null,
+      }
+    })
+  }
+
+  /**
+   * 原生模块与资源：GET /api/custom-ui/components/:id/r/:rev/<path>。
+   * 走正常鉴权；没有 sandbox CSP、没有 ACAO；rev 等于当前哈希时 immutable，否则 no-store 但照样返回当前内容。
+   */
+  async serveModuleAsset({ id, rev, segments, res }) {
+    if (!COMPONENT_ID_PATTERN.test(id)) throw new CustomUiError('component_not_found', 404)
+    const path = segments.join('/')
+    if (
+      !/^[a-f0-9]{24}$/.test(rev) ||
+      segments.some((segment) => segment.includes('/') || segment.includes('\\')) ||
+      !isSafeComponentPath(path) ||
+      path === 'manifest.json' ||
+      !componentFileType(path)
+    )
+      throw new CustomUiError('component_asset_missing', 404)
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind === 'legacy')
+      throw new CustomUiError('component_legacy_unsupported', 409)
+    if (inspected.row.status !== 'ready') throw new CustomUiError('component_invalid', 409)
+    const target = await resolveComponentFile(this.root, id, path, { maxBytes: MAX_ASSET_BYTES })
+    const link = target ? await lstat(target.file).catch(() => null) : null
+    // 哈希遍历不跟随符号链接，模块路由也不服务它们，否则内容变化不会反映到 rev 上。
+    if (!target || !link?.isFile()) throw new CustomUiError('component_asset_missing', 404)
+    const type = componentFileType(path)
+    const headers = {
+      'Content-Type': type,
+      'Content-Length': target.size,
+      'X-Content-Type-Options': 'nosniff',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Cache-Control':
+        rev === inspected.row.rev ? 'private, max-age=31536000, immutable' : 'no-store',
+      ...(extname(path).toLowerCase() === '.svg'
+        ? {
+            // 收紧而不是放宽：直接打开组件里的 SVG 也不能执行脚本。
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+          }
+        : {}),
+    }
+    await new Promise((resolveStream) => {
+      const stream = createReadStream(target.file)
+      stream.once('open', () => {
+        res.writeHead(200, headers)
+        stream.pipe(res)
+      })
+      stream.once('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(
+            JSON.stringify({ code: 'component_asset_missing', error: 'component_asset_missing' }),
+          )
+        } else res.destroy()
+        resolveStream()
+      })
+      stream.once('end', resolveStream)
+      res.once('close', () => {
+        stream.destroy()
+        resolveStream()
+      })
+    })
+  }
+
+  // ── 放置实例 ──
+
+  async listInstances(surface) {
+    if (surface !== undefined && surface !== null && surface !== '' && !isComponentSurface(surface))
+      throw new CustomUiError('component_surface_invalid', 400)
+    return this.instanceStore.list(surface || undefined)
+  }
+
+  /** 组件层面的前提：native、ready、enabled，且 manifest 声明了这个放置位置。 */
+  async placeableComponent(componentId, surface, { requireEnabled = true } = {}) {
+    if (typeof componentId !== 'string' || !COMPONENT_ID_PATTERN.test(componentId))
+      throw new CustomUiError('component_id_invalid', 400)
+    const inspected = await this.requireComponent(componentId)
+    if (inspected.row.kind === 'legacy')
+      throw new CustomUiError('component_legacy_unsupported', 409)
+    if (!inspected.manifest) throw new CustomUiError('component_invalid', 409)
+    if (requireEnabled && !inspected.row.enabled) throw new CustomUiError('component_disabled', 409)
+    const placement = manifestPlacement(inspected.manifest, surface)
+    if (!placement) throw new CustomUiError('component_surface_unsupported', 400, { surface })
+    return { manifest: inspected.manifest, placement }
+  }
+
+  async createInstance(input) {
+    if (!isPlainObject(input)) throw new CustomUiError('component_request_invalid', 400)
+    const allowed = ['componentId', 'surface', 'size', 'scope', 'title', 'props']
+    if (Object.keys(input).some((key) => !allowed.includes(key)))
+      throw new CustomUiError('component_request_invalid', 400)
+    if (!isComponentSurface(input.surface))
+      throw new CustomUiError('component_surface_invalid', 400)
+    const surface = input.surface
+    const { manifest, placement } = await this.placeableComponent(input.componentId, surface)
+    const fields = parseInstanceFields(input, surface, placement, manifest, { creating: true })
+    const result = await this.instanceStore.create({
+      componentId: input.componentId,
+      surface,
+      size: fields.size ?? null,
+      scope: fields.scope ?? null,
+      title: fields.title ?? '',
+      props: fields.props ?? {},
+    })
+    this.notify(input.componentId, { reason: 'instances' })
+    return result
+  }
+
+  async updateInstance(instanceId, patch) {
+    if (!isPlainObject(patch) || !Object.keys(patch).length)
+      throw new CustomUiError('component_request_invalid', 400)
+    const allowed = ['size', 'scope', 'title', 'props', 'enabled']
+    if (Object.keys(patch).some((key) => !allowed.includes(key)))
+      throw new CustomUiError('component_request_invalid', 400)
+    const current = await this.instanceStore.get(instanceId)
+    if (!current) throw new CustomUiError('component_instance_not_found', 404)
+    let manifest = null
+    let placement = null
+    if (patch.size !== undefined || patch.scope !== undefined || patch.props !== undefined) {
+      // 停用的组件仍可改属性（工作室里停用后再调参数）；只有不能运行的组件不能校验属性。
+      ;({ manifest, placement } = await this.placeableComponent(
+        current.componentId,
+        current.surface,
+        {
+          requireEnabled: false,
+        },
+      ))
+    }
+    const fields = parseInstanceFields(patch, current.surface, placement, manifest, {
+      creating: false,
+    })
+    if (patch.enabled !== undefined) {
+      if (typeof patch.enabled !== 'boolean')
+        throw new CustomUiError('component_request_invalid', 400)
+      fields.enabled = patch.enabled
+    }
+    const result = await this.instanceStore.update(instanceId, fields)
+    this.notify(current.componentId, { reason: 'instances' })
+    return result
+  }
+
+  async removeInstance(instanceId) {
+    const { revision, instance } = await this.instanceStore.remove(instanceId)
+    this.notify(instance.componentId, { reason: 'instances' })
+    return { revision }
+  }
+
+  async reorderInstances(input) {
+    if (
+      !isPlainObject(input) ||
+      Object.keys(input).some((key) => !['baseRevision', 'surface', 'order'].includes(key)) ||
+      !Number.isSafeInteger(input.baseRevision) ||
+      !Array.isArray(input.order) ||
+      input.order.length > 200 ||
+      input.order.some((id) => typeof id !== 'string')
+    )
+      throw new CustomUiError('component_request_invalid', 400)
+    if (!isComponentSurface(input.surface))
+      throw new CustomUiError('component_surface_invalid', 400)
+    const result = await this.instanceStore.reorder(input)
+    for (const componentId of new Set(result.instances.map((instance) => instance.componentId)))
+      this.notify(componentId, { reason: 'instances' })
+    return result
+  }
+}
+
+// ── 原生组件的输入校验辅助（纯函数，按不可信 unknown 处理）──
+
+const WRITE_EXTENSIONS = new Set(['.js', '.mjs', '.css', '.json', '.svg'])
+const MAX_WRITE_FILES = 32
+const MAX_WRITE_FILE_BYTES = 256 * 1024
+const MAX_WRITE_TOTAL_BYTES = 1024 * 1024
+const MAX_DELETE_FILES = 64
+const STATIC_IMPORT =
+  /(?:^|[;\n}])\s*(?:import|export)\s+(?:[^'"`;]*?\s+from\s+)?(['"])([^'"\n]+)\1/g
+const DYNAMIC_IMPORT = /\bimport\s*\(\s*(['"`])([^'"`\n]+)\1\s*\)/g
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+// 中文等非 ASCII 名称没有可用的 slug，退回 component（再按 -2、-3 去重）。
+function slugify(name) {
+  const slug = String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48)
+    .replace(/-+$/, '')
+  return COMPONENT_ID_PATTERN.test(slug) ? slug : 'component'
+}
+
+/** 找出裸模块导入：宿主不提供模块解析，组件只能用 ./、../ 或 / 开头的相对导入。 */
+export function findBareImports(source) {
+  const specifiers = []
+  for (const pattern of [STATIC_IMPORT, DYNAMIC_IMPORT]) {
+    pattern.lastIndex = 0
+    for (const match of source.matchAll(pattern)) {
+      const specifier = match[2]
+      if (!/^(?:\.\.?\/|\/)/.test(specifier)) specifiers.push(specifier)
+    }
+  }
+  return [...new Set(specifiers)]
+}
+
+function validateWriteFiles(files, deleteFiles) {
+  const errors = []
+  if (files.length > MAX_WRITE_FILES)
+    errors.push({
+      path: 'files',
+      code: 'component_files_too_many',
+      params: { max: MAX_WRITE_FILES },
+    })
+  if (deleteFiles.length > MAX_DELETE_FILES)
+    errors.push({
+      path: 'deleteFiles',
+      code: 'component_files_too_many',
+      params: { max: MAX_DELETE_FILES },
+    })
+  let total = 0
+  const seen = new Set()
+  files.slice(0, MAX_WRITE_FILES).forEach((file, index) => {
+    const path = isPlainObject(file) ? file.path : undefined
+    if (
+      !isSafeComponentPath(path) ||
+      path === 'manifest.json' ||
+      !WRITE_EXTENSIONS.has(extname(path).toLowerCase())
+    ) {
+      errors.push({ path: `files.${index}.path`, code: 'component_file_path_invalid' })
+      return
+    }
+    if (seen.has(path)) {
+      errors.push({ path: `files.${index}.path`, code: 'component_file_duplicate' })
+      return
+    }
+    seen.add(path)
+    if (typeof file.content !== 'string') {
+      errors.push({ path: `files.${index}.content`, code: 'component_file_content_invalid' })
+      return
+    }
+    const bytes = Buffer.byteLength(file.content)
+    total += bytes
+    if (bytes > MAX_WRITE_FILE_BYTES)
+      errors.push({
+        path: `files.${index}.content`,
+        code: 'component_file_too_large',
+        params: { max: MAX_WRITE_FILE_BYTES },
+      })
+    if (/\.m?js$/i.test(path)) {
+      for (const specifier of findBareImports(file.content))
+        errors.push({
+          path: `files.${index}.content`,
+          code: 'component_bare_import',
+          params: { specifier },
+        })
+    }
+  })
+  if (total > MAX_WRITE_TOTAL_BYTES)
+    errors.push({
+      path: 'files',
+      code: 'component_files_too_large',
+      params: { max: MAX_WRITE_TOTAL_BYTES },
+    })
+  deleteFiles.slice(0, MAX_DELETE_FILES).forEach((path, index) => {
+    if (!isSafeComponentPath(path) || path === 'manifest.json')
+      errors.push({ path: `deleteFiles.${index}`, code: 'component_file_path_invalid' })
+  })
+  return errors
+}
+
+// 简单行差：按行做多重集合比较，给出新增与删除的行数（改动芯片用，不是精确 diff）。
+function lineDelta(previous, content) {
+  const before = previous ? previous.toString('utf8').split('\n') : []
+  const after = content.split('\n')
+  const counts = new Map()
+  for (const line of before) counts.set(line, (counts.get(line) || 0) + 1)
+  let added = 0
+  for (const line of after) {
+    const count = counts.get(line) || 0
+    if (count) counts.set(line, count - 1)
+    else added += 1
+  }
+  let removed = 0
+  for (const count of counts.values()) removed += count
+  return { added, removed }
+}
+
+// 实例字段：size 只对 overview-card、scope 只对 session-panel 有效；props 按 manifest 的 schema 校验。
+function parseInstanceFields(input, surface, placement, manifest, { creating }) {
+  const fields = {}
+  if (input.size !== undefined && input.size !== null) {
+    if (surface !== 'overview-card' || !placement?.sizes?.includes(input.size))
+      throw new CustomUiError('component_size_invalid', 400)
+    fields.size = input.size
+  } else if (input.size === null && surface === 'overview-card') {
+    throw new CustomUiError('component_size_invalid', 400)
+  } else if (creating && surface === 'overview-card') {
+    fields.size = placement.sizes[0]
+  }
+  if (input.scope !== undefined && input.scope !== null) {
+    const scope = surface === 'session-panel' ? parseInstanceScope(input.scope) : null
+    if (!scope) throw new CustomUiError('component_scope_invalid', 400)
+    fields.scope = scope
+  } else if (surface === 'session-panel' && (creating || input.scope === null)) {
+    fields.scope = { type: 'all' }
+  }
+  if (input.title !== undefined) {
+    const title = parseInstanceTitle(input.title)
+    if (title === null) throw new CustomUiError('component_title_invalid', 400)
+    fields.title = title
+  }
+  if (input.props !== undefined || creating) {
+    const checked = validateComponentProps(manifest.props, input.props)
+    if (checked.errors.length)
+      throw new CustomUiError('component_props_invalid', 400, { errors: checked.errors })
+    fields.props = checked.value
+  }
+  return fields
 }
