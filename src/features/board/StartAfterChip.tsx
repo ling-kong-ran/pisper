@@ -36,19 +36,19 @@ export function StartAfterChip({
   const candidates = items.filter((item) => item.lane === 'running' || item.lane === 'queued')
   const selected = items.find((item) => item.id === value)
   if (!candidates.length && !value) return null
-  const label = value
-    ? t('board:launch.startAfterChip', {
-        title: selected?.title ?? t('board:launch.startAfterGone'),
-      })
-    : t('board:launch.startNowChip')
+  const title = selected?.title ?? t('board:launch.startAfterGone')
+  // 芯片上写短的“等「X」”（工具行放不下整句），悬停与读屏用完整的“排在 X 之后”。
+  const label = value ? t('board:launch.startAfterChip', { title }) : t('board:launch.startNowChip')
+  const shortLabel = value ? t('board:launch.startAfterShort', { title }) : label
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Chip
           size={size}
           className={cn(
-            'min-w-0 max-w-[24ch]',
-            !value && 'border-transparent bg-transparent',
+            'min-w-0 max-w-[24ch] shrink',
+            // 选了会话时至少留出能认出标题的宽度。
+            value ? 'min-w-[14ch]' : 'border-transparent bg-transparent',
             className,
           )}
           title={label}
@@ -57,7 +57,7 @@ export function StartAfterChip({
         >
           <ListOrdered aria-hidden="true" />
           {/* 手机底部表单只留图标；选了会话时仍写出它的标题，免得看不出这条任务会等。 */}
-          {(!compact || value) && <span className="min-w-0 truncate">{label}</span>}
+          {(!compact || value) && <span className="min-w-0 truncate">{shortLabel}</span>}
           <ChevronDown aria-hidden="true" />
         </Chip>
       </DropdownMenuTrigger>

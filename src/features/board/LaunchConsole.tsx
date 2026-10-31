@@ -51,6 +51,7 @@ import { useShortcutStore } from '@/stores/shortcut-store'
 import { BoardLaunchError, launchBoardTask } from './board-launch'
 import { projectDisambiguation } from './card-presentation'
 import { StartAfterChip } from './StartAfterChip'
+import { useBoardItems } from './useBoardItems'
 import {
   LAUNCH_EXECUTION_MODES,
   useLaunchDefaultsStore,
@@ -171,6 +172,12 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const [fullAccess, setFullAccess] = useState(false)
     // “排在…之后”（A9，sessionQueue）：只对这一条草稿生效，派发后回到“立即开始”。
     const [startAfter, setStartAfter] = useState('')
+    const { items: boardItems } = useBoardItems('today')
+    // 芯片在窄工具行里只放得下“等「重构…”：选了会话时在工具行下面写一句完整的说明。
+    const startAfterTitle = startAfter
+      ? (boardItems.find((item) => item.id === startAfter)?.title ??
+        t('board:launch.startAfterGone'))
+      : ''
     const mountedRef = useRef(true)
     const inputId = `launch-input-${variant}`
     const errorId = `launch-error-${variant}`
@@ -390,7 +397,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
                 ? 'max-w-[13ch] min-w-0 shrink'
                 : composer && touch
                   ? 'max-w-[14ch]'
-                  : 'max-w-[24ch]',
+                  : // 派发对话框多了“排在…之后”芯片（A9）：放不下时项目芯片收窄（正文仍至少 8 个字符），不被挤出左边。
+                    'max-w-[24ch] min-w-0 shrink',
               projectChipTouch,
             )}
             title={project?.cwd || undefined}
@@ -456,7 +464,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             // 草稿输入框里的模型芯片与会话页一致：无描边、靠右（规格 v2 第 4.3 节）。
             className={cn(
               // 手机底部表单：与项目芯片分剩下的宽度，各自最多 13ch。
-              sheet ? 'max-w-[13ch] min-w-0' : 'min-w-0 max-w-[24ch]',
+              // 派发对话框里与项目、“排在…之后”一起分宽度：放不下时一起收窄。
+              sheet ? 'max-w-[13ch] min-w-0' : 'min-w-0 max-w-[24ch] shrink',
               (composer || variant === 'overlay' || sheet) && 'border-transparent bg-transparent',
               rowChipTouch,
             )}
@@ -757,6 +766,14 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           )}
         />
         {errorLine && <div className={sheet ? 'pt-1.5' : 'px-5 pb-1'}>{errorLine}</div>}
+        {startAfterTitle && (
+          <p
+            data-launch-start-after-note
+            className={cn('text-xs text-content-muted', sheet ? 'pt-1.5' : 'px-5 pb-1')}
+          >
+            {t('board:launch.startAfterNote', { title: startAfterTitle })}
+          </p>
+        )}
         <div
           className={cn('flex min-w-0 items-center gap-1.5', sheet ? 'pt-2' : 'px-3 pb-3')}
           data-launch-toolbar
@@ -764,7 +781,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <div
             ref={chipRowRef}
             data-launch-chips
-            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+            // 按内容宽度起算（不是 flex-1 的 0）：放不下时与右边的模型芯片按比例一起收窄，“排在…之后”不被挤成一个字。
+            className="flex min-w-0 flex-[1_1_auto] items-center gap-1.5 overflow-hidden"
           >
             {projectChip}
             {modeMenu}

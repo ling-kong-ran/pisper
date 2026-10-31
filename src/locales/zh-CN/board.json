@@ -117,6 +117,8 @@
   "launch.fullAccessOnce": "仅本次派发，不会被记住",
   "launch.startNowChip": "立即开始",
   "launch.startAfterChip": "排在 {title} 之后",
+  "launch.startAfterShort": "等「{title}」",
+  "launch.startAfterNote": "排在「{title}」之后：它这一轮结束时自动开始。",
   "launch.startAfterGone": "已结束的会话",
   "launch.startAfterLabel": "什么时候开始",
   "launch.startAfterRunning": "运行中",

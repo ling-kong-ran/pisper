@@ -117,6 +117,8 @@
   "launch.fullAccessOnce": "This dispatch only, not remembered",
   "launch.startNowChip": "Start now",
   "launch.startAfterChip": "After {title}",
+  "launch.startAfterShort": "After “{title}”",
+  "launch.startAfterNote": "Queued after “{title}”: starts when that run ends.",
   "launch.startAfterGone": "a finished session",
   "launch.startAfterLabel": "When to start",
   "launch.startAfterRunning": "Running",
