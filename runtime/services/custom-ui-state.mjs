@@ -1,9 +1,11 @@
 // 原生组件的启用状态与来源：<dataDir>/custom-ui-state.json。
 // 目录里有、状态里没有的组件是用户手放的（source:'local'），默认启用（负责人决定，规格 5.7）。
+// A8：source 加 'import'（信任确认后安装的分享包）；revoked 记用户在能力清单里撤销的能力（只做加法）。
+import { CAPABILITY_TYPES } from '../../shared/custom-ui-manifest.mjs'
 import { COMPONENT_ID_PATTERN, SerialJsonDocument } from './custom-ui-files.mjs'
 
 export const COMPONENT_SOURCES = Object.freeze(
-  /** @type {const} */ (['agent', 'template', 'local']),
+  /** @type {const} */ (['agent', 'template', 'local', 'import']),
 )
 
 /**
@@ -12,6 +14,7 @@ export const COMPONENT_SOURCES = Object.freeze(
  *   enabled: boolean,
  *   source: ComponentSource,
  *   boundSessionId?: string,
+ *   revoked?: (typeof CAPABILITY_TYPES)[number][],
  *   createdAt: string,
  *   updatedAt: string,
  * }} ComponentStateEntry
@@ -48,6 +51,12 @@ function parseStateFile(raw) {
     }
     if (typeof entry.boundSessionId === 'string' && /^[\w.:-]{1,200}$/.test(entry.boundSessionId))
       normalized.boundSessionId = entry.boundSessionId
+    if (Array.isArray(entry.revoked)) {
+      const revoked = CAPABILITY_TYPES.filter((type) =>
+        /** @type {unknown[]} */ (entry.revoked).includes(type),
+      )
+      if (revoked.length) normalized.revoked = revoked
+    }
     state.components[id] = normalized
   }
   return state

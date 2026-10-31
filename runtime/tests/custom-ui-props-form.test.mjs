@@ -333,15 +333,20 @@ test('工作室会显示的错误码都有中英文案，参数会填进文案',
     '../services/custom-ui-instances.mjs',
     '../services/custom-ui-files.mjs',
     '../http/routes/custom-ui.mjs',
+    '../services/custom-ui-staging.mjs',
+    '../services/custom-ui-import.mjs',
   ]) {
     const source = read(path)
     collect(source, /CustomUiError\(\s*'([a-z0-9_]+)'/g)
+    // 解包错误（A8 起导入会显示给用户）：CustomUiImportError 的码原样转成 CustomUiError。
+    collect(source, /CustomUiImportError\(\s*'([a-z0-9_]+)'/g)
     collect(source, /code: '([a-z0-9_]+)'/g)
     collect(source, /error = '([a-z0-9_]+)'/g)
   }
-  // 导入 ZIP 留到 A8（工作室入口置灰）；旧 iframe 路由的 410 兼容桩只给旧客户端看。
-  codes.delete('component_archive_too_large')
+  // 旧 iframe 路由的 410 兼容桩只给旧客户端看。importCustomUiZip 的 entry 检查只在测试里直接调用
+  // （A8 的暂存导入用 entry_missing 字段清单），工作室碰不到。
   codes.delete('custom_ui_legacy_removed')
+  codes.delete('component_entry_missing')
   assert.ok(codes.size > 80, `只收集到 ${codes.size} 个错误码，正则可能失效`)
   const zh = JSON.parse(read('../../src/locales/zh-CN/custom-ui.json'))
   const en = JSON.parse(read('../../src/locales/en-US/custom-ui.json'))

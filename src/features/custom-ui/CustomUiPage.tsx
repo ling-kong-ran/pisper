@@ -4,6 +4,8 @@ import { PageFrame } from '@/components/app/PageFrame'
 // 右侧设置栏改为抽屉。手机外壳（规格 7.4）：列表 → 详情两级，详情依次是预览、属性、能力、放置。
 // 选中项由路由 /components/:id 承载；筛选、预览档位、选中实例等界面状态只在内存里（计划 §4.7 不新增偏好键）。
 // 旧 iframe 组件已删除：启动迁移把它们移进回收站，迁移后手放的旧格式目录这里不展示（负责人决定）。
+// A8：[导入 ZIP] → 待确认导入行 → 信任确认表；设置栏的版本 / 导出 / 能力台账与撤销；组件库底部的回收站。
+// 这些入口都按目录的 features 开关显示，旧 Runtime 没有对应开关时整段不出现（导入按钮置灰并说明）。
 import {
   useCallback,
   useEffect,
@@ -29,23 +31,33 @@ import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import type { Notify } from '@/app/route-context'
-import type { ComponentInstance, ComponentRow } from './custom-ui-api'
+import type {
+  ComponentCatalogFeatures,
+  ComponentInstance,
+  ComponentRow,
+  StagedComponent,
+} from './custom-ui-api'
 import { componentCircuitBreaker } from './native/host-runtime'
 import { useElementBox } from './native/size'
 import { useComponentCatalog, useComponentInstanceList, useComponentsAvailable } from './placements'
 import { createCommitStore } from './studio/commit-store'
 import { PreviewBar, PreviewStage } from './studio/PreviewStage'
 import type { PreviewDraft } from './studio/PropsForm'
-import { StudioImportButton, StudioLibrary, StudioRow } from './studio/StudioLibrary'
+import { StudioLibrary, StudioRow } from './studio/StudioLibrary'
 import {
   CapabilitiesSection,
   DeleteComponentButton,
   ErrorList,
+  ExportComponentButton,
   IdentityRow,
   PlacementSection,
   PropsSection,
   StudioSettings,
 } from './studio/StudioSettings'
+import { StagedRow, StudioImportButton, TrustDialog } from './studio/ImportFlow'
+import { TrashButton } from './studio/TrashDialog'
+import { useLifecycleActions } from './studio/use-lifecycle'
+import { VersionsSection } from './studio/VersionsSection'
 import { SettingsDrawerButton, StudioWorkbench, type WorkbenchTab } from './studio/StudioWorkbench'
 import { NewComponentMenu } from './studio/NewComponentMenu'
 import { PromptCard } from './studio/PromptCard'
@@ -77,6 +89,17 @@ type CustomUiPageProps = {
 let rememberedSelection = ''
 
 const EMPTY_INSTANCES: ComponentInstance[] = []
+const EMPTY_STAGED: StagedComponent[] = []
+// 旧 Runtime（没有 features）：入口全部隐藏 / 置灰。
+const NO_FEATURES: ComponentCatalogFeatures = {
+  import: false,
+  versions: false,
+  export: false,
+  trash: 'none',
+  trashRestore: false,
+  usage: false,
+  revoke: false,
+}
 
 /**
  * 桌面工作室的外框：量页面宽度决定设置栏并排还是放进抽屉（规格 5.1）。
@@ -228,13 +251,18 @@ export function CustomUiPage({
   const instanceList = useComponentInstanceList()
   const instances = instanceList.data?.instances ?? EMPTY_INSTANCES
   const actions = useStudioActions(notify)
+  const lifecycle = useLifecycleActions(notify)
   const agent = useComponentAgent(notify)
+  // 正在看的待确认导入（信任确认表）；空串表示关着。
+  const [reviewing, setReviewing] = useState('')
   const [promptSheet, setPromptSheet] = useState(false)
   // 受控底部表单没有 SheetTrigger：关闭后把焦点还给“用提示词生成或修改”。
   const returnPromptFocus = useOverlayFocusReturn(promptSheet)
   const rows = useMemo(() => visibleStudioRows(catalog.data?.components ?? []), [catalog.data])
   const root = catalog.data?.root || ''
-  const canDelete = catalog.data?.features.trash === 'move'
+  const features = catalog.data?.features ?? NO_FEATURES
+  const canDelete = features.trash === 'move'
+  const staged = catalog.data?.staged ?? EMPTY_STAGED
   const [filter, setFilter] = useState<StudioFilter>('all')
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<WorkbenchTab>('preview')
@@ -304,8 +332,43 @@ export function CustomUiPage({
       </PageFrame>
     )
 
-  const counts = studioFilterCounts(rows, troubled)
+  const baseCounts = studioFilterCounts(rows, troubled)
+  // “需处理”也包括待确认的导入（规格 5.1）。
+  const counts = { ...baseCounts, attention: baseCounts.attention + staged.length }
   const filtered = filterStudioRows(rows, { filter, query, language, troubled })
+  const showStaged = staged.length > 0 && filter !== 'enabled'
+  const stagedRows = (phoneRows: boolean) =>
+    showStaged
+      ? staged.map((item) => (
+          <StagedRow
+            key={item.stageId}
+            staged={item}
+            phone={phoneRows}
+            onReview={() => setReviewing(item.stageId)}
+          />
+        ))
+      : null
+  const importButton = (className?: string) => (
+    <StudioImportButton
+      enabled={features.import}
+      lifecycle={lifecycle}
+      className={className}
+      onStaged={(item) => setReviewing(item.stageId)}
+    />
+  )
+  const trustDialog = (
+    <TrustDialog
+      stageId={reviewing}
+      lifecycle={lifecycle}
+      onClose={() => setReviewing('')}
+      onTrusted={(row) => {
+        setReviewing('')
+        setFilter('all')
+        setQuery('')
+        onSelect(row.id, !phone)
+      }}
+    />
+  )
   const emptyHint = (
     <>
       {t('custom-ui:customUiPage.emptyHint')}
@@ -412,18 +475,40 @@ export function CustomUiPage({
                       onSelectInstance={preview.selectInstance}
                       onPreview={preview.onPreview}
                     />
-                    <CapabilitiesSection row={selected} />
+                    <CapabilitiesSection
+                      row={selected}
+                      usageEnabled={features.usage}
+                      canRevoke={features.revoke}
+                      lifecycle={lifecycle}
+                    />
                     <PlacementSection row={selected} instances={instances} actions={actions} />
                   </>
                 )}
-                {canDelete && (
-                  <DeleteComponentButton
+                {selected.kind === 'native' && (
+                  <VersionsSection
                     row={selected}
-                    actions={actions}
-                    variant="button"
-                    onDeleted={backToList}
+                    enabled={features.versions}
+                    notify={notify}
+                    actions={lifecycle}
                   />
                 )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {features.export && selected.kind === 'native' && (
+                    <ExportComponentButton
+                      row={selected}
+                      lifecycle={lifecycle}
+                      className="min-h-11"
+                    />
+                  )}
+                  {canDelete && (
+                    <DeleteComponentButton
+                      row={selected}
+                      actions={actions}
+                      variant="button"
+                      onDeleted={backToList}
+                    />
+                  )}
+                </div>
               </div>
             ) : (
               <PageState
@@ -447,9 +532,10 @@ export function CustomUiPage({
             <span className="mr-auto text-sm font-medium text-content-secondary tabular-nums">
               {t('custom-ui:customUiPage.installedComponents', { count: rows.length })}
             </span>
-            <StudioImportButton className="min-h-11" />
+            {importButton('min-h-11')}
             <NewComponentMenu onCreate={create} phone className="min-h-11" />
           </div>
+          {showStaged && <div className="flex flex-col gap-2">{stagedRows(true)}</div>}
           {rows.length ? (
             <ul className="flex flex-col divide-y divide-stroke overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-panel">
               {rows.map((row) => (
@@ -470,10 +556,17 @@ export function CustomUiPage({
               description={emptyHint}
             />
           )}
+          <TrashButton
+            enabled={features.trashRestore}
+            lifecycle={lifecycle}
+            className="min-h-11 w-fit"
+            onRestored={(row) => onSelect(row.id, false)}
+          />
           <p className="text-xs leading-relaxed break-all text-content-muted">
             {t('custom-ui:customUiPage.directoryHint', { path: root })}
           </p>
         </div>
+        {trustDialog}
       </PageFrame>
     )
   }
@@ -486,8 +579,10 @@ export function CustomUiPage({
       instances={instances}
       selectedInstanceId={preview.instanceId}
       canDelete={canDelete}
+      features={features}
       notify={notify}
       actions={actions}
+      lifecycle={lifecycle}
       onSelectInstance={preview.selectInstance}
       onPreview={preview.onPreview}
       onViewSource={() => {
@@ -523,6 +618,19 @@ export function CustomUiPage({
               onQuery={setQuery}
               onSelect={select}
               onCreate={create}
+              importButton={importButton()}
+              staged={stagedRows(false)}
+              footer={
+                features.trashRestore ? (
+                  <div className="flex flex-none border-t border-stroke px-2 py-1.5">
+                    <TrashButton
+                      enabled
+                      lifecycle={lifecycle}
+                      onRestored={(row) => onSelect(row.id, true)}
+                    />
+                  </div>
+                ) : undefined
+              }
               onOpenLogs={(id) => {
                 onSelect(id, true)
                 setTab('logs')
@@ -600,6 +708,7 @@ export function CustomUiPage({
               </SheetContent>
             </Sheet>
           )}
+          {trustDialog}
         </>
       )}
     </StudioFrame>

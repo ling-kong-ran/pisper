@@ -75,6 +75,14 @@ import {
   projectComponentSessions,
 } from '../../src/features/custom-ui/native/sessions.ts'
 import { computeComponentSize } from '../../src/features/custom-ui/native/size.ts'
+import { USAGE_FLUSH_MS, createUsageReporter } from '../../src/features/custom-ui/native/usage.ts'
+import {
+  parseComponentDiff,
+  parseComponentUsage,
+  parseComponentVersions,
+  parseStagedDetail,
+  parseTrash,
+} from '../../src/features/custom-ui/lifecycle-api.ts'
 import { MIN_INTERVAL_MS, createManagedTimers } from '../../src/features/custom-ui/native/timers.ts'
 import { BROWSER_PREFERENCE_KEYS } from '../../shared/browser-preferences.mjs'
 
@@ -194,7 +202,9 @@ function runtimeFor(manifest, overrides = {}) {
       storageRemove: async (key) => {
         calls.storage.push(['remove', key])
       },
+      ...(overrides.reportUsage ? { reportUsage: overrides.reportUsage } : {}),
     },
+    ...(overrides.revoked ? { revoked: overrides.revoked } : {}),
     logger,
     onCallbackError: (error) => callbackErrors.push(error),
     timers: timers.host,
@@ -849,12 +859,17 @@ test('API 解析：v2 目录行、旧形状一律 legacy、ready 缺 rev 降为 
     ],
   })
   assert.equal(catalog.legacyShape, false)
+  // 旧 Runtime（A7）的 features 没有 A8 的新键：按 false 处理，入口隐藏。
   assert.deepEqual(catalog.features, {
     import: false,
     versions: false,
     export: false,
     trash: 'move',
+    trashRestore: false,
+    usage: false,
+    revoke: false,
   })
+  assert.deepEqual(catalog.staged, [])
   assert.deepEqual(
     catalog.components.map((row) => row.id),
     ['notes', 'old', 'broken', 'norev'],
@@ -1016,6 +1031,8 @@ test("component_changed：解析不可信帧，接受后通知监听者，快照
     ['custom-ui', 'catalog'],
     ['custom-ui', 'describe', 'notes'],
     ['custom-ui', 'errors', 'notes'],
+    ['custom-ui', 'versions', 'notes'],
+    ['custom-ui', 'trash'],
     ['custom-ui', 'instances'],
   ])
 
@@ -1128,4 +1145,239 @@ test('[让代理修复] 的错误摘要是消息加调用栈前 1 KB，调用栈
   )
   const long = componentFixSummary('Error: y', `at ${'a'.repeat(3000)}`)
   assert.equal(long.length, 'Error: y\n'.length + 1024)
+})
+
+// —— A8：能力撤销与台账、生命周期接口的解析 ——
+
+test('撤销的能力按未提供处理（CapabilityError.reason = revoked）；浏览器侧调用按能力记台账，会话列表每个实例只记一次', async () => {
+  const usage = []
+  const { ctx } = runtimeFor(
+    manifestFor('full', {
+      notify: { reason: 'r' },
+      'sessions.read': { reason: 'r' },
+      'sessions.open': { reason: 'r' },
+      storage: { reason: 'r' },
+    }),
+    { revoked: ['storage'], reportUsage: (capability) => usage.push(capability) },
+  )
+  await assert.rejects(
+    ctx.storage.get('k'),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.capability === 'storage' &&
+      error.reason === 'revoked' &&
+      /revoked/.test(error.message),
+  )
+  // 没声明的照旧是 undeclared。
+  await assert.rejects(
+    ctx.net.fetch('https://api.example.com/'),
+    (error) => error.reason === 'undeclared',
+  )
+  ctx.notify('一')
+  ctx.notify('二')
+  ctx.sessions.useList()
+  ctx.sessions.useList()
+  ctx.sessions.subscribe(() => {})
+  ctx.sessions.open('s1')
+  assert.deepEqual(usage, ['notify', 'notify', 'sessions.read', 'sessions.open'])
+})
+
+test('台账上报按组件攒批：一个计时周期只发一次，每项能力带次数与最后时间；发送失败不抛', async () => {
+  const scheduled = []
+  const sent = []
+  let now = Date.parse('2026-10-31T08:00:00.000Z')
+  const reporter = createUsageReporter({
+    send: async (id, entries) => {
+      sent.push([id, entries])
+      if (id === 'boom') throw new Error('offline')
+    },
+    now: () => now,
+    schedule: (callback, ms) => scheduled.push([callback, ms]),
+  })
+  reporter.record('a', 'notify')
+  now += 1000
+  reporter.record('a', 'notify')
+  reporter.record('a', 'sessions.open')
+  reporter.record('boom', 'notify')
+  assert.equal(scheduled.length, 1)
+  assert.equal(scheduled[0][1], USAGE_FLUSH_MS)
+  scheduled[0][0]()
+  await Promise.resolve()
+  assert.deepEqual(sent, [
+    [
+      'a',
+      [
+        { capability: 'notify', count: 2, at: '2026-10-31T08:00:01.000Z' },
+        { capability: 'sessions.open', count: 1, at: '2026-10-31T08:00:01.000Z' },
+      ],
+    ],
+    ['boom', [{ capability: 'notify', count: 1, at: '2026-10-31T08:00:01.000Z' }]],
+  ])
+  // 发过之后重新计时。
+  reporter.record('a', 'notify')
+  assert.equal(scheduled.length, 2)
+})
+
+test('目录的 A8 字段与生命周期接口按不可信数据解析', () => {
+  const catalog = parseComponentCatalog({
+    root: '~/x',
+    features: {
+      import: true,
+      versions: true,
+      export: true,
+      trash: 'move',
+      trashRestore: true,
+      usage: true,
+      revoke: true,
+    },
+    components: [
+      {
+        id: 'notes',
+        kind: 'native',
+        status: 'ready',
+        enabled: true,
+        source: 'import',
+        rev: REV,
+        manifest: manifestFor('notes'),
+        revoked: ['storage', 'clipboard', 'notify'],
+      },
+    ],
+    staged: [
+      {
+        stageId: '0123456789abcdef',
+        id: 'ci-status',
+        name: 'CI',
+        fileName: 'ci.zip',
+        bytes: 10,
+        sha256: 'f'.repeat(64),
+        replaces: 'native',
+      },
+      { stageId: '../x', id: 'bad' },
+      { stageId: '0123456789abcdef', id: 'dup' },
+    ],
+  })
+  assert.deepEqual(catalog.features, {
+    import: true,
+    versions: true,
+    export: true,
+    trash: 'move',
+    trashRestore: true,
+    usage: true,
+    revoke: true,
+  })
+  assert.equal(catalog.components[0].source, 'import')
+  assert.deepEqual(catalog.components[0].revoked, ['notify', 'storage'])
+  assert.deepEqual(
+    catalog.staged.map((item) => [item.stageId, item.id, item.replaces]),
+    [['0123456789abcdef', 'ci-status', 'native']],
+  )
+
+  const versions = parseComponentVersions({
+    current: {
+      n: 3,
+      at: '2026-10-31T08:00:00.000Z',
+      summary: 's',
+      source: 'agent',
+      files: [{ path: 'a.js', added: 2, removed: 1 }, { path: 5 }],
+      deleted: ['b.js', 7],
+    },
+    versions: [{ n: 2, at: null, source: 'weird' }, { n: 0 }, { n: 1 }],
+    max: 20,
+  })
+  assert.deepEqual(versions.current.files, [{ path: 'a.js', added: 2, removed: 1 }])
+  assert.deepEqual(versions.current.deleted, ['b.js'])
+  assert.deepEqual(
+    versions.versions.map((entry) => [entry.n, entry.source]),
+    [
+      [2, null],
+      [1, null],
+    ],
+  )
+  assert.throws(() => parseComponentVersions({ current: { n: 0 }, versions: [] }))
+
+  assert.deepEqual(
+    parseComponentDiff({
+      diff: 'x',
+      files: [
+        { path: 'a', status: 'added' },
+        { path: 'b', status: 'renamed' },
+      ],
+    }).files,
+    [{ path: 'a', status: 'added' }],
+  )
+  assert.equal(parseComponentDiff({ files: [] }), null)
+
+  const trash = parseTrash({
+    retentionDays: 7,
+    entries: [
+      {
+        entry: 'notes-20261031T080000Z',
+        id: 'notes',
+        kind: 'native',
+        reason: 'deleted',
+        expiresAt: '2026-11-07T08:00:00.000Z',
+        instances: 2,
+      },
+      {
+        entry: 'weather-20261020T000000Z-2',
+        id: 'weather',
+        kind: 'legacy',
+        reason: 'legacy-retired',
+        expiresAt: null,
+      },
+      { entry: '../etc', id: 'x' },
+    ],
+  })
+  assert.deepEqual(
+    trash.entries.map((entry) => [entry.entry, entry.kind, entry.reason, entry.expiresAt]),
+    [
+      ['notes-20261031T080000Z', 'native', 'deleted', '2026-11-07T08:00:00.000Z'],
+      ['weather-20261020T000000Z-2', 'legacy', 'legacy-retired', null],
+    ],
+  )
+
+  const detail = parseStagedDetail({
+    staged: { stageId: '0123456789abcdef', id: 'ci-status', fileName: 'ci.zip', sha256: 'nope' },
+    manifest: manifestFor('ci-status'),
+    files: [{ path: 'component.js', size: 3, type: 'text/javascript' }],
+    scan: {
+      status: 'ok',
+      hosts: [{ host: 'evil.example.com', declared: false, file: 'component.js', line: 2 }],
+      findings: [
+        { rule: 'fetch', severity: 'danger', file: 'component.js', line: 2, excerpt: 'fetch(x)' },
+        { rule: 'x', severity: 'catastrophic' },
+      ],
+      summary: { danger: 1, warn: 0, info: 0, undeclaredHosts: 1 },
+    },
+    installed: null,
+    diff: null,
+  })
+  assert.equal(detail.staged.sha256, '')
+  assert.equal(detail.manifest.id, 'ci-status')
+  assert.equal(detail.scan.status, 'ok')
+  assert.equal(detail.scan.findings.length, 1)
+  assert.equal(detail.scan.hosts[0].declared, false)
+  // 旧 Runtime 的 describe 只给 status。
+  assert.deepEqual(
+    parseStagedDetail({ staged: detail.staged, scan: { status: 'unsupported' } }).scan,
+    {
+      status: 'unsupported',
+    },
+  )
+
+  const usage = parseComponentUsage({
+    usage: {
+      network: {
+        lastAt: '2026-10-31T08:00:00.000Z',
+        target: 'GET api.github.com',
+        today: 3,
+        total: 9,
+      },
+      clipboard: { lastAt: 'x' },
+      notify: { today: 1 },
+    },
+    revoked: ['network', 'nope'],
+  })
+  assert.deepEqual(Object.keys(usage.usage), ['network'])
+  assert.deepEqual(usage.revoked, ['network'])
 })

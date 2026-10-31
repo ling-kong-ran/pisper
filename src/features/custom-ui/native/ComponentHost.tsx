@@ -2,6 +2,7 @@
 // 按 instanceId@rev 重挂（热重载时属性与放置不变）。负责：模块加载与样式注入、ctx 生命周期、尺寸观察、
 // 熔断（60 秒 3 次 → 已暂停卡）、慢提交警告、安全模式占位、错误上报。卡片头（名称、⋯ 菜单）由放置宿主绘制。
 // 文案只用懒加载的 custom-ui 命名空间（由 placements.ts 的懒加载工厂先注册）。
+// A8：错误卡多一个 [回滚到 vN]（有快照时）；用户撤销的能力变了，实例按新的撤销清单重挂。
 import * as React from 'react'
 import {
   Component as ReactComponent,
@@ -17,12 +18,17 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ComponentSurface, OverviewCardSize } from '@shared/custom-ui-manifest.mjs'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import type { ComponentRow } from '@/features/custom-ui/custom-ui-api'
+import { componentErrorCode, type ComponentRow } from '@/features/custom-ui/custom-ui-api'
+import { listComponentVersions, restoreComponentVersion } from '@/features/custom-ui/lifecycle-api'
+import { componentCatalogQueryOptions } from '@/features/custom-ui/queries'
+import { customUiQueryKeys } from '@/features/custom-ui/query-keys'
+import { componentErrorText } from '@/features/custom-ui/studio/error-text'
 import { createCommitTimer, type CommitSample } from './commit-timer'
 import { html } from './html'
 import {
@@ -163,7 +169,8 @@ export function ComponentHost({
   } else if (box.measured && manifest && rev) {
     content = (
       <InstanceBoundary
-        key={`${instance.instanceId}@${rev}#${attempt}`}
+        // 撤销清单也进 key：撤销 / 恢复一项能力后按新的清单重建 ctx（规格 5.4）。
+        key={`${instance.instanceId}@${rev}#${attempt}~${component.revoked.join(',')}`}
         onCrash={(error) => {
           logger.record(error instanceof ComponentLoadError ? 'load' : 'render', 'error', error)
           safeMode.endLoad(key)
@@ -172,6 +179,8 @@ export function ComponentHost({
         fallback={(error) => (
           <ErrorCard
             error={error}
+            componentId={component.id}
+            notify={notify}
             onReload={() => setAttempt((value) => value + 1)}
             onRequestFix={onRequestFix}
           />
@@ -274,6 +283,7 @@ function LoadedComponent({
         notify: (text) => latest.current.notify(text),
         openSession: (id) => latest.current.onOpenSession(id),
       }),
+      revoked: component.revoked,
       logger,
       onCallbackError: (error) => latest.current.onCallbackError(error),
     }),
@@ -363,12 +373,70 @@ class InstanceBoundary extends ReactComponent<BoundaryProps, { error: unknown; f
   }
 }
 
+/**
+ * 错误卡的 [回滚到 vN]（规格 5.6）：Runtime 支持版本且有快照时，回到上一版（当前版之前最近的那份快照）。
+ * 回滚生成新的一版、不改写历史；成功后作废组件查询，新 rev 到达时宿主自然重挂。
+ */
+function RollbackAction({
+  componentId,
+  notify,
+}: {
+  componentId: string
+  notify(message: string): void
+}) {
+  const { t } = useI18n()
+  const client = useQueryClient()
+  const catalog = useQuery(componentCatalogQueryOptions())
+  const enabled = catalog.data?.features.versions === true
+  const versions = useQuery({
+    queryKey: customUiQueryKeys.versions(componentId),
+    queryFn: ({ signal }) => listComponentVersions(componentId, signal),
+    enabled,
+    retry: false,
+    staleTime: 10_000,
+  })
+  const [busy, setBusy] = useState(false)
+  const previous = versions.data?.versions[0]
+  if (!enabled || !previous) return null
+  const rollback = async () => {
+    setBusy(true)
+    try {
+      await restoreComponentVersion(componentId, previous.n)
+      notify(t('custom-ui:versions.restored', { n: previous.n }))
+      await client.invalidateQueries({ queryKey: customUiQueryKeys.all })
+    } catch (error) {
+      const code = componentErrorCode(error)
+      notify(
+        code
+          ? `${t('custom-ui:versions.restoreFailed')} ${componentErrorText(code, t)}`
+          : t('custom-ui:versions.restoreFailed'),
+      )
+      setBusy(false)
+    }
+  }
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      disabled={busy}
+      data-component-rollback={previous.n}
+      onClick={() => void rollback()}
+    >
+      {t('custom-ui:host.rollbackTo', { n: previous.n })}
+    </Button>
+  )
+}
+
 function ErrorCard({
   error,
+  componentId,
+  notify,
   onReload,
   onRequestFix,
 }: {
   error: unknown
+  componentId: string
+  notify(message: string): void
   onReload(): void
   onRequestFix?(summary: string): void
 }) {
@@ -388,6 +456,7 @@ function ErrorCard({
           <Button size="xs" variant="secondary" onClick={onReload}>
             {t('custom-ui:host.reload')}
           </Button>
+          <RollbackAction componentId={componentId} notify={notify} />
           {onRequestFix && (
             <Button
               size="xs"

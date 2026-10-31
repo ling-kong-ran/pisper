@@ -140,6 +140,7 @@ export interface UiKit {
 
 export declare class CapabilityError extends Error {
   capability: 'network' | 'notify' | 'sessions.read' | 'sessions.open' | 'storage'
+  reason: 'undeclared' | 'revoked'
 }
 
 export interface Ctx {
@@ -327,9 +328,9 @@ export default function CiStatus({ props, size, placement, ctx }) {
 | \`session\` | 只在会话面板放置时有：当前会话 \`{ id, title, cwd, status }\` | — |
 | \`t(key, vars)\` | 读 manifest.i18n 的 strings，按应用语言选，\`{name}\` 占位 | — |
 | \`log.info/warn/error\` | 写入工作室日志页；warn / error 也会上报 | — |
-| \`CapabilityError\` | 调用未声明的能力时抛出的错误类 | — |
+| \`CapabilityError\` | 调用未声明、或被用户撤销的能力时抛出的错误类（\`reason\` 为 \`'undeclared'\` 或 \`'revoked'\`） | — |
 
-调用未声明的能力会抛 \`CapabilityError\` 并记一条日志。定时器、订阅与 net 的回调里抛出的异常会归到这个组件，60 秒内崩溃 3 次的实例会被暂停。
+调用未声明的能力、或用户在工作室能力清单里撤销了的能力，会抛 \`CapabilityError\` 并记一条日志；组件应当捕获它并降级显示（例如“网络已被撤销”），不要整块崩溃。定时器、订阅与 net 的回调里抛出的异常会归到这个组件，60 秒内崩溃 3 次的实例会被暂停。
 
 ## 6. props schema 子集
 

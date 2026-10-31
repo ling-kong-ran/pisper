@@ -147,6 +147,7 @@ export function PreviewStage({
           <ComponentHost
             // 按 rev 与档位重挂：热重载后加载新模块，切换放置时尺寸与 ctx.placement 从头算。
             key={`${row.id}@${row.rev}:${target}:${instanceId ?? ''}`}
+            // 热重载换 rev 时新内容 120ms 淡入（规格 5.6 的交叉淡入；旧实例已卸载，这里只做新的一半）。
             component={row}
             instance={{
               instanceId: instanceId ?? `preview:${row.id}`,
@@ -159,7 +160,7 @@ export function PreviewStage({
             notify={(message) => notify(message)}
             onRequestFix={fix}
             onCommitSample={(duration) => commits.set(duration)}
-            className="h-full"
+            className="h-full animate-[fade-in_120ms_var(--ease-enter)] [:root[data-motion=reduced]_&]:animate-none motion-reduce:[:root:not([data-motion=full])_&]:animate-none"
           />
         </Suspense>
       </div>

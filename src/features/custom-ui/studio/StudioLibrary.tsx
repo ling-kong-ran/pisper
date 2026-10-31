@@ -1,8 +1,9 @@
-// 工作室左栏 · 组件库（规格 5.1）：数量、[导入 ZIP]（A7 置灰，A8 的暂存导入）、[新建 ▾]、搜索、
+// 工作室左栏 · 组件库（规格 5.1）：数量、[导入 ZIP]（A8：暂存 + 信任确认，见 ImportFlow）、[新建 ▾]、搜索、
 // 筛选（全部 / 已启用 / 需处理），每行图标 · 名称 · 版本 · 放置摘要；选中行用 --active 底（不用琥珀）。
-// 本页崩溃过或被暂停的组件在行下原地展开错误条；底部是热重载目录。手机列表复用同一行。
+// 待确认的导入排在列表最前（琥珀虚线框：它确实在等你）；本页崩溃过或被暂停的组件在行下原地展开错误条；
+// 底部是回收站入口与热重载目录。手机列表复用同一行。
 import { useSyncExternalStore, type ReactNode } from 'react'
-import { Blocks, ChevronRight, FileArchive, Search } from 'lucide-react'
+import { Blocks, ChevronRight, Search } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -181,26 +182,6 @@ function CrashStrip({
   )
 }
 
-export function StudioImportButton({ className }: { className?: string }) {
-  const { t } = useI18n()
-  // 导入（暂存 + 信任确认）在 A8：现在置灰并说明，按钮本身仍可聚焦读出原因。
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      aria-disabled="true"
-      title={t('custom-ui:studio.importLater')}
-      aria-label={`${t('custom-ui:studio.importZip')} · ${t('custom-ui:studio.importLater')}`}
-      data-component-import
-      className={className}
-      onClick={(event) => event.preventDefault()}
-    >
-      <FileArchive />
-      {t('custom-ui:studio.importZip')}
-    </Button>
-  )
-}
-
 export function StudioLibrary({
   rows,
   allCount,
@@ -218,6 +199,8 @@ export function StudioLibrary({
   onOpenLogs,
   onReload,
   onRequestFix,
+  importButton,
+  staged,
   footer,
 }: {
   rows: readonly ComponentRow[]
@@ -241,6 +224,9 @@ export function StudioLibrary({
   onReload: (id: string) => void
   // 崩溃条的 [让代理修复]：错误摘要交给这个组件的绑定会话。
   onRequestFix?: (row: ComponentRow, summary: string) => void
+  // [导入 ZIP]（ImportFlow 的按钮）与待确认导入行：由页面按 Runtime 能力决定给不给。
+  importButton?: ReactNode
+  staged?: ReactNode
   footer?: ReactNode
 }) {
   const { t } = useI18n()
@@ -256,7 +242,7 @@ export function StudioLibrary({
             {t('custom-ui:studio.libraryTitle')}
             <span className="text-sm font-normal text-content-muted tabular-nums">{allCount}</span>
           </h2>
-          <StudioImportButton />
+          {importButton}
           <NewComponentMenu onCreate={onCreate} />
         </div>
         <label className="relative block">
@@ -291,6 +277,7 @@ export function StudioLibrary({
         />
       </header>
       <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        {staged && <li className="flex flex-col gap-1.5 pb-1">{staged}</li>}
         {rows.map((row) => (
           <li key={row.id}>
             <StudioRow
@@ -309,7 +296,7 @@ export function StudioLibrary({
             )}
           </li>
         ))}
-        {!rows.length && (
+        {!rows.length && !staged && (
           <li className="px-2.5 py-6 text-center text-sm text-content-muted">
             {t('custom-ui:studio.noMatches')}
           </li>

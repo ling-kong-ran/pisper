@@ -86,9 +86,10 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/board\/events$/, feature: 'board.events' },
   { pattern: /^\/api\/sessions\/[^/]+\/questions(?:\/|$)/, feature: 'askUser' },
   // 原生组件的新接口；组件列表与旧 iframe 路由不在其中，旧行为不受这项能力影响。
+  // A8 的版本、导出、台账、回收站与暂存导入同样只在支持原生组件的 Runtime 上提供。
   {
     pattern:
-      /^\/api\/custom-ui\/(?:instances(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|storage|errors|session)(?:\/|$))/,
+      /^\/api\/custom-ui\/(?:instances(?:\/|$)|trash(?:\/|$)|staged(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|storage|errors|session|versions|export|usage)(?:\/|$))/,
     feature: 'components.native',
   },
 ]

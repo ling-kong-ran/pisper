@@ -44,10 +44,20 @@ function HotReloadedLabel({ at }: { at: number }) {
   }, [])
   const seconds = Math.max(0, Math.round((now - at) / 1000))
   return (
-    <span data-studio-reloaded className="text-xs text-content-muted">
-      {seconds < 60
-        ? t('custom-ui:studio.reloadedSeconds', { count: seconds })
-        : t('custom-ui:studio.reloadedMinutes', { count: Math.floor(seconds / 60) })}
+    <span data-studio-reloaded className="flex items-center gap-1.5 text-xs text-content-muted">
+      {/* 圆点在每次热重载时脉冲一次（规格 5.6）：key 跟着时间戳换，动画重新播放；减少动态时不播。 */}
+      <span aria-hidden className="relative flex size-1.5 flex-none">
+        <span
+          key={at}
+          className="absolute inset-0 rounded-full bg-content-muted animate-[ping_700ms_cubic-bezier(0,0,0.2,1)_1] [:root[data-motion=reduced]_&]:animate-none motion-reduce:[:root:not([data-motion=full])_&]:animate-none"
+        />
+        <span className="relative size-1.5 rounded-full bg-content-muted" />
+      </span>
+      <span>
+        {seconds < 60
+          ? t('custom-ui:studio.reloadedSeconds', { count: seconds })
+          : t('custom-ui:studio.reloadedMinutes', { count: Math.floor(seconds / 60) })}
+      </span>
     </span>
   )
 }

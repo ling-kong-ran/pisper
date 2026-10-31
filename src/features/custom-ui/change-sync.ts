@@ -15,6 +15,9 @@ export function componentChangeQueryKeys(change: ComponentChange): (readonly unk
     customUiQueryKeys.catalog(),
     customUiQueryKeys.describe(change.id),
     customUiQueryKeys.errors(change.id),
+    // 写入与回滚都会多出一版快照；删除后回收站多一条。
+    customUiQueryKeys.versions(change.id),
+    customUiQueryKeys.trash(),
     // 删除组件会连带删除它的实例；启用状态变化会影响宿主是否渲染。
     customUiQueryKeys.instances(),
   ]

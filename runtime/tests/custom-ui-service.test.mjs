@@ -98,8 +98,17 @@ test('catalog classifies native, legacy and broken directories and skips invalid
   // 目录不存在 → 空列表而不是抛错。
   assert.deepEqual(await service.catalog(), {
     root: displayCustomUiPath(service.root),
-    features: { import: false, versions: false, export: false, trash: 'move' },
+    features: {
+      import: true,
+      versions: true,
+      export: true,
+      trash: 'move',
+      trashRestore: true,
+      usage: true,
+      revoke: true,
+    },
     components: [],
+    staged: [],
   })
   const root = join(directory, 'custom-ui')
   await createComponent(root, 'native-card', { ...NATIVE, name: 'Native Card' }, NATIVE_FILES)
@@ -222,10 +231,13 @@ test('HTTP: GET /components returns the v2 catalog; old iframe routes answer 410
   const payload = await list.json()
   assert.equal(payload.root, displayCustomUiPath(service.root))
   assert.deepEqual(payload.features, {
-    import: false,
-    versions: false,
-    export: false,
+    import: true,
+    versions: true,
+    export: true,
     trash: 'move',
+    trashRestore: true,
+    usage: true,
+    revoke: true,
   })
   assert.deepEqual(
     payload.components.map((row) => [row.id, row.kind]),

@@ -219,6 +219,15 @@ test('原生组件能力：三种档案都提供且不让桌面变成降级；�
     '/api/custom-ui/components/demo/storage/key',
     '/api/custom-ui/components/demo/errors',
     '/api/custom-ui/components/demo/session',
+    '/api/custom-ui/components/demo/versions',
+    '/api/custom-ui/components/demo/versions/2/diff',
+    '/api/custom-ui/components/demo/versions/2/restore',
+    '/api/custom-ui/components/demo/export',
+    '/api/custom-ui/components/demo/usage',
+    '/api/custom-ui/trash',
+    '/api/custom-ui/trash/demo-20261031T000000Z/restore',
+    '/api/custom-ui/staged/0123456789abcdef',
+    '/api/custom-ui/staged/0123456789abcdef/trust',
   ]) {
     assert.equal(requiredRuntimeFeature(path), 'components.native', path)
   }

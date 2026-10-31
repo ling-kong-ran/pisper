@@ -123,6 +123,16 @@ export function componentErrorText(code: string, t: Translate, params?: Params):
     component_request_too_large: () => t('custom-ui:errors.component_request_too_large'),
     component_asset_missing: () => t('custom-ui:errors.component_asset_missing'),
     component_capability_denied: () => t('custom-ui:errors.component_capability_denied'),
+    // A8：能力撤销、导入暂存与信任、版本、回收站
+    component_capability_revoked: () => t('custom-ui:errors.component_capability_revoked'),
+    component_archive_invalid: () => t('custom-ui:errors.component_archive_invalid'),
+    component_archive_too_large: () => t('custom-ui:errors.component_archive_too_large'),
+    component_manifest_missing: () => t('custom-ui:errors.component_manifest_missing'),
+    component_staging_full: () => t('custom-ui:errors.component_staging_full'),
+    component_staged_not_found: () => t('custom-ui:errors.component_staged_not_found'),
+    component_file_not_found: () => t('custom-ui:errors.component_file_not_found'),
+    component_version_not_found: () => t('custom-ui:errors.component_version_not_found'),
+    component_trash_not_found: () => t('custom-ui:errors.component_trash_not_found'),
     // 工作室操作（模板创建、启用、放置、删除）
     component_not_found: () => t('custom-ui:errors.component_not_found'),
     component_name_invalid: () => t('custom-ui:errors.component_name_invalid'),

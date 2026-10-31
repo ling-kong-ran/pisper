@@ -1,6 +1,7 @@
 // ctx SDK v1（规格 5.6、计划 §4.2）：宿主为每个挂载的实例构建一份 ctx。
-// - 能力是透明清单：调用没有声明的能力时抛 CapabilityError 并记一条日志。这不是隔离——组件与应用同源，
-//   仍可以直接用 window.fetch（负责人已接受）；它让“声明了什么、用了什么”对用户可见、对代理可纠错。
+// - 能力是透明清单：调用没有声明（或已被用户撤销，A8）的能力时抛 CapabilityError 并记一条日志。这不是隔离——
+//   组件与应用同源，仍可以直接用 window.fetch（负责人已接受）；它让“声明了什么、用了什么”对用户可见、对代理可纠错。
+// - 浏览器侧的能力调用（notify、sessions.*）经 services.reportUsage 记进能力台账（网络与存储由 Runtime 自己记）。
 // - ctx 托管的回调（定时器、订阅）都包在 try/catch 里，异常归属到实例并计入熔断（onCallbackError）。
 // - 依赖全部注入（React / html / ui / theme / 请求函数 / 会话源），这个文件不导入 htm、基础组件或看板，
 //   测试可以直接构建 ctx。成员清单与 shared 的 CTX_V1_KEYS 一致（custom-ui-native-host.test 校验）。
@@ -38,13 +39,19 @@ export const NOTIFY_PER_MINUTE = 6
 // 与 Runtime 的存储键规则一致（custom-ui-storage.mjs），不合法的键在客户端就拒绝，不发请求。
 const STORAGE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 
-/** 调用了 manifest 没有声明的能力。 */
+/** 调用了 manifest 没有声明、或已被用户在能力清单里撤销的能力。 */
 export class CapabilityError extends Error {
   capability: CapabilityType
-  constructor(capability: CapabilityType) {
-    super(`Capability "${capability}" is not declared in manifest.json`)
+  reason: 'undeclared' | 'revoked'
+  constructor(capability: CapabilityType, reason: 'undeclared' | 'revoked' = 'undeclared') {
+    super(
+      reason === 'revoked'
+        ? `Capability "${capability}" was revoked by the user`
+        : `Capability "${capability}" is not declared in manifest.json`,
+    )
     this.name = 'CapabilityError'
     this.capability = capability
+    this.reason = reason
   }
 }
 
@@ -80,6 +87,8 @@ export type ComponentServices = {
   storageGet(key: string): Promise<unknown>
   storageSet(key: string, value: unknown): Promise<void>
   storageRemove(key: string): Promise<void>
+  // 能力台账（A8）：只报浏览器侧的 notify 与 sessions.*；没有时不记。
+  reportUsage?(capability: 'notify' | 'sessions.read' | 'sessions.open'): void
 }
 
 export type ComponentRuntimeOptions = {
@@ -88,6 +97,8 @@ export type ComponentRuntimeOptions = {
   getLanguage(): ManifestLocale
   kit: ComponentKit
   services: ComponentServices
+  // 用户撤销的能力（A8）：即使 manifest 声明了也按未提供处理。
+  revoked?: readonly CapabilityType[]
   logger: ComponentLogger
   // 回调异常（定时器、订阅）：宿主记日志并计入熔断。
   onCallbackError(error: unknown): void
@@ -162,11 +173,22 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
     onError: callbackError,
   })
 
+  const revoked = new Set(options.revoked ?? [])
   const require = (capability: CapabilityType) => {
-    if (capabilities[capability]) return
-    const error = new CapabilityError(capability)
+    if (capabilities[capability] && !revoked.has(capability)) return
+    const error = new CapabilityError(
+      capability,
+      capabilities[capability] ? 'revoked' : 'undeclared',
+    )
     logger.record('log', 'warn', error)
     throw error
+  }
+  // sessions.read 是渲染期的 hook，每次渲染都会调：同一个实例只记一次，台账里是“读过会话列表的实例数”。
+  let sessionsReadReported = false
+  const reportSessionsRead = () => {
+    if (sessionsReadReported || disposed) return
+    sessionsReadReported = true
+    services.reportUsage?.('sessions.read')
   }
   // 异步能力：未声明时返回被拒绝的 Promise（await 处照样抛出 CapabilityError）。
   const requireAsync = (capability: CapabilityType) => {
@@ -192,16 +214,19 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
     if (!message) return
     notifyTimes.push(at)
     services.notify(Array.from(message).slice(0, NOTIFY_MAX_LENGTH).join(''))
+    services.reportUsage?.('notify')
   }
 
   const sessions = Object.freeze({
     useList(filter?: unknown) {
       require('sessions.read')
+      reportSessionsRead()
       return filterComponentSessions(services.useSessions(), filter)
     },
     subscribe(listener: unknown) {
       require('sessions.read')
       if (typeof listener !== 'function' || disposed) return () => {}
+      reportSessionsRead()
       const unsubscribe = services.subscribeSessions((list) => {
         if (disposed) return
         try {
@@ -224,6 +249,7 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
       require('sessions.open')
       if (disposed || typeof id !== 'string' || !id) return
       services.openSession(id)
+      services.reportUsage?.('sessions.open')
     },
   })
 

@@ -12,7 +12,9 @@
 import { createReadStream } from 'node:fs'
 import { lstat, readFile, readdir, rm } from 'node:fs/promises'
 import { extname, join } from 'node:path'
+import { zipSync } from 'fflate'
 import {
+  CAPABILITY_TYPES,
   RESERVED_COMPONENT_IDS,
   classifyManifest,
   isSafeComponentPath,
@@ -45,6 +47,25 @@ import {
   parseInstanceTitle,
 } from './custom-ui-instances.mjs'
 import { CustomUiStateStore } from './custom-ui-state.mjs'
+import { scanComponentSource } from './custom-ui-scan.mjs'
+import { CustomUiStaging } from './custom-ui-staging.mjs'
+import {
+  isTrashEntryName,
+  listTrash,
+  moveOutOfTrash,
+  purgeExpiredTrash,
+  purgeTrashEntry,
+  readTrashMeta,
+} from './custom-ui-trash.mjs'
+import { ComponentUsageLedger } from './custom-ui-usage.mjs'
+import {
+  annotateSnapshot,
+  describeVersions,
+  diffComponentTrees,
+  readComponentTree,
+  readSnapshotIndex,
+  snapshotDir,
+} from './custom-ui-versions.mjs'
 import { ComponentErrorLog } from './custom-ui-errors.mjs'
 import { ComponentFetchProxy } from './custom-ui-fetch-proxy.mjs'
 import { CustomUiStorage } from './custom-ui-storage.mjs'
@@ -82,6 +103,13 @@ export class CustomUiService {
     this.trashRoot = join(dataDir, 'custom-ui-trash')
     this.dataRoot = join(dataDir, 'custom-ui-data')
     this.migrationPath = join(dataDir, LEGACY_MIGRATION_FILE)
+    // A8：导入暂存（信任确认前不进 custom-ui/）与能力使用台账。
+    this.staging = new CustomUiStaging({
+      root: join(dataDir, 'custom-ui-staging'),
+      now,
+      hostVersion: () => this.hostVersion,
+    })
+    this.usage = new ComponentUsageLedger({ path: join(dataDir, 'custom-ui-usage.json'), now })
     this.state = new CustomUiStateStore({ path: join(dataDir, 'custom-ui-state.json'), now })
     this.instanceStore = new CustomUiInstanceStore({
       path: join(dataDir, 'custom-ui-instances.json'),
@@ -122,6 +150,8 @@ export class CustomUiService {
     this.onChange = null
     this.watcher?.dispose()
     this.watcher = null
+    // 台账去抖队列里还没落盘的几次调用直接丢掉：退出时再起异步写会和数据目录的清理赛跑。
+    this.usage.dispose()
   }
 
   // 组件目录绝对路径；目录不存在视为无组件。
@@ -242,7 +272,13 @@ export class CustomUiService {
     this.hostVersion = typeof hostVersion === 'string' && hostVersion ? hostVersion : null
     // 迁移先于监听登记：监听器看到的删除事件与迁移自己发的 deleted 按内容键去重。
     this.migration ??= this.retireLegacyComponents().catch(() => ({ status: 'partial', moved: [] }))
-    const tasks = [this.migration, this.cleanupImportStaging()]
+    // 回收站 7 天清理与过期导入暂存（A8）；都不阻塞启动，失败只是留下目录，下次再清。
+    const tasks = [
+      this.migration,
+      this.cleanupImportStaging(),
+      this.migration.then(() => purgeExpiredTrash({ trashRoot: this.trashRoot, now: this.now })),
+      this.staging.cleanup(),
+    ]
     if (watch && !this.watcher) {
       this.watcher = this.createWatcher({
         root: this.root,
@@ -391,6 +427,8 @@ export class CustomUiService {
       ...base,
       kind: 'native',
       enabled: state ? state.enabled : true,
+      // 用户在能力清单里撤销的能力（A8）；ctx 与 Runtime 代理都据此拒绝。
+      revoked: state?.revoked || [],
       name: normalized.manifest?.name || text(raw.name, 120) || id,
       version: normalized.manifest?.version || text(raw.version, 64),
       description: normalized.manifest?.description || text(raw.description, 500),
@@ -446,9 +484,21 @@ export class CustomUiService {
     )
     return {
       root: displayCustomUiPath(this.root),
-      // 5a 没有导入、版本与导出；删除是移入回收站。前端据此置灰按钮，不新增值为 false 的 Runtime 能力。
-      features: { import: false, versions: false, export: false, trash: 'move' },
+      // A8 起导入（暂存 + 信任确认）、版本、导出、回收站恢复与能力台账都可用。只做加法：
+      // trash 保持 'move'（A7 前端把其他值当成“没有删除”而隐藏删除键），恢复另用 trashRestore 表示；
+      // 前端按这些开关显示入口，旧 Runtime 没有新键时照旧隐藏。
+      features: {
+        import: true,
+        versions: true,
+        export: true,
+        trash: 'move',
+        trashRestore: true,
+        usage: true,
+        revoke: true,
+      },
       components,
+      // 待确认的导入（信任确认前不安装、不执行）。
+      staged: (await this.staging.list()).map((meta) => stagedRow(meta, components)),
     }
   }
 
@@ -461,6 +511,7 @@ export class CustomUiService {
   async describe(id) {
     const inspected = await this.requireComponent(id)
     const listed = await listComponentFiles(this.componentDir(id))
+    const tree = listed.error ? null : await readComponentTree(this.componentDir(id))
     return {
       component: inspected.row,
       files: listed.files.map((entry) => ({
@@ -469,18 +520,32 @@ export class CustomUiService {
         type: componentFileType(entry.path) || 'application/octet-stream',
       })),
       errors: inspected.row.errors,
-      // 静态扫描在 A8 的导入信任确认里做；这里如实标注 unsupported，不返回空结果冒充“已扫描”。
-      scan: { status: 'unsupported' },
+      // 静态扫描（A8）：源码里的主机与敏感用法和声明对照。目录超限读不全时如实标注 unsupported。
+      scan: tree
+        ? scanComponentSource(
+            [...tree].map(([path, content]) => ({ path, content })),
+            inspected.manifest,
+          )
+        : { status: 'unsupported' },
     }
   }
 
+  /**
+   * PATCH /api/custom-ui/components/:id：{ enabled?, revoked? }（至少一项）。revoked 是撤销的能力清单（A8，
+   * 规格 5.4）：整份替换，只接受 CAPABILITY_TYPES 里的名字；撤销后 ctx 不再提供，网络与存储在 Runtime 侧拒绝。
+   */
   async setEnabled(id, input) {
     if (
       !input ||
       typeof input !== 'object' ||
       Array.isArray(input) ||
-      typeof input.enabled !== 'boolean' ||
-      Object.keys(input).some((key) => key !== 'enabled')
+      !Object.keys(input).length ||
+      Object.keys(input).some((key) => key !== 'enabled' && key !== 'revoked') ||
+      (input.enabled !== undefined && typeof input.enabled !== 'boolean') ||
+      (input.revoked !== undefined &&
+        (!Array.isArray(input.revoked) ||
+          input.revoked.length > CAPABILITY_TYPES.length ||
+          input.revoked.some((type) => !CAPABILITY_TYPES.includes(type))))
     )
       throw new CustomUiError('component_request_invalid', 400)
     return this.withComponentLock(id, async () => {
@@ -488,7 +553,12 @@ export class CustomUiService {
       if (inspected.row.kind === 'legacy')
         throw new CustomUiError('component_legacy_unsupported', 409)
       if (inspected.row.kind === 'broken') throw new CustomUiError('component_invalid', 409)
-      await this.state.update(id, { enabled: input.enabled })
+      /** @type {{ enabled?: boolean, revoked?: string[] }} */
+      const patch = {}
+      if (input.enabled !== undefined) patch.enabled = input.enabled
+      if (input.revoked !== undefined)
+        patch.revoked = CAPABILITY_TYPES.filter((type) => input.revoked.includes(type))
+      await this.state.update(id, patch)
       const next = await this.requireComponent(id)
       this.notify(id, { rev: next.row.rev ?? null, reason: 'state' })
       return { component: next.row }
@@ -517,6 +587,7 @@ export class CustomUiService {
       this.storage.forget(id)
       this.errorLog.forget(id)
       this.fetchProxy.forget(id)
+      await this.usage.forget(id).catch(() => {})
       await this.instanceStore.removeForComponent(id)
       await this.state.remove(id)
       this.notify(id, { rev: null, reason: 'deleted' })
@@ -678,6 +749,17 @@ export class CustomUiService {
       this.hasher.invalidate(dir)
       if (mode === 'create') await this.state.update(id, { enabled: true, source })
       else if (source === 'agent') await this.state.update(id, { enabled: true, source })
+      const changes = writes.map((file) => ({
+        path: file.path,
+        ...lineDelta(previous.get(file.path), file.content),
+      }))
+      if (snapshot)
+        // 版本清单的“由代理生成 · 改动文件”（规格 5.1 结果行）；补记失败不影响已经落盘的写入。
+        await annotateSnapshot(this.versionsRoot, id, snapshot.n, {
+          source: source === 'agent' ? 'agent' : 'local',
+          files: changes,
+          deleted: deleteFiles.filter((path) => previous.has(path)),
+        }).catch(() => {})
       const written = await this.inspect(id)
       const rev = written?.row.rev ?? null
       this.notify(
@@ -691,10 +773,11 @@ export class CustomUiService {
         version: manifest.version,
         rev,
         status: written?.row.status || 'invalid',
-        files: writes.map((file) => ({
+        files: writes.map((file, index) => ({
           path: file.path,
           bytes: Buffer.byteLength(file.content),
-          ...lineDelta(previous.get(file.path), file.content),
+          added: changes[index].added,
+          removed: changes[index].removed,
         })),
         deleted: deleteFiles.filter((path) => previous.has(path)),
         snapshot: snapshot?.n ?? null,
@@ -782,36 +865,49 @@ export class CustomUiService {
 
   /** @param {string} id */
   async storageQuota(id) {
-    const { manifest } = await this.runnableComponent(id)
+    const { row, manifest } = await this.runnableComponent(id)
     const storage = manifest.capabilities.storage
     if (!storage)
       throw new CustomUiError('component_capability_denied', 403, { capability: 'storage' })
+    if (row.revoked?.includes('storage'))
+      throw new CustomUiError('component_capability_revoked', 403, { capability: 'storage' })
     return storage.quotaKb * 1024
   }
 
   /** @param {string} id @param {unknown} key */
   async storageGet(id, key) {
     await this.storageQuota(id)
-    return this.storage.get(id, key)
+    const result = await this.storage.get(id, key)
+    this.usage.record(id, 'storage', { target: 'get' })
+    return result
   }
 
   /** @param {string} id @param {unknown} key @param {unknown} input */
   async storageSet(id, key, input) {
     const quotaBytes = await this.storageQuota(id)
-    return this.storage.set(id, key, input, quotaBytes)
+    const result = await this.storage.set(id, key, input, quotaBytes)
+    this.usage.record(id, 'storage', { target: 'set' })
+    return result
   }
 
   /** @param {string} id @param {unknown} key */
   async storageRemove(id, key) {
     await this.storageQuota(id)
-    return this.storage.remove(id, key)
+    const result = await this.storage.remove(id, key)
+    this.usage.record(id, 'storage', { target: 'remove' })
+    return result
   }
 
   /** @param {string} id @param {unknown} input */
   async fetchForComponent(id, input) {
     const { row, manifest } = await this.runnableComponent(id)
     if (!row.enabled) throw new CustomUiError('component_disabled', 409)
-    return this.fetchProxy.fetch(id, manifest.capabilities.network, input)
+    if (row.revoked?.includes('network'))
+      throw new CustomUiError('component_capability_revoked', 403, { capability: 'network' })
+    const result = await this.fetchProxy.fetch(id, manifest.capabilities.network, input)
+    // 台账只记方法与主机（规格 5.8：不记查询参数与请求体）；代理已经校验过 URL。
+    this.usage.record(id, 'network', { target: usageTarget(input) })
+    return result
   }
 
   /** @param {string} id @param {unknown} input */
@@ -866,6 +962,319 @@ export class CustomUiService {
         session: created,
       }
     })
+  }
+
+  // ── A8：版本、导出、回收站、导入暂存与信任、能力台账 ──
+
+  /**
+   * 把组件目录整体换成给定文件集（替换导入与回滚共用）：先给当前内容拍快照，再用写入器交换；
+   * 新文件集里没有的旧文件删掉，点开头的条目与符号链接原样保留（写入器规则）。调用方持有组件锁。
+   * @param {string} id
+   * @param {Map<string, Buffer>} files
+   * @param {{ summary: string, source: 'import' | 'restore' }} detail
+   */
+  async replaceComponentTree(id, files, { summary, source }) {
+    const dir = this.componentDir(id)
+    const current = await readComponentTree(dir)
+    if (!current) throw new CustomUiError('component_too_large', 413)
+    const snapshot = await snapshotComponent({
+      versionsRoot: this.versionsRoot,
+      id,
+      dir,
+      now: this.now,
+      summary,
+    }).catch((error) => {
+      if (error?.code === 'ETOOLARGE') throw new CustomUiError('component_too_large', 413)
+      throw error
+    })
+    const deleteFiles = [...current.keys()].filter((path) => !files.has(path))
+    const writes = [...files].map(([path, content]) => ({ path, content }))
+    try {
+      await writeComponentDirectory({
+        root: this.root,
+        id,
+        mode: 'update',
+        files: writes,
+        deleteFiles,
+        ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+      })
+    } catch (error) {
+      if (error?.code === 'ETOOLARGE') throw new CustomUiError('component_too_large', 413)
+      if (error?.code === 'ELINKED')
+        throw new CustomUiError('component_files_invalid', 400, {
+          errors: [{ path: error.path, code: 'path_not_writable' }],
+        })
+      throw error
+    }
+    this.hasher.invalidate(dir)
+    if (snapshot)
+      await annotateSnapshot(this.versionsRoot, id, snapshot.n, {
+        source,
+        files: writes
+          .filter(({ path, content }) => !current.get(path)?.equals(content))
+          .map(({ path, content }) => ({
+            path,
+            ...lineDelta(current.get(path), content.toString('utf8')),
+          })),
+        deleted: deleteFiles,
+      }).catch(() => {})
+    const written = await this.inspect(id)
+    this.notify(
+      id,
+      { rev: written?.row.rev ?? null, reason: 'files' },
+      written ? changeKey(written.row) : undefined,
+    )
+    return written
+  }
+
+  /** GET …/versions：当前版 + 快照（最多 20 份），规则见 custom-ui-versions.mjs。 @param {string} id */
+  async listVersions(id) {
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
+    const state = await this.state.get(id)
+    const snapshots = await readSnapshotIndex(this.versionsRoot, id)
+    return {
+      ...describeVersions(snapshots, { createdAt: state?.createdAt ?? null }),
+      max: 20,
+    }
+  }
+
+  /** @param {string} id @param {unknown} raw */
+  async requireSnapshot(id, raw) {
+    const n = Number(raw)
+    if (!Number.isSafeInteger(n) || n < 1)
+      throw new CustomUiError('component_version_not_found', 404)
+    const snapshots = await readSnapshotIndex(this.versionsRoot, id)
+    if (!snapshots.some((entry) => entry.n === n))
+      throw new CustomUiError('component_version_not_found', 404)
+    const tree = await readComponentTree(snapshotDir(this.versionsRoot, id, n))
+    if (!tree || !tree.size) throw new CustomUiError('component_version_not_found', 404)
+    return { n, tree }
+  }
+
+  /** GET …/versions/:n/diff：第 n 版 → 当前（统一 diff，复用会话改动查看器）。 */
+  async versionDiff(id, rawN) {
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
+    const { n, tree } = await this.requireSnapshot(id, rawN)
+    const current = await readComponentTree(this.componentDir(id))
+    if (!current) throw new CustomUiError('component_too_large', 413)
+    return { n, ...diffComponentTrees(tree, current) }
+  }
+
+  /** POST …/versions/:n/restore：回滚生成新的一版（规格 5.9），不改写历史。 */
+  async restoreVersion(id, rawN) {
+    if (!COMPONENT_ID_PATTERN.test(id)) throw new CustomUiError('component_not_found', 404)
+    return this.withComponentLock(id, async () => {
+      const inspected = await this.requireComponent(id)
+      if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
+      const { n, tree } = await this.requireSnapshot(id, rawN)
+      const written = await this.replaceComponentTree(id, tree, {
+        summary: `回滚到 v${n}`,
+        source: 'restore',
+      })
+      return { component: written?.row ?? null, restored: n, ...(await this.listVersions(id)) }
+    })
+  }
+
+  /**
+   * GET …/export：manifest、入口与资源打成 <id>/… 的 ZIP（与导入同一布局），不含实例与存储数据（规格 5.9）。
+   * @param {string} id
+   * @returns {Promise<{ fileName: string, bytes: Uint8Array }>}
+   */
+  async exportComponent(id) {
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
+    const tree = await readComponentTree(this.componentDir(id))
+    if (!tree) throw new CustomUiError('component_too_large', 413)
+    /** @type {Record<string, Uint8Array>} */
+    const entries = {}
+    for (const [path, content] of tree) entries[`${id}/${path}`] = new Uint8Array(content)
+    // 固定修改时间：同一份内容导出两次得到同一个 ZIP（便于核对 sha256）。
+    const bytes = zipSync(entries, { level: 6, mtime: new Date('2020-01-01T00:00:00Z') })
+    return { fileName: `${id}.zip`, bytes }
+  }
+
+  /** GET /api/custom-ui/trash */
+  async listTrashEntries() {
+    return { retentionDays: 7, entries: await listTrash(this.trashRoot) }
+  }
+
+  /**
+   * POST /api/custom-ui/trash/:entry/restore：组件目录、存储与状态移回原处，放置实例按原样重建
+   * （放不下的跳过，例如单实例放置已被占用）。同 id 已安装时拒绝，不覆盖。旧组件（legacy-retired）不能恢复。
+   * @param {unknown} entry
+   */
+  async restoreTrash(entry) {
+    if (!isTrashEntryName(entry)) throw new CustomUiError('component_trash_not_found', 404)
+    const found = await readTrashMeta(this.trashRoot, /** @type {string} */ (entry))
+    if (!found) throw new CustomUiError('component_trash_not_found', 404)
+    const { row, meta } = found
+    if (row.kind !== 'native') throw new CustomUiError('component_legacy_unsupported', 409)
+    return this.withComponentLock(row.id, async () => {
+      if (await lstat(this.componentDir(row.id)).catch(() => null))
+        throw new CustomUiError('component_already_installed', 409)
+      await moveOutOfTrash({
+        trashRoot: this.trashRoot,
+        root: this.root,
+        dataRoot: this.dataRoot,
+        entry: row.entry,
+        id: row.id,
+        ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+      })
+      this.hasher.invalidate(this.componentDir(row.id))
+      this.storage.forget(row.id)
+      const saved = meta.state && typeof meta.state === 'object' ? meta.state : null
+      await this.state.update(row.id, {
+        enabled: typeof saved?.enabled === 'boolean' ? saved.enabled : true,
+        source: ['agent', 'template', 'local', 'import'].includes(saved?.source)
+          ? saved.source
+          : 'local',
+      })
+      let restoredInstances = 0
+      for (const instance of Array.isArray(meta.instances) ? meta.instances : []) {
+        const created = await this.createInstance({
+          componentId: row.id,
+          surface: instance?.surface,
+          ...(instance?.size ? { size: instance.size } : {}),
+          ...(instance?.scope ? { scope: instance.scope } : {}),
+          ...(typeof instance?.title === 'string' ? { title: instance.title } : {}),
+          ...(instance?.props && typeof instance.props === 'object'
+            ? { props: instance.props }
+            : {}),
+        }).catch(() => null)
+        if (created) restoredInstances += 1
+      }
+      const inspected = await this.inspect(row.id)
+      this.notify(
+        row.id,
+        { rev: inspected?.row.rev ?? null, reason: 'created' },
+        inspected ? changeKey(inspected.row) : undefined,
+      )
+      return { component: inspected?.row ?? null, restoredInstances }
+    })
+  }
+
+  /** DELETE /api/custom-ui/trash/:entry：永久删除（只在用户明确操作时）。 @param {unknown} entry */
+  async purgeTrash(entry) {
+    if (!isTrashEntryName(entry)) throw new CustomUiError('component_trash_not_found', 404)
+    if (!(await purgeTrashEntry(this.trashRoot, /** @type {string} */ (entry))))
+      throw new CustomUiError('component_trash_not_found', 404)
+    return { ok: true }
+  }
+
+  /**
+   * POST /api/custom-ui/import?stage=1：只暂存，不安装、不执行（规格 5.7）。
+   * @param {Uint8Array} bytes
+   * @param {{ fileName?: unknown }} [options]
+   */
+  async stageImport(bytes, options = {}) {
+    const meta = await this.staging.stage(bytes, options)
+    const { components } = await this.catalog()
+    return { staged: stagedRow(meta, components) }
+  }
+
+  /**
+   * GET /api/custom-ui/staged/:stageId：信任确认表的全部材料——文件树、manifest、声明的能力、静态扫描、
+   * 体积与 sha256，替换已安装组件时再给一份与已安装版本的 diff。
+   * @param {string} stageId
+   */
+  async stagedDetail(stageId) {
+    const meta = await this.staging.require(stageId)
+    const tree = await this.staging.readTree(stageId)
+    const raw = JSON.parse(tree.get('manifest.json')?.toString('utf8') || 'null')
+    const normalized = normalizeNativeManifest(meta.id, raw, { hostVersion: this.hostVersion })
+    const installed = await this.inspect(meta.id)
+    let diff = null
+    if (installed) {
+      const current = await readComponentTree(this.componentDir(meta.id))
+      if (current) diff = diffComponentTrees(current, tree)
+    }
+    return {
+      staged: stagedRow(meta, installed ? [installed.row] : []),
+      manifest: normalized.manifest,
+      errors: normalized.errors,
+      files: [...tree].map(([path, content]) => ({
+        path,
+        size: content.byteLength,
+        type: componentFileType(path) || 'application/octet-stream',
+      })),
+      scan: scanComponentSource(
+        [...tree].map(([path, content]) => ({ path, content })),
+        normalized.manifest,
+      ),
+      installed: installed?.row ?? null,
+      diff,
+    }
+  }
+
+  /** GET /api/custom-ui/staged/:stageId/file?path=… */
+  async stagedFile(stageId, path) {
+    return this.staging.readFile(stageId, path)
+  }
+
+  /** POST /api/custom-ui/staged/:stageId/discard */
+  async discardStaged(stageId) {
+    await this.staging.discard(stageId)
+    return { ok: true }
+  }
+
+  /**
+   * POST /api/custom-ui/staged/:stageId/trust：信任并启用。没装过就新建；装过原生组件或坏目录就替换
+   * （先快照，可回滚）；同 id 被旧组件占着时拒绝。安装后来源记为 import、启用，暂存目录删掉。
+   * @param {string} stageId
+   */
+  async trustStaged(stageId) {
+    const meta = await this.staging.require(stageId)
+    const tree = await this.staging.readTree(stageId)
+    return this.withComponentLock(meta.id, async () => {
+      const existing = await this.inspect(meta.id)
+      if (existing?.row.kind === 'legacy')
+        throw new CustomUiError('component_id_taken_by_legacy', 409)
+      if (existing) {
+        await this.replaceComponentTree(meta.id, tree, {
+          summary: `导入 ${meta.fileName}`.slice(0, 200),
+          source: 'import',
+        })
+      } else {
+        try {
+          await writeComponentDirectory({
+            root: this.root,
+            id: meta.id,
+            mode: 'create',
+            files: [...tree].map(([path, content]) => ({ path, content })),
+            ...(this.renameDirectory ? { renameDirectory: this.renameDirectory } : {}),
+          })
+        } catch (error) {
+          if (error?.code === 'EEXIST') throw new CustomUiError('component_already_installed', 409)
+          throw error
+        }
+        this.hasher.invalidate(this.componentDir(meta.id))
+      }
+      await this.state.update(meta.id, { enabled: true, source: 'import' })
+      await this.staging.discard(stageId).catch(() => {})
+      const inspected = await this.inspect(meta.id)
+      this.notify(
+        meta.id,
+        { rev: inspected?.row.rev ?? null, reason: existing ? 'files' : 'created' },
+        inspected ? changeKey(inspected.row) : undefined,
+      )
+      return { component: inspected?.row ?? null, replaced: Boolean(existing) }
+    })
+  }
+
+  /** GET …/usage：能力台账与撤销清单。 @param {string} id */
+  async componentUsage(id) {
+    const inspected = await this.requireComponent(id)
+    return { usage: await this.usage.list(id), revoked: inspected.row.revoked || [] }
+  }
+
+  /** POST …/usage：ctx 批量上报浏览器侧的能力调用（notify、sessions.*）。 */
+  async reportUsage(id, input) {
+    const inspected = await this.requireComponent(id)
+    if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
+    if (!this.usage.report(id, input)) throw new CustomUiError('component_request_invalid', 400)
+    return { ok: true }
   }
 
   // ── 放置实例 ──
@@ -1130,4 +1539,37 @@ function parseInstanceFields(input, surface, placement, manifest, { creating }) 
     fields.props = checked.value
   }
   return fields
+}
+
+/**
+ * 待确认导入行：replaces 表示同 id 已安装（信任后是替换，旧版本先进快照）。
+ * @param {import('./custom-ui-staging.mjs').StagedMeta} meta
+ * @param {{ id: string, kind: string }[]} components
+ */
+function stagedRow(meta, components) {
+  const installed = components.find((component) => component.id === meta.id)
+  return {
+    stageId: meta.stageId,
+    id: meta.id,
+    name: meta.name,
+    version: meta.componentVersion,
+    fileName: meta.fileName,
+    bytes: meta.bytes,
+    sha256: meta.sha256,
+    createdAt: meta.createdAt,
+    replaces: installed ? installed.kind : null,
+  }
+}
+
+/** 台账里的网络目标：方法 + 主机，不含路径、查询参数与请求体。 @param {unknown} input */
+function usageTarget(input) {
+  if (!isPlainObject(input) || typeof input.url !== 'string') return ''
+  let host = ''
+  try {
+    host = new URL(input.url).hostname
+  } catch {
+    return ''
+  }
+  const method = typeof input.method === 'string' ? input.method.toUpperCase().slice(0, 10) : 'GET'
+  return `${method} ${host}`
 }

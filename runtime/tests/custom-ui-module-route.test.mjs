@@ -246,7 +246,7 @@ test('components.native 为 false 的 Runtime 对新接口返回 409 能力缺�
   assert.equal((await callJson('GET', '/api/custom-ui/components')).status, 200)
 })
 
-test('describe 返回行、文件清单、错误与 unsupported 扫描；损坏目录可见', async (t) => {
+test('describe 返回行、文件清单、错误与静态扫描（A8）；损坏目录可见', async (t) => {
   const { service, callJson } = await startServer(t)
   await writeComponent(
     service.root,
@@ -269,7 +269,9 @@ test('describe 返回行、文件清单、错误与 unsupported 扫描；损坏�
   assert.deepEqual(bad.body.errors, [
     { path: 'props.properties.x.type', code: 'props_type_unsupported' },
   ])
-  assert.deepEqual(bad.body.scan, { status: 'unsupported' })
+  // A8：manifest 有错的原生组件也照常扫描源码（没有声明可对照，主机一律算未声明）。
+  assert.equal(bad.body.scan.status, 'ok')
+  assert.deepEqual(bad.body.scan.findings, [])
   assert.deepEqual(
     bad.body.files.map((file) => [file.path, file.type]),
     [
@@ -296,10 +298,13 @@ test('describe 返回行、文件清单、错误与 unsupported 扫描；损坏�
 
   const catalog = await service.catalog()
   assert.deepEqual(catalog.features, {
-    import: false,
-    versions: false,
-    export: false,
+    import: true,
+    versions: true,
+    export: true,
     trash: 'move',
+    trashRestore: true,
+    usage: true,
+    revoke: true,
   })
   assert.deepEqual(
     catalog.components.map((row) => [row.id, row.kind, row.status]),
@@ -327,10 +332,13 @@ test('GET /api/custom-ui/components 返回 v2 目录（A7 S4 切换）：旧组�
   const listed = await callJson('GET', '/api/custom-ui/components')
   assert.equal(listed.status, 200)
   assert.deepEqual(listed.body.features, {
-    import: false,
-    versions: false,
-    export: false,
+    import: true,
+    versions: true,
+    export: true,
     trash: 'move',
+    trashRestore: true,
+    usage: true,
+    revoke: true,
   })
   const old = listed.body.components.find((component) => component.id === 'old')
   assert.equal(old.kind, 'legacy')

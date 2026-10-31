@@ -7,6 +7,7 @@ import {
   componentStorageRemove,
   componentStorageSet,
   reportComponentError,
+  reportComponentUsage,
 } from '@/features/custom-ui/custom-ui-api'
 import { createCircuitBreaker, type CircuitBreaker } from './circuit-breaker'
 import {
@@ -18,12 +19,14 @@ import {
 import { createModuleLoader, createStyleRegistry, type ModuleLoader } from './module-loader'
 import { toComponentRequestError, type ComponentServices } from './sdk'
 import { componentSessionFeed, useComponentSessionList } from './sessions-source'
+import { createUsageReporter } from './usage'
 
 let loader: ModuleLoader | null = null
 let styles: ReturnType<typeof createStyleRegistry> | null = null
 let breaker: CircuitBreaker | null = null
 let logBuffer: ComponentLogBuffer | null = null
 let reporter: ErrorReporter | null = null
+let usage: ReturnType<typeof createUsageReporter> | null = null
 
 export function componentModuleLoader(): ModuleLoader {
   // 模块 URL 由 componentModuleUrl 拼出（同源、带 rev），@vite-ignore：它不是构建期可解析的模块。
@@ -54,6 +57,11 @@ export function componentErrorReporter(): ErrorReporter {
   return reporter
 }
 
+export function componentUsageReporter() {
+  usage ??= createUsageReporter({ send: reportComponentUsage })
+  return usage
+}
+
 /** ctx 背后的真实请求；notify 与打开会话由放置宿主传入（它们知道提示条与路由）。 */
 export function createComponentServices(
   componentId: string,
@@ -62,6 +70,7 @@ export function createComponentServices(
   return {
     notify: host.notify,
     openSession: host.openSession,
+    reportUsage: (capability) => componentUsageReporter().record(componentId, capability),
     useSessions: useComponentSessionList,
     subscribeSessions: (listener) => componentSessionFeed.subscribe(listener),
     fetch: (request, signal) => componentFetch(componentId, request, signal),

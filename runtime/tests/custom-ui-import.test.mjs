@@ -1,5 +1,6 @@
-// 组件 ZIP 解包与安装路径测试。A7 S4 起 POST /api/custom-ui/import 一律结构化拒绝、不写任何文件（导入暂存与
-// 信任确认在 A8）；importCustomUiZip 的安装路径保留给 A8，这里用 v2 manifest 适配器直接调用，保住它的覆盖。
+// 组件 ZIP 解包与安装路径测试。不带 ?stage=1 的 POST /api/custom-ui/import 保持 A7 S4 的行为：一律结构化拒绝、
+// 不写任何文件（A8 的暂存与信任确认见 custom-ui-lifecycle.test.mjs）；importCustomUiZip 的安装路径用 v2 manifest
+// 适配器直接调用，保住它的覆盖。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -51,7 +52,7 @@ function bundle(path = 'native-card') {
   })
 }
 
-async function postImport(service, bytes) {
+async function postImport(service, bytes, search = '') {
   const route = customUiRoutes.find(
     (entry) => entry.method === 'POST' && entry.path === '/api/custom-ui/import',
   )
@@ -60,6 +61,7 @@ async function postImport(service, bytes) {
   await route.handler({
     services: { customUi: service },
     bodyBuffer: async () => bytes,
+    url: new URL(`http://127.0.0.1/api/custom-ui/import${search}`),
     res: { headersSent: false },
     json: (code, value) => {
       status = code

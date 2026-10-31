@@ -1,7 +1,9 @@
 // 原生组件（v2）的类型与 API 封装：与 runtime/services/custom-ui-service.mjs 的输出保持契约一致。
 // 目录来自 Runtime；用户主目录按服务端平台缩写为 ~ 或 %USERPROFILE%。旧 iframe 组件的视图凭证、
-// 导入与旧列表形状在 A7 S4 随旧机制一起删除。
+// 导入与旧列表形状在 A7 S4 随旧机制一起删除。A8 的版本、导出、回收站、导入暂存与能力台账的请求在
+// lifecycle-api.ts（只有工作室用，不进放置轻量入口）；这里只解析目录里随之多出来的字段。
 import type {
+  CapabilityType,
   ComponentSurface,
   ManifestCapabilities,
   ManifestPlacement,
@@ -25,7 +27,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export type ComponentKind = 'native' | 'legacy' | 'broken'
 export type ComponentStatus = 'ready' | 'invalid' | 'unsupported'
-export type ComponentSource = 'agent' | 'template' | 'local'
+export type ComponentSource = 'agent' | 'template' | 'local' | 'import'
 export type ComponentFieldError = {
   path: string
   code: string
@@ -49,6 +51,8 @@ export type ComponentRow = {
   manifest?: NativeManifest
   errors: ComponentFieldError[]
   updatedAt: string
+  // 用户在能力清单里撤销的能力（A8）；ctx 不再提供，网络与存储在 Runtime 侧拒绝。旧 Runtime 没有这一项。
+  revoked: CapabilityType[]
 }
 
 export type ComponentCatalogFeatures = {
@@ -57,12 +61,30 @@ export type ComponentCatalogFeatures = {
   export: boolean
   // 'none'：旧 Runtime 没有 DELETE（兼容矩阵 §3.12），界面隐藏删除按钮。
   trash: 'move' | 'none'
+  // A8 新增的开关（旧 Runtime 没有 → false）：回收站可恢复、能力台账、能力撤销。
+  trashRestore: boolean
+  usage: boolean
+  revoke: boolean
+}
+
+/** 待确认的导入（规格 5.7）：只暂存、没安装；replaces 是同 id 已安装组件的类型（信任后是替换）。 */
+export type StagedComponent = {
+  stageId: string
+  id: string
+  name: string
+  version: string
+  fileName: string
+  bytes: number
+  sha256: string
+  createdAt: string
+  replaces: ComponentKind | null
 }
 
 export type ComponentCatalog = {
   root: string
   features: ComponentCatalogFeatures
   components: ComponentRow[]
+  staged: StagedComponent[]
   // 列表是旧形状（第 2–4 期 Runtime）：全部按 legacy 显示，宿主不加载任何组件。
   legacyShape: boolean
 }
@@ -101,11 +123,32 @@ export type ComponentErrorsData = {
   network: { count: number; lastAt: string | null; hosts: Record<string, number> }
 }
 
+export type ScanSeverity = 'danger' | 'warn' | 'info'
+export type ComponentScanFinding = {
+  rule: string
+  severity: ScanSeverity
+  file: string
+  line: number
+  excerpt: string
+}
+/** 静态扫描（A8，规格 5.7）：源码里的主机与敏感用法和声明的对照。旧 Runtime 只给 { status: 'unsupported' }。 */
+export type ComponentScan =
+  | { status: 'unsupported' }
+  | {
+      status: 'ok'
+      hosts: { host: string; declared: boolean; file: string; line: number }[]
+      findings: ComponentScanFinding[]
+      summary: { danger: number; warn: number; info: number; undeclaredHosts: number }
+      truncated: boolean
+    }
+
+export type ComponentFileEntry = { path: string; size: number; type: string }
+
 export type ComponentDescription = {
   component: ComponentRow
-  files: { path: string; size: number; type: string }[]
+  files: ComponentFileEntry[]
   errors: ComponentFieldError[]
-  scan: { status: string }
+  scan: ComponentScan
 }
 
 export type ComponentReportKind = 'load' | 'render' | 'callback' | 'slow' | 'log'
@@ -148,6 +191,14 @@ const COMPONENT_REV = /^[a-f0-9]{24}$/
 // 与 Runtime 实例 id 规则一致：浮窗位置以它作节点 id（floating-placement.ts 的键规则）。
 const INSTANCE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,79}$/
 const PATH_SEGMENT = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/
+const STAGE_ID = /^[a-f0-9]{16}$/
+const CAPABILITIES: readonly CapabilityType[] = [
+  'network',
+  'notify',
+  'sessions.read',
+  'sessions.open',
+  'storage',
+]
 
 function text(value: unknown, max = 4000): string {
   return typeof value === 'string' ? value.slice(0, max) : ''
@@ -167,7 +218,7 @@ function stringRecord(value: unknown, max = 200): Record<string, string> {
   return result
 }
 
-function parseFieldErrors(value: unknown): ComponentFieldError[] {
+export function parseFieldErrors(value: unknown): ComponentFieldError[] {
   if (!Array.isArray(value)) return []
   const errors: ComponentFieldError[] = []
   for (const item of value.slice(0, 200)) {
@@ -287,7 +338,36 @@ export function parseNativeManifest(id: string, value: unknown): NativeManifest 
 }
 
 function parseSource(value: unknown): ComponentSource {
-  return value === 'agent' || value === 'template' ? value : 'local'
+  return value === 'agent' || value === 'template' || value === 'import' ? value : 'local'
+}
+
+function parseRevoked(value: unknown): CapabilityType[] {
+  return Array.isArray(value) ? CAPABILITIES.filter((type) => value.includes(type)) : []
+}
+
+export function parseStagedComponent(value: unknown): StagedComponent | null {
+  if (
+    !isRecord(value) ||
+    typeof value.stageId !== 'string' ||
+    !STAGE_ID.test(value.stageId) ||
+    typeof value.id !== 'string' ||
+    !COMPONENT_ID.test(value.id)
+  )
+    return null
+  return {
+    stageId: value.stageId,
+    id: value.id,
+    name: text(value.name, 120) || value.id,
+    version: text(value.version, 64),
+    fileName: text(value.fileName, 200) || `${value.id}.zip`,
+    bytes: typeof value.bytes === 'number' && Number.isFinite(value.bytes) ? value.bytes : 0,
+    sha256: /^[a-f0-9]{64}$/.test(String(value.sha256)) ? String(value.sha256) : '',
+    createdAt: text(value.createdAt, 64),
+    replaces:
+      value.replaces === 'native' || value.replaces === 'legacy' || value.replaces === 'broken'
+        ? value.replaces
+        : null,
+  }
 }
 
 /** 解析一行；旧形状（没有 kind）按 legacy。id 不合法的行丢弃（返回 null）。 */
@@ -301,6 +381,7 @@ export function parseComponentRow(value: unknown): ComponentRow | null {
     description: text(value.description, 500),
     directory: text(value.directory, 4096),
     updatedAt: text(value.updatedAt, 64),
+    revoked: parseRevoked(value.revoked),
   }
   if (value.kind !== 'native' && value.kind !== 'broken') {
     // 旧形状与 kind:'legacy'：不可运行，只能删除（新 Runtime）或忽略（旧 Runtime）。
@@ -362,6 +443,11 @@ export function parseComponentCatalog(value: unknown): ComponentCatalog {
     seen.add(row.id)
     components.push(row)
   }
+  const staged: StagedComponent[] = []
+  for (const item of Array.isArray(value.staged) ? value.staged.slice(0, 50) : []) {
+    const row = parseStagedComponent(item)
+    if (row && !staged.some((entry) => entry.stageId === row.stageId)) staged.push(row)
+  }
   return {
     root: value.root,
     features: {
@@ -369,8 +455,12 @@ export function parseComponentCatalog(value: unknown): ComponentCatalog {
       versions: features?.versions === true,
       export: features?.export === true,
       trash: features?.trash === 'move' ? 'move' : 'none',
+      trashRestore: features?.trashRestore === true,
+      usage: features?.usage === true,
+      revoke: features?.revoke === true,
     },
     components,
+    staged,
     legacyShape: !features,
   }
 }
@@ -475,23 +565,76 @@ export function parseComponentErrors(value: unknown): ComponentErrorsData {
   }
 }
 
+function count(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+export function parseComponentScan(value: unknown): ComponentScan {
+  if (!isRecord(value) || value.status !== 'ok') return { status: 'unsupported' }
+  const summary = isRecord(value.summary) ? value.summary : {}
+  const severities: readonly ScanSeverity[] = ['danger', 'warn', 'info']
+  return {
+    status: 'ok',
+    hosts: (Array.isArray(value.hosts) ? value.hosts.slice(0, 50) : []).flatMap((item) =>
+      isRecord(item) && typeof item.host === 'string'
+        ? [
+            {
+              host: text(item.host, 253),
+              declared: item.declared === true,
+              file: text(item.file, 512),
+              line: count(item.line),
+            },
+          ]
+        : [],
+    ),
+    findings: (Array.isArray(value.findings) ? value.findings.slice(0, 200) : []).flatMap((item) =>
+      isRecord(item) &&
+      typeof item.rule === 'string' &&
+      severities.includes(item.severity as ScanSeverity)
+        ? [
+            {
+              rule: text(item.rule, 32),
+              severity: item.severity as ScanSeverity,
+              file: text(item.file, 512),
+              line: count(item.line),
+              excerpt: text(item.excerpt, 200),
+            },
+          ]
+        : [],
+    ),
+    summary: {
+      danger: count(summary.danger),
+      warn: count(summary.warn),
+      info: count(summary.info),
+      undeclaredHosts: count(summary.undeclaredHosts),
+    },
+    truncated: value.truncated === true,
+  }
+}
+
+export function parseComponentFiles(value: unknown): ComponentFileEntry[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(
+      (file): file is ComponentFileEntry =>
+        isRecord(file) &&
+        typeof file.path === 'string' &&
+        typeof file.size === 'number' &&
+        typeof file.type === 'string',
+    )
+    .slice(0, 256)
+    .map((file) => ({ path: file.path, size: file.size, type: file.type }))
+}
+
 export function parseComponentDescription(value: unknown): ComponentDescription {
   const component = isRecord(value) ? parseComponentRow(value.component) : null
   if (!component || !isRecord(value) || !Array.isArray(value.files))
     throw new Error('Invalid custom UI describe response')
   return {
     component,
-    files: value.files
-      .filter(
-        (file): file is { path: string; size: number; type: string } =>
-          isRecord(file) &&
-          typeof file.path === 'string' &&
-          typeof file.size === 'number' &&
-          typeof file.type === 'string',
-      )
-      .map((file) => ({ path: file.path, size: file.size, type: file.type })),
+    files: parseComponentFiles(value.files),
     errors: parseFieldErrors(value.errors),
-    scan: { status: isRecord(value.scan) ? text(value.scan.status, 32) : 'unsupported' },
+    scan: parseComponentScan(value.scan),
   }
 }
 
@@ -656,6 +799,23 @@ export function reportComponentError(id: string, report: ComponentReport): Promi
   return requestJson(`${componentPath(id)}/errors`, {
     method: 'POST',
     body: report,
+    keepalive: true,
+    parse: () => undefined,
+  })
+}
+
+/** 能力台账的浏览器侧上报（notify、sessions.*，A8）。旧 Runtime 没有这个路由时静默失败即可。 */
+export function reportComponentUsage(
+  id: string,
+  entries: {
+    capability: 'notify' | 'sessions.read' | 'sessions.open'
+    count: number
+    at: string
+  }[],
+): Promise<void> {
+  return requestJson(`${componentPath(id)}/usage`, {
+    method: 'POST',
+    body: { entries },
     keepalive: true,
     parse: () => undefined,
   })

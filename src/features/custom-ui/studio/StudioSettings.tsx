@@ -1,20 +1,25 @@
-// 工作室右栏 · 设置（规格 5.1、5.3–5.5）：身份行与 [启用]、属性（按放置实例分别保存）、使用的能力、
-// 放置位置（四个平级磁贴）、吸底操作栏（[放置到… ▾] · [查看源码] · ⋯ 删除组件）。
-// 窗口 <1440 或侧栏展开时整栏改放进右侧抽屉，内容不变；手机详情按“预览 · 属性 · 能力 · 放置”顺序复用各段。
-// 版本与导出（规格 5.9）在 A8，这里不显示占位。
-import { useRef, useState, type ReactNode } from 'react'
+// 工作室右栏 · 设置（规格 5.1、5.3–5.5、5.9）：身份行与 [启用]、属性（按放置实例分别保存）、使用的能力
+// （A8 起带调用台账与 [撤销]）、放置位置（四个平级磁贴）、版本（A8：[对比] [回滚]）、
+// 吸底操作栏（[放置到… ▾] · [查看源码] · [导出 ZIP] · ⋯ 删除组件）。
+// 窗口 <1440 或侧栏展开时整栏改放进右侧抽屉，内容不变；手机详情按“预览 · 属性 · 能力 · 放置 · 版本”顺序复用各段。
+import { useRef, useState } from 'react'
 import {
   AppWindow,
   Blocks,
   ChevronDown,
   Code2,
+  Download,
   LayoutDashboard,
   MoreHorizontal,
   PanelRight,
   Plus,
   Trash2,
 } from 'lucide-react'
-import type { ComponentSurface, OverviewCardSize } from '@shared/custom-ui-manifest.mjs'
+import type {
+  CapabilityType,
+  ComponentSurface,
+  OverviewCardSize,
+} from '@shared/custom-ui-manifest.mjs'
 import { useI18n } from '@/app/use-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,18 +48,23 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useOverlayFocusReturn } from '@/hooks/useOverlayFocusReturn'
+import { relativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useBoardSessions } from '@/features/board/public'
 import type {
+  ComponentCatalogFeatures,
   ComponentInstance,
   ComponentInstanceScope,
   ComponentRow,
 } from '@/features/custom-ui/custom-ui-api'
 import { componentErrorText } from './error-text'
 import { PropsForm, type PreviewDraft } from './PropsForm'
-import { surfaceLabel } from './labels'
+import { capabilityLabel, surfaceLabel } from './labels'
+import { StudioSection } from './StudioSection'
 import { canPlace, componentDisplayName, defaultCardSize, surfaceDeclared } from './studio-model'
 import type { useStudioActions } from './use-studio-actions'
+import { useComponentUsage, type LifecycleActions } from './use-lifecycle'
+import { VersionsSection } from './VersionsSection'
 
 type Translate = ReturnType<typeof useI18n>['t']
 type StudioActions = ReturnType<typeof useStudioActions>
@@ -75,22 +85,8 @@ const SURFACE_ICONS = {
 function sourceLabel(row: ComponentRow, t: Translate) {
   if (row.source === 'agent') return t('custom-ui:studio.sourceAgent')
   if (row.source === 'template') return t('custom-ui:studio.sourceTemplate')
+  if (row.source === 'import') return t('custom-ui:studio.sourceImport')
   return t('custom-ui:studio.sourceLocal')
-}
-
-function capabilityLabel(type: string, t: Translate) {
-  switch (type) {
-    case 'network':
-      return t('custom-ui:studio.capNetwork')
-    case 'notify':
-      return t('custom-ui:studio.capNotify')
-    case 'sessions.read':
-      return t('custom-ui:studio.capSessionsRead')
-    case 'sessions.open':
-      return t('custom-ui:studio.capSessionsOpen')
-    default:
-      return t('custom-ui:studio.capStorage')
-  }
 }
 
 function instanceLabel(instance: ComponentInstance, t: Translate) {
@@ -102,28 +98,6 @@ function instanceLabel(instance: ComponentInstance, t: Translate) {
 function projectName(cwd: string) {
   const parts = cwd.replace(/[\\/]+$/, '').split(/[\\/]/)
   return parts[parts.length - 1] || cwd
-}
-
-export function StudioSection({
-  title,
-  aside,
-  children,
-  className,
-}: {
-  title: ReactNode
-  aside?: ReactNode
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <section className={cn('flex flex-col gap-2.5', className)}>
-      <header className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-content">{title}</h3>
-        {aside && <span className="text-xs text-content-muted">{aside}</span>}
-      </header>
-      {children}
-    </section>
-  )
 }
 
 export function IdentityRow({ row, actions }: { row: ComponentRow; actions: StudioActions }) {
@@ -249,15 +223,48 @@ export function PropsSection({
   )
 }
 
-export function CapabilitiesSection({ row }: { row: ComponentRow }) {
-  const { t } = useI18n()
+/**
+ * 使用的能力（规格 5.4）：声明清单，每行是能力名、目标、最近一次调用与今天的次数（A8 台账），以及 [撤销]。
+ * 撤销后 ctx 不再提供这项能力，网络与存储在 Runtime 代理处直接拒绝；可以随时 [恢复]。
+ * 末尾一行列出 Pisper 接口不会提供的能力，固定说明写明这不是隔离边界。
+ */
+export function CapabilitiesSection({
+  row,
+  usageEnabled = false,
+  canRevoke = false,
+  lifecycle,
+}: {
+  row: ComponentRow
+  usageEnabled?: boolean
+  canRevoke?: boolean
+  lifecycle?: LifecycleActions
+}) {
+  const { t, language } = useI18n()
   const capabilities = row.manifest?.capabilities ?? {}
+  const usage = useComponentUsage(row.id, usageEnabled)
+  const [busy, setBusy] = useState('')
   const declared = (
     ['network', 'notify', 'sessions.read', 'sessions.open', 'storage'] as const
   ).filter((type) => capabilities[type])
   const undeclared = (['sessions.read', 'notify', 'network', 'storage'] as const)
     .filter((type) => !capabilities[type])
     .map((type) => capabilityLabel(type, t))
+  const notify = lifecycle?.notify ?? (() => undefined)
+  const toggle = async (type: CapabilityType, revoke: boolean) => {
+    if (!lifecycle) return
+    setBusy(type)
+    const next = revoke
+      ? [...new Set([...row.revoked, type])]
+      : row.revoked.filter((entry) => entry !== type)
+    const result = await lifecycle.setRevoked(row, next)
+    setBusy('')
+    if (result)
+      notify(
+        revoke
+          ? t('custom-ui:usage.revoked', { capability: capabilityLabel(type, t) })
+          : t('custom-ui:usage.unrevoked', { capability: capabilityLabel(type, t) }),
+      )
+  }
   return (
     <StudioSection title={t('custom-ui:studio.capabilities')}>
       {declared.length ? (
@@ -267,6 +274,8 @@ export function CapabilitiesSection({ row }: { row: ComponentRow }) {
         >
           {declared.map((type) => {
             const entry = capabilities[type]
+            const revoked = row.revoked.includes(type)
+            const used = usage.data?.usage[type]
             const detail =
               type === 'network'
                 ? capabilities.network?.hosts.join(', ')
@@ -278,18 +287,56 @@ export function CapabilitiesSection({ row }: { row: ComponentRow }) {
             return (
               <li
                 key={type}
-                className="flex min-w-0 flex-col gap-0.5 border-b border-stroke px-3 py-2 last:border-b-0"
+                data-component-capability={type}
+                data-capability-revoked={revoked || undefined}
+                className="flex min-w-0 items-start gap-2 border-b border-stroke px-3 py-2 last:border-b-0"
               >
-                <span className="flex min-w-0 items-baseline gap-2 text-sm">
-                  {capabilityLabel(type, t)}
-                  {detail && (
-                    <code className="min-w-0 truncate font-mono text-xs text-content-secondary">
-                      {detail}
-                    </code>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex min-w-0 items-baseline gap-2 text-sm">
+                    <span className={cn(revoked && 'text-content-muted line-through')}>
+                      {capabilityLabel(type, t)}
+                    </span>
+                    {detail && (
+                      <code className="min-w-0 truncate font-mono text-xs text-content-secondary">
+                        {detail}
+                      </code>
+                    )}
+                    {revoked && (
+                      <Badge className="flex-none text-content-secondary">
+                        {t('custom-ui:usage.revokedBadge')}
+                      </Badge>
+                    )}
+                  </span>
+                  {entry?.reason && (
+                    <span className="text-xs text-content-muted">{entry.reason}</span>
+                  )}
+                  {usageEnabled && (
+                    <span className="text-xs text-content-muted" data-capability-usage>
+                      {used
+                        ? [
+                            t('custom-ui:usage.last', {
+                              time: relativeTime(used.lastAt, language),
+                            }),
+                            used.target,
+                            t('custom-ui:usage.today', { count: used.today }),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        : t('custom-ui:usage.never')}
+                    </span>
                   )}
                 </span>
-                {entry?.reason && (
-                  <span className="text-xs text-content-muted">{entry.reason}</span>
+                {canRevoke && lifecycle && (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={busy === type}
+                    data-capability-toggle={type}
+                    className="flex-none"
+                    onClick={() => void toggle(type, !revoked)}
+                  >
+                    {revoked ? t('custom-ui:usage.restore') : t('custom-ui:usage.revoke')}
+                  </Button>
                 )}
               </li>
             )
@@ -679,13 +726,46 @@ export function DeleteComponentButton({
   )
 }
 
+/** [导出 ZIP]（规格 5.9）：manifest、入口与资源，不含实例与存储数据。 */
+export function ExportComponentButton({
+  row,
+  lifecycle,
+  className,
+}: {
+  row: ComponentRow
+  lifecycle: LifecycleActions
+  className?: string
+}) {
+  const { t } = useI18n()
+  const [busy, setBusy] = useState(false)
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={busy}
+      data-component-export
+      className={className}
+      onClick={async () => {
+        setBusy(true)
+        await lifecycle.exportZip(row)
+        setBusy(false)
+      }}
+    >
+      <Download />
+      {t('custom-ui:exporting.button')}
+    </Button>
+  )
+}
+
 export function StudioSettings({
   row,
   instances,
   selectedInstanceId,
   canDelete,
+  features,
   notify,
   actions,
+  lifecycle,
   onSelectInstance,
   onPreview,
   onViewSource,
@@ -695,8 +775,10 @@ export function StudioSettings({
   instances: readonly ComponentInstance[]
   selectedInstanceId: string | null
   canDelete: boolean
+  features: ComponentCatalogFeatures
   notify: (message: string) => void
   actions: StudioActions
+  lifecycle: LifecycleActions
   onSelectInstance: (instanceId: string | null) => void
   onPreview: (draft: PreviewDraft) => void
   onViewSource: () => void
@@ -720,9 +802,23 @@ export function StudioSettings({
               onSelectInstance={onSelectInstance}
               onPreview={onPreview}
             />
-            <CapabilitiesSection row={row} />
+            <CapabilitiesSection
+              row={row}
+              usageEnabled={features.usage}
+              canRevoke={features.revoke}
+              lifecycle={lifecycle}
+            />
             <PlacementSection row={row} instances={instances} actions={actions} />
           </>
+        )}
+        {/* 版本对 manifest 有错的原生组件同样有用：回滚往往就是修好它的最快办法。 */}
+        {row.kind === 'native' && (
+          <VersionsSection
+            row={row}
+            enabled={features.versions}
+            notify={notify}
+            actions={lifecycle}
+          />
         )}
       </div>
       <footer className="flex flex-none items-center gap-2 border-t border-stroke bg-panel px-4 py-2.5">
@@ -731,6 +827,9 @@ export function StudioSettings({
           <Code2 />
           {t('custom-ui:studio.viewSource')}
         </Button>
+        {features.export && row.kind === 'native' && (
+          <ExportComponentButton row={row} lifecycle={lifecycle} />
+        )}
         {canDelete && (
           <span className="ml-auto">
             <DeleteComponentButton row={row} actions={actions} onDeleted={onDeleted} />

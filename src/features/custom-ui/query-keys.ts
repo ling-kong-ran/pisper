@@ -8,4 +8,9 @@ export const customUiQueryKeys = {
   instances: () => ['custom-ui', 'instances'] as const,
   describe: (id: string) => ['custom-ui', 'describe', id] as const,
   errors: (id: string) => ['custom-ui', 'errors', id] as const,
+  // A8：版本、能力台账、回收站与待确认导入的详情。
+  versions: (id: string) => ['custom-ui', 'versions', id] as const,
+  usage: (id: string) => ['custom-ui', 'usage', id] as const,
+  trash: () => ['custom-ui', 'trash'] as const,
+  staged: (stageId: string) => ['custom-ui', 'staged', stageId] as const,
 }
