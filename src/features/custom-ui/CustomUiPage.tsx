@@ -155,9 +155,11 @@ function useTroubledComponents(
     const troubled = new Set<string>()
     for (const row of rows) {
       if (
-        breaker.hasTrouble(`preview:${row.id}`) ||
+        breaker.hasTrouble(`preview:${row.id}`, row.rev) ||
+        // 放置实例的崩溃按 rev 判断：回滚或修好之后（新 rev）不再挂错误条，哪怕崩溃发生在别的页面（A8）。
         instances.some(
-          (instance) => instance.componentId === row.id && breaker.hasTrouble(instance.instanceId),
+          (instance) =>
+            instance.componentId === row.id && breaker.hasTrouble(instance.instanceId, row.rev),
         )
       )
         troubled.add(row.id)

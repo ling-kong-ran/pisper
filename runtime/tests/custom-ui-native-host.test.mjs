@@ -262,6 +262,13 @@ test('熔断：60 秒内 3 次崩溃暂停，窗口外的旧记录不计，恢�
   assert.equal(breaker.isPaused('y'), true)
   off()
   assert.equal(notified, 6)
+
+  // A8：崩溃记下 rev；“需处理”只算当前 rev 的崩溃（回滚或修好后不再挂错误条），暂停不论 rev 照算。
+  breaker.record('z', REV)
+  assert.equal(breaker.hasTrouble('z'), true)
+  assert.equal(breaker.hasTrouble('z', REV), true)
+  assert.equal(breaker.hasTrouble('z', REV2), false)
+  assert.equal(breaker.hasTrouble('y', REV2), true)
 })
 
 test('提交计时：连续 3 次超过 200ms 才警告，中间一次快提交会打断连击', () => {

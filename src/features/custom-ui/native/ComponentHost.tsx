@@ -174,7 +174,7 @@ export function ComponentHost({
         onCrash={(error) => {
           logger.record(error instanceof ComponentLoadError ? 'load' : 'render', 'error', error)
           safeMode.endLoad(key)
-          breaker.record(key)
+          breaker.record(key, rev)
         }}
         fallback={(error) => (
           <ErrorCard
@@ -198,7 +198,7 @@ export function ComponentHost({
             logger={logger}
             notify={notify}
             onOpenSession={onOpenSession ?? noop}
-            onCallbackError={() => breaker.record(key)}
+            onCallbackError={() => breaker.record(key, rev)}
             onCommit={(sample, first) => {
               if (first) safeMode.endLoad(key)
               if (sample) onCommitSample?.(sample.duration)
