@@ -261,6 +261,10 @@ export const chatApi = {
   getSessionCommands: (sessionId: string) =>
     requestJson<SessionCommandsResponse>(`${sessionPath(sessionId)}/commands`),
 
+  // 新任务页还没有会话：按所选项目目录取同一套 Prompt / Skill 命令。
+  getWorkspaceCommands: (cwd: string) =>
+    requestJson<SessionCommandsResponse>(`/api/commands?cwd=${encodeURIComponent(cwd)}`),
+
   getConfig: ({ refresh = false } = {}) => fetchStartupQuery<ChatConfigResponse>('config', refresh),
 
   updateCompactionPreference: (thresholdPercent: number) =>

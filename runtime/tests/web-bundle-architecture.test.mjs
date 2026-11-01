@@ -247,22 +247,31 @@ test('mobile chat sends with Enter and keeps the fixed composer toolbar on touch
 })
 
 test('chat Composer discovers Runtime Slash commands without exposing templates to the client', async () => {
-  const [menu, focusSession, chatApi, routes] = await Promise.all([
+  const [menu, focusSession, launchConsole, chatApi, routes] = await Promise.all([
     readFile('src/features/chat/ComposerCommandMenu.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
     readFile('src/features/chat/chat-api.ts', 'utf8'),
     readFile('runtime/http/routes/sessions-runtime.mjs', 'utf8'),
   ])
 
-  assert.match(menu, /chatApi\s*\.getSessionCommands\(sessionId\)/)
+  assert.match(menu, /loadRef\s*\.current\(\)/)
   assert.match(menu, /event\.key === 'ArrowDown'/)
   assert.match(menu, /event\.key === 'Tab'/)
   assert.match(menu, /command\.invocation/)
   assert.doesNotMatch(menu, /composer-command-trigger/)
   assert.doesNotMatch(menu, /command\.content|command\.filePath/)
+  // 会话页按会话取命令；新任务页还没有会话，按所选项目目录取，两处都带内置命令。
   assert.match(focusSession, /<ComposerCommandMenu/)
+  assert.match(focusSession, /chatApi\.getSessionCommands\(session\.id\)/)
+  assert.match(focusSession, /builtinCommands=\{builtinCommands\}/)
+  assert.match(launchConsole, /<ComposerCommandMenu/)
+  assert.match(launchConsole, /getWorkspaceCommands\(cwd\)/)
+  assert.match(launchConsole, /builtinCommands=\{builtinCommands\}/)
   assert.match(chatApi, /getSessionCommands:/)
+  assert.match(chatApi, /getWorkspaceCommands:/)
   assert.match(routes, /\/api\/sessions\/:sessionId\/commands/)
+  assert.match(routes, /path: '\/api\/commands'/)
 })
 
 test('scheduled tasks use structured prompt or workflow targets across every form', async () => {

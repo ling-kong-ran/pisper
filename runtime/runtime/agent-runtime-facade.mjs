@@ -17,6 +17,7 @@ import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from './computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
+import { resolveWorkspaceDirectory } from './workspace-directories.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
@@ -90,14 +91,22 @@ export class AgentRuntimeFacade {
   }
 
   async getSessionCommands(sessionId) {
-    const cwd = await this.sessionWorkspaceCwd(sessionId)
+    return this.commandsForDirectory(await this.sessionWorkspaceCwd(sessionId), sessionId)
+  }
+
+  // 新任务页还没有会话：按所选项目目录列出同一套 Prompt / Skill 命令，目录校验与建会话一致。
+  async getWorkspaceCommands(cwd) {
+    return this.commandsForDirectory(await resolveWorkspaceDirectory(cwd, this.cwd), '')
+  }
+
+  async commandsForDirectory(cwd, sessionId) {
     const loader = await this.skills.createResourceLoader(cwd)
     const prompts = loader.getPrompts()
     const skills = loader.getSkills()
     return projectSessionCommands({
       sessionId,
       prompts: prompts.prompts,
-      skills: skills.skills,
+      skills: skills.skills.filter((skill) => !this.skills.isBuiltinSkill?.(skill)),
       diagnostics: prompts.diagnostics,
     })
   }

@@ -354,7 +354,7 @@ export function SessionModelSelect({
   )
 }
 
-function thinkingLevelLabel(t: Translate, level: string) {
+export function thinkingLevelLabel(t: Translate, level: string) {
   const thinkingLabels: Record<string, string> = {
     off: t('chat:focusSession.thinkingLabel.off'),
     minimal: t('chat:focusSession.thinkingLabel.minimal'),

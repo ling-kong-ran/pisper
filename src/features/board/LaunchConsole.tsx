@@ -39,7 +39,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   clearComposerDraft,
+  ComposerCommandMenu,
+  getWorkspaceCommands,
   readComposerDraft,
+  runtimeSettingCommands,
   updateComposerDraft,
 } from '@/features/chat/public-launch'
 import { SCROLL_FADE_CLASS, useScrollFade } from '@/hooks/useScrollFade'
@@ -270,6 +273,48 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       defaults.rememberLaunch({ cwd: next.cwd })
       return true
     }
+
+    // 斜杠命令（与会话页同一菜单）：/model /effort /approval /run 改的是这条草稿的派发设置，
+    // 与工具行芯片走同一套写法；Prompt / Skill 按所选项目目录列出。
+    const chooseExecutionMode = (mode: LaunchExecutionMode) => {
+      setFullAccess(mode === 'full-access')
+      // 安全模式照常记住；完全访问只留在本次草稿里。
+      if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
+    }
+    const loadCommands = useCallback(() => getWorkspaceCommands(cwd), [cwd])
+    const builtinCommands = runtimeSettingCommands({
+      t,
+      models: options.models,
+      model,
+      onModel: (key) => defaults.rememberLaunch({ model: key, thinkingLevel: '' }),
+      thinkingLevels,
+      thinkingLevel: shownThinking,
+      thinkingLabel: labels.thinking,
+      onThinking: (level) => defaults.rememberLaunch({ thinkingLevel: level }),
+      executionModes: LAUNCH_EXECUTION_MODES,
+      executionMode,
+      executionLabel: (mode) => labels.execution[mode as LaunchExecutionMode] || mode,
+      onExecutionMode: (mode) => chooseExecutionMode(mode as LaunchExecutionMode),
+      runModes: [
+        'plan',
+        ...(options.goalsAvailable ? ['goal'] : []),
+        ...(options.teamAvailable ? ['team'] : []),
+      ],
+      runMode,
+      runModeLabel: (mode) => labels.runMode[mode as LaunchRunMode] || mode,
+      onRunMode: (mode) => defaults.rememberLaunch({ runMode: mode as LaunchRunMode }),
+    })
+    const commandMenu = (
+      <ComposerCommandMenu
+        placement={variant === 'composer' ? 'top' : 'bottom'}
+        resourceKey={cwd}
+        loadCommands={loadCommands}
+        builtinCommands={builtinCommands}
+        value={value}
+        onChange={setValue}
+        inputRef={inputRef}
+      />
+    )
 
     const composer = variant === 'composer'
     // 芯片文字变化（换项目、换模型、完全访问）会改变溢出量，作为重新测量的键。
@@ -552,12 +597,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <DropdownMenuLabel>{t('chat:focusSession.approvalMode')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={executionMode}
-            onValueChange={(next) => {
-              const mode = next as LaunchExecutionMode
-              setFullAccess(mode === 'full-access')
-              // 安全模式照常记住；完全访问只留在本次草稿里。
-              if (mode !== 'full-access') defaults.rememberLaunch({ executionMode: mode })
-            }}
+            onValueChange={(next) => chooseExecutionMode(next as LaunchExecutionMode)}
           >
             {LAUNCH_EXECUTION_MODES.map((mode) => (
               <DropdownMenuRadioItem key={mode} value={mode}>
@@ -689,6 +729,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <label htmlFor={inputId} className="sr-only">
             {t('board:launch.inputLabel')}
           </label>
+          {commandMenu}
           <textarea
             ref={inputRef}
             id={inputId}
@@ -740,6 +781,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         <label htmlFor={inputId} className="sr-only">
           {t('board:launch.inputLabel')}
         </label>
+        {commandMenu}
         <textarea
           ref={inputRef}
           id={inputId}

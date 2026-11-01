@@ -377,6 +377,28 @@ test('session commands API returns the Runtime-authoritative Slash command catal
   assert.deepEqual(calls, ['session 1'])
 })
 
+test('workspace commands API lists Slash commands for a project before its session exists', async () => {
+  const calls = []
+  const catalog = { sessionId: '', commands: [], counts: { total: 0 } }
+  const handler = createApiHandler({
+    async getWorkspaceCommands(cwd) {
+      calls.push(cwd)
+      return catalog
+    },
+  })
+  const output = response()
+  assert.equal(
+    await handler(
+      request('GET'),
+      output,
+      new URL('http://localhost/api/commands?cwd=%2Fhome%2Fme%2Fproject'),
+    ),
+    true,
+  )
+  assert.deepEqual(JSON.parse(output.body), catalog)
+  assert.deepEqual(calls, ['/home/me/project'])
+})
+
 test('skills APIs forward the active session scope for global and project discovery', async () => {
   const calls = []
   const runtime = {

@@ -91,6 +91,7 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     if (known) rememberLastSession(sessionId)
   }, [known, sessionId])
   const componentTabs = useSessionComponentTabs(context.notify, openSession)
+  const startNewTask = context.startNewTask
   const pageChrome = useMemo(
     () => ({
       compact,
@@ -104,11 +105,11 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       },
       // “找不到这个会话”（已删除或链接错误）：回到主页（上次停留的会话或新任务草稿）。
       onHome: () => navigate(HOME_PATH),
+      onNewTask: startNewTask,
     }),
-    [compact, mobileApp, navigate, componentTabs],
+    [compact, mobileApp, navigate, componentTabs, startNewTask],
   )
   // 手机外壳：同一份会话页契约，加上顶栏 ✎（没有改动时）打开派发表单。
-  const startNewTask = context.startNewTask
   const phoneChrome = useMemo(
     () => ({ ...pageChrome, phone: { onNewTask: startNewTask } }),
     [pageChrome, startNewTask],

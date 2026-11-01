@@ -525,6 +525,15 @@ export class SkillsService {
     }
   }
 
+  // 内置技能（如组件工作室的 pisper-component）只由特定入口显式加载，不进斜杠命令菜单。
+  isBuiltinSkill(skill) {
+    const path = relative(
+      normalizedPath(this.builtinSkillsDir),
+      normalizedPath(skill?.filePath || ''),
+    )
+    return Boolean(path) && !path.startsWith('..') && !isAbsolute(path)
+  }
+
   invalidateDashboardCache() {
     this.dashboardCache = null
   }

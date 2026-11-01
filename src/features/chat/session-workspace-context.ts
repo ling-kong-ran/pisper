@@ -15,6 +15,8 @@ export type SessionPageChrome = {
   phone?: SessionPhoneChrome
   // 检查器“+”里去组件页设置“会话面板”放置。
   onOpenComponents?: () => void
+  // 输入框的 /new：与侧栏“新任务”同一入口（应用壳决定聚焦草稿还是打开派发浮层）。
+  onNewTask?: () => void
   // 组件标签（“会话面板”放置，规格 4.4）：由应用壳按放置实例构造；聊天领域只认这份类型契约，不依赖组件系统。
   // 没有值（旧 Runtime、没有组件能力）时检查器只显示固定标签，“+”里是去组件页的提示。
   componentTabs?: SessionComponentTabs

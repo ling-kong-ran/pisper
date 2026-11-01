@@ -265,6 +265,15 @@ const routes = [
   },
   {
     method: 'GET',
+    path: '/api/commands',
+    async handler({ runtime, url, json }) {
+      const cwd = url.searchParams.get('cwd') || ''
+      if (cwd.length > 4096) throw new Error('cwd 过长。')
+      json(200, await runtime.getWorkspaceCommands(cwd))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/sessions/:sessionId/commands',
     async handler({ runtime, params, json }) {
       json(200, await runtime.getSessionCommands(params.sessionId))

@@ -138,6 +138,21 @@ test('内置技能出现在技能页的全局技能里（来源 builtin、不可
   )
 })
 
+test('内置技能不进斜杠命令菜单：按内置目录识别，用户技能不受影响', async (t) => {
+  const { cwd, create } = await skillsService(t)
+  const service = create()
+  await service.init()
+  const skills = (await service.createResourceLoader(cwd)).getSkills().skills
+  const builtin = skills.find((item) => item.name === 'pisper-component')
+  assert.ok(builtin)
+  assert.equal(service.isBuiltinSkill(builtin), true)
+  assert.equal(
+    service.isBuiltinSkill({ filePath: join(cwd, '.pi', 'skills', 'x', 'SKILL.md') }),
+    false,
+  )
+  assert.equal(service.isBuiltinSkill({}), false)
+})
+
 test('内置技能按内容写入：内容没变不改文件，被改坏后下次启动还原', async (t) => {
   const { agentDir, create } = await skillsService(t)
   await create().init()

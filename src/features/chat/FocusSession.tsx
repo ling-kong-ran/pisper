@@ -1,7 +1,11 @@
 import { createPortal } from 'react-dom'
 import { useContext, useMemo } from 'react'
 import { SessionRouteLeading } from './session-route-chrome'
-import { SessionPageChromeContext, TranscriptMetaContext } from './session-workspace-context'
+import {
+  SessionInspectorContext,
+  SessionPageChromeContext,
+  TranscriptMetaContext,
+} from './session-workspace-context'
 import { SessionPageHeader } from './SessionPageHeader'
 import { SessionPhoneHeader } from './SessionPhoneHeader'
 import { TaskWorkspaceSlots } from './task-workspace-context'
@@ -10,7 +14,16 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // use-focus-composer，输入区小组件（托盘/资源芯片/发送键）在 focus-session-composer-bits，
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
-import { lazy, memo, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
 import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
@@ -36,7 +49,13 @@ import { commandDraft, useComposerDraft } from './composer-drafts'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { ComposerModeChip } from './ComposerModeChip'
 import { nextComposerRunMode } from './composer-run-mode'
-import { ContextUsageSection, ModelThinkingControl } from './FocusRuntimeControls'
+import {
+  ContextUsageSection,
+  ModelThinkingControl,
+  thinkingLevelLabel,
+} from './FocusRuntimeControls'
+import { runtimeSettingCommands, type BuiltinCommand } from './builtin-commands'
+import { chatApi } from './chat-api'
 import { FocusTranscript } from './FocusTranscript'
 import { SessionTreeControl } from './SessionTreeControl'
 import { SessionWorkflowRuns } from './SessionWorkflowRuns'
@@ -340,6 +359,72 @@ export const FocusSession = memo(function FocusSession({
     setComposerExecutionMode(nextMode)
     void onRunModeChange(nextMode)
   }
+  // 输入框的内置斜杠命令（与 TUI 对齐）：都走输入框芯片与页头已有的同一组切换函数。
+  const inspector = useContext(SessionInspectorContext)
+  const onNewTask = pageChrome?.onNewTask || pageChrome?.phone?.onNewTask
+  const loadSessionCommands = useCallback(
+    () => chatApi.getSessionCommands(session.id),
+    [session.id],
+  )
+  // 每次渲染重建：命令直接调用当前的切换函数，不缓存旧闭包；数组很小，菜单只在打开时匹配。
+  const builtinCommands: BuiltinCommand[] = [
+    ...(onNewTask
+      ? [{ invocation: '/new', description: t('chat:commands.builtin.new'), run: onNewTask }]
+      : []),
+    ...runtimeSettingCommands({
+      t,
+      models: availableModels,
+      model: pendingRuntimeSelection?.model || model,
+      onModel: (key) => onModelChange(key),
+      thinkingLevels: pendingRuntimeSelection?.model ? [] : availableThinkingLevels || [],
+      thinkingLevel: pendingRuntimeSelection?.thinkingLevel || thinkingLevel || '',
+      thinkingLabel: (level) => thinkingLevelLabel(t, level),
+      onThinking: (level) => onThinkingLevelChange(level),
+      executionModes: ['approval-required', 'workspace-write', 'full-access'],
+      executionMode,
+      executionLabel: (mode) =>
+        mode === 'full-access'
+          ? t('chat:focusSession.fullAccess')
+          : mode === 'workspace-write'
+            ? t('chat:focusSession.workspaceWrite')
+            : t('chat:focusSession.approvalRequired'),
+      onExecutionMode: (mode) => onExecutionModeChange(mode),
+      // 运行中输入框的方式芯片是禁用的，命令同样不提供。
+      runModes: streaming
+        ? []
+        : [
+            'plan',
+            ...(goalsAvailable ? ['goal'] : []),
+            ...(goalsAvailable && teamAvailable ? ['team'] : []),
+          ],
+      runMode: composerExecutionMode,
+      runModeLabel: (mode) =>
+        mode === 'team'
+          ? t('chat:focusSession.teamMode')
+          : mode === 'goal'
+            ? t('chat:focusSession.goalMode')
+            : t('chat:focusSession.planMode'),
+      onRunMode: (mode) => changeExecutionMode(mode as typeof composerExecutionMode),
+    }),
+    ...(onCompact
+      ? [
+          {
+            invocation: '/compact',
+            description: t('chat:commands.builtin.compact'),
+            run: () => compactContext(),
+          },
+        ]
+      : []),
+    ...(inspector
+      ? [
+          {
+            invocation: '/changes',
+            description: t('chat:commands.builtin.changes'),
+            run: () => inspector.show('changes'),
+          },
+        ]
+      : []),
+  ]
   // 会话页的代理信息行（规格 v2 第 4.2 节）：最新一条回复写当前模型（显示名）。
   // 审批模式已在输入框的盾牌芯片上，不再在信息行重复；思考用时等 Runtime 有数据（A9）再加。
   const currentModel = pendingRuntimeSelection?.model || model || ''
@@ -771,7 +856,9 @@ export const FocusSession = memo(function FocusSession({
           />
           <ComposerCommandMenu
             placement="top"
-            sessionId={session.id}
+            resourceKey={session.id}
+            loadCommands={loadSessionCommands}
+            builtinCommands={builtinCommands}
             value={value}
             onChange={updateValue}
             inputRef={promptRef}
