@@ -15,6 +15,7 @@ import { ProviderDiscovery } from './ProviderDiscovery'
 import { providerDiscoveryImportableCount } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { ModelDefaultsSettings } from './ModelDefaultsSettings'
+import { PermissionRulesSettings } from './PermissionRulesSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
 import { VisualGenerationSettings } from './VisualGenerationSettings'
 import type { Notify } from '@/app/route-context'
@@ -137,6 +138,7 @@ export function ModelsSettings({
         onConfigChanged={settings.applyConfig}
         onSetDefaultModel={settings.setDefaultChatModel}
       />
+      <PermissionRulesSettings notify={notify} />
       <ProviderWorkbench
         config={config}
         selectedProviderId={selectedProviderId}

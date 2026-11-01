@@ -52,6 +52,10 @@ function confirmableApproval(approval: EntityRecord): ConfirmableApproval {
 }
 
 import { Button } from '@/components/ui/button'
+import {
+  permissionRulesApi,
+  suggestCommandRulePrefix,
+} from '@/features/config/public-permission-rules'
 
 // 命令守卫的拦截原因摘要（“命令守卫拦截：改写远端分支。…” → “改写远端分支”），用于危险等级标签。
 function guardReasonSummary(reason: string) {
@@ -130,6 +134,7 @@ export function ToolApproval({
   // 减少动效时不做按住填充，critical 改为确认层；挂载时读一次（服务端渲染按减少动效处理）。
   const [reducedMotion] = useState(() => motionReduced())
   const resolvingRef = useRef(false)
+  const [ruleError, setRuleError] = useState('')
   const cardRef = useRef<HTMLDivElement>(null)
   const boardBindings = useShortcutStore((state) => state.boardBindings)
   const approval = approvals[0]
@@ -137,6 +142,7 @@ export function ToolApproval({
   useEffect(() => {
     setDiffOpen(false)
     setConfirming(false)
+    setRuleError('')
   }, [approval?.id])
 
   // A / D（跟随看板绑定）只移动焦点：A 到允许 / 按住允许，D 到拒绝；批准仍要用户自己按下去。
@@ -187,6 +193,28 @@ export function ToolApproval({
     setResolving(true)
     try {
       await onResolve(approval.id, approved)
+    } finally {
+      resolvingRef.current = false
+      setResolving(false)
+    }
+  }
+
+  // “以后都允许”：给当前项目加一条命令前缀允许规则，再批准这一次。只对非危险的 bash 提供，
+  // 带管道、重定向、变量的命令没有建议前缀（Runtime 也不会用前缀放行它们）。
+  const rulePrefix =
+    !critical && approval.toolName === 'bash' && cwd
+      ? suggestCommandRulePrefix(text(args.command))
+      : ''
+  const allowAlways = async () => {
+    if (resolvingRef.current || !rulePrefix) return
+    resolvingRef.current = true
+    setResolving(true)
+    setRuleError('')
+    try {
+      await permissionRulesApi.add({ effect: 'allow', tool: 'bash', pattern: rulePrefix, cwd })
+      await onResolve(approval.id, true)
+    } catch (error) {
+      setRuleError(error instanceof Error ? error.message : String(error))
     } finally {
       resolvingRef.current = false
       setResolving(false)
@@ -283,6 +311,22 @@ export function ToolApproval({
                 {phone ? t('board:confirm.hintTouch') : t('board:card.holdHint')}
               </span>
             )}
+            {rulePrefix && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-w-0 bg-solid max-[650px]:h-11 max-[650px]:px-4"
+                disabled={resolving}
+                data-approval-allow-rule
+                title={t('chat:focusSession.allowAlwaysHint', { prefix: rulePrefix })}
+                onClick={() => void allowAlways()}
+              >
+                <span className="min-w-0 truncate">
+                  {t('chat:focusSession.allowAlways', { prefix: rulePrefix })}
+                </span>
+              </Button>
+            )}
             {holdInline ? (
               <HoldToConfirmButton
                 size="sm"
@@ -319,6 +363,11 @@ export function ToolApproval({
             )}
           </span>
         </div>
+        {ruleError && (
+          <p role="alert" className="min-w-0 text-xs text-danger [grid-column:1/-1]">
+            {ruleError}
+          </p>
+        )}
         {critical && confirming && (
           <Suspense fallback={null}>
             <ApprovalConfirm

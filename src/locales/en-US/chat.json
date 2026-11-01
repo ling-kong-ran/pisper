@@ -455,6 +455,8 @@
   "speechModels.done": "Done",
   "speechModels.close": "Close voice conversation",
   "focusSession.allow": "Allow",
+  "focusSession.allowAlways": "Always allow {prefix}",
+  "focusSession.allowAlwaysHint": "In this project, single commands starting with {prefix} won't ask again (remove it in Settings › Models › Permission rules)",
   "focusSession.autoCompactionThreshold": "Auto-compaction threshold",
   "focusSession.cannotSwitchWhileTheAgentIsRunning": "Cannot switch while the agent is running",
   "focusSession.chatActions": "Chat actions",

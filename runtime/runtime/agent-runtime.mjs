@@ -66,6 +66,7 @@ import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../servic
 import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
 import { createSettleBarrierExtension, SettleBarrier } from './settle-barrier.mjs'
 import { installModelFallback, modelRef } from './model-fallback.mjs'
+import { PermissionRuleService } from '../services/permission-rules.mjs'
 import {
   projectGoalTeam,
   shouldAttachTeamSnapshot,
@@ -584,8 +585,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.memoryAutoApproveConfidence = DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
     this.sessionMeta = {}
+    this.permissionRules = new PermissionRuleService({
+      path: join(dataDir, 'pisper-permission-rules.json'),
+    })
     this.permissions = new SessionPermissionService({
       approvalPath: join(dataDir, 'pisper-approvals.json'),
+      rules: this.permissionRules,
       getMode: (sessionId) =>
         this.sessionMeta[sessionId]?.permissionMode ||
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),

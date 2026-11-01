@@ -532,7 +532,8 @@ test('command guard blocks catastrophic bash and routes recursive rm to approval
       toolName: 'bash',
       args: { command: 'rm -rf node_modules' },
     }),
-    { risk: 'high', reason: '命令守卫拦截：递归删除（rm -r）。请确认后执行。' },
+    // guarded：持久允许规则不能替用户确认守卫标出的危险命令。
+    { risk: 'high', reason: '命令守卫拦截：递归删除（rm -r）。请确认后执行。', guarded: true },
   )
   // Ordinary bash stays approval-free in automatic mode.
   assert.equal(

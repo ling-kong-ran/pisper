@@ -1202,6 +1202,18 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.getConfig()
   }
 
+  listPermissionRules() {
+    return this.permissionRules.list()
+  }
+
+  addPermissionRule(input) {
+    return this.permissionRules.add(input)
+  }
+
+  removePermissionRule(id) {
+    return this.permissionRules.remove(id)
+  }
+
   async setFallbackModels(input) {
     return this.providerPreferences.withConfigurationWrite(() =>
       this.providerPreferences.setFallbackModels(input),

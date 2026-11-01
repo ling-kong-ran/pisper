@@ -190,7 +190,8 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     if (decision.blocked) {
       const reason = `命令守卫拦截：${decision.reason}。`
       if (decision.severity === 'block') return { block: true, risk: 'high', reason }
-      return { risk: 'high', reason: `${reason}请确认后执行。` }
+      // guarded：守卫标出的危险命令，持久允许规则不能替用户确认。
+      return { risk: 'high', reason: `${reason}请确认后执行。`, guarded: true }
     }
   }
   if (mode === 'auto') {
@@ -247,8 +248,11 @@ export class SessionPermissionService {
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
     computerUseSecureRefs = new SecureRefRegistry(),
+    rules = null,
     onEvent,
   } = {}) {
+    // 持久权限规则（permission-rules.mjs）：禁止规则先于一切判定，允许规则只替代普通审批。
+    this.rules = rules
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
@@ -381,6 +385,11 @@ export class SessionPermissionService {
       ? this.getMode(sessionId)
       : DEFAULT_PERMISSION_MODE
     const executionMode = this.getExecutionMode(sessionId)
+    const rule = this.rules
+      ? await this.rules.evaluate({ cwd, toolName, args }).catch(() => null)
+      : null
+    if (rule?.effect === 'deny')
+      return { block: true, reason: `命中禁止规则「${rule.pattern}」，命令未执行。` }
     // 密码框控件级敏感关卡：先于通用 requirement 判定。auto 模式下 medium/high
     // 风险工具本会免审批，此关卡仍强制确认；full-access 模式用户已声明完全
     // 信任，保持与既有语义一致的豁免。evaluateAct 的焦点推断副作用在
@@ -406,6 +415,8 @@ export class SessionPermissionService {
     }
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
+    if (rule?.effect === 'allow' && !requirement.guarded && !requirement.skipRemember)
+      return undefined
     const previewedFileChange = isPreviewedFileChange(toolName, requirement)
     let fileChange
     if (previewedFileChange) {

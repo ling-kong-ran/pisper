@@ -455,6 +455,8 @@
   "speechModels.done": "完成",
   "speechModels.close": "关闭语音对话",
   "focusSession.allow": "允许",
+  "focusSession.allowAlways": "以后都允许 {prefix}",
+  "focusSession.allowAlwaysHint": "在这个项目里，以 {prefix} 开头的单条命令以后不再询问（可在 设置 › 模型 › 权限规则 中删除）",
   "focusSession.autoCompactionThreshold": "自动压缩阈值",
   "focusSession.cannotSwitchWhileTheAgentIsRunning": "Agent 运行期间不能切换",
   "focusSession.chatActions": "会话操作",

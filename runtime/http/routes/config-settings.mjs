@@ -51,6 +51,27 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/permission-rules',
+    async handler({ runtime, json }) {
+      json(200, await runtime.listPermissionRules())
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/permission-rules',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.addPermissionRule(await body()))
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/permission-rules/:ruleId',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.removePermissionRule(params.ruleId))
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/config/fallback-models',
     async handler({ runtime, body, json }) {
