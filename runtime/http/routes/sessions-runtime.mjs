@@ -722,6 +722,31 @@ const routes = [
   },
   {
     method: 'POST',
+    path: '/api/sessions/:sessionId/side-question',
+    async handler({ runtime, res, params, body, startSse, sendSse }) {
+      const input = await body()
+      // 校验失败时按普通 JSON 错误返回；进入 SSE 后客户端断开即取消上游请求。
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      res.once('close', abort)
+      try {
+        const result = await runtime.askSideQuestion(params.sessionId, input?.question, {
+          signal: controller.signal,
+          onStart: startSse,
+          onDelta: (text) => sendSse('delta', { text }),
+        })
+        sendSse('done', {
+          text: result.text,
+          toolCallIgnored: result.toolCallIgnored,
+          usage: result.usage,
+        })
+      } finally {
+        res.off('close', abort)
+      }
+    },
+  },
+  {
+    method: 'POST',
     path: '/api/sessions/:sessionId/retry',
     async handler({ runtime, req, params, startSse, sendSse, startRun }) {
       // 先完成树导航与输入恢复，再开启 SSE：无可重试内容时按普通错误返回。

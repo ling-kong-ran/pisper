@@ -1,4 +1,4 @@
-// 内置斜杠命令：与 TUI 对齐的 /new、/model、/effort、/approval、/run、/compact。
+// 内置斜杠命令：与 TUI 对齐的 /new、/model、/effort、/approval、/run、/compact，以及旁问 /btw。
 // 命令只在客户端执行（调用页面已有的切换逻辑），不会作为提示词发给模型。
 // 带参数的命令拆成“分组 + 子项”：选中分组补全成“/run ”继续选，选中子项立即执行。
 
@@ -11,6 +11,13 @@ export type BuiltinCommand = {
 }
 
 type Option = { value: string; label: string; current?: boolean }
+
+// 旁问：“/btw 问题”不作为消息发送，而是带当前上下文单独问一次。
+// 返回问题文本；只有“/btw”没有内容时返回空串；不是旁问返回 null。
+export function sideQuestionText(value: string): string | null {
+  const match = value.match(/^\/btw(?:\s+([\s\S]*))?$/)
+  return match ? (match[1] || '').trim() : null
+}
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
 

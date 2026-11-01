@@ -54,7 +54,9 @@ import {
   ModelThinkingControl,
   thinkingLevelLabel,
 } from './FocusRuntimeControls'
-import { runtimeSettingCommands, type BuiltinCommand } from './builtin-commands'
+import { runtimeSettingCommands, sideQuestionText, type BuiltinCommand } from './builtin-commands'
+import { SideQuestionPanel } from './SideQuestionPanel'
+import { useSideQuestion } from './useSideQuestion'
 import { chatApi } from './chat-api'
 import { FocusTranscript } from './FocusTranscript'
 import { SessionTreeControl } from './SessionTreeControl'
@@ -366,6 +368,7 @@ export const FocusSession = memo(function FocusSession({
     () => chatApi.getSessionCommands(session.id),
     [session.id],
   )
+  const sideQuestion = useSideQuestion(session.id)
   // 每次渲染重建：命令直接调用当前的切换函数，不缓存旧闭包；数组很小，菜单只在打开时匹配。
   const builtinCommands: BuiltinCommand[] = [
     ...(onNewTask
@@ -406,6 +409,8 @@ export const FocusSession = memo(function FocusSession({
             : t('chat:focusSession.planMode'),
       onRunMode: (mode) => changeExecutionMode(mode as typeof composerExecutionMode),
     }),
+    // 旁问是分组形态：选中后补全成“/btw ”，写完问题再发送。
+    { invocation: '/btw', description: t('chat:commands.builtin.btw') },
     ...(onCompact
       ? [
           {
@@ -777,6 +782,16 @@ export const FocusSession = memo(function FocusSession({
         // 这次提交的运行中方式读完即复位：发送键与 ↵ 都是排队，只有 ⌥↵ 是插话。
         const behavior = runningBehaviorRef.current
         runningBehaviorRef.current = 'followUp'
+        // “/btw 问题”不发给主会话：只清掉文字（附件留在草稿里），单独问一次；运行中也可以。
+        const question = sideQuestionText(value)
+        if (question !== null) {
+          event.preventDefault()
+          if (question) {
+            sideQuestion.ask(question)
+            updateValue('')
+          }
+          return
+        }
         if (!streaming && (pendingRuntimeSelection || switchingModel || switchingThinking)) {
           event.preventDefault()
           return
@@ -784,6 +799,16 @@ export const FocusSession = memo(function FocusSession({
         void submit(event, pageChrome ? behavior : 'steer')
       }}
     >
+      {sideQuestion.state && (
+        <SideQuestionPanel
+          state={sideQuestion.state}
+          cwd={cwd || undefined}
+          onDismiss={() => {
+            sideQuestion.dismiss()
+            promptRef.current?.focus()
+          }}
+        />
+      )}
       {/* 内联批准卡与输入框同宽（规格 v2 第 4.2 节）：一屏只突出当前要处理的一张。 */}
       <ToolApproval
         approvals={approvals}

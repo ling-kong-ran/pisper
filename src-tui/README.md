@@ -54,6 +54,7 @@ Windows 桌面版安装到 `%LOCALAPPDATA%\com.lingkongran.pisper\cli\pisper.exe
 | `/apikey [id]` | `/provider` 的兼容别名。 |
 | `/web` | 使用已安装的 Web 前端，在默认浏览器打开本机认证配置页。 |
 | `/compact` | 立即摘要较早上下文；仅适用于有足够历史且当前空闲的会话。 |
+| `/btw <问题>` | 旁问：带着当前对话的上下文单独问一句，回答显示在输入框上方的面板里，不写入会话、不执行工具；Agent 运行中也能问。输入框为空时按 Esc 关闭。 |
 | `/attach` | 打开当前会话目录的附件选择器。 |
 | `/approval` | 打开审批模式选择器；Agent 运行期间不可打开，此时可改用 `/approval <模式>` 直接切换。旧名 `/mode` 及完整模式名仍可使用。 |
 | `/approval ask` | 写入、Shell 和高风险工具执行前请求授权（`approval-required`）。 |

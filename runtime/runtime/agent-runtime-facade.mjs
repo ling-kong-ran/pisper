@@ -2,6 +2,7 @@
 // 把各领域服务（记忆/目标/计划/多 Agent/渠道/工作流/定时/插件/MCP/技能/Provider 等）
 // 的调用组织成 HTTP API 层可直接调用的方法集合；子类 AgentRuntimeService 在
 // 构造器里完成依赖装配后，这些方法即成为对外接口。
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
@@ -18,6 +19,8 @@ import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
 import { resolveWorkspaceDirectory } from './workspace-directories.mjs'
+import { normalizeSideQuestion, streamSideQuestion } from './side-question.mjs'
+import { localDayKey } from './conversation-memory-capture.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
@@ -88,6 +91,31 @@ export class AgentRuntimeFacade {
     if (this.capabilities?.profile !== 'desktop')
       throw new Error('当前 Runtime 不支持打开宿主文件管理器。')
     return await revealLocalPath(path)
+  }
+
+  // 旁问（/btw）：读当前会话的上下文快照发一次无头请求，不改主会话，也不登记为可重挂的 run。
+  // onStart 在校验通过、即将请求模型时调用：此前的错误按普通请求错误返回。
+  async askSideQuestion(sessionId, question, { signal, onStart, onDelta } = {}) {
+    const text = normalizeSideQuestion(question)
+    const current = await this.getExistingSession(String(sessionId || ''))
+    if (!current?.session) throw Object.assign(new Error('会话不存在。'), { statusCode: 404 })
+    onStart?.()
+    const result = await streamSideQuestion({
+      modelRuntime: this.modelRuntime,
+      session: current.session,
+      question: text,
+      signal,
+      onDelta,
+    })
+    // 旁问不进会话文件，用量扫描看不到它；单独记一条，统计里的花费才完整。
+    if (result.usage) {
+      await this.recordUsage(
+        localDayKey(),
+        `side-question:${sessionId}:${randomUUID()}`,
+        result.usage,
+      ).catch(() => {})
+    }
+    return result
   }
 
   async getSessionCommands(sessionId) {

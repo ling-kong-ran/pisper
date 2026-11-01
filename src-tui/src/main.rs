@@ -609,6 +609,14 @@ async fn run_event_loop(
                                 app.finish_context_compaction(context_usage, error);
                                 false
                             }
+                            RuntimeEvent::SideQuestionDelta { request_id, text } => {
+                                app.side_question_delta(request_id, &text);
+                                false
+                            }
+                            RuntimeEvent::SideQuestionFinished { request_id, result } => {
+                                app.side_question_finished(request_id, result);
+                                false
+                            }
                             RuntimeEvent::QuestionAnswered {
                                 session_id,
                                 question_id,
@@ -1196,6 +1204,22 @@ async fn execute_action(
                     .map_err(|error| format!("{error:#}"));
                 let _ = sender.send(RuntimeEvent::HistoryPage { before, result });
             });
+        }
+        Action::AskSideQuestion {
+            request_id,
+            question,
+        } => {
+            let api = api.clone();
+            let sender = runtime_tx.clone();
+            let session_id = app.session.id.clone();
+            let task = tokio::spawn(async move {
+                let result = api
+                    .side_question(&session_id, &question, request_id, &sender)
+                    .await
+                    .map_err(|error| format!("{error:#}"));
+                let _ = sender.send(RuntimeEvent::SideQuestionFinished { request_id, result });
+            });
+            app.track_side_question(request_id, task.abort_handle());
         }
         Action::Compact => {
             app.begin_context_compaction();

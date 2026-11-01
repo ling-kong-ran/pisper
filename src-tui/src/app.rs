@@ -29,8 +29,9 @@ use crate::{
     model::{
         ChatMessage, ContextUsage, ImageThumbnail, MessageAttachment, MessagePage, ModelOption,
         Plan, PromptMode, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate,
-        SessionSummary, SessionUsage, SkillDefinition, StreamEvent, ThinkingAvailability,
-        ThinkingLevelUpdate, ToolActivity, ToolDefinition, VcsChanges, PROVIDER_APIS,
+        SessionSummary, SessionUsage, SideQuestionOutcome, SkillDefinition, StreamEvent,
+        ThinkingAvailability, ThinkingLevelUpdate, ToolActivity, ToolDefinition, VcsChanges,
+        PROVIDER_APIS,
     },
     plan_protocol::{active_plan, is_plan_update_event, plan_from_payload},
     workspace::same_workspace,
@@ -414,6 +415,8 @@ pub enum Action {
     RefreshThinking,
     /// 压缩上下文。
     Compact,
+    /// 旁问（/btw）：带当前会话上下文单独问一次，不写入会话。
+    AskSideQuestion { request_id: u64, question: String },
     /// 加载更早的历史消息。
     LoadOlderMessages { before: u64 },
     /// 设置思考级别。
@@ -459,6 +462,22 @@ struct SlashUsage {
 /// 字段可分几组：会话/消息（sessions/session/messages/live）、
 /// 输入（input/input_cursor/pasted_ranges）、弹窗（session_picker/path_picker/…）、
 /// 会话元信息（model/cwd/execution_mode/…）、以及 VCS/用量/通知等辅助状态。
+/// 旁问面板的状态：回答只在这里，关闭或切换会话即丢弃。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SideQuestionStatus {
+    Streaming,
+    Done { tool_call_ignored: bool },
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SideQuestionView {
+    pub request_id: u64,
+    pub question: String,
+    pub answer: String,
+    pub status: SideQuestionStatus,
+}
+
 pub struct App {
     pub sessions: Vec<SessionSummary>,
     pub session: SessionSummary,
@@ -521,6 +540,10 @@ pub struct App {
     pub vcs_max_scroll: Cell<u16>,
     pub compacting_context: bool,
     pub suggest_model_compaction: bool,
+    pub side_question: Option<SideQuestionView>,
+    side_question_seq: u64,
+    // 进行中的旁问请求：关闭、再问或切换会话时中止，连接关闭后 Runtime 取消上游模型请求。
+    side_question_task: Option<tokio::task::AbortHandle>,
     pub status: String,
     pub status_error: bool,
     pub status_frame: u64,
@@ -652,6 +675,9 @@ impl App {
             vcs_max_scroll: Cell::new(0),
             compacting_context: false,
             suggest_model_compaction: false,
+            side_question: None,
+            side_question_seq: 0,
+            side_question_task: None,
             sessions,
             session,
             messages,
@@ -1675,6 +1701,10 @@ impl App {
             ),
             command("/web", "Open Web settings in the browser"),
             command("/compact", "Summarize older context now"),
+            command(
+                "/btw",
+                "Side question: ask with this conversation's context; not saved",
+            ),
             command("/attach", "Attach images, text, code, or documents"),
             command("/approval", "Choose when tools need your approval"),
         ]);
@@ -2128,6 +2158,9 @@ impl App {
                 if self.view != View::Chat {
                     self.view = View::Chat;
                     self.vcs_confirm_revert = false;
+                } else if self.input.is_empty() && self.side_question.is_some() {
+                    // 输入框为空时 Esc 先关旁问面板，不影响主会话的运行。
+                    self.dismiss_side_question();
                 } else {
                     self.clear_input();
                 }
@@ -2754,7 +2787,7 @@ impl App {
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return;
         };
-        let completed = if item.kind == SlashKind::Command && item.command != "/cwd" {
+        let completed = if item.kind == SlashKind::Command && !takes_argument(&item.command) {
             item.command
         } else {
             format!("{} ", item.command)
@@ -2772,7 +2805,7 @@ impl App {
         let Some(item) = items.get(self.slash_selected).cloned() else {
             return Action::None;
         };
-        if item.kind == SlashKind::Command && item.command != "/cwd" {
+        if item.kind == SlashKind::Command && !takes_argument(&item.command) {
             self.set_input(&item.command);
             return self.submit_action();
         }
@@ -2790,6 +2823,9 @@ impl App {
             message = "Please analyze these attachments.".to_owned();
         }
         self.status_error = false;
+        if let Some(question) = side_question_text(&message) {
+            return self.ask_side_question(question);
+        }
         match message.as_str() {
             "/quit" | "/exit" => {
                 self.mark_slash_use("/quit");
@@ -3247,6 +3283,8 @@ impl App {
         self.vcs_max_scroll.set(0);
         self.compacting_context = false;
         self.suggest_model_compaction = false;
+        // 旁问只属于原来的会话：切换后丢弃，迟到的事件按 request_id 忽略。
+        self.dismiss_side_question();
         self.session = session;
         self.messages = messages;
         self.image_thumbnails.clear();
@@ -3826,6 +3864,94 @@ impl App {
         self.status_error = false;
     }
 
+    /// 发起旁问：只在已有会话里可用；运行中也可以问，不会排进主会话的队列。
+    fn ask_side_question(&mut self, question: String) -> Action {
+        if question.is_empty() {
+            self.status = "usage · /btw <question>".to_owned();
+            self.status_error = true;
+            return Action::None;
+        }
+        if self.is_draft_session() {
+            self.status = "Side questions are available after the first message".to_owned();
+            self.status_error = true;
+            return Action::None;
+        }
+        self.mark_slash_use("/btw");
+        self.clear_input();
+        self.dismiss_side_question();
+        self.side_question_seq = self.side_question_seq.wrapping_add(1);
+        let request_id = self.side_question_seq;
+        self.side_question = Some(SideQuestionView {
+            request_id,
+            question: question.clone(),
+            answer: String::new(),
+            status: SideQuestionStatus::Streaming,
+        });
+        Action::AskSideQuestion {
+            request_id,
+            question,
+        }
+    }
+
+    /// 记下刚派发的旁问请求，便于之后中止；面板已换成别的问题时立即中止它。
+    pub fn track_side_question(&mut self, request_id: u64, task: tokio::task::AbortHandle) {
+        if self
+            .side_question
+            .as_ref()
+            .is_some_and(|view| view.request_id == request_id)
+        {
+            self.side_question_task = Some(task);
+        } else {
+            task.abort();
+        }
+    }
+
+    /// 关闭旁问面板并中止还在进行的请求。
+    pub fn dismiss_side_question(&mut self) {
+        if let Some(task) = self.side_question_task.take() {
+            task.abort();
+        }
+        self.side_question = None;
+    }
+
+    /// 旁问增量：只接受当前面板对应的请求。
+    pub fn side_question_delta(&mut self, request_id: u64, text: &str) {
+        if let Some(view) = self
+            .side_question
+            .as_mut()
+            .filter(|view| view.request_id == request_id)
+        {
+            view.answer.push_str(text);
+        }
+    }
+
+    /// 旁问终态：以服务端的完整回答为准。
+    pub fn side_question_finished(
+        &mut self,
+        request_id: u64,
+        result: Result<SideQuestionOutcome, String>,
+    ) {
+        let Some(view) = self
+            .side_question
+            .as_mut()
+            .filter(|view| view.request_id == request_id)
+        else {
+            return;
+        };
+        self.side_question_task = None;
+        view.status = match result {
+            Ok(outcome) => {
+                if !outcome.text.is_empty() {
+                    view.answer = outcome.text;
+                }
+                SideQuestionStatus::Done {
+                    tool_call_ignored: outcome.tool_call_ignored,
+                }
+            }
+            Err(error) => SideQuestionStatus::Failed(error),
+        };
+    }
+
     /// 压缩完成：成功则更新上下文占用，失败则显示错误。
     pub fn finish_context_compaction(
         &mut self,
@@ -4188,6 +4314,20 @@ fn attachment_kind(path: &Path) -> Option<&'static str> {
 }
 
 /// 改名前的命令：仍可完整输入执行，但不在 Slash 目录中重复出现。
+/// 选中后补全成“命令 + 空格”、等待继续输入参数的命令。
+fn takes_argument(command: &str) -> bool {
+    matches!(command, "/cwd" | "/btw")
+}
+
+/// “/btw 问题”：返回去掉命令后的问题（只有命令时为空串）；不是旁问返回 None。
+fn side_question_text(message: &str) -> Option<String> {
+    let rest = message.strip_prefix("/btw")?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    Some(rest.trim().to_owned())
+}
+
 const LEGACY_COMMANDS: &[&str] = &[
     "/thinking",
     "/sessions",
@@ -4433,16 +4573,16 @@ mod tests {
 
     use super::{
         advance_typewriter, apply_patch, attachment_draft, derive_critical_approval, Action, App,
-        Approval, AttachmentDraft, LiveTurn, RunPhase, SettingsPicker, SlashCategory, View,
-        CRITICAL_APPROVAL_KEY_GUARD, HISTORY_IDLE_EVICT_DELAY, HISTORY_KEEP_MESSAGES, INIT_PROMPT,
-        MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
+        Approval, AttachmentDraft, LiveTurn, RunPhase, SettingsPicker, SideQuestionStatus,
+        SlashCategory, View, CRITICAL_APPROVAL_KEY_GUARD, HISTORY_IDLE_EVICT_DELAY,
+        HISTORY_KEEP_MESSAGES, INIT_PROMPT, MAX_LOADED_MESSAGES, PAGE_SCROLL_STEP,
     };
     use crate::disclosure::{thinking_key, ExpandKey, FINISH_NOTICE};
     use crate::model::{
         ChatMessage, ContextUsage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
         PromptMode, ProviderOption, RunActivity, SessionCwdUpdate, SessionModelUpdate,
-        SessionSummary, StreamEvent, ThinkingAvailability, ThinkingLevelUpdate, ToolActivity,
-        ToolDefinition, VcsChanges, VcsFile,
+        SessionSummary, SideQuestionOutcome, StreamEvent, ThinkingAvailability,
+        ThinkingLevelUpdate, ToolActivity, ToolDefinition, VcsChanges, VcsFile,
     };
     use serde_json::json;
 
@@ -6942,6 +7082,87 @@ mod tests {
         app.handle_key(ctrl_e);
         assert!(app.expanded.is_empty());
         assert_eq!(app.expansion_generation, 2);
+    }
+
+    /// 验证运行中输入 /btw 走旁问而不是排进主会话；回答只进面板，过期请求的事件被忽略。
+    #[test]
+    fn side_questions_bypass_the_queue_and_stay_out_of_the_transcript() {
+        let mut app = test_app(Vec::new());
+        app.set_input("first");
+        assert!(matches!(app.submit_action(), Action::Submit { .. }));
+        let messages_before = app.messages.len();
+
+        app.set_input("/btw which file?");
+        let Action::AskSideQuestion {
+            request_id,
+            question,
+        } = app.submit_action()
+        else {
+            panic!("expected a side question while the main run is streaming");
+        };
+        assert_eq!(question, "which file?");
+        assert!(app.input_text().is_empty());
+        assert_eq!(app.queued_count(), 0);
+        assert_eq!(app.messages.len(), messages_before);
+
+        app.side_question_delta(request_id, "auth");
+        app.side_question_delta(request_id + 99, "stale");
+        app.side_question_finished(
+            request_id,
+            Ok(SideQuestionOutcome {
+                text: "auth.ts".to_owned(),
+                tool_call_ignored: false,
+            }),
+        );
+        let view = app.side_question.clone().expect("side question panel");
+        assert_eq!(view.answer, "auth.ts");
+        assert_eq!(
+            view.status,
+            SideQuestionStatus::Done {
+                tool_call_ignored: false
+            }
+        );
+        assert_eq!(app.messages.len(), messages_before);
+
+        // 输入框为空时 Esc 先关面板；之后迟到的事件不会再把面板带回来。
+        assert!(matches!(
+            app.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            Action::None
+        ));
+        assert!(app.side_question.is_none());
+        app.side_question_delta(request_id, "late");
+        assert!(app.side_question.is_none());
+    }
+
+    /// 验证 /btw 的用法提示、草稿会话限制，以及菜单选择后补全成“/btw ”。
+    #[test]
+    fn side_question_command_requires_a_question_and_a_started_session() {
+        let mut app = test_app(Vec::new());
+        app.set_input("/btw");
+        assert!(matches!(app.submit_action(), Action::None));
+        assert!(app.status_error);
+        assert!(app.status.contains("/btw <question>"));
+        app.set_input("/btwx hello");
+        assert!(!matches!(
+            app.submit_action(),
+            Action::AskSideQuestion { .. }
+        ));
+
+        app.set_input("/bt");
+        app.slash_selected = app
+            .slash_items()
+            .iter()
+            .position(|item| item.command == "/btw")
+            .expect("/btw in the slash catalog");
+        assert!(matches!(app.choose_slash(), Action::None));
+        assert_eq!(app.input_text(), "/btw ");
+
+        let mut draft = test_app(Vec::new());
+        draft.session.id.clear();
+        draft.set_input("/btw hello");
+        assert!(matches!(draft.submit_action(), Action::None));
+        assert!(draft.status.contains("after the first message"));
+        assert!(draft.side_question.is_none());
     }
 
     fn test_app(tools: Vec<ToolDefinition>) -> App {

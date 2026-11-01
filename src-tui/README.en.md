@@ -54,6 +54,7 @@ The Windows desktop app installs a native executable at `%LOCALAPPDATA%\com.ling
 | `/apikey [id]` | Compatibility alias for `/provider`. |
 | `/web` | Open the authenticated local settings page in the default browser using the installed Web frontend. |
 | `/compact` | Summarize older context immediately. Available only for idle conversations with enough history. |
+| `/btw <question>` | Side question: ask with the current conversation's context. The answer appears in a panel above the input, is not saved to the conversation, and never runs tools; works during an Agent run. Press Esc with an empty input to close it. |
 | `/attach` | Open the attachment picker rooted at the active conversation directory. |
 | `/approval` | Open the approval mode picker. Unavailable during an Agent run; use `/approval <mode>` directly instead. The old name `/mode` and full mode names still work. |
 | `/approval ask` | Ask before writes, Shell commands, and high-risk tools (`approval-required`). |

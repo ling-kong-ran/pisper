@@ -1,7 +1,7 @@
 // @public 聊天领域对应用壳和其他 Feature 提供的会话 API；不加载聊天页面。
 // 聊天 API 客户端：封装会话列表/详情/发送/流式事件等请求。
 // consumeEventStream 逐行解析 SSE，事件按类型分发到各调度器。
-import { streamEventsWithResume } from '@/lib/api'
+import { consumeEventStream, streamEventsWithResume } from '@/lib/api'
 import {
   requestBlob,
   requestJson as requestHttpJson,
@@ -115,6 +115,12 @@ export type SessionCommand = {
   argumentHint: string
   source: 'prompt' | 'skill'
   scope: 'user' | 'project' | 'package' | 'custom'
+}
+
+export type SideQuestionResult = {
+  text: string
+  // 模型想调用工具：旁问不执行工具，只交回已经写出的文字。
+  toolCallIgnored: boolean
 }
 
 export type SessionCommandsResponse = {
@@ -319,6 +325,35 @@ export const chatApi = {
       onEvent,
       signal,
     })
+  },
+
+  // 旁问（/btw）：带当前会话上下文的一次性问题，不进会话、不登记 run，断开即取消，不重挂。
+  askSideQuestion: async (
+    sessionId: string,
+    question: string,
+    { signal, onDelta }: { signal?: AbortSignal; onDelta?: (text: string) => void } = {},
+  ): Promise<SideQuestionResult> => {
+    await waitForMobileRuntimeReady()
+    const response = await fetch(`${sessionPath(sessionId)}/side-question`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+      signal,
+    })
+    let result: SideQuestionResult | null = null
+    await consumeEventStream<Record<string, unknown>>(response, (event, data) => {
+      if (event === 'delta' && typeof data.text === 'string') onDelta?.(data.text)
+      else if (event === 'error') throw new Error(String(data.message || ''))
+      else if (event === 'done') {
+        result = {
+          text: typeof data.text === 'string' ? data.text : '',
+          toolCallIgnored: data.toolCallIgnored === true,
+        }
+        return false
+      }
+    })
+    if (!result) throw new Error('side question ended before completion')
+    return result
   },
 
   // 重试最后一轮：服务端先把活跃叶子撤回上一轮边界，再复用同一 SSE 管道原地重跑。

@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   matchBuiltinCommands,
   runtimeSettingCommands,
+  sideQuestionText,
 } from '../../src/features/chat/builtin-commands.ts'
 
 function commands(calls = []) {
@@ -98,4 +99,14 @@ test('groups without options are omitted, and a single run mode hides /run', () 
     list.map((command) => command.invocation),
     ['/approval', '/approval approval-required'],
   )
+})
+
+test('/btw turns the rest of the draft into a side question instead of a message', () => {
+  assert.equal(sideQuestionText('/btw 刚才改了哪些文件？'), '刚才改了哪些文件？')
+  assert.equal(sideQuestionText('/btw  多行\n问题 '), '多行\n问题')
+  // 只有命令本身：拦下但不提问，避免把“/btw”当消息发给代理。
+  assert.equal(sideQuestionText('/btw'), '')
+  assert.equal(sideQuestionText('/btw   '), '')
+  assert.equal(sideQuestionText('/btwx 问题'), null)
+  assert.equal(sideQuestionText('请看 /btw 问题'), null)
 })

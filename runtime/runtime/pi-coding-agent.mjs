@@ -23,6 +23,7 @@ const [
   editDiff,
   pathUtils,
   textUtils,
+  messages,
 ] = await Promise.all([
   packageModule('./core/compaction/index.js'),
   packageModule('./core/model-runtime.js'),
@@ -33,6 +34,7 @@ const [
   packageModule('./core/tools/edit-diff.js'),
   packageModule('./core/tools/path-utils.js'),
   packageModule('./utils/text.js'),
+  packageModule('./core/messages.js'),
 ])
 
 export const calculateContextTokens = compaction.calculateContextTokens
@@ -52,6 +54,8 @@ export const normalizeToLF = editDiff.normalizeToLF
 export const detectLineEnding = editDiff.detectLineEnding
 // 保留预览调用方的 { bom, text } 合同；新版 Pi 将该能力命名为 splitBom。
 export const stripBom = textUtils.splitBom
+// 会话消息（含 bash 执行、压缩摘要等自定义类型）转换为发给模型的消息，与 Pi 代理循环同一口径。
+export const convertToLlm = messages.convertToLlm
 export const resolveReadPathAsync = pathUtils.resolveReadPathAsync
 export const resolveToCwd = pathUtils.resolveToCwd
 

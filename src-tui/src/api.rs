@@ -23,8 +23,8 @@ use crate::{
     model::{
         ContextUsage, ExecutionModeUpdate, McpCatalog, MessagePage, ModelOption, PluginCatalog,
         PromptMode, ProviderConnectionUpdate, ProviderOption, RuntimeEvent, SessionCwdUpdate,
-        SessionModelUpdate, SessionSummary, SessionsResponse, SkillDefinition, SkillsCatalog,
-        StreamEvent, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
+        SessionModelUpdate, SessionSummary, SessionsResponse, SideQuestionOutcome, SkillDefinition,
+        SkillsCatalog, StreamEvent, ThinkingLevelUpdate, ToolDefinition, VcsChanges,
     },
     workspace::validate_session_workspace,
 };
@@ -449,6 +449,40 @@ impl ApiClient {
             .context_usage)
     }
 
+    /// 旁问（/btw）：带当前会话上下文问一次，不进会话、不登记 run；
+    /// 增量逐条转发，断流不重挂（任务被取消时连接随之关闭，Runtime 也会取消上游请求）。
+    pub async fn side_question(
+        &self,
+        session_id: &str,
+        question: &str,
+        request_id: u64,
+        sender: &mpsc::UnboundedSender<RuntimeEvent>,
+    ) -> Result<SideQuestionOutcome> {
+        let id = encode_segment(session_id);
+        let response = self
+            .stream_client
+            .post(self.url(&format!("/api/sessions/{id}/side-question"))?)
+            .json(&json!({ "question": question }))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(Self::response_error(response).await);
+        }
+        let mut decoder = SseDecoder::default();
+        let mut body = response.bytes_stream();
+        while let Some(chunk) = body.next().await {
+            let events = decoder.push(&chunk?, false)?;
+            if let Some(outcome) = forward_side_question_events(events, request_id, sender)? {
+                return Ok(outcome);
+            }
+        }
+        let events = decoder.push(&[], true)?;
+        if let Some(outcome) = forward_side_question_events(events, request_id, sender)? {
+            return Ok(outcome);
+        }
+        bail!("side question ended before a terminal event")
+    }
+
     /// 向运行中的会话排队追加输入，返回当前排队数。
     pub async fn queue_session_input(&self, session_id: &str, message: &str) -> Result<usize> {
         let id = encode_segment(session_id);
@@ -806,6 +840,40 @@ async fn consume_chat_stream(
     let events = decoder.push(&[], true)?;
     track_run_frames(&events, run_id, cursor);
     Ok(forward_stream_events(events, sender))
+}
+
+/// 旁问事件：delta 逐条转发；done 返回终态；error 转成错误。
+fn forward_side_question_events(
+    events: Vec<StreamEvent>,
+    request_id: u64,
+    sender: &mpsc::UnboundedSender<RuntimeEvent>,
+) -> Result<Option<SideQuestionOutcome>> {
+    for event in events {
+        match event.name.as_str() {
+            "delta" => {
+                if let Some(text) = event.data["text"].as_str() {
+                    let _ = sender.send(RuntimeEvent::SideQuestionDelta {
+                        request_id,
+                        text: text.to_owned(),
+                    });
+                }
+            }
+            "done" => {
+                return Ok(Some(SideQuestionOutcome {
+                    text: event.data["text"].as_str().unwrap_or_default().to_owned(),
+                    tool_call_ignored: event.data["toolCallIgnored"].as_bool() == Some(true),
+                }))
+            }
+            "error" => bail!(
+                "{}",
+                event.data["message"]
+                    .as_str()
+                    .unwrap_or("side question failed")
+            ),
+            _ => {}
+        }
+    }
+    Ok(None)
 }
 
 fn forward_stream_events(

@@ -26,7 +26,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::{
     app::{
         App, Approval, LiveTurn, PendingQuestion, RunPhase, RunStatus, SettingsPicker,
-        SlashCategory, SlashKind, View,
+        SideQuestionStatus, SlashCategory, SlashKind, View,
     },
     disclosure::{
         format_elapsed, thinking_key, tool_arguments, tool_command, tool_group_key, tool_key,
@@ -299,18 +299,24 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let composer_height = composer_height(area);
-    // Goal/Team 面板与计划面板共用同一槽位：目标在时优先展示目标。
-    let goal_height = if matches!(app.view, View::Chat) {
+    // 旁问面板、Goal/Team 面板与计划面板共用同一槽位：旁问是用户刚发起的，优先展示；
+    // 其次是目标，最后是计划。
+    let side_height = if matches!(app.view, View::Chat) {
+        side_question_panel_height(app, area)
+    } else {
+        0
+    };
+    let goal_height = if side_height == 0 && matches!(app.view, View::Chat) {
         goal_panel_height(app, area)
     } else {
         0
     };
-    let plan_height = if goal_height == 0 && matches!(app.view, View::Chat) {
+    let plan_height = if side_height == 0 && goal_height == 0 && matches!(app.view, View::Chat) {
         plan_panel_height(app, area)
     } else {
         0
     };
-    let panel_height = goal_height.max(plan_height);
+    let panel_height = side_height.max(goal_height).max(plan_height);
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -330,7 +336,9 @@ fn draw_content(frame: &mut Frame, app: &App, area: Rect) {
         View::Chat => render_chat(frame, app, chunks[0]),
         View::Changes => render_changes(frame, app, chunks[0]),
     }
-    if goal_height > 0 {
+    if side_height > 0 {
+        render_side_question(frame, app, plan);
+    } else if goal_height > 0 {
         render_goal_panel(frame, app, plan);
     } else if plan.height > 0 {
         render_plan(frame, app, plan);
@@ -650,6 +658,81 @@ fn target_rows(
 
 /// 计划面板高度：无计划/太矮/太窄时收起；
 /// 高终端显示 5 项，低终端 3 项，极窄终端只留标题行。
+/// 旁问面板高度：标题行 + 回答（至少一行状态）+ 提示行；最多占屏幕的一半。
+fn side_question_panel_height(app: &App, area: Rect) -> u16 {
+    let Some(view) = app.side_question.as_ref() else {
+        return 0;
+    };
+    if area.height < 10 {
+        return 0;
+    }
+    let width = area.width.saturating_sub(2).max(1) as usize;
+    let body = wrap_text(&view.answer, width).len().max(1);
+    let maximum = (area.height / 2).max(4) as usize;
+    (body + 2).min(maximum) as u16
+}
+
+/// 渲染旁问面板：标题是问题本身；回答过长时显示最新的部分（流式时跟随末尾）。
+fn render_side_question(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(view) = app.side_question.as_ref() else {
+        return;
+    };
+    if area.height < 3 {
+        return;
+    }
+    let title_width = area.width.saturating_sub(12) as usize;
+    let block = Block::default()
+        .title(Span::styled(
+            format!(" /btw · {} ", single_line(&view.question, title_width)),
+            Style::default().fg(VIOLET).add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(RULE));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let width = inner.width.saturating_sub(2).max(1) as usize;
+    let mut lines: Vec<Line> = wrap_text(&view.answer, width)
+        .into_iter()
+        .map(|line| Line::from(Span::styled(format!(" {line}"), Style::default().fg(TEXT))))
+        .collect();
+    match &view.status {
+        SideQuestionStatus::Streaming if view.answer.is_empty() => {
+            lines.push(Line::from(Span::styled(
+                format!(" {} answering…", spinner_frame(app.status_frame)),
+                Style::default().fg(MUTED),
+            )))
+        }
+        SideQuestionStatus::Done { tool_call_ignored } if view.answer.is_empty() => {
+            lines.push(Line::from(Span::styled(
+                if *tool_call_ignored {
+                    " The model needed tools; side questions do not run tools."
+                } else {
+                    " No answer."
+                },
+                Style::default().fg(MUTED),
+            )))
+        }
+        SideQuestionStatus::Failed(error) => lines.push(Line::from(Span::styled(
+            format!(" failed · {}", single_line(error, width.saturating_sub(10))),
+            Style::default().fg(RED),
+        ))),
+        _ => {}
+    }
+    let hint = Line::from(Span::styled(
+        " Esc close · answered from this conversation, not saved",
+        Style::default().fg(FAINT),
+    ));
+    let body_rows = inner.height.saturating_sub(1) as usize;
+    let skip = lines.len().saturating_sub(body_rows);
+    let mut visible: Vec<Line> = lines.into_iter().skip(skip).collect();
+    visible.push(hint);
+    frame.render_widget(
+        Paragraph::new(visible).style(Style::default().bg(BG)),
+        inner,
+    );
+}
+
 fn plan_panel_height(app: &App, area: Rect) -> u16 {
     let Some(plan) = app.session.plan.as_ref() else {
         return 0;
@@ -4502,7 +4585,10 @@ mod tests {
         FAINT, MUTED, RAISED, RED, RULE, TEXT,
     };
     use crate::{
-        app::{App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker},
+        app::{
+            App, Approval, AttachmentDraft, LiveTurn, PathEntry, SettingsPicker,
+            SideQuestionStatus, SideQuestionView,
+        },
         model::{
             ChatMessage, MessagePage, ModelOption, PageInfo, Plan, PlanCounts, PlanItem,
             PromptMode, ProviderOption, SessionSummary, ThinkingLevelUpdate, ToolActivity,
@@ -6239,6 +6325,38 @@ mod tests {
             assert!(!cleared.contains("Plan 1/1"));
             assert!(cleared.contains("Message Pisper"));
         }
+    }
+
+    /// 旁问面板占用计划/目标面板的位置，标题是问题，回答与提示行可见；关闭后计划面板回来。
+    #[test]
+    fn side_question_panel_takes_the_plan_slot_while_open() {
+        let mut app = live_test_app("complete", LiveTurn::default());
+        app.set_plan(Some(Plan {
+            items: vec![PlanItem {
+                id: "p1".to_owned(),
+                title: "Plan row hidden".to_owned(),
+                status: "in_progress".to_owned(),
+                ..PlanItem::default()
+            }],
+            ..Plan::default()
+        }));
+        app.side_question = Some(SideQuestionView {
+            request_id: 1,
+            question: "which file did we change?".to_owned(),
+            answer: "We changed auth.ts".to_owned(),
+            status: SideQuestionStatus::Done {
+                tool_call_ignored: false,
+            },
+        });
+        let text = buffer_text(&render_test_buffer(&app, 100, 30));
+        assert!(text.contains("/btw · which file did we change?"), "{text}");
+        assert!(text.contains("We changed auth.ts"), "{text}");
+        assert!(text.contains("Esc close"), "{text}");
+        assert!(!text.contains("Plan row hidden"), "{text}");
+
+        app.side_question = None;
+        let text = buffer_text(&render_test_buffer(&app, 100, 30));
+        assert!(text.contains("Plan row hidden"), "{text}");
     }
 
     /// 团队面板：标题带任务进度与 Token 预算，任务按状态着色，且在计划面板之前占位。

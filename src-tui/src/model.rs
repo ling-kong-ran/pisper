@@ -550,6 +550,13 @@ pub struct StreamEvent {
     pub id: Option<u64>,
 }
 
+/// 旁问的最终结果：完整回答，以及模型是否想调用工具（旁问不执行工具）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SideQuestionOutcome {
+    pub text: String,
+    pub tool_call_ignored: bool,
+}
+
 /// 事件循环中 TUI 主任务与后台任务之间的统一消息。
 /// 每个变体对应一类异步请求的终态或一条流事件。
 #[derive(Clone, Debug)]
@@ -621,6 +628,13 @@ pub enum RuntimeEvent {
     SessionThinkingLoaded {
         session_id: String,
         result: Result<ThinkingLevelUpdate, String>,
+    },
+    /// 旁问（/btw）的流式片段；request_id 用来丢弃已关闭或被新问题替换的旧请求。
+    SideQuestionDelta { request_id: u64, text: String },
+    /// 旁问的终态。
+    SideQuestionFinished {
+        request_id: u64,
+        result: Result<SideQuestionOutcome, String>,
     },
     /// 上下文压缩（compact）的结果。
     CompactionFinished {
