@@ -309,6 +309,8 @@ export class PlanService {
         })
         validateDependencyGraph(items)
 
+        // 本来就没有计划时清空是空操作：每轮开始都会清一次，不必为此克隆并重写整个计划文件。
+        if (!items.length && !currentPlan) return emptyPlan(id)
         const nextState = clone(this.state)
         if (!items.length) {
           delete nextState.plans[id]

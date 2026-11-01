@@ -500,3 +500,25 @@ test('one-release task-list modules remain thin compatibility wrappers', async (
   const result = await legacyTools[0].execute('legacy-read', {})
   assert.equal(result.details.plan.sessionId, 'legacy')
 })
+
+test('clearing a session that has no plan does not rewrite the plan store', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-plan-noop-clear-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'pisper-plans.json')
+  const service = new PlanService({ path })
+  await service.init()
+  let writes = 0
+  const persist = service.persist.bind(service)
+  service.persist = async (snapshot) => {
+    writes += 1
+    return persist(snapshot)
+  }
+
+  const cleared = await service.replace('session-1', [])
+  assert.deepEqual([cleared.items.length, writes], [0, 0])
+  // 有计划时清空照常落盘。
+  await service.replace('session-1', [{ id: 'a', title: 'A', status: 'in_progress' }])
+  await service.replace('session-1', [])
+  assert.equal(writes, 2)
+  assert.equal(service.get('session-1').items.length, 0)
+})
