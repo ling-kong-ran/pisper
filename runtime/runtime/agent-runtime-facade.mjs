@@ -316,6 +316,9 @@ export class AgentRuntimeFacade {
         // 仍读到 runActive=true。这里在真正放下运行标记后再失效一次活动投影，
         // 经 onInvalidate 让看板事件流补发一帧“已结束”，/live 缓存也随之失效。
         this.streamProjection.invalidate(id, { transcript: false, activity: true, usage: false })
+        // 运行期间注入失败、放回队列的 Agent 完成通知：本轮结束后补发；用户主动停止时不自动再起一轮。
+        if (!value.abortedAt && value.pendingAgentNotifications?.length)
+          this.scheduleAgentWakeup(id)
         // 这一轮结束（完成、失败、停止都算）：启动排在它后面的会话（sessionQueue）。
         void this.sessionQueue?.onRunFinished(id).catch(() => console.warn('排队的会话启动失败。'))
         const forceDisposed = value.forceDisposed

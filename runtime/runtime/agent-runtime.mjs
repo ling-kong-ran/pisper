@@ -1997,11 +1997,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!value?.session) return
 
     const prompt = agentCompletionPrompt(agent)
-    const session = value.session
 
     // 如果会话正在运行，直接 steer 注入
     if (this.sessionRunIsActive(sessionId, value)) {
-      void session.steer(prompt).catch(() => {})
+      void this.steerAgentNotification(value, prompt)
       return
     }
 
@@ -2009,6 +2008,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     value.pendingAgentNotifications = value.pendingAgentNotifications || []
     value.pendingAgentNotifications.push(prompt)
     this.scheduleAgentWakeup(sessionId)
+  }
+
+  // 运行中注入 Agent 完成通知。注入失败时放回待处理队列，本轮结束后由唤醒补发，不静默丢失；
+  // 这里不立即重试，避免运行期间反复失败形成热循环。日志不带通知内容。
+  steerAgentNotification(value, note) {
+    return Promise.resolve()
+      .then(() => value.session.steer(note))
+      .catch(() => {
+        console.warn('Agent 完成通知注入失败，已留待本轮结束后补发。')
+        value.pendingAgentNotifications = [note, ...(value.pendingAgentNotifications || [])]
+      })
   }
 
   scheduleAgentWakeup(sessionId) {
@@ -2029,7 +2039,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const message = pending.join('\n\n')
     // 防抖窗口内会话恰好开始运行：改为 steer 注入，避免另起一轮
     if (this.sessionRunIsActive(sessionId, value)) {
-      void value.session.steer(message).catch(() => {})
+      void this.steerAgentNotification(value, message)
       return
     }
     // 服务端自动唤醒：以内部消息发起一轮，让大模型立即感知完成结果。
@@ -2162,15 +2172,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!keepPlan) await this.plans.replace(session.sessionId, [])
 
     // 注入待处理的 Agent 完成通知（对用户隐藏）
+    // steer 失败的通知改为随本条消息一起发出，不丢失。
     const pendingAgentNotes = value.pendingAgentNotifications || []
     value.pendingAgentNotifications = []
-    if (pendingAgentNotes.length) {
-      for (const note of pendingAgentNotes) {
-        try {
-          await session.steer(note)
-        } catch {
-          // 注入失败时忽略，不影响主消息流
-        }
+    const undeliveredAgentNotes = []
+    for (const note of pendingAgentNotes) {
+      try {
+        await session.steer(note)
+      } catch {
+        undeliveredAgentNotes.push(note)
       }
     }
 
@@ -2753,6 +2763,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(teamPrompt(activeGoal))
       contexts.push(...preparedAttachments.contexts)
+      contexts.push(...undeliveredAgentNotes)
       const prompt = contexts.length
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
