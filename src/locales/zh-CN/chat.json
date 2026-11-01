@@ -631,6 +631,8 @@
   "chatMessage.fileActionConfirmRevert": "再次点击确认撤销",
   "chatMessage.fileActionRevertDone": "已撤销改动：{path}",
   "chatMessage.fileActionRevertFailed": "撤销改动失败：{path}",
+  "chatMessage.moreFiles": "还有 {count} 个文件",
+  "chatMessage.fewerFiles": "收起",
   "requestNotice.incomplete": "本次请求未完成",
   "requestNotice.showDetails": "查看详情",
   "requestNotice.hideDetails": "收起详情",

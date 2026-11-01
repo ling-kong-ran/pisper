@@ -6,6 +6,8 @@ test('local path reveal selects the native command for each desktop platform', (
   assert.deepEqual(revealPathCommandForTests('C:/Users/test user/report.txt', 'win32'), {
     command: 'explorer.exe',
     args: ['/select,"C:\\Users\\test user\\report.txt"'],
+    // 原样传参：否则 Node 把引号转义成 \"，Explorer 会打开默认目录而不是选中文件。
+    verbatim: true,
   })
   assert.deepEqual(revealPathCommandForTests('C:/reports', 'win32', true), {
     command: 'explorer.exe',
@@ -21,7 +23,11 @@ test('local path reveal selects the native command for each desktop platform', (
   })
   assert.deepEqual(revealPathCommandForTests('/tmp/report.txt', 'linux'), {
     command: 'xdg-open',
-    args: ['/tmp/report.txt'],
+    args: ['/tmp'],
+  })
+  assert.deepEqual(revealPathCommandForTests('/tmp/reports', 'linux', true), {
+    command: 'xdg-open',
+    args: ['/tmp/reports'],
   })
 })
 

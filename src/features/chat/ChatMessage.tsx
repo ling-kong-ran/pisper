@@ -5,8 +5,10 @@ import { createPortal } from 'react-dom'
 import {
   Check,
   Copy,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
   Eye,
   File,
@@ -235,6 +237,16 @@ function FileActionButton({
   )
 }
 
+// 文件 chip 超过 LIMIT 个时折叠到只剩 COLLAPSED 个：展开按钮至少要藏起两个以上才值得占位。
+const FILE_CHIP_LIMIT = 6
+const FILE_CHIP_COLLAPSED = 4
+
+// 与下方渲染分支一致：有可显示源的图片/视频按媒体卡片显示，其余都是文件 chip。
+function isMediaAttachment(attachment: ChatAttachment) {
+  const hasSource = Boolean(attachment.url || attachment.data)
+  return (attachment.kind === 'image' || attachment.kind === 'video') && hasSource
+}
+
 export function MessageAttachments({
   attachments,
   compact = false,
@@ -249,6 +261,7 @@ export function MessageAttachments({
 }) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ImagePreview | null>(null)
+  const [showAllFiles, setShowAllFiles] = useState(false)
   const [fileMenuFor, setFileMenuFor] = useState<string | null>(null)
   const [filePreview, setFilePreview] = useState<ChatAttachment | null>(null)
   const [loadingDiff, setLoadingDiff] = useState<string | null>(null)
@@ -265,6 +278,16 @@ export function MessageAttachments({
       (attachment.data ? `data:${attachment.mimeType};base64,${attachment.data}` : '')
     return attachment.kind === 'image' && source ? [{ attachment, source, attachmentIndex }] : []
   })
+  // 一轮改了几十个文件时全部铺开会淹没回复正文；超出上限只露出前几个，其余收进展开按钮。
+  // 图片和视频本身就是产物，始终显示，不计入折叠。
+  const fileChipOrder = new Map<number, number>()
+  attachments.forEach((attachment, index) => {
+    if (!isMediaAttachment(attachment)) fileChipOrder.set(index, fileChipOrder.size)
+  })
+  const hiddenFileCount =
+    !showAllFiles && fileChipOrder.size > FILE_CHIP_LIMIT
+      ? fileChipOrder.size - FILE_CHIP_COLLAPSED
+      : 0
 
   const revealInFileManager = async (path: string) => {
     try {
@@ -357,6 +380,8 @@ export function MessageAttachments({
         className={`message-attachments flex flex-wrap gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
       >
         {attachments.map((attachment, index) => {
+          if (hiddenFileCount && (fileChipOrder.get(index) ?? -1) >= FILE_CHIP_COLLAPSED)
+            return null
           const key = String(attachment.id || index)
           const source =
             attachment.url ||
@@ -494,6 +519,26 @@ export function MessageAttachments({
             </a>
           )
         })}
+        {fileChipOrder.size > FILE_CHIP_LIMIT && (
+          <button
+            type="button"
+            aria-expanded={!hiddenFileCount}
+            onClick={() => setShowAllFiles((current) => !current)}
+            className="inline-flex min-h-[28px] cursor-pointer items-center gap-[4px] rounded-sm border border-dashed border-stroke bg-transparent px-[9px] text-[13px] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-foreground max-[650px]:min-h-11"
+          >
+            {hiddenFileCount ? (
+              <>
+                <ChevronDown size={14} className="shrink-0" />
+                {t('chat:chatMessage.moreFiles', { count: hiddenFileCount })}
+              </>
+            ) : (
+              <>
+                <ChevronUp size={14} className="shrink-0" />
+                {t('chat:chatMessage.fewerFiles')}
+              </>
+            )}
+          </button>
+        )}
       </div>
       {preview &&
         createPortal(

@@ -46,25 +46,29 @@ function commandFor(target, platform = process.platform) {
   if (platform === 'win32') {
     // 部分 Windows Explorer 版本会静默忽略正斜杠路径，导致请求成功但窗口不出现。
     const windowsPath = target.path.replaceAll('/', '\\')
+    // /select 参数必须原样交给 Explorer：Node 默认会把内嵌引号转义成 \"，Explorer 解析失败后
+    // 退回打开“文档”等默认目录。Windows 路径不可能含双引号，原样传递不会被拆开。
     return target.isDirectory
       ? { command: 'explorer.exe', args: [windowsPath] }
-      : { command: 'explorer.exe', args: [`/select,"${windowsPath}"`] }
+      : { command: 'explorer.exe', args: [`/select,"${windowsPath}"`], verbatim: true }
   }
   if (platform === 'darwin') {
     return target.isDirectory
       ? { command: 'open', args: [target.path] }
       : { command: 'open', args: ['-R', target.path] }
   }
-  return { command: 'xdg-open', args: [target.path] }
+  // xdg-open 打开文件会用默认程序打开它本身；定位文件时打开所在目录。
+  return { command: 'xdg-open', args: [target.isDirectory ? target.path : dirname(target.path)] }
 }
 
-function launch(command, args) {
+function launch(command, args, verbatim = false) {
   return new Promise((resolvePromise, reject) => {
     let settled = false
     const child = spawn(command, args, {
       detached: process.platform !== 'win32',
       stdio: 'ignore',
       windowsHide: process.platform !== 'win32',
+      windowsVerbatimArguments: verbatim,
     })
     const timer = setTimeout(() => {
       if (settled) return
@@ -103,9 +107,9 @@ function launch(command, args) {
 export async function revealLocalPath(value) {
   const requestedPath = validatePath(value)
   const target = await existingTarget(requestedPath)
-  const { command, args } = commandFor(target)
+  const { command, args, verbatim } = commandFor(target)
   try {
-    await launch(command, args)
+    await launch(command, args, verbatim)
     return { revealed: true, path: target.path, fallback: Boolean(target.fallback) }
   } catch (error) {
     if (target.isDirectory) throw error
