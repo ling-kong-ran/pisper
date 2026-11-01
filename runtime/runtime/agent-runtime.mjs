@@ -63,6 +63,7 @@ import {
   agentCompletionPrompt,
 } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../services/goal-service.mjs'
+import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
 import {
   projectGoalTeam,
   shouldAttachTeamSnapshot,
@@ -2302,16 +2303,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         emit('generated_asset', attachment)
       }
     }
-    const teamPrompt = (currentGoal) =>
-      currentGoal?.mode === 'team'
-        ? `${goalContinuationPrompt(currentGoal)}\n\n${teamExecutionPrompt(
-            currentGoal,
-            this.multiAgents
-              .summaries(session.sessionId)
-              .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
-            this.getTeamProjection(session.sessionId, { compact: true }),
-          )}`
-        : goalContinuationPrompt(currentGoal)
+    // 完整的目标与团队规则已在当前上下文里时改发精简版，避免每轮延续重复写进历史。
+    const teamPrompt = (currentGoal) => {
+      const brief = briefContinuation(contextUserTexts(session.messages), currentGoal)
+      const continuation = goalContinuationPrompt(currentGoal, { brief: brief.goal })
+      if (currentGoal?.mode !== 'team') return continuation
+      return `${continuation}\n\n${teamExecutionPrompt(
+        currentGoal,
+        this.multiAgents
+          .summaries(session.sessionId)
+          .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
+        this.getTeamProjection(session.sessionId, { compact: true }),
+        { brief: brief.team },
+      )}`
+    }
     let queueUpdateScheduled = false
     // 思考用时（A9）：本轮所有思考段的墙钟时长之和；思考开始计时，出现正文、工具调用或消息结束即停。
     let thinkingStartedAt = 0
@@ -2673,7 +2678,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         sharedContextEnabled &&
         value.enabledTools?.includes('memory_search') &&
         (!this.memoryReady || this.initialization.memory === 'ready')
-          ? await this.memory.relevantContext(message, value.cwd)
+          ? await this.memory.relevantContext(message, value.cwd, undefined, {
+              excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
+            })
           : { text: '', memories: [] }
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null

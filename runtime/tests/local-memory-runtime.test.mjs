@@ -532,6 +532,11 @@ test('automatic context retrieval is intent-gated, bounded, escaped and marked a
     assert.match(context.text, /&lt;policy&gt;/)
     assert.doesNotMatch(context.text, /<script>/)
     assert.ok(context.memories.length <= 3)
+    // 已经注入过的记忆不再重复注入。
+    const again = await memory.relevantContext('回忆之前的 policy 约定', cwd, 3, {
+      excludeIds: context.memories.map((item) => item.id),
+    })
+    assert.deepEqual(again, { text: '', memories: [] })
   })
 })
 

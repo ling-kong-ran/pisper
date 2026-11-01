@@ -1075,11 +1075,14 @@ export class LocalMemoryRuntime {
   }
 
   // 生成注入上下文：检索相关记忆并格式化为系统注入文本。
-  relevantContext(query, cwd, limit = 3) {
+  // excludeIds：当前上下文里已经注入过的记忆，不再重复写进这一轮的消息。
+  relevantContext(query, cwd, limit = 3, { excludeIds = [] } = {}) {
     if (!shouldRetrieveMemory(query)) return { text: '', memories: [] }
+    const excluded = new Set(excludeIds)
     return this.ensureWorkspaceSpace(cwd)
-      .then(() => this.searchRelevant(query, { cwd, limit }))
-      .then((memories) => {
+      .then(() => this.searchRelevant(query, { cwd, limit: limit + excluded.size }))
+      .then((found) => {
+        const memories = found.filter((memory) => !excluded.has(memory.id)).slice(0, limit)
         if (!memories.length) return { text: '', memories: [] }
         const lines = memories.map((memory) =>
           [

@@ -1254,7 +1254,8 @@ export class TeamWorkflowService {
 }
 
 // Team 模式提示：主 Agent 负责动态拆解、并行委派、结果整合和最终验收。
-export function teamExecutionPrompt(goal, activeAgents = [], team = null) {
+// brief：完整的团队规则与目标已在当前上下文里时只发当前状态，规则不再每轮重复写进历史。
+export function teamExecutionPrompt(goal, activeAgents = [], team = null, { brief = false } = {}) {
   const objective = String(goal?.objective || '').trim()
   const agents = Array.isArray(activeAgents)
     ? activeAgents
@@ -1269,12 +1270,26 @@ export function teamExecutionPrompt(goal, activeAgents = [], team = null) {
         )
         .join('; ')
     : ''
+  const status = `${
+    tasks
+      ? `
+Current workflow status: ${tasks}`
+      : ''
+  }
+${
+  agents
+    ? `
+Current teammate status: ${agents}`
+    : ''
+}`
+  if (brief)
+    return `${TEAM_EXECUTION_MARKER}
+Continue leading the team toward the objective, under the team operating rules stated earlier in this conversation.
+${status}`
   return `${TEAM_EXECUTION_MARKER}
 You are the lead of a dynamic software engineering team. The user objective below is the team's mission, not a request for a one-turn answer.
 
-<team_objective>
-${objective}
-</team_objective>
+${teamObjectiveBlock(objective)}
 
 Team operating rules:
 - Start by maintaining a concrete Plan with non-overlapping workstreams, deliverables, dependencies, and acceptance evidence.
@@ -1287,17 +1302,24 @@ Team operating rules:
 - If a task is too small to justify multiple agents, explain that decision internally and complete it directly instead of creating artificial work.
 - When the task needs dynamic fan-out, branching, aggregation, or repeated verification, write a workspace JavaScript workflow and run it with run_team_workflow. The restricted script API provides agent, pipeline, parallel, phase, log, and args; the script itself has no file or Shell access. Prefer this when the orchestration logic should be visible, repeatable, and driven by intermediate results.
 
-The runtime persists the task graph, prevents unsafe overlapping active file ownership, recovers abandoned task leases, schedules ready work, and blocks team completion until registered work converges.
-${
-  tasks
-    ? `
-Current workflow status: ${tasks}`
-    : ''
+${TEAM_RUNTIME_GUARANTEES}
+${status}`
 }
-${
-  agents
-    ? `
-Current teammate status: ${agents}`
-    : ''
-}`
+
+const TEAM_RUNTIME_GUARANTEES =
+  'The runtime persists the task graph, prevents unsafe overlapping active file ownership, recovers abandoned task leases, schedules ready work, and blocks team completion until registered work converges.'
+
+function teamObjectiveBlock(objective) {
+  return `<team_objective>
+${objective}
+</team_objective>`
+}
+
+// 这段文本里是否带着该目标的完整团队执行提示（目标原文加团队规则）。
+export function hasFullTeamExecutionPrompt(text, goal) {
+  const value = String(text || '')
+  return (
+    value.includes(teamObjectiveBlock(String(goal?.objective || '').trim())) &&
+    value.includes(TEAM_RUNTIME_GUARANTEES)
+  )
 }
