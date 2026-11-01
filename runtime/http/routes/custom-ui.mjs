@@ -28,6 +28,12 @@ function nativeRoute(handler) {
   }
 }
 
+/** 远程设备各自维护当前会话；本机应用共用一个上下文，跨设备不会互相覆盖。 */
+function providerRequestContext(req) {
+  const id = req.pisperDevice?.id
+  return typeof id === 'string' && id ? `remote:${id}` : 'local'
+}
+
 /** 浏览器取消或组件卸载后，同时停止 Runtime 认证与上游额度请求。 */
 function requestAbortSignal(req, res) {
   const controller = new AbortController()
@@ -158,6 +164,26 @@ const nativeComponentRoutes = [
     }),
   },
   {
+    method: 'PUT',
+    path: '/api/custom-ui/provider-session',
+    handler: nativeRoute(async (context) => {
+      const input = await readJsonBody(context, 1024)
+      if (
+        !input ||
+        typeof input !== 'object' ||
+        Array.isArray(input) ||
+        Object.keys(input).some((key) => key !== 'sessionId')
+      )
+        throw new CustomUiError('component_request_invalid', 400)
+      if (!context.runtime?.selectSessionProvider)
+        throw new Error('当前 Runtime 不支持 Provider 请求。')
+      context.json(
+        200,
+        context.runtime.selectSessionProvider(input.sessionId, providerRequestContext(context.req)),
+      )
+    }),
+  },
+  {
     method: 'POST',
     path: '/api/custom-ui/components/:componentId/provider-request',
     handler: nativeRoute(async (context) => {
@@ -170,7 +196,13 @@ const nativeComponentRoutes = [
           params.componentId,
           input,
           (sessionId, request) =>
-            runtime.requestSessionProvider(params.componentId, sessionId, request, signal),
+            runtime.requestSessionProvider(
+              params.componentId,
+              sessionId,
+              request,
+              signal,
+              providerRequestContext(req),
+            ),
         ),
       )
     }),

@@ -339,7 +339,7 @@ export default function CiStatus({ props, size, placement, ctx }) {
 | \`notify(text)\` | 应用提示条，≤200 字，每分钟 ≤6 次 | notify |
 | \`net.fetch(url, init)\` | 经 Runtime 代理，见第 8 节 | network |
 | \`storage.get/set/remove(key)\` | 组件私有存储，key \`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$\`，值是 JSON | storage |
-| \`provider.request()\` | 读取当前会话的规范化 Provider 额度窗口；原始 Key 不进入组件 | provider.request |
+| \`provider.request()\` | 使用当前会话的 Provider 认证发出请求，返回上游原始 Response（由组件自行解析）；原始 Key 不进入组件 | provider.request |
 | \`signal\` | 卸载或热重载时 abort：传给 fetch、在回调里检查 | — |
 | \`setTimeout\` / \`setInterval\` / \`clearTimeout\` / \`clearInterval\` | 托管定时器，卸载时自动清理 | — |
 | \`size\` | \`{ units, width, height, compact }\`，随容器实时变化 | — |

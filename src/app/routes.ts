@@ -91,6 +91,14 @@ export function sessionIdFromPath(pathname: string) {
   }
 }
 
+// 会话 URL 是当前页面的同步选中依据，不能等 ChatPage 的 passive effect 回写后再提供给全局宿主。
+// 新建占位路由没有可认证的会话；其他无会话 ID 的页面继续沿用持久化活动会话。
+export function activeSessionIdForRoute(pathname: string, storedActiveSessionId: string) {
+  const routeSessionId = sessionIdFromPath(pathname)
+  if (!routeSessionId) return storedActiveSessionId
+  return routeSessionId === NEW_SESSION_ROUTE_ID ? '' : routeSessionId
+}
+
 // 组件详情路径（/components/:componentId）；空 id 回到组件列表。
 export function componentPath(id = '') {
   return id ? `/components/${encodeURIComponent(id)}` : '/components'

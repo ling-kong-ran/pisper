@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { readFile as readFileRaw } from 'node:fs/promises'
 import {
   greetingPeriod,
   nextGreetingDelay,
   greetingFontSize,
 } from '../../src/features/chat/workbench-greeting.ts'
+
+const readFile = async (path, options) => (await readFileRaw(path, options)).replace(/\r\n?/g, '\n')
 
 const at = (hour, minute = 0, second = 0) => new Date(2026, 8, 25, hour, minute, second)
 

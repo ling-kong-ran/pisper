@@ -89,7 +89,7 @@ const CAPABILITY_ROUTES = [
   // A8 的版本、导出、台账、回收站与暂存导入同样只在支持原生组件的 Runtime 上提供。
   {
     pattern:
-      /^\/api\/custom-ui\/(?:instances(?:\/|$)|trash(?:\/|$)|staged(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|provider-request|storage|errors|session|versions|export|usage)(?:\/|$))/,
+      /^\/api\/custom-ui\/(?:provider-session|instances(?:\/|$)|trash(?:\/|$)|staged(?:\/|$)|components\/[^/]+\/(?:r|describe|fetch|provider-request|storage|errors|session|versions|export|usage)(?:\/|$))/,
     feature: 'components.native',
   },
   { pattern: /^\/api\/sessions\/[^/]+\/queue(?:\/|$)/, feature: 'sessionQueue' },

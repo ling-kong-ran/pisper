@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile as readFileRaw } from 'node:fs/promises'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -9,6 +9,8 @@ import {
   ComposerSendButton,
   ComposerTray,
 } from '../../src/features/chat/focus-session-composer-bits.tsx'
+
+const readFile = async (path, options) => (await readFileRaw(path, options)).replace(/\r\n?/g, '\n')
 
 test('foreground resume refreshes cached sessions and invalidates stale SSE ownership', async () => {
   const [page, liveSync, prompt] = await Promise.all([

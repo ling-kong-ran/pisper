@@ -10,7 +10,7 @@ import { requestedPathname } from '../../src/app/shell-tabs.ts'
 import { sessionIdFromPath } from '../../src/app/routes.ts'
 
 const root = resolve(import.meta.dirname, '../..')
-const read = (path) => readFile(resolve(root, path), 'utf8')
+const read = async (path) => (await readFile(resolve(root, path), 'utf8')).replace(/\r\n?/g, '\n')
 // 路由在 transition 里提交：⌥↓ 之后 URL 已换、界面还停在原会话时立刻再按 ⌥↑，
 // 必须以刚发出的目标为起点，回到原会话，而不是从原会话再算一次邻居（smoke-board-ui 7a 曾偶发失败）。
 test('rapid option-arrow presses start from the switch that has not committed yet', async () => {

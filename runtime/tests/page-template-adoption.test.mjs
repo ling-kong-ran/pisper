@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile as readFileRaw } from 'node:fs/promises'
 import test from 'node:test'
+
+const readFile = async (path, options) => (await readFileRaw(path, options)).replace(/\r\n?/g, '\n')
 // A6 功能页模板（src/components/app/FeaturePage.tsx）：页面 id → 路由页面源码。迁移一页就在这里与
 // src/app/more-pages.ts 的 FEATURE_TEMPLATE_PAGES 各加一行，两边必须一致。
 const FEATURE_TEMPLATE_SOURCES = {

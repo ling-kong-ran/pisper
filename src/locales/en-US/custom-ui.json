@@ -425,5 +425,6 @@
   "errors.provider_paths_invalid": "Declare valid exact service paths (up to 16).",
   "errors.provider_methods_invalid": "Declare allowed HTTP methods.",
   "errors.component_provider_request_invalid": "Invalid authenticated request.",
-  "errors.component_provider_path_denied": "The component has not declared this service path or HTTP method."
+  "errors.component_provider_path_denied": "The component has not declared this service path or HTTP method.",
+  "errors.component_provider_session_mismatch": "The current session changed. Retry the authenticated request."
 }

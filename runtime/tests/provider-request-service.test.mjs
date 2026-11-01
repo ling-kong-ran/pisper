@@ -50,6 +50,7 @@ function fixture(options = {}) {
     transport: options.transport ?? transport,
     timeoutMs: options.timeoutMs ?? 1000,
   })
+  service.selectSession('session-a')
   return { service, calls, transport }
 }
 const request = (f, input = { path: '/usage' }, signal) =>
@@ -137,7 +138,10 @@ test('认证按协议或显式格式注入，解析后的配置头覆盖默认�
   }
   const f = fixture({ model: { api: 'anthropic-messages' } })
   await request(f, { path: '/usage', auth: 'bearer' })
-  assert.deepEqual(f.calls.send[0].hop.headers, { authorization: `Bearer ${SECRET}` })
+  assert.deepEqual(f.calls.send[0].hop.headers, {
+    authorization: `Bearer ${SECRET}`,
+    'anthropic-version': '2023-06-01',
+  })
   const configured = fixture({
     auth: {
       apiKey: '',
@@ -146,6 +150,44 @@ test('认证按协议或显式格式注入，解析后的配置头覆盖默认�
   })
   await request(configured)
   assert.equal(configured.calls.send[0].hop.headers['x-api-key'], 'configured-credential')
+})
+
+test('Azure 使用 api-key，Anthropic OAuth 使用 Bearer 且自动补协议版本', async () => {
+  for (const api of ['azure-openai-responses', 'openai-completions']) {
+    const f = fixture({ model: { provider: 'azure', api } })
+    await request(f)
+    assert.equal(f.calls.send[0].hop.headers['api-key'], SECRET)
+    assert.equal(f.calls.send[0].hop.headers.authorization, undefined)
+  }
+
+  const apiKey = fixture({ model: { provider: 'anthropic', api: 'anthropic-messages' } })
+  await request(apiKey)
+  assert.equal(apiKey.calls.send[0].hop.headers['x-api-key'], SECRET)
+  assert.equal(apiKey.calls.send[0].hop.headers['anthropic-version'], '2023-06-01')
+
+  const oauth = fixture({
+    model: { provider: 'anthropic', api: 'anthropic-messages' },
+    auth: { apiKey: 'sk-ant-oat-fixture-credential' },
+  })
+  await request(oauth)
+  assert.equal(
+    oauth.calls.send[0].hop.headers.authorization,
+    'Bearer sk-ant-oat-fixture-credential',
+  )
+  assert.equal(oauth.calls.send[0].hop.headers['x-api-key'], undefined)
+  assert.equal(oauth.calls.send[0].hop.headers['anthropic-version'], '2023-06-01')
+})
+
+test('Provider 请求只能使用宿主已同步的当前会话', async () => {
+  const f = fixture()
+  await assert.rejects(f.service.request('widget', 'session-b', { path: '/usage' }), {
+    code: 'component_provider_session_mismatch',
+  })
+  assert.equal(f.calls.auth.length, 0)
+  assert.equal(f.calls.send.length, 0)
+  f.service.selectSession('session-b')
+  await f.service.request('widget', 'session-b', { path: '/usage' })
+  assert.equal(f.calls.auth[0].model.id, 'session-b')
 })
 
 test('无认证、未知签名协议、危险配置地址或跨 origin 覆盖不会发送凭据', async () => {

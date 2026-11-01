@@ -38,6 +38,7 @@ import {
 } from '@/app/more-pages'
 import {
   HOME_ENTRY_STATE,
+  activeSessionIdForRoute,
   HOME_PATH,
   isHomeEntry,
   PAGE_IDS,
@@ -292,9 +293,11 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const settingsOwned = settingsOwnsRoute(page, configSection)
   const startupPageRef = useRef(page)
   const [query, setQuery] = useState('')
-  const [activeSessionId, setActiveSessionId] = useState(
+  const [storedActiveSessionId, setActiveSessionId] = useState(
     () => pageStateStorage.getItem(STORAGE_KEYS.activeSession) || '',
   )
+  // 直达 /board/:id 的首轮渲染就以 URL 为准，避免浮窗等宿主在 ChatPage 回写前拿到旧会话。
+  const activeSessionId = activeSessionIdForRoute(location.pathname, storedActiveSessionId)
   const mobileApp = useClientStore((state) => state.client === 'mobile-app')
   const clientLoaded = useClientStore((state) => state.loaded)
   const phoneViewport = useIsPhoneViewport()

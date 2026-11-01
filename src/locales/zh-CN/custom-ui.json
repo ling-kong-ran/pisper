@@ -425,5 +425,6 @@
   "errors.provider_paths_invalid": "必须声明有效的精确服务路径（最多 16 个）。",
   "errors.provider_methods_invalid": "必须声明允许的 HTTP 方法。",
   "errors.component_provider_request_invalid": "认证请求格式无效。",
-  "errors.component_provider_path_denied": "组件未声明此服务路径或 HTTP 方法。"
+  "errors.component_provider_path_denied": "组件未声明此服务路径或 HTTP 方法。",
+  "errors.component_provider_session_mismatch": "当前会话已切换，请重试认证请求。"
 }

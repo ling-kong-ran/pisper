@@ -35,6 +35,12 @@ import {
 } from './fixtures/board-fixture.mjs'
 import { fetchIdempotent } from './fixtures/route-fetch.mjs'
 import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
+import { activeSessionIdForRoute } from '../src/app/routes.ts'
+
+// 定向回归：持久化活动会话仍是 A 时，直达 B 的首轮宿主上下文必须同步使用 B。
+assert.equal(activeSessionIdForRoute('/board/session-b', 'session-a'), 'session-b')
+assert.equal(activeSessionIdForRoute('/board/new', 'session-a'), '')
+assert.equal(activeSessionIdForRoute('/more', 'session-a'), 'session-a')
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = await mkdtemp(join(tmpdir(), 'pisper-components-'))
@@ -1273,8 +1279,57 @@ try {
   assert.ok(quotaRequests.every((sessionId) => sessionId === BOARD_SESSION_ID))
   await quotaPage.screenshot({ path: join(output, 'current-session-quota.png') })
   await quotaContext.close()
+
+  // A → 直达 B：浮窗在 ChatPage 的 passive effect 之前挂载时，也不能用持久化的 A 发 Provider 请求。
+  // GET 快照固定为 A，避免前面已经写入镜像的 B 把这个深链启动场景覆盖掉。
+  const staleSessionId = 'stale-session-a'
+  const deepLinkRequests = []
+  const deepLinkContext = await newContext(
+    { viewport: { width: 1440, height: 900 } },
+    {
+      initScripts: [
+        [(sessionId) => localStorage.setItem('pisper-active-session', sessionId), staleSessionId],
+      ],
+    },
+  )
+  await deepLinkContext.route('**/api/local/browser-preferences', (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({
+      json: {
+        version: 1,
+        values: { 'pisper-active-session': staleSessionId },
+        revisions: { 'pisper-active-session': 1 },
+      },
+    })
+  })
+  await deepLinkContext.route(
+    '**/api/custom-ui/components/quota-context/provider-request',
+    (route) => {
+      deepLinkRequests.push(route.request().postDataJSON().sessionId)
+      return route.fulfill({
+        json: {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ windows: [{ id: '5h', usedRatio: 0.25 }] }),
+          bodyEncoding: 'utf8',
+          url: 'https://fixture.example/usage',
+          redirected: false,
+        },
+      })
+    },
+  )
+  const deepLinkPage = await openPage(
+    deepLinkContext,
+    'session-deep-link',
+    `#/board/${BOARD_SESSION_ID}`,
+  )
+  await deepLinkPage.locator(`[data-floating-widget] ${quotaSelector}`).waitFor({ timeout: 30_000 })
+  assert.ok(deepLinkRequests.length > 0, 'the deep-linked floating widget issued its request')
+  assert.ok(deepLinkRequests.every((sessionId) => sessionId === BOARD_SESSION_ID))
+  await deepLinkContext.close()
   report.checks.push(
-    'Current-session quota uses the saved session context in desktop/phone previews, feature pages, overview cards and floating widgets without API Key props',
+    'Current-session quota uses the saved session context in desktop/phone previews, feature pages, overview cards and floating widgets without API Key props; a direct session-B link never sends stale session A from a floating widget',
   )
 
   assert.deepEqual(report.pageErrors, [])

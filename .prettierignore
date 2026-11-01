@@ -8,6 +8,7 @@ package-lock.json
 .agents
 .pisper/skills
 .worktrees
+.promo-build
 docs
 public
 README.md

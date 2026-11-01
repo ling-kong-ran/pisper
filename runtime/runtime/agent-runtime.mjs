@@ -1555,10 +1555,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.sessionLifecycle.getExistingSession(id)
   }
 
-  // 组件只传请求数据；当前会话认证与传输留在 Runtime，业务响应由组件解析。
-  /** @param {string} componentId @param {string} sessionId @param {unknown} request @param {AbortSignal} [signal] */
-  async requestSessionProvider(componentId, sessionId, request, signal) {
-    return this.providerRequests.request(componentId, sessionId, request, signal)
+  // 宿主先同步当前会话；组件请求只能使用该认证上下文，业务响应仍由组件解析。
+  /** @param {unknown} sessionId @param {string} [contextKey] */
+  selectSessionProvider(sessionId, contextKey) {
+    return this.providerRequests.selectSession(sessionId, contextKey)
+  }
+
+  /** @param {string} componentId @param {string} sessionId @param {unknown} request @param {AbortSignal} [signal] @param {string} [contextKey] */
+  async requestSessionProvider(componentId, sessionId, request, signal, contextKey) {
+    return this.providerRequests.request(componentId, sessionId, request, signal, contextKey)
   }
 
   // 创建会话运行时（resident runtime）：为会话装配模型、工具、网关、权限与目标/计划/多 Agent 工具，

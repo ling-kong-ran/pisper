@@ -9,6 +9,7 @@ import test from 'node:test'
 import { displayCustomUiPath } from '../services/custom-ui-path.mjs'
 import { resolveComponentFile } from '../services/custom-ui-files.mjs'
 import { CustomUiService } from '../services/custom-ui-service.mjs'
+import { CustomUiError } from '../services/custom-ui-error.mjs'
 
 const NATIVE = { runtime: 'native', name: 'Native', version: '1.0.0' }
 const NATIVE_FILES = { 'component.js': 'export default function C() { return null }\n' }
@@ -337,6 +338,7 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
     NATIVE_FILES,
   )
   const calls = []
+  const selectedSessions = new Map()
   let started, disconnected
   const start = new Promise((resolve) => {
     started = resolve
@@ -345,8 +347,20 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
     disconnected = resolve
   })
   const { origin, headers } = await startServer(t, service, {
-    requestSessionProvider: async (componentId, sessionId, request, signal) => {
-      calls.push({ componentId, sessionId, request, signal })
+    selectSessionProvider: (sessionId, contextKey = 'local') => {
+      selectedSessions.set(contextKey, sessionId)
+      return { sessionId }
+    },
+    requestSessionProvider: async (
+      componentId,
+      sessionId,
+      request,
+      signal,
+      contextKey = 'local',
+    ) => {
+      if (selectedSessions.get(contextKey) !== sessionId)
+        throw new CustomUiError('component_provider_session_mismatch', 409)
+      calls.push({ componentId, sessionId, request, signal, contextKey })
       if (sessionId === 'disconnect') {
         started()
         await new Promise((resolve) =>
@@ -372,6 +386,13 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
     },
   })
   const request = { path: '/usage?period=week' }
+  const select = (sessionId, options = {}) =>
+    fetch(`${origin}/api/custom-ui/provider-session`, {
+      method: 'PUT',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+      ...options,
+    })
   const send = (id, body, options = {}) =>
     fetch(`${origin}/api/custom-ui/components/${id}/provider-request`, {
       method: 'POST',
@@ -379,7 +400,10 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
       body: JSON.stringify(body),
       ...options,
     })
+  assert.equal((await select('current-session', { headers: {} })).status, 401)
   assert.equal((await send('quota', { sessionId: 's', request }, { headers: {} })).status, 401)
+  assert.equal((await send('quota', { sessionId: 's', request })).status, 409)
+  assert.equal(calls.length, 0)
   assert.equal((await send('demo', { sessionId: 's', request })).status, 403)
   assert.equal((await send('quota', { request })).status, 400)
   assert.equal((await send('quota', { sessionId: 's', request: { path: '/other' } })).status, 403)
@@ -387,6 +411,9 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
     (await send('quota', { sessionId: 's', request: { path: '/usage', method: 'DELETE' } })).status,
     403,
   )
+  assert.equal((await select('current-session')).status, 200)
+  assert.equal((await send('quota', { sessionId: 'other-session', request })).status, 409)
+  assert.equal(calls.length, 0)
   const response = await send('quota', { sessionId: 'current-session', request })
   assert.equal(response.status, 200)
   assert.equal(JSON.parse((await response.json()).body).remaining, 75)
@@ -395,6 +422,7 @@ test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随�
   assert.equal(calls[0].sessionId, 'current-session')
   assert.deepEqual(calls[0].request, request)
   assert.ok(calls[0].signal instanceof AbortSignal)
+  assert.equal((await select('disconnect')).status, 200)
   const controller = new AbortController()
   const pending = send('quota', { sessionId: 'disconnect', request }, { signal: controller.signal })
   await start

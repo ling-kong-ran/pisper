@@ -860,12 +860,20 @@ export function componentStorageRemove(id: string, key: string) {
   })
 }
 
-export function componentProviderRequest(
+export async function componentProviderRequest(
   id: string,
   sessionId: string,
   request: ComponentProviderRequest,
   signal?: AbortSignal,
 ) {
+  // 当前会话由宿主单独同步，Runtime 再核对该请求；切换交错时拒绝而不借用另一会话凭据。
+  await requestJson('/api/custom-ui/provider-session', {
+    method: 'PUT',
+    body: { sessionId },
+    signal,
+    timeout: 15_000,
+    parse: () => undefined,
+  })
   return requestJson(`${componentPath(id)}/provider-request`, {
     method: 'POST',
     body: { sessionId, request },

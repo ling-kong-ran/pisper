@@ -216,6 +216,8 @@ test('原生组件能力：三种档案都提供且不让桌面变成降级；�
     '/api/custom-ui/components/demo/r/0123456789abcdef01234567/component.js',
     '/api/custom-ui/components/demo/describe',
     '/api/custom-ui/components/demo/fetch',
+    '/api/custom-ui/provider-session',
+    '/api/custom-ui/components/demo/provider-request',
     '/api/custom-ui/components/demo/storage/key',
     '/api/custom-ui/components/demo/errors',
     '/api/custom-ui/components/demo/session',

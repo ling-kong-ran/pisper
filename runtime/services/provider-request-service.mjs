@@ -77,25 +77,39 @@ function authHeaders(model, auth, mode) {
     fail('component_provider_auth_unsupported', 409)
   const protocol = model.api
   if (mode !== 'provider' && !apiKey) fail('component_provider_missing_auth', 409)
+  // Azure 的两种 API 都可能共用 openai-completions，必须同时看 provider，不能只按协议猜 Bearer。
+  const azure =
+    model.provider === 'azure' &&
+    ['azure-openai-responses', 'openai-completions'].includes(protocol)
+  // Anthropic OAuth 与 GitHub Copilot 使用 Bearer；普通 Anthropic API Key 才使用 x-api-key。
+  const anthropicBearer =
+    protocol === 'anthropic-messages' &&
+    (model.provider === 'github-copilot' || apiKey.includes('sk-ant-oat'))
   const header =
     mode === 'provider'
-      ? protocol === 'anthropic-messages'
-        ? 'x-api-key'
-        : protocol === 'google-generative-ai'
-          ? 'x-goog-api-key'
-          : [
-                'openai-completions',
-                'openai-responses',
-                'openai-codex-responses',
-                'mistral-conversations',
-                'pi-messages',
-              ].includes(protocol)
+      ? azure
+        ? 'api-key'
+        : protocol === 'anthropic-messages'
+          ? anthropicBearer
             ? 'bearer'
-            : null
+            : 'x-api-key'
+          : protocol === 'google-generative-ai'
+            ? 'x-goog-api-key'
+            : [
+                  'openai-completions',
+                  'openai-responses',
+                  'openai-codex-responses',
+                  'mistral-conversations',
+                  'pi-messages',
+                ].includes(protocol)
+              ? 'bearer'
+              : null
       : mode
   if (apiKey && header)
     headers[header === 'bearer' ? 'authorization' : header] =
       header === 'bearer' ? `Bearer ${apiKey}` : apiKey
+  // Anthropic SDK 正常请求会自动带版本头；通用传输绕过 SDK，必须补齐并允许配置覆盖或删除。
+  if (protocol === 'anthropic-messages') headers['anthropic-version'] ||= '2023-06-01'
   // 已解析的配置头只来源于 ModelRuntime，不接受组件替换；null 沿用“删除默认头”的语义。
   if (mode === 'provider' && record(auth?.headers)) {
     for (const [key, value] of Object.entries(auth.headers)) {
@@ -138,11 +152,23 @@ export class ProviderRequestService {
     this.getModelRuntime = getModelRuntime
     this.transport = transport
     this.timeoutMs = timeoutMs
+    // 当前会话由宿主单独同步；组件请求只能核对它，不能凭请求体改选另一会话的认证上下文。
+    this.selectedSessions = new Map()
   }
 
-  /** @param {string} componentId @param {string} sessionId @param {unknown} input @param {AbortSignal} [signal] */
-  async request(componentId, sessionId, input, signal) {
+  /** @param {unknown} sessionId @param {string} [contextKey] */
+  selectSession(sessionId, contextKey = 'local') {
+    if (typeof sessionId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(sessionId))
+      fail('component_session_invalid')
+    this.selectedSessions.set(contextKey, sessionId)
+    return { sessionId }
+  }
+
+  /** @param {string} componentId @param {string} sessionId @param {unknown} input @param {AbortSignal} [signal] @param {string} [contextKey] */
+  async request(componentId, sessionId, input, signal, contextKey = 'local') {
     const parsed = parseProviderRequest(input)
+    if (this.selectedSessions.get(contextKey) !== sessionId)
+      fail('component_provider_session_mismatch', 409)
     const release = this.transport.limiter.acquire(componentId)
     const timeout = AbortSignal.timeout(this.timeoutMs)
     const active = signal ? AbortSignal.any([signal, timeout]) : timeout

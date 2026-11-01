@@ -184,6 +184,38 @@ test('服务层：监听到的变化按 rev 去重；手改文件发 files（带
   assert.equal(watchers[0].mode, 'disposed')
 })
 
+test('服务层：较早的扫描在删除后完成时不得补发过期 files', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-watch-stale-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const service = new CustomUiService({ dataDir: directory })
+  const events = []
+  await service.start({ onChange: (id, detail) => events.push({ id, ...detail }) })
+  t.after(() => service.dispose())
+
+  let releaseStale = () => {}
+  const staleResult = new Promise((resolve) => {
+    releaseStale = () =>
+      resolve({
+        row: {
+          status: 'invalid',
+          errors: [{ path: 'manifest.json', code: 'manifest_missing' }],
+        },
+      })
+  })
+  let scans = 0
+  service.inspect = async () => {
+    scans += 1
+    return scans === 1 ? staleResult : null
+  }
+
+  const stale = service.handleWatchedChange('demo')
+  await until(() => scans === 1, '较早的扫描没有开始')
+  const deleted = service.handleWatchedChange('demo')
+  releaseStale()
+  await Promise.all([stale, deleted])
+  assert.deepEqual(events, [{ id: 'demo', rev: null, reason: 'deleted' }])
+})
+
 test('start 不开 watch 时不建监听；残留的旧导入暂存目录（超过 10 分钟）被清理，.component-old-* 不动', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-custom-ui-cleanup-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

@@ -138,6 +138,9 @@ export class CustomUiService {
     // 工具写入后立即发的事件与随后监听器的事件不会重复。
     /** @type {Map<string, string>} */
     this.notifiedKeys = new Map()
+    // 同一组件的监听回调可能并发 inspect；只有最新代次可以通知，避免旧扫描覆盖删除等新状态。
+    /** @type {Map<string, number>} */
+    this.watchedChangeGenerations = new Map()
     this.instances = {
       list: (surface) => this.listInstances(surface),
       create: (input) => this.createInstance(input),
@@ -311,20 +314,27 @@ export class CustomUiService {
 
   /**
    * 监听器回调：重新算 rev，与上次通知的内容键相同就不发（写入器自己已经发过）。
+   * 与写入、删除共用组件锁，避免文件通知越过写入器的 created/deleted；代次再过滤锁内启动后的旧扫描。
    * @param {string} id
    */
   async handleWatchedChange(id) {
-    this.hasher.invalidate(this.componentDir(id))
-    const inspected = await this.inspect(id)
-    if (!inspected) {
-      // 目录没了（手动删除）；DELETE 接口自己已经发过 deleted，这里不重复。
-      if (this.notifiedKeys.get(id) === 'deleted') return
-      this.notify(id, { rev: null, reason: 'deleted' })
-      return
-    }
-    const key = changeKey(inspected.row)
-    if (this.notifiedKeys.get(id) === key) return
-    this.notify(id, { rev: inspected.row.rev ?? null, reason: 'files' }, key)
+    const generation = (this.watchedChangeGenerations.get(id) || 0) + 1
+    this.watchedChangeGenerations.set(id, generation)
+    return this.withComponentLock(id, async () => {
+      if (this.watchedChangeGenerations.get(id) !== generation) return
+      this.hasher.invalidate(this.componentDir(id))
+      const inspected = await this.inspect(id)
+      if (this.watchedChangeGenerations.get(id) !== generation) return
+      if (!inspected) {
+        // 目录没了（手动删除）；DELETE 接口自己已经发过 deleted，这里不重复。
+        if (this.notifiedKeys.get(id) === 'deleted') return
+        this.notify(id, { rev: null, reason: 'deleted' })
+        return
+      }
+      const key = changeKey(inspected.row)
+      if (this.notifiedKeys.get(id) === key) return
+      this.notify(id, { rev: inspected.row.rev ?? null, reason: 'files' }, key)
+    })
   }
 
   /** 代理工具只拿窄接口：写入组件与描述组件，不接触实例、存储或旧 iframe 机制。 */

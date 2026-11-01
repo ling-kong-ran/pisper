@@ -122,18 +122,33 @@ test('runtime Provider 请求入口把组件、当前会话、请求和取消信
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   t.after(() => runtime.dispose())
   const calls = []
+  const selections = []
   const result = { status: 200, body: '{"remaining":75}' }
+  runtime.providerRequests.selectSession = (...args) => {
+    selections.push(args)
+    return { sessionId: args[0] }
+  }
   runtime.providerRequests.request = async (...args) => {
     calls.push(args)
     return result
   }
+  assert.deepEqual(runtime.selectSessionProvider('current-session', 'remote:device'), {
+    sessionId: 'current-session',
+  })
+  assert.deepEqual(selections, [['current-session', 'remote:device']])
   const request = { path: '/usage', method: 'GET' }
   const signal = new AbortController().signal
   assert.equal(
-    await runtime.requestSessionProvider('widget', 'current-session', request, signal),
+    await runtime.requestSessionProvider(
+      'widget',
+      'current-session',
+      request,
+      signal,
+      'remote:device',
+    ),
     result,
   )
-  assert.deepEqual(calls, [['widget', 'current-session', request, signal]])
+  assert.deepEqual(calls, [['widget', 'current-session', request, signal, 'remote:device']])
   assert.equal('getSessionProviderUsage' in runtime, false)
 })
 

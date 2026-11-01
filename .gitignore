@@ -31,6 +31,7 @@ crates/tauri-plugin-dns-sd/ios/Package.resolved
 build/icon.png
 build/icons/
 generated/
+/.promo-build/
 /.agents/
 /.pisper/*
 !/.pisper/skills/
