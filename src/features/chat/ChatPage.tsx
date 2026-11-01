@@ -16,7 +16,7 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import type { Notify } from '@/app/route-context'
 import type { PendingAsset, SessionSummary } from '@/types/chat'
 import { SingleSessionPanel } from './ChatDock'
-import { chatApi } from './chat-api'
+import { chatApi, type BranchFromHereOptions, type FileRewindResult } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useSessionSelection } from './use-session-selection'
 import { useLiveSessionSync } from './use-live-session-sync'
@@ -36,7 +36,11 @@ import { SessionPageChromeContext, type SessionPageChrome } from './session-work
 import { openWebPreviewInSessionContext } from './session-web-preview'
 import { WEB_PREVIEW_OPEN_EVENT, consumeWebPreviewRequest } from './web-preview-events'
 import { SideChatProvider } from './SideChatProvider'
-import { notifyTreeNavigation } from './session-tree-actions'
+import {
+  fileRewindConfirmOptions,
+  fileRewindNotice,
+  notifyTreeNavigation,
+} from './session-tree-actions'
 import { applySessionTreeResponse } from './session-tree-summary'
 import type { SideChatRuntime } from './side-chat-context'
 
@@ -325,24 +329,37 @@ export function ChatPage({
 
   // 从边界条目派生新分支：调用运行时导航到历史条目处分支，
   // 成功后刷新列表并在 Dock 打开新会话。
+  // rewindFiles：“回到这里（含文件）”——先预览并确认，把文件回退到这一轮结束时，再切换对话分支。
+  // 文件回退不可撤销，所以这条路径的提示不带“撤销”。
   const branchFromEntry = useCallback(
-    async (session: SessionSummary, boundaryEntryId: string) => {
+    async (session: SessionSummary, boundaryEntryId: string, options?: BranchFromHereOptions) => {
       if (!session?.id || !boundaryEntryId) return
       try {
         setGlobalError('')
+        let rewound: FileRewindResult | null = null
+        if (options?.rewindFiles) {
+          const preview = await chatApi.previewFileRewind(session.id, boundaryEntryId)
+          if (!(await requestConfirm(fileRewindConfirmOptions(preview, t)))) return
+          rewound = await chatApi.rewindFiles(session.id, boundaryEntryId)
+        }
         const result = await chatApi.navigateSessionTree(session.id, boundaryEntryId, false)
         if (result.cancelled) return
         // 响应里带着新树：顶栏分支数与回合标记立刻更新（老问题 6），不等会话树事件。
         applySessionTreeResponse(session.id, result)
         await reloadSessionBranch(session.id)
         setRecallPulse((current) => ({ sessionId: session.id, token: current.token + 1 }))
+        if (rewound) notify(fileRewindNotice(rewound, t))
         // 提示里带“撤销”（老问题 3）：把 Runtime 给的 restoreEntryId 传回导航接口。
-        notifyTreeNavigation(session.id, result, t('chat:chatPage.branchedFromNode'), { notify, t })
+        else
+          notifyTreeNavigation(session.id, result, t('chat:chatPage.branchedFromNode'), {
+            notify,
+            t,
+          })
       } catch (error) {
         setGlobalError(error instanceof Error ? error.message : String(error))
       }
     },
-    [notify, reloadSessionBranch, setGlobalError, t],
+    [notify, reloadSessionBranch, requestConfirm, setGlobalError, t],
   )
 
   // 活动分支在别处被切换（撤销、⌘K / 会话树里打开另一条分支上的标记）：已加载的会话重读消息与列表。

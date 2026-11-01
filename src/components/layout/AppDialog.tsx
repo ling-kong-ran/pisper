@@ -111,7 +111,9 @@ export function AppDialog({
             <DialogBody>
               <DialogDescription
                 className={
-                  dialog.message ? 'mt-1.5 text-[13px] leading-5 text-content-muted' : 'sr-only'
+                  dialog.message
+                    ? 'mt-1.5 text-[13px] leading-5 whitespace-pre-line text-content-muted'
+                    : 'sr-only'
                 }
               >
                 {dialog.message || dialog.title}

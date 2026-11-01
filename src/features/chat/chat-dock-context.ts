@@ -9,7 +9,7 @@ import type {
   SessionState,
   SessionSummary,
 } from '@/types/chat'
-import type { WithdrawnInput } from './chat-api'
+import type { BranchFromHereOptions, WithdrawnInput } from './chat-api'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
 export type ChatDockContextValue = {
@@ -70,7 +70,11 @@ export type ChatDockContextValue = {
   ) => Promise<void>
   selectSessionWorkspace: (session: SessionSummary) => Promise<void>
   renameSession: (session: SessionSummary) => Promise<void>
-  branchFromEntry: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
+  branchFromEntry: (
+    session: SessionSummary,
+    boundaryEntryId: string,
+    options?: BranchFromHereOptions,
+  ) => Promise<void>
   createChildSession: (session: SessionSummary, boundaryEntryId: string) => Promise<void>
   reloadSessionBranch: (sessionId: string) => Promise<void>
 }

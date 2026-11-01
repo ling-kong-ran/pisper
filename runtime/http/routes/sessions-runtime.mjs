@@ -261,6 +261,20 @@ const routes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/tree/:entryId/file-rewind',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.previewFileRewind(params.sessionId, params.entryId))
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/tree/:entryId/file-rewind',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.rewindFiles(params.sessionId, params.entryId))
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/sessions/:sessionId/tree/labels/:entryId',
     async handler({ runtime, params, body, json }) {

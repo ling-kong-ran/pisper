@@ -17,6 +17,7 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { FocusSession } from './FocusSession'
 import { resolveSessionStreaming } from './session-streaming-state'
 import { ChatDockContext } from './chat-dock-context'
+import type { BranchFromHereOptions } from './chat-api'
 
 const FOCUS_MESSAGE_PAGE_SIZE = 40
 // 空数组兜底共享同一引用，避免每次渲染新建数组击穿 FocusSession 的 memo。
@@ -140,8 +141,8 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       onRename: () => {
         if (session) void context?.renameSession(session)
       },
-      onBranchFromHere: (boundaryEntryId: string) => {
-        if (session) return context?.branchFromEntry(session, boundaryEntryId)
+      onBranchFromHere: (boundaryEntryId: string, options?: BranchFromHereOptions) => {
+        if (session) return context?.branchFromEntry(session, boundaryEntryId, options)
       },
       onCreateChildSession: (boundaryEntryId: string) => {
         if (session) return context?.createChildSession(session, boundaryEntryId)

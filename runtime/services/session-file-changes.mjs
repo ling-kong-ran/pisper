@@ -53,7 +53,7 @@ function hashKey(value) {
 }
 
 // 与网关的名称归一化保持一致，兼容 call_tool 透传调用。
-function writeOperation(name, args) {
+export function writeOperation(name, args) {
   if (name === 'call_tool') {
     name = String(args?.name || '').trim()
     args = args?.arguments

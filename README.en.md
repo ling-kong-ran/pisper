@@ -53,7 +53,7 @@
 
 | 🌿 Parallel & branching | 🧩 Extensibility |
 | --- | --- |
-| Split-view parallel sessions · Session Tree branching · Stable Turn labels · Ctrl+K cross-session jump · Per-session model/directory/permissions | Self-generated local plugins · Connect external MCP servers · Built-in MCP server for other local agents · Skill center · Multi-provider model configuration · Automatic switch to backup models when the primary is unavailable |
+| Split-view parallel sessions · Session Tree branching · Stable Turn labels · Per-turn file rewind · Ctrl+K cross-session jump · Per-session model/directory/permissions | Self-generated local plugins · Connect external MCP servers · Built-in MCP server for other local agents · Skill center · Multi-provider model configuration · Automatic switch to backup models when the primary is unavailable |
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
 | Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 

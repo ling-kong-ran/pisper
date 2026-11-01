@@ -11,7 +11,7 @@ import type {
   SessionSummary,
 } from '@/types/chat'
 import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
-import type { WithdrawnInput } from '@/features/chat/chat-api'
+import type { BranchFromHereOptions, WithdrawnInput } from '@/features/chat/chat-api'
 
 export type FocusSessionProps = {
   session: SessionSummary
@@ -82,7 +82,10 @@ export type FocusSessionProps = {
   ) => Promise<void>
   onWorkspace: () => void
   onRename: () => void
-  onBranchFromHere: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere: (
+    boundaryEntryId: string,
+    options?: BranchFromHereOptions,
+  ) => Promise<void> | void
   onCreateChildSession: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
   onTreeNavigated?: () => Promise<void> | void

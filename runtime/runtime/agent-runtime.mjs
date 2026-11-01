@@ -2463,6 +2463,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const unsubscribe = session.subscribe((event) => {
       live.lastActivityAt = new Date().toISOString()
       if (event.type === 'message_start' && event.message?.role === 'user') {
+        // 每条用户消息都是一个可回退的时间点：之后对每个文件的第一次修改重新记快照。
+        this.turnCheckpoints?.markTurn(session.sessionId, event.message.timestamp)
         releaseConsumedSessionInput(event.message)
         const userText = textFromContent(event.message.content)
         if (!isInternalParentMessage(userText))

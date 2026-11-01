@@ -159,3 +159,38 @@ test('opening a mark on another branch asks first; cancelling changes nothing (o
   assert.equal(notices[0].message, 'chat:sessionTree.switchedBranch')
   assert.equal(notices[0].options.action.label, 'chat:sessionTree.undo')
 })
+
+test('the file rewind confirmation lists changes, unavailable files and the scope limit', () => {
+  const options = actions.fileRewindConfirmOptions(
+    {
+      files: [
+        { path: 'src/a.ts', action: 'restore' },
+        { path: 'new.txt', action: 'delete' },
+        { path: 'big.bin', action: 'unavailable', reason: 'too-large' },
+      ],
+      incomplete: true,
+    },
+    t,
+  )
+  assert.equal(options.tone, 'danger')
+  assert.equal(options.confirmLabel, 'chat:fileRewind.confirm')
+  assert.deepEqual(options.message.split('\n'), [
+    'chat:fileRewind.summary {"count":2,"restore":1,"remove":1}',
+    'chat:fileRewind.restoreItem {"path":"src/a.ts"}',
+    'chat:fileRewind.deleteItem {"path":"new.txt"}',
+    'chat:fileRewind.unavailable {"count":1,"paths":"big.bin"}',
+    'chat:fileRewind.incomplete',
+    'chat:fileRewind.scope',
+  ])
+  // 没有可回退的文件：照样说明只回到对话，按钮也跟着变。
+  const empty = actions.fileRewindConfirmOptions({ files: [], incomplete: false }, t)
+  assert.equal(empty.confirmLabel, 'chat:fileRewind.confirmChatOnly')
+  assert.equal(empty.tone, 'primary')
+  assert.equal(
+    actions.fileRewindNotice(
+      { restored: ['a'], deleted: ['b'], unavailable: [{ path: 'c', reason: 'path' }] },
+      t,
+    ),
+    'chat:fileRewind.done {"count":2} chat:fileRewind.doneUnavailable {"count":1}',
+  )
+})

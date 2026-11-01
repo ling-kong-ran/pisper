@@ -5,7 +5,12 @@
 // 本模块只在用户操作时动态加载（⌘K、会话树对话框、聊天页），不进入口包。
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
-import { chatApi, type SessionTreeNavigationResult } from './chat-api'
+import {
+  chatApi,
+  type FileRewindPreview,
+  type FileRewindResult,
+  type SessionTreeNavigationResult,
+} from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceSessionBranchChanged } from './events'
 import { applySessionTreeResponse, invalidateSessionTreeSummary } from './session-tree-summary'
@@ -91,4 +96,65 @@ export async function switchToTurnOnOtherBranch({
   open(sessionId, entryId)
   notifyTreeNavigation(sessionId, result, t('chat:sessionTree.switchedBranch'), { notify, t })
   return true
+}
+
+const FILE_REWIND_LIST_LIMIT = 8
+
+// “回到这里（含文件）”的确认：列出会恢复/删除的文件和无法回退的文件，并说明覆盖范围。
+export function fileRewindConfirmOptions(
+  preview: FileRewindPreview,
+  t: Translate,
+): ConfirmDialogOptions {
+  const changes = preview.files.filter((item) => item.action !== 'unavailable')
+  const unavailable = preview.files.filter((item) => item.action === 'unavailable')
+  const lines: string[] = []
+  if (changes.length) {
+    lines.push(
+      t('chat:fileRewind.summary', {
+        count: changes.length,
+        restore: changes.filter((item) => item.action === 'restore').length,
+        remove: changes.filter((item) => item.action === 'delete').length,
+      }),
+    )
+    for (const item of changes.slice(0, FILE_REWIND_LIST_LIMIT))
+      lines.push(
+        item.action === 'delete'
+          ? t('chat:fileRewind.deleteItem', { path: item.path })
+          : t('chat:fileRewind.restoreItem', { path: item.path }),
+      )
+    if (changes.length > FILE_REWIND_LIST_LIMIT)
+      lines.push(t('chat:fileRewind.more', { count: changes.length - FILE_REWIND_LIST_LIMIT }))
+  } else {
+    lines.push(t('chat:fileRewind.nothing'))
+  }
+  if (unavailable.length)
+    lines.push(
+      t('chat:fileRewind.unavailable', {
+        count: unavailable.length,
+        paths: unavailable
+          .slice(0, FILE_REWIND_LIST_LIMIT)
+          .map((item) => item.path)
+          .join(', '),
+      }),
+    )
+  if (preview.incomplete) lines.push(t('chat:fileRewind.incomplete'))
+  lines.push(t('chat:fileRewind.scope'))
+  return {
+    title: t('chat:fileRewind.title'),
+    message: lines.join('\n'),
+    confirmLabel: changes.length
+      ? t('chat:fileRewind.confirm')
+      : t('chat:fileRewind.confirmChatOnly'),
+    tone: changes.length ? 'danger' : 'primary',
+  }
+}
+
+export function fileRewindNotice(result: FileRewindResult, t: Translate) {
+  const changed = result.restored.length + result.deleted.length
+  const base = changed
+    ? t('chat:fileRewind.done', { count: changed })
+    : t('chat:fileRewind.doneChatOnly')
+  return result.unavailable.length
+    ? `${base} ${t('chat:fileRewind.doneUnavailable', { count: result.unavailable.length })}`
+    : base
 }

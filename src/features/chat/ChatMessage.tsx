@@ -15,6 +15,7 @@ import {
   FileDiff,
   FolderOpen,
   GitFork,
+  History,
   MessageSquarePlus,
   MoreHorizontal,
   LoaderCircle,
@@ -50,7 +51,7 @@ import { MessageCopyButton } from './MessageCopyButton'
 import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity'
 import { chatErrorMessage } from './chat-errors'
 import { ChatRequestNotice } from './ChatRequestNotice'
-import { chatApi } from './chat-api'
+import { chatApi, type BranchFromHereOptions } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
 import { TranscriptMetaContext } from './session-workspace-context'
@@ -746,7 +747,10 @@ type FocusChatMessageProps = {
   /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
   cwd?: string
   sessionStreaming?: boolean
-  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (
+    boundaryEntryId: string,
+    options?: BranchFromHereOptions,
+  ) => Promise<void> | void
   onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   /** 最近一条前置用户消息 ID：存在时最新助手消息上展示重试按钮。 */
   retryUserMessageId?: string
@@ -1052,6 +1056,25 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                     >
                       <GitFork size={16} />
                       {t('chat:chatMessage.deriveFromHere')}
+                    </DropdownMenuItem>
+                  )}
+                  {canLabel && message.turnBoundaryEntryId && (
+                    <DropdownMenuItem
+                      data-pisper-rewind-entry={message.turnBoundaryEntryId}
+                      disabled={branching || creatingChild || sessionStreaming}
+                      onSelect={async () => {
+                        const boundaryEntryId = message.turnBoundaryEntryId
+                        if (!boundaryEntryId || !onBranchFromHere) return
+                        setBranching(true)
+                        try {
+                          await onBranchFromHere(boundaryEntryId, { rewindFiles: true })
+                        } finally {
+                          setBranching(false)
+                        }
+                      }}
+                    >
+                      <History size={16} />
+                      {t('chat:chatMessage.rewindHere')}
                     </DropdownMenuItem>
                   )}
                   {canLabel && message.turnBoundaryEntryId && (

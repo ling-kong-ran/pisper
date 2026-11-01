@@ -8,6 +8,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
+import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -251,6 +252,7 @@ export class AgentRuntimeFacade {
     const remove = async () => {
       const result = await this.sessionLifecycle.deleteSession(id)
       await this.getFileChangesService().clear(id)
+      await this.getTurnCheckpoints().clear(id)
       if (result) {
         // 删除后丢掉内存摘要，并让看板事件流对在线客户端发 removed。
         this.sessionCards?.forget(id, { deleted: true })
@@ -278,6 +280,49 @@ export class AgentRuntimeFacade {
     // 同一安装点顺手挂上文件变更追踪：子会话也归属父会话 ID，审批视图自动聚合。
     this.fileChanges ||= new SessionFileChangesService({ dataDir: this.dataDir })
     this.fileChanges.install(session, { sessionId, cwd })
+    // 按轮回退文件的快照也挂在这里：子 Agent 的写入同样记在父会话下。
+    this.getTurnCheckpoints().install(session, { sessionId, cwd })
+  }
+
+  getTurnCheckpoints() {
+    this.turnCheckpoints ||= new TurnCheckpointService({
+      dataDir: this.dataDir,
+      warn: () => console.warn('文件回退快照写入失败，该文件之后不能按轮回退。'),
+    })
+    return this.turnCheckpoints
+  }
+
+  // 回退文件的目标时间：某条消息（通常是一轮结束时的回复）的时间。会话运行中不允许。
+  async fileRewindTarget(id, entryId) {
+    const sessionId = String(id || '').trim()
+    const targetId = String(entryId || '').trim()
+    if (!sessionId || !targetId) throw new Error('会话树节点无效。')
+    if (this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)))
+      throw new Error('当前会话正在运行，请等待完成或停止后再回退文件。')
+    const value = await this.getOrCreateSession(sessionId)
+    if (this.sessionRunIsActive(sessionId, value))
+      throw new Error('当前会话正在运行，请等待完成或停止后再回退文件。')
+    const entry = value.session.sessionManager.getEntry(targetId)
+    if (entry?.type !== 'message') throw new Error('会话树节点不存在。')
+    const at = Number.isFinite(entry.message?.timestamp)
+      ? entry.message.timestamp
+      : Date.parse(entry.timestamp)
+    if (!Number.isFinite(at)) throw new Error('这条消息没有时间信息，无法回退文件。')
+    return { sessionId, at }
+  }
+
+  async previewFileRewind(id, entryId) {
+    const { sessionId, at } = await this.fileRewindTarget(id, entryId)
+    return this.getTurnCheckpoints().preview(sessionId, at)
+  }
+
+  async rewindFiles(id, entryId) {
+    const { sessionId, at } = await this.fileRewindTarget(id, entryId)
+    const result = await this.getTurnCheckpoints().restore(sessionId, at)
+    // 工作区文件变了：变更视图与看板摘要重新计算。
+    this.streamProjection.invalidate(sessionId)
+    this.boardEvents?.touch(sessionId)
+    return result
   }
 
   // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。

@@ -96,6 +96,24 @@ export type SessionTreeNavigationResult = {
 
 export type SessionTreeNavigationResponse = SessionTreeResponse & SessionTreeNavigationResult
 
+// “回到这里（含文件）”：先按回退预览确认，再把文件回退到这一轮结束时，最后切换对话分支。
+export type BranchFromHereOptions = { rewindFiles?: boolean }
+
+export type FileRewindItem = {
+  path: string
+  action: 'restore' | 'delete' | 'unavailable'
+  reason?: string
+}
+
+export type FileRewindPreview = { files: FileRewindItem[]; incomplete: boolean }
+
+export type FileRewindResult = {
+  restored: string[]
+  deleted: string[]
+  unavailable: { path: string; reason: string }[]
+  incomplete: boolean
+}
+
 export type SessionTreeLabelMatch = {
   sessionId: string
   sessionName: string
@@ -261,6 +279,17 @@ export const chatApi = {
       data: { targetEntryId, summarize: false, includeTree: false },
       timeout: 180_000,
     }),
+
+  previewFileRewind: (sessionId: string, entryId: string) =>
+    requestJson<FileRewindPreview>(
+      `${sessionPath(sessionId)}/tree/${encodeURIComponent(entryId)}/file-rewind`,
+    ),
+
+  rewindFiles: (sessionId: string, entryId: string) =>
+    requestJson<FileRewindResult>(
+      `${sessionPath(sessionId)}/tree/${encodeURIComponent(entryId)}/file-rewind`,
+      { method: 'POST', timeout: 180_000 },
+    ),
 
   setSessionTreeLabel: (sessionId: string, entryId: string, label: string) =>
     requestJson<SessionTreeResponse>(

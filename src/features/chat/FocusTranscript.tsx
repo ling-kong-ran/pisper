@@ -33,6 +33,7 @@ import { useContextPagesStore } from './session-context-pages-store'
 
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
+import type { BranchFromHereOptions } from './chat-api'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
@@ -66,7 +67,10 @@ type FocusTranscriptProps = {
   lineage?: EntityRecord | null
   switchingCwd?: boolean
   onLoadOlder?: () => Promise<boolean> | boolean
-  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (
+    boundaryEntryId: string,
+    options?: BranchFromHereOptions,
+  ) => Promise<void> | void
   onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
   onPromptSelect?: (prompt: string) => void

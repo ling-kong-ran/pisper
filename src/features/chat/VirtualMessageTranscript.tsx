@@ -16,6 +16,7 @@ import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { FocusChatMessage } from './ChatMessage'
 import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
+import type { BranchFromHereOptions } from './chat-api'
 
 type VirtualMessageTranscriptProps = {
   sessionId: string
@@ -32,7 +33,10 @@ type VirtualMessageTranscriptProps = {
   onContentSizeChange: () => void
   onTargetScroll: () => void
   onTargetLocated: (entryId: string) => void
-  onBranchFromHere?: (boundaryEntryId: string) => Promise<void> | void
+  onBranchFromHere?: (
+    boundaryEntryId: string,
+    options?: BranchFromHereOptions,
+  ) => Promise<void> | void
   onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
   /** 已加载的消息是否从会话开头开始：只有这样才数得出“第 N 轮”。 */
