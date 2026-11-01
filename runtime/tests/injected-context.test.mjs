@@ -1,6 +1,10 @@
 // 每轮注入上下文的去重：完整的目标/团队提示与记忆只在当前上下文里缺失时才注入。
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
+import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   GOAL_CONTINUATION_MARKER,
   goalContinuationPrompt,
@@ -81,4 +85,63 @@ test('memory ids already injected into the context are collected for exclusion',
     user('<memory id="typed-by-user">'),
   ])
   assert.deepEqual(injectedMemoryIds(texts), ['m-1', 'm-2'])
+})
+
+test('memory retrieval starts before attachments are prepared and still lands in the prompt', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-early-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.captureConversationMemory = async () => []
+  const order = []
+  let releaseMemory
+  runtime.memory = {
+    relevantContext: (query, _cwd, _limit, options) => {
+      order.push(['memory', query, options.excludeIds])
+      return new Promise((resolve) => {
+        releaseMemory = () => resolve({ text: '<pisper_memory_context>m</pisper_memory_context>' })
+      })
+    },
+  }
+  runtime.preparePromptAttachments = async () => {
+    order.push(['attachments'])
+    // 检索还没返回时附件已经在准备：两者并行。
+    releaseMemory()
+    return { images: [], contexts: [] }
+  }
+  let prompted = ''
+  const session = {
+    sessionId: 'memory-early',
+    model: { provider: 'openai', id: 'gpt-5' },
+    thinkingLevel: 'medium',
+    isStreaming: false,
+    messages: [],
+    agent: { state: { systemPrompt: '' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe: () => () => {},
+    async prompt(text) {
+      prompted = text
+    },
+    async abort() {},
+    dispose() {},
+  }
+  const value = {
+    session,
+    cwd: directory,
+    name: '记忆',
+    baseToolNames: [],
+    enabledTools: ['memory_search'],
+  }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: '回忆之前的约定',
+    send: () => {},
+  })
+
+  assert.deepEqual(order, [['memory', '回忆之前的约定', []], ['attachments']])
+  assert.match(prompted, /^回忆之前的约定[\s\S]*<pisper_memory_context>m<\/pisper_memory_context>/)
 })

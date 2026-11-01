@@ -2098,6 +2098,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!session.model || session.model.provider === 'unknown' || session.model.id === 'unknown') {
       throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
     }
+    // 记忆检索只依赖本条消息、工作目录和当前上下文：提前发起，与目标调度、标题落盘、附件归档并行，
+    // 到组装提示词时再取结果。先挂一个空 catch，准备阶段提前抛错时不留下未处理的 rejection。
+    const memoryContextPromise =
+      !value.isolatedContext &&
+      value.enabledTools?.includes('memory_search') &&
+      (!this.memoryReady || this.initialization.memory === 'ready')
+        ? Promise.resolve().then(() =>
+            this.memory.relevantContext(message, value.cwd, undefined, {
+              excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
+            }),
+          )
+        : Promise.resolve({ text: '', memories: [] })
+    memoryContextPromise.catch(() => {})
     let goal = this.goals.get(session.sessionId)
     // 普通（Plan）消息不带 goal/team 标记：显式离开目标驱动，先暂停活动 Goal，
     // 否则隐藏延续与团队快照会继续挂在本轮与后续轮次。内部延续/唤醒消息除外。
@@ -2687,14 +2700,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         )
       }
       const sharedContextEnabled = !value.isolatedContext
-      const memoryContext =
-        sharedContextEnabled &&
-        value.enabledTools?.includes('memory_search') &&
-        (!this.memoryReady || this.initialization.memory === 'ready')
-          ? await this.memory.relevantContext(message, value.cwd, undefined, {
-              excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
-            })
-          : { text: '', memories: [] }
+      const memoryContext = await memoryContextPromise
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(teamPrompt(activeGoal))
