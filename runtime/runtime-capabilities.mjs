@@ -46,6 +46,7 @@ function supportedTools(features) {
   if (features.browserAutomation) tools.add('browser_automation')
   if (features.visualGeneration) tools.add('generate_visual')
   if (features.imageAssets) tools.add('image_assets')
+  if (features.codemode) tools.add('codemode')
   return [...tools].sort()
 }
 
@@ -102,6 +103,8 @@ function buildCapabilities({
     sessionQueue: true,
     // 会话导出 Markdown：只读已投影的转录。
     sessionExport: true,
+    // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
+    codemode: workers && wasm && !embedded,
   }
   return Object.freeze({
     version: 1,

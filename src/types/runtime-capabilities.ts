@@ -33,6 +33,7 @@ export type RuntimeFeature =
   | 'components.native'
   | 'sessionQueue'
   | 'sessionExport'
+  | 'codemode'
 
 export type RuntimeCapabilities = {
   version: number
@@ -85,6 +86,8 @@ const fullFeatures = {
   askUser: false,
   sessionQueue: false,
   sessionExport: false,
+  // codemode：旧 Runtime 没有声明时插件页不显示该开关。
+  codemode: false,
   // 原生组件（A7）：旧 Runtime 只有 iframe 组件，没有声明时组件页按旧版显示“不再支持”，宿主不请求实例。
   'components.native': false,
 } satisfies Record<RuntimeFeature, boolean>

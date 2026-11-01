@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -276,4 +276,79 @@ test('image asset capability follows worker/WASM support independently of workfl
   })
   assert.equal(unsupported.features.imageAssets, false)
   assert.equal(unsupported.tools.includes('image_assets'), false)
+})
+
+test('codemode is a desktop capability; mobile profiles report it unsupported', async () => {
+  const desktop = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'desktop' },
+    moduleSupport: { childProcess: true, workerThreads: true, sqlite: true, wasm: true },
+  })
+  assert.equal(desktop.features.codemode, true)
+  assert.ok(desktop.tools.includes('codemode'))
+  const noWasm = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'desktop' },
+    moduleSupport: { childProcess: true, workerThreads: true, sqlite: true, wasm: false },
+  })
+  assert.equal(noWasm.features.codemode, false)
+  for (const profile of ['mobile-embedded', 'mobile-store']) {
+    const mobile = await resolveRuntimeCapabilities({
+      environment: { PISPER_RUNTIME_PROFILE: profile },
+      moduleSupport: { childProcess: true, workerThreads: true, sqlite: true, wasm: true },
+    })
+    assert.equal(mobile.features.codemode, false)
+    assert.equal(mobile.tools.includes('codemode'), false)
+  }
+})
+
+// Pi 的内置 mcp / tool-search 会从 agentDir/mcp.json 再起一套 MCP，与 McpService、discover_tools 重复；
+// 扩展工厂只允许 Pisper 自己的扩展和按能力开启的 codemode。
+test('Pi built-in MCP and tool-search extensions stay out of the agent runtime', async () => {
+  const source = await readFile(
+    fileURLToPath(new URL('../runtime/agent-runtime.mjs', import.meta.url)),
+    'utf8',
+  )
+  assert.doesNotMatch(source, /builtInExtensions/)
+  assert.doesNotMatch(source, /extensions\/(?:mcp|tool-search)\//)
+  const loader = await readFile(
+    fileURLToPath(new URL('../runtime/pi-coding-agent.mjs', import.meta.url)),
+    'utf8',
+  )
+  assert.doesNotMatch(loader, /extensions\/index\.js|extensions\/(?:mcp|tool-search)\//)
+  const factories = source.match(/extensionFactories: \[([\s\S]*?)\],/)?.[1] || ''
+  assert.deepEqual(factories.match(/\b(?:pisper\w+Extension|create\w+Extension)\b/g), [
+    'pisperPromptExtension',
+    'pisperCompactionExtension',
+    'createCodemodeExtension',
+  ])
+})
+
+test('desktop sessions declare codemode only after the plugin is enabled', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-codemode-'))
+  const capabilities = await resolveRuntimeCapabilities({
+    environment: { PISPER_RUNTIME_PROFILE: 'desktop' },
+    moduleSupport: { childProcess: true, workerThreads: true, sqlite: true, wasm: true },
+  })
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory, capabilities })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+
+  const plain = await runtime.getOrCreateSession((await runtime.createSession('Plain')).id)
+  assert.equal(plain.session.getActiveToolNames().includes('codemode'), false)
+
+  await writeFile(
+    join(directory, 'pisper.json'),
+    JSON.stringify({ toolMode: 'custom', enabledTools: ['read', 'write', 'codemode'] }),
+  )
+  const scripted = await runtime.getOrCreateSession((await runtime.createSession('Script')).id)
+  assert.ok(scripted.session.getActiveToolNames().includes('codemode'))
+  // 嵌套调用钩子随会话创建安装：脚本里的工具调用走 agent.beforeToolCall。
+  assert.equal(
+    Object.getOwnPropertySymbols(scripted.session).some(
+      (symbol) => symbol.description === 'pisper.nested-tool-call-patch',
+    ),
+    true,
+  )
 })

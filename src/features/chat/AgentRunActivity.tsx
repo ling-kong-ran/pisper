@@ -158,6 +158,16 @@ function cleanInline(value: unknown) {
 function toolDetail(tool?: EntityRecord | null) {
   const args = tool?.args || {}
   if (tool?.name === 'bash') return { text: String(args.command || '').trim(), command: true }
+  // codemode 脚本可能很长：只显示第一行有效代码，跳过开头的 // @options 行。
+  if (tool?.name === 'codemode')
+    return {
+      text:
+        String(args.code || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .find((line) => line && !line.startsWith('// @options:')) || '',
+      command: true,
+    }
   if (['read', 'edit', 'write', 'ls'].includes(tool?.name)) return { text: cleanInline(args.path) }
   if (tool?.name === 'grep')
     return {

@@ -3,6 +3,7 @@
 // 这里集中 re-export 引擎的核心能力，供 Pisper 其余代码统一使用。
 import { constants } from 'node:fs'
 import { access as fsAccess, readFile as fsReadFile } from 'node:fs/promises'
+import { installNestedToolCallHooks } from './nested-tool-calls.mjs'
 import { installOutputLimitContinuation } from './output-limit-continuation.mjs'
 
 // 引擎入口包会急切加载 CLI/TUI 模块；这里改为解析包内文件 URL 并按需 import 聚焦的头部模块。
@@ -60,7 +61,17 @@ export async function createAgentSession(options) {
   const created = await runtime.createAgentSession(options)
   // 父会话和子 Agent 都从这里创建；输出上限续跑必须装在引擎会话上，prompt 循环才会继续。
   installOutputLimitContinuation(created?.session)
+  installNestedToolCallHooks(created?.session)
   return created
+}
+
+// codemode 扩展按需加载：装配扩展时才 import，脚本沙箱（worker + QuickJS）在首次调用时才启动。
+// 默认关掉 models：脚本不能绕过 Pisper 的视觉生成审批，直接调用分类器或图像模型。
+export function createCodemodeExtension(options = {}) {
+  return async (pi) => {
+    const runtime = await packageModule('./extensions/codemode/index.js')
+    return runtime.createCodemodeExtension({ models: false, ...options })(pi)
+  }
 }
 
 export async function createDefaultResourceLoader(options) {

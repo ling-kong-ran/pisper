@@ -22,6 +22,7 @@ export function toolName(tool: ToolLabelSource, t: ToolLabelTranslate) {
   if (tool?.id === 'memory_remember') return t('plugins:toolLabels.memoryRemember')
   if (tool?.id === 'mcp_list') return t('plugins:toolLabels.mcpList')
   if (tool?.id === 'mcp_manage') return t('plugins:toolLabels.mcpManage')
+  if (tool?.id === 'codemode') return t('plugins:toolLabels.codemode')
   return String(tool?.name || tool?.id || '')
 }
 
@@ -44,6 +45,7 @@ export function toolDescription(tool: ToolLabelSource, t: ToolLabelTranslate) {
   if (tool?.id === 'memory_remember') return t('plugins:toolLabels.memoryRememberDescription')
   if (tool?.id === 'mcp_list') return t('plugins:toolLabels.mcpListDescription')
   if (tool?.id === 'mcp_manage') return t('plugins:toolLabels.mcpManageDescription')
+  if (tool?.id === 'codemode') return t('plugins:toolLabels.codemodeDescription')
   return String(tool?.description || '')
 }
 
@@ -69,6 +71,7 @@ export function toolCategoryLabel(category: string | undefined, t: ToolLabelTran
   if (category === 'mcp' || category === 'MCP') return t('plugins:toolLabels.mcp')
   if (category === 'collaboration' || category === '协作')
     return t('plugins:toolLabels.collaboration')
+  if (category === 'orchestration') return t('plugins:toolLabels.orchestration')
   return String(category || '')
 }
 
@@ -88,6 +91,7 @@ export function toolScopeLabel(tool: Record<string, unknown>, t: ToolLabelTransl
     return t('plugins:toolLabels.globalAndProjectMemory')
   if (tool.id === 'mcp_list' || tool.id === 'mcp_manage')
     return t('plugins:toolLabels.applicationMcpConfiguration')
+  if (tool.id === 'codemode') return t('plugins:toolLabels.codemodeScope')
   return String(tool.scope || '')
 }
 
@@ -110,6 +114,7 @@ export function toolCapabilityLabel(tool: Record<string, unknown>, t: ToolLabelT
   if (tool.id === 'memory_remember') return t('plugins:toolLabels.memoryRememberCapability')
   if (tool.id === 'mcp_list') return t('plugins:toolLabels.mcpListCapability')
   if (tool.id === 'mcp_manage') return t('plugins:toolLabels.mcpManageCapability')
+  if (tool.id === 'codemode') return t('plugins:toolLabels.codemodeCapability')
   return String(tool.capability || '')
 }
 

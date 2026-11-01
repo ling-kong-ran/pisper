@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import {
   createAgentSession,
+  createCodemodeExtension,
   createCompressedReadTool,
   SessionManager,
   SettingsManager,
@@ -491,7 +492,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           return this.settingsManager
         return SettingsManager.create(skillsCwd, this.dataDir)
       },
-      extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
+      // codemode 注册后默认不激活，只有插件页开启（进入 tools 列表）才对模型可见。
+      // Pi 的内置 mcp / tool-search 刻意不装：MCP 与按需工具由 McpService 和 discover_tools 负责。
+      extensionFactories: [
+        pisperPromptExtension,
+        pisperCompactionExtension,
+        ...(this.capabilities?.features?.codemode ? [createCodemodeExtension()] : []),
+      ],
       // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）。
       builtinSkills: BUILTIN_SKILLS,
       builtinSkillsDir: join(dataDir, 'builtin-skills'),

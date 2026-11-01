@@ -76,6 +76,7 @@ export function createPluginCreateTool({ pluginRuntime, onPluginsChanged } = {})
       'Use context.cwd for the current workspace, context.sessionId for the chat identity, and context.dataDir for persistent plugin-owned data.',
       'The first local-plugin version supports Node.js built-ins and relative bundled files. Do not depend on npm installation, lifecycle scripts, native modules, Provider injection, TUI UI, or overriding built-in tools.',
       'Plugin code runs as the current operating-system user in an isolated Worker, not an OS sandbox. Minimize file and network access and never embed credentials.',
+      'A local plugin only adds tools, and every call goes through Pisper approval. When the request needs to change Agent behavior itself (intercept tool calls, rewrite prompts, add commands or providers), tell the user that needs a Pi Extension installed from the Plugins page instead of plugin_create.',
       'The tool writes to the global Pisper plugin-sources/<plugin-id> directory, refuses to overwrite source or installed plugins, validates the same manifest used by the Plugins page, and installs the plugin for all projects from the next Agent turn.',
     ],
     parameters: Type.Object({

@@ -71,6 +71,19 @@ export const BUILTIN_TOOL_CATALOG = [
     capability: 'Run commands, builds, and tests',
     source: 'builtin',
   },
+  // Pi 的 codemode：脚本本身在无文件、网络、Shell 的沙箱里运行，调用的每个工具照常逐次审批，
+  // 因此按低风险登记；不进默认预设，需要在插件页手动开启。
+  {
+    id: 'codemode',
+    name: 'Code Mode',
+    category: 'orchestration',
+    risk: 'low',
+    description:
+      'Run a sandboxed JavaScript script that calls other enabled tools in parallel and returns only its output.',
+    scope: 'Isolated script sandbox; each tool it calls keeps its own scope and approval',
+    capability: 'Batch, filter, and combine tool calls without passing every result to the model',
+    source: 'builtin',
+  },
 ]
 
 // 单一预设：默认全部内置工具开启（含 Shell）；细粒度开关走 custom（插件页逐工具管理）。

@@ -20,6 +20,8 @@ const HOT_TOOL_SET = new Set([
   'interrupt_agent',
   // ask_user 常驻可见：代理需要在分歧时直接问，而不是先 discover_tools。
   'ask_user',
+  // codemode 只在插件页开启后才进入可用工具；开了就直接声明，脚本才能编排其他工具。
+  'codemode',
 ])
 
 export function schemaOnlyToolDefinition(tool) {
