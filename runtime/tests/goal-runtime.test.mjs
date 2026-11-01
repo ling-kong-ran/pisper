@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { createSettleBarrierExtension } from '../runtime/settle-barrier.mjs'
 
 test('goal mode queues hidden continuation turns until the goal is completed', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-runtime-'))
@@ -18,6 +20,10 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
   const listeners = new Set()
   const queued = []
   let turns = 0
+  const beforeSettle = []
+  createSettleBarrierExtension(runtime.settleBarrier)({
+    on: (type, handler) => type === 'agent_before_settle' && beforeSettle.push(handler),
+  })
   const emit = (event) => {
     for (const listener of listeners) listener(event)
   }
@@ -59,8 +65,17 @@ test('goal mode queues hidden continuation turns until the goal is completed', a
         emit({ type: 'turn_end', message: assistant })
         emit({ type: 'agent_end', messages: [assistant] })
       }
+      // 与 Pi 一致：每次运行收尾先跑 agent_before_settle 处理器，再看队列决定是否继续。
+      const settle = async () => {
+        for (const handler of beforeSettle)
+          await handler({}, { sessionManager: { getSessionId: () => session.sessionId } })
+      }
       await processTurn(text)
-      while (queued.length) await processTurn(queued.shift())
+      await settle()
+      while (queued.length) {
+        await processTurn(queued.shift())
+        await settle()
+      }
       session.isStreaming = false
     },
     async abort() {},
@@ -496,4 +511,89 @@ test('goal continuation waits for Pi retries and skips terminal assistant errors
 
   assert.deepEqual(queued, [])
   assert.equal(runtime.getSessionGoal(session.sessionId).status, 'active')
+})
+
+// 真实 Pi：预算在用量结算（异步落盘）后才判定耗尽，预算总结要赶在 Pi 收尾前入队，
+// 同一次运行里就把总结发出去，而不是停在队列里等用户下次发消息。
+test('a real runtime sends the budget summary in the same run once the goal budget is spent', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-goal-settle-'))
+  const requests = []
+  const server = createServer(async (request, reply) => {
+    if (request.method === 'GET' && request.url === '/v1/models') {
+      reply.writeHead(200, { 'content-type': 'application/json' })
+      reply.end(JSON.stringify({ data: [{ id: 'fixture' }] }))
+      return
+    }
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    requests.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+    const chunk = (delta, finish_reason = null) => ({
+      id: 'test',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'fixture',
+      choices: [{ index: 0, delta, finish_reason }],
+    })
+    reply.writeHead(200, { 'content-type': 'text/event-stream' })
+    reply.write(
+      `data: ${JSON.stringify(chunk({ role: 'assistant', content: `answer ${requests.length}` }))}\n\n`,
+    )
+    reply.write(
+      `data: ${JSON.stringify({ ...chunk({}, 'stop'), usage: { prompt_tokens: 300, completion_tokens: 20, total_tokens: 320 } })}\n\n`,
+    )
+    reply.end('data: [DONE]\n\n')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose()
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+    await rm(directory, { recursive: true, force: true })
+  })
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        'test-goal': {
+          api: 'openai-completions',
+          baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+          models: [
+            {
+              id: 'fixture',
+              name: 'Fixture',
+              reasoning: false,
+              input: ['text'],
+              contextWindow: 200000,
+              maxTokens: 8192,
+            },
+          ],
+        },
+      },
+    }),
+  )
+  await writeFile(
+    join(directory, 'auth.json'),
+    JSON.stringify({ 'test-goal': { type: 'api_key', key: 'test-only-goal-key' } }),
+  )
+  runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.memorySummarizer = { summarize: async (entries) => entries.map(() => '') }
+  await runtime.init()
+  runtime.memory.setSemanticSummarizer(null)
+  const created = await runtime.createSession('预算目标', directory)
+  await runtime.setSessionModel(created.id, 'test-goal', 'fixture')
+  await runtime.streamPrompt({
+    sessionId: created.id,
+    message: 'Finish the small goal.',
+    goalMode: true,
+    goalTokenBudget: 100,
+    send: () => {},
+  })
+
+  assert.equal(runtime.getSessionGoal(created.id).status, 'budget_limited')
+  assert.equal(requests.length, 2)
+  const lastUser = requests[1].messages.filter((message) => message.role === 'user').at(-1)
+  assert.match(JSON.stringify(lastUser), /reached its token budget/)
+  const live = await runtime.getExistingSession(created.id)
+  assert.equal(live.session.agent.hasQueuedMessages(), false)
 })

@@ -64,6 +64,7 @@ import {
 } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../services/goal-service.mjs'
 import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
+import { createSettleBarrierExtension, SettleBarrier } from './settle-barrier.mjs'
 import {
   projectGoalTeam,
   shouldAttachTeamSnapshot,
@@ -488,6 +489,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
+    this.settleBarrier = new SettleBarrier()
     this.agentEmitters = new Map()
     this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
     this.skills = new SkillsService({
@@ -506,6 +508,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       extensionFactories: [
         pisperPromptExtension,
         pisperCompactionExtension,
+        createSettleBarrierExtension(this.settleBarrier),
         ...(this.capabilities?.features?.codemode ? [createCodemodeExtension()] : []),
       ],
       // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）。
@@ -2609,8 +2612,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
         goalTurnId = ''
         goalTurnStartedAt = 0
-        pendingGoalAccounting = accounting
-          .then(async (updatedGoal) => {
+        // 结算可能排入预算总结：登记到收尾屏障，Pi 判断是否继续前会等它完成。
+        pendingGoalAccounting = this.settleBarrier.track(
+          session.sessionId,
+          accounting.then(async (updatedGoal) => {
             if (updatedGoal?.mode === 'team' && updatedGoal.status === 'budget_limited') {
               await this.teamWorkflows.markBudgetLimited(session.sessionId)
               this.multiAgents.abortParent(
@@ -2622,10 +2627,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             this.emitGoalUpdate(session.sessionId, updatedGoal)
             if (updatedGoal?.status === 'budget_limited' && !budgetSummaryQueued) {
               budgetSummaryQueued = true
-              void session.followUp(goalBudgetPrompt(updatedGoal)).catch(() => {})
+              await session.followUp(goalBudgetPrompt(updatedGoal))
             }
-          })
-          .catch(() => {})
+          }),
+        )
       } else if (event.type === 'agent_end') {
         // 目标模式下的多轮延续：正常结束时用延续提示再驱动一轮，直到目标完成/预算耗尽。
         if (event.willRetry) return
@@ -2638,18 +2643,26 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           finalAssistant?.errorMessage
         )
           return
-        const activeGoal = this.goals.get(session.sessionId)
-        if (activeGoal?.status !== 'active' || continuationQueued) return
+        if (continuationQueued || this.goals.get(session.sessionId)?.status !== 'active') return
         continuationQueued = true
-        // Team 目标延续前先调度：到期的可恢复失败任务与依赖就绪任务自动重排，
-        // 避免 lead 对着 failed 任务反复撞完成屏障。
-        if (activeGoal.mode === 'team') void value.multiAgentRuntime?.resume?.().catch(() => {})
-        void session
-          .followUp(teamPrompt(activeGoal))
-          .catch(() => {})
-          .finally(() => {
-            continuationQueued = false
-          })
+        // 先等本轮用量结算：预算恰好耗尽时目标已转为 budget_limited，只发预算总结，不再排普通延续。
+        // 整个入队登记到收尾屏障，Pi 判断是否继续之前一定能看到这条延续。
+        void this.settleBarrier.track(
+          session.sessionId,
+          pendingGoalAccounting
+            .then(async () => {
+              const activeGoal = this.goals.get(session.sessionId)
+              if (activeGoal?.status !== 'active') return
+              // Team 目标延续前先调度：到期的可恢复失败任务与依赖就绪任务自动重排，
+              // 避免 lead 对着 failed 任务反复撞完成屏障。
+              if (activeGoal.mode === 'team')
+                void value.multiAgentRuntime?.resume?.().catch(() => {})
+              await session.followUp(teamPrompt(activeGoal))
+            })
+            .finally(() => {
+              continuationQueued = false
+            }),
+        )
       } else if (event.type === 'auto_retry_start') {
         emit('retry', {
           attempt: event.attempt,
@@ -2691,7 +2704,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         : message
       applyPisperSystemPrompt(session, session.model)
       await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
-      await pendingGoalAccounting
+      await this.settleBarrier.settle(session.sessionId)
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')
       // 模型返回的最后一轮若带错误信息，视为本轮失败；看板卡片据 boardErrorKind 区分模型错误与运行时错误。
       if (last?.errorMessage)

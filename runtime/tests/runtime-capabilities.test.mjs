@@ -320,6 +320,7 @@ test('Pi built-in MCP and tool-search extensions stay out of the agent runtime',
   assert.deepEqual(factories.match(/\b(?:pisper\w+Extension|create\w+Extension)\b/g), [
     'pisperPromptExtension',
     'pisperCompactionExtension',
+    'createSettleBarrierExtension',
     'createCodemodeExtension',
   ])
 })
