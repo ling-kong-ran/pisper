@@ -59,6 +59,8 @@ test('component_create 是登记过的高风险 app 工具：目录、预设、�
   assert.match(guidelines, /\/skill:pisper-component/)
   assert.match(guidelines, /No bare imports/)
   assert.match(guidelines, /https/)
+  assert.match(guidelines, /ctx\.provider\.request/)
+  assert.match(guidelines, /Never add API Key props/)
 })
 
 test('执行模式：审批模式可见且每次审批；工作区写与完全访问直接放行；不按“工作区之外”阻断', () => {

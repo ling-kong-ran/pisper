@@ -231,7 +231,7 @@ class ComponentRateLimiter {
 export class ComponentFetchProxy {
   /**
    * @param {{
-   *   lookup?: (hostname: string) => Promise<{ address: string, family: number }[]>,
+   *   lookup?: (hostname: string, signal?: AbortSignal) => Promise<{ address: string, family: number }[]>,
    *   isBlockedAddress?: (address: string) => boolean,
    *   request?: typeof httpsRequest,
    *   ca?: string | Buffer,
@@ -295,12 +295,12 @@ export class ComponentFetchProxy {
 
   /**
    * 解析主机并校验每一个地址；任何一个被阻断就整体拒绝（不挑“好的”那个连）。
-   * @param {string} hostname
+   * @param {string} hostname @param {AbortSignal} [signal]
    */
-  async resolve(hostname) {
+  async resolve(hostname, signal) {
     let addresses
     try {
-      addresses = await this.lookup(hostname)
+      addresses = await this.lookup(hostname, signal)
     } catch {
       throw new CustomUiError('component_fetch_failed', 502, { host: hostname })
     }
@@ -396,6 +396,37 @@ export class ComponentFetchProxy {
         reject(error)
       })
     })
+  }
+
+  /**
+   * Runtime 已解析认证的单跳请求：沿用 DNS 固定、响应大小和响应头白名单，绝不跟随重定向。
+   * 只能由 Provider 请求服务调用；此入口不接受组件提供的认证头。
+   * @param {{ url: URL, method: string, headers: Record<string, string>, body: Buffer | null }} hop
+   * @param {AbortSignal} signal
+   */
+  async sendAuthenticated(hop, signal) {
+    const url = checkFetchTarget(hop.url.toString(), [hop.url.hostname])
+    signal.throwIfAborted()
+    const addresses = await this.resolve(url.hostname, signal)
+    signal.throwIfAborted()
+    const response = await this.send({ ...hop, url }, addresses, signal)
+    const status = response.statusCode || 0
+    if (REDIRECT_STATUSES.has(status)) {
+      response.destroy()
+      throw new CustomUiError('component_provider_redirect_denied', 502)
+    }
+    const bytes = hop.method === 'HEAD' ? Buffer.alloc(0) : await this.readBody(response, signal)
+    if (hop.method === 'HEAD') response.resume()
+    const text = isTextContent(String(response.headers['content-type'] || ''))
+    return {
+      status,
+      statusText: toWellFormed(response.statusMessage || ''),
+      headers: publicResponseHeaders(response.headers),
+      body: text ? toWellFormed(bytes.toString('utf8')) : bytes.toString('base64'),
+      bodyEncoding: text ? 'utf8' : 'base64',
+      url: url.toString(),
+      redirected: false,
+    }
   }
 
   /**

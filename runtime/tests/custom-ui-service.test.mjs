@@ -192,11 +192,61 @@ test('资源拒绝整个组件目录的符号链接逃逸及绝对路径', async
   )
 })
 
+test('组件更新删除 manifest 属性时清理实例旧值，历史密钥不再随实例返回', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-component-props-migration-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const service = new CustomUiService({ dataDir: directory })
+  t.after(() => service.dispose())
+  const withProps = (properties, required = []) => ({
+    ...NATIVE,
+    props: { type: 'object', properties, required },
+  })
+  await service.writeComponent({
+    mode: 'create',
+    id: 'quota',
+    manifest: withProps({
+      apiKey: { type: 'string' },
+      refreshSeconds: { type: 'integer', minimum: 30 },
+    }),
+    files: Object.entries(NATIVE_FILES).map(([path, content]) => ({ path, content })),
+  })
+  await service.createInstance({
+    componentId: 'quota',
+    surface: 'session-panel',
+    props: { apiKey: 'obsolete-secret', refreshSeconds: 60 },
+  })
+  await service.writeComponent({
+    mode: 'update',
+    id: 'quota',
+    manifest: withProps({ refreshSeconds: { type: 'integer', minimum: 30 } }),
+    files: [],
+  })
+  const { instances } = await service.listInstances()
+  assert.deepEqual(instances[0].props, { refreshSeconds: 60 })
+  assert.ok(!JSON.stringify(instances).includes('obsolete-secret'))
+
+  // Schema 后续收紧或新增必填项时，只清理已删除键；其他值留给编辑流程重新校验。
+  await service.writeComponent({
+    mode: 'update',
+    id: 'quota',
+    manifest: withProps(
+      {
+        refreshSeconds: { type: 'integer', minimum: 120 },
+        displayName: { type: 'string' },
+      },
+      ['displayName'],
+    ),
+    files: [],
+  })
+  const afterSchemaChange = await service.listInstances()
+  assert.deepEqual(afterSchemaChange.instances[0].props, { refreshSeconds: 60 })
+})
+
 // 真实服务器 + 桌面 Cookie 鉴权 + createApiHandler（与旧视图凭证测试同一套脚手架）。
-async function startServer(t, service) {
+async function startServer(t, service, runtime = {}) {
   const { createApiHandler } = await import('../http/api-handler.mjs')
   const { authorizeDesktopRequest } = await import('../desktop-sidecar-auth.mjs')
-  const handler = createApiHandler({}, { customUi: service })
+  const handler = createApiHandler(runtime, { customUi: service })
   const server = createServer(async (req, res) => {
     const origin = `http://127.0.0.1:${server.address().port}`
     const url = new URL(req.url, origin)
@@ -268,6 +318,92 @@ test('HTTP: GET /components returns the v2 catalog; old iframe routes answer 410
   }
   // 旧组件文件没有被兼容桩读取或改动。
   assert.equal(await readFile(join(service.root, 'old', 'index.html'), 'utf8'), '<h1>old</h1>')
+})
+
+test('HTTP: Provider 请求沿用鉴权、声明路径和撤销规则，并随断开取消', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-request-api-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const service = new CustomUiService({ dataDir: directory })
+  await createComponent(service.root, 'demo', NATIVE, NATIVE_FILES)
+  await createComponent(
+    service.root,
+    'quota',
+    {
+      ...NATIVE,
+      capabilities: {
+        'provider.request': { paths: ['/usage'], methods: ['GET'], reason: 'usage' },
+      },
+    },
+    NATIVE_FILES,
+  )
+  const calls = []
+  let started, disconnected
+  const start = new Promise((resolve) => {
+    started = resolve
+  })
+  const disconnect = new Promise((resolve) => {
+    disconnected = resolve
+  })
+  const { origin, headers } = await startServer(t, service, {
+    requestSessionProvider: async (componentId, sessionId, request, signal) => {
+      calls.push({ componentId, sessionId, request, signal })
+      if (sessionId === 'disconnect') {
+        started()
+        await new Promise((resolve) =>
+          signal.addEventListener(
+            'abort',
+            () => {
+              disconnected()
+              resolve()
+            },
+            { once: true },
+          ),
+        )
+      }
+      return {
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        body: '{"remaining":75}',
+        bodyEncoding: 'utf8',
+        url: 'https://example.com/usage',
+        redirected: false,
+      }
+    },
+  })
+  const request = { path: '/usage?period=week' }
+  const send = (id, body, options = {}) =>
+    fetch(`${origin}/api/custom-ui/components/${id}/provider-request`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      ...options,
+    })
+  assert.equal((await send('quota', { sessionId: 's', request }, { headers: {} })).status, 401)
+  assert.equal((await send('demo', { sessionId: 's', request })).status, 403)
+  assert.equal((await send('quota', { request })).status, 400)
+  assert.equal((await send('quota', { sessionId: 's', request: { path: '/other' } })).status, 403)
+  assert.equal(
+    (await send('quota', { sessionId: 's', request: { path: '/usage', method: 'DELETE' } })).status,
+    403,
+  )
+  const response = await send('quota', { sessionId: 'current-session', request })
+  assert.equal(response.status, 200)
+  assert.equal(JSON.parse((await response.json()).body).remaining, 75)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].componentId, 'quota')
+  assert.equal(calls[0].sessionId, 'current-session')
+  assert.deepEqual(calls[0].request, request)
+  assert.ok(calls[0].signal instanceof AbortSignal)
+  const controller = new AbortController()
+  const pending = send('quota', { sessionId: 'disconnect', request }, { signal: controller.signal })
+  await start
+  controller.abort()
+  await assert.rejects(pending)
+  await disconnect
+  assert.equal(calls.at(-1).signal.aborted, true)
+  await service.setEnabled('quota', { revoked: ['provider.request'] })
+  assert.equal((await send('quota', { sessionId: 's', request })).status, 403)
 })
 
 test('HTTP: the pre-auth /api/custom-ui/render/* entry is gone (no bypass before authentication)', async (t) => {

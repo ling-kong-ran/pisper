@@ -14,6 +14,7 @@ import type {
 import type {
   ComponentFetchRequest,
   ComponentFetchResult,
+  ComponentProviderRequest,
 } from '@/features/custom-ui/custom-ui-api'
 import type { ComponentLogger } from './log'
 import {
@@ -87,6 +88,11 @@ export type ComponentServices = {
   storageGet(key: string): Promise<unknown>
   storageSet(key: string, value: unknown): Promise<void>
   storageRemove(key: string): Promise<void>
+  providerRequest(
+    sessionId: string,
+    request: ComponentProviderRequest,
+    signal: AbortSignal,
+  ): Promise<ComponentFetchResult>
   // 能力台账（A8）：只报浏览器侧的 notify 与 sessions.*；没有时不记。
   reportUsage?(capability: 'notify' | 'sessions.read' | 'sessions.open'): void
 }
@@ -325,7 +331,7 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
       return disposed
     },
     context({ size, placement, session }) {
-      // 成员顺序与 CTX_V1_KEYS 一致；session 只在会话面板放置时有值，其余放置为 undefined。
+      // 成员顺序与 CTX_V1_KEYS 一致；session 由宿主传入；没有当前会话时为 undefined。
       return Object.freeze({
         sdk: SDK_VERSION,
         React: kit.React,
@@ -336,6 +342,36 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
         notify,
         net,
         storage,
+        provider: Object.freeze({
+          request(
+            input: { path: string; auth?: ComponentProviderRequest['auth'] } & FetchInit,
+          ): Promise<ComponentFetchResponse> {
+            const denied = requireAsync('provider.request')
+            if (denied) return denied
+            if (!session?.id)
+              return Promise.reject(new ComponentRequestError('component_session_required'))
+            let request: ComponentProviderRequest
+            try {
+              if (!input || typeof input !== 'object')
+                throw new ComponentRequestError('component_provider_request_invalid')
+              const { url, ...prepared } = buildFetchRequest(input.path, input)
+              request = {
+                ...prepared,
+                path: url,
+                ...(input.auth === undefined ? {} : { auth: input.auth }),
+              }
+            } catch (error) {
+              return Promise.reject(error)
+            }
+            const linked = linkSignals([controller.signal, input.signal])
+            return services
+              .providerRequest(session.id, request, linked.signal)
+              .then(createFetchResponse, (error: unknown) => {
+                throw toComponentRequestError(error)
+              })
+              .finally(linked.release)
+          },
+        }),
         signal: controller.signal,
         setTimeout: timers.setTimeout,
         setInterval: timers.setInterval,
@@ -343,10 +379,7 @@ export function createComponentRuntime(options: ComponentRuntimeOptions): Compon
         clearInterval: timers.clearInterval,
         size: Object.freeze({ ...size }),
         placement: Object.freeze({ ...placement }),
-        session:
-          placement.surface === 'session-panel' && session
-            ? Object.freeze({ ...session })
-            : undefined,
+        session: session ? Object.freeze({ ...session }) : undefined,
         t,
         log,
         CapabilityError,

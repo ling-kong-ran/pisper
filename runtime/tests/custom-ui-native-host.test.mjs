@@ -150,7 +150,7 @@ function runtimeFor(manifest, overrides = {}) {
     buffer,
     reporter,
   })
-  const calls = { notify: [], open: [], fetch: [], storage: [] }
+  const calls = { notify: [], open: [], fetch: [], storage: [], providerRequest: [] }
   const callbackErrors = []
   const timers = fakeTimers()
   let now = 1_000_000
@@ -188,6 +188,26 @@ function runtimeFor(manifest, overrides = {}) {
             body: '{"ok":true}',
             bodyEncoding: 'utf8',
             url: request.url,
+            redirected: false,
+          }
+        )
+      },
+      providerRequest: async (sessionId, request, signal) => {
+        calls.providerRequest.push({ sessionId, request, signal })
+        if (overrides.providerRequestPending) {
+          signal.throwIfAborted()
+          return new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+          )
+        }
+        return (
+          overrides.providerRequestResult ?? {
+            status: 200,
+            statusText: 'OK',
+            headers: { 'content-type': 'application/json' },
+            body: '{"remaining":75}',
+            bodyEncoding: 'utf8',
+            url: 'https://example.com/usage',
             redirected: false,
           }
         )
@@ -505,12 +525,19 @@ test('未声明的能力抛 CapabilityError 并记一条 warn 日志；异步能
   await assert.rejects(ctx.storage.get('k'), (error) => error.capability === 'storage')
   await assert.rejects(ctx.storage.set('k', 1), CapabilityError)
   await assert.rejects(ctx.storage.remove('k'), CapabilityError)
-  assert.equal(calls.notify.length + calls.fetch.length + calls.storage.length, 0)
+  await assert.rejects(
+    ctx.provider.request({ path: '/usage' }),
+    (error) => error.capability === 'provider.request' && error.reason === 'undeclared',
+  )
+  assert.equal(
+    calls.notify.length + calls.fetch.length + calls.storage.length + calls.providerRequest.length,
+    0,
+  )
   const entries = buffer.read('bare')
-  assert.equal(entries.length, 8)
+  assert.equal(entries.length, 9)
   assert.ok(entries.every((entry) => entry.level === 'warn' && entry.kind === 'log'))
   assert.match(entries[0].message, /CapabilityError: Capability "notify"/)
-  assert.equal(sent.length, 8)
+  assert.equal(sent.length, 9)
   assert.equal(sent[0].report.instanceId, 'inst-1')
   assert.equal(sent[0].report.surface, 'feature-page')
 })
@@ -521,6 +548,7 @@ test('声明了的能力：notify 截断与限速、会话筛选与打开、存�
     'sessions.read': { reason: 'r' },
     'sessions.open': { reason: 'r' },
     storage: { reason: 'r' },
+    'provider.request': { paths: ['/usage'], methods: ['GET'], reason: 'r' },
     network: { reason: 'r', hosts: ['api.example.com'] },
   })
   const sessions = [
@@ -548,6 +576,47 @@ test('声明了的能力：notify 截断与限速、会话筛选与打开、存�
   ctx.sessions.open('a')
   ctx.sessions.open(42)
   assert.deepEqual(calls.open, ['a'])
+
+  await assert.rejects(
+    ctx.provider.request({ path: '/usage' }),
+    (error) => error.code === 'component_session_required',
+  )
+  const bound = runtime.context({
+    size: computeComponentSize({ surface: 'feature-page', width: 640, height: 400 }),
+    placement: { surface: 'feature-page', instanceId: 'inst-1', title: '', preview: false },
+    session: { id: 'current-session', title: 'Current', cwd: '/w/one', status: 'done' },
+  })
+  assert.deepEqual(await (await bound.provider.request({ path: '/usage' })).json(), {
+    remaining: 75,
+  })
+  assert.equal(calls.providerRequest[0].sessionId, 'current-session')
+  const switched = runtime.context({
+    size: computeComponentSize({ surface: 'feature-page', width: 640, height: 400 }),
+    placement: { surface: 'feature-page', instanceId: 'inst-1', title: '', preview: false },
+    session: { id: 'another-session', title: 'Another', cwd: '/w/two', status: 'idle' },
+  })
+  await switched.provider.request({ path: '/usage' })
+  await bound.provider.request({ path: '/usage' })
+  assert.deepEqual(
+    calls.providerRequest.map((call) => call.sessionId),
+    ['current-session', 'another-session', 'current-session'],
+    '每个上下文保留自己的会话，切换后的请求不能混用旧会话',
+  )
+  for (const reason of ['caller', 'unmount']) {
+    const pending = runtimeFor(manifest, { providerRequestPending: true })
+    const context = pending.runtime.context({
+      size: ctx.size,
+      placement: ctx.placement,
+      session: bound.session,
+    })
+    const controller = new AbortController()
+    const promise = context.provider.request({ path: '/usage', signal: controller.signal })
+    if (reason === 'caller') controller.abort()
+    else pending.runtime.dispose()
+    await assert.rejects(promise, (error) => error.code === 'component_request_aborted')
+    assert.equal(pending.calls.providerRequest[0].signal.aborted, true)
+    pending.runtime.dispose()
+  }
 
   await ctx.storage.set('note:1', { text: 'hi' })
   assert.equal(await ctx.storage.get('note:1'), undefined)
@@ -1164,8 +1233,12 @@ test('撤销的能力按未提供处理（CapabilityError.reason = revoked）；
       'sessions.read': { reason: 'r' },
       'sessions.open': { reason: 'r' },
       storage: { reason: 'r' },
+      'provider.request': { paths: ['/usage'], methods: ['GET'], reason: 'r' },
     }),
-    { revoked: ['storage'], reportUsage: (capability) => usage.push(capability) },
+    {
+      revoked: ['storage', 'provider.request'],
+      reportUsage: (capability) => usage.push(capability),
+    },
   )
   await assert.rejects(
     ctx.storage.get('k'),
@@ -1174,6 +1247,10 @@ test('撤销的能力按未提供处理（CapabilityError.reason = revoked）；
       error.capability === 'storage' &&
       error.reason === 'revoked' &&
       /revoked/.test(error.message),
+  )
+  await assert.rejects(
+    ctx.provider.request({ path: '/usage' }),
+    (error) => error.capability === 'provider.request' && error.reason === 'revoked',
   )
   // 没声明的照旧是 undeclared。
   await assert.rejects(

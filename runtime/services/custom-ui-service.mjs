@@ -31,6 +31,7 @@ import {
   unpackCustomUiZip,
 } from './custom-ui-import.mjs'
 import { CustomUiError } from './custom-ui-error.mjs'
+import { parseProviderRequest } from './provider-request-service.mjs'
 import {
   ComponentHasher,
   componentFileType,
@@ -749,6 +750,7 @@ export class CustomUiService {
       this.hasher.invalidate(dir)
       if (mode === 'create') await this.state.update(id, { enabled: true, source })
       else if (source === 'agent') await this.state.update(id, { enabled: true, source })
+      if (mode === 'update') await this.pruneInstanceProps(id, manifest)
       const changes = writes.map((file) => ({
         path: file.path,
         ...lineDelta(previous.get(file.path), file.content),
@@ -898,6 +900,41 @@ export class CustomUiService {
     return result
   }
 
+  /**
+   * 认证请求只使用声明的路径和方法；会话认证由 Runtime 解析，组件不能指定目标主机。
+   * 台账只记方法，不持久化会话 id、查询参数、请求体或认证。
+   * @param {string} id @param {unknown} input @param {(sessionId: string, request: unknown) => Promise<any>} send
+   */
+  async requestProviderForComponent(id, input, send) {
+    const { row, manifest } = await this.runnableComponent(id)
+    const capability = 'provider.request'
+    if (!row.enabled) throw new CustomUiError('component_disabled', 409)
+    if (!manifest.capabilities[capability])
+      throw new CustomUiError('component_capability_denied', 403, { capability })
+    if (row.revoked?.includes(capability))
+      throw new CustomUiError('component_capability_revoked', 403, { capability })
+    if (
+      !input ||
+      typeof input !== 'object' ||
+      Array.isArray(input) ||
+      Object.keys(input).some((key) => !['sessionId', 'request'].includes(key))
+    )
+      throw new CustomUiError('component_provider_request_invalid', 400)
+    const { sessionId, request } = input
+    if (typeof sessionId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,199}$/.test(sessionId))
+      throw new CustomUiError('component_session_invalid', 400)
+    const parsed = parseProviderRequest(request)
+    const policy = manifest.capabilities[capability]
+    if (
+      !policy.paths.includes(parsed.path.split('?')[0]) ||
+      !policy.methods.includes(parsed.method)
+    )
+      throw new CustomUiError('component_provider_path_denied', 403)
+    const result = await send(sessionId, request)
+    this.usage.record(id, capability, { target: parsed.method })
+    return result
+  }
+
   /** @param {string} id @param {unknown} input */
   async fetchForComponent(id, input) {
     const { row, manifest } = await this.runnableComponent(id)
@@ -1019,6 +1056,8 @@ export class CustomUiService {
         deleted: deleteFiles,
       }).catch(() => {})
     const written = await this.inspect(id)
+    // 替换导入与版本回滚共用此入口；manifest 删除属性后，旧实例值也不能继续经 API 暴露。
+    if (written?.manifest) await this.pruneInstanceProps(id, written.manifest)
     this.notify(
       id,
       { rev: written?.row.rev ?? null, reason: 'files' },
@@ -1283,6 +1322,26 @@ export class CustomUiService {
     if (surface !== undefined && surface !== null && surface !== '' && !isComponentSurface(surface))
       throw new CustomUiError('component_surface_invalid', 400)
     return this.instanceStore.list(surface || undefined)
+  }
+
+  /**
+   * 属性从 manifest 删除后立即清掉实例旧值，尤其避免历史密钥继续随实例 API 返回。
+   * @param {string} componentId
+   * @param {import('../../shared/custom-ui-manifest.d.mts').NativeManifest} manifest
+   */
+  async pruneInstanceProps(componentId, manifest) {
+    const properties = manifest.props?.properties || {}
+    const { instances } = await this.instanceStore.list()
+    for (const instance of instances) {
+      if (instance.componentId !== componentId) continue
+      const retained = Object.fromEntries(
+        Object.entries(instance.props).filter(([key]) => Object.hasOwn(properties, key)),
+      )
+      // 这里只执行“删除已移除键”。新增必填项或收紧约束留给实例编辑流程提示，
+      // 不能因为另一个字段待重新配置而清空仍然有效的首选项。
+      if (Object.keys(retained).length !== Object.keys(instance.props).length)
+        await this.instanceStore.update(instance.instanceId, { props: retained })
+    }
   }
 
   /** 组件层面的前提：native、ready、enabled，且 manifest 声明了这个放置位置。 */

@@ -156,6 +156,8 @@
   "errors.component_request_too_large": "The request is too large.",
   "errors.component_asset_missing": "Component file not found.",
   "errors.component_capability_denied": "The component doesn't declare this capability.",
+  "errors.component_session_required": "This action requires a current session.",
+  "errors.component_session_invalid": "The session ID is invalid or doesn't exist.",
   "errors.component_capability_revoked": "You revoked this capability.",
   "errors.component_archive_invalid": "Invalid ZIP: its paths, file count or format aren't accepted.",
   "errors.component_archive_too_large": "The ZIP is larger than 16 MB.",
@@ -176,6 +178,7 @@
   "studio.capNetwork": "Network",
   "studio.capNone": "No capabilities declared.",
   "studio.capNotify": "Notifications",
+  "studio.capProviderRequest": "Request with current session authentication",
   "studio.capSessionsOpen": "Open sessions",
   "studio.capSessionsRead": "Read sessions",
   "studio.capStorage": "Component storage",
@@ -418,5 +421,9 @@
   "usage.revokedBadge": "Revoked",
   "usage.revoked": "Revoked “{capability}”: the component can no longer use it through the Pisper APIs.",
   "usage.unrevoked": "“{capability}” allowed again.",
-  "usage.revokeFailed": "Couldn't update the capability."
+  "usage.revokeFailed": "Couldn't update the capability.",
+  "errors.provider_paths_invalid": "Declare valid exact service paths (up to 16).",
+  "errors.provider_methods_invalid": "Declare allowed HTTP methods.",
+  "errors.component_provider_request_invalid": "Invalid authenticated request.",
+  "errors.component_provider_path_denied": "The component has not declared this service path or HTTP method."
 }

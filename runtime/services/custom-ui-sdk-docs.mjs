@@ -93,6 +93,17 @@ export interface ComponentStorage {
   remove(key: string): Promise<void>
 }
 
+export interface ProviderRequestInit extends FetchInit {
+  /** origin 根路径，例如 /v1/usage；允许查询参数，路径与方法须在 manifest 声明 */
+  path: string
+  /** provider 沿用协议默认与已解析配置头；可显式指定同一凭据的认证头格式 */
+  auth?: 'provider' | 'bearer' | 'x-api-key' | 'x-goog-api-key'
+}
+
+export interface ComponentProvider {
+  request(input: ProviderRequestInit): Promise<FetchResponse>
+}
+
 export interface ComponentLog {
   info(...args: unknown[]): void
   warn(...args: unknown[]): void
@@ -139,7 +150,13 @@ export interface UiKit {
 }
 
 export declare class CapabilityError extends Error {
-  capability: 'network' | 'notify' | 'sessions.read' | 'sessions.open' | 'storage'
+  capability:
+    | 'network'
+    | 'notify'
+    | 'sessions.read'
+    | 'sessions.open'
+    | 'storage'
+    | 'provider.request'
   reason: 'undeclared' | 'revoked'
 }
 
@@ -156,6 +173,7 @@ export interface Ctx {
   notify(text: string): void
   net: ComponentNet
   storage: ComponentStorage
+  provider: ComponentProvider
   /** 卸载或热重载时 abort */
   signal: AbortSignal
   setTimeout(handler: () => void, ms?: number): number
@@ -164,7 +182,7 @@ export interface Ctx {
   clearInterval(id: number | null | undefined): void
   size: ComponentSize
   placement: ComponentPlacement
-  /** 只在会话面板放置时有 */
+  /** 宿主有当前会话时提供；工作室预览等场景可能为空 */
   session?: { id: string; title: string; cwd: string; status: SessionSummary['status'] }
   /** 读 manifest.i18n.<locale>.strings，{name} 占位符用 vars 替换 */
   t(key: string, vars?: Record<string, string | number>): string
@@ -321,16 +339,23 @@ export default function CiStatus({ props, size, placement, ctx }) {
 | \`notify(text)\` | 应用提示条，≤200 字，每分钟 ≤6 次 | notify |
 | \`net.fetch(url, init)\` | 经 Runtime 代理，见第 8 节 | network |
 | \`storage.get/set/remove(key)\` | 组件私有存储，key \`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$\`，值是 JSON | storage |
+| \`provider.request()\` | 读取当前会话的规范化 Provider 额度窗口；原始 Key 不进入组件 | provider.request |
 | \`signal\` | 卸载或热重载时 abort：传给 fetch、在回调里检查 | — |
 | \`setTimeout\` / \`setInterval\` / \`clearTimeout\` / \`clearInterval\` | 托管定时器，卸载时自动清理 | — |
 | \`size\` | \`{ units, width, height, compact }\`，随容器实时变化 | — |
 | \`placement\` | \`{ surface, instanceId, title, preview }\` | — |
-| \`session\` | 只在会话面板放置时有：当前会话 \`{ id, title, cwd, status }\` | — |
+| \`session\` | 宿主有当前会话时提供 \`{ id, title, cwd, status }\`；工作室预览等场景可能为空 | — |
 | \`t(key, vars)\` | 读 manifest.i18n 的 strings，按应用语言选，\`{name}\` 占位 | — |
 | \`log.info/warn/error\` | 写入工作室日志页；warn / error 也会上报 | — |
 | \`CapabilityError\` | 调用未声明、或被用户撤销的能力时抛出的错误类（\`reason\` 为 \`'undeclared'\` 或 \`'revoked'\`） | — |
 
 调用未声明的能力、或用户在工作室能力清单里撤销了的能力，会抛 \`CapabilityError\` 并记一条日志；组件应当捕获它并降级显示（例如“网络已被撤销”），不要整块崩溃。定时器、订阅与 net 的回调里抛出的异常会归到这个组件，60 秒内崩溃 3 次的实例会被暂停。
+
+认证请求应声明 \`provider.request: { paths: ["/v1/usage"], methods: ["GET"], reason: "读取额度" }\`，调用 \`ctx.provider.request({ path: "/v1/usage", auth: "bearer" })\`。不在 props 中增加 API Key，不自行拼接鉴权头。Runtime 只负责认证和传输，各家额度路径、响应解析由组件实现。没有当前会话会拒绝请求。
+
+路径从当前模型 baseUrl 的 origin 根目录解析（不是拼接 baseUrl 的路径）；仅支持 HTTPS 443 公网服务。manifest 中 paths 是精确 pathname（≤16 个），methods 是 GET/HEAD/POST/PUT/PATCH/DELETE 的明确列表；不支持通配、路径编码、点段、绝对 URL 或跨域重定向。查询参数可以随请求提供，不参与路径匹配。认证的动态 baseUrl 若改变 origin 返回 origin_denied，不猜测其他域名。特殊签名或无法解析的认证返回 auth_unsupported。可显式选择 bearer、x-api-key、x-goog-api-key 格式；默认 provider 采用协议认证和配置头。
+
+网络请求的 DNS 固定、私网阻断、响应白名单、2 MiB 响应限制、每组件 30 次/分钟和并发 4 次同样适用；认证请求全流程 10 秒超时，卸载或组件 signal 取消时中止。若系统 DNS 全部返回 TUN 的 198.18/15 合成地址，仅向 Cloudflare DoH 发送目标域名重新获取公网地址，不携带认证，仍拒绝任何受限地址。返回包含 ok/status/headers/text/json 等，不提供原始 Key、环境变量或认证头。上游缺失额度窗口不能解释为无限额度。
 
 ## 6. props schema 子集
 

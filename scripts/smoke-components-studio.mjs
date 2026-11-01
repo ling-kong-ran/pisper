@@ -1193,6 +1193,90 @@ try {
   await life.waitForTimeout(3_500)
   await lifeContext.close()
 
+  // 额度由 Runtime 代理；隔离测试只返回规范化窗口，不读取真实 Provider 或凭据。
+  await writeComponent(
+    'quota-context',
+    {
+      runtime: 'native',
+      name: '当前会话额度',
+      version: '1.0.0',
+      capabilities: {
+        'provider.request': {
+          paths: ['/usage'],
+          methods: ['GET'],
+          reason: 'current session quota fixture',
+        },
+      },
+      placements: [
+        { surface: 'overview-card', sizes: ['S'] },
+        { surface: 'feature-page' },
+        { surface: 'floating', size: { w: 300, h: 140 } },
+      ],
+    },
+    [
+      'export default function Quota({ ctx }) {',
+      '  const [remaining, setRemaining] = ctx.React.useState("")',
+      '  ctx.React.useEffect(() => {',
+      '    let cancelled = false',
+      '    if (ctx.session?.id) void ctx.provider.request({path: "/usage"}).then(response => response.json()).then(result => {',
+      '      if (!cancelled && !ctx.signal.aborted) setRemaining(String(100 - result.windows[0].usedRatio * 100))',
+      '    }).catch(() => { if (!cancelled) setRemaining("error") })',
+      '    return () => { cancelled = true }',
+      '  }, [ctx.session?.id])',
+      '  return ctx.html`<p data-fixture-usage=${ctx.session?.id || ""} data-remaining=${remaining}>额度 ${remaining}</p>`',
+      '}',
+    ].join('\n'),
+  )
+  const quotaContext = await newContext({ viewport: { width: 1440, height: 900 } })
+  const quotaRequests = []
+  await quotaContext.route(
+    '**/api/custom-ui/components/quota-context/provider-request',
+    (route) => {
+      quotaRequests.push(route.request().postDataJSON().sessionId)
+      return route.fulfill({
+        json: {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ windows: [{ id: '5h', usedRatio: 0.25 }] }),
+          bodyEncoding: 'utf8',
+          url: 'https://fixture.example/usage',
+          redirected: false,
+        },
+      })
+    },
+  )
+  const quotaPage = await openPage(quotaContext, 'quota', `#/board/${BOARD_SESSION_ID}`)
+  await quotaPage.locator('[data-session-workspace]').waitFor({ timeout: 30_000 })
+  const quotaSelector = `[data-fixture-usage="${BOARD_SESSION_ID}"][data-remaining="75"]`
+  await quotaPage.goto(`${base}/#/components/quota-context`)
+  await quotaPage.locator(`[data-component-preview] ${quotaSelector}`).waitFor({ timeout: 30_000 })
+  await quotaPage.setViewportSize({ width: 390, height: 844 })
+  await quotaPage.locator(`[data-component-preview] ${quotaSelector}`).waitFor({ timeout: 30_000 })
+  await quotaPage.setViewportSize({ width: 1440, height: 900 })
+  for (const surface of ['feature-page', 'floating', 'overview-card']) {
+    const placed = await api(quotaPage, 'POST', '/api/custom-ui/instances', {
+      componentId: 'quota-context',
+      surface,
+      ...(surface === 'overview-card' ? { size: 'S' } : {}),
+    })
+    assert.equal(placed.status, 201, JSON.stringify(placed))
+  }
+  await quotaPage.goto(`${base}/#/tools/components/quota-context`)
+  await quotaPage.locator(`[data-feature-page-host] ${quotaSelector}`).waitFor({ timeout: 30_000 })
+  await quotaPage.locator(`[data-floating-widget] ${quotaSelector}`).waitFor({ timeout: 30_000 })
+  await quotaPage.goto(`${base}/#/board`)
+  await quotaPage
+    .locator(`[data-overview-component-body] ${quotaSelector}`)
+    .waitFor({ timeout: 30_000 })
+  assert.ok(quotaRequests.length >= 5)
+  assert.ok(quotaRequests.every((sessionId) => sessionId === BOARD_SESSION_ID))
+  await quotaPage.screenshot({ path: join(output, 'current-session-quota.png') })
+  await quotaContext.close()
+  report.checks.push(
+    'Current-session quota uses the saved session context in desktop/phone previews, feature pages, overview cards and floating widgets without API Key props',
+  )
+
   assert.deepEqual(report.pageErrors, [])
   report.status = 'passed'
   console.log(JSON.stringify(report, null, 2))

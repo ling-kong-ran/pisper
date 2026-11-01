@@ -38,6 +38,7 @@ export type OverviewComponentsLayout = 'column' | 'popover' | 'phone'
 export type OverviewComponentsProps = {
   placed: readonly PlacedCard[]
   layout: OverviewComponentsLayout
+  activeSessionId: string
   notify(message: string): void
   onOpenSession?(id: string): void
 }
@@ -172,11 +173,13 @@ function CardMenu({
 function OverviewCard({
   placed,
   instances,
+  activeSessionId,
   notify,
   onOpenSession,
 }: {
   placed: PlacedCard
   instances: readonly ComponentInstance[]
+  activeSessionId: string
   notify(message: string): void
   onOpenSession?(id: string): void
 }) {
@@ -218,6 +221,11 @@ function OverviewCard({
             props: instance.props,
             size,
           }}
+          session={
+            activeSessionId
+              ? { id: activeSessionId, title: '', cwd: '', status: 'idle' }
+              : undefined
+          }
           notify={notify}
           onOpenSession={onOpenSession}
           onRequestFix={fix}
@@ -251,6 +259,7 @@ function PlaceLink({ className }: { className?: string }) {
 export function OverviewComponents({
   placed,
   layout,
+  activeSessionId,
   notify,
   onOpenSession,
 }: OverviewComponentsProps) {
@@ -262,6 +271,7 @@ export function OverviewComponents({
       key={entry.instance.instanceId}
       placed={entry}
       instances={instances}
+      activeSessionId={activeSessionId}
       notify={notify}
       onOpenSession={onOpenSession}
     />

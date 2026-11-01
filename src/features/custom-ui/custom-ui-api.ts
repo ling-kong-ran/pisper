@@ -179,6 +179,11 @@ export type ComponentFetchResult = {
   redirected: boolean
 }
 
+export type ComponentProviderRequest = Omit<ComponentFetchRequest, 'url'> & {
+  path: string
+  auth?: 'provider' | 'bearer' | 'x-api-key' | 'x-goog-api-key'
+}
+
 const SURFACES: readonly ComponentSurface[] = [
   'overview-card',
   'session-panel',
@@ -198,6 +203,7 @@ const CAPABILITIES: readonly CapabilityType[] = [
   'sessions.read',
   'sessions.open',
   'storage',
+  'provider.request',
 ]
 
 function text(value: unknown, max = 4000): string {
@@ -286,6 +292,13 @@ function parseManifestCapabilities(value: unknown): ManifestCapabilities {
     const entry = value[key]
     if (isRecord(entry)) result[key] = { reason: reason(entry) }
   }
+  const provider = value['provider.request']
+  if (isRecord(provider) && Array.isArray(provider.paths) && Array.isArray(provider.methods))
+    result['provider.request'] = {
+      reason: reason(provider),
+      paths: provider.paths.filter((path): path is string => typeof path === 'string'),
+      methods: provider.methods.filter((method): method is string => typeof method === 'string'),
+    }
   const network = value.network
   if (isRecord(network) && Array.isArray(network.hosts))
     result.network = {
@@ -844,6 +857,21 @@ export function componentStorageRemove(id: string, key: string) {
   return requestJson(`${componentPath(id)}/storage/${encodeURIComponent(key)}`, {
     method: 'DELETE',
     parse: () => undefined,
+  })
+}
+
+export function componentProviderRequest(
+  id: string,
+  sessionId: string,
+  request: ComponentProviderRequest,
+  signal?: AbortSignal,
+) {
+  return requestJson(`${componentPath(id)}/provider-request`, {
+    method: 'POST',
+    body: { sessionId, request },
+    signal,
+    timeout: 15_000,
+    parse: parseComponentFetchResult,
   })
 }
 

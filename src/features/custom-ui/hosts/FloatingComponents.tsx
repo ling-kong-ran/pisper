@@ -51,12 +51,14 @@ function floatingSize(placed: PlacedComponent) {
 function FloatingComponent({
   placed,
   boundaryRef,
+  activeSessionId,
   notify,
   onClose,
   stackIndex,
 }: {
   placed: PlacedComponent
   boundaryRef: RefObject<HTMLDivElement | null>
+  activeSessionId: string
   notify: (message: string) => void
   onClose: (instanceId: string) => void
   stackIndex: number
@@ -244,6 +246,11 @@ function FloatingComponent({
             title: instance.title,
             props: instance.props,
           }}
+          session={
+            activeSessionId
+              ? { id: activeSessionId, title: '', cwd: '', status: 'idle' }
+              : undefined
+          }
           notify={notify}
           onRequestFix={fix}
           className="h-full"
@@ -255,10 +262,12 @@ function FloatingComponent({
 
 export function FloatingComponents({
   placed,
+  activeSessionId,
   notify,
   hidden = false,
 }: {
   placed: readonly PlacedComponent[]
+  activeSessionId: string
   notify: (message: string) => void
   // 组件工作室里隐藏整层：实例保持挂载（状态、计时器不丢），离开工作室时原样出现。
   hidden?: boolean
@@ -290,6 +299,7 @@ export function FloatingComponents({
           key={entry.instance.instanceId}
           placed={entry}
           boundaryRef={boundaryRef}
+          activeSessionId={activeSessionId}
           notify={notify}
           onClose={close}
           stackIndex={index}

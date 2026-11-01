@@ -244,9 +244,11 @@ export function CapabilitiesSection({
   const usage = useComponentUsage(row.id, usageEnabled)
   const [busy, setBusy] = useState('')
   const declared = (
-    ['network', 'notify', 'sessions.read', 'sessions.open', 'storage'] as const
+    ['network', 'notify', 'sessions.read', 'sessions.open', 'storage', 'provider.request'] as const
   ).filter((type) => capabilities[type])
-  const undeclared = (['sessions.read', 'notify', 'network', 'storage'] as const)
+  const undeclared = (
+    ['sessions.read', 'notify', 'network', 'storage', 'provider.request'] as const
+  )
     .filter((type) => !capabilities[type])
     .map((type) => capabilityLabel(type, t))
   const notify = lifecycle?.notify ?? (() => undefined)
@@ -283,7 +285,9 @@ export function CapabilitiesSection({
                   ? t('custom-ui:studio.capStorageQuota', {
                       kb: capabilities.storage?.quotaKb ?? 0,
                     })
-                  : ''
+                  : type === 'provider.request'
+                    ? `${capabilities['provider.request']?.methods.join('/')} ${capabilities['provider.request']?.paths.join(', ')}`
+                    : ''
             return (
               <li
                 key={type}
@@ -297,7 +301,10 @@ export function CapabilitiesSection({
                       {capabilityLabel(type, t)}
                     </span>
                     {detail && (
-                      <code className="min-w-0 truncate font-mono text-xs text-content-secondary">
+                      <code
+                        title={detail}
+                        className="min-w-0 truncate font-mono text-xs text-content-secondary"
+                      >
                         {detail}
                       </code>
                     )}

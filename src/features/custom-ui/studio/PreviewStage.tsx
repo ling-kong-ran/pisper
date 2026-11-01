@@ -81,6 +81,7 @@ export function PreviewBar({
 }
 
 export function PreviewStage({
+  activeSessionId = '',
   row,
   target,
   window,
@@ -91,6 +92,7 @@ export function PreviewStage({
   notify,
   commits,
 }: {
+  activeSessionId?: string
   row: ComponentRow
   target: PreviewTarget
   window: PreviewWindow
@@ -157,6 +159,12 @@ export function PreviewStage({
               size: targetCardSize(target),
             }}
             preview
+            // 预览复用应用当前会话，不能用组件的生成会话代替用户正在查看的 Provider。
+            session={
+              activeSessionId
+                ? { id: activeSessionId, title: '', cwd: '', status: 'idle' }
+                : undefined
+            }
             notify={(message) => notify(message)}
             onRequestFix={fix}
             onCommitSample={(duration) => commits.set(duration)}

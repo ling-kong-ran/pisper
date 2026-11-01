@@ -36,6 +36,7 @@ const CAPABILITIES: readonly CapabilityType[] = [
   'sessions.read',
   'sessions.open',
   'storage',
+  'provider.request',
 ]
 
 function rowResponse(value: unknown): ComponentRow {

@@ -28,6 +28,18 @@ function nativeRoute(handler) {
   }
 }
 
+/** 浏览器取消或组件卸载后，同时停止 Runtime 认证与上游额度请求。 */
+function requestAbortSignal(req, res) {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  req.once('aborted', abort)
+  res.once('close', () => {
+    if (!res.writableEnded) abort()
+  })
+  if (req.aborted) abort()
+  return controller.signal
+}
+
 async function readJsonBody({ bodyBuffer }, maxBytes) {
   let bytes
   try {
@@ -141,6 +153,24 @@ const nativeComponentRoutes = [
         await customUiUnavailable(context.services).fetchForComponent(
           context.params.componentId,
           input,
+        ),
+      )
+    }),
+  },
+  {
+    method: 'POST',
+    path: '/api/custom-ui/components/:componentId/provider-request',
+    handler: nativeRoute(async (context) => {
+      const { services, runtime, params, json, req, res } = context
+      const signal = requestAbortSignal(req, res)
+      const input = await readJsonBody(context, 512 * 1024)
+      json(
+        200,
+        await customUiUnavailable(services).requestProviderForComponent(
+          params.componentId,
+          input,
+          (sessionId, request) =>
+            runtime.requestSessionProvider(params.componentId, sessionId, request, signal),
         ),
       )
     }),

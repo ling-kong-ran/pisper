@@ -156,6 +156,8 @@
   "errors.component_request_too_large": "请求内容太大。",
   "errors.component_asset_missing": "找不到组件文件。",
   "errors.component_capability_denied": "组件没有声明这项能力。",
+  "errors.component_session_required": "这项操作需要当前会话。",
+  "errors.component_session_invalid": "会话 ID 无效或不存在。",
   "errors.component_capability_revoked": "这项能力已被你撤销。",
   "errors.component_archive_invalid": "ZIP 包无效：路径、文件数或格式不符合要求。",
   "errors.component_archive_too_large": "ZIP 包超过 16 MB。",
@@ -176,6 +178,7 @@
   "studio.capNetwork": "网络",
   "studio.capNone": "没有声明任何能力。",
   "studio.capNotify": "发送通知",
+  "studio.capProviderRequest": "使用当前会话认证请求",
   "studio.capSessionsOpen": "打开会话",
   "studio.capSessionsRead": "读取会话",
   "studio.capStorage": "组件存储",
@@ -418,5 +421,9 @@
   "usage.revokedBadge": "已撤销",
   "usage.revoked": "已撤销“{capability}”：组件不能再通过 Pisper 接口使用它。",
   "usage.unrevoked": "已恢复“{capability}”。",
-  "usage.revokeFailed": "没能更新能力。"
+  "usage.revokeFailed": "没能更新能力。",
+  "errors.provider_paths_invalid": "必须声明有效的精确服务路径（最多 16 个）。",
+  "errors.provider_methods_invalid": "必须声明允许的 HTTP 方法。",
+  "errors.component_provider_request_invalid": "认证请求格式无效。",
+  "errors.component_provider_path_denied": "组件未声明此服务路径或 HTTP 方法。"
 }

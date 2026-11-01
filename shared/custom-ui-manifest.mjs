@@ -2,6 +2,8 @@
 // 环境中立：不依赖 DOM、React 或 Node API，输入一律按不可信 unknown 处理。
 // 错误只给 { path, code, params? }，由前端按 custom-ui:errors.<code> 本地化，协议里不拼自然语言。
 
+import { isProviderRequestPath, PROVIDER_REQUEST_METHODS } from './provider-request-policy.mjs'
+
 export const CUSTOM_UI_SDK_VERSION = 1
 
 // 放置名在 A7 定稿（规格 5.5）：此前没有发布过 board-card / more-page，不需要兼容旧名。
@@ -17,7 +19,14 @@ export const OVERVIEW_CARD_DIMENSIONS = Object.freeze({
 export const FLOATING_DEFAULT_SIZE = Object.freeze({ w: 320, h: 200 })
 export const FLOATING_SIZE_LIMITS = Object.freeze({ minW: 160, maxW: 480, minH: 64, maxH: 480 })
 export const CAPABILITY_TYPES = Object.freeze(
-  /** @type {const} */ (['network', 'notify', 'sessions.read', 'sessions.open', 'storage']),
+  /** @type {const} */ ([
+    'network',
+    'notify',
+    'sessions.read',
+    'sessions.open',
+    'storage',
+    'provider.request',
+  ]),
 )
 export const STORAGE_QUOTA_DEFAULT_KB = 256
 export const STORAGE_QUOTA_MAX_KB = 1024
@@ -40,6 +49,7 @@ export const CTX_V1_KEYS = Object.freeze([
   'notify',
   'net',
   'storage',
+  'provider',
   'signal',
   'setTimeout',
   'setInterval',
@@ -719,6 +729,34 @@ function normalizeCapabilities(raw, errors) {
         continue
       }
       capabilities.network = { hosts: [...new Set(/** @type {string[]} */ (hosts))], reason }
+    } else if (type === 'provider.request') {
+      const paths = source.paths
+      const methods = source.methods
+      if (
+        !Array.isArray(paths) ||
+        !paths.length ||
+        paths.length > 16 ||
+        !paths.every(isProviderRequestPath)
+      ) {
+        fail(errors, `${path}.paths`, 'provider_paths_invalid')
+        continue
+      }
+      if (
+        !Array.isArray(methods) ||
+        !methods.length ||
+        methods.length > 6 ||
+        !methods.every(
+          (method) => typeof method === 'string' && PROVIDER_REQUEST_METHODS.includes(method),
+        )
+      ) {
+        fail(errors, `${path}.methods`, 'provider_methods_invalid')
+        continue
+      }
+      capabilities['provider.request'] = {
+        paths: [...new Set(paths)],
+        methods: [...new Set(methods)],
+        reason,
+      }
     } else if (type === 'storage') {
       let quotaKb = STORAGE_QUOTA_DEFAULT_KB
       if (source.quotaKb !== undefined) {

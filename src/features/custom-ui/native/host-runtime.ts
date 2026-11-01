@@ -3,6 +3,7 @@
 import {
   componentErrorCode,
   componentFetch,
+  componentProviderRequest,
   componentStorageGet,
   componentStorageRemove,
   componentStorageSet,
@@ -74,6 +75,8 @@ export function createComponentServices(
     useSessions: useComponentSessionList,
     subscribeSessions: (listener) => componentSessionFeed.subscribe(listener),
     fetch: (request, signal) => componentFetch(componentId, request, signal),
+    providerRequest: (sessionId, request, signal) =>
+      componentProviderRequest(componentId, sessionId, request, signal),
     storageGet: (key) =>
       componentStorageGet(componentId, key).then(
         (result) => result.value,

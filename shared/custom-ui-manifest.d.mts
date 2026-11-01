@@ -1,6 +1,7 @@
 export type ComponentSurface = 'overview-card' | 'session-panel' | 'feature-page' | 'floating'
 export type OverviewCardSize = 'S' | 'M'
-export type CapabilityType = 'network' | 'notify' | 'sessions.read' | 'sessions.open' | 'storage'
+export type CapabilityType =
+  'network' | 'notify' | 'sessions.read' | 'sessions.open' | 'storage' | 'provider.request'
 export type ManifestLocale = 'zh-CN' | 'en-US'
 export type ManifestError = {
   path: string
@@ -53,6 +54,7 @@ export type ManifestCapabilities = {
   'sessions.read'?: CapabilityDeclaration
   'sessions.open'?: CapabilityDeclaration
   storage?: CapabilityDeclaration & { quotaKb: number }
+  'provider.request'?: CapabilityDeclaration & { paths: string[]; methods: string[] }
 }
 export type ManifestLocaleText = {
   name?: string

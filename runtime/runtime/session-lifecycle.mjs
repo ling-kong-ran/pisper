@@ -1328,8 +1328,14 @@ export class SessionLifecycle {
     return { id, cwd: next.cwd }
   }
 
-  // 获取或创建会话运行时：优先活动缓存，其次待物化，再磁盘恢复，最后新建。
-  async getOrCreateSession(id) {
+  // 只读调用方不能凭一个不存在的 ID 创建新会话；恢复已有会话仍复用同一套装配逻辑。
+  async getExistingSession(id) {
+    if (!id) return null
+    return this.getOrCreateSession(id, { createIfMissing: false })
+  }
+
+  // 获取或创建会话运行时：优先活动缓存，其次待物化，再磁盘恢复，最后按选项新建。
+  async getOrCreateSession(id, { createIfMissing = true } = {}) {
     const state = this.getRuntimeState()
     if (id && this.sessions.has(id)) {
       const current = this.sessions.get(id)
@@ -1377,6 +1383,7 @@ export class SessionLifecycle {
       const info = await this.findSessionInfo(id)
       if (info) return this.createSessionRuntime(this.openStoredSession(info.path))
     }
+    if (!createIfMissing) return null
     return this.createSessionRuntime(SessionManager.create(this.cwd, this.sessionDir))
   }
 

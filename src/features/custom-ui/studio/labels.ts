@@ -38,6 +38,8 @@ export function capabilityLabel(type: string, t: Translate) {
       return t('custom-ui:studio.capSessionsRead')
     case 'sessions.open':
       return t('custom-ui:studio.capSessionsOpen')
+    case 'provider.request':
+      return t('custom-ui:studio.capProviderRequest')
     default:
       return t('custom-ui:studio.capStorage')
   }

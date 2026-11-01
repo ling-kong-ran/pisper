@@ -99,6 +99,44 @@ test('blank chat sessions stay lightweight until an Agent is first required', as
   assert.equal(activated.created, created.created)
 })
 
+test('read-only session lookup never materializes an unknown ID', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-read-only-session-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(() => runtime.dispose())
+  runtime.sessionLifecycle.findSessionInfo = async () => null
+  let runtimeCreations = 0
+  runtime.createSessionRuntime = async () => {
+    runtimeCreations += 1
+    throw new Error('read-only lookup must not create a session')
+  }
+
+  assert.equal(await runtime.getExistingSession('missing-session'), null)
+  assert.equal(runtimeCreations, 0)
+  assert.equal(runtime.pendingSessions.has('missing-session'), false)
+})
+
+test('runtime Provider 请求入口把组件、当前会话、请求和取消信号交给通用服务', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-runtime-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(() => runtime.dispose())
+  const calls = []
+  const result = { status: 200, body: '{"remaining":75}' }
+  runtime.providerRequests.request = async (...args) => {
+    calls.push(args)
+    return result
+  }
+  const request = { path: '/usage', method: 'GET' }
+  const signal = new AbortController().signal
+  assert.equal(
+    await runtime.requestSessionProvider('widget', 'current-session', request, signal),
+    result,
+  )
+  assert.deepEqual(calls, [['widget', 'current-session', request, signal]])
+  assert.equal('getSessionProviderUsage' in runtime, false)
+})
+
 test('pending session model settings stay lightweight until the first prompt', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-pending-session-model-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

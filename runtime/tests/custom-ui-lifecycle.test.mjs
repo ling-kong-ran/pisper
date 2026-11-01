@@ -239,10 +239,34 @@ test('导入暂存：只暂存不安装；旧格式与坏包拒绝；信任后�
 
 test('替换导入：给出与已安装版本的 diff，信任后先快照再替换，可以回滚', async (t) => {
   const { service, callJson, upload } = await startServer(t)
-  const first = await upload(bundle())
+  const withSecret = {
+    ...MANIFEST,
+    props: {
+      type: 'object',
+      properties: {
+        apiKey: { type: 'string' },
+        refreshSeconds: { type: 'integer', minimum: 30 },
+      },
+    },
+  }
+  const withoutSecret = {
+    ...withSecret,
+    version: '1.1.0',
+    props: {
+      type: 'object',
+      properties: { refreshSeconds: { type: 'integer', minimum: 30 } },
+    },
+  }
+  const first = await upload(bundle('ci-status', {}, withSecret))
   await callJson('POST', `/api/custom-ui/staged/${first.body.staged.stageId}/trust`, {})
+  await service.createInstance({
+    componentId: 'ci-status',
+    surface: 'overview-card',
+    size: 'M',
+    props: { apiKey: 'import-obsolete-secret', refreshSeconds: 60 },
+  })
   const next = zipSync({
-    'ci-status/manifest.json': strToU8(JSON.stringify({ ...MANIFEST, version: '1.1.0' })),
+    'ci-status/manifest.json': strToU8(JSON.stringify(withoutSecret)),
     'ci-status/component.js': strToU8(SOURCE.replace('v1', 'v2')),
     'ci-status/style.css': strToU8('.card {}\n'),
   })
@@ -283,6 +307,35 @@ test('替换导入：给出与已安装版本的 diff，信任后先快照再替
     await readFile(join(service.root, 'ci-status', 'component.js'), 'utf8'),
     SOURCE.replace('v1', 'v2'),
   )
+  const afterImport = await service.listInstances()
+  assert.deepEqual(afterImport.instances[0].props, { refreshSeconds: 60 })
+  assert.ok(!JSON.stringify(afterImport).includes('import-obsolete-secret'))
+
+  // 后续版本重新引入敏感属性后，回滚到无该属性的快照也必须经过同一清理入口。
+  const reintroduced = await upload(
+    bundle('ci-status', {}, { ...withSecret, version: '1.2.0' }),
+    'ci-status-1.2.zip',
+  )
+  await callJson('POST', `/api/custom-ui/staged/${reintroduced.body.staged.stageId}/trust`, {})
+  await service.createInstance({
+    componentId: 'ci-status',
+    surface: 'overview-card',
+    size: 'M',
+    props: { apiKey: 'restore-obsolete-secret', refreshSeconds: 90 },
+  })
+  const restored = await callJson(
+    'POST',
+    '/api/custom-ui/components/ci-status/versions/2/restore',
+    {},
+  )
+  assert.equal(restored.status, 200)
+  assert.equal(restored.body.component.version, '1.1.0')
+  const afterRestore = await service.listInstances()
+  assert.deepEqual(
+    afterRestore.instances.map((instance) => instance.props),
+    [{ refreshSeconds: 60 }, { refreshSeconds: 90 }],
+  )
+  assert.ok(!JSON.stringify(afterRestore).includes('restore-obsolete-secret'))
 })
 
 test('版本：代理写入产生快照与改动摘要；对比给出统一 diff；回滚生成新版本、不改写历史', async (t) => {

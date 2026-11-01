@@ -69,6 +69,7 @@ const ManageProjectsDialog = lazy(() =>
 )
 
 export type BoardPageProps = {
+  activeSessionId: string
   onOpenSession: (sessionId: string) => void
   onOpenHistory: () => void
   onConfigureModels: () => void
@@ -104,6 +105,7 @@ type Entry =
   | { kind: 'empty'; key: string; lane: BoardLane }
 
 function OverviewPage({
+  activeSessionId,
   onOpenSession,
   onOpenHistory,
   sessionHref,
@@ -128,6 +130,7 @@ function OverviewPage({
       <LazyOverviewComponents
         placed={overviewCards}
         layout={layout}
+        activeSessionId={activeSessionId}
         notify={notify}
         onOpenSession={onOpenSession}
       />

@@ -325,7 +325,7 @@ export function TrustDialog({
   const staged = data?.staged
   const capabilities = data?.manifest?.capabilities ?? {}
   const declared = (
-    ['network', 'notify', 'sessions.read', 'sessions.open', 'storage'] as const
+    ['network', 'notify', 'sessions.read', 'sessions.open', 'storage', 'provider.request'] as const
   ).filter((type) => capabilities[type])
   const trust = async () => {
     setBusy('trust')
@@ -498,6 +498,12 @@ export function TrustDialog({
                         <li key={type} className="flex min-w-0 flex-col">
                           <span>
                             {capabilityLabel(type, t)}
+                            {type === 'provider.request' && (
+                              <code className="ml-1 break-all font-mono text-content-secondary">
+                                {capabilities['provider.request']?.methods.join('/')}{' '}
+                                {capabilities['provider.request']?.paths.join(', ')}
+                              </code>
+                            )}
                             {type === 'network' && (
                               <code className="ml-1.5 font-mono text-content-secondary">
                                 {capabilities.network?.hosts.join(', ')}

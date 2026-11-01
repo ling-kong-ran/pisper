@@ -78,6 +78,7 @@ import {
 import { useStudioActions } from './studio/use-studio-actions'
 
 type CustomUiPageProps = {
+  activeSessionId?: string
   notify: Notify
   // 路由里的选中组件（/components/:id）；空串表示没有指定。
   selectedId?: string
@@ -242,6 +243,7 @@ function usePreviewState(
 }
 
 export function CustomUiPage({
+  activeSessionId = '',
   notify,
   selectedId: routeSelectedId = '',
   onSelect,
@@ -457,6 +459,7 @@ export function CustomUiPage({
                       />
                       <PreviewStage
                         key={reloadToken}
+                        activeSessionId={activeSessionId}
                         row={selected}
                         target={preview.target}
                         window="standard"
@@ -648,6 +651,7 @@ export function CustomUiPage({
             {selected ? (
               <StudioWorkbench
                 key={`${selected.id}#${reloadToken}`}
+                activeSessionId={activeSessionId}
                 row={selected}
                 tab={tab}
                 target={preview.target}

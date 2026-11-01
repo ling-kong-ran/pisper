@@ -64,6 +64,11 @@ export function componentErrorText(code: string, t: Translate, params?: Params):
     capability_reason_invalid: () => t('custom-ui:errors.capability_reason_invalid'),
     network_hosts_invalid: () => t('custom-ui:errors.network_hosts_invalid', { max }),
     network_host_invalid: () => t('custom-ui:errors.network_host_invalid'),
+    provider_paths_invalid: () => t('custom-ui:errors.provider_paths_invalid'),
+    provider_methods_invalid: () => t('custom-ui:errors.provider_methods_invalid'),
+    component_provider_request_invalid: () =>
+      t('custom-ui:errors.component_provider_request_invalid'),
+    component_provider_path_denied: () => t('custom-ui:errors.component_provider_path_denied'),
     storage_quota_invalid: () => t('custom-ui:errors.storage_quota_invalid', { max }),
     i18n_invalid: () => t('custom-ui:errors.i18n_invalid'),
     i18n_strings_invalid: () => t('custom-ui:errors.i18n_strings_invalid', { max }),
@@ -123,6 +128,8 @@ export function componentErrorText(code: string, t: Translate, params?: Params):
     component_request_too_large: () => t('custom-ui:errors.component_request_too_large'),
     component_asset_missing: () => t('custom-ui:errors.component_asset_missing'),
     component_capability_denied: () => t('custom-ui:errors.component_capability_denied'),
+    component_session_required: () => t('custom-ui:errors.component_session_required'),
+    component_session_invalid: () => t('custom-ui:errors.component_session_invalid'),
     // A8：能力撤销、导入暂存与信任、版本、回收站
     component_capability_revoked: () => t('custom-ui:errors.component_capability_revoked'),
     component_archive_invalid: () => t('custom-ui:errors.component_archive_invalid'),

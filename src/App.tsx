@@ -1310,7 +1310,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
             </Suspense>
           )}
           <Suspense fallback={null}>
-            <FloatingWidgets notify={notify} />
+            <FloatingWidgets activeSessionId={activeSessionId} notify={notify} />
           </Suspense>
           {toast && (
             <AppToast

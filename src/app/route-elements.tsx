@@ -36,6 +36,7 @@ export async function boardRoute() {
     const navigate = useNavigate()
     return (
       <BoardPage
+        activeSessionId={context.activeSessionId}
         onOpenSession={(id) => navigate(sessionPath(id))}
         onOpenHistory={() => context.navigate('chatHistory')}
         onConfigureModels={() => navigate('/config/models')}
@@ -319,7 +320,14 @@ export async function componentsRoute() {
           state: id && !replace ? COMPONENT_LIST_ENTRY : undefined,
         })
     }
-    return <CustomUiPage notify={context.notify} selectedId={componentId} onSelect={select} />
+    return (
+      <CustomUiPage
+        activeSessionId={context.activeSessionId}
+        notify={context.notify}
+        selectedId={componentId}
+        onSelect={select}
+      />
+    )
   }
   return { Component: ComponentsRoute }
 }
@@ -332,7 +340,13 @@ export async function customComponentRoute() {
   function CustomComponentRoute() {
     const context = useAppRouteContext()
     const { componentId = '' } = useParams()
-    return <CustomUiToolPage componentId={componentId} notify={context.notify} />
+    return (
+      <CustomUiToolPage
+        componentId={componentId}
+        activeSessionId={context.activeSessionId}
+        notify={context.notify}
+      />
+    )
   }
   return { Component: CustomComponentRoute }
 }

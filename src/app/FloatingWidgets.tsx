@@ -32,7 +32,13 @@ function useLegacyFloatingCleanup() {
   }, [])
 }
 
-export function FloatingWidgets({ notify }: { notify: (message: string) => void }) {
+export function FloatingWidgets({
+  activeSessionId,
+  notify,
+}: {
+  activeSessionId: string
+  notify: (message: string) => void
+}) {
   const phone = usePhoneShell()
   // 组件工作室里浮窗层隐藏（仍挂着，状态与计时器不丢）：工作室有自己的浮窗预览档位，右下角是设置栏的
   // [放置到… ▾]，浮窗压在正在编辑的组件与操作上（评审返修）。离开工作室原样出现。
@@ -54,7 +60,12 @@ export function FloatingWidgets({ notify }: { notify: (message: string) => void 
       )}
       {!phone && floating.placed.length > 0 && (
         <Suspense fallback={null}>
-          <LazyFloatingComponents placed={floating.placed} hidden={inStudio} notify={notify} />
+          <LazyFloatingComponents
+            placed={floating.placed}
+            hidden={inStudio}
+            activeSessionId={activeSessionId}
+            notify={notify}
+          />
         </Suspense>
       )}
     </>

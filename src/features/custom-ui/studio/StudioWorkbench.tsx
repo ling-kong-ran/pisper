@@ -63,6 +63,7 @@ function HotReloadedLabel({ at }: { at: number }) {
 }
 
 export function StudioWorkbench({
+  activeSessionId = '',
   row,
   tab,
   target,
@@ -76,6 +77,7 @@ export function StudioWorkbench({
   onTarget,
   onWindow,
 }: {
+  activeSessionId?: string
   row: ComponentRow
   tab: WorkbenchTab
   target: PreviewTarget
@@ -146,6 +148,7 @@ export function StudioWorkbench({
               onWindow={onWindow}
             />
             <PreviewStage
+              activeSessionId={activeSessionId}
               row={row}
               target={target}
               window={window}

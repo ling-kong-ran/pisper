@@ -15,10 +15,12 @@ import { useComponentFix } from './studio/use-component-agent'
 
 // 整页宿主里的组件：错误卡的 [让代理修复] 交给这个组件的绑定会话。
 function FeaturePageHost({
+  activeSessionId,
   component,
   instance,
   notify,
 }: {
+  activeSessionId: string
   component: ComponentRow
   instance: { instanceId: string; title: string; props: Record<string, unknown> }
   notify: Notify
@@ -33,6 +35,9 @@ function FeaturePageHost({
         title: instance.title,
         props: instance.props,
       }}
+      session={
+        activeSessionId ? { id: activeSessionId, title: '', cwd: '', status: 'idle' } : undefined
+      }
       notify={(message) => notify(message)}
       onRequestFix={fix}
       className="h-full"
@@ -40,7 +45,15 @@ function FeaturePageHost({
   )
 }
 
-export function CustomUiToolPage({ componentId, notify }: { componentId: string; notify: Notify }) {
+export function CustomUiToolPage({
+  componentId,
+  activeSessionId = '',
+  notify,
+}: {
+  componentId: string
+  activeSessionId?: string
+  notify: Notify
+}) {
   const { t } = useI18n()
   const result = useComponentInstances('feature-page')
   const placed = result.placed.find((entry) => entry.component.id === componentId)
@@ -74,6 +87,7 @@ export function CustomUiToolPage({ componentId, notify }: { componentId: string;
             >
               <FeaturePageHost
                 key={placed.instance.instanceId}
+                activeSessionId={activeSessionId}
                 component={placed.component}
                 instance={placed.instance}
                 notify={notify}

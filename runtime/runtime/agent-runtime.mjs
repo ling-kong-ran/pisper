@@ -35,6 +35,7 @@ import { ProviderModelCatalogService } from '../services/provider-model-catalog-
 import { ProviderKeyringService } from '../services/provider-keyring-service.mjs'
 import { ModelMetadataService } from '../services/model-metadata-service.mjs'
 import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
+import { ProviderRequestService } from '../services/provider-request-service.mjs'
 import { ScheduleService } from '../services/schedule-service.mjs'
 import { WorkflowService } from '../services/workflow-service.mjs'
 import { SkillsService } from '../services/skills-service.mjs'
@@ -396,6 +397,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.appConfigPath = join(dataDir, 'pisper.json')
     this.toolPlugins = new ToolPluginService(this.appConfigPath, { dataDir })
     this.webSearch = new WebSearchService({ configPath: this.appConfigPath })
+    this.providerRequests = new ProviderRequestService({
+      getSession: (sessionId) => this.getExistingSession(sessionId),
+      getModelRuntime: () => this.modelRuntime,
+    })
     this.visualGeneration = new VisualGenerationService({
       modelsPath: this.modelsPath,
       authPath: this.authPath,
@@ -1536,6 +1541,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   async getOrCreateSession(id) {
     this.sideChats?.assertAvailable(id)
     return this.sessionLifecycle.getOrCreateSession(id)
+  }
+
+  async getExistingSession(id) {
+    this.sideChats?.assertAvailable(id)
+    return this.sessionLifecycle.getExistingSession(id)
+  }
+
+  // 组件只传请求数据；当前会话认证与传输留在 Runtime，业务响应由组件解析。
+  /** @param {string} componentId @param {string} sessionId @param {unknown} request @param {AbortSignal} [signal] */
+  async requestSessionProvider(componentId, sessionId, request, signal) {
+    return this.providerRequests.request(componentId, sessionId, request, signal)
   }
 
   // 创建会话运行时（resident runtime）：为会话装配模型、工具、网关、权限与目标/计划/多 Agent 工具，

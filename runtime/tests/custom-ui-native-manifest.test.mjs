@@ -186,6 +186,7 @@ test('能力：对象与数组两种写法规范成同一形状，主机名拒�
       network: { hosts: ['api.github.com', '*.example.com'], reason: 'CI' },
       notify: true,
       'sessions.read': {},
+      'provider.request': { paths: ['/usage'], methods: ['GET'], reason: 'Current session quota' },
       storage: { quotaKb: 64 },
     },
   }).manifest
@@ -195,6 +196,12 @@ test('能力：对象与数组两种写法规范成同一形状，主机名拒�
       { type: 'network', hosts: ['api.github.com', '*.example.com'], reason: 'CI' },
       'notify',
       'sessions.read',
+      {
+        type: 'provider.request',
+        paths: ['/usage'],
+        methods: ['GET'],
+        reason: 'Current session quota',
+      },
       { type: 'storage', quotaKb: 64 },
     ],
   }).manifest
@@ -203,6 +210,7 @@ test('能力：对象与数组两种写法规范成同一形状，主机名拒�
     network: { hosts: ['api.github.com', '*.example.com'], reason: 'CI' },
     notify: { reason: '' },
     'sessions.read': { reason: '' },
+    'provider.request': { paths: ['/usage'], methods: ['GET'], reason: 'Current session quota' },
     storage: { quotaKb: 64, reason: '' },
   })
   assert.equal(
@@ -442,6 +450,7 @@ test('ctx v1 成员清单固定（与技能 .d.ts、前端 sdk.ts 对齐）', ()
     'net',
     'notify',
     'placement',
+    'provider',
     'sdk',
     'session',
     'sessions',
