@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile as readFileRaw } from 'node:fs/promises'
 import test from 'node:test'
+import { PAGE_IDS } from '../../src/app/routes.ts'
 
 const readFile = async (path, options) => (await readFileRaw(path, options)).replace(/\r\n?/g, '\n')
 // A6 功能页模板（src/components/app/FeaturePage.tsx）：页面 id → 路由页面源码。迁移一页就在这里与
@@ -68,9 +69,8 @@ test('full-bleed shell pages own their scroll instead of the padded page contain
     content,
     /page === 'session' \|\| page === 'chat' \? 'page-chat flex overflow-hidden p-0'/,
   )
-  const fullBleed = content.match(/\[([^\]]+)\]\.includes\(page\)/)?.[1] || ''
-  for (const page of ['board', 'more', 'components'])
-    assert.match(fullBleed, new RegExp(`'${page}'`), page)
+  assert.match(content, /PAGE_IDS\.has\(page\)/)
+  for (const page of ['board', 'more', 'components']) assert.ok(PAGE_IDS.has(page), page)
   assert.match(content, /`page-\$\{page\} overflow-hidden p-0`/)
   // 功能索引（A3，规格 2.7）：与全部代理同一结构——顶栏 52 固定，内容在自己的滚动区里滚动（居中 760 栏）。
   assert.match(
@@ -110,9 +110,9 @@ test('feature-template pages are exactly the pages that render the template and 
   assert.match(app, /onBackToFeatures: moreOwned \? backToMore : undefined/)
   // 外壳给它们无留白、不滚动的容器（page-content overflow-hidden p-0），滚动由模板自己的滚动区承担。
   const content = app.slice(app.indexOf('className={`page-content'), app.indexOf('key={page}'))
-  const fullBleed = content.match(/\[([^\]]+)\]\.includes\(page\)/)?.[1] || ''
+  assert.match(content, /PAGE_IDS\.has\(page\)/)
   for (const [page, path] of Object.entries(FEATURE_TEMPLATE_SOURCES)) {
-    assert.match(fullBleed, new RegExp(`'${page}'`), page)
+    assert.ok(PAGE_IDS.has(page), page)
     // 路由把“‹ 功能”的返回动作交给页面，页面自己的搜索替代了壳层的共享搜索词。
     const component = path.split('/')[1]
     const route = routes.slice(

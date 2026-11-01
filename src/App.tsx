@@ -75,7 +75,6 @@ import { TerminalProvider } from '@/features/terminal/public'
 // 应用级快捷键随外壳同步加载：它的懒加载块只有约 0.6 kB，但 React 揭示已挂出占位的 Suspense 边界时
 // 最多节流 300ms，冷启动外壳画出来之后约 0.3 秒内没有按键监听，按下的 ⌘N / ⌘1–⌘4 会直接丢失。
 import { AppShortcuts } from '@/components/layout/AppShortcuts'
-import { MobileSettingsBack, MobileSettingsList } from '@/components/layout/MobileNavigation'
 import { AppToast, ToastProvider, ToastViewport, type ToastTone } from '@/components/ui/toast'
 import {
   ACTIVE_SESSION_CHANGED_EVENT,
@@ -118,6 +117,14 @@ import type { ChatAttachment, PendingAsset } from '@/types/chat'
 import type { NotificationSettingsData } from '@/types/notifications'
 import type { WorkflowActions } from '@/types/workflow'
 
+// 手机设置导航只在对应页面使用，避免把目录与图标放进所有客户端的启动包。
+const loadMobileNavigation = () => import('@/components/layout/MobileNavigation')
+const MobileSettingsBack = lazy(() =>
+  loadMobileNavigation().then((m) => ({ default: m.MobileSettingsBack })),
+)
+const MobileSettingsList = lazy(() =>
+  loadMobileNavigation().then((m) => ({ default: m.MobileSettingsList })),
+)
 const DesktopWindowControls = lazy(() =>
   import('@/components/layout/DesktopWindowControls').then((m) => ({
     default: m.DesktopWindowControls,
@@ -1222,12 +1229,12 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               {phoneShell && settingsOwned && !phoneSettingsList && (
                 // 手机设置分区：“‹ 设置”在最上面，回到分区列表（规格 7.4）；设置搜索紧跟其下（桌面在设置侧栏里），
                 // 不随分区内容滚走。分区页自己的 h1 在手机上只给读屏，页名在外壳顶栏。
-                <>
+                <Suspense fallback={null}>
                   <MobileSettingsBack onBack={() => routerNavigate(SETTINGS_LIST_PATH)} />
                   <div data-mobile-settings-search className="flex-none px-4 pb-1">
                     {configSearch()}
                   </div>
-                </>
+                </Suspense>
               )}
               {sharedPageHeader && (
                 <Suspense fallback={null}>
@@ -1244,14 +1251,16 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               )}
               <div
                 // 会话页沿用聊天页的内容区布局：可收缩的 flex 容器，下方终端面板展开时对话区随之让高。
-                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'session' || page === 'chat' ? 'page-chat flex overflow-hidden p-0' : ['board', 'more', 'config', 'schedules', 'mcp', 'skills', 'channels', 'memory', 'assets', 'chatHistory', 'plugins', 'workflows', 'workflowCreate', 'components', 'customComponentTool'].includes(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
+                className={`page-content flex-1 min-h-0 overflow-auto ${page === 'session' || page === 'chat' ? 'page-chat flex overflow-hidden p-0' : PAGE_IDS.has(page) ? `page-${page} overflow-hidden p-0` : `page-${page} px-6 pt-5 pb-5 max-[650px]:px-3 max-[650px]:pt-0`}`}
                 key={page}
               >
                 {phoneSettingsList ? (
-                  <MobileSettingsList
-                    onNavigate={setConfigSection}
-                    onOpenFeatures={() => selectShellTab('more')}
-                  />
+                  <Suspense fallback={null}>
+                    <MobileSettingsList
+                      onNavigate={setConfigSection}
+                      onOpenFeatures={() => selectShellTab('more')}
+                    />
+                  </Suspense>
                 ) : (
                   <Outlet context={routeContext} />
                 )}

@@ -521,6 +521,11 @@ test('settings take over the sidebar as a full page, feature pages have one home
     /const phoneSettingsList = phoneShell && settingsOwned && \/\^\\\/config\\\/\?\$\/\.test\(location\.pathname\)/,
   )
   assert.match(app, /<MobileSettingsList\s+onNavigate=\{setConfigSection\}/)
+  assert.doesNotMatch(app, /import\s+[^\n]+\s+from '@\/components\/layout\/MobileNavigation'/)
+  assert.match(
+    app,
+    /const loadMobileNavigation = \(\) => import\('@\/components\/layout\/MobileNavigation'\)/,
+  )
   assert.match(
     app,
     /<MobileSettingsBack onBack=\{\(\) => routerNavigate\(SETTINGS_LIST_PATH\)\} \/>/,
