@@ -646,6 +646,7 @@
   "requestNotice.hideDetails": "收起详情",
   "requestNotice.details": "请求详情",
   "requestNotice.retryingAttempt": "正在自动重试（{attempt}/{maxAttempts}）",
+  "requestNotice.modelFallback": "主模型暂时不可用，已切换到备用模型 {model} 继续",
   "focusSession.modelAndThinking": "模型与智力",
   "workbench.morningEarly": "早上好呀，新的一天开始啦",
   "workbench.morning": "上午好呀，有什么想让我帮忙的吗",

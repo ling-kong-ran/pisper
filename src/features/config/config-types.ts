@@ -43,6 +43,7 @@ export type ConfigData = EntityRecord & {
   defaultModel?: string
   thinkingLevel: string
   toolMode: string
+  fallbackModels?: string[]
   createdProviderId?: string
   addedModelIds?: string[]
   apiKeyUpdated?: boolean

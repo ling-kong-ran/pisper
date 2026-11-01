@@ -1157,6 +1157,12 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.getConfig()
   }
 
+  async setFallbackModels(input) {
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setFallbackModels(input),
+    )
+  }
+
   async exportProviderConfig() {
     return this.providerPreferences.exportProviderConfig()
   }

@@ -3770,6 +3770,27 @@ impl App {
                     self.status = "question waiting".to_owned();
                 }
             }
+            "model_fallback" => {
+                // 主模型不可用，Runtime 已切到备用模型接着跑：模型显示与会话列表一起更新。
+                let model = string_field(&event.data, "model");
+                if !model.is_empty() {
+                    self.model.clone_from(&model);
+                    self.session.model.clone_from(&model);
+                    let thinking_level = string_field(&event.data, "thinkingLevel");
+                    if !thinking_level.is_empty() {
+                        self.thinking_level = thinking_level;
+                    }
+                    if let Some(session) = self
+                        .sessions
+                        .iter_mut()
+                        .find(|item| item.id == self.session.id)
+                    {
+                        session.model.clone_from(&model);
+                    }
+                    self.status = format!("primary model unavailable · switched to {model}");
+                    self.status_error = false;
+                }
+            }
             "session_title" => {
                 self.session.name = string_field(&event.data, "name");
                 if let Some(session) = self
@@ -4615,6 +4636,36 @@ mod tests {
             advance_typewriter(&mut shown, &target);
         }
         assert_eq!(shown, target);
+    }
+
+    /// 验证 model_fallback 事件把当前会话的模型切到备用模型，并给出原因。
+    #[test]
+    fn model_fallback_events_switch_the_active_session_model() {
+        let mut app = test_app(Vec::new());
+        app.live = Some(LiveTurn {
+            thinking: String::new(),
+            thinking_target: String::new(),
+            text: String::new(),
+            text_target: String::new(),
+            tools: Vec::new(),
+            streaming: true,
+        });
+        app.apply_stream_event(StreamEvent {
+            name: "model_fallback".to_owned(),
+            data: json!({
+                "from": "primary/a",
+                "model": "backup/b",
+                "provider": "backup",
+                "modelId": "b",
+                "thinkingLevel": "low"
+            }),
+            id: None,
+        });
+        assert_eq!(app.model, "backup/b");
+        assert_eq!(app.session.model, "backup/b");
+        assert_eq!(app.thinking_level, "low");
+        assert!(app.status.contains("backup/b"));
+        assert!(!app.status_error);
     }
 
     /// 验证 session_usage 事件只替换活动会话的用量合计。

@@ -583,6 +583,35 @@ export function createStreamEventDispatcher({
       }))
     } else if (event === 'session_title') {
       updateSessionSummary((session) => ({ ...session, name: data.name }))
+    } else if (event === 'model_fallback') {
+      // 主模型不可用，Runtime 已把会话切到备用模型并接着跑：模型显示随之更新，提示切换原因。
+      const model = typeof data.model === 'string' ? data.model : ''
+      if (!model) return
+      const notice = t('chat:requestNotice.modelFallback', {
+        model: typeof data.modelId === 'string' && data.modelId ? data.modelId : model,
+      })
+      updateSessionState(sessionId, (current) => {
+        const activity = {
+          type: 'retry',
+          message: data.message,
+          summary: notice,
+          updatedAt: eventAt,
+        }
+        return {
+          ...current,
+          model,
+          ...(typeof data.thinkingLevel === 'string' ? { thinkingLevel: data.thinkingLevel } : {}),
+          runNotice: notice,
+          currentActivity: activity,
+          activityFeed: pushCurrentActivity(current.activityFeed, activity),
+          lastActivityAt: eventAt,
+        }
+      })
+      updateSessionSummary((session) => ({
+        ...session,
+        model,
+        ...(typeof data.thinkingLevel === 'string' ? { thinkingLevel: data.thinkingLevel } : {}),
+      }))
     } else if (event === 'retry') {
       const retryNotice = t('chat:requestNotice.retryingAttempt', {
         attempt: data.attempt,

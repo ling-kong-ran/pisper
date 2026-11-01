@@ -65,6 +65,7 @@ import {
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../services/goal-service.mjs'
 import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
 import { createSettleBarrierExtension, SettleBarrier } from './settle-barrier.mjs'
+import { installModelFallback, modelRef } from './model-fallback.mjs'
 import {
   projectGoalTeam,
   shouldAttachTeamSnapshot,
@@ -491,6 +492,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
     this.goalEmitters = new Map()
+    // 正在运行的会话的流事件发射器：运行中途的旁路事件（如切换备用模型）经它下发给当前订阅者。
+    this.runEmitters = new Map()
     this.settleBarrier = new SettleBarrier()
     this.agentEmitters = new Map()
     this.mcp = new McpService({ path: join(dataDir, 'pisper-mcp.json'), cwd })
@@ -1895,6 +1898,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       ],
     })
     installTransientStreamRetry(session)
+    // 备用模型：同一模型的重试用尽或额度耗尽时按设置顺序切换，并从失败处接着跑。
+    installModelFallback(session, {
+      resolveCandidates: () => this.providerPreferences.resolveFallbackModels(),
+      switchModel: (model) =>
+        this.providerPreferences.switchSessionModelForFallback(session, model),
+      onFallback: (event) => this.recordModelFallback(session, event),
+    })
     installTurnBoundaryCompaction(session)
     const now = new Date().toISOString()
     // 会话运行时值：缓存会话快照，供后续消息/查询直接使用，避免重复装配。
@@ -2008,6 +2018,25 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     value.pendingAgentNotifications = value.pendingAgentNotifications || []
     value.pendingAgentNotifications.push(prompt)
     this.scheduleAgentWakeup(sessionId)
+  }
+
+  // 运行中切到了备用模型：会话绑定随之改为备用模型（会话文件里已有 model_change），
+  // 并通知正在看这次运行的客户端更新模型显示。日志与事件不带对话内容。
+  recordModelFallback(session, { from, to, errorMessage }) {
+    const sessionId = session.sessionId
+    const model = modelRef(to)
+    this.sessionMeta[sessionId] = { ...(this.sessionMeta[sessionId] || {}), model }
+    void this.saveSessionMeta().catch(() => {})
+    this.streamProjection.invalidate(sessionId)
+    this.runEmitters.get(sessionId)?.('model_fallback', {
+      sessionId,
+      from: modelRef(from),
+      model,
+      provider: to.provider,
+      modelId: to.id,
+      thinkingLevel: session.thinkingLevel,
+      message: String(errorMessage || '').slice(0, 300),
+    })
   }
 
   // 运行中注入 Agent 完成通知。注入失败时放回待处理队列，本轮结束后由唤醒补发，不静默丢失；
@@ -2209,6 +2238,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.liveSessions.set(session.sessionId, live)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
+    this.runEmitters.set(session.sessionId, emit)
     this.planEmitters.set(session.sessionId, emit)
     this.agentEmitters.set(session.sessionId, emit)
     live.sessionUsage.timing = sessionRequestTiming(this.sessionMeta, session.sessionId)
@@ -2876,6 +2906,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.questions.detachEmitter(session.sessionId, emit)
       if (this.goalEmitters.get(session.sessionId) === emit)
         this.goalEmitters.delete(session.sessionId)
+      if (this.runEmitters.get(session.sessionId) === emit)
+        this.runEmitters.delete(session.sessionId)
       if (this.planEmitters.get(session.sessionId) === emit)
         this.planEmitters.delete(session.sessionId)
       if (this.agentEmitters.get(session.sessionId) === emit)

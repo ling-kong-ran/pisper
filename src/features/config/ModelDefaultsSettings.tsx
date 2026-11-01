@@ -2,6 +2,7 @@
 // 默认模型（跨提供方的对话模型）、思考强度、可用工具。选中即保存，没有单独的“保存”键。
 // 效果图里的“辅助模型”（生成标题、压缩上下文）Runtime 没有对应字段，不做假控件（见 decisions）。
 // 思考强度与可用工具原先在“更多设置 › Agent 运行策略”卡片里，挪到这里后那张卡片删除；搜索“运行策略”直接定位到这几行。
+// 备用模型：主模型重试用尽或额度耗尽时，运行中按顺序切换（最多两个）。
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
@@ -10,6 +11,7 @@ import { OrbitSpinner } from '@/components/ui/spinner'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { ConfigData, ProviderConfig } from './config-types'
+import { providerApi } from './provider-api'
 
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 // 选项值里用不会出现在 id 里的分隔符把提供方与模型拼在一起。
@@ -21,6 +23,10 @@ type ModelDefaultsSettingsProps = {
   busy: boolean
   onConfigChanged: (data: ConfigData) => void
   onSetDefaultModel: (provider: ProviderConfig, model: string) => void | Promise<void>
+}
+
+function fallbackRef(option: { provider: ProviderConfig; model: { id: string } }) {
+  return `${option.provider.id}/${option.model.id}`
 }
 
 // 一行设置：左边名称 + 一句说明，右边控件；窄屏上下堆叠（手机控件 44 高、占满宽度）。
@@ -68,6 +74,11 @@ export function ModelDefaultsSettings({
     setThinkingLevel(config.thinkingLevel)
     setToolMode(config.toolMode)
   }, [config.thinkingLevel, config.toolMode])
+  const savedFallbacks = (config.fallbackModels || []).join('\n')
+  const [fallbacks, setFallbacks] = useState<string[]>(config.fallbackModels || [])
+  useEffect(() => {
+    setFallbacks(savedFallbacks ? savedFallbacks.split('\n') : [])
+  }, [savedFallbacks])
 
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultModel = config.defaultModel || config.model
@@ -117,6 +128,48 @@ export function ModelDefaultsSettings({
   }
 
   const disabled = !canSave || saving || busy
+
+  // 备用模型的选项值直接用 "provider/modelId"，与 Runtime 保存的格式一致。
+  const saveFallbacks = async (slot: number, ref: string) => {
+    const next = [...fallbacks]
+    next[slot] = ref
+    // 清空第一个时第二个顺位前移；重复项只留第一次出现。
+    const models = next.filter((item, index) => item && next.indexOf(item) === index)
+    const previous = fallbacks
+    setFallbacks(models)
+    setSaving(true)
+    setError('')
+    try {
+      onConfigChanged(await providerApi.saveFallbackModels(models))
+      notify(t('config:providerWorkbench.fallbackModelsSaved'))
+    } catch (caught) {
+      setFallbacks(previous)
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const fallbackSelect = (slot: number, labelId: string) => (
+    <AppSelect
+      aria-labelledby={labelId}
+      className="w-full max-[650px]:min-h-11 pointer-coarse:min-h-11"
+      disabled={!chatOptions.length || busy || saving || (slot > 0 && !fallbacks[0])}
+      value={fallbacks[slot] || ''}
+      onChange={(event) => void saveFallbacks(slot, event.target.value)}
+    >
+      <option value="">{t('config:providerWorkbench.fallbackNone')}</option>
+      {/* 已保存但现在不可用的备用模型也显示出来，便于用户看见并换掉。 */}
+      {fallbacks[slot] &&
+        !chatOptions.some((option) => fallbackRef(option) === fallbacks[slot]) && (
+          <option value={fallbacks[slot]}>{fallbacks[slot]}</option>
+        )}
+      {chatOptions.map((option) => (
+        <option key={option.value} value={fallbackRef(option)}>
+          {`${option.model.name || option.model.id} · ${option.provider.name}`}
+        </option>
+      ))}
+    </AppSelect>
+  )
   return (
     <section
       data-config-card="models-current-model"
@@ -153,6 +206,22 @@ export function ModelDefaultsSettings({
               </option>
             ))}
           </AppSelect>
+        </DefaultsRow>
+        <DefaultsRow
+          labelId={`${id}-fallback`}
+          label={t('config:providerWorkbench.fallbackModels')}
+          hint={t('config:providerWorkbench.fallbackModelsHint')}
+        >
+          <div className="flex min-w-0 flex-col gap-2">
+            <span id={`${id}-fallback-1`} className="sr-only">
+              {t('config:providerWorkbench.fallbackFirst')}
+            </span>
+            {fallbackSelect(0, `${id}-fallback ${id}-fallback-1`)}
+            <span id={`${id}-fallback-2`} className="sr-only">
+              {t('config:providerWorkbench.fallbackSecond')}
+            </span>
+            {fallbackSelect(1, `${id}-fallback ${id}-fallback-2`)}
+          </div>
         </DefaultsRow>
         <DefaultsRow
           labelId={`${id}-thinking`}

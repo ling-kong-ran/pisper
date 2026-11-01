@@ -8,6 +8,7 @@ import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
+import { MAX_FALLBACK_MODELS, normalizeFallbackModels } from './model-fallback.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
 
@@ -1023,8 +1024,57 @@ export class ProviderPreferences {
       defaultModel: settings.defaultModel || '',
       thinkingLevel: settings.defaultThinkingLevel || 'medium',
       toolMode: normalizeToolMode(appConfig.toolMode),
+      fallbackModels: normalizeFallbackModels(appConfig.fallbackModels),
       providers,
       apiKeyConfigured: Boolean(credentials[selectedProvider]),
+    }
+  }
+
+  // 备用模型设置：按顺序保存 "provider/modelId"，保存前逐个确认是已启用的对话模型。
+  async setFallbackModels(input) {
+    const requested = Array.isArray(input?.models) ? input.models : null
+    if (!requested) throw new Error('备用模型列表格式无效。')
+    if (requested.length > MAX_FALLBACK_MODELS)
+      throw new Error(`最多设置 ${MAX_FALLBACK_MODELS} 个备用模型。`)
+    const models = normalizeFallbackModels(requested)
+    if (models.length !== requested.length) throw new Error('备用模型不能重复或为空。')
+    for (const ref of models) {
+      const slash = ref.indexOf('/')
+      await this.resolveSessionModel(ref.slice(0, slash), ref.slice(slash + 1))
+    }
+    const appConfig = await readJson(this.appConfigPath, {})
+    await writeJsonAtomic(this.appConfigPath, { ...appConfig, fallbackModels: models })
+    return this.getConfig()
+  }
+
+  // 运行时的备用候选：设置之后被停用、删除或改成非对话的模型直接跳过，不在运行中报错。
+  async resolveFallbackModels() {
+    const appConfig = await readJson(this.appConfigPath, { disabledProviders: [] })
+    const disabled = new Set(appConfig.disabledProviders || [])
+    const modelRuntime = this.getModelRuntime()
+    return normalizeFallbackModels(appConfig.fallbackModels).flatMap((ref) => {
+      const slash = ref.indexOf('/')
+      const provider = ref.slice(0, slash)
+      if (disabled.has(provider)) return []
+      const model = modelRuntime.getModel(provider, ref.slice(slash + 1))
+      return model && inferModelKind(model.id, model.pisperKind) === 'chat' ? [model] : []
+    })
+  }
+
+  // 运行中切到备用模型：与手动切换同样保护全局默认模型和思考等级不被会话切换改写。
+  async switchSessionModelForFallback(session, model) {
+    const settingsManager = this.getSettingsManager()
+    const settings = settingsManager.getGlobalSettings()
+    const { defaultProvider, defaultModel, defaultThinkingLevel } = settings
+    try {
+      await session.setModel(model)
+      applyPisperSystemPrompt(session, model)
+      reconcileSessionThinkingLevel(session)
+    } finally {
+      if (defaultProvider && defaultModel) {
+        settingsManager.setDefaultModelAndProvider(defaultProvider, defaultModel)
+      }
+      if (defaultThinkingLevel) settingsManager.setDefaultThinkingLevel(defaultThinkingLevel)
     }
   }
 

@@ -18,6 +18,13 @@ export type LocalProviderImportResult = {
   skipped: Array<{ id: string; source: string; reason: string }>
 }
 export const providerApi = {
+  // 备用模型按顺序保存为 "provider/modelId"；空数组表示不使用备用模型。
+  saveFallbackModels(models: string[]) {
+    return apiJson<ConfigData>('/api/config/fallback-models', {
+      method: 'PUT',
+      body: JSON.stringify({ models }),
+    })
+  },
   deleteModel(providerId: string, modelId: string) {
     return apiJson<ConfigData>('/api/providers/' + encodeURIComponent(providerId) + '/models', {
       method: 'DELETE',

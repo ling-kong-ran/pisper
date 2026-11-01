@@ -51,6 +51,13 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/config/fallback-models',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.setFallbackModels(await body()))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/providers/export',
     async handler({ runtime, json }) {

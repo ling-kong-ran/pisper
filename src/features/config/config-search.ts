@@ -169,6 +169,14 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     ],
   },
   {
+    id: 'models-fallback',
+    section: 'models',
+    card: 'models-current-model',
+    targetId: 'models-runtime-policy',
+    titleKey: 'config:providerWorkbench.fallbackModels',
+    keywords: ['fallback', 'backup', 'failover', 'quota', '备用模型', '备选', '额度', '切换模型'],
+  },
+  {
     id: 'models-visual',
     section: 'models',
     card: 'models-visual',
