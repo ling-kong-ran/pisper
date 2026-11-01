@@ -1414,7 +1414,11 @@ export class SessionLifecycle {
     const goal = this.getGoals().get(id)
     const team = this.getTeamWorkflows?.().get?.(id)
     const known = Boolean(value || live || goal || team)
-    if (value) value.abortedAt = Date.now()
+    if (value) {
+      value.abortedAt = Date.now()
+      // 正在运行的 prompt 由中止护栏按这个时间点开始倒计时。
+      value.armAbortGuard?.()
+    }
     await this.pauseSessionGoal(id)
     this.getMultiAgents().abortParent(id)
     this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')

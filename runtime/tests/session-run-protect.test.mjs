@@ -94,6 +94,8 @@ test('abort guard passes through a normal prompt result', async () => {
     runPromptWithAbortGuard(value, () => Promise.reject(new Error('model-error'))),
     /model-error/,
   )
+  // 运行结束后不留下护栏钩子，下一轮的 abort 不会唤醒已经结束的护栏。
+  assert.equal(Object.hasOwn(value, 'armAbortGuard'), false)
 })
 
 test('abort guard waits forever for a hung prompt when no abort happened', async () => {
@@ -106,6 +108,7 @@ test('abort guard waits forever for a hung prompt when no abort happened', async
   await new Promise((resolve) => setTimeout(resolve, 200))
   assert.equal(settled, false, 'without an abort the guard must keep waiting')
   value.abortedAt = Date.now()
+  value.armAbortGuard()
   await guard
   assert.equal(settled, true, 'after the abort deadline the guard must settle')
 })
@@ -116,8 +119,11 @@ test('abortSession records the abort deadline on the resident value', async (t) 
   const runtime = freshRuntime(directory)
   const id = 'session-abort-deadline'
   const value = seedRunningSession(runtime, id, mockSession())
+  let armed = 0
+  value.armAbortGuard = () => (armed += 1)
   await runtime.abortSession(id)
   assert.ok(value.abortedAt, 'abortedAt must be recorded for the force-settle guard')
+  assert.equal(armed, 1, 'a running prompt guard must be armed when the abort is requested')
 })
 
 test('abortSession pauses a persisted Goal even when its session runtime is cold', async (t) => {

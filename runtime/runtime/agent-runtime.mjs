@@ -187,33 +187,40 @@ const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
 // 强制中断会话的宽限期：正常停止信号超时后仍不退出时，直接 dispose 会话。
 const ABORT_FORCE_TIMEOUT_MS = 10_000
-// 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话，每 250ms 轮询避免卡在“已请求停止却仍运行”。
+// 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话，避免卡在“已请求停止却仍运行”。
+// 平时不占定时器：abortSession 写入 abortedAt 后经 value.armAbortGuard 通知，这时才按截止时间挂一个定时器。
 async function runPromptWithAbortGuard(value, run) {
   const timeoutMs = Number(value?.abortForceTimeoutMs) || ABORT_FORCE_TIMEOUT_MS
-  const runPromise = Promise.resolve().then(run)
-  while (true) {
-    const outcome = await Promise.race([
-      runPromise.then(
-        (result) => ({ done: true, result }),
-        (error) => ({ done: true, error }),
-      ),
-      new Promise((resolve) => setTimeout(() => resolve({ done: false }), 250)),
-    ])
-    if (outcome.done) {
-      if (outcome.error) throw outcome.error
-      return outcome.result
-    }
+  let timer = null
+  let forceSettle = () => {}
+  const forced = new Promise((_resolve, reject) => {
+    forceSettle = reject
+  })
+  const arm = () => {
     const abortedAt = value?.abortedAt
-    if (abortedAt && Date.now() - abortedAt >= timeoutMs) {
-      const session = value?.session
-      if (session && typeof session.dispose === 'function') {
-        try {
-          session.dispose()
-        } catch {}
-        value.forceDisposed = true
-      }
-      throw new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。')
-    }
+    if (timer || !abortedAt) return
+    timer = setTimeout(
+      () => {
+        const session = value?.session
+        if (session && typeof session.dispose === 'function') {
+          try {
+            session.dispose()
+          } catch {}
+          value.forceDisposed = true
+        }
+        forceSettle(new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。'))
+      },
+      Math.max(0, abortedAt + timeoutMs - Date.now()),
+    )
+  }
+  if (value) value.armAbortGuard = arm
+  // 运行开始前就已请求停止（极少见）：立即按原截止时间计时。
+  arm()
+  try {
+    return await Promise.race([Promise.resolve().then(run), forced])
+  } finally {
+    clearTimeout(timer)
+    if (value?.armAbortGuard === arm) delete value.armAbortGuard
   }
 }
 export { runPromptWithAbortGuard }
