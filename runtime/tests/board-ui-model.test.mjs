@@ -57,6 +57,7 @@ function card(id, lane, extra = {}) {
     severity: null,
     workspaceKey: extra.workspaceKey ?? '/p/a',
     cwd: extra.workspaceKey ?? '/p/a',
+    projectCwd: extra.workspaceKey ?? '/p/a',
     session: { id, archived: false },
     ...extra,
   }

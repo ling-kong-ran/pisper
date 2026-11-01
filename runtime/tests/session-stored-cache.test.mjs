@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { sessionRuntimeRoutes } from '../http/routes/sessions-runtime.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { ensureSessionFilePersisted } from '../runtime/session-file-persist.mjs'
+import { isProjectlessDirectory, projectlessChatsRoot } from '../runtime/projectless-chats.mjs'
 
 const renameRoute = sessionRuntimeRoutes.find(
   (route) => route.method === 'PATCH' && route.path === '/api/sessions/:sessionId',
@@ -245,4 +246,69 @@ test('createSession persists the workspace so idle eviction does not reset cwd',
   const listed = sessions.find((item) => item.id === created.id)
   assert.ok(listed, 'the evicted session must remain listed')
   assert.equal(listed.cwd, workspace, 'cwd must survive resident eviction')
+})
+
+const createRoute = sessionRuntimeRoutes.find(
+  (route) => route.method === 'POST' && route.path === '/api/sessions',
+)
+
+async function postSession(runtime, input) {
+  assert.ok(createRoute)
+  let response
+  await createRoute.handler({
+    runtime,
+    body: async () => input,
+    json: (status, body) => {
+      assert.equal(status, 201)
+      response = body
+    },
+  })
+  return response
+}
+
+test('a projectless session gets its own empty folder and is flagged in listings', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-projectless-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+  const project = join(directory, 'project')
+  await mkdir(project)
+
+  // 传入的 cwd 被忽略：无项目会话落在数据目录 chats/ 下各自的空文件夹里。
+  const first = await postSession(runtime, { name: '', cwd: project, projectless: true })
+  const second = await postSession(runtime, { name: '', projectless: true })
+  const root = projectlessChatsRoot(directory)
+  assert.equal(dirname(first.cwd), root)
+  assert.equal(dirname(second.cwd), root)
+  assert.notEqual(first.cwd, second.cwd)
+  assert.deepEqual(await readdir(first.cwd), [])
+  assert.equal(first.projectless, true)
+
+  // 普通会话不带这个字段；只有字面量 true 才算无项目。
+  const normal = await postSession(runtime, { name: '', cwd: project, projectless: 'yes' })
+  assert.equal(normal.cwd, project)
+  assert.equal('projectless' in normal, false)
+
+  for (const created of [first, normal]) {
+    const pending = runtime.sessionLifecycle.pendingSessions.get(created.id)
+    await ensureSessionFilePersisted(pending.manager, '', created.cwd)
+  }
+  await runtime.listStoredSessions({ refresh: true })
+  const listed = new Map((await runtime.listSessions()).map((item) => [item.id, item]))
+  assert.equal(listed.get(first.id)?.projectless, true)
+  assert.equal(listed.get(normal.id)?.projectless, undefined)
+})
+
+test('only direct children of the chats root count as projectless', () => {
+  const root = '/data/chats'
+  assert.equal(isProjectlessDirectory(root, '/data/chats/2026-11-01-abc'), true)
+  assert.equal(isProjectlessDirectory(root, '/data/chats/2026-11-01-abc/'), true)
+  assert.equal(isProjectlessDirectory(root, '/data/chats'), false)
+  assert.equal(isProjectlessDirectory(root, '/data/chats/a/b'), false)
+  assert.equal(isProjectlessDirectory(root, '/data/chats-other/a'), false)
+  assert.equal(isProjectlessDirectory('', '/data/chats/a'), false)
+  // Windows 路径不区分大小写、分隔符可混用。
+  assert.equal(
+    isProjectlessDirectory('C:\\Users\\me\\.pisper\\chats', 'c:/users/me/.pisper/chats/x', 'win32'),
+    true,
+  )
 })

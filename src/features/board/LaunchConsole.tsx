@@ -68,6 +68,8 @@ export const LAUNCH_DRAFT_KEY = 'board:launch'
 // 会话主页的新任务草稿单独一份：草稿上的 ⌘N 与标题栏“新任务”改为聚焦草稿，但派发浮层仍可能叠在草稿上面
 //（命令面板的“新会话”，或主页还在加载时打开了浮层、随后落到草稿），共用一份会让两边的文本互相串改。
 const HOME_DRAFT_KEY = 'home:new'
+// 项目菜单里“不选项目”的取值：NUL 不会出现在合法路径里，不会与某个目录撞上。
+const NO_PROJECT_VALUE = '\0no-project'
 
 // composer-drafts 没有订阅机制：派发失败放回草稿时，由这里通知挂着同一份草稿的启动台实例重读，
 // 否则浮层关闭后重新打开、或仪表区与浮层同时存在时，界面会显示不含被放回描述的旧文本。
@@ -259,8 +261,13 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     const projectHints = useMemo(() => projectDisambiguation(projects), [projects])
     // 没有记住的目录时沿用最近有会话的项目（登记的空项目虽排在列表前面，不作隐式默认）；
     // 都没有时交给 Runtime 默认目录。
-    const cwd = defaults.cwd || options.defaultCwd || projects[0]?.cwd || ''
-    const project = projects.find((item) => item.cwd === cwd)
+    // 不选项目时不带目录，Runtime 为新会话建空文件夹；记住的项目留着，切回时不用重选。
+    const projectless = defaults.projectless
+    const cwd = projectless ? '' : defaults.cwd || options.defaultCwd || projects[0]?.cwd || ''
+    const project = projectless ? undefined : projects.find((item) => item.cwd === cwd)
+    const projectChipLabel =
+      project?.label ||
+      (projectless ? t('board:launch.noProject') : t('board:launch.defaultProject'))
     const noModel = !options.loading && !options.error && options.models.length === 0
 
     const cycleProject = (direction: 1 | -1) => {
@@ -343,7 +350,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       // 完全访问只作用于这一次派发：偏好里保留原来的安全模式，下一条草稿回到安全模式。
       setFullAccess(false)
       defaults.rememberLaunch({
-        cwd,
+        ...(projectless ? { projectless } : { cwd }),
         model: modelKnown ? model : '',
         thinkingLevel,
         executionMode,
@@ -356,6 +363,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         const sessionId = await launchBoardTask({
           prompt,
           cwd,
+          projectless,
           model: modelKnown ? model : '',
           thinkingLevel,
           executionMode: fullAccess ? 'full-access' : defaults.executionMode,
@@ -452,7 +460,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
                 ? projectHints.get(project.key)
                   ? `${project.label} (${projectHints.get(project.key)})`
                   : project.label
-                : t('board:launch.defaultProject'),
+                : projectChipLabel,
             })}
           >
             <Folder aria-hidden="true" />
@@ -464,7 +472,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
                 project?.label && sheet && 'font-mono',
               )}
             >
-              {project?.label || t('board:launch.defaultProject')}
+              {projectChipLabel}
             </span>
             <ChevronDown aria-hidden="true" />
           </Chip>
@@ -474,11 +482,19 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           // 登记的空项目会让列表变长：最多用到视口可用高度，不在 320px 处把末项截半。
           className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
         >
-          <DropdownMenuLabel>{t('board:launch.projects')}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
-            value={cwd}
-            onValueChange={(next) => defaults.rememberLaunch({ cwd: next })}
+            value={projectless ? NO_PROJECT_VALUE : cwd}
+            onValueChange={(next) =>
+              defaults.rememberLaunch(
+                next === NO_PROJECT_VALUE ? { projectless: true } : { cwd: next },
+              )
+            }
           >
+            <DropdownMenuRadioItem value={NO_PROJECT_VALUE}>
+              <span className="min-w-0 truncate">{t('board:launch.noProject')}</span>
+            </DropdownMenuRadioItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t('board:launch.projects')}</DropdownMenuLabel>
             {/* 空目录表示“沿用最近项目”，只有一个项目都没有时才真正落到 Runtime 默认目录；
                 有项目时选它会立刻解析回最近项目，选择不生效，因此只在没有项目时列出。 */}
             {projects.length === 0 && (

@@ -35,6 +35,7 @@ type SessionSummary = {
   name?: string
   firstMessage?: string
   cwd?: string
+  projectless?: boolean
   modified: string
 }
 
@@ -265,7 +266,7 @@ export function CommandPalette({
         group: 'sessions',
         Icon: MessageSquare,
         label: session.name || t('navigation:appOverlays.untitledChat'),
-        tag: projectName(session.cwd) || undefined,
+        tag: (!session.projectless && projectName(session.cwd)) || undefined,
         title: session.cwd || undefined,
         hint: relativeTime(session.modified, language),
         run: () => onOpenSession(session.id),

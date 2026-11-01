@@ -67,7 +67,8 @@ export function SessionPhoneHeader({
   const [menuOpen, setMenuOpen] = useState(false)
   const menuId = useId()
   const title = session.name || t('navigation:pageHeader.newChat')
-  const project = workspaceName(cwd, language)
+  // 无项目会话的临时文件夹名没有意义，标题栏显示“无项目”。
+  const project = workspaceName(session.projectless ? '' : cwd, language)
   // 与检查器“改动”标签同一个查询键：打开表单时直接复用缓存，运行结束（streaming 翻转）后重新读取。
   const changeSummary = useQuery({
     queryKey: ['session-change-summary', session.id, streaming],

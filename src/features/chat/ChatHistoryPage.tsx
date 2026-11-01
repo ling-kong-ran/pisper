@@ -504,7 +504,7 @@ export function ChatHistoryPage({
                               <span className="inline-flex min-w-0 items-center gap-1 font-mono">
                                 <FolderClosed className="size-3.5 shrink-0" aria-hidden="true" />
                                 <span className="truncate">
-                                  {workspaceName(session.cwd, language)}
+                                  {workspaceName(session.projectless ? '' : session.cwd, language)}
                                 </span>
                               </span>
                               <span aria-hidden="true">·</span>

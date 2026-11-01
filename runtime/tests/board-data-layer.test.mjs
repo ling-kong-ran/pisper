@@ -165,6 +165,7 @@ test('persisted board preferences are validated as untrusted data', () => {
     }),
     {
       cwd: '/work/pisper',
+      projectless: false,
       model: 'openai/gpt-5',
       thinkingLevel: '',
       executionMode: 'approval-required',
@@ -173,11 +174,25 @@ test('persisted board preferences are validated as untrusted data', () => {
   )
   assert.deepEqual(normalizeLaunchDefaults({ executionMode: 'yolo', runMode: 'chaos' }), {
     cwd: '',
+    projectless: false,
     model: '',
     thinkingLevel: '',
     executionMode: '',
     runMode: 'plan',
   })
+})
+
+test('choosing no project keeps the remembered folder, and picking a folder leaves no-project mode', () => {
+  const base = normalizeLaunchDefaults({ cwd: '/work/pisper' })
+  const projectless = mergeLaunchChoice(base, { projectless: true })
+  assert.equal(projectless.projectless, true)
+  assert.equal(projectless.cwd, '/work/pisper')
+  // 只改模型等其他设置不会退出“不选项目”。
+  assert.equal(mergeLaunchChoice(projectless, { model: 'openai/gpt-5' }).projectless, true)
+  const picked = mergeLaunchChoice(projectless, { cwd: '/work/other' })
+  assert.deepEqual([picked.projectless, picked.cwd], [false, '/work/other'])
+  // 只认字面量 true，偏好被篡改成字符串时不进入无项目模式。
+  assert.equal(normalizeLaunchDefaults({ projectless: 'true' }).projectless, false)
 })
 
 test('live detail parsing keeps full commands and derives severity from the guard reason', () => {

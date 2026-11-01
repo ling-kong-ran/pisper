@@ -192,7 +192,13 @@ const routes = [
     path: '/api/sessions',
     async handler({ runtime, body, json }) {
       const input = await body()
-      json(201, await runtime.createSession(input.name, input.cwd))
+      // projectless 只接受字面量 true：不选项目时 Runtime 自建空目录，忽略 cwd。
+      json(
+        201,
+        await runtime.createSession(input.name, input.cwd, {
+          projectless: input?.projectless === true,
+        }),
+      )
     },
   },
   {

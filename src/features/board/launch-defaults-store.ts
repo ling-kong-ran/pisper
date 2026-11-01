@@ -26,6 +26,8 @@ export const LAUNCH_SAFE_EXECUTION_MODES: readonly LaunchSafeExecutionMode[] =
 
 export type LaunchDefaults = {
   cwd: string
+  // 不选项目：Runtime 为每个新会话建空文件夹。cwd 仍保留上次的项目，切回时不用重选。
+  projectless: boolean
   model: string
   thinkingLevel: string
   executionMode: LaunchSafeExecutionMode | ''
@@ -51,6 +53,7 @@ type LaunchDefaultsState = LaunchDefaults & {
 
 export const DEFAULT_LAUNCH_DEFAULTS: LaunchDefaults = {
   cwd: '',
+  projectless: false,
   model: '',
   thinkingLevel: '',
   executionMode: '',
@@ -67,6 +70,7 @@ export function normalizeLaunchDefaults(value: unknown): LaunchDefaults {
   const source = persistedRecord(value)
   return {
     cwd: boundedText(source.cwd, 4096),
+    projectless: source.projectless === true,
     // provider/modelId；不在这里判断是否已配置，避免 Runtime 暂不可达时清掉用户的选择。
     model: boundedText(source.model, 256),
     // 未来档位名称未知，只接受短的小写标识。
@@ -80,7 +84,9 @@ export function normalizeLaunchDefaults(value: unknown): LaunchDefaults {
 
 // 合并一次选择：完全访问不覆盖已记住的安全模式，其余字段照常归一化。
 export function mergeLaunchChoice(current: LaunchDefaults, choice: LaunchChoice): LaunchDefaults {
-  const next = normalizeLaunchDefaults({ ...current, ...choice })
+  // 明确选了某个目录（项目菜单、添加项目、看板分组）就是要回到项目里。
+  const projectless = choice.projectless ?? (choice.cwd !== undefined ? false : current.projectless)
+  const next = normalizeLaunchDefaults({ ...current, ...choice, projectless })
   return choice.executionMode === 'full-access'
     ? { ...next, executionMode: safeLaunchExecutionMode(current.executionMode) }
     : next
@@ -91,8 +97,13 @@ export const useLaunchDefaultsStore = create<LaunchDefaultsState>()(
     (set, get) => ({
       ...DEFAULT_LAUNCH_DEFAULTS,
       rememberLaunch: (choice) => {
-        const { cwd, model, thinkingLevel, executionMode, runMode } = get()
-        set(mergeLaunchChoice({ cwd, model, thinkingLevel, executionMode, runMode }, choice))
+        const { cwd, projectless, model, thinkingLevel, executionMode, runMode } = get()
+        set(
+          mergeLaunchChoice(
+            { cwd, projectless, model, thinkingLevel, executionMode, runMode },
+            choice,
+          ),
+        )
       },
       resetLaunchDefaults: () => set({ ...DEFAULT_LAUNCH_DEFAULTS }),
     }),
@@ -100,8 +111,9 @@ export const useLaunchDefaultsStore = create<LaunchDefaultsState>()(
       name: LAUNCH_DEFAULTS_PREFERENCE_KEY,
       storage: boardPreferenceStorage<LaunchDefaults>(),
       version: 1,
-      partialize: ({ cwd, model, thinkingLevel, executionMode, runMode }) => ({
+      partialize: ({ cwd, projectless, model, thinkingLevel, executionMode, runMode }) => ({
         cwd,
+        projectless,
         model,
         thinkingLevel,
         executionMode,

@@ -302,7 +302,10 @@ test('new sessions inherit the most recently listed workspace', async () => {
     readFile('src/features/chat/chat-api.ts', 'utf8'),
   ])
   assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
-  assert.match(api, /data: \{ name, \.\.\.\(cwd \? \{ cwd \} : \{\}\) \}/)
+  assert.match(
+    api,
+    /\.\.\.\(options\.projectless \? \{ projectless: true \} : cwd \? \{ cwd \} : \{\}\)/,
+  )
 })
 
 test('workspace groups create chats with their exact working directory', async () => {
@@ -317,11 +320,14 @@ test('workspace groups create chats with their exact working directory', async (
     readFile('src/app/storage.ts', 'utf8'),
   ])
 
-  assert.match(launch, /created = await chatApi\.createSession\('', request\.cwd\)/)
+  assert.match(
+    launch,
+    /created = await chatApi\.createSession\('', request\.cwd, \{\s*projectless: request\.projectless === true,/,
+  )
   assert.match(launchConsole, /await launchBoardTask\(\{\s*prompt,\s*cwd,/)
   assert.match(
     launchConsole,
-    /onValueChange=\{\(next\) => defaults\.rememberLaunch\(\{ cwd: next \}\)\}/,
+    /next === NO_PROJECT_VALUE \? \{ projectless: true \} : \{ cwd: next \}/,
   )
   assert.match(storage, /sessionCreateRequest: 'pisper-session-create-request'/)
   assert.match(events, /localStorage\.setItem\(STORAGE_KEYS\.sessionCreateRequest/)

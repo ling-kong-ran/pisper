@@ -142,7 +142,11 @@ test('all chats expose their working directory in the title header, not in the c
   // A6 起旧顶栏的“工作区 / 标题”按钮退役：工作目录在会话页头标题旁的等宽项目名（悬停给完整路径），
   // 换工作区是标题菜单里的“移动工作区”；输入框与欢迎屏都不显示目录。
   assert.match(focus, /cwd: cwd \|\| ''/)
-  assert.match(pageHeader, /const project = workspaceName\(cwd, language\)/)
+  // 无项目会话显示“无项目”，其余会话照常显示工作目录名。
+  assert.match(
+    pageHeader,
+    /const project = workspaceName\(session\.projectless \? '' : cwd, language\)/,
+  )
   assert.match(pageHeader, /title=\{cwd\}\s+data-session-project/)
   assert.match(menu, /key: 'workspace',[\s\S]*?onSelect: actions\.onWorkspace/)
   assert.doesNotMatch(

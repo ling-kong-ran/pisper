@@ -116,8 +116,8 @@ export const agentSessionMethods = {
   },
 
   // 目录变更（新建、改名、归档 / 置顶、移动工作区）都通知看板事件流的 catalog_changed。
-  async createSession(name, cwd) {
-    const created = await this.sessionLifecycle.createSession(name, cwd)
+  async createSession(name, cwd, { projectless = false } = {}) {
+    const created = await this.sessionLifecycle.createSession(name, cwd, { projectless })
     this.boardEvents?.catalogChanged()
     return created
   },

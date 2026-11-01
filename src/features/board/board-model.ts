@@ -12,7 +12,7 @@ import {
   type BoardLane,
   type BoardStatus,
 } from '@shared/session-board-status.mjs'
-import { sessionWorkspaceKey } from '@/features/chat/session-workspaces'
+import { sessionWorkspaceCwd, sessionWorkspaceKey } from '@/features/chat/session-workspaces'
 import { parsePendingQuestion, type PendingQuestion } from '@/features/chat/session-questions'
 import type { SessionSummary } from '@/types/chat'
 import {
@@ -33,6 +33,8 @@ export type BoardItem = {
   title: string
   cwd: string
   workspaceKey: string
+  // 项目分组用的目录：无项目会话为空串（cwd 仍是它的临时文件夹）。
+  projectCwd: string
   lane: BoardLane
   status: BoardStatus
   // 失败已被打开、标记已处理或重试过：“失败 · 已查看”，留在已完成泳道。
@@ -256,6 +258,7 @@ export function buildBoardItems(
       title: boardSessionTitle(session),
       cwd: typeof session.cwd === 'string' ? session.cwd : '',
       workspaceKey: sessionWorkspaceKey(session),
+      projectCwd: sessionWorkspaceCwd(session),
       lane: derived.lane,
       status: derived.status,
       handled: derived.handled,
@@ -320,7 +323,7 @@ export function boardProjects(items: readonly BoardItem[]): BoardProject[] {
   for (const item of items) {
     const current = projects.get(item.workspaceKey)
     if (current) current.count += 1
-    else projects.set(item.workspaceKey, { key: item.workspaceKey, cwd: item.cwd, count: 1 })
+    else projects.set(item.workspaceKey, { key: item.workspaceKey, cwd: item.projectCwd, count: 1 })
   }
   return [...projects.values()]
 }

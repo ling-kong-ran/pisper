@@ -14,7 +14,7 @@ import {
   sessionsInWorkspace,
   sessionWorkspaceKey,
 } from '../../src/features/chat/session-workspaces.ts'
-import { orderVisibleSessions } from '../../src/features/chat/session-list.ts'
+import { orderVisibleSessions, recentSessionCwd } from '../../src/features/chat/session-list.ts'
 import {
   deleteWorkspaceProject,
   renameWorkspaceProject,
@@ -454,4 +454,26 @@ test('the workspace order store moves projects among the listed keys', (t) => {
   } finally {
     useWorkspaceOrderStore.setState({ order: [] })
   }
+})
+
+test('projectless sessions share the no-workspace group instead of one group per scratch folder', () => {
+  const sessions = [
+    { id: 'a', cwd: '/data/chats/2026-11-01-a', projectless: true },
+    { id: 'b', cwd: '/data/chats/2026-11-01-b', projectless: true },
+    { id: 'c', cwd: '/repo' },
+  ]
+  assert.equal(sessionWorkspaceKey(sessions[0]), NO_WORKSPACE_KEY)
+  assert.deepEqual(
+    groupSessionsByWorkspace(sessions).map((group) => [
+      group.key,
+      group.cwd,
+      group.sessions.length,
+    ]),
+    [
+      [NO_WORKSPACE_KEY, '', 2],
+      ['/repo', '/repo', 1],
+    ],
+  )
+  // 新会话继承最近目录时跳过无项目会话的临时文件夹。
+  assert.equal(recentSessionCwd(sessions), '/repo')
 })

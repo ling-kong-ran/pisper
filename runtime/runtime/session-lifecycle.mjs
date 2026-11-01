@@ -5,6 +5,7 @@ import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import { SessionManager } from './pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
+import { createProjectlessDirectory, isProjectlessDirectory } from './projectless-chats.mjs'
 import {
   DEFAULT_EXECUTION_MODE,
   permissionModeForExecutionMode,
@@ -90,8 +91,10 @@ export class SessionLifecycle {
     invalidateProjection,
     getRuntimeState,
     setRuntimeVersion,
+    projectlessRoot = '',
   }) {
     this.cwd = cwd
+    this.projectlessRoot = projectlessRoot
     this.sessionDir = sessionDir
     this.sessions = sessions
     this.pendingSessions = pendingSessions
@@ -403,6 +406,7 @@ export class SessionLifecycle {
           ? { childSessionIds: childrenByParent.get(id) }
           : null,
       ...value,
+      ...this.projectlessField(value.cwd),
       ...projectSessionOrganization(
         sessionMeta[id],
         this.getPermissions().getPending(id).length,
@@ -494,9 +498,18 @@ export class SessionLifecycle {
   }
 
   // 创建会话：先写最小会话文件供重启与并发整理定位，真正的运行时等首次消息时才装配。
-  async createSession(name, cwd, { id: requestedId, metadata = {} } = {}) {
+  // 无项目会话只出现在列表字段里：旧客户端忽略它，照常按 cwd 分组。
+  projectlessField(cwd) {
+    return isProjectlessDirectory(this.projectlessRoot, cwd) ? { projectless: true } : {}
+  }
+
+  async createSession(name, cwd, { id: requestedId, metadata = {}, projectless = false } = {}) {
     const resolvedName = this.cleanSessionTitle(name) || DEFAULT_SESSION_NAME
-    const effectiveCwd = await this.resolveDirectory(cwd, this.cwd)
+    // 不选项目时忽略传入目录，给这个会话新建独立的空文件夹。
+    const effectiveCwd =
+      projectless && this.projectlessRoot
+        ? await createProjectlessDirectory(this.projectlessRoot)
+        : await this.resolveDirectory(cwd, this.cwd)
     const manager = SessionManager.create(
       effectiveCwd,
       this.sessionDir,
@@ -561,6 +574,7 @@ export class SessionLifecycle {
       model: sessionMeta[id].model || model,
       thinkingLevel: sessionMeta[id].thinkingLevel || settings.defaultThinkingLevel || 'medium',
       cwd: effectiveCwd,
+      ...this.projectlessField(effectiveCwd),
       created: now,
       modified: now,
       permissionMode: sessionMeta[id].permissionMode,
@@ -1076,6 +1090,7 @@ export class SessionLifecycle {
       model: sessionMeta[derivedId].model || '',
       thinkingLevel: context.thinkingLevel,
       cwd: sessionMeta[derivedId].cwd,
+      ...this.projectlessField(sessionMeta[derivedId].cwd),
       created: now,
       modified: now,
       streaming: false,

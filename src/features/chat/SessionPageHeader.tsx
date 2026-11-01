@@ -51,7 +51,8 @@ export function SessionPageHeader({
     onSideChat: () => openSessionSideChat(session.id, inspector),
   })
   const title = session.name || t('navigation:pageHeader.newChat')
-  const project = workspaceName(cwd, language)
+  // 无项目会话的临时文件夹名没有意义，标题栏显示“无项目”。
+  const project = workspaceName(session.projectless ? '' : cwd, language)
   // 改动数与检查器“改动”标签、手机顶栏读同一个查询键：运行结束（streaming 翻转）后重新读取，不另开轮询。
   const changeSummary = useQuery({
     queryKey: ['session-change-summary', session.id, streaming],

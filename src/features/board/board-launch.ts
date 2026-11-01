@@ -24,6 +24,8 @@ import type { LaunchExecutionMode, LaunchRunMode } from './launch-defaults-store
 export type BoardLaunchRequest = {
   prompt: string
   cwd: string
+  // 不选项目：忽略 cwd，Runtime 为这个会话新建空文件夹。
+  projectless?: boolean
   // provider/modelId；空串表示沿用 Runtime 默认模型。
   model: string
   thinkingLevel: string
@@ -136,7 +138,9 @@ export async function launchBoardTask(request: BoardLaunchRequest): Promise<stri
   if (!prompt) throw new BoardLaunchError('create', new Error('empty prompt'))
   let created: SessionSummary
   try {
-    created = await chatApi.createSession('', request.cwd)
+    created = await chatApi.createSession('', request.cwd, {
+      projectless: request.projectless === true,
+    })
   } catch (error) {
     throw new BoardLaunchError('create', error)
   }

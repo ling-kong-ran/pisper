@@ -73,6 +73,8 @@ export function orderVisibleSessions<T extends SessionSummary>(sessions: T[]): T
 // 最近会话的工作目录：按列表顺序找第一个有 cwd 的会话，用于新会话继承。
 export function recentSessionCwd(sessions: SessionSummary[]) {
   for (const session of sessions) {
+    // 无项目会话的临时文件夹只属于它自己，新会话不继承。
+    if (session.projectless) continue
     const cwd = typeof session.cwd === 'string' ? session.cwd.trim() : ''
     if (cwd) return cwd
   }

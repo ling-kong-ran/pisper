@@ -222,10 +222,14 @@ export const chatApi = {
   listSessionTreeLabels: (limit = 500) =>
     requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?limit=${limit}`),
 
-  createSession: (name: string, cwd = '') =>
+  // projectless：不选项目，由 Runtime 为会话新建空文件夹（此时忽略 cwd）。
+  createSession: (name: string, cwd = '', options: { projectless?: boolean } = {}) =>
     requestJson<SessionSummary>('/api/sessions', {
       method: 'POST',
-      data: { name, ...(cwd ? { cwd } : {}) },
+      data: {
+        name,
+        ...(options.projectless ? { projectless: true } : cwd ? { cwd } : {}),
+      },
     }),
 
   deriveSession: (sessionId: string, boundaryEntryId: string, name: string) =>

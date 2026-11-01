@@ -83,6 +83,7 @@ import {
   resolveWorkspaceDirectory,
   workspacePathKey,
 } from './workspace-directories.mjs'
+import { projectlessChatsRoot } from './projectless-chats.mjs'
 import { assetMessageAttachment, attachmentIdentity } from '../services/session-assets.mjs'
 import { dedupeAssetsForDisplay } from '../services/asset-storage.mjs'
 import * as assetStorage from '../services/asset-storage.mjs'
@@ -743,6 +744,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       setRuntimeVersion: (version) => {
         this.sessionRuntimeVersion = version
       },
+      projectlessRoot: this.dataDir ? projectlessChatsRoot(this.dataDir) : '',
     })
     this.sideChats = new SideChatService({
       getMetadata: () => this.sessionMeta,

@@ -73,7 +73,7 @@ export function normalizeTokenUsage(value: unknown): TokenUsage {
 // 从路径提取工作区名（取最后一段），去除尾部斜杠；空路径返回本地化占位。
 export function workspaceName(value: unknown, locale = 'zh-CN') {
   const path = String(value || '').replace(/[\\/]+$/, '')
-  return path.split(/[\\/]/).pop() || path || (locale === 'en-US' ? 'No folder set' : '未设置目录')
+  return path.split(/[\\/]/).pop() || path || (locale === 'en-US' ? 'No project' : '无项目')
 }
 
 // 紧凑时长（等待时长、运行时长）：<1 分钟到秒，<1 小时到分秒，<1 天到时分，再长只取天；

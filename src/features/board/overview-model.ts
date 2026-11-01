@@ -141,7 +141,7 @@ export function buildOverviewModel(
     for (const item of visible)
       if (!known.has(item.workspaceKey)) {
         known.add(item.workspaceKey)
-        order.push({ key: item.workspaceKey, cwd: item.cwd })
+        order.push({ key: item.workspaceKey, cwd: item.projectCwd })
       }
     for (const project of order) {
       const rows = visible.filter((item) => item.workspaceKey === project.key)
