@@ -150,6 +150,14 @@ function dependencyIncludes(team, task, candidateName, visited = new Set()) {
   return false
 }
 
+// 两个任务在依赖图上有先后（直接或间接、任一方向）就不会同时运行，共享文件范围是安全的；
+// 只看直接依赖会把 C→B→A 这类合法链路误判成文件所有权冲突。
+function tasksOrdered(team, left, right) {
+  return (
+    dependencyIncludes(team, left, right.taskName) || dependencyIncludes(team, right, left.taskName)
+  )
+}
+
 function hasDependencyCycle(team, task, dependencies) {
   return dependencies.some((dependency) => {
     const parent = taskByName(team, dependency)
@@ -545,8 +553,7 @@ export class TeamWorkflowService {
       const claimedScopes = []
       const conflict = claimable.find((task) => {
         const overlaps = claimedScopes.some(
-          (other) =>
-            !task.dependsOn.includes(other.taskName) && scopesOverlap(task.files, other.files),
+          (other) => !tasksOrdered(current, task, other) && scopesOverlap(task.files, other.files),
         )
         if (overlaps) return true
         claimedScopes.push(task)
@@ -695,10 +702,15 @@ export class TeamWorkflowService {
       .map(publicTask)
   }
 
-  requeueExpiredLease(team, task) {
+  requeueExpiredLease(team, task, isAlive) {
     const expiresAt = task?.leaseExpiresAt ? new Date(task.leaseExpiresAt).getTime() : 0
     if (!expiresAt || expiresAt > this.now()) return null
     if (!['starting', 'running'].includes(task.status)) return null
+    // 调用方确认成员仍在正常工作（如正执行长时间无输出的工具）时只续期，不回收任务。
+    if (task.agentId && isAlive?.(publicTask(task))) {
+      task.leaseExpiresAt = nowIso(this.now() + TEAM_TASK_LEASE_MS)
+      return { renewed: true }
+    }
     const expired = {
       taskId: task.id,
       taskName: task.taskName,
@@ -716,13 +728,14 @@ export class TeamWorkflowService {
     return expired
   }
 
-  async requeueExpiredLeases(sessionId) {
+  async requeueExpiredLeases(sessionId, { isAlive } = {}) {
     const team = this.state.teams[String(sessionId || '')]
     if (!team || team.status !== 'active') return []
-    const expired = Object.values(team.tasks)
-      .map((task) => this.requeueExpiredLease(team, task))
+    const results = Object.values(team.tasks)
+      .map((task) => this.requeueExpiredLease(team, task, isAlive))
       .filter(Boolean)
-    if (expired.length) await this.save()
+    const expired = results.filter((result) => !result.renewed)
+    if (results.length) await this.save()
     return clone(expired)
   }
 
@@ -810,10 +823,11 @@ export class TeamWorkflowService {
     if (hasDependencyCycle(team, { taskName: normalizedName }, dependencies))
       throw new Error(`Team task dependency cycle detected: ${normalizedName}.`)
     const normalizedFiles = normalizeFiles(files)
+    const pending = { taskName: normalizedName, dependsOn: dependencies }
     const activeConflict = Object.values(team.tasks).find(
       (task) =>
         !TERMINAL_TEAM_TASK_STATUSES.has(task.status) &&
-        !dependencies.includes(task.taskName) &&
+        !tasksOrdered(team, pending, task) &&
         scopesOverlap(normalizedFiles, task.files),
     )
     if (activeConflict) {
@@ -902,15 +916,20 @@ export class TeamWorkflowService {
         dependency !== previousName && dependency !== nextName && !taskByName(team, dependency),
     )
     if (missing.length) throw new Error(`Unknown Team task dependencies: ${missing.join(', ')}.`)
-    const dependencyTask = { ...task, taskName: nextName }
+    const dependencyTask = { ...task, taskName: nextName, dependsOn: nextDependencies }
     if (hasDependencyCycle(team, dependencyTask, nextDependencies))
       throw new Error(`Team task dependency cycle detected: ${nextName}.`)
     const nextFiles = files === undefined ? [...task.files] : normalizeFiles(files)
+    // 依赖方此刻仍按旧名引用本任务；改名前两种名字都要算作“排在本任务之后”。
+    const dependsOnTask = (candidate) =>
+      dependencyIncludes(team, candidate, previousName) ||
+      dependencyIncludes(team, candidate, nextName)
     const activeConflict = Object.values(team.tasks).find(
       (candidate) =>
         candidate.id !== task.id &&
         !TERMINAL_TEAM_TASK_STATUSES.has(candidate.status) &&
-        !nextDependencies.includes(candidate.taskName) &&
+        !dependencyIncludes(team, dependencyTask, candidate.taskName) &&
+        !dependsOnTask(candidate) &&
         scopesOverlap(nextFiles, candidate.files),
     )
     if (activeConflict) {

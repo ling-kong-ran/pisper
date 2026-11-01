@@ -332,7 +332,18 @@ export function createMultiAgentRuntime({
     if (!teamWorkflows.isActive(sessionId)) return
     // 先把到期的可恢复失败任务（上游限流/断流/通信中断）重新排队，再处理租约与就绪任务。
     await teamWorkflows.requeueRetryableFailures(sessionId)
-    const expired = await teamWorkflows.requeueExpiredLeases(sessionId)
+    // 租约只靠进度事件续期；长时间无输出的工具调用（构建、测试）不产生事件，
+    // 正在执行工具的成员不算卡死。模型侧长时间无事件仍按过期回收。
+    const expired = await teamWorkflows.requeueExpiredLeases(sessionId, {
+      isAlive: (task) => {
+        const agent = multiAgents.find(sessionId, task.agentId)
+        return (
+          agent?.status === 'running' &&
+          Array.isArray(agent.tools) &&
+          agent.tools.some((tool) => tool?.status === 'running')
+        )
+      },
+    })
     for (const lease of expired) {
       if (!lease.agentId) continue
       agentLeaseBindings.delete(lease.agentId)

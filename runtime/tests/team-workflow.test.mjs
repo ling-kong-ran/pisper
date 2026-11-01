@@ -239,6 +239,90 @@ test('team workflow supports repeated recovery without time-based termination', 
   await service.write
 })
 
+test('Team file ownership allows overlap along indirect or reversed dependency chains', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-transitive-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const service = new TeamWorkflowService({ path: join(directory, 'teams.json') })
+  await service.init()
+  await service.ensure('session-1', { goalId: 'goal-1', objective: 'Chain' })
+  await service.registerTask('session-1', { taskName: 'write_a', files: ['src/a'] })
+  await service.registerTask('session-1', {
+    taskName: 'review',
+    files: ['docs'],
+    dependsOn: ['write_a'],
+  })
+  // C→B→A：C 只能在 A 完成后运行，与 A 共享 src/a 不是并行冲突。
+  const polish = await service.registerTask('session-1', {
+    taskName: 'polish_a',
+    files: ['src/a/index.mjs'],
+    dependsOn: ['review'],
+  })
+  assert.equal(polish.status, 'blocked')
+  // 没有先后关系的并行任务仍然拒绝。
+  await assert.rejects(
+    service.registerTask('session-1', { taskName: 'rogue', files: ['src/a'] }),
+    /ownership conflict/,
+  )
+  // 改图时反向依赖（对方排在本任务之后）同样不算冲突。
+  const docs = await service.registerTask('session-1', { taskName: 'docs_pass', files: ['notes'] })
+  await assert.rejects(
+    service.updateTask('session-1', docs.id, { files: ['docs', 'notes'] }),
+    /ownership conflict/,
+  )
+  await assert.rejects(
+    service.updateTask('session-1', docs.id, { files: ['src/a'] }),
+    /ownership conflict/,
+  )
+  const review = service.findTask('session-1', 'review')
+  await service.updateTask('session-1', review.id, { dependsOn: ['write_a', 'docs_pass'] })
+  await service.updateTask('session-1', docs.id, { files: ['docs', 'notes'] })
+  await service.pause('session-1')
+  await service.ensure('session-1', { goalId: 'goal-1' })
+  assert.equal(service.get('session-1').status, 'active')
+  await service.write
+})
+
+test('expired Team leases renew for live agents and recover only abandoned tasks', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-lease-live-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let clock = Date.parse('2025-01-01T00:00:00.000Z')
+  const service = new TeamWorkflowService({
+    path: join(directory, 'teams.json'),
+    now: () => clock,
+  })
+  await service.init()
+  await service.ensure('session-1', { goalId: 'goal-1', objective: 'Quiet build' })
+  const quiet = await service.registerTask('session-1', { taskName: 'quiet' })
+  const gone = await service.registerTask('session-1', { taskName: 'gone' })
+  for (const [task, agentId] of [
+    [quiet, 'agent-quiet'],
+    [gone, 'agent-gone'],
+  ]) {
+    const claimed = await service.claimTask('session-1', task.id)
+    await service.bindAgent(
+      'session-1',
+      task.id,
+      { id: agentId, status: 'running' },
+      { leaseId: claimed.leaseId },
+    )
+  }
+  clock += TEAM_TASK_LEASE_MS + 1
+  const expired = await service.requeueExpiredLeases('session-1', {
+    isAlive: (task) => task.agentId === 'agent-quiet',
+  })
+  assert.deepEqual(
+    expired.map((lease) => lease.taskName),
+    ['gone'],
+  )
+  assert.equal(service.getTask('session-1', quiet.id).status, 'running')
+  assert.equal(
+    Date.parse(service.getTask('session-1', quiet.id).leaseExpiresAt),
+    clock + TEAM_TASK_LEASE_MS,
+  )
+  assert.equal(service.getTask('session-1', gone.id).status, 'queued')
+  await service.write
+})
+
 test('retryable team failures auto-requeue after backoff while execution failures stay terminal', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-team-auto-retry-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
@@ -711,6 +795,68 @@ test('team adapter interrupts an expired worker and ignores its late terminal ca
     output: 'Fresh output.',
   })
   assert.equal(service.findTask('session-1', 'inspect').output, 'Fresh output.')
+})
+
+test('team adapter keeps the lease of a worker inside a long silent tool call', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-silent-tool-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  let clock = Date.parse('2025-01-01T00:00:00.000Z')
+  const service = new TeamWorkflowService({
+    path: join(directory, 'teams.json'),
+    now: () => clock,
+  })
+  await service.init()
+  await service.ensure('session-1', { objective: 'Run a quiet build.' })
+  const agent = {
+    id: 'agent-1',
+    taskName: 'build',
+    canonicalName: '/root/build_1',
+    status: 'running',
+    output: '',
+    tools: [{ type: 'tool', id: 'call-1', name: 'bash', status: 'running' }],
+  }
+  const interrupted = []
+  const runtime = createMultiAgentRuntime({
+    getRuntimeSession: () => ({
+      sessionId: 'session-1',
+      model: { provider: 'test', id: 'model' },
+      thinkingLevel: 'medium',
+      getActiveToolNames: () => ['read'],
+    }),
+    multiAgents: {
+      spawn: async () => agent,
+      list: () => [agent],
+      find: (_sessionId, target) => (target === agent.id ? agent : null),
+      interrupt: (_sessionId, target) => interrupted.push(target),
+    },
+    teamWorkflows: service,
+    effectiveCwd: directory,
+    executionMode: 'full-access',
+    enabledTools: ['read'],
+    planReader: null,
+    baseToolNames: ['read'],
+    getExecutionMode: () => 'full-access',
+    getToolRisk: () => null,
+    createInheritedCustomTools: () => [],
+    waitAgent: async () => ({ timedOut: false, agent: null }),
+    installSubagentPermissions: () => {},
+    onCompleted: () => {},
+    emitAgentUpdate: () => {},
+  })
+
+  await runtime.spawn({ taskName: 'build', message: 'Build quietly.' })
+  const lease = service.findTask('session-1', 'build').leaseId
+  clock += TEAM_TASK_LEASE_MS + 1
+  await runtime.resume()
+  assert.deepEqual(interrupted, [])
+  assert.equal(service.findTask('session-1', 'build').leaseId, lease)
+  assert.equal(service.findTask('session-1', 'build').status, 'running')
+
+  // 工具结束后模型侧仍长时间无事件，按卡死回收。
+  agent.tools = [{ ...agent.tools[0], status: 'done' }]
+  clock += TEAM_TASK_LEASE_MS + 1
+  await runtime.resume()
+  assert.deepEqual(interrupted, ['agent-1'])
 })
 
 test('Team follow-up run numbers cannot reuse a newer lease from the same Agent id', async (t) => {
