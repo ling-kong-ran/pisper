@@ -10,6 +10,17 @@ import type { DisplayNode } from '@/features/chat/session-tree-model'
 
 type NodeLabelFn = (node: SessionTreeNode) => string
 
+// 会话标题常常是用户第一句话，按钮默认不换行会把检查器撑出横向溢出；
+// 文本在按钮内截断，完整标题放进 title 供悬停查看。
+function LineageButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button variant="secondary" className="w-full min-w-0" title={label} onClick={onClick}>
+      <MessageSquare size={13} />
+      <span className="min-w-0 truncate">{label}</span>
+    </Button>
+  )
+}
+
 export function SessionTreeInspector({
   mobileLayout,
   selected,
@@ -87,23 +98,21 @@ export function SessionTreeInspector({
             <div className="session-tree-lineage flex flex-col gap-1.5 border-b border-stroke-soft pb-3 [&_>_strong]:text-xs [&_>_strong]:font-medium [&_>_strong]:text-content-muted [&_button]:justify-start [&_button]:text-left [&_button]:text-xs">
               <strong>{t('chat:sessionTree.conversationLineage')}</strong>
               {parentSession && (
-                <Button
-                  variant="secondary"
-                  onClick={() => onOpenRelated(parentSession, parentEntryId)}
-                >
-                  <MessageSquare size={13} />
-                  {t('chat:sessionTree.returnToOriginalChat', {
+                <LineageButton
+                  label={t('chat:sessionTree.returnToOriginalChat', {
                     name: parentSession.name || t('chat:chatPage.newChat'),
                   })}
-                </Button>
+                  onClick={() => onOpenRelated(parentSession, parentEntryId)}
+                />
               )}
               {childSessions.map((child) => (
-                <Button variant="secondary" key={child.id} onClick={() => onOpenRelated(child)}>
-                  <MessageSquare size={13} />
-                  {t('chat:sessionTree.openSeparateChat', {
+                <LineageButton
+                  key={child.id}
+                  label={t('chat:sessionTree.openSeparateChat', {
                     name: child.name || t('chat:chatPage.newChat'),
                   })}
-                </Button>
+                  onClick={() => onOpenRelated(child)}
+                />
               ))}
             </div>
           )}
