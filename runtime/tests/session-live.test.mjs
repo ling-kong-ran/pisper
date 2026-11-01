@@ -2059,3 +2059,65 @@ test('the board event stream ends a run with a not-running frame even when finis
   assert.equal(last.card.boardStatus, 'done')
   assert.equal(last.card.outcome, 'completed')
 })
+
+test('fast bash output is coalesced into at most one tool_update per interval, latest wins', async (t) => {
+  const { runtime, install } = await boardRuntime(t, 'pisper-tool-update-coalesce-')
+  let liveBeforeEnd = null
+  const session = scriptedBoardSession('session-tool-coalesce', async (emit, current) => {
+    emit({ type: 'agent_start' })
+    emit({ type: 'turn_start' })
+    emit({ type: 'tool_execution_start', toolCallId: 'tool-1', toolName: 'bash', args: {} })
+    for (let index = 1; index <= 50; index += 1)
+      emit({
+        type: 'tool_execution_update',
+        toolCallId: 'tool-1',
+        toolName: 'bash',
+        partialResult: { content: [{ type: 'text', text: `line ${index}` }] },
+      })
+    // 等过两个合并窗口：被合并的最后一帧按时补发，之后的第一帧又能立即发出。
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    emit({
+      type: 'tool_execution_update',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      partialResult: { content: [{ type: 'text', text: 'line 51' }] },
+    })
+    emit({
+      type: 'tool_execution_update',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      partialResult: { content: [{ type: 'text', text: 'line 52' }] },
+    })
+    liveBeforeEnd = await runtime.getSessionLive(current.sessionId)
+    // 结束前先补发还没发出去的那帧，再发结束事件。
+    emit({
+      type: 'tool_execution_end',
+      toolCallId: 'tool-1',
+      toolName: 'bash',
+      result: { content: [] },
+      isError: false,
+    })
+    const assistant = { role: 'assistant', content: [], stopReason: 'stop', timestamp: 2 }
+    current.messages.push(assistant)
+    emit({ type: 'message_end', message: assistant })
+    emit({ type: 'agent_end', messages: [assistant], willRetry: false })
+  })
+  install(session)
+  const events = []
+  await runtime.streamPrompt({
+    sessionId: session.sessionId,
+    message: 'Run it.',
+    send: (event, data) => events.push({ event, data }),
+  })
+  const updates = events
+    .filter((item) => item.event === 'tool_update')
+    .map((item) => item.data.output)
+  assert.deepEqual(updates, ['line 1', 'line 50', 'line 51', 'line 52'])
+  assert.equal(liveBeforeEnd.tools.find((tool) => tool.id === 'tool-1').output, 'line 51')
+  const end = events.find((item) => item.event === 'tool_end')
+  assert.equal(end.data.output, 'line 52')
+  // 运行结束后不再有迟到的合并帧。
+  const count = events.length
+  await new Promise((resolve) => setTimeout(resolve, 150))
+  assert.equal(events.length, count)
+})

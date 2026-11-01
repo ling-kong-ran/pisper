@@ -189,6 +189,8 @@ const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_RUNTIME_SWEEP_INTERVAL_MS = 60 * 1000
 // 强制中断会话的宽限期：正常停止信号超时后仍不退出时，直接 dispose 会话。
 const ABORT_FORCE_TIMEOUT_MS = 10_000
+// 同一工具调用的实时更新最短间隔（见 runSessionPrompt 的工具更新合并）。
+const TOOL_UPDATE_INTERVAL_MS = 100
 // 中止护栏：模型未在 abortForceTimeoutMs 内响应停止时强制销毁会话，避免卡在“已请求停止却仍运行”。
 // 平时不占定时器：abortSession 写入 abortedAt 后经 value.armAbortGuard 通知，这时才按截止时间挂一个定时器。
 async function runPromptWithAbortGuard(value, run) {
@@ -2275,7 +2277,84 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       emit('thinking_patch', { start, text: next.slice(start) })
     }
     // 收尾：标记本轮结束、修正仍在 running 的工具状态，并把后台 Agent 活动带出来。
+    // 工具执行中：更新输出与摘要消息；多 Agent 工具的 partialResult 带 Agent 信息。
+    const applyToolUpdate = (event) => {
+      const rawOutput = liveThinkingTail(textFromContent(event.partialResult?.content))
+      const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
+      const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
+      const agent = multiAgentResultAgent(event.toolName, event.partialResult?.details)
+      live.tools = live.tools.map((item) =>
+        item.id === event.toolCallId
+          ? {
+              ...item,
+              ...outputPatch,
+              message: message || item.message || '',
+              updatedAt: live.lastActivityAt,
+              ...(agent ? { agent } : {}),
+            }
+          : item,
+      )
+      if (live.currentActivity?.id === event.toolCallId) {
+        setLiveActivity(live, {
+          ...live.currentActivity,
+          ...outputPatch,
+          message: message || live.currentActivity.message || '',
+          updatedAt: live.lastActivityAt,
+          ...(agent ? { agent } : {}),
+        })
+      }
+      emit('tool_update', {
+        id: event.toolCallId,
+        name: event.toolName,
+        message,
+        ...outputPatch,
+        updatedAt: live.lastActivityAt,
+        ...(agent ? { agent } : {}),
+      })
+    }
+    // 工具更新合并：bash 每次更新都带完整的输出尾部（最多 6KB），输出很快时一秒几十帧，
+    // 每帧都要重建工具列表并发给每个客户端。同一工具调用最多每 TOOL_UPDATE_INTERVAL_MS 发一帧，
+    // 取最新一帧；工具结束前先补发未发的那帧，运行收尾时丢弃。
+    const pendingToolUpdates = new Map()
+    const toolUpdateSentAt = new Map()
+    let toolUpdateTimer = null
+    const flushToolUpdates = () => {
+      clearTimeout(toolUpdateTimer)
+      toolUpdateTimer = null
+      const pending = [...pendingToolUpdates.values()]
+      pendingToolUpdates.clear()
+      for (const event of pending) {
+        toolUpdateSentAt.set(event.toolCallId, Date.now())
+        applyToolUpdate(event)
+      }
+    }
+    const queueToolUpdate = (event) => {
+      const id = event.toolCallId
+      if (
+        !pendingToolUpdates.has(id) &&
+        Date.now() - (toolUpdateSentAt.get(id) || 0) >= TOOL_UPDATE_INTERVAL_MS
+      ) {
+        toolUpdateSentAt.set(id, Date.now())
+        applyToolUpdate(event)
+        return
+      }
+      pendingToolUpdates.set(id, event)
+      toolUpdateTimer ??= setTimeout(flushToolUpdates, TOOL_UPDATE_INTERVAL_MS)
+    }
+    const settleToolUpdate = (id) => {
+      const pending = pendingToolUpdates.get(id)
+      pendingToolUpdates.delete(id)
+      toolUpdateSentAt.delete(id)
+      if (pending) applyToolUpdate(pending)
+    }
+    const dropToolUpdates = () => {
+      clearTimeout(toolUpdateTimer)
+      toolUpdateTimer = null
+      pendingToolUpdates.clear()
+      toolUpdateSentAt.clear()
+    }
     const finishLiveRun = (error = '') => {
+      dropToolUpdates()
       const finishedAt = new Date().toISOString()
       live.streaming = false
       live.finishedAt = finishedAt
@@ -2468,40 +2547,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ...(event.toolName === 'bash' ? { output: '' } : {}),
         })
       } else if (event.type === 'tool_execution_update') {
-        // 工具执行中：更新输出与摘要消息；多 Agent 工具的 partialResult 带 Agent 信息。
-        const rawOutput = liveThinkingTail(textFromContent(event.partialResult?.content))
-        const message = rawOutput.replace(/\s+/g, ' ').trim().slice(0, 180)
-        const outputPatch = event.toolName === 'bash' ? { output: rawOutput } : {}
-        const agent = multiAgentResultAgent(event.toolName, event.partialResult?.details)
-        live.tools = live.tools.map((item) =>
-          item.id === event.toolCallId
-            ? {
-                ...item,
-                ...outputPatch,
-                message: message || item.message || '',
-                updatedAt: live.lastActivityAt,
-                ...(agent ? { agent } : {}),
-              }
-            : item,
-        )
-        if (live.currentActivity?.id === event.toolCallId) {
-          setLiveActivity(live, {
-            ...live.currentActivity,
-            ...outputPatch,
-            message: message || live.currentActivity.message || '',
-            updatedAt: live.lastActivityAt,
-            ...(agent ? { agent } : {}),
-          })
-        }
-        emit('tool_update', {
-          id: event.toolCallId,
-          name: event.toolName,
-          message,
-          ...outputPatch,
-          updatedAt: live.lastActivityAt,
-          ...(agent ? { agent } : {}),
-        })
+        queueToolUpdate(event)
       } else if (event.type === 'tool_execution_end') {
+        settleToolUpdate(event.toolCallId)
         // 工具执行结束：生成的图片/可视化结果登记为资产，并推送 generated_asset。
         if (
           !event.isError &&
@@ -2811,6 +2859,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       // 无论成败：退订事件、清理发射器，并在 60 秒后移除 live 状态（延迟是为了
       // 让前端有足够时间消费完成事件后再从实时视图回落到历史视图）。
       unsubscribe()
+      dropToolUpdates()
       detachMobileOperations()
       this.permissions.detachEmitter(session.sessionId, emit)
       this.questions.detachEmitter(session.sessionId, emit)
