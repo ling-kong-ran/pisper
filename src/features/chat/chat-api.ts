@@ -158,6 +158,12 @@ export type GitChangesResponse = EntityRecord & {
 }
 
 // 会话文件变更审批：edit/write 的修改前快照对比结果，无 VCS 也可用。
+// 内容相同、只改了换行符或 BOM 时的说明：[改动前, 当前]；没变的一项为 null。
+export type SessionFileFormatChange = {
+  lineEnding: ['crlf' | 'lf', 'crlf' | 'lf'] | null
+  bom: [boolean, boolean] | null
+}
+
 export type SessionFileChangeFile = {
   path: string
   status: 'modified' | 'created' | 'deleted'
@@ -170,6 +176,7 @@ export type SessionFileChangeFile = {
   reverted: boolean
   pending: boolean
   changedAt: string
+  formatChange?: SessionFileFormatChange | null
 }
 
 export type SessionFileChangesResponse = EntityRecord & {

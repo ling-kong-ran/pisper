@@ -48,6 +48,7 @@ export const truncateHead = truncate.truncateHead
 export const applyEditsToNormalizedContent = editDiff.applyEditsToNormalizedContent
 export const generateUnifiedPatch = editDiff.generateUnifiedPatch
 export const normalizeToLF = editDiff.normalizeToLF
+export const detectLineEnding = editDiff.detectLineEnding
 // 保留预览调用方的 { bom, text } 合同；新版 Pi 将该能力命名为 splitBom。
 export const stripBom = textUtils.splitBom
 export const resolveReadPathAsync = pathUtils.resolveReadPathAsync

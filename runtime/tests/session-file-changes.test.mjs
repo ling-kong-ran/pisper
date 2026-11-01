@@ -55,6 +55,52 @@ test('快照、清单统计与 diff：编辑既有文件', async (t) => {
   assert.match(diff.diff, /\+four/)
 })
 
+test('CRLF 与 BOM 文件只统计真实改动行，撤销后识别为已恢复', async (t) => {
+  const f = await fixture(t)
+  const lines = Array.from({ length: 50 }, (_, index) => `line ${index}`)
+  const original = `\uFEFF${lines.join('\r\n')}\r\n`
+  await writeFile(join(f.cwd, 'win.txt'), original, 'utf8')
+  const edited = [...lines]
+  edited[10] = 'changed'
+  await runWriteTool(f, 's-crlf', 'win.txt', `\uFEFF${edited.join('\r\n')}\r\n`)
+  let list = await f.service.list('s-crlf', f.cwd)
+  assert.equal(list.files[0].added, 1)
+  assert.equal(list.files[0].removed, 1)
+  const diff = await f.service.diff('s-crlf', f.cwd, 'win.txt')
+  assert.equal(diff.diff.split('\n').filter((line) => /^[+-](?![+-]{2})/.test(line)).length, 2)
+  assert.doesNotMatch(diff.diff, /\r/)
+  const result = await f.service.revert('s-crlf', f.cwd, 'win.txt')
+  assert.equal(result.reverted, 1)
+  assert.equal(await readFile(join(f.cwd, 'win.txt'), 'utf8'), original)
+  list = result.files
+  assert.equal(list.files[0].currentEqualsBefore, true)
+  assert.equal(list.files[0].added, 0)
+  assert.equal(list.files[0].removed, 0)
+})
+
+test('只改换行符或 BOM 的文件标成格式变化，仍待处理而不是已撤销', async (t) => {
+  const f = await fixture(t)
+  const lines = ['alpha', 'beta', 'gamma']
+  await writeFile(join(f.cwd, 'eol.txt'), `\uFEFF${lines.join('\r\n')}\r\n`, 'utf8')
+  await runWriteTool(f, 's-eol', 'eol.txt', `${lines.join('\n')}\n`)
+  const list = await f.service.list('s-eol', f.cwd)
+  const [file] = list.files
+  assert.equal(file.added, 0)
+  assert.equal(file.removed, 0)
+  assert.equal(file.reverted, false)
+  assert.equal(file.currentEqualsBefore, false)
+  assert.equal(file.pending, true)
+  assert.deepEqual(file.formatChange, { lineEnding: ['crlf', 'lf'], bom: [true, false] })
+  const diff = await f.service.diff('s-eol', f.cwd, 'eol.txt')
+  assert.equal(diff.diff, '')
+  assert.deepEqual(diff.formatChange, file.formatChange)
+  const summary = await f.service.summary('s-eol', f.cwd)
+  assert.equal(summary.status, 'known')
+  assert.equal(summary.changedFiles, 1)
+  assert.equal(summary.added, 0)
+  assert.equal(summary.removed, 0)
+})
+
 test('新建文件：diff 标记 new file，撤销即删除', async (t) => {
   const f = await fixture(t)
   await runWriteTool(f, 's2', 'new.md', '# hello\n')

@@ -34,7 +34,7 @@ import {
   revealPathThroughRuntime,
 } from '@/lib/local-path-reveal'
 import { cn } from '@/lib/utils'
-import { chatApi, type SessionFileChangeFile } from './chat-api'
+import { chatApi, type SessionFileChangeFile, type SessionFileFormatChange } from './chat-api'
 import { summarizeProjectDiff } from './project-diff-summary'
 import type { ContextPageView } from './session-context-pages'
 import {
@@ -396,6 +396,25 @@ function snapshotFile(file: SessionFileChangeFile): ChangedFile {
   }
 }
 
+// 只改了换行符或 BOM 的文件行数是 +0 −0，但确实变了；行尾写明变了什么，免得看起来像没改。
+function formatChangeNote(
+  change: SessionFileFormatChange | null | undefined,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  if (!change) return undefined
+  const parts: string[] = []
+  if (change.lineEnding)
+    parts.push(
+      t('chat:focusSession.fileChangesLineEnding', {
+        from: change.lineEnding[0].toUpperCase(),
+        to: change.lineEnding[1].toUpperCase(),
+      }),
+    )
+  if (change.bom?.[1]) parts.push(t('chat:focusSession.fileChangesBomAdded'))
+  else if (change.bom) parts.push(t('chat:focusSession.fileChangesBomRemoved'))
+  return t('chat:focusSession.fileChangesFormatOnly', { detail: parts.join(' · ') })
+}
+
 // 本会话：/file-changes 快照，带批准与还原（还原前沿用原有的确认框）。
 function SessionScopeChanges({
   sessionId,
@@ -477,7 +496,7 @@ function SessionScopeChanges({
                 ? t('chat:focusSession.fileChangesReverted')
                 : file.approved
                   ? t('chat:focusSession.fileChangesApproved')
-                  : undefined,
+                  : formatChangeNote(file.formatChange, t),
             }))}
             selected={selected?.path ?? ''}
             label={t('board:changes.files')}

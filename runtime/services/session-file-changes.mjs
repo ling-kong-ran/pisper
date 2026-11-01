@@ -19,6 +19,7 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import {
+  detectLineEnding,
   generateUnifiedPatch,
   normalizeToLF,
   resolveToCwd,
@@ -86,6 +87,29 @@ async function snapshotContent(absolutePath) {
   }
   const content = await readFile(absolutePath, 'utf8')
   return { ok: true, content }
+}
+
+// 统一的比较视图（封装 Pi 的 splitBom / normalizeToLF / detectLineEnding）：
+// 行数和 diff 用 text（去 BOM、换行统一成 LF），否则 Windows 的 CRLF 文件改几行会被算成整文件重写；
+// 是否回到原样用 raw 判断，只改了换行符或 BOM 的文件 text 相同而 raw 不同，单独标成格式变化。
+function comparableText(raw) {
+  const { bom, text } = stripBom(raw)
+  return {
+    raw,
+    text: normalizeToLF(text),
+    lineEnding: detectLineEnding(text) === '\r\n' ? 'crlf' : 'lf',
+    bom: Boolean(bom),
+  }
+}
+
+// 内容相同、只有换行符或 BOM 不同时返回变化说明；其余情况返回 null。
+function formatChange(before, current) {
+  if (!before || !current || before.raw === current.raw || before.text !== current.text) return null
+  return {
+    lineEnding:
+      before.lineEnding === current.lineEnding ? null : [before.lineEnding, current.lineEnding],
+    bom: before.bom === current.bom ? null : [before.bom, current.bom],
+  }
 }
 
 function diffStats(patch) {
@@ -167,7 +191,7 @@ async function readSummaryText(root, target, budget) {
     }
     budget.remaining -= content.length
     if (content.includes(0)) return { kind: 'unknown' }
-    return { kind: 'file', text: normalizeToLF(stripBom(content.toString('utf8')).text) }
+    return { kind: 'file', ...comparableText(content.toString('utf8')) }
   } catch (error) {
     return error?.code === 'ENOENT' ? { kind: 'missing' } : { kind: 'unknown' }
   }
@@ -476,14 +500,19 @@ export class SessionFileChangesService {
     }
   }
 
+  // 快照原样保留给撤销写回；统计与 diff 一律经 comparableText，和 readCurrent 同一口径。
+  async readSnapshotText(sessionId, entry) {
+    const raw = await this.readSnapshot(sessionId, entry)
+    return raw === null ? null : comparableText(raw)
+  }
+
   async readCurrent(absolutePath) {
     try {
-      const content = await readFile(absolutePath, 'utf8')
-      const { text } = stripBom(content)
-      return { exists: true, content: normalizeToLF(text) }
+      const view = comparableText(await readFile(absolutePath, 'utf8'))
+      return { exists: true, content: view.text, ...view }
     } catch (error) {
       if (error?.code === 'ENOENT' || error?.code === 'EISDIR')
-        return { exists: false, content: '' }
+        return { exists: false, content: '', raw: '' }
       throw error
     }
   }
@@ -591,7 +620,7 @@ export class SessionFileChangesService {
       if (!entry.beforeExists && current.kind === 'missing') continue
       const previousText = before.kind === 'file' ? before.text : ''
       const currentText = current.kind === 'file' ? current.text : ''
-      if (entry.beforeExists && current.kind === 'file' && currentText === previousText) continue
+      if (entry.beforeExists && current.kind === 'file' && current.raw === before.raw) continue
       if (hasTooManyLines(previousText) || hasTooManyLines(currentText)) {
         unknownFiles += 1
         continue
@@ -623,16 +652,18 @@ export class SessionFileChangesService {
     for (const entry of list) {
       const absolutePath = resolve(cwd, entry.path)
       const current = await this.readCurrent(absolutePath)
-      const before = await this.readSnapshot(sessionId, entry)
+      const before = await this.readSnapshotText(sessionId, entry)
       const snapshotBeforeExists = entry.beforeExists && before !== null
       let entryAdded = 0
       let entryRemoved = 0
       let currentEqualsBefore = false
+      let format = null
       if (before !== null) {
-        const stats = diffStats(generateUnifiedPatch(entry.path, before, current.content))
+        const stats = diffStats(generateUnifiedPatch(entry.path, before.text, current.content))
         entryAdded = stats.added
         entryRemoved = stats.removed
-        currentEqualsBefore = current.exists === snapshotBeforeExists && current.content === before
+        currentEqualsBefore = current.exists === snapshotBeforeExists && current.raw === before.raw
+        if (current.exists && snapshotBeforeExists) format = formatChange(before, current)
       } else if (!entry.beforeExists) {
         // 无快照的新建文件：按当前行数统计新增。
         entryAdded = current.exists ? current.content.split('\n').length : 0
@@ -647,7 +678,9 @@ export class SessionFileChangesService {
             : 'modified'
       const reverted = Boolean(entry.reverted) || currentEqualsBefore
       const pending =
-        !reverted && !entry.approved && (entryAdded > 0 || entryRemoved > 0 || before === null)
+        !reverted &&
+        !entry.approved &&
+        (entryAdded > 0 || entryRemoved > 0 || before === null || format !== null)
       added += entryAdded
       removed += entryRemoved
       files.push({
@@ -663,6 +696,7 @@ export class SessionFileChangesService {
         pending,
         changedAt: entry.changedAt,
         currentEqualsBefore,
+        formatChange: format,
       })
     }
     files.sort((a, b) => b.changedAt.localeCompare(a.changedAt))
@@ -684,12 +718,18 @@ export class SessionFileChangesService {
     const entry = list.find((item) => item.path === relPath)
     if (!entry) return { diff: '', diffTruncated: false, source: 'snapshot', found: false }
     const current = await this.readCurrent(resolve(cwd, entry.path))
-    let before = await this.readSnapshot(sessionId, entry)
-    if (before === null && !entry.beforeExists) before = ''
+    let before = await this.readSnapshotText(sessionId, entry)
+    if (before === null && !entry.beforeExists) before = comparableText('')
     if (before === null) return { diff: '', diffTruncated: false, source: 'snapshot', found: true }
-    const text = snapshotFileDiff(entry.path, before, current.content, !entry.beforeExists)
+    const text = snapshotFileDiff(entry.path, before.text, current.content, !entry.beforeExists)
     const result = truncateDiff(text)
-    return { diff: result.diff, diffTruncated: result.truncated, source: 'snapshot', found: true }
+    return {
+      diff: result.diff,
+      diffTruncated: result.truncated,
+      source: 'snapshot',
+      found: true,
+      formatChange: entry.beforeExists && current.exists ? formatChange(before, current) : null,
+    }
   }
 
   // 撤销：把目标文件恢复到修改前（有快照写回内容；新建文件删除）。
