@@ -996,7 +996,8 @@ try {
   await inspector.getByRole('region', { name: '来源', exact: true }).waitFor()
   assert.equal(await page.getByRole('tab', { name: '项目文件', exact: true }).count(), 0)
   await inspector.getByRole('button', { name: '添加组件标签', exact: true }).click()
-  await page.locator('[data-slot="popover-content"]').waitFor()
+  // 只认已打开的弹层：上一个弹层的退场动画期间仍留在 DOM（data-state=closed），不限定会命中两个。
+  await page.locator('[data-slot="popover-content"][data-state="open"]').waitFor()
   assert.equal(await page.getByRole('button', { name: '项目文件', exact: true }).count(), 0)
   await page.keyboard.press('Escape')
   await inspectorTab('changes').click()

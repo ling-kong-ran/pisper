@@ -687,9 +687,9 @@ try {
   await inspectorOf(terminalOwner).getByRole('radio', { name: '进程', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '展开或收起日志', exact: true }).click()
   await terminalOwner.getByRole('checkbox', { name: '自动跟随输出', exact: true }).uncheck()
-  await terminalOwner
-    .getByRole('combobox', { name: '筛选进程状态', exact: true })
-    .selectOption('running')
+  // 筛选已换成 AppSelect（shadcn Select）：点开后选“运行中”，不再是原生 <select>。
+  await terminalOwner.getByRole('combobox', { name: '筛选进程状态', exact: true }).click()
+  await page.getByRole('option', { name: '运行中', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '打开终端', exact: true }).click()
   await terminalOwner.locator('[data-terminal-id]').waitFor()
   assert.equal(
@@ -703,9 +703,12 @@ try {
     terminalId,
   )
   await inspectorOf(terminalOwner).getByRole('radio', { name: '进程', exact: true }).click()
+  // shadcn Select 的触发器显示所选项的文字，没有 value 可读。
   assert.equal(
-    await terminalOwner.getByRole('combobox', { name: '筛选进程状态', exact: true }).inputValue(),
-    'running',
+    (
+      await terminalOwner.getByRole('combobox', { name: '筛选进程状态', exact: true }).innerText()
+    ).trim(),
+    '运行中',
   )
   assert.equal(
     await terminalOwner.getByRole('checkbox', { name: '自动跟随输出', exact: true }).isChecked(),
@@ -832,7 +835,8 @@ try {
   // 检查器的固定标签与“+”说明都不提供已退役的工作区文件浏览器。
   assert.equal(await delayedPage.getByRole('tab', { name: '项目文件', exact: true }).count(), 0)
   await delayedPage.getByRole('button', { name: '添加组件标签', exact: true }).click()
-  await delayedPage.locator('[data-slot="popover-content"]').waitFor()
+  // 只认已打开的弹层：上一个弹层的退场动画期间仍留在 DOM（data-state=closed），不限定会命中两个。
+  await delayedPage.locator('[data-slot="popover-content"][data-state="open"]').waitFor()
   assert.equal(
     await delayedPage.getByRole('button', { name: '项目文件', exact: true }).count(),
     0,
