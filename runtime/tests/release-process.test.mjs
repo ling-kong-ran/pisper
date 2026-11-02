@@ -481,3 +481,52 @@ test('macOS releases are Apple Silicon only', async () => {
   assert.doesNotMatch(site, /darwin_x86_64/)
   assert.doesNotMatch(index, /data-desktop-download="macos" data-download-architecture="x86_64"/)
 })
+
+test('waiting on a dispatched run tolerates its first seconds of 404 and transient watch errors', async () => {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const start = source.indexOf('function runState(')
+  const end = source.indexOf('\n}\n', source.indexOf('function waitFor(')) + 2
+  assert.ok(start > 0 && end > start)
+  const waitWith = (script) => {
+    const calls = []
+    const waitFor = runInNewContext(`(() => { ${source.slice(start, end)}; return waitFor })()`, {
+      console: { log() {} },
+      sleep() {},
+      run(command, args) {
+        calls.push(args.slice(0, 2).join(' '))
+        const next = script.shift()
+        if (next instanceof Error) throw next
+        return next
+      },
+    })
+    return { calls, wait: () => waitFor({ runId: '42', label: 'app-v1.0.0' }) }
+  }
+
+  // 刚派发时两次 404，随后 watch 因 API 抖动出错但 run 仍在运行，重新 watch 后成功。
+  const notFound = new Error('HTTP 404: Not Found')
+  const flaky = waitWith([
+    notFound,
+    notFound,
+    '{"status":"queued","conclusion":""}',
+    new Error('watch lost connection'),
+    '{"status":"in_progress","conclusion":""}',
+    '',
+  ])
+  flaky.wait()
+  assert.deepEqual(flaky.calls, [
+    'run view',
+    'run view',
+    'run view',
+    'run watch',
+    'run view',
+    'run watch',
+  ])
+
+  // run 真正失败时仍然报错，不会被重试吞掉。
+  const failed = waitWith([
+    '{"status":"in_progress","conclusion":""}',
+    new Error('run failed'),
+    '{"status":"completed","conclusion":"failure"}',
+  ])
+  assert.throws(() => failed.wait(), /run failed/)
+})

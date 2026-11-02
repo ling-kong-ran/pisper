@@ -411,9 +411,43 @@ function dispatchRelease({ component, nextVersion, tag }) {
   )
 }
 
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function runState(runId) {
+  try {
+    return JSON.parse(
+      run('gh', ['run', 'view', runId, '--json', 'status,conclusion'], { capture: true }),
+    )
+  } catch {
+    return null
+  }
+}
+
 function waitFor({ runId, label }) {
   console.log(`等待 ${label}（run ${runId}）完成…`)
-  run('gh', ['run', 'watch', runId, '--exit-status'])
+  // 刚派发的 run 要过几秒才能在 API 上查到，立刻 watch 会 404 直接失败。
+  for (let attempt = 1; !runState(runId); attempt += 1) {
+    if (attempt >= 12) throw new Error(`一分钟内仍查不到 ${label} 的 run ${runId}。`)
+    sleep(5_000)
+  }
+  // watch 出错也可能只是 API 抖动：以 run 的实际状态为准，仍在运行就接着等。
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      run('gh', ['run', 'watch', runId, '--exit-status'])
+      return
+    } catch (error) {
+      const state = runState(runId)
+      if (state?.status === 'completed') {
+        if (state.conclusion === 'success') return
+        throw error
+      }
+      if (attempt >= 5) throw error
+      console.log(`${label} 仍在运行，重新等待…`)
+      sleep(10_000)
+    }
+  }
 }
 
 // 第一批：除 Desktop 外全部同时派发。
