@@ -506,6 +506,13 @@ export function usePromptCommands({
         // 连接级失败（如 SSE 中断）后立刻向服务端校准：仍在跑则恢复轮询，
         // 已完成则拉齐终态；真实的服务端错误会原样保留在快照里。
         if (streamFailed && currentStream) void syncLiveSession(sessionId)
+        // 本地流持有期间，晚到的会话目录可能把会话标成“恢复中、未加载”，而轮询会让位于本地流。
+        // 释放所有权时上面的 streaming:false 往往与现状相同、不触发重渲染，轮询也就不会接手，
+        // 页面会一直停在“正在载入会话记录”。还处在这种状态就主动读一次 /live 收尾。
+        else if (currentStream) {
+          const settled = sessionStatesRef.current[sessionId]
+          if (settled?.recovering || (settled && !settled.loaded)) void syncLiveSession(sessionId)
+        }
       }
       return accepted
     },

@@ -231,3 +231,13 @@ test('resync_required hands the session over to snapshot polling', async () => {
   )
   assert.match(source, /resync_required[\s\S]*?void syncLiveSession\(sessionId\)/)
 })
+
+test('releasing a local stream settles a session left recovering by a late catalog', async () => {
+  // 接线断言：流结束时会话若仍是“恢复中/未加载”（流期间晚到的目录写入），主动读 /live，
+  // 否则 finally 的 streaming:false 与现状相同不触发轮询，页面停在“正在载入会话记录”。
+  const source = await readFile('src/features/chat/use-prompt-commands.ts', 'utf8')
+  assert.match(
+    source,
+    /else if \(currentStream\) \{[\s\S]*?settled\?\.recovering \|\| \(settled && !settled\.loaded\)\)[\s\S]*?void syncLiveSession\(sessionId\)/,
+  )
+})
