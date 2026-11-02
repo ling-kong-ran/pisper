@@ -73,7 +73,7 @@ import {
   TeamWorkflowService,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
-import { loadAgentProfiles } from '../services/agent-profiles.mjs'
+import { AGENT_PROFILES_SKILL, loadAgentProfiles } from '../services/agent-profiles.mjs'
 import {
   createMultiAgentRuntime,
   createSubagentUsageHandler,
@@ -518,8 +518,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         createSettleBarrierExtension(this.settleBarrier),
         ...(this.capabilities?.features?.codemode ? [createCodemodeExtension()] : []),
       ],
-      // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）。
-      builtinSkills: BUILTIN_SKILLS,
+      // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）；
+      // pisper-subagents：用户让代理写子代理定义时由模型按需加载。
+      builtinSkills: [...BUILTIN_SKILLS, AGENT_PROFILES_SKILL],
       builtinSkillsDir: join(dataDir, 'builtin-skills'),
     })
     this.channels = new ChannelService({
@@ -1856,15 +1857,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           emitAgentUpdate: this.emitAgentUpdate.bind(this),
           // 每次派生都重读定义文件，会话打开后新增或修改的定义也能按名字使用。
           resolveAgentProfile: async (name) => {
-            const { profiles } = await loadAgentProfiles({
+            const { profiles, errors } = await loadAgentProfiles({
               agentDir: this.dataDir,
               cwd: effectiveCwd,
             })
             const profile = profiles.find((item) => item.name === name)
-            if (!profile)
-              throw new Error(
-                `Unknown agent definition: ${name}.${profiles.length ? ` Available: ${profiles.map((item) => item.name).join(', ')}.` : ' No agent definitions exist for this workspace.'}`,
+            if (!profile) {
+              // 同名文件没通过校验时把原因带上，父模型（或刚写完定义的代理）能据此改文件。
+              const broken = errors.find(
+                (item) => basename(item.file, extname(item.file)).toLowerCase() === name,
               )
+              throw new Error(
+                `Unknown agent definition: ${name}.${broken ? ` ${broken.file} is invalid: ${broken.message}` : ''}${profiles.length ? ` Available: ${profiles.map((item) => item.name).join(', ')}.` : ' No agent definitions exist for this workspace.'}`,
+              )
+            }
             return {
               profile,
               ...(await this.providerPreferences.resolveSubagentModel(profile)),
@@ -1873,9 +1879,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
       : null
     // 坏定义文件只影响自己：这里拿不到就当没有定义，设置页会列出具体原因。
+    // 顺带解析一次各定义此刻实际会用的模型，写进工具说明；说明只在会话创建时生成，不影响提示缓存。
     const agentProfiles = multiAgentRuntime
       ? await loadAgentProfiles({ agentDir: this.dataDir, cwd: effectiveCwd })
-          .then((result) => result.profiles)
+          .then(({ profiles }) =>
+            Promise.all(
+              profiles.map(async (profile) => ({
+                ...profile,
+                selection: await this.providerPreferences
+                  .resolveSubagentModel(profile)
+                  .catch(() => null),
+              })),
+            ),
+          )
           .catch(() => [])
       : []
     const multiAgentTools = multiAgentRuntime

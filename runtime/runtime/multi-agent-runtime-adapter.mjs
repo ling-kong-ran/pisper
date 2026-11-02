@@ -636,6 +636,22 @@ export function createMultiAgentRuntime({
         emitAgentUpdate(sessionId, progress)
         return true
       }
+      // 定义只能在父会话已有的工具里再收窄，不能借定义拿到父会话没有的工具；
+      // 写了但这里没有的工具（名字写错、父会话没启用或被当前执行模式禁用）随结果告诉父模型。
+      const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
+      const inheritedTools = filterToolsForExecutionMode(
+        baseToolNames.filter(
+          (name) => active.has(name) && (!profile?.tools || profile.tools.includes(name)),
+        ),
+        getExecutionMode(),
+        getToolRisk,
+      )
+      const skippedProfileTools = (profile?.tools || []).filter(
+        (name) =>
+          !inheritedTools.includes(name) &&
+          name !== planReader?.name &&
+          !TEAM_MEMBER_TOOL_NAMES.includes(name),
+      )
       const agent = await multiAgents.spawn({
         ...input,
         parentSessionId: sessionId,
@@ -648,17 +664,7 @@ export function createMultiAgentRuntime({
         modelSource: selection?.source || 'parent',
         modelFallbackReasons: selection?.fallbackReasons || [],
         allowedTools: [
-          ...(() => {
-            const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
-            // 定义只能在父会话已有的工具里再收窄，不能借定义拿到父会话没有的工具。
-            return filterToolsForExecutionMode(
-              baseToolNames.filter(
-                (name) => active.has(name) && (!profile?.tools || profile.tools.includes(name)),
-              ),
-              getExecutionMode(),
-              getToolRisk,
-            )
-          })(),
+          ...inheritedTools,
           ...(planReader ? [planReader.name] : []),
           ...(teamWorkflows.isActive(sessionId) ? TEAM_MEMBER_TOOL_NAMES : []),
         ],
@@ -723,7 +729,8 @@ export function createMultiAgentRuntime({
         emitAgentUpdate(sessionId, agent)
         await schedulePendingTeamSpawns(sessionId)
       }
-      return teamTask ? { ...agent, teamTaskId: teamTask.id } : agent
+      const result = skippedProfileTools.length ? { ...agent, skippedProfileTools } : agent
+      return teamTask ? { ...result, teamTaskId: teamTask.id } : result
     } catch (error) {
       resolveTaskBinding?.(null)
       resolveTaskBinding = null

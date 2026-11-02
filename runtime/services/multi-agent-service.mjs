@@ -912,7 +912,7 @@ export class MultiAgentService {
           agentDir: this.agentDir || record.cwd,
           settingsManager,
           appendSystemPrompt: record.profileInstructions
-            ? `${MULTI_AGENT_SYSTEM_PROMPT}\n\n## Agent definition: ${record.agentProfile}\n\n${record.profileInstructions}`
+            ? `${MULTI_AGENT_SYSTEM_PROMPT}\n\n## Agent definition: ${record.agentProfile}\n\nStanding instructions from this agent definition apply to every task you receive; follow them together with the delegated task.\n\n${record.profileInstructions}`
             : MULTI_AGENT_SYSTEM_PROMPT,
         })
         if (!isCurrent()) return

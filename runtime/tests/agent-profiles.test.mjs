@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
+  AGENT_PROFILES_SKILL,
   agentProfileSummary,
   loadAgentProfiles,
   normalizeSubagentModelTiers,
@@ -40,7 +41,23 @@ tools: [read, grep, read]
     scope: 'project',
     file: '.pisper/agents/scout.md',
   })
-  assert.match(agentProfileSummary(profile), /^- scout \(model: fast\): 只读检索/)
+  assert.equal(
+    agentProfileSummary(profile),
+    '- scout (model: fast; thinking: low; tools: read, grep): 只读检索代码库，回答“在哪里”的问题',
+  )
+  // 会话打开时解析出的实际模型一并写出；档位没配时说明会用当前会话模型。
+  assert.match(
+    agentProfileSummary(profile, { model: { provider: 'cheap', id: 'mini' }, source: 'tier' }),
+    /^- scout \(model: fast → cheap\/mini; /,
+  )
+  assert.match(
+    agentProfileSummary(profile, { model: null, source: 'parent' }),
+    /^- scout \(model: fast → this session model; /,
+  )
+  assert.match(
+    agentProfileSummary({ ...profile, tier: '', tools: null, thinkingLevel: '' }),
+    /^- scout \(model: this session model; tools: same as this session\): /,
+  )
 })
 
 test('an explicit model keeps its tier as a fallback and the name defaults to the file name', () => {
@@ -191,7 +208,11 @@ async function profileRuntime(t) {
   await mkdir(join(directory, '.pisper', 'agents'), { recursive: true })
   await writeFile(
     join(directory, '.pisper', 'agents', 'scout.md'),
-    '---\ndescription: 简单检索交给便宜模型\nmodel: fast\nthinking: low\ntools: [read]\n---\nSCOUT-STANDING-INSTRUCTIONS\n',
+    '---\ndescription: 简单检索交给便宜模型\nmodel: fast\nthinking: low\ntools: [read, ghost_tool]\n---\nSCOUT-STANDING-INSTRUCTIONS\n',
+  )
+  await writeFile(
+    join(directory, '.pisper', 'agents', 'broken.md'),
+    '---\ndescription: 思考强度写错了\nthinking: extreme\n---\n',
   )
   await writeFile(
     join(directory, '.pisper', 'agents', 'pinned.md'),
@@ -248,6 +269,14 @@ test('a definition with a tier runs on the mapped model with its tools and instr
   const record = (durable.agents || durable.records || []).find((item) => item.id === spawned.id)
   assert.equal(record?.agentProfile, 'scout')
   assert.equal(record?.profileInstructions, 'SCOUT-STANDING-INSTRUCTIONS')
+  // 真正发给模型的工具也只有这两个，不只是记录里写着。
+  assert.deepEqual(
+    childRequest.body.tools.map((tool) => tool.function?.name || tool.name),
+    ['read', 'get_plan'],
+  )
+  assert.match(system, /Standing instructions from this agent definition apply to every task/)
+  // 定义里写了但父会话没有的工具不会凭空出现，派生结果会点名告诉父模型。
+  assert.deepEqual(spawned.skippedProfileTools, ['ghost_tool'])
 })
 
 test('unavailable definition models fall back to the parent model and say why', async (t) => {
@@ -277,6 +306,11 @@ test('unavailable definition models fall back to the parent model and say why', 
     multiAgentRuntime.spawn({ taskName: 'missing', message: 'x', agent: 'nobody' }),
     /Unknown agent definition: nobody\. Available: pinned, scout\./,
   )
+  // 文件存在但没通过校验时，报错带上原因，代理能照着改。
+  await assert.rejects(
+    multiAgentRuntime.spawn({ taskName: 'broken', message: 'x', agent: 'broken' }),
+    /\.pisper\/agents\/broken\.md is invalid: thinking 只能是/,
+  )
   assert.equal(runtime.multiAgents.list(sessionId).length, 2)
 })
 
@@ -298,4 +332,37 @@ test('tier settings are validated on save and definitions are listed per workspa
   await assert.rejects(runtime.listAgentProfiles({ cwd: join(runtime.cwd, 'missing') }), /工作目录/)
   // 设置页不带项目时只看全局定义。
   assert.deepEqual(await runtime.listAgentProfiles(), { profiles: [], errors: [] })
+})
+
+test('the built-in pisper-subagents skill teaches a format the parser accepts', () => {
+  const skill = AGENT_PROFILES_SKILL.files['SKILL.md']
+  assert.equal(AGENT_PROFILES_SKILL.name, 'pisper-subagents')
+  assert.match(skill, /^---\nname: pisper-subagents\ndescription: .+子代理定义/)
+  // 要让模型在用户提出时自动加载，不能像 pisper-component 那样只允许显式调用。
+  assert.doesNotMatch(skill, /disable-model-invocation/)
+  const example = skill.match(/~~~markdown\n([\s\S]*?)~~~/)?.[1]
+  assert.ok(example, '技能里应有完整的定义示例')
+  const profile = parseAgentProfile(example, { fileName: 'scout.md', scope: 'project' })
+  assert.equal(profile.tier, 'fast')
+  assert.deepEqual(profile.tools, ['read', 'grep', 'find', 'ls'])
+  for (const text of ['fast', 'standard', 'strong', 'provider/modelId', 'xhigh', '500', '12000'])
+    assert.ok(skill.includes(text), `技能说明应提到 ${text}`)
+})
+
+test('the parent session sees the skill and each definition with its tier model and tools', async (t) => {
+  const { runtime } = await profileRuntime(t)
+  await runtime.setSubagentModelTiers({ tiers: { fast: 'test-cheap/fixture' } })
+  // 工具说明在会话创建时生成，所以先配档位再开新会话。
+  const created = await runtime.createSession('看定义', runtime.cwd)
+  await runtime.setSessionModel(created.id, 'test-parent', 'fixture')
+  const { session } = await runtime.getOrCreateSession(created.id)
+  assert.match(session.systemPrompt, /pisper-subagents/)
+  assert.match(session.systemPrompt, /新建或修改 Pisper 子代理定义/)
+  const spawn = session.getToolDefinition('spawn_agent')
+  assert.match(
+    spawn.description,
+    /- scout \(model: fast → test-cheap\/fixture; thinking: low; tools: read, ghost_tool\): 简单检索/,
+  )
+  assert.match(spawn.description, /- pinned \(model: test-gone\/fixture → this session model; /)
+  assert.doesNotMatch(spawn.description, /broken/)
 })

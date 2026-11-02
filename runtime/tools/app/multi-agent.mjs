@@ -143,7 +143,7 @@ function agentDetails(agent) {
 function agentDefinitionsText(agentProfiles) {
   if (!agentProfiles.length) return ''
   return `\n\nAgent definitions available in this workspace (pass the name as agent):\n${agentProfiles
-    .map(agentProfileSummary)
+    .map((profile) => agentProfileSummary(profile, profile.selection))
     .join('\n')}`
 }
 
@@ -157,7 +157,10 @@ function spawnResultText(agent) {
         agent.modelSource === 'tier' ? 'uses its tier model' : 'inherits the parent model'
       }.`
     : ''
-  return `${action} ${agent.canonicalName}${definition} in the background.${fallback}`
+  const skipped = agent.skippedProfileTools?.length
+    ? ` Tools listed in the definition but not available in this session were skipped: ${agent.skippedProfileTools.join(', ')}.`
+    : ''
+  return `${action} ${agent.canonicalName}${definition} in the background.${fallback}${skipped}`
 }
 
 function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
@@ -174,8 +177,9 @@ function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
       'Use spawn_agent only for a concrete, bounded task that can run independently while you continue non-overlapping local work.',
       'Keep the immediate critical-path step in the parent session and continue useful work after delegating it.',
       'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
-      'Agents inherit the current model, current reasoning level, tools, permission mode, and workspace boundary. They cannot recursively spawn more Agents.',
-      'When an agent definition fits the task, pass its name as agent: the definition chooses the model (cheap fast models for simple lookups, stronger ones for hard work), reasoning level, a narrower tool set, and standing instructions. Permission mode and workspace boundary still come from this session.',
+      'Without agent, an Agent inherits the current model, reasoning level and tools. Permission mode and workspace boundary always come from this session. Agents cannot recursively spawn more Agents.',
+      'When an agent definition fits the task, pass its name as agent: the definition chooses the model (cheap fast models for simple lookups, stronger ones for hard work), reasoning level, a narrower tool set, and standing instructions. Match the task to the definition’s tools; do not send file-changing work to a definition without write tools.',
+      'To create or change agent definitions for the user, load the pisper-subagents skill first.',
       'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
       'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
       'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable, update the UI, and are automatically delivered to the parent session.',
