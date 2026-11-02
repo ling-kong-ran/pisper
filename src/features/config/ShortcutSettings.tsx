@@ -184,7 +184,7 @@ export function ShortcutSettings({
               data-shortcut-recorder
               variant="outline"
               className={cn(
-                'h-8.5 w-44 min-w-0 justify-center gap-2 border-input bg-panel px-2.5 text-xs font-normal shadow-none hover:bg-surface-subtle pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:flex-1',
+                'h-8 w-44 min-w-0 justify-center gap-2 border-input bg-panel px-2.5 text-xs font-normal shadow-none hover:bg-surface-subtle pointer-coarse:h-11 max-[650px]:h-11 max-[650px]:flex-1',
                 recording === action &&
                   'border-focus text-accent-fg ring-3 ring-focus-ring hover:bg-panel',
               )}
@@ -273,7 +273,7 @@ export function ShortcutSettings({
         <div className="flex max-w-full min-w-0 items-center gap-1 max-[650px]:w-full">
           <ShortcutKeys
             keys={entry.keys}
-            className="h-8.5 w-44 justify-center px-2.5 max-[650px]:flex-1"
+            className="h-8 w-44 justify-center px-2.5 max-[650px]:flex-1"
           />
           {/* 占住“⋯”菜单那一列，键帽与可改绑行的录制框对齐。 */}
           <span

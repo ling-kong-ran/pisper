@@ -457,7 +457,7 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
           <Button
             type="button"
             variant="secondary"
-            className="h-auto min-h-8.5"
+            className="h-auto min-h-8"
             onClick={() => void browse()}
           >
             <FolderOpen />

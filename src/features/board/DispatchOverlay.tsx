@@ -89,7 +89,8 @@ export function DispatchOverlay({
         data-dispatch-dialog
         onCloseAutoFocus={returnFocus}
         // 640 宽、r-lg、实心底（规格 6.4）；上缘在视口 1/7 处，不压在页面正中，长任务描述向下长。
-        className="top-[max(16px,13vh)] max-w-[min(92vw,640px)] translate-y-0 gap-0 overflow-hidden rounded-[var(--r-lg)] border border-stroke bg-solid p-0"
+        // 不裁剪溢出：芯片弹层（模型、项目）挂在对话框里，比对话框高时要能伸出对话框；底栏自己画圆角。
+        className="top-[max(16px,13vh)] max-w-[min(92vw,640px)] translate-y-0 gap-0 overflow-visible rounded-[var(--r-lg)] border border-stroke bg-solid p-0"
       >
         <div className="flex items-center gap-3 px-5 pt-4 pb-2">
           <DialogTitle className="min-w-0 flex-1 text-[15px] leading-6 font-semibold">
@@ -104,7 +105,7 @@ export function DispatchOverlay({
           </DialogClose>
         </div>
         {consoleBody}
-        <div className="flex min-w-0 items-center gap-2 border-t border-stroke-soft bg-surface-subtle px-5 py-2.5 text-xs text-content-muted">
+        <div className="flex min-w-0 items-center gap-2 rounded-b-[var(--r-lg)] border-t border-stroke-soft bg-surface-subtle px-5 py-2.5 text-xs text-content-muted">
           <Info className="size-3.5 flex-none" aria-hidden="true" />
           <DialogDescription
             id="board-dispatch-description"

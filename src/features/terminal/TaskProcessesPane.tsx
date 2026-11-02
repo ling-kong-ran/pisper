@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ChevronRight, Square, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
 import { PageState } from '@/components/app/PageState'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -108,11 +109,11 @@ export function TaskProcessesPane({
         <span className="min-w-0 flex-1 text-xs text-content-muted">
           {t('terminal:workspace.ownedProcesses')}
         </span>
-        <select
+        <AppSelect
           aria-label={t('terminal:workspace.filter')}
           value={filter}
           onChange={(event) => onViewChange({ filter: event.target.value })}
-          className="h-8 rounded-sm border border-control bg-panel px-2 text-sm text-content outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring pointer-coarse:h-11"
+          className="w-auto"
         >
           <option value="all">{t('terminal:workspace.all')}</option>
           {Object.entries(statuses).map(([value, label]) => (
@@ -120,7 +121,7 @@ export function TaskProcessesPane({
               {label}
             </option>
           ))}
-        </select>
+        </AppSelect>
       </div>
       {error && (
         <p role="alert" className="p-3 text-sm text-danger">

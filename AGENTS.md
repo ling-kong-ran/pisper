@@ -68,6 +68,17 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 - 页面和展示组件不得直接拼接业务 API 或调用 `fetch`；由领域 API 模块复用统一 HTTP 客户端。
 - 新交互须支持键盘、焦点管理、语义标签及加载、空数据、错误和禁用状态。
 
+### 组件与样式
+
+- 优先使用 shadcn 组件：基础控件在 `src/components/ui/`（`components.json`，风格 `radix-nova`）。缺少的组件先从注册表添加：官方用 `npx shadcn add <组件>`；第三方注册表先在 `components.json` 的 `registries` 登记，再 `npx shadcn add @<注册表>/<组件>`。不得手写已有组件的替代品（下拉、滑条、菜单、弹层、对话框、开关、分段控件等）。
+- `src/components/ui/` 里的组件可以修改，但只改 token、默认尺寸和变体，不加业务语义。外观要变就改这里的默认值，让全站一起变；调用方只给宽度和布局，不逐处覆盖高度、内边距、圆角或弹出位置。
+- 下拉框只用下面几种：纯文字选项用 `AppSelect`；选项带图标、色块等内容时直接组合 `ui/select`；芯片触发的单选或命令菜单用 `DropdownMenu`；可搜索的长列表用 `Popover` + `Command`。不得使用原生 `<select>`（`AppSelect` 的触屏降级除外），不得用透明叠层伪装下拉框。
+- 滑条只用 `ui/slider`；分档滑条加 `showSteps`，或用 `src/components/app/LevelSlider.tsx`。
+- 控件尺寸按规格 v2：按钮、输入框、下拉框 32px（小号 28），窄屏与触屏 44px。
+- 同一个控件在多个页面出现时（例如输入框的模型芯片）必须复用同一组件，经 Feature 公共接口导出，不得复制一份再改样式。
+- 新界面和改到的旧界面都按现行样式（规格 v2 与 `docs/design/built/` 截图）；改动涉及的旧面板顺手迁到现行组件。
+- 守卫测试在 `runtime/tests/legacy-ui-retirement.test.mjs`，新规则同时补守卫。
+
 ### Runtime、协议与共享层
 
 - Runtime 使用 ESM `.mjs`；API 处理器放在 `runtime/http/`，领域逻辑放在 `runtime/services/`，Pi 接线放在 `runtime/runtime/`。

@@ -152,7 +152,7 @@ export function ModelDefaultsSettings({
   const fallbackSelect = (slot: number, labelId: string) => (
     <AppSelect
       aria-labelledby={labelId}
-      className="w-full max-[650px]:min-h-11 pointer-coarse:min-h-11"
+      className="w-full"
       disabled={!chatOptions.length || busy || saving || (slot > 0 && !fallbacks[0])}
       value={fallbacks[slot] || ''}
       onChange={(event) => void saveFallbacks(slot, event.target.value)}
@@ -188,7 +188,7 @@ export function ModelDefaultsSettings({
         >
           <AppSelect
             aria-labelledby={`${id}-model`}
-            className="w-full max-[650px]:min-h-11 pointer-coarse:min-h-11"
+            className="w-full"
             disabled={!chatOptions.length || busy || saving}
             value={chatOptions.some((option) => option.value === currentValue) ? currentValue : ''}
             onChange={(event) => {
@@ -230,7 +230,7 @@ export function ModelDefaultsSettings({
         >
           <AppSelect
             aria-labelledby={`${id}-thinking`}
-            className="w-full font-mono max-[650px]:min-h-11 pointer-coarse:min-h-11"
+            className="w-full font-mono"
             disabled={disabled}
             value={thinkingLevel}
             onChange={(event) => {
@@ -250,7 +250,7 @@ export function ModelDefaultsSettings({
         >
           <AppSelect
             aria-labelledby={`${id}-tools`}
-            className="w-full max-[650px]:min-h-11 pointer-coarse:min-h-11"
+            className="w-full"
             disabled={disabled}
             value={toolMode}
             onChange={(event) => {

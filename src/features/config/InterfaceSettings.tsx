@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupOption } from '@/components/ui/radio-group'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -266,21 +267,16 @@ function AccentColorPicker({
             style={{ left: `${hsv.saturation * 100}%`, top: `${(1 - hsv.brightness) * 100}%` }}
           />
         </div>
-        <input
-          type="range"
+        <Slider
           min={0}
           max={359}
           step={1}
-          value={Math.round(hsv.hue)}
+          value={[Math.round(hsv.hue)]}
           aria-label={t('config:interfaceSettings.colorHue')}
-          className="w-34"
-          onChange={(event) => changeColor({ ...hsv, hue: Number(event.target.value) })}
-          onPointerUp={commit}
-          onBlur={commit}
-          onKeyUp={(event) => {
-            if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End')
-              commit()
-          }}
+          valueText={`${Math.round(hsv.hue)}°`}
+          className="h-7 w-34"
+          onValueChange={([hue]) => changeColor({ ...hsv, hue })}
+          onValueCommit={() => commit()}
         />
         <input
           type="text"
@@ -537,11 +533,11 @@ export function InterfaceSettings({
                 >
                   <SelectTrigger
                     aria-label={t('config:interfaceSettings.accentColor')}
-                    className="min-w-36 pointer-coarse:min-h-11 max-[650px]:min-h-11"
+                    className="min-w-36"
                   >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent position="popper" align="end">
+                  <SelectContent align="end">
                     {accentOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         <span

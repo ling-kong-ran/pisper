@@ -92,7 +92,7 @@ export function SessionTreeBrowser({
           <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <label className="chat-resource-search mx-3 mt-2 flex h-8.5 flex-none items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring [&_input]:h-full [&_input]:w-full [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-sm [&_input]:text-content">
+      <label className="chat-resource-search mx-3 mt-2 flex h-8 flex-none items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring [&_input]:h-full [&_input]:w-full [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-sm [&_input]:text-content">
         <Search size={15} />
         <input
           value={query}

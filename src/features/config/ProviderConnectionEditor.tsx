@@ -22,8 +22,6 @@ export function isProviderConnectionDirty(
     Boolean(draft.apiKey)
   )
 }
-// 手机上字段与下拉统一 44px 触控高度；桌面保持 34px 字段节奏。
-const FIELD_CLASS = 'pointer-coarse:min-h-11 max-[650px]:min-h-11'
 export function ProviderConnectionEditor({
   provider,
   onSave,
@@ -73,7 +71,6 @@ export function ProviderConnectionEditor({
           <Input
             id={`${fieldId}-name`}
             required
-            className={FIELD_CLASS}
             value={draft.name}
             onChange={(event) => onDraftChange({ ...draft, name: event.target.value })}
           />
@@ -83,7 +80,7 @@ export function ProviderConnectionEditor({
             id={`${fieldId}-key`}
             type="password"
             autoComplete="new-password"
-            className={`${FIELD_CLASS} font-mono placeholder:font-sans`}
+            className="font-mono placeholder:font-sans"
             value={draft.apiKey}
             placeholder={
               provider.configured
@@ -101,7 +98,6 @@ export function ProviderConnectionEditor({
         >
           <AppSelect
             aria-labelledby={`${fieldId}-api-label`}
-            className={`${FIELD_CLASS} h-8.5`}
             value={draft.api}
             onChange={(event) => onDraftChange({ ...draft, api: event.target.value })}
           >
@@ -117,7 +113,7 @@ export function ProviderConnectionEditor({
             id={`${fieldId}-url`}
             required
             type="url"
-            className={`${FIELD_CLASS} font-mono`}
+            className="font-mono"
             value={draft.baseUrl}
             onChange={(event) => onDraftChange({ ...draft, baseUrl: event.target.value })}
           />

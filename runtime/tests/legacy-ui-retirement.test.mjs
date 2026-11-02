@@ -118,3 +118,52 @@ test('toast and app dialogs use integrated Radix and shadcn surfaces', async () 
   assert.match(appDialog, /from '@\/components\/ui\/dialog'/)
   assert.match(overlays, /<Dialog open/)
 })
+
+test('dropdowns and sliders use the shared shadcn controls instead of native ones', async () => {
+  // 一个下拉框只有一种样子：表单用 AppSelect（触屏时它自己换原生 select），富内容选项直接组合 ui/select；
+  // 滑条一律用 ui/slider。原生控件只允许出现在这两个封装里。
+  const files = await sourceFiles('src')
+  const sources = await Promise.all(files.map(async (file) => [file, await readFile(file, 'utf8')]))
+  const allowedSelect = new Set([path.join('src', 'components', 'AppSelect.tsx')])
+  const nativeSelects = sources
+    .filter(([file]) => !file.startsWith(path.join('src', 'components', 'ui')))
+    .filter(([file]) => !allowedSelect.has(file))
+    .filter(([, source]) => /<select\b/.test(source))
+    .map(([file]) => file)
+  assert.deepEqual(nativeSelects, [])
+  const nativeRanges = sources
+    .filter(([file]) => !file.startsWith(path.join('src', 'components', 'ui')))
+    .filter(([, source]) => /type=["']range["']/.test(source))
+    .map(([file]) => file)
+  assert.deepEqual(nativeRanges, [])
+})
+
+test('form controls share the v2 control height', async () => {
+  // 规格 v2：按钮 32（小 28）、手机 44；输入框与下拉框跟按钮同高，同一行不会出现两种高度。
+  const [select, input, inputGroup, appSelect] = await Promise.all([
+    readFile('src/components/ui/select.tsx', 'utf8'),
+    readFile('src/components/ui/input.tsx', 'utf8'),
+    readFile('src/components/ui/input-group.tsx', 'utf8'),
+    readFile('src/components/AppSelect.tsx', 'utf8'),
+  ])
+  assert.match(select, /data-\[size=default\]:h-8 /)
+  assert.match(select, /position = 'popper'/)
+  assert.match(input, /'h-8 max-\[650px\]:h-11 pointer-coarse:h-11 /)
+  assert.match(inputGroup, /relative flex h-8 w-full/)
+  assert.doesNotMatch(appSelect, /\bh-8 min-h-0\b/)
+  const files = await sourceFiles('src/features')
+  const overrides = []
+  for (const file of files) {
+    const source = await readFile(file, 'utf8')
+    if (/\bh-8\.5\b/.test(source)) overrides.push(file)
+  }
+  assert.deepEqual(overrides, [])
+})
+
+test('new task and session composer share one model chip', async () => {
+  const [launch, session] = await Promise.all([
+    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+  ])
+  for (const source of [launch, session]) assert.match(source, /<ModelThinkingControl\b/)
+})

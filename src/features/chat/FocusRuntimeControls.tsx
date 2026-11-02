@@ -1,10 +1,19 @@
 // 输入框的模型芯片（模型 · 思考强度）与弹层里的上下文用量、详细统计。
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Brain, ChevronRight, ChevronsUpDown } from 'lucide-react'
+import { ChevronRight, ChevronsUpDown } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
-import { AppSelect } from '@/components/AppSelect'
+import { LevelSlider } from '@/components/app/LevelSlider'
 import { PopoverSheet } from '@/components/app/PopoverSheet'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Slider } from '@/components/ui/slider'
 import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
@@ -13,7 +22,10 @@ import { formatRunDuration } from './run-activity'
 type Translate = (message: string, values?: I18nValues) => string
 
 // 由模型 key 解析展示名（Provider · 模型），未收录时退化为 key 末段。
-function resolveModelLabel(model: string, models: ModelOption[]) {
+// 模型芯片只需要这三项：会话页的 ModelOption 与新任务的 LaunchModelOption 都满足。
+type ModelChoice = Pick<ModelOption, 'key' | 'label' | 'providerName'>
+
+function resolveModelLabel(model: string, models: ModelChoice[]) {
   const current = models.find((item) => item.key === model)
   return current ? `${current.providerName} · ${current.label}` : model.split('/').at(-1) || model
 }
@@ -247,26 +259,17 @@ export function ContextUsageSection({
               <span>{t('chat:focusSession.autoCompactionThreshold')}</span>
               <output className="tabular-nums">{draftThreshold}%</output>
             </div>
-            <input
-              type="range"
-              min="10"
-              max="95"
-              step="1"
-              value={draftThreshold}
-              className="m-0 h-5 w-full cursor-pointer [accent-color:var(--star)]"
+            <Slider
+              min={10}
+              max={95}
+              step={1}
+              value={[draftThreshold]}
+              className="h-5 w-full"
               aria-label={t('chat:focusSession.autoCompactionThreshold')}
+              valueText={`${draftThreshold}%`}
               disabled={savingThreshold}
-              onChange={(event) => scheduleThresholdSave(Number(event.currentTarget.value))}
-              onBlur={(event) => commitThreshold(Number(event.currentTarget.value))}
-              onPointerUp={(event) => commitThreshold(Number(event.currentTarget.value))}
-              onKeyUp={(event) => {
-                if (
-                  ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(
-                    event.key,
-                  )
-                )
-                  commitThreshold(Number(event.currentTarget.value))
-              }}
+              onValueChange={([next]) => scheduleThresholdSave(next)}
+              onValueCommit={([next]) => commitThreshold(next)}
             />
             <small className={thresholdError ? 'text-danger' : 'text-content-muted'}>
               {thresholdError ||
@@ -275,81 +278,6 @@ export function ContextUsageSection({
           </div>
         </details>
       )}
-    </div>
-  )
-}
-
-// 带文字的选择器按字段处理焦点：描边换成焦点色并加 3px 焦点环（透明原生 select 覆盖整块）。
-const LABEL_SELECT_CLASSES =
-  'relative flex h-10 min-w-0 items-center gap-1 rounded-sm border border-transparent px-1.5 text-[13px] text-content-secondary hover:bg-surface-hover hover:text-content has-[:focus-visible]:border-focus has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-focus-ring'
-
-const ICON_SELECT_CLASSES =
-  'session-model-select relative grid size-[30px] min-w-[30px] place-items-center rounded-sm text-content-muted hover:bg-surface-hover hover:text-content focus-within:ring-2 focus-within:ring-focus max-[650px]:size-11 max-[650px]:min-w-11 [&.compact]:size-8 [&.compact]:min-w-8'
-
-export function SessionModelSelect({
-  value,
-  models,
-  onChange,
-  disabled,
-  compact = false,
-  showLabel = false,
-  modelLabelOnly = false,
-  displayLabel,
-  className,
-}: {
-  value: string
-  models: ModelOption[]
-  onChange: (model: string) => void
-  disabled?: boolean
-  compact?: boolean
-  showLabel?: boolean
-  modelLabelOnly?: boolean
-  displayLabel?: React.ReactNode
-  className?: string
-}) {
-  const { t } = useI18n()
-  const currentModel = models.find((model) => model.key === value)
-  const currentLabel = currentModel
-    ? `${currentModel.providerName} · ${currentModel.label}`
-    : value.split('/').at(-1)
-  return (
-    <div
-      className={cn(
-        showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES,
-        compact && 'compact',
-        className,
-      )}
-      title={
-        disabled
-          ? t('chat:focusSession.currentModelModelCannotSwitchWhileRunning', {
-              model: currentLabel,
-            })
-          : t('chat:focusSession.currentModelModelClickToSwitch', { model: currentLabel })
-      }
-    >
-      {showLabel ? (
-        <span className="min-w-0 truncate">
-          {displayLabel ??
-            ((modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel) ||
-              t('chat:focusSession.toolbarModel'))}
-        </span>
-      ) : (
-        <Bot size={compact ? 11 : 14} />
-      )}
-      <AppSelect
-        className="absolute inset-0 !size-full cursor-pointer !opacity-0"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || models.length === 0}
-        aria-label={t('chat:focusSession.currentChatModel')}
-      >
-        {!currentModel && <option value={value}>{value.split('/').at(-1)}</option>}
-        {models.map((model) => (
-          <option key={model.key} value={model.key}>
-            {model.providerName} · {model.label}
-          </option>
-        ))}
-      </AppSelect>
     </div>
   )
 }
@@ -367,71 +295,9 @@ export function thinkingLevelLabel(t: Translate, level: string) {
   return thinkingLabels[level] || level
 }
 
-export function SessionThinkingSelect({
-  value,
-  levels,
-  status = 'supported',
-  message = '',
-  onChange,
-  disabled,
-  compact = false,
-  showLabel = false,
-}: {
-  value: string
-  levels: string[]
-  status?: string
-  message?: string
-  onChange: (level: string) => void
-  disabled?: boolean
-  compact?: boolean
-  showLabel?: boolean
-}) {
-  const { t } = useI18n()
-  const current = value || levels[0] || 'off'
-  const levelLabel = (level: string) => thinkingLevelLabel(t, level)
-  const loading = !status && levels.length === 0
-  const supported = status !== 'unsupported' && levels.length > 0
-  const fixed = supported && levels.length <= 1 && levels.includes(current)
-  const title = loading
-    ? t('chat:focusSession.loadingThinkingLevels')
-    : !supported
-      ? message || t('chat:focusSession.thinkingLevelUnsupported')
-      : fixed
-        ? t('chat:focusSession.thinkingLevelFixed', { level: current })
-        : disabled
-          ? t('chat:focusSession.currentThinkingLevelLevelCannotSwitchWhileRunning', {
-              level: current,
-            })
-          : t('chat:focusSession.currentThinkingLevelLevelClickToSwitch', { level: current })
-  return (
-    <div
-      className={`${showLabel ? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES} session-thinking-select ${compact ? 'compact' : ''}`}
-      title={title}
-    >
-      {showLabel ? (
-        <span className="min-w-0 truncate">{levelLabel(current)}</span>
-      ) : (
-        <Brain size={compact ? 11 : 14} />
-      )}
-      <AppSelect
-        className="absolute inset-0 !size-full cursor-pointer !opacity-0"
-        value={current}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || loading || !supported || fixed}
-        aria-label={t('chat:focusSession.currentThinkingLevel')}
-      >
-        {!levels.includes(current) && <option value={current}>{levelLabel(current)}</option>}
-        {levels.map((level) => (
-          <option key={level} value={level}>
-            {levelLabel(level)}
-          </option>
-        ))}
-      </AppSelect>
-    </div>
-  )
-}
-
-// The slider uses only the levels advertised by the current backend/model.
+// 输入框右侧的模型芯片（规格 v2：模型 · 思考强度，弹层里选）：会话页与新任务共用这一个，
+// 新任务另外传 thinkingIsDefault / onThinkingReset 表示“沿用模型默认档位”。
+// 滑条只列当前后端/模型声明支持的档位。
 export function ModelThinkingControl({
   model,
   models,
@@ -447,11 +313,20 @@ export function ModelThinkingControl({
   pendingModel = false,
   usage,
   sheet = false,
+  side = 'top',
+  thinkingIsDefault = false,
+  onThinkingReset,
+  triggerClassName,
 }: {
   // 手机会话页：弹层换成底部表单（规格 7.2）。
   sheet?: boolean
+  side?: 'top' | 'bottom'
+  // 新任务：当前档位只是模型默认（没有显式选过）；onThinkingReset 让显式选择回到默认。
+  thinkingIsDefault?: boolean
+  onThinkingReset?: () => void
+  triggerClassName?: string
   model: string
-  models: ModelOption[]
+  models: ModelChoice[]
   onModelChange: (model: string) => void
   thinkingLevel: string
   levels: string[]
@@ -466,16 +341,20 @@ export function ModelThinkingControl({
   usage?: React.ReactNode
 }) {
   const { t } = useI18n()
-  const [draft, setDraft] = useState<number | null>(null)
+  // 切换思考等级期间锁住模型选择，避免两个请求交错。
   const [saving, setSaving] = useState(false)
-  const savingRef = useRef(false)
   const currentModel = models.find((item) => item.key === model)
   const modelLabel =
     currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
+  const providerGroups = [
+    ...models.reduce((groups, item) => {
+      const group = groups.get(item.providerName) || []
+      group.push(item)
+      return groups.set(item.providerName, group)
+    }, new Map<string, ModelChoice[]>()),
+  ]
   const supported = status !== 'unsupported' && levels.length > 0
-  const index = Math.max(0, levels.indexOf(thinkingLevel))
-  const selected = draft ?? index
-  const effortLabel = supported ? thinkingLevelLabel(t, levels[selected] || thinkingLevel) : '—'
+  const effortLabel = supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'
   const effortHint = pendingModel
     ? t('chat:focusSession.thinkingAfterModelSwitch')
     : supported
@@ -486,21 +365,12 @@ export function ModelThinkingControl({
           : t('chat:focusSession.loadingThinkingLevels'))
   const disabled = thinkingDisabled || saving || !supported || levels.length < 2
   const label = `${t('chat:focusSession.modelAndThinking')} · ${resolveModelLabel(model, models)} · ${effortHint}`
-  const levelsKey = levels.join('|')
-  useEffect(() => {
-    setDraft(null)
-  }, [model, thinkingLevel, levelsKey])
-  const commit = async (nextIndex: number) => {
-    const level = levels[nextIndex]
-    if (disabled || savingRef.current || !level || level === thinkingLevel) return
-    savingRef.current = true
+  const commit = async (level: string) => {
     setSaving(true)
     try {
       await onThinkingChange(level)
     } finally {
-      savingRef.current = false
       setSaving(false)
-      setDraft(null)
     }
   }
   return (
@@ -508,13 +378,16 @@ export function ModelThinkingControl({
       sheet={sheet}
       title={t('chat:focusSession.modelAndThinking')}
       align="end"
-      side="top"
+      side={side}
       sideOffset={8}
       className="model-effort-popover w-[272px] max-w-[calc(100vw_-_24px)] gap-0 p-1"
       trigger={
         <button
           type="button"
-          className="model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:border-stroke max-[650px]:pr-2 max-[650px]:pl-2.5 max-[650px]:text-sm pointer-coarse:h-11"
+          className={cn(
+            'model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:border-stroke max-[650px]:pr-2 max-[650px]:pl-2.5 max-[650px]:text-sm pointer-coarse:h-11',
+            triggerClassName,
+          )}
           aria-label={label}
           title={label}
         >
@@ -532,111 +405,87 @@ export function ModelThinkingControl({
       {/* 上段选模型、下段调思考等级；分区标题让两个控件的作用一眼可辨。
             模型行带 1px 描边，而透明选择器只铺满内边距盒；行高取 52px，
             保证有无服务商副标题时可点区域都不低于 48px。 */}
-      <div className="model-effort-model flex flex-col gap-1.5 p-1.5 pb-2">
+      <div className="model-effort-model flex flex-col gap-1 p-1.5 pb-2">
         <span className="px-0.5 text-xs font-medium text-content-muted">
           {t('chat:focusSession.toolbarModel')}
         </span>
-        <SessionModelSelect
-          showLabel
-          value={model}
-          models={models}
-          onChange={onModelChange}
-          disabled={modelDisabled || saving}
-          className="h-auto min-h-13 w-full border-control bg-panel px-2 py-1.5 text-content [&>span]:flex-1"
-          displayLabel={
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-key-border bg-key text-content-muted shadow-key">
-                <Bot size={15} aria-hidden="true" />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col text-left">
-                <span className="truncate text-[13px] leading-5 font-medium">{modelLabel}</span>
-                {currentModel?.providerName && (
-                  <span className="truncate text-xs leading-4 text-content-muted">
-                    {currentModel.providerName}
-                  </span>
-                )}
-              </span>
-              <ChevronsUpDown
-                size={14}
-                className="shrink-0 text-content-muted"
-                aria-hidden="true"
-              />
-            </span>
+        {/* 模型直接列在弹层里（shadcn Command）：按服务商分组、超过 6 个时可搜索、当前模型打勾；
+            不再套第二层下拉，长列表只在这一段里滚动，手机上滑动列表也不会误选。 */}
+        <Command
+          defaultValue={model}
+          // 按子串匹配模型名与服务商：cmdk 默认的模糊匹配会把“sol”匹配到 Sonnet。
+          filter={(value, search, keywords) =>
+            [value, ...(keywords || [])]
+              .join(' ')
+              .toLowerCase()
+              .includes(search.trim().toLowerCase())
+              ? 1
+              : 0
           }
-        />
+          className="rounded-sm! border border-stroke-soft bg-transparent p-0"
+          aria-label={t('chat:focusSession.currentChatModel')}
+        >
+          {models.length > 6 && <CommandInput placeholder={t('chat:focusSession.searchModels')} />}
+          <CommandList className="max-h-56">
+            <CommandEmpty className="py-4 text-xs text-content-muted">
+              {models.length
+                ? t('chat:focusSession.noMatchingModels')
+                : t('chat:focusSession.noModelsAvailable')}
+            </CommandEmpty>
+            {!currentModel && model && (
+              <CommandGroup>
+                <CommandItem value={model} data-checked disabled>
+                  <span className="min-w-0 truncate">{modelLabel}</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {providerGroups.map(([provider, items]) => (
+              <CommandGroup key={provider} heading={provider}>
+                {items.map((item) => (
+                  <CommandItem
+                    key={item.key}
+                    value={item.key}
+                    keywords={[item.label, item.providerName]}
+                    data-checked={item.key === model}
+                    disabled={modelDisabled || saving}
+                    onSelect={() => {
+                      if (item.key !== model) onModelChange(item.key)
+                    }}
+                  >
+                    <span className="min-w-0 truncate">{item.label}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
       </div>
       {supported && (
-        <div className="border-t border-stroke-soft p-1.5 pt-2">
-          <div className="flex items-baseline justify-between px-0.5 pb-1">
-            <span className="text-xs font-medium text-content-muted">
-              {t('chat:focusSession.thinkingLevelTitle')}
-            </span>
-            <span
-              className="model-effort-heading text-[13px] leading-5 font-medium text-accent-fg"
-              aria-live="polite"
-            >
-              {effortLabel}
-            </span>
-          </div>
-          {/* 仪表式刻度：4px 轨道 + 每档一根刻度线；轨道两端对齐滑块圆心（滑块 24px）。 */}
-          <div
-            className="relative h-7"
-            style={
-              {
-                '--effort-fill': `${levels.length > 1 ? (selected / (levels.length - 1)) * 100 : 0}%`,
-              } as React.CSSProperties
-            }
-          >
-            <div aria-hidden="true" className="effort-track absolute inset-x-3 inset-y-0">
-              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-surface-active">
-                <div className="h-full bg-star" style={{ width: 'var(--effort-fill)' }} />
-              </div>
-              <div className="absolute inset-0 flex items-center justify-between">
-                {levels.map((level) => (
-                  <i key={level} className="h-2.5 w-px bg-stroke-strong" />
-                ))}
-              </div>
-            </div>
-            <input
-              className="effort-slider relative m-0 h-7 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-default disabled:opacity-60"
-              type="range"
-              min={0}
-              max={Math.max(1, levels.length - 1)}
-              step={1}
-              value={selected}
-              disabled={disabled}
-              aria-label={t('chat:focusSession.currentThinkingLevel')}
-              aria-valuetext={effortLabel}
-              onChange={(event) => setDraft(Number(event.currentTarget.value))}
-              onPointerUp={(event) => void commit(Number(event.currentTarget.value))}
-              onBlur={(event) => void commit(Number(event.currentTarget.value))}
-              onKeyUp={(event) => {
-                if (
-                  [
-                    'ArrowLeft',
-                    'ArrowRight',
-                    'ArrowUp',
-                    'ArrowDown',
-                    'Home',
-                    'End',
-                    'PageUp',
-                    'PageDown',
-                  ].includes(event.key)
-                )
-                  void commit(Number(event.currentTarget.value))
-              }}
-            />
-          </div>
-          {levels.length > 1 && (
-            <div
-              className="flex justify-between px-0.5 pt-1 text-xs text-content-muted"
-              aria-hidden="true"
-            >
-              <span>{thinkingLevelLabel(t, levels[0])}</span>
-              <span>{thinkingLevelLabel(t, levels.at(-1) || '')}</span>
-            </div>
-          )}
-        </div>
+        <LevelSlider
+          className="border-t border-stroke-soft p-1.5 pt-2"
+          title={t('chat:focusSession.thinkingLevelTitle')}
+          levels={levels}
+          value={thinkingLevel}
+          labelFor={(level) => thinkingLevelLabel(t, level)}
+          onCommit={commit}
+          disabled={disabled}
+          ariaLabel={t('chat:focusSession.currentThinkingLevel')}
+          trailing={
+            thinkingIsDefault ? (
+              <span className="shrink-0 text-xs text-content-faint">
+                {t('chat:focusSession.thinkingModelDefault')}
+              </span>
+            ) : onThinkingReset ? (
+              <button
+                type="button"
+                className="shrink-0 cursor-pointer rounded-sm text-xs text-content-muted underline-offset-2 hover:text-content hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+                onClick={onThinkingReset}
+              >
+                {t('chat:focusSession.thinkingReset')}
+              </button>
+            ) : undefined
+          }
+        />
       )}
       {deferred && (
         <p className="px-2 pt-1 pb-2 text-xs leading-4 text-content-muted" role="status">

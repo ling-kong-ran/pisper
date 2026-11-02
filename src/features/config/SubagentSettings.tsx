@@ -130,7 +130,7 @@ export function SubagentSettings({ config, notify, busy, onConfigChanged }: Suba
                 <AppSelect
                   aria-labelledby={`${id}-${tier}`}
                   aria-describedby={`${id}-${tier}-hint`}
-                  className="w-full max-[650px]:min-h-11 pointer-coarse:min-h-11"
+                  className="w-full"
                   disabled={!chatOptions.length || busy || saving}
                   value={value}
                   onChange={(event) => void saveTier(tier, event.target.value)}

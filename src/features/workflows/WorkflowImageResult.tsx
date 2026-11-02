@@ -4,6 +4,7 @@ import { parseWorkflowImageOutput } from '@shared/workflow-image-nodes.mjs'
 import type { WorkflowImageFrame } from '@shared/workflow-image-nodes.mjs'
 import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { workflowMediaApi } from './workflow-media-api'
 import type { WorkflowTranslate } from './workflow-templates'
@@ -309,16 +310,17 @@ export function WorkflowImageResult({
               {current + 1} / {frames.length}
             </span>
           </div>
-          <input
-            className="w-full"
-            type="range"
+          <Slider
+            className="h-7 w-full"
             min={0}
             max={Math.max(0, frames.length - 1)}
-            value={current}
+            step={1}
+            value={[current]}
             aria-label={t('workflows:imageNodes.frameNumber')}
-            onChange={(event) => {
+            valueText={`${current + 1} / ${frames.length}`}
+            onValueChange={([next]) => {
               setPlaying(false)
-              setIndex(Number(event.target.value))
+              setIndex(next)
             }}
           />
           <label className="flex items-center justify-between text-xs">

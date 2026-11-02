@@ -38,7 +38,7 @@ export function TaskNewTab({
           maxLength={2048}
           onChange={(event) => setUrl(event.target.value)}
         />
-        <Button type="submit" variant="secondary" className="h-8.5 pointer-coarse:h-11">
+        <Button type="submit" variant="secondary">
           {t('chat:sessionContext.openUrl')}
         </Button>
       </form>

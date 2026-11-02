@@ -2,27 +2,16 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('labeled and icon controls hide the Radix overlay even while disabled', async () => {
+test('the model chip lists models in a shadcn Command list instead of a hidden select overlay', async () => {
   const component = await readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8')
-
-  assert.match(component, /const ICON_SELECT_CLASSES =/)
-  assert.match(component, /showLabel \? LABEL_SELECT_CLASSES : ICON_SELECT_CLASSES/)
-  assert.ok(
-    component.includes(
-      "modelLabelOnly ? currentModel?.label || value.split('/').at(-1) : currentLabel",
-    ),
-  )
-  assert.match(component, /t\('chat:focusSession.toolbarModel'\)/)
-  assert.match(component, /levelLabel\(current\)/)
-  assert.equal(
-    (
-      component.match(
-        /<AppSelect\s+className="absolute inset-0 !size-full cursor-pointer !opacity-0"/g,
-      ) || []
-    ).length,
-    2,
-  )
-  assert.match(component, /focus-within:ring-2/)
+  // 透明叠层（看不见的 AppSelect 盖在自绘按钮上）已退役：模型直接列在弹层里，按服务商分组，可搜索。
+  assert.doesNotMatch(component, /!opacity-0/)
+  assert.doesNotMatch(component, /SessionModelSelect/)
+  assert.match(component, /from '@\/components\/ui\/command'/)
+  assert.match(component, /<CommandGroup key=\{provider\} heading=\{provider\}>/)
+  assert.match(component, /models\.length > 6 && \(?\s*<CommandInput/)
+  assert.match(component, /data-checked=\{item\.key === model\}/)
+  assert.match(component, /if \(item\.key !== model\) onModelChange\(item\.key\)/)
 })
 
 // 规格 v2 第 4.3 节：工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]。原来可配置的工具条
@@ -120,8 +109,9 @@ test('composer exposes a session thinking-level control wired to the shared API'
     readFile('src/features/chat/chat-api.ts', 'utf8'),
   ])
 
-  assert.match(controls, /export function SessionThinkingSelect/)
-  assert.match(controls, /session-thinking-select/)
+  // 思考等级只剩模型芯片弹层里的档位滑条（LevelSlider，基于 shadcn Slider）；透明叠层的旧选择器已删除。
+  assert.doesNotMatch(controls, /SessionThinkingSelect/)
+  const levelSlider = await readFile('src/components/app/LevelSlider.tsx', 'utf8')
   assert.match(session, /ModelThinkingControl/)
   assert.match(session, /onThinkingLevelChange/)
   assert.match(api, /getThinkingLevel/)
@@ -129,13 +119,13 @@ test('composer exposes a session thinking-level control wired to the shared API'
   assert.match(api, /thinking-level/)
   assert.match(session, /onThinkingChange=\{onThinkingLevelChange\}/)
   assert.match(session, /onModelChange=\{onModelChange\}/)
-  assert.match(controls, /<SessionModelSelect[\s\S]*onChange=\{onModelChange\}/)
-  assert.match(controls, /type="range"/)
+  assert.match(controls, /<LevelSlider\b/)
   assert.match(controls, /await onThinkingChange\(level\)/)
-  assert.match(controls, /onPointerUp=/)
-  assert.match(controls, /onKeyUp=/)
   assert.match(controls, /levels\.length < 2/)
-  assert.match(controls, /disabled=\{disabled \|\| loading \|\| !supported \|\| fixed\}/)
+  // 拖动只改草稿，松手或键盘停下时提交一次。
+  assert.match(levelSlider, /from '@\/components\/ui\/slider'/)
+  assert.match(levelSlider, /onValueChange=\{\(\[next\]\) => setDraft\(next\)\}/)
+  assert.match(levelSlider, /onValueCommit=\{\(\[next\]\) => void commit\(next\)\}/)
   assert.match(controls, /role="status"/)
   assert.doesNotMatch(session, /thinking:\s*\(/)
 })

@@ -18,7 +18,6 @@ import {
 import {
   ArrowRight,
   ArrowUp,
-  Bot,
   ChevronDown,
   CornerDownLeft,
   Folder,
@@ -38,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  ModelThinkingControl,
   clearComposerDraft,
   ComposerCommandMenu,
   getWorkspaceCommands,
@@ -429,14 +429,6 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         ? 'pointer-coarse:min-h-11'
         : undefined
     const projectChipTouch = sheet ? 'min-h-11' : chipSize === 'sm' ? TOUCH_HIT_AREA : undefined
-    const modelLabel = currentModel
-      ? compact
-        ? currentModel.label
-        : `${currentModel.label}${shownThinking ? ` · ${labels.thinking(shownThinking)}` : ''}`
-      : model
-        ? model.split('/').at(-1) || model
-        : t('board:launch.defaultModel')
-
     const projectChip = (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -517,68 +509,24 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       </DropdownMenu>
     )
 
+    // 模型芯片与会话页是同一个组件（规格 v2 第 4.3 节）：弹层里选模型、滑条调思考等级。
+    // 新任务没有会话，档位只记在派发偏好里；没选过时按 Runtime 默认档位显示，可“恢复默认”。
     const modelMenu = (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Chip
-            size={chipSize}
-            // 草稿输入框里的模型芯片与会话页一致：无描边、靠右（规格 v2 第 4.3 节）。
-            className={cn(
-              // 手机底部表单：与项目芯片分剩下的宽度，各自最多 13ch。
-              // 派发对话框里与项目、“排在…之后”一起分宽度：放不下时一起收窄。
-              sheet ? 'max-w-[13ch] min-w-0' : 'min-w-0 max-w-[24ch] shrink',
-              (composer || variant === 'overlay' || sheet) && 'border-transparent bg-transparent',
-              rowChipTouch,
-            )}
-            title={t('board:launch.modelTitle', { model: modelLabel })}
-            aria-label={t('board:launch.modelTitle', { model: modelLabel })}
-          >
-            <Bot aria-hidden="true" />
-            <span className="min-w-0 truncate">{modelLabel}</span>
-            <ChevronDown aria-hidden="true" />
-          </Chip>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto">
-          <DropdownMenuLabel>{t('board:launch.model')}</DropdownMenuLabel>
-          {options.models.length ? (
-            <DropdownMenuRadioGroup
-              value={model}
-              onValueChange={(next) => defaults.rememberLaunch({ model: next, thinkingLevel: '' })}
-            >
-              {options.models.map((item) => (
-                <DropdownMenuRadioItem key={item.key} value={item.key}>
-                  <span className="min-w-0 truncate">
-                    {item.providerName} · {item.label}
-                  </span>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          ) : (
-            <p className="px-2 py-1.5 text-xs text-content-muted">
-              {options.loading ? t('board:launch.loadingModels') : t('board:launch.noModel')}
-            </p>
-          )}
-          {thinkingLevels.length > 1 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t('board:launch.thinking')}</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={thinkingLevel}
-                onValueChange={(next) => defaults.rememberLaunch({ thinkingLevel: next })}
-              >
-                <DropdownMenuRadioItem value="">
-                  {t('board:launch.thinkingDefault')}
-                </DropdownMenuRadioItem>
-                {thinkingLevels.map((level) => (
-                  <DropdownMenuRadioItem key={level} value={level}>
-                    {labels.thinking(level)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ModelThinkingControl
+        sheet={sheet}
+        side={composer ? 'top' : 'bottom'}
+        model={model}
+        models={options.models}
+        onModelChange={(key) => defaults.rememberLaunch({ model: key, thinkingLevel: '' })}
+        thinkingLevel={shownThinking}
+        levels={thinkingLevels}
+        status={options.loading ? '' : 'supported'}
+        onThinkingChange={(level) => defaults.rememberLaunch({ thinkingLevel: level })}
+        thinkingIsDefault={!thinkingLevel}
+        onThinkingReset={() => defaults.rememberLaunch({ thinkingLevel: '' })}
+        modelDisabled={!options.models.length}
+        triggerClassName={cn(sheet ? 'max-w-[13ch]' : 'max-w-[24ch]', rowChipTouch)}
+      />
     )
     // 主页新任务草稿的工具行与会话页输入框一致（规格 v2 第 4.3 节）：审批模式与执行方式合在一枚盾牌芯片里，
     // 模型芯片靠右、紧挨石墨圆形发送键。完全访问只对本次草稿生效，芯片用盾牌警示图标与文字区分，不染琥珀。

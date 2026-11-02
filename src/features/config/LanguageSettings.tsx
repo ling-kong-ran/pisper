@@ -60,17 +60,13 @@ export function LanguageSettings({ notify }: { notify: Notify }) {
         <SelectTrigger
           aria-labelledby={labelId}
           aria-describedby={descriptionId}
-          className="min-w-36 shrink-0 pointer-coarse:min-h-11 max-[650px]:min-h-11"
+          className="min-w-36 shrink-0"
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent position="popper" align="end" className="p-1">
+        <SelectContent align="end">
           {LANGUAGE_OPTIONS.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              className="min-h-9 px-3 pr-8 max-[650px]:min-h-11"
-            >
+            <SelectItem key={option.value} value={option.value}>
               {languageName(option.value, t)}
             </SelectItem>
           ))}

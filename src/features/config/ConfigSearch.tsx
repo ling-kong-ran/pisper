@@ -97,7 +97,7 @@ export function ConfigSearchBox({
         title={t('navigation:pageHeader.search')}
         aria-label={t('navigation:pageHeader.search')}
         className={cn(
-          'h-8.5 pl-8 text-sm pointer-coarse:min-h-11',
+          'pl-8 text-sm',
           placement !== 'sidebar' && 'max-[650px]:h-11 max-[650px]:text-[16px]',
           // 侧栏搜索是一枚平键：键帽面 + 键帽描边，右侧留出快捷键小键帽的位置。
           // 分区导航较窄：占位文字放不下时以省略号收尾，不在词中间硬裁。

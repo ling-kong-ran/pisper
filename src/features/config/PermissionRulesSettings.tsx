@@ -146,7 +146,7 @@ export function PermissionRulesSettings({ notify }: { notify: Notify }) {
       >
         <AppSelect
           aria-label={t('config:permissionRules.effectLabel')}
-          className="w-28 max-[650px]:min-h-11 pointer-coarse:min-h-11"
+          className="w-28"
           disabled={saving}
           value={effect}
           onChange={(event) => {
@@ -161,7 +161,7 @@ export function PermissionRulesSettings({ notify }: { notify: Notify }) {
         </AppSelect>
         <AppSelect
           aria-label={t('config:permissionRules.toolLabel')}
-          className="w-32 max-[650px]:min-h-11 pointer-coarse:min-h-11"
+          className="w-32"
           disabled={saving || effect === 'deny'}
           value={tool}
           onChange={(event) => setTool(event.target.value === 'files' ? 'files' : 'bash')}

@@ -2,6 +2,7 @@ import { useResourceReading } from './use-resource-reading'
 import { lazy, Suspense, useContext, useRef, useState } from 'react'
 import { ChevronRight, File, Image, Link2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InlineEmptyState } from '@/components/app/PageState'
@@ -57,9 +58,9 @@ export function TaskSourcesPane({
             value={view.query}
             onChange={(event) => onViewChange({ query: event.target.value })}
           />
-          <select
+          <AppSelect
             aria-label={t('chat:workbench.sourceType')}
-            className="h-8.5 max-w-[45%] shrink-0 rounded-sm border border-control bg-panel px-2 text-sm text-content outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring pointer-coarse:h-11"
+            className="w-auto max-w-[45%] shrink-0"
             value={view.filter}
             onChange={(event) => onViewChange({ filter: event.target.value })}
           >
@@ -67,7 +68,7 @@ export function TaskSourcesPane({
             <option value="image">{t('chat:workbench.images')}</option>
             <option value="text">{t('chat:workbench.text')}</option>
             <option value="file">{t('chat:workbench.files')}</option>
-          </select>
+          </AppSelect>
         </div>
       </div>
       <div ref={reading.ref} className="min-h-0 flex-1 overflow-y-auto">

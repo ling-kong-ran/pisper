@@ -976,10 +976,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
   }
 }
 
-/* Compact model effort slider; native range retains keyboard and screen-reader semantics. */
-.effort-slider::-webkit-slider-thumb { appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--key-bg); border: 1px solid var(--control-border); box-shadow: var(--key-shadow); }
-.effort-slider::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--key-bg); border: 1px solid var(--control-border); box-shadow: var(--key-shadow); }
-.effort-slider:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 999px; }
 /* Windows 自绘窗口按钮绝对定位在外壳右上角，只压在应用标题栏预留的 144px 上；
    标题栏以下的页头与会话头不再需要为窗口按钮留白。 */
 .app-shell[data-custom-titlebar] { position: relative; }

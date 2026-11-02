@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { Square, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
 import { PageState } from '@/components/app/PageState'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -104,8 +105,8 @@ export function TaskTerminalView({
         <p className="max-w-full break-all font-mono text-xs text-content-muted">
           {cwd || t('terminal:workspace.defaultDirectory')}
         </p>
-        <select
-          className="h-8.5 max-w-full min-w-40 rounded-sm border border-control bg-panel px-2 font-mono text-sm text-content outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring pointer-coarse:h-11"
+        <AppSelect
+          className="w-auto max-w-full min-w-40 font-mono"
           aria-label={t('terminal:workspace.profile')}
           value={profileId}
           onChange={(event) => setProfileId(event.target.value)}
@@ -115,7 +116,7 @@ export function TaskTerminalView({
               {profile.label}
             </option>
           ))}
-        </select>
+        </AppSelect>
         <Button disabled={!profileId || creating} onClick={() => void create()}>
           {t('terminal:workspace.create')}
         </Button>

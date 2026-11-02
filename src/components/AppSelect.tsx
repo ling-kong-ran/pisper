@@ -1,6 +1,7 @@
 // 统一的 Select 封装：把 shadcn 的受控 Select 转成原生 <select> 语义，
 // 支持必填/禁用/无值占位，供表单与设置页复用，避免各处重复状态逻辑。
-// 外观沿用字段规范：控件边框 ≥3:1、纸面底色、聚焦换边框并加焦点光环。
+// 外观完全取 ui/select 的触发键（32px，触屏与窄屏 44）；调用方只给宽度，不改高度与内边距。
+// 选项只有纯文字时用它；选项要带图标、色块等富内容时直接组合 ui/select，外观相同。
 import {
   Children,
   isValidElement,
@@ -66,7 +67,7 @@ export function AppSelect({
       <select
         data-slot="select-trigger"
         className={cn(
-          'h-10 min-h-0 w-full rounded-sm border border-input bg-panel px-2.5 py-0 text-[14px] font-normal text-foreground shadow-none outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring',
+          'h-11 w-full rounded-sm border border-input bg-panel px-2.5 py-0 text-[14px] font-normal text-foreground shadow-none outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring',
           className,
         )}
         value={selectedValue}
@@ -95,27 +96,12 @@ export function AppSelect({
         onChange?.({ target: { value: normalized } } as ChangeEvent<HTMLSelectElement>)
       }}
     >
-      <SelectTrigger
-        className={cn(
-          'h-8 min-h-0 w-full rounded-sm border border-input bg-panel px-2.5 py-0 text-sm font-normal text-foreground shadow-none [&>svg]:text-muted-foreground',
-          className,
-        )}
-        {...ariaProps}
-      >
+      <SelectTrigger className={cn('w-full', className)} {...ariaProps}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent
-        position="popper"
-        align="start"
-        className="min-w-[var(--radix-select-trigger-width)]"
-      >
+      <SelectContent className="min-w-(--radix-select-trigger-width)">
         {options.map((option) => (
-          <SelectItem
-            key={option.value}
-            value={option.value}
-            disabled={option.disabled}
-            className="text-sm"
-          >
+          <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
           </SelectItem>
         ))}
