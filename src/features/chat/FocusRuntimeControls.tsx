@@ -95,9 +95,7 @@ export function SessionStatsPanel({
       className="session-stats-panel grid gap-[3px]"
       aria-label={t('chat:focusSession.sessionStats')}
     >
-      <div className="text-[var(--text)] text-[length:var(--app-font-size)] font-semibold">
-        {t('chat:focusSession.sessionStats')}
-      </div>
+      {/* 标题由外层的展开开关“详细统计”给出，这里不再重复一遍。 */}
       {rows.map(([label, value]) => (
         <div
           key={label}
@@ -236,7 +234,15 @@ export function ContextUsageSection({
         cacheRateKnown ? undefined : t('chat:focusSession.cacheHitRateUnavailable'),
       )}
       {contextWindow > 0 && (
-        <details className="group/usage min-w-0 text-xs">
+        <details
+          className="group/usage min-w-0 text-xs"
+          // 弹层按可用高度滚动：展开后把统计内容滚进可视区，否则点了展开看不出变化。
+          onToggle={(event) => {
+            const details = event.currentTarget
+            if (details.open)
+              requestAnimationFrame(() => details.scrollIntoView({ block: 'nearest' }))
+          }}
+        >
           <summary className="flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-content-secondary hover:text-content focus-visible:outline-2 focus-visible:outline-focus max-[650px]:min-h-11 [&::-webkit-details-marker]:hidden">
             <ChevronRight
               size={13}
