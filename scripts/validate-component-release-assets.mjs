@@ -26,7 +26,7 @@ async function filesUnder(path) {
 }
 
 const label = component === 'tui' ? 'TUI' : 'Runtime'
-const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+const platforms = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
 const archives = platforms.flatMap((platform) => {
   const distribution = `Pisper_${label}_${version}_${platform}.tar.gz`
   if (component === 'tui') {

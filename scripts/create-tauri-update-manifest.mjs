@@ -57,7 +57,8 @@ const updaterSuffixes = {
   linux: '.AppImage',
   windows: '-setup.exe',
 }
-const expectedPlatforms = ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64', 'windows-x86_64']
+// 不再发布 macOS Intel。
+const expectedPlatforms = ['darwin-aarch64', 'linux-x86_64', 'windows-x86_64']
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // 离线包仅供首次部署选择，更新入口始终匹配普通包，避免重复分发 WebView2。
 const artifactPattern = new RegExp(

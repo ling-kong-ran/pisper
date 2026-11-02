@@ -17,7 +17,8 @@ export function releaseArchitecture(arch = process.arch) {
 
 export function supportedTarget(platform = process.platform, arch = process.arch) {
   const target = `${releasePlatform(platform)}_${releaseArchitecture(arch)}`
-  const supported = new Set(['windows_x86_64', 'darwin_x86_64', 'darwin_aarch64', 'linux_x86_64'])
+  // 不再发布 macOS Intel。
+  const supported = new Set(['windows_x86_64', 'darwin_aarch64', 'linux_x86_64'])
   if (!supported.has(target)) {
     throw new Error(`Pisper does not publish a TUI package for ${target}`)
   }

@@ -283,9 +283,6 @@ test('desktop release validator requires installers and signed frontend componen
     `Pisper_${version}_darwin_aarch64.app.tar.gz`,
     `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
     `Pisper_${version}_darwin_aarch64.dmg`,
-    `Pisper_${version}_darwin_x86_64.app.tar.gz`,
-    `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
-    `Pisper_${version}_darwin_x86_64.dmg`,
     `Pisper_${version}_linux_x86_64.AppImage`,
     `Pisper_${version}_linux_x86_64.AppImage.sig`,
     `Pisper_${version}_linux_x86_64.deb`,
@@ -294,7 +291,7 @@ test('desktop release validator requires installers and signed frontend componen
     `Pisper_${version}_windows_x86_64-offline-setup.exe`,
     `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
   ]
-  const components = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+  const components = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
     .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
     .flatMap((archive) => [archive, `${archive}.sig`])
 
@@ -315,7 +312,7 @@ test('desktop release validator requires installers and signed frontend componen
 
 test('runtime release validator requires signed SEA and Node platform archives', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-runtime-assets-'))
-  const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+  const platforms = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
   const archives = platforms.flatMap((platform) => [
     `Pisper_Runtime_1.2.3_${platform}.tar.gz`,
     `Pisper_Runtime_Node_1.2.3_${platform}.tar.gz`,
@@ -337,7 +334,7 @@ test('runtime release validator requires signed SEA and Node platform archives',
 
 test('component release validator requires signed distributions and thin TUI updates', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-component-assets-'))
-  const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+  const platforms = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
   const archives = platforms.flatMap((platform) => [
     `Pisper_TUI_1.2.3_${platform}.tar.gz`,
     `Pisper_TUI_Component_1.2.3_${platform}.tar.gz`,

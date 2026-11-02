@@ -467,9 +467,17 @@ test('releases build in parallel and only Desktop waits for its bundled componen
   )
 })
 
-test('the Intel macOS build stays on the native Intel runner', async () => {
-  const workflow = await readFile('.github/workflows/release.yml', 'utf8')
-  // Rosetta 方案在首次真实发布中让 TUI 与 Runtime 的 Intel 构建都失败了，退回原生机器。
-  assert.match(workflow, /target: darwin-x86_64\n\s+os: macos-15-intel\n/)
-  assert.doesNotMatch(workflow, /install-rosetta|node_arch|rust_host/)
+test('macOS releases are Apple Silicon only', async () => {
+  const [workflow, updateManifest, site, index] = await Promise.all([
+    readFile('.github/workflows/release.yml', 'utf8'),
+    readFile('scripts/create-tauri-update-manifest.mjs', 'utf8'),
+    readFile('docs/site.js', 'utf8'),
+    readFile('docs/index.html', 'utf8'),
+  ])
+  assert.doesNotMatch(workflow, /darwin-x86_64|macos-15-intel|install-rosetta/)
+  assert.match(workflow, /target: darwin-aarch64\n\s+os: macos-15\n/)
+  assert.doesNotMatch(updateManifest, /darwin-x86_64/)
+  // 官网不再提供 Intel 下载入口，macOS 按钮固定解析 Apple Silicon 包。
+  assert.doesNotMatch(site, /darwin_x86_64/)
+  assert.doesNotMatch(index, /data-desktop-download="macos" data-download-architecture="x86_64"/)
 })

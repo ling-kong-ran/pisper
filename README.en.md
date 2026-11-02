@@ -83,7 +83,7 @@ Choose your system and architecture:
 | --- | --- |
 | Windows x64 standard (recommended) | `*-setup.exe` without `-offline-`: smaller download, reuses installed WebView2 or installs it online if missing. Works offline when WebView2 is already installed. |
 | Windows x64 full offline | `*-offline-setup.exe`: includes the complete WebView2 installer for offline machines where the runtime is missing or its availability is unknown. This makes the package substantially larger. |
-| macOS | Choose the Apple Silicon or Intel DMG. Uses the system WKWebView; no additional browser engine download. |
+| macOS | Apple Silicon DMG only. Uses the system WKWebView; no additional browser engine download. |
 | Linux x64 | AppImage may require FUSE; DEB is available for Debian / Ubuntu. Prepare distribution-specific system libraries before offline deployment; DEB may require packages such as WebKitGTK. |
 
 Windows automatic updates use the standard package, avoiding repeated WebView2 installer downloads. **The full offline package does not include on-demand local speech models.** Models, external MCP programs, and extensions still need separate preparation on every platform; conversations need a reachable model service, which can be on your intranet. Older releases may not offer both Windows variants; check the actual release assets.

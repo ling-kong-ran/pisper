@@ -154,23 +154,9 @@ function architectureFromHint(value) {
   return ''
 }
 
-function webglRenderer() {
-  try {
-    const canvas = document.createElement('canvas')
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
-    if (!gl) return ''
-    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info')
-    return String(
-      debugInfo
-        ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
-        : gl.getParameter(gl.RENDERER),
-    )
-  } catch {
-    return ''
-  }
-}
-
 async function detectDesktopArchitecture(target) {
+  // macOS 只发布 Apple Silicon 包。
+  if (target === 'macos') return 'aarch64'
   const userAgentData = navigator.userAgentData
   const directHints = [
     navigator.userAgent,
@@ -187,15 +173,10 @@ async function detectDesktopArchitecture(target) {
       const architecture = architectureFromHint(`${values.architecture} ${values.bitness}`)
       if (architecture) return architecture
     } catch {
-      // 浏览器拒绝高熵值时继续使用 GPU 与兼容性线索。
+      // 浏览器拒绝高熵值时退回默认架构。
     }
   }
-  if (target === 'macos') {
-    const renderer = webglRenderer().toLowerCase()
-    if (/apple\s+(?:m\d|gpu)|apple silicon|\bagx\b/.test(renderer)) return 'aarch64'
-    if (/intel|iris|uhd|hd graphics|radeon|amd/.test(renderer)) return 'x86_64'
-  }
-  // 没有架构信息时使用可由 Rosetta 运行的 x86 包；只有明确识别 ARM 才选择 ARM 资产。
+  // 没有架构信息时使用 x86 包；只有明确识别 ARM 才选择 ARM 资产。
   return 'x86_64'
 }
 
@@ -230,7 +211,7 @@ async function desktopReleaseAssetUrl(target, options = {}) {
   const architecture = options.architecture || (await detectDesktopArchitecture(target))
   const windowsSuffix = options.variant === 'offline' ? '-offline-setup.exe' : '-setup.exe'
   const suffixes = {
-    macos: [`darwin_${architecture}.dmg`, 'darwin_x86_64.dmg'],
+    macos: ['darwin_aarch64.dmg'],
     windows: [`windows_${architecture}${windowsSuffix}`, `windows_x86_64${windowsSuffix}`],
     linux: [options.variant === 'deb' ? 'linux_x86_64.deb' : 'linux_x86_64.AppImage'],
   }

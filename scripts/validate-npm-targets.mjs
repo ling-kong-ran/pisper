@@ -9,7 +9,7 @@ const manifest = JSON.parse(
 )
 const repository = String(process.env.GITHUB_REPOSITORY || manifest.pisper.repository)
 const token = String(process.env.GITHUB_TOKEN || '').trim()
-const platforms = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+const platforms = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
 
 async function validateRelease(component, version) {
   const tag = `${component}-v${version}`

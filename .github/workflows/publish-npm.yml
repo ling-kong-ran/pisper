@@ -125,7 +125,6 @@ jobs:
         run: |
           platform_versions=(
             "$NPM_VERSION-win32-x64.0"
-            "$NPM_VERSION-darwin-x64.0"
             "$NPM_VERSION-darwin-arm64.0"
             "$NPM_VERSION-linux-x64.0"
           )
@@ -203,11 +202,10 @@ jobs:
             fi
           }
           publish_platform win32-x64
-          publish_platform darwin-x64
           publish_platform darwin-arm64
           publish_platform linux-x64
           npm publish "release/npm/tarballs/pisper-$NPM_VERSION.tgz" \
             --access public \
             --provenance
           trap - ERR
-          echo "Published pisper@$NPM_VERSION and its four npm platform packages from $release_commit"
+          echo "Published pisper@$NPM_VERSION and its three npm platform packages from $release_commit"

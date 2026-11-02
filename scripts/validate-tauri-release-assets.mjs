@@ -17,9 +17,6 @@ const tauriAssets = [
   `Pisper_${version}_darwin_aarch64.app.tar.gz`,
   `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
   `Pisper_${version}_darwin_aarch64.dmg`,
-  `Pisper_${version}_darwin_x86_64.app.tar.gz`,
-  `Pisper_${version}_darwin_x86_64.app.tar.gz.sig`,
-  `Pisper_${version}_darwin_x86_64.dmg`,
   `Pisper_${version}_linux_x86_64.AppImage`,
   `Pisper_${version}_linux_x86_64.AppImage.sig`,
   `Pisper_${version}_linux_x86_64.deb`,
@@ -28,7 +25,7 @@ const tauriAssets = [
   `Pisper_${version}_windows_x86_64-offline-setup.exe`,
   `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
 ]
-const componentAssets = ['darwin_aarch64', 'darwin_x86_64', 'linux_x86_64', 'windows_x86_64']
+const componentAssets = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
   .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
   .flatMap((archive) => [archive, `${archive}.sig`])
 const expected = new Set([...tauriAssets, ...componentAssets])

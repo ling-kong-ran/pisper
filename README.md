@@ -83,7 +83,7 @@ Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/pack
 | --- | --- |
 | Windows x64 普通包（推荐） | `*-setup.exe`（不含 `-offline-`）：体积较小，复用已有 WebView2；缺失时联网安装。已有 WebView2 的内网电脑也可使用。 |
 | Windows x64 完整离线包 | `*-offline-setup.exe`：额外包含完整 WebView2 安装器，适合缺少该运行时或无法确认的离线电脑；因此体积明显更大。 |
-| macOS | 按 Apple Silicon / Intel 选择 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
+| macOS | 仅支持 Apple Silicon 的 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
 | Linux x64 | AppImage 可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需提前准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。 |
 
 Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。

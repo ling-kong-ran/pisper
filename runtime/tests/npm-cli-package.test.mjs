@@ -217,11 +217,13 @@ test('npm platform mapping matches signed component release assets', () => {
     /components$/,
   )
   assert.throws(() => supportedTarget('linux', 'arm64'), /does not publish a TUI package/)
+  // 不再发布 macOS Intel。
+  assert.throws(() => supportedTarget('darwin', 'x64'), /does not publish a TUI package/)
+  assert.throws(() => npmPlatformAlias('darwin', 'x64'), /does not publish an npm package/)
   assert.equal(npmPlatformAlias('win32', 'x64'), 'pisper-binary-win32-x64')
   assert.equal(npmPlatformVersion('1.2.3', 'darwin', 'arm64'), '1.2.3-darwin-arm64.0')
   assert.deepEqual(npmPlatformOptionalDependencies('1.2.3'), {
     'pisper-binary-win32-x64': 'npm:pisper@1.2.3-win32-x64.0',
-    'pisper-binary-darwin-x64': 'npm:pisper@1.2.3-darwin-x64.0',
     'pisper-binary-darwin-arm64': 'npm:pisper@1.2.3-darwin-arm64.0',
     'pisper-binary-linux-x64': 'npm:pisper@1.2.3-linux-x64.0',
   })

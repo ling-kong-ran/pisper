@@ -152,11 +152,7 @@ jobs:
           - name: Windows x64
             target: windows-x86_64
             os: windows-latest
-          # 曾改在 Apple Silicon 上用 Rosetta 构建以提速，首次真实发布时 TUI 与 Runtime 的
-          # Intel 构建都失败了（其余平台均通过），已退回原生 Intel 机器。
-          - name: macOS Intel
-            target: darwin-x86_64
-            os: macos-15-intel
+          # 不再发布 macOS Intel：只构建 Apple Silicon。
           - name: macOS Apple Silicon
             target: darwin-aarch64
             os: macos-15

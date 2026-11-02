@@ -2,7 +2,6 @@ import process from 'node:process'
 
 export const NPM_PLATFORM_TARGETS = Object.freeze([
   Object.freeze({ platform: 'win32', arch: 'x64', release: 'windows_x86_64', slug: 'win32-x64' }),
-  Object.freeze({ platform: 'darwin', arch: 'x64', release: 'darwin_x86_64', slug: 'darwin-x64' }),
   Object.freeze({
     platform: 'darwin',
     arch: 'arm64',
