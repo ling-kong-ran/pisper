@@ -35,6 +35,12 @@ const BARE_COLOR_ALLOWLIST = [
     count: 1,
     reason: 'React Bits 欢迎字的浅色主题光晕，装饰效果，随上游维护',
   },
+  ...['#8b5cf6', '#a855f7', '#ec4899', '#0b0f1e', '#ffffff'].map((literal) => ({
+    file: 'src/components/BrandLogo.tsx',
+    literal,
+    count: 1,
+    reason: '品牌标的固定配色，与官网 docs/brand/pisper-logo.svg 和应用图标逐值一致，不随主题变化',
+  })),
   ...['#60a5fa', '#a78bfa', '#5eead4'].map((literal) => ({
     file: 'src/components/react-bits/Aurora.tsx',
     literal,
