@@ -636,12 +636,14 @@ export function createMultiAgentRuntime({
         emitAgentUpdate(sessionId, progress)
         return true
       }
-      // 定义只能在父会话已有的工具里再收窄，不能借定义拿到父会话没有的工具；
+      // 没写 tools 时沿用父会话此刻直接可用的工具。写了 tools 时按父会话有权使用的全部工具取交集：
+      // 联网搜索、浏览器、MCP 这类工具平时要先经 discover_tools 才进入父会话，子代理没有发现工具，
+      // 不能要求父会话先用过一次。两种情况都只在父会话的工具里收窄，并且仍按执行模式过滤。
       // 写了但这里没有的工具（名字写错、父会话没启用或被当前执行模式禁用）随结果告诉父模型。
       const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
       const inheritedTools = filterToolsForExecutionMode(
-        baseToolNames.filter(
-          (name) => active.has(name) && (!profile?.tools || profile.tools.includes(name)),
+        baseToolNames.filter((name) =>
+          profile?.tools ? profile.tools.includes(name) : active.has(name),
         ),
         getExecutionMode(),
         getToolRisk,

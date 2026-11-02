@@ -208,7 +208,7 @@ async function profileRuntime(t) {
   await mkdir(join(directory, '.pisper', 'agents'), { recursive: true })
   await writeFile(
     join(directory, '.pisper', 'agents', 'scout.md'),
-    '---\ndescription: 简单检索交给便宜模型\nmodel: fast\nthinking: low\ntools: [read, ghost_tool]\n---\nSCOUT-STANDING-INSTRUCTIONS\n',
+    '---\ndescription: 简单检索交给便宜模型\nmodel: fast\nthinking: low\ntools: [read, memory_search, web_search, ghost_tool]\n---\nSCOUT-STANDING-INSTRUCTIONS\n',
   )
   await writeFile(
     join(directory, '.pisper', 'agents', 'broken.md'),
@@ -241,6 +241,7 @@ async function finished(runtime, sessionId, id) {
 
 test('a definition with a tier runs on the mapped model with its tools and instructions', async (t) => {
   const { runtime, requests, sessionId, multiAgentRuntime } = await profileRuntime(t)
+  const value = await runtime.getOrCreateSession(sessionId)
   const config = await runtime.setSubagentModelTiers({ tiers: { fast: 'test-cheap/fixture' } })
   assert.deepEqual(config.subagentModelTiers, { fast: 'test-cheap/fixture' })
   const spawned = await multiAgentRuntime.spawn({
@@ -253,7 +254,10 @@ test('a definition with a tier runs on the mapped model with its tools and instr
   assert.equal(spawned.modelSource, 'tier')
   assert.equal(spawned.thinkingLevel, 'low')
   // 定义只能收窄：父会话的 bash/write/edit 不会带给子代理，只保留只读的计划查看这类协作工具。
-  assert.deepEqual(spawned.availableTools, ['read', 'get_plan'])
+  // memory_search 平时要先经 discover_tools 才进入父会话；定义点名要它时直接给，不要求父会话先用过。
+  // web_search 是中风险工具，需要审批的模式下本来就不交给子代理，定义也不能绕过。
+  assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
+  assert.deepEqual(spawned.availableTools, ['memory_search', 'read', 'get_plan'])
   const agent = await finished(runtime, sessionId, spawned.id)
   assert.equal(agent.status, 'completed', agent.error)
   const childRequest = requests.find((item) => item.target === 'cheap')
@@ -269,14 +273,15 @@ test('a definition with a tier runs on the mapped model with its tools and instr
   const record = (durable.agents || durable.records || []).find((item) => item.id === spawned.id)
   assert.equal(record?.agentProfile, 'scout')
   assert.equal(record?.profileInstructions, 'SCOUT-STANDING-INSTRUCTIONS')
-  // 真正发给模型的工具也只有这两个，不只是记录里写着。
-  assert.deepEqual(
-    childRequest.body.tools.map((tool) => tool.function?.name || tool.name),
-    ['read', 'get_plan'],
-  )
+  // 真正发给模型的工具也只有这些，不只是记录里写着。
+  assert.deepEqual(childRequest.body.tools.map((tool) => tool.function?.name || tool.name).sort(), [
+    'get_plan',
+    'memory_search',
+    'read',
+  ])
   assert.match(system, /Standing instructions from this agent definition apply to every task/)
   // 定义里写了但父会话没有的工具不会凭空出现，派生结果会点名告诉父模型。
-  assert.deepEqual(spawned.skippedProfileTools, ['ghost_tool'])
+  assert.deepEqual(spawned.skippedProfileTools, ['web_search', 'ghost_tool'])
 })
 
 test('unavailable definition models fall back to the parent model and say why', async (t) => {
@@ -296,6 +301,9 @@ test('unavailable definition models fall back to the parent model and say why', 
   })
   assert.equal(pinned.modelSource, 'parent')
   assert.deepEqual(pinned.modelFallbackReasons, ['model-unavailable'])
+  // 没写 tools 的定义沿用父会话此刻直接可用的工具，不会顺带拿到还没发现的可选工具。
+  assert.ok(pinned.availableTools.includes('bash'))
+  assert.equal(pinned.availableTools.includes('memory_search'), false)
   for (const agent of [unmapped, pinned])
     assert.equal((await finished(runtime, sessionId, agent.id)).status, 'completed')
   assert.equal(
@@ -361,7 +369,7 @@ test('the parent session sees the skill and each definition with its tier model 
   const spawn = session.getToolDefinition('spawn_agent')
   assert.match(
     spawn.description,
-    /- scout \(model: fast → test-cheap\/fixture; thinking: low; tools: read, ghost_tool\): 简单检索/,
+    /- scout \(model: fast → test-cheap\/fixture; thinking: low; tools: read, memory_search, web_search, ghost_tool\): 简单检索/,
   )
   assert.match(spawn.description, /- pinned \(model: test-gone\/fixture → this session model; /)
   assert.doesNotMatch(spawn.description, /broken/)
