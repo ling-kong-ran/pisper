@@ -1,9 +1,9 @@
 {
-  "version": "0.1.62",
-  "tag": "app-v0.1.62",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.62",
+  "version": "0.1.63",
+  "tag": "app-v0.1.63",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.63",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.62\n\n- 发布日期：2026-11-02（北京时间）\n- 发布标签：`app-v0.1.62`\n- 对比基线：`app-v0.1.61`\n\n## 更新内容\n\n### 新增功能\n\n- feat(runtime): 执行模式只决定是否逐次确认，不再决定有哪些工具可用\n- feat: 子代理定义——内置写定义的技能，派生严格按定义执行并说明偏差\n- feat: 子代理定义——按任务给子代理指定模型、工具与固定说明\n\n### 优化改进\n\n- refactor(ui): 会话树与各处表单控件统一到 shadcn 组件\n- refactor(ui): 下拉框、滑条与模型芯片统一到 shadcn 组件，补“组件与样式”规范\n\n### 问题修复\n\n- fix(deps): Pi 补丁跟上 pi-coding-agent 1.5，修复 npm ci 的 postinstall 失败\n- fix(chat): 本地流结束时收尾停在“恢复中”的会话，避免一直显示正在载入\n- fix(ui): 带路径前缀的模型 ID 只显示能区分的末段\n- fix(ui): 弹层按可用高度封顶，模型芯片展开详细统计不再顶出窗口\n- fix(runtime): 子代理定义点名的工具不必先经 discover\\_tools 进入父会话\n- fix(ui): 应用内品牌标改用与官网一致的终端 P 标志\n- fix(runtime): 长时间运行的 shell 不再一直锁住整个工作区\n\n### 其他变更\n\n- chore(deps): update pi coding agent\n- ci(release): 各通道并行构建，Intel 包改在 Apple Silicon 上用 Rosetta 构建\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.61...app-v0.1.62)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/85fd25ed6bab805bc356243eb734b7aac3938def)",
-  "releaseDate": "2026-11-02"
+  "notes": "## Pisper App 0.1.63\n\n- 发布日期：2026-11-03（北京时间）\n- 发布标签：`app-v0.1.63`\n- 对比基线：`app-v0.1.62`\n\n## 更新内容\n\n### 问题修复\n\n- fix(providers): 添加模型不再把 200k 占位值写成上下文窗口覆盖，编辑后的值才算用户配置\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.62...app-v0.1.63)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/8bcabb886a7a1c730b1dcfd6852a34d8e9ce9411)",
+  "releaseDate": "2026-11-03"
 }
