@@ -1,9 +1,9 @@
 {
-  "version": "0.1.63",
-  "tag": "app-v0.1.63",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.63",
+  "version": "0.1.64",
+  "tag": "app-v0.1.64",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.64",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.63\n\n- 发布日期：2026-11-03（北京时间）\n- 发布标签：`app-v0.1.63`\n- 对比基线：`app-v0.1.62`\n\n## 更新内容\n\n### 问题修复\n\n- fix(providers): 添加模型不再把 200k 占位值写成上下文窗口覆盖，编辑后的值才算用户配置\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.62...app-v0.1.63)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/8bcabb886a7a1c730b1dcfd6852a34d8e9ce9411)",
+  "notes": "## Pisper App 0.1.64\n\n- 发布日期：2026-11-03（北京时间）\n- 发布标签：`app-v0.1.64`\n- 对比基线：`app-v0.1.63`\n\n## 更新内容\n\n### 问题修复\n\n- fix(terminal): 进程退出后终端页回到“创建终端”，底部面板关闭已退出的标签\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.63...app-v0.1.64)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/55e8839393b44d07687ed0ca57a30fd6f008be4d)",
   "releaseDate": "2026-11-03"
 }
