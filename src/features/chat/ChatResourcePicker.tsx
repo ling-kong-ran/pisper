@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Braces, FileText, Search, Workflow, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { PluginsData } from '@/features/plugins/public'
 import { toolDescription, toolName } from '@/features/plugins/public'
@@ -241,15 +243,18 @@ export function ChatResourcePicker({
                 )}
               </TabsList>
             </Tabs>
-            <label className="chat-resource-search mt-2 flex items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted [&:focus-within]:border-focus [&:focus-within]:ring-3 [&:focus-within]:ring-focus-ring [&_input]:h-[34px] [&_input]:w-full [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-[13px] [&_input]:text-content max-[650px]:[&_input]:h-11 max-[650px]:[&_input]:text-base">
-              <Search size={15} />
-              <input
+            <InputGroup className="chat-resource-search mt-2">
+              <InputGroupAddon>
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
                 autoFocus
                 value={query}
+                aria-label={t('chat:resourcePicker.search')}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t('chat:resourcePicker.search')}
               />
-            </label>
+            </InputGroup>
             <div className="chat-resource-list mt-2 flex min-h-0 [flex:1_1_0] flex-col gap-px overflow-y-auto [overscroll-behavior:contain] [scrollbar-gutter:stable] [touch-action:pan-y] [&_>_button]:relative [&_>_button]:grid [&_>_button]:w-full [&_>_button]:cursor-pointer [&_>_button]:grid-cols-[28px_minmax(0,1fr)_auto] [&_>_button]:items-center [&_>_button]:gap-2 [&_>_button]:rounded-sm [&_>_button]:px-2 [&_>_button]:py-1.5 [&_>_button]:text-left [&_>_button]:text-content [&_>_button:hover]:bg-surface-hover [&_>_button.active]:bg-surface-hover [&_>_button.active]:before:absolute [&_>_button.active]:before:inset-y-1.5 [&_>_button.active]:before:left-0 [&_>_button.active]:before:w-[3px] [&_>_button.active]:before:rounded-full [&_>_button.active]:before:bg-star max-[650px]:[&_>_button]:min-h-11 [&_button_>_span:nth-child(2)]:flex [&_button_>_span:nth-child(2)]:min-w-0 [&_button_>_span:nth-child(2)]:flex-col [&_strong]:truncate [&_strong]:text-[13px] [&_strong]:font-medium [&_small]:truncate [&_small]:text-xs [&_small]:text-content-muted [&_em]:text-xs [&_em]:whitespace-nowrap [&_em]:text-content-muted [&_em]:not-italic [&_>_p]:m-auto [&_>_p]:text-xs [&_>_p]:text-content-muted">
               {visible.map((resource) => {
                 const Icon =
@@ -307,7 +312,7 @@ export function ChatResourcePicker({
                   <p>{selected.description || t('chat:resourcePicker.noDescription')}</p>
                 </div>
                 {selected.kind === 'workflow' && selected.inputs.length > 0 && (
-                  <div className="chat-resource-inputs flex flex-col gap-3 [&_input[type='checkbox']]:size-4 [&_input[type='checkbox']]:[accent-color:var(--star)] [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
+                  <div className="chat-resource-inputs flex flex-col gap-3 [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
                     {selected.inputs.map((input) => (
                       <label key={input.id}>
                         <span>
@@ -315,13 +320,12 @@ export function ChatResourcePicker({
                           {input.required ? ' *' : ''}
                         </span>
                         {input.type === 'boolean' ? (
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={Boolean(argumentsValue[input.name])}
-                            onChange={(event) =>
+                            onCheckedChange={(checked) =>
                               setArgumentsValue((current) => ({
                                 ...current,
-                                [input.name]: event.target.checked,
+                                [input.name]: checked === true,
                               }))
                             }
                           />

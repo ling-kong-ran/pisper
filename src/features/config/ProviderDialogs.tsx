@@ -15,6 +15,7 @@ import { SettingsSwitch } from './settings-primitives'
 import type { FormEvent } from 'react'
 import type { ConfigData, ProviderConfig, ProviderType } from './config-types'
 
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 
@@ -269,7 +270,7 @@ export function ProviderConfigModal({
         <div className="form-grid grid gap-3 sm:grid-cols-2">
           <FieldLabel variant="control">
             {t('config:configPage.displayName')}
-            <input
+            <Input
               value={draft.name}
               onChange={(event) => updateName(event.target.value)}
               placeholder={t('config:configPage.forExampleOpenAIOfficial')}
@@ -277,7 +278,7 @@ export function ProviderConfigModal({
           </FieldLabel>
           <FieldLabel variant="control">
             Provider ID
-            <input
+            <Input
               value={draft.id}
               disabled={editing}
               onChange={(event) => setDraft({ ...draft, id: event.target.value })}
@@ -320,7 +321,7 @@ export function ProviderConfigModal({
             </FieldLabel>
             <FieldLabel variant="control">
               Base URL
-              <input
+              <Input
                 value={draft.baseUrl}
                 onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
                 placeholder="https://api.openai.com/v1"
@@ -331,7 +332,7 @@ export function ProviderConfigModal({
                 {editing
                   ? t('config:configPage.providerDefaultModel')
                   : t('config:configPage.initialModelID')}
-                <input
+                <Input
                   value={draft.model}
                   onChange={(event) => setDraft({ ...draft, model: event.target.value })}
                   placeholder={
@@ -343,7 +344,7 @@ export function ProviderConfigModal({
               </FieldLabel>
               <FieldLabel variant="control">
                 {t('config:configPage.modelName')}
-                <input
+                <Input
                   value={draft.modelName}
                   onChange={(event) => setDraft({ ...draft, modelName: event.target.value })}
                   placeholder={t('config:configPage.leaveBlankToUseTheModelID')}

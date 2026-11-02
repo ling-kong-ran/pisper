@@ -74,6 +74,9 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 - `src/components/ui/` 里的组件可以修改，但只改 token、默认尺寸和变体，不加业务语义。外观要变就改这里的默认值，让全站一起变；调用方只给宽度和布局，不逐处覆盖高度、内边距、圆角或弹出位置。
 - 下拉框只用下面几种：纯文字选项用 `AppSelect`；选项带图标、色块等内容时直接组合 `ui/select`；芯片触发的单选或命令菜单用 `DropdownMenu`；可搜索的长列表用 `Popover` + `Command`。不得使用原生 `<select>`（`AppSelect` 的触屏降级除外），不得用透明叠层伪装下拉框。
 - 滑条只用 `ui/slider`；分档滑条加 `showSteps`，或用 `src/components/app/LevelSlider.tsx`。
+- 文本、数字、时间、密码字段用 `ui/input` / `ui/textarea`，带图标或内嵌按钮的字段用 `InputGroup`；复选用 `ui/checkbox`，设置类开关用 `ui/switch`。原生 `<input>` 只留给文件选择、视觉隐藏的单选和取色器。
+- 切换视图面板用 `Tabs`，互斥选项用 `SegmentedControl`；两者外观相同，不再各自覆盖成铺满整行或别的样子。
+- 面板、检查器、对话框里的空状态用 `InlineEmptyState compact`；整页空状态用 `PageState`。
 - 控件尺寸按规格 v2：按钮、输入框、下拉框 32px（小号 28），窄屏与触屏 44px。
 - 同一个控件在多个页面出现时（例如输入框的模型芯片）必须复用同一组件，经 Feature 公共接口导出，不得复制一份再改样式。
 - 新界面和改到的旧界面都按现行样式（规格 v2 与 `docs/design/built/` 截图）；改动涉及的旧面板顺手迁到现行组件。

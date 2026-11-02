@@ -105,7 +105,8 @@ function FieldLabel({
         variant === 'default' &&
           'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-star-border has-data-checked:bg-star-soft has-[>[data-slot=field]]:rounded-md has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
         variant === 'control' &&
-          'mt-2.5 flex w-full min-w-0 flex-col items-stretch gap-1.5 text-xs font-medium text-content-secondary [&_input]:h-8.5 [&_input]:w-full [&_input]:rounded-sm [&_input]:border [&_input]:border-input [&_input]:bg-panel [&_input]:px-2.5 [&_input]:text-sm [&_input]:font-normal [&_input]:text-foreground [&_textarea]:min-h-[66px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:rounded-sm [&_textarea]:border [&_textarea]:border-input [&_textarea]:bg-panel [&_textarea]:px-2.5 [&_textarea]:py-2 [&_textarea]:text-sm [&_textarea]:leading-[1.45] [&_textarea]:font-normal [&_textarea]:text-foreground',
+          // control 变体只排版标签与字段；字段本身用 ui/input、ui/textarea，不再在这里给原生控件补一套旧样式。
+          'mt-2.5 flex w-full min-w-0 flex-col items-stretch gap-1.5 text-xs font-medium text-content-secondary [&_[data-slot=input]]:font-normal [&_[data-slot=textarea]]:font-normal',
         className,
       )}
       {...props}

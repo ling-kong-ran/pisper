@@ -16,6 +16,7 @@ import { useI18n } from '@/app/use-i18n'
 import { normalizeHexColor } from '@/lib/custom-accent'
 import { cn } from '@/lib/utils'
 import { SettingsRow, SettingsSection } from '@/components/app/SettingsRow'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupOption } from '@/components/ui/radio-group'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -278,17 +279,14 @@ function AccentColorPicker({
           onValueChange={([hue]) => changeColor({ ...hsv, hue })}
           onValueCommit={() => commit()}
         />
-        <input
+        <Input
           type="text"
           value={draft}
           spellCheck={false}
           aria-label={t('config:interfaceSettings.customAccentHex')}
           aria-invalid={invalid}
           aria-describedby={hintId}
-          className={cn(
-            'h-8 w-34 rounded-sm border border-input bg-panel px-2 font-mono text-xs outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring',
-            invalid && 'border-destructive',
-          )}
+          className="w-34 font-mono text-xs"
           onChange={(event) => {
             changeDraft(event.target.value)
             const hex = normalizeHexColor(event.target.value)

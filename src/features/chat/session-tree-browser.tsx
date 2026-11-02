@@ -4,6 +4,8 @@ import { Fragment, useEffect, useRef, type RefObject } from 'react'
 import { GitFork, Search, Tag } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { SessionTreeNode, SessionTreeLabelMatch } from '@/features/chat/chat-api'
@@ -82,7 +84,7 @@ export function SessionTreeBrowser({
   return (
     <div className="chat-resource-browser flex min-h-0 min-w-0 flex-col bg-transparent session-tree-browser">
       <Tabs
-        className="chat-resource-tabs session-tree-tabs w-full px-3 pt-3 [&_[data-slot='tabs-list']]:grid [&_[data-slot='tabs-list']]:w-full [&_[data-slot='tabs-list']]:grid-cols-3 [&_[data-slot='tabs-trigger']]:min-w-0"
+        className="chat-resource-tabs session-tree-tabs px-3 pt-3"
         value={view}
         onValueChange={(value) => onViewChange(value as TreeView)}
       >
@@ -92,21 +94,23 @@ export function SessionTreeBrowser({
           <TabsTrigger value="marks">{t('chat:sessionTree.allMarks')}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <label className="chat-resource-search mx-3 mt-2 flex h-8 flex-none items-center gap-2 rounded-sm border border-control bg-panel px-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring [&_input]:h-full [&_input]:w-full [&_input]:border-0 [&_input]:[outline:0]! [&_input]:bg-transparent [&_input]:text-sm [&_input]:text-content">
-        <Search size={15} />
-        <input
+      <InputGroup className="chat-resource-search mx-3 mt-2 w-auto flex-none">
+        <InputGroupAddon>
+          <Search aria-hidden="true" />
+        </InputGroupAddon>
+        <InputGroupInput
           value={query}
           disabled={Boolean(openingMark)}
+          aria-label={t('chat:sessionTree.searchPlaceholder')}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder={t('chat:sessionTree.searchPlaceholder')}
         />
-      </label>
+      </InputGroup>
       {view === 'branches' && (
-        <label className="mx-3 mt-2 flex min-h-6 flex-none items-center gap-2 text-xs text-content-secondary max-[650px]:min-h-11 [&_input]:size-4 [&_input]:[accent-color:var(--star)]">
-          <input
-            type="checkbox"
+        <label className="mx-3 mt-2 flex min-h-6 flex-none cursor-pointer items-center gap-2 text-xs text-content-secondary max-[650px]:min-h-11">
+          <Checkbox
             checked={showAllEntries}
-            onChange={(event) => onShowAllEntriesChange(event.target.checked)}
+            onCheckedChange={(checked) => onShowAllEntriesChange(checked === true)}
             data-session-tree-all-entries
           />
           {t('chat:sessionTree.showAllEntries')}

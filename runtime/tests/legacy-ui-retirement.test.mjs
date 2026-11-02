@@ -167,3 +167,45 @@ test('new task and session composer share one model chip', async () => {
   ])
   for (const source of [launch, session]) assert.match(source, /<ModelThinkingControl\b/)
 })
+
+test('form fields and checkboxes use the shadcn controls', async () => {
+  // 原生 input 只留给 ui 组件里没有对应物的场合：文件选择、视觉隐藏的单选、取色器、
+  // 以及功能页模板的页级搜索框（A6 设计，36px）。文本、数字、时间、密码一律 ui/input，
+  // 复选框用 ui/checkbox 或 ui/switch。
+  const files = [
+    ...(await sourceFiles('src/features')),
+    ...(await sourceFiles('src/components/app')),
+  ]
+  const allowedTypes = /type=["'](?:file|radio|color)["']/
+  const offenders = []
+  for (const file of files) {
+    const source = await readFile(file, 'utf8')
+    for (const match of source.matchAll(/<input\b([\s\S]*?)\/>/g)) {
+      if (allowedTypes.test(match[1])) continue
+      if (
+        file.endsWith(path.join('components', 'app', 'FeaturePage.tsx')) &&
+        /type="search"/.test(match[1])
+      )
+        continue
+      offenders.push(`${file}: <input${match[1].replace(/\s+/g, ' ').slice(0, 60)}`)
+    }
+  }
+  assert.deepEqual(offenders, [])
+  const field = await readFile('src/components/ui/field.tsx', 'utf8')
+  // FieldLabel 不再给原生 input/textarea 补一套旧样式（34px、无聚焦光环）。
+  assert.doesNotMatch(field, /\[&_input\]:h-8\.5/)
+  assert.doesNotMatch(field, /\[&_textarea\]:/)
+})
+
+test('tabs and segmented controls share one look', async () => {
+  const [tabs, segmented] = await Promise.all([
+    readFile('src/components/ui/tabs.tsx', 'utf8'),
+    readFile('src/components/ui/segmented-control.tsx', 'utf8'),
+  ])
+  for (const source of [tabs, segmented]) {
+    assert.match(source, /bg-surface-muted/)
+    assert.match(source, /shadow-\[inset_0_0_0_1px_var\(--stroke\)\]/)
+    assert.match(source, /data-(?:active|\[state=on\]):bg-solid|data-active:bg-solid/)
+  }
+  assert.doesNotMatch(tabs, /h-8\.5/)
+})

@@ -1,5 +1,6 @@
 // 单凭据输入直接由表单持有，留空编辑时不覆盖已保存的凭据。
 import { useI18n } from '@/app/use-i18n'
+import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/ui/field'
 
 type ApiKeyInputProps = {
@@ -19,7 +20,7 @@ export function ApiKeyInput({
   return (
     <FieldLabel variant="control">
       {t('config:configPage.apiKey')}
-      <input
+      <Input
         type="password"
         autoComplete="new-password"
         value={value}

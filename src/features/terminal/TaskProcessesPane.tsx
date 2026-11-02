@@ -3,6 +3,7 @@ import { ChevronRight, Square, TerminalSquare } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PageState } from '@/components/app/PageState'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { useTerminalService, useTerminals } from './terminal-context'
@@ -38,13 +39,8 @@ function ProcessLog({
   }, [record.output, follow])
   return (
     <div className="border-t border-stroke-soft bg-code px-3 py-2.5">
-      <label className="mb-2 flex min-h-6 items-center gap-2 text-xs text-content-muted pointer-coarse:min-h-11">
-        <input
-          type="checkbox"
-          className="size-3.5 accent-star"
-          checked={follow}
-          onChange={(event) => onFollow(event.target.checked)}
-        />
+      <label className="mb-2 flex min-h-6 cursor-pointer items-center gap-2 text-xs text-content-muted pointer-coarse:min-h-11">
+        <Checkbox checked={follow} onCheckedChange={(checked) => onFollow(checked === true)} />
         {t('terminal:workspace.follow')}
       </label>
       {record.truncated && (

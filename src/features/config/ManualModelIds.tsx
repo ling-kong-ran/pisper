@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { FieldLabel } from '@/components/ui/field'
 
@@ -35,7 +36,7 @@ export function ManualModelIds({
       <FieldLabel variant="control">
         {t('config:configPage.manualModelIds')}
         <div className="flex items-stretch gap-1.5">
-          <input
+          <Input
             aria-label={t('config:configPage.manualModelIds')}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}

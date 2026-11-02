@@ -21,14 +21,15 @@ function Tabs({
   )
 }
 
-// 分段控件：凹陷轨道（外壳底色 + 1px 描边），选中段是凸起键帽，暗色下同样有足够亮度差；
+// 页签（default 变体）与分段控件（ui/segmented-control）外观完全一致：凹陷轨道 + 选中段实心底与细描边，
+// 高 32（触屏 44）；两者只在语义上不同——页签切换视图面板，分段控件是一组互斥选项。
 // line 变体用强调色细线标记当前项。
 const tabsListVariants = cva(
-  'group/tabs-list inline-flex w-fit items-center justify-center rounded-md p-[3px] text-content-secondary group-data-horizontal/tabs:h-8.5 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none',
+  'group/tabs-list inline-flex w-fit max-w-full items-center justify-center gap-0.5 rounded-md p-0.5 text-content-secondary group-data-horizontal/tabs:h-8 pointer-coarse:group-data-horizontal/tabs:h-11 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none',
   {
     variants: {
       variant: {
-        default: 'border border-stroke bg-chrome',
+        default: 'bg-surface-muted shadow-[inset_0_0_0_1px_var(--stroke)]',
         line: 'gap-1 bg-transparent',
       },
     },
@@ -58,8 +59,8 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-sm border border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-colors group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        'data-active:font-medium data-active:text-foreground group-data-[variant=default]/tabs-list:data-active:border-key-border group-data-[variant=default]/tabs-list:data-active:bg-key group-data-[variant=default]/tabs-list:data-active:shadow-key',
+        "relative inline-flex h-full flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-0.5 text-sm whitespace-nowrap transition-colors group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        'data-active:font-medium data-active:text-foreground group-data-[variant=default]/tabs-list:data-active:bg-solid group-data-[variant=default]/tabs-list:data-active:shadow-[inset_0_0_0_1px_var(--stroke-strong),var(--sh-1)]',
         'after:absolute after:bg-star after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100',
         className,
       )}

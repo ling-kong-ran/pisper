@@ -16,6 +16,7 @@ import { chatApi, type GitChangesResponse } from './chat-api'
 import { AnchoredPopupMenu } from './AnchoredPopupMenu'
 import { GitDiffDialog } from './GitDiffViewer'
 
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_COMMIT_MESSAGE = 'Agent changes'
@@ -227,8 +228,9 @@ export function GitChangesControl({
             )}
 
             {hasChanges && (
-              <div className="git-changes-commit-row [&_input]:w-full [&_input]:min-w-0 [&_input]:[border:1px_solid_var(--stroke)] [&_input]:rounded-[var(--r-sm)] [&_input]:bg-[var(--surface-muted)] [&_input]:p-[5px_7px] [&_input]:text-inherit [&_input]:text-[12px] [&_input:focus]:border-[var(--focus)] [&_input:focus]:[outline:none] grid grid-cols-[minmax(0,1fr)_auto] gap-[6px] [margin:4px_7px]">
-                <input
+              <div className="git-changes-commit-row grid grid-cols-[minmax(0,1fr)_auto] gap-[6px] [margin:4px_7px]">
+                <Input
+                  className="text-xs"
                   value={commitMessage}
                   placeholder={t('chat:focusSession.gitCommitMessagePlaceholder')}
                   onChange={(event) => setCommitMessage(event.target.value)}

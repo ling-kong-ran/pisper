@@ -40,6 +40,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
@@ -330,7 +333,7 @@ function ScheduleTargetFields({
       {targetType === 'prompt' ? (
         <FieldLabel variant="control">
           Prompt
-          <textarea
+          <Textarea
             value={prompt}
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder={t('schedules:schedulesPage.describeTheWorkTheAgentShouldCompleteEachTime')}
@@ -384,20 +387,19 @@ function ScheduleTargetFields({
                     {input.label}
                     {input.required ? ' *' : ''}
                     {input.type === 'boolean' ? (
-                      <input
-                        type="checkbox"
+                      <Switch
                         checked={Boolean(workflowInputs[input.name])}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           onChange({
                             workflowInputs: {
                               ...workflowInputs,
-                              [input.name]: event.target.checked,
+                              [input.name]: checked,
                             },
                           })
                         }
                       />
                     ) : (
-                      <input
+                      <Input
                         type={input.type === 'number' ? 'number' : 'text'}
                         required={input.required}
                         value={String(workflowInputs[input.name] ?? '')}
@@ -448,7 +450,7 @@ function ScheduleWorkspaceField({ value, onChange }: ScheduleWorkspaceFieldProps
       <FieldLabel variant="control">
         {t('schedules:schedulesPage.workingDirectory')}
         <span className="schedule-workspace-input grid grid-cols-[minmax(0,1fr)_auto] gap-1.5 [&_input]:min-w-0 [&_input]:font-mono">
-          <input
+          <Input
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={t('schedules:schedulesPage.enterTheProjectSAbsolutePath')}
@@ -996,7 +998,7 @@ function ScheduleTaskEditor({
               <FieldLabel variant="control">
                 {t('schedules:schedulesPage.runInterval')}
                 <span className={INTERVAL_INPUT}>
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={draft.intervalValue}
@@ -1019,7 +1021,7 @@ function ScheduleTaskEditor({
             ) : (
               <FieldLabel variant="control">
                 {t('schedules:schedulesPage.time')}
-                <input
+                <Input
                   type="time"
                   className="tabular-nums"
                   value={draft.time}
@@ -1284,7 +1286,7 @@ function CreateSchedulePanel({
       </AppCardHeader>
       <FieldLabel variant="control">
         {t('schedules:schedulesPage.taskName')}
-        <input
+        <Input
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}
@@ -1322,7 +1324,7 @@ function CreateSchedulePanel({
           <FieldLabel variant="control">
             {t('schedules:schedulesPage.runInterval')}
             <span className={INTERVAL_INPUT}>
-              <input
+              <Input
                 type="number"
                 min="1"
                 value={intervalValue}
@@ -1343,7 +1345,7 @@ function CreateSchedulePanel({
         ) : (
           <FieldLabel variant="control">
             {t('schedules:schedulesPage.time')}
-            <input
+            <Input
               type="time"
               className="tabular-nums"
               value={time}
@@ -1458,7 +1460,7 @@ function CreateScheduleModal({
           </DialogHeader>
           <FieldLabel variant="control">
             {t('schedules:schedulesPage.taskName')}
-            <input
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t('schedules:schedulesPage.forExampleDailyCodeReview')}

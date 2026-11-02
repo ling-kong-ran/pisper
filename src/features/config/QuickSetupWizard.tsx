@@ -19,6 +19,7 @@ import type {
   ProviderType,
 } from './config-types'
 
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -357,7 +358,7 @@ export function QuickSetupWizard({
           <div className="[margin-top:14px]">
             <FieldLabel variant="control">
               Base URL
-              <input
+              <Input
                 ref={baseUrlInputRef}
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
@@ -385,7 +386,7 @@ export function QuickSetupWizard({
             </FieldLabel>
             <FieldLabel variant="control">
               Organization
-              <input
+              <Input
                 value={organization}
                 onChange={(event) => setOrganization(event.target.value)}
                 placeholder={t('config:configPage.optionalUsedOnlyForOpenAIOrganization')}
@@ -399,7 +400,7 @@ export function QuickSetupWizard({
             {!provider && (
               <FieldLabel variant="control">
                 {t('config:configPage.displayName')}
-                <input
+                <Input
                   value={connectionName}
                   onChange={(event) => setConnectionName(event.target.value)}
                   placeholder={identity.name}
@@ -479,7 +480,7 @@ export function QuickSetupWizard({
             <div className="mt-3.5 grid gap-2">
               <FieldLabel variant="control">
                 {t('config:configPage.manualModelId')}
-                <input
+                <Input
                   value={modelId}
                   onChange={(event) => setModelId(event.target.value)}
                   placeholder={providerType === 'visual' ? 'gpt-image-1' : 'gpt-5.4'}

@@ -20,6 +20,7 @@ import {
   FeatureToolbar,
 } from '@/components/app/FeaturePage'
 import { InlineEmptyState, PageState } from '@/components/app/PageState'
+import { Textarea } from '@/components/ui/textarea'
 import { AppCardHeader, AppError, SegmentedTabs as Segmented } from '@/components/ui/app-primitives'
 import { Button } from '@/components/ui/button'
 import { FieldLabel } from '@/components/ui/field'
@@ -1063,7 +1064,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
         </FieldLabel>
         <FieldLabel variant="control">
           {t('memory:memoryPage.memoryTitle')}
-          <input
+          <Input
             value={draft.title}
             onChange={(event) => setDraft({ ...draft, title: event.target.value })}
             placeholder={t('memory:memoryPage.forExampleProjectUIConstraints')}
@@ -1071,7 +1072,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
         </FieldLabel>
         <FieldLabel variant="control">
           {t('memory:memoryPage.memoryContent')}
-          <textarea
+          <Textarea
             value={draft.content}
             onChange={(event) => setDraft({ ...draft, content: event.target.value })}
             placeholder={t('memory:memoryPage.recordStandaloneReusableMemoryForFutureChats')}
@@ -1106,7 +1107,7 @@ function MemoryNodeModal({ spaces, node, initialSpaceId, onClose, onSaved }: Mem
         </div>
         <FieldLabel variant="control">
           {t('memory:memoryPage.relatedFilePath')}
-          <input
+          <Input
             value={draft.sourcePath}
             onChange={(event) => setDraft({ ...draft, sourcePath: event.target.value })}
             placeholder={t('memory:memoryPage.optionalForExampleECodeProjectREADMEMd')}
@@ -1202,7 +1203,7 @@ function MemorySpaceModal({ space, onClose, onSaved }: MemorySpaceModalProps) {
         </AppCardHeader>
         <FieldLabel variant="control">
           {t('memory:memoryPage.memorySpaceName')}
-          <input
+          <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={t('memory:memoryPage.forExampleProductDesignGuidelines')}

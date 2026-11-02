@@ -29,6 +29,7 @@ import {
   Unplug,
   X,
 } from 'lucide-react'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { AppSwitch as Toggle, AppCardHeader, AppNotice } from '@/components/ui/app-primitives'
 import { AppSelect } from '@/components/AppSelect'
 import { useI18n } from '@/app/use-i18n'
@@ -946,29 +947,33 @@ function ChannelPlatformDetail({
             <span className={FORM_LABEL}>
               {t('channels:channelsPage.defaultWorkingDirectoryForNewChats')}
             </span>
-            <span className="channel-setting-input grid h-[34px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-sm border border-control bg-panel py-0.5 pr-0.5 pl-2.5 text-content-muted focus-within:border-focus focus-within:ring-3 focus-within:ring-focus-ring max-[650px]:h-11">
-              <FolderOpen className="size-3.5" />
-              <input
-                className="min-w-0 border-0 bg-transparent font-mono text-xs text-content outline-none"
+            <InputGroup className="channel-setting-input max-[650px]:h-11">
+              <InputGroupAddon>
+                <FolderOpen aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
+                className="font-mono text-xs"
                 value={cwd}
                 onChange={(event) => onCwdChange(event.target.value)}
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                className="max-[650px]:h-9"
-                disabled={saving || cwd === connection.defaultCwd}
-                onClick={() =>
-                  onUpdate(
-                    platform,
-                    { defaultCwd: cwd },
-                    t('channels:channelsPage.defaultWorkingDirectorySaved'),
-                  )
-                }
-              >
-                {t('channels:channelsPage.save')}
-              </Button>
-            </span>
+              <InputGroupAddon align="inline-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="max-[650px]:h-9"
+                  disabled={saving || cwd === connection.defaultCwd}
+                  onClick={() =>
+                    onUpdate(
+                      platform,
+                      { defaultCwd: cwd },
+                      t('channels:channelsPage.defaultWorkingDirectorySaved'),
+                    )
+                  }
+                >
+                  {t('channels:channelsPage.save')}
+                </Button>
+              </InputGroupAddon>
+            </InputGroup>
           </label>
           <AppNotice className={cn('mt-1', NOTICE)}>
             <ShieldCheck size={15} />

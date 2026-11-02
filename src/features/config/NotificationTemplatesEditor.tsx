@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { AppError } from '@/components/ui/app-primitives'
 import { NOTIFICATION_PLATFORMS } from '@/types/notifications'
@@ -144,11 +145,11 @@ export function NotificationTemplatesEditor({
       <p className="text-xs text-content-muted">{selected.description}</p>
       <label className="grid gap-1.5 text-sm font-medium text-content">
         {t('config:notificationSettings.messageContent')}
-        <textarea
+        <Textarea
           aria-label={t('config:notificationSettings.messageContent')}
           value={draft.content}
           onChange={(event) => settings.editDraft(selected.id, platform, event.target.value)}
-          className="min-h-36 w-full rounded-sm border border-input bg-panel p-3 font-mono text-[12.5px] leading-[1.65] font-normal caret-focus outline-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring"
+          className="min-h-36 p-3 font-mono text-[12.5px] leading-[1.65] font-normal"
         />
       </label>
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-content-muted">

@@ -179,7 +179,9 @@ test('chat resource picker remains visible above dock splits with a readable pri
 
   assert.match(picker, /className="chat-resource-dialog[^"\n]*z-\[220\]/)
   assert.match(picker, /chat-resource-dialog[^"\n]*sm:max-w-\[820px\]/)
-  assert.match(picker, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
+  // 搜索框是 shadcn InputGroup（图标 + 输入框），不再手写外框与隐藏内层描边。
+  assert.match(picker, /<InputGroup className="chat-resource-search/)
+  assert.match(picker, /<InputGroupInput\b/)
   assert.match(picker, /overlayClassName="z-\[220\]"/)
   assert.match(picker, /className="chat-resource-confirm[^"\n]*text-\[var\(--on-accent\)\]/)
   assert.match(picker, /apiJson<PluginsData>\(`\/api\/plugins\?sessionId=/)
@@ -392,7 +394,8 @@ test('session labels are searchable from Ctrl K and resolve through virtualized 
   assert.match(treeDialog, /node\.branchPoint/)
   assert.match(treeNodes, /session-tree-children/)
   assert.match(treeBrowser, /sessionTree\.searchPlaceholder/)
-  assert.match(treeBrowser, /chat-resource-search[^"\n]*\[&_input\]:\[outline:0\]!/)
+  assert.match(treeBrowser, /<InputGroup className="chat-resource-search/)
+  assert.match(treeBrowser, /<Checkbox\b[\s\S]*data-session-tree-all-entries/)
   assert.match(treeDialog, /showCloseButton=\{false\}/)
   assert.match(treeDialog, /aria-label=\{t\('common:ui\.closeDialog'\)\}/)
   assert.match(treeDialog, /onClick=\{onClose\}/)

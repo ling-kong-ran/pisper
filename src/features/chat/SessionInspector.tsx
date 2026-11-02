@@ -268,9 +268,10 @@ export function SessionInspector({
     )
   } else if (tab === 'terminal') {
     body = !terminalAvailable ? (
+      // 检查器各页的空状态一律用紧凑样式（不画虚线卡片），与改动、来源、计划页一致。
       <InlineEmptyState
+        compact
         icon={TerminalSquare}
-        className="m-4"
         title={t('board:inspector.terminalUnavailable')}
       />
     ) : (

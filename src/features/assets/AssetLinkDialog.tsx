@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -76,7 +77,7 @@ export function AssetLinkDialog({
           <DialogBody className="flex flex-col gap-4">
             <FieldLabel variant="control">
               {t('assets:assetsPage.name')}
-              <input
+              <Input
                 value={name}
                 disabled={saving}
                 onChange={(event) => setName(event.target.value)}
@@ -85,7 +86,7 @@ export function AssetLinkDialog({
             </FieldLabel>
             <FieldLabel variant="control">
               URL
-              <input
+              <Input
                 className="font-mono"
                 value={url}
                 disabled={saving}

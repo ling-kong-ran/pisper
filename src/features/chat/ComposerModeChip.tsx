@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { PopoverSheet } from '@/components/app/PopoverSheet'
@@ -289,7 +290,7 @@ export function ComposerModeChip({
                 >
                   {budgetLabel}
                 </label>
-                <input
+                <Input
                   id="goal-token-budget-input"
                   type="number"
                   min={MIN_GOAL_TOKEN_BUDGET}
@@ -298,7 +299,7 @@ export function ComposerModeChip({
                   placeholder={t('chat:focusSession.goalTokenBudgetUnlimited')}
                   aria-label={budgetLabel}
                   disabled={savingBudget}
-                  className="h-8 w-full min-w-0 rounded-sm border border-control bg-panel px-2 text-[13px] text-inherit tabular-nums focus:border-focus focus:ring-3 focus:ring-focus-ring focus:outline-none"
+                  className="text-[13px] tabular-nums"
                   onChange={(event) => {
                     const raw = event.target.value.trim()
                     if (!raw) {

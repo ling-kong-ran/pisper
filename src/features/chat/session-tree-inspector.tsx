@@ -4,6 +4,7 @@ import { ChevronLeft, GitBranch, MessageSquare, MessageSquarePlus, Tag, Trash2 }
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import type { SessionSummary } from '@/types/chat'
 import type { SessionTreeNode } from '@/features/chat/chat-api'
 import type { DisplayNode } from '@/features/chat/session-tree-model'
@@ -124,7 +125,7 @@ export function SessionTreeInspector({
             <strong>{selected.label || typeLabel(selected)}</strong>
             <p>{selected.text || t('chat:sessionTree.noPreview')}</p>
           </div>
-          <div className="chat-resource-inputs flex flex-col gap-3 [&_input[type='checkbox']]:size-4 [&_input[type='checkbox']]:[accent-color:var(--star)] [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
+          <div className="chat-resource-inputs flex flex-col gap-3 [&_label]:grid [&_label]:gap-1.5 [&_label]:text-xs [&_label]:font-medium [&_label]:text-content-secondary">
             {canLabel && (
               <>
                 <label>
@@ -171,13 +172,14 @@ export function SessionTreeInspector({
               </Button>
             )}
             {canDerive && (
-              <label className="session-tree-summary-option grid-cols-[minmax(0,1fr)_auto] items-center [&_small]:col-span-full [&_small]:leading-relaxed [&_small]:font-normal [&_small]:text-content-muted">
+              <label className="session-tree-summary-option cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center [&_small]:col-span-full [&_small]:leading-relaxed [&_small]:font-normal [&_small]:text-content-muted">
                 <span>{t('chat:sessionTree.abandonedBranchSummary')}</span>
-                <input
-                  type="checkbox"
+                {/* 开关与设置页的开关行一致：标题在左、开关在右、说明在下。 */}
+                <Switch
                   checked={summarize}
                   disabled={selected.leaf || streaming || dataStreaming}
-                  onChange={(event) => onSummarizeChange(event.target.checked)}
+                  onCheckedChange={onSummarizeChange}
+                  data-session-tree-summary
                 />
                 <small>{t('chat:sessionTree.abandonedBranchSummaryHint')}</small>
               </label>
@@ -199,7 +201,7 @@ export function SessionTreeInspector({
           )}
           {canDerive && (
             <Button
-              className="chat-resource-confirm min-h-8 min-w-[112px] self-start bg-star text-[var(--on-accent)] hover:bg-star-hover max-[650px]:min-h-11"
+              className="chat-resource-confirm self-start"
               disabled={navigating || selected.leaf || streaming || dataStreaming}
               onClick={onNavigate}
             >
