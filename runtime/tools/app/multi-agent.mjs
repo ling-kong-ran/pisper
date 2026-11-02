@@ -2,6 +2,7 @@
 // 是父会话调度子 Agent 的接口（内部运行时工具，不进插件目录）。
 import { DEFAULT_MAX_BYTES, defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { agentProfileSummary } from '../../services/agent-profiles.mjs'
 const category = 'collaboration'
 const source = 'app'
 
@@ -138,12 +139,32 @@ function agentDetails(agent) {
   return details
 }
 
-function createSpawnAgentTool({ multiAgentRuntime }) {
+// 定义列表在会话创建时写进工具说明（父模型据此挑选）；之后新增的定义按名字调用仍然有效。
+function agentDefinitionsText(agentProfiles) {
+  if (!agentProfiles.length) return ''
+  return `\n\nAgent definitions available in this workspace (pass the name as agent):\n${agentProfiles
+    .map(agentProfileSummary)
+    .join('\n')}`
+}
+
+function spawnResultText(agent) {
+  const action = agent.status === 'queued' ? 'Queued' : 'Started'
+  const definition = agent.agentProfile
+    ? ` as ${agent.agentProfile} on ${agent.model || 'the parent model'}`
+    : ''
+  const fallback = agent.modelFallbackReasons?.length
+    ? ` The definition's model was unavailable (${agent.modelFallbackReasons.join(', ')}), so it ${
+        agent.modelSource === 'tier' ? 'uses its tier model' : 'inherits the parent model'
+      }.`
+    : ''
+  return `${action} ${agent.canonicalName}${definition} in the background.${fallback}`
+}
+
+function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
   return defineTool({
     name: 'spawn_agent',
     label: 'Spawn Agent',
-    description:
-      'Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.',
+    description: `Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.${agentDefinitionsText(agentProfiles)}`,
     promptSnippet:
       'Proactively delegate concrete independent work to an asynchronous background Agent',
     promptGuidelines: [
@@ -154,6 +175,7 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
       'Keep the immediate critical-path step in the parent session and continue useful work after delegating it.',
       'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
       'Agents inherit the current model, current reasoning level, tools, permission mode, and workspace boundary. They cannot recursively spawn more Agents.',
+      'When an agent definition fits the task, pass its name as agent: the definition chooses the model (cheap fast models for simple lookups, stronger ones for hard work), reasoning level, a narrower tool set, and standing instructions. Permission mode and workspace boundary still come from this session.',
       'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
       'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
       'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable, update the UI, and are automatically delivered to the parent session.',
@@ -178,6 +200,13 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
             'Team role such as investigator, architect, implementer, tester, or reviewer.',
         }),
       ),
+      agent: Type.Optional(
+        Type.String({
+          maxLength: 48,
+          description:
+            'Name of an agent definition (.pisper/agents/*.md in the project, or the global agents folder). Omit to inherit this session.',
+        }),
+      ),
       files: Type.Optional(
         Type.Array(Type.String({ maxLength: 240 }), {
           maxItems: 96,
@@ -193,8 +222,7 @@ function createSpawnAgentTool({ multiAgentRuntime }) {
     }),
     async execute(_toolCallId, params) {
       const agent = await requireRuntime(multiAgentRuntime, 'spawn')(params)
-      const action = agent.status === 'queued' ? 'Queued' : 'Started'
-      return { ...text(`${action} ${agent.canonicalName} in the background.`), details: agent }
+      return { ...text(spawnResultText(agent)), details: agent }
     },
   })
 }
@@ -348,6 +376,7 @@ function createUpdateTeamTaskTool({ multiAgentRuntime }) {
       target: Type.String({ minLength: 1, description: 'Team task id or task name.' }),
       taskName: Type.Optional(Type.String({ maxLength: 48 })),
       role: Type.Optional(Type.String({ maxLength: 80 })),
+      agent: Type.Optional(Type.String({ maxLength: 48 })),
       message: Type.Optional(Type.String({ maxLength: 12_000 })),
       files: Type.Optional(Type.Array(Type.String({ maxLength: 240 }), { maxItems: 96 })),
       dependsOn: Type.Optional(Type.Array(Type.String({ maxLength: 48 }), { maxItems: 32 })),
@@ -370,7 +399,7 @@ function createRunTeamWorkflowTool({ multiAgentRuntime }) {
       'Use a workspace-relative .js file beginning with export const meta = { name, description }.',
       'The script may use agent(prompt, options), pipeline(items, worker), parallel(tasks), phase(title), log(message), and args; it must not import modules or access files directly.',
       'Begin with export const meta = { name, description }, then use top-level await and return the final serializable result.',
-      'Use agent results to branch, fan out, aggregate, verify, and converge; options may include label, role, files, dependsOn, and schema.',
+      'Use agent results to branch, fan out, aggregate, verify, and converge; options may include label, role, agent (an agent definition name), files, dependsOn, and schema.',
     ],
     parameters: Type.Object({
       path: Type.String({

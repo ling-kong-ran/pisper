@@ -9,6 +9,7 @@ import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
+import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -1218,6 +1219,23 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.withConfigurationWrite(() =>
       this.providerPreferences.setFallbackModels(input),
     )
+  }
+
+  async setSubagentModelTiers(input) {
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setSubagentModelTiers(input),
+    )
+  }
+
+  // 列出子代理定义及坏文件原因：不带会话或项目时只列全局定义（设置页）；
+  // 带上时再叠加该项目的定义（同名覆盖全局），目录校验与新建会话一致，不接受任意路径。
+  async listAgentProfiles({ sessionId = '', cwd = '' } = {}) {
+    const directory = sessionId
+      ? await this.sessionWorkspaceCwd(sessionId)
+      : cwd
+        ? await resolveWorkspaceDirectory(cwd, this.cwd)
+        : ''
+    return loadAgentProfiles({ agentDir: this.dataDir, cwd: directory })
   }
 
   async exportProviderConfig() {

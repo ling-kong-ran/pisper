@@ -168,11 +168,20 @@ function hasDependencyCycle(team, task, dependencies) {
   })
 }
 
+// 任务指定的子代理定义名；排队后由运行时按名字重新解析，定义被删掉时启动会明确报错。
+function normalizeAgentProfileName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 48)
+}
+
 function durableTask(task) {
   return {
     id: task.id,
     taskName: task.taskName,
     role: task.role,
+    agent: task.agent || '',
     message: task.message,
     files: [...task.files],
     dependsOn: [...task.dependsOn],
@@ -249,6 +258,7 @@ function normalizeTask(value) {
     role: String(value?.role || '')
       .trim()
       .slice(0, MAX_TEAM_ROLE_CHARS),
+    agent: normalizeAgentProfileName(value?.agent),
     message: String(value?.message || '')
       .trim()
       .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS),
@@ -802,6 +812,7 @@ export class TeamWorkflowService {
     {
       taskName,
       role,
+      agent = '',
       files = [],
       dependsOn = [],
       message = '',
@@ -849,6 +860,7 @@ export class TeamWorkflowService {
       role: String(role || '')
         .trim()
         .slice(0, MAX_TEAM_ROLE_CHARS),
+      agent: normalizeAgentProfileName(agent),
       message: String(message || '')
         .trim()
         .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS),
@@ -892,7 +904,7 @@ export class TeamWorkflowService {
   async updateTask(
     sessionId,
     taskId,
-    { taskName, role, files, dependsOn, message, workflowFingerprint, autoStart } = {},
+    { taskName, role, agent, files, dependsOn, message, workflowFingerprint, autoStart } = {},
   ) {
     const team = this.state.teams[String(sessionId || '')]
     const task = team?.tasks[String(taskId || '')]
@@ -945,6 +957,7 @@ export class TeamWorkflowService {
     task.role = String(role === undefined ? task.role : role || '')
       .trim()
       .slice(0, MAX_TEAM_ROLE_CHARS)
+    if (agent !== undefined) task.agent = normalizeAgentProfileName(agent)
     task.message = String(message === undefined ? task.message : message || '')
       .trim()
       .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS)

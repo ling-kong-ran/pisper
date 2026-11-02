@@ -15,6 +15,7 @@ import { ProviderDiscovery } from './ProviderDiscovery'
 import { providerDiscoveryImportableCount } from './provider-discovery-state'
 import { QuickSetupWizard } from './QuickSetupWizard'
 import { ModelDefaultsSettings } from './ModelDefaultsSettings'
+import { SubagentSettings } from './SubagentSettings'
 import { PermissionRulesSettings } from './PermissionRulesSettings'
 import { useProviderDiscovery, useProvidersConfig } from './useProvidersConfig'
 import { VisualGenerationSettings } from './VisualGenerationSettings'
@@ -137,6 +138,12 @@ export function ModelsSettings({
         busy={Boolean(settings.settingDefault || settings.toggling)}
         onConfigChanged={settings.applyConfig}
         onSetDefaultModel={settings.setDefaultChatModel}
+      />
+      <SubagentSettings
+        config={config}
+        notify={notify}
+        busy={Boolean(settings.settingDefault || settings.toggling)}
+        onConfigChanged={settings.applyConfig}
       />
       <PermissionRulesSettings notify={notify} />
       <ProviderWorkbench

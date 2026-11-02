@@ -9,6 +9,7 @@ import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 import { MAX_FALLBACK_MODELS, normalizeFallbackModels } from './model-fallback.mjs'
+import { SUBAGENT_MODEL_TIERS, normalizeSubagentModelTiers } from '../services/agent-profiles.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
 
@@ -1025,6 +1026,7 @@ export class ProviderPreferences {
       thinkingLevel: settings.defaultThinkingLevel || 'medium',
       toolMode: normalizeToolMode(appConfig.toolMode),
       fallbackModels: normalizeFallbackModels(appConfig.fallbackModels),
+      subagentModelTiers: normalizeSubagentModelTiers(appConfig.subagentModelTiers),
       providers,
       apiKeyConfigured: Boolean(credentials[selectedProvider]),
     }
@@ -1045,6 +1047,56 @@ export class ProviderPreferences {
     const appConfig = await readJson(this.appConfigPath, {})
     await writeJsonAtomic(this.appConfigPath, { ...appConfig, fallbackModels: models })
     return this.getConfig()
+  }
+
+  // 子代理模型档位：fast / standard / strong 各映射一个 "provider/modelId"，空值表示该档位跟随父会话。
+  async setSubagentModelTiers(input) {
+    const requested = input?.tiers
+    if (!requested || typeof requested !== 'object' || Array.isArray(requested))
+      throw new Error('子代理模型档位格式无效。')
+    const unknown = Object.keys(requested).filter((key) => !SUBAGENT_MODEL_TIERS.includes(key))
+    if (unknown.length) throw new Error(`未知的子代理模型档位：${unknown.join('、')}。`)
+    const tiers = normalizeSubagentModelTiers(requested)
+    for (const tier of SUBAGENT_MODEL_TIERS) {
+      if (requested[tier] && !tiers[tier]) throw new Error('子代理模型必须写成 provider/modelId。')
+      if (!tiers[tier]) continue
+      const slash = tiers[tier].indexOf('/')
+      await this.resolveSessionModel(tiers[tier].slice(0, slash), tiers[tier].slice(slash + 1))
+    }
+    const appConfig = await readJson(this.appConfigPath, {})
+    await writeJsonAtomic(this.appConfigPath, { ...appConfig, subagentModelTiers: tiers })
+    return this.getConfig()
+  }
+
+  // 按定义挑子代理模型：具体模型 → 档位映射 → 父会话模型（model 为 null）。
+  // 每一步用不了都记下原因代码，交给工具结果和界面说明为什么没用上定义里的模型。
+  async resolveSubagentModel({ modelRef = '', tier = '' } = {}) {
+    const appConfig = await readJson(this.appConfigPath, { disabledProviders: [] })
+    const disabled = new Set(appConfig.disabledProviders || [])
+    const modelRuntime = this.getModelRuntime()
+    const usable = (ref) => {
+      const slash = ref.indexOf('/')
+      const provider = ref.slice(0, slash)
+      if (disabled.has(provider)) return null
+      const model = modelRuntime.getModel(provider, ref.slice(slash + 1))
+      if (!model || inferModelKind(model.id, model.pisperKind) !== 'chat') return null
+      if (modelRuntime.hasConfiguredAuth && !modelRuntime.hasConfiguredAuth(model.provider))
+        return null
+      return model
+    }
+    const fallbackReasons = []
+    if (modelRef) {
+      const model = usable(modelRef)
+      if (model) return { model, source: 'definition', fallbackReasons }
+      fallbackReasons.push('model-unavailable')
+    }
+    if (tier) {
+      const ref = normalizeSubagentModelTiers(appConfig.subagentModelTiers)[tier]
+      const model = ref ? usable(ref) : null
+      if (model) return { model, source: 'tier', fallbackReasons }
+      fallbackReasons.push(ref ? 'tier-unavailable' : 'tier-unset')
+    }
+    return { model: null, source: 'parent', fallbackReasons }
   }
 
   // 运行时的备用候选：设置之后被停用、删除或改成非对话的模型直接跳过，不在运行中报错。

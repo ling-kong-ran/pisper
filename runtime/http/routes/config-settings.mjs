@@ -79,6 +79,26 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/config/subagent-model-tiers',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.setSubagentModelTiers(await body()))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/agent-profiles',
+    async handler({ runtime, url, json }) {
+      json(
+        200,
+        await runtime.listAgentProfiles({
+          sessionId: url.searchParams.get('sessionId') || '',
+          cwd: url.searchParams.get('cwd') || '',
+        }),
+      )
+    },
+  },
+  {
     method: 'GET',
     path: '/api/providers/export',
     async handler({ runtime, json }) {

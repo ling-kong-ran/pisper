@@ -322,6 +322,35 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
             </table>
           </div>
 
+          <h3>子代理定义：不同的活交给不同的模型</h3>
+          <p>
+            主 Agent 派出的子代理默认沿用当前会话的模型。在项目里写好子代理定义后，主 Agent 会按任务挑选：
+            简单的检索、整理交给便宜的快模型，复杂的实现和审查交给强模型。每个子代理一个 Markdown 文件：
+          </p>
+          <pre><code>---
+name: scout
+description: 只读检索代码库，回答“在哪里、怎么用”的问题
+model: fast            # fast / standard / strong，或 provider/modelId
+thinking: low          # 可选：off、minimal、low、medium、high、xhigh
+tools: [read, grep, find, ls]   # 可选：只能在当前会话已有的工具里收窄
+---
+只报告文件路径与行号，不改文件。</code></pre>
+          <ul>
+            <li>
+              项目定义放在项目的 <code>.pisper/agents/</code> 下，可随仓库提交；全局定义放在数据目录的
+              <code>agents/</code> 下，对所有项目生效。同名时项目定义覆盖全局定义。
+            </li>
+            <li>
+              <code>fast</code>、<code>standard</code>、<code>strong</code> 三个档位在「设置 › 模型 › 子代理」里映射到具体模型，
+              换供应商只改这一处，项目文件不用动。没设置的档位跟随当前会话模型。
+            </li>
+            <li>
+              写具体模型时可以再加 <code>tier: fast</code> 作为退路：具体模型不可用就用档位模型，档位也没设置就用当前会话模型，
+              运行记录里会写明换成了哪个模型。
+            </li>
+            <li>审批模式和工作区范围始终跟随当前会话，定义不能放宽权限。</li>
+          </ul>
+
           <h3>审批模式：决定权限边界</h3>
           <div class="guide-table-wrap">
             <table>

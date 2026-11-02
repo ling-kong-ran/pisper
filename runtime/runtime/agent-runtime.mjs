@@ -73,6 +73,7 @@ import {
   TeamWorkflowService,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
+import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import {
   createMultiAgentRuntime,
   createSubagentUsageHandler,
@@ -1853,10 +1854,32 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           installSubagentPermissions,
           onCompleted: accountSubagentUsage,
           emitAgentUpdate: this.emitAgentUpdate.bind(this),
+          // 每次派生都重读定义文件，会话打开后新增或修改的定义也能按名字使用。
+          resolveAgentProfile: async (name) => {
+            const { profiles } = await loadAgentProfiles({
+              agentDir: this.dataDir,
+              cwd: effectiveCwd,
+            })
+            const profile = profiles.find((item) => item.name === name)
+            if (!profile)
+              throw new Error(
+                `Unknown agent definition: ${name}.${profiles.length ? ` Available: ${profiles.map((item) => item.name).join(', ')}.` : ' No agent definitions exist for this workspace.'}`,
+              )
+            return {
+              profile,
+              ...(await this.providerPreferences.resolveSubagentModel(profile)),
+            }
+          },
         })
       : null
+    // 坏定义文件只影响自己：这里拿不到就当没有定义，设置页会列出具体原因。
+    const agentProfiles = multiAgentRuntime
+      ? await loadAgentProfiles({ agentDir: this.dataDir, cwd: effectiveCwd })
+          .then((result) => result.profiles)
+          .catch(() => [])
+      : []
     const multiAgentTools = multiAgentRuntime
-      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime }))
+      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime, agentProfiles }))
       : []
     const inheritedCustomTools = createInheritedCustomTools()
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))

@@ -324,6 +324,7 @@ export function createMultiAgentRuntime({
   installSubagentPermissions,
   onCompleted,
   emitAgentUpdate,
+  resolveAgentProfile = null,
 }) {
   const agentLeaseBindings = new Map()
 
@@ -360,6 +361,7 @@ export function createMultiAgentRuntime({
       await spawn({
         taskName: task.taskName,
         role: task.role,
+        agent: task.agent,
         message: task.message,
         files: task.files,
         dependsOn: task.dependsOn,
@@ -493,6 +495,8 @@ export function createMultiAgentRuntime({
             taskName,
             message,
             role: options?.role || '',
+            // 只在指定了定义时才进指纹，升级前已完成的工作流任务指纹保持不变、不会重跑。
+            ...(options?.agent ? { agent: String(options.agent) } : {}),
             files: options?.files || [],
             dependsOn: dependencies,
             schema: schemaText,
@@ -515,6 +519,7 @@ export function createMultiAgentRuntime({
       const agent = await spawn({
         taskName,
         role: options?.role,
+        agent: options?.agent,
         message,
         files: options?.files,
         dependsOn: dependencies,
@@ -553,6 +558,14 @@ export function createMultiAgentRuntime({
   const spawn = async (input) => {
     const runtimeSession = getRuntimeSession()
     if (!runtimeSession?.model) throw new Error('当前会话没有可用模型，无法启动 Agent。')
+    // 先解析子代理定义：名字写错时直接报错，不登记 Team 任务、不占 Agent 名额。
+    const profileName = String(input?.agent || '')
+      .trim()
+      .toLowerCase()
+    if (profileName && !resolveAgentProfile)
+      throw new Error('Agent definitions are not available in this session.')
+    const selection = profileName ? await resolveAgentProfile(profileName) : null
+    const profile = selection?.profile || null
     let teamTask = null
     let reusedTeamTask = false
     let initialAgentRunNumber = null
@@ -627,13 +640,21 @@ export function createMultiAgentRuntime({
         ...input,
         parentSessionId: sessionId,
         cwd: effectiveCwd,
-        model: runtimeSession.model,
-        thinkingLevel: runtimeSession.thinkingLevel,
+        // 定义里的模型用不了时 selection.model 为 null，退回父会话模型，原因随记录返回。
+        model: selection?.model || runtimeSession.model,
+        thinkingLevel: profile?.thinkingLevel || runtimeSession.thinkingLevel,
+        agentProfile: profile?.name || '',
+        profileInstructions: profile?.instructions || '',
+        modelSource: selection?.source || 'parent',
+        modelFallbackReasons: selection?.fallbackReasons || [],
         allowedTools: [
           ...(() => {
             const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
+            // 定义只能在父会话已有的工具里再收窄，不能借定义拿到父会话没有的工具。
             return filterToolsForExecutionMode(
-              baseToolNames.filter((name) => active.has(name)),
+              baseToolNames.filter(
+                (name) => active.has(name) && (!profile?.tools || profile.tools.includes(name)),
+              ),
               getExecutionMode(),
               getToolRisk,
             )

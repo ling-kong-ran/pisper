@@ -199,6 +199,24 @@ test('team workflow enforces dependencies, active file ownership, and completion
   assert.equal(restored.get('session-1').taskCount, 3)
 })
 
+test('team tasks keep their agent definition through updates and restarts', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-team-workflow-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const service = new TeamWorkflowService({ path: join(directory, 'teams.json') })
+  await service.init()
+  await service.ensure('session-1', { goalId: 'goal-1', objective: 'Ship.', tokenBudget: 10_000 })
+  const task = await service.registerTask('session-1', { taskName: 'scan', agent: ' Scout ' })
+  assert.equal(task.agent, 'scout')
+  assert.equal((await service.updateTask('session-1', task.id, { role: 'reader' })).agent, 'scout')
+  assert.equal(
+    (await service.updateTask('session-1', task.id, { agent: 'reviewer' })).agent,
+    'reviewer',
+  )
+  const restored = new TeamWorkflowService({ path: join(directory, 'teams.json') })
+  await restored.init()
+  assert.equal(restored.getTask('session-1', task.id).agent, 'reviewer')
+})
+
 test('team workflow supports repeated recovery without time-based termination', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-team-limits-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

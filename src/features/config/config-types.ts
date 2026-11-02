@@ -2,6 +2,9 @@
 import type { I18nValues } from '@/app/i18n'
 import type { EntityRecord } from '@/types/chat'
 
+export const SUBAGENT_MODEL_TIERS = ['fast', 'standard', 'strong'] as const
+export type SubagentModelTier = (typeof SUBAGENT_MODEL_TIERS)[number]
+
 export type Translate = (message: string, values?: I18nValues) => string
 export type ProviderType = 'chat' | 'visual'
 
@@ -44,6 +47,8 @@ export type ConfigData = EntityRecord & {
   thinkingLevel: string
   toolMode: string
   fallbackModels?: string[]
+  // 子代理模型档位 → "provider/modelId"；缺省的档位跟随当前会话模型。
+  subagentModelTiers?: Partial<Record<SubagentModelTier, string>>
   createdProviderId?: string
   addedModelIds?: string[]
   apiKeyUpdated?: boolean

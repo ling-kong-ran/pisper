@@ -256,7 +256,19 @@ function activityPresentation(
       : planProgress(activityPlan, t)
   } else if (activity.type === 'agent') {
     const agent = activity.agent || {}
-    const name = cleanInline(agent.taskName) || t('chat:agentRunActivity.subagent')
+    const taskName = cleanInline(agent.taskName) || t('chat:agentRunActivity.subagent')
+    // 按子代理定义派生时写明定义名和实际用的模型；定义里的模型用不了而退回时，说明换成了哪个。
+    const profile = cleanInline(agent.agentProfile)
+    const model = cleanInline(agent.model)
+    const name = profile
+      ? t('chat:agentRunActivity.subagentWithProfile', { name: taskName, profile, model })
+      : taskName
+    const modelFallback =
+      !Array.isArray(agent.modelFallbackReasons) || !agent.modelFallbackReasons.length
+        ? ''
+        : agent.modelSource === 'tier'
+          ? t('chat:agentRunActivity.subagentTierModelFallback', { model })
+          : t('chat:agentRunActivity.subagentParentModelFallback', { model })
     const state = agentActivityState(agent.status)
     title = agentActivityTitle(agent.status, name, t)
     tone = state.tone
@@ -264,7 +276,7 @@ function activityPresentation(
       agent.currentActivity?.type === 'tool'
         ? toolDetail(agent.currentActivity).text || agent.currentActivity.name
         : ''
-    detail = nestedTool || cleanInline(agent.error || agent.message)
+    detail = nestedTool || cleanInline(agent.error) || modelFallback || cleanInline(agent.message)
     output = agent.status === 'running' ? cleanInline(agent.output) : ''
     startedAt = agent.startedAt || startedAt
   } else if (activity.type === 'communication') {

@@ -24,6 +24,7 @@ const [
   pathUtils,
   textUtils,
   messages,
+  frontmatter,
 ] = await Promise.all([
   packageModule('./core/compaction/index.js'),
   packageModule('./core/model-runtime.js'),
@@ -35,6 +36,7 @@ const [
   packageModule('./core/tools/path-utils.js'),
   packageModule('./utils/text.js'),
   packageModule('./core/messages.js'),
+  packageModule('./utils/frontmatter.js'),
 ])
 
 export const calculateContextTokens = compaction.calculateContextTokens
@@ -56,6 +58,8 @@ export const detectLineEnding = editDiff.detectLineEnding
 export const stripBom = textUtils.splitBom
 // 会话消息（含 bash 执行、压缩摘要等自定义类型）转换为发给模型的消息，与 Pi 代理循环同一口径。
 export const convertToLlm = messages.convertToLlm
+// 与引擎解析 SKILL.md 同一套 YAML frontmatter 规则，子代理定义文件沿用。
+export const parseFrontmatter = frontmatter.parseFrontmatter
 export const resolveReadPathAsync = pathUtils.resolveReadPathAsync
 export const resolveToCwd = pathUtils.resolveToCwd
 

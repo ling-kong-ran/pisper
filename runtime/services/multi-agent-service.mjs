@@ -114,6 +114,30 @@ function modelFromLabel(value) {
     : null
 }
 
+const MODEL_SOURCES = new Set(['parent', 'definition', 'tier'])
+const MODEL_FALLBACK_REASONS = new Set(['model-unavailable', 'tier-unset', 'tier-unavailable'])
+
+// 子代理定义带来的字段：用了哪份定义、模型从哪来、没用上定义模型的原因；重启后也要能恢复。
+function profileFields(value) {
+  return {
+    agentProfile: String(value?.agentProfile || '').slice(0, 48),
+    profileInstructions: String(value?.profileInstructions || '').slice(0, 12_000),
+    modelSource: MODEL_SOURCES.has(value?.modelSource) ? value.modelSource : 'parent',
+    modelFallbackReasons: (Array.isArray(value?.modelFallbackReasons)
+      ? value.modelFallbackReasons
+      : []
+    ).filter((reason) => MODEL_FALLBACK_REASONS.has(reason)),
+  }
+}
+
+function publicProfileFields(record) {
+  return {
+    agentProfile: record.agentProfile,
+    modelSource: record.modelSource,
+    modelFallbackReasons: [...record.modelFallbackReasons],
+  }
+}
+
 function emptyUsage() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0 }
 }
@@ -128,6 +152,7 @@ function durableRecord(record) {
     cwd: record.cwd,
     model: modelLabel(record.model),
     thinkingLevel: record.thinkingLevel,
+    ...profileFields(record),
     message: record.message,
     availableTools: [...record.availableTools],
     turnCount: record.turnCount,
@@ -197,6 +222,7 @@ function restoredRecord(value) {
     cwd: String(value?.cwd || ''),
     model,
     thinkingLevel: String(value?.thinkingLevel || 'medium'),
+    ...profileFields(value),
     message: String(value?.message || ''),
     availableTools: childTools(value?.availableTools),
     customTools: [],
@@ -368,6 +394,7 @@ function publicRecord(record) {
     message: record.message,
     model: modelLabel(record.model),
     thinkingLevel: record.thinkingLevel,
+    ...publicProfileFields(record),
     availableTools: [...record.availableTools],
     startedAt: record.startedAt,
     lastActivityAt: record.lastActivityAt,
@@ -398,6 +425,7 @@ function summaryRecord(record) {
     message: String(record.message || '').slice(0, 500),
     model: modelLabel(record.model),
     thinkingLevel: record.thinkingLevel,
+    ...publicProfileFields(record),
     startedAt: record.startedAt,
     lastActivityAt: record.lastActivityAt,
     completedAt: record.completedAt,
@@ -781,6 +809,10 @@ export class MultiAgentService {
     cwd,
     model,
     thinkingLevel,
+    agentProfile,
+    profileInstructions,
+    modelSource,
+    modelFallbackReasons,
     taskName,
     message,
     allowedTools,
@@ -816,6 +848,7 @@ export class MultiAgentService {
       cwd,
       model,
       thinkingLevel: thinkingLevel || 'medium',
+      ...profileFields({ agentProfile, profileInstructions, modelSource, modelFallbackReasons }),
       message: normalizedMessage,
       availableTools: childTools(allowedTools),
       customTools,
@@ -878,7 +911,9 @@ export class MultiAgentService {
           cwd: record.cwd,
           agentDir: this.agentDir || record.cwd,
           settingsManager,
-          appendSystemPrompt: MULTI_AGENT_SYSTEM_PROMPT,
+          appendSystemPrompt: record.profileInstructions
+            ? `${MULTI_AGENT_SYSTEM_PROMPT}\n\n## Agent definition: ${record.agentProfile}\n\n${record.profileInstructions}`
+            : MULTI_AGENT_SYSTEM_PROMPT,
         })
         if (!isCurrent()) return
         if (record.aborted) throw new Error(record.abortReason || 'Agent was interrupted.')
