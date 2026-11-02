@@ -3,6 +3,7 @@
 // 项目定义在 <项目>/.pisper/agents/ 下，只在该项目的会话里生效（同名覆盖全局），不在这里逐个项目列出。
 import { useEffect, useId, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
+import { compactModelName } from '@/lib/model-display'
 import { AppSelect } from '@/components/AppSelect'
 import { FeatureAlert } from '@/components/app/FeaturePage'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -66,16 +67,21 @@ export function SubagentSettings({ config, notify, busy, onConfigChanged }: Suba
     }
   }, [])
 
-  const chatOptions = config.providers
+  const chatModels = config.providers
     .filter((provider) => provider.type === 'chat' && provider.configured && provider.enabled)
     .flatMap((provider) =>
       provider.models
         .filter((model) => model.kind === 'chat')
-        .map((model) => ({
-          value: `${provider.id}/${model.id}`,
-          label: `${model.name || model.id} · ${provider.name}`,
-        })),
+        .map((model) => ({ provider, name: model.name || model.id, id: model.id })),
     )
+  // 带路径前缀的模型 ID 只显示能区分的最后几段，下拉框里看得出是哪个模型。
+  const chatOptions = chatModels.map(({ provider, name, id }) => ({
+    value: `${provider.id}/${id}`,
+    label: `${compactModelName(
+      name,
+      chatModels.map((item) => item.name),
+    )} · ${provider.name}`,
+  }))
 
   const saveTier = async (tier: SubagentModelTier, ref: string) => {
     const previous = tiers

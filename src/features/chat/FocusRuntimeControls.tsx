@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/command'
 import { Slider } from '@/components/ui/slider'
 import { formatTokenCount } from '@/lib/format'
+import { compactModelName } from '@/lib/model-display'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
 import { formatRunDuration } from './run-activity'
@@ -350,8 +351,12 @@ export function ModelThinkingControl({
   // 切换思考等级期间锁住模型选择，避免两个请求交错。
   const [saving, setSaving] = useState(false)
   const currentModel = models.find((item) => item.key === model)
-  const modelLabel =
-    currentModel?.label || model.split('/').at(-1) || t('chat:focusSession.toolbarModel')
+  // 芯片与列表都用精简名：带路径前缀的模型 ID 只显示最后一段，完整名称放在悬停提示与列表第二行。
+  const modelLabels = models.map((item) => item.label)
+  const fullModelLabel = currentModel?.label || model.split('/').at(-1) || ''
+  const modelLabel = fullModelLabel
+    ? compactModelName(fullModelLabel, modelLabels)
+    : t('chat:focusSession.toolbarModel')
   const providerGroups = [
     ...models.reduce((groups, item) => {
       const group = groups.get(item.providerName) || []
@@ -447,20 +452,29 @@ export function ModelThinkingControl({
             )}
             {providerGroups.map(([provider, items]) => (
               <CommandGroup key={provider} heading={provider}>
-                {items.map((item) => (
-                  <CommandItem
-                    key={item.key}
-                    value={item.key}
-                    keywords={[item.label, item.providerName]}
-                    data-checked={item.key === model}
-                    disabled={modelDisabled || saving}
-                    onSelect={() => {
-                      if (item.key !== model) onModelChange(item.key)
-                    }}
-                  >
-                    <span className="min-w-0 truncate">{item.label}</span>
-                  </CommandItem>
-                ))}
+                {items.map((item) => {
+                  const shortLabel = compactModelName(item.label, modelLabels)
+                  return (
+                    <CommandItem
+                      key={item.key}
+                      value={item.key}
+                      keywords={[item.label, item.providerName]}
+                      data-checked={item.key === model}
+                      disabled={modelDisabled || saving}
+                      onSelect={() => {
+                        if (item.key !== model) onModelChange(item.key)
+                      }}
+                    >
+                      {/* 列表里模型名换行而不截断：长 ID 截断后几个模型只剩相同的开头，分不出来。完整 ID 那行只作参考，可以截断。 */}
+                      <span className="flex min-w-0 flex-col" title={item.label}>
+                        <span className="wrap-anywhere">{shortLabel}</span>
+                        {shortLabel !== item.label && (
+                          <span className="truncate text-xs text-content-muted">{item.label}</span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             ))}
           </CommandList>

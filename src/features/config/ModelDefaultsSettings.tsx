@@ -8,6 +8,7 @@ import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { FeatureAlert } from '@/components/app/FeaturePage'
 import { OrbitSpinner } from '@/components/ui/spinner'
+import { compactModelName } from '@/lib/model-display'
 import { apiJson } from '@/lib/api'
 import type { Notify } from '@/app/route-context'
 import type { ConfigData, ProviderConfig } from './config-types'
@@ -202,7 +203,11 @@ export function ModelDefaultsSettings({
             )}
             {chatOptions.map(({ provider, model, value }) => (
               <option key={value} value={value}>
-                {`${model.name || model.id} · ${provider.name}`}
+                {/* 下拉框按末尾截断：带路径前缀的模型 ID 只显示能区分的最后几段。 */}
+                {`${compactModelName(
+                  model.name || model.id,
+                  chatOptions.map((option) => option.model.name || option.model.id),
+                )} · ${provider.name}`}
               </option>
             ))}
           </AppSelect>

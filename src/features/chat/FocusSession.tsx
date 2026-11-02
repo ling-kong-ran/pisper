@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { AppCard as Panel } from '@/components/ui/app-primitives'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
+import { compactModelName } from '@/lib/model-display'
 import { cn } from '@/lib/utils'
 import { useIsMobileApp } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
@@ -433,10 +434,12 @@ export const FocusSession = memo(function FocusSession({
   // 会话页的代理信息行（规格 v2 第 4.2 节）：最新一条回复写当前模型（显示名）。
   // 审批模式已在输入框的盾牌芯片上，不再在信息行重复；思考用时等 Runtime 有数据（A9）再加。
   const currentModel = pendingRuntimeSelection?.model || model || ''
-  const modelLabel =
+  const modelLabel = compactModelName(
     availableModels.find((item) => item.key === currentModel)?.label ||
-    currentModel.split('/').at(-1) ||
-    ''
+      currentModel.split('/').at(-1) ||
+      '',
+    availableModels.map((item) => item.label),
+  )
   const transcriptMeta = useMemo(
     () => (pageChrome ? { model: modelLabel } : null),
     [modelLabel, pageChrome],
