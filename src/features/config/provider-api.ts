@@ -8,7 +8,8 @@ export type ModelOptionsDraft = {
   input: string[]
   reasoning: boolean
   thinkingLevels?: string[]
-  contextWindow: number
+  // 省略表示沿用元数据推断的上下文窗口
+  contextWindow?: number
   maxTokens: number
 }
 export type LocalProviderImportResult = {

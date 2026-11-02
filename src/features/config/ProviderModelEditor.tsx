@@ -68,16 +68,22 @@ export function ProviderModelEditor({
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const [draft, setDraft] = useState<ModelOptionsDraft>(() => ({
-    modelId: model?.id || '',
-    name: model?.name || '',
-    capabilities: model?.capabilities || [
-      model?.kind === 'image' ? 'image' : model?.kind === 'video' ? 'video' : 'chat',
-    ],
-    input: model?.input || ['text'],
-    reasoning: model?.reasoning ?? true,
-    contextWindow: model?.contextWindow || 200000,
-    maxTokens: model?.maxTokens || 8192,
+  const [initialContextWindow] = useState(() => model?.contextWindow || 200000)
+  const [draft, setDraft] = useState<Omit<ModelOptionsDraft, 'contextWindow' | 'maxTokens'>>(
+    () => ({
+      modelId: model?.id || '',
+      name: model?.name || '',
+      capabilities: model?.capabilities || [
+        model?.kind === 'image' ? 'image' : model?.kind === 'video' ? 'video' : 'chat',
+      ],
+      input: model?.input || ['text'],
+      reasoning: model?.reasoning ?? true,
+    }),
+  )
+  // 数字框按字符串编辑：清空后不会变成 0、再输入也不会出现前导 0。
+  const [limits, setLimits] = useState(() => ({
+    contextWindow: String(initialContextWindow),
+    maxTokens: String(model?.maxTokens || 8192),
   }))
   const [selectedLevels, setSelectedLevels] = useState(
     model?.thinkingLevels || ['off', 'low', 'medium', 'high'],
@@ -98,6 +104,12 @@ export function ProviderModelEditor({
           ...draft,
           modelId: draft.modelId.trim(),
           thinkingLevels: levelsTouched || !model ? selectedLevels : undefined,
+          // 只在用户改过时提交上下文窗口；原样保存不能把推断值或 200k 回退值钉成用户配置。
+          contextWindow:
+            Number(limits.contextWindow) === initialContextWindow
+              ? undefined
+              : Number(limits.contextWindow),
+          maxTokens: Number(limits.maxTokens),
         },
         !model,
       )
@@ -245,10 +257,8 @@ export function ProviderModelEditor({
                       min={1}
                       max={100000000}
                       step={1}
-                      value={draft[field]}
-                      onChange={(event) =>
-                        setDraft({ ...draft, [field]: Number(event.target.value) })
-                      }
+                      value={limits[field]}
+                      onChange={(event) => setLimits({ ...limits, [field]: event.target.value })}
                     />
                   </label>
                 ))}

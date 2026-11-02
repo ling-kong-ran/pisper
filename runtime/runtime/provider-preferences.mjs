@@ -2,7 +2,11 @@
 // 模型发现与目录同步、默认模型对账、会话模型/思考等级切换，以及配置迁移与安全校验。
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { modelCapabilities, updateModelOptions } from '../services/provider-model-options.mjs'
+import {
+  configuredContextWindow,
+  modelCapabilities,
+  updateModelOptions,
+} from '../services/provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
@@ -476,9 +480,8 @@ export class ProviderPreferences {
       }
       for (const model of overlay.models || []) {
         configuredModelOptions[`${provider.id}:${model.id}`] = model
-        if (Number(model?.contextWindow) > 0) {
-          configuredContextWindows[`${provider.id}:${model.id}`] = Number(model.contextWindow)
-        }
+        const contextWindow = configuredContextWindow(model)
+        if (contextWindow) configuredContextWindows[`${provider.id}:${model.id}`] = contextWindow
         if (Array.isArray(model?.input)) {
           configuredInputs[`${provider.id}:${model.id}`] = model.input
         }
@@ -1285,6 +1288,7 @@ export class ProviderPreferences {
           reasoning: input.reasoning !== false,
           input: ['text', 'image'],
           contextWindow: Number(input.contextWindow) || 200_000,
+          contextWindowConfigured: Number(input.contextWindow) > 0,
           maxTokens: Number(input.maxTokens) || 128_000,
         }
         // 思考等级：仅对话模型、且用户显式给出勾选列表时才落盘，避免臆造。
@@ -1313,6 +1317,7 @@ export class ProviderPreferences {
               reasoning: runtimeModel?.reasoning ?? input.reasoning !== false,
               input: runtimeModel?.input || ['text', 'image'],
               contextWindow: runtimeModel?.contextWindow || Number(input.contextWindow) || 200_000,
+              contextWindowConfigured: !runtimeModel && Number(input.contextWindow) > 0,
               maxTokens: runtimeModel?.maxTokens || Number(input.maxTokens) || 128_000,
             }
       if (modelBaseUrl) definition.baseUrl = modelBaseUrl
@@ -1652,6 +1657,7 @@ export class ProviderPreferences {
       reasoning: input.reasoning !== false,
       input: ['text', 'image'],
       contextWindow: Number(input.contextWindow) || 200_000,
+      contextWindowConfigured: Number(input.contextWindow) > 0,
       maxTokens: Number(input.maxTokens) || 128_000,
     }
     // 思考等级：仅对话模型、且用户显式给出勾选列表时才落盘。
@@ -1963,6 +1969,7 @@ export class ProviderPreferences {
               input: runtimeModel.input || ['text'],
               reasoning: Boolean(runtimeModel.reasoning),
               contextWindow: runtimeModel.contextWindow,
+              contextWindowConfigured: false,
               maxTokens: runtimeModel.maxTokens,
               ...(runtimeModel.thinkingLevelMap
                 ? { thinkingLevelMap: runtimeModel.thinkingLevelMap }
@@ -1970,6 +1977,14 @@ export class ProviderPreferences {
             }
           : models[index]
       const updated = { ...updateModelOptions(existing, input), userConfigured: true }
+      // 旧客户端保存时总会带上当前显示的上下文窗口；与有效值相同且原本未覆盖时，
+      // 不能因此把元数据推断值（或 200k 回退值）钉成用户配置。
+      if (
+        Object.hasOwn(input || {}, 'contextWindow') &&
+        input.contextWindow === runtimeModel.contextWindow &&
+        !configuredContextWindow(existing)
+      )
+        updated.contextWindowConfigured = false
       if (index < 0) models.push(updated)
       else models[index] = updated
       modelsJson.providers ||= {}
@@ -2047,6 +2062,7 @@ export class ProviderPreferences {
             reasoning: input.reasoning !== false,
             input: ['text', 'image'],
             contextWindow: Number(input.contextWindow) || 200_000,
+            contextWindowConfigured: false,
             maxTokens: Number(input.maxTokens) || 128_000,
           },
           input,

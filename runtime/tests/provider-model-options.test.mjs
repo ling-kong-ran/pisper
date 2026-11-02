@@ -622,3 +622,82 @@ test(
     assert.deepEqual(order, ['nested', 'blocker', 'detached'])
   },
 )
+
+test('added models keep following model metadata for their context window until the user sets one', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-model-context-'))
+  // 预置 pi.dev 元数据文件，既提供已知窗口，也避免测试触发后台抓取。
+  await writeFile(
+    join(directory, 'pi-dev-models-cache.json'),
+    JSON.stringify({
+      models: {
+        'fixture-model': { contextWindow: 1_000_000 },
+        'second-model': { contextWindow: 262_144 },
+        'legacy-placeholder': { contextWindow: 524_288 },
+        'legacy-explicit': { contextWindow: 524_288 },
+      },
+    }),
+  )
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  const contextWindowOf = async (modelId) =>
+    (await runtime.getConfig()).providers
+      .find((p) => p.id === 'capability-relay')
+      .models.find((m) => m.id === modelId)?.contextWindow
+  const storedModel = async (modelId) =>
+    JSON.parse(await readFile(join(directory, 'models.json'), 'utf8')).providers[
+      'capability-relay'
+    ].models.find((m) => m.id === modelId)
+
+  // 新建连接和批量添加都没有填写上下文窗口：不能把 200k 占位值当成用户配置。
+  await create(runtime)
+  await runtime.addProviderModels('capability-relay', [{ id: 'second-model', kind: 'chat' }])
+  assert.equal(await contextWindowOf('fixture-model'), 1_000_000)
+  assert.equal(await contextWindowOf('second-model'), 262_144)
+
+  // 只改名称、或原样带回当前显示的窗口（旧客户端），都不会钉住推断值。
+  await runtime.setProviderModelOptions('capability-relay', {
+    modelId: 'second-model',
+    name: 'Renamed',
+  })
+  await runtime.setProviderModelOptions('capability-relay', {
+    modelId: 'fixture-model',
+    contextWindow: 1_000_000,
+  })
+  assert.equal((await storedModel('second-model')).contextWindowConfigured, false)
+  assert.equal((await storedModel('fixture-model')).contextWindowConfigured, false)
+
+  // 用户真正修改后成为显式覆盖，优先于元数据。
+  await runtime.setProviderModelOptions('capability-relay', {
+    modelId: 'second-model',
+    contextWindow: 300_000,
+  })
+  assert.equal(await contextWindowOf('second-model'), 300_000)
+  assert.equal((await storedModel('second-model')).contextWindowConfigured, true)
+
+  // 旧版本写入的数据没有标记：200k 占位值让位给元数据，其他数值仍按用户配置处理。
+  const modelsJson = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8'))
+  const legacyModel = (id, contextWindow) => ({
+    id,
+    name: id,
+    api: 'openai-completions',
+    kind: 'chat',
+    reasoning: true,
+    input: ['text', 'image'],
+    contextWindow,
+    maxTokens: 128_000,
+    userConfigured: true,
+  })
+  modelsJson.providers['capability-relay'].models.push(
+    legacyModel('legacy-placeholder', 200_000),
+    legacyModel('legacy-explicit', 400_000),
+  )
+  await writeFile(join(directory, 'models.json'), JSON.stringify(modelsJson))
+  await runtime.providerPreferences.reload()
+  assert.equal(await contextWindowOf('legacy-placeholder'), 524_288)
+  assert.equal(await contextWindowOf('legacy-explicit'), 400_000)
+  assert.equal(await contextWindowOf('second-model'), 300_000)
+})
