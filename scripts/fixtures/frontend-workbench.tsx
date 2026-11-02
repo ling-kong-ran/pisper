@@ -49,6 +49,9 @@ Object.assign(window, {
         terminalId: id,
         data: [...new TextEncoder().encode(text)],
       }),
+    // 模拟 shell 自己退出（用户输入 exit），不经过 terminalClose。
+    exit: (id: string, code: number) =>
+      terminalCallbacks.get(id)?.({ type: 'exit', terminalId: id, code }),
   },
 })
 

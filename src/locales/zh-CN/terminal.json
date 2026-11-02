@@ -13,7 +13,6 @@
   "terminalPanel.processExited": "进程已退出，代码 {code}",
   "workspace.unavailable": "终端不可用",
   "workspace.nativeOnly": "此连接没有原生终端桥接，无法列出或启动终端进程。",
-  "workspace.expired": "终端连接已不可用",
   "workspace.ephemeral": "终端连接不会在刷新后恢复，请创建新的终端。",
   "workspace.create": "创建终端",
   "workspace.defaultDirectory": "默认终端目录",

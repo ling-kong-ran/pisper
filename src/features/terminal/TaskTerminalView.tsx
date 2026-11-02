@@ -28,6 +28,17 @@ export function TaskTerminalView({
   const records = useTerminals(sessionId)
   const record = records.find((item) => item.id === terminalId)
   const exists = Boolean(record)
+  // 进程已退出或刷新后连接已失效时回到创建页，不能停在一个无法输入、也无处新建的终端上。
+  const ended = record?.status === 'exited'
+  const endedNotice = !terminalId
+    ? ''
+    : !record
+      ? t('terminal:workspace.ephemeral')
+      : ended
+        ? record.exitCode == null
+          ? t('terminal:workspace.exited')
+          : t('terminal:terminalPanel.processExited', { code: record.exitCode })
+        : ''
   const [profiles, setProfiles] = useState<DesktopTerminalProfile[]>([])
   const [profileId, setProfileId] = useState('')
   const [error, setError] = useState('')
@@ -59,13 +70,13 @@ export function TaskTerminalView({
     }
   }, [service])
   useEffect(() => {
-    if (!service || !terminalId || !exists || !host.current) return
+    if (!service || !terminalId || !exists || ended || !host.current) return
     const renderer = service.renderer(`${viewKey}:${terminalId}`, () =>
       createTerminalRenderer(service.registry, terminalId),
     )
     renderer.attach(host.current, setError)
     return () => renderer.detach()
-  }, [service, terminalId, viewKey, exists])
+  }, [service, terminalId, viewKey, exists, ended])
   const create = async () => {
     if (!service || !profileId || creating) return
     setCreating(true)
@@ -87,21 +98,14 @@ export function TaskTerminalView({
         description={t('terminal:workspace.nativeOnly')}
       />
     )
-  if (terminalId && !record)
-    return (
-      <PageState
-        kind="empty"
-        title={t('terminal:workspace.expired')}
-        description={t('terminal:workspace.ephemeral')}
-      />
-    )
-  if (!terminalId)
+  if (!terminalId || !record || ended)
     return (
       <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-5 text-center">
         <span className="grid size-8 place-items-center rounded-md bg-key text-content-secondary shadow-key ring-1 ring-key-border">
           <TerminalSquare className="size-4" aria-hidden="true" />
         </span>
         <h2 className="text-sm font-medium">{t('terminal:workspace.create')}</h2>
+        {endedNotice && <p className="text-xs text-content-muted">{endedNotice}</p>}
         <p className="max-w-full break-all font-mono text-xs text-content-muted">
           {cwd || t('terminal:workspace.defaultDirectory')}
         </p>

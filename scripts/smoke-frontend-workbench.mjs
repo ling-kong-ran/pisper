@@ -721,6 +721,19 @@ try {
   await inspectorOf(terminalOwner).getByRole('radio', { name: '终端', exact: true }).click()
   await terminalOwner.getByRole('button', { name: '停止进程', exact: true }).click()
   assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [terminalId])
+  // 停止后终端页回到“创建终端”，能直接再开一个，不会卡在已退出的终端上。
+  await terminalOwner.getByRole('button', { name: '创建终端', exact: true }).click()
+  await terminalOwner
+    .locator(`[data-terminal-id]:not([data-terminal-id="${terminalId}"])`)
+    .waitFor()
+  const replacementId = await terminalOwner
+    .locator('[data-terminal-id]')
+    .getAttribute('data-terminal-id')
+  // shell 自己退出（输入 exit）同样回到创建页。
+  await page.evaluate((id) => window.terminalFixture.exit(id, 0), replacementId)
+  await terminalOwner.getByText('进程已退出，代码 0', { exact: true }).waitFor()
+  await terminalOwner.getByRole('button', { name: '创建终端', exact: true }).waitFor()
+  assert.deepEqual(await page.evaluate(() => window.terminalFixture.closed), [terminalId])
   // 离开会话页（换到别的会话）只卸载视图，终端进程归会话所有，回来后仍是同一个。
   await page.evaluate(() => window.workbenchFixture.open('c'))
   const secondOwner = page.locator('[data-task-workspace="c"]')
@@ -733,7 +746,7 @@ try {
     .getAttribute('data-terminal-id')
   assert.notEqual(secondTerminalId, terminalId)
   assert.equal(
-    await page.evaluate(() => window.terminalFixture.created[1].cwd),
+    await page.evaluate(() => window.terminalFixture.created.at(-1).cwd),
     '/fixture/project-c',
   )
   await page.evaluate(() => window.workbenchFixture.open('a'))

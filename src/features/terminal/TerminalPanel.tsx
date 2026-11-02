@@ -60,8 +60,12 @@ export function TerminalPanel({
   const [newViews, setNewViews] = useState<Record<string, { cwd: string; token: string }>>({})
   const [error, setError] = useState('')
   const resizeCleanup = useRef<() => void>(() => {})
+  // 进程退出后标签随之关闭；日志仍可在“后台进程”里查看。
   const visible = records.filter(
-    (record) => (record.sessionId === activeSessionId || record.orphaned) && !hidden.has(record.id),
+    (record) =>
+      (record.sessionId === activeSessionId || record.orphaned) &&
+      record.status !== 'exited' &&
+      !hidden.has(record.id),
   )
   const active = visible.find((record) => record.id === activeIds[activeSessionId]) || visible[0]
   const pending = newViews[activeSessionId]

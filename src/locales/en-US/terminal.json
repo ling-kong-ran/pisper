@@ -13,7 +13,6 @@
   "terminalPanel.processExited": "Process exited with code {code}",
   "workspace.unavailable": "Terminal unavailable",
   "workspace.nativeOnly": "This connection has no native terminal bridge. Terminal processes cannot be listed or started.",
-  "workspace.expired": "Terminal connection unavailable",
   "workspace.ephemeral": "Terminal connections do not survive a refresh. Create a new terminal.",
   "workspace.create": "Create terminal",
   "workspace.defaultDirectory": "Default terminal directory",
