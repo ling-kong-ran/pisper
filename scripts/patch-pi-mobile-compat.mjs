@@ -96,14 +96,19 @@ catch { }`,
   {
     file: 'core/exec.js',
     replacements: [
+      // Pi 1.5 起两行导入之间插入了其他导入、调用处缩进也变了，分开匹配且不带缩进；
+      // after 不能为空，否则“已打过补丁”的判断恒成立。
       {
-        before:
-          'import { spawn } from "node:child_process";\nimport { waitForChildProcess } from "../utils/child-process.js";',
+        before: 'import { spawn } from "node:child_process";',
+        after: '// node:child_process 改由 spawnProcess 惰性加载',
+      },
+      {
+        before: 'import { waitForChildProcess } from "../utils/child-process.js";',
         after: 'import { spawnProcess, waitForChildProcess } from "../utils/child-process.js";',
       },
       {
-        before: '        const proc = spawn(command, args, {',
-        after: '        const proc = spawnProcess(command, args, {',
+        before: 'const proc = spawn(command, args, {',
+        after: 'const proc = spawnProcess(command, args, {',
       },
     ],
   },

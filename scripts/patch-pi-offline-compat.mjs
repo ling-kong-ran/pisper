@@ -19,12 +19,15 @@ export async function patchPiOfflineCompat(distRoot) {
     },
     {
       file: 'core/package-manager.js',
-      before: `                if (!onMissing) {
-                    await this.installParsedSource(parsed, resolvedScope);
-                    return true;
-                }`,
-      after: `                // Pisper 的资源发现不能隐式安装；显式安装入口保持原行为。
-                if (!onMissing) return false;`,
+      // Pi 1.5 起没有 onMissing 时也走 try 安装、失败才跳过；这里在询问回调之前直接跳过。
+      before: `                if (isOfflineModeEnabled())
+                    return false;
+                if (onMissing) {`,
+      after: `                if (isOfflineModeEnabled())
+                    return false;
+                // Pisper 的资源发现不能隐式安装；显式安装入口保持原行为。
+                if (!onMissing) return false;
+                if (onMissing) {`,
     },
   ]
   for (const { file, before, after } of patches) {
