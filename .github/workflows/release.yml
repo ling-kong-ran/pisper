@@ -152,13 +152,11 @@ jobs:
           - name: Windows x64
             target: windows-x86_64
             os: windows-latest
-          # Intel 机器最慢（桌面版约 30 分钟）。改在 Apple Silicon 上用 Rosetta 跑 x64 的 Node 与
-          # Rust：各构建脚本按进程架构选目标，照旧产出 x86_64 产物，无需改脚本。
+          # 曾改在 Apple Silicon 上用 Rosetta 构建以提速，首次真实发布时 TUI 与 Runtime 的
+          # Intel 构建都失败了（其余平台均通过），已退回原生 Intel 机器。
           - name: macOS Intel
             target: darwin-x86_64
-            os: macos-15
-            node_arch: x64
-            rust_host: x86_64-apple-darwin
+            os: macos-15-intel
           - name: macOS Apple Silicon
             target: darwin-aarch64
             os: macos-15
@@ -184,29 +182,12 @@ jobs:
         with:
           name: release-source
           path: .
-      - name: Ensure Rosetta for x64 builds on Apple Silicon
-        if: matrix.node_arch == 'x64'
-        run: /usr/bin/pgrep -q oahd || sudo softwareupdate --install-rosetta --agree-to-license
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
-          architecture: ${{ matrix.node_arch || '' }}
-      - name: Verify Node architecture
-        if: matrix.node_arch
-        run: node -e "if (process.arch !== '${{ matrix.node_arch }}') throw new Error('Node is ' + process.arch)"
       - uses: dtolnay/rust-toolchain@stable
         if: inputs.component != 'runtime'
-      - name: Use the x64 Rust toolchain under Rosetta
-        if: inputs.component != 'runtime' && matrix.rust_host
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          rustup toolchain install "stable-$RUST_HOST" --profile minimal --force-non-host
-          rustup default "stable-$RUST_HOST"
-          rustc -vV | grep -qx "host: $RUST_HOST"
-        env:
-          RUST_HOST: ${{ matrix.rust_host }}
       - uses: Swatinem/rust-cache@v2
         if: inputs.component != 'runtime'
         with:

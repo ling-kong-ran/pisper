@@ -467,17 +467,9 @@ test('releases build in parallel and only Desktop waits for its bundled componen
   )
 })
 
-test('the Intel macOS build runs x64 Node and Rust under Rosetta on Apple Silicon', async () => {
+test('the Intel macOS build stays on the native Intel runner', async () => {
   const workflow = await readFile('.github/workflows/release.yml', 'utf8')
-  assert.doesNotMatch(workflow, /macos-15-intel/)
-  assert.match(
-    workflow,
-    /target: darwin-x86_64\n\s+os: macos-15\n\s+node_arch: x64\n\s+rust_host: x86_64-apple-darwin/,
-  )
-  assert.match(workflow, /softwareupdate --install-rosetta --agree-to-license/)
-  assert.match(workflow, /architecture: \$\{\{ matrix\.node_arch \|\| '' \}\}/)
-  assert.match(workflow, /rustup default "stable-\$RUST_HOST"/)
-  // x64 工具链必须在 rust-cache 之前切换，缓存键才按 x86_64 主机区分。
-  const rustDefault = workflow.indexOf('rustup default "stable-$RUST_HOST"')
-  assert.ok(rustDefault >= 0 && workflow.lastIndexOf('Swatinem/rust-cache@v2') > rustDefault)
+  // Rosetta 方案在首次真实发布中让 TUI 与 Runtime 的 Intel 构建都失败了，退回原生机器。
+  assert.match(workflow, /target: darwin-x86_64\n\s+os: macos-15-intel\n/)
+  assert.doesNotMatch(workflow, /install-rosetta|node_arch|rust_host/)
 })
