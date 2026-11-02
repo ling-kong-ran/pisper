@@ -315,9 +315,10 @@ if (
   )
 }
 
-// App workflow 接受前序组件版本提交，但组件 workflow 不接受 App 版本提交，
-// 因此 App 必须最后执行；Desktop 则在它所捆绑的 TUI/Runtime 之后执行。
-const releaseOrder = { tui: 0, runtime: 1, desktop: 2, app: 3 }
+// 只有 Desktop 有先后要求：安装包内置最新 TUI/Runtime，必须等它们发布完。TUI、Runtime、App
+// 互不依赖，一起派发并行构建；各 workflow 最后提交版本号、打标签的那一步按 release-publish
+// 分组逐个执行，后到的在最新 release 上重放自己的版本提交（verify-release-head 只放行各通道的版本提交）。
+const releaseOrder = { tui: 0, runtime: 1, app: 2, desktop: 3 }
 plans.sort((left, right) => releaseOrder[left.component] - releaseOrder[right.component])
 
 const selectedComponents = plans.map(({ component }) => component)
@@ -374,12 +375,7 @@ const runtimePlan = plans.find(({ component }) => component === 'runtime')
 const desktopTuiVersion = tuiPlan?.nextVersion || ''
 const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
 
-const npmDispatchIndex = npmComponents.length
-  ? plans.findLastIndex(({ component }) => component === 'runtime' || component === 'tui')
-  : -1
-
-for (const [index, { component, nextVersion, tag }] of plans.entries()) {
-  const workflow = component === 'app' ? 'release-app.yml' : 'release.yml'
+function dispatchWorkflow(workflow, fields, label) {
   const output = run(
     'gh',
     [
@@ -388,41 +384,66 @@ for (const [index, { component, nextVersion, tag }] of plans.entries()) {
       workflow,
       '--ref',
       releaseBranch,
-      ...(component === 'app' ? [] : ['-f', `component=${component}`]),
-      '-f',
-      `version=${nextVersion}`,
-      '-f',
-      `source_sha=${source}`,
-      ...(component === 'desktop' && (desktopTuiVersion || desktopRuntimeVersion)
-        ? [
-            '-f',
-            `tui_version=${desktopTuiVersion}`,
-            '-f',
-            `runtime_version=${desktopRuntimeVersion}`,
-          ]
-        : []),
-      ...(index === npmDispatchIndex
-        ? [
-            '-f',
-            'publish_npm=true',
-            '-f',
-            `npm_version=${npmReleaseVersion}`,
-            '-f',
-            `tui_version=${npmTuiVersion}`,
-            '-f',
-            `runtime_version=${npmRuntimeVersion}`,
-          ]
-        : []),
+      ...fields.flatMap((field) => ['-f', field]),
     ],
     { capture: true },
   )
   const runId = output.match(/actions\/runs\/(\d+)/)?.[1]
-  if (!runId) throw new Error(`无法从 GitHub CLI 输出识别 ${tag} 的 workflow run：${output}`)
+  if (!runId) throw new Error(`无法从 GitHub CLI 输出识别 ${label} 的 workflow run：${output}`)
   console.log(output)
-  console.log(`已请求构建 ${tag}（源提交 ${source}，run ${runId}）。`)
-  console.log(`等待 ${tag} 完成后再继续，避免全局发布队列取消排队任务…`)
+  console.log(`已请求构建 ${label}（源提交 ${source}，run ${runId}）。`)
+  return { runId, label }
+}
+
+function dispatchRelease({ component, nextVersion, tag }) {
+  const workflow = component === 'app' ? 'release-app.yml' : 'release.yml'
+  return dispatchWorkflow(
+    workflow,
+    [
+      ...(component === 'app' ? [] : [`component=${component}`]),
+      `version=${nextVersion}`,
+      `source_sha=${source}`,
+      ...(component === 'desktop' && (desktopTuiVersion || desktopRuntimeVersion)
+        ? [`tui_version=${desktopTuiVersion}`, `runtime_version=${desktopRuntimeVersion}`]
+        : []),
+    ],
+    tag,
+  )
+}
+
+function waitFor({ runId, label }) {
+  console.log(`等待 ${label}（run ${runId}）完成…`)
   run('gh', ['run', 'watch', runId, '--exit-status'])
 }
+
+// 第一批：除 Desktop 外全部同时派发。
+const firstWave = plans
+  .filter(({ component }) => component !== 'desktop')
+  .map((plan) => ({ ...plan, dispatched: dispatchRelease(plan) }))
+const componentRuns = firstWave.filter(({ component }) => component !== 'app')
+const otherRuns = firstWave
+  .filter(({ component }) => component === 'app')
+  .map(({ dispatched }) => dispatched)
+
+// TUI/Runtime 都发布成功后才能发 npm（安装器按版本下载它们的签名产物）和 Desktop（内置它们）。
+for (const { dispatched } of componentRuns) waitFor(dispatched)
+if (chainNpm) {
+  otherRuns.push(
+    dispatchWorkflow(
+      'publish-npm.yml',
+      [
+        `npm_version=${npmReleaseVersion}`,
+        `tui_version=${npmTuiVersion}`,
+        `runtime_version=${npmRuntimeVersion}`,
+        `source_sha=${source}`,
+      ],
+      `npm-v${npmReleaseVersion}`,
+    ),
+  )
+}
+const desktopPlan = plans.find(({ component }) => component === 'desktop')
+if (desktopPlan) otherRuns.push(dispatchRelease(desktopPlan))
+for (const otherRun of otherRuns) waitFor(otherRun)
 
 console.log(`已完成 ${selectedComponents.join('、')} 对应的质量门禁和平台产物发布。`)
 console.log('各版本文件与 tag 均在资产验证后由对应 workflow 原子更新。')

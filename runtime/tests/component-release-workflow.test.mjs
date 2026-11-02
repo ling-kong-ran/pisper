@@ -236,17 +236,14 @@ test('release command auto-detects every changed component and rejects manual sc
   assert.match(source, /RELEASE_COMPONENTS\[args\[0\]\] \|\| args\[0\] === 'app'/)
   assert.match(source, /const candidates = Object\.keys\(RELEASE_COMPONENTS\)/)
   assert.match(source, /if \(paths\.length === 0\) continue/)
-  assert.match(
-    source,
-    /for \(const \[index, \{ component, nextVersion, tag \}\] of plans\.entries\(\)\)/,
-  )
+  assert.match(source, /function dispatchRelease\(\{ component, nextVersion, tag \}\)/)
   assert.match(source, /componentReleasePaths/)
   assert.match(source, /componentReleaseSubjects/)
   assert.match(source, /appReleasePaths/)
   assert.match(source, /appReleaseSubjects/)
   assert.match(source, /appReleaseTag\(nextVersion\)/)
   assert.match(source, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
-  assert.match(source, /releaseOrder = \{ tui: 0, runtime: 1, desktop: 2, app: 3 \}/)
+  assert.match(source, /releaseOrder = \{ tui: 0, runtime: 1, app: 2, desktop: 3 \}/)
   assert.match(source, /`component=\$\{component\}`/)
   assert.match(
     source,

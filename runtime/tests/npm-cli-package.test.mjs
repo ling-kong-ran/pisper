@@ -243,7 +243,9 @@ test('npm publication follows the component release workflow automatically', asy
   assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/)
   assert.match(workflow, /npm view "pisper@\$NPM_VERSION"/)
   assert.match(workflow, /chore\(release-npm\): \$NPM_TAG/)
-  assert.match(release, /publish_npm=true/)
+  // TUI/Runtime 并行发布，两者都完成后由 release.mjs 直接派发 npm workflow。
+  assert.match(release, /'publish-npm\.yml'/)
+  assert.match(release, /`npm_version=\$\{npmReleaseVersion\}`/)
   assert.match(release, /tui_version=\$\{npmTuiVersion\}/)
   assert.match(release, /runtime_version=\$\{npmRuntimeVersion\}/)
   assert.doesNotMatch(release, /--publish-npm/)

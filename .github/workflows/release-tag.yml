@@ -14,7 +14,7 @@ permissions:
   contents: write
   actions: write
 
-# 与组件发布的 release-<repo> 分组分开：本 job 要等它派发的组件发布完成，同组会互相等死。
+# 与各发布 workflow 的分组（release-<repo>-<通道>、release-publish-<repo>）分开：本 job 要等它派发的发布完成，同组会互相等死。
 # 同一时间只跑一次标签发布，后推的排队，不取消正在跑的。
 concurrency:
   group: release-trigger-${{ github.repository }}
@@ -24,7 +24,7 @@ jobs:
   release:
     name: Release ${{ github.ref_name }}
     runs-on: ubuntu-latest
-    # 一次完整链式发布（tui → runtime → desktop → app）约 1.5–2 小时，加上发布前检查。
+    # 发布前检查加上并行构建（TUI/Runtime/App 同时，Desktop 随后），正常一小时左右，留足余量。
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v5

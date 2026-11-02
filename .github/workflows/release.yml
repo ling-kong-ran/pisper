@@ -41,8 +41,9 @@ permissions:
   contents: write
   id-token: write
 
+# 每个通道各自排队：TUI、Runtime、Desktop 可以同时构建；同一通道的两次发布仍逐个执行。
 concurrency:
-  group: release-${{ github.repository }}
+  group: release-${{ github.repository }}-${{ inputs.component }}
   cancel-in-progress: false
 
 env:
@@ -151,9 +152,13 @@ jobs:
           - name: Windows x64
             target: windows-x86_64
             os: windows-latest
+          # Intel 机器最慢（桌面版约 30 分钟）。改在 Apple Silicon 上用 Rosetta 跑 x64 的 Node 与
+          # Rust：各构建脚本按进程架构选目标，照旧产出 x86_64 产物，无需改脚本。
           - name: macOS Intel
             target: darwin-x86_64
-            os: macos-15-intel
+            os: macos-15
+            node_arch: x64
+            rust_host: x86_64-apple-darwin
           - name: macOS Apple Silicon
             target: darwin-aarch64
             os: macos-15
@@ -179,12 +184,29 @@ jobs:
         with:
           name: release-source
           path: .
+      - name: Ensure Rosetta for x64 builds on Apple Silicon
+        if: matrix.node_arch == 'x64'
+        run: /usr/bin/pgrep -q oahd || sudo softwareupdate --install-rosetta --agree-to-license
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
+          architecture: ${{ matrix.node_arch || '' }}
+      - name: Verify Node architecture
+        if: matrix.node_arch
+        run: node -e "if (process.arch !== '${{ matrix.node_arch }}') throw new Error('Node is ' + process.arch)"
       - uses: dtolnay/rust-toolchain@stable
         if: inputs.component != 'runtime'
+      - name: Use the x64 Rust toolchain under Rosetta
+        if: inputs.component != 'runtime' && matrix.rust_host
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rustup toolchain install "stable-$RUST_HOST" --profile minimal --force-non-host
+          rustup default "stable-$RUST_HOST"
+          rustc -vV | grep -qx "host: $RUST_HOST"
+        env:
+          RUST_HOST: ${{ matrix.rust_host }}
       - uses: Swatinem/rust-cache@v2
         if: inputs.component != 'runtime'
         with:
@@ -286,6 +308,13 @@ jobs:
     name: Finalize ${{ inputs.component }} version and publish release
     needs: build
     runs-on: ubuntu-latest
+    # 构建可以并行，提交版本号并打标签这一步逐个执行：各通道都向 release 推版本提交，
+    # 排到时先取最新 release 再重放本通道的提交。GitHub 并发组只留一个在跑、一个在等，
+    # 第三个到来会取消在等的那个；按 release.mjs 的编排（TUI/Runtime 约 10 分钟、App 约 30 分钟、
+    # Desktop 在 TUI/Runtime 之后）正常不会撞上。万一被取消，重推触发标签即可，已发布的通道会自动跳过。
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
         with:

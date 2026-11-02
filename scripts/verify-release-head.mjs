@@ -12,6 +12,8 @@ const VERSION_FILES = Object.freeze({
   tui: Object.freeze(['src-tui/Cargo.lock', 'src-tui/Cargo.toml']),
   runtime: Object.freeze(['package-lock.json', 'package.json']),
   npm: Object.freeze(['packages/pisper/package.json']),
+  // App 与桌面版并行发布，桌面版提交时 release 上可能已有 App 的版本提交。
+  app: Object.freeze(['docs/latest-app.json', 'src-tauri/mobile-package.json']),
 })
 
 function git(args, { allowFailure = false } = {}) {
@@ -34,7 +36,7 @@ const commits = git(['rev-list', '--reverse', `${expected}..${actual}`])
   .filter(Boolean)
 for (const commit of commits) {
   const subject = git(['show', '-s', '--format=%s', commit]).stdout
-  const match = subject.match(/^chore\(release-(desktop|tui|runtime|npm)\):\s+\S+$/)
+  const match = subject.match(/^chore\(release-(desktop|tui|runtime|npm|app)\):\s+\S+$/)
   if (!match) {
     throw new Error(
       `release branch contains a non-release commit after ${expected}: ${commit} ${subject}`,

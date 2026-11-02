@@ -53,6 +53,13 @@ jobs:
   publish:
     name: Publish pisper@${{ inputs.npm_version }}
     runs-on: ubuntu-latest
+    # 构建可以并行，提交版本号并打标签这一步逐个执行：各通道都向 release 推版本提交，
+    # 排到时先取最新 release 再重放本通道的提交。GitHub 并发组只留一个在跑、一个在等，
+    # 第三个到来会取消在等的那个；按 release.mjs 的编排（TUI/Runtime 约 10 分钟、App 约 30 分钟、
+    # Desktop 在 TUI/Runtime 之后）正常不会撞上。万一被取消，重推触发标签即可，已发布的通道会自动跳过。
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
         with:

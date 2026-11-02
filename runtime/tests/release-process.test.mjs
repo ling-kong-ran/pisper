@@ -315,6 +315,26 @@ test('queued component releases accept only isolated version commits after the s
     assert.equal(queued.status, 0, queued.stderr)
     assert.match(queued.stdout, /2 validated component version commit/)
 
+    // App 与桌面版并行发布：release 上先落了 App 的版本提交，桌面版仍须能在其后提交。
+    await mkdir(join(directory, 'docs'))
+    await mkdir(join(directory, 'src-tauri'))
+    await writeFile(join(directory, 'docs', 'latest-app.json'), '{"version":"0.2.0"}\n')
+    await writeFile(join(directory, 'src-tauri', 'mobile-package.json'), '{"version":"0.2.0"}\n')
+    assert.equal(git(['add', 'docs/latest-app.json', 'src-tauri/mobile-package.json']).status, 0)
+    assert.equal(git(['commit', '-m', 'chore(release-app): app-v0.2.0']).status, 0)
+    const appHead = git(['rev-parse', 'HEAD']).stdout.trim()
+    const withApp = spawnSync(
+      process.execPath,
+      ['scripts/verify-release-head.mjs', source, appHead],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: { ...process.env, PISPER_RELEASE_ROOT: directory },
+      },
+    )
+    assert.equal(withApp.status, 0, withApp.stderr)
+    assert.match(withApp.stdout, /3 validated component version commit/)
+
     await writeFile(join(directory, 'runtime.mjs'), 'export const changed = true\n')
     assert.equal(git(['add', 'runtime.mjs']).status, 0)
     assert.equal(git(['commit', '-m', 'fix(runtime): mutate queued source']).status, 0)
@@ -403,4 +423,61 @@ test('release checks stage Tauri build inputs on a clean checkout before cargo',
   assert.ok(ensure >= 0 && tauriFmt > ensure)
   assert.match(source, /runNpm\(\['run', 'sidecar:sea'\]\)/)
   assert.match(source, /runNpm\(\['run', 'tui:stage'\]\)/)
+})
+
+test('releases build in parallel and only Desktop waits for its bundled components', async () => {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  // TUI、Runtime、App 一起派发；等 TUI/Runtime 成功后再派发 npm 与 Desktop。
+  const firstWave = source.indexOf("filter(({ component }) => component !== 'desktop')")
+  const waitComponents = source.indexOf(
+    'for (const { dispatched } of componentRuns) waitFor(dispatched)',
+  )
+  const npm = source.indexOf("'publish-npm.yml'")
+  const desktop = source.indexOf('if (desktopPlan) otherRuns.push(dispatchRelease(desktopPlan))')
+  const waitOthers = source.indexOf('for (const otherRun of otherRuns) waitFor(otherRun)')
+  assert.ok(firstWave >= 0 && waitComponents > firstWave)
+  assert.ok(npm > waitComponents && desktop > npm && waitOthers > desktop)
+  assert.match(source, /`npm_version=\$\{npmReleaseVersion\}`/)
+  // npm 由脚本在两个组件都完成后直接派发，不再挂在其中某一个组件发布的尾部。
+  assert.doesNotMatch(source, /publish_npm=true/)
+
+  const [component, app, npmWorkflow, trigger] = await Promise.all(
+    ['release', 'release-app', 'publish-npm', 'release-tag'].map((name) =>
+      readFile(`.github/workflows/${name}.yml`, 'utf8'),
+    ),
+  )
+  // 每个通道单独排队；不同发布可同时构建。
+  assert.match(
+    component,
+    /group: release-\$\{\{ github\.repository \}\}-\$\{\{ inputs\.component \}\}/,
+  )
+  assert.match(app, /group: release-\$\{\{ github\.repository \}\}-app/)
+  assert.doesNotMatch(component + app, /group: release-\$\{\{ github\.repository \}\}\n/)
+  // 向 release 推版本提交的三处 job 共用一个分组，逐个执行。
+  for (const workflow of [component, app, npmWorkflow]) {
+    assert.match(
+      workflow,
+      /concurrency:\n\s+group: release-publish-\$\{\{ github\.repository \}\}\n\s+cancel-in-progress: false/,
+    )
+  }
+  // 标签发布的 job 要等这些发布完成，不能与它们同组。
+  assert.doesNotMatch(
+    trigger,
+    /group: release-publish-|group: release-\$\{\{ github\.repository \}\}-/,
+  )
+})
+
+test('the Intel macOS build runs x64 Node and Rust under Rosetta on Apple Silicon', async () => {
+  const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+  assert.doesNotMatch(workflow, /macos-15-intel/)
+  assert.match(
+    workflow,
+    /target: darwin-x86_64\n\s+os: macos-15\n\s+node_arch: x64\n\s+rust_host: x86_64-apple-darwin/,
+  )
+  assert.match(workflow, /softwareupdate --install-rosetta --agree-to-license/)
+  assert.match(workflow, /architecture: \$\{\{ matrix\.node_arch \|\| '' \}\}/)
+  assert.match(workflow, /rustup default "stable-\$RUST_HOST"/)
+  // x64 工具链必须在 rust-cache 之前切换，缓存键才按 x86_64 主机区分。
+  const rustDefault = workflow.indexOf('rustup default "stable-$RUST_HOST"')
+  assert.ok(rustDefault >= 0 && workflow.lastIndexOf('Swatinem/rust-cache@v2') > rustDefault)
 })

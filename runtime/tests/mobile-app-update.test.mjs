@@ -10,7 +10,7 @@ test('移动 App 更新实现归独立 App 发布通道', () => {
   assert.equal(isAppOwnedPath(path), true)
 })
 
-test('统一 release 命令自动检测并最后派发独立 App 通道', async () => {
+test('统一 release 命令自动检测，App 通道与组件发布同批并行派发', async () => {
   const [release, manifest] = await Promise.all([
     readFile('scripts/release.mjs', 'utf8'),
     readFile('package.json', 'utf8').then(JSON.parse),
@@ -21,7 +21,9 @@ test('统一 release 命令自动检测并最后派发独立 App 通道', async 
   await assert.rejects(access('scripts/release-app.mjs'), (error) => error?.code === 'ENOENT')
   assert.match(release, /appReleasePaths/)
   assert.match(release, /component === 'app' \? 'release-app\.yml' : 'release\.yml'/)
-  assert.match(release, /releaseOrder = \{ tui: 0, runtime: 1, desktop: 2, app: 3 \}/)
+  assert.match(release, /releaseOrder = \{ tui: 0, runtime: 1, app: 2, desktop: 3 \}/)
+  // App 在第一批派发，不等桌面版。
+  assert.match(release, /filter\(\(\{ component \}\) => component !== 'desktop'\)/)
 })
 
 test('Android 与 iOS 发布包都写入独立 App 版本', async () => {
