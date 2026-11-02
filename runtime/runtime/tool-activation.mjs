@@ -5,7 +5,6 @@ import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { selectedToolNames } from '../tools/tool-activation.mjs'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
 // 本轮屏蔽的工具：隔离上下文的屏蔽项，加上没人在场的运行里的 ask_user。
@@ -15,19 +14,10 @@ function runBlockedToolNames(value) {
   return blocked
 }
 
-// 工具激活策略：根据执行模式/目标状态/用户请求动态启用工具，并同步系统提示。
+// 工具激活策略：根据目标状态/用户请求动态启用工具，并同步系统提示；执行模式不影响工具集合。
 // 工具在会话中可能被“提升”（promoted）——即模型可直接调用，而非常驻可见。
 export class ToolActivation {
-  constructor({
-    getExecutionMode,
-    getToolRisk,
-    getSessionMeta,
-    saveSessionMeta,
-    getGoal,
-    promoteTools,
-  }) {
-    this.getExecutionMode = getExecutionMode
-    this.getToolRisk = getToolRisk
+  constructor({ getSessionMeta, saveSessionMeta, getGoal, promoteTools }) {
     this.getSessionMeta = getSessionMeta
     this.saveSessionMeta = saveSessionMeta
     this.getGoal = getGoal
@@ -48,7 +38,6 @@ export class ToolActivation {
   // 同步目标工具开关：目标激活时启用目标相关工具，否则关闭。
   syncGoalTools(value, goal) {
     if (!value?.session) return
-    const mode = this.getExecutionMode(value.session.sessionId)
     const blockedToolNames = runBlockedToolNames(value)
     const availableToolNames = [
       ...(value.baseToolNames || []),
@@ -66,18 +55,16 @@ export class ToolActivation {
       goalToolNames: GOAL_TOOL_NAMES,
       goalActive: goal?.status === 'active',
     })
-    value.session.setActiveToolsByName(filterToolsForExecutionMode(names, mode, this.getToolRisk))
+    value.session.setActiveToolsByName(names)
   }
 
-  // 提升指定工具：按执行模式过滤后路由，同步目标工具与系统提示。
+  // 提升指定工具：只路由本会话可用的工具，同步目标工具与系统提示。
   async promoteSessionTools(value, toolNames = []) {
     if (!value?.session) return { routedToolNames: [] }
     const availableToolNames = this.optionalToolNames(value)
-    const routedToolNames = filterToolsForExecutionMode(
-      toolNames.filter((name) => availableToolNames.includes(name)),
-      this.getExecutionMode(value.session.sessionId),
-      this.getToolRisk,
-    )
+    const routedToolNames = [
+      ...new Set(toolNames.filter((name) => availableToolNames.includes(name))),
+    ]
     this.syncGoalTools(value, this.getGoal(value.session.sessionId))
     applyPisperSystemPrompt(value.session, value.session.model)
     return { routedToolNames }

@@ -412,7 +412,7 @@ export class ToolPluginService {
       digest: scan.digest,
       warnings: [
         '插件代码将在独立 Worker 中运行，但仍拥有当前系统用户可访问的本机文件和网络权限。',
-        '第三方插件能力仅在“完全访问”执行模式下提供给 Agent。',
+        '第三方插件工具在所有执行模式下可用；除“完全访问”外，每次调用前都需要确认。',
       ],
     }
   }
@@ -799,10 +799,10 @@ export class ToolPluginService {
     return false
   }
 
-  // 按执行模式过滤出的启用工具列表。
-  enabledTools(appConfig, executionMode) {
+  // 启用的工具：内置工具按配置，第三方插件按各自记录。不随执行模式变化——
+  // 第三方插件工具在完全访问以外的模式下逐次确认（session-permission-service）。
+  enabledTools(appConfig) {
     const builtIns = toolsFromConfig(appConfig)
-    if (executionMode !== 'full-access') return builtIns
     return [
       ...builtIns,
       ...[...this.installed.values()].flatMap(({ record }) => record.enabledTools || []),

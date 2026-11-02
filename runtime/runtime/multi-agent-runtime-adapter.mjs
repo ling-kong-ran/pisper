@@ -5,7 +5,6 @@ import { relative, resolve, sep } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
 import { createTeamMemberTools, TEAM_MEMBER_TOOL_NAMES } from '../tools/app/multi-agent.mjs'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
 
 const MAX_TEAM_SCRIPT_BYTES = 256 * 1024
@@ -317,8 +316,6 @@ export function createMultiAgentRuntime({
   enabledTools,
   planReader,
   baseToolNames,
-  getExecutionMode,
-  getToolRisk,
   createInheritedCustomTools,
   waitAgent,
   installSubagentPermissions,
@@ -636,17 +633,14 @@ export function createMultiAgentRuntime({
         emitAgentUpdate(sessionId, progress)
         return true
       }
-      // 没写 tools 时沿用父会话此刻直接可用的工具。写了 tools 时按父会话有权使用的全部工具取交集：
+      // 没写 tools 时沿用父会话此刻直接可用的工具。写了 tools 时按父会话可用的全部工具取交集：
       // 联网搜索、浏览器、MCP 这类工具平时要先经 discover_tools 才进入父会话，子代理没有发现工具，
-      // 不能要求父会话先用过一次。两种情况都只在父会话的工具里收窄，并且仍按执行模式过滤。
-      // 写了但这里没有的工具（名字写错、父会话没启用或被当前执行模式禁用）随结果告诉父模型。
+      // 不能要求父会话先用过一次。两种情况都只在父会话的工具里收窄；执行模式不减少工具，
+      // 子代理的调用和父会话一样逐次走审批（installSubagentPermissions）。
+      // 写了但这里没有的工具（名字写错或父会话没启用）随结果告诉父模型。
       const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
-      const inheritedTools = filterToolsForExecutionMode(
-        baseToolNames.filter((name) =>
-          profile?.tools ? profile.tools.includes(name) : active.has(name),
-        ),
-        getExecutionMode(),
-        getToolRisk,
+      const inheritedTools = baseToolNames.filter((name) =>
+        profile?.tools ? profile.tools.includes(name) : active.has(name),
       )
       const skippedProfileTools = (profile?.tools || []).filter(
         (name) =>

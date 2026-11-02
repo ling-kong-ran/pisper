@@ -153,15 +153,12 @@ test('local plugins can be inspected, installed, executed, toggled, and removed'
     assert.equal(inspection.plugin.id, 'example.echo')
     assert.equal(inspection.plugin.systemAccess, true)
     assert.equal(inspection.fileCount, 2)
-    assert.match(inspection.warnings.join('\n'), /完全访问/)
+    assert.match(inspection.warnings.join('\n'), /除“完全访问”外，每次调用前都需要确认/)
 
     const installed = await service.install(inspection.inspectionId)
     assert.equal(installed.enabled, true)
-    assert.deepEqual(service.enabledTools({ enabledTools: ['read'] }, 'workspace-write'), ['read'])
-    assert.deepEqual(service.enabledTools({ enabledTools: ['read'] }, 'full-access'), [
-      'read',
-      'example_echo',
-    ])
+    // 插件工具不再只在完全访问下出现；逐次确认交给权限服务。
+    assert.deepEqual(service.enabledTools({ enabledTools: ['read'] }), ['read', 'example_echo'])
 
     const definitions = service.createToolDefinitions({
       cwd: root,

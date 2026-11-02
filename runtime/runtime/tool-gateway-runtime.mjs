@@ -1,24 +1,10 @@
 // 工具网关的运行时装配：把应用工具的 Map 包装成 Pi 会话可见的 tool_gateway 工具。
-// 关键点：按执行模式过滤工具，未获准的工具对模型不可见；调用前再走权限审批。
+// 可用工具不随执行模式变化；调用前统一走权限审批，模式只决定是否逐次确认。
 import { createToolGatewayTool } from '../tools/app/tool-gateway.mjs'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 
-export function createRuntimeToolGateway({
-  tools,
-  getExecutionMode,
-  getToolRisk,
-  authorize,
-  sessionId,
-}) {
+export function createRuntimeToolGateway({ tools, authorize, sessionId }) {
   return createToolGatewayTool({
-    getTool: (name) => {
-      const permitted = filterToolsForExecutionMode(
-        [name],
-        getExecutionMode(sessionId),
-        getToolRisk,
-      )
-      return permitted.includes(name) ? tools.get(name) : null
-    },
+    getTool: (name) => tools.get(name) || null,
     authorize: (input) => authorize({ sessionId, ...input }),
   })
 }

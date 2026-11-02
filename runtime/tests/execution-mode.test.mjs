@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import {
   DEFAULT_EXECUTION_MODE,
-  filterToolsForExecutionMode,
   normalizeExecutionMode,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
@@ -23,57 +22,54 @@ test('execution modes normalize and default invalid values', () => {
   assert.equal(permissionModeForExecutionMode('full-access'), 'ignore')
 })
 
-test('approval-required execution exposes low-risk and approval-gated tools', () => {
-  const names = [
-    'read',
-    'grep',
-    'edit',
-    'bash',
-    'discover_tools',
-    'memory_search',
-    'memory_remember',
-    'skill_create',
-    'plugin_create',
-    'mobile_device',
-    'generate_visual',
-    'computer-use',
-    'get_plan',
-    'update_plan',
-    'get_task_list',
-    'update_task_list',
-    'spawn_agent',
-    'followup_task',
-    'interrupt_agent',
-  ]
-  // 审批模式：高危工具与内部中风险工具可见，但调用时仍需逐次审批。
-  assert.deepEqual(filterToolsForExecutionMode(names, 'approval-required'), [
-    'read',
-    'grep',
-    'edit',
-    'bash',
-    'discover_tools',
-    'memory_search',
-    'skill_create',
-    'plugin_create',
-    'mobile_device',
-    'generate_visual',
-    'computer-use',
-    'get_plan',
-    'update_plan',
-    'get_task_list',
-    'spawn_agent',
-    'followup_task',
-    'interrupt_agent',
-  ])
-  assert.deepEqual(filterToolsForExecutionMode(['get_goal', 'update_goal'], 'approval-required'), [
-    'get_goal',
-    'update_goal',
-  ])
-  assert.equal(
-    filterToolsForExecutionMode(names, 'workspace-write').includes('plugin_create'),
-    true,
+test('execution modes decide approvals, not which tools exist', async () => {
+  // 第一层“按模式隐藏工具”已去掉：模块只剩模式归一化和默认权限映射。
+  const module = await import('../security/execution-mode.mjs')
+  assert.equal('filterToolsForExecutionMode' in module, false)
+  const ask = (toolName, extra = {}) =>
+    permissionRequirement({
+      mode: 'ask',
+      executionMode: 'approval-required',
+      cwd: process.cwd(),
+      toolName,
+      args: {},
+      ...extra,
+    })
+  // 需审批：中高风险工具照样可用，只是每次确认；联网搜索是只读公开搜索，按低风险直接放行。
+  assert.equal(ask('web_search'), null)
+  assert.equal(ask('memory_search'), null)
+  assert.equal(ask('memory_remember').risk, 'medium')
+  assert.equal(ask('browser_automation').risk, 'medium')
+  assert.equal(ask('plugin_tool', { toolRisk: 'high', thirdPartyTool: true }).risk, 'high')
+  // 工作区写：第三方插件工具仍逐次确认，内置的中风险工具直接放行。
+  const auto = (toolName, extra = {}) =>
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd: process.cwd(),
+      toolName,
+      args: {},
+      ...extra,
+    })
+  assert.equal(auto('web_search'), null)
+  assert.equal(auto('memory_remember'), null)
+  assert.match(
+    auto('plugin_tool', { toolRisk: 'high', thirdPartyTool: true }).reason,
+    /来自第三方插件/,
   )
-  assert.deepEqual(filterToolsForExecutionMode(names, 'full-access'), names)
+  // 完全访问：不再询问。
+  assert.equal(
+    permissionRequirement({
+      mode: 'ignore',
+      executionMode: 'full-access',
+      cwd: process.cwd(),
+      toolName: 'plugin_tool',
+      args: {},
+      toolRisk: 'high',
+      thirdPartyTool: true,
+    }),
+    null,
+  )
 })
 
 test('React exposes approval-required, workspace-write, and full-access execution modes', async () => {
@@ -149,9 +145,7 @@ test('plugin_create still requests approval outside full-access', () => {
 })
 
 test('component_create follows the session permission mode like an ordinary file write', () => {
-  // 审批模式可见；ask 审批一次；workspace-write（auto）与 full-access 直接放行；组件目录在工作区之外也不阻断。
-  for (const mode of ['approval-required', 'workspace-write', 'full-access'])
-    assert.deepEqual(filterToolsForExecutionMode(['component_create'], mode), ['component_create'])
+  // ask 审批一次；workspace-write（auto）与 full-access 直接放行；组件目录在工作区之外也不阻断。
   const base = { cwd: process.cwd(), toolName: 'component_create', args: { id: 'ci-status' } }
   assert.deepEqual(
     permissionRequirement({ ...base, mode: 'ask', executionMode: 'approval-required' }),

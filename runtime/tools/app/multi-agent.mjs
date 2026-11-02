@@ -158,7 +158,7 @@ function spawnResultText(agent) {
       }.`
     : ''
   const skipped = agent.skippedProfileTools?.length
-    ? ` Tools listed in the definition were skipped because this session does not have them or its permission mode does not give them to Agents: ${agent.skippedProfileTools.join(', ')}.`
+    ? ` Tools listed in the definition were skipped because this session does not have them: ${agent.skippedProfileTools.join(', ')}.`
     : ''
   return `${action} ${agent.canonicalName}${definition} in the background.${fallback}${skipped}`
 }

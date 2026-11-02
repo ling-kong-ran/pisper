@@ -5,7 +5,6 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
@@ -16,7 +15,6 @@ import {
   bridgePiExtensionPackages,
   isPiExtensionPlugin,
 } from '../services/pi-extension-bridge.mjs'
-import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from './computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
@@ -453,21 +451,16 @@ export class AgentRuntimeFacade {
       enabledTools: state.enabledTools.filter((tool) => visibleToolNames.has(tool)),
     }
     if (!sessionId) return visibleState
-    const executionMode = this.getSessionExecutionMode(sessionId)
     const enabledToolNames = this.toolPlugins
-      .enabledTools({ enabledTools: visibleState.enabledTools }, executionMode)
+      .enabledTools({ enabledTools: visibleState.enabledTools })
       .filter((tool) => visibleToolNames.has(tool))
     const callablePiToolNames = piPlugins
       .filter((plugin) => plugin.name === 'Computer Use' && plugin.enabled !== false)
       .flatMap((plugin) => plugin.capabilities.map((capability) => capability.name))
     return {
       ...visibleState,
-      callableToolNames: filterToolsForExecutionMode(
-        [...enabledToolNames, ...callablePiToolNames],
-        executionMode,
-        (name) =>
-          OFFICIAL_COMPUTER_USE_TOOL_NAMES.includes(name) ? 'high' : this.getToolRisk(name),
-      ),
+      // 可调用工具不随执行模式变化：模式只决定调用时是否逐次确认。
+      callableToolNames: [...new Set([...enabledToolNames, ...callablePiToolNames])],
     }
   }
 

@@ -254,10 +254,11 @@ test('a definition with a tier runs on the mapped model with its tools and instr
   assert.equal(spawned.modelSource, 'tier')
   assert.equal(spawned.thinkingLevel, 'low')
   // 定义只能收窄：父会话的 bash/write/edit 不会带给子代理，只保留只读的计划查看这类协作工具。
-  // memory_search 平时要先经 discover_tools 才进入父会话；定义点名要它时直接给，不要求父会话先用过。
-  // web_search 是中风险工具，需要审批的模式下本来就不交给子代理，定义也不能绕过。
+  // memory_search、web_search 平时要先经 discover_tools 才进入父会话；定义点名要它们时直接给，
+  // 不要求父会话先用过。会话处于默认的需审批模式，执行模式也不减少子代理的工具。
+  assert.equal(runtime.getSessionExecutionMode(sessionId), 'approval-required')
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
-  assert.deepEqual(spawned.availableTools, ['memory_search', 'read', 'get_plan'])
+  assert.deepEqual(spawned.availableTools, ['memory_search', 'read', 'web_search', 'get_plan'])
   const agent = await finished(runtime, sessionId, spawned.id)
   assert.equal(agent.status, 'completed', agent.error)
   const childRequest = requests.find((item) => item.target === 'cheap')
@@ -278,10 +279,11 @@ test('a definition with a tier runs on the mapped model with its tools and instr
     'get_plan',
     'memory_search',
     'read',
+    'web_search',
   ])
   assert.match(system, /Standing instructions from this agent definition apply to every task/)
   // 定义里写了但父会话没有的工具不会凭空出现，派生结果会点名告诉父模型。
-  assert.deepEqual(spawned.skippedProfileTools, ['web_search', 'ghost_tool'])
+  assert.deepEqual(spawned.skippedProfileTools, ['ghost_tool'])
 })
 
 test('unavailable definition models fall back to the parent model and say why', async (t) => {

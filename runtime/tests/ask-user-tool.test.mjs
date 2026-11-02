@@ -13,7 +13,6 @@ import { projectSessionOrganization } from '../services/chat-session-organizatio
 import { projectSessionCard } from '../services/session-card-summary.mjs'
 import { channelQuestionText } from '../services/channels/channel-service.mjs'
 import { permissionRequirement } from '../services/session-permission-service.mjs'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { hotToolNames } from '../tools/tool-activation.mjs'
 import { ToolActivation } from '../runtime/tool-activation.mjs'
 import { resolveRuntimeCapabilities } from '../runtime-capabilities.mjs'
@@ -260,9 +259,6 @@ test('ask_user is never gated by approvals and stays visible in read-only mode',
       null,
     )
   }
-  assert.deepEqual(filterToolsForExecutionMode([ASK_USER_TOOL_NAME], 'approval-required'), [
-    ASK_USER_TOOL_NAME,
-  ])
   assert.deepEqual(hotToolNames(['read', ASK_USER_TOOL_NAME, 'web_search']), [
     'read',
     ASK_USER_TOOL_NAME,
@@ -271,8 +267,6 @@ test('ask_user is never gated by approvals and stays visible in read-only mode',
 
 test('unattended runs do not offer ask_user', () => {
   const activation = new ToolActivation({
-    getExecutionMode: () => 'workspace-write',
-    getToolRisk: () => 'low',
     getSessionMeta: () => ({}),
     saveSessionMeta: async () => {},
     getGoal: () => null,

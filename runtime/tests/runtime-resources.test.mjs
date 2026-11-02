@@ -437,7 +437,8 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   })
   assert.equal(value.session.getActiveToolNames().includes('get_task_list'), false)
   assert.equal(value.session.getActiveToolNames().includes('update_task_list'), false)
-  assert.deepEqual(value.requestedToolNames, ['get_task_list'])
+  // 旧客户端的计划别名可以被路由，但不会激活进提示；执行模式不再额外剔除写别名。
+  assert.deepEqual(value.requestedToolNames, ['get_task_list', 'update_task_list'])
   assert.doesNotMatch(applyPisperSystemPrompt(value.session), /get_task_list|update_task_list/)
   await runtime.selectToolsForMessage(value, 'Return to canonical tools.')
   assert.deepEqual(value.requestedToolNames, [])
@@ -490,7 +491,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.doesNotMatch(leadingPrompt.content, /get_task_list|update_task_list/)
 })
 
-test('plugin catalog derives callable Tool names from the session execution policy', async () => {
+test('plugin catalog reports the same callable Tool names in every execution mode', async () => {
   const runtime = Object.create(AgentRuntimeService.prototype)
   runtime.toolPlugins = {
     async getState() {
@@ -499,21 +500,16 @@ test('plugin catalog derives callable Tool names from the session execution poli
         enabledTools: ['read', 'edit', 'generate_visual', 'plugin_create'],
       }
     },
-    enabledTools(config, mode) {
-      assert.equal(mode, 'approval-required')
+    enabledTools(config, ...rest) {
+      // 可调用工具不随执行模式变化，不再把模式传进来。
+      assert.deepEqual(rest, [])
       return config.enabledTools
     },
   }
-  runtime.getSessionExecutionMode = (sessionId) => {
-    assert.equal(sessionId, 'session-1')
-    return 'approval-required'
-  }
-  runtime.getToolRisk = (name) =>
-    ({ read: 'low', edit: 'high', generate_visual: 'high', plugin_create: 'high' })[name]
 
   const result = await runtime.getPlugins('session-1')
 
-  // 审批模式下 generate_visual 与其他高危工具一样可见（调用时逐次审批）
+  // 高危工具与低风险工具一样可调用，调用时由权限服务按模式决定是否逐次确认。
   assert.deepEqual(result.callableToolNames, ['read', 'edit', 'generate_visual', 'plugin_create'])
 })
 

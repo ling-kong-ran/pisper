@@ -6,7 +6,8 @@ export const manifest = {
   id: 'web_search',
   name: 'Web Search',
   category: 'search',
-  risk: 'medium',
+  // 只读的公开搜索：只发送搜索词，不带用户凭据、不改动远端状态，按低风险处理，需审批模式下也不逐次确认。
+  risk: 'low',
   description: 'Search the internet through Bing RSS without installation or an API key.',
   scope: 'Bing public web search',
   capability:

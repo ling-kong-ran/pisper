@@ -1,49 +1,10 @@
-// 执行模式：按模式过滤可用工具与默认权限策略。
-// 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）三种模式。
-import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../runtime/computer-use-extension.mjs'
-import { PLAN_READ_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
-import { TOOL_CATALOG } from '../tools/registry.mjs'
+// 执行模式：决定调用工具时是否需要用户确认（默认权限策略），不决定有哪些工具可用。
+// 交互会话提供 approval-required（需审批，默认）/ workspace-write（工作区写）/ full-access（完全访问）三种模式；
+// 可用工具只由插件页的开关决定，三种模式下一致（子代理也一样），逐次确认由 session-permission-service 负责。
+// 工具集合不随模式变化，切换模式也不会让提示缓存失效。
 
 export const EXECUTION_MODES = new Set(['approval-required', 'workspace-write', 'full-access'])
 export const DEFAULT_EXECUTION_MODE = 'approval-required'
-
-const TOOL_RISK = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool.risk]))
-// 审批模式下仍可见的高危工具：调用时逐次审批，由用户决定是否放行。
-// 生图是按次计费的高危操作，但在默认模式（approval-required）下必须可被发现，否则用户根本用不到。
-const APPROVAL_TOOLS = new Set([
-  'edit',
-  'write',
-  'bash',
-  'skill_create',
-  'plugin_create',
-  // 组件写入按普通写文件处理：审批模式下可见、逐次审批（负责人决定，规格 5.2）。
-  'component_create',
-  'generate_visual',
-  'computer-use',
-  ...OFFICIAL_COMPUTER_USE_TOOL_NAMES,
-])
-// mobile_device 的能力控制在手机原生桥和操作系统权限层完成，但在审批模式仍需让 Agent 看见它。
-const APPROVAL_EXEMPT_TOOLS = new Set(['mobile_device'])
-const INTERNAL_APPROVAL_TOOLS = new Set([
-  'update_plan',
-  'spawn_agent',
-  'followup_task',
-  'interrupt_agent',
-  'update_team_task',
-  'run_team_workflow',
-])
-const INTERNAL_SAFE_TOOLS = new Set([
-  'discover_tools',
-  'call_tool',
-  'get_goal',
-  'update_goal',
-  // 只读模式下也能提问：问题不读写任何东西。
-  'ask_user',
-  ...PLAN_READ_TOOL_NAMES,
-  'list_agents',
-  'send_message',
-  'wait_agent',
-])
 
 export function normalizeExecutionMode(value, fallback = DEFAULT_EXECUTION_MODE) {
   const mode = String(value || '')
@@ -56,21 +17,4 @@ export function permissionModeForExecutionMode(mode) {
   if (mode === 'approval-required') return 'ask'
   if (mode === 'workspace-write') return 'auto'
   return 'ignore'
-}
-
-// 按执行模式过滤工具：审批模式保留低风险工具及逐次审批工具。
-export function filterToolsForExecutionMode(names, mode, getExternalRisk = () => null) {
-  const unique = [...new Set(names || [])]
-  if (mode !== 'approval-required') return unique
-  return unique.filter((name) => {
-    if (
-      APPROVAL_TOOLS.has(name) ||
-      APPROVAL_EXEMPT_TOOLS.has(name) ||
-      INTERNAL_APPROVAL_TOOLS.has(name)
-    )
-      return true
-    if (INTERNAL_SAFE_TOOLS.has(name)) return true
-    const risk = TOOL_RISK.get(name) || getExternalRisk(name)
-    return risk === 'low' || risk === '低风险'
-  })
 }

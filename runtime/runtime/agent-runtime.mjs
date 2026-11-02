@@ -124,7 +124,6 @@ import {
 } from '../tools/tool-activation.mjs'
 import {
   DEFAULT_EXECUTION_MODE,
-  filterToolsForExecutionMode,
   normalizeExecutionMode,
   permissionModeForExecutionMode,
 } from '../security/execution-mode.mjs'
@@ -598,6 +597,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
+      isThirdPartyTool: (toolName) => this.toolPlugins?.isThirdPartyTool?.(toolName) || false,
       onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
     // ask_user 的待回答问题：事件同时推给本轮运行流与看板事件流（后台运行的提问也进“需要你”）。
@@ -700,8 +700,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       onError: () => console.warn('看板事件流刷新失败。'),
     })
     this.toolActivation = new ToolActivation({
-      getExecutionMode: (id) => this.getSessionExecutionMode(id),
-      getToolRisk: (name) => this.getToolRisk(name),
       getSessionMeta: () => this.sessionMeta,
       saveSessionMeta: () => this.saveSessionMeta(),
       getGoal: (id) => this.goals.get(id),
@@ -1631,7 +1629,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
     const supportedToolNames = new Set(this.capabilities.tools)
     const enabledTools = this.toolPlugins
-      .enabledTools(appConfig, executionMode)
+      .enabledTools(appConfig)
       .filter((name) =>
         catalogToolNames.has(name)
           ? supportedToolNames.has(name)
@@ -1752,11 +1750,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const toolDiscovery = createToolDiscoveryTool({
       listTools: () => {
         if (!runtimeValue || !runtimeSession) return []
-        const optionalToolNames = filterToolsForExecutionMode(
-          this.optionalToolNames(runtimeValue),
-          this.getSessionExecutionMode(runtimeSession.sessionId),
-          (toolName) => this.getToolRisk(toolName),
-        )
+        const optionalToolNames = [...new Set(this.optionalToolNames(runtimeValue))]
         const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
         const activeToolNames = new Set(runtimeSession.getActiveToolNames())
         return optionalToolNames
@@ -1847,8 +1841,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           enabledTools,
           planReader,
           baseToolNames,
-          getExecutionMode: () => this.getSessionExecutionMode(runtimeSessionId),
-          getToolRisk: (toolName) => this.getToolRisk(toolName),
           createInheritedCustomTools,
           waitAgent: (timeoutMs, target) =>
             waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
@@ -1899,12 +1891,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       : []
     const inheritedCustomTools = createInheritedCustomTools()
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
-    // 工具网关：集中管控工具调用（按执行模式过滤 + 权限审批），
+    // 工具网关：集中管控工具调用（权限审批），
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
-      getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
-      getToolRisk: (name) => this.getToolRisk(name),
       authorize: (input) => this.permissions.authorize({ cwd: effectiveCwd, ...input }),
       sessionId: runtimeSessionId,
     })

@@ -385,6 +385,11 @@ tools: [read, grep, find, ls]   # 可选：只能在当前会话已有的工具�
             </table>
           </div>
 
+          <p>
+            三种模式下可用的工具完全一样（子代理也一样），模式只决定调用前要不要问你：
+            需审批时，联网搜索之外的中高风险工具（浏览器、MCP、插件等）每次确认；工作区写时，第三方插件工具仍逐次确认；完全访问不再询问。
+          </p>
+
           <p>终端里用 <code>/mode</code> 查看与切换审批模式，如 <code>/mode approval-required</code>、<code>/mode workspace-write</code>、<code>/mode full-access</code>。</p>
         </section>
 

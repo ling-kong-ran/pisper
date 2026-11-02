@@ -838,7 +838,7 @@ export function PluginsPage({ notify, onBack, requestText, requestConfirm }: Plu
                             {!tool.pluginBuiltIn && (
                               <div>
                                 <dt>{t('plugins:pluginsPage.executionMode')}</dt>
-                                <dd>{t('plugins:pluginsPage.fullAccessOnly')}</dd>
+                                <dd>{t('plugins:pluginsPage.confirmUnlessFullAccess')}</dd>
                               </div>
                             )}
                           </dl>

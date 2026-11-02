@@ -154,7 +154,15 @@ export function teamFileOwnershipRequirement({ cwd, toolName, args, ownedFiles =
   }
 }
 
-export function permissionRequirement({ mode, executionMode, cwd, toolName, args, toolRisk }) {
+export function permissionRequirement({
+  mode,
+  executionMode,
+  cwd,
+  toolName,
+  args,
+  toolRisk,
+  thirdPartyTool = false,
+}) {
   if (executionMode === 'full-access') return null
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
   // 手机端会在原生桥和系统权限层执行能力控制，避免再叠加一次通用 Agent 审批。
@@ -201,6 +209,14 @@ export function permissionRequirement({ mode, executionMode, cwd, toolName, args
     ) {
       return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
     }
+    // 第三方插件工具在所有模式下都可用，代价是工作区写模式下也逐次确认：
+    // 插件代码以当前系统用户权限运行，不像 bash 那样有命令守卫。
+    if (thirdPartyTool) {
+      return {
+        risk: 'high',
+        reason: `${toolName} 来自第三方插件，会以当前系统用户权限运行本地代码，需要确认后执行。`,
+      }
+    }
     return null
   }
   if (['edit', 'write', 'skill_create', 'plugin_create'].includes(toolName)) {
@@ -244,6 +260,7 @@ export class SessionPermissionService {
     getMode,
     getExecutionMode,
     getToolRisk,
+    isThirdPartyTool,
     approvalPath,
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
@@ -256,6 +273,7 @@ export class SessionPermissionService {
     this.getMode = getMode || (() => DEFAULT_PERMISSION_MODE)
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
+    this.isThirdPartyTool = isThirdPartyTool || (() => false)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
     this.computerUseSecureRefs = computerUseSecureRefs
@@ -402,6 +420,7 @@ export class SessionPermissionService {
       toolName,
       args,
       toolRisk: this.getToolRisk(toolName),
+      thirdPartyTool: Boolean(this.isThirdPartyTool(toolName)),
     })
     if (secureAct && executionMode !== 'full-access') {
       requirement = {

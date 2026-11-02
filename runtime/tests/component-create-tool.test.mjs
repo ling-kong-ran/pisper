@@ -5,7 +5,6 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { permissionRequirement } from '../services/session-permission-service.mjs'
 import { CustomUiService } from '../services/custom-ui-service.mjs'
 import { createComponentCreateTool, manifest } from '../tools/app/component-create.mjs'
@@ -63,9 +62,7 @@ test('component_create 是登记过的高风险 app 工具：目录、预设、�
   assert.match(guidelines, /Never add API Key props/)
 })
 
-test('执行模式：审批模式可见且每次审批；工作区写与完全访问直接放行；不按“工作区之外”阻断', () => {
-  for (const mode of ['approval-required', 'workspace-write', 'full-access'])
-    assert.deepEqual(filterToolsForExecutionMode(['component_create'], mode), ['component_create'])
+test('执行模式：审批模式每次审批；工作区写与完全访问直接放行；不按“工作区之外”阻断', () => {
   const base = { cwd: '/work/project', toolName: 'component_create', args: { id: 'ci-status' } }
   const ask = permissionRequirement({ ...base, mode: 'ask', executionMode: 'approval-required' })
   assert.equal(ask.block, undefined)

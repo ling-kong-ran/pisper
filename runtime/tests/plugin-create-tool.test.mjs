@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { filterToolsForExecutionMode } from '../security/execution-mode.mjs'
 import { createPluginCreateTool, manifest } from '../tools/app/plugin-create.mjs'
 import { TOOL_CATALOG, TOOL_PRESETS, createAppTools } from '../tools/registry.mjs'
 
@@ -28,10 +27,6 @@ test('plugin_create is an approval-gated high-risk app tool', () => {
   assert.equal(TOOL_PRESETS.full.includes('plugin_create'), true)
   assert.equal(TOOL_PRESETS.full.includes('plugin_create'), true)
   assert.equal(createAppTools({ enabledTools: ['plugin_create'] })[0]?.name, 'plugin_create')
-  assert.deepEqual(filterToolsForExecutionMode(['plugin_create'], 'workspace-write'), [
-    'plugin_create',
-  ])
-  assert.deepEqual(filterToolsForExecutionMode(['plugin_create'], 'full-access'), ['plugin_create'])
 })
 
 test('plugin_create delegates structured input and invalidates plugin tools after installation', async () => {
