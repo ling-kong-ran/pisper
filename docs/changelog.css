@@ -1,17 +1,15 @@
 /* 开发日志页：沿用教程页的文档式布局，重点支持高密度版本浏览与提交分类。 */
 :root {
-  color-scheme: dark;
-  --page: #0b0c0c;
-  --surface: #151817;
-  --surface-2: #1b1f1d;
-  --ink: #f2f5f3;
-  --muted: #a7b0ac;
-  --faint: #727c77;
-  --line: #303734;
-  --feature: #cbe969;
-  --fix: #ff9c8d;
-  --change: #68cbd4;
-  --header-height: 64px;
+  /* 本页原有的变量名接到 site-theme.css 的共享颜色上；三种改动类型沿用应用的状态色。 */
+  --page: var(--bg);
+  --surface-2: var(--surface-muted);
+  --ink: var(--text);
+  --muted: var(--text-secondary);
+  --faint: var(--text-muted);
+  --line: var(--stroke);
+  --feature: var(--done);
+  --fix: var(--danger);
+  --change: var(--run);
 }
 
 * {
@@ -23,22 +21,13 @@ html {
 }
 
 body {
-  margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
   line-height: 1.65;
 }
 
 a {
-  color: var(--change);
+  color: var(--text);
+  text-decoration-color: var(--stroke-strong);
+  text-underline-offset: 3px;
 }
 
 button,
@@ -48,68 +37,8 @@ a {
 
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--change);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
-}
-
-.skip-link {
-  position: absolute;
-  left: -9999px;
-}
-
-.skip-link:focus {
-  left: 12px;
-  top: 12px;
-  z-index: 100;
-  padding: 10px 16px;
-  border-radius: 6px;
-  background: var(--feature);
-  color: #11140a;
-  font-weight: 700;
-}
-
-.page-header {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  min-height: var(--header-height);
-  align-items: center;
-  gap: 20px;
-  padding-inline: max(20px, calc((100% - 1080px) / 2));
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--page) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.page-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-right: auto;
-  color: var(--ink);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.page-brand img {
-  border-radius: 7px;
-}
-
-.page-header-links {
-  display: flex;
-  gap: 18px;
-  font-size: 14px;
-}
-
-.page-header-links a {
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.page-header-links a:hover {
-  color: var(--ink);
 }
 
 .changelog-main {
@@ -382,33 +311,7 @@ a:focus-visible {
   background: var(--surface-2);
 }
 
-.page-footer {
-  padding: 28px 24px;
-  border-top: 1px solid var(--line);
-  color: var(--faint);
-  font-size: 13px;
-  text-align: center;
-}
-
-.page-footer p {
-  margin: 0;
-}
-
 @media (max-width: 760px) {
-  .page-header {
-    gap: 12px;
-    padding-inline: 16px;
-  }
-
-  .page-header-links {
-    gap: 12px;
-    font-size: 13px;
-  }
-
-  .page-header-links a:nth-child(3) {
-    display: none;
-  }
-
   .changelog-main {
     width: min(100% - 32px, 1080px);
     padding-top: 38px;
@@ -462,14 +365,6 @@ a:focus-visible {
 }
 
 @media (max-width: 460px) {
-  .page-header-links a:nth-child(2) {
-    display: none;
-  }
-
-  .page-header-links {
-    gap: 10px;
-  }
-
   .release-filters button {
     font-size: 11px;
   }

@@ -6,19 +6,35 @@
     <meta name="description" content="Support information for the Pisper mobile application." />
     <link rel="canonical" href="https://ling-kong-ran.github.io/pisper/support.html" />
     <link rel="icon" href="brand/pisper-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="site-theme.css" />
     <link rel="stylesheet" href="legal.css" />
     <title>Pisper Mobile Support</title>
   </head>
   <body>
-    <header class="legal-header">
-      <a class="legal-brand" href="index.html">
-        <img src="brand/pisper-logo.svg" width="30" height="30" alt="" />
-        <span>Pisper</span>
-      </a>
-      <nav class="legal-nav" aria-label="Support links">
-        <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
-      </nav>
+    <header class="site-header" data-static-border>
+      <div class="shell site-header-inner">
+        <a class="site-brand" href="index.html" aria-label="Pisper home">
+          <img src="brand/pisper-logo.svg" width="28" height="28" alt="" />
+          <span>Pisper</span>
+        </a>
+        <nav class="site-nav" aria-label="Site">
+          <a href="index.html">Home</a>
+          <a href="support.html" aria-current="page">Support</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+        </nav>
+        <div class="site-header-actions">
+          <details class="site-menu">
+            <summary aria-label="Open navigation menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg></summary>
+            <nav class="site-menu-panel" aria-label="Site">
+              <a href="index.html">Home</a>
+              <a href="support.html" aria-current="page">Support</a>
+              <a href="privacy.html">Privacy</a>
+              <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+            </nav>
+          </details>
+        </div>
+      </div>
     </header>
     <main class="legal-main">
       <h1>Mobile Support</h1>
@@ -88,9 +104,22 @@
         </p>
       </section>
     </main>
-    <footer class="legal-footer">
-      <span>© Pisper</span>
-      <a href="privacy.html">Privacy policy</a>
+    <footer class="site-footer">
+      <div class="shell site-footer-inner">
+        <div class="site-footer-brand">
+          <a class="site-brand" href="index.html">
+            <img src="brand/pisper-logo.svg" width="28" height="28" alt="" />
+            <span>Pisper</span>
+          </a>
+          <p>A multi-agent app for desktop, terminal and mobile.</p>
+        </div>
+        <nav class="site-footer-links" aria-label="Footer">
+          <a href="support.html">Mobile support</a>
+          <a href="privacy.html">Privacy policy</a>
+          <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
+          <a href="https://github.com/ling-kong-ran/pisper/blob/release/LICENSE">MIT License</a>
+        </nav>
+      </div>
     </footer>
   </body>
 </html>
