@@ -24,7 +24,7 @@ async function waitingForLock(signal) {
   }
 }
 
-async function fixture(t, archiveHook) {
+async function fixture(t, archiveHook, trackerOptions = {}) {
   // macOS 的 TMPDIR 常为 /var 符号链接形态，而 tracker 会以 realpath 规范化 cwd；
   // fixture 根目录统一为真实路径，断言路径才能与归档输出在任意 shell 环境下一致。
   const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-asset-tracker-')))
@@ -48,6 +48,7 @@ async function fixture(t, archiveHook) {
       dataDir: trackerDataDir,
       archive,
       warn: (error) => warnings.push(error),
+      ...trackerOptions,
     })
   const tracker = createTracker()
   const run = (sessionId, execute, options = {}) =>
@@ -119,6 +120,38 @@ test('concurrent shell calls in the same cwd archive only their own session file
   )
   assert.equal(f.attempts.length, 2)
   assert.deepEqual(await f.tracker.drain('session-a'), [])
+})
+
+test('a long-running shell yields the workspace without claiming files of later calls', async (t) => {
+  const f = await fixture(t, undefined, { shellExclusiveMs: 20 })
+  const started = deferred()
+  const release = deferred()
+  // 模拟 test:watch：先写一份产物，然后一直不退出。
+  const watcher = f.run('watcher', async () => {
+    await writeFile(join(f.cwd, 'watch-report.txt'), 'watch output')
+    started.resolve()
+    await release.promise
+    await writeFile(join(f.cwd, 'watch-final.txt'), 'watch final')
+    return 'watch-result'
+  })
+  await started.promise
+  try {
+    await f.run('shell', () => writeFile(join(f.cwd, 'typecheck.txt'), 'typecheck output'))
+    await f.run('writer', () => writeFile(join(f.cwd, 'notes.txt'), 'notes'), {
+      name: 'write',
+      args: { path: 'notes.txt' },
+    })
+  } finally {
+    release.resolve()
+  }
+  assert.equal(await watcher, 'watch-result')
+  const contents = async (sessionId) =>
+    (await f.tracker.drain(sessionId)).map((asset) => asset.content).sort()
+  assert.deepEqual(await contents('shell'), ['typecheck output'])
+  assert.deepEqual(await contents('writer'), ['notes'])
+  assert.deepEqual(await contents('watcher'), ['watch final', 'watch output'])
+  assert.equal(f.attempts.length, 4)
+  assert.equal(f.tracker.detached.size, 0)
 })
 
 test('shell overwrites archive the updated content at the same path', async (t) => {

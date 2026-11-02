@@ -9,6 +9,9 @@ import {
 } from './workspace-asset-capture.mjs'
 
 const FILE_TOOLS = new Set(['write', 'edit', 'bash', 'powershell'])
+// shell 独占工作区的上限：多数命令在此之内结束，产物归属精确；更久的 watch、开发服务器
+// 到点后让出锁，否则其它会话在同一项目里的命令和写入会一直排队。
+const SHELL_EXCLUSIVE_MS = 5_000
 
 function operation(name, args) {
   if (name === 'call_tool') {
@@ -38,8 +41,12 @@ export class WorkspaceAssetTracker {
     dataDir,
     archive,
     warn = (error) => console.warn('资产归档待重试：', error.message),
+    shellExclusiveMs = SHELL_EXCLUSIVE_MS,
   }) {
     this.dataDir = resolve(dataDir)
+    this.shellExclusiveMs = shellExclusiveMs
+    // 已让出锁、仍在运行的 shell；其它调用登记的产物记在这里，结束时不再重复认领。
+    this.detached = new Set()
     this.path = join(dataDir, 'pisper-workspace-asset-retries.json')
     this.archive = archive
     this.warn = warn
@@ -134,7 +141,13 @@ export class WorkspaceAssetTracker {
     if (!op) return execute()
     const path = op.path ? resolveToCwd(op.path, cwd) : null
     const scopes = path ? [cwd, dirname(path)] : [cwd]
-    const release = await this.lock(scopes, signal)
+    let release = await this.lock(scopes, signal)
+    const unlock = () => {
+      const done = release
+      release = null
+      done?.()
+    }
+    let detached = null
     try {
       signal?.throwIfAborted()
       await this.ready
@@ -143,16 +156,41 @@ export class WorkspaceAssetTracker {
         : await workspaceAssetFile(path)
       signal?.throwIfAborted()
       try {
-        return await execute()
+        if (!op.shell) return await execute()
+        const running = (async () => execute())()
+        let timer
+        const outlived = await Promise.race([
+          running.then(
+            () => false,
+            () => false,
+          ),
+          new Promise((done) => {
+            timer = setTimeout(done, this.shellExclusiveMs, true)
+          }),
+        ])
+        clearTimeout(timer)
+        if (outlived) {
+          // 让出后其它调用可并发写入；它们登记过的同版本文件不算本命令的产物。
+          detached = new Set()
+          this.detached.add(detached)
+          unlock()
+        }
+        return await running
       } finally {
+        if (detached) this.detached.delete(detached)
         // shell 即使失败也可能已生成产物；显式 write/edit 则按实际路径记录同名更新。
         try {
           const internalPath = path && nested(this.dataDir, await canonical(path))
-          const files = op.shell
+          let files = op.shell
             ? await listChangedWorkspaceAssets(before)
             : [await workspaceAssetFile(path)].filter(
                 (file) => file && file.version !== before?.version && !internalPath,
               )
+          if (detached || this.detached.size) {
+            const claims = await Promise.all(files.map((file) => this.claim(file)))
+            if (detached) files = files.filter((_, index) => !detached.has(claims[index]))
+            for (const other of this.detached) for (const claim of claims) other.add(claim)
+          }
           for (const file of files)
             this.pending.set(this.key({ ...file, sessionId }), { ...file, sessionId, cwd })
           if (files.length) {
@@ -164,8 +202,12 @@ export class WorkspaceAssetTracker {
         }
       }
     } finally {
-      release()
+      unlock()
     }
+  }
+
+  async claim(file) {
+    return JSON.stringify([await canonical(file.path), file.version])
   }
 
   async archiveFiles(files) {
