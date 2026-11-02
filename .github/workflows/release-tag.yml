@@ -1,0 +1,86 @@
+name: Release from trigger tag
+
+# 推送 release-patch / release-minor / release-major / release-X.Y.Z 即发布：
+#   git push origin release:refs/tags/release-patch
+# 这里在 CI 里执行与本机相同的 `npm run release -- <参数>`（检测通道、算版本、发布前检查、
+# 依次派发 release.yml / release-app.yml 并等待完成）。触发标签用后即删，可以反复推同一个名字；
+# 版本标签（v*、tui-v*、runtime-v*、app-v*、npm-v*）仍由各发布 workflow 在产物验证后原子创建。
+on:
+  push:
+    tags:
+      - 'release-*'
+
+permissions:
+  contents: write
+  actions: write
+
+# 与组件发布的 release-<repo> 分组分开：本 job 要等它派发的组件发布完成，同组会互相等死。
+# 同一时间只跑一次标签发布，后推的排队，不取消正在跑的。
+concurrency:
+  group: release-trigger-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    # 一次完整链式发布（tui → runtime → desktop → app）约 1.5–2 小时，加上发布前检查。
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: release
+          fetch-depth: 0
+      - name: Consume trigger tag
+        shell: bash
+        env:
+          TRIGGER_TAG: ${{ github.ref_name }}
+        run: |
+          set -Eeuo pipefail
+          # 先删触发标签：无论后面成败，都能再推同一个名字重试。
+          git push origin ":refs/tags/$TRIGGER_TAG"
+          git tag -d "$TRIGGER_TAG" >/dev/null 2>&1 || true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Resolve release input and verify the source
+        id: input
+        shell: bash
+        env:
+          TRIGGER_TAG: ${{ github.ref_name }}
+          TRIGGER_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          input="$(node scripts/release-trigger.mjs "$TRIGGER_TAG")"
+          head="$(git rev-parse HEAD)"
+          if [ "$head" != "$TRIGGER_SHA" ]; then
+            echo "触发标签 $TRIGGER_TAG 指向 $TRIGGER_SHA，但 release 分支最新提交是 $head。" >&2
+            echo "请对 release 分支最新提交推触发标签：git push origin release:refs/tags/$TRIGGER_TAG" >&2
+            exit 1
+          fi
+          echo "value=$input" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tui
+            src-tauri
+      - name: Install Linux Tauri prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_INPUT: ${{ steps.input.outputs.value }}
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm run release -- "$RELEASE_INPUT"

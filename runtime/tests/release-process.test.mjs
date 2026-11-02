@@ -10,6 +10,7 @@ import {
   assertHasSubstantiveReleaseCommits,
   isSubstantiveReleaseCommit,
 } from '../../scripts/release-policy.mjs'
+import { releaseInputFromTriggerTag } from '../../scripts/release-trigger.mjs'
 
 function parseReleaseSource(source) {
   const sourceFile = parse(source, { sourceType: 'module' })
@@ -366,4 +367,40 @@ test('release policy accepts product commits and rejects bookkeeping-only ranges
       ),
     /没有实质性提交，已中止发布/,
   )
+})
+
+test('trigger tags map to release inputs and never reuse version tag names', () => {
+  assert.equal(releaseInputFromTriggerTag('release-patch'), 'patch')
+  assert.equal(releaseInputFromTriggerTag('release-minor'), 'minor')
+  assert.equal(releaseInputFromTriggerTag('release-major'), 'major')
+  assert.equal(releaseInputFromTriggerTag('release-0.7.0'), '0.7.0')
+  for (const tag of ['v0.6.5', 'tui-v0.6.7', 'release-', 'release-latest', 'release-0.7', '']) {
+    assert.throws(() => releaseInputFromTriggerTag(tag))
+  }
+})
+
+test('pushing a trigger tag runs the same release script in CI', async () => {
+  // 触发标签只是入口：检测通道、算版本、检查与派发都走 scripts/release.mjs，CI 不另写一份。
+  const workflow = await readFile('.github/workflows/release-tag.yml', 'utf8')
+  assert.match(workflow, /push:\n\s+tags:\n\s+- 'release-\*'/)
+  assert.match(workflow, /actions: write/)
+  // 不能与组件发布同一并发组：本 job 等待它派发的组件发布，同组会互相等死。
+  assert.match(workflow, /group: release-trigger-\$\{\{ github\.repository \}\}/)
+  assert.match(workflow, /cancel-in-progress: false/)
+  const consume = workflow.indexOf('git push origin ":refs/tags/$TRIGGER_TAG"')
+  const verify = workflow.indexOf('"$head" != "$TRIGGER_SHA"')
+  const release = workflow.indexOf('npm run release -- "$RELEASE_INPUT"')
+  assert.ok(consume >= 0 && verify > consume && release > verify)
+  assert.match(workflow, /node scripts\/release-trigger\.mjs "\$TRIGGER_TAG"/)
+  assert.match(workflow, /ref: release\n/)
+  assert.doesNotMatch(workflow, /git tag "\$|gh release create/)
+})
+
+test('release checks stage Tauri build inputs on a clean checkout before cargo', async () => {
+  const source = await readFile('scripts/release.mjs', 'utf8')
+  const ensure = source.indexOf('ensureTauriBuildInputs()\n')
+  const tauriFmt = source.indexOf("['fmt', '--manifest-path', 'src-tauri/Cargo.toml'")
+  assert.ok(ensure >= 0 && tauriFmt > ensure)
+  assert.match(source, /runNpm\(\['run', 'sidecar:sea'\]\)/)
+  assert.match(source, /runNpm\(\['run', 'tui:stage'\]\)/)
 })

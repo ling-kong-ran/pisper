@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -115,6 +116,19 @@ function highestPublishedVersion(versions) {
   return stable.sort(compareVersions).at(-1)
 }
 
+// 桌面壳的 cargo 测试和 clippy 要求 externalBin（sidecar、CLI）与前端 dist 都已存在。
+// 开发机上通常早已构建过；推触发标签在 CI 里发布时是干净检出，缺哪样先补哪样。
+function ensureTauriBuildInputs() {
+  const host = run('rustc', ['-vV'], { capture: true }).match(/^host: (.+)$/m)?.[1]
+  if (!host) throw new Error('无法从 rustc -vV 读出目标三元组。')
+  const suffix = process.platform === 'win32' ? '.exe' : ''
+  const staged = (name) =>
+    existsSync(join(root, 'src-tauri', 'binaries', `${name}-${host}${suffix}`))
+  if (!existsSync(join(root, 'dist', 'index.html'))) runNpm(['run', 'build'])
+  if (!staged('pisper-sidecar')) runNpm(['run', 'sidecar:sea'])
+  if (!staged('pisper-cli')) runNpm(['run', 'tui:stage'])
+}
+
 function runComponentChecks(selected) {
   console.log(`正在执行 ${selected.join('、')} 发布前检查…`)
   // lockfile 损坏只会在冷 `npm ci` 时爆发，这里提前对照注册表校验变更条目。
@@ -141,6 +155,7 @@ function runComponentChecks(selected) {
     runNpm(['run', 'tui:check'])
   }
   if (selected.includes('desktop') || selected.includes('app')) {
+    ensureTauriBuildInputs()
     run('cargo', ['fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--check'])
     run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked'])
     run('cargo', [
