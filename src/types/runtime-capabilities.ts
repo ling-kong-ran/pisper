@@ -133,6 +133,7 @@ const PAGE_FEATURES: Partial<Record<string, RuntimeFeature>> = {
 const CONFIG_FEATURES: Partial<Record<string, RuntimeFeature>> = {
   'desktop-pet': 'desktopPet',
   'remote-access': 'remoteAccess',
+  labs: 'betaFeatures',
 }
 
 export function runtimePageAvailable(capabilities: RuntimeCapabilities, page: string) {

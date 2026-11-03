@@ -95,7 +95,15 @@ test('each page lights exactly one primary entry; feature pages have a single ho
   assert.equal(tab('assets'), 'more')
   assert.equal(tab('workflowCreate'), 'more')
   assert.equal(tab('customComponentTool'), 'more')
-  for (const section of ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'])
+  for (const section of [
+    'models',
+    'interface',
+    'notifications',
+    'shortcuts',
+    'updates',
+    'labs',
+    'about',
+  ])
     assert.equal(tab('config', section), 'settings', section)
   // 插件、MCP、技能、星忆、渠道只在功能里；/config 下的远程访问、手机服务器、桌面宠物同样是功能页。
   for (const page of ['plugins', 'mcp', 'skills', 'memory', 'channels'])

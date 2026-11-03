@@ -946,8 +946,15 @@ try {
       fleetLabel: document.querySelector('[data-sidebar-fleet-line]')?.getAttribute('aria-label'),
     }))
     // 目录是短名（规格 2.6），“关于”后面跟版本号；侧栏搜索框用短占位，不被截成半个英文词。
-    assert.deepEqual(shell.labels.slice(0, 5), ['模型', '界面', '通知', '快捷键', '更新'])
-    assert.match(shell.labels[5], /^关于/)
+    assert.deepEqual(shell.labels.slice(0, 6), [
+      '模型',
+      '界面',
+      '通知',
+      '快捷键',
+      '更新',
+      '实验功能',
+    ])
+    assert.match(shell.labels[6], /^关于/)
     assert.equal(shell.placeholder, '搜索设置')
     assert.deepEqual(
       {
@@ -965,6 +972,7 @@ try {
           ['notifications', null],
           ['shortcuts', null],
           ['updates', null],
+          ['labs', null],
           ['about', null],
         ],
         back: '返回',

@@ -619,7 +619,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       routerNavigate(HOME_PATH, { replace: true })
       return
     }
-    if (page === 'config' && requestedConfigSection !== configSection) {
+    // 能力加载前按旧 Runtime 合同判断会误裁分区（实验功能在旧合同里不可用），
+    // 直达 /config/labs 会被改写成模型；等能力到了再纠正路由（加载期间外壳不渲染分区内容）。
+    if (capabilitiesLoaded && page === 'config' && requestedConfigSection !== configSection) {
       routerNavigate(`/config/${configSection}`, { replace: true })
     }
   }, [

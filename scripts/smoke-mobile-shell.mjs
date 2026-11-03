@@ -1340,7 +1340,7 @@ async function verifyPhoneShell(boardSessions) {
   )
   assert.deepEqual(
     sectionRows.map(([section]) => section),
-    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'about'],
+    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'labs', 'about'],
   )
   assert.ok(
     sectionRows.every(([, h]) => h >= 56),

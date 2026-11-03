@@ -1,0 +1,20 @@
+{
+  "notice": "实验功能还在开发中，可能不稳定，也可能在之后的版本里调整或移除。每项单独开关，随时可以关掉；遇到问题请点「反馈」告诉我们。",
+  "listTitle": "可试用的功能",
+  "loading": "正在读取实验功能…",
+  "loadFailed": "没能读取实验功能：{error}",
+  "retry": "重试",
+  "emptyTitle": "目前没有实验功能",
+  "emptyDescription": "有新功能进入测试时，会出现在这里。",
+  "stage.experimental": "实验中",
+  "stage.preview": "即将毕业",
+  "whenOffPrefix": "关掉后：",
+  "feedback": "反馈",
+  "toggleLabel": "开启或关闭“{name}”",
+  "saving.on": "正在开启…",
+  "saving.off": "正在关闭…",
+  "enabledNow": "已开启，立即生效",
+  "saveFailed": "没能保存：{error}。开关已恢复。",
+  "unavailable.runtime": "当前连接的 Runtime 不支持这个功能。升级那台机器上的 Pisper 后即可开启。",
+  "openLinkFailed": "没能打开链接。"
+}

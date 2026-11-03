@@ -1,4 +1,4 @@
-// 配置页：按分区（模型/通知/界面/快捷键/更新/关于）组织设置，每个分区一个设置组件，共享设置原语。
+// 配置页：按分区（模型/通知/界面/快捷键/更新/实验功能/关于）组织设置，每个分区一个设置组件，共享设置原语。
 // 设置主区与功能页同一套模板（规格 2.6、6.4、A6 第 4 批，效果图 desktop-settings-light.png）：52 拖拽区 +
 // 页面自己的滚动区 + 居中 760 栏，页标题是短名（模型 / 界面 / 通知 / 快捷键 / 更新 / 关于）+ 一句说明；
 // 原共享页头的“设置 / 模型配置”面包屑与第二个大标题和侧栏设置目录重复，已去掉。设置搜索在桌面侧栏里，
@@ -16,6 +16,7 @@ import {
 } from '@/app/settings-navigation'
 import { useI18n } from '@/app/use-i18n'
 import { FeaturePage, FeatureToolbar } from '@/components/app/FeaturePage'
+import { LabsSettings } from '@/features/labs/public'
 import { Button } from '@/components/ui/button'
 import { AboutSettings } from './AboutSettings'
 import { CONFIG_SECTION_ANCHOR, useConfigCardHighlight } from './config-search'
@@ -55,6 +56,8 @@ function settingsLede(t: Translate, section: SettingsSection) {
       return t('config:settingsShell.lede.shortcuts')
     case 'updates':
       return t('config:settingsShell.lede.updates')
+    case 'labs':
+      return t('config:settingsShell.lede.labs')
     case 'about':
       return t('config:settingsShell.lede.about')
     default:
@@ -109,6 +112,8 @@ export function ConfigPage({
     content = <ShortcutSettings requestConfirm={requestConfirm} />
   } else if (current === 'updates') {
     content = <UpdateSettings notify={notify} update={update} />
+  } else if (current === 'labs') {
+    content = <LabsSettings notify={notify} />
   } else if (current === 'about') {
     content = <AboutSettings update={update} notify={notify} />
   } else {

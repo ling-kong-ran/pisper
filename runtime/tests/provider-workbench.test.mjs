@@ -65,6 +65,7 @@ test('a fresh provider configuration renders an empty workbench without selectin
 
 test('the settings directory lists only application settings; device and extension pages live under Features', () => {
   // 规格 2.6：设置目录 = 模型 · 界面 · 通知 · 快捷键 · 更新 · 关于（界面里含语言、主题等）。
+  // 实验功能只在 Runtime 声明 betaFeatures 时出现；这里用旧 Runtime 的能力，见 labs-settings.test.mjs。
   // 远程访问 / 手机服务器 / 桌面宠物与插件、MCP、技能、星忆、渠道只在“功能”里（双归属退役），
   // 平台差异（桌面远程访问、手机服务器）随之由功能索引表达。
   const items = getSettingsNavigation((key) => key)

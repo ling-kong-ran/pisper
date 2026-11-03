@@ -1,0 +1,20 @@
+{
+  "notice": "Labs features are still in development. They may be unstable and may change or be removed in later versions. Each one has its own switch and can be turned off at any time; use Feedback to tell us about problems.",
+  "listTitle": "Available to try",
+  "loading": "Loading Labs features…",
+  "loadFailed": "Couldn't load Labs features: {error}",
+  "retry": "Retry",
+  "emptyTitle": "No Labs features right now",
+  "emptyDescription": "New features appear here when they enter testing.",
+  "stage.experimental": "Experimental",
+  "stage.preview": "Graduating soon",
+  "whenOffPrefix": "When turned off: ",
+  "feedback": "Feedback",
+  "toggleLabel": "Turn “{name}” on or off",
+  "saving.on": "Turning on…",
+  "saving.off": "Turning off…",
+  "enabledNow": "On, effective immediately",
+  "saveFailed": "Couldn't save: {error}. The switch was restored.",
+  "unavailable.runtime": "The connected Runtime doesn't support this feature. Update Pisper on that machine to turn it on.",
+  "openLinkFailed": "Couldn't open the link."
+}

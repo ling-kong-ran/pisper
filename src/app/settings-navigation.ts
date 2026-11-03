@@ -1,10 +1,20 @@
-// 设置目录（规格 v2 第 2.6 节）：设置只放应用本身的设置——模型 · 界面 · 通知 · 快捷键 · 更新 · 关于。
+// 设置目录（规格 v2 第 2.6 节）：设置只放应用本身的设置——模型 · 界面 · 通知 · 快捷键 · 更新 · 实验功能 · 关于。
+// 实验功能只在 Runtime 声明 betaFeatures 时出现（旧 Runtime 没有接口，见 CONFIG_FEATURES）。
 // 插件、MCP、技能、星忆、渠道、远程访问 / 手机服务器、桌面宠物只在“功能”里（只有一个家）：
 // 旧的双归属机制（SETTINGS_PAGES 里的功能页、从功能栏进入时写进历史条目的 ACTIVITY_NAVIGATION_STATE）已退役。
 // /config/remote-access、/config/mobile-server、/config/desktop-pet 路径不变（旧链接、通知、守卫照常），
 // 但它们作为功能页打开：点亮“功能”、页头“‹ 功能”、不用设置外壳。
 // 纯数据与判断，不依赖 React；桌面设置侧栏、手机设置分区条与页头共用同一份结论。
-import { Bell, Bot, Info, Keyboard, Monitor, RefreshCw, type LucideIcon } from 'lucide-react'
+import {
+  Bell,
+  Bot,
+  FlaskConical,
+  Info,
+  Keyboard,
+  Monitor,
+  RefreshCw,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Translate } from '@/app/navigation'
 import {
   LEGACY_RUNTIME_CAPABILITIES,
@@ -19,6 +29,7 @@ export const APP_SETTINGS_SECTIONS = Object.freeze([
   'notifications',
   'shortcuts',
   'updates',
+  'labs',
   'about',
 ] as const)
 
@@ -58,6 +69,7 @@ const SECTION_ICONS: Readonly<Record<SettingsSection, LucideIcon>> = {
   notifications: Bell,
   shortcuts: Keyboard,
   updates: RefreshCw,
+  labs: FlaskConical,
   about: Info,
 }
 
@@ -72,6 +84,8 @@ export function configSectionLabel(t: Translate, section: string) {
       return t('config:configPage.shortcuts')
     case 'updates':
       return t('config:configPage.appUpdates')
+    case 'labs':
+      return t('config:configPage.labs')
     case 'about':
       return t('config:configPage.about')
     case 'remote-access':
@@ -98,6 +112,8 @@ export function settingsSectionShortLabel(t: Translate, section: SettingsSection
       return t('config:settingsShell.section.shortcuts')
     case 'updates':
       return t('config:settingsShell.section.updates')
+    case 'labs':
+      return t('config:settingsShell.section.labs')
     case 'about':
       return t('config:settingsShell.section.about')
     default:

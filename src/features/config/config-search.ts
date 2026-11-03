@@ -50,6 +50,7 @@ const SECTION_TITLE_KEYS: Record<string, string> = {
   shortcuts: 'config:configPage.shortcuts',
   'desktop-pet': 'config:configPage.desktopPet',
   updates: 'config:configPage.appUpdates',
+  labs: 'config:configPage.labs',
   about: 'config:configPage.about',
   'remote-access': 'config:configPage.remoteAccess',
   'mobile-server': 'config:configPage.mobileServer',
@@ -110,6 +111,13 @@ const ENTRIES: readonly ConfigSearchEntry[] = [
     card: CONFIG_SECTION_ANCHOR,
     titleKey: 'config:configPage.appUpdates',
     keywords: ['update', 'upgrade', 'version', '更新', '升级', '版本'],
+  },
+  {
+    id: 'sec-labs',
+    section: 'labs',
+    card: CONFIG_SECTION_ANCHOR,
+    titleKey: 'config:configPage.labs',
+    keywords: ['labs', 'beta', 'experimental', 'preview', '实验', '测试版', '尝鲜', '内测'],
   },
   {
     id: 'sec-about',

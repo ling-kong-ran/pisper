@@ -540,7 +540,7 @@ test('settings take over the sidebar as a full page, feature pages have one home
   // 双归属退役：设置目录只有应用设置；功能页不再靠历史条目里的进入来源决定归属。
   assert.match(
     settingsNavigation,
-    /APP_SETTINGS_SECTIONS = Object\.freeze\(\[\s*'models',\s*'interface',\s*'notifications',\s*'shortcuts',\s*'updates',\s*'about',\s*\] as const\)/,
+    /APP_SETTINGS_SECTIONS = Object\.freeze\(\[\s*'models',\s*'interface',\s*'notifications',\s*'shortcuts',\s*'updates',\s*'labs',\s*'about',\s*\] as const\)/,
   )
   assert.match(
     settingsNavigation,
