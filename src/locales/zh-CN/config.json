@@ -643,5 +643,6 @@
   "deviceFeature.unavailable": "不可用",
   "deviceFeature.runtimeUnavailable": "当前 Runtime 没有提供这项能力。",
   "deviceFeature.mobileOnly": "手机服务器只在 Pisper 手机 App 里可用；桌面端请用“远程访问”让手机连进来。",
-  "deviceFeature.remoteAccessDesktopOnly": "远程访问只在桌面端可用；手机上请用“服务器”连接桌面端。"
+  "deviceFeature.remoteAccessDesktopOnly": "远程访问只在桌面端可用；手机上请用“服务器”连接桌面端。",
+  "subagents.configuredSummary": "已设置 {count} 个档位"
 }

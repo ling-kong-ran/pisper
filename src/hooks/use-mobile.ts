@@ -7,10 +7,16 @@ const PHONE_BREAKPOINT = 651
 export const TABLET_VIEWPORT_QUERY = '(min-width: 960px) and (min-height: 640px)'
 
 // 订阅一条媒体查询；首帧同步读取，避免先按错误布局渲染再跳变。
+// 没有 window（服务端渲染的测试）时按不匹配处理。
 export function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState(() => window.matchMedia(query).matches)
+  const [matches, setMatches] = React.useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(query).matches
+      : false,
+  )
 
   React.useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
     const media = window.matchMedia(query)
     const update = () => setMatches(media.matches)
     update()

@@ -23,6 +23,7 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
 import { Kbd } from '@/components/ui/kbd'
+import { useMediaQuery } from '@/hooks/use-mobile'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
@@ -55,6 +56,8 @@ const ICON_BUTTON =
 const RAIL_BUTTON =
   'grid size-10 place-items-center rounded-[var(--r-md)] text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus pointer-coarse:size-11'
 
+const NARROW_WINDOW_QUERY = '(max-width: 899px)'
+
 export function ShellSidebar(props: ShellSidebarProps) {
   const takeover = props.takeover
   const collapsed = useSidebarStore((state) => state.collapsed) && !takeover
@@ -62,6 +65,14 @@ export function ShellSidebar(props: ShellSidebarProps) {
   const setPeeking = useSidebarStore((state) => state.setPeeking)
   const overlayRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  // 窗口窄时自动收成窄轨（不落盘），展开的 268 侧栏不把内容挤成一条；变宽后回到用户的偏好。
+  const narrow = useMediaQuery(NARROW_WINDOW_QUERY)
+  const enterNarrowRail = useSidebarStore((state) => state.enterNarrowRail)
+  const leaveNarrowRail = useSidebarStore((state) => state.leaveNarrowRail)
+  useEffect(() => {
+    if (narrow) enterNarrowRail()
+    else leaveNarrowRail()
+  }, [narrow, enterNarrowRail, leaveNarrowRail])
   // 收起 / 展开会换掉整块内容：焦点原本在侧栏里（按了收起键或 ⌘B）时，交给新内容里的收起 / 展开键，
   // 不让键盘焦点掉回 body。
   const focusInsideRef = useRef(false)
@@ -212,7 +223,7 @@ function SidebarExpanded({
         aria-keyshortcuts={ariaKeyShortcuts(bindings[ENTRY_ACTIONS[id]])}
         className={cn(
           ROW,
-          'h-9 pointer-coarse:h-11',
+          'group/entry h-9 pointer-coarse:h-11',
           current && 'bg-surface-active font-medium hover:bg-surface-active',
         )}
         onClick={onSelect}
@@ -224,9 +235,10 @@ function SidebarExpanded({
         />
         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
         {shortcut && (
+          // 按键提示只在悬停或键盘聚焦时出现：常驻时一列 Ctrl + N 让侧栏显得很满，读屏照样有 aria-keyshortcuts。
           <Kbd
             aria-hidden="true"
-            className="border-transparent bg-transparent text-content-faint shadow-none pointer-coarse:hidden"
+            className="border-transparent bg-transparent text-content-faint opacity-0 shadow-none transition-opacity duration-(--d-fast) group-hover/entry:opacity-100 group-focus-visible/entry:opacity-100 pointer-coarse:hidden"
           >
             {shortcut}
           </Kbd>

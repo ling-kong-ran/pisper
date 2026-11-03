@@ -643,5 +643,6 @@
   "deviceFeature.unavailable": "Unavailable",
   "deviceFeature.runtimeUnavailable": "The current Runtime does not provide this capability.",
   "deviceFeature.mobileOnly": "Mobile servers are only available in the Pisper mobile app; on desktop, use Remote access to let phones connect.",
-  "deviceFeature.remoteAccessDesktopOnly": "Remote access is only available on desktop; on a phone, use Servers to connect to a desktop."
+  "deviceFeature.remoteAccessDesktopOnly": "Remote access is only available on desktop; on a phone, use Servers to connect to a desktop.",
+  "subagents.configuredSummary": "{count} tiers set"
 }

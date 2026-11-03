@@ -277,7 +277,8 @@ test('scheduled tasks use structured prompt or workflow targets across every for
     readFile('runtime/runtime/agent-runtime.mjs', 'utf8'),
   ])
 
-  assert.equal(schedules.match(/<ScheduleTargetFields/g)?.length, 3)
+  // 新建（弹窗）与编辑两张表单；没有任务时不再另放一张常驻的新建表单。
+  assert.equal(schedules.match(/<ScheduleTargetFields/g)?.length, 2)
   assert.match(schedules, /type ScheduleTargetType = 'prompt' \| 'workflow'/)
   assert.match(schedules, /workflowInputs: Record<string, unknown>/)
   assert.match(schedules, /scheduleTargetValid\(/)

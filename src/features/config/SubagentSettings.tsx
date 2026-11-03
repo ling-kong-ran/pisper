@@ -6,6 +6,12 @@ import { useI18n } from '@/app/use-i18n'
 import { compactModelName } from '@/lib/model-display'
 import { AppSelect } from '@/components/AppSelect'
 import { FeatureAlert } from '@/components/app/FeaturePage'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import type { Notify } from '@/app/route-context'
 import { SUBAGENT_MODEL_TIERS, type ConfigData, type SubagentModelTier } from './config-types'
@@ -101,6 +107,7 @@ export function SubagentSettings({ config, notify, busy, onConfigChanged }: Suba
     }
   }
 
+  const configuredTiers = SUBAGENT_MODEL_TIERS.filter((tier) => tiers[tier]).length
   const profiles = listing?.profiles || []
   const errors = listing?.errors || []
   return (
@@ -109,96 +116,115 @@ export function SubagentSettings({ config, notify, busy, onConfigChanged }: Suba
       aria-busy={saving || undefined}
       data-config-card="models-subagents"
       data-config-target="models-subagents"
-      className="mt-6 min-w-0"
+      className="mt-6 min-w-0 border-t border-stroke"
     >
-      <h2 id={`${id}-heading`} className="text-sm font-medium text-content">
-        {t('config:subagents.title')}
-      </h2>
-      <p className="mt-0.5 text-xs text-content-muted">{t('config:subagents.hint')}</p>
-      <div className="mt-3 border-t border-stroke">
-        {SUBAGENT_MODEL_TIERS.map((tier) => {
-          const value = tiers[tier] || ''
-          return (
-            <div
-              key={tier}
-              className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-stroke py-3"
-            >
-              <div className="min-w-[min(240px,100%)] flex-1">
-                <div id={`${id}-${tier}`} className="text-sm text-content">
-                  {tierLabel(tier)}
-                  <code className="ml-2 font-mono text-xs text-content-muted">{tier}</code>
-                </div>
-                <p id={`${id}-${tier}-hint`} className="mt-0.5 text-xs text-content-muted">
-                  {tierHint(tier)}
-                </p>
-              </div>
-              <div className="w-[min(280px,100%)] min-w-0 max-[650px]:w-full">
-                <AppSelect
-                  aria-labelledby={`${id}-${tier}`}
-                  aria-describedby={`${id}-${tier}-hint`}
-                  className="w-full"
-                  disabled={!chatOptions.length || busy || saving}
-                  value={value}
-                  onChange={(event) => void saveTier(tier, event.target.value)}
-                >
-                  <option value="">{t('config:subagents.followSession')}</option>
-                  {/* 已保存但现在不可用的模型也显示出来，便于看见并换掉。 */}
-                  {value && !chatOptions.some((option) => option.value === value) && (
-                    <option value={value}>{value}</option>
-                  )}
-                  {chatOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </AppSelect>
-              </div>
+      {/* 大多数人不用分档位：默认收起，标题旁写现在是跟随会话模型还是设了几档。 */}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="subagents">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span id={`${id}-heading`}>{t('config:subagents.title')}</span>
+              <span className="truncate text-xs font-normal text-content-muted">
+                {configuredTiers
+                  ? t('config:subagents.configuredSummary', { count: configuredTiers })
+                  : t('config:subagents.followSession')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <p className="text-xs text-content-muted">{t('config:subagents.hint')}</p>
+            <div className="mt-3 border-t border-stroke">
+              {SUBAGENT_MODEL_TIERS.map((tier) => {
+                const value = tiers[tier] || ''
+                return (
+                  <div
+                    key={tier}
+                    className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-stroke py-3"
+                  >
+                    <div className="min-w-[min(240px,100%)] flex-1">
+                      <div id={`${id}-${tier}`} className="text-sm text-content">
+                        {tierLabel(tier)}
+                        <code className="ml-2 font-mono text-xs text-content-muted">{tier}</code>
+                      </div>
+                      <p id={`${id}-${tier}-hint`} className="mt-0.5 text-xs text-content-muted">
+                        {tierHint(tier)}
+                      </p>
+                    </div>
+                    <div className="w-[min(280px,100%)] min-w-0 max-[650px]:w-full">
+                      <AppSelect
+                        aria-labelledby={`${id}-${tier}`}
+                        aria-describedby={`${id}-${tier}-hint`}
+                        className="w-full"
+                        disabled={!chatOptions.length || busy || saving}
+                        value={value}
+                        onChange={(event) => void saveTier(tier, event.target.value)}
+                      >
+                        <option value="">{t('config:subagents.followSession')}</option>
+                        {/* 已保存但现在不可用的模型也显示出来，便于看见并换掉。 */}
+                        {value && !chatOptions.some((option) => option.value === value) && (
+                          <option value={value}>{value}</option>
+                        )}
+                        {chatOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </AppSelect>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
-      </div>
-      {error && <FeatureAlert>{error}</FeatureAlert>}
+            {error && <FeatureAlert>{error}</FeatureAlert>}
 
-      <h3 className="mt-5 text-[13px] font-medium text-content">
-        {t('config:subagents.globalDefinitions')}
-      </h3>
-      <p className="mt-0.5 text-xs text-content-muted">{t('config:subagents.definitionsHint')}</p>
-      {listing === null ? (
-        <p role="status" className="mt-3 flex items-center gap-2 text-xs text-content-muted">
-          <OrbitSpinner className="size-3" />
-          {t('config:subagents.loading')}
-        </p>
-      ) : profiles.length === 0 && errors.length === 0 ? (
-        <p className="mt-3 text-xs text-content-muted">{t('config:subagents.empty')}</p>
-      ) : (
-        <ul className="mt-3 flex min-w-0 flex-col border-t border-stroke">
-          {profiles.map((profile) => (
-            <li key={profile.name} className="min-w-0 border-b border-stroke py-2 text-[13px]">
-              <div className="flex min-w-0 items-center gap-2">
-                <code className="shrink-0 font-mono text-content">{profile.name}</code>
-                <span className="min-w-0 truncate text-xs text-content-muted">
-                  {profile.modelRef || profile.tier || t('config:subagents.inheritModel')}
-                  {profile.thinkingLevel ? ` · ${profile.thinkingLevel}` : ''}
-                  {profile.tools
-                    ? ` · ${t('config:subagents.toolCount', { count: profile.tools.length })}`
-                    : ''}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-content-secondary">{profile.description}</p>
-            </li>
-          ))}
-          {errors.map((item) => (
-            <li
-              key={`${item.scope}:${item.file}`}
-              className="min-w-0 border-b border-stroke py-2 text-[13px]"
-            >
-              <code className="font-mono text-danger">{item.file || item.scope}</code>
-              <p className="mt-0.5 text-xs text-danger">{item.message}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-      {listError && <FeatureAlert>{listError}</FeatureAlert>}
+            <h3 className="mt-5 text-[13px] font-medium text-content">
+              {t('config:subagents.globalDefinitions')}
+            </h3>
+            <p className="mt-0.5 text-xs text-content-muted">
+              {t('config:subagents.definitionsHint')}
+            </p>
+            {listing === null ? (
+              <p role="status" className="mt-3 flex items-center gap-2 text-xs text-content-muted">
+                <OrbitSpinner className="size-3" />
+                {t('config:subagents.loading')}
+              </p>
+            ) : profiles.length === 0 && errors.length === 0 ? (
+              <p className="mt-3 text-xs text-content-muted">{t('config:subagents.empty')}</p>
+            ) : (
+              <ul className="mt-3 flex min-w-0 flex-col border-t border-stroke">
+                {profiles.map((profile) => (
+                  <li
+                    key={profile.name}
+                    className="min-w-0 border-b border-stroke py-2 text-[13px]"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <code className="shrink-0 font-mono text-content">{profile.name}</code>
+                      <span className="min-w-0 truncate text-xs text-content-muted">
+                        {profile.modelRef || profile.tier || t('config:subagents.inheritModel')}
+                        {profile.thinkingLevel ? ` · ${profile.thinkingLevel}` : ''}
+                        {profile.tools
+                          ? ` · ${t('config:subagents.toolCount', { count: profile.tools.length })}`
+                          : ''}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-content-secondary">{profile.description}</p>
+                  </li>
+                ))}
+                {errors.map((item) => (
+                  <li
+                    key={`${item.scope}:${item.file}`}
+                    className="min-w-0 border-b border-stroke py-2 text-[13px]"
+                  >
+                    <code className="font-mono text-danger">{item.file || item.scope}</code>
+                    <p className="mt-0.5 text-xs text-danger">{item.message}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {listError && <FeatureAlert>{listError}</FeatureAlert>}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </section>
   )
 }

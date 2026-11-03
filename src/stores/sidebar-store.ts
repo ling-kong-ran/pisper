@@ -58,9 +58,14 @@ type SidebarState = SidebarPreference & {
   // 期间用户亲手展开 / 收起（按钮、⌘B）只改本次停留，不写进 'pisper-sidebar'，离开后偏好原样。
   // collapsed 始终是实际渲染的状态，preferenceCollapsed 是落盘的用户偏好。
   routeRail: boolean
+  // 窗口窄（桌面壳或浏览器窗口宽不到 900）时自动收成窄轨，给内容让出位置；同样只在内存里，
+  // 期间亲手展开 / 收起不落盘，窗口变宽后回到偏好。
+  narrowRail: boolean
   preferenceCollapsed: boolean
   enterRouteRail: () => void
   leaveRouteRail: () => void
+  enterNarrowRail: () => void
+  leaveNarrowRail: () => void
   // 收起时 ⌘J / ⌥A 临时展开侧栏（规格 2.8）：只在内存里，不落盘，焦点离开侧栏后由外壳收回。
   peeking: boolean
   // 手机外壳的抽屉（规格 7.1）：内容与桌面侧栏相同，只用 ☰ 打开；只在内存里，不落盘。
@@ -87,7 +92,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
   // 页面默认窄轨期间的收起 / 展开只改实际状态，不落盘。
   const applyCollapsed = (collapsed: boolean) => {
     set({ peeking: false })
-    if (get().routeRail) set({ collapsed })
+    if (get().routeRail || get().narrowRail) set({ collapsed })
     else save({ collapsed })
   }
   const initial = readPreference()
@@ -95,6 +100,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
     ...initial,
     preferenceCollapsed: initial.collapsed,
     routeRail: false,
+    narrowRail: false,
     peeking: false,
     drawerOpen: false,
     // 亲手收起或展开都结束临时展开，避免“收起”按钮按下去侧栏却还开着。
@@ -103,7 +109,23 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
     enterRouteRail: () => set({ routeRail: true, collapsed: true, peeking: false }),
     leaveRouteRail: () => {
       if (!get().routeRail) return
-      set({ routeRail: false, collapsed: get().preferenceCollapsed, peeking: false })
+      set({
+        routeRail: false,
+        collapsed: get().narrowRail || get().preferenceCollapsed,
+        peeking: false,
+      })
+    },
+    enterNarrowRail: () => {
+      if (get().narrowRail) return
+      set({ narrowRail: true, collapsed: true, peeking: false })
+    },
+    leaveNarrowRail: () => {
+      if (!get().narrowRail) return
+      set({
+        narrowRail: false,
+        collapsed: get().routeRail || get().preferenceCollapsed,
+        peeking: false,
+      })
     },
     setDoneCollapsed: (doneCollapsed) => save({ doneCollapsed }),
     setPeeking: (peeking) => set({ peeking }),
@@ -118,7 +140,7 @@ if (typeof window !== 'undefined') {
     const preference = readPreference()
     // 页面默认窄轨期间只更新偏好，实际状态等离开页面时再跟上。
     useSidebarStore.setState((state) =>
-      state.routeRail
+      state.routeRail || state.narrowRail
         ? { doneCollapsed: preference.doneCollapsed, preferenceCollapsed: preference.collapsed }
         : { ...preference, preferenceCollapsed: preference.collapsed },
     )

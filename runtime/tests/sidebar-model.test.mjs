@@ -536,3 +536,44 @@ test('the component studio rails the sidebar for its visit without touching the 
   }
   sidebar().setCollapsed(false)
 })
+
+test('narrow windows rail the sidebar without touching the saved preference', (t) => {
+  // 窗口宽不到 900 时自动收成窄轨，给内容让出位置；期间展开 / 收起不落盘，变宽后回到偏好。
+  const memory = () => {
+    const map = new Map()
+    return {
+      getItem: (key) => (map.has(key) ? map.get(key) : null),
+      setItem: (key, value) => map.set(key, String(value)),
+      removeItem: (key) => map.delete(key),
+    }
+  }
+  const hadWindow = 'window' in globalThis
+  const previousWindow = globalThis.window
+  globalThis.window = { localStorage: memory(), sessionStorage: memory() }
+  t.after(() => {
+    if (hadWindow) globalThis.window = previousWindow
+    else delete globalThis.window
+  })
+  const sidebar = () => useSidebarStore.getState()
+  const saved = () => parseSidebarPreference(pageStateStorage.getItem(STORAGE_KEYS.sidebar))
+  sidebar().setCollapsed(false)
+  sidebar().enterNarrowRail()
+  assert.equal(sidebar().collapsed, true)
+  sidebar().toggleCollapsed()
+  assert.equal(sidebar().collapsed, false, 'the user can still expand it')
+  assert.equal(saved().collapsed, false)
+  sidebar().setCollapsed(true)
+  assert.equal(saved().collapsed, false, 'collapsing while narrow is not persisted')
+  // 工作室的窄轨与窄窗口叠在一起：离开其中一个时，另一个还在就保持窄轨。
+  sidebar().enterRouteRail()
+  sidebar().leaveNarrowRail()
+  assert.equal(sidebar().collapsed, true)
+  sidebar().leaveRouteRail()
+  assert.equal(sidebar().collapsed, false, 'leaving both restores the preference')
+  sidebar().enterNarrowRail()
+  sidebar().enterRouteRail()
+  sidebar().leaveRouteRail()
+  assert.equal(sidebar().collapsed, true, 'still narrow after leaving the studio')
+  sidebar().leaveNarrowRail()
+  assert.equal(sidebar().collapsed, false)
+})

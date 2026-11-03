@@ -241,10 +241,15 @@ export function ModelDefaultsSettings({
               {t('config:providerWorkbench.fallbackFirst')}
             </span>
             {fallbackSelect(0, `${id}-fallback ${id}-fallback-1`)}
-            <span id={`${id}-fallback-2`} className="sr-only">
-              {t('config:providerWorkbench.fallbackSecond')}
-            </span>
-            {fallbackSelect(1, `${id}-fallback ${id}-fallback-2`)}
+            {/* 第二个备用只有选了第一个之后才有意义：之前不放一个禁用的空下拉。 */}
+            {fallbacks[0] && (
+              <>
+                <span id={`${id}-fallback-2`} className="sr-only">
+                  {t('config:providerWorkbench.fallbackSecond')}
+                </span>
+                {fallbackSelect(1, `${id}-fallback ${id}-fallback-2`)}
+              </>
+            )}
           </div>
         </DefaultsRow>
         <DefaultsRow
