@@ -804,6 +804,26 @@ export class AgentRuntimeFacade {
     return this.getBetaFeatures()
   }
 
+  listBots() {
+    return this.bots.list()
+  }
+
+  getBot(id) {
+    return this.bots.get(id)
+  }
+
+  createBot(input) {
+    return this.bots.create(input)
+  }
+
+  updateBot(id, input) {
+    return this.bots.update(id, input)
+  }
+
+  deleteBot(id) {
+    return this.bots.remove(id)
+  }
+
   async updateCompactionPreference(input) {
     const requested = Number(input?.thresholdPercent)
     if (

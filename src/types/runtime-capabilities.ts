@@ -36,6 +36,7 @@ export type RuntimeFeature =
   | 'workspaceFolders'
   | 'inputInterrupt'
   | 'betaFeatures'
+  | 'bots'
   | 'codemode'
 
 export type RuntimeCapabilities = {
@@ -95,6 +96,8 @@ const fullFeatures = {
   inputInterrupt: false,
   // 实验功能：旧 Runtime 没有这个接口，设置里不出现“实验功能”分区。
   betaFeatures: false,
+  // Bots：旧 Runtime 没有这组接口。
+  bots: false,
   // codemode：旧 Runtime 没有声明时插件页不显示该开关。
   codemode: false,
   // 原生组件（A7）：旧 Runtime 只有 iframe 组件，没有声明时组件页按旧版显示“不再支持”，宿主不请求实例。

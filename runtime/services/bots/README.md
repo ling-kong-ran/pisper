@@ -1,6 +1,6 @@
 # Bot 服务设计草案
 
-状态：草案，待评审（2026-11-03）。本目录目前只有这份草案，服务代码尚未实现；实现时以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+状态：B1（Bot 注册表）已实现（2026-11-03）：`bot-model.mjs`、`bot-service.mjs`、`runtime/http/routes/bots.mjs`、`runtime/tests/bot-service.test.mjs`。B2–B6 未开始。`bots` 在 B4 界面完成前不进实验功能清单，所以接口虽在但用户打不开。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 背景、目标与非目标
 

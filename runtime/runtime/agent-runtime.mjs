@@ -185,6 +185,7 @@ import { SessionCardSummaries } from '../services/session-card-summary.mjs'
 import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
+import { BotService } from '../services/bots/bot-service.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -658,6 +659,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
     this.teamWorkflows = new TeamWorkflowService({ path: join(dataDir, 'pisper-teams.json') })
+    // Bot 注册表（B1）：任务与触发在后续阶段接入，删除时的占用检查届时由任务服务提供。
+    this.bots = new BotService({
+      path: join(dataDir, 'pisper-bots.json'),
+      validateDirectory: (input) => resolveDirectory(input, this.cwd),
+    })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
@@ -904,6 +910,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.channels) await this.channels.init()
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
+    if (this.capabilities.features.bots) await this.bots.init()
     await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
     await startup.complete()

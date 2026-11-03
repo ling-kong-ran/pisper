@@ -120,6 +120,8 @@ function buildCapabilities({
     // 实验功能开关：只读写应用配置里的一个字段，各档案都提供；单项功能是否可用另看它 requires 的能力。
     // 清单为空时不声明：设置里不出现空的“实验功能”分区，等第一个实验功能进清单再出现。
     betaFeatures: BETA_FEATURES.length > 0,
+    // Bots（B1 起）：依赖渠道、定时任务与本机工作目录，只在桌面档案提供。
+    bots: !embedded,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
     codemode: workers && wasm && !embedded,
   }
