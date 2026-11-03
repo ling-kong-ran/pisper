@@ -19,7 +19,7 @@ import { SingleSessionPanel } from './ChatDock'
 import { chatApi, type BranchFromHereOptions, type FileRewindResult } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useSessionSelection } from './use-session-selection'
-import { useLiveSessionSync } from './use-live-session-sync'
+import { shouldReloadForCatalogRun, useLiveSessionSync } from './use-live-session-sync'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
@@ -201,6 +201,31 @@ export function ChatPage({
       void loadSessionMessages(routeTarget, { force: true, limit: FOCUS_MESSAGE_PAGE_SIZE })
     }
   }, [loadSessionMessages, routeTarget])
+
+  // 别处发起的运行（看板派发的新任务、另一台设备）：目录摘要的运行状态一变，或进入一个摘要在跑、
+  // 本页却没在跟的会话，就强制重读一页（条件见 shouldReloadForCatalogRun）。
+  const activeId = catalog.activeId
+  const activeCatalogStreaming = catalog.sessions.some(
+    (session) => session.id === activeId && session.streaming === true,
+  )
+  const catalogRunRef = useRef({ id: '', streaming: false })
+  useEffect(() => {
+    const previous = catalogRunRef.current
+    catalogRunRef.current = { id: activeId, streaming: activeCatalogStreaming }
+    if (!activeId) return
+    const changed =
+      previous.id === activeId
+        ? previous.streaming !== activeCatalogStreaming
+        : activeCatalogStreaming
+    if (
+      changed &&
+      shouldReloadForCatalogRun(sessionStatesRef.current[activeId], {
+        catalogStreaming: activeCatalogStreaming,
+        localStreamOwned: localStreamSessionsRef.current.has(activeId),
+      })
+    )
+      void loadSessionMessages(activeId, { force: true })
+  }, [activeCatalogStreaming, activeId, loadSessionMessages, sessionStatesRef])
 
   // 会话页没有 Dock 预览面板：外链预览落到当前会话检查器的网页预览页；
   // 从别的页面带过来的预览请求在进入会话页时补开。只在路由会话确认存在后消费：

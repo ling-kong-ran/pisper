@@ -215,6 +215,19 @@ export function reconcileLiveSnapshot(
   }
 }
 
+// 目录摘要（看板事件流保鲜）的运行状态变化时，当前会话是否要强制重读一页。
+// 看板派发的新任务在 Runtime 装配好运行时之前就能被打开，那时读到的是“空页、未运行”，
+// 本页之后既不轮询也不重读，就一直空白。摘要转为运行中、而本页没在跟这一轮时重读，
+// 读页带回 streaming 就转入 /live；摘要转为结束时只补读仍是空白的会话（整轮都错过了）。
+export function shouldReloadForCatalogRun(
+  state: Partial<SessionState> | undefined,
+  { catalogStreaming, localStreamOwned }: { catalogStreaming: boolean; localStreamOwned: boolean },
+) {
+  if (!state?.loaded || state.loading || state.streaming || state.recovering || localStreamOwned)
+    return false
+  return catalogStreaming || !state.messages?.length
+}
+
 export function useLiveSessionSync({
   sessionStates,
   sessionStatesRef,
@@ -320,11 +333,13 @@ export function useLiveSessionSync({
         await syncLiveSession(id, { force })
         return
       }
+      // 读到空页的会话不算已缓存：别处发起的运行可能在 Runtime 开跑前就被打开，
+      // 那一页是空的，再次进入时必须重读，否则一直停在空会话。
       if (
         !force &&
         (current?.loading ||
           current?.streaming ||
-          (current?.loaded && (current.pageSize || 0) >= limit))
+          (current?.loaded && current.messages?.length && (current.pageSize || 0) >= limit))
       )
         return
       updateSessionState(id, { loading: true })

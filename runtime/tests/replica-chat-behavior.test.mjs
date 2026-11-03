@@ -555,6 +555,7 @@ async function liveSyncFixture(api, initial, locallyOwned = false) {
   return {
     commands,
     owners,
+    module: module.exports,
     get state() {
       return ref.current.session
     },
@@ -705,6 +706,56 @@ test('a locally owned stream ignores the page streaming flag', async () => {
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(liveReads, 0)
   assert.notEqual(f.state.recovering, true)
+})
+
+test('an empty loaded transcript is read again on the next open', async () => {
+  let reads = 0
+  const f = await liveSyncFixture(
+    {
+      getMessages: async () => {
+        reads++
+        return {
+          messages: [{ id: 'persisted', role: 'user', text: 'persisted' }],
+          pageInfo: { start: 0, end: 1, total: 1, hasMore: false, nextCursor: null },
+        }
+      },
+    },
+    // 看板派发的新任务在 Runtime 开跑前被打开：上一次读到的是空页。
+    { loaded: true, pageSize: 50, messages: [] },
+  )
+  await f.commands.loadSessionMessages('session')
+  assert.equal(reads, 1)
+  assert.deepEqual(
+    f.state.messages.map((message) => message.id),
+    ['persisted'],
+  )
+  // 已有内容的会话照旧走缓存，不重复读。
+  await f.commands.loadSessionMessages('session')
+  assert.equal(reads, 1)
+})
+
+test('a catalog run change reloads a session the page is not following', async () => {
+  const f = await liveSyncFixture({}, {})
+  const reload = f.module.shouldReloadForCatalogRun
+  const idle = { loaded: true, messages: [{ id: 'old' }] }
+  // 摘要转为运行中、本页没在跟这一轮：重读，读页会带回 streaming。
+  assert.equal(reload(idle, { catalogStreaming: true, localStreamOwned: false }), true)
+  // 本页已在跟（流式、恢复中、本地持有）或还没读过：交给已有路径。
+  for (const state of [
+    { ...idle, streaming: true },
+    { ...idle, recovering: true },
+    { ...idle, loading: true },
+    { messages: [] },
+    undefined,
+  ])
+    assert.equal(reload(state, { catalogStreaming: true, localStreamOwned: false }), false)
+  assert.equal(reload(idle, { catalogStreaming: true, localStreamOwned: true }), false)
+  // 摘要转为结束：只补读整轮都错过、仍是空白的会话。
+  assert.equal(reload(idle, { catalogStreaming: false, localStreamOwned: false }), false)
+  assert.equal(
+    reload({ loaded: true, messages: [] }, { catalogStreaming: false, localStreamOwned: false }),
+    true,
+  )
 })
 
 test('retry aborts when an intervening latest user identity invalidates the captured turn', async () => {
