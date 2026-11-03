@@ -2,6 +2,7 @@
 // 文件所有权和完成屏障，避免把一组普通 subagent 调用误认为完整的团队执行。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { normalizeSubagentTier } from './agent-profiles.mjs'
 export const TEAM_EXECUTION_MARKER = '[Pisper internal team execution]'
 export const TEAM_WORKFLOW_STATUSES = Object.freeze(
   new Set(['active', 'paused', 'budget_limited', 'stalled', 'complete']),
@@ -182,6 +183,7 @@ function durableTask(task) {
     taskName: task.taskName,
     role: task.role,
     agent: task.agent || '',
+    tier: task.tier || '',
     message: task.message,
     files: [...task.files],
     dependsOn: [...task.dependsOn],
@@ -259,6 +261,7 @@ function normalizeTask(value) {
       .trim()
       .slice(0, MAX_TEAM_ROLE_CHARS),
     agent: normalizeAgentProfileName(value?.agent),
+    tier: normalizeSubagentTier(value?.tier),
     message: String(value?.message || '')
       .trim()
       .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS),
@@ -813,6 +816,7 @@ export class TeamWorkflowService {
       taskName,
       role,
       agent = '',
+      tier = '',
       files = [],
       dependsOn = [],
       message = '',
@@ -861,6 +865,7 @@ export class TeamWorkflowService {
         .trim()
         .slice(0, MAX_TEAM_ROLE_CHARS),
       agent: normalizeAgentProfileName(agent),
+      tier: normalizeSubagentTier(tier),
       message: String(message || '')
         .trim()
         .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS),
@@ -904,7 +909,7 @@ export class TeamWorkflowService {
   async updateTask(
     sessionId,
     taskId,
-    { taskName, role, agent, files, dependsOn, message, workflowFingerprint, autoStart } = {},
+    { taskName, role, agent, tier, files, dependsOn, message, workflowFingerprint, autoStart } = {},
   ) {
     const team = this.state.teams[String(sessionId || '')]
     const task = team?.tasks[String(taskId || '')]
@@ -958,6 +963,7 @@ export class TeamWorkflowService {
       .trim()
       .slice(0, MAX_TEAM_ROLE_CHARS)
     if (agent !== undefined) task.agent = normalizeAgentProfileName(agent)
+    if (tier !== undefined) task.tier = normalizeSubagentTier(tier)
     task.message = String(message === undefined ? task.message : message || '')
       .trim()
       .slice(0, MAX_TEAM_TASK_MESSAGE_CHARS)

@@ -212,9 +212,14 @@ test('team tasks keep their agent definition through updates and restarts', asyn
     (await service.updateTask('session-1', task.id, { agent: 'reviewer' })).agent,
     'reviewer',
   )
+  // 派发时指定的档位同样随任务保存（认中文写法），排队任务重启后按它解析模型。
+  assert.equal((await service.updateTask('session-1', task.id, { tier: '快' })).tier, 'fast')
+  assert.equal((await service.updateTask('session-1', task.id, { tier: 'huge' })).tier, '')
+  await service.updateTask('session-1', task.id, { tier: 'strong' })
   const restored = new TeamWorkflowService({ path: join(directory, 'teams.json') })
   await restored.init()
   assert.equal(restored.getTask('session-1', task.id).agent, 'reviewer')
+  assert.equal(restored.getTask('session-1', task.id).tier, 'strong')
 })
 
 test('team workflow supports repeated recovery without time-based termination', async (t) => {

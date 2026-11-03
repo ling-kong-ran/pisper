@@ -669,7 +669,7 @@
   "providerWorkbench.auxiliaryFollowSession": "不使用（跟随会话模型）",
   "providerWorkbench.auxiliaryModelSaved": "辅助模型已保存",
   "subagents.title": "子代理",
-  "subagents.hint": "子代理定义里写 fast、standard 或 strong 档位，这里决定每个档位用哪个模型。没设置的档位跟随当前会话模型。",
+  "subagents.hint": "主 Agent 派子代理时按任务选 fast、standard 或 strong 档位，这里决定每档用哪个模型，选好即生效；没设置的档位跟随当前会话模型。子代理定义里写了模型或档位时以定义为准。",
   "subagents.tierFast": "快速",
   "subagents.tierFastHint": "检索、整理这类简单任务，用便宜、快的模型",
   "subagents.tierStandard": "标准",

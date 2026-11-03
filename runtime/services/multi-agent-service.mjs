@@ -19,6 +19,7 @@ import {
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_WRITE_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { extensionSafeSettingsManager } from './skills-service.mjs'
+import { SUBAGENT_MODEL_TIERS } from './agent-profiles.mjs'
 
 export const MAX_CONCURRENT_AGENTS = 4
 export const MAX_AGENTS_PER_PARENT = 64
@@ -117,12 +118,13 @@ function modelFromLabel(value) {
 const MODEL_SOURCES = new Set(['parent', 'definition', 'tier'])
 const MODEL_FALLBACK_REASONS = new Set(['model-unavailable', 'tier-unset', 'tier-unavailable'])
 
-// 子代理定义带来的字段：用了哪份定义、模型从哪来、没用上定义模型的原因；重启后也要能恢复。
+// 子代理定义与档位带来的字段：用了哪份定义、模型从哪来（含实际用的档位）、没用上定义模型的原因；重启后也要能恢复。
 function profileFields(value) {
   return {
     agentProfile: String(value?.agentProfile || '').slice(0, 48),
     profileInstructions: String(value?.profileInstructions || '').slice(0, 12_000),
     modelSource: MODEL_SOURCES.has(value?.modelSource) ? value.modelSource : 'parent',
+    modelTier: SUBAGENT_MODEL_TIERS.includes(value?.modelTier) ? value.modelTier : '',
     modelFallbackReasons: (Array.isArray(value?.modelFallbackReasons)
       ? value.modelFallbackReasons
       : []
@@ -134,6 +136,7 @@ function publicProfileFields(record) {
   return {
     agentProfile: record.agentProfile,
     modelSource: record.modelSource,
+    modelTier: record.modelTier,
     modelFallbackReasons: [...record.modelFallbackReasons],
   }
 }
@@ -812,6 +815,7 @@ export class MultiAgentService {
     agentProfile,
     profileInstructions,
     modelSource,
+    modelTier,
     modelFallbackReasons,
     taskName,
     message,
@@ -848,7 +852,13 @@ export class MultiAgentService {
       cwd,
       model,
       thinkingLevel: thinkingLevel || 'medium',
-      ...profileFields({ agentProfile, profileInstructions, modelSource, modelFallbackReasons }),
+      ...profileFields({
+        agentProfile,
+        profileInstructions,
+        modelSource,
+        modelTier,
+        modelFallbackReasons,
+      }),
       message: normalizedMessage,
       availableTools: childTools(allowedTools),
       customTools,

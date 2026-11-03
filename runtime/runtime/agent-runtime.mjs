@@ -74,7 +74,11 @@ import {
   TeamWorkflowService,
   teamExecutionPrompt,
 } from '../services/team-workflow.mjs'
-import { AGENT_PROFILES_SKILL, loadAgentProfiles } from '../services/agent-profiles.mjs'
+import {
+  AGENT_PROFILES_SKILL,
+  SUBAGENT_MODEL_TIERS,
+  loadAgentProfiles,
+} from '../services/agent-profiles.mjs'
 import {
   createMultiAgentRuntime,
   createSubagentUsageHandler,
@@ -1854,6 +1858,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           installSubagentPermissions,
           onCompleted: accountSubagentUsage,
           emitAgentUpdate: this.emitAgentUpdate.bind(this),
+          // 派发时指定的档位：每次派生都按设置里此刻的映射解析，改了档位不必重开会话。
+          resolveTierModel: (tier) => this.providerPreferences.resolveSubagentModel({ tier }),
           // 每次派生都重读定义文件，会话打开后新增或修改的定义也能按名字使用。
           resolveAgentProfile: async (name) => {
             const { profiles, errors } = await loadAgentProfiles({
@@ -1893,8 +1899,24 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           )
           .catch(() => [])
       : []
+    // 档位此刻对应的模型，写进工具说明供父模型挑选；实际派生时仍按当时的设置重新解析。
+    const tierModels = multiAgentRuntime
+      ? Object.fromEntries(
+          await Promise.all(
+            SUBAGENT_MODEL_TIERS.map(async (tier) => {
+              const selection = await this.providerPreferences
+                .resolveSubagentModel({ tier })
+                .catch(() => null)
+              const model = selection?.model
+              return [tier, model ? `${model.provider}/${model.id}` : '']
+            }),
+          ),
+        )
+      : {}
     const multiAgentTools = multiAgentRuntime
-      ? schemaOnlyToolDefinitions(createMultiAgentTools({ multiAgentRuntime, agentProfiles }))
+      ? schemaOnlyToolDefinitions(
+          createMultiAgentTools({ multiAgentRuntime, agentProfiles, tierModels }),
+        )
       : []
     const inheritedCustomTools = createInheritedCustomTools()
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))

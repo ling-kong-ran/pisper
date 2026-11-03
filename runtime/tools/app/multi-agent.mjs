@@ -147,13 +147,26 @@ function agentDefinitionsText(agentProfiles) {
     .join('\n')}`
 }
 
+// 档位此刻对应的模型；没设置的档位跟随当前会话模型。
+function tierModelsText(tierModels = {}) {
+  return `\n\nModel tiers (pass as tier when no agent definition fits): ${[
+    'fast',
+    'standard',
+    'strong',
+  ]
+    .map((tier) => `${tier} → ${tierModels[tier] || 'this session model'}`)
+    .join('; ')}.`
+}
+
 function spawnResultText(agent) {
   const action = agent.status === 'queued' ? 'Queued' : 'Started'
   const definition = agent.agentProfile
     ? ` as ${agent.agentProfile} on ${agent.model || 'the parent model'}`
-    : ''
+    : agent.modelTier
+      ? ` on the ${agent.modelTier} tier (${agent.model || 'the parent model'})`
+      : ''
   const fallback = agent.modelFallbackReasons?.length
-    ? ` The definition's model was unavailable (${agent.modelFallbackReasons.join(', ')}), so it ${
+    ? ` The requested model was unavailable (${agent.modelFallbackReasons.join(', ')}), so it ${
         agent.modelSource === 'tier' ? 'uses its tier model' : 'inherits the parent model'
       }.`
     : ''
@@ -163,11 +176,11 @@ function spawnResultText(agent) {
   return `${action} ${agent.canonicalName}${definition} in the background.${fallback}${skipped}`
 }
 
-function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
+function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [], tierModels = {} }) {
   return defineTool({
     name: 'spawn_agent',
     label: 'Spawn Agent',
-    description: `Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.${agentDefinitionsText(agentProfiles)}`,
+    description: `Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.${agentDefinitionsText(agentProfiles)}${tierModelsText(tierModels)}`,
     promptSnippet:
       'Proactively delegate concrete independent work to an asynchronous background Agent',
     promptGuidelines: [
@@ -179,6 +192,7 @@ function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
       'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
       'Without agent, an Agent inherits the current model, reasoning level and tools. Permission mode and workspace boundary always come from this session. Agents cannot recursively spawn more Agents.',
       'When an agent definition fits the task, pass its name as agent: the definition chooses the model (cheap fast models for simple lookups, stronger ones for hard work), reasoning level, a narrower tool set, and standing instructions. Match the task to the definition’s tools; do not send file-changing work to a definition without write tools.',
+      'When no agent definition fits, pass tier to pick a model for the task: fast for lookups, searches, summaries and other simple work; standard for ordinary implementation and edits; strong for design, hard debugging and review. The user maps tiers to models in settings; an unset tier runs on the current model. A definition that names a model or tier takes precedence over tier.',
       'To create or change agent definitions for the user, load the pisper-subagents skill first.',
       'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
       'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
@@ -209,6 +223,12 @@ function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [] }) {
           maxLength: 48,
           description:
             'Name of an agent definition (.pisper/agents/*.md in the project, or the global agents folder). Omit to inherit this session.',
+        }),
+      ),
+      tier: Type.Optional(
+        Type.Union([Type.Literal('fast'), Type.Literal('standard'), Type.Literal('strong')], {
+          description:
+            'Model tier for this task when no definition fits: fast (simple lookups), standard (ordinary implementation), strong (design, debugging, review). Ignored when the agent definition already names a model or tier.',
         }),
       ),
       files: Type.Optional(

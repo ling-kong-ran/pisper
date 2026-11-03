@@ -48,6 +48,11 @@ function normalizeModelRef(value) {
   return slash > 0 && slash < ref.length - 1 && ref.length <= MAX_MODEL_REF_CHARS ? ref : ''
 }
 
+// 派发时直接指定的档位（spawn_agent 的 tier、工作流 agent() 的 options.tier）：认中英文写法，其余为空。
+export function normalizeSubagentTier(value) {
+  return normalizeTier(value)
+}
+
 // 设置里保存的档位映射：只认三个档位，值是 "provider/modelId"，非法项丢弃。
 export function normalizeSubagentModelTiers(value) {
   const tiers = {}
@@ -259,7 +264,8 @@ tools: [read, grep, find, ls]
   - \`standard\`：常规实现和排查；
   - \`strong\`：架构判断、疑难问题、代码审查。
 - 只有用户点名要某个模型时才写 \`provider/modelId\`，并配一个 \`tier\` 作为退路。
-- 退回顺序：具体模型 → \`tier\` 档位 → 父会话模型。用不了的原因（模型不可用、档位没设置、档位的模型不可用）会显示在子代理活动行和 \`spawn_agent\` 的返回里。
+- 只想按任务难度换模型时不必写定义：\`spawn_agent\` 直接传 \`tier\` 即可。定义适合需要固定说明、收窄工具或固定思考强度的场景；定义写了模型或档位时以定义为准。
+- 退回顺序：具体模型 → \`tier\` 档位 → 派发时传的 \`tier\` → 父会话模型。用不了的原因（模型不可用、档位没设置、档位的模型不可用）会显示在子代理活动行和 \`spawn_agent\` 的返回里。
 - 档位在设置里还没对应模型时，子代理会用父会话模型；写完定义后提醒用户去设置里给用到的档位选模型。
 
 ## 工具范围

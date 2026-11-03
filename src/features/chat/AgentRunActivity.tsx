@@ -257,18 +257,27 @@ function activityPresentation(
   } else if (activity.type === 'agent') {
     const agent = activity.agent || {}
     const taskName = cleanInline(agent.taskName) || t('chat:agentRunActivity.subagent')
-    // 按子代理定义派生时写明定义名和实际用的模型；定义里的模型用不了而退回时，说明换成了哪个。
+    // 按子代理定义或档位派生时写明定义名（没有定义时写档位）和实际用的模型；
+    // 指定的模型用不了而退回时，说明换成了哪个。
     const profile = cleanInline(agent.agentProfile)
+    const tier = cleanInline(agent.modelTier)
     const model = cleanInline(agent.model)
-    const name = profile
-      ? t('chat:agentRunActivity.subagentWithProfile', { name: taskName, profile, model })
-      : taskName
+    const name =
+      profile || tier
+        ? t('chat:agentRunActivity.subagentWithProfile', {
+            name: taskName,
+            profile: profile || tier,
+            model,
+          })
+        : taskName
     const modelFallback =
       !Array.isArray(agent.modelFallbackReasons) || !agent.modelFallbackReasons.length
         ? ''
         : agent.modelSource === 'tier'
           ? t('chat:agentRunActivity.subagentTierModelFallback', { model })
-          : t('chat:agentRunActivity.subagentParentModelFallback', { model })
+          : profile
+            ? t('chat:agentRunActivity.subagentParentModelFallback', { model })
+            : t('chat:agentRunActivity.subagentTierUnavailableFallback', { model })
     const state = agentActivityState(agent.status)
     title = agentActivityTitle(agent.status, name, t)
     tone = state.tone

@@ -232,6 +232,7 @@
   "agentRunActivity.subagentWithProfile": "{name}（{profile} · {model}）",
   "agentRunActivity.subagentTierModelFallback": "定义里指定的模型不可用，改用档位模型 {model}",
   "agentRunActivity.subagentParentModelFallback": "定义里的模型不可用或档位未设置，改用当前会话模型 {model}",
+  "agentRunActivity.subagentTierUnavailableFallback": "档位对应的模型不可用，改用当前会话模型 {model}",
   "agentRunActivity.summarizingOlderMessages": "正在整理较早消息",
   "agentRunActivity.summarizingOlderMessagesAsRequested": "正在按请求整理较早消息",
   "agentRunActivity.thisRunFailed": "本轮执行失败",

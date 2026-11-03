@@ -376,3 +376,81 @@ test('the parent session sees the skill and each definition with its tier model 
   assert.match(spawn.description, /- pinned \(model: test-gone\/fixture → this session model; /)
   assert.doesNotMatch(spawn.description, /broken/)
 })
+
+test('a tier picked at spawn time runs on the mapped model without any definition', async (t) => {
+  const { runtime, requests, sessionId, multiAgentRuntime } = await profileRuntime(t)
+  await runtime.setSubagentModelTiers({ tiers: { fast: 'test-cheap/fixture' } })
+  const spawned = await multiAgentRuntime.spawn({
+    taskName: 'lookup',
+    message: '找入口',
+    tier: 'fast',
+  })
+  assert.equal(spawned.agentProfile, '')
+  assert.equal(spawned.model, 'test-cheap/fixture')
+  assert.equal(spawned.modelSource, 'tier')
+  assert.equal(spawned.modelTier, 'fast')
+  assert.deepEqual(spawned.modelFallbackReasons, [])
+  assert.equal((await finished(runtime, sessionId, spawned.id)).status, 'completed')
+  assert.ok(requests.some((item) => item.target === 'cheap'))
+  // 设置里没配的档位跟随父会话模型：这是正常情况，不记退回原因。
+  const unset = await multiAgentRuntime.spawn({
+    taskName: 'review',
+    message: '审查',
+    tier: 'strong',
+  })
+  assert.equal(unset.model, 'test-parent/fixture')
+  assert.equal(unset.modelSource, 'parent')
+  assert.equal(unset.modelTier, '')
+  assert.deepEqual(unset.modelFallbackReasons, [])
+  await finished(runtime, sessionId, unset.id)
+  await assert.rejects(
+    multiAgentRuntime.spawn({ taskName: 'bad', message: 'x', tier: 'turbo' }),
+    /tier must be fast, standard or strong/,
+  )
+})
+
+test('definitions take precedence over the spawn tier, which fills in when a definition names no usable model', async (t) => {
+  const { runtime, sessionId, multiAgentRuntime } = await profileRuntime(t)
+  await runtime.setSubagentModelTiers({
+    tiers: { fast: 'test-cheap/fixture', strong: 'test-parent/fixture' },
+  })
+  // scout 定义写了 fast：派发时再给 strong 也以定义为准。
+  const scout = await multiAgentRuntime.spawn({
+    taskName: 'scout-task',
+    message: 'x',
+    agent: 'scout',
+    tier: 'strong',
+  })
+  assert.equal(scout.model, 'test-cheap/fixture')
+  assert.equal(scout.modelTier, 'fast')
+  // pinned 定义写的具体模型不存在、也没写 tier 退路：派发时的档位接上，退回原因照常记录。
+  const pinned = await multiAgentRuntime.spawn({
+    taskName: 'pinned-task',
+    message: 'x',
+    agent: 'pinned',
+    tier: 'fast',
+  })
+  assert.equal(pinned.agentProfile, 'pinned')
+  assert.equal(pinned.model, 'test-cheap/fixture')
+  assert.equal(pinned.modelSource, 'tier')
+  assert.equal(pinned.modelTier, 'fast')
+  assert.deepEqual(pinned.modelFallbackReasons, ['model-unavailable'])
+  for (const agent of [scout, pinned]) await finished(runtime, sessionId, agent.id)
+})
+
+test('the spawn tool lists what each tier runs on right now', async (t) => {
+  const { runtime } = await profileRuntime(t)
+  await runtime.setSubagentModelTiers({ tiers: { fast: 'test-cheap/fixture' } })
+  const created = await runtime.createSession('看档位', runtime.cwd)
+  await runtime.setSessionModel(created.id, 'test-parent', 'fixture')
+  const { session } = await runtime.getOrCreateSession(created.id)
+  const spawn = session.getToolDefinition('spawn_agent')
+  assert.match(
+    spawn.description,
+    /Model tiers \(pass as tier when no agent definition fits\): fast → test-cheap\/fixture; standard → this session model; strong → this session model\./,
+  )
+  assert.deepEqual(
+    spawn.parameters.properties.tier.anyOf.map((item) => item.const),
+    ['fast', 'standard', 'strong'],
+  )
+})

@@ -669,7 +669,7 @@
   "providerWorkbench.auxiliaryFollowSession": "None (follow the session model)",
   "providerWorkbench.auxiliaryModelSaved": "Auxiliary model saved",
   "subagents.title": "Subagents",
-  "subagents.hint": "Subagent definitions name a tier (fast, standard, or strong); choose which model each tier uses here. Unset tiers follow the current session model.",
+  "subagents.hint": "The main agent picks a tier (fast, standard, or strong) for each subagent; choose which model each tier uses here, effective right away. Unset tiers follow the current session model. A subagent definition that names a model or tier takes precedence.",
   "subagents.tierFast": "Fast",
   "subagents.tierFastHint": "Simple lookups and tidying, on a cheap, quick model",
   "subagents.tierStandard": "Standard",

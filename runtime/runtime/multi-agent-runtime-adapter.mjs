@@ -6,6 +6,7 @@ import { Worker } from 'node:worker_threads'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
 import { createTeamMemberTools, TEAM_MEMBER_TOOL_NAMES } from '../tools/app/multi-agent.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
+import { normalizeSubagentTier } from '../services/agent-profiles.mjs'
 
 const MAX_TEAM_SCRIPT_BYTES = 256 * 1024
 const MAX_WORKFLOW_RESULT_BYTES = 1024 * 1024
@@ -322,6 +323,7 @@ export function createMultiAgentRuntime({
   onCompleted,
   emitAgentUpdate,
   resolveAgentProfile = null,
+  resolveTierModel = null,
 }) {
   const agentLeaseBindings = new Map()
 
@@ -359,6 +361,7 @@ export function createMultiAgentRuntime({
         taskName: task.taskName,
         role: task.role,
         agent: task.agent,
+        tier: task.tier,
         message: task.message,
         files: task.files,
         dependsOn: task.dependsOn,
@@ -494,6 +497,7 @@ export function createMultiAgentRuntime({
             role: options?.role || '',
             // 只在指定了定义时才进指纹，升级前已完成的工作流任务指纹保持不变、不会重跑。
             ...(options?.agent ? { agent: String(options.agent) } : {}),
+            ...(options?.tier ? { tier: String(options.tier) } : {}),
             files: options?.files || [],
             dependsOn: dependencies,
             schema: schemaText,
@@ -517,6 +521,7 @@ export function createMultiAgentRuntime({
         taskName,
         role: options?.role,
         agent: options?.agent,
+        tier: options?.tier,
         message,
         files: options?.files,
         dependsOn: dependencies,
@@ -561,8 +566,34 @@ export function createMultiAgentRuntime({
       .toLowerCase()
     if (profileName && !resolveAgentProfile)
       throw new Error('Agent definitions are not available in this session.')
-    const selection = profileName ? await resolveAgentProfile(profileName) : null
+    const requestedTier = normalizeSubagentTier(input?.tier)
+    if (String(input?.tier ?? '').trim() && !requestedTier)
+      throw new Error('tier must be fast, standard or strong.')
+    let selection = profileName ? await resolveAgentProfile(profileName) : null
     const profile = selection?.profile || null
+    // 优先级：定义里的具体模型 → 定义里的档位 → 派发时指定的档位 → 父会话模型。
+    // 定义没定下模型（没写模型，或写了但用不了）时才看 tier；档位没设置是正常情况（设置里留空即跟随会话），不记原因。
+    if (requestedTier && resolveTierModel && (!selection || selection.source === 'parent')) {
+      const tierSelection = await resolveTierModel(requestedTier)
+      const reasons = selection?.fallbackReasons || []
+      selection = tierSelection?.model
+        ? {
+            profile,
+            model: tierSelection.model,
+            source: 'tier',
+            tier: requestedTier,
+            fallbackReasons: reasons,
+          }
+        : {
+            profile,
+            model: null,
+            source: 'parent',
+            fallbackReasons: tierSelection?.fallbackReasons?.includes('tier-unavailable')
+              ? [...new Set([...reasons, 'tier-unavailable'])]
+              : reasons,
+          }
+    }
+    const modelTier = selection?.source === 'tier' ? selection.tier || profile?.tier || '' : ''
     let teamTask = null
     let reusedTeamTask = false
     let initialAgentRunNumber = null
@@ -658,6 +689,7 @@ export function createMultiAgentRuntime({
         agentProfile: profile?.name || '',
         profileInstructions: profile?.instructions || '',
         modelSource: selection?.source || 'parent',
+        modelTier,
         modelFallbackReasons: selection?.fallbackReasons || [],
         allowedTools: [
           ...inheritedTools,
