@@ -3,7 +3,7 @@
 // 失败或中断（继续 / 放弃）、已完成。完整的工具步骤在 Bot 的会话里，卡片上给“打开完整记录”。
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, FileDiff, GitBranch, History, RotateCcw, Square, TriangleAlert } from 'lucide-react'
+import { Check, FileDiff, History, RotateCcw, Square, TriangleAlert } from 'lucide-react'
 import type { Translate } from '@/app/navigation'
 import { sessionPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
@@ -104,39 +104,33 @@ function TaskCard({
     return (
       <div
         data-bot-review={task.id}
-        className="mt-2 overflow-hidden rounded-xl border border-st-attn-border bg-surface-raised ring-[3px] ring-st-attn-soft"
+        className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-st-attn-border bg-surface-raised px-3.5 py-2.5 ring-[3px] ring-st-attn-soft"
       >
-        <div className="flex items-center gap-2 px-3.5 py-2.5 text-[13px]">
-          <FileDiff className="size-3.5 text-content-muted" aria-hidden="true" />
-          <span className="flex-1 font-semibold text-content">
+        <span className="flex min-w-0 flex-1 flex-col max-[560px]:basis-full">
+          <span className="flex items-center gap-2 text-[13px] font-semibold text-content">
+            <FileDiff className="size-3.5 text-content-muted" aria-hidden="true" />
             {t('bots:card.review', { count: task.result?.changedFiles ?? 0 })}
           </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-stroke px-3.5 py-2.5">
           {task.workspace?.branch && (
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-xs text-content-muted">
-              <GitBranch className="size-3.5 flex-none" aria-hidden="true" />
-              <span className="truncate">{task.workspace.branch}</span>
+            <span className="truncate pl-5.5 font-mono text-xs text-content-muted">
+              {task.workspace.branch}
             </span>
           )}
-          <Button size="sm" variant="outline" onClick={onShowChanges}>
-            {t('bots:card.showChanges')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => onAction(task, 'discard')}
-          >
-            {t('bots:card.discard')}
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => onAction(task, 'apply')}>
-            {t('bots:card.acceptApply')}
-          </Button>
-        </div>
-        <p className="border-t border-stroke px-3.5 py-2 text-xs text-content-muted">
-          {t('bots:card.reviewHint')}
-        </p>
+        </span>
+        <Button size="sm" variant="ghost" onClick={onShowChanges}>
+          {t('bots:card.showChanges')}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => onAction(task, 'discard')}
+        >
+          {t('bots:card.discard')}
+        </Button>
+        <Button size="sm" disabled={busy} onClick={() => onAction(task, 'apply')}>
+          {t('bots:card.acceptApply')}
+        </Button>
       </div>
     )
   if (task.status === 'failed' || task.status === 'interrupted')

@@ -1,4 +1,4 @@
-// 详情栏里 Bot 的两种触发方式（B3），都就地编辑，不弹窗：
+// 设置里 Bot 的两种触发方式（B3），各在一个折叠分区里就地编辑，不弹窗：
 // - 可以叫它的聊天：哪个渠道、私聊还是群聊、哪些聊天、哪些人。群聊必须写明哪些人（Runtime 会拒绝空名单）；
 //   私聊不写人时只有渠道的创建者能叫它。ID 在聊天里发 /whoami 就能看到。
 // - 定时让它做：到点给它派一件事（每天、每周或某一天一次），就是 targetType = bot 的定时任务。
@@ -24,7 +24,7 @@ import {
 import { platformLabel, scheduleLabel, splitIds, weekdayLabel } from './bot-labels'
 import { useBotsStore } from './bots-store'
 
-function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
+export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
   const { t } = useI18n()
   const upsert = useBotsStore((state) => state.upsert)
   const [adding, setAdding] = useState(false)
@@ -62,8 +62,7 @@ function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: string) 
     setSenders('')
   }
   return (
-    <section aria-label={t('bots:triggers.chats')} className="border-b border-stroke py-3.5">
-      <h3 className="mb-1 text-xs font-medium text-content-muted">{t('bots:triggers.chats')}</h3>
+    <div className="flex flex-col">
       <p className="mb-2 text-xs text-content-muted">
         {t('bots:triggers.chatsHint', { name: bot.name })}
       </p>
@@ -160,7 +159,7 @@ function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: string) 
           {t('bots:triggers.addChat')}
         </Button>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -172,7 +171,7 @@ function today() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
-function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
+export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
   const { t } = useI18n()
   const [schedules, setSchedules] = useState<BotSchedule[]>([])
   const [adding, setAdding] = useState(false)
@@ -224,10 +223,7 @@ function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string)
     setMessage('')
   }
   return (
-    <section aria-label={t('bots:triggers.schedules')} className="border-b border-stroke py-3.5">
-      <h3 className="mb-1 text-xs font-medium text-content-muted">
-        {t('bots:triggers.schedules')}
-      </h3>
+    <div className="flex flex-col">
       {schedules.length > 0 && (
         <ul role="list" className="m-0 mb-2 flex list-none flex-col gap-1.5 p-0">
           {schedules.map((schedule) => (
@@ -325,15 +321,6 @@ function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string)
           {t('bots:triggers.addSchedule')}
         </Button>
       )}
-    </section>
-  )
-}
-
-export function BotTriggers({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
-  return (
-    <>
-      <ChannelEditor bot={bot} onError={onError} />
-      <ScheduleEditor bot={bot} onError={onError} />
-    </>
+    </div>
   )
 }

@@ -4,7 +4,7 @@
 import './bots-messages'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ArrowUp, Monitor, PanelRight, Plus } from 'lucide-react'
+import { ArrowUp, Plus, Settings2 } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
@@ -77,8 +77,9 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
   const environments = useBotEnvironments()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(() => window.innerWidth >= 1180)
-  const [tab, setTab] = useState<BotDetailsTab>('details')
+  // 第一眼只看对话：侧栏平时收起，点设置或“查看改动”才打开。
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [tab, setTab] = useState<BotDetailsTab>('settings')
   const scroller = useRef<HTMLDivElement>(null)
   // 任务按创建时间排列，取最近的一个。
   const reviewTask = useMemo(
@@ -122,6 +123,10 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
       void send()
     }
   }
+  const current = environments.environments.find(
+    (environment) => environment.id === bot.workspace.environmentId,
+  )
+  const remote = current?.kind === 'node' ? current : undefined
   const showChanges = (task: BotTask) => {
     if (task.status !== 'review') return
     setTab('changes')
@@ -135,45 +140,29 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
           <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={32} />
           <div className="min-w-0">
             <h1 className="truncate text-[15px] font-semibold text-content">{bot.name}</h1>
-            <p className="truncate text-xs text-content-muted">{botActivityLine(t, bot)}</p>
+            <p className="truncate text-xs text-content-muted">
+              {botActivityLine(t, bot)}
+              {/* 只有不在本机时才写在哪台电脑上：大多数 Bot 就在本机，不必每次都看到。 */}
+              {remote &&
+                ` · ${t('bots:header.onComputer', { computer: environmentLabel(t, remote) })}`}
+            </p>
           </div>
           <span className="flex-1" />
           <Button
-            variant="outline"
-            size="sm"
-            aria-label={t('bots:header.computerLabel', {
-              name: bot.name,
-              computer: environmentLabel(
-                t,
-                environments.environments.find(
-                  (environment) => environment.id === bot.workspace.environmentId,
-                ),
-              ),
-            })}
-            onClick={() => {
-              setTab('computer')
-              setDetailsOpen(true)
-            }}
-          >
-            <Monitor aria-hidden="true" />
-            <span className="text-content-muted max-[720px]:hidden">
-              {t('bots:header.computer', { name: bot.name })}
-            </span>
-            {environmentLabel(
-              t,
-              environments.environments.find(
-                (environment) => environment.id === bot.workspace.environmentId,
-              ),
-            )}
-          </Button>
-          <Button
             variant="ghost"
             size="icon"
-            aria-label={t('bots:header.details')}
-            aria-pressed={detailsOpen}
-            onClick={() => setDetailsOpen((open) => !open)}
+            aria-label={t('bots:settings.botTitle', { name: bot.name })}
+            title={t('bots:settings.botTitle', { name: bot.name })}
+            aria-pressed={detailsOpen && (tab === 'settings' || !reviewTask)}
+            onClick={() => {
+              if (detailsOpen && (tab === 'settings' || !reviewTask)) setDetailsOpen(false)
+              else {
+                setTab('settings')
+                setDetailsOpen(true)
+              }
+            }}
           >
-            <PanelRight aria-hidden="true" />
+            <Settings2 aria-hidden="true" />
           </Button>
         </header>
         <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
@@ -220,13 +209,15 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
               </Button>
             </div>
           </div>
-          <p className="mt-1.5 text-center text-[11.5px] text-content-faint">
-            {bot.enabled ? t('bots:composer.hint', { name: bot.name }) : t('bots:activity.paused')}
-          </p>
+          {!bot.enabled && (
+            <p className="mt-1.5 text-center text-[11.5px] text-content-faint">
+              {t('bots:activity.paused')}
+            </p>
+          )}
         </div>
       </section>
       <aside
-        aria-label={t('bots:header.details')}
+        aria-label={t('bots:settings.botTitle', { name: bot.name })}
         className={cn(
           // 窄屏：详情栏盖在对话上，带关闭按钮。
           'flex min-h-0 w-[380px] flex-none flex-col border-l border-stroke bg-surface max-[900px]:fixed max-[900px]:inset-0 max-[900px]:z-40 max-[900px]:w-full max-[900px]:border-l-0',

@@ -1,4 +1,4 @@
-// 详情栏的「电脑」标签（B6，设计稿 botim-computer）：Bot 在哪台电脑、哪个目录干活，以及有哪些电脑可选。
+// 设置里的「电脑」分区（B6，设计稿 botim-computer）：Bot 在哪台电脑、哪个目录干活，以及有哪些电脑可选。
 // 换电脑：选电脑、填那台电脑上的目录（本机可以用目录选择器），保存后下一个任务起生效。
 // 添加电脑：就地显示一次性配对码与要在那台电脑上运行的两条命令；不弹窗。
 // 移除电脑：就地确认；还有 Bot 在用时由 Runtime 拒绝并说明是哪些 Bot。
@@ -210,12 +210,7 @@ export function BotComputerTab({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-semibold text-content">
-          {t('bots:computer.title', { name: bot.name })}
-        </h3>
-        <p className="mt-1 text-xs text-content-muted">{t('bots:computer.description')}</p>
-      </div>
+      <p className="text-xs text-content-muted">{t('bots:computer.description')}</p>
       <label className="flex items-center justify-between gap-3 text-sm">
         <span className="flex-none">{t('bots:computer.runsOn')}</span>
         <AppSelect

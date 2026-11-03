@@ -329,3 +329,33 @@ test('computer helpers name machines and build the executor commands', async () 
     /--brain BRAIN --fingerprint FP/,
   )
 })
+
+test('a bot needs only a name: the folder defaults and settings stay out of the first view', async () => {
+  const { AgentRuntimeFacade } = await import('../runtime/agent-runtime-facade.mjs')
+  const created = []
+  const runtime = {
+    cwd: '/default/workspace',
+    bots: { create: async (input) => (created.push(input), input) },
+  }
+  await AgentRuntimeFacade.prototype.createBot.call(runtime, { name: '助手' })
+  await AgentRuntimeFacade.prototype.createBot.call(runtime, {
+    name: '远程',
+    workspace: { environmentId: 'env_testmachine1', cwd: '' },
+  })
+  await AgentRuntimeFacade.prototype.createBot.call(runtime, {
+    name: '指定',
+    workspace: { cwd: '/repo' },
+  })
+  assert.equal(created[0].workspace.cwd, '/default/workspace')
+  // 执行节点上的目录没有默认值，交给校验去拒绝，不悄悄用本机路径。
+  assert.equal(created[1].workspace.cwd, '')
+  assert.equal(created[2].workspace.cwd, '/repo')
+
+  const page = await readFile(join(root, 'src/features/bots/BotsPage.tsx'), 'utf8')
+  assert.match(page, /const \[detailsOpen, setDetailsOpen\] = useState\(false\)/)
+  const dialog = await readFile(join(root, 'src/features/bots/NewBotDialog.tsx'), 'utf8')
+  assert.match(dialog, /disabled=\{saving \|\| !name\.trim\(\)\}/)
+  const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
+  for (const section of ['computer', 'chats', 'schedules', 'advanced'])
+    assert.match(details, new RegExp(`<AccordionItem value="${section}">`))
+})

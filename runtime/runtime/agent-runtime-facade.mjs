@@ -832,8 +832,17 @@ export class AgentRuntimeFacade {
     return this.bots.get(id)
   }
 
+  // 新建时可以只给名字：没选目录就在本机的默认工作目录里干活，之后在设置里再换。
   createBot(input) {
-    return this.bots.create(input)
+    const value = input && typeof input === 'object' ? input : {}
+    const workspace = value.workspace && typeof value.workspace === 'object' ? value.workspace : {}
+    const environmentId = String(workspace.environmentId || 'local')
+    const cwd = String(workspace.cwd ?? '').trim()
+    return this.bots.create(
+      cwd || environmentId !== 'local'
+        ? value
+        : { ...value, workspace: { ...workspace, cwd: this.cwd } },
+    )
   }
 
   updateBot(id, input) {

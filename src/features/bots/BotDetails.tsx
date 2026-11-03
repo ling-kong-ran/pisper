@@ -1,18 +1,26 @@
-// Bot 的详情栏（设计稿 botim-chat / botim-changes / botim-computer）：三个标签。
-// 详情：头像、它记得的工作说明（可编辑）、权限上限、交付方式、暂停。
-// 改动：待确认任务的文件列表与 diff。电脑：它在哪台电脑、哪个目录工作，以及添加或移除电脑（BotComputerTab）。
+// Bot 的侧栏（按“第一眼只看到对话”简化）：平时收起，点右上角设置或卡片上的“查看改动”才打开。
+// 设置：头像、名字和“它负责什么”在最上面；电脑、在聊天里叫它、定时、高级（权限、交付、工具、暂停）
+// 都收在折叠分区里，用默认值就能用，想改时再展开。
+// 改动：有待确认的改动时才出现这个标签，列文件与 diff。
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { InlineEmptyState } from '@/components/app/PageState'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { FileDiff } from 'lucide-react'
 import { BotAvatar } from './BotAvatar'
+import { BotAvatarPicker } from './BotAvatarPicker'
 import { BotComputerTab } from './BotComputerTab'
-import { BotTriggers } from './BotTriggers'
+import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import {
   fetchBotTaskDiff,
   updateBot,
@@ -21,11 +29,12 @@ import {
   type BotEnvironment,
   type BotTask,
 } from './bots-api'
+import { environmentLabel } from './bot-environments'
 import { deliveryLabel, executionModeLabel } from './bot-labels'
 import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
-export type BotDetailsTab = 'details' | 'changes' | 'computer'
+export type BotDetailsTab = 'settings' | 'changes'
 
 // 改动用会话里同一套 diff 查看器（按需懒加载）。
 const InlineGitDiff = lazy(() =>
@@ -102,6 +111,7 @@ export function BotDetails({
   const upsert = useBotsStore((state) => state.upsert)
   const [instructions, setInstructions] = useState(bot.instructions)
   const [saving, setSaving] = useState(false)
+  const [choosingLook, setChoosingLook] = useState(false)
   useEffect(() => setInstructions(bot.instructions), [bot.id, bot.instructions])
 
   const save = async (patch: Parameters<typeof updateBot>[1]) => {
@@ -115,6 +125,177 @@ export function BotDetails({
     }
   }
 
+  const environment = environments.find((item) => item.id === bot.workspace.environmentId)
+  const folder = bot.workspace.cwd.split(/[\\/]/).filter(Boolean).at(-1) || bot.workspace.cwd
+  const settings = (
+    <div className="flex flex-col gap-4 pb-4">
+      <div className="flex items-center gap-3">
+        <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={48} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-base font-semibold text-content">{bot.name}</div>
+          <button
+            type="button"
+            className="text-xs text-content-muted underline-offset-2 hover:text-content hover:underline"
+            onClick={() => setChoosingLook((open) => !open)}
+          >
+            {choosingLook ? t('bots:settings.doneLook') : t('bots:settings.changeLook')}
+          </button>
+        </div>
+      </div>
+      {choosingLook && (
+        <BotAvatarPicker
+          value={bot.avatar}
+          disabled={saving}
+          onChange={(avatar) => void save({ avatar })}
+        />
+      )}
+      <section aria-label={t('bots:details.instructions')}>
+        <h3 className="mb-1 text-sm font-medium text-content">{t('bots:details.instructions')}</h3>
+        <Textarea
+          value={instructions}
+          rows={4}
+          maxLength={12_000}
+          aria-label={t('bots:details.instructions')}
+          placeholder={t('bots:details.instructionsPlaceholder')}
+          onChange={(event) => setInstructions(event.target.value)}
+        />
+        {instructions !== bot.instructions && (
+          <div className="mt-2 flex justify-end">
+            <Button size="sm" disabled={saving} onClick={() => void save({ instructions })}>
+              {t('bots:details.save')}
+            </Button>
+          </div>
+        )}
+      </section>
+      {/* 分区内容是展开后才加载的（如定时列表），高度跟着内容走，不按展开那一刻固定。 */}
+      <Accordion type="multiple" className="border-t border-stroke">
+        <AccordionItem value="computer">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:settings.computer')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {t('bots:settings.computerSummary', {
+                  computer: environmentLabel(t, environment),
+                  folder,
+                })}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <BotComputerTab
+              bot={bot}
+              workingTask={workingTask}
+              environments={environments}
+              onEnvironmentsChanged={onEnvironmentsChanged}
+              onError={onError}
+            />
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="chats">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:triggers.chats')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {bot.channels.length
+                  ? t('bots:settings.chatsCount', { count: bot.channels.length })
+                  : t('bots:settings.notSet')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <ChannelEditor bot={bot} onError={onError} />
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="schedules">
+          <AccordionTrigger>{t('bots:triggers.schedules')}</AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <ScheduleEditor bot={bot} onError={onError} />
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="advanced">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:settings.advanced')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {t('bots:settings.advancedSummary')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="flex h-auto flex-col gap-3">
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>{t('bots:details.acceptsWork')}</span>
+              <Switch
+                checked={bot.enabled}
+                disabled={saving}
+                onCheckedChange={(enabled) => void save({ enabled })}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex-none">{t('bots:details.permission')}</span>
+              <AppSelect
+                value={bot.executionMode}
+                className="w-44"
+                aria-label={t('bots:details.permission')}
+                disabled={saving}
+                onChange={(event) =>
+                  void save({ executionMode: event.target.value as Bot['executionMode'] })
+                }
+              >
+                {(['approval-required', 'workspace-write', 'full-access'] as const).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {executionModeLabel(t, mode)}
+                  </option>
+                ))}
+              </AppSelect>
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex-none">{t('bots:details.delivery')}</span>
+              <AppSelect
+                value={bot.delivery}
+                className="w-44"
+                aria-label={t('bots:details.delivery')}
+                disabled={saving}
+                onChange={(event) => void save({ delivery: event.target.value as Bot['delivery'] })}
+              >
+                {(['diff', 'commit', 'reply-only'] as const).map((delivery) => (
+                  <option key={delivery} value={delivery}>
+                    {deliveryLabel(t, delivery)}
+                  </option>
+                ))}
+              </AppSelect>
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex-none">{t('bots:details.tools')}</span>
+              <AppSelect
+                value={botToolsPreset(bot.tools)}
+                className="w-44"
+                aria-label={t('bots:details.tools')}
+                disabled={saving}
+                onChange={(event) =>
+                  void save({
+                    tools: event.target.value === 'read-only' ? [...BOT_READ_ONLY_TOOLS] : null,
+                  })
+                }
+              >
+                <option value="all">{t('bots:details.toolsAll')}</option>
+                <option value="read-only">{t('bots:details.toolsReadOnly')}</option>
+                {/* 经接口设置的自定义名单只显示，不在这里编辑。 */}
+                {botToolsPreset(bot.tools) === 'custom' && (
+                  <option value="custom" disabled>
+                    {t('bots:details.toolsCustom', { count: bot.tools?.length ?? 0 })}
+                  </option>
+                )}
+              </AppSelect>
+            </label>
+            <p className="text-xs text-content-muted">{t('bots:details.toolsHint')}</p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  )
+
+  // 没有待确认的改动时只有设置，不放只有一个标签的标签栏。
+  if (!reviewTask) return <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">{settings}</div>
   return (
     <Tabs
       value={tab}
@@ -122,125 +303,16 @@ export function BotDetails({
       className="flex min-h-0 flex-1 flex-col"
     >
       <TabsList className="mx-3 mt-3">
-        <TabsTrigger value="details">{t('bots:details.tabDetails')}</TabsTrigger>
         <TabsTrigger value="changes">
-          {reviewTask
-            ? t('bots:details.tabChangesCount', { count: reviewTask.result?.changedFiles ?? 0 })
-            : t('bots:details.tabChanges')}
+          {t('bots:details.tabChangesCount', { count: reviewTask.result?.changedFiles ?? 0 })}
         </TabsTrigger>
-        <TabsTrigger value="computer">{t('bots:details.tabComputer')}</TabsTrigger>
+        <TabsTrigger value="settings">{t('bots:settings.title')}</TabsTrigger>
       </TabsList>
-      <TabsContent value="details" className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <div className="flex flex-col items-center gap-1 border-b border-stroke py-4">
-          <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={72} />
-          <div className="text-base font-semibold text-content">{bot.name}</div>
-          <div className="text-xs text-content-muted">@{bot.name}</div>
-        </div>
-        <section className="border-b border-stroke py-3.5">
-          <h3 className="mb-1 text-xs font-medium text-content-muted">
-            {t('bots:details.instructions')}
-          </h3>
-          <p className="mb-2 text-xs text-content-muted">{t('bots:details.instructionsHint')}</p>
-          <Textarea
-            value={instructions}
-            rows={5}
-            maxLength={12_000}
-            aria-label={t('bots:details.instructions')}
-            placeholder={t('bots:details.instructionsPlaceholder')}
-            onChange={(event) => setInstructions(event.target.value)}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={saving || instructions === bot.instructions}
-              onClick={() => void save({ instructions })}
-            >
-              {t('bots:details.save')}
-            </Button>
-          </div>
-        </section>
-        <BotTriggers bot={bot} onError={onError} />
-        <section className="flex flex-col gap-3 py-3.5">
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span>{t('bots:details.acceptsWork')}</span>
-            <Switch
-              checked={bot.enabled}
-              disabled={saving}
-              onCheckedChange={(enabled) => void save({ enabled })}
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex-none">{t('bots:details.permission')}</span>
-            <AppSelect
-              value={bot.executionMode}
-              className="w-44"
-              aria-label={t('bots:details.permission')}
-              disabled={saving}
-              onChange={(event) =>
-                void save({ executionMode: event.target.value as Bot['executionMode'] })
-              }
-            >
-              {(['approval-required', 'workspace-write', 'full-access'] as const).map((mode) => (
-                <option key={mode} value={mode}>
-                  {executionModeLabel(t, mode)}
-                </option>
-              ))}
-            </AppSelect>
-          </label>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex-none">{t('bots:details.delivery')}</span>
-            <AppSelect
-              value={bot.delivery}
-              className="w-44"
-              aria-label={t('bots:details.delivery')}
-              disabled={saving}
-              onChange={(event) => void save({ delivery: event.target.value as Bot['delivery'] })}
-            >
-              {(['diff', 'commit', 'reply-only'] as const).map((delivery) => (
-                <option key={delivery} value={delivery}>
-                  {deliveryLabel(t, delivery)}
-                </option>
-              ))}
-            </AppSelect>
-          </label>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex-none">{t('bots:details.tools')}</span>
-            <AppSelect
-              value={botToolsPreset(bot.tools)}
-              className="w-44"
-              aria-label={t('bots:details.tools')}
-              disabled={saving}
-              onChange={(event) =>
-                void save({
-                  tools: event.target.value === 'read-only' ? [...BOT_READ_ONLY_TOOLS] : null,
-                })
-              }
-            >
-              <option value="all">{t('bots:details.toolsAll')}</option>
-              <option value="read-only">{t('bots:details.toolsReadOnly')}</option>
-              {/* 经接口设置的自定义名单只显示，不在这里编辑。 */}
-              {botToolsPreset(bot.tools) === 'custom' && (
-                <option value="custom" disabled>
-                  {t('bots:details.toolsCustom', { count: bot.tools?.length ?? 0 })}
-                </option>
-              )}
-            </AppSelect>
-          </label>
-          <p className="-mt-1.5 text-xs text-content-muted">{t('bots:details.toolsHint')}</p>
-        </section>
-      </TabsContent>
       <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <ChangesTab task={reviewTask} />
       </TabsContent>
-      <TabsContent value="computer" className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <BotComputerTab
-          bot={bot}
-          workingTask={workingTask}
-          environments={environments}
-          onEnvironmentsChanged={onEnvironmentsChanged}
-          onError={onError}
-        />
+      <TabsContent value="settings" className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+        {settings}
       </TabsContent>
     </Tabs>
   )

@@ -200,3 +200,11 @@ export function isBotCharacter(value: unknown): value is BotCharacter {
 export function isBotColor(value: unknown): value is BotColor {
   return (BOT_COLORS as readonly unknown[]).includes(value)
 }
+
+// 新建 Bot 时随机给一个样子：不用先挑头像就能开始。
+export function randomBotAvatar(): BotAvatarValue {
+  return {
+    character: BOT_CHARACTERS[Math.floor(Math.random() * BOT_CHARACTERS.length)],
+    color: BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)],
+  }
+}
