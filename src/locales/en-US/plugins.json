@@ -140,5 +140,21 @@
   "pluginsPage.extensionUninstalled": "Extension uninstalled. Start a new session to stop using it.",
   "pluginsPage.uninstallExtensionDescription": "Uninstall {name} and its Pi Extension configuration?",
   "pluginsPage.installed": "Installed",
-  "pluginsPage.lede": "Manage the tools and Pi extensions agents can call. Local plugins only add tools, and every call needs approval; Pi extensions run inside the Runtime and can change how the agent itself behaves. Changes apply from the next agent request after you save the policy."
+  "pluginsPage.lede": "Manage the tools and Pi extensions agents can call. Local plugins only add tools, and every call needs approval; Pi extensions run inside the Runtime and can change how the agent itself behaves. Changes apply from the next agent request after you save the policy.",
+  "toolLabels.scheduleList": "View scheduled tasks",
+  "toolLabels.scheduleManage": "Manage scheduled tasks",
+  "toolLabels.scheduleListDescription": "Read scheduled tasks with their timing, next run and last result.",
+  "toolLabels.scheduleManageDescription": "Create, update, pause, resume, delete or run scheduled tasks, including one-time tasks that turn themselves off after running.",
+  "toolLabels.schedules": "Scheduled tasks",
+  "toolLabels.applicationSchedules": "Application scheduled tasks",
+  "toolLabels.scheduleListCapability": "Read scheduled tasks without changing them",
+  "toolLabels.scheduleManageCapability": "Schedule tasks that later run unattended with full access; outside full-access sessions, creating, changing, resuming and running them need your confirmation",
+  "toolLabels.workflowList": "View workflows",
+  "toolLabels.workflowRun": "Run workflows",
+  "toolLabels.workflowListDescription": "Read workflows, their inputs and the recent runs of a workflow.",
+  "toolLabels.workflowRunDescription": "Start or stop a published workflow.",
+  "toolLabels.workflows": "Workflows",
+  "toolLabels.applicationWorkflows": "Application workflows",
+  "toolLabels.workflowListCapability": "Read workflows and run results without changing them",
+  "toolLabels.workflowRunCapability": "Start workflows whose nodes run unattended with full access; outside full-access sessions, starting one needs your confirmation"
 }

@@ -84,5 +84,10 @@
   "schedulesPage.enabledCount": "{count} enabled",
   "schedulesPage.toggleTaskDetails": "Show or hide settings for {name}",
   "schedulesPage.noMatchingTasks": "No tasks match your search",
-  "schedulesPage.enableTaskName": "Enable {name}"
+  "schedulesPage.enableTaskName": "Enable {name}",
+  "schedulesPage.once": "Once",
+  "schedulesPage.date": "Date",
+  "schedulesPage.onceDone": "Ran once, won’t run again",
+  "schedulesPage.missed": "Missed (Pisper wasn’t running)",
+  "schedulesPage.createdByAgent": "Created by an agent"
 }

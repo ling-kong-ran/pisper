@@ -140,5 +140,21 @@
   "pluginsPage.extensionUninstalled": "Extension 已卸载；请新建会话使其停止生效。",
   "pluginsPage.uninstallExtensionDescription": "卸载 {name} 及其所有 Pi Extension 配置？",
   "pluginsPage.installed": "已安装",
-  "pluginsPage.lede": "管理代理可以调用的工具与 Pi Extension。本地插件只给代理增加工具，每次调用都要审批；Pi Extension 在 Runtime 里运行，可以改变代理本身的行为。启停改动在“保存策略”后，从下一次代理请求开始生效。"
+  "pluginsPage.lede": "管理代理可以调用的工具与 Pi Extension。本地插件只给代理增加工具，每次调用都要审批；Pi Extension 在 Runtime 里运行，可以改变代理本身的行为。启停改动在“保存策略”后，从下一次代理请求开始生效。",
+  "toolLabels.scheduleList": "查看定时任务",
+  "toolLabels.scheduleManage": "管理定时任务",
+  "toolLabels.scheduleListDescription": "读取定时任务的计划、下次运行与上次结果。",
+  "toolLabels.scheduleManageDescription": "新建、修改、暂停、恢复、删除或立即运行定时任务，包括执行一次后自动停用的一次性任务。",
+  "toolLabels.schedules": "定时任务",
+  "toolLabels.applicationSchedules": "应用的定时任务",
+  "toolLabels.scheduleListCapability": "读取定时任务，不做修改",
+  "toolLabels.scheduleManageCapability": "安排之后无人值守、以完全访问权限运行的任务；非完全访问会话里新建、修改、恢复与立即运行都要你确认",
+  "toolLabels.workflowList": "查看工作流",
+  "toolLabels.workflowRun": "运行工作流",
+  "toolLabels.workflowListDescription": "读取工作流、它们的输入和某个工作流最近的运行结果。",
+  "toolLabels.workflowRunDescription": "启动或停止已发布的工作流。",
+  "toolLabels.workflows": "工作流",
+  "toolLabels.applicationWorkflows": "应用的工作流",
+  "toolLabels.workflowListCapability": "读取工作流与运行结果，不做修改",
+  "toolLabels.workflowRunCapability": "启动节点无人值守、以完全访问权限运行的工作流；非完全访问会话里启动都要你确认"
 }

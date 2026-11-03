@@ -533,6 +533,12 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.init()
     await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
     await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
+    // 定时任务工具：既有安装若已物化 enabledTools，也补上（代理此前没有办法建定时任务）。
+    await this.toolPlugins.ensureDefaultTools(
+      ['schedule_list', 'schedule_manage'],
+      'scheduleToolsV1',
+    )
+    await this.toolPlugins.ensureDefaultTools(['workflow_list', 'workflow_run'], 'workflowToolsV1')
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
     await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')

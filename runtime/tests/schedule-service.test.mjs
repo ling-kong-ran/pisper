@@ -491,3 +491,143 @@ test('failure-only tasks suppress success notifications and send failure templat
   assert.equal(notifications[0][0], 'schedule.failed')
   assert.equal(notifications[0][1].task.error, '测试超时')
 })
+
+// —— 一次性任务 ——
+
+// 以 UTC 表示的“现在 + 偏移”日期与时间，用于构造将来 / 过去的一次性任务。
+function utcParts(offsetMs) {
+  const at = new Date(Date.now() + offsetMs)
+  return {
+    date: at.toISOString().slice(0, 10),
+    time: at.toISOString().slice(11, 16),
+  }
+}
+
+async function onceService(t, { stored, prompts = [] } = {}) {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-schedule-once-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'schedules.json')
+  if (stored) await writeFile(path, JSON.stringify(stored))
+  const service = new ScheduleService({
+    path,
+    cwd: directory,
+    tickMs: 60_000,
+    agent: {
+      validateDirectory: async () => directory,
+      prompt: async (input) => {
+        prompts.push(input)
+        return { text: 'done' }
+      },
+    },
+    notifications: { notify: async () => {} },
+  })
+  await service.init()
+  t.after(() => service.dispose())
+  return { service, path, prompts }
+}
+
+test('one-time tasks resolve to a single instant in their timezone and then stop', () => {
+  const task = { frequency: 'once', date: '2026-11-04', time: '09:30', timezone: 'Asia/Shanghai' }
+  assert.equal(calculateNextRun(task, new Date('2026-11-03T00:00:00Z')), '2026-11-04T01:30:00.000Z')
+  assert.equal(calculateNextRun(task, new Date('2026-11-04T01:30:00Z')), null)
+  assert.equal(calculateNextRun({ ...task, date: '2026-02-30' }, new Date('2026-01-01')), null)
+  assert.equal(calculateNextRun({ ...task, date: '' }, new Date('2026-01-01')), null)
+})
+
+test('one-time tasks need a future date', async (t) => {
+  const { service } = await onceService(t)
+  const base = { name: '一次', prompt: 'test', frequency: 'once', timezone: 'UTC' }
+  await assert.rejects(service.create({ ...base, ...utcParts(-60 * 60_000) }), /已经过去/)
+  await assert.rejects(service.create({ ...base, time: '09:00' }), /需要日期/)
+  const task = await service.create({ ...base, ...utcParts(2 * 60 * 60_000) })
+  assert.equal(task.enabled, true)
+  assert.ok(task.nextRunAt)
+})
+
+test('a one-time task runs once at its time and then disables itself', async (t) => {
+  const { service, prompts } = await onceService(t)
+  const task = await service.create({
+    name: '提醒',
+    prompt: 'remind me',
+    frequency: 'once',
+    timezone: 'UTC',
+    ...utcParts(2 * 60 * 60_000),
+  })
+  // 手动立即运行不影响原计划。
+  await service.runNow(task.id)
+  await waitFor(() => service.executions.size === 0 && prompts.length === 1)
+  assert.equal(service.getState().tasks[0].enabled, true)
+  assert.equal(service.getState().tasks[0].nextRunAt, task.nextRunAt)
+  // 到点：把下次运行拨到过去，再走一次调度。
+  service.state.tasks[0].nextRunAt = new Date(Date.now() - 1000).toISOString()
+  await service.tick()
+  await waitFor(() => service.executions.size === 0 && prompts.length === 2)
+  const after = service.getState().tasks[0]
+  assert.equal(after.enabled, false)
+  assert.equal(after.nextRunAt, null)
+  assert.equal(after.lastStatus, 'completed')
+  await service.tick()
+  assert.equal(prompts.length, 2)
+  // 停用后再启用时，时间已过会被拒绝。
+  await assert.rejects(
+    service.update(task.id, { enabled: true, ...utcParts(-60 * 60_000) }),
+    /已经过去/,
+  )
+})
+
+test('a one-time task missed while Pisper was off is marked missed and not run', async (t) => {
+  const prompts = []
+  const { service } = await onceService(t, {
+    prompts,
+    stored: {
+      version: 1,
+      tasks: [
+        {
+          id: 'missed',
+          name: '错过的任务',
+          prompt: 'publish',
+          enabled: true,
+          frequency: 'once',
+          timezone: 'UTC',
+          ...utcParts(-3 * 60 * 60_000),
+        },
+        {
+          id: 'future',
+          name: '将来的任务',
+          prompt: 'later',
+          enabled: true,
+          frequency: 'once',
+          timezone: 'UTC',
+          ...utcParts(3 * 60 * 60_000),
+        },
+      ],
+      runs: [],
+    },
+  })
+  const [missed, future] = service.getState().tasks
+  assert.equal(missed.enabled, false)
+  assert.equal(missed.lastStatus, 'missed')
+  assert.match(missed.lastError, /没有运行/)
+  assert.equal(future.enabled, true)
+  assert.ok(future.nextRunAt)
+  await service.tick()
+  assert.equal(prompts.length, 0)
+})
+
+test('only the caller decides who created a task; edits keep it', async (t) => {
+  const { service } = await onceService(t)
+  const base = {
+    name: '日报',
+    prompt: 'report',
+    frequency: 'daily',
+    time: '18:00',
+    timezone: 'UTC',
+  }
+  // 请求体里伪造的 createdBy 不生效。
+  const byUser = await service.create({ ...base, createdBy: { kind: 'agent', sessionId: 'x' } })
+  assert.deepEqual(byUser.createdBy, { kind: 'user' })
+  const byAgent = await service.create(base, { createdBy: { kind: 'agent', sessionId: 's-1' } })
+  assert.deepEqual(byAgent.createdBy, { kind: 'agent', sessionId: 's-1' })
+  const edited = await service.update(byAgent.id, { name: '晚报', createdBy: { kind: 'user' } })
+  assert.deepEqual(edited.createdBy, { kind: 'agent', sessionId: 's-1' })
+})

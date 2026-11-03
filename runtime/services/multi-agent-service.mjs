@@ -50,6 +50,11 @@ const PARENT_ONLY_TOOL_NAMES = new Set([
   'browser_automation',
   'mcp_list',
   'mcp_manage',
+  // 定时任务与工作流会以完全访问权限无人值守运行：只有主会话能建或启动。
+  'schedule_list',
+  'schedule_manage',
+  'workflow_list',
+  'workflow_run',
 ])
 
 const ACTIVE_AGENT_STATUSES = new Set(['queued', 'starting', 'running'])

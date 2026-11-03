@@ -108,6 +108,10 @@ export const TOOL_PRESETS = {
     'memory_remember',
     'mcp_list',
     'mcp_manage',
+    'schedule_list',
+    'schedule_manage',
+    'workflow_list',
+    'workflow_run',
   ],
 }
 

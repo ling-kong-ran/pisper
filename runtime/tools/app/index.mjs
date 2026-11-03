@@ -6,6 +6,8 @@ import { createVisualGenerateTool, manifest as visualGenerateManifest } from './
 import { factories as memoryFactories, manifests as memoryManifests } from './memory.mjs'
 import { createMultiAgentTools } from './multi-agent.mjs'
 import { factories as mcpFactories, manifests as mcpManifests } from './mcp-management.mjs'
+import { factories as scheduleFactories, manifests as scheduleManifests } from './schedules.mjs'
+import { factories as workflowFactories, manifests as workflowManifests } from './workflows.mjs'
 import { createWebSearchTool, manifest as webSearchManifest } from './web-search.mjs'
 import {
   createBrowserAutomationTool,
@@ -33,6 +35,8 @@ export const APP_TOOL_CATALOG = [
   imageAssetsManifest,
   ...memoryManifests,
   ...mcpManifests,
+  ...scheduleManifests,
+  ...workflowManifests,
 ]
 export { createMultiAgentTools }
 
@@ -47,6 +51,8 @@ const APP_TOOL_FACTORIES = {
   [imageAssetsManifest.id]: createImageAssetsTool,
   ...memoryFactories,
   ...mcpFactories,
+  ...scheduleFactories,
+  ...workflowFactories,
 }
 
 export function createAppToolDefinitions({ enabledTools, ...context }) {

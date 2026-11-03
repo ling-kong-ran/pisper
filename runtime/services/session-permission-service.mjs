@@ -32,6 +32,7 @@ const TOOL_RISKS = new Map([
   ['list_team_members', 'low'],
 ])
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
+const SCHEDULE_ESCALATING_ACTIONS = new Set(['create', 'update', 'resume', 'run_now'])
 // ask_user 不是权限：问题本身就是等用户决定，再叠一层审批只会让用户点两次（规格 8.4）。
 const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'ask_user', ...PLAN_ALL_TOOL_NAMES])
 
@@ -193,6 +194,27 @@ export function permissionRequirement({
     }
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
+  // 定时任务之后会在无人值守时以完全访问权限运行：非完全访问会话里新建、修改、恢复与立即运行
+  // 等于提权，任何模式都逐次确认，持久允许规则也不能代替（guarded）。暂停与删除只会停掉工作，按普通高风险处理。
+  if (
+    toolName === 'schedule_manage' &&
+    SCHEDULE_ESCALATING_ACTIONS.has(String(args?.action || ''))
+  ) {
+    return {
+      risk: 'high',
+      reason:
+        'schedule_manage 将安排一个之后无人值守、以完全访问权限运行的定时任务，请核对任务内容与时间后确认。',
+      guarded: true,
+    }
+  }
+  if (toolName === 'workflow_run' && String(args?.action || '') === 'start') {
+    return {
+      risk: 'high',
+      reason:
+        'workflow_run 将启动一个节点无人值守、以完全访问权限运行的工作流，请核对工作流与输入后确认。',
+      guarded: true,
+    }
+  }
   if (toolName === 'bash') {
     const decision = guardCommand(String(args?.command || ''))
     if (decision.blocked) {

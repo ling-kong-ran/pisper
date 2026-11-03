@@ -1,16 +1,22 @@
 import { MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
 import { GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { ASK_USER_TOOL_NAME } from '../tools/app/ask-user.mjs'
+import { SCHEDULE_TOOL_NAMES } from '../tools/app/schedules.mjs'
+import { WORKFLOW_TOOL_NAMES } from '../tools/app/workflows.mjs'
 import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
-// 本轮屏蔽的工具：隔离上下文的屏蔽项，加上没人在场的运行里的 ask_user。
+// 本轮屏蔽的工具：隔离上下文的屏蔽项，加上没人在场的运行里的 ask_user、定时任务与工作流工具
+// （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）。
 function runBlockedToolNames(value) {
   const blocked = new Set(value?.blockedToolNames || [])
-  if (value?.unattendedRun) blocked.add(ASK_USER_TOOL_NAME)
+  if (value?.unattendedRun) {
+    blocked.add(ASK_USER_TOOL_NAME)
+    for (const name of [...SCHEDULE_TOOL_NAMES, ...WORKFLOW_TOOL_NAMES]) blocked.add(name)
+  }
   return blocked
 }
 

@@ -84,5 +84,10 @@
   "schedulesPage.enabledCount": "{count} 个启用",
   "schedulesPage.toggleTaskDetails": "展开或收起 {name} 的设置",
   "schedulesPage.noMatchingTasks": "没有符合搜索的任务",
-  "schedulesPage.enableTaskName": "启用 {name}"
+  "schedulesPage.enableTaskName": "启用 {name}",
+  "schedulesPage.once": "一次",
+  "schedulesPage.date": "日期",
+  "schedulesPage.onceDone": "已执行，不再运行",
+  "schedulesPage.missed": "已错过（Pisper 当时没在运行）",
+  "schedulesPage.createdByAgent": "由代理创建"
 }

@@ -1850,6 +1850,28 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             runtimeValue && runtimeSession
               ? this.recordGeneratedFile(runtimeSession.sessionId, runtimeValue, path)
               : undefined,
+          // 代理建的定时任务记下会话，界面里标为“由代理创建”。
+          scheduleRuntime: {
+            list: () => this.schedules.getState(),
+            create: (input) =>
+              this.schedules.create(input, {
+                createdBy: { kind: 'agent', sessionId: runtimeSessionId },
+              }),
+            update: (id, input) => this.schedules.update(id, input),
+            remove: (id) => this.schedules.remove(id),
+            runNow: (id) => this.schedules.runNow(id),
+          },
+          // 代理启动的工作流运行记下来源会话，便于在会话里追查。
+          workflowRuntime: {
+            list: () => this.workflows.getState(),
+            start: (id, inputs) =>
+              this.workflows.runNow(id, {
+                inputs,
+                trigger: 'manual',
+                sourceSessionId: runtimeSessionId,
+              }),
+            stop: (runId) => this.workflows.stop(runId),
+          },
           mcpRuntime: {
             list: (options) => this.getMcpDashboard(options),
             add: (input) => this.createMcpServer(input),

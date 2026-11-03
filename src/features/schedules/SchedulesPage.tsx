@@ -61,11 +61,11 @@ import { Button } from '@/components/ui/button'
 import { FieldLabel } from '@/components/ui/field'
 
 type NotificationTarget = 'browser' | 'feishu' | 'weixin' | 'qq' | 'telegram'
-type ScheduleFrequency = 'interval' | 'daily' | 'weekly' | 'monthly'
+type ScheduleFrequency = 'once' | 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
 type ScheduleExecutionMode = 'full-access'
 type ScheduleTargetType = 'prompt' | 'workflow'
-type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
+type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted' | 'missed'
 type ScheduleWorkflowInput = {
   id: string
   name: string
@@ -97,6 +97,8 @@ type ScheduleTask = {
   timezone: string
   dayOfWeek: number
   dayOfMonth: number
+  // 一次性任务的日期（YYYY-MM-DD，按任务时区）；其他频率为空。
+  date: string
   cwd: string
   executionMode: ScheduleExecutionMode
   model: { provider: string; model: string } | null
@@ -105,6 +107,7 @@ type ScheduleTask = {
   nextRunAt?: string | null
   lastRunAt?: string | null
   lastStatus: ScheduleStatus
+  createdBy?: { kind: 'user' | 'agent'; sessionId?: string }
 }
 type ScheduleDraft = Pick<
   ScheduleTask,
@@ -122,6 +125,7 @@ type ScheduleDraft = Pick<
   | 'timezone'
   | 'dayOfWeek'
   | 'dayOfMonth'
+  | 'date'
   | 'cwd'
   | 'executionMode'
   | 'model'
@@ -178,7 +182,13 @@ const TARGETS = {
   qq: { name: 'QQ', Icon: MessageCircle },
   telegram: { name: 'Telegram', Icon: Send },
 }
-const FREQUENCIES = { interval: '每隔一段时间', daily: '每天', weekly: '每周', monthly: '每月' }
+const FREQUENCIES = {
+  once: '一次',
+  interval: '每隔一段时间',
+  daily: '每天',
+  weekly: '每周',
+  monthly: '每月',
+}
 const INTERVAL_UNITS = { minutes: '分钟', hours: '小时', days: '天' }
 const TIMEZONES = [
   ...new Set([
@@ -218,6 +228,7 @@ function executionModeHelp(t: ReturnType<typeof useI18n>['t']) {
 }
 
 function frequencyLabel(frequency: ScheduleFrequency, t: ReturnType<typeof useI18n>['t']) {
+  if (frequency === 'once') return t('schedules:schedulesPage.once')
   if (frequency === 'daily') return t('schedules:schedulesPage.daily')
   if (frequency === 'weekly') return t('schedules:schedulesPage.weekly')
   if (frequency === 'monthly') return t('schedules:schedulesPage.monthly')
@@ -498,6 +509,7 @@ function taskDraft(task: ScheduleTask): ScheduleDraft {
     intervalValue: task.intervalValue || 1,
     intervalUnit: task.intervalUnit || 'hours',
     time: task.time,
+    date: task.date || '',
     timezone: task.timezone,
     dayOfWeek: task.dayOfWeek,
     dayOfMonth: task.dayOfMonth,
@@ -709,7 +721,11 @@ export function SchedulesPage({
         <span className="whitespace-nowrap">
           {task.enabled
             ? t('schedules:schedulesPage.nextRunTime', { time: nextRunLabel(task, language) })
-            : t('schedules:schedulesPage.pause')}
+            : task.lastStatus === 'missed'
+              ? t('schedules:schedulesPage.missed')
+              : task.frequency === 'once' && task.lastRunAt
+                ? t('schedules:schedulesPage.onceDone')
+                : t('schedules:schedulesPage.pause')}
         </span>
       )}
       {task.lastStatus === 'failed' && (
@@ -817,10 +833,20 @@ export function SchedulesPage({
                           <span className="tabular-nums">
                             {task.frequency === 'interval'
                               ? `${task.intervalValue} ${intervalUnitLabel(task.intervalUnit, t)}`
-                              : task.time}
+                              : task.frequency === 'once'
+                                ? `${task.date} ${task.time}`
+                                : task.time}
                           </span>
                           <span aria-hidden="true">·</span>
                           <span className="truncate">{task.timezone}</span>
+                          {task.createdBy?.kind === 'agent' && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span data-schedule-created-by="agent">
+                                {t('schedules:schedulesPage.createdByAgent')}
+                              </span>
+                            </>
+                          )}
                         </>
                       }
                       status={taskStatus(task)}
@@ -1019,15 +1045,28 @@ function ScheduleTaskEditor({
                 </span>
               </FieldLabel>
             ) : (
-              <FieldLabel variant="control">
-                {t('schedules:schedulesPage.time')}
-                <Input
-                  type="time"
-                  className="tabular-nums"
-                  value={draft.time}
-                  onChange={(event) => onUpdate({ time: event.target.value })}
-                />
-              </FieldLabel>
+              <>
+                {draft.frequency === 'once' && (
+                  <FieldLabel variant="control">
+                    {t('schedules:schedulesPage.date')}
+                    <Input
+                      type="date"
+                      className="tabular-nums"
+                      value={draft.date}
+                      onChange={(event) => onUpdate({ date: event.target.value })}
+                    />
+                  </FieldLabel>
+                )}
+                <FieldLabel variant="control">
+                  {t('schedules:schedulesPage.time')}
+                  <Input
+                    type="time"
+                    className="tabular-nums"
+                    value={draft.time}
+                    onChange={(event) => onUpdate({ time: event.target.value })}
+                  />
+                </FieldLabel>
+              </>
             )}
             <FieldLabel variant="control">
               {t('schedules:schedulesPage.timeZone')}
@@ -1228,6 +1267,7 @@ function CreateSchedulePanel({
   const [cwd, setCwd] = useState(defaultCwd || '')
   const [frequency, setFrequency] = useState<ScheduleFrequency>('daily')
   const [time, setTime] = useState('09:00')
+  const [date, setDate] = useState('')
   const [timezone, setTimezone] = useState('Asia/Hong_Kong')
   const [intervalValue, setIntervalValue] = useState(1)
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>('hours')
@@ -1255,6 +1295,7 @@ function CreateSchedulePanel({
             enabled: true,
             frequency,
             time,
+            date: frequency === 'once' ? date : '',
             timezone,
             intervalValue,
             intervalUnit,
@@ -1343,15 +1384,28 @@ function CreateSchedulePanel({
             </span>
           </FieldLabel>
         ) : (
-          <FieldLabel variant="control">
-            {t('schedules:schedulesPage.time')}
-            <Input
-              type="time"
-              className="tabular-nums"
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
-            />
-          </FieldLabel>
+          <>
+            {frequency === 'once' && (
+              <FieldLabel variant="control">
+                {t('schedules:schedulesPage.date')}
+                <Input
+                  type="date"
+                  className="tabular-nums"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
+              </FieldLabel>
+            )}
+            <FieldLabel variant="control">
+              {t('schedules:schedulesPage.time')}
+              <Input
+                type="time"
+                className="tabular-nums"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+              />
+            </FieldLabel>
+          </>
         )}
         <FieldLabel variant="control">
           {t('schedules:schedulesPage.timeZone')}
@@ -1382,6 +1436,7 @@ function CreateSchedulePanel({
           disabled={
             saving ||
             !name.trim() ||
+            (frequency === 'once' && !date) ||
             !scheduleTargetValid(targetType, prompt, workflowId, workflowInputs, workflows)
           }
           onClick={create}

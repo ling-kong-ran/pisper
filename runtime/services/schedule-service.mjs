@@ -1,11 +1,13 @@
-// 定时任务服务：按频率（interval/daily/weekly/monthly）调度会话 prompt 或工作流执行，
+// 定时任务服务：按频率（once/interval/daily/weekly/monthly）调度会话 prompt 或工作流执行，
 // 支持时区、运行记录、重启后补偿未执行任务。
+// 一次性任务（once）到点执行一次后自动停用；Pisper 没在运行而错过的，启动时标为“已错过”并停用，
+// 不补跑——“9 点发布”这类任务晚几个小时再执行可能有害，需要的话由人手动立即运行。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 export const DEFAULT_SCHEDULE_EXECUTION_MODE = 'full-access'
 
-const FREQUENCIES = new Set(['interval', 'daily', 'weekly', 'monthly'])
+const FREQUENCIES = new Set(['once', 'interval', 'daily', 'weekly', 'monthly'])
 const INTERVAL_UNITS = new Set(['minutes', 'hours', 'days'])
 const INTERVAL_MS = { minutes: 60_000, hours: 60 * 60_000, days: 24 * 60 * 60_000 }
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin', 'qq', 'telegram'])
@@ -13,6 +15,9 @@ const SCHEDULE_TARGETS = new Set(['prompt', 'workflow'])
 const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 const RESTART_INTERRUPTED_ERROR = '任务因 Pisper 重启而中断。'
 const SHUTDOWN_INTERRUPTED_ERROR = '任务因 Pisper 关闭而中断。'
+const MISSED_ONCE_ERROR = '计划时间 Pisper 没有运行，一次性任务已跳过；需要的话可以手动立即运行。'
+const PAST_ONCE_ERROR = '一次性任务的时间已经过去，请选择将来的时间。'
+const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 
 function defaultState() {
   return { version: 1, tasks: [], runs: [] }
@@ -68,7 +73,23 @@ function daysInMonth(year, month) {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
+// 一次性任务的执行时刻：日期 + 时间按任务时区换算；日期非法时返回 null。
+function onceRunAt(task) {
+  if (!DATE_PATTERN.test(String(task.date || ''))) return null
+  const [year, month, day] = String(task.date).split('-').map(Number)
+  if (day > daysInMonth(year, month)) return null
+  const [hour, minute] = String(task.time || '09:00')
+    .split(':')
+    .map(Number)
+  return zonedTimeToUtc({ year, month, day, hour, minute }, task.timezone)
+}
+
+// 下次运行时刻；一次性任务过了执行时刻返回 null（不再安排）。
 export function calculateNextRun(task, from = new Date()) {
+  if (task.frequency === 'once') {
+    const at = onceRunAt(task)
+    return at && at.getTime() > from.getTime() ? at.toISOString() : null
+  }
   if (task.frequency === 'interval') {
     const unit = INTERVAL_UNITS.has(task.intervalUnit) ? task.intervalUnit : 'hours'
     const value = Math.min(10_000, Math.max(1, Number(task.intervalValue) || 1))
@@ -143,6 +164,7 @@ function normalizeStoredTask(task, cwd) {
       Math.max(0, Number.isInteger(Number(task.dayOfWeek)) ? Number(task.dayOfWeek) : 1),
     ),
     dayOfMonth: Math.min(28, Math.max(1, Number(task.dayOfMonth) || 1)),
+    date: DATE_PATTERN.test(String(task.date || '')) ? String(task.date) : '',
     cwd: String(task.cwd || cwd),
     executionMode: normalizeScheduleExecutionMode(task.executionMode),
     model:
@@ -157,6 +179,11 @@ function normalizeStoredTask(task, cwd) {
       ),
     ],
     notifyOn: task.notifyOn === 'failure' ? 'failure' : 'always',
+    // 谁建的：代理通过 schedule_manage 建的任务记下会话，界面里标出来，便于追查。
+    createdBy:
+      task.createdBy?.kind === 'agent'
+        ? { kind: 'agent', sessionId: String(task.createdBy.sessionId || '').slice(0, 200) }
+        : { kind: 'user' },
     createdAt: task.createdAt || new Date().toISOString(),
     updatedAt: task.updatedAt || new Date().toISOString(),
     nextRunAt: task.nextRunAt || null,
@@ -242,6 +269,13 @@ export class ScheduleService {
         }
         if (normalized.lastStatus === 'interrupted' && interruptedRun && !normalized.lastError)
           normalized.lastError = RESTART_INTERRUPTED_ERROR
+        // 启用中的一次性任务已经没有下次运行：执行时刻在 Pisper 关闭期间过去了。
+        if (normalized.frequency === 'once' && normalized.enabled && !normalized.nextRunAt) {
+          normalized.enabled = false
+          normalized.lastStatus = 'missed'
+          normalized.lastError = MISSED_ONCE_ERROR
+          normalized.updatedAt = interruptedAt.toISOString()
+        }
         return normalized
       }),
       runs,
@@ -308,14 +342,20 @@ export class ScheduleService {
       this.cwd,
     )
     task.nextRunAt = task.enabled ? calculateNextRun(task) : null
+    if (task.frequency === 'once') {
+      if (!task.date) throw new Error('一次性任务需要日期。')
+      if (task.enabled && !task.nextRunAt) throw new Error(PAST_ONCE_ERROR)
+    }
     return task
   }
 
-  async create(input) {
+  // createdBy 只由调用方（HTTP 路由或代理工具）给出，不从请求体读取。
+  async create(input, { createdBy = { kind: 'user' } } = {}) {
     const task = await this.normalizeInput({
       ...input,
       id: randomUUID(),
       createdAt: new Date().toISOString(),
+      createdBy,
     })
     this.state.tasks.unshift(task)
     await this.save()
@@ -329,6 +369,7 @@ export class ScheduleService {
     const task = await this.normalizeInput(input, current)
     task.id = current.id
     task.createdAt = current.createdAt
+    task.createdBy = current.createdBy
     task.lastRunAt = current.lastRunAt
     task.lastStatus = current.lastStatus
     task.lastSummary = current.lastSummary
@@ -391,6 +432,11 @@ export class ScheduleService {
     task.lastStatus = 'running'
     task.lastError = ''
     if (trigger === 'scheduled') task.nextRunAt = calculateNextRun(task, new Date())
+    // 一次性任务到点执行这一次后停用；手动“立即运行”不影响原计划。
+    if (trigger === 'scheduled' && task.frequency === 'once') {
+      task.enabled = false
+      task.nextRunAt = null
+    }
     await this.save()
     const execution = this.execute(task, run)
     this.executions.add(execution)
