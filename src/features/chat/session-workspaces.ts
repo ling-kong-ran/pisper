@@ -1,6 +1,12 @@
 // @public 侧栏等组合边界可使用的工作区会话规则；不依赖页面或 Runtime。
 // 展示列表可以搜索和截断，项目操作始终以完整会话目录为准。
-export type WorkspaceSession = { id: string; cwd?: string; projectless?: boolean }
+export type WorkspaceSession = {
+  id: string
+  cwd?: string
+  projectless?: boolean
+  // Bot 的长期会话所属的项目目录（cwd 是任务的临时 worktree），有就按它归组。
+  projectCwd?: string
+}
 
 export type WorkspaceSessionGroup<T extends WorkspaceSession> = {
   key: string
@@ -20,12 +26,16 @@ export function workspaceKey(cwd = '') {
 
 // 无项目会话各有一个临时文件夹，按目录分组会变成一堆一次性“项目”；统一归入无工作区。
 export function sessionWorkspaceKey(session: WorkspaceSession) {
-  return (!session.projectless && workspaceKey(session.cwd)) || NO_WORKSPACE_KEY
+  return (
+    (!session.projectless && workspaceKey(session.projectCwd || session.cwd)) || NO_WORKSPACE_KEY
+  )
 }
 
 // 分组展示用的项目目录：无工作区分组没有目录可以打开或改名。
 export function sessionWorkspaceCwd(session: WorkspaceSession) {
-  return sessionWorkspaceKey(session) === NO_WORKSPACE_KEY ? '' : session.cwd || ''
+  return sessionWorkspaceKey(session) === NO_WORKSPACE_KEY
+    ? ''
+    : session.projectCwd || session.cwd || ''
 }
 
 export function groupSessionsByWorkspace<T extends WorkspaceSession>(sessions: readonly T[]) {

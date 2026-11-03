@@ -126,6 +126,8 @@ export type SessionSummary = EntityRecord & {
   cwd?: string
   // 不选项目新建的会话：cwd 是 Runtime 为它新建的空文件夹，界面上归入“无项目”。
   projectless?: boolean
+  // Bot 的长期会话：所属项目目录（cwd 是任务的临时 worktree），归组与筛选按它。
+  projectCwd?: string
   streaming?: boolean
   plan?: Plan | null
   team?: TeamState | null

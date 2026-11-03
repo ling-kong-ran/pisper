@@ -54,7 +54,24 @@ function supportsLightweightSessionConfiguration(runtime) {
 
 export const agentSessionMethods = {
   async listSessions() {
-    return this.sessionLifecycle.listSessions()
+    const sessions = await this.sessionLifecycle.listSessions()
+    // Bot 的长期会话 cwd 是当前任务的临时 worktree（任务结束就删掉）：列表带上 Bot 所属的项目目录，
+    // 界面按它归组，不把每个 worktree 当成一个项目。只做加法，旧客户端照常按 cwd。
+    const projects = this.botProjectDirectories()
+    if (!projects.size) return sessions
+    return sessions.map((session) =>
+      projects.has(session.id) ? { ...session, projectCwd: projects.get(session.id) } : session,
+    )
+  },
+
+  botProjectDirectories() {
+    if (!this.bots || !this.isBetaFeatureEnabled?.('bots')) return new Map()
+    return new Map(
+      this.bots
+        .list()
+        .filter((bot) => bot.threadSessionId && bot.workspace?.cwd)
+        .map((bot) => [bot.threadSessionId, bot.workspace.cwd]),
+    )
   },
 
   // 看板卡片：事件摘要（内存）+ 落盘摘要（已加载的元数据）+ 审批 / 子代理 / 排队的实时状态。
@@ -93,7 +110,10 @@ export const agentSessionMethods = {
       id: bot.id,
       name: bot.name,
       avatar: { character: bot.avatar.character, color: bot.avatar.color },
-      ...(activity?.branch ? { branch: activity.branch } : {}),
+      // 完成且没有改动的任务分支已经删掉，不再写出分支名。
+      ...(activity?.branch && (activity.status !== 'done' || activity.changedFiles > 0)
+        ? { branch: activity.branch }
+        : {}),
       ...(activity?.changedFiles ? { changedFiles: activity.changedFiles } : {}),
     }
   },

@@ -24,7 +24,12 @@ import { parseBot, parseBotTask } from '../../src/features/bots/bots-api.ts'
 import { parseBoardCard } from '../../src/features/board/board-api.ts'
 import { buildBoardItems } from '../../src/features/board/board-model.ts'
 import { buildSidebarModel } from '../../src/features/board/sidebar-model.ts'
+import {
+  groupSessionsByWorkspace,
+  sessionWorkspaceKey,
+} from '../../src/features/chat/session-workspaces.ts'
 import { agentSessionMethods } from '../runtime/agent-session-methods.mjs'
+import { buildBoardView } from '../services/session-board-view.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const t = (key, values) => (values ? `${key} ${JSON.stringify(values)}` : key)
@@ -235,8 +240,46 @@ test('a bot thread session carries its bot onto board cards only while Bots is o
     changedFiles: 2,
   })
   assert.equal(agentSessionMethods.botCardFor.call(runtime, 'other'), null)
+  // 完成且没改动：分支已删，卡片不写分支名。
+  runtime.botTasks.activity = () => ({ status: 'done', branch: 'pisper/x/1', changedFiles: 0 })
+  assert.equal('branch' in agentSessionMethods.botCardFor.call(runtime, 'thread-1'), false)
   enabled = false
   assert.equal(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), null)
+})
+
+test('a bot thread groups under its project, not under the task worktree', async () => {
+  // Bot 长期会话的 cwd 是任务的临时 worktree：列表带上 Bot 的项目目录，归组与看板筛选都按它。
+  const worktree = '/data/worktrees/9654/task_1'
+  let enabled = true
+  const runtime = {
+    sessionLifecycle: {
+      listSessions: async () => [
+        { id: 'thread-1', cwd: worktree },
+        { id: 'plain', cwd: '/repo' },
+      ],
+    },
+    bots: {
+      list: () => [{ id: 'bot_1', threadSessionId: 'thread-1', workspace: { cwd: '/repo' } }],
+    },
+    isBetaFeatureEnabled: (id) => id === 'bots' && enabled,
+  }
+  runtime.botProjectDirectories = agentSessionMethods.botProjectDirectories
+  const sessions = await agentSessionMethods.listSessions.call(runtime)
+  assert.deepEqual(sessions, [
+    { id: 'thread-1', cwd: worktree, projectCwd: '/repo' },
+    { id: 'plain', cwd: '/repo' },
+  ])
+  const groups = groupSessionsByWorkspace(sessions)
+  assert.equal(groups.length, 1)
+  assert.equal(groups[0].cwd, '/repo')
+  assert.equal(sessionWorkspaceKey(sessions[0]), sessionWorkspaceKey(sessions[1]))
+  const items = sessions.map((session) => ({ ...session, card: { boardStatus: 'done' } }))
+  assert.equal(
+    buildBoardView(items, { cwds: ['/repo'], lanes: [], limit: 10, cursor: '' }).total,
+    2,
+  )
+  enabled = false
+  assert.equal('projectCwd' in (await agentSessionMethods.listSessions.call(runtime))[0], false)
 })
 
 test('board cards parse the bot defensively and keep plain sessions unchanged', () => {

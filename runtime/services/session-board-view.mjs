@@ -5,7 +5,7 @@ import { BOARD_LANES, boardWorkspaceKey } from '../../shared/session-board-statu
 /**
  * @typedef {import('../../shared/session-board-status.mjs').BoardLane} BoardLane
  * @typedef {import('../../shared/session-board-status.mjs').BoardDoneWindow} BoardDoneWindow
- * @typedef {{ id: string, cwd?: unknown, modified?: unknown, card: { boardStatus: string } }} BoardViewItem
+ * @typedef {{ id: string, cwd?: unknown, projectCwd?: unknown, modified?: unknown, card: { boardStatus: string } }} BoardViewItem
  * @typedef {{
  *   cwds: string[],
  *   lanes: BoardLane[],
@@ -128,7 +128,8 @@ export function buildBoardView(items, { cwds, lanes, limit, cursor }) {
   const laneSet = new Set(lanes)
   const filtered = sortBoardViewItems(items).filter(
     (item) =>
-      (!cwdKeys.size || cwdKeys.has(boardWorkspaceKey(item.cwd))) &&
+      // Bot 的长期会话按它所属的项目筛选（projectCwd），不按任务的临时 worktree。
+      (!cwdKeys.size || cwdKeys.has(boardWorkspaceKey(item.projectCwd || item.cwd))) &&
       (!laneSet.size || laneSet.has(/** @type {BoardLane} */ (item.card.boardStatus))),
   )
   const after = cursor ? decodeBoardCursor(cursor) : null

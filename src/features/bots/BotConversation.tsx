@@ -7,6 +7,7 @@ import { Check, FileDiff, History, RotateCcw, Square, TriangleAlert } from 'luci
 import type { Translate } from '@/app/navigation'
 import { sessionPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
+import MarkdownMessage from '@/components/MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { BotAvatar } from './BotAvatar'
@@ -28,9 +29,7 @@ function BotMessage({ bot, children }: { bot: Bot; children: React.ReactNode }) 
       <BotAvatar avatar={bot.avatar} size={30} />
       <div className="min-w-0 flex-1">
         <div className="text-[13px] font-semibold text-content">{bot.name}</div>
-        <div className="mt-0.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-content">
-          {children}
-        </div>
+        <div className="mt-0.5 text-[14.5px] leading-relaxed text-content">{children}</div>
       </div>
     </div>
   )
@@ -215,7 +214,10 @@ export function BotConversation({
                 </div>
                 {(turn.reply || last) && (
                   <BotMessage bot={bot}>
-                    {turn.reply ? <p>{turn.reply}</p> : null}
+                    {/* 回复是模型写的 Markdown（列表、代码、链接），和会话页用同一个渲染。 */}
+                    {turn.reply ? (
+                      <MarkdownMessage cwd={task.workspace?.path}>{turn.reply}</MarkdownMessage>
+                    ) : null}
                     {last && (
                       <TaskCard
                         bot={bot}

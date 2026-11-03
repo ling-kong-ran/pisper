@@ -625,6 +625,11 @@ export class AgentRuntimeFacade {
     onSession?.(id)
     let actualId = id
     let text = ''
+    // 运行出错时 streamPrompt 只广播 error 事件、不抛出：记下来交给调用方，
+    // 否则 Bot 任务会把失败的一轮当成“完成、没有改动”。
+    let runError = ''
+    // 最后一次工具调用之后说的话：Bot 拿它当回复，不把中间每一步的旁白拼进去。
+    let finalText = ''
     const assetIds = new Set()
     await this.streamPrompt({
       sessionId: id,
@@ -638,8 +643,13 @@ export class AgentRuntimeFacade {
       unattended,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
-        if (event === 'text_delta') text += data?.delta || ''
+        if (event === 'text_delta') {
+          text += data?.delta || ''
+          finalText += data?.delta || ''
+        }
+        if (event === 'tool_start') finalText = ''
         if (event === 'generated_asset' && data?.id) assetIds.add(data.id)
+        if (event === 'error') runError = String(data?.message || '运行失败。').slice(0, 500)
         onEvent?.(event, data)
       },
     })
@@ -661,11 +671,13 @@ export class AgentRuntimeFacade {
     return {
       sessionId: actualId,
       text: text.trim(),
+      finalText: finalText.trim(),
       cwd: runtime?.cwd || this.sessionMeta[actualId]?.cwd || this.cwd,
       model: runtime?.session.model
         ? `${runtime.session.model.provider}/${runtime.session.model.id}`
         : '',
       assets,
+      error: runError,
     }
   }
 
@@ -968,7 +980,8 @@ export class AgentRuntimeFacade {
       },
     })
     await this.bots.setThread(bot.id, result.sessionId)
-    return result
+    if (result.error) throw Object.assign(new Error(result.error), { code: 'agent_run_failed' })
+    return { ...result, text: result.finalText || result.text }
   }
 
   // Bot 的电脑（B6）：本机，或已配对的执行节点。节点不存在时也返回执行器，调用会以“离线”失败，

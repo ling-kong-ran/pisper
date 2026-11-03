@@ -525,3 +525,93 @@ test('bot runs pass the bot tool scope to the agent run', async () => {
   assert.equal(calls[1].allowedToolNames, null)
   assert.equal(calls[0].isolatedContext, true)
 })
+
+test('a bot reply is what the agent said after its last tool call', async () => {
+  // 中间每一步的旁白（“先看一下…”“跑一下测试”）不进 Bot 的回复；频道仍拿到完整文字。
+  const runtime = {
+    sessions: new Map(),
+    pendingSessions: new Map(),
+    sessionMeta: {},
+    cwd: '/repo',
+    assetIndex: { assets: [] },
+    findSessionInfo: async () => ({ id: 's1' }),
+    streamPrompt: async ({ send }) => {
+      send('text_delta', { delta: '先看一下。' })
+      send('tool_start', { name: 'read' })
+      send('text_delta', { delta: '修好了，' })
+      send('text_delta', { delta: '测试通过。' })
+      send('done', { sessionId: 's1' })
+    },
+    getSessionMessages: async () => [],
+  }
+  const result = await AgentRuntimeFacade.prototype.promptFromChannel.call(runtime, {
+    sessionId: 's1',
+    message: 'hi',
+  })
+  assert.equal(result.text, '先看一下。修好了，测试通过。')
+  assert.equal(result.finalText, '修好了，测试通过。')
+  const bot = await AgentRuntimeFacade.prototype.runBotTaskAgent.call(
+    {
+      providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
+      sessions: new Map(),
+      findSessionInfo: async () => null,
+      promptFromChannel: async () => result,
+      bots: { setThread: async () => {} },
+    },
+    {
+      bot: { id: 'b', name: '小橙', model: { tier: 'default' }, tools: null },
+      task: { title: '修' },
+      cwd: '/repo',
+      message: 'hi',
+    },
+  )
+  assert.equal(bot.text, '修好了，测试通过。')
+})
+
+test('a failed agent run fails the bot task instead of finishing it with no changes', async () => {
+  // streamPrompt 出错时只广播 error 事件不抛出：promptFromChannel 要把它带回来，Bot 运行据此失败。
+  const events = []
+  const runtime = {
+    sessions: new Map(),
+    pendingSessions: new Map(),
+    sessionMeta: {},
+    cwd: '/repo',
+    assetIndex: { assets: [] },
+    findSessionInfo: async () => ({ id: 's1' }),
+    streamPrompt: async ({ send }) => {
+      send('meta', { sessionId: 's1' })
+      send('error', { sessionId: 's1', message: 'Connection error.' })
+    },
+    getSessionMessages: async () => [],
+  }
+  const result = await AgentRuntimeFacade.prototype.promptFromChannel.call(runtime, {
+    sessionId: 's1',
+    message: 'hi',
+    onEvent: (event) => events.push(event),
+  })
+  assert.equal(result.error, 'Connection error.')
+  assert.deepEqual(events, ['meta', 'error'])
+
+  const failing = {
+    providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
+    sessions: new Map(),
+    findSessionInfo: async () => null,
+    promptFromChannel: async () => ({ sessionId: 's1', text: '', error: 'Connection error.' }),
+    bots: { setThread: async () => {} },
+  }
+  await assert.rejects(
+    AgentRuntimeFacade.prototype.runBotTaskAgent.call(failing, {
+      bot: {
+        id: 'b',
+        name: '小橙',
+        model: { tier: 'default' },
+        executionMode: 'approval-required',
+        tools: null,
+      },
+      task: { title: '修' },
+      cwd: '/repo',
+      message: 'hi',
+    }),
+    (error) => error.code === 'agent_run_failed' && error.message === 'Connection error.',
+  )
+})
