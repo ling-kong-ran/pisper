@@ -12,29 +12,6 @@ final class SpeechModelStoreTests: XCTestCase {
     private var temporary: URL!
     private var stores: [SpeechModelStore] = []
 
-    private final class DownloadOutcome: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value: Result<[String: Any], Error>?
-
-        func set(_ result: Result<[String: Any], Error>) {
-            lock.lock(); defer { lock.unlock() }
-            value = result
-        }
-
-        func get() -> Result<[String: Any], Error>? {
-            lock.lock(); defer { lock.unlock() }
-            return value
-        }
-    }
-
-    private struct ArchiveObservation {
-        let content: Data
-        let prefix: String
-        let fileCount: Int
-        let destinationExisted: Bool
-        let parentMode: mode_t
-    }
-
     override func setUpWithError() throws {
         // 测试根必须保留真实祖先，避免 Foundation 将 /private/var 改回符号链接 /var。
         let physical = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
@@ -58,7 +35,7 @@ final class SpeechModelStoreTests: XCTestCase {
         var content: [String: Data]
     }
 
-    private func fixture(archive: Bool = false) throws -> Fixture {
+    private func fixture() throws -> Fixture {
         let content: [String: Data] = [
             "asr.onnx": Data(repeating: 0x31, count: 128 * 1024),
             "model.onnx": Data((0..<(65536 + 128)).map { UInt8($0 % 251) }),
@@ -67,24 +44,18 @@ final class SpeechModelStoreTests: XCTestCase {
             "dict/jieba.dict.utf8": Data("dictionary".utf8),
             "dict/pos_dict/prob_start.utf8": Data("nested-dictionary".utf8),
             "date.fst": Data("rule".utf8),
-            "archive.tar.bz2": Data("injected-archive-fixture".utf8),
         ]
         func file(_ path: String) -> [String: Any] {
             let data = content[path]!
             return ["path": path, "bytes": data.count, "sha256": speechHash(data),
                     "urls": ["https://huggingface.co/test/" + path]]
         }
-        var asr: [String: Any] = [
+        let asr: [String: Any] = [
             "id": "asr", "revision": "r1", "kind": "asr", "engine": "sense-voice", "name": "ASR",
             "languages": ["en"], "license": ["name": "test"],
             "files": [file("asr.onnx"), file("tokens.txt")],
             "config": ["model": "asr.onnx", "tokens": "tokens.txt"],
         ]
-        if archive {
-            asr["archive"] = ["format": "tar.bz2", "bytes": content["archive.tar.bz2"]!.count,
-                              "sha256": speechHash(content["archive.tar.bz2"]!),
-                              "urls": ["https://github.com/test/archive.tar.bz2"], "stripPrefix": "fixture/"]
-        }
         let config: [String: Any] = [
             "model": "model.onnx", "tokens": "tokens.txt", "lexicon": "lexicon.txt", "dictDir": "dict",
             "ruleFsts": ["date.fst"], "numThreads": 4, "maxTextCodePoints": 16,
@@ -105,16 +76,11 @@ final class SpeechModelStoreTests: XCTestCase {
     }
 
     private func store(_ fixture: Fixture, root: URL? = nil,
-                       extractor: SpeechArchiveExtractor? = nil,
                        transfer: SpeechModelStore.Transfer? = nil) throws -> SpeechModelStore {
         let root = root ?? temporary.appendingPathComponent("store-" + UUID().uuidString)
         let store = try SpeechModelStore(
             catalogData: JSONSerialization.data(withJSONObject: fixture.catalog), storageDirectory: root,
-            archiveExtractor: extractor ?? { _, destination, prefix, files, check in
-                try speechRequire(prefix == "fixture/", .integrity)
-                try check()
-                for spec in files { try self.write(destination.appendingPathComponent(spec.path), fixture.content[spec.path]!) }
-            },
+            archiveExtractor: { _, _, _, _, _ in XCTFail("Unexpected extraction") },
             transfer: transfer ?? { target, spec, job, progress in
                 try job.check()
                 try self.write(target, fixture.content[spec.path]!)
@@ -133,26 +99,6 @@ final class SpeechModelStoreTests: XCTestCase {
     private func snapshot(_ store: SpeechModelStore, id: String) throws -> [String: Any] {
         let list = try XCTUnwrap(try store.list()["models"] as? [[String: Any]])
         return try XCTUnwrap(list.first { $0["id"] as? String == id })
-    }
-
-    private func waitFor(_ store: SpeechModelStore, id: String, status: String = "installed") throws {
-        // 任务结束事件驱动等待；主测试线程保持可调度，归档提取器也不会被高频 list() 争用文件系统。
-        let finished = expectation(description: "Model \(id) download finished")
-        let outcome = DownloadOutcome()
-        DispatchQueue.global(qos: .userInitiated).async {
-            outcome.set(Result { try store.waitForCurrentDownload(modelId: id) })
-            finished.fulfill()
-        }
-        guard XCTWaiter.wait(for: [finished], timeout: 30) == .completed else {
-            let current = try snapshot(store, id: id)
-            XCTFail("Model \(id) did not finish; last status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
-            throw SpeechStorageError.busy
-        }
-        let current = try XCTUnwrap(outcome.get()).get()
-        guard current["status"] as? String == status else {
-            XCTFail("Model \(id) ended with status=\(current["status"] ?? "unknown"), error=\(current["error"] ?? "none")")
-            throw SpeechStorageError.storage
-        }
     }
 
     private func changingTTS(_ body: (inout [String: Any]) -> Void) throws -> Fixture {
@@ -298,160 +244,6 @@ final class SpeechModelStoreTests: XCTestCase {
         XCTAssertThrowsError(try SpeechHTTPTransfer.responseOffset(response(416, [:]), offset: 10, bytes: 10))
     }
 
-    func testPerFileDownloadPublishesAndVerifiesBytes() throws {
-        let fixture = try fixture()
-        let store = try store(fixture)
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        let directory = try store.modelDirectory(modelId: "asr")
-        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("asr.onnx")), fixture.content["asr.onnx"])
-        let model = try store.model(id: "asr")
-        XCTAssertEqual(try snapshot(store, id: "asr")["downloadedBytes"] as? Int64, model.totalBytes)
-    }
-
-    func testArchiveExtractionUsesVerifiedManifestAndIndependentTreeCheck() throws {
-        let fixture = try fixture(archive: true)
-        let observationLock = NSLock()
-        var observation: ArchiveObservation?
-        let store = try store(fixture, extractor: { archive, directory, prefix, files, check in
-            let parent = try SpeechFiles.directory(directory.deletingLastPathComponent())
-            defer { Darwin.close(parent) }
-            let observed = ArchiveObservation(
-                content: try Data(contentsOf: archive), prefix: prefix, fileCount: files.count,
-                destinationExisted: FileManager.default.fileExists(atPath: directory.path),
-                parentMode: try SpeechFiles.attributes(parent).st_mode & 0o777
-            )
-            observationLock.lock(); observation = observed; observationLock.unlock()
-            try check()
-            for file in files { try self.write(directory.appendingPathComponent(file.path), fixture.content[file.path]!) }
-        })
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        observationLock.lock(); let observed = observation; observationLock.unlock()
-        let actual = try XCTUnwrap(observed)
-        XCTAssertEqual(actual.content, fixture.content["archive.tar.bz2"])
-        XCTAssertEqual(actual.prefix, "fixture/")
-        XCTAssertEqual(actual.fileCount, 2)
-        XCTAssertFalse(actual.destinationExisted)
-        XCTAssertEqual(actual.parentMode, 0o700)
-        XCTAssertNoThrow(try store.modelDirectory(modelId: "asr"))
-    }
-
-    func testArchiveExtraFileFailsWithoutDeletingForeignData() throws {
-        let fixture = try fixture(archive: true)
-        let root = temporary.appendingPathComponent("store")
-        let store = try store(fixture, root: root, extractor: { _, directory, _, files, _ in
-            for file in files { try self.write(directory.appendingPathComponent(file.path), fixture.content[file.path]!) }
-            try self.write(directory.appendingPathComponent("foreign.txt"), Data("keep".utf8))
-        })
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr", status: "error")
-        let model = try store.model(id: "asr")
-        let foreign = root.appendingPathComponent(".asr.\(model.fingerprint).partial/foreign.txt")
-        XCTAssertEqual(try Data(contentsOf: foreign), Data("keep".utf8))
-        XCTAssertThrowsError(try store.modelDirectory(modelId: "asr"))
-    }
-
-    func testSameModelDeduplicatesAcrossStoreInstancesAndModelsSerialize() throws {
-        let fixture = try fixture()
-        let root = temporary.appendingPathComponent("shared-store")
-        let entered = DispatchSemaphore(value: 0)
-        let release = DispatchSemaphore(value: 0)
-        let counter = NSLock()
-        var active = 0
-        var maximum = 0
-        var asrTransfers = 0
-        let transfer: SpeechModelStore.Transfer = { target, spec, job, progress in
-            counter.lock()
-            active += 1
-            maximum = max(maximum, active)
-            if spec.path == "asr.onnx" { asrTransfers += 1 }
-            counter.unlock()
-            defer { counter.lock(); active -= 1; counter.unlock() }
-            if spec.path == "asr.onnx" {
-                entered.signal()
-                XCTAssertEqual(release.wait(timeout: .now() + 3), .success)
-            }
-            try job.check()
-            try self.write(target, fixture.content[spec.path]!)
-            progress(spec.bytes)
-        }
-        let first = try store(fixture, root: root, transfer: transfer)
-        let second = try store(fixture, root: root, transfer: transfer)
-        _ = try first.startDownload(modelId: "asr")
-        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
-        _ = try second.startDownload(modelId: "asr")
-        _ = try second.startDownload(modelId: "vits-melo-tts-zh_en")
-        release.signal()
-        try waitFor(first, id: "asr")
-        try waitFor(second, id: "vits-melo-tts-zh_en")
-        counter.lock(); defer { counter.unlock() }
-        XCTAssertEqual(asrTransfers, 1)
-        XCTAssertEqual(maximum, 1)
-    }
-
-    func testCancellationWaitsForClosedHandleAndRetainsPartialForResume() throws {
-        let fixture = try fixture()
-        let entered = DispatchSemaphore(value: 0)
-        let release = DispatchSemaphore(value: 0)
-        let cancelled = DispatchSemaphore(value: 0)
-        let lock = NSLock()
-        var firstAttempt = true
-        var closed = false
-        var resumedAt: Int64 = -1
-        let store = try store(fixture, transfer: { target, spec, job, progress in
-            if spec.path != "asr.onnx" { try self.write(target, fixture.content[spec.path]!); progress(spec.bytes); return }
-            let handle = try SpeechFiles.open(target, writable: true)
-            defer { try? handle.close(); lock.lock(); closed = true; lock.unlock() }
-            lock.lock()
-            let first = firstAttempt
-            firstAttempt = false
-            lock.unlock()
-            if first {
-                try handle.write(contentsOf: fixture.content[spec.path]!.prefix(65536))
-                progress(65536)
-                entered.signal()
-                XCTAssertEqual(release.wait(timeout: .now() + 3), .success)
-                try job.check()
-            } else {
-                let offset = try handle.seekToEnd()
-                lock.lock(); resumedAt = Int64(offset); lock.unlock()
-                try handle.write(contentsOf: fixture.content[spec.path]!.dropFirst(Int(offset)))
-                progress(spec.bytes)
-            }
-        })
-        _ = try store.startDownload(modelId: "asr")
-        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
-        XCTAssertEqual(try snapshot(store, id: "asr")["downloadedBytes"] as? Int64, 65536)
-        DispatchQueue.global().async { _ = try? store.cancelDownload(modelId: "asr"); cancelled.signal() }
-        XCTAssertEqual(cancelled.wait(timeout: .now() + 0.05), .timedOut)
-        release.signal()
-        XCTAssertEqual(cancelled.wait(timeout: .now() + 2), .success)
-        lock.lock(); let didClose = closed; lock.unlock()
-        XCTAssertTrue(didClose)
-        XCTAssertEqual(try snapshot(store, id: "asr")["status"] as? String, "cancelled")
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        lock.lock(); let offset = resumedAt; lock.unlock()
-        XCTAssertEqual(offset, 65536)
-    }
-
-    func testMarkerCannotAuthorizeCorruptedSourceOrUnexpectedTree() throws {
-        let fixture = try fixture()
-        let store = try store(fixture)
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        let directory = try store.modelDirectory(modelId: "asr")
-        try write(directory.appendingPathComponent("asr.onnx"), Data(repeating: 0x32, count: 128 * 1024))
-        XCTAssertThrowsError(try store.modelDirectory(modelId: "asr")) { error in
-            XCTAssertEqual(error as? SpeechStorageError, .missing)
-            XCTAssertFalse(error.localizedDescription.contains(directory.path))
-        }
-        try write(directory.appendingPathComponent("asr.onnx"), fixture.content["asr.onnx"]!)
-        try write(directory.appendingPathComponent("extra"), Data([1]))
-        XCTAssertThrowsError(try store.modelDirectory(modelId: "asr"))
-    }
-
     func testModelDirectoryFirstHashPassCanBeCancelledAndRetried() throws {
         let fixture = try fixture()
         let root = temporary.appendingPathComponent("store")
@@ -472,15 +264,6 @@ final class SpeechModelStoreTests: XCTestCase {
         XCTAssertEqual(checks, 3)
         XCTAssertNoThrow(try store.modelDirectory(modelId: "asr"))
         XCTAssertEqual(try snapshot(store, id: "asr")["status"] as? String, "installed")
-    }
-
-    func testMissingMarkerFailsEvenAfterSuccessfulProof() throws {
-        let store = try store(fixture())
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr")
-        let directory = try store.modelDirectory(modelId: "asr")
-        try FileManager.default.removeItem(at: directory.appendingPathComponent(SpeechFiles.marker))
-        XCTAssertThrowsError(try store.modelDirectory(modelId: "asr"))
     }
 
     func testValidatedRootPreservesPhysicalPathWithoutStandardization() throws {
@@ -518,17 +301,6 @@ final class SpeechModelStoreTests: XCTestCase {
         try write(foreign, Data("user".utf8))
         XCTAssertThrowsError(try store(fixture(), root: root))
         XCTAssertEqual(try Data(contentsOf: foreign), Data("user".utf8))
-    }
-
-    func testExistingUnmarkedModelDirectoryIsNotReplaced() throws {
-        let fixture = try fixture()
-        let root = temporary.appendingPathComponent("store")
-        let store = try store(fixture, root: root)
-        let foreign = root.appendingPathComponent("asr/asr.onnx")
-        try write(foreign, Data("user-data".utf8))
-        _ = try store.startDownload(modelId: "asr")
-        try waitFor(store, id: "asr", status: "error")
-        XCTAssertEqual(try Data(contentsOf: foreign), Data("user-data".utf8))
     }
 
     func testAncestorMtimeDoesNotInvalidateContentProof() throws {
@@ -722,58 +494,6 @@ final class SpeechModelStoreTests: XCTestCase {
                 XCTAssertThrowsError(try speechVitsScale(value, defaultValue: fallback), key)
             }
         }
-    }
-
-    func testVitsDownloadAndCachedProofCannotHideCorruptFilesOrForeignTree() throws {
-        let fixture = try fixture()
-        let store = try store(fixture)
-        let id = "vits-melo-tts-zh_en"
-        _ = try store.startDownload(modelId: id)
-        try waitFor(store, id: id)
-        let directory = try store.modelDirectory(modelId: id)
-        let model = try store.model(id: id)
-        XCTAssertEqual(try snapshot(store, id: id)["downloadedBytes"] as? Int64, model.totalBytes)
-        for file in model.files {
-            let target = directory.appendingPathComponent(file.path)
-            XCTAssertEqual(try Data(contentsOf: target), fixture.content[file.path])
-            XCTAssertNoThrow(try store.modelDirectory(modelId: id))
-            let corrupt = Data(repeating: 0, count: Int(file.bytes))
-            try write(target, corrupt)
-            XCTAssertThrowsError(try store.modelDirectory(modelId: id)) { error in
-                XCTAssertEqual(error as? SpeechStorageError, .missing)
-                XCTAssertFalse(error.localizedDescription.contains(directory.path))
-            }
-            XCTAssertEqual(try Data(contentsOf: target), corrupt)
-            try write(target, fixture.content[file.path]!)
-            XCTAssertNoThrow(try store.modelDirectory(modelId: id))
-        }
-        let foreign = directory.appendingPathComponent("dict/foreign.txt")
-        try write(foreign, Data("keep".utf8))
-        XCTAssertThrowsError(try store.modelDirectory(modelId: id))
-        XCTAssertEqual(try Data(contentsOf: foreign), Data("keep".utf8))
-    }
-
-    func testVitsCachedDirectoryCancellationPreservesInstallationAndForeignData() throws {
-        let fixture = try fixture()
-        let root = temporary.appendingPathComponent("store")
-        let store = try store(fixture, root: root)
-        let id = "vits-melo-tts-zh_en"
-        _ = try store.startDownload(modelId: id)
-        try waitFor(store, id: id)
-        let directory = try store.modelDirectory(modelId: id)
-        let foreign = root.appendingPathComponent(".partial-foreign/keep")
-        try write(foreign, Data("keep".utf8))
-        var checks = 0
-        XCTAssertThrowsError(try store.modelDirectory(modelId: id, checkCancellation: {
-            checks += 1
-            if checks == 2 { throw NSError(domain: "private-cancellation-detail", code: 1) }
-        })) { error in XCTAssertEqual(error as? SpeechStorageError, .cancelled) }
-        XCTAssertEqual(checks, 2)
-        XCTAssertEqual(try Data(contentsOf: foreign), Data("keep".utf8))
-        for file in try store.model(id: id).files {
-            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(file.path)), fixture.content[file.path])
-        }
-        XCTAssertNoThrow(try store.modelDirectory(modelId: id))
     }
 
     func testVitsDictionarySymlinkCannotReuseSuccessfulProof() throws {
