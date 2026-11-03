@@ -21,6 +21,8 @@ import { projectSessionCommands } from './session-commands.mjs'
 import { resolveWorkspaceDirectory } from './workspace-directories.mjs'
 import { normalizeSideQuestion, streamSideQuestion } from './side-question.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
+import { finishRunStartTiming, markRunStage, withRunStartTiming } from './run-start-timing.mjs'
+import { isInternalParentMessage } from './stream-projection.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
@@ -30,6 +32,9 @@ import {
 // 隔离上下文模式（工作流/渠道的独立子任务）下屏蔽的记忆相关工具：
 // 子任务不应读写主会话的长期记忆。
 export const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
+
+// 准备阶段在 /live 里投影的待发消息上限（只用于显示，完整消息照常写进会话）。
+const MAX_PREPARING_MESSAGE_CHARS = 20_000
 
 export const DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE = 60
 export const MIN_MEMORY_AUTO_APPROVE_CONFIDENCE = 0
@@ -324,18 +329,58 @@ export class AgentRuntimeFacade {
     return result
   }
 
-  // 流式执行一次会话提示：拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
+  // 流式执行一次会话提示：登记准备阶段 → 拿到会话运行时 → 校验未在运行 → 执行并清理中止标记。
   async streamPrompt(options) {
+    return withRunStartTiming(() => this.streamPromptTimed(options))
+  }
+
+  async streamPromptTimed(options) {
+    // 受理即算运行中：装配运行时、选工具等准备工作可能要几秒（新会话首轮、MCP 连接），这段时间里
+    // 会话列表、看板、/messages 与 /live 都要报告“在跑”，否则别处打开会话会读到“空页、未运行”。
+    // 同一会话的第二次 prompt 在准备阶段就拒绝，不再两轮并发装配。
+    const requestedId = typeof options.sessionId === 'string' ? options.sessionId : ''
+    if (requestedId && this.startingRuns.has(requestedId))
+      throw new Error('当前会话仍在运行，请等待完成或先停止。')
+    const message = typeof options.message === 'string' ? options.message : ''
+    const starting = requestedId
+      ? {
+          aborted: false,
+          // 供 /live 在准备阶段投影这条还没写进会话的消息；内部唤醒消息对用户隐藏，不投影。
+          message: isInternalParentMessage(message)
+            ? ''
+            : message.slice(0, MAX_PREPARING_MESSAGE_CHARS),
+          acceptedAt: new Date().toISOString(),
+        }
+      : null
+    if (starting) {
+      this.startingRuns.set(requestedId, starting)
+      this.streamProjection.invalidate(requestedId)
+    }
+    try {
+      return await this.runStartedPrompt(options)
+    } finally {
+      // 正常路径在建立 live 时已移除；准备阶段失败或被拒绝时在这里收回，并让读者看到“已结束”。
+      if (starting && this.startingRuns.get(requestedId) === starting) {
+        this.startingRuns.delete(requestedId)
+        this.streamProjection.invalidate(requestedId)
+      }
+      finishRunStartTiming('ended')
+    }
+  }
+
+  async runStartedPrompt(options) {
     const finishSideChatRun = await this.sideChats?.beginRun(options.sessionId)
+    markRunStage('sideChat')
     try {
       let value = await this.getOrCreateSession(options.sessionId)
+      markRunStage('session')
       let id = value.session.sessionId
       if (value.forceDisposed && !value.runActive) {
         this.sessionLifecycle.disposeSessionRuntime(id, value, { force: true })
         value = await this.getOrCreateSession(options.sessionId)
         id = value.session.sessionId
       }
-      if (this.sessionRunIsActive(id, value))
+      if (this.sessionLifecycle.sessionEngineRunIsActive(id, value))
         throw new Error('当前会话仍在运行，请等待完成或先停止。')
       // 历史会话不允许自动切换模型：绑定模型不可用时拒绝执行并显式告知，
       // 而不是静默用默认模型消耗额度、并把回退结果写回会话绑定。
@@ -353,6 +398,7 @@ export class AgentRuntimeFacade {
       value.runActive = true
       try {
         this.installWorkspaceAssetCapture(value.session, value.cwd)
+        markRunStage('assetCapture')
         return await this.runSessionPrompt(value, options)
       } finally {
         value.runActive = false

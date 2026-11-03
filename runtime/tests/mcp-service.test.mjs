@@ -573,3 +573,64 @@ test('MCP connection specs support URLs, stdio commands, and JSON configuration'
   assert.equal(nested.name, 'filesystem')
   assert.equal(nested.transport, 'stdio')
 })
+
+test('session tool definitions use cached MCP tool lists without waiting for a connection', async (t) => {
+  const hang = Promise.withResolvers()
+  // 先登记放行：fixture 的 dispose 会等这条挂住的连接收尾。
+  t.after(() => hang.resolve())
+  let hangConnect = false
+  const { service, id } = await connectionFixture(t, {
+    createTransport: async () => {
+      if (hangConnect) await hang.promise
+      return {}
+    },
+  })
+  // 先连上一次，工具清单落进 server.tools；之后服务连不上（例如远程不可达）。
+  await service.ensureConnected(id)
+  await service.closeConnection(id)
+  hangConnect = true
+  const startedAt = Date.now()
+  const definitions = await service.createToolDefinitions()
+  assert.ok(Date.now() - startedAt < 1_000, 'cached tools must not wait for the connection')
+  assert.equal(definitions.length, 2)
+  // 连接留在后台继续，调用工具时再按需等。
+  assert.equal(service.connectionFor(id).status, 'connecting')
+})
+
+test('session tool definitions wait only briefly for a server that has no tool list yet', async (t) => {
+  const hang = Promise.withResolvers()
+  // 先登记放行：fixture 的 dispose 会等这条挂住的连接收尾。
+  t.after(() => hang.resolve())
+  const { service } = await connectionFixture(t, {
+    createTransport: () => hang.promise.then(() => ({})),
+    toolListWaitMs: 50,
+  })
+  const startedAt = Date.now()
+  assert.deepEqual(await service.createToolDefinitions(), [])
+  const waited = Date.now() - startedAt
+  assert.ok(waited >= 40 && waited < 1_000, `expected a short bounded wait, got ${waited}ms`)
+})
+
+test('session tool definitions do not wait again for a server that already failed', async (t) => {
+  let attempts = 0
+  const hang = Promise.withResolvers()
+  // 先登记放行：fixture 的 dispose 会等这条挂住的连接收尾。
+  t.after(() => hang.resolve())
+  const { service, id } = await connectionFixture(t, {
+    createTransport: async () => {
+      attempts++
+      if (attempts === 1) throw new Error('unreachable')
+      await hang.promise
+      return {}
+    },
+    toolListWaitMs: 5_000,
+  })
+  await assert.rejects(service.ensureConnected(id), /unreachable/)
+  // 退避到期后的重连途中 error 已被清空，但仍算失败过：不等。
+  service.connectionFor(id).nextRetryAt = Date.now() - 1
+  const startedAt = Date.now()
+  assert.deepEqual(await service.createToolDefinitions(), [])
+  assert.ok(Date.now() - startedAt < 1_000, 'a server that failed before must not block sessions')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(attempts, 2, 'the reconnect still runs in the background')
+})

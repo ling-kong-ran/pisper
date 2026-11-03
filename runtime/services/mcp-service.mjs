@@ -22,6 +22,8 @@ const MAX_MCP_SCHEMA_BYTES_PER_SERVER = 4 * 1024 * 1024
 const MAX_MCP_CALLS = 100
 const DEFAULT_MCP_TIMEOUT_MS = 60_000
 const MCP_CONNECT_TIMEOUT_MS = 10_000
+// 装配会话时最多为“还没有工具清单”的服务等多久（见 createToolDefinitions）。
+const MCP_TOOL_LIST_WAIT_MS = 2_000
 const MAX_MCP_TIMEOUT_MS = 10 * 60_000
 const MAX_MCP_IMAGE_BYTES = 10 * 1024 * 1024
 const STDERR_ATTACHED = Symbol('pisperMcpStderrAttached')
@@ -496,9 +498,16 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
 }
 
 export class McpService {
-  constructor({ path, cwd, createClient, createTransport } = {}) {
+  constructor({
+    path,
+    cwd,
+    createClient,
+    createTransport,
+    toolListWaitMs = MCP_TOOL_LIST_WAIT_MS,
+  } = {}) {
     // 依赖注入：createClient/createTransport 便于测试替换真实 MCP SDK。
     this.path = path
+    this.toolListWaitMs = toolListWaitMs
     this.cwd = cwd || process.cwd()
     this.createClient =
       createClient ||
@@ -1040,8 +1049,28 @@ export class McpService {
   }
 
   // 汇总全部已启用工具的 MCP 工具定义（会话运行时装配时调用）。
+  // 已有工具清单（持久化在 server.tools）的服务不等连接，调用工具时再按需连接，
+  // 连接与清单刷新放到后台；否则一个连不上的服务会让每个新会话开跑前白等一次连接超时（10 秒）。
+  // 从没拿到过清单、也没失败过的服务最多等 toolListWaitMs（默认 MCP_TOOL_LIST_WAIT_MS）：本地 stdio 服务通常来得及，
+  // 来不及（或连不上）就先开跑，连接留在后台，下一个会话就有它的工具。
   async createToolDefinitions() {
-    await this.refreshAll()
+    const pending = []
+    for (const server of this.state.servers) {
+      if (!server.enabled) continue
+      // nextRetryAt 只在连接成功时归零：重连途中 error 已被清空，但它仍记得上次失败。
+      const failedBefore = this.connectionFor(server.id).nextRetryAt > 0
+      const refresh = this.ensureConnected(server.id)
+      refresh.catch(() => {})
+      if (!server.tools.length && !failedBefore) pending.push(refresh)
+    }
+    if (pending.length) {
+      let timer
+      await Promise.race([
+        Promise.allSettled(pending),
+        new Promise((resolve) => (timer = setTimeout(resolve, this.toolListWaitMs))),
+      ])
+      clearTimeout(timer)
+    }
     const definitions = []
     for (const server of this.state.servers) {
       if (!server.enabled) continue

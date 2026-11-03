@@ -60,6 +60,7 @@ export class SessionLifecycle {
     sessions,
     pendingSessions,
     liveSessions,
+    startingRuns = new Map(),
     sessionHistoryCache,
     sessionHistoryPaths,
     sessionContextUsageCache,
@@ -99,6 +100,7 @@ export class SessionLifecycle {
     this.sessions = sessions
     this.pendingSessions = pendingSessions
     this.liveSessions = liveSessions
+    this.startingRuns = startingRuns
     this.sessionHistoryCache = sessionHistoryCache
     this.sessionHistoryPaths = sessionHistoryPaths
     this.sessionContextUsageCache = sessionContextUsageCache
@@ -161,8 +163,13 @@ export class SessionLifecycle {
     state.storedSessionsCache = next
   }
 
-  // 会话是否在运行：显式 runActive、实时流、或引擎会话 isStreaming 任一为真。
+  // 会话是否在运行：已受理还在准备（startingRuns）、显式 runActive、实时流、或引擎会话 isStreaming 任一为真。
   sessionRunIsActive(id, value = this.sessions.get(id)) {
+    return this.startingRuns.has(id) || this.sessionEngineRunIsActive(id, value)
+  }
+
+  // 不含准备阶段的运行判断：给准备阶段自己用（它已登记了 startingRuns，不能把自己算成“正在运行”）。
+  sessionEngineRunIsActive(id, value = this.sessions.get(id)) {
     return Boolean(
       value?.runActive || this.liveSessions.get(id)?.streaming || value?.session?.isStreaming,
     )
@@ -484,7 +491,8 @@ export class SessionLifecycle {
           cwd: value.cwd,
           created: value.created,
           modified: value.modified,
-          streaming: false,
+          // 新会话第一条消息正在准备（运行时还没装配好）时也算运行中。
+          streaming: this.startingRuns.has(id),
           agents: [],
         }),
       )
@@ -1354,8 +1362,9 @@ export class SessionLifecycle {
     const state = this.getRuntimeState()
     if (id && this.sessions.has(id)) {
       const current = this.sessions.get(id)
+      // 只看引擎运行：本次 prompt 的准备阶段不应让过期运行时（技能、插件变更后）被沿用。
       if (
-        this.sessionRunIsActive(id, current) ||
+        this.sessionEngineRunIsActive(id, current) ||
         (current.runtimeVersion ?? state.sessionRuntimeVersion) === state.sessionRuntimeVersion
       )
         return this.touchSessionRuntime(current)
@@ -1413,7 +1422,10 @@ export class SessionLifecycle {
     const live = this.liveSessions.get(id)
     const goal = this.getGoals().get(id)
     const team = this.getTeamWorkflows?.().get?.(id)
-    const known = Boolean(value || live || goal || team)
+    // 准备阶段的运行还没有 live：记下停止，开跑前由 runSessionPrompt 收尾。
+    const starting = this.startingRuns.get(id)
+    if (starting) starting.aborted = true
+    const known = Boolean(value || live || goal || team || starting)
     if (value) {
       value.abortedAt = Date.now()
       // 正在运行的 prompt 由中止护栏按这个时间点开始倒计时。

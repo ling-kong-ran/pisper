@@ -179,6 +179,7 @@ import {
 import { archivePreviewImagePart, dispatchToolPreviewImage } from './tool-preview-images.mjs'
 import { releaseConsumedSessionInput, sessionInputQueueRevision } from './session-input-queue.mjs'
 import { createRequestTimingTracker, sessionRequestTiming } from './request-timing.mjs'
+import { finishRunStartTiming, markRunStage, measureRunStage } from './run-start-timing.mjs'
 import { SessionCardSummaries } from '../services/session-card-summary.mjs'
 import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
@@ -580,6 +581,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.sessionRuntimeSweepIntervalMs = SESSION_RUNTIME_SWEEP_INTERVAL_MS
     this.sessionRuntimeSweepTimer = null
     this.pendingSessions = new Map()
+    // 已受理、还在准备（装配运行时、选工具等）的运行：id → { aborted, message, acceptedAt }。准备阶段对外就算运行中，
+    // 建立 live 状态时移除；见 streamPrompt。
+    this.startingRuns = new Map()
     this.storedSessionsCache = null
     this.storedSessionsPromise = null
     this.sessionRuntimeVersion = 0
@@ -671,6 +675,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       cwd: this.cwd,
       sessions: () => this.sessions,
       liveSessions: () => this.liveSessions,
+      startingRuns: () => this.startingRuns,
       sessionMeta: () => this.sessionMeta,
       assetIndex: () => this.assetIndex,
       getAssetRevision: () => this.assetProjectionRevision,
@@ -740,6 +745,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       sessions: this.sessions,
       pendingSessions: this.pendingSessions,
       liveSessions: this.liveSessions,
+      startingRuns: this.startingRuns,
       sessionHistoryCache: this.sessionHistoryCache,
       sessionHistoryPaths: this.sessionHistoryPaths,
       sessionContextUsageCache: this.sessionContextUsageCache,
@@ -1633,8 +1639,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             reason: preferredModel ? 'missing-auth' : 'not-resolvable',
           }
         : null
+    markRunStage('rt.open')
     const appConfig = await readJson(this.appConfigPath, { toolMode: 'full' })
+    markRunStage('rt.appConfig')
     const effectiveCwd = await resolveSessionDirectory(this, sessionManager, runtimeSessionId)
+    markRunStage('rt.cwd')
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
     // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
     const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
@@ -1647,9 +1656,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           : this.capabilities.features.plugins,
       )
     const [resourceLoader, mcpTools] = await Promise.all([
-      this.skills.createResourceLoader(effectiveCwd),
-      this.capabilities.features.mcp ? this.mcp.createToolDefinitions() : [],
+      measureRunStage('rt.resourceLoader', this.skills.createResourceLoader(effectiveCwd)),
+      this.capabilities.features.mcp
+        ? measureRunStage('rt.mcpTools', this.mcp.createToolDefinitions())
+        : [],
     ])
+    markRunStage('rt.resources+mcp')
     const stableMcpTools = [...mcpTools].sort((left, right) =>
       String(left.name || '').localeCompare(String(right.name || '')),
     )
@@ -1739,6 +1751,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // Pi 引擎惰性持久化会话文件（首条助手消息时才写盘）。若对话在模型回复前被打断，
     // 磁盘上将没有文件；这里强制先落盘，保证会话在常驻运行时被释放后仍可寻址/恢复。
     await ensureSessionFilePersisted(sessionManager, name, effectiveCwd)
+    markRunStage('rt.persist')
     const installSubagentPermissions = (subagentSession, { ownedFiles = [] } = {}) => {
       this.permissions.install(subagentSession, {
         sessionId: runtimeSession.sessionId,
@@ -1913,6 +1926,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ),
         )
       : {}
+    markRunStage('rt.agentProfiles')
     const multiAgentTools = multiAgentRuntime
       ? schemaOnlyToolDefinitions(
           createMultiAgentTools({ multiAgentRuntime, agentProfiles, tierModels }),
@@ -1960,6 +1974,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...askUserTools,
       ],
     })
+    markRunStage('rt.agentSession')
     installTransientStreamRetry(session)
     // 备用模型：同一模型的重试用尽或额度耗尽时按设置顺序切换，并从失败处接着跑。
     installModelFallback(session, {
@@ -1990,6 +2005,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     runtimeValue = Object.assign(value, { multiAgentRuntime })
     runtimeSession = session
     if (multiAgentRuntime) await multiAgentRuntime.resume()
+    markRunStage('rt.multiAgentResume')
     // 绑定模型不可用时 SDK 已经回退到默认模型；此时绝不能把回退结果写回元数据，
     // 否则用户显式选择的模型会被默认模型静默覆盖并在下次恢复时永久丢失。
     if (session.model && !blockedModel) {
@@ -2195,6 +2211,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       toolMode: 'full',
       disabledProviders: [],
     })
+    markRunStage('p.appConfig')
     // 前置校验：停用的 Provider、不可用模型都直接拒绝，避免发起注定失败的调用。
     if ((appConfig.disabledProviders || []).includes(session.model?.provider)) {
       throw new Error('当前会话使用的 Provider 已停用，请先启用或切换模型。')
@@ -2215,6 +2232,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           )
         : Promise.resolve({ text: '', memories: [] })
     memoryContextPromise.catch(() => {})
+    // 用量统计只依赖会话已有消息（长会话要扫一遍，可达上百毫秒）：与下面的准备步骤并行，建立 live 时再取。
+    const sessionUsagePromise = measureRunStage(
+      'p.sessionUsage',
+      this.streamProjection.getSessionTokenUsage(session.sessionId),
+    )
+    sessionUsagePromise.catch(() => {})
+    void measureRunStage('p.memoryContext', memoryContextPromise).catch(() => {})
     let goal = this.goals.get(session.sessionId)
     // 普通（Plan）消息不带 goal/team 标记：显式离开目标驱动，先暂停活动 Goal，
     // 否则隐藏延续与团队快照会继续挂在本轮与后续轮次。内部延续/唤醒消息除外。
@@ -2238,6 +2262,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         })
       }
     }
+    markRunStage('p.goals')
     if (goal?.mode === 'team' && goal.status === 'active') {
       await this.teamWorkflows.ensure(session.sessionId, {
         goalId: goal.id,
@@ -2249,6 +2274,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await this.teamWorkflows.pause(session.sessionId)
     }
     await this.selectToolsForMessage(value, message, { requestedToolNames })
+    markRunStage('p.selectTools')
     value.promptCache = comparePromptCacheShapes(
       value.promptCache,
       capturePromptCacheShape({
@@ -2262,6 +2288,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 内部唤醒轮（Agent 完成、目标延续、输出上限续跑）保留计划。
     const keepPlan = goal?.status === 'active' || isInternalParentMessage(message)
     if (!keepPlan) await this.plans.replace(session.sessionId, [])
+    markRunStage('p.plans')
 
     // 注入待处理的 Agent 完成通知（对用户隐藏）
     // steer 失败的通知改为随本条消息一起发出，不丢失。
@@ -2276,6 +2303,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     }
 
+    markRunStage('p.agentNotes')
+    // 准备阶段收到了停止：这一轮不再开跑。
+    if (this.startingRuns.get(session.sessionId)?.aborted) throw new Error('会话已停止。')
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const attachTeam = shouldAttachTeamSnapshot({ goalMode, teamMode, goal })
@@ -2289,9 +2319,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         .filter((agent) => ['queued', 'starting', 'running'].includes(agent.status)),
       queuedInputs: queuedSessionInputs(session),
       contextUsage: this.compactionAwareContextUsage(session),
-      sessionUsage: await this.streamProjection.getSessionTokenUsage(session.sessionId),
+      sessionUsage: await sessionUsagePromise,
       promptCache: value.promptCache,
     })
+    finishRunStartTiming('p.usage+live')
     live.attachTeam = attachTeam
     live.queueRevision = sessionInputQueueRevision(session)
     // runId 由 HTTP 层登记（只有经 /api/chat 或 /retry 发起的运行才有）；渠道、工作流等内部运行没有。
@@ -2299,6 +2330,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (boardCardId())
       this.sessionCards.beginRun(session.sessionId, { runId: live.runId, startedAt })
     this.liveSessions.set(session.sessionId, live)
+    // 运行状态已建立：准备阶段标记交给 live 接管（同一次失效里切换，读者看不到“未运行”的空档）。
+    this.startingRuns.delete(session.sessionId)
     this.streamProjection.invalidate(session.sessionId)
     this.goalEmitters.set(session.sessionId, emit)
     this.runEmitters.set(session.sessionId, emit)

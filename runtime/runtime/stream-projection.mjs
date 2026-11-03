@@ -663,6 +663,7 @@ export class StreamProjection {
     cwd,
     sessions,
     liveSessions,
+    startingRuns = () => new Map(),
     sessionMeta,
     assetIndex,
     getAssetRevision,
@@ -688,6 +689,7 @@ export class StreamProjection {
     this.cwd = cwd
     this.sessions = sessions
     this.liveSessions = liveSessions
+    this.startingRuns = startingRuns
     this.sessionMeta = sessionMeta
     this.assetIndex = assetIndex
     this.getAssetRevision = getAssetRevision
@@ -1189,7 +1191,17 @@ export class StreamProjection {
   sessionStreaming(id) {
     const active = this.sessions().get(id)
     const live = this.liveSessions().get(id)
-    return Boolean(!active?.abortedAt && (active?.session?.isStreaming || live?.streaming))
+    return (
+      this.runPreparing(id) ||
+      Boolean(!active?.abortedAt && (active?.session?.isStreaming || live?.streaming))
+    )
+  }
+
+  // 已受理、还在准备（装配运行时等）且没被停止：对外就算运行中。不受上一轮遗留的 abortedAt 影响，
+  // 那个标记要等准备阶段拿到运行时之后才清除。
+  runPreparing(id) {
+    const starting = this.startingRuns().get(id)
+    return Boolean(starting && !starting.aborted)
   }
 
   liveToken(id, active, live, approvals, questions = []) {
@@ -1205,6 +1217,8 @@ export class StreamProjection {
       ...messageToken(messages),
       live,
       live?.streaming,
+      this.startingRuns().get(id),
+      this.startingRuns().get(id)?.aborted,
       this.sessionMeta()[id],
       approvals,
       approvals.length,
@@ -1219,7 +1233,11 @@ export class StreamProjection {
   async getSessionLive(id) {
     const active = this.sessions().get(id)
     if (active) this.touchSessionRuntime(active)
-    const live = this.liveSessions().get(id)
+    // 准备阶段只在这里判断一次：读页要 await，期间可能已交接给 live，前后两次判断会拼出“未运行”的快照。
+    // 准备阶段还没有本轮的 live：留着的是上一轮的（文本、工具、错误），不能当成本轮投影出去。
+    const starting = this.startingRuns().get(id)
+    const preparing = Boolean(starting && !starting.aborted)
+    const live = preparing ? undefined : this.liveSessions().get(id)
     const approvals = this.permissions.getPending(id)
     const questions = this.questions.getPending(id)
     // 历史读取期间可能继续入队；队列内容与修订号必须来自同一次同步快照。
@@ -1232,15 +1250,26 @@ export class StreamProjection {
     }
     const persisted = active ? null : await this.findSessionInfo(id)
     const page = await this.getSessionMessagePage(id, { limit: LIVE_MESSAGE_PAGE_SIZE })
-    const messages = page.messages
+    // 准备阶段刚发出的消息还没写进会话：先投影出来，开跑后由真实记录替换（内部消息不投影）。
+    const messages =
+      preparing && starting.message
+        ? [
+            ...page.messages,
+            {
+              id: `pending-${id}`,
+              role: 'user',
+              text: starting.message,
+              timestamp: starting.acceptedAt,
+            },
+          ]
+        : page.messages
     // Abort 先写入 abortedAt，避免引擎的异步 abort 尚未结束时继续向客户端投影运行中。
-    const streaming = Boolean(
-      !active?.abortedAt && (active?.session.isStreaming || live?.streaming),
-    )
+    const streaming =
+      preparing || Boolean(!active?.abortedAt && (active?.session.isStreaming || live?.streaming))
     // 停止请求会立即清除可见流，但 Pi 的异步 abort 仍可能尚未退出。
     // 模型和思考等级写入应等待与运行时校验相同的空闲条件。
     const configurationBusy = Boolean(
-      active?.runActive || active?.session?.isStreaming || live?.streaming,
+      preparing || active?.runActive || active?.session?.isStreaming || live?.streaming,
     )
     if (streaming && live) {
       const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
