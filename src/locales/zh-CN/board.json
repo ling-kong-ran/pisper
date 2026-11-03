@@ -393,6 +393,5 @@
   "question.otherPlaceholder": "写下你的回答",
   "question.skip": "跳过",
   "question.submit": "提交",
-  "question.answerNamed": "回答“{title}”：{option}",
-  "question.open": "打开回答"
+  "question.answerNamed": "回答“{title}”：{option}"
 }

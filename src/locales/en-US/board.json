@@ -402,6 +402,5 @@
   "question.otherPlaceholder": "Write your answer",
   "question.skip": "Skip",
   "question.submit": "Submit",
-  "question.answerNamed": "Answer “{title}”: {option}",
-  "question.open": "Open to answer"
+  "question.answerNamed": "Answer “{title}”: {option}"
 }
