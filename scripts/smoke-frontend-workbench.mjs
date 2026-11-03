@@ -995,29 +995,8 @@ try {
     await sidebarToggle.evaluate((button) => button === document.activeElement),
     'Sidebar expansion restores keyboard focus to the sidebar heading toggle',
   )
-  await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=welcome`)
-  const previousIdeas = reviewPage.getByRole('button', { name: '上一组任务', exact: true })
-  const nextIdeas = reviewPage.getByRole('button', { name: '下一组任务', exact: true })
-  await previousIdeas.waitFor({ timeout: 5000 })
-  assert.equal(await previousIdeas.isDisabled(), true)
-  const ideas = reviewPage.getByRole('region', { name: '试试这些任务', exact: true })
-  assert.equal(await ideas.getByRole('button', { name: '解释代码', exact: true }).count(), 1)
-  await nextIdeas.press('Enter')
-  await ideas.getByRole('button', { name: '制定计划', exact: true }).press('Enter')
-  assert.equal(
-    await reviewPage.getByRole('textbox', { name: 'Welcome draft' }).inputValue(),
-    '为以下目标制定清晰、可执行的计划：',
-  )
-  await nextIdeas.press('Enter')
-  assert.equal(await nextIdeas.isDisabled(), true)
-  await ideas.getByRole('button', { name: '查找问题', exact: true }).waitFor()
-  await previousIdeas.press('Enter')
-  assert.equal(await nextIdeas.isDisabled(), false)
+  // 欢迎页的“试试这些任务”已随旧启动台删除（release 0315250d）；后面的消息检查沿用手机宽度。
   await reviewPage.setViewportSize({ width: 390, height: 844 })
-  assert.equal(
-    await reviewPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    true,
-  )
   await reviewPage.goto(`http://127.0.0.1:${address.port}/__review?mode=message`)
   await reviewPage.evaluate(() => {
     window.__copiedReply = ''

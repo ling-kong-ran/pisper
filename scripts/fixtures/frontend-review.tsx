@@ -13,7 +13,6 @@ import { createContextPages } from '@/features/chat/session-context-pages'
 import { SkillsPage } from '@/features/skills/SkillsPage'
 import { ShellSidebar } from '@/app/ShellSidebar'
 import { PageHeader } from '@/components/layout/PageHeader'
-import QuickPromptIdeas from '@/features/chat/QuickPromptIdeas'
 import { FocusChatMessage } from '@/features/chat/ChatMessage'
 import { InterfaceSettings } from '@/features/config/InterfaceSettings'
 import { requestConfigCardHighlight, useConfigCardHighlight } from '@/features/config/config-search'
@@ -53,20 +52,6 @@ function MessageFixture() {
         onCreateChildSession={(id) => setAction(`child:${id}`)}
         onRetryLastTurn={() => setAction('retry')}
       />
-    </div>
-  )
-}
-
-function WelcomeFixture() {
-  const [draft, setDraft] = useState('')
-  return (
-    <div className="@container mx-auto w-full max-w-3xl p-4">
-      <textarea
-        aria-label="Welcome draft"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-      <QuickPromptIdeas plansAvailable onPromptSelect={setDraft} />
     </div>
   )
 }
@@ -144,8 +129,6 @@ function ReviewFixture() {
             <AppearanceFixture startFromModels={mode === 'appearance-navigation'} />
           ) : mode === 'message' ? (
             <MessageFixture />
-          ) : mode === 'welcome' ? (
-            <WelcomeFixture />
           ) : mode === 'navigation' ? (
             <NavigationFixture />
           ) : mode === 'snapshot' ? (
