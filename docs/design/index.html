@@ -1098,6 +1098,44 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </ul>
   </section>
 
+  <section aria-labelledby="new-folder-built-h">
+    <div class="sec-head">
+      <h2 id="new-folder-built-h">新任务 · 选择文件夹 / 新建文件夹</h2>
+      <p class="lede">新任务输入框的项目芯片菜单末尾多了两项：“选择文件夹…”交给系统文件管理器选一个已有文件夹，“新建文件夹…”在应用里填位置和名称、由 Runtime 建一个空文件夹；两者都登记为项目并选为这次任务的派发目标。拍法：开发服务器 + 隔离 Runtime，登记的项目是虚构路径（/home/me/Projects/…）；headless Chromium、1x、zh-CN，没有图形会话，所以“浏览…”退回手动填写。</p>
+    </div>
+    <h3>桌面（1440）</h3>
+    <div class="shots pairs">
+      <figure><button type="button" data-full="built/home-new-folder-menu-1440-light.png" aria-label="放大：实现：项目芯片菜单：不选项目 | 最近的项目（pisper、website、notes）| 选择文件夹…、新建文件夹…"><img src="built/home-new-folder-menu-1440-light.png" alt="实现：项目芯片菜单：不选项目 | 最近的项目（pisper、website、notes）| 选择文件夹…、新建文件夹…" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>项目菜单的两个新入口</figcaption></figure>
+      <figure><button type="button" data-full="built/home-new-folder-dialog-1440-light.png" aria-label="放大：实现：新建文件夹对话框：位置预填当前项目的上级目录 /home/me/Projects，右侧“浏览…”；名称 my-app；下方“将新建：/home/me/Projects/my-app”"><img src="built/home-new-folder-dialog-1440-light.png" alt="实现：新建文件夹对话框：位置预填当前项目的上级目录 /home/me/Projects，右侧“浏览…”；名称 my-app；下方“将新建：/home/me/Projects/my-app”" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>新建文件夹：位置 + 名称 + 预览路径</figcaption></figure>
+      <figure><button type="button" data-full="built/home-new-folder-dialog-1440-dark.png" aria-label="放大：实现：新建文件夹对话框（深色）"><img src="built/home-new-folder-dialog-1440-dark.png" alt="实现：新建文件夹对话框（深色）" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>新建文件夹（深色）</figcaption></figure>
+      <figure><button type="button" data-full="built/home-new-folder-error-1440-light.png" aria-label="放大：实现：点“浏览…”时系统文件管理器不可用，提示改为直接填写；名称 ../my-app 被 Runtime 拒绝，错误写出不允许的字符"><img src="built/home-new-folder-error-1440-light.png" alt="实现：点“浏览…”时系统文件管理器不可用，提示改为直接填写；名称 ../my-app 被 Runtime 拒绝，错误写出不允许的字符" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>无法打开文件管理器 + 名称不合法</figcaption></figure>
+      <figure><button type="button" data-full="built/home-new-folder-created-1440-light.png" aria-label="放大：实现：新建成功后项目芯片换成 my-app，菜单里 my-app 排在最近的项目第一位并选中，光标回到输入框"><img src="built/home-new-folder-created-1440-light.png" alt="实现：新建成功后项目芯片换成 my-app，菜单里 my-app 排在最近的项目第一位并选中，光标回到输入框" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>建好之后：直接成为派发目标</figcaption></figure>
+    </div>
+    <h3>手机（390）</h3>
+    <div class="shots phones">
+      <figure><button type="button" data-full="built/phone-new-folder-menu-light.png" aria-label="放大：实现：手机项目菜单：44 高的菜单项，末尾选择文件夹… / 新建文件夹…"><img src="built/phone-new-folder-menu-light.png" alt="实现：手机项目菜单：44 高的菜单项，末尾选择文件夹… / 新建文件夹…" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>手机项目菜单</figcaption></figure>
+      <figure><button type="button" data-full="built/phone-new-folder-dialog-light.png" aria-label="放大：实现：手机新建文件夹对话框：44 高的位置与名称输入框，“新建”与“取消”上下排列"><img src="built/phone-new-folder-dialog-light.png" alt="实现：手机新建文件夹对话框：44 高的位置与名称输入框，“新建”与“取消”上下排列" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>手机新建文件夹</figcaption></figure>
+    </div>
+    <h3>替你做的决定</h3>
+    <ul class="notes">
+      <li>原来的“新建项目…”在这个菜单里改叫“选择文件夹…”，和“新建文件夹…”并列时不再混淆；侧栏的“添加项目…”不变。</li>
+      <li>位置预填当前项目的上级目录（新文件夹与它并列）；不选项目时留空，由 Runtime 用默认工作目录。</li>
+      <li>只建一层：位置必须已经存在，名称不能含路径分隔符、..、Windows 不允许的字符与保留名；同名文件夹已存在时直接沿用，同名的是文件时报错。</li>
+      <li>配对设备也能新建（它们看不到主机的文件管理器）；旧 Runtime 没有 workspaceFolders 能力时菜单里不出现“新建文件夹…”。</li>
+      <li>系统文件管理器里同样可以新建文件夹：桌面壳在 macOS 上显式打开了这个按钮，Windows / Linux 的对话框本来就有。</li>
+    </ul>
+    <h3>未验证</h3>
+    <ul class="notes">
+      <li>桌面壳（Tauri）里的系统文件管理器、macOS / Windows / Linux 各自的“新建文件夹”按钮、Android / iOS 真机。</li>
+    </ul>
+  </section>
   <section aria-labelledby="phase-h">
     <div class="sec-head">
       <h2 id="phase-h">进度</h2>
