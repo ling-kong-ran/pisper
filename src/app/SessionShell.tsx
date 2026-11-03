@@ -33,7 +33,13 @@ import { useClientStore } from '@/stores/client-store'
 import type { AppRouteContext } from './route-context'
 import { useI18n } from './use-i18n'
 import { PhoneMenuButton } from './PhoneMenuButton'
-import { HOME_PATH, NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
+import {
+  HOME_DRAFT_STATE,
+  HOME_PATH,
+  NEW_SESSION_ROUTE_ID,
+  PAGE_PATHS,
+  sessionPath,
+} from './routes'
 import { forgetLastSession, rememberLastSession } from './session-home'
 
 export const SESSION_COMPACT_QUERY = '(max-width: 1279px), (max-height: 760px)'
@@ -114,6 +120,16 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
     () => ({ ...pageChrome, phone: { onNewTask: startNewTask } }),
     [pageChrome, startNewTask],
   )
+  // '/board/new'（旧链接、书签、navigate('session')）不再进入即建一个空会话——会话页不兼做新任务入口：
+  // 换回主页并显示新任务草稿（不落地上次停留的会话），新任务请求由草稿认领并聚焦输入框；
+  // 第一条消息发出时才建会话。
+  const newRoute = sessionId === NEW_SESSION_ROUTE_ID
+  useEffect(() => {
+    if (!newRoute) return
+    navigate(HOME_PATH, { replace: true, state: HOME_DRAFT_STATE })
+    startNewTask()
+  }, [navigate, newRoute, startNewTask])
+  if (newRoute) return null
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col"

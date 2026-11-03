@@ -31,6 +31,7 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // 会话主页：本设备上次停留的会话 id（进入真实会话时写入）。镜像只走本机 /api/local，远程监听返回 404，
   // 因此天然按设备记、不跨设备同步；读出时按不可信输入校验并限长（src/app/session-home.ts）。
   'pisper-last-session',
+  // 手机会话标签已随 A4 手机外壳退役（不再有读写方）；与上面的工具条键同理，留在白名单里兼容旧快照。
   'pisper-mobile-session-tabs',
   'pisper-terminal-panel',
   'pisper-model-onboarding-v1-dismissed',

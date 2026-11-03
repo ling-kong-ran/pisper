@@ -1,100 +1,43 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { access, readdir, readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const COMPONENTS = [
-  'AnimatedContent',
-  'AnimatedList',
-  'AsciiText',
-  'Aurora',
-  'BlurText',
-  'ClickSpark',
-  'ShinyText',
-  'SpotlightCard',
-  'TargetCursor',
-  'Threads',
-]
+// 只保留仍在用的两个 React Bits 组件：AnimatedList（运行活动卡片）与 ClickSpark（审批确认）。
+// 欢迎页的装饰动画（Aurora、AsciiText、ShinyText、TargetCursor 等）随欢迎页一起退役。
+const KEPT = ['AnimatedList.tsx', 'ClickSpark.tsx', 'react-bits.css']
 
-test('Pisper ships the selected lightweight React Bits components without another animation runtime', async () => {
-  const [index, styles, packageJson, asciiText, targetCursor] = await Promise.all([
-    readFile('src/components/react-bits/index.ts', 'utf8'),
+test('Pisper ships only the React Bits components it still renders', async () => {
+  const [files, styles, packageJson] = await Promise.all([
+    readdir('src/components/react-bits'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
     readFile('package.json', 'utf8'),
-    readFile('src/components/react-bits/AsciiText.tsx', 'utf8'),
-    readFile('src/components/react-bits/TargetCursor.tsx', 'utf8'),
   ])
-  for (const component of COMPONENTS) assert.match(index, new RegExp(`export \\{ ${component} \\}`))
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-  assert.match(styles, /\.rb-shiny-text/)
-  assert.match(styles, /-webkit-background-clip:\s*text/)
-  assert.match(styles, /-webkit-text-fill-color:\s*transparent/)
-  assert.match(
-    styles,
-    /@media \(pointer: coarse\)[\s\S]*?\.rb-shiny-text\s*\{[\s\S]*?-webkit-text-fill-color:\s*currentColor;[\s\S]*?animation:\s*none;/,
-  )
-  assert.match(styles, /\.rb-aurora/)
-  assert.match(styles, /\.rb-ascii-text/)
-  assert.match(styles, /\.rb-target-cursor/)
-  assert.match(styles, /\.rb-threads/)
-  assert.doesNotMatch(`${asciiText}\n${targetCursor}`, /gsap|ogl|three/)
-  assert.match(asciiText, /ResizeObserver/)
-  assert.doesNotMatch(asciiText, /requestAnimationFrame|setInterval/)
-  assert.match(targetCursor, /pointer: fine/)
+  assert.deepEqual([...files].sort(), [...KEPT].sort())
+  await assert.rejects(access('src/components/react-bits/index.ts'))
+  assert.match(styles, /\.rb-animated-list-item/)
+  assert.match(styles, /\.rb-click-spark-burst i/)
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.rb-click-spark-burst i/)
+  assert.doesNotMatch(styles, /rb-aurora|rb-ascii-text|rb-shiny-text|rb-target-cursor|rb-threads/)
   assert.equal(JSON.parse(packageJson).devDependencies.motion, '^12.42.2')
 })
 
 test('React Bits effects are lazy, CSS-owned, and preserve core UI fallbacks', async () => {
-  const [
-    focus,
-    welcome,
-    activity,
-    confirmation,
-    history,
-    composerBits,
-    main,
-    shinyText,
-    aurora,
-    appStyles,
-    bitsStyles,
-  ] = await Promise.all([
-    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
-    readFile('src/features/chat/WelcomeEffects.tsx', 'utf8'),
+  const [activity, confirmation, history, composerBits, main, bitsStyles] = await Promise.all([
     readFile('src/features/chat/AgentRunActivity.tsx', 'utf8'),
     readFile('src/components/ai-elements/confirmation.tsx', 'utf8'),
     readFile('src/features/chat/ChatHistoryPage.tsx', 'utf8'),
     readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
     readFile('src/main.tsx', 'utf8'),
-    readFile('src/components/react-bits/ShinyText.tsx', 'utf8'),
-    readFile('src/components/react-bits/Aurora.tsx', 'utf8'),
-    readFile('src/index.css', 'utf8'),
     readFile('src/components/react-bits/react-bits.css', 'utf8'),
   ])
-  assert.match(focus, /<WorkbenchGreeting \/>/)
-  assert.doesNotMatch(focus, /WelcomeEffects|WelcomeFallback|TargetCursor/)
-  const brand = await readFile('src/features/chat/WorkbenchGreeting.tsx', 'utf8')
-  assert.match(brand, /data-testid="workbench-greeting"/)
-  assert.match(brand, /aria-hidden="true"/)
-  assert.match(brand, /pointer-events-none/)
-  assert.doesNotMatch(brand, /<Aurora|<BlurText|<TargetCursor|setInterval/)
-  // Legacy optional effects remain quiet and isolated from the entry canvas.
-  assert.doesNotMatch(welcome, /<Aurora\s*\/>/)
   assert.match(activity, /import\('@\/components\/react-bits\/AnimatedList'\)/)
-  // Quiet Precision 不使用光泽、聚光与动态纹理：运行条文案、历史会话行和网页预览加载层保持静态。
-  assert.doesNotMatch(composerBits, /react-bits\/ShinyText/)
   assert.match(activity, /<Suspense fallback=\{activityCards\}>/)
   assert.match(activity, /<ActivityCard/)
   assert.match(confirmation, /import\('@\/components\/react-bits\/ClickSpark'\)/)
   assert.match(confirmation, /<Suspense fallback=\{action\}>/)
-  assert.doesNotMatch(history, /react-bits\/SpotlightCard/)
+  // Quiet Precision 不使用光泽、聚光与动态纹理：运行条文案、历史会话行保持静态。
+  assert.doesNotMatch(composerBits, /react-bits\//)
+  assert.doesNotMatch(history, /react-bits\//)
   assert.doesNotMatch(main, /react-bits\.css/)
-  assert.match(shinyText, /import '\.\/react-bits\.css'/)
-  assert.match(brand, /max-w-2xl/)
-  assert.match(brand, /text-foreground/)
-  assert.match(aurora, /rb-aurora[^"\n]*:root\[data-theme='light'\]/)
-
-  const auroraRule = bitsStyles.match(/\.rb-aurora i \{([^}]+)\}/)?.[1] || ''
-  assert.match(auroraRule, /radial-gradient/)
-  assert.doesNotMatch(auroraRule, /filter|mix-blend-mode|animation/)
-  assert.doesNotMatch(appStyles, /\.agent-welcome \.welcome-logo \.logo-star \{[^}]*animation/)
-  assert.doesNotMatch(bitsStyles, /\.rb-shiny-text \{[^}]*animation:[^;}]*infinite/)
+  assert.doesNotMatch(bitsStyles, /animation:[^;}]*infinite/)
 })

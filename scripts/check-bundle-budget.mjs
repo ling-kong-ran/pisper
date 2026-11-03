@@ -216,9 +216,9 @@ export function validateBundle(report, budgets = BUNDLE_BUDGETS) {
   // 依赖被重新引入时这里与下方的 eager 依赖图检查都会报出来。
   if (report.keyByName.has('vendor-dockview'))
     failures.push('retired split-view vendor must not be bundled')
-  const welcomeCss = report.manifest['src/features/chat/WelcomeEffects.tsx']?.css || []
-  if (welcomeCss.some((file) => file.includes('react-bits')))
-    failures.push('PI welcome must not load decorative React Bits CSS')
+  // 会话页的欢迎页与示例卡片已退役（新任务入口是主页草稿与派发浮层）：欢迎特效不应再被打包。
+  if (report.manifest['src/features/chat/WelcomeEffects.tsx'])
+    failures.push('retired welcome effects must not be bundled')
 
   const cycle = findStaticCycle(report.manifest)
   if (cycle) failures.push(`static chunk cycle: ${cycle.join(' -> ')}`)

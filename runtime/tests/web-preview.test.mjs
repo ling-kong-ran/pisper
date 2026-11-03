@@ -2,10 +2,6 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { normalizeWebPreviewInput, shouldOpenWebPreview } from '../../src/lib/web-preview.ts'
-import {
-  WEB_PREVIEW_PANEL_ID,
-  webPreviewPanelTitle,
-} from '../../src/features/chat/web-preview-panel.ts'
 import { openWebPreviewInSessionContext } from '../../src/features/chat/session-web-preview.ts'
 import { useContextPagesStore } from '../../src/features/chat/session-context-pages-store.ts'
 import { previewSessionTarget } from '../../src/app/web-preview-target.ts'
@@ -49,8 +45,6 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
     'https://example.com/',
   )
   assert.equal(normalizeWebPreviewInput('javascript:alert(1)', 'http://127.0.0.1:5173/chat'), null)
-  assert.equal(WEB_PREVIEW_PANEL_ID, 'web-preview')
-  assert.equal(webPreviewPanelTitle('https://www.reactbits.dev/docs'), 'reactbits.dev')
 })
 
 test('application routes external links into the session inspector web preview', async () => {

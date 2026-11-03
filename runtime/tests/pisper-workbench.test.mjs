@@ -1,54 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile as readFileRaw } from 'node:fs/promises'
-import {
-  greetingPeriod,
-  nextGreetingDelay,
-  greetingFontSize,
-} from '../../src/features/chat/workbench-greeting.ts'
 
 const readFile = async (path, options) => (await readFileRaw(path, options)).replace(/\r\n?/g, '\n')
-
-const at = (hour, minute = 0, second = 0) => new Date(2026, 8, 25, hour, minute, second)
-
-test('Pisper greeting changes exactly at each local time boundary', () => {
-  for (const [hour, expected] of [
-    [0, 5],
-    [4, 5],
-    [5, 0],
-    [8, 0],
-    [9, 1],
-    [11, 1],
-    [12, 2],
-    [13, 2],
-    [14, 3],
-    [17, 3],
-    [18, 4],
-    [22, 4],
-    [23, 5],
-  ]) {
-    assert.equal(greetingPeriod(at(hour)), expected, `hour ${hour}`)
-  }
-  assert.equal(nextGreetingDelay(at(8, 59, 59)), 1000)
-  assert.equal(nextGreetingDelay(at(9)), 3 * 60 * 60 * 1000)
-  assert.equal(nextGreetingDelay(at(23)), 6 * 60 * 60 * 1000)
-  assert.equal(nextGreetingDelay(at(23, 59, 59)), 5 * 60 * 60 * 1000 + 1000)
-})
-
-test('Pisper greeting font measurement remains bounded and tolerates hidden containers', () => {
-  assert.equal(greetingFontSize(600, 300), 30)
-  assert.equal(greetingFontSize(240, 300), 24)
-  assert.equal(greetingFontSize(80, 300), 20)
-  for (const [width, natural] of [
-    [0, 0],
-    [-1, 300],
-    [300, 0],
-    [NaN, 300],
-    [300, Infinity],
-  ]) {
-    assert.equal(greetingFontSize(width, natural), 30)
-  }
-})
 
 test('Pisper shell separates global navigation from task tools and keeps capability filtering', async () => {
   const [app, focus, palette, more] = await Promise.all([
@@ -107,7 +61,8 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   // 旧的“新会话”入口（历史页页头）随 A6 退役：外壳只剩派发对话框一条新建路径，不再就地发创建事件。
   assert.doesNotMatch(app, /requestSessionCreation\(''\)/)
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)
-  assert.match(focus, /<QuickPromptIdeas/)
+  // 会话页不再兼做新任务入口：没有问候语与示例卡片（见 legacy-ui-retirement）。
+  assert.doesNotMatch(focus, /QuickPromptIdeas|WorkbenchGreeting/)
   // 审批模式与执行方式在输入框的盾牌芯片里（规格 v2 第 2.5 节）。
   assert.match(focus, /<ComposerModeChip/)
   // 命令面板与“更多”只列出 Runtime 未裁剪的页面；壳层兜底把不可用页面送回主页

@@ -9,7 +9,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { i18n } from '../../src/app/i18n.ts'
 import { boardMessages } from '../../src/app/board-messages.ts'
 import AgentRunActivity from '../../src/features/chat/AgentRunActivity.tsx'
-import { steerBindingFor } from '../../src/features/chat/composer-run-input.ts'
 import {
   intralineRange,
   parseUnifiedDiff,
@@ -109,14 +108,6 @@ test('code block file names come from the fence info and are clipped display tex
   assert.equal(codeBlockFileName('language-ts', 'showLineNumbers'), '')
   assert.equal(codeBlockFileName('language-ts', `file=${'a/'.repeat(200)}x.ts`).length, 160)
   assert.equal(codeBlockFileName('language-ts', 'title="a\u0007b.ts"'), 'ab.ts')
-})
-
-test('running input queues with the send key and steers with Alt added to it', () => {
-  assert.equal(steerBindingFor('Enter'), 'Alt+Enter')
-  assert.equal(steerBindingFor('Mod+Enter'), 'Mod+Alt+Enter')
-  assert.equal(steerBindingFor('Mod+Shift+Enter'), 'Mod+Alt+Shift+Enter')
-  assert.equal(steerBindingFor('Alt+Enter'), null)
-  assert.equal(steerBindingFor(''), null)
 })
 
 test('session composer wiring: ↵ follows up, ⌥↵ steers, Esc stops without navigating', async () => {

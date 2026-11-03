@@ -169,7 +169,7 @@ test('workbench bundle rejects split-view code and decorative welcome styles', (
 
   const failures = validateBundle(report)
   assert.ok(failures.includes('retired split-view vendor must not be bundled'))
-  assert.ok(failures.includes('PI welcome must not load decorative React Bits CSS'))
+  assert.ok(failures.includes('retired welcome effects must not be bundled'))
 })
 
 test('native component host code and htm never enter the entry closure', () => {

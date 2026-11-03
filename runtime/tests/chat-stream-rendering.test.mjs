@@ -210,8 +210,9 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.match(message, /message-content[\s\S]*message\.role === 'agent'[\s\S]*'w-full'/)
   assert.match(message, /agent-message-mark/)
   assert.match(message, /data-state=\{agentState\}/)
-  assert.match(transcript, /<WorkbenchGreeting \/>/)
-  assert.doesNotMatch(transcript, /WelcomeEffects|WelcomeFallback/)
+  // 空会话只给一句空状态（会话页不兼做新任务入口），没有问候语与欢迎特效。
+  assert.match(transcript, /<InlineEmptyState\s+compact/)
+  assert.doesNotMatch(transcript, /WorkbenchGreeting|WelcomeEffects|WelcomeFallback/)
 })
 
 test('composer actions distinguish sending, steering, preparing and blocked states', () => {
@@ -465,7 +466,6 @@ test('shared plan board opens from the composer progress metric', async () => {
   // （InspectorPlan 沿用 PlanBoard）；输入区不再有计划读数，也不直接渲染 PlanBoard。
   const inspectorPlan = await readFile('src/features/chat/InspectorPlan.tsx', 'utf8')
   assert.match(inspectorPlan, /<PlanBoard plan=\{plan\} \/>/)
-  assert.match(session, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.doesNotMatch(session, /PlanBoard|plan-board-dock|SessionUsageMetrics/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
   assert.doesNotMatch(controls, /PlanBoard|session-plan-progress/)
@@ -502,10 +502,9 @@ test('bash tool output stays multiline in a bounded theme-aware result block', a
 })
 
 test('chat keeps hidden panels and continuous canvas work out of the renderer', async () => {
-  const [dock, dispatcher, ascii] = await Promise.all([
+  const [dock, dispatcher] = await Promise.all([
     readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/stream-event-dispatch.ts', 'utf8'),
-    readFile('src/components/react-bits/AsciiText.tsx', 'utf8'),
   ])
   // A4 起没有分屏面板：聊天页只挂当前会话一个 SessionPanel（按会话 key 重挂），别的会话不渲染，
   // 加载消息 / 思考状态的 effect 也只为它运行。
@@ -513,6 +512,4 @@ test('chat keeps hidden panels and continuous canvas work out of the renderer', 
   assert.equal(dock.match(/<SessionPanel\b/g)?.length, 1)
   assert.match(dock, /if \(sessionId\) void loadMessages\?\.\(sessionId/)
   assert.match(dispatcher, /tools: pushCurrentActivity\(current\.tools, activity\)/)
-  assert.match(ascii, /new ResizeObserver\(draw\)/)
-  assert.doesNotMatch(ascii, /requestAnimationFrame|setInterval/)
 })

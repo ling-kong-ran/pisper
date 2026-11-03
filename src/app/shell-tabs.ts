@@ -3,7 +3,7 @@
 // 规格 v2 第 2.4、7.1 节：桌面标题栏的标签与手机底部标签栏都已退役，一级入口在侧栏 / 抽屉里；
 // “组件”不是一级入口，组件工作室归“功能”点亮。
 // 主页是会话（负责人决定）：“会话”的去向是主页 '/'（上次停留的会话或新任务草稿），
-// 不是 PAGE_PATHS.session（'/board/new' 进入即新建会话）。
+// 不是 PAGE_PATHS.session（'/board/new' 会换回主页并发起新任务）。
 import { MORE_PAGES } from '@/app/more-pages'
 import { HOME_PATH, pageFromPath, SETTINGS_LIST_PATH, type PageId } from '@/app/routes'
 

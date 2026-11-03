@@ -1,11 +1,11 @@
 // 会话主页（'/'，负责人决定“会话做主页”）：打开本设备上次停留的会话；它不存在、已归档或已删除时显示
 // “新任务”草稿（会话页外壳 + 空转录 + 输入框），发出第一条消息时才建会话并以 replace 换成 /board/:id。
-// 主页本身从不建会话（/board/new 一进入就建，主页回落不走那条路）。会话目录还在加载时显示加载态，
+// 主页本身从不建会话（'/board/new' 也只是换回主页并发起新任务）。会话目录还在加载时显示加载态，
 // 不把上次会话误判为不存在；目录读取失败时给出错误态与重试，不静默回落。
 // 从主页落地的会话带 HOME_ENTRY_STATE：它是根，手机原生返回交还平台（见 shell-tabs.shellBackPath）。
 // 本模块随会话路由懒加载，不进入入口包。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { NewTaskDraft } from '@/features/board/session-strip'
 import { usePhoneShell, useTabletApp } from '@/hooks/usePhoneShell'
 import { PhoneMenuButton } from './PhoneMenuButton'
 import type { AppRouteContext } from './route-context'
-import { HOME_ENTRY_STATE, sessionPath } from './routes'
+import { HOME_ENTRY_STATE, isHomeDraftRequest, sessionPath } from './routes'
 import { homeLanding, readLastSession } from './session-home'
 
 export function SessionHome({ context }: { context: AppRouteContext }) {
@@ -26,7 +26,9 @@ export function SessionHome({ context }: { context: AppRouteContext }) {
   // 落地时读一次：草稿期间别处写入的新记录不应把主页从草稿拽走。
   const [lastId] = useState(readLastSession)
   // 目录读取失败时用户可以明确选择直接开始新任务（不是静默回落）。
-  const [draftChosen, setDraftChosen] = useState(false)
+  // '/board/new' 换回主页时带着草稿请求：这次直接显示新任务草稿。
+  const location = useLocation()
+  const [draftChosen, setDraftChosen] = useState(() => isHomeDraftRequest(location.state))
   const sessions = useSessionListQuery()
   const landing = draftChosen
     ? ({ kind: 'draft' } as const)

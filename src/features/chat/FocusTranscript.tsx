@@ -13,6 +13,7 @@ import { ArrowDown, ChevronRight, GitFork, RefreshCw } from 'lucide-react'
 import { sessionPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { BrandLogo } from '@/components/BrandLogo'
+import { InlineEmptyState } from '@/components/app/PageState'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { cn } from '@/lib/utils'
@@ -28,7 +29,6 @@ import {
 import { activityScrollVersion } from './run-activity'
 import { earlierTurnSummary } from './transcript-turns'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
-import { WorkbenchGreeting } from './WorkbenchGreeting'
 import { useContextPagesStore } from './session-context-pages-store'
 
 import { Button } from '@/components/ui/button'
@@ -503,9 +503,14 @@ export function FocusTranscript({
         {transcriptLoadState === 'ready' &&
           !messages.length &&
           (emptyState ?? (
-            <div className="agent-welcome relative grid min-h-full place-content-center justify-items-center text-center text-muted-foreground [[data-mobile-keyboard='open']_&]:pointer-events-none [[data-mobile-keyboard-transition='opening']_&]:pointer-events-none [[data-mobile-keyboard-transition='closing']_&]:pointer-events-none">
-              <WorkbenchGreeting />
-            </div>
+            // 会话页不再兼做“发起新任务”的入口（新任务在主页草稿与派发浮层）：空会话只说明没有消息，
+            // 输入框照常在底部。
+            <InlineEmptyState
+              compact
+              className="min-h-full"
+              title={t('chat:focusSession.emptyTitle')}
+              description={t('chat:focusSession.emptyDescription')}
+            />
           ))}
         {transcriptLoadState === 'ready' && messages.length > 0 && (
           <div className="[animation:transcript-reveal-enter_.22s_var(--ease-out)_both]">

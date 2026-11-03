@@ -209,3 +209,62 @@ test('tabs and segmented controls share one look', async () => {
   }
   assert.doesNotMatch(tabs, /h-8\.5/)
 })
+
+test('the session page no longer doubles as a new-task launcher', async () => {
+  // 会话页的欢迎页（问候语 + 居中输入框 + “试试这些任务”示例卡片）是旧启动台的遗留：新任务入口是
+  // 主页草稿与派发浮层，空会话只给一句空状态；'/board/new' 换回主页并发起新任务，不再先建空会话。
+  for (const retired of [
+    'src/features/chat/QuickPromptIdeas.tsx',
+    'src/features/chat/WorkbenchGreeting.tsx',
+    'src/features/chat/workbench-greeting.ts',
+    'src/features/chat/WelcomeEffects.tsx',
+    'src/features/chat/welcome-brand.tsx',
+    'src/assets/pisper-empty-dark.svg',
+  ])
+    await assert.rejects(access(retired), undefined, `${retired} must stay removed`)
+
+  const files = await sourceFiles('src')
+  const sources = await Promise.all(files.map(async (file) => [file, await readFile(file, 'utf8')]))
+  const offenders = sources
+    .filter(([, source]) =>
+      /QuickPromptIdeas|WorkbenchGreeting|agent-welcome|requestSessionCreation|SESSION_CREATE_REQUESTED_EVENT/.test(
+        source,
+      ),
+    )
+    .map(([file]) => file)
+  assert.deepEqual(offenders, [])
+
+  const [transcript, shell] = await Promise.all([
+    readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
+    readFile('src/app/SessionShell.tsx', 'utf8'),
+  ])
+  assert.match(transcript, /<InlineEmptyState\s+compact/)
+  assert.match(
+    shell,
+    /if \(!newRoute\) return\s+navigate\(HOME_PATH, \{ replace: true, state: HOME_DRAFT_STATE \}\)\s+startNewTask\(\)/,
+  )
+})
+
+test('feature and app modules are all reachable from another source file', async () => {
+  // 退役界面要连同模块一起删掉，不留“没人引用、只剩测试在读”的文件（基础组件与注册表组件除外）。
+  const files = (await sourceFiles('src')).filter(
+    (file) =>
+      /^src\/(features|app|components|hooks|lib|stores)\//.test(file.split(path.sep).join('/')) &&
+      !/^src\/components\/(ui|ai-elements)\//.test(file.split(path.sep).join('/')) &&
+      !file.endsWith('.d.ts'),
+  )
+  const all = await sourceFiles('src')
+  const sources = await Promise.all(all.map(async (file) => [file, await readFile(file, 'utf8')]))
+  const unreachable = files.filter((file) => {
+    const normalized = file.split(path.sep).join('/')
+    const base = normalized.replace(/\.(tsx?)$/, '')
+    const name = base.split('/').pop()
+    const alias = base.replace(/^src\//, '@/')
+    const escaped = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const reference = new RegExp(
+      `['"\`](${escaped(alias)}|\\.{1,2}/(?:[^'"\`]*/)?${escaped(name)})(?:\\.tsx?)?['"\`]`,
+    )
+    return !sources.some(([other, source]) => other !== file && reference.test(source))
+  })
+  assert.deepEqual(unreachable, [])
+})

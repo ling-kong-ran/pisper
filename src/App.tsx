@@ -589,23 +589,15 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   }, [])
 
   // 页面导航：只接受已知页面 id（防硬编码跳转），跳转同时清空搜索词。
-  // navigate('chat') 是旧调用方的兼容垫片：先 requestSessionSelection(id) / requestSessionCreation()
-  // 再 navigate('chat')。会话路由已挂载时请求已被它就地处理；否则（含主页）按待处理意图去 '/board/:id'、
-  // '/board/new'（新建），没有意图时回到主页（会话）。
+  // navigate('chat') 是旧调用方的兼容垫片：先 requestSessionSelection(id) 再 navigate('chat')。
+  // 会话路由已挂载时请求已被它就地处理；否则（含主页）有待打开的会话就去 '/board/:id'，没有时回到主页。
   const navigate = useCallback(
     (next: string, options?: NavigateOptions) => {
       if (!PAGE_IDS.has(next) || !runtimePageAvailable(capabilities, next)) return
       if (next === 'chat') {
         if (!sessionRouteMounted) {
           const intent = peekSessionNavigationIntent()
-          routerNavigate(
-            intent?.type === 'create'
-              ? sessionPath()
-              : intent?.type === 'open'
-                ? sessionPath(intent.sessionId)
-                : HOME_PATH,
-            options,
-          )
+          routerNavigate(intent ? sessionPath(intent.sessionId) : HOME_PATH, options)
         }
       } else routerNavigate(pagePath(next), options)
       setQuery('')
@@ -811,14 +803,14 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     return data.sessions?.find((session) => session.id === sessionId)?.cwd || ''
   }, [])
 
-  // 使用资源：把资源（附件）标记为待投递到活动会话并打开该会话；
-  // 没有活动会话时新建一个，由新会话的输入框接收。
+  // 使用资源：把资源（附件）标记为待投递到活动会话并打开该会话；本设备还没有活动会话时回到主页
+  // （上次停留的会话或新任务草稿），资源留给接下来打开的会话输入框，不再为它先建一个空会话。
   const useAsset = useCallback(
     (asset: ChatAttachment) => {
       const targetSessionId = pageStateStorage.getItem(STORAGE_KEYS.activeSession) || ''
       setPendingAsset({ asset, targetSessionId })
       if (targetSessionId) openSession(targetSessionId)
-      else routerNavigate(sessionPath())
+      else routerNavigate(HOME_PATH)
     },
     [openSession, routerNavigate],
   )

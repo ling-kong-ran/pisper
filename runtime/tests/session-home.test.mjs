@@ -39,7 +39,7 @@ test('the home route is the session page: / belongs to the session tab and unkno
   assert.equal(pageFromPath('/board/abc'), 'session')
   assert.equal(pagePath('unknown'), HOME_PATH)
   assert.equal(pagePath('board'), '/board')
-  // ⌘N / “新任务”与 /board/new 的进入即新建不变；主页不是它。
+  // ⌘N / “新任务”的去向不变；'/board/new' 只是换回主页并发起新任务（不再先建会话），主页不是它。
   assert.equal(pagePath('session'), '/board/new')
   assert.equal(sessionPath(), '/board/new')
   // 旧的 #chat 仍经 /chat 兼容入口（路由层重定向到主页），#session 不能借启动悄悄建会话。

@@ -83,19 +83,16 @@ test('desktop terminal reattaches its cached renderer without taking ownership o
 })
 
 test('desktop terminal resources retain original task scope while views select the current task', async () => {
-  const [app, panel, registry, scope] = await Promise.all([
+  const [app, panel, registry] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/terminal/TerminalPanel.tsx', 'utf8'),
     readFile('src/features/terminal/terminal-registry.ts', 'utf8'),
-    readFile('src/features/terminal/terminal-session-scope.ts', 'utf8'),
   ])
   assert.match(app, /<TerminalProvider bridge=\{window\.pisperDesktop\}/)
   assert.match(app, /activeSessionId=\{activeSessionId\}/)
   assert.match(app, /resolveSessionCwd=\{resolveSessionCwd\}/)
   assert.match(panel, /record\.sessionId === activeSessionId \|\| record\.orphaned/)
   assert.match(registry, /sessionId: string/)
-  assert.match(scope, /terminal\.sessionId === activeSessionId/)
-  assert.doesNotMatch(scope, /sessionId: fallbackSessionId/)
   assert.doesNotMatch(panel, /terminalClose/)
 })
 

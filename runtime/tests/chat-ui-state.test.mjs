@@ -329,11 +329,10 @@ test('workspace groups create chats with their exact working directory', async (
     launchConsole,
     /next === NO_PROJECT_VALUE \? \{ projectless: true \} : \{ cwd: next \}/,
   )
-  assert.match(storage, /sessionCreateRequest: 'pisper-session-create-request'/)
-  assert.match(events, /localStorage\.setItem\(STORAGE_KEYS\.sessionCreateRequest/)
-  assert.match(events, /localStorage\.removeItem\(STORAGE_KEYS\.sessionCreateRequest\)/)
-  assert.match(chatPage, /addEventListener\(SESSION_CREATE_REQUESTED_EVENT, createRequested\)/)
-  assert.match(chatPage, /createSession\(request\.cwd\)/)
+  // 自动创建请求（requestSessionCreation → 会话页消费）已没有调用方，随 '/board/new' 不再建会话一起退役。
+  assert.doesNotMatch(storage, /sessionCreateRequest/)
+  assert.doesNotMatch(events, /sessionCreateRequest|requestSessionCreation/)
+  assert.doesNotMatch(chatPage, /SESSION_CREATE_REQUESTED_EVENT|consumeSessionCreationRequest/)
   assert.match(
     catalog,
     /createSessionRecord = useCallback\(\s*\(cwd = '', \{ inheritRecentCwd = true \}: CreateSessionOptions = \{\}\) =>/,
@@ -366,9 +365,4 @@ test('the chat composer exposes the global command palette shortcut', async () =
   assert.doesNotMatch(focus, /command-palette-trigger|requestCommandPalette/)
   assert.equal(english['focusSession.openCommandPaletteShortcut'], undefined)
   assert.equal(chinese['focusSession.openCommandPaletteShortcut'], undefined)
-})
-
-test('the git changes badge uses the theme-aware contrasting text color', async () => {
-  const controls = await readFile('src/features/chat/GitChangesControl.tsx', 'utf8')
-  assert.match(controls, /git-changes-trigger[^"\n]*\[&_>_i\]:text-\[var\(--on-accent\)\]/)
 })

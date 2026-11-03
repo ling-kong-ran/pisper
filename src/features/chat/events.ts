@@ -1,5 +1,5 @@
 // @public 聊天领域对应用壳和其他 Feature 提供的事件契约；不加载聊天页面。
-// 会话事件总线：用 window CustomEvent 在应用内广播会话选择/创建/更新等
+// 会话事件总线：用 window CustomEvent 在应用内广播会话选择/更新等
 // 事件。请求同时写入 localStorage（跨页面/重启持久），供壳层与其他
 // 会话面板消费；consum 函数取出即删，避免重复处理。
 import { STORAGE_KEYS } from '@/app/storage'
@@ -13,7 +13,6 @@ import {
 export const TASK_VIEW_WILL_CHANGE = 'pisper:task-view-will-change'
 export const SESSION_NAVIGATION_WILL_CHANGE = 'pisper:session-navigation-will-change'
 export const SESSION_SELECTED_EVENT = 'pisper:session-selected'
-export const SESSION_CREATE_REQUESTED_EVENT = 'pisper:session-create-requested'
 export const ACTIVE_SESSION_CHANGED_EVENT = 'pisper:active-session-changed'
 export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
@@ -31,32 +30,6 @@ export type SessionOrganizationUpdate = {
   needsAttention: boolean
   attentionReason: 'approval' | 'failure' | null
 }
-// 会话创建请求：cwd 可为空串（默认工作区）；prompt 存在时创建后自动发送
-//（如视觉生成卡片的「试试示例」一键体验）。
-export type SessionCreateRequest = { cwd: string; prompt?: string }
-
-// 校验/归一化会话创建请求：cwd 必须是字符串（允许空串），prompt 取非空文本。
-function normalizeSessionCreateRequest(value: unknown): SessionCreateRequest | null {
-  if (!value || typeof value !== 'object') return null
-  const { cwd, prompt } = value as Partial<SessionCreateRequest>
-  if (cwd !== undefined && typeof cwd !== 'string') return null
-  const normalizedPrompt = typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
-  return {
-    cwd: typeof cwd === 'string' ? cwd : '',
-    ...(normalizedPrompt ? { prompt: normalizedPrompt } : {}),
-  }
-}
-
-// 解析持久化的创建请求（JSON 解析失败返回 null）。
-function parseSessionCreateRequest(raw: string | null): SessionCreateRequest | null {
-  if (!raw) return null
-  try {
-    return normalizeSessionCreateRequest(JSON.parse(raw))
-  } catch {
-    return null
-  }
-}
-
 // 解析“消息定位目标”（会话+条目），两个字段都必须是字符串。
 function parseSessionMessageTarget(raw: string | null): SessionMessageTarget | null {
   if (!raw) return null
@@ -90,23 +63,6 @@ export function takeCommandPaletteQuery() {
 export type SessionCommand = 'tree' | 'side-chat'
 export function requestSessionCommand(command: SessionCommand) {
   window.dispatchEvent(new CustomEvent(SESSION_COMMAND_EVENT, { detail: command }))
-}
-
-// 请求创建会话（带工作目录与可选的自动发送提示词）：持久化请求并广播；
-// 请求非法时返回 false 表示未触发。
-export function requestSessionCreation(cwd: string, prompt?: string) {
-  const request = normalizeSessionCreateRequest({ cwd, prompt })
-  if (!request) return false
-  localStorage.setItem(STORAGE_KEYS.sessionCreateRequest, JSON.stringify(request))
-  window.dispatchEvent(new CustomEvent(SESSION_CREATE_REQUESTED_EVENT, { detail: request }))
-  return true
-}
-
-// 消费创建请求（取出即删），用于跨页面/重启后补建会话。
-export function consumeSessionCreationRequest() {
-  const request = parseSessionCreateRequest(localStorage.getItem(STORAGE_KEYS.sessionCreateRequest))
-  localStorage.removeItem(STORAGE_KEYS.sessionCreateRequest)
-  return request
 }
 
 // 请求选中/打开会话：写 activeSession + 打开请求 +（可选）消息定位目标，
@@ -154,12 +110,8 @@ export function consumeSessionSelectionRequest() {
   return request
 }
 
-// 只读查看待处理的会话意图（不消费）：应用壳的 navigate('chat') 兼容垫片据此决定去会话页还是看板。
-// 创建请求优先于打开请求，与聊天页挂载时的处理顺序一致。
-export function peekSessionNavigationIntent():
-  { type: 'create' } | { type: 'open'; sessionId: string } | null {
-  if (parseSessionCreateRequest(localStorage.getItem(STORAGE_KEYS.sessionCreateRequest)))
-    return { type: 'create' }
+// 只读查看待处理的会话意图（不消费）：应用壳的 navigate('chat') 兼容垫片据此决定去会话页还是主页。
+export function peekSessionNavigationIntent(): { type: 'open'; sessionId: string } | null {
   const request = parseSessionOpenRequest(localStorage.getItem(STORAGE_KEYS.sessionOpenRequest))
   return request ? { type: 'open', sessionId: request.sessionId } : null
 }

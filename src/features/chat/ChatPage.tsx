@@ -25,12 +25,7 @@ import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
 import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
-import {
-  SESSION_CREATE_REQUESTED_EVENT,
-  consumeSessionCreationRequest,
-  consumeSessionSelectionRequest,
-  subscribeSessionBranchChanges,
-} from './events'
+import { consumeSessionSelectionRequest, subscribeSessionBranchChanges } from './events'
 import { SessionRouteLeading } from './session-route-chrome'
 import { SessionPageChromeContext, type SessionPageChrome } from './session-workspace-context'
 import { openWebPreviewInSessionContext } from './session-web-preview'
@@ -44,7 +39,7 @@ import {
 import { applySessionTreeResponse } from './session-tree-summary'
 import type { SideChatRuntime } from './side-chat-context'
 
-// 会话页路由里的保留段：进入后新建会话，再以 replace 换成真实 id（与 '/workflows/new' 同理）。
+// 会话页路由里的保留段 '/board/new'：会话外壳把它换回主页并发起新任务，这里只是不把它当成会话 id。
 const NEW_SESSION_ROUTE_ID = 'new'
 const FOCUS_MESSAGE_PAGE_SIZE = 40
 
@@ -260,37 +255,6 @@ export function ChatPage({
   })
   const { sendPrompt, retryLastTurn } = promptCommands
 
-  // 处理会话创建请求（可携带自动发送的提示词，如视觉生成卡片的「试试示例」）：
-  // 事件监听 + localStorage 持久化，跨页面跳转/重启后挂载时也会补建。
-  // 路由停在 '/board/new' 且没有待处理的创建请求时（直接打开或刷新该地址），新建一个空会话；
-  // 每次进入 'new' 只建一次，创建完成后路由以 replace 换成真实 id。
-  // 会话页等目录首载完成再建：否则首载快照会覆盖刚合并的新会话，页面误报“找不到这个会话”。
-  const newRouteHandledRef = useRef(false)
-  const awaitingNewRoute = routeMode && routeSessionId === NEW_SESSION_ROUTE_ID
-  const routeCatalogLoading = routeMode && catalog.loading
-  useEffect(() => {
-    if (!awaitingNewRoute) newRouteHandledRef.current = false
-  }, [awaitingNewRoute])
-  useEffect(() => {
-    if (routeCatalogLoading) return
-    const consumeCreateRequest = () => {
-      const request = consumeSessionCreationRequest()
-      if (!request) return false
-      if (awaitingNewRoute) newRouteHandledRef.current = true
-      void (async () => {
-        const sessionId = await createSession(request.cwd)
-        if (sessionId && request.prompt) void sendPrompt(request.prompt, sessionId)
-      })()
-      return true
-    }
-    const createRequested = () => void consumeCreateRequest()
-    window.addEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-    if (!consumeCreateRequest() && awaitingNewRoute && !newRouteHandledRef.current) {
-      newRouteHandledRef.current = true
-      void createSession()
-    }
-    return () => window.removeEventListener(SESSION_CREATE_REQUESTED_EVENT, createRequested)
-  }, [awaitingNewRoute, createSession, routeCatalogLoading, sendPrompt])
   const sessionCommands = useSessionCommands({
     notify,
     requestText,

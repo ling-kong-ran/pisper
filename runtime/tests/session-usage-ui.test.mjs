@@ -22,7 +22,6 @@ test('session usage stays scoped to each dock panel and updates over SSE', async
   assert.match(dock, /loadThinkingLevel/)
   // 用量在模型芯片弹层的用量段里（规格 v2 第 2.5 节），按会话取自 sessionUsage。
   assert.match(focus, /<ContextUsageSection[\s\S]*?sessionUsage=\{sessionUsage\}[\s\S]*?\/>/)
-  assert.match(focus, /runtimeFeatureAvailable\(capabilities, 'plans'\)/)
   assert.match(dispatch, /event === 'session_usage'/)
   assert.match(dispatch, /sessionUsage: data/)
   assert.match(sync, /sessionUsage: data\.sessionUsage \?\? current\.sessionUsage \?\? null/)

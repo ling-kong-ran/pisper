@@ -14,16 +14,7 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // use-focus-composer，输入区小组件（托盘/资源芯片/发送键）在 focus-session-composer-bits，
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
-import {
-  lazy,
-  memo,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-} from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
@@ -86,8 +77,6 @@ import {
 } from '@/lib/shortcuts'
 
 export type { FocusSessionProps }
-
-const QuickPromptIdeas = lazy(() => import('./QuickPromptIdeas'))
 
 // Esc 先交给打开的菜单、弹层、对话框（与 BackNavigation 同一判定），它们都关着才轮到“停止运行”。
 // 弹层包括 Radix 的 Popover（盾牌芯片、模型芯片）与锚定弹层（/ 命令菜单）。
@@ -200,7 +189,6 @@ export const FocusSession = memo(function FocusSession({
   const capabilities = useRuntimeCapabilitiesStore((state) => state.capabilities)
   const goalsAvailable = runtimeFeatureAvailable(capabilities, 'goals')
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
-  const plansAvailable = runtimeFeatureAvailable(capabilities, 'plans')
   const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const visualAvailable = runtimeFeatureAvailable(capabilities, 'visualGeneration')
   const { value, updateValue, selection, clearDraft, restoreDraft, captureSubmission } =
@@ -244,7 +232,6 @@ export const FocusSession = memo(function FocusSession({
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
-  const centeredWelcome = !hasConversation
   // 占位文字（规格 v2 第 4.3 节）：空闲“回复代理，或用 / 调用命令”；运行中把排队 / 插话的按法
   // 写进占位文字（原来工具条上的“↵ 排队 · ⌥↵ 插话”提示退役）。触屏没有 ⌥：点发送排队，长按插话。
   const composerPlaceholder = streaming
@@ -1012,28 +999,18 @@ export const FocusSession = memo(function FocusSession({
           </div>
         </div>
       </div>
-      {!hasConversation && !streaming && (
-        <Suspense fallback={null}>
-          <QuickPromptIdeas plansAvailable={plansAvailable} onPromptSelect={applyWelcomeChip} />
-        </Suspense>
-      )}
     </form>
   )
   return (
     <Panel
       className={cn(
         `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
-        centeredWelcome &&
-          '[&_[data-chat-region=messages]]:!flex-none [&_[data-chat-region=messages]]:mt-[max(48px,calc((100dvh-560px)/2))] [&_[data-chat-region=messages]]:h-[96px] [&_[data-chat-region=messages]]:!overflow-visible [&_.transcript]:!overflow-visible [&_.transcript]:!p-0 max-[650px]:[&_[data-chat-region=messages]]:mt-8 max-[650px]:[&_[data-chat-region=messages]]:h-[96px]',
       )}
       data-chat-message-style="bubble"
     >
       <div
         ref={panelRootRef}
-        className={cn(
-          'flex h-full min-h-0 min-w-0 flex-1 flex-col',
-          hasConversation ? 'overflow-hidden' : 'overflow-auto',
-        )}
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       >
         <div className="shrink-0" data-chat-region="header">
           {slots?.headerHost

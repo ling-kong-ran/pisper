@@ -7,8 +7,8 @@
 export const HOME_PATH = '/'
 
 export const PAGE_PATHS = Object.freeze({
-  // 看板仍在 /board；会话页沿用 /board/:sessionId（兼容旧链接、通知与守卫），'/board/new' 与 '/workflows/new'
-  // 同理表示进入即新建。
+  // 看板仍在 /board；会话页沿用 /board/:sessionId（兼容旧链接、通知与守卫）。'/board/new' 不建会话：
+  // 会话外壳把它换回主页并发起新任务（主页草稿或派发浮层）；'/workflows/new' 仍表示进入即新建工作流。
   board: '/board',
   session: '/board/new',
   more: '/more',
@@ -36,7 +36,7 @@ export type PageId = keyof typeof PAGE_PATHS
 
 export const PAGE_IDS: ReadonlySet<string> = new Set(Object.keys(PAGE_PATHS))
 
-// 会话页的保留段：进入后创建一个新会话，再以 replace 换成真实 id。
+// 会话页的保留段 '/board/new'：不是会话 id，会话外壳把它换回主页并发起新任务。
 export const NEW_SESSION_ROUTE_ID = 'new'
 
 const PATH_PAGES = new Map<string, PageId>(
@@ -52,6 +52,17 @@ export function pagePath(page: string) {
 // 侧栏切换会话（replace）时随之保留。旧版“从更多进入”在同一字段写过 'activity'（双归属已退役），
 // 旧历史条目里可能还留着它，按非主页落地处理。
 export const HOME_ENTRY_STATE = Object.freeze({ navOrigin: 'home' })
+
+// 带着它回到主页时这次直接显示新任务草稿，不落地上次停留的会话（'/board/new' 换回主页时用）。
+export const HOME_DRAFT_STATE = Object.freeze({ homeDraft: true })
+
+export function isHomeDraftRequest(state: unknown) {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    (state as { homeDraft?: unknown }).homeDraft === HOME_DRAFT_STATE.homeDraft
+  )
+}
 
 export function isHomeEntry(state: unknown) {
   return (
@@ -75,7 +86,7 @@ export function pageFromPath(pathname: string): PageId | null {
   return PATH_PAGES.get(normalized) || null
 }
 
-// 会话页路径（默认新建）；id 做 URL 编码防止特殊字符破坏路由。
+// 会话页路径（不给 id 时是 '/board/new'，见 NEW_SESSION_ROUTE_ID）；id 做 URL 编码防止特殊字符破坏路由。
 export function sessionPath(id = NEW_SESSION_ROUTE_ID) {
   return `/board/${encodeURIComponent(id || NEW_SESSION_ROUTE_ID)}`
 }

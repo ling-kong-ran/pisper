@@ -25,7 +25,7 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
       clearKeyboardTransitionTimer()
       shell.dataset.mobileKeyboardTransition = state
       if (state === 'opening') {
-        // 外接键盘或系统未派发 viewport 事件时，也要及时解除保护，避免 Welcome 永久失去交互。
+        // 外接键盘或系统未派发 viewport 事件时，也要及时清掉过渡标记，不让它一直挂在外壳上。
         keyboardTransitionTimer = window.setTimeout(() => {
           if (!shell.dataset.mobileKeyboard) delete shell.dataset.mobileKeyboardTransition
           keyboardTransitionTimer = 0
@@ -50,13 +50,6 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
           keyboardTransitionTimer = 0
         }, 240)
       })
-    }
-    const handleWelcomeClick = (event: MouseEvent) => {
-      if (!shell.dataset.mobileKeyboard && !shell.dataset.mobileKeyboardTransition) return
-      const target = event.target
-      if (!(target instanceof Element) || !target.closest('.agent-welcome button')) return
-      event.preventDefault()
-      event.stopPropagation()
     }
 
     // Android WebView 与 iOS WKWebView 对软键盘的布局视口处理不同，统一以 visualViewport 为准。
@@ -104,7 +97,6 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
     document.addEventListener('pointerdown', handleTouch, true)
     document.addEventListener('focusin', handleFocus, true)
     document.addEventListener('focusout', handleBlur, true)
-    document.addEventListener('click', handleWelcomeClick, true)
     return () => {
       if (frame) window.cancelAnimationFrame(frame)
       window.clearTimeout(orientationTimer)
@@ -117,7 +109,6 @@ export function MobileViewportStabilizer({ enabled, shellRef }: MobileViewportSt
       document.removeEventListener('pointerdown', handleTouch, true)
       document.removeEventListener('focusin', handleFocus, true)
       document.removeEventListener('focusout', handleBlur, true)
-      document.removeEventListener('click', handleWelcomeClick, true)
       delete shell.dataset.mobileKeyboard
       delete shell.dataset.mobileKeyboardTransition
     }

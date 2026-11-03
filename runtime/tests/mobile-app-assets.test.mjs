@@ -369,12 +369,11 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.match(stabilizer, /document\.addEventListener\('pointerdown', handleTouch, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('focusin', handleFocus, true\)/)
   assert.match(stabilizer, /document\.addEventListener\('focusout', handleBlur, true\)/)
-  assert.match(stabilizer, /document\.addEventListener\('click', handleWelcomeClick, true\)/)
   assert.match(stabilizer, /markKeyboardTransition\('opening'\)/)
   assert.match(stabilizer, /markKeyboardTransition\('closing'\)/)
-  assert.match(stabilizer, /closest\('\.agent-welcome button'\)/)
-  assert.match(focus, /\[\[data-mobile-keyboard='open'\]_&\]:pointer-events-none/)
-  assert.match(focus, /\[\[data-mobile-keyboard-transition='opening'\]_&\]:pointer-events-none/)
+  // 会话页不再有欢迎页与示例卡片，键盘弹起时也就没有需要拦截误触的按钮。
+  assert.doesNotMatch(stabilizer, /agent-welcome|handleWelcomeClick/)
+  assert.doesNotMatch(focus, /agent-welcome/)
   assert.doesNotMatch(focus, /welcome-workspace[^"\n]*\[animation:/)
   assert.doesNotMatch(focus, /style=\{\{ animationDelay/)
   assert.doesNotMatch(

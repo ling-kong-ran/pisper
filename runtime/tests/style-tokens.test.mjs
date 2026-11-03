@@ -23,29 +23,11 @@ const BARE_COLOR_ALLOWLIST = [
     count: 2,
     reason: '上游 AI Elements 组件的扫光渐变透明端点（#0000 即 transparent），保持与上游一致',
   },
-  {
-    file: 'src/components/react-bits/AsciiText.tsx',
-    literal: '#fff',
-    count: 1,
-    reason: 'Canvas 遮罩只取亮度通道，白色是遮罩值而不是界面颜色',
-  },
-  {
-    file: 'src/components/react-bits/AsciiText.tsx',
-    literal: 'rgba(',
-    count: 1,
-    reason: 'React Bits 欢迎字的浅色主题光晕，装饰效果，随上游维护',
-  },
   ...['#8b5cf6', '#a855f7', '#ec4899', '#0b0f1e', '#ffffff'].map((literal) => ({
     file: 'src/components/BrandLogo.tsx',
     literal,
     count: 1,
     reason: '品牌标的固定配色，与官网 docs/brand/pisper-logo.svg 和应用图标逐值一致，不随主题变化',
-  })),
-  ...['#60a5fa', '#a78bfa', '#5eead4'].map((literal) => ({
-    file: 'src/components/react-bits/Aurora.tsx',
-    literal,
-    count: 1,
-    reason: 'React Bits 极光背景的固定色带，装饰效果，随上游维护',
   })),
   {
     file: 'src/features/chat/DigitalOrb.tsx',
