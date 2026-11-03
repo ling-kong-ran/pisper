@@ -333,6 +333,9 @@ export function useLiveSessionSync({
         // 别处发起的运行（另一台设备、TUI、刷新后）在请求途中被目录标记为运行中：
         // 消息归 /live 所有，丢掉这一页后不能把空转录标成“已加载”，否则会先闪出
         // 空会话的问候页，等到下一轮轮询（约 2 秒）才换成对话。保持加载态并立即读 /live。
+        // 目录还没标运行中、但页读告诉我们这一轮在跑（例如刚从派发浮层发出的任务）：
+        // 先显示这一页，再标成运行中交给 /live 轮询，直到这一轮结束。
+        const externalRun = data.streaming === true && !localStreamSessionsRef.current.has(id)
         let awaitLive = false
         updateSessionState(id, (latest) => {
           if (
@@ -344,26 +347,28 @@ export function useLiveSessionSync({
             awaitLive = true
             return { ...latest, loading: false, pageSize: Math.max(latest.pageSize || 0, limit) }
           }
-          return latest.streaming
-            ? {
-                ...latest,
-                loaded: true,
-                loading: false,
-                pageSize: Math.max(latest.pageSize || 0, limit),
-              }
-            : {
-                ...latest,
-                ...reconcileMessagePage(latest, data),
-                // Prefer an in-memory selection (including optimistic switches) over a stale page read.
-                model: latest.model || data.model || undefined,
-                contextUsage: data.contextUsage ?? latest.contextUsage ?? null,
-                sessionUsage: data.sessionUsage ?? latest.sessionUsage ?? null,
-                loaded: true,
-                loading: false,
-                pageSize: Math.max(latest.pageSize || 0, limit),
-                error: '',
-                olderError: '',
-              }
+          if (latest.streaming)
+            return {
+              ...latest,
+              loaded: true,
+              loading: false,
+              pageSize: Math.max(latest.pageSize || 0, limit),
+            }
+          if (externalRun) awaitLive = true
+          return {
+            ...latest,
+            ...reconcileMessagePage(latest, data),
+            ...(externalRun ? { streaming: true, recovering: true } : {}),
+            // Prefer an in-memory selection (including optimistic switches) over a stale page read.
+            model: latest.model || data.model || undefined,
+            contextUsage: data.contextUsage ?? latest.contextUsage ?? null,
+            sessionUsage: data.sessionUsage ?? latest.sessionUsage ?? null,
+            loaded: true,
+            loading: false,
+            pageSize: Math.max(latest.pageSize || 0, limit),
+            error: '',
+            olderError: '',
+          }
         })
         if (awaitLive) void syncLiveSession(id)
         const resolvedModel =

@@ -40,6 +40,8 @@ type StreamOptions = { signal?: AbortSignal }
 type SessionListResponse = { sessions: SessionSummary[] }
 type MessagePageResponse = EntityRecord & {
   messages: ChatMessage[]
+  // 读页时这一轮是否仍在运行（旧 Runtime 没有这个字段）。
+  streaming?: boolean
   pageInfo: {
     start: number
     hasMore: boolean

@@ -1169,6 +1169,9 @@ export class StreamProjection {
     const start = Math.max(0, end - pageSize)
     return {
       messages: messages.slice(start, end),
+      // 页读不带实时内容，只告诉客户端这一轮还在跑：别处发起的运行（看板派发、另一台设备、TUI）
+      // 由客户端据此改读 /live 并轮询，否则打开后只看到当时的历史、不再更新。
+      streaming: this.sessionStreaming(id),
       model: await this.resolveSessionModel(id),
       contextUsage: await this.getSessionContextUsage(id),
       sessionUsage: await this.getSessionTokenUsage(id),
@@ -1180,6 +1183,13 @@ export class StreamProjection {
         nextCursor: start > 0 ? String(start) : null,
       },
     }
+  }
+
+  // 与 /live 相同的运行判断：显式停止后即视为不在运行。
+  sessionStreaming(id) {
+    const active = this.sessions().get(id)
+    const live = this.liveSessions().get(id)
+    return Boolean(!active?.abortedAt && (active?.session?.isStreaming || live?.streaming))
   }
 
   liveToken(id, active, live, approvals, questions = []) {

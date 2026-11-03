@@ -649,6 +649,64 @@ test('a session found running elsewhere mid-load waits for /live instead of show
   )
 })
 
+test('a page read that reports a run started elsewhere switches the session to /live polling', async () => {
+  let liveReads = 0
+  const f = await liveSyncFixture(
+    {
+      // 目录还不知道这一轮在跑（看板派发浮层刚发出），页读带回 streaming。
+      getMessages: async () => ({
+        messages: [{ id: 'persisted', role: 'user', text: 'persisted' }],
+        pageInfo: { start: 0, end: 1, total: 1, hasMore: false, nextCursor: null },
+        streaming: true,
+      }),
+      getLiveSession: async () => {
+        liveReads++
+        return {
+          messages: [
+            { id: 'persisted', role: 'user', text: 'persisted' },
+            { id: 'live-agent', role: 'agent', text: 'working', streaming: true },
+          ],
+          streaming: true,
+        }
+      },
+    },
+    {},
+  )
+  await f.commands.loadSessionMessages('session')
+  // 先显示这一页，并标成运行中、待恢复：轮询据此接管，直到这一轮结束。
+  assert.equal(f.state.streaming, true)
+  assert.equal(f.state.loaded, true)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(liveReads, 1)
+  assert.deepEqual(
+    [...f.state.messages].map((message) => message.id),
+    ['persisted', 'live-agent'],
+  )
+})
+
+test('a locally owned stream ignores the page streaming flag', async () => {
+  let liveReads = 0
+  const f = await liveSyncFixture(
+    {
+      getMessages: async () => ({
+        messages: [{ id: 'persisted', role: 'user', text: 'persisted' }],
+        pageInfo: { start: 0, end: 1, total: 1, hasMore: false, nextCursor: null },
+        streaming: true,
+      }),
+      getLiveSession: async () => {
+        liveReads++
+        return { messages: [], streaming: true }
+      },
+    },
+    {},
+    true,
+  )
+  await f.commands.loadSessionMessages('session')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(liveReads, 0)
+  assert.notEqual(f.state.recovering, true)
+})
+
 test('retry aborts when an intervening latest user identity invalidates the captured turn', async () => {
   let calls = 0
   const f = promptFixture(
