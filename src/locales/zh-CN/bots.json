@@ -43,7 +43,6 @@
   "page.emptyDescription": "Bot 是常驻的同事：在对话里交代事情，它在后台做完再找你。",
   "header.computer": "{name}的电脑",
   "header.computerLabel": "{name}的电脑：本机，查看或更换",
-  "header.popOut": "在独立窗口打开",
   "header.details": "详情",
   "header.closeDetails": "关闭详情",
   "composer.label": "发消息给{name}",

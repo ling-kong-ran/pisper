@@ -43,7 +43,6 @@
   "page.emptyDescription": "A Bot is a teammate that's always around: tell it what to do in the chat and it comes back when it's done.",
   "header.computer": "{name}'s computer",
   "header.computerLabel": "{name}'s computer: this machine. View or change",
-  "header.popOut": "Open in a separate window",
   "header.details": "Details",
   "header.closeDetails": "Close details",
   "composer.label": "Message {name}",

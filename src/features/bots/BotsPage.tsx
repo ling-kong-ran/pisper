@@ -1,10 +1,10 @@
 // Bot 页（设计稿 botim-chat）：和一个 Bot 的长期对话 + 右侧详情栏。路由 /bots/:botId；/bots 跳到第一个 Bot。
-// 头部：头像、名字、“它的电脑”、在独立窗口打开（网页版）、详情栏开关。输入框回车发送、Shift+回车换行，
-// 有改动等你确认时说的话会在同一个分支上接着改。
+// 头部：头像、名字、“它的电脑”、详情栏开关。和 Grok Bot 一样，每个 Bot 的对话就在主窗口里，点侧栏切换，不另开窗口。
+// 输入框回车发送、Shift+回车换行，有改动等你确认时说的话会在同一个分支上接着改。
 import './bots-messages'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ArrowUp, ExternalLink, Monitor, PanelRight, Plus } from 'lucide-react'
+import { ArrowUp, Monitor, PanelRight, Plus } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
@@ -20,11 +20,6 @@ import { botActivityLine, botAvatarState, isActiveTaskStatus } from './bot-prese
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { NewBotDialog } from './NewBotDialog'
 import { useBotTasks } from './use-bot-tasks'
-
-// 独立窗口只在网页版里用浏览器窗口实现；Tauri 壳（桌面与手机 App）里的多窗口还没有桥接。
-function canPopOut() {
-  return typeof window !== 'undefined' && !window.__TAURI__ && !window.__TAURI_INTERNALS__
-}
 
 export function BotsPage({ notify }: { notify: Notify }) {
   const { t } = useI18n()
@@ -155,23 +150,6 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
             </span>
             {t('bots:computer.local')}
           </Button>
-          {canPopOut() && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t('bots:header.popOut')}
-              title={t('bots:header.popOut')}
-              onClick={() =>
-                window.open(
-                  `${location.pathname}${location.search}#/bots/${encodeURIComponent(bot.id)}`,
-                  `pisper-bot-${bot.id}`,
-                  'popup,width=980,height=860',
-                )
-              }
-            >
-              <ExternalLink aria-hidden="true" />
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="icon"
