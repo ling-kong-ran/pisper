@@ -115,6 +115,8 @@ function buildCapabilities({
     workspaceFolders: true,
     // 插队（立即发送）：/input 的 behavior: 'interrupt' 与排队项的 send-now，只打断当前这一步。
     inputInterrupt: true,
+    // 实验功能开关：只读写应用配置里的一个字段，各档案都提供；单项功能是否可用另看它 requires 的能力。
+    betaFeatures: true,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
     codemode: workers && wasm && !embedded,
   }

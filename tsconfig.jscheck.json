@@ -16,6 +16,7 @@
   },
   "files": [
     "shared/browser-preferences.mjs",
+    "shared/beta-features.mjs",
     "shared/session-board-status.mjs",
     "runtime/services/session-card-summary.mjs",
     "runtime/services/session-board-view.mjs",

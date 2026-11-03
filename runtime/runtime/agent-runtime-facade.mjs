@@ -29,6 +29,12 @@ import {
   MIN_COMPACTION_THRESHOLD_PERCENT,
   normalizeCompactionThresholdPercent,
 } from './compaction-policy.mjs'
+import {
+  applyBetaFlagPatch,
+  isBetaFeatureActive,
+  normalizeStoredBetaFlags,
+  projectBetaFeatures,
+} from '../../shared/beta-features.mjs'
 
 // 隔离上下文模式（工作流/渠道的独立子任务）下屏蔽的记忆相关工具：
 // 子任务不应读写主会话的长期记忆。
@@ -754,6 +760,48 @@ export class AgentRuntimeFacade {
     })
     this.memoryAutoApproveConfidence = autoApproveConfidence
     return this.getMemoryPreference()
+  }
+
+  getBetaFeatures() {
+    return {
+      features: projectBetaFeatures(
+        this.betaFeatureFlags,
+        this.capabilities?.features,
+        this.betaFeatureCatalog,
+      ),
+    }
+  }
+
+  // 服务在做决定的那一刻调用（例如渠道消息是否交给 Bot），不缓存，改开关立即生效。
+  isBetaFeatureEnabled(id) {
+    return isBetaFeatureActive(
+      this.betaFeatureFlags,
+      this.capabilities?.features,
+      id,
+      this.betaFeatureCatalog,
+    )
+  }
+
+  // betaFeatureCatalog 默认为空（undefined → 用 shared 里的正式清单），只有测试会注入。
+  // 写入串行化：连续切换两个开关时，后一次必须基于前一次写入后的配置，否则会丢更新。
+  // 先校验再排队，非法输入不占写入队列；配置里清单之外的旧键原样保留。
+  async updateBetaFeatures(input) {
+    applyBetaFlagPatch(this.betaFeatureFlags, input, this.betaFeatureCatalog)
+    const write = this.betaFeatureWrite
+      .catch(() => {})
+      .then(async () => {
+        const appConfig = await readJson(this.appConfigPath, {})
+        const flags = applyBetaFlagPatch(
+          normalizeStoredBetaFlags(appConfig.betaFeatures),
+          input,
+          this.betaFeatureCatalog,
+        )
+        await writeJsonAtomic(this.appConfigPath, { ...appConfig, betaFeatures: flags })
+        this.betaFeatureFlags = flags
+      })
+    this.betaFeatureWrite = write
+    await write
+    return this.getBetaFeatures()
   }
 
   async updateCompactionPreference(input) {

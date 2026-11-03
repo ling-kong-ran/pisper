@@ -184,6 +184,7 @@ import { finishRunStartTiming, markRunStage, measureRunStage } from './run-start
 import { SessionCardSummaries } from '../services/session-card-summary.mjs'
 import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
+import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -601,6 +602,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.settingsManager = null
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
     this.memoryAutoApproveConfidence = DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
+    this.betaFeatureFlags = {}
+    this.betaFeatureWrite = Promise.resolve()
     this.sessionMeta = {}
     this.permissionRules = new PermissionRuleService({
       path: join(dataDir, 'pisper-permission-rules.json'),
@@ -865,6 +868,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.memoryAutoApproveConfidence = normalizeMemoryAutoApproveConfidence(
       appConfig.memoryAutoApproveConfidence,
     )
+    this.betaFeatureFlags = normalizeStoredBetaFlags(appConfig.betaFeatures)
 
     stage('providers')
     // 兼容历史 KimiCode Provider 配置，再加载模型目录/元数据。

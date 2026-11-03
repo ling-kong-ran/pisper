@@ -149,6 +149,20 @@ export const configSettingsRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/settings/beta-features',
+    handler({ runtime, json }) {
+      json(200, runtime.getBetaFeatures())
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/api/settings/beta-features',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.updateBetaFeatures(await body()))
+    },
+  },
+  {
+    method: 'GET',
     path: '/api/settings/memory',
     handler({ runtime, json }) {
       json(200, runtime.getMemoryPreference())
