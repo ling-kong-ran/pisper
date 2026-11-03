@@ -35,6 +35,7 @@ export function botActivityLine(t: Translate, bot: Pick<Bot, 'activity' | 'enabl
   if (!activity) return t('bots:activity.idle')
   if (activity.waiting === 'approval') return t('bots:activity.approval')
   if (activity.waiting === 'question') return t('bots:activity.question')
+  if (activity.waiting === 'environment') return t('bots:activity.environment')
   switch (activity.status) {
     case 'review':
       return t('bots:activity.review', { count: activity.changedFiles })

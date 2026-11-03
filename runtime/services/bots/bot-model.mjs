@@ -189,6 +189,8 @@ export function normalizeBotInput(input, current = null) {
     throw invalid('bot_instructions_too_long', `指令最多 ${MAX_BOT_INSTRUCTIONS_CHARS} 个字符。`)
   const workspaceInput = { ...record(current?.workspace), ...record(patch.workspace) }
   const environmentId = String(workspaceInput.environmentId || LOCAL_ENVIRONMENT_ID)
+  if (environmentId !== LOCAL_ENVIRONMENT_ID && !/^env_[A-Za-z0-9_-]{8,32}$/.test(environmentId))
+    throw invalid('environment_not_found', '这台电脑不存在或已经移除。')
   const cwd = String(workspaceInput.cwd ?? '').trim()
   if (!cwd) throw invalid('bot_cwd_required', '请为 Bot 选择工作目录。')
   const channels = normalizeChannels(merged.channels)

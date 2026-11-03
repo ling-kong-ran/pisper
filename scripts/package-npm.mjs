@@ -68,6 +68,7 @@ export async function packageNpm() {
     'README.en.md',
     'README.md',
     'bin/pisper.mjs',
+    'lib/executor-node.mjs',
     'lib/install.mjs',
     'lib/npm-platform.mjs',
     'lib/npm-update.mjs',

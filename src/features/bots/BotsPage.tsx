@@ -13,12 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { useBetaFeature } from '@/features/labs/public-flags'
 import { cn } from '@/lib/utils'
 import { BotAvatar } from './BotAvatar'
+import { environmentLabel } from './bot-environments'
 import { BotConversation } from './BotConversation'
 import { BotDetails, type BotDetailsTab } from './BotDetails'
 import { sendBotMessage, type BotTask } from './bots-api'
 import { botActivityLine, botAvatarState, isActiveTaskStatus } from './bot-presentation'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { NewBotDialog } from './NewBotDialog'
+import { useBotEnvironments } from './use-bot-environments'
 import { useBotTasks } from './use-bot-tasks'
 
 export function BotsPage({ notify }: { notify: Notify }) {
@@ -72,6 +74,7 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
   const bot = useBotsStore((state) => state.bots.find((item) => item.id === botId))
   const loadBots = useBotsStore((state) => state.load)
   const { tasks, loaded, refresh } = useBotTasks(botId)
+  const environments = useBotEnvironments()
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(() => window.innerWidth >= 1180)
@@ -138,7 +141,15 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
           <Button
             variant="outline"
             size="sm"
-            aria-label={t('bots:header.computerLabel', { name: bot.name })}
+            aria-label={t('bots:header.computerLabel', {
+              name: bot.name,
+              computer: environmentLabel(
+                t,
+                environments.environments.find(
+                  (environment) => environment.id === bot.workspace.environmentId,
+                ),
+              ),
+            })}
             onClick={() => {
               setTab('computer')
               setDetailsOpen(true)
@@ -148,7 +159,12 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
             <span className="text-content-muted max-[720px]:hidden">
               {t('bots:header.computer', { name: bot.name })}
             </span>
-            {t('bots:computer.local')}
+            {environmentLabel(
+              t,
+              environments.environments.find(
+                (environment) => environment.id === bot.workspace.environmentId,
+              ),
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -228,6 +244,11 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
           workingTask={workingTask}
           tab={tab}
           onTabChange={setTab}
+          environments={environments.environments}
+          onEnvironmentsChanged={() => {
+            void environments.refresh()
+            void loadBots()
+          }}
           onError={reportError}
         />
       </aside>

@@ -10,7 +10,11 @@ const frontendRoot = fileURLToPath(new URL('../web', import.meta.url))
 
 try {
   const arguments_ = process.argv.slice(2)
-  if (!handleNpmHelp(arguments_) && !(await handleNpmUpdate(arguments_))) {
+  // 执行节点只用 Node 内置模块，不需要下载应用本体。
+  if (arguments_[0] === 'executor') {
+    const { executorCommand } = await import('../lib/executor-node.mjs')
+    process.exitCode = await executorCommand(arguments_.slice(1))
+  } else if (!handleNpmHelp(arguments_) && !(await handleNpmUpdate(arguments_))) {
     const installation = await ensurePisperInstallation()
     const child = spawn(installation.executable, arguments_, {
       env: {

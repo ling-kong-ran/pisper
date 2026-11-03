@@ -70,6 +70,7 @@ export function releaseComponentsForPath(input) {
 
   if (
     path === 'packages/pisper/bin/pisper.mjs' ||
+    path === 'packages/pisper/lib/executor-node.mjs' ||
     path === 'packages/pisper/lib/install.mjs' ||
     path === 'packages/pisper/lib/npm-update.mjs' ||
     path === 'packages/pisper/lib/postinstall.mjs'

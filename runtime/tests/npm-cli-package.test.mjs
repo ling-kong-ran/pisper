@@ -40,6 +40,7 @@ test('pisper is an isolated private source package exposing only its command', a
   assert.equal(manifest.scripts?.postinstall, 'node lib/postinstall.mjs')
   for (const path of [
     'packages/pisper/bin/pisper.mjs',
+    'packages/pisper/lib/executor-node.mjs',
     'packages/pisper/lib/install.mjs',
     'packages/pisper/lib/npm-update.mjs',
     'packages/pisper/lib/postinstall.mjs',

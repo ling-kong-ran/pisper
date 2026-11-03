@@ -152,6 +152,11 @@ import {
   normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
 import { ToolActivation, runToolBlocker } from './tool-activation.mjs'
+import {
+  createExecutorTools,
+  normalizeRemoteExecutor,
+  REMOTE_EXECUTOR_TOOL_NAMES,
+} from './executor-tools.mjs'
 import { desktopRuntimeCapabilities } from '../runtime-capabilities.mjs'
 import { prepareRuntimeInitialization } from './mobile-initialization.mjs'
 import {
@@ -188,6 +193,8 @@ import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
 import { BotTaskService } from '../services/bots/bot-task-service.mjs'
 import { LocalExecutor } from '../services/bots/executor.mjs'
+import { EnvironmentService } from '../services/bots/environment-service.mjs'
+import { ExecutorHub } from '../services/bots/executor-hub.mjs'
 import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
@@ -625,6 +632,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const value = this.sessions.get(sessionId)
         return value ? runToolBlocker(value)(toolName) : false
       },
+      // 远程会话的文件在另一台电脑上：大脑读不到，审批时不做本地改动预览。
+      skipFileChangePreview: (sessionId) => Boolean(this.sessions.get(sessionId)?.remoteExecutor),
       onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
     // ask_user 的待回答问题：事件同时推给本轮运行流与看板事件流（后台运行的提问也进“需要你”）。
@@ -666,21 +675,30 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.skills.createResourceLoader(childCwd, { appendSystemPrompt }),
     })
     this.teamWorkflows = new TeamWorkflowService({ path: join(dataDir, 'pisper-teams.json') })
-    // Bot 注册表（B1）：任务与触发在后续阶段接入，删除时的占用检查届时由任务服务提供。
+    // Bot 的电脑（B6）：本机之外已配对的执行节点，以及它们连回来的长轮询中枢。
+    this.environments = new EnvironmentService({ path: join(dataDir, 'pisper-environments.json') })
+    this.executorHub = new ExecutorHub({ onOnline: () => this.botTasks?.schedule() })
+    this.localExecutor = new LocalExecutor()
+    this.localWorktrees = new WorktreeManager({
+      executor: this.localExecutor,
+      root: join(dataDir, 'worktrees'),
+    })
+    // Bot 注册表（B1）。
     this.bots = new BotService({
       path: join(dataDir, 'pisper-bots.json'),
       validateDirectory: (input) => resolveDirectory(input, this.cwd),
+      getEnvironment: (id) => this.environments.get(id),
       // 还有进行中或待确认任务的 Bot 不能删除。
       isBusy: (botId) => this.botTasks.isBusy(botId),
     })
-    // Bot 任务（B2）：每个任务一个独立会话；改代码的任务在 <数据目录>/worktrees 下的独立 worktree 里进行。
+    // Bot 任务（B2）：改代码的任务在独立 worktree 里进行——本机在 <数据目录>/worktrees，
+    // 执行节点在节点自己的 worktree 目录（B6）。电脑不在线时任务留在排队里。
     this.botTasks = new BotTaskService({
       path: join(dataDir, 'pisper-bot-tasks.json'),
       getBot: (id) => this.bots.get(id),
-      worktrees: new WorktreeManager({
-        executor: new LocalExecutor(),
-        root: join(dataDir, 'worktrees'),
-      }),
+      worktreesFor: (environmentId) => this.botWorktreesFor(environmentId),
+      isEnvironmentOnline: (environmentId) =>
+        environmentId === 'local' || this.executorHub.online(environmentId),
       runAgent: (input) => this.runBotTaskAgent(input),
       stopAgent: (sessionId) => this.abortSession(sessionId),
       waitingFor: (sessionId) => this.botTaskWaiting(sessionId),
@@ -932,6 +950,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
     if (this.capabilities.features.bots) {
+      await this.environments.init()
       await this.bots.init()
       await this.botTasks.init()
     }
@@ -1690,6 +1709,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const effectiveCwd = await resolveSessionDirectory(this, sessionManager, runtimeSessionId)
     markRunStage('rt.cwd')
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
+    // 远程会话（B6）：Bot 的电脑是执行节点时，文件与命令工具在那台电脑上、按那边的路径执行；
+    // effectiveCwd 只是大脑这边的占位目录。
+    const remoteExecutor = this.capabilities.features.bots
+      ? normalizeRemoteExecutor(this.sessionMeta[runtimeSessionId]?.remoteExecutor)
+      : null
+    const toolCwd = remoteExecutor ? remoteExecutor.cwd : effectiveCwd
     // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
     const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
     const supportedToolNames = new Set(this.capabilities.tools)
@@ -1700,9 +1725,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ? supportedToolNames.has(name)
           : this.capabilities.features.plugins,
       )
+      .filter((name) => !remoteExecutor || REMOTE_EXECUTOR_TOOL_NAMES.includes(name))
     const [resourceLoader, mcpTools] = await Promise.all([
       measureRunStage('rt.resourceLoader', this.skills.createResourceLoader(effectiveCwd)),
-      this.capabilities.features.mcp
+      this.capabilities.features.mcp && !remoteExecutor
         ? measureRunStage('rt.mcpTools', this.mcp.createToolDefinitions())
         : [],
     ])
@@ -1712,13 +1738,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
     // 与 MCP 工具一样按名称排序:启用顺序/文件顺序不该改变稳定前缀,
     // 否则同样的工具集也会因顺序变化而 prompt cache miss。
-    const pluginTools = [
-      ...this.toolPlugins.createToolDefinitions({
-        cwd: effectiveCwd,
-        sessionId: runtimeSessionId,
-        enabledTools,
-      }),
-    ].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+    const pluginTools = remoteExecutor
+      ? []
+      : [
+          ...this.toolPlugins.createToolDefinitions({
+            cwd: effectiveCwd,
+            sessionId: runtimeSessionId,
+            enabledTools,
+          }),
+        ].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
     const baseToolNames = [
       ...new Set([
         ...enabledTools,
@@ -1851,11 +1879,23 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
     })
     const bashTool =
+      !remoteExecutor &&
       this.capabilities.features.shell &&
       enabledTools.includes('bash') &&
       ['approval-required', 'workspace-write', 'full-access'].includes(executionMode)
         ? await createPisperBashTool(effectiveCwd)
         : null
+    const executorTools = remoteExecutor
+      ? await createExecutorTools(
+          toolCwd,
+          this.executorFor(remoteExecutor.environmentId),
+          enabledTools.filter(
+            (name) =>
+              name !== 'bash' ||
+              ['approval-required', 'workspace-write', 'full-access'].includes(executionMode),
+          ),
+        )
+      : []
     const createInheritedCustomTools = (inheritedBashTool = bashTool) => [
       ...schemaOnlyToolDefinitions(
         createAppTools({
@@ -2005,7 +2045,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
-      authorize: (input) => this.permissions.authorize({ cwd: effectiveCwd, ...input }),
+      authorize: (input) => this.permissions.authorize({ cwd: toolCwd, ...input }),
       sessionId: runtimeSessionId,
     })
     const sessionSettingsManager = createCompactionSettingsManager(
@@ -2014,7 +2054,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       () => this.compactionThresholdPercent,
     )
     const { session, modelFallbackMessage } = await createAgentSession({
-      cwd: effectiveCwd,
+      cwd: toolCwd,
       agentDir: this.dataDir,
       modelRuntime: this.modelRuntime,
       settingsManager: sessionSettingsManager,
@@ -2031,7 +2071,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...(this.capabilities.features.askUser ? [ASK_USER_TOOL_NAME] : []),
       ],
       customTools: [
-        await createCompressedReadTool(effectiveCwd),
+        ...(remoteExecutor ? executorTools : [await createCompressedReadTool(effectiveCwd)]),
         ...inheritedCustomTools,
         toolDiscovery,
         toolGateway,
@@ -2065,6 +2105,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       cwd: effectiveCwd,
       baseToolNames,
       enabledTools,
+      // 远程会话：工具在哪台电脑、哪个目录；executorToolNames 之外的工具在激活与权限两层都拦下。
+      ...(remoteExecutor
+        ? { remoteExecutor, executorToolNames: [...REMOTE_EXECUTOR_TOOL_NAMES] }
+        : {}),
       mcpTools: stableMcpTools.map((tool) => ({ name: tool.name, label: tool.label || '' })),
       promotedToolNames,
       requestedToolNames: [],
@@ -2088,7 +2132,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
-    this.permissions.install(session, { sessionId: session.sessionId, cwd: effectiveCwd })
+    this.permissions.install(session, { sessionId: session.sessionId, cwd: toolCwd })
     // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
       systemPrompt: applyPisperSystemPrompt(session, session.model),

@@ -1,6 +1,6 @@
 # Bot 服务设计草案
 
-状态：B1（Bot 注册表）已实现（2026-11-03）：`bot-model.mjs`、`bot-service.mjs`、`runtime/http/routes/bots.mjs`、`runtime/tests/bot-service.test.mjs`。B2（任务与隔离）已实现：`executor.mjs`（本机执行器，只放行 git）、`worktree-manager.mjs`、`bot-task-service.mjs`、任务接口、`runtime/tests/bot-tasks.test.mjs`。B2 与设计的差异：接受后立即删除 worktree、保留分支（不保留 7 天）；停止的任务记为 failed（code `stopped`）；`waiting` 状态与 Bot 的工具范围（`tools`）尚未接入，留到 B3/B4。B3–B6 未开始。`bots` 在 B4 界面完成前不进实验功能清单，所以接口虽在但用户打不开。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+状态（2026-11-03）：B1 注册表、B2 任务与隔离、B4 应用内对话（含对话里审批与回答、工具范围、看板标出 Bot）、B6 执行节点已实现；B3 渠道与定时任务、B5 渠道回推见下文「分阶段实施」。主要文件：`bot-model.mjs`、`bot-service.mjs`、`bot-task-service.mjs`、`executor.mjs`（本机与执行节点执行器）、`worktree-manager.mjs`、`environment-service.mjs`、`executor-hub.mjs`、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。与设计的差异：接受后立即删除 worktree、保留分支（不保留 7 天）；停止的任务记为 failed（code `stopped`）；`waiting` 不是单独的状态，运行中任务带内存里的 `waiting` 投影；其余差异写在各节。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 背景、目标与非目标
 
@@ -267,7 +267,15 @@ stateDiagram-v2
 | `POST /api/bot-tasks/:id/accept` / `discard` / `resume` / `stop` | 接受（`{ apply: boolean }`）/ 放弃 / 继续 / 停止 |
 | `GET /api/environments` / `POST /api/environments/pairing` / `DELETE /api/environments/:id` | 执行环境列表（含在线状态）/ 生成配对码 / 移除 |
 
-执行节点与大脑之间是另一条通道：节点主动连到大脑的 `wss://…/api/executor/connect`，用配对码完成首次配对，之后用证书指纹认证。通道上只有“执行这个文件操作 / 命令”和“结果 / 输出流”两类消息，节点不接受其他请求。
+执行节点与大脑之间是另一条通道（B6 实现，与草案的差异：用 HTTPS 长轮询而不是 WebSocket，不引入新依赖，同样只需节点主动连出）：
+
+| 方法 路径 | 鉴权 | 用途 |
+| --- | --- | --- |
+| `POST /api/executor/pair` | 一次性配对码（10 分钟，猜错 20 次作废全部配对码） | `{ code, name, roots, worktreeRoot, capabilities }` → `{ environment, token }`；令牌只返回这一次，大脑只存 SHA-256 摘要 |
+| `POST /api/executor/poll` | `Bearer <envId>.<令牌>` | 节点上报目录与能力，最多挂 25 秒领请求 `{ requests: [{ id, op, args }] }` |
+| `POST /api/executor/results` | 同上 | `{ results: [{ id, ok, value \| error } \| { id, chunk }] }`，chunk 是 base64 的命令输出 |
+
+这三个接口在远程监听上不要求设备令牌（`runtime/remote-auth.mjs` 白名单），由路由自己鉴权；仍受能力 `bots` 与实验开关约束。节点用远程访问的地址，第一次连接取证书并核对配对时给的指纹，之后只信这张证书。请求只有这几种：`exec`（只放行 git 的 worktree 子命令，不许 `-C`、`--git-dir`、除提交身份外的 `-c`、`..`，路径参数必须在允许目录里）、`shell`（`--no-shell` 时拒绝）、`fs.read / write / access / stat / readdir / mkdir / glob`（按真实路径限制在 `--root` 与节点自己的 worktree 目录里）、`cancel`。
 
 错误码：`bot_not_found`、`bot_name_taken`、`bot_task_not_found`、`invalid_state`、`workspace_not_git`、`worktree_limit`、`apply_conflict`、`repo_dirty`、`directory_not_allowed`、`unsupported`。
 
@@ -287,6 +295,8 @@ B4 改成 Grok Bot / Dots 那种“和同事聊天”的形态（设计稿 `docs
 | Bot 页 `/bots/:botId` | 和这个 Bot 的一条长期对话：你说的话在右，Bot 的回复在左，任务以卡片出现在对话里（排队 / 干活中可停止 / 等你批准或回答 / 改动待确认：查看改动、放弃、接受并应用到当前分支 / 失败或中断：继续、放弃 / 完成）。有改动待确认时继续说话，就在同一个分支上接着改 |
 | 等你批准或回答 | 运行中的任务在会话里卡在审批或 `ask_user` 时，任务带上 `waiting`（`{ approval, question }`，只在内存里投影，不落盘；审批摘要与看板卡片同一份 `projectApproval`），侧栏那一行写“等你批准一个操作 / 有问题问你”。卡片里直接调会话的审批与回答接口，不弹窗；规则与会话页一致：高风险要在卡片里再点一次“确认允许”，参数被截断时只给“拒绝”，允许要去完整记录里看全；多项问题与多选题去完整记录回答 |
 | 工具范围 | Bot 的 `tools`（`null` = 全部）作为每轮的 `allowedToolNames` 传给运行；`runtime/runtime/tool-activation.mjs` 的 `runToolBlocker` 是唯一判定：激活与发现据此隐藏工具，权限服务在执行前据此拦下（经 `call_tool` 网关按名字调用也一样，任何模式与允许规则都不放行）。发现、网关、计划、目标与提问始终可用。人直接在 Bot 的会话里说话时不受限 |
+| 电脑（B6） | 「电脑」标签：选这台 Bot 在哪台电脑上干活（本机或已配对的执行节点，显示在线与否）、那台电脑上的工作目录（必须在节点允许的目录里）；电脑列表（谁在用、移除前就地确认，还有 Bot 在用时拒绝）；「添加电脑」就地显示一次性配对码与在那台电脑上运行的两条命令（含远程访问地址与证书指纹；远程访问没开时提示先打开）。电脑不在线时任务留在排队里，侧栏写“等它的电脑上线”；运行中断线记为中断，由人点继续 |
+| 远程会话（B6） | Bot 的电脑是执行节点时，它的会话只有 read / edit / write / ls / find / bash（经节点执行，路径是那台电脑上的）与联网搜索；grep（依赖本机 ripgrep）、浏览器、计算机操作、MCP、插件、子代理、记忆等只在大脑本机可用的工具不提供，并由 `runToolBlocker` 在权限层拦下。审批不做本地改动预览（文件在另一台电脑上）。worktree 在节点的 `~/.pisper-executor/worktrees` 下 |
 | 详情栏 | 右侧三个标签：「详情」（头像、它记得的工作说明、接收新任务开关、执行权限上限、交付方式、可用工具：全部 / 只读）、「改动」（文件列表 + diff）、「电脑」（它在哪台电脑、哪个目录工作，每次任务独立分支或直接改目录）。窄屏（≤900px）盖在对话上 |
 | 新建 Bot | 对话框：名字、角色（12 种）与颜色（6 种）、本机工作目录 |
 | 头像 | `src/features/bots/avatar.ts` 生成 SVG + SMIL 动画，以 data URL 放进 `<img>`（不执行脚本、不引用外部资源）；系统要求减少动态时静止 |
@@ -294,7 +304,7 @@ B4 改成 Grok Bot / Dots 那种“和同事聊天”的形态（设计稿 `docs
 
 每个 Bot 有一个长期会话（`threadSessionId`），每个任务的对话是 `turns`（`{ text, at, reply? }`）；旧任务没有 `turns` 时按 `request` 读。
 
-与上面设计的差异（B4 留待以后）：没有快捷键迁移（不占 ⌘2）；“电脑”只有本机，执行节点在 B6；工作说明不会自动学习；看板卡片不加 Bot 头像；工具范围在界面上只有“全部 / 只读”两档，自定义名单只能经接口设置。
+与上面设计的差异（B4 留待以后）：没有快捷键迁移（不占 ⌘2）；工作说明不会自动学习；看板卡片不加 Bot 头像；工具范围在界面上只有“全部 / 只读”两档，自定义名单只能经接口设置。
 
 界面约束：沿用 AGENTS.md「组件与样式」——下拉用 `AppSelect` 或 `ui/select`、开关用 `ui/switch`、标签页用 `Tabs`、空状态用 `InlineEmptyState compact` / `PageState`、文案走 i18n 双语、请求经领域 API 模块。
 
@@ -320,7 +330,7 @@ B4 改成 Grok Bot / Dots 那种“和同事聊天”的形态（设计稿 `docs
 | B3 触发 | `bot-routing.mjs`、渠道接入、`ScheduleService` 的 `bot` 目标 | 分派纯函数测试（点名、默认 Bot、拒绝原因）；现有渠道与定时任务测试全过 | 开关关闭或未点名时渠道行为不变 |
 | B4 界面（已完成，形态见「客户端」） | 侧栏 Bots 分组、Bot 对话页、新建对话框、详情栏、i18n | 契约测试（JSON + `serde_json`）、`npm run check`、`npm run test:ui`、`frontend-boundaries` 与 `legacy-ui-retirement` 守卫、快捷键迁移测试；`npm run tui:test` | 在界面上完成“新建 Bot → 飞书 @ 它 → review → 接受” |
 | B5 渠道回推 | 通知模板、`/bots`、`/<名字> 状态` | 假网关测试；真实飞书/微信验收单列为未验证项 | 不开应用也能处理审批与待确认 |
-| B6 执行节点 | `pisper executor` 守护进程（npm 包）、`NodeExecutor`、配对、断线排队与恢复、执行环境管理页 | 同机起大脑与节点两个进程的集成测试（配对、根目录越界被节点拒绝、断线后排队、重连继续）；`npm run npm:pack:check` | 大脑在服务器、执行在开发机，开发机离线再上线后任务继续 |
+| B6 执行节点（已完成；Windows 节点未验证，路径按 POSIX 处理） | `pisper executor` 守护进程（npm 包）、`NodeExecutor`、配对、断线排队与恢复、执行环境管理页 | 同机起大脑与节点两个进程的集成测试（配对、根目录越界被节点拒绝、断线后排队、重连继续）；`npm run npm:pack:check` | 大脑在服务器、执行在开发机，开发机离线再上线后任务继续 |
 
 不在范围内的验证：Android/iOS 真机、SEA 打包（B2 后补一次 `npm run sidecar:sea:smoke`，确认 SEA 里能找到 `git`）。
 

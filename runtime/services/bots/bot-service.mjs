@@ -1,6 +1,7 @@
 // BotService：Bot 注册表的唯一权威（B1）。负责持久化、名字与默认聊天的全局唯一、目录解析，
 // 以及删除前的占用检查。任务（BotTask）与触发在后续阶段接入，这里只通过 isBusy 回调询问。
 import { randomBytes } from 'node:crypto'
+import { pathWithinRoots } from './environment-service.mjs'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 import {
   BotValidationError,
@@ -30,8 +31,16 @@ function newBotId() {
 }
 
 export class BotService {
-  constructor({ path, validateDirectory, isBusy = () => false, now = () => Date.now() }) {
+  constructor({
+    path,
+    validateDirectory,
+    // 执行节点（B6）：按 id 取已配对的节点；没有时只认本机。
+    getEnvironment = () => null,
+    isBusy = () => false,
+    now = () => Date.now(),
+  }) {
     this.path = path
+    this.getEnvironment = getEnvironment
     this.validateDirectory = validateDirectory
     this.isBusy = isBusy
     this.now = now
@@ -99,9 +108,19 @@ export class BotService {
   }
 
   async #resolveWorkspace(bot) {
-    // B1 只有本机执行环境；执行节点在 B6 接入。
-    if (bot.workspace.environmentId !== LOCAL_ENVIRONMENT_ID)
-      throw new BotServiceError('environment_not_found', '执行环境不存在。', 400)
+    // 执行节点上的目录在节点那边按真实路径检查；这里只要求是它允许的目录之一里的绝对路径。
+    if (bot.workspace.environmentId !== LOCAL_ENVIRONMENT_ID) {
+      const environment = this.getEnvironment(bot.workspace.environmentId)
+      if (!environment)
+        throw new BotServiceError('environment_not_found', '这台电脑不存在或已经移除。', 400)
+      if (!pathWithinRoots(bot.workspace.cwd, environment.roots))
+        throw new BotServiceError(
+          'directory_not_allowed',
+          '工作目录必须在这台电脑允许的目录里。',
+          400,
+        )
+      return bot
+    }
     try {
       bot.workspace.cwd = await this.validateDirectory(bot.workspace.cwd)
     } catch {

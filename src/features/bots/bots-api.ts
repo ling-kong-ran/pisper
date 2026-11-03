@@ -13,8 +13,8 @@ export type BotActivity = {
   title: string
   changedFiles: number
   needsYou: boolean
-  // 运行中的任务在等你批准或回答（旧 Runtime 没有这个字段）。
-  waiting: 'approval' | 'question' | null
+  // 运行中的任务在等你批准或回答；排队中、它的电脑不在线时是 environment（旧 Runtime 没有这个字段）。
+  waiting: 'approval' | 'question' | 'environment' | null
   updatedAt: string
 }
 
@@ -120,7 +120,12 @@ function parseActivity(value: unknown): BotActivity | null {
     title: text(input.title),
     changedFiles: Number(input.changedFiles) || 0,
     needsYou: input.needsYou === true,
-    waiting: input.waiting === 'approval' || input.waiting === 'question' ? input.waiting : null,
+    waiting:
+      input.waiting === 'approval' ||
+      input.waiting === 'question' ||
+      input.waiting === 'environment'
+        ? input.waiting
+        : null,
     updatedAt: text(input.updatedAt),
   }
 }
@@ -347,4 +352,98 @@ export function answerBotQuestion(
       parse: () => undefined,
     },
   )
+}
+
+// Bot 的电脑（B6）：本机与已配对的执行节点。
+export type BotEnvironment = {
+  id: string
+  kind: 'local' | 'node'
+  name: string
+  online: boolean
+  roots: string[]
+  shell: boolean
+  usedBy: { id: string; name: string }[]
+  lastSeenAt: string | null
+}
+
+// 远程访问的地址与证书指纹：执行节点要连这里。没打开时节点连不上。
+export type BotRemoteInfo = { enabled: boolean; endpoints: string[]; fingerprint: string | null }
+
+function parseRemote(value: unknown): BotRemoteInfo {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    enabled: input.enabled === true,
+    endpoints: Array.isArray(input.endpoints)
+      ? input.endpoints.filter(
+          (url): url is string => typeof url === 'string' && /^https:\/\//.test(url),
+        )
+      : [],
+    fingerprint: typeof input.fingerprint === 'string' ? input.fingerprint : null,
+  }
+}
+
+export function parseEnvironment(value: unknown): BotEnvironment {
+  const input = object(value)
+  if (typeof input.id !== 'string' || !input.id) throw invalidResponseError()
+  const capabilities =
+    input.capabilities && typeof input.capabilities === 'object'
+      ? (input.capabilities as Record<string, unknown>)
+      : {}
+  return {
+    id: input.id,
+    kind: input.kind === 'node' ? 'node' : 'local',
+    name: text(input.name),
+    online: input.online === true,
+    roots: Array.isArray(input.roots)
+      ? input.roots.filter((root): root is string => typeof root === 'string')
+      : [],
+    shell: capabilities.shell === true,
+    usedBy: Array.isArray(input.usedBy)
+      ? input.usedBy.flatMap((item) => {
+          const bot = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+          return typeof bot.id === 'string' && typeof bot.name === 'string'
+            ? [{ id: bot.id, name: bot.name }]
+            : []
+        })
+      : [],
+    lastSeenAt: typeof input.lastSeenAt === 'string' ? input.lastSeenAt : null,
+  }
+}
+
+export function fetchEnvironments(signal?: AbortSignal) {
+  return requestJson('/api/environments', {
+    signal,
+    parse: (value) => {
+      const input = object(value)
+      if (!Array.isArray(input.environments)) throw invalidResponseError()
+      return {
+        environments: input.environments.map(parseEnvironment),
+        remote: parseRemote(input.remote),
+      }
+    },
+  })
+}
+
+export function createEnvironmentPairing() {
+  return requestJson('/api/environments/pairing', {
+    method: 'POST',
+    data: {},
+    parse: (value) => {
+      const input = object(value)
+      const pairing = object(input.pairing)
+      if (typeof pairing.code !== 'string') throw invalidResponseError()
+      return {
+        code: pairing.code,
+        expiresAt: text(pairing.expiresAt),
+        remote: parseRemote(input.remote),
+      }
+    },
+  })
+}
+
+export function removeEnvironment(id: string) {
+  return requestJson(`/api/environments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    parse: () => undefined,
+  })
 }

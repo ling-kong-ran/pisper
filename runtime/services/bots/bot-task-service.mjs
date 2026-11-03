@@ -36,6 +36,11 @@ function newTaskId() {
   return `task_${randomBytes(9).toString('base64url')}`
 }
 
+// 旧任务没有记录电脑，都是在本机跑的。
+function environmentOf(task) {
+  return task.environmentId || 'local'
+}
+
 function errorOf(error, fallback = 'task_failed') {
   return {
     code: typeof error?.code === 'string' ? error.code : fallback,
@@ -68,6 +73,10 @@ export class BotTaskService {
     path,
     getBot,
     worktrees,
+    // 按执行环境取 worktree 管理（本机与各执行节点各一个）；只给 worktrees 时所有任务都用它。
+    worktreesFor,
+    // 执行环境是否在线：离线时任务留在排队里，等它连上。
+    isEnvironmentOnline = () => true,
     runAgent,
     stopAgent,
     // 运行中的任务在等什么（审批或问题），由 Runtime 从会话里读；没有接线时视为不等待。
@@ -77,7 +86,8 @@ export class BotTaskService {
   }) {
     this.path = path
     this.getBot = getBot
-    this.worktrees = worktrees
+    this.worktreesFor = worktreesFor || (() => worktrees)
+    this.isEnvironmentOnline = isEnvironmentOnline
     this.runAgent = runAgent
     this.stopAgent = stopAgent
     this.waitingFor = waitingFor
@@ -182,6 +192,8 @@ export class BotTaskService {
       source,
       title: request.split('\n')[0].slice(0, 80),
       request,
+      // 派活时 Bot 用的电脑；之后换电脑不影响已有任务（worktree 在原来那台上）。
+      environmentId: bot.workspace.environmentId || 'local',
       // 对话里的每一轮：第一轮是派活，之后是待确认时“接着说”的修改意见；reply 是 Bot 这一轮的回复。
       turns: [{ text: request, at }],
       sessionId: null,
@@ -223,6 +235,8 @@ export class BotTaskService {
     const latest = this.tasks.findLast((task) => task.botId === botId)
     if (!latest) return null
     const waiting = this.#waiting(latest)
+    // 排着队、但它的电脑不在线：侧栏写“等它的电脑上线”。
+    const offline = latest.status === 'queued' && !this.isEnvironmentOnline(environmentOf(latest))
     return {
       taskId: latest.id,
       status: latest.status,
@@ -231,7 +245,13 @@ export class BotTaskService {
       branch: latest.workspace?.branch || '',
       needsYou: Boolean(waiting) || ['review', 'failed', 'interrupted'].includes(latest.status),
       // 'approval' | 'question' | null：侧栏据此写“等你批准”或“有问题问你”。
-      waiting: waiting ? (waiting.approval ? 'approval' : 'question') : null,
+      waiting: waiting
+        ? waiting.approval
+          ? 'approval'
+          : 'question'
+        : offline
+          ? 'environment'
+          : null,
       updatedAt: latest.updatedAt,
     }
   }
@@ -242,6 +262,7 @@ export class BotTaskService {
     for (const task of this.tasks) {
       if (this.running.size >= this.maxRunning) return
       if (task.status !== 'queued') continue
+      if (!this.isEnvironmentOnline(environmentOf(task))) continue
       const busy = this.tasks.some(
         (other) => other !== task && other.botId === task.botId && ACTIVE.has(other.status),
       )
@@ -276,7 +297,7 @@ export class BotTaskService {
       // “继续”一个已有 worktree 的任务时沿用原来的目录与分支。
       if (!task.workspace || task.workspace.state !== 'ready')
         task.workspace = isolated
-          ? await this.worktrees.create({
+          ? await this.#worktrees(task).create({
               cwd: bot.workspace.cwd,
               taskId: task.id,
               botName: bot.name,
@@ -296,6 +317,7 @@ export class BotTaskService {
       outcome = await this.runAgent({
         bot,
         task: clone(task),
+        environmentId: environmentOf(task),
         cwd: task.workspace.path,
         // 同一个 Bot 的所有任务都在它的长期会话里跑；第一次还没有会话时由代理新建。
         sessionId: task.sessionId || bot.threadSessionId || '',
@@ -310,7 +332,7 @@ export class BotTaskService {
       })
     } catch (error) {
       if (this.running.get(task.id)?.stopped) return this.#finishStopped(task)
-      this.#set(task, { status: 'failed', error: errorOf(error), finishedAt: this.#at() })
+      this.#fail(task, error)
       await this.save()
       return
     }
@@ -323,9 +345,23 @@ export class BotTaskService {
     try {
       await this.#deliver(task, bot, summary)
     } catch (error) {
-      this.#set(task, { status: 'failed', error: errorOf(error), finishedAt: this.#at() })
+      this.#fail(task, error)
     }
     await this.save()
+  }
+
+  // 电脑中途断线：命令可能只执行了一半，记为中断，等人决定是否继续；其余错误记为失败。
+  #fail(task, error) {
+    const lost = ['executor_offline', 'executor_timeout'].includes(error?.code)
+    this.#set(task, {
+      status: lost ? 'interrupted' : 'failed',
+      error: errorOf(error),
+      finishedAt: lost ? null : this.#at(),
+    })
+  }
+
+  #worktrees(task) {
+    return this.worktreesFor(environmentOf(task))
   }
 
   // 交付：只回复或共享目录直接完成；隔离目录里没改动也直接完成并清掉 worktree；
@@ -341,7 +377,7 @@ export class BotTaskService {
       })
       return
     }
-    const { files } = await this.worktrees.changes(task.workspace)
+    const { files } = await this.#worktrees(task).changes(task.workspace)
     if (files.length === 0) {
       await this.#removeWorkspace(task, true)
       this.#set(task, {
@@ -353,7 +389,7 @@ export class BotTaskService {
     }
     const commit =
       bot.delivery === 'commit'
-        ? await this.worktrees.commit(task.workspace, `${bot.name}: ${task.title}`)
+        ? await this.#worktrees(task).commit(task.workspace, `${bot.name}: ${task.title}`)
         : undefined
     this.#set(task, {
       status: 'review',
@@ -362,7 +398,7 @@ export class BotTaskService {
   }
 
   async #removeWorkspace(task, deleteBranch) {
-    await this.worktrees.remove(task.workspace, { deleteBranch })
+    await this.#worktrees(task).remove(task.workspace, { deleteBranch })
     task.workspace = { ...task.workspace, state: 'removed' }
   }
 
@@ -375,7 +411,7 @@ export class BotTaskService {
     const task = this.#find(id)
     if (task.workspace?.kind !== 'worktree' || task.workspace.state !== 'ready')
       throw new BotTaskError('invalid_state', '这个任务没有可查看的改动。', 409)
-    return this.worktrees.changes(task.workspace)
+    return this.#worktrees(task).changes(task.workspace)
   }
 
   // 接受：在任务分支上提交（若还没提交），可选应用到用户当前分支；之后删掉 worktree、保留分支。
@@ -385,9 +421,9 @@ export class BotTaskService {
       throw new BotTaskError('invalid_state', '只有待确认的任务能接受。', 409)
     const commit =
       task.result?.commit ||
-      (await this.worktrees.commit(task.workspace, `${task.botName}: ${task.title}`))
+      (await this.#worktrees(task).commit(task.workspace, `${task.botName}: ${task.title}`))
     if (!commit) throw new BotTaskError('invalid_state', '这个任务没有改动可以接受。', 409)
-    if (apply) await this.worktrees.apply(task.workspace, commit)
+    if (apply) await this.#worktrees(task).apply(task.workspace, commit)
     await this.#removeWorkspace(task, false)
     this.#set(task, {
       status: 'done',

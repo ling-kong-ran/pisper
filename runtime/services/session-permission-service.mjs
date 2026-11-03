@@ -285,6 +285,7 @@ export class SessionPermissionService {
     isThirdPartyTool,
     // 本轮不可用的工具（隔离上下文、无人值守、Bot 的工具范围）：执行前直接拦下，任何模式与允许规则都不放行。
     isToolBlocked,
+    skipFileChangePreview,
     approvalPath,
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
@@ -299,6 +300,7 @@ export class SessionPermissionService {
     this.getToolRisk = getToolRisk || (() => null)
     this.isThirdPartyTool = isThirdPartyTool || (() => false)
     this.isToolBlocked = isToolBlocked || (() => false)
+    this.skipFileChangePreview = skipFileChangePreview || (() => false)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
     this.computerUseSecureRefs = computerUseSecureRefs
@@ -463,7 +465,8 @@ export class SessionPermissionService {
     if (requirement.block) return { block: true, reason: requirement.reason }
     if (rule?.effect === 'allow' && !requirement.guarded && !requirement.skipRemember)
       return undefined
-    const previewedFileChange = isPreviewedFileChange(toolName, requirement)
+    const previewedFileChange =
+      isPreviewedFileChange(toolName, requirement) && !this.skipFileChangePreview(sessionId)
     let fileChange
     if (previewedFileChange) {
       try {

@@ -21,7 +21,7 @@ const SCOPE_INFRA_TOOL_NAMES = [
 
 // 本轮不可用的工具：隔离上下文的屏蔽项；没人在场的运行里的 ask_user、定时任务与工作流工具
 // （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）；
-// 以及本轮限定的工具范围（allowedToolNames，null 表示不限定）之外的工具。
+// 本轮限定的工具范围（allowedToolNames，null 表示不限定）之外的工具；远程会话里大脑本机才有的工具。
 // 激活与发现用它隐藏工具，权限服务用它在执行前拦下——经网关按名字直接调用也绕不过去。
 export function runToolBlocker(value) {
   const blocked = new Set(value?.blockedToolNames || [])
@@ -32,7 +32,14 @@ export function runToolBlocker(value) {
   const allowed = Array.isArray(value?.allowedToolNames)
     ? new Set([...value.allowedToolNames, ...SCOPE_INFRA_TOOL_NAMES])
     : null
-  return (name) => blocked.has(name) || (allowed !== null && !allowed.has(name))
+  // 远程会话（B6）只有能交给那台电脑执行的工具。
+  const remote = Array.isArray(value?.executorToolNames)
+    ? new Set([...value.executorToolNames, ...SCOPE_INFRA_TOOL_NAMES])
+    : null
+  return (name) =>
+    blocked.has(name) ||
+    (allowed !== null && !allowed.has(name)) ||
+    (remote !== null && !remote.has(name))
 }
 
 // 工具激活策略：根据目标状态/用户请求动态启用工具，并同步系统提示；执行模式不影响工具集合。

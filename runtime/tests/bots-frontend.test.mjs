@@ -290,3 +290,42 @@ test('board cards parse the bot defensively and keep plain sessions unchanged', 
   assert.equal(rows.find((row) => row.id === 'thread-1').bot.id, 'bot_1')
   assert.equal('bot' in rows.find((row) => row.id === 'plain'), false)
 })
+
+test('computer helpers name machines and build the executor commands', async () => {
+  const { environmentLabel, executorCommands } =
+    await import('../../src/features/bots/bot-environments.ts')
+  const { parseEnvironment } = await import('../../src/features/bots/bots-api.ts')
+  assert.equal(environmentLabel(t, undefined), 'bots:computer.local')
+  const node = parseEnvironment({
+    id: 'env_testmachine1',
+    kind: 'node',
+    name: '',
+    online: true,
+    roots: ['/work', 3],
+    capabilities: { shell: true },
+    usedBy: [{ id: 'b', name: '审查员' }, { id: 1 }],
+  })
+  assert.equal(environmentLabel(t, node), 'bots:computer.unnamed')
+  assert.deepEqual(node.roots, ['/work'])
+  assert.deepEqual(node.usedBy, [{ id: 'b', name: '审查员' }])
+  const placeholders = { brain: 'BRAIN', fingerprint: 'FP', root: '~/code' }
+  const [pair, run] = executorCommands(
+    {
+      code: 'ABCD-EF23',
+      remote: { enabled: true, endpoints: ['https://10.0.0.2:5174'], fingerprint: 'SHA256:AA' },
+    },
+    placeholders,
+  )
+  assert.equal(
+    pair,
+    'npx pisper executor pair --brain https://10.0.0.2:5174 --fingerprint SHA256:AA --code ABCD-EF23 --root ~/code',
+  )
+  assert.equal(run, 'npx pisper executor')
+  assert.match(
+    executorCommands(
+      { code: 'X', remote: { enabled: false, endpoints: [], fingerprint: null } },
+      placeholders,
+    )[0],
+    /--brain BRAIN --fingerprint FP/,
+  )
+})

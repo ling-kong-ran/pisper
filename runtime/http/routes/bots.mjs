@@ -30,7 +30,7 @@ function respondError(json, error) {
 }
 
 // 包一层：实验开关没开时一律 409，其余异常按 code 映射；没有 code 的交给通用错误处理。
-function botRoute(handler) {
+export function botRoute(handler) {
   return async (context) => {
     if (!context.runtime.isBetaFeatureEnabled(BOTS_FEATURE_ID)) {
       context.json(409, {

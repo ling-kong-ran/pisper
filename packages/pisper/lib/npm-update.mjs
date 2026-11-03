@@ -38,6 +38,7 @@ Usage:
   pisper doctor [OPTIONS]
   pisper web [OPTIONS]
   pisper update [--check]
+  pisper executor [pair ...]
   pisper help [COMMAND]
 
 Commands:
@@ -45,6 +46,7 @@ Commands:
   doctor    Check the TUI, Runtime connection, and capability catalogs
   web       Open the bundled Web UI and Provider settings in your browser
   update    Update the complete Pisper distribution through npm
+  executor  Let a Pisper Bot on another computer work on this one (see pisper executor --help)
   help      Print this help or help for a command
 
 Options:

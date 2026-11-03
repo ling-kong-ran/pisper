@@ -26,6 +26,9 @@ export function authorizeRemoteRequest(req, res, url, { remoteAccess }) {
   ) {
     return false
   }
+  // Bot 的执行节点（B6）不是配对设备：凭一次性配对码或节点令牌，由执行节点路由自己鉴权。
+  if (req.method === 'POST' && /^\/api\/executor\/(?:pair|poll|results)$/.test(url.pathname))
+    return false
   const device = remoteAccess.authenticateToken(bearerToken(req))
   if (!device) {
     reject(res, 401, 'Remote access authentication is required.', 'remote_auth_required')

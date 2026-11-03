@@ -1,18 +1,25 @@
 // Bot 的详情栏（设计稿 botim-chat / botim-changes / botim-computer）：三个标签。
 // 详情：头像、它记得的工作说明（可编辑）、权限上限、交付方式、暂停。
-// 改动：待确认任务的文件列表与 diff。电脑：它在哪台电脑、哪个目录工作；第一版只有本机。
+// 改动：待确认任务的文件列表与 diff。电脑：它在哪台电脑、哪个目录工作，以及添加或移除电脑（BotComputerTab）。
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { InlineEmptyState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { FileDiff, Monitor } from 'lucide-react'
+import { FileDiff } from 'lucide-react'
 import { BotAvatar } from './BotAvatar'
-import { fetchBotTaskDiff, updateBot, type Bot, type BotDiff, type BotTask } from './bots-api'
+import { BotComputerTab } from './BotComputerTab'
+import {
+  fetchBotTaskDiff,
+  updateBot,
+  type Bot,
+  type BotDiff,
+  type BotEnvironment,
+  type BotTask,
+} from './bots-api'
 import { deliveryLabel, executionModeLabel } from './bot-labels'
 import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
@@ -77,6 +84,8 @@ export function BotDetails({
   workingTask,
   tab,
   onTabChange,
+  environments,
+  onEnvironmentsChanged,
   onError,
 }: {
   bot: Bot
@@ -84,6 +93,8 @@ export function BotDetails({
   workingTask: BotTask | null
   tab: BotDetailsTab
   onTabChange: (tab: BotDetailsTab) => void
+  environments: BotEnvironment[]
+  onEnvironmentsChanged: () => void
   onError: (message: string) => void
 }) {
   const { t } = useI18n()
@@ -221,34 +232,13 @@ export function BotDetails({
         <ChangesTab task={reviewTask} />
       </TabsContent>
       <TabsContent value="computer" className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <h3 className="text-sm font-semibold text-content">
-          {t('bots:computer.title', { name: bot.name })}
-        </h3>
-        <p className="mt-1 text-xs text-content-muted">{t('bots:computer.description')}</p>
-        <div className="mt-3 flex flex-col gap-2 text-sm">
-          <AppSelect value="local" aria-label={t('bots:computer.runsOn')} disabled>
-            <option value="local">{t('bots:computer.local')}</option>
-          </AppSelect>
-          <p className="text-xs text-content-muted">{t('bots:computer.moreSoon')}</p>
-          <div className="mt-2 flex items-center gap-2 font-mono text-xs text-content-secondary">
-            <Monitor className="size-3.5" aria-hidden="true" />
-            <span className="truncate">{bot.workspace.cwd}</span>
-          </div>
-          <SegmentedControl
-            value={bot.workspace.isolation}
-            disabled={saving}
-            onValueChange={(isolation) => void save({ workspace: { ...bot.workspace, isolation } })}
-            options={[
-              { value: 'worktree', label: t('bots:computer.isolated') },
-              { value: 'shared', label: t('bots:computer.shared') },
-            ]}
-          />
-          {workingTask?.workspace?.branch && (
-            <p className="text-xs text-content-muted">
-              {t('bots:computer.currentBranch', { branch: workingTask.workspace.branch })}
-            </p>
-          )}
-        </div>
+        <BotComputerTab
+          bot={bot}
+          workingTask={workingTask}
+          environments={environments}
+          onEnvironmentsChanged={onEnvironmentsChanged}
+          onError={onError}
+        />
       </TabsContent>
     </Tabs>
   )

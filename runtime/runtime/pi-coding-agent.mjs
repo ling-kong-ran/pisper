@@ -117,6 +117,27 @@ export async function createReadTool(cwd, options) {
   return runtime.createReadTool(cwd, options)
 }
 
+// 执行节点（B6）的远程会话用：同一套内置工具，换成远端的 operations。
+export async function createEditTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/edit.js')
+  return runtime.createEditTool(cwd, options)
+}
+
+export async function createWriteTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/write.js')
+  return runtime.createWriteTool(cwd, options)
+}
+
+export async function createLsTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/ls.js')
+  return runtime.createLsTool(cwd, options)
+}
+
+export async function createFindTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/find.js')
+  return runtime.createFindTool(cwd, options)
+}
+
 export async function resizeImage(bytes, mimeType, options) {
   const runtime = await packageModule('./utils/image-resize.js')
   return runtime.resizeImage(bytes, mimeType, options)

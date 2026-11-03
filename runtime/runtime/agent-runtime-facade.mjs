@@ -3,7 +3,7 @@
 // 的调用组织成 HTTP API 层可直接调用的方法集合；子类 AgentRuntimeService 在
 // 构造器里完成依赖装配后，这些方法即成为对外接口。
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
@@ -11,6 +11,9 @@ import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
 import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import { projectApproval } from '../services/session-card-summary.mjs'
+import { EnvironmentError } from '../services/bots/environment-service.mjs'
+import { NodeExecutor } from '../services/bots/executor.mjs'
+import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -580,6 +583,8 @@ export class AgentRuntimeFacade {
     isolatedContext = false,
     requestedToolNames,
     allowedToolNames = null,
+    // 执行节点（B6）：{ environmentId, cwd } 或 null；undefined 表示不改。
+    executor,
     unattended = false,
     onSession,
     onEvent,
@@ -595,6 +600,7 @@ export class AgentRuntimeFacade {
     if (!id) {
       const created = await this.createSession(title || '飞书会话')
       id = created.id
+      if (executor !== undefined) await this.setSessionExecutor(id, executor)
       if (cwd) await this.setSessionCwd(id, cwd)
     }
     if (isolatedContext) {
@@ -835,17 +841,32 @@ export class AgentRuntimeFacade {
 
   // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，
   // 解析不到时沿用默认模型；执行权限取 Bot 的上限。审批与提问照常进看板“需要你”。
-  async runBotTaskAgent({ bot, task, cwd, sessionId = '', message, onSession }) {
+  async runBotTaskAgent({
+    bot,
+    task,
+    cwd,
+    environmentId = 'local',
+    sessionId = '',
+    message,
+    onSession,
+  }) {
     const resolved = await this.providerPreferences.resolveSubagentModel(
       bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
     )
-    // 长期会话已存在时，先把工作目录切到这次任务的 worktree（新建会话时由 promptFromChannel 设置）。
-    if (sessionId && (this.sessions.has(sessionId) || (await this.findSessionInfo(sessionId))))
-      await this.setSessionCwd(sessionId, cwd)
+    // 电脑是执行节点（B6）：工具在那台电脑的 cwd 上执行，大脑这边的会话目录只是占位。
+    const remoteExecutor =
+      environmentId && environmentId !== 'local' ? { environmentId, cwd } : null
+    const sessionCwd = remoteExecutor ? await this.executorSessionDirectory(environmentId) : cwd
+    // 长期会话已存在时，先换电脑与工作目录（会重建会话的工具）；新建会话时由 promptFromChannel 设置。
+    if (sessionId && (this.sessions.has(sessionId) || (await this.findSessionInfo(sessionId)))) {
+      await this.setSessionExecutor(sessionId, remoteExecutor)
+      await this.setSessionCwd(sessionId, sessionCwd)
+    }
     const result = await this.promptFromChannel({
       sessionId,
       message,
-      cwd,
+      cwd: sessionCwd,
+      executor: remoteExecutor,
       title: `${bot.name} · ${task.title}`,
       model: resolved.model
         ? { provider: resolved.model.provider, model: resolved.model.id }
@@ -863,6 +884,106 @@ export class AgentRuntimeFacade {
     })
     await this.bots.setThread(bot.id, result.sessionId)
     return result
+  }
+
+  // Bot 的电脑（B6）：本机，或已配对的执行节点。节点不存在时也返回执行器，调用会以“离线”失败，
+  // 绝不悄悄退回在本机执行。
+  executorFor(environmentId) {
+    if (!environmentId || environmentId === 'local') return this.localExecutor
+    const environment = this.environments.get(environmentId) || {
+      id: environmentId,
+      name: '',
+      capabilities: {},
+    }
+    return new NodeExecutor({ hub: this.executorHub, environment })
+  }
+
+  botWorktreesFor(environmentId) {
+    if (!environmentId || environmentId === 'local') return this.localWorktrees
+    const environment = this.environments.get(environmentId)
+    if (!environment?.worktreeRoot)
+      throw new EnvironmentError(
+        'environment_not_ready',
+        '这台电脑还没有连上过，等它运行 pisper executor 后再试。',
+        409,
+      )
+    return new WorktreeManager({
+      executor: this.executorFor(environmentId),
+      root: environment.worktreeRoot,
+    })
+  }
+
+  listEnvironments() {
+    const bots = this.bots.list()
+    const usedBy = (id) =>
+      bots
+        .filter((bot) => (bot.workspace.environmentId || 'local') === id)
+        .map((bot) => ({ id: bot.id, name: bot.name }))
+    return {
+      environments: [
+        {
+          id: 'local',
+          kind: 'local',
+          name: '',
+          online: true,
+          roots: [],
+          capabilities: { shell: true, git: true },
+          usedBy: usedBy('local'),
+        },
+        ...this.environments.list().map((environment) => ({
+          ...environment,
+          online: this.executorHub.online(environment.id),
+          usedBy: usedBy(environment.id),
+        })),
+      ],
+    }
+  }
+
+  // 只改会话元数据；调用方随后用 setSessionCwd 重建会话，新工具才生效。
+  async setSessionExecutor(id, executor) {
+    const meta = { ...(this.sessionMeta[id] || {}) }
+    if (executor) meta.remoteExecutor = { environmentId: executor.environmentId, cwd: executor.cwd }
+    else delete meta.remoteExecutor
+    this.sessionMeta[id] = meta
+    await this.saveSessionMeta()
+  }
+
+  // 远程会话在大脑这边的占位目录：每台电脑一个，里面不放任何东西。
+  async executorSessionDirectory(environmentId) {
+    const directory = join(this.dataDir, 'executor-sessions', environmentId)
+    await mkdir(directory, { recursive: true })
+    return directory
+  }
+
+  createEnvironmentPairing() {
+    return this.environments.createPairing()
+  }
+
+  async removeEnvironment(id) {
+    const inUseBy = this.bots
+      .list()
+      .filter((bot) => bot.workspace.environmentId === id)
+      .map((bot) => bot.name)
+    const removed = await this.environments.remove(id, { inUseBy })
+    if (removed) this.executorHub.disconnect(id)
+    return removed
+  }
+
+  pairExecutor(input) {
+    return this.environments.pair(input)
+  }
+
+  authenticateExecutor(bearer) {
+    return this.environments.authenticate(bearer)
+  }
+
+  async pollExecutor(environment, report, signal) {
+    await this.environments.report(environment.id, report)
+    return this.executorHub.poll(environment.id, { signal })
+  }
+
+  deliverExecutorResults(environment, results) {
+    return this.executorHub.deliver(environment.id, results)
   }
 
   // Bot 任务在等的东西：最早一条待审批（与看板卡片同一份摘要）与最早一组待回答的问题。
@@ -1132,6 +1253,7 @@ export class AgentRuntimeFacade {
     await this.workflowMedia?.dispose()
     await this.gameAssetMedia?.dispose()
     await this.agentImageMedia?.dispose()
+    this.executorHub?.dispose()
     await this.schedules.dispose()
     await this.channels.dispose()
     await this.goals.pauseAllActive()
