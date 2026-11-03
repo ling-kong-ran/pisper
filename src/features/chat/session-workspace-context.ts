@@ -92,8 +92,6 @@ export const SessionInspectorContext = createContext<SessionInspectorControl | n
 // 所以只挂在最新一条回复上；历史回复没有逐条记录，不拿当前值冒充。没有值（手机外壳、旧入口）时保持原来的抬头。
 export type TranscriptMeta = {
   model: string
-  // 还在排队、没送达代理的输入 id：对应的用户气泡标“排队中”（手机没有排队列表，靠它看出没发出去）。
-  pendingInputIds?: ReadonlySet<string>
 }
 
 export const TranscriptMetaContext = createContext<TranscriptMeta | null>(null)

@@ -6,6 +6,7 @@ import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { createAgentSession, SessionManager, SettingsManager } from '../runtime/pi-coding-agent.mjs'
 import { promoteQueuedSessionInput } from '../runtime/session-input-queue.mjs'
+import { serializeTranscriptMessages } from '../runtime/stream-projection.mjs'
 import { installStepInterrupt, interruptCurrentStep } from '../runtime/step-interrupt.mjs'
 
 const { createExtensionRuntime } = await import(
@@ -144,6 +145,21 @@ test('send now cuts the streaming reply short and continues the same run with th
     ['user', 'assistant', 'user', 'assistant'],
   )
   assert.equal(messages[1].stopReason, 'stop', 'the interrupted reply is kept as a normal reply')
+  assert.equal(messages[1].pisperInterrupted, true, 'the marker is persisted with the message')
+  assert.equal(messages[3].pisperInterrupted, undefined)
+  // 历史投影：被打断的那段标 interrupted，插队消息和后面的回复照常。
+  assert.deepEqual(
+    serializeTranscriptMessages(session.agent.state.messages).map((item) => [
+      item.role,
+      Boolean(item.interrupted),
+    ]),
+    [
+      ['user', false],
+      ['agent', true],
+      ['user', false],
+      ['agent', false],
+    ],
+  )
   assert.match(textOf(messages[1]), /^第一段。第二段。/)
   assert.doesNotMatch(textOf(messages[1]), /第五段/)
   assert.equal(textOf(messages[2]), '改成三条要点')
@@ -331,4 +347,8 @@ test('send now on a queued item moves it to the front of the steering queue, fro
   )
   assert.equal(session.getFollowUpMessages().length, 0)
   assert.equal(runtime.sendQueuedSessionMessageNow(session.sessionId, 'missing').sent, false)
+  // 插队（behavior: interrupt）也排到队首：有消息先排着时，送出去的仍是插队的这条。
+  const cut = await enqueue('插队这条', 'interrupt')
+  assert.equal(session.agent.steeringQueue.messages.map(text)[0], '插队这条')
+  assert.equal(cut.queuedInputs[0].id, cut.inputId)
 })

@@ -11,7 +11,7 @@ import {
   type RefObject,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { resolveMessageRunActivity } from '@/lib/session-state'
+import { lastSettledMessageIndex, resolveMessageRunActivity } from '@/lib/session-state'
 import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { FocusChatMessage } from './ChatMessage'
@@ -252,6 +252,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     return () => window.clearTimeout(timer)
   }, [highlightedEntryId])
 
+  const latestIndex = lastSettledMessageIndex(messages)
   return (
     <div
       className="relative w-full"
@@ -263,8 +264,9 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
       {virtualItems.map((virtualItem) => {
         const message = messages[virtualItem.index]
         if (!message) return null
+        // 末尾还没送达的排队消息不算：正在写的回复仍是“最新一条”（参考 Claude，排队消息排在它后面）。
         const isLatestAgent =
-          !historical && message.role === 'agent' && virtualItem.index === messages.length - 1
+          !historical && message.role === 'agent' && virtualItem.index === latestIndex
         const agentState =
           message.streaming || (isLatestAgent && streaming)
             ? 'thinking'

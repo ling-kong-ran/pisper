@@ -34,6 +34,7 @@ import { useContextPagesStore } from './session-context-pages-store'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import type { BranchFromHereOptions } from './chat-api'
+import { lastSettledMessageIndex } from '@/lib/session-state'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
@@ -170,11 +171,12 @@ export function FocusTranscript({
   // 要跳到某一轮（例如从标签打开）时不收起，否则目标可能落在胶囊里。
   const collapsed = Boolean(earlier) && !earlierOpen && !targetEntryId
   const shownMessages = collapsed && earlier ? messages.slice(earlier.latestIndex) : messages
-  const lastMessage = messages[messages.length - 1]
+  // 正在写的回复（末尾还没送达的排队消息排在它后面，不算）。
+  const lastMessage = messages[lastSettledMessageIndex(messages)]
   const textScrollBucket = Math.floor((lastMessage?.text?.length || 0) / 64)
   const activityVersion = activityScrollVersion(activityFeed)
   const thinkingScrollBucket = Math.floor(String(thinkingText || '').length / 128)
-  const transcriptVersion = `${sessionId}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
+  const transcriptVersion = `${sessionId}:${messages.length}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const leaving = useRef(false)
   // 恢复值在实例挂载时固定，避免初始行高测量触发 scroll 后反过来覆盖恢复目标。
   const initialReadingPosition = useRef(

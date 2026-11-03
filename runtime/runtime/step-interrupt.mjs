@@ -25,13 +25,13 @@ function linkedStep(parent) {
   return step
 }
 
-// 被打断的回复：只留正文，按正常结束记账。
+// 被打断的回复：只留正文，按正常结束记账；pisperInterrupted 随消息落盘，历史里也能标“已打断”。
 function settledMessage(message) {
   const content = (Array.isArray(message?.content) ? message.content : []).filter(
     (part) => part?.type === 'text' && typeof part.text === 'string' && part.text.length > 0,
   )
   const { errorMessage: _errorMessage, ...rest } = message || {}
-  return { ...rest, role: 'assistant', content, stopReason: 'stop' }
+  return { ...rest, role: 'assistant', content, stopReason: 'stop', pisperInterrupted: true }
 }
 
 function interruptibleResponse(response, step, release) {

@@ -44,6 +44,11 @@ export type ChatMessage = EntityRecord & {
   streaming?: boolean
   attachments?: ChatAttachment[]
   turnBoundaryEntryId?: string
+  // 运行中追加的用户消息：Runtime 给的输入 id；还没送达代理时 queuedPending 为真（排在正在写的回复后面）。
+  queuedInputId?: string
+  queuedPending?: boolean
+  // 被“立即发送”打断的那段回复（定格在原位，下面标“已打断”）。
+  interrupted?: boolean
 }
 
 export type ToolActivity = EntityRecord & {
@@ -161,6 +166,8 @@ export type SessionState = EntityRecord & {
   sessionTreeRevision: number
   thinkingText: string
   queuedInputs: EntityRecord[]
+  // 这一轮里已经送达代理的排队输入 id：HTTP 响应晚于送达时，乐观气泡直接按“已送达”放进时间线。
+  deliveredInputIds?: string[]
   hadQueuedInput: boolean
   plan: Plan | null
   team: TeamState | null

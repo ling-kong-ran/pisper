@@ -200,7 +200,7 @@ export const agentSessionMethods = {
     value.modified = new Date().toISOString()
     // 只有插队请求的响应多带 interrupted，排队 / 本轮后的响应形状保持不变。
     const interrupt =
-      behavior === 'interrupt' ? { interrupted: interruptCurrentStep(value.session) } : {}
+      behavior === 'interrupt' ? { interrupted: this.interruptForInput(id, inputId) } : {}
     return {
       queued: true,
       behavior: streamingBehavior,
@@ -211,11 +211,25 @@ export const agentSessionMethods = {
     }
   },
 
+  // 打断当前这一步并记下是为哪条输入打断的：之后的队列快照带上 sendNowInputIds（只增字段），
+  // 前端据此给被打断的那段回复标“已打断”。记录随这一轮的 live 状态一起结束。
+  interruptForInput(id, inputId) {
+    const value = this.sessions.get(id)
+    // Pi 每一步开头只送队首一条：插队的这条必须先排到最前面，否则送出去的是先排着的那条。
+    if (inputId) promoteQueuedSessionInput(value?.session, inputId)
+    const interrupted = interruptCurrentStep(value?.session)
+    const live = this.liveSessions.get(id)
+    if (interrupted && live && inputId) (live.sendNowInputIds ||= new Set()).add(inputId)
+    return interrupted
+  },
+
   publishSessionInputQueue(id, extra = {}) {
     const value = this.sessions.get(id)
+    const sendNow = this.liveSessions.get(id)?.sendNowInputIds
     const snapshot = {
       queuedInputs: queuedSessionInputs(value?.session),
       queueRevision: sessionInputQueueRevision(value?.session),
+      ...(sendNow?.size ? { sendNowInputIds: [...sendNow] } : {}),
       ...extra,
     }
     const live = this.liveSessions.get(id)
@@ -234,7 +248,7 @@ export const agentSessionMethods = {
     if (!value) throw new Error('会话不存在或尚未加载。')
     if (typeof inputId !== 'string' || !inputId.trim()) throw new Error('待发送消息标识不能为空。')
     const sent = value.session.isStreaming && promoteQueuedSessionInput(value.session, inputId)
-    const interrupted = sent && interruptCurrentStep(value.session)
+    const interrupted = sent && this.interruptForInput(id, inputId)
     if (sent) value.modified = new Date().toISOString()
     return {
       sent: Boolean(sent),

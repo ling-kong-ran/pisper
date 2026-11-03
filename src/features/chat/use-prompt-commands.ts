@@ -167,6 +167,7 @@ export function usePromptCommands({
         thinkingText: '',
         thinkingPrefix: '',
         queuedDuringRun: false,
+        pendingInputIds: [],
       }
       const thinkingScheduler = createStreamingTextScheduler(
         (thinkingText, activityAt) => {
@@ -583,10 +584,18 @@ export function usePromptCommands({
           const insertMessage =
             !next.withdrawnInputIds?.includes(result.inputId) &&
             current.queuedInputRunId === queuedInputRunId
+          // 还没送达时排在正在写的回复后面；流里先收到了送达（立即发送常常比响应快）就直接进时间线。
+          const delivered = Boolean(
+            result.inputId && next.deliveredInputIds?.includes(result.inputId),
+          )
           return {
             ...next,
             messages: insertMessage
-              ? insertInteractiveUserMessage(next.messages, queuedMessage)
+              ? insertInteractiveUserMessage(next.messages, {
+                  ...queuedMessage,
+                  // 没有输入 id（很旧的 Runtime）就认不出何时送达，按原来的方式插进时间线。
+                  queuedPending: Boolean(result.inputId) && !delivered,
+                })
               : next.messages,
             hadQueuedInput: true,
             lastActivityAt: queuedAt,

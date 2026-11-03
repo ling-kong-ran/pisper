@@ -669,6 +669,7 @@
   "workbench.fileNoLongerChanged": "This file is no longer in the current changes: {path}",
   "chatMessage.copyMessage": "Copy message",
   "chatMessage.queued": "Queued",
+  "chatMessage.interrupted": "Interrupted",
   "chatMessage.copyReply": "Copy response",
   "chatMessage.copyReplyFailed": "Copy failed. Try again or select the text manually.",
   "chatMessage.moreReplyActions": "More response actions",

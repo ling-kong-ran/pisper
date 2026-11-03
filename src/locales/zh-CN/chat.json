@@ -669,6 +669,7 @@
   "workbench.fileNoLongerChanged": "此文件已不在当前变更中：{path}",
   "chatMessage.copyMessage": "复制消息",
   "chatMessage.queued": "排队中",
+  "chatMessage.interrupted": "已打断",
   "chatMessage.copyReply": "复制回复",
   "chatMessage.copyReplyFailed": "复制失败，请重试或手动选择文字。",
   "chatMessage.moreReplyActions": "更多回复操作",

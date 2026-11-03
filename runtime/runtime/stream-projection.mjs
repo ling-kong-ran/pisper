@@ -181,6 +181,10 @@ function serializeMessage(message, index, resolveImageUrl = null) {
     timestamp: message.timestamp || null,
     error: message.role === 'assistant' ? message.errorMessage || null : null,
     attachments,
+    // 被“立即发送”打断的回复（step-interrupt 记的标记）：历史里同样标“已打断”。只增字段。
+    ...(message.role === 'assistant' && message.pisperInterrupted === true
+      ? { interrupted: true }
+      : {}),
   }
 }
 

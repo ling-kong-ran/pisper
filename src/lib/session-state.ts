@@ -1,7 +1,7 @@
 // 会话状态（SessionState）的纯函数工具集，供聊天页与流式同步共用：
 // - applySessionUpdate 用浅比较去重，未变化的更新返回原引用避免触发重渲染；
-// - insertInteractiveUserMessage 把交互消息插到“正在运行的 agent 消息”之前，
-//   保持时间线顺序（用户追问应出现在旧回复与后续流式输出之间）；
+// - insertInteractiveUserMessage：运行中追加的消息还没送达时排在正在写的回复后面（参考 Claude），
+//   已送达的插到正在写的回复之前；deliverQueuedInputs 在送达那一刻把已写出的回复定格成一段；
 // - resolveSessionPlan 优先实时会话状态，显式 null 表示已清空、不得回退到
 //   列表快照里的过期 plan。
 import { planFromPayload, planFromPayloadOr } from '@/lib/plan-protocol'
@@ -95,7 +95,7 @@ export function reconcileQueuedInputSnapshot(
     : current.withdrawnInputIds || []
   const withdrawn = new Set(withdrawnInputIds)
   const messages = withdrawn.size
-    ? current.messages.filter((message) => !withdrawn.has(message.queuedInputId))
+    ? current.messages.filter((message) => !withdrawn.has(message.queuedInputId ?? ''))
     : current.messages
   if (isQueuedInputSnapshotStale(current, snapshot))
     return { ...current, messages, withdrawnInputIds }
@@ -114,14 +114,27 @@ export function reconcileQueuedInputSnapshot(
   }
 }
 
-// 把交互式用户消息插入消息列表：插到“最近一条 agent 消息”之前。
-// 这样用户追问出现在旧回复与后续流式输出之间，时间线顺序正确；
-// 没有活跃 agent 消息时直接追加到末尾。
+// 还没送达代理的排队消息（手机上是标着“排队中”的气泡，桌面在排队列表里）。
+export function isPendingQueuedMessage(message: ChatMessage | undefined) {
+  return message?.role === 'user' && message.queuedPending === true
+}
+
+// 时间线上最后一条“已发生”的消息：跳过排在末尾、还没送达的排队消息。正在写的回复就是它。
+export function lastSettledMessageIndex(messages: readonly ChatMessage[] = []) {
+  let index = messages.length - 1
+  while (index >= 0 && isPendingQueuedMessage(messages[index])) index -= 1
+  return index
+}
+
+// 把交互式用户消息插入消息列表（参考 Claude）：
+// - 还没送达的排队消息排在末尾（正在写的回复后面），送达时再挪进时间线；
+// - 已送达的（或不是排队来的）插到“最近一条 agent 消息”之前，出现在旧回复与后续流式输出之间。
 export function insertInteractiveUserMessage(
   messages: ChatMessage[] = [],
   message: ChatMessage,
 ): ChatMessage[] {
   const current = Array.isArray(messages) ? messages : []
+  if (isPendingQueuedMessage(message)) return [...current, message]
   let activeAgentIndex = -1
   for (let index = current.length - 1; index >= 0; index -= 1) {
     const item = current[index]
@@ -132,6 +145,57 @@ export function insertInteractiveUserMessage(
   }
   if (activeAgentIndex < 0) return [...current, message]
   return [...current.slice(0, activeAgentIndex), message, ...current.slice(activeAgentIndex)]
+}
+
+// 排队消息送达代理（Pi 在下一步开头读到它）：正在写的回复已写出的部分定格成一段留在原位
+// （被“立即发送”打断的标 interrupted），送达的消息接在它后面，正在写的回复从空白接着往下写。
+// 与 Claude 一样，时间线只往下追加，不会把已经显示的内容换掉。
+export function deliverQueuedInputs(
+  current: SessionState,
+  {
+    agentId,
+    deliveredIds,
+    frozenText,
+    interrupted,
+  }: { agentId: string; deliveredIds: readonly string[]; frozenText: string; interrupted: boolean },
+): SessionState {
+  if (!deliveredIds.length) return current
+  const ids = new Set(deliveredIds)
+  const isDelivered = (message: ChatMessage) =>
+    message.role === 'user' &&
+    typeof message.queuedInputId === 'string' &&
+    ids.has(message.queuedInputId)
+  const delivered = current.messages
+    .filter(isDelivered)
+    .map((message) => ({ ...message, queuedPending: false }))
+  const rest = current.messages.filter((message) => !isDelivered(message))
+  const deliveredInputIds = [...new Set([...(current.deliveredInputIds || []), ...deliveredIds])]
+  const liveIndex = rest.findIndex((message) => message.id === agentId)
+  if (liveIndex < 0) return { ...current, deliveredInputIds }
+  const live = rest[liveIndex]
+  const parts = rest.filter((message) => message.id.startsWith(`${agentId}-part-`)).length
+  const frozen: ChatMessage[] = frozenText
+    ? [
+        {
+          id: `${agentId}-part-${parts + 1}`,
+          role: 'agent',
+          text: frozenText,
+          streaming: false,
+          ...(interrupted ? { interrupted: true } : {}),
+        },
+      ]
+    : []
+  return {
+    ...current,
+    deliveredInputIds,
+    messages: [
+      ...rest.slice(0, liveIndex),
+      ...frozen,
+      ...delivered,
+      frozenText ? { ...live, text: '' } : live,
+      ...rest.slice(liveIndex + 1),
+    ],
+  }
 }
 
 // 会话仍处“运行中”（流式输出、恢复中或有排队/启动/运行的 agent）时，

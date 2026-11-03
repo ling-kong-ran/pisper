@@ -1,6 +1,7 @@
 // 手机会话页的“上一轮摘要胶囊”（规格 7.3）：转录只展开最新一轮，之前的对话收成一枚胶囊，
 // 胶囊写上一轮的轮次、提问首行与操作数，点开再显示完整历史。纯函数，只读消息，不改任何状态。
 import type { ChatMessage, EntityRecord } from '@/types/chat'
+import { lastSettledMessageIndex } from '@/lib/session-state'
 
 export type EarlierTurnSummary = {
   // 最新一轮（最后一条用户消息）在消息列表里的下标；收起时从这里开始渲染。
@@ -34,14 +35,12 @@ export function earlierTurnSummary(
   { turnsKnown }: { turnsKnown: boolean },
 ): EarlierTurnSummary | null {
   let latestIndex = -1
-  for (let index = messages.length - 1; index >= 0; index -= 1)
+  // 末尾还没送达的排队消息不是新的一轮，从正在写的回复往前找。
+  for (let index = lastSettledMessageIndex(messages); index >= 0; index -= 1)
     if (messages[index]?.role === 'user') {
       latestIndex = index
       break
     }
-  // 运行中排队 / 立即发送的消息插在这一轮的回复前面：紧挨着的几条用户消息算同一轮，
-  // 否则排队气泡会被当成“最新一轮”，把正在跑的这一轮收起来。
-  while (latestIndex > 0 && messages[latestIndex - 1]?.role === 'user') latestIndex -= 1
   // 只有一轮（或最新一轮之前没有任何消息）时不收起。
   if (latestIndex <= 0) return null
   let previousIndex = -1

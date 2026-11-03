@@ -9,7 +9,7 @@ import {
   planFromPayload,
   planFromPayloadOr,
 } from '@/lib/plan-protocol'
-import { reconcileQueuedInputSnapshot } from '@/lib/session-state'
+import { deliverQueuedInputs, reconcileQueuedInputSnapshot } from '@/lib/session-state'
 import { recordStreamingDebug } from '@/lib/streaming-debug'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type {
@@ -69,6 +69,9 @@ export type StreamDispatchState = {
   thinkingText: string
   thinkingPrefix: string
   queuedDuringRun: boolean
+  // 上一份流内队列快照里的输入 id：下一份快照少了、又不是撤回的，就是刚送达代理的。
+  // 只认这条流自己的快照（HTTP 响应可能先把它从 queuedInputs 里拿掉）。
+  pendingInputIds: string[]
   runId?: string
   startedAt?: string
   terminal?: boolean
@@ -163,6 +166,42 @@ export function createStreamEventDispatcher({
     thinkingText: '',
     thinkingPrefix: '',
     queuedDuringRun: false,
+    pendingInputIds: [],
+  }
+
+  const inputIds = (items: unknown) =>
+    (Array.isArray(items) ? items : [])
+      .map((item) => (typeof item?.id === 'string' ? item.id : ''))
+      .filter(Boolean)
+
+  // 排队消息送达：已写出的回复定格成一段（Claude 式，只往下追加），送达的消息接在后面，
+  // 正在写的回复从空白接着往下写。为“立即发送”送达的那段标“已打断”。
+  const settleDeliveredInputs = (data: ApiRecord, eventAt: string) => {
+    const next = inputIds(data.queuedInputs)
+    const withdrawn = new Set([
+      ...(sessionStatesRef.current[sessionId]?.withdrawnInputIds || []),
+      ...(typeof data.removedInputId === 'string' ? [data.removedInputId] : []),
+    ])
+    const deliveredIds = state.pendingInputIds.filter(
+      (id) => !next.includes(id) && !withdrawn.has(id),
+    )
+    state.pendingInputIds = next
+    if (!deliveredIds.length) return
+    const sendNow = new Set(inputIds((data.sendNowInputIds || []).map((id: unknown) => ({ id }))))
+    const frozenText = state.responseText
+    state.responseText = ''
+    updateSessionState(sessionId, (current) =>
+      deliverQueuedInputs(current, {
+        agentId,
+        deliveredIds,
+        frozenText,
+        interrupted: deliveredIds.some((id) => sendNow.has(id)),
+      }),
+    )
+    if (frozenText) {
+      typewriter.setTarget('', eventAt)
+      typewriter.flush()
+    }
   }
 
   const updateSessionSummary = (update: (session: SessionSummary) => SessionSummary) => {
@@ -199,6 +238,7 @@ export function createStreamEventDispatcher({
       publishResponse('recovering')
     } else if (event === 'meta') {
       state.startedAt = typeof data.startedAt === 'string' ? data.startedAt : undefined
+      if (Array.isArray(data.queuedInputs)) state.pendingInputIds = inputIds(data.queuedInputs)
       publishResponse('started')
       updateSessionState(sessionId, (current) => ({
         ...reconcileQueuedInputSnapshot(current, data),
@@ -250,6 +290,7 @@ export function createStreamEventDispatcher({
       updateSessionState(sessionId, (current) =>
         reconcileQueuedInputSnapshot(current, { ...data, queuedInputs: data.queuedInputs || [] }),
       )
+      settleDeliveredInputs(data, eventAt)
     } else if (event === 'agent_update') {
       updateSessionState(sessionId, (current) => {
         const activity =

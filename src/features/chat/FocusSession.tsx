@@ -77,6 +77,7 @@ import {
   shortcutEventBlocked,
   useShortcutLabel,
 } from '@/lib/shortcuts'
+import { isPendingQueuedMessage, lastSettledMessageIndex } from '@/lib/session-state'
 
 export type { FocusSessionProps }
 
@@ -466,24 +467,22 @@ export const FocusSession = memo(function FocusSession({
       '',
     availableModels.map((item) => item.label),
   )
-  const pendingInputIds = useMemo(
-    () =>
-      new Set(
-        (queuedInputs || [])
-          .map((item) => (typeof item.id === 'string' ? item.id : ''))
-          .filter(Boolean),
-      ),
-    [queuedInputs],
-  )
   const transcriptMeta = useMemo(
-    () => (pageChrome ? { model: modelLabel, pendingInputIds } : null),
-    [modelLabel, pageChrome, pendingInputIds],
+    () => (pageChrome ? { model: modelLabel } : null),
+    [modelLabel, pageChrome],
+  )
+  // 还没送达的排队消息：桌面在输入框上方的排队列表里（可立即发送 / 编辑 / 取消），对话里不重复画；
+  // 手机没有排队列表，它们就是对话末尾标着“排队中”的气泡。
+  const transcriptMessages = useMemo(
+    () => (phonePage ? messages : messages.filter((message) => !isPendingQueuedMessage(message))),
+    [messages, phonePage],
   )
   // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与模型芯片弹层同一来源，拿不到时不写。
   const contextPercent = Number(contextUsage?.percent)
   const runMetricsContextPercent =
     contextUsage?.percent != null && Number.isFinite(contextPercent) ? contextPercent : null
-  const latestAgentMessage = messages.at(-1)?.role === 'agent' ? messages.at(-1) : null
+  const latestSettled = messages[lastSettledMessageIndex(messages)]
+  const latestAgentMessage = latestSettled?.role === 'agent' ? latestSettled : null
   const currentError =
     submitError || error || (!streaming ? String(latestAgentMessage?.error || '') : '')
   const canRetryLastTurn =
@@ -818,7 +817,7 @@ export const FocusSession = memo(function FocusSession({
       key="transcript"
       layoutMeasurementKey="fixed"
       sessionId={session.id}
-      messages={messages}
+      messages={transcriptMessages}
       transcriptLoadState={transcriptLoadState}
       messageStart={messageStart}
       hasNewer={hasNewer}
