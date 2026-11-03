@@ -112,6 +112,8 @@ test('macOS and Windows pass user text as arguments, never as script source', as
   assert.equal(windows.calls[0].args.join(' ').includes(title), false)
   assert.equal(windows.calls[0].env.PISPER_PICK_TITLE, title)
   assert.equal(windows.calls[0].env.PISPER_PICK_INITIAL, 'C:\\工作')
+  // 新建项目要能在系统对话框里直接新建文件夹。
+  assert.match(windows.calls[0].args.join(' '), /\$dialog\.ShowNewFolderButton = \$true/)
 })
 
 test('Windows prefers PowerShell 7 for the modern folder dialog', async (t) => {

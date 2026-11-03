@@ -82,6 +82,8 @@ test('workspace selection opens system dialogs and falls back to manual paths on
   assert.match(command, /pub async fn desktop_pick_files/)
   assert.match(command, /app\.dialog\(\)\.file\(\)/)
   assert.match(command, /blocking_pick_folder\(\)/)
+  // 新建项目要能在系统对话框里直接新建文件夹（macOS 不显式打开就没有这个按钮）。
+  assert.match(command, /desktop_pick_directory[\s\S]{0,400}set_can_create_directories\(true\)/)
   assert.match(command, /blocking_pick_files\(\)/)
   assert.match(bridge, /pickDirectory: \(initialDirectory\)/)
   assert.match(bridge, /pickFiles: \(initialDirectory\)/)

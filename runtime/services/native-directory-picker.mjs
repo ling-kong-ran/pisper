@@ -41,6 +41,9 @@ async function findExecutable(name, env) {
   return ''
 }
 
+// 各平台的对话框都带“新建文件夹”：新建项目时可以直接在系统对话框里建一个新目录再选中它。
+// macOS 的 choose folder、zenity（GTK）与 kdialog 默认就有这个按钮；Windows 在下面显式开启。
+
 // macOS：参数经 argv 传入 AppleScript，路径与提示文字不拼进脚本源码。
 const MAC_SCRIPT = [
   'on run argv',
@@ -67,6 +70,8 @@ const WINDOWS_SCRIPT = [
   '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
   '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
   '$dialog.Description = $env:PISPER_PICK_TITLE',
+  // 新建项目常常要一个还不存在的文件夹：保留对话框里的“新建文件夹”按钮（默认即开启，这里写明不被关掉）。
+  '$dialog.ShowNewFolderButton = $true',
   "if ($dialog.PSObject.Properties['UseDescriptionForTitle']) { $dialog.UseDescriptionForTitle = $true }",
   'if ($env:PISPER_PICK_INITIAL) { $dialog.SelectedPath = $env:PISPER_PICK_INITIAL }',
   '$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }',

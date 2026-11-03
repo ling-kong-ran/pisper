@@ -201,7 +201,9 @@ pub async fn desktop_pick_directory(
     app: AppHandle,
     initial_directory: Option<String>,
 ) -> Result<Option<String>, String> {
-    let mut dialog = app.dialog().file();
+    // 新建项目常常要一个还不存在的文件夹：明确允许在系统对话框里“新建文件夹”。
+    // 未设置时 macOS 的 NSOpenPanel 不显示这个按钮；Windows 与 Linux 的选文件夹对话框本来就有。
+    let mut dialog = app.dialog().file().set_can_create_directories(true);
     if let Some(initial_directory) = initial_directory.filter(|value| !value.trim().is_empty()) {
         let path = PathBuf::from(initial_directory);
         if path.is_dir() {
