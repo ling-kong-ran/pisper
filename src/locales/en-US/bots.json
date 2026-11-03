@@ -111,5 +111,10 @@
   "waiting.otherPlaceholder": "Or type your answer…",
   "waiting.answer": "Answer",
   "waiting.skip": "Skip",
-  "waiting.answerInLog": "This question has several parts. Answer it in the full log."
+  "waiting.answerInLog": "This question has several parts. Answer it in the full log.",
+  "details.tools": "Tools",
+  "details.toolsAll": "All tools",
+  "details.toolsReadOnly": "Read only",
+  "details.toolsCustom": "Custom ({count})",
+  "details.toolsHint": "Read only: it can read and search code but not edit files or run commands. Tools outside the scope are blocked before they run."
 }

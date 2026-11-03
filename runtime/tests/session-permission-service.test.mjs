@@ -593,3 +593,34 @@ test('pending approvals carry severity and notify the board observer without an 
   throwing.resolve('session-plain', standard.id, true)
   assert.equal(await plain, undefined)
 })
+
+test('tools outside the run scope are blocked before any mode, rule or approval', async () => {
+  const blocked = new Set(['memory_search'])
+  const service = new SessionPermissionService({
+    getMode: () => 'full-access',
+    getExecutionMode: () => 'full-access',
+    rules: { evaluate: async () => ({ effect: 'allow', pattern: '*' }) },
+    isToolBlocked: (sessionId, toolName) => sessionId === 'bot-thread' && blocked.has(toolName),
+  })
+  const result = await service.authorize({
+    sessionId: 'bot-thread',
+    cwd: '/repo',
+    toolName: 'memory_search',
+    toolCallId: 'call-1',
+    args: { query: 'x' },
+  })
+  assert.equal(result.block, true)
+  assert.match(result.reason, /memory_search/)
+  assert.equal(service.getPending('bot-thread').length, 0)
+  // 其他会话、其他工具不受影响。
+  assert.equal(
+    await service.authorize({
+      sessionId: 'other',
+      cwd: '/repo',
+      toolName: 'memory_search',
+      toolCallId: 'call-2',
+      args: {},
+    }),
+    undefined,
+  )
+})

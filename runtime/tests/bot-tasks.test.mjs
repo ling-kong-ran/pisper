@@ -234,9 +234,10 @@ test('each bot runs one task at a time and the global limit is respected', async
   assert.equal(status(d), 'queued')
   gates.get(a1.id).resolve({ text: 'done' })
   // a1 结束后：a 的下一个任务与 d 竞争空位，按排队先后，a2 先上。
-  await until(() => status(a1) === 'done' && status(a2) === 'running')
+  // 状态先变成 running，代理才被调用；等到代理真的接手（gate 已登记）再往下走，满载时也不抢跑。
+  await until(() => status(a1) === 'done' && status(a2) === 'running' && gates.has(a2.id))
   for (const task of [b, c]) gates.get(task.id).resolve({ text: 'ok' })
-  await until(() => status(d) === 'running')
+  await until(() => status(d) === 'running' && gates.has(d.id))
   for (const task of [a2, d]) gates.get(task.id).resolve({ text: 'ok' })
   await until(() => status(a2) === 'done' && status(d) === 'done')
 })
@@ -491,4 +492,36 @@ test('the runtime reports the oldest pending approval in board-card form and the
     approval: null,
     question: null,
   })
+})
+
+test('bot runs pass the bot tool scope to the agent run', async () => {
+  const calls = []
+  const runtime = {
+    providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
+    sessions: new Map(),
+    findSessionInfo: async () => null,
+    promptFromChannel: async (input) => {
+      calls.push(input)
+      return { sessionId: 'thread-1', text: 'ok' }
+    },
+    bots: { setThread: async () => {} },
+  }
+  const run = (tools) =>
+    AgentRuntimeFacade.prototype.runBotTaskAgent.call(runtime, {
+      bot: {
+        id: 'b',
+        name: '审查员',
+        model: { tier: 'default' },
+        executionMode: 'approval-required',
+        tools,
+      },
+      task: { title: '看看' },
+      cwd: '/repo',
+      message: 'hi',
+    })
+  await run(['read', 'grep'])
+  await run(null)
+  assert.deepEqual(calls[0].allowedToolNames, ['read', 'grep'])
+  assert.equal(calls[1].allowedToolNames, null)
+  assert.equal(calls[0].isolatedContext, true)
 })

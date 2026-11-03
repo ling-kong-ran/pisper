@@ -14,7 +14,7 @@ import { FileDiff, Monitor } from 'lucide-react'
 import { BotAvatar } from './BotAvatar'
 import { fetchBotTaskDiff, updateBot, type Bot, type BotDiff, type BotTask } from './bots-api'
 import { deliveryLabel, executionModeLabel } from './bot-labels'
-import { botAvatarState } from './bot-presentation'
+import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
 export type BotDetailsTab = 'details' | 'changes' | 'computer'
@@ -191,6 +191,30 @@ export function BotDetails({
               ))}
             </AppSelect>
           </label>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="flex-none">{t('bots:details.tools')}</span>
+            <AppSelect
+              value={botToolsPreset(bot.tools)}
+              className="w-44"
+              aria-label={t('bots:details.tools')}
+              disabled={saving}
+              onChange={(event) =>
+                void save({
+                  tools: event.target.value === 'read-only' ? [...BOT_READ_ONLY_TOOLS] : null,
+                })
+              }
+            >
+              <option value="all">{t('bots:details.toolsAll')}</option>
+              <option value="read-only">{t('bots:details.toolsReadOnly')}</option>
+              {/* 经接口设置的自定义名单只显示，不在这里编辑。 */}
+              {botToolsPreset(bot.tools) === 'custom' && (
+                <option value="custom" disabled>
+                  {t('bots:details.toolsCustom', { count: bot.tools?.length ?? 0 })}
+                </option>
+              )}
+            </AppSelect>
+          </label>
+          <p className="-mt-1.5 text-xs text-content-muted">{t('bots:details.toolsHint')}</p>
         </section>
       </TabsContent>
       <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto px-4 py-3">

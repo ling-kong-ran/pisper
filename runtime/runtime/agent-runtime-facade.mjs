@@ -579,6 +579,7 @@ export class AgentRuntimeFacade {
     teamMode = false,
     isolatedContext = false,
     requestedToolNames,
+    allowedToolNames = null,
     unattended = false,
     onSession,
     onEvent,
@@ -622,6 +623,7 @@ export class AgentRuntimeFacade {
       teamMode,
       isolatedContext,
       requestedToolNames,
+      allowedToolNames,
       unattended,
       send: (event, data) => {
         if ((event === 'meta' || event === 'done') && data?.sessionId) actualId = data.sessionId
@@ -852,6 +854,8 @@ export class AgentRuntimeFacade {
       goalMode: bot.runMode === 'goal',
       teamMode: bot.runMode === 'team',
       isolatedContext: true,
+      // Bot 的工具范围：null 表示用当前启用的全部工具。
+      allowedToolNames: bot.tools,
       onSession: (id) => {
         onSession?.(id)
         void this.bots.setThread(bot.id, id).catch(() => {})

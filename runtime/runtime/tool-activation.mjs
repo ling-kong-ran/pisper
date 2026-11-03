@@ -9,15 +9,30 @@ import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
-// 本轮屏蔽的工具：隔离上下文的屏蔽项，加上没人在场的运行里的 ask_user、定时任务与工作流工具
-// （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）。
-function runBlockedToolNames(value) {
+// 限定了工具范围的运行（Bot 的 tools）也始终保留的基础设施：发现与网关本身、计划、目标与提问。
+// 网关只是入口，真正要调用的工具仍按范围检查。
+const SCOPE_INFRA_TOOL_NAMES = [
+  TOOL_DISCOVERY_NAME,
+  TOOL_GATEWAY_NAME,
+  ...PLAN_ALL_TOOL_NAMES,
+  ...GOAL_TOOL_NAMES,
+  ASK_USER_TOOL_NAME,
+]
+
+// 本轮不可用的工具：隔离上下文的屏蔽项；没人在场的运行里的 ask_user、定时任务与工作流工具
+// （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）；
+// 以及本轮限定的工具范围（allowedToolNames，null 表示不限定）之外的工具。
+// 激活与发现用它隐藏工具，权限服务用它在执行前拦下——经网关按名字直接调用也绕不过去。
+export function runToolBlocker(value) {
   const blocked = new Set(value?.blockedToolNames || [])
   if (value?.unattendedRun) {
     blocked.add(ASK_USER_TOOL_NAME)
     for (const name of [...SCHEDULE_TOOL_NAMES, ...WORKFLOW_TOOL_NAMES]) blocked.add(name)
   }
-  return blocked
+  const allowed = Array.isArray(value?.allowedToolNames)
+    ? new Set([...value.allowedToolNames, ...SCOPE_INFRA_TOOL_NAMES])
+    : null
+  return (name) => blocked.has(name) || (allowed !== null && !allowed.has(name))
 }
 
 // 工具激活策略：根据目标状态/用户请求动态启用工具，并同步系统提示；执行模式不影响工具集合。
@@ -32,19 +47,19 @@ export class ToolActivation {
 
   // 可选工具集合：基础工具 + 计划兼容工具 + 多 Agent 工具，扣除隔离上下文屏蔽项。
   optionalToolNames(value) {
-    const blockedToolNames = runBlockedToolNames(value)
+    const isBlocked = runToolBlocker(value)
     return [
       ...(value?.baseToolNames || []),
       ...(value?.session?.getAllTools?.() || []).map((tool) => tool.name),
       ...PLAN_COMPATIBILITY_TOOL_NAMES,
       ...MULTI_AGENT_TOOL_NAMES,
-    ].filter((name) => !blockedToolNames.has(name))
+    ].filter((name) => !isBlocked(name))
   }
 
   // 同步目标工具开关：目标激活时启用目标相关工具，否则关闭。
   syncGoalTools(value, goal) {
     if (!value?.session) return
-    const blockedToolNames = runBlockedToolNames(value)
+    const isBlocked = runToolBlocker(value)
     const availableToolNames = [
       ...(value.baseToolNames || []),
       TOOL_DISCOVERY_NAME,
@@ -53,7 +68,7 @@ export class ToolActivation {
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
       ASK_USER_TOOL_NAME,
-    ].filter((name) => !blockedToolNames.has(name))
+    ].filter((name) => !isBlocked(name))
     const names = selectedToolNames({
       availableToolNames,
       promotedToolNames: [],

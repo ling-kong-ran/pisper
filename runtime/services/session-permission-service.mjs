@@ -283,6 +283,8 @@ export class SessionPermissionService {
     getExecutionMode,
     getToolRisk,
     isThirdPartyTool,
+    // 本轮不可用的工具（隔离上下文、无人值守、Bot 的工具范围）：执行前直接拦下，任何模式与允许规则都不放行。
+    isToolBlocked,
     approvalPath,
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
@@ -296,6 +298,7 @@ export class SessionPermissionService {
     this.getExecutionMode = getExecutionMode || (() => '')
     this.getToolRisk = getToolRisk || (() => null)
     this.isThirdPartyTool = isThirdPartyTool || (() => false)
+    this.isToolBlocked = isToolBlocked || (() => false)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
     this.computerUseSecureRefs = computerUseSecureRefs
@@ -421,6 +424,8 @@ export class SessionPermissionService {
   }
 
   async authorize({ sessionId, cwd, toolName, toolCallId, args, signal }) {
+    if (this.isToolBlocked(sessionId, toolName))
+      return { block: true, reason: `${toolName} 不在这次运行可用的工具范围内，未执行。` }
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
       ? this.getMode(sessionId)
       : DEFAULT_PERMISSION_MODE

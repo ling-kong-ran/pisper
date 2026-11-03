@@ -14,8 +14,10 @@ import {
   botAvatarSvg,
 } from '../../src/features/bots/avatar.ts'
 import {
+  BOT_READ_ONLY_TOOLS,
   botActivityLine,
   botAvatarState,
+  botToolsPreset,
   isActiveTaskStatus,
 } from '../../src/features/bots/bot-presentation.ts'
 import { parseBot, parseBotTask } from '../../src/features/bots/bots-api.ts'
@@ -191,4 +193,15 @@ test('Bots is a Labs feature with its own routes and lazily loaded sidebar group
       await readFile(join(root, 'src/features/bots', file), 'utf8'),
       /from '@\/features\/labs\/public-flags'/,
     )
+})
+
+test('tool scope presets map to the list the Runtime enforces', () => {
+  assert.equal(botToolsPreset(null), 'all')
+  assert.equal(botToolsPreset([...BOT_READ_ONLY_TOOLS].reverse()), 'read-only')
+  assert.equal(botToolsPreset(['read']), 'custom')
+  assert.equal(botToolsPreset([]), 'custom')
+  // 只读名单里不能有会改文件或跑命令的工具。
+  for (const name of ['bash', 'edit', 'write']) assert.ok(!BOT_READ_ONLY_TOOLS.includes(name))
+  assert.equal(parseBot({ id: 'b', name: 'n' }).tools, null)
+  assert.deepEqual(parseBot({ id: 'b', name: 'n', tools: ['read', 7] }).tools, ['read'])
 })

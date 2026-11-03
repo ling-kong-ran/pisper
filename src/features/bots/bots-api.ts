@@ -26,6 +26,8 @@ export type Bot = {
   instructions: string
   executionMode: 'approval-required' | 'workspace-write' | 'full-access'
   delivery: 'reply-only' | 'diff' | 'commit'
+  // 工具范围：null 表示用当前启用的全部工具。
+  tools: string[] | null
   workspace: { environmentId: string; cwd: string; isolation: 'worktree' | 'shared' }
   threadSessionId: string
   activity: BotActivity | null
@@ -178,6 +180,9 @@ export function parseBot(value: unknown): Bot {
         : 'approval-required',
     delivery:
       input.delivery === 'reply-only' || input.delivery === 'commit' ? input.delivery : 'diff',
+    tools: Array.isArray(input.tools)
+      ? input.tools.filter((tool): tool is string => typeof tool === 'string')
+      : null,
     workspace: {
       environmentId: text(workspace.environmentId, 'local'),
       cwd: text(workspace.cwd),

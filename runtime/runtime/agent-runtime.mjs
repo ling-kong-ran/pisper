@@ -151,7 +151,7 @@ import {
   createScheduleWorkflowAdapter,
   normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
-import { ToolActivation } from './tool-activation.mjs'
+import { ToolActivation, runToolBlocker } from './tool-activation.mjs'
 import { desktopRuntimeCapabilities } from '../runtime-capabilities.mjs'
 import { prepareRuntimeInitialization } from './mobile-initialization.mjs'
 import {
@@ -621,6 +621,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
       isThirdPartyTool: (toolName) => this.toolPlugins?.isThirdPartyTool?.(toolName) || false,
+      isToolBlocked: (sessionId, toolName) => {
+        const value = this.sessions.get(sessionId)
+        return value ? runToolBlocker(value)(toolName) : false
+      },
       onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
     })
     // ask_user 的待回答问题：事件同时推给本轮运行流与看板事件流（后台运行的提问也进“需要你”）。
@@ -2235,12 +2239,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       isolatedContext = false,
       mobileClient = false,
       unattended = false,
+      allowedToolNames = null,
       runId = '',
       send,
     },
   ) {
     // 没有人在场的运行（定时任务、工作流节点、外部 MCP 调用）：本轮不提供 ask_user（规格 8.4）。
     value.unattendedRun = Boolean(unattended)
+    // 本轮的工具范围（Bot 的 tools）：每轮重设，人直接在这个会话里说话时不受限。
+    value.allowedToolNames = Array.isArray(allowedToolNames) ? [...allowedToolNames] : null
     // 看板摘要只跟踪会出现在看板上的会话；侧聊不上看板，不占摘要缓存。
     // 每个流事件都会走到这里，判定结果在本轮内不变，只算一次。
     let cardId = null

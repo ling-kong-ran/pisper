@@ -6,6 +6,7 @@ import {
   schemaOnlyToolDefinition,
   selectedToolNames,
 } from '../tools/tool-activation.mjs'
+import { ToolActivation, runToolBlocker } from '../runtime/tool-activation.mjs'
 
 const available = [
   'read',
@@ -103,5 +104,68 @@ describe('tool-activation', () => {
       goalActive: true,
     })
     assert.ok(result.includes('update_goal'))
+  })
+})
+
+describe('run tool scope', () => {
+  it('blocks isolated, unattended and out-of-scope tools but keeps the gateway infrastructure', () => {
+    const open = runToolBlocker({})
+    assert.equal(open('bash'), false)
+
+    const isolated = runToolBlocker({ blockedToolNames: ['memory_search'] })
+    assert.equal(isolated('memory_search'), true)
+    assert.equal(isolated('bash'), false)
+
+    const unattended = runToolBlocker({ unattendedRun: true })
+    assert.equal(unattended('ask_user'), true)
+    assert.equal(unattended('schedule_manage'), true)
+
+    const scoped = runToolBlocker({
+      allowedToolNames: ['read', 'grep'],
+      blockedToolNames: ['memory_search'],
+    })
+    assert.equal(scoped('read'), false)
+    assert.equal(scoped('bash'), true)
+    assert.equal(scoped('memory_search'), true)
+    // 发现与网关本身、计划与提问始终可用；网关里真正调用的工具仍逐个检查。
+    for (const name of ['discover_tools', 'call_tool', 'update_plan', 'ask_user'])
+      assert.equal(scoped(name), false, name)
+    // 范围内的工具仍受隔离屏蔽约束。
+    assert.equal(
+      runToolBlocker({ allowedToolNames: ['memory_search'], blockedToolNames: ['memory_search'] })(
+        'memory_search',
+      ),
+      true,
+    )
+    // 空列表表示只留基础设施。
+    assert.equal(runToolBlocker({ allowedToolNames: [] })('read'), true)
+  })
+
+  it('scoped runs hide out-of-scope tools from activation and discovery', () => {
+    const activation = new ToolActivation({
+      getSessionMeta: () => ({}),
+      saveSessionMeta: async () => {},
+      getGoal: () => null,
+      promoteTools: async () => ({ routedToolNames: [] }),
+    })
+    let active = []
+    const value = {
+      baseToolNames: ['read', 'bash', 'grep'],
+      allowedToolNames: ['read'],
+      session: {
+        getAllTools: () => [{ name: 'browser_automation' }],
+        setActiveToolsByName: (names) => {
+          active = names
+        },
+      },
+    }
+    const optional = activation.optionalToolNames(value)
+    assert.ok(optional.includes('read'))
+    for (const name of ['bash', 'grep', 'browser_automation', 'spawn_agent'])
+      assert.ok(!optional.includes(name), name)
+    activation.syncGoalTools(value, null)
+    assert.ok(active.includes('read'))
+    assert.ok(!active.includes('bash'))
+    assert.ok(active.includes('call_tool'))
   })
 })
