@@ -33,6 +33,7 @@ export type RuntimeFeature =
   | 'components.native'
   | 'sessionQueue'
   | 'sessionExport'
+  | 'workspaceFolders'
   | 'codemode'
 
 export type RuntimeCapabilities = {
@@ -86,6 +87,8 @@ const fullFeatures = {
   askUser: false,
   sessionQueue: false,
   sessionExport: false,
+  // 新建项目文件夹：旧 Runtime 没有这个接口，项目菜单里不出现“新建文件夹…”。
+  workspaceFolders: false,
   // codemode：旧 Runtime 没有声明时插件页不显示该开关。
   codemode: false,
   // 原生组件（A7）：旧 Runtime 只有 iframe 组件，没有声明时组件页按旧版显示“不再支持”，宿主不请求实例。

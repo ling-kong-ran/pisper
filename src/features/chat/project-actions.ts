@@ -217,3 +217,16 @@ export function resetWorkspaceProjectName(
 export function pickProjectDirectory(t: Translate): Promise<SystemDirectoryPick> {
   return pickSystemDirectory('', t('common:workspacePicker.setWorkingDirectory'))
 }
+
+export type ProjectFolderResult = { path: string; created: boolean }
+
+/**
+ * 新建项目文件夹：在 parent 下建一层名为 name 的空文件夹（parent 为空时用 Runtime 默认工作目录）。
+ * 同名文件夹已经存在时直接沿用（created: false）；名称与上级目录的校验在 Runtime 里做。
+ */
+export function createProjectFolder(parent: string, name: string): Promise<ProjectFolderResult> {
+  return apiJson<ProjectFolderResult>('/api/workspace-folders', {
+    method: 'POST',
+    body: JSON.stringify({ parent, name }),
+  })
+}

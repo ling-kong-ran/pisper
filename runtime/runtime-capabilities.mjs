@@ -103,6 +103,8 @@ function buildCapabilities({
     sessionQueue: true,
     // 会话导出 Markdown：只读已投影的转录。
     sessionExport: true,
+    // 新建项目文件夹：只建一层空目录，各档案都提供。
+    workspaceFolders: true,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
     codemode: workers && wasm && !embedded,
   }

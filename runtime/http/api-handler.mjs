@@ -18,6 +18,7 @@ import { integrationRoutes } from './routes/integrations.mjs'
 import { memoryAssetRoutes } from './routes/memory-assets.mjs'
 import { mcpHostRoutes } from './routes/mcp-host.mjs'
 import { directoryPickerRoutes } from './routes/directory-picker.mjs'
+import { workspaceFolderRoutes } from './routes/workspace-folders.mjs'
 import { NativeDirectoryPicker } from '../services/native-directory-picker.mjs'
 import { remoteRoutes } from './routes/remote.mjs'
 import { runRoutes } from './routes/runs.mjs'
@@ -44,6 +45,7 @@ const registry = createRouteRegistry([
   ...integrationRoutes,
   ...mcpHostRoutes,
   ...directoryPickerRoutes,
+  ...workspaceFolderRoutes,
   ...desktopRoutes,
   ...customUiRoutes,
   ...boardRoutes,
@@ -94,6 +96,7 @@ const CAPABILITY_ROUTES = [
   },
   { pattern: /^\/api\/sessions\/[^/]+\/queue(?:\/|$)/, feature: 'sessionQueue' },
   { pattern: /^\/api\/sessions\/[^/]+\/export$/, feature: 'sessionExport' },
+  { pattern: /^\/api\/workspace-folders$/, feature: 'workspaceFolders' },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

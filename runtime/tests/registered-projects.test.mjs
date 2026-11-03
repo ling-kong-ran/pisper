@@ -263,12 +263,14 @@ test('deleting a project with chats also unregisters it, but only after every ch
 
 test('board project lists read registrations through the shared store and merge helpers', async () => {
   const read = (path) => readFile(path, 'utf8')
-  const [launch, page, dialog, commands] = await Promise.all([
+  const [launch, page, dialog, commands, picker, launchConsole] = await Promise.all([
     read('src/features/board/useLaunchOptions.ts'),
     // 全部代理与手机看板的项目列表都经 useLabeledProjects 合并登记项目（A3 起）。
     read('src/features/board/useLabeledProjects.ts'),
     read('src/features/board/ManageProjectsDialog.tsx'),
     read('src/features/board/useProjectCommands.ts'),
+    read('src/features/board/useNewProjectPicker.ts'),
+    read('src/features/board/LaunchConsole.tsx'),
   ])
   assert.match(launch, /recentLaunchProjects\(list \?\? \[\], registered, names\)/)
   assert.match(launch, /defaultLaunchCwd\(list \?\? \[\], projects\)/)
@@ -280,5 +282,12 @@ test('board project lists read registrations through the shared store and merge 
   assert.match(dialog, /board:project\.removeNamed/)
   assert.match(dialog, /board:project\.deleteWithChatsNamed/)
   // 新建项目选完目录（系统对话框或手动填写）都先登记，再选为派发目标。
-  assert.match(commands, /registerProject\(picked\)/)
+  assert.match(picker, /registerProject\(picked\)/)
+  assert.match(picker, /rememberLaunch\(\{ cwd: path \}\)/)
+  // 侧栏 / 看板的项目菜单与新任务输入框的项目芯片共用同一条新建流程，不各写一份。
+  assert.match(commands, /useNewProjectPicker\(/)
+  assert.doesNotMatch(commands, /pickProjectDirectory/)
+  assert.match(launchConsole, /useNewProjectPicker\(/)
+  assert.match(launchConsole, /data-launch-new-project[\s\S]{0,200}projectPicker\.newProject\(\)/)
+  assert.match(launchConsole, /<WorkspacePicker \{\.\.\.pickerProps\} \/>/)
 })

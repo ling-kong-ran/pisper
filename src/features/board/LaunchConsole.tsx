@@ -7,6 +7,8 @@
 // 宿主随即以 replace 打开它；草稿期间只发一次，不像启动台那样连发。
 import {
   forwardRef,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -21,6 +23,8 @@ import {
   ChevronDown,
   CornerDownLeft,
   Folder,
+  FolderOpen,
+  FolderPlus,
   Shield,
   ShieldAlert,
 } from 'lucide-react'
@@ -30,6 +34,7 @@ import { Chip } from '@/components/ui/chip'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -50,6 +55,7 @@ import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { formatShortcut, matchesShortcut } from '@/lib/shortcuts'
 import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { BoardLaunchError, launchBoardTask } from './board-launch'
 import { projectDisambiguation } from './card-presentation'
@@ -62,6 +68,15 @@ import {
   type LaunchRunMode,
 } from './launch-defaults-store'
 import { useLaunchOptions, type LaunchModelOption } from './useLaunchOptions'
+import { useNewProjectPicker } from './useNewProjectPicker'
+
+// 系统目录对话框不可用时才用到的手动填写对话框与新建文件夹对话框：按需加载，不进启动台首屏。
+const WorkspacePicker = lazy(() =>
+  import('@/components/WorkspacePicker').then((module) => ({ default: module.WorkspacePicker })),
+)
+const NewFolderDialog = lazy(() =>
+  import('./NewFolderDialog').then((module) => ({ default: module.NewFolderDialog })),
+)
 
 // 启动台草稿与会话草稿共用同一套存储，键名不会与会话 id 冲突。
 export const LAUNCH_DRAFT_KEY = 'board:launch'
@@ -184,6 +199,28 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
         t('board:launch.startAfterGone'))
       : ''
     const mountedRef = useRef(true)
+    // 项目菜单的“新建项目…”：等菜单关闭、焦点归还阶段再打开目录对话框，否则焦点会被菜单拉回芯片。
+    const afterMenuClose = useRef<(() => void) | null>(null)
+    // 新建的项目直接成为这条草稿的派发目标；选完把光标交回输入框接着写。
+    // 触屏不自动聚焦：选完目录立刻弹出软键盘会挡住刚换好的项目芯片。
+    const projectPicker = useNewProjectPicker({
+      onProjectChosen: () => {
+        if (touch || variant === 'sheet') return
+        const input = inputRef.current
+        if (!input) return
+        input.focus()
+        input.setSelectionRange(input.value.length, input.value.length)
+      },
+      onError: (message) => {
+        if (mountedRef.current) setError({ message, noModel: false })
+      },
+    })
+    const { mounted: pickerMounted, ...pickerProps } = projectPicker.picker
+    const { mounted: folderDialogMounted, ...folderDialogProps } = projectPicker.folderDialog
+    // 旧 Runtime 没有新建文件夹接口：菜单里只留“选择文件夹…”。
+    const canCreateFolder = useRuntimeCapabilitiesStore(
+      (state) => state.capabilities.features.workspaceFolders,
+    )
     const inputId = `launch-input-${variant}`
     const errorId = `launch-error-${variant}`
 
@@ -473,6 +510,13 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           align="start"
           // 登记的空项目会让列表变长：最多用到视口可用高度，不在 320px 处把末项截半。
           className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
+          onCloseAutoFocus={(event) => {
+            const next = afterMenuClose.current
+            if (!next) return
+            afterMenuClose.current = null
+            event.preventDefault()
+            next()
+          }}
         >
           <DropdownMenuRadioGroup
             value={projectless ? NO_PROJECT_VALUE : cwd}
@@ -505,8 +549,37 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          {/* 列表里没有想要的目录时就地新建项目：用系统文件管理器选一个已有文件夹，或者新建一个空文件夹；
+              都会登记为项目并选为这条草稿的派发目标，不用先去侧栏。 */}
+          <DropdownMenuItem
+            disabled={projectPicker.picking}
+            data-launch-new-project
+            onSelect={() => (afterMenuClose.current = () => void projectPicker.newProject())}
+          >
+            <FolderOpen aria-hidden="true" />
+            {t('board:launch.chooseFolder')}
+          </DropdownMenuItem>
+          {canCreateFolder && (
+            <DropdownMenuItem
+              data-launch-new-folder
+              onSelect={() =>
+                (afterMenuClose.current = () => projectPicker.newFolder(cwd || options.defaultCwd))
+              }
+            >
+              <FolderPlus aria-hidden="true" />
+              {t('board:launch.newFolder')}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+    )
+
+    const workspacePicker = (pickerMounted || folderDialogMounted) && (
+      <Suspense fallback={null}>
+        {pickerMounted && <WorkspacePicker {...pickerProps} />}
+        {folderDialogMounted && <NewFolderDialog {...folderDialogProps} />}
+      </Suspense>
     )
 
     // 模型芯片与会话页是同一个组件（规格 v2 第 4.3 节）：弹层里选模型、滑条调思考等级。
@@ -728,6 +801,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
             {submit}
           </div>
+          {workspacePicker}
         </section>
       )
 
@@ -798,6 +872,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           <span className="flex min-w-0 shrink items-center">{modelMenu}</span>
           {submit}
         </div>
+        {workspacePicker}
       </section>
     )
   },
