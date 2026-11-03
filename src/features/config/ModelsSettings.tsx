@@ -139,13 +139,6 @@ export function ModelsSettings({
         onConfigChanged={settings.applyConfig}
         onSetDefaultModel={settings.setDefaultChatModel}
       />
-      <SubagentSettings
-        config={config}
-        notify={notify}
-        busy={Boolean(settings.settingDefault || settings.toggling)}
-        onConfigChanged={settings.applyConfig}
-      />
-      <PermissionRulesSettings notify={notify} />
       <ProviderWorkbench
         config={config}
         selectedProviderId={selectedProviderId}
@@ -179,6 +172,16 @@ export function ModelsSettings({
         }
       />
       {settings.error && <FeatureAlert>{settings.error}</FeatureAlert>}
+      {/* 不常动的放在最后、默认收起：子代理档位、权限规则。 */}
+      <div className="mt-8" data-config-advanced>
+        <SubagentSettings
+          config={config}
+          notify={notify}
+          busy={Boolean(settings.settingDefault || settings.toggling)}
+          onConfigChanged={settings.applyConfig}
+        />
+        <PermissionRulesSettings notify={notify} />
+      </div>
       {importableCount > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-content-muted">
           <span>{t('config:configPage.localProviderImportHint', { count: importableCount })}</span>

@@ -622,7 +622,7 @@
   "shortcuts.boardDeny": "拒绝",
   "shortcuts.boardRetry": "重试失败的任务",
   "shortcuts.boardTriage": "逐个处理需要你的事项",
-  "shortcuts.boardToggleGrouping": "切换按状态 / 按项目",
+  "shortcuts.boardToggleGrouping": "切换按状态 / 按项目（手机）",
   "remoteAccess.loading": "正在读取远程访问状态…",
   "remoteAccess.thisComputer": "这台电脑",
   "remoteAccess.allowConnections": "允许手机连接",
@@ -644,5 +644,7 @@
   "deviceFeature.runtimeUnavailable": "当前 Runtime 没有提供这项能力。",
   "deviceFeature.mobileOnly": "手机服务器只在 Pisper 手机 App 里可用；桌面端请用“远程访问”让手机连进来。",
   "deviceFeature.remoteAccessDesktopOnly": "远程访问只在桌面端可用；手机上请用“服务器”连接桌面端。",
-  "subagents.configuredSummary": "已设置 {count} 个档位"
+  "subagents.configuredSummary": "已设置 {count} 个档位",
+  "permissionRules.countSummary": "{count} 条",
+  "permissionRules.noneSummary": "还没有规则"
 }

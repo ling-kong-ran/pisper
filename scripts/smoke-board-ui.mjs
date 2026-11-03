@@ -1,7 +1,7 @@
 // 全部代理（原看板）与新外壳冒烟：真实生产构建 + 隔离的临时 Runtime；会话列表、/live、审批与重试
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
 // 规格 v2 第 3 节（A3 取代泳道）：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
-// 不被遮挡、无硬裁切、无横向滚动）、按状态分组的列表（最大 880 居中）与按项目分组、行内批准与重试、
+// 不被遮挡、无硬裁切、无横向滚动）、按状态分组的列表（最大 880 居中；桌面只按状态分组，按项目看用侧栏筛选）、行内批准与重试、
 // critical 只能打开处理（进会话）、侧栏的状态 / 项目筛选与计数（规格 2.3）、⌘1 / ⌘2、⌘N 与“新任务”进入新任务草稿、逐个处理
 // （其余分组 50%、只在需要你之间走）、行焦点环、未聚焦时动作键无效、项目 ⋯（重命名、恢复、管理项目）、
 // 今天完成折叠、筛选说明与清除、空状态、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
@@ -318,7 +318,7 @@ try {
   )
 
   // 2. 1440 浅色上的交互：侧栏筛选与计数（规格 2.3）、逐个处理、critical 只能打开处理、普通批准、重试、快捷键、
-  // 新任务草稿、按项目分组与项目 ⋯、行 ⋯ 菜单。
+  // 新任务草稿、侧栏的管理项目、行 ⋯ 菜单。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -709,43 +709,16 @@ try {
       'The summary line is focusable and its tooltip lists sub-agent slots, today tokens and memory when the runtime reports them',
     )
 
-    // G 切到按项目：每个项目一个分区，标题带各状态计数，区内仍按状态；项目 ⋯ 重命名 / 恢复目录名 / 管理项目。
+    // 桌面上同一页只留一处项目视角：主区固定按状态分组、没有分组切换，按 G 不变；
+    // 按项目看用侧栏的“项目”筛选，项目的重命名 / 排序 / 删除在侧栏“项目 ⋯ → 管理项目…”里（上面已验）。
     await page.locator('[data-board-root] h1').click()
+    assert.equal(await page.locator('[data-board-root] [role="radiogroup"]').count(), 0)
     await page.keyboard.press('g')
-    const pisper = page.locator('[data-overview-heading="/home/dev/pisper"]')
-    await pisper.waitFor()
-    assert.match(await pisper.innerText(), /pisper[\s\S]*2 个运行中 · 1 个今天完成/)
-    assert.equal(
-      await page.locator('[data-board-root] [role="radio"][aria-checked="true"]').innerText(),
-      '按项目',
-    )
-    assert.deepEqual(
-      await page
-        .locator('[data-overview-section="/home/dev/pisper"] [data-board-card]')
-        .evaluateAll((rows) => rows.map((node) => node.getAttribute('data-lane'))),
-      ['running', 'running', 'done'],
-    )
-    await pisper.getByRole('button', { name: 'pisper 的操作' }).click()
-    for (const name of ['在此项目新建任务', '重命名…', '上移', '下移', '管理项目…', '删除项目…'])
-      await page.getByRole('menuitem', { name }).waitFor()
-    await page.getByRole('menuitem', { name: '重命名…' }).click()
-    const renameDialog = page.getByRole('dialog', { name: '重命名项目' })
-    await renameDialog.getByRole('textbox').fill('pisper-app')
-    await renameDialog.getByRole('button', { name: '保存' }).click()
-    await pisper.getByText('pisper-app', { exact: true }).waitFor()
-    await pisper.getByRole('button', { name: 'pisper-app 的操作' }).click()
-    await page.getByRole('menuitem', { name: '恢复目录名' }).click()
-    await pisper.getByText('pisper', { exact: true }).waitFor()
-    await pisper.getByRole('button', { name: 'pisper 的操作' }).click()
-    await page.getByRole('menuitem', { name: '管理项目…' }).click()
-    const manage = page.getByRole('dialog', { name: '管理项目' })
-    await manage.waitFor()
-    await manage.getByRole('button', { name: '完成' }).click()
-    await manage.waitFor({ state: 'hidden' })
-    await page.keyboard.press('g')
+    await page.waitForTimeout(200)
     await page.locator('[data-overview-section="attention"]').waitFor()
+    assert.equal(await page.locator('[data-overview-heading="/home/dev/pisper"]').count(), 0)
     report.checks.push(
-      'G switches to 按项目: one section per project with per-status counts (rows still sorted by status); the project ⋯ offers new task here / rename / move up / move down / manage / delete, rename and reset the display name work, 管理项目… opens the dialog; G switches back',
+      'Desktop 全部代理 keeps one project view: no 按状态 / 按项目 switch in the header and G does not regroup (projects are filtered and managed from the sidebar)',
     )
 
     // 行 ⋯ 菜单与侧栏行相同。

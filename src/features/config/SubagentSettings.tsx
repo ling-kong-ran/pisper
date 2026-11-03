@@ -116,7 +116,7 @@ export function SubagentSettings({ config, notify, busy, onConfigChanged }: Suba
       aria-busy={saving || undefined}
       data-config-card="models-subagents"
       data-config-target="models-subagents"
-      className="mt-6 min-w-0 border-t border-stroke"
+      className="min-w-0 border-t border-stroke"
     >
       {/* 大多数人不用分档位：默认收起，标题旁写现在是跟随会话模型还是设了几档。 */}
       <Accordion type="single" collapsible>

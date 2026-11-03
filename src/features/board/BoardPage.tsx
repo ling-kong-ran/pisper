@@ -145,11 +145,14 @@ function OverviewPage({
   const minute = useMinute()
   const projects = useLabeledProjects(board.projects)
   const doneCollapsed = view.collapsedLanes.includes('done')
+  // 桌面上按项目看用侧栏的“项目”筛选（同一页只留一处），主区固定按状态分组；
+  // 手机没有这组侧栏筛选，仍在页内用分段切换按状态 / 按项目。
+  const groupBy = phone ? view.groupBy : 'lane'
   const model = useMemo(
     () =>
       buildOverviewModel(board.all, {
         now: minute,
-        groupBy: view.groupBy,
+        groupBy,
         capabilities: board.capabilities,
         lanes: view.lanes,
         projects: view.projects,
@@ -162,7 +165,7 @@ function OverviewPage({
       doneCollapsed,
       minute,
       projects,
-      view.groupBy,
+      groupBy,
       view.lanes,
       view.projects,
     ],
@@ -243,7 +246,10 @@ function OverviewPage({
     notify,
     sessionHref,
     onOpenSession,
-    onToggleGrouping: () => view.setGroupBy(view.groupBy === 'lane' ? 'project' : 'lane'),
+    // 分组切换（G）只在有分段控件的手机外壳里生效。
+    onToggleGrouping: () => {
+      if (phone) view.setGroupBy(view.groupBy === 'lane' ? 'project' : 'lane')
+    },
   })
   activeIndexRef.current = virtual
     ? entries.findIndex((entry) => entry.kind === 'row' && entry.key === controller.activeId)
@@ -345,7 +351,7 @@ function OverviewPage({
     [bindings.boardApprove, bindings.boardDeny, bindings.boardRetry],
   )
   const triage = controller.triage
-  const grouped = view.groupBy === 'lane'
+  const grouped = groupBy === 'lane'
 
   const renderEntry = (entry: Entry) => {
     // 第一个分区标题贴着页头，其余与上一分区隔开。
@@ -577,19 +583,6 @@ function OverviewPage({
                     />
                   )}
                 </div>
-                {ready && model.total > 0 && (
-                  <SegmentedControl
-                    size="default"
-                    aria-label={t('board:group.label')}
-                    aria-keyshortcuts={formatShortcut(bindings.boardToggleGrouping) || undefined}
-                    value={view.groupBy}
-                    onValueChange={view.setGroupBy}
-                    options={[
-                      { value: 'lane', label: t('board:group.lane') },
-                      { value: 'project', label: t('board:group.project') },
-                    ]}
-                  />
-                )}
                 {cardsLayout === 'popover' && overviewComponents('popover')}
                 {ready && model.total > 0 && (
                   <Button variant="outline" onClick={onNewTask}>

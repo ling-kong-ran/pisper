@@ -447,3 +447,30 @@ test('功能 lists the component studio under 扩展 now that it is not a primar
     ['chat', 'board', 'more', 'components', 'config'],
   )
 })
+
+test('one place per choice: desktop groups by status, rarely used settings fold, the default mode chip is just a shield', async () => {
+  const [board, models, rules, subagents, chip] = await Promise.all([
+    readFile('src/features/board/BoardPage.tsx', 'utf8'),
+    readFile('src/features/config/ModelsSettings.tsx', 'utf8'),
+    readFile('src/features/config/PermissionRulesSettings.tsx', 'utf8'),
+    readFile('src/features/config/SubagentSettings.tsx', 'utf8'),
+    readFile('src/features/chat/ComposerModeChip.tsx', 'utf8'),
+  ])
+  // 全部代理：桌面按项目看用侧栏筛选，主区固定按状态，页头没有分组切换；手机保留分段。
+  assert.match(board, /const groupBy = phone \? view\.groupBy : 'lane'/)
+  assert.equal(board.match(/t\('board:group\.project'\)/g)?.length, 1)
+  // 设置 › 模型：子代理与权限规则在提供方之后、默认收起。
+  assert.ok(models.indexOf('<ProviderWorkbench') < models.indexOf('<SubagentSettings'))
+  assert.ok(models.indexOf('<SubagentSettings') < models.indexOf('<PermissionRulesSettings'))
+  for (const source of [rules, subagents])
+    assert.match(source, /<Accordion type="single" collapsible>/)
+  // 输入框：默认的 Plan · 审批后写入只留盾牌，读屏名不变。
+  assert.match(
+    chip,
+    /const quiet = run\.value === 'plan' && approval\.value === 'approval-required'/,
+  )
+  assert.match(
+    chip,
+    /\{!quiet && \(\n\s*<>\n\s*<span className="min-w-0 truncate max-\[650px\]:hidden">\{chipLabel\}/,
+  )
+})

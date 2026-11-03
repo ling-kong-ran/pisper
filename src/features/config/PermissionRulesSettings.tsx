@@ -5,6 +5,12 @@ import { Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import { FeatureAlert } from '@/components/app/FeaturePage'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -72,127 +78,146 @@ export function PermissionRulesSettings({ notify }: { notify: Notify }) {
       aria-labelledby={`${id}-heading`}
       data-config-card="models-permission-rules"
       data-config-target="models-permission-rules"
-      className="mt-6 min-w-0"
+      className="min-w-0 border-b border-stroke"
     >
-      <h2 id={`${id}-heading`} className="text-sm font-medium text-content">
-        {t('config:permissionRules.title')}
-      </h2>
-      <p className="mt-0.5 text-xs text-content-muted">{t('config:permissionRules.hint')}</p>
-      {rules === null ? (
-        <p role="status" className="mt-3 flex items-center gap-2 text-xs text-content-muted">
-          <OrbitSpinner className="size-3" />
-          {t('config:permissionRules.loading')}
-        </p>
-      ) : rules.length === 0 ? (
-        <p className="mt-3 text-xs text-content-muted">{t('config:permissionRules.empty')}</p>
-      ) : (
-        <ul className="mt-3 flex min-w-0 flex-col border-t border-stroke">
-          {rules.map((rule) => (
-            <li
-              key={rule.id}
-              className="flex min-w-0 items-center gap-2 border-b border-stroke py-2 text-[13px]"
+      {/* 大多数人靠审批时的“以后都允许”积累规则，不用先来这里：默认收起，标题旁写现在有几条。 */}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="rules">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span id={`${id}-heading`}>{t('config:permissionRules.title')}</span>
+              <span className="truncate text-xs font-normal text-content-muted">
+                {rules === null
+                  ? ''
+                  : rules.length
+                    ? t('config:permissionRules.countSummary', { count: rules.length })
+                    : t('config:permissionRules.noneSummary')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <p className="text-xs text-content-muted">{t('config:permissionRules.hint')}</p>
+            {rules === null ? (
+              <p role="status" className="mt-3 flex items-center gap-2 text-xs text-content-muted">
+                <OrbitSpinner className="size-3" />
+                {t('config:permissionRules.loading')}
+              </p>
+            ) : rules.length === 0 ? (
+              <p className="mt-3 text-xs text-content-muted">{t('config:permissionRules.empty')}</p>
+            ) : (
+              <ul className="mt-3 flex min-w-0 flex-col border-t border-stroke">
+                {rules.map((rule) => (
+                  <li
+                    key={rule.id}
+                    className="flex min-w-0 items-center gap-2 border-b border-stroke py-2 text-[13px]"
+                  >
+                    <span
+                      className={
+                        rule.effect === 'deny'
+                          ? 'shrink-0 rounded-sm bg-danger-soft px-1.5 text-xs text-danger'
+                          : 'shrink-0 rounded-sm bg-surface-hover px-1.5 text-xs text-content-secondary'
+                      }
+                    >
+                      {rule.effect === 'deny'
+                        ? t('config:permissionRules.deny')
+                        : t('config:permissionRules.allow')}
+                    </span>
+                    <span className="shrink-0 text-xs text-content-muted">
+                      {rule.tool === 'files'
+                        ? t('config:permissionRules.files')
+                        : t('config:permissionRules.command')}
+                    </span>
+                    <code
+                      className="min-w-0 flex-1 truncate font-mono text-content"
+                      title={rule.pattern}
+                    >
+                      {rule.pattern}
+                    </code>
+                    <span
+                      className="max-w-[40%] shrink-0 truncate text-xs text-content-muted"
+                      title={rule.cwd || undefined}
+                    >
+                      {rule.cwd ? scopeName(rule.cwd) : t('config:permissionRules.global')}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="shrink-0 pointer-coarse:size-11"
+                      disabled={saving}
+                      aria-label={t('config:permissionRules.remove', { pattern: rule.pattern })}
+                      title={t('config:permissionRules.remove', { pattern: rule.pattern })}
+                      onClick={() =>
+                        void run(
+                          () => permissionRulesApi.remove(rule.id),
+                          t('config:permissionRules.removed'),
+                        )
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              className="mt-3 flex min-w-0 flex-wrap items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void add()
+              }}
             >
-              <span
-                className={
-                  rule.effect === 'deny'
-                    ? 'shrink-0 rounded-sm bg-danger-soft px-1.5 text-xs text-danger'
-                    : 'shrink-0 rounded-sm bg-surface-hover px-1.5 text-xs text-content-secondary'
-                }
-              >
-                {rule.effect === 'deny'
-                  ? t('config:permissionRules.deny')
-                  : t('config:permissionRules.allow')}
-              </span>
-              <span className="shrink-0 text-xs text-content-muted">
-                {rule.tool === 'files'
-                  ? t('config:permissionRules.files')
-                  : t('config:permissionRules.command')}
-              </span>
-              <code className="min-w-0 flex-1 truncate font-mono text-content" title={rule.pattern}>
-                {rule.pattern}
-              </code>
-              <span
-                className="max-w-[40%] shrink-0 truncate text-xs text-content-muted"
-                title={rule.cwd || undefined}
-              >
-                {rule.cwd ? scopeName(rule.cwd) : t('config:permissionRules.global')}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="shrink-0 pointer-coarse:size-11"
+              <AppSelect
+                aria-label={t('config:permissionRules.effectLabel')}
+                className="w-28"
                 disabled={saving}
-                aria-label={t('config:permissionRules.remove', { pattern: rule.pattern })}
-                title={t('config:permissionRules.remove', { pattern: rule.pattern })}
-                onClick={() =>
-                  void run(
-                    () => permissionRulesApi.remove(rule.id),
-                    t('config:permissionRules.removed'),
-                  )
-                }
+                value={effect}
+                onChange={(event) => {
+                  const next = event.target.value === 'deny' ? 'deny' : 'allow'
+                  setEffect(next)
+                  // 文件写入只有允许规则。
+                  if (next === 'deny') setTool('bash')
+                }}
               >
-                <Trash2 />
+                <option value="allow">{t('config:permissionRules.allow')}</option>
+                <option value="deny">{t('config:permissionRules.deny')}</option>
+              </AppSelect>
+              <AppSelect
+                aria-label={t('config:permissionRules.toolLabel')}
+                className="w-32"
+                disabled={saving || effect === 'deny'}
+                value={tool}
+                onChange={(event) => setTool(event.target.value === 'files' ? 'files' : 'bash')}
+              >
+                <option value="bash">{t('config:permissionRules.command')}</option>
+                <option value="files">{t('config:permissionRules.files')}</option>
+              </AppSelect>
+              <Input
+                aria-label={t('config:permissionRules.patternLabel')}
+                className="h-[34px] min-w-[12rem] flex-1 font-mono text-[13px] max-[650px]:h-11"
+                disabled={saving}
+                maxLength={200}
+                placeholder={
+                  tool === 'files'
+                    ? t('config:permissionRules.filesPlaceholder')
+                    : t('config:permissionRules.commandPlaceholder')
+                }
+                value={pattern}
+                onChange={(event) => setPattern(event.target.value)}
+              />
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={saving || !pattern.trim()}
+                className="max-[650px]:min-h-11"
+              >
+                {saving && <OrbitSpinner className="size-3" />}
+                {t('config:permissionRules.add')}
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form
-        className="mt-3 flex min-w-0 flex-wrap items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void add()
-        }}
-      >
-        <AppSelect
-          aria-label={t('config:permissionRules.effectLabel')}
-          className="w-28"
-          disabled={saving}
-          value={effect}
-          onChange={(event) => {
-            const next = event.target.value === 'deny' ? 'deny' : 'allow'
-            setEffect(next)
-            // 文件写入只有允许规则。
-            if (next === 'deny') setTool('bash')
-          }}
-        >
-          <option value="allow">{t('config:permissionRules.allow')}</option>
-          <option value="deny">{t('config:permissionRules.deny')}</option>
-        </AppSelect>
-        <AppSelect
-          aria-label={t('config:permissionRules.toolLabel')}
-          className="w-32"
-          disabled={saving || effect === 'deny'}
-          value={tool}
-          onChange={(event) => setTool(event.target.value === 'files' ? 'files' : 'bash')}
-        >
-          <option value="bash">{t('config:permissionRules.command')}</option>
-          <option value="files">{t('config:permissionRules.files')}</option>
-        </AppSelect>
-        <Input
-          aria-label={t('config:permissionRules.patternLabel')}
-          className="h-[34px] min-w-[12rem] flex-1 font-mono text-[13px] max-[650px]:h-11"
-          disabled={saving}
-          maxLength={200}
-          placeholder={
-            tool === 'files'
-              ? t('config:permissionRules.filesPlaceholder')
-              : t('config:permissionRules.commandPlaceholder')
-          }
-          value={pattern}
-          onChange={(event) => setPattern(event.target.value)}
-        />
-        <Button
-          type="submit"
-          variant="secondary"
-          disabled={saving || !pattern.trim()}
-          className="max-[650px]:min-h-11"
-        >
-          {saving && <OrbitSpinner className="size-3" />}
-          {t('config:permissionRules.add')}
-        </Button>
-      </form>
-      {error && <FeatureAlert>{error}</FeatureAlert>}
+            </form>
+            {error && <FeatureAlert>{error}</FeatureAlert>}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </section>
   )
 }

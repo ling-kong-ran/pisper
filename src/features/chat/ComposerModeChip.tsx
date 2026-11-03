@@ -211,6 +211,9 @@ export function ComposerModeChip({
   const chipLabel = runShort ? `${runShort} · ${approval.label}` : approval.label
   const approvalShort = approval.shortLabel || approval.label
   const chipShortLabel = runShort ? `${runShort} · ${approvalShort}` : approvalShort
+  // 默认（Plan · 审批后写入）时芯片只留盾牌：大多数时候不用看它；换了模式才写出文字。
+  // 悬停与读屏照样是完整名字。
+  const quiet = run.value === 'plan' && approval.value === 'approval-required'
   const hasExistingGoal = Boolean(goal?.id)
   const rawBudget = selectedRun === 'team' ? goal?.teamTokenBudget : goal?.tokenBudget
   const currentBudget = rawBudget == null ? null : Number(rawBudget) > 0 ? Number(rawBudget) : null
@@ -265,8 +268,12 @@ export function ComposerModeChip({
           data-composer-mode={`${run.value}:${approval.value}`}
         >
           <ChipIcon size={14} className="shrink-0" aria-hidden="true" />
-          <span className="min-w-0 truncate max-[650px]:hidden">{chipLabel}</span>
-          <span className="hidden min-w-0 truncate max-[650px]:inline">{chipShortLabel}</span>
+          {!quiet && (
+            <>
+              <span className="min-w-0 truncate max-[650px]:hidden">{chipLabel}</span>
+              <span className="hidden min-w-0 truncate max-[650px]:inline">{chipShortLabel}</span>
+            </>
+          )}
           {/* 手机上胶囊本身就是按钮（点开底部表单），不再画下拉箭头。 */}
           <ChevronDown
             size={14}
