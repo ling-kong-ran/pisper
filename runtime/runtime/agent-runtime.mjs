@@ -186,6 +186,9 @@ import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
+import { BotTaskService } from '../services/bots/bot-task-service.mjs'
+import { LocalExecutor } from '../services/bots/executor.mjs'
+import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -663,6 +666,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.bots = new BotService({
       path: join(dataDir, 'pisper-bots.json'),
       validateDirectory: (input) => resolveDirectory(input, this.cwd),
+      // 还有进行中或待确认任务的 Bot 不能删除。
+      isBusy: (botId) => this.botTasks.isBusy(botId),
+    })
+    // Bot 任务（B2）：每个任务一个独立会话；改代码的任务在 <数据目录>/worktrees 下的独立 worktree 里进行。
+    this.botTasks = new BotTaskService({
+      path: join(dataDir, 'pisper-bot-tasks.json'),
+      getBot: (id) => this.bots.get(id),
+      worktrees: new WorktreeManager({
+        executor: new LocalExecutor(),
+        root: join(dataDir, 'worktrees'),
+      }),
+      runAgent: (input) => this.runBotTaskAgent(input),
+      stopAgent: (sessionId) => this.abortSession(sessionId),
     })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
@@ -910,7 +926,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.channels) await this.channels.init()
     if (this.capabilities.features.workflows) await this.workflows.init()
     if (this.capabilities.features.schedules) await this.schedules.init()
-    if (this.capabilities.features.bots) await this.bots.init()
+    if (this.capabilities.features.bots) {
+      await this.bots.init()
+      await this.botTasks.init()
+    }
     await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
     await startup.complete()

@@ -70,7 +70,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/game-assets(?:\/|$)/, feature: 'imageAssets' },
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/settings\/beta-features$/, feature: 'betaFeatures' },
-  { pattern: /^\/api\/bots(?:\/|$)/, feature: 'bots' },
+  { pattern: /^\/api\/(?:bots|bot-tasks)(?:\/|$)/, feature: 'bots' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/mcp-host(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/plugins\/web-search\/test$/, feature: 'webSearch' },

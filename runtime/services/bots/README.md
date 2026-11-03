@@ -1,6 +1,6 @@
 # Bot 服务设计草案
 
-状态：B1（Bot 注册表）已实现（2026-11-03）：`bot-model.mjs`、`bot-service.mjs`、`runtime/http/routes/bots.mjs`、`runtime/tests/bot-service.test.mjs`。B2–B6 未开始。`bots` 在 B4 界面完成前不进实验功能清单，所以接口虽在但用户打不开。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+状态：B1（Bot 注册表）已实现（2026-11-03）：`bot-model.mjs`、`bot-service.mjs`、`runtime/http/routes/bots.mjs`、`runtime/tests/bot-service.test.mjs`。B2（任务与隔离）已实现：`executor.mjs`（本机执行器，只放行 git）、`worktree-manager.mjs`、`bot-task-service.mjs`、任务接口、`runtime/tests/bot-tasks.test.mjs`。B2 与设计的差异：接受后立即删除 worktree、保留分支（不保留 7 天）；停止的任务记为 failed（code `stopped`）；`waiting` 状态与 Bot 的工具范围（`tools`）尚未接入，留到 B3/B4。B3–B6 未开始。`bots` 在 B4 界面完成前不进实验功能清单，所以接口虽在但用户打不开。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 背景、目标与非目标
 

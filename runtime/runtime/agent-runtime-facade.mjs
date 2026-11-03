@@ -824,6 +824,60 @@ export class AgentRuntimeFacade {
     return this.bots.remove(id)
   }
 
+  // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，
+  // 解析不到时沿用默认模型；执行权限取 Bot 的上限。审批与提问照常进看板“需要你”。
+  async runBotTaskAgent({ bot, task, cwd, message, onSession }) {
+    const resolved = await this.providerPreferences.resolveSubagentModel(
+      bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
+    )
+    return this.promptFromChannel({
+      sessionId: '',
+      message,
+      cwd,
+      title: `${bot.name} · ${task.title}`,
+      model: resolved.model
+        ? { provider: resolved.model.provider, model: resolved.model.id }
+        : null,
+      executionMode: bot.executionMode,
+      goalMode: bot.runMode === 'goal',
+      teamMode: bot.runMode === 'team',
+      isolatedContext: true,
+      onSession,
+    })
+  }
+
+  listBotTasks(query) {
+    return this.botTasks.list(query)
+  }
+
+  getBotTask(id) {
+    return this.botTasks.get(id)
+  }
+
+  dispatchBotTask(botId, input) {
+    return this.botTasks.dispatch(botId, { text: input?.text, source: { kind: 'manual' } })
+  }
+
+  getBotTaskDiff(id) {
+    return this.botTasks.diff(id)
+  }
+
+  acceptBotTask(id, input) {
+    return this.botTasks.accept(id, { apply: input?.apply === true })
+  }
+
+  discardBotTask(id) {
+    return this.botTasks.discard(id)
+  }
+
+  resumeBotTask(id) {
+    return this.botTasks.resume(id)
+  }
+
+  stopBotTask(id) {
+    return this.botTasks.stop(id)
+  }
+
   async updateCompactionPreference(input) {
     const requested = Number(input?.thresholdPercent)
     if (
