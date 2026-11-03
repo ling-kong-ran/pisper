@@ -396,20 +396,26 @@ export function ModelThinkingControl({
         <button
           type="button"
           className={cn(
-            'model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-md max-[650px]:border-stroke max-[650px]:pr-2 max-[650px]:pl-2.5 max-[650px]:text-sm pointer-coarse:h-11',
+            'model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-sm pointer-coarse:h-11',
             triggerClassName,
           )}
           aria-label={label}
           title={label}
         >
           <span className="min-w-0 truncate font-medium">{modelLabel}</span>
-          <span aria-hidden="true" className="text-content-faint">
+          {/* 手机胶囊只写模型名（参考稿“模型”胶囊的简洁做法）：思考强度在点开的底部表单里调，
+              无障碍标签里仍有完整的“模型 · 思考强度”。 */}
+          <span aria-hidden="true" className="text-content-faint max-[650px]:hidden">
             ·
           </span>
-          <span className="shrink-0 text-content-muted">
+          <span className="shrink-0 text-content-muted max-[650px]:hidden">
             {supported ? thinkingLevelLabel(t, thinkingLevel || levels[0]) : '—'}
           </span>
-          <ChevronsUpDown size={14} className="shrink-0 text-content-muted" aria-hidden="true" />
+          <ChevronsUpDown
+            size={14}
+            className="shrink-0 text-content-muted max-[650px]:hidden"
+            aria-hidden="true"
+          />
         </button>
       }
     >

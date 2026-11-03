@@ -145,6 +145,12 @@ function useLaunchLabels() {
         'workspace-write': t('chat:focusSession.workspaceWrite'),
         'full-access': t('chat:focusSession.fullAccess'),
       } satisfies Record<LaunchExecutionMode, string>,
+      // 手机草稿工具行的短名，与会话页盾牌芯片一致（规格 7.2）。
+      executionShort: {
+        'approval-required': t('chat:focusSession.approvalRequiredShort'),
+        'workspace-write': t('chat:focusSession.workspaceWriteShort'),
+        'full-access': t('chat:focusSession.fullAccessShort'),
+      } satisfies Record<LaunchExecutionMode, string>,
       runMode: {
         plan: t('chat:focusSession.planMode'),
         goal: t('chat:focusSession.goalMode'),
@@ -458,6 +464,12 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
     // 手机底部表单与桌面派发同一条芯片工具行，宽度只有 358：模型只显示短名，Plan + 安全模式的盾牌只留图标。
     const compact = compactChips || sheet
     const chipSize = sheet || composer ? 'default' : 'sm'
+    // 手机草稿（composer + touch）：工具行与会话页输入框同一种样子——无边框浅灰胶囊、短名（规格 7.2）；
+    // 深色下 surface-muted 与输入框底色几乎相同，改用 surface-active 才分得出胶囊。
+    const phoneComposer = composer && touch
+    const phonePill =
+      phoneComposer &&
+      'rounded-full border-transparent bg-surface-muted shadow-none dark:bg-surface-active'
     // 手机底部表单：芯片与派发键都是 44 高（规格 7，触控目标 ≥44）。
     // 桌面对话框的 24px 小芯片：触屏时可见高度直接抬到 44；项目芯片的命中区用伪元素补到 44。
     const rowChipTouch = sheet
@@ -477,11 +489,12 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             className={cn(
               sheet
                 ? 'max-w-[13ch] min-w-0 shrink'
-                : composer && touch
+                : phoneComposer
                   ? 'max-w-[14ch]'
                   : // 派发对话框多了“排在…之后”芯片（A9）：放不下时项目芯片收窄（正文仍至少 8 个字符），不被挤出左边。
                     'max-w-[24ch] min-w-0 shrink',
               projectChipTouch,
+              phonePill,
             )}
             title={project?.cwd || undefined}
             aria-label={t('board:launch.projectLabel', {
@@ -494,16 +507,17 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           >
             <Folder aria-hidden="true" />
             {/* 目录名是机器路径，用等宽；“默认目录”是中文说明，不用等宽字体（规格 6.4）。 */}
+            {/* 正文至少 8 个字符只为长名字截断后仍可辨；短名字（如“ws”）按自身宽度，不在芯片里留一段空白。 */}
             <span
               className={cn(
                 'truncate',
-                project?.label && !sheet ? 'min-w-[8ch] font-mono' : 'min-w-0',
-                project?.label && sheet && 'font-mono',
+                project?.label && !sheet && projectChipLabel.length > 8 ? 'min-w-[8ch]' : 'min-w-0',
+                project?.label && 'font-mono',
               )}
             >
               {projectChipLabel}
             </span>
-            <ChevronDown aria-hidden="true" />
+            <ChevronDown aria-hidden="true" className={phoneComposer ? 'hidden' : undefined} />
           </Chip>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -608,13 +622,22 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
       runMode === 'plan'
         ? labels.execution[executionMode]
         : `${labels.runMode[runMode]} · ${labels.execution[executionMode]}`
+    // 手机草稿的盾牌芯片和会话页一样写短名；底部派发表单的工具行更窄，仍只留图标。
+    const modeChipText = phoneComposer
+      ? runMode === 'plan'
+        ? labels.executionShort[executionMode]
+        : `${runMode === 'team' ? t('board:composer.teamShort') : t('board:composer.goalShort')} · ${labels.executionShort[executionMode]}`
+      : compact && runMode === 'plan' && executionMode !== 'full-access'
+        ? ''
+        : modeLabel
     const modeMenu = (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Chip
             size={chipSize}
             className={cn(
-              'min-w-0 max-w-[26ch] border-transparent bg-transparent',
+              'min-w-0 max-w-[26ch]',
+              phoneComposer ? phonePill : 'border-transparent bg-transparent',
               // 手机底部表单只剩盾牌图标：不让它被项目芯片挤没。
               sheet && 'flex-none',
               rowChipTouch,
@@ -624,10 +647,8 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
             data-launch-mode={`${runMode}:${executionMode}`}
           >
             <ModeIcon aria-hidden="true" />
-            <span className="truncate">
-              {compact && runMode === 'plan' && executionMode !== 'full-access' ? '' : modeLabel}
-            </span>
-            <ChevronDown aria-hidden="true" />
+            <span className="truncate">{modeChipText}</span>
+            <ChevronDown aria-hidden="true" className={phoneComposer ? 'hidden' : undefined} />
           </Chip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
@@ -759,7 +780,7 @@ export const LaunchConsole = forwardRef<LaunchConsoleHandle, LaunchConsoleProps>
           data-launch-console={variant}
           // 与会话页输入框同一外形：22 圆角卡片（窄屏 16）、聚焦描边，工具行在下方。
           className={cn(
-            'flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-panel shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring max-[650px]:rounded-2xl',
+            'flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-panel shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus-visible]:border-focus has-[textarea:focus-visible]:ring-3 has-[textarea:focus-visible]:ring-focus-ring max-[650px]:rounded-[28px]',
             className,
           )}
         >

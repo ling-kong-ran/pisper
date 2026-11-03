@@ -520,7 +520,8 @@ export const FocusSession = memo(function FocusSession({
           type="button"
           className={cn(
             COMPOSER_ICON_KEY_CLASSES,
-            'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content',
+            // 手机：浅灰底圆形，和盾牌、模型胶囊同一种无边框填充样式。
+            'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:text-content',
           )}
           title={plusLabel}
           aria-label={plusLabel}
@@ -845,7 +846,7 @@ export const FocusSession = memo(function FocusSession({
         {/* 输入卡片：圆角 22（守卫）+ 控件级描边（≥3:1），输入时焦点描边与 3px 焦点环。 */}
         <div
           className={cn(
-            'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-2xl [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
+            'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
             attachmentDropActive && 'border-focus ring-3 ring-focus-ring',
           )}
           onDragEnter={showAttachmentDrop}
@@ -959,9 +960,10 @@ export const FocusSession = memo(function FocusSession({
           <span role="status" className="sr-only">
             {modeAnnouncement}
           </span>
-          {/* 工具行（规格 v2 第 4.3 节）：[+] [盾牌芯片] … [模型芯片] [发送]。 */}
+          {/* 工具行（规格 v2 第 4.3 节）：[+] [盾牌芯片] … [模型芯片] [发送]。
+              手机上控件都是 44 的圆形 / 胶囊：留 8px 内边距，与 28px 圆角大致同心，发送键不压到圆角上。 */}
           <div
-            className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:px-1.5 max-[650px]:pb-1.5"
+            className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:gap-1.5"
             data-composer-toolbar
           >
             {plusMenu}

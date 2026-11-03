@@ -27,7 +27,14 @@ import type { EntityRecord } from '@/types/chat'
 import { type ComposerExecutionMode } from './composer-run-mode'
 
 const MIN_GOAL_TOKEN_BUDGET = 1_000
-type Option<T extends string> = { value: T; label: string; description: string; icon: LucideIcon }
+type Option<T extends string> = {
+  value: T
+  label: string
+  // 窄屏工具行放不下完整名称时芯片上显示的短名（规格 7.2 的“审批”芯片）；完整名称仍在无障碍标签与弹层里。
+  shortLabel?: string
+  description: string
+  icon: LucideIcon
+}
 
 function OptionRow<T extends string>({
   option,
@@ -123,18 +130,21 @@ export function ComposerModeChip({
     {
       value: 'approval-required',
       label: t('chat:focusSession.approvalRequired'),
+      shortLabel: t('chat:focusSession.approvalRequiredShort'),
       description: t('chat:focusSession.approvalRequiredShowsADiffBeforeWriting'),
       icon: FileCheck2,
     },
     {
       value: 'workspace-write',
       label: t('chat:focusSession.workspaceWrite'),
+      shortLabel: t('chat:focusSession.workspaceWriteShort'),
       description: t('chat:focusSession.workspaceWriteRunsCommandsWithAutomaticApproval'),
       icon: BadgeCheck,
     },
     {
       value: 'full-access',
       label: t('chat:focusSession.fullAccess'),
+      shortLabel: t('chat:focusSession.fullAccessShort'),
       description: t('chat:focusSession.fullAccessRunsShellWithoutPerCommandApproval'),
       icon: ShieldAlert,
     },
@@ -185,6 +195,8 @@ export function ComposerModeChip({
         ? t('board:composer.goalShort')
         : ''
   const chipLabel = runShort ? `${runShort} · ${approval.label}` : approval.label
+  const approvalShort = approval.shortLabel || approval.label
+  const chipShortLabel = runShort ? `${runShort} · ${approvalShort}` : approvalShort
   const hasExistingGoal = Boolean(goal?.id)
   const rawBudget = selectedRun === 'team' ? goal?.teamTokenBudget : goal?.tokenBudget
   const currentBudget = rawBudget == null ? null : Number(rawBudget) > 0 ? Number(rawBudget) : null
@@ -228,14 +240,20 @@ export function ComposerModeChip({
       trigger={
         <button
           type="button"
-          className="composer-mode-chip inline-flex h-7 max-w-[220px] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:max-w-[160px] max-[650px]:border-stroke max-[650px]:px-2.5 pointer-coarse:h-11"
+          className="composer-mode-chip inline-flex h-7 max-w-[220px] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:max-w-[160px] max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-content pointer-coarse:h-11"
           aria-label={label}
           title={label}
           data-composer-mode={`${run.value}:${approval.value}`}
         >
           <ChipIcon size={14} className="shrink-0" aria-hidden="true" />
-          <span className="min-w-0 truncate">{chipLabel}</span>
-          <ChevronDown size={14} className="shrink-0 opacity-70" aria-hidden="true" />
+          <span className="min-w-0 truncate max-[650px]:hidden">{chipLabel}</span>
+          <span className="hidden min-w-0 truncate max-[650px]:inline">{chipShortLabel}</span>
+          {/* 手机上胶囊本身就是按钮（点开底部表单），不再画下拉箭头。 */}
+          <ChevronDown
+            size={14}
+            className="shrink-0 opacity-70 max-[650px]:hidden"
+            aria-hidden="true"
+          />
         </button>
       }
     >

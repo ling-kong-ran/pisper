@@ -1179,3 +1179,31 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
   assert.equal(workflow.match(/node scripts\/verify-tauri-signature\.mjs/g)?.length, 3)
   assert.doesNotMatch(workflow, /minisign -Vm/)
 })
+
+test('the phone composer toolbar uses borderless filled pills with short labels', async () => {
+  // 手机工具行 [+] [审批] … [模型] [发送] 都是 44：无边框浅灰圆形 / 胶囊（深色用 surface-active 才分得出），
+  // 审批写短名、模型只写名字，下拉箭头与思考强度收进点开的底部表单；桌面保持完整名称。
+  const [focus, mode, model, launch] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/ComposerModeChip.tsx', 'utf8'),
+    readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
+    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+  ])
+  const pill =
+    /max-\[650px\]:rounded-full[^"'\n]*max-\[650px\]:bg-surface-muted max-\[650px\]:dark:bg-surface-active/
+  assert.match(focus, pill)
+  assert.match(mode, pill)
+  assert.match(model, pill)
+  assert.match(focus, /max-\[650px\]:rounded-\[28px\]/)
+  assert.match(mode, /max-\[650px\]:hidden">\{chipLabel\}/)
+  assert.match(mode, /hidden min-w-0 truncate max-\[650px\]:inline">\{chipShortLabel\}/)
+  assert.match(
+    model,
+    /shrink-0 text-content-muted max-\[650px\]:hidden">\s*\{supported \? thinkingLevelLabel/,
+  )
+  assert.match(
+    launch,
+    /const phonePill =\s*phoneComposer &&\s*'rounded-full border-transparent bg-surface-muted shadow-none dark:bg-surface-active'/,
+  )
+  assert.match(launch, /labels\.executionShort\[executionMode\]/)
+})
