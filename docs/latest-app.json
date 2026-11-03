@@ -1,9 +1,9 @@
 {
-  "version": "0.1.65",
-  "tag": "app-v0.1.65",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.65",
+  "version": "0.1.66",
+  "tag": "app-v0.1.66",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.66",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.65\n\n- 发布日期：2026-11-03（北京时间）\n- 发布标签：`app-v0.1.65`\n- 对比基线：`app-v0.1.64`\n\n## 更新内容\n\n### 新增功能\n\n- feat(desktop): 系统选文件夹对话框允许新建文件夹\n- feat(board): 新任务项目菜单支持选择文件夹与新建文件夹\n\n### 其他变更\n\n- test(ios): 移除依赖模型下载的语音 XCTest\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.64...app-v0.1.65)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/a580075c52f19e57c289e74246ac2c44c6a8b3cd)",
+  "notes": "## Pisper App 0.1.66\n\n- 发布日期：2026-11-03（北京时间）\n- 发布标签：`app-v0.1.66`\n- 对比基线：`app-v0.1.65`\n\n## 更新内容\n\n### 新增功能\n\n- feat(models): 辅助模型——起标题、压缩上下文、整理记忆改用指定模型\n\n### 问题修复\n\n- fix(chat): 派发浮层发出的任务，从侧栏打开后能看到运行与回复\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.65...app-v0.1.66)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/df2b191b2a769b57c76c897a85983b448ec8b2d6)",
   "releaseDate": "2026-11-03"
 }
