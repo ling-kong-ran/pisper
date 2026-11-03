@@ -153,9 +153,10 @@ jobs:
             target: windows-x86_64
             os: windows-latest
           # 不再发布 macOS Intel：只构建 Apple Silicon。
+          # macos-15 的 arm64 托管机多次排不到（15 分钟后被取消），改用 macos-14 镜像。
           - name: macOS Apple Silicon
             target: darwin-aarch64
-            os: macos-15
+            os: macos-14
           - name: Linux x64
             target: linux-x86_64
             os: ubuntu-22.04
