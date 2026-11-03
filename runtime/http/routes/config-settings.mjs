@@ -86,6 +86,13 @@ export const configSettingsRoutes = [
     },
   },
   {
+    method: 'PUT',
+    path: '/api/config/auxiliary-model',
+    async handler({ runtime, body, json }) {
+      json(200, await runtime.setAuxiliaryModel(await body()))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/agent-profiles',
     async handler({ runtime, url, json }) {

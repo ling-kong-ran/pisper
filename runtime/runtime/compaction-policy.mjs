@@ -117,12 +117,15 @@ export function installTurnBoundaryCompaction(session) {
 
 // 压缩扩展：让 Pi 引擎在 session_before_compact 钩子中使用 Pisper 的压缩实现，
 // 并收紧预留 token——更早的压缩不应同时放大摘要响应的可用空间。
-export function pisperCompactionExtension(pi, { compactSession = compact } = {}) {
+// 设置了辅助模型时先用它写摘要；取不到认证或生成失败（例如上下文装不下）再回到会话模型。
+// 预留量与触发线始终按会话模型计算：压缩是为会话模型腾出空间。
+export function pisperCompactionExtension(
+  pi,
+  { compactSession = compact, resolveAuxiliaryModel = async () => null } = {},
+) {
   pi.on('session_before_compact', async (event, context) => {
     const model = context.model
     if (!model) return undefined
-    const auth = await context.modelRegistry.getApiKeyAndHeaders(model)
-    if (!auth?.ok) return undefined
     const reserveTokens = tokenCount(
       event.preparation.settings?.reserveTokens,
       COMPACTION_SUMMARY_RESERVE_TOKENS,
@@ -159,24 +162,45 @@ export function pisperCompactionExtension(pi, { compactSession = compact } = {})
     }
     // Pi 1.4 的摘要生成改用模型 maxTokens，不再读取 reserveTokens。
     // 只限制本次摘要的模型副本，保留旧版 80% 输出预算，不修改会话模型。
-    const summaryModel = {
-      ...model,
-      maxTokens: Math.min(
-        tokenCount(model.maxTokens, Number.MAX_SAFE_INTEGER),
-        Math.max(1, Math.floor(preparation.settings.reserveTokens * 0.8)),
-      ),
+    const summarize = async (summaryModelSource, auth) =>
+      compactSession(
+        preparation,
+        {
+          ...summaryModelSource,
+          maxTokens: Math.min(
+            tokenCount(summaryModelSource.maxTokens, Number.MAX_SAFE_INTEGER),
+            Math.max(1, Math.floor(preparation.settings.reserveTokens * 0.8)),
+          ),
+        },
+        auth.apiKey,
+        auth.headers,
+        event.customInstructions,
+        event.signal,
+        'off',
+        undefined,
+        auth.env,
+      )
+    const auxiliary = await Promise.resolve()
+      .then(resolveAuxiliaryModel)
+      .catch(() => null)
+    if (auxiliary && !sameModel(auxiliary, model)) {
+      const auxiliaryAuth = await context.modelRegistry
+        .getApiKeyAndHeaders(auxiliary)
+        .catch(() => null)
+      if (auxiliaryAuth?.ok) {
+        try {
+          return { compaction: await summarize(auxiliary, auxiliaryAuth) }
+        } catch (error) {
+          if (event.signal?.aborted) throw error
+        }
+      }
     }
-    const result = await compactSession(
-      preparation,
-      summaryModel,
-      auth.apiKey,
-      auth.headers,
-      event.customInstructions,
-      event.signal,
-      'off',
-      undefined,
-      auth.env,
-    )
-    return { compaction: result }
+    const auth = await context.modelRegistry.getApiKeyAndHeaders(model)
+    if (!auth?.ok) return undefined
+    return { compaction: await summarize(model, auth) }
   })
+}
+
+function sameModel(left, right) {
+  return left?.provider === right?.provider && left?.id === right?.id
 }

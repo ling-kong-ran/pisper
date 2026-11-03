@@ -889,6 +889,7 @@ export class AgentRuntimeFacade {
     this.boardEvents?.dispose()
     this.sessionCards?.dispose()
     await this.memoryCapture.dispose()
+    this.auxiliaryTitles?.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null
     await this.sideChats?.dispose()
@@ -1218,6 +1219,17 @@ export class AgentRuntimeFacade {
     return this.providerPreferences.withConfigurationWrite(() =>
       this.providerPreferences.setSubagentModelTiers(input),
     )
+  }
+
+  async setAuxiliaryModel(input) {
+    return this.providerPreferences.withConfigurationWrite(() =>
+      this.providerPreferences.setAuxiliaryModel(input),
+    )
+  }
+
+  // 辅助模型解析失败（读配置出错等）一律当作未设置，后台杂活退回原来的模型。
+  async resolveAuxiliaryModel() {
+    return this.providerPreferences.resolveAuxiliaryModel().catch(() => null)
   }
 
   // 列出子代理定义及坏文件原因：不带会话或项目时只列全局定义（设置页）；

@@ -14,6 +14,7 @@ import { redactSecretText } from '../security/secret-redaction.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 import { MAX_FALLBACK_MODELS, normalizeFallbackModels } from './model-fallback.mjs'
 import { SUBAGENT_MODEL_TIERS, normalizeSubagentModelTiers } from '../services/agent-profiles.mjs'
+import { normalizeAuxiliaryModelRef } from './auxiliary-model.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
 
@@ -1030,6 +1031,7 @@ export class ProviderPreferences {
       toolMode: normalizeToolMode(appConfig.toolMode),
       fallbackModels: normalizeFallbackModels(appConfig.fallbackModels),
       subagentModelTiers: normalizeSubagentModelTiers(appConfig.subagentModelTiers),
+      auxiliaryModel: normalizeAuxiliaryModelRef(appConfig.auxiliaryModel),
       providers,
       apiKeyConfigured: Boolean(credentials[selectedProvider]),
     }
@@ -1069,6 +1071,37 @@ export class ProviderPreferences {
     const appConfig = await readJson(this.appConfigPath, {})
     await writeJsonAtomic(this.appConfigPath, { ...appConfig, subagentModelTiers: tiers })
     return this.getConfig()
+  }
+
+  // 辅助模型：一个 "provider/modelId"，空字符串表示不设置（后台杂活跟随各自原来的模型）。
+  async setAuxiliaryModel(input) {
+    const requested = input?.model
+    if (typeof requested !== 'string') throw new Error('辅助模型格式无效。')
+    const ref = normalizeAuxiliaryModelRef(requested)
+    if (requested.trim() && !ref) throw new Error('辅助模型必须写成 provider/modelId。')
+    if (ref) {
+      const slash = ref.indexOf('/')
+      await this.resolveSessionModel(ref.slice(0, slash), ref.slice(slash + 1))
+    }
+    const appConfig = await readJson(this.appConfigPath, {})
+    await writeJsonAtomic(this.appConfigPath, { ...appConfig, auxiliaryModel: ref })
+    return this.getConfig()
+  }
+
+  // 运行时取辅助模型：设置之后被停用、删除、改成非对话模型或缺少认证时返回 null，调用方退回原来的模型。
+  async resolveAuxiliaryModel() {
+    const appConfig = await readJson(this.appConfigPath, { disabledProviders: [] })
+    const ref = normalizeAuxiliaryModelRef(appConfig.auxiliaryModel)
+    if (!ref) return null
+    const slash = ref.indexOf('/')
+    const provider = ref.slice(0, slash)
+    if ((appConfig.disabledProviders || []).includes(provider)) return null
+    const modelRuntime = this.getModelRuntime()
+    const model = modelRuntime?.getModel?.(provider, ref.slice(slash + 1))
+    if (!model || inferModelKind(model.id, model.pisperKind) !== 'chat') return null
+    if (modelRuntime.hasConfiguredAuth && !modelRuntime.hasConfiguredAuth(model.provider))
+      return null
+    return model
   }
 
   // 按定义挑子代理模型：具体模型 → 档位映射 → 父会话模型（model 为 null）。

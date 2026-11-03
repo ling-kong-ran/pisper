@@ -1,6 +1,6 @@
 // 设置 › 模型的默认值（效果图 desktop-settings-light.png、样稿 settings.html）：页标题下面三行设置——
 // 默认模型（跨提供方的对话模型）、思考强度、可用工具。选中即保存，没有单独的“保存”键。
-// 效果图里的“辅助模型”（生成标题、压缩上下文）Runtime 没有对应字段，不做假控件（见 decisions）。
+// 辅助模型：起标题、压缩上下文、整理记忆这类后台杂活用的模型，不设置时各自跟随原来的模型。
 // 思考强度与可用工具原先在“更多设置 › Agent 运行策略”卡片里，挪到这里后那张卡片删除；搜索“运行策略”直接定位到这几行。
 // 备用模型：主模型重试用尽或额度耗尽时，运行中按顺序切换（最多两个）。
 import { useEffect, useId, useState, type ReactNode } from 'react'
@@ -80,6 +80,10 @@ export function ModelDefaultsSettings({
   useEffect(() => {
     setFallbacks(savedFallbacks ? savedFallbacks.split('\n') : [])
   }, [savedFallbacks])
+  const [auxiliary, setAuxiliary] = useState(config.auxiliaryModel || '')
+  useEffect(() => {
+    setAuxiliary(config.auxiliaryModel || '')
+  }, [config.auxiliaryModel])
 
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultModel = config.defaultModel || config.model
@@ -145,6 +149,21 @@ export function ModelDefaultsSettings({
       notify(t('config:providerWorkbench.fallbackModelsSaved'))
     } catch (caught) {
       setFallbacks(previous)
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const saveAuxiliary = async (ref: string) => {
+    const previous = auxiliary
+    setAuxiliary(ref)
+    setSaving(true)
+    setError('')
+    try {
+      onConfigChanged(await providerApi.saveAuxiliaryModel(ref))
+      notify(t('config:providerWorkbench.auxiliaryModelSaved'))
+    } catch (caught) {
+      setAuxiliary(previous)
       setError(caught instanceof Error ? caught.message : String(caught))
     } finally {
       setSaving(false)
@@ -227,6 +246,31 @@ export function ModelDefaultsSettings({
             </span>
             {fallbackSelect(1, `${id}-fallback ${id}-fallback-2`)}
           </div>
+        </DefaultsRow>
+        <DefaultsRow
+          labelId={`${id}-auxiliary`}
+          label={t('config:providerWorkbench.auxiliaryModel')}
+          hint={t('config:providerWorkbench.auxiliaryModelHint')}
+        >
+          <AppSelect
+            aria-labelledby={`${id}-auxiliary`}
+            aria-describedby={`${id}-auxiliary-hint`}
+            className="w-full"
+            disabled={!chatOptions.length || busy || saving}
+            value={auxiliary}
+            onChange={(event) => void saveAuxiliary(event.target.value)}
+          >
+            <option value="">{t('config:providerWorkbench.auxiliaryFollowSession')}</option>
+            {/* 已保存但现在不可用的辅助模型也显示出来，便于用户看见并换掉。 */}
+            {auxiliary && !chatOptions.some((option) => fallbackRef(option) === auxiliary) && (
+              <option value={auxiliary}>{auxiliary}</option>
+            )}
+            {chatOptions.map((option) => (
+              <option key={option.value} value={fallbackRef(option)}>
+                {`${option.model.name || option.model.id} · ${option.provider.name}`}
+              </option>
+            ))}
+          </AppSelect>
         </DefaultsRow>
         <DefaultsRow
           labelId={`${id}-thinking`}

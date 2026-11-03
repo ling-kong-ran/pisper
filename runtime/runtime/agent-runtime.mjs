@@ -46,6 +46,7 @@ import { SideChatService } from '../services/side-chat-service.mjs'
 import { ToolPluginService } from '../services/tool-plugin-service.mjs'
 import { WebSearchService } from '../services/web-search-service.mjs'
 import { ConversationMemoryCapture, localDayKey } from './conversation-memory-capture.mjs'
+import { AuxiliaryTitleTasks, generateSessionTitle } from './auxiliary-model.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
@@ -474,9 +475,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       cwd,
       getAutoApproveConfidence: () => this.memoryAutoApproveConfidence / 100,
     })
+    // 记忆整理属于后台杂活：设置了辅助模型就用它，否则沿用默认模型。
     this.memorySummarizer = createSemanticMemorySummarizer({
       getModelRuntime: () => this.modelRuntime,
-      getDefaultModel: () => this.resolveDefaultModel(),
+      getDefaultModel: async () =>
+        (await this.resolveAuxiliaryModel()) || this.resolveDefaultModel(),
     })
     this.memoryCapture = new ConversationMemoryCapture({
       getModelRuntime: () => this.modelRuntime,
@@ -484,6 +487,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       memory: this.memory,
       recordUsage: (...args) => this.recordUsage(...args),
     })
+    this.auxiliaryTitles = new AuxiliaryTitleTasks()
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
     this.gitChanges = new GitChangesService()
     this.vcsChanges = new VcsChangesService({ git: this.gitChanges })
@@ -513,7 +517,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       // Pi 的内置 mcp / tool-search 刻意不装：MCP 与按需工具由 McpService 和 discover_tools 负责。
       extensionFactories: [
         pisperPromptExtension,
-        pisperCompactionExtension,
+        (pi) =>
+          pisperCompactionExtension(pi, {
+            resolveAuxiliaryModel: () => this.resolveAuxiliaryModel(),
+          }),
         createSettleBarrierExtension(this.settleBarrier),
         ...(this.capabilities?.features?.codemode ? [createCodemodeExtension()] : []),
       ],
@@ -2291,6 +2298,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         source: 'first_message',
       })
     }
+    if (mayAutoTitle) this.scheduleAuxiliaryTitle(session, value, message, value.name)
 
     emit('meta', {
       sessionId: session.sessionId,
@@ -2965,8 +2973,41 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await this.saveSessionMeta().catch(() => {})
     }
   }
+  // 记忆提取每轮都跑一次：设置了辅助模型就用它，免得每轮都多花一次主模型。
   async captureConversationMemory(input) {
-    return this.memoryCapture.capture(input)
+    const auxiliary = await this.resolveAuxiliaryModel()
+    return this.memoryCapture.capture(auxiliary ? { ...input, model: auxiliary } : input)
+  }
+
+  // 首轮发送时，规则标题先顶上；设置了辅助模型的话，后台再让它起一个更像标题的名字。
+  // 只在用户没手动改过、标题也还是那条规则标题时替换，运行中途完成也能直接改名。
+  scheduleAuxiliaryTitle(session, value, message, placeholder) {
+    const sessionId = session.sessionId
+    void this.auxiliaryTitles.run(async (signal) => {
+      const model = await this.resolveAuxiliaryModel()
+      if (!model || signal.aborted) return
+      const { text, usage } = await generateSessionTitle({
+        modelRuntime: this.modelRuntime,
+        model,
+        message,
+        signal,
+      })
+      if (usage) {
+        await this.recordUsage(localDayKey(Date.now()), `title:${sessionId}`, usage).catch(() => {})
+      }
+      const title = cleanSessionTitle(text)
+      if (!title || title === DEFAULT_SESSION_NAME || signal.aborted) return
+      if (this.sessionMeta[sessionId]?.manual || value.name !== placeholder) return
+      session.setSessionName(title)
+      value.name = title
+      await this.markSessionTitle(sessionId, title, false)
+      this.runEmitters.get(sessionId)?.('session_title', {
+        sessionId,
+        name: title,
+        source: 'auxiliary_model',
+      })
+      this.boardEvents?.catalogChanged()
+    })
   }
 
   // 一轮运行收尾时记下看板卡片的结局。value.abortedAt 只由显式停止（POST /abort、渠道 /stop、

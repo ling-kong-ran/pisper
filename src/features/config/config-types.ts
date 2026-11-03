@@ -49,6 +49,8 @@ export type ConfigData = EntityRecord & {
   fallbackModels?: string[]
   // 子代理模型档位 → "provider/modelId"；缺省的档位跟随当前会话模型。
   subagentModelTiers?: Partial<Record<SubagentModelTier, string>>
+  // 辅助模型 "provider/modelId"：起标题、压缩上下文、整理记忆用它；空字符串表示跟随原来的模型。
+  auxiliaryModel?: string
   createdProviderId?: string
   addedModelIds?: string[]
   apiKeyUpdated?: boolean

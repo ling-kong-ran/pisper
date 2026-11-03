@@ -24,7 +24,7 @@ export function createSemanticMemorySummarizer({ getModelRuntime, getDefaultMode
   return {
     async summarize(entries) {
       const modelRuntime = getModelRuntime?.()
-      const model = getDefaultModel?.()
+      const model = await getDefaultModel?.()
       if (!modelRuntime || !model) return entries.map(() => '')
       const blocks = entries.map(
         (entry, index) =>

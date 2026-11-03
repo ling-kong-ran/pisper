@@ -26,6 +26,13 @@ export const providerApi = {
       body: JSON.stringify({ models }),
     })
   },
+  // 辅助模型保存为 "provider/modelId"；空字符串表示不设置。
+  saveAuxiliaryModel(model: string) {
+    return apiJson<ConfigData>('/api/config/auxiliary-model', {
+      method: 'PUT',
+      body: JSON.stringify({ model }),
+    })
+  },
   deleteModel(providerId: string, modelId: string) {
     return apiJson<ConfigData>('/api/providers/' + encodeURIComponent(providerId) + '/models', {
       method: 'DELETE',
