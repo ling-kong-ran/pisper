@@ -8,7 +8,6 @@ import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { useIsPhoneViewport } from '@/hooks/use-mobile'
-import { usePagePrimaryAction } from '@/hooks/usePagePrimaryAction'
 import { useClientStore } from '@/stores/client-store'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { waitForMobileRuntimeReady } from '@/lib/http'
@@ -58,7 +57,6 @@ type ChatPageProps = {
   notify: Notify
   navigate: (page: string, options?: { replace?: boolean }) => void
   browserNotify?: (event: string, data: unknown, options?: { force?: boolean }) => void
-  registerPrimaryAction: (action: () => void) => () => void
   pendingAsset: PendingAsset | null
   onAssetConsumed: () => void
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
@@ -76,7 +74,6 @@ export function ChatPage({
   notify,
   navigate,
   browserNotify,
-  registerPrimaryAction,
   pendingAsset,
   onAssetConsumed,
   requestText,
@@ -155,7 +152,8 @@ export function ChatPage({
   const setGlobalError = catalog.setGlobalError
   const openSession = selection.openSession
   const [recallPulse, setRecallPulse] = useState({ sessionId: '', token: 0 })
-  // 新建会话：先创建记录（带可选 cwd），再打开它（会话页交给路由）。
+  // 新建会话：先创建记录（带可选 cwd），再打开它（会话页交给路由）。只给没有会话 id 的发送兜底；
+  // 会话页不注册“页面主操作”——新任务入口是主页草稿与派发浮层，主操作队列也就不会在这里建出空会话。
   const createSession = useCallback(
     async (cwd = '') => {
       let mobileState: MobileRuntimeState | null = null
@@ -171,7 +169,6 @@ export function ChatPage({
     },
     [createSessionRecord, mobileApp, openSession],
   )
-  usePagePrimaryAction(registerPrimaryAction, createSession)
 
   // 路由模式：URL → 活动会话。目录刷新或删除可能把活动会话换走，只要路由会话仍在目录里就拉回；
   // 路由会话不在目录里（已删除或链接错误）时不强选，由页面显示“找不到这个会话”。

@@ -239,6 +239,10 @@ test('the session page no longer doubles as a new-task launcher', async () => {
     readFile('src/app/SessionShell.tsx', 'utf8'),
   ])
   assert.match(transcript, /<InlineEmptyState\s+compact/)
+  // 会话页不注册页面主操作：模型引导“去设置”排队的主操作不会落到这里建空会话。
+  const chatPage = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
+  assert.doesNotMatch(chatPage, /usePagePrimaryAction|registerPrimaryAction/)
+  assert.doesNotMatch(shell, /registerPrimaryAction/)
   assert.match(
     shell,
     /if \(!newRoute\) return\s+navigate\(HOME_PATH, \{ replace: true, state: HOME_DRAFT_STATE \}\)\s+startNewTask\(\)/,

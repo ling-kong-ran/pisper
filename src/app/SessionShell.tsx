@@ -140,7 +140,6 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
           notify={context.notify}
           navigate={context.navigate}
           browserNotify={context.browserNotify}
-          registerPrimaryAction={context.registerPrimaryAction}
           pendingAsset={context.pendingAsset}
           onAssetConsumed={context.onAssetConsumed}
           requestText={context.requestText}
