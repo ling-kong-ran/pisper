@@ -1,3 +1,5 @@
+import { BETA_FEATURES } from '../shared/beta-features.mjs'
+
 // 同一套 Pisper Runtime 在不同宿主上使用这份能力清单做降级。能力只能由实际
 // 内建模块探测开启；环境变量只选择宿主档案，不能把不存在的能力伪装成可用。
 const PROFILES = new Set(['desktop', 'mobile-embedded', 'mobile-store'])
@@ -116,7 +118,8 @@ function buildCapabilities({
     // 插队（立即发送）：/input 的 behavior: 'interrupt' 与排队项的 send-now，只打断当前这一步。
     inputInterrupt: true,
     // 实验功能开关：只读写应用配置里的一个字段，各档案都提供；单项功能是否可用另看它 requires 的能力。
-    betaFeatures: true,
+    // 清单为空时不声明：设置里不出现空的“实验功能”分区，等第一个实验功能进清单再出现。
+    betaFeatures: BETA_FEATURES.length > 0,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
     codemode: workers && wasm && !embedded,
   }
@@ -124,7 +127,10 @@ function buildCapabilities({
     version: 1,
     profile,
     engine: 'node',
-    degraded: Object.values(features).some((available) => !available),
+    // 实验功能清单为空不是宿主降级，不计入。
+    degraded: Object.entries(features).some(
+      ([name, available]) => !available && name !== 'betaFeatures',
+    ),
     modules: Object.freeze({ childProcess, workerThreads, sqlite, wasm }),
     features: Object.freeze(features),
     tools: Object.freeze(supportedTools(features)),

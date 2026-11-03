@@ -128,14 +128,15 @@ test('availability depends only on runtime capabilities; activity needs both fla
   assert.equal(isBetaFeatureActive({ unknown: true }, {}, 'unknown', CATALOG), false)
 })
 
-test('every runtime profile exposes the beta feature settings route', async () => {
+test('every runtime profile exposes the settings route once the catalog has a feature', async () => {
   assert.equal(requiredRuntimeFeature('/api/settings/beta-features', 'PATCH'), 'betaFeatures')
   for (const profile of ['desktop', 'mobile-embedded', 'mobile-store']) {
     const capabilities = await resolveRuntimeCapabilities({
       environment: { PISPER_RUNTIME_PROFILE: profile },
       moduleSupport: { childProcess: false, workerThreads: false, sqlite: false, wasm: false },
     })
-    assert.equal(capabilities.features.betaFeatures, true, profile)
+    // 空清单不声明能力，设置里就不会出现空的分区。
+    assert.equal(capabilities.features.betaFeatures, BETA_FEATURES.length > 0, profile)
   }
 })
 

@@ -54,7 +54,7 @@ type BetaFeature = {
 
 `unavailableReason` 取值 `runtime`（连接的 Runtime 缺少 `requires` 里的 capability）。是否可用只看连接的 Runtime，不看客户端设备：手机连接电脑或服务器上的 Pisper 时，可用性与那台 Runtime 一致。不可用的功能仍可保存为打开，但不会生效；页面会写明原因。
 
-Capability：`runtime-capabilities.mjs` 新增 `features.betaFeatures`。前端连到没有这项能力的旧 Runtime 时，通过 `CONFIG_FEATURES` 隐藏整个分区，不去调用接口。
+Capability：`runtime-capabilities.mjs` 新增 `features.betaFeatures`，只在清单非空时为真（不计入 `degraded`），所以清单为空时设置里不出现空的分区。前端连到没有这项能力的 Runtime 时，通过 `CONFIG_FEATURES` 隐藏整个分区，不去调用接口。
 
 ## 前端
 

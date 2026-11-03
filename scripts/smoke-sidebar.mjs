@@ -15,6 +15,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BETA_FEATURES } from '../shared/beta-features.mjs'
 import { chromium } from 'playwright-core'
 import {
   BOARD_SESSION_ID,
@@ -946,15 +947,17 @@ try {
       fleetLabel: document.querySelector('[data-sidebar-fleet-line]')?.getAttribute('aria-label'),
     }))
     // 目录是短名（规格 2.6），“关于”后面跟版本号；侧栏搜索框用短占位，不被截成半个英文词。
-    assert.deepEqual(shell.labels.slice(0, 6), [
+    // 实验功能只在清单非空时出现（Runtime 才声明 betaFeatures）。
+    const labs = BETA_FEATURES.length > 0
+    assert.deepEqual(shell.labels.slice(0, labs ? 6 : 5), [
       '模型',
       '界面',
       '通知',
       '快捷键',
       '更新',
-      '实验功能',
+      ...(labs ? ['实验功能'] : []),
     ])
-    assert.match(shell.labels[6], /^关于/)
+    assert.match(shell.labels[labs ? 6 : 5], /^关于/)
     assert.equal(shell.placeholder, '搜索设置')
     assert.deepEqual(
       {
@@ -972,7 +975,7 @@ try {
           ['notifications', null],
           ['shortcuts', null],
           ['updates', null],
-          ['labs', null],
+          ...(labs ? [['labs', null]] : []),
           ['about', null],
         ],
         back: '返回',

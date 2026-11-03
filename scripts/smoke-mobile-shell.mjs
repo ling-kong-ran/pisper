@@ -21,6 +21,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BETA_FEATURES } from '../shared/beta-features.mjs'
 import { build } from 'esbuild'
 import { chromium } from 'playwright-core'
 import {
@@ -1340,7 +1341,16 @@ async function verifyPhoneShell(boardSessions) {
   )
   assert.deepEqual(
     sectionRows.map(([section]) => section),
-    ['models', 'interface', 'notifications', 'shortcuts', 'updates', 'labs', 'about'],
+    [
+      'models',
+      'interface',
+      'notifications',
+      'shortcuts',
+      'updates',
+      // 实验功能只在清单非空时出现（Runtime 才声明 betaFeatures）。
+      ...(BETA_FEATURES.length > 0 ? ['labs'] : []),
+      'about',
+    ],
   )
   assert.ok(
     sectionRows.every(([, h]) => h >= 56),
