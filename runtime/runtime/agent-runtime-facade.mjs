@@ -12,6 +12,11 @@ import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import { projectApproval } from '../services/session-card-summary.mjs'
 import { EnvironmentError } from '../services/bots/environment-service.mjs'
+import {
+  botApprovalText,
+  botQuestionText,
+  botTaskEventText,
+} from '../services/bots/bot-notifications.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
 import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
@@ -851,7 +856,63 @@ export class AgentRuntimeFacade {
       activity: (botId) => this.botTasks?.activity(botId) ?? null,
       message: (botId, input) => this.botTasks.message(botId, input),
       dispatch: (botId, input) => this.botTasks.dispatch(botId, input),
+      act: (botId, action) => this.botChannelAction(botId, action),
     }
+  }
+
+  // B5：从聊天里交给 Bot 的事，结果回到同一个聊天。回推失败只记日志，不影响任务。
+  notifyBotChat(task, text) {
+    const source = task?.source
+    if (!text || source?.kind !== 'channel' || !source.platform || !source.peerId) return
+    if (!this.capabilities.features.bots || !this.isBetaFeatureEnabled('bots')) return
+    void this.channels
+      ?.sendToChat(source.platform, source.peerId, text)
+      .catch((error) =>
+        console.warn('[bots] 回推到渠道失败：', error instanceof Error ? error.message : error),
+      )
+  }
+
+  botTaskEvent(task, kind) {
+    const name = this.bots.get(task.botId)?.name || task.botName
+    this.notifyBotChat(task, botTaskEventText(name, task, kind))
+  }
+
+  // 会话里出现审批或提问时，如果这是某个 Bot 正在跑的任务、且任务来自聊天，就告诉那个聊天。
+  botSessionEvent(sessionId, event, data) {
+    if (event !== 'permission_request' && event !== 'question_request') return
+    const task = this.botTasks?.runningForSession(sessionId)
+    if (!task) return
+    const name = this.bots.get(task.botId)?.name || task.botName
+    this.notifyBotChat(
+      task,
+      event === 'permission_request' ? botApprovalText(name, data) : botQuestionText(name, data),
+    )
+  }
+
+  // 聊天里的处理命令：/名字 批准 | 拒绝 | 应用 | 接受 | 放弃。发送者已按 Bot 的名单校验过。
+  async botChannelAction(botId, action) {
+    const bot = this.bots.get(botId)
+    if (!bot) return 'Bot 不存在。'
+    if (action === 'approve' || action === 'deny') {
+      const task = this.botTasks.latest(botId, ['running'])
+      const approval = task?.sessionId ? this.botTaskWaiting(task.sessionId).approval : null
+      if (!approval) return `${bot.name} 现在没有等批准的操作。`
+      if (action === 'approve' && approval.severity === 'critical')
+        return '这是高风险操作，请在 Pisper 里看完再批准。'
+      const resolution = this.resolveToolApproval(task.sessionId, approval.id, action === 'approve')
+      if (!resolution?.found) return '这个审批已经处理过了。'
+      return action === 'approve' ? `已批准，${bot.name} 继续干活。` : '已拒绝这次操作。'
+    }
+    const task = this.botTasks.latest(botId, ['review'])
+    if (!task) return `${bot.name} 现在没有等确认的改动。`
+    if (action === 'discard') {
+      await this.botTasks.discard(task.id)
+      return `已放弃${bot.name}的改动，分支已删除。`
+    }
+    const accepted = await this.botTasks.accept(task.id, { apply: action === 'apply' })
+    return accepted.result?.applied
+      ? `已接受并应用到当前分支（分支 ${accepted.result.branch} 保留）。`
+      : `已接受，改动在分支 ${accepted.result?.branch || ''} 上。`
   }
 
   // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，

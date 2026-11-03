@@ -81,6 +81,8 @@ export class BotTaskService {
     stopAgent,
     // 运行中的任务在等什么（审批或问题），由 Runtime 从会话里读；没有接线时视为不等待。
     waitingFor = () => null,
+    // 任务有了结果（待确认、完成、失败、中断）时通知一声，B5 用它回推到来源渠道。不能抛错。
+    onTaskEvent = () => {},
     maxRunning = MAX_RUNNING,
     now = () => Date.now(),
   }) {
@@ -91,6 +93,7 @@ export class BotTaskService {
     this.runAgent = runAgent
     this.stopAgent = stopAgent
     this.waitingFor = waitingFor
+    this.onTaskEvent = onTaskEvent
     this.maxRunning = maxRunning
     this.now = now
     this.tasks = []
@@ -306,6 +309,7 @@ export class BotTaskService {
     } catch (error) {
       this.#set(task, { status: 'failed', error: errorOf(error), finishedAt: this.#at() })
       await this.save()
+      this.#emit(task)
       return
     }
     if (this.running.get(task.id)?.stopped) return this.#finishStopped(task)
@@ -334,6 +338,7 @@ export class BotTaskService {
       if (this.running.get(task.id)?.stopped) return this.#finishStopped(task)
       this.#fail(task, error)
       await this.save()
+      this.#emit(task)
       return
     }
     if (this.running.get(task.id)?.stopped) return this.#finishStopped(task)
@@ -348,6 +353,34 @@ export class BotTaskService {
       this.#fail(task, error)
     }
     await this.save()
+    this.#emit(task)
+  }
+
+  // 只通知有结果的状态；停止由人在应用里操作，不另行回推。
+  #emit(task) {
+    if (!['review', 'done', 'failed', 'interrupted'].includes(task.status)) return
+    if (task.error?.code === STOPPED_ERROR.code) return
+    try {
+      this.onTaskEvent(clone(task), task.status)
+    } catch (error) {
+      console.warn('[bots] 任务通知失败：', error instanceof Error ? error.message : error)
+    }
+  }
+
+  // 这个会话正在跑哪个 Bot 任务（审批、提问回推用）。
+  runningForSession(sessionId) {
+    const task = this.tasks.find(
+      (item) => item.status === 'running' && item.sessionId && item.sessionId === sessionId,
+    )
+    return task ? clone(task) : null
+  }
+
+  // 某个 Bot 最近的、处于某些状态的任务（渠道里的处理命令用）。
+  latest(botId, statuses) {
+    const task = this.tasks.findLast(
+      (item) => item.botId === botId && statuses.includes(item.status),
+    )
+    return task ? clone(task) : null
   }
 
   // 电脑中途断线：命令可能只执行了一半，记为中断，等人决定是否继续；其余错误记为失败。

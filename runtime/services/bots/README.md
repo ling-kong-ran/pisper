@@ -1,6 +1,6 @@
 # Bot 服务设计草案
 
-状态（2026-11-03）：B1 注册表、B2 任务与隔离、B3 渠道与定时任务、B4 应用内对话（含对话里审批与回答、工具范围、看板标出 Bot）、B6 执行节点已实现；B5 渠道回推见下文「分阶段实施」。主要文件：`bot-model.mjs`、`bot-routing.mjs`、`bot-service.mjs`、`bot-task-service.mjs`、`executor.mjs`（本机与执行节点执行器）、`worktree-manager.mjs`、`environment-service.mjs`、`executor-hub.mjs`、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。与设计的差异：接受后立即删除 worktree、保留分支（不保留 7 天）；停止的任务记为 failed（code `stopped`）；`waiting` 不是单独的状态，运行中任务带内存里的 `waiting` 投影；其余差异写在各节。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+状态（2026-11-03）：B1 注册表、B2 任务与隔离、B3 渠道与定时任务、B4 应用内对话（含对话里审批与回答、工具范围、看板标出 Bot）、B5 渠道回推、B6 执行节点均已实现。主要文件：`bot-model.mjs`、`bot-routing.mjs`、`bot-notifications.mjs`、`bot-service.mjs`、`bot-task-service.mjs`、`executor.mjs`（本机与执行节点执行器）、`worktree-manager.mjs`、`environment-service.mjs`、`executor-hub.mjs`、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。与设计的差异：接受后立即删除 worktree、保留分支（不保留 7 天）；停止的任务记为 failed（code `stopped`）；`waiting` 不是单独的状态，运行中任务带内存里的 `waiting` 投影；其余差异写在各节。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 背景、目标与非目标
 
@@ -220,6 +220,8 @@ stateDiagram-v2
 
 B3 实现补充：私聊里也可以直接以“名字，”“名字：”或“名字 ”开头；私聊规则没写人时只有渠道创建者能叫它（渠道“所有人可用”不放宽 Bot 的名单）。点名后的话经 `BotTaskService.message` 进入：有改动待确认时是同一任务的追问，否则是新任务；来源 `source` 记平台、聊天、发送者与消息 id，供 B5 回推。渠道里的附件暂不转给 Bot（回复里说明）。默认 Bot（`defaultIn`）只能经接口设置，界面不提供。
 
+回推（B5）：任务来自聊天时，进展回到同一个聊天（`bot-notifications.mjs` 生成文字，`ChannelService.sendToChat` 发送；微信用叫 Bot 时记下的 contextToken，只在内存里）。会回推：需要批准（普通操作附“/名字 批准 或 /名字 拒绝”；高风险只写“请在 Pisper 里看完再批准”）、有问题（选项带出来，回答在 Pisper 里）、改好了待确认、做完、失败、中断；在应用里点停止不回推。聊天里整句是“/名字 批准 | 拒绝 | 应用 | 接受 | 放弃”时直接处理（应用 = 接受并应用到当前分支）；高风险操作在聊天里只能拒绝。这些命令走分派的名单校验，只有能叫它的人能用。没有改用通知模板（与草案的差异）：这些消息是对话里的回复，不是全局通知。
+
 定时：`ScheduleService.execute` 遇到 `targetType = 'bot'` 时调用 `BotTaskService.dispatch`，不走白名单（计划本身由本机用户配置），用 Bot 自己的电脑、权限上限与长期会话，不用定时任务的完全访问默认值。要做的事存在 `botMessage`、`prompt` 留空：旧版本不认识 `bot` 会把它当 `prompt` 任务，空 prompt 只会失败，不会以完全访问执行这段话。Bot 的定时在 Bot 详情里“定时让它做”增删、开关；定时任务页只列出（“交给 Bot：…”）并跳到 Bot 页。删除 Bot 时一并删除它的定时。实验开关关闭时到点的 bot 定时记为失败并写明原因。手动：Bots 页“派活”调用 `POST /api/bots/:id/tasks`。
 
 ## 隔离执行环境
@@ -331,7 +333,7 @@ B4 改成 Grok Bot / Dots 那种“和同事聊天”的形态（设计稿 `docs
 | B2 任务与隔离 | 任务状态机、`Executor` 接口与 `LocalExecutor`（经引擎 `operations` 接入）、`worktree-manager.mjs`、手动派活、接受/放弃 | 临时 git 仓库集成测试（并行、冲突、路径穿越、重启）；不依赖网络与个人目录 | 两个 Bot 并行改同一仓库互不覆盖；本机执行行为与现在一致 |
 | B3 触发（已完成） | `bot-routing.mjs`、渠道接入、`ScheduleService` 的 `bot` 目标 | 分派纯函数测试（点名、默认 Bot、拒绝原因）；现有渠道与定时任务测试全过 | 开关关闭或未点名时渠道行为不变 |
 | B4 界面（已完成，形态见「客户端」） | 侧栏 Bots 分组、Bot 对话页、新建对话框、详情栏、i18n | 契约测试（JSON + `serde_json`）、`npm run check`、`npm run test:ui`、`frontend-boundaries` 与 `legacy-ui-retirement` 守卫、快捷键迁移测试；`npm run tui:test` | 在界面上完成“新建 Bot → 飞书 @ 它 → review → 接受” |
-| B5 渠道回推 | 通知模板、`/bots`、`/<名字> 状态` | 假网关测试；真实飞书/微信验收单列为未验证项 | 不开应用也能处理审批与待确认 |
+| B5 渠道回推（已完成，见下方说明） | 通知模板、`/bots`、`/<名字> 状态` | 假网关测试；真实飞书/微信验收单列为未验证项 | 不开应用也能处理审批与待确认 |
 | B6 执行节点（已完成；Windows 节点未验证，路径按 POSIX 处理） | `pisper executor` 守护进程（npm 包）、`NodeExecutor`、配对、断线排队与恢复、执行环境管理页 | 同机起大脑与节点两个进程的集成测试（配对、根目录越界被节点拒绝、断线后排队、重连继续）；`npm run npm:pack:check` | 大脑在服务器、执行在开发机，开发机离线再上线后任务继续 |
 
 不在范围内的验证：Android/iOS 真机、SEA 打包（B2 后补一次 `npm run sidecar:sea:smoke`，确认 SEA 里能找到 `git`）。

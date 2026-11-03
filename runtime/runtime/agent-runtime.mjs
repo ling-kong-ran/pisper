@@ -638,11 +638,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
       // 远程会话的文件在另一台电脑上：大脑读不到，审批时不做本地改动预览。
       skipFileChangePreview: (sessionId) => Boolean(this.sessions.get(sessionId)?.remoteExecutor),
-      onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
+      onEvent: (sessionId, event, data) => {
+        this.boardEvents?.touch(sessionId)
+        this.botSessionEvent(sessionId, event, data)
+      },
     })
     // ask_user 的待回答问题：事件同时推给本轮运行流与看板事件流（后台运行的提问也进“需要你”）。
     this.questions = new SessionQuestionService({
-      onEvent: (sessionId) => this.boardEvents?.touch(sessionId),
+      onEvent: (sessionId, event, data) => {
+        this.boardEvents?.touch(sessionId)
+        this.botSessionEvent(sessionId, event, data)
+      },
     })
     // 排在 X 之后（sessionQueue）：前置会话这一轮结束时在后台启动排队的会话，事件推给看板事件流。
     this.sessionQueue = new SessionStartQueue({
@@ -706,6 +712,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       runAgent: (input) => this.runBotTaskAgent(input),
       stopAgent: (sessionId) => this.abortSession(sessionId),
       waitingFor: (sessionId) => this.botTaskWaiting(sessionId),
+      onTaskEvent: (task, kind) => this.botTaskEvent(task, kind),
     })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()

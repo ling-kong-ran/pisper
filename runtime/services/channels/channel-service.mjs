@@ -1,6 +1,7 @@
 // 渠道服务：统一管理飞书、微信、QQ 与 Telegram 渠道的接入、消息收发、模板通知与作用域控制。
 // 渠道收到的消息通过 agent.prompt 转成会话运行，并支持附件（图片/文件）。
 import { extname } from 'node:path'
+import { botChatAction } from '../bots/bot-notifications.mjs'
 import { botsForChat, refusalText, routeChannelMessage } from '../bots/bot-routing.mjs'
 import QRCode from 'qrcode'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
@@ -220,8 +221,11 @@ export class ChannelService {
     this.path = path
     this.cwd = cwd
     this.agent = agent
-    // Bots（B3）：{ enabled(), list(), activity(botId), message(botId, input) }；开关关闭时不参与分派。
+    // Bots（B3）：{ enabled(), list(), activity(botId), message(botId, input), act(botId, action) }；
+    // 开关关闭时不参与分派。
     this.bots = bots
+    // 叫过 Bot 的聊天的回复上下文（微信要 contextToken 才能主动发消息）；只在内存里，B5 回推用。
+    this.botPeers = new Map()
     this.state = defaultState()
     this.writeQueue = Promise.resolve()
     this.chatQueues = new Map()
@@ -851,6 +855,20 @@ export class ChannelService {
       return true
     }
     const { bot, text } = routed
+    this.botPeers.set(scopeKey(platform, message.peerId), {
+      platform,
+      peerId: message.peerId,
+      chatType: message.chatType,
+      contextToken: message.contextToken || '',
+    })
+    const action = botChatAction(text)
+    if (action) {
+      const reply = await this.bots
+        .act(bot.id, action)
+        .catch((error) => (error instanceof Error ? error.message : String(error)))
+      await gateway.send(message, { text: reply })
+      return true
+    }
     if (/^(?:状态|status)$/i.test(text)) {
       const activity = this.bots.activity(bot.id)
       await gateway.send(message, { text: botStatusText(bot, activity) })
@@ -885,6 +903,25 @@ export class ChannelService {
         text: `${bot.name} 没接下这件事：${error instanceof Error ? error.message : String(error)}`,
       })
     }
+    return true
+  }
+
+  // 主动发到某个聊天（B5 回推）：用叫 Bot 时记下的上下文，没有时退回已保存的会话作用域。
+  async sendToChat(platform, peerId, text) {
+    const connection = this.state.connections[platform]
+    if (!connection?.enabled || !this.gateways[platform]) return false
+    const key = scopeKey(platform, peerId)
+    const scope = {
+      platform,
+      peerId,
+      ...(this.state.scopes[key] || {}),
+      ...(this.botPeers.get(key) || {}),
+    }
+    await this.gateways[platform].sendToPeer(
+      peerId,
+      platform === 'feishu' ? { markdown: text } : { text },
+      scope,
+    )
     return true
   }
 
