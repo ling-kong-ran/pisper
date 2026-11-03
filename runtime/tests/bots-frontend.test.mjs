@@ -21,6 +21,10 @@ import {
   isActiveTaskStatus,
 } from '../../src/features/bots/bot-presentation.ts'
 import { parseBot, parseBotTask } from '../../src/features/bots/bots-api.ts'
+import { parseBoardCard } from '../../src/features/board/board-api.ts'
+import { buildBoardItems } from '../../src/features/board/board-model.ts'
+import { buildSidebarModel } from '../../src/features/board/sidebar-model.ts'
+import { agentSessionMethods } from '../runtime/agent-session-methods.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const t = (key, values) => (values ? `${key} ${JSON.stringify(values)}` : key)
@@ -204,4 +208,85 @@ test('tool scope presets map to the list the Runtime enforces', () => {
   for (const name of ['bash', 'edit', 'write']) assert.ok(!BOT_READ_ONLY_TOOLS.includes(name))
   assert.equal(parseBot({ id: 'b', name: 'n' }).tools, null)
   assert.deepEqual(parseBot({ id: 'b', name: 'n', tools: ['read', 7] }).tools, ['read'])
+})
+
+test('a bot thread session carries its bot onto board cards only while Bots is on', () => {
+  const bots = [
+    {
+      id: 'bot_1',
+      name: '审查员',
+      avatar: { character: 'owl', color: 'purple' },
+      threadSessionId: 'thread-1',
+    },
+  ]
+  let enabled = true
+  const runtime = {
+    bots: { list: () => bots },
+    botTasks: {
+      activity: () => ({ branch: 'pisper/shen-cha-yuan/a1b2c3', changedFiles: 2 }),
+    },
+    isBetaFeatureEnabled: (id) => id === 'bots' && enabled,
+  }
+  assert.deepEqual(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), {
+    id: 'bot_1',
+    name: '审查员',
+    avatar: { character: 'owl', color: 'purple' },
+    branch: 'pisper/shen-cha-yuan/a1b2c3',
+    changedFiles: 2,
+  })
+  assert.equal(agentSessionMethods.botCardFor.call(runtime, 'other'), null)
+  enabled = false
+  assert.equal(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), null)
+})
+
+test('board cards parse the bot defensively and keep plain sessions unchanged', () => {
+  assert.equal('bot' in parseBoardCard({ boardStatus: 'running' }), false)
+  assert.equal('bot' in parseBoardCard({ bot: { id: 'b' } }), false)
+  const card = parseBoardCard({
+    boardStatus: 'attention',
+    bot: {
+      id: 'bot_1',
+      name: '审查员\u001b[31m',
+      avatar: { character: 'owl', color: 'purple' },
+      branch: 'pisper/x/y',
+      changedFiles: 2,
+    },
+  })
+  assert.equal(card.bot.name.includes('\u001b'), false)
+  assert.equal(card.bot.character, 'owl')
+  assert.equal(card.bot.changedFiles, 2)
+
+  const now = Date.parse('2026-11-03T10:00:00.000Z')
+  const items = buildBoardItems(
+    [],
+    {
+      live: {},
+      localRuns: {},
+      runningSince: {},
+      patches: {},
+      pending: {},
+      feed: {
+        ready: true,
+        entries: {
+          'thread-1': {
+            session: { id: 'thread-1', name: '审查员 · 修按钮', cwd: '/w', streaming: true },
+            card: parseBoardCard({ boardStatus: 'running', bot: { id: 'bot_1', name: '审查员' } }),
+            revision: 1,
+          },
+          plain: {
+            session: { id: 'plain', name: '普通会话', cwd: '/w', streaming: true },
+            card: parseBoardCard({ boardStatus: 'running' }),
+            revision: 1,
+          },
+        },
+      },
+    },
+    { now, timeZoneOffsetMinutes: 0 },
+  )
+  const byId = Object.fromEntries(items.map((item) => [item.id, item]))
+  assert.equal(byId['thread-1'].bot.name, '审查员')
+  assert.equal('bot' in byId.plain, false)
+  const rows = buildSidebarModel(items, { now }).groups.flatMap((group) => group.rows)
+  assert.equal(rows.find((row) => row.id === 'thread-1').bot.id, 'bot_1')
+  assert.equal('bot' in rows.find((row) => row.id === 'plain'), false)
 })

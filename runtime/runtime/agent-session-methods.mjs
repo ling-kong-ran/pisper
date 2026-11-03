@@ -61,7 +61,7 @@ export const agentSessionMethods = {
   // 全部来自内存，不打开会话文件、不读消息分页。
   boardCardFor(session, { now, doneWindow, timeZoneOffsetMinutes }) {
     const id = session.id
-    return projectSessionCard({
+    const card = projectSessionCard({
       session,
       entry: this.sessionCards?.entry(id) || null,
       persisted: normalizePersistedCard(this.sessionMeta?.[id]?.boardCard),
@@ -78,6 +78,24 @@ export const agentSessionMethods = {
       doneWindow,
       timeZoneOffsetMinutes,
     })
+    // 只做加法：Bot 的长期会话带上是哪个 Bot、最近任务的分支与改动数；旧客户端忽略。
+    const bot = this.botCardFor(id)
+    return bot ? { ...card, bot } : card
+  },
+
+  // 这个会话是不是某个 Bot 的长期会话。只在 Bots 实验功能打开时投影。
+  botCardFor(sessionId) {
+    if (!sessionId || !this.bots || !this.isBetaFeatureEnabled?.('bots')) return null
+    const bot = this.bots.list().find((item) => item.threadSessionId === sessionId)
+    if (!bot) return null
+    const activity = this.botTasks?.activity(bot.id) ?? null
+    return {
+      id: bot.id,
+      name: bot.name,
+      avatar: { character: bot.avatar.character, color: bot.avatar.color },
+      ...(activity?.branch ? { branch: activity.branch } : {}),
+      ...(activity?.changedFiles ? { changedFiles: activity.changedFiles } : {}),
+    }
   },
 
   // GET /api/sessions?view=board：现有列表字段 + card，按看板资格过滤后游标分页。

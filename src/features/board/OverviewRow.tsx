@@ -18,6 +18,7 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Button } from '@/components/ui/button'
 import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { BotAvatarBadge } from '@/features/bots/public-avatar'
 import type { BoardItem } from './board-model'
 import {
   approvalArgsText,
@@ -509,7 +510,12 @@ function OverviewRowComponent({
             <StatusGlyph status={boardStatusGlyph(item)} phase={phase} />
           </span>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <p className="min-w-0 truncate text-base leading-5 font-medium text-content">{title}</p>
+            <p className="flex min-w-0 items-center gap-1.5 text-base leading-5 font-medium text-content">
+              {item.bot && (
+                <BotAvatarBadge character={item.bot.character} color={item.bot.color} size={18} />
+              )}
+              <span className="min-w-0 truncate">{title}</span>
+            </p>
             <p className="flex min-w-0 items-baseline gap-1 text-xs leading-5">
               <span data-row-status className="flex-none text-warning-strong">
                 {statusText}
@@ -599,6 +605,14 @@ function OverviewRowComponent({
       </span>
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="flex min-w-0 items-baseline gap-2.5 leading-5">
+          {item.bot && (
+            <BotAvatarBadge
+              character={item.bot.character}
+              color={item.bot.color}
+              size={18}
+              className="self-center"
+            />
+          )}
           <span
             className={cn(
               'min-w-0 truncate text-base font-medium',
@@ -631,6 +645,19 @@ function OverviewRowComponent({
               title={item.cwd || undefined}
             >
               {project}
+            </span>
+          )}
+          {item.bot?.branch && (
+            <span
+              data-row-bot-branch
+              className="min-w-0 shrink truncate font-mono text-xs text-content-muted"
+            >
+              {item.bot.changedFiles
+                ? t('board:card.botBranchFiles', {
+                    branch: item.bot.branch,
+                    count: item.bot.changedFiles,
+                  })
+                : item.bot.branch}
             </span>
           )}
           {item.pinned && (

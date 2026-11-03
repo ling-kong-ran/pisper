@@ -228,6 +228,7 @@ export class BotTaskService {
       status: latest.status,
       title: latest.title,
       changedFiles: latest.result?.changedFiles || 0,
+      branch: latest.workspace?.branch || '',
       needsYou: Boolean(waiting) || ['review', 'failed', 'interrupted'].includes(latest.status),
       // 'approval' | 'question' | null：侧栏据此写“等你批准”或“有问题问你”。
       waiting: waiting ? (waiting.approval ? 'approval' : 'question') : null,

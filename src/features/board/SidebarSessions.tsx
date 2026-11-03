@@ -28,6 +28,7 @@ import type { PromptDialogOptions } from '@/hooks/useAppDialog'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { matchesBoardShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
+import { BotAvatarBadge } from '@/features/bots/public-avatar'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
 import { useBoardViewStore } from './board-view-store'
@@ -901,6 +902,14 @@ function SidebarRowItem({
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-baseline gap-1.5">
+            {row.bot && (
+              <BotAvatarBadge
+                character={row.bot.character}
+                color={row.bot.color}
+                size={16}
+                className="self-center"
+              />
+            )}
             <span
               className={cn(
                 'min-w-0 truncate leading-5',

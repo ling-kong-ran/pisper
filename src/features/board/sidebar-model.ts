@@ -8,6 +8,7 @@ import {
   type BoardStatus,
 } from '@shared/session-board-status.mjs'
 import type { StatusGlyphKind } from '@/components/app/status-glyph-kinds'
+import type { BoardCardBot } from './board-api'
 import type { BoardItem } from './board-model'
 import { boardStatusGlyph } from './card-presentation'
 
@@ -33,6 +34,7 @@ export type SidebarSourceItem = Pick<
   | 'approvals'
   | 'approvalsState'
   | 'severity'
+  | 'bot'
 > & {
   // 已归档的会话不出现（看板推导已经排除，这里再兜一层，免得上游换数据源时漏掉）。
   session?: { archived?: boolean } | null
@@ -60,6 +62,8 @@ type SidebarRowBase = {
   status: BoardStatus
   // 行 ⋯ 菜单的“置顶 / 取消置顶”：置顶会话留在原组时也要知道它已置顶。
   pinned: boolean
+  // Bot 的长期会话：标题前加它的头像。普通会话没有这个字段。
+  bot?: BoardCardBot
 }
 
 export type SidebarAttentionRow = SidebarRowBase & {
@@ -238,6 +242,7 @@ export function buildSidebarModel(
       group: 'attention',
       id: item.id,
       title: item.title,
+      ...(item.bot ? { bot: item.bot } : {}),
       status: item.status,
       pinned: item.pinned === true,
       glyph: 'attention',
@@ -254,6 +259,7 @@ export function buildSidebarModel(
       group: 'running',
       id: item.id,
       title: item.title,
+      ...(item.bot ? { bot: item.bot } : {}),
       status: item.status,
       pinned: item.pinned === true,
       glyph: 'run',
@@ -274,6 +280,7 @@ export function buildSidebarModel(
       group: 'queued',
       id: item.id,
       title: item.title,
+      ...(item.bot ? { bot: item.bot } : {}),
       status: item.status,
       pinned: item.pinned === true,
       glyph: 'queued',
@@ -286,6 +293,7 @@ export function buildSidebarModel(
       group: 'pinned',
       id: item.id,
       title: item.title,
+      ...(item.bot ? { bot: item.bot } : {}),
       status: item.status,
       pinned: item.pinned === true,
       glyph: boardStatusGlyph(item),
@@ -296,6 +304,7 @@ export function buildSidebarModel(
     group: 'done',
     id: item.id,
     title: item.title,
+    ...(item.bot ? { bot: item.bot } : {}),
     status: item.status,
     pinned: item.pinned === true,
     glyph: boardStatusGlyph(item),

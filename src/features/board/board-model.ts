@@ -19,6 +19,7 @@ import {
   truncateCodePoints,
   type BoardActivity,
   type BoardApproval,
+  type BoardCardBot,
   type BoardCardInfo,
   type BoardChangeStats,
 } from './board-api'
@@ -74,6 +75,8 @@ export type BoardItem = {
   // 排队（sessionQueue，A9）：第几位、排在哪个会话之后（标题按当前目录解析，找不到时为空串）。只在排队泳道有值。
   queuePosition: number | null
   queue: { startAfter: string; startAfterTitle: string } | null
+  // 这是某个 Bot 的长期会话：行首加它的头像，元信息写分支与改动数。
+  bot?: BoardCardBot
 }
 
 /** 会话摘要里的排队信息（Runtime 只做加法的字段 queue {position, startAfter, createdAt}），按不可信数据读。 */
@@ -282,6 +285,7 @@ export function buildBoardItems(
       question,
       questionCount: question ? question.questions.length : null,
       totalTokens: card?.totalTokens ?? null,
+      ...(card?.bot ? { bot: card.bot } : {}),
       ...queueFields(derived.lane, session, titles),
     })
   }

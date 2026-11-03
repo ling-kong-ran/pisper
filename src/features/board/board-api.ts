@@ -65,6 +65,17 @@ export type BoardCardInfo = {
   tail: string[]
   agents: { running: number; total: number } | null
   totalTokens: number | null
+  // Bot 的长期会话（只做加法的 card.bot）：头像、名字、最近任务的分支与改动数。
+  bot?: BoardCardBot
+}
+
+export type BoardCardBot = {
+  id: string
+  name: string
+  character: string
+  color: string
+  branch: string
+  changedFiles: number
 }
 
 // 看板数据源里的一条：会话列表字段（与 GET /api/sessions 同形）+ card。
@@ -257,6 +268,27 @@ function parseCardActivity(value: unknown): BoardActivity | null {
   return null
 }
 
+function parseCardBot(value: unknown): BoardCardBot | null {
+  const bot = record(value)
+  const id = text(bot.id)
+  const name = visibleLine(bot.name, MAX_LABEL_CHARS)
+  if (!id || !name) return null
+  const avatar = record(bot.avatar)
+  return {
+    id: truncateCodePoints(id, MAX_LABEL_CHARS),
+    name,
+    character: truncateCodePoints(text(avatar.character), MAX_LABEL_CHARS),
+    color: truncateCodePoints(text(avatar.color), MAX_LABEL_CHARS),
+    branch: visibleLine(bot.branch, MAX_LABEL_CHARS),
+    changedFiles: count(bot.changedFiles) ?? 0,
+  }
+}
+
+// 只在有 Bot 时带这个字段，普通会话的卡片形状不变。
+function withBot(bot: BoardCardBot | null) {
+  return bot ? { bot } : {}
+}
+
 function parseChangeStats(value: unknown): BoardChangeStats | null {
   const stats = record(value)
   const status = text(stats.status)
@@ -317,6 +349,7 @@ export function parseBoardCard(value: unknown): BoardCardInfo {
         ? { running: Math.min(running, total), total }
         : null,
     totalTokens: count(record(card.usage).totalTokens),
+    ...withBot(parseCardBot(card.bot)),
   }
 }
 
