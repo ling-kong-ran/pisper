@@ -31,9 +31,8 @@ use app::{Action, App};
 use crossterm::{
     cursor::MoveTo,
     event::{
-        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-        Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton,
-        MouseEventKind,
+        DisableBracketedPaste, DisableMouseCapture, EnableMouseCapture, Event, EventStream,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
     },
     execute,
     terminal::{
@@ -324,6 +323,7 @@ async fn run_event_loop(
     let mut last_resize_at = None;
     let mut resize_to_draw = None;
     let mut paste_burst = PasteBurst::default();
+    let mut release_chars = ReleaseOnlyChars::default();
     // 已通知过「等待审批」的请求 id 集合：同一审批只弹一次通知，避免重复打扰。
     let mut notified_approval_ids = HashSet::new();
     let mut pending_thumbnail_keys = HashSet::new();
@@ -341,7 +341,7 @@ async fn run_event_loop(
         redraw = tokio::select! {
             maybe_event = input.next() => {
                 match maybe_event {
-                    Some(Ok(Event::Key(key))) => {
+                    Some(Ok(Event::Key(key))) => if let Some(key) = release_chars.admit(key) {
                         if handle_key_with_paste_burst(
                             key,
                             &mut paste_burst,
@@ -354,7 +354,9 @@ async fn run_event_loop(
                             break;
                         }
                         pending_resize.is_none() && !paste_burst.is_buffering()
-                    }
+                    } else {
+                        false
+                    },
                     Some(Ok(Event::Paste(value))) => {
                         // bracketed-paste 事件：先取出突发缓冲，再插入粘贴内容。
                         apply_paste_flush(paste_burst.flush(), &mut app);
@@ -813,6 +815,48 @@ async fn handle_key_with_paste_burst(
     apply_paste_flush(paste_burst.flush(), app);
     let action = app.handle_key(key);
     execute_action(action, app, api, runtime_tx).await
+}
+
+/// 只在松开时才带出字符的按键：Windows 控制台把键盘布局里没有的字符（中文等）
+/// 模拟成「按住 Alt、小键盘输入码点、松开 Alt」，字符只挂在松开 Alt 的事件上，
+/// crossterm 把它报成 `Release`。没有对应按下事件的非 ASCII 字符松开事件改按一次输入处理，
+/// 否则粘贴进来的中文会整段丢失；普通按键的松开事件照旧丢弃。
+/// 其他平台没开启按键事件类型上报，不会收到松开事件，这里原样放行。
+#[derive(Debug, Default)]
+struct ReleaseOnlyChars {
+    held: Vec<char>,
+}
+
+impl ReleaseOnlyChars {
+    const MAX_HELD: usize = 32;
+
+    fn admit(&mut self, key: KeyEvent) -> Option<KeyEvent> {
+        match (key.kind, key.code) {
+            (KeyEventKind::Press, KeyCode::Char(character)) => {
+                if !self.held.contains(&character) {
+                    if self.held.len() >= Self::MAX_HELD {
+                        self.held.remove(0);
+                    }
+                    self.held.push(character);
+                }
+                Some(key)
+            }
+            (KeyEventKind::Release, KeyCode::Char(character)) => {
+                if let Some(index) = self.held.iter().position(|held| *held == character) {
+                    self.held.swap_remove(index);
+                    None
+                } else if !character.is_ascii() {
+                    Some(KeyEvent::new(
+                        KeyCode::Char(character),
+                        key.modifiers - KeyModifiers::ALT,
+                    ))
+                } else {
+                    None
+                }
+            }
+            _ => Some(key),
+        }
+    }
 }
 
 /// 只处理按下与重复两类按键事件，释放事件一律忽略。
@@ -1678,13 +1722,14 @@ struct TerminalSession {
 }
 
 impl TerminalSession {
-    /// 进入终端会话：启用 raw mode、切到备用屏、开启 bracketed-paste，
+    /// 进入终端会话：启用 raw mode、切到备用屏、设置 bracketed-paste（见 `configure_bracketed_paste`），
     /// 默认开启鼠标捕获（滚轮滚动、点击展开；终端原生选择改用 Shift+拖动），
     /// 返回包装后的 Terminal；任一步失败时中止（保持终端原状）。
     fn start() -> Result<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
+        execute!(stdout, EnterAlternateScreen)?;
+        configure_bracketed_paste(&mut stdout)?;
         if mouse_capture_enabled() {
             execute!(stdout, EnableMouseCapture)?;
         }
@@ -1712,6 +1757,22 @@ impl TerminalSession {
     }
 }
 
+/// 非 Windows 终端开启 bracketed-paste，粘贴整段作为 `Event::Paste` 送达。
+#[cfg(not(windows))]
+fn configure_bracketed_paste(stdout: &mut io::Stdout) -> io::Result<()> {
+    execute!(stdout, crossterm::event::EnableBracketedPaste)
+}
+
+/// Windows 上 crossterm 读的是控制台按键记录，不会解析出 `Event::Paste`。
+/// 开启 ?2004h 后 Windows Terminal 会给粘贴包上 ESC[200~ … ESC[201~，标记被拆成 Esc 和
+/// 「[200~」「[201~」这些普通字符混进输入框，开头的 Esc 还会清掉粘贴突发缓冲，内容只能逐字输入。
+/// 所以这里显式关闭（终端可能沿用上一个程序留下的模式），粘贴交给突发检测；旧控制台不支持时忽略。
+#[cfg(windows)]
+fn configure_bracketed_paste(stdout: &mut io::Stdout) -> io::Result<()> {
+    let _ = execute!(stdout, DisableBracketedPaste);
+    Ok(())
+}
+
 impl Drop for TerminalSession {
     /// 兜底恢复终端（即使提前 return 也保证还原，幂等）。
     fn drop(&mut self) {
@@ -1724,8 +1785,8 @@ mod tests {
     use super::{
         draft_session, is_ended_session_queue_error, is_inline_attachment_shortcut,
         is_paste_shortcut, requested_help, resize_area, resize_has_settled, resume_seed,
-        should_handle_key_kind, should_notify_completion, terminal_content_area, CLI_HELP,
-        WEB_HELP,
+        should_handle_key_kind, should_notify_completion, terminal_content_area, ReleaseOnlyChars,
+        CLI_HELP, WEB_HELP,
     };
     use crate::model::SessionSummary;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1776,6 +1837,56 @@ mod tests {
         assert!(should_handle_key_kind(KeyEventKind::Press));
         assert!(should_handle_key_kind(KeyEventKind::Repeat));
         assert!(!should_handle_key_kind(KeyEventKind::Release));
+    }
+
+    fn key(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> KeyEvent {
+        KeyEvent::new_with_kind(code, modifiers, kind)
+    }
+
+    /// 验证 Windows 的 Alt 码输入：只在松开时带出的中文字符按一次输入处理，并去掉 Alt。
+    #[test]
+    fn release_only_characters_are_admitted_as_presses() {
+        let mut chars = ReleaseOnlyChars::default();
+        let admitted = chars
+            .admit(key(
+                KeyCode::Char('中'),
+                KeyModifiers::ALT,
+                KeyEventKind::Release,
+            ))
+            .expect("Alt 码字符应当被接收");
+        assert_eq!(admitted.code, KeyCode::Char('中'));
+        assert_eq!(admitted.kind, KeyEventKind::Press);
+        assert!(!admitted.modifiers.contains(KeyModifiers::ALT));
+    }
+
+    /// 验证普通按键（按下后再松开）只算一次，松开事件仍被丢弃。
+    #[test]
+    fn releases_after_presses_are_dropped() {
+        let mut chars = ReleaseOnlyChars::default();
+        for character in ['a', '中'] {
+            let press = key(
+                KeyCode::Char(character),
+                KeyModifiers::NONE,
+                KeyEventKind::Press,
+            );
+            assert_eq!(chars.admit(press), Some(press));
+            let release = key(
+                KeyCode::Char(character),
+                KeyModifiers::NONE,
+                KeyEventKind::Release,
+            );
+            assert_eq!(chars.admit(release), None);
+        }
+        // 没有对应按下的 ASCII 松开事件（例如启动前按下的键）不当作输入。
+        let stray = key(
+            KeyCode::Char('x'),
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        );
+        assert_eq!(chars.admit(stray), None);
+        let enter = key(KeyCode::Enter, KeyModifiers::NONE, KeyEventKind::Release);
+        assert_eq!(chars.admit(enter), Some(enter));
+        assert!(!should_handle_key_kind(enter.kind));
     }
 
     /// 验证内联附件快捷键（Shift+加号）不被单字符粘贴检测误吞。
