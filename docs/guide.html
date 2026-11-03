@@ -81,6 +81,7 @@
             <span>核心用法</span>
             <ul>
               <li><a href="#parallel">并行会话与分屏</a></li>
+              <li><a href="#bots">Pisper Bot（实验功能）</a></li>
               <li><a href="#branch">追忆分支与 Turn 标签</a></li>
               <li><a href="#tools">工具、插件与 MCP</a></li>
               <li><a href="#mcp-host">让其他 Agent 调用 Pisper</a></li>
@@ -224,6 +225,26 @@ pisper web    # 打开 Web 前端与配置页</code></pre>
           <div class="guide-note">
             <p>
               <strong>关于并行数量</strong>：并行会话都会真实消耗 Provider 配额，请按额度和速率限制安排。
+            </p>
+          </div>
+        </section>
+
+        <section class="guide-section" id="bots">
+          <h2>Pisper Bot（实验功能）</h2>
+          <p>Bot 是常驻的 AI 同事：给它起个名字、说清它负责什么，之后在对话里交代一句，它就去干活。</p>
+
+          <ul>
+            <li><strong>先打开开关</strong>：Bots 还在实验中，默认关闭。在 <strong>设置 › 实验功能</strong> 里打开 Bots，侧栏才会出现 Bots 分区；关掉后 Bot 和它们的会话都不再显示，记录保留，重新打开就回来。</li>
+            <li><strong>在自己的分支上干活</strong>：改代码时 Bot 用独立的工作树和分支，不碰你手上的代码；改完给出“N 个文件有改动”，可以查看改动、放弃，或接受并应用到当前分支。</li>
+            <li><strong>动手前先问你</strong>：要改文件、跑命令时，批准卡片直接出现在 Bot 对话里，也会进“全部代理”的“需要你”。</li>
+            <li><strong>在聊天软件里叫它</strong>：在已连接的飞书、微信、QQ、Telegram 里用 <code>@名字</code> 或 <code>/名字</code> 叫它；进展回到原来的聊天里，普通操作可以在聊天里批准。</li>
+            <li><strong>定时派活</strong>：定时任务的目标可以选一个 Bot，到点它自己开工。</li>
+            <li><strong>换台电脑干活</strong>：在另一台电脑上运行 <code>pisper executor pair</code> 配对后，Bot 可以在那台电脑上读写文件、跑命令。</li>
+          </ul>
+
+          <div class="guide-note">
+            <p>
+              <strong>实验功能</strong>：Bots 可能不稳定，之后的版本里也可能调整；遇到问题请在设置 › 实验功能里点“反馈”。
             </p>
           </div>
         </section>
@@ -453,7 +474,7 @@ tools: [read, grep, find, ls]   # 可选：只能在当前会话已有的工具�
           <p>定好频率与时区，到点 Agent 自己开工，结果推到你手边。</p>
 
           <ul>
-            <li><strong>触发目标</strong>：可以是一段 Prompt，也可以是已经调好的工作流。</li>
+            <li><strong>触发目标</strong>：可以是一段 Prompt、已经调好的工作流，或者交给一个 Bot（需在设置 › 实验功能里打开 Bots）。</li>
             <li><strong>通知渠道</strong>：系统通知之外，可接飞书与个人微信，实现双向对话。</li>
             <li><strong>离开电脑也能跟进</strong>：渠道消息可直接回复，会话继续推进。</li>
           </ul>

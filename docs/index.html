@@ -38,6 +38,7 @@
         </a>
         <nav class="site-nav" aria-label="主导航">
           <a href="#product">界面</a>
+          <a href="#bot">Bot</a>
           <a href="#features">能力</a>
           <a href="guide.html">使用教程</a>
           <a href="changelog.html">开发日志</a>
@@ -58,6 +59,7 @@
             </summary>
             <nav class="site-menu-panel" aria-label="主导航">
               <a href="#product">界面</a>
+              <a href="#bot">Bot</a>
               <a href="#features">能力</a>
               <a href="guide.html">使用教程</a>
               <a href="changelog.html">开发日志</a>
@@ -175,11 +177,11 @@
             <div class="view" role="tabpanel" id="view-desktop" aria-labelledby="view-tab-desktop" data-view-panel>
               <figure class="shot">
                 <a href="shots/desktop-overview.png" target="_blank" rel="noopener noreferrer" aria-label="查看桌面端完整截图">
-                  <img src="shots/web/desktop-overview.webp" alt="Pisper 桌面端全部代理：需要你、运行中、今天完成三组，等待批准的命令可以就地允许或拒绝" width="1800" height="1125" loading="lazy" decoding="async" />
+                  <img src="shots/web/desktop-overview.webp" alt="Pisper 桌面端全部代理：需要你、运行中、今天完成三组，Bot 的会话带头像和分支；等待批准的命令可以就地允许或拒绝" width="1800" height="1125" loading="lazy" decoding="async" />
                 </a>
               </figure>
               <p class="view-caption">
-                “全部代理”按需要你、运行中、今天完成分组：失败的重试、待批的允许，不用逐个点进会话。
+                “全部代理”按需要你、运行中、今天完成分组：失败的重试、待批的允许，不用逐个点进会话；Bot 干的活也在这里。
                 <a class="text-link" href="guide.html#parallel">并行会话教程</a>
               </p>
             </div>
@@ -211,6 +213,43 @@
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Pisper Bot（实验功能） -->
+      <section class="section section-band" id="bot" aria-labelledby="bot-title">
+        <div class="shell">
+          <div class="section-head">
+            <p class="eyebrow">实验功能 · Pisper Bot</p>
+            <h2 id="bot-title">说一句，它就去干活。</h2>
+            <p>
+              给常干的事建几个 Bot：在对话里交代一句，它在自己的分支上动手，要动文件、跑命令先问你，改完把改动交给你确认。
+              也能在飞书、微信里叫它，定时给它派活，或让它去另一台电脑上干。
+            </p>
+          </div>
+          <figure class="video-frame">
+            <video
+              controls
+              playsinline
+              preload="none"
+              poster="promo/pisper-bot-cover.webp"
+              width="1920"
+              height="1080"
+              aria-label="Pisper Bot 宣传片：在对话里交代任务、批准操作、查看并接受改动，多个 Bot 一起干活，在聊天软件里叫它，定时开工和在另一台电脑上干活"
+            >
+              <source src="promo/pisper-bot-zh-CN.mp4" type="video/mp4" />
+              <p><a href="promo/pisper-bot-zh-CN.mp4">下载 Pisper Bot 宣传片 MP4</a></p>
+            </video>
+          </figure>
+          <figure class="shot">
+            <a href="shots/desktop-bot.png" target="_blank" rel="noopener noreferrer" aria-label="查看 Bot 对话完整截图">
+              <img src="shots/web/desktop-bot.webp" alt="Pisper Bot 对话：小橙修好了 Safari 白屏，回复里写清原因和验证，下面是“1 个文件有改动”，可以查看改动、放弃或接受并应用到当前分支" width="1800" height="1125" loading="lazy" decoding="async" />
+            </a>
+          </figure>
+          <p class="view-caption">
+            Bots 还在实验中，默认关闭：在 <strong>设置 › 实验功能</strong> 里打开 Bots 才能使用；关掉后 Bot 和它们的会话都不再显示，记录保留。
+            <a class="text-link" href="guide.html#bots">Bot 教程</a>
+          </p>
         </div>
       </section>
 
@@ -254,6 +293,10 @@
             <a class="feature" href="guide.html#parallel">
               <h3>并行代理</h3>
               <p>侧栏按需要你、运行中、今天完成分组；批准、提问卡片就在对话里处理。</p>
+            </a>
+            <a class="feature" href="guide.html#bots">
+              <h3>Bot（实验功能）</h3>
+              <p>常驻的 AI 同事：在自己的分支上干活，动手前先问你，也能在聊天软件里叫它、定时派活。</p>
             </a>
             <a class="feature" href="guide.html#branch">
               <h3>会话树与分支</h3>

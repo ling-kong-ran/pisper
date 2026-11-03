@@ -312,6 +312,11 @@ code {
   height: auto;
 }
 
+/* 视频下面紧跟一张截图（Bot 分区）：留出间距，不让两块贴在一起。 */
+.video-frame + .shot {
+  margin-top: 28px;
+}
+
 .video-note {
   margin: 16px 0 0;
   font-size: 14px;
