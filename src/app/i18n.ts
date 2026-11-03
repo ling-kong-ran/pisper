@@ -45,6 +45,7 @@ export const LANGUAGE_OPTIONS = [
 export const I18N_NAMESPACES = Object.freeze([
   'assets',
   'board',
+  'bots',
   'channels',
   'common',
   'navigation',

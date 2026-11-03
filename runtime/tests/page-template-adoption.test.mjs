@@ -148,7 +148,7 @@ test('the workflow node editor stays full width with one 52px header of its own'
   assert.match(editor, /<WorkflowEditorHeader title=\{title\} onBack=\{backToList\} t=\{t\} \/>/)
   assert.match(
     app,
-    /\['board', 'session', 'more', 'chat', 'workflowCreate', 'config'\]\.includes\(page\)/,
+    /\['board', 'session', 'more', 'chat', 'workflowCreate', 'config', 'bots'\]\.includes\(page\)/,
   )
   const builder = routes.slice(routes.indexOf('<WorkflowBuilder'))
   assert.doesNotMatch(builder.slice(0, builder.indexOf('/>')), /registerPrimaryAction/)
@@ -179,7 +179,7 @@ test('device pages under /config open as feature-template pages with centralized
   // 设置搜索跳到这三个分区仍按分区锚点定位。
   assert.match(device, /data-config-card=\{CONFIG_SECTION_ANCHOR\}/)
   // 共享页头不在 /config 下渲染（设备页与设置分区都用模板）；路由把“‹ 功能”的返回动作交给 ConfigPage。
-  assert.match(app, /'workflowCreate', 'config'\]\.includes\(page\)/)
+  assert.match(app, /'workflowCreate', 'config', 'bots'\]\.includes\(page\)/)
   assert.match(routes, /onBackToFeatures=\{context\.onBackToFeatures\}/)
   // 平台判断集中在 deviceFeatureSupport：功能索引的卡片与页面读同一份结论；页面不支持时显示禁用开关并写原因。
   assert.match(capabilities, /export function deviceFeatureSupport\(/)

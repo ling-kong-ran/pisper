@@ -21,7 +21,13 @@ import { useBetaFeaturesStore } from './beta-features-store'
 type FeatureCopy = { title: string; description: string; whenOff: string }
 
 // 每个功能的文案键必须是字面量（i18n 检查逐个核对）：新功能进清单时在这里加一项。
-const FEATURE_COPY: Partial<Record<string, (t: Translate) => FeatureCopy>> = {}
+const FEATURE_COPY: Partial<Record<string, (t: Translate) => FeatureCopy>> = {
+  bots: (t) => ({
+    title: t('labs:feature.bots.title'),
+    description: t('labs:feature.bots.description'),
+    whenOff: t('labs:feature.bots.whenOff'),
+  }),
+}
 
 function featureCopy(t: Translate, id: string): FeatureCopy {
   return FEATURE_COPY[id]?.(t) ?? { title: id, description: '', whenOff: '' }

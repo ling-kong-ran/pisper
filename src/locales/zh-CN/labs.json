@@ -16,5 +16,8 @@
   "enabledNow": "已开启，立即生效",
   "saveFailed": "没能保存：{error}。开关已恢复。",
   "unavailable.runtime": "当前连接的 Runtime 不支持这个功能。升级那台机器上的 Pisper 后即可开启。",
-  "openLinkFailed": "没能打开链接。"
+  "openLinkFailed": "没能打开链接。",
+  "feature.bots.title": "Bots",
+  "feature.bots.description": "新建多个常驻的 Bot，在对话里交代事情；它们在自己的电脑上干活，改代码时用独立分支，改完交给你确认。",
+  "feature.bots.whenOff": "已有的 Bot 和对话记录都保留，侧栏不再显示 Bots；正在运行的任务会跑完。"
 }

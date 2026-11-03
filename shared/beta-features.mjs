@@ -30,7 +30,14 @@ export const MAX_STORED_BETA_FLAGS = 64
  */
 
 /** @type {readonly BetaFeature[]} */
-export const BETA_FEATURES = Object.freeze([])
+export const BETA_FEATURES = Object.freeze([
+  {
+    id: 'bots',
+    stage: 'experimental',
+    requires: ['bots'],
+    feedbackUrl: 'https://github.com/ling-kong-ran/pisper/issues',
+  },
+])
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function record(value) {

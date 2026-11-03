@@ -11,6 +11,7 @@ import { HOME_PATH, PAGE_PATHS } from './routes'
 import {
   assetsRoute,
   boardRoute,
+  botsRoute,
   channelsRoute,
   homeRoute,
   chatHistoryRoute,
@@ -52,6 +53,7 @@ export const router = createHashRouter([
       { path: PAGE_PATHS.assets, lazy: assetsRoute },
       { path: PAGE_PATHS.channels, lazy: channelsRoute },
       { path: PAGE_PATHS.schedules, lazy: schedulesRoute },
+      { path: '/bots/:botId?', lazy: botsRoute },
       { path: PAGE_PATHS.config, lazy: configRoute },
       { path: '/config/:configSection', lazy: configRoute },
       { path: '/config', element: <Navigate to={PAGE_PATHS.config} replace /> },

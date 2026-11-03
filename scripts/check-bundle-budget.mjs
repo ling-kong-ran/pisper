@@ -14,7 +14,8 @@ export const BUNDLE_BUDGETS = {
   // 页面偏好恢复后无条件加载的 mount-app 也计入启动面；分块与恢复客户端增加约 7 KB。
   // 重设计后的功能栏品牌标、标签与导航图标进入启动面（约 297.6 KiB）。
   // 其后新增的界面文案、终端 P 品牌标与移动端判断又增加约 1.9 KiB（约 301.8 KiB），预留约 2.2 KiB 余量。
-  entryStaticJsGzip: 304 * KIB,
+  // 实验功能（设置分区、开关 Hook）与 Bots 路由、侧栏懒加载入口进入启动面后贴线（约 304.03 KiB），上调 1 KiB。
+  entryStaticJsGzip: 305 * KIB,
   markdownSurfaceGzip: 330 * KIB,
   largestJsGzip: 245 * KIB,
   chunks: {

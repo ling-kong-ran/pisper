@@ -6,7 +6,12 @@ import test from 'node:test'
 
 import { createApiHandler } from '../http/api-handler.mjs'
 import { resolveRuntimeCapabilities } from '../runtime-capabilities.mjs'
-import { MAX_BOTS, normalizeBotInput } from '../services/bots/bot-model.mjs'
+import {
+  BOT_AVATAR_CHARACTERS,
+  BOT_AVATAR_COLORS,
+  MAX_BOTS,
+  normalizeBotInput,
+} from '../services/bots/bot-model.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
 
 const base = { name: '审查员', instructions: '审查 PR', workspace: { cwd: '/repo' } }
@@ -22,7 +27,21 @@ function codeOf(fn) {
 
 test('bot fields are validated and given safe defaults', () => {
   const bot = normalizeBotInput(base)
-  assert.deepEqual(bot.avatar, { glyph: '审', color: 1 })
+  // 没给头像时按名字稳定地挑角色与颜色；旧数据（一个字 + 颜色序号）映射到颜色名。
+  assert.ok(BOT_AVATAR_CHARACTERS.includes(bot.avatar.character))
+  assert.ok(BOT_AVATAR_COLORS.includes(bot.avatar.color))
+  assert.deepEqual(normalizeBotInput(base).avatar, bot.avatar)
+  assert.equal(
+    normalizeBotInput({ ...base, avatar: { glyph: '审', color: 3 } }).avatar.color,
+    'orange',
+  )
+  assert.deepEqual(
+    normalizeBotInput({ ...base, avatar: { character: 'owl', color: 'teal' } }).avatar,
+    {
+      character: 'owl',
+      color: 'teal',
+    },
+  )
   assert.deepEqual(bot.model, { tier: 'standard' })
   assert.equal(bot.executionMode, 'approval-required')
   assert.equal(bot.workspace.isolation, 'worktree')

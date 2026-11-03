@@ -88,6 +88,13 @@ export const botRoutes = [
     }),
   },
   {
+    method: 'POST',
+    path: '/api/bots/:botId/messages',
+    handler: botRoute(async ({ runtime, params, body, json }) => {
+      json(201, { task: await runtime.sendBotMessage(params.botId, record(await body())) })
+    }),
+  },
+  {
     method: 'GET',
     path: '/api/bot-tasks',
     handler: botRoute(({ runtime, url, json }) => {

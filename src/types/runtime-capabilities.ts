@@ -126,6 +126,7 @@ const PAGE_FEATURES: Partial<Record<string, RuntimeFeature>> = {
   assets: 'assets',
   channels: 'channels',
   schedules: 'schedules',
+  bots: 'bots',
   memory: 'memory',
   mcp: 'mcp',
   skills: 'skills',

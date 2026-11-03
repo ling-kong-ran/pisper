@@ -55,6 +55,14 @@ export function botTaskPrompt(bot, task, { isolated }) {
   return parts.join('\n\n')
 }
 
+// 待确认时“接着说”的那一轮：只带修改意见本身，Bot 的说明已在同一会话的前文里。
+export function botFollowUpPrompt(text, { isolated }) {
+  const parts = [`[接着改]\n${text}`]
+  if (isolated)
+    parts.push('[工作方式]\n继续在当前分支上修改，改动会再交给人确认。不要推送、不要切换分支。')
+  return parts.join('\n\n')
+}
+
 export class BotTaskService {
   constructor({
     path,
@@ -158,6 +166,8 @@ export class BotTaskService {
       source,
       title: request.split('\n')[0].slice(0, 80),
       request,
+      // 对话里的每一轮：第一轮是派活，之后是待确认时“接着说”的修改意见；reply 是 Bot 这一轮的回复。
+      turns: [{ text: request, at }],
       sessionId: null,
       workspace: null,
       result: null,
@@ -170,6 +180,40 @@ export class BotTaskService {
     await this.save()
     this.schedule()
     return clone(task)
+  }
+
+  // 在 Bot 的对话里说一句话：有改动正等确认时，这句话是对那份改动的修改意见，在同一个任务、
+  // 同一个分支上接着改；否则就是一件新的事，排成新任务。
+  async message(botId, { text, source = { kind: 'chat' } } = {}) {
+    const bot = this.getBot(botId)
+    if (!bot) throw new BotTaskError('bot_not_found', 'Bot 不存在。', 404)
+    const pending = this.tasks.findLast((task) => task.botId === botId && task.status === 'review')
+    if (!pending) return this.dispatch(botId, { text, source })
+    if (!bot.enabled) throw new BotTaskError('bot_paused', `${bot.name} 已暂停，不接新任务。`, 409)
+    const request = String(text ?? '').trim()
+    if (!request) throw new BotTaskError('bot_task_empty', '要让 Bot 做什么？请写下任务内容。')
+    if (request.length > MAX_REQUEST_CHARS)
+      throw new BotTaskError('bot_task_too_long', `任务内容最多 ${MAX_REQUEST_CHARS} 个字符。`)
+    pending.turns = [...(pending.turns || [{ text: pending.request, at: pending.createdAt }])]
+    pending.turns.push({ text: request, at: this.#at() })
+    this.#set(pending, { status: 'queued', error: null })
+    await this.save()
+    this.schedule()
+    return clone(pending)
+  }
+
+  // 给侧栏的一句话动态：最近一个任务的状态，以及是否需要你（待确认、失败、中断）。
+  activity(botId) {
+    const latest = this.tasks.findLast((task) => task.botId === botId)
+    if (!latest) return null
+    return {
+      taskId: latest.id,
+      status: latest.status,
+      title: latest.title,
+      changedFiles: latest.result?.changedFiles || 0,
+      needsYou: ['review', 'failed', 'interrupted'].includes(latest.status),
+      updatedAt: latest.updatedAt,
+    }
   }
 
   // 调度：按排队先后，跳过所属 Bot 已在忙的任务，直到占满全局并发。
@@ -228,11 +272,17 @@ export class BotTaskService {
     await this.save()
     let outcome
     try {
+      const turns = task.turns || [{ text: task.request }]
       outcome = await this.runAgent({
         bot,
         task: clone(task),
         cwd: task.workspace.path,
-        message: botTaskPrompt(bot, task, { isolated }),
+        // 同一个 Bot 的所有任务都在它的长期会话里跑；第一次还没有会话时由代理新建。
+        sessionId: task.sessionId || bot.threadSessionId || '',
+        message:
+          turns.length > 1
+            ? botFollowUpPrompt(turns.at(-1).text, { isolated })
+            : botTaskPrompt(bot, task, { isolated }),
         onSession: (sessionId) => {
           task.sessionId = sessionId
           this.save().catch(() => {})
@@ -249,6 +299,7 @@ export class BotTaskService {
     const summary = String(outcome?.text || '')
       .trim()
       .slice(0, 1_200)
+    if (task.turns?.length) task.turns.at(-1).reply = summary
     try {
       await this.#deliver(task, bot, summary)
     } catch (error) {

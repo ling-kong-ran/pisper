@@ -42,7 +42,7 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   // 只剩组件页沿用共享页头（A7 前）。
   assert.match(
     app,
-    /const sharedPageHeader =\s*!\['board', 'session', 'more', 'chat', 'workflowCreate', 'config'\]\.includes\(page\) &&\s*!FEATURE_TEMPLATE_PAGES\.has\(page\)\n/,
+    /const sharedPageHeader =\s*!\['board', 'session', 'more', 'chat', 'workflowCreate', 'config', 'bots'\]\.includes\(page\) &&\s*!FEATURE_TEMPLATE_PAGES\.has\(page\)\n/,
   )
   assert.match(app, /\{sharedPageHeader && \(/)
   // 新任务只有一条路径：⌘N、侧栏 / 抽屉“新任务”、手机顶栏 ✎ 与命令面板都交给 startNewTask，

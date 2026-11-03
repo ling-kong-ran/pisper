@@ -11,7 +11,29 @@ export const BOT_PLATFORMS = Object.freeze(['feishu', 'weixin', 'qq', 'telegram'
 export const BOT_RUN_MODES = Object.freeze(['plan', 'goal', 'team'])
 export const BOT_DELIVERIES = Object.freeze(['reply-only', 'diff', 'commit'])
 export const BOT_ISOLATIONS = Object.freeze(['worktree', 'shared'])
-export const BOT_AVATAR_COLORS = Object.freeze([1, 2, 3, 4, 5, 6])
+// 头像 = 角色 + 颜色，与前端 src/features/bots/avatar.ts 的角色表一致（动态 SVG 在前端生成）。
+export const BOT_AVATAR_CHARACTERS = Object.freeze([
+  'blob',
+  'bean',
+  'robot',
+  'cat',
+  'owl',
+  'ghost',
+  'cloud',
+  'octo',
+  'bunny',
+  'bear',
+  'fox',
+  'star',
+])
+export const BOT_AVATAR_COLORS = Object.freeze([
+  'blue',
+  'green',
+  'orange',
+  'purple',
+  'teal',
+  'pink',
+])
 export const LOCAL_ENVIRONMENT_ID = 'local'
 const THINKING_LEVELS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh'])
 const MAX_CHANNELS = 8
@@ -61,11 +83,21 @@ function normalizeName(value) {
   return name
 }
 
+// 未指定或旧数据（一个字 + 1–6 号颜色）按名字稳定地挑一个角色，颜色序号映射到颜色名。
 function normalizeAvatar(value, name) {
   const input = record(value)
-  const glyph = [...String(input.glyph ?? '').trim()].slice(0, 2).join('') || [...name][0]
-  const color = Number(input.color)
-  return { glyph, color: BOT_AVATAR_COLORS.includes(color) ? color : 1 }
+  let seed = 0
+  for (const char of name) seed = (seed * 31 + char.codePointAt(0)) % 9973
+  const character = BOT_AVATAR_CHARACTERS.includes(String(input.character))
+    ? String(input.character)
+    : BOT_AVATAR_CHARACTERS[seed % BOT_AVATAR_CHARACTERS.length]
+  const legacyColor = Number(input.color)
+  const color = BOT_AVATAR_COLORS.includes(String(input.color))
+    ? String(input.color)
+    : Number.isInteger(legacyColor) && legacyColor >= 1 && legacyColor <= 6
+      ? BOT_AVATAR_COLORS[legacyColor - 1]
+      : BOT_AVATAR_COLORS[seed % BOT_AVATAR_COLORS.length]
+  return { character, color }
 }
 
 function normalizeModel(value) {

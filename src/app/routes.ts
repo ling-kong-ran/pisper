@@ -18,6 +18,8 @@ export const PAGE_PATHS = Object.freeze({
   assets: '/assets',
   channels: '/channels',
   schedules: '/schedules',
+  // Bots（实验功能）：/bots 跳到第一个 Bot，/bots/:botId 是和它的对话。
+  bots: '/bots',
   plugins: '/plugins',
   memory: '/memory',
   mcp: '/mcp',
@@ -71,6 +73,7 @@ export function pageFromPath(pathname: string): PageId | null {
   if (/^\/workflows\/[^/]+$/.test(normalized)) return 'workflowCreate'
   if (/^\/tools\/components\/[^/]+$/.test(normalized)) return 'customComponentTool'
   if (/^\/components\/[^/]+$/.test(normalized)) return 'components'
+  if (/^\/bots\/[^/]+$/.test(normalized)) return 'bots'
   if (/^\/config(?:\/[^/]+)?$/.test(normalized)) return 'config'
   return PATH_PAGES.get(normalized) || null
 }

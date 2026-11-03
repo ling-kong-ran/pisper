@@ -804,8 +804,13 @@ export class AgentRuntimeFacade {
     return this.getBetaFeatures()
   }
 
+  // 列表里带上每个 Bot 的最新动态，侧栏据此显示最近一句与“需要你”。
   listBots() {
-    return this.bots.list()
+    return this.bots.list().map((bot) => ({ ...bot, activity: this.botTasks.activity(bot.id) }))
+  }
+
+  sendBotMessage(botId, input) {
+    return this.botTasks.message(botId, { text: input?.text, source: { kind: 'chat' } })
   }
 
   getBot(id) {
@@ -826,12 +831,15 @@ export class AgentRuntimeFacade {
 
   // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，
   // 解析不到时沿用默认模型；执行权限取 Bot 的上限。审批与提问照常进看板“需要你”。
-  async runBotTaskAgent({ bot, task, cwd, message, onSession }) {
+  async runBotTaskAgent({ bot, task, cwd, sessionId = '', message, onSession }) {
     const resolved = await this.providerPreferences.resolveSubagentModel(
       bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
     )
-    return this.promptFromChannel({
-      sessionId: '',
+    // 长期会话已存在时，先把工作目录切到这次任务的 worktree（新建会话时由 promptFromChannel 设置）。
+    if (sessionId && (this.sessions.has(sessionId) || (await this.findSessionInfo(sessionId))))
+      await this.setSessionCwd(sessionId, cwd)
+    const result = await this.promptFromChannel({
+      sessionId,
       message,
       cwd,
       title: `${bot.name} · ${task.title}`,
@@ -842,8 +850,13 @@ export class AgentRuntimeFacade {
       goalMode: bot.runMode === 'goal',
       teamMode: bot.runMode === 'team',
       isolatedContext: true,
-      onSession,
+      onSession: (id) => {
+        onSession?.(id)
+        void this.bots.setThread(bot.id, id).catch(() => {})
+      },
     })
+    await this.bots.setThread(bot.id, result.sessionId)
+    return result
   }
 
   listBotTasks(query) {

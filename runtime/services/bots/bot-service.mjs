@@ -53,6 +53,8 @@ export class BotService {
         bots.push({
           id: value.id,
           ...bot,
+          threadSessionId:
+            typeof value.threadSessionId === 'string' ? value.threadSessionId.slice(0, 200) : '',
           createdAt: String(value.createdAt || ''),
           updatedAt: String(value.updatedAt || ''),
         })
@@ -114,7 +116,7 @@ export class BotService {
     const bot = await this.#resolveWorkspace(normalizeBotInput(input))
     this.#checkConflicts(bot)
     const at = new Date(this.now()).toISOString()
-    const created = { id: newBotId(), ...bot, createdAt: at, updatedAt: at }
+    const created = { id: newBotId(), ...bot, threadSessionId: '', createdAt: at, updatedAt: at }
     this.bots.push(created)
     await this.save()
     return clone(created)
@@ -135,12 +137,21 @@ export class BotService {
     const updated = {
       id,
       ...bot,
+      threadSessionId: current.threadSessionId || '',
       createdAt: current.createdAt,
       updatedAt: new Date(this.now()).toISOString(),
     }
     this.bots[index] = updated
     await this.save()
     return clone(updated)
+  }
+
+  // 记下 Bot 的长期会话：它的所有任务都在这个会话里跑，对话页据此打开完整记录。
+  async setThread(id, sessionId) {
+    const bot = this.bots.find((item) => item.id === id)
+    if (!bot || !sessionId || bot.threadSessionId === sessionId) return
+    bot.threadSessionId = String(sessionId).slice(0, 200)
+    await this.save()
   }
 
   async remove(id) {

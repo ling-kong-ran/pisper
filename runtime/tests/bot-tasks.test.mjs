@@ -371,3 +371,43 @@ test('task routes validate the status filter and go through the Labs gate', asyn
   assert.equal((await respond('/api/bot-tasks?botId=b1&status=review&limit=5')).status, 200)
   assert.deepEqual(calls, [{ botId: 'b1', status: 'review', limit: 5 }])
 })
+
+test('talking to a bot while changes await review continues the same task on the same branch', async (t) => {
+  const calls = []
+  const { service } = await taskFixture(t, {
+    bots: [bot('reviewer', { threadSessionId: 'thread-1' })],
+    runAgent: async ({ cwd, sessionId, message }) => {
+      calls.push({ cwd, sessionId, message })
+      await writeFile(join(cwd, `turn-${calls.length}.txt`), 'x\n')
+      return { text: `第 ${calls.length} 轮改好了`, sessionId: 'thread-1' }
+    },
+  })
+  const first = await service.message('reviewer', { text: '修 bug' })
+  await until(() => service.get(first.id).status === 'review')
+  assert.equal(service.activity('reviewer').needsYou, true)
+
+  const followUp = await service.message('reviewer', { text: '再补个测试' })
+  assert.equal(followUp.id, first.id)
+  await until(() => service.get(first.id).status === 'review' && calls.length === 2)
+  const task = service.get(first.id)
+  assert.deepEqual(
+    task.turns.map((turn) => [turn.text, turn.reply]),
+    [
+      ['修 bug', '第 1 轮改好了'],
+      ['再补个测试', '第 2 轮改好了'],
+    ],
+  )
+  // 两轮都在 Bot 的长期会话、同一个 worktree 里跑；第二轮只带修改意见。
+  assert.deepEqual(
+    calls.map((call) => call.sessionId),
+    ['thread-1', 'thread-1'],
+  )
+  assert.equal(calls[0].cwd, calls[1].cwd)
+  assert.match(calls[1].message, /^\[接着改\]\n再补个测试/)
+  assert.equal(task.result.changedFiles, 2)
+
+  // 处理完以后再说话，是一件新的事。
+  await service.discard(first.id)
+  const next = await service.message('reviewer', { text: '看看 CI' })
+  assert.notEqual(next.id, first.id)
+})

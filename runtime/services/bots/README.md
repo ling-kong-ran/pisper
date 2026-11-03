@@ -261,6 +261,7 @@ stateDiagram-v2
 | `GET /api/bots` / `POST /api/bots` | 列表（含每个 Bot 的当前状态汇总）/ 新建 |
 | `GET /api/bots/:id` / `PATCH /api/bots/:id` / `DELETE /api/bots/:id` | 详情 / 修改（含暂停、恢复）/ 删除 |
 | `POST /api/bots/:id/tasks` | 手动派活：`{ text, attachments? }` |
+| `POST /api/bots/:id/messages` | 对话里发一句话（B4）：有改动待确认时是同一任务的追问（同一分支接着改），否则派一个新任务；返回 `{ task }` |
 | `GET /api/bot-tasks?botId=&status=&limit=` | 任务列表 |
 | `GET /api/bot-tasks/:id` / `GET /api/bot-tasks/:id/diff` | 详情 / 相对 `baseRef` 的 diff（沿用 `MAX_DIFF_CHARS`） |
 | `POST /api/bot-tasks/:id/accept` / `discard` / `resume` / `stop` | 接受（`{ apply: boolean }`）/ 放弃 / 继续 / 停止 |
@@ -278,19 +279,23 @@ Capability：`features.bots` 与 `features.worktrees`（`features.processes` 为
 
 ## 客户端
 
-| 位置 | 第一版 |
-| --- | --- |
-| 侧栏 | 顶层新增「Bots」，位于「全部代理」与「功能」之间，快捷键 ⌘2；「功能」改为 ⌘3。没改过快捷键的用户随新默认值迁移，改过的保留（沿用 `shared/shortcuts.mjs` 的旧默认值识别）。开关关闭时不显示该入口 |
-| Bots 页 | 两个标签：「Bots」是卡片网格（头像、名字、状态：空闲 / 运行中 / 需要你 / 已暂停 / 等待执行环境，执行环境与在线状态，触发方式摘要，最近一次任务），右上「新建 Bot」；「执行环境」列出本机与已配对的执行节点（在线状态、允许目录、能力、使用它的 Bot），右上「添加执行节点」显示配对码和安装命令 |
-| 新建 Bot | 对话框：从模板开始（代码审查员、依赖巡检、日报、空白），填名字、头像、指令、执行环境与工作目录；触发方式和权限有默认值，可展开修改 |
-| Bot 详情 | 页头（头像、名字、状态、暂停开关、「派活」、更多菜单）；两个标签：「动态」列出任务（按状态分组，可接受/放弃/打开会话），「设置」是完整配置 |
-| 看板与侧栏 | 任务就是会话：照常出现在“需要你 / 运行中”等分组，标题前加 Bot 头像；卡片显示分支名与改动文件数 |
-| 任务详情 | 改动列表 + diff 预览，「接受」「接受并应用到当前分支」「放弃」「打开会话」 |
-| TUI | 第一版不提供 Bot 管理；任务会话在会话列表里照常可见 |
-| 手机 | Bots 页与详情走同一套组件，单列；手机内置 Runtime 时隔离选项禁用并写明原因 |
-| 来源渠道 | 任务开始、需要审批、需要确认、完成、失败各回一条消息，署名为 Bot 名字 |
+B4 改成 Grok Bot / Dots 那种“和同事聊天”的形态（设计稿 `docs/design/drafts/botim-*.png`，实现截图 `docs/design/built/b4-*.png`），取代早先的卡片网格方案：
 
-界面约束：沿用 AGENTS.md「组件与样式」——下拉用 `AppSelect` 或 `ui/select`、开关用 `ui/switch`、标签页用 `Tabs`、空状态用 `InlineEmptyState compact` / `PageState`、文案走 i18n 双语、请求经领域 API 模块；实现截图补到 `docs/design/built/`。
+| 位置 | 第一版（B4 已实现） |
+| --- | --- |
+| 侧栏 | 会话列表上方一个「Bots」分组，每个 Bot 一行，像联系人：会动的头像（空闲 / 干活 / 需要你三种状态）、名字、最近一句动态；需要你时那句话是琥珀色。分组标题右边「+」新建。开关关闭时整组不出现，也不加载这部分代码 |
+| Bot 页 `/bots/:botId` | 和这个 Bot 的一条长期对话：你说的话在右，Bot 的回复在左，任务以卡片出现在对话里（排队 / 干活中可停止 / 改动待确认：查看改动、放弃、接受并应用到当前分支 / 失败或中断：继续、放弃 / 完成）。有改动待确认时继续说话，就在同一个分支上接着改 |
+| 详情栏 | 右侧三个标签：「详情」（头像、它记得的工作说明、接收新任务开关、执行权限上限、交付方式）、「改动」（文件列表 + diff）、「电脑」（它在哪台电脑、哪个目录工作，每次任务独立分支或直接改目录）。窄屏（≤900px）盖在对话上 |
+| 新建 Bot | 对话框：名字、角色（12 种）与颜色（6 种）、本机工作目录 |
+| 独立窗口 | 网页版用浏览器窗口打开同一 Bot 页；桌面壳与手机 App 暂不显示该按钮 |
+| 头像 | `src/features/bots/avatar.ts` 生成 SVG + SMIL 动画，以 data URL 放进 `<img>`（不执行脚本、不引用外部资源）；系统要求减少动态时静止 |
+| TUI | 第一版不提供 Bot 界面；Bot 的会话在会话列表里照常可见 |
+
+每个 Bot 有一个长期会话（`threadSessionId`），每个任务的对话是 `turns`（`{ text, at, reply? }`）；旧任务没有 `turns` 时按 `request` 读。
+
+与上面设计的差异（B4 留待以后）：没有快捷键迁移（不占 ⌘2）；“电脑”只有本机，执行节点在 B6；工作说明不会自动学习；任务里的审批仍在会话里处理（卡片上的「完整记录」打开会话），对话内审批卡片以后做；看板卡片不加 Bot 头像；`tools` 范围尚未生效。
+
+界面约束：沿用 AGENTS.md「组件与样式」——下拉用 `AppSelect` 或 `ui/select`、开关用 `ui/switch`、标签页用 `Tabs`、空状态用 `InlineEmptyState compact` / `PageState`、文案走 i18n 双语、请求经领域 API 模块。
 
 ## 安全边界
 
@@ -312,7 +317,7 @@ Capability：`features.bots` 与 `features.worktrees`（`features.processes` 为
 | B1 Bot 注册表 | `bots/` 服务、存储、CRUD 接口、capability | 新增 Bot 校验（名字唯一、群聊白名单、权限上限）、读写与恢复测试；`npm test` | 能通过接口增删改 Bot |
 | B2 任务与隔离 | 任务状态机、`Executor` 接口与 `LocalExecutor`（经引擎 `operations` 接入）、`worktree-manager.mjs`、手动派活、接受/放弃 | 临时 git 仓库集成测试（并行、冲突、路径穿越、重启）；不依赖网络与个人目录 | 两个 Bot 并行改同一仓库互不覆盖；本机执行行为与现在一致 |
 | B3 触发 | `bot-routing.mjs`、渠道接入、`ScheduleService` 的 `bot` 目标 | 分派纯函数测试（点名、默认 Bot、拒绝原因）；现有渠道与定时任务测试全过 | 开关关闭或未点名时渠道行为不变 |
-| B4 界面 | 侧栏入口与快捷键迁移、Bots 页、新建对话框、详情、看板卡片、i18n | 契约测试（JSON + `serde_json`）、`npm run check`、`npm run test:ui`、`frontend-boundaries` 与 `legacy-ui-retirement` 守卫、快捷键迁移测试；`npm run tui:test` | 在界面上完成“新建 Bot → 飞书 @ 它 → review → 接受” |
+| B4 界面（已完成，形态见「客户端」） | 侧栏 Bots 分组、Bot 对话页、新建对话框、详情栏、i18n | 契约测试（JSON + `serde_json`）、`npm run check`、`npm run test:ui`、`frontend-boundaries` 与 `legacy-ui-retirement` 守卫、快捷键迁移测试；`npm run tui:test` | 在界面上完成“新建 Bot → 飞书 @ 它 → review → 接受” |
 | B5 渠道回推 | 通知模板、`/bots`、`/<名字> 状态` | 假网关测试；真实飞书/微信验收单列为未验证项 | 不开应用也能处理审批与待确认 |
 | B6 执行节点 | `pisper executor` 守护进程（npm 包）、`NodeExecutor`、配对、断线排队与恢复、执行环境管理页 | 同机起大脑与节点两个进程的集成测试（配对、根目录越界被节点拒绝、断线后排队、重连继续）；`npm run npm:pack:check` | 大脑在服务器、执行在开发机，开发机离线再上线后任务继续 |
 
@@ -323,7 +328,7 @@ Capability：`features.bots` 与 `features.worktrees`（`features.processes` 为
 | 问题 | 结论 |
 | --- | --- |
 | 产品形态 | 参考 Grok Bot：多个常驻 Bot；工作项改为“Bot 的任务” |
-| 入口位置 | 侧栏顶层「Bots」，⌘2；「功能」改为 ⌘3 |
+| 入口位置 | 侧栏会话列表上方的「Bots」分组（B4 起取代“顶层入口 + ⌘2”）；每个 Bot 一条长期对话 |
 | 渠道 | 共用现有渠道连接，按名字 @ 或 `/<名字>` 分派；每个 Bot 独立机器人账号放到第二版 |
 | 第一版范围 | Bot 骨架；独立记忆与独立浏览器登录态放到第二版 |
 | 上线方式 | 实验功能 `bots`，默认关闭；关闭或未点名时渠道保持直接对话 |

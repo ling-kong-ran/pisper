@@ -9,6 +9,7 @@
   "navigation.channels": "Channels",
   "navigation.channelsDescription": "Bring Pisper beyond the screen and into your collaboration spaces",
   "navigation.schedules": "Scheduled tasks",
+  "navigation.bots": "Bots",
   "navigation.schedulesDescription": "Leave repetitive waiting to tasks that start on time",
   "navigation.settings": "Settings",
   "navigation.settingsDescription": "Tune models, runtime policies, and notification cadence",

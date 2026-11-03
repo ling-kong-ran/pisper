@@ -170,6 +170,8 @@ const loadSidebarSessions = () =>
   Promise.all([import('@/features/board/sidebar'), ensureBoardMessages()]).then(
     ([module]) => module,
   )
+// Bots 分组只在实验功能打开时出现；分组自己判断，懒加载不进首屏，与会话列表共用一个 Suspense。
+const BotsSidebarSection = lazy(() => import('@/features/bots/public-sidebar'))
 const SidebarSessions = lazy(() =>
   loadSidebarSessions().then((module) => ({ default: module.SidebarSessions })),
 )
@@ -962,7 +964,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   // 手机设置（规格 7.4）：/config 是分区列表（不挂设置内容与页头），/config/<分区> 顶上一条“‹ 设置”回列表。
   const phoneSettingsList = phoneShell && settingsOwned && /^\/config\/?$/.test(location.pathname)
   const sharedPageHeader =
-    !['board', 'session', 'more', 'chat', 'workflowCreate', 'config'].includes(page) &&
+    !['board', 'session', 'more', 'chat', 'workflowCreate', 'config', 'bots'].includes(page) &&
     !FEATURE_TEMPLATE_PAGES.has(page)
   // 设置外壳（侧栏换成设置目录）：桌面外壳（任何宽度）与手机 App 平板；手机外壳是列表 → 分区。
   const settingsLayout = settingsOwned && !phoneShell
@@ -1083,15 +1085,18 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                         onOpenHistory={() => navigate('chatHistory')}
                       />
                     ) : (
-                      <SidebarSessions
-                        currentId={sessionIdFromPath(location.pathname)}
-                        notify={notify}
-                        requestText={appDialog.prompt}
-                        onOpenSession={openSidebarSession}
-                        onOpenBoard={() => selectShellTab('board')}
-                        onOpenHistory={() => navigate('chatHistory')}
-                        onArchived={sidebarArchived}
-                      />
+                      <>
+                        <BotsSidebarSection />
+                        <SidebarSessions
+                          currentId={sessionIdFromPath(location.pathname)}
+                          notify={notify}
+                          requestText={appDialog.prompt}
+                          onOpenSession={openSidebarSession}
+                          onOpenBoard={() => selectShellTab('board')}
+                          onOpenHistory={() => navigate('chatHistory')}
+                          onArchived={sidebarArchived}
+                        />
+                      </>
                     )}
                   </Suspense>
                 }
@@ -1239,6 +1244,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 onOpenSettings={() => selectShellTab('settings')}
                 content={
                   <Suspense fallback={<SidebarSessionsFallback />}>
+                    <BotsSidebarSection />
                     <SidebarSessions
                       drawer
                       currentId={sessionIdFromPath(location.pathname)}

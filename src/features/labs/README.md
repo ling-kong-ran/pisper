@@ -1,6 +1,6 @@
 # 实验功能页设计草案
 
-状态：L1、L2 已实现（2026-11-03）。L1：`shared/beta-features.mjs`、`/api/settings/beta-features`、`runtime/tests/beta-features.test.mjs`；L2：本目录的设置页、`beta-features-store.ts`、`public.ts`（`LabsSettings`、`useBetaFeature`）、`runtime/tests/labs-settings.test.mjs`。正式清单仍为空，L3 加入 `bots` 时在 `LabsSettings.tsx` 的 `FEATURE_COPY` 补文案。以代码、测试为准并同步修订本文。
+状态：L1、L2 已实现（2026-11-03）。L1：`shared/beta-features.mjs`、`/api/settings/beta-features`、`runtime/tests/beta-features.test.mjs`；L2：本目录的设置页、`beta-features-store.ts`、`public.ts`（`LabsSettings`、`useBetaFeature`）、`runtime/tests/labs-settings.test.mjs`。清单里现在有 `bots`（B4 加入，文案在 `LabsSettings.tsx` 的 `FEATURE_COPY`）；其他 Feature 经 `public-flags.ts` 取 `useBetaFeature`，不连带加载设置页。以代码、测试为准并同步修订本文。
 
 与设计稿的差异：保存失败用共用的中性失败提示（`FeatureAlert`），不用红字——规格 v2 规定红色只留给删除按钮和表单字段错误。
 
@@ -43,7 +43,7 @@ type BetaFeature = {
 - 开关存在应用配置（`appConfigPath` 指向的 JSON）的 `betaFeatures` 字段：`{ "<id>": true }`，只记录打开的功能。读写沿用 `getMemoryPreference` / `updateMemoryPreference` 的模式（`readJson` + 合并 + `writeJsonAtomic`）。
 - 读取时忽略清单里没有的 id，写入时原样保留它们。这样功能毕业或删除后旧配置不会报错；用户降级到旧版本再升级回来，开关也不会丢。
 - Runtime 门面新增 `getBetaFeatures()`、`updateBetaFeatures(input)` 和服务内部用的 `isBetaFeatureEnabled(id)`。服务在做决定的那一刻读开关（如 Intake 投递时），不在启动时缓存，改开关立即生效、无需重启。
-- 关掉一个功能时，已经在运行的任务继续跑完，新的请求按关闭后的行为处理。每个功能的“关掉后会怎样”必须在清单文案里写明；Bots 的写法是：已有 Bot 和任务记录保留，侧栏入口隐藏，渠道里按名字 @ 的消息改为直接对话，定时计划暂停。
+- 关掉一个功能时，已经在运行的任务继续跑完，新的请求按关闭后的行为处理。每个功能的“关掉后会怎样”必须在清单文案里写明；Bots 的写法是：已有 Bot 和对话记录保留，侧栏不再显示 Bots，正在运行的任务会跑完（渠道与定时任务接入 B3 之后，再补上“按名字 @ 的消息改为直接对话、定时计划暂停”）。
 
 接口（放在 `runtime/http/routes/config-settings.mjs`，与其他 `/api/settings/*` 一致）：
 

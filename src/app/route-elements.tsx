@@ -167,6 +167,17 @@ export async function channelsRoute() {
   return { Component: ChannelsRoute }
 }
 
+export async function botsRoute() {
+  const { BotsPage } = await import('@/features/bots/public')
+
+  function BotsRoute() {
+    const context = useAppRouteContext()
+    return <BotsPage notify={context.notify} />
+  }
+
+  return { Component: BotsRoute }
+}
+
 export async function schedulesRoute() {
   const { SchedulesPage } = await import('@/features/schedules/SchedulesPage')
 
