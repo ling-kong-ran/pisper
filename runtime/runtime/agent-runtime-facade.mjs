@@ -23,6 +23,7 @@ import { normalizeSideQuestion, streamSideQuestion } from './side-question.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
 import { finishRunStartTiming, markRunStage, withRunStartTiming } from './run-start-timing.mjs'
 import { isInternalParentMessage } from './stream-projection.mjs'
+import { sessionInputQueueSnapshot } from './session-input-queue.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
@@ -365,6 +366,23 @@ export class AgentRuntimeFacade {
         this.streamProjection.invalidate(requestedId)
       }
       finishRunStartTiming('ended')
+      if (starting?.aborted) void this.discardStoppedEmptySession(requestedId)
+    }
+  }
+
+  // 第一条消息在准备阶段就被停止的新会话一条消息也没有：删掉，不在侧栏留下点进去是空白的会话。
+  // 已有历史或还有排队输入的会话不动；删除失败只记一笔，不影响停止本身。
+  async discardStoppedEmptySession(id) {
+    try {
+      const value = this.sessions.get(id)
+      const messages = value ? value.session?.messages || [] : null
+      const queued = value ? sessionInputQueueSnapshot(value.session).inputs.length : 0
+      const empty = value
+        ? messages.length === 0 && queued === 0 && !this.sessionRunIsActive(id, value)
+        : this.pendingSessions.has(id) && !this.sessionRunIsActive(id)
+      if (empty) await this.deleteSession(id)
+    } catch {
+      console.warn('停止后清理空会话失败。')
     }
   }
 

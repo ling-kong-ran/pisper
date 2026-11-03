@@ -175,3 +175,23 @@ test('a preparing prompt still rebuilds an outdated session runtime', async (t) 
   assert.equal(disposed, 1)
   assert.notEqual(value, stale)
 })
+
+test('a new session stopped before its first prompt starts is discarded, one with history is kept', async (t) => {
+  for (const [id, messages, expected] of [
+    ['session-stopped-empty', [], ['session-stopped-empty']],
+    ['session-stopped-history', [{ role: 'user', content: '之前的', timestamp: 1 }], []],
+  ]) {
+    const { runtime, ready } = await preparingFixture(t, id, { messages })
+    const deleted = []
+    runtime.deleteSession = async (sessionId) => {
+      deleted.push(sessionId)
+      return true
+    }
+    const run = runtime.streamPrompt({ sessionId: id, message: '马上停', send: () => {} })
+    await runtime.abortSession(id)
+    ready.resolve()
+    await assert.rejects(run, /会话已停止/)
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(deleted, expected)
+  }
+})
