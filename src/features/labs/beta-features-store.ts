@@ -4,6 +4,7 @@
 // - 失败时只回滚这一项，并记下想要的值，供“重试”原样再发一次。
 import { create } from 'zustand'
 import type { BetaFeatureState } from '@shared/beta-features.mjs'
+import { announceSessionsUpdated } from '@/features/chat/public-events'
 import { fetchBetaFeatures, updateBetaFeature } from './labs-api'
 
 export type BetaFeatureRowError = { message: string; desired: boolean }
@@ -77,6 +78,9 @@ export const useBetaFeaturesStore = create<BetaFeaturesState>()((set, get) => ({
             feature,
         ),
       })
+      // 实验功能会带出自己的会话（例如 Bot 的会话）：开关一变就让会话列表与全部代理重新读取，
+      // 关掉的功能的会话立刻消失，不用刷新页面。
+      announceSessionsUpdated()
     } catch (error) {
       set({
         features: get().features.map((feature) =>

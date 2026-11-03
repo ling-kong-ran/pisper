@@ -19,5 +19,5 @@
   "openLinkFailed": "没能打开链接。",
   "feature.bots.title": "Bots",
   "feature.bots.description": "新建多个常驻的 Bot，在对话里交代事情；它们在自己的电脑上干活，改代码时用独立分支，改完交给你确认。",
-  "feature.bots.whenOff": "已有的 Bot 和对话记录都保留，侧栏不再显示 Bots；正在运行的任务会跑完。"
+  "feature.bots.whenOff": "Bots 和它们的会话都不再显示；记录都保留，重新打开就回来。正在运行的任务会跑完。"
 }

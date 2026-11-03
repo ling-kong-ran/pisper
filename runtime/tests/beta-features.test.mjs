@@ -175,6 +175,26 @@ test('runtime persists flag changes, keeps other config and retired keys, and ap
   assert.equal(runtime.isBetaFeatureEnabled('bots'), true)
 })
 
+test('turning Bots on or off makes the live board recompute bot sessions', async (t) => {
+  // 关掉后 Bot 的会话不在列表里：在线的看板要重算这些会话（发 removed），目录也要重读。
+  const { runtime } = await facadeFixture(t, {})
+  const touched = []
+  let catalog = 0
+  Object.assign(runtime, {
+    bots: { list: () => [] },
+    botSessionProjects: () =>
+      new Map([
+        ['thread-1', '/repo'],
+        ['old-task', '/repo'],
+      ]),
+    boardEvents: { touch: (id) => touched.push(id), catalogChanged: () => (catalog += 1) },
+  })
+  await runtime.updateBetaFeatures({ bots: true })
+  await runtime.updateBetaFeatures({ bots: false })
+  assert.deepEqual(touched, ['thread-1', 'old-task', 'thread-1', 'old-task'])
+  assert.equal(catalog, 2)
+})
+
 test('concurrent flag changes are serialized so neither update is lost', async (t) => {
   const { runtime, appConfigPath } = await facadeFixture(t, {})
   await Promise.all([

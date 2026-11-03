@@ -247,26 +247,30 @@ test('a bot thread session carries its bot onto board cards only while Bots is o
   assert.equal(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), null)
 })
 
-test('a bot thread groups under its project, not under the task worktree', async () => {
-  // Bot 长期会话的 cwd 是任务的临时 worktree：列表带上 Bot 的项目目录，归组与看板筛选都按它。
+test('bot sessions group under their project, and vanish while Bots is off', async () => {
+  // Bot 长期会话的 cwd 是任务的临时 worktree：列表带上 Bot 的项目目录，归组与看板筛选都按它；
+  // 实验开关关掉时 Bot 的会话（长期会话与旧任务的会话）都不出现。
   const worktree = '/data/worktrees/9654/task_1'
   let enabled = true
   const runtime = {
     sessionLifecycle: {
       listSessions: async () => [
         { id: 'thread-1', cwd: worktree },
+        { id: 'old-task', cwd: '/data/worktrees/9654/task_0' },
         { id: 'plain', cwd: '/repo' },
       ],
     },
     bots: {
       list: () => [{ id: 'bot_1', threadSessionId: 'thread-1', workspace: { cwd: '/repo' } }],
     },
+    botTasks: { list: () => [{ botId: 'bot_1', sessionId: 'old-task' }] },
     isBetaFeatureEnabled: (id) => id === 'bots' && enabled,
   }
-  runtime.botProjectDirectories = agentSessionMethods.botProjectDirectories
+  runtime.botSessionProjects = agentSessionMethods.botSessionProjects
   const sessions = await agentSessionMethods.listSessions.call(runtime)
   assert.deepEqual(sessions, [
     { id: 'thread-1', cwd: worktree, projectCwd: '/repo' },
+    { id: 'old-task', cwd: '/data/worktrees/9654/task_0', projectCwd: '/repo' },
     { id: 'plain', cwd: '/repo' },
   ])
   const groups = groupSessionsByWorkspace(sessions)
@@ -276,10 +280,12 @@ test('a bot thread groups under its project, not under the task worktree', async
   const items = sessions.map((session) => ({ ...session, card: { boardStatus: 'done' } }))
   assert.equal(
     buildBoardView(items, { cwds: ['/repo'], lanes: [], limit: 10, cursor: '' }).total,
-    2,
+    3,
   )
   enabled = false
-  assert.equal('projectCwd' in (await agentSessionMethods.listSessions.call(runtime))[0], false)
+  assert.deepEqual(await agentSessionMethods.listSessions.call(runtime), [
+    { id: 'plain', cwd: '/repo' },
+  ])
 })
 
 test('board cards parse the bot defensively and keep plain sessions unchanged', () => {

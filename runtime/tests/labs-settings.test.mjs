@@ -68,7 +68,14 @@ test('beta feature responses are validated and non-GitHub feedback links are dro
 // 用可控的 fetch 驱动 store：每个请求都挂起，由测试决定何时、以什么结果返回。
 function controlledFetch(t) {
   const original = globalThis.fetch
+  const originalWindow = globalThis.window
   const calls = []
+  // 开关保存成功会广播“会话列表已更新”：给一个只记录事件的 window。
+  calls.announced = []
+  globalThis.window = new EventTarget()
+  globalThis.window.addEventListener('pisper:sessions-updated', (event) =>
+    calls.announced.push(event.type),
+  )
   globalThis.fetch = (url, init = {}) =>
     new Promise((resolve) => {
       calls.push({
@@ -86,6 +93,7 @@ function controlledFetch(t) {
     })
   t.after(() => {
     globalThis.fetch = original
+    globalThis.window = originalWindow
     useBetaFeaturesStore.setState({
       features: [],
       status: 'idle',
@@ -122,6 +130,8 @@ test('toggling shows the new value at once, disables the switch while saving and
   await saving
   assert.equal(store.getState().features[0].enabled, true)
   assert.deepEqual(store.getState().pending, {})
+  // 开关一变，会话列表重新读取（关掉的功能的会话立刻消失）。
+  assert.deepEqual(calls.announced, ['pisper:sessions-updated'])
 })
 
 test('a failed save restores the switch and remembers the wanted value for retry', async (t) => {
@@ -137,6 +147,8 @@ test('a failed save restores the switch and remembers the wanted value for retry
     message: '实验功能 bots 的开关必须是布尔值。',
     desired: true,
   })
+  // 没存上：开关没变，不让会话列表重读。
+  assert.deepEqual(calls.announced, [])
   // 重试会清掉旧错误。
   const retry = store.getState().setEnabled('bots', true)
   assert.equal(store.getState().rowErrors.bots, undefined)

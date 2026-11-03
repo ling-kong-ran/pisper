@@ -828,6 +828,12 @@ export class AgentRuntimeFacade {
       })
     this.betaFeatureWrite = write
     await write
+    // Bot 的会话只在 Bots 打开时出现在列表与看板上：开关一变就让在线的看板重算这些会话
+    // （关掉的发 removed，打开的发卡片），并通知目录重读，界面不用刷新。
+    if (this.bots) {
+      for (const sessionId of this.botSessionProjects().keys()) this.boardEvents?.touch(sessionId)
+      this.boardEvents?.catalogChanged()
+    }
     return this.getBetaFeatures()
   }
 

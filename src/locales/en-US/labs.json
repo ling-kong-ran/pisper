@@ -19,5 +19,5 @@
   "openLinkFailed": "Couldn't open the link.",
   "feature.bots.title": "Bots",
   "feature.bots.description": "Create several always-on Bots and tell them what to do in a chat. They work on their own computer, use a separate branch for code changes and hand the result to you to confirm.",
-  "feature.bots.whenOff": "Your Bots and their chats are kept and Bots disappear from the sidebar; running tasks finish."
+  "feature.bots.whenOff": "Bots and their sessions are hidden everywhere; nothing is deleted, and turning it back on brings them back. Running tasks finish."
 }

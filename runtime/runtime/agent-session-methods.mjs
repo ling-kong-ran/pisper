@@ -55,23 +55,30 @@ function supportsLightweightSessionConfiguration(runtime) {
 export const agentSessionMethods = {
   async listSessions() {
     const sessions = await this.sessionLifecycle.listSessions()
-    // Bot 的长期会话 cwd 是当前任务的临时 worktree（任务结束就删掉）：列表带上 Bot 所属的项目目录，
+    const threads = this.botSessionProjects()
+    if (!threads.size) return sessions
+    // Bots 是实验功能：开关关掉时 Bot 的会话整个不出现（会话文件留着，重新打开就回来）。
+    if (!this.isBetaFeatureEnabled?.('bots'))
+      return sessions.filter((session) => !threads.has(session.id))
+    // 打开时，Bot 会话的 cwd 是任务的临时 worktree（任务结束就删掉）：列表带上 Bot 所属的项目目录，
     // 界面按它归组，不把每个 worktree 当成一个项目。只做加法，旧客户端照常按 cwd。
-    const projects = this.botProjectDirectories()
-    if (!projects.size) return sessions
     return sessions.map((session) =>
-      projects.has(session.id) ? { ...session, projectCwd: projects.get(session.id) } : session,
+      threads.get(session.id) ? { ...session, projectCwd: threads.get(session.id) } : session,
     )
   },
 
-  botProjectDirectories() {
-    if (!this.bots || !this.isBetaFeatureEnabled?.('bots')) return new Map()
-    return new Map(
-      this.bots
-        .list()
-        .filter((bot) => bot.threadSessionId && bot.workspace?.cwd)
-        .map((bot) => [bot.threadSessionId, bot.workspace.cwd]),
-    )
+  // Bot 的会话 → 所属项目目录：长期会话，以及任务记下的会话（换过长期会话的旧任务也算）。
+  botSessionProjects() {
+    if (!this.bots) return new Map()
+    const bots = this.bots.list()
+    const projects = new Map()
+    for (const bot of bots)
+      if (bot.threadSessionId) projects.set(bot.threadSessionId, bot.workspace?.cwd || '')
+    const cwdOf = new Map(bots.map((bot) => [bot.id, bot.workspace?.cwd || '']))
+    for (const task of this.botTasks?.list({ limit: 500 }) || [])
+      if (task.sessionId && !projects.has(task.sessionId))
+        projects.set(task.sessionId, cwdOf.get(task.botId) || '')
+    return projects
   },
 
   // 看板卡片：事件摘要（内存）+ 落盘摘要（已加载的元数据）+ 审批 / 子代理 / 排队的实时状态。
