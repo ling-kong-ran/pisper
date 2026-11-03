@@ -11,7 +11,10 @@ const FREQUENCIES = new Set(['once', 'interval', 'daily', 'weekly', 'monthly'])
 const INTERVAL_UNITS = new Set(['minutes', 'hours', 'days'])
 const INTERVAL_MS = { minutes: 60_000, hours: 60 * 60_000, days: 24 * 60 * 60_000 }
 const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin', 'qq', 'telegram'])
-const SCHEDULE_TARGETS = new Set(['prompt', 'workflow'])
+// bot（B3）：到点给某个 Bot 派一件事。要做的事写在 botMessage 里、prompt 留空——旧版本不认识 bot 会把它当成
+// prompt 任务，空的 prompt 只会失败，不会以完全访问权限去执行这段话。
+const SCHEDULE_TARGETS = new Set(['prompt', 'workflow', 'bot'])
+const MAX_BOT_MESSAGE_CHARS = 12_000
 const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
 const RESTART_INTERRUPTED_ERROR = '任务因 Pisper 重启而中断。'
 const SHUTDOWN_INTERRUPTED_ERROR = '任务因 Pisper 关闭而中断。'
@@ -143,6 +146,8 @@ function normalizeStoredTask(task, cwd) {
     targetType: SCHEDULE_TARGETS.has(task.targetType) ? task.targetType : 'prompt',
     prompt: String(task.prompt || '').slice(0, 100_000),
     workflowId: String(task.workflowId || '').slice(0, 200),
+    botId: String(task.botId || '').slice(0, 64),
+    botMessage: String(task.botMessage || '').slice(0, MAX_BOT_MESSAGE_CHARS),
     workflowInputs:
       task.workflowInputs &&
       typeof task.workflowInputs === 'object' &&
@@ -220,11 +225,12 @@ function nextRunLabel(task) {
 }
 
 export class ScheduleService {
-  constructor({ path, cwd, agent, workflows, notifications, tickMs = 15_000 }) {
+  constructor({ path, cwd, agent, workflows, notifications, bots = null, tickMs = 15_000 }) {
     this.path = path
     this.cwd = cwd
     this.agent = agent
     this.workflows = workflows
+    this.bots = bots
     this.notifications = notifications
     this.tickMs = tickMs
     this.state = defaultState()
@@ -306,6 +312,8 @@ export class ScheduleService {
     const targetType = SCHEDULE_TARGETS.has(merged.targetType) ? merged.targetType : 'prompt'
     const prompt = String(merged.prompt || '').trim()
     const workflowId = String(merged.workflowId || '').trim()
+    const botId = String(merged.botId || '').trim()
+    const botMessage = String(merged.botMessage || '').trim()
     const workflowInputs =
       merged.workflowInputs &&
       typeof merged.workflowInputs === 'object' &&
@@ -327,6 +335,13 @@ export class ScheduleService {
       })
       if (missingInput) throw new Error(`工作流输入「${missingInput.label}」不能为空。`)
     }
+    if (targetType === 'bot') {
+      if (!this.bots?.enabled()) throw new Error('Bots 是实验功能，请先在设置 › 实验功能里打开。')
+      if (!this.bots.get(botId)) throw new Error('选择的 Bot 不存在。')
+      if (!botMessage) throw new Error('要让 Bot 做什么？请写下要做的事。')
+      if (botMessage.length > MAX_BOT_MESSAGE_CHARS)
+        throw new Error(`要做的事最多 ${MAX_BOT_MESSAGE_CHARS} 个字符。`)
+    }
     if (targetType === 'prompt' && Object.hasOwn(input || {}, 'cwd'))
       merged.cwd = await this.agent.validateDirectory(input.cwd)
     const task = normalizeStoredTask(
@@ -334,9 +349,11 @@ export class ScheduleService {
         ...merged,
         name,
         targetType,
-        prompt,
+        prompt: targetType === 'bot' ? '' : prompt,
         workflowId,
         workflowInputs,
+        botId: targetType === 'bot' ? botId : '',
+        botMessage: targetType === 'bot' ? botMessage : '',
         updatedAt: new Date().toISOString(),
       },
       this.cwd,
@@ -443,6 +460,28 @@ export class ScheduleService {
     execution.finally(() => this.executions.delete(execution)).catch(() => {})
   }
 
+  // 到点给 Bot 派活：Bot 用自己的电脑、权限上限与长期会话去做，这里只负责排进去。
+  // 不走渠道白名单（计划由本机用户配置），也不用定时任务的完全访问默认值。
+  async executeBot(task) {
+    if (!this.bots?.enabled()) throw new Error('Bots 实验功能已关闭，这次没有派给 Bot。')
+    const bot = this.bots.get(task.botId)
+    if (!bot) throw new Error('这个 Bot 已经删除。')
+    const created = await this.bots.dispatch(task.botId, {
+      text: task.botMessage,
+      source: { kind: 'schedule', scheduleTaskId: task.id },
+    })
+    return { text: `已交给 ${bot.name}：${created.title}`, sessionId: '' }
+  }
+
+  async deleteForBot(botId) {
+    const before = this.state.tasks.length
+    this.state.tasks = this.state.tasks.filter(
+      (task) => !(task.targetType === 'bot' && task.botId === botId),
+    )
+    if (this.state.tasks.length !== before) await this.save()
+    return before - this.state.tasks.length
+  }
+
   async execute(task, run) {
     const started = Date.now()
     let event = 'schedule.completed'
@@ -451,16 +490,18 @@ export class ScheduleService {
       const result =
         task.targetType === 'workflow'
           ? await this.executeWorkflow(task, run)
-          : await this.agent.prompt({
-              message: task.prompt,
-              cwd: task.cwd,
-              title: `定时任务 · ${task.name}`,
-              model: task.model,
-              executionMode: task.executionMode,
-              isolatedContext: true,
-              // 定时任务没有人在场，不提供 ask_user（规格 8.4）。
-              unattended: true,
-            })
+          : task.targetType === 'bot'
+            ? await this.executeBot(task)
+            : await this.agent.prompt({
+                message: task.prompt,
+                cwd: task.cwd,
+                title: `定时任务 · ${task.name}`,
+                model: task.model,
+                executionMode: task.executionMode,
+                isolatedContext: true,
+                // 定时任务没有人在场，不提供 ask_user（规格 8.4）。
+                unattended: true,
+              })
       const summary = String(result.text || '任务已完成。')
         .trim()
         .slice(0, 1200)

@@ -560,6 +560,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           this.resolveToolApproval(sessionId, approvalId, approved),
         validateDirectory: (input) => resolveDirectory(input, this.cwd),
       },
+      // 渠道里点名 Bot（B3）：Bots 实验功能打开时才参与分派。
+      bots: this.botChannelAdapter(),
     })
     this.notificationSettings = new NotificationSettingsService({
       path: this.appConfigPath,
@@ -587,6 +589,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
       workflows: createScheduleWorkflowAdapter(this.workflows),
       notifications: this.notificationSettings,
+      // 定时给 Bot 派活（B3）。
+      bots: this.botChannelAdapter(),
     })
     this.sessions = new Map()
     this.maxResidentSessionRuntimes = MAX_RESIDENT_SESSION_RUNTIMES

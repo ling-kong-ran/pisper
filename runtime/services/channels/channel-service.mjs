@@ -1,6 +1,7 @@
 // 渠道服务：统一管理飞书、微信、QQ 与 Telegram 渠道的接入、消息收发、模板通知与作用域控制。
 // 渠道收到的消息通过 agent.prompt 转成会话运行，并支持附件（图片/文件）。
 import { extname } from 'node:path'
+import { botsForChat, refusalText, routeChannelMessage } from '../bots/bot-routing.mjs'
 import QRCode from 'qrcode'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 import { FeishuGateway } from './feishu-gateway.mjs'
@@ -186,11 +187,41 @@ export function channelQuestionText(data) {
   return lines.join('\n')
 }
 
+// /名字 状态 的回复：它最近一件事在什么状态。
+function botStatusText(bot, activity) {
+  if (!bot.enabled) return `${bot.name} 已暂停。`
+  if (!activity) return `${bot.name} 现在空闲。`
+  const title = activity.title ? `「${activity.title}」` : ''
+  switch (activity.status) {
+    case 'queued':
+      return activity.waiting === 'environment'
+        ? `${bot.name} 排着队${title}，在等它的电脑上线。`
+        : `${bot.name} 排着队${title}。`
+    case 'preparing':
+    case 'running':
+      return activity.waiting === 'approval'
+        ? `${bot.name} 在做${title}，正等人批准一个操作。`
+        : activity.waiting === 'question'
+          ? `${bot.name} 在做${title}，有问题等人回答。`
+          : `${bot.name} 正在做${title}。`
+    case 'review':
+      return `${bot.name} 做完了${title}，${activity.changedFiles} 个文件有改动，等确认。`
+    case 'failed':
+      return `${bot.name} 上一件事${title}失败了。`
+    case 'interrupted':
+      return `${bot.name} 上一件事${title}被中断了。`
+    default:
+      return `${bot.name} 现在空闲。`
+  }
+}
+
 export class ChannelService {
-  constructor({ path, cwd, agent, gatewayFactories = {}, onboardingFactories = {} }) {
+  constructor({ path, cwd, agent, bots = null, gatewayFactories = {}, onboardingFactories = {} }) {
     this.path = path
     this.cwd = cwd
     this.agent = agent
+    // Bots（B3）：{ enabled(), list(), activity(botId), message(botId, input) }；开关关闭时不参与分派。
+    this.bots = bots
     this.state = defaultState()
     this.writeQueue = Promise.resolve()
     this.chatQueues = new Map()
@@ -714,6 +745,7 @@ export class ChannelService {
       })
       return
     }
+    if (this.bots?.enabled() && (await this.handleBotMessage(platform, message, ownerId))) return
     try {
       const resources = await this.gateways[platform].downloadResources(message.resources)
       const attachments = resources.map(attachmentFromResource).filter(Boolean)
@@ -789,6 +821,71 @@ export class ChannelService {
         })
         .catch(() => {})
     }
+  }
+
+  // 点名了某个 Bot 的消息交给它；返回 false 表示与 Bot 无关，照旧直接对话。
+  async handleBotMessage(platform, message, ownerId) {
+    const gateway = this.gateways[platform]
+    const bots = this.bots.list()
+    const command = message.content.trim().toLowerCase()
+    const context = { ...message, platform, content: message.content }
+    if (command === '/whoami') {
+      await gateway.send(message, {
+        text: `渠道：${platform}\n这个聊天：${message.peerId}\n你的 ID：${message.senderId}\n在 Bot 的“可以叫它的聊天”里填这两个 ID。`,
+      })
+      return true
+    }
+    if (command === '/bots') {
+      const available = botsForChat(context, bots, { ownerId })
+      await gateway.send(message, {
+        text: available.length
+          ? `这里可以叫的 Bot：\n${available.map((bot) => `· ${bot.name}`).join('\n')}\n用法：/名字 要做的事，或 @Pisper 名字 要做的事。/名字 状态 查看它在做什么。`
+          : '这个聊天里还没有可以叫的 Bot。在 Pisper 里给 Bot 加上这个聊天（/whoami 查看 ID）。',
+      })
+      return true
+    }
+    const routed = routeChannelMessage(context, bots, { ownerId })
+    if (routed.kind === 'none') return false
+    if (routed.kind === 'refused') {
+      await gateway.send(message, { text: refusalText(routed.bot, routed.reason) })
+      return true
+    }
+    const { bot, text } = routed
+    if (/^(?:状态|status)$/i.test(text)) {
+      const activity = this.bots.activity(bot.id)
+      await gateway.send(message, { text: botStatusText(bot, activity) })
+      return true
+    }
+    if (!text) {
+      await gateway.send(message, { text: `要让 ${bot.name} 做什么？在名字后面写上。` })
+      return true
+    }
+    try {
+      const task = await this.bots.message(bot.id, {
+        text,
+        source: {
+          kind: 'channel',
+          platform,
+          peerId: String(message.peerId),
+          chatType: message.chatType === 'p2p' ? 'p2p' : 'group',
+          senderId: String(message.senderId || ''),
+          senderName: String(message.senderName || '').slice(0, 40),
+          messageId: String(message.messageId || ''),
+        },
+      })
+      const followUp = (task.turns?.length || 0) > 1
+      const attachmentNote = message.resources?.length ? '（附件暂不转给 Bot，只收到了文字。）' : ''
+      await gateway.send(message, {
+        text: followUp
+          ? `${bot.name} 会在同一个分支上接着改。${attachmentNote}`
+          : `${bot.name} 收到了，做完会在这里告诉你。${attachmentNote}`,
+      })
+    } catch (error) {
+      await gateway.send(message, {
+        text: `${bot.name} 没接下这件事：${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+    return true
   }
 
   async updateTemplate(event, platform, input) {

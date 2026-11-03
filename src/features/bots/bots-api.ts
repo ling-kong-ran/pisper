@@ -26,11 +26,41 @@ export type Bot = {
   instructions: string
   executionMode: 'approval-required' | 'workspace-write' | 'full-access'
   delivery: 'reply-only' | 'diff' | 'commit'
+  // 渠道里哪些聊天、哪些人可以叫它（B3）。
+  channels: BotChannel[]
   // 工具范围：null 表示用当前启用的全部工具。
   tools: string[] | null
   workspace: { environmentId: string; cwd: string; isolation: 'worktree' | 'shared' }
   threadSessionId: string
   activity: BotActivity | null
+}
+
+export type BotPlatform = 'feishu' | 'weixin' | 'qq' | 'telegram'
+export const BOT_PLATFORMS: readonly BotPlatform[] = ['feishu', 'weixin', 'qq', 'telegram']
+
+export type BotChannel = {
+  platform: BotPlatform
+  chatType: 'p2p' | 'group'
+  peerIds: string[] | null
+  senderIds: string[]
+}
+
+function parseChannels(value: unknown): BotChannel[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const input = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    if (!BOT_PLATFORMS.includes(input.platform as BotPlatform)) return []
+    const ids = (list: unknown) =>
+      Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : []
+    return [
+      {
+        platform: input.platform as BotPlatform,
+        chatType: input.chatType === 'group' ? 'group' : 'p2p',
+        peerIds: Array.isArray(input.peerIds) ? ids(input.peerIds) : null,
+        senderIds: ids(input.senderIds),
+      },
+    ]
+  })
 }
 
 export type BotTurn = { text: string; at: string; reply?: string }
@@ -185,6 +215,7 @@ export function parseBot(value: unknown): Bot {
         : 'approval-required',
     delivery:
       input.delivery === 'reply-only' || input.delivery === 'commit' ? input.delivery : 'diff',
+    channels: parseChannels(input.channels),
     tools: Array.isArray(input.tools)
       ? input.tools.filter((tool): tool is string => typeof tool === 'string')
       : null,
@@ -443,6 +474,85 @@ export function createEnvironmentPairing() {
 
 export function removeEnvironment(id: string) {
   return requestJson(`/api/environments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    parse: () => undefined,
+  })
+}
+
+// 定时让 Bot 做的事（B3）：就是 targetType = bot 的定时任务，按 botId 过滤。
+export type BotSchedule = {
+  id: string
+  enabled: boolean
+  botMessage: string
+  frequency: 'once' | 'interval' | 'daily' | 'weekly' | 'monthly'
+  time: string
+  date: string
+  dayOfWeek: number
+  nextRunAt: string | null
+}
+
+export function parseBotSchedules(value: unknown, botId: string): BotSchedule[] {
+  const tasks = object(value).tasks
+  if (!Array.isArray(tasks)) throw invalidResponseError()
+  return tasks.flatMap((item) => {
+    const task = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    if (task.targetType !== 'bot' || task.botId !== botId || typeof task.id !== 'string') return []
+    const frequency = ['once', 'interval', 'daily', 'weekly', 'monthly'].includes(
+      String(task.frequency),
+    )
+      ? (task.frequency as BotSchedule['frequency'])
+      : 'daily'
+    return [
+      {
+        id: task.id,
+        enabled: task.enabled !== false,
+        botMessage: text(task.botMessage),
+        frequency,
+        time: text(task.time),
+        date: text(task.date),
+        dayOfWeek: Number(task.dayOfWeek) || 0,
+        nextRunAt: typeof task.nextRunAt === 'string' ? task.nextRunAt : null,
+      },
+    ]
+  })
+}
+
+export function fetchBotSchedules(botId: string, signal?: AbortSignal) {
+  return requestJson('/api/schedules', {
+    signal,
+    parse: (value) => parseBotSchedules(value, botId),
+  })
+}
+
+export type BotScheduleDraft = {
+  botId: string
+  name: string
+  botMessage: string
+  frequency: 'once' | 'daily' | 'weekly'
+  time: string
+  date: string
+  dayOfWeek: number
+  timezone: string
+}
+
+export function createBotSchedule(draft: BotScheduleDraft) {
+  return requestJson('/api/schedules', {
+    method: 'POST',
+    data: { ...draft, targetType: 'bot', enabled: true },
+    parse: () => undefined,
+  })
+}
+
+export function setBotScheduleEnabled(id: string, enabled: boolean) {
+  return requestJson(`/api/schedules/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    data: { enabled },
+    parse: () => undefined,
+  })
+}
+
+export function deleteBotSchedule(id: string) {
+  return requestJson(`/api/schedules/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     parse: () => undefined,
   })

@@ -14,6 +14,7 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 // 展开在行下方编辑（目标、频率与时区、通知渠道）并查看最近执行；新建在工具行（对话框），
 // 还没有任务时直接给出完整的新建表单。
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   Bell,
@@ -64,7 +65,8 @@ type NotificationTarget = 'browser' | 'feishu' | 'weixin' | 'qq' | 'telegram'
 type ScheduleFrequency = 'once' | 'interval' | 'daily' | 'weekly' | 'monthly'
 type IntervalUnit = 'minutes' | 'hours' | 'days'
 type ScheduleExecutionMode = 'full-access'
-type ScheduleTargetType = 'prompt' | 'workflow'
+// bot：到点给某个 Bot 派一件事（B3）。这类任务在 Bot 的页面里管理，这里只列出来。
+type ScheduleTargetType = 'prompt' | 'workflow' | 'bot'
 type ScheduleStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted' | 'missed'
 type ScheduleWorkflowInput = {
   id: string
@@ -108,6 +110,8 @@ type ScheduleTask = {
   lastRunAt?: string | null
   lastStatus: ScheduleStatus
   createdBy?: { kind: 'user' | 'agent'; sessionId?: string }
+  botId?: string
+  botMessage?: string
 }
 type ScheduleDraft = Pick<
   ScheduleTask,
@@ -537,6 +541,7 @@ export function SchedulesPage({
   requestConfirm,
 }: SchedulesPageProps) {
   const { t, language } = useI18n()
+  const navigate = useNavigate()
   const searchShortcut = useShortcutLabel('focusSearch')
   const [data, setData] = useState<SchedulesData>({
     tasks: [],
@@ -615,7 +620,7 @@ export function SchedulesPage({
   const needle = query.trim().toLocaleLowerCase()
   const visibleTasks = needle
     ? data.tasks.filter((task) =>
-        `${task.name} ${task.targetType === 'workflow' ? workflowName(task) : task.prompt}`
+        `${task.name} ${task.targetType === 'workflow' ? workflowName(task) : task.targetType === 'bot' ? task.botMessage || '' : task.prompt}`
           .toLocaleLowerCase()
           .includes(needle),
       )
@@ -822,6 +827,8 @@ export function SchedulesPage({
                       description={
                         task.targetType === 'workflow' ? (
                           <span className="font-mono">{workflowName(task)}</span>
+                        ) : task.targetType === 'bot' ? (
+                          t('schedules:schedulesPage.botTarget', { message: task.botMessage || '' })
                         ) : (
                           task.prompt
                         )
@@ -856,7 +863,22 @@ export function SchedulesPage({
                         name: task.name,
                       })}
                       detail={
-                        expanded && draft && selected ? (
+                        expanded && task.targetType === 'bot' ? (
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-content-secondary">
+                            <span className="min-w-0 flex-1">
+                              {t('schedules:schedulesPage.botManagedThere')}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                navigate(`/bots/${encodeURIComponent(task.botId || '')}`)
+                              }
+                            >
+                              {t('schedules:schedulesPage.openBot')}
+                            </Button>
+                          </div>
+                        ) : expanded && draft && selected ? (
                           <ScheduleTaskEditor
                             task={selected}
                             draft={draft}

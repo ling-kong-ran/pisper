@@ -89,5 +89,8 @@
   "schedulesPage.date": "日期",
   "schedulesPage.onceDone": "已执行，不再运行",
   "schedulesPage.missed": "已错过（Pisper 当时没在运行）",
-  "schedulesPage.createdByAgent": "由代理创建"
+  "schedulesPage.createdByAgent": "由代理创建",
+  "schedulesPage.botTarget": "交给 Bot：{message}",
+  "schedulesPage.botManagedThere": "这件事到点交给一个 Bot 去做，在它的页面里修改或删除。",
+  "schedulesPage.openBot": "打开这个 Bot"
 }

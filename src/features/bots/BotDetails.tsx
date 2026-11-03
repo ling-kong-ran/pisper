@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FileDiff } from 'lucide-react'
 import { BotAvatar } from './BotAvatar'
 import { BotComputerTab } from './BotComputerTab'
+import { BotTriggers } from './BotTriggers'
 import {
   fetchBotTaskDiff,
   updateBot,
@@ -159,6 +160,7 @@ export function BotDetails({
             </Button>
           </div>
         </section>
+        <BotTriggers bot={bot} onError={onError} />
         <section className="flex flex-col gap-3 py-3.5">
           <label className="flex items-center justify-between gap-3 text-sm">
             <span>{t('bots:details.acceptsWork')}</span>

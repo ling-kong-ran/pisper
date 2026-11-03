@@ -89,5 +89,8 @@
   "schedulesPage.date": "Date",
   "schedulesPage.onceDone": "Ran once, won’t run again",
   "schedulesPage.missed": "Missed (Pisper wasn’t running)",
-  "schedulesPage.createdByAgent": "Created by an agent"
+  "schedulesPage.createdByAgent": "Created by an agent",
+  "schedulesPage.botTarget": "Hand to a Bot: {message}",
+  "schedulesPage.botManagedThere": "This is handed to a Bot on schedule. Change or delete it on that Bot’s page.",
+  "schedulesPage.openBot": "Open the Bot"
 }

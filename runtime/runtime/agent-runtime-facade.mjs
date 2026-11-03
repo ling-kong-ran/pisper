@@ -835,8 +835,23 @@ export class AgentRuntimeFacade {
     return this.bots.update(id, input)
   }
 
-  deleteBot(id) {
-    return this.bots.remove(id)
+  // 删除 Bot 时一并删掉指向它的定时任务（README「Bot」）。
+  async deleteBot(id) {
+    const removed = await this.bots.remove(id)
+    if (removed) await this.schedules?.deleteForBot?.(id)
+    return removed
+  }
+
+  // 渠道与定时任务用的 Bot 接口（B3）：都在 Bots 实验功能打开时才生效。
+  botChannelAdapter() {
+    return {
+      enabled: () => Boolean(this.capabilities.features.bots && this.isBetaFeatureEnabled('bots')),
+      list: () => this.bots?.list() || [],
+      get: (id) => this.bots?.get(id) || null,
+      activity: (botId) => this.botTasks?.activity(botId) ?? null,
+      message: (botId, input) => this.botTasks.message(botId, input),
+      dispatch: (botId, input) => this.botTasks.dispatch(botId, input),
+    }
   }
 
   // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，
