@@ -26,7 +26,8 @@ export function PhoneMenuButton({ className }: { className?: string }) {
           : t('navigation:phone.menu')
       }
       className={cn(
-        'flex h-11 min-w-11 flex-none items-center gap-1.5 rounded-[var(--r-md)] px-2.5 text-content transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover',
+        // 浅灰圆底（有“需要你”角标时伸成胶囊），与顶栏其他图标键一致。
+        'flex h-11 min-w-11 flex-none items-center justify-center gap-1.5 rounded-full bg-surface-muted px-2.5 text-content transition-colors duration-(--d-fast) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:bg-surface-hover dark:bg-surface-active',
         className,
       )}
       onClick={() => setOpen(true)}

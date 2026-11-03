@@ -1,12 +1,13 @@
 // 会话做主页的冒烟（第 4 期）：真实生产构建（dist）+ 进程内隔离 Runtime，数据目录全新（没有任何会话），
 // 会话目录全部来自真实 Runtime，所以“落地主页不建会话”可以直接数 GET /api/sessions。
 // 只在浏览器边界注入一个已配置的模型（启动台需要），并把 /api/chat 换成一个最小的 run 头帧，不连接模型。
-// 覆盖：全新数据目录打开 / → 新任务草稿且会话数不变；发出第一条消息才建会话并以 replace 换成 /board/:id；
+// 覆盖：全新数据目录打开 / → 新任务草稿 '/board/new' 且会话数不变；发出第一条消息才建会话并以 replace 换成 /board/:id；
 // 重新载入 / → 回到上次停留的会话；侧栏“全部代理”入口与 ⌘1、侧栏会话行回到会话；未知路径与 /chat 回主页；
 // 归档该会话后 / → 草稿；侧栏入口顺序与点亮（规格 v2 第 2.1 节，标题栏标签已退役）；会话目录加载中 / 失败时的主页状态。
 // 快捷键 v2（规格 2.8）：⌘1 全部代理（看板）、⌘2 功能（更多），会话主页默认未绑定、⇧⌘B 归会话树，⌘[ 已退役；
-// 这里把“会话主页”改绑到 ⌘9，验证它可改绑并保留回主页的竞态修复。草稿上的 ⌘N 与侧栏“新任务”聚焦草稿，
-// 不叠派发浮层；真实会话页与主页错误态的 ⌘N 照旧打开派发浮层。
+// 这里把“会话主页”改绑到 ⌘9，验证它可改绑并保留回主页的竞态修复。新任务一律进入新任务草稿 '/board/new'
+// （会话页的样子，第一条消息发出时才建会话）：草稿上的 ⌘N 与侧栏“新任务”只把焦点交回草稿输入框，
+// 真实会话页与主页错误态的 ⌘N 进入草稿；派发浮层已退役。
 // 竞态：⌘1 / ⌘2 还没提交就按回主页键，按路由器的最新去向回到主页并停在那里（路由懒加载中与已加载两种）。
 // 手机主页（草稿、返回根、标签栏、更多里的组件磁贴）在 smoke-mobile-shell 里覆盖。
 import assert from 'node:assert/strict'
@@ -172,9 +173,9 @@ try {
     colorScheme: 'light',
   })
   const page = await openPage(context, 'desktop home', '#/')
-  await page.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 60000 })
-  assert.equal(await page.locator('[data-session-home="draft"]').count(), 1)
-  assert.equal(hashOf(page), '#/')
+  await page.locator('[data-new-task-draft]').first().waitFor({ timeout: 60000 })
+  // 主页没有上次的会话：以 replace 落到新任务草稿（会话页的样子）。
+  await page.waitForURL((url) => url.hash === '#/board/new')
   assert.deepEqual(
     await page
       .locator('[data-shell-sidebar="expanded"] [data-sidebar-entry]')
@@ -183,7 +184,11 @@ try {
   )
   assert.deepEqual(await activeTabs(page), [])
   assert.equal(await page.locator('[data-app-titlebar], [data-board-entry]').count(), 0)
-  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-launch-input'))
+  await page.waitForFunction(
+    () =>
+      document.activeElement?.closest('[data-new-task-draft]') !== null &&
+      document.activeElement?.tagName === 'TEXTAREA',
+  )
   await page.waitForTimeout(1500)
   assert.equal(await sessionCount(), 0, 'landing on the home creates no session')
   assert.deepEqual(creates, [])
@@ -194,17 +199,17 @@ try {
   await page.locator('[data-board-root]').waitFor()
   assert.deepEqual(await activeTabs(page), ['board'])
   await page.keyboard.press(`${mod}+Digit9`)
-  await page.waitForURL((url) => url.hash === '#/')
-  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  await page.waitForURL((url) => url.hash === '#/board/new')
+  await page.locator('[data-new-task-draft]').first().waitFor()
   assert.deepEqual(await activeTabs(page), [])
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
   report.checks.push(
-    'Fresh data directory: / shows the new-task draft (URL stays /, sidebar expanded with 新任务 / 搜索 / 全部代理 / 功能 / 设置 and no entry lit, no title bar or strip entry, composer focused) and GET /api/sessions stays at 0 with no POST; the sidebar 全部代理 entry lights itself and the rebound session-home key returns to the draft',
+    'Fresh data directory: / lands on the new-task draft /board/new (sidebar expanded with 新任务 / 搜索 / 全部代理 / 功能 / 设置 and no entry lit, no title bar or strip entry, composer focused) and GET /api/sessions stays at 0 with no POST; the sidebar 全部代理 entry lights itself and the rebound session-home key returns to the draft',
   )
 
-  // 1b. 草稿上的 ⌘N（primaryAction）与侧栏“新任务”聚焦草稿输入框、光标到末尾，不打开派发浮层。
-  const draftInput = page.locator('[data-new-task-draft="desktop"] [data-launch-input]')
+  // 1b. 草稿上的 ⌘N（primaryAction）、侧栏“新任务”与 ⌘K 的“新任务”都聚焦草稿输入框、光标到末尾，不弹出任何浮层。
+  const draftInput = page.locator('[data-new-task-draft] textarea').first()
   const draftFocusedAtEnd = () =>
     page.waitForFunction(() => {
       const input = document.activeElement
@@ -217,16 +222,17 @@ try {
       )
     })
   const blurDraftAtStart = async () => {
-    await page.locator('[data-new-task-intro]').click()
-    await page.evaluate(() =>
-      document.querySelector('[data-launch-input]')?.setSelectionRange(0, 0),
-    )
-    assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'BODY')
+    await page.evaluate(() => {
+      const input = document.querySelector('[data-new-task-draft] textarea')
+      input?.setSelectionRange(0, 0)
+      input?.blur()
+    })
+    assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), 'TEXTAREA')
   }
   const noOverlay = async (label) => {
     await page.waitForTimeout(400)
-    assert.equal(await page.locator('[data-launch-console="overlay"]').count(), 0, label)
     assert.equal(await page.getByRole('dialog').count(), 0, label)
+    assert.equal(hashOf(page), '#/board/new', label)
   }
   await draftInput.fill('草稿里已经写了一半')
   await blurDraftAtStart()
@@ -238,28 +244,24 @@ try {
   await draftFocusedAtEnd()
   await noOverlay('the sidebar 新任务 on the draft')
   assert.equal(await draftInput.inputValue(), '草稿里已经写了一半')
-  // 命令面板的“新会话”照旧打开派发浮层（叠在草稿上，草稿文本各自独立）。
+  // 命令面板的“新任务”（旧名“新会话”仍能搜到）同样回到这份草稿，不叠第二个输入框。
   const paletteInput = page.locator('input[role="combobox"]')
   await page.keyboard.press(`${mod}+KeyK`)
   await paletteInput.waitFor()
-  // A6 起这一项叫“新任务”（同一个派发入口），旧名“新会话”仍能搜到它。
   await paletteInput.fill('新会话')
   await page
     .getByRole('option', { name: /新任务/ })
     .first()
     .click()
-  const stackedOverlay = page.locator('[data-launch-console="overlay"] [data-launch-input]')
-  await stackedOverlay.waitFor()
-  assert.equal(await stackedOverlay.inputValue(), '')
-  await page.keyboard.press('Escape')
-  await page.locator('[data-launch-console="overlay"]').waitFor({ state: 'detached' })
+  await draftFocusedAtEnd()
+  await noOverlay('⌘K 新任务 on the draft')
   assert.equal(await draftInput.inputValue(), '草稿里已经写了一半')
   assert.deepEqual(creates, [])
   // 长草稿超过输入框高度上限：Chromium 设置选区不滚动，⌘N 要把末尾滚进可见区，失焦与已聚焦都要看得到光标。
   await draftInput.fill(Array.from({ length: 40 }, (_, index) => `第 ${index + 1} 行`).join('\n'))
   const caretAndViewAtTop = () =>
     page.evaluate(() => {
-      const input = document.querySelector('[data-new-task-draft] [data-launch-input]')
+      const input = document.querySelector('[data-new-task-draft] textarea')
       input.setSelectionRange(0, 0)
       input.scrollTop = 0
       return { scrollTop: input.scrollTop, overflow: input.scrollHeight - input.clientHeight }
@@ -285,7 +287,7 @@ try {
   const focusedStart = await caretAndViewAtTop()
   assert.equal(focusedStart.scrollTop, 0)
   assert.equal(
-    await page.evaluate(() => document.activeElement?.hasAttribute('data-launch-input')),
+    await page.evaluate(() => document.activeElement?.closest('[data-new-task-draft]') !== null),
     true,
   )
   await page.keyboard.press(`${mod}+KeyN`)
@@ -293,7 +295,7 @@ try {
   await noOverlay('⌘N inside an overflowing draft')
   assert.deepEqual(creates, [])
   report.checks.push(
-    'On the new-task draft ⌘N and the sidebar 新任务 focus the draft textarea with the caret at the end and open no dispatch overlay; on a 40-line draft that overflows the height cap ⌘N also scrolls the textarea to the bottom, both when blurred and when already focused; the ⌘K 新会话 command still opens the overlay',
+    'On the new-task draft ⌘N and the sidebar 新任务 focus the draft textarea with the caret at the end and open nothing else (⌘K 新任务 too); on a 40-line draft that overflows the height cap ⌘N also scrolls the textarea to the bottom, both when blurred and when already focused',
   )
 
   // 1c. 快捷键 v2：⌘1 看板（全部代理）、改绑后的 ⌘9 会话主页（主页逻辑，不建会话）；⌘[ 不再导航。
@@ -315,8 +317,8 @@ try {
   await page.waitForTimeout(400)
   assert.equal(hashOf(page), '#/board', '⌘[ no longer navigates')
   await page.keyboard.press(`${mod}+Digit9`)
-  await page.waitForURL((url) => url.hash === '#/')
-  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  await page.waitForURL((url) => url.hash === '#/board/new')
+  await page.locator('[data-new-task-draft]').first().waitFor()
   assert.deepEqual(await activeTabs(page), [])
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
@@ -353,11 +355,11 @@ try {
     await page.keyboard.press(`${mod}+Digit9`)
     boardChunkGate = null
     release()
-    await page.waitForURL((url) => url.hash === '#/')
-    await page.locator('[data-new-task-draft="desktop"]').waitFor()
+    await page.waitForURL((url) => url.hash === '#/board/new')
+    await page.locator('[data-new-task-draft]').first().waitFor()
     await boardResponded
     await page.waitForTimeout(800)
-    assert.equal(hashOf(page), '#/', `${first} then ⌘9 stays on the home`)
+    assert.equal(hashOf(page), '#/board/new', `${first} then ⌘9 stays on the home`)
     assert.deepEqual(await activeTabs(page), [])
     const after = await page.evaluate(() => window.history.state?.idx)
     assert.equal(
@@ -368,17 +370,17 @@ try {
     return after === before ? 'undone in place' : 'board + home'
   }
   await page.reload()
-  await page.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 30000 })
+  await page.locator('[data-new-task-draft]').first().waitFor({ timeout: 30000 })
   const raceOutcomes = [await raceToHome('Digit1', { holdBoardRoute: true })]
   await page.keyboard.press(`${mod}+Digit1`)
   await page.locator('[data-board-root]').waitFor()
   await page.keyboard.press(`${mod}+Digit9`)
-  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  await page.locator('[data-new-task-draft]').first().waitFor()
   // 功能页（⌘2）也先加载一次，下面两次都落在“路由已加载”的窗口。
   await page.keyboard.press(`${mod}+Digit2`)
   await page.locator('[data-more-tile]').first().waitFor()
   await page.keyboard.press(`${mod}+Digit9`)
-  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  await page.locator('[data-new-task-draft]').first().waitFor()
   raceOutcomes.push(await raceToHome('Digit1'), await raceToHome('Digit2'))
   assert.equal(await sessionCount(), 0)
   assert.deepEqual(creates, [])
@@ -387,7 +389,7 @@ try {
   )
 
   // 2. 发出第一条消息才建会话，以 replace 换成 /board/:id（标为主页落地），浏览器后退不回到草稿。
-  await page.locator('[data-launch-input]').fill('只是测试：列出当前目录')
+  await page.locator('[data-new-task-draft] textarea').first().fill('只是测试：列出当前目录')
   await page.keyboard.press('Enter')
   await page.waitForURL((url) => sessionRoute.test(url.hash), { timeout: 30000 })
   const id = decodeURIComponent(hashOf(page).split('/').pop())
@@ -438,24 +440,24 @@ try {
   await page.waitForURL((url) => url.hash === `#/board/${id}`)
   await page.locator('[data-session-header]').first().waitFor()
   await page.locator('.focus-composer textarea').first().click()
-  // 真实会话页：⌘[ 不再离开；⌘N 照旧打开派发浮层（只有主页草稿认领新任务请求）。
+  // 真实会话页：⌘[ 不再离开；⌘N 进入新任务草稿（push，后退回到会话），草稿输入框接住焦点、不建会话。
   await page.keyboard.press(`${mod}+BracketLeft`)
   await page.waitForTimeout(400)
   assert.equal(hashOf(page), `#/board/${id}`, '⌘[ no longer leaves the session page')
   await page.keyboard.press(`${mod}+KeyN`)
-  await page.locator('[data-launch-console="overlay"] [data-launch-input]').waitFor()
-  await page.keyboard.press('Escape')
-  await page.locator('[data-launch-console="overlay"]').waitFor({ state: 'detached' })
-  assert.equal(hashOf(page), `#/board/${id}`)
-  // A6 评审返修：派发与 ⌘K 没有 DialogTrigger，关闭后焦点要回到打开它的地方（Radix 默认落到 body）。
-  // 键盘在侧栏“新任务”“搜索”上按 Enter 打开、Esc 关闭，焦点回到同一个侧栏按钮；⌘N 从输入框打开的回到输入框。
+  await page.waitForURL((url) => url.hash === '#/board/new')
   await page.waitForFunction(
-    () => document.activeElement?.matches('.focus-composer textarea'),
+    () => document.activeElement?.closest('[data-new-task-draft]') !== null,
     undefined,
-    { timeout: 3000 },
+    { timeout: 5000 },
   )
+  assert.equal(await page.getByRole('dialog').count(), 0)
+  await page.goBack()
+  await page.waitForURL((url) => url.hash === `#/board/${id}`)
+  await page.locator('[data-session-header]:not([data-session-header="draft"])').first().waitFor()
+  // A6 评审返修：⌘K 没有 DialogTrigger，关闭后焦点要回到打开它的地方（Radix 默认落到 body）。
+  // 键盘在侧栏“搜索”上按 Enter 打开、Esc 关闭，焦点回到同一个侧栏按钮。
   for (const [entry, opened] of [
-    ['[data-shell-sidebar] [data-sidebar-entry="newTask"]', '[data-launch-console="overlay"]'],
     ['[data-shell-sidebar] [data-sidebar-entry="search"]', '[data-command-palette]'],
   ]) {
     await page.locator(entry).focus()
@@ -509,7 +511,7 @@ try {
   }
   assert.equal(creates.length, 1, 'navigation never creates sessions')
   report.checks.push(
-    'Reloading / lands on the last session (its sidebar row is a link marked aria-current); the sidebar 全部代理 entry pushes /board and browser back returns; on the session page ⌘[ and ⇧⌘B stay put and ⌘N still opens the dispatch overlay; ⌘1 opens the board from the composer; the sidebar session row pushes back to the session, and the session-home key, unknown paths and /chat all return to the last session',
+    'Reloading / lands on the last session (its sidebar row is a link marked aria-current); the sidebar 全部代理 entry pushes /board and browser back returns; on the session page ⌘[ and ⇧⌘B stay put and ⌘N opens the new-task draft (back returns); ⌘1 opens the board from the composer; the sidebar session row pushes back to the session, and the session-home key, unknown paths and /chat all return to the last session',
   )
 
   // 4. 归档该会话后回到主页草稿；重新载入 / 仍是草稿。
@@ -517,11 +519,11 @@ try {
   await page.locator(`[id="task-${id}-more"]`).click()
   await page.getByRole('menuitem', { name: '归档', exact: true }).click()
   await page.waitForURL((url) => url.hash === '#/', { timeout: 15000 })
-  await page.locator('[data-new-task-draft="desktop"]').waitFor()
+  await page.locator('[data-new-task-draft]').first().waitFor()
   assert.equal(await page.evaluate(() => localStorage.getItem('pisper-last-session')), null)
   await page.reload()
-  await page.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 30000 })
-  assert.equal(hashOf(page), '#/')
+  await page.locator('[data-new-task-draft]').first().waitFor({ timeout: 30000 })
+  assert.equal(hashOf(page), '#/board/new')
   assert.equal(creates.length, 1)
   await context.close()
   report.checks.push(
@@ -529,7 +531,7 @@ try {
   )
 
   // 4b. 主页的页面 id 也是 session，但那里没有会话路由接收“打开 / 新建”请求：外壳必须自己导航。
-  // 派发浮层 ⌘↵ 与 ⌘K 选会话都要换成 /board/:id，且不留下过期的 pisper-session-open-request。
+  // 主页上的 ⌘N（进入草稿再发出第一条消息）与 ⌘K 选会话都要换成 /board/:id，且不留下过期的 pisper-session-open-request。
   {
     // “上次停留”经偏好镜像恢复（会覆盖页面里预先写入的值），因此直接写进镜像。
     const setLastSession = async (value) => {
@@ -554,8 +556,7 @@ try {
     assert.ok(target)
     const sessionHeader = '[data-session-header]:not([data-session-header="draft"])'
 
-    // 派发浮层：草稿上的 ⌘N 已改为聚焦草稿，浮层改从主页的错误态打开（那里没有草稿认领，⌘N 照旧开浮层），
-    // ⌘↵ 派发并打开该会话。
+    // 主页的错误态（目录读取失败）上按 ⌘N：外壳自己导航到新任务草稿，发出第一条消息后换成新会话。
     // 主页只有记着上次会话时才等目录：先记一个，目录读取失败后停在错误态。
     await setLastSession(target)
     const dispatchRun = await newContext({ viewport: { width: 1440, height: 900 } })
@@ -569,17 +570,18 @@ try {
     await dispatchPage.locator('[data-session-home="error"]').waitFor({ timeout: 60000 })
     catalogFails = false
     await dispatchPage.keyboard.press(`${mod}+KeyN`)
-    const overlayInput = dispatchPage.locator('[data-launch-console="overlay"] [data-launch-input]')
-    await overlayInput.waitFor({ timeout: 15000 })
-    await overlayInput.fill('只是测试：从主页的派发浮层打开')
-    await dispatchPage.keyboard.press(`${mod}+Enter`)
+    await dispatchPage.waitForURL((url) => url.hash === '#/board/new', { timeout: 15000 })
+    const draftInput = dispatchPage.locator('[data-new-task-draft] textarea').first()
+    await draftInput.waitFor({ timeout: 15000 })
+    await draftInput.fill('只是测试：从主页的错误态新建任务')
+    await draftInput.press('Enter')
     await dispatchPage.waitForURL(
       (url) => sessionRoute.test(url.hash) && url.hash !== `#/board/${encodeURIComponent(target)}`,
       { timeout: 30000 },
     )
     // 懒加载的会话路由接手前，旧的主页还会短暂留在页面上：等它换成真正的会话页头。
     await dispatchPage.locator(sessionHeader).first().waitFor({ timeout: 30000 })
-    assert.equal(dispatchRun.creates.length, 1, 'the overlay creates exactly one session')
+    assert.equal(dispatchRun.creates.length, 1, 'the draft creates exactly one session')
     assert.equal(await dispatchPage.locator('[data-new-task-draft]').count(), 0)
     await dispatchPage.waitForFunction(
       () => localStorage.getItem('pisper-session-open-request') === null,
@@ -590,7 +592,7 @@ try {
     await clearLastSession()
     const paletteRun = await newContext({ viewport: { width: 1440, height: 900 } })
     const palettePage = await openPage(paletteRun.context, 'home palette', '#/')
-    await palettePage.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 60000 })
+    await palettePage.locator('[data-new-task-draft]').waitFor({ timeout: 60000 })
     // 快捷键层随外壳同步加载：草稿一出现，按一次 ⌘K 就能打开命令面板，不用重试。
     const paletteInput = palettePage.locator('input[role="combobox"]')
     await palettePage.keyboard.press(`${mod}+KeyK`)
@@ -611,7 +613,7 @@ try {
     await paletteRun.context.close()
   }
   report.checks.push(
-    'On the home the shell navigates by itself: the ⌘N dispatch overlay (from the home error state, where no draft claims ⌘N) ⌘↵ opens the new session and ⌘K → session opens /board/:id, leaving no stale pisper-session-open-request',
+    'On the home the shell navigates by itself: ⌘N on the home error state opens the new-task draft and its first message opens the new session and ⌘K → session opens /board/:id, leaving no stale pisper-session-open-request',
   )
 
   // 5. 记着上次的会话时，主页要先等会话目录核对它：加载中不闪草稿、不跳看板；记着的会话已归档 → 草稿；
@@ -642,7 +644,7 @@ try {
     assert.equal(await loading.locator('[data-new-task-draft]').count(), 0)
     assert.equal(hashOf(loading), '#/')
     release()
-    await loading.locator('[data-new-task-draft="desktop"]').waitFor({ timeout: 30000 })
+    await loading.locator('[data-new-task-draft]').waitFor({ timeout: 30000 })
     await loading.close()
     fail = true
     const failed = await openPage(context, 'home error', '#/')
@@ -656,7 +658,7 @@ try {
       .waitFor()
     await failed.screenshot({ path: join(output, 'home-error.png') })
     await homeMain.getByRole('button', { name: '开始新任务', exact: true }).click()
-    await failed.locator('[data-new-task-draft="desktop"]').waitFor()
+    await failed.locator('[data-new-task-draft]').waitFor()
     await context.close()
   }
   report.checks.push(

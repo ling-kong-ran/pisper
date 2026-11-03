@@ -402,9 +402,12 @@ export function ModelThinkingControl({
           aria-label={label}
           title={label}
         >
-          <span className="min-w-0 truncate font-medium">{modelLabel}</span>
-          {/* 手机胶囊只写模型名（参考稿“模型”胶囊的简洁做法）：思考强度在点开的底部表单里调，
-              无障碍标签里仍有完整的“模型 · 思考强度”。 */}
+          <span className="min-w-0 truncate font-medium max-[650px]:hidden">{modelLabel}</span>
+          {/* 手机胶囊照参考稿只写“模型”：具体模型与思考强度在点开的底部表单里看和改，
+              无障碍标签与悬停提示里仍有完整的“模型 · 思考强度”。 */}
+          <span className="hidden font-medium whitespace-nowrap max-[650px]:inline">
+            {t('chat:focusSession.modelChipShort')}
+          </span>
           <span aria-hidden="true" className="text-content-faint max-[650px]:hidden">
             ·
           </span>

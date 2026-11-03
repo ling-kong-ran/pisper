@@ -21,21 +21,27 @@ test('composer toolbar is fixed: + menu, shield chip, model chip and send', asyn
   const session = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
   const toolbar = session.slice(session.indexOf('data-composer-toolbar'))
-  const order = ['{plusMenu}', '{modeChip}', '{modelChip}', '<ComposerSendButton'].map((token) =>
-    toolbar.indexOf(token),
-  )
+  // 桌面：[+] [盾牌芯片] … [模型芯片] [发送]；手机照参考稿把模型芯片排在 + 后面（modelChipSlot 两处二选一）。
+  const order = [
+    '{plusMenu}',
+    '{phonePage && modelChipSlot}',
+    '{modeChip}',
+    '{!phonePage && modelChipSlot}',
+    '<ComposerSendButton',
+  ].map((token) => toolbar.indexOf(token))
   assert.ok(
     order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])),
     `toolbar order ${order}`,
   )
-  // “+”菜单：附件、技能与工具、生成图片（有能力时）、语音输入（F8）；手机运行中另有“插话发送”。
-  for (const item of ['attachment', 'resource', 'visual', 'voice'])
+  // “+”菜单：附件、技能与工具、生成图片（有能力时）、语音输入（F8，手机换成审批与执行方式——
+  // 手机的麦克风键在工具行）；手机运行中另有“插话发送”。
+  for (const item of ['attachment', 'resource', 'visual', 'voice', 'mode'])
     assert.match(session, new RegExp(`data-composer-plus-item="${item}"`))
   assert.match(session, /phonePage && streaming && \(\s*<DropdownMenuItem\s+data-composer-steer/)
   assert.match(session, /onSelect=\{\(\) => voiceControlRef\.current\?\.\(\)\}/)
   assert.match(
     session,
-    /<VoiceInputControl[\s\S]*?variant="menu"[\s\S]*?controlRef=\{voiceControlRef\}/,
+    /<VoiceInputControl[\s\S]*?variant=\{phonePage \? 'button' : 'menu'\}[\s\S]*?controlRef=\{voiceControlRef\}/,
   )
   // 上下文用量在模型芯片弹层里（ContextUsageSection），不再有详情行与上下文环。
   assert.match(session, /usage=\{\s*<ContextUsageSection/)

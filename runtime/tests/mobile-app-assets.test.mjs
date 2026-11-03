@@ -1180,20 +1180,51 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
   assert.doesNotMatch(workflow, /minisign -Vm/)
 })
 
-test('the phone composer toolbar uses borderless filled pills with short labels', async () => {
-  // 手机工具行 [+] [审批] … [模型] [发送] 都是 44：无边框浅灰圆形 / 胶囊（深色用 surface-active 才分得出），
-  // 审批写短名、模型只写名字，下拉箭头与思考强度收进点开的底部表单；桌面保持完整名称。
-  const [focus, mode, model, launch] = await Promise.all([
+test('the phone run state follows the reference: no run row above the composer and stop on the send key', async () => {
+  // 手机不画输入框上方的运行行（压缩上下文照常显示），运行状态看页头与代理头像旁的转圈，
+  // 消息流里不再另加“处理中”一行（会和头像旁的转圈重复）。运行中输入框为空时发送键就是停止键，
+  // 输入了文字又变回发送（排队，长按插话）。桌面不变。
+  const [focus, bits] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
+  ])
+  assert.match(focus, /runRow=\{!phonePage\}/)
+  assert.match(bits, /const running = \(Boolean\(streaming\) && runRow\) \|\| compacting/)
+  assert.doesNotMatch(focus + bits, /TranscriptRunningLine|focusSession\.processing/)
+  assert.match(focus, /onStop=\{phonePage \? \(\) => void stop\(\) : undefined\}/)
+  assert.match(bits, /const stopMode = Boolean\(onStop && streaming && !hasDraft\)/)
+  assert.match(bits, /type=\{stopMode \? 'button' : 'submit'\}/)
+})
+
+test('the phone composer toolbar uses borderless filled pills with short labels', async () => {
+  // 手机工具行照参考稿只有 [+] [模型] … [麦克风] [发送]，都是 44：无边框浅灰圆形 / 胶囊（深色用 surface-active
+  // 才分得出），模型胶囊只写“模型”，具体模型与思考强度在点开的底部表单里。审批芯片默认收起（+ 菜单打开同一个表单，
+  // 完全访问或 Goal / Team 时露出并写短名）；新任务的项目在顶栏标题下面。输入框是浅色细边、没有阴影，
+  // 空草稿的发送键是浅灰圆底。桌面保持完整名称。
+  const [focus, bits, mode, model, draft] = await Promise.all([
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
+    readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
     readFile('src/features/chat/ComposerModeChip.tsx', 'utf8'),
     readFile('src/features/chat/FocusRuntimeControls.tsx', 'utf8'),
-    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+    readFile('src/features/board/new-task-draft.tsx', 'utf8'),
   ])
   const pill =
     /max-\[650px\]:rounded-full[^"'\n]*max-\[650px\]:bg-surface-muted max-\[650px\]:dark:bg-surface-active/
   assert.match(focus, pill)
-  assert.match(mode, pill)
+  assert.match(bits, pill)
   assert.match(model, pill)
+  // 盾牌芯片与新任务的项目芯片是同一种芯片样式。
+  assert.match(mode, /COMPOSER_CHIP_CLASSES,/)
+  assert.match(draft, /: cn\(COMPOSER_CHIP_CLASSES,/)
+  assert.match(draft, /variant === 'header'/)
+  assert.match(focus, /\{!phonePage && draft\?\.renderProjectControl\('chip'\)\}/)
+  assert.match(focus, /collapse=\{phonePage\}/)
+  assert.match(mode, /hidden=\{collapse && !engaged && approval\.value !== 'full-access'\}/)
+  assert.match(focus, /max-\[650px\]:border-stroke-strong max-\[650px\]:shadow-none/)
+  assert.match(bits, /max-\[650px\]:disabled:bg-surface-muted/)
+  // 模型胶囊在手机上只写“模型”（参考稿），模型名留在桌面芯片、无障碍标签和底部表单里。
+  assert.match(model, /font-medium max-\[650px\]:hidden">\{modelLabel\}/)
+  assert.match(model, /max-\[650px\]:inline">\s*\{t\('chat:focusSession\.modelChipShort'\)\}/)
   assert.match(focus, /max-\[650px\]:rounded-\[28px\]/)
   assert.match(mode, /max-\[650px\]:hidden">\{chipLabel\}/)
   assert.match(mode, /hidden min-w-0 truncate max-\[650px\]:inline">\{chipShortLabel\}/)
@@ -1201,9 +1232,4 @@ test('the phone composer toolbar uses borderless filled pills with short labels'
     model,
     /shrink-0 text-content-muted max-\[650px\]:hidden">\s*\{supported \? thinkingLevelLabel/,
   )
-  assert.match(
-    launch,
-    /const phonePill =\s*phoneComposer &&\s*'rounded-full border-transparent bg-surface-muted shadow-none dark:bg-surface-active'/,
-  )
-  assert.match(launch, /labels\.executionShort\[executionMode\]/)
 })

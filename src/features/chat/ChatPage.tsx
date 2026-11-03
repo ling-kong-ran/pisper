@@ -13,8 +13,10 @@ import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store
 import { waitForMobileRuntimeReady } from '@/lib/http'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
 import type { Notify } from '@/app/route-context'
-import type { PendingAsset, SessionSummary } from '@/types/chat'
-import { SingleSessionPanel } from './ChatDock'
+import type { ChatAttachment, PendingAsset, ResourceInvocation, SessionSummary } from '@/types/chat'
+import { NewTaskDraftPanel, SingleSessionPanel } from './ChatDock'
+import { chatErrorMessage } from './chat-errors'
+import { clearComposerDraft, NEW_TASK_COMPOSER_KEY } from './composer-drafts'
 import { chatApi, type BranchFromHereOptions, type FileRewindResult } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useSessionSelection } from './use-session-selection'
@@ -26,7 +28,11 @@ import { shouldInheritRecentSessionCwd } from './session-list'
 import { updateSessionOrganization } from './session-organization-api'
 import { consumeSessionSelectionRequest, subscribeSessionBranchChanges } from './events'
 import { SessionRouteLeading } from './session-route-chrome'
-import { SessionPageChromeContext, type SessionPageChrome } from './session-workspace-context'
+import {
+  SessionPageChromeContext,
+  type NewTaskDraftChrome,
+  type SessionPageChrome,
+} from './session-workspace-context'
 import { openWebPreviewInSessionContext } from './session-web-preview'
 import { WEB_PREVIEW_OPEN_EVENT, consumeWebPreviewRequest } from './web-preview-events'
 import { SideChatProvider } from './SideChatProvider'
@@ -153,7 +159,7 @@ export function ChatPage({
   const openSession = selection.openSession
   const [recallPulse, setRecallPulse] = useState({ sessionId: '', token: 0 })
   // 新建会话：先创建记录（带可选 cwd），再打开它（会话页交给路由）。只给没有会话 id 的发送兜底；
-  // 会话页不注册“页面主操作”——新任务入口是主页草稿与派发浮层，主操作队列也就不会在这里建出空会话。
+  // 会话页不注册“页面主操作”——新任务入口是新任务草稿，主操作队列也就不会在这里建出空会话。
   const createSession = useCallback(
     async (cwd = '') => {
       let mobileState: MobileRuntimeState | null = null
@@ -251,6 +257,54 @@ export function ChatPage({
     syncLiveSession: liveSync.syncLiveSession,
   })
   const { sendPrompt, retryLastTurn } = promptCommands
+  // 新任务草稿发出第一条消息：草稿先建会话（项目、模型、审批与运行模式），本页随即把它选为活动会话、
+  // 地址原地换成会话 id，再由本页发送并持有运行流——回复在同一页流式出现，不经过看板，也不留空会话。
+  // 选了“排在…之后”时首条消息已登记进启动队列，等前一个会话这一轮结束由 Runtime 启动。
+  const adoptCreatedSession = catalog.adoptCreatedSession
+  const sendNewTask = useCallback(
+    async (
+      draft: NewTaskDraftChrome,
+      value: string,
+      attachments: ChatAttachment[] = [],
+      goalMode = false,
+      teamMode = false,
+      goalTokenBudget: number | null = null,
+      invocation: ResourceInvocation | null = null,
+      options: { onAccepted?: () => void } = {},
+    ) => {
+      const prompt =
+        value.trim() ||
+        (attachments.length ? t('chat:chatPage.pleaseAnalyzeTheseAttachments') : '') ||
+        (invocation ? invocation.resourceName : '')
+      if (!prompt) return false
+      let prepared: Awaited<ReturnType<NewTaskDraftChrome['prepare']>>
+      try {
+        prepared = await draft.prepare(prompt)
+      } catch (error) {
+        notify(chatErrorMessage(error), 'error')
+        return false
+      }
+      adoptCreatedSession(prepared.session)
+      draft.onSent()
+      clearComposerDraft(NEW_TASK_COMPOSER_KEY)
+      openSession(prepared.session.id)
+      if (prepared.queued) {
+        options.onAccepted?.()
+        return true
+      }
+      return sendPrompt(
+        value,
+        prepared.session.id,
+        attachments,
+        goalMode,
+        teamMode,
+        goalTokenBudget,
+        invocation,
+        { onAccepted: options.onAccepted },
+      )
+    },
+    [adoptCreatedSession, notify, openSession, sendPrompt, t],
+  )
 
   const sessionCommands = useSessionCommands({
     notify,
@@ -410,9 +464,11 @@ export function ChatPage({
       loadSessionMessages: liveSync.loadSessionMessages,
       loadOlderMessages: liveSync.loadOlderMessages,
       sendPrompt: promptCommands.sendPrompt,
+      sendNewTask,
       retryLastTurn: promptCommands.retryLastTurn,
       queuePrompt: promptCommands.queuePrompt,
       withdrawQueuedInput: promptCommands.withdrawQueuedInput,
+      sendQueuedInputNow: promptCommands.sendQueuedInputNow,
       abort: promptCommands.abort,
       pauseGoal: sessionCommands.pauseGoal,
       setGoalBudget: sessionCommands.setGoalBudget,
@@ -450,9 +506,11 @@ export function ChatPage({
       liveSync.loadSessionMessages,
       liveSync.loadOlderMessages,
       promptCommands.sendPrompt,
+      sendNewTask,
       promptCommands.retryLastTurn,
       promptCommands.queuePrompt,
       promptCommands.withdrawQueuedInput,
+      promptCommands.sendQueuedInputNow,
       promptCommands.abort,
       sessionCommands.pauseGoal,
       sessionCommands.setGoalBudget,
@@ -546,6 +604,8 @@ export function ChatPage({
                             )
                           }
                         />
+                      ) : routeSessionId === NEW_SESSION_ROUTE_ID && pageChrome?.newTaskDraft ? (
+                        <NewTaskDraftPanel draft={pageChrome.newTaskDraft} />
                       ) : routeTarget ? (
                         <SingleSessionPanel
                           sessionId={routeTarget}

@@ -1,7 +1,7 @@
 // 全部代理（原看板，规格 v2 第 3 节；路径 /board、页面 id board 不变）：页头（标题、统计、分组方式、新任务）
 // + 居中的分组列表（最大 880）。按状态：需要你 → 运行中 → 排队 → 今天完成；按项目：每个项目一个分区，
 // 区内仍按状态。每个代理一行（OverviewRow），行内一步处理普通批准与重试；高风险、提问只能打开处理。
-// 这一页没有任务输入框：“新任务”与 ⌘N 打开派发对话框（不认领新任务请求，交给应用壳）。
+// 这一页没有任务输入框：“新任务”与 ⌘N 进入新任务草稿（交给应用壳）。
 // 右侧 320 的组件栏（overview-card 放置，规格 3.1、3.4）：放了组件才出现，不留空位、不放占位；
 // 1080–1279 宽收成页头的“组件 N”弹层，手机排在列表末尾、全宽。组件宿主经 placements.ts 懒加载，没有实例时不加载。
 // 数据只读看板 store（useBoardSessions），不新开轮询。手机外壳（规格 v2 第 7.3 节）是同一页：
@@ -77,7 +77,7 @@ export type BoardPageProps = {
   notify: Notify
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
-  // 新任务：交给应用壳打开派发对话框（桌面）或底部表单（手机）。
+  // 新任务：交给应用壳进入新任务草稿。
   onNewTask: () => void
 }
 
@@ -295,7 +295,7 @@ function OverviewPage({
     skipAttention: true,
   })
 
-  // 项目入口：分区 ⋯ 里的“在此项目新建任务”先把派发目标记成该项目，再打开派发对话框。
+  // 项目入口：分区 ⋯ 里的“在此项目新建任务”先把新任务的项目记成该项目，再进入新任务草稿。
   const commands = useProjectCommands({
     notify,
     requestConfirm,

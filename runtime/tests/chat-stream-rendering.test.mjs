@@ -168,7 +168,11 @@ test('conversation layout keeps a compact title header without a persistent avat
   assert.match(focus, /hasConversation \? 'has-conversation' : 'is-empty'/)
   // 旧的任务顶栏（非路由入口）在 A6 删除：FocusSession 只有会话页的两种页头，没有带页面外壳之外的回退顶栏。
   assert.doesNotMatch(focus, /TaskWorkspaceHeader|ThemeToggleButton/)
-  assert.match(focus, /const headerBlock = pageHeaderBlock\n/)
+  // 新任务草稿（还没有会话）用自己的页头“新任务”，其余一律是会话页头。
+  assert.match(
+    focus,
+    /const headerBlock = draft \? \(\s*<NewTaskDraftHeader\s+phone=\{phonePage\}\s+leading=\{routeLeading\}\s+project=\{phonePage \? draft\.renderProjectControl\('header'\) : undefined\}\s*\/>\s*\) : \(\s*pageHeaderBlock\s*\)/,
+  )
   assert.match(pageHeader, /const title = session\.name \|\| t\('navigation:pageHeader\.newChat'\)/)
   // 手机会话页（规格 v2 第 7.2 节）：56px 手机顶栏取代旧任务顶栏，标题同样只出现一次、没有头像卡片；
   // 标题 ▾ 打开会话菜单底部表单，表单里的会话操作与桌面标题菜单同一份数据（重命名是其中一项）。

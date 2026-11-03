@@ -166,7 +166,7 @@ export function CommandPalette({
           .includes(needle),
       )
     const result: CommandEntry[] = []
-    // “新任务”打开派发对话框（规格 2.5）；旧名“新会话”仍能搜到。
+    // “新任务”进入新任务草稿 '/board/new'；旧名“新会话”仍能搜到。
     const newTaskLabel = t('navigation:appOverlays.newTask')
     if (
       matches(

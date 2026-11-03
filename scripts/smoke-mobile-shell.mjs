@@ -5,7 +5,7 @@
 //    边界用 scripts/fixtures/board-fixture.mjs 固定，会话页的转录来自写进临时目录的真实会话：
 //    - 390×844 手机 App（规格 v2 第 7 节）：主页（会话）草稿与返回根、顶栏 ☰（琥珀计数）+ 抽屉（入口、会话分组、
 //      抽屉里一步处理普通批准）、安全区、软键盘、全部代理卡片（standard 一次允许只发 1 次 POST；critical 只有“打开处理”）、
-//      派发底部表单、功能一列行与角标、组件列表 → 详情、设置列表 → 分区；
+//      新任务草稿、功能一列行与角标、组件列表 → 详情、设置列表 → 分区；
 //    - 手机会话页：顶栏 ☰ / 标题 ▾ / 改动芯片，没有代理条；会话菜单与输入框芯片的底部表单；改动芯片打开检查器底部表单；
 //      Android 返回键先关表单 / 抽屉再回上一级；
 //    - 平板 1024×768（手机 App）：桌面布局、全部代理分组列表、检查器覆盖层；
@@ -840,23 +840,23 @@ async function verifyPhoneShell(boardSessions) {
     keyboard: true,
     sessions: boardSessions,
   })
-  // 主页是会话：全新设备落在新任务草稿（手机会话外壳）；主页是返回的根。
-  // 冷启动：草稿第一次画出来就按一次硬件键盘 ⌘N。快捷键层随外壳同步加载、在提交阶段挂监听，草稿也在
-  // 提交阶段认领新任务请求，所以这一下不会丢，也不会因为草稿还没登记而改开派发底部表单。
-  await context.addInitScript(firstPaintProbe, '[data-new-task-draft="phone"]')
+  // 主页是会话：全新设备落在新任务草稿 '/board/new'（手机会话外壳）；它是返回的根。
+  // 冷启动：草稿第一次画出来就按一次硬件键盘 ⌘N。快捷键层随外壳同步加载、在提交阶段挂监听，
+  // 所以这一下不会丢：已经停在草稿上，⌘N 只把焦点交给草稿输入框。
+  await context.addInitScript(firstPaintProbe, '[data-new-task-draft]')
   const page = await openPage(context, 'phone', '#/')
   const draftFocused = () =>
     page.evaluate(
       () =>
-        document.activeElement?.hasAttribute('data-launch-input') === true &&
-        document.activeElement.closest('[data-new-task-draft="phone"]') !== null,
+        document.activeElement?.tagName === 'TEXTAREA' &&
+        document.activeElement.closest('[data-new-task-draft]') !== null,
     )
   await waitForFirstPaint(page)
-  // 手机草稿不自动聚焦（落地不弹软键盘）；硬件键盘的 ⌘N 是明确操作：聚焦草稿，不打开派发底部表单。
+  // 手机草稿不自动聚焦（落地不弹软键盘）；硬件键盘的 ⌘N 是明确操作：聚焦草稿，不弹出任何表单。
   assert.equal(await draftFocused(), false, 'the phone draft is not autofocused')
   const coldDelay = await pressAfterFirstPaint(page, MOD_KEY + '+KeyN')
   await page.waitForFunction(
-    () => document.activeElement?.closest('[data-new-task-draft="phone"]') !== null,
+    () => document.activeElement?.closest('[data-new-task-draft]') !== null,
     undefined,
     { timeout: 5000 },
   )
@@ -866,7 +866,7 @@ async function verifyPhoneShell(boardSessions) {
     'one hardware ⌘N right after the first paint focuses the draft',
   )
   await page.waitForTimeout(400)
-  assert.equal(await page.getByRole('dialog').count(), 0, 'hardware ⌘N opens no dispatch sheet')
+  assert.equal(await page.getByRole('dialog').count(), 0, 'hardware ⌘N opens no sheet')
   await page.evaluate(
     () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
   )
@@ -877,7 +877,7 @@ async function verifyPhoneShell(boardSessions) {
   assert.ok(homeMenu && homeMenu.height >= 43.5, `home ☰ ${JSON.stringify(homeMenu)}`)
   assert.equal(await nativeBack(page), false, 'Android back on the home draft hands over')
   report.checks.push(
-    `Phone home: a fresh device lands on the new-task draft in the phone session shell, no tab bar (draft not autofocused; a single hardware ⌘N pressed ${coldDelay}ms after the draft's first paint focuses it without opening the dispatch sheet); ☰ is ≥44px; Android back on the home hands over to the platform`,
+    `Phone home: a fresh device lands on the new-task draft in the phone session shell, no tab bar (draft not autofocused; a single hardware ⌘N pressed ${coldDelay}ms after the draft's first paint focuses it and opens no sheet); ☰ is ≥44px; Android back on the home hands over to the platform`,
   )
 
   // 抽屉（规格 7.1）：min(320, 85vw)，搜索 · ✎ · 全部代理 · 功能 · 会话分组 · 设置；普通批准行下方常驻 44px 拒绝 / 允许，
@@ -932,7 +932,7 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await nativeBack(page), true, 'Android back closes the drawer first')
   await drawer.waitFor({ state: 'detached' })
   await page.waitForFunction(() => document.activeElement?.hasAttribute('data-phone-menu'))
-  assert.equal(hashOf(page), '#/')
+  assert.equal(hashOf(page), '#/board/new')
   report.checks.push(
     'Phone drawer: 320 wide with a 44px search, 新任务, 全部代理 / 功能 / 设置 entries (44px), session rows 56 (需要你) / 44; only the standard approval carries 44px 拒绝 / 允许 (critical and failed rows only open); Android back closes it first and focus returns to ☰',
   )
@@ -1031,52 +1031,56 @@ async function verifyPhoneShell(boardSessions) {
     'Phone cards: critical shows only 打开处理 (no one-step approval anywhere on the page); failed shows 44px 日志 / 重试; standard 允许 (≥44px) sends exactly one POST {approved:true} and stays on 全部代理',
   )
 
-  // 新任务：顶栏 ✎ 打开派发底部表单；返回键先关表单。
+  // 新任务：顶栏 ✎ 进入新任务草稿 '/board/new'（会话页的样子），输入框接住焦点；返回键回到全部代理。
   await page.locator('[data-phone-topbar] [data-phone-new-task]').click()
-  const dispatch = page.getByRole('dialog', { name: '新任务', exact: true })
-  await dispatch.waitFor()
-  await dispatch.locator('[data-launch-console="sheet"]').waitFor()
-  // 输入框占满表单宽度：390 宽下不能被项目芯片挤到一百多像素宽。
-  const sheetInput = await dispatch.locator('[data-launch-input]').boundingBox()
-  assert.ok(sheetInput && sheetInput.width >= 300, `dispatch textarea width ${sheetInput?.width}`)
-  assert.ok(sheetInput.height >= 44, `dispatch textarea height ${sheetInput.height}`)
-  // A6 评审返修：与桌面派发同一条芯片工具行 [项目] [盾牌] [排队] … [模型] [派发]，每个 ≥44，一行放下（不换行）；
-  // 没有“在 [项目] 中”前缀与单独的 Plan 芯片；说明指向抽屉的“运行中”（手机没有侧栏）。
-  const sheetToolbar = await dispatch.locator('[data-launch-toolbar] button').evaluateAll((nodes) =>
-    nodes.map((node) => {
-      const box = node.getBoundingClientRect()
-      return {
-        name: node.getAttribute('aria-label') || node.textContent.trim(),
-        width: box.width,
-        height: box.height,
-        top: Math.round(box.top),
-      }
-    }),
-  )
-  // A9：有运行中的会话且 Runtime 声明 sessionQueue 时多一枚“什么时候开始”（立即开始 / 排在…之后），手机上只留图标。
-  assert.equal(sheetToolbar.length, 5, JSON.stringify(sheetToolbar))
-  assert.match(sheetToolbar[0].name, /^项目/)
-  assert.match(sheetToolbar[1].name, /^审批模式/)
-  assert.match(sheetToolbar[2].name, /^什么时候开始 · 立即开始/)
-  assert.match(sheetToolbar[3].name, /^模型/)
-  assert.equal(sheetToolbar[4].name, '派发')
-  for (const item of sheetToolbar)
-    assert.ok(
-      item.height >= 44 && item.width >= 44,
-      `dispatch toolbar target ${JSON.stringify(item)}`,
-    )
-  assert.equal(new Set(sheetToolbar.map((item) => item.top)).size, 1, 'one toolbar row')
-  assert.equal(await dispatch.getByText('在', { exact: true }).count(), 0)
-  await dispatch.getByText('派发后留在当前页面，新代理会出现在抽屉的「运行中」。').waitFor()
-  assert.equal(await nativeBack(page), true)
-  await dispatch.waitFor({ state: 'detached' })
-  // 关闭后焦点回到打开它的顶栏 ✎（Radix 只会还给 DialogTrigger，这里没有）。
+  await page.waitForURL((url) => url.hash === '#/board/new')
+  const draftInput = page.locator('[data-new-task-draft] textarea')
+  await draftInput.waitFor()
   await page.waitForFunction(
-    () => document.activeElement?.matches('[data-phone-topbar] [data-phone-new-task]'),
+    () => document.activeElement?.closest('[data-new-task-draft]') !== null,
     undefined,
-    { timeout: 3000 },
+    { timeout: 5000 },
   )
-  assert.equal(hashOf(page), '#/board')
+  // 输入框占满宽度：390 宽下不能被芯片挤窄。
+  const draftBox = await draftInput.boundingBox()
+  assert.ok(draftBox && draftBox.width >= 300, `draft textarea width ${draftBox?.width}`)
+  assert.ok(draftBox.height >= 44, `draft textarea height ${draftBox.height}`)
+  // 与会话页同一条工具行 [+] [项目] [审批] … [模型] [发送]，每个 ≥44，一行放下（不换行）。
+  const draftToolbar = await page
+    .locator('[data-new-task-draft] [data-composer-toolbar] button')
+    .evaluateAll((nodes) =>
+      nodes
+        .filter((node) => node.getClientRects().length > 0)
+        .map((node) => {
+          const box = node.getBoundingClientRect()
+          return {
+            name: node.getAttribute('aria-label') || node.textContent.trim(),
+            width: box.width,
+            height: box.height,
+            top: Math.round(box.top),
+          }
+        }),
+    )
+  // 手机参考稿：[+] [模型] … [麦克风] [发送]；项目在顶栏“新任务”下面一行，审批在 + 菜单里。
+  assert.equal(draftToolbar.length, 4, JSON.stringify(draftToolbar))
+  assert.match(draftToolbar[1].name, /^模型/)
+  assert.equal(draftToolbar[2].name, '开始语音输入')
+  assert.match(
+    (await page
+      .locator('[data-new-task-draft] [data-session-header] [data-new-task-project]')
+      .getAttribute('aria-label')) ?? '',
+    /项目/,
+  )
+  for (const item of draftToolbar)
+    assert.ok(item.height >= 44 && item.width >= 44, `draft toolbar target ${JSON.stringify(item)}`)
+  assert.equal(new Set(draftToolbar.map((item) => item.top)).size, 1, 'one toolbar row')
+  assert.equal(await page.getByRole('dialog').count(), 0)
+  await page.evaluate(
+    () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
+  )
+  assert.equal(await nativeBack(page), true)
+  await page.waitForURL((url) => url.hash === '#/board')
+  await page.locator('[data-board-root]').waitFor()
   // 软键盘弹起：外壳随可视视口收缩（没有底部条要让位）；收起后回来。
   await page.evaluate(() => window.__setKeyboard(336))
   await page.waitForFunction(
@@ -1086,27 +1090,27 @@ async function verifyPhoneShell(boardSessions) {
   await page.evaluate(() => window.__setKeyboard(0))
   await page.waitForFunction(() => !document.querySelector('.app-shell')?.dataset.mobileKeyboard)
   report.checks.push(
-    'Phone ✎ opens the dispatch bottom sheet with a full-width (≥300px, ≥44px tall) input and one toolbar row [项目] [盾牌] [模型] [派发] of ≥44 targets (Android back closes it first and focus returns to ✎); the software keyboard shrinks the shell and nothing sits at the bottom edge',
+    'Phone ✎ opens the new-task draft page with a focused full-width (≥300px, ≥44px tall) input and one toolbar row [+] [模型] [麦克风] [发送] of ≥44 targets (project under the 新任务 title) (Android back returns to 全部代理); the software keyboard shrinks the shell and nothing sits at the bottom edge',
   )
 
-  // 全部代理上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：路由在 transition 里提交，按 ⌘N 时渲染的仍是全部代理（不认领，
-  // 旧逻辑会打开派发底部表单）。外壳按路由器的最新去向判断，请求等主页提交后交给草稿：聚焦草稿、不开表单，只执行一次。
+  // 全部代理上“会话主页”键（改绑的 ⌘9）紧接 ⌘N：两次导航先后提交，最后停在新任务草稿上，
+  // 草稿挂载时接住 ⌘N 记下的聚焦请求：聚焦草稿、不弹任何表单，只执行一次。
   await page.keyboard.press(`${MOD_KEY}+Digit9`)
   await page.keyboard.press(`${MOD_KEY}+KeyN`)
-  await page.waitForURL((url) => url.hash === '#/')
+  await page.waitForURL((url) => url.hash === '#/board/new')
   await page.waitForFunction(
-    () => document.activeElement?.closest('[data-new-task-draft="phone"]') !== null,
+    () => document.activeElement?.closest('[data-new-task-draft]') !== null,
     undefined,
     { timeout: 5000 },
   )
   await page.waitForTimeout(400)
-  assert.equal(await page.getByRole('dialog').count(), 0, '⌘N during ⌘9 opens no dispatch sheet')
-  assert.equal(hashOf(page), '#/')
+  assert.equal(await page.getByRole('dialog').count(), 0, '⌘N during ⌘9 opens no sheet')
+  assert.equal(hashOf(page), '#/board/new')
   await page.evaluate(
     () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
   )
   report.checks.push(
-    'Phone race: the rebound session-home key then ⌘N at once from 全部代理 lands on the home draft and focuses it (the request waits for the home to commit instead of opening the dispatch sheet over the leaving page)',
+    'Phone race: the rebound session-home key then ⌘N at once from 全部代理 lands on the new-task draft and focuses it (no sheet over the leaving page)',
   )
 
   // 功能：一列 56 行与角标、组件工作室；组件列表 → 详情（页头“‹ 功能”44px，页名在顶栏）；返回键沿层级回到主页。
@@ -1247,8 +1251,8 @@ async function verifyPhoneShell(boardSessions) {
   assert.equal(await nativeBack(page), true)
   await page.waitForURL((url) => url.hash === '#/more')
   assert.equal(await nativeBack(page), true)
-  await page.waitForURL((url) => url.hash === '#/')
-  await page.locator('[data-new-task-draft="phone"]').waitFor()
+  await page.waitForURL((url) => url.hash === '#/board/new')
+  await page.locator('[data-new-task-draft]').waitFor()
   assert.equal(await nativeBack(page), false, 'the session home is the root')
   report.checks.push(
     'Phone 功能: page name in the top bar, one-column ≥44px rows with 1 运行中 / 2 启用 / 1 断开 (amber) / 3 在线 badges, the 组件工作室 row under 扩展 (solid) and the dashed + 放置组件; components list → detail (≥44px rows, 44px “‹ 功能”, the native preview renders, the detail reads preview → props → placements with ≥44px placement tiles and a ≥44px “用提示词生成或修改” that opens the bottom prompt sheet, and the legacy component was moved to the trash) with 功能 lit in the drawer; Android back walks detail → list → 功能 → home, and the home hands over to the platform',
@@ -1499,26 +1503,45 @@ async function verifyPhoneSession(boardSessions) {
     'Phone drawer on the session page: the standard approval is handled in one step with exactly one POST without leaving the session; the critical row has no approve key; Android back closes the drawer first',
   )
 
-  // 输入框芯片（规格 7.2）：盾牌与模型芯片 44px，点开各自的底部表单；返回键先关表单。
-  const chips = await page.evaluate(() =>
-    ['[data-composer-mode]', '.model-effort-pill'].map((selector) =>
-      Math.round(document.querySelector(selector)?.getBoundingClientRect().height ?? 0),
-    ),
+  // 输入框（规格 7.2，手机参考稿）：工具行 [+] [模型] … [麦克风] [发送]，都是 44px；
+  // 默认的审批芯片收起，审批与执行方式从 + 菜单打开同一个底部表单。返回键先关表单。
+  const phoneToolbar = await page
+    .locator('[data-composer-toolbar] button')
+    .evaluateAll((nodes) =>
+      nodes
+        .filter((node) => node.getClientRects().length > 0)
+        .map((node) => [
+          node.getAttribute('aria-label') || node.textContent.trim(),
+          Math.round(node.getBoundingClientRect().height),
+        ]),
+    )
+  assert.equal(phoneToolbar.length, 4, JSON.stringify(phoneToolbar))
+  assert.match(phoneToolbar[1][0], /^模型/)
+  assert.equal(phoneToolbar[2][0], '开始语音输入')
+  assert.ok(
+    phoneToolbar.every(([, height]) => height === 44),
+    JSON.stringify(phoneToolbar),
   )
-  assert.deepEqual(chips, [44, 44])
-  for (const selector of ['[data-composer-mode]', '.model-effort-pill']) {
-    await page.locator(selector).click()
+  assert.equal(await page.locator('[data-composer-mode]').isVisible(), false)
+  const openModeSheet = async () => {
+    await page.locator('[data-composer-plus]').click()
+    await page.locator('[data-composer-plus-item="mode"]').click()
+  }
+  for (const [label, open] of [
+    ['mode', openModeSheet],
+    ['model', () => page.locator('.model-effort-pill').click()],
+  ]) {
+    await open()
     const sheet = page.locator('[data-popover-sheet]')
     await sheet.waitFor()
     assert.equal(await sheet.getAttribute('data-side'), 'bottom')
-    if (selector === '[data-composer-mode]')
-      await page.screenshot({ path: join(output, 'phone-mode-sheet.png') })
+    if (label === 'mode') await page.screenshot({ path: join(output, 'phone-mode-sheet.png') })
     assert.equal(await nativeBack(page), true)
     await sheet.waitFor({ state: 'detached' })
   }
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
   report.checks.push(
-    'Phone composer chips: the 44px shield and model chips open bottom sheets (not popovers); Android back closes each first',
+    'Phone composer: one toolbar row [+] [模型] … [麦克风] [发送] of 44px targets; the approval chip is folded into the + menu, which opens the same bottom sheet as the model chip does its own; Android back closes each first',
   )
 
   // 改动芯片 → 检查器底部表单（改动 / 终端 / 文件 / 预览）；返回键先关表单，再回到全部代理。
@@ -1718,12 +1741,12 @@ async function verifyTablet(boardSessions) {
 }
 
 // 冷启动快捷键（桌面与手机）：全新页面，外壳第一次画出来就按一次，必须生效且只生效一次。
-// ⌘1（全部代理）只压入一条历史（idx 0 → 1）；桌面在“更多”页按 ⌘N（那里没有视图认领）只打开一个派发浮层。
-// 手机主页上的 ⌘N 在 verifyPhoneShell 开头验证（聚焦草稿、不开底部表单）。
+// ⌘1（全部代理）只压入一条历史（idx 0 → 1）；桌面在“更多”页按 ⌘N 只进入一次新任务草稿。
+// 手机主页上的 ⌘N 在 verifyPhoneShell 开头验证（聚焦草稿、不弹表单）。
 async function verifyColdStartShortcuts(boardSessions) {
   const delays = []
   for (const [label, options, extra, selector] of [
-    ['phone', phoneViewport, { mobileApp: true }, '[data-new-task-draft="phone"]'],
+    ['phone', phoneViewport, { mobileApp: true }, '[data-new-task-draft]'],
     [
       'desktop',
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -1746,17 +1769,16 @@ async function verifyColdStartShortcuts(boardSessions) {
       await page.goto(app.url + '/#/more')
       await page.reload()
       delays.push(`desktop ⌘N ${await pressAfterFirstPaint(page, `${MOD_KEY}+KeyN`)}ms`)
-      const overlay = page.locator('[data-launch-console="overlay"]')
-      await overlay.waitFor({ timeout: 5000 })
+      await page.waitForURL((url) => url.hash === '#/board/new', { timeout: 5000 })
+      await page.locator('[data-new-task-draft] textarea').waitFor()
       await page.waitForTimeout(400)
-      assert.equal(await overlay.count(), 1, 'one ⌘N opens exactly one dispatch overlay')
-      assert.equal(await page.getByRole('dialog').count(), 1)
-      assert.equal(hashOf(page), '#/more')
+      assert.equal(await page.getByRole('dialog').count(), 0)
+      assert.equal(hashOf(page), '#/board/new', 'one ⌘N opens the new-task draft once')
     }
     await context.close()
   }
   report.checks.push(
-    `Cold start: a single shortcut pressed right after the shell's first paint takes effect exactly once (${delays.join(', ')} after first paint) — ⌘1 pushes one /board entry on phone and desktop, desktop ⌘N on 更多 opens one dispatch overlay`,
+    `Cold start: a single shortcut pressed right after the shell's first paint takes effect exactly once (${delays.join(', ')} after first paint) — ⌘1 pushes one /board entry on phone and desktop, desktop ⌘N on 更多 opens the new-task draft once`,
   )
 }
 

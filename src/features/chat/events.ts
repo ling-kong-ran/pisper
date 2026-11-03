@@ -18,6 +18,7 @@ export const SESSIONS_UPDATED_EVENT = 'pisper:sessions-updated'
 export const COMMAND_PALETTE_REQUESTED_EVENT = 'pisper:command-palette-requested'
 export const SESSION_COMMAND_EVENT = 'pisper:session-command'
 export const SESSION_BRANCH_CHANGED_EVENT = 'pisper:session-branch-changed'
+export const NEW_TASK_FOCUS_EVENT = 'pisper:new-task-focus'
 
 type SessionMessageTarget = { sessionId: string; entryId: string }
 export type SessionTitleUpdate = { id: string; name: string }
@@ -63,6 +64,19 @@ export function takeCommandPaletteQuery() {
 export type SessionCommand = 'tree' | 'side-chat'
 export function requestSessionCommand(command: SessionCommand) {
   window.dispatchEvent(new CustomEvent(SESSION_COMMAND_EVENT, { detail: command }))
+}
+
+// 主动发起的新任务（⌘N、侧栏 / 抽屉 / ✎、命令面板）：把焦点交给草稿输入框。草稿已经挂着就立即聚焦；
+// 还在路上（正从别的页面导航过去）就记一笔，草稿挂载时消费——手机上也聚焦（落地主页的草稿不聚焦，免得弹软键盘）。
+let newTaskFocusPending = false
+export function requestNewTaskFocus() {
+  newTaskFocusPending = true
+  window.dispatchEvent(new Event(NEW_TASK_FOCUS_EVENT))
+}
+export function consumeNewTaskFocus() {
+  const pending = newTaskFocusPending
+  newTaskFocusPending = false
+  return pending
 }
 
 // 请求选中/打开会话：写 activeSession + 打开请求 +（可选）消息定位目标，

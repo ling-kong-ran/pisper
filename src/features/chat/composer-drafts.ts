@@ -9,6 +9,9 @@ export type ComposerDraft = {
   attachments: ChatAttachment[]
 }
 
+// 新任务草稿（'/board/new'）还没有会话 id：输入框草稿记在这个键下，第一条消息交出后清掉。
+export const NEW_TASK_COMPOSER_KEY = 'new-task'
+
 const drafts = new Map<string, ComposerDraft>()
 const textRevisions = new Map<string, number>()
 

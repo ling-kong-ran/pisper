@@ -1,7 +1,7 @@
 // 聚焦会话输入区的小型展示组件：输入框上方的托盘（运行状态 + 停止、排队消息）、
 // 资源调用芯片与发送键。
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Braces, Pencil, RefreshCw, Square, Wrench, X } from 'lucide-react'
+import { ArrowUp, Braces, CornerDownLeft, Pencil, RefreshCw, Square, Wrench, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -12,6 +12,11 @@ import { runDurationMs } from '@/features/chat/run-activity'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
 // 输入区图标键：桌面 32px，手机与粗指针 44px 触控目标；“+”菜单与托盘共用同一组工具类。
+// 输入框工具行的文字芯片（盾牌芯片、新任务草稿的项目芯片）：桌面是 28 高的透明芯片；
+// 手机（≤650）是 44 高的无边框浅灰胶囊，深色用 surface-active 才和输入框底色分得开。
+export const COMPOSER_CHIP_CLASSES =
+  'inline-flex h-7 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-content pointer-coarse:h-11'
+
 export const COMPOSER_ICON_KEY_CLASSES =
   'grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
 
@@ -63,7 +68,16 @@ export function ComposerTray({
   withdrawingInputIds = [],
   onEdit,
   onCancel,
+  onSendNow,
+  runRow = true,
+  queueList = true,
 }: {
+  // 桌面排队列表：每条可“立即发送”（打断当前这一步，这条马上送达）。
+  onSendNow?: (inputId: string) => void
+  // 手机不画排队列表（排队消息在对话里是标着“排队中”的气泡）。
+  queueList?: boolean
+  // 手机照参考稿不画运行行：运行状态看页头与代理头像旁的转圈，停止在发送键上（压缩上下文照常显示）。
+  runRow?: boolean
   streaming?: boolean
   compaction?: EntityRecord | null
   startedAt?: string | null
@@ -76,8 +90,9 @@ export function ComposerTray({
 }) {
   const { t } = useI18n()
   const compacting = Boolean(compaction?.active)
-  const running = Boolean(streaming) || compacting
-  if (!running && !queuedInputs.length) return null
+  const running = (Boolean(streaming) && runRow) || compacting
+  const listed = queueList ? queuedInputs : []
+  if (!running && !listed.length) return null
   const queueLabel = t('chat:focusSession.sentToTheRunningAgent')
   return (
     <div
@@ -117,14 +132,14 @@ export function ComposerTray({
           )}
         </div>
       )}
-      {queuedInputs.length > 0 && (
+      {listed.length > 0 && (
         <ul
           className="m-0 flex max-h-[136px] min-w-0 list-none flex-col overflow-x-hidden overflow-y-auto overscroll-contain p-0 [&>*+*]:border-t [&>*+*]:border-stroke-soft"
           aria-label={queueLabel}
-          data-pisper-queue-size={queuedInputs.length}
-          tabIndex={queuedInputs.length > 3 ? 0 : undefined}
+          data-pisper-queue-size={listed.length}
+          tabIndex={listed.length > 3 ? 0 : undefined}
         >
-          {queuedInputs.map((item, index) => {
+          {listed.map((item, index) => {
             const inputId = typeof item.id === 'string' ? item.id : ''
             const pending = withdrawingInputIds.includes(inputId)
             const unavailable = !inputId || pending
@@ -150,6 +165,19 @@ export function ComposerTray({
                 >
                   {text}
                 </span>
+                {onSendNow && (
+                  <button
+                    type="button"
+                    className={TRAY_ACTION_CLASS}
+                    aria-label={t('board:composer.sendQueuedNow')}
+                    title={t('board:composer.sendQueuedNow')}
+                    disabled={unavailable}
+                    data-queued-send-now
+                    onClick={() => onSendNow(inputId)}
+                  >
+                    <CornerDownLeft size={14} aria-hidden="true" />
+                  </button>
+                )}
                 {onEdit && (
                   <button
                     type="button"
@@ -225,7 +253,10 @@ export function ComposerSendButton({
   disabled,
   onLongPress,
   longPressHint,
+  onStop,
 }: {
+  // 手机（参考稿）：运行中输入框为空时发送键就是停止键；输入了文字又变回发送（排队，长按插话）。
+  onStop?: () => void
   streaming?: boolean
   queueing: boolean
   submitting?: boolean
@@ -254,29 +285,33 @@ export function ComposerSendButton({
       if (timer.current) clearTimeout(timer.current)
     }
   }, [])
-  // 发送键只负责发送；运行中有草稿时把补充说明排入队列，停止只由运行条上的停止键负责。
-  const waitingForDraft = Boolean(streaming && !(hasDraft && canQueue))
+  // 桌面发送键只负责发送；运行中有草稿时把补充说明排入队列，停止由运行条上的停止键负责。
+  const stopMode = Boolean(onStop && streaming && !hasDraft)
+  const waitingForDraft = Boolean(streaming && !(hasDraft && canQueue)) && !stopMode
   const busy = queueing || submitting || stopping || preparing
   const unavailable = disabled || busy || waitingForDraft || Boolean(blockedReason)
   const label = preparing
     ? t('chat:focusSession.preparingAttachments')
     : stopping
       ? t('chat:focusSession.stopping')
-      : t('chat:focusSession.sendMessage')
+      : stopMode
+        ? t('chat:focusSession.stop')
+        : t('chat:focusSession.sendMessage')
   return (
     <button
-      type="submit"
-      // 石墨圆键（规格 4.3）：不兼作停止；草稿为空时淡出但保留形状。
-      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-full border border-transparent bg-star text-on-accent transition-[background-color,opacity] select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:opacity-30 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
+      type={stopMode ? 'button' : 'submit'}
+      data-send-mode={stopMode ? 'stop' : 'send'}
+      // 石墨圆键（规格 4.3）：不兼作停止；草稿为空时淡出但保留形状（手机上换成浅灰圆底、深色箭头）。
+      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-full border border-transparent bg-star text-on-accent transition-[background-color,opacity] select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:opacity-30 max-[650px]:disabled:bg-surface-muted max-[650px]:disabled:text-content max-[650px]:disabled:opacity-100 max-[650px]:aria-disabled:bg-surface-muted max-[650px]:aria-disabled:text-content max-[650px]:aria-disabled:opacity-100 max-[650px]:dark:disabled:bg-surface-active max-[650px]:dark:aria-disabled:bg-surface-active data-[send-mode=stop]:bg-surface-muted data-[send-mode=stop]:text-content data-[send-mode=stop]:hover:enabled:bg-surface-hover dark:data-[send-mode=stop]:bg-surface-active max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
       title={blockedReason || (!busy && sendShortcut ? `${label} (${sendShortcut})` : label)}
       aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
       aria-busy={busy || undefined}
       aria-disabled={unavailable || undefined}
-      aria-description={onLongPress ? longPressHint : undefined}
-      data-long-press={onLongPress ? 'steer' : undefined}
+      aria-description={onLongPress && !stopMode ? longPressHint : undefined}
+      data-long-press={onLongPress && !stopMode ? 'steer' : undefined}
       onPointerDown={(event) => {
         longPressed.current = false
-        if (!onLongPress || unavailable || event.pointerType === 'mouse') return
+        if (!onLongPress || stopMode || unavailable || event.pointerType === 'mouse') return
         clearPress()
         pressTimer.current = setTimeout(() => {
           pressTimer.current = null
@@ -297,12 +332,18 @@ export function ComposerSendButton({
           event.preventDefault()
           return
         }
-        if (unavailable) event.preventDefault()
+        if (unavailable) {
+          event.preventDefault()
+          return
+        }
+        if (stopMode) onStop?.()
       }}
       disabled={!blockedReason && unavailable}
     >
       {busy ? (
         <RefreshCw className="animate-spin" size={17} />
+      ) : stopMode ? (
+        <Square size={13} fill="currentColor" aria-hidden="true" />
       ) : (
         <ArrowUp size={17} strokeWidth={2.1} />
       )}

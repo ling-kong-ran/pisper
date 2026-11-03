@@ -182,7 +182,7 @@ export function translateText(
   return i18n.getFixedT(language)(message, values)
 }
 
-// 看板页与派发浮层的文案随看板路由加载；标题栏、更多页等外壳文案在常驻的 navigation 命名空间里。
+// 看板页与新任务草稿（项目芯片、排在…之后）的文案随看板路由加载；标题栏、更多页等外壳文案在常驻的 navigation 命名空间里。
 let boardMessagesPromise: Promise<void> | null = null
 export function ensureBoardMessages(): Promise<void> {
   if (i18n.hasResourceBundle('zh-CN', 'board') && i18n.hasResourceBundle('en-US', 'board'))

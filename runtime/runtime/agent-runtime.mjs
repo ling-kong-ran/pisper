@@ -67,6 +67,7 @@ import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../servic
 import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
 import { createSettleBarrierExtension, SettleBarrier } from './settle-barrier.mjs'
 import { installModelFallback, modelRef } from './model-fallback.mjs'
+import { installStepInterrupt } from './step-interrupt.mjs'
 import { PermissionRuleService } from '../services/permission-rules.mjs'
 import {
   projectGoalTeam,
@@ -1185,6 +1186,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await this.saveSessionMeta()
   }
 
+  // 排队的会话要等前一个会话结束才发出首条消息：先按排队消息起名（与首条消息自动命名同一规则），
+  // 列表、看板卡片和页头在排队期间就能认出这条任务，不显示“新会话”。手动改过标题则不动；
+  // 起名失败不影响排队本身。
+  async titleQueuedSession(id, message) {
+    if (this.sessionMeta[id]?.manual) return
+    const title = sessionTitleFromFirstMessage(message)
+    await this.renameSession(id, title, { manual: false }).catch(() => null)
+  }
+
   saveUsageLedger() {
     const snapshot = JSON.parse(JSON.stringify(this.usageLedger))
     this.usageWrite = this.usageWrite
@@ -1984,6 +1994,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       onFallback: (event) => this.recordModelFallback(session, event),
     })
     installTurnBoundaryCompaction(session)
+    // 插队（立即发送）：只打断当前这一步，不结束整轮运行。
+    installStepInterrupt(session)
     const now = new Date().toISOString()
     // 会话运行时值：缓存会话快照，供后续消息/查询直接使用，避免重复装配。
     const value = {

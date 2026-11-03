@@ -6,6 +6,8 @@ import test from 'node:test'
 import { createApiHandler, requiredRuntimeFeature } from '../http/api-handler.mjs'
 import { SessionQueueError, SessionStartQueue } from '../services/session-start-queue.mjs'
 import { projectSessionCard } from '../services/session-card-summary.mjs'
+import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { agentSessionMethods } from '../runtime/agent-session-methods.mjs'
 
 async function settle() {
   for (let index = 0; index < 5; index += 1) await new Promise((resolve) => setImmediate(resolve))
@@ -189,6 +191,30 @@ test('queue persists atomically and resumes after a restart', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+test('a queued session is titled from its message right away; one that starts directly is not', async () => {
+  // 排队的会话要等前一个结束才发出首条消息：登记时就按首条消息的规则起名，列表与页头不显示“新会话”。
+  const { queue } = harness({ running: ['a'], sessions: ['a', 'b', 'c', 'd', 'e'] })
+  const renames = []
+  const runtime = {
+    sessionQueue: queue,
+    sessionMeta: { d: { name: '手动标题', manual: true } },
+    titleQueuedSession: AgentRuntimeService.prototype.titleQueuedSession,
+    renameSession: async (id, name, options) => renames.push([id, name, options]),
+  }
+  const enqueue = (sessionId, input) =>
+    agentSessionMethods.enqueueSessionStart.call(runtime, sessionId, input)
+  const queued = await enqueue('b', { startAfter: 'a', message: '跑完之后补齐登录测试。然后提交' })
+  assert.equal(queued.queued, true)
+  assert.deepEqual(renames, [['b', '跑完之后补齐登录测试', { manual: false }]])
+  // 手动改过标题的不动。
+  await enqueue('d', { startAfter: 'a', message: '另一件事' })
+  assert.equal(renames.length, 1)
+  // 前置会话已经结束：直接启动，交给首条消息照常命名，这里不起名。
+  const started = await enqueue('c', { startAfter: 'e', message: '直接开始' })
+  assert.deepEqual(started, { queued: false, started: true })
+  assert.equal(renames.length, 1)
 })
 
 test('queued sessions appear in the queued lane only with the sessionQueue capability', () => {

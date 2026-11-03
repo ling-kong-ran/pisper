@@ -309,11 +309,11 @@ test('new sessions inherit the most recently listed workspace', async () => {
 })
 
 test('workspace groups create chats with their exact working directory', async () => {
-  // 按项目新建任务的入口是看板启动台 / 派发浮层的“在 [项目 ▾] 中”，所选项目的目录原样交给建会话接口。
+  // 按项目新建任务的入口是新任务草稿输入框里的项目芯片，所选项目的目录原样交给建会话接口。
   // 旧侧栏的工作区分组（ProjectTaskList）已随旧外壳删除；v2 侧栏按状态分组，不按项目。
   const [launch, launchConsole, events, chatPage, catalog, storage] = await Promise.all([
     readFile('src/features/board/board-launch.ts', 'utf8'),
-    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+    readFile('src/features/board/new-task-draft.tsx', 'utf8'),
     readFile('src/features/chat/events.ts', 'utf8'),
     readFile('src/features/chat/ChatPage.tsx', 'utf8'),
     readFile('src/features/chat/use-session-catalog.ts', 'utf8'),
@@ -324,7 +324,7 @@ test('workspace groups create chats with their exact working directory', async (
     launch,
     /created = await chatApi\.createSession\('', request\.cwd, \{\s*projectless: request\.projectless === true,/,
   )
-  assert.match(launchConsole, /await launchBoardTask\(\{\s*prompt,\s*cwd,/)
+  assert.match(launchConsole, /prepareLaunchSession\(\{\s*prompt,\s*cwd,\s*projectless,/)
   assert.match(
     launchConsole,
     /next === NO_PROJECT_VALUE \? \{ projectless: true \} : \{ cwd: next \}/,

@@ -390,21 +390,22 @@ try {
     } catch {}
   })
   // 全部代理（A3 取代泳道与启动台，规格 3.1）：空的全部代理只有一句“还没有代理在运行”+“新任务”，
-  // 没有任务输入框和“试试”建议；“新任务”打开派发对话框，Esc 关闭、什么都不派发。
+  // 没有任务输入框和“试试”建议；“新任务”进入新任务草稿 '/board/new'（不建会话），后退回到全部代理。
   await page.goto(base + '/#/board')
   const boardRoot = page.locator('[data-board-root]')
   await boardRoot.waitFor({ timeout: 60000 })
   await boardRoot.getByText('还没有代理在运行', { exact: true }).waitFor({ timeout: 60000 })
-  assert.equal(await page.locator('[data-launch-input]').count(), 0)
+  assert.equal(await boardRoot.locator('textarea').count(), 0)
   assert.equal(await page.getByRole('region', { name: '试试这些任务' }).count(), 0)
   await boardRoot.getByRole('button', { name: '新任务', exact: true }).click()
-  const dispatchDialog = page.getByRole('dialog', { name: '新任务', exact: true })
-  await dispatchDialog.waitFor()
-  await page.keyboard.press('Escape')
-  await dispatchDialog.waitFor({ state: 'hidden' })
+  await page.waitForURL((url) => url.hash === '#/board/new')
+  await page.locator('[data-new-task-draft] textarea').waitFor()
+  assert.equal(await page.getByRole('dialog').count(), 0)
+  await page.goBack()
+  await boardRoot.waitFor()
   assert.equal(report.requests, 0)
   report.checks.push(
-    'Empty 全部代理 shows only “还没有代理在运行” and 新任务 (no launch console, no suggestions); 新任务 opens the dispatch dialog and Esc closes it without sending',
+    'Empty 全部代理 shows only “还没有代理在运行” and 新任务 (no task input, no suggestions); 新任务 opens the new-task draft without sending and back returns',
   )
   // 规格 v2：没有标题栏，一级入口在侧栏（全部代理 / 功能 / 设置）；旧的“组件”标签归“功能”。
   const titlebar = page.locator('[data-shell-sidebar]')
@@ -437,15 +438,16 @@ try {
   )
   await shellTab('more').click()
   await page.locator('[data-more-tile="page:workflows"]').waitFor()
-  // 会话页：/board/new 建好会话后以 replace 换成真实 id；会话页沿用单会话视图与欢迎语。
+  // 新任务草稿：'/board/new' 就是会话页的样子（问候语 + 同一个输入框），发出第一条消息前不建会话。
+  const sessionsBeforeDraft = (await api('/api/sessions')).sessions.length
   await page.goto(base + '/#/board/new')
-  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
-  const sessionHash = new URL(page.url()).hash
-  await page.getByTestId('workbench-greeting').getByRole('heading').waitFor()
-  // 看板启动台的输入框也叫“任务描述”；限定在会话输入区，避免换页瞬间写进将要卸载的启动台。
+  await page.locator('[data-new-task-draft] [data-new-task-greeting]').waitFor()
+  const sessionHash = '#/board/new'
+  // 限定在会话输入区：换页瞬间不写进将要卸载的其他输入框。
   const prompt = page.locator('.focus-composer').getByRole('textbox', { name: '任务描述' })
   await prompt.waitFor()
   assert.equal(await page.locator('[data-board-root]').count(), 0)
+  assert.equal((await api('/api/sessions')).sessions.length, sessionsBeforeDraft)
   const sendBox = await page.getByRole('button', { name: '发送消息', exact: true }).boundingBox()
   assert.equal(sendBox.width, 32)
   assert.equal(sendBox.height, 32)
@@ -714,13 +716,20 @@ try {
       '[data-shell-sidebar="settings"] [data-settings-section="interface"][aria-current="page"]',
     )
     .waitFor()
-  // 空会话不上看板；经会话链接回到会话页（同一文档内的哈希跳转，不刷新），草稿仍在。
+  // 回到新任务草稿（同一文档内的哈希跳转，不刷新）：没发出的草稿仍在。
   await page.goto(base + '/' + sessionHash)
   await prompt.waitFor()
   assert.equal(await prompt.inputValue(), 'return home keeps this draft')
   await prompt.fill('')
+  // 下面的输入框与模型面板验收针对真实会话（设置要写回会话、刷新后仍在）：草稿发出前不建会话，
+  // 这里另开一个空会话（与看板建会话一样不带名字），第一条消息照常给它命名。
+  const composerSession = await api('/api/sessions', 'POST', { name: '' })
+  await page.goto(base + `/#/board/${encodeURIComponent(composerSession.id)}`)
+  await page.locator('[data-session-header]').first().waitFor()
+  await prompt.waitFor()
+  assert.equal(await page.locator('[data-new-task-draft]').count(), 0)
   report.checks.push(
-    '32px send button; sidebar entries board/features/settings with workflows on 功能; Settings take over the sidebar with the section directory and returning through the session link restores the conversation draft',
+    '32px send button; sidebar entries board/features/settings with workflows on 功能; Settings take over the sidebar with the section directory; /board/new is the new-task draft (no session created) and returning to it restores the unsent draft',
     'Provider navigation shows configured or custom connections with one Quick setup entry and no preset catalog',
   )
 
@@ -1292,15 +1301,11 @@ try {
     'reasoning remains editable during streaming; selection is staged without mutating the active run',
   )
 
-  await page.goto(base + '/#/board/new')
-  await page.waitForFunction(
-    (previous) => /^#\/board\/(?!new$)[^/]+$/.test(location.hash) && location.hash !== previous,
-    `#/board/${sessionId}`,
-  )
-  await page.getByTestId('workbench-greeting').waitFor()
-  const secondaryId = decodeURIComponent(new URL(page.url()).hash.slice('#/board/'.length))
+  // 第二个会话：另开一个空会话，切过去写一条不发送的草稿，后台运行不受影响。
+  const secondaryId = (await api('/api/sessions', 'POST', { name: 'PI draft side-session' })).id
   assert.notEqual(secondaryId, sessionId)
-  await api(`/api/sessions/${secondaryId}`, 'PATCH', { name: 'PI draft side-session' })
+  await page.goto(base + `/#/board/${encodeURIComponent(secondaryId)}`)
+  await page.locator('[data-session-header]').getByText('PI draft side-session').first().waitFor()
   await prompt.fill('第二会话未发送草稿')
   assert.equal(report.stopConnectionClosed, false)
   // 回到后台运行中的会话：看板“运行中”泳道的卡片打开会话页。

@@ -405,11 +405,15 @@ export function usePromptCommands({
         // 持久化元数据（回合边界/资产）已随 done 帧就地补齐，不再整页重拉历史，
         // 避免最后一行消息因换成服务端 ID 而重挂载、闪动。
         if (!ownsStream()) return accepted
+        // 这一轮里送达过排队 / 立即发送的消息：实时视图只有一条回复气泡，排队气泡都挤在它前面；
+        // 收尾时按服务端的真实顺序（回复 → 插入的消息 → 下一段回复）重读一次。
+        const deliveredQueuedInput = Boolean(
+          streamState.queuedDuringRun || sessionStatesRef.current[sessionId]?.hadQueuedInput,
+        )
         if (
           goalMode ||
           teamMode ||
-          streamState.queuedDuringRun ||
-          sessionStatesRef.current[sessionId]?.hadQueuedInput ||
+          deliveredQueuedInput ||
           sessionStatesRef.current[sessionId]?.goal ||
           sessionStatesRef.current[sessionId]?.queuedInputs?.length
         ) {
@@ -422,6 +426,9 @@ export function usePromptCommands({
         } catch {
           void syncLiveSession(sessionId)
         }
+        if (!ownsStream()) return accepted
+        if (deliveredQueuedInput)
+          await loadSessionMessages(sessionId, { force: true }).catch(() => undefined)
         if (!ownsStream()) return accepted
         if (options.activate !== false)
           browserNotify?.('chat.completed', {
@@ -748,6 +755,37 @@ export function usePromptCommands({
     [notify, t, updateSessionState],
   )
 
+  // 排队列表里的“立即发送”：与撤回共用进行中标记（期间编辑 / 取消 / 立即发送都不可点）。
+  const sendQueuedInputNow = useCallback(
+    async (sessionId: string, inputId: string) => {
+      const key = `${sessionId}/${inputId}`
+      if (!sessionId || !inputId || withdrawingInputsRef.current.has(key)) return false
+      withdrawingInputsRef.current.add(key)
+      updateSessionState(sessionId, (current) => ({
+        ...current,
+        withdrawingInputIds: [...(current.withdrawingInputIds || []), inputId],
+      }))
+      try {
+        const result = await chatApi.sendQueuedInputNow(sessionId, inputId)
+        updateSessionState(sessionId, (current) => reconcileQueuedInputSnapshot(current, result))
+        if (!result.sent) notify(t('chat:focusSession.queuedInputAlreadyConsumed'), 'info')
+        return result.sent
+      } catch (error) {
+        notify(chatErrorMessage(error), 'error')
+        return false
+      } finally {
+        withdrawingInputsRef.current.delete(key)
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          withdrawingInputIds: (current.withdrawingInputIds || []).filter(
+            (id: string) => id !== inputId,
+          ),
+        }))
+      }
+    },
+    [notify, t, updateSessionState],
+  )
+
   // 重试最后一轮：乐观截掉最后一轮（该用户消息起的尾部），复用同一条流式管道原地重跑；
   // 服务端负责树导航与真实输入恢复，前端的 text/attachments 只用于乐观气泡。
   const retryLastTurn = useCallback(
@@ -794,5 +832,5 @@ export function usePromptCommands({
     [loadSessionMessages, sendPrompt, sessionStatesRef],
   )
 
-  return { sendPrompt, retryLastTurn, queuePrompt, withdrawQueuedInput, abort }
+  return { sendPrompt, retryLastTurn, queuePrompt, withdrawQueuedInput, sendQueuedInputNow, abort }
 }

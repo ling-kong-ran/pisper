@@ -1,6 +1,7 @@
 // 会话页（桌面布局）的外壳契约：路由传入的页面形态，以及页头与检查器之间的开关通道。
 // 只放类型与上下文，不导入任何组件，页头、工作区与检查器都可以依赖它而不形成环。
 import { createContext, type ReactNode } from 'react'
+import type { SessionSummary } from '@/types/chat'
 import type { SessionInspectorTab } from './session-inspector-store'
 
 // 会话页由应用壳注入：有值时单会话视图换成“页头 + 对话 + 检查器”的会话页布局，
@@ -15,8 +16,11 @@ export type SessionPageChrome = {
   phone?: SessionPhoneChrome
   // 检查器“+”里去组件页设置“会话面板”放置。
   onOpenComponents?: () => void
-  // 输入框的 /new：与侧栏“新任务”同一入口（应用壳决定聚焦草稿还是打开派发浮层）。
+  // 输入框的 /new 与手机顶栏 ✎：与侧栏“新任务”同一入口（应用壳打开新任务草稿 '/board/new'）。
   onNewTask?: () => void
+  // 新任务草稿（'/board/new'）：项目、派发偏好与“排在…之后”归看板领域，由应用壳注入；
+  // 会话页把它画成会话页的样子，第一条消息发出时才建会话，并由本页持有运行流。
+  newTaskDraft?: NewTaskDraftChrome
   // 组件标签（“会话面板”放置，规格 4.4）：由应用壳按放置实例构造；聊天领域只认这份类型契约，不依赖组件系统。
   // 没有值（旧 Runtime、没有组件能力）时检查器只显示固定标签，“+”里是去组件页的提示。
   componentTabs?: SessionComponentTabs
@@ -24,6 +28,35 @@ export type SessionPageChrome = {
   onArchived?: (sessionId: string) => void
   // “找不到这个会话”的出口：回到主页（上次停留的会话或新任务草稿）；旧入口没有时回看板。
   onHome?: () => void
+}
+
+export type NewTaskRunMode = 'plan' | 'goal' | 'team'
+
+export type NewTaskProjectVariant = 'chip' | 'header'
+
+export type NewTaskDraftChrome = {
+  // 草稿的工作目录（不选项目时为空串）：斜杠命令按它列出 Prompt / Skill。
+  cwd: string
+  // 草稿的派发选择（记在派发偏好里，切走再回来仍在）；模型为 provider/modelId。
+  model: string
+  thinkingLevel: string
+  availableThinkingLevels: string[]
+  executionMode: string
+  runMode: NewTaskRunMode
+  onModelChange: (model: string) => void
+  onThinkingLevelChange: (level: string) => void
+  onExecutionModeChange: (mode: string) => boolean
+  onRunModeChange: (mode: string) => boolean
+  // 项目选择（只在草稿里出现）：桌面是输入框工具行里的芯片（chip），手机是顶栏标题下的一行（header）。
+  renderProjectControl: (variant: NewTaskProjectVariant) => ReactNode
+  // + 菜单里的草稿专属项（“排在…之后”）。
+  plusMenuItems?: ReactNode
+  // 输入框上方的一行说明（例如选了“排在…之后”），可为空。
+  notice?: ReactNode
+  // 第一条消息发出前：建会话并写入草稿的选择；queued 表示首条消息已登记进启动队列，不再由本页发送。
+  prepare: (prompt: string) => Promise<{ session: SessionSummary; queued: boolean }>
+  // 第一条消息已交出：一次性的选择（本次完全访问、排在…之后）回到默认。
+  onSent: () => void
 }
 
 export type SessionComponentTab = { id: string; label: string }
@@ -59,6 +92,8 @@ export const SessionInspectorContext = createContext<SessionInspectorControl | n
 // 所以只挂在最新一条回复上；历史回复没有逐条记录，不拿当前值冒充。没有值（手机外壳、旧入口）时保持原来的抬头。
 export type TranscriptMeta = {
   model: string
+  // 还在排队、没送达代理的输入 id：对应的用户气泡标“排队中”（手机没有排队列表，靠它看出没发出去）。
+  pendingInputIds?: ReadonlySet<string>
 }
 
 export const TranscriptMetaContext = createContext<TranscriptMeta | null>(null)

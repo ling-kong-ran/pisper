@@ -101,11 +101,10 @@ export function releaseConsumedSessionInput(message) {
   if (metadata) delete metadata.original
 }
 
-export function withdrawQueuedSessionInput(session, inputId) {
+// 在 Pi 的两条队列里找到一条待发送输入及其展示记账位置（展示队列按文本匹配消费，见 withdraw）。
+function locateQueuedSessionInput(session, inputId, unsupported) {
   const queues = engineQueues(session)
-  if (!queues || typeof session._emitQueueUpdate !== 'function') {
-    throw new Error('当前引擎版本不支持逐条撤回待发送消息。')
-  }
+  if (!queues || typeof session._emitQueueUpdate !== 'function') throw new Error(unsupported)
   for (const { behavior, queue, display } of queues) {
     const index = queue.messages.findIndex((message) => inputMetadata.get(message)?.id === inputId)
     if (index < 0) continue
@@ -114,7 +113,7 @@ export function withdrawQueuedSessionInput(session, inputId) {
     const currentDisplay =
       behavior === 'steer' ? session.getSteeringMessages() : session.getFollowUpMessages()
     if (!Array.isArray(display) || display !== currentDisplay)
-      throw new Error('待发送消息队列状态不兼容，未执行撤回。')
+      throw new Error('待发送消息队列状态不兼容，未执行操作。')
     // 展示队列可能还包含已出队的同文输入；从尾部按剩余同文条数定位，保留其消费记账。
     let laterMatches = queue.messages
       .slice(index + 1)
@@ -124,12 +123,35 @@ export function withdrawQueuedSessionInput(session, inputId) {
       if (display[displayIndex] === text && laterMatches-- === 0) break
       displayIndex -= 1
     }
-    if (displayIndex < 0) throw new Error('待发送消息队列状态不一致，未执行撤回。')
-    const metadata = inputMetadata.get(message)
-    queue.messages.splice(index, 1)
-    display.splice(displayIndex, 1)
-    session._emitQueueUpdate()
-    return metadata.original || { text, attachments: [] }
+    if (displayIndex < 0) throw new Error('待发送消息队列状态不一致，未执行操作。')
+    return { queues, behavior, queue, display, index, displayIndex, message, text }
   }
   return null
+}
+
+export function withdrawQueuedSessionInput(session, inputId) {
+  const found = locateQueuedSessionInput(session, inputId, '当前引擎版本不支持逐条撤回待发送消息。')
+  if (!found) return null
+  const { queue, display, index, displayIndex, message, text } = found
+  const metadata = inputMetadata.get(message)
+  queue.messages.splice(index, 1)
+  display.splice(displayIndex, 1)
+  session._emitQueueUpdate()
+  return metadata.original || { text, attachments: [] }
+}
+
+// 立即发送（排队列表里的一条）：挪到 steering 队列最前面，下一步第一个送达；调用方随后打断当前这一步。
+// Pi 的 steering 默认一次只送一条（one-at-a-time），所以必须排到队首，不能只改行为标记。
+export function promoteQueuedSessionInput(session, inputId) {
+  const found = locateQueuedSessionInput(session, inputId, '当前引擎版本不支持立即发送待发送消息。')
+  if (!found) return false
+  const { queues, behavior, queue, display, index, displayIndex, message, text } = found
+  if (behavior === 'steer' && index === 0) return true
+  const steering = queues.find((item) => item.behavior === 'steer')
+  queue.messages.splice(index, 1)
+  display.splice(displayIndex, 1)
+  steering.queue.messages.unshift(message)
+  steering.display.unshift(text)
+  session._emitQueueUpdate()
+  return true
 }

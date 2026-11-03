@@ -4,13 +4,8 @@ export { useBoardSessions, type BoardSessionsResult } from './useBoardSessions'
 export { useSidebarModel, type SidebarModelResult } from './useSidebarModel'
 export { useFleetSystemInfo, type FleetSystemInfo } from './useFleetSystemInfo'
 export { useSessionListQuery } from './useSessionListQuery'
-export {
-  BOARD_NEW_TASK_EVENT,
-  requestBoardNewTask,
-  useBoardNewTaskHandler,
-  type BoardNewTaskRequest,
-  type BoardNewTaskSource,
-} from './new-task'
+// 新任务草稿（'/board/new'）的看板一侧：项目芯片、派发偏好、“排在…之后”与第一条消息前的建会话。
+export { useNewTaskDraftChrome } from './new-task-draft'
 export { BOARD_SESSIONS_QUERY_KEY } from './board-store'
 export {
   parseComponentChange,

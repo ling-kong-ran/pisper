@@ -248,25 +248,20 @@ test('shell shortcuts have defaults and older saved maps gain them without losin
   )
 })
 
-test('new task requests report whether a view claimed them', async () => {
-  const previous = globalThis.window
-  globalThis.window = new EventTarget()
-  try {
-    const { BOARD_NEW_TASK_EVENT, requestBoardNewTask } =
-      await import('../../src/features/board/new-task.ts')
-    assert.equal(requestBoardNewTask('shortcut'), false)
-    const sources = []
-    const claim = (event) => {
-      sources.push(event.detail.source)
-      event.preventDefault()
-    }
-    window.addEventListener(BOARD_NEW_TASK_EVENT, claim)
-    assert.equal(requestBoardNewTask('sidebar'), true)
-    window.removeEventListener(BOARD_NEW_TASK_EVENT, claim)
-    assert.deepEqual(sources, ['sidebar'])
-  } finally {
-    globalThis.window = previous
-  }
+test('every new-task entry opens the new-task draft page instead of a dispatch overlay', async () => {
+  // 新任务统一进入新任务草稿 '/board/new'（会话页的样子，第一条消息发出时才建会话）：
+  // 派发浮层、主页草稿与“视图认领新任务”的事件都已退役；焦点请求先记下，草稿挂载（或已经挂着）时接住。
+  const [app, newTask] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/board/new-task.ts', 'utf8'),
+  ])
+  assert.doesNotMatch(newTask, /BOARD_NEW_TASK_EVENT|requestBoardNewTask|useBoardNewTaskHandler/)
+  assert.doesNotMatch(app, /DispatchOverlay|dispatchOpen|requestBoardNewTask/)
+  assert.match(
+    app,
+    /const startNewTask = useCallback\(\(\) => \{\s*setQuery\(''\)\s*requestNewTaskFocus\(\)\s*if \(sessionIdFromPath\(location\.pathname\) !== NEW_SESSION_ROUTE_ID\) routerNavigate\(sessionPath\(\)\)/,
+  )
+  await assert.rejects(readFile('src/features/board/DispatchOverlay.tsx', 'utf8'))
 })
 
 test('fleet system info shows only values the runtime actually reported', () => {
@@ -368,7 +363,7 @@ test('the sidebar is the only primary navigation and windows keep the control co
     readFile('src/components/layout/DesktopWindowControls.tsx', 'utf8'),
     readFile('src/components/layout/PageHeader.tsx', 'utf8'),
     readFile('src/features/chat/SessionPageHeader.tsx', 'utf8'),
-    readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
+    readFile('src/features/chat/NewTaskDraftView.tsx', 'utf8'),
   ])
   const [overview, featurePage] = await Promise.all([
     readFile('src/features/board/BoardPage.tsx', 'utf8'),

@@ -41,6 +41,7 @@ import {
   activeSessionIdForRoute,
   HOME_PATH,
   isHomeEntry,
+  NEW_SESSION_ROUTE_ID,
   PAGE_IDS,
   PAGE_PATHS,
   pageFromPath,
@@ -80,14 +81,11 @@ import {
   ACTIVE_SESSION_CHANGED_EVENT,
   COMMAND_PALETTE_REQUESTED_EVENT,
   peekSessionNavigationIntent,
+  requestNewTaskFocus,
   requestSessionCommand,
   requestSessionSelection,
 } from '@/features/chat/events'
-import {
-  BOARD_FILTER_ID,
-  requestBoardNewTask,
-  type BoardNewTaskSource,
-} from '@/features/board/new-task'
+import { BOARD_FILTER_ID } from '@/features/board/new-task'
 import { requestSidebarCommand } from '@/features/board/sidebar-commands'
 import { apiJson } from '@/lib/api'
 import {
@@ -203,14 +201,6 @@ const SidebarUpdateStatus = lazy(() => import('@/components/layout/SidebarUpdate
 const SettingsSidebar = lazy(() =>
   import('@/app/SettingsSidebar').then((module) => ({ default: module.SettingsSidebar })),
 )
-// 派发浮层的文案在看板命名空间里，随浮层一起按需注册。
-const DispatchOverlay = lazy(async () => {
-  const [{ DispatchOverlay }] = await Promise.all([
-    import('@/features/board/DispatchOverlay'),
-    ensureBoardMessages(),
-  ])
-  return { default: DispatchOverlay }
-})
 // ⌘/ 快捷键速查：文案同样在看板命名空间里，随对话框按需注册。
 const ShortcutHelpDialog = lazy(async () => {
   const [{ ShortcutHelpDialog }] = await Promise.all([
@@ -333,7 +323,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     useSidebarStore.getState().setDrawerOpen(false)
   }, [location.pathname, phoneShell])
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [dispatchOpen, setDispatchOpen] = useState(false)
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   const theme = useUiStore((state) => state.theme)
   const cycleTheme = useUiStore((state) => state.cycleTheme)
@@ -617,47 +606,13 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     [routerNavigate, sessionRouteMounted],
   )
 
-  // 新任务：自带新任务输入框的页面先认领——看板聚焦启动台；主页的新任务草稿认领 ⌘N 与侧栏“新任务”，
-  // 聚焦草稿输入框（会话页的页面 id 也是 session，但那里没有认领者）。没有视图认领时打开派发浮层。
-  // 路由已请求去别处、界面还没换过去时，离开中的看板不该认领，要显示的草稿也还没挂上：
-  // 先记下请求，等目标页提交后（下方 effect）再问它，只执行一次。
-  const pendingNewTask = useRef<BoardNewTaskSource | null>(null)
-  const startNewTask = useCallback(
-    (source: BoardNewTaskSource) => {
-      if (requestedPathname(readRouter()) !== location.pathname) {
-        pendingNewTask.current = source
-        return
-      }
-      if ((page === 'board' || page === 'session') && requestBoardNewTask(source)) return
-      setDispatchOpen(true)
-    },
-    [location.pathname, page, readRouter],
-  )
-  useEffect(() => {
-    const source = pendingNewTask.current
-    if (!source || requestedPathname(readRouter()) !== location.pathname) return
-    pendingNewTask.current = null
-    startNewTask(source)
-  }, [location, readRouter, startNewTask])
-
-  // 派发浮层受理后：⌘↵ 打开该会话；↵ 留在当前页，只提示已派发（新卡片出现在看板与舰队计量里）。
-  const taskDispatched = useCallback(
-    (sessionId: string, { open }: { open: boolean }) => {
-      setDispatchOpen(false)
-      if (open) openSession(sessionId)
-      else notify(t('board:launch.dispatched'))
-    },
-    [notify, openSession, t],
-  )
-
-  // 浮层在发送途中被关闭、随后派发失败：草稿已放回，用全局提示报错并给出重新打开的入口。
-  const dispatchFailedAfterClose = useCallback(
-    (message: string) =>
-      notify(message, 'error', {
-        action: { label: t('board:dispatch.reopen'), onAction: () => setDispatchOpen(true) },
-      }),
-    [notify, t],
-  )
+  // 新任务：一律进入新任务草稿 '/board/new'（会话页的样子，第一条消息发出时才建会话），不再有派发浮层。
+  // 草稿输入框接住焦点：已经停在草稿上时立即聚焦，从别处过去时草稿挂载后聚焦。
+  const startNewTask = useCallback(() => {
+    setQuery('')
+    requestNewTaskFocus()
+    if (sessionIdFromPath(location.pathname) !== NEW_SESSION_ROUTE_ID) routerNavigate(sessionPath())
+  }, [location.pathname, routerNavigate])
 
   useEffect(() => {
     if (capabilitiesLoaded && !runtimePageAvailable(capabilities, page)) {
@@ -958,7 +913,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     setNotificationSettings: updateNotificationSettings,
     appUpdate,
     registerWorkflowActions,
-    startNewTask: () => startNewTask('board'),
+    startNewTask,
     onBackToFeatures: moreOwned ? backToMore : undefined,
   }
   // 手机原生返回的路由层级（shellBackPath）：会话主页是根（主页与从主页落地的会话交还平台），
@@ -1071,11 +1026,9 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
           )}
           <BackNavigation onRouteBack={mobileLayout ? routeBack : undefined} />
           <AppShortcuts
-            blocked={Boolean(
-              appDialog.dialog || modelOnboardingOpen || paletteOpen || dispatchOpen,
-            )}
+            blocked={Boolean(appDialog.dialog || modelOnboardingOpen || paletteOpen)}
             onCommandPalette={() => setPaletteOpen(true)}
-            onPrimary={() => startNewTask('shortcut')}
+            onPrimary={() => startNewTask()}
             onSearch={focusPageSearch}
             onToggleTerminal={
               window.pisperDesktop?.terminalProfiles &&
@@ -1111,7 +1064,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
             {!phoneShell && (
               <ShellSidebar
                 active={sidebarActive}
-                onNewTask={() => startNewTask('sidebar')}
+                onNewTask={() => startNewTask()}
                 onSearch={() => setPaletteOpen(true)}
                 onOpenBoard={() => selectShellTab('board')}
                 onOpenFeatures={() => selectShellTab('more')}
@@ -1124,7 +1077,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                         notify={notify}
                         requestConfirm={appDialog.confirm}
                         requestText={appDialog.prompt}
-                        onNewTask={() => startNewTask('sidebar')}
+                        onNewTask={() => startNewTask()}
                         onOpenHistory={() => navigate('chatHistory')}
                       />
                     ) : (
@@ -1213,7 +1166,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 <Suspense fallback={<div className="h-14 flex-none bg-panel" aria-hidden="true" />}>
                   <PhoneTopBar
                     title={phoneSettingsList ? t('navigation:navigation.settings') : activeMeta[0]}
-                    onNewTask={() => startNewTask('topbar')}
+                    onNewTask={() => startNewTask()}
                     onSearch={page === 'board' ? () => setPaletteOpen(true) : undefined}
                   />
                 </Suspense>
@@ -1278,7 +1231,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
               <PhoneDrawer
                 active={sidebarActive}
                 onSearch={() => setPaletteOpen(true)}
-                onNewTask={() => startNewTask('sidebar')}
+                onNewTask={() => startNewTask()}
                 onOpenBoard={() => selectShellTab('board')}
                 onOpenFeatures={() => selectShellTab('more')}
                 onOpenSettings={() => selectShellTab('settings')}
@@ -1384,7 +1337,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                     throw error
                   }
                 }}
-                onNewChat={() => startNewTask('palette')}
+                onNewChat={() => startNewTask()}
                 onToggleTheme={cycleTheme}
               />
             )}
@@ -1393,18 +1346,6 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 open
                 onOpenChange={setShortcutHelpOpen}
                 onCustomize={() => routerNavigate('/config/shortcuts')}
-              />
-            )}
-          </Suspense>
-          <Suspense fallback={null}>
-            {dispatchOpen && (
-              <DispatchOverlay
-                open
-                phone={phoneShell}
-                onOpenChange={setDispatchOpen}
-                onDispatched={taskDispatched}
-                onDetachedFailure={dispatchFailedAfterClose}
-                onConfigureModels={() => routerNavigate('/config/models')}
               />
             )}
           </Suspense>

@@ -346,6 +346,42 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     [syncSessionsMirror, titleReconciler, updateSessions],
   )
 
+  // 接收一个刚建好的会话（自建或新任务草稿经看板建好的）：选为活动会话、并进列表，
+  // 并以“已加载、没有消息”初始化会话状态——第一条消息随后由本页发出，流归本页持有。
+  const adoptCreatedSession = useCallback(
+    (created: SessionSummary) => {
+      setActiveId(created.id)
+      updateSessions((current) => mergeSessionLists(current, [created]))
+      updateSessionState(created.id, {
+        messages: [],
+        tools: [],
+        approvals: [],
+        queuedInputs: [],
+        permissionMode: created.permissionMode || 'ask',
+        executionMode: created.executionMode || 'approval-required',
+        runMode: created.runMode || 'plan',
+        goal: created.goal || null,
+        plan: planFromPayloadOr(created, null),
+        contextUsage: created.contextUsage || null,
+        sessionUsage: created.sessionUsage || null,
+        compaction: null,
+        streaming: false,
+        error: '',
+        loaded: true,
+        pageSize: FOCUS_MESSAGE_PAGE_SIZE,
+        messageStart: 0,
+        hasOlder: false,
+        olderCursor: null,
+        runStartedAt: null,
+        lastActivityAt: null,
+        runFinishedAt: null,
+        runStopped: false,
+        runNotice: '',
+      })
+    },
+    [updateSessionState, updateSessions],
+  )
+
   // 创建会话记录：按调用方决定是否继承最近会话的工作目录；
   // 用 ref 去重并发创建，成功后初始化会话状态并合并进列表。
   const createSessionRecord = useCallback(
@@ -358,34 +394,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
             t('chat:chatPage.newChat'),
             sessionCwdForCreate(cwd, sessionsRef.current, inheritRecentCwd),
           )
-          setActiveId(created.id)
-          updateSessions((current) => mergeSessionLists(current, [created]))
-          updateSessionState(created.id, {
-            messages: [],
-            tools: [],
-            approvals: [],
-            queuedInputs: [],
-            permissionMode: created.permissionMode || 'ask',
-            executionMode: created.executionMode || 'approval-required',
-            runMode: created.runMode || 'plan',
-            goal: created.goal || null,
-            plan: planFromPayloadOr(created, null),
-            contextUsage: created.contextUsage || null,
-            sessionUsage: created.sessionUsage || null,
-            compaction: null,
-            streaming: false,
-            error: '',
-            loaded: true,
-            pageSize: FOCUS_MESSAGE_PAGE_SIZE,
-            messageStart: 0,
-            hasOlder: false,
-            olderCursor: null,
-            runStartedAt: null,
-            lastActivityAt: null,
-            runFinishedAt: null,
-            runStopped: false,
-            runNotice: '',
-          })
+          adoptCreatedSession(created)
           try {
             await refreshSessions(created.id)
           } catch (error) {
@@ -408,7 +417,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       })
       return request
     },
-    [notify, refreshSessions, t, updateSessionState, updateSessions],
+    [adoptCreatedSession, notify, refreshSessions, t],
   )
 
   useEffect(() => {
@@ -434,10 +443,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
           titleRevision = titleReconciler.getRevision()
           list = (await chatApi.listSessions()).sessions
         }
-        if (!list.length) {
-          const created = await chatApi.createSession(t('chat:chatPage.newChat'))
-          list = [created]
-        }
+        // 目录为空时不再自建会话：新任务草稿也挂在聊天页里，会话只在发出第一条消息时创建。
         if (!active) return
         list = titleReconciler.reconcile(list, titleRevision)
         updateSessions((current) => mergeSessionLists(current, list))
@@ -536,6 +542,7 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
     subscribeSessionState,
     getSessionState,
     refreshSessions,
+    adoptCreatedSession,
     createSessionRecord,
   }
 }

@@ -25,6 +25,7 @@ import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { EntityRecord } from '@/types/chat'
 import { type ComposerExecutionMode } from './composer-run-mode'
+import { COMPOSER_CHIP_CLASSES } from './focus-session-composer-bits'
 
 const MIN_GOAL_TOKEN_BUDGET = 1_000
 type Option<T extends string> = {
@@ -107,9 +108,17 @@ export function ComposerModeChip({
   onTokenBudgetChange,
   onSaveTokenBudget,
   sheet = false,
+  collapse = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   // 手机会话页：弹层换成底部表单（规格 7.2）。
   sheet?: boolean
+  // 手机工具行只留 [+] [模型] … [麦克风] [发送]：默认的“Plan · 审批后写入 / 自动”不占位置，
+  // 由 + 菜单打开同一个表单；完全访问或 Goal / Team 时芯片照常露出，免得看不见当前的风险与方式。
+  collapse?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   approvalMode: string
   onApprovalModeChange: (mode: string) => void
   approvalDisabled?: boolean
@@ -125,7 +134,12 @@ export function ComposerModeChip({
 }) {
   const { t } = useI18n()
   const [savingBudget, setSavingBudget] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = controlledOpen ?? ownOpen
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const approvalOptions: Option<string>[] = [
     {
       value: 'approval-required',
@@ -240,9 +254,14 @@ export function ComposerModeChip({
       trigger={
         <button
           type="button"
-          className="composer-mode-chip inline-flex h-7 max-w-[220px] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:max-w-[160px] max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-content pointer-coarse:h-11"
+          className={cn(
+            COMPOSER_CHIP_CLASSES,
+            // 手机上它只在完全访问或 Goal / Team 时露出：内边距收紧一点，360 宽也能写全“完全访问”。
+            'composer-mode-chip max-w-[220px] max-[650px]:max-w-[160px] max-[650px]:gap-1 max-[650px]:px-3',
+          )}
           aria-label={label}
           title={label}
+          hidden={collapse && !engaged && approval.value !== 'full-access'}
           data-composer-mode={`${run.value}:${approval.value}`}
         >
           <ChipIcon size={14} className="shrink-0" aria-hidden="true" />

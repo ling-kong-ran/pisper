@@ -689,6 +689,13 @@ const routes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/input/:inputId/send-now',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.sendQueuedSessionMessageNow(params.sessionId, params.inputId))
+    },
+  },
+  {
     method: 'DELETE',
     path: '/api/sessions/:sessionId/input/:inputId',
     async handler({ runtime, params, json }) {

@@ -1,5 +1,6 @@
 // 聚焦会话视图的组件 props 类型：从 FocusSession.tsx 拆出以控制单文件体积。
 // FocusSession.tsx 通过 re-export 保持对外导出签名不变。
+import type { ReactNode } from 'react'
 import type { Notify } from '@/app/route-context'
 import type {
   ChatAttachment,
@@ -12,9 +13,14 @@ import type {
 } from '@/types/chat'
 import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
 import type { BranchFromHereOptions, WithdrawnInput } from '@/features/chat/chat-api'
+import type { NewTaskDraftChrome } from '@/features/chat/session-workspace-context'
 
 export type FocusSessionProps = {
   session: SessionSummary
+  // 新任务草稿（还没有会话）：页头写“新任务”，转录区是问候语，输入框多出项目芯片与 + 菜单里的排队选项。
+  draft?: NewTaskDraftChrome
+  // 没有消息时转录区的说明（例如排队中的新任务）；不给时用默认的空状态。
+  emptyState?: ReactNode
   shortcutEnabled?: boolean
   messages: ChatMessage[]
   transcriptLoadState?: TranscriptLoadState
@@ -105,5 +111,6 @@ export type FocusSessionProps = {
     onAccepted?: () => void,
   ) => Promise<boolean> | boolean
   onWithdrawQueuedInput?: (inputId: string) => Promise<WithdrawnInput | null>
+  onSendQueuedInputNow?: (inputId: string) => Promise<boolean>
   onAbort: () => Promise<void> | void
 }

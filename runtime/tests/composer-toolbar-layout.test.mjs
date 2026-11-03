@@ -61,7 +61,7 @@ test('the tray shows only “running 3:12 · stop Esc” and never repeats the r
   assert.equal(render(ComposerTray, { streaming: false, queuedInputs: [] }), '')
 })
 
-test('queued messages are one row each with edit and cancel revealed on hover, 44px on touch', () => {
+test('queued messages are one row each with send now, edit and cancel revealed on hover, 44px on touch', () => {
   const html = render(ComposerTray, {
     streaming: true,
     onStop() {},
@@ -72,11 +72,17 @@ test('queued messages are one row each with edit and cancel revealed on hover, 4
     withdrawingInputIds: ['q2'],
     onEdit() {},
     onCancel() {},
+    onSendNow() {},
   })
   assert.match(html, /data-pisper-queue-size="2"/)
   assert.equal((html.match(/<li\b/g) || []).length, 2)
-  assert.match(html, /data-queued-behavior="followUp"[^>]*>排队</)
-  assert.match(html, /data-queued-behavior="steer"[^>]*>插话</)
+  // ↵ 排队（steer）等当前这一步走完；只有别的客户端还会发“本轮后”（followUp）。
+  assert.match(html, /data-queued-behavior="followUp"[^>]*>本轮后</)
+  assert.match(html, /data-queued-behavior="steer"[^>]*>排队</)
+  // 每条都能“立即发送”（打断当前这一步，这条马上送达），排在编辑前面。
+  assert.equal((html.match(/data-queued-send-now/g) || []).length, 2)
+  assert.match(html, /aria-label="立即发送这条排队消息"/)
+  assert.ok(html.indexOf('data-queued-send-now') < html.indexOf('data-queued-edit'))
   assert.equal((html.match(/data-queued-edit/g) || []).length, 2)
   assert.equal((html.match(/data-queued-cancel/g) || []).length, 2)
   // 桌面悬停 / 聚焦才出现，手机与触屏常驻 44×44。
@@ -85,13 +91,42 @@ test('queued messages are one row each with edit and cancel revealed on hover, 4
     /opacity-0[^"]*group-hover\/queued:opacity-100[^"]*group-focus-within\/queued:opacity-100/,
   )
   assert.match(html, /max-\[650px\]:size-11 max-\[650px\]:opacity-100/)
-  // 正在撤回的那条两个键都禁用，并标记忙。
+  // 正在撤回 / 立即发送的那条三个键都禁用，并标记忙。
   assert.match(html, /<li[^>]*aria-busy="true"/)
-  assert.equal((html.match(/ disabled=""/g) || []).length, 2)
+  assert.equal((html.match(/ disabled=""/g) || []).length, 3)
+  // 手机不画排队列表（排队消息是对话里标着“排队中”的气泡）。
+  const phone = render(ComposerTray, {
+    streaming: true,
+    runRow: false,
+    queueList: false,
+    queuedInputs: [{ id: 'q1', text: '先跑单测', behavior: 'steer' }],
+  })
+  assert.equal(phone, '')
 })
 
-test('the send key is a graphite circle that never doubles as stop', () => {
+test('the send key is a graphite circle; only the phone turns it into stop while running with an empty draft', () => {
   const html = render(ComposerSendButton, { queueing: false, disabled: false })
   assert.match(html, /send-button[^"]*rounded-full[^"]*bg-star/)
   assert.doesNotMatch(html, /data-run-stop|lucide-square/)
+  // 桌面不传 onStop：运行中也只是发送（排队），停止在托盘上。
+  const desktop = render(ComposerSendButton, { streaming: true, queueing: false, disabled: false })
+  assert.match(desktop, /data-send-mode="send"/)
+  const phone = render(ComposerSendButton, {
+    streaming: true,
+    queueing: false,
+    disabled: false,
+    onStop() {},
+  })
+  assert.match(phone, /data-send-mode="stop"/)
+  assert.match(phone, /type="button"/)
+  assert.match(phone, /lucide-square/)
+  const phoneDraft = render(ComposerSendButton, {
+    streaming: true,
+    hasDraft: true,
+    canQueue: true,
+    queueing: false,
+    disabled: false,
+    onStop() {},
+  })
+  assert.match(phoneDraft, /data-send-mode="send"/)
 })

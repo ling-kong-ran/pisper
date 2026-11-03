@@ -49,12 +49,15 @@ type Resource = {
 export function ChatResourcePicker({
   open,
   sessionId,
+  cwd = '',
   onClose,
   onSelect,
   onCommandSelect,
 }: {
   open: boolean
+  // 新任务草稿还没有会话（空串）：命令按 cwd（所选项目目录）列出。
   sessionId: string
+  cwd?: string
   onClose: () => void
   onSelect: (invocation: ResourceInvocation) => void
   onCommandSelect: (invocation: string) => void
@@ -80,7 +83,7 @@ export function ChatResourcePicker({
     setLoading(true)
     setError('')
     Promise.all([
-      chatApi.getSessionCommands(sessionId),
+      sessionId ? chatApi.getSessionCommands(sessionId) : chatApi.getWorkspaceCommands(cwd),
       workflowsAvailable
         ? apiJson<{ workflows?: WorkflowResource[] }>('/api/workflows')
         : Promise.resolve({ workflows: [] as WorkflowResource[] }),
@@ -135,7 +138,7 @@ export function ChatResourcePicker({
     return () => {
       active = false
     }
-  }, [open, sessionId, t, workflowsAvailable])
+  }, [cwd, open, sessionId, t, workflowsAvailable])
 
   const categoryCounts = useMemo(
     () => ({

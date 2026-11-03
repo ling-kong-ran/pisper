@@ -951,6 +951,15 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         {message.role === 'user' && displayText && (
           // 宽屏把复制键挂在气泡左下角外侧，不再在气泡下方留一整行空白；窄屏与触屏保持常显的 44px 行。
           <div className="message-actions mt-1 -mr-1.5 flex flex-wrap justify-end min-h-5 gap-0 text-muted-foreground opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 max-[650px]:opacity-100 min-[651px]:absolute min-[651px]:right-full min-[651px]:bottom-0 min-[651px]:mr-1 min-[651px]:mt-0 [[data-chat-message-style='plain']_&]:static [[data-chat-message-style='plain']_&]:mr-0 [[data-chat-message-style='plain']_&]:justify-start [&_button]:size-7 [&_button]:min-h-7 max-[650px]:[&_button]:size-11 max-[650px]:[&_button]:min-h-11 pointer-coarse:[&_button]:size-11 pointer-coarse:[&_button]:min-h-11 [&_button]:rounded-md">
+            {typeof message.queuedInputId === 'string' &&
+              meta?.pendingInputIds?.has(message.queuedInputId) && (
+                <span
+                  className="mr-auto self-center px-1.5 text-xs text-content-muted min-[651px]:hidden"
+                  data-message-queued
+                >
+                  {t('chat:chatMessage.queued')}
+                </span>
+              )}
             <MessageCopyButton text={displayText} copyLabel={t('chat:chatMessage.copyMessage')} />
           </div>
         )}

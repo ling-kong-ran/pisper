@@ -42,8 +42,9 @@ type SessionPhoneHeaderProps = SessionMenuActions & {
 // 运行状态：只有一种成立时才显示；琥珀只表示需要你（等待批准、失败待处理）。
 type PhoneRunStatus = { kind: 'approval' | 'running' | 'failed' | 'stopped'; label: string }
 
+// 顶栏图标键：44 的浅灰圆底（手机参考稿的做法），和输入框里的 + 键同一种无边框填充样式。
 const ICON_BUTTON =
-  'relative grid size-11 flex-none place-items-center rounded-[var(--r-md)] text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover'
+  'relative grid size-11 flex-none place-items-center rounded-full bg-surface-muted text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:bg-surface-hover dark:bg-surface-active'
 
 export function SessionPhoneHeader({
   leading,
@@ -140,7 +141,7 @@ export function SessionPhoneHeader({
   return (
     <header
       data-session-header="phone"
-      className="grid h-14 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center bg-panel px-1"
+      className="grid h-14 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center bg-panel px-3"
     >
       <div className="flex min-w-0 items-center">{leading}</div>
       <button

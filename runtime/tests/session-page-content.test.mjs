@@ -110,15 +110,17 @@ test('code block file names come from the fence info and are clipped display tex
   assert.equal(codeBlockFileName('language-ts', 'title="a\u0007b.ts"'), 'ab.ts')
 })
 
-test('session composer wiring: ↵ follows up, ⌥↵ steers, Esc stops without navigating', async () => {
+test('session composer wiring: ↵ queues for the next step, ⌥↵ sends now, Esc stops without navigating', async () => {
   const [focus, composer] = await Promise.all([
     read('src/features/chat/FocusSession.tsx'),
     read('src/features/chat/use-focus-composer.ts'),
   ])
-  // 运行中提交走 /input，方式由输入框决定；会话页默认排队，只有 ⌥↵ 记成插话。
+  // 运行中提交走 /input，方式由输入框决定（参考 Claude）：会话页默认排队（steer，当前这一步走完就送达），
+  // ⌥↵ / 长按 / “立即发送”记成 interrupt（打断当前这一步）；旧 Runtime 没有这项能力时退回排队。
   assert.match(composer, /onQueue\?\.\(value, selection\.attachments, runningBehavior, accept\)/)
-  assert.match(focus, /useRef<'followUp' \| 'steer'>\('followUp'\)/)
-  assert.match(focus, /runningBehaviorRef\.current = 'steer'/)
+  assert.match(focus, /useRef<'steer' \| 'interrupt'>\('steer'\)/)
+  assert.match(focus, /const sendNowBehavior = interruptAvailable \? 'interrupt' : 'steer'/)
+  assert.match(focus, /runningBehaviorRef\.current = sendNowBehavior/)
   assert.match(focus, /void submit\(event, pageChrome \? behavior : 'steer'\)/)
   // Esc：捕获阶段记下浮层，冒泡阶段才停止；处理函数里没有任何路由跳转。
   const escape = focus.slice(
@@ -129,8 +131,8 @@ test('session composer wiring: ↵ follows up, ⌥↵ steers, Esc stops without 
   assert.match(escape, /escapeLayerOpen\(\)/)
   assert.match(escape, /void stopRef\.current\(\)/)
   assert.doesNotMatch(escape, /navigate|history\.|backToBoard/)
-  // 发送键仍只负责发送，托盘是唯一停止入口。
-  assert.doesNotMatch(focus, /<ComposerSendButton[^>]*onStop/)
+  // 桌面发送键只负责发送，停止在托盘上；手机（参考稿）运行中输入框为空时发送键就是停止键。
+  assert.match(focus, /onStop=\{phonePage \? \(\) => void stop\(\) : undefined\}/)
   assert.match(focus, /<ComposerTray[\s\S]*?onStop=\{\(\) => void stop\(\)\}/)
   // 运行中的排队 / 插话按法写在占位文字里（工具条提示退役）。
   assert.match(focus, /t\('board:composer\.placeholderRunning', \{/)

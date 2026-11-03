@@ -8,20 +8,103 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/app/use-i18n'
 import { DEFAULT_SESSION_STATE, isPlanActive, resolveSessionPlan } from '@/lib/session-state'
-import type { ChatAttachment, ResourceInvocation } from '@/types/chat'
+import type { ChatAttachment, ResourceInvocation, SessionSummary } from '@/types/chat'
 import { TaskWorkspace } from './TaskWorkspace'
 import { SessionWorkspace } from './SessionWorkspace'
-import { SessionPageChromeContext } from './session-workspace-context'
+import { SessionPageChromeContext, type NewTaskDraftChrome } from './session-workspace-context'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import { FocusSession } from './FocusSession'
 import { resolveSessionStreaming } from './session-streaming-state'
 import { ChatDockContext } from './chat-dock-context'
-import type { BranchFromHereOptions } from './chat-api'
+import { chatApi, type BranchFromHereOptions } from './chat-api'
+import { chatErrorMessage } from './chat-errors'
+import { InlineEmptyState } from '@/components/app/PageState'
 
 const FOCUS_MESSAGE_PAGE_SIZE = 40
 // 空数组兜底共享同一引用，避免每次渲染新建数组击穿 FocusSession 的 memo。
 const EMPTY_LIST: never[] = []
+
+const noop = () => undefined
+
+// 会话摘要里的排队信息（Runtime 只做加法的字段 queue.startAfter），按不可信数据读；没有排队时为 null。
+function queuedStartAfter(session: SessionSummary | undefined) {
+  const raw = session?.queue
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const startAfter = (raw as Record<string, unknown>).startAfter
+  return typeof startAfter === 'string' ? startAfter : ''
+}
+
+// 新任务草稿（'/board/new'）：和会话页同一个 FocusSession，只是还没有会话——转录区是问候语，
+// 输入框多出项目芯片与“排在…之后”，模型、思考档位、审批与运行模式读写草稿的派发选择。
+// 第一条消息交给聊天页的 sendNewTask：建会话、地址换成会话 id，再由本页发送并持有运行流。
+export function NewTaskDraftPanel({ draft }: { draft: NewTaskDraftChrome }) {
+  const context = useContext(ChatDockContext)
+  const { t } = useI18n()
+  const title = t('board:home.draftTitle')
+  const session = useMemo(
+    () => ({ id: '', name: title, cwd: draft.cwd, runMode: draft.runMode }),
+    [draft.cwd, draft.runMode, title],
+  )
+  if (!context) return null
+  // “使用资源”在没有活动会话时留下的附件交给草稿输入框。
+  const pending =
+    context.pendingAsset?.asset && !context.pendingAsset.targetSessionId
+      ? context.pendingAsset.asset
+      : null
+  return (
+    <div
+      className="session-dock-panel h-full w-full min-w-0 min-h-0 overflow-hidden [container-type:inline-size] bg-panel"
+      data-new-task-draft
+    >
+      <FocusSession
+        session={session}
+        shortcutEnabled
+        draft={draft}
+        messages={EMPTY_LIST}
+        transcriptLoadState="ready"
+        model={draft.model || context.defaultModel}
+        thinkingLevel={draft.thinkingLevel}
+        availableThinkingLevels={draft.availableThinkingLevels}
+        executionMode={draft.executionMode}
+        runMode={draft.runMode}
+        activityFeed={EMPTY_LIST}
+        tools={EMPTY_LIST}
+        queuedInputs={EMPTY_LIST}
+        approvals={EMPTY_LIST}
+        cwd={draft.cwd}
+        availableModels={context.availableModels}
+        pendingAsset={pending}
+        onAssetConsumed={context.onAssetConsumed}
+        notify={context.notify}
+        onOpenModelSettings={context.openModelSettings}
+        onModelChange={draft.onModelChange}
+        onThinkingLevelChange={draft.onThinkingLevelChange}
+        onExecutionModeChange={draft.onExecutionModeChange}
+        onRunModeChange={draft.onRunModeChange}
+        onApproval={noop}
+        onWorkspace={noop}
+        onRename={noop}
+        onBranchFromHere={noop}
+        onCreateChildSession={noop}
+        onRetryLastTurn={noop}
+        onAbort={noop}
+        onSend={(value, attachments, goalMode, teamMode, goalTokenBudget, invocation, onAccepted) =>
+          context.sendNewTask(
+            draft,
+            value,
+            attachments,
+            goalMode,
+            teamMode,
+            goalTokenBudget,
+            invocation,
+            { onAccepted },
+          )
+        }
+      />
+    </div>
+  )
+}
 
 // 简约工作台只挂载一个会话；切换、历史和并行后台运行仍由会话目录负责。
 // 不挂载 Dockview，因此旧的分屏持久化数据不会再次打开无法关闭的窗口。
@@ -57,6 +140,7 @@ type SessionPanelProps = {
 // 只负责把会话状态与回调接到 FocusSession，不关心外层布局容器。
 function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: SessionPanelProps) {
   const context = useContext(ChatDockContext)
+  const { t } = useI18n()
   const pageChrome = useContext(SessionPageChromeContext)
   const capabilities = useRuntimeCapabilitiesStore((store) => store.capabilities)
 
@@ -75,6 +159,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
   const session = context?.sessions.find((item) => item.id === sessionId)
   const state = sessionState || DEFAULT_SESSION_STATE
   const streaming = resolveSessionStreaming(state, session)
+  const queuedAfter = queuedStartAfter(session)
   const plan = resolveSessionPlan(sessionState, session)
   const team =
     sessionState && Object.hasOwn(sessionState, 'team')
@@ -176,6 +261,8 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       ) => context?.queuePrompt(value, sessionId, attachments, behavior, onAccepted) ?? false,
       onWithdrawQueuedInput: (inputId: string) =>
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
+      onSendQueuedInputNow: (inputId: string) =>
+        context?.sendQueuedInputNow(sessionId, inputId) ?? Promise.resolve(false),
       onAbort: () => context?.abort(sessionId),
     }),
     [context, sessionId, session],
@@ -204,9 +291,43 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
   )
   const runStartedAt = typeof state.runStartedAt === 'string' ? state.runStartedAt : null
   const goal = state.goal ?? session.goal ?? null
+  // 排在别的任务之后、还没开始的新任务：转录区写清楚在等谁，并可“立即开始”（Runtime 在后台启动它）。
+  const queuedAfterName = queuedAfter
+    ? context.sessions.find((item) => item.id === queuedAfter)?.name || ''
+    : ''
+  const queuedState =
+    queuedAfter !== null && !streaming && !messages.length ? (
+      <InlineEmptyState
+        compact
+        className="min-h-full"
+        title={t('chat:focusSession.queuedTitle')}
+        // 排着的消息还没写进会话；Runtime 登记排队时已按它给会话起名，页头就能认出这条任务。
+        description={
+          queuedAfterName
+            ? t('chat:focusSession.queuedAfter', { title: queuedAfterName })
+            : t('chat:focusSession.queuedAfterUnknown')
+        }
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            className="pointer-coarse:min-h-11"
+            onClick={() =>
+              void chatApi
+                .startQueuedSession(sessionId)
+                .then(() => context.loadSessionMessages(sessionId, { force: true }))
+                .catch((error: unknown) => context.notify(chatErrorMessage(error), 'error'))
+            }
+          >
+            {t('chat:focusSession.startQueuedNow')}
+          </Button>
+        }
+      />
+    ) : undefined
   const focus = (
     <FocusSession
       session={session}
+      emptyState={queuedState}
       shortcutEnabled={shortcutEnabled}
       messages={messages}
       transcriptLoadState={awaitingLive ? 'loading' : loadState}

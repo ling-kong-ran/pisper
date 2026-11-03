@@ -27,6 +27,7 @@ export type QueuedInputResponse = ApiRecord & {
   queuedInputs?: EntityRecord[]
 }
 export type WithdrawnInput = { text: string; attachments: ChatAttachment[] }
+export type SendQueuedInputNowResponse = QueuedInputResponse & { sent: boolean; inputId: string }
 export type WithdrawQueuedInputResponse = QueuedInputResponse & {
   removed: boolean
   inputId: string
@@ -417,6 +418,13 @@ export const chatApi = {
       method: 'POST',
       data: { message, attachments, behavior },
     }),
+
+  // 排队列表里的“立即发送”：挪到队首并打断当前这一步（需要 inputInterrupt 能力）。
+  sendQueuedInputNow: (sessionId: string, inputId: string) =>
+    requestJson<SendQueuedInputNowResponse>(
+      `${sessionPath(sessionId)}/input/${encodeURIComponent(inputId)}/send-now`,
+      { method: 'POST', data: {} },
+    ),
 
   withdrawQueuedInput: (sessionId: string, inputId: string) =>
     requestJson<WithdrawQueuedInputResponse>(

@@ -1,4 +1,4 @@
-// 会话启动排队（规格 8.4 "排队 startAfter"，能力 sessionQueue）：派发对话框或主页草稿选"排在 X 之后"时，
+// 会话启动排队（规格 8.4 "排队 startAfter"，能力 sessionQueue）：新任务草稿的 + 菜单选"排在 X 之后"时，
 // 新会话不立刻运行，而是登记 { sessionId, startAfter: X, message }；X 这一轮结束（完成、失败、停止、
 // 被删除都算）时由这里启动它，"立即开始"可以跳过等待。不做"同一工作区自动串行"（规格第 11 节第 5 问）。
 // 队列持久化在 <dataDir>/pisper-session-queue.json（原子写入、按文件串行），Runtime 重启后恢复：

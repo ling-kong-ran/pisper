@@ -10,6 +10,7 @@ import type {
   SessionSummary,
 } from '@/types/chat'
 import type { BranchFromHereOptions, WithdrawnInput } from './chat-api'
+import type { NewTaskDraftChrome } from './session-workspace-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
 export type ChatDockContextValue = {
@@ -43,6 +44,18 @@ export type ChatDockContextValue = {
     invocation?: ResourceInvocation | null,
     options?: { onAccepted?: () => void },
   ) => Promise<boolean | void>
+  // 新任务草稿发出第一条消息：先由草稿建会话（写入项目与派发选择），再由本页发送并持有运行流；
+  // 选了“排在…之后”时首条消息已登记进启动队列，不再发送。
+  sendNewTask: (
+    draft: NewTaskDraftChrome,
+    value: string,
+    attachments?: ChatAttachment[],
+    goalMode?: boolean,
+    teamMode?: boolean,
+    goalTokenBudget?: number | null,
+    invocation?: ResourceInvocation | null,
+    options?: { onAccepted?: () => void },
+  ) => Promise<boolean | void>
   retryLastTurn: (sessionId: string) => Promise<void>
   queuePrompt: (
     value: string,
@@ -52,6 +65,7 @@ export type ChatDockContextValue = {
     onAccepted?: () => void,
   ) => Promise<boolean>
   withdrawQueuedInput: (sessionId: string, inputId: string) => Promise<WithdrawnInput | null>
+  sendQueuedInputNow: (sessionId: string, inputId: string) => Promise<boolean>
   abort: (sessionId: string) => Promise<void>
   pauseGoal: (sessionId: string) => Promise<void>
   setGoalBudget: (sessionId: string, tokenBudget: number | null) => Promise<void>

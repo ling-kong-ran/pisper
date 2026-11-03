@@ -46,18 +46,10 @@ test('Pisper shell separates global navigation from task tools and keeps capabil
   )
   assert.match(app, /\{sharedPageHeader && \(/)
   // 新任务只有一条路径：⌘N、侧栏 / 抽屉“新任务”、手机顶栏 ✎ 与命令面板都交给 startNewTask，
-  // 看板认领时聚焦启动台、主页的新任务草稿认领时聚焦草稿，否则打开派发浮层。
-  for (const source of ['shortcut', 'sidebar', 'topbar', 'palette'])
-    assert.match(app, new RegExp(`startNewTask\\('${source}'\\)`), source)
-  assert.match(
-    app,
-    /if \(requestedPathname\(readRouter\(\)\) !== location\.pathname\) \{\s+pendingNewTask\.current = source\s+return\s+\}\s+if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
-  )
-  // 路由器已请求去别处、渲染的 page 还是离开中的那页时，请求先记下，目标页提交后再问一次（只执行一次）。
-  assert.match(
-    app,
-    /const source = pendingNewTask\.current\s+if \(!source \|\| requestedPathname\(readRouter\(\)\) !== location\.pathname\) return\s+pendingNewTask\.current = null\s+startNewTask\(source\)/,
-  )
+  // 一律进入新任务草稿 '/board/new'（已在草稿上时把焦点交回输入框），没有派发浮层。
+  assert.ok((app.match(/startNewTask\(\)/g) || []).length >= 4)
+  assert.match(app, /routerNavigate\(sessionPath\(\)\)/)
+  assert.doesNotMatch(app, /setDispatchOpen|requestBoardNewTask/)
   // 旧的“新会话”入口（历史页页头）随 A6 退役：外壳只剩派发对话框一条新建路径，不再就地发创建事件。
   assert.doesNotMatch(app, /requestSessionCreation\(''\)/)
   assert.doesNotMatch(focus, /<WorkbenchSidebarToggle/)

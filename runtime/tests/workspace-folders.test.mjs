@@ -152,7 +152,7 @@ test('new folder dialog derives the sibling location and preview path for either
 test('new task project menu offers choosing or creating a folder through the shared picker hook', async () => {
   const [launchConsole, picker, dialog, api] = await Promise.all(
     [
-      'src/features/board/LaunchConsole.tsx',
+      'src/features/board/new-task-draft.tsx',
       'src/features/board/useNewProjectPicker.ts',
       'src/features/board/NewFolderDialog.tsx',
       'src/features/chat/project-actions.ts',
@@ -161,7 +161,11 @@ test('new task project menu offers choosing or creating a folder through the sha
   assert.match(launchConsole, /data-launch-new-folder[\s\S]{0,200}projectPicker\.newFolder\(/)
   // 旧 Runtime 没有接口时不出现“新建文件夹…”。
   assert.match(launchConsole, /state\.capabilities\.features\.workspaceFolders/)
-  assert.match(launchConsole, /<NewFolderDialog \{\.\.\.folderDialogProps\} \/>/)
+  assert.match(launchConsole, /folderDialog=\{projectPicker\.folderDialog\}/)
+  assert.match(
+    await readFile('src/features/board/ProjectPickerDialogs.tsx', 'utf8'),
+    /<NewFolderDialog \{\.\.\.folderDialogProps\} \/>/,
+  )
   // 建好的文件夹与选中的文件夹走同一条登记 + 选为派发目标的路径。
   assert.match(picker, /onCreated: \(path: string\) => \{\s+remember\(path\)/)
   // “浏览…”交给系统文件管理器；页面不直接 fetch，经项目操作模块的统一 HTTP 客户端。

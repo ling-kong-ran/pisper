@@ -127,9 +127,9 @@ test('the session page mounts one session with the inspector and no dock, splits
   assert.match(catalog, /inheritRecentCwd = true/)
   assert.match(catalog, /sessionCwdForCreate\(cwd, sessionsRef\.current, inheritRecentCwd\)/)
   assert.match(page, /preserveExistingOnEmpty: true/)
-  // 共享页头的“新会话”主操作随 A6 退役（会话页从不挂共享页头）；手机上新建只走外壳顶栏 ✎ → 派发底部表单。
+  // 共享页头的“新会话”主操作随 A6 退役（会话页从不挂共享页头）；手机上新建只走外壳顶栏 ✎ → 新任务草稿。
   assert.doesNotMatch(header, /page === 'chat'|newChat|onPrimary/)
-  assert.match(app, /onNewTask=\{\(\) => startNewTask\('topbar'\)\}/)
+  assert.match(app, /onNewTask=\{\(\) => startNewTask\(\)\}/)
   assert.doesNotMatch(focus, /WorkspaceTrustNotice/)
 })
 

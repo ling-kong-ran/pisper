@@ -4,6 +4,9 @@
 import { chatApi } from './chat-api'
 
 export { ComposerCommandMenu } from './ComposerCommandMenu'
+export { COMPOSER_CHIP_CLASSES } from './focus-session-composer-bits'
+// 新任务草稿的契约：看板实现（项目芯片、派发偏好、排在…之后），会话页渲染。
+export type { NewTaskDraftChrome, NewTaskProjectVariant } from './session-workspace-context'
 export { ModelThinkingControl } from './FocusRuntimeControls'
 export { runtimeSettingCommands, type BuiltinCommand } from './builtin-commands'
 export const getWorkspaceCommands = (cwd: string) => chatApi.getWorkspaceCommands(cwd)

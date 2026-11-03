@@ -503,7 +503,7 @@ export function FocusTranscript({
         {transcriptLoadState === 'ready' &&
           !messages.length &&
           (emptyState ?? (
-            // 会话页不再兼做“发起新任务”的入口（新任务在主页草稿与派发浮层）：空会话只说明没有消息，
+            // 会话页不再兼做“发起新任务”的入口（新任务在新任务草稿）：空会话只说明没有消息，
             // 输入框照常在底部。
             <InlineEmptyState
               compact

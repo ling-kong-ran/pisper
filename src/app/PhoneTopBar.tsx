@@ -14,8 +14,9 @@ export type PhoneTopBarProps = {
   onSearch?: () => void
 }
 
+// 顶栏图标键：44 的浅灰圆底，与会话页顶栏同一种样式。
 const ICON_BUTTON =
-  'grid size-11 flex-none place-items-center rounded-[var(--r-md)] text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover'
+  'grid size-11 flex-none place-items-center rounded-full bg-surface-muted text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:bg-surface-hover dark:bg-surface-active'
 
 export function PhoneTopBar({ title, onNewTask, onSearch }: PhoneTopBarProps) {
   const { t } = useI18n()
@@ -23,7 +24,7 @@ export function PhoneTopBar({ title, onNewTask, onSearch }: PhoneTopBarProps) {
     <header
       data-phone-topbar
       data-focus-region="header"
-      className="relative grid h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center bg-panel px-1"
+      className="relative grid h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center bg-panel px-3"
     >
       <div className="flex min-w-0 items-center">
         <PhoneMenuButton />
@@ -35,7 +36,7 @@ export function PhoneTopBar({ title, onNewTask, onSearch }: PhoneTopBarProps) {
       >
         {title}
       </p>
-      <div className="flex min-w-0 items-center justify-end">
+      <div className="flex min-w-0 items-center justify-end gap-2">
         {onSearch && (
           <button
             type="button"

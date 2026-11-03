@@ -97,6 +97,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/sessions\/[^/]+\/queue(?:\/|$)/, feature: 'sessionQueue' },
   { pattern: /^\/api\/sessions\/[^/]+\/export$/, feature: 'sessionExport' },
   { pattern: /^\/api\/workspace-folders$/, feature: 'workspaceFolders' },
+  { pattern: /^\/api\/sessions\/[^/]+\/input\/[^/]+\/send-now$/, feature: 'inputInterrupt' },
 ]
 
 export function requiredRuntimeFeature(pathname, method = 'GET') {

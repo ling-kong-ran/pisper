@@ -12,9 +12,11 @@ import {
 } from './stream-projection.mjs'
 import {
   captureQueuedSessionInput,
+  promoteQueuedSessionInput,
   sessionInputQueueRevision,
   withdrawQueuedSessionInput,
 } from './session-input-queue.mjs'
+import { interruptCurrentStep } from './step-interrupt.mjs'
 import { normalizePersistedCard, projectSessionCard } from '../services/session-card-summary.mjs'
 import { buildBoardView, sortBoardViewItems } from '../services/session-board-view.mjs'
 
@@ -167,6 +169,8 @@ export const agentSessionMethods = {
   },
 
   // 准备附件可能等待磁盘或文档解析，实际入队前必须再次确认本轮仍在运行。
+  // behavior：steer 排队（当前这一步走完就送达）、followUp（整轮结束后）、interrupt 插队
+  // （按 steer 入队后立即打断当前这一步，见 step-interrupt.mjs）。
   async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
     const value = this.sessions.get(id)
     if (!value) throw new Error('会话不存在或尚未加载。')
@@ -194,9 +198,13 @@ export const agentSessionMethods = {
         }),
     )
     value.modified = new Date().toISOString()
+    // 只有插队请求的响应多带 interrupted，排队 / 本轮后的响应形状保持不变。
+    const interrupt =
+      behavior === 'interrupt' ? { interrupted: interruptCurrentStep(value.session) } : {}
     return {
       queued: true,
       behavior: streamingBehavior,
+      ...interrupt,
       inputId,
       pendingMessageCount: value.session.pendingMessageCount || 0,
       ...this.publishSessionInputQueue(id),
@@ -218,6 +226,23 @@ export const agentSessionMethods = {
     this.streamProjection.invalidate(id, { transcript: false, usage: false })
     this.agentEmitters.get(id)?.('queue_update', snapshot)
     return snapshot
+  },
+
+  // 排队列表里的“立即发送”：挪到队首并打断当前这一步。已经被送达或撤回时 sent 为 false。
+  sendQueuedSessionMessageNow(id, inputId) {
+    const value = this.sessions.get(id)
+    if (!value) throw new Error('会话不存在或尚未加载。')
+    if (typeof inputId !== 'string' || !inputId.trim()) throw new Error('待发送消息标识不能为空。')
+    const sent = value.session.isStreaming && promoteQueuedSessionInput(value.session, inputId)
+    const interrupted = sent && interruptCurrentStep(value.session)
+    if (sent) value.modified = new Date().toISOString()
+    return {
+      sent: Boolean(sent),
+      interrupted: Boolean(interrupted),
+      inputId,
+      pendingMessageCount: value.session.pendingMessageCount || 0,
+      ...this.publishSessionInputQueue(id),
+    }
   },
 
   withdrawSessionMessage(id, inputId) {
@@ -492,11 +517,12 @@ export const agentSessionMethods = {
   },
 
   // 排在 X 之后启动（sessionQueue）：登记、立即开始、取消。
-  enqueueSessionStart(sessionId, input) {
-    return this.sessionQueue.enqueue({
-      ...(input && typeof input === 'object' ? input : {}),
-      sessionId,
-    })
+  async enqueueSessionStart(sessionId, input) {
+    const request = input && typeof input === 'object' ? input : {}
+    const result = await this.sessionQueue.enqueue({ ...request, sessionId })
+    // 直接启动的由首条消息照常命名；真正排着的现在就起名。
+    if (result.queued) await this.titleQueuedSession(sessionId, request.message)
+    return result
   },
 
   startQueuedSession(sessionId) {

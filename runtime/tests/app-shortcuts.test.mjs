@@ -292,20 +292,17 @@ test('the shortcut help chord works inside inputs, follows rebinding and never s
   assert.deepEqual(missing.calls, [])
 })
 
-test('the shortcut layer and new-task claimants are listening by the time the shell first paints', async () => {
-  const [app, component, newTask] = await Promise.all([
+test('the shortcut layer is listening by the time the shell first paints', async () => {
+  const [app, component] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/components/layout/AppShortcuts.tsx', 'utf8'),
-    readFile('src/features/board/new-task.ts', 'utf8'),
   ])
   // 懒加载会让冷启动的外壳先画出来、监听约 0.3 秒后才挂上（React 揭示 Suspense 的节流），期间按键全丢：
   // 应用壳同步导入并直接渲染快捷键层，不经 lazy / Suspense。
   assert.match(app, /^import \{ AppShortcuts \} from '@\/components\/layout\/AppShortcuts'$/m)
   assert.doesNotMatch(app, /import\('@\/components\/layout\/AppShortcuts'\)/)
   assert.match(app, /<BackNavigation onRouteBack=\{[^}]+\} \/>\s+<AppShortcuts\s/)
-  // 监听在提交阶段（绘制之前）挂上；认领新任务的视图同样在提交阶段登记，草稿一出现就能接住 ⌘N。
+  // 监听在提交阶段（绘制之前）挂上；⌘N 一律进入新任务草稿，不再需要视图先登记认领。
   assert.match(component, /useLayoutEffect\(\(\) => \{\s+const keydown = /)
   assert.doesNotMatch(component, /useEffect\(/)
-  assert.match(newTask, /useLayoutEffect\(\(\) => \{\s+if \(!enabled\) return/)
-  assert.doesNotMatch(newTask, /useEffect\(/)
 })

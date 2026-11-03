@@ -165,11 +165,11 @@ export function useFocusComposer({
   }
 
   // 草稿在服务端确认接收时才清理；请求拒绝前保持完整文本与附件，避免恢复覆盖新输入。
-  // 运行中提交走 /input：behavior 由调用方决定——会话页 ↵ 排队（followUp）、⌥↵ 插话（steer），
-  // 其余入口（手机外壳、旧单会话视图）沿用插话。
+  // 运行中提交走 /input：behavior 由调用方决定——会话页 ↵ 排队（steer，下一步送达）、⌥↵ 立即发送
+  // （interrupt，打断当前这一步），其余入口（旧单会话视图）按排队处理。
   const submit = async (
     event: FormEvent<HTMLFormElement>,
-    runningBehavior: 'followUp' | 'steer' = 'steer',
+    runningBehavior: 'steer' | 'interrupt' = 'steer',
   ) => {
     event.preventDefault()
     if (pendingSubmissionRef.current || stopping || selection.preparingAttachments?.length) return

@@ -494,32 +494,22 @@ test('board UI keeps runs alive and reuses the existing create-and-send API', as
   }
 })
 
-test('full access stays in the current draft and a detached dispatch failure reaches a global toast', async () => {
-  const [launchConsole, overlay, app, toast] = await Promise.all(
-    [
-      'src/features/board/LaunchConsole.tsx',
-      'src/features/board/DispatchOverlay.tsx',
-      'src/App.tsx',
-      'src/components/ui/toast.tsx',
-    ].map((file) => readFile(join(root, file), 'utf8')),
+test('full access stays in the current new-task draft and a failed first message reaches a toast', async () => {
+  const [draft, chatPage] = await Promise.all(
+    ['src/features/board/new-task-draft.tsx', 'src/features/chat/ChatPage.tsx'].map((file) =>
+      readFile(join(root, file), 'utf8'),
+    ),
   )
-  // 审批模式芯片：安全模式照常记住，完全访问只放进本实例的草稿状态；派发时立即回到安全模式。
-  assert.match(launchConsole, /setFullAccess\(mode === 'full-access'\)/)
+  // 审批模式芯片：安全模式照常记住，完全访问只放进本次草稿；第一条消息交出后回到安全模式。
+  assert.match(draft, /setFullAccess\(mode === 'full-access'\)/)
   assert.match(
-    launchConsole,
+    draft,
     /if \(mode !== 'full-access'\) defaults\.rememberLaunch\(\{ executionMode: mode \}\)/,
   )
-  assert.match(launchConsole, /setFullAccess\(false\)\s+defaults\.rememberLaunch\(/)
-  // 失败时草稿先放回 composer-drafts（并同步给其他启动台实例），已卸载的实例把错误交给宿主。
+  assert.match(draft, /onSent: \(\) => \{\s*setFullAccess\(false\)\s*setStartAfter\(''\)/)
+  // 建会话或写配置失败：草稿留在输入框里（没交出），错误用全局提示报出。
   assert.match(
-    launchConsole,
-    /restoreLaunchDraft\(prompt\)[\s\S]{0,400}if \(mountedRef\.current\) setError\(\{ message, noModel: false \}\)\s+else onDetachedFailure\?\.\(message\)/,
+    chatPage,
+    /prepared = await draft\.prepare\(prompt\)\s*\} catch \(error\) \{\s*notify\(chatErrorMessage\(error\), 'error'\)\s*return false/,
   )
-  assert.match(overlay, /onDetachedFailure=\{onDetachedFailure\}/)
-  assert.match(app, /onDetachedFailure=\{dispatchFailedAfterClose\}/)
-  assert.match(
-    app,
-    /action: \{ label: t\('board:dispatch\.reopen'\), onAction: \(\) => setDispatchOpen\(true\) \}/,
-  )
-  assert.match(toast, /<ToastPrimitive\.Action altText=\{action\.label\} asChild>/)
 })

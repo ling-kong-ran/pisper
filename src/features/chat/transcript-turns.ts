@@ -39,6 +39,9 @@ export function earlierTurnSummary(
       latestIndex = index
       break
     }
+  // 运行中排队 / 立即发送的消息插在这一轮的回复前面：紧挨着的几条用户消息算同一轮，
+  // 否则排队气泡会被当成“最新一轮”，把正在跑的这一轮收起来。
+  while (latestIndex > 0 && messages[latestIndex - 1]?.role === 'user') latestIndex -= 1
   // 只有一轮（或最新一轮之前没有任何消息）时不收起。
   if (latestIndex <= 0) return null
   let previousIndex = -1

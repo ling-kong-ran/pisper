@@ -160,12 +160,23 @@ test('form controls share the v2 control height', async () => {
   assert.deepEqual(overrides, [])
 })
 
-test('new task and session composer share one model chip', async () => {
-  const [launch, session] = await Promise.all([
-    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+test('new task and session composer are the same composer', async () => {
+  // 新任务草稿就是会话页的 FocusSession（draft 形态），不再有另一套启动台输入框。
+  const [dock, session] = await Promise.all([
+    readFile('src/features/chat/ChatDock.tsx', 'utf8'),
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
-  for (const source of [launch, session]) assert.match(source, /<ModelThinkingControl\b/)
+  assert.match(session, /<ModelThinkingControl\b/)
+  assert.match(
+    dock,
+    /export function NewTaskDraftPanel[\s\S]*?<FocusSession\s+session=\{session\}\s+shortcutEnabled\s+draft=\{draft\}/,
+  )
+  for (const retired of [
+    'src/features/board/LaunchConsole.tsx',
+    'src/features/board/DispatchOverlay.tsx',
+    'src/features/board/NewTaskDraft.tsx',
+  ])
+    await assert.rejects(access(retired), undefined, `${retired} must stay removed`)
 })
 
 test('form fields and checkboxes use the shadcn controls', async () => {
@@ -210,9 +221,9 @@ test('tabs and segmented controls share one look', async () => {
   assert.doesNotMatch(tabs, /h-8\.5/)
 })
 
-test('the session page no longer doubles as a new-task launcher', async () => {
-  // 会话页的欢迎页（问候语 + 居中输入框 + “试试这些任务”示例卡片）是旧启动台的遗留：新任务入口是
-  // 主页草稿与派发浮层，空会话只给一句空状态；'/board/new' 换回主页并发起新任务，不再先建空会话。
+test('a new task is the session page in draft form, without the old welcome screen', async () => {
+  // 新任务一律进入 '/board/new'：会话页的样子（问候语 + 输入框），第一条消息发出时才建会话。
+  // 旧欢迎页（问候语组件 + “试试这些任务”示例卡片）与没有调用方的自动创建请求链都已退役。
   for (const retired of [
     'src/features/chat/QuickPromptIdeas.tsx',
     'src/features/chat/WorkbenchGreeting.tsx',
@@ -234,19 +245,28 @@ test('the session page no longer doubles as a new-task launcher', async () => {
     .map(([file]) => file)
   assert.deepEqual(offenders, [])
 
-  const [transcript, shell] = await Promise.all([
+  const [transcript, shell, chatPage, focus] = await Promise.all([
     readFile('src/features/chat/FocusTranscript.tsx', 'utf8'),
     readFile('src/app/SessionShell.tsx', 'utf8'),
+    readFile('src/features/chat/ChatPage.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
+  // 真实会话没有消息时只给一句空状态；草稿的转录区是问候语。
   assert.match(transcript, /<InlineEmptyState\s+compact/)
+  assert.match(focus, /emptyState=\{draft \? <NewTaskGreeting \/> : emptyState\}/)
+  // '/board/new' 由会话外壳注入看板一侧的草稿契约，聊天页渲染草稿面板；发出时先建会话再由本页发送。
+  assert.match(shell, /const newTaskDraft = newRoute \? draftChrome : undefined/)
+  assert.match(
+    chatPage,
+    /routeSessionId === NEW_SESSION_ROUTE_ID && pageChrome\?\.newTaskDraft \? \(\s*<NewTaskDraftPanel draft=\{pageChrome\.newTaskDraft\} \/>/,
+  )
+  assert.match(
+    chatPage,
+    /adoptCreatedSession\(prepared\.session\)[\s\S]{0,200}openSession\(prepared\.session\.id\)[\s\S]{0,200}return sendPrompt\(/,
+  )
   // 会话页不注册页面主操作：模型引导“去设置”排队的主操作不会落到这里建空会话。
-  const chatPage = await readFile('src/features/chat/ChatPage.tsx', 'utf8')
   assert.doesNotMatch(chatPage, /usePagePrimaryAction|registerPrimaryAction/)
   assert.doesNotMatch(shell, /registerPrimaryAction/)
-  assert.match(
-    shell,
-    /if \(!newRoute\) return\s+navigate\(HOME_PATH, \{ replace: true, state: HOME_DRAFT_STATE \}\)\s+startNewTask\(\)/,
-  )
 })
 
 test('feature and app modules are all reachable from another source file', async () => {

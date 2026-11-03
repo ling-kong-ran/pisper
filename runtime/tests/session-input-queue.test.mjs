@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { createApiHandler } from '../http/api-handler.mjs'
+import { createApiHandler, requiredRuntimeFeature } from '../http/api-handler.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { createAgentSession, SessionManager, SettingsManager } from '../runtime/pi-coding-agent.mjs'
 import {
@@ -412,4 +412,31 @@ test('withdrawal API returns strict Unicode JSON and reports a consumed input wi
   assert.equal(repeated.status, 200)
   assert.equal(JSON.parse(repeated.body).removed, false)
   assert.equal(JSON.parse(repeated.body).withdrawnInput, undefined)
+})
+
+test('POST send-now API promotes the queued input and is gated by the inputInterrupt capability', async () => {
+  const calls = []
+  const runtime = {
+    sendQueuedSessionMessageNow(sessionId, inputId) {
+      calls.push({ sessionId, inputId })
+      return { sent: true, interrupted: true, inputId, queuedInputs: [], queueRevision: 3 }
+    },
+  }
+  const res = response()
+  const handler = createApiHandler(runtime)
+  assert.equal(
+    await handler(
+      request('POST', {}),
+      res,
+      new URL('http://localhost/api/sessions/session%201/input/input%202/send-now'),
+    ),
+    true,
+  )
+  assert.equal(res.status, 200)
+  assert.deepEqual(calls, [{ sessionId: 'session 1', inputId: 'input 2' }])
+  assert.equal(JSON.parse(res.body).sent, true)
+  assert.equal(requiredRuntimeFeature('/api/sessions/s/input/i/send-now', 'POST'), 'inputInterrupt')
+  // 排队、撤回不受这项能力影响，旧客户端照常可用。
+  assert.equal(requiredRuntimeFeature('/api/sessions/s/input', 'POST'), '')
+  assert.equal(requiredRuntimeFeature('/api/sessions/s/input/i', 'DELETE'), '')
 })

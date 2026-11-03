@@ -51,7 +51,7 @@ export type SidebarBoardFiltersProps = {
   notify: Notify
   requestConfirm: (options?: ConfirmDialogOptions) => Promise<boolean>
   requestText: (options?: PromptDialogOptions) => Promise<string | null>
-  // 添加项目选好目录（已记成派发目标）之后打开派发对话框，与全部代理页的“在此项目新建任务”一致。
+  // 添加项目选好目录（已记成新任务的项目）之后进入新任务草稿，与全部代理页的“在此项目新建任务”一致。
   onNewTask: () => void
   onOpenHistory: () => void
 }

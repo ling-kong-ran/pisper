@@ -19,7 +19,7 @@ import {
   type ComponentType,
 } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useSessionListQuery } from '@/features/board/public'
+import { useNewTaskDraftChrome, useSessionListQuery } from '@/features/board/public'
 import type { ChatPage as ChatPageComponent } from '@/features/chat/ChatPage'
 import type { SessionComponentTabs } from '@/features/chat/session-workspace-context'
 import {
@@ -33,13 +33,7 @@ import { useClientStore } from '@/stores/client-store'
 import type { AppRouteContext } from './route-context'
 import { useI18n } from './use-i18n'
 import { PhoneMenuButton } from './PhoneMenuButton'
-import {
-  HOME_DRAFT_STATE,
-  HOME_PATH,
-  NEW_SESSION_ROUTE_ID,
-  PAGE_PATHS,
-  sessionPath,
-} from './routes'
+import { HOME_PATH, NEW_SESSION_ROUTE_ID, PAGE_PATHS, sessionPath } from './routes'
 import { forgetLastSession, rememberLastSession } from './session-home'
 
 export const SESSION_COMPACT_QUERY = '(max-width: 1279px), (max-height: 760px)'
@@ -98,6 +92,13 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
   }, [known, sessionId])
   const componentTabs = useSessionComponentTabs(context.notify, openSession)
   const startNewTask = context.startNewTask
+  // '/board/new' 是新任务草稿：会话页的样子，还没有会话。项目、派发偏好与“排在…之后”归看板，从这里注入；
+  // 第一条消息发出时聊天页才建会话，并以 replace 把地址换成会话 id（见上面的 openSession）。
+  // 聊天页在草稿与会话之间保持挂载，发出的第一条消息的运行流由它一路持有。
+  const newRoute = sessionId === NEW_SESSION_ROUTE_ID
+  const notify = context.notify
+  const draftChrome = useNewTaskDraftChrome({ onError: (message) => notify(message, 'error') })
+  const newTaskDraft = newRoute ? draftChrome : undefined
   const pageChrome = useMemo(
     () => ({
       compact,
@@ -112,24 +113,15 @@ export function SessionShell({ context, ChatPage }: SessionShellProps) {
       // “找不到这个会话”（已删除或链接错误）：回到主页（上次停留的会话或新任务草稿）。
       onHome: () => navigate(HOME_PATH),
       onNewTask: startNewTask,
+      newTaskDraft,
     }),
-    [compact, mobileApp, navigate, componentTabs, startNewTask],
+    [compact, mobileApp, navigate, componentTabs, startNewTask, newTaskDraft],
   )
   // 手机外壳：同一份会话页契约，加上顶栏 ✎（没有改动时）打开派发表单。
   const phoneChrome = useMemo(
     () => ({ ...pageChrome, phone: { onNewTask: startNewTask } }),
     [pageChrome, startNewTask],
   )
-  // '/board/new'（旧链接、书签、navigate('session')）不再进入即建一个空会话——会话页不兼做新任务入口：
-  // 换回主页并显示新任务草稿（不落地上次停留的会话），新任务请求由草稿认领并聚焦输入框；
-  // 第一条消息发出时才建会话。
-  const newRoute = sessionId === NEW_SESSION_ROUTE_ID
-  useEffect(() => {
-    if (!newRoute) return
-    navigate(HOME_PATH, { replace: true, state: HOME_DRAFT_STATE })
-    startNewTask()
-  }, [navigate, newRoute, startNewTask])
-  if (newRoute) return null
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col"

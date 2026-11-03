@@ -56,7 +56,7 @@ import {
   BoardLaunchError,
   discardUnsentLaunchSession,
   isUnsentLaunchSession,
-  launchBoardTask,
+  prepareLaunchSession,
   sendBoardTaskMessage,
 } from '../../src/features/board/board-launch.ts'
 import { sortProjectsByOrder } from '../../src/features/board/board-model.ts'
@@ -1000,7 +1000,28 @@ const createdSession = {
   modified: iso(0),
 }
 
-test('a dispatch rejected before the first message is accepted deletes the empty session', async (t) => {
+test('preparing a new task creates and configures the session but never sends the first message', async (t) => {
+  globalThis.window = new EventTarget()
+  t.after(() => {
+    delete globalThis.window
+  })
+  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
+  const calls = installFetch((path, method) => {
+    if (path === '/api/sessions' && method === 'POST') return json(createdSession)
+    return json({ ok: true })
+  })
+  const prepared = await prepareLaunchSession(
+    launchRequest({ model: 'anthropic/claude-x', executionMode: 'workspace-write' }),
+  )
+  assert.equal(prepared.session.id, 'fresh')
+  assert.equal(prepared.queued, false)
+  // 第一条消息由会话页自己发送并持有运行流：这里不碰 /api/chat。
+  assert.ok(!calls.some((call) => call.path === '/api/chat'))
+  assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/model'))
+  assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/execution-mode'))
+})
+
+test('a queued start rejected by the runtime deletes the empty session', async (t) => {
   globalThis.window = new EventTarget()
   t.after(() => {
     delete globalThis.window
@@ -1010,8 +1031,8 @@ test('a dispatch rejected before the first message is accepted deletes the empty
   queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
   const calls = installFetch((path, method) => {
     if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/chat')
-      return json({ error: '当前 Runtime 不支持 goals 能力。', capability: 'goals' }, 409)
+    if (path === '/api/sessions/fresh/queue')
+      return json({ error: '当前 Runtime 不支持 sessionQueue 能力。' }, 409)
     if (path === '/api/sessions/fresh/live')
       return json({ id: 'fresh', streaming: false, configurationBusy: false, messages: [] })
     if (path === '/api/sessions/fresh' && method === 'DELETE')
@@ -1019,7 +1040,7 @@ test('a dispatch rejected before the first message is accepted deletes the empty
     return json({ sessions: [] })
   })
   await assert.rejects(
-    launchBoardTask(launchRequest()),
+    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
     (error) => error instanceof BoardLaunchError && error.stage === 'send',
   )
   assert.equal(
@@ -1056,14 +1077,14 @@ test('a failure while configuring the new session also removes it', async (t) =>
     return json({ sessions: [] })
   })
   await assert.rejects(
-    launchBoardTask(launchRequest({ model: 'anthropic/claude-x' })),
+    prepareLaunchSession(launchRequest({ model: 'anthropic/claude-x' })),
     (error) => error instanceof BoardLaunchError && error.stage === 'configure',
   )
-  assert.ok(!calls.some((call) => call.path === '/api/chat'))
+  assert.ok(!calls.some((call) => call.path === '/api/chat' || call.path.endsWith('/queue')))
   assert.ok(calls.some((call) => call.path === '/api/sessions/fresh' && call.method === 'DELETE'))
 })
 
-test('a launch that may have reached the runtime keeps its session', async (t) => {
+test('a queued start that may have reached the runtime keeps its session', async (t) => {
   globalThis.window = new EventTarget()
   t.after(() => {
     delete globalThis.window
@@ -1072,21 +1093,27 @@ test('a launch that may have reached the runtime keeps its session', async (t) =
   // 断网：说不清 Runtime 是否已受理，连 /live 都不查。
   let calls = installFetch((path, method) => {
     if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/chat') throw new TypeError('fetch failed')
+    if (path === '/api/sessions/fresh/queue') throw new TypeError('fetch failed')
     return json({ sessions: [] })
   })
-  await assert.rejects(launchBoardTask(launchRequest()), BoardLaunchError)
+  await assert.rejects(
+    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
+    BoardLaunchError,
+  )
   assert.ok(!calls.some((call) => call.path.endsWith('/live') || call.method === 'DELETE'))
 
   // 被拒绝，但 /live 显示已经有消息（例如别的客户端抢先发了）：保留。
   calls = installFetch((path, method) => {
     if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/chat') return json({ error: 'busy' }, 409)
+    if (path === '/api/sessions/fresh/queue') return json({ error: 'busy' }, 409)
     if (path === '/api/sessions/fresh/live')
       return json({ streaming: false, messages: [{ id: 'm', role: 'user', text: 'x' }] })
     return json({ sessions: [] })
   })
-  await assert.rejects(launchBoardTask(launchRequest()), BoardLaunchError)
+  await assert.rejects(
+    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
+    BoardLaunchError,
+  )
   assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/live'))
   assert.ok(!calls.some((call) => call.method === 'DELETE'))
 })

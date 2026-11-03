@@ -90,7 +90,7 @@ type ChatHistoryPageProps = {
   navigate: (page: string) => void
   // 从“功能”进入时由应用壳提供，渲染标题上方的“‹ 功能”。
   onBack?: () => void
-  // 工具行主操作“新任务”：打开派发对话框（与侧栏、⌘N 同一入口）。
+  // 工具行主操作“新任务”：进入新任务草稿（与侧栏、⌘N 同一入口）。
   onNewTask?: () => void
   notify: Notify
   requestConfirm: (options: ConfirmDialogOptions) => Promise<boolean>
@@ -340,7 +340,7 @@ export function ChatHistoryPage({
             onNewTask &&
             // 手机外壳的顶栏右侧已经有 ✎ 新任务，这里不再重复一个全宽主按钮。
             !phone && (
-              // 主操作（原共享页头的“新会话”）：与侧栏“新任务”、⌘N 同一个派发对话框（规格 2.5）。
+              // 主操作（原共享页头的“新会话”）：与侧栏“新任务”、⌘N 同一个新任务草稿。
               <Button type="button" className="h-9" onClick={onNewTask}>
                 <SquarePen />
                 {t('navigation:shell.newTask')}

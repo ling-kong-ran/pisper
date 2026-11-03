@@ -2,7 +2,7 @@
 // 只在浏览器边界用固定数据提供（scripts/fixtures/board-fixture.mjs），不连接模型、不写真实数据。
 // 规格 v2 第 3 节（A3 取代泳道）：1440×900 / 1080×680、浅色 / 深色、模拟 Windows 自绘标题栏（右上 144px
 // 不被遮挡、无硬裁切、无横向滚动）、按状态分组的列表（最大 880 居中）与按项目分组、行内批准与重试、
-// critical 只能打开处理（进会话）、侧栏的状态 / 项目筛选与计数（规格 2.3）、⌘1 / ⌘2、⌘N 与“新任务”打开派发对话框、逐个处理
+// critical 只能打开处理（进会话）、侧栏的状态 / 项目筛选与计数（规格 2.3）、⌘1 / ⌘2、⌘N 与“新任务”进入新任务草稿、逐个处理
 // （其余分组 50%、只在需要你之间走）、行焦点环、未聚焦时动作键无效、项目 ⋯（重命名、恢复、管理项目）、
 // 今天完成折叠、筛选说明与清除、空状态、手机底部标签栏，以及窄化的桌面窗口不进入手机外壳。
 // 第 2 期：固定数据默认模拟 board.view / board.events（事件流 + view=board，带 card 摘要），
@@ -14,7 +14,7 @@
 // ⌥A 聚焦等待最久的需要你行、⌥↑/⌥↓ 按侧栏顺序切换、⌘B 收起为窄轨与窄轨计数、⌘I 检查器、
 // ⌘1 回到看板并把焦点还给来源卡片（快捷键 v2：⇧⌘B 归会话树）、运行中 Esc 只停止不返回、1080×680 + 自绘标题栏的检查器覆盖层，
 // 以及手机 390 的会话页仍可用。
-// 第 4 期：快捷键改绑（⌘J / ⌘I / 插话改绑后立即生效、旧键失效）与 ⌘/ 速查（快捷键 v2：⌘1 全部代理、
+// 第 4 期：快捷键改绑（⌘J / ⌘I / 立即发送改绑后立即生效、旧键失效）与 ⌘/ 速查（快捷键 v2：⌘1 全部代理、
 // ⌘2 功能，⌘[ 已退役）。泳道条、⌘J 代理面板与标题栏舰队计量已在 v2（A1）删除。
 // 浏览器模拟不等于 Tauri / WebView2 或真机验证。
 import assert from 'node:assert/strict'
@@ -318,7 +318,7 @@ try {
   )
 
   // 2. 1440 浅色上的交互：侧栏筛选与计数（规格 2.3）、逐个处理、critical 只能打开处理、普通批准、重试、快捷键、
-  // 派发对话框、按项目分组与项目 ⋯、行 ⋯ 菜单。
+  // 新任务草稿、按项目分组与项目 ⋯、行 ⋯ 菜单。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -679,20 +679,21 @@ try {
       'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar filter counts follow',
     )
 
-    // 这一页没有任务输入框：⌘N 与页头“新任务”都打开派发对话框，Esc 关闭后留在全部代理。
-    const dispatch = page.getByRole('dialog', { name: '新任务', exact: true })
+    // 这一页没有任务输入框：⌘N 与页头“新任务”都进入新任务草稿 '/board/new'（不弹对话框），后退回到全部代理。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyN`)
-    await dispatch.waitFor()
-    await page.keyboard.press('Escape')
-    await dispatch.waitFor({ state: 'hidden' })
+    await page.waitForURL((url) => url.hash === '#/board/new')
+    await page.locator('[data-new-task-draft] textarea').waitFor()
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    await page.goBack()
     await page.locator('[data-board-root] header').getByRole('button', { name: '新任务' }).click()
-    await dispatch.waitFor()
-    await page.keyboard.press('Escape')
-    await dispatch.waitFor({ state: 'hidden' })
-    assert.equal(await page.evaluate(() => location.hash), '#/board')
+    await page.waitForURL((url) => url.hash === '#/board/new')
+    await page.locator('[data-new-task-draft] textarea').waitFor()
+    await page.goBack()
+    await page.waitForURL((url) => url.hash === '#/board')
+    await page.locator('[data-board-root]').waitFor()
     report.checks.push(
-      '⌘N and the header 新任务 button both open the dispatch dialog; Esc closes it and stays on 全部代理',
+      '⌘N and the header 新任务 button both open the new-task draft (no dialog); back returns to 全部代理',
     )
 
     // 副标题悬停提示：子代理 x/4 · 今日 tok · 内存（拿不到的项不显示，不造数字）。
@@ -904,10 +905,11 @@ try {
     await geometry(page, 'quiet board')
     await page.screenshot({ path: join(output, 'board-quiet.png') })
     await empty.getByRole('button', { name: '新任务' }).click()
-    await page.getByRole('dialog', { name: '新任务', exact: true }).waitFor()
-    await page.keyboard.press('Escape')
+    await page.waitForURL((url) => url.hash === '#/board/new')
+    await page.locator('[data-new-task-draft] textarea').waitFor()
+    await page.goBack()
     report.checks.push(
-      'No activity today (only sessions finished 2 days ago): one line “还没有代理在运行” with 新任务 (opens the dispatch dialog) and 全部历史会话, no suggestions, no rows and no launch console',
+      'No activity today (only sessions finished 2 days ago): one line “还没有代理在运行” with 新任务 (opens the new-task draft) and 全部历史会话, no suggestions, no rows and no launch console',
     )
     await context.close()
   }
@@ -1117,7 +1119,7 @@ try {
   )
 
   // 4c. 排队（sessionQueue，A9）：排队行写“排在「X」之后 · 第 N 位”与唯一的 [立即开始]；侧栏“排队”分组带 #N；
-  // 派发对话框选“排在…之后”，首条消息交给 Runtime 的启动队列（POST …/queue），新会话出现在排队里。
+  // 新任务草稿的 + 菜单选“排在…之后”，首条消息交给 Runtime 的启动队列（POST …/queue），新会话出现在排队里。
   {
     const { context, fixture } = await newContext(
       { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
@@ -1151,8 +1153,8 @@ try {
       { timeout: 10000 },
     )
 
-    // 派发对话框：“立即开始 ▾” → 选运行中的会话 → 派发；请求体带 startAfter 与原消息，不走 /api/chat。
-    // 夹具项目的目录在本机不存在：建会话交给这里应答（模型与模式与启动台默认一致，不触发写配置的请求）。
+    // 新任务草稿：+ 菜单“什么时候开始”选运行中的会话 → 发送；请求体带 startAfter 与原消息，不走 /api/chat。
+    // 夹具项目的目录在本机不存在：建会话交给这里应答（模型与模式与草稿默认一致，不触发写配置的请求）。
     await context.route(/\/api\/sessions$/, async (route) => {
       if (route.request().method() !== 'POST') return route.fallback()
       const body = JSON.parse(route.request().postData() || '{}')
@@ -1180,14 +1182,15 @@ try {
     })
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyN`)
-    const dispatchDialog = page.getByRole('dialog', { name: '新任务', exact: true })
-    await dispatchDialog.waitFor()
-    await dispatchDialog.locator('[data-launch-input]').fill('等重构完再补文档')
-    await dispatchDialog.locator('[data-launch-start-after="now"]').click()
+    await page.waitForURL((url) => url.hash === '#/board/new')
+    const draftInput = page.locator('[data-new-task-draft] textarea')
+    await draftInput.waitFor()
+    await draftInput.fill('等重构完再补文档')
+    await page.locator('[data-composer-plus]').click()
     await page.locator('[data-start-after-option="fx-running"]').click()
-    await dispatchDialog.locator('[data-launch-start-after="fx-running"]').waitFor()
+    await page.locator('[data-launch-start-after-note]').waitFor()
     await page.screenshot({ path: join(output, 'queue-dispatch.png') })
-    await dispatchDialog.locator('[data-launch-input]').press('Enter')
+    await draftInput.press('Enter')
     for (let i = 0; i < 100 && fixture.posts.length < 2; i += 1) await page.waitForTimeout(100)
     const enqueue = fixture.posts.at(-1)
     assert.match(enqueue.path, /^\/api\/sessions\/[^/]+\/queue$/)
@@ -1196,9 +1199,13 @@ try {
       message: '等重构完再补文档',
       runMode: 'plan',
     })
-    assert.deepEqual(chats, [], 'a queued dispatch does not open a run stream')
+    assert.deepEqual(chats, [], 'a queued new task does not open a run stream')
     const newId = decodeURIComponent(enqueue.path.split('/')[3])
-    await page.keyboard.press('Escape')
+    // 草稿换成新会话：转录区写明排在谁之后，可“立即开始”；全部代理里它在排队。
+    await page.waitForURL((url) => url.hash === `#/board/${encodeURIComponent(newId)}`)
+    await page.getByRole('button', { name: '立即开始', exact: true }).waitFor()
+    await page.keyboard.press(`${mod}+Digit1`)
+    await page.waitForURL((url) => url.hash === '#/board')
     await page.waitForFunction(
       (id) => document.querySelector(`[data-board-card="${id}"]`)?.dataset.lane === 'queued',
       newId,
@@ -1208,7 +1215,7 @@ try {
     await context.close()
   }
   report.checks.push(
-    'Queue (sessionQueue): the queued row reads 排在「重构登录流程」之后 · 第 1 位 with a single 立即开始 that POSTs …/queue/start and moves it to 运行中; the sidebar 排队 group shows #1; the dispatch dialog chip 立即开始 ▾ → 排在 X 之后 sends {startAfter, message, runMode} to …/queue without opening a run stream, and the new session appears under 排队',
+    'Queue (sessionQueue): the queued row reads 排在「重构登录流程」之后 · 第 1 位 with a single 立即开始 that POSTs …/queue/start and moves it to 运行中; the sidebar 排队 group shows #1; the + menu of the new-task draft 什么时候开始 → 排在 X 之后 sends {startAfter, message, runMode} to …/queue without opening a run stream, the draft turns into the queued session (立即开始 shown) and it appears under 排队',
   )
 
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。
@@ -2018,7 +2025,7 @@ try {
     'Session title ▾ › 重命名会话: a blank name cannot be saved and cancelling sends nothing; saving trims the name, PATCHes the real runtime once and updates the header title',
   )
 
-  // 7e. 第 4 期快捷键改绑：⌘J / ⌘I / ⌥↑⌥↓ / 插话 / ⌘/ 都在 shortcut-store，可在“设置 → 快捷键”改绑；
+  // 7e. 第 4 期快捷键改绑：⌘J / ⌘I / ⌥↑⌥↓ / 立即发送 / ⌘/ 都在 shortcut-store，可在“设置 → 快捷键”改绑；
   // 改绑立即生效、旧键失效；⌘/ 速查列出当前绑定，Esc 关闭不停止运行。v2：⌘J 聚焦侧栏会话列表。
   // 最后恢复默认（偏好经 Runtime 同步，免得影响之后的上下文）。
   {
@@ -2140,7 +2147,7 @@ try {
     )
     await page.setViewportSize({ width: 1440, height: 900 })
 
-    // 设置 → 快捷键：聚焦侧栏列表 F9（F6 默认属于焦点区域切换）、检查器 F7、插话 ⌘↵。
+    // 设置 → 快捷键：聚焦侧栏列表 F9（F6 默认属于焦点区域切换）、检查器 F7、立即发送 ⌘↵。
     await page.goto(`${base}/#/config/shortcuts`)
     const card = page.locator('[data-config-card="shortcuts-bindings"]')
     await card.waitFor({ timeout: 30_000 })
@@ -2180,21 +2187,22 @@ try {
       (open) => !!document.querySelector('[data-session-inspector]') === open,
       before,
     )
-    // 规格 v2 第 4.3 节：排队 / 插话的按法写在运行中的占位文字里（工具条提示退役），跟随改绑。
+    // 规格 v2 第 4.3 节：排队 / 立即发送的按法写在运行中的占位文字里（工具条提示退役），跟随改绑。
     assert.equal(
       await composer.getAttribute('placeholder'),
-      `运行中：Enter 排队，${keyName} + Enter 插话`,
+      `运行中：Enter 排队，${keyName} + Enter 立即发送`,
     )
-    await composer.fill('改绑后插话')
+    await composer.fill('改绑后立即发送')
     await composer.press('Alt+Enter')
     await page.waitForTimeout(500)
-    assert.equal(inputs.length, 0, 'the old ⌥↵ no longer steers')
-    await composer.fill('改绑后插话')
+    assert.equal(inputs.length, 0, 'the old ⌥↵ no longer sends now')
+    await composer.fill('改绑后立即发送')
     await composer.press(`${mod}+Enter`)
     await waitForInputs(1)
+    // 立即发送 = interrupt（打断当前这一步）；排队 = steer（当前这一步走完就送达）。
     assert.deepEqual(
       inputs.map((input) => input?.behavior),
-      ['steer'],
+      ['interrupt'],
     )
     await page.waitForFunction(
       () => document.querySelector('.focus-composer textarea')?.value === '',
@@ -2204,7 +2212,7 @@ try {
     await waitForInputs(2)
     assert.deepEqual(
       inputs.map((input) => input?.behavior),
-      ['steer', 'followUp'],
+      ['interrupt', 'steer'],
     )
     // 速查显示改绑后的键，并能跳到设置里改绑。
     await composer.click()

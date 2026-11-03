@@ -270,7 +270,7 @@ test('board project lists read registrations through the shared store and merge 
     read('src/features/board/ManageProjectsDialog.tsx'),
     read('src/features/board/useProjectCommands.ts'),
     read('src/features/board/useNewProjectPicker.ts'),
-    read('src/features/board/LaunchConsole.tsx'),
+    read('src/features/board/new-task-draft.tsx'),
   ])
   assert.match(launch, /recentLaunchProjects\(list \?\? \[\], registered, names\)/)
   assert.match(launch, /defaultLaunchCwd\(list \?\? \[\], projects\)/)
@@ -289,5 +289,10 @@ test('board project lists read registrations through the shared store and merge 
   assert.doesNotMatch(commands, /pickProjectDirectory/)
   assert.match(launchConsole, /useNewProjectPicker\(/)
   assert.match(launchConsole, /data-launch-new-project[\s\S]{0,200}projectPicker\.newProject\(\)/)
-  assert.match(launchConsole, /<WorkspacePicker \{\.\.\.pickerProps\} \/>/)
+  // 两个对话框按需加载，放在共用的 ProjectPickerDialogs 里，草稿只把钩子给的属性交过去。
+  assert.match(launchConsole, /<ProjectPickerDialogs\s+picker=\{projectPicker\.picker\}/)
+  assert.match(
+    await read('src/features/board/ProjectPickerDialogs.tsx'),
+    /<WorkspacePicker \{\.\.\.pickerProps\} \/>/,
+  )
 })

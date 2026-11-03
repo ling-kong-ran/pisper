@@ -261,7 +261,8 @@ try {
   await page.waitForFunction(() => !!document.querySelector('[data-pisper-virtual-item="m499"]'))
 
   // 第 3 期桌面会话页（会话页头 + 会话页输入框）沿用同一组钉子：输入框宽 768、圆角 22，
-  // 转录 markdown 16/26；运行中 Enter 排队（followUp）、Alt+Enter 插话（steer），停止仍在运行条上。
+  // 转录 markdown 16/26；运行中 Enter 排队（steer）、Alt+Enter 立即发送；
+  // 这个夹具不声明 inputInterrupt 能力（相当于旧 Runtime），立即发送退回排队。停止仍在运行条上。
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__chat?layout=page`)
   await input.waitFor({ timeout: 45000 })
   await page.locator('[data-session-header]').waitFor()
@@ -291,22 +292,27 @@ try {
   await input.press('Alt+Enter')
   await page.waitForFunction(() => window.replicaChat.evidence.queues === 2)
   assert.deepEqual(await page.evaluate(() => window.replicaChat.evidence.behaviors), [
-    'followUp',
+    'steer',
     'steer',
   ])
   // 托盘（规格 v2 第 4.3 节）：运行行只写“运行中 3:12 · 停止 Esc”，排队消息一行一条，编辑 / 取消。
   const tray = page.locator('[data-composer-tray]')
   assert.match(await tray.locator('[data-tray-clock]').innerText(), /^3:\d\d$/)
   assert.doesNotMatch(await tray.innerText(), /npm test|bash/, 'the tray never repeats the command')
-  assert.match(await input.getAttribute('placeholder'), /^运行中：Enter 排队，Alt \+ Enter 插话$/)
+  assert.match(
+    await input.getAttribute('placeholder'),
+    /^运行中：Enter 排队，Alt \+ Enter 立即发送$/,
+  )
   await tray.locator('[data-pisper-queue-size="2"]').waitFor()
   const queuedRows = tray.locator('li')
   assert.deepEqual(
     await queuedRows.evaluateAll((rows) =>
       rows.map((row) => row.querySelector('[data-queued-behavior]').dataset.queuedBehavior),
     ),
-    ['followUp', 'steer'],
+    ['steer', 'steer'],
   )
+  // 没有 inputInterrupt 能力时排队项不出现“立即发送”。
+  assert.equal(await tray.locator('[data-queued-send-now]').count(), 0)
   // 编辑：撤回并放回输入框；取消：只撤回。
   await queuedRows.first().hover()
   await queuedRows.first().locator('[data-queued-edit]').click()

@@ -1,7 +1,6 @@
-// 派发新任务：与聊天页“创建会话并发送首条消息”走同一套接口——先 POST /api/sessions 建会话，
-// 按启动台芯片写入模型、思考档位、审批模式与运行模式，再经 /api/chat 发送首条消息。
-// 运行流交给看板 store 持有（ownBoardStream）：Runtime 受理后即返回，启动台可以马上派发下一个；
-// 看板卸载或同步停止只会断开本客户端的 SSE，Runtime 的运行不受影响，列表轮询会继续反映真实状态。
+// 新任务与已有会话的任务消息：新任务先 POST /api/sessions 建会话，按草稿的芯片写入模型、思考档位、
+// 审批模式与运行模式（prepareLaunchSession），第一条消息由会话页自己发出并持有运行流；
+// 给已有会话发任务消息（组件工作室）时运行流交给看板 store 持有（ownBoardStream）。
 // 建好会话之后、首条消息被受理之前失败（例如 409 能力不支持）时，确认会话仍是空的再删掉它，
 // 不在历史会话里留下没有消息的空壳。
 import { chatApi } from '@/features/chat/chat-api'
@@ -129,11 +128,22 @@ async function configure(sessionId: string, created: SessionSummary, request: Bo
     await chatApi.updateRunMode(sessionId, request.runMode)
 }
 
+export type PreparedLaunchSession = {
+  // 建好并写好配置的新会话（排队时带 Runtime 给的 queue）。
+  session: SessionSummary
+  // true：首条消息已登记进启动队列，等前一个会话这一轮结束由 Runtime 启动，调用方不再发送。
+  queued: boolean
+}
+
 /**
- * 派发一个新任务。resolve 返回新会话 id，表示 Runtime 已受理首条消息；
- * reject 为 BoardLaunchError，stage 指出失败发生在哪一步（建会话 / 写配置 / 发送）。
+ * 新任务的第一条消息发出前：建会话，按草稿的选择写入模型、思考档位、审批模式与运行模式；
+ * 选了“排在…之后”时把首条消息登记进启动队列。不发送消息、也不持有运行流——
+ * 会话页（新任务草稿）随后用自己的输入框发出第一条消息，回复在同一页流式出现。
+ * reject 为 BoardLaunchError；写配置或登记排队失败时已清理空会话。
  */
-export async function launchBoardTask(request: BoardLaunchRequest): Promise<string> {
+export async function prepareLaunchSession(
+  request: BoardLaunchRequest,
+): Promise<PreparedLaunchSession> {
   const prompt = request.prompt.trim().slice(0, MAX_PROMPT_CHARS)
   if (!prompt) throw new BoardLaunchError('create', new Error('empty prompt'))
   let created: SessionSummary
@@ -151,35 +161,11 @@ export async function launchBoardTask(request: BoardLaunchRequest): Promise<stri
     await discardUnsentLaunchSession(sessionId)
     throw new BoardLaunchError('configure', error, sessionId)
   }
-  if (request.startAfter) return queueLaunchedSession(sessionId, created, prompt, request)
-  mergeCreatedSession({ ...created, firstMessage: prompt, messageCount: 1 })
-  // 首轮受理前就让卡片出现在“运行中”；失败时撤掉补丁，空会话不上看板。
-  const token = applyBoardPatch(sessionId, { streaming: true })
-  try {
-    await ownBoardStream(sessionId, 'launch', (onEvent, signal) =>
-      chatApi.openStream(
-        {
-          sessionId,
-          message: prompt,
-          attachments: [],
-          goalMode: request.runMode === 'goal',
-          teamMode: request.runMode === 'team',
-        },
-        onEvent,
-        { signal },
-      ),
-    )
-  } catch (error) {
-    clearBoardPatch(sessionId, token)
-    if (sendRejected(error)) await discardUnsentLaunchSession(sessionId)
-    void confirmBoardSessions().catch(() => undefined)
-    throw new BoardLaunchError('send', error, sessionId)
+  if (request.startAfter) {
+    const session = await queueLaunchedSession(sessionId, created, prompt, request)
+    return { session, queued: true }
   }
-  // 事件流在线时等这张新卡片的第一帧（条目接管后补丁才撤），其余数据源立即补读。
-  void confirmBoardSession(sessionId, (entry) => Boolean(entry))
-    .catch(() => undefined)
-    .finally(() => clearBoardPatch(sessionId, token))
-  return sessionId
+  return { session: created, queued: false }
 }
 
 /**
@@ -207,13 +193,14 @@ async function queueLaunchedSession(
   }
   const queue = result && typeof result.queue === 'object' ? result.queue : null
   // 排队的会话还没有消息：带上 Runtime 给的 queue 并进目录，卡片马上出现在“排队”；直接启动的进“运行中”。
-  mergeCreatedSession({
+  const session: SessionSummary = {
     ...created,
     firstMessage: prompt,
     ...(queue ? { queue } : { messageCount: 1, streaming: true }),
-  })
+  }
+  mergeCreatedSession(session)
   void confirmBoardSession(sessionId, (entry) => Boolean(entry)).catch(() => undefined)
-  return sessionId
+  return session
 }
 
 export type BoardTaskMessage = {

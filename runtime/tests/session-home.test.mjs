@@ -80,21 +80,20 @@ test('router: index renders the home landing, unknown paths and /chat redirect h
 test('the home landing never creates a session; the draft creates one only on the first message', async () => {
   const [home, draft, shell] = await Promise.all([
     readFile('src/app/SessionHome.tsx', 'utf8'),
-    readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
+    readFile('src/features/board/new-task-draft.tsx', 'utf8'),
     readFile('src/app/SessionShell.tsx', 'utf8'),
   ])
-  for (const source of [home, draft]) {
-    assert.doesNotMatch(
-      source,
-      /createSession|requestSessionCreation|sessionPath\(\)|NEW_SESSION_ROUTE_ID/,
-    )
-    assert.doesNotMatch(source, /chatApi|apiJson|\bfetch\(/)
-  }
-  // 草稿复用启动台：发出第一条消息才走 launchBoardTask（建会话 + 首条消息）。
-  assert.match(draft, /<LaunchConsole\s+variant="composer"/)
-  // 落地、草稿发出与主页里的泳道条切换都替换当前条目并标为主页落地。
-  assert.match(home, /navigate\(sessionPath\(id\), \{ replace: true, state: HOME_ENTRY_STATE \}\)/)
-  assert.match(home, /onDispatched=\{openHomeSession\}/)
+  // 主页只做落地，不建会话、不发请求。
+  assert.doesNotMatch(home, /createSession|requestSessionCreation|chatApi|apiJson|\bfetch\(/)
+  // 草稿进入时也不建会话：看板一侧只在第一条消息前经 prepareLaunchSession 建会话、写配置。
+  assert.doesNotMatch(draft, /chatApi|apiJson|\bfetch\(/)
+  assert.match(draft, /prepare: \(prompt\) =>\s*prepareLaunchSession\(/)
+  // 落地（上次的会话或新任务草稿 '/board/new'）都替换当前条目并标为主页落地。
+  assert.match(
+    home,
+    /landing\.kind === 'session'\s*\? sessionPath\(landing\.id\)\s*: landing\.kind === 'draft'\s*\? sessionPath\(\)\s*: ''/,
+  )
+  assert.match(home, /navigate\(target, \{ replace: true, state: HOME_ENTRY_STATE \}\)/)
   // 目录读取失败给出错误态与重试，不静默回落；明确选择后才进草稿。
   assert.match(home, /kind="error"/)
   assert.match(home, /sessions\.refetch\(\)/)
@@ -285,11 +284,10 @@ test('the shell wires the session tab to the home, back to history, and the boar
 })
 
 test('on the home page the shell navigates itself: no session route is mounted there to take requests', async () => {
-  const [app, preview, home, launch, routes] = await Promise.all([
+  const [app, preview, home, routes] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
     readFile('src/app/WebPreviewProvider.tsx', 'utf8'),
     readFile('src/app/SessionHome.tsx', 'utf8'),
-    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
     readFile('src/app/route-elements.tsx', 'utf8'),
   ])
   // '/' 的页面 id 是 'session'，挂的却是 SessionHome：判断“会话路由已挂载”只能看 /board/:id。
@@ -302,7 +300,7 @@ test('on the home page the shell navigates itself: no session route is mounted t
     assert.ok(start > 0, name)
     return app.slice(start, app.indexOf('\n  )', start))
   }
-  // 打开会话（⌘K、舰队计量、⌥A、派发浮层 ⌘↵）：主页上外壳必须自己导航过去。
+  // 打开会话（⌘K、舰队计量、⌥A）：主页上外壳必须自己导航过去。
   assert.match(
     body('openSession'),
     /if \(!sessionRouteMounted\) routerNavigate\(sessionPath\(id\)\)/,
@@ -313,7 +311,7 @@ test('on the home page the shell navigates itself: no session route is mounted t
     /if \(!sessionRouteMounted\) \{\s*const intent = peekSessionNavigationIntent\(\)/,
   )
   // 旧的“新会话”入口（历史页页头主操作）随 A6 退役：历史页工具行的“新任务”与侧栏、⌘N 同走 startNewTask
-  // （派发对话框，规格 2.5），外壳里不再有另一条按页面判断的新建会话路径。
+  // （新任务草稿 '/board/new'），外壳里不再有另一条按页面判断的新建会话路径。
   assert.doesNotMatch(app, /const startNewChat\b|requestSessionCreation\(''\)/)
   assert.match(routes, /<ChatHistoryPage[\s\S]*?onNewTask=\{context\.startNewTask\}/)
   for (const name of ['openSession', 'navigate'])
@@ -324,19 +322,8 @@ test('on the home page the shell navigates itself: no session route is mounted t
     /if \(sessionIdFromPath\(location\.pathname\)\) \{\s*requestWebPreview\(url\)/,
   )
   assert.doesNotMatch(preview, /pageFromPath/)
-  // 草稿第一条消息还在发送时离开了主页：不再 replace 别人的页面，改为提示并给出打开入口。
-  assert.match(
-    home,
-    /if \(mountedRef\.current\) \{\s*navigate\(sessionPath\(id\), \{ replace: true, state: HOME_ENTRY_STATE \}\)/,
-  )
-  assert.match(home, /onAction: \(\) => navigate\(sessionPath\(id\)\)/)
-  // 草稿输入框的发送键跟随“设置 → 快捷键”的 sendMessage（与会话页输入框一致），占位文字随绑定。
-  assert.match(
-    launch,
-    /if \(composer\) \{\s*if \(matchesShortcut\(event\.nativeEvent, sendBinding\)\)/,
-  )
-  assert.match(launch, /t\('board:home\.placeholder', \{ send: formatShortcut\(sendBinding\) \}\)/)
-  assert.match(launch, /t\('board:home\.placeholderUnbound'\)/)
+  // 主页自己不画输入框：没有上次的会话时落到新任务草稿（会话页），发送键沿用会话页输入框的绑定。
+  assert.doesNotMatch(home, /LaunchConsole|NewTaskDraft|textarea/)
 })
 
 // 规格 v2 第 2.8 节：showBoard 退役，⇧⌘B 交给新动作会话树；⌘B 的侧栏开关重新生效并列在设置里。
@@ -383,44 +370,28 @@ test('session tree takes over ⇧⌘B from the retired showBoard; ⌘B toggles t
   assert.doesNotMatch(shortcuts, /showBoard/)
 })
 
-test('new-task requests on the home draft focus the draft instead of stacking the dispatch overlay', async () => {
-  const [app, home, draft, launch] = await Promise.all([
+test('new-task requests on the draft focus its composer instead of opening anything else', async () => {
+  const [app, focus] = await Promise.all([
     readFile('src/App.tsx', 'utf8'),
-    readFile('src/app/SessionHome.tsx', 'utf8'),
-    readFile('src/features/board/NewTaskDraft.tsx', 'utf8'),
-    readFile('src/features/board/LaunchConsole.tsx', 'utf8'),
+    readFile('src/features/chat/FocusSession.tsx', 'utf8'),
   ])
   // 按键只有 AppShortcuts 一个入口（primaryAction 绑定，改绑照常生效），⌘N 与侧栏“新任务”都交给 startNewTask。
-  assert.match(app, /onPrimary=\{\(\) => startNewTask\('shortcut'\)\}/)
-  assert.match(app, /onNewTask=\{\(\) => startNewTask\('sidebar'\)\}/)
-  // 主页的页面 id 也是 session：先问当前页有没有认领者，没有才打开派发浮层。
+  assert.match(app, /onPrimary=\{\(\) => startNewTask\(\)\}/)
+  assert.match(app, /onNewTask=\{\(\) => startNewTask\(\)\}/)
+  // 先记下聚焦请求再导航：已经停在草稿上只聚焦；从别处进入时草稿挂载后接住这条请求
+  // （手机从别的页按 ⌘N 也会聚焦，不必再按一次）。
   assert.match(
     app,
-    /if \(requestedPathname\(readRouter\(\)\) !== location\.pathname\) \{\s+pendingNewTask\.current = source\s+return\s+\}\s+if \(\(page === 'board' \|\| page === 'session'\) && requestBoardNewTask\(source\)\) return\s+setDispatchOpen\(true\)/,
+    /requestNewTaskFocus\(\)\s*if \(sessionIdFromPath\(location\.pathname\) !== NEW_SESSION_ROUTE_ID\) routerNavigate\(sessionPath\(\)\)/,
   )
-  // 路由器已请求去别处、渲染的 page 还是离开中的那页时，请求先记下，目标页提交后再问一次（只执行一次）。
+  // 草稿输入框：桌面进入即聚焦（手机不自动聚焦，免得一落地就弹出软键盘），有待接的请求或收到请求时光标放到末尾。
   assert.match(
-    app,
-    /const source = pendingNewTask\.current\s+if \(!source \|\| requestedPathname\(readRouter\(\)\) !== location\.pathname\) return\s+pendingNewTask\.current = null\s+startNewTask\(source\)/,
-  )
-  // 认领者只有新任务草稿本身：主页只在落到草稿时挂它，加载中 / 错误态与真实会话页没有认领者。
-  assert.match(home, /if \(landing\.kind === 'draft'\)\s+body = \(\s+<NewTaskDraft/)
-  // 只认领 ⌘N 与标着同一个 ⌘N 的侧栏“新任务”；命令面板的“新会话”照旧开浮层（面板关闭会把焦点还回去）。
-  assert.match(
-    draft,
-    /DRAFT_CLAIMED_SOURCES: ReadonlySet<BoardNewTaskSource> = new Set\(\['shortcut', 'sidebar'\]\)/,
+    focus,
+    /if \(consumeNewTaskFocus\(\) \|\| !mobileLayout\) focusEnd\(\)\s*window\.addEventListener\(NEW_TASK_FOCUS_EVENT, focusEnd\)/,
   )
   assert.match(
-    draft,
-    /useBoardNewTaskHandler\(\(\{ source \}\) => \{\s+if \(!DRAFT_CLAIMED_SOURCES\.has\(source\) \|\| !consoleRef\.current\) return false\s+consoleRef\.current\.focusEnd\(\)\s+return true\s+\}\)/,
-  )
-  assert.match(draft, /variant="composer"\s+ref=\{consoleRef\}/)
-  // 草稿不自己听键盘，不出现第二个 ⌘N 监听。
-  assert.doesNotMatch(draft, /keydown|addEventListener\(|matchesShortcut|bindings\.primaryAction/)
-  // 聚焦时光标放到末尾，接着已写的内容往下写；设置选区不会滚动，长草稿要手动滚到底才看得到光标。
-  assert.match(
-    launch,
-    /focusEnd: \(\) => \{\s+const input = inputRef\.current\s+if \(!input\) return\s+input\.focus\(\)\s+input\.setSelectionRange\(input\.value\.length, input\.value\.length\)\s+(?:\/\/[^\n]*\s+)?input\.scrollTop = input\.scrollHeight\s+\}/,
+    focus,
+    /element\.focus\(\)\s*element\.setSelectionRange\(element\.value\.length, element\.value\.length\)/,
   )
 })
 

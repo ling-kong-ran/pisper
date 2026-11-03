@@ -53,7 +53,7 @@ test('sidebar keyboard wiring: F6 regions, A / D on rows, return focus and the p
     read('src/app/ShellSidebar.tsx'),
     read('src/features/chat/SessionPageHeader.tsx'),
     read('src/features/chat/FocusSession.tsx'),
-    read('src/features/board/NewTaskDraft.tsx'),
+    read('src/features/chat/NewTaskDraftView.tsx'),
   ])
   // F6：外壳只在按下时动态加载区域逻辑（不进入口包）；区域顺序 侧栏 → 顶栏 → 对话 / 内容 → 输入框。
   assert.match(
@@ -71,7 +71,8 @@ test('sidebar keyboard wiring: F6 regions, A / D on rows, return focus and the p
   assert.match(header, /data-session-header\s+data-focus-region="header"/)
   assert.match(focusSession, /data-chat-region="messages"\s+data-focus-region="content"/)
   assert.match(focusSession, /data-chat-region="composer" data-focus-region="composer"/)
-  assert.equal(draft.match(/data-focus-region="composer"/g)?.length, 2)
+  // 新任务草稿就是会话页的 FocusSession（输入框区域同上），只是页头换成“新任务”：桌面与手机各一份页头区域。
+  assert.equal(draft.match(/data-focus-region="header"/g)?.length, 2)
   // 侧栏行的 A / D 跟随全部代理的单字母绑定，必须用看板匹配器（应用匹配器拒绝无修饰的字母键，
   // 7c3052bb 用错匹配器导致 A / D 在侧栏上从未生效）。
   assert.match(sidebar, /matchesBoardShortcut\(event\.nativeEvent, boardBindings\.boardApprove\)/)
@@ -235,7 +236,10 @@ test('session page layout: no lane strip above the chat, inspector overlay under
   assert.doesNotMatch(workspace, /overlay-scrim|backdrop/)
   assert.match(workspace, /useBackLayer\(active && overlayMode && overlayOpen, 100, close\)/)
   // 页头只有会话页的两种（桌面 SessionPageHeader / 手机 SessionPhoneHeader）；旧顶栏的回退在 A6 删除。
-  assert.match(focus, /const headerBlock = pageHeaderBlock\n/)
+  assert.match(
+    focus,
+    /const headerBlock = draft \? \(\s*<NewTaskDraftHeader\s+phone=\{phonePage\}\s+leading=\{routeLeading\}\s+project=\{phonePage \? draft\.renderProjectControl\('header'\) : undefined\}\s*\/>\s*\) : \(\s*pageHeaderBlock\s*\)/,
+  )
   assert.doesNotMatch(focus, /TaskWorkspaceHeader/)
   assert.match(dock, /pageChrome \? \(\s*\/\/[^\n]*\n\s*<SessionWorkspace/)
   assert.match(
@@ -363,7 +367,7 @@ test('escape never leaves the session page; returning to the board needs an expl
         // 主页草稿与手机会话页的部件同样不得用 Esc 离开。
         'src/app/PhoneMenuButton.tsx',
         'src/app/SessionHome.tsx',
-        'src/features/board/NewTaskDraft.tsx',
+        'src/features/chat/NewTaskDraftView.tsx',
         'src/features/chat/SessionPhoneHeader.tsx',
         'src/app/ShellSidebar.tsx',
         'src/features/board/SidebarSessions.tsx',

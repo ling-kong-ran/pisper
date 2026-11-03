@@ -105,6 +105,8 @@ function buildCapabilities({
     sessionExport: true,
     // 新建项目文件夹：只建一层空目录，各档案都提供。
     workspaceFolders: true,
+    // 插队（立即发送）：/input 的 behavior: 'interrupt' 与排队项的 send-now，只打断当前这一步。
+    inputInterrupt: true,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。
     codemode: workers && wasm && !embedded,
   }

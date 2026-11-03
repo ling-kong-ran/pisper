@@ -15,7 +15,7 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
 import { memo, useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
-import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
+import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus, Shield } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   DropdownMenu,
@@ -37,7 +37,9 @@ import { isFileDrag } from './attachments'
 import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { ComposerCommandMenu } from './ComposerCommandMenu'
-import { commandDraft, useComposerDraft } from './composer-drafts'
+import { commandDraft, NEW_TASK_COMPOSER_KEY, useComposerDraft } from './composer-drafts'
+import { NewTaskDraftHeader, NewTaskGreeting } from './NewTaskDraftView'
+import { consumeNewTaskFocus, NEW_TASK_FOCUS_EVENT } from './events'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { ComposerModeChip } from './ComposerModeChip'
 import { nextComposerRunMode } from './composer-run-mode'
@@ -104,6 +106,8 @@ function escapeLayerOpen() {
 
 export const FocusSession = memo(function FocusSession({
   session,
+  draft,
+  emptyState,
   shortcutEnabled = false,
   messages,
   transcriptLoadState = 'ready',
@@ -172,6 +176,7 @@ export const FocusSession = memo(function FocusSession({
   onSend,
   onQueue,
   onWithdrawQueuedInput,
+  onSendQueuedInputNow,
   onAbort,
 }: FocusSessionProps) {
   const slots = useContext(TaskWorkspaceSlots)
@@ -191,9 +196,17 @@ export const FocusSession = memo(function FocusSession({
   const teamAvailable = runtimeFeatureAvailable(capabilities, 'multiAgent')
   const workflowsAvailable = runtimeFeatureAvailable(capabilities, 'workflows')
   const visualAvailable = runtimeFeatureAvailable(capabilities, 'visualGeneration')
+  // 插队（立即发送）：Runtime 支持时打断当前这一步；旧 Runtime 退回排队（下一步送达），排队项也没有“立即发送”。
+  const interruptAvailable = runtimeFeatureAvailable(capabilities, 'inputInterrupt')
+  const sendNowBehavior = interruptAvailable ? 'interrupt' : 'steer'
   const { value, updateValue, selection, clearDraft, restoreDraft, captureSubmission } =
-    useComposerDraft(session.id)
+    useComposerDraft(draft ? NEW_TASK_COMPOSER_KEY : session.id)
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
+  // 手机：审批与执行方式的底部表单从 + 菜单打开（工具行上的芯片默认收起）。
+  const [modeSheetOpen, setModeSheetOpen] = useState(false)
+  // + 菜单里打开别的弹层：等菜单关闭、焦点回到 + 键之后再开，关掉表单时焦点才回得到 + 键。
+  const afterPlusMenuCloseRef = useRef<(() => void) | null>(null)
+  const plusTriggerRef = useRef<HTMLButtonElement>(null)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
   // ⇧Tab 切换执行方式后的读屏播报（芯片文字同时改变）。
@@ -203,13 +216,14 @@ export const FocusSession = memo(function FocusSession({
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const panelRootRef = useRef<HTMLDivElement>(null)
-  // 会话页运行中：↵ 排队（followUp）、⌥↵ 插话（steer）。提交前记下这次的方式，表单提交时读取后复位。
-  const runningBehaviorRef = useRef<'followUp' | 'steer'>('followUp')
-  // 插话键是独立绑定（默认 ⌥↵，可在设置里改绑或禁用），不再由发送键派生。
+  // 会话页运行中（参考 Claude）：↵ 排队（steer，等当前这一步走完就送达）、⌥↵ 立即发送（interrupt，
+  // 打断当前这一步马上送达）。提交前记下这次的方式，表单提交时读取后复位。
+  const runningBehaviorRef = useRef<'steer' | 'interrupt'>('steer')
+  // 立即发送键是独立绑定（默认 ⌥↵，可在设置里改绑或禁用），不再由发送键派生；设置项沿用 steerMessage 的键名。
   const steerShortcut = shortcuts.steerMessage
-  // 触屏没有 ⌥：手机会话页运行中长按发送键或在“+”菜单里选“插话发送”，都走同一条提交路径。
+  // 触屏没有 ⌥：手机会话页运行中长按发送键或在“+”菜单里选“立即发送”，都走同一条提交路径。
   const submitSteer = () => {
-    runningBehaviorRef.current = 'steer'
+    runningBehaviorRef.current = sendNowBehavior
     promptRef.current?.form?.requestSubmit()
   }
   const SEND_SHORTCUT = useShortcutLabel('sendMessage')
@@ -229,6 +243,24 @@ export const FocusSession = memo(function FocusSession({
     window.addEventListener('keydown', focusComposer)
     return () => window.removeEventListener('keydown', focusComposer)
   }, [shortcutEnabled, shortcuts.focusComposer])
+  // 新任务草稿：桌面进入即可输入；手机只在主动发起新任务（⌘N、✎、抽屉“新任务”）时聚焦，
+  // 落地主页的草稿不聚焦，免得一打开就弹出软键盘。已在草稿上再点“新任务”时把光标放回输入框末尾。
+  const isDraft = Boolean(draft)
+  useEffect(() => {
+    if (!isDraft) return
+    const focusEnd = () => {
+      const element = promptRef.current
+      if (!element) return
+      element.focus()
+      element.setSelectionRange(element.value.length, element.value.length)
+      // Chromium 系（含 WebView2、Android WebView）设置选区不会滚动：长草稿要手动滚到底才看得到光标。
+      element.scrollTop = element.scrollHeight
+      consumeNewTaskFocus()
+    }
+    if (consumeNewTaskFocus() || !mobileLayout) focusEnd()
+    window.addEventListener(NEW_TASK_FOCUS_EVENT, focusEnd)
+    return () => window.removeEventListener(NEW_TASK_FOCUS_EVENT, focusEnd)
+  }, [isDraft, mobileLayout])
   // 输入法组词跟踪：Mac WebKit 的确认 Enter 在 compositionend 后才派发，需自行跟踪并延迟复位。
   const imeComposingRef = useRef(false)
   const hasConversation = transcriptLoadState !== 'ready' || messages.length > 0
@@ -243,7 +275,9 @@ export const FocusSession = memo(function FocusSession({
             steer: formatShortcut(steerShortcut),
           })
         : t('board:composer.placeholderRunningQueueOnly', { queue: SEND_SHORTCUT })
-    : t('board:composer.placeholder')
+    : draft
+      ? t('chat:newTask.placeholder')
+      : t('board:composer.placeholder')
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
 
@@ -352,14 +386,19 @@ export const FocusSession = memo(function FocusSession({
   // 输入框的内置斜杠命令（与 TUI 对齐）：都走输入框芯片与页头已有的同一组切换函数。
   const inspector = useContext(SessionInspectorContext)
   const onNewTask = pageChrome?.onNewTask || pageChrome?.phone?.onNewTask
+  // 新任务草稿还没有会话：按所选项目目录列出同一套 Prompt / Skill 命令。
+  const draftCwd = draft ? draft.cwd : null
   const loadSessionCommands = useCallback(
-    () => chatApi.getSessionCommands(session.id),
-    [session.id],
+    () =>
+      draftCwd !== null
+        ? chatApi.getWorkspaceCommands(draftCwd)
+        : chatApi.getSessionCommands(session.id),
+    [draftCwd, session.id],
   )
   const sideQuestion = useSideQuestion(session.id)
   // 每次渲染重建：命令直接调用当前的切换函数，不缓存旧闭包；数组很小，菜单只在打开时匹配。
   const builtinCommands: BuiltinCommand[] = [
-    ...(onNewTask
+    ...(onNewTask && !draft
       ? [{ invocation: '/new', description: t('chat:commands.builtin.new'), run: onNewTask }]
       : []),
     ...runtimeSettingCommands({
@@ -397,8 +436,8 @@ export const FocusSession = memo(function FocusSession({
             : t('chat:focusSession.planMode'),
       onRunMode: (mode) => changeExecutionMode(mode as typeof composerExecutionMode),
     }),
-    // 旁问是分组形态：选中后补全成“/btw ”，写完问题再发送。
-    { invocation: '/btw', description: t('chat:commands.builtin.btw') },
+    // 旁问是分组形态：选中后补全成“/btw ”，写完问题再发送。草稿还没有对话，不提供。
+    ...(draft ? [] : [{ invocation: '/btw', description: t('chat:commands.builtin.btw') }]),
     ...(onCompact
       ? [
           {
@@ -408,7 +447,7 @@ export const FocusSession = memo(function FocusSession({
           },
         ]
       : []),
-    ...(inspector
+    ...(inspector && !draft
       ? [
           {
             invocation: '/changes',
@@ -427,9 +466,18 @@ export const FocusSession = memo(function FocusSession({
       '',
     availableModels.map((item) => item.label),
   )
+  const pendingInputIds = useMemo(
+    () =>
+      new Set(
+        (queuedInputs || [])
+          .map((item) => (typeof item.id === 'string' ? item.id : ''))
+          .filter(Boolean),
+      ),
+    [queuedInputs],
+  )
   const transcriptMeta = useMemo(
-    () => (pageChrome ? { model: modelLabel } : null),
-    [modelLabel, pageChrome],
+    () => (pageChrome ? { model: modelLabel, pendingInputIds } : null),
+    [modelLabel, pageChrome, pendingInputIds],
   )
   // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与模型芯片弹层同一来源，拿不到时不写。
   const contextPercent = Number(contextUsage?.percent)
@@ -483,7 +531,8 @@ export const FocusSession = memo(function FocusSession({
     <VoiceInputControl
       sessionId={session.id}
       shortcutEnabled={shortcutEnabled}
-      variant="menu"
+      // 手机照参考稿把麦克风键放在发送键旁边；桌面入口在 + 菜单里（F8 照常）。
+      variant={phonePage ? 'button' : 'menu'}
       controlRef={voiceControlRef}
       onLiveText={(text) => {
         if (text === null) {
@@ -511,7 +560,7 @@ export const FocusSession = memo(function FocusSession({
   )
   const plusLabel = t('board:composer.plusMenu')
   // 输入框“+”菜单（规格 v2 第 2.5 / 4.3 节）：附件、技能与工具、生成图片、语音输入（F8）；
-  // 手机运行中另有“插话发送”（触屏没有 ⌥↵）。原来可配置的工具条与“+”托盘退役，工具行固定为
+  // 手机上语音键在工具行，这里换成“审批与执行方式”；手机运行中另有“插话发送”（触屏没有 ⌥↵）。原来可配置的工具条与“+”托盘退役，工具行固定为
   // [+] [盾牌芯片] … [模型芯片] [发送]。
   const plusMenu = (
     <DropdownMenu>
@@ -523,6 +572,7 @@ export const FocusSession = memo(function FocusSession({
             // 手机：浅灰底圆形，和盾牌、模型胶囊同一种无边框填充样式。
             'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:text-content',
           )}
+          ref={plusTriggerRef}
           title={plusLabel}
           aria-label={plusLabel}
           data-composer-plus
@@ -540,6 +590,11 @@ export const FocusSession = memo(function FocusSession({
         side="top"
         className="min-w-56 p-1 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11 pointer-coarse:[&_[role=menuitem]]:min-h-11"
         data-composer-plus-menu
+        onCloseAutoFocus={() => {
+          const next = afterPlusMenuCloseRef.current
+          afterPlusMenuCloseRef.current = null
+          if (next) window.setTimeout(next, 0)
+        }}
       >
         {phonePage && streaming && (
           <DropdownMenuItem
@@ -587,20 +642,47 @@ export const FocusSession = memo(function FocusSession({
             {t('chat:focusSession.generateImage')}
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          data-composer-plus-item="voice"
-          onSelect={() => voiceControlRef.current?.()}
-        >
-          <Mic aria-hidden="true" />
-          {t('chat:voiceInput.open')}
-          {VOICE_SHORTCUT && <DropdownMenuShortcut>{VOICE_SHORTCUT}</DropdownMenuShortcut>}
-        </DropdownMenuItem>
+        {phonePage ? (
+          <DropdownMenuItem
+            data-composer-plus-item="mode"
+            onSelect={() => {
+              afterPlusMenuCloseRef.current = () => setModeSheetOpen(true)
+            }}
+          >
+            <Shield aria-hidden="true" />
+            {t('board:composer.modeChip')}
+            <DropdownMenuShortcut className="tracking-normal">
+              {executionMode === 'full-access'
+                ? t('chat:focusSession.fullAccessShort')
+                : executionMode === 'workspace-write'
+                  ? t('chat:focusSession.workspaceWriteShort')
+                  : t('chat:focusSession.approvalRequiredShort')}
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            data-composer-plus-item="voice"
+            onSelect={() => voiceControlRef.current?.()}
+          >
+            <Mic aria-hidden="true" />
+            {t('chat:voiceInput.open')}
+            {VOICE_SHORTCUT && <DropdownMenuShortcut>{VOICE_SHORTCUT}</DropdownMenuShortcut>}
+          </DropdownMenuItem>
+        )}
+        {draft?.plusMenuItems}
       </DropdownMenuContent>
     </DropdownMenu>
   )
   const modeChip = (
     <ComposerModeChip
       sheet={phonePage}
+      collapse={phonePage}
+      open={modeSheetOpen}
+      onOpenChange={(open) => {
+        setModeSheetOpen(open)
+        // 手机上表单多半是从 + 菜单打开的（芯片收起）：关上后焦点回到 + 键，不丢到页面开头。
+        if (!open && phonePage) window.setTimeout(() => plusTriggerRef.current?.focus(), 0)
+      }}
       approvalMode={executionMode}
       onApprovalModeChange={onExecutionModeChange}
       approvalDisabled={switchingPermission}
@@ -642,6 +724,19 @@ export const FocusSession = memo(function FocusSession({
         />
       }
     />
+  )
+  // 手机上模型胶囊只写“模型”，不参与收缩（窄屏露出完全访问芯片时由那个芯片截断，“模型”不被挤成竖排）。
+  const modelChipSlot = (
+    <div
+      className={cn(
+        'flex items-center',
+        phonePage
+          ? 'shrink-0'
+          : 'min-w-0 shrink [&_.model-effort-pill]:max-w-full @max-[300px]/composer-footer:[&_.model-effort-pill>span:nth-child(n+2)]:hidden',
+      )}
+    >
+      {modelChip}
+    </div>
   )
   // 两种会话页头共用的数据与操作（菜单项都复用现有实现）。
   const pendingQuestions = useMemo(() => parsePendingQuestions(questions), [questions])
@@ -708,9 +803,18 @@ export const FocusSession = memo(function FocusSession({
   )
   // 非路由的旧单会话顶栏已在 A6 退役：会话只在会话页（路由，带 pageChrome）里渲染，
   // 页头一律是 SessionPageHeader / SessionPhoneHeader；没有页面外壳时不画页头。
-  const headerBlock = pageHeaderBlock
+  const headerBlock = draft ? (
+    <NewTaskDraftHeader
+      phone={phonePage}
+      leading={routeLeading}
+      project={phonePage ? draft.renderProjectControl('header') : undefined}
+    />
+  ) : (
+    pageHeaderBlock
+  )
   const transcriptBlock = (
     <FocusTranscript
+      emptyState={draft ? <NewTaskGreeting /> : emptyState}
       key="transcript"
       layoutMeasurementKey="fixed"
       sessionId={session.id}
@@ -772,7 +876,7 @@ export const FocusSession = memo(function FocusSession({
       onSubmit={(event) => {
         // 这次提交的运行中方式读完即复位：发送键与 ↵ 都是排队，只有 ⌥↵ 是插话。
         const behavior = runningBehaviorRef.current
-        runningBehaviorRef.current = 'followUp'
+        runningBehaviorRef.current = 'steer'
         // “/btw 问题”不发给主会话：只清掉文字（附件留在草稿里），单独问一次；运行中也可以。
         const question = sideQuestionText(value)
         if (question !== null) {
@@ -817,7 +921,7 @@ export const FocusSession = memo(function FocusSession({
           onAnswer={onAnswerQuestion}
         />
       )}
-      {workflowsAvailable && <SessionWorkflowRuns sessionId={session.id} />}
+      {workflowsAvailable && !draft && <SessionWorkflowRuns sessionId={session.id} />}
       {invocation && (
         <ComposerResourceChip invocation={invocation} onRemove={() => setInvocation(null)} />
       )}
@@ -838,15 +942,24 @@ export const FocusSession = memo(function FocusSession({
           startedAt={runStartedAt}
           stopping={stopping}
           onStop={() => void stop()}
+          runRow={!phonePage}
           queuedInputs={queuedInputs}
           withdrawingInputIds={withdrawingInputIds}
           onEdit={onWithdrawQueuedInput ? withdrawQueuedInput : undefined}
           onCancel={onWithdrawQueuedInput ? cancelQueuedInput : undefined}
+          onSendNow={
+            interruptAvailable && onSendQueuedInputNow
+              ? (inputId) => void onSendQueuedInputNow(inputId)
+              : undefined
+          }
+          // 手机不画排队列表：排队的消息就是对话里标着“排队中”的气泡（参考稿），托盘只剩压缩提示。
+          queueList={!phonePage}
         />
+        {draft?.notice && <div className="px-1">{draft.notice}</div>}
         {/* 输入卡片：圆角 22（守卫）+ 控件级描边（≥3:1），输入时焦点描边与 3px 焦点环。 */}
         <div
           className={cn(
-            'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
+            'focus-composer relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] [corner-shape:var(--composer-corner-shape,round)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) ease-(--ease) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] max-[650px]:border-stroke-strong max-[650px]:shadow-none max-[650px]:has-[textarea:focus]:border-control max-[650px]:has-[textarea:focus]:ring-0 [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3 [&_textarea]:w-full [&_textarea]:min-w-0 [&_textarea]:min-h-11 [&_textarea]:max-h-[220px] [&_textarea]:resize-none [&_textarea]:overflow-y-auto [&_textarea]:border-0 [&_textarea]:[outline:0]! [&_textarea]:bg-transparent [&_textarea]:px-4 [&_textarea]:pt-3 [&_textarea]:pb-1 [&_textarea]:text-[length:calc(var(--app-message-font-size)*.9375)] max-[650px]:[&_textarea]:px-3.5 max-[650px]:[&_textarea]:text-[length:var(--app-message-font-size)] [&_textarea]:[font-family:var(--font-content-family)] [&_textarea]:font-[400] [&_textarea]:leading-5 [&_textarea]:text-content [&_textarea]:placeholder:text-content-muted',
             attachmentDropActive && 'border-focus ring-3 ring-focus-ring',
           )}
           onDragEnter={showAttachmentDrop}
@@ -904,7 +1017,7 @@ export const FocusSession = memo(function FocusSession({
                 matchesShortcut(event.nativeEvent, steerShortcut)
               ) {
                 event.preventDefault()
-                runningBehaviorRef.current = 'steer'
+                runningBehaviorRef.current = sendNowBehavior
                 event.currentTarget.form?.requestSubmit()
                 return
               }
@@ -960,20 +1073,21 @@ export const FocusSession = memo(function FocusSession({
           <span role="status" className="sr-only">
             {modeAnnouncement}
           </span>
-          {/* 工具行（规格 v2 第 4.3 节）：[+] [盾牌芯片] … [模型芯片] [发送]。
-              手机上控件都是 44 的圆形 / 胶囊：留 8px 内边距，与 28px 圆角大致同心，发送键不压到圆角上。 */}
+          {/* 工具行（规格 v2 第 4.3 节）：桌面 [+] [盾牌芯片] … [模型芯片] [发送]。
+              手机照参考稿只留 [+] [模型] … [麦克风] [发送]：审批收进 + 菜单（完全访问或 Goal / Team 时芯片仍露出），
+              新任务的项目在顶栏副标题里。控件都是 44 的圆形 / 胶囊：留 8px 内边距，与 28px 圆角大致同心。 */}
           <div
             className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:gap-1.5"
             data-composer-toolbar
           >
             {plusMenu}
             {attachmentChooser.input}
+            {phonePage && modelChipSlot}
+            {!phonePage && draft?.renderProjectControl('chip')}
             {modeChip}
             <span className="min-w-0 flex-1" />
             {voiceInput}
-            <div className="flex min-w-0 shrink items-center [&_.model-effort-pill]:max-w-full @max-[300px]/composer-footer:[&_.model-effort-pill>span:nth-child(n+2)]:hidden">
-              {modelChip}
-            </div>
+            {!phonePage && modelChipSlot}
             <ComposerSendButton
               streaming={streaming}
               queueing={queueing}
@@ -997,6 +1111,7 @@ export const FocusSession = memo(function FocusSession({
               }
               onLongPress={phonePage && streaming ? submitSteer : undefined}
               longPressHint={t('board:composer.longPressSteer')}
+              onStop={phonePage ? () => void stop() : undefined}
             />
           </div>
         </div>
@@ -1007,6 +1122,9 @@ export const FocusSession = memo(function FocusSession({
     <Panel
       className={cn(
         `focus-session [--chat-content-width:768px] [.session-dock-panel_&]:overflow-hidden [.session-dock-panel_&]:min-h-0 [.session-dock-panel_&]:border-0 [.session-dock-panel_&]:rounded-[0] [.session-dock-panel_&]:bg-[var(--panel)] [.session-dock-panel_&]:p-0 [.session-dock-panel_&]:shadow-[none] [[data-theme='dark']_.session-dock-panel_&]:bg-[var(--main-surface-bg)] min-[651px]:[[data-density='compact']_.app-card:not(&)]:p-[10px] max-[650px]:min-h-[460px] max-[650px]:[.session-dock-panel_&]:min-h-0 relative flex h-full min-h-0 flex-col ${hasConversation ? 'has-conversation' : 'is-empty'}`,
+        // 新任务草稿（桌面）：问候语与输入框一起放在页面中部（新对话的常见做法）；手机上输入框仍停靠底部。
+        draft &&
+          'min-[651px]:[&_[data-chat-region=messages]]:!flex-none min-[651px]:[&_[data-chat-region=messages]]:mt-[max(48px,calc((100dvh-520px)/2))] min-[651px]:[&_[data-chat-region=messages]]:!overflow-visible min-[651px]:[&_.transcript]:!overflow-visible min-[651px]:[&_.transcript]:!p-0 min-[651px]:[&_.transcript]:!pb-6',
       )}
       data-chat-message-style="bubble"
     >
@@ -1043,6 +1161,7 @@ export const FocusSession = memo(function FocusSession({
       <ChatResourcePicker
         open={resourcePickerOpen}
         sessionId={session.id}
+        cwd={cwd || ''}
         onClose={() => setResourcePickerOpen(false)}
         onSelect={setInvocation}
         onCommandSelect={(commandInvocation) =>

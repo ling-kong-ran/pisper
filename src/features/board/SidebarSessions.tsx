@@ -110,7 +110,7 @@ function focusWhenReady(
 export type SidebarCommandsProps = {
   // 当前会话：读路由器的最新去向（连按 ⌥↓ 时界面还没换过去），不是已渲染的地址。
   resolveCurrentId: () => string
-  // 已渲染页面上的会话：会话页（含主页草稿，此时是空串）给出 id，其他页面为 null。
+  // 已渲染页面上的会话：会话页（含新任务草稿，此时是空串）给出 id，其他页面为 null。
   // 用来在“从全部代理、设置、功能等页面回到原会话”时把焦点还给原来的会话行（规格 2.3）。
   renderedSessionId: string | null
   onOpenSession: (sessionId: string) => void
