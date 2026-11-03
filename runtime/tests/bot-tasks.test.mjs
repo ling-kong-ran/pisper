@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { createApiHandler } from '../http/api-handler.mjs'
+import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { normalizeBotInput } from '../services/bots/bot-model.mjs'
 import { BotTaskService, botTaskPrompt } from '../services/bots/bot-task-service.mjs'
 import { LocalExecutor } from '../services/bots/executor.mjs'
@@ -119,7 +120,7 @@ test('a conflicting apply is rolled back and leaves the branch for a human', asy
   assert.equal(await readFile(join(repo, 'README.md'), 'utf8'), 'from human\n')
 })
 
-async function taskFixture(t, { bots, runAgent, maxRunning = 3, stored } = {}) {
+async function taskFixture(t, { bots, runAgent, maxRunning = 3, stored, waitingFor } = {}) {
   const cleanups = []
   const base = await fixture(t, cleanups)
   const registry = new Map(bots.map((item) => [item.id, item]))
@@ -146,6 +147,7 @@ async function taskFixture(t, { bots, runAgent, maxRunning = 3, stored } = {}) {
     worktrees: base.worktrees,
     runAgent,
     stopAgent: async (sessionId) => stops.push(sessionId),
+    waitingFor,
     maxRunning,
   })
   cleanups.push(() => service.dispose())
@@ -410,4 +412,83 @@ test('talking to a bot while changes await review continues the same task on the
   await service.discard(first.id)
   const next = await service.message('reviewer', { text: '看看 CI' })
   assert.notEqual(next.id, first.id)
+})
+
+test('a running task shows the approval or question it waits for without storing it', async (t) => {
+  const gate = deferred()
+  const pending = new Map()
+  const { service, path } = await taskFixture(t, {
+    bots: [bot('careful')],
+    runAgent: ({ onSession }) => {
+      onSession('session-careful')
+      return gate.promise
+    },
+    waitingFor: (sessionId) => pending.get(sessionId) ?? null,
+  })
+  const task = await service.dispatch('careful', { text: '清理构建目录' })
+  await until(() => service.get(task.id).status === 'running' && service.get(task.id).sessionId)
+  assert.equal(service.get(task.id).waiting, undefined)
+  assert.equal(service.activity('careful').needsYou, false)
+
+  const approval = { id: 'a1', toolName: 'bash', argsPreview: 'rm -rf dist', severity: 'standard' }
+  pending.set('session-careful', { approval, question: null })
+  assert.deepEqual(service.get(task.id).waiting, { approval, question: null })
+  assert.deepEqual(service.list({ botId: 'careful' })[0].waiting, { approval, question: null })
+  assert.equal(service.activity('careful').needsYou, true)
+  assert.equal(service.activity('careful').waiting, 'approval')
+
+  pending.set('session-careful', { approval: null, question: { id: 'q1', prompt: '删哪个？' } })
+  assert.equal(service.activity('careful').waiting, 'question')
+
+  // 只在内存里投影，不写进任务文件。
+  await service.save()
+  assert.doesNotMatch(await readFile(path, 'utf8'), /waiting|rm -rf/)
+
+  pending.clear()
+  gate.resolve({ text: '清理好了', sessionId: 'session-careful' })
+  await until(() => service.get(task.id).status !== 'running')
+  assert.equal(service.activity('careful').waiting, null)
+})
+
+test('the runtime reports the oldest pending approval in board-card form and the question summary', () => {
+  const approvals = [
+    {
+      id: 'late',
+      toolName: 'bash',
+      args: { command: 'ls' },
+      createdAt: '2026-11-03T00:02:00.000Z',
+    },
+    {
+      id: 'early',
+      toolName: 'bash',
+      args: { command: 'rm -rf /' },
+      reason: '删除根目录',
+      severity: 'critical',
+      createdAt: '2026-11-03T00:01:00.000Z',
+    },
+  ]
+  const questions = [
+    {
+      id: 'q1',
+      sessionId: 's1',
+      createdAt: '2026-11-03T00:03:00.000Z',
+      questions: [
+        { question: '删哪个？', header: '目录', multiSelect: false, options: [{ label: 'dist' }] },
+      ],
+    },
+  ]
+  const runtime = {
+    permissions: { getPending: (id) => (id === 's1' ? approvals : []) },
+    questions: { getPending: (id) => (id === 's1' ? questions : []) },
+  }
+  const waiting = AgentRuntimeFacade.prototype.botTaskWaiting.call(runtime, 's1')
+  assert.equal(waiting.approval.id, 'early')
+  assert.equal(waiting.approval.argsPreview, 'rm -rf /')
+  assert.equal(waiting.approval.severity, 'critical')
+  assert.equal(waiting.question.id, 'q1')
+  assert.deepEqual(waiting.question.options, ['dist'])
+  assert.deepEqual(AgentRuntimeFacade.prototype.botTaskWaiting.call(runtime, 'other'), {
+    approval: null,
+    question: null,
+  })
 })

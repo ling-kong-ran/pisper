@@ -96,5 +96,20 @@
   "computer.moreSoon": "以后可以在这里换成其他配对的电脑（执行节点）。",
   "computer.isolated": "每次任务一个独立分支",
   "computer.shared": "直接在目录里改",
-  "computer.currentBranch": "正在分支 {branch} 上干活"
+  "computer.currentBranch": "正在分支 {branch} 上干活",
+  "activity.approval": "等你批准一个操作",
+  "activity.question": "有问题问你",
+  "waiting.approval": "需要你批准：{tool}",
+  "waiting.allow": "允许",
+  "waiting.deny": "拒绝",
+  "waiting.critical": "这是高风险操作，确认没问题再允许。",
+  "waiting.confirmAllow": "确认允许",
+  "waiting.cancel": "取消",
+  "waiting.truncated": "内容太长，这里只显示了一部分。要允许的话，请在完整记录里看完再批准。",
+  "waiting.question": "{name}问你",
+  "waiting.otherLabel": "你的回答",
+  "waiting.otherPlaceholder": "或者直接写你的回答…",
+  "waiting.answer": "回答",
+  "waiting.skip": "跳过",
+  "waiting.answerInLog": "这个问题有多项，请在完整记录里回答。"
 }

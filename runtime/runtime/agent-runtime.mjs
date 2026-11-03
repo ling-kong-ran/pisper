@@ -679,6 +679,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }),
       runAgent: (input) => this.runBotTaskAgent(input),
       stopAgent: (sessionId) => this.abortSession(sessionId),
+      waitingFor: (sessionId) => this.botTaskWaiting(sessionId),
     })
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()

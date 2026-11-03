@@ -709,7 +709,7 @@ export class SessionCardSummaries {
  * @param {unknown} approval
  * @returns {CardApproval | null}
  */
-function projectApproval(approval) {
+export function projectApproval(approval) {
   const value = record(approval)
   const id = text(value.id)
   if (!id) return null

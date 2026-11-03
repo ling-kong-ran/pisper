@@ -97,6 +97,38 @@ test('task parser keeps follow-up turns and reads old tasks without turns', () =
   assert.throws(() => parseBotTask({ id: 'x', botId: 'y', status: 'nope' }))
 })
 
+test('task parser reads what a running task waits for and treats unknown risk as critical', () => {
+  const base = { id: 't', botId: 'b', status: 'running', request: '清理' }
+  assert.equal(parseBotTask(base).waiting, null)
+  assert.equal(parseBotTask({ ...base, waiting: { approval: null, question: null } }).waiting, null)
+  const waiting = parseBotTask({
+    ...base,
+    waiting: {
+      approval: { id: 'a1', toolName: 'bash', argsPreview: 'rm -rf dist', severity: 'weird' },
+      question: { id: 'q1', prompt: '删哪个？', options: ['dist', 3], count: 1 },
+    },
+  }).waiting
+  assert.equal(waiting.approval.severity, 'critical')
+  assert.equal(waiting.approval.argsTruncated, false)
+  assert.deepEqual(waiting.question.options, ['dist'])
+  assert.equal(waiting.question.multiSelect, false)
+  assert.equal(
+    parseBot({ id: 'b', name: 'n', activity: { status: 'running', waiting: 'nonsense' } }).activity
+      .waiting,
+    null,
+  )
+})
+
+test('approving or answering in the chat goes through the session endpoints', async () => {
+  const source = await readFile(join(root, 'src/features/bots/bots-api.ts'), 'utf8')
+  assert.match(source, /\/api\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/approvals\//)
+  assert.match(source, /\/api\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/questions\//)
+  // 高风险必须在卡片里再确认一次；参数截断时不给“允许”。
+  const card = await readFile(join(root, 'src/features/bots/BotWaitingCard.tsx'), 'utf8')
+  assert.match(card, /critical \? setConfirming\(true\)/)
+  assert.match(card, /!approval\.argsTruncated &&/)
+})
+
 test('sidebar line and avatar state follow the latest task', () => {
   const activity = (status, extra = {}) => ({
     taskId: 't',
@@ -116,6 +148,24 @@ test('sidebar line and avatar state follow the latest task', () => {
   assert.equal(
     botActivityLine(t, { enabled: true, activity: activity('running') }),
     'bots:activity.working {"title":"修登录"}',
+  )
+  assert.equal(
+    botActivityLine(t, {
+      enabled: true,
+      activity: activity('running', { needsYou: true, waiting: 'approval' }),
+    }),
+    'bots:activity.approval',
+  )
+  assert.equal(
+    botActivityLine(t, {
+      enabled: true,
+      activity: activity('running', { needsYou: true, waiting: 'question' }),
+    }),
+    'bots:activity.question',
+  )
+  assert.equal(
+    botAvatarState({ activity: activity('running', { needsYou: true, waiting: 'approval' }) }),
+    'need',
   )
   assert.equal(botAvatarState({ activity: activity('review', { needsYou: true }) }), 'need')
   assert.equal(botAvatarState({ activity: activity('preparing') }), 'running')

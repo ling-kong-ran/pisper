@@ -13,6 +13,8 @@ export type BotActivity = {
   title: string
   changedFiles: number
   needsYou: boolean
+  // 运行中的任务在等你批准或回答（旧 Runtime 没有这个字段）。
+  waiting: 'approval' | 'question' | null
   updatedAt: string
 }
 
@@ -31,6 +33,30 @@ export type Bot = {
 
 export type BotTurn = { text: string; at: string; reply?: string }
 
+// 与看板卡片同一份审批摘要；argsTruncated 时完整参数只在会话里看得到。
+export type BotWaitingApproval = {
+  id: string
+  toolName: string
+  argsPreview: string
+  argsTruncated: boolean
+  severity: 'critical' | 'standard'
+  reason: string
+}
+
+export type BotWaitingQuestion = {
+  id: string
+  prompt: string
+  header: string
+  options: string[]
+  multiSelect: boolean
+  count: number
+}
+
+export type BotWaiting = {
+  approval: BotWaitingApproval | null
+  question: BotWaitingQuestion | null
+}
+
 export type BotTask = {
   id: string
   botId: string
@@ -47,6 +73,7 @@ export type BotTask = {
     branch?: string
   } | null
   error: { code: string; message: string } | null
+  waiting: BotWaiting | null
   createdAt: string
   updatedAt: string
 }
@@ -91,8 +118,44 @@ function parseActivity(value: unknown): BotActivity | null {
     title: text(input.title),
     changedFiles: Number(input.changedFiles) || 0,
     needsYou: input.needsYou === true,
+    waiting: input.waiting === 'approval' || input.waiting === 'question' ? input.waiting : null,
     updatedAt: text(input.updatedAt),
   }
+}
+
+function parseWaiting(value: unknown): BotWaiting | null {
+  if (!value) return null
+  const input = object(value)
+  const approval = input.approval ? object(input.approval) : null
+  const question = input.question ? object(input.question) : null
+  const waiting: BotWaiting = {
+    approval:
+      approval && text(approval.id)
+        ? {
+            id: text(approval.id),
+            toolName: text(approval.toolName),
+            argsPreview: text(approval.argsPreview),
+            argsTruncated: approval.argsTruncated === true,
+            // 不认识的等级按高风险处理：宁可多确认一步。
+            severity: approval.severity === 'standard' ? 'standard' : 'critical',
+            reason: text(approval.reason),
+          }
+        : null,
+    question:
+      question && text(question.id)
+        ? {
+            id: text(question.id),
+            prompt: text(question.prompt),
+            header: text(question.header),
+            options: Array.isArray(question.options)
+              ? question.options.filter((option): option is string => typeof option === 'string')
+              : [],
+            multiSelect: question.multiSelect === true,
+            count: Number(question.count) || 1,
+          }
+        : null,
+  }
+  return waiting.approval || waiting.question ? waiting : null
 }
 
 export function parseBot(value: unknown): Bot {
@@ -166,6 +229,7 @@ export function parseBotTask(value: unknown): BotTask {
         }
       : null,
     error: error ? { code: text(error.code), message: text(error.message) } : null,
+    waiting: parseWaiting(input.waiting),
     createdAt: text(input.createdAt),
     updatedAt: text(input.updatedAt),
   }
@@ -255,4 +319,27 @@ export function botTaskAction(
     data: data ?? {},
     parse: one('task', parseBotTask),
   })
+}
+
+// 任务在 Bot 的会话里等审批或回答：直接调会话的接口，和会话页里处理是同一件事。
+export function resolveBotApproval(sessionId: string, approvalId: string, approved: boolean) {
+  return requestJson(
+    `/api/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,
+    { method: 'POST', data: { approved }, parse: () => undefined },
+  )
+}
+
+export function answerBotQuestion(
+  sessionId: string,
+  questionId: string,
+  answer: { selected: string[]; other?: string } | { skip: true },
+) {
+  return requestJson(
+    `/api/sessions/${encodeURIComponent(sessionId)}/questions/${encodeURIComponent(questionId)}`,
+    {
+      method: 'POST',
+      data: 'skip' in answer ? { skip: true } : { answers: [answer] },
+      parse: () => undefined,
+    },
+  )
 }

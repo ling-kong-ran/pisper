@@ -70,6 +70,8 @@ export class BotTaskService {
     worktrees,
     runAgent,
     stopAgent,
+    // 运行中的任务在等什么（审批或问题），由 Runtime 从会话里读；没有接线时视为不等待。
+    waitingFor = () => null,
     maxRunning = MAX_RUNNING,
     now = () => Date.now(),
   }) {
@@ -78,6 +80,7 @@ export class BotTaskService {
     this.worktrees = worktrees
     this.runAgent = runAgent
     this.stopAgent = stopAgent
+    this.waitingFor = waitingFor
     this.maxRunning = maxRunning
     this.now = now
     this.tasks = []
@@ -121,17 +124,30 @@ export class BotTaskService {
   }
 
   list({ botId = '', status = '', limit = 100 } = {}) {
-    return clone(
-      this.tasks
-        .filter((task) => (!botId || task.botId === botId) && (!status || task.status === status))
-        .slice(-Math.max(1, Math.min(500, limit)))
-        .reverse(),
-    )
+    return this.tasks
+      .filter((task) => (!botId || task.botId === botId) && (!status || task.status === status))
+      .slice(-Math.max(1, Math.min(500, limit)))
+      .reverse()
+      .map((task) => this.#public(task))
   }
 
   get(id) {
     const task = this.tasks.find((item) => item.id === id)
-    return task ? clone(task) : null
+    return task ? this.#public(task) : null
+  }
+
+  // 对外的任务：存储里的字段 + 运行中时正在等的审批或问题（只在内存里，不落盘）。
+  #public(task) {
+    const copy = clone(task)
+    const waiting = this.#waiting(task)
+    if (waiting) copy.waiting = waiting
+    return copy
+  }
+
+  #waiting(task) {
+    if (task.status !== 'running' || !task.sessionId) return null
+    const waiting = this.waitingFor(task.sessionId)
+    return waiting && (waiting.approval || waiting.question) ? waiting : null
   }
 
   isBusy(botId) {
@@ -206,12 +222,15 @@ export class BotTaskService {
   activity(botId) {
     const latest = this.tasks.findLast((task) => task.botId === botId)
     if (!latest) return null
+    const waiting = this.#waiting(latest)
     return {
       taskId: latest.id,
       status: latest.status,
       title: latest.title,
       changedFiles: latest.result?.changedFiles || 0,
-      needsYou: ['review', 'failed', 'interrupted'].includes(latest.status),
+      needsYou: Boolean(waiting) || ['review', 'failed', 'interrupted'].includes(latest.status),
+      // 'approval' | 'question' | null：侧栏据此写“等你批准”或“有问题问你”。
+      waiting: waiting ? (waiting.approval ? 'approval' : 'question') : null,
       updatedAt: latest.updatedAt,
     }
   }

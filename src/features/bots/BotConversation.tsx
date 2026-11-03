@@ -1,6 +1,6 @@
 // 和 Bot 的对话（设计稿 botim-chat）：每个任务是一段往来——你说的每一轮是右侧气泡，Bot 的回复在左侧；
-// 任务的状态是对话里的卡片：干活中、改动等你确认（查看 / 放弃 / 接受并应用）、失败或中断（继续 / 放弃）、已完成。
-// 完整的工具步骤与审批在 Bot 的会话里，卡片上给“打开完整记录”。
+// 任务的状态是对话里的卡片：干活中、等你批准或回答、改动等你确认（查看 / 放弃 / 接受并应用）、
+// 失败或中断（继续 / 放弃）、已完成。完整的工具步骤在 Bot 的会话里，卡片上给“打开完整记录”。
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, FileDiff, GitBranch, History, RotateCcw, Square, TriangleAlert } from 'lucide-react'
@@ -10,6 +10,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { BotAvatar } from './BotAvatar'
+import { BotApprovalCard, BotQuestionCard } from './BotWaitingCard'
 import { botTaskAction, type Bot, type BotTask } from './bots-api'
 
 type Action = 'accept' | 'apply' | 'discard' | 'resume' | 'stop'
@@ -36,14 +37,20 @@ function BotMessage({ bot, children }: { bot: Bot; children: React.ReactNode }) 
 }
 
 function TaskCard({
+  bot,
   task,
   onAction,
   onShowChanges,
+  onChanged,
+  onError,
   busy,
 }: {
+  bot: Bot
   task: BotTask
   onAction: (task: BotTask, action: Action) => void
   onShowChanges: () => void
+  onChanged: () => void
+  onError: (message: string) => void
   busy: boolean
 }) {
   const { t } = useI18n()
@@ -54,6 +61,31 @@ function TaskCard({
       {t('bots:card.openSession')}
     </Button>
   ) : null
+  // 在等你：先处理审批（工具卡在那里），再处理问题。
+  const waiting = task.status === 'running' && task.sessionId ? task.waiting : null
+  if (waiting?.approval)
+    return (
+      <BotApprovalCard
+        key={waiting.approval.id}
+        approval={waiting.approval}
+        sessionId={task.sessionId ?? ''}
+        onDone={onChanged}
+        onError={onError}
+        openSession={openSession}
+      />
+    )
+  if (waiting?.question)
+    return (
+      <BotQuestionCard
+        key={waiting.question.id}
+        bot={bot}
+        question={waiting.question}
+        sessionId={task.sessionId ?? ''}
+        onDone={onChanged}
+        onError={onError}
+        openSession={openSession}
+      />
+    )
   if (['queued', 'preparing', 'running'].includes(task.status))
     return (
       <div className="mt-2 flex items-center gap-2 rounded-xl border border-stroke bg-surface-raised px-3.5 py-2.5 text-[13px]">
@@ -192,10 +224,13 @@ export function BotConversation({
                     {turn.reply ? <p>{turn.reply}</p> : null}
                     {last && (
                       <TaskCard
+                        bot={bot}
                         task={task}
                         busy={busyId === task.id}
                         onAction={act}
                         onShowChanges={() => onShowChanges(task)}
+                        onChanged={onChanged}
+                        onError={onError}
                       />
                     )}
                   </BotMessage>

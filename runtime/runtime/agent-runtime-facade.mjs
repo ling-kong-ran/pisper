@@ -10,6 +10,8 @@ import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
 import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
+import { projectApproval } from '../services/session-card-summary.mjs'
+import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
   bridgePiExtensionPackages,
@@ -857,6 +859,17 @@ export class AgentRuntimeFacade {
     })
     await this.bots.setThread(bot.id, result.sessionId)
     return result
+  }
+
+  // Bot 任务在等的东西：最早一条待审批（与看板卡片同一份摘要）与最早一组待回答的问题。
+  botTaskWaiting(sessionId) {
+    const approval = this.permissions
+      .getPending(sessionId)
+      .toSorted((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))
+      .map(projectApproval)
+      .find(Boolean)
+    const question = projectQuestionSummary(this.questions?.getPending(sessionId) || [])
+    return { approval: approval ?? null, question }
   }
 
   listBotTasks(query) {

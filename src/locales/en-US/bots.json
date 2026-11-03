@@ -96,5 +96,20 @@
   "computer.moreSoon": "Later you can switch it to another paired computer (execution node) here.",
   "computer.isolated": "Separate branch per task",
   "computer.shared": "Edit the folder directly",
-  "computer.currentBranch": "Working on branch {branch}"
+  "computer.currentBranch": "Working on branch {branch}",
+  "activity.approval": "Waiting for your approval",
+  "activity.question": "Has a question for you",
+  "waiting.approval": "Needs your approval: {tool}",
+  "waiting.allow": "Allow",
+  "waiting.deny": "Deny",
+  "waiting.critical": "This is a high-risk action. Allow it only if you are sure.",
+  "waiting.confirmAllow": "Yes, allow",
+  "waiting.cancel": "Cancel",
+  "waiting.truncated": "This is too long to show in full here. To allow it, review it in the full log first.",
+  "waiting.question": "{name} asks",
+  "waiting.otherLabel": "Your answer",
+  "waiting.otherPlaceholder": "Or type your answer…",
+  "waiting.answer": "Answer",
+  "waiting.skip": "Skip",
+  "waiting.answerInLog": "This question has several parts. Answer it in the full log."
 }
