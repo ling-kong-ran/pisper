@@ -511,8 +511,8 @@ test('settings take over the sidebar as a full page, feature pages have one home
   assert.match(settingsSidebar, /aria-keyshortcuts="Escape"/)
   assert.match(settingsSidebar, /useEscapeLeave\(onBack\)/)
   assert.match(settingsSidebar, /t\('config:settingsShell\.featuresHint'\)/)
-  // 全部代理页的侧栏是状态 / 项目筛选，代理只在主区列一次（规格 2.3）。
-  assert.match(app, /\{page === 'board' \? \(\s*<SidebarBoardFilters/)
+  // 侧栏在每个页面都一样（含全部代理）：全部代理的状态 / 项目筛选在页内，不再借用侧栏。
+  assert.doesNotMatch(app, /SidebarBoardFilters|page === 'board' \? \(\s*<Sidebar/)
   // 手机外壳是列表 → 分区（规格 7.4），与桌面同一份设置目录：/config 是分区列表，分区页顶上“‹ 设置”。
   assert.match(
     app,

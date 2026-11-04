@@ -17,6 +17,11 @@ import {
   sidebarReasons,
 } from '../../src/features/board/sidebar-model.ts'
 import {
+  SIDEBAR_RECENT_LIMIT,
+  buildSidebarRecents,
+} from '../../src/features/board/sidebar-recents.ts'
+import { sidebarStatusGroups } from '../../src/features/board/useSidebarRecents.ts'
+import {
   DEFAULT_SIDEBAR_PREFERENCE,
   parseSidebarPreference,
   serializeSidebarPreference,
@@ -465,32 +470,41 @@ test('the sidebar preference is registered, read through page-state storage and 
   assert.equal(Object.hasOwn(STORAGE_KEYS, 'sidebarCollapsed'), false)
 })
 
-test('the all-agents sidebar is a status / project filter over the same board-view state', async () => {
+test('the sidebar is the same on every page; all-agents filters live in the page over board-view state', async () => {
   const [filters, app, board] = await Promise.all([
-    readFile('src/features/board/SidebarFilters.tsx', 'utf8'),
+    readFile('src/features/board/BoardFilterBar.tsx', 'utf8'),
     readFile('src/App.tsx', 'utf8'),
     readFile('src/features/board/BoardPage.tsx', 'utf8'),
   ])
-  // 规格 2.3：全部代理页侧栏不列会话行（代理只在主区列一次），只有状态与项目两组筛选。
-  assert.match(app, /\{page === 'board' \? \(\s*<SidebarBoardFilters/)
-  assert.doesNotMatch(filters, /data-sidebar-row|SidebarRowItem/)
+  // 侧栏在全部代理页也列会话（同一块侧栏换个页面就换用法容易误会）；侧栏筛选组件已删除。
+  assert.doesNotMatch(app, /SidebarBoardFilters/)
+  await assert.rejects(readFile('src/features/board/SidebarFilters.tsx', 'utf8'), {
+    code: 'ENOENT',
+  })
   // 筛选就是 /board 的 pisper-board-view：同一个 store，不新增偏好键；窄轨计数（setLaneFilter）同样写它。
   assert.match(filters, /useBoardViewStore\(\(state\) => state\.setLaneFilter\)/)
   assert.match(filters, /useBoardViewStore\(\(state\) => state\.setProjectFilter\)/)
   assert.doesNotMatch(filters, /localStorage|pageStateStorage/)
-  // 按钮语义：aria-pressed；“/ 聚焦筛选”落在第一项“全部”；排队只在 sessionQueue 能力且确有排队时出现。
-  assert.match(filters, /aria-pressed=\{pressed\}/)
-  assert.match(filters, /id=\{BOARD_FILTER_ID\}\s+filter="all"/)
+  // 状态用分段控件、项目用 AppSelect（组件规则）；项目与管理项目同一来源；“/”聚焦状态分段。
+  assert.match(filters, /<SegmentedControl[\s\S]{0,200}id=\{BOARD_FILTER_ID\}/)
+  assert.match(filters, /<AppSelect[\s\S]{0,300}setProjectFilter/)
+  assert.match(filters, /useCatalogProjects\(\)/)
   assert.match(
     filters,
     /lane !== 'queued' \|\| \(capabilities\.sessionQueue === true && counts\.lanes\.queued > 0\)/,
   )
-  // 项目组 ⋯：添加项目（选目录 → 派发）与管理项目，沿用 useProjectCommands / ManageProjectsDialog。
-  assert.match(filters, /commands\.newProject\(\)/)
-  assert.match(filters, /<ManageProjectsDialog\s+open=\{manageOpen\}/)
-  // 页内不再有筛选控件：“/”的目标从分组切换挪到侧栏；侧栏收成窄轨（或手机没有侧栏）时页内补一行筛选说明。
-  assert.doesNotMatch(board, /BOARD_FILTER_ID/)
-  assert.match(board, /ready && filtered && \(sidebarCollapsed \|\| phone\) && model\.total > 0/)
+  // 项目的 ⋯：添加 / 管理项目常在；选中项目时它自己的操作直接在这里（经 useProjectMenu → useProjectCommands）。
+  assert.match(filters, /useProjectMenu\(/)
+  assert.match(filters, /menu\.newProject\(\)/)
+  assert.match(filters, /menu\.actions\.onRename\(selected\)/)
+  assert.match(filters, /<ProjectMenuDialogs \{\.\.\.menu\.dialogs\} \/>/)
+  assert.match(
+    app,
+    /\.getElementById\(BOARD_FILTER_ID\)\s*\?\.querySelector<HTMLElement>\('\[data-state="on"\]'\)/,
+  )
+  // 桌面页内放筛选条；手机没有筛选控件，带着筛选进来时补一行说明与“清除筛选”。
+  assert.match(board, /!phone && ready && board\.total > 0 && \(\s*<BoardFilterBar/)
+  assert.match(board, /ready && filtered && phone && model\.total > 0/)
 })
 
 test('the component studio rails the sidebar for its visit without touching the saved preference', (t) => {
@@ -576,4 +590,56 @@ test('narrow windows rail the sidebar without touching the saved preference', (t
   assert.equal(sidebar().collapsed, true, 'still narrow after leaving the studio')
   sidebar().leaveNarrowRail()
   assert.equal(sidebar().collapsed, false)
+})
+
+test('the sidebar keeps needs-you and running in place and lists recent chats below', () => {
+  // 需要你、运行中常驻（为 0 也在，只留标题）；排队只在有排队时；置顶与今天完成不单列。
+  const ids = (groups) => groups.map((group) => group.id)
+  const empty = buildSidebarModel([], options)
+  assert.deepEqual(ids(sidebarStatusGroups(empty)), ['attention', 'running'])
+  const day = 24 * 60 * MIN
+  const sessions = [
+    { id: 'old', name: '三天前的会话', cwd: '/w/a', modified: iso(-3 * day) },
+    { id: 'new', name: '刚才的会话', cwd: '/w/b', modified: iso(-MIN), unread: true },
+    { id: 'pinned', name: '置顶的旧会话', cwd: '/w/a', modified: iso(-9 * day), pinned: true },
+    { id: 'archived', name: '归档的', modified: iso(0), archived: true },
+    { id: 'draft', name: '空草稿', modified: iso(0), messageCount: 0 },
+    { id: 'waiting', name: '等你批准', modified: iso(0) },
+  ]
+  const recents = buildSidebarRecents(sessions, {
+    items: [],
+    shownIds: new Set(['waiting']),
+    currentId: '',
+  })
+  // 置顶在前，其余按修改时间从新到旧；归档、空草稿与上面状态组里的不列；不分项目。
+  assert.deepEqual(
+    recents.rows.map((row) => row.id),
+    ['pinned', 'new', 'old'],
+  )
+  assert.equal(recents.hidden, 0)
+  const fresh = recents.rows[1]
+  assert.equal(fresh.group, 'recent')
+  assert.equal(fresh.title, '刚才的会话')
+  assert.equal(fresh.unread, true)
+  // 空草稿只有正在看时才列出（侧栏里得找得到当前会话）。
+  assert.ok(
+    buildSidebarRecents(sessions, { items: [], shownIds: new Set(), currentId: 'draft' }).rows.some(
+      (row) => row.id === 'draft',
+    ),
+  )
+})
+
+test('recent chats stop at the limit but always keep the open chat', () => {
+  const many = Array.from({ length: SIDEBAR_RECENT_LIMIT + 3 }, (_, index) => ({
+    id: `s${index}`,
+    name: `会话 ${index}`,
+    modified: iso(-index * MIN),
+  }))
+  const last = `s${SIDEBAR_RECENT_LIMIT + 2}`
+  const plain = buildSidebarRecents(many, { items: [], shownIds: new Set(), currentId: '' })
+  assert.equal(plain.rows.length, SIDEBAR_RECENT_LIMIT)
+  assert.equal(plain.hidden, 3)
+  const open = buildSidebarRecents(many, { items: [], shownIds: new Set(), currentId: last })
+  assert.equal(open.rows.at(-1).id, last)
+  assert.equal(open.hidden, 2)
 })

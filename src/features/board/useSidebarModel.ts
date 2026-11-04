@@ -3,12 +3,17 @@
 // 行内的等待时长与运行计时另用每秒时钟（只在 SidebarSessions 有运行中或需要你的行时跳），
 // 这个 hook 的常驻使用方（命令层、窄轨计数、手机标签栏）因此不会每秒重渲染。
 import { useMemo } from 'react'
+import type { SessionSummary } from '@/types/chat'
+import type { BoardItem } from './board-model'
 import { buildSidebarModel, type SidebarModel } from './sidebar-model'
 import { useBoardItems, type BoardRuntimeCapabilities } from './useBoardItems'
 import { useMinute } from './useNow'
 
 export type SidebarModelResult = {
   model: SidebarModel
+  // 看板卡片与完整会话目录：侧栏“项目”分区（sidebar-projects）从这里列出其余未归档会话。
+  items: BoardItem[]
+  sessions: SessionSummary[] | undefined
   capabilities: BoardRuntimeCapabilities
   // 首次加载尚无数据：侧栏画骨架行，不把“还不知道”说成“没有代理”。
   isLoading: boolean
@@ -26,14 +31,17 @@ export function useSidebarModel(): SidebarModelResult {
     [capabilities, items, minute],
   )
   const refetch = query.refetch
+  const sessions = query.data?.sessions
   return useMemo(
     () => ({
       model,
+      items,
+      sessions,
       capabilities,
       isLoading,
       error: query.error ?? null,
       refetch: () => void refetch(),
     }),
-    [capabilities, isLoading, model, query.error, refetch],
+    [capabilities, isLoading, items, model, query.error, refetch, sessions],
   )
 }

@@ -33,14 +33,14 @@ test('rapid option-arrow presses start from the switch that has not committed ye
   )
   assert.match(app, /if \(sessionIdFromPath\(target\) === id\) return/)
   assert.match(app, /<SidebarCommands\s+resolveCurrentId=\{currentSessionTarget\}/)
-  // 起点仍是路由器的最新去向；顺序是用户看得见的侧栏顺序（折叠的“今天完成”不参与）。
+  // 起点仍是路由器的最新去向；顺序是用户看得见的侧栏顺序：常驻的状态组，再是“最近”。
   assert.match(
     sidebar,
-    /adjacentSidebarSession\(\s*order,\s*propsRef\.current\.resolveCurrentId\(\) \|\| null,/,
+    /adjacentSidebarSession\(\s*visibleOrderRef\.current,\s*propsRef\.current\.resolveCurrentId\(\) \|\| null,/,
   )
   assert.match(
     sidebar,
-    /const order = useSidebarStore\.getState\(\)\.doneCollapsed\s*\?\s*current\.groups\.flatMap\(\(group\) =>\s*group\.id === 'done' \? \[\] :[\s\S]*?: current\.order/,
+    /visibleOrderRef\.current = \[\s*\.\.\.sidebarStatusGroups\(model\)\.flatMap\(\(group\) => group\.rows\.map\(\(row\) => row\.id\)\),\s*\.\.\.recents\.rows\.map\(\(row\) => row\.id\),\s*\]/,
   )
 })
 

@@ -24,16 +24,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { OrbitSpinner } from '@/components/ui/spinner'
-import { useRegisteredProjectsStore } from '@/features/chat/registered-projects-store'
 import { NO_WORKSPACE_KEY } from '@/features/chat/session-workspaces'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { cn } from '@/lib/utils'
-import { managedProjects, type ManagedProject } from './board-projects'
+import type { ManagedProject } from './board-projects'
 import { shortPath } from './card-presentation'
+import { useCatalogProjects } from './useCatalogProjects'
 import type { ProjectCommands } from './useProjectCommands'
 import { useSessionListQuery } from './useSessionListQuery'
-
-type CatalogSession = { id: string; cwd?: string }
 
 type ManageProjectsDialogProps = {
   open: boolean
@@ -46,10 +44,7 @@ const ROW_ICON_BUTTON = 'flex-none pointer-coarse:size-11 in-data-[phone-shell]:
 
 export function ManageProjectsDialog({ open, onOpenChange, commands }: ManageProjectsDialogProps) {
   const { t } = useI18n()
-  const catalog = useSessionListQuery<{ sessions: CatalogSession[] }>()
-  const order = useWorkspaceOrderStore((state) => state.order)
-  const names = useWorkspaceOrderStore((state) => state.names)
-  const registered = useRegisteredProjectsStore((state) => state.projects)
+  const catalog = useSessionListQuery()
   const rememberWorkspaces = useWorkspaceOrderStore((state) => state.rememberWorkspaces)
   const moveWorkspace = useWorkspaceOrderStore((state) => state.moveWorkspace)
   const listRef = useRef<HTMLUListElement>(null)
@@ -59,17 +54,7 @@ export function ManageProjectsDialog({ open, onOpenChange, commands }: ManagePro
   // 删除或移除一行后，它的按钮随行消失：焦点交给补上来的相邻行的同一个键，没有了就交给“完成”。
   const [removedFocus, setRemovedFocus] = useState<{ key: string; next: string } | null>(null)
 
-  const projects = useMemo(
-    () =>
-      managedProjects(
-        catalog.data?.sessions ?? [],
-        registered,
-        names,
-        order,
-        t('board:filter.noProject'),
-      ),
-    [catalog.data, names, order, registered, t],
-  )
+  const projects = useCatalogProjects()
   const keys = useMemo(() => projects.map((project) => project.key), [projects])
 
   // 打开时把当前看到的顺序写进偏好：之后的上移 / 下移与看板页头都以它为准。

@@ -102,8 +102,21 @@ export type SidebarDoneRow = SidebarRowBase & {
   unread: boolean
 }
 
+// 侧栏“最近”里的会话（sidebar-recents）：不在上面几个状态组里的未归档会话。
+export type SidebarRecentRow = SidebarRowBase & {
+  group: 'recent'
+  // 最近一次修改；界面显示“14:05”（今天）或“11/2”。
+  at: number | null
+  unread: boolean
+}
+
 export type SidebarRow =
-  SidebarAttentionRow | SidebarRunningRow | SidebarQueuedRow | SidebarPinnedRow | SidebarDoneRow
+  | SidebarAttentionRow
+  | SidebarRunningRow
+  | SidebarQueuedRow
+  | SidebarPinnedRow
+  | SidebarDoneRow
+  | SidebarRecentRow
 
 export type SidebarGroup<Row extends SidebarRow = SidebarRow> = {
   id: SidebarGroupId

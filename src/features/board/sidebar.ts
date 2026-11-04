@@ -1,4 +1,4 @@
-// @public 应用壳侧栏用的会话分组、全部代理页的筛选、设置页底部的状态行、窄轨计数与命令处理；只由外壳懒加载，不进入入口包。
+// @public 应用壳侧栏用的会话分组（每个页面都一样）、设置页底部的状态行、窄轨计数与命令处理；只由外壳懒加载，不进入入口包。
 // 分组、计数与命令都读看板 store（单一数据所有者），文案在看板命名空间里，由外壳随块一起注册。
 export {
   SidebarCommands,
@@ -10,4 +10,3 @@ export {
   type SidebarRailCountsProps,
   type SidebarSessionsProps,
 } from './SidebarSessions'
-export { SidebarBoardFilters, type SidebarBoardFiltersProps } from './SidebarFilters'

@@ -276,7 +276,12 @@ test('board project lists read registrations through the shared store and merge 
   assert.match(launch, /defaultLaunchCwd\(list \?\? \[\], projects\)/)
   assert.match(page, /withRegisteredProjects\(\[\.\.\.projects\], registered\)/)
   assert.match(page, /useRegisteredProjectsStore\(\(state\) => state\.projects\)/)
-  assert.match(dialog, /managedProjects\(/)
+  // 管理项目与侧栏项目列表同一来源（useCatalogProjects → managedProjects）。
+  assert.match(dialog, /useCatalogProjects\(\)/)
+  assert.match(
+    await read('src/features/board/useCatalogProjects.ts'),
+    /managedProjects\(\s*catalog\.data\?\.sessions \?\? \[\],\s*registered,/,
+  )
   // 没有会话的行只取消登记；有会话的才走“连同会话一起删除”。
   assert.match(dialog, /if \(project\.count === 0\) commands\.unregister\(project\)/)
   assert.match(dialog, /board:project\.removeNamed/)

@@ -268,14 +268,14 @@ try {
         colorScheme,
       )
       await page
-        .locator('[data-sidebar-group="done"] [data-sidebar-row="fx-done-unread"]')
+        .locator('[data-sidebar-group="recent"] [data-sidebar-row="fx-done-unread"]')
         .waitFor()
       await settle(page)
       const expanded = await geometry(page, `${label} expanded`)
       assert.equal(expanded.sidebar, 268, `${label}: the sidebar stays expanded at 268px`)
       await page.screenshot({ path: join(output, `sidebar-${width}-${colorScheme}-expanded.png`) })
 
-      // 1x 状态图形：运行中（非当前行）与今天完成。
+      // 1x 状态图形：运行中（非当前行）的转圈与需要你的圆点形状分得开；“最近”只有标题，不画状态图形。
       const glyph = (group, kind) =>
         page
           .locator(
@@ -283,20 +283,21 @@ try {
           )
           .first()
       const run = await glyphPixels(page, glyph('running', 'run'))
-      const done = await glyphPixels(page, glyph('done', 'done'))
-      const overlap = jaccard(run.mask, done.mask)
+      const attention = await glyphPixels(page, glyph('attention', 'attention'))
+      const overlap = jaccard(run.mask, attention.mask)
       report.glyphs.push({
         label,
         run: run.maxDiff,
-        done: done.maxDiff,
-        runDoneOverlap: Number(overlap.toFixed(2)),
+        attention: attention.maxDiff,
+        runAttentionOverlap: Number(overlap.toFixed(2)),
       })
       assert.equal(run.width, 16, `${label}: glyphs render at 16px in a 1x screenshot`)
-      assert.ok(
-        run.maxDiff >= done.maxDiff + 40,
-        `${label}: the ink running arc stands out from the done tick ${JSON.stringify(report.glyphs.at(-1))}`,
+      assert.ok(overlap < 0.5, `${label}: the running arc and the needs-you dot differ in shape`)
+      assert.equal(
+        await page.locator('[data-sidebar-group="recent"] [data-status-glyph]:visible').count(),
+        0,
+        `${label}: recent chats are title-only rows`,
       )
-      assert.ok(overlap < 0.5, `${label}: the running arc and the done tick differ in shape`)
 
       // 收起：60px 窄轨，四个入口 + 两个计数 + 设置，右上 144px 仍空着。
       await page.locator('.focus-composer textarea').first().click()
@@ -324,7 +325,7 @@ try {
   }
   report.checks.push(
     '1440x900 and 1080x680, light and dark, simulated Windows custom title bar: the sidebar is 268px expanded and 60px collapsed (⌘B both ways), no horizontal scroll, nothing interactive in the top-right 144px, sidebar entries / rows / rail counts neither clipped nor covered',
-    '1x screenshots of real sidebar rows: the 16px running arc (ink) has ≥40 more luminance contrast than the done tick and a different shape (mask overlap < 0.5), in light and dark (the queued ring is compared in smoke-replica-shell until sessionQueue ships)',
+    '1x screenshots of real sidebar rows: the 16px running arc and the needs-you dot differ in shape (mask overlap < 0.5), and recent chats are title-only rows without status glyphs, in light and dark (the queued ring is compared in smoke-replica-shell until sessionQueue ships)',
   )
 
   // 2. 读屏名称、快捷处理（悬停 → 允许一次）、新增需要你的 polite 播报（展开与收起都播）、窄轨计数筛选。
@@ -829,88 +830,90 @@ try {
     const page = await openSession(context, 'page-shaped sidebar')
     const prompt = page.locator('.focus-composer textarea').first()
     const sidebar = page.locator('[data-shell-sidebar]')
-    const active = () =>
-      page.evaluate(() => {
-        const element = document.activeElement
-        return {
-          filter: element?.getAttribute('data-sidebar-filter') ?? null,
-          card: element?.getAttribute('data-board-card') ?? null,
-          lane: element?.getAttribute('data-lane') ?? null,
-          section: element?.getAttribute('data-settings-section') ?? null,
-          fleet: element?.hasAttribute('data-sidebar-fleet-line') ?? false,
-          row: element?.getAttribute('data-sidebar-row') ?? null,
-        }
-      })
 
-    // 5a. 全部代理页：侧栏不列会话行，只有状态 / 项目筛选，计数与侧栏分组一致（需要你 3、运行中 3）。
+    // 5a. 全部代理页：侧栏与其他页面一样列会话（需要你 3、运行中 3 照常在），状态 / 项目筛选在页内标题下。
     await prompt.click()
     await page.keyboard.press(`${mod}+Digit1`)
     await page.waitForFunction(() => location.hash === '#/board')
-    await sidebar.locator('[data-sidebar-filters]').waitFor()
-    await page.waitForFunction(
-      () =>
-        document.querySelector('[data-sidebar-filter="attention"] [data-sidebar-filter-count]')
-          ?.textContent === '3' &&
-        document.querySelector('[data-sidebar-filter="running"] [data-sidebar-filter-count]')
-          ?.textContent === '3',
+    const filters = page.locator('[data-overview-filters]')
+    await filters.waitFor()
+    const segment = (name) => filters.getByRole('radio', { name: new RegExp(`^${name}`) })
+    await page.waitForFunction(() => {
+      const text = (name) =>
+        [...document.querySelectorAll('[data-overview-filters] [role="radio"]')]
+          .map((node) => node.textContent ?? '')
+          .find((label) => label.startsWith(name))
+      return text('需要你') === '需要你3' && text('运行中') === '运行中3'
+    })
+    assert.equal(
+      await sidebar.locator('[data-sidebar-group="attention"] [data-sidebar-row]').count(),
+      3,
     )
-    assert.equal(await sidebar.locator('[data-sidebar-row]').count(), 0)
+    assert.equal(
+      await sidebar.locator('[data-sidebar-group="running"] [data-sidebar-row]').count(),
+      3,
+    )
+    assert.equal(await sidebar.locator('[data-sidebar-filters], [data-sidebar-filter]').count(), 0)
+    // 状态分段：全部 · 需要你 · 运行中 · 已完成（没有 sessionQueue 能力时没有排队）。
     assert.deepEqual(
-      await sidebar
-        .locator('[data-sidebar-filter]:not([data-sidebar-filter^="project:"])')
-        .evaluateAll((nodes) => nodes.map((node) => node.dataset.sidebarFilter)),
-      ['all', 'attention', 'running', 'done'],
+      await filters
+        .locator('[role="radio"]')
+        .evaluateAll((nodes) => nodes.map((node) => node.textContent.replace(/\d+$/, ''))),
+      ['全部', '需要你', '运行中', '已完成'],
     )
     assert.equal(
       await sidebar.locator('[data-sidebar-entry="board"]').getAttribute('aria-current'),
       'page',
     )
     await geometry(page, 'all agents filters 1440')
-    // ⌘J 聚焦按下的筛选（全部）；⌥A 把焦点交给主区等待最久的那一行，不批准、不导航。
+    // “/”聚焦页内状态分段里按下的那一段（全部）；⌘J 与其他页面一样聚焦侧栏的会话行。
     await page.locator('[data-board-root] h1').click()
-    await page.keyboard.press(`${mod}+KeyJ`)
-    await page.waitForFunction(
-      () => document.activeElement?.getAttribute('data-sidebar-filter') === 'all',
-    )
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    assert.equal((await active()).filter, 'running')
-    await page.keyboard.press('Enter')
+    await page.keyboard.press('/')
     await page.waitForFunction(
       () =>
-        document.querySelector('[data-sidebar-filter="running"]')?.getAttribute('aria-pressed') ===
-        'true',
+        document.activeElement?.closest('[data-overview-filters]') !== null &&
+        document.activeElement?.getAttribute('data-state') === 'on',
+    )
+    await page.keyboard.press(`${mod}+KeyJ`)
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.closest('[data-shell-sidebar]') !== null &&
+        document.activeElement?.hasAttribute('data-sidebar-row'),
+    )
+    await segment('运行中').click()
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-overview-filters] [role="radio"]')]
+          .find((node) => node.textContent?.startsWith('运行中'))
+          ?.getAttribute('data-state') === 'on',
     )
     await page.locator('[data-board-root] [data-lane="attention"]').first().waitFor({
       state: 'detached',
     })
-    // 被“运行中”筛选藏起来的需要你：⌥A 先清掉筛选再聚焦那一行。
+    // 被“运行中”筛选藏起来的需要你：⌥A 先清掉筛选再聚焦主区那一行，不批准、不导航。
     await page.keyboard.press('Alt+KeyA')
     await page.waitForFunction(
       () =>
         document.activeElement?.getAttribute('data-lane') === 'attention' &&
         document.activeElement?.closest('[data-overview]') !== null,
     )
-    assert.equal(
-      await sidebar.locator('[data-sidebar-filter="all"]').getAttribute('aria-pressed'),
-      'true',
-    )
+    assert.equal(await segment('全部').getAttribute('data-state'), 'on')
     assert.equal(await page.evaluate(() => location.hash), '#/board')
-    // 收起成窄轨时 ⌘J 临时展开，焦点落到筛选上；Esc 收回。
+    // 收起成窄轨时 ⌘J 临时展开，焦点落到会话行上（与其他页面一样）；Esc 收回。
     await page.keyboard.press(`${mod}+KeyB`)
     await page.locator('[data-shell-sidebar="rail"]').waitFor()
     await page.keyboard.press(`${mod}+KeyJ`)
-    await page.locator('[data-shell-sidebar-peek] [data-sidebar-filters]').waitFor()
+    await page.locator('[data-shell-sidebar-peek] [data-sidebar-row]').first().waitFor()
     await page.waitForFunction(
       () =>
         document.activeElement?.closest('[data-shell-sidebar-peek]') &&
-        document.activeElement?.hasAttribute('data-sidebar-filter'),
+        document.activeElement?.hasAttribute('data-sidebar-row'),
     )
     await page.keyboard.press('Escape')
     await page.locator('[data-shell-sidebar-peek]').waitFor({ state: 'detached' })
     await page.screenshot({ path: join(output, 'all-agents-filters-rail.png') })
     report.checks.push(
-      'All agents page: the sidebar lists no sessions, only status filters (全部 · 需要你 3 · 运行中 3 · 今天完成; no 排队 without sessionQueue) and project filters; ⌘J focuses the pressed filter, ↓ / ↵ pick 运行中, ⌥A clears the filter that hid the longest-waiting row and focuses it in the main list without approving; collapsed, ⌘J peeks the filters and Esc folds them back',
+      'All agents page: the sidebar is the same as on other pages (需要你 3 and 运行中 3 rows, no filter widgets); the page has its own status segments (全部 · 需要你 3 · 运行中 3 · 已完成; no 排队 without sessionQueue) and project select; “/” focuses the pressed segment, ⌘J the sidebar rows, picking 运行中 hides needs-you rows, ⌥A clears that filter and focuses the longest-waiting row in the main list without approving; collapsed, ⌘J peeks the sidebar and Esc folds it back',
     )
 
     // 5b. 设置整页（收起状态下也整块 268）：“← 返回 Esc”、设置目录 6 项、搜索、功能链接、底部状态行；
@@ -1048,10 +1051,13 @@ try {
     )
     await settings.locator('[data-sidebar-fleet-line]').click()
     await page.waitForFunction(() => location.hash === '#/board')
-    await sidebar.locator('[data-sidebar-filters]').waitFor()
+    await page.locator('[data-overview-filters]').waitFor()
     assert.equal(
-      await sidebar.locator('[data-sidebar-filter="all"]').getAttribute('aria-pressed'),
-      'true',
+      await page
+        .locator('[data-overview-filters]')
+        .getByRole('radio', { name: /^全部/ })
+        .getAttribute('data-state'),
+      'on',
     )
     // 从全部代理去设置（Esc 返回）或功能（⌘2 → ⌘1）再回来：焦点回到原来的那一行（规格 2.3）。
     const boardRowId = await page

@@ -423,7 +423,7 @@ try {
   assert.deepEqual(await activeTabs(page), [])
   assert.equal(creates.length, 1)
   // 侧栏里这个会话的行是当前项（aria-current，带 href 的链接）；“全部代理”入口 push 到看板，后退回会话。
-  // 夹具把 /api/chat 换成了最小的 run 头帧，会话里没有消息、不上看板：置顶后它进侧栏的“置顶”分组。
+  // 夹具把 /api/chat 换成了最小的 run 头帧，会话里没有消息：正在看的会话总在侧栏“最近”里（置顶排最前）。
   const pinned = await fetch(`${base}/api/sessions/${encodeURIComponent(id)}/organization`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -489,14 +489,12 @@ try {
   await page.keyboard.press(`${mod}+Digit1`)
   await page.waitForURL((url) => url.hash === '#/board')
   // 从全部代理点这个会话的行回到会话（push，后退回全部代理）；改绑的会话主页键同样回到上次的会话。
-  // A3 起全部代理页的侧栏只有状态 / 项目筛选、不列会话行（规格 2.3），代理只在主区列一次，所以点主区的行。
-  // 侧栏随路由换成筛选是懒加载的：先等筛选出现、会话行卸载，再断言（只等不放宽，负载高时 URL 先于侧栏更新）。
-  await page.locator('[data-shell-sidebar] [data-sidebar-filters]').waitFor({ timeout: 10000 })
-  await sessionRow.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
+  // 侧栏在每个页面都一样，筛选在页内：先等页内筛选出现（看板数据到了），再点主区的行。
+  await page.locator('[data-overview-filters]').waitFor({ timeout: 10000 })
   assert.equal(
-    await sessionRow.count(),
+    await page.locator('[data-shell-sidebar] [data-sidebar-filter]').count(),
     0,
-    'the all-agents sidebar lists filters, not session rows',
+    'the sidebar is the same on the all-agents page, no filter widgets',
   )
   await page.locator(`[data-board-card="${id}"]`).click()
   await page.waitForURL((url) => url.hash === `#/board/${id}`)

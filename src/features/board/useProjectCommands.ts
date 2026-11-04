@@ -39,7 +39,7 @@ export function useProjectCommands({
   const { t } = useI18n()
   const [busyKey, setBusyKey] = useState('')
   const busyRef = useRef('')
-  const { newProject, picking, picker } = useNewProjectPicker({
+  const { newProject, picking, picker, folderDialog } = useNewProjectPicker({
     onProjectChosen,
     onError: (message) => notify(message, 'error'),
     onRemembered: announceChoice
@@ -88,7 +88,17 @@ export function useProjectCommands({
     if (removeRegisteredProject(project, context)) forgetProject(project)
   }
 
-  return { newProject, picking, rename, resetName, remove, unregister, busyKey, picker }
+  return {
+    newProject,
+    picking,
+    rename,
+    resetName,
+    remove,
+    unregister,
+    busyKey,
+    picker,
+    folderDialog,
+  }
 }
 
 export type ProjectCommands = ReturnType<typeof useProjectCommands>

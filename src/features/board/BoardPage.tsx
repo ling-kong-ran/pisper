@@ -32,7 +32,6 @@ import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDi
 import { formatFileSize, formatTokenCount } from '@/lib/format'
 import { formatShortcut } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
-import { useSidebarStore } from '@/stores/sidebar-store'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import { LazyOverviewComponents, useComponentInstances } from '@/features/custom-ui/placements'
 import { useMediaQuery } from '@/hooks/use-mobile'
@@ -48,6 +47,8 @@ import {
   type OverviewSection,
 } from './overview-model'
 import { OverviewRow } from './OverviewRow'
+import { BoardFilterBar } from './BoardFilterBar'
+import { ProjectPickerDialogs } from './ProjectPickerDialogs'
 import { ProjectSectionMenu, type ProjectSectionActions } from './ProjectSectionMenu'
 import { useBoardAnnouncer } from './useBoardAnnouncer'
 import { useBoardController } from './useBoardController'
@@ -61,9 +62,6 @@ import { useSessionRowActions } from './useSessionRowActions'
 
 const NO_ROW_BINDINGS = Object.freeze({ approve: null, deny: null, retry: null })
 
-const WorkspacePicker = lazy(() =>
-  import('@/components/WorkspacePicker').then((module) => ({ default: module.WorkspacePicker })),
-)
 const ManageProjectsDialog = lazy(() =>
   import('./ManageProjectsDialog').then((module) => ({ default: module.ManageProjectsDialog })),
 )
@@ -138,15 +136,14 @@ function OverviewPage({
   )
   const board = useBoardSessions({ doneWindow: 'today' })
   const view = useBoardViewStore()
-  const sidebarCollapsed = useSidebarStore((state) => state.collapsed)
   const laneLabels = useLaneLabels()
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const minute = useMinute()
   const projects = useLabeledProjects(board.projects)
   const doneCollapsed = view.collapsedLanes.includes('done')
-  // 桌面上按项目看用侧栏的“项目”筛选（同一页只留一处），主区固定按状态分组；
-  // 手机没有这组侧栏筛选，仍在页内用分段切换按状态 / 按项目。
+  // 桌面上按项目看用页内的项目下拉（BoardFilterBar），主区固定按状态分组；
+  // 手机仍在页内用分段切换按状态 / 按项目。
   const groupBy = phone ? view.groupBy : 'lane'
   const model = useMemo(
     () =>
@@ -339,7 +336,6 @@ function OverviewPage({
     }),
     [commands, moveWorkspace, onNewTask, projectKeys],
   )
-  const { mounted: pickerMounted, ...pickerProps } = commands.picker
 
   const bindings = controller.bindings
   const rowBindings = useMemo(
@@ -592,9 +588,21 @@ function OverviewPage({
                 )}
               </header>
             )}
-            {/* 筛选在侧栏里看得见（规格 2.3）；侧栏收成窄轨时筛选不在界面上，页内补一行说明与“清除筛选”，
-                免得窄轨计数点进来后看不出被筛过。 */}
-            {ready && filtered && (sidebarCollapsed || phone) && model.total > 0 && (
+            {/* 桌面：状态与项目筛选在页内标题下（侧栏在每个页面都一样，不再兼做筛选器）。 */}
+            {!phone && ready && board.total > 0 && (
+              <BoardFilterBar
+                items={board.all}
+                now={minute}
+                capabilities={board.capabilities}
+                laneName={laneLabels.name}
+                notify={notify}
+                requestConfirm={requestConfirm}
+                requestText={requestText}
+                onNewTask={onNewTask}
+              />
+            )}
+            {/* 手机没有页内筛选控件：窄轨计数等入口带着筛选进来时，补一行说明与“清除筛选”。 */}
+            {ready && filtered && phone && model.total > 0 && (
               <FilterLine
                 lanes={view.lanes}
                 projects={view.projects
@@ -646,11 +654,7 @@ function OverviewPage({
       <p aria-live="polite" role="status" className="sr-only">
         {announcement}
       </p>
-      {pickerMounted && (
-        <Suspense fallback={null}>
-          <WorkspacePicker {...pickerProps} />
-        </Suspense>
-      )}
+      <ProjectPickerDialogs picker={commands.picker} folderDialog={commands.folderDialog} />
       {manageMounted && (
         <Suspense fallback={null}>
           <ManageProjectsDialog

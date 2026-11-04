@@ -194,17 +194,23 @@ async function geometry(page, label) {
   return result
 }
 
-// 全部代理页侧栏状态筛选上的计数（规格 2.3：这一页侧栏是筛选，不列会话行），等到与期望一致。
+// 全部代理页内状态分段上的计数（侧栏在每个页面都一样，筛选在页内标题下），等到与期望一致。
+const SEGMENT_LABELS = {
+  all: '全部',
+  attention: '需要你',
+  running: '运行中',
+  queued: '排队',
+  done: '已完成',
+}
 async function waitForFilterCounts(page, expected) {
   await page.waitForFunction(
-    (counts) =>
-      Object.entries(counts).every(
-        ([filter, count]) =>
-          document.querySelector(
-            `[data-shell-sidebar] [data-sidebar-filter="${filter}"] [data-sidebar-filter-count]`,
-          )?.textContent === String(count),
+    ({ counts, labels }) =>
+      Object.entries(counts).every(([filter, count]) =>
+        [...document.querySelectorAll('[data-overview-filters] [role="radio"]')].some(
+          (node) => node.textContent === `${labels[filter]}${count}`,
+        ),
       ),
-    expected,
+    { counts: expected, labels: SEGMENT_LABELS },
     { timeout: 15_000 },
   )
 }
@@ -326,48 +332,25 @@ try {
     )
     const page = await openBoard(context, 'interactions')
     await waitForApprovals(page)
-    // 侧栏随页面变化（规格 2.3）：全部代理页的侧栏不列会话行（代理只在主区列一次），收成状态与项目两组筛选，
-    // 各带计数（与主区同一份代理、按筛选前计）。需要你行的快捷处理与读屏名称在会话页一节（7a）与 smoke-sidebar 核对。
+    // 侧栏在每个页面都一样：全部代理页照样列需要你 / 运行中等会话行；状态与项目筛选在页内标题下，
+    // 状态分段各带计数（与主区同一份代理、按筛选前计）。需要你行的快捷处理与读屏名称在会话页一节（7a）与 smoke-sidebar 核对。
     const sidebar = page.locator('[data-shell-sidebar]')
-    const filter = (id) => sidebar.locator(`[data-sidebar-filter="${id}"]`)
+    const filters = page.locator('[data-overview-filters]')
+    const segment = (id) =>
+      filters.getByRole('radio', { name: new RegExp(`^${SEGMENT_LABELS[id]}`) })
     await waitForFilterCounts(page, { all: 7, attention: 3, running: 2, done: 2 })
-    assert.equal(await sidebar.locator('[data-sidebar-row]').count(), 0, 'no session rows here')
-    assert.equal(await filter('queued').count(), 0, 'no queue filter without sessionQueue')
-    const filterState = () =>
-      page.evaluate(() =>
-        [...document.querySelectorAll('[data-shell-sidebar] [data-sidebar-filter]')].map(
-          (button) => [button.dataset.sidebarFilter, button.getAttribute('aria-pressed')],
-        ),
-      )
-    const projectFilters = (await filterState()).filter(([id]) => id.startsWith('project:'))
-    assert.ok(projectFilters.length >= 3, `one filter row per project ${projectFilters}`)
-    const projectTotal = await sidebar
-      .locator('[data-sidebar-filter^="project:"] [data-sidebar-filter-count]')
-      .evaluateAll((nodes) => nodes.reduce((sum, node) => sum + Number(node.textContent), 0))
-    assert.equal(projectTotal, 7, 'project counts add up to all agents')
-    assert.equal(await filter('all').getAttribute('aria-pressed'), 'true')
-    assert.equal(await filter('all').getAttribute('id'), 'board-filter')
-    // 需要你计数为琥珀（规格 6.1 琥珀只表示需要你），运行中不是。
-    const amber = await page.evaluate(() => {
-      const probe = document.createElement('span')
-      probe.style.color = 'var(--warning-strong)'
-      document.body.append(probe)
-      const color = getComputedStyle(probe).color
-      probe.remove()
-      const count = (id) =>
-        getComputedStyle(
-          document.querySelector(
-            `[data-shell-sidebar] [data-sidebar-filter="${id}"] [data-sidebar-filter-count]`,
-          ),
-        ).color
-      return { amber: color, attention: count('attention'), running: count('running') }
-    })
-    assert.equal(amber.attention, amber.amber)
-    assert.notEqual(amber.running, amber.amber)
-    // 点“运行中”：主区只剩运行中（与 pisper-board-view 同一份筛选），再点一次回到全部。
-    await filter('running').click()
-    assert.equal(await filter('running').getAttribute('aria-pressed'), 'true')
-    assert.equal(await filter('all').getAttribute('aria-pressed'), 'false')
+    assert.equal(
+      await sidebar.locator('[data-sidebar-group="attention"] [data-sidebar-row]').count(),
+      3,
+      'the sidebar keeps its session rows on this page',
+    )
+    assert.equal(await sidebar.locator('[data-sidebar-filter]').count(), 0, 'no sidebar filters')
+    assert.equal(await segment('queued').count(), 0, 'no queue segment without sessionQueue')
+    assert.equal(await segment('all').getAttribute('data-state'), 'on')
+    // 点“运行中”：主区只剩运行中（与 pisper-board-view 同一份筛选），点“全部”回来。
+    await segment('running').click()
+    assert.equal(await segment('running').getAttribute('data-state'), 'on')
+    assert.equal(await segment('all').getAttribute('data-state'), 'off')
     await page.locator('[data-board-card="fx-standard"]').waitFor({ state: 'detached' })
     await page.locator('[data-board-card="fx-running"]').waitFor()
     await page.waitForFunction(() =>
@@ -375,53 +358,59 @@ try {
         'running',
       ),
     )
-    // 侧栏展开时筛选看得见，页内不再重复一行筛选说明。
+    // 筛选控件就在页内看得见，不再另画一行筛选说明。
     assert.equal(await page.locator('[data-overview-filter]').count(), 0)
-    await filter('running').click()
+    await segment('all').click()
     await page.locator('[data-board-card="fx-standard"]').waitFor()
-    // 项目筛选：只看一个项目，计数不随状态筛选变；键盘 ↑ / ↓ 在筛选之间移动，空格切换。
-    const [firstProject] = projectFilters[0]
-    await filter('all').focus()
-    await page.keyboard.press('ArrowDown')
-    assert.equal(
-      await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-filter')),
-      'attention',
+    // 项目下拉：与管理项目同一份项目（每个项目一项，外加“全部项目”）；选一个只看它，选回“全部项目”复原。
+    const projectSelect = filters.getByRole('combobox', { name: '项目' })
+    await projectSelect.click()
+    const projectOptions = await page
+      .getByRole('option')
+      .evaluateAll((nodes) => nodes.map((node) => node.textContent))
+    assert.equal(projectOptions[0], '全部项目')
+    assert.ok(projectOptions.length >= 4, `one option per project ${projectOptions}`)
+    await page.getByRole('option', { name: projectOptions[1] }).click()
+    await page.waitForFunction(
+      () =>
+        (JSON.parse(localStorage.getItem('pisper-board-view') || '{}').state?.projects ?? [])
+          .length === 1,
     )
-    await page.keyboard.press('End')
-    await page.keyboard.press('Home')
-    assert.equal(
-      await page.evaluate(() => document.activeElement?.getAttribute('data-sidebar-filter')),
-      'all',
-    )
-    const projectButton = sidebar.locator(`[data-sidebar-filter="${firstProject}"]`)
-    await projectButton.focus()
-    await page.keyboard.press('Space')
-    assert.equal(await projectButton.getAttribute('aria-pressed'), 'true')
-    // 只筛了项目时“全部”不再按下（否则“全部 7”读起来像主区在显示全部 7 个）。
-    assert.equal(await filter('all').getAttribute('aria-pressed'), 'false')
     const visible = await page
       .locator('[data-board-card]')
       .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-board-card')))
     assert.ok(visible.length > 0 && visible.length < 7, `project filter narrows ${visible}`)
-    await page.keyboard.press('Space')
-    assert.equal(await projectButton.getAttribute('aria-pressed'), 'false')
+    // 选中项目时 ⋯ 里直接是它自己的操作（不必先开管理项目），添加 / 管理项目常在。
+    await filters.locator('[data-overview-project-menu]').click()
+    let projectMenu = page.getByRole('menu')
+    await projectMenu.getByRole('menuitem', { name: '重命名…' }).waitFor()
+    await projectMenu.getByRole('menuitem', { name: '添加项目…' }).waitFor()
+    await page.keyboard.press('Escape')
+    await projectMenu.waitFor({ state: 'hidden' })
+    await projectSelect.click()
+    await page.getByRole('option', { name: '全部项目' }).click()
     await page.locator('[data-board-card="fx-done-unread"]').waitFor()
-    // “/”聚焦侧栏的第一个筛选（全部）。
+    // “/”聚焦页内状态分段里按下的那一段（全部）。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press('/')
-    await page.waitForFunction(() => document.activeElement?.id === 'board-filter')
-    // 项目组 ⋯：添加项目、管理项目（沿用项目命令与管理对话框）。
-    await sidebar.locator('[data-sidebar-projects-menu]').click()
-    const projectMenu = page.getByRole('menu')
+    await page.waitForFunction(
+      () =>
+        document.activeElement?.closest('#board-filter') !== null &&
+        document.activeElement?.getAttribute('data-state') === 'on',
+    )
+    // 没选项目时 ⋯ 只有添加项目、管理项目（沿用项目命令与管理对话框）。
+    await filters.locator('[data-overview-project-menu]').click()
+    projectMenu = page.getByRole('menu')
     await projectMenu.getByRole('menuitem', { name: '添加项目…' }).waitFor()
+    assert.equal(await projectMenu.getByRole('menuitem', { name: '重命名…' }).count(), 0)
     await projectMenu.getByRole('menuitem', { name: '管理项目…' }).click()
-    const manageFromSidebar = page.getByRole('dialog', { name: '管理项目' })
-    await manageFromSidebar.waitFor()
+    const manageFromFilters = page.getByRole('dialog', { name: '管理项目' })
+    await manageFromFilters.waitFor()
     await page.keyboard.press('Escape')
-    await manageFromSidebar.waitFor({ state: 'hidden' })
-    await page.screenshot({ path: join(output, 'board-sidebar-filters.png') })
+    await manageFromFilters.waitFor({ state: 'hidden' })
+    await page.screenshot({ path: join(output, 'board-page-filters.png') })
     report.checks.push(
-      'All agents sidebar (spec 2.3): no session rows; status filters 全部 7 · 需要你 3 (amber) · 运行中 2 · 今天完成 2 (no 排队 without sessionQueue) and one row per project whose counts add up to 7; 运行中 narrows the list through pisper-board-view (aria-pressed, no duplicate in-page filter line while the sidebar is expanded) and a second click clears it; ↑ / ↓ / Home / End walk the filters, Space toggles a project filter; / focuses 全部; the 项目 ⋯ menu offers 添加项目 and opens 管理项目',
+      'All agents page: the sidebar is the same as on other pages (需要你 rows, no filter widgets); in-page status segments 全部 7 · 需要你 3 · 运行中 2 · 已完成 2 (no 排队 without sessionQueue); 运行中 narrows the list through pisper-board-view and 全部 clears it; the project select lists 全部项目 plus every project and narrows the list; with a project picked its ⋯ offers 重命名 next to 添加项目, otherwise 添加项目 / 管理项目 (opens the dialog); / focuses the pressed segment',
     )
 
     // 行内容（规格 3.3）：普通批准第 1 行状态“等你批准 · bash”、第 2 行直接是完整命令（不截断）与“拒绝 D · 允许 A”；
@@ -676,7 +665,7 @@ try {
     assert.equal(fixture.posts.at(-1).path, '/api/sessions/fx-failed/retry')
     await waitForFilterCounts(page, { attention: 1, running: 4 })
     report.checks.push(
-      'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the sidebar filter counts follow',
+      'Failed row 重试 posts /api/sessions/fx-failed/retry, moves to running and the in-page status counts follow',
     )
 
     // 这一页没有任务输入框：⌘N 与页头“新任务”都进入新任务草稿 '/board/new'（不弹对话框），后退回到全部代理。
@@ -709,16 +698,19 @@ try {
       'The summary line is focusable and its tooltip lists sub-agent slots, today tokens and memory when the runtime reports them',
     )
 
-    // 桌面上同一页只留一处项目视角：主区固定按状态分组、没有分组切换，按 G 不变；
-    // 按项目看用侧栏的“项目”筛选，项目的重命名 / 排序 / 删除在侧栏“项目 ⋯ → 管理项目…”里（上面已验）。
+    // 桌面上同一页只留一处项目视角：主区固定按状态分组、没有“按状态 / 按项目”切换，按 G 不变；
+    // 按项目看用页内的项目下拉，项目操作在它旁边的 ⋯ 里（上面已验）。页内唯一的分段是状态筛选。
     await page.locator('[data-board-root] h1').click()
-    assert.equal(await page.locator('[data-board-root] [role="radiogroup"]').count(), 0)
+    assert.equal(
+      await page.locator('[data-board-root] [role="radiogroup"][aria-label="分组方式"]').count(),
+      0,
+    )
     await page.keyboard.press('g')
     await page.waitForTimeout(200)
     await page.locator('[data-overview-section="attention"]').waitFor()
     assert.equal(await page.locator('[data-overview-heading="/home/dev/pisper"]').count(), 0)
     report.checks.push(
-      'Desktop 全部代理 keeps one project view: no 按状态 / 按项目 switch in the header and G does not regroup (projects are filtered and managed from the sidebar)',
+      'Desktop 全部代理 keeps one project view: no 按状态 / 按项目 switch in the header and G does not regroup (projects are filtered and managed from the in-page project select)',
     )
 
     // 行 ⋯ 菜单与侧栏行相同。
@@ -808,10 +800,10 @@ try {
     await doneToggle.click()
     await page.locator('[data-board-card="fx-done-unread"]').waitFor()
     report.checks.push(
-      'With nothing needing you the 需要你 heading reads 0 with a quiet empty line (the sidebar filter reads 0 too); 今天完成 collapses and expands again, stored in pisper-board-view',
+      'With nothing needing you the 需要你 heading reads 0 with a quiet empty line (the in-page segment reads 0 too); 今天完成 collapses and expands again, stored in pisper-board-view',
     )
     // ⌘B 收起为 60px 窄轨：四个入口图标 + 两个计数（需要你 0 变灰不消失、运行中 2）+ 设置；
-    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view），侧栏收起时页上写明筛选并可清除；再按 ⌘B 展开。
+    // 点运行中计数打开全部代理并筛到运行中（pisper-board-view），页内状态分段跟着按下，点“全部”清除；再按 ⌘B 展开。
     await page.locator('[data-board-root] h1').click()
     await page.keyboard.press(`${mod}+KeyB`)
     const rail = page.locator('[data-shell-sidebar="rail"]')
@@ -834,9 +826,12 @@ try {
     )
     assert.equal(await page.locator('[data-board-card="fx-done-unread"]').count(), 0)
     await page.locator('[data-board-card="fx-running"]').waitFor()
-    const filterLine = page.locator('[data-overview-filter]')
-    assert.match(await filterLine.innerText(), /状态：运行中/)
-    await filterLine.getByRole('button', { name: '清除筛选' }).click()
+    const segments = page.locator('[data-overview-filters]')
+    assert.equal(
+      await segments.getByRole('radio', { name: /^运行中/ }).getAttribute('data-state'),
+      'on',
+    )
+    await segments.getByRole('radio', { name: /^全部/ }).click()
     await page.locator('[data-board-card="fx-done-unread"]').waitFor()
     await page.keyboard.press(`${mod}+KeyB`)
     await page.locator('[data-shell-sidebar="expanded"]').waitFor()
@@ -846,7 +841,7 @@ try {
     // 筛选偏好经 Runtime 镜像同步：清掉，免得影响之后的上下文。
     await resetBoardView()
     report.checks.push(
-      '⌘B collapses the sidebar to the 60px rail with a greyed 0 needs-you count and 2 running; the running count opens all agents filtered to running with a 状态：运行中 line whose 清除筛选 brings everything back; ⌘B expands it again',
+      '⌘B collapses the sidebar to the 60px rail with a greyed 0 needs-you count and 2 running; the running count opens all agents filtered to running with the in-page 运行中 segment pressed, and 全部 brings everything back; ⌘B expands it again',
     )
     await context.close()
   }

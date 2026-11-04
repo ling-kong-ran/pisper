@@ -182,9 +182,6 @@ const SidebarCommands = lazy(() =>
   loadSidebarSessions().then((module) => ({ default: module.SidebarCommands })),
 )
 // 全部代理页的侧栏筛选与设置页底部的状态行：同一个看板块。
-const SidebarBoardFilters = lazy(() =>
-  loadSidebarSessions().then((module) => ({ default: module.SidebarBoardFilters })),
-)
 const SidebarFleetLine = lazy(() =>
   loadSidebarSessions().then((module) => ({ default: module.SidebarFleetLine })),
 )
@@ -939,22 +936,14 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     // 功能页模板：搜索框在页面自己的工具行里（规格 A6）。
     else if (FEATURE_TEMPLATE_PAGES.has(page))
       document.getElementById(FEATURE_SEARCH_INPUT_ID)?.focus()
-    // 全部代理页的 / 聚焦侧栏筛选（规格 2.3、2.8）；侧栏收成窄轨时先临时展开再聚焦。
-    else if (page === 'board') {
-      const filter = document.getElementById(BOARD_FILTER_ID)
-      if (filter) filter.focus()
-      else if (!phoneShell && useSidebarStore.getState().collapsed) {
-        useSidebarStore.getState().setPeeking(true)
-        let frames = 0
-        const attempt = () => {
-          const target = document.getElementById(BOARD_FILTER_ID)
-          if (target) target.focus()
-          else if ((frames += 1) < 20) requestAnimationFrame(attempt)
-        }
-        requestAnimationFrame(attempt)
-      }
-    } else searchInputRef.current?.focus()
-  }, [page, phoneShell])
+    // 全部代理页的 / 聚焦页内状态筛选里当前选中的那一段（筛选在页内，不再借用侧栏）。
+    else if (page === 'board')
+      document
+        .getElementById(BOARD_FILTER_ID)
+        ?.querySelector<HTMLElement>('[data-state="on"]')
+        ?.focus()
+    else searchInputRef.current?.focus()
+  }, [page])
   // 看板、会话页、功能索引、改用功能页模板的页面（FEATURE_TEMPLATE_PAGES）、/config 下的全部分区
   // （设置分区与三个设备页都用功能页模板，A6 第 3、4 批）与工作流节点编辑器（全宽例外，自己的 52px 页头）自带页头；
   // 只剩组件工作室与“我的组件”整页在 A7 之前沿用共享页头（面包屑与终端开关）。
@@ -1075,29 +1064,17 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                 onOpenSettings={() => selectShellTab('settings')}
                 content={
                   <Suspense fallback={<SidebarSessionsFallback />}>
-                    {/* 全部代理页：会话分组收成状态 / 项目筛选，代理只在主区列一次（规格 2.3）。 */}
-                    {page === 'board' ? (
-                      <SidebarBoardFilters
-                        notify={notify}
-                        requestConfirm={appDialog.confirm}
-                        requestText={appDialog.prompt}
-                        onNewTask={() => startNewTask()}
-                        onOpenHistory={() => navigate('chatHistory')}
-                      />
-                    ) : (
-                      <>
-                        <BotsSidebarSection />
-                        <SidebarSessions
-                          currentId={sessionIdFromPath(location.pathname)}
-                          notify={notify}
-                          requestText={appDialog.prompt}
-                          onOpenSession={openSidebarSession}
-                          onOpenBoard={() => selectShellTab('board')}
-                          onOpenHistory={() => navigate('chatHistory')}
-                          onArchived={sidebarArchived}
-                        />
-                      </>
-                    )}
+                    {/* 侧栏在每个页面都一样（含全部代理）：全部代理的状态 / 项目筛选在页内，不再借用侧栏。 */}
+                    <BotsSidebarSection />
+                    <SidebarSessions
+                      currentId={sessionIdFromPath(location.pathname)}
+                      notify={notify}
+                      requestText={appDialog.prompt}
+                      onOpenSession={openSidebarSession}
+                      onOpenBoard={() => selectShellTab('board')}
+                      onOpenHistory={() => navigate('chatHistory')}
+                      onArchived={sidebarArchived}
+                    />
                   </Suspense>
                 }
                 takeover={

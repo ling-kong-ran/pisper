@@ -1,4 +1,6 @@
-// 侧栏会话分组（规格 v2 第 2.1、2.2、2.8 节）：需要你 → 运行中 → 排队 → 置顶 → 今天完成 → 历史会话。
+// 侧栏会话分组（规格 v2 第 2.1、2.2、2.8 节）：需要你 → 运行中 → 排队 → 最近 → 全部会话。
+// 需要你、运行中常驻（为 0 时只留标题）；“最近”取代原来的置顶与今天完成：其余未归档会话里置顶的在前、
+// 再按最近修改取前几条，只有一行标题（sidebar-recents）。侧栏不按项目分组，按项目看用全部代理页的项目筛选。
 // 数据只读看板 store（useSidebarModel），与全部代理、手机标签栏同一个所有者，不新开轮询。
 // 会话行是带 href 的链接（新标签打开、复制链接照常可用），当前会话行带 aria-current="page"。
 // 需要你行悬停或聚焦 80ms 后，右侧时长换成快捷处理：普通批准“拒绝 D · 允许 A”，其余“打开 ↵”；
@@ -18,7 +20,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useHref } from 'react-router-dom'
-import { ChevronDown, ChevronRight, History, Pin } from 'lucide-react'
+import { ChevronRight, History, Pin } from 'lucide-react'
 import type { BoardLane } from '@shared/session-board-status.mjs'
 import type { Notify } from '@/app/route-context'
 import { sessionPath } from '@/app/routes'
@@ -54,6 +56,7 @@ import { useBoardActions } from './useBoardActions'
 import { useNow } from './useNow'
 import { useSessionRowActions, type SessionRowActions } from './useSessionRowActions'
 import { useSidebarModel } from './useSidebarModel'
+import { sidebarStatusGroups, useSidebarRecents } from './useSidebarRecents'
 
 const ROW_EXPAND_MS = 160
 const RING_MS = 600
@@ -130,9 +133,16 @@ export function SidebarCommands({
   onWaiting,
 }: SidebarCommandsProps) {
   const { t } = useI18n()
-  const { model, isLoading } = useSidebarModel()
+  const { model, items, sessions, isLoading } = useSidebarModel()
+  const recents = useSidebarRecents(model, items, sessions, renderedSessionId ?? '')
   const modelRef = useRef(model)
   modelRef.current = model
+  // ⌥↑ / ⌥↓ 按看得见的顺序：常驻的状态组，再是“最近”。
+  const visibleOrderRef = useRef<string[]>([])
+  visibleOrderRef.current = [
+    ...sidebarStatusGroups(model).flatMap((group) => group.rows.map((row) => row.id)),
+    ...recents.rows.map((row) => row.id),
+  ]
   const propsRef = useRef({ resolveCurrentId, onOpenSession })
   propsRef.current = { resolveCurrentId, onOpenSession }
   useEffect(() => {
@@ -141,14 +151,8 @@ export function SidebarCommands({
       if (!command) return
       const current = modelRef.current
       if (command.kind === 'adjacent') {
-        // 按用户看得见的顺序：折叠起来的“今天完成”里的行不参与（模型不知道折叠状态）。
-        const order = useSidebarStore.getState().doneCollapsed
-          ? current.groups.flatMap((group) =>
-              group.id === 'done' ? [] : group.rows.map((row) => row.id),
-            )
-          : current.order
         const next = adjacentSidebarSession(
-          order,
+          visibleOrderRef.current,
           propsRef.current.resolveCurrentId() || null,
           command.direction,
         )
@@ -182,8 +186,8 @@ export function SidebarCommands({
         focusWhenReady(() => settings.querySelector<HTMLElement>(selector) ?? undefined)
         return
       }
-      // 全部代理页（桌面）：侧栏是筛选，代理只在主区列一次（规格 2.3），⌥A 把焦点交给主区那一行，
-      // 被当前筛选藏起来时先清掉筛选（由页面判断，见 overview-focus）；⌘J 聚焦按下的那个筛选。
+      // 全部代理页（桌面）：⌥A 把焦点交给主区那一行（在那里一步处理），被当前筛选藏起来时先清掉筛选
+      // （由页面判断，见 overview-focus）；⌘J 与其他页面一样聚焦侧栏的会话行。
       const overview = document.querySelector('[data-overview]')
       if (command.kind === 'focus-attention') {
         const target = current.longestWaitingId
@@ -199,17 +203,6 @@ export function SidebarCommands({
         return
       }
       if (sidebar.collapsed) sidebar.setPeeking(true)
-      if (overview) {
-        focusWhenReady(() => {
-          const filters = document.querySelector('[data-shell-sidebar] [data-sidebar-filters]')
-          return (
-            filters?.querySelector<HTMLElement>('[data-sidebar-filter][aria-pressed="true"]') ??
-            filters?.querySelector<HTMLElement>('[data-sidebar-filter]') ??
-            undefined
-          )
-        })
-        return
-      }
       const currentId = propsRef.current.resolveCurrentId()
       focusSidebarRow((rows) => rows.find((row) => row.dataset.sidebarRow === currentId) ?? rows[0])
     }
@@ -407,12 +400,11 @@ export function SidebarSessions({
   drawer = false,
 }: SidebarSessionsProps) {
   const { t } = useI18n()
-  const { model, isLoading, error, refetch } = useSidebarModel()
+  const { model, items, sessions, isLoading, error, refetch } = useSidebarModel()
+  const recents = useSidebarRecents(model, items, sessions, currentId)
   const actions = useBoardActions()
   const actionsRef = useRef(actions)
   actionsRef.current = actions
-  const doneCollapsed = useSidebarStore((state) => state.doneCollapsed)
-  const setDoneCollapsed = useSidebarStore((state) => state.setDoneCollapsed)
   const setLaneFilter = useBoardViewStore((state) => state.setLaneFilter)
   const boardBindings = useShortcutStore((state) => state.boardBindings)
   const root = useHref('/')
@@ -546,8 +538,15 @@ export function SidebarSessions({
 
   if (isLoading) return <SidebarSkeleton label={t('board:sidebar.loading')} />
 
-  const empty =
-    !error && model.groups.every((group) => group.count === 0) && model.groups.length <= 2
+  const statusGroups = sidebarStatusGroups(model)
+  const rowProps = {
+    now,
+    handlers,
+    approveBinding: boardBindings.boardApprove,
+    denyBinding: boardBindings.boardDeny,
+    onKeyDown: onRowKeyDown,
+    drawer,
+  }
   return (
     <div ref={rootRef} data-sidebar-groups className="flex flex-col gap-3 pb-2">
       {Boolean(error) && model.groups.every((group) => group.count === 0) ? (
@@ -561,33 +560,18 @@ export function SidebarSessions({
             {t('board:sidebar.retry')}
           </button>
         </div>
-      ) : empty ? (
-        <p className="px-2.5 py-2 text-xs leading-5 text-content-muted">
-          {t('board:sidebar.empty')}
-        </p>
       ) : (
-        model.groups.map((group) => (
+        statusGroups.map((group) => (
           <SidebarGroupSection
             key={group.id}
             group={group}
             title={groupTitle(t, group.id)}
-            collapsed={group.id === 'done' && doneCollapsed}
-            onToggle={group.id === 'done' ? () => setDoneCollapsed(!doneCollapsed) : undefined}
             footer={
               group.id === 'running' && group.hidden > 0 ? (
                 <MoreLink onClick={openRunning}>
                   {t('board:sidebar.moreRunning', { count: group.hidden })}
                 </MoreLink>
-              ) : group.id === 'done' && group.hidden > 0 ? (
-                <MoreLink onClick={onOpenHistory}>{t('board:sidebar.allDone')}</MoreLink>
               ) : null
-            }
-            emptyText={
-              group.id === 'attention'
-                ? t('board:sidebar.emptyAttention')
-                : group.id === 'running'
-                  ? t('board:sidebar.emptyRunning')
-                  : ''
             }
           >
             {group.rows.map((row) => (
@@ -596,19 +580,41 @@ export function SidebarSessions({
                 row={row}
                 href={hrefFor(row.id)}
                 current={row.id === currentId}
-                now={now}
                 hidden={leaving.has(row.id)}
                 fresh={fresh.has(row.id)}
-                handlers={handlers}
-                approveBinding={boardBindings.boardApprove}
-                denyBinding={boardBindings.boardDeny}
-                onKeyDown={onRowKeyDown}
-                drawer={drawer}
+                {...rowProps}
               />
             ))}
           </SidebarGroupSection>
         ))
       )}
+      <section aria-labelledby="sidebar-group-recent" data-sidebar-group="recent">
+        <h2
+          id="sidebar-group-recent"
+          className="m-0 flex h-7 items-center px-2.5 text-xs font-medium text-content-muted"
+        >
+          {t('board:sidebar.group.recent')}
+        </h2>
+        {recents.rows.length ? (
+          <ul className="m-0 flex list-none flex-col gap-px p-0">
+            {recents.rows.map((row) => (
+              <SidebarRowItem
+                key={row.id}
+                row={row}
+                href={hrefFor(row.id)}
+                current={row.id === currentId}
+                hidden={false}
+                fresh={false}
+                {...rowProps}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="px-2.5 text-xs leading-7 text-content-faint">
+            {t('board:sidebar.emptyRecent')}
+          </p>
+        )}
+      </section>
       <a
         href={root.replace(/\/$/, '') + '/chat/history'}
         className="flex h-8 items-center gap-2 rounded-[var(--r-md)] px-2.5 text-[13px] text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
@@ -620,7 +626,7 @@ export function SidebarSessions({
         }}
       >
         <History className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-        {t('board:sidebar.history')}
+        {t('board:sidebar.allChats')}
       </a>
     </div>
   )
@@ -660,77 +666,47 @@ function MoreLink({ children, onClick }: { children: ReactNode; onClick: () => v
   )
 }
 
+// 状态组：需要你、运行中常驻，为 0 时只留标题与计数（不写“没有……”占位行，侧栏保持安静）。
 function SidebarGroupSection({
   group,
   title,
-  collapsed,
-  onToggle,
   footer,
-  emptyText,
   children,
 }: {
   group: SidebarGroup
   title: string
-  collapsed: boolean
-  onToggle?: () => void
   footer: ReactNode
-  emptyText: string
   children: ReactNode
 }) {
   const headingId = `sidebar-group-${group.id}`
   const attention = group.id === 'attention'
-  const count = (
-    <span
-      data-sidebar-count
-      className={cn(
-        'tabular-nums',
-        attention &&
-          group.count > 0 &&
-          'inline-grid h-[18px] min-w-[18px] place-items-center rounded-full bg-warning-soft px-1.5 text-[11.5px] font-semibold ring-1 ring-st-attn-border ring-inset',
-      )}
-    >
-      {group.count}
-    </span>
-  )
-  const headingClass = cn(
-    'flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium',
-    attention && group.count > 0 ? 'text-warning-strong' : 'text-content-muted',
-  )
   return (
     <section aria-labelledby={headingId} data-sidebar-group={group.id}>
       <h2 id={headingId} className="m-0">
-        {onToggle ? (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
+        <span
+          className={cn(
+            'flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium',
+            attention && group.count > 0 ? 'text-warning-strong' : 'text-content-muted',
+          )}
+        >
+          {title}
+          <span
+            data-sidebar-count
             className={cn(
-              headingClass,
-              'w-full rounded-[var(--r-md)] text-left hover:text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11',
+              'tabular-nums',
+              attention &&
+                group.count > 0 &&
+                'inline-grid h-[18px] min-w-[18px] place-items-center rounded-full bg-warning-soft px-1.5 text-[11.5px] font-semibold ring-1 ring-st-attn-border ring-inset',
             )}
-            onClick={onToggle}
           >
-            {title}
-            {count}
-            {collapsed ? (
-              <ChevronRight className="size-3" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="size-3" aria-hidden="true" />
-            )}
-          </button>
-        ) : (
-          <span className={headingClass}>
-            {title}
-            {count}
+            {group.count}
           </span>
-        )}
+        </span>
       </h2>
-      {!collapsed &&
-        (group.rows.length ? (
-          <ul className="m-0 flex list-none flex-col gap-px p-0">{children}</ul>
-        ) : emptyText ? (
-          <p className="px-2.5 pl-[34px] text-xs leading-7 text-content-faint">{emptyText}</p>
-        ) : null)}
-      {!collapsed && footer}
+      {group.rows.length > 0 && (
+        <ul className="m-0 flex list-none flex-col gap-px p-0">{children}</ul>
+      )}
+      {footer}
     </section>
   )
 }
@@ -810,9 +786,13 @@ function SidebarRowItem({
     return () => observer.disconnect()
   }, [])
 
+  // “最近”里的会话照 Claude 桌面端的侧栏：只有一行标题（未读加圆点、置顶加图钉），不画状态图标与时刻；
+  // 状态要紧的会话已经在上面的需要你 / 运行中里。悬停时右侧照样出现 ⋯。
+  const plain = row.group === 'recent'
   let meta = ''
   let reason = ''
-  if (row.group === 'attention') {
+  if (plain) meta = ''
+  else if (row.group === 'attention') {
     meta = formatSidebarWait(row.waitingSince === null ? null : now - row.waitingSince)
     reason = reasonText(t, row.reasons)
   } else if (row.group === 'running')
@@ -861,7 +841,9 @@ function SidebarRowItem({
               : 'h-12 pointer-coarse:h-14'
             : drawer
               ? 'h-11'
-              : 'h-9 pointer-coarse:h-11',
+              : plain
+                ? 'h-8 pointer-coarse:h-11'
+                : 'h-9 pointer-coarse:h-11',
           quickRoom,
           current ? 'bg-surface-active' : 'group-hover/row:bg-surface-hover',
         )}
@@ -873,6 +855,7 @@ function SidebarRowItem({
         onKeyDown={(event) => onKeyDown(event, row)}
       >
         <span
+          hidden={plain}
           className={cn(
             'relative grid size-4 flex-none place-items-center',
             attention && 'self-start mt-[7px]',
@@ -918,7 +901,15 @@ function SidebarRowItem({
             >
               {row.title}
             </span>
-            {row.group === 'done' && row.unread && (
+            {plain && row.pinned && (
+              <Pin
+                className="size-3 flex-none self-center text-content-faint"
+                strokeWidth={1.75}
+                role="img"
+                aria-label={t('board:sidebar.group.pinned')}
+              />
+            )}
+            {(row.group === 'done' || plain) && row.unread && (
               <span
                 role="img"
                 aria-label={t('board:sidebar.unread')}

@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Ellipsis,
   FolderCog,
+  FolderMinus,
   FolderPen,
   Plus,
   RotateCcw,
@@ -111,8 +112,9 @@ export function ProjectSectionMenu({
           disabled={deleting}
           onSelect={() => actions.onDelete(project)}
         >
-          <Trash2 aria-hidden="true" />
-          {t('board:project.delete')}
+          {project.count === 0 ? <FolderMinus aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+          {/* 没有会话的登记项目只是取消登记，不叫“删除”（与管理项目对话框一致）。 */}
+          {project.count === 0 ? t('board:project.remove') : t('board:project.delete')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
