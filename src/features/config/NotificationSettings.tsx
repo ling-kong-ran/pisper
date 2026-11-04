@@ -12,6 +12,7 @@ import { APP_NAME } from '@/app/brand'
 import { useI18n } from '@/app/use-i18n'
 import { useNotificationSettings } from './useNotificationSettings'
 import { NotificationTemplatesEditor } from './NotificationTemplatesEditor'
+import { NotificationSoundSettings } from './NotificationSoundSettings'
 import { SettingsRow, SettingsSection } from '@/components/app/SettingsRow'
 import {
   DropdownMenu,
@@ -499,6 +500,7 @@ export function NotificationSettings({
           </Button>
         </div>
       </Panel>
+      <NotificationSoundSettings />
       <SettingsSection
         title={t('config:notificationSettings.notificationCategories')}
         description={t('config:notificationSettings.channelPreferenceHint')}

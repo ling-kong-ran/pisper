@@ -25,3 +25,4 @@ export type {
   BoardLane,
   BoardStatus,
 } from '@shared/session-board-status.mjs'
+export type { SessionAlert, SessionAlertKind } from './session-alerts'

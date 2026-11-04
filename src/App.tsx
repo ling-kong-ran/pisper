@@ -96,6 +96,9 @@ import {
 } from '@/lib/startup-queries'
 import { markStartupPhase } from '@/lib/startup-diagnostics'
 import { showBrowserSystemNotification } from '@/lib/browser-notifications'
+import { installNotificationSoundUnlock, playNotificationSound } from '@/lib/notification-sounds'
+import { useNotificationSoundStore } from '@/stores/notification-sound-store'
+import type { SessionAlert } from '@/features/board/public'
 import { useAppDialog } from '@/hooks/useAppDialog'
 import { useIsPhoneViewport, useIsTabletViewport } from '@/hooks/use-mobile'
 import { useAppUpdate } from '@/features/updates/useAppUpdate'
@@ -539,6 +542,21 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
     },
     [notificationSettings.browser?.enabled],
   )
+
+  // 提示音：浏览器要先有一次用户操作才能出声，挂上一次性的解锁监听。
+  useEffect(() => installNotificationSoundUnlock(), [])
+  // 同一次刷新里几件事一起来时只响一声，按“需要你 > 失败 > 跑完”挑最要紧的那件。
+  const playAlertSound = useCallback((alerts: SessionAlert[]) => {
+    const preference = useNotificationSoundStore.getState()
+    if (!preference.enabled) return
+    if (!preference.whileFocused && document.visibilityState === 'visible' && document.hasFocus())
+      return
+    const kind = (['waiting', 'failed', 'finished'] as const).find((item) =>
+      alerts.some((alert) => alert.kind === item && preference.sounds[item] !== 'none'),
+    )
+    const sound = kind ? preference.sounds[kind] : 'none'
+    if (sound !== 'none') playNotificationSound(sound, preference.volume)
+  }, [])
 
   // 按事件模板发浏览器通知：模板启用且有内容才发，
   // 渲染时替换 {{变量}} 占位符。
@@ -1137,6 +1155,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   onWaiting={({ title, reason }) =>
                     browserNotify('chat.waiting', { chat: { title, tool: reason, reason } })
                   }
+                  onAlerts={playAlertSound}
                 />
               </Suspense>
             }

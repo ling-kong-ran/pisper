@@ -51,6 +51,7 @@ import {
 import { requestOverviewFocus } from './overview-focus'
 import { collapseRow, motionAllowed, SIDEBAR_ROW_COLLAPSE_MS } from './row-motion'
 import { SessionRowMenu } from './SessionRowMenu'
+import { sessionAlerts, type SessionAlert, type SessionAlertSnapshot } from './session-alerts'
 import { SIDEBAR_COMMAND_EVENT, type SidebarCommand } from './sidebar-commands'
 import { useBoardActions } from './useBoardActions'
 import { useNow } from './useNow'
@@ -121,6 +122,8 @@ export type SidebarCommandsProps = {
   // 新进入“需要你”的批准与提问：应用壳据此发“等待用户确认”（chat.waiting）系统通知（规格 8.4：与审批相同的通知）。
   // 失败不在这里通知（运行结束已有完成 / 失败的通知）。
   onWaiting?: (waiting: { title: string; reason: string }) => void
+  // 提醒时刻（需要你、跑完、失败，见 session-alerts）：应用壳据此响提示音。同一次刷新里的几条一起交出。
+  onAlerts?: (alerts: SessionAlert[]) => void
 }
 
 // 无界面的命令处理：⌘J / ⌥A / ⌥↑⌥↓ 由外壳的快捷键层转成事件交到这里。展开与收起时都挂着，
@@ -131,9 +134,20 @@ export function SidebarCommands({
   renderedSessionId,
   onOpenSession,
   onWaiting,
+  onAlerts,
 }: SidebarCommandsProps) {
   const { t } = useI18n()
   const { model, items, sessions, isLoading } = useSidebarModel()
+  // 提醒时刻按看板卡片前后两次的差异推出；首次载入只记快照。
+  const onAlertsRef = useRef(onAlerts)
+  onAlertsRef.current = onAlerts
+  const alertSnapshotRef = useRef<SessionAlertSnapshot | null>(null)
+  useEffect(() => {
+    if (isLoading) return
+    const { snapshot, alerts } = sessionAlerts(alertSnapshotRef.current, items)
+    alertSnapshotRef.current = snapshot
+    if (alerts.length) onAlertsRef.current?.(alerts)
+  }, [items, isLoading])
   const recents = useSidebarRecents(model, items, sessions, renderedSessionId ?? '')
   const modelRef = useRef(model)
   modelRef.current = model

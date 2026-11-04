@@ -5,6 +5,8 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper-ui',
   // 方向 A 侧栏：收起成窄轨、“今天完成”折叠（src/stores/sidebar-store.ts 是唯一所有者）。
   'pisper-sidebar',
+  // 提示音：哪些时刻响、各用哪种音效、音量（src/stores/notification-sound-store.ts 是唯一所有者）。
+  'pisper-notification-sounds',
   'pisper-session-context-layout',
   // 会话页检查器：开关、当前标签、宽度与改动 / 终端子视图（规格 4.4）。
   'pisper-session-inspector',

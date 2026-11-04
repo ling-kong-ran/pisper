@@ -11,6 +11,8 @@ export const STORAGE_KEYS = Object.freeze({
   language: 'pisper-language',
   // 侧栏收起状态（规格 v2 2.1），唯一所有者是 src/stores/sidebar-store.ts。
   sidebar: 'pisper-sidebar',
+  // 提示音偏好，唯一所有者是 src/stores/notification-sound-store.ts。
+  notificationSounds: 'pisper-notification-sounds',
   density: 'pisper-density',
   shortcuts: 'pisper-shortcuts',
   boardShortcuts: 'pisper-board-shortcuts',
