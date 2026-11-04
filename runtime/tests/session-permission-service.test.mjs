@@ -85,8 +85,23 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       toolName: 'skill_create',
       args: { name: 'global-helper', scope: 'global' },
     }).reason,
-    /完全访问模式/,
+    /全局技能.*需要确认/,
   )
+  for (const [mode, executionMode] of [
+    ['ask', 'approval-required'],
+    ['auto', 'workspace-write'],
+  ])
+    assert.equal(
+      permissionRequirement({
+        mode,
+        executionMode,
+        cwd,
+        toolName: 'skill_create',
+        args: { name: 'global-helper', scope: 'global' },
+      }).block,
+      undefined,
+      executionMode,
+    )
   assert.equal(
     permissionRequirement({
       mode: 'ignore',
@@ -176,6 +191,14 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
     permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason,
     /工作目录之外/,
   )
+  // 执行模式只决定是否逐次确认：工作区之外的文件是“确认后执行”，不是直接拒绝。
+  for (const mode of ['ask', 'auto'])
+    for (const toolName of ['read', 'ls', 'grep', 'find', 'edit', 'write'])
+      assert.equal(
+        permissionRequirement({ mode, cwd, toolName, args: { path: outside } }).block,
+        undefined,
+        `${mode} ${toolName}`,
+      )
   assert.equal(
     permissionRequirement({ mode: 'auto', cwd, toolName: 'bash', args: { command: 'npm test' } }),
     null,
@@ -303,16 +326,24 @@ test('pending tool approval can be accepted or denied', async () => {
   assert.ok(events.some((item) => item.event === 'permission_request'))
   assert.ok(events.some((item) => item.event === 'permission_resolved'))
 
-  const outside = resolve(process.cwd(), '..', 'outside.txt')
-  assert.deepEqual(
-    await service.authorize({
-      sessionId: 'session-1',
-      cwd: process.cwd(),
-      toolName: 'write',
-      args: { path: outside },
-    }),
-    { block: true, reason: 'write 不能在当前执行模式下访问当前工作目录之外的文件。' },
-  )
+  // 工作区之外的写入走审批（带 ../ 相对路径的 Diff），批准后放行，不再直接拒绝。
+  const outside = resolve(process.cwd(), '..', 'pisper-outside-preview.txt')
+  const outsideWrite = service.authorize({
+    sessionId: 'session-1',
+    cwd: process.cwd(),
+    toolName: 'write',
+    toolCallId: 'tool-outside',
+    args: { path: outside, content: 'hello\n' },
+  })
+  // 预览要异步读文件：等到审批请求真正入队，而不是固定等待一段时间。
+  while (!service.getPending('session-1').length)
+    await new Promise((resolve) => setImmediate(resolve))
+  const outsideRequest = service.getPending('session-1')[0]
+  assert.equal(outsideRequest.toolName, 'write')
+  assert.match(outsideRequest.reason, /工作目录之外.*需要确认/)
+  assert.equal(outsideRequest.fileChange.path, '../pisper-outside-preview.txt')
+  service.resolve('session-1', outsideRequest.id, true)
+  assert.equal(await outsideWrite, undefined)
   assert.deepEqual(service.getPending('session-1'), [])
 
   mode = 'ignore'
@@ -643,16 +674,27 @@ test('bot sessions edit files outside their folder without the folder fence', as
     }),
     undefined,
   )
-  // 普通会话仍然围在工作目录里。
-  const fenced = await service.authorize({
-    sessionId: 'other',
+  // 普通会话访问工作目录之外要先确认（模式只决定是否询问，不拒绝）；Bot 的会话不围。
+  const fenced = permissionRequirement({
+    mode: 'auto',
+    executionMode: 'workspace-write',
     cwd: '/repo',
     toolName: 'write',
-    toolCallId: 'call-2',
     args: { path: outside },
   })
-  assert.equal(fenced.block, true)
-  assert.match(fenced.reason, /工作目录之外/)
+  assert.equal(fenced.block, undefined)
+  assert.match(fenced.reason, /工作目录之外.*确认/)
+  assert.equal(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd: '/repo',
+      toolName: 'write',
+      args: { path: outside },
+      fenced: false,
+    }),
+    null,
+  )
 })
 
 test('tools outside the run scope are blocked before any mode, rule or approval', async () => {

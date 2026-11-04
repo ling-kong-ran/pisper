@@ -185,11 +185,12 @@ export function permissionRequirement({
   if (toolName === 'mobile_device') return null
   const risk = toolRisk || TOOL_RISKS.get(toolName) || 'high'
   const filePath = args?.path || args?.file_path
+  // 执行模式只决定是否逐次确认，不决定能不能用：全局技能与工作区之外的文件在非完全访问模式下
+  // 都是“确认后执行”，不是直接拒绝（与 bash 批准后可访问工作区之外一致）。
   if (toolName === 'skill_create' && args?.scope === 'global') {
     return {
-      block: true,
       risk: 'high',
-      reason: 'skill_create 只有在完全访问模式下才能创建全局技能。',
+      reason: 'skill_create 将创建全局技能（所有项目可用），需要确认后执行。',
     }
   }
   if (toolName === 'plugin_create') {
@@ -204,9 +205,8 @@ export function permissionRequirement({
     pathOutsideWorkspace(cwd, filePath)
   ) {
     return {
-      block: true,
       risk: 'high',
-      reason: `${toolName} 不能在当前执行模式下访问当前工作目录之外的文件。`,
+      reason: `${toolName} 将访问当前工作目录之外的文件，需要确认后执行。`,
     }
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null

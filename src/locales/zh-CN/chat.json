@@ -572,7 +572,7 @@
   "focusSession.approvalRequiredShowsADiffBeforeWriting": "写文件前看 Diff，命令逐条确认",
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "本机文件和网络都不再逐次确认",
   "focusSession.workspaceWrite": "自动审批",
-  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "工作区内自动通过，外部访问受限",
+  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "工作区内自动通过，外部文件先确认",
   "focusSession.removeName": "移除 {name}",
   "focusSession.renameChat": "重命名会话",
   "sessionMenu.exportMarkdown": "导出 Markdown",

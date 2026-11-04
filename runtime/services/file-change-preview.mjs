@@ -51,10 +51,11 @@ function gitDiffPath(path) {
   return /\s|"|\\/.test(escaped) ? `"${escaped}"` : escaped
 }
 
+// 工作区之外的文件（用户批准后可以改）显示为 ../ 开头的相对路径，不展开成含个人目录的绝对路径；
+// Windows 跨盘时 relative 只能给出绝对路径，按原样显示。
 function fileDiffPath(cwd, absolutePath) {
   const path = relative(cwd, absolutePath).replace(/\\/g, '/')
-  if (!path || path.startsWith('../') || /[\r\n\0]/.test(path))
-    throw new Error('文件路径无效，无法生成修改预览。')
+  if (!path || /[\r\n\0]/.test(path)) throw new Error('文件路径无效，无法生成修改预览。')
   return path
 }
 

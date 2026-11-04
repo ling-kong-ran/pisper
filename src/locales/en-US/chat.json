@@ -572,7 +572,7 @@
   "focusSession.approvalRequiredShowsADiffBeforeWriting": "Review Diffs and confirm each command",
   "focusSession.fullAccessRunsShellWithoutPerCommandApproval": "No more prompts for files or network",
   "focusSession.workspaceWrite": "Auto-approve",
-  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "Auto-approve workspace; external limited",
+  "focusSession.workspaceWriteRunsCommandsWithAutomaticApproval": "Auto-approve workspace; confirm outside files",
   "focusSession.removeName": "Remove {name}",
   "focusSession.renameChat": "Rename chat",
   "sessionMenu.exportMarkdown": "Export as Markdown",
