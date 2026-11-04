@@ -1,8 +1,7 @@
-// 执行节点（B6）：配对与令牌、连接中枢、节点上的文件与命令操作（目录限制、git 白名单）、
-// 经节点创建 worktree 并跑完一个 Bot 任务、节点接口的鉴权，以及远程会话的工具。
+// 执行节点（B6）：配对与令牌、连接中枢、节点上的文件与命令操作（目录限制）、节点接口的鉴权，
+// 以及远程会话的工具。Bot 的会话在节点上跑，靠的就是这些工具；节点不再替谁跑 git。
 // 节点与大脑在同一进程里经内存“轮询”相连，不开端口、不联网。
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,19 +21,10 @@ import {
   REMOTE_EXECUTOR_TOOL_NAMES,
 } from '../runtime/executor-tools.mjs'
 import { runToolBlocker } from '../runtime/tool-activation.mjs'
-import { normalizeBotInput } from '../services/bots/bot-model.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
-import { BotTaskService } from '../services/bots/bot-task-service.mjs'
 import { EnvironmentService, pathWithinRoots } from '../services/bots/environment-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
-import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
-
-const IDENTITY = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com']
-
-function git(cwd, ...args) {
-  return execFileSync('git', [...IDENTITY, ...args], { cwd, encoding: 'utf8' }).trim()
-}
 
 async function until(predicate, timeoutMs = 5_000) {
   const started = Date.now()
@@ -44,29 +34,20 @@ async function until(predicate, timeoutMs = 5_000) {
   }
 }
 
-// 一台“远端”电脑：允许目录里有一个 git 仓库，另有一个允许目录之外的秘密文件。
+// 一台“远端”电脑：允许目录里有一个工作目录，另有一个允许目录之外的秘密文件。
 async function machine(t, { shell = true } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-executor-'))
   const allowed = join(directory, 'allowed')
   const repo = join(allowed, 'repo')
   await mkdir(repo, { recursive: true })
-  git(repo, 'init', '-q', '-b', 'main')
-  git(repo, 'config', 'user.name', 'Test')
-  git(repo, 'config', 'user.email', 'test@example.com')
   await writeFile(join(repo, 'README.md'), 'hello\n')
-  git(repo, 'add', '-A')
-  git(repo, 'commit', '-q', '-m', 'init')
   await writeFile(join(directory, 'secret.txt'), 'top secret\n')
-  const node = new ExecutorNode({
-    roots: [allowed],
-    worktreeRoot: join(directory, 'node-home', 'worktrees'),
-    shell,
-  })
+  const node = new ExecutorNode({ roots: [allowed], shell })
   const hub = new ExecutorHub()
   const environment = {
     id: 'env_testmachine1',
     name: '测试机',
-    capabilities: { shell, git: true },
+    capabilities: { shell },
     ...node.report(),
   }
   const disconnect = connect(hub, environment.id, node)
@@ -123,8 +104,7 @@ test('pairing codes are one-time and short-lived; tokens are stored only as dige
     code: fresh.code.toLowerCase(),
     name: '构建机\u0007',
     roots: ['/work', 'relative/path', '/work'],
-    worktreeRoot: '/home/me/.pisper-executor/worktrees',
-    capabilities: { shell: true, git: true },
+    capabilities: { shell: true },
   })
   assert.equal(paired.environment.name, '构建机')
   assert.deepEqual(paired.environment.roots, ['/work'])
@@ -163,7 +143,7 @@ test('the node only touches files inside its allowed folders, by real path', asy
 
   await ops.write.writeFile(join(repo, 'src', 'a.txt'), 'A\n')
   assert.equal((await ops.read.readFile(join(repo, 'src', 'a.txt'))).toString(), 'A\n')
-  assert.deepEqual((await ops.ls.readdir(repo)).sort(), ['.git', 'README.md', 'src'])
+  assert.deepEqual((await ops.ls.readdir(repo)).sort(), ['README.md', 'src'])
   assert.equal((await ops.ls.stat(join(repo, 'src'))).isDirectory(), true)
   assert.equal(await ops.find.exists(join(repo, 'nope')), false)
   assert.deepEqual(
@@ -185,24 +165,18 @@ test('the node only touches files inside its allowed folders, by real path', asy
   await assert.rejects(ops.read.readFile('relative.txt'), { code: 'path_invalid' })
 })
 
-test('git on the node only allows the worktree subcommands, without global overrides', async (t) => {
-  const { repo, directory, hub, environment } = await machine(t)
-  const executor = new NodeExecutor({ hub, environment })
-  await until(() => executor.online())
-  assert.equal((await executor.exec('git', ['rev-parse', '--show-toplevel'], repo)).code, 0)
-  for (const args of [
-    ['-C', directory, 'status'],
-    ['-c', 'core.sshCommand=touch /tmp/pwned', 'status'],
-    ['config', 'core.hooksPath', '/tmp'],
-    ['log'],
-    ['worktree', 'add', '-b', 'x', '../../outside'],
-    ['worktree', 'add', '-b', 'x', join(directory, 'outside')],
-  ])
-    await assert.rejects(executor.exec('git', args, repo), (error) =>
-      ['command_not_allowed', 'path_not_allowed'].includes(error.code),
-    )
-  await assert.rejects(executor.exec('git', ['status'], directory), { code: 'path_not_allowed' })
-  await assert.rejects(executor.exec('rm', ['-rf', '/'], repo), { code: 'command_not_allowed' })
+test('the node runs no git for anyone: the only commands are the shell tool', async (t) => {
+  const { repo, node } = await machine(t)
+  // Bot 不依赖 git：节点上已经没有替大脑跑 git 的入口，命令只能经 shell（并受 --no-shell 约束）。
+  const result = await node.handle({
+    id: 'r1',
+    op: 'exec',
+    args: { file: 'git', args: ['status'], cwd: repo },
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.error.code, 'op_unsupported')
+  assert.equal('worktreeRoot' in node.report(), false)
+  assert.equal('git' in node.report().capabilities, false)
 })
 
 test('shell commands stream output, report exit codes and stop when aborted', async (t) => {
@@ -237,85 +211,9 @@ test('a node without --no-shell refuses commands; offline nodes fail fast', asyn
   await disconnect()
   const offline = new NodeExecutor({ hub: new ExecutorHub(), environment })
   assert.equal(offline.online(), false)
-  await assert.rejects(offline.exec('git', ['status'], repo), { code: 'executor_offline' })
-})
-
-test('a bot task on a node waits for it, then runs in the bot folder on that machine', async (t) => {
-  const { repo, hub, environment, directory } = await machine(t)
-  const executor = new NodeExecutor({ hub, environment })
-  const nodeWorktrees = new WorktreeManager({ executor, root: environment.worktreeRoot })
-  let online = false
-  const bot = {
-    id: 'remote',
-    ...normalizeBotInput({
-      name: '远程',
-      workspace: { environmentId: environment.id, cwd: repo },
-    }),
-  }
-  const calls = []
-  const service = new BotTaskService({
-    path: join(directory, 'tasks.json'),
-    getBot: () => bot,
-    worktreesFor: (id) => {
-      assert.equal(id, environment.id)
-      return nodeWorktrees
-    },
-    isEnvironmentOnline: () => online,
-    runAgent: async ({ cwd, environmentId }) => {
-      calls.push({ cwd, environmentId })
-      // 代理的工具经节点写文件。
-      await executor.operations().write.writeFile(join(cwd, 'fix.txt'), 'fixed\n')
-      return { text: '改好了', sessionId: 'thread' }
-    },
-    stopAgent: async () => {},
+  await assert.rejects(offline.operations().read.readFile(join(repo, 'README.md')), {
+    code: 'executor_offline',
   })
-  t.after(() => service.dispose())
-  await service.init()
-  const task = await service.dispatch('remote', { text: '修一下' })
-  assert.equal(service.get(task.id).environmentId, environment.id)
-  // 电脑不在线：留在排队里，侧栏写“等它的电脑”。
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  assert.equal(service.get(task.id).status, 'queued')
-  assert.equal(service.activity('remote').waiting, 'environment')
-
-  online = true
-  service.schedule()
-  // Bot 不依赖 git：在那台电脑上直接在 Bot 的目录里跑，不开分支、不进审阅。
-  await until(() => service.get(task.id).status === 'done', 15_000)
-  const stored = service.get(task.id)
-  assert.equal(calls[0].environmentId, environment.id)
-  assert.equal(calls[0].cwd, repo)
-  assert.equal(stored.workspace.kind, 'shared')
-  assert.equal(stored.result.summary, '改好了')
-  assert.equal(await readFile(join(repo, 'fix.txt'), 'utf8'), 'fixed\n')
-})
-
-test('a connection lost mid-run marks the task interrupted, not failed', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'pisper-executor-lost-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const bot = {
-    id: 'remote',
-    ...normalizeBotInput({
-      name: '远程',
-      delivery: 'reply-only',
-      workspace: { environmentId: 'env_testmachine1', cwd: '/work', isolation: 'shared' },
-    }),
-  }
-  const service = new BotTaskService({
-    path: join(directory, 'tasks.json'),
-    getBot: () => bot,
-    worktreesFor: () => null,
-    isEnvironmentOnline: () => true,
-    runAgent: async () => {
-      throw Object.assign(new Error('这台电脑太久没有回应'), { code: 'executor_timeout' })
-    },
-    stopAgent: async () => {},
-  })
-  t.after(() => service.dispose())
-  await service.init()
-  const task = await service.dispatch('remote', { text: '跑一下测试' })
-  await until(() => service.get(task.id).status !== 'queued' && !service.running.size)
-  assert.equal(service.get(task.id).status, 'interrupted')
 })
 
 test('bots can only point at a paired node and a folder inside its roots', async (t) => {

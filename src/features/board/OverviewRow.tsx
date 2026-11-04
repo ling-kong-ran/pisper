@@ -647,19 +647,6 @@ function OverviewRowComponent({
               {project}
             </span>
           )}
-          {item.bot?.branch && (
-            <span
-              data-row-bot-branch
-              className="min-w-0 shrink truncate font-mono text-xs text-content-muted"
-            >
-              {item.bot.changedFiles
-                ? t('board:card.botBranchFiles', {
-                    branch: item.bot.branch,
-                    count: item.bot.changedFiles,
-                  })
-                : item.bot.branch}
-            </span>
-          )}
           {item.pinned && (
             <Pin
               className="size-3 flex-none self-center text-content-muted"

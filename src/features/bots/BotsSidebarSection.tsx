@@ -1,9 +1,11 @@
-// 侧栏里的 Bots 分组（设计稿 botim-chat）：每个 Bot 一行，像联系人——头像随状态动、名字、最近一句；
-// 需要你时那句话变琥珀色。只在实验功能 Bots 打开时出现。点“+”新建。
-// Bot 多时只显示最要紧的 3 个（需要你 → 干活中 → 最近活动），其余点“显示全部”就地展开（sidebarBots）。
+// 侧栏里的 Bots 分组：每个 Bot 一行，像联系人——头像随状态动、名字，需要你时加琥珀点。
+// 点一下打开它的长期会话（Bot 就是这个会话加上设定），正在看它的会话或设置页时这一行亮起。
+// 只在实验功能 Bots 打开时出现。点“+”新建。Bot 多时只显示最要紧的 3 个（需要你 → 在说话 → 其余），
+// 其余点“显示全部”就地展开（sidebarBots）。
 import './bots-messages'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { sessionIdFromPath } from '@/app/routes'
 import { Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { useBetaFeature } from '@/features/labs/public-flags'
@@ -12,6 +14,7 @@ import { BotAvatar } from './BotAvatar'
 import { botActivityLine, botAvatarState, SIDEBAR_BOT_LIMIT, sidebarBots } from './bot-presentation'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { NewBotDialog } from './NewBotDialog'
+import { useOpenBot } from './use-open-bot'
 
 export function BotsSidebarSection() {
   const { t } = useI18n()
@@ -21,9 +24,19 @@ export function BotsSidebarSection() {
   const location = useLocation()
   const [creating, setCreating] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // 侧栏没有提示条：会话打不开时退到这个 Bot 的设置页，在那里“和它聊天”重试并看到原因。
+  const openBot = useOpenBot(
+    useCallback(
+      (_message: string, botId: string) => navigate(`/bots/${encodeURIComponent(botId)}`),
+      [navigate],
+    ),
+  )
   useBotsPolling(enabled)
   if (!enabled) return null
-  const current = /^\/bots\/([^/]+)/.exec(location.pathname)?.[1]
+  const sessionId = sessionIdFromPath(location.pathname)
+  const current =
+    /^\/bots\/([^/]+)/.exec(location.pathname)?.[1] ??
+    bots.find((bot) => sessionId && bot.threadSessionId === sessionId)?.id
   const { shown, hidden } = sidebarBots(bots, { expanded, currentId: current })
   return (
     <section data-sidebar-bots aria-label={t('bots:sidebar.title')} className="mb-2">
@@ -55,7 +68,7 @@ export function BotsSidebarSection() {
                   'flex h-8 w-full min-w-0 items-center gap-2.5 rounded-[var(--r-md)] px-2.5 text-left hover:bg-surface-hover pointer-coarse:h-11',
                   current === bot.id && 'bg-surface-active hover:bg-surface-active',
                 )}
-                onClick={() => navigate(`/bots/${encodeURIComponent(bot.id)}`)}
+                onClick={() => void openBot(bot)}
               >
                 <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={20} />
                 <span className="min-w-0 flex-1 truncate text-[13.5px] text-content">
@@ -86,7 +99,7 @@ export function BotsSidebarSection() {
       <NewBotDialog
         open={creating}
         onOpenChange={setCreating}
-        onCreated={(bot) => navigate(`/bots/${encodeURIComponent(bot.id)}`)}
+        onCreated={(bot) => void openBot(bot)}
       />
     </section>
   )

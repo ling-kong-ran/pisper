@@ -4,7 +4,7 @@
 // 运行状态在侧栏会话行与输入框托盘里，上下文用量写在“压缩上下文”一项上，分支与标记在会话树对话框的页签里。
 // Windows 自绘标题栏时右侧再让出 144px 给窗口按钮，顶栏空白处是拖拽区（交互元素由桌面壳排除）。
 // 触屏（pointer: coarse）：按钮抬到 44px，标题与项目标签保持可见尺寸，命中区用伪元素补到 44px。
-import { useContext } from 'react'
+import { lazy, Suspense, useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, FileDiff, GitFork, PanelRight } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -25,6 +25,9 @@ import { getSessionChangeSummary } from './session-change-summary-api'
 import { openSessionSideChat, useSessionMenu, type SessionMenuActions } from './session-header-menu'
 import { SessionInspectorContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
+
+// Bot 的长期会话：页头换上它的头像与设置入口（Bots 是实验功能，部件按需加载，不进会话页的包）。
+const BotSessionChip = lazy(() => import('@/features/bots/public-session'))
 
 type SessionPageHeaderProps = Omit<SessionMenuActions, 'onSideChat' | 'extraItems'> & {
   session: SessionSummary
@@ -94,6 +97,11 @@ export function SessionPageHeader({
       className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 pr-3 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
     >
       <div className="flex min-w-0 flex-1 items-center gap-1.5" data-window-drag-region>
+        {session.botId && (
+          <Suspense fallback={null}>
+            <BotSessionChip botId={session.botId} part="avatar" />
+          </Suspense>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             {/* 标题本身就是菜单入口（规格 4.1“标题 ▾”）；id 沿用旧“⋯”的 task-<id>-more，
@@ -126,6 +134,11 @@ export function SessionPageHeader({
         >
           {project}
         </span>
+        {session.botId && (
+          <Suspense fallback={null}>
+            <BotSessionChip botId={session.botId} part="settings" />
+          </Suspense>
+        )}
         {treeAvailable && (
           <Button
             type="button"

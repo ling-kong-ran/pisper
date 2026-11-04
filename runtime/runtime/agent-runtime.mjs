@@ -191,11 +191,9 @@ import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
-import { BotTaskService } from '../services/bots/bot-task-service.mjs'
-import { LocalExecutor } from '../services/bots/executor.mjs'
+import { botSystemPrompt } from '../services/bots/bot-model.mjs'
 import { EnvironmentService } from '../services/bots/environment-service.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
-import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -687,33 +685,21 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.teamWorkflows = new TeamWorkflowService({ path: join(dataDir, 'pisper-teams.json') })
     // Bot 的电脑（B6）：本机之外已配对的执行节点，以及它们连回来的长轮询中枢。
     this.environments = new EnvironmentService({ path: join(dataDir, 'pisper-environments.json') })
-    this.executorHub = new ExecutorHub({ onOnline: () => this.botTasks?.schedule() })
-    this.localExecutor = new LocalExecutor()
-    this.localWorktrees = new WorktreeManager({
-      executor: this.localExecutor,
-      root: join(dataDir, 'worktrees'),
-    })
-    // Bot 注册表（B1）。
+    this.executorHub = new ExecutorHub()
+    // Bot 注册表（B1）。Bot 就是一个长期会话加上它的设定（指令、工具范围、电脑与目录、权限、渠道）：
+    // 运行时按会话找到 Bot 并套用设定（botForSession），渠道与定时任务把话发进这个会话（messageBot）。
     this.bots = new BotService({
       path: join(dataDir, 'pisper-bots.json'),
       validateDirectory: (input) => resolveDirectory(input, this.cwd),
       getEnvironment: (id) => this.environments.get(id),
-      // 还有进行中或待确认任务的 Bot 不能删除。
-      isBusy: (botId) => this.botTasks.isBusy(botId),
+      // 正在说话的 Bot 不能删除：先停下这一轮。
+      isBusy: (botId) => {
+        const sessionId = this.bots.get(botId)?.threadSessionId
+        return Boolean(sessionId && this.sessionRunIsActive(sessionId))
+      },
     })
-    // Bot 任务（B2）：改代码的任务在独立 worktree 里进行——本机在 <数据目录>/worktrees，
-    // 执行节点在节点自己的 worktree 目录（B6）。电脑不在线时任务留在排队里。
-    this.botTasks = new BotTaskService({
-      path: join(dataDir, 'pisper-bot-tasks.json'),
-      getBot: (id) => this.bots.get(id),
-      worktreesFor: (environmentId) => this.botWorktreesFor(environmentId),
-      isEnvironmentOnline: (environmentId) =>
-        environmentId === 'local' || this.executorHub.online(environmentId),
-      runAgent: (input) => this.runBotTaskAgent(input),
-      stopAgent: (sessionId) => this.abortSession(sessionId),
-      waitingFor: (sessionId) => this.botTaskWaiting(sessionId),
-      onTaskEvent: (task, kind) => this.botTaskEvent(task, kind),
-    })
+    // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
+    this.botChatOrigins = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
@@ -963,7 +949,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (this.capabilities.features.bots) {
       await this.environments.init()
       await this.bots.init()
-      await this.botTasks.init()
     }
     await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
@@ -1737,8 +1722,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           : this.capabilities.features.plugins,
       )
       .filter((name) => !remoteExecutor || REMOTE_EXECUTOR_TOOL_NAMES.includes(name))
+    // Bot 的会话：系统提示追加它是谁与它的指令（改了指令时 Bot 设置会释放空闲的运行时，重建后生效）。
+    const bot = this.botForSession?.(runtimeSessionId)
     const [resourceLoader, mcpTools] = await Promise.all([
-      measureRunStage('rt.resourceLoader', this.skills.createResourceLoader(effectiveCwd)),
+      measureRunStage(
+        'rt.resourceLoader',
+        this.skills.createResourceLoader(
+          effectiveCwd,
+          bot ? { appendSystemPrompt: botSystemPrompt(bot) } : undefined,
+        ),
+      ),
       this.capabilities.features.mcp && !remoteExecutor
         ? measureRunStage('rt.mcpTools', this.mcp.createToolDefinitions())
         : [],
@@ -2301,7 +2294,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   ) {
     // 没有人在场的运行（定时任务、工作流节点、外部 MCP 调用）：本轮不提供 ask_user（规格 8.4）。
     value.unattendedRun = Boolean(unattended)
-    // 本轮的工具范围（Bot 的 tools）：每轮重设，人直接在这个会话里说话时不受限。
+    // Bot 的会话：不管这句话来自应用、聊天还是定时任务，每一轮都按 Bot 的设定跑——工具范围取 Bot 的
+    // tools（null 为当前启用的全部），上下文隔离（不读其他会话与全局记忆）。设定在 Bot 被删或
+    // Bots 实验功能关掉后不再套用，会话照常可用。
+    const bot = this.botForSession?.(value.session?.sessionId || sessionId)
+    if (bot) {
+      allowedToolNames = bot.tools
+      isolatedContext = true
+    }
+    // 本轮的工具范围：每轮重设，普通会话不受限。
     value.allowedToolNames = Array.isArray(allowedToolNames) ? [...allowedToolNames] : null
     // 看板摘要只跟踪会出现在看板上的会话；侧聊不上看板，不占摘要缓存。
     // 每个流事件都会走到这里，判定结果在本轮内不变，只算一次。

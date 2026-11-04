@@ -60,25 +60,22 @@ export const agentSessionMethods = {
     // Bots 是实验功能：开关关掉时 Bot 的会话整个不出现（会话文件留着，重新打开就回来）。
     if (!this.isBetaFeatureEnabled?.('bots'))
       return sessions.filter((session) => !threads.has(session.id))
-    // 打开时，Bot 会话的 cwd 是任务的临时 worktree（任务结束就删掉）：列表带上 Bot 所属的项目目录，
-    // 界面按它归组，不把每个 worktree 当成一个项目。只做加法，旧客户端照常按 cwd。
-    return sessions.map((session) =>
-      threads.get(session.id) ? { ...session, projectCwd: threads.get(session.id) } : session,
-    )
+    // 打开时带上 botId（界面据此把它当成 Bot 的对话：侧栏“最近”不重复列出，会话页头换成 Bot）
+    // 与 Bot 的目录（Bot 在执行节点上时会话 cwd 只是大脑这边的占位目录，按 Bot 的目录归组）。只做加法。
+    return sessions.map((session) => {
+      const thread = threads.get(session.id)
+      return thread ? { ...session, botId: thread.botId, projectCwd: thread.cwd } : session
+    })
   },
 
-  // Bot 的会话 → 所属项目目录：长期会话，以及任务记下的会话（换过长期会话的旧任务也算）。
+  // Bot 的长期会话 → { botId, cwd }：Bot 就是这个会话加上它的设定。
   botSessionProjects() {
     if (!this.bots) return new Map()
-    const bots = this.bots.list()
-    const projects = new Map()
-    for (const bot of bots)
-      if (bot.threadSessionId) projects.set(bot.threadSessionId, bot.workspace?.cwd || '')
-    const cwdOf = new Map(bots.map((bot) => [bot.id, bot.workspace?.cwd || '']))
-    for (const task of this.botTasks?.list({ limit: 500 }) || [])
-      if (task.sessionId && !projects.has(task.sessionId))
-        projects.set(task.sessionId, cwdOf.get(task.botId) || '')
-    return projects
+    const threads = new Map()
+    for (const bot of this.bots.list())
+      if (bot.threadSessionId)
+        threads.set(bot.threadSessionId, { botId: bot.id, cwd: bot.workspace?.cwd || '' })
+    return threads
   },
 
   // 看板卡片：事件摘要（内存）+ 落盘摘要（已加载的元数据）+ 审批 / 子代理 / 排队的实时状态。
@@ -102,7 +99,7 @@ export const agentSessionMethods = {
       doneWindow,
       timeZoneOffsetMinutes,
     })
-    // 只做加法：Bot 的长期会话带上是哪个 Bot、最近任务的分支与改动数；旧客户端忽略。
+    // 只做加法：Bot 的长期会话带上是哪个 Bot（名字与头像）；旧客户端忽略。
     const bot = this.botCardFor(id)
     return bot ? { ...card, bot } : card
   },
@@ -112,16 +109,10 @@ export const agentSessionMethods = {
     if (!sessionId || !this.bots || !this.isBetaFeatureEnabled?.('bots')) return null
     const bot = this.bots.list().find((item) => item.threadSessionId === sessionId)
     if (!bot) return null
-    const activity = this.botTasks?.activity(bot.id) ?? null
     return {
       id: bot.id,
       name: bot.name,
       avatar: { character: bot.avatar.character, color: bot.avatar.color },
-      // 完成且没有改动的任务分支已经删掉，不再写出分支名。
-      ...(activity?.branch && (activity.status !== 'done' || activity.changedFiles > 0)
-        ? { branch: activity.branch }
-        : {}),
-      ...(activity?.changedFiles ? { changedFiles: activity.changedFiles } : {}),
     }
   },
 

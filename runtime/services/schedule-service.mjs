@@ -460,17 +460,23 @@ export class ScheduleService {
     execution.finally(() => this.executions.delete(execution)).catch(() => {})
   }
 
-  // 到点给 Bot 派活：Bot 用自己的电脑、权限上限与长期会话去做，这里只负责排进去。
-  // 不走渠道白名单（计划由本机用户配置），也不用定时任务的完全访问默认值。
+  // 到点对 Bot 说一句话：话进它的长期会话，用它自己的设定（电脑、权限上限、工具）去做；
+  // 它正在说话时排在这一轮之后。不走渠道白名单（计划由本机用户配置），也不用定时任务的完全访问默认值。
   async executeBot(task) {
-    if (!this.bots?.enabled()) throw new Error('Bots 实验功能已关闭，这次没有派给 Bot。')
+    if (!this.bots?.enabled()) throw new Error('Bots 实验功能已关闭，这次没有交给 Bot。')
     const bot = this.bots.get(task.botId)
     if (!bot) throw new Error('这个 Bot 已经删除。')
-    const created = await this.bots.dispatch(task.botId, {
+    const sent = await this.bots.message(task.botId, {
       text: task.botMessage,
       source: { kind: 'schedule', scheduleTaskId: task.id },
     })
-    return { text: `已交给 ${bot.name}：${created.title}`, sessionId: '' }
+    return {
+      text:
+        sent.status === 'queued'
+          ? `${bot.name} 正在忙，这句话排在它这一轮之后。`
+          : `已交给 ${bot.name}。`,
+      sessionId: sent.sessionId,
+    }
   }
 
   async deleteForBot(botId) {

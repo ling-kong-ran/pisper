@@ -188,32 +188,13 @@ export function channelQuestionText(data) {
   return lines.join('\n')
 }
 
-// /名字 状态 的回复：它最近一件事在什么状态。
+// /名字 状态 的回复：它此刻在不在说话、有没有在等人。
 function botStatusText(bot, activity) {
   if (!bot.enabled) return `${bot.name} 已暂停。`
-  if (!activity) return `${bot.name} 现在空闲。`
-  const title = activity.title ? `「${activity.title}」` : ''
-  switch (activity.status) {
-    case 'queued':
-      return activity.waiting === 'environment'
-        ? `${bot.name} 排着队${title}，在等它的电脑上线。`
-        : `${bot.name} 排着队${title}。`
-    case 'preparing':
-    case 'running':
-      return activity.waiting === 'approval'
-        ? `${bot.name} 在做${title}，正等人批准一个操作。`
-        : activity.waiting === 'question'
-          ? `${bot.name} 在做${title}，有问题等人回答。`
-          : `${bot.name} 正在做${title}。`
-    case 'review':
-      return `${bot.name} 做完了${title}，${activity.changedFiles} 个文件有改动，等确认。`
-    case 'failed':
-      return `${bot.name} 上一件事${title}失败了。`
-    case 'interrupted':
-      return `${bot.name} 上一件事${title}被中断了。`
-    default:
-      return `${bot.name} 现在空闲。`
-  }
+  if (activity?.status !== 'running') return `${bot.name} 现在空闲。`
+  if (activity.waiting === 'approval') return `${bot.name} 在忙，正等人批准一个操作。`
+  if (activity.waiting === 'question') return `${bot.name} 在忙，有问题等人回答。`
+  return `${bot.name} 正在忙。`
 }
 
 export class ChannelService {
@@ -879,7 +860,8 @@ export class ChannelService {
       return true
     }
     try {
-      const task = await this.bots.message(bot.id, {
+      // 话直接进 Bot 的长期会话；这一轮说完，回复由 Runtime 发回这个聊天（B5）。
+      const sent = await this.bots.message(bot.id, {
         text,
         source: {
           kind: 'channel',
@@ -891,16 +873,15 @@ export class ChannelService {
           messageId: String(message.messageId || ''),
         },
       })
-      const followUp = (task.turns?.length || 0) > 1
       const attachmentNote = message.resources?.length ? '（附件暂不转给 Bot，只收到了文字。）' : ''
-      await gateway.send(message, {
-        text: followUp
-          ? `${bot.name} 会在同一个分支上接着改。${attachmentNote}`
-          : `${bot.name} 收到了，做完会在这里告诉你。${attachmentNote}`,
-      })
+      if (sent.status === 'busy')
+        await gateway.send(message, {
+          text: `${bot.name} 正在忙别的事，等它说完再叫它，或者在 Pisper 里接着说。`,
+        })
+      else if (attachmentNote) await gateway.send(message, { text: attachmentNote })
     } catch (error) {
       await gateway.send(message, {
-        text: `${bot.name} 没接下这件事：${error instanceof Error ? error.message : String(error)}`,
+        text: `${bot.name} 没接下这句话：${error instanceof Error ? error.message : String(error)}`,
       })
     }
     return true

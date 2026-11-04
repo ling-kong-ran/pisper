@@ -74,8 +74,6 @@ export type BoardCardBot = {
   name: string
   character: string
   color: string
-  branch: string
-  changedFiles: number
 }
 
 // 看板数据源里的一条：会话列表字段（与 GET /api/sessions 同形）+ card。
@@ -279,8 +277,6 @@ function parseCardBot(value: unknown): BoardCardBot | null {
     name,
     character: truncateCodePoints(text(avatar.character), MAX_LABEL_CHARS),
     color: truncateCodePoints(text(avatar.color), MAX_LABEL_CHARS),
-    branch: visibleLine(bot.branch, MAX_LABEL_CHARS),
-    changedFiles: count(bot.changedFiles) ?? 0,
   }
 }
 

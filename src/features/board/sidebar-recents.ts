@@ -13,7 +13,7 @@ export const SIDEBAR_RECENT_LIMIT = 8
 type RecentSession = Pick<
   SessionSummary,
   'id' | 'name' | 'firstMessage' | 'modified' | 'archived' | 'unread' | 'pinned'
-> & { messageCount?: number }
+> & { messageCount?: number; botId?: string }
 
 function modifiedAt(session: RecentSession) {
   const value = Date.parse(session.modified || '')
@@ -43,6 +43,8 @@ export function buildSidebarRecents(
     if (!session || typeof session.id !== 'string' || !session.id || seen.has(session.id)) continue
     seen.add(session.id)
     if (session.archived === true || shownIds.has(session.id)) continue
+    // Bot 的长期会话在侧栏的 Bots 分区里，不在“最近”里再列一遍。
+    if (session.botId) continue
     // 没发过消息的空草稿不算会话（与看板、历史会话一致）；正在看的那个除外，侧栏里得找得到它。
     if (
       typeof session.messageCount === 'number' &&

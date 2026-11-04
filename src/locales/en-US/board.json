@@ -381,6 +381,5 @@
   "question.otherPlaceholder": "Write your answer",
   "question.skip": "Skip",
   "question.submit": "Submit",
-  "question.answerNamed": "Answer “{title}”: {option}",
-  "card.botBranchFiles": "{branch} · {count} files"
+  "question.answerNamed": "Answer “{title}”: {option}"
 }

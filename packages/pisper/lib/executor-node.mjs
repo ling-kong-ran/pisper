@@ -3,11 +3,10 @@
 //   pisper executor            # 连上大脑，开始干活（Ctrl+C 停止）
 // 设计要点（runtime/services/bots/README.md「执行环境接口」）：
 // - 节点主动连回大脑（HTTPS 长轮询），不开放端口；只认配对时确认过的证书指纹。
-// - 节点不保存会话、不持有模型密钥；只保存配对信息（0600）与 Bot 任务的 worktree。
-// - 文件操作只在 --root 允许的目录与自己的 worktree 目录里，按真实路径检查（符号链接绕不出去）；
-//   git 只放行 worktree 管理用到的子命令；--no-shell 时不执行任意命令。
+// - 节点不保存会话、不持有模型密钥；只保存配对信息（0600）。
+// - 文件操作只在 --root 允许的目录里，按真实路径检查（符号链接绕不出去）；--no-shell 时不执行任意命令。
 // 只用 Node 内置模块：npm 包里的这个文件不依赖下载的应用本体。
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { X509Certificate } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import {
@@ -27,24 +26,9 @@ import process from 'node:process'
 import tls from 'node:tls'
 
 const MAX_READ_BYTES = 16 * 1024 * 1024
-const MAX_EXEC_OUTPUT = 8 * 1024 * 1024
 const MAX_GLOB_VISITS = 200_000
 const POLL_TIMEOUT_MS = 40_000
 const CHUNK_FLUSH_MS = 150
-// worktree 管理用到的 git 子命令；config 只允许读提交身份。
-const GIT_SUBCOMMANDS = new Set([
-  'rev-parse',
-  'worktree',
-  'check-ref-format',
-  'add',
-  'diff',
-  'commit',
-  'status',
-  'cherry-pick',
-  'branch',
-  'config',
-])
-
 export class NodeOperationError extends Error {
   constructor(code, message) {
     super(message)
@@ -97,9 +81,8 @@ export function globToRegExp(pattern) {
 }
 
 export class ExecutorNode {
-  constructor({ roots, worktreeRoot, shell = true }) {
+  constructor({ roots, shell = true }) {
     this.roots = roots.map((root) => resolve(root))
-    this.worktreeRoot = resolve(worktreeRoot)
     this.shell = shell
     this.running = new Map()
     this.realRoots = null
@@ -108,17 +91,15 @@ export class ExecutorNode {
   report() {
     return {
       roots: this.roots,
-      worktreeRoot: this.worktreeRoot,
-      capabilities: { shell: this.shell, git: true },
+      capabilities: { shell: this.shell },
       platform: process.platform,
     }
   }
 
   async #allowedRoots() {
     if (this.realRoots) return this.realRoots
-    await mkdir(this.worktreeRoot, { recursive: true })
     const roots = []
-    for (const root of [...this.roots, this.worktreeRoot]) {
+    for (const root of this.roots) {
       try {
         roots.push(await realpath(root))
       } catch {}
@@ -150,54 +131,6 @@ export class ExecutorNode {
     if (!roots.some((root) => real === root || real.startsWith(`${root}${sep}`)))
       fail('path_not_allowed', `不在允许的目录里：${text}`)
     return real
-  }
-
-  async #git(args, cwd, timeoutMs) {
-    if (!Array.isArray(args) || args.some((arg) => typeof arg !== 'string' || arg.includes('\0')))
-      fail('command_invalid', '命令参数无效。')
-    let index = 0
-    // 只接受提交身份的 -c；其余全局选项（-C、--git-dir、-c core.* 等）一律拒绝。
-    while (args[index] === '-c') {
-      if (!/^user\.(name|email)=/.test(args[index + 1] || ''))
-        fail('command_not_allowed', '只允许设置提交身份。')
-      index += 2
-    }
-    const subcommand = args[index]
-    if (!GIT_SUBCOMMANDS.has(subcommand))
-      fail('command_not_allowed', `不允许 git ${subcommand || ''}`.trim())
-    if (subcommand === 'config' && !(args.length === index + 2 && args[index + 1] === 'user.email'))
-      fail('command_not_allowed', '只允许读取提交身份。')
-    // 参数里的绝对路径（如 worktree 目录）同样要在允许目录里；相对路径不许用 .. 往上走
-    // （git 的引用名本来就不能含 ..，正常参数不受影响）。
-    for (const arg of args.slice(index + 1)) {
-      if (/(^|[\\/])\.\.([\\/]|$)/.test(arg)) fail('path_not_allowed', '参数里不能有 ..。')
-      if (isAbsolute(arg) && !arg.startsWith('-')) await this.allowed(arg)
-    }
-    const directory = await this.allowed(cwd)
-    return new Promise((resolveResult, reject) => {
-      execFile(
-        'git',
-        args,
-        {
-          cwd: directory,
-          timeout: Math.min(Math.max(1000, Number(timeoutMs) || 60_000), 10 * 60_000),
-          maxBuffer: MAX_EXEC_OUTPUT,
-          windowsHide: true,
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_EDITOR: 'true' },
-        },
-        (error, stdout, stderr) => {
-          if (error && typeof error.code !== 'number') {
-            reject(new NodeOperationError('command_failed', `git 执行失败：${error.message}`))
-            return
-          }
-          resolveResult({
-            code: error ? error.code : 0,
-            stdout: String(stdout),
-            stderr: String(stderr),
-          })
-        },
-      )
-    })
   }
 
   async #shell(id, { command, cwd, timeoutMs }, emit) {
@@ -284,9 +217,6 @@ export class ExecutorNode {
         case 'cancel':
           this.running.get(String(args.id))?.()
           return { ok: true, value: null }
-        case 'exec':
-          if (args.file !== 'git') fail('command_not_allowed', `不允许执行 ${args.file}`)
-          return { ok: true, value: await this.#git(args.args, args.cwd, args.timeoutMs) }
         case 'shell':
           return { ok: true, value: await this.#shell(id, args, emit) }
         case 'fs.read': {
@@ -539,7 +469,6 @@ export async function executorCommand(argv, { env = process.env, log = console.l
         throw new Error(`目录不存在：${root}`)
     const node = new ExecutorNode({
       roots: options.roots,
-      worktreeRoot: join(home, 'worktrees'),
       shell: options.shell,
     })
     const client = await createBrainClient(options)
@@ -574,7 +503,6 @@ export async function executorCommand(argv, { env = process.env, log = console.l
     throw new Error('还没有配对。先运行 pisper executor pair …（--help 查看用法）')
   const node = new ExecutorNode({
     roots: config.roots,
-    worktreeRoot: join(home, 'worktrees'),
     shell: config.shell !== false,
   })
   const client = await createBrainClient(config)

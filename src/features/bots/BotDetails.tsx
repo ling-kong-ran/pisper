@@ -1,11 +1,8 @@
-// Bot 的侧栏（按“第一眼只看到对话”简化）：平时收起，点右上角设置或卡片上的“查看改动”才打开。
-// 设置：头像、名字和“它负责什么”在最上面；电脑、在聊天里叫它、定时、高级（权限、交付、工具、暂停）
-// 都收在折叠分区里，用默认值就能用，想改时再展开。
-// 改动：有待确认的改动时才出现这个标签，列文件与 diff。
-import { lazy, Suspense, useEffect, useState } from 'react'
+// Bot 的设置（设置页 /bots/:id 的内容）：头像、名字和“它负责什么”在最上面；电脑、在聊天里叫它、定时、
+// 高级（权限、工具、暂停）都收在折叠分区里，用默认值就能用，想改时再展开。和它说话在它的会话里。
+import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
-import { InlineEmptyState } from '@/components/app/PageState'
 import {
   Accordion,
   AccordionContent,
@@ -14,95 +11,24 @@ import {
 } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { FileDiff } from 'lucide-react'
 import { BotAvatar } from './BotAvatar'
 import { BotAvatarPicker } from './BotAvatarPicker'
 import { BotComputerTab } from './BotComputerTab'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
-import {
-  fetchBotTaskDiff,
-  updateBot,
-  type Bot,
-  type BotDiff,
-  type BotEnvironment,
-  type BotTask,
-} from './bots-api'
+import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
 import { executionModeLabel } from './bot-labels'
 import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
-export type BotDetailsTab = 'settings' | 'changes'
-
-// 改动用会话里同一套 diff 查看器（按需懒加载）。
-const InlineGitDiff = lazy(() =>
-  import('@/features/chat/public-diff').then((module) => ({ default: module.InlineGitDiff })),
-)
-
-function ChangesTab({ task }: { task: BotTask | null }) {
-  const { t } = useI18n()
-  const [diff, setDiff] = useState<BotDiff | null>(null)
-  const [error, setError] = useState('')
-  const taskId = task?.id ?? ''
-  const version = task?.updatedAt ?? ''
-  useEffect(() => {
-    setDiff(null)
-    setError('')
-    if (!taskId) return
-    const controller = new AbortController()
-    fetchBotTaskDiff(taskId, controller.signal)
-      .then(setDiff)
-      .catch((caught: unknown) => {
-        if (!controller.signal.aborted)
-          setError(caught instanceof Error ? caught.message : String(caught))
-      })
-    return () => controller.abort()
-  }, [taskId, version])
-  if (!task) return <InlineEmptyState compact icon={FileDiff} title={t('bots:details.noChanges')} />
-  if (error)
-    return (
-      <p role="alert" className="text-sm text-content-secondary">
-        {error}
-      </p>
-    )
-  if (!diff) return <p className="text-sm text-content-muted">{t('bots:details.loadingChanges')}</p>
-  return (
-    <>
-      {/* 先列改了哪些文件，再看逐行 diff。 */}
-      <ul role="list" className="m-0 mb-3 flex list-none flex-col gap-1 p-0">
-        {diff.files.map((file) => (
-          <li key={file.path} className="flex min-w-0 items-center gap-2 font-mono text-xs">
-            <span className="w-4 flex-none text-content-muted">{file.status}</span>
-            <span className="truncate text-content-secondary">{file.path}</span>
-          </li>
-        ))}
-      </ul>
-      <Suspense
-        fallback={<p className="text-sm text-content-muted">{t('bots:details.loadingChanges')}</p>}
-      >
-        <InlineGitDiff diff={diff.diff} truncated={diff.truncated} mode="unified" fill />
-      </Suspense>
-    </>
-  )
-}
-
 export function BotDetails({
   bot,
-  reviewTask,
-  workingTask,
-  tab,
-  onTabChange,
   environments,
   onEnvironmentsChanged,
   onError,
 }: {
   bot: Bot
-  reviewTask: BotTask | null
-  workingTask: BotTask | null
-  tab: BotDetailsTab
-  onTabChange: (tab: BotDetailsTab) => void
   environments: BotEnvironment[]
   onEnvironmentsChanged: () => void
   onError: (message: string) => void
@@ -127,7 +53,7 @@ export function BotDetails({
 
   const environment = environments.find((item) => item.id === bot.workspace.environmentId)
   const folder = bot.workspace.cwd.split(/[\\/]/).filter(Boolean).at(-1) || bot.workspace.cwd
-  const settings = (
+  return (
     <div className="flex flex-col gap-4 pb-4">
       <div className="flex items-center gap-3">
         <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={48} />
@@ -184,7 +110,6 @@ export function BotDetails({
           <AccordionContent className="h-auto">
             <BotComputerTab
               bot={bot}
-              workingTask={workingTask}
               environments={environments}
               onEnvironmentsChanged={onEnvironmentsChanged}
               onError={onError}
@@ -276,28 +201,5 @@ export function BotDetails({
         </AccordionItem>
       </Accordion>
     </div>
-  )
-
-  // 没有待确认的改动时只有设置，不放只有一个标签的标签栏。
-  if (!reviewTask) return <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">{settings}</div>
-  return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => onTabChange(value as BotDetailsTab)}
-      className="flex min-h-0 flex-1 flex-col"
-    >
-      <TabsList className="mx-3 mt-3">
-        <TabsTrigger value="changes">
-          {t('bots:details.tabChangesCount', { count: reviewTask.result?.changedFiles ?? 0 })}
-        </TabsTrigger>
-        <TabsTrigger value="settings">{t('bots:settings.title')}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="changes" className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <ChangesTab task={reviewTask} />
-      </TabsContent>
-      <TabsContent value="settings" className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
-        {settings}
-      </TabsContent>
-    </Tabs>
   )
 }

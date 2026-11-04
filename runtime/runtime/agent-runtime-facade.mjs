@@ -11,14 +11,13 @@ import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
 import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import { projectApproval } from '../services/session-card-summary.mjs'
-import { EnvironmentError } from '../services/bots/environment-service.mjs'
 import {
   botApprovalText,
   botQuestionText,
-  botTaskEventText,
+  botReplyText,
 } from '../services/bots/bot-notifications.mjs'
+import { normalizeBotMessage } from '../services/bots/bot-model.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
-import { WorktreeManager } from '../services/bots/worktree-manager.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -837,37 +836,147 @@ export class AgentRuntimeFacade {
     return this.getBetaFeatures()
   }
 
-  // 列表里带上每个 Bot 的最新动态，侧栏据此显示最近一句与“需要你”。
+  // 列表里带上每个 Bot 此刻的动态（在跑、在等批准或回答），侧栏据此显示头像状态与“需要你”。
   listBots() {
-    return this.bots.list().map((bot) => ({ ...bot, activity: this.botTasks.activity(bot.id) }))
-  }
-
-  sendBotMessage(botId, input) {
-    return this.botTasks.message(botId, { text: input?.text, source: { kind: 'chat' } })
+    return this.bots.list().map((bot) => ({ ...bot, activity: this.botActivity(bot) }))
   }
 
   getBot(id) {
     return this.bots.get(id)
   }
 
+  // Bot 就是它的长期会话加上设定：动态直接读会话。审批与提问只在运行中出现。
+  botActivity(bot) {
+    const sessionId = bot?.threadSessionId
+    if (!sessionId) return null
+    const running = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
+    if (!running) return { status: 'idle', waiting: null, needsYou: false }
+    const { approval, question } = this.botWaiting(sessionId)
+    const waiting = approval ? 'approval' : question ? 'question' : null
+    return { status: 'running', waiting, needsYou: Boolean(waiting) }
+  }
+
+  // 会话属于哪个 Bot（Bots 实验功能关着时一律不算）：运行时据此套用 Bot 的指令、工具范围与隔离上下文。
+  botForSession(sessionId) {
+    if (!sessionId || !this.bots || !this.capabilities.features.bots) return null
+    if (!this.isBetaFeatureEnabled('bots')) return null
+    return this.bots.list().find((bot) => bot.threadSessionId === sessionId) || null
+  }
+
   // 新建时可以只给名字：没选目录就在本机的默认工作目录里干活，之后在设置里再换。
-  createBot(input) {
+  // 建好就开它的长期会话，打开 Bot 就是打开这个会话。
+  async createBot(input) {
     const value = input && typeof input === 'object' ? input : {}
     const workspace = value.workspace && typeof value.workspace === 'object' ? value.workspace : {}
     const environmentId = String(workspace.environmentId || 'local')
     const cwd = String(workspace.cwd ?? '').trim()
-    return this.bots.create(
+    const bot = await this.bots.create(
       cwd || environmentId !== 'local'
         ? value
         : { ...value, workspace: { ...workspace, cwd: this.cwd } },
     )
+    await this.ensureBotSession(bot.id)
+    return this.bots.get(bot.id)
   }
 
-  updateBot(id, input) {
-    return this.bots.update(id, input)
+  // 设定变了就套到会话上：目录、电脑、权限、模型立即生效；指令与工具范围在会话空闲时重建运行时后生效
+  // （正在跑的这一轮不打断，下一轮起用新设定）。
+  async updateBot(id, input) {
+    const before = this.bots.get(id)
+    const bot = await this.bots.update(id, input)
+    if (!bot?.threadSessionId) return bot
+    await this.applyBotSettings(bot, bot.threadSessionId)
+    // 会话标题就是 Bot 的名字：改名时跟着改，侧栏、看板与会话页头一致。
+    if (before && before.name !== bot.name)
+      await this.renameSession(bot.threadSessionId, bot.name).catch(() => {})
+    return bot
   }
 
-  // 删除 Bot 时一并删掉指向它的定时任务（README「Bot」）。
+  // 打开 Bot：返回它的长期会话，还没有（或会话文件已经不在）就新建一个。
+  async ensureBotSession(botId) {
+    const bot = this.bots.get(botId)
+    if (!bot)
+      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+    const existing = bot.threadSessionId
+    if (
+      existing &&
+      (this.sessions.has(existing) ||
+        this.pendingSessions.has(existing) ||
+        (await this.findSessionInfo(existing)))
+    )
+      return existing
+    const created = await this.createSession(bot.name, await this.botSessionCwd(bot))
+    await this.bots.setThread(bot.id, created.id)
+    await this.applyBotSettings(bot, created.id)
+    return created.id
+  }
+
+  // Bot 的电脑是执行节点（B6）时，工具在那台电脑的 cwd 上执行，大脑这边的会话目录只是占位。
+  async botSessionCwd(bot) {
+    const environmentId = bot.workspace.environmentId || 'local'
+    return environmentId === 'local'
+      ? bot.workspace.cwd
+      : this.executorSessionDirectory(environmentId)
+  }
+
+  async applyBotSettings(bot, sessionId) {
+    const environmentId = bot.workspace.environmentId || 'local'
+    await this.setSessionExecutor(
+      sessionId,
+      environmentId === 'local' ? null : { environmentId, cwd: bot.workspace.cwd },
+    )
+    // 运行中换不了目录（会话服务拒绝）：这次先跳过，其余设定照常生效；跑完后再保存一次设定即可。
+    await this.setSessionCwd(sessionId, await this.botSessionCwd(bot)).catch(() => {})
+    await this.setSessionExecutionMode(sessionId, bot.executionMode)
+    const resolved = await this.providerPreferences.resolveSubagentModel(
+      bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
+    )
+    if (resolved.model)
+      await this.setSessionModel(sessionId, resolved.model.provider, resolved.model.id).catch(
+        () => {},
+      )
+    // 指令进系统提示、工具范围进运行时：空闲时释放运行时，下次用到时按新设定重建。
+    this.disposeSessionRuntime(sessionId, this.sessions.get(sessionId))
+  }
+
+  // 渠道、定时任务对 Bot 说一句话：发进它的长期会话。这一轮结束后把回复发回来源聊天。
+  // Bot 正在说话时：定时任务排在这一轮之后（不需要回复）；聊天里的人收到“在忙”，不排队等很久才回。
+  async messageBot(botId, { text, source = { kind: 'chat' } } = {}) {
+    const bot = this.bots.get(botId)
+    if (!bot)
+      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+    if (!bot.enabled)
+      throw Object.assign(new Error(`${bot.name} 已暂停。`), {
+        code: 'bot_paused',
+        statusCode: 409,
+      })
+    const message = normalizeBotMessage(text)
+    const sessionId = await this.ensureBotSession(botId)
+    if (this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)) {
+      if (source.kind !== 'schedule') return { sessionId, status: 'busy' }
+      await this.queueSessionMessage(sessionId, { message, behavior: 'followUp' })
+      return { sessionId, status: 'queued' }
+    }
+    if (source.kind === 'channel') this.botChatOrigins.set(sessionId, source)
+    void this.promptFromChannel({
+      sessionId,
+      message,
+      unattended: source.kind === 'schedule',
+    })
+      .then((result) => this.notifyBotChat(source, botReplyText(bot.name, result)))
+      .catch((error) =>
+        this.notifyBotChat(
+          source,
+          botReplyText(bot.name, { error: error instanceof Error ? error.message : String(error) }),
+        ),
+      )
+      .finally(() => {
+        if (this.botChatOrigins.get(sessionId) === source) this.botChatOrigins.delete(sessionId)
+      })
+    return { sessionId, status: 'started' }
+  }
+
+  // 删除 Bot 时一并删掉指向它的定时任务（README「Bot」）。它的会话留着，变成一个普通会话。
   async deleteBot(id) {
     const removed = await this.bots.remove(id)
     if (removed) await this.schedules?.deleteForBot?.(id)
@@ -880,16 +989,17 @@ export class AgentRuntimeFacade {
       enabled: () => Boolean(this.capabilities.features.bots && this.isBetaFeatureEnabled('bots')),
       list: () => this.bots?.list() || [],
       get: (id) => this.bots?.get(id) || null,
-      activity: (botId) => this.botTasks?.activity(botId) ?? null,
-      message: (botId, input) => this.botTasks.message(botId, input),
-      dispatch: (botId, input) => this.botTasks.dispatch(botId, input),
+      activity: (botId) => {
+        const bot = this.bots?.get(botId)
+        return bot ? this.botActivity(bot) : null
+      },
+      message: (botId, input) => this.messageBot(botId, input),
       act: (botId, action) => this.botChannelAction(botId, action),
     }
   }
 
-  // B5：从聊天里交给 Bot 的事，结果回到同一个聊天。回推失败只记日志，不影响任务。
-  notifyBotChat(task, text) {
-    const source = task?.source
+  // B5：从聊天里对 Bot 说的话，回复回到同一个聊天。回推失败只记日志，不影响会话。
+  notifyBotChat(source, text) {
     if (!text || source?.kind !== 'channel' || !source.platform || !source.peerId) return
     if (!this.capabilities.features.bots || !this.isBetaFeatureEnabled('bots')) return
     void this.channels
@@ -899,122 +1009,42 @@ export class AgentRuntimeFacade {
       )
   }
 
-  botTaskEvent(task, kind) {
-    const name = this.bots.get(task.botId)?.name || task.botName
-    this.notifyBotChat(task, botTaskEventText(name, task, kind))
-  }
-
-  // 会话里出现审批或提问时，如果这是某个 Bot 正在跑的任务、且任务来自聊天，就告诉那个聊天。
+  // Bot 的会话里出现审批或提问时，如果这一轮是从聊天里叫起来的，就告诉那个聊天。
   botSessionEvent(sessionId, event, data) {
     if (event !== 'permission_request' && event !== 'question_request') return
-    const task = this.botTasks?.runningForSession(sessionId)
-    if (!task) return
-    const name = this.bots.get(task.botId)?.name || task.botName
+    const source = this.botChatOrigins.get(sessionId)
+    const bot = source ? this.botForSession(sessionId) : null
+    if (!bot) return
     this.notifyBotChat(
-      task,
-      event === 'permission_request' ? botApprovalText(name, data) : botQuestionText(name, data),
+      source,
+      event === 'permission_request'
+        ? botApprovalText(bot.name, data)
+        : botQuestionText(bot.name, data),
     )
   }
 
-  // 聊天里的处理命令：/名字 批准 | 拒绝 | 应用 | 接受 | 放弃。发送者已按 Bot 的名单校验过。
+  // 聊天里的处理命令：/名字 批准 | 拒绝。发送者已按 Bot 的名单校验过。
   async botChannelAction(botId, action) {
     const bot = this.bots.get(botId)
     if (!bot) return 'Bot 不存在。'
-    if (action === 'approve' || action === 'deny') {
-      const task = this.botTasks.latest(botId, ['running'])
-      const approval = task?.sessionId ? this.botTaskWaiting(task.sessionId).approval : null
-      if (!approval) return `${bot.name} 现在没有等批准的操作。`
-      if (action === 'approve' && approval.severity === 'critical')
-        return '这是高风险操作，请在 Pisper 里看完再批准。'
-      const resolution = this.resolveToolApproval(task.sessionId, approval.id, action === 'approve')
-      if (!resolution?.found) return '这个审批已经处理过了。'
-      return action === 'approve' ? `已批准，${bot.name} 继续干活。` : '已拒绝这次操作。'
-    }
-    const task = this.botTasks.latest(botId, ['review'])
-    if (!task) return `${bot.name} 现在没有等确认的改动。`
-    if (action === 'discard') {
-      await this.botTasks.discard(task.id)
-      return `已放弃${bot.name}的改动，分支已删除。`
-    }
-    const accepted = await this.botTasks.accept(task.id, { apply: action === 'apply' })
-    return accepted.result?.applied
-      ? `已接受并应用到当前分支（分支 ${accepted.result.branch} 保留）。`
-      : `已接受，改动在分支 ${accepted.result?.branch || ''} 上。`
+    const sessionId = bot.threadSessionId
+    const approval = sessionId ? this.botWaiting(sessionId).approval : null
+    if (!approval) return `${bot.name} 现在没有等批准的操作。`
+    if (action === 'approve' && approval.severity === 'critical')
+      return '这是高风险操作，请在 Pisper 里看完再批准。'
+    const resolution = this.resolveToolApproval(sessionId, approval.id, action === 'approve')
+    if (!resolution?.found) return '这个审批已经处理过了。'
+    return action === 'approve' ? `已批准，${bot.name} 继续干活。` : '已拒绝这次操作。'
   }
 
-  // Bot 任务的一次代理运行：独立会话（隔离上下文），模型按 Bot 的档位或指定模型解析，
-  // 解析不到时沿用默认模型；执行权限取 Bot 的上限。审批与提问照常进看板“需要你”。
-  async runBotTaskAgent({
-    bot,
-    task,
-    cwd,
-    environmentId = 'local',
-    sessionId = '',
-    message,
-    onSession,
-  }) {
-    const resolved = await this.providerPreferences.resolveSubagentModel(
-      bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
-    )
-    // 电脑是执行节点（B6）：工具在那台电脑的 cwd 上执行，大脑这边的会话目录只是占位。
-    const remoteExecutor =
-      environmentId && environmentId !== 'local' ? { environmentId, cwd } : null
-    const sessionCwd = remoteExecutor ? await this.executorSessionDirectory(environmentId) : cwd
-    // 长期会话已存在时，先换电脑与工作目录（会重建会话的工具）；新建会话时由 promptFromChannel 设置。
-    if (sessionId && (this.sessions.has(sessionId) || (await this.findSessionInfo(sessionId)))) {
-      await this.setSessionExecutor(sessionId, remoteExecutor)
-      await this.setSessionCwd(sessionId, sessionCwd)
-    }
-    const result = await this.promptFromChannel({
-      sessionId,
-      message,
-      cwd: sessionCwd,
-      executor: remoteExecutor,
-      title: `${bot.name} · ${task.title}`,
-      model: resolved.model
-        ? { provider: resolved.model.provider, model: resolved.model.id }
-        : null,
-      executionMode: bot.executionMode,
-      goalMode: bot.runMode === 'goal',
-      teamMode: bot.runMode === 'team',
-      isolatedContext: true,
-      // Bot 的工具范围：null 表示用当前启用的全部工具。
-      allowedToolNames: bot.tools,
-      onSession: (id) => {
-        onSession?.(id)
-        void this.bots.setThread(bot.id, id).catch(() => {})
-      },
-    })
-    await this.bots.setThread(bot.id, result.sessionId)
-    if (result.error) throw Object.assign(new Error(result.error), { code: 'agent_run_failed' })
-    return { ...result, text: result.finalText || result.text }
-  }
-
-  // Bot 的电脑（B6）：本机，或已配对的执行节点。节点不存在时也返回执行器，调用会以“离线”失败，
-  // 绝不悄悄退回在本机执行。
+  // 远程会话的执行节点（B6）。节点不存在时也返回执行器，调用会以“离线”失败，绝不悄悄退回在本机执行。
   executorFor(environmentId) {
-    if (!environmentId || environmentId === 'local') return this.localExecutor
     const environment = this.environments.get(environmentId) || {
       id: environmentId,
       name: '',
       capabilities: {},
     }
     return new NodeExecutor({ hub: this.executorHub, environment })
-  }
-
-  botWorktreesFor(environmentId) {
-    if (!environmentId || environmentId === 'local') return this.localWorktrees
-    const environment = this.environments.get(environmentId)
-    if (!environment?.worktreeRoot)
-      throw new EnvironmentError(
-        'environment_not_ready',
-        '这台电脑还没有连上过，等它运行 pisper executor 后再试。',
-        409,
-      )
-    return new WorktreeManager({
-      executor: this.executorFor(environmentId),
-      root: environment.worktreeRoot,
-    })
   }
 
   listEnvironments() {
@@ -1031,7 +1061,7 @@ export class AgentRuntimeFacade {
           name: '',
           online: true,
           roots: [],
-          capabilities: { shell: true, git: true },
+          capabilities: { shell: true },
           usedBy: usedBy('local'),
         },
         ...this.environments.list().map((environment) => ({
@@ -1090,8 +1120,8 @@ export class AgentRuntimeFacade {
     return this.executorHub.deliver(environment.id, results)
   }
 
-  // Bot 任务在等的东西：最早一条待审批（与看板卡片同一份摘要）与最早一组待回答的问题。
-  botTaskWaiting(sessionId) {
+  // Bot 的会话在等的东西：最早一条待审批（与看板卡片同一份摘要）与最早一组待回答的问题。
+  botWaiting(sessionId) {
     const approval = this.permissions
       .getPending(sessionId)
       .toSorted((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))
@@ -1099,38 +1129,6 @@ export class AgentRuntimeFacade {
       .find(Boolean)
     const question = projectQuestionSummary(this.questions?.getPending(sessionId) || [])
     return { approval: approval ?? null, question }
-  }
-
-  listBotTasks(query) {
-    return this.botTasks.list(query)
-  }
-
-  getBotTask(id) {
-    return this.botTasks.get(id)
-  }
-
-  dispatchBotTask(botId, input) {
-    return this.botTasks.dispatch(botId, { text: input?.text, source: { kind: 'manual' } })
-  }
-
-  getBotTaskDiff(id) {
-    return this.botTasks.diff(id)
-  }
-
-  acceptBotTask(id, input) {
-    return this.botTasks.accept(id, { apply: input?.apply === true })
-  }
-
-  discardBotTask(id) {
-    return this.botTasks.discard(id)
-  }
-
-  resumeBotTask(id) {
-    return this.botTasks.resume(id)
-  }
-
-  stopBotTask(id) {
-    return this.botTasks.stop(id)
   }
 
   async updateCompactionPreference(input) {

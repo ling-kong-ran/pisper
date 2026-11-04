@@ -19,10 +19,9 @@ import {
   botActivityLine,
   botAvatarState,
   botToolsPreset,
-  isActiveTaskStatus,
   sidebarBots,
 } from '../../src/features/bots/bot-presentation.ts'
-import { parseBot, parseBotTask } from '../../src/features/bots/bots-api.ts'
+import { parseBot } from '../../src/features/bots/bots-api.ts'
 import { parseBoardCard } from '../../src/features/board/board-api.ts'
 import { buildBoardItems } from '../../src/features/board/board-model.ts'
 import { buildSidebarModel } from '../../src/features/board/sidebar-model.ts'
@@ -67,124 +66,69 @@ test('bot parser falls back for unknown avatar and settings values', () => {
     name: '审查员',
     avatar: { character: 'dragon', color: 7 },
     executionMode: 'root',
-    delivery: 'email',
-    workspace: { cwd: '/repo', isolation: 'weird' },
-    activity: { taskId: 't1', status: 'review', title: '改按钮', changedFiles: 3, needsYou: true },
+    workspace: { cwd: '/repo' },
+    threadSessionId: 'thread-1',
+    activity: { status: 'running', waiting: 'approval' },
   })
   assert.deepEqual(bot.avatar, { character: 'blob', color: 'blue' })
   assert.equal(bot.executionMode, 'approval-required')
-  assert.equal(bot.delivery, 'diff')
-  assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: '/repo', isolation: 'shared' })
+  assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: '/repo' })
+  assert.equal(bot.threadSessionId, 'thread-1')
   assert.equal(bot.enabled, true)
-  assert.equal(bot.activity?.changedFiles, 3)
-  assert.throws(() => parseBot({ id: 'x' }))
-  assert.throws(() => parseBot({ id: 'x', name: 'y', activity: { status: 'exploded' } }))
-})
-
-test('task parser keeps follow-up turns and reads old tasks without turns', () => {
-  const task = parseBotTask({
-    id: 'task_1',
-    botId: 'bot_1',
-    status: 'review',
-    request: '第一句',
-    turns: [
-      { text: '第一句', at: '2026-11-03T00:00:00.000Z', reply: '改好了' },
-      { text: '再改改', at: '2026-11-03T00:05:00.000Z' },
-    ],
-    result: { summary: 'ok', changedFiles: '2', branch: 'pisper/bot/abc' },
-  })
-  assert.equal(task.turns.length, 2)
-  assert.equal(task.turns[0].reply, '改好了')
-  assert.equal('reply' in task.turns[1], false)
-  assert.equal(task.result?.changedFiles, 2)
-  assert.equal(task.sessionId, null)
-
-  const legacy = parseBotTask({
-    id: 'task_0',
-    botId: 'bot_1',
-    status: 'done',
-    request: '旧任务',
-    createdAt: '2026-11-01T00:00:00.000Z',
-  })
-  assert.deepEqual(legacy.turns, [{ text: '旧任务', at: '2026-11-01T00:00:00.000Z' }])
-  assert.throws(() => parseBotTask({ id: 'x', botId: 'y', status: 'nope' }))
-})
-
-test('task parser reads what a running task waits for and treats unknown risk as critical', () => {
-  const base = { id: 't', botId: 'b', status: 'running', request: '清理' }
-  assert.equal(parseBotTask(base).waiting, null)
-  assert.equal(parseBotTask({ ...base, waiting: { approval: null, question: null } }).waiting, null)
-  const waiting = parseBotTask({
-    ...base,
-    waiting: {
-      approval: { id: 'a1', toolName: 'bash', argsPreview: 'rm -rf dist', severity: 'weird' },
-      question: { id: 'q1', prompt: '删哪个？', options: ['dist', 3], count: 1 },
-    },
-  }).waiting
-  assert.equal(waiting.approval.severity, 'critical')
-  assert.equal(waiting.approval.argsTruncated, false)
-  assert.deepEqual(waiting.question.options, ['dist'])
-  assert.equal(waiting.question.multiSelect, false)
-  assert.equal(
-    parseBot({ id: 'b', name: 'n', activity: { status: 'running', waiting: 'nonsense' } }).activity
-      .waiting,
-    null,
-  )
-})
-
-test('approving or answering in the chat goes through the session endpoints', async () => {
-  const source = await readFile(join(root, 'src/features/bots/bots-api.ts'), 'utf8')
-  assert.match(source, /\/api\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/approvals\//)
-  assert.match(source, /\/api\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/questions\//)
-  // 高风险必须在卡片里再确认一次；参数截断时不给“允许”。
-  const card = await readFile(join(root, 'src/features/bots/BotWaitingCard.tsx'), 'utf8')
-  assert.match(card, /critical \? setConfirming\(true\)/)
-  assert.match(card, /!approval\.argsTruncated &&/)
-})
-
-test('sidebar line and avatar state follow the latest task', () => {
-  const activity = (status, extra = {}) => ({
-    taskId: 't',
-    status,
-    title: '修登录',
-    changedFiles: 2,
+  assert.deepEqual(bot.activity, { status: 'running', waiting: 'approval', needsYou: true })
+  // 不认识的动态按空闲处理，不让整个列表因此读不出来。
+  assert.deepEqual(parseBot({ id: 'b', name: 'n', activity: { status: 'exploded' } }).activity, {
+    status: 'idle',
+    waiting: null,
     needsYou: false,
-    updatedAt: '',
-    ...extra,
   })
+  assert.throws(() => parseBot({ id: 'x' }))
+})
+
+test('a bot opens as its session; its settings live on their own page', async () => {
+  // 打开 Bot 先问 Runtime 要会话 id（缺了由它补建），再打开普通会话页。
+  const open = await readFile(join(root, 'src/features/bots/use-open-bot.ts'), 'utf8')
+  assert.match(open, /const sessionId = await openBotSession\(bot\.id\)/)
+  assert.match(open, /navigate\(sessionPath\(sessionId\)\)/)
+  const sidebar = await readFile(join(root, 'src/features/bots/BotsSidebarSection.tsx'), 'utf8')
+  assert.match(sidebar, /onClick=\{\(\) => void openBot\(bot\)\}/)
+  // 会话页认出 Bot 的会话：按需加载头像与设置入口，不把 Bots 打进会话页的包。
+  const header = await readFile(join(root, 'src/features/chat/SessionPageHeader.tsx'), 'utf8')
+  assert.match(header, /lazy\(\(\) => import\('@\/features\/bots\/public-session'\)\)/)
+  assert.match(header, /session\.botId && \(/)
+  // 设置页只有设定，没有自己的对话框与任务列表。
+  const page = await readFile(join(root, 'src/features/bots/BotsPage.tsx'), 'utf8')
+  assert.doesNotMatch(page, /Textarea|sendBotMessage|BotConversation|useBotTasks/)
+  for (const gone of ['BotConversation.tsx', 'BotWaitingCard.tsx', 'use-bot-tasks.ts'])
+    await assert.rejects(readFile(join(root, 'src/features/bots', gone), 'utf8'), {
+      code: 'ENOENT',
+    })
+})
+
+test('sidebar line and avatar state follow the session', () => {
+  const activity = (status, waiting = null) => ({ status, waiting, needsYou: Boolean(waiting) })
   assert.equal(botActivityLine(t, { enabled: false, activity: null }), 'bots:activity.paused')
   assert.equal(botActivityLine(t, { enabled: true, activity: null }), 'bots:activity.idle')
   assert.equal(
-    botActivityLine(t, { enabled: true, activity: activity('review', { needsYou: true }) }),
-    'bots:activity.review {"count":2}',
+    botActivityLine(t, { enabled: true, activity: activity('idle') }),
+    'bots:activity.idle',
   )
   assert.equal(
     botActivityLine(t, { enabled: true, activity: activity('running') }),
-    'bots:activity.working {"title":"修登录"}',
+    'bots:activity.busy',
   )
   assert.equal(
-    botActivityLine(t, {
-      enabled: true,
-      activity: activity('running', { needsYou: true, waiting: 'approval' }),
-    }),
+    botActivityLine(t, { enabled: true, activity: activity('running', 'approval') }),
     'bots:activity.approval',
   )
   assert.equal(
-    botActivityLine(t, {
-      enabled: true,
-      activity: activity('running', { needsYou: true, waiting: 'question' }),
-    }),
+    botActivityLine(t, { enabled: true, activity: activity('running', 'question') }),
     'bots:activity.question',
   )
-  assert.equal(
-    botAvatarState({ activity: activity('running', { needsYou: true, waiting: 'approval' }) }),
-    'need',
-  )
-  assert.equal(botAvatarState({ activity: activity('review', { needsYou: true }) }), 'need')
-  assert.equal(botAvatarState({ activity: activity('preparing') }), 'running')
-  assert.equal(botAvatarState({ activity: activity('done') }), 'idle')
-  assert.equal(isActiveTaskStatus('queued'), true)
-  assert.equal(isActiveTaskStatus('review'), false)
+  assert.equal(botAvatarState({ activity: activity('running', 'approval') }), 'need')
+  assert.equal(botAvatarState({ activity: activity('running') }), 'running')
+  assert.equal(botAvatarState({ activity: activity('idle') }), 'idle')
+  assert.equal(botAvatarState({ activity: null }), 'idle')
 })
 
 test('Bots is a Labs feature with its own routes and lazily loaded sidebar group', async () => {
@@ -229,50 +173,39 @@ test('a bot thread session carries its bot onto board cards only while Bots is o
   let enabled = true
   const runtime = {
     bots: { list: () => bots },
-    botTasks: {
-      activity: () => ({ branch: 'pisper/shen-cha-yuan/a1b2c3', changedFiles: 2 }),
-    },
     isBetaFeatureEnabled: (id) => id === 'bots' && enabled,
   }
   assert.deepEqual(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), {
     id: 'bot_1',
     name: '审查员',
     avatar: { character: 'owl', color: 'purple' },
-    branch: 'pisper/shen-cha-yuan/a1b2c3',
-    changedFiles: 2,
   })
   assert.equal(agentSessionMethods.botCardFor.call(runtime, 'other'), null)
-  // 完成且没改动：分支已删，卡片不写分支名。
-  runtime.botTasks.activity = () => ({ status: 'done', branch: 'pisper/x/1', changedFiles: 0 })
-  assert.equal('branch' in agentSessionMethods.botCardFor.call(runtime, 'thread-1'), false)
   enabled = false
   assert.equal(agentSessionMethods.botCardFor.call(runtime, 'thread-1'), null)
 })
 
-test('bot sessions group under their project, and vanish while Bots is off', async () => {
-  // Bot 长期会话的 cwd 是任务的临时 worktree：列表带上 Bot 的项目目录，归组与看板筛选都按它；
-  // 实验开关关掉时 Bot 的会话（长期会话与旧任务的会话）都不出现。
-  const worktree = '/data/worktrees/9654/task_1'
+test('bot sessions carry their bot and folder, and vanish while Bots is off', async () => {
+  // Bot 在执行节点上时会话 cwd 只是大脑这边的占位目录：列表带上 Bot 的目录（归组与看板筛选按它）
+  // 与 botId（侧栏“最近”不重复列出，会话页头换成 Bot）。实验开关关掉时 Bot 的会话不出现。
+  const placeholder = '/data/executor-sessions/env_testmachine1'
   let enabled = true
   const runtime = {
     sessionLifecycle: {
       listSessions: async () => [
-        { id: 'thread-1', cwd: worktree },
-        { id: 'old-task', cwd: '/data/worktrees/9654/task_0' },
+        { id: 'thread-1', cwd: placeholder },
         { id: 'plain', cwd: '/repo' },
       ],
     },
     bots: {
       list: () => [{ id: 'bot_1', threadSessionId: 'thread-1', workspace: { cwd: '/repo' } }],
     },
-    botTasks: { list: () => [{ botId: 'bot_1', sessionId: 'old-task' }] },
     isBetaFeatureEnabled: (id) => id === 'bots' && enabled,
   }
   runtime.botSessionProjects = agentSessionMethods.botSessionProjects
   const sessions = await agentSessionMethods.listSessions.call(runtime)
   assert.deepEqual(sessions, [
-    { id: 'thread-1', cwd: worktree, projectCwd: '/repo' },
-    { id: 'old-task', cwd: '/data/worktrees/9654/task_0', projectCwd: '/repo' },
+    { id: 'thread-1', cwd: placeholder, botId: 'bot_1', projectCwd: '/repo' },
     { id: 'plain', cwd: '/repo' },
   ])
   const groups = groupSessionsByWorkspace(sessions)
@@ -282,7 +215,7 @@ test('bot sessions group under their project, and vanish while Bots is off', asy
   const items = sessions.map((session) => ({ ...session, card: { boardStatus: 'done' } }))
   assert.equal(
     buildBoardView(items, { cwds: ['/repo'], lanes: [], limit: 10, cursor: '' }).total,
-    3,
+    2,
   )
   enabled = false
   assert.deepEqual(await agentSessionMethods.listSessions.call(runtime), [
@@ -299,13 +232,10 @@ test('board cards parse the bot defensively and keep plain sessions unchanged', 
       id: 'bot_1',
       name: '审查员\u001b[31m',
       avatar: { character: 'owl', color: 'purple' },
-      branch: 'pisper/x/y',
-      changedFiles: 2,
     },
   })
   assert.equal(card.bot.name.includes('\u001b'), false)
   assert.equal(card.bot.character, 'owl')
-  assert.equal(card.bot.changedFiles, 2)
 
   const now = Date.parse('2026-11-03T10:00:00.000Z')
   const items = buildBoardItems(
@@ -386,7 +316,12 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
   const created = []
   const runtime = {
     cwd: '/default/workspace',
-    bots: { create: async (input) => (created.push(input), input) },
+    bots: {
+      create: async (input) => (created.push(input), { id: input.name, ...input }),
+      get: (id) => ({ id }),
+    },
+    // 建好就开它的会话（见 bot-sessions.test.mjs）：这里只看目录默认值。
+    ensureBotSession: async () => 'thread',
   }
   await AgentRuntimeFacade.prototype.createBot.call(runtime, { name: '助手' })
   await AgentRuntimeFacade.prototype.createBot.call(runtime, {
@@ -402,8 +337,6 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
   assert.equal(created[1].workspace.cwd, '')
   assert.equal(created[2].workspace.cwd, '/repo')
 
-  const page = await readFile(join(root, 'src/features/bots/BotsPage.tsx'), 'utf8')
-  assert.match(page, /const \[detailsOpen, setDetailsOpen\] = useState\(false\)/)
   const dialog = await readFile(join(root, 'src/features/bots/NewBotDialog.tsx'), 'utf8')
   assert.match(dialog, /disabled=\{saving \|\| !name\.trim\(\)\}/)
   const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
@@ -412,47 +345,34 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
 })
 
 test('the sidebar keeps the bots that matter on top and folds the rest', () => {
-  // 需要你 → 正在干活 → 最近活动；没活动过的保持原顺序排最后。只显示前几个，当前打开的那个总留着。
-  const activity = (status, needsYou, updatedAt) => ({
-    taskId: 't',
-    status,
-    title: '',
-    changedFiles: 0,
-    needsYou,
-    waiting: null,
-    updatedAt,
-  })
+  // 需要你 → 正在说话 → 其余保持原顺序。只显示前几个，当前打开的那个总留着。
+  const activity = (status, waiting = null) => ({ status, waiting, needsYou: Boolean(waiting) })
   const bots = [
     { id: 'idle', activity: null },
-    { id: 'older', activity: activity('done', false, '2026-11-01T00:00:00Z') },
-    { id: 'running', activity: activity('running', false, '2026-10-01T00:00:00Z') },
-    { id: 'newer', activity: activity('done', false, '2026-11-03T00:00:00Z') },
-    { id: 'waiting', activity: activity('running', true, '2026-09-01T00:00:00Z') },
+    { id: 'first', activity: activity('idle') },
+    { id: 'running', activity: activity('running') },
+    { id: 'second', activity: activity('idle') },
+    { id: 'waiting', activity: activity('running', 'approval') },
   ]
   const ids = (result) => result.shown.map((bot) => bot.id)
   const all = sidebarBots(bots, { expanded: true })
-  assert.deepEqual(ids(all), ['waiting', 'running', 'newer', 'older', 'idle'])
+  assert.deepEqual(ids(all), ['waiting', 'running', 'idle', 'first', 'second'])
   assert.equal(all.hidden, 0)
   const folded = sidebarBots(bots, { expanded: false })
   assert.equal(folded.shown.length, SIDEBAR_BOT_LIMIT)
   assert.equal(folded.hidden, bots.length - SIDEBAR_BOT_LIMIT)
-  const withCurrent = sidebarBots(bots, { expanded: false, currentId: 'idle' })
-  assert.deepEqual(ids(withCurrent), ['waiting', 'running', 'newer', 'idle'])
+  const withCurrent = sidebarBots(bots, { expanded: false, currentId: 'second' })
+  assert.deepEqual(ids(withCurrent), ['waiting', 'running', 'idle', 'second'])
   assert.equal(withCurrent.hidden, 1)
   // 不多于上限时全部显示，没有“显示全部”。
   assert.equal(sidebarBots(bots.slice(0, SIDEBAR_BOT_LIMIT), { expanded: false }).hidden, 0)
 })
 
-test('the Bots page leaves the Windows window controls alone', async () => {
-  // Windows 自绘标题栏的窗口按钮绝对定位在右上 144×48：Bot 顶栏关着详情时要让出这段（与会话顶栏一致），
-  // 详情栏开着时它贴着窗口右边，顶上留 52px 拖动区，标签从窗口按钮下方开始。
+test('the Bots settings page leaves the Windows window controls alone', async () => {
+  // Windows 自绘标题栏的窗口按钮绝对定位在右上 144×48：设置页顶栏与会话顶栏一样让出这段。
   const page = await readFile(join(root, 'src/features/bots/BotsPage.tsx'), 'utf8')
   assert.match(
     page,
-    /<header\s+data-window-drag-region[\s\S]{0,200}h-\[52px\][\s\S]{0,200}!detailsOpen && '\[\[data-custom-titlebar\]_&\]:pr-\[144px\]'/,
-  )
-  assert.match(
-    page,
-    /data-window-drag-region\s+className="hidden h-\[52px\] flex-none \[\[data-custom-titlebar\]_&\]:block"/,
+    /<header\s+data-window-drag-region\s+className="flex h-\[52px\][^"]*\[\[data-custom-titlebar\]_&\]:pr-\[144px\]"/,
   )
 })

@@ -143,10 +143,10 @@ async function channelFixture(t, { enabled = true } = {}) {
     bots: {
       enabled: () => enabled,
       list: () => bots,
-      activity: () => ({ status: 'review', title: '修按钮', changedFiles: 2, waiting: null }),
+      activity: () => ({ status: 'running', waiting: null, needsYou: false }),
       message: async (botId, input) => {
         messages.push({ botId, ...input })
-        return { id: 'task', turns: [{ text: input.text }] }
+        return { sessionId: 'thread-1', status: 'started' }
       },
     },
     gatewayFactories: { feishu: () => gateway, weixin: () => new FakeGateway() },
@@ -187,7 +187,7 @@ async function channelFixture(t, { enabled = true } = {}) {
   return { gateway, prompts, messages, send }
 }
 
-test('channel messages that name a bot become its tasks; the rest stay direct chat', async (t) => {
+test('channel messages that name a bot go into its session; the rest stay direct chat', async (t) => {
   const { gateway, prompts, messages, send } = await channelFixture(t)
   await send('@Pisper 审查员 看下这个 PR')
   assert.equal(messages[0].botId, 'b1')
@@ -201,14 +201,15 @@ test('channel messages that name a bot become its tasks; the rest stay direct ch
     senderName: 'Alice',
     messageId: 'm',
   })
-  assert.match(gateway.sent.at(-1), /审查员 收到了/)
+  // 不另发“收到了”：回复由 Runtime 在这一轮说完后发回这个聊天。
+  assert.equal(gateway.sent.length, 0)
 
   await send('/审查员 看下', { senderId: 'mallory' })
   assert.match(gateway.sent.at(-1), /不在 审查员 的名单里/)
   assert.equal(messages.length, 1)
 
   await send('/审查员 状态')
-  assert.match(gateway.sent.at(-1), /2 个文件有改动/)
+  assert.equal(gateway.sent.at(-1), '审查员 正在忙。')
 
   await send('/bots')
   assert.match(gateway.sent.at(-1), /审查员/)
@@ -226,7 +227,7 @@ test('with Bots off, naming a bot is ordinary chat', async (t) => {
   assert.deepEqual(prompts, ['/审查员 看下'])
 })
 
-test('schedules can hand work to a bot without ever running it as a full-access prompt', async (t) => {
+test('schedules talk to a bot in its session without ever running a full-access prompt', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-bot-schedules-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const dispatched = []
@@ -244,9 +245,9 @@ test('schedules can hand work to a bot without ever running it as a full-access 
     bots: {
       enabled: () => enabled,
       get: (id) => (id === 'b1' ? reviewer : null),
-      dispatch: async (botId, input) => {
+      message: async (botId, input) => {
         dispatched.push({ botId, ...input })
-        return { id: 'task', title: input.text }
+        return { sessionId: 'thread-1', status: 'started' }
       },
     },
     tickMs: 60_000,

@@ -57,11 +57,7 @@ export function normalizeNodeReport(input) {
   const capabilities = value.capabilities && typeof value.capabilities === 'object'
   return {
     roots,
-    worktreeRoot: normalizePath(value.worktreeRoot),
-    capabilities: {
-      shell: capabilities ? value.capabilities.shell === true : false,
-      git: capabilities ? value.capabilities.git === true : false,
-    },
+    capabilities: { shell: capabilities ? value.capabilities.shell === true : false },
     platform: cleanText(value.platform, 20),
   }
 }

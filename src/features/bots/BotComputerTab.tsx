@@ -18,7 +18,6 @@ import {
   type Bot,
   type BotEnvironment,
   type BotRemoteInfo,
-  type BotTask,
 } from './bots-api'
 import { environmentLabel, executorCommands } from './bot-environments'
 import { useBotsStore } from './bots-store'
@@ -162,13 +161,11 @@ function PairingPanel({ pairing, onDone }: { pairing: Pairing; onDone: () => voi
 
 export function BotComputerTab({
   bot,
-  workingTask,
   environments,
   onEnvironmentsChanged,
   onError,
 }: {
   bot: Bot
-  workingTask: BotTask | null
   environments: BotEnvironment[]
   onEnvironmentsChanged: () => void
   onError: (message: string) => void
@@ -277,11 +274,6 @@ export function BotComputerTab({
           </div>
         )}
       </div>
-      {workingTask?.workspace?.branch && (
-        <p className="text-xs text-content-muted">
-          {t('bots:computer.currentBranch', { branch: workingTask.workspace.branch })}
-        </p>
-      )}
       <section aria-label={t('bots:computer.listTitle')} className="border-t border-stroke pt-3">
         <h4 className="text-xs font-medium text-content-muted">{t('bots:computer.listTitle')}</h4>
         <ul role="list" className="m-0 list-none divide-y divide-stroke p-0">

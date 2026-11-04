@@ -9,8 +9,6 @@ export const MAX_BOT_NAME_CHARS = 24
 export const MAX_BOT_INSTRUCTIONS_CHARS = 12_000
 export const BOT_PLATFORMS = Object.freeze(['feishu', 'weixin', 'qq', 'telegram'])
 export const BOT_RUN_MODES = Object.freeze(['plan', 'goal', 'team'])
-export const BOT_DELIVERIES = Object.freeze(['reply-only', 'diff', 'commit'])
-export const BOT_ISOLATIONS = Object.freeze(['worktree', 'shared'])
 // 头像 = 角色 + 颜色，与前端 src/features/bots/avatar.ts 的角色表一致（动态 SVG 在前端生成）。
 export const BOT_AVATAR_CHARACTERS = Object.freeze([
   'blob',
@@ -55,6 +53,27 @@ export class BotValidationError extends Error {
 
 function invalid(code, message) {
   return new BotValidationError(code, message)
+}
+
+// Bot 会话的系统提示追加段：它是谁、它的指令。每次重建会话运行时都按当前设定生成，改了指令下一轮就生效。
+export function botSystemPrompt(bot) {
+  const parts = [
+    `你是 ${bot.name}，用户在 Pisper 里的一个长期助手。这是你和用户的一段持续对话：前文都算数，消息也可能来自用户的聊天软件或定时任务。`,
+  ]
+  const instructions = String(bot.instructions || '').trim()
+  if (instructions) parts.push(`[${bot.name} 的工作说明]\n${instructions}`)
+  return parts.join('\n\n')
+}
+
+export const MAX_BOT_MESSAGE_CHARS = 12_000
+
+// 渠道、定时任务交给 Bot 的一句话（应用里直接在 Bot 的会话里说，走普通会话的校验）。
+export function normalizeBotMessage(value) {
+  const text = String(value ?? '').trim()
+  if (!text) throw invalid('bot_message_empty', '要让 Bot 做什么？请写下来。')
+  if (text.length > MAX_BOT_MESSAGE_CHARS)
+    throw invalid('bot_message_too_long', `一次最多 ${MAX_BOT_MESSAGE_CHARS} 个字符。`)
+  return text
 }
 
 /** @param {unknown} value @returns {Record<string, unknown>} */
@@ -209,17 +228,10 @@ export function normalizeBotInput(input, current = null) {
     model: normalizeModel(merged.model),
     ...(thinking ? { thinking } : {}),
     runMode: BOT_RUN_MODES.includes(String(merged.runMode)) ? String(merged.runMode) : 'plan',
-    workspace: {
-      environmentId,
-      cwd,
-      // Bot 不依赖 git：一律直接在目录里干活（真要开发是派给代理去做，不是 Bot 自己在分支上改）。
-      // 旧版保存的“独立分支”在加载时也收成这里（加载同样经过本函数）；已经在等审阅的旧任务
-      // 仍按它自己的 task.workspace 接受或放弃（BotTaskService），不受影响。
-      isolation: 'shared',
-    },
+    // Bot 就是一个长期会话加上它的设定：会话在这台电脑的这个目录里跑，不依赖 git、不开分支。
+    workspace: { environmentId, cwd },
     executionMode,
     tools: normalizeTools(merged.tools),
-    delivery: BOT_DELIVERIES.includes(String(merged.delivery)) ? String(merged.delivery) : 'diff',
     channels,
     defaultIn: normalizeDefaultIn(merged.defaultIn, channels),
   }

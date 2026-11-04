@@ -42,14 +42,10 @@ export const useBotsStore = create<BotsState>()((set, get) => ({
   },
 }))
 
-// 有 Bot 在干活时 3 秒刷一次，否则 10 秒；页面隐藏时不刷。
+// 有 Bot 在说话时 3 秒刷一次，否则 10 秒；页面隐藏时不刷。
 export function useBotsPolling(enabled: boolean) {
   const load = useBotsStore((state) => state.load)
-  const busy = useBotsStore((state) =>
-    state.bots.some((bot) =>
-      ['queued', 'preparing', 'running'].includes(bot.activity?.status ?? ''),
-    ),
-  )
+  const busy = useBotsStore((state) => state.bots.some((bot) => bot.activity?.status === 'running'))
   useEffect(() => {
     if (!enabled) return
     void load()
