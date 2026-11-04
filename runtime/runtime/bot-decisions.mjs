@@ -4,6 +4,7 @@ import { convertToLlm } from './pi-coding-agent.mjs'
 import { ATTACHMENT_MARKER, textFromContent } from './stream-projection.mjs'
 import { isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
+import { isBotBriefMessage } from '../services/bots/bot-proactive.mjs'
 
 // 这一轮是被什么叫起来的：看末尾回复之前的那几条用户消息。
 // message：别的 Bot 说进来的话（来源标记只认附件上下文里的，用户正文里写的不算）；
@@ -17,9 +18,14 @@ export function botTurnTrigger(messages) {
     index -= 1
   }
   let message = null
+  let brief = false
   const completedAgents = []
   for (; index >= 0 && messages[index]?.role === 'user'; index -= 1) {
     const raw = textFromContent(messages[index].content)
+    if (isBotBriefMessage(raw)) {
+      brief = true
+      continue
+    }
     if (isAgentCompletionMessage(raw)) {
       for (const match of raw.matchAll(/\(([0-9a-f-]{36})\) has completed with status/g))
         completedAgents.push(match[1])
@@ -29,7 +35,7 @@ export function botTurnTrigger(messages) {
     if (!message && at >= 0) message = parseBotMessageTag(raw.slice(at))
   }
   // 最后一段回复：工具前的旁白不算（对话没有工具，通常就是整段）。
-  return { message, completedAgents, reply: (replyParts.at(-1) || '').trim() }
+  return { message, brief, completedAgents, reply: (replyParts.at(-1) || '').trim() }
 }
 
 export function botDecisionContext(session, instruction, now = Date.now()) {

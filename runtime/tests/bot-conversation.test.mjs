@@ -231,16 +231,22 @@ test('the runtime wires the bot conversation: no tools, state per turn, decision
     runtime,
     /if \(value\.conversationOnly\) contexts\.push\(await this\.botStateContext\(session\.sessionId\)\)/,
   )
+  // 决定等这一轮放下运行标记之后再排：很快做完的子 agent 的完成通知不会 steer 进已结束的一轮而丢掉。
   assert.match(
     runtime,
-    /if \(value\.conversationOnly && !error && !value\.abortedAt\) this\.scheduleBotDecisions\(sessionId\)/,
+    /if \(value\.conversationOnly && !error && !value\.abortedAt\) value\.botDecisionsDue = true/,
+  )
+  assert.match(
+    facade,
+    /value\.runActive = false[\s\S]*?if \(value\.botDecisionsDue\) \{\s*value\.botDecisionsDue = false\s*if \(!value\.abortedAt\) this\.scheduleBotDecisions\(id\)/,
   )
   assert.match(
     lifecycle,
     /if \(!value\?\.conversationOnly\) \{\s*this\.getMultiAgents\(\)\.abortParent\(id\)/,
   )
+  // 改设定时运行时受保护（在跑的子 agent、等唤醒的完成通知）就不释放。
   assert.match(
     facade,
-    /if \(!this\.multiAgents\?\.hasActive\?\.\(sessionId\)\)\s*this\.disposeSessionRuntime/,
+    /if \(!this\.sessionRuntimeIsProtected\(sessionId, value\)\)\s*this\.disposeSessionRuntime/,
   )
 })

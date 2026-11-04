@@ -180,5 +180,19 @@
   "skills.loading": "正在读取…",
   "skills.delete": "删掉这个技能",
   "skills.schedule": "设成定时",
-  "skills.scheduleMessage": "照技能 {name} 做一遍"
+  "skills.scheduleMessage": "照技能 {name} 做一遍",
+  "proactive.title": "主动",
+  "proactive.off": "关着",
+  "proactive.summaryCheck": "每 {count} 小时巡看",
+  "proactive.summaryBrief": "每天 {time} 简报",
+  "proactive.check": "空闲时自己巡看",
+  "proactive.every": "多久一次",
+  "proactive.everyHours": "每 {count} 小时",
+  "proactive.checkHint": "{name} 手上没活时，按它负责的东西只读看一遍（读文件、搜索，不改东西、不跑命令、不往外发消息），发现写成对话里的一条建议，你说“做吧”它才去做。",
+  "proactive.brief": "每天写一份简报",
+  "proactive.briefAt": "什么时候",
+  "proactive.briefHint": "过去一天做了什么、今天排了什么、有什么建议，写在它的对话里。",
+  "details.parallel": "同时做几件",
+  "details.parallelCount": "{count} 件",
+  "details.parallelHint": "它同时派出去干活的子 agent 最多几个，多的排队。"
 }

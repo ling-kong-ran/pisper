@@ -41,6 +41,32 @@ export type Bot = {
   // 它的长期会话；新建 Bot 时就有，旧数据可能是空的（打开时补建）。
   threadSessionId: string
   activity: BotActivity | null
+  // 同时跑几个子 agent（1–6，默认 3）。
+  maxParallelAgents: number
+  // 主动（默认关）：空闲时每隔几小时只读巡看；每天定时写简报。
+  proactive: BotProactive
+}
+
+export const BOT_PROACTIVE_HOURS = [1, 3, 6, 12, 24] as const
+export type BotProactive = {
+  enabled: boolean
+  everyHours: (typeof BOT_PROACTIVE_HOURS)[number]
+  brief: boolean
+  briefAt: string
+}
+
+function parseProactive(value: unknown): BotProactive {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const hours = BOT_PROACTIVE_HOURS.find((item) => item === input.everyHours) ?? 6
+  return {
+    enabled: input.enabled === true,
+    everyHours: hours,
+    brief: input.brief === true,
+    briefAt:
+      typeof input.briefAt === 'string' && /^\d{2}:\d{2}$/.test(input.briefAt)
+        ? input.briefAt
+        : '09:00',
+  }
 }
 
 export type BotPlatform = 'feishu' | 'weixin' | 'qq' | 'telegram'
@@ -125,6 +151,13 @@ export function parseBot(value: unknown): Bot {
     },
     threadSessionId: text(input.threadSessionId),
     activity: parseActivity(input.activity),
+    maxParallelAgents:
+      Number.isInteger(input.maxParallelAgents) &&
+      Number(input.maxParallelAgents) >= 1 &&
+      Number(input.maxParallelAgents) <= 6
+        ? Number(input.maxParallelAgents)
+        : 3,
+    proactive: parseProactive(input.proactive),
   }
 }
 
@@ -181,7 +214,12 @@ export function createBot(draft: BotDraft) {
   return requestJson('/api/bots', { method: 'POST', data: draft, parse: one('bot', parseBot) })
 }
 
-export function updateBot(id: string, patch: Partial<Omit<Bot, 'id' | 'activity'>>) {
+export function updateBot(
+  id: string,
+  patch: Partial<Omit<Bot, 'id' | 'activity' | 'proactive'>> & {
+    proactive?: Partial<BotProactive>
+  },
+) {
   return requestJson(`/api/bots/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     data: patch,
@@ -379,7 +417,7 @@ export function deleteBotSchedule(id: string) {
 export type BotMemoryEntry = {
   id: string
   text: string
-  source: 'told' | 'correction' | 'review' | 'manual' | 'tidy'
+  source: 'told' | 'correction' | 'review' | 'proactive' | 'manual' | 'tidy'
   updatedAt: string
 }
 
@@ -387,6 +425,7 @@ const MEMORY_SOURCES: readonly BotMemoryEntry['source'][] = [
   'told',
   'correction',
   'review',
+  'proactive',
   'manual',
   'tidy',
 ]

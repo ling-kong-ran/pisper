@@ -180,5 +180,19 @@
   "skills.loading": "Loading…",
   "skills.delete": "Delete this skill",
   "skills.schedule": "Put on a schedule",
-  "skills.scheduleMessage": "Do it once following skill {name}"
+  "skills.scheduleMessage": "Do it once following skill {name}",
+  "proactive.title": "Proactive",
+  "proactive.off": "Off",
+  "proactive.summaryCheck": "Checks every {count} h",
+  "proactive.summaryBrief": "Daily brief at {time}",
+  "proactive.check": "Check on things when idle",
+  "proactive.every": "How often",
+  "proactive.everyHours": "Every {count} h",
+  "proactive.checkHint": "When {name} has nothing to do, it looks over what it is responsible for, read-only (reads and searches files; no edits, no commands, no outgoing messages). Findings become a suggestion in its conversation; it only starts work when you say so.",
+  "proactive.brief": "Write a daily brief",
+  "proactive.briefAt": "When",
+  "proactive.briefHint": "What was done in the last day, what is scheduled today and any suggestions, written in its conversation.",
+  "details.parallel": "Jobs at once",
+  "details.parallelCount": "{count}",
+  "details.parallelHint": "How many sub-agents it runs at the same time; the rest wait in line."
 }

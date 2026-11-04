@@ -8,7 +8,14 @@ import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 
 export const MAX_BOT_MEMORY_ENTRIES = 200
 export const MAX_BOT_MEMORY_CHARS = 500
-export const BOT_MEMORY_SOURCES = Object.freeze(['told', 'correction', 'review', 'manual', 'tidy'])
+export const BOT_MEMORY_SOURCES = Object.freeze([
+  'told',
+  'correction',
+  'review',
+  'proactive',
+  'manual',
+  'tidy',
+])
 const BOT_ID_PATTERN = /^bot_[A-Za-z0-9_-]{6,40}$/
 const ENTRY_ID_PATTERN = /^mem_[A-Za-z0-9_-]{6,32}$/
 

@@ -31,7 +31,12 @@ function deferred() {
 }
 
 // 只装 Bot 方法用得到的那几样，其余都不需要。
-function fakeRuntime({ bots = [bot('小橙')], running = new Set(), prompt } = {}) {
+function fakeRuntime({
+  bots = [bot('小橙')],
+  running = new Set(),
+  protectedSessions = new Set(),
+  prompt,
+} = {}) {
   const registry = new Map(bots.map((item) => [item.id, item]))
   const calls = []
   const runtime = Object.create(AgentRuntimeFacade.prototype)
@@ -72,6 +77,7 @@ function fakeRuntime({ bots = [bot('小橙')], running = new Set(), prompt } = {
     setSessionModel: async (id, provider, model) => calls.push(['model', id, provider, model]),
     renameSession: async (id, name) => calls.push(['rename', id, name]),
     disposeSessionRuntime: (id) => calls.push(['dispose', id]),
+    sessionRuntimeIsProtected: (id) => protectedSessions.has(id),
     providerPreferences: {
       resolveSubagentModel: async () => ({ model: { provider: 'luna', id: 'gpt-5.6-luna' } }),
     },
@@ -141,6 +147,17 @@ test('changing a bot applies to its session and renaming it renames the session'
   await runtime.updateBot('小橙', { instructions: '只看不改' })
   assert.equal(runtime.calls.filter(([name]) => name === 'rename').length, 0)
   assert.ok(runtime.calls.some((call) => call[0] === 'dispose'))
+})
+
+test('changing a bot never releases a runtime that still owes the conversation a report', async () => {
+  // 受保护（子 agent 在跑、刚做完的活的完成通知还在等唤醒）：设定照常套上，运行时留着，汇报不会丢。
+  const runtime = fakeRuntime({
+    bots: [bot('小橙', { threadSessionId: 'existing' })],
+    protectedSessions: new Set(['existing']),
+  })
+  await runtime.updateBot('小橙', { instructions: '只看不改' })
+  assert.ok(runtime.calls.some((call) => call[0] === 'mode'))
+  assert.equal(runtime.calls.filter(([name]) => name === 'dispose').length, 0)
 })
 
 test('a chat message goes into the bot session and the reply returns to that chat', async () => {

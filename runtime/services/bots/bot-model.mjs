@@ -192,6 +192,33 @@ function normalizeDefaultIn(value, channels) {
   return keys
 }
 
+export const DEFAULT_BOT_PARALLEL_AGENTS = 3
+export const MAX_BOT_PARALLEL_AGENTS = 6
+export const BOT_PROACTIVE_HOURS = Object.freeze([1, 3, 6, 12, 24])
+
+// 同时跑几个子 agent：1–6，默认 3（多的排队）。
+function normalizeParallel(value) {
+  const count = Number(value)
+  return Number.isInteger(count) && count >= 1 && count <= MAX_BOT_PARALLEL_AGENTS
+    ? count
+    : DEFAULT_BOT_PARALLEL_AGENTS
+}
+
+// 主动（默认关）：空闲时每隔几小时做一次只读巡看；每天在设定时间写一份简报。两者各自开关。
+function normalizeProactive(value) {
+  const input = record(value)
+  const hours = Number(input.everyHours)
+  const briefAt = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(input.briefAt))
+    ? String(input.briefAt)
+    : '09:00'
+  return {
+    enabled: input.enabled === true,
+    everyHours: BOT_PROACTIVE_HOURS.includes(hours) ? hours : 6,
+    brief: input.brief === true,
+    briefAt,
+  }
+}
+
 function normalizeTools(value) {
   if (value === null || value === undefined) return null
   if (!Array.isArray(value)) throw invalid('bot_tools_invalid', '工具必须是列表。')
@@ -240,5 +267,8 @@ export function normalizeBotInput(input, current = null) {
     tools: normalizeTools(merged.tools),
     channels,
     defaultIn: normalizeDefaultIn(merged.defaultIn, channels),
+    maxParallelAgents: normalizeParallel(merged.maxParallelAgents),
+    // 只改其中一项时保留其余几项。
+    proactive: normalizeProactive({ ...record(current?.proactive), ...record(patch.proactive) }),
   }
 }

@@ -7,7 +7,7 @@ const MAX_TITLE_CHARS = 80
 const MAX_TASK_CHARS = 8_000
 const MAX_ADD_CHARS = 4_000
 const TIERS = new Set(['fast', 'standard', 'strong'])
-const MEMORY_SOURCES = new Set(['told', 'correction', 'review'])
+const MEMORY_SOURCES = new Set(['told', 'correction', 'review', 'proactive'])
 const MAX_MEMORY_CHARS = 500
 const MAX_MESSAGE_CHARS = 4_000
 const SNAPSHOT_OUTPUT_CHARS = 300
@@ -79,7 +79,7 @@ export function botDecisionInstruction({
     '- {"type":"spawn","title":"<short title in the user\'s language>","task":"<self-contained instructions: goal, relevant paths, what to report back>","model":"<provider/model from the list, optional>","tier":"fast|standard|strong (optional, used when no model)"}',
     '- {"type":"add","agent":"<sub-agent id prefix>","text":"<what to add; it is delivered after its current step>"}',
     '- {"type":"stop","agent":"<sub-agent id prefix>"}',
-    '- {"type":"remember","text":"<one short durable fact, preference or rule, in the user\'s language>","source":"told|correction|review"}',
+    '- {"type":"remember","text":"<one short durable fact, preference or rule, in the user\'s language>","source":"told|correction|review|proactive"}',
     '- {"type":"forget","memory":"<memory id from [你记得的事]>"}',
     'Remember only what will still matter later: what the user asked you to remember, corrections ("以后别…"), and lessons from finished work (source review). Do not remember one-off task details. Forget what the user says is wrong or no longer true.',
     `At most ${limit} sub-agents run at once; extra spawns wait in a queue.`,

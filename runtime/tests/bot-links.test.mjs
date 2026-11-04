@@ -111,6 +111,7 @@ test('the turn trigger reads the tag only from injected context, plus finished j
   const tagged = `帮我跑一遍回归${ATTACHMENT_MARKER}${botMessageContext({ fromName: '小橙', from: A.id, chain: 'ch_abcdefghij', hop: 1, reply: true })}`
   assert.deepEqual(botTurnTrigger([userMessage(tagged), assistantMessage('好，我派人去跑。')]), {
     message: { from: A.id, chain: 'ch_abcdefghij', hop: 1, reply: true },
+    brief: false,
     completedAgents: [],
     reply: '好，我派人去跑。',
   })

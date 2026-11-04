@@ -196,6 +196,7 @@ import { botConversationPrompt } from '../services/bots/bot-conversation.mjs'
 import { BotMemoryService } from '../services/bots/bot-memory-service.mjs'
 import { BotSkillService } from '../services/bots/bot-skill-service.mjs'
 import { BotLinkService } from '../services/bots/bot-links.mjs'
+import { BotProactiveStore } from '../services/bots/bot-proactive.mjs'
 import { EnvironmentService } from '../services/bots/environment-service.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
@@ -716,6 +717,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.botSkills = new BotSkillService({ dataDir })
     // Bot 之间的来往（只在内存里）：哪条链在等谁回话、跳数与频率限制。
     this.botLinks = new BotLinkService()
+    // 主动巡看与每日简报的上次时间（每个 Bot 一个小文件）；计时器在初始化完成后启动。
+    this.botProactive = new BotProactiveStore({ dataDir })
+    this.botProactiveTimer = null
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
@@ -970,6 +974,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     await this.sideChats.sweep()
     this.startSessionRuntimeSweeper()
+    this.startBotProactiveTimer()
     await startup.complete()
     // 排队恢复放在就绪之后：前置会话的那一轮已随上次进程结束，等它的会话现在启动（后台进行，不拖住启动）。
     if (this.capabilities.features.sessionQueue)
@@ -2237,13 +2242,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (this.botForSession?.(sessionId))
         void this.promptFromChannel({
           sessionId,
-          message: agentCompletionPrompt(agent),
+          message: this.botCompletionPromptFor?.(agent) || agentCompletionPrompt(agent),
           unattended: true,
         }).catch(() => console.warn('[bots] 子 agent 的结果没能交回 Bot 的对话。'))
       return
     }
 
-    const prompt = agentCompletionPrompt(agent)
+    // Bot 的巡看结果另带一句“写成安静的建议、不开活”。
+    const prompt = this.botCompletionPromptFor?.(agent) || agentCompletionPrompt(agent)
 
     // 如果会话正在运行，直接 steer 注入
     if (this.sessionRunIsActive(sessionId, value)) {
@@ -2279,6 +2285,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   // 运行中注入 Agent 完成通知。注入失败时放回待处理队列，本轮结束后由唤醒补发，不静默丢失；
   // 这里不立即重试，避免运行期间反复失败形成热循环。日志不带通知内容。
   steerAgentNotification(value, note) {
+    // 引擎这一轮已经说完、只剩收尾（运行标记还没放下）时 steer 送不到任何一轮：放回待处理队列，
+    // 收尾放下运行标记后由唤醒补发。
+    if (value.session && value.session.isStreaming === false) {
+      value.pendingAgentNotifications = [...(value.pendingAgentNotifications || []), note]
+      return Promise.resolve()
+    }
     return Promise.resolve()
       .then(() => value.session.steer(note))
       .catch(() => {
@@ -3257,7 +3269,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       console.warn('看板卡片摘要记录失败。')
     }
     // Bot 的对话这一句说完：按对话决定派、补充、停子 agent（独立请求，失败不影响回复）。
-    if (value.conversationOnly && !error && !value.abortedAt) this.scheduleBotDecisions(sessionId)
+    // 只记下“该做决定了”，等这一轮真正放下运行标记再排（streamPrompt 的收尾）：否则很快做完的
+    // 子 agent 会把完成通知 steer 进已经结束的这一轮，通知就丢了。
+    if (value.conversationOnly && !error && !value.abortedAt) value.botDecisionsDue = true
   }
 
   // 精简摘要写进会话元数据（pisper-sessions.json 的 boardCard），Runtime 重启后已落盘会话靠它出卡片。

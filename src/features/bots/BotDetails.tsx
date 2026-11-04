@@ -18,6 +18,7 @@ import { BotComputerTab } from './BotComputerTab'
 import { BotModelSection } from './BotModelSection'
 import { BotMemorySection } from './BotMemorySection'
 import { BotSkillsSection } from './BotSkillsSection'
+import { BotProactiveSection } from './BotProactiveSection'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
@@ -153,6 +154,35 @@ export function BotDetails({
             <BotSkillsSection bot={bot} onError={onError} onCount={setSkillCount} />
           </AccordionContent>
         </AccordionItem>
+        {/* 主动（默认关）：空闲时只读巡看、每日简报。 */}
+        <AccordionItem value="proactive">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:proactive.title')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {bot.proactive.enabled || bot.proactive.brief
+                  ? [
+                      bot.proactive.enabled
+                        ? t('bots:proactive.summaryCheck', { count: bot.proactive.everyHours })
+                        : '',
+                      bot.proactive.brief
+                        ? t('bots:proactive.summaryBrief', { time: bot.proactive.briefAt })
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : t('bots:proactive.off')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <BotProactiveSection
+              bot={bot}
+              saving={saving}
+              onSave={(proactive) => void save({ proactive })}
+            />
+          </AccordionContent>
+        </AccordionItem>
         <AccordionItem value="model">
           <AccordionTrigger>
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -253,6 +283,23 @@ export function BotDetails({
               </AppSelect>
             </label>
             <p className="text-xs text-content-muted">{t('bots:details.toolsHint')}</p>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex-none">{t('bots:details.parallel')}</span>
+              <AppSelect
+                value={String(bot.maxParallelAgents)}
+                className="w-44"
+                aria-label={t('bots:details.parallel')}
+                disabled={saving}
+                onChange={(event) => void save({ maxParallelAgents: Number(event.target.value) })}
+              >
+                {[1, 2, 3, 4, 5, 6].map((count) => (
+                  <option key={count} value={count}>
+                    {t('bots:details.parallelCount', { count })}
+                  </option>
+                ))}
+              </AppSelect>
+            </label>
+            <p className="text-xs text-content-muted">{t('bots:details.parallelHint')}</p>
           </AccordionContent>
         </AccordionItem>
       </Accordion>

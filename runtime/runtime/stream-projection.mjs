@@ -11,6 +11,7 @@ import {
 } from '../services/multi-agent-service.mjs'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
+import { isBotBriefMessage } from '../services/bots/bot-proactive.mjs'
 import { isOutputLimitContinuationMessage } from './output-limit-continuation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
@@ -44,7 +45,8 @@ export function isInternalParentMessage(content) {
   return (
     isGoalContinuationMessage(content) ||
     isOutputLimitContinuationMessage(content) ||
-    isAgentCompletionMessage(content)
+    isAgentCompletionMessage(content) ||
+    isBotBriefMessage(content)
   )
 }
 

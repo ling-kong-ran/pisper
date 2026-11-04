@@ -35,6 +35,14 @@ import {
 } from './bot-decisions.mjs'
 import { botMemoryContext } from '../services/bots/bot-memory-service.mjs'
 import { botSkillsContext } from '../services/bots/bot-skill-service.mjs'
+import {
+  BOT_PROACTIVE_NOTE,
+  botBriefPrompt,
+  botProactiveDue,
+  botProactiveTask,
+  botProactiveTools,
+} from '../services/bots/bot-proactive.mjs'
+import { agentCompletionPrompt } from '../services/multi-agent-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
@@ -457,6 +465,11 @@ export class AgentRuntimeFacade {
         // 仍读到 runActive=true。这里在真正放下运行标记后再失效一次活动投影，
         // 经 onInvalidate 让看板事件流补发一帧“已结束”，/live 缓存也随之失效。
         this.streamProjection.invalidate(id, { transcript: false, activity: true, usage: false })
+        // Bot 的对话这一轮说完：运行标记放下之后再做决定（见 finishBoardCard）。
+        if (value.botDecisionsDue) {
+          value.botDecisionsDue = false
+          if (!value.abortedAt) this.scheduleBotDecisions(id)
+        }
         // 运行期间注入失败、放回队列的 Agent 完成通知：本轮结束后补发；用户主动停止时不自动再起一轮。
         if (!value.abortedAt && value.pendingAgentNotifications?.length)
           this.scheduleAgentWakeup(id)
@@ -935,6 +948,16 @@ export class AgentRuntimeFacade {
     // 会话标题就是 Bot 的名字：改名时跟着改，侧栏、看板与会话页头一致。
     if (before && before.name !== bot.name)
       await this.renameSession(bot.threadSessionId, bot.name).catch(() => {})
+    // 关掉主动巡看：正在跑的巡看也停下，之后不再巡看。
+    if (before?.proactive?.enabled && !bot.proactive?.enabled) {
+      for (const agent of this.multiAgents?.list(bot.threadSessionId) || []) {
+        if (
+          this.botProactiveAgents?.has(agent.id) &&
+          ['queued', 'starting', 'running'].includes(agent.status)
+        )
+          this.multiAgents.interrupt(bot.threadSessionId, agent.id, '主动巡看已关闭。')
+      }
+    }
     return bot
   }
 
@@ -984,9 +1007,11 @@ export class AgentRuntimeFacade {
     // 思考等级：没设就用模型默认；模型不支持这一档时会话服务会拒绝，按模型默认处理。
     if (bot.thinking) await this.setSessionThinkingLevel(sessionId, bot.thinking).catch(() => {})
     // 指令进系统提示、工具范围进运行时：空闲时释放运行时，下次用到时按新设定重建。
-    // 还有子 agent 在跑时不释放：它们的批准挂在这个会话上，完成通知也要回到这里；下次空闲时再按新设定重建。
-    if (!this.multiAgents?.hasActive?.(sessionId))
-      this.disposeSessionRuntime(sessionId, this.sessions.get(sessionId))
+    // 受保护时不释放：正在说话、还有子 agent 在跑（批准挂在这个会话上）、或者刚做完的活的完成通知还在
+    // 等唤醒（释放会把它清掉，对话就收不到汇报）；下次空闲时再按新设定重建。
+    const value = this.sessions.get(sessionId)
+    if (!this.sessionRuntimeIsProtected(sessionId, value))
+      this.disposeSessionRuntime(sessionId, value)
   }
 
   // 渠道、定时任务对 Bot 说一句话：发进它的长期会话。这一轮结束后把回复发回来源聊天。
@@ -1036,7 +1061,7 @@ export class AgentRuntimeFacade {
       botStateSnapshot({
         agents: this.multiAgents?.list(sessionId) || [],
         waitingApprovals: this.permissions?.getPending?.(sessionId)?.length || 0,
-        limit: BOT_MAX_PARALLEL_AGENTS,
+        limit: bot?.maxParallelAgents || BOT_MAX_PARALLEL_AGENTS,
       }),
       botMemoryContext(memory || []),
       botSkillsContext(skills || []),
@@ -1081,7 +1106,7 @@ export class AgentRuntimeFacade {
         agents,
         models,
         bots,
-        limit: BOT_MAX_PARALLEL_AGENTS,
+        limit: bot.maxParallelAgents || BOT_MAX_PARALLEL_AGENTS,
       }),
     })
     if (result.usage) {
@@ -1091,7 +1116,13 @@ export class AgentRuntimeFacade {
         result.usage,
       ).catch(() => {})
     }
-    const decisions = parseBotDecisions(result.text)
+    // 巡看结果与每日简报这一轮只出建议：决定只能记、忘，不派活、不找别的 Bot（用户说“做吧”才开活）。
+    const quiet =
+      trigger.brief || trigger.completedAgents.some((id) => this.botProactiveAgents?.has(id))
+    for (const id of trigger.completedAgents) this.botProactiveAgents?.delete(id)
+    const decisions = parseBotDecisions(result.text).filter(
+      (decision) => !quiet || decision.type === 'remember' || decision.type === 'forget',
+    )
     const done = []
     for (const decision of decisions) {
       try {
@@ -1146,16 +1177,7 @@ export class AgentRuntimeFacade {
       const chosen = decision.model
         ? await this.providerPreferences.resolveSubagentModel({ modelRef: decision.model })
         : null
-      // 子 agent 带上 Bot 的工作说明与记忆：它不记事，背景从这里来。
-      const memory = botMemoryContext(await this.botMemory.list(bot.id).catch(() => []))
-      const instructions = [
-        String(bot.instructions || '').trim()
-          ? `[${bot.name} 的工作说明]\n${bot.instructions.trim()}`
-          : '',
-        memory,
-      ]
-        .filter(Boolean)
-        .join('\n\n')
+      const instructions = await this.botAgentInstructions(bot)
       const agent = await value.multiAgentRuntime.spawn({
         taskName: decision.title,
         title: decision.title,
@@ -1165,7 +1187,7 @@ export class AgentRuntimeFacade {
         ...(chosen?.model ? { resolvedModel: chosen.model } : {}),
         // 工具按 Bot 的工具范围给（null = 当前启用的全部工具）；对话自己没有可用工具，不能按它继承。
         toolNames: Array.isArray(bot.tools) ? bot.tools : value.baseToolNames || [],
-        parentLimit: BOT_MAX_PARALLEL_AGENTS,
+        parentLimit: bot.maxParallelAgents || BOT_MAX_PARALLEL_AGENTS,
         // 它自己写的技能：技能加载器列进子 agent 的系统提示，用到时再读全文。
         ...(this.botSkills ? { skillPaths: [this.botSkills.dir(bot.id)] } : {}),
       })
@@ -1190,6 +1212,108 @@ export class AgentRuntimeFacade {
     }
     this.multiAgents.interrupt(sessionId, agent.id, '用户让它停下了。')
     return { type: 'stop', id: agent.id }
+  }
+
+  // 子 agent 带上 Bot 的工作说明与记忆：它不记事，背景从这里来。
+  async botAgentInstructions(bot) {
+    const memory = botMemoryContext(await this.botMemory.list(bot.id).catch(() => []))
+    return [
+      String(bot.instructions || '').trim()
+        ? `[${bot.name} 的工作说明]\n${bot.instructions.trim()}`
+        : '',
+      memory,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  // C6 主动（默认关）：每分钟看一眼开了主动的 Bot，空闲且到点时做只读巡看或写每日简报。
+  // 计时器由运行时持有（startBotProactiveTimer / dispose 清掉）；实验功能关着时什么都不做。
+  async botProactiveTick(now = Date.now()) {
+    if (!this.bots || !this.capabilities.features.bots || !this.isBetaFeatureEnabled('bots'))
+      return []
+    const started = []
+    for (const bot of this.bots.list()) {
+      const proactive = bot.proactive || {}
+      if (!bot.enabled || (!proactive.enabled && !proactive.brief)) continue
+      if ((bot.workspace.environmentId || 'local') !== 'local' || !bot.threadSessionId) continue
+      const sessionId = bot.threadSessionId
+      // 空闲：对话没在说话、手上没活、没有在等你的批准。
+      if (this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)) continue
+      if (this.multiAgents.hasActive(sessionId)) continue
+      if (this.permissions?.getPending?.(sessionId)?.length) continue
+      const state = await this.botProactive.read(bot.id).catch(() => null)
+      if (!state) continue
+      const due = botProactiveDue(bot, state, now)
+      try {
+        if (due.brief) {
+          await this.botProactive.write(bot.id, { lastBriefDay: due.day })
+          await this.sendBotBrief(bot, now)
+          started.push({ bot: bot.id, kind: 'brief' })
+        } else if (due.check) {
+          await this.botProactive.write(bot.id, { lastCheckAt: new Date(now).toISOString() })
+          const agent = await this.runBotProactiveCheck(bot)
+          if (agent) started.push({ bot: bot.id, kind: 'check', agent: agent.id })
+        }
+      } catch {
+        console.warn('[bots] 主动巡看没能开始。')
+      }
+    }
+    return started
+  }
+
+  // 只读巡看：运行时直接派一个只有读文件、搜索、列目录工具的子 agent（不经对话的决定）。
+  async runBotProactiveCheck(bot) {
+    // 工具范围里连只读工具都没有时没法看，不开。
+    const tools = botProactiveTools(bot)
+    if (!tools.length) return null
+    const value = await this.getOrCreateSession(bot.threadSessionId)
+    if (!value?.conversationOnly || !value.multiAgentRuntime) return null
+    const instructions = await this.botAgentInstructions(bot)
+    const agent = await value.multiAgentRuntime.spawn({
+      taskName: 'proactive_check',
+      title: '巡看',
+      ...(instructions ? { instructions } : {}),
+      message: botProactiveTask(bot),
+      tier: 'fast',
+      toolNames: tools,
+      parentLimit: bot.maxParallelAgents || BOT_MAX_PARALLEL_AGENTS,
+      ...(this.botSkills ? { skillPaths: [this.botSkills.dir(bot.id)] } : {}),
+    })
+    this.botProactiveAgents ||= new Set()
+    this.botProactiveAgents.add(agent.id)
+    return agent
+  }
+
+  // 巡看做完交回对话的那句：在普通的完成通知后面加一句“写成安静的建议，不开活”。
+  botCompletionPromptFor(agent) {
+    return this.botProactiveAgents?.has(agent.id)
+      ? `${agentCompletionPrompt(agent)}\n\n${BOT_PROACTIVE_NOTE}`
+      : null
+  }
+
+  // 每日简报：一条隐藏消息说进对话（过去一天做了什么、今天排了什么），对话写出简报；这一轮不开活。
+  async sendBotBrief(bot, now = Date.now()) {
+    const sessionId = bot.threadSessionId
+    const jobs = (this.multiAgents.list(sessionId) || []).filter(
+      (agent) => now - Date.parse(agent.startedAt || '') < 24 * 60 * 60 * 1000,
+    )
+    const schedules = (this.schedules?.getState?.().tasks || [])
+      .filter((task) => task.targetType === 'bot' && task.botId === bot.id && task.enabled)
+      .map((task) => `${task.time || ''} ${task.botMessage || task.name || ''}`.trim())
+    void this.promptFromChannel({
+      sessionId,
+      message: botBriefPrompt({ bot, jobs, schedules }),
+      unattended: true,
+    }).catch(() => console.warn('[bots] 每日简报没能写出。'))
+  }
+
+  startBotProactiveTimer() {
+    if (this.botProactiveTimer || !this.capabilities.features.bots) return
+    this.botProactiveTimer = setInterval(() => {
+      void this.botProactiveTick().catch(() => console.warn('[bots] 主动巡看检查失败。'))
+    }, 60_000)
+    this.botProactiveTimer.unref?.()
   }
 
   // 给另一个 Bot 发话（message 决定）：对方要存在、开着、不是自己；客气话不发。
@@ -1287,7 +1411,9 @@ export class AgentRuntimeFacade {
   // 子 agent 做完：复盘这件活（独立请求，失败不影响汇报）——会反复做的写成技能，学到新东西的更新技能。
   // 同一个 Bot 的复盘按顺序跑，两件同类活同时做完时第二次复盘看得到第一次写的技能。
   botAgentFinished(agent) {
+    // 巡看不是谁交代的活，不复盘成技能。
     if (agent?.status !== 'completed' || !this.botSkills) return null
+    if (this.botProactiveAgents?.has(agent.id)) return null
     const bot = this.botForSession(agent.parentSessionId)
     if (!bot) return null
     this.botReviewChains ||= new Map()
@@ -1741,6 +1867,8 @@ export class AgentRuntimeFacade {
     this.auxiliaryTitles?.dispose()
     if (this.sessionRuntimeSweepTimer) clearInterval(this.sessionRuntimeSweepTimer)
     this.sessionRuntimeSweepTimer = null
+    if (this.botProactiveTimer) clearInterval(this.botProactiveTimer)
+    this.botProactiveTimer = null
     await this.sideChats?.dispose()
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
     this.agentWakeupTimers.clear()
