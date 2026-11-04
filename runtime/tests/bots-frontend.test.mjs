@@ -75,6 +75,20 @@ test('bot parser falls back for unknown avatar and settings values', () => {
   assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: '/repo' })
   assert.equal(bot.threadSessionId, 'thread-1')
   assert.equal(bot.enabled, true)
+  // 模型与思考：缺失或不认识时按标准档、模型默认；指定模型必须是 provider/model。
+  assert.deepEqual(bot.model, { tier: 'standard' })
+  assert.equal(bot.thinking, null)
+  const tuned = parseBot({
+    id: 'b',
+    name: 'n',
+    model: { ref: 'luna/gpt-5.6-luna' },
+    thinking: 'high',
+  })
+  assert.deepEqual(tuned.model, { ref: 'luna/gpt-5.6-luna' })
+  assert.equal(tuned.thinking, 'high')
+  assert.deepEqual(parseBot({ id: 'b', name: 'n', model: { ref: 'bare' } }).model, {
+    tier: 'standard',
+  })
   assert.deepEqual(bot.activity, { status: 'running', waiting: 'approval', needsYou: true })
   // 不认识的动态按空闲处理，不让整个列表因此读不出来。
   assert.deepEqual(parseBot({ id: 'b', name: 'n', activity: { status: 'exploded' } }).activity, {
@@ -375,4 +389,24 @@ test('the Bots settings page leaves the Windows window controls alone', async ()
     page,
     /<header\s+data-window-drag-region\s+className="flex h-\[52px\][^"]*\[\[data-custom-titlebar\]_&\]:pr-\[144px\]"/,
   )
+})
+
+// Bot 的会话：回复信息行换成 Bot 的头像与名字（Bots 关着时退回 Pisper 抬头），模型与思考在设置页里定。
+test('bot sessions show the bot in reply heads and keep model settings on the settings page', async () => {
+  const read = (path) => readFile(join(root, path), 'utf8')
+  const [message, focus, details] = await Promise.all([
+    read('src/features/chat/ChatMessage.tsx'),
+    read('src/features/chat/FocusSession.tsx'),
+    read('src/features/bots/BotDetails.tsx'),
+  ])
+  assert.match(
+    message,
+    /part="mark"\s+animate=\{latest\}\s+fallback=\{<BrandLogo size=\{22\} \/>\}/,
+  )
+  assert.match(message, /part="name"/)
+  assert.match(
+    focus,
+    /pageChrome \? \{ model: modelLabel, \.\.\.\(botId \? \{ botId \} : \{\}\) \} : null/,
+  )
+  assert.match(details, /<BotModelSection bot=\{bot\}/)
 })

@@ -52,7 +52,7 @@ test('model chip popover carries usage readings and voice controls stay mounted 
   assert.match(controls, /\{usage\}\s*<\/PopoverSheet>/)
   // 详情行与语音模式键退役；语音输入组件常驻工具行（桌面 menu 形态、手机是麦克风键），录音状态不会因菜单关闭而卸载。
   assert.doesNotMatch(focus, /composer-details|detailsOpen|usageBlock|AudioLines/)
-  assert.match(focus, /\{voiceInput\}\s*\{!phonePage && modelChipSlot\}/)
+  assert.match(focus, /\{voiceInput\}\s*\{!phonePage && !botId && modelChipSlot\}/)
   assert.match(focus, /onVoiceMode: \(\) => setVoiceModeOpen\(true\)/)
   assert.doesNotMatch(css, /\.session-usage-metrics|\.focus-composer-meta|\.header-workspace/)
 })

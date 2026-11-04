@@ -30,6 +30,38 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
     permissionRequirement({ mode: 'ask', cwd, toolName: 'read', args: { path: outside } }).reason,
     /工作目录之外/,
   )
+  // Bot 的会话不围工作目录：目录外的文件照常按模式判定（读直接读，写在 ask 下要确认，auto 下直接写）。
+  assert.equal(
+    permissionRequirement({
+      mode: 'ask',
+      cwd,
+      toolName: 'read',
+      args: { path: outside },
+      fenced: false,
+    }),
+    null,
+  )
+  assert.match(
+    permissionRequirement({
+      mode: 'ask',
+      cwd,
+      toolName: 'write',
+      args: { path: outside },
+      fenced: false,
+    }).reason,
+    /需要确认/,
+  )
+  assert.equal(
+    permissionRequirement({
+      mode: 'auto',
+      executionMode: 'workspace-write',
+      cwd,
+      toolName: 'write',
+      args: { path: outside },
+      fenced: false,
+    }),
+    null,
+  )
   assert.match(
     permissionRequirement({ mode: 'ask', cwd, toolName: 'write', args: { path: 'README.md' } })
       .reason,
@@ -592,6 +624,35 @@ test('pending approvals carry severity and notify the board observer without an 
   assert.equal(standard.severity, 'standard')
   throwing.resolve('session-plain', standard.id, true)
   assert.equal(await plain, undefined)
+})
+
+test('bot sessions edit files outside their folder without the folder fence', async () => {
+  const service = new SessionPermissionService({
+    getMode: () => 'auto',
+    getExecutionMode: () => 'workspace-write',
+    isUnfenced: (sessionId) => sessionId === 'bot-thread',
+  })
+  const outside = resolve('/repo', '..', 'notes', 'todo.md')
+  assert.equal(
+    await service.authorize({
+      sessionId: 'bot-thread',
+      cwd: '/repo',
+      toolName: 'write',
+      toolCallId: 'call-1',
+      args: { path: outside },
+    }),
+    undefined,
+  )
+  // 普通会话仍然围在工作目录里。
+  const fenced = await service.authorize({
+    sessionId: 'other',
+    cwd: '/repo',
+    toolName: 'write',
+    toolCallId: 'call-2',
+    args: { path: outside },
+  })
+  assert.equal(fenced.block, true)
+  assert.match(fenced.reason, /工作目录之外/)
 })
 
 test('tools outside the run scope are blocked before any mode, rule or approval', async () => {

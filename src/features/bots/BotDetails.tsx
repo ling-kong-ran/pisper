@@ -15,10 +15,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { BotAvatar } from './BotAvatar'
 import { BotAvatarPicker } from './BotAvatarPicker'
 import { BotComputerTab } from './BotComputerTab'
+import { BotModelSection } from './BotModelSection'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
-import { executionModeLabel } from './bot-labels'
+import { botModelLabel, botThinkingLabel, executionModeLabel } from './bot-labels'
 import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
@@ -116,6 +117,22 @@ export function BotDetails({
             />
           </AccordionContent>
         </AccordionItem>
+        <AccordionItem value="model">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:model.title')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {t('bots:model.summary', {
+                  model: botModelLabel(t, bot.model),
+                  thinking: botThinkingLabel(t, bot.thinking),
+                })}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="flex h-auto flex-col gap-3">
+            <BotModelSection bot={bot} saving={saving} onSave={(patch) => void save(patch)} />
+          </AccordionContent>
+        </AccordionItem>
         <AccordionItem value="chats">
           <AccordionTrigger>
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -142,7 +159,9 @@ export function BotDetails({
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
               {t('bots:settings.advanced')}
               <span className="truncate text-xs font-normal text-content-muted">
-                {t('bots:settings.advancedSummary')}
+                {t('bots:settings.advancedSummary', {
+                  permission: executionModeLabel(t, bot.executionMode),
+                })}
               </span>
             </span>
           </AccordionTrigger>
@@ -173,6 +192,7 @@ export function BotDetails({
                 ))}
               </AppSelect>
             </label>
+            <p className="text-xs text-content-muted">{t('bots:details.permissionHint')}</p>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="flex-none">{t('bots:details.tools')}</span>
               <AppSelect

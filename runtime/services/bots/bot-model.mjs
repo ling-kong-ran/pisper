@@ -59,11 +59,15 @@ function invalid(code, message) {
 export function botSystemPrompt(bot) {
   const parts = [
     `你是 ${bot.name}，用户在 Pisper 里的一个长期助手。这是你和用户的一段持续对话：前文都算数，消息也可能来自用户的聊天软件或定时任务。`,
+    // 用户把事交给 Bot 是为了不用盯着：能自己做完的就做完，别为了确认而停下来。
+    '能自己查到、自己做完的事直接做完，不要为了确认而停下来问；只有缺少只有用户知道的信息、要用户拍板，或者你确实做不了时，才问用户。',
   ]
   const instructions = String(bot.instructions || '').trim()
   if (instructions) parts.push(`[${bot.name} 的工作说明]\n${instructions}`)
   return parts.join('\n\n')
 }
+
+export const DEFAULT_BOT_EXECUTION_MODE = 'workspace-write'
 
 export const MAX_BOT_MESSAGE_CHARS = 12_000
 
@@ -213,7 +217,9 @@ export function normalizeBotInput(input, current = null) {
   const cwd = String(workspaceInput.cwd ?? '').trim()
   if (!cwd) throw invalid('bot_cwd_required', '请为 Bot 选择工作目录。')
   const channels = normalizeChannels(merged.channels)
-  const executionMode = normalizeExecutionMode(merged.executionMode)
+  // Bot 是替用户干活的：新建默认放手做（工作区写入档），只有命令守卫标出的危险操作、浏览器提交、
+  // 第三方插件这类事才停下来问。已经存下的 Bot 保留它自己的权限，不悄悄放宽。
+  const executionMode = normalizeExecutionMode(merged.executionMode, DEFAULT_BOT_EXECUTION_MODE)
   // 执行权限是上限：有群聊触发时不能是完全访问，否则群里一句话就能让 Bot 不经确认执行任何命令。
   if (executionMode === 'full-access' && channels.some((channel) => channel.chatType === 'group'))
     throw invalid('bot_group_full_access', '有群聊触发的 Bot 不能使用完全访问权限。')

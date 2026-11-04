@@ -468,9 +468,11 @@ export const FocusSession = memo(function FocusSession({
       '',
     availableModels.map((item) => item.label),
   )
+  // Bot 的长期会话：模型、权限在 Bot 的设置页里定，输入框不放这两个芯片；回复的信息行换成 Bot 的头像与名字。
+  const botId = session?.botId
   const transcriptMeta = useMemo(
-    () => (pageChrome ? { model: modelLabel } : null),
-    [modelLabel, pageChrome],
+    () => (pageChrome ? { model: modelLabel, ...(botId ? { botId } : {}) } : null),
+    [botId, modelLabel, pageChrome],
   )
   // 还没送达的排队消息：桌面在输入框上方的排队列表里（可立即发送 / 编辑 / 取消），对话里不重复画；
   // 手机没有排队列表，它们就是对话末尾标着“排队中”的气泡。
@@ -642,7 +644,7 @@ export const FocusSession = memo(function FocusSession({
             {t('chat:focusSession.generateImage')}
           </DropdownMenuItem>
         )}
-        {phonePage ? (
+        {phonePage && botId ? null : phonePage ? (
           <DropdownMenuItem
             data-composer-plus-item="mode"
             onSelect={() => {
@@ -1083,12 +1085,12 @@ export const FocusSession = memo(function FocusSession({
           >
             {plusMenu}
             {attachmentChooser.input}
-            {phonePage && modelChipSlot}
+            {phonePage && !botId && modelChipSlot}
             {!phonePage && draft?.renderProjectControl('chip')}
-            {modeChip}
+            {!botId && modeChip}
             <span className="min-w-0 flex-1" />
             {voiceInput}
-            {!phonePage && modelChipSlot}
+            {!phonePage && !botId && modelChipSlot}
             <ComposerSendButton
               streaming={streaming}
               queueing={queueing}

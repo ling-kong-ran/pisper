@@ -1,7 +1,7 @@
 // 角色名与设置项的文案（键必须是字面量，i18n 检查逐个核对）。
 import type { Translate } from '@/app/navigation'
 import type { BotCharacter } from './avatar'
-import type { Bot, BotPlatform, BotSchedule } from './bots-api'
+import type { Bot, BotModel, BotPlatform, BotSchedule, BotThinking } from './bots-api'
 
 export function characterLabel(t: Translate, character: BotCharacter) {
   switch (character) {
@@ -36,6 +36,32 @@ export function executionModeLabel(t: Translate, mode: Bot['executionMode']) {
   if (mode === 'full-access') return t('bots:details.modeFull')
   if (mode === 'workspace-write') return t('bots:details.modeWorkspace')
   return t('bots:details.modeApproval')
+}
+
+export function botModelLabel(t: Translate, model: BotModel) {
+  if ('ref' in model) return model.ref.split('/').at(-1) || model.ref
+  if (model.tier === 'fast') return t('bots:model.tierFast')
+  if (model.tier === 'strong') return t('bots:model.tierStrong')
+  return t('bots:model.tierStandard')
+}
+
+export function botThinkingLabel(t: Translate, level: BotThinking | null) {
+  switch (level) {
+    case 'off':
+      return t('bots:model.thinkingOff')
+    case 'minimal':
+      return t('bots:model.thinkingMinimal')
+    case 'low':
+      return t('bots:model.thinkingLow')
+    case 'medium':
+      return t('bots:model.thinkingMedium')
+    case 'high':
+      return t('bots:model.thinkingHigh')
+    case 'xhigh':
+      return t('bots:model.thinkingXhigh')
+    default:
+      return t('bots:model.thinkingDefault')
+  }
 }
 
 export function platformLabel(t: Translate, platform: BotPlatform) {

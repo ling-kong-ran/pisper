@@ -935,6 +935,8 @@ export class AgentRuntimeFacade {
       await this.setSessionModel(sessionId, resolved.model.provider, resolved.model.id).catch(
         () => {},
       )
+    // 思考等级：没设就用模型默认；模型不支持这一档时会话服务会拒绝，按模型默认处理。
+    if (bot.thinking) await this.setSessionThinkingLevel(sessionId, bot.thinking).catch(() => {})
     // 指令进系统提示、工具范围进运行时：空闲时释放运行时，下次用到时按新设定重建。
     this.disposeSessionRuntime(sessionId, this.sessions.get(sessionId))
   }

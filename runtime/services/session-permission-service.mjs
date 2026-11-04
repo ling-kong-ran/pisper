@@ -163,6 +163,9 @@ export function permissionRequirement({
   args,
   toolRisk,
   thirdPartyTool = false,
+  // 工作目录围栏：普通会话的文件工具不出工作目录。Bot 的会话不围：工作目录只是它开始干活的地方，
+  // 整台电脑都是它的（执行节点自己的 --root 仍由节点强制）；改文件、跑命令要不要问照常按模式判定。
+  fenced = true,
 }) {
   if (executionMode === 'full-access') return null
   if (INTERNAL_SAFE_TOOLS.has(toolName)) return null
@@ -184,6 +187,7 @@ export function permissionRequirement({
     }
   }
   if (
+    fenced &&
     ['read', 'ls', 'grep', 'find', 'edit', 'write'].includes(toolName) &&
     pathOutsideWorkspace(cwd, filePath)
   ) {
@@ -285,6 +289,8 @@ export class SessionPermissionService {
     isThirdPartyTool,
     // 本轮不可用的工具（隔离上下文、无人值守、Bot 的工具范围）：执行前直接拦下，任何模式与允许规则都不放行。
     isToolBlocked,
+    // 不受工作目录围栏限制的会话（Bot 的会话）。
+    isUnfenced,
     skipFileChangePreview,
     approvalPath,
     getFileChangePreview = createFileChangePreview,
@@ -300,6 +306,7 @@ export class SessionPermissionService {
     this.getToolRisk = getToolRisk || (() => null)
     this.isThirdPartyTool = isThirdPartyTool || (() => false)
     this.isToolBlocked = isToolBlocked || (() => false)
+    this.isUnfenced = isUnfenced || (() => false)
     this.skipFileChangePreview = skipFileChangePreview || (() => false)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
@@ -450,6 +457,7 @@ export class SessionPermissionService {
       args,
       toolRisk: this.getToolRisk(toolName),
       thirdPartyTool: Boolean(this.isThirdPartyTool(toolName)),
+      fenced: !this.isUnfenced(sessionId),
     })
     if (secureAct && executionMode !== 'full-access') {
       requirement = {

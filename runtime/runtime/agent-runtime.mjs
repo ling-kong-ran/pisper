@@ -634,6 +634,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const value = this.sessions.get(sessionId)
         return value ? runToolBlocker(value)(toolName) : false
       },
+      // Bot 的会话不围工作目录（Bots 实验功能关着时 botForSession 为空，照普通会话处理）。
+      isUnfenced: (sessionId) => Boolean(this.botForSession?.(sessionId)),
       // 远程会话的文件在另一台电脑上：大脑读不到，审批时不做本地改动预览。
       skipFileChangePreview: (sessionId) => Boolean(this.sessions.get(sessionId)?.remoteExecutor),
       onEvent: (sessionId, event, data) => {

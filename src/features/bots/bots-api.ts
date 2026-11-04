@@ -3,6 +3,7 @@
 // 可选字段缺失时给安全的默认值，旧版 Runtime 多出或少了字段都不至于让页面崩掉。
 import { requestJson } from '@/lib/http'
 import { invalidResponseError } from '@/lib/http-response'
+import { fetchStartupQuery } from '@/lib/startup-queries'
 import { isBotCharacter, isBotColor, type BotAvatarValue } from './avatar'
 
 // 此刻的动态：在不在说话，在等你批准还是回答。
@@ -12,6 +13,13 @@ export type BotActivity = {
   needsYou: boolean
 }
 
+// 模型：按档位（跟着“子代理模型档位”的设置走）或指定 provider/model。
+export const BOT_MODEL_TIERS = ['fast', 'standard', 'strong'] as const
+export type BotModelTier = (typeof BOT_MODEL_TIERS)[number]
+export type BotModel = { tier: BotModelTier } | { ref: string }
+export const BOT_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+export type BotThinking = (typeof BOT_THINKING_LEVELS)[number]
+
 export type Bot = {
   id: string
   name: string
@@ -19,6 +27,9 @@ export type Bot = {
   enabled: boolean
   instructions: string
   executionMode: 'approval-required' | 'workspace-write' | 'full-access'
+  model: BotModel
+  // 思考等级；null 表示用模型默认。
+  thinking: BotThinking | null
   // 渠道里哪些聊天、哪些人可以叫它（B3）。
   channels: BotChannel[]
   // 工具范围：null 表示用当前启用的全部工具。
@@ -96,6 +107,8 @@ export function parseBot(value: unknown): Bot {
       input.executionMode === 'workspace-write' || input.executionMode === 'full-access'
         ? input.executionMode
         : 'approval-required',
+    model: parseModel(input.model),
+    thinking: BOT_THINKING_LEVELS.find((level) => level === input.thinking) ?? null,
     channels: parseChannels(input.channels),
     tools: Array.isArray(input.tools)
       ? input.tools.filter((tool): tool is string => typeof tool === 'string')
@@ -107,6 +120,33 @@ export function parseBot(value: unknown): Bot {
     threadSessionId: text(input.threadSessionId),
     activity: parseActivity(input.activity),
   }
+}
+
+function parseModel(value: unknown): BotModel {
+  const input = object(value ?? {})
+  if (typeof input.ref === 'string' && input.ref.includes('/')) return { ref: input.ref }
+  return { tier: BOT_MODEL_TIERS.find((tier) => tier === input.tier) ?? 'standard' }
+}
+
+export type BotModelOption = { ref: string; name: string; providerName: string }
+
+// 设置页可选的具体模型：只列已配置且启用的服务商里的对话模型（与会话输入框的模型列表同一口径）。
+// 配置走启动缓存，和会话页共用一份，不另发请求。
+export async function fetchBotModelOptions(): Promise<BotModelOption[]> {
+  const config = object(await fetchStartupQuery<unknown>('config'))
+  const providers = Array.isArray(config.providers) ? config.providers : []
+  return providers.flatMap((value) => {
+    const provider = object(value)
+    if (typeof provider.id !== 'string' || !provider.configured || provider.enabled === false)
+      return []
+    const providerName = text(provider.name, provider.id)
+    const models = Array.isArray(provider.models) ? provider.models : []
+    return models.flatMap((item) => {
+      const model = object(item)
+      if (typeof model.id !== 'string' || model.kind !== 'chat') return []
+      return [{ ref: `${provider.id}/${model.id}`, name: text(model.name, model.id), providerName }]
+    })
+  })
 }
 
 function one<T>(key: string, parse: (value: unknown) => T) {

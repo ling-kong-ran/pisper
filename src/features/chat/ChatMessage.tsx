@@ -1,6 +1,16 @@
 // 单条聊天消息：Markdown 渲染 + 消息操作（复制/下载/删除/跳转），
 // 长代码自动展开，附件与工具调用内嵌展示。
-import { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   Check,
@@ -55,6 +65,9 @@ import { chatApi, type BranchFromHereOptions } from './chat-api'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
 import { TranscriptMetaContext } from './session-workspace-context'
+
+// Bot 会话的信息行：头像与名字由 Bots 的公共部件画（按需加载，Bots 关着时退回 Pisper 的抬头）。
+const BotSessionChip = lazy(() => import('@/features/bots/public-session'))
 import {
   applySessionTreeResponse,
   readSessionTreeSummary,
@@ -874,13 +887,37 @@ export const FocusChatMessage = memo(function FocusChatMessage({
             data-state={agentState}
             aria-hidden="true"
           >
-            <BrandLogo size={22} />
+            {meta?.botId ? (
+              <Suspense fallback={<BrandLogo size={22} />}>
+                <BotSessionChip
+                  botId={meta.botId}
+                  part="mark"
+                  animate={latest}
+                  fallback={<BrandLogo size={22} />}
+                />
+              </Suspense>
+            ) : (
+              <BrandLogo size={22} />
+            )}
           </span>
           <span
             className="min-w-0 truncate font-medium text-content-secondary"
             data-agent-model={meta && latest && meta.model ? meta.model : undefined}
+            title={meta?.botId && latest && meta.model ? meta.model : undefined}
           >
-            {meta && latest && meta.model ? meta.model : 'Pisper'}
+            {meta?.botId ? (
+              <Suspense fallback={latest && meta.model ? meta.model : 'Pisper'}>
+                <BotSessionChip
+                  botId={meta.botId}
+                  part="name"
+                  fallback={latest && meta.model ? meta.model : 'Pisper'}
+                />
+              </Suspense>
+            ) : meta && latest && meta.model ? (
+              meta.model
+            ) : (
+              'Pisper'
+            )}
           </span>
           {thinking && (
             <span

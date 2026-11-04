@@ -1,7 +1,9 @@
 // @public Bot 会话的页头部件（默认导出，供 React.lazy 加载）：会话页认出这是某个 Bot 的长期会话时，
-// 标题前放它的头像（随状态动），标题后放“设置”入口（打开 /bots/:id）。数据读 Bots 的列表缓存；
-// Bots 实验功能关着或 Bot 已被删除时什么都不画，会话照常是普通会话。
+// 标题前放它的头像（随状态动），标题后放“设置”入口（打开 /bots/:id）；对话里每条回复的信息行
+// 也换成它的头像（mark）和名字（name）。数据读 Bots 的列表缓存；Bots 实验功能关着或 Bot 已被删除时
+// 画调用方给的 fallback（页头两处为空），会话照常是普通会话。
 import './bots-messages'
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -14,17 +16,32 @@ import { useBotsPolling, useBotsStore } from './bots-store'
 export default function BotSessionChip({
   botId,
   part,
+  animate = true,
+  fallback = null,
 }: {
   botId: string
-  part: 'avatar' | 'settings'
+  part: 'avatar' | 'settings' | 'mark' | 'name'
+  // 只有最新一条回复的头像随状态动，历史回复静止，免得一屏头像一起动。
+  animate?: boolean
+  fallback?: ReactNode
 }) {
   const { t } = useI18n()
   const enabled = useBetaFeature('bots')
   const navigate = useNavigate()
   const bot = useBotsStore((state) => state.bots.find((item) => item.id === botId))
-  // 只让头像那一份负责轮询（页头两处共用同一份缓存，不重复开轮询）。
+  // 只让页头头像那一份负责轮询（几处共用同一份缓存，不重复开轮询）。
   useBotsPolling(enabled && part === 'avatar')
-  if (!enabled || !bot) return null
+  if (!enabled || !bot) return fallback
+  if (part === 'mark')
+    return (
+      <BotAvatar
+        avatar={bot.avatar}
+        state={animate ? botAvatarState(bot) : 'idle'}
+        animate={animate}
+        size={22}
+      />
+    )
+  if (part === 'name') return bot.name
   if (part === 'avatar')
     return (
       <span data-session-bot={bot.id} className="flex flex-none items-center pl-1">

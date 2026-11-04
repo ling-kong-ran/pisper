@@ -90,8 +90,10 @@ export const SessionInspectorContext = createContext<SessionInspectorControl | n
 
 // 会话页转录的代理信息行（规格 4.3：Logo、模型、第 N 轮、审批模式）：模型与审批模式只代表会话的当前设置，
 // 所以只挂在最新一条回复上；历史回复没有逐条记录，不拿当前值冒充。没有值（手机外壳、旧入口）时保持原来的抬头。
+// Bot 的长期会话带 botId：信息行换成 Bot 的头像与名字（模型放进提示文字）。
 export type TranscriptMeta = {
   model: string
+  botId?: string
 }
 
 export const TranscriptMetaContext = createContext<TranscriptMeta | null>(null)

@@ -108,7 +108,7 @@ test('a new bot opens its own session with its folder, permission and model', as
     ['createSession', '巡检', '/repo'],
     ['executor', 'thread-1', null],
     ['cwd', 'thread-1', '/repo'],
-    ['mode', 'thread-1', 'approval-required'],
+    ['mode', 'thread-1', 'workspace-write'],
     ['model', 'thread-1', 'luna', 'gpt-5.6-luna'],
   ])
   // 指令进系统提示：释放空闲的运行时，下次用到时按新设定重建。
@@ -134,8 +134,8 @@ test('a bot on another computer runs its session there, with a placeholder folde
 
 test('changing a bot applies to its session and renaming it renames the session', async () => {
   const runtime = fakeRuntime({ bots: [bot('小橙', { threadSessionId: 'existing' })] })
-  await runtime.updateBot('小橙', { name: '小橘', executionMode: 'workspace-write' })
-  assert.ok(runtime.calls.some((call) => call[0] === 'mode' && call[2] === 'workspace-write'))
+  await runtime.updateBot('小橙', { name: '小橘', executionMode: 'approval-required' })
+  assert.ok(runtime.calls.some((call) => call[0] === 'mode' && call[2] === 'approval-required'))
   assert.deepEqual(runtime.calls.at(-1), ['rename', 'existing', '小橘'])
   runtime.calls.length = 0
   await runtime.updateBot('小橙', { instructions: '只看不改' })
@@ -261,9 +261,19 @@ test('approvals in a chat-started turn reach that chat and can be answered there
   assert.equal(await runtime.botChannelAction('小橙', 'deny'), '小橙 现在没有等批准的操作。')
 })
 
+test('bot sessions are not fenced to their folder', async () => {
+  const source = await readFile(new URL('../runtime/agent-runtime.mjs', import.meta.url), 'utf8')
+  assert.match(
+    source,
+    /isUnfenced: \(sessionId\) => Boolean\(this\.botForSession\?\.\(sessionId\)\)/,
+  )
+})
+
 test('the bot system prompt says who it is and carries its instructions', () => {
   assert.match(botSystemPrompt(bot('小橙')), /你是 小橙[\s\S]*\[小橙 的工作说明\]\n盯着首页性能/)
   assert.doesNotMatch(botSystemPrompt(bot('空白', { instructions: '' })), /工作说明/)
+  // 能自己做完的就做完：只有缺信息、要拍板或确实做不了时才问。
+  assert.match(botSystemPrompt(bot('小橙')), /直接做完[\s\S]*确实做不了时，才问用户/)
   assert.equal(normalizeBotMessage('  hi  '), 'hi')
   assert.throws(() => normalizeBotMessage('x'.repeat(12_001)), { code: 'bot_message_too_long' })
   assert.equal(botReplyText('小橙', { text: '' }), '小橙 做完了。')

@@ -22,11 +22,12 @@ test('composer toolbar is fixed: + menu, shield chip, model chip and send', asyn
   assert.match(session, /focus-composer[^"\n]*\[&_textarea\]:\[outline:0\]!/)
   const toolbar = session.slice(session.indexOf('data-composer-toolbar'))
   // 桌面：[+] [盾牌芯片] … [模型芯片] [发送]；手机照参考稿把模型芯片排在 + 后面（modelChipSlot 两处二选一）。
+  // Bot 的会话不放盾牌与模型芯片：模型、权限在 Bot 的设置页里定（手机 + 菜单里的审批项也不放）。
   const order = [
     '{plusMenu}',
-    '{phonePage && modelChipSlot}',
-    '{modeChip}',
-    '{!phonePage && modelChipSlot}',
+    '{phonePage && !botId && modelChipSlot}',
+    '{!botId && modeChip}',
+    '{!phonePage && !botId && modelChipSlot}',
     '<ComposerSendButton',
   ].map((token) => toolbar.indexOf(token))
   assert.ok(
@@ -35,6 +36,10 @@ test('composer toolbar is fixed: + menu, shield chip, model chip and send', asyn
   )
   // “+”菜单：附件、技能与工具、生成图片（有能力时）、语音输入（F8，手机换成审批与执行方式——
   // 手机的麦克风键在工具行）；手机运行中另有“插话发送”。
+  assert.match(
+    session,
+    /\{phonePage && botId \? null : phonePage \? \(\s*<DropdownMenuItem\s+data-composer-plus-item="mode"/,
+  )
   for (const item of ['attachment', 'resource', 'visual', 'voice', 'mode'])
     assert.match(session, new RegExp(`data-composer-plus-item="${item}"`))
   assert.match(session, /phonePage && streaming && \(\s*<DropdownMenuItem\s+data-composer-steer/)

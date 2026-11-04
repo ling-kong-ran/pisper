@@ -43,7 +43,13 @@ test('bot fields are validated and given safe defaults', () => {
     },
   )
   assert.deepEqual(bot.model, { tier: 'standard' })
-  assert.equal(bot.executionMode, 'approval-required')
+  // Bot 是替用户干活的：新建默认危险操作才问；已经存下的权限沿用，不悄悄放宽。
+  assert.equal(bot.executionMode, 'workspace-write')
+  assert.equal(
+    normalizeBotInput({ instructions: '改一下' }, { ...bot, executionMode: 'approval-required' })
+      .executionMode,
+    'approval-required',
+  )
   // Bot 就是一个会话加上设定：工作区只有电脑与目录，没有分支与交付方式。
   assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: bot.workspace.cwd })
   assert.equal('delivery' in bot, false)
