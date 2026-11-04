@@ -993,7 +993,7 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
   <section aria-labelledby="bots-built-h">
     <div class="sec-head">
       <h2 id="bots-built-h">B 期 · Bots 与实验功能</h2>
-      <p class="lede">设置里新增“实验功能”，第一项是 Bots：常驻的 AI 同事，像聊天一样交代事情，在自己的分支上干活、动手前先问、改完交给你确认。第一眼只有对话，设置收在右上角的面板里。实验开关关掉时 Bot 和它们的会话都不显示。</p>
+      <p class="lede">设置里新增“实验功能”，第一项是 Bots：常驻的 AI 同事。Bot 就是一个一直开着的会话加上它的设定：侧栏点它直接打开它的会话（普通会话页，顶栏带头像和设置按钮），设定单独一页；不依赖 git，不开分支，没有任务和审阅。实验开关关掉时 Bot 和它们的会话都不显示。</p>
     </div>
     <h3>设计稿（聊天式，参考 Grok / Dots 的第一视角）</h3>
     <div class="shots pairs">
@@ -1010,26 +1010,24 @@ dialog .bar button { font: inherit; color: #fff; background: rgb(255 255 255 / .
     </div>
     <h3>实现（1440）</h3>
     <div class="shots pairs">
-      <figure><button type="button" data-full="built/b4-bot-chat-1440-light.png" aria-label="放大：实现：Bot 对话：第一眼只有对话，设置收在右上角"><img src="built/b4-bot-chat-1440-light.png" alt="实现：Bot 对话：第一眼只有对话，设置收在右上角" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现</span>Bot 对话</figcaption></figure>
+      <figure><button type="button" data-full="built/b4-bot-chat-1440-light.png" aria-label="放大：实现：Bot 的会话：普通会话页，顶栏带头像和设置按钮；第二句接着第一句的前情"><img src="built/b4-bot-chat-1440-light.png" alt="实现：Bot 的会话：普通会话页，顶栏带头像和设置按钮；第二句接着第一句的前情" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>Bot 的会话</figcaption></figure>
       <figure><button type="button" data-full="built/b4-bot-approval-1440-light.png" aria-label="放大：实现：小橙要改 src/pages/home.tsx，批准卡片就在对话里：拒绝 / 允许"><img src="built/b4-bot-approval-1440-light.png" alt="实现：小橙要改 src/pages/home.tsx，批准卡片就在对话里：拒绝 / 允许" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>对话里批准</figcaption></figure>
-      <figure><button type="button" data-full="built/b4-bot-changes-1440-light.png" aria-label="放大：实现：回复按 Markdown 显示，“1 个文件有改动”，右侧改动面板逐行对比"><img src="built/b4-bot-changes-1440-light.png" alt="实现：回复按 Markdown 显示，“1 个文件有改动”，右侧改动面板逐行对比" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现</span>交付改动与改动面板</figcaption></figure>
-      <figure><button type="button" data-full="built/b4-bot-settings-1440-light.png" aria-label="放大：实现：设置面板：换个样子、它负责什么，电脑、聊天、定时与高级收在折叠区"><img src="built/b4-bot-settings-1440-light.png" alt="实现：设置面板：换个样子、它负责什么，电脑、聊天、定时与高级收在折叠区" loading="lazy"></button>
-        <figcaption><span class="chip built">已实现</span>设置面板</figcaption></figure>
+      <figure><button type="button" data-full="built/b4-bot-settings-1440-light.png" aria-label="放大：实现：设置页：换个样子、它负责什么，电脑、聊天、定时与高级收在折叠区；顶栏“和它聊天”回到会话"><img src="built/b4-bot-settings-1440-light.png" alt="实现：设置页：换个样子、它负责什么，电脑、聊天、定时与高级收在折叠区；顶栏“和它聊天”回到会话" loading="lazy"></button>
+        <figcaption><span class="chip built">已实现</span>设置页</figcaption></figure>
       <figure><button type="button" data-full="built/b4-bot-new-1440-light.png" aria-label="放大：实现：新建 Bot：只要名字，头像随机、目录默认"><img src="built/b4-bot-new-1440-light.png" alt="实现：新建 Bot：只要名字，头像随机、目录默认" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>新建 Bot</figcaption></figure>
-      <figure><button type="button" data-full="built/b4-bot-computer-1440-dark.png" aria-label="放大：实现：Bot 的电脑（深色）"><img src="built/b4-bot-computer-1440-dark.png" alt="实现：Bot 的电脑（深色）" loading="lazy"></button>
+      <figure><button type="button" data-full="built/b4-bot-computer-1440-dark.png" aria-label="放大：实现：Bot 的电脑：本机或执行节点、工作目录（深色）"><img src="built/b4-bot-computer-1440-dark.png" alt="实现：Bot 的电脑：本机或执行节点、工作目录（深色）" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>Bot 的电脑（深色）</figcaption></figure>
-      <figure><button type="button" data-full="built/b4-board-bot-1440-light.png" aria-label="放大：实现：全部代理里 Bot 的会话带头像与分支，和普通会话一起按状态分组，归在所属项目下"><img src="built/b4-board-bot-1440-light.png" alt="实现：全部代理里 Bot 的会话带头像与分支，和普通会话一起按状态分组，归在所属项目下" loading="lazy"></button>
+      <figure><button type="button" data-full="built/b4-board-bot-1440-light.png" aria-label="放大：实现：全部代理里 Bot 的会话带头像，和普通会话一起按状态分组"><img src="built/b4-board-bot-1440-light.png" alt="实现：全部代理里 Bot 的会话带头像，和普通会话一起按状态分组" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>全部代理里的 Bot</figcaption></figure>
       <figure><button type="button" data-full="built/labs-on-1440-light.png" aria-label="放大：实现：设置 › 实验功能：Bots 一行，写明关掉后会怎样，带反馈链接"><img src="built/labs-on-1440-light.png" alt="实现：设置 › 实验功能：Bots 一行，写明关掉后会怎样，带反馈链接" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>设置 › 实验功能</figcaption></figure>
     </div>
     <h3>手机（390）</h3>
     <div class="shots phones">
-      <figure><button type="button" data-full="built/b4-bot-phone-light.png" aria-label="放大：实现：手机 Bot 对话"><img src="built/b4-bot-phone-light.png" alt="实现：手机 Bot 对话" loading="lazy"></button>
+      <figure><button type="button" data-full="built/b4-bot-phone-light.png" aria-label="放大：实现：手机上 Bot 的会话"><img src="built/b4-bot-phone-light.png" alt="实现：手机上 Bot 的会话" loading="lazy"></button>
         <figcaption><span class="chip built">已实现</span>Bot 对话</figcaption></figure>
     </div>
     <h3>实验功能页的状态（设计稿）</h3>
