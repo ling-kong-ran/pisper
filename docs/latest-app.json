@@ -1,9 +1,9 @@
 {
-  "version": "0.1.69",
-  "tag": "app-v0.1.69",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.69",
+  "version": "0.1.70",
+  "tag": "app-v0.1.70",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.70",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.69\n\n- 发布日期：2026-11-04（北京时间）\n- 发布标签：`app-v0.1.69`\n- 对比基线：`app-v0.1.68`\n\n## 更新内容\n\n### 优化改进\n\n- refactor(ui): 侧栏只留需要你 / 运行中 / 最近，全部代理的筛选回到页内\n\n### 问题修复\n\n- fix(bots): Bot 不再依赖 git；Bot 页顶栏让出窗口按钮；侧栏里 Bot 一行一个\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.68...app-v0.1.69)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/930fd5179e6f8f0403ebd529f5651bd5e6615517)",
+  "notes": "## Pisper App 0.1.70\n\n- 发布日期：2026-11-04（北京时间）\n- 发布标签：`app-v0.1.70`\n- 对比基线：`app-v0.1.69`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): Bot 就是一个长期会话加上它的设定，去掉任务、队列、分支与审阅\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.69...app-v0.1.70)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/4ba7b5ebf8ef41dabfe933c88813c34fb59bbcfd)",
   "releaseDate": "2026-11-04"
 }
