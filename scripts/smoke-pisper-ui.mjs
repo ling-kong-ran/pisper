@@ -1108,7 +1108,14 @@ try {
         ),
       ].map((node) => {
         const rect = node.getBoundingClientRect()
-        return { width: rect.width, height: rect.height, visible: node.checkVisibility() }
+        // 手机工具行是 36 的圆 / 胶囊，透明 ::after 把触控范围扩到 44。
+        const after = getComputedStyle(node, '::after')
+        const grow = (value) => (after.position === 'absolute' ? -(parseFloat(value) || 0) : 0)
+        return {
+          width: rect.width,
+          height: rect.height + grow(after.top) + grow(after.bottom),
+          visible: node.checkVisibility(),
+        }
       }),
     )
     for (const target of toolbarTargets) {

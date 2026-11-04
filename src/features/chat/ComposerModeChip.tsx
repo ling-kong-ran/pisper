@@ -31,8 +31,6 @@ const MIN_GOAL_TOKEN_BUDGET = 1_000
 type Option<T extends string> = {
   value: T
   label: string
-  // 窄屏工具行放不下完整名称时芯片上显示的短名（规格 7.2 的“审批”芯片）；完整名称仍在无障碍标签与弹层里。
-  shortLabel?: string
   description: string
   icon: LucideIcon
 }
@@ -144,21 +142,18 @@ export function ComposerModeChip({
     {
       value: 'approval-required',
       label: t('chat:focusSession.approvalRequired'),
-      shortLabel: t('chat:focusSession.approvalRequiredShort'),
       description: t('chat:focusSession.approvalRequiredShowsADiffBeforeWriting'),
       icon: FileCheck2,
     },
     {
       value: 'workspace-write',
       label: t('chat:focusSession.workspaceWrite'),
-      shortLabel: t('chat:focusSession.workspaceWriteShort'),
       description: t('chat:focusSession.workspaceWriteRunsCommandsWithAutomaticApproval'),
       icon: BadgeCheck,
     },
     {
       value: 'full-access',
       label: t('chat:focusSession.fullAccess'),
-      shortLabel: t('chat:focusSession.fullAccessShort'),
       description: t('chat:focusSession.fullAccessRunsShellWithoutPerCommandApproval'),
       icon: ShieldAlert,
     },
@@ -209,8 +204,6 @@ export function ComposerModeChip({
         ? t('board:composer.goalShort')
         : ''
   const chipLabel = runShort ? `${runShort} · ${approval.label}` : approval.label
-  const approvalShort = approval.shortLabel || approval.label
-  const chipShortLabel = runShort ? `${runShort} · ${approvalShort}` : approvalShort
   // 默认（Plan · 审批后写入）时芯片只留盾牌：大多数时候不用看它；换了模式才写出文字。
   // 悬停与读屏照样是完整名字。
   const quiet = run.value === 'plan' && approval.value === 'approval-required'
@@ -259,21 +252,21 @@ export function ComposerModeChip({
           type="button"
           className={cn(
             COMPOSER_CHIP_CLASSES,
-            // 手机上它只在完全访问或 Goal / Team 时露出：内边距收紧一点，360 宽也能写全“完全访问”。
-            'composer-mode-chip max-w-[220px] max-[650px]:max-w-[160px] max-[650px]:gap-1 max-[650px]:px-3',
+            // 手机上它只在完全访问或 Goal / Team 时露出，而且只画图标（完全访问是带感叹号的盾牌，
+            // Goal / Team 前面再加方式图标）：文字在无障碍标签、悬停提示和点开的底部表单里。
+            'composer-mode-chip max-w-[220px] max-[650px]:min-w-9 max-[650px]:justify-center max-[650px]:gap-1',
+            engaged ? 'max-[650px]:px-2.5' : 'max-[650px]:px-0',
           )}
           aria-label={label}
           title={label}
           hidden={collapse && !engaged && approval.value !== 'full-access'}
           data-composer-mode={`${run.value}:${approval.value}`}
         >
-          <ChipIcon size={14} className="shrink-0" aria-hidden="true" />
-          {!quiet && (
-            <>
-              <span className="min-w-0 truncate max-[650px]:hidden">{chipLabel}</span>
-              <span className="hidden min-w-0 truncate max-[650px]:inline">{chipShortLabel}</span>
-            </>
+          {engaged && (
+            <run.icon size={16} className="hidden shrink-0 max-[650px]:block" aria-hidden="true" />
           )}
+          <ChipIcon size={14} className="shrink-0 max-[650px]:size-4" aria-hidden="true" />
+          {!quiet && <span className="min-w-0 truncate max-[650px]:hidden">{chipLabel}</span>}
           {/* 手机上胶囊本身就是按钮（点开底部表单），不再画下拉箭头。 */}
           <ChevronDown
             size={14}

@@ -11,14 +11,21 @@ import { cn } from '@/lib/utils'
 import { runDurationMs } from '@/features/chat/run-activity'
 import type { EntityRecord, ResourceInvocation } from '@/types/chat'
 
-// 输入区图标键：桌面 32px，手机与粗指针 44px 触控目标；“+”菜单与托盘共用同一组工具类。
-// 输入框工具行的文字芯片（盾牌芯片、新任务草稿的项目芯片）：桌面是 28 高的透明芯片；
-// 手机（≤650）是 44 高的无边框浅灰胶囊，深色用 surface-active 才和输入框底色分得开。
-export const COMPOSER_CHIP_CLASSES =
-  'inline-flex h-7 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-11 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-content pointer-coarse:h-11'
+// 手机（≤650）输入框工具行的触控范围：看得见的圆 / 胶囊是 36，透明的 ::after 向四周各扩 4px，
+// 手指能点到的仍是 44（规格 v2 的触屏 44 不变），只是画面上不再是一排 44 的大灰圆（参考 Claude 手机端）。
+// 宽屏的粗指针（平板）照旧是 44 的实体按钮。
+export const COMPOSER_PHONE_TARGET_CLASSES =
+  'relative max-[650px]:after:absolute max-[650px]:after:-inset-1'
 
-export const COMPOSER_ICON_KEY_CLASSES =
-  'grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11'
+// 输入区图标键：桌面 32px，手机 36（触控 44，见上），平板等粗指针 44；“+”菜单与托盘共用同一组工具类。
+// 输入框工具行的文字芯片（盾牌芯片、新任务草稿的项目芯片）：桌面是 28 高的透明芯片；
+// 手机是 36 高的无边框浅灰胶囊，深色用 surface-active 才和输入框底色分得开。
+export const COMPOSER_CHIP_CLASSES = `inline-flex h-7 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-sm border border-transparent px-2 text-[13px] text-content-secondary transition-colors hover:bg-surface-hover hover:text-content aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:h-9 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3 max-[650px]:text-content min-[651px]:pointer-coarse:h-11 ${COMPOSER_PHONE_TARGET_CLASSES}`
+
+export const COMPOSER_ICON_KEY_CLASSES = `grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-content-muted transition-colors hover:bg-surface-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-50 max-[650px]:size-9 max-[650px]:min-w-9 min-[651px]:pointer-coarse:size-11 min-[651px]:pointer-coarse:min-w-11 ${COMPOSER_PHONE_TARGET_CLASSES}`
+
+// 手机工具行的图标统一 16px（桌面保持原尺寸）。
+export const COMPOSER_PHONE_GLYPH_CLASSES = 'max-[650px]:size-4'
 
 // 托盘计时与侧栏运行中行同一种写法（3:12、1:02:05），同一个运行在两处读起来一致。
 function formatTrayClock(milliseconds: number) {
@@ -302,7 +309,7 @@ export function ComposerSendButton({
       type={stopMode ? 'button' : 'submit'}
       data-send-mode={stopMode ? 'stop' : 'send'}
       // 石墨圆键（规格 4.3）：不兼作停止；草稿为空时淡出但保留形状（手机上换成浅灰圆底、深色箭头）。
-      className="send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-full border border-transparent bg-star text-on-accent transition-[background-color,opacity] select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:opacity-30 max-[650px]:disabled:bg-surface-muted max-[650px]:disabled:text-content max-[650px]:disabled:opacity-100 max-[650px]:aria-disabled:bg-surface-muted max-[650px]:aria-disabled:text-content max-[650px]:aria-disabled:opacity-100 max-[650px]:dark:disabled:bg-surface-active max-[650px]:dark:aria-disabled:bg-surface-active data-[send-mode=stop]:bg-surface-muted data-[send-mode=stop]:text-content data-[send-mode=stop]:hover:enabled:bg-surface-hover dark:data-[send-mode=stop]:bg-surface-active max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11"
+      className={`send-button grid size-8 min-w-8 flex-none cursor-pointer place-items-center rounded-full border border-transparent bg-star text-on-accent transition-[background-color,opacity] select-none [-webkit-touch-callout:none] hover:enabled:bg-star-hover active:enabled:translate-y-px disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:opacity-30 max-[650px]:disabled:bg-surface-muted max-[650px]:disabled:text-content max-[650px]:disabled:opacity-100 max-[650px]:aria-disabled:bg-surface-muted max-[650px]:aria-disabled:text-content max-[650px]:aria-disabled:opacity-100 max-[650px]:dark:disabled:bg-surface-active max-[650px]:dark:aria-disabled:bg-surface-active data-[send-mode=stop]:bg-surface-muted data-[send-mode=stop]:text-content data-[send-mode=stop]:hover:enabled:bg-surface-hover dark:data-[send-mode=stop]:bg-surface-active max-[650px]:size-9 max-[650px]:min-w-9 min-[651px]:pointer-coarse:size-11 min-[651px]:pointer-coarse:min-w-11 ${COMPOSER_PHONE_TARGET_CLASSES}`}
       title={blockedReason || (!busy && sendShortcut ? `${label} (${sendShortcut})` : label)}
       aria-label={blockedReason ? `${label}: ${blockedReason}` : label}
       aria-busy={busy || undefined}
@@ -341,11 +348,11 @@ export function ComposerSendButton({
       disabled={!blockedReason && unavailable}
     >
       {busy ? (
-        <RefreshCw className="animate-spin" size={17} />
+        <RefreshCw className={`animate-spin ${COMPOSER_PHONE_GLYPH_CLASSES}`} size={17} />
       ) : stopMode ? (
         <Square size={13} fill="currentColor" aria-hidden="true" />
       ) : (
-        <ArrowUp size={17} strokeWidth={2.1} />
+        <ArrowUp size={17} strokeWidth={2.1} className={COMPOSER_PHONE_GLYPH_CLASSES} />
       )}
     </button>
   )

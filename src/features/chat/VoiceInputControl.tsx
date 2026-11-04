@@ -13,6 +13,10 @@ import { createVoiceEndpoint, type VoiceEndpoint } from './voice-endpoint'
 import { useSpeechModels } from './use-speech-models'
 import { SpeechModelsDialog } from './SpeechModelsDialog'
 import {
+  COMPOSER_PHONE_GLYPH_CLASSES,
+  COMPOSER_PHONE_TARGET_CLASSES,
+} from './focus-session-composer-bits'
+import {
   createSpeechRecognizer,
   requestMicrophonePermission,
   startMicrophoneCapture,
@@ -449,7 +453,7 @@ export function VoiceInputControl({
       <button
         type="button"
         hidden={hidden}
-        className={`relative grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm border transition-colors disabled:cursor-not-allowed disabled:opacity-45 max-[650px]:size-11 max-[650px]:min-w-11 pointer-coarse:size-11 pointer-coarse:min-w-11 ${
+        className={`relative grid size-8 min-w-8 cursor-pointer place-items-center rounded-sm border transition-colors disabled:cursor-not-allowed disabled:opacity-45 max-[650px]:size-9 max-[650px]:min-w-9 min-[651px]:pointer-coarse:size-11 min-[651px]:pointer-coarse:min-w-11 ${COMPOSER_PHONE_TARGET_CLASSES} ${
           stage === 'recording'
             ? 'border-danger bg-danger-soft text-danger'
             : stage === 'transcribing' || stage === 'requesting'
@@ -471,13 +475,13 @@ export function VoiceInputControl({
           />
         )}
         {stage === 'recording' ? (
-          <MicOff size={17} />
+          <MicOff size={17} className={COMPOSER_PHONE_GLYPH_CLASSES} />
         ) : stage === 'transcribing' || stage === 'requesting' ? (
-          <LoaderCircle className="animate-spin" size={16} />
+          <LoaderCircle className={`animate-spin ${COMPOSER_PHONE_GLYPH_CLASSES}`} size={16} />
         ) : stage === 'error' ? (
-          <MicOff size={17} />
+          <MicOff size={17} className={COMPOSER_PHONE_GLYPH_CLASSES} />
         ) : (
-          <Mic size={17} />
+          <Mic size={17} className={COMPOSER_PHONE_GLYPH_CLASSES} />
         )}
       </button>
       {/* 模型下载引导对话框：ensureReady 发现 ASR 未安装时弹出 */}

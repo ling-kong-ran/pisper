@@ -1196,11 +1196,11 @@ test('the phone run state follows the reference: no run row above the composer a
   assert.match(bits, /type=\{stopMode \? 'button' : 'submit'\}/)
 })
 
-test('the phone composer toolbar uses borderless filled pills with short labels', async () => {
-  // 手机工具行照参考稿只有 [+] [模型] … [麦克风] [发送]，都是 44：无边框浅灰圆形 / 胶囊（深色用 surface-active
-  // 才分得出），模型胶囊只写“模型”，具体模型与思考强度在点开的底部表单里。审批芯片默认收起（+ 菜单打开同一个表单，
-  // 完全访问或 Goal / Team 时露出并写短名）；新任务的项目在顶栏标题下面。输入框是浅色细边、没有阴影，
-  // 空草稿的发送键是浅灰圆底。桌面保持完整名称。
+test('the phone composer toolbar uses small borderless filled pills with 44px touch areas', async () => {
+  // 手机工具行照参考稿只有 [+] [模型] … [麦克风] [发送]：看得见的是 36 的无边框浅灰圆形 / 胶囊（深色用
+  // surface-active 才分得出），透明 ::after 把触控范围扩到 44；图标 16。模型胶囊只写“模型”，具体模型与思考强度
+  // 在点开的底部表单里。审批芯片默认收起（+ 菜单打开同一个表单），完全访问或 Goal / Team 时露出、只画图标；
+  // 新任务的项目在顶栏标题下面。输入框是浅色细边、没有阴影，空草稿的发送键是浅灰圆底。桌面保持完整名称。
   const [focus, bits, mode, model, draft] = await Promise.all([
     readFile('src/features/chat/FocusSession.tsx', 'utf8'),
     readFile('src/features/chat/focus-session-composer-bits.tsx', 'utf8'),
@@ -1227,7 +1227,23 @@ test('the phone composer toolbar uses borderless filled pills with short labels'
   assert.match(model, /max-\[650px\]:inline">\s*\{t\('chat:focusSession\.modelChipShort'\)\}/)
   assert.match(focus, /max-\[650px\]:rounded-\[28px\]/)
   assert.match(mode, /max-\[650px\]:hidden">\{chipLabel\}/)
-  assert.match(mode, /hidden min-w-0 truncate max-\[650px\]:inline">\{chipShortLabel\}/)
+  assert.doesNotMatch(mode, /shortLabel|max-\[650px\]:inline/)
+  // 36 的圆 / 胶囊 + 扩到 44 的触控范围；平板等宽屏粗指针仍是 44 的实体按钮。
+  assert.match(
+    bits,
+    /COMPOSER_PHONE_TARGET_CLASSES =\s*'relative max-\[650px\]:after:absolute max-\[650px\]:after:-inset-1'/,
+  )
+  for (const source of [bits, model])
+    assert.match(source, /max-\[650px\]:h-9[^'`]*min-\[651px\]:pointer-coarse:h-11/)
+  assert.match(
+    bits,
+    /max-\[650px\]:size-9 max-\[650px\]:min-w-9 min-\[651px\]:pointer-coarse:size-11/,
+  )
+  assert.match(model, /COMPOSER_PHONE_TARGET_CLASSES,\s*triggerClassName/)
+  assert.doesNotMatch(
+    bits + model + focus,
+    /max-\[650px\]:size-11 max-\[650px\]:min-w-11 pointer-coarse/,
+  )
   assert.match(
     model,
     /shrink-0 text-content-muted max-\[650px\]:hidden">\s*\{supported \? thinkingLevelLabel/,

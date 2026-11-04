@@ -471,6 +471,6 @@ test('one place per choice: desktop groups by status, rarely used settings fold,
   )
   assert.match(
     chip,
-    /\{!quiet && \(\n\s*<>\n\s*<span className="min-w-0 truncate max-\[650px\]:hidden">\{chipLabel\}/,
+    /\{!quiet && <span className="min-w-0 truncate max-\[650px\]:hidden">\{chipLabel\}<\/span>\}/,
   )
 })

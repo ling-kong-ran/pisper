@@ -77,7 +77,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 - 文本、数字、时间、密码字段用 `ui/input` / `ui/textarea`，带图标或内嵌按钮的字段用 `InputGroup`；复选用 `ui/checkbox`，设置类开关用 `ui/switch`。原生 `<input>` 只留给文件选择、视觉隐藏的单选和取色器。
 - 切换视图面板用 `Tabs`，互斥选项用 `SegmentedControl`；两者外观相同，不再各自覆盖成铺满整行或别的样子。
 - 面板、检查器、对话框里的空状态用 `InlineEmptyState compact`；整页空状态用 `PageState`。
-- 控件尺寸按规格 v2：按钮、输入框、下拉框 32px（小号 28），窄屏与触屏 44px。
+- 控件尺寸按规格 v2：按钮、输入框、下拉框 32px（小号 28），窄屏与触屏 44px。44 指触控范围：手机输入框工具行看得见的是 36 的圆 / 胶囊，透明 `::after` 把触控范围扩到 44（`COMPOSER_PHONE_TARGET_CLASSES`）。
 - 同一个控件在多个页面出现时（例如输入框的模型芯片）必须复用同一组件，经 Feature 公共接口导出，不得复制一份再改样式。
 - 新界面和改到的旧界面都按现行样式（规格 v2 与 `docs/design/built/` 截图）；改动涉及的旧面板顺手迁到现行组件。
 - 守卫测试在 `runtime/tests/legacy-ui-retirement.test.mjs`，新规则同时补守卫。

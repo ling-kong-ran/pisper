@@ -240,6 +240,10 @@ function fixture(t, options = {}) {
     },
     './AnchoredPopupMenu': { AnchoredPopupMenu: 'popup' },
     './SpeechModelsDialog': { SpeechModelsDialog: 'speech-model-dialog' },
+    './focus-session-composer-bits': {
+      COMPOSER_PHONE_GLYPH_CLASSES: 'max-[650px]:size-4',
+      COMPOSER_PHONE_TARGET_CLASSES: 'relative',
+    },
     './use-speech-models': {
       useSpeechModels: () => ({
         models: [{ id: 'asr', status: 'installed' }],

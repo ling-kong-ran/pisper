@@ -63,6 +63,7 @@ import { VoiceInputControl } from './VoiceInputControl'
 import { VoiceModeOverlay } from './VoiceModeOverlay'
 import {
   COMPOSER_ICON_KEY_CLASSES,
+  COMPOSER_PHONE_GLYPH_CLASSES,
   ComposerResourceChip,
   ComposerSendButton,
   ComposerTray,
@@ -576,7 +577,7 @@ export const FocusSession = memo(function FocusSession({
           aria-label={plusLabel}
           data-composer-plus
         >
-          <Plus size={18} aria-hidden="true" />
+          <Plus size={18} className={COMPOSER_PHONE_GLYPH_CLASSES} aria-hidden="true" />
           {selection.attachments.length > 0 && (
             <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full border-2 border-panel bg-star px-0.5 text-[10px] leading-none font-medium text-on-accent tabular-nums">
               {selection.attachments.length}
@@ -1076,7 +1077,7 @@ export const FocusSession = memo(function FocusSession({
               手机照参考稿只留 [+] [模型] … [麦克风] [发送]：审批收进 + 菜单（完全访问或 Goal / Team 时芯片仍露出），
               新任务的项目在顶栏副标题里。控件都是 44 的圆形 / 胶囊：留 8px 内边距，与 28px 圆角大致同心。 */}
           <div
-            className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:gap-1.5"
+            className="focus-composer-footer @container/composer-footer flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:gap-2"
             data-composer-toolbar
           >
             {plusMenu}

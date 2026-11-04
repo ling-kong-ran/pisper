@@ -1053,11 +1053,14 @@ async function verifyPhoneShell(boardSessions) {
       nodes
         .filter((node) => node.getClientRects().length > 0)
         .map((node) => {
+          // 触控范围 = 看得见的框 + 透明 ::after 向外扩的部分（手机工具行是 36 的圆，触控扩到 44）。
+          const after = getComputedStyle(node, '::after')
+          const grow = (value) => (after.position === 'absolute' ? -(parseFloat(value) || 0) : 0)
           const box = node.getBoundingClientRect()
           return {
             name: node.getAttribute('aria-label') || node.textContent.trim(),
-            width: box.width,
-            height: box.height,
+            width: box.width + grow(after.left) + grow(after.right),
+            height: box.height + grow(after.top) + grow(after.bottom),
             top: Math.round(box.top),
           }
         }),
@@ -1513,23 +1516,28 @@ async function verifyPhoneSession(boardSessions) {
     'Phone drawer on the session page: the standard approval is handled in one step with exactly one POST without leaving the session; the critical row has no approve key; Android back closes the drawer first',
   )
 
-  // 输入框（规格 7.2，手机参考稿）：工具行 [+] [模型] … [麦克风] [发送]，都是 44px；
-  // 默认的审批芯片收起，审批与执行方式从 + 菜单打开同一个底部表单。返回键先关表单。
-  const phoneToolbar = await page
-    .locator('[data-composer-toolbar] button')
-    .evaluateAll((nodes) =>
-      nodes
-        .filter((node) => node.getClientRects().length > 0)
-        .map((node) => [
+  // 输入框（规格 7.2，手机参考稿）：工具行 [+] [模型] … [麦克风] [发送]，看得见的是 36 的圆 / 胶囊，
+  // 触控范围 44；默认的审批芯片收起，审批与执行方式从 + 菜单打开同一个底部表单。返回键先关表单。
+  const phoneToolbar = await page.locator('[data-composer-toolbar] button').evaluateAll((nodes) =>
+    nodes
+      .filter((node) => node.getClientRects().length > 0)
+      .map((node) => {
+        // 触控范围 = 看得见的框 + 透明 ::after 向外扩的部分（手机工具行是 36 的圆，触控扩到 44）。
+        const after = getComputedStyle(node, '::after')
+        const grow = (value) => (after.position === 'absolute' ? -(parseFloat(value) || 0) : 0)
+        const box = node.getBoundingClientRect()
+        return [
           node.getAttribute('aria-label') || node.textContent.trim(),
-          Math.round(node.getBoundingClientRect().height),
-        ]),
-    )
+          Math.round(box.height),
+          Math.round(box.height + grow(after.top) + grow(after.bottom)),
+        ]
+      }),
+  )
   assert.equal(phoneToolbar.length, 4, JSON.stringify(phoneToolbar))
   assert.match(phoneToolbar[1][0], /^模型/)
   assert.equal(phoneToolbar[2][0], '开始语音输入')
   assert.ok(
-    phoneToolbar.every(([, height]) => height === 44),
+    phoneToolbar.every(([, height, touch]) => height === 36 && touch === 44),
     JSON.stringify(phoneToolbar),
   )
   assert.equal(await page.locator('[data-composer-mode]').isVisible(), false)
@@ -1551,7 +1559,7 @@ async function verifyPhoneSession(boardSessions) {
   }
   assert.equal(hashOf(page), `#/board/${BOARD_SESSION_ID}`)
   report.checks.push(
-    'Phone composer: one toolbar row [+] [模型] … [麦克风] [发送] of 44px targets; the approval chip is folded into the + menu, which opens the same bottom sheet as the model chip does its own; Android back closes each first',
+    'Phone composer: one toolbar row [+] [模型] … [麦克风] [发送] of 36px controls with 44px touch areas; the approval chip is folded into the + menu, which opens the same bottom sheet as the model chip does its own; Android back closes each first',
   )
 
   // 改动芯片 → 检查器底部表单（改动 / 终端 / 文件 / 预览）；返回键先关表单，再回到全部代理。

@@ -18,6 +18,7 @@ import { formatTokenCount } from '@/lib/format'
 import { compactModelName } from '@/lib/model-display'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
+import { COMPOSER_PHONE_TARGET_CLASSES } from './focus-session-composer-bits'
 import { formatRunDuration } from './run-activity'
 
 type Translate = (message: string, values?: I18nValues) => string
@@ -396,7 +397,8 @@ export function ModelThinkingControl({
         <button
           type="button"
           className={cn(
-            'model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 aria-expanded:bg-surface-hover max-[650px]:h-11 max-[650px]:gap-1 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3.5 max-[650px]:text-sm pointer-coarse:h-11',
+            'model-effort-pill inline-flex h-[30px] min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-sm border border-transparent pr-1.5 pl-2.5 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 aria-expanded:bg-surface-hover max-[650px]:h-9 max-[650px]:gap-1 max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:px-3 max-[650px]:text-sm min-[651px]:pointer-coarse:h-11',
+            COMPOSER_PHONE_TARGET_CLASSES,
             triggerClassName,
           )}
           aria-label={label}
