@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
+import { BOT_CONVERSATION_TOOL_NAMES } from '../tools/app/bot-conversation-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
@@ -34,7 +35,18 @@ const TOOL_RISKS = new Map([
 const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const SCHEDULE_ESCALATING_ACTIONS = new Set(['create', 'update', 'resume', 'run_now'])
 // ask_user 不是权限：问题本身就是等用户决定，再叠一层审批只会让用户点两次（规格 8.4）。
-const INTERNAL_SAFE_TOOLS = new Set(['get_goal', 'update_goal', 'ask_user', ...PLAN_ALL_TOOL_NAMES])
+// Bot 对话的经理工具只是派活、提问、定时、记忆与传话：真正的动手各自走子 agent 与定时任务自己的权限。
+const INTERNAL_SAFE_TOOLS = new Set([
+  'get_goal',
+  'update_goal',
+  'ask_user',
+  ...PLAN_ALL_TOOL_NAMES,
+  ...BOT_CONVERSATION_TOOL_NAMES,
+])
+
+// Bot 的对话不停下来等批准：要批准的操作退回给它，让它改派子 agent。
+export const NO_WAIT_APPROVAL_REASON =
+  'Not run: this step needs the user’s approval, and a bot conversation never stops to wait for approval. Hand it to a sub-agent with bot_job_start (its approval card appears in the conversation and waiting only holds up that job), then carry on.'
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map((item) => stableValue(item))
@@ -353,7 +365,8 @@ export class SessionPermissionService {
     } catch {}
   }
 
-  install(session, { sessionId, cwd }) {
+  // noWait：这个会话不停下来等批准（Bot 的对话）——要批准的操作直接退回并说明交给子 agent 去做。
+  install(session, { sessionId, cwd, noWait = false }) {
     if (!session?.agent || this.installedSessions.has(session)) return
     this.installedSessions.add(session)
     const upstream = session.agent.beforeToolCall
@@ -367,6 +380,7 @@ export class SessionPermissionService {
         toolCallId: context.toolCall.id,
         args: context.args,
         signal,
+        noWait,
       })
     }
   }
@@ -432,7 +446,7 @@ export class SessionPermissionService {
     return this.computerUseSecureRefs.observe(sessionId, toolName, result)
   }
 
-  async authorize({ sessionId, cwd, toolName, toolCallId, args, signal }) {
+  async authorize({ sessionId, cwd, toolName, toolCallId, args, signal, noWait = false }) {
     if (this.isToolBlocked(sessionId, toolName))
       return { block: true, reason: `${toolName} 不在这次运行可用的工具范围内，未执行。` }
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
@@ -493,6 +507,7 @@ export class SessionPermissionService {
       (await this.hasRememberedApproval(rememberedKey))
     )
       return undefined
+    if (noWait) return { block: true, reason: NO_WAIT_APPROVAL_REASON }
     const approval = await this.requestApproval({
       sessionId,
       toolName,

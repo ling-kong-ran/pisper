@@ -9,6 +9,8 @@ export type SessionAgentStatus =
 
 export type SessionAgent = {
   id: string
+  // agent = 派出去的子 agent；command = Bot 对话转到后台接着跑的命令。
+  kind: 'agent' | 'command'
   taskName: string
   status: SessionAgentStatus
   message: string
@@ -56,6 +58,7 @@ export function parseSessionAgents(value: unknown): SessionAgent[] {
     return [
       {
         id: input.id,
+        kind: input.kind === 'command' ? 'command' : 'agent',
         // 人看的标题优先（Bot 派活时写的），没有时用规整过的 taskName。
         taskName: text(input.title, 120) || text(input.taskName, 120) || 'agent',
         status,

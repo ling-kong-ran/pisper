@@ -70,6 +70,7 @@ export class SessionLifecycle {
     getGoals,
     getPlans,
     getMultiAgents,
+    getBotCommands,
     getTeamWorkflows,
     getPermissions,
     getQuestions,
@@ -110,6 +111,7 @@ export class SessionLifecycle {
     this.getGoals = getGoals
     this.getPlans = getPlans
     this.getMultiAgents = getMultiAgents
+    this.getBotCommands = getBotCommands || (() => null)
     this.getTeamWorkflows = getTeamWorkflows
     this.getPermissions = getPermissions
     // 提问服务（ask_user）是可选依赖：没有时等同于没有待回答的问题。
@@ -183,7 +185,9 @@ export class SessionLifecycle {
       this.getGoals().get(id)?.status === 'active' ||
       this.agentWakeupTimers.has(id) ||
       value?.pendingAgentNotifications?.length ||
-      this.getMultiAgents().hasActive?.(id),
+      this.getMultiAgents().hasActive?.(id) ||
+      // Bot 对话转到后台的命令：跑完要把结果交回这个运行时。
+      this.getBotCommands()?.hasActive?.(id),
     )
   }
 

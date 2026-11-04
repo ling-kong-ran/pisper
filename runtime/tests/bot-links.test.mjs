@@ -6,7 +6,7 @@ import test from 'node:test'
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { botTurnTrigger } from '../runtime/bot-decisions.mjs'
 import { ATTACHMENT_MARKER, serializeTranscriptMessages } from '../runtime/stream-projection.mjs'
-import { parseBotDecisions } from '../services/bots/bot-conversation.mjs'
+import { normalizeBotAction } from '../services/bots/bot-conversation.mjs'
 import {
   BotLinkService,
   MAX_BOT_LINK_HOPS,
@@ -49,18 +49,15 @@ test('the source tag round-trips and courtesy messages are recognised', () => {
     assert.equal(isCourtesyMessage(text), false, text)
   }
   assert.deepEqual(
-    parseBotDecisions(
-      JSON.stringify({
-        actions: [
-          { type: 'message', bot: '测试', text: '帮我跑一遍回归' },
-          { type: 'message', bot: '测试', text: '不用回', expectsReply: false },
-          { type: 'message', bot: '', text: 'x' },
-        ],
-      }),
-    ),
+    [
+      { type: 'message', bot: '测试', text: '帮我跑一遍回归' },
+      { type: 'message', bot: '测试', text: '不用回', expectsReply: false },
+      { type: 'message', bot: '', text: 'x' },
+    ].map(normalizeBotAction),
     [
       { type: 'message', bot: '测试', text: '帮我跑一遍回归', expectsReply: true },
       { type: 'message', bot: '测试', text: '不用回', expectsReply: false },
+      null,
     ],
   )
 })

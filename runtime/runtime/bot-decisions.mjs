@@ -1,6 +1,5 @@
-// Bot 对话的“决定”请求：对话这一句说完后，拿同一份上下文快照再问一次“现在要做什么”，只要 JSON。
-// 和旁问一样是一次无头请求：不建会话、不写会话文件、不带工具；系统提示与消息前缀与对话一致，便于命中提示缓存。
-import { convertToLlm } from './pi-coding-agent.mjs'
+// Bot 对话这一轮的来由（谁叫起来的、交回了哪些结果），以及整理记忆、复盘用的无头请求
+// （不建会话、不写会话文件、不带工具）。
 import { ATTACHMENT_MARKER, textFromContent } from './stream-projection.mjs'
 import { isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
@@ -34,18 +33,17 @@ export function botTurnTrigger(messages) {
     const at = raw.indexOf(ATTACHMENT_MARKER)
     if (!message && at >= 0) message = parseBotMessageTag(raw.slice(at))
   }
-  // 最后一段回复：工具前的旁白不算（对话没有工具，通常就是整段）。
-  return { message, brief, completedAgents, reply: (replyParts.at(-1) || '').trim() }
-}
-
-export function botDecisionContext(session, instruction, now = Date.now()) {
+  // 最后一段有字的回复（工具调用之间的旁白不算）。
   return {
-    systemPrompt: session.systemPrompt || '',
-    messages: [
-      ...convertToLlm([...(session.messages || [])]),
-      { role: 'user', content: [{ type: 'text', text: instruction }], timestamp: now },
-    ],
-    tools: [],
+    message,
+    brief,
+    completedAgents,
+    reply: (
+      replyParts
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .at(-1) || ''
+    ).trim(),
   }
 }
 
@@ -116,20 +114,4 @@ export function parseTidy(raw, entries) {
     kept.push({ id, text: String(item?.text ?? '') })
   }
   return kept.length ? kept : null
-}
-
-/** @param {{ modelRuntime: any, session: any, instruction: string, signal?: AbortSignal }} input */
-export async function requestBotDecisions({ modelRuntime, session, instruction, signal }) {
-  const model = session.model
-  if (!model) throw new Error('Bot 的对话还没有可用模型。')
-  const stream = modelRuntime.streamSimple(model, botDecisionContext(session, instruction), {
-    signal,
-    sessionId: session.sessionId,
-  })
-  let text = ''
-  for await (const event of stream) if (event.type === 'text_delta') text += event.delta
-  const message = await stream.result()
-  if (message.stopReason === 'aborted') throw new Error('决定请求已取消。')
-  if (message.stopReason === 'error') throw new Error(message.errorMessage || '决定请求失败。')
-  return { text, usage: message.usage || null }
 }

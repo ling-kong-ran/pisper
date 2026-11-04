@@ -678,6 +678,7 @@
   "focusSession.waitingForModel": "Switching model. Please wait.",
   "focusSession.returnToLatest": "Return to latest messages",
   "agentJob.title": "Handed off: {task}",
+  "agentJob.command": "Background command: {command}",
   "agentJob.queued": "queued",
   "agentJob.running": "working",
   "agentJob.completed": "done",

@@ -8,7 +8,7 @@ import test from 'node:test'
 
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { parseTidy } from '../runtime/bot-decisions.mjs'
-import { parseBotDecisions } from '../services/bots/bot-conversation.mjs'
+import { normalizeBotAction } from '../services/bots/bot-conversation.mjs'
 import { BotMemoryService, botMemoryContext } from '../services/bots/bot-memory-service.mjs'
 
 async function withService(run) {
@@ -92,12 +92,15 @@ test('the conversation sees its memory with short ids, and can remember or forge
   assert.equal(context, '[你记得的事]\n- (abcdef) 发版前在 iPhone 上点一遍首页')
   assert.equal(botMemoryContext([]), '')
   assert.deepEqual(
-    parseBotDecisions(
-      '{"actions":[{"type":"remember","text":"以后别 push 到 main","source":"correction"},{"type":"forget","memory":"abcdef"},{"type":"remember","text":""}]}',
-    ),
     [
       { type: 'remember', text: '以后别 push 到 main', source: 'correction' },
       { type: 'forget', memory: 'abcdef' },
+      { type: 'remember', text: '' },
+    ].map(normalizeBotAction),
+    [
+      { type: 'remember', text: '以后别 push 到 main', source: 'correction' },
+      { type: 'forget', memory: 'abcdef' },
+      null,
     ],
   )
 })

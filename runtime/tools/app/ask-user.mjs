@@ -14,7 +14,8 @@ const optionSchema = Type.Object({
   ),
 })
 
-const questionSchema = Type.Object({
+// Bot 对话的提问工具（bot_ask）用同一份题目格式，卡片与回答的校验一致。
+export const ASK_USER_QUESTION_SCHEMA = Type.Object({
   header: Type.Optional(
     Type.String({
       description: 'Very short title for the question, e.g. "Auth method" (≤24 chars).',
@@ -68,7 +69,7 @@ export function createAskUserTool({ requestAnswers, isAvailable = () => true }) 
       'The call blocks until the user answers, skips, or stops the run. If the user skips, decide on your own.',
     ],
     parameters: Type.Object({
-      questions: Type.Array(questionSchema, { minItems: 1, maxItems: 4 }),
+      questions: Type.Array(ASK_USER_QUESTION_SCHEMA, { minItems: 1, maxItems: 4 }),
     }),
     async execute(toolCallId, params, signal) {
       if (!isAvailable())

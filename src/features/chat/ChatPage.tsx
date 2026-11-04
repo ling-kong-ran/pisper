@@ -206,6 +206,12 @@ export function ChatPage({
   const activeCatalogStreaming = catalog.sessions.some(
     (session) => session.id === activeId && session.streaming === true,
   )
+  // Bot 的对话：它发的问题卡片不等回答、这一轮说完后还挂着，空闲的会话页又不轮询实时快照——
+  // 打开 Bot 的对话时、以及它在后台说完一轮时读一次，卡片（以及挂着的批准）才会出现。
+  const activeBotId = catalog.sessions.find((session) => session.id === activeId)?.botId
+  useEffect(() => {
+    if (activeId && activeBotId) void syncLiveSession(activeId)
+  }, [activeBotId, activeCatalogStreaming, activeId, syncLiveSession])
   const catalogRunRef = useRef({ id: '', streaming: false })
   useEffect(() => {
     const previous = catalogRunRef.current

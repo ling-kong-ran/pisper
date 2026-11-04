@@ -327,9 +327,9 @@ test('every turn in a bot session runs with the bot scope, prompt and isolation'
   const source = await readFile(new URL('../runtime/agent-runtime.mjs', import.meta.url), 'utf8')
   assert.match(
     source,
-    /const bot = this\.botForSession\?\.\(value\.session\?\.sessionId \|\| sessionId\)\s*if \(bot\) \{\s*allowedToolNames = bot\.tools\s*isolatedContext = true\s*\}/,
+    /const bot = this\.botForSession\?\.\(value\.session\?\.sessionId \|\| sessionId\)\s*if \(bot\) \{[\s\S]*?allowedToolNames =\s*value\.conversationOnly && Array\.isArray\(bot\.tools\)\s*\? \[\.\.\.bot\.tools, \.\.\.BOT_CONVERSATION_TOOL_NAMES\]\s*: bot\.tools\s*isolatedContext = true\s*\}/,
   )
-  // Bot 的对话（v2）：本机的 Bot 只说话、做决定（对话的系统提示），执行节点上的 Bot 仍是一个会话自己干。
+  // Bot 的对话（v2.1）：本机的 Bot 是对话 + 子 agent（对话的系统提示），执行节点上的 Bot 仍是一个会话自己干。
   assert.match(
     source,
     /const conversationOnly = Boolean\(\s*bot && !remoteExecutor && this\.capabilities\.features\.multiAgent,?\s*\)/,

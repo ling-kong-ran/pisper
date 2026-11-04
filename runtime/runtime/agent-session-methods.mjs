@@ -214,6 +214,9 @@ export const agentSessionMethods = {
     if (!text && !attachments.length) throw new Error('消息不能为空。')
     if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
     if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
+    // Bot 的对话不阻塞：运行中发来的话（除了排到这一轮之后的）一律插队，打断这一步马上看；
+    // 正在跑的命令转到后台，不杀掉。
+    if (value.conversationOnly && behavior === 'steer') behavior = 'interrupt'
     const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
     const displayText = text || '请分析这些附件。'
     const prepared = await this.preparePromptAttachments(value, attachments)

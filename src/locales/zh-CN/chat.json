@@ -678,6 +678,7 @@
   "focusSession.waitingForModel": "正在切换模型，请稍候",
   "focusSession.returnToLatest": "返回最新消息",
   "agentJob.title": "派了：{task}",
+  "agentJob.command": "后台命令：{command}",
   "agentJob.queued": "排队中",
   "agentJob.running": "在做",
   "agentJob.completed": "做完了",

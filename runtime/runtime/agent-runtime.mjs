@@ -112,6 +112,11 @@ import { TOOL_CATALOG, createAppTools, createMultiAgentTools } from '../tools/re
 import { BUILTIN_SKILLS } from '../services/custom-ui-sdk-docs.mjs'
 import { createGoalTools, GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { ASK_USER_TOOL_NAME, createAskUserTool } from '../tools/app/ask-user.mjs'
+import {
+  BOT_CONVERSATION_TOOL_NAMES,
+  createBotConversationTools,
+} from '../tools/app/bot-conversation.mjs'
+import { BotCommandJobs, botCommandResultPrompt } from './bot-background-commands.mjs'
 import { SessionQuestionService } from '../services/session-question-service.mjs'
 import { SessionStartQueue } from '../services/session-start-queue.mjs'
 import { recordThinkingDuration } from '../services/thinking-durations.mjs'
@@ -151,7 +156,11 @@ import {
   createScheduleWorkflowAdapter,
   normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
-import { ToolActivation, runToolBlocker } from './tool-activation.mjs'
+import {
+  BOT_CONVERSATION_BLOCKED_TOOLS,
+  ToolActivation,
+  runToolBlocker,
+} from './tool-activation.mjs'
 import {
   createExecutorTools,
   normalizeRemoteExecutor,
@@ -707,7 +716,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const sessionId = this.bots.get(botId)?.threadSessionId
         return Boolean(
           sessionId &&
-          (this.sessionRunIsActive(sessionId) || this.multiAgents.hasActive(sessionId)),
+          (this.sessionRunIsActive(sessionId) ||
+            this.multiAgents.hasActive(sessionId) ||
+            this.botCommands?.hasActive(sessionId)),
         )
       },
     })
@@ -717,6 +728,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.botSkills = new BotSkillService({ dataDir })
     // Bot 之间的来往（只在内存里）：哪条链在等谁回话、跳数与频率限制。
     this.botLinks = new BotLinkService()
+    // Bot 对话转到后台的命令：跑完把结果交回对话（和子 agent 做完一样）。
+    this.botCommands = new BotCommandJobs({
+      onFinished: (sessionId, job) =>
+        this.injectParentNotice(sessionId, botCommandResultPrompt(job)),
+    })
     // 主动巡看与每日简报的上次时间（每个 Bot 一个小文件）；计时器在初始化完成后启动。
     this.botProactive = new BotProactiveStore({ dataDir })
     this.botProactiveTimer = null
@@ -823,6 +839,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getGoals: () => this.goals,
       getPlans: () => this.plans,
       getMultiAgents: () => this.multiAgents,
+      getBotCommands: () => this.botCommands,
       getTeamWorkflows: () => ({
         get: (id) => this.getTeamProjection(id, { compact: true }),
         remove: (id) => this.teamWorkflows.remove(id),
@@ -1747,7 +1764,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       .filter((name) => !remoteExecutor || REMOTE_EXECUTOR_TOOL_NAMES.includes(name))
     // Bot 的会话：系统提示追加它是谁与它的指令（改了指令时 Bot 设置会释放空闲的运行时，重建后生效）。
     const bot = this.botForSession?.(runtimeSessionId)
-    // Bot 的对话（v2）：只说话、做决定，自己不跑工具，活派给子 agent。执行节点上的 Bot 暂时还是一个会话自己干
+    // Bot 的对话（v2.1）：自己做快的事（读、查、小改、短命令），长的、要批准的交给子 agent；运行时保证它不阻塞
+    // （新消息插进来、长命令转后台、不在对话里等批准）。执行节点上的 Bot 暂时还是一个会话自己干
     // （子 agent 还不能在执行节点上跑），没有多 Agent 能力时也一样。
     const conversationOnly = Boolean(
       bot && !remoteExecutor && this.capabilities.features.multiAgent,
@@ -1762,6 +1780,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
                 appendSystemPrompt: conversationOnly
                   ? botConversationPrompt(bot)
                   : botSystemPrompt(bot),
+                // 对话自己也动手：它写的技能它自己也带着。
+                ...(conversationOnly && this.botSkills
+                  ? { extraSkillPaths: [this.botSkills.dir(bot.id)] }
+                  : {}),
               }
             : undefined,
         ),
@@ -2077,15 +2099,25 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           createMultiAgentTools({ multiAgentRuntime, agentProfiles, tierModels }),
         )
       : []
-    const inheritedCustomTools = createInheritedCustomTools()
+    // Bot 的对话：命令超过 10 秒或这一步被新消息打断时转后台接着跑，不卡住对话（子 agent 用自己的 bash，不受影响）。
+    const inheritedCustomTools = createInheritedCustomTools(
+      conversationOnly && bashTool
+        ? this.botCommands.wrap(bashTool, { sessionId: runtimeSessionId })
+        : bashTool,
+    )
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
     // 工具网关：集中管控工具调用（权限审批），
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
-      authorize: (input) => this.permissions.authorize({ cwd: toolCwd, ...input }),
+      authorize: (input) =>
+        this.permissions.authorize({ cwd: toolCwd, ...input, noWait: conversationOnly }),
       sessionId: runtimeSessionId,
     })
+    // Bot 对话当经理用的工具：派活、提问卡片、给自己定时、记忆、找别的 Bot（都立即返回）。
+    const botTools = conversationOnly
+      ? createBotConversationTools({ runtime: this.botConversationRuntime(runtimeSessionId) })
+      : []
     const sessionSettingsManager = createCompactionSettingsManager(
       this.settingsManager,
       () => runtimeSession?.model?.contextWindow,
@@ -2107,6 +2139,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...(this.capabilities.features.plans ? PLAN_ALL_TOOL_NAMES : []),
         ...(this.capabilities.features.multiAgent ? MULTI_AGENT_TOOL_NAMES : []),
         ...(this.capabilities.features.askUser ? [ASK_USER_TOOL_NAME] : []),
+        ...(conversationOnly ? BOT_CONVERSATION_TOOL_NAMES : []),
       ],
       customTools: [
         ...(remoteExecutor ? executorTools : [await createCompressedReadTool(effectiveCwd)]),
@@ -2117,6 +2150,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...planTools,
         ...multiAgentTools,
         ...askUserTools,
+        ...botTools,
       ],
     })
     markRunStage('rt.agentSession')
@@ -2171,7 +2205,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
     }
     this.syncGoalTools(value, this.goals.get(session.sessionId))
-    this.permissions.install(session, { sessionId: session.sessionId, cwd: toolCwd })
+    // Bot 的对话不在对话里等批准：要批准的操作直接退回，让它交给子 agent（子 agent 的审批另装，照常等）。
+    this.permissions.install(session, {
+      sessionId: session.sessionId,
+      cwd: toolCwd,
+      noWait: conversationOnly,
+    })
     // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
       systemPrompt: applyPisperSystemPrompt(session, session.model),
@@ -2236,20 +2275,24 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const sessionId = agent.parentSessionId
     // Bot 派的活做完了：另起一次复盘（会反复做的写成技能），和下面的汇报互不影响。
     void this.botAgentFinished?.(agent)
+    // Bot 的巡看结果另带一句“写成安静的建议、不开活”。
+    this.injectParentNotice(
+      sessionId,
+      this.botCompletionPromptFor?.(agent) || agentCompletionPrompt(agent),
+    )
+  }
+
+  // 把一条内部通知（子 agent 做完、Bot 的后台命令跑完）交给父会话：在跑就 steer 进去，
+  // 没在跑就排进待处理并唤醒一轮；Bot 的对话不在内存里时加载它再说进去。
+  injectParentNotice(sessionId, prompt) {
     const value = this.sessions.get(sessionId)
     if (!value?.session) {
-      // Bot 的对话不在内存里：加载它并把完成消息说进去（隐藏消息），它照常汇报。
       if (this.botForSession?.(sessionId))
-        void this.promptFromChannel({
-          sessionId,
-          message: this.botCompletionPromptFor?.(agent) || agentCompletionPrompt(agent),
-          unattended: true,
-        }).catch(() => console.warn('[bots] 子 agent 的结果没能交回 Bot 的对话。'))
+        void this.promptFromChannel({ sessionId, message: prompt, unattended: true }).catch(() =>
+          console.warn('[bots] 结果没能交回 Bot 的对话。'),
+        )
       return
     }
-
-    // Bot 的巡看结果另带一句“写成安静的建议、不开活”。
-    const prompt = this.botCompletionPromptFor?.(agent) || agentCompletionPrompt(agent)
 
     // 如果会话正在运行，直接 steer 注入
     if (this.sessionRunIsActive(sessionId, value)) {
@@ -2352,7 +2395,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // Bots 实验功能关掉后不再套用，会话照常可用。
     const bot = this.botForSession?.(value.session?.sessionId || sessionId)
     if (bot) {
-      allowedToolNames = bot.tools
+      // Bot 的对话另带它当经理用的 bot_* 工具（不受 Bot 工具范围限制，范围只管它自己动手的工具）。
+      allowedToolNames =
+        value.conversationOnly && Array.isArray(bot.tools)
+          ? [...bot.tools, ...BOT_CONVERSATION_TOOL_NAMES]
+          : bot.tools
       isolatedContext = true
     }
     // 本轮的工具范围：每轮重设，普通会话不受限。
@@ -2385,7 +2432,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     if (isolatedContext) {
       value.isolatedContext = true
-      value.blockedToolNames = ISOLATED_CONTEXT_BLOCKED_TOOLS
+      value.blockedToolNames = value.conversationOnly
+        ? [...ISOLATED_CONTEXT_BLOCKED_TOOLS, ...BOT_CONVERSATION_BLOCKED_TOOLS]
+        : ISOLATED_CONTEXT_BLOCKED_TOOLS
     }
     const { session } = value
     const appConfig = await readJson(this.appConfigPath, {
@@ -3268,10 +3317,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     } catch {
       console.warn('看板卡片摘要记录失败。')
     }
-    // Bot 的对话这一句说完：按对话决定派、补充、停子 agent（独立请求，失败不影响回复）。
-    // 只记下“该做决定了”，等这一轮真正放下运行标记再排（streamPrompt 的收尾）：否则很快做完的
-    // 子 agent 会把完成通知 steer 进已经结束的这一轮，通知就丢了。
-    if (value.conversationOnly && !error && !value.abortedAt) value.botDecisionsDue = true
+    // Bot 的对话这一轮说完：收尾（把回话交给别的 Bot、回复发回聊天、整理记忆）。
+    // 只记下“该收尾了”，等这一轮真正放下运行标记再排（streamPrompt 的收尾）：否则这时交回来的完成通知
+    // 会 steer 进已经结束的这一轮。
+    if (value.conversationOnly && !error && !value.abortedAt) value.botTurnDue = true
   }
 
   // 精简摘要写进会话元数据（pisper-sessions.json 的 boardCard），Runtime 重启后已落盘会话靠它出卡片。

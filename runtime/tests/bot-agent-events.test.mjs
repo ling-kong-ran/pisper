@@ -15,6 +15,7 @@ import {
 
 const agent = (id, status, startedAt, extra = {}) => ({
   id,
+  kind: 'agent',
   taskName: id,
   status,
   message: '',

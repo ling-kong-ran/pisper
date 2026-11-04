@@ -1,5 +1,6 @@
 // 工具激活辅助：热门工具集合与 schema-only 工具定义清洗。
 import { PLAN_TOOL_NAMES } from './app/plan-tool-names.mjs'
+import { BOT_CONVERSATION_TOOL_NAMES } from './app/bot-conversation-tool-names.mjs'
 
 const HOT_TOOL_SET = new Set([
   'read',
@@ -22,6 +23,8 @@ const HOT_TOOL_SET = new Set([
   'ask_user',
   // codemode 只在插件页开启后才进入可用工具；开了就直接声明，脚本才能编排其他工具。
   'codemode',
+  // Bot 对话的经理工具常驻可见（只在 Bot 的对话里可用）。
+  ...BOT_CONVERSATION_TOOL_NAMES,
 ])
 
 export function schemaOnlyToolDefinition(tool) {

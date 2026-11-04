@@ -6,6 +6,7 @@ import { WORKFLOW_TOOL_NAMES } from '../tools/app/workflows.mjs'
 import { PLAN_ALL_TOOL_NAMES, PLAN_COMPATIBILITY_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
+import { BOT_CONVERSATION_TOOL_NAMES } from '../tools/app/bot-conversation-tool-names.mjs'
 import { selectedToolNames } from '../tools/tool-activation.mjs'
 import { applyPisperSystemPrompt } from '../prompts/pisper-system-prompt.mjs'
 
@@ -18,6 +19,17 @@ const SCOPE_INFRA_TOOL_NAMES = [
   ...GOAL_TOOL_NAMES,
   ASK_USER_TOOL_NAME,
 ]
+
+// Bot 的对话（v2.1）用自己的经理工具（bot_*）代替这些：通用的多 Agent、提问、定时、工作流与目标工具会让它
+// 阻塞（ask_user 等回答、目标循环）或绕过 Bot 的设定（派出的子 agent 不带 Bot 的范围与记忆）；浏览器自动化太慢，交给子 agent。
+export const BOT_CONVERSATION_BLOCKED_TOOLS = Object.freeze([
+  ...MULTI_AGENT_TOOL_NAMES,
+  ASK_USER_TOOL_NAME,
+  ...GOAL_TOOL_NAMES,
+  ...SCHEDULE_TOOL_NAMES,
+  ...WORKFLOW_TOOL_NAMES,
+  'browser_automation',
+])
 
 // 本轮不可用的工具：隔离上下文的屏蔽项；没人在场的运行里的 ask_user、定时任务与工作流工具
 // （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）；
@@ -66,11 +78,6 @@ export class ToolActivation {
   // 同步目标工具开关：目标激活时启用目标相关工具，否则关闭。
   syncGoalTools(value, goal) {
     if (!value?.session) return
-    // Bot 的对话只说话、做决定，活交给子 agent：它自己一个工具都不开。
-    if (value.conversationOnly) {
-      value.session.setActiveToolsByName([])
-      return
-    }
     const isBlocked = runToolBlocker(value)
     const availableToolNames = [
       ...(value.baseToolNames || []),
@@ -80,6 +87,8 @@ export class ToolActivation {
       ...MULTI_AGENT_TOOL_NAMES,
       ...GOAL_TOOL_NAMES,
       ASK_USER_TOOL_NAME,
+      // Bot 的对话：自己动手的工具按 Bot 的范围，外加它当经理用的 bot_* 工具。
+      ...(value.conversationOnly ? BOT_CONVERSATION_TOOL_NAMES : []),
     ].filter((name) => !isBlocked(name))
     const names = selectedToolNames({
       availableToolNames,

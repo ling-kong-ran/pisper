@@ -97,7 +97,7 @@ const BOT = {
   proactive: { enabled: true, everyHours: 6, brief: false, briefAt: '09:00' },
 }
 
-async function proactiveRuntime(dataDir, { busy = false, flag = true, decisions = [] } = {}) {
+async function proactiveRuntime(dataDir, { busy = false, flag = true } = {}) {
   const spawned = []
   const calls = []
   const agents = []
@@ -145,18 +145,10 @@ async function proactiveRuntime(dataDir, { busy = false, flag = true, decisions 
       availableChatModelRefs: async () => [],
       resolveSubagentModel: async () => ({ model: null }),
     },
-    modelRuntime: {
-      streamSimple: () => ({
-        async *[Symbol.asyncIterator]() {
-          yield { type: 'text_delta', delta: JSON.stringify({ actions: decisions }) }
-        },
-        result: async () => ({ stopReason: 'stop', usage: null }),
-      }),
-    },
     recordUsage: async () => {},
     executeBotDecision: async (_session, _value, _bot, decision) => {
       calls.push(['decision', decision.type])
-      return decision
+      return { ...decision, id: '12345678-job' }
     },
   })
   return runtime
@@ -208,13 +200,7 @@ test('busy bots, bots with checks off and the bots flag off are never checked', 
 
 test('a check’s result turn may only remember: no work starts until the user says so', async () => {
   await withDir(async (dataDir) => {
-    const runtime = await proactiveRuntime(dataDir, {
-      decisions: [
-        { type: 'spawn', title: '升级 undici', task: '升级 undici 并跑测试' },
-        { type: 'message', bot: '测试', text: '帮我跑测试' },
-        { type: 'remember', text: 'undici 6.21.1 有中危更新', source: 'proactive' },
-      ],
-    })
+    const runtime = await proactiveRuntime(dataDir)
     await runtime.botProactiveTick()
     const agent = runtime.agents[0]
     agent.status = 'completed'
@@ -223,29 +209,30 @@ test('a check’s result turn may only remember: no work starts until the user s
         role: 'user',
         content: [{ type: 'text', text: runtime.botCompletionPromptFor(agent) }],
       },
-      {
-        role: 'assistant',
-        content: [{ type: 'text', text: '巡看发现 undici 有安全更新，要升级吗？' }],
-      },
     ]
+    const tools = runtime.botConversationRuntime('conv')
+    await assert.rejects(
+      tools.startJob({ title: '升级 undici', task: '升级 undici 并跑测试' }),
+      /read-only check/,
+    )
+    await assert.rejects(tools.message({ bot: '测试', text: '帮我跑测试' }), /read-only check/)
+    assert.equal(
+      (await tools.remember({ text: 'undici 6.21.1 有中危更新', source: 'proactive' })).type,
+      'remember',
+    )
+    // 这一轮收尾后标记清掉：之后用户说“做吧”的那一轮照常能派活。
+    runtime.value.session.messages.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: '巡看发现 undici 有安全更新，要升级吗？' }],
+    })
     runtime.forwardBotReplies = async () => []
     runtime.tidyBotMemory = async () => null
-    await runtime.runBotDecisions('conv')
-    assert.deepEqual(
-      runtime.calls.filter(([kind]) => kind === 'decision'),
-      [['decision', 'remember']],
+    await runtime.afterBotTurn('conv')
+    runtime.value.session.messages.push({ role: 'user', content: [{ type: 'text', text: '做吧' }] })
+    assert.equal(
+      (await tools.startJob({ title: '升级 undici', task: '升级 undici 并跑测试' })).type,
+      'spawn',
     )
-    // 之后用户说“做吧”的那一轮照常能派活。
-    runtime.value.session.messages.push(
-      { role: 'user', content: [{ type: 'text', text: '做吧' }] },
-      { role: 'assistant', content: [{ type: 'text', text: '好，我派人去升级。' }] },
-    )
-    await runtime.runBotDecisions('conv')
-    assert.deepEqual(runtime.calls.filter(([kind]) => kind === 'decision').slice(1), [
-      ['decision', 'spawn'],
-      ['decision', 'message'],
-      ['decision', 'remember'],
-    ])
   })
 })
 

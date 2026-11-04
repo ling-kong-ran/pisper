@@ -1,33 +1,32 @@
-// Bot 的对话（v2）：对话只说话、做决定，活派给子 agent。决定的解析、状态快照、对话的系统提示，
-// 以及运行时按决定派、补充、停子 agent，停掉对话不停子 agent，每个 Bot 同时最多 3 个。
+// Bot 的对话（v2.1）：对话自己做快的事，长的、要批准的交给子 agent；它当经理用的手是 bot_* 工具。
+// 工具输入的归一、状态快照、系统提示；运行时按工具派、补充、停子 agent（只碰自己的），巡看结果那一轮不开活，
+// 提问卡片不等回答，定时只发给自己；每个 Bot 同时最多 3 个；不阻塞的接线（插队、不等批准、收尾在运行标记放下后）。
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
-import { botDecisionContext } from '../runtime/bot-decisions.mjs'
 import {
   BOT_MAX_PARALLEL_AGENTS,
   botConversationPrompt,
-  botDecisionInstruction,
   botStateSnapshot,
-  parseBotDecisions,
+  normalizeBotAction,
   resolveBotAgent,
 } from '../services/bots/bot-conversation.mjs'
-import { MultiAgentService } from '../services/multi-agent-service.mjs'
+import { botAnswerText, botScheduleInput } from '../services/bots/bot-schedule-input.mjs'
+import { MultiAgentService, agentCompletionPrompt } from '../services/multi-agent-service.mjs'
 
 const agent = (id, taskName, status, output = '') => ({ id, taskName, status, output, error: '' })
 
-test('decisions are parsed strictly; anything malformed is dropped', () => {
-  const raw = `好的。\n{"actions":[
-    {"type":"spawn","title":"补退款测试","task":"在 src/checkout 里补退款与部分退款的测试，跑一遍后汇报","model":"luna/gpt-5.6-luna","tier":"strong"},
-    {"type":"spawn","title":"","task":"没有标题"},
-    {"type":"add","agent":"a1b2","text":"边界值也测一下"},
-    {"type":"stop","agent":"c3d4"},
-    {"type":"delete_everything"},
-    {"type":"spawn","title":"x","task":"y","tier":"huge","model":"bare"}
-  ]}`
-  assert.deepEqual(parseBotDecisions(raw), [
+test('tool inputs are normalized strictly; anything malformed is refused', () => {
+  assert.deepEqual(
+    normalizeBotAction({
+      type: 'spawn',
+      title: '补退款测试',
+      task: '在 src/checkout 里补退款与部分退款的测试，跑一遍后汇报',
+      model: 'luna/gpt-5.6-luna',
+      tier: 'strong',
+    }),
     {
       type: 'spawn',
       title: '补退款测试',
@@ -35,74 +34,139 @@ test('decisions are parsed strictly; anything malformed is dropped', () => {
       model: 'luna/gpt-5.6-luna',
       tier: 'strong',
     },
-    { type: 'add', agent: 'a1b2', text: '边界值也测一下' },
-    { type: 'stop', agent: 'c3d4' },
-    { type: 'spawn', title: 'x', task: 'y' },
-  ])
-  assert.deepEqual(parseBotDecisions('没有 JSON'), [])
-  assert.deepEqual(parseBotDecisions('{"actions": "nope"}'), [])
-  assert.deepEqual(parseBotDecisions('{broken'), [])
+  )
+  assert.deepEqual(
+    normalizeBotAction({ type: 'spawn', title: 'x', task: 'y', tier: 'huge', model: 'bare' }),
+    {
+      type: 'spawn',
+      title: 'x',
+      task: 'y',
+    },
+  )
+  assert.equal(normalizeBotAction({ type: 'spawn', title: '', task: '没有标题' }), null)
+  assert.deepEqual(normalizeBotAction({ type: 'add', agent: 'a1b2', text: '边界值也测一下' }), {
+    type: 'add',
+    agent: 'a1b2',
+    text: '边界值也测一下',
+  })
+  assert.equal(normalizeBotAction({ type: 'delete_everything' }), null)
+  assert.deepEqual(
+    normalizeBotAction({ type: 'remember', text: '别 push main', source: 'weird' }),
+    {
+      type: 'remember',
+      text: '别 push main',
+      source: 'told',
+    },
+  )
 })
 
-test('the state snapshot and the decision instruction list what the bot has in hand', () => {
+test('the state snapshot lists jobs, background commands, models and other bots', () => {
   const agents = [
     agent('a1b2c3d4-1', '补退款测试', 'running', '写完了退款用例，正在跑'),
     agent('e5f6a7b8-2', '依赖巡检', 'completed', '没有安全更新'),
   ]
-  const snapshot = botStateSnapshot({ agents, waitingApprovals: 1 })
+  const snapshot = botStateSnapshot({
+    agents,
+    commands: [{ id: 'cmd_abc123', command: 'npm test', status: 'running' }],
+    waitingApprovals: 1,
+    models: ['luna/gpt-5.6-luna'],
+    bots: [{ name: '测试', instructions: '补测试' }],
+  })
   assert.match(snapshot, /^\[当前状态\]/)
   assert.match(snapshot, /现在在做 1 个，1 个操作在等用户批准/)
   assert.match(snapshot, /- \[a1b2c3d4\] 补退款测试 · running · 写完了退款用例，正在跑/)
   assert.match(snapshot, /最近结束：\n- \[e5f6a7b8\] 依赖巡检 · completed/)
+  assert.match(snapshot, /后台命令：\n- \[cmd_abc123\] npm test/)
+  assert.match(snapshot, /可以挑的模型.*luna\/gpt-5\.6-luna/)
+  assert.match(snapshot, /可以找的别的 Bot：测试（补测试）/)
   assert.match(botStateSnapshot(), /手上没有活/)
-  const instruction = botDecisionInstruction({ agents, models: ['luna/gpt-5.6-luna'] })
-  assert.match(instruction, /Running sub-agents: a1b2c3d4 "补退款测试"/)
-  assert.match(instruction, /Available models: luna\/gpt-5.6-luna/)
-  assert.match(instruction, new RegExp(`At most ${BOT_MAX_PARALLEL_AGENTS} sub-agents`))
   assert.equal(resolveBotAgent(agents, 'a1b2')?.id, 'a1b2c3d4-1')
   assert.equal(resolveBotAgent(agents, ''), null)
   assert.equal(resolveBotAgent(agents, 'zz'), null)
 })
 
-test('the conversation prompt makes the bot a manager that does not run tools itself', () => {
+test('the prompt: quick work itself, long or approval-needing work to sub-agents, never confirm plans', () => {
   const prompt = botConversationPrompt({ name: '小橙', instructions: '负责 acme-web 前端' })
   assert.match(prompt, /你是 小橙/)
-  assert.match(prompt, /你自己不能调用任何工具/)
-  assert.match(prompt, /派子 agent/)
+  assert.match(prompt, /快的事自己做/)
+  assert.match(prompt, /bot_job_start/)
+  assert.match(prompt, /bot_schedule 给自己定时；不要派一个干等的子 agent/)
+  assert.match(prompt, /不要为了确认计划而停下来问/)
+  assert.match(prompt, /先回应新消息/)
+  assert.match(prompt, /也不要承诺系统没有的东西/)
   assert.match(prompt, /\[小橙 的工作说明\]\n负责 acme-web 前端/)
-  const context = botDecisionContext(
-    { systemPrompt: 'sys', messages: [{ role: 'user', content: 'hi', timestamp: 1 }] },
-    'decide',
-    2,
-  )
-  assert.equal(context.systemPrompt, 'sys')
-  assert.deepEqual(context.tools, [])
-  assert.equal(context.messages.at(-1).content[0].text, 'decide')
 })
 
-// 只装决定执行用得到的那几样。
-function fakeRuntime({ decisions, agents = [] }) {
+test('scheduling to yourself: once in N minutes, at a date, or repeating; always to this bot', () => {
+  const bot = { id: 'bot_aaaaaaaaaaaa', name: '小橙' }
+  const now = Date.parse('2026-11-04T17:20:30Z')
+  assert.deepEqual(
+    botScheduleInput({
+      bot,
+      input: { message: '看一下 Actions', inMinutes: 60 },
+      now,
+      timezone: 'Asia/Shanghai',
+    }),
+    {
+      targetType: 'bot',
+      botId: bot.id,
+      botMessage: '看一下 Actions',
+      name: '小橙：看一下 Actions',
+      enabled: true,
+      timezone: 'Asia/Shanghai',
+      frequency: 'once',
+      date: '2026-11-05',
+      time: '02:21',
+    },
+  )
+  assert.equal(
+    botScheduleInput({
+      bot,
+      input: { message: '周报', repeat: 'weekly', time: '17:00', weekday: 5 },
+      now,
+    }).dayOfWeek,
+    5,
+  )
+  assert.throws(() => botScheduleInput({ bot, input: { message: '' }, now }), /message/)
+  assert.throws(() => botScheduleInput({ bot, input: { message: 'x' }, now }), /什么时候/)
+  assert.equal(
+    botAnswerText([{ question: '部署到哪？' }], {
+      outcome: 'answered',
+      answers: [{ selected: ['预览'] }],
+    }),
+    '部署到哪？ → 预览',
+  )
+})
+
+// 只装 bot_* 工具运行时用得到的那几样。
+function fakeRuntime({ agents = [], messages = [], unattended = false } = {}) {
   const calls = []
   const runtime = Object.create(AgentRuntimeFacade.prototype)
-  const bot = { id: 'bot1', name: '小橙', tools: null, threadSessionId: 'conv' }
+  const bot = {
+    id: 'bot_aaaaaaaaaaaa',
+    name: '小橙',
+    tools: null,
+    threadSessionId: 'conv',
+    instructions: '',
+    enabled: true,
+  }
+  const value = {
+    conversationOnly: true,
+    unattendedRun: unattended,
+    baseToolNames: ['read', 'edit', 'bash'],
+    session: { model: { provider: 'luna', id: 'm' }, messages, systemPrompt: '' },
+    multiAgentRuntime: {
+      spawn: async (input) => {
+        calls.push(['spawn', input])
+        return { id: `0000000${calls.length}-new` }
+      },
+    },
+  }
   Object.assign(runtime, {
     calls,
-    sessions: new Map([
-      [
-        'conv',
-        {
-          conversationOnly: true,
-          baseToolNames: ['read', 'edit', 'bash'],
-          session: { model: { provider: 'luna', id: 'm' }, messages: [], systemPrompt: '' },
-          multiAgentRuntime: {
-            spawn: async (input) => {
-              calls.push(['spawn', input])
-              return { id: `new-${calls.length}` }
-            },
-          },
-        },
-      ],
-    ]),
+    value,
+    sessions: new Map([['conv', value]]),
+    bots: { list: () => [bot], get: () => bot },
     botForSession: (id) => (id === 'conv' ? bot : null),
     multiAgents: {
       list: () => agents,
@@ -115,42 +179,38 @@ function fakeRuntime({ decisions, agents = [] }) {
       resolveSubagentModel: async ({ modelRef }) =>
         modelRef === 'nova/coder' ? { model: { provider: 'nova', id: 'coder' } } : { model: null },
     },
-    modelRuntime: {
-      streamSimple: () => ({
-        async *[Symbol.asyncIterator]() {
-          yield { type: 'text_delta', delta: JSON.stringify({ actions: decisions }) }
-        },
-        result: async () => ({ stopReason: 'stop', usage: null }),
-      }),
-    },
-    recordUsage: async () => {},
-    // 记忆：派活时带上；这里没有记忆，也不整理。
     botMemory: { list: async () => [], read: async () => ({ entries: [], tidiedAt: null }) },
+    schedules: {
+      getState: () => ({
+        tasks: [{ id: 'sch_1', targetType: 'bot', botId: bot.id, botMessage: 'x' }],
+      }),
+      create: async (input) => {
+        calls.push(['schedule', input])
+        return { id: 'sch_2', ...input }
+      },
+      remove: async (id) => calls.push(['unschedule', id]),
+    },
+    questions: {
+      request: (input) => {
+        calls.push(['question', input])
+        return Promise.resolve({ outcome: 'answered', answers: [{ selected: ['预览'] }] })
+      },
+    },
+    messageBot: async (botId, input) => calls.push(['messageBot', botId, input]),
   })
   return runtime
 }
 
-test('the runtime spawns, adds to and stops only its own sub-agents as decided', async () => {
-  const runtime = fakeRuntime({
-    agents: [agent('a1b2c3d4', '补退款测试', 'running')],
-    decisions: [
-      {
-        type: 'spawn',
-        title: '写更新说明',
-        task: '把这周的改动整理成更新说明',
-        model: 'nova/coder',
-      },
-      { type: 'spawn', title: '跑回归', task: '跑一遍回归测试', tier: 'fast' },
-      { type: 'add', agent: 'a1b2', text: '边界值也测一下' },
-      { type: 'stop', agent: 'a1b2' },
-      { type: 'stop', agent: 'not-mine' },
-    ],
+test('bot tools start, add to and stop only the bot’s own jobs, with its settings', async () => {
+  const runtime = fakeRuntime({ agents: [agent('a1b2c3d4', '补退款测试', 'running')] })
+  const tools = runtime.botConversationRuntime('conv')
+  const started = await tools.startJob({
+    title: '写更新说明',
+    task: '整理这周的改动',
+    model: 'nova/coder',
   })
-  const done = await runtime.runBotDecisions('conv')
-  assert.deepEqual(
-    done.map((item) => item.type),
-    ['spawn', 'spawn', 'add', 'stop'],
-  )
+  assert.match(started.text, /Started job 00000001/)
+  await tools.startJob({ title: '跑回归', task: '跑一遍回归测试', tier: 'fast' })
   const [first, second] = runtime.calls
     .filter(([name]) => name === 'spawn')
     .map(([, input]) => input)
@@ -158,9 +218,9 @@ test('the runtime spawns, adds to and stops only its own sub-agents as decided',
   assert.deepEqual(first.toolNames, ['read', 'edit', 'bash'])
   assert.equal(first.parentLimit, BOT_MAX_PARALLEL_AGENTS)
   assert.deepEqual(first.resolvedModel, { provider: 'nova', id: 'coder' })
-  assert.equal(first.taskName, '写更新说明')
   assert.equal(second.tier, 'fast')
-  assert.equal('resolvedModel' in second, false)
+  await tools.addToJob({ job: 'a1b2', text: '边界值也测一下' })
+  await tools.stopJob({ job: 'a1b2' })
   assert.deepEqual(
     runtime.calls.find(([name]) => name === 'followup'),
     ['followup', 'conv', 'a1b2c3d4', '边界值也测一下'],
@@ -169,19 +229,86 @@ test('the runtime spawns, adds to and stops only its own sub-agents as decided',
     runtime.calls.find(([name]) => name === 'interrupt'),
     ['interrupt', 'conv', 'a1b2c3d4'],
   )
-  // 不是 Bot 的对话：什么都不做。
-  assert.deepEqual(await runtime.runBotDecisions('other'), [])
+  await assert.rejects(tools.stopJob({ job: 'not-mine' }), /对不上/)
+  await assert.rejects(tools.startJob({ title: '', task: 'x' }), /参数/)
+  // 不是 Bot 的对话：工具不可用。
+  await assert.rejects(
+    runtime.botConversationRuntime('other').startJob({ title: 'a', task: 'b' }),
+    /不是 Bot 的对话/,
+  )
 })
 
-test('decisions for one conversation run one after another', async () => {
-  const runtime = fakeRuntime({ decisions: [] })
+test('a turn that reports a read-only check may not start work or message other bots', async () => {
+  const done = agentCompletionPrompt({
+    id: '11111111-2222-3333-4444-555555555555',
+    taskName: 'proactive_check',
+    status: 'completed',
+    output: 'undici 有安全更新',
+  })
+  const runtime = fakeRuntime({
+    messages: [{ role: 'user', content: [{ type: 'text', text: done }] }],
+  })
+  runtime.botProactiveAgents = new Set(['11111111-2222-3333-4444-555555555555'])
+  const tools = runtime.botConversationRuntime('conv')
+  await assert.rejects(tools.startJob({ title: '升级', task: '升级 undici' }), /read-only check/)
+  await assert.rejects(tools.message({ bot: '测试', text: '帮我跑测试' }), /read-only check/)
+  runtime.botMemory.remember = async (_bot, text) => ({ id: 'mem_aaaaaaaa', text })
+  assert.equal((await tools.remember({ text: 'undici 有中危更新' })).text, 'Remembered.')
+})
+
+test('asking shows a card without waiting; the answer comes back as the next message', async () => {
+  const runtime = fakeRuntime()
+  const result = await runtime.botConversationRuntime('conv').ask({
+    questions: [
+      {
+        question: '部署到哪？',
+        options: [{ label: '预览' }, { label: '生产' }],
+      },
+    ],
+  })
+  assert.match(result.text, /End your turn here/)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(runtime.calls[0][0], 'question')
+  assert.deepEqual(runtime.calls[1], [
+    'messageBot',
+    'bot_aaaaaaaaaaaa',
+    { text: '部署到哪？ → 预览', source: { kind: 'answer' } },
+  ])
+})
+
+test('schedules go only to the bot itself, and never from an unattended turn', async () => {
+  const runtime = fakeRuntime()
+  const tools = runtime.botConversationRuntime('conv')
+  const created = await tools.schedule({
+    action: 'create',
+    message: '看一下 Actions',
+    inMinutes: 60,
+  })
+  assert.match(created.text, /Scheduled \(sch_2\)/)
+  const [, input] = runtime.calls.find(([name]) => name === 'schedule')
+  assert.equal(input.targetType, 'bot')
+  assert.equal(input.botId, 'bot_aaaaaaaaaaaa')
+  assert.equal(input.frequency, 'once')
+  assert.match((await tools.schedule({ action: 'list' })).text, /sch_1/)
+  await tools.schedule({ action: 'remove', id: 'sch_1' })
+  assert.deepEqual(runtime.calls.at(-1), ['unschedule', 'sch_1'])
+  await assert.rejects(tools.schedule({ action: 'remove', id: 'someone-else' }), /不是你的/)
+  const unattended = fakeRuntime({ unattended: true }).botConversationRuntime('conv')
+  await assert.rejects(
+    unattended.schedule({ action: 'create', message: 'x', inMinutes: 5 }),
+    /unattended/,
+  )
+})
+
+test('after-turn work for one conversation runs one after another', async () => {
+  const runtime = fakeRuntime()
   const order = []
-  runtime.runBotDecisions = async (id) => {
+  runtime.afterBotTurn = async (id) => {
     order.push(`start-${order.length}`)
     await new Promise((resolve) => setTimeout(resolve, 5))
     order.push(`end-${id}`)
   }
-  await Promise.all([runtime.scheduleBotDecisions('conv'), runtime.scheduleBotDecisions('conv')])
+  await Promise.all([runtime.scheduleAfterBotTurn('conv'), runtime.scheduleAfterBotTurn('conv')])
   assert.deepEqual(order, ['start-0', 'end-conv', 'start-2', 'end-conv'])
 })
 
@@ -215,38 +342,56 @@ test('each bot runs at most its own number of sub-agents at once; the rest wait'
   assert.equal(service.list('conv').find((item) => item.taskName === 'four')?.status, 'queued')
 })
 
-test('the runtime wires the bot conversation: no tools, state per turn, decisions after, stop spares sub-agents', async () => {
+test('the runtime wires a non-blocking bot conversation', async () => {
   const read = (path) => readFile(new URL(path, import.meta.url), 'utf8')
-  const [runtime, activation, lifecycle, facade] = await Promise.all([
+  const [runtime, activation, lifecycle, facade, methods] = await Promise.all([
     read('../runtime/agent-runtime.mjs'),
     read('../runtime/tool-activation.mjs'),
     read('../runtime/session-lifecycle.mjs'),
     read('../runtime/agent-runtime-facade.mjs'),
+    read('../runtime/agent-session-methods.mjs'),
   ])
+  // 对话有工具：Bot 的范围外加 bot_*；通用的多 Agent、ask_user、定时、工作流、目标、浏览器自动化挡掉。
   assert.match(
     activation,
-    /if \(value\.conversationOnly\) \{\s*value\.session\.setActiveToolsByName\(\[\]\)/,
+    /\.\.\.\(value\.conversationOnly \? BOT_CONVERSATION_TOOL_NAMES : \[\]\)/,
+  )
+  assert.match(
+    activation,
+    /export const BOT_CONVERSATION_BLOCKED_TOOLS = Object\.freeze\(\[\s*\.\.\.MULTI_AGENT_TOOL_NAMES,\s*ASK_USER_TOOL_NAME,/,
+  )
+  assert.match(
+    runtime,
+    /\.\.\.ISOLATED_CONTEXT_BLOCKED_TOOLS, \.\.\.BOT_CONVERSATION_BLOCKED_TOOLS/,
+  )
+  // 不阻塞：长命令转后台、不在对话里等批准、运行中发来的话插队。
+  assert.match(runtime, /this\.botCommands\.wrap\(bashTool, \{ sessionId: runtimeSessionId \}\)/)
+  assert.match(runtime, /noWait: conversationOnly/)
+  assert.match(
+    methods,
+    /if \(value\.conversationOnly && behavior === 'steer'\) behavior = 'interrupt'/,
   )
   assert.match(
     runtime,
     /if \(value\.conversationOnly\) contexts\.push\(await this\.botStateContext\(session\.sessionId\)\)/,
   )
-  // 决定等这一轮放下运行标记之后再排：很快做完的子 agent 的完成通知不会 steer 进已结束的一轮而丢掉。
+  // 收尾等这一轮放下运行标记之后再排：这时交回来的完成通知不会 steer 进已结束的一轮而丢掉。
   assert.match(
     runtime,
-    /if \(value\.conversationOnly && !error && !value\.abortedAt\) value\.botDecisionsDue = true/,
+    /if \(value\.conversationOnly && !error && !value\.abortedAt\) value\.botTurnDue = true/,
   )
   assert.match(
     facade,
-    /value\.runActive = false[\s\S]*?if \(value\.botDecisionsDue\) \{\s*value\.botDecisionsDue = false\s*if \(!value\.abortedAt\) this\.scheduleBotDecisions\(id\)/,
+    /value\.runActive = false[\s\S]*?if \(value\.botTurnDue\) \{\s*value\.botTurnDue = false\s*if \(!value\.abortedAt\) this\.scheduleAfterBotTurn\(id\)/,
   )
   assert.match(
     lifecycle,
     /if \(!value\?\.conversationOnly\) \{\s*this\.getMultiAgents\(\)\.abortParent\(id\)/,
   )
-  // 改设定时运行时受保护（在跑的子 agent、等唤醒的完成通知）就不释放。
+  // 改设定时运行时受保护（在跑的子 agent、后台命令、等唤醒的完成通知）就不释放。
   assert.match(
     facade,
     /if \(!this\.sessionRuntimeIsProtected\(sessionId, value\)\)\s*this\.disposeSessionRuntime/,
   )
+  assert.match(lifecycle, /this\.getBotCommands\(\)\?\.hasActive\?\.\(id\)/)
 })
