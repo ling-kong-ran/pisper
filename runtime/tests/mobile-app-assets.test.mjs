@@ -1240,6 +1240,8 @@ test('the phone composer toolbar uses small borderless filled pills with 44px to
     /max-\[650px\]:size-9 max-\[650px\]:min-w-9 min-\[651px\]:pointer-coarse:size-11/,
   )
   assert.match(model, /COMPOSER_PHONE_TARGET_CLASSES,\s*triggerClassName/)
+  // 只是按钮变小，输入框不变矮：工具行上下各多留 4px，整行仍是 56（36 + 8 + 12）。
+  assert.match(focus, /focus-composer-footer[^"]*max-\[650px\]:pt-2 max-\[650px\]:pb-3/)
   assert.doesNotMatch(
     bits + model + focus,
     /max-\[650px\]:size-11 max-\[650px\]:min-w-11 pointer-coarse/,
