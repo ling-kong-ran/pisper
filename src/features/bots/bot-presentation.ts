@@ -44,12 +44,20 @@ export function botAvatarState(bot: Pick<Bot, 'activity'>): BotAvatarState {
   return 'idle'
 }
 
-// 侧栏悬停提示与读屏里的那一句：暂停、等批准、等回答、在忙、空闲。
+// 侧栏悬停提示与读屏里的那一句：暂停、等批准、等回答、在做几件（正在做哪件）、在忙、空闲。
 export function botActivityLine(t: Translate, bot: Pick<Bot, 'activity' | 'enabled'>) {
   if (!bot.enabled) return t('bots:activity.paused')
   const activity = bot.activity
-  if (activity?.waiting === 'approval') return t('bots:activity.approval')
-  if (activity?.waiting === 'question') return t('bots:activity.question')
+  const work = activity?.working
+    ? activity.current
+      ? t('bots:activity.workingOn', { count: activity.working, task: activity.current })
+      : t('bots:activity.working', { count: activity.working })
+    : ''
+  if (activity?.waiting === 'approval')
+    return work ? `${t('bots:activity.approval')} · ${work}` : t('bots:activity.approval')
+  if (activity?.waiting === 'question')
+    return work ? `${t('bots:activity.question')} · ${work}` : t('bots:activity.question')
+  if (work) return work
   if (activity?.status === 'running') return t('bots:activity.busy')
   return t('bots:activity.idle')
 }

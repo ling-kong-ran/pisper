@@ -3,7 +3,7 @@
 // 也换成它的头像（mark）和名字（name）。数据读 Bots 的列表缓存；Bots 实验功能关着或 Bot 已被删除时
 // 画调用方给的 fallback（页头两处为空），会话照常是普通会话。
 import './bots-messages'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -31,6 +31,12 @@ export default function BotSessionChip({
   const bot = useBotsStore((state) => state.bots.find((item) => item.id === botId))
   // 只让页头头像那一份负责轮询（几处共用同一份缓存，不重复开轮询）。
   useBotsPolling(enabled && part === 'avatar')
+  // 手机页头不画头像：列表还没加载过时，回复信息行这里自己读一次（加载在 store 里去重）。
+  const loaded = useBotsStore((state) => state.loaded)
+  const load = useBotsStore((state) => state.load)
+  useEffect(() => {
+    if (enabled && !loaded && part !== 'avatar') void load()
+  }, [enabled, load, loaded, part])
   if (!enabled || !bot) return fallback
   if (part === 'mark')
     return (

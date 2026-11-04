@@ -1432,8 +1432,11 @@ export class SessionLifecycle {
       value.armAbortGuard?.()
     }
     await this.pauseSessionGoal(id)
-    this.getMultiAgents().abortParent(id)
-    this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
+    // Bot 的对话：停的只是这一句回复；派出去的子 agent 和它们等着的批准照常（要停就对它说“停掉那件”）。
+    if (!value?.conversationOnly) {
+      this.getMultiAgents().abortParent(id)
+      this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
+    }
     // 停止运行即取消问题（规格 8.4）：代理拿到 cancelled，不会把沉默当成回答。
     this.getQuestions()?.cancelSession(id, '运行已停止。')
     if (live) {

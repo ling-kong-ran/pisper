@@ -84,4 +84,37 @@ export const botRoutes = [
       else json(200, { deleted: true })
     }),
   },
+  // Bot 自己的记忆：设置页里逐条看、加、改、删（对话里的记住 / 忘掉走决定，不经这里）。
+  {
+    method: 'GET',
+    path: '/api/bots/:botId/memory',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      json(200, { entries: await runtime.listBotMemory(params.botId) })
+    }),
+  },
+  {
+    method: 'POST',
+    path: '/api/bots/:botId/memory',
+    handler: botRoute(async ({ runtime, params, body, json }) => {
+      const input = await body()
+      json(201, { entry: await runtime.addBotMemory(params.botId, input?.text) })
+    }),
+  },
+  {
+    method: 'PATCH',
+    path: '/api/bots/:botId/memory/:entryId',
+    handler: botRoute(async ({ runtime, params, body, json }) => {
+      const input = await body()
+      json(200, { entry: await runtime.editBotMemory(params.botId, params.entryId, input?.text) })
+    }),
+  },
+  {
+    method: 'DELETE',
+    path: '/api/bots/:botId/memory/:entryId',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      const forgotten = await runtime.forgetBotMemory(params.botId, params.entryId)
+      if (!forgotten) json(404, { error: '这条记忆不存在。', code: 'bot_memory_not_found' })
+      else json(200, { deleted: true })
+    }),
+  },
 ]

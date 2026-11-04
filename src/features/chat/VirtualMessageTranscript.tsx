@@ -3,6 +3,7 @@
 import {
   memo,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -15,6 +16,8 @@ import { lastSettledMessageIndex, resolveMessageRunActivity } from '@/lib/sessio
 import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { FocusChatMessage } from './ChatMessage'
+import { AgentJobEvent } from './AgentJobEvent'
+import { AgentJobsContext } from './session-agents'
 import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
 import type { BranchFromHereOptions } from './chat-api'
 
@@ -117,6 +120,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   turnsKnown = false,
   turnBase = 0,
 }: VirtualMessageTranscriptProps) {
+  const agentJobs = useContext(AgentJobsContext)
   const listRef = useRef<HTMLDivElement>(null)
   const [highlightedEntryId, setHighlightedEntryId] = useState('')
   const messageIds = messages.map((message) => message.id)
@@ -264,6 +268,28 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
       {virtualItems.map((virtualItem) => {
         const message = messages[virtualItem.index]
         if (!message) return null
+        // Bot 派出的子 agent：时间线里的一件活，不是消息。
+        if (message.role === 'event') {
+          const job = agentJobs?.agents.get(String(message.agentId || ''))
+          return (
+            <div
+              className="virtual-transcript-item absolute left-0 [display:flow-root] w-full"
+              data-index={virtualItem.index}
+              data-pisper-virtual-item={message.id}
+              key={virtualItem.key}
+              ref={virtualizer.measureElement}
+              style={{ top: `${virtualItem.start - scrollMargin}px` }}
+            >
+              {job && agentJobs ? (
+                <AgentJobEvent
+                  sessionId={agentJobs.sessionId}
+                  agent={job}
+                  onChanged={agentJobs.reload}
+                />
+              ) : null}
+            </div>
+          )
+        }
         // 末尾还没送达的排队消息不算：正在写的回复仍是“最新一条”（参考 Claude，排队消息排在它后面）。
         const isLatestAgent =
           !historical && message.role === 'agent' && virtualItem.index === latestIndex

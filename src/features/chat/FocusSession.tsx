@@ -51,6 +51,7 @@ import {
 import { runtimeSettingCommands, sideQuestionText, type BuiltinCommand } from './builtin-commands'
 import { SideQuestionPanel } from './SideQuestionPanel'
 import { useSideQuestion } from './useSideQuestion'
+import { AgentJobsContext, useSessionAgents, withAgentEvents } from './session-agents'
 import { chatApi } from './chat-api'
 import { FocusTranscript } from './FocusTranscript'
 import { SessionTreeControl } from './SessionTreeControl'
@@ -476,10 +477,49 @@ export const FocusSession = memo(function FocusSession({
   )
   // 还没送达的排队消息：桌面在输入框上方的排队列表里（可立即发送 / 编辑 / 取消），对话里不重复画；
   // 手机没有排队列表，它们就是对话末尾标着“排队中”的气泡。
-  const transcriptMessages = useMemo(
-    () => (phonePage ? messages : messages.filter((message) => !isPendingQueuedMessage(message))),
-    [messages, phonePage],
+  // Bot 的对话：派出的子 agent 是时间线里的事件，按开始时间插进对话（在跑的随状态刷新）。
+  // 一件活刚结束：Bot 会在后台说一句汇报（这一轮很短，页面不一定赶得上），之后几秒内重拉几次对话。
+  const refreshTimersRef = useRef<number[]>([])
+  useEffect(
+    () => () => {
+      for (const timer of refreshTimersRef.current) window.clearTimeout(timer)
+      refreshTimersRef.current = []
+    },
+    [session.id],
   )
+  const sessionAgents = useSessionAgents(session.id, Boolean(botId), () => {
+    for (const delay of [1_500, 4_000, 9_000])
+      refreshTimersRef.current.push(window.setTimeout(() => void onLoadLatest?.(), delay))
+  })
+  // 对话这一句说完后运行时才做决定（派活）：一两秒后拉一次子 agent，新派的活马上出现在时间线里。
+  const wasStreamingRef = useRef(streaming)
+  const reloadAgents = sessionAgents.reload
+  useEffect(() => {
+    const ended = wasStreamingRef.current && !streaming
+    wasStreamingRef.current = streaming
+    if (!botId || !ended) return undefined
+    const timers = [1_500, 4_000].map((delay) => window.setTimeout(reloadAgents, delay))
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [botId, reloadAgents, streaming])
+  const agentJobs = useMemo(
+    () =>
+      botId
+        ? {
+            sessionId: session.id,
+            agents: new Map(sessionAgents.agents.map((agent) => [agent.id, agent])),
+            reload: sessionAgents.reload,
+          }
+        : null,
+    [botId, session.id, sessionAgents.agents, sessionAgents.reload],
+  )
+  const transcriptMessages = useMemo(() => {
+    const shown = phonePage
+      ? messages
+      : messages.filter((message) => !isPendingQueuedMessage(message))
+    return botId ? withAgentEvents(shown, sessionAgents.agents) : shown
+  }, [botId, messages, phonePage, sessionAgents.agents])
   // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与模型芯片弹层同一来源，拿不到时不写。
   const contextPercent = Number(contextUsage?.percent)
   const runMetricsContextPercent =
@@ -1147,13 +1187,15 @@ export const FocusSession = memo(function FocusSession({
           data-chat-region="messages"
           data-focus-region="content"
         >
-          {transcriptMeta ? (
-            <TranscriptMetaContext.Provider value={transcriptMeta}>
-              {transcriptBlock}
-            </TranscriptMetaContext.Provider>
-          ) : (
-            transcriptBlock
-          )}
+          <AgentJobsContext.Provider value={agentJobs}>
+            {transcriptMeta ? (
+              <TranscriptMetaContext.Provider value={transcriptMeta}>
+                {transcriptBlock}
+              </TranscriptMetaContext.Provider>
+            ) : (
+              transcriptBlock
+            )}
+          </AgentJobsContext.Provider>
         </div>
         <div className="shrink-0" data-chat-region="composer" data-focus-region="composer">
           {composerBlock}

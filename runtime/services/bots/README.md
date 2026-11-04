@@ -1,14 +1,25 @@
 # Bot 服务
 
-状态（2026-11-04）：**Bot 就是一个长期会话加上它的设定**。打开 Bot 就是打开这个会话（普通会话页：实时回复、插话、附件、审批与提问都是现成的）；渠道里叫它、定时让它做，都是往这个会话里说一句话。没有任务、队列、独立分支或审阅这一层，Bot 不依赖 git——真要开发是派给代理去做，不是 Bot 自己在分支上改。
+状态（2026-11-04，v2）：**Bot = 一条对话 + 它派出去的子 agent**。对话只负责说话和做决定，自己不跑工具，所以永远不被占着；要动手的事由运行时按对话的决定派给子 agent 在后台并行跑（每个 Bot 同时 3 个，多的排队），做完结果回到对话，对话用一句话汇报。打开 Bot 就是打开这条对话（普通会话页）；渠道里叫它、定时让它做，都是往这条对话里说一句话。Bot 有自己的一份记忆。不依赖 git。设计稿：本机 `~/.local/share/pisper-rebuild/bots-v2-dots.md`（参考 OpenAI dots、Grok Bot、Claude Duet）。执行节点上的 Bot 暂时仍是一个会话自己干（子 agent 还不能在执行节点上跑）。
 
-主要文件：`bot-model.mjs`（校验与归一、系统提示、消息校验）、`bot-service.mjs`（注册表）、`bot-routing.mjs`（渠道分派）、`bot-notifications.mjs`（发回聊天的文字）、`environment-service.mjs` / `executor-hub.mjs` / `executor.mjs`（执行节点）、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/agent-runtime-facade.mjs` 里的 Bot 接线（`ensureBotSession`、`applyBotSettings`、`messageBot`、`botActivity`、`botForSession`）、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+主要文件：`bot-conversation.mjs`（对话的系统提示、状态快照、决定的说明与解析）、`bot-memory-service.mjs`（每个 Bot 的记忆）、`runtime/runtime/bot-decisions.mjs`（决定与整理记忆的无头请求）、`bot-model.mjs`（校验与归一、系统提示、消息校验）、`bot-service.mjs`（注册表）、`bot-routing.mjs`（渠道分派）、`bot-notifications.mjs`（发回聊天的文字）、`environment-service.mjs` / `executor-hub.mjs` / `executor.mjs`（执行节点）、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/agent-runtime-facade.mjs` 里的 Bot 接线（`ensureBotSession`、`applyBotSettings`、`messageBot`、`botActivity`、`botForSession`）、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 目标与非目标
 
 参考 Grok Bot / Dots：用户可以有多个常驻的 Bot，每个有名字、头像、它负责什么（指令）、在哪台电脑的哪个目录里干活、权限上限、可用工具，以及谁能在聊天里叫它、什么时候定时找它。和 Bot 说话就像和同事聊天：一个长期对话，前文都算数，它说话时实时看得到，可以随时插话。
 
-非目标（以后再说）：每个 Bot 独立的记忆范围与浏览器登录态；每个 Bot 绑定自己的渠道机器人账号；GitHub webhook 触发；Bot 主动找你（除定时外）。
+非目标（以后再说）：每个 Bot 的浏览器登录态；每个 Bot 绑定自己的渠道机器人账号；GitHub webhook 触发；主动只读巡看与每日简报（设计稿 C6）；复盘写技能（C4）；Bot 之间对话（C5）。
+
+## 对话与子 agent（v2）
+
+- **对话不跑工具**：本机的 Bot（且有多 Agent 能力）建运行时时 `conversationOnly = true`：系统提示换成 `botConversationPrompt`（它是经理：要动手就在回复里说派谁做什么），激活的工具保持为空（`ToolActivation.syncGoalTools` 对它一律设空）。每轮在用户消息后附上状态快照（`botStateContext`：手上的子 agent、各自状态与最近进展、在等几个批准、它记得的事），走附件上下文的标记，转录里不显示。
+- **决定**：对话这一句说完（`finishBoardCard` → `scheduleBotDecisions`），运行时拿同一份上下文再发一次无头请求（`requestBotDecisions`，不带工具），只要 JSON：`spawn`（标题、交代、可选模型 / 档位）、`add`（给某个子 agent 补一句，进它的邮箱，不打断当前这一步）、`stop`、`remember`、`forget`。解析失败或条目不合法时丢掉，回复照常；同一条对话的决定按顺序跑。
+- **子 agent**：复用 `MultiAgentService`，父会话是 Bot 的对话。派活时工具清单按 Bot 的工具范围直接给（`toolNames`，对话本身没有可用工具），模型按决定挑（`resolvedModel`，不可用时退回档位、再退回 Bot 的模型），带上 Bot 的工作说明与记忆（`instructions` → 子 agent 的系统提示追加段），每个 Bot 同时最多 3 个（`parentLimit`，服务按父会话限流，多的排队）。标题另存（`title`），界面显示它。
+- **批准与汇报**：子 agent 的批准挂在父会话（Bot 的对话）上，卡片出现在对话里与“需要你”；做完时完成通知唤醒对话（不在内存里时加载它再说进去），对话写一句汇报，之后照常再做一次决定。
+- **停与释放**：停掉对话这一轮不停它派出去的子 agent（`abortSession` 对 `conversationOnly` 不调 `abortParent`，也不拒绝子 agent 等着的批准）；改设定时还有子 agent 在跑就不释放运行时；还有子 agent 在跑的 Bot 不能删除。子 agent 只在内存里，Runtime 重启后正在跑的标为已中断。
+- **时间线**：`GET /api/sessions/:id/agents` 列出会话派出的子 agent，`POST /api/sessions/:id/agents/:agentId/stop` 停掉一个。会话页把它们按开始时间插进对话（`withAgentEvents`，事件条目不算“正在写的回复”），一行写标题、状态、用时，可展开、可停；有活刚结束时重拉几次对话，让后台说的汇报马上出现。
+- **头像状态**：`botActivity` 在对话在说话或有子 agent 在干活时为 `running`，有批准或问题在等时 `needsYou`，另带 `working`（在做几件）与 `current`（正在做哪件）；侧栏名字后显示件数，悬停写“3 件在做 · 在做：…”。
+- **记忆**：每个 Bot 一个文件（`<dataDir>/bots/<botId>/memory.json`，最多 200 条、每条 500 字），不读写全局记忆，Bot 之间互不可见。来源：对话的 `remember` / `forget` 决定（用户让它记住的、纠正、做完复盘）、设置页手动增改删（`/api/bots/:id/memory`）。记住时同义去重。每天最多整理一次（有 10 条以上、手上没活时）：模型只能保留或改写已有条目，不能凭空增加。删除 Bot 时一并删掉。
 
 ## 架构：大脑、数据、执行环境分开
 
@@ -64,7 +75,7 @@ Bot 的电脑是执行节点时，它的会话在大脑这边用一个占位目�
 - **建好就开会话**：`createBot` 之后 `ensureBotSession` 新建会话（标题 = 名字），并 `applyBotSettings`：电脑（执行节点时设 `remoteExecutor` 与占位目录）、目录、权限上限、模型。打开 Bot（`POST /api/bots/:id/session`）也走 `ensureBotSession`：会话文件不在了就补建。
 - **设定在每一轮生效**：会话属于哪个 Bot 由 `botForSession` 判断（Bots 实验功能关着时一律不算）。`runSessionPrompt` 每一轮把工具范围设为 Bot 的 `tools`、上下文隔离（不读其他会话与全局记忆）——不管这句话来自应用、聊天还是定时任务；`createSessionRuntime` 把 `botSystemPrompt(bot)` 追加进系统提示。改设定时：目录、电脑、权限、模型立即套到会话上；指令与工具范围在会话空闲时释放运行时、下次重建后生效（正在跑的这一轮不打断）；改名时会话一起改名。
 - **动态**：`botActivity` 直接读会话：在跑（`running`），在等批准或回答（`waiting: 'approval' | 'question'`，`needsYou`），否则空闲。侧栏头像随它动，看板卡片带 `bot: { id, name, avatar }`。
-- **删除**：Bot 正在说话时拒绝（先停下这一轮）。
+- **删除**：Bot 正在说话、或还有子 agent 在干活时拒绝（先停下）。它的记忆一并删掉，会话留着。
 
 ## 入口与分派
 
@@ -80,7 +91,7 @@ Bot 的电脑是执行节点时，它的会话在大脑这边用一个占位目�
 点名后的话经 `messageBot` 发进 Bot 的会话（`promptFromChannel`）：
 
 - Bot 空闲：这一轮开始，不另回“收到了”；说完后把它最后说的话（`botReplyText`，超过 3000 字截断并提示去 Pisper 里看全文）发回同一个聊天；出错时说“没做成：原因”。
-- Bot 正在说话：回“正在忙别的事，等它说完再叫它，或者在 Pisper 里接着说”，不排队。
+- Bot 正在说话：回“正在忙别的事，等它说完再叫它，或者在 Pisper 里接着说”，不排队。v2 的对话只在回一句话的那几秒里“在说话”，派出去的活不占着它。
 - 渠道里的附件暂不转给 Bot（回复里说明）。
 
 这一轮是从哪个聊天叫起来的记在内存里（`botChatOrigins`，这一轮结束就清掉）：会话里出现审批或提问时，告诉那个聊天（普通审批附“/名字 批准 或 /名字 拒绝”；高风险只写“请在 Pisper 里看完再批准”；问题带出选项，回答在 Pisper 里）。在应用里说的话不往任何聊天发。聊天里整句是“/名字 批准 | 拒绝”时处理 Bot 会话里最早一条待审批；高风险在聊天里只能拒绝。其他命令：`/bots` 列出可叫的 Bot，`/<名字> 状态`（空闲 / 在忙 / 等批准 / 等回答），`/whoami`。

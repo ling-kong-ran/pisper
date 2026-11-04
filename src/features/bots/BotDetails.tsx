@@ -16,6 +16,7 @@ import { BotAvatar } from './BotAvatar'
 import { BotAvatarPicker } from './BotAvatarPicker'
 import { BotComputerTab } from './BotComputerTab'
 import { BotModelSection } from './BotModelSection'
+import { BotMemorySection } from './BotMemorySection'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
@@ -39,6 +40,7 @@ export function BotDetails({
   const [instructions, setInstructions] = useState(bot.instructions)
   const [saving, setSaving] = useState(false)
   const [choosingLook, setChoosingLook] = useState(false)
+  const [memoryCount, setMemoryCount] = useState<number | null>(null)
   useEffect(() => setInstructions(bot.instructions), [bot.id, bot.instructions])
 
   const save = async (patch: Parameters<typeof updateBot>[1]) => {
@@ -115,6 +117,22 @@ export function BotDetails({
               onEnvironmentsChanged={onEnvironmentsChanged}
               onError={onError}
             />
+          </AccordionContent>
+        </AccordionItem>
+        {/* 记忆：它自己记得的事。展开时才加载。 */}
+        <AccordionItem value="memory">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:memory.title')}
+              {memoryCount !== null && (
+                <span className="truncate text-xs font-normal text-content-muted">
+                  {t('bots:memory.count', { count: memoryCount })}
+                </span>
+              )}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <BotMemorySection bot={bot} onError={onError} onCount={setMemoryCount} />
           </AccordionContent>
         </AccordionItem>
         <AccordionItem value="model">

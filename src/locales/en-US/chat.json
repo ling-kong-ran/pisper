@@ -676,5 +676,16 @@
   "focusSession.preparingAttachments": "Preparing attachments",
   "focusSession.stopping": "Stopping",
   "focusSession.waitingForModel": "Switching model. Please wait.",
-  "focusSession.returnToLatest": "Return to latest messages"
+  "focusSession.returnToLatest": "Return to latest messages",
+  "agentJob.title": "Handed off: {task}",
+  "agentJob.queued": "queued",
+  "agentJob.running": "working",
+  "agentJob.completed": "done",
+  "agentJob.failed": "failed",
+  "agentJob.interrupted": "stopped",
+  "agentJob.stop": "Stop",
+  "agentJob.expand": "Show this job",
+  "agentJob.collapse": "Hide",
+  "agentJob.model": "Model {model}",
+  "agentJob.tools": "{count} steps"
 }

@@ -6,11 +6,14 @@ import { invalidResponseError } from '@/lib/http-response'
 import { fetchStartupQuery } from '@/lib/startup-queries'
 import { isBotCharacter, isBotColor, type BotAvatarValue } from './avatar'
 
-// 此刻的动态：在不在说话，在等你批准还是回答。
+// 此刻的动态：在不在忙（对话在说话或子 agent 在干活），在等你批准还是回答；
+// working = 在做的子 agent 件数，current = 正在做的那件。
 export type BotActivity = {
   status: 'running' | 'idle'
   waiting: 'approval' | 'question' | null
   needsYou: boolean
+  working: number
+  current: string
 }
 
 // 模型：按档位（跟着“子代理模型档位”的设置走）或指定 provider/model。
@@ -82,10 +85,13 @@ function parseActivity(value: unknown): BotActivity | null {
   const input = value as Record<string, unknown>
   const waiting =
     input.waiting === 'approval' || input.waiting === 'question' ? input.waiting : null
+  const working = Number(input.working)
   return {
     status: input.status === 'running' ? 'running' : 'idle',
     waiting,
     needsYou: input.needsYou === true || waiting !== null,
+    working: Number.isInteger(working) && working > 0 ? working : 0,
+    current: typeof input.current === 'string' ? input.current.slice(0, 120) : '',
   }
 }
 
@@ -367,4 +373,72 @@ export function deleteBotSchedule(id: string) {
     method: 'DELETE',
     parse: () => undefined,
   })
+}
+
+// Bot 自己的记忆：一条一条的短句。设置页里看、加、改、删。
+export type BotMemoryEntry = {
+  id: string
+  text: string
+  source: 'told' | 'correction' | 'review' | 'manual' | 'tidy'
+  updatedAt: string
+}
+
+const MEMORY_SOURCES: readonly BotMemoryEntry['source'][] = [
+  'told',
+  'correction',
+  'review',
+  'manual',
+  'tidy',
+]
+
+function parseMemoryEntry(value: unknown): BotMemoryEntry | null {
+  if (!value || typeof value !== 'object') return null
+  const input = value as Record<string, unknown>
+  if (typeof input.id !== 'string' || typeof input.text !== 'string' || !input.text) return null
+  return {
+    id: input.id,
+    text: input.text.slice(0, 500),
+    source: MEMORY_SOURCES.find((source) => source === input.source) ?? 'told',
+    updatedAt: text(input.updatedAt),
+  }
+}
+
+function oneEntry(value: unknown) {
+  const entry = parseMemoryEntry(object(value).entry)
+  if (!entry) throw invalidResponseError()
+  return entry
+}
+
+export function fetchBotMemory(botId: string, signal?: AbortSignal) {
+  return requestJson(`/api/bots/${encodeURIComponent(botId)}/memory`, {
+    signal,
+    parse: (value) => {
+      const entries = object(value).entries
+      return Array.isArray(entries)
+        ? entries.map(parseMemoryEntry).filter((entry): entry is BotMemoryEntry => Boolean(entry))
+        : []
+    },
+  })
+}
+
+export function addBotMemory(botId: string, memory: string) {
+  return requestJson(`/api/bots/${encodeURIComponent(botId)}/memory`, {
+    method: 'POST',
+    data: { text: memory },
+    parse: oneEntry,
+  })
+}
+
+export function editBotMemory(botId: string, entryId: string, memory: string) {
+  return requestJson(
+    `/api/bots/${encodeURIComponent(botId)}/memory/${encodeURIComponent(entryId)}`,
+    { method: 'PATCH', data: { text: memory }, parse: oneEntry },
+  )
+}
+
+export function deleteBotMemory(botId: string, entryId: string) {
+  return requestJson(
+    `/api/bots/${encodeURIComponent(botId)}/memory/${encodeURIComponent(entryId)}`,
+    { method: 'DELETE', parse: () => undefined },
+  )
 }

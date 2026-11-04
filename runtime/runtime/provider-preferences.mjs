@@ -1135,6 +1135,24 @@ export class ProviderPreferences {
     return { model: null, source: 'parent', fallbackReasons }
   }
 
+  // 现在能用的对话模型（provider/model）：Bot 派活时按活挑选。停用的服务商、非对话模型不列。
+  async availableChatModelRefs() {
+    const appConfig = await readJson(this.appConfigPath, { disabledProviders: [] })
+    const disabled = new Set(appConfig.disabledProviders || [])
+    const models = this.getModelRuntime().getAvailableSnapshot?.() || []
+    return [
+      ...new Set(
+        models
+          .filter(
+            (model) =>
+              !disabled.has(model.provider) &&
+              inferModelKind(model.id, model.pisperKind) === 'chat',
+          )
+          .map((model) => `${model.provider}/${model.id}`),
+      ),
+    ].slice(0, 40)
+  }
+
   // 运行时的备用候选：设置之后被停用、删除或改成非对话的模型直接跳过，不在运行中报错。
   async resolveFallbackModels() {
     const appConfig = await readJson(this.appConfigPath, { disabledProviders: [] })

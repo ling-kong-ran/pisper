@@ -155,6 +155,8 @@ function durableRecord(record) {
   return {
     id: record.id,
     taskName: record.taskName,
+    title: record.title || '',
+    ...(record.parentLimit ? { parentLimit: record.parentLimit } : {}),
     canonicalName: record.canonicalName,
     parentSessionId: record.parentSessionId,
     cwd: record.cwd,
@@ -220,9 +222,14 @@ function restoredRecord(value) {
       ? value.status
       : 'failed'
   const output = String(value?.output || '')
+  const parentLimit = Number(value?.parentLimit)
   return {
     id,
     taskName: normalizeTaskName(value?.taskName),
+    title: String(value?.title || '')
+      .trim()
+      .slice(0, 80),
+    parentLimit: Number.isInteger(parentLimit) && parentLimit > 0 ? parentLimit : null,
     canonicalName: String(
       value?.canonicalName || `/root/${normalizeTaskName(value?.taskName)}_restored`,
     ),
@@ -396,6 +403,7 @@ function publicRecord(record) {
   return {
     id: record.id,
     taskName: record.taskName,
+    title: record.title || '',
     canonicalName: record.canonicalName,
     parentSessionId: record.parentSessionId,
     status: record.status,
@@ -427,6 +435,7 @@ function summaryRecord(record) {
   return {
     id: record.id,
     taskName: record.taskName,
+    title: record.title || '',
     canonicalName: record.canonicalName,
     parentSessionId: record.parentSessionId,
     status: record.status,
@@ -749,8 +758,16 @@ export class MultiAgentService {
     const queued = [...this.records.values()]
       .filter((record) => record.status === 'queued')
       .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
+    // 每个父会话自己的上限：满了的父会话这一轮跳过，后面的父会话照常取。
+    const perParent = new Map()
+    for (const record of this.records.values())
+      if (record.slotActive)
+        perParent.set(record.parentSessionId, (perParent.get(record.parentSessionId) || 0) + 1)
     for (const record of queued) {
       if (slots <= 0) break
+      const running = perParent.get(record.parentSessionId) || 0
+      if (record.parentLimit && running >= record.parentLimit) continue
+      perParent.set(record.parentSessionId, running + 1)
       slots -= 1
       record.status = 'starting'
       record.slotActive = true
@@ -831,6 +848,8 @@ export class MultiAgentService {
     onSession,
     onCompleted,
     onTerminal,
+    parentLimit,
+    title,
   } = {}) {
     if (!parentSessionId) throw new Error('Agent requires a parent session.')
     if (!cwd) throw new Error('Agent requires a workspace directory.')
@@ -852,6 +871,10 @@ export class MultiAgentService {
     const record = {
       id,
       taskName: normalizedName,
+      // 给人看的标题（Bot 派活时写的中文标题等）；没有时界面退回 taskName。
+      title: String(title || '')
+        .trim()
+        .slice(0, 80),
       canonicalName: `/root/${normalizedName}_${++this.sequence}`,
       parentSessionId,
       cwd,
@@ -899,6 +922,8 @@ export class MultiAgentService {
       onSession,
       onCompleted,
       onTerminal,
+      // 这个父会话同时最多跑几个（Bot 的对话按设定，默认不限，只受全局上限）。
+      parentLimit: Number.isInteger(parentLimit) && parentLimit > 0 ? parentLimit : null,
     }
     this.records.set(id, record)
     this.emit(record, onProgress)

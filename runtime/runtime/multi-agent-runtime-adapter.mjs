@@ -670,8 +670,14 @@ export function createMultiAgentRuntime({
       // 子代理的调用和父会话一样逐次走审批（installSubagentPermissions）。
       // 写了但这里没有的工具（名字写错或父会话没启用）随结果告诉父模型。
       const active = new Set(runtimeSession?.getActiveToolNames?.() || [])
+      // Bot 派的活：工具清单由运行时按 Bot 的工具范围直接给出（对话本身没有可用工具）。
+      const toolNames = Array.isArray(input?.toolNames) ? input.toolNames : null
       const inheritedTools = baseToolNames.filter((name) =>
-        profile?.tools ? profile.tools.includes(name) : active.has(name),
+        toolNames
+          ? toolNames.includes(name)
+          : profile?.tools
+            ? profile.tools.includes(name)
+            : active.has(name),
       )
       const skippedProfileTools = (profile?.tools || []).filter(
         (name) =>
@@ -683,11 +689,11 @@ export function createMultiAgentRuntime({
         ...input,
         parentSessionId: sessionId,
         cwd: effectiveCwd,
-        // 定义里的模型用不了时 selection.model 为 null，退回父会话模型，原因随记录返回。
-        model: selection?.model || runtimeSession.model,
+        // Bot 为这件活挑好的模型优先；定义里的模型用不了时 selection.model 为 null，退回父会话模型，原因随记录返回。
+        model: input?.resolvedModel || selection?.model || runtimeSession.model,
         thinkingLevel: profile?.thinkingLevel || runtimeSession.thinkingLevel,
         agentProfile: profile?.name || '',
-        profileInstructions: profile?.instructions || '',
+        profileInstructions: profile?.instructions || input?.instructions || '',
         modelSource: selection?.source || 'parent',
         modelTier,
         modelFallbackReasons: selection?.fallbackReasons || [],

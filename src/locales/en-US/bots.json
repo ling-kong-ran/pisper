@@ -158,5 +158,19 @@
   "model.thinkingLow": "Low",
   "model.thinkingMedium": "Medium",
   "model.thinkingHigh": "High",
-  "model.thinkingXhigh": "Extra high"
+  "model.thinkingXhigh": "Extra high",
+  "activity.working": "{count} in progress",
+  "activity.workingOn": "{count} in progress · now: {task}",
+  "memory.title": "Memory",
+  "memory.count": "{count} items",
+  "memory.hint": "What {name} remembers: what you asked it to remember, your corrections, and lessons from finished work. Sub-agents it hands work to get these too. It tidies them once a day when idle.",
+  "memory.empty": "{name} has not remembered anything yet",
+  "memory.edit": "Edit",
+  "memory.editLabel": "Edit this memory",
+  "memory.delete": "Delete",
+  "memory.save": "Save",
+  "memory.cancel": "Cancel",
+  "memory.add": "Add",
+  "memory.addLabel": "Add a memory",
+  "memory.addPlaceholder": "e.g. Check the home page on an iPhone before each release"
 }

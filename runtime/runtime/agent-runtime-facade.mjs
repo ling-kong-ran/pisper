@@ -17,6 +17,15 @@ import {
   botReplyText,
 } from '../services/bots/bot-notifications.mjs'
 import { normalizeBotMessage } from '../services/bots/bot-model.mjs'
+import {
+  BOT_MAX_PARALLEL_AGENTS,
+  botDecisionInstruction,
+  botStateSnapshot,
+  parseBotDecisions,
+  resolveBotAgent,
+} from '../services/bots/bot-conversation.mjs'
+import { requestBotDecisions, requestBotMemoryTidy } from './bot-decisions.mjs'
+import { botMemoryContext } from '../services/bots/bot-memory-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
@@ -846,14 +855,42 @@ export class AgentRuntimeFacade {
   }
 
   // Bot 就是它的长期会话加上设定：动态直接读会话。审批与提问只在运行中出现。
+  // Bot 此刻的动态：对话在说话，或者有子 agent 在干活，都算在忙；在等批准或回答时需要你。
+  // working = 在做的子 agent 件数，current = 正在做的那件（头像悬停时显示）。
   botActivity(bot) {
     const sessionId = bot?.threadSessionId
     if (!sessionId) return null
-    const running = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
-    if (!running) return { status: 'idle', waiting: null, needsYou: false }
+    const talking = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
+    const agents = (this.multiAgents?.summaries(sessionId) || []).filter((agent) =>
+      ['queued', 'starting', 'running'].includes(agent.status),
+    )
     const { approval, question } = this.botWaiting(sessionId)
     const waiting = approval ? 'approval' : question ? 'question' : null
-    return { status: 'running', waiting, needsYou: Boolean(waiting) }
+    if (!talking && !agents.length && !waiting)
+      return { status: 'idle', waiting: null, needsYou: false, working: 0, current: '' }
+    const shown = agents.find((agent) => agent.status === 'running') || agents[0]
+    const current = shown ? shown.title || shown.taskName : ''
+    return {
+      status: talking || agents.length ? 'running' : 'idle',
+      waiting,
+      needsYou: Boolean(waiting),
+      working: agents.length,
+      current,
+    }
+  }
+
+  // 会话派出的子 agent 摘要（时间线事件用）。
+  listSessionAgents(sessionId) {
+    return this.multiAgents?.summaries(String(sessionId || '')) || []
+  }
+
+  // 停掉会话自己的某个子 agent；不是它的、或已经结束的返回 null。
+  stopSessionAgent(sessionId, agentId) {
+    const agent = this.multiAgents
+      ?.summaries(String(sessionId || ''))
+      .find((item) => item.id === agentId)
+    if (!agent || !['queued', 'starting', 'running'].includes(agent.status)) return null
+    return this.multiAgents.interrupt(sessionId, agentId, '用户让它停下了。')
   }
 
   // 会话属于哪个 Bot（Bots 实验功能关着时一律不算）：运行时据此套用 Bot 的指令、工具范围与隔离上下文。
@@ -938,7 +975,9 @@ export class AgentRuntimeFacade {
     // 思考等级：没设就用模型默认；模型不支持这一档时会话服务会拒绝，按模型默认处理。
     if (bot.thinking) await this.setSessionThinkingLevel(sessionId, bot.thinking).catch(() => {})
     // 指令进系统提示、工具范围进运行时：空闲时释放运行时，下次用到时按新设定重建。
-    this.disposeSessionRuntime(sessionId, this.sessions.get(sessionId))
+    // 还有子 agent 在跑时不释放：它们的批准挂在这个会话上，完成通知也要回到这里；下次空闲时再按新设定重建。
+    if (!this.multiAgents?.hasActive?.(sessionId))
+      this.disposeSessionRuntime(sessionId, this.sessions.get(sessionId))
   }
 
   // 渠道、定时任务对 Bot 说一句话：发进它的长期会话。这一轮结束后把回复发回来源聊天。
@@ -978,11 +1017,173 @@ export class AgentRuntimeFacade {
     return { sessionId, status: 'started' }
   }
 
+  // Bot 的对话每轮附带的状态快照：手上的子 agent、各自状态与最近进展、在等几个批准。
+  async botStateContext(sessionId) {
+    const bot = this.botForSession(sessionId)
+    const memory = bot ? await this.botMemory?.list(bot.id).catch(() => []) : []
+    return [
+      botStateSnapshot({
+        agents: this.multiAgents?.list(sessionId) || [],
+        waitingApprovals: this.permissions?.getPending?.(sessionId)?.length || 0,
+        limit: BOT_MAX_PARALLEL_AGENTS,
+      }),
+      botMemoryContext(memory || []),
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  // 对话这一句说完：排一次“决定”。同一个对话的决定按顺序跑，前一次没跑完不会叠上第二次。
+  scheduleBotDecisions(sessionId) {
+    this.botDecisionChains ||= new Map()
+    const previous = this.botDecisionChains.get(sessionId) || Promise.resolve()
+    const next = previous
+      .then(() => this.runBotDecisions(sessionId))
+      .catch(() => console.warn('[bots] Bot 的决定没能执行。'))
+      .finally(() => {
+        if (this.botDecisionChains.get(sessionId) === next) this.botDecisionChains.delete(sessionId)
+      })
+    this.botDecisionChains.set(sessionId, next)
+    return next
+  }
+
+  // 问一次“现在要做什么”，按回来的决定派、补充、停子 agent。只碰这个 Bot 自己的子 agent。
+  async runBotDecisions(sessionId) {
+    const value = this.sessions.get(sessionId)
+    const bot = this.botForSession(sessionId)
+    if (!value?.conversationOnly || !value.multiAgentRuntime || !bot) return []
+    const agents = this.multiAgents.list(sessionId)
+    const models = await this.providerPreferences.availableChatModelRefs().catch(() => [])
+    const result = await requestBotDecisions({
+      modelRuntime: this.modelRuntime,
+      session: value.session,
+      instruction: botDecisionInstruction({ agents, models, limit: BOT_MAX_PARALLEL_AGENTS }),
+    })
+    if (result.usage) {
+      await this.recordUsage(
+        localDayKey(),
+        `bot-decide:${sessionId}:${randomUUID()}`,
+        result.usage,
+      ).catch(() => {})
+    }
+    const decisions = parseBotDecisions(result.text)
+    const done = []
+    for (const decision of decisions) {
+      try {
+        done.push(await this.executeBotDecision(sessionId, value, bot, decision))
+      } catch (error) {
+        console.warn('[bots] 一个决定没能执行：', error instanceof Error ? error.message : error)
+      }
+    }
+    // 手上没活时顺手看看记忆该不该整理（每天最多一次）。
+    if (!this.multiAgents.hasActive(sessionId))
+      await this.tidyBotMemory(bot, value).catch(() => console.warn('[bots] 记忆整理没能完成。'))
+    return done
+  }
+
+  // 每日整理：记忆有 10 条以上、离上次整理过了一天时，请模型合并重复、删掉过期的（只能保留或改写已有条目）。
+  async tidyBotMemory(bot, value, { force = false } = {}) {
+    const state = await this.botMemory.read(bot.id)
+    const due = !state.tidiedAt || Date.now() - Date.parse(state.tidiedAt) >= 24 * 60 * 60 * 1000
+    if (!force && (!due || state.entries.length < 10)) return null
+    const result = await requestBotMemoryTidy({
+      modelRuntime: this.modelRuntime,
+      model: value.session.model,
+      entries: state.entries,
+    })
+    if (result.usage) {
+      await this.recordUsage(
+        localDayKey(),
+        `bot-tidy:${bot.id}:${randomUUID()}`,
+        result.usage,
+      ).catch(() => {})
+    }
+    if (!result.kept) return this.botMemory.markTidied(bot.id)
+    return this.botMemory.replaceAfterTidy(bot.id, result.kept)
+  }
+
+  async executeBotDecision(sessionId, value, bot, decision) {
+    if (decision.type === 'remember') {
+      const entry = await this.botMemory.remember(bot.id, decision.text, decision.source)
+      return { type: 'remember', id: entry.id }
+    }
+    if (decision.type === 'forget') {
+      // 对话里看到的是短 id（mem_ 后面 6 位）：只认唯一对上的那一条。
+      const entries = await this.botMemory.list(bot.id)
+      const matches = entries.filter((entry) => entry.id.slice(4).startsWith(decision.memory))
+      if (matches.length !== 1) throw new Error('要忘掉的记忆对不上。')
+      await this.botMemory.forget(bot.id, { id: matches[0].id })
+      return { type: 'forget', id: matches[0].id }
+    }
+    if (decision.type === 'spawn') {
+      // 模型由 Bot 按活挑：选的模型用不了时退回档位，再退回 Bot 的默认模型。
+      const chosen = decision.model
+        ? await this.providerPreferences.resolveSubagentModel({ modelRef: decision.model })
+        : null
+      // 子 agent 带上 Bot 的工作说明与记忆：它不记事，背景从这里来。
+      const memory = botMemoryContext(await this.botMemory.list(bot.id).catch(() => []))
+      const instructions = [
+        String(bot.instructions || '').trim()
+          ? `[${bot.name} 的工作说明]\n${bot.instructions.trim()}`
+          : '',
+        memory,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+      const agent = await value.multiAgentRuntime.spawn({
+        taskName: decision.title,
+        title: decision.title,
+        ...(instructions ? { instructions } : {}),
+        message: decision.task,
+        ...(decision.tier ? { tier: decision.tier } : {}),
+        ...(chosen?.model ? { resolvedModel: chosen.model } : {}),
+        // 工具按 Bot 的工具范围给（null = 当前启用的全部工具）；对话自己没有可用工具，不能按它继承。
+        toolNames: Array.isArray(bot.tools) ? bot.tools : value.baseToolNames || [],
+        parentLimit: BOT_MAX_PARALLEL_AGENTS,
+      })
+      return { type: 'spawn', id: agent.id, title: decision.title }
+    }
+    const agent = resolveBotAgent(this.multiAgents.list(sessionId), decision.agent)
+    if (!agent) throw new Error('决定里的子 agent 对不上。')
+    if (decision.type === 'add') {
+      await this.multiAgents.followup(sessionId, agent.id, decision.text)
+      return { type: 'add', id: agent.id }
+    }
+    this.multiAgents.interrupt(sessionId, agent.id, '用户让它停下了。')
+    return { type: 'stop', id: agent.id }
+  }
+
   // 删除 Bot 时一并删掉指向它的定时任务（README「Bot」）。它的会话留着，变成一个普通会话。
   async deleteBot(id) {
     const removed = await this.bots.remove(id)
     if (removed) await this.schedules?.deleteForBot?.(id)
+    // 它自己的记忆一并删掉（会话留着，变成普通会话）。
+    if (removed) await this.botMemory?.removeBot(id)
     return removed
+  }
+
+  // 设置页的记忆：看、加、改、删。Bot 不存在时报 404。
+  requireBot(botId) {
+    const bot = this.bots.get(botId)
+    if (!bot)
+      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+    return bot
+  }
+
+  listBotMemory(botId) {
+    return this.botMemory.list(this.requireBot(botId).id)
+  }
+
+  addBotMemory(botId, text) {
+    return this.botMemory.remember(this.requireBot(botId).id, text, 'manual')
+  }
+
+  editBotMemory(botId, entryId, text) {
+    return this.botMemory.edit(this.requireBot(botId).id, entryId, text)
+  }
+
+  async forgetBotMemory(botId, entryId) {
+    return this.botMemory.forget(this.requireBot(botId).id, { id: entryId })
   }
 
   // 渠道与定时任务用的 Bot 接口（B3）：都在 Bots 实验功能打开时才生效。

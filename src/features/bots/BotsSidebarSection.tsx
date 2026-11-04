@@ -75,6 +75,16 @@ export function BotsSidebarSection() {
                   {bot.name}
                   <span className="sr-only">{` · ${line}`}</span>
                 </span>
+                {/* 在做几件：名字后一个安静的数字（悬停提示里写着在做哪件）。 */}
+                {activity?.working ? (
+                  <span
+                    aria-hidden="true"
+                    data-sidebar-bot-working={activity.working}
+                    className="flex-none text-[11.5px] text-content-muted tabular-nums"
+                  >
+                    {activity.working}
+                  </span>
+                ) : null}
                 {activity?.needsYou && (
                   <span aria-hidden="true" className="size-1.5 flex-none rounded-full bg-st-attn" />
                 )}

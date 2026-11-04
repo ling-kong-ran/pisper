@@ -158,5 +158,19 @@
   "model.thinkingLow": "轻度",
   "model.thinkingMedium": "标准",
   "model.thinkingHigh": "深度",
-  "model.thinkingXhigh": "极深"
+  "model.thinkingXhigh": "极深",
+  "activity.working": "{count} 件在做",
+  "activity.workingOn": "{count} 件在做 · 在做：{task}",
+  "memory.title": "记忆",
+  "memory.count": "{count} 条",
+  "memory.hint": "{name} 自己记得的事：你让它记住的、你纠正过的、做完一件活学到的。它派出去的子 agent 也会带上。每天空闲时它会整理一次。",
+  "memory.empty": "{name} 还没记住什么",
+  "memory.edit": "改这一条",
+  "memory.editLabel": "改这条记忆",
+  "memory.delete": "删掉这一条",
+  "memory.save": "保存",
+  "memory.cancel": "取消",
+  "memory.add": "记下",
+  "memory.addLabel": "加一条记忆",
+  "memory.addPlaceholder": "例如：发版前要在 iPhone 上点一遍首页"
 }

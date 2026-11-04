@@ -215,12 +215,20 @@ test('activity reads the session: idle, running, or waiting for you', () => {
   const running = new Set()
   const runtime = fakeRuntime({ bots: [thread], running })
   assert.equal(runtime.botActivity(bot('新的')), null)
-  assert.deepEqual(runtime.botActivity(thread), { status: 'idle', waiting: null, needsYou: false })
+  assert.deepEqual(runtime.botActivity(thread), {
+    status: 'idle',
+    waiting: null,
+    needsYou: false,
+    working: 0,
+    current: '',
+  })
   running.add('existing')
   assert.deepEqual(runtime.botActivity(thread), {
     status: 'running',
     waiting: null,
     needsYou: false,
+    working: 0,
+    current: '',
   })
   runtime.permissions.getPending = () => [
     {
@@ -235,6 +243,23 @@ test('activity reads the session: idle, running, or waiting for you', () => {
     status: 'running',
     waiting: 'approval',
     needsYou: true,
+    working: 0,
+    current: '',
+  })
+  // 对话没在说话，但子 agent 在干活、在等批准：照样算在忙、需要你；悬停时说正在做哪件。
+  running.delete('existing')
+  runtime.multiAgents = {
+    summaries: () => [
+      { id: 'a1', taskName: 'fix', title: '修首页白屏', status: 'running' },
+      { id: 'a2', taskName: 'done', title: '早做完的', status: 'completed' },
+    ],
+  }
+  assert.deepEqual(runtime.botActivity(thread), {
+    status: 'running',
+    waiting: 'approval',
+    needsYou: true,
+    working: 1,
+    current: '修首页白屏',
   })
 })
 
@@ -287,7 +312,15 @@ test('every turn in a bot session runs with the bot scope, prompt and isolation'
     source,
     /const bot = this\.botForSession\?\.\(value\.session\?\.sessionId \|\| sessionId\)\s*if \(bot\) \{\s*allowedToolNames = bot\.tools\s*isolatedContext = true\s*\}/,
   )
-  assert.match(source, /bot \? \{ appendSystemPrompt: botSystemPrompt\(bot\) \} : undefined/)
+  // Bot 的对话（v2）：本机的 Bot 只说话、做决定（对话的系统提示），执行节点上的 Bot 仍是一个会话自己干。
+  assert.match(
+    source,
+    /const conversationOnly = Boolean\(\s*bot && !remoteExecutor && this\.capabilities\.features\.multiAgent,?\s*\)/,
+  )
+  assert.match(
+    source,
+    /appendSystemPrompt: conversationOnly\s*\? botConversationPrompt\(bot\)\s*: botSystemPrompt\(bot\)/,
+  )
   // 关掉 Bots 实验功能后不再套用。
   const runtime = fakeRuntime({ bots: [bot('小橙', { threadSessionId: 'existing' })] })
   assert.equal(runtime.botForSession('existing')?.id, '小橙')

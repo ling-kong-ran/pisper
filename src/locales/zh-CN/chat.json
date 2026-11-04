@@ -676,5 +676,16 @@
   "focusSession.preparingAttachments": "正在准备附件",
   "focusSession.stopping": "正在停止",
   "focusSession.waitingForModel": "正在切换模型，请稍候",
-  "focusSession.returnToLatest": "返回最新消息"
+  "focusSession.returnToLatest": "返回最新消息",
+  "agentJob.title": "派了：{task}",
+  "agentJob.queued": "排队中",
+  "agentJob.running": "在做",
+  "agentJob.completed": "做完了",
+  "agentJob.failed": "没做成",
+  "agentJob.interrupted": "停下了",
+  "agentJob.stop": "停下",
+  "agentJob.expand": "展开这件活",
+  "agentJob.collapse": "收起",
+  "agentJob.model": "模型 {model}",
+  "agentJob.tools": "{count} 个操作"
 }

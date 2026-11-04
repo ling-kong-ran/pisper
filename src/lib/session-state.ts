@@ -119,10 +119,15 @@ export function isPendingQueuedMessage(message: ChatMessage | undefined) {
   return message?.role === 'user' && message.queuedPending === true
 }
 
-// 时间线上最后一条“已发生”的消息：跳过排在末尾、还没送达的排队消息。正在写的回复就是它。
+// 时间线上最后一条“已发生”的消息：跳过排在末尾、还没送达的排队消息，以及 Bot 派活的事件条目
+// （它们按时间插在对话里，但不是回复）。正在写的回复就是它。
 export function lastSettledMessageIndex(messages: readonly ChatMessage[] = []) {
   let index = messages.length - 1
-  while (index >= 0 && isPendingQueuedMessage(messages[index])) index -= 1
+  while (
+    index >= 0 &&
+    (isPendingQueuedMessage(messages[index]) || messages[index]?.role === 'event')
+  )
+    index -= 1
   return index
 }
 

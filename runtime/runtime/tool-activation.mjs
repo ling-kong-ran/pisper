@@ -66,6 +66,11 @@ export class ToolActivation {
   // 同步目标工具开关：目标激活时启用目标相关工具，否则关闭。
   syncGoalTools(value, goal) {
     if (!value?.session) return
+    // Bot 的对话只说话、做决定，活交给子 agent：它自己一个工具都不开。
+    if (value.conversationOnly) {
+      value.session.setActiveToolsByName([])
+      return
+    }
     const isBlocked = runToolBlocker(value)
     const availableToolNames = [
       ...(value.baseToolNames || []),

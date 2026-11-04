@@ -89,12 +89,20 @@ test('bot parser falls back for unknown avatar and settings values', () => {
   assert.deepEqual(parseBot({ id: 'b', name: 'n', model: { ref: 'bare' } }).model, {
     tier: 'standard',
   })
-  assert.deepEqual(bot.activity, { status: 'running', waiting: 'approval', needsYou: true })
+  assert.deepEqual(bot.activity, {
+    status: 'running',
+    waiting: 'approval',
+    needsYou: true,
+    working: 0,
+    current: '',
+  })
   // 不认识的动态按空闲处理，不让整个列表因此读不出来。
   assert.deepEqual(parseBot({ id: 'b', name: 'n', activity: { status: 'exploded' } }).activity, {
     status: 'idle',
     waiting: null,
     needsYou: false,
+    working: 0,
+    current: '',
   })
   assert.throws(() => parseBot({ id: 'x' }))
 })

@@ -192,6 +192,8 @@ import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
 import { botSystemPrompt } from '../services/bots/bot-model.mjs'
+import { botConversationPrompt } from '../services/bots/bot-conversation.mjs'
+import { BotMemoryService } from '../services/bots/bot-memory-service.mjs'
 import { EnvironmentService } from '../services/bots/environment-service.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
@@ -694,12 +696,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       path: join(dataDir, 'pisper-bots.json'),
       validateDirectory: (input) => resolveDirectory(input, this.cwd),
       getEnvironment: (id) => this.environments.get(id),
-      // 正在说话的 Bot 不能删除：先停下这一轮。
+      // 正在说话、或还有子 agent 在干活的 Bot 不能删除：先停下。
       isBusy: (botId) => {
         const sessionId = this.bots.get(botId)?.threadSessionId
-        return Boolean(sessionId && this.sessionRunIsActive(sessionId))
+        return Boolean(
+          sessionId &&
+          (this.sessionRunIsActive(sessionId) || this.multiAgents.hasActive(sessionId)),
+        )
       },
     })
+    // 每个 Bot 自己的一份记忆（不读写全局记忆）。
+    this.botMemory = new BotMemoryService({ dataDir })
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
@@ -1726,12 +1733,23 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       .filter((name) => !remoteExecutor || REMOTE_EXECUTOR_TOOL_NAMES.includes(name))
     // Bot 的会话：系统提示追加它是谁与它的指令（改了指令时 Bot 设置会释放空闲的运行时，重建后生效）。
     const bot = this.botForSession?.(runtimeSessionId)
+    // Bot 的对话（v2）：只说话、做决定，自己不跑工具，活派给子 agent。执行节点上的 Bot 暂时还是一个会话自己干
+    // （子 agent 还不能在执行节点上跑），没有多 Agent 能力时也一样。
+    const conversationOnly = Boolean(
+      bot && !remoteExecutor && this.capabilities.features.multiAgent,
+    )
     const [resourceLoader, mcpTools] = await Promise.all([
       measureRunStage(
         'rt.resourceLoader',
         this.skills.createResourceLoader(
           effectiveCwd,
-          bot ? { appendSystemPrompt: botSystemPrompt(bot) } : undefined,
+          bot
+            ? {
+                appendSystemPrompt: conversationOnly
+                  ? botConversationPrompt(bot)
+                  : botSystemPrompt(bot),
+              }
+            : undefined,
         ),
       ),
       this.capabilities.features.mcp && !remoteExecutor
@@ -2103,6 +2121,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 会话运行时值：缓存会话快照，供后续消息/查询直接使用，避免重复装配。
     const value = {
       session,
+      conversationOnly,
       modelFallbackMessage,
       ...(blockedModel ? { blockedModel } : {}),
       name: name || sessionManager.getSessionName() || DEFAULT_SESSION_NAME,
@@ -2202,7 +2221,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   injectAgentCompletion(agent) {
     const sessionId = agent.parentSessionId
     const value = this.sessions.get(sessionId)
-    if (!value?.session) return
+    if (!value?.session) {
+      // Bot 的对话不在内存里：加载它并把完成消息说进去（隐藏消息），它照常汇报。
+      if (this.botForSession?.(sessionId))
+        void this.promptFromChannel({
+          sessionId,
+          message: agentCompletionPrompt(agent),
+          unattended: true,
+        }).catch(() => console.warn('[bots] 子 agent 的结果没能交回 Bot 的对话。'))
+      return
+    }
 
     const prompt = agentCompletionPrompt(agent)
 
@@ -3023,6 +3051,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       if (activeGoal?.status === 'active') contexts.push(teamPrompt(activeGoal))
       contexts.push(...preparedAttachments.contexts)
       contexts.push(...undeliveredAgentNotes)
+      // Bot 的对话：每轮附上手上的子 agent 与进展（不显示给人看），问进度时它答得上来。
+      if (value.conversationOnly) contexts.push(await this.botStateContext(session.sessionId))
       const prompt = contexts.length
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
@@ -3215,6 +3245,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     } catch {
       console.warn('看板卡片摘要记录失败。')
     }
+    // Bot 的对话这一句说完：按对话决定派、补充、停子 agent（独立请求，失败不影响回复）。
+    if (value.conversationOnly && !error && !value.abortedAt) this.scheduleBotDecisions(sessionId)
   }
 
   // 精简摘要写进会话元数据（pisper-sessions.json 的 boardCard），Runtime 重启后已落盘会话靠它出卡片。
