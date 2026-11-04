@@ -56,7 +56,8 @@ async function realSession(t) {
 }
 
 // 模拟模型流：按 pieces 逐段吐字，收到中止信号时像 pi-ai 一样以 aborted 结束；result() 给出最终消息。
-function scriptedStream(pieces, { delayMs = 20, onCall } = {}) {
+// onPiece 在某段被消费后、下一段开始等待前回调，测试据此在确定的位置插队，不靠固定延时猜进度。
+function scriptedStream(pieces, { delayMs = 20, onCall, onPiece } = {}) {
   let calls = 0
   return async (model, context, options) => {
     const call = calls++
@@ -93,6 +94,7 @@ function scriptedStream(pieces, { delayMs = 20, onCall } = {}) {
           }
           text += piece
           yield { type: 'text_delta', contentIndex: 0, delta: piece, partial: partial() }
+          onPiece?.(call, text)
         }
         final = partial()
         yield { type: 'done', reason: 'stop', message: final }
@@ -116,9 +118,14 @@ const textOf = (message) =>
 test('send now cuts the streaming reply short and continues the same run with the steering message', async (t) => {
   const { session } = await realSession(t)
   const contexts = []
+  let secondPieceWritten
+  const secondPiece = new Promise((resolve) => (secondPieceWritten = resolve))
   session.agent.streamFunction = scriptedStream(
     [['第一段。', '第二段。', '第三段。', '第四段。', '第五段。'], ['按插队的要求重写。']],
-    { onCall: (call, context) => contexts.push(context.messages.map((m) => m.role)) },
+    {
+      onCall: (call, context) => contexts.push(context.messages.map((m) => m.role)),
+      onPiece: (call, text) => call === 0 && text === '第一段。第二段。' && secondPieceWritten(),
+    },
   )
   const original = session.agent.streamFunction
   installStepInterrupt(session)
@@ -128,7 +135,8 @@ test('send now cuts the streaming reply short and continues the same run with th
   })
   const run = session.agent.prompt('写一段很长的说明')
   // 第二段写出后插队：先按 steer 入队，再打断当前这一步。
-  await new Promise((resolve) => setTimeout(resolve, 55))
+  // CI 机器慢时固定等 55ms 可能只写出第一段，所以等第二段真正被消费再插队。
+  await secondPiece
   session.agent.steer({
     role: 'user',
     content: [{ type: 'text', text: '改成三条要点' }],
