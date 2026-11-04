@@ -226,7 +226,9 @@ B3 实现补充：私聊里也可以直接以“名字，”“名字：”或�
 
 ## 隔离执行环境
 
-`isolation = worktree` 时，每个任务在**执行环境上**得到独立 worktree：本机在 `<dataDir>/worktrees/<repoRoot 的 sha256 前 12 位>/<任务 id>`，执行节点在它自己的数据目录下的同名位置。分支名 `pisper/<bot slug>/<任务短码>`。实现放在 `runtime/services/bots/worktree-manager.mjs`，只通过 `Executor.exec('git', [...])` 调用，参数数组。
+**2026-11-04 起 Bot 不再依赖 git**：真要开发是派给代理去做，不是 Bot 自己在分支上改。新保存与加载的 Bot 一律 `isolation = shared`（`normalizeBotInput` 不再接受 `worktree`），任务直接在 Bot 的目录里跑、受审批设置约束，交付按只回复处理；设置里不再有“独立分支 / 交付方式”。本节的 worktree 流程只留给旧版留下、仍在等审阅的分支任务（接受 / 放弃 / 继续），这些收尾完以后整体删除。万一遇到 `isolation = worktree` 而目录不是 git 仓库，退回直接在目录里跑，不让任务失败。
+
+以下为旧行为。`isolation = worktree` 时，每个任务在**执行环境上**得到独立 worktree：本机在 `<dataDir>/worktrees/<repoRoot 的 sha256 前 12 位>/<任务 id>`，执行节点在它自己的数据目录下的同名位置。分支名 `pisper/<bot slug>/<任务短码>`。实现放在 `runtime/services/bots/worktree-manager.mjs`，只通过 `Executor.exec('git', [...])` 调用，参数数组。
 
 | 阶段 | 动作 | git 命令（参数数组） |
 | --- | --- | --- |
@@ -236,7 +238,7 @@ B3 实现补充：私聊里也可以直接以“名字，”“名字：”或�
 | 放弃 | 删除 worktree 和分支 | `worktree remove --force <path>`、`branch -D <branch>` |
 | 清理 | 已接受的保留 worktree 7 天后删除、分支保留；启动时清孤儿 | `worktree prune` |
 
-约束：不自动合并、不推送（冲突时 `cherry-pick --abort` 并报 `apply_conflict`）；非 git 目录且要求 `worktree` 时任务 `failed`（`workspace_not_git`），不自动降级；同一仓库同时存在的 worktree 上限 8 个；`node_modules` 等依赖第一版不处理，由 Bot 按需自己安装。`delivery = commit` 时 Bot 可在任务分支上自己提交，但“应用到当前分支”仍由人触发。
+约束：不自动合并、不推送（冲突时 `cherry-pick --abort` 并报 `apply_conflict`）；同一仓库同时存在的 worktree 上限 8 个；`node_modules` 等依赖第一版不处理，由 Bot 按需自己安装。`delivery = commit` 时 Bot 可在任务分支上自己提交，但“应用到当前分支”仍由人触发。
 
 ## 存储结构
 

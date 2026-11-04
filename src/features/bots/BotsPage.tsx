@@ -136,7 +136,15 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
   return (
     <div data-bot-page={bot.id} className="flex h-full min-h-0 w-full min-w-0">
       <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={bot.name}>
-        <header className="flex h-14 flex-none items-center gap-2.5 border-b border-stroke px-4">
+        {/* 与会话顶栏同高 52，空白处是窗口拖拽区；Windows 自绘标题栏时窗口按钮占右上 144px：
+            详情栏关着时顶栏贴着窗口右边，要让出这段，免得设置键被压在窗口按钮底下。 */}
+        <header
+          data-window-drag-region
+          className={cn(
+            'flex h-[52px] flex-none items-center gap-2.5 border-b border-stroke px-4',
+            !detailsOpen && '[[data-custom-titlebar]_&]:pr-[144px]',
+          )}
+        >
           <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={32} />
           <div className="min-w-0">
             <h1 className="truncate text-[15px] font-semibold text-content">{bot.name}</h1>
@@ -224,6 +232,12 @@ function BotChat({ botId, notify }: { botId: string; notify: Notify }) {
           !detailsOpen && 'hidden',
         )}
       >
+        {/* Windows 自绘标题栏：详情栏贴着窗口右边，顶上留出与顶栏同高的拖动区，标签从窗口按钮下方开始。 */}
+        <div
+          aria-hidden="true"
+          data-window-drag-region
+          className="hidden h-[52px] flex-none [[data-custom-titlebar]_&]:block"
+        />
         <div className="hidden justify-end px-3 pt-3 max-[900px]:flex">
           <Button variant="outline" onClick={() => setDetailsOpen(false)}>
             {t('bots:header.closeDetails')}

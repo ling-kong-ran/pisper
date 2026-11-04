@@ -295,23 +295,29 @@ export class BotTaskService {
     }
     this.#set(task, { status: 'preparing', error: null })
     await this.save()
-    const isolated = bot.workspace.isolation === 'worktree'
+    const shared = { kind: 'shared', path: bot.workspace.cwd, state: 'ready' }
     try {
-      // “继续”一个已有 worktree 的任务时沿用原来的目录与分支。
+      // Bot 不依赖 git：任务直接在 Bot 的目录里跑，改动受 Bot 的审批设置约束。只有“继续”一个旧版留下的、
+      // 带 worktree 的任务时沿用原来的目录与分支（那类任务仍可接受 / 放弃）。旧数据里的 worktree 设置
+      // 在加载时已收成 shared；万一还有，开不了分支（目录不是 git 仓库）也退回直接在目录里跑，不让任务失败。
       if (!task.workspace || task.workspace.state !== 'ready')
-        task.workspace = isolated
-          ? await this.#worktrees(task).create({
-              cwd: bot.workspace.cwd,
-              taskId: task.id,
-              botName: bot.name,
-            })
-          : { kind: 'shared', path: bot.workspace.cwd, state: 'ready' }
+        task.workspace =
+          bot.workspace.isolation === 'worktree'
+            ? await this.#worktrees(task)
+                .create({ cwd: bot.workspace.cwd, taskId: task.id, botName: bot.name })
+                .catch((error) => {
+                  if (error?.code === 'workspace_not_git') return shared
+                  throw error
+                })
+            : shared
     } catch (error) {
       this.#set(task, { status: 'failed', error: errorOf(error), finishedAt: this.#at() })
       await this.save()
       this.#emit(task)
       return
     }
+    // 提示里说的隔离方式以实际拿到的目录为准（退回共享目录时不能说“在独立分支上”）。
+    const isolated = task.workspace.kind === 'worktree'
     if (this.running.get(task.id)?.stopped) return this.#finishStopped(task)
     this.#set(task, { status: 'running' })
     await this.save()

@@ -240,7 +240,7 @@ test('a node without --no-shell refuses commands; offline nodes fail fast', asyn
   await assert.rejects(offline.exec('git', ['status'], repo), { code: 'executor_offline' })
 })
 
-test('a bot task on a node waits for it, then runs in a worktree on that machine', async (t) => {
+test('a bot task on a node waits for it, then runs in the bot folder on that machine', async (t) => {
   const { repo, hub, environment, directory } = await machine(t)
   const executor = new NodeExecutor({ hub, environment })
   const nodeWorktrees = new WorktreeManager({ executor, root: environment.worktreeRoot })
@@ -280,16 +280,14 @@ test('a bot task on a node waits for it, then runs in a worktree on that machine
 
   online = true
   service.schedule()
-  await until(() => service.get(task.id).status === 'review', 15_000)
+  // Bot 不依赖 git：在那台电脑上直接在 Bot 的目录里跑，不开分支、不进审阅。
+  await until(() => service.get(task.id).status === 'done', 15_000)
   const stored = service.get(task.id)
   assert.equal(calls[0].environmentId, environment.id)
-  assert.ok(calls[0].cwd.startsWith(environment.worktreeRoot))
-  assert.equal(stored.result.changedFiles, 1)
-  assert.match((await service.diff(task.id)).diff, /fixed/)
-
-  await service.accept(task.id, { apply: true })
+  assert.equal(calls[0].cwd, repo)
+  assert.equal(stored.workspace.kind, 'shared')
+  assert.equal(stored.result.summary, '改好了')
   assert.equal(await readFile(join(repo, 'fix.txt'), 'utf8'), 'fixed\n')
-  assert.equal(service.get(task.id).status, 'done')
 })
 
 test('a connection lost mid-run marks the task interrupted, not failed', async (t) => {

@@ -10,7 +10,6 @@ import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/lib/utils'
 import {
   createEnvironmentPairing,
@@ -278,15 +277,6 @@ export function BotComputerTab({
           </div>
         )}
       </div>
-      <SegmentedControl
-        value={bot.workspace.isolation}
-        disabled={saving}
-        onValueChange={(isolation) => void save({ isolation })}
-        options={[
-          { value: 'worktree', label: t('bots:computer.isolated') },
-          { value: 'shared', label: t('bots:computer.shared') },
-        ]}
-      />
       {workingTask?.workspace?.branch && (
         <p className="text-xs text-content-muted">
           {t('bots:computer.currentBranch', { branch: workingTask.workspace.branch })}

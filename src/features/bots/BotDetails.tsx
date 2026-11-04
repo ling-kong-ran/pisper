@@ -30,7 +30,7 @@ import {
   type BotTask,
 } from './bots-api'
 import { environmentLabel } from './bot-environments'
-import { deliveryLabel, executionModeLabel } from './bot-labels'
+import { executionModeLabel } from './bot-labels'
 import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
@@ -244,22 +244,6 @@ export function BotDetails({
                 {(['approval-required', 'workspace-write', 'full-access'] as const).map((mode) => (
                   <option key={mode} value={mode}>
                     {executionModeLabel(t, mode)}
-                  </option>
-                ))}
-              </AppSelect>
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex-none">{t('bots:details.delivery')}</span>
-              <AppSelect
-                value={bot.delivery}
-                className="w-44"
-                aria-label={t('bots:details.delivery')}
-                disabled={saving}
-                onChange={(event) => void save({ delivery: event.target.value as Bot['delivery'] })}
-              >
-                {(['diff', 'commit', 'reply-only'] as const).map((delivery) => (
-                  <option key={delivery} value={delivery}>
-                    {deliveryLabel(t, delivery)}
                   </option>
                 ))}
               </AppSelect>

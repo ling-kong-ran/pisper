@@ -44,10 +44,18 @@ async function fixture(t, cleanups = []) {
   return { directory, repo, plain, worktrees }
 }
 
+// 这组测试覆盖旧版留下的独立分支（worktree）任务：新保存的 Bot 一律直接在目录里，这里直接改出
+// 旧数据的形状，以便产生等审阅的分支任务，验证接受 / 放弃 / 继续这些仍要能收尾的流程。
 function bot(id, overrides = {}) {
+  const normalized = normalizeBotInput({
+    name: id,
+    instructions: '小心修改',
+    workspace: { cwd: '/x' },
+  })
   return {
     id,
-    ...normalizeBotInput({ name: id, instructions: '小心修改', workspace: { cwd: '/x' } }),
+    ...normalized,
+    workspace: { ...normalized.workspace, isolation: 'worktree' },
     ...overrides,
   }
 }
@@ -304,7 +312,7 @@ test('restart turns running tasks into interrupted and requeues preparing ones',
   assert.equal(service.get('broken'), null)
 })
 
-test('dispatch validates the bot and request; non-git workspaces fail clearly', async (t) => {
+test('dispatch validates the bot and request; non-git workspaces run in place', async (t) => {
   const { service, plain } = await taskFixture(t, {
     bots: [bot('paused', { enabled: false }), bot('plain')],
     runAgent: async () => ({ text: 'ok' }),
@@ -312,16 +320,26 @@ test('dispatch validates the bot and request; non-git workspaces fail clearly', 
   await assert.rejects(service.dispatch('paused', { text: 'x' }), { code: 'bot_paused' })
   await assert.rejects(service.dispatch('missing', { text: 'x' }), { code: 'bot_not_found' })
   await assert.rejects(service.dispatch('plain', { text: '   ' }), { code: 'bot_task_empty' })
-  // 指向非 git 目录、又要求独立分支的 Bot。
+  // 指向非 git 目录、又开着独立分支的 Bot：开不了分支就直接在目录里跑（问一句“定时任务还有多久”
+  // 这种根本不改文件的任务不能因此失败），提示里不说“独立分支”，交付按只回复处理。
+  const seen = []
   const nonGit = await taskFixture(t, {
     bots: [
       bot('plain', { workspace: { environmentId: 'local', cwd: plain, isolation: 'worktree' } }),
     ],
-    runAgent: async () => ({ text: 'ok' }),
+    runAgent: async ({ cwd, message }) => {
+      seen.push({ cwd, message })
+      return { text: '下一次在明早 9 点。' }
+    },
   })
-  const task = await nonGit.service.dispatch('plain', { text: '改代码' })
-  await until(() => nonGit.service.get(task.id).status === 'failed')
-  assert.equal(nonGit.service.get(task.id).error.code, 'workspace_not_git')
+  const task = await nonGit.service.dispatch('plain', { text: '定时任务还有多久执行' })
+  await until(() => nonGit.service.get(task.id).status === 'done')
+  const finished = nonGit.service.get(task.id)
+  assert.equal(finished.error, null)
+  assert.equal(finished.workspace.kind, 'shared')
+  assert.deepEqual(finished.result, { summary: '下一次在明早 9 点。', changedFiles: 0 })
+  assert.equal(seen[0].cwd, plain)
+  assert.doesNotMatch(seen[0].message, /独立分支|worktree/i)
 })
 
 test('the task prompt keeps instructions and the request apart', () => {

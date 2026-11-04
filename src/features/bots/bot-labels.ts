@@ -38,12 +38,6 @@ export function executionModeLabel(t: Translate, mode: Bot['executionMode']) {
   return t('bots:details.modeApproval')
 }
 
-export function deliveryLabel(t: Translate, delivery: Bot['delivery']) {
-  if (delivery === 'reply-only') return t('bots:details.deliveryReply')
-  if (delivery === 'commit') return t('bots:details.deliveryCommit')
-  return t('bots:details.deliveryDiff')
-}
-
 export function platformLabel(t: Translate, platform: BotPlatform) {
   if (platform === 'weixin') return t('bots:triggers.weixin')
   if (platform === 'qq') return t('bots:triggers.qq')

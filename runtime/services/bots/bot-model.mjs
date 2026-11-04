@@ -212,9 +212,10 @@ export function normalizeBotInput(input, current = null) {
     workspace: {
       environmentId,
       cwd,
-      isolation: BOT_ISOLATIONS.includes(String(workspaceInput.isolation))
-        ? String(workspaceInput.isolation)
-        : 'worktree',
+      // Bot 不依赖 git：一律直接在目录里干活（真要开发是派给代理去做，不是 Bot 自己在分支上改）。
+      // 旧版保存的“独立分支”在加载时也收成这里（加载同样经过本函数）；已经在等审阅的旧任务
+      // 仍按它自己的 task.workspace 接受或放弃（BotTaskService），不受影响。
+      isolation: 'shared',
     },
     executionMode,
     tools: normalizeTools(merged.tools),

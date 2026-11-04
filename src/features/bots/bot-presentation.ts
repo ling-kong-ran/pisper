@@ -23,6 +23,34 @@ export function isActiveTaskStatus(status: BotTaskStatus) {
   return ACTIVE.has(status)
 }
 
+// 侧栏默认显示的 Bot 数：Bot 多时只留最要紧的几个，其余“显示全部”就地展开。
+export const SIDEBAR_BOT_LIMIT = 3
+
+// 侧栏里的 Bot 顺序：需要你的在前，其次正在干活的，再按最近一次活动从新到旧；没活动过的保持原顺序排在最后。
+// 截断时当前打开的 Bot 总是留着（不能让正在看的那个从侧栏消失）。
+export function sidebarBots<T extends Pick<Bot, 'id' | 'activity'>>(
+  bots: readonly T[],
+  { expanded, currentId }: { expanded: boolean; currentId?: string },
+): { shown: T[]; hidden: number } {
+  const rank = (bot: T) =>
+    bot.activity?.needsYou ? 0 : bot.activity && ACTIVE.has(bot.activity.status) ? 1 : 2
+  const at = (bot: T) => Date.parse(bot.activity?.updatedAt ?? '') || 0
+  const ordered = bots
+    .map((bot, index) => ({ bot, index }))
+    .sort(
+      (left, right) =>
+        rank(left.bot) - rank(right.bot) ||
+        at(right.bot) - at(left.bot) ||
+        left.index - right.index,
+    )
+    .map((entry) => entry.bot)
+  if (expanded || ordered.length <= SIDEBAR_BOT_LIMIT) return { shown: ordered, hidden: 0 }
+  const shown = ordered.filter(
+    (bot, index) => index < SIDEBAR_BOT_LIMIT || (currentId !== undefined && bot.id === currentId),
+  )
+  return { shown, hidden: ordered.length - shown.length }
+}
+
 export function botAvatarState(bot: Pick<Bot, 'activity'>): BotAvatarState {
   if (bot.activity?.needsYou) return 'need'
   if (bot.activity && ACTIVE.has(bot.activity.status)) return 'running'

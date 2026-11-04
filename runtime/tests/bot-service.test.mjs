@@ -44,7 +44,13 @@ test('bot fields are validated and given safe defaults', () => {
   )
   assert.deepEqual(bot.model, { tier: 'standard' })
   assert.equal(bot.executionMode, 'approval-required')
-  assert.equal(bot.workspace.isolation, 'worktree')
+  // Bot 不依赖 git：一律直接在目录里；旧版保存的“独立分支”加载时也收成 shared（加载同样经过 normalize）。
+  assert.equal(bot.workspace.isolation, 'shared')
+  assert.equal(
+    normalizeBotInput({ name: '旧', workspace: { cwd: '/repo', isolation: 'worktree' } }).workspace
+      .isolation,
+    'shared',
+  )
   assert.equal(bot.workspace.environmentId, 'local')
   assert.equal(bot.delivery, 'diff')
   assert.equal(bot.runMode, 'plan')

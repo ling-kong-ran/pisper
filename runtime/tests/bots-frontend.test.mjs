@@ -15,10 +15,12 @@ import {
 } from '../../src/features/bots/avatar.ts'
 import {
   BOT_READ_ONLY_TOOLS,
+  SIDEBAR_BOT_LIMIT,
   botActivityLine,
   botAvatarState,
   botToolsPreset,
   isActiveTaskStatus,
+  sidebarBots,
 } from '../../src/features/bots/bot-presentation.ts'
 import { parseBot, parseBotTask } from '../../src/features/bots/bots-api.ts'
 import { parseBoardCard } from '../../src/features/board/board-api.ts'
@@ -72,7 +74,7 @@ test('bot parser falls back for unknown avatar and settings values', () => {
   assert.deepEqual(bot.avatar, { character: 'blob', color: 'blue' })
   assert.equal(bot.executionMode, 'approval-required')
   assert.equal(bot.delivery, 'diff')
-  assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: '/repo', isolation: 'worktree' })
+  assert.deepEqual(bot.workspace, { environmentId: 'local', cwd: '/repo', isolation: 'shared' })
   assert.equal(bot.enabled, true)
   assert.equal(bot.activity?.changedFiles, 3)
   assert.throws(() => parseBot({ id: 'x' }))
@@ -407,4 +409,50 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
   const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
   for (const section of ['computer', 'chats', 'schedules', 'advanced'])
     assert.match(details, new RegExp(`<AccordionItem value="${section}">`))
+})
+
+test('the sidebar keeps the bots that matter on top and folds the rest', () => {
+  // 需要你 → 正在干活 → 最近活动；没活动过的保持原顺序排最后。只显示前几个，当前打开的那个总留着。
+  const activity = (status, needsYou, updatedAt) => ({
+    taskId: 't',
+    status,
+    title: '',
+    changedFiles: 0,
+    needsYou,
+    waiting: null,
+    updatedAt,
+  })
+  const bots = [
+    { id: 'idle', activity: null },
+    { id: 'older', activity: activity('done', false, '2026-11-01T00:00:00Z') },
+    { id: 'running', activity: activity('running', false, '2026-10-01T00:00:00Z') },
+    { id: 'newer', activity: activity('done', false, '2026-11-03T00:00:00Z') },
+    { id: 'waiting', activity: activity('running', true, '2026-09-01T00:00:00Z') },
+  ]
+  const ids = (result) => result.shown.map((bot) => bot.id)
+  const all = sidebarBots(bots, { expanded: true })
+  assert.deepEqual(ids(all), ['waiting', 'running', 'newer', 'older', 'idle'])
+  assert.equal(all.hidden, 0)
+  const folded = sidebarBots(bots, { expanded: false })
+  assert.equal(folded.shown.length, SIDEBAR_BOT_LIMIT)
+  assert.equal(folded.hidden, bots.length - SIDEBAR_BOT_LIMIT)
+  const withCurrent = sidebarBots(bots, { expanded: false, currentId: 'idle' })
+  assert.deepEqual(ids(withCurrent), ['waiting', 'running', 'newer', 'idle'])
+  assert.equal(withCurrent.hidden, 1)
+  // 不多于上限时全部显示，没有“显示全部”。
+  assert.equal(sidebarBots(bots.slice(0, SIDEBAR_BOT_LIMIT), { expanded: false }).hidden, 0)
+})
+
+test('the Bots page leaves the Windows window controls alone', async () => {
+  // Windows 自绘标题栏的窗口按钮绝对定位在右上 144×48：Bot 顶栏关着详情时要让出这段（与会话顶栏一致），
+  // 详情栏开着时它贴着窗口右边，顶上留 52px 拖动区，标签从窗口按钮下方开始。
+  const page = await readFile(join(root, 'src/features/bots/BotsPage.tsx'), 'utf8')
+  assert.match(
+    page,
+    /<header\s+data-window-drag-region[\s\S]{0,200}h-\[52px\][\s\S]{0,200}!detailsOpen && '\[\[data-custom-titlebar\]_&\]:pr-\[144px\]'/,
+  )
+  assert.match(
+    page,
+    /data-window-drag-region\s+className="hidden h-\[52px\] flex-none \[\[data-custom-titlebar\]_&\]:block"/,
+  )
 })

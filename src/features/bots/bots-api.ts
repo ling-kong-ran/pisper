@@ -222,7 +222,7 @@ export function parseBot(value: unknown): Bot {
     workspace: {
       environmentId: text(workspace.environmentId, 'local'),
       cwd: text(workspace.cwd),
-      isolation: workspace.isolation === 'shared' ? 'shared' : 'worktree',
+      isolation: workspace.isolation === 'worktree' ? 'worktree' : 'shared',
     },
     threadSessionId: text(input.threadSessionId),
     activity: parseActivity(input.activity),
