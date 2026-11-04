@@ -1,9 +1,9 @@
 {
-  "version": "0.1.74",
-  "tag": "app-v0.1.74",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.74",
+  "version": "0.1.75",
+  "tag": "app-v0.1.75",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.75",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.74\n\n- 发布日期：2026-11-04（北京时间）\n- 发布标签：`app-v0.1.74`\n- 对比基线：`app-v0.1.73`\n\n## 更新内容\n\n### 新增功能\n\n- feat(notifications): 提示音——需要你、做完了、出错了各挑一种音效\n- feat(bots): Bot 放手干活，危险操作才问；模型与权限放进设置页，回复用 Bot 的头像\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.73...app-v0.1.74)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/79130b0e111bf5c91669c8c63769c55d9f9aa583)",
-  "releaseDate": "2026-11-04"
+  "notes": "## Pisper App 0.1.75\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.75`\n- 对比基线：`app-v0.1.74`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): Bot 主动只读巡看与每日简报（默认关）；同时做几件可设；子 agent 完成通知不再丢\n- feat(bots): Bot 之间互相找——发话、请托、回话与结果自动交回；跳数与频率限制，权限不传递\n- feat(bots): Bot 做完活自己复盘写技能，派出的子 agent 自动带上；设置页“它学会的”\n- feat(bots): Bot v2——对话只说话做决定，活派给子 agent 后台并行；时间线里的活；Bot 自己的记忆\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.74...app-v0.1.75)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/c095ff2a47ffa688b0eda8f14cc7f5e5475b6353)",
+  "releaseDate": "2026-11-05"
 }
