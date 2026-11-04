@@ -20,12 +20,15 @@ import { normalizeBotMessage } from '../services/bots/bot-model.mjs'
 import {
   BOT_MAX_PARALLEL_AGENTS,
   botDecisionInstruction,
+  botReviewInstruction,
   botStateSnapshot,
   parseBotDecisions,
+  parseBotSkillReview,
   resolveBotAgent,
 } from '../services/bots/bot-conversation.mjs'
-import { requestBotDecisions, requestBotMemoryTidy } from './bot-decisions.mjs'
+import { requestBotDecisions, requestBotMemoryTidy, requestBotText } from './bot-decisions.mjs'
 import { botMemoryContext } from '../services/bots/bot-memory-service.mjs'
+import { botSkillsContext } from '../services/bots/bot-skill-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
@@ -1021,6 +1024,7 @@ export class AgentRuntimeFacade {
   async botStateContext(sessionId) {
     const bot = this.botForSession(sessionId)
     const memory = bot ? await this.botMemory?.list(bot.id).catch(() => []) : []
+    const skills = bot ? await this.botSkills?.list(bot.id).catch(() => []) : []
     return [
       botStateSnapshot({
         agents: this.multiAgents?.list(sessionId) || [],
@@ -1028,6 +1032,7 @@ export class AgentRuntimeFacade {
         limit: BOT_MAX_PARALLEL_AGENTS,
       }),
       botMemoryContext(memory || []),
+      botSkillsContext(skills || []),
     ]
       .filter(Boolean)
       .join('\n\n')
@@ -1140,6 +1145,8 @@ export class AgentRuntimeFacade {
         // 工具按 Bot 的工具范围给（null = 当前启用的全部工具）；对话自己没有可用工具，不能按它继承。
         toolNames: Array.isArray(bot.tools) ? bot.tools : value.baseToolNames || [],
         parentLimit: BOT_MAX_PARALLEL_AGENTS,
+        // 它自己写的技能：技能加载器列进子 agent 的系统提示，用到时再读全文。
+        ...(this.botSkills ? { skillPaths: [this.botSkills.dir(bot.id)] } : {}),
       })
       return { type: 'spawn', id: agent.id, title: decision.title }
     }
@@ -1151,6 +1158,75 @@ export class AgentRuntimeFacade {
     }
     this.multiAgents.interrupt(sessionId, agent.id, '用户让它停下了。')
     return { type: 'stop', id: agent.id }
+  }
+
+  // 子 agent 做完：复盘这件活（独立请求，失败不影响汇报）——会反复做的写成技能，学到新东西的更新技能。
+  // 同一个 Bot 的复盘按顺序跑，两件同类活同时做完时第二次复盘看得到第一次写的技能。
+  botAgentFinished(agent) {
+    if (agent?.status !== 'completed' || !this.botSkills) return null
+    const bot = this.botForSession(agent.parentSessionId)
+    if (!bot) return null
+    this.botReviewChains ||= new Map()
+    const previous = this.botReviewChains.get(bot.id) || Promise.resolve()
+    const next = previous
+      .then(() => this.reviewBotJob(bot, agent))
+      .catch(() => console.warn('[bots] 复盘没能完成。'))
+      .finally(() => {
+        if (this.botReviewChains.get(bot.id) === next) this.botReviewChains.delete(bot.id)
+      })
+    this.botReviewChains.set(bot.id, next)
+    return next
+  }
+
+  async reviewBotJob(bot, agent) {
+    const conversation = this.sessions.get(bot.threadSessionId)?.session?.model
+    const model =
+      conversation ||
+      (
+        await this.providerPreferences.resolveSubagentModel(
+          bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
+        )
+      ).model
+    if (!model) return null
+    const [skills, memory] = await Promise.all([
+      this.botSkills.list(bot.id),
+      this.botMemory.list(bot.id).catch(() => []),
+    ])
+    const result = await requestBotText({
+      modelRuntime: this.modelRuntime,
+      model,
+      text: botReviewInstruction({
+        title: agent.title || agent.taskName,
+        task: agent.message,
+        output: agent.fullOutput || agent.output,
+        skills,
+        corrections: memory
+          .filter((entry) => entry.source === 'correction')
+          .map((entry) => entry.text),
+      }),
+    })
+    if (result.usage) {
+      await this.recordUsage(
+        localDayKey(),
+        `bot-review:${bot.id}:${randomUUID()}`,
+        result.usage,
+      ).catch(() => {})
+    }
+    const skill = result.text === null ? null : parseBotSkillReview(result.text)
+    return skill ? this.botSkills.write(bot.id, skill) : null
+  }
+
+  // 设置页“它学会的”：看、删。技能只由复盘写入，这里不手写。
+  listBotSkills(botId) {
+    return this.botSkills.list(this.requireBot(botId).id)
+  }
+
+  getBotSkill(botId, name) {
+    return this.botSkills.get(this.requireBot(botId).id, name)
+  }
+
+  deleteBotSkill(botId, name) {
+    return this.botSkills.remove(this.requireBot(botId).id, name)
   }
 
   // 删除 Bot 时一并删掉指向它的定时任务（README「Bot」）。它的会话留着，变成一个普通会话。

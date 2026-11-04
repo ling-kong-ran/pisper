@@ -442,3 +442,53 @@ export function deleteBotMemory(botId: string, entryId: string) {
     { method: 'DELETE', parse: () => undefined },
   )
 }
+
+// Bot 自己写的技能（做完复盘写入）：设置页“它学会的”里看、删。
+export type BotSkillSummary = {
+  name: string
+  description: string
+  updatedAt: string
+}
+
+export type BotSkill = BotSkillSummary & { body: string }
+
+function parseSkillSummary(value: unknown): BotSkillSummary | null {
+  const input = object(value)
+  if (typeof input.name !== 'string' || !input.name) return null
+  return {
+    name: input.name.slice(0, 64),
+    description: text(input.description).slice(0, 1_024),
+    updatedAt: text(input.updatedAt),
+  }
+}
+
+export function fetchBotSkills(botId: string, signal?: AbortSignal) {
+  return requestJson(`/api/bots/${encodeURIComponent(botId)}/skills`, {
+    signal,
+    parse: (value) => {
+      const skills = object(value).skills
+      return Array.isArray(skills)
+        ? skills.map(parseSkillSummary).filter((skill): skill is BotSkillSummary => Boolean(skill))
+        : []
+    },
+  })
+}
+
+export function fetchBotSkill(botId: string, name: string, signal?: AbortSignal) {
+  return requestJson(`/api/bots/${encodeURIComponent(botId)}/skills/${encodeURIComponent(name)}`, {
+    signal,
+    parse: (value): BotSkill => {
+      const skill = object(object(value).skill)
+      const summary = parseSkillSummary(skill)
+      if (!summary) throw new Error('Invalid skill response.')
+      return { ...summary, body: text(skill.body).slice(0, 20_000) }
+    },
+  })
+}
+
+export function deleteBotSkill(botId: string, name: string) {
+  return requestJson(`/api/bots/${encodeURIComponent(botId)}/skills/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    parse: () => undefined,
+  })
+}

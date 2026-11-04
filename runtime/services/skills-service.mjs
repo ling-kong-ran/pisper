@@ -557,14 +557,24 @@ export class SkillsService {
   // 为会话创建资源加载器（技能/提示词 + 可选附加系统提示）。
   async createResourceLoader(
     cwd = this.cwd,
-    { includeDisabled = false, appendSystemPrompt = '' } = {},
+    { includeDisabled = false, appendSystemPrompt = '', extraSkillPaths = [] } = {},
   ) {
     process.env.PI_CODING_AGENT_DIR = this.agentDir
     const settingsManager = extensionSafeSettingsManager(
       this.getSettingsManager(cwd),
       this.computerUseAvailable,
     )
-    const resources = await this.resolveSkillResources(cwd)
+    // 附加技能目录（Bot 自己写的技能，只给它派出的子 agent）：目录存在才加，不进技能管理页。
+    const resources = [
+      ...(await this.resolveSkillResources(cwd)),
+      ...extraSkillPaths
+        .filter((path) => existsSync(path))
+        .map((path) => ({
+          path,
+          enabled: true,
+          metadata: { source: 'bot', scope: 'user', origin: 'bot', baseDir: path },
+        })),
+    ]
     const promptDir = projectPromptsDir(cwd)
     const appConfig = this.configPath ? await readJson(this.configPath, {}) : {}
     const computerUseEnabled = appConfig.computerUseEnabled !== false

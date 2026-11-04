@@ -644,3 +644,37 @@ test('skills service writes built-in skills under builtin-skills and ignores uns
   // 技能页“全局”位置不变：内置技能不占用户技能目录。
   assert.equal(dashboard.locations.global, join(agentDir, 'skills'))
 })
+
+test('a bot’s own skills directory loads only for the loaders that ask for it', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-skills-bot-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const agentDir = join(directory, 'agent')
+  const cwd = join(directory, 'workspace')
+  const botSkills = join(directory, 'bots', 'bot_aaaaaaaaaaaa', 'skills')
+  await mkdir(cwd, { recursive: true })
+  await writeSkill(join(botSkills, 'release-check'), 'release-check', 'Release checklist.')
+  const settingsManager = SettingsManager.inMemory({ enableSkillCommands: true })
+  const service = new SkillsService({
+    path: join(agentDir, 'pisper-skills.json'),
+    agentDir,
+    cwd,
+    getSettingsManager: () => settingsManager,
+  })
+  await service.init()
+  const withBot = await service.createResourceLoader(cwd, {
+    extraSkillPaths: [botSkills, join(directory, 'missing')],
+  })
+  const skill = withBot.getSkills().skills.find((item) => item.name === 'release-check')
+  assert.ok(skill)
+  assert.equal(skill.sourceInfo.origin, 'bot')
+  const plain = await service.createResourceLoader(cwd)
+  assert.equal(
+    plain.getSkills().skills.some((item) => item.name === 'release-check'),
+    false,
+  )
+  const dashboard = await service.dashboard({ force: true })
+  assert.equal(
+    dashboard.skills.some((item) => item.name === 'release-check'),
+    false,
+  )
+})

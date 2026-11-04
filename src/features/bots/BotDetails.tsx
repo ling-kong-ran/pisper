@@ -17,6 +17,7 @@ import { BotAvatarPicker } from './BotAvatarPicker'
 import { BotComputerTab } from './BotComputerTab'
 import { BotModelSection } from './BotModelSection'
 import { BotMemorySection } from './BotMemorySection'
+import { BotSkillsSection } from './BotSkillsSection'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
@@ -41,6 +42,7 @@ export function BotDetails({
   const [saving, setSaving] = useState(false)
   const [choosingLook, setChoosingLook] = useState(false)
   const [memoryCount, setMemoryCount] = useState<number | null>(null)
+  const [skillCount, setSkillCount] = useState<number | null>(null)
   useEffect(() => setInstructions(bot.instructions), [bot.id, bot.instructions])
 
   const save = async (patch: Parameters<typeof updateBot>[1]) => {
@@ -133,6 +135,22 @@ export function BotDetails({
           </AccordionTrigger>
           <AccordionContent className="h-auto">
             <BotMemorySection bot={bot} onError={onError} onCount={setMemoryCount} />
+          </AccordionContent>
+        </AccordionItem>
+        {/* 它学会的：做完活复盘时自己写的技能。展开时才加载。 */}
+        <AccordionItem value="skills">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:skills.title')}
+              {skillCount !== null && (
+                <span className="truncate text-xs font-normal text-content-muted">
+                  {t('bots:skills.count', { count: skillCount })}
+                </span>
+              )}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <BotSkillsSection bot={bot} onError={onError} onCount={setSkillCount} />
           </AccordionContent>
         </AccordionItem>
         <AccordionItem value="model">

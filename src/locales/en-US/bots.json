@@ -172,5 +172,13 @@
   "memory.cancel": "Cancel",
   "memory.add": "Add",
   "memory.addLabel": "Add a memory",
-  "memory.addPlaceholder": "e.g. Check the home page on an iPhone before each release"
+  "memory.addPlaceholder": "e.g. Check the home page on an iPhone before each release",
+  "skills.title": "What it learned",
+  "skills.count": "{count} skills",
+  "skills.hint": "{name} reviews each finished job: work it will do again gets written down as its own skill, and every sub-agent it hands work to carries its skills. Your corrections update them too.",
+  "skills.empty": "{name} has not learned anything yet",
+  "skills.loading": "Loading…",
+  "skills.delete": "Delete this skill",
+  "skills.schedule": "Put on a schedule",
+  "skills.scheduleMessage": "Do it once following skill {name}"
 }

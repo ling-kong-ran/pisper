@@ -2,6 +2,7 @@
 // 通过邮箱（mailbox）收发消息；服务负责注册表持久化、并发限制、运行/中断/回收
 // 生命周期管理，以及子 Agent 会话的定时释放（保留期后销毁）。
 import { randomUUID } from 'node:crypto'
+import { isAbsolute } from 'node:path'
 import {
   createAgentSession,
   createDefaultResourceLoader,
@@ -108,6 +109,14 @@ function usageDifference(total, baseline) {
   )
 }
 
+// 附加技能目录（Bot 自己写的技能）：只认绝对路径，最多 4 个。
+function skillPathList(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => String(item || ''))
+    .filter((item) => item && isAbsolute(item))
+    .slice(0, 4)
+}
+
 function modelLabel(model) {
   return model?.provider && model?.id ? `${model.provider}/${model.id}` : ''
 }
@@ -157,6 +166,7 @@ function durableRecord(record) {
     taskName: record.taskName,
     title: record.title || '',
     ...(record.parentLimit ? { parentLimit: record.parentLimit } : {}),
+    ...(record.skillPaths?.length ? { skillPaths: record.skillPaths } : {}),
     canonicalName: record.canonicalName,
     parentSessionId: record.parentSessionId,
     cwd: record.cwd,
@@ -230,6 +240,7 @@ function restoredRecord(value) {
       .trim()
       .slice(0, 80),
     parentLimit: Number.isInteger(parentLimit) && parentLimit > 0 ? parentLimit : null,
+    skillPaths: skillPathList(value?.skillPaths),
     canonicalName: String(
       value?.canonicalName || `/root/${normalizeTaskName(value?.taskName)}_restored`,
     ),
@@ -367,6 +378,7 @@ async function createAgentResourceLoader({
   cwd,
   agentDir,
   settingsManager,
+  skillPaths = [],
   appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT,
 }) {
   const mobileRuntime = ['mobile-embedded', 'mobile-store'].includes(
@@ -380,6 +392,7 @@ async function createAgentResourceLoader({
     extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
     additionalExtensionPaths: mobileRuntime ? [] : [getOfficialComputerUseExtensionPath()],
     noExtensions: false,
+    ...(skillPaths.length ? { additionalSkillPaths: skillPaths } : {}),
     appendSystemPromptOverride: (base) => [...base, appendSystemPrompt],
   })
   await loader.reload()
@@ -850,6 +863,7 @@ export class MultiAgentService {
     onTerminal,
     parentLimit,
     title,
+    skillPaths,
   } = {}) {
     if (!parentSessionId) throw new Error('Agent requires a parent session.')
     if (!cwd) throw new Error('Agent requires a workspace directory.')
@@ -924,6 +938,8 @@ export class MultiAgentService {
       onTerminal,
       // 这个父会话同时最多跑几个（Bot 的对话按设定，默认不限，只受全局上限）。
       parentLimit: Number.isInteger(parentLimit) && parentLimit > 0 ? parentLimit : null,
+      // Bot 派的活带上它自己写的技能目录，技能加载器把它们列进子 agent 的系统提示。
+      skillPaths: skillPathList(skillPaths),
     }
     this.records.set(id, record)
     this.emit(record, onProgress)
@@ -951,6 +967,7 @@ export class MultiAgentService {
           cwd: record.cwd,
           agentDir: this.agentDir || record.cwd,
           settingsManager,
+          skillPaths: record.skillPaths || [],
           appendSystemPrompt: record.profileInstructions
             ? `${MULTI_AGENT_SYSTEM_PROMPT}\n\n## Agent definition: ${record.agentProfile}\n\nStanding instructions from this agent definition apply to every task you receive; follow them together with the delegated task.\n\n${record.profileInstructions}`
             : MULTI_AGENT_SYSTEM_PROMPT,

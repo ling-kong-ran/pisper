@@ -117,4 +117,28 @@ export const botRoutes = [
       else json(200, { deleted: true })
     }),
   },
+  // Bot 自己写的技能（做完复盘写入）：设置页“它学会的”里看、删。
+  {
+    method: 'GET',
+    path: '/api/bots/:botId/skills',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      json(200, { skills: await runtime.listBotSkills(params.botId) })
+    }),
+  },
+  {
+    method: 'GET',
+    path: '/api/bots/:botId/skills/:name',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      json(200, { skill: await runtime.getBotSkill(params.botId, params.name) })
+    }),
+  },
+  {
+    method: 'DELETE',
+    path: '/api/bots/:botId/skills/:name',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      const deleted = await runtime.deleteBotSkill(params.botId, params.name)
+      if (!deleted) json(404, { error: '这个技能不存在。', code: 'bot_skill_not_found' })
+      else json(200, { deleted: true })
+    }),
+  },
 ]

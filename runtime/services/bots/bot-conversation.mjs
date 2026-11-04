@@ -81,6 +81,7 @@ export function botDecisionInstruction({
     'Remember only what will still matter later: what the user asked you to remember, corrections ("以后别…"), and lessons from finished work (source review). Do not remember one-off task details. Forget what the user says is wrong or no longer true.',
     `At most ${limit} sub-agents run at once; extra spawns wait in a queue.`,
     'Pick the model by what the task needs (coding, long documents, images, quick cheap chores); leave it out when unsure.',
+    'Sub-agents carry your skills from [你会的技能]; when one fits the task, name it in the task ("按技能 <name> 做").',
     `Running sub-agents: ${active.length ? active.map((agent) => `${agent.id.slice(0, 8)} "${agent.title || agent.taskName}"`).join(', ') : 'none'}.`,
     `Available models: ${models.length ? models.join(', ') : 'only the default'}.`,
     '</pisper_decide>',
@@ -151,4 +152,53 @@ export function resolveBotAgent(agents, reference) {
   if (!prefix) return null
   const matches = agents.filter((agent) => agent.id.startsWith(prefix))
   return matches.length === 1 ? matches[0] : null
+}
+
+const MAX_REVIEW_OUTPUT_CHARS = 6_000
+
+// 做完一件活后的复盘：这类活会不会反复做？会就写成（或更新）一个技能。只要 JSON。
+export function botReviewInstruction({
+  title = '',
+  task = '',
+  output = '',
+  skills = [],
+  corrections = [],
+} = {}) {
+  return [
+    'You are reviewing a job your sub-agent just finished, to decide whether to save how it was done as a reusable skill.',
+    'Write a skill only when this kind of work is likely to come up again (a repeatable procedure: a release check, a kind of bug fix, a report format), not for a one-off.',
+    "If an existing skill already covers it, update that skill (same name) only when this run or the user's corrections taught something new; otherwise return no skill.",
+    "A skill body is Markdown instructions for a future sub-agent: when to use it, the steps, commands and paths that worked, pitfalls, what to report. Keep it short and concrete. Write it in the user's language.",
+    'Respond with JSON only: {"skill": null} or {"skill": {"name": "<lowercase-kebab-case>", "description": "<what it does and when to use it>", "body": "<markdown>"}}.',
+    '',
+    `Job: ${clip(title, MAX_TITLE_CHARS)}`,
+    `Instructions given: ${clip(task, 2_000)}`,
+    `Result: ${String(output || '').slice(0, MAX_REVIEW_OUTPUT_CHARS)}`,
+    '',
+    `Existing skills: ${skills.length ? skills.map((skill) => `${skill.name} (${clip(skill.description, 160)})`).join('; ') : 'none'}.`,
+    ...(corrections.length
+      ? ['User corrections to respect:', ...corrections.map((item) => `- ${clip(item, 300)}`)]
+      : []),
+  ].join('\n')
+}
+
+// 解析复盘结果：{"skill": {...}} 才算要写；格式不对、名字不合法、正文为空时当没有（复盘失败不影响别的）。
+export function parseBotSkillReview(raw) {
+  const source = String(raw || '')
+  const start = source.indexOf('{')
+  const end = source.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  let parsed
+  try {
+    parsed = JSON.parse(source.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  const skill = record(record(parsed).skill)
+  const name = String(skill.name || '').trim()
+  const description = String(skill.description || '').trim()
+  const body = String(skill.body || '').trim()
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) return null
+  if (!description || !body) return null
+  return { name, description: description.slice(0, 1_024), body: body.slice(0, 20_000) }
 }

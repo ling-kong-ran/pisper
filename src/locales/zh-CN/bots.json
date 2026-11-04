@@ -172,5 +172,13 @@
   "memory.cancel": "取消",
   "memory.add": "记下",
   "memory.addLabel": "加一条记忆",
-  "memory.addPlaceholder": "例如：发版前要在 iPhone 上点一遍首页"
+  "memory.addPlaceholder": "例如：发版前要在 iPhone 上点一遍首页",
+  "skills.title": "它学会的",
+  "skills.count": "{count} 个技能",
+  "skills.hint": "{name} 做完一件活会复盘：会反复做的事，它把做法写成自己的技能，之后派出去的子 agent 都带着；你纠正过的做法也会更新进去。",
+  "skills.empty": "{name} 还没学会什么",
+  "skills.loading": "正在读取…",
+  "skills.delete": "删掉这个技能",
+  "skills.schedule": "设成定时",
+  "skills.scheduleMessage": "照技能 {name} 做一遍"
 }

@@ -171,16 +171,118 @@ function today() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
+// 新建一条定时（设置页“定时”分区与“它学会的”里把技能设成定时共用）：到点把这句话发给 Bot。
+export function ScheduleForm({
+  bot,
+  initialMessage = '',
+  onCancel,
+  onCreated,
+  onError,
+}: {
+  bot: Bot
+  initialMessage?: string
+  onCancel: () => void
+  onCreated: () => void
+  onError: (message: string) => void
+}) {
+  const { t } = useI18n()
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(initialMessage)
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'once'>(
+    initialMessage ? 'weekly' : 'daily',
+  )
+  const [time, setTime] = useState('09:00')
+  const [date, setDate] = useState(today)
+  const [dayOfWeek, setDayOfWeek] = useState(initialMessage ? 5 : 1)
+  const add = async () => {
+    const text = message.trim()
+    setBusy(true)
+    try {
+      await createBotSchedule({
+        botId: bot.id,
+        name: `${bot.name}：${text.slice(0, 40)}`,
+        botMessage: text,
+        frequency,
+        time,
+        date: frequency === 'once' ? date : '',
+        dayOfWeek,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Hong_Kong',
+      })
+      onCreated()
+    } catch (caught) {
+      onError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-stroke p-2.5">
+      <Input
+        value={message}
+        maxLength={12_000}
+        aria-label={t('bots:triggers.scheduleMessage')}
+        placeholder={t('bots:triggers.scheduleMessagePlaceholder')}
+        onChange={(event) => setMessage(event.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <AppSelect
+          value={frequency}
+          className="w-28"
+          aria-label={t('bots:triggers.frequency')}
+          onChange={(event) => setFrequency(event.target.value as typeof frequency)}
+        >
+          <option value="daily">{t('bots:triggers.daily')}</option>
+          <option value="weekly">{t('bots:triggers.weekly')}</option>
+          <option value="once">{t('bots:triggers.once')}</option>
+        </AppSelect>
+        {frequency === 'weekly' && (
+          <AppSelect
+            value={String(dayOfWeek)}
+            className="w-24"
+            aria-label={t('bots:triggers.weekday')}
+            onChange={(event) => setDayOfWeek(Number(event.target.value))}
+          >
+            {WEEKDAYS.map((day) => (
+              <option key={day} value={day}>
+                {weekdayLabel(t, day)}
+              </option>
+            ))}
+          </AppSelect>
+        )}
+        {frequency === 'once' && (
+          <Input
+            type="date"
+            value={date}
+            className="w-40"
+            aria-label={t('bots:triggers.date')}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        )}
+        <Input
+          type="time"
+          value={time}
+          className="w-28"
+          aria-label={t('bots:triggers.time')}
+          onChange={(event) => setTime(event.target.value)}
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          {t('bots:triggers.cancel')}
+        </Button>
+        <Button size="sm" disabled={busy || !message.trim()} onClick={() => void add()}>
+          {t('bots:triggers.add')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
   const { t } = useI18n()
   const [schedules, setSchedules] = useState<BotSchedule[]>([])
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'once'>('daily')
-  const [time, setTime] = useState('09:00')
-  const [date, setDate] = useState(today)
-  const [dayOfWeek, setDayOfWeek] = useState(1)
   const load = useCallback(async () => {
     try {
       setSchedules(await fetchBotSchedules(bot.id))
@@ -196,31 +298,11 @@ export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: 
     try {
       await action()
       await load()
-      return true
     } catch (caught) {
       onError(caught instanceof Error ? caught.message : String(caught))
-      return false
     } finally {
       setBusy(false)
     }
-  }
-  const add = async () => {
-    const text = message.trim()
-    const ok = await run(() =>
-      createBotSchedule({
-        botId: bot.id,
-        name: `${bot.name}：${text.slice(0, 40)}`,
-        botMessage: text,
-        frequency,
-        time,
-        date: frequency === 'once' ? date : '',
-        dayOfWeek,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Hong_Kong',
-      }),
-    )
-    if (!ok) return
-    setAdding(false)
-    setMessage('')
   }
   return (
     <div className="flex flex-col">
@@ -257,65 +339,15 @@ export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: 
         </ul>
       )}
       {adding ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-stroke p-2.5">
-          <Input
-            value={message}
-            maxLength={12_000}
-            aria-label={t('bots:triggers.scheduleMessage')}
-            placeholder={t('bots:triggers.scheduleMessagePlaceholder')}
-            onChange={(event) => setMessage(event.target.value)}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <AppSelect
-              value={frequency}
-              className="w-28"
-              aria-label={t('bots:triggers.frequency')}
-              onChange={(event) => setFrequency(event.target.value as typeof frequency)}
-            >
-              <option value="daily">{t('bots:triggers.daily')}</option>
-              <option value="weekly">{t('bots:triggers.weekly')}</option>
-              <option value="once">{t('bots:triggers.once')}</option>
-            </AppSelect>
-            {frequency === 'weekly' && (
-              <AppSelect
-                value={String(dayOfWeek)}
-                className="w-24"
-                aria-label={t('bots:triggers.weekday')}
-                onChange={(event) => setDayOfWeek(Number(event.target.value))}
-              >
-                {WEEKDAYS.map((day) => (
-                  <option key={day} value={day}>
-                    {weekdayLabel(t, day)}
-                  </option>
-                ))}
-              </AppSelect>
-            )}
-            {frequency === 'once' && (
-              <Input
-                type="date"
-                value={date}
-                className="w-40"
-                aria-label={t('bots:triggers.date')}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            )}
-            <Input
-              type="time"
-              value={time}
-              className="w-28"
-              aria-label={t('bots:triggers.time')}
-              onChange={(event) => setTime(event.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
-              {t('bots:triggers.cancel')}
-            </Button>
-            <Button size="sm" disabled={busy || !message.trim()} onClick={() => void add()}>
-              {t('bots:triggers.add')}
-            </Button>
-          </div>
-        </div>
+        <ScheduleForm
+          bot={bot}
+          onCancel={() => setAdding(false)}
+          onCreated={() => {
+            setAdding(false)
+            void load()
+          }}
+          onError={onError}
+        />
       ) : (
         <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
           {t('bots:triggers.addSchedule')}

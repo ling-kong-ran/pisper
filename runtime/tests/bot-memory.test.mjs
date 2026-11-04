@@ -147,7 +147,7 @@ test('the conversation and the sub-agents it hands work to both get the bot’s 
     const context = await runtime.botStateContext('conv')
     assert.match(
       context,
-      /^\[当前状态\][\s\S]*\[你记得的事\]\n- \(\w{6}\) 发版前在 iPhone 上点一遍首页$/,
+      /^\[当前状态\][\s\S]*\[你记得的事\]\n- \([\w-]{6}\) 发版前在 iPhone 上点一遍首页$/,
     )
     const value = {
       baseToolNames: ['read'],
@@ -166,7 +166,7 @@ test('the conversation and the sub-agents it hands work to both get the bot’s 
     assert.match(spawned[0].instructions, /\[小橙 的工作说明\]\n负责 acme-web 前端/)
     assert.match(
       spawned[0].instructions,
-      /\[你记得的事\]\n- \(\w{6}\) 发版前在 iPhone 上点一遍首页/,
+      /\[你记得的事\]\n- \([\w-]{6}\) 发版前在 iPhone 上点一遍首页/,
     )
   })
 })

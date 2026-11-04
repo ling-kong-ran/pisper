@@ -21,20 +21,15 @@ const TIDY_INSTRUCTION = [
   'Respond with JSON only: {"kept":[{"id":"<existing id>","text":"<final text>"}]}.',
 ].join('\n')
 
-// 每日整理记忆：一次无头请求，回来的清单只认已有的 id（服务里再校验一次）。
-export async function requestBotMemoryTidy({ modelRuntime, model, entries, signal }) {
+// 一次不带上下文、不带工具的无头请求（整理记忆、复盘）：出错或取消时 text 为 null。
+export async function requestBotText({ modelRuntime, model, text: prompt, signal }) {
   if (!model) throw new Error('没有可用模型。')
-  const listing = entries.map((entry) => `${entry.id}: ${entry.text}`).join('\n')
   const stream = modelRuntime.streamSimple(
     model,
     {
       systemPrompt: '',
       messages: [
-        {
-          role: 'user',
-          content: [{ type: 'text', text: `${TIDY_INSTRUCTION}\n\n${listing}` }],
-          timestamp: Date.now(),
-        },
+        { role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() },
       ],
       tools: [],
     },
@@ -44,8 +39,23 @@ export async function requestBotMemoryTidy({ modelRuntime, model, entries, signa
   for await (const event of stream) if (event.type === 'text_delta') text += event.delta
   const message = await stream.result()
   if (message.stopReason === 'error' || message.stopReason === 'aborted')
-    return { kept: null, usage: message.usage || null }
-  return { kept: parseTidy(text, entries), usage: message.usage || null }
+    return { text: null, usage: message.usage || null }
+  return { text, usage: message.usage || null }
+}
+
+// 每日整理记忆：一次无头请求，回来的清单只认已有的 id（服务里再校验一次）。
+export async function requestBotMemoryTidy({ modelRuntime, model, entries, signal }) {
+  const listing = entries.map((entry) => `${entry.id}: ${entry.text}`).join('\n')
+  const result = await requestBotText({
+    modelRuntime,
+    model,
+    text: `${TIDY_INSTRUCTION}\n\n${listing}`,
+    signal,
+  })
+  return {
+    kept: result.text === null ? null : parseTidy(result.text, entries),
+    usage: result.usage,
+  }
 }
 
 // 解析整理结果：只认已有 id、不重复；解析不出来或一条都不剩（多半是出错）时当作不整理。
