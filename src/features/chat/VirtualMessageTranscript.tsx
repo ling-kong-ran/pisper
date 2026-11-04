@@ -17,6 +17,7 @@ import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
 import { FocusChatMessage } from './ChatMessage'
 import { AgentJobEvent } from './AgentJobEvent'
+import { BotLinkEvent } from './BotLinkEvent'
 import { AgentJobsContext } from './session-agents'
 import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
 import type { BranchFromHereOptions } from './chat-api'
@@ -271,6 +272,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
         // Bot 派出的子 agent：时间线里的一件活，不是消息。
         if (message.role === 'event') {
           const job = agentJobs?.agents.get(String(message.agentId || ''))
+          const link = agentJobs?.links.get(String(message.linkId || ''))
           return (
             <div
               className="virtual-transcript-item absolute left-0 [display:flow-root] w-full"
@@ -286,6 +288,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
                   agent={job}
                   onChanged={agentJobs.reload}
                 />
+              ) : link ? (
+                <BotLinkEvent link={link} />
               ) : null}
             </div>
           )

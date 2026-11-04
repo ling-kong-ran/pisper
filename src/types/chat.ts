@@ -49,6 +49,8 @@ export type ChatMessage = EntityRecord & {
   queuedPending?: boolean
   // 被“立即发送”打断的那段回复（定格在原位，下面标“已打断”）。
   interrupted?: boolean
+  // 别的 Bot 说进 Bot 对话的话：发话 Bot 的 id（气泡上面显示它的头像与名字）。
+  fromBot?: string
 }
 
 export type ToolActivity = EntityRecord & {

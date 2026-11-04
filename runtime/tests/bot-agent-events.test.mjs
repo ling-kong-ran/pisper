@@ -9,6 +9,7 @@ import { botActivityLine } from '../../src/features/bots/bot-presentation.ts'
 import {
   isActiveAgent,
   parseSessionAgents,
+  parseSessionLinks,
   withAgentEvents,
 } from '../../src/features/chat/session-agents.ts'
 
@@ -47,6 +48,57 @@ test('jobs are placed in the timeline by start time and never count as the reply
   // 末尾的事件条目不是回复：正在写的仍是 a2。
   assert.equal(merged[lastSettledMessageIndex(merged)].id, 'a2')
   assert.equal(withAgentEvents(messages, []), messages)
+  // Bot 之间的来往也是事件条目，按开始时间插进去。
+  const withLink = withAgentEvents(
+    messages.slice(0, 2),
+    [],
+    [
+      {
+        id: 'ch_abcdefghij',
+        botId: 'bot_bbbbbbbbbbbb',
+        direction: 'out',
+        text: '帮我跑一遍回归',
+        status: 'waiting',
+        reason: '',
+        openedAt: '2026-11-04T10:00:01Z',
+      },
+    ],
+  )
+  assert.deepEqual(
+    withLink.map((item) => item.id),
+    ['u1', 'link-event-ch_abcdefghij', 'a1'],
+  )
+})
+
+test('bot links are parsed as untrusted data', () => {
+  assert.deepEqual(
+    parseSessionLinks({
+      links: [
+        {
+          id: 'ch_abcdefghij',
+          botId: 'bot_bbbbbbbbbbbb',
+          direction: 'out',
+          text: '帮我跑一遍回归',
+          status: 'answered',
+          openedAt: '2026-11-04T10:00:01Z',
+        },
+        { id: 'ch_x', botId: 'bot_b', status: 'weird' },
+        { botId: 'bot_b', status: 'waiting' },
+      ],
+    }),
+    [
+      {
+        id: 'ch_abcdefghij',
+        botId: 'bot_bbbbbbbbbbbb',
+        direction: 'out',
+        text: '帮我跑一遍回归',
+        status: 'answered',
+        reason: '',
+        openedAt: '2026-11-04T10:00:01Z',
+      },
+    ],
+  )
+  assert.deepEqual(parseSessionLinks({}), [])
 })
 
 test('sub-agent summaries are parsed as untrusted data, titles first', () => {
@@ -112,7 +164,10 @@ test('the bot conversation page shows jobs from the session and reloads after th
     new URL('../../src/features/chat/FocusSession.tsx', import.meta.url),
     'utf8',
   )
-  assert.match(focus, /return botId \? withAgentEvents\(shown, sessionAgents\.agents\) : shown/)
+  assert.match(
+    focus,
+    /return botId \? withAgentEvents\(shown, sessionAgents\.agents, sessionAgents\.links\) : shown/,
+  )
   assert.match(focus, /useSessionAgents\(session\.id, Boolean\(botId\), \(\) => \{/)
   const transcript = await readFile(
     new URL('../../src/features/chat/VirtualMessageTranscript.tsx', import.meta.url),

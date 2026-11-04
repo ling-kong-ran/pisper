@@ -195,6 +195,7 @@ import { botSystemPrompt } from '../services/bots/bot-model.mjs'
 import { botConversationPrompt } from '../services/bots/bot-conversation.mjs'
 import { BotMemoryService } from '../services/bots/bot-memory-service.mjs'
 import { BotSkillService } from '../services/bots/bot-skill-service.mjs'
+import { BotLinkService } from '../services/bots/bot-links.mjs'
 import { EnvironmentService } from '../services/bots/environment-service.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
@@ -713,6 +714,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.botMemory = new BotMemoryService({ dataDir })
     // 每个 Bot 自己写的技能（做完复盘写入，它派出的子 agent 自动带上）。
     this.botSkills = new BotSkillService({ dataDir })
+    // Bot 之间的来往（只在内存里）：哪条链在等谁回话、跳数与频率限制。
+    this.botLinks = new BotLinkService()
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))

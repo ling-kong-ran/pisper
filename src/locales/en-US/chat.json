@@ -687,5 +687,9 @@
   "agentJob.expand": "Show this job",
   "agentJob.collapse": "Hide",
   "agentJob.model": "Model {model}",
-  "agentJob.tools": "{count} steps"
+  "agentJob.tools": "{count} steps",
+  "botLink.waiting": "waiting for a reply",
+  "botLink.answered": "replied",
+  "botLink.stoppedHops": "too many back-and-forths, stopped here",
+  "botLink.stoppedRate": "too many messages, stopped here"
 }

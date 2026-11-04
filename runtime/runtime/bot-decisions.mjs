@@ -1,6 +1,36 @@
 // Bot 对话的“决定”请求：对话这一句说完后，拿同一份上下文快照再问一次“现在要做什么”，只要 JSON。
 // 和旁问一样是一次无头请求：不建会话、不写会话文件、不带工具；系统提示与消息前缀与对话一致，便于命中提示缓存。
 import { convertToLlm } from './pi-coding-agent.mjs'
+import { ATTACHMENT_MARKER, textFromContent } from './stream-projection.mjs'
+import { isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
+import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
+
+// 这一轮是被什么叫起来的：看末尾回复之前的那几条用户消息。
+// message：别的 Bot 说进来的话（来源标记只认附件上下文里的，用户正文里写的不算）；
+// completedAgents：这一轮交回来的子 agent 结果（完成通知里的 id）；reply：这一轮最后说的话。
+export function botTurnTrigger(messages) {
+  let index = messages.length - 1
+  const replyParts = []
+  while (index >= 0 && messages[index]?.role !== 'user') {
+    if (messages[index]?.role === 'assistant')
+      replyParts.unshift(textFromContent(messages[index].content))
+    index -= 1
+  }
+  let message = null
+  const completedAgents = []
+  for (; index >= 0 && messages[index]?.role === 'user'; index -= 1) {
+    const raw = textFromContent(messages[index].content)
+    if (isAgentCompletionMessage(raw)) {
+      for (const match of raw.matchAll(/\(([0-9a-f-]{36})\) has completed with status/g))
+        completedAgents.push(match[1])
+      continue
+    }
+    const at = raw.indexOf(ATTACHMENT_MARKER)
+    if (!message && at >= 0) message = parseBotMessageTag(raw.slice(at))
+  }
+  // 最后一段回复：工具前的旁白不算（对话没有工具，通常就是整段）。
+  return { message, completedAgents, reply: (replyParts.at(-1) || '').trim() }
+}
 
 export function botDecisionContext(session, instruction, now = Date.now()) {
   return {

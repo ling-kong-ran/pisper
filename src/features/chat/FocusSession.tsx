@@ -509,17 +509,18 @@ export const FocusSession = memo(function FocusSession({
         ? {
             sessionId: session.id,
             agents: new Map(sessionAgents.agents.map((agent) => [agent.id, agent])),
+            links: new Map(sessionAgents.links.map((link) => [link.id, link])),
             reload: sessionAgents.reload,
           }
         : null,
-    [botId, session.id, sessionAgents.agents, sessionAgents.reload],
+    [botId, session.id, sessionAgents.agents, sessionAgents.links, sessionAgents.reload],
   )
   const transcriptMessages = useMemo(() => {
     const shown = phonePage
       ? messages
       : messages.filter((message) => !isPendingQueuedMessage(message))
-    return botId ? withAgentEvents(shown, sessionAgents.agents) : shown
-  }, [botId, messages, phonePage, sessionAgents.agents])
+    return botId ? withAgentEvents(shown, sessionAgents.agents, sessionAgents.links) : shown
+  }, [botId, messages, phonePage, sessionAgents.agents, sessionAgents.links])
   // 标题菜单“压缩上下文”旁的用量（规格 v2 第 2.5 节）：与模型芯片弹层同一来源，拿不到时不写。
   const contextPercent = Number(contextUsage?.percent)
   const runMetricsContextPercent =

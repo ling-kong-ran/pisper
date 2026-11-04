@@ -741,12 +741,15 @@ const routes = [
       json(200, runtime.getSessionWorkflowRuns(params.sessionId))
     },
   },
-  // 会话派出的子 agent（摘要）：Bot 的对话把它们作为时间线里的事件显示，在跑的随状态刷新。
+  // 会话派出的子 agent（摘要）与 Bot 之间的来往：Bot 的对话把它们作为时间线里的事件显示，在跑的随状态刷新。
   {
     method: 'GET',
     path: '/api/sessions/:sessionId/agents',
     handler({ runtime, params, json }) {
-      json(200, { agents: runtime.listSessionAgents(params.sessionId) })
+      json(200, {
+        agents: runtime.listSessionAgents(params.sessionId),
+        links: runtime.listSessionLinks(params.sessionId),
+      })
     },
   },
   // 停掉会话派出的某个子 agent：只认这个会话自己的子 agent。

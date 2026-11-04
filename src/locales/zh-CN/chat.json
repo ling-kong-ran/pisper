@@ -687,5 +687,9 @@
   "agentJob.expand": "展开这件活",
   "agentJob.collapse": "收起",
   "agentJob.model": "模型 {model}",
-  "agentJob.tools": "{count} 个操作"
+  "agentJob.tools": "{count} 个操作",
+  "botLink.waiting": "在等回话",
+  "botLink.answered": "回话了",
+  "botLink.stoppedHops": "来回太多次，停在这里了",
+  "botLink.stoppedRate": "发得太频繁，停在这里了"
 }

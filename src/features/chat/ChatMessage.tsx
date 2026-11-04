@@ -954,6 +954,22 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           )}
         </div>
       )}
+      {message.role === 'user' && message.fromBot && (
+        // 别的 Bot 说进来的话：气泡上面写是谁说的，不当成用户说的。
+        <div
+          className="mb-1.5 flex h-6 min-w-0 items-center gap-1.5 text-[13px] text-content-secondary"
+          data-message-from-bot={message.fromBot}
+        >
+          <Suspense fallback={null}>
+            <BotSessionChip botId={message.fromBot} part="mark" animate={false} />
+          </Suspense>
+          <span className="min-w-0 truncate font-medium">
+            <Suspense fallback={null}>
+              <BotSessionChip botId={message.fromBot} part="name" />
+            </Suspense>
+          </span>
+        </div>
+      )}
       <div
         ref={contentRef}
         className={cn(

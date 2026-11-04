@@ -16,7 +16,8 @@ import {
   botQuestionText,
   botReplyText,
 } from '../services/bots/bot-notifications.mjs'
-import { normalizeBotMessage } from '../services/bots/bot-model.mjs'
+import { botNameKey, normalizeBotMessage } from '../services/bots/bot-model.mjs'
+import { botMessageContext, isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
 import {
   BOT_MAX_PARALLEL_AGENTS,
   botDecisionInstruction,
@@ -26,7 +27,12 @@ import {
   parseBotSkillReview,
   resolveBotAgent,
 } from '../services/bots/bot-conversation.mjs'
-import { requestBotDecisions, requestBotMemoryTidy, requestBotText } from './bot-decisions.mjs'
+import {
+  botTurnTrigger,
+  requestBotDecisions,
+  requestBotMemoryTidy,
+  requestBotText,
+} from './bot-decisions.mjs'
 import { botMemoryContext } from '../services/bots/bot-memory-service.mjs'
 import { botSkillsContext } from '../services/bots/bot-skill-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
@@ -43,7 +49,7 @@ import { resolveWorkspaceDirectory } from './workspace-directories.mjs'
 import { normalizeSideQuestion, streamSideQuestion } from './side-question.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
 import { finishRunStartTiming, markRunStage, withRunStartTiming } from './run-start-timing.mjs'
-import { isInternalParentMessage } from './stream-projection.mjs'
+import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.mjs'
 import { sessionInputQueueSnapshot } from './session-input-queue.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
@@ -997,7 +1003,8 @@ export class AgentRuntimeFacade {
     const message = normalizeBotMessage(text)
     const sessionId = await this.ensureBotSession(botId)
     if (this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)) {
-      if (source.kind !== 'schedule') return { sessionId, status: 'busy' }
+      // 定时与别的 Bot 的话排在这一轮之后（对话只是在说话，很快就轮到）；聊天里的人收到“在忙”。
+      if (source.kind !== 'schedule' && source.kind !== 'bot') return { sessionId, status: 'busy' }
       await this.queueSessionMessage(sessionId, { message, behavior: 'followUp' })
       return { sessionId, status: 'queued' }
     }
@@ -1005,7 +1012,7 @@ export class AgentRuntimeFacade {
     void this.promptFromChannel({
       sessionId,
       message,
-      unattended: source.kind === 'schedule',
+      unattended: source.kind === 'schedule' || source.kind === 'bot',
     })
       .then((result) => this.notifyBotChat(source, botReplyText(bot.name, result)))
       .catch((error) =>
@@ -1058,11 +1065,24 @@ export class AgentRuntimeFacade {
     const bot = this.botForSession(sessionId)
     if (!value?.conversationOnly || !value.multiAgentRuntime || !bot) return []
     const agents = this.multiAgents.list(sessionId)
+    // 这一轮是谁叫起来的：别的 Bot 的话要回给它；替别的 Bot 做的活做完了，结果交给它。
+    const trigger = botTurnTrigger(value.session.messages || [])
+    await this.forwardBotReplies(bot, value, trigger).catch(() =>
+      console.warn('[bots] 回话没能交给另一个 Bot。'),
+    )
     const models = await this.providerPreferences.availableChatModelRefs().catch(() => [])
+    const bots = (this.bots?.list() || [])
+      .filter((item) => item.id !== bot.id && item.enabled)
+      .map((item) => ({ name: item.name, instructions: item.instructions }))
     const result = await requestBotDecisions({
       modelRuntime: this.modelRuntime,
       session: value.session,
-      instruction: botDecisionInstruction({ agents, models, limit: BOT_MAX_PARALLEL_AGENTS }),
+      instruction: botDecisionInstruction({
+        agents,
+        models,
+        bots,
+        limit: BOT_MAX_PARALLEL_AGENTS,
+      }),
     })
     if (result.usage) {
       await this.recordUsage(
@@ -1075,7 +1095,7 @@ export class AgentRuntimeFacade {
     const done = []
     for (const decision of decisions) {
       try {
-        done.push(await this.executeBotDecision(sessionId, value, bot, decision))
+        done.push(await this.executeBotDecision(sessionId, value, bot, decision, trigger))
       } catch (error) {
         console.warn('[bots] 一个决定没能执行：', error instanceof Error ? error.message : error)
       }
@@ -1107,7 +1127,8 @@ export class AgentRuntimeFacade {
     return this.botMemory.replaceAfterTidy(bot.id, result.kept)
   }
 
-  async executeBotDecision(sessionId, value, bot, decision) {
+  async executeBotDecision(sessionId, value, bot, decision, trigger = null) {
+    if (decision.type === 'message') return this.sendBotMessage(bot, decision, trigger)
     if (decision.type === 'remember') {
       const entry = await this.botMemory.remember(bot.id, decision.text, decision.source)
       return { type: 'remember', id: entry.id }
@@ -1148,6 +1169,17 @@ export class AgentRuntimeFacade {
         // 它自己写的技能：技能加载器列进子 agent 的系统提示，用到时再读全文。
         ...(this.botSkills ? { skillPaths: [this.botSkills.dir(bot.id)] } : {}),
       })
+      // 别的 Bot 请它干的活：记下是谁请的，做完把汇报交回去；那边的“在等回话”继续等。
+      const request = trigger?.message?.reply ? trigger.message : null
+      if (request && this.botLinks) {
+        this.botAgentRequests ||= new Map()
+        this.botAgentRequests.set(agent.id, {
+          fromBotId: request.from,
+          chain: request.chain,
+          hop: request.hop,
+        })
+        this.botLinks.advance(request.chain, { hop: request.hop, waiting: true })
+      }
       return { type: 'spawn', id: agent.id, title: decision.title }
     }
     const agent = resolveBotAgent(this.multiAgents.list(sessionId), decision.agent)
@@ -1158,6 +1190,98 @@ export class AgentRuntimeFacade {
     }
     this.multiAgents.interrupt(sessionId, agent.id, '用户让它停下了。')
     return { type: 'stop', id: agent.id }
+  }
+
+  // 给另一个 Bot 发话（message 决定）：对方要存在、开着、不是自己；客气话不发。
+  // 这一轮是对方说进来的话时，接着同一条链（跳数加一）；否则开一条新链，时间线里一条“在等它回话”。
+  async sendBotMessage(bot, decision, trigger) {
+    const key = botNameKey(decision.bot)
+    const target = this.bots
+      .list()
+      .find((item) => item.id === decision.bot || botNameKey(item.name) === key)
+    if (!target || target.id === bot.id) throw new Error('要找的 Bot 不存在。')
+    if (!target.enabled) throw new Error(`${target.name} 已暂停。`)
+    if (isCourtesyMessage(decision.text)) return { type: 'message', skipped: 'courtesy' }
+    const continuing = trigger?.message?.from === target.id ? trigger.message : null
+    const chain = continuing?.chain || newBotChainId()
+    const hop = continuing ? Math.max(continuing.hop, this.botLinks.get(chain)?.hops || 0) + 1 : 1
+    if (!continuing) this.botLinks.open({ chain, from: bot.id, to: target.id, text: decision.text })
+    const sent = await this.deliverBotMessage(bot, target, {
+      text: decision.text,
+      chain,
+      hop,
+      reply: decision.expectsReply,
+    })
+    if (sent.ok && continuing) this.botLinks.advance(chain, { hop, waiting: decision.expectsReply })
+    return { type: 'message', bot: target.id, chain, ...(sent.ok ? {} : { skipped: sent.reason }) }
+  }
+
+  // 这一轮说完后把话交回去：别的 Bot 在等回话的，回复发给它；替别的 Bot 做的活做完了，汇报发给它。
+  // 交回去的话不再要求回话（否则两边会一直回下去）；客气话不交。
+  async forwardBotReplies(bot, value, trigger) {
+    if (!this.botLinks || !trigger.reply) return []
+    const targets = new Map()
+    if (trigger.message?.reply) targets.set(trigger.message.chain, trigger.message)
+    for (const agentId of trigger.completedAgents) {
+      const request = this.botAgentRequests?.get(agentId)
+      if (!request) continue
+      this.botAgentRequests.delete(agentId)
+      targets.set(request.chain, {
+        from: request.fromBotId,
+        chain: request.chain,
+        hop: request.hop,
+      })
+    }
+    const sent = []
+    for (const request of targets.values()) {
+      const target = this.bots.get(request.from)
+      // 还有替这条链在做的活：那边接着等最后的结果。
+      const pending = [...(this.botAgentRequests?.values() || [])].some(
+        (item) => item.chain === request.chain,
+      )
+      if (!target || isCourtesyMessage(trigger.reply)) {
+        this.botLinks.advance(request.chain, { hop: request.hop, waiting: pending })
+        continue
+      }
+      // 链上已经走过的跳数为准（先回过一句、后来又交结果时，结果是再下一跳）。
+      const hop = Math.max(request.hop, this.botLinks.get(request.chain)?.hops || 0) + 1
+      const result = await this.deliverBotMessage(bot, target, {
+        text: trigger.reply.slice(0, 4_000),
+        chain: request.chain,
+        hop,
+        reply: false,
+      })
+      if (result.ok) this.botLinks.advance(request.chain, { hop, waiting: pending })
+      sent.push({
+        bot: target.id,
+        chain: request.chain,
+        ...(result.ok ? {} : { skipped: result.reason }),
+      })
+    }
+    return sent
+  }
+
+  // 把一句话投进对方的对话（标着来自谁，转录里显示发话 Bot 的头像与名字）。超过跳数或太频繁时停下，
+  // 两边的时间线里都写着“停在这里了”。对方正在说话时排在它这一轮之后。
+  async deliverBotMessage(from, to, { text, chain, hop, reply }) {
+    const admitted = this.botLinks.admit({ from: from.id, to: to.id, chain, hop })
+    if (!admitted.ok) {
+      if (!this.botLinks.get(chain)) this.botLinks.open({ chain, from: from.id, to: to.id, text })
+      this.botLinks.stop(chain, admitted.reason)
+      return admitted
+    }
+    const context = botMessageContext({ fromName: from.name, from: from.id, chain, hop, reply })
+    await this.messageBot(to.id, {
+      text: `${text}${ATTACHMENT_MARKER}${context}`,
+      source: { kind: 'bot', botId: from.id },
+    })
+    return admitted
+  }
+
+  // 会话时间线里的 Bot 来往（它发起的；别人找它而停下来的）。不是 Bot 的会话为空。
+  listSessionLinks(sessionId) {
+    const bot = this.botForSession(String(sessionId || ''))
+    return bot && this.botLinks ? this.botLinks.listForBot(bot.id) : []
   }
 
   // 子 agent 做完：复盘这件活（独立请求，失败不影响汇报）——会反复做的写成技能，学到新东西的更新技能。
@@ -1235,6 +1359,7 @@ export class AgentRuntimeFacade {
     if (removed) await this.schedules?.deleteForBot?.(id)
     // 它自己的记忆一并删掉（会话留着，变成普通会话）。
     if (removed) await this.botMemory?.removeBot(id)
+    if (removed) this.botLinks?.removeBot(id)
     return removed
   }
 

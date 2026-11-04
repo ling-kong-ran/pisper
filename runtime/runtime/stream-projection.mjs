@@ -10,6 +10,7 @@ import {
   isAgentCompletionMessage,
 } from '../services/multi-agent-service.mjs'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
+import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
 import { isOutputLimitContinuationMessage } from './output-limit-continuation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
@@ -158,6 +159,9 @@ function serializeMessage(message, index, resolveImageUrl = null) {
   if (message.role === 'user' && isInternalParentMessage(rawText)) return null
   const text = message.role === 'user' ? rawText.split(ATTACHMENT_MARKER)[0] : rawText
   if (!text) return null
+  // 别的 Bot 说进来的话：来源标记只认附件上下文里的（用户正文里写的不算），界面据此显示它的头像与名字。
+  const markerAt = message.role === 'user' ? rawText.indexOf(ATTACHMENT_MARKER) : -1
+  const fromBot = markerAt >= 0 ? parseBotMessageTag(rawText.slice(markerAt))?.from : ''
   const attachments = Array.isArray(message.content)
     ? message.content
         .filter((part) => part?.type === 'image')
@@ -185,6 +189,7 @@ function serializeMessage(message, index, resolveImageUrl = null) {
     ...(message.role === 'assistant' && message.pisperInterrupted === true
       ? { interrupted: true }
       : {}),
+    ...(fromBot ? { fromBot } : {}),
   }
 }
 

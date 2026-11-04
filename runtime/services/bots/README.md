@@ -2,13 +2,13 @@
 
 状态（2026-11-04，v2）：**Bot = 一条对话 + 它派出去的子 agent**。对话只负责说话和做决定，自己不跑工具，所以永远不被占着；要动手的事由运行时按对话的决定派给子 agent 在后台并行跑（每个 Bot 同时 3 个，多的排队），做完结果回到对话，对话用一句话汇报。打开 Bot 就是打开这条对话（普通会话页）；渠道里叫它、定时让它做，都是往这条对话里说一句话。Bot 有自己的一份记忆。不依赖 git。设计稿：本机 `~/.local/share/pisper-rebuild/bots-v2-dots.md`（参考 OpenAI dots、Grok Bot、Claude Duet）。执行节点上的 Bot 暂时仍是一个会话自己干（子 agent 还不能在执行节点上跑）。
 
-主要文件：`bot-conversation.mjs`（对话的系统提示、状态快照、决定的说明与解析）、`bot-memory-service.mjs`（每个 Bot 的记忆）、`bot-skill-service.mjs`（每个 Bot 自己写的技能）、`runtime/runtime/bot-decisions.mjs`（决定、整理记忆与复盘的无头请求）、`bot-model.mjs`（校验与归一、系统提示、消息校验）、`bot-service.mjs`（注册表）、`bot-routing.mjs`（渠道分派）、`bot-notifications.mjs`（发回聊天的文字）、`environment-service.mjs` / `executor-hub.mjs` / `executor.mjs`（执行节点）、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/agent-runtime-facade.mjs` 里的 Bot 接线（`ensureBotSession`、`applyBotSettings`、`messageBot`、`botActivity`、`botForSession`）、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
+主要文件：`bot-conversation.mjs`（对话的系统提示、状态快照、决定的说明与解析）、`bot-memory-service.mjs`（每个 Bot 的记忆）、`bot-skill-service.mjs`（每个 Bot 自己写的技能）、`bot-links.mjs`（Bot 之间的来往：来源标记、跳数与频率限制）、`runtime/runtime/bot-decisions.mjs`（决定、整理记忆与复盘的无头请求）、`bot-model.mjs`（校验与归一、系统提示、消息校验）、`bot-service.mjs`（注册表）、`bot-routing.mjs`（渠道分派）、`bot-notifications.mjs`（发回聊天的文字）、`environment-service.mjs` / `executor-hub.mjs` / `executor.mjs`（执行节点）、`runtime/http/routes/{bots,executors}.mjs`、`runtime/runtime/agent-runtime-facade.mjs` 里的 Bot 接线（`ensureBotSession`、`applyBotSettings`、`messageBot`、`botActivity`、`botForSession`）、`runtime/runtime/executor-tools.mjs`、`packages/pisper/lib/executor-node.mjs`；测试 `runtime/tests/bot-*.test.mjs`、`bots-frontend.test.mjs`。以代码、测试为准并同步修订本文。上线方式：实验功能 `bots`，默认关闭（见 `src/features/labs/README.md`）。
 
 ## 目标与非目标
 
 参考 Grok Bot / Dots：用户可以有多个常驻的 Bot，每个有名字、头像、它负责什么（指令）、在哪台电脑的哪个目录里干活、权限上限、可用工具，以及谁能在聊天里叫它、什么时候定时找它。和 Bot 说话就像和同事聊天：一个长期对话，前文都算数，它说话时实时看得到，可以随时插话。
 
-非目标（以后再说）：每个 Bot 的浏览器登录态；每个 Bot 绑定自己的渠道机器人账号；GitHub webhook 触发；主动只读巡看与每日简报（设计稿 C6）；Bot 之间对话（C5）。
+非目标（以后再说）：每个 Bot 的浏览器登录态；每个 Bot 绑定自己的渠道机器人账号；GitHub webhook 触发；主动只读巡看与每日简报（设计稿 C6）；多个 Bot 的群聊。
 
 ## 对话与子 agent（v2）
 
@@ -21,6 +21,7 @@
 - **头像状态**：`botActivity` 在对话在说话或有子 agent 在干活时为 `running`，有批准或问题在等时 `needsYou`，另带 `working`（在做几件）与 `current`（正在做哪件）；侧栏名字后显示件数，悬停写“3 件在做 · 在做：…”。
 - **记忆**：每个 Bot 一个文件（`<dataDir>/bots/<botId>/memory.json`，最多 200 条、每条 500 字），不读写全局记忆，Bot 之间互不可见。来源：对话的 `remember` / `forget` 决定（用户让它记住的、纠正、做完复盘）、设置页手动增改删（`/api/bots/:id/memory`）。记住时同义去重。每天最多整理一次（有 10 条以上、手上没活时）：模型只能保留或改写已有条目，不能凭空增加。删除 Bot 时一并删掉。
 - **技能（C4）**：子 agent 做完（`completed`）时 `injectAgentCompletion` 先调 `botAgentFinished`，另起一次无头复盘（`botReviewInstruction`，带上这件活的标题、交代、结果、已有技能与用户的纠正），只要 `{"skill": null}` 或一个技能；失败不影响汇报，同一个 Bot 的复盘按顺序跑。技能是标准 SKILL.md（`<dataDir>/bots/<botId>/skills/<name>/SKILL.md`，最多 40 个、正文 2 万字，同名即更新，原子写），由 `BotSkillService` 管。派活时把这个目录作为 `skillPaths` 交给多 Agent 服务，技能加载器（`SkillsService.createResourceLoader` 的 `extraSkillPaths`）把它们列进子 agent 的系统提示；不进技能管理页，也不给别的会话。对话的状态快照列出 `[你会的技能]`，派活时可以点名。设置页“它学会的”：看全文、删（`/api/bots/:id/skills`），或设成定时（一条发给它的定时，“照技能 X 做一遍”）。
+- **Bot 之间（C5）**：决定多一种 `message`（对象 Bot 的名字、话、是否等回话）。运行时把话投进对方的对话（`deliverBotMessage` → `messageBot`，来源 `bot`，对方在说话时排在这一轮之后），附件上下文里带来源标记 `[pisper:bot-message from=… chain=… hop=… reply=0|1]` 与一句“这条消息来自 Bot「X」”；转录投影据标记给这条消息加 `fromBot`，界面在气泡上写发话 Bot 的头像与名字（用户正文里写的标记不算）。对方这一轮说完（`runBotDecisions` 开头的 `botTurnTrigger` + `forwardBotReplies`）：等回话的，回复交回去；它为这条链派的子 agent（`botAgentRequests`）做完后的汇报也交回去；交回去的话不再要求回话。限制（`BotLinkService`，只在内存里）：不能发给自己；同一条链最多 6 跳；同一对 Bot 每分钟最多 6 条；“收到”“谢谢”这类客气话不发；超限时链标为停下，两边时间线都写着“停在这里了”。发起方时间线里一条“在等 B 回话”（`GET /api/sessions/:id/agents` 的 `links`），对方回了就合上。权限不传递：对方的子 agent 只用对方自己的设定。执行节点上的 Bot（不是对话 + 子 agent 的）能收到话，但它的回复不会自动交回去。
 
 ## 架构：大脑、数据、执行环境分开
 

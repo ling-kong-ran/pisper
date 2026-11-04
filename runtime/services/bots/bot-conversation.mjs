@@ -9,6 +9,7 @@ const MAX_ADD_CHARS = 4_000
 const TIERS = new Set(['fast', 'standard', 'strong'])
 const MEMORY_SOURCES = new Set(['told', 'correction', 'review'])
 const MAX_MEMORY_CHARS = 500
+const MAX_MESSAGE_CHARS = 4_000
 const SNAPSHOT_OUTPUT_CHARS = 300
 
 // 对话的系统提示：它是谁、它负责什么、它怎么干活（派子 agent，不自己动手）。
@@ -19,6 +20,7 @@ export function botConversationPrompt(bot) {
       '你是经理，不是工人：你自己不能调用任何工具，不读文件、不跑命令。',
       '要动手的事由系统按你的回复派子 agent 去做：在回复里用一两句话说清你要派人做什么，不要假装自己已经做了。',
       '对已经在做的活有补充或要停掉，也在回复里说明，系统会照办。',
+      '别的 Bot 负责的事，可以在回复里说你去找它，系统会把话带到；它的回话和它做完的结果会回到这里。别的 Bot 发来的消息会写明来自谁。',
       '问进度、问结果、闲聊：直接回答，不用派活。每条消息后面附有 [当前状态]，列出你手上的子 agent 与它们的进展。',
       '子 agent 做完的结果会作为一条消息回到这里：用一两句话向用户汇报结论，不要整段照抄。',
       '能自己判断的就判断，不要为了确认而停下来问；只有缺少只有用户知道的信息、要用户拍板时，才问用户。',
@@ -64,6 +66,7 @@ export function botStateSnapshot({
 export function botDecisionInstruction({
   agents = [],
   models = [],
+  bots = [],
   limit = BOT_MAX_PARALLEL_AGENTS,
 } = {}) {
   const active = agents.filter((agent) => ['queued', 'starting', 'running'].includes(agent.status))
@@ -84,6 +87,14 @@ export function botDecisionInstruction({
     'Sub-agents carry your skills from [你会的技能]; when one fits the task, name it in the task ("按技能 <name> 做").',
     `Running sub-agents: ${active.length ? active.map((agent) => `${agent.id.slice(0, 8)} "${agent.title || agent.taskName}"`).join(', ') : 'none'}.`,
     `Available models: ${models.length ? models.join(', ') : 'only the default'}.`,
+    ...(bots.length
+      ? [
+          '- {"type":"message","bot":"<bot name>","text":"<what to ask or hand over>","expectsReply":true|false}',
+          'Message another bot only for work that is its responsibility or when you need its answer; it works with its own sub-agents and permissions, and its reply (and the result of work it does for you) comes back here automatically.',
+          'When the latest message came from another bot and expects a reply, your reply is forwarded to it automatically: do not send a message to repeat it, and never send courtesy messages ("收到", "谢谢").',
+          `Other bots: ${bots.map((bot) => `${bot.name}${bot.instructions ? ` (${clip(bot.instructions, 120)})` : ''}`).join('; ')}.`,
+        ]
+      : []),
     '</pisper_decide>',
   ].join('\n')
 }
@@ -141,6 +152,16 @@ export function parseBotDecisions(raw) {
     } else if (action.type === 'forget') {
       const memory = text(action.memory, 64)
       if (memory) decisions.push({ type: 'forget', memory })
+    } else if (action.type === 'message') {
+      const bot = text(action.bot, 64)
+      const messageText = text(action.text, MAX_MESSAGE_CHARS)
+      if (bot && messageText)
+        decisions.push({
+          type: 'message',
+          bot,
+          text: messageText,
+          expectsReply: action.expectsReply !== false,
+        })
     }
   }
   return decisions
