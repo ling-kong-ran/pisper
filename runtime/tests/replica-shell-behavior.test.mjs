@@ -131,3 +131,14 @@ test('the phone top bar is ☰ · centred title · ✎, with search only where t
   // 只有入口与计数，没有标签、没有批准。
   assert.doesNotMatch(board, /data-shell-tab|mobile-tab-bar/)
 })
+
+test('the phone status-bar area matches the white session header instead of a grey band', async () => {
+  // 手机会话页顶栏是纸面（bg-panel）：外壳不能再把会话页的安全区铺成外壳灰，否则状态栏下多一条灰带。
+  const [app, header] = await Promise.all([
+    readFile('src/App.tsx', 'utf8'),
+    readFile('src/features/chat/SessionPhoneHeader.tsx', 'utf8'),
+  ])
+  assert.match(header, /data-session-header="phone"\s+className="[^"]*\bbg-panel\b/)
+  assert.match(app, /\[&\[data-phone-shell\]\]:bg-panel/)
+  assert.doesNotMatch(app, /data-shell-chrome/)
+})

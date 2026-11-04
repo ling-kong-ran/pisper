@@ -988,14 +988,12 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
       <TerminalProvider bridge={window.pisperDesktop}>
         <div
           ref={appShellRef}
-          // 手机外壳的顶部安全区由外壳底色铺满：看板与更多页的页头是页面底色（--bg），会话页是外壳灰，
-          // 其余页面是纸面；状态栏区域跟随当前页头，避免出现一条白带接灰色页头的两段色。
-          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel [&[data-phone-shell][data-shell-canvas]]:bg-background [&[data-phone-shell][data-shell-chrome]]:bg-chrome pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
+          // 手机外壳的顶部安全区由外壳底色铺满：看板与更多页的页头是页面底色（--bg），其余页面（含会话页，
+          // 它的顶栏是纸面 bg-panel）是纸面；状态栏区域跟随当前页头，避免状态栏下出现一条和页头不同色的带子。
+          className="app-shell flex w-full h-full min-h-0 flex-col overflow-hidden bg-chrome text-content [&[data-phone-shell]]:bg-panel [&[data-phone-shell][data-shell-canvas]]:bg-background pt-[var(--pisper-safe-area-top)] pr-[var(--pisper-safe-area-right)] pb-[var(--pisper-safe-area-bottom)] pl-[var(--pisper-safe-area-left)] [&[data-mobile-app]]:h-[100dvh] [&[data-mobile-app]]:min-h-0 [&[data-mobile-app]]:overflow-hidden [&[data-mobile-keyboard='open']]:pb-0 [&[data-phone-shell]]:pb-0"
           data-mobile-app={mobileLayout || undefined}
           data-phone-shell={phoneShell || undefined}
           data-shell-canvas={page === 'board' || page === 'more' || undefined}
-          // 手机会话页的顶栏与代理条是外壳灰（规格 7.3），状态栏区域跟着它。
-          data-shell-chrome={page === 'session' || undefined}
           data-custom-titlebar={window.pisperDesktop?.customTitlebar || undefined}
         >
           {window.pisperDesktop?.customTitlebar && (
