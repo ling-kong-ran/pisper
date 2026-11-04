@@ -2,16 +2,26 @@
 //
 // 规则（规格 5.8、计划 §3.7）：
 // - 只放行 manifest 声明过的主机，只允许 https、443 端口，不允许 userinfo 与 IP 字面量；
+// - 例外是 network.privateOrigins 里逐个声明的私网源（scheme + 主机 + 端口完全一致）：可以是 http、
+//   任意端口和私网 / 回环 IP 字面量，但解析结果必须全部落在私网或回环段（链路本地、元数据仍然阻断）；
+//   这类请求都带来源标记，Pisper 自己的监听见到就拒绝，组件不能借 localhost 调用应用 API；
 // - 先自己解析 DNS、校验全部地址，再只把校验过的 IP 交给连接（防 DNS rebinding）；
 // - 手动跟随重定向（≤5 跳），每一跳重新做全部校验，跨主机时去掉组件自带的 Authorization；
 // - 10 秒总超时，响应 >2 MiB 立即中断；请求头与响应头都按白名单；
 // - 绝不转发应用请求里的 Cookie / Authorization / Origin：代理从空白开始构造请求；
 // - 每个组件令牌桶每分钟 30 次、并发 ≤4；统计只记主机、方法、状态码、耗时，不记查询参数与请求体。
 import { lookup as dnsLookup } from 'node:dns/promises'
+import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { isIP } from 'node:net'
 import { toWellFormed } from '../../shared/custom-ui-manifest.mjs'
-import { isBlockedAddress, isBlockedHostname } from '../security/public-address.mjs'
+import { COMPONENT_PROXY_HEADER } from '../security/component-proxy-marker.mjs'
+import {
+  isBlockedAddress,
+  isBlockedHostname,
+  isBlockedPrivateHostname,
+  isPrivateNetworkAddress,
+} from '../security/public-address.mjs'
 import { CustomUiError } from './custom-ui-error.mjs'
 
 export const FETCH_MAX_URL_LENGTH = 2048
@@ -98,6 +108,44 @@ export function checkFetchTarget(raw, hosts, field = 'url') {
     throw new CustomUiError('component_fetch_host_denied', 403, { host: hostname })
   url.hash = ''
   return url
+}
+
+/**
+ * @typedef {{ hosts: readonly string[], privateOrigins?: readonly string[] }} NetworkPolicy
+ * @typedef {{ url: URL, privateTarget: boolean }} FetchTarget
+ */
+
+/**
+ * 按 manifest 的 network 能力校验目标：命中声明过的私网源时走私网规则，否则按公网规则（checkFetchTarget）。
+ * @param {unknown} raw
+ * @param {NetworkPolicy} network
+ * @param {string} [field]
+ * @returns {FetchTarget}
+ */
+export function resolveFetchTarget(raw, network, field = 'url') {
+  const origins = network.privateOrigins || []
+  if (origins.length && typeof raw === 'string' && raw && raw.length <= FETCH_MAX_URL_LENGTH) {
+    let url = null
+    try {
+      url = new URL(raw)
+    } catch {
+      url = null
+    }
+    if (url && !url.username && !url.password && origins.includes(url.origin)) {
+      const hostname = bareHostname(url)
+      if (isBlockedPrivateHostname(hostname))
+        throw new CustomUiError('component_fetch_address_blocked', 403, { host: hostname })
+      url.hash = ''
+      return { url, privateTarget: true }
+    }
+  }
+  return { url: checkFetchTarget(raw, network.hosts, field), privateTarget: false }
+}
+
+/** URL.hostname 会给 IPv6 字面量带方括号；连接、SNI 与地址校验都要去掉。 @param {URL} url */
+function bareHostname(url) {
+  const host = url.hostname.toLowerCase()
+  return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
 }
 
 /**
@@ -233,7 +281,9 @@ export class ComponentFetchProxy {
    * @param {{
    *   lookup?: (hostname: string, signal?: AbortSignal) => Promise<{ address: string, family: number }[]>,
    *   isBlockedAddress?: (address: string) => boolean,
+   *   isPrivateAddress?: (address: string) => boolean,
    *   request?: typeof httpsRequest,
+   *   httpRequest?: typeof httpRequest,
    *   ca?: string | Buffer,
    *   port?: number,
    *   now?: () => number,
@@ -242,12 +292,15 @@ export class ComponentFetchProxy {
    *   perMinute?: number,
    *   concurrent?: number,
    * }} [options]
-   *   lookup / isBlockedAddress / ca / port 只供测试注入（本地 TLS 服务）；产品路径一律用默认值。
+   *   lookup / isBlockedAddress / isPrivateAddress / ca / port 只供测试注入（本地 TLS 服务）；产品路径一律用默认值。
+   *   port 只作用于公网目标；私网源按声明的端口连接。
    */
   constructor({
     lookup = (hostname) => dnsLookup(hostname, { all: true, verbatim: true }),
     isBlockedAddress: blocked = (address) => isBlockedAddress(address),
+    isPrivateAddress = (address) => isPrivateNetworkAddress(address),
     request = httpsRequest,
+    httpRequest: plainRequest = httpRequest,
     ca,
     port = 443,
     now = Date.now,
@@ -258,7 +311,9 @@ export class ComponentFetchProxy {
   } = {}) {
     this.lookup = lookup
     this.isBlocked = blocked
+    this.isPrivate = isPrivateAddress
     this.request = request
+    this.httpRequest = plainRequest
     this.ca = ca
     this.port = port
     this.now = now
@@ -295,19 +350,27 @@ export class ComponentFetchProxy {
 
   /**
    * 解析主机并校验每一个地址；任何一个被阻断就整体拒绝（不挑“好的”那个连）。
-   * @param {string} hostname @param {AbortSignal} [signal]
+   * 私网源（privateTarget）反过来：每个地址都必须落在私网段，IP 字面量不经 DNS 直接校验。
+   * @param {string} hostname @param {AbortSignal} [signal] @param {boolean} [privateTarget]
    */
-  async resolve(hostname, signal) {
+  async resolve(hostname, signal, privateTarget = false) {
     let addresses
-    try {
-      addresses = await this.lookup(hostname, signal)
-    } catch {
-      throw new CustomUiError('component_fetch_failed', 502, { host: hostname })
+    if (privateTarget && isIP(hostname)) addresses = [{ address: hostname, family: isIP(hostname) }]
+    else {
+      try {
+        addresses = await this.lookup(hostname, signal)
+      } catch {
+        throw new CustomUiError('component_fetch_failed', 502, { host: hostname })
+      }
     }
     if (!Array.isArray(addresses) || !addresses.length)
       throw new CustomUiError('component_fetch_failed', 502, { host: hostname })
     for (const entry of addresses) {
-      if (!entry || typeof entry.address !== 'string' || this.isBlocked(entry.address))
+      const allowed =
+        entry &&
+        typeof entry.address === 'string' &&
+        (privateTarget ? this.isPrivate(entry.address) : !this.isBlocked(entry.address))
+      if (!allowed)
         throw new CustomUiError('component_fetch_address_blocked', 403, { host: hostname })
     }
     return addresses.map((entry) => ({
@@ -321,28 +384,36 @@ export class ComponentFetchProxy {
    * @param {{ url: URL, method: string, headers: Record<string, string>, body: Buffer | null }} hop
    * @param {{ address: string, family: number }[]} addresses
    * @param {AbortSignal} signal
+   * @param {boolean} [privateTarget]
    * @returns {Promise<import('node:http').IncomingMessage>}
    */
-  send(hop, addresses, signal) {
+  send(hop, addresses, signal, privateTarget = false) {
     return new Promise((resolveResponse, reject) => {
       const headers = {
         ...hop.headers,
         'user-agent': USER_AGENT,
         // 不要压缩：代理按字节限制体积，也不替组件解压（避免解压炸弹）。
         'accept-encoding': 'identity',
+        ...(privateTarget ? { [COMPONENT_PROXY_HEADER]: '1' } : {}),
         ...(hop.body ? { 'content-length': String(hop.body.length) } : {}),
       }
-      const req = this.request(
+      const plain = hop.url.protocol === 'http:'
+      const hostname = bareHostname(hop.url)
+      // 私网源按声明的端口连接；公网目标恒为 443（测试注入的本地端口）。
+      const port = privateTarget ? Number(hop.url.port) || (plain ? 80 : 443) : this.port
+      const request = plain ? this.httpRequest : this.request
+      const req = request(
         {
-          host: hop.url.hostname,
-          servername: hop.url.hostname,
-          port: this.port,
+          host: hostname,
+          // SNI 不能是 IP 字面量；私网 IP 走 https 时只做证书校验，不发 SNI。
+          ...(plain || isIP(hostname) ? {} : { servername: hostname }),
+          port,
           method: hop.method,
           path: `${hop.url.pathname}${hop.url.search}`,
           headers,
           agent: false,
           signal,
-          ...(this.ca ? { ca: this.ca } : {}),
+          ...(this.ca && !plain ? { ca: this.ca } : {}),
           // 连接只用上面校验过的地址；Node 的自动选族会以 all:true 调用 lookup。
           lookup: (_host, options, callback) => {
             if (options && typeof options === 'object' && options.all) callback(null, addresses)
@@ -431,15 +502,18 @@ export class ComponentFetchProxy {
 
   /**
    * @param {string} componentId
-   * @param {{ hosts: readonly string[] } | null | undefined} network manifest 规范化后的 network 能力
+   * @param {NetworkPolicy | null | undefined} network manifest 规范化后的 network 能力
    * @param {unknown} input
    */
   async fetch(componentId, network, input) {
-    if (!network || !Array.isArray(network.hosts) || !network.hosts.length)
+    const declared =
+      network &&
+      Array.isArray(network.hosts) &&
+      (network.hosts.length > 0 || (network.privateOrigins?.length ?? 0) > 0)
+    if (!network || !declared)
       throw new CustomUiError('component_capability_denied', 403, { capability: 'network' })
     const parsed = parseFetchRequest(input)
-    const hosts = network.hosts
-    let url = checkFetchTarget(parsed.url, hosts)
+    let { url, privateTarget } = resolveFetchTarget(parsed.url, network)
     const release = this.limiter.acquire(componentId)
     const controller = new AbortController()
     const timeout = new CustomUiError('component_fetch_timeout', 504)
@@ -468,9 +542,9 @@ export class ComponentFetchProxy {
     let redirected = false
     try {
       for (let hop = 0; ; hop += 1) {
-        const addresses = await raceAbort(this.resolve(url.hostname))
+        const addresses = await raceAbort(this.resolve(bareHostname(url), undefined, privateTarget))
         const response = await raceAbort(
-          this.send({ url, method, headers, body }, addresses, controller.signal),
+          this.send({ url, method, headers, body }, addresses, controller.signal, privateTarget),
         )
         const status = response.statusCode || 0
         const location = response.headers.location
@@ -484,22 +558,24 @@ export class ComponentFetchProxy {
           } catch {
             throw new CustomUiError('component_fetch_invalid', 400, { field: 'location' })
           }
-          const next = checkFetchTarget(nextRaw, hosts, 'location')
+          const next = resolveFetchTarget(nextRaw, network, 'location')
           // 与浏览器 fetch 一致：303 一律改 GET；301/302 的 POST 改 GET。
           if (status === 303 || ((status === 301 || status === 302) && method === 'POST')) {
             method = method === 'HEAD' ? 'HEAD' : 'GET'
             body = null
             delete headers['content-type']
           }
-          // 跨主机重定向不带组件自己的凭据。
-          if (next.hostname !== url.hostname) delete headers.authorization
-          url = next
+          // 跨源重定向（主机、协议或端口变化）不带组件自己的凭据。
+          if (next.url.origin !== url.origin) delete headers.authorization
+          url = next.url
+          privateTarget = next.privateTarget
           redirected = true
           continue
         }
         // 统计口径：拿到上游最终响应（任何状态码）的请求才计入，记最终主机（评审返修）。
         // 被地址阻断、解析失败、超时或重定向超限的请求没有连到这台主机，不能在状态栏显示成“用过的主机”。
-        this.record(componentId, url.hostname)
+        // url.host 对公网目标就是主机名（443 不显示）；私网源带上端口，便于区分同一台机器上的服务。
+        this.record(componentId, url.host)
         const bytes =
           method === 'HEAD' ? Buffer.alloc(0) : await this.readBody(response, controller.signal)
         const contentType = String(response.headers['content-type'] || '')

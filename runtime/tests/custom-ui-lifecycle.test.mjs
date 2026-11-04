@@ -102,7 +102,7 @@ async function startServer(t, { now } = {}) {
   }
 }
 
-test('静态扫描：直连 fetch / XHR / WebSocket / eval 标红，ctx.net.fetch 不算；主机按声明对照', () => {
+test('静态扫描：eval / new Function 标红，直连 fetch / XHR / WebSocket 列为提示，ctx.net.fetch 不算；主机按声明对照', () => {
   const result = scanComponentSource(
     [
       {
@@ -155,7 +155,17 @@ test('静态扫描：直连 fetch / XHR / WebSocket / eval 标红，ctx.net.fetc
       ['cdn.example.net', false],
     ],
   )
-  assert.deepEqual(result.summary, { danger: 6, warn: 3, info: 1, undeclaredHosts: 3 })
+  assert.deepEqual(result.summary, { danger: 2, warn: 3, info: 5, undeclaredHosts: 3 })
+
+  // 私网源的主机也算已声明（扫描只看主机，端口由代理比对）。
+  const lan = scanComponentSource(
+    [{ path: 'component.js', content: "ctx.net.fetch('http://192.168.1.10:8080/api')" }],
+    { capabilities: { network: { hosts: [], privateOrigins: ['http://192.168.1.10:8080'] } } },
+  )
+  assert.deepEqual(
+    lan.hosts.map((entry) => [entry.host, entry.declared]),
+    [['192.168.1.10', true]],
+  )
 })
 
 test('导入暂存：只暂存不安装；旧格式与坏包拒绝；信任后启用、来源 import，暂存删除', async (t) => {

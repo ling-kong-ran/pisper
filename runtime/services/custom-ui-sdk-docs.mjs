@@ -82,7 +82,7 @@ export interface FetchResponse {
 }
 
 export interface ComponentNet {
-  /** 经 Pisper Runtime 代理（需要 network，且主机在 hosts 里） */
+  /** 经 Pisper Runtime 代理（需要 network，且主机在 hosts 里，或源在 privateOrigins 里） */
   fetch(url: string, init?: FetchInit): Promise<FetchResponse>
 }
 
@@ -281,6 +281,9 @@ disable-model-invocation: true
 - \`placements\` 缺省时四种放置都允许；\`overview-card\` 的 \`sizes\` 取 \`"S"\` / \`"M"\`；\`floating.size\` 的 w 160–480、h 64–480。
 - \`capabilities\` 也可以写成数组：\`["notify", {"type": "network", "hosts": [...], "reason": "..."}]\`。
   \`network.hosts\` ≤16 个小写主机名，不能是 IP；\`*.example.com\` 只匹配恰好多一级的子域。
+  \`network.privateOrigins\` ≤16 个局域网服务的源，写成规范的 \`http(s)://主机[:端口]\`（不带路径、末尾不加 \`/\`，默认端口不写），
+  例如 \`"http://192.168.1.10:8080"\`、\`"https://nas.local"\`、\`"http://localhost:3000"\`；主机可以是 localhost、局域网名、私网或回环 IP。
+  只访问私网服务时可以不写 \`hosts\`。
   \`storage.quotaKb\` 1–1024，缺省 256。
 - \`sdk\` 缺省 1；\`minHostVersion\` 可写最低应用版本。
 
@@ -337,7 +340,7 @@ export default function CiStatus({ props, size, placement, ctx }) {
 | \`sessions.subscribe(fn)\` | 会话变化订阅，返回取消函数 | sessions.read |
 | \`sessions.open(id)\` | 在应用里打开会话 | sessions.open |
 | \`notify(text)\` | 应用提示条，≤200 字，每分钟 ≤6 次 | notify |
-| \`net.fetch(url, init)\` | 经 Runtime 代理，见第 8 节 | network |
+| \`net.fetch(url, init)\` | 经 Runtime 代理（不受 CORS 限制）；目标支持 CORS 时也可以直接 \`fetch\`，见第 8 节 | network |
 | \`storage.get/set/remove(key)\` | 组件私有存储，key \`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$\`，值是 JSON | storage |
 | \`provider.request()\` | 使用当前会话的 Provider 认证发出请求，返回上游原始 Response（由组件自行解析）；原始 Key 不进入组件 | provider.request |
 | \`signal\` | 卸载或热重载时 abort：传给 fetch、在回调里检查 | — |
@@ -386,12 +389,24 @@ export default function CiStatus({ props, size, placement, ctx }) {
 
 ## 8. 网络规则
 
-- 只走 \`ctx.net.fetch\`：只允许 \`https://\`、443 端口、manifest 声明过的主机；不能用 IP 地址；
-- Runtime 在 DNS 解析后拒绝回环、私网、链路本地与元数据地址，每次重定向都重新校验（≤5 跳）；
+组件有两种联网方式，按目标选：
+
+**直接 \`fetch\` / \`XMLHttpRequest\` / \`WebSocket\`**：组件与应用同源运行，可以直接请求。适合目标服务允许跨域（返回 CORS 头）的情况，
+本机或局域网服务也可以。浏览器的限制照常生效：目标没有 CORS 头会被拦；应用以 https 打开时（远程访问、部分桌面平台）请求 \`http://\` 会被当成混合内容拦掉。
+直连不经过代理，不计入工作室的能力清单，也不受下面的限流；不要带上应用的 Cookie（\`credentials\` 保持默认），不要请求应用自己的 \`/api/\`。
+
+**\`ctx.net.fetch\`（经 Runtime 代理）**：目标没有 CORS 头、或遇到 https 页面请求 http 的限制时用它；请求从 Runtime 发出，不受浏览器跨域限制：
+
+- 公网只允许 \`https://\`、443 端口、\`hosts\` 里声明过的主机；不能用 IP 地址；
+- 公网主机在 DNS 解析后拒绝回环、私网、链路本地与元数据地址，每次重定向都重新校验（≤5 跳）；
+- 本机或局域网 / 内网接口（本机服务、NAS、路由器、Home Assistant、公司内网服务等）在 \`network.privateOrigins\` 里逐个声明源：
+  请求的协议、主机和端口与某一项完全一致时，允许 \`http://\`、任意端口和私网 IP；解析结果必须全部是私网地址
+  或本机回环地址（10/8、172.16/12、192.168/16、100.64/10、127/8、fc00::/7、::1），链路本地与元数据地址仍然拒绝；
+  这类请求到不了 Pisper 自己的端口（会被 403），只能访问你自己的服务；
+  https 仍校验证书，自签名证书的服务改用 http 源；
 - 10 秒超时，响应 ≤2 MB，请求体 ≤384 KiB；每个组件每分钟 30 次、并发 ≤4；
 - 请求头只允许 \`accept\`、\`accept-language\`、\`content-type\`、\`if-none-match\`、\`if-modified-since\`、\`authorization\`（只能是组件自己的值，例如用户在属性里填的令牌）；
 - 绝不带应用的 Cookie 或凭据；不要在源码里写死任何密钥。
-- 直接调用 \`window.fetch\` 能绕过代理，但会让工作室的能力清单失真——不要这样做。
 
 ## 9. 样式
 

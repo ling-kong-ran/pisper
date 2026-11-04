@@ -29,7 +29,7 @@ import type {
 } from '@/features/custom-ui/custom-ui-api'
 import { readStagedFile } from '@/features/custom-ui/lifecycle-api'
 import { customUiQueryKeys } from '@/features/custom-ui/query-keys'
-import { capabilityLabel, surfaceLabel } from './labels'
+import { capabilityLabel, networkTargets, surfaceLabel } from './labels'
 import { useStagedDetail, type LifecycleActions } from './use-lifecycle'
 
 // 确认表是模态对话框：差异内嵌在左栏（门户里的第二层对话框会被焦点陷阱挡住）。
@@ -505,11 +505,17 @@ export function TrustDialog({
                               </code>
                             )}
                             {type === 'network' && (
-                              <code className="ml-1.5 font-mono text-content-secondary">
-                                {capabilities.network?.hosts.join(', ')}
+                              <code className="ml-1.5 break-all font-mono text-content-secondary">
+                                {networkTargets(capabilities.network)}
                               </code>
                             )}
                           </span>
+                          {type === 'network' &&
+                            (capabilities.network?.privateOrigins?.length ?? 0) > 0 && (
+                              <span className="text-content-secondary" data-trust-private-network>
+                                {t('custom-ui:importing.privateNetwork')}
+                              </span>
+                            )}
                           {capabilities[type]?.reason && (
                             <span className="text-content-muted">{capabilities[type]?.reason}</span>
                           )}

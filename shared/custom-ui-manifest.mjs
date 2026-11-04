@@ -231,6 +231,37 @@ export function isAllowedNetworkHost(value) {
   return !/^\d+$/.test(labels[labels.length - 1])
 }
 
+// 私网源只认这些段：RFC 1918 私网、CGNAT（Tailscale 等隧道常用）、本机回环与 IPv6 唯一本地地址。
+// 链路本地（含云元数据 169.254.169.254）不在其中。Runtime 在 DNS 解析后按同一组网段再校验一次，
+// 并给请求打来源标记，Pisper 自己的监听见到标记就拒绝，回环放行不会变成绕过鉴权。
+const PRIVATE_IPV4 =
+  /^(?:10\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)$/
+const PRIVATE_IPV6 = /^\[(?:::1|f[cd][0-9a-f]{2}:[0-9a-f:]*)\]$/
+
+/**
+ * 私网源白名单项：规范化的 `http(s)://主机[:端口]`（与 URL.origin 完全一致，不带路径）。
+ * 主机可以是单段或多段主机名（localhost、nas、nas.local）、私网或回环 IPv4、ULA 或 ::1 字面量；拒绝通配。
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+export function isAllowedPrivateOrigin(value) {
+  if (typeof value !== 'string' || !value || value.length > 300) return false
+  let url
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+  // 要求写成规范形式，避免同一个源有多种写法，也顺带拒绝路径、查询、userinfo 与十进制 IP 等变体。
+  if (url.origin !== value) return false
+  const host = url.hostname
+  if (host.startsWith('[')) return PRIVATE_IPV6.test(host)
+  const labels = host.split('.')
+  if (/^\d+$/.test(labels[labels.length - 1])) return PRIVATE_IPV4.test(host)
+  return labels.every((label) => HOST_LABEL.test(label))
+}
+
 /**
  * @param {ManifestError[]} errors
  * @param {string} path
@@ -718,8 +749,19 @@ function normalizeCapabilities(raw, errors) {
       reason = text
     }
     if (type === 'network') {
-      const hosts = source.hosts
-      if (!Array.isArray(hosts) || !hosts.length || hosts.length > 16) {
+      // hosts 与 privateOrigins 至少声明一个；只访问私网服务的组件可以不写 hosts。
+      const hosts =
+        source.hosts === undefined && source.privateOrigins !== undefined ? [] : source.hosts
+      const origins = source.privateOrigins === undefined ? [] : source.privateOrigins
+      if (!Array.isArray(hosts) || hosts.length > 16) {
+        fail(errors, `${path}.hosts`, 'network_hosts_invalid', { max: 16 })
+        continue
+      }
+      if (!Array.isArray(origins) || origins.length > 16) {
+        fail(errors, `${path}.privateOrigins`, 'network_private_origins_invalid', { max: 16 })
+        continue
+      }
+      if (!hosts.length && !origins.length) {
         fail(errors, `${path}.hosts`, 'network_hosts_invalid', { max: 16 })
         continue
       }
@@ -728,7 +770,15 @@ function normalizeCapabilities(raw, errors) {
         fail(errors, `${path}.hosts.${invalid}`, 'network_host_invalid')
         continue
       }
+      const invalidOrigin = origins.findIndex((origin) => !isAllowedPrivateOrigin(origin))
+      if (invalidOrigin >= 0) {
+        fail(errors, `${path}.privateOrigins.${invalidOrigin}`, 'network_private_origin_invalid')
+        continue
+      }
       capabilities.network = { hosts: [...new Set(/** @type {string[]} */ (hosts))], reason }
+      // 没声明私网源时不写这个字段，保持旧 manifest 规范化后的形状不变。
+      if (origins.length)
+        capabilities.network.privateOrigins = [...new Set(/** @type {string[]} */ (origins))]
     } else if (type === 'provider.request') {
       const paths = source.paths
       const methods = source.methods

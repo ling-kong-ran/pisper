@@ -10,14 +10,23 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import selfsigned from 'selfsigned'
+import { createPisperRuntime } from '../app-runtime.mjs'
 import { authorizeDesktopRequest } from '../desktop-sidecar-auth.mjs'
 import { createApiHandler } from '../http/api-handler.mjs'
-import { isBlockedAddress, isBlockedHostname, mappedIpv4 } from '../security/public-address.mjs'
+import { COMPONENT_PROXY_HEADER } from '../security/component-proxy-marker.mjs'
+import {
+  isBlockedAddress,
+  isBlockedHostname,
+  isBlockedPrivateHostname,
+  isPrivateNetworkAddress,
+  mappedIpv4,
+} from '../security/public-address.mjs'
 import { CustomUiService } from '../services/custom-ui-service.mjs'
 import {
   ComponentFetchProxy,
   checkFetchTarget,
   hostMatches,
+  resolveFetchTarget,
 } from '../services/custom-ui-fetch-proxy.mjs'
 
 const HOSTS = ['api.example.test', 'other.example.test', 'private.example.test', '*.wild.test']
@@ -608,4 +617,227 @@ test('HTTP 路由：经鉴权链进入；应用请求里的 Cookie 与 Authoriza
   assert.equal(listed.network.count, 1)
   assert.deepEqual(listed.network.hosts, { 'api.example.test': 1 })
   assert.equal(upstream.requests.length, 1)
+})
+
+/** 局域网上游：明文 http，记录收到的请求；/to-public 重定向到公网声明主机，/to-undeclared 到未声明的私网源。 */
+async function startLanUpstream(t) {
+  const requests = []
+  const server = createHttpServer((req, res) => {
+    const url = new URL(req.url, 'http://lan')
+    requests.push({ path: url.pathname, headers: req.headers })
+    if (url.pathname === '/to-public') {
+      res.writeHead(302, { location: 'https://api.example.test/echo' })
+      res.end()
+      return
+    }
+    if (url.pathname === '/to-undeclared') {
+      res.writeHead(302, { location: 'http://10.9.9.9:1234/echo' })
+      res.end()
+      return
+    }
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(
+      JSON.stringify({ path: url.pathname, authorization: req.headers.authorization ?? null }),
+    )
+  })
+  await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen))
+  t.after(
+    () =>
+      new Promise((resolveClose) => {
+        server.closeAllConnections()
+        server.close(() => resolveClose())
+      }),
+  )
+  return { port: server.address().port, requests }
+}
+
+test('私网地址判定：私网、CGNAT、回环、ULA 可显式放行；链路本地、公网与元数据主机名不行', () => {
+  for (const address of [
+    '10.0.0.8',
+    '172.16.5.4',
+    '192.168.1.10',
+    '100.100.1.1',
+    '127.0.0.1',
+    '::1',
+    '::ffff:127.0.0.1',
+    'fd12::1',
+    '::ffff:192.168.1.10',
+  ])
+    assert.equal(isPrivateNetworkAddress(address), true, address)
+  for (const address of [
+    '169.254.169.254',
+    'fe80::1',
+    '8.8.8.8',
+    '0.0.0.0',
+    'fd12::1%eth0',
+    'nas.local',
+  ])
+    assert.equal(isPrivateNetworkAddress(address), false, address)
+  for (const host of [
+    'localhost',
+    'app.localhost',
+    'nas.local',
+    'router.home.arpa',
+    'gitlab.corp.internal',
+    'homeassistant',
+  ])
+    assert.equal(isBlockedPrivateHostname(host), false, host)
+  for (const host of ['metadata.google.internal', 'metadata', 'instance-data'])
+    assert.equal(isBlockedPrivateHostname(host), true, host)
+})
+
+test('私网源目标：协议、主机、端口完全一致才走私网规则，否则按公网规则拒绝', () => {
+  const network = {
+    hosts: ['api.example.test'],
+    privateOrigins: ['http://nas.lan:8080', 'http://10.0.0.8'],
+  }
+  assert.deepEqual(
+    { ...resolveFetchTarget('http://nas.lan:8080/api?x=1#h', network), url: undefined },
+    { url: undefined, privateTarget: true },
+  )
+  assert.equal(
+    resolveFetchTarget('http://nas.lan:8080/api?x=1#h', network).url.toString(),
+    'http://nas.lan:8080/api?x=1',
+  )
+  assert.equal(resolveFetchTarget('http://10.0.0.8:80/x', network).privateTarget, true)
+  assert.equal(resolveFetchTarget('https://api.example.test/x', network).privateTarget, false)
+  for (const url of [
+    'http://nas.lan:9090/api',
+    'https://nas.lan:8080/api',
+    'http://10.0.0.9/x',
+    'http://user:pw@nas.lan:8080/',
+  ])
+    assert.throws(
+      () => resolveFetchTarget(url, network),
+      (error) =>
+        error.code === 'component_fetch_invalid' || error.code === 'component_fetch_host_denied',
+      url,
+    )
+  // 即使 manifest 绕过校验写进了元数据主机名，代理也拒绝。
+  for (const origin of ['http://metadata.google.internal', 'http://metadata'])
+    assert.throws(
+      () => resolveFetchTarget(`${origin}/x`, { hosts: [], privateOrigins: [origin] }),
+      (error) => error.code === 'component_fetch_address_blocked',
+      origin,
+    )
+})
+
+test('私网源请求：http 与自定义端口可用，带来源标记、不带应用凭据；只声明私网源也算有网络能力', async (t) => {
+  const lan = await startLanUpstream(t)
+  const origin = `http://nas.lan:${lan.port}`
+  const lookups = []
+  // 地址策略用默认值：本机回环属于可显式放行的私网段。
+  const proxy = new ComponentFetchProxy({
+    lookup: async (hostname) => {
+      lookups.push(hostname)
+      return [{ address: '127.0.0.1', family: 4 }]
+    },
+  })
+  const result = await proxy.fetch(
+    'demo',
+    { hosts: [], privateOrigins: [origin] },
+    { url: `${origin}/status`, headers: { authorization: 'Bearer lan-token' } },
+  )
+  assert.equal(result.status, 200)
+  assert.deepEqual(JSON.parse(result.body), { path: '/status', authorization: 'Bearer lan-token' })
+  assert.equal(lan.requests[0].headers['user-agent'], 'Pisper-Component/1')
+  assert.equal(lan.requests[0].headers.cookie, undefined)
+  assert.equal(lan.requests[0].headers[COMPONENT_PROXY_HEADER], '1')
+  assert.deepEqual(lookups, ['nas.lan'])
+  assert.deepEqual(proxy.networkStats('demo').hosts, { [`nas.lan:${lan.port}`]: 1 })
+
+  // IP 字面量与 localhost 的私网源：本机服务可以直接用；IP 字面量不经 DNS。
+  const literal = `http://127.0.0.1:${lan.port}`
+  await proxy.fetch('demo', { hosts: [], privateOrigins: [literal] }, { url: `${literal}/ip` })
+  assert.deepEqual(lookups, ['nas.lan'])
+  assert.equal(lan.requests.at(-1).path, '/ip')
+  const local = new ComponentFetchProxy()
+  const localhost = `http://localhost:${lan.port}`
+  const viaName = await local.fetch(
+    'demo',
+    { hosts: [], privateOrigins: [localhost] },
+    { url: `${localhost}/name` },
+  )
+  assert.equal(viaName.status, 200)
+  assert.equal(lan.requests.at(-1).path, '/name')
+})
+
+test('私网源打到 Pisper 自己的监听：带来源标记的请求在鉴权之前 403，组件不能借 localhost 调用应用 API', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-proxy-self-'))
+  await writeFile(join(root, 'package.json'), JSON.stringify({ version: '0.0.0-test' }))
+  const app = await createPisperRuntime({
+    root,
+    runtimeCwd: root,
+    dataDir: join(root, 'agent'),
+    production: true,
+    port: 0,
+    deferRuntimeInitialization: true,
+    runtimeModuleLoader: async () => {
+      throw new Error('not needed')
+    },
+  })
+  t.after(async () => {
+    await app.close()
+    await rm(root, { recursive: true, force: true })
+  })
+  await app.initialized.catch(() => null)
+  const self = `http://127.0.0.1:${app.port}`
+  const result = await new ComponentFetchProxy().fetch(
+    'demo',
+    { hosts: [], privateOrigins: [self] },
+    { url: `${self}/api/config` },
+  )
+  assert.equal(result.status, 403)
+  assert.match(result.body, /cannot reach Pisper/)
+  // 不带标记的同一个请求仍按原来的鉴权链处理（这里是初始化失败的 503），说明 403 来自标记。
+  assert.equal((await fetch(`${self}/api/config`)).status, 503)
+})
+
+test('私网源请求：解析到链路本地或公网地址都拒绝，混一个也不行', async (t) => {
+  const lan = await startLanUpstream(t)
+  const dns = {
+    'meta.lan': ['169.254.169.254'],
+    'public.lan': ['93.184.216.34'],
+    'mixed.lan': ['127.0.0.1', '169.254.169.254'],
+  }
+  const proxy = new ComponentFetchProxy({
+    lookup: async (hostname) => dns[hostname].map((address) => ({ address, family: 4 })),
+  })
+  for (const host of Object.keys(dns)) {
+    const origin = `http://${host}:${lan.port}`
+    await rejectsCode(
+      proxy.fetch('demo', { hosts: [], privateOrigins: [origin] }, { url: `${origin}/x` }),
+      'component_fetch_address_blocked',
+      403,
+    )
+  }
+  assert.equal(lan.requests.length, 0)
+})
+
+test('私网源重定向：到未声明的私网源拒绝；跳到公网声明主机按公网规则校验并去掉 Authorization', async (t) => {
+  const lan = await startLanUpstream(t)
+  const upstream = await startUpstream(t)
+  const origin = `http://nas.lan:${lan.port}`
+  const proxy = new ComponentFetchProxy({
+    lookup: async (hostname) =>
+      hostname === 'nas.lan' || hostname === 'api.example.test'
+        ? [{ address: '127.0.0.1', family: 4 }]
+        : [],
+    isPrivateAddress: (address) => address === '127.0.0.1',
+    isBlockedAddress: (address) => address !== '127.0.0.1' && isBlockedAddress(address),
+    ca: upstream.cert,
+    port: upstream.port,
+  })
+  const network = { hosts: ['api.example.test'], privateOrigins: [origin] }
+  await rejectsCode(
+    proxy.fetch('demo', network, { url: `${origin}/to-undeclared` }),
+    'component_fetch_invalid',
+    400,
+  )
+  const result = await proxy.fetch('demo', network, {
+    url: `${origin}/to-public`,
+    headers: { authorization: 'Bearer lan-token' },
+  })
+  assert.equal(result.url, 'https://api.example.test/echo')
+  assert.equal(JSON.parse(result.body).headers.authorization, undefined)
 })

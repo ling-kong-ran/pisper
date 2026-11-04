@@ -304,6 +304,11 @@ function parseManifestCapabilities(value: unknown): ManifestCapabilities {
     result.network = {
       reason: reason(network),
       hosts: network.hosts.filter((host): host is string => typeof host === 'string').slice(0, 32),
+      ...(Array.isArray(network.privateOrigins) && {
+        privateOrigins: network.privateOrigins
+          .filter((origin): origin is string => typeof origin === 'string')
+          .slice(0, 32),
+      }),
     }
   const storage = value.storage
   if (isRecord(storage))

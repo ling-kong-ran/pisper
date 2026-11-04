@@ -8,6 +8,7 @@ import {
   classifyManifest,
   compareHostVersions,
   isAllowedNetworkHost,
+  isAllowedPrivateOrigin,
   isSafeComponentPath,
   normalizeNativeManifest,
   normalizePropsSchema,
@@ -252,6 +253,79 @@ test('能力：对象与数组两种写法规范成同一形状，主机名拒�
     const result = normalizeNativeManifest('demo', { ...base, capabilities })
     assert.equal(result.manifest, null)
     assert.equal(result.errors[0].code, code, JSON.stringify(capabilities))
+  }
+})
+
+test('私网源：规范的 http(s) 源才合法，可以不写 hosts；localhost 与回环可用，链路本地、公网 IP 与非规范写法拒绝', () => {
+  const { manifest } = normalizeNativeManifest('demo', {
+    ...base,
+    capabilities: {
+      network: {
+        privateOrigins: [
+          'http://192.168.1.10:8080',
+          'https://nas.local',
+          'http://192.168.1.10:8080',
+        ],
+        reason: 'LAN',
+      },
+    },
+  })
+  assert.deepEqual(manifest.capabilities.network, {
+    hosts: [],
+    privateOrigins: ['http://192.168.1.10:8080', 'https://nas.local'],
+    reason: 'LAN',
+  })
+  for (const origin of [
+    'http://192.168.1.10:8080',
+    'http://10.0.0.8',
+    'http://172.16.0.1:3000',
+    'http://172.31.255.254',
+    'http://100.64.0.1',
+    'http://100.127.1.1',
+    'https://nas.local',
+    'http://homeassistant:8123',
+    'http://router.home.arpa',
+    'http://[fd12:3456::1]:8080',
+    'http://localhost:3000',
+    'http://app.localhost',
+    'http://127.0.0.1:8080',
+    'http://[::1]:8080',
+  ]) {
+    assert.equal(isAllowedPrivateOrigin(origin), true, origin)
+  }
+  for (const origin of [
+    'http://169.254.169.254',
+    'http://8.8.8.8',
+    'http://172.32.0.1',
+    'http://100.128.0.1',
+    'http://[fe80::1]',
+    'http://[fd1::1]',
+    'http://192.168.1.10:8080/',
+    'http://192.168.1.10:8080/api',
+    'http://192.168.1.10:80',
+    'https://nas.local:443',
+    'HTTP://NAS.local',
+    'http://user:pass@nas.local',
+    'ftp://nas.local',
+    'http://3232235786',
+    'nas.local',
+    'http://*.local',
+  ]) {
+    assert.equal(isAllowedPrivateOrigin(origin), false, origin)
+  }
+  for (const [network, code] of [
+    [{ privateOrigins: [] }, 'network_hosts_invalid'],
+    [{ hosts: [], privateOrigins: [] }, 'network_hosts_invalid'],
+    [{ privateOrigins: 'http://nas.local' }, 'network_private_origins_invalid'],
+    [
+      { privateOrigins: Array.from({ length: 17 }, (_, index) => `http://10.0.0.${index + 1}`) },
+      'network_private_origins_invalid',
+    ],
+    [{ privateOrigins: ['http://169.254.169.254'] }, 'network_private_origin_invalid'],
+  ]) {
+    const result = normalizeNativeManifest('demo', { ...base, capabilities: { network } })
+    assert.equal(result.manifest, null)
+    assert.equal(result.errors[0].code, code, JSON.stringify(network))
   }
 })
 

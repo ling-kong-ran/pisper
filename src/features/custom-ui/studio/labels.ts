@@ -1,6 +1,6 @@
 // 工作室共用的放置名、预览档位、能力名与版本来源文案（文案在懒加载的 custom-ui 命名空间）。
 // 单独成文件：组件文件只导出组件（快速刷新），纯函数放这里。
-import type { ComponentSurface } from '@shared/custom-ui-manifest.mjs'
+import type { ComponentSurface, ManifestCapabilities } from '@shared/custom-ui-manifest.mjs'
 import type { ComponentVersion } from '@/features/custom-ui/lifecycle-api'
 import type { PreviewTarget } from './studio-model'
 
@@ -43,6 +43,11 @@ export function capabilityLabel(type: string, t: Translate) {
     default:
       return t('custom-ui:studio.capStorage')
   }
+}
+
+/** 网络能力的目标清单：公网主机在前，显式声明的私网源（带协议和端口）在后。 */
+export function networkTargets(network: ManifestCapabilities['network']) {
+  return [...(network?.hosts ?? []), ...(network?.privateOrigins ?? [])].join(', ')
 }
 
 export function versionSourceLabel(version: Pick<ComponentVersion, 'source'>, t: Translate) {

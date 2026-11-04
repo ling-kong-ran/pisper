@@ -59,7 +59,7 @@ import type {
 } from '@/features/custom-ui/custom-ui-api'
 import { componentErrorText } from './error-text'
 import { PropsForm, type PreviewDraft } from './PropsForm'
-import { capabilityLabel, surfaceLabel } from './labels'
+import { capabilityLabel, networkTargets, surfaceLabel } from './labels'
 import { StudioSection } from './StudioSection'
 import { canPlace, componentDisplayName, defaultCardSize, surfaceDeclared } from './studio-model'
 import type { useStudioActions } from './use-studio-actions'
@@ -280,7 +280,7 @@ export function CapabilitiesSection({
             const used = usage.data?.usage[type]
             const detail =
               type === 'network'
-                ? capabilities.network?.hosts.join(', ')
+                ? networkTargets(capabilities.network)
                 : type === 'storage'
                   ? t('custom-ui:studio.capStorageQuota', {
                       kb: capabilities.storage?.quotaKb ?? 0,
@@ -308,6 +308,11 @@ export function CapabilitiesSection({
                         {detail}
                       </code>
                     )}
+                    {type === 'network' && capabilities.network?.privateOrigins?.length ? (
+                      <Badge className="flex-none text-content-secondary">
+                        {t('custom-ui:studio.capNetworkPrivate')}
+                      </Badge>
+                    ) : null}
                     {revoked && (
                       <Badge className="flex-none text-content-secondary">
                         {t('custom-ui:usage.revokedBadge')}

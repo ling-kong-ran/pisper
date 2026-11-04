@@ -3,6 +3,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
+import { isComponentProxyRequest } from '../security/component-proxy-marker.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const STATE_VERSION = 1
@@ -249,6 +250,11 @@ export class McpHostService {
     const status = this.status()
     if (!status.enabled || !status.listening) {
       sendError(res, 503, 'mcp_disabled', 'Pisper MCP is disabled.')
+      return
+    }
+    // 组件网络代理转发来的请求不能打到 Pisper 自己的监听（见 component-proxy-marker.mjs）。
+    if (isComponentProxyRequest(req)) {
+      sendError(res, 403, 'mcp_component_proxy', 'Component requests cannot reach Pisper MCP.')
       return
     }
     const address = req.socket.remoteAddress

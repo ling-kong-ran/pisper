@@ -64,6 +64,9 @@ export function componentErrorText(code: string, t: Translate, params?: Params):
     capability_reason_invalid: () => t('custom-ui:errors.capability_reason_invalid'),
     network_hosts_invalid: () => t('custom-ui:errors.network_hosts_invalid', { max }),
     network_host_invalid: () => t('custom-ui:errors.network_host_invalid'),
+    network_private_origins_invalid: () =>
+      t('custom-ui:errors.network_private_origins_invalid', { max }),
+    network_private_origin_invalid: () => t('custom-ui:errors.network_private_origin_invalid'),
     provider_paths_invalid: () => t('custom-ui:errors.provider_paths_invalid'),
     provider_methods_invalid: () => t('custom-ui:errors.provider_methods_invalid'),
     component_provider_request_invalid: () =>

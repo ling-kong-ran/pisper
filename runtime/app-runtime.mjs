@@ -13,6 +13,7 @@ import { RemoteAccessService } from './services/remote-access-service.mjs'
 import { RemoteFirewallService } from './services/remote-firewall-service.mjs'
 import { MdnsAdvertiser } from './services/mdns-advertiser.mjs'
 import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
+import { isComponentProxyRequest } from './security/component-proxy-marker.mjs'
 import { authorizeRemoteRequest } from './remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote-tls.mjs'
 import { collectRemoteEndpoints, remoteDeviceName } from './remote-endpoints.mjs'
@@ -419,6 +420,12 @@ export async function createPisperRuntime({
     const activePort = typeof address === 'object' && address ? address.port : port
     const origin = `http://${host}:${activePort}`
     const url = new URL(req.url || '/', req.headers.host ? `http://${req.headers.host}` : origin)
+    // 组件网络代理转发来的请求（私网源可以是 localhost）不能打到 Pisper 自己：在任何鉴权之前拒绝，
+    // 否则回环连接会被当成本机可信请求。
+    if (isComponentProxyRequest(req)) {
+      sendJson(res, 403, { error: 'Component requests cannot reach Pisper itself.' })
+      return
+    }
     // 鉴权分层：回环监听走桌面 Cookie 引导；远程监听走设备 Bearer 令牌。
     if (isRemoteListener) {
       req.pisperRemote = true

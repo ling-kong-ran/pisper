@@ -31,6 +31,7 @@
     "runtime/services/custom-ui-instances.mjs",
     "runtime/services/custom-ui-templates.mjs",
     "runtime/security/public-address.mjs",
+    "runtime/security/component-proxy-marker.mjs",
     "runtime/security/provider-request-dns.mjs",
     "runtime/services/custom-ui-fetch-proxy.mjs",
     "runtime/services/provider-request-service.mjs",

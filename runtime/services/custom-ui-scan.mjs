@@ -12,22 +12,23 @@ const MAX_FINDINGS = 200
 const MAX_HOSTS = 50
 
 /**
- * 规则：severity 决定界面颜色。danger = 绕过 Pisper 接口直接联网或执行动态代码（标红）；
- * warn = 直接读写应用层状态（应用 API、Cookie、localStorage）；info = 动态导入等值得留意但常见的写法。
+ * 规则：severity 决定界面颜色。danger = 执行动态代码（标红）；
+ * warn = 直接读写应用层状态（应用 API、Cookie、localStorage）；info = 直接联网、动态导入等值得留意但常见的写法。
+ * 直接 fetch / XHR / WebSocket 是允许的用法（目标支持 CORS 时比代理简单），只是不计入能力清单，所以列为 info。
  * @type {{ rule: string, severity: 'danger' | 'warn' | 'info', pattern: RegExp, scripts: boolean }[]}
  */
 const RULES = [
   // 直接调用全局 fetch（含 window./globalThis./self. 前缀）；ctx.net.fetch 前面是“.net.”，不算。
   {
     rule: 'fetch',
-    severity: 'danger',
+    severity: 'info',
     pattern: /(?:(?<![\w$.])|\b(?:window|globalThis|self)\s*\.\s*)fetch\s*\(/g,
     scripts: true,
   },
-  { rule: 'xhr', severity: 'danger', pattern: /\bXMLHttpRequest\b/g, scripts: true },
+  { rule: 'xhr', severity: 'info', pattern: /\bXMLHttpRequest\b/g, scripts: true },
   {
     rule: 'websocket',
-    severity: 'danger',
+    severity: 'info',
     pattern: /\b(?:WebSocket|EventSource)\b/g,
     scripts: true,
   },
@@ -83,11 +84,17 @@ const NAMESPACE_HOSTS = new Set(['www.w3.org', 'json-schema.org'])
 
 /**
  * @param {{ path: string, content: string | Uint8Array }[]} files
- * @param {{ capabilities?: { network?: { hosts?: string[] } | null } } | null} manifest 已规范化的 manifest；无效时传 null
+ * @param {{ capabilities?: { network?: { hosts?: string[], privateOrigins?: string[] } | null } } | null} manifest 已规范化的 manifest；无效时传 null
  * @returns {ScanResult}
  */
 export function scanComponentSource(files, manifest) {
   const declaredHosts = manifest?.capabilities?.network?.hosts || []
+  // 私网源的主机（不含端口）也算已声明；扫描只看主机，端口与协议由代理逐个比对。
+  const privateHosts = new Set(
+    (manifest?.capabilities?.network?.privateOrigins || []).map((origin) =>
+      new URL(origin).hostname.toLowerCase(),
+    ),
+  )
   /** @type {ScanFinding[]} */
   const findings = []
   /** @type {Map<string, ScanHost>} */
@@ -135,7 +142,7 @@ export function scanComponentSource(files, manifest) {
       hosts.set(host, {
         host,
         // 与网络代理同一套匹配规则：扫描说“已声明”的主机，代理一定放行。
-        declared: hostMatches(declaredHosts, host),
+        declared: hostMatches(declaredHosts, host) || privateHosts.has(host),
         file: file.path,
         line: lineOf(text, match.index ?? 0),
       })

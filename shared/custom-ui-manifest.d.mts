@@ -49,7 +49,7 @@ export type ManifestPlacement = {
 }
 export type CapabilityDeclaration = { reason: string }
 export type ManifestCapabilities = {
-  network?: CapabilityDeclaration & { hosts: string[] }
+  network?: CapabilityDeclaration & { hosts: string[]; privateOrigins?: string[] }
   notify?: CapabilityDeclaration
   'sessions.read'?: CapabilityDeclaration
   'sessions.open'?: CapabilityDeclaration
@@ -107,6 +107,7 @@ export function isSafeComponentPath(value: unknown): value is string
 export function classifyManifest(raw: unknown): 'native' | 'legacy' | 'broken'
 export function compareHostVersions(left: string, right: string): number | null
 export function isAllowedNetworkHost(value: unknown): value is string
+export function isAllowedPrivateOrigin(value: unknown): value is string
 export function normalizePropsSchema(
   raw: unknown,
   basePath?: string,

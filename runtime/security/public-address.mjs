@@ -141,3 +141,57 @@ export function isBlockedHostname(hostname) {
   if (BLOCKED_HOSTNAMES.has(host)) return true
   return BLOCKED_HOSTNAME_SUFFIXES.some((suffix) => host.endsWith(suffix))
 }
+
+// 组件在 manifest 的 network.privateOrigins 里显式声明私网源后，代理只放行解析到这些段的地址，
+// 包括本机回环（用户自己在本机跑的服务）。打到 Pisper 自己监听的请求由来源标记挡住
+// （component-proxy-marker.mjs）。链路本地仍然阻断：其中有云元数据服务。
+// 与 shared/custom-ui-manifest.mjs 的 PRIVATE_IPV4 一致。
+/** @type {readonly [string, number][]} */
+const PRIVATE_IPV4_SUBNETS = Object.freeze([
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['172.16.0.0', 12],
+  ['192.168.0.0', 16],
+])
+/** @type {readonly [string, number][]} */
+const PRIVATE_IPV6_SUBNETS = Object.freeze([
+  ['::1', 128],
+  ['fc00::', 7],
+])
+
+const PRIVATE_ALLOW_LIST = (() => {
+  const list = new BlockList()
+  for (const [network, prefix] of PRIVATE_IPV4_SUBNETS) list.addSubnet(network, prefix, 'ipv4')
+  for (const [network, prefix] of PRIVATE_IPV6_SUBNETS) list.addSubnet(network, prefix, 'ipv6')
+  return list
+})()
+
+/**
+ * 地址是否属于可显式放行的私网段（私网、CGNAT、本机回环、IPv6 唯一本地地址）。IPv4 映射地址按 IPv4 判断；
+ * 带区域标识或非 IP 文本一律不是。
+ * @param {string} address
+ * @returns {boolean}
+ */
+export function isPrivateNetworkAddress(address) {
+  if (typeof address !== 'string' || !address || address.includes('%')) return false
+  const raw = address.startsWith('[') && address.endsWith(']') ? address.slice(1, -1) : address
+  const family = isIP(raw)
+  if (family === 4) return PRIVATE_ALLOW_LIST.check(raw, 'ipv4')
+  if (family !== 6) return false
+  const ipv4 = mappedIpv4(raw)
+  if (ipv4) return PRIVATE_ALLOW_LIST.check(ipv4, 'ipv4')
+  if (!expandIpv6(raw)) return false
+  return PRIVATE_ALLOW_LIST.check(raw, 'ipv6')
+}
+
+/**
+ * 私网源的主机名检查：localhost、.local、.lan、.home.arpa 等名字可以用，元数据主机名仍然拒绝。
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+export function isBlockedPrivateHostname(hostname) {
+  if (typeof hostname !== 'string' || !hostname) return true
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return host !== 'localhost' && BLOCKED_HOSTNAMES.has(host)
+}
