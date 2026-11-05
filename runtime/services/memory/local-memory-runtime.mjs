@@ -282,6 +282,8 @@ export class LocalMemoryRuntime {
       transaction: (run) => this.transaction(run),
       indexFact: (id) => this.indexFact(id),
       recordEvent: (event) => this.recordEvent(event),
+      memorySnapshot,
+      transaction: (run) => this.transaction(run),
       markDerivedDirty: (ids, options) => this.markDerivedDirty(ids, options),
       scheduleSemantic: (ids) => this.scheduleSemantic(ids),
       retrieve: (options) => retrieve({ db: this.db, index: this.index }, options),

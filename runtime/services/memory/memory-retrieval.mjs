@@ -1,7 +1,12 @@
 // 记忆检索：多路召回（BM25、查询词覆盖率、实体、时间窗口）用 RRF 融合，再按时间、权威度和状态加权，
 // MMR 去掉近似重复，最后按预算打包。全程不调 LLM：自动回忆每轮都走这里。
 // RRF 不依赖各路分数的量纲，以后加一路向量不用重新调参。
-import { ageLabel, hasHistoryIntent, parseTimeExpression } from './time-expression.mjs'
+import {
+  ageLabel,
+  hasHistoryIntent,
+  hasSummaryIntent,
+  parseTimeExpression,
+} from './time-expression.mjs'
 import { jaccard, queryEntities, queryTokens, searchTokens } from './memory-tokenizer.mjs'
 
 const RRF_K = 60
@@ -81,6 +86,17 @@ const inWindow = (at, window) => Boolean(at) && at >= window.since && at < windo
 
 function digestOverlaps(row, window) {
   return row.window_start < window.until && row.window_end > window.since
+}
+
+// 摘要窗口和问题窗口有多吻合（0-1]：问“上周”时周摘要是 1，月摘要和日摘要都小得多。
+function digestWindowFit(row, window) {
+  const start = Date.parse(row.window_start)
+  const end = Date.parse(row.window_end)
+  const since = Date.parse(window.since)
+  const until = Date.parse(window.until)
+  const overlap = Math.min(end, until) - Math.max(start, since)
+  const span = Math.max(end - start, until - since)
+  return overlap > 0 && span > 0 ? overlap / span : 0
 }
 
 // 记录共有的字段，item 的形状由 toItem 决定（事实由门面转成 rowMemory）。
@@ -174,6 +190,8 @@ export function retrieve({ db, index }, options) {
       : null
   const timeWindow = explicitWindow || (query ? parseTimeExpression(query, now) : null)
   if (!variants.length && !timeWindow) return []
+  // “上周干了什么”问的是一段时间的概况，不是某条事实：摘要优先。自动回忆只查事实，不走这里。
+  const summaryFirst = Boolean(timeWindow) && kinds.includes('digest') && hasSummaryIntent(query)
   const includeHistory = options.includeHistory ?? (Boolean(asOf) || hasHistoryIntent(query))
   const statuses =
     options.statuses || (includeHistory ? [...CURRENT_STATUSES, 'superseded'] : CURRENT_STATUSES)
@@ -327,6 +345,8 @@ export function retrieve({ db, index }, options) {
           : inWindow(entry.at, timeWindow)
       // 降权不过滤：时间词解析可能不准，窗口外的强匹配不该消失。
       if (!hit) score *= 0.5
+      else if (summaryFirst && entry.kind === 'digest')
+        score *= 1 + 3 * digestWindowFit(entry.row, timeWindow)
     }
     items.push({ ...entry, score, coverage, matched, entityHit })
   }

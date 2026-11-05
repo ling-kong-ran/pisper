@@ -65,7 +65,12 @@ import {
   agentCompletionPrompt,
 } from '../services/multi-agent-service.mjs'
 import { GoalService, goalBudgetPrompt, goalContinuationPrompt } from '../services/goal-service.mjs'
-import { briefContinuation, contextUserTexts, injectedMemoryIds } from './injected-context.mjs'
+import {
+  briefContinuation,
+  contextUserTexts,
+  hasInjectedProfile,
+  injectedMemoryIds,
+} from './injected-context.mjs'
 import { createSettleBarrierExtension, SettleBarrier } from './settle-barrier.mjs'
 import { installModelFallback, modelRef } from './model-fallback.mjs'
 import { installStepInterrupt } from './step-interrupt.mjs'
@@ -2449,16 +2454,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     // 记忆检索只依赖本条消息、工作目录和当前上下文：提前发起，与目标调度、标题落盘、附件归档并行，
     // 到组装提示词时再取结果。先挂一个空 catch，准备阶段提前抛错时不留下未处理的 rejection。
-    const memoryContextPromise =
+    const memoryContextEnabled =
       !value.isolatedContext &&
       value.enabledTools?.includes('memory_search') &&
       (!this.memoryReady || this.initialization.memory === 'ready')
-        ? Promise.resolve().then(() =>
-            this.memory.relevantContext(message, value.cwd, undefined, {
-              excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
-            }),
-          )
-        : Promise.resolve({ text: '', memories: [] })
+    const memoryContextPromise = memoryContextEnabled
+      ? Promise.resolve().then(() =>
+          this.memory.relevantContext(message, value.cwd, undefined, {
+            excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
+          }),
+        )
+      : Promise.resolve({ text: '', memories: [] })
     memoryContextPromise.catch(() => {})
     // 用量统计只依赖会话已有消息（长会话要扫一遍，可达上百毫秒）：与下面的准备步骤并行，建立 live 时再取。
     const sessionUsagePromise = measureRunStage(
@@ -3127,6 +3133,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       }
       const sharedContextEnabled = !value.isolatedContext
       const memoryContext = await memoryContextPromise
+      if (memoryContextEnabled) {
+        const profile = this.memoryProfileToInject(value.cwd, session.messages)
+        if (profile) contexts.push(profile)
+      }
       if (memoryContext.text) contexts.push(memoryContext.text)
       const activeGoal = sharedContextEnabled ? this.goals.get(session.sessionId) : null
       if (activeGoal?.status === 'active') contexts.push(teamPrompt(activeGoal))
@@ -3269,6 +3279,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await this.saveSessionMeta().catch(() => {})
     }
   }
+  // L3 画像随用户消息进历史，保持提示缓存前缀稳定：当前上下文里还有就不重复，
+  // 所以只在会话第一轮和压缩把它总结掉之后才注入。读不出来不能影响这一轮对话。
+  memoryProfileToInject(cwd, messages) {
+    if (hasInjectedProfile(contextUserTexts(messages))) return ''
+    try {
+      return this.memory.profileContext?.(this.memory.resolveSpaceIds?.({ cwd }) ?? []) || ''
+    } catch {
+      return ''
+    }
+  }
+
   // 每轮先存原文（L0），用户明确说“记住”时再立即抽取：设置了辅助模型就用它，免得多花主模型。
   // 内部注入的消息（目标延续、Agent 完成）不是用户说的话，两样都跳过；附件上下文也不算。
   async captureConversationMemory(input) {

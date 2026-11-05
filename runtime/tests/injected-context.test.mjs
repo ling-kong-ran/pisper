@@ -18,8 +18,10 @@ import {
 import {
   briefContinuation,
   contextUserTexts,
+  hasInjectedProfile,
   injectedMemoryIds,
 } from '../runtime/injected-context.mjs'
+import { ATTACHMENT_MARKER } from '../runtime/stream-projection.mjs'
 
 const goal = {
   objective: 'Ship the login refactor with passing tests.',
@@ -85,6 +87,104 @@ test('memory ids already injected into the context are collected for exclusion',
     user('<memory id="typed-by-user">'),
   ])
   assert.deepEqual(injectedMemoryIds(texts), ['m-1', 'm-2'])
+})
+
+test('the injected profile is recognised only in the injected part of a message', () => {
+  const profile = '<pisper_memory_profile>\n- 回复用中文\n</pisper_memory_profile>'
+  assert.equal(hasInjectedProfile([`问题${ATTACHMENT_MARKER}${profile}`]), true)
+  assert.equal(hasInjectedProfile(['用户自己贴的 <pisper_memory_profile>']), false)
+  assert.equal(hasInjectedProfile([`问题${ATTACHMENT_MARKER}别的上下文`]), false)
+  assert.equal(hasInjectedProfile([]), false)
+})
+
+function profileFixture(directory, messages) {
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.captureConversationMemory = async () => []
+  const requests = []
+  runtime.memory = {
+    relevantContext: async () => ({ text: '', memories: [] }),
+    resolveSpaceIds: ({ cwd }) => ['global', `project:${cwd}`],
+    profileContext: (spaceIds) => {
+      requests.push(spaceIds)
+      return '<pisper_memory_profile>回复用中文</pisper_memory_profile>'
+    },
+  }
+  const prompts = []
+  const session = {
+    sessionId: 'memory-profile',
+    model: { provider: 'openai', id: 'gpt-5' },
+    thinkingLevel: 'medium',
+    isStreaming: false,
+    messages,
+    agent: { state: { systemPrompt: 'unchanged' } },
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => {},
+    setSessionName: () => {},
+    subscribe: () => () => {},
+    async prompt(text) {
+      prompts.push(text)
+      session.messages.push({ role: 'user', content: text })
+    },
+    async abort() {},
+    dispose() {},
+  }
+  const value = {
+    session,
+    cwd: directory,
+    name: '记忆',
+    baseToolNames: [],
+    enabledTools: ['memory_search'],
+  }
+  runtime.sessions.set(session.sessionId, value)
+  runtime.getOrCreateSession = async () => value
+  const send = (message, options = {}) =>
+    runtime.streamPrompt({ sessionId: session.sessionId, message, send: () => {}, ...options })
+  return { runtime, session, value, prompts, requests, send }
+}
+
+test('the profile goes in once, on the first turn, and again only after compaction removes it', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-profile-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const { session, prompts, requests, send } = profileFixture(directory, [])
+
+  await send('第一轮')
+  assert.match(
+    prompts[0],
+    /^第一轮[\s\S]*<pisper_memory_profile>回复用中文<\/pisper_memory_profile>/,
+  )
+  assert.deepEqual(requests, [['global', `project:${directory}`]])
+
+  await send('第二轮')
+  assert.doesNotMatch(prompts[1], /pisper_memory_profile/)
+  assert.equal(requests.length, 1)
+
+  // 压缩把早先的消息总结掉了：下一轮重新注入。
+  session.messages.splice(0, session.messages.length, {
+    role: 'user',
+    content: '压缩后的摘要',
+  })
+  await send('第三轮')
+  assert.match(prompts[2], /<pisper_memory_profile>/)
+  assert.equal(requests.length, 2)
+  // 不碰系统提示：提示缓存前缀保持稳定。
+  assert.doesNotMatch(session.agent.state.systemPrompt, /pisper_memory_profile/)
+})
+
+test('an isolated session gets no profile from here, and a broken profile does not stop the turn', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-profile-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const isolated = profileFixture(directory, [])
+  await isolated.send('Bot 这边的一轮', { isolatedContext: true })
+  assert.doesNotMatch(isolated.prompts[0], /pisper_memory_profile/)
+  assert.equal(isolated.requests.length, 0)
+
+  const broken = profileFixture(directory, [])
+  broken.runtime.memory.profileContext = () => {
+    throw new Error('记忆库读不出来')
+  }
+  await broken.send('照常继续')
+  assert.match(broken.prompts[0], /^照常继续/)
+  assert.doesNotMatch(broken.prompts[0], /pisper_memory_profile/)
 })
 
 test('memory retrieval starts before attachments are prepared and still lands in the prompt', async (t) => {
