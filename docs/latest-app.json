@@ -1,9 +1,9 @@
 {
-  "version": "0.1.81",
-  "tag": "app-v0.1.81",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.81",
+  "version": "0.1.82",
+  "tag": "app-v0.1.82",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.82",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.81\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.81`\n- 对比基线：`app-v0.1.80`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): 新建的 Bot 主动打招呼，并给出三件马上能定的事\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.80...app-v0.1.81)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/482cf2cb3a603b7be73d29251007345a6ca3d670)",
-  "releaseDate": "2026-11-05"
+  "notes": "## Pisper App 0.1.82\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.82`\n- 对比基线：`app-v0.1.81`\n\n## 更新内容\n\n### 问题修复\n\n- fix(bots): 招呼卡片开启巡看前先讲清频率与用量，由用户确认\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.81...app-v0.1.82)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/e4eed549ecd05cf24703e933ed6576f688daadf1)",
+  "releaseDate": "2026-11-06"
 }
