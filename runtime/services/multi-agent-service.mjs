@@ -1255,7 +1255,13 @@ export class MultiAgentService {
   }
 
   // 中断 Agent：标记记录并尝试中止其会话。
-  interrupt(parentSessionId, target, reason = 'Agent was interrupted.', schedule = true) {
+  interrupt(
+    parentSessionId,
+    target,
+    reason = 'Agent was interrupted.',
+    schedule = true,
+    { notifyParent = true } = {},
+  ) {
     const record = this.find(parentSessionId, target)
     if (!record) throw new Error(`Unknown agent: ${target}`)
     if (!ACTIVE_AGENT_STATUSES.has(record.status)) return publicRecord(record)
@@ -1282,7 +1288,7 @@ export class MultiAgentService {
     void this.flush()
       .then(() => {
         this.notifyMailbox(delivery)
-        this.notifyCompletion(terminal)
+        if (notifyParent) this.notifyCompletion(terminal)
         return record.onTerminal?.(terminal)
       })
       .catch(() => {})
@@ -1297,7 +1303,9 @@ export class MultiAgentService {
     for (const record of this.records.values()) {
       if (record.parentSessionId !== parentSessionId || !ACTIVE_AGENT_STATUSES.has(record.status))
         continue
-      this.interrupt(parentSessionId, record.id, reason, false)
+      // 是用户停下的，不再把“子代理已结束、请继续下一步”排给父会话：
+      // 否则它会跟在用户的下一条消息后面，模型去接着干原来的活，新消息像没发过一样。
+      this.interrupt(parentSessionId, record.id, reason, false, { notifyParent: false })
       count += 1
     }
     void this.scheduleQueued().catch(() => {})

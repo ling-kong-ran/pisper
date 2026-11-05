@@ -996,3 +996,33 @@ test('slow startup remains active without a wall-clock timeout and retains its c
   assert.equal(secondCompleted.output, 'Second completed.')
   assert.equal(service.list('parent-1')[0].id, started.id)
 })
+
+test('stopping the parent does not queue a completion notice for the agents it cancelled', async () => {
+  const gate = deferred()
+  const session = createFakeSession({ onPrompt: async () => gate.promise })
+  const { service } = createService(session)
+  const notified = []
+  service.setCompletionNotifier((agent) => notified.push(agent.id))
+  const started = await service.spawn(baseInput())
+  await waitFor(() => service.list('parent-1')[0]?.status === 'running', 'running Agent')
+  assert.equal(service.abortParent('parent-1'), 1)
+  await waitFor(() => service.list('parent-1')[0]?.status === 'interrupted', 'interrupted Agent')
+  await service.flush()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  // 否则这条通知会跟在用户的下一条消息后面，模型去接着干原来的活。
+  assert.deepEqual(notified, [])
+
+  // 单独打断一个子代理时父会话还在跑，仍然要收到结果。
+  const second = deferred()
+  const other = createFakeSession({ onPrompt: async () => second.promise })
+  const { service: another } = createService(other)
+  const heard = []
+  another.setCompletionNotifier((agent) => heard.push(agent.id))
+  const spawned = await another.spawn(baseInput())
+  await waitFor(() => another.list('parent-1')[0]?.status === 'running', 'second running Agent')
+  another.interrupt('parent-1', spawned.id)
+  await waitFor(() => heard.includes(spawned.id), 'completion notice')
+  assert.ok(started.id)
+  gate.resolve()
+  second.resolve()
+})
