@@ -159,6 +159,6 @@ git push origin release:refs/tags/release-patch   # 推触发标签在 CI 里发
 - 触发标签 `release-<patch|minor|major|X.Y.Z>` 只是入口：`.github/workflows/release-tag.yml` 在 CI 里执行同一个 `npm run release`，用后即删；它必须指向 release 分支最新提交。版本标签（`v*`、`tui-v*`、`runtime-v*`、`app-v*`、`npm-v*`）只由发布 workflow 在产物验证后创建，不得手动推送。
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
-- 提交后必须推送：只留在本地的提交没有人能看到，也不会被检查。推送功能分支后，`.github/workflows/branch-pr.yml` 自动 rebase 到 release 并开 PR（`backup/` 分支除外，`wip/` 开草稿）；它只改写被推送的分支，落后时才强推，所以继续工作前先 `git pull --rebase`。
+- 提交后必须尽快 rebase 到最新的 release 并合入：只留在本地或功能分支上的提交没有人能看到，也不会被检查。合入前先取最新的 release，确认没有别人的新提交被覆盖。`.github/workflows/branch-pr.yml` 是手动入口，可把所选分支对齐 release 并开 PR（需要先在仓库设置里允许 Actions 创建 PR）。
 - 变更说明包含目的、范围、验证、风险、迁移与回滚；不夹带无关格式化、重命名或目录搬迁。
 - 使用子代理时：子代理运行限定测试，集成者运行完整检查；重构子代理不得修改源码守卫。

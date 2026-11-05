@@ -1,13 +1,11 @@
 name: Rebase branch and open PR
 
-# 分支一推送就对齐 release 并开 PR，提交不会留在没人看的分支上。
-# 只改写被推送的功能分支，release 永远不在这里写入；只有落后 release 时才会强推。
+# 把一个功能分支对齐 release 并开 PR。目前分支由人直接 rebase 后合入 release，这里只留手动入口；
+# 要恢复推送即触发，把 on 换回 push + branches-ignore（release、backup/**、dependabot/**），
+# 并打开仓库设置里的“允许 Actions 创建 PR”。
+# 只改写所选的功能分支，release 永远不在这里写入；只有落后 release 时才会强推。
 on:
-  push:
-    branches-ignore:
-      - release
-      - 'backup/**'
-      - 'dependabot/**'
+  workflow_dispatch:
 
 permissions:
   actions: write
@@ -22,7 +20,7 @@ concurrency:
 jobs:
   rebase-and-pr:
     name: Rebase onto release and open PR
-    if: ${{ !github.event.deleted }}
+    if: ${{ github.ref_name != 'release' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
