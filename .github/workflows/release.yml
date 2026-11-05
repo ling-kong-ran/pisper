@@ -153,10 +153,11 @@ jobs:
             target: windows-x86_64
             os: windows-latest
           # 不再发布 macOS Intel：只构建 Apple Silicon。
-          # macos-15 的 arm64 托管机多次排不到（15 分钟后被取消），改用 macos-14 镜像。
+          # macos-14 已于 2026-11-02 退役，任务会被直接拒绝；macos-15 的 arm64 托管机多次排不到
+          # （15 分钟后被取消）。macos-26 是 iOS 构建和 CI 一直在用的镜像。
           - name: macOS Apple Silicon
             target: darwin-aarch64
-            os: macos-14
+            os: macos-26
           - name: Linux x64
             target: linux-x86_64
             os: ubuntu-22.04

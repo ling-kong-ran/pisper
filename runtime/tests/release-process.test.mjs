@@ -475,7 +475,7 @@ test('macOS releases are Apple Silicon only', async () => {
     readFile('docs/index.html', 'utf8'),
   ])
   assert.doesNotMatch(workflow, /darwin-x86_64|macos-15-intel|install-rosetta/)
-  assert.match(workflow, /target: darwin-aarch64\n\s+os: macos-14\n/)
+  assert.match(workflow, /target: darwin-aarch64\n\s+os: macos-26\n/)
   assert.doesNotMatch(updateManifest, /darwin-x86_64/)
   // 官网不再提供 Intel 下载入口，macOS 按钮固定解析 Apple Silicon 包。
   assert.doesNotMatch(site, /darwin_x86_64/)
