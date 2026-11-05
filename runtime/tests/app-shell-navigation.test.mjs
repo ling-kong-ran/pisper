@@ -105,7 +105,7 @@ test('each page lights exactly one primary entry; feature pages have a single ho
     'about',
   ])
     assert.equal(tab('config', section), 'settings', section)
-  // 插件、MCP、技能、星忆、渠道只在功能里；/config 下的远程访问、手机服务器、桌面宠物同样是功能页。
+  // 插件、MCP、技能、记忆、渠道只在功能里；/config 下的远程访问、手机服务器、桌面宠物同样是功能页。
   for (const page of ['plugins', 'mcp', 'skills', 'memory', 'channels'])
     assert.equal(tab(page), 'more', page)
   for (const section of ['remote-access', 'mobile-server', 'desktop-pet'])

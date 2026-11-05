@@ -415,7 +415,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
 
   value.isolatedContext = true
   value.blockedToolNames = ['memory_search', 'memory_remember']
-  await runtime.selectToolsForMessage(value, '搜索星忆并记住这项信息。')
+  await runtime.selectToolsForMessage(value, '搜索记忆并记住这项信息。')
   assert.equal(value.session.getActiveToolNames().includes('memory_search'), false)
   assert.equal(value.session.getActiveToolNames().includes('memory_remember'), false)
 

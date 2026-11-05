@@ -1,43 +1,93 @@
-// Browser + real isolated Runtime memory lifecycle; candidate seeding bypasses the LLM only.
+// 真实浏览器 + 隔离 Runtime 走一遍记忆页：只有“抽取到的记忆”绕过 LLM 直接写入，其余都经真实 HTTP。
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { fetchIdempotent } from './fixtures/route-fetch.mjs'
 
+async function chooseSpace(page, layout, name) {
+  await layout.getByRole('combobox', { name: '记忆空间', exact: true }).click()
+  await page.getByRole('option', { name, exact: false }).click()
+}
+
+async function saveDialog(dialog) {
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await dialog.waitFor({ state: 'hidden' })
+}
+
 export async function verifyMemoryLifecycle({ page, base, api, runtime, report, output }) {
   await page.goto(base + '/#/memory')
-  // A6 第 2 批：星忆用功能页模板；星图是默认视图，选中星辰的详情在星图下方的区域里。
   const layout = page.locator('.page-memory [data-page-template="feature"]')
   await layout.waitFor()
-  await layout.locator('[data-feature-section]').first().waitFor()
-  await layout.getByRole('button', { name: '新建星域', exact: true }).click()
-  let dialog = page.getByRole('dialog', { name: '新建星域', exact: true })
-  await dialog.getByLabel('星域名称', { exact: true }).fill('PI memory space')
-  await dialog.getByRole('button', { name: '保存', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' })
+  // 默认视图是演算（懒加载，画布由 MemoryEvolution 负责），时间线和整理记录在旁边。
+  await layout.getByRole('tab', { name: '演算', exact: true }).waitFor()
+  assert.equal(
+    await layout.getByRole('tab', { name: '演算', exact: true }).getAttribute('aria-selected'),
+    'true',
+  )
+  await layout.locator('[data-memory-detail]').waitFor()
+  report.checks.push('Memory opens on the evolution tab with a detail region below it')
+
+  const more = layout.getByRole('button', { name: '更多操作', exact: true })
+  await more.click()
+  await page.getByRole('menuitem', { name: '新建记忆空间', exact: true }).click()
+  let dialog = page.getByRole('dialog', { name: '新建记忆空间', exact: true })
+  await dialog.getByLabel('空间名称', { exact: true }).fill('PI memory space')
+  await saveDialog(dialog)
   const space = (await api('/api/memory')).spaces.find((s) => s.name === 'PI memory space')
   assert.ok(space?.id)
-  await page.getByRole('button', { name: '点亮星辰', exact: true }).first().click()
-  dialog = page.getByRole('dialog', { name: '点亮星辰', exact: true })
-  await dialog.getByLabel('星辰名称', { exact: true }).fill('PI memory searchable')
+  await layout.getByRole('combobox', { name: '记忆空间', exact: true }).waitFor()
+  assert.match(
+    await layout.getByRole('combobox', { name: '记忆空间', exact: true }).innerText(),
+    /PI memory space/,
+  )
+
+  await layout.getByRole('tab', { name: '时间线', exact: true }).click()
+  await layout.getByRole('button', { name: '添加记忆', exact: true }).click()
+  dialog = page.getByRole('dialog', { name: '添加记忆', exact: true })
+  await dialog.getByLabel('标题', { exact: true }).fill('PI memory searchable')
   await dialog
-    .getByRole('textbox', { name: '星忆内容', exact: true })
+    .getByRole('textbox', { name: '内容', exact: true })
     .fill('Persistent acceptance fixture with nebula keyword.')
-  await dialog.getByRole('button', { name: '保存', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' })
-  const details = layout.locator('[data-memory-detail]')
-  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
-  await details.getByRole('button', { name: '编辑', exact: true }).click()
-  dialog = page.getByRole('dialog', { name: '编辑星辰', exact: true })
+  await saveDialog(dialog)
+  const row = layout.locator('[data-memory-node]').filter({ hasText: 'PI memory searchable' })
+  await row.waitFor()
+  // 今天写的记忆落在“今天”这一组。
+  await layout.locator('[data-memory-group="today"]').waitFor()
+  const toggle = row.locator('[data-feature-row-toggle]')
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
+  await toggle.click()
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true')
+  const detail = row.getByRole('region', { name: 'PI memory searchable' })
+  await detail.getByRole('button', { name: '编辑', exact: true }).click()
+  dialog = page.getByRole('dialog', { name: '编辑记忆', exact: true })
   await dialog
-    .getByRole('textbox', { name: '星忆内容', exact: true })
+    .getByRole('textbox', { name: '内容', exact: true })
     .fill('Edited nebula memory is durable.')
-  await dialog.getByRole('button', { name: '保存', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' })
-  await details.getByText('Edited nebula memory is durable.', { exact: true }).waitFor()
+  await saveDialog(dialog)
+  await detail.getByText('Edited nebula memory is durable.', { exact: true }).waitFor()
+  report.checks.push('Timeline expands a memory into its detail and edits it through a dialog')
+
+  await detail.getByRole('button', { name: '钉住', exact: true }).click()
+  await row.getByText('已钉住', { exact: true }).first().waitFor()
+  assert.equal(
+    (await api('/api/memory?spaceId=' + encodeURIComponent(space.id))).nodes[0].pinned,
+    true,
+  )
+  await detail.getByRole('button', { name: '取消钉住', exact: true }).click()
+  await detail.getByRole('button', { name: '钉住', exact: true }).waitFor()
+  report.checks.push('A memory can be pinned and unpinned from its detail')
+
   await page.reload()
-  await layout.getByRole('button', { name: 'PI memory space', exact: true }).click()
-  await details.getByText('Edited nebula memory is durable.', { exact: true }).waitFor()
-  const search = page.getByPlaceholder('搜索星辰或文件', { exact: true })
+  await layout.waitFor()
+  await layout.getByRole('tab', { name: '时间线', exact: true }).waitFor()
+  // 上次看的视图记住了。
+  assert.equal(
+    await layout.getByRole('tab', { name: '时间线', exact: true }).getAttribute('aria-selected'),
+    'true',
+  )
+  await chooseSpace(page, layout, 'PI memory space')
+  await row.waitFor()
+
+  const search = page.getByPlaceholder('搜索记忆或文件', { exact: true })
   await Promise.all([
     page.waitForResponse(
       (r) =>
@@ -46,7 +96,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     ),
     search.fill('nebula'),
   ])
-  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
+  await row.waitFor()
   await Promise.all([
     page.waitForResponse(
       (r) =>
@@ -55,12 +105,10 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     ),
     search.fill('missing-unique-keyword'),
   ])
-  await details
-    .getByRole('heading', { name: 'PI memory searchable', exact: true })
-    .waitFor({ state: 'hidden' })
+  await row.waitFor({ state: 'hidden' })
   await search.fill('')
-  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
-  // Hold an older successful search until the newer empty search has rendered.
+  await row.waitFor()
+  // 晚到的旧搜索结果不能盖掉新的结果。
   const searchRelease = Promise.withResolvers()
   await page.route('**/api/memory?**', async (route) => {
     if (new URL(route.request().url()).searchParams.get('query') !== 'nebula')
@@ -80,9 +128,7 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
       ),
       search.fill('missing-race-keyword'),
     ])
-    await details
-      .getByRole('heading', { name: 'PI memory searchable', exact: true })
-      .waitFor({ state: 'hidden' })
+    await row.waitFor({ state: 'hidden' })
     const staleFinished = page.waitForEvent('requestfinished', {
       predicate: (r) => new URL(r.url()).searchParams.get('query') === 'nebula',
     })
@@ -91,39 +137,21 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     )
-    assert.equal(
-      await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).count(),
-      0,
-    )
+    assert.equal(await row.count(), 0)
     assert.equal(await search.inputValue(), 'missing-race-keyword')
   } finally {
     searchRelease.resolve()
     await page.unroute('**/api/memory?**')
   }
   await search.fill('')
-  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
+  await row.waitFor()
   report.checks.push('Late memory search responses cannot restore nodes from a superseded query')
-  // 列表视图：每颗星辰一行，展开是与星图下方同一份详情（编辑 / 删除）；切回星图仍是原来的选中。
-  await layout.getByRole('tab', { name: '列表', exact: true }).click()
-  const listRow = layout.locator('[data-memory-node]').filter({ hasText: 'PI memory searchable' })
-  const listToggle = listRow.locator('[data-feature-row-toggle]')
-  assert.equal(await listToggle.getAttribute('aria-expanded'), 'false')
-  await listToggle.click()
-  assert.equal(await listToggle.getAttribute('aria-expanded'), 'true')
-  await listRow
-    .getByRole('region', { name: 'PI memory searchable' })
-    .getByRole('button', { name: '编辑', exact: true })
-    .waitFor()
-  await layout.getByRole('tab', { name: '星图', exact: true }).click()
-  await details.getByRole('heading', { name: 'PI memory searchable', exact: true }).waitFor()
-  report.checks.push(
-    'Memory list view expands a node into the same detail as the star map; the star map stays the default view',
-  )
-  await layout.getByRole('button', { name: '重命名', exact: true }).click()
-  dialog = page.getByRole('dialog', { name: '重命名星域', exact: true })
-  await dialog.getByLabel('星域名称', { exact: true }).fill('PI renamed memory space')
-  await dialog.getByRole('button', { name: '保存', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' })
+
+  await more.click()
+  await page.getByRole('menuitem', { name: '重命名记忆空间', exact: true }).click()
+  dialog = page.getByRole('dialog', { name: '重命名记忆空间', exact: true })
+  await dialog.getByLabel('空间名称', { exact: true }).fill('PI renamed memory space')
+  await saveDialog(dialog)
   assert.equal(
     (await api('/api/memory')).spaces.find((s) => s.id === space.id).name,
     'PI renamed memory space',
@@ -132,56 +160,82 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     'Memory UI creates a space and memory, edits and searches it, renames its space, and reloads durable data',
   )
 
-  await api('/api/settings/memory', 'PATCH', { autoApproveConfidence: 100 })
-  for (const [title, action] of [
-    ['PI candidate approve', '确认'],
-    ['PI candidate reject', '忽略'],
-  ]) {
-    runtime.memory.propose({
-      spaceId: space.id,
-      title,
-      content: title + ' durable fixture',
-      evidence: title,
-      type: 'fact',
-      sourceType: 'conversation',
-      confidence: 0.4,
-      topic: title,
-    })
-    await layout.getByRole('button', { name: '刷新', exact: true }).click()
-    const candidate = layout.locator('.memory-candidate').filter({ hasText: title })
-    await candidate.waitFor()
-    await candidate.getByRole('button', { name: action, exact: true }).click()
-    await candidate.waitFor({ state: 'hidden' })
-    const state = await api('/api/memory?spaceId=' + encodeURIComponent(space.id))
-    assert.equal(
-      state.nodes.some((n) => n.title === title),
-      action === '确认',
-    )
-    assert.ok(!state.candidates.some((n) => n.title === title))
-  }
+  // 记忆不需要确认：抽取到的记忆直接出现，页面上没有确认或忽略的按钮。
+  runtime.memory.remember({
+    spaceId: space.id,
+    title: 'PI extracted memory',
+    content: 'PI extracted memory durable fixture',
+    evidence: 'PI extracted memory',
+    type: 'fact',
+    sourceType: 'conversation',
+    evidenceRole: 'user',
+    topic: 'pi.extracted.memory',
+  })
+  await layout.getByRole('button', { name: '刷新', exact: true }).click()
+  await layout.locator('[data-memory-node]').filter({ hasText: 'PI extracted memory' }).waitFor()
+  assert.equal(await layout.getByRole('button', { name: '确认', exact: true }).count(), 0)
+  assert.equal(await layout.getByRole('button', { name: '忽略', exact: true }).count(), 0)
+  assert.deepEqual((await api('/api/memory')).candidates, [])
   await page.screenshot({ path: join(output, 'memory-lifecycle.png') })
-  report.checks.push(
-    'Memory candidate acceptance persists a searchable node; rejection never enters recall; inbox actions run through real HTTP endpoints',
-  )
+  report.checks.push('An extracted memory appears directly with nothing to confirm or ignore')
 
-  await details.getByRole('button', { name: '删除', exact: true }).click()
-  dialog = page.getByRole('dialog', { name: '删除星辰', exact: true })
-  await dialog.getByRole('button', { name: '删除', exact: true }).click()
-  await dialog.waitFor({ state: 'hidden' })
+  // 被替换的旧版本进“历史版本”，详情里能看到版本历史。
+  runtime.memory.remember({
+    spaceId: space.id,
+    title: 'PI extracted memory',
+    content: 'PI extracted memory changed',
+    type: 'fact',
+    sourceType: 'conversation',
+    evidenceRole: 'user',
+    topic: 'pi.extracted.memory',
+  })
+  await layout.getByRole('button', { name: '刷新', exact: true }).click()
+  const extracted = layout
+    .locator('[data-memory-node]')
+    .filter({ hasText: 'PI extracted memory changed' })
+  await extracted.waitFor()
+  await extracted.locator('[data-feature-row-toggle]').click()
+  await extracted.locator('[data-memory-history] li').nth(1).waitFor()
+  assert.equal(await extracted.locator('[data-memory-history] li').count(), 2)
+  await layout.getByRole('radio', { name: /历史版本/ }).click()
   await layout
-    .locator('.memory-space-actions')
+    .locator('[data-memory-node]')
+    .filter({ hasText: 'PI extracted memory durable fixture' })
+    .waitFor()
+  await layout.getByRole('radio', { name: /当前/ }).click()
+  await row.waitFor()
+  report.checks.push('A replaced fact moves to past versions and shows in the version history')
+
+  await layout.getByRole('tab', { name: '整理记录', exact: true }).click()
+  const activity = layout.locator('[data-memory-event]')
+  await activity.first().waitFor()
+  await layout.locator('[data-memory-event="supersede"]').first().waitFor()
+  await layout.getByRole('tab', { name: '时间线', exact: true }).click()
+  report.checks.push('The activity tab lists what changed')
+
+  await row.waitFor()
+  await row.locator('[data-feature-row-toggle]').click()
+  await row
+    .getByRole('region', { name: 'PI memory searchable' })
     .getByRole('button', { name: '删除', exact: true })
     .click()
-  dialog = page.getByRole('dialog', { name: '删除星域', exact: true })
+  dialog = page.getByRole('dialog', { name: '删除记忆', exact: true })
+  await dialog.getByText('历史版本').waitFor()
+  await dialog.getByRole('button', { name: '删除', exact: true }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  await row.waitFor({ state: 'hidden' })
+
+  await more.click()
+  await page.getByRole('menuitem', { name: '删除记忆空间', exact: true }).click()
+  dialog = page.getByRole('dialog', { name: '删除记忆空间', exact: true })
   await dialog.getByRole('button', { name: '删除', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
   assert.ok(!(await api('/api/memory')).spaces.some((s) => s.id === space.id))
   await page.reload()
-  await layout.locator('[data-feature-section]').first().waitFor()
-  assert.equal(
-    await layout.getByRole('button', { name: 'PI renamed memory space', exact: true }).count(),
-    0,
-  )
+  await layout.getByRole('tab', { name: '时间线', exact: true }).waitFor()
+  await layout.getByRole('combobox', { name: '记忆空间', exact: true }).click()
+  assert.equal(await page.getByRole('option', { name: /PI renamed memory space/ }).count(), 0)
+  await page.keyboard.press('Escape')
   report.checks.push(
     'Memory and space deletion use confirmation dialogs and stay deleted after reload',
   )

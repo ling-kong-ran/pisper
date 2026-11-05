@@ -576,6 +576,7 @@ test('a released v4 database upgrades in place: nothing lost, backed up, candida
   try {
     await memory.init()
     assert.ok(existsSync(`${path}.pre-v5.bak`))
+    assert.equal(memory.getSpace('global').name, '全局')
     assert.equal(memory.getMemory('new').status, 'active')
     assert.equal(memory.getMemory('old').status, 'superseded')
     assert.equal(memory.getMemory('old').validTo, '2026-01-02T00:00:00.000Z')
@@ -816,6 +817,44 @@ test('the evolution view gets every state with timestamps, no body text, and no 
       memory.getDashboard({}).spaces.some((space) => space.kind === 'bot'),
       false,
     )
+  })
+})
+
+test('the all-spaces timeline and activity log cover every visible space and never a bot space', async () => {
+  await withMemory(async (memory, cwd) => {
+    const projectId = await memory.ensureWorkspaceSpace(cwd)
+    memory.ensureBotSpace('bot_abcdef')
+    const inBot = memory.remember({
+      spaceId: 'bot:bot_abcdef',
+      title: 'Bot 的事',
+      content: 'Bot 自己的记忆。',
+    })
+    const inGlobal = memory.remember({
+      spaceId: 'global',
+      title: '全局偏好',
+      content: '默认用中文。',
+      topic: 'u.lang.pref',
+    })
+    const inProject = memory.remember({
+      spaceId: projectId,
+      title: '项目约定',
+      content: '只用 npm。',
+      topic: 'p.pkg.tool',
+    })
+    const all = memory.getDashboard({ spaceId: 'all' })
+    assert.equal(all.selectedSpaceId, 'all')
+    assert.deepEqual(all.nodes.map((node) => node.id).sort(), [inGlobal.id, inProject.id].sort())
+    assert.equal(all.counts.current, 2)
+    assert.ok(!all.nodes.some((node) => node.id === inBot.id))
+    const searched = memory.getDashboard({ spaceId: 'all', query: '只用 npm' })
+    assert.deepEqual(
+      searched.nodes.map((node) => node.id),
+      [inProject.id],
+    )
+    const events = memory.listEvents({})
+    assert.ok(events.some((event) => event.titles.includes('项目约定')))
+    assert.ok(!events.some((event) => event.spaceId.startsWith('bot:')))
+    assert.equal(JSON.stringify(events).includes('Bot 的事'), false)
   })
 })
 

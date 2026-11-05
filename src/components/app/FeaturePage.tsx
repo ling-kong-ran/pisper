@@ -110,9 +110,13 @@ export function FeatureToolbar({
           )}
         </div>
       )}
-      {/* 手机：分段控件的每一段也抬到 44（基础组件在手机上是 44 轨道里的 36 键帽）。 */}
+      {/* 手机：分段控件的每一段也抬到 44（基础组件在手机上是 44 轨道里的 36 键帽）。
+          ui/tabs 和 ui/segmented-control 的轨道是定高的，段抬高时轨道要跟着放开，否则选中段会撑出轨道。 */}
       {filters && (
-        <div data-feature-filters className="min-w-0 max-[650px]:[&_[role=tab]]:min-h-11">
+        <div
+          data-feature-filters
+          className="min-w-0 max-[650px]:[&_[data-slot=segmented-control]]:h-auto! max-[650px]:[&_[data-slot=segmented-control-item]]:min-h-11 max-[650px]:[&_[data-slot=tabs-list]]:h-auto! max-[650px]:[&_[role=tab]]:min-h-11"
+        >
           {filters}
         </div>
       )}

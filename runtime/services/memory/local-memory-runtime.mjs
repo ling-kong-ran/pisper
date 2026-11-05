@@ -543,12 +543,14 @@ export class LocalMemoryRuntime {
   }
 
   // 时间线：按“事实何时为真”从新到旧。before 是上一页最后一条的时间，用来翻页。
+  // spaceId 为 'all' 时覆盖记忆页能看到的全部空间（不含 Bot）。
   listMemories({ spaceId, query = '', limit = 100, status = 'current', before = '' } = {}) {
     const safeLimit = Math.min(300, Math.max(1, Number(limit) || 100))
     const statuses = statusFilter(status)
+    const spaceIds = spaceId === 'all' ? this.listSpaces().map((space) => space.id) : [spaceId]
     if (String(query).trim()) {
       return this.search(query, {
-        spaceIds: [spaceId],
+        spaceIds,
         limit: safeLimit,
         minScore: 0.04,
         trackAccess: false,
@@ -558,20 +560,22 @@ export class LocalMemoryRuntime {
     return this.requireDb()
       .prepare(
         `SELECT * FROM memories
-         WHERE space_id = ? AND status IN (${statuses.map(() => '?').join(',')})
+         WHERE space_id IN (${spaceIds.map(() => '?').join(',')})
+           AND status IN (${statuses.map(() => '?').join(',')})
            AND (? = '' OR COALESCE(valid_from, created_at) < ?)
          ORDER BY COALESCE(valid_from, created_at) DESC, id DESC LIMIT ?`,
       )
-      .all(spaceId, ...statuses, before, before, safeLimit)
+      .all(...spaceIds, ...statuses, before, before, safeLimit)
       .map(rowMemory)
   }
 
   getDashboard({ spaceId = '', query = '', status = 'current', before = '', limit = 100 } = {}) {
     this.cleanupRetention()
     const spaces = this.listSpaces()
-    const selectedSpaceId = spaces.some((space) => space.id === spaceId)
-      ? spaceId
-      : spaces[0]?.id || ''
+    const selectedSpaceId =
+      spaceId === 'all' || spaces.some((space) => space.id === spaceId)
+        ? spaceId
+        : spaces[0]?.id || ''
     const nodes = selectedSpaceId
       ? this.listMemories({ spaceId: selectedSpaceId, query, status, before, limit })
       : []
@@ -583,7 +587,7 @@ export class LocalMemoryRuntime {
       counts: selectedSpaceId
         ? this.statusCounts(selectedSpaceId)
         : { current: 0, archived: 0, history: 0 },
-      // 下面两个字段留给旧版前端：候选箱已经取消，星图连线也不再计算。
+      // 下面两个字段留给旧版前端：候选箱已经取消，记忆之间的连线也不再计算。
       links: [],
       candidates: [],
       semantic: this.semanticStatus(),
@@ -591,9 +595,13 @@ export class LocalMemoryRuntime {
   }
 
   statusCounts(spaceId) {
+    const spaceIds = spaceId === 'all' ? this.listSpaces().map((space) => space.id) : [spaceId]
     const rows = this.requireDb()
-      .prepare('SELECT status, COUNT(*) AS count FROM memories WHERE space_id = ? GROUP BY status')
-      .all(spaceId)
+      .prepare(
+        `SELECT status, COUNT(*) AS count FROM memories
+         WHERE space_id IN (${spaceIds.map(() => '?').join(',')}) GROUP BY status`,
+      )
+      .all(...spaceIds)
     const byStatus = Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]))
     return {
       current: (byStatus.active || 0) + (byStatus.stale || 0),
@@ -698,12 +706,15 @@ export class LocalMemoryRuntime {
 
   listEvents({ spaceId = '', limit = 50, before = '' } = {}) {
     const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50))
-    return this.requireDb()
+    const db = this.requireDb()
+    const titleOf = db.prepare('SELECT title FROM memories WHERE id = ?')
+    return db
       .prepare(
+        // 不指定空间时也不能带上 Bot 的记录：Bot 的记忆只属于它自己，实验开关关着时更不能露面。
         `SELECT id, at, space_id, actor, action, memory_ids, reason, model, undone_at,
                 before_json <> '' AS undoable
          FROM memory_events
-         WHERE (? = '' OR space_id = ?) AND (? = '' OR at < ?)
+         WHERE (? = '' OR space_id = ?) AND space_id NOT LIKE 'bot:%' AND (? = '' OR at < ?)
          ORDER BY at DESC, id DESC LIMIT ?`,
       )
       .all(spaceId, spaceId, before, before, safeLimit)
@@ -714,6 +725,11 @@ export class LocalMemoryRuntime {
         actor: row.actor,
         action: row.action,
         memoryIds: JSON.parse(row.memory_ids || '[]'),
+        // 用户删除时相关事件已经清掉，这里查到的都是还在的记忆。
+        titles: JSON.parse(row.memory_ids || '[]')
+          .slice(0, 5)
+          .map((id) => titleOf.get(id)?.title)
+          .filter(Boolean),
         reason: row.reason,
         model: row.model,
         undoneAt: row.undone_at || '',

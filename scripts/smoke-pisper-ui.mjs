@@ -1558,7 +1558,7 @@ try {
     ['/plugins', 'plugins', '插件'],
     ['/mcp', 'mcp', 'MCP'],
     ['/skills', 'skills', '技能'],
-    ['/memory', 'memory', '星忆'],
+    ['/memory', 'memory', '记忆'],
     ['/channels', 'channels', '渠道'],
     ['/components', 'components', '组件工作室'],
     ['/more', 'more', '功能'],

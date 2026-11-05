@@ -57,6 +57,8 @@ export type MemoryEvent = {
   actor: string
   action: string
   memoryIds: string[]
+  // 还在的记忆的标题；连到旧 Runtime 时没有。
+  titles?: string[]
   reason: string
   model: string
   undoneAt: string
@@ -121,6 +123,3 @@ export const MEMORY_TYPES: MemoryType[] = [
   'fact',
   'task',
 ]
-
-// 旧页面删除后一起去掉。
-export type MemoryLink = { id: string; sourceId: string; targetId: string }

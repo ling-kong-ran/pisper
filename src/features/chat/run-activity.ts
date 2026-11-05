@@ -12,9 +12,10 @@ const RESEARCH_TOOLS = new Set([
   'find',
   'ls',
   'memory_search',
+  'memory_open',
   'browser_automation',
 ])
-const EDIT_TOOLS = new Set(['edit', 'write', 'memory_remember'])
+const EDIT_TOOLS = new Set(['edit', 'write', 'memory_remember', 'memory_confirm', 'memory_forget'])
 const AGENT_TOOLS = new Set([
   'spawn_agent',
   'list_agents',

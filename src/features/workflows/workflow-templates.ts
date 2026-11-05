@@ -291,7 +291,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     id: 'research',
     name: '资料调研',
-    description: '搜索资料 → 提取引用 → 点亮星忆',
+    description: '搜索资料 → 提取引用 → 保存到记忆',
     Icon: Search,
     nodes: [
       createWorkflowNode('research-trigger', 'trigger', '手动输入', '', 65, 45),
@@ -314,7 +314,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       createWorkflowNode(
         'research-memory',
         'prompt',
-        '保存星忆',
+        '保存到记忆',
         '把适合长期保留的结论写入 Agent 记忆。',
         320,
         180,

@@ -4,7 +4,7 @@
 // 更多页搜索框的 DOM id：外壳的“/ 聚焦搜索”在更多页上落到这里。
 export const MORE_SEARCH_INPUT_ID = 'more-page-search'
 
-// 从“更多”进入时归“更多”标签的功能页；插件、星忆等同时挂在设置下的页面按进入来源判定。
+// 从“更多”进入时归“更多”标签的功能页；插件、记忆等同时挂在设置下的页面按进入来源判定。
 export const MORE_PAGES: ReadonlySet<string> = new Set([
   'chatHistory',
   'assets',

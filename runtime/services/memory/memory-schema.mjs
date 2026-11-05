@@ -346,6 +346,10 @@ function applyRevision5(db, now) {
       END
   `,
   ).run()
+  // 旧版把全局空间写死成这个名字；导出 Markdown 等地方会直接用它。
+  db.prepare(
+    "UPDATE memory_spaces SET name = '全局' WHERE id = 'global' AND name = '全局星域'",
+  ).run()
   const moved = promotePendingCandidates(db, now)
   if (moved) {
     db.prepare(

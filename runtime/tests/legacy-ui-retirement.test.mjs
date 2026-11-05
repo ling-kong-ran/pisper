@@ -292,3 +292,35 @@ test('feature and app modules are all reachable from another source file', async
   })
   assert.deepEqual(unreachable, [])
 })
+
+test('the old memory page stays retired: no star map, no review queue', async () => {
+  // 星图和候选箱连同资源一起删掉（2026-11-05，用户：“老记忆页面删除”“记忆不需要确认”）。
+  await assert.rejects(access('src/features/memory/MemoryGalaxy.tsx'))
+  await assert.rejects(access('public/memory-galaxy-background.webp'))
+  const css = await readFile('src/index.css', 'utf8')
+  assert.doesNotMatch(css, /galaxy|--g-star|--g-concept/)
+  const memoryFiles = (await sourceFiles('src/features/memory')).filter(
+    (file) => !/\.d\.ts$/.test(file),
+  )
+  for (const file of memoryFiles) {
+    const source = await readFile(file, 'utf8')
+    assert.doesNotMatch(source, /\/api\/memory\/candidates|\/api\/settings\/memory/, file)
+    assert.doesNotMatch(source, /autoApprove|MemoryCandidate/, file)
+  }
+  for (const locale of ['zh-CN', 'en-US']) {
+    const messages = JSON.parse(await readFile(`src/locales/${locale}/memory.json`, 'utf8'))
+    assert.deepEqual(
+      Object.keys(messages).filter((key) => /candidate|autoApprove|draft|galaxy/i.test(key)),
+      [],
+    )
+  }
+  // 产品文案里不再有星系隐喻。
+  for (const directory of ['src/locales/zh-CN', 'src/app', 'src/features']) {
+    const entries = await readdir(directory, { withFileTypes: true, recursive: true })
+    for (const entry of entries) {
+      if (!entry.isFile() || !/\.(?:json|ts|tsx)$/.test(entry.name)) continue
+      const file = path.join(entry.parentPath, entry.name)
+      assert.doesNotMatch(await readFile(file, 'utf8'), /星忆|星域|星辰|星图/, file)
+    }
+  }
+})

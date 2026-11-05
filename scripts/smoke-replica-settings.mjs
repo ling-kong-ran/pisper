@@ -116,199 +116,55 @@ try {
     }
     return route.fallback()
   })
-  let reads = 0
-  const writes = []
-  let failRead = true
-  let failWrite = false
-  let releaseWrite
-  await page.route('**/api/settings/memory', async (route) => {
-    if (route.request().method() === 'PATCH') {
-      writes.push(route.request().postDataJSON())
-      await new Promise((resolve) => {
-        releaseWrite = resolve
-      })
-      return route.fulfill(
-        failWrite
-          ? { status: 503, json: { error: 'Fixture write unavailable' } }
-          : { json: { autoApproveConfidence: writes.at(-1).autoApproveConfidence } },
-      )
-    }
-    reads++
-    if (failRead) return route.fulfill({ status: 503, json: { error: 'Fixture unavailable' } })
-    return route.fulfill({ json: { autoApproveConfidence: 75 } })
+  // 连到不认识“全部空间”的旧 Runtime：它返回实际的空间，页面跟着切；整理记录接口 404 不算错误。
+  let holdMemory = null
+  const dashboard = {
+    spaces: [{ id: 'global', name: '全局', kind: 'global', nodeCount: 0 }],
+    nodes: [],
+    selectedSpaceId: 'global',
+  }
+  await page.route('**/api/memory?*', async (route) => {
+    if (holdMemory) await holdMemory.promise
+    await route.fulfill({ json: dashboard })
   })
-  await page.route('**/api/memory?*', (route) =>
+  await page.route('**/api/memory/events*', (route) =>
+    route.fulfill({ status: 404, json: { error: 'Not found' } }),
+  )
+  await page.route('**/api/memory/evolution*', (route) =>
     route.fulfill({
       json: {
-        spaces: [],
-        nodes: [],
-        links: [],
-        candidates: [],
-        selectedSpaceId: '',
+        spaceId: 'global',
+        now: new Date().toISOString(),
+        spaces: dashboard.spaces,
+        facts: [],
+        digests: [],
+        truncated: false,
       },
     }),
   )
   await page.goto(url)
-  const threshold = page.getByRole('spinbutton')
-  await page.getByRole('button', { name: /重试|Retry/ }).waitFor()
-  assert.equal(await threshold.count(), 0, 'A failed read must not invent an editable threshold')
-  assert.equal(writes.length, 0)
-  failRead = false
-  await page.getByRole('button', { name: /重试|Retry/ }).click()
-  await threshold.waitFor().catch(async (error) => {
-    console.error({ reads, errors, body: await page.locator('body').innerText() })
-    throw error
-  })
-  assert.equal(await threshold.inputValue(), '75')
-  await threshold.focus()
-  await threshold.blur()
-  assert.equal(writes.length, 0, 'Unchanged blur must not PATCH')
-  const beforeUnsubmittedDraft = await page.evaluate(() => window.replicaNotices.length)
-  await threshold.fill('81')
-  await threshold.press('Enter')
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  await threshold.fill('88')
-  releaseWrite()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'false',
-  )
-  assert.equal(await threshold.inputValue(), '88', 'Late save response must preserve newer edits')
-  assert.deepEqual(writes, [{ autoApproveConfidence: 81 }])
-  assert.equal(
-    await page.evaluate(() => window.replicaNotices.length),
-    beforeUnsubmittedDraft,
-    'An older successful write cannot announce a newer unsubmitted draft as saved',
-  )
-  assert.equal(reads, 2)
-  console.log('PASS memory read failure/retry, unchanged blur, and edits during pending save')
-
-  failWrite = true
-  await threshold.press('Enter')
-  await threshold.blur()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  releaseWrite()
-  await page.getByRole('button', { name: /重试|Retry/ }).waitFor()
-  assert.equal(await threshold.inputValue(), '88', 'A failed save keeps the draft')
-  failWrite = false
-  await page.getByRole('button', { name: /重试|Retry/ }).click()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  releaseWrite()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'false',
-  )
-  assert.deepEqual(writes, [
-    { autoApproveConfidence: 81 },
-    { autoApproveConfidence: 88 },
-    { autoApproveConfidence: 88 },
-  ])
-  console.log('PASS failed memory save keeps the draft and Retry repeats the write')
-
-  // 当前 PATCH 完成前的 blur/Enter 都是新的明确提交意图，不能只保留显示草稿。
-  await threshold.fill('81')
-  await threshold.press('Enter')
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  await threshold.fill('85')
-  await threshold.press('Enter')
-  await threshold.fill('88')
-  await threshold.blur()
-  const beforeQueuedSuccess = await page.evaluate(() => window.replicaNotices.length)
-  const queuedRequest = page.waitForRequest(
-    (request) =>
-      request.method() === 'PATCH' && request.postDataJSON().autoApproveConfidence === 88,
-  )
-  releaseWrite()
-  await queuedRequest
-  assert.equal(await threshold.getAttribute('aria-busy'), 'true')
-  assert.equal(
-    await page.evaluate(() => window.replicaNotices.length),
-    beforeQueuedSuccess,
-    'An older successful write cannot announce the newer draft as saved',
-  )
-  assert.deepEqual(
-    writes.slice(-2),
-    [{ autoApproveConfidence: 81 }, { autoApproveConfidence: 88 }],
-    'Only the latest pending explicit submission is written',
-  )
-  releaseWrite()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'false',
-  )
-  assert.equal(await threshold.inputValue(), '88')
-  assert.equal(await page.evaluate(() => window.replicaNotices.length), beforeQueuedSuccess + 1)
+  await page.getByRole('tab', { name: /演算|Evolution/ }).waitFor()
+  // 记忆不需要确认：没有阈值输入，也没有确认或忽略的按钮。
+  assert.equal(await page.getByRole('spinbutton').count(), 0)
+  assert.equal(await page.getByRole('button', { name: /^(确认|忽略|Confirm|Ignore)$/ }).count(), 0)
+  await page.getByRole('tab', { name: /整理记录|Activity/ }).click()
+  await page.getByText(/版本较旧|too old/).waitFor()
+  assert.equal(await page.locator('[data-feature-alert]').count(), 0)
   console.log(
-    'PASS submissions made during a pending save are coalesced and persisted before success is announced',
+    'PASS memory page has no review step and tolerates a Runtime without the activity API',
   )
 
-  const beforeFailedQueueWrites = writes.length
-  const beforeFailedQueueNotices = await page.evaluate(() => window.replicaNotices.length)
-  failWrite = true
-  await threshold.fill('81')
-  await threshold.press('Enter')
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  await threshold.fill('88')
-  await threshold.press('Enter')
-  await threshold.blur()
-  releaseWrite()
-  await page.getByRole('button', { name: /重试|Retry/ }).waitFor()
-  assert.equal(
-    writes.length,
-    beforeFailedQueueWrites + 1,
-    'A failed write must pause the queue until explicit retry',
-  )
-  assert.equal(await threshold.inputValue(), '88')
-  assert.equal(await page.evaluate(() => window.replicaNotices.length), beforeFailedQueueNotices)
-  failWrite = false
-  const retryLatest = page.waitForRequest(
-    (request) =>
-      request.method() === 'PATCH' && request.postDataJSON().autoApproveConfidence === 88,
-  )
-  await page.getByRole('button', { name: /重试|Retry/ }).click()
-  await retryLatest
-  releaseWrite()
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'false',
-  )
-  assert.deepEqual(writes.slice(-2), [{ autoApproveConfidence: 81 }, { autoApproveConfidence: 88 }])
-  console.log(
-    'PASS failed in-flight write pauses newer intent; Retry confirms the latest value even when it equals an older snapshot',
-  )
-
-  await threshold.fill('81')
-  await threshold.press('Enter')
-  await page.waitForFunction(
-    () => document.querySelector('input[type=number]')?.getAttribute('aria-busy') === 'true',
-  )
-  await threshold.fill('88')
-  await threshold.press('Enter')
-  const beforeUnmountWrites = writes.length
-  const beforeUnmountNotices = await page.evaluate(() => window.replicaNotices.length)
-  const cancelledWrite = page.waitForEvent('requestfailed', {
-    predicate: (request) => request.method() === 'PATCH',
-  })
+  // 请求还没回来就卸载：晚到的响应不能报错。
+  holdMemory = Promise.withResolvers()
+  await page.reload()
   await page.getByRole('button', { name: 'Unmount memory' }).click()
-  const aborted = await cancelledWrite
-  assert.ok(aborted.failure())
-  releaseWrite()
+  holdMemory.resolve()
+  holdMemory = null
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   )
-  assert.equal(writes.length, beforeUnmountWrites, 'Unmount must cancel queued writes')
-  assert.equal(
-    await page.evaluate(() => window.replicaNotices.length),
-    beforeUnmountNotices,
-    'Unmount must suppress stale success feedback',
-  )
-  console.log('PASS unmount aborts the active request and discards queued submission intent')
+  assert.deepEqual(errors, [])
+  console.log('PASS unmounting the memory page during a load stays quiet')
 
   await page.goto(`${url}/?view=search`)
   await page.getByRole('button', { name: 'Search policy' }).click()

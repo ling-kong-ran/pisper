@@ -40,6 +40,8 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper.config.manageConnectionsOpen',
   'pisper.config.visualConnectionsOpen',
   'pisper-web-desktop-pet-position',
+  // 记忆页上次看的视图（演算 / 时间线 / 整理记录）。
+  'pisper-memory-view',
 ])
 
 const allowed = new Set(BROWSER_PREFERENCE_KEYS)

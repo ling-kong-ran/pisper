@@ -82,7 +82,7 @@
   "workflowsPage.prFix": "PR 修复",
   "workflowsPage.prFixDescription": "定位失败 → 修改代码 → 回归测试",
   "workflowsPage.research": "资料调研",
-  "workflowsPage.researchDescription": "搜索资料 → 提取引用 → 点亮星忆",
+  "workflowsPage.researchDescription": "搜索资料 → 提取引用 → 保存到记忆",
   "workflowsPage.dailyWeeklyReport": "日报周报",
   "workflowsPage.reportDescription": "汇总会话 → 生成摘要 → 渠道通知",
   "workflowsPage.assetGeneration": "资产生成",

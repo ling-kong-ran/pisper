@@ -299,38 +299,6 @@
   --agent-spark-stroke: #a855f7;
   --agent-shadow: #7c3aed;
 
-  /* ── 记忆星系：恒定深空场景，不随主题翻转 ── */
-  --galaxy-bg: #070610;
-  --galaxy-border: rgba(255, 255, 255, .1);
-  --galaxy-core: rgba(126, 156, 255, .12);
-  --galaxy-nebula-a: rgba(62, 96, 220, .13);
-  --galaxy-nebula-b: rgba(139, 92, 246, .07);
-  --galaxy-nebula-c: rgba(45, 212, 191, .07);
-  --galaxy-dot: rgba(255, 255, 255, .5);
-  --galaxy-dot-dim: rgba(255, 255, 255, .22);
-  --galaxy-line: rgba(147, 180, 255, .26);
-  --galaxy-line-active: rgba(191, 219, 254, .9);
-  --galaxy-label: rgba(226, 232, 240, .62);
-  --galaxy-label-active: #f1f5f9;
-  --galaxy-toolbar-bg: rgba(12, 11, 20, .74);
-  --galaxy-toolbar-border: rgba(255, 255, 255, .16);
-  --galaxy-toolbar-hover: rgba(255, 255, 255, .12);
-  --galaxy-toolbar-text: #e2e8f0;
-  --g-star-core: #fff;
-  --g-concept: #6eb5ff;
-  --g-concept-glow: rgba(110, 181, 255, .55);
-  --g-file: #4ade80;
-  --g-file-glow: rgba(74, 222, 128, .5);
-  --g-risk: #fb7185;
-  --g-risk-glow: rgba(251, 113, 133, .5);
-  --g-preference: #c4b5fd;
-  --g-preference-glow: rgba(196, 181, 253, .5);
-  --g-decision: #fbbf24;
-  --g-decision-glow: rgba(251, 191, 36, .55);
-  --g-fact: #e2e8f0;
-  --g-fact-glow: rgba(226, 232, 240, .5);
-  --g-task: #67e8f9;
-  --g-task-glow: rgba(103, 232, 249, .5);
   /* shadcn/Tailwind aliases resolve to the same project semantics in both themes. */
   --background: var(--bg);
   --foreground: var(--text);
@@ -626,7 +594,6 @@
   --r-lg: 20px;
 }
 
-
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
 /* 全局细滚动条：两端 WebView（WKWebView/WebView2）默认滚动条粗重占宽；
    WebKit 伪元素无法用 Tailwind 表达，属基础元素规则。透明 border 挖出
@@ -745,27 +712,6 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 [data-streamdown='code-block-body'] code > span:has([style*='144620' i]) { background: var(--success-soft); box-shadow: inset 2px 0 var(--success); }
 [data-streamdown='code-block-body'] code > span:has([style*='86181d' i]) { background: var(--danger-soft); box-shadow: inset 2px 0 var(--danger); }
 
-@keyframes galaxy-field-twinkle { 0%,100% { opacity: .48; } 50% { opacity: .82; } }
-@keyframes galaxy-orbit-drift { to { transform: rotate(360deg); } }
-@keyframes galaxy-link-flow { to { stroke-dashoffset: -240; } }
-@keyframes galaxy-star-twinkle { 0%,100% { opacity: 1; } 50% { opacity: .68; } }
-@keyframes galaxy-star-pulse { 0% { box-shadow: 0 0 7px 1px var(--g-star-glow),0 0 0 0 var(--g-star-glow); } 70%,100% { box-shadow: 0 0 9px 2px var(--g-star-glow),0 0 0 15px transparent; } }
-@keyframes galaxy-selected-orbit { from { transform: translate(-50%,-50%) rotate(-22deg) scaleY(.44); } to { transform: translate(-50%,-50%) rotate(338deg) scaleY(.44); } }
-@keyframes galaxy-meteor { 0%,86% { opacity: 0; transform: translate(0,0) rotate(-35deg); } 89% { opacity: .95; } 95% { opacity: .55; } 99%,100% { opacity: 0; transform: translate(-210px,148px) rotate(-35deg); } }
-@keyframes galaxy-meteor-b { 0%,88% { opacity: 0; transform: translate(0,0) rotate(205deg); } 91.5% { opacity: .85; } 96% { opacity: .4; } 99%,100% { opacity: 0; transform: translate(250px,115px) rotate(205deg); } }
-@keyframes galaxy-meteor-c { 0%,90% { opacity: 0; transform: translate(0,0) rotate(-51deg); } 93% { opacity: .9; } 97% { opacity: .45; } 99.5%,100% { opacity: 0; transform: translate(-160px,200px) rotate(-51deg); } }
-@keyframes galaxy-core-breathe { 0%,100% { opacity: .72; transform: translate(-50%,-50%) scale(1); } 50% { opacity: 1; transform: translate(-50%,-50%) scale(1.1); } }
-@keyframes galaxy-star-enter { from { opacity: 0; filter: blur(5px); } to { opacity: 1; filter: blur(0); } }
-@keyframes galaxy-dash-spin { to { transform: translate(-50%,-50%) rotate(-360deg); } }
-
-/* 星系的动态层：底图呼吸漂移、星尘视差、半透明旋臂和星云流动。 */
-
-/* 节点是四角恒星而不是圆形星球：星芒、亮核和光晕均随类型色变化。 */
-@keyframes galaxy-background-drift { 0% { transform: translate(-1.8%,-1.2%) scale(1.03) rotate(-.7deg); } 100% { transform: translate(1.6%,1.1%) scale(1.1) rotate(.7deg); } }
-@keyframes galaxy-field-drift { 0% { opacity: .5; background-position: 0 0,37px 53px,71px 19px; } 50% { opacity: .88; background-position: 22px -15px,53px 78px,48px 37px; } 100% { opacity: .58; background-position: -14px 17px,21px 38px,94px 7px; } }
-@keyframes galaxy-spiral-turn { to { transform: rotate(360deg) scale(1.08); } }
-@keyframes galaxy-aurora-drift { 0% { opacity: .22; transform: translate(-7%,-5%) scale(.9); } 55% { opacity: .56; transform: translate(9%,6%) scale(1.14); } 100% { opacity: .3; transform: translate(2%,12%) scale(.98); } }
-@keyframes galaxy-star-selection-pulse { 0% { opacity: .75; transform: scale(.72); } 70%,100% { opacity: 0; transform: scale(1.25); } }
 .workflow-mini-map .react-flow__node { border: 0; background: transparent; padding: 0; }
 /* 工作流画布：用 React Flow 自身的 --xy-* 变量接入设计 Token；连线为淡墨色，选中/连接中的线与框选才用强调色。 */
 .workflow-react-flow { --xy-edge-stroke: var(--canvas-edge); --xy-edge-stroke-width: 1.5; --xy-edge-stroke-selected: var(--accent-fg); --xy-connectionline-stroke: var(--focus); --xy-connectionline-stroke-width: 1.5; --xy-selection-background-color: var(--focus-ring); --xy-selection-border: 1px solid var(--focus); --xy-controls-box-shadow: none; --xy-controls-button-background-color: transparent; --xy-controls-button-background-color-hover: var(--surface-hover); --xy-controls-button-color: var(--text-secondary); --xy-controls-button-color-hover: var(--text); --xy-controls-button-border-color: transparent; --xy-minimap-background-color: var(--panel); --xy-attribution-background-color: transparent; }

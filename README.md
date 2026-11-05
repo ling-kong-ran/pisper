@@ -55,7 +55,7 @@
 | --- | --- |
 | 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · 按轮回退文件 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 · 命令与文件的持久权限规则 | 本地插件自动生成 · 接入外部 MCP 服务 · 内置 MCP 服务供本机其他 Agent 调用 · 技能中心 · 多 Provider 模型配置 · 主模型不可用时自动切到备用模型 |
 | **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
-| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 星忆项目记忆 · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
+| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 分层记忆（自动淘汰过时内容、按时间回放） · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
 
 需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。
 

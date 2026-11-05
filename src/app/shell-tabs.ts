@@ -21,7 +21,7 @@ export const SHELL_TAB_PAGES: Readonly<Record<Exclude<ShellTab, 'session'>, Page
 
 // 当前页面点亮哪个一级入口（桌面侧栏与手机抽屉的“全部代理 / 功能 / 设置”共用）。
 // settingsOwned 来自 settingsOwnsRoute：只有 /config 下的应用设置分区归“设置”（规格 2.6）；
-// 插件、星忆等功能页只有一个家（“功能”），/config 下的远程访问 / 手机服务器 / 桌面宠物同样归“功能”。
+// 插件、记忆等功能页只有一个家（“功能”），/config 下的远程访问 / 手机服务器 / 桌面宠物同样归“功能”。
 // 会话页与主页归“会话”，看板归“看板”（侧栏的“全部代理”），组件工作室与其余功能页归“更多”（侧栏的“功能”）。
 export function activeShellTab(page: string, settingsOwned: boolean): ShellTab | null {
   if (settingsOwned) return 'settings'
