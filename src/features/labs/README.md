@@ -66,7 +66,6 @@ Capability：`runtime-capabilities.mjs` 新增 `features.betaFeatures`，只在�
   - 不可用的功能：开关禁用，并写明原因（如“需要桌面端”“当前 Runtime 不支持”）。
   - 清单为空时用 `InlineEmptyState compact`。
   - 加载失败、保存失败要有错误状态；保存中禁用对应开关。
-- 实现截图补到 `docs/design/built/`。
 
 ## 毕业与移除
 

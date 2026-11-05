@@ -41,7 +41,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 | `crates/` | 确有独立边界的 Rust 库与平台适配 |
 | `scripts/` | 构建、发布、开发工具与迁移入口，不承载产品领域规则 |
 | `packages/pisper/` | npm 安装器、启动器与发布源码清单 |
-| `docs/` | GitHub Pages 官网（`index.html`、`guide`、`changelog`、`privacy`、`support` 等页面及其 css/js，`shots/` 下为主页引用的截图，PNG 原图 + `web/*.webp`；`promo/` 下为主页宣传片、对外发布用的更新视频及封面）、移动端更新器与发布流程读取的 `latest-app.json`、README 与官网共用的品牌图，以及 `docs/design/` 下的界面设计截图（设计稿 `drafts/`、实现截图 `built/` 与对照页 `index.html`，不随 Pages 发布）；不存放开发文档或规格文字稿 |
+| `docs/` | GitHub Pages 官网（`index.html`、`guide`、`changelog`、`privacy`、`support` 等页面及其 css/js，`shots/` 下只放主页引用的截图，`web/*.webp` 用于展示，部分配 PNG 原图供点开查看；`promo/` 下为主页宣传片、对外发布用的更新视频及封面）、移动端更新器与发布流程读取的 `latest-app.json`、README 与官网共用的品牌图；不存放官网用不到的截图、开发文档或规格文字稿 |
 | `dist/`、`release/` | 构建和打包产物，不手工维护 |
 
 路径别名：`@/*` → `src/*`，`@shared/*` → `shared/*`。业务所有权优先于复用次数；多个调用方不自动意味着应提升为全局模块。
@@ -79,7 +79,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 - 面板、检查器、对话框里的空状态用 `InlineEmptyState compact`；整页空状态用 `PageState`。
 - 控件尺寸按规格 v2：按钮、输入框、下拉框 32px（小号 28），窄屏与触屏 44px。44 指触控范围：手机输入框工具行看得见的是 36 的圆 / 胶囊，透明 `::after` 把触控范围扩到 44（`COMPOSER_PHONE_TARGET_CLASSES`）。
 - 同一个控件在多个页面出现时（例如输入框的模型芯片）必须复用同一组件，经 Feature 公共接口导出，不得复制一份再改样式。
-- 新界面和改到的旧界面都按现行样式（规格 v2 与 `docs/design/built/` 截图）；改动涉及的旧面板顺手迁到现行组件。
+- 新界面和改到的旧界面都按现行样式（规格 v2 与 `src/components/ui/` 的现行组件）；改动涉及的旧面板顺手迁到现行组件。
 - 守卫测试在 `runtime/tests/legacy-ui-retirement.test.mjs`，新规则同时补守卫。
 
 ### Runtime、协议与共享层

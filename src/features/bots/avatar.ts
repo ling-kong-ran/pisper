@@ -1,7 +1,6 @@
 // Bot 头像：12 个角色 × 6 种颜色 × 3 种状态（idle 空闲 / running 干活 / need 需要你）。
 // 生成纯 SVG + SMIL 动画（不依赖外部 CSS，不需要放宽 CSP，Safari 16 可用），以 data: URL 交给 <img>，
 // 不经 innerHTML；内容只来自下面的固定表与数值，不含任何用户输入。减少动效时输出静态版。
-// 设计稿：docs/design/drafts（头像图鉴）。
 
 export const BOT_CHARACTERS = [
   'blob',
