@@ -12,7 +12,9 @@ export async function verifySessionTreeLifecycle({ page, base, api, report, outp
       const match = /^#\/board\/([^/?]+)$/.exec(location.hash)
       return match && match[1] !== 'new' ? decodeURIComponent(match[1]) : ''
     })
-  await page.goto(base + '/#/board/new')
+  // 草稿发出第一条消息才建会话；这里要操作已有会话的树，先用接口建好。
+  const created = await api('/api/sessions', 'POST', {})
+  await page.goto(base + `/#/board/${encodeURIComponent(created.id)}`)
   await page.waitForFunction(() => /^#\/board\/(?!new$)[^/?]+$/.test(location.hash))
   const sessionId = await activeSession()
   assert.ok(sessionId)

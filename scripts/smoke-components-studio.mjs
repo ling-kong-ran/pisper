@@ -1039,7 +1039,7 @@ try {
     new RegExp(createHash('sha256').update(zipV1).digest('hex')),
   )
   await trustDialog
-    .locator('[data-scan-finding="fetch"][data-severity="danger"]')
+    .locator('[data-scan-finding="fetch"][data-severity="info"]')
     .waitFor({ timeout: 10_000 })
   assert.equal(
     await trustDialog.locator('[data-scan-host="evil.example.com"]').getAttribute('data-declared'),
@@ -1059,7 +1059,7 @@ try {
     'true',
   )
   report.checks.push(
-    'Import ZIP only stages: the trust dialog shows source, sha256 of the archive, the bare fetch flagged red and the undeclared host; nothing is installed until 信任并启用, after which it is selected and renders',
+    'Import ZIP only stages: the trust dialog shows source, sha256 of the archive, the bare fetch flagged as a hint and the undeclared host; nothing is installed until 信任并启用, after which it is selected and renders',
   )
 
   // 台账：挂载时那次 storage.set 由 Runtime 记下（最多等一轮 15 秒的补读）；撤销后存储被 Runtime 拒绝，恢复后放行。

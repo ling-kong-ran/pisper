@@ -248,7 +248,7 @@ try {
         await more.focus()
         await page.keyboard.press('Enter')
       } else await more.click()
-      await page.getByRole('menuitem', { name: '重命名', exact: true }).click()
+      await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
       await dialog.waitFor()
       assert.equal(await dialog.getByRole('textbox').inputValue(), name)
       const bounds = await dialog.boundingBox()

@@ -242,7 +242,7 @@ export async function verifyReplicaControls() {
     await workspaceMore.click()
     await menu.waitFor()
     assert.equal(await workspaceMore.getAttribute('aria-expanded'), 'true')
-    await page.getByRole('menuitem', { name: 'Rename chat', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
     await menu.waitFor({ state: 'hidden' })
     await page.waitForFunction(
       () => document.activeElement?.id === 'task-control-probe-more',

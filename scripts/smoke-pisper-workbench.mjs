@@ -42,9 +42,6 @@ try {
     page.on('pageerror', (e) => errors.push(e.message))
     // 新外壳里 /chat 回到看板；会话页从 /board/new 进入，建好会话后以 replace 换成真实 id。
     await page.goto(new URL('/#/board/new', base).href)
-    await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash), null, {
-      timeout: 60000,
-    })
     await page
       .locator('.focus-composer')
       .getByRole('textbox', { name: '任务描述' })
@@ -84,7 +81,7 @@ try {
         geometry.composer.bottom <= height,
     )
     await page.getByRole('button', { name: /模型与智力/ }).click()
-    await page.getByRole('combobox', { name: '当前会话模型' }).waitFor()
+    await page.locator('.model-effort-model').getByRole('listbox').waitFor()
     // 思考等级早已改为滑杆（与模型选择器同一浮层），不是下拉框。
     await page.getByRole('slider', { name: '当前思考等级' }).waitFor()
     await page.keyboard.press('Escape')

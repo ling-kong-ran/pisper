@@ -56,14 +56,12 @@ export async function verifyPisperIteration({
   assert.equal(connection.configured, true)
   assert.deepEqual(connection.models.find((m) => m.id === modelId).capabilities, ['image'])
   assert.notEqual(connection.defaultModel, modelId)
-  // 会话页（/board/new 建好后换成真实 id）里的真实模型选择器。
+  // 新任务草稿与会话页是同一个模型选择器；草稿发出第一条消息才建会话，这里不用等 id。
   await page.goto(base + '/#/board/new')
-  await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
-  await page.getByRole('listbox').waitFor()
+  // 模型直接列在弹层里，不再有第二层下拉。
+  await page.locator('.model-effort-model').getByRole('listbox').waitFor()
   assert.equal(await page.getByRole('option').filter({ hasText: modelId }).count(), 0)
-  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await page.goto(base + '/#/config/models')
   await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()

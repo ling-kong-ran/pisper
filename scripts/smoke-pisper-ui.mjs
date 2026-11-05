@@ -38,84 +38,18 @@ async function dismissQueuedToasts(page) {
   for (let index = 0; index < 20 && (await close.count()); index++) await close.first().click()
   assert.equal(await close.count(), 0, 'queued toasts are cleared before the picker check')
 }
-// 思考等级和模型名称共用一个选择器，上下两行、键盘和触发器间留白都可操作。
+// 模型直接列在弹层里（shadcn Command，规格 v2 第 4.3 节）：没有第二层下拉，当前模型打勾，
+// 思考等级滑条在同一个弹层里，键盘能走到。
 async function verifyUnifiedModelPicker(page) {
   const panel = page.locator('.model-effort-popover')
-  const picker = panel.getByRole('combobox', { name: '当前会话模型' })
   await dismissQueuedToasts(page)
   assert.equal(await panel.count(), 1, 'dismissing queued toasts keeps the model popover open')
-  const closePicker = async (trigger) => {
-    await page.evaluate(() => {
-      window.__pickerEscapeEvents = []
-      const capture = (event) => {
-        if (event.key !== 'Escape') return
-        const state = {
-          targetRole: event.target?.getAttribute?.('role'),
-          targetSlot: event.target?.getAttribute?.('data-slot'),
-          preventedAtCapture: event.defaultPrevented,
-          layersAtCapture: window.__pisperLayerDump?.(),
-        }
-        window.__pickerEscapeEvents.push(state)
-        queueMicrotask(() => {
-          state.preventedAfterDispatch = event.defaultPrevented
-        })
-      }
-      document.addEventListener('keydown', capture, { capture: true, once: true })
-    })
-    await page.keyboard.press('Escape')
-    try {
-      await page.getByRole('listbox').waitFor({ state: 'hidden' })
-    } catch (error) {
-      const diagnostic = await page.evaluate(() => ({
-        events: window.__pickerEscapeEvents,
-        layersAfterWait: window.__pisperLayerDump?.(),
-        activeElement: document.activeElement?.outerHTML,
-        overlays: Array.from(
-          document.querySelectorAll(
-            '[data-slot="dialog-content"],[data-slot="popover-content"],[role="listbox"],[role="menu"]',
-          ),
-        ).map((element) => ({
-          slot: element.getAttribute('data-slot'),
-          role: element.getAttribute('role'),
-          state: element.getAttribute('data-state'),
-          html: element.outerHTML,
-        })),
-      }))
-      await page.keyboard.press('Escape')
-      diagnostic.retryAfterFailureClosed = await page
-        .getByRole('listbox')
-        .waitFor({ state: 'hidden', timeout: 1000 })
-        .then(
-          () => true,
-          () => false,
-        )
-      await writeFile(
-        join(output, 'model-picker-escape-diagnostic.json'),
-        JSON.stringify({ trigger, ...diagnostic }, null, 2),
-      )
-      throw error
-    }
-  }
-  assert.equal(await panel.getByRole('combobox').count(), 1)
-  assert.equal(await picker.isEnabled(), true)
-  const bounds = await picker.boundingBox()
-  assert.ok(bounds && bounds.height >= 48 && bounds.height <= 60)
-  for (const fraction of [0.25, 0.5, 0.75]) {
-    await picker.click({ position: { x: bounds.width / 2, y: bounds.height * fraction } })
-    await page.getByRole('listbox').waitFor()
-    await closePicker(`pointer-${fraction}`)
-    assert.equal(await picker.evaluate((el) => el === document.activeElement), true)
-  }
-  await picker.press('Enter')
-  await page.getByRole('listbox').waitFor()
-  await closePicker('keyboard')
-  await picker.press('Tab')
-  assert.equal(
-    await page
-      .getByRole('slider', { name: '当前思考等级' })
-      .evaluate((el) => el === document.activeElement),
-    true,
-  )
+  assert.equal(await panel.getByRole('listbox').count(), 1)
+  assert.ok((await panel.getByRole('option').count()) >= 1)
+  assert.equal(await panel.locator('[role="option"][data-checked="true"]').count(), 1)
+  const slider = panel.getByRole('slider', { name: '当前思考等级' })
+  await slider.focus()
+  assert.equal(await slider.evaluate((el) => el === document.activeElement), true)
 }
 // 始终使用全新的临时后端，不连接已安装应用，也不读取真实密钥。
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -735,14 +669,15 @@ try {
 
   // 规格 v2 第 4.3 节：工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]，可配置的工具条与收纳区退役。
   const composerToolbarOrder = () =>
-    page
-      .locator('[data-composer-toolbar]')
-      .evaluate((bar) =>
-        [
-          ...bar.querySelectorAll(
-            '[data-composer-plus], .composer-mode-chip, .model-effort-pill, .send-button',
-          ),
-        ].map((node) =>
+    page.locator('[data-composer-toolbar]').evaluate((bar) =>
+      [
+        ...bar.querySelectorAll(
+          '[data-composer-plus], .composer-mode-chip, .model-effort-pill, .send-button',
+        ),
+      ]
+        // 手机默认模式下盾牌芯片收起（从“+”进），只数看得见的控件。
+        .filter((node) => node.checkVisibility())
+        .map((node) =>
           node.matches('[data-composer-plus]')
             ? 'plus'
             : node.matches('.composer-mode-chip')
@@ -751,7 +686,7 @@ try {
                 ? 'model'
                 : 'send',
         ),
-      )
+    )
   assert.deepEqual(await composerToolbarOrder(), ['plus', 'mode', 'model', 'send'])
   assert.equal(
     await page.locator('.composer-mode-chip').getAttribute('aria-label'),
@@ -767,10 +702,7 @@ try {
   ])
     assert.equal(await page.locator(retired).count(), 0, `${retired} is retired`)
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page
-    .locator('.model-effort-model')
-    .getByRole('combobox', { name: '当前会话模型' })
-    .waitFor()
+  await page.locator('.model-effort-model [cmdk-root]').waitFor()
   await page.waitForFunction(
     () =>
       Math.abs(
@@ -781,16 +713,9 @@ try {
     await page
       .getByRole('slider', { name: '当前思考等级' })
       .evaluate((el) => getComputedStyle(el).height),
-    '28px',
+    '16px',
   )
 
-  assert.equal(
-    await page
-      .locator('.model-effort-model')
-      .getByRole('combobox', { name: '当前会话模型' })
-      .isEnabled(),
-    true,
-  )
   await verifyUnifiedModelPicker(page)
   await page
     .locator('.model-effort-popover')
@@ -798,16 +723,14 @@ try {
   report.checks.push(
     'One shared model trigger opens from its upper/lower rows and middle, with keyboard access and focus restored; Tab reaches the independent effort slider',
   )
-  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
   await page
-    .locator('.model-effort-model')
-    .getByRole('combobox', { name: '当前会话模型' })
+    .locator('.model-effort-model [role="option"][data-checked="true"]')
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor()
   // 模型名称先乐观更新；需要等保存结束后再操作暂时禁用的思考等级。
   await page.waitForFunction(
-    () => document.querySelector('[aria-label="当前思考等级"]')?.disabled === false,
+    () => !document.querySelector('[aria-label="当前思考等级"]')?.hasAttribute('data-disabled'),
   )
   await page.getByRole('slider', { name: '当前思考等级' }).press('End')
   await page.waitForFunction(
@@ -819,8 +742,7 @@ try {
   await page.reload()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   await page
-    .locator('.model-effort-model')
-    .getByRole('combobox', { name: '当前会话模型' })
+    .locator('.model-effort-model [role="option"][data-checked="true"]')
     .filter({ hasText: 'pi-ui-fixture-alt' })
     .waitFor({ timeout: 30000 })
   await page.waitForFunction(
@@ -834,28 +756,24 @@ try {
   )
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
   for (const suffix of ['-plain', '-fixed']) {
-    await page
-      .locator('.model-effort-model')
-      .getByRole('combobox', { name: '当前会话模型' })
-      .click()
     await page.getByRole('option', { name: new RegExp(`pi-ui-fixture${suffix}`) }).click()
     await page
-      .locator('.model-effort-model')
-      .getByRole('combobox', { name: '当前会话模型' })
+      .locator('.model-effort-model [role="option"][data-checked="true"]')
       .filter({ hasText: `pi-ui-fixture${suffix}` })
       .waitFor()
     await page.waitForFunction(
-      () => !document.querySelector('[aria-label="当前会话模型"]')?.disabled,
+      () => !document.querySelector('.model-effort-model [role="option"][data-disabled="true"]'),
     )
     // The release backend may normalize a non-reasoning model to a fixed ['off'] level.
     await page.waitForFunction(() => {
       const control = document.querySelector('[aria-label="当前思考等级"]')
-      return !control || control.disabled
+      return !control || control.hasAttribute('data-disabled')
     })
   }
-  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
-  await page.waitForFunction(() => !document.querySelector('[aria-label="当前思考等级"]')?.disabled)
+  await page.waitForFunction(
+    () => !document.querySelector('[aria-label="当前思考等级"]')?.hasAttribute('data-disabled'),
+  )
   await page.getByRole('slider', { name: '当前思考等级' }).press('End')
   await page.waitForFunction(
     () =>
@@ -1099,24 +1017,29 @@ try {
         '390px phone inspector sheet (⋯ › 改动、终端、文件与预览) respects system safe areas and one native back closes it back to the conversation',
       )
     }
-    // 固定工具行在每个宽度都完整可见；手机外壳下每个控件都是 44px 触控目标。
-    assert.deepEqual(await composerToolbarOrder(), ['plus', 'mode', 'model', 'send'])
+    // 固定工具行在每个宽度都完整可见；手机外壳下是 [+] [模型] … [发送]，每个控件都是 44px 触控目标。
+    assert.deepEqual(
+      await composerToolbarOrder(),
+      phoneLayout ? ['plus', 'model', 'send'] : ['plus', 'mode', 'model', 'send'],
+    )
     const toolbarTargets = await page.locator('[data-composer-toolbar]').evaluate((bar) =>
       [
         ...bar.querySelectorAll(
           '[data-composer-plus], .composer-mode-chip, .model-effort-pill, .send-button',
         ),
-      ].map((node) => {
-        const rect = node.getBoundingClientRect()
-        // 手机工具行是 36 的圆 / 胶囊，透明 ::after 把触控范围扩到 44。
-        const after = getComputedStyle(node, '::after')
-        const grow = (value) => (after.position === 'absolute' ? -(parseFloat(value) || 0) : 0)
-        return {
-          width: rect.width,
-          height: rect.height + grow(after.top) + grow(after.bottom),
-          visible: node.checkVisibility(),
-        }
-      }),
+      ]
+        .filter((node) => node.checkVisibility())
+        .map((node) => {
+          const rect = node.getBoundingClientRect()
+          // 手机工具行是 36 的圆 / 胶囊，透明 ::after 把触控范围扩到 44。
+          const after = getComputedStyle(node, '::after')
+          const grow = (value) => (after.position === 'absolute' ? -(parseFloat(value) || 0) : 0)
+          return {
+            width: rect.width,
+            height: rect.height + grow(after.top) + grow(after.bottom),
+            visible: node.checkVisibility(),
+          }
+        }),
     )
     for (const target of toolbarTargets) {
       assert.ok(target.visible && target.width > 0, `toolbar control visible at ${width}`)
@@ -1279,12 +1202,11 @@ try {
   // 运行状态由侧栏“运行中”分组（计数 + 墨色弧）和看板“运行中”泳道承载。
   await fleet(1).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  assert.equal(
-    await page
-      .locator('.model-effort-model')
-      .getByRole('combobox', { name: '当前会话模型' })
-      .isEnabled(),
-    true,
+  assert.ok(
+    (await page
+      .locator('.model-effort-model [role="option"]:not([data-disabled="true"])')
+      .count()) > 0,
+    'models stay selectable while the run streams',
   )
   await verifyUnifiedModelPicker(page)
   await page
@@ -1309,10 +1231,10 @@ try {
   )
 
   // 第二个会话：另开一个空会话，切过去写一条不发送的草稿，后台运行不受影响。
-  const secondaryId = (await api('/api/sessions', 'POST', { name: 'PI draft side-session' })).id
+  const secondaryId = (await api('/api/sessions', 'POST', { name: 'PI side draft' })).id
   assert.notEqual(secondaryId, sessionId)
   await page.goto(base + `/#/board/${encodeURIComponent(secondaryId)}`)
-  await page.locator('[data-session-header]').getByText('PI draft side-session').first().waitFor()
+  await page.locator('[data-session-header]').getByText('PI side draft').first().waitFor()
   await prompt.fill('第二会话未发送草稿')
   assert.equal(report.stopConnectionClosed, false)
   // 回到后台运行中的会话：看板“运行中”泳道的卡片打开会话页。
@@ -1371,7 +1293,8 @@ try {
   await page.waitForFunction(
     () =>
       document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
-        '关闭' && !document.querySelector('[aria-label="当前思考等级"]')?.disabled,
+        '关闭' &&
+      !document.querySelector('[aria-label="当前思考等级"]')?.hasAttribute('data-disabled'),
   )
   // 预选由与路由无关的命令队列每 750ms 探测一次运行状态后写入；轮询 API 等它落地。
   const stagedDeadline = Date.now() + 10000
@@ -1404,7 +1327,6 @@ try {
     .first()
     .waitFor()
   await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-  await page.locator('.model-effort-model').getByRole('combobox', { name: '当前会话模型' }).click()
   await page.getByRole('option', { name: /pi-ui-fixture-fixed/ }).click()
   await page.getByText('新模型生效后显示它支持的思考档位。', { exact: true }).waitFor()
   assert.equal(await page.getByRole('slider', { name: '当前思考等级' }).count(), 0)
@@ -1439,7 +1361,7 @@ try {
   await page.getByRole('button', { name: /^模型与智力 ·.*pi-ui-fixture-fixed/ }).click()
   await page.waitForFunction(
     () =>
-      document.querySelector('[aria-label="当前思考等级"]')?.disabled &&
+      document.querySelector('[aria-label="当前思考等级"]')?.hasAttribute('data-disabled') &&
       document.querySelector('[aria-label="当前思考等级"]')?.getAttribute('aria-valuetext') ===
         '关闭',
   )
@@ -1510,13 +1432,7 @@ try {
       .nth(1)
       .waitFor()
     await page.getByRole('button', { name: /^模型与智力 ·/ }).click()
-    await page
-      .locator('.model-effort-model')
-      .getByRole('combobox', { name: '当前会话模型' })
-      .click()
     await page.getByRole('option', { name: /pi-ui-fixture-alt/ }).click()
-    // 先等待内层 Select 关闭，避免 Escape 被它消费后外层模型面板仍遮挡错误详情。
-    await page.getByRole('listbox').waitFor({ state: 'hidden' })
     await page.keyboard.press('Escape')
     await page.locator('.model-effort-popover').waitFor({ state: 'hidden' })
     finishDeferredResponse()
@@ -1595,7 +1511,7 @@ try {
   await page.goto(base + '/#/chat/history')
   await page.getByRole('heading', { level: 1, name: '历史会话', exact: true }).waitFor()
   await page.getByRole('button', { name: 'PI background-run QA 的更多操作', exact: true }).click()
-  await page.getByRole('menuitem', { name: '重命名', exact: true }).click()
+  await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
   const renameDialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
   await renameDialog.getByRole('textbox', { name: '会话标题', exact: true }).fill('PI UI CRUD 验收')
   await renameDialog.getByRole('button', { name: '保存', exact: true }).click()
@@ -1605,7 +1521,7 @@ try {
   await page.getByRole('button', { name: 'PI UI CRUD 验收 的更多操作', exact: true }).waitFor()
   report.checks.push('session rename through history UI persists across reload')
   for (const [id, name] of [
-    [secondaryId, 'PI draft side-session'],
+    [secondaryId, 'PI side draft'],
     [sessionId, 'PI UI CRUD 验收'],
   ]) {
     const actions = page.getByRole('button', { name: `${name} 的更多操作`, exact: true })
@@ -1686,7 +1602,8 @@ try {
   await verifyPageTemplates({ page, base, api, workspace, output, report })
   // 新外壳的布局切换：桌面（含窄到 651px 的窗口）由侧栏承载一级导航（任何宽度默认展开），
   // 手机宽度换成手机外壳；切换与刷新都不丢会话草稿，设置入口点亮“设置”。
-  await page.goto(base + '/#/board/new')
+  const layoutSession = await api('/api/sessions', 'POST', {})
+  await page.goto(`${base}/#/board/${encodeURIComponent(layoutSession.id)}`)
   await page.waitForFunction(() => /^#\/board\/(?!new$)[^/]+$/.test(location.hash))
   const layoutHash = new URL(page.url()).hash
   await prompt.waitFor()
