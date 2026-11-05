@@ -186,7 +186,7 @@ test('conversation layout keeps a compact title header without a persistent avat
     phoneHeader,
     /data-session-menu-trigger[\s\S]{0,600}onClick=\{\(\) => setMenuOpen\(true\)\}[\s\S]{0,300}<span className="truncate" data-session-title>/,
   )
-  assert.match(phoneHeader, /\.\.\.menu\.entries\.map\(/)
+  assert.match(phoneHeader, /\{menu\.entries\.map\(/)
   assert.doesNotMatch(phoneHeader, /Avatar|BrandLogo/)
   // 桌面会话顶栏（规格 v2 第 4.1 节，52px）：标题只出现这一次（15px），是标题 ▾ 菜单的触发键，
   // 菜单第一项就是重命名（原来“点标题改名”的等价入口）；没有头像卡片，外壳本身不再重复标题。

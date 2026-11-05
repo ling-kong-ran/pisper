@@ -616,12 +616,6 @@ export const chatApi = {
       { method: 'POST', data: body },
     ),
 
-  // 排在 X 之后启动（A9，能力 sessionQueue）：{startAfter, message, runMode}；前置会话已经结束时直接启动。
-  enqueueSessionStart: (
-    sessionId: string,
-    body: { startAfter: string; message: string; runMode: string },
-  ) => requestJson<ApiRecord>(`${sessionPath(sessionId)}/queue`, { method: 'POST', data: body }),
-
   startQueuedSession: (sessionId: string) =>
     requestJson<ApiRecord>(`${sessionPath(sessionId)}/queue/start`, { method: 'POST', data: {} }),
 

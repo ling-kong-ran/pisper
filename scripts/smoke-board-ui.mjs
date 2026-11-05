@@ -1121,69 +1121,11 @@ try {
       { timeout: 10000 },
     )
 
-    // 新任务草稿：+ 菜单“什么时候开始”选运行中的会话 → 发送；请求体带 startAfter 与原消息，不走 /api/chat。
-    // 夹具项目的目录在本机不存在：建会话交给这里应答（模型与模式与草稿默认一致，不触发写配置的请求）。
-    await context.route(/\/api\/sessions$/, async (route) => {
-      if (route.request().method() !== 'POST') return route.fallback()
-      const body = JSON.parse(route.request().postData() || '{}')
-      await route.fulfill({
-        status: 201,
-        json: {
-          id: 'fx-dispatched',
-          name: '',
-          cwd: body.cwd || '/home/dev/pisper',
-          model: 'openai/gpt-5.6-luna',
-          thinkingLevel: 'medium',
-          executionMode: 'approval-required',
-          runMode: 'plan',
-          messageCount: 0,
-          streaming: false,
-          created: new Date().toISOString(),
-          modified: new Date().toISOString(),
-        },
-      })
-    })
-    const chats = []
-    await context.route('**/api/chat', (route) => {
-      chats.push(route.request().url())
-      return route.fulfill({ status: 500, json: { error: 'should not stream' } })
-    })
-    await page.locator('[data-board-root] h1').click()
-    await page.keyboard.press(`${mod}+KeyN`)
-    await page.waitForURL((url) => url.hash === '#/board/new')
-    const draftInput = page.locator('[data-new-task-draft] textarea')
-    await draftInput.waitFor()
-    await draftInput.fill('等重构完再补文档')
-    await page.locator('[data-composer-plus]').click()
-    await page.locator('[data-start-after-option="fx-running"]').click()
-    await page.locator('[data-launch-start-after-note]').waitFor()
-    await page.screenshot({ path: join(output, 'queue-dispatch.png') })
-    await draftInput.press('Enter')
-    for (let i = 0; i < 100 && fixture.posts.length < 2; i += 1) await page.waitForTimeout(100)
-    const enqueue = fixture.posts.at(-1)
-    assert.match(enqueue.path, /^\/api\/sessions\/[^/]+\/queue$/)
-    assert.deepEqual(enqueue.body, {
-      startAfter: 'fx-running',
-      message: '等重构完再补文档',
-      runMode: 'plan',
-    })
-    assert.deepEqual(chats, [], 'a queued new task does not open a run stream')
-    const newId = decodeURIComponent(enqueue.path.split('/')[3])
-    // 草稿换成新会话：转录区写明排在谁之后，可“立即开始”；全部代理里它在排队。
-    await page.waitForURL((url) => url.hash === `#/board/${encodeURIComponent(newId)}`)
-    await page.getByRole('button', { name: '立即开始', exact: true }).waitFor()
-    await page.keyboard.press(`${mod}+Digit1`)
-    await page.waitForURL((url) => url.hash === '#/board')
-    await page.waitForFunction(
-      (id) => document.querySelector(`[data-board-card="${id}"]`)?.dataset.lane === 'queued',
-      newId,
-      { timeout: 15000 },
-    )
     await page.screenshot({ path: join(output, 'queue-desktop.png') })
     await context.close()
   }
   report.checks.push(
-    'Queue (sessionQueue): the queued row reads 排在「重构登录流程」之后 · 第 1 位 with a single 立即开始 that POSTs …/queue/start and moves it to 运行中; the sidebar 排队 group shows #1; the + menu of the new-task draft 什么时候开始 → 排在 X 之后 sends {startAfter, message, runMode} to …/queue without opening a run stream, the draft turns into the queued session (立即开始 shown) and it appears under 排队',
+    'Queue (sessionQueue): the queued row reads 排在「重构登录流程」之后 · 第 1 位 with a single 立即开始 that POSTs …/queue/start and moves it to 运行中; the sidebar 排队 group shows #1',
   )
 
   // 5. 窄化的桌面窗口绝不进入手机外壳：1000 宽，以及低于手机断点的 600 宽；同宽的浏览器作对照。
@@ -1962,7 +1904,7 @@ try {
     )
     const openRename = async () => {
       await page.locator('[data-session-header] [data-session-menu]').click()
-      await page.getByRole('menuitem', { name: '重命名会话', exact: true }).click()
+      await page.getByRole('menuitem', { name: '重命名', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: '重命名会话', exact: true })
       await dialog.waitFor()
       return dialog

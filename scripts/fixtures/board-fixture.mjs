@@ -511,35 +511,15 @@ export async function installBoardFixture(
   })
   // 排队（A9）：登记“排在 X 之后”与“立即开始”。真实 Runtime 不知道夹具里的会话，这里按 Runtime 的返回形状应答，
   // 并把会话放进夹具目录（派发对话框新建的会话来自真实 Runtime，原本不在夹具里）。
-  await context.route(/\/api\/sessions\/[^/]+\/queue(\/start)?$/, async (route) => {
+  await context.route(/\/api\/sessions\/[^/]+\/queue\/start$/, async (route) => {
     const request = route.request()
     if (request.method() !== 'POST') return route.continue()
     const id = sessionIdFrom(request)
     const path = new URL(request.url()).pathname
     const body = JSON.parse(request.postData() || '{}')
     state.posts.push({ method: request.method(), path, body })
-    if (path.endsWith('/start')) {
-      update(id, { queue: null, streaming: true, messageCount: 1 })
-      await route.fulfill({ json: { started: true } })
-      return
-    }
-    const queue = { position: 1, startAfter: body.startAfter, createdAt: new Date().toISOString() }
-    if (!state.sessions.some((session) => session.id === id))
-      state.sessions = [
-        {
-          id,
-          name: '',
-          firstMessage: body.message,
-          messageCount: 0,
-          cwd: '/home/dev/pisper',
-          created: queue.createdAt,
-          modified: queue.createdAt,
-          streaming: false,
-        },
-        ...state.sessions,
-      ]
-    update(id, { queue })
-    await route.fulfill({ json: { queued: true, queue } })
+    update(id, { queue: null, streaming: true, messageCount: 1 })
+    await route.fulfill({ json: { started: true } })
   })
   await context.route(/\/api\/sessions\/[^/]+\/retry$/, async (route) => {
     const request = route.request()

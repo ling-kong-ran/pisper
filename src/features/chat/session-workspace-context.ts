@@ -49,12 +49,8 @@ export type NewTaskDraftChrome = {
   onRunModeChange: (mode: string) => boolean
   // 项目选择（只在草稿里出现）：桌面是输入框工具行里的芯片（chip），手机是顶栏标题下的一行（header）。
   renderProjectControl: (variant: NewTaskProjectVariant) => ReactNode
-  // + 菜单里的草稿专属项（“排在…之后”）。
-  plusMenuItems?: ReactNode
-  // 输入框上方的一行说明（例如选了“排在…之后”），可为空。
-  notice?: ReactNode
   // 第一条消息发出前：建会话并写入草稿的选择；queued 表示首条消息已登记进启动队列，不再由本页发送。
-  prepare: (prompt: string) => Promise<{ session: SessionSummary; queued: boolean }>
+  prepare: (prompt: string) => Promise<{ session: SessionSummary }>
   // 第一条消息已交出：一次性的选择（本次完全访问、排在…之后）回到默认。
   onSent: () => void
 }

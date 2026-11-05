@@ -101,13 +101,6 @@
   "launch.noProject": "不选项目",
   "launch.chooseFolder": "选择文件夹…",
   "launch.newFolder": "新建文件夹…",
-  "launch.startNowChip": "立即开始",
-  "launch.startAfterChip": "排在 {title} 之后",
-  "launch.startAfterNote": "排在「{title}」之后：它这一轮结束时自动开始。",
-  "launch.startAfterGone": "已结束的会话",
-  "launch.startAfterLabel": "什么时候开始",
-  "launch.startAfterRunning": "运行中",
-  "launch.startAfterQueued": "排队中",
   "project.actionsFor": "{project} 的操作",
   "project.new": "新建项目…",
   "folder.title": "新建文件夹",
@@ -163,7 +156,6 @@
   "phone.earlierTurns": "展开更早的对话：{summary}",
   "phone.previousTurn": "上一轮",
   "session.moveWorkspace": "移动工作区…",
-  "session.goalMode": "目标模式",
   "session.workflowRuns": "工作流运行记录",
   "session.workflowRunsEmpty": "这个会话还没有工作流运行记录",
   "session.plan": "计划 {done}/{total}",
@@ -372,5 +364,10 @@
   "question.otherPlaceholder": "写下你的回答",
   "question.skip": "跳过",
   "question.submit": "提交",
-  "question.answerNamed": "回答“{title}”：{option}"
+  "question.answerNamed": "回答“{title}”：{option}",
+  "composer.plusSheetTitle": "添加",
+  "composer.attachmentShort": "附件",
+  "composer.voiceInput": "语音输入",
+  "composer.planShort": "Plan",
+  "phone.openInspectorShort": "改动与文件"
 }

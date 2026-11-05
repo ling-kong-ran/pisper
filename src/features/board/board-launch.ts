@@ -30,8 +30,6 @@ export type BoardLaunchRequest = {
   thinkingLevel: string
   executionMode: LaunchExecutionMode | ''
   runMode: LaunchRunMode
-  // 排在这个会话之后启动（A9，能力 sessionQueue）；不给表示立即开始。
-  startAfter?: string
 }
 
 export type BoardLaunchStage = 'create' | 'configure' | 'send'
@@ -63,12 +61,6 @@ export function isUnsentLaunchSession(live: unknown) {
     (record.queuedInputs === undefined ||
       (Array.isArray(record.queuedInputs) && record.queuedInputs.length === 0))
   )
-}
-
-// 首条消息被 Runtime 明确拒绝（run 头帧之前的 HTTP 错误响应）时才可能是空会话；
-// 断网、超时、主动中止都说不清 Runtime 是否已经受理，不碰会话。写配置阶段从未发送消息，总会检查。
-function sendRejected(error: unknown) {
-  return error instanceof ApiError && error.kind === 'http'
 }
 
 // 日志只写错误类别与 HTTP 状态：不写会话 id、路径、提示词或错误正文（可能含用户内容）。
@@ -129,17 +121,15 @@ async function configure(sessionId: string, created: SessionSummary, request: Bo
 }
 
 export type PreparedLaunchSession = {
-  // 建好并写好配置的新会话（排队时带 Runtime 给的 queue）。
+  // 建好并写好配置的新会话。
   session: SessionSummary
-  // true：首条消息已登记进启动队列，等前一个会话这一轮结束由 Runtime 启动，调用方不再发送。
-  queued: boolean
 }
 
 /**
  * 新任务的第一条消息发出前：建会话，按草稿的选择写入模型、思考档位、审批模式与运行模式；
- * 选了“排在…之后”时把首条消息登记进启动队列。不发送消息、也不持有运行流——
+ * 不发送消息、也不持有运行流——
  * 会话页（新任务草稿）随后用自己的输入框发出第一条消息，回复在同一页流式出现。
- * reject 为 BoardLaunchError；写配置或登记排队失败时已清理空会话。
+ * reject 为 BoardLaunchError；写配置失败时已清理空会话。
  */
 export async function prepareLaunchSession(
   request: BoardLaunchRequest,
@@ -161,46 +151,7 @@ export async function prepareLaunchSession(
     await discardUnsentLaunchSession(sessionId)
     throw new BoardLaunchError('configure', error, sessionId)
   }
-  if (request.startAfter) {
-    const session = await queueLaunchedSession(sessionId, created, prompt, request)
-    return { session, queued: true }
-  }
-  return { session: created, queued: false }
-}
-
-/**
- * 排在 X 之后（规格 8.4）：首条消息交给 Runtime 的启动队列，不在这里发送，也不由看板持有运行流——
- * 等 X 这一轮结束时 Runtime 在后台启动它。X 已经结束时 Runtime 直接启动（started）。
- * 登记失败按“发送失败”处理：清理空会话、抛 BoardLaunchError('send')。
- */
-async function queueLaunchedSession(
-  sessionId: string,
-  created: SessionSummary,
-  prompt: string,
-  request: BoardLaunchRequest,
-) {
-  let result: Record<string, unknown>
-  try {
-    result = await chatApi.enqueueSessionStart(sessionId, {
-      startAfter: request.startAfter ?? '',
-      message: prompt,
-      runMode: request.runMode,
-    })
-  } catch (error) {
-    if (sendRejected(error)) await discardUnsentLaunchSession(sessionId)
-    void confirmBoardSessions().catch(() => undefined)
-    throw new BoardLaunchError('send', error, sessionId)
-  }
-  const queue = result && typeof result.queue === 'object' ? result.queue : null
-  // 排队的会话还没有消息：带上 Runtime 给的 queue 并进目录，卡片马上出现在“排队”；直接启动的进“运行中”。
-  const session: SessionSummary = {
-    ...created,
-    firstMessage: prompt,
-    ...(queue ? { queue } : { messageCount: 1, streaming: true }),
-  }
-  mergeCreatedSession(session)
-  void confirmBoardSession(sessionId, (entry) => Boolean(entry)).catch(() => undefined)
-  return session
+  return { session: created }
 }
 
 export type BoardTaskMessage = {

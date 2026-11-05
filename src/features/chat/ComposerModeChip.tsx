@@ -1,8 +1,9 @@
-// 输入框左侧的盾牌芯片（规格 v2 第 2.5 / 4.3 节）：一个弹层里选审批模式与执行方式（Plan / Goal / Team）。
+// 输入框左侧的盾牌芯片（规格 v2 第 2.5 / 4.3 节）：一个弹层里选审批模式（单选行，各带一行说明）
+// 与执行方式（Plan / Goal / Team 分段，下面写当前方式的说明）。
 // 原来工具条上的审批芯片与“Plan”按钮合并到这里；执行方式不是默认的 Plan 时，芯片前面写出模式名，
 // 例如“Goal · 审批后写入”。⇧Tab（输入框里）在可用的执行方式之间切换，见 nextComposerRunMode。
 // 芯片只用中性色：琥珀只表示“需要你”，完全访问靠图标与文字区分，不再染警示色（规格 6.1）。
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import {
   BadgeCheck,
   Check,
@@ -20,6 +21,7 @@ import { useI18n } from '@/app/use-i18n'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { PopoverSheet } from '@/components/app/PopoverSheet'
 import { formatTokenCount } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -35,16 +37,16 @@ type Option<T extends string> = {
   icon: LucideIcon
 }
 
-function OptionRow<T extends string>({
+function ApprovalRow({
   option,
   selected,
   disabled,
   onSelect,
 }: {
-  option: Option<T>
+  option: Option<string>
   selected: boolean
   disabled?: boolean
-  onSelect: (value: T) => void
+  onSelect: (value: string) => void
 }) {
   const Icon = option.icon
   return (
@@ -53,42 +55,21 @@ function OptionRow<T extends string>({
       role="radio"
       aria-checked={selected}
       disabled={disabled}
-      className={cn(
-        'grid min-h-11 w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_16px] items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent',
-        selected && 'bg-surface-hover',
-      )}
+      className="grid min-h-12 w-full cursor-pointer grid-cols-[16px_minmax(0,1fr)_16px] items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent max-[650px]:min-h-14"
       data-mode-option={option.value}
       onClick={() => onSelect(option.value)}
     >
-      <span className="grid size-7 place-items-center rounded-sm bg-surface-muted text-content-secondary">
-        <Icon size={14} aria-hidden="true" />
-      </span>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <strong className="text-[13px] font-medium">{option.label}</strong>
-        <small className="text-xs leading-normal text-content-muted">{option.description}</small>
+      <Icon size={16} strokeWidth={1.75} className="text-content-secondary" aria-hidden="true" />
+      <span className="flex min-w-0 flex-col gap-px">
+        <span className={cn('text-[13px] max-[650px]:text-[15px]', selected && 'font-medium')}>
+          {option.label}
+        </span>
+        <small className="text-xs leading-normal text-content-muted max-[650px]:text-[13px]">
+          {option.description}
+        </small>
       </span>
       {selected ? <Check size={15} strokeWidth={2.25} aria-hidden="true" /> : <span />}
     </button>
-  )
-}
-
-function Section({
-  label,
-  hint,
-  children,
-}: {
-  label: string
-  hint?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex flex-col gap-0.5">
-      <div className="flex items-center justify-between px-2 pt-1.5 pb-1 text-xs font-medium text-content-muted">
-        <span>{label}</span>
-        {hint}
-      </div>
-      {children}
-    </div>
   )
 }
 
@@ -161,7 +142,7 @@ export function ComposerModeChip({
   const runOptions: Option<ComposerExecutionMode>[] = [
     {
       value: 'plan',
-      label: t('chat:focusSession.planMode'),
+      label: t('board:composer.planShort'),
       description: t('chat:focusSession.planModeDescription'),
       icon: ListTodo,
     },
@@ -169,7 +150,7 @@ export function ComposerModeChip({
       ? [
           {
             value: 'goal' as const,
-            label: t('chat:focusSession.goalMode'),
+            label: t('board:composer.goalShort'),
             description: t('chat:focusSession.goalModeDescription'),
             icon: Target,
           },
@@ -179,7 +160,7 @@ export function ComposerModeChip({
       ? [
           {
             value: 'team' as const,
-            label: t('chat:focusSession.teamMode'),
+            label: t('board:composer.teamShort'),
             description: t('chat:focusSession.teamModeDescription'),
             icon: Users,
           },
@@ -241,7 +222,7 @@ export function ComposerModeChip({
   return (
     <PopoverSheet
       sheet={sheet}
-      title={label}
+      title={t('board:composer.modeChip')}
       open={open}
       onOpenChange={setOpen}
       align="start"
@@ -276,9 +257,16 @@ export function ComposerModeChip({
         </button>
       }
     >
-      <Section label={t('chat:focusSession.approvalMode')}>
+      <div
+        role="radiogroup"
+        aria-label={t('chat:focusSession.approvalMode')}
+        className="flex flex-col gap-0.5"
+      >
+        <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-content-muted">
+          {t('chat:focusSession.approvalMode')}
+        </div>
         {approvalOptions.map((option) => (
-          <OptionRow
+          <ApprovalRow
             key={option.value}
             option={option}
             selected={option.value === approval.value}
@@ -290,33 +278,30 @@ export function ComposerModeChip({
             }}
           />
         ))}
-      </Section>
+      </div>
       {runOptions.length > 1 && (
         <>
           <div role="separator" className="mx-1 h-px bg-stroke-soft" />
-          <Section
-            label={t('chat:focusSession.executionMode')}
-            hint={
-              <span className="flex items-center gap-1 font-normal">
-                {t('board:composer.cycleRunMode')}
-                <Kbd>⇧Tab</Kbd>
+          <div className="grid gap-1.5 px-2 pt-1.5 pb-1.5">
+            <div className="flex min-h-7 items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-content-muted">
+                {t('chat:focusSession.executionMode')}
+                <Kbd className="font-normal max-[650px]:hidden pointer-coarse:hidden">⇧Tab</Kbd>
               </span>
-            }
-          >
-            {runOptions.map((option) => (
-              <OptionRow
-                key={option.value}
-                option={option}
-                selected={option.value === selectedRun}
+              {/* 换方式不关弹层：留下来看说明、填预算，和 ⇧Tab 循环时的反馈一致。 */}
+              <SegmentedControl
+                size="sm"
+                aria-label={t('chat:focusSession.executionMode')}
+                value={selectedRun}
                 disabled={runModeDisabled}
-                onSelect={(mode) => {
-                  // 选 Goal / Team 时留在弹层里，方便接着填预算；回到 Plan 直接关闭。
-                  if (mode === 'plan') setOpen(false)
-                  onRunModeChange(mode)
-                }}
+                options={runOptions.map(({ value, label: name }) => ({ value, label: name }))}
+                onValueChange={onRunModeChange}
               />
-            ))}
-          </Section>
+            </div>
+            <p className="text-xs leading-normal text-content-muted max-[650px]:text-[13px]">
+              {run.description}
+            </p>
+          </div>
           {(engaged || hasExistingGoal) && (
             <div className="grid gap-1 px-2 pt-1 pb-1.5 text-xs">
               {usage && <p className="text-content-muted tabular-nums">{usage}</p>}

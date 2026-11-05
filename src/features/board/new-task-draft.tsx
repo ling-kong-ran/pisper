@@ -1,11 +1,10 @@
-// 新任务草稿（'/board/new'）的看板一侧：项目、派发偏好（模型、思考档位、审批与运行模式）与“排在…之后”。
-// 会话页把草稿画成会话页的样子（同一个输入框），这里只提供契约 NewTaskDraftChrome：项目芯片、+ 菜单里的
-// 排队选项、第一条消息前的建会话（prepareLaunchSession）。派发浮层与主页草稿退役后，新任务只有这一个入口。
+// 新任务草稿（'/board/new'）的看板一侧：项目、派发偏好（模型、思考档位、审批与运行模式）。
+// 会话页把草稿画成会话页的样子（同一个输入框），这里只提供契约 NewTaskDraftChrome：项目芯片、
+// 第一条消息前的建会话（prepareLaunchSession）。派发浮层与主页草稿退役后，新任务只有这一个入口。
 // 偏好照旧记在 pisper-launch-defaults：侧栏“在此项目新建任务”先写项目再打开草稿，草稿就落在那个项目。
 import { useMemo, useRef, useState } from 'react'
-import { ChevronDown, Folder, FolderOpen, FolderPlus, ListOrdered, X } from 'lucide-react'
+import { ChevronDown, Folder, FolderOpen, FolderPlus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +31,6 @@ import {
   type LaunchExecutionMode,
   type LaunchRunMode,
 } from './launch-defaults-store'
-import { useBoardItems } from './useBoardItems'
 import { useLaunchOptions } from './useLaunchOptions'
 import { useNewProjectPicker } from './useNewProjectPicker'
 
@@ -58,9 +56,6 @@ export function useNewTaskDraftChrome({
   const defaults = useLaunchDefaultsStore()
   // 本次草稿临时选了“完全访问”：不写进偏好，第一条消息发出后回到记住的安全模式。
   const [fullAccess, setFullAccess] = useState(false)
-  // “排在…之后”（A9，sessionQueue）：只对这一条草稿生效，发出后回到“立即开始”。
-  const [startAfter, setStartAfter] = useState('')
-  const { items: boardItems, capabilities } = useBoardItems('today')
   // 项目菜单的“选择文件夹 / 新建文件夹”：等菜单关闭、焦点归还阶段再打开对话框，否则焦点会被菜单拉回芯片。
   const afterMenuClose = useRef<(() => void) | null>(null)
   const projectPicker = useNewProjectPicker({ onProjectChosen: () => undefined, onError })
@@ -216,66 +211,6 @@ export function useNewTaskDraftChrome({
     </>
   )
 
-  // “排在…之后”只列还会“结束一次”的会话：运行中的，和本身在排队的（排队链）。
-  // 没有 sessionQueue 能力、或眼下没有可排的会话（也没选过）时不出现（规格 8.6 降级矩阵）。
-  const candidates = boardItems.filter((item) => item.lane === 'running' || item.lane === 'queued')
-  const startAfterTitle = startAfter
-    ? (boardItems.find((item) => item.id === startAfter)?.title ?? t('board:launch.startAfterGone'))
-    : ''
-  // 列在 + 菜单里（不用子菜单：手机上子菜单会从屏幕右缘伸出去被截掉）。
-  const plusMenuItems =
-    capabilities.sessionQueue && (candidates.length > 0 || startAfter) ? (
-      <>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel
-          className="flex items-center gap-1.5"
-          data-composer-plus-item="start-after"
-        >
-          <ListOrdered size={14} aria-hidden="true" />
-          {t('board:launch.startAfterLabel')}
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={startAfter} onValueChange={setStartAfter}>
-          <DropdownMenuRadioItem value="">{t('board:launch.startNowChip')}</DropdownMenuRadioItem>
-          {candidates.map((item) => (
-            <DropdownMenuRadioItem key={item.id} value={item.id} data-start-after-option={item.id}>
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate">
-                  {t('board:launch.startAfterChip', { title: item.title })}
-                </span>
-                <span className="text-xs text-content-muted">
-                  {item.lane === 'running'
-                    ? t('board:launch.startAfterRunning')
-                    : t('board:launch.startAfterQueued')}
-                </span>
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </>
-    ) : undefined
-  const notice = startAfter ? (
-    <p
-      className="flex min-w-0 items-center gap-1.5 text-xs text-content-muted"
-      data-launch-start-after-note
-    >
-      <ListOrdered size={14} className="shrink-0" aria-hidden="true" />
-      <span className="min-w-0 line-clamp-2">
-        {t('board:launch.startAfterNote', { title: startAfterTitle })}
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 pointer-coarse:size-11"
-        aria-label={t('board:launch.startNowChip')}
-        title={t('board:launch.startNowChip')}
-        onClick={() => setStartAfter('')}
-      >
-        <X aria-hidden="true" />
-      </Button>
-    </p>
-  ) : undefined
-
   return {
     cwd,
     model,
@@ -298,8 +233,6 @@ export function useNewTaskDraftChrome({
       return true
     },
     renderProjectControl,
-    plusMenuItems,
-    notice,
     prepare: (prompt) =>
       prepareLaunchSession({
         prompt,
@@ -309,11 +242,9 @@ export function useNewTaskDraftChrome({
         thinkingLevel,
         executionMode,
         runMode,
-        ...(startAfter ? { startAfter } : {}),
       }),
     onSent: () => {
       setFullAccess(false)
-      setStartAfter('')
     },
   }
 }

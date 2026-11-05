@@ -101,13 +101,6 @@
   "launch.noProject": "No project",
   "launch.chooseFolder": "Choose folder…",
   "launch.newFolder": "New folder…",
-  "launch.startNowChip": "Start now",
-  "launch.startAfterChip": "After {title}",
-  "launch.startAfterNote": "Queued after “{title}”: starts when that run ends.",
-  "launch.startAfterGone": "a finished session",
-  "launch.startAfterLabel": "When to start",
-  "launch.startAfterRunning": "Running",
-  "launch.startAfterQueued": "Queued",
   "project.actionsFor": "Actions for {project}",
   "project.new": "New project…",
   "folder.title": "New folder",
@@ -163,7 +156,6 @@
   "phone.earlierTurns": "Show earlier conversation: {summary}",
   "phone.previousTurn": "Previous turn",
   "session.moveWorkspace": "Move workspace…",
-  "session.goalMode": "Goal mode",
   "session.workflowRuns": "Workflow runs",
   "session.workflowRunsEmpty": "This session has no workflow runs yet",
   "session.plan": "Plan {done}/{total}",
@@ -381,5 +373,10 @@
   "question.otherPlaceholder": "Write your answer",
   "question.skip": "Skip",
   "question.submit": "Submit",
-  "question.answerNamed": "Answer “{title}”: {option}"
+  "question.answerNamed": "Answer “{title}”: {option}",
+  "composer.plusSheetTitle": "Add",
+  "composer.attachmentShort": "Attachment",
+  "composer.voiceInput": "Voice input",
+  "composer.planShort": "Plan",
+  "phone.openInspectorShort": "Changes & files"
 }

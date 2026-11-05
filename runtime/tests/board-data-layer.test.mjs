@@ -1014,51 +1014,10 @@ test('preparing a new task creates and configures the session but never sends th
     launchRequest({ model: 'anthropic/claude-x', executionMode: 'workspace-write' }),
   )
   assert.equal(prepared.session.id, 'fresh')
-  assert.equal(prepared.queued, false)
   // 第一条消息由会话页自己发送并持有运行流：这里不碰 /api/chat。
   assert.ok(!calls.some((call) => call.path === '/api/chat'))
   assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/model'))
   assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/execution-mode'))
-})
-
-test('a queued start rejected by the runtime deletes the empty session', async (t) => {
-  globalThis.window = new EventTarget()
-  t.after(() => {
-    delete globalThis.window
-  })
-  const deletions = []
-  window.addEventListener('pisper:sessions-updated', (event) => deletions.push(event.detail))
-  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
-  const calls = installFetch((path, method) => {
-    if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/sessions/fresh/queue')
-      return json({ error: '当前 Runtime 不支持 sessionQueue 能力。' }, 409)
-    if (path === '/api/sessions/fresh/live')
-      return json({ id: 'fresh', streaming: false, configurationBusy: false, messages: [] })
-    if (path === '/api/sessions/fresh' && method === 'DELETE')
-      return json({ deleted: true, id: 'fresh' })
-    return json({ sessions: [] })
-  })
-  await assert.rejects(
-    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
-    (error) => error instanceof BoardLaunchError && error.stage === 'send',
-  )
-  assert.equal(
-    calls.filter((call) => call.path === '/api/sessions/fresh' && call.method === 'DELETE').length,
-    1,
-  )
-  // 先确认会话确实是空的，再删除。
-  assert.ok(
-    calls.findIndex((call) => call.path === '/api/sessions/fresh/live') <
-      calls.findIndex((call) => call.method === 'DELETE'),
-  )
-  assert.ok(
-    !queryClient
-      .getQueryData(BOARD_SESSIONS_QUERY_KEY)
-      .sessions.some((session) => session.id === 'fresh'),
-  )
-  assert.deepEqual(deletions, [{ deletedIds: ['fresh'] }])
-  assert.deepEqual(useBoardOverlay.getState().patches, {})
 })
 
 test('a failure while configuring the new session also removes it', async (t) => {
@@ -1082,40 +1041,6 @@ test('a failure while configuring the new session also removes it', async (t) =>
   )
   assert.ok(!calls.some((call) => call.path === '/api/chat' || call.path.endsWith('/queue')))
   assert.ok(calls.some((call) => call.path === '/api/sessions/fresh' && call.method === 'DELETE'))
-})
-
-test('a queued start that may have reached the runtime keeps its session', async (t) => {
-  globalThis.window = new EventTarget()
-  t.after(() => {
-    delete globalThis.window
-  })
-  queryClient.setQueryData(BOARD_SESSIONS_QUERY_KEY, { sessions: [] })
-  // 断网：说不清 Runtime 是否已受理，连 /live 都不查。
-  let calls = installFetch((path, method) => {
-    if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/sessions/fresh/queue') throw new TypeError('fetch failed')
-    return json({ sessions: [] })
-  })
-  await assert.rejects(
-    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
-    BoardLaunchError,
-  )
-  assert.ok(!calls.some((call) => call.path.endsWith('/live') || call.method === 'DELETE'))
-
-  // 被拒绝，但 /live 显示已经有消息（例如别的客户端抢先发了）：保留。
-  calls = installFetch((path, method) => {
-    if (path === '/api/sessions' && method === 'POST') return json(createdSession)
-    if (path === '/api/sessions/fresh/queue') return json({ error: 'busy' }, 409)
-    if (path === '/api/sessions/fresh/live')
-      return json({ streaming: false, messages: [{ id: 'm', role: 'user', text: 'x' }] })
-    return json({ sessions: [] })
-  })
-  await assert.rejects(
-    prepareLaunchSession(launchRequest({ startAfter: 'running' })),
-    BoardLaunchError,
-  )
-  assert.ok(calls.some((call) => call.path === '/api/sessions/fresh/live'))
-  assert.ok(!calls.some((call) => call.method === 'DELETE'))
 })
 
 test('a failed cleanup keeps the session silently and logs no path or user content', async (t) => {

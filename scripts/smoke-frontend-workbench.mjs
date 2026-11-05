@@ -357,7 +357,7 @@ try {
   //（⌘K、⌘` 与设置 › 界面）。单会话页没有分屏，也不再有“打开会话上下文”。
   await initialPane.locator('[data-session-header]').waitFor()
   await initialPane.locator('[data-session-header] [data-session-menu]').click()
-  await page.getByRole('menuitem', { name: '重命名会话', exact: true }).waitFor()
+  await page.getByRole('menuitem', { name: '重命名', exact: true }).waitFor()
   await page.getByRole('menuitem', { name: '侧聊', exact: true }).waitFor()
   assert.equal(await page.getByRole('menuitem', { name: /^主题：/ }).count(), 0)
   assert.equal(await initialPane.getByTestId('theme-toggle').count(), 0)

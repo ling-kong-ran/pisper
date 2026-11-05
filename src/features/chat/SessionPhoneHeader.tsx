@@ -2,12 +2,13 @@
 // 中间“标题 ▾”，下一行“项目 · ◠ 运行中 3:12”（或等待批准 / 失败 / 已停止）；
 // 右边有改动时是改动芯片（文件图标 + N，打开检查器底部表单），没有改动时是 ✎ 新任务（打开派发底部表单）。
 // 标题 ▾ 打开会话菜单底部表单：会话树（N 个分支）· 侧聊 · 检查器 | 重命名 · 归档 | 移动工作区 · 压缩上下文
-// （带用量）· 目标模式 · 工作流运行记录 · 语音模式——与桌面标题菜单同一份数据（useSessionMenu 的 entries）。
+// （带用量）· 工作流记录 · 语音对话 | 归档——与桌面标题菜单同一份数据（useSessionMenu 的 entries）。
 // 改动数与检查器“改动”标签读同一个查询缓存，不另开轮询。
 import { useContext, useId, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, ChevronDown, FileDiff, GitFork, MessageSquare, SquarePen } from 'lucide-react'
+import { ChevronDown, FileDiff, GitFork, MessageSquare, SquarePen } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { SheetRow, SheetTile, SheetTileGrid } from '@/components/app/SheetActions'
 import { SheetDragHandle } from '@/components/app/SheetDragHandle'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
@@ -109,6 +110,7 @@ export function SessionPhoneHeader({
               branches > 0
                 ? t('board:session.treeBranches', { count: branches })
                 : t('board:session.tree'),
+            shortLabel: t('board:session.tree'),
             onSelect: () => onOpenTree('branches'),
             marker: 'session-tree',
           },
@@ -127,17 +129,13 @@ export function SessionPhoneHeader({
             key: 'inspector',
             icon: FileDiff,
             label: t('board:phone.openInspector'),
+            shortLabel: t('board:phone.openInspectorShort'),
             onSelect: showChanges,
             marker: 'inspector-toggle',
           },
         ]
       : []),
   ]
-  const entries = [
-    ...phoneEntries,
-    ...menu.entries.map((entry, index) => (index === 0 ? { ...entry, separator: true } : entry)),
-  ]
-
   return (
     <header
       data-session-header="phone"
@@ -237,45 +235,53 @@ export function SessionPhoneHeader({
           <SheetDescription className="truncate px-3 pb-2 font-mono text-xs text-content-muted">
             {project}
           </SheetDescription>
+          <SheetTileGrid count={phoneEntries.length}>
+            {phoneEntries.map((entry) => {
+              const marker = entry.marker ? { [`data-${entry.marker}`]: true } : {}
+              return (
+                <SheetTile
+                  key={entry.key}
+                  icon={entry.icon}
+                  label={entry.shortLabel || entry.label}
+                  aria-label={entry.label}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    entry.onSelect()
+                  }}
+                  {...marker}
+                />
+              )
+            })}
+          </SheetTileGrid>
           <div className="min-h-0 overflow-y-auto" role="list">
-            {entries.map((entry) => {
-              const Icon = entry.icon
+            {menu.entries.map((entry) => {
               const marker = entry.marker ? { [`data-${entry.marker}`]: true } : {}
               return (
                 <div role="listitem" key={entry.key}>
                   {entry.separator && (
                     <div aria-hidden="true" className="mx-3 my-1 h-px bg-stroke-soft" />
                   )}
-                  <button
-                    type="button"
+                  <SheetRow
+                    icon={entry.icon}
+                    label={entry.label}
                     disabled={entry.disabled}
-                    aria-pressed={entry.checked}
-                    className="flex h-12 w-full min-w-0 items-center gap-3 rounded-[var(--r-md)] px-3 text-left text-base text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus active:bg-surface-hover disabled:text-content-faint"
+                    trailing={
+                      entry.trailing && (
+                        <span
+                          className="flex-none font-mono text-sm text-content-muted tabular-nums"
+                          title={entry.trailingTitle}
+                          data-session-context-usage
+                        >
+                          {entry.trailing}
+                        </span>
+                      )
+                    }
                     onClick={() => {
                       setMenuOpen(false)
                       entry.onSelect()
                     }}
                     {...marker}
-                  >
-                    <Icon
-                      className="size-[18px] flex-none text-content-secondary"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-                    {entry.trailing && (
-                      <span
-                        className="flex-none font-mono text-sm text-content-muted tabular-nums"
-                        title={entry.trailingTitle}
-                        data-session-context-usage
-                      >
-                        {entry.trailing}
-                      </span>
-                    )}
-                    {entry.checked && (
-                      <Check className="size-4 flex-none text-content" aria-hidden="true" />
-                    )}
-                  </button>
+                  />
                 </div>
               )
             })}

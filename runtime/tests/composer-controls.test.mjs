@@ -36,13 +36,21 @@ test('composer toolbar is fixed: + menu, shield chip, model chip and send', asyn
   )
   // “+”菜单：附件、技能与工具、生成图片（有能力时）、语音输入（F8，手机换成审批与执行方式——
   // 手机的麦克风键在工具行）；手机运行中另有“插话发送”。
-  assert.match(
-    session,
-    /\{phonePage && botId \? null : phonePage \? \(\s*<DropdownMenuItem\s+data-composer-plus-item="mode"/,
-  )
-  for (const item of ['attachment', 'resource', 'visual', 'voice', 'mode'])
+  // 手机是底部表单（ComposerPlusSheet），不是浮在消息上的下拉菜单；Bot 会话没有审批与执行方式。
+  const plusSheet = await readFile('src/features/chat/ComposerPlusSheet.tsx', 'utf8')
+  assert.match(session, /const plusMenu = phonePage \? \(\s*<ComposerPlusSheet/)
+  assert.match(session, /mode=\{\s*botId\s*\? undefined/)
+  assert.match(session, /steer=\{\s*streaming\s*\?/)
+  for (const item of ['attachment', 'resource', 'visual', 'voice'])
     assert.match(session, new RegExp(`data-composer-plus-item="${item}"`))
-  assert.match(session, /phonePage && streaming && \(\s*<DropdownMenuItem\s+data-composer-steer/)
+  for (const item of ['attachment', 'resource', 'visual', 'mode'])
+    assert.match(plusSheet, new RegExp(`data-composer-plus-item="${item}"`))
+  assert.match(plusSheet, /<PopoverSheet\s+sheet\b/)
+  assert.match(plusSheet, /data-composer-steer/)
+  // “什么时候开始”已退役：新任务草稿不再登记启动队列，已有排队会话的显示与“立即开始”保留。
+  const draft = await readFile('src/features/board/new-task-draft.tsx', 'utf8')
+  assert.doesNotMatch(draft, /startAfter|plusMenuItems/)
+  assert.doesNotMatch(session, /plusMenuItems|draft\?\.notice/)
   assert.match(session, /onSelect=\{\(\) => voiceControlRef\.current\?\.\(\)\}/)
   assert.match(
     session,
@@ -161,13 +169,15 @@ test('the shield chip combines approval mode and run mode in one portaled popove
   const focus = await readFile('src/features/chat/FocusSession.tsx', 'utf8')
   assert.match(focus, /<ComposerModeChip\s+sheet=\{phonePage\}/)
   assert.match(focus, /<ModelThinkingControl\s+sheet=\{phonePage\}/)
-  assert.equal((chip.match(/<Section\b/g) || []).length, 2)
+  // 审批是单选行，执行方式是分段控件（互斥选项用 SegmentedControl，不再铺满或另画一套）。
+  assert.match(chip, /<SegmentedControl\b[\s\S]{0,200}value=\{selectedRun\}/)
+  assert.doesNotMatch(chip, /<SegmentedControl\b[^>]*className=/)
   assert.match(chip, /role="radiogroup"/)
   assert.match(chip, /role="radio"/)
   assert.match(chip, /aria-checked=\{selected\}/)
-  // 选审批模式即关闭弹层；Goal / Team 留下来填预算。
+  // 选审批模式即关闭弹层；换执行方式留在弹层里看说明、填预算。
   assert.match(chip, /setOpen\(false\)\s*onApprovalModeChange\(mode\)/)
-  assert.match(chip, /if \(mode === 'plan'\) setOpen\(false\)/)
+  assert.match(chip, /onValueChange=\{onRunModeChange\}/)
   // 芯片只用中性色：完全访问不染琥珀或警示色（规格 6.1）。
   assert.doesNotMatch(chip, /warning|st-attn|danger/)
 })

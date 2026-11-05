@@ -506,7 +506,7 @@ test('full access stays in the current new-task draft and a failed first message
     draft,
     /if \(mode !== 'full-access'\) defaults\.rememberLaunch\(\{ executionMode: mode \}\)/,
   )
-  assert.match(draft, /onSent: \(\) => \{\s*setFullAccess\(false\)\s*setStartAfter\(''\)/)
+  assert.match(draft, /onSent: \(\) => \{\s*setFullAccess\(false\)/)
   // 建会话或写配置失败：草稿留在输入框里（没交出），错误用全局提示报出。
   assert.match(
     chatPage,

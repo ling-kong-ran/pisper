@@ -265,7 +265,6 @@ export function ChatPage({
   const { sendPrompt, retryLastTurn } = promptCommands
   // 新任务草稿发出第一条消息：草稿先建会话（项目、模型、审批与运行模式），本页随即把它选为活动会话、
   // 地址原地换成会话 id，再由本页发送并持有运行流——回复在同一页流式出现，不经过看板，也不留空会话。
-  // 选了“排在…之后”时首条消息已登记进启动队列，等前一个会话这一轮结束由 Runtime 启动。
   const adoptCreatedSession = catalog.adoptCreatedSession
   const sendNewTask = useCallback(
     async (
@@ -294,10 +293,6 @@ export function ChatPage({
       draft.onSent()
       clearComposerDraft(NEW_TASK_COMPOSER_KEY)
       openSession(prepared.session.id)
-      if (prepared.queued) {
-        options.onAccepted?.()
-        return true
-      }
       return sendPrompt(
         value,
         prepared.session.id,

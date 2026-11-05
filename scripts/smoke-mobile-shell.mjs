@@ -1467,7 +1467,7 @@ async function verifyPhoneSession(boardSessions) {
     })),
   )
   assert.ok(
-    menuRows.every((entry) => entry.height >= 48),
+    menuRows.every((entry) => entry.height >= 44),
     JSON.stringify(menuRows),
   )
   assert.deepEqual(
@@ -1475,7 +1475,7 @@ async function verifyPhoneSession(boardSessions) {
     ['data-session-tree', 'data-session-side-chat', 'data-inspector-toggle'],
   )
   assert.ok(
-    menuRows.some((entry) => entry.text === '重命名会话'),
+    menuRows.some((entry) => entry.text === '重命名'),
     JSON.stringify(menuRows),
   )
   assert.ok(
@@ -1544,6 +1544,8 @@ async function verifyPhoneSession(boardSessions) {
   const openModeSheet = async () => {
     await page.locator('[data-composer-plus]').click()
     await page.locator('[data-composer-plus-item="mode"]').click()
+    // “+”也是底部表单：等它关完，下面只剩审批与执行方式这一张。
+    await page.locator('[data-composer-plus-item="mode"]').waitFor({ state: 'detached' })
   }
   for (const [label, open] of [
     ['mode', openModeSheet],

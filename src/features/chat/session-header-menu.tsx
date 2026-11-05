@@ -1,7 +1,7 @@
 // 会话顶栏（桌面 52px 的标题 ▾ 菜单）与手机顶栏（56px 的标题 ▾ 底部表单）共用的部分：运行时长、归档、侧聊入口，
-// 以及两端相同的会话操作。菜单项先整理成一份数据（entries），桌面渲染成下拉菜单，手机渲染成底部表单的行。顺序按规格 v2 第 2.5 节“会话其余操作”：重命名 · 侧聊 · 归档 | 移动工作区 ·
-// 压缩上下文（带当前用量）· 目标模式 · 工作流运行记录 · 语音模式。“导出 Markdown”（A9）只在 Runtime 声明
-// sessionExport 时出现（不放一个点了没反应的项）。每一项都只调用现有实现，两种页头不各写一份。
+// 以及两端相同的会话操作。菜单项先整理成一份数据（entries），桌面渲染成下拉菜单，手机渲染成底部表单的行。分三组：重命名 · 侧聊 · 导出 | 移动工作区 ·
+// 压缩上下文（带当前用量）· 工作流记录 · 语音对话 | 归档。执行方式（Plan / Goal / Team）只在输入框的盾牌芯片里选，这里不重复。
+// “导出 Markdown”（A9）只在 Runtime 声明 sessionExport 时出现（不放一个点了没反应的项）。每一项都只调用现有实现，两种页头不各写一份。
 import { Fragment, useContext, useEffect, useState, type ReactNode } from 'react'
 import {
   type LucideIcon,
@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Pencil,
   Shrink,
-  Target,
   Workflow,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -25,7 +24,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
@@ -70,10 +68,6 @@ export type SessionMenuActions = {
   workspaceDisabled: boolean
   onCompact?: () => void
   compactDisabled: boolean
-  goalAvailable: boolean
-  goalEngaged: boolean
-  goalDisabled: boolean
-  onToggleGoal: () => void
   workflowsAvailable: boolean
   onVoiceMode: () => void
   notify: Notify
@@ -86,10 +80,10 @@ export type SessionMenuEntry = {
   key: string
   icon: LucideIcon
   label: string
+  // 手机底部表单快捷块上的短名；完整的 label 仍是读屏名。
+  shortLabel?: string
   onSelect: () => void
   disabled?: boolean
-  // 目标模式这类开关项：桌面是勾选菜单项，手机是带 aria-pressed 的行。
-  checked?: boolean
   // 右侧的读数（压缩上下文的当前用量）。
   trailing?: string
   trailingTitle?: string
@@ -156,7 +150,7 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
     {
       key: 'rename',
       icon: Pencil,
-      label: t('chat:focusSession.renameChat'),
+      label: t('chat:sessionMenu.rename'),
       onSelect: actions.onRename,
     },
     ...(actions.onSideChat
@@ -183,13 +177,6 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
         ]
       : []),
     {
-      key: 'archive',
-      icon: Archive,
-      label: t('board:card.archive'),
-      onSelect: () => void archive(),
-      disabled: archiving,
-    },
-    {
       key: 'workspace',
       icon: FolderOpen,
       label: t('board:session.moveWorkspace'),
@@ -200,30 +187,18 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
     {
       key: 'compact',
       icon: Shrink,
-      label: t('chat:focusSession.compactContextNow'),
+      label: t('chat:sessionMenu.compactContext'),
       onSelect: () => actions.onCompact?.(),
       disabled: actions.compactDisabled || !actions.onCompact,
       trailing: percent !== null ? `${percent}%` : undefined,
       trailingTitle: percent !== null ? t('board:session.contextUsage', { percent }) : undefined,
     },
-    ...(actions.goalAvailable
-      ? [
-          {
-            key: 'goal',
-            icon: Target,
-            label: t('board:session.goalMode'),
-            onSelect: actions.onToggleGoal,
-            disabled: actions.goalDisabled,
-            checked: actions.goalEngaged,
-          },
-        ]
-      : []),
     ...(actions.workflowsAvailable
       ? [
           {
             key: 'workflows',
             icon: Workflow,
-            label: t('board:session.workflowRuns'),
+            label: t('chat:sessionMenu.workflowRuns'),
             onSelect: () => setWorkflowsOpen(true),
           },
         ]
@@ -231,8 +206,16 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
     {
       key: 'voice',
       icon: AudioLines,
-      label: t('chat:voiceMode.open'),
+      label: t('chat:sessionMenu.voiceMode'),
       onSelect: actions.onVoiceMode,
+    },
+    {
+      key: 'archive',
+      icon: Archive,
+      label: t('board:card.archive'),
+      onSelect: () => void archive(),
+      disabled: archiving,
+      separator: true,
     },
   ]
 
@@ -241,32 +224,21 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       {entries.map((entry) => {
         const Icon = entry.icon
         const marker = entry.marker ? { [`data-${entry.marker}`]: true } : {}
-        const item =
-          entry.checked !== undefined ? (
-            <DropdownMenuCheckboxItem
-              checked={entry.checked}
-              disabled={entry.disabled}
-              onCheckedChange={entry.onSelect}
-              {...marker}
-            >
-              <Icon />
-              {entry.label}
-            </DropdownMenuCheckboxItem>
-          ) : (
-            <DropdownMenuItem disabled={entry.disabled} onSelect={entry.onSelect} {...marker}>
-              <Icon />
-              {entry.label}
-              {entry.trailing && (
-                <DropdownMenuShortcut
-                  className="font-mono tabular-nums"
-                  title={entry.trailingTitle}
-                  data-session-context-usage
-                >
-                  {entry.trailing}
-                </DropdownMenuShortcut>
-              )}
-            </DropdownMenuItem>
-          )
+        const item = (
+          <DropdownMenuItem disabled={entry.disabled} onSelect={entry.onSelect} {...marker}>
+            <Icon />
+            {entry.label}
+            {entry.trailing && (
+              <DropdownMenuShortcut
+                className="font-mono tabular-nums"
+                title={entry.trailingTitle}
+                data-session-context-usage
+              >
+                {entry.trailing}
+              </DropdownMenuShortcut>
+            )}
+          </DropdownMenuItem>
+        )
         return (
           <Fragment key={entry.key}>
             {entry.separator && <DropdownMenuSeparator />}

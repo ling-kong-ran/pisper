@@ -15,12 +15,13 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
 import { memo, useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
-import { Braces, CornerDownRight, ImagePlus, Mic, Paperclip, Plus, Shield } from 'lucide-react'
+import { Braces, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -42,6 +43,7 @@ import { NewTaskDraftHeader, NewTaskGreeting } from './NewTaskDraftView'
 import { consumeNewTaskFocus, NEW_TASK_FOCUS_EVENT } from './events'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { ComposerModeChip } from './ComposerModeChip'
+import { ComposerPlusSheet } from './ComposerPlusSheet'
 import { nextComposerRunMode } from './composer-run-mode'
 import {
   ContextUsageSection,
@@ -207,8 +209,7 @@ export const FocusSession = memo(function FocusSession({
   const [resourcePickerOpen, setResourcePickerOpen] = useState(false)
   // 手机：审批与执行方式的底部表单从 + 菜单打开（工具行上的芯片默认收起）。
   const [modeSheetOpen, setModeSheetOpen] = useState(false)
-  // + 菜单里打开别的弹层：等菜单关闭、焦点回到 + 键之后再开，关掉表单时焦点才回得到 + 键。
-  const afterPlusMenuCloseRef = useRef<(() => void) | null>(null)
+  const [plusSheetOpen, setPlusSheetOpen] = useState(false)
   const plusTriggerRef = useRef<HTMLButtonElement>(null)
   const [sessionTreeOpen, setSessionTreeOpen] = useState(false)
   const [voiceModeOpen, setVoiceModeOpen] = useState(false)
@@ -602,58 +603,77 @@ export const FocusSession = memo(function FocusSession({
     />
   )
   const plusLabel = t('board:composer.plusMenu')
-  // 输入框“+”菜单（规格 v2 第 2.5 / 4.3 节）：附件、技能与工具、生成图片、语音输入（F8）；
-  // 手机上语音键在工具行，这里换成“审批与执行方式”；手机运行中另有“插话发送”（触屏没有 ⌥↵）。原来可配置的工具条与“+”托盘退役，工具行固定为
-  // [+] [盾牌芯片] … [模型芯片] [发送]。
-  const plusMenu = (
+  const openVisualPrompt = () =>
+    void openVisualPromptEntry({
+      templatePrompt: t('chat:focusSession.visualPromptTemplate'),
+      configureHint: t('chat:focusSession.configureVisualModelFirst'),
+      notify,
+      onOpenModelSettings,
+      onInsertPrompt: applyWelcomeChip,
+    })
+  const plusTrigger = (
+    <button
+      type="button"
+      className={cn(
+        COMPOSER_ICON_KEY_CLASSES,
+        // 手机：浅灰底圆形，和盾牌、模型胶囊同一种无边框填充样式。
+        'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:text-content',
+      )}
+      ref={plusTriggerRef}
+      title={plusLabel}
+      aria-label={plusLabel}
+      data-composer-plus
+    >
+      <Plus size={18} className={COMPOSER_PHONE_GLYPH_CLASSES} aria-hidden="true" />
+      {selection.attachments.length > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full border-2 border-panel bg-star px-0.5 text-[10px] leading-none font-medium text-on-accent tabular-nums">
+          {selection.attachments.length}
+        </span>
+      )}
+    </button>
+  )
+  // 输入框“+”（规格 v2 第 2.5 / 4.3 节）：桌面是下拉菜单，分“内容”和“生成与语音”两组；手机是底部表单
+  // （ComposerPlusSheet），语音键在工具行，另有审批与执行方式、运行中的“插话发送”。原来可配置的工具条与
+  // “+”托盘退役，工具行固定为 [+] [盾牌芯片] … [模型芯片] [发送]。
+  const plusMenu = phonePage ? (
+    <ComposerPlusSheet
+      trigger={plusTrigger}
+      open={plusSheetOpen}
+      onOpenChange={setPlusSheetOpen}
+      onAttachment={() => void attachmentChooser.choose()}
+      onResource={() => setResourcePickerOpen(true)}
+      onVisual={visualAvailable ? openVisualPrompt : undefined}
+      steer={
+        streaming
+          ? {
+              disabled: !value.trim() && !selection.attachments.length && !invocation,
+              onSelect: submitSteer,
+            }
+          : undefined
+      }
+      mode={
+        botId
+          ? undefined
+          : {
+              valueLabel:
+                executionMode === 'full-access'
+                  ? t('chat:focusSession.fullAccessShort')
+                  : executionMode === 'workspace-write'
+                    ? t('chat:focusSession.workspaceWriteShort')
+                    : t('chat:focusSession.approvalRequiredShort'),
+              onOpen: () => setModeSheetOpen(true),
+            }
+      }
+    />
+  ) : (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            COMPOSER_ICON_KEY_CLASSES,
-            // 手机：浅灰底圆形，和盾牌、模型胶囊同一种无边框填充样式。
-            'composer-plus-trigger aria-expanded:bg-surface-hover aria-expanded:text-content max-[650px]:rounded-full max-[650px]:bg-surface-muted max-[650px]:dark:bg-surface-active max-[650px]:text-content',
-          )}
-          ref={plusTriggerRef}
-          title={plusLabel}
-          aria-label={plusLabel}
-          data-composer-plus
-        >
-          <Plus size={18} className={COMPOSER_PHONE_GLYPH_CLASSES} aria-hidden="true" />
-          {selection.attachments.length > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full border-2 border-panel bg-star px-0.5 text-[10px] leading-none font-medium text-on-accent tabular-nums">
-              {selection.attachments.length}
-            </span>
-          )}
-        </button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{plusTrigger}</DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         side="top"
-        className="min-w-56 p-1 [&_[role=menuitem]]:min-h-9 max-[650px]:[&_[role=menuitem]]:min-h-11 pointer-coarse:[&_[role=menuitem]]:min-h-11"
+        className="w-60 p-1 max-[650px]:[&_[role=menuitem]]:min-h-11"
         data-composer-plus-menu
-        onCloseAutoFocus={() => {
-          const next = afterPlusMenuCloseRef.current
-          afterPlusMenuCloseRef.current = null
-          if (next) window.setTimeout(next, 0)
-        }}
       >
-        {phonePage && streaming && (
-          <DropdownMenuItem
-            data-composer-steer
-            disabled={!value.trim() && !selection.attachments.length && !invocation}
-            onSelect={submitSteer}
-          >
-            <CornerDownRight aria-hidden="true" />
-            <span className="grid min-w-0">
-              <span>{t('board:composer.steerNow')}</span>
-              <span className="truncate text-xs text-content-muted">
-                {t('board:composer.steerHint')}
-              </span>
-            </span>
-          </DropdownMenuItem>
-        )}
         <DropdownMenuItem
           data-composer-plus-item="attachment"
           onSelect={() => void attachmentChooser.choose()}
@@ -668,51 +688,21 @@ export const FocusSession = memo(function FocusSession({
           <Braces aria-hidden="true" />
           {t('chat:resourcePicker.open')}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {visualAvailable && (
-          <DropdownMenuItem
-            data-composer-plus-item="visual"
-            onSelect={() =>
-              void openVisualPromptEntry({
-                templatePrompt: t('chat:focusSession.visualPromptTemplate'),
-                configureHint: t('chat:focusSession.configureVisualModelFirst'),
-                notify,
-                onOpenModelSettings,
-                onInsertPrompt: applyWelcomeChip,
-              })
-            }
-          >
+          <DropdownMenuItem data-composer-plus-item="visual" onSelect={openVisualPrompt}>
             <ImagePlus aria-hidden="true" />
             {t('chat:focusSession.generateImage')}
           </DropdownMenuItem>
         )}
-        {phonePage && botId ? null : phonePage ? (
-          <DropdownMenuItem
-            data-composer-plus-item="mode"
-            onSelect={() => {
-              afterPlusMenuCloseRef.current = () => setModeSheetOpen(true)
-            }}
-          >
-            <Shield aria-hidden="true" />
-            {t('board:composer.modeChip')}
-            <DropdownMenuShortcut className="tracking-normal">
-              {executionMode === 'full-access'
-                ? t('chat:focusSession.fullAccessShort')
-                : executionMode === 'workspace-write'
-                  ? t('chat:focusSession.workspaceWriteShort')
-                  : t('chat:focusSession.approvalRequiredShort')}
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            data-composer-plus-item="voice"
-            onSelect={() => voiceControlRef.current?.()}
-          >
-            <Mic aria-hidden="true" />
-            {t('chat:voiceInput.open')}
-            {VOICE_SHORTCUT && <DropdownMenuShortcut>{VOICE_SHORTCUT}</DropdownMenuShortcut>}
-          </DropdownMenuItem>
-        )}
-        {draft?.plusMenuItems}
+        <DropdownMenuItem
+          data-composer-plus-item="voice"
+          onSelect={() => voiceControlRef.current?.()}
+        >
+          <Mic aria-hidden="true" />
+          {t('board:composer.voiceInput')}
+          {VOICE_SHORTCUT && <DropdownMenuShortcut>{VOICE_SHORTCUT}</DropdownMenuShortcut>}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -795,10 +785,6 @@ export const FocusSession = memo(function FocusSession({
     compactDisabled: Boolean(
       streaming || compactingManually || compaction?.active || messages.length === 0,
     ),
-    goalAvailable: goalsAvailable,
-    goalEngaged: composerExecutionMode === 'goal',
-    goalDisabled: Boolean(streaming),
-    onToggleGoal: () => changeExecutionMode(composerExecutionMode === 'goal' ? 'plan' : 'goal'),
     workflowsAvailable,
     onVoiceMode: () => setVoiceModeOpen(true),
     notify: notify ?? (() => undefined),
@@ -998,7 +984,6 @@ export const FocusSession = memo(function FocusSession({
           // 手机不画排队列表：排队的消息就是对话里标着“排队中”的气泡（参考稿），托盘只剩压缩提示。
           queueList={!phonePage}
         />
-        {draft?.notice && <div className="px-1">{draft.notice}</div>}
         {/* 输入卡片：圆角 22（守卫）+ 控件级描边（≥3:1），输入时焦点描边与 3px 焦点环。 */}
         <div
           className={cn(
