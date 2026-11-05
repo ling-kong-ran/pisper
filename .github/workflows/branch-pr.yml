@@ -88,7 +88,12 @@ jobs:
             draft=()
             case "$BRANCH" in wip/*) draft=(--draft) ;; esac
             printf '%s\n\n## 提交\n\n%s\n\n由分支推送自动创建。\n' "$note" "$commits" > "$RUNNER_TEMP/pr-body.md"
-            gh pr create --base release --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md" "${draft[@]}"
+            # 失败原因写成注释：不用登录也能在运行页面看到（最常见的是仓库没允许 Actions 建 PR）。
+            if ! output="$(gh pr create --base release --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md" "${draft[@]}" 2>&1)"; then
+              echo "::error::开 PR 失败：$output"
+              exit 1
+            fi
+            echo "$output"
             created=true
           elif [ "$status" = conflict ] || [ "$status" = push-failed ]; then
             gh pr comment "$number" --body "$note"
