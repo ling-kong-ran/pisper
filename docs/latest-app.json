@@ -1,9 +1,9 @@
 {
-  "version": "0.1.76",
-  "tag": "app-v0.1.76",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.76",
+  "version": "0.1.77",
+  "tag": "app-v0.1.77",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.77",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.76\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.76`\n- 对比基线：`app-v0.1.75`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): Bot 自己也能动手干活但从不阻塞——插话马上回、长命令转后台、不等批准；问题卡片与给自己定时\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.75...app-v0.1.76)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/1aa89d596672f4532acd2129f64ac455b0eb38be)",
+  "notes": "## Pisper App 0.1.77\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.77`\n- 对比基线：`app-v0.1.76`\n\n## 更新内容\n\n### 新增功能\n\n- feat(chat): 重做输入框“+”、审批面板与会话名菜单，去掉“什么时候开始”\n\n### 其他变更\n\n- docs(design): 删除官网没有用到的截图\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.76...app-v0.1.77)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/4f3035f0c7d1f0b48e30a80b244fd3b2adb55380)",
   "releaseDate": "2026-11-05"
 }
