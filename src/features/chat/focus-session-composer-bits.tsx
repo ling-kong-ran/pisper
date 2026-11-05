@@ -28,7 +28,7 @@ export const COMPOSER_ICON_KEY_CLASSES = `grid size-8 min-w-8 flex-none cursor-p
 export const COMPOSER_PHONE_GLYPH_CLASSES = 'max-[650px]:size-4'
 
 // 托盘计时与侧栏运行中行同一种写法（3:12、1:02:05），同一个运行在两处读起来一致。
-function formatTrayClock(milliseconds: number) {
+export function formatTrayClock(milliseconds: number) {
   const total = Math.max(0, Math.floor(milliseconds / 1000))
   const hours = Math.floor(total / 3600)
   const minutes = Math.floor((total % 3600) / 60)

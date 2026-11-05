@@ -326,7 +326,7 @@ try {
     await inspectorOf(initialPane)
       .locator('[data-inspector-tab-id]')
       .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-inspector-tab-id'))),
-    ['changes', 'terminal', 'files', 'preview'],
+    ['changes', 'terminal', 'running', 'files', 'preview'],
   )
   const headerRow = await initialPane.evaluate((pane) => ({
     session: pane.querySelector('[data-session-header]')?.getBoundingClientRect().top,

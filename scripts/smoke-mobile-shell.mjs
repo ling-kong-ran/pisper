@@ -1578,8 +1578,8 @@ async function verifyPhoneSession(boardSessions) {
       ]),
     )
   assert.deepEqual(
-    tabs.slice(0, 4).map(([id]) => id),
-    ['changes', 'terminal', 'files', 'preview'],
+    tabs.slice(0, 5).map(([id]) => id),
+    ['changes', 'terminal', 'running', 'files', 'preview'],
   )
   assert.ok(
     tabs.every(([, height]) => height >= 44),

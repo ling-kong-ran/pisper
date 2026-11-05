@@ -10,6 +10,7 @@ import { pageStateStorage } from '@/lib/page-state-storage'
 export const SESSION_INSPECTOR_TABS = [
   'changes',
   'terminal',
+  'running',
   'files',
   'preview',
   'plan',

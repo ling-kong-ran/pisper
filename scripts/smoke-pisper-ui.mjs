@@ -897,7 +897,7 @@ try {
     inspector
       .locator('[data-inspector-tab-id]')
       .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-inspector-tab-id')))
-  assert.deepEqual(await inspectorTabIds(), ['changes', 'terminal', 'files', 'preview'])
+  assert.deepEqual(await inspectorTabIds(), ['changes', 'terminal', 'running', 'files', 'preview'])
   const inspectorTab = (id) => inspector.locator(`[data-inspector-tab-id="${id}"]`)
   await inspectorTab('changes').click()
   await inspectorTab('changes').focus()

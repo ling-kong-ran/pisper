@@ -378,5 +378,13 @@
   "composer.attachmentShort": "Attachment",
   "composer.voiceInput": "Voice input",
   "composer.planShort": "Plan",
-  "phone.openInspectorShort": "Changes & files"
+  "phone.openInspectorShort": "Changes & files",
+  "inspector.running": "Running",
+  "inspector.runningCount": "Running {count}",
+  "inspector.runningStatus": "Running",
+  "inspector.runningQueued": "Queued",
+  "inspector.runningTool": "Tool",
+  "inspector.runningAgent": "Subagent",
+  "inspector.runningEmpty": "Nothing is running in this chat right now",
+  "inspector.runningHint": "Shows the commands and tools the agent is running, its subagents, and this task’s terminals. Processes a command sends to the background (nohup, &) are not listed."
 }

@@ -150,15 +150,18 @@ export function useFocusComposer({
       setCompactingManually(false)
     }
   }
+  // 返回是否真的停下了：调用方据此决定要不要把排队消息放回输入框。
   const stop = async () => {
-    if (stopping || !onAbort) return
+    if (stopping || !onAbort) return false
     const originSession = sessionId
     setStopping(true)
     try {
       await onAbort()
+      return true
     } catch (error) {
       if (activeSessionRef.current === originSession)
         setSubmitError(error instanceof Error ? error.message : String(error))
+      return false
     } finally {
       if (activeSessionRef.current === originSession) setStopping(false)
     }

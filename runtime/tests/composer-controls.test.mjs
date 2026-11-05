@@ -209,3 +209,25 @@ test('Plan, Goal and Team stay real execution choices, distinct from approval mo
   assert.match(session, /event\.key === 'Tab' &&\s*event\.shiftKey/)
   assert.match(session, /!composing &&\s*!streaming\s*\)/)
 })
+
+test('stopping a run puts queued messages back and stops the plan spinner', async () => {
+  const [session, composer, board, inspector] = await Promise.all(
+    [
+      'src/features/chat/FocusSession.tsx',
+      'src/features/chat/use-focus-composer.ts',
+      'src/features/chat/PlanBoard.tsx',
+      'src/features/chat/SessionInspector.tsx',
+    ].map((file) => readFile(file, 'utf8')),
+  )
+  // 真的停下才放回，停止失败时排队还在，不能重复。
+  assert.match(
+    session,
+    /if \(!\(await stopRun\(\)\)\) return\s+for \(const item of pending\)\s+restoreDraft\(/,
+  )
+  assert.match(composer, /await onAbort\(\)\s+return true/)
+  // 中断后计划项保留 in_progress，但不再画转圈。
+  assert.match(board, /item\.status === 'in_progress' && !running/)
+  // “运行中”标签始终可见，不依赖终端能力。
+  assert.match(inspector, /id: 'running' as const/)
+  assert.match(inspector, /<InspectorRunning sessionId=\{sessionId\}/)
+})

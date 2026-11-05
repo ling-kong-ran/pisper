@@ -95,11 +95,13 @@ function subAgents(activity: readonly EntityRecord[]) {
 
 export function InspectorPlan({
   plan,
+  streaming,
   goal,
   team,
   activity,
 }: {
   plan: Plan | null
+  streaming: boolean
   goal: EntityRecord | null
   team: TeamState | null
   activity: readonly EntityRecord[]
@@ -144,7 +146,7 @@ export function InspectorPlan({
       )}
       {hasPlan && (
         <Section title={t('board:inspector.plan')}>
-          <PlanBoard plan={plan} />
+          <PlanBoard plan={plan} running={streaming} />
         </Section>
       )}
       {tasks.length > 0 && (

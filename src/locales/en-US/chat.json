@@ -694,5 +694,7 @@
   "sessionMenu.rename": "Rename",
   "sessionMenu.compactContext": "Compact context",
   "sessionMenu.workflowRuns": "Workflow runs",
-  "sessionMenu.voiceMode": "Voice chat"
+  "sessionMenu.voiceMode": "Voice chat",
+  "planBoard.paused": "Paused",
+  "planBoard.countPaused": "{count} paused"
 }

@@ -6,6 +6,7 @@
 import { Suspense, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Activity,
   FileDiff,
   Files,
   Globe2,
@@ -30,6 +31,7 @@ import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { EntityRecord, Plan, TeamState } from '@/types/chat'
 import { latestComputerUseTarget } from './computer-use-live-support.ts'
 import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
+import { InspectorRunning, runningCount } from './InspectorRunning'
 import { InspectorPlan } from './InspectorPlan'
 import { getSessionChangeSummary } from './session-change-summary-api'
 import { BrowserPane } from './SessionBrowserPane'
@@ -173,6 +175,7 @@ export function SessionInspector({
   const changedFiles =
     changeSummary.data?.status === 'known' ? (changeSummary.data.changedFiles ?? 0) : 0
 
+  const runningTotal = runningCount(activity, streaming)
   const tabs = [
     {
       id: 'changes' as const,
@@ -183,6 +186,13 @@ export function SessionInspector({
           : t('board:inspector.changes'),
     },
     { id: 'terminal' as const, icon: TerminalSquare, label: t('board:inspector.terminal') },
+    {
+      id: 'running' as const,
+      icon: Activity,
+      label: runningTotal
+        ? t('board:inspector.runningCount', { count: runningTotal })
+        : t('board:inspector.running'),
+    },
     { id: 'files' as const, icon: Files, label: t('board:inspector.files') },
     { id: 'preview' as const, icon: Globe2, label: t('board:inspector.preview') },
     ...(planTab ? [{ id: 'plan' as const, icon: ListTodo, label: t('board:inspector.plan') }] : []),
@@ -366,7 +376,17 @@ export function SessionInspector({
       loading
     )
   } else if (tab === 'plan') {
-    body = <InspectorPlan plan={plan} goal={goal} team={team} activity={activity} />
+    body = (
+      <InspectorPlan
+        plan={plan}
+        streaming={streaming}
+        goal={goal}
+        team={team}
+        activity={activity}
+      />
+    )
+  } else if (tab === 'running') {
+    body = <InspectorRunning sessionId={sessionId} streaming={streaming} activity={activity} />
   } else {
     body = <SideChatPane parentId={sessionId} active />
   }

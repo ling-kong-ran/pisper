@@ -694,5 +694,7 @@
   "sessionMenu.rename": "重命名",
   "sessionMenu.compactContext": "压缩上下文",
   "sessionMenu.workflowRuns": "工作流记录",
-  "sessionMenu.voiceMode": "语音对话"
+  "sessionMenu.voiceMode": "语音对话",
+  "planBoard.paused": "已暂停",
+  "planBoard.countPaused": "{count} 已暂停"
 }

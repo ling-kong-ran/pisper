@@ -1,7 +1,7 @@
 // 计划看板：把会话的计划项渲染成可勾选的进度面板，
 // 点击切换状态并通过 update_plan 事件写回。
 import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, Circle, ListChecks, Lock, User } from 'lucide-react'
+import { Check, ChevronDown, Circle, ListChecks, Lock, Pause, User } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import type { I18nValues } from '@/app/i18n'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -18,6 +18,7 @@ type PlanItemView = PlanItem & {
 const STATUS_TONE: Record<string, string> = {
   completed: 'completed',
   in_progress: 'running',
+  paused: 'pending',
   blocked: 'blocked',
   pending: 'pending',
 }
@@ -44,9 +45,11 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
       ? t('chat:planBoard.completed')
       : status === 'in_progress'
         ? t('chat:planBoard.inProgress')
-        : status === 'blocked'
-          ? t('chat:planBoard.blocked')
-          : t('chat:planBoard.pending')
+        : status === 'paused'
+          ? t('chat:planBoard.paused')
+          : status === 'blocked'
+            ? t('chat:planBoard.blocked')
+            : t('chat:planBoard.pending')
   return (
     <span
       className={`plan-board-status grid size-[18px] flex-none place-items-center rounded-xs text-content-muted [&.completed]:bg-success-soft [&.completed]:text-success [&.running]:text-accent-fg [&.blocked]:bg-danger-soft [&.blocked]:text-danger ${STATUS_TONE[String(status)] || 'pending'}`}
@@ -56,6 +59,8 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
         <Check size={12} strokeWidth={2.25} />
       ) : status === 'in_progress' ? (
         <OrbitSpinner className="size-3.5" />
+      ) : status === 'paused' ? (
+        <Pause size={11} strokeWidth={2} />
       ) : status === 'blocked' ? (
         <Lock size={11} strokeWidth={2} />
       ) : (
@@ -66,7 +71,17 @@ function StatusBadge({ status, t }: { status: string | undefined; t: Translate }
   )
 }
 
-function PlanRow({ item, current, t }: { item: PlanItemView; current: boolean; t: Translate }) {
+function PlanRow({
+  item,
+  current,
+  running,
+  t,
+}: {
+  item: PlanItemView
+  current: boolean
+  running: boolean
+  t: Translate
+}) {
   return (
     <li
       className={`plan-board-row flex min-w-0 flex-col gap-[2px] rounded-sm px-[6px] py-[6px] aria-[current=step]:bg-surface-subtle ${item.blocked ? 'blocked' : ''}`}
@@ -75,7 +90,16 @@ function PlanRow({ item, current, t }: { item: PlanItemView; current: boolean; t
       data-pisper-plan-id={item.id}
     >
       <div className="flex min-w-0 items-center gap-[10px]">
-        <StatusBadge status={item.blocked ? 'blocked' : item.status} t={t} />
+        <StatusBadge
+          status={
+            item.blocked
+              ? 'blocked'
+              : item.status === 'in_progress' && !running
+                ? 'paused'
+                : item.status
+          }
+          t={t}
+        />
         <span
           className={`min-w-0 flex-1 truncate text-[13px] ${item.status === 'completed' ? 'text-content-muted' : 'text-foreground'}`}
           title={item.title}
@@ -114,12 +138,14 @@ function PlanRow({ item, current, t }: { item: PlanItemView; current: boolean; t
 
 export type PlanBoardProps = {
   plan: Plan | null
+  // 会话此刻是否在跑。中断后计划项仍保留 in_progress 以便恢复，但这时不能再画转圈。
+  running: boolean
   header?: ReactNode
   collapsible?: boolean
 }
 
 /** Shared execution plan with ownership and dependency blockers. */
-function PlanBoard({ plan, header, collapsible = false }: PlanBoardProps) {
+function PlanBoard({ plan, running, header, collapsible = false }: PlanBoardProps) {
   const { t } = useI18n()
   const listRef = useRef<HTMLUListElement>(null)
   const [expanded, setExpanded] = useState(true)
@@ -165,7 +191,11 @@ function PlanBoard({ plan, header, collapsible = false }: PlanBoardProps) {
       ) : null}
       <span className="plan-board-counts inline-flex flex-none items-center gap-[8px] text-content-muted tabular-nums @max-[470px]:hidden">
         {inProgress > 0 && (
-          <span>{t('chat:planBoard.countInProgress', { count: inProgress })}</span>
+          <span>
+            {running
+              ? t('chat:planBoard.countInProgress', { count: inProgress })
+              : t('chat:planBoard.countPaused', { count: inProgress })}
+          </span>
         )}
         {blockedCount > 0 && (
           <span className="blocked text-danger">
@@ -189,7 +219,13 @@ function PlanBoard({ plan, header, collapsible = false }: PlanBoardProps) {
       tabIndex={views.length > 4 ? 0 : undefined}
     >
       {views.map((item) => (
-        <PlanRow key={item.id} item={item} current={item.id === currentItemId} t={t} />
+        <PlanRow
+          running={running}
+          key={item.id}
+          item={item}
+          current={item.id === currentItemId}
+          t={t}
+        />
       ))}
     </ul>
   )

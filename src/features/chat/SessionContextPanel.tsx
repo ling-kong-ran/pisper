@@ -329,7 +329,7 @@ export function SessionContextPanel({
               ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
                   {plan?.items?.length ? (
-                    <PlanBoard plan={plan} />
+                    <PlanBoard plan={plan} running={streaming} />
                   ) : (
                     <InlineEmptyState compact title={t('chat:sessionContext.planEmpty')} />
                   )}

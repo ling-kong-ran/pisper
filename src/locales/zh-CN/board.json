@@ -369,5 +369,13 @@
   "composer.attachmentShort": "附件",
   "composer.voiceInput": "语音输入",
   "composer.planShort": "Plan",
-  "phone.openInspectorShort": "改动与文件"
+  "phone.openInspectorShort": "改动与文件",
+  "inspector.running": "运行中",
+  "inspector.runningCount": "运行中 {count}",
+  "inspector.runningStatus": "运行中",
+  "inspector.runningQueued": "排队中",
+  "inspector.runningTool": "工具",
+  "inspector.runningAgent": "子代理",
+  "inspector.runningEmpty": "这个会话现在没有在运行的命令或子代理",
+  "inspector.runningHint": "列出代理正在执行的命令和工具、子代理，以及本任务的终端。命令自己转到后台的进程（如 nohup、&）不在其中。"
 }

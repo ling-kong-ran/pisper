@@ -328,7 +328,7 @@ test('the changes tab keeps long lines scrollable and only offers what the runti
   assert.match(inspector, /<InspectorChanges/)
   assert.match(
     inspector,
-    /<InspectorPlan plan=\{plan\} goal=\{goal\} team=\{team\} activity=\{activity\} \/>/,
+    /<InspectorPlan\s+plan=\{plan\}\s+streaming=\{streaming\}\s+goal=\{goal\}\s+team=\{team\}\s+activity=\{activity\}\s+\/>/,
   )
 })
 

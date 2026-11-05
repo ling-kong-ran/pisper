@@ -469,7 +469,7 @@ test('shared plan board opens from the composer progress metric', async () => {
   // 规格 v2 第 2.5 / 4.1 节：运行中的计划在顶栏下方的细进度“计划 2/4”，详情在检查器“计划”标签
   // （InspectorPlan 沿用 PlanBoard）；输入区不再有计划读数，也不直接渲染 PlanBoard。
   const inspectorPlan = await readFile('src/features/chat/InspectorPlan.tsx', 'utf8')
-  assert.match(inspectorPlan, /<PlanBoard plan=\{plan\} \/>/)
+  assert.match(inspectorPlan, /<PlanBoard plan=\{plan\} running=\{streaming\} \/>/)
   assert.doesNotMatch(session, /PlanBoard|plan-board-dock|SessionUsageMetrics/)
   assert.doesNotMatch(transcript, /PlanBoard|plan=\{plan\}/)
   assert.doesNotMatch(controls, /PlanBoard|session-plan-progress/)

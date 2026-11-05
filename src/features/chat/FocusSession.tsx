@@ -307,7 +307,7 @@ export const FocusSession = memo(function FocusSession({
     submitting,
     stopping,
     submitError,
-    stop,
+    stop: stopRun,
     compactingManually,
     invocation,
     setInvocation,
@@ -338,6 +338,16 @@ export const FocusSession = memo(function FocusSession({
   // 会话页 Esc（规格 2.8）：有打开的菜单 / 浮层时先交给它们；都关着且正在运行时停止运行。
   // Esc 永远不用于返回。只认会话对话列（页头、转录、输入框）或页面本身的焦点，
   // 检查器里的终端、侧聊输入框等有自己的 Esc 语义，不在这里截走。
+  // 停止会清空运行时的排队：还没发出去的消息放回输入框，不能跟着一起消失。
+  const stop = async () => {
+    const pending = queuedInputs || []
+    if (!(await stopRun())) return
+    for (const item of pending)
+      restoreDraft({
+        text: String(item.text || ''),
+        attachments: Array.isArray(item.attachments) ? item.attachments : [],
+      })
+  }
   const stopRef = useRef(stop)
   stopRef.current = stop
   useEffect(() => {
