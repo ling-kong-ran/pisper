@@ -159,16 +159,20 @@ export function ModelsSettings({
         onSetDefaultModel={settings.setProviderDefaultModel}
         onAddConnection={() => setWizard({ providerType: 'chat' })}
         meta={
-          // 本地配置（Claude Code / Codex）自动接入的读数，跟在分区标题后面。
-          <span className="inline-flex items-center gap-1.5" role="status">
-            {discovery.discovering && <OrbitSpinner className="size-3" />}
-            {discovery.discovering
-              ? t('config:providerWorkbench.scanningLocal')
-              : t('config:providerWorkbench.localImportStatus', {
-                  imported: discovery.autoImport.imported,
-                  skipped: discovery.autoImport.skipped,
-                })}
-          </span>
+          // 本地配置（Claude Code / Codex）自动接入的读数：正在扫描或确实接入了什么才写，0 项不占位置。
+          (discovery.discovering ||
+            discovery.autoImport.imported > 0 ||
+            discovery.autoImport.skipped > 0) && (
+            <span className="inline-flex items-center gap-1.5" role="status">
+              {discovery.discovering && <OrbitSpinner className="size-3" />}
+              {discovery.discovering
+                ? t('config:providerWorkbench.scanningLocal')
+                : t('config:providerWorkbench.localImportStatus', {
+                    imported: discovery.autoImport.imported,
+                    skipped: discovery.autoImport.skipped,
+                  })}
+            </span>
+          )
         }
       />
       {settings.error && <FeatureAlert>{settings.error}</FeatureAlert>}
@@ -206,19 +210,20 @@ export function ModelsSettings({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group mt-6 mb-3 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-0.5 text-left max-[650px]:min-h-11"
+            // 和上面的“子代理”“权限规则”同一种折叠行：箭头靠右，用细线收尾。
+            className="group flex min-h-9 w-full cursor-pointer items-center gap-2 border-0 border-b border-stroke bg-transparent py-2.5 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus max-[650px]:min-h-11"
           >
-            <ChevronDown
-              size={16}
-              aria-hidden="true"
-              className="shrink-0 text-content-muted transition-transform group-data-[state=closed]:-rotate-90"
-            />
             <span className="shrink-0 text-sm font-medium text-content">
               {t('config:providerWorkbench.advanced')}
             </span>
             <span className="min-w-0 truncate text-xs text-content-muted">
               {t('config:providerWorkbench.advancedHint')}
             </span>
+            <ChevronDown
+              size={16}
+              aria-hidden="true"
+              className="ml-auto shrink-0 text-content-muted transition-transform group-data-[state=open]:rotate-180"
+            />
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent id="model-connection-management">

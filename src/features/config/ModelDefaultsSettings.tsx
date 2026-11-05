@@ -30,7 +30,8 @@ function fallbackRef(option: { provider: ProviderConfig; model: { id: string } }
   return `${option.provider.id}/${option.model.id}`
 }
 
-// 一行设置：左边名称 + 一句说明，右边控件；窄屏上下堆叠（手机控件 44 高、占满宽度）。
+// 一行设置。桌面：左边名称 + 一句说明，右边控件。手机：名称与控件同一行（控件 44 高），说明在下面占满宽度，
+// 五行设置不再把提供方挤出第一屏。
 function DefaultsRow({
   labelId,
   label,
@@ -43,16 +44,20 @@ function DefaultsRow({
   children: ReactNode
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-stroke py-4 max-[650px]:py-3">
-      <div className="min-w-[min(240px,100%)] flex-1">
-        <div id={labelId} className="text-sm font-medium text-content">
-          {label}
-        </div>
-        <p id={`${labelId}-hint`} className="mt-0.5 text-xs text-content-muted">
-          {hint}
-        </p>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,280px)] items-center gap-x-6 gap-y-0.5 border-b border-stroke py-4 max-[650px]:grid-cols-[auto_minmax(0,1fr)] max-[650px]:gap-x-3 max-[650px]:gap-y-1 max-[650px]:py-3">
+      <div
+        id={labelId}
+        className="self-end text-sm font-medium text-content max-[650px]:self-center"
+      >
+        {label}
       </div>
-      <div className="w-[min(280px,100%)] min-w-0 max-[650px]:w-full">{children}</div>
+      <div className="row-span-2 min-w-0 max-[650px]:row-span-1">{children}</div>
+      <p
+        id={`${labelId}-hint`}
+        className="col-start-1 self-start text-xs text-content-muted max-[650px]:col-span-2"
+      >
+        {hint}
+      </p>
     </div>
   )
 }
@@ -66,6 +71,15 @@ export function ModelDefaultsSettings({
 }: ModelDefaultsSettingsProps) {
   const { t } = useI18n()
   const id = useId()
+  // 和输入框的模型芯片同一套叫法，不把 medium 这样的内部值露给用户。
+  const thinkingLabels: Record<(typeof THINKING_LEVELS)[number], string> = {
+    off: t('chat:focusSession.thinkingLabel.off'),
+    minimal: t('chat:focusSession.thinkingLabel.minimal'),
+    low: t('chat:focusSession.thinkingLabel.low'),
+    medium: t('chat:focusSession.thinkingLabel.medium'),
+    high: t('chat:focusSession.thinkingLabel.high'),
+    xhigh: t('chat:focusSession.thinkingLabel.xhigh'),
+  }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   // 乐观显示刚选的值；保存失败时回到服务端的值。
@@ -284,7 +298,7 @@ export function ModelDefaultsSettings({
         >
           <AppSelect
             aria-labelledby={`${id}-thinking`}
-            className="w-full font-mono"
+            className="w-full"
             disabled={disabled}
             value={thinkingLevel}
             onChange={(event) => {
@@ -293,7 +307,9 @@ export function ModelDefaultsSettings({
             }}
           >
             {THINKING_LEVELS.map((level) => (
-              <option key={level}>{level}</option>
+              <option key={level} value={level}>
+                {thinkingLabels[level]}
+              </option>
             ))}
           </AppSelect>
         </DefaultsRow>

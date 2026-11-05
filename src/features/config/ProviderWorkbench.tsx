@@ -20,6 +20,7 @@ import {
 import { useI18n } from '@/app/use-i18n'
 import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { StarOrbit } from '@/components/StarOrbit'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -362,7 +363,6 @@ export function ProviderWorkbench(props: Props) {
       title={t('config:providerWorkbench.providers')}
       count={providers.length}
       meta={props.meta}
-      description={t('config:providerWorkbench.providersHint')}
     >
       {providers.length > 0 ? (
         <FeatureList>
@@ -379,17 +379,18 @@ export function ProviderWorkbench(props: Props) {
                   </span>
                 }
                 name={provider.name}
+                // 已连接时右边已经写明状态，密钥状态只在还没配好时才值得占位置。
                 description={[
-                  keyState(provider),
+                  ...(provider.configured ? [] : [keyState(provider)]),
                   t('config:configPage.countModels', { count: provider.models.length }),
                   providerApiLabel(provider.api),
                 ].join(' · ')}
                 status={
                   <>
                     {isDefault && (
-                      <span data-provider-default className="text-content-secondary">
-                        {t('config:providerWorkbench.default')} ·
-                      </span>
+                      <Badge variant="outline" data-provider-default className="mr-2">
+                        {t('config:providerWorkbench.default')}
+                      </Badge>
                     )}
                     {connectionState(provider)}
                   </>
