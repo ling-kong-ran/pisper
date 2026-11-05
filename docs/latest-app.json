@@ -1,9 +1,9 @@
 {
-  "version": "0.1.80",
-  "tag": "app-v0.1.80",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.80",
+  "version": "0.1.81",
+  "tag": "app-v0.1.81",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.81",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.80\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.80`\n- 对比基线：`app-v0.1.79`\n\n## 更新内容\n\n### 新增功能\n\n- feat(chat): 检查器新增“运行中”标签；中断后排队消息放回输入框，计划不再转圈\n\n### 问题修复\n\n- fix(agents): 用户停止会话后不再把“子代理已结束”排给模型\n- fix(models): 手动添加模型不再盖掉目录里的思考档位，设置页档位跟随默认模型\n\n### 其他变更\n\n- ci(release): iOS 语音原生测试失败时只告警，不阻塞发布\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.79...app-v0.1.80)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/d8442170db1338e617c3ffa1fca935526a513b88)",
+  "notes": "## Pisper App 0.1.81\n\n- 发布日期：2026-11-05（北京时间）\n- 发布标签：`app-v0.1.81`\n- 对比基线：`app-v0.1.80`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): 新建的 Bot 主动打招呼，并给出三件马上能定的事\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.80...app-v0.1.81)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/482cf2cb3a603b7be73d29251007345a6ca3d670)",
   "releaseDate": "2026-11-05"
 }
