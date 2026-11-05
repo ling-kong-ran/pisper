@@ -33,6 +33,8 @@ import {
   undoMemoryEvent,
 } from './memory-lifecycle.mjs'
 import {
+  clearEpisodes,
+  deleteEpisodesOfFacts,
   deleteSessionEpisodes,
   pendingEpisodeBatches,
   recordEpisode,
@@ -241,6 +243,7 @@ export class LocalMemoryRuntime {
     this.backgroundController = null
     this.backgroundPromise = null
     this.backgroundSteps = []
+    this.getExcludedSpaceIds = null
   }
 
   async init() {
@@ -279,10 +282,8 @@ export class LocalMemoryRuntime {
       now: () => this.now(),
       isoNow: () => this.isoNow(),
       getMemory: (id) => this.getMemory(id),
-      transaction: (run) => this.transaction(run),
       indexFact: (id) => this.indexFact(id),
       recordEvent: (event) => this.recordEvent(event),
-      memorySnapshot,
       transaction: (run) => this.transaction(run),
       markDerivedDirty: (ids, options) => this.markDerivedDirty(ids, options),
       scheduleSemantic: (ids) => this.scheduleSemantic(ids),
@@ -308,6 +309,7 @@ export class LocalMemoryRuntime {
       db.exec('DELETE FROM memory_docs')
       if (this.ftsAvailable) db.exec('DELETE FROM memory_search')
       db.exec('UPDATE memories SET indexed_at = NULL')
+      this.reindexDerivedDocuments()
     }
     const rows = db
       .prepare(`SELECT id FROM memories WHERE indexed_at IS NULL OR updated_at > indexed_at`)
@@ -323,6 +325,31 @@ export class LocalMemoryRuntime {
       }
     }
     writeMemoryMeta(db, 'index_mode', mode)
+  }
+
+  // 原文和摘要没有 indexed_at：只在索引被清空后整体重建一次。
+  reindexDerivedDocuments() {
+    const db = this.requireDb()
+    this.transaction(() => {
+      for (const row of db.prepare('SELECT * FROM memory_episodes').all()) {
+        this.index.upsert({
+          kind: 'episode',
+          id: row.id,
+          spaceId: row.space_id,
+          title: String(row.user_text || row.assistant_text).slice(0, 80),
+          body: `${row.user_text}\n${row.assistant_text}`,
+        })
+      }
+      for (const row of db.prepare('SELECT * FROM memory_digests WHERE dirty < 2').all()) {
+        this.index.upsert({
+          kind: 'digest',
+          id: row.id,
+          spaceId: row.space_id,
+          title: row.level,
+          body: row.text,
+        })
+      }
+    })
   }
 
   indexFact(id) {
@@ -998,6 +1025,8 @@ export class LocalMemoryRuntime {
     }
     const ids = chain.map((item) => item.id)
     this.transaction(() => {
+      // 原文里也有这段内容：不删的话 memory_search 还能从原文层搜到，批量抽取也可能再抽出来。
+      deleteEpisodesOfFacts(this.requireStore(), chain)
       const insertForgotten = db.prepare(
         'INSERT OR REPLACE INTO memory_forgotten (fingerprint, expires_at) VALUES (?, ?)',
       )
@@ -1170,8 +1199,8 @@ export class LocalMemoryRuntime {
     return openMemoryDocument(this.requireStore(), id)
   }
 
-  confirmMemory(id) {
-    return confirmMemory(this.requireStore(), id)
+  confirmMemory(id, options) {
+    return confirmMemory(this.requireStore(), id, options)
   }
 
   restoreMemory(id) {
@@ -1198,8 +1227,30 @@ export class LocalMemoryRuntime {
     return deleteSessionEpisodes(this.requireStore(), sessionId)
   }
 
+  // 用户清除对话原文：事实保留，只是不再能追溯到原话。
+  clearEpisodes({ spaceId = '' } = {}) {
+    return clearEpisodes(this.requireStore(), { spaceId })
+  }
+
+  // 实验开关关着时 Bot 空间不做后台整理，不能为看不见的东西花钱。
+  setBackgroundExclusions(getExcludedSpaceIds) {
+    this.getExcludedSpaceIds = getExcludedSpaceIds
+  }
+
+  excludedSpaceIds() {
+    try {
+      return this.getExcludedSpaceIds?.(this.listSpaces({ includeBots: true })) || []
+    } catch {
+      return []
+    }
+  }
+
   async consolidate({ force = false, signal } = {}) {
-    return runMemoryConsolidation(this.requireStore(), { force, signal })
+    return runMemoryConsolidation(this.requireStore(), {
+      force,
+      signal,
+      excludeSpaceIds: this.excludedSpaceIds(),
+    })
   }
 
   // 导出成 Markdown：记忆存在 SQLite 里，但用户随时能看到、带走完整内容。
@@ -1358,7 +1409,11 @@ export class LocalMemoryRuntime {
     const steps = [
       (signal) => reconcilePendingMemories(this.requireStore(), { signal }),
       ...this.backgroundSteps,
-      (signal) => runMemoryConsolidation(this.requireStore(), { signal }),
+      (signal) =>
+        runMemoryConsolidation(this.requireStore(), {
+          signal,
+          excludeSpaceIds: this.excludedSpaceIds(),
+        }),
     ]
     this.backgroundPromise = (async () => {
       for (const step of steps) {

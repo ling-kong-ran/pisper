@@ -281,7 +281,7 @@ export function checkMemoryAnchors(store, hits) {
 }
 
 // Agent 或用户核对过文件后确认它仍然有效：刷新锚点，记一次证实。
-export function confirmMemory(store, id) {
+export function confirmMemory(store, id, { actor = 'user' } = {}) {
   const row = store.db.prepare('SELECT * FROM memories WHERE id = ?').get(id)
   if (!row) return null
   if (row.status !== 'active' && row.status !== 'stale') return store.getMemory(id)
@@ -296,7 +296,7 @@ export function confirmMemory(store, id) {
       .run(now, computeAnchorHash(row.source_path, row.cwd), now, now, id)
     store.indexFact(id)
     store.recordEvent({
-      actor: 'user',
+      actor,
       action: 'confirm',
       memoryIds: [id],
       spaceId: row.space_id,

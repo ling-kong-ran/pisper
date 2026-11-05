@@ -554,6 +554,54 @@ test('a consolidation run leaves a record of what it did', async () => {
   })
 })
 
+test('a merge can be undone: the older fact becomes current again', async () => {
+  const reply = () => '{"same":[1]}'
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-merge-undo-'))
+  const cwd = join(directory, 'project')
+  await mkdir(cwd)
+  const memory = new LocalMemoryRuntime({
+    path: join(directory, 'memory.sqlite'),
+    cwd,
+    modelClient: {
+      available: async () => true,
+      complete: async (request) => ({ text: reply(request), model: 'fake/model' }),
+    },
+  })
+  try {
+    await memory.init()
+    const older = memory.remember({
+      spaceId: 'global',
+      title: '回复语言',
+      content: '默认用中文回复用户的问题，代码注释和提交说明也都用中文，界面文案同样优先写中文版本',
+      topic: 'a.lang.one',
+    })
+    const newer = memory.remember({
+      spaceId: 'global',
+      title: '回复语言',
+      content: '默认用中文回复用户的问题，代码注释和提交说明也都用中文，界面文案同样优先写中文内容',
+      topic: 'b.lang.two',
+    })
+    memory
+      .requireDb()
+      .prepare('UPDATE memories SET valid_from = ? WHERE id = ?')
+      .run('2026-01-01T00:00:00.000Z', older.id)
+    await memory.consolidate({ force: true })
+    assert.equal(memory.getMemory(older.id).status, 'superseded')
+    assert.equal(memory.getMemory(older.id).supersededBy, newer.id)
+    const event = memory.listEvents({ spaceId: 'global' }).find((item) => item.reason === 'merge')
+    assert.ok(event?.undoable)
+    assert.ok(memory.undoEvent(event.id))
+    assert.equal(memory.getMemory(older.id).status, 'active')
+    assert.equal(
+      memory.listEvents({ spaceId: 'global' }).find((item) => item.id === event.id).undoable,
+      false,
+    )
+  } finally {
+    await memory.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('duplicates confirmed by the model merge into the newer fact, with a reason and a snapshot to undo', async () => {
   const client = fakeClient({
     reply: (request) => (request.purpose === 'merge' ? '```json\n{"same":[1]}\n```' : '总结'),

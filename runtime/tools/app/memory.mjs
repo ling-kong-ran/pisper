@@ -334,7 +334,7 @@ export function createMemoryConfirmTool({ cwd, memoryRuntime, getMemorySpaceIds 
         })
       )
         return textResult('No memory with this ID.')
-      const memory = memoryRuntime.confirmMemory(params.id)
+      const memory = memoryRuntime.confirmMemory(params.id, { actor: 'agent' })
       return textResult(`Confirmed: ${memory.title}`, memory)
     },
   })

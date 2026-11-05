@@ -964,3 +964,92 @@ test('compaction skips the flush when memory is off, not ready or the context is
   })
   assert.deepEqual(isolated.flushed, [])
 })
+
+test('deleting a memory also deletes the conversation turns it came from, and original text can be cleared', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-forget-episode-'))
+  const cwd = join(directory, 'project')
+  await mkdir(cwd)
+  const memory = new LocalMemoryRuntime({ path: join(directory, 'memory.sqlite'), cwd })
+  try {
+    await memory.init()
+    const linked = memory.recordEpisode({
+      sessionId: 's1',
+      spaceId: 'global',
+      user: '我的前公司是某某科技',
+      assistant: '好的',
+    })
+    const byEvidence = memory.recordEpisode({
+      sessionId: 's1',
+      spaceId: 'global',
+      user: '再说一次，我以前就职于某某科技集团',
+      assistant: '记下了',
+    })
+    const other = memory.recordEpisode({
+      sessionId: 's2',
+      spaceId: 'global',
+      user: '今天天气不错',
+      assistant: '是的',
+    })
+    const fact = memory.remember({
+      spaceId: 'global',
+      title: '前公司',
+      content: '用户的前公司是某某科技。',
+      sessionId: 's1',
+      episodeId: linked.id,
+      evidence: '我以前就职于某某科技集团',
+    })
+    const search = (text) =>
+      memory.search(text, {
+        spaceIds: ['global'],
+        kinds: ['episode'],
+        minScore: 0,
+        trackAccess: false,
+      })
+    assert.ok(search('某某科技').length >= 2)
+    memory.forget(fact.id)
+    assert.deepEqual(search('某某科技'), [])
+    const db = memory.requireDb()
+    assert.equal(db.prepare('SELECT 1 FROM memory_episodes WHERE id = ?').get(linked.id), undefined)
+    assert.equal(
+      db.prepare('SELECT 1 FROM memory_episodes WHERE id = ?').get(byEvidence.id),
+      undefined,
+    )
+    assert.ok(db.prepare('SELECT 1 FROM memory_episodes WHERE id = ?').get(other.id))
+    assert.equal(memory.clearEpisodes(), 1)
+    assert.deepEqual(search('天气'), [])
+  } finally {
+    await memory.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('switching the index mode rebuilds conversation turns and digests, not only facts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-reindex-'))
+  const cwd = join(directory, 'project')
+  const path = join(directory, 'memory.sqlite')
+  await mkdir(cwd)
+  const first = new LocalMemoryRuntime({ path, cwd })
+  await first.init()
+  first.recordEpisode({
+    sessionId: 's1',
+    spaceId: 'global',
+    user: '部署脚本在哪里',
+    assistant: '在 scripts 目录',
+  })
+  first.requireDb().prepare("UPDATE memory_meta SET value = 'scan' WHERE key = 'index_mode'").run()
+  await first.dispose()
+  const again = new LocalMemoryRuntime({ path, cwd })
+  try {
+    await again.init()
+    const found = again.search('部署脚本', {
+      spaceIds: ['global'],
+      kinds: ['episode'],
+      minScore: 0,
+      trackAccess: false,
+    })
+    assert.equal(found.length, 1)
+  } finally {
+    await again.dispose()
+    await rm(directory, { recursive: true, force: true })
+  }
+})

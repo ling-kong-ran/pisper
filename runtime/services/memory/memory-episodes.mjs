@@ -222,6 +222,45 @@ export function saveSessionCursor(store, sessionId, episodeAt) {
   })
 }
 
+// 用户删掉一条事实时，把能确定说过这件事的原文也删掉：事实指着的那一轮，
+// 以及同一会话里逐字包含它证据的轮次。一轮原文里还可能有别的话，但用户要删的内容优先。
+const MIN_EVIDENCE_CHARS = 8
+
+export function deleteEpisodesOfFacts(store, facts) {
+  const { db } = store
+  const ids = new Set()
+  const bySession = db.prepare(
+    'SELECT id FROM memory_episodes WHERE session_id = ? AND (instr(user_text, ?) > 0 OR instr(assistant_text, ?) > 0)',
+  )
+  for (const fact of facts) {
+    if (fact.episode_id) ids.add(fact.episode_id)
+    const evidence = String(fact.evidence || '')
+    if (fact.session_id && evidence.length >= MIN_EVIDENCE_CHARS) {
+      for (const row of bySession.all(fact.session_id, evidence, evidence)) ids.add(row.id)
+    }
+  }
+  const list = [...ids]
+  atomically(db, () => {
+    for (let start = 0; start < list.length; start += PRUNE_BATCH)
+      removeEpisodes(store, list.slice(start, start + PRUNE_BATCH))
+  })
+  return list.length
+}
+
+export function clearEpisodes(store, { spaceId = '' } = {}) {
+  const { db } = store
+  const list = db
+    .prepare("SELECT id FROM memory_episodes WHERE ? = '' OR space_id = ?")
+    .all(spaceId, spaceId)
+    .map((row) => row.id)
+  atomically(db, () => {
+    for (let start = 0; start < list.length; start += PRUNE_BATCH)
+      removeEpisodes(store, list.slice(start, start + PRUNE_BATCH))
+    if (!spaceId) db.exec('DELETE FROM memory_session_cursors')
+  })
+  return list.length
+}
+
 // 会话删了，它的原文和索引也要删。抽出来的事实是独立的长期记忆，保留，只去掉指针。
 export function deleteSessionEpisodes(store, sessionId) {
   const { db } = store

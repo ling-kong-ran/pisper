@@ -2,6 +2,7 @@
 // 摘要和画像都由事实派生、可以重算，它们不是真值，不能覆盖事实。
 // 规则阶段不需要模型：没配辅助模型时摘要就是要点列表，画像照常生成；LLM 只让摘要更好读、合并更准确。
 import { createHash } from 'node:crypto'
+import { authorityTier, memorySnapshot } from './memory-lifecycle.mjs'
 import { parseModelJson } from './memory-model-client.mjs'
 import { readMemoryMeta, writeMemoryMeta } from './memory-schema.mjs'
 import { jaccard, searchTokens } from './memory-tokenizer.mjs'
@@ -330,8 +331,6 @@ function ensureDigestsIndexed(store) {
   }
 }
 
-const authorityTier = (authority) => (authority >= 90 ? 3 : authority >= 40 ? 2 : 1)
-
 function mergeCandidates(db, spaceId) {
   const rows = db
     .prepare(
@@ -382,7 +381,7 @@ function applyMerge(store, pair, model) {
       action: 'merge',
       memoryIds: [newer.id, older.id],
       spaceId: older.space_id,
-      before: { [older.id]: store.memorySnapshot(older) },
+      before: { [older.id]: memorySnapshot(older) },
       reason: 'merge',
       model,
     })

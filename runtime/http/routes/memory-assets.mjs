@@ -152,6 +152,14 @@ export const memoryAssetRoutes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/memory/episodes/clear',
+    async handler({ runtime, body, json }) {
+      const input = await body()
+      json(200, runtime.clearMemoryEpisodes({ spaceId: String(input?.spaceId || '') }))
+    },
+  },
+  {
     method: 'GET',
     path: '/api/memory/export',
     handler({ runtime, url, json }) {

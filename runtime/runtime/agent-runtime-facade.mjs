@@ -258,6 +258,10 @@ export class AgentRuntimeFacade {
     return this.memory.consolidate({ force: true })
   }
 
+  clearMemoryEpisodes(input) {
+    return { cleared: this.memory.clearEpisodes(input) }
+  }
+
   exportMemory(input) {
     return this.memory.exportMarkdown(input)
   }

@@ -62,6 +62,13 @@ export function consolidateMemory() {
   return apiJson<{ ran: boolean }>('/api/memory/consolidate', { method: 'POST', body: '{}' })
 }
 
+export function clearMemoryEpisodes(spaceId = '') {
+  return apiJson<{ cleared: number }>('/api/memory/episodes/clear', {
+    method: 'POST',
+    body: JSON.stringify({ spaceId }),
+  })
+}
+
 export function exportMemoryMarkdown(spaceId = '') {
   const params = new URLSearchParams()
   if (spaceId) params.set('spaceId', spaceId)
