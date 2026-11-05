@@ -23,9 +23,11 @@ import {
 } from './memory-retrieval.mjs'
 import { reconcilePendingMemories } from './memory-reconcile.mjs'
 import {
+  authorityTier,
   checkMemoryAnchors,
   computeAnchorHash,
   confirmMemory,
+  memorySnapshot,
   restoreMemory,
   sweepMemoryLifecycle,
   undoMemoryEvent,
@@ -61,7 +63,6 @@ const SOURCE_AUTHORITIES = {
   agent: 40,
   external: 20,
 }
-const authorityTier = (authority) => (authority >= 90 ? 3 : authority >= 40 ? 2 : 1)
 const BROAD_TOPIC_SEGMENTS = new Set([
   'architecture',
   'config',
@@ -211,26 +212,6 @@ function itemFromHit(hit) {
   }
 }
 
-const EVENT_SNAPSHOT_FIELDS = [
-  'status',
-  'superseded_by',
-  'superseded_at',
-  'valid_to',
-  'archived_at',
-  'archive_reason',
-  'title',
-  'content',
-  'type',
-  'importance',
-  'authority',
-  'pinned',
-  'expires_at',
-]
-
-export function memorySnapshot(row) {
-  return Object.fromEntries(EVENT_SNAPSHOT_FIELDS.map((field) => [field, row[field] ?? null]))
-}
-
 export class LocalMemoryRuntime {
   constructor({
     path,
@@ -298,6 +279,7 @@ export class LocalMemoryRuntime {
       now: () => this.now(),
       isoNow: () => this.isoNow(),
       getMemory: (id) => this.getMemory(id),
+      transaction: (run) => this.transaction(run),
       indexFact: (id) => this.indexFact(id),
       recordEvent: (event) => this.recordEvent(event),
       markDerivedDirty: (ids, options) => this.markDerivedDirty(ids, options),
@@ -857,7 +839,7 @@ export class LocalMemoryRuntime {
         evidenceRole,
         tainted ? 1 : 0,
         cleanText(input.episodeId, 180),
-        computeAnchorHash(input.sourcePath),
+        computeAnchorHash(input.sourcePath, input.cwd),
         blockedBy ? now : null,
         blockedBy ? 'lower_authority_conflict' : '',
         // 已归档的、被污染的不参与对账：它们不能影响现有事实。
@@ -953,7 +935,7 @@ export class LocalMemoryRuntime {
         cleanIso(input.expiresAt ?? current.expiresAt) || null,
         now,
         (input.pinned ?? current.pinned) ? 1 : 0,
-        computeAnchorHash(sourcePath),
+        computeAnchorHash(sourcePath, input.cwd ?? current.cwd),
         cleanIso(input.validFrom) || null,
         contentChanged ? 'pending' : current.semanticStatus,
         now,
@@ -1428,4 +1410,10 @@ function scopeLabelFor(spaceId) {
 
 const asFact = (memory) => ({ ...memory, kind: 'fact' })
 
-export { canonicalProjectPath, initializeMemoryFullTextSearch, stableProjectId, topicIdentity }
+export {
+  canonicalProjectPath,
+  initializeMemoryFullTextSearch,
+  memorySnapshot,
+  stableProjectId,
+  topicIdentity,
+}
