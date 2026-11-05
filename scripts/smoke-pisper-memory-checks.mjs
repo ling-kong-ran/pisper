@@ -206,6 +206,33 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
   await row.waitFor()
   report.checks.push('A replaced fact moves to past versions and shows in the version history')
 
+  // 时间轴是演算视图的主角：有记忆时一进来就要在首屏里，不能靠滚动才找得到。
+  await layout.getByRole('tab', { name: '演算', exact: true }).click()
+  const evolution = layout.locator('[data-memory-evolution]')
+  await evolution.waitFor()
+  const axis = evolution.getByRole('slider')
+  await axis.waitFor()
+  const axisBox = await axis.boundingBox()
+  assert.ok(
+    axisBox && axisBox.y + axisBox.height <= page.viewportSize().height,
+    '时间轴被挤出了首屏',
+  )
+  // 键盘能拖动时间轴，舞台读数跟着变。
+  await page.keyboard.press('Escape')
+  await evolution.locator('[data-memory-evolution-now]').click()
+  await axis.focus()
+  const atBefore = await evolution.getAttribute('data-at')
+  await page.keyboard.press('Home')
+  await page.waitForFunction(
+    (before) =>
+      document.querySelector('[data-memory-evolution]')?.getAttribute('data-at') !== before,
+    atBefore,
+  )
+  await evolution.locator('[data-memory-evolution-now]').click()
+  report.checks.push(
+    'Memory evolution keeps the time axis above the fold and scrubs from the keyboard',
+  )
+
   await layout.getByRole('tab', { name: '整理记录', exact: true }).click()
   const activity = layout.locator('[data-memory-event]')
   await activity.first().waitFor()

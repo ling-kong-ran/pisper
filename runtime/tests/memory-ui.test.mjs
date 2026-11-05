@@ -111,3 +111,15 @@ test('on a Monday this week is just today and yesterday falls in last week’s m
     ['today', 'yesterday', 'month'],
   )
 })
+
+test('the time axis stays above the fold, whatever the page header measures', async () => {
+  const stage = await readFile('src/features/memory/MemoryEvolution.tsx', 'utf8')
+  // 舞台高度量真实可用空间，不能写死页头高度：页头一变，时间轴就被挤出首屏。
+  assert.match(stage, /scroller\.clientHeight - top - STAGE_BOTTOM_GAP/)
+})
+
+test('activity entries for consolidation read as sentences, not machine codes', async () => {
+  const labels = await readFile('src/features/memory/memory-labels.ts', 'utf8')
+  assert.match(labels, /consolidate: \{/)
+  assert.match(labels, /digests:\(\\d\+\) merged:\(\\d\+\)/)
+})

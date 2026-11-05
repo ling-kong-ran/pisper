@@ -56,6 +56,11 @@ export type MemoryEvolutionProps = {
 }
 
 // 舞台是恒定的深色场景，亮色主题下也一样：把主题 token 就地改成深色值，里面的基础控件不用逐个覆盖样式。
+const STAGE_MIN_HEIGHT = 400
+const STAGE_MIN_HEIGHT_NARROW = 540
+const STAGE_MAX_HEIGHT = 880
+const STAGE_BOTTOM_GAP = 16
+
 const STAGE_TOKENS = {
   colorScheme: 'dark',
   '--text': 'rgba(246, 240, 228, 0.96)',
@@ -144,6 +149,7 @@ export function MemoryEvolution({
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null)
   const [detail, setDetail] = useState<MemoryDetail | null>(null)
   const [breakout, setBreakout] = useState<{ width: number; offset: number } | null>(null)
+  const [stageHeight, setStageHeight] = useState(0)
   const [histogramWidth, setHistogramWidth] = useState(0)
 
   const wrapperRef = useRef<HTMLDivElement | null>(null)
@@ -410,6 +416,17 @@ export function MemoryEvolution({
       const width = Math.min(available - gutter * 2, 1280)
       const own = wrapper.clientWidth
       setBreakout(width > own ? { width, offset: (own - width) / 2 } : { width: own, offset: 0 })
+      // 时间轴是这个视图的主角，一进来就要看得到：页头多高不是这里能假设的，量出来再定舞台高度。
+      const stage = stageRef.current
+      if (stage) {
+        const top =
+          stage.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top +
+          scroller.scrollTop
+        const room = scroller.clientHeight - top - STAGE_BOTTOM_GAP
+        const min = available <= 650 ? STAGE_MIN_HEIGHT_NARROW : STAGE_MIN_HEIGHT
+        setStageHeight(Math.round(Math.min(STAGE_MAX_HEIGHT, Math.max(min, room))))
+      }
     }
     update()
     const observer = new ResizeObserver(update)
@@ -867,6 +884,7 @@ export function MemoryEvolution({
         style={{
           ...STAGE_TOKENS,
           ...(stageWidth ? { width: stageWidth, marginLeft: breakout?.offset ?? 0 } : {}),
+          ...(stageHeight ? { height: stageHeight } : {}),
         }}
         className="@container relative isolate h-[clamp(560px,calc(100dvh-196px),880px)] overflow-hidden rounded-xl bg-[var(--evo-base)] text-content select-none max-[650px]:h-[clamp(540px,calc(100dvh-132px),780px)] max-[650px]:rounded-none"
       >

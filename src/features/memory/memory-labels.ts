@@ -125,6 +125,7 @@ export function memoryEventPresentation(action: string, t: Translate) {
     undo: { icon: Undo2, label: () => t('memory:memoryPage.eventUndo') },
     reinforce: { icon: RefreshCw, label: () => t('memory:memoryPage.eventReinforce') },
     migrate: { icon: History, label: () => t('memory:memoryPage.eventMigrate') },
+    consolidate: { icon: GitMerge, label: () => t('memory:memoryPage.eventConsolidate') },
   }
   const entry = byAction[action]
   return entry
@@ -153,6 +154,15 @@ export function memoryReasonLabel(reason: string, t: Translate) {
     return t('memory:memoryPage.reasonLowUtility')
   if (reason === 'user_deleted') return t('memory:memoryPage.reasonUserDeleted')
   if (reason === 'user_requested') return t('memory:memoryPage.reasonUserRequested')
+  const consolidated = /^digests:(\d+) merged:(\d+)$/.exec(reason)
+  if (consolidated) {
+    const digests = Number(consolidated[1])
+    const merged = Number(consolidated[2])
+    if (digests && merged) return t('memory:memoryPage.reasonConsolidatedBoth', { digests, merged })
+    return merged
+      ? t('memory:memoryPage.reasonConsolidatedMerged', { merged })
+      : t('memory:memoryPage.reasonConsolidatedDigests', { digests })
+  }
   const promoted = /^promoted (\d+) pending candidates$/.exec(reason)
   if (promoted) return t('memory:memoryPage.reasonPromoted', { count: Number(promoted[1]) })
   return reason
