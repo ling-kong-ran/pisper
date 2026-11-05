@@ -179,7 +179,7 @@ function fakeRuntime({ agents = [], messages = [], unattended = false } = {}) {
       resolveSubagentModel: async ({ modelRef }) =>
         modelRef === 'nova/coder' ? { model: { provider: 'nova', id: 'coder' } } : { model: null },
     },
-    botMemory: { list: async () => [], read: async () => ({ entries: [], tidiedAt: null }) },
+    botMemory: { list: async () => [], agentContext: async () => '' },
     schedules: {
       getState: () => ({
         tasks: [{ id: 'sch_1', targetType: 'bot', botId: bot.id, botMessage: 'x' }],

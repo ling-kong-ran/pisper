@@ -64,7 +64,7 @@ export const manifests = [
 
 const HISTORY_NOTE = '(replaced by a newer version)'
 
-function memoryLine(item) {
+export function memoryLine(item) {
   if (item.kind === 'digest')
     return `[${item.id}] [digest ${item.level} ${String(item.windowStart).slice(0, 10)}]\n${item.content}`
   if (item.kind === 'episode')
@@ -153,7 +153,7 @@ export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }
   })
 }
 
-function isoDate(value) {
+export function isoDate(value) {
   const time = Date.parse(String(value || ''))
   return Number.isNaN(time) ? null : new Date(time).toISOString()
 }

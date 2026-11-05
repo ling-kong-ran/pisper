@@ -143,7 +143,7 @@ function twoBots() {
     spawned,
     bots: { list: () => bots, get: (id) => bots.find((bot) => bot.id === id) || null },
     botLinks: new BotLinkService(),
-    botMemory: { list: async () => [] },
+    botMemory: { list: async () => [], agentContext: async () => '' },
     multiAgents: { list: () => [] },
     providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
     messageBot: async (botId, input) => {

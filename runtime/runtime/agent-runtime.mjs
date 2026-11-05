@@ -728,8 +728,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         )
       },
     })
-    // 每个 Bot 自己的一份记忆（不读写全局记忆）。
-    this.botMemory = new BotMemoryService({ dataDir })
+    // 每个 Bot 的记忆是引擎里的一个独立空间：只写自己的，全局默认只读。
+    this.botMemory = new BotMemoryService({
+      dataDir,
+      memory: this.memory,
+      waitForMemory: () => this.waitForInitialization('memory'),
+      getBotName: (id) => this.bots?.get(id)?.name || '',
+    })
     // 每个 Bot 自己写的技能（做完复盘写入，它派出的子 agent 自动带上）。
     this.botSkills = new BotSkillService({ dataDir })
     // Bot 之间的来往（只在内存里）：哪条链在等谁回话、跳数与频率限制。
@@ -744,6 +749,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.botProactiveTimer = null
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
+    // 渠道、定时、别的 Bot 叫起来的那一轮：运行开始时取走，写到 value.botTurnTrust。
+    this.botPendingTrust = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))
     this.sessionMetaWrite = Promise.resolve()
     this.usageLedger = { days: {}, sessionScans: {} }
@@ -2393,8 +2400,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   ) {
     // 没有人在场的运行（定时任务、工作流节点、外部 MCP 调用）：本轮不提供 ask_user（规格 8.4）。
     value.unattendedRun = Boolean(unattended)
+    value.botTurnTrust = this.takeBotTurnTrust(value.session?.sessionId || sessionId, unattended)
     // Bot 的会话：不管这句话来自应用、聊天还是定时任务，每一轮都按 Bot 的设定跑——工具范围取 Bot 的
-    // tools（null 为当前启用的全部），上下文隔离（不读其他会话与全局记忆）。设定在 Bot 被删或
+    // tools（null 为当前启用的全部），上下文隔离（不读其他会话；记忆走它自己的空间）。设定在 Bot 被删或
     // Bots 实验功能关掉后不再套用，会话照常可用。
     const bot = this.botForSession?.(value.session?.sessionId || sessionId)
     if (bot) {
@@ -2454,17 +2462,28 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     // 记忆检索只依赖本条消息、工作目录和当前上下文：提前发起，与目标调度、标题落盘、附件归档并行，
     // 到组装提示词时再取结果。先挂一个空 catch，准备阶段提前抛错时不留下未处理的 rejection。
+    const memoryInitialized = !this.memoryReady || this.initialization.memory === 'ready'
     const memoryContextEnabled =
-      !value.isolatedContext &&
-      value.enabledTools?.includes('memory_search') &&
-      (!this.memoryReady || this.initialization.memory === 'ready')
-    const memoryContextPromise = memoryContextEnabled
-      ? Promise.resolve().then(() =>
-          this.memory.relevantContext(message, value.cwd, undefined, {
-            excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
-          }),
-        )
-      : Promise.resolve({ text: '', memories: [] })
+      memoryInitialized && !value.isolatedContext && value.enabledTools?.includes('memory_search')
+    // Bot 的会话走它自己的空间（默认只读全局画像），不受普通会话的工具开关影响。
+    const memoryContextPromise =
+      memoryInitialized && bot
+        ? Promise.resolve().then(() => {
+            const userTexts = contextUserTexts(session.messages)
+            return this.botMemory.turnContext(bot, {
+              message,
+              cwd: value.cwd,
+              userTexts,
+              excludeIds: injectedMemoryIds(userTexts),
+            })
+          })
+        : memoryContextEnabled
+          ? Promise.resolve().then(() =>
+              this.memory.relevantContext(message, value.cwd, undefined, {
+                excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
+              }),
+            )
+          : Promise.resolve({ text: '', memories: [] })
     memoryContextPromise.catch(() => {})
     // 用量统计只依赖会话已有消息（长会话要扫一遍，可达上百毫秒）：与下面的准备步骤并行，建立 live 时再取。
     const sessionUsagePromise = measureRunStage(
@@ -3354,7 +3373,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     } catch {
       console.warn('看板卡片摘要记录失败。')
     }
-    // Bot 的对话这一轮说完：收尾（把回话交给别的 Bot、回复发回聊天、整理记忆）。
+    // Bot 的对话这一轮说完：收尾（把回话交给别的 Bot、回复发回聊天）。
     // 只记下“该收尾了”，等这一轮真正放下运行标记再排（streamPrompt 的收尾）：否则这时交回来的完成通知
     // 会 steer 进已经结束的这一轮。
     if (value.conversationOnly && !error && !value.abortedAt) value.botTurnDue = true

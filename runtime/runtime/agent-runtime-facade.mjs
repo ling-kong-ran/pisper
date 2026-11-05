@@ -26,10 +26,10 @@ import {
   parseBotSkillReview,
   resolveBotAgent,
 } from '../services/bots/bot-conversation.mjs'
-import { botTurnTrigger, requestBotMemoryTidy, requestBotText } from './bot-decisions.mjs'
+import { botTurnTrigger, requestBotText } from './bot-decisions.mjs'
 import { normalizeQuestions } from '../services/session-question-service.mjs'
 import { botAnswerText, botScheduleInput } from '../services/bots/bot-schedule-input.mjs'
-import { botMemoryContext } from '../services/bots/bot-memory-service.mjs'
+import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-service.mjs'
 import { botSkillsContext } from '../services/bots/bot-skill-service.mjs'
 import {
   BOT_PROACTIVE_NOTE,
@@ -1070,6 +1070,8 @@ export class AgentRuntimeFacade {
       })
     const message = normalizeBotMessage(text)
     const sessionId = await this.ensureBotSession(botId)
+    // 这句话是谁说的，决定这一轮 bot_remember 写入的可信度：外部的话不能冒充用户的话。
+    const trust = botSourceTrust(source)
     if (this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)) {
       // 对话正在说话：定时的话排在这一轮之后；别的话（聊天、别的 Bot、问题的回答）插进来马上处理，不阻塞。
       // 聊天来的话，这一轮说完后把回复发回那个聊天（afterBotTurn）。
@@ -1083,34 +1085,45 @@ export class AgentRuntimeFacade {
       }).catch(() => null)
       if (queued) {
         if (source.kind === 'channel') (value.pendingChatReplies ||= []).push(source)
+        if (value) value.botTurnTrust = stricterBotTrust(value.botTurnTrust, trust)
         return { sessionId, status: 'queued' }
       }
       // 正好在这一刻说完了：当成新的一句发进去。
     }
     if (source.kind === 'channel') this.botChatOrigins.set(sessionId, source)
+    // 运行开始时取走（runSessionPrompt）。
+    this.botPendingTrust?.set(sessionId, trust)
     void this.promptFromChannel({
       sessionId,
       message,
       unattended: source.kind === 'schedule' || source.kind === 'bot',
     })
       .then((result) => this.notifyBotChat(source, botReplyText(bot.name, result)))
-      .catch((error) =>
-        this.notifyBotChat(
+      .catch((error) => {
+        this.botPendingTrust?.delete(sessionId)
+        return this.notifyBotChat(
           source,
           botReplyText(bot.name, { error: error instanceof Error ? error.message : String(error) }),
-        ),
-      )
+        )
+      })
       .finally(() => {
         if (this.botChatOrigins.get(sessionId) === source) this.botChatOrigins.delete(sessionId)
       })
     return { sessionId, status: 'started' }
   }
 
+  // 一轮开始时定下这一轮的话是谁说的（见 botSourceTrust），bot_remember 按它定可信度。
+  // 不是 messageBot 叫起来的：有人在场就是应用里的用户，没人在场（定时、子 agent 做完的唤醒）不能算用户说的。
+  takeBotTurnTrust(sessionId, unattended = false) {
+    const pending = this.botPendingTrust?.get(sessionId)
+    this.botPendingTrust?.delete(sessionId)
+    return pending || (unattended ? 'agent' : 'user')
+  }
+
   // Bot 的对话每轮附带的状态快照：手上的子 agent 与后台命令、各自状态与最近进展、在等几个批准、
-  // 可以挑的模型、可以找的别的 Bot、它记得的事与会的技能。
+  // 可以挑的模型、可以找的别的 Bot、会的技能。记忆不在这里：相关的按这句话检索后单独注入（见 turnContext）。
   async botStateContext(sessionId) {
     const bot = this.botForSession(sessionId)
-    const memory = bot ? await this.botMemory?.list(bot.id).catch(() => []) : []
     const skills = bot ? await this.botSkills?.list(bot.id).catch(() => []) : []
     const models = bot
       ? await this.providerPreferences?.availableChatModelRefs?.().catch(() => [])
@@ -1133,7 +1146,6 @@ export class AgentRuntimeFacade {
         models: models || [],
         bots,
       }),
-      botMemoryContext(memory || []),
       botSkillsContext(skills || []),
     ]
       .filter(Boolean)
@@ -1155,7 +1167,7 @@ export class AgentRuntimeFacade {
   }
 
   // 收尾：别的 Bot 在等回话的，把回复交回去；聊天在它说话时发来的话，把回复发回那个聊天；
-  // 巡看结果用完就忘掉标记；手上没活时顺手看看记忆该不该整理。
+  // 巡看结果用完就忘掉标记。记忆的整理归统一的后台整理，不在这里。
   async afterBotTurn(sessionId) {
     const value = this.sessions.get(sessionId)
     const bot = this.botForSession(sessionId)
@@ -1167,8 +1179,6 @@ export class AgentRuntimeFacade {
     for (const source of (value.pendingChatReplies || []).splice(0))
       this.notifyBotChat(source, botReplyText(bot.name, { text: trigger.reply }))
     for (const id of trigger.completedAgents) this.botProactiveAgents?.delete(id)
-    if (!this.multiAgents?.hasActive(sessionId))
-      await this.tidyBotMemory(bot, value).catch(() => console.warn('[bots] 记忆整理没能完成。'))
     return trigger
   }
 
@@ -1278,13 +1288,23 @@ export class AgentRuntimeFacade {
           text: `Scheduled (${created?.id || 'ok'}): ${created?.frequency || ''} ${created?.date || ''} ${created?.time || ''} ${created?.timezone || ''}. At that time the message arrives here.`,
         }
       },
-      remember: async ({ text, source }) => {
-        const result = await act({ type: 'remember', text, source })
-        return { ...result, text: 'Remembered.' }
+      remember: async ({ text, source, again }) => {
+        const result = await act({ type: 'remember', text, source, again })
+        return {
+          ...result,
+          text: result.skipped
+            ? 'Not stored: the user deleted this memory earlier. If they have just asked you to remember it again, call bot_remember with again=true; otherwise leave it.'
+            : 'Remembered.',
+        }
       },
       forget: async ({ memory }) => {
         const result = await act({ type: 'forget', memory })
         return { ...result, text: 'Forgotten.' }
+      },
+      recall: async (input) => {
+        const { bot } = context()
+        const memories = await this.botMemory.search(bot, input)
+        return { type: 'recall', count: memories.length, memories }
       },
       message: async ({ bot, text, expectsReply }) => {
         const result = await act({ type: 'message', bot, text, expectsReply }, { work: true })
@@ -1298,37 +1318,22 @@ export class AgentRuntimeFacade {
     }
   }
 
-  // 每日整理：记忆有 10 条以上、离上次整理过了一天时，请模型合并重复、删掉过期的（只能保留或改写已有条目）。
-  async tidyBotMemory(bot, value, { force = false } = {}) {
-    const state = await this.botMemory.read(bot.id)
-    const due = !state.tidiedAt || Date.now() - Date.parse(state.tidiedAt) >= 24 * 60 * 60 * 1000
-    if (!force && (!due || state.entries.length < 10)) return null
-    const result = await requestBotMemoryTidy({
-      modelRuntime: this.modelRuntime,
-      model: value.session.model,
-      entries: state.entries,
-    })
-    if (result.usage) {
-      await this.recordUsage(
-        localDayKey(),
-        `bot-tidy:${bot.id}:${randomUUID()}`,
-        result.usage,
-      ).catch(() => {})
-    }
-    if (!result.kept) return this.botMemory.markTidied(bot.id)
-    return this.botMemory.replaceAfterTidy(bot.id, result.kept)
-  }
-
   async executeBotDecision(sessionId, value, bot, decision, trigger = null) {
     if (decision.type === 'message') return this.sendBotMessage(bot, decision, trigger)
     if (decision.type === 'remember') {
-      const entry = await this.botMemory.remember(bot.id, decision.text, decision.source)
-      return { type: 'remember', id: entry.id }
+      const entry = await this.botMemory.remember(bot.id, decision.text, decision.source, {
+        trust: value?.botTurnTrust,
+        again: decision.again,
+      })
+      return entry.forgotten
+        ? { type: 'remember', id: '', skipped: 'forgotten' }
+        : { type: 'remember', id: entry.id }
     }
     if (decision.type === 'forget') {
-      // 对话里看到的是短 id（mem_ 后面 6 位）：只认唯一对上的那一条。
+      // 给完整 id 或它的前几位都行（不带 mem_ 也行）：只认唯一对上的那一条。
+      const prefix = decision.memory.replace(/^mem_/, '')
       const entries = await this.botMemory.list(bot.id)
-      const matches = entries.filter((entry) => entry.id.slice(4).startsWith(decision.memory))
+      const matches = entries.filter((entry) => entry.id.slice(4).startsWith(prefix))
       if (matches.length !== 1) throw new Error('要忘掉的记忆对不上。')
       await this.botMemory.forget(bot.id, { id: matches[0].id })
       return { type: 'forget', id: matches[0].id }
@@ -1338,7 +1343,7 @@ export class AgentRuntimeFacade {
       const chosen = decision.model
         ? await this.providerPreferences.resolveSubagentModel({ modelRef: decision.model })
         : null
-      const instructions = await this.botAgentInstructions(bot)
+      const instructions = await this.botAgentInstructions(bot, decision.task)
       const agent = await value.multiAgentRuntime.spawn({
         taskName: decision.title,
         title: decision.title,
@@ -1375,9 +1380,9 @@ export class AgentRuntimeFacade {
     return { type: 'stop', id: agent.id }
   }
 
-  // 子 agent 带上 Bot 的工作说明与记忆：它不记事，背景从这里来。
-  async botAgentInstructions(bot) {
-    const memory = botMemoryContext(await this.botMemory.list(bot.id).catch(() => []))
+  // 子 agent 带上 Bot 的工作说明与记忆：它不记事，背景从这里来。记忆是画像加上和这件活相关的那些。
+  async botAgentInstructions(bot, task = '') {
+    const memory = await this.botMemory.agentContext(bot, { task, cwd: bot.workspace?.cwd })
     return [
       String(bot.instructions || '').trim()
         ? `[${bot.name} 的工作说明]\n${bot.instructions.trim()}`

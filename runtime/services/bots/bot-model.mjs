@@ -253,6 +253,9 @@ export function normalizeBotInput(input, current = null) {
   const thinking = THINKING_LEVELS.has(String(merged.thinking))
     ? String(merged.thinking)
     : undefined
+  // 默认能只读用户的全局记忆：用户的偏好不用每个 Bot 再教一遍。
+  if (merged.readGlobalMemory !== undefined && typeof merged.readGlobalMemory !== 'boolean')
+    throw invalid('bot_read_global_memory_invalid', '“读取全局记忆”必须是开或关。')
   return {
     name,
     avatar: normalizeAvatar(merged.avatar, name),
@@ -268,6 +271,7 @@ export function normalizeBotInput(input, current = null) {
     channels,
     defaultIn: normalizeDefaultIn(merged.defaultIn, channels),
     maxParallelAgents: normalizeParallel(merged.maxParallelAgents),
+    readGlobalMemory: merged.readGlobalMemory !== false,
     // 只改其中一项时保留其余几项。
     proactive: normalizeProactive({ ...record(current?.proactive), ...record(patch.proactive) }),
   }

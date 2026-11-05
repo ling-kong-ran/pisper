@@ -43,6 +43,8 @@ export type Bot = {
   activity: BotActivity | null
   // 同时跑几个子 agent（1–6，默认 3）。
   maxParallelAgents: number
+  // 是否只读用户的全局记忆（默认开）。写入永远只写它自己的那份。
+  readGlobalMemory: boolean
   // 主动（默认关）：空闲时每隔几小时只读巡看；每天定时写简报。
   proactive: BotProactive
 }
@@ -157,6 +159,7 @@ export function parseBot(value: unknown): Bot {
       Number(input.maxParallelAgents) <= 6
         ? Number(input.maxParallelAgents)
         : 3,
+    readGlobalMemory: input.readGlobalMemory !== false,
     proactive: parseProactive(input.proactive),
   }
 }

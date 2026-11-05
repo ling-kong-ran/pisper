@@ -151,7 +151,13 @@ export function BotDetails({
             </span>
           </AccordionTrigger>
           <AccordionContent className="h-auto">
-            <BotMemorySection bot={bot} onError={onError} onCount={setMemoryCount} />
+            <BotMemorySection
+              bot={bot}
+              saving={saving}
+              onError={onError}
+              onCount={setMemoryCount}
+              onReadGlobalChange={(readGlobalMemory) => void save({ readGlobalMemory })}
+            />
           </AccordionContent>
         </AccordionItem>
         {/* 它学会的：做完活复盘时自己写的技能。展开时才加载。 */}

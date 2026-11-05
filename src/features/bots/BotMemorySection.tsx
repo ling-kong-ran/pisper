@@ -1,11 +1,12 @@
 // Bot 设置页的“记忆”分区：它自己记得的事，一条一条地看、改、删，也能手动加一条。
-// 对话里说“记住…”“以后别…”、做完复盘也会写进来；每天空闲时它会整理一次（合并重复、去掉过期的）。
+// 对话里说“记住…”“以后别…”、做完复盘也会写进来，直接生效。上面的开关决定它能不能只读用户的全局记忆。
 import { useEffect, useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   addBotMemory,
   deleteBotMemory,
@@ -17,12 +18,16 @@ import {
 
 export function BotMemorySection({
   bot,
+  saving = false,
   onError,
   onCount,
+  onReadGlobalChange,
 }: {
   bot: Bot
+  saving?: boolean
   onError: (message: string) => void
   onCount?: (count: number) => void
+  onReadGlobalChange?: (readGlobalMemory: boolean) => void
 }) {
   const { t } = useI18n()
   const [entries, setEntries] = useState<BotMemoryEntry[] | null>(null)
@@ -75,6 +80,19 @@ export function BotMemorySection({
   return (
     <div className="flex flex-col gap-2">
       <p className="m-0 text-xs text-content-muted">{t('bots:memory.hint', { name: bot.name })}</p>
+      {onReadGlobalChange && (
+        <label className="flex items-center justify-between gap-3 text-sm">
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span>{t('bots:memory.readGlobal')}</span>
+            <span className="text-xs text-content-muted">{t('bots:memory.readGlobalHint')}</span>
+          </span>
+          <Switch
+            checked={bot.readGlobalMemory}
+            disabled={saving}
+            onCheckedChange={onReadGlobalChange}
+          />
+        </label>
+      )}
       {entries && !entries.length && (
         <InlineEmptyState compact title={t('bots:memory.empty', { name: bot.name })} />
       )}

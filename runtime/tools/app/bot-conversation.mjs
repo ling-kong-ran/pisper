@@ -1,10 +1,11 @@
 // Bot 对话专用工具（v2.1）：对话自己能读、查、小改、跑短命令，长的、要批准的交给子 agent；这些工具是它当经理用的手：
-// 派活 / 补充 / 停、问用户（问题卡片，发出就结束等待，回答作为下一条消息回来）、给自己定时、记住 / 忘掉、
+// 派活 / 补充 / 停、问用户（问题卡片，发出就结束等待，回答作为下一条消息回来）、给自己定时、记住 / 忘掉 / 回忆、
 // 找别的 Bot。都不阻塞：派出去的活、问题、定时都立即返回。只装在 Bot 的对话上（不是子 agent、不是普通会话），
 // 真正的执行（工具范围、记忆、技能、跳数与频率限制、“这一轮只出建议”）在运行时里校验。
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { ASK_USER_QUESTION_SCHEMA } from './ask-user.mjs'
+import { isoDate, memoryLine } from './memory.mjs'
 
 export { BOT_CONVERSATION_TOOL_NAMES } from './bot-conversation-tool-names.mjs'
 
@@ -132,6 +133,12 @@ export function createBotConversationTools({ runtime }) {
             ['told', 'correction', 'review', 'proactive'].map((value) => Type.Literal(value)),
           ),
         ),
+        again: Type.Optional(
+          Type.Boolean({
+            description:
+              'Only when the user just asked again to remember something they had deleted.',
+          }),
+        ),
       }),
       execute: call('remember'),
     }),
@@ -139,9 +146,58 @@ export function createBotConversationTools({ runtime }) {
       name: 'bot_forget',
       label: 'Forget',
       description:
-        'Forget a memory the user says is wrong or no longer true (short id from [你记得的事]).',
+        'Forget a memory the user says is wrong or no longer true. Use its id from <pisper_memory_context> or bot_recall; the first 6 characters after mem_ are enough.',
       parameters: Type.Object({ memory: Type.String({ minLength: 1, maxLength: 64 }) }),
       execute: call('forget'),
+    }),
+    defineTool({
+      name: 'bot_recall',
+      label: 'Recall',
+      description:
+        'Search your memory. What relates to the current message is already attached to it; use this for anything else: older things, what happened in a period, how something changed. Pass the question and rewordings, including the other language (Chinese and English), because search matches words.',
+      promptSnippet: 'Search your own memory beyond what is attached to this message',
+      parameters: Type.Object({
+        query: Type.String({ minLength: 1, maxLength: 2000 }),
+        queries: Type.Optional(
+          Type.Array(Type.String({ minLength: 1, maxLength: 400 }), {
+            maxItems: 3,
+            description: 'Rewordings of the query, for example in the other language.',
+          }),
+        ),
+        since: Type.Optional(Type.String({ description: 'Only results from this ISO date on.' })),
+        until: Type.Optional(Type.String({ description: 'Only results before this ISO date.' })),
+        include_history: Type.Optional(
+          Type.Boolean({ description: 'Also return facts that a newer version has replaced.' }),
+        ),
+        order: Type.Optional(
+          Type.Union(
+            [Type.Literal('relevance'), Type.Literal('recent'), Type.Literal('chronological')],
+            { description: 'relevance (default), recent first, or oldest first.' },
+          ),
+        ),
+        level: Type.Optional(
+          Type.Union([Type.Literal('facts'), Type.Literal('digests')], {
+            description: 'facts (default), or summaries by day, week and month first.',
+          }),
+        ),
+      }),
+      execute: async (_toolCallId, params = {}) => {
+        const result = await runtime.recall({
+          query: params.query,
+          queries: params.queries || [],
+          since: isoDate(params.since),
+          until: isoDate(params.until),
+          includeHistory: params.include_history,
+          order: params.order,
+          level: params.level,
+        })
+        return text({
+          ...result,
+          text: result.memories.length
+            ? result.memories.map(memoryLine).join('\n\n')
+            : 'No related memories found.',
+        })
+      },
     }),
     defineTool({
       name: 'bot_message',

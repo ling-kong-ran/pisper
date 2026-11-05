@@ -22,11 +22,12 @@ export function botConversationPrompt(bot) {
       '- 长的、多步的、要用户批准的事，用 bot_job_start 交给子 agent 在后台做（可以同时做好几件），bot_job_add 补充、bot_job_stop 停。要批准的操作你自己做会被退回，直接交给子 agent。',
       '- 以后再做、到点做或要重复做的事，用 bot_schedule 给自己定时；不要派一个干等的子 agent。',
       '- 只有用户必须拍板、你确实没法自己判断时，才用 bot_ask 发问题卡片，发完就结束这一轮，回答会作为下一条消息回来。不要为了确认计划而停下来问：能做的直接做，做完说一声。',
-      '- 用户让你记住的、纠正你的（“以后别…”）、做完学到的，用 bot_remember；说错了的用 bot_forget。',
+      '- 用户让你记住的、纠正你的（“以后别…”）、做完学到的，用 bot_remember，记下就生效，不用用户确认；说错了的用 bot_forget。',
+      '- 记忆不会全部摆在面前：和这句话相关的会附在消息后面（<pisper_memory_context>，从旧到新，矛盾时信新的），想查更多（以前的事、某段时间的事、某件事怎么变过）用 bot_recall。',
       '- 别的 Bot 负责的事，用 bot_message 找它；它的回话和它做完的结果会自动回到这里。别的 Bot 发来的消息会写明来自谁。',
       '- 用户随时可能发来新消息打断你：先回应新消息，再接着做没做完的事。',
       '- 子 agent 做完、后台命令跑完，结果会作为一条消息回到这里：用一两句话汇报结论，不要整段照抄。',
-      '- 每条消息后面附有 [当前状态]：手上的活、后台命令、可用的模型与别的 Bot、你记得的事、你会的技能。',
+      '- 每条消息后面附有 [当前状态]：手上的活、后台命令、可用的模型与别的 Bot、你会的技能。',
       '- 不要说你做了没做的事，也不要承诺系统没有的东西（比如“会弹确认框”）；做不到就直说。',
     ].join('\n'),
   ]
@@ -116,7 +117,13 @@ export function normalizeBotAction(input) {
   if (action.type === 'remember') {
     const memory = text(action.text, MAX_MEMORY_CHARS)
     const source = MEMORY_SOURCES.has(String(action.source)) ? String(action.source) : 'told'
-    return memory ? { type: 'remember', text: memory, source } : null
+    if (!memory) return null
+    return {
+      type: 'remember',
+      text: memory,
+      source,
+      ...(action.again === true ? { again: true } : {}),
+    }
   }
   if (action.type === 'forget') {
     const memory = text(action.memory, 64)

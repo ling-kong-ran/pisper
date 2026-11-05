@@ -871,6 +871,8 @@ export class ChannelService {
           senderId: String(message.senderId || ''),
           senderName: String(message.senderName || '').slice(0, 40),
           messageId: String(message.messageId || ''),
+          // 渠道绑定的用户本人：Bot 把他的话当用户的话记，其他人的话只算外部说法。
+          fromOwner: Boolean(ownerId) && String(message.senderId || '') === String(ownerId),
         },
       })
       const attachmentNote = message.resources?.length ? '（附件暂不转给 Bot，只收到了文字。）' : ''

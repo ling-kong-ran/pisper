@@ -117,6 +117,7 @@ function reviewRuntime(dataDir, reply) {
     bots: { get: (id) => (id === BOT ? bot : null) },
     botSkills: new BotSkillService({ dataDir }),
     botMemory: {
+      agentContext: async () => '',
       list: async () => [
         { id: 'mem_aaaaaa', text: '以后别跳过 iPhone 检查', source: 'correction' },
       ],
@@ -179,7 +180,7 @@ test('sub-agents the bot hands work to carry its skills; a deleted skill is no l
     Object.assign(runtime, {
       bots: { get: (id) => (id === BOT ? bot : null) },
       botSkills: skills,
-      botMemory: { list: async () => [] },
+      botMemory: { list: async () => [], agentContext: async () => '' },
       botForSession: () => bot,
       multiAgents: { list: () => [] },
       permissions: { getPending: () => [] },

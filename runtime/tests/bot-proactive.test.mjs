@@ -129,7 +129,7 @@ async function proactiveRuntime(dataDir, { busy = false, flag = true } = {}) {
     bots: { list: () => [BOT], get: () => BOT },
     botForSession: () => BOT,
     botProactive: new BotProactiveStore({ dataDir }),
-    botMemory: { list: async () => [], read: async () => ({ entries: [], tidiedAt: null }) },
+    botMemory: { list: async () => [], agentContext: async () => '' },
     sessions: new Map([['conv', value]]),
     startingRuns: new Set(),
     sessionRunIsActive: () => busy,
@@ -226,7 +226,6 @@ test('a check’s result turn may only remember: no work starts until the user s
       content: [{ type: 'text', text: '巡看发现 undici 有安全更新，要升级吗？' }],
     })
     runtime.forwardBotReplies = async () => []
-    runtime.tidyBotMemory = async () => null
     await runtime.afterBotTurn('conv')
     runtime.value.session.messages.push({ role: 'user', content: [{ type: 'text', text: '做吧' }] })
     assert.equal(

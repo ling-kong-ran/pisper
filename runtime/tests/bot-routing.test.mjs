@@ -123,7 +123,7 @@ class FakeGateway {
   }
 }
 
-async function channelFixture(t, { enabled = true } = {}) {
+async function channelFixture(t, { enabled = true, owner = 'me' } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-bot-channels-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const gateway = new FakeGateway()
@@ -170,7 +170,7 @@ async function channelFixture(t, { enabled = true } = {}) {
   await service.completeOnboarding('feishu', {
     appId: 'cli_app',
     appSecret: 's',
-    ownerOpenId: 'me',
+    ownerOpenId: owner,
   })
   await service.update('feishu', { accessMode: 'all' })
   const send = (content, extra = {}) =>
@@ -200,6 +200,8 @@ test('channel messages that name a bot go into its session; the rest stay direct
     senderId: 'alice',
     senderName: 'Alice',
     messageId: 'm',
+    // alice 不是渠道绑定的用户本人：她的话只算外部说法。
+    fromOwner: false,
   })
   // 不另发“收到了”：回复由 Runtime 在这一轮说完后发回这个聊天。
   assert.equal(gateway.sent.length, 0)
@@ -218,6 +220,12 @@ test('channel messages that name a bot go into its session; the rest stay direct
 
   await send('大家好')
   assert.deepEqual(prompts, ['大家好'])
+})
+
+test('a message from the channel’s owner is marked as theirs', async (t) => {
+  const { messages, send } = await channelFixture(t, { owner: 'alice' })
+  await send('@Pisper 审查员 看下这个 PR')
+  assert.equal(messages[0].source.fromOwner, true)
 })
 
 test('with Bots off, naming a bot is ordinary chat', async (t) => {
