@@ -665,5 +665,7 @@
   "notificationSounds.preview": "试听：{event}",
   "notificationSounds.volume": "音量",
   "notificationSounds.whileFocused": "Pisper 在前台时也响",
-  "notificationSounds.whileFocusedHint": "关掉后，只在你没看着 Pisper 时响。"
+  "notificationSounds.whileFocusedHint": "关掉后，只在你没看着 Pisper 时响。",
+  "configPage.modelThinkingLevelsAutoHint": "不改动时按模型目录判断；目录里没有的模型到“high”为止。",
+  "providerWorkbench.thinkingUnsupportedByModel": "{level}（默认模型不支持）"
 }

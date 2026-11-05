@@ -665,5 +665,7 @@
   "notificationSounds.preview": "Preview: {event}",
   "notificationSounds.volume": "Volume",
   "notificationSounds.whileFocused": "Also play while Pisper is in front",
-  "notificationSounds.whileFocusedHint": "When off, sounds play only while you are not looking at Pisper."
+  "notificationSounds.whileFocusedHint": "When off, sounds play only while you are not looking at Pisper.",
+  "configPage.modelThinkingLevelsAutoHint": "Left as is, levels come from the model catalog; models it does not list stop at “high”.",
+  "providerWorkbench.thinkingUnsupportedByModel": "{level} (not supported by the default model)"
 }

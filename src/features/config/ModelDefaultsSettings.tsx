@@ -14,7 +14,8 @@ import type { Notify } from '@/app/route-context'
 import type { ConfigData, ProviderConfig } from './config-types'
 import { providerApi } from './provider-api'
 
-const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 // 选项值里用不会出现在 id 里的分隔符把提供方与模型拼在一起。
 const SEPARATOR = '\u0001'
 
@@ -72,13 +73,14 @@ export function ModelDefaultsSettings({
   const { t } = useI18n()
   const id = useId()
   // 和输入框的模型芯片同一套叫法，不把 medium 这样的内部值露给用户。
-  const thinkingLabels: Record<(typeof THINKING_LEVELS)[number], string> = {
+  const thinkingLabels: Record<ThinkingLevel, string> = {
     off: t('chat:focusSession.thinkingLabel.off'),
     minimal: t('chat:focusSession.thinkingLabel.minimal'),
     low: t('chat:focusSession.thinkingLabel.low'),
     medium: t('chat:focusSession.thinkingLabel.medium'),
     high: t('chat:focusSession.thinkingLabel.high'),
     xhigh: t('chat:focusSession.thinkingLabel.xhigh'),
+    max: t('chat:focusSession.thinkingLabel.max'),
   }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -102,6 +104,18 @@ export function ModelDefaultsSettings({
   const defaultProviderId = config.defaultProvider || config.provider
   const defaultModel = config.defaultModel || config.model
   const defaultProvider = config.providers.find((item) => item.id === defaultProviderId)
+  // 档位跟默认模型走，和会话页的滑条同一份数据：不列它没有的档，也不漏掉它有的 max。
+  // 之前保存的档位这个模型不支持时仍然列出并写明，不让下拉框空着或悄悄改掉。
+  const modelLevels = defaultProvider?.models.find(
+    (item) => item.id === defaultModel,
+  )?.thinkingLevels
+  const thinkingOptions = THINKING_LEVELS.filter(
+    (level) => !modelLevels?.length || modelLevels.includes(level) || level === thinkingLevel,
+  )
+  const thinkingOptionLabel = (level: ThinkingLevel) =>
+    modelLevels?.length && !modelLevels.includes(level)
+      ? t('config:providerWorkbench.thinkingUnsupportedByModel', { level: thinkingLabels[level] })
+      : thinkingLabels[level]
   // 运行策略的保存要借一个已配置提供方的上下文（Runtime 校验认证）；还没有时三行都禁用并写明原因。
   const canSave = Boolean(defaultProvider?.configured && defaultModel)
   const chatProviders = config.providers.filter(
@@ -306,9 +320,9 @@ export function ModelDefaultsSettings({
               void savePolicy({ thinkingLevel: event.target.value })
             }}
           >
-            {THINKING_LEVELS.map((level) => (
+            {thinkingOptions.map((level) => (
               <option key={level} value={level}>
-                {thinkingLabels[level]}
+                {thinkingOptionLabel(level)}
               </option>
             ))}
           </AppSelect>

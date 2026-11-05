@@ -103,7 +103,8 @@ export function ProviderModelEditor({
         {
           ...draft,
           modelId: draft.modelId.trim(),
-          thinkingLevels: levelsTouched || !model ? selectedLevels : undefined,
+          // 只有勾选过才写映射：新增模型没动过时交给 Runtime 按模型目录判断，否则目录里的 xhigh / max 会被盖掉。
+          thinkingLevels: levelsTouched ? selectedLevels : undefined,
           // 只在用户改过时提交上下文窗口；原样保存不能把推断值或 200k 回退值钉成用户配置。
           contextWindow:
             Number(limits.contextWindow) === initialContextWindow
@@ -224,6 +225,11 @@ export function ProviderModelEditor({
                 <legend className="mb-2 text-sm font-medium">
                   {t('config:configPage.modelThinkingLevels')}
                 </legend>
+                {!model && !levelsTouched && (
+                  <p className="mb-2 text-xs text-content-muted">
+                    {t('config:configPage.modelThinkingLevelsAutoHint')}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {levels.map((level) => (
                     <Option

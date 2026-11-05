@@ -747,3 +747,15 @@ test('createProvider persists initial model thinking levels', async (t) => {
     .models.find((model) => model.id === 'qwen3.8-27b')
   assert.deepEqual(exposed.thinkingLevels, ['off', 'low', 'medium', 'high', 'xhigh'])
 })
+
+test('thinking levels in settings follow the model and a new model keeps catalog levels', async () => {
+  const [editor, defaults] = await Promise.all([
+    readFile('src/features/config/ProviderModelEditor.tsx', 'utf8'),
+    readFile('src/features/config/ModelDefaultsSettings.tsx', 'utf8'),
+  ])
+  // 没勾选过就不写映射：界面的默认勾选不能盖掉模型目录里的 xhigh / max。
+  assert.match(editor, /thinkingLevels: levelsTouched \? selectedLevels : undefined/)
+  // 设置页的档位来自默认模型，和会话页滑条同一份数据。
+  assert.match(defaults, /const modelLevels = [\s\S]{0,120}\.thinkingLevels/)
+  assert.match(defaults, /thinkingOptions\.map\(/)
+})
