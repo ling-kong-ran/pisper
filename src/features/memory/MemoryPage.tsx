@@ -35,6 +35,7 @@ import { MemoryActivity } from './MemoryActivity'
 import { MemoryBadges, MemoryDetailPanel } from './MemoryDetailPanel'
 import { MemoryEditDialog, MemorySpaceDialog } from './MemoryDialogs'
 import {
+  clearMemoryEpisodes,
   consolidateMemory,
   deleteMemorySpace,
   exportMemoryMarkdown,
@@ -263,6 +264,22 @@ export function MemoryPage({
     }
   }
 
+  // 对话原文只用来追溯和批量抽取，用户随时可以清掉；已经记下的事实不受影响。
+  const clearEpisodes = async () => {
+    const approved = await requestConfirm({
+      title: t('memory:memoryPage.clearEpisodes'),
+      message: t('memory:memoryPage.clearEpisodesConfirm'),
+      confirmLabel: t('memory:memoryPage.clearEpisodesAction'),
+    })
+    if (!approved) return
+    try {
+      const { cleared } = await clearMemoryEpisodes(spaceId === ALL_SPACES ? '' : spaceId)
+      onChanged(t('memory:memoryPage.episodesCleared', { count: cleared }))
+    } catch (clearError) {
+      setError(errorText(clearError))
+    }
+  }
+
   const spaceEditable = Boolean(activeSpace) && activeSpace?.kind !== 'global'
   const renderDetail = (node: MemoryNode) => (
     <MemoryDetailPanel
@@ -395,6 +412,9 @@ export function MemoryPage({
                     </DropdownMenuItem>
                     <DropdownMenuItem disabled={consolidating} onSelect={() => void consolidate()}>
                       {t('memory:memoryPage.consolidateNow')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void clearEpisodes()}>
+                      {t('memory:memoryPage.clearEpisodes')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
