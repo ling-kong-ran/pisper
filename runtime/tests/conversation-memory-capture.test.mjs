@@ -97,7 +97,7 @@ for (const [name, value, code] of [
   })
 }
 
-test('normal empty memory candidates and messages without memory intent remain quiet', async () => {
+test('an empty extraction and messages without memory intent remain quiet', async () => {
   let calls = 0
   const modelRuntime = {
     async completeSimple() {
@@ -159,7 +159,7 @@ test('failed extraction still accounts for usage and emits only a stable private
   await f.capture.dispose()
 })
 
-test('usage persistence failure does not discard a supported memory candidate', async () => {
+test('usage persistence failure does not discard an extracted memory', async () => {
   const f = fixture({
     recordUsage: async () => {
       throw new Error('private database path')
@@ -171,6 +171,29 @@ test('usage persistence failure does not discard a supported memory candidate', 
     f.diagnostics.map((x) => x.code),
     ['usage_write_failed'],
   )
+  await f.capture.dispose()
+})
+
+test('the immediate path passes on when the fact holds and whose words the evidence is', async () => {
+  const f = fixture({
+    getModelRuntime: () => ({
+      async completeSimple() {
+        return response(
+          JSON.stringify([
+            { ...candidate, valid_from: '2026-09-01', expires_at: '2099-01-01' },
+            { ...candidate, topic: 'user.other', evidence: '好的。', valid_from: 'not a date' },
+          ]),
+        )
+      },
+    }),
+  })
+  await f.capture.capture(input)
+  assert.equal(f.proposed[0].validFrom, '2026-09-01T00:00:00.000Z')
+  assert.equal(f.proposed[0].expiresAt, '2099-01-01T00:00:00.000Z')
+  assert.equal(f.proposed[0].evidenceRole, 'user')
+  assert.equal(f.proposed[0].sourceType, 'conversation')
+  assert.equal(f.proposed[1].validFrom, '')
+  assert.equal(f.proposed[1].evidenceRole, 'assistant')
   await f.capture.dispose()
 })
 

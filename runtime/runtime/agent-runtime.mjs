@@ -517,6 +517,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       waitForInitialization: () => this.waitForInitialization('memory'),
       memory: this.memory,
       recordUsage: (...args) => this.recordUsage(...args),
+      modelClient: this.memoryModel,
     })
     this.auxiliaryTitles = new AuxiliaryTitleTasks()
     this.goals = new GoalService({ path: join(dataDir, 'pisper-goals.json') })
@@ -2846,6 +2847,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           updatedAt: live.lastActivityAt,
         })
         emit('compaction_start', live.compaction)
+        // 压缩前把这个会话没抽过的原文过一遍。不等它，压缩照常进行。
+        if (
+          !value.isolatedContext &&
+          !this.sideChats?.isSideChat(session.sessionId) &&
+          value.enabledTools?.includes('memory_remember') &&
+          this.initialization?.memory === 'ready'
+        ) {
+          void this.memoryCapture
+            .flushSessionBeforeCompaction(session.sessionId)
+            .catch(() => this.memoryCapture.diagnose('flush_failed', session.sessionId))
+        }
       } else if (event.type === 'compaction_end') {
         live.compaction = finishedCompaction(live.compaction, event, live.lastActivityAt)
         live.contextUsage = this.compactionAwareContextUsage(session, live.compaction)
@@ -3257,10 +3269,17 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await this.saveSessionMeta().catch(() => {})
     }
   }
-  // 记忆提取每轮都跑一次：设置了辅助模型就用它，免得每轮都多花一次主模型。
+  // 每轮先存原文（L0），用户明确说“记住”时再立即抽取：设置了辅助模型就用它，免得多花主模型。
+  // 内部注入的消息（目标延续、Agent 完成）不是用户说的话，两样都跳过；附件上下文也不算。
   async captureConversationMemory(input) {
+    if (isInternalParentMessage(input.user)) return []
     const auxiliary = await this.resolveAuxiliaryModel()
-    return this.memoryCapture.capture(auxiliary ? { ...input, model: auxiliary } : input)
+    return this.memoryCapture.capture({
+      ...input,
+      user: String(input.user || '').split(ATTACHMENT_MARKER)[0],
+      recordTurn: true,
+      ...(auxiliary ? { model: auxiliary } : {}),
+    })
   }
 
   // 首轮发送时，规则标题先顶上；设置了辅助模型的话，后台再让它起一个更像标题的名字。

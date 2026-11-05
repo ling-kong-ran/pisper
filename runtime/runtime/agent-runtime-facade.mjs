@@ -333,10 +333,33 @@ export class AgentRuntimeFacade {
         this.boardEvents?.catalogChanged()
         // 删掉的会话不再排队；排在它后面的会话视为前置已结束，照常启动。
         void this.sessionQueue?.onSessionDeleted(id).catch(() => {})
+        this.forgetSessionEpisodes(id)
       }
       return result
     }
     return this.sideChats ? this.sideChats.deleteWithChildren(id, remove) : remove()
+  }
+
+  // 会话的原文（L0）跟着会话一起删。手机冷启动时记忆可能还没好，等好了再删；
+  // 这一步失败不能影响删除会话本身。
+  forgetSessionEpisodes(id) {
+    const forget = () => {
+      try {
+        this.memory.forgetSession?.(id)
+      } catch {
+        console.warn('[memory] 会话原文没能清理。')
+      }
+    }
+    const state = this.initialization?.memory
+    if (state === 'ready') forget()
+    else if (state === 'pending' || state === 'initializing') {
+      void Promise.resolve(this.waitForInitialization?.('memory')).then(
+        () => {
+          if (this.initialization?.memory === 'ready') forget()
+        },
+        () => {},
+      )
+    }
   }
 
   installWorkspaceAssetCapture(session, cwd, sessionId = session.sessionId) {

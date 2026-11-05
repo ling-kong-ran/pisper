@@ -141,11 +141,17 @@ const V5_TABLES = `
     session_id TEXT NOT NULL,
     entry_id TEXT NOT NULL DEFAULT '',
     cwd TEXT NOT NULL DEFAULT '',
+    -- 1 表示这一轮已经抽取过（即时路径或批量），批量不再处理
+    captured INTEGER NOT NULL DEFAULT 0,
+    -- 正文字节数，算总量用；放在正文前面，SUM 时不用读溢出页
+    bytes INTEGER NOT NULL DEFAULT 0,
+    at TEXT NOT NULL,
     user_text TEXT NOT NULL,
-    assistant_text TEXT NOT NULL,
-    at TEXT NOT NULL
+    assistant_text TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS memory_episodes_session ON memory_episodes(session_id, at);
+  CREATE INDEX IF NOT EXISTS memory_episodes_pending ON memory_episodes(session_id, at) WHERE captured = 0;
+  CREATE INDEX IF NOT EXISTS memory_episodes_oldest ON memory_episodes(at);
   CREATE INDEX IF NOT EXISTS memory_episodes_time ON memory_episodes(space_id, at DESC);
   CREATE TABLE IF NOT EXISTS memory_digests (
     id TEXT PRIMARY KEY,
