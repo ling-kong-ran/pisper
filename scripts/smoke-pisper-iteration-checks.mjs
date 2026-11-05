@@ -29,9 +29,10 @@ export async function verifyPisperIteration({
   await connections.getByRole('button', { name: 'PI Local UI Test', exact: true }).click()
   assert.equal(await name.inputValue(), 'PI unsaved connection draft')
   await name.fill('PI Local UI Test')
-  await page.getByText('本地配置自动接入 · 新增 0 项 · 待检查 0 项', { exact: true }).waitFor()
+  // 本地配置读数只在扫描中或确有接入时出现，0 项不占位置。
+  assert.equal(await page.getByText('本地配置自动接入 · 新增 0 项 · 待检查 0 项').count(), 0)
   report.checks.push(
-    'Switching or collapsing provider rows preserves an unsaved connection draft in memory; local import counts interpolate',
+    'Switching or collapsing provider rows preserves an unsaved connection draft in memory; the zero local import count stays hidden',
   )
 
   const modelId = 'pi-image-capability-ui'
