@@ -22,6 +22,7 @@ import { chatErrorMessage } from './chat-errors'
 import {
   announceActiveSession,
   announceSessionsUpdated,
+  subscribeSessionCwdUpdates,
   subscribeSessionDeletionUpdates,
   subscribeSessionOrganizationUpdates,
   subscribeSessionTitleUpdates,
@@ -253,6 +254,18 @@ export function useSessionCatalog({ notify }: SessionCatalogOptions) {
       replaceSessionStates({ ...current, [id]: next })
     },
     [replaceSessionStates],
+  )
+
+  // 会话目录在别处改了（Bot 的招呼里选目录）：列表和打开中的会话一起同步；没打开的不建状态。
+  useEffect(
+    () =>
+      subscribeSessionCwdUpdates(window, ({ id, cwd }) => {
+        updateSessions((current) =>
+          current.map((session) => (session.id === id ? { ...session, cwd } : session)),
+        )
+        if (sessionStatesRef.current[id]) updateSessionState(id, { cwd })
+      }),
+    [updateSessionState, updateSessions],
   )
 
   // 释放会话状态：面板已关且未持有本地流、且无运行中活动时才真正丢弃，

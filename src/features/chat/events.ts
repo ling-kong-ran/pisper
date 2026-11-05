@@ -23,6 +23,7 @@ export const NEW_TASK_FOCUS_EVENT = 'pisper:new-task-focus'
 type SessionMessageTarget = { sessionId: string; entryId: string }
 export type SessionTitleUpdate = { id: string; name: string }
 export type SessionDeletionUpdate = { deletedIds: string[] }
+export type SessionCwdUpdate = { id: string; cwd: string }
 export type SessionOrganizationUpdate = {
   id: string
   pinned: boolean
@@ -139,7 +140,8 @@ export function announceActiveSession(id: string, model = '') {
 
 // 广播“会话列表已更新”；携带已确认的变更供打开中的会话直接同步。
 export function announceSessionsUpdated(
-  update?: SessionTitleUpdate | SessionDeletionUpdate | SessionOrganizationUpdate,
+  update?:
+    SessionTitleUpdate | SessionDeletionUpdate | SessionOrganizationUpdate | SessionCwdUpdate,
 ) {
   window.dispatchEvent(
     update
@@ -193,6 +195,27 @@ export function subscribeSessionTitleUpdates(
 ) {
   const listener = (event: Event) => {
     const update = sessionTitleUpdateFromEvent(event)
+    if (update) onUpdate(update)
+  }
+  target.addEventListener(SESSIONS_UPDATED_EVENT, listener)
+  return () => target.removeEventListener(SESSIONS_UPDATED_EVENT, listener)
+}
+
+export function sessionCwdUpdateFromEvent(event: Event): SessionCwdUpdate | null {
+  const detail: unknown = 'detail' in event ? event.detail : null
+  if (!detail || typeof detail !== 'object') return null
+  const { id, cwd } = detail as Record<string, unknown>
+  return typeof id === 'string' && id.length > 0 && typeof cwd === 'string' && cwd.length > 0
+    ? { id, cwd }
+    : null
+}
+
+export function subscribeSessionCwdUpdates(
+  target: EventTarget,
+  onUpdate: (update: SessionCwdUpdate) => void,
+) {
+  const listener = (event: Event) => {
+    const update = sessionCwdUpdateFromEvent(event)
     if (update) onUpdate(update)
   }
   target.addEventListener(SESSIONS_UPDATED_EVENT, listener)

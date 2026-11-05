@@ -1,5 +1,7 @@
 // 聚焦转录：虚拟化的长消息流，懒加载重型子组件（如 AI 元素）。
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -38,8 +40,12 @@ import { lastSettledMessageIndex } from '@/lib/session-state'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
+// 只有 Bot 的会话才加载招呼。
+const BotGreeting = lazy(() => import('@/features/bots/public-greeting'))
+
 type FocusTranscriptProps = {
   sessionId: string
+  botId?: string
   emptyState?: ReactNode
   messages: ChatMessage[]
   layoutMeasurementKey?: string
@@ -120,6 +126,7 @@ function lineageHref(sessionId: string) {
 
 export function FocusTranscript({
   sessionId,
+  botId,
   emptyState,
   messages,
   layoutMeasurementKey,
@@ -370,6 +377,17 @@ export function FocusTranscript({
     if (scrollRequest) scrollToBottom('smooth')
   }, [scrollRequest, scrollToBottom])
 
+  // 会话页不再兼做“发起新任务”的入口（新任务在新任务草稿）：空会话只说明没有消息，
+  // 输入框照常在底部。
+  const emptyConversation = (
+    <InlineEmptyState
+      compact
+      className="min-h-full"
+      title={t('chat:focusSession.emptyTitle')}
+      description={t('chat:focusSession.emptyDescription')}
+    />
+  )
+
   return (
     <div className="relative min-h-0 flex-1">
       <div
@@ -385,6 +403,16 @@ export function FocusTranscript({
           className={`[display:flow-root] w-full ${transcriptLoadState === 'ready' && messages.length > 0 ? 'mt-auto' : ''}`}
           ref={transcriptPrefixRef}
         >
+          {/* Bot 的招呼留在对话最前面：还有更早的消息没加载或被折叠时不显示，免得夹在中间。 */}
+          {botId &&
+            transcriptLoadState === 'ready' &&
+            messages.length > 0 &&
+            !hasOlder &&
+            !collapsed && (
+              <Suspense fallback={null}>
+                <BotGreeting botId={botId} collapsed />
+              </Suspense>
+            )}
           {typeof lineage?.parentSessionId === 'string' && lineage.parentSessionId && (
             // “派生自”横幅是链接（老问题 5）：打开父会话并定位到派生点那一回合；只打开，不导航父会话的树。
             // 带修饰键或中键时交给浏览器（新标签打开、复制链接照常可用）。
@@ -504,16 +532,14 @@ export function FocusTranscript({
         )}
         {transcriptLoadState === 'ready' &&
           !messages.length &&
-          (emptyState ?? (
-            // 会话页不再兼做“发起新任务”的入口（新任务在新任务草稿）：空会话只说明没有消息，
-            // 输入框照常在底部。
-            <InlineEmptyState
-              compact
-              className="min-h-full"
-              title={t('chat:focusSession.emptyTitle')}
-              description={t('chat:focusSession.emptyDescription')}
-            />
-          ))}
+          (emptyState ??
+            (botId ? (
+              <Suspense fallback={null}>
+                <BotGreeting botId={botId} fallback={emptyConversation} />
+              </Suspense>
+            ) : (
+              emptyConversation
+            )))}
         {transcriptLoadState === 'ready' && messages.length > 0 && (
           <div className="[animation:transcript-reveal-enter_.22s_var(--ease-out)_both]">
             <VirtualMessageTranscript

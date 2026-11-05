@@ -3,7 +3,7 @@
 // 顶栏左边“和它聊天”回到它的会话。/bots 没有 Bot 时给新建入口，有 Bot 时打开第一个的设置。
 import './bots-messages'
 import { useCallback, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, Plus } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
@@ -84,6 +84,9 @@ function BotSettingsPage({
   const bot = useBotsStore((state) => state.bots.find((item) => item.id === botId))
   const loadBots = useBotsStore((state) => state.load)
   const environments = useBotEnvironments()
+  // 招呼里的“在聊天软件里找我”直接打开聊天分区；其余情况分区都收着。
+  const [searchParams] = useSearchParams()
+  const openSection = searchParams.get('section') === 'chats' ? 'chats' : undefined
   if (!bot) return null
   return (
     <div data-bot-settings={bot.id} className="flex h-full min-h-0 w-full min-w-0 flex-col">
@@ -103,6 +106,7 @@ function BotSettingsPage({
           <BotDetails
             bot={bot}
             environments={environments.environments}
+            openSection={openSection}
             onEnvironmentsChanged={() => {
               void environments.refresh()
               void loadBots()

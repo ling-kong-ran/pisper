@@ -6,6 +6,7 @@ import {
   SESSIONS_UPDATED_EVENT,
   announceSessionsUpdated,
   subscribeSessionDeletionUpdates,
+  subscribeSessionCwdUpdates,
   subscribeSessionTitleUpdates,
 } from '../../src/features/chat/events.ts'
 import {
@@ -64,6 +65,25 @@ test('stale initial session lists preserve an optimistically created session', (
   const stale = [{ id: 'existing-session', name: '旧会话' }]
 
   assert.deepEqual(mergeSessionLists([optimistic], stale), [stale[0], optimistic])
+})
+
+test('confirmed working directory events reach open sessions and ignore other updates', () => {
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const target = new EventTarget()
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: target })
+  const updates = []
+  const unsubscribe = subscribeSessionCwdUpdates(target, (update) => updates.push(update))
+  try {
+    announceSessionsUpdated({ id: 'bot-session', cwd: '/work/acme-web' })
+    announceSessionsUpdated({ id: 'bot-session', name: '改名' })
+    announceSessionsUpdated({ id: 'bot-session', cwd: '' })
+    announceSessionsUpdated()
+    assert.deepEqual(updates, [{ id: 'bot-session', cwd: '/work/acme-web' }])
+  } finally {
+    unsubscribe()
+    if (priorWindow) Object.defineProperty(globalThis, 'window', priorWindow)
+    else Reflect.deleteProperty(globalThis, 'window')
+  }
 })
 
 test('saved session title events update an open catalog twice without changing other sessions', () => {

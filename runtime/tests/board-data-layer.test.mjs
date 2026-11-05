@@ -826,6 +826,7 @@ function catalogFixture({ listSessions }) {
     './events': {
       announceActiveSession: () => {},
       announceSessionsUpdated: () => {},
+      subscribeSessionCwdUpdates: () => () => {},
       subscribeSessionDeletionUpdates: () => () => {},
       subscribeSessionOrganizationUpdates: () => () => {},
       subscribeSessionTitleUpdates: () => () => {},

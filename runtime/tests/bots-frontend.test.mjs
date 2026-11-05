@@ -18,6 +18,8 @@ import {
   SIDEBAR_BOT_LIMIT,
   botActivityLine,
   botAvatarState,
+  botDutyLine,
+  botFolderName,
   botToolsPreset,
   sidebarBots,
 } from '../../src/features/bots/bot-presentation.ts'
@@ -417,4 +419,46 @@ test('bot sessions show the bot in reply heads and keep model settings on the se
     /pageChrome \? \{ model: modelLabel, \.\.\.\(botId \? \{ botId \} : \{\}\) \} : null/,
   )
   assert.match(details, /<BotModelSection bot=\{bot\}/)
+})
+
+// Bot 的招呼：只由设定算出来，留在对话最前面；三个动作都对应已有设定，不调用模型。
+test('bot greeting derives from settings and stays at the start of the conversation', async () => {
+  assert.equal(botFolderName('/home/me/acme-web/'), 'acme-web')
+  assert.equal(botFolderName('C:\\work\\acme'), 'acme')
+  assert.equal(botFolderName('/'), '/')
+  assert.equal(botDutyLine('  盯测试\n\n有问题  告诉我 '), '盯测试 有问题 告诉我')
+  assert.equal(botDutyLine('字'.repeat(80)), '字'.repeat(80))
+  assert.equal(botDutyLine('字'.repeat(81)), `${'字'.repeat(80)}…`)
+
+  const read = (path) => readFile(join(root, path), 'utf8')
+  const [greeting, transcript, focus, page, zh, en] = await Promise.all([
+    read('src/features/bots/BotGreeting.tsx'),
+    read('src/features/chat/FocusTranscript.tsx'),
+    read('src/features/chat/FocusSession.tsx'),
+    read('src/features/bots/BotsPage.tsx'),
+    read('src/locales/zh-CN/bots.json'),
+    read('src/locales/en-US/bots.json'),
+  ])
+  // 实验功能关着或 Bot 已删除时退回普通空状态。
+  assert.match(greeting, /if \(!enabled\) return fallback/)
+  assert.match(greeting, /if \(!bot\) return loaded \? fallback : null/)
+  // 只在本机才给简报与目录选择器：执行节点上的 Bot 用不了。
+  assert.match(greeting, /const local = bot\.workspace\.environmentId === 'local'/)
+  // 不经 Runtime 对话接口，也不进转录。
+  assert.doesNotMatch(greeting, /sendMessage|messageBot|\/api\/chat/)
+  // 空对话显示完整招呼；有消息时只在最前面显示收起版，还有更早消息时不显示。
+  assert.match(transcript, /<BotGreeting botId=\{botId\} fallback=\{emptyConversation\} \/>/)
+  assert.match(
+    transcript,
+    /messages\.length > 0 &&\s+!hasOlder &&\s+!collapsed && \(\s+<Suspense fallback=\{null\}>\s+<BotGreeting botId=\{botId\} collapsed \/>/,
+  )
+  assert.match(focus, /botId=\{botId\}\s+key="transcript"/)
+  // 只认聊天分区，地址里的其他值不进 Accordion。
+  assert.match(page, /searchParams\.get\('section'\) === 'chats' \? 'chats' : undefined/)
+  const keys = (json) =>
+    Object.keys(JSON.parse(json))
+      .filter((key) => key.startsWith('greeting.'))
+      .sort()
+  assert.ok(keys(zh).length > 0)
+  assert.deepEqual(keys(zh), keys(en))
 })

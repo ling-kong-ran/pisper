@@ -854,6 +854,7 @@ export const FocusSession = memo(function FocusSession({
   const transcriptBlock = (
     <FocusTranscript
       emptyState={draft ? <NewTaskGreeting /> : emptyState}
+      botId={botId}
       key="transcript"
       layoutMeasurementKey="fixed"
       sessionId={session.id}

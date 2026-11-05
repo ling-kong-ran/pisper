@@ -17,6 +17,20 @@ export function botToolsPreset(tools: readonly string[] | null): BotToolsPreset 
     : 'custom'
 }
 
+// 路径最后一段，显示“在哪个目录”时用。
+export function botFolderName(cwd: string) {
+  return cwd.split(/[\\/]/).filter(Boolean).at(-1) || cwd
+}
+
+// 招呼里复述的职责：工作说明可以有好几段，这里压成一行并截短，后面的“改”才不会被挤掉。
+const DUTY_LINE_CHARS = 80
+
+export function botDutyLine(instructions: string) {
+  const line = instructions.replace(/\s+/g, ' ').trim()
+  const chars = [...line]
+  return chars.length > DUTY_LINE_CHARS ? `${chars.slice(0, DUTY_LINE_CHARS).join('')}…` : line
+}
+
 // 侧栏默认显示的 Bot 数：Bot 多时只留最要紧的几个，其余“显示全部”就地展开。
 export const SIDEBAR_BOT_LIMIT = 3
 

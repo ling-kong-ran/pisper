@@ -1,6 +1,6 @@
 // Bot 的设置（设置页 /bots/:id 的内容）：头像、名字和“它负责什么”在最上面；电脑、在聊天里叫它、定时、
 // 高级（权限、工具、暂停）都收在折叠分区里，用默认值就能用，想改时再展开。和它说话在它的会话里。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
 import {
@@ -23,16 +23,23 @@ import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
 import { botModelLabel, botThinkingLabel, executionModeLabel } from './bot-labels'
-import { BOT_READ_ONLY_TOOLS, botAvatarState, botToolsPreset } from './bot-presentation'
+import {
+  BOT_READ_ONLY_TOOLS,
+  botAvatarState,
+  botFolderName,
+  botToolsPreset,
+} from './bot-presentation'
 import { useBotsStore } from './bots-store'
 
 export function BotDetails({
   bot,
   environments,
+  openSection,
   onEnvironmentsChanged,
   onError,
 }: {
   bot: Bot
+  openSection?: string
   environments: BotEnvironment[]
   onEnvironmentsChanged: () => void
   onError: (message: string) => void
@@ -45,6 +52,11 @@ export function BotDetails({
   const [memoryCount, setMemoryCount] = useState<number | null>(null)
   const [skillCount, setSkillCount] = useState<number | null>(null)
   useEffect(() => setInstructions(bot.instructions), [bot.id, bot.instructions])
+  // 从别处跳到某个分区时（招呼里的聊天接入）：它可能在屏幕下面，滚到能看见。
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (openSection) rootRef.current?.querySelector('[data-state="open"]')?.scrollIntoView()
+  }, [openSection])
 
   const save = async (patch: Parameters<typeof updateBot>[1]) => {
     setSaving(true)
@@ -58,9 +70,9 @@ export function BotDetails({
   }
 
   const environment = environments.find((item) => item.id === bot.workspace.environmentId)
-  const folder = bot.workspace.cwd.split(/[\\/]/).filter(Boolean).at(-1) || bot.workspace.cwd
+  const folder = botFolderName(bot.workspace.cwd)
   return (
-    <div className="flex flex-col gap-4 pb-4">
+    <div ref={rootRef} className="flex flex-col gap-4 pb-4">
       <div className="flex items-center gap-3">
         <BotAvatar avatar={bot.avatar} state={botAvatarState(bot)} size={48} />
         <div className="min-w-0 flex-1">
@@ -100,7 +112,11 @@ export function BotDetails({
         )}
       </section>
       {/* 分区内容是展开后才加载的（如定时列表），高度跟着内容走，不按展开那一刻固定。 */}
-      <Accordion type="multiple" className="border-t border-stroke">
+      <Accordion
+        type="multiple"
+        defaultValue={openSection ? [openSection] : undefined}
+        className="border-t border-stroke"
+      >
         <AccordionItem value="computer">
           <AccordionTrigger>
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
