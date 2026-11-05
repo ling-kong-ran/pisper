@@ -548,3 +548,14 @@ test('the manual branch workflow rebases onto release and opens a PR without tou
   // GITHUB_TOKEN 的操作不触发 pull_request，要补派发质量检查。
   assert.match(workflow, /gh workflow run ci\.yml --ref "\$BRANCH"/)
 })
+
+test('flaky iOS speech tests warn instead of blocking a release', async () => {
+  for (const file of ['release-app.yml', 'build-store-app.yml']) {
+    const workflow = await readFile(`.github/workflows/${file}`, 'utf8')
+    assert.match(
+      workflow,
+      /name: Test iOS speech native contracts\s+id: ios_speech_tests\s+continue-on-error: true\s+run: npm run test:ios/,
+    )
+    assert.match(workflow, /if: steps\.ios_speech_tests\.outcome == 'failure'/)
+  }
+})
