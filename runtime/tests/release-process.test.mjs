@@ -530,3 +530,19 @@ test('waiting on a dispatched run tolerates its first seconds of 404 and transie
   ])
   assert.throws(() => failed.wait(), /run failed/)
 })
+
+test('pushing a branch rebases it onto release and opens a PR without touching release', async () => {
+  const workflow = await readFile('.github/workflows/branch-pr.yml', 'utf8')
+  // release 与备份分支不进这条流程；只写被推送的功能分支。
+  assert.match(workflow, /branches-ignore:\s+- release\s+- 'backup\/\*\*'/)
+  assert.doesNotMatch(workflow, /HEAD:refs\/heads\/release|git merge(?!-base)/)
+  // 租约绑定触发提交：运行期间有人再推时失败，不覆盖新提交；冲突时放弃 rebase 仍然开 PR。
+  assert.match(workflow, /--force-with-lease="refs\/heads\/\$BRANCH:\$PUSHED_SHA"/)
+  assert.match(workflow, /git rebase --abort/)
+  assert.match(workflow, /gh pr create --base release --head "\$BRANCH"/)
+  // 分支名只经环境变量进入脚本，避免 ${{ }} 直接拼进 Shell。
+  assert.match(workflow, /BRANCH: \$\{\{ github\.ref_name \}\}/)
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('run: |')), /\$\{\{/)
+  // GITHUB_TOKEN 的操作不触发 pull_request，要补派发质量检查。
+  assert.match(workflow, /gh workflow run ci\.yml --ref "\$BRANCH"/)
+})

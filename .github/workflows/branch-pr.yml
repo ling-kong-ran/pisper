@@ -1,0 +1,105 @@
+name: Rebase branch and open PR
+
+# 分支一推送就对齐 release 并开 PR，提交不会留在没人看的分支上。
+# 只改写被推送的功能分支，release 永远不在这里写入；只有落后 release 时才会强推。
+on:
+  push:
+    branches-ignore:
+      - release
+      - 'backup/**'
+      - 'dependabot/**'
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+# 同一分支连续推送时只处理最新的一次。
+concurrency:
+  group: branch-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebase-and-pr:
+    name: Rebase onto release and open PR
+    if: ${{ !github.event.deleted }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # 可选的 BRANCH_PR_TOKEN 能推送含工作流改动的 rebase，它建的 PR 也会直接触发 CI。
+          token: ${{ secrets.BRANCH_PR_TOKEN || github.token }}
+      - name: Rebase, push and open the pull request
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          PUSHED_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.BRANCH_PR_TOKEN || github.token }}
+          HAS_PR_TOKEN: ${{ secrets.BRANCH_PR_TOKEN != '' }}
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --quiet origin release
+          base=origin/release
+
+          if [ "$(git rev-list --count "$base..HEAD")" = 0 ]; then
+            echo "::notice::$BRANCH 的提交都已在 release 里，不需要 PR。"
+            exit 0
+          fi
+
+          status=current
+          if ! git merge-base --is-ancestor "$base" HEAD; then
+            if git rebase "$base"; then
+              if [ "$(git rev-list --count "$base..HEAD")" = 0 ]; then
+                echo "::notice::$BRANCH rebase 后没有剩余提交：内容都已在 release 里。"
+                exit 0
+              fi
+              # 租约绑定触发这次运行的提交：期间有人再推，这里会失败而不是覆盖。
+              if git push --force-with-lease="refs/heads/$BRANCH:$PUSHED_SHA" origin "HEAD:refs/heads/$BRANCH"; then
+                status=rebased
+              else
+                status=push-failed
+              fi
+            else
+              git rebase --abort
+              status=conflict
+            fi
+          fi
+
+          case "$status" in
+            current) note='分支已基于最新的 release。' ;;
+            rebased) note='已自动 rebase 到最新的 release。本地继续工作前先执行 `git pull --rebase`。' ;;
+            conflict) note='与 release 有冲突，没有自动 rebase，请在本地 rebase 解决后再推送。' ;;
+            push-failed) note='rebase 成功但推送被拒绝（分支有新提交，或 release 带来了工作流改动而令牌无权写入），请在本地 rebase 后再推送。' ;;
+          esac
+
+          number="$(gh pr list --head "$BRANCH" --base release --state open --json number --jq '.[0].number // empty')"
+          created=false
+          if [ -z "$number" ]; then
+            commits="$(git log --reverse --format='- %s' "$base..HEAD")"
+            if [ "$(git rev-list --count "$base..HEAD")" = 1 ]; then
+              title="$(git log -1 --format=%s)"
+            else
+              title="$BRANCH"
+            fi
+            draft=()
+            case "$BRANCH" in wip/*) draft=(--draft) ;; esac
+            printf '%s\n\n## 提交\n\n%s\n\n由分支推送自动创建。\n' "$note" "$commits" > "$RUNNER_TEMP/pr-body.md"
+            gh pr create --base release --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md" "${draft[@]}"
+            created=true
+          elif [ "$status" = conflict ] || [ "$status" = push-failed ]; then
+            gh pr comment "$number" --body "$note"
+          fi
+
+          # GITHUB_TOKEN 建 PR 或强推都不会触发 pull_request，这里补一次质量检查，结果会显示在同一提交上。
+          if [ "$HAS_PR_TOKEN" != true ] && { [ "$created" = true ] || [ "$status" = rebased ]; }; then
+            gh workflow run ci.yml --ref "$BRANCH" || echo "::warning::没能派发质量检查，请手动运行 ci.yml。"
+          fi
+
+          echo "::notice::$BRANCH: $note"
+          if [ "$status" = conflict ] || [ "$status" = push-failed ]; then
+            echo "::warning::$note"
+          fi
