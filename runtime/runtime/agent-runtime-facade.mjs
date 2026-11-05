@@ -69,24 +69,16 @@ import {
 
 // 隔离上下文模式（工作流/渠道的独立子任务）下屏蔽的记忆相关工具：
 // 子任务不应读写主会话的长期记忆。
-export const ISOLATED_CONTEXT_BLOCKED_TOOLS = ['memory_search', 'memory_remember']
+export const ISOLATED_CONTEXT_BLOCKED_TOOLS = [
+  'memory_search',
+  'memory_remember',
+  'memory_open',
+  'memory_confirm',
+  'memory_forget',
+]
 
 // 准备阶段在 /live 里投影的待发消息上限（只用于显示，完整消息照常写进会话）。
 const MAX_PREPARING_MESSAGE_CHARS = 20_000
-
-export const DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE = 60
-export const MIN_MEMORY_AUTO_APPROVE_CONFIDENCE = 0
-export const MAX_MEMORY_AUTO_APPROVE_CONFIDENCE = 100
-
-// 记忆自动确认阈值归一化：非法输入回退默认值，并限制在 [0, 100] 区间。
-export function normalizeMemoryAutoApproveConfidence(value) {
-  const requested = Number(value)
-  if (!Number.isFinite(requested)) return DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
-  return Math.min(
-    MAX_MEMORY_AUTO_APPROVE_CONFIDENCE,
-    Math.max(MIN_MEMORY_AUTO_APPROVE_CONFIDENCE, Math.round(requested)),
-  )
-}
 
 // 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
@@ -245,8 +237,47 @@ export class AgentRuntimeFacade {
     return this.memory.getDashboard(input)
   }
 
-  getMemoryCandidateInbox(input) {
-    return this.memory.candidateInbox(input)
+  // 候选箱已取消，记忆直接生效。旧版前端（手机 App 的内嵌页面）还会请求这几个接口，给空结果。
+  getMemoryCandidateInbox() {
+    return { count: 0, candidates: [] }
+  }
+
+  getMemoryEvolution(input) {
+    return this.memory.getEvolution(input)
+  }
+
+  listMemoryEvents(input) {
+    return this.memory.listEvents(input)
+  }
+
+  undoMemoryEvent(id) {
+    return this.memory.undoEvent(id)
+  }
+
+  consolidateMemory() {
+    return this.memory.consolidate({ force: true })
+  }
+
+  exportMemory(input) {
+    return this.memory.exportMarkdown(input)
+  }
+
+  getMemoryDetail(id) {
+    const detail = this.memory.openMemory(id)
+    if (!detail) return null
+    return { ...detail, history: this.memory.getMemoryHistory(id)?.versions || [] }
+  }
+
+  restoreMemory(id) {
+    return this.memory.restoreMemory(id)
+  }
+
+  confirmMemory(id) {
+    return this.memory.confirmMemory(id)
+  }
+
+  setMemoryPinned(id, pinned) {
+    return this.memory.setPinned(id, pinned)
   }
 
   createMemorySpace(input) {
@@ -262,7 +293,7 @@ export class AgentRuntimeFacade {
   }
 
   createMemory(input) {
-    return this.memory.remember({ ...input, sourceType: 'manual' })
+    return this.memory.remember({ ...input, sourceType: 'manual', ignoreForgotten: true })
   }
 
   updateMemory(id, input) {
@@ -273,16 +304,16 @@ export class AgentRuntimeFacade {
     return this.memory.forget(id)
   }
 
-  acceptMemoryCandidate(id) {
-    return this.memory.acceptCandidate(id)
+  acceptMemoryCandidate() {
+    return null
   }
 
-  rejectMemoryCandidate(id) {
-    return this.memory.rejectCandidate(id)
+  rejectMemoryCandidate() {
+    return null
   }
 
   rejectAllMemoryCandidates() {
-    return this.memory.rejectAllCandidates()
+    return { rejected: 0 }
   }
 
   async abortSession(id) {
@@ -574,6 +605,10 @@ export class AgentRuntimeFacade {
   async initializeToolPlugins() {
     await this.toolPlugins.init()
     await this.toolPlugins.ensureDefaultTools(['memory_search', 'memory_remember'], 'memoryToolsV1')
+    await this.toolPlugins.ensureDefaultTools(
+      ['memory_open', 'memory_confirm', 'memory_forget'],
+      'memoryToolsV2',
+    )
     await this.toolPlugins.ensureDefaultTools(['mcp_list', 'mcp_manage'], 'mcpManagementToolsV1')
     // 定时任务工具：既有安装若已物化 enabledTools，也补上（代理此前没有办法建定时任务）。
     await this.toolPlugins.ensureDefaultTools(
@@ -786,32 +821,12 @@ export class AgentRuntimeFacade {
     return snapshot
   }
 
+  // 自动确认阈值已取消（记忆不需要确认）。旧版前端还会读写这个设置，给固定值、写入不生效。
   getMemoryPreference() {
-    return {
-      autoApproveConfidence: this.memoryAutoApproveConfidence,
-      minConfidence: MIN_MEMORY_AUTO_APPROVE_CONFIDENCE,
-      maxConfidence: MAX_MEMORY_AUTO_APPROVE_CONFIDENCE,
-    }
+    return { autoApproveConfidence: 0, minConfidence: 0, maxConfidence: 100 }
   }
 
-  async updateMemoryPreference(input) {
-    const requested = Number(input?.autoApproveConfidence)
-    if (
-      !Number.isFinite(requested) ||
-      requested < MIN_MEMORY_AUTO_APPROVE_CONFIDENCE ||
-      requested > MAX_MEMORY_AUTO_APPROVE_CONFIDENCE
-    ) {
-      throw new Error(
-        `记忆自动确认阈值必须在 ${MIN_MEMORY_AUTO_APPROVE_CONFIDENCE} 到 ${MAX_MEMORY_AUTO_APPROVE_CONFIDENCE} 之间。`,
-      )
-    }
-    const autoApproveConfidence = normalizeMemoryAutoApproveConfidence(requested)
-    const appConfig = await readJson(this.appConfigPath, {})
-    await writeJsonAtomic(this.appConfigPath, {
-      ...appConfig,
-      memoryAutoApproveConfidence: autoApproveConfidence,
-    })
-    this.memoryAutoApproveConfidence = autoApproveConfidence
+  async updateMemoryPreference() {
     return this.getMemoryPreference()
   }
 

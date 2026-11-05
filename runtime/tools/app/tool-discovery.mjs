@@ -191,8 +191,11 @@ const TOOL_ALIASES = {
     '系统内存',
     '内存',
   ],
-  memory_search: ['memory search', 'recall', '记忆搜索', '搜索记忆', '星忆', '回忆'],
-  memory_remember: ['remember', 'save memory', '记住', '保存记忆', '写入记忆', '星忆'],
+  memory_search: ['memory search', 'recall', '记忆搜索', '搜索记忆', '回忆'],
+  memory_open: ['open memory', 'memory evidence', 'memory history', '记忆证据', '记忆历史'],
+  memory_confirm: ['confirm memory', '确认记忆'],
+  memory_forget: ['forget', 'delete memory', '忘掉', '忘记', '删除记忆'],
+  memory_remember: ['remember', 'save memory', '记住', '保存记忆', '写入记忆'],
   mcp_list: ['mcp', 'mcp services', 'mcp tools', 'mcp 服务', 'mcp 工具'],
   mcp_manage: ['mcp configuration', 'configure mcp', 'mcp 配置', '管理 mcp', '添加 mcp'],
   skill_create: [

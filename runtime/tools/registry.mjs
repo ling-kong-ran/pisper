@@ -50,7 +50,9 @@ export function createAppTools({ enabledTools, waitForInitialization, ...context
   })
   if (!waitForInitialization) return tools
   return tools.map((tool) =>
-    ['memory_search', 'memory_remember'].includes(tool.name)
+    ['memory_search', 'memory_remember', 'memory_open', 'memory_confirm', 'memory_forget'].includes(
+      tool.name,
+    )
       ? {
           ...tool,
           execute: async (...args) => {

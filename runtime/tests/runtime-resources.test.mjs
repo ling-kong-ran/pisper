@@ -577,6 +577,9 @@ test('background prompts apply their explicit execution mode before the Agent st
   assert.deepEqual(runtime.sessions.get('scheduled-session').blockedToolNames, [
     'memory_search',
     'memory_remember',
+    'memory_open',
+    'memory_confirm',
+    'memory_forget',
   ])
   assert.equal(result.sessionId, 'scheduled-session')
   assert.equal(result.text, 'done')

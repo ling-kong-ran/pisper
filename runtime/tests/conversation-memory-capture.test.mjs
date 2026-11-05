@@ -127,7 +127,7 @@ function fixture(overrides = {}) {
     waitForInitialization: async () => {},
     memory: {
       ensureWorkspaceSpace: async () => 'project',
-      propose: (value) => {
+      remember: (value) => {
         proposed.push(value)
         return value
       },

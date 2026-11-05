@@ -99,7 +99,7 @@ export class ConversationMemoryCapture {
     const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
     if (signal.aborted) return []
     return result.memories.map((item, index) =>
-      this.memory.propose({
+      this.memory.remember({
         ...item,
         spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
         cwd,
@@ -109,6 +109,11 @@ export class ConversationMemoryCapture {
         sourceType: 'conversation',
       }),
     )
+  }
+
+  // 空闲会话的批量抽取（后台步骤）。实现见 M3。
+  async flushIdleSessions() {
+    return { processed: 0 }
   }
 
   async dispose() {

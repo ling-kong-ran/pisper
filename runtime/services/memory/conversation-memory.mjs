@@ -77,7 +77,7 @@ export async function extractConversationMemories({
         model,
         {
           systemPrompt: [
-            'You propose memory candidates for Pisper. Candidates are reviewed by the user before becoming trusted memory.',
+            'You extract long-term memories for Pisper. They take effect immediately without user review, so only keep what you are sure of.',
             'Keep only reusable and relatively stable information explicitly supported by the source conversation.',
             'Allowed: lasting user preferences, explicit constraints, confirmed project architecture or technical decisions, and recurring risks.',
             'Do not treat the assistant claiming that work is complete, tests passed, or a fact is true as verified evidence.',
@@ -142,6 +142,8 @@ export async function extractConversationMemories({
         importance: Math.min(1, Math.max(0.1, Number(item.importance) || 0.5)),
         confidence: Math.min(1, Math.max(0, Number(item.confidence) || 0.5)),
         evidence,
+        // 证据只出现在助手的话里时，权威度按推断算，不能当成用户说的。
+        evidenceRole: safeUser.includes(evidence) ? 'user' : 'assistant',
       },
     ]
   })

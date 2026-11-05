@@ -49,6 +49,7 @@ import { ConversationMemoryCapture, localDayKey } from './conversation-memory-ca
 import { AuxiliaryTitleTasks, generateSessionTitle } from './auxiliary-model.mjs'
 import { LocalMemoryRuntime } from '../services/memory/local-memory-runtime.mjs'
 import { createSemanticMemorySummarizer } from '../services/memory/semantic-memory.mjs'
+import { createMemoryModelClient } from '../services/memory/memory-model-client.mjs'
 import { VisualGenerationService } from '../services/visual-generation/index.mjs'
 import { WorkflowImageProcessor } from '../services/workflow-image-processing.mjs'
 import { ImageOperationService } from '../services/image-operation-service.mjs'
@@ -151,10 +152,8 @@ import {
 } from './compaction-policy.mjs'
 import {
   AgentRuntimeFacade,
-  DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE,
   ISOLATED_CONTEXT_BLOCKED_TOOLS,
   createScheduleWorkflowAdapter,
-  normalizeMemoryAutoApproveConfidence,
 } from './agent-runtime-facade.mjs'
 import {
   BOT_CONVERSATION_BLOCKED_TOOLS,
@@ -500,17 +499,19 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usagePath = join(dataDir, 'pisper-usage.json')
     this.assetsDir = join(dataDir, 'pisper-assets')
     this.assetIndexPath = join(dataDir, 'pisper-assets.json')
+    // 记忆的后台任务只走这个入口：优先辅助模型，计入用量账本，有每日上限。
+    this.memoryModel = createMemoryModelClient({
+      getModelRuntime: () => this.modelRuntime,
+      getAuxiliaryModel: () => this.resolveAuxiliaryModel(),
+      getDefaultModel: () => this.resolveDefaultModel(),
+      recordUsage: (...args) => this.recordUsage(...args),
+    })
     this.memory = new LocalMemoryRuntime({
       path: join(dataDir, 'pisper-memory.sqlite'),
       cwd,
-      getAutoApproveConfidence: () => this.memoryAutoApproveConfidence / 100,
+      modelClient: this.memoryModel,
     })
-    // 记忆整理属于后台杂活：设置了辅助模型就用它，否则沿用默认模型。
-    this.memorySummarizer = createSemanticMemorySummarizer({
-      getModelRuntime: () => this.modelRuntime,
-      getDefaultModel: async () =>
-        (await this.resolveAuxiliaryModel()) || this.resolveDefaultModel(),
-    })
+    this.memorySummarizer = createSemanticMemorySummarizer({ modelClient: this.memoryModel })
     this.memoryCapture = new ConversationMemoryCapture({
       getModelRuntime: () => this.modelRuntime,
       waitForInitialization: () => this.waitForInitialization('memory'),
@@ -628,7 +629,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.modelRuntime = null
     this.settingsManager = null
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
-    this.memoryAutoApproveConfidence = DEFAULT_MEMORY_AUTO_APPROVE_CONFIDENCE
     this.betaFeatureFlags = {}
     this.betaFeatureWrite = Promise.resolve()
     this.sessionMeta = {}
@@ -945,9 +945,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const appConfig = await readJson(this.appConfigPath, {})
     this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
       appConfig.compactionThresholdPercent,
-    )
-    this.memoryAutoApproveConfidence = normalizeMemoryAutoApproveConfidence(
-      appConfig.memoryAutoApproveConfidence,
     )
     this.betaFeatureFlags = normalizeStoredBetaFlags(appConfig.betaFeatures)
 

@@ -19,6 +19,16 @@ function assetByteRange(header, size) {
     return null
   return { start, end }
 }
+// 外部输入先归一化：状态只认这几个，时间只认能解析的。
+function memoryStatusParam(value) {
+  return ['current', 'archived', 'history', 'all'].includes(value) ? value : 'current'
+}
+
+function isoParam(value) {
+  const time = Date.parse(String(value || ''))
+  return Number.isNaN(time) ? '' : new Date(time).toISOString()
+}
+
 export const memoryAssetRoutes = [
   {
     method: 'GET',
@@ -98,8 +108,56 @@ export const memoryAssetRoutes = [
         runtime.getMemoryDashboard({
           query: url.searchParams.get('query') || '',
           spaceId: url.searchParams.get('spaceId') || '',
+          status: memoryStatusParam(url.searchParams.get('status')),
+          before: isoParam(url.searchParams.get('before')),
+          limit: url.searchParams.get('limit') || undefined,
         }),
       )
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/memory/evolution',
+    handler({ runtime, url, json }) {
+      json(200, runtime.getMemoryEvolution({ spaceId: url.searchParams.get('spaceId') || '' }))
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/memory/events',
+    handler({ runtime, url, json }) {
+      json(200, {
+        events: runtime.listMemoryEvents({
+          spaceId: url.searchParams.get('spaceId') || '',
+          before: isoParam(url.searchParams.get('before')),
+          limit: url.searchParams.get('limit') || undefined,
+        }),
+      })
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/memory/events/:eventId/undo',
+    handler({ runtime, params, json }) {
+      const result = runtime.undoMemoryEvent(params.eventId)
+      if (!result) json(404, { error: '这次改动已经不能撤销。' })
+      else json(200, result)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/memory/consolidate',
+    async handler({ runtime, json }) {
+      json(200, await runtime.consolidateMemory())
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/memory/export',
+    handler({ runtime, url, json }) {
+      json(200, {
+        markdown: runtime.exportMemory({ spaceId: url.searchParams.get('spaceId') || '' }),
+      })
     },
   },
   {
@@ -121,7 +179,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/spaces/:spaceId',
     async handler({ runtime, params, body, json }) {
       const updated = runtime.updateMemorySpace(params.spaceId, await body())
-      if (!updated) json(404, { error: '星域不存在。' })
+      if (!updated) json(404, { error: '记忆空间不存在。' })
       else json(200, updated)
     },
   },
@@ -130,7 +188,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/spaces/:spaceId',
     handler({ runtime, params, json }) {
       const deleted = runtime.deleteMemorySpace(params.spaceId)
-      if (!deleted) json(404, { error: '星域不存在。' })
+      if (!deleted) json(404, { error: '记忆空间不存在。' })
       else json(200, { deleted: true })
     },
   },
@@ -146,7 +204,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/nodes/:memoryId',
     async handler({ runtime, params, body, json }) {
       const updated = runtime.updateMemory(params.memoryId, await body())
-      if (!updated) json(404, { error: '星辰不存在。' })
+      if (!updated) json(404, { error: '记忆不存在。' })
       else json(200, updated)
     },
   },
@@ -155,8 +213,32 @@ export const memoryAssetRoutes = [
     path: '/api/memory/nodes/:memoryId',
     handler({ runtime, params, json }) {
       const deleted = runtime.deleteMemory(params.memoryId)
-      if (!deleted) json(404, { error: '星辰不存在。' })
+      if (!deleted) json(404, { error: '记忆不存在。' })
       else json(200, { deleted: true })
+    },
+  },
+  {
+    method: 'GET',
+    path: '/api/memory/nodes/:memoryId',
+    handler({ runtime, params, json }) {
+      const detail = runtime.getMemoryDetail(params.memoryId)
+      if (!detail) json(404, { error: '记忆不存在。' })
+      else json(200, detail)
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/memory/nodes/:memoryId/:action',
+    where: { action: ['restore', 'confirm', 'pin', 'unpin'] },
+    handler({ runtime, params, json }) {
+      const result =
+        params.action === 'restore'
+          ? runtime.restoreMemory(params.memoryId)
+          : params.action === 'confirm'
+            ? runtime.confirmMemory(params.memoryId)
+            : runtime.setMemoryPinned(params.memoryId, params.action === 'pin')
+      if (!result) json(404, { error: '记忆不存在。' })
+      else json(200, result)
     },
   },
   {

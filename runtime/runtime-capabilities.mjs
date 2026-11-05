@@ -39,6 +39,9 @@ function supportedTools(features) {
   if (features.memory) {
     tools.add('memory_search')
     tools.add('memory_remember')
+    tools.add('memory_open')
+    tools.add('memory_confirm')
+    tools.add('memory_forget')
   }
   if (features.mcp) {
     tools.add('mcp_list')
