@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +30,7 @@ import { useBetaFeature } from '@/features/labs/public-flags'
 import { cn } from '@/lib/utils'
 import { BotAvatar } from './BotAvatar'
 import { botAvatarState, botDutyLine, botFolderName } from './bot-presentation'
-import { updateBot, type Bot } from './bots-api'
+import { BOT_PROACTIVE_HOURS, updateBot, type Bot, type BotProactive } from './bots-api'
 import { useBotsStore } from './bots-store'
 
 export function BotGreeting({
@@ -61,6 +62,8 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
   const [editingBrief, setEditingBrief] = useState(false)
   const [briefAt, setBriefAt] = useState(bot.proactive.briefAt)
   const [picking, setPicking] = useState(false)
+  const [confirmingWatch, setConfirmingWatch] = useState(false)
+  const [everyHours, setEveryHours] = useState(bot.proactive.everyHours)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const duty = botDutyLine(bot.instructions)
@@ -88,12 +91,15 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
     if (await save({ proactive: { brief: true, briefAt } })) setEditingBrief(false)
   }
 
-  // 没写职责时这张卡片就是在选职责：连同“盯着它”的说明和只读巡看一起打开；已有职责只换目录。
+  // 没写职责时这张卡片是在选职责：巡看要持续消耗模型用量，所以先在 watch 表单里讲清频率与用量，
+  // 用户点了确认、选好目录才连同“盯着它”的说明一起打开；已有职责只换目录，不碰巡看。
   // 失败时抛给目录选择器，由它在对话框里显示原因（Runtime 校验目录是否存在）。
   const pickFolder = async (cwd: string) => {
     const updated = await updateBot(bot.id, {
       workspace: { ...bot.workspace, cwd },
-      ...(duty ? {} : { instructions: t('bots:greeting.watchDuty'), proactive: { enabled: true } }),
+      ...(duty
+        ? {}
+        : { instructions: t('bots:greeting.watchDuty'), proactive: { enabled: true, everyHours } }),
     })
     upsert(updated)
     // 会话目录跟着换了：打开中的会话直接同步页头的目录名。
@@ -101,6 +107,7 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
       announceSessionsUpdated({ id: bot.threadSessionId, cwd: updated.workspace.cwd })
     // 保存后目录变了，选择器会按新的 initialPath 重置，不再自己关闭。
     setPicking(false)
+    setConfirmingWatch(false)
   }
 
   return (
@@ -168,6 +175,7 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
                     onChange={(event) => setBriefAt(event.target.value)}
                   />
                 </label>
+                <p className="m-0 text-xs text-content-muted">{t('bots:greeting.briefNote')}</p>
                 <div className="flex items-center gap-2">
                   <Button type="submit" disabled={saving || !briefAt}>
                     {t('bots:greeting.briefConfirm')}
@@ -204,20 +212,73 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
                 }}
               />
             ))}
-          {local && (
-            <GreetingAction
-              action="folder"
-              icon={FolderOpen}
-              title={duty ? t('bots:greeting.folder') : t('bots:greeting.watch')}
-              hint={
-                duty
-                  ? t('bots:greeting.folderHint', { folder: botFolderName(bot.workspace.cwd) })
-                  : t('bots:greeting.watchHint')
-              }
-              disabled={saving}
-              onClick={() => setPicking(true)}
-            />
-          )}
+          {local &&
+            (confirmingWatch ? (
+              <form
+                data-bot-greeting-watch
+                className="flex flex-col gap-3 rounded-[var(--r-md)] border border-stroke px-3 py-2.5"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setPicking(true)
+                }}
+                onKeyDown={(event) => {
+                  // 下拉菜单在 Portal 里，它的 Esc 只关菜单，不算取消这个表单。
+                  if (event.key === 'Escape' && event.currentTarget.contains(event.target as Node))
+                    setConfirmingWatch(false)
+                }}
+              >
+                <label className="flex flex-col gap-2 text-sm font-medium text-content">
+                  {t('bots:greeting.watchWhen')}
+                  <AppSelect
+                    value={String(everyHours)}
+                    className="w-44 font-normal"
+                    onChange={(event) =>
+                      setEveryHours(Number(event.target.value) as BotProactive['everyHours'])
+                    }
+                  >
+                    {BOT_PROACTIVE_HOURS.map((hours) => (
+                      <option key={hours} value={hours}>
+                        {t('bots:proactive.everyHours', { count: hours })}
+                      </option>
+                    ))}
+                  </AppSelect>
+                </label>
+                <p className="m-0 text-xs text-content-muted">{t('bots:greeting.watchNote')}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="submit" autoFocus>
+                    {t('bots:greeting.watchConfirm')}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setConfirmingWatch(false)}>
+                    {t('bots:new.cancel')}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <GreetingAction
+                action="folder"
+                icon={FolderOpen}
+                title={duty ? t('bots:greeting.folder') : t('bots:greeting.watch')}
+                hint={
+                  !duty
+                    ? t('bots:greeting.watchHint', { count: bot.proactive.everyHours })
+                    : bot.proactive.enabled
+                      ? t('bots:greeting.folderWatchHint', {
+                          folder: botFolderName(bot.workspace.cwd),
+                          count: bot.proactive.everyHours,
+                        })
+                      : t('bots:greeting.folderHint', { folder: botFolderName(bot.workspace.cwd) })
+                }
+                disabled={saving}
+                onClick={() => {
+                  if (duty) {
+                    setPicking(true)
+                    return
+                  }
+                  setEveryHours(bot.proactive.everyHours)
+                  setConfirmingWatch(true)
+                }}
+              />
+            ))}
           <GreetingAction
             action="chats"
             icon={MessageCircle}

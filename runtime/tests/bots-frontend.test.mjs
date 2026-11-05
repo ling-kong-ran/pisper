@@ -444,6 +444,21 @@ test('bot greeting derives from settings and stays at the start of the conversat
   assert.match(greeting, /if \(!bot\) return loaded \? fallback : null/)
   // 只在本机才给简报与目录选择器：执行节点上的 Bot 用不了。
   assert.match(greeting, /const local = bot\.workspace\.environmentId === 'local'/)
+  // 巡看持续消耗模型用量：先经确认表单讲清频率与用量，点卡片本身不打开，确认后才按所选频率写入。
+  assert.match(greeting, /data-bot-greeting-watch/)
+  assert.match(greeting, /proactive: \{ enabled: true, everyHours \}/)
+  assert.equal(greeting.match(/enabled: true/g).length, 1)
+  assert.match(
+    greeting,
+    /setPicking\(true\)\s+return\s+\}\s+setEveryHours\(bot\.proactive\.everyHours\)\s+setConfirmingWatch\(true\)/,
+  )
+  for (const key of ['greeting.watchHint', 'greeting.folderWatchHint']) {
+    assert.match(JSON.parse(zh)[key], /\{count\} 小时[\s\S]*消耗模型用量/)
+    assert.match(JSON.parse(en)[key], /\{count\} h[\s\S]*model quota/)
+  }
+  // 第一遍不等满一个周期（没有上次时间就算到点），确认表单要说清楚。
+  assert.match(JSON.parse(zh)['greeting.watchNote'], /马上看第一遍/)
+  assert.match(JSON.parse(en)['greeting.watchNote'], /first look as soon as/)
   // 不经 Runtime 对话接口，也不进转录。
   assert.doesNotMatch(greeting, /sendMessage|messageBot|\/api\/chat/)
   // 空对话显示完整招呼；有消息时只在最前面显示收起版，还有更早消息时不显示。
