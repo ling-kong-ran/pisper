@@ -60,6 +60,13 @@ const BARE_COLOR_ALLOWLIST = [
     reason: '扫码取景框外的相机画面遮罩（9999px 阴影挖空），恒定压暗实时画面，不随主题翻转',
   },
   {
+    file: 'src/features/memory/MemoryEvolution.tsx',
+    literal: 'rgba(',
+    count: 29,
+    reason:
+      '记忆年轮的舞台是恒定深色场景，亮色主题下也不翻转：这里就地把主题 token 改成深色值，里面的基础控件才不用逐个覆盖样式',
+  },
+  {
     file: 'src/features/workflows/WorkflowImageNodeInspector.tsx',
     literal: '#00ff00',
     count: 1,
