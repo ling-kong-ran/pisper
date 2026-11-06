@@ -8,7 +8,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useI18n } from '@/app/use-i18n'
 import { sessionIdFromPath, sessionPath } from '@/app/routes'
 import { STORAGE_KEYS } from '@/app/storage'
-import { startAgentBrowserHost } from '@/features/chat/agent-browser-host'
 import { requestWebPreview } from '@/features/chat/web-preview-events'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { queryClient, SESSIONS_QUERY_KEY } from '@/lib/startup-queries'
@@ -22,8 +21,19 @@ export function WebPreviewProvider() {
   const overlayLabelRef = useRef('')
   overlayLabelRef.current = t('common:webPreview.agentOverlay')
 
-  // 桌面端右侧浏览器接收 Agent 的指令。
-  useEffect(() => startAgentBrowserHost(() => overlayLabelRef.current), [])
+  // 桌面端右侧浏览器接收 Agent 的指令。按需加载：入口有体积预算，Web 版也用不上这些代码。
+  useEffect(() => {
+    if (!window.pisperDesktop?.browser) return
+    let stopped = false
+    let stop = () => {}
+    void import('@/features/chat/agent-browser-host').then(({ startAgentBrowserHost }) => {
+      if (!stopped) stop = startAgentBrowserHost(() => overlayLabelRef.current)
+    })
+    return () => {
+      stopped = true
+      stop()
+    }
+  }, [])
 
   useEffect(() => {
     const captureExternalLink = (event: MouseEvent) => {
