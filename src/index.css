@@ -321,6 +321,14 @@
   /* 输入、选择框等控件边界需与相邻底色达到 3:1。 */
   --input: var(--control-border);
   --ring: var(--focus);
+  /* 数据图表的分类色：固定顺序，经 dataviz 验证脚本检查过色盲可分与最小差异 */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-7: #6250d6;
   --chart-1: #2a2a28;
   --chart-2: #868680;
   --chart-3: #d6d6d2;
@@ -413,6 +421,13 @@
   --diff-add-mark: rgba(102, 208, 146, .22);
   --diff-del-bg: rgba(255, 125, 111, .09);
   --diff-del-mark: rgba(255, 125, 111, .22);
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
+  --viz-7: #9085e9;
   --chart-1: #d9d9d5;
   --chart-2: #94948e;
   --chart-3: #444441;

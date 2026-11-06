@@ -396,5 +396,21 @@
   "machine.folderInRoots": "Must be inside: {roots}",
   "machine.confirm": "Use this folder",
   "machine.checking": "Connecting…",
-  "machine.cancel": "Cancel"
+  "machine.cancel": "Cancel",
+  "composer.context.system": "System prompt",
+  "composer.context.project": "Project instructions",
+  "composer.context.skills": "Skill list",
+  "composer.context.tools": "Built-in tools",
+  "composer.context.mcp": "MCP tools",
+  "composer.context.messages": "Messages",
+  "composer.context.toolResults": "Tool calls & results",
+  "composer.context.free": "{tokens} free",
+  "composer.context.estimated": "Total from the model; the parts are estimates.",
+  "composer.context.allEstimated": "No usage from the model yet; all estimates.",
+  "composer.context.prefixUnknown": "The system prompt and tools can be counted once the session has run.",
+  "composer.context.compactAt": "Compacts at {percent}%",
+  "composer.context.deferred": "{count} on standby, free until called",
+  "composer.context.callCount": "{count} calls",
+  "composer.context.composition": "What is using it",
+  "composer.context.toolCount": "{count} tools"
 }

@@ -387,5 +387,21 @@
   "machine.folderInRoots": "只能选这些目录里的位置：{roots}",
   "machine.confirm": "使用这个目录",
   "machine.checking": "正在连接…",
-  "machine.cancel": "取消"
+  "machine.cancel": "取消",
+  "composer.context.system": "系统提示词",
+  "composer.context.project": "项目说明",
+  "composer.context.skills": "技能列表",
+  "composer.context.tools": "内置工具",
+  "composer.context.mcp": "MCP 工具",
+  "composer.context.messages": "对话消息",
+  "composer.context.toolResults": "工具调用与结果",
+  "composer.context.free": "剩余 {tokens}",
+  "composer.context.estimated": "总量来自模型，各部分为估算。",
+  "composer.context.allEstimated": "模型还没返回用量，都是估算。",
+  "composer.context.prefixUnknown": "系统提示词和工具要等会话运行后才能统计。",
+  "composer.context.compactAt": "到 {percent}% 自动压缩",
+  "composer.context.deferred": "{count} 个待用，用到才占上下文",
+  "composer.context.callCount": "{count} 次调用",
+  "composer.context.composition": "占用构成",
+  "composer.context.toolCount": "{count} 个工具"
 }

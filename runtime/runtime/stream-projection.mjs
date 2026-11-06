@@ -22,6 +22,7 @@ import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
 import { effectiveCompactionSettings } from './compaction-policy.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { sessionInputQueueSnapshot, sessionInputQueueRevision } from './session-input-queue.mjs'
+import { buildContextBreakdown } from './context-breakdown.mjs'
 
 // 活动流长度/思考文本上限：限制实时视图的内存与传输量。
 export const MAX_LIVE_ACTIVITY_ITEMS = 6
@@ -1167,6 +1168,31 @@ export class StreamProjection {
     })
     this.trimSessionContextUsageCache(id)
     return value
+  }
+
+  // 上下文各部分的占比：弹层打开时才算。驻留会话不存在时读转录，不为看一眼就把运行时建起来。
+  async getSessionContextBreakdown(id, { mcpAvailable = [] } = {}) {
+    const active = this.sessions().get(id)
+    if (active) {
+      const { session } = active
+      const usage = await this.getSessionContextUsage(id)
+      const activeNames = new Set(session.getActiveToolNames?.() ?? [])
+      return buildContextBreakdown({
+        messages: session.messages,
+        systemPrompt: session.systemPrompt,
+        activeTools: (session.getAllTools?.() ?? []).filter((tool) => activeNames.has(tool.name)),
+        usage,
+        mcpAvailable,
+      })
+    }
+    const info = await this.findSessionInfo(id)
+    if (!info) return null
+    const usage = await this.getSessionContextUsage(id)
+    return buildContextBreakdown({
+      messages: this.openStoredSession(info.path).buildSessionContext().messages,
+      usage,
+      mcpAvailable,
+    })
   }
 
   // 消息分页（向后翻页）：before 为游标（已加载条数）。

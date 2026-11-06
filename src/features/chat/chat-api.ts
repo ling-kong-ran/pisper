@@ -19,6 +19,7 @@ import type {
   ResourceInvocation,
   SessionSummary,
 } from '@/types/chat'
+import { parseContextBreakdown } from './context-breakdown'
 
 export type ApiRecord = EntityRecord
 export type QueuedInputResponse = ApiRecord & {
@@ -265,6 +266,11 @@ export const chatApi = {
         ...(options.projectless ? { projectless: true } : cwd ? { cwd } : {}),
       },
     }),
+
+  getContextBreakdown: (sessionId: string, signal?: AbortSignal) =>
+    requestJson<unknown>(`${sessionPath(sessionId)}/context-breakdown`, { signal }).then(
+      parseContextBreakdown,
+    ),
 
   deriveSession: (sessionId: string, boundaryEntryId: string, name: string) =>
     requestJson<SessionSummary>(`${sessionPath(sessionId)}/derive`, {

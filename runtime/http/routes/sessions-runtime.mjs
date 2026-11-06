@@ -518,6 +518,15 @@ const routes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/context-breakdown',
+    async handler({ runtime, params, json }) {
+      const breakdown = await runtime.getSessionContextBreakdown(params.sessionId)
+      if (!breakdown) json(404, { error: '会话不存在。' })
+      else json(200, breakdown)
+    },
+  },
+  {
     method: 'PUT',
     path: '/api/sessions/:sessionId/execution-mode',
     async handler({ runtime, params, body, json }) {

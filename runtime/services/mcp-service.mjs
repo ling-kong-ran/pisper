@@ -965,6 +965,18 @@ export class McpService {
     void this.save().catch(() => {})
   }
 
+  // 上下文统计用：已连上的服务和它们的工具在会话里的名字（工具开关关掉的不算）。
+  sessionToolNames() {
+    return this.state.servers
+      .map((server) => ({
+        name: server.name,
+        toolNames: (server.tools ?? [])
+          .filter((tool) => server.toolStates?.[tool.name] !== false)
+          .map((tool) => piToolName(server, tool)),
+      }))
+      .filter((server) => server.toolNames.length > 0)
+  }
+
   // 工具 → 定义转换：注入工具描述与 schema，供会话装配。
   createToolDefinition(server, tool) {
     const name = piToolName(server, tool)

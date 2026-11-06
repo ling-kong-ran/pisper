@@ -208,6 +208,14 @@ export const agentSessionMethods = {
     return this.streamProjection.decorateContextUsage(raw, compaction)
   },
 
+  async getSessionContextBreakdown(id) {
+    // 远程机器上的会话没有 MCP；其余会话能用的是已连上的服务。
+    const onMachine = normalizeRemoteExecutor(this.sessionMeta?.[id]?.remoteExecutor)
+    return this.streamProjection.getSessionContextBreakdown(id, {
+      mcpAvailable: onMachine ? [] : (this.mcp?.sessionToolNames?.() ?? []),
+    })
+  },
+
   async getSessionContextUsage(id, compaction = null) {
     return this.streamProjection.getSessionContextUsage(id, compaction)
   },

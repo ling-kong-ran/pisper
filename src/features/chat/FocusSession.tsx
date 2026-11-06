@@ -759,6 +759,7 @@ export const FocusSession = memo(function FocusSession({
       pendingModel={Boolean(pendingRuntimeSelection?.model)}
       usage={
         <ContextUsageSection
+          sessionId={session.id}
           usage={contextUsage}
           sessionUsage={sessionUsage}
           model={model}

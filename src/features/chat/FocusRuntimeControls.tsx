@@ -1,5 +1,6 @@
 // 输入框的模型芯片（模型 · 思考强度）与弹层里的上下文用量、详细统计。
 import { useEffect, useRef, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ChevronRight, ChevronsUpDown } from 'lucide-react'
 import type { I18nValues } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
@@ -18,6 +19,8 @@ import { formatTokenCount } from '@/lib/format'
 import { compactModelName } from '@/lib/model-display'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
+import { chatApi } from './chat-api'
+import { ContextBreakdownMeter, ContextCapacityBar } from './ContextBreakdownMeter'
 import { COMPOSER_PHONE_TARGET_CLASSES } from './focus-session-composer-bits'
 import { formatRunDuration } from './run-activity'
 
@@ -32,18 +35,45 @@ function resolveModelLabel(model: string, models: ModelChoice[]) {
   return current ? `${current.providerName} · ${current.label}` : model.split('/').at(-1) || model
 }
 
+// 一个数字一块卡片：标题在上、数字在下，比一长串“标题 …… 数字”好扫。
+function StatTile({
+  label,
+  value,
+  wide = false,
+  usageKey,
+  title,
+}: {
+  label: string
+  value: string
+  wide?: boolean
+  usageKey?: string
+  title?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'grid min-w-0 gap-0.5 rounded-[var(--r-md)] bg-surface-subtle px-2 py-1.5 dark:bg-surface-active',
+        wide && 'col-span-2',
+      )}
+      data-usage-row={usageKey}
+      title={title}
+    >
+      <span className="truncate text-[11px] leading-4 text-content-muted">{label}</span>
+      <strong className="truncate text-[13px] leading-4 font-medium text-content">{value}</strong>
+    </div>
+  )
+}
+
 // 详细数据统计面板：在上下文用量弹窗中展示当前模型、token 用量与请求时序
 // （首字平均耗时/平均响应时长）。timing 由 runtime 随 sessionUsage 上报并持久化。
 export function SessionStatsPanel({
   model,
   availableModels,
   sessionUsage,
-  contextUsage,
 }: {
   model?: string
   availableModels?: ModelOption[]
   sessionUsage?: EntityRecord | null
-  contextUsage?: EntityRecord | null
 }) {
   const { t, language } = useI18n()
   const timing =
@@ -54,8 +84,6 @@ export function SessionStatsPanel({
     firstTokenSamples > 0 ? Number(timing?.firstTokenTotalMs) / firstTokenSamples : null
   const avgDuration =
     recordedRequests > 0 ? Number(timing?.durationTotalMs) / recordedRequests : null
-  const contextTokens =
-    contextUsage?.tokens == null ? null : Math.max(0, Number(contextUsage.tokens) || 0)
   // 缓存统计与状态栏同语义：上游从未回传过非零缓存用量时不可知，
   // 显示「—」而不是把缺失当成 0（见 stream-projection 的 cacheReported）。
   const cacheKnown = Boolean(sessionUsage?.cacheReported)
@@ -63,12 +91,6 @@ export function SessionStatsPanel({
     [
       t('chat:focusSession.statCurrentModel'),
       model ? resolveModelLabel(model, availableModels || []) : '—',
-    ],
-    [
-      t('chat:focusSession.statContextTokens'),
-      contextTokens == null
-        ? '—'
-        : `${formatTokenCount(contextTokens)} / ${formatTokenCount(contextUsage?.contextWindow)}`,
     ],
     [t('chat:focusSession.statInputTokens'), formatTokenCount(sessionUsage?.input)],
     [t('chat:focusSession.statOutputTokens'), formatTokenCount(sessionUsage?.output)],
@@ -81,7 +103,6 @@ export function SessionStatsPanel({
       cacheKnown ? formatTokenCount(sessionUsage?.cacheWrite) : '—',
     ],
     [t('chat:focusSession.statReasoningTokens'), formatTokenCount(sessionUsage?.reasoning)],
-    [t('chat:focusSession.statProcessedTokens'), formatTokenCount(sessionUsage?.processedTokens)],
     [t('chat:focusSession.statRequests'), String(Math.max(0, Number(sessionUsage?.requests) || 0))],
     [
       t('chat:focusSession.statAvgFirstToken'),
@@ -94,22 +115,14 @@ export function SessionStatsPanel({
   ]
   return (
     <div
-      className="session-stats-panel grid gap-[3px]"
+      className="session-stats-panel grid grid-cols-2 gap-1"
       aria-label={t('chat:focusSession.sessionStats')}
     >
       {/* 标题由外层的展开开关“详细统计”给出，这里不再重复一遍。 */}
-      {rows.map(([label, value]) => (
-        <div
-          key={label}
-          className="flex items-baseline justify-between gap-[10px] text-[length:var(--app-small-size)]"
-        >
-          <span className="min-w-0 shrink-0 text-[var(--text-muted)]">{label}</span>
-          <strong className="min-w-0 truncate text-right font-[500] text-[var(--text)] [font-variant-numeric:tabular-nums]">
-            {value}
-          </strong>
-        </div>
+      {rows.map(([label, value], index) => (
+        <StatTile key={label} label={label} value={value} wide={index === 0} />
       ))}
-      <small className="text-[var(--text-secondary)] text-[length:var(--app-small-size)] leading-normal">
+      <small className="col-span-2 text-[11px] leading-4 text-content-muted">
         {t('chat:focusSession.sessionStatsHint')}
       </small>
     </div>
@@ -120,12 +133,14 @@ export function SessionStatsPanel({
 // 以及自动压缩阈值与详细统计。原来页头的上下文环与“+ › 详情”里的读数都收到这里。
 // 只写真实拿到的数：上下文窗口未知时整段不显示，缓存命中未上报时写“—”并说明原因。
 export function ContextUsageSection({
+  sessionId,
   usage,
   sessionUsage,
   model,
   availableModels,
   onThresholdChange,
 }: {
+  sessionId?: string
   usage?: EntityRecord | null
   sessionUsage?: EntityRecord | null
   model?: string
@@ -150,13 +165,31 @@ export function ContextUsageSection({
 
   useEffect(() => () => window.clearTimeout(thresholdSaveTimer.current), [])
 
+  // 弹层打开时才挂载，这里才去算。用量变了重算；旧 Runtime 没有这个接口时退回只有总量的条。
+  const breakdownQuery = useQuery({
+    queryKey: ['context-breakdown', sessionId, usage?.tokens ?? null, contextWindow],
+    queryFn: ({ signal }) => chatApi.getContextBreakdown(String(sessionId), signal),
+    enabled: Boolean(sessionId) && contextWindow > 0,
+    retry: false,
+    staleTime: 5_000,
+    placeholderData: keepPreviousData,
+  })
+  const breakdown = breakdownQuery.data
+
   const known = usage?.percent != null && Number.isFinite(Number(usage.percent))
   const percent = known ? Math.max(0, Number(usage?.percent)) : null
   const processedTokens = Math.max(0, Number(sessionUsage?.processedTokens) || 0)
   const cacheHitRate = Number(sessionUsage?.cacheHitRate)
   const cacheRateKnown = sessionUsage?.cacheHitRate != null && Number.isFinite(cacheHitRate)
+  // 刚压缩过模型还没返回用量时，总量写估算值（带 ≈），不写“—”。
+  const usedText =
+    usage?.tokens != null
+      ? formatTokenCount(usage.tokens)
+      : breakdown
+        ? `≈${formatTokenCount(breakdown.usedTokens)}`
+        : '—'
   const contextText = contextWindow
-    ? `${usage?.tokens == null ? '—' : formatTokenCount(usage.tokens)} / ${formatTokenCount(contextWindow)}${percent == null ? '' : ` · ${Math.round(percent)}%`}`
+    ? `${usedText} / ${formatTokenCount(contextWindow)}${percent == null ? '' : ` · ${Math.round(percent)}%`}`
     : ''
   const compactionCapacityText =
     usage?.autoCompactEnabled && usage.compactionCapacityPercent != null
@@ -210,31 +243,35 @@ export function ContextUsageSection({
       data-context-usage
     >
       {contextText && (
-        <div className="grid gap-1">
+        <div className="grid gap-1.5">
           {row(t('board:composer.contextUsage'), contextText, 'context')}
-          <span
-            aria-hidden="true"
-            className="block h-[3px] overflow-hidden rounded-full bg-surface-active"
-          >
-            <span
-              className="block h-full rounded-full bg-content-secondary"
-              style={{ width: `${Math.min(100, percent || 0)}%` }}
+          {breakdown ? (
+            <ContextBreakdownMeter breakdown={breakdown} />
+          ) : (
+            <ContextCapacityBar
+              percent={percent ?? 0}
+              compactAtPercent={usage?.autoCompactEnabled ? compactAtPercent : null}
             />
-          </span>
+          )}
         </div>
       )}
-      {processedTokens > 0 &&
-        row(
-          t('board:composer.sessionTokens'),
-          t('board:composer.tokens', { tokens: formatTokenCount(processedTokens) }),
-          'tokens',
-        )}
-      {row(
-        t('board:composer.cacheHitLabel'),
-        cacheRateKnown ? `${Math.round(Math.max(0, cacheHitRate))}%` : '—',
-        'cache',
-        cacheRateKnown ? undefined : t('chat:focusSession.cacheHitRateUnavailable'),
-      )}
+      <div className="grid grid-cols-2 gap-1">
+        <StatTile
+          label={t('board:composer.sessionTokens')}
+          value={
+            processedTokens > 0
+              ? t('board:composer.tokens', { tokens: formatTokenCount(processedTokens) })
+              : '—'
+          }
+          usageKey="tokens"
+        />
+        <StatTile
+          label={t('board:composer.cacheHitLabel')}
+          value={cacheRateKnown ? `${Math.round(Math.max(0, cacheHitRate))}%` : '—'}
+          usageKey="cache"
+          title={cacheRateKnown ? undefined : t('chat:focusSession.cacheHitRateUnavailable')}
+        />
+      </div>
       {contextWindow > 0 && (
         <details
           className="group/usage min-w-0 text-xs"
@@ -258,7 +295,6 @@ export function ContextUsageSection({
               model={model}
               availableModels={availableModels}
               sessionUsage={sessionUsage}
-              contextUsage={usage}
             />
             {compactionCapacityText && (
               <small className="text-content-muted">{compactionCapacityText}</small>
