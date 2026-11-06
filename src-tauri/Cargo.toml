@@ -89,12 +89,17 @@ image = { version = "0.25", default-features = false, features = ["jpeg"] }
 # 按名称运行时解析；这里只依赖远古框架（Foundation/CoreMedia/CoreVideo/CoreGraphics）。
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", features = ["std", "exception", "verify"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSError", "NSString", "NSArray"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSError", "NSString", "NSArray", "NSProcessInfo"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
 objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "CMTime", "CMSampleBuffer", "objc2-core-video"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["std", "objc2", "CVPixelBuffer", "CVBase", "CVBuffer", "CVImageBuffer", "CVReturn"] }
 block2 = { version = "0.6", default-features = false, features = ["std", "alloc"] }
 dispatch2 = { version = "0.3", default-features = false, features = ["std", "alloc", "objc2"] }
+
+# 右侧浏览器的子 WebView（desktop_browser.rs）。版本跟随 tauri-runtime-wry，升级 Tauri 时一起看：
+# 两边版本不同会编出两份 wry。Linux 不用：build_as_child 只支持 X11，右侧浏览器在那里继续用 iframe。
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+wry = { version = "0.55", default-features = false, features = ["protocol", "os-webview"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }

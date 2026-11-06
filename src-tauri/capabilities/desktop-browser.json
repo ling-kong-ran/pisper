@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-browser",
+  "description": "Allows only the main Pisper desktop window to manage the side browser. Pages inside the browser receive no capabilities.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*/*"]
+  },
+  "permissions": ["allow-pisper-desktop-browser"]
+}

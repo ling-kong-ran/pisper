@@ -11,7 +11,13 @@
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
     "security": {
-      "capabilities": ["desktop-runtime", "desktop-terminal", "desktop-remote", "mobile-bridge"],
+      "capabilities": [
+        "desktop-runtime",
+        "desktop-terminal",
+        "desktop-remote",
+        "desktop-browser",
+        "mobile-bridge"
+      ],
       "csp": null
     }
   },
@@ -30,6 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "infoPlist": "Info.macos.plist"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper",

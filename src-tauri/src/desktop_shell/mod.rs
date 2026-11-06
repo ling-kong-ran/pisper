@@ -2,6 +2,8 @@ mod cli_manager;
 mod component_updates;
 mod computer_use;
 mod desktop_bridge;
+mod desktop_browser;
+mod desktop_browser_policy;
 mod desktop_pet;
 mod desktop_terminal;
 mod remote_workspaces;
@@ -26,7 +28,7 @@ use std::{
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
-    webview::NewWindowResponse,
+    webview::{NewWindowResponse, PageLoadEvent},
     AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -560,6 +562,11 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         .min_inner_size(1080.0, 680.0)
         .center()
         .initialization_script(DESKTOP_BRIDGE_SCRIPT)
+        .on_page_load(|window, payload| {
+            if payload.event() == PageLoadEvent::Started {
+                desktop_browser::close_all(window.app_handle());
+            }
+        })
         .on_navigation(move |target| {
             if same_origin(target, &allowed) || target.scheme() == "about" {
                 return true;
@@ -824,6 +831,11 @@ pub fn run() {
             desktop_terminal::desktop_terminal_resize,
             desktop_terminal::desktop_terminal_close,
             desktop_terminal::desktop_terminal_close_all,
+            desktop_browser::desktop_browser_open,
+            desktop_browser::desktop_browser_navigate,
+            desktop_browser::desktop_browser_action,
+            desktop_browser::desktop_browser_sync,
+            desktop_browser::desktop_browser_close,
             computer_use::desktop_computer_use_start_stream,
             computer_use::desktop_computer_use_stop_stream,
             computer_use::desktop_computer_use_secure_input_state,

@@ -6,6 +6,12 @@ import { openWebPreviewInSessionContext } from '../../src/features/chat/session-
 import { useContextPagesStore } from '../../src/features/chat/session-context-pages-store.ts'
 import { previewSessionTarget } from '../../src/app/web-preview-target.ts'
 import {
+  isOccluded,
+  occlusionProbePoints,
+  overlapsAny,
+  placementChanged,
+} from '../../src/features/chat/native-browser-geometry.ts'
+import {
   EXIT_PRESENCE_FALLBACK_MS,
   exitPresenceMounted,
   finishExitPresence,
@@ -221,4 +227,75 @@ test('session web preview reuses one browser page per session and moves it to th
   } finally {
     useContextPagesStore.getState().forget('preview-session')
   }
+})
+
+test('the native browser follows its slot and gets out of the way of overlays', () => {
+  const bounds = { x: 10, y: 20, width: 300, height: 200 }
+  const placed = { bounds, visible: true }
+  assert.equal(placementChanged(null, placed), true)
+  assert.equal(placementChanged(placed, { bounds, visible: false }), true)
+  assert.equal(placementChanged(placed, { bounds: { ...bounds, x: 10.2 }, visible: true }), false)
+  assert.equal(placementChanged(placed, { bounds: { ...bounds, width: 301 }, visible: true }), true)
+
+  const rect = { left: 100, top: 100, width: 100, height: 100 }
+  const viewport = { width: 1000, height: 800 }
+  const points = occlusionProbePoints(rect, viewport)
+  assert.equal(points.length, 9)
+  const slot = {}
+  assert.equal(
+    isOccluded(slot, points, () => slot),
+    false,
+  )
+  // 弹层盖住一部分，或模态弹层让 body 不可点（命中根元素），都要让路。
+  assert.equal(
+    isOccluded(slot, points, (x, y) => (x > 150 && y > 150 ? {} : slot)),
+    true,
+  )
+  assert.equal(
+    isOccluded(slot, points, () => ({ tagName: 'HTML' })),
+    true,
+  )
+  // 碰不到探测点的小菜单也要让路；只是贴着边不算。
+  assert.equal(overlapsAny(rect, [{ left: 195, top: 95, width: 10, height: 10 }]), true)
+  assert.equal(overlapsAny(rect, [{ left: 200, top: 100, width: 10, height: 10 }]), false)
+  assert.equal(overlapsAny(rect, []), false)
+  // 伸出窗口的部分不探测，否则窗口变窄时网页会一直被当成遮住。
+  const clipped = occlusionProbePoints({ ...rect, left: 950 }, viewport)
+  assert.ok(clipped.length > 0 && clipped.every((point) => point.x < viewport.width))
+  assert.deepEqual(occlusionProbePoints(rect, { width: 0, height: 0 }), [])
+})
+
+test('the native browser stays isolated from the app and leaves the main window untouched', async () => {
+  const [browser, cargo, capability, permission, config, bridge, pane] = await Promise.all([
+    readFile('src-tauri/src/desktop_shell/desktop_browser.rs', 'utf8'),
+    readFile('src-tauri/Cargo.toml', 'utf8'),
+    readFile('src-tauri/capabilities/desktop-browser.json', 'utf8'),
+    readFile('src-tauri/permissions/browser.toml', 'utf8'),
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
+    readFile('src/features/chat/SessionBrowserPane.tsx', 'utf8'),
+  ])
+  // 网页拿不到 IPC，也不走 Tauri 的 WebView 管理；主窗口不因此改成子 WebView。
+  assert.doesNotMatch(browser, /with_ipc_handler|with_initialization_script/)
+  assert.match(browser, /build_as_child\(window\)/)
+  assert.doesNotMatch(cargo, /"unstable"/)
+  // 数据隔离：macOS 14 之前没有独立存储时要用无痕，不能退回和主窗口共用的默认存储。
+  assert.match(browser, /with_data_store_identifier\(PROFILE_STORE\)/)
+  assert.match(browser, /with_incognito\(true\)/)
+  assert.match(browser, /WebContext::new\(Some\(profile\)\)/)
+  // 只有主窗口能操作。
+  assert.deepEqual(JSON.parse(capability).windows, ['main'])
+  assert.match(permission, /identifier = "allow-pisper-desktop-browser"/)
+  assert.ok(JSON.parse(config).app.security.capabilities.includes('desktop-browser'))
+  for (const command of ['open', 'navigate', 'action', 'sync', 'close']) {
+    assert.match(permission, new RegExp(`"desktop_browser_${command}"`))
+    assert.match(bridge, new RegExp(`'desktop_browser_${command}'`))
+    assert.match(
+      browser,
+      new RegExp(`pub async fn desktop_browser_${command}\\([\\s\\S]*?ensure_main\\(&window\\)\\?`),
+    )
+  }
+  // 不支持时明确退回 iframe，不留空白。
+  assert.match(browser, /status: "unsupported"/)
+  assert.match(pane, /native\.active \?[\s\S]*: url \?[\s\S]*<WebPreview/)
 })
