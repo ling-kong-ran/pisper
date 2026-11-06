@@ -20,6 +20,13 @@ export const SLIDER_MAX = 1000
 // 再小看不清结构，再大只剩几个光点。
 export const EVOLUTION_MIN_ZOOM = 0.72
 export const EVOLUTION_MAX_ZOOM = 2.6
+// 窄屏放不下一个看得清的圆盘，默认放大，把画幅留给最新的外圈。
+export const EVOLUTION_NARROW_ZOOM = 1.75
+// 记忆不多时不挤，放大反而把它们裁到画面外，还是看整个圆盘。
+const NARROW_ZOOM_MIN_FACTS = 30
+const EVOLUTION_SELECTED_ZOOM = 1.1
+// 最老的记忆暗到这个比例。太低就看不出那里还有东西，时间演算也就没了来处。
+const OLDEST_FADE = 0.34
 export const OPENING_DURATION_MS = 6000
 
 export const EVOLUTION_TYPES: readonly MemoryType[] = [
@@ -620,6 +627,28 @@ export function versionChainOf(scene: EvolutionScene, index: number) {
 
 export function clampEvolutionZoom(zoom: number) {
   return Math.min(EVOLUTION_MAX_ZOOM, Math.max(EVOLUTION_MIN_ZOOM, zoom))
+}
+
+export function defaultEvolutionZoom(stageWidth: number, factCount: number) {
+  return stageWidth < 720 && factCount >= NARROW_ZOOM_MIN_FACTS ? EVOLUTION_NARROW_ZOOM : 1
+}
+
+// 放大时取景往近处的外圈靠：1 倍看整个圆盘，1.5 倍起近侧的外圈固定在取景下方，
+// 放得再大，最新的一圈也不会跑出画面。
+export function evolutionRimFocus(zoom: number) {
+  const progress = clamp01((zoom - 1) / 0.5)
+  return progress * progress * (3 - 2 * progress)
+}
+
+// 选中时要看版本链和卡片：退回看整个圆盘，只在用户自己放大过时保留多出来的那部分。
+export function selectedEvolutionZoom(zoom: number, defaultZoom: number) {
+  return Math.max(1, zoom / defaultZoom) * EVOLUTION_SELECTED_ZOOM
+}
+
+// 视觉重心放在现在：离生长前沿越远越暗。按当前时刻算，拖动时间轴时亮的永远是那一刻最新的一圈。
+export function evolutionAgeFade(rho: number, frontierRho: number) {
+  const progress = clamp01(rho / Math.max(frontierRho, 0.001))
+  return OLDEST_FADE + (1 - OLDEST_FADE) * progress * progress * (3 - 2 * progress)
 }
 
 // 捏合时缩放倍数跟两指间距的比例走，手指张开一倍画面就放大一倍。

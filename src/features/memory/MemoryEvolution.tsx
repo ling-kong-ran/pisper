@@ -18,7 +18,9 @@ import { fetchMemoryDetail, fetchMemoryEvolution } from './memory-api'
 import {
   buildEvolutionScene,
   clampEvolutionZoom,
+  defaultEvolutionZoom,
   EVOLUTION_TYPES,
+  evolutionRimFocus,
   FLAG_LATE,
   FLAG_PINNED,
   FLAG_STALE,
@@ -27,6 +29,7 @@ import {
   OPENING_DURATION_MS,
   openingProgress,
   pinchEvolutionZoom,
+  selectedEvolutionZoom,
   sliderFromTime,
   SLIDER_MAX,
   statsAt,
@@ -110,7 +113,6 @@ const FADE_MS = 450
 const IDLE_AFTER_MS = 20_000
 // 选中时把这条记忆转到靠近观众的一侧，略微推近。
 const SELECTED_SCREEN_ANGLE = Math.PI * 0.62
-const SELECTED_ZOOM = 1.1
 const DOUBLE_TAP_MS = 320
 const DOUBLE_TAP_DISTANCE = 30
 const HISTOGRAM_HEIGHT = 30
@@ -188,6 +190,8 @@ export function MemoryEvolution({
   const tiltTouchedRef = useRef(false)
   const yawTargetRef = useRef<number | null>(null)
   const zoomRef = useRef(1)
+  const defaultZoomRef = useRef(1)
+  const zoomTouchedRef = useRef(false)
   const pinchRef = useRef<{ spread: number; zoom: number } | null>(null)
   const lastTapRef = useRef<{ at: number; x: number; y: number } | null>(null)
   const layoutRef = useRef<(animate?: boolean) => void>(() => {})
@@ -297,14 +301,24 @@ export function MemoryEvolution({
           moving = true
         }
       }
-      const zoomTarget = zoomRef.current * (selectedIndexRef.current >= 0 ? SELECTED_ZOOM : 1)
-      if (Math.abs(renderer.camera.zoom - zoomTarget) > 0.001 && !reduced) {
+      const hasSelection = selectedIndexRef.current >= 0
+      const zoomTarget = hasSelection
+        ? selectedEvolutionZoom(zoomRef.current, defaultZoomRef.current)
+        : zoomRef.current
+      const rimTarget = hasSelection ? 0 : evolutionRimFocus(zoomRef.current)
+      if (
+        (Math.abs(renderer.camera.zoom - zoomTarget) > 0.001 ||
+          Math.abs(renderer.camera.rim - rimTarget) > 0.001) &&
+        !reduced
+      ) {
         // 捏合时要贴着手指，慢半拍会觉得黏。
-        const rate = pinchRef.current ? 50 : 240
-        renderer.camera.zoom += (zoomTarget - renderer.camera.zoom) * (1 - Math.exp(-dt / rate))
+        const follow = 1 - Math.exp(-dt / (pinchRef.current ? 50 : 240))
+        renderer.camera.zoom += (zoomTarget - renderer.camera.zoom) * follow
+        renderer.camera.rim += (rimTarget - renderer.camera.rim) * follow
         moving = true
       } else {
         renderer.camera.zoom = zoomTarget
+        renderer.camera.rim = rimTarget
       }
       if (renderer.settling) moving = true
       if (modeRef.current !== 'opening') renderer.camera.yaw = baseYawRef.current
@@ -367,9 +381,20 @@ export function MemoryEvolution({
     if (runningRef.current && !rafRef.current) rafRef.current = requestAnimationFrame(tick)
   }, [tick])
 
+  // 默认缩放看舞台宽度和记忆条数；用户自己缩放过就不再替他改。
+  const syncDefaultZoom = useCallback(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    defaultZoomRef.current = defaultEvolutionZoom(stage.clientWidth, sceneRef.current?.count ?? 0)
+    if (zoomTouchedRef.current) return
+    zoomRef.current = defaultZoomRef.current
+    stage.setAttribute('data-zoom', zoomRef.current.toFixed(2))
+  }, [])
+
   const setZoom = useCallback(
     (next: number) => {
       const zoom = clampEvolutionZoom(next)
+      zoomTouchedRef.current = true
       zoomRef.current = zoom
       stageRef.current?.setAttribute('data-zoom', zoom.toFixed(2))
       wake()
@@ -480,6 +505,7 @@ export function MemoryEvolution({
         tiltRef.current = wide ? WIDE_TILT : NARROW_TILT
         if (modeRef.current !== 'opening') renderer.camera.tilt = tiltRef.current
       }
+      syncDefaultZoom()
       renderer.resize(width, height, coarse ? 1.5 : 2)
       // 窄屏时卡片横跨整个舞台，盘面让到它上方；宽屏时卡片在角落，转动镜头就够了。
       const card = wide ? 0 : (cardRef.current?.offsetHeight ?? 0)
@@ -510,7 +536,7 @@ export function MemoryEvolution({
       observer.disconnect()
       rendererRef.current = null
     }
-  }, [tick])
+  }, [syncDefaultZoom, tick])
 
   // 文档不可见或舞台滚出视口时停下 rAF。
   useEffect(() => {
@@ -671,12 +697,18 @@ export function MemoryEvolution({
     })
     // 同一批记忆刷新时光点平滑滑到新位置；换了空间或第一次打开才整屏淡入。
     if (!morphing) fadeStartRef.current = timestamp
+    syncDefaultZoom()
+    // 第一批数据一到就是这个取景，不要先从整个圆盘推过去。
+    if (!previous && renderer) {
+      renderer.camera.zoom = zoomRef.current
+      renderer.camera.rim = evolutionRimFocus(zoomRef.current)
+    }
     setDisplayAt(next)
     setAnnouncedAt(next)
     setHover(null)
     hoverIndexRef.current = -1
     wake()
-  }, [scene, wake])
+  }, [scene, syncDefaultZoom, wake])
 
   const selectedIndex = useMemo(() => {
     if (!scene || !selectedId) return -1
@@ -916,7 +948,8 @@ export function MemoryEvolution({
   const resetView = () => {
     const renderer = rendererRef.current
     if (!renderer) return
-    setZoom(1)
+    setZoom(defaultZoomRef.current)
+    zoomTouchedRef.current = false
     tiltTouchedRef.current = false
     tiltRef.current = (stageRef.current?.clientWidth ?? 800) >= 720 ? WIDE_TILT : NARROW_TILT
     renderer.camera.tilt = tiltRef.current

@@ -6,6 +6,9 @@ import {
   chooseRingUnit,
   clampEvolutionZoom,
   computeDomain,
+  defaultEvolutionZoom,
+  evolutionAgeFade,
+  evolutionRimFocus,
   discX,
   discY,
   FACT_ACTIVE,
@@ -21,6 +24,7 @@ import {
   openingProgress,
   pinchEvolutionZoom,
   rhoAt,
+  selectedEvolutionZoom,
   sliderFromTime,
   SLIDER_MAX,
   statsAt,
@@ -474,4 +478,40 @@ test('pinching scales with the finger spread and stays within the zoom range', (
   assert.equal(pinchEvolutionZoom(1, 0, 2), 2)
   assert.equal(clampEvolutionZoom(0.72), EVOLUTION_MIN_ZOOM)
   assert.equal(clampEvolutionZoom(9), EVOLUTION_MAX_ZOOM)
+})
+
+test('the newest ring is the brightest at any moment, so scrubbing moves the emphasis with it', () => {
+  assert.equal(evolutionAgeFade(1, 1), 1)
+  assert.ok(evolutionAgeFade(0, 1) < 0.5)
+  assert.ok(evolutionAgeFade(0, 1) > 0.2, 'the oldest memories stay visible')
+  assert.ok(evolutionAgeFade(0.3, 1) < evolutionAgeFade(0.6, 1))
+  assert.ok(evolutionAgeFade(0.6, 1) < evolutionAgeFade(0.9, 1))
+  // 拖回过去时，那一刻的前沿就是最亮的。
+  assert.equal(evolutionAgeFade(0.4, 0.4), 1)
+  assert.ok(evolutionAgeFade(0.2, 0.4) < 1)
+  // 记忆的时间可能晚于当前时刻，也不能超出范围。
+  assert.equal(evolutionAgeFade(0.9, 0.4), 1)
+  assert.ok(Number.isFinite(evolutionAgeFade(0.1, 0)))
+})
+
+test('zooming in frames the outer rim, and narrow stages start there', () => {
+  assert.equal(evolutionRimFocus(1), 0)
+  assert.equal(evolutionRimFocus(0.72), 0)
+  assert.equal(evolutionRimFocus(1.5), 1)
+  assert.equal(evolutionRimFocus(2.6), 1)
+  assert.ok(evolutionRimFocus(1.2) > 0 && evolutionRimFocus(1.2) < evolutionRimFocus(1.4))
+  assert.equal(defaultEvolutionZoom(1280, 500), 1)
+  assert.equal(defaultEvolutionZoom(720, 500), 1)
+  assert.equal(evolutionRimFocus(defaultEvolutionZoom(390, 500)), 1, 'phones open on the rim')
+  // 记忆很少时不能把它们裁到画面外。
+  assert.equal(defaultEvolutionZoom(390, 4), 1)
+  assert.equal(defaultEvolutionZoom(390, 0), 1)
+})
+
+test('selecting a memory steps back to the whole disc, keeping only what the user zoomed in beyond the default', () => {
+  const narrow = defaultEvolutionZoom(390, 500)
+  assert.equal(selectedEvolutionZoom(narrow, narrow), selectedEvolutionZoom(1, 1))
+  assert.equal(selectedEvolutionZoom(0.8, 1), selectedEvolutionZoom(1, 1))
+  assert.ok(selectedEvolutionZoom(2, 1) > selectedEvolutionZoom(1, 1))
+  assert.ok(selectedEvolutionZoom(2.6, narrow) > selectedEvolutionZoom(narrow, narrow))
 })

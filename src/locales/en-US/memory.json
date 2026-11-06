@@ -171,7 +171,7 @@
   "memoryEvolution.speed": "Playback speed",
   "memoryEvolution.legend": "Memory types",
   "memoryEvolution.howToRead": "How to read this",
-  "memoryEvolution.howToReadBody": "Time grows outward in rings, and the outermost ring is the moment on the timeline. Each point of light is a memory: those still in effect float above the disc, replaced ones burn down to embers with an arc to whatever replaced them, and archived ones sink into the dark.",
+  "memoryEvolution.howToReadBody": "Time grows outward in rings: the outermost ring is the moment on the timeline, and the further in, the older and dimmer. Each point of light is a memory: those still in effect float above the disc, replaced ones burn down to embers with an arc to whatever replaced them, and archived ones sink into the dark.",
   "memoryEvolution.gestures": "Drag to rotate, drag up and down with a mouse to tilt, Ctrl + scroll or pinch to zoom, double-click to reset. Keyboard: left and right arrows move through time, Space plays.",
   "memoryEvolution.typeDecision": "Decision",
   "memoryEvolution.typePreference": "Preference",

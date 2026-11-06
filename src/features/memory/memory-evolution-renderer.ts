@@ -5,6 +5,7 @@
 import {
   discX,
   discY,
+  evolutionAgeFade,
   EVOLUTION_TYPES,
   FLAG_LATE,
   FLAG_PINNED,
@@ -26,6 +27,16 @@ const SPRITE_SIZE = 96
 const MORPH_MS = 620
 // 分辨率上限：再高的屏幕也不超过这么多像素，泛光是全屏操作，像素数决定开销。
 const MAX_CANVAS_PIXELS = 5_500_000
+// 最新那一带的光：由外向内越来越淡，内边界按前沿半径的比例算。
+const BAND_LAYERS = [
+  { inner: 0.965, alpha: 0.05 },
+  { inner: 0.9, alpha: 0.032 },
+  { inner: 0.78, alpha: 0.018 },
+] as const
+// 前沿呼吸的快慢，约 5 秒一次。
+const BREATH_RATE = 0.0012
+// 整批描边的线条按这个比例分老、新两档：比前沿半径的这个比例还靠里的算老。
+const YOUNG_FROM = 0.6
 
 export const TYPE_COLORS: Record<MemoryType, Rgb> = {
   decision: [255, 196, 92],
@@ -49,7 +60,8 @@ const DUST_COOL: Rgb = [176, 202, 255]
 
 export const rgbCss = ([r, g, b]: Rgb, alpha = 1) => `rgba(${r}, ${g}, ${b}, ${alpha})`
 
-export type EvolutionCamera = { yaw: number; tilt: number; zoom: number }
+// rim：0 把整个圆盘放在取景中央，1 把近侧的外圈固定在取景下方。
+export type EvolutionCamera = { yaw: number; tilt: number; zoom: number; rim: number }
 export type EvolutionInsets = { top: number; right: number; bottom: number; left: number }
 export type EvolutionFrame = {
   at: number
@@ -65,6 +77,11 @@ export type EvolutionFrame = {
   fade: number
   // 时间正在走：前沿线更亮。
   moving: boolean
+}
+
+function smoothRange(value: number, from: number, to: number) {
+  const progress = Math.min(1, Math.max(0, (value - from) / (to - from)))
+  return progress * progress * (3 - 2 * progress)
 }
 
 function makeCanvas(width: number, height: number) {
@@ -120,7 +137,7 @@ export const QUALITY_LOW = 1
 export class EvolutionRenderer {
   readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
-  camera: EvolutionCamera = { yaw: 0, tilt: 0.92, zoom: 1 }
+  camera: EvolutionCamera = { yaw: 0, tilt: 0.92, zoom: 1, rim: 0 }
   quality: number
   private scene: EvolutionScene | null = null
   private width = 1
@@ -145,6 +162,8 @@ export class EvolutionRenderer {
   private grainPaths: { rho: number; path: Float32Array }[] = []
   private readonly frontierPath = new Float32Array(RING_SEGMENTS * 2)
   private readonly rimPath = new Float32Array(RING_SEGMENTS * 2)
+  // 最新那一带由外向内的三层边界。
+  private readonly bandPaths = BAND_LAYERS.map(() => new Float32Array(RING_SEGMENTS * 2))
   private screenX = new Float32Array(0)
   private screenY = new Float32Array(0)
   private screenR = new Float32Array(0)
@@ -464,6 +483,15 @@ export class EvolutionRenderer {
     this.unit = fit * camera.zoom * dolly
     this.cx = center.x
     this.cy = center.y + this.sinTilt * this.unit * 0.02
+    // 把近侧的外圈固定在取景下方，圆心往上让。年轮还小时不用：整个圆盘本来就放得下。
+    const grown = smoothRange(frontierRho, 0.35, 0.75)
+    const rim = camera.rim * grown
+    if (rim > 0) {
+      const nearY =
+        (this.unit * frontierRho * this.cosTilt) / (1 - PERSPECTIVE * frontierRho * this.sinTilt)
+      const anchored = top + availableHeight * 0.94 - nearY
+      this.cy += (Math.min(this.cy, anchored) - this.cy) * rim
+    }
   }
 
   // 返回离 (x, y) 最近的可见记忆，没有则 -1。余烬和归档让一点距离，优先选中还亮着的。
@@ -512,11 +540,12 @@ export class EvolutionRenderer {
     if (scene) {
       this.stepMorph(scene, frame)
       this.drawDiscBody(scene, frame, frontierRho)
-      this.drawDigests(scene, frame)
+      this.drawNewestBand(frame, frontierRho)
+      this.drawDigests(scene, frame, frontierRho)
       this.computePositions(scene, frame)
-      this.drawThreads(scene, frame)
-      this.drawStems(scene, frame)
-      this.drawFacts(scene, frame)
+      this.drawThreads(scene, frame, frontierRho)
+      this.drawStems(scene, frame, frontierRho)
+      this.drawFacts(scene, frame, frontierRho)
       this.drawPulses(scene, frame)
       this.drawFrontier(frame, frontierRho)
     }
@@ -585,9 +614,11 @@ export class EvolutionRenderer {
     this.project(discX(0, 0), discY(0, 0), 0)
     const coreX = this.px
     const coreY = this.py
+    // 中心的光只在开场时撑场面：长大以后它会把视线从最新的外圈抢走。
+    const coreDim = 1 - 0.72 * smoothRange(frontierRho, 0.2, 0.7)
     // 盘面的底光
     const bodyRadius = this.unit * Math.max(frontierRho, 0.1) * 1.32
-    ctx.globalAlpha = 0.5 * dimmed
+    ctx.globalAlpha = 0.5 * coreDim * dimmed
     ctx.drawImage(
       this.discSprite,
       this.cx - bodyRadius,
@@ -609,19 +640,24 @@ export class EvolutionRenderer {
       const grainStep = this.quality === QUALITY_HIGH ? 1 : 2
       ctx.strokeStyle = rgbCss(RING)
       ctx.lineWidth = 0.5
-      ctx.globalAlpha = 0.075 * grainStep * dimmed
-      ctx.beginPath()
-      for (let line = 0; line < this.grainPaths.length; line += grainStep) {
-        const { rho, path } = this.grainPaths[line]
-        if (rho > frontierRho) break
-        for (let index = 0; index < GRAIN_SEGMENTS; index += 1) {
-          this.project(path[index * 2], path[index * 2 + 1], 0)
-          if (index === 0) ctx.moveTo(this.px, this.py)
-          else ctx.lineTo(this.px, this.py)
+      // 按老、新分两批画：逐根设透明度要多出上百次描边。
+      const youngFrom = frontierRho * YOUNG_FROM
+      for (const young of [false, true]) {
+        ctx.globalAlpha = (young ? 0.075 : 0.03) * grainStep * dimmed
+        ctx.beginPath()
+        for (let line = 0; line < this.grainPaths.length; line += grainStep) {
+          const { rho, path } = this.grainPaths[line]
+          if (rho > frontierRho) break
+          if (rho >= youngFrom !== young) continue
+          for (let index = 0; index < GRAIN_SEGMENTS; index += 1) {
+            this.project(path[index * 2], path[index * 2 + 1], 0)
+            if (index === 0) ctx.moveTo(this.px, this.py)
+            else ctx.lineTo(this.px, this.py)
+          }
+          ctx.closePath()
         }
-        ctx.closePath()
+        ctx.stroke()
       }
-      ctx.stroke()
     }
     const { rings } = scene
     let lastVisible = -1
@@ -635,7 +671,8 @@ export class EvolutionRenderer {
       ctx.beginPath()
       this.traceRing(this.ringPaths[index])
       if (index > 0) this.traceRing(this.ringPaths[index - 1])
-      ctx.globalAlpha = (0.012 + 0.03 * ring.activity) * dimmed
+      ctx.globalAlpha =
+        (0.012 + 0.03 * ring.activity) * dimmed * evolutionAgeFade(ring.rho, frontierRho)
       ctx.fill('evenodd')
     }
     ctx.strokeStyle = rgbCss(RING)
@@ -643,7 +680,10 @@ export class EvolutionRenderer {
       const ring = rings[index]
       ctx.beginPath()
       this.traceRing(this.ringPaths[index])
-      ctx.globalAlpha = (0.11 + 0.17 * ring.activity + (ring.major ? 0.13 : 0)) * dimmed
+      ctx.globalAlpha =
+        (0.11 + 0.17 * ring.activity + (ring.major ? 0.13 : 0)) *
+        dimmed *
+        evolutionAgeFade(ring.rho, frontierRho)
       ctx.lineWidth = ring.major ? 1 : 0.65
       ctx.stroke()
     }
@@ -651,8 +691,29 @@ export class EvolutionRenderer {
     const known = this.knownCount(scene, frame.at)
     const pulse = frame.ambient ? 1 + 0.08 * Math.sin(frame.wall * 0.0011) : 1
     const coreSize = this.unit * (0.17 + 0.028 * Math.log1p(known)) * pulse
-    ctx.globalAlpha = 0.62 * dimmed
+    ctx.globalAlpha = 0.62 * coreDim * dimmed
     ctx.drawImage(this.coreSprite, coreX - coreSize, coreY - coreSize, coreSize * 2, coreSize * 2)
+    ctx.globalAlpha = 1
+  }
+
+  // 最新那一带亮起来，带一点呼吸：视线一进来就落在“现在”。
+  private drawNewestBand(frame: EvolutionFrame, frontierRho: number) {
+    const { ctx } = this
+    const breath = frame.ambient ? 0.82 + 0.18 * Math.sin(frame.wall * BREATH_RATE) : 0.9
+    const strength = breath * (frame.moving ? 1.2 : 1) * (this.selected >= 0 ? 0.35 : 1)
+    const layers = this.quality === QUALITY_LOW ? 1 : BAND_LAYERS.length
+    ctx.fillStyle = rgbCss(RING)
+    this.fillRingPath(this.frontierPath, frontierRho)
+    for (let layer = 0; layer < layers; layer += 1) {
+      const { inner, alpha } = BAND_LAYERS[layer]
+      const path = this.bandPaths[layer]
+      this.fillRingPath(path, frontierRho * inner)
+      ctx.beginPath()
+      this.traceRing(this.frontierPath)
+      this.traceRing(path)
+      ctx.globalAlpha = alpha * strength
+      ctx.fill('evenodd')
+    }
     ctx.globalAlpha = 1
   }
 
@@ -667,24 +728,27 @@ export class EvolutionRenderer {
     return low
   }
 
-  private drawDigests(scene: EvolutionScene, frame: EvolutionFrame) {
+  private drawDigests(scene: EvolutionScene, frame: EvolutionFrame, frontierRho: number) {
     const { ctx } = this
     if (!scene.digests.length) return
     ctx.strokeStyle = rgbCss(FRONTIER)
     ctx.lineWidth = 1.25
-    ctx.globalAlpha = this.selected >= 0 ? 0.1 : 0.34
-    ctx.beginPath()
-    for (const arc of scene.digests) {
-      if (arc.at > frame.at) continue
-      const steps = Math.max(4, Math.ceil(((arc.end - arc.start) / TAU) * RING_SEGMENTS))
-      for (let step = 0; step <= steps; step += 1) {
-        const theta = arc.start + ((arc.end - arc.start) * step) / steps
-        this.project(discX(theta, arc.rho), discY(theta, arc.rho), 0)
-        if (step === 0) ctx.moveTo(this.px, this.py)
-        else ctx.lineTo(this.px, this.py)
+    const youngFrom = frontierRho * YOUNG_FROM
+    for (const young of [false, true]) {
+      ctx.globalAlpha = this.selected >= 0 ? 0.1 : young ? 0.34 : 0.14
+      ctx.beginPath()
+      for (const arc of scene.digests) {
+        if (arc.at > frame.at || arc.rho >= youngFrom !== young) continue
+        const steps = Math.max(4, Math.ceil(((arc.end - arc.start) / TAU) * RING_SEGMENTS))
+        for (let step = 0; step <= steps; step += 1) {
+          const theta = arc.start + ((arc.end - arc.start) * step) / steps
+          this.project(discX(theta, arc.rho), discY(theta, arc.rho), 0)
+          if (step === 0) ctx.moveTo(this.px, this.py)
+          else ctx.lineTo(this.px, this.py)
+        }
       }
+      ctx.stroke()
     }
-    ctx.stroke()
     ctx.globalAlpha = 1
   }
 
@@ -733,22 +797,26 @@ export class EvolutionRenderer {
   }
 
   // “事实改变了”的痕迹：每次替换留下一道细弧，从旧事实拱向新事实。
-  private drawThreads(scene: EvolutionScene, frame: EvolutionFrame) {
+  private drawThreads(scene: EvolutionScene, frame: EvolutionFrame, frontierRho: number) {
     const { ctx, selected, chainMask } = this
     const { at } = frame
     ctx.strokeStyle = rgbCss(THREAD)
     ctx.lineWidth = 0.95
-    ctx.globalAlpha = selected >= 0 ? 0.06 : 0.42
-    ctx.beginPath()
-    for (const item of scene.replacements) {
-      if (item.at > at) break
-      if (item.to < 0 || at < scene.appearAt[item.to]) continue
-      if (selected >= 0 && chainMask[item.from] && chainMask[item.to]) continue
-      this.threadControl(item.from, item.to)
-      ctx.moveTo(this.screenX[item.from], this.screenY[item.from])
-      ctx.quadraticCurveTo(this.px, this.py, this.screenX[item.to], this.screenY[item.to])
+    const youngFrom = frontierRho * YOUNG_FROM
+    for (const young of [false, true]) {
+      ctx.globalAlpha = selected >= 0 ? 0.06 : young ? 0.42 : 0.16
+      ctx.beginPath()
+      for (const item of scene.replacements) {
+        if (item.at > at) break
+        if (item.to < 0 || at < scene.appearAt[item.to]) continue
+        if (selected >= 0 && chainMask[item.from] && chainMask[item.to]) continue
+        if (scene.rho[item.to] >= youngFrom !== young) continue
+        this.threadControl(item.from, item.to)
+        ctx.moveTo(this.screenX[item.from], this.screenY[item.from])
+        ctx.quadraticCurveTo(this.px, this.py, this.screenX[item.to], this.screenY[item.to])
+      }
+      ctx.stroke()
     }
-    ctx.stroke()
     if (selected >= 0) {
       ctx.strokeStyle = rgbCss(FRONTIER)
       ctx.lineWidth = 1.5
@@ -768,7 +836,7 @@ export class EvolutionRenderer {
   }
 
   // 还在生效的记忆浮在盘面上，一根细线连回它所在的年轮。
-  private drawStems(scene: EvolutionScene, frame: EvolutionFrame) {
+  private drawStems(scene: EvolutionScene, frame: EvolutionFrame, frontierRho: number) {
     if (this.sinTilt < 0.2 || this.quality < QUALITY_MEDIUM) return
     if (this.quality === QUALITY_MEDIUM && scene.count > 800) return
     const { ctx, selected } = this
@@ -777,15 +845,19 @@ export class EvolutionRenderer {
     const { worldX: x, worldY: y } = this
     ctx.strokeStyle = rgbCss(RING)
     ctx.lineWidth = 0.6
-    ctx.globalAlpha = selected >= 0 ? 0.05 : 0.3
-    ctx.beginPath()
-    for (let index = 0; index < count; index += 1) {
-      if (at < appearAt[index] || at >= replacedAt[index] || at >= archivedAt[index]) continue
-      this.project(x[index], y[index], 0)
-      ctx.moveTo(this.px, this.py)
-      ctx.lineTo(this.screenX[index], this.screenY[index])
+    const youngFrom = frontierRho * YOUNG_FROM
+    for (const young of [false, true]) {
+      ctx.globalAlpha = selected >= 0 ? 0.05 : young ? 0.3 : 0.12
+      ctx.beginPath()
+      for (let index = 0; index < count; index += 1) {
+        if (at < appearAt[index] || at >= replacedAt[index] || at >= archivedAt[index]) continue
+        if (scene.rho[index] >= youngFrom !== young) continue
+        this.project(x[index], y[index], 0)
+        ctx.moveTo(this.px, this.py)
+        ctx.lineTo(this.screenX[index], this.screenY[index])
+      }
+      ctx.stroke()
     }
-    ctx.stroke()
     // 落在盘面上的倒影：压扁的一小团光，浮起来的感觉主要靠它。条数太多时省掉。
     if (this.quality === QUALITY_HIGH && count <= 1500 && selected < 0) {
       const squash = Math.max(0.2, this.cosTilt)
@@ -793,7 +865,7 @@ export class EvolutionRenderer {
         if (at < appearAt[index] || at >= replacedAt[index] || at >= archivedAt[index]) continue
         this.project(x[index], y[index], 0)
         const width = 12 * (0.5 + scene.size[index]) * this.ps
-        ctx.globalAlpha = 0.2
+        ctx.globalAlpha = 0.2 * evolutionAgeFade(scene.rho[index], frontierRho)
         ctx.drawImage(
           this.typeSprites[scene.typeIndex[index]],
           this.px - width / 2,
@@ -806,7 +878,7 @@ export class EvolutionRenderer {
     ctx.globalAlpha = 1
   }
 
-  private drawFacts(scene: EvolutionScene, frame: EvolutionFrame) {
+  private drawFacts(scene: EvolutionScene, frame: EvolutionFrame, frontierRho: number) {
     const { ctx, selected, selectedSector, chainMask, hovered } = this
     const { at, effectWindow, wall, ambient } = frame
     const { appearAt, replacedAt, archivedAt, size, brightness, phase, typeIndex, flags, count } =
@@ -834,12 +906,17 @@ export class EvolutionRenderer {
       if (index === hovered) emphasis = Math.max(emphasis, 1.5)
       // 空气透视：远处暗、近处亮，比透视缩放更能让人读出纵深。
       emphasis *= 0.62 + 0.42 * Math.min(1, Math.max(0, (depth - 0.84) / 0.3))
-      const base = (6 + 19 * size[index]) * pointScale * depth
+      // 钉住的是用户说要一直记着的；选中和悬停是正在看的：这些不随年龄变暗。
+      const ageFade =
+        selected >= 0 || index === hovered || flags[index] & FLAG_PINNED
+          ? 1
+          : evolutionAgeFade(scene.rho[index], frontierRho)
+      const base = (6 + 19 * size[index]) * pointScale * depth * (0.72 + 0.28 * ageFade)
       const ended = Math.min(replacedAt[index], archivedAt[index])
       if (at >= archivedAt[index]) {
         const sink = Math.min(1, (at - archivedAt[index]) / (effectWindow * 1.6))
         const drawSize = base * (0.62 + 0.25 * (1 - sink))
-        ctx.globalAlpha = Math.min(1, (0.2 + 0.4 * (1 - sink)) * emphasis)
+        ctx.globalAlpha = Math.min(1, (0.2 * ageFade + 0.4 * (1 - sink)) * emphasis)
         ctx.drawImage(this.archiveSprite, sx - drawSize / 2, sy - drawSize / 2, drawSize, drawSize)
         continue
       }
@@ -853,7 +930,7 @@ export class EvolutionRenderer {
           const sprite = this.spriteFor(index, typeIndex, flags)
           ctx.drawImage(sprite, sx - drawSize / 2, sy - drawSize / 2, drawSize, drawSize)
         }
-        ctx.globalAlpha = Math.min(1, (0.62 + 0.38 * (1 - burn)) * smolder * emphasis)
+        ctx.globalAlpha = Math.min(1, (0.62 * ageFade + 0.38 * (1 - burn)) * smolder * emphasis)
         ctx.drawImage(this.emberSprite, sx - drawSize / 2, sy - drawSize / 2, drawSize, drawSize)
         continue
       }
@@ -861,13 +938,15 @@ export class EvolutionRenderer {
       const flash = age < effectWindow ? (1 - age / effectWindow) * frame.effectGain : 0
       if (size[index] < cheapBelow && flash === 0 && index !== hovered && selected < 0) {
         const dot = 1.7 * depth
-        ctx.globalAlpha = Math.min(1, brightness[index] * emphasis)
+        ctx.globalAlpha = Math.min(1, brightness[index] * emphasis * ageFade)
         ctx.fillStyle = this.typeCss[typeIndex[index]]
         ctx.fillRect(sx - dot / 2, sy - dot / 2, dot, dot)
         continue
       }
-      const breath = ambient ? 0.86 + 0.14 * Math.sin(wall * 0.0013 + phase[index]) : 0.95
-      let alpha = brightness[index] * breath * emphasis
+      // 越新呼吸幅度越大。
+      const swing = 0.08 + 0.1 * ageFade
+      const breath = ambient ? 1 - swing + swing * Math.sin(wall * 0.0013 + phase[index]) : 0.95
+      let alpha = brightness[index] * breath * emphasis * ageFade
       if (flags[index] & FLAG_STALE) alpha *= 0.72
       const drawSize = base * (1 + 2.4 * flash * flash)
       ctx.globalAlpha = Math.min(1, alpha + flash * 0.5)
@@ -1060,9 +1139,9 @@ export class EvolutionRenderer {
   private drawFrontier(frame: EvolutionFrame, frontierRho: number) {
     const { ctx } = this
     const path = this.frontierPath
-    this.fillRingPath(path, frontierRho)
     ctx.strokeStyle = rgbCss(FRONTIER)
-    const intensity = (frame.moving ? 1 : 0.62) * (this.selected >= 0 ? 0.5 : 1)
+    const resting = frame.ambient ? 0.78 + 0.22 * Math.sin(frame.wall * BREATH_RATE) : 0.85
+    const intensity = (frame.moving ? 1.1 : resting) * (this.selected >= 0 ? 0.5 : 1)
     const passes = this.quality === QUALITY_LOW ? 1 : 3
     for (let pass = 0; pass < passes; pass += 1) {
       ctx.beginPath()
@@ -1138,7 +1217,7 @@ export class EvolutionRenderer {
       if (spacing < 34) continue
       lastX = this.px
       lastY = this.py
-      ctx.globalAlpha = 0.62 * dim
+      ctx.globalAlpha = 0.62 * dim * evolutionAgeFade(ring.rho, frontierRho)
       ctx.fillStyle = rgbCss(RING)
       const text = this.ringLabels[index] || ''
       // 贴着右边缘时往回收，不让日期被裁掉。
