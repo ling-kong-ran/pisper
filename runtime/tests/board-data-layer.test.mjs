@@ -46,6 +46,7 @@ import {
 } from '../../src/features/board/board-view-store.ts'
 import {
   DEFAULT_LAUNCH_DEFAULTS,
+  launchChoiceForProject,
   LAUNCH_DEFAULTS_PREFERENCE_KEY,
   mergeLaunchChoice,
   normalizeLaunchDefaults,
@@ -130,6 +131,28 @@ test('board preferences are registered in the shared browser preference whitelis
   assert.equal(BOARD_SESSIONS_QUERY_KEY, SESSIONS_QUERY_KEY)
 })
 
+test('a remote machine choice is validated and leaving it goes back to local', () => {
+  assert.equal(normalizeLaunchDefaults({ machineId: '../../etc' }).machineId, '')
+  assert.equal(normalizeLaunchDefaults({ machineId: 'ssh_abcdefgh' }).machineId, 'ssh_abcdefgh')
+  const onMachine = mergeLaunchChoice(normalizeLaunchDefaults({ cwd: '/work' }), {
+    machineId: 'ssh_abcdefgh',
+    machineCwd: '/srv/app',
+  })
+  assert.equal(onMachine.machineId, 'ssh_abcdefgh')
+  assert.equal(onMachine.cwd, '/work', 'the local project is kept for coming back')
+  for (const choice of [{ cwd: '/other' }, { projectless: true }]) {
+    const left = mergeLaunchChoice(onMachine, choice)
+    assert.deepEqual([left.machineId, left.machineCwd], ['', ''])
+  }
+  // 换模型这类选择不影响落在哪台机器上。
+  assert.equal(mergeLaunchChoice(onMachine, { model: 'a/b' }).machineId, 'ssh_abcdefgh')
+  assert.deepEqual(launchChoiceForProject('machine://ssh_abcdefgh/srv/app'), {
+    machineId: 'ssh_abcdefgh',
+    machineCwd: '/srv/app',
+  })
+  assert.deepEqual(launchChoiceForProject('/work/app'), { cwd: '/work/app' })
+})
+
 test('persisted board preferences are validated as untrusted data', () => {
   assert.deepEqual(normalizeBoardView(null), {
     groupBy: 'lane',
@@ -166,6 +189,8 @@ test('persisted board preferences are validated as untrusted data', () => {
     {
       cwd: '/work/pisper',
       projectless: false,
+      machineId: '',
+      machineCwd: '',
       model: 'openai/gpt-5',
       thinkingLevel: '',
       executionMode: 'approval-required',
@@ -175,6 +200,8 @@ test('persisted board preferences are validated as untrusted data', () => {
   assert.deepEqual(normalizeLaunchDefaults({ executionMode: 'yolo', runMode: 'chaos' }), {
     cwd: '',
     projectless: false,
+    machineId: '',
+    machineCwd: '',
     model: '',
     thinkingLevel: '',
     executionMode: '',

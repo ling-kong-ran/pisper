@@ -18,6 +18,7 @@ async function handleQueue(json, action) {
 }
 import { BoardViewQueryError } from '../../services/session-board-view.mjs'
 import { parseBoardViewQuery } from './board.mjs'
+import { respondError } from './bots.mjs'
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -193,12 +194,28 @@ const routes = [
     async handler({ runtime, body, json }) {
       const input = await body()
       // projectless 只接受字面量 true：不选项目时 Runtime 自建空目录，忽略 cwd。
-      json(
-        201,
-        await runtime.createSession(input.name, input.cwd, {
-          projectless: input?.projectless === true,
-        }),
-      )
+      // machine 把会话放到远程机器上；连不上、目录不存在这些错误带 code，界面据此给出下一步。
+      const machine =
+        input?.machine &&
+        typeof input.machine === 'object' &&
+        runtime.capabilities?.features?.remoteMachines
+          ? {
+              id: String(input.machine.id || ''),
+              cwd: String(input.machine.cwd ?? '').slice(0, 4096),
+            }
+          : null
+      try {
+        json(
+          201,
+          await runtime.createSession(input.name, input.cwd, {
+            projectless: input?.projectless === true,
+            machine,
+          }),
+        )
+      } catch (error) {
+        if (!machine) throw error
+        respondError(json, error)
+      }
     },
   },
   {

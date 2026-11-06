@@ -2,8 +2,9 @@
 // 会话页把草稿画成会话页的样子（同一个输入框），这里只提供契约 NewTaskDraftChrome：项目芯片、
 // 第一条消息前的建会话（prepareLaunchSession）。派发浮层与主页草稿退役后，新任务只有这一个入口。
 // 偏好照旧记在 pisper-launch-defaults：侧栏“在此项目新建任务”先写项目再打开草稿，草稿就落在那个项目。
-import { useMemo, useRef, useState } from 'react'
-import { ChevronDown, Folder, FolderOpen, FolderPlus } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronDown, Folder, FolderOpen, FolderPlus, Laptop, Plus, Server } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
   DropdownMenu,
@@ -20,6 +21,8 @@ import {
   type NewTaskDraftChrome,
   type NewTaskProjectVariant,
 } from '@/features/chat/public-launch'
+import { useMachines, type Machine } from '@/features/machines/public'
+import { workspaceName } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { prepareLaunchSession } from './board-launch'
@@ -33,6 +36,12 @@ import {
 } from './launch-defaults-store'
 import { useLaunchOptions } from './useLaunchOptions'
 import { useNewProjectPicker } from './useNewProjectPicker'
+
+const MachineFolderDialog = lazy(() =>
+  import('@/features/machines/public-folder-dialog').then((module) => ({
+    default: module.MachineFolderDialog,
+  })),
+)
 
 // 草稿里“不选项目”的取值：Runtime 为新会话建空文件夹。
 const NO_PROJECT_VALUE = '\u0000no-project'
@@ -51,8 +60,11 @@ export function useNewTaskDraftChrome({
   // 选目录失败等提示：交给宿主的全局提示。
   onError: (message: string) => void
 }): NewTaskDraftChrome {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
+  const navigate = useNavigate()
   const options = useLaunchOptions()
+  const remoteMachines = useMachines()
+  const [folderMachine, setFolderMachine] = useState<Machine | null>(null)
   const defaults = useLaunchDefaultsStore()
   // 本次草稿临时选了“完全访问”：不写进偏好，第一条消息发出后回到记住的安全模式。
   const [fullAccess, setFullAccess] = useState(false)
@@ -96,10 +108,23 @@ export function useNewTaskDraftChrome({
   const projectHints = useMemo(() => projectDisambiguation(projects), [projects])
   // 没有记住的目录时沿用最近有会话的项目；不选项目时不带目录，记住的项目留着，切回时不用重选。
   const projectless = defaults.projectless
-  const cwd = projectless ? '' : defaults.cwd || options.defaultCwd || projects[0]?.cwd || ''
-  const project = projectless ? undefined : projects.find((item) => item.cwd === cwd)
-  const projectLabel =
-    project?.label || (projectless ? t('board:launch.noProject') : t('board:launch.defaultProject'))
+  // 列表还没回来时也按记住的机器走：不能在这个空档把任务悄悄发到本机。
+  const onMachine = Boolean(defaults.machineId)
+  const machine = remoteMachines.machines.find((item) => item.id === defaults.machineId)
+  const { rememberLaunch } = defaults
+  // 机器被移除了：回到本机项目，芯片上看得见，不留一个发不出去的选择。
+  useEffect(() => {
+    if (onMachine && remoteMachines.loaded && !machine)
+      rememberLaunch({ machineId: '', machineCwd: '' })
+  }, [machine, onMachine, remoteMachines.loaded, rememberLaunch])
+  const cwd =
+    onMachine || projectless ? '' : defaults.cwd || options.defaultCwd || projects[0]?.cwd || ''
+  const project = onMachine || projectless ? undefined : projects.find((item) => item.cwd === cwd)
+  const machineLabel = `${machine?.name ?? ''}:${workspaceName(defaults.machineCwd, language)}`
+  const projectLabel = onMachine
+    ? machineLabel
+    : project?.label ||
+      (projectless ? t('board:launch.noProject') : t('board:launch.defaultProject'))
   const projectAria = t('board:launch.projectLabel', {
     project: project
       ? projectHints.get(project.key)
@@ -123,12 +148,30 @@ export function useNewTaskDraftChrome({
                   'relative inline-flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-full px-2 text-xs leading-4 text-content-muted outline-none after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[""] focus-visible:outline-2 focus-visible:outline-focus active:bg-surface-hover aria-expanded:bg-surface-hover'
                 : cn(COMPOSER_CHIP_CLASSES, 'max-w-[24ch] max-[650px]:max-w-[14ch]')
             }
-            title={project?.cwd || undefined}
+            title={
+              onMachine
+                ? `${machine?.name ?? ''}:${defaults.machineCwd}`
+                : project?.cwd || undefined
+            }
             aria-label={projectAria}
-            data-new-task-project={projectless ? 'none' : cwd || 'default'}
+            data-new-task-project={
+              onMachine ? `machine:${defaults.machineId}` : projectless ? 'none' : cwd || 'default'
+            }
           >
-            <Folder size={variant === 'header' ? 12 : 14} className="shrink-0" aria-hidden="true" />
-            <span className={cn('min-w-0 truncate', project?.label && 'font-mono')}>
+            {onMachine ? (
+              <Server
+                size={variant === 'header' ? 12 : 14}
+                className="shrink-0"
+                aria-hidden="true"
+              />
+            ) : (
+              <Folder
+                size={variant === 'header' ? 12 : 14}
+                className="shrink-0"
+                aria-hidden="true"
+              />
+            )}
+            <span className={cn('min-w-0 truncate', (project?.label || onMachine) && 'font-mono')}>
               {projectLabel}
             </span>
             <ChevronDown
@@ -152,7 +195,7 @@ export function useNewTaskDraftChrome({
           }}
         >
           <DropdownMenuRadioGroup
-            value={projectless ? NO_PROJECT_VALUE : cwd}
+            value={onMachine ? '' : projectless ? NO_PROJECT_VALUE : cwd}
             onValueChange={(next) =>
               defaults.rememberLaunch(
                 next === NO_PROJECT_VALUE ? { projectless: true } : { cwd: next },
@@ -202,12 +245,65 @@ export function useNewTaskDraftChrome({
               {t('board:launch.newFolder')}
             </DropdownMenuItem>
           )}
+          {remoteMachines.available && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t('board:launch.machines')}</DropdownMenuLabel>
+              {remoteMachines.machines.map((item) => (
+                <DropdownMenuItem
+                  key={item.id}
+                  data-launch-machine={item.id}
+                  onSelect={() => (afterMenuClose.current = () => setFolderMachine(item))}
+                >
+                  {item.kind === 'ssh' ? (
+                    <Server aria-hidden="true" />
+                  ) : (
+                    <Laptop aria-hidden="true" />
+                  )}
+                  <span className="min-w-0 truncate">{item.name}</span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'ml-auto size-2 flex-none rounded-full',
+                      item.online ? 'bg-success' : 'bg-content-faint',
+                    )}
+                  />
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                data-launch-add-machine
+                onSelect={() => navigate('/config/remote-access')}
+              >
+                <Plus aria-hidden="true" />
+                {t('board:launch.addMachine')}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <ProjectPickerDialogs
         picker={projectPicker.picker}
         folderDialog={projectPicker.folderDialog}
       />
+      {folderMachine && (
+        <Suspense fallback={null}>
+          <MachineFolderDialog
+            machine={folderMachine}
+            initialCwd={
+              folderMachine?.id === defaults.machineId
+                ? defaults.machineCwd
+                : (folderMachine?.defaultCwd ?? '')
+            }
+            onOpenChange={(open) => {
+              if (!open) setFolderMachine(null)
+            }}
+            onChosen={(chosen, resolved) => {
+              rememberLaunch({ machineId: chosen.id, machineCwd: resolved })
+              setFolderMachine(null)
+            }}
+          />
+        </Suspense>
+      )}
     </>
   )
 
@@ -238,6 +334,7 @@ export function useNewTaskDraftChrome({
         prompt,
         cwd,
         projectless,
+        machine: onMachine ? { id: defaults.machineId, cwd: defaults.machineCwd } : null,
         model: modelKnown ? model : '',
         thinkingLevel,
         executionMode,

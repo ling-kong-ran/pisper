@@ -656,6 +656,14 @@ pisper web        # 打开 Web 前端配置页</code></pre>
 
         <!-- 参考 -->
         <section class="guide-section" id="data">
+          <h2>远程机器</h2>
+          <p>让 Agent 直接在别的机器上工作，对方不用安装 Pisper。模型和 API Key 留在这台电脑上，文件和命令工具在对方机器上运行，审批模式照常生效。在「远程访问」页添加机器，新建任务时在项目芯片里选择机器和目录。</p>
+          <ul>
+            <li><strong>SSH：</strong>对方要有 SSH 服务（OpenSSH、Dropbear、Tailscale SSH 都可以）和 POSIX shell。用这台电脑现有的 <code>~/.ssh/config</code>、密钥和 ssh-agent 登录，Pisper 不保存密码和私钥，只支持密钥登录。</li>
+            <li><strong>让对方连过来：</strong>适合没有 SSH 服务的机器。对方需要 Node.js 20 以上，运行页面上给出的 <code>npx pisper executor</code> 命令配对，不开放端口。这台电脑要打开远程访问，并且对方能访问到它的地址。Agent 只能在配对时用 <code>--root</code> 指定的目录里工作。</li>
+          </ul>
+          <p>远程会话里没有 MCP、插件、子代理和记忆，文件搜索由模型用命令完成。对方是 Windows 时暂不支持 SSH 方式。命令结束后留在后台的进程会继续运行；点停止会结束这条命令和它启动的进程。</p>
+
           <h2>数据与目录</h2>
           <p>Runtime 默认只监听 <code>127.0.0.1</code>，敏感格式会自动脱敏。</p>
 

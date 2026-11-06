@@ -25,6 +25,8 @@ export type BoardLaunchRequest = {
   cwd: string
   // 不选项目：忽略 cwd，Runtime 为这个会话新建空文件夹。
   projectless?: boolean
+  // 落到远程机器：优先于 cwd。
+  machine?: { id: string; cwd: string } | null
   // provider/modelId；空串表示沿用 Runtime 默认模型。
   model: string
   thinkingLevel: string
@@ -140,6 +142,7 @@ export async function prepareLaunchSession(
   try {
     created = await chatApi.createSession('', request.cwd, {
       projectless: request.projectless === true,
+      machine: request.machine ?? null,
     })
   } catch (error) {
     throw new BoardLaunchError('create', error)

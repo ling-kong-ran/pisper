@@ -25,6 +25,7 @@ import { getSessionChangeSummary } from './session-change-summary-api'
 import { openSessionSideChat, useSessionMenu, type SessionMenuActions } from './session-header-menu'
 import { SessionInspectorContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
+import { machineProjectLabel } from './session-workspaces'
 
 // Bot 的长期会话：页头换上它的头像与设置入口（Bots 是实验功能，部件按需加载，不进会话页的包）。
 const BotSessionChip = lazy(() => import('@/features/bots/public-session'))
@@ -40,13 +41,15 @@ type SessionPageHeaderProps = Omit<SessionMenuActions, 'onSideChat' | 'extraItem
 
 export function SessionPageHeader({
   session,
-  cwd,
+  cwd: sessionCwd,
   streaming,
   treeAvailable,
   branches,
   onOpenTree,
   ...actions
 }: SessionPageHeaderProps) {
+  // 远程机器上的会话：cwd 只是本机占位目录，这里显示机器和对方的目录。
+  const cwd = session.machine ? `${session.machine.name}:${session.machine.cwd}` : sessionCwd
   const { t, language } = useI18n()
   const inspector = useContext(SessionInspectorContext)
   const menu = useSessionMenu(session, {
@@ -56,6 +59,7 @@ export function SessionPageHeader({
   const title = session.name || t('navigation:pageHeader.newChat')
   // 无项目会话的临时文件夹名没有意义，标题栏显示“无项目”。
   const project = workspaceName(session.projectless ? '' : cwd, language)
+  const projectLabel = session.machine ? machineProjectLabel(session.machine) : project
   // 改动数与检查器“改动”标签、手机顶栏读同一个查询键：运行结束（streaming 翻转）后重新读取，不另开轮询。
   const changeSummary = useQuery({
     queryKey: ['session-change-summary', session.id, streaming],
@@ -132,7 +136,7 @@ export function SessionPageHeader({
           title={cwd}
           data-session-project
         >
-          {project}
+          {projectLabel}
         </span>
         {session.botId && (
           <Suspense fallback={null}>

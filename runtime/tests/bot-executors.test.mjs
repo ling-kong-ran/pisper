@@ -247,7 +247,7 @@ test('bots can only point at a paired node and a folder inside its roots', async
   )
 })
 
-test('node endpoints skip device tokens but require the node token and the Labs switch', async () => {
+test('node endpoints skip device tokens but require the node token, not the Labs switch', async () => {
   const response = () => ({
     status: 0,
     body: '',
@@ -294,7 +294,7 @@ test('node endpoints skip device tokens but require the node token and the Labs 
   let enabled = true
   const delivered = []
   const runtime = {
-    capabilities: { features: { bots: true } },
+    capabilities: { features: { bots: true, remoteMachines: true } },
     isBetaFeatureEnabled: () => enabled,
     authenticateExecutor: (token) =>
       token === 'env_testmachine1.good' ? { id: 'env_testmachine1' } : null,
@@ -329,8 +329,9 @@ test('node endpoints skip device tokens but require the node token and the Labs 
   })
   assert.equal(ok.status, 200)
   assert.equal(delivered[0].environment.id, 'env_testmachine1')
+  // 普通会话的远程机器也走这条路：Bots 实验开关关着时节点照样能连。
   enabled = false
-  assert.equal((await post('/api/executor/results', 'env_testmachine1.good', {})).status, 409)
+  assert.equal((await post('/api/executor/results', 'env_testmachine1.good', {})).status, 200)
 })
 
 test('remote sessions get node-backed file and shell tools and nothing local-only', async () => {

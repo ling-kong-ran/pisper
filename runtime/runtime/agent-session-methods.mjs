@@ -19,6 +19,7 @@ import {
 import { interruptCurrentStep } from './step-interrupt.mjs'
 import { normalizePersistedCard, projectSessionCard } from '../services/session-card-summary.mjs'
 import { buildBoardView, sortBoardViewItems } from '../services/session-board-view.mjs'
+import { normalizeRemoteExecutor } from './executor-tools.mjs'
 
 // 非常驻会话的模型选择：与常驻路径共用同一套绑定推导（显式 model_change 优先于
 // provider 回显），避免网关改写回显后思考等级对齐到错误模型。
@@ -52,9 +53,22 @@ function supportsLightweightSessionConfiguration(runtime) {
   return runtime.sessions instanceof Map && runtime.pendingSessions instanceof Map
 }
 
+// 落在远程机器上的会话：cwd 只是大脑这边的占位目录，界面按机器和对方的目录显示、归组。
+function withMachineFields(runtime, session) {
+  const remote = normalizeRemoteExecutor(runtime.sessionMeta?.[session.id]?.remoteExecutor)
+  if (!remote) return session
+  return {
+    ...session,
+    machine: { ...runtime.machineSummary(remote.environmentId), cwd: remote.cwd },
+    projectCwd: `machine://${remote.environmentId}${remote.cwd}`,
+  }
+}
+
 export const agentSessionMethods = {
   async listSessions() {
-    const sessions = await this.sessionLifecycle.listSessions()
+    const sessions = (await this.sessionLifecycle.listSessions()).map((session) =>
+      withMachineFields(this, session),
+    )
     const threads = this.botSessionProjects()
     if (!threads.size) return sessions
     // Bots 是实验功能：开关关掉时 Bot 的会话整个不出现（会话文件留着，重新打开就回来）。
@@ -154,10 +168,12 @@ export const agentSessionMethods = {
   },
 
   // 目录变更（新建、改名、归档 / 置顶、移动工作区）都通知看板事件流的 catalog_changed。
-  async createSession(name, cwd, { projectless = false } = {}) {
-    const created = await this.sessionLifecycle.createSession(name, cwd, { projectless })
+  async createSession(name, cwd, { projectless = false, machine = null } = {}) {
+    const created = machine
+      ? await this.createMachineSession(name, machine)
+      : await this.sessionLifecycle.createSession(name, cwd, { projectless })
     this.boardEvents?.catalogChanged()
-    return created
+    return withMachineFields(this, created)
   },
 
   async getSideChat(parentId, options) {

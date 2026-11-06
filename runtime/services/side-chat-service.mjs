@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 /**
  * @typedef {{ version: 1, parentSessionId: string, lastActivityAt: string, expiresAt: string }} SideChatMetadata
- * @typedef {{ cwd?: string, model?: string, thinkingLevel?: string, executionMode?: string, permissionMode?: string, runMode?: string }} InheritedSessionSettings
+ * @typedef {{ remoteExecutor?: unknown, cwd?: string, model?: string, thinkingLevel?: string, executionMode?: string, permissionMode?: string, runMode?: string }} InheritedSessionSettings
  * @typedef {InheritedSessionSettings & { id: string }} SideChatSessionSummary
  * @typedef {InheritedSessionSettings & { sideChat?: SideChatMetadata, manual?: boolean }} SideChatSessionMetadata
  * @typedef {{ id: string, cwd?: string, metadata: InheritedSessionSettings & { sideChat: SideChatMetadata, manual: true } }} CreateSideChatInput
@@ -156,6 +156,10 @@ export class SideChatService {
           executionMode: parent.executionMode,
           permissionMode: parent.permissionMode,
           runMode: parent.runMode,
+          // 父会话在远程机器上时，侧聊的工具也在那台机器上，不能悄悄换成本机。
+          ...(this.getMetadata()[parentId]?.remoteExecutor
+            ? { remoteExecutor: this.getMetadata()[parentId].remoteExecutor }
+            : {}),
         },
       })
       return { session, expiresAt: sideChat.expiresAt, created: true }

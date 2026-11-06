@@ -250,11 +250,18 @@ export const chatApi = {
     requestJson<{ labels: SessionTreeLabelMatch[] }>(`/api/session-labels?limit=${limit}`),
 
   // projectless：不选项目，由 Runtime 为会话新建空文件夹（此时忽略 cwd）。
-  createSession: (name: string, cwd = '', options: { projectless?: boolean } = {}) =>
+  createSession: (
+    name: string,
+    cwd = '',
+    options: { projectless?: boolean; machine?: { id: string; cwd: string } | null } = {},
+  ) =>
     requestJson<SessionSummary>('/api/sessions', {
       method: 'POST',
+      // 落到远程机器要先连过去确认目录，可能要等到 ssh 超时。
+      ...(options.machine ? { timeout: 40_000 } : {}),
       data: {
         name,
+        ...(options.machine ? { machine: options.machine } : {}),
         ...(options.projectless ? { projectless: true } : cwd ? { cwd } : {}),
       },
     }),

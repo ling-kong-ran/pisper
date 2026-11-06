@@ -135,6 +135,7 @@ import {
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
+import { SshMachineService } from '../services/ssh-machine-service.mjs'
 import {
   hotToolNames,
   mergePromotedToolNames,
@@ -168,6 +169,7 @@ import {
 } from './tool-activation.mjs'
 import {
   createExecutorTools,
+  machineSystemPrompt,
   normalizeRemoteExecutor,
   REMOTE_EXECUTOR_TOOL_NAMES,
 } from './executor-tools.mjs'
@@ -712,6 +714,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // Bot 的电脑（B6）：本机之外已配对的执行节点，以及它们连回来的长轮询中枢。
     this.environments = new EnvironmentService({ path: join(dataDir, 'pisper-environments.json') })
     this.executorHub = new ExecutorHub()
+    // 远程机器里走 SSH 的那些：只存怎么连，凭据留给系统的 ssh。
+    this.sshMachines = new SshMachineService({
+      path: join(dataDir, 'pisper-ssh-machines.json'),
+      dataDir,
+    })
     // Bot 注册表（B1）。Bot 就是一个长期会话加上它的设定（指令、工具范围、电脑与目录、权限、渠道）：
     // 运行时按会话找到 Bot 并套用设定（botForSession），渠道与定时任务把话发进这个会话（messageBot）。
     this.bots = new BotService({
@@ -1058,12 +1065,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       await attempt('workflows', () => this.workflows.init(), { files: ['pisper-workflows.json'] })
     if (features.schedules)
       await attempt('schedules', () => this.schedules.init(), { files: ['pisper-schedules.json'] })
-    if (features.bots) {
+    if (features.bots || features.remoteMachines)
       await attempt('environments', () => this.environments.init(), {
         files: ['pisper-environments.json'],
       })
+    if (features.remoteMachines)
+      await attempt('sshMachines', () => this.sshMachines.init(), {
+        files: ['pisper-ssh-machines.json'],
+      })
+    if (features.bots)
       await attempt('bots', () => this.bots.init(), { files: ['pisper-bots.json'] })
-    }
     await attempt('sideChats', () => this.sideChats.sweep())
     this.startSessionRuntimeSweeper()
     this.startBotProactiveTimer()
@@ -1822,9 +1833,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const executionMode = this.getSessionExecutionMode(runtimeSessionId)
     // 远程会话（B6）：Bot 的电脑是执行节点时，文件与命令工具在那台电脑上、按那边的路径执行；
     // effectiveCwd 只是大脑这边的占位目录。
-    const remoteExecutor = this.capabilities.features.bots
-      ? normalizeRemoteExecutor(this.sessionMeta[runtimeSessionId]?.remoteExecutor)
-      : null
+    const remoteExecutor =
+      this.capabilities.features.bots || this.capabilities.features.remoteMachines
+        ? normalizeRemoteExecutor(this.sessionMeta[runtimeSessionId]?.remoteExecutor)
+        : null
     const toolCwd = remoteExecutor ? remoteExecutor.cwd : effectiveCwd
     // 并行准备资源加载器与 MCP 工具定义；MCP 工具按名称排序保证工具列表稳定（利于缓存命中）。
     const catalogToolNames = new Set(TOOL_CATALOG.map((tool) => tool.id))
@@ -1860,7 +1872,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
                   ? { extraSkillPaths: [this.botSkills.dir(bot.id)] }
                   : {}),
               }
-            : undefined,
+            : remoteExecutor
+              ? {
+                  appendSystemPrompt: machineSystemPrompt(
+                    this.machineSummary(remoteExecutor.environmentId),
+                    remoteExecutor.cwd,
+                  ),
+                }
+              : undefined,
         ),
       ),
       this.capabilities.features.mcp && !remoteExecutor

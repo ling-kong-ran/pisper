@@ -28,6 +28,9 @@ export type LaunchDefaults = {
   cwd: string
   // 不选项目：Runtime 为每个新会话建空文件夹。cwd 仍保留上次的项目，切回时不用重选。
   projectless: boolean
+  // 落到远程机器：有值时优先于 cwd 和 projectless。目录是对方机器上的绝对路径。
+  machineId: string
+  machineCwd: string
   model: string
   thinkingLevel: string
   executionMode: LaunchSafeExecutionMode | ''
@@ -54,6 +57,8 @@ type LaunchDefaultsState = LaunchDefaults & {
 export const DEFAULT_LAUNCH_DEFAULTS: LaunchDefaults = {
   cwd: '',
   projectless: false,
+  machineId: '',
+  machineCwd: '',
   model: '',
   thinkingLevel: '',
   executionMode: '',
@@ -71,6 +76,8 @@ export function normalizeLaunchDefaults(value: unknown): LaunchDefaults {
   return {
     cwd: boundedText(source.cwd, 4096),
     projectless: source.projectless === true,
+    machineId: boundedText(source.machineId, 64, /^(?:ssh|env)_[A-Za-z0-9_-]{8,32}$/),
+    machineCwd: boundedText(source.machineCwd, 4096),
     // provider/modelId；不在这里判断是否已配置，避免 Runtime 暂不可达时清掉用户的选择。
     model: boundedText(source.model, 256),
     // 未来档位名称未知，只接受短的小写标识。
@@ -86,10 +93,24 @@ export function normalizeLaunchDefaults(value: unknown): LaunchDefaults {
 export function mergeLaunchChoice(current: LaunchDefaults, choice: LaunchChoice): LaunchDefaults {
   // 明确选了某个目录（项目菜单、添加项目、看板分组）就是要回到项目里。
   const projectless = choice.projectless ?? (choice.cwd !== undefined ? false : current.projectless)
-  const next = normalizeLaunchDefaults({ ...current, ...choice, projectless })
+  // 选了本机目录或“不选项目”就是离开远程机器。
+  const leavesMachine =
+    choice.machineId === undefined && (choice.cwd !== undefined || choice.projectless === true)
+  const next = normalizeLaunchDefaults({
+    ...current,
+    ...choice,
+    projectless,
+    ...(leavesMachine ? { machineId: '', machineCwd: '' } : {}),
+  })
   return choice.executionMode === 'full-access'
     ? { ...next, executionMode: safeLaunchExecutionMode(current.executionMode) }
     : next
+}
+
+// 看板上的“项目”可能是远程机器上的目录（machine://<机器 id><目录>）：在此项目新建任务要回到那台机器。
+export function launchChoiceForProject(cwd: string): LaunchChoice {
+  const match = /^machine:\/\/((?:ssh|env)_[A-Za-z0-9_-]{8,32})(\/.*)$/.exec(cwd)
+  return match ? { machineId: match[1], machineCwd: match[2] } : { cwd }
 }
 
 export const useLaunchDefaultsStore = create<LaunchDefaultsState>()(
@@ -97,10 +118,20 @@ export const useLaunchDefaultsStore = create<LaunchDefaultsState>()(
     (set, get) => ({
       ...DEFAULT_LAUNCH_DEFAULTS,
       rememberLaunch: (choice) => {
-        const { cwd, projectless, model, thinkingLevel, executionMode, runMode } = get()
+        const { cwd, projectless, machineId, machineCwd, model, thinkingLevel } = get()
+        const { executionMode, runMode } = get()
         set(
           mergeLaunchChoice(
-            { cwd, projectless, model, thinkingLevel, executionMode, runMode },
+            {
+              cwd,
+              projectless,
+              machineId,
+              machineCwd,
+              model,
+              thinkingLevel,
+              executionMode,
+              runMode,
+            },
             choice,
           ),
         )
@@ -111,9 +142,20 @@ export const useLaunchDefaultsStore = create<LaunchDefaultsState>()(
       name: LAUNCH_DEFAULTS_PREFERENCE_KEY,
       storage: boardPreferenceStorage<LaunchDefaults>(),
       version: 1,
-      partialize: ({ cwd, projectless, model, thinkingLevel, executionMode, runMode }) => ({
+      partialize: ({
         cwd,
         projectless,
+        machineId,
+        machineCwd,
+        model,
+        thinkingLevel,
+        executionMode,
+        runMode,
+      }) => ({
+        cwd,
+        projectless,
+        machineId,
+        machineCwd,
         model,
         thinkingLevel,
         executionMode,

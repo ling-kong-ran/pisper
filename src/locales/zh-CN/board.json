@@ -377,5 +377,15 @@
   "inspector.runningTool": "工具",
   "inspector.runningAgent": "子代理",
   "inspector.runningEmpty": "这个会话现在没有在运行的命令或子代理",
-  "inspector.runningHint": "列出代理正在执行的命令和工具、子代理，以及本任务的终端。命令自己转到后台的进程（如 nohup、&）不在其中。"
+  "inspector.runningHint": "列出代理正在执行的命令和工具、子代理，以及本任务的终端。命令自己转到后台的进程（如 nohup、&）不在其中。",
+  "launch.machines": "远程机器",
+  "launch.addMachine": "添加远程机器…",
+  "machine.folderTitle": "在 {name} 上工作",
+  "machine.folderDescription": "Agent 的文件和命令工具会在这台机器上运行。",
+  "machine.folderLabel": "对方机器上的目录",
+  "machine.folderHint": "留空就是家目录。",
+  "machine.folderInRoots": "只能选这些目录里的位置：{roots}",
+  "machine.confirm": "使用这个目录",
+  "machine.checking": "正在连接…",
+  "machine.cancel": "取消"
 }

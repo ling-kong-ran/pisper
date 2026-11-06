@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import type { Notify } from '@/app/route-context'
 import { useWorkspaceOrderStore } from '@/features/chat/workspace-order-store'
 import type { ConfirmDialogOptions, PromptDialogOptions } from '@/hooks/useAppDialog'
-import { useLaunchDefaultsStore } from './launch-defaults-store'
+import { launchChoiceForProject, useLaunchDefaultsStore } from './launch-defaults-store'
 import type { ProjectSectionActions } from './ProjectSectionMenu'
 import { useProjectCommands } from './useProjectCommands'
 
@@ -44,7 +44,7 @@ export function useProjectMenu({
   const actions = useMemo<ProjectSectionActions>(
     () => ({
       onNewTask: (project) => {
-        useLaunchDefaultsStore.getState().rememberLaunch({ cwd: project.cwd })
+        useLaunchDefaultsStore.getState().rememberLaunch(launchChoiceForProject(project.cwd))
         onNewTask()
       },
       onRename: (project) => void rename(project),

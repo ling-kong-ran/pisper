@@ -130,6 +130,8 @@ export type SessionSummary = EntityRecord & {
   projectless?: boolean
   // Bot 的长期会话：Bot 的目录（Bot 在执行节点上时会话 cwd 只是占位目录），归组与筛选按它。
   projectCwd?: string
+  // 落在远程机器上的会话：cwd 只是这边的占位目录，工具在这台机器的这个目录里执行。
+  machine?: { id: string; kind: 'ssh' | 'node'; name: string; cwd: string }
   // Bot 的长期会话：是哪个 Bot（Bots 实验功能打开时由 Runtime 带上）。会话页头据此换成 Bot 的头像与设置入口。
   botId?: string
   streaming?: boolean

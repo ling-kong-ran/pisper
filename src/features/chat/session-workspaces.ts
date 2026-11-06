@@ -24,6 +24,12 @@ export function workspaceKey(cwd = '') {
   return /^[A-Za-z]:(?:\/|$)/.test(normalized) ? normalized.toLowerCase() : normalized
 }
 
+// 远程机器上的会话写成“机器名:目录名”，一眼能看出命令会跑到哪台机器上。
+export function machineProjectLabel(machine: { name: string; cwd: string }) {
+  const folder = machine.cwd.replace(/\/+$/, '').split('/').pop() || machine.cwd
+  return machine.name ? `${machine.name}:${folder}` : folder
+}
+
 // 无项目会话各有一个临时文件夹，按目录分组会变成一堆一次性“项目”；统一归入无工作区。
 export function sessionWorkspaceKey(session: WorkspaceSession) {
   return (

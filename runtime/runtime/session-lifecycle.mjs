@@ -1052,6 +1052,8 @@ export class SessionLifecycle {
         derivedFromEntryId: entryId,
         derivedFromSessionName: sourceName,
         derivedAt: now,
+        // 从远程会话分出来的还在那台机器上，工具不能悄悄换成本机。
+        ...(sourceMeta.remoteExecutor ? { remoteExecutor: sourceMeta.remoteExecutor } : {}),
       }
       await this.saveSessionMeta()
     } catch (error) {

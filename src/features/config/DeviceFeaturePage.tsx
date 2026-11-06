@@ -20,6 +20,7 @@ import { DesktopPetSettings } from './DesktopPetSettings'
 import { MobileServerSettings } from './MobileServerSettings'
 import { RemoteAccessSettings } from './RemoteAccessSettings'
 import { RemoteWorkspaceSettings } from './RemoteWorkspaceSettings'
+import { RemoteMachinesSettings } from '@/features/machines/public-settings'
 
 export function DeviceFeaturePage({
   section,
@@ -60,6 +61,7 @@ export function DeviceFeaturePage({
       <>
         {!window.__PISPER_REMOTE_WORKSPACE__ && <RemoteAccessSettings notify={notify} />}
         <RemoteWorkspaceSettings requestConfirm={requestConfirm} />
+        <RemoteMachinesSettings requestConfirm={requestConfirm} />
       </>
     )
 

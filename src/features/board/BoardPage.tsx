@@ -39,7 +39,7 @@ import type { BoardItem } from './board-model'
 import { useBoardViewStore } from './board-view-store'
 import { OVERVIEW_FOCUS_EVENT, type OverviewFocusDetail } from './overview-focus'
 import { useLaneLabels } from './lane-labels'
-import { useLaunchDefaultsStore } from './launch-defaults-store'
+import { launchChoiceForProject, useLaunchDefaultsStore } from './launch-defaults-store'
 import {
   buildOverviewModel,
   overviewShouldVirtualize,
@@ -321,7 +321,7 @@ function OverviewPage({
   const projectActions = useMemo<ProjectSectionActions>(
     () => ({
       onNewTask: (project: LabeledProject) => {
-        useLaunchDefaultsStore.getState().rememberLaunch({ cwd: project.cwd })
+        useLaunchDefaultsStore.getState().rememberLaunch(launchChoiceForProject(project.cwd))
         onNewTask()
       },
       onRename: (project: LabeledProject) => void commands.rename(project),

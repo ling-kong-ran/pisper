@@ -44,7 +44,11 @@ import { SideChatPane } from './SideChatPane'
 import { TaskSourcesPane } from './TaskSourcesPane'
 import type { TaskSource } from './task-sources'
 
+const LOCAL_ONLY_TABS: ReadonlySet<string> = new Set(['changes', 'terminal', 'files'])
+
 type SessionInspectorProps = {
+  // 会话在远程机器上：改动、终端、文件这些标签看的都是本机目录，不显示。
+  remoteMachine?: boolean
   panelId: string
   sessionId: string
   cwd: string
@@ -101,6 +105,7 @@ export function SessionInspector({
   onOpenComponents,
   componentTabs,
   autoFocus = false,
+  remoteMachine = false,
 }: SessionInspectorProps) {
   const { t } = useI18n()
   const sheet = mode === 'sheet'
@@ -117,9 +122,12 @@ export function SessionInspector({
   const pages = useContextPagesStore((store) => store.sessions[sessionId]?.pages) ?? EMPTY_PAGES
   const sideChatOpen = pages.some((page) => page.kind === 'side-chat')
   // 当前会话没有侧聊页或计划时，记住的标签退回“改动”，不显示一个不存在的标签。
+  const fallbackTab: SessionInspectorTab = remoteMachine ? 'running' : 'changes'
   const tab: SessionInspectorTab =
-    (storedTab === 'side-chat' && !sideChatOpen) || (storedTab === 'plan' && !planTab)
-      ? 'changes'
+    (storedTab === 'side-chat' && !sideChatOpen) ||
+    (storedTab === 'plan' && !planTab) ||
+    (remoteMachine && LOCAL_ONLY_TABS.has(storedTab))
+      ? fallbackTab
       : storedTab
   const kind = pageKind(tab, terminalView, changesView)
   const page = kind ? pages.find((entry) => entry.kind === kind) : undefined
@@ -177,15 +185,19 @@ export function SessionInspector({
 
   const runningTotal = runningCount(activity, streaming)
   const tabs = [
-    {
-      id: 'changes' as const,
-      icon: FileDiff,
-      label:
-        changedFiles > 0
-          ? t('board:inspector.changesCount', { count: changedFiles })
-          : t('board:inspector.changes'),
-    },
-    { id: 'terminal' as const, icon: TerminalSquare, label: t('board:inspector.terminal') },
+    ...(remoteMachine
+      ? []
+      : [
+          {
+            id: 'changes' as const,
+            icon: FileDiff,
+            label:
+              changedFiles > 0
+                ? t('board:inspector.changesCount', { count: changedFiles })
+                : t('board:inspector.changes'),
+          },
+          { id: 'terminal' as const, icon: TerminalSquare, label: t('board:inspector.terminal') },
+        ]),
     {
       id: 'running' as const,
       icon: Activity,
@@ -193,7 +205,9 @@ export function SessionInspector({
         ? t('board:inspector.runningCount', { count: runningTotal })
         : t('board:inspector.running'),
     },
-    { id: 'files' as const, icon: Files, label: t('board:inspector.files') },
+    ...(remoteMachine
+      ? []
+      : [{ id: 'files' as const, icon: Files, label: t('board:inspector.files') }]),
     { id: 'preview' as const, icon: Globe2, label: t('board:inspector.preview') },
     ...(planTab ? [{ id: 'plan' as const, icon: ListTodo, label: t('board:inspector.plan') }] : []),
     ...(sideChatOpen

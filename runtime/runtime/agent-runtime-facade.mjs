@@ -39,7 +39,9 @@ import {
   botProactiveTools,
 } from '../services/bots/bot-proactive.mjs'
 import { agentCompletionPrompt } from '../services/multi-agent-service.mjs'
-import { NodeExecutor } from '../services/bots/executor.mjs'
+import { ExecutorError, NodeExecutor } from '../services/bots/executor.mjs'
+import { pathWithinRoots } from '../services/bots/environment-service.mjs'
+import { isSshMachineId } from '../services/ssh-machine-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   bridgeOfficialComputerUsePlugin,
@@ -1750,6 +1752,7 @@ export class AgentRuntimeFacade {
 
   // 远程会话的执行节点（B6）。节点不存在时也返回执行器，调用会以“离线”失败，绝不悄悄退回在本机执行。
   executorFor(environmentId) {
+    if (isSshMachineId(environmentId)) return this.sshMachines.executor(environmentId)
     const environment = this.environments.get(environmentId) || {
       id: environmentId,
       name: '',
@@ -1782,6 +1785,77 @@ export class AgentRuntimeFacade {
         })),
       ],
     }
+  }
+
+  // 远程机器：SSH 和对方连过来（执行节点）在界面和 Agent 那边是一回事，只是连法不同。
+  listMachines() {
+    return [
+      ...this.sshMachines.list().map((machine) => ({
+        id: machine.id,
+        kind: 'ssh',
+        name: machine.name,
+        target: machine.target,
+        port: machine.port,
+        defaultCwd: machine.defaultCwd,
+        online: machine.lastCheck?.ok === true,
+        lastCheck: machine.lastCheck,
+        roots: [],
+      })),
+      ...this.environments.list().map((environment) => ({
+        id: environment.id,
+        kind: 'node',
+        name: environment.name,
+        defaultCwd: environment.roots[0] || '',
+        online: this.executorHub.online(environment.id),
+        lastCheck: null,
+        roots: environment.roots,
+      })),
+    ]
+  }
+
+  machineSummary(id) {
+    const machine = isSshMachineId(id) ? this.sshMachines.get(id) : this.environments.get(id)
+    return { id, kind: isSshMachineId(id) ? 'ssh' : 'node', name: machine?.name || '' }
+  }
+
+  async removeMachine(id) {
+    if (isSshMachineId(id)) return this.sshMachines.remove(id)
+    return this.removeEnvironment(id)
+  }
+
+  // 对方机器上的目录：解析成绝对路径并确认能用。选目录时和建会话时都走这里。
+  async resolveMachineFolder(id, input) {
+    if (isSshMachineId(id)) {
+      if (!this.sshMachines.get(id))
+        throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+      const cwd = await this.sshMachines.executor(id).resolveDirectory(input)
+      await this.sshMachines.recordReachable(id)
+      return cwd
+    }
+    const environment = this.environments.get(id)
+    if (!environment) throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+    if (!this.executorHub.online(id))
+      throw new ExecutorError(
+        'machine_offline',
+        '这台机器现在不在线：请在对方机器上运行 npx pisper executor。',
+      )
+    const cwd = String(input ?? '').trim() || environment.roots[0] || ''
+    if (!pathWithinRoots(cwd, environment.roots))
+      throw new ExecutorError(
+        'machine_folder_outside_roots',
+        `这个目录不在对方允许的范围内：${environment.roots.join('、')}`,
+      )
+    return cwd
+  }
+
+  // 新会话落在远程机器上：大脑这边只有占位目录，工具在对方的 cwd 里执行。
+  // 建会话前先确认目录真的在，失败时直接告诉用户，不等到第一个工具才发现。
+  async createMachineSession(name, input) {
+    const id = String(input?.id || '')
+    const cwd = await this.resolveMachineFolder(id, input?.cwd)
+    return this.sessionLifecycle.createSession(name, await this.executorSessionDirectory(id), {
+      metadata: { remoteExecutor: { environmentId: id, cwd } },
+    })
   }
 
   // 只改会话元数据；调用方随后用 setSessionCwd 重建会话，新工具才生效。

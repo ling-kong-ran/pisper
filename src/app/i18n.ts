@@ -54,6 +54,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'labs',
   'providers',
   'remote-workspace',
+  'machines',
   'custom-ui',
   'mcp',
   'memory',

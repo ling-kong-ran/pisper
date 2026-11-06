@@ -25,6 +25,7 @@ import {
 } from './session-header-menu'
 import { SessionInspectorContext, SessionPageChromeContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
+import { machineProjectLabel } from './session-workspaces'
 
 type SessionPhoneHeaderProps = SessionMenuActions & {
   leading: ReactNode
@@ -50,7 +51,7 @@ const ICON_BUTTON =
 export function SessionPhoneHeader({
   leading,
   session,
-  cwd,
+  cwd: sessionCwd,
   streaming,
   runStartedAt,
   approvals,
@@ -61,6 +62,8 @@ export function SessionPhoneHeader({
   onOpenTree,
   ...actions
 }: SessionPhoneHeaderProps) {
+  // 远程机器上的会话：cwd 只是本机占位目录，这里显示机器和对方的目录。
+  const cwd = session.machine ? `${session.machine.name}:${session.machine.cwd}` : sessionCwd
   const { t, language } = useI18n()
   const inspector = useContext(SessionInspectorContext)
   const chrome = useContext(SessionPageChromeContext)
@@ -71,6 +74,7 @@ export function SessionPhoneHeader({
   const title = session.name || t('navigation:pageHeader.newChat')
   // 无项目会话的临时文件夹名没有意义，标题栏显示“无项目”。
   const project = workspaceName(session.projectless ? '' : cwd, language)
+  const projectLabel = session.machine ? machineProjectLabel(session.machine) : project
   // 与检查器“改动”标签同一个查询键：打开表单时直接复用缓存，运行结束（streaming 翻转）后重新读取。
   const changeSummary = useQuery({
     queryKey: ['session-change-summary', session.id, streaming],
@@ -160,7 +164,7 @@ export function SessionPhoneHeader({
         </span>
         <span className="flex max-w-full min-w-0 items-center gap-1 text-xs leading-4 text-content-muted">
           <span className="min-w-0 truncate font-mono" title={cwd} data-session-project>
-            {project}
+            {projectLabel}
           </span>
           {status && (
             <>

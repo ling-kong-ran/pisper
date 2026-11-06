@@ -176,14 +176,19 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
           },
         ]
       : []),
-    {
-      key: 'workspace',
-      icon: FolderOpen,
-      label: t('board:session.moveWorkspace'),
-      onSelect: actions.onWorkspace,
-      disabled: actions.workspaceDisabled,
-      separator: true,
-    },
+    // 远程机器上的会话不能换成本机目录：工具还在对方机器上跑，换了只会让界面和实际对不上。
+    ...(session.machine
+      ? []
+      : [
+          {
+            key: 'workspace',
+            icon: FolderOpen,
+            label: t('board:session.moveWorkspace'),
+            onSelect: actions.onWorkspace,
+            disabled: actions.workspaceDisabled,
+            separator: true,
+          },
+        ]),
     {
       key: 'compact',
       icon: Shrink,

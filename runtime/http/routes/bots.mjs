@@ -5,7 +5,7 @@
 
 const BOTS_FEATURE_ID = 'bots'
 
-function respondError(json, error) {
+export function respondError(json, error) {
   const status = Number(error?.statusCode)
   const code =
     typeof error?.code === 'string' && /^[a-z_]{1,64}$/.test(error.code) ? error.code : ''

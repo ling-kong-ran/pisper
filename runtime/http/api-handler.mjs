@@ -14,6 +14,7 @@ import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { boardRoutes } from './routes/board.mjs'
 import { botRoutes } from './routes/bots.mjs'
 import { executorRoutes } from './routes/executors.mjs'
+import { machineRoutes } from './routes/machines.mjs'
 import { customUiRoutes } from './routes/custom-ui.mjs'
 import { desktopRoutes } from './routes/desktop.mjs'
 import { integrationRoutes } from './routes/integrations.mjs'
@@ -53,6 +54,7 @@ const registry = createRouteRegistry([
   ...boardRoutes,
   ...botRoutes,
   ...executorRoutes,
+  ...machineRoutes,
 ])
 
 // 错误信息对外统一脱敏，避免把密钥/令牌泄漏到响应体。
@@ -72,7 +74,8 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/game-assets(?:\/|$)/, feature: 'imageAssets' },
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/settings\/beta-features$/, feature: 'betaFeatures' },
-  { pattern: /^\/api\/(?:bots|bot-tasks|environments|executor)(?:\/|$)/, feature: 'bots' },
+  { pattern: /^\/api\/(?:bots|bot-tasks|environments)(?:\/|$)/, feature: 'bots' },
+  { pattern: /^\/api\/(?:machines|executor)(?:\/|$)/, feature: 'remoteMachines' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/mcp-host(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/plugins\/web-search\/test$/, feature: 'webSearch' },

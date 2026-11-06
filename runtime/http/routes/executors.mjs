@@ -3,10 +3,10 @@
 // - 节点用：/api/executor/pair（凭一次性配对码）、/poll 与 /results（凭节点令牌）。这三个在远程监听上
 //   不要求设备令牌（remote-auth.mjs 白名单），鉴权在这里做；令牌不对一律 401，不说明原因。
 import { bearerToken } from '../../services/remote-access-service.mjs'
-import { botRoute } from './bots.mjs'
+import { botRoute, respondError } from './bots.mjs'
 
 // 远程访问的地址与证书指纹：配对命令里要用。远程访问没开时节点连不上，界面据此提示先打开。
-function remoteInfo(services) {
+export function remoteInfo(services) {
   try {
     const status = services?.remoteControl?.status?.()
     if (!status) return { enabled: false, endpoints: [], fingerprint: null }
@@ -23,9 +23,20 @@ function remoteInfo(services) {
   }
 }
 
+// 节点连回来的请求不看 Bots 实验开关：普通会话的远程机器也走这条路。其余异常按 code 映射。
+function executorRoute(handler) {
+  return async (context) => {
+    try {
+      await handler(context)
+    } catch (error) {
+      respondError(context.json, error)
+    }
+  }
+}
+
 // 节点请求：先认令牌，再交给处理器。
 function nodeRoute(handler) {
-  return botRoute(async (context) => {
+  return executorRoute(async (context) => {
     const environment = context.runtime.authenticateExecutor(bearerToken(context.req))
     if (!environment) {
       context.json(401, { error: '执行节点未授权。', code: 'executor_unauthorized' })
@@ -62,7 +73,7 @@ export const executorRoutes = [
   {
     method: 'POST',
     path: '/api/executor/pair',
-    handler: botRoute(async ({ runtime, body, json }) => {
+    handler: executorRoute(async ({ runtime, body, json }) => {
       json(200, await runtime.pairExecutor(await body()))
     }),
   },

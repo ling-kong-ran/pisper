@@ -398,6 +398,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
           sessionId={sessionId}
           messages={messages}
           cwd={state.cwd || session.cwd || ''}
+          remoteMachine={Boolean(session.machine)}
           active={shortcutEnabled}
           plan={visiblePlan}
           goal={goal}

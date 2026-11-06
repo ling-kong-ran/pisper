@@ -26,10 +26,19 @@ export function normalizeRemoteExecutor(value) {
   if (!value || typeof value !== 'object') return null
   const environmentId = String(value.environmentId || '')
   const cwd = String(value.cwd || '')
-  if (!/^env_[A-Za-z0-9_-]{8,32}$/.test(environmentId)) return null
+  if (!/^(?:env|ssh)_[A-Za-z0-9_-]{8,32}$/.test(environmentId)) return null
   if (!cwd || cwd.length > 1024 || cwd.includes('\0') || !/^(?:\/|[A-Za-z]:[\\/])/.test(cwd))
     return null
   return { environmentId, cwd }
+}
+
+// 普通会话选了远程机器时告诉模型：路径和命令都在那台机器上，不要按用户自己的电脑去想。
+export function machineSystemPrompt(machine, cwd) {
+  return [
+    `You are working on the remote machine "${machine.name}", not on the user's own computer.`,
+    `File and shell tools run on that machine, in ${cwd}. All paths are paths on that machine.`,
+    'Tools that are not listed are not available here.',
+  ].join('\n')
 }
 
 export async function createExecutorTools(cwd, executor, enabledTools) {

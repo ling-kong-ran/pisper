@@ -28,7 +28,7 @@ export type LaunchProject = { key: string; cwd: string; label: string }
 
 export const MAX_RECENT_PROJECTS = 12
 
-type RecentSession = WorkspaceSession & { modified?: string }
+type RecentSession = WorkspaceSession & { modified?: string; machine?: unknown }
 
 /**
  * 启动台“最近的项目”：还没有会话的登记项目排最前（刚新建、还没用过），其后是按会话修改时间
@@ -39,10 +39,13 @@ export function recentLaunchProjects(
   registered: readonly string[],
   names: Readonly<Record<string, string>>,
 ): LaunchProject[] {
-  const ordered = [...sessions].sort(
-    (left, right) =>
-      (Date.parse(right.modified || '') || 0) - (Date.parse(left.modified || '') || 0),
-  )
+  // 远程机器上的会话不算本机项目：它们的目录在芯片的“远程机器”里选。
+  const ordered = sessions
+    .filter((session) => !session.machine)
+    .sort(
+      (left, right) =>
+        (Date.parse(right.modified || '') || 0) - (Date.parse(left.modified || '') || 0),
+    )
   const groups = groupSessionsByWorkspace(ordered).filter(
     (group) => group.key !== NO_WORKSPACE_KEY && group.cwd,
   )

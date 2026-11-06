@@ -142,9 +142,12 @@ export function SessionWorkspace({
   completed,
   runStartedAt,
   requestConfirm,
+  remoteMachine = false,
   children,
 }: {
   sessionId: string
+  // 会话在远程机器上：检查器不显示看本机目录的标签。
+  remoteMachine?: boolean
   messages: readonly ChatMessage[]
   cwd: string
   active: boolean
@@ -428,6 +431,7 @@ export function SessionWorkspace({
         onOpenComponents={chrome?.onOpenComponents}
         componentTabs={chrome?.componentTabs}
         autoFocus={mode === 'overlay' && focusOnOpen}
+        remoteMachine={remoteMachine}
       />
     </Suspense>
   )
