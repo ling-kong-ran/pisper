@@ -328,7 +328,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
     value.session.resourceLoader.getSkills().skills.some((skill) => skill.name === 'runtime-skill'),
   )
   assert.ok(applyPisperSystemPrompt(value.session).includes('runtime-skill'))
-  assert.match(applyPisperSystemPrompt(value.session), /Application: Pisper/)
+  assert.match(applyPisperSystemPrompt(value.session), /<pisper_runtime>/)
   assert.match(applyPisperSystemPrompt(value.session), /Active model:/)
   assert.doesNotMatch(applyPisperSystemPrompt(value.session), /You are Pisper/i)
   assert.equal(value.session.getActiveToolNames().includes('mcp_fixture_echo_12345678'), false)
@@ -489,7 +489,7 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(requests.length, 1)
   const leadingPrompt = requests[0].messages[0]
   assert.equal(leadingPrompt.role, 'system')
-  assert.match(leadingPrompt.content, /Application: Pisper/)
+  assert.match(leadingPrompt.content, /<pisper_runtime>/)
   assert.match(leadingPrompt.content, /runtime-skill/)
   assert.match(leadingPrompt.content, /discover_tools/)
   assert.doesNotMatch(leadingPrompt.content, /get_task_list|update_task_list/)

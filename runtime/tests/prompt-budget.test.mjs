@@ -11,7 +11,7 @@ import { estimateTextTokens } from '../runtime/context-breakdown.mjs'
 
 const appRoot = resolve(process.env.PISPER_TEST_APP_ROOT || '.')
 // 不是目标，是防回涨。确实要加内容就调高，并在变更说明里写清楚为什么值得每次请求都发。
-const SYSTEM_PROMPT_BUDGET = 1250
+const SYSTEM_PROMPT_BUDGET = 1100
 const TOOL_DEFINITIONS_BUDGET = 2100
 
 function fakeModel() {

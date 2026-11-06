@@ -339,7 +339,7 @@ test('custom-triggered runs retain the Pisper identity without a user prompt eve
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
       .join('\n')
-    assert.match(systemPrompt, /Application: Pisper/)
+    assert.match(systemPrompt, /<pisper_runtime>/)
     assert.match(systemPrompt, /Active provider: fixture/)
     assert.match(systemPrompt, /Active model: output-limit-fixture/)
   }
