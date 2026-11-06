@@ -1,0 +1,67 @@
+name: Preview desktop build
+
+# 只给这个分支出试用包，合入 release 前删掉：不签名、不发版、不碰版本号和标签。
+on:
+  push:
+    branches:
+      - feat/agent-browser
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Preview for ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            bundles: nsis
+            artifact: src-tauri/target/release/bundle/nsis/*-setup.exe
+          - name: macOS Apple Silicon
+            os: macos-26
+            bundles: dmg
+            artifact: src-tauri/target/release/bundle/dmg/*.dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build the frontend and fetch bundled components
+        shell: bash
+        run: |
+          npm run build
+          node scripts/fetch-bundled-components.mjs
+      # 版本号压过已发布的版本，试用包不会被组件更新换回旧界面。
+      - name: Mark the build as a preview
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p='src-tauri/desktop-package.json';const m=JSON.parse(fs.readFileSync(p));m.version='99.0.0';fs.writeFileSync(p,JSON.stringify(m,null,2)+'\n')"
+      # 独立的标识和名字：和正式版并存，界面、更新和浏览器数据都分开。
+      - name: Build the installer
+        shell: bash
+        run: |
+          npx tauri build --bundles ${{ matrix.bundles }} --config '{"identifier":"com.lingkongran.pisper.preview","productName":"Pisper Preview","bundle":{"macOS":{"signingIdentity":"-"}}}'
+      - name: Test the desktop shell
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked desktop_browser
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pisper-preview-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ${{ matrix.artifact }}
