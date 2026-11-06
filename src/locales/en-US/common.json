@@ -10,6 +10,7 @@
   "markdownMessage.copied": "Copied",
   "markdownMessage.copy": "Copy",
   "markdownMessage.copyCode": "Copy code",
+  "markdownMessage.openHtmlPreview": "Open in the side browser: {path}",
   "markdownMessage.revealLocalPath": "Show in file manager: {path}",
   "markdownMessage.revealLocalPathOk": "Requested to show in the file manager: {path}",
   "markdownMessage.revealLocalPathFailed": "Couldn't show this path in the file manager: {path}",

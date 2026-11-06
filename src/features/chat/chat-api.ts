@@ -542,6 +542,12 @@ export const chatApi = {
     }),
 
   // —— 会话文件变更审批（无 Git/SVN 时的快照 diff / 撤销 / 批准）——
+  createHtmlPreview: (sessionId: string, path: string) =>
+    requestJson<{ url: string }>(`${sessionPath(sessionId)}/html-preview`, {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+
   getSessionFileChanges: (sessionId: string, options: { signal?: AbortSignal } = {}) =>
     requestJson<SessionFileChangesResponse>(`${sessionPath(sessionId)}/file-changes`, options),
 

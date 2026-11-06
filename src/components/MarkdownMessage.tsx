@@ -2,8 +2,10 @@
 // （代码块/链接/图片/行内引用），代码块提供复制按钮。
 // 增量 block 解析器只在末尾追加时重解析尾部，配合打字机效果保持流畅。
 import {
+  createContext,
   isValidElement,
   memo,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -27,7 +29,12 @@ import {
 } from '@/lib/streamdown'
 import { loadKatexStyles, looksLikeMath } from '@/lib/katex-styles'
 import { codeBlockFileName } from '@/lib/code-block-meta'
-import { decodeLocalFileHref, remarkLocalFileLinks } from '@/lib/local-file-links'
+import {
+  decodeLocalFileHref,
+  isLocalHtmlPath,
+  remarkLocalFileLinks,
+  remarkPreviewLinks,
+} from '@/lib/local-file-links'
 import {
   LocalPathRevealError,
   requestLocalPathReveal,
@@ -35,6 +42,9 @@ import {
 } from '@/lib/local-path-reveal'
 import { LOCAL_REVEAL_NOTICE_EVENT } from '@/app/route-context'
 import { cn } from '@/lib/utils'
+
+// 组件映射是模块级常量拿不到 props，打开方式经 Context 传给链接。
+const OpenLocalHtmlContext = createContext<((path: string) => Promise<void>) | null>(null)
 
 const MARKDOWN_COMPONENTS: Components = {
   a: MarkdownLink,
@@ -99,15 +109,28 @@ function MarkdownLink({
   const { t } = useI18n()
   const [revealPending, setRevealPending] = useState(false)
   const [revealFailure, setRevealFailure] = useState('')
+  const openLocalHtml = useContext(OpenLocalHtmlContext)
   const content = textContent(label).trim() ? label : href
   if (!href) return <span className={cn('markdown-link', className)}>{content}</span>
 
   const localFile = decodeLocalFileHref(href)
   if (localFile) {
-    const title = t('common:markdownMessage.revealLocalPath', { path: localFile.path })
+    const previewable = Boolean(openLocalHtml) && isLocalHtmlPath(localFile.path)
+    const title = previewable
+      ? t('common:markdownMessage.openHtmlPreview', { path: localFile.path })
+      : t('common:markdownMessage.revealLocalPath', { path: localFile.path })
     const reveal = async () => {
       setRevealPending(true)
       setRevealFailure('')
+      if (previewable) {
+        try {
+          await openLocalHtml?.(localFile.path)
+          setRevealPending(false)
+          return
+        } catch {
+          // 工作区外的文件、文件不在了或旧 Runtime 没有这个接口：退回文件管理器，链接不能点了没反应。
+        }
+      }
       try {
         // 点击时再请求 Runtime，桌面 WebView 与普通 Web 页面使用同一条 Node 链路。
         await requestLocalPathReveal(localFile.path, revealPathThroughRuntime)
@@ -133,20 +156,37 @@ function MarkdownLink({
     }
     return (
       <>
-        <button
-          type="button"
-          className={cn(
-            'markdown-link inline cursor-pointer border-0 bg-transparent p-0 [font:inherit]',
-            className,
-          )}
-          data-local-path={localFile.path}
-          title={title}
-          disabled={revealPending}
-          aria-busy={revealPending || undefined}
-          onClick={() => void reveal()}
-        >
-          {content}
-        </button>
+        {previewable ? (
+          // 路径常常很长还嵌在句子中间：按钮是行内块，会被整个挤到单独一行，下划线也传不到行内代码里。
+          <a
+            className={cn('markdown-link', className)}
+            href="#"
+            data-local-path={localFile.path}
+            title={title}
+            aria-busy={revealPending || undefined}
+            onClick={(event) => {
+              event.preventDefault()
+              if (!revealPending) void reveal()
+            }}
+          >
+            {content}
+          </a>
+        ) : (
+          <button
+            type="button"
+            className={cn(
+              'markdown-link inline cursor-pointer border-0 bg-transparent p-0 [font:inherit]',
+              className,
+            )}
+            data-local-path={localFile.path}
+            title={title}
+            disabled={revealPending}
+            aria-busy={revealPending || undefined}
+            onClick={() => void reveal()}
+          >
+            {content}
+          </button>
+        )}
         {revealFailure && (
           <span role="alert" className="ml-2 text-sm text-destructive">
             {revealFailure}{' '}
@@ -315,9 +355,17 @@ export type MarkdownMessageProps = {
   streaming?: boolean
   /** 会话工作区根目录：供本地文件链接插件解析相对路径（如 workspace/报告.docx）。 */
   cwd?: string
+  /** 提供后，文字里的 HTML 路径和行内代码里的网址变成链接，HTML 路径点开走这里。 */
+  onOpenLocalHtml?: (path: string) => Promise<void>
 }
 
-function MarkdownMessage({ children, className, streaming = false, cwd }: MarkdownMessageProps) {
+function MarkdownMessage({
+  children,
+  className,
+  streaming = false,
+  cwd,
+  onOpenLocalHtml,
+}: MarkdownMessageProps) {
   const source = String(children ?? '')
   // 本地文件链接哨兵插件按工作区基址构建：相对路径链接只有带上 cwd 才能解析，
   // 因此不能做成模块级单例；以 [plugin, options] 形式注册，cwd 稳定时 useMemo 保证引用不变。
@@ -326,8 +374,16 @@ function MarkdownMessage({ children, className, streaming = false, cwd }: Markdo
       ...Object.values(defaultRemarkPlugins),
       // unified 要求 [plugin, options] 元组形式注册，不能直接传实例化的 transformer。
       [remarkLocalFileLinks, cwd || undefined] as [typeof remarkLocalFileLinks, string | undefined],
+      ...(onOpenLocalHtml
+        ? [
+            [remarkPreviewLinks, cwd || undefined] as [
+              typeof remarkPreviewLinks,
+              string | undefined,
+            ],
+          ]
+        : []),
     ],
-    [cwd],
+    [cwd, onOpenLocalHtml],
   )
   // 公式样式按需注入：命中数学语法才加载 KaTeX CSS，避免主 CSS 常驻。
   const hasMath = useMemo(() => looksLikeMath(source), [source])
@@ -343,20 +399,22 @@ function MarkdownMessage({ children, className, streaming = false, cwd }: Markdo
       className={cn('markdown-body', streaming && 'markdown-streaming', className)}
       aria-busy={streaming || undefined}
     >
-      <Streamdown
-        className="markdown-content space-y-0"
-        components={MARKDOWN_COMPONENTS}
-        controls={STREAMDOWN_CONTROLS}
-        isAnimating={streaming}
-        lineNumbers={false}
-        mode="streaming"
-        parseMarkdownIntoBlocksFn={parseBlocksFn}
-        plugins={streamdownPlugins}
-        remarkPlugins={remarkPlugins}
-        remend={STREAMDOWN_REMEND}
-      >
-        {source}
-      </Streamdown>
+      <OpenLocalHtmlContext.Provider value={onOpenLocalHtml || null}>
+        <Streamdown
+          className="markdown-content space-y-0"
+          components={MARKDOWN_COMPONENTS}
+          controls={STREAMDOWN_CONTROLS}
+          isAnimating={streaming}
+          lineNumbers={false}
+          mode="streaming"
+          parseMarkdownIntoBlocksFn={parseBlocksFn}
+          plugins={streamdownPlugins}
+          remarkPlugins={remarkPlugins}
+          remend={STREAMDOWN_REMEND}
+        >
+          {source}
+        </Streamdown>
+      </OpenLocalHtmlContext.Provider>
     </div>
   )
 }

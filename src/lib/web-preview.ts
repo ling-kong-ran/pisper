@@ -13,6 +13,19 @@ export type PreviewLinkIntent = {
   behavior?: string | null
 }
 
+// 工作区 HTML 的预览地址（runtime/services/html-preview-service.mjs）：页面不可信，
+// 响应已带 CSP sandbox，iframe 再去掉 allow-same-origin，中间的代理丢了响应头也不会和应用同源。
+const HTML_PREVIEW_PATH = '/_pisper/html-preview/'
+export const HTML_PREVIEW_SANDBOX = 'allow-scripts allow-forms allow-popups allow-modals'
+
+export function isHtmlPreviewUrl(value: string) {
+  try {
+    return new URL(value).pathname.startsWith(HTML_PREVIEW_PATH)
+  } catch {
+    return false
+  }
+}
+
 // 解析 Web 预览链接：基于 baseUrl 解析并只接受 http/https 协议，
 // 其余协议（javascript: 等）返回 null 防止安全风险。
 export function resolveWebPreviewUrl(href: string, baseUrl: string) {

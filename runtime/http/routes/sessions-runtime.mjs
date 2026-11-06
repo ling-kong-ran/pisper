@@ -422,6 +422,20 @@ const routes = [
     },
   },
   {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/html-preview',
+    async handler({ runtime, services, params, body, json }) {
+      const input = await body()
+      json(
+        200,
+        await services.htmlPreviews.create({
+          workspace: await runtime.sessionWorkspaceCwd(params.sessionId),
+          path: input?.path,
+        }),
+      )
+    },
+  },
+  {
     method: 'GET',
     path: '/api/sessions/:sessionId/file-changes',
     async handler({ runtime, params, json }) {

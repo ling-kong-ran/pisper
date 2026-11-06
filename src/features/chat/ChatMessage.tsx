@@ -62,6 +62,7 @@ import AgentRunActivity, { type AgentRunActivityProps } from './AgentRunActivity
 import { chatErrorMessage } from './chat-errors'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { chatApi, type BranchFromHereOptions } from './chat-api'
+import { openWebPreviewInSessionContext } from './session-web-preview'
 import { GitDiffDialog } from './GitDiffViewer'
 import { FileAttachmentPreview } from './FileAttachmentPreview'
 import { TranscriptMetaContext } from './session-workspace-context'
@@ -827,6 +828,17 @@ export const FocusChatMessage = memo(function FocusChatMessage({
   const fullText = message.text || ''
   // 旧快照可能把错误原文同时写入 text；诊断只放在详情里，正常回复保持原样。
   const displayText = message.error && fullText === message.error ? '' : fullText
+  const openLocalHtml = useCallback(
+    async (path: string) => {
+      const { url } = await chatApi.createHtmlPreview(sessionId, path)
+      const opened = openWebPreviewInSessionContext(
+        sessionId,
+        new URL(url, window.location.href).href,
+      )
+      if (!opened) throw new Error('preview page limit reached')
+    },
+    [sessionId],
+  )
   // 活动区是否有可见内容（思考/工具/团队）；streaming 本身不算——首轮事件到达前
   // 由抬头里的轨道指示表明正在工作，活动区不渲染空壳。
   const hasVisibleRunActivity = Boolean(
@@ -983,6 +995,7 @@ export const FocusChatMessage = memo(function FocusChatMessage({
         {displayText && (
           <MarkdownMessage
             cwd={cwd}
+            onOpenLocalHtml={openLocalHtml}
             streaming={streaming}
             className={cn(
               'min-h-[34px] [overflow-wrap:anywhere] text-[length:var(--app-message-font-size)] [font-family:var(--font-content-family)] font-[400]',

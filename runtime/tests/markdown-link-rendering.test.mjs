@@ -288,3 +288,23 @@ test('Markdown styling covers Streamdown controls, task lists, and math', async 
   assert.match(css, /\[data-streamdown='code-block-body'\] code > span \{ display: block;/)
   assert.doesNotMatch(css, /streaming-plain|code-block-toolbar|\.hljs-/)
 })
+
+test('with a preview handler, HTML paths become inline links; without one nothing changes', () => {
+  const source =
+    '已创建 `/work/site/index.html`，也可以打开 site/a.htm 或 `http://localhost:5173/`。'
+  const plain = renderMarkdown(source, { cwd: '/work' })
+  assert.doesNotMatch(plain, /data-local-path/)
+  assert.doesNotMatch(plain, /href="http:\/\/localhost/)
+
+  const html = renderMarkdown(source, { cwd: '/work', onOpenLocalHtml: async () => {} })
+  assert.match(html, /<a[^>]*data-local-path="\/work\/site\/index\.html"[^>]*><code/)
+  assert.match(html, /<a[^>]*data-local-path="\/work\/site\/a\.htm"/)
+  assert.match(html, /href="http:\/\/localhost:5173\/"/)
+  // 路径嵌在句子中间，按钮是行内块会把句子拆开；只有预览链接用 <a>，别的本地文件保持按钮。
+  assert.doesNotMatch(html, /<button[^>]*data-local-path/)
+  const other = renderMarkdown('[报告](/work/report.pdf)', {
+    cwd: '/work',
+    onOpenLocalHtml: async () => {},
+  })
+  assert.match(other, /<button[^>]*data-local-path="\/work\/report\.pdf"/)
+})

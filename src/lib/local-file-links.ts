@@ -10,6 +10,7 @@ export type LocalFileTarget = {
 type MarkdownNode = {
   type?: string
   url?: unknown
+  value?: string
   children?: MarkdownNode[]
 }
 
@@ -132,6 +133,71 @@ export function decodeLocalFileHref(value: string): LocalFileTarget | null {
     return decoded
   } catch {
     return null
+  }
+}
+
+export function isLocalHtmlPath(path: string) {
+  return /\.html?$/i.test(path)
+}
+
+// 正文里的路径没有边界标记，两种写法分开认：绝对路径有明确的开头，文件名可以是中文；
+// 相对路径只认 ASCII，否则“已生成报告.html”会把前面的中文一起吞进文件名。
+const TEXT_HTML_PATH =
+  /(?:[A-Za-z]:[\\/]|\\\\|\/)[^\s<>"'`|*?()（）【】「」《》，。；：、！？,;:]+?\.html?(?![\w-]|\.\w)|(?:\.[\\/])?[A-Za-z0-9_-][\w.-]*(?:[\\/][\w.-]+)*\.html?(?![\w-]|\.\w)/gi
+// 前面紧贴路径字符时只是长路径的后半截（比如 ../a.html）。目标 safari16 不支持后行断言，放在代码里判断。
+const PATH_CHARACTER = /[\w./\\-]/
+// example.com/a.html 是没写协议的网址，不是工作区里的路径。
+const DOMAIN_LIKE = /^[\w-]+(?:\.[\w-]+)+[\\/]/
+
+function localHtmlHref(value: string, baseCwd?: string) {
+  const target = parseLocalFileTarget(value, baseCwd)
+  return target && isLocalHtmlPath(target.path) ? encodeLocalFileHref({ path: target.path }) : null
+}
+
+function inlineCodeHref(value: string, baseCwd?: string) {
+  const text = value.trim()
+  // 自动链接不处理行内代码，开发服务器地址常这样写。
+  if (/^https?:\/\/\S+$/i.test(text)) return text
+  if (/[<>"|*]/.test(text)) return null
+  // 带空格的只可能是绝对路径；相对的多半是一段命令。
+  if (/\s/.test(text) && !/^(?:[A-Za-z]:[\\/]|\/|\\\\)/.test(text)) return null
+  return localHtmlHref(text, baseCwd)
+}
+
+function splitTextPaths(node: MarkdownNode, baseCwd?: string): MarkdownNode[] {
+  const value = node.value || ''
+  const result: MarkdownNode[] = []
+  let cursor = 0
+  for (const match of value.matchAll(TEXT_HTML_PATH)) {
+    const glued = match.index > 0 && PATH_CHARACTER.test(value[match.index - 1])
+    const href = glued || DOMAIN_LIKE.test(match[0]) ? null : localHtmlHref(match[0], baseCwd)
+    if (!href) continue
+    if (match.index > cursor) result.push({ type: 'text', value: value.slice(cursor, match.index) })
+    result.push({ type: 'link', url: href, children: [{ type: 'text', value: match[0] }] })
+    cursor = match.index + match[0].length
+  }
+  if (!result.length) return [node]
+  if (cursor < value.length) result.push({ type: 'text', value: value.slice(cursor) })
+  return result
+}
+
+// 回复里的 HTML 路径和行内代码里的网址变成链接，点开后在右侧浏览器看。已有的链接和代码块不动。
+export function remarkPreviewLinks(baseCwd?: string) {
+  return (tree: MarkdownNode) => {
+    const visit = (node: MarkdownNode) => {
+      if (!node.children) return
+      node.children = node.children.flatMap((child) => {
+        if (child.type === 'link' || child.type === 'linkReference') return [child]
+        if (child.type === 'text') return splitTextPaths(child, baseCwd)
+        if (child.type === 'inlineCode') {
+          const url = inlineCodeHref(child.value || '', baseCwd)
+          return url ? [{ type: 'link', url, children: [child] }] : [child]
+        }
+        visit(child)
+        return [child]
+      })
+    }
+    visit(tree)
   }
 }
 

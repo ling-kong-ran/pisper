@@ -113,7 +113,7 @@ test('application routes external links into the session inspector web preview',
   assert.match(inspector, /\} else if \(tab === 'preview'\) \{/)
   assert.match(browserPane, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/)
   assert.match(browserPane, /normalizeWebPreviewInput\(draft, window\.location\.href\)/)
-  assert.match(browserPane, /<WebPreviewBody src=\{url\}/)
+  assert.match(browserPane, /<WebPreviewBody\s+src=\{url\}/)
   assert.match(
     component,
     /sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"/,

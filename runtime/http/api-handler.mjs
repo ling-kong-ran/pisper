@@ -186,6 +186,7 @@ export function createApiHandler(
     runs,
     customUi,
     mcpHost,
+    htmlPreviews,
     directoryPicker = new NativeDirectoryPicker(),
   } = {},
 ) {
@@ -201,6 +202,7 @@ export function createApiHandler(
     speechTerms,
     customUi,
     mcpHost,
+    htmlPreviews,
     directoryPicker,
     runs: runs || new RunRegistry(),
   }

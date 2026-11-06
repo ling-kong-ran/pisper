@@ -6,7 +6,7 @@ import { InlineEmptyState } from '@/components/app/PageState'
 import { WebPreview, WebPreviewBody } from '@/components/ai-elements/web-preview'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { normalizeWebPreviewInput } from '@/lib/web-preview'
+import { HTML_PREVIEW_SANDBOX, isHtmlPreviewUrl, normalizeWebPreviewInput } from '@/lib/web-preview'
 import type { ContextPage } from './session-context-pages'
 
 export function BrowserPane({
@@ -57,7 +57,11 @@ export function BrowserPane({
           defaultUrl={url}
           key={url}
         >
-          <WebPreviewBody src={url} title={t('common:webPreview.title')} />
+          <WebPreviewBody
+            src={url}
+            title={t('common:webPreview.title')}
+            {...(isHtmlPreviewUrl(url) ? { sandbox: HTML_PREVIEW_SANDBOX } : {})}
+          />
         </WebPreview>
       ) : (
         <InlineEmptyState

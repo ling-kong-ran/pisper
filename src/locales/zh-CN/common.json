@@ -10,6 +10,7 @@
   "markdownMessage.copied": "已复制",
   "markdownMessage.copy": "复制",
   "markdownMessage.copyCode": "复制代码",
+  "markdownMessage.openHtmlPreview": "在右侧浏览器中打开：{path}",
   "markdownMessage.revealLocalPath": "在文件管理器中显示：{path}",
   "markdownMessage.revealLocalPathOk": "已请求在文件管理器中显示：{path}",
   "markdownMessage.revealLocalPathFailed": "无法在文件管理器中显示：{path}",

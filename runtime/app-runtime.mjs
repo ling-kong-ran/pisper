@@ -13,6 +13,7 @@ import { RemoteAccessService } from './services/remote-access-service.mjs'
 import { RemoteFirewallService } from './services/remote-firewall-service.mjs'
 import { MdnsAdvertiser } from './services/mdns-advertiser.mjs'
 import { authorizeDesktopRequest } from './desktop-sidecar-auth.mjs'
+import { HtmlPreviewService } from './services/html-preview-service.mjs'
 import { isComponentProxyRequest } from './security/component-proxy-marker.mjs'
 import { authorizeRemoteRequest } from './remote-auth.mjs'
 import { ensureRemoteCertificate } from './remote-tls.mjs'
@@ -120,6 +121,7 @@ export async function createPisperRuntime({
   const desktopPet = new WebDesktopPetService({ dataDir: agentDir })
   const customUi = new CustomUiService({ dataDir: agentDir })
   const browserPreferences = new BrowserPreferencesService({ dataDir: agentDir })
+  const htmlPreviews = new HtmlPreviewService()
   const mcpHost = new McpHostService({ dataDir: agentDir, getRuntime: () => mcpHostAdapter })
   const serveProduction = createStaticHandler(appRoot, { distRoot: frontendRoot })
   let runtime = null
@@ -384,6 +386,7 @@ export async function createPisperRuntime({
       speechTerms,
       customUi,
       mcpHost,
+      htmlPreviews,
       engineVersion,
       remoteAccess,
       remoteControl,
@@ -424,6 +427,17 @@ export async function createPisperRuntime({
     // 否则回环连接会被当成本机可信请求。
     if (isComponentProxyRequest(req)) {
       sendJson(res, 403, { error: 'Component requests cannot reach Pisper itself.' })
+      return
+    }
+    // 预览页面的子资源带不上桌面 Cookie 和设备令牌，靠路径里的令牌授权，见 html-preview-service.mjs。
+    if (await htmlPreviews.handle(req, res, url)) return
+    // 沙箱页面的 Origin 是 null，不能写接口。桌面 Cookie 模式下面本来就拒绝，这里补上没有令牌的 Web 模式。
+    if (
+      req.headers.origin === 'null' &&
+      url.pathname.startsWith('/api/') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(req.method || 'GET')
+    ) {
+      sendJson(res, 403, { error: 'Sandboxed pages cannot write to Pisper.' })
       return
     }
     // 鉴权分层：回环监听走桌面 Cookie 引导；远程监听走设备 Bearer 令牌。

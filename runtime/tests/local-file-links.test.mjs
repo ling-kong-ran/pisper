@@ -5,6 +5,7 @@ import {
   encodeLocalFileHref,
   parseLocalFileTarget,
   remarkLocalFileLinks,
+  remarkPreviewLinks,
 } from '../../src/lib/local-file-links.ts'
 
 const bases = ['C:\\work\\project', '/work/project', '/']
@@ -148,4 +149,123 @@ test('relative traversal and decoded control characters remain rejected', () => 
       assert.equal(parseLocalFileTarget(link, cwd), null, link)
     }
   }
+})
+
+function previewLinks(children, cwd = 'D:/ziliao/xiao1') {
+  const tree = { type: 'root', children: [{ type: 'paragraph', children }] }
+  remarkPreviewLinks(cwd)(tree)
+  return tree.children[0].children
+}
+
+const hrefPath = (node) => decodeLocalFileHref(node.url)?.path
+
+test('HTML paths in inline code become preview links, whatever the shape of the path', () => {
+  for (const [value, expected] of [
+    ['D:/ziliao/xiao1/index.html', 'D:/ziliao/xiao1/index.html'],
+    ['D:\\ziliao\\我的 文件\\报告.HTM', 'D:\\ziliao\\我的 文件\\报告.HTM'],
+    ['/home/me/site/index.html', '/home/me/site/index.html'],
+    ['index.html', 'D:/ziliao/xiao1/index.html'],
+    ['./dist/page.html', 'D:/ziliao/xiao1/dist/page.html'],
+    ['src/index.html:12', 'D:/ziliao/xiao1/src/index.html'],
+  ]) {
+    const child = { type: 'inlineCode', value }
+    const [link] = previewLinks([child])
+    assert.equal(link.type, 'link', value)
+    assert.equal(hrefPath(link), expected)
+    // 显示的还是原来的行内代码。
+    assert.deepEqual(link.children, [child])
+  }
+})
+
+test('inline code that is a web address links directly, so the preview provider can take it', () => {
+  const [link] = previewLinks([{ type: 'inlineCode', value: 'http://localhost:5173/' }])
+  assert.equal(link.type, 'link')
+  assert.equal(link.url, 'http://localhost:5173/')
+})
+
+test('inline code that is not a previewable path stays code', () => {
+  for (const value of [
+    'report.pdf',
+    'npm run build index.html',
+    '<div class="a.html">',
+    'a.html b.html',
+    '../outside.html',
+    'ftp://example.com/a.html',
+    'javascript:alert(1).html',
+    'index.html?x=1',
+    'index.htmlx',
+    '',
+  ]) {
+    const child = { type: 'inlineCode', value }
+    assert.deepEqual(previewLinks([child]), [child], value)
+  }
+  // 相对路径没有工作区就无法定位。
+  const child = { type: 'inlineCode', value: 'index.html' }
+  assert.deepEqual(previewLinks([child], ''), [child])
+})
+
+test('HTML paths in prose stop at Chinese punctuation and keep the surrounding text', () => {
+  const nodes = previewLinks([
+    { type: 'text', value: '已在当前目录创建 D:/ziliao/xiao1/index.html，双击或打开 site/a.htm。' },
+  ])
+  assert.deepEqual(
+    nodes.map((node) => node.type),
+    ['text', 'link', 'text', 'link', 'text'],
+  )
+  assert.equal(nodes[0].value, '已在当前目录创建 ')
+  assert.equal(hrefPath(nodes[1]), 'D:/ziliao/xiao1/index.html')
+  assert.deepEqual(nodes[1].children, [{ type: 'text', value: 'D:/ziliao/xiao1/index.html' }])
+  assert.equal(nodes[2].value, '，双击或打开 ')
+  assert.equal(hrefPath(nodes[3]), 'D:/ziliao/xiao1/site/a.htm')
+  assert.equal(nodes[4].value, '。')
+})
+
+test('prose paths end cleanly and Chinese words before a relative path are not swallowed', () => {
+  const [before, link, after] = previewLinks([{ type: 'text', value: 'see /tmp/a/报告.html.' }])
+  assert.equal(before.value, 'see ')
+  assert.equal(hrefPath(link), '/tmp/a/报告.html')
+  assert.equal(after.value, '.')
+  for (const value of [
+    '没有路径的一句话',
+    'index.html.bak',
+    'example.com/a.html',
+    'mysite.html5',
+    '../outside.html',
+    // 中文紧贴相对文件名时猜不出边界，宁可不链接。
+    '已生成报告.html',
+  ]) {
+    const child = { type: 'text', value }
+    assert.deepEqual(previewLinks([child]), [child], value)
+  }
+})
+
+test('existing links and code blocks are left alone, inside lists and tables too', () => {
+  const code = { type: 'code', value: 'open index.html' }
+  const link = {
+    type: 'link',
+    url: 'https://example.com',
+    children: [{ type: 'text', value: 'a.html' }],
+  }
+  const tree = {
+    type: 'root',
+    children: [
+      code,
+      { type: 'paragraph', children: [link] },
+      {
+        type: 'list',
+        children: [
+          {
+            type: 'listItem',
+            children: [{ type: 'paragraph', children: [{ type: 'inlineCode', value: 'a.html' }] }],
+          },
+        ],
+      },
+    ],
+  }
+  remarkPreviewLinks('/work')(tree)
+  assert.deepEqual(tree.children[0], { type: 'code', value: 'open index.html' })
+  assert.equal(tree.children[1].children[0].url, 'https://example.com')
+  assert.deepEqual(tree.children[1].children[0].children, [{ type: 'text', value: 'a.html' }])
+  const nested = tree.children[2].children[0].children[0].children[0]
+  assert.equal(hrefPath(nested), '/work/a.html')
 })
