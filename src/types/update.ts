@@ -157,8 +157,23 @@ export type DesktopComputerUseStreamOptions = {
   mode?: 'poll'
 }
 
+// 右侧浏览器的原生子 WebView（src-tauri/src/desktop_shell/desktop_browser.rs）。
+export type DesktopBrowserBounds = { x: number; y: number; width: number; height: number }
+export type DesktopBrowserEvent = { type: 'navigated'; url: string; loading: boolean }
+export type DesktopBrowserBridge = {
+  open: (
+    input: { browserId: string; url: string; bounds: DesktopBrowserBounds },
+    onEvent: (event: DesktopBrowserEvent) => void,
+  ) => Promise<{ status: 'opened' | 'unsupported' }>
+  navigate: (browserId: string, url: string) => Promise<void>
+  action: (browserId: string, action: 'back' | 'forward' | 'reload') => Promise<void>
+  sync: (browserId: string, bounds: DesktopBrowserBounds, visible: boolean) => Promise<void>
+  close: (browserId: string) => Promise<void>
+}
+
 export type DesktopBridge = {
   remoteWorkspaces?: RemoteWorkspaceBridge
+  browser?: DesktopBrowserBridge
   customTitlebar?: boolean
   windowAction?: (action: 'minimize' | 'maximize' | 'close' | 'drag') => Promise<void>
   platform?: string

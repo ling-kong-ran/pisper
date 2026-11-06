@@ -122,6 +122,15 @@
       openNotificationSettings: () => invoke('desktop_open_notification_settings'),
       showNotification: (notification) =>
         invoke('desktop_show_notification', { input: notification }),
+      browser: Object.freeze({
+        open: (input, onEvent) =>
+          invoke('desktop_browser_open', { input, onEvent: new Channel(onEvent) }),
+        navigate: (browserId, url) => invoke('desktop_browser_navigate', { browserId, url }),
+        action: (browserId, action) => invoke('desktop_browser_action', { browserId, action }),
+        sync: (browserId, bounds, visible) =>
+          invoke('desktop_browser_sync', { browserId, bounds, visible }),
+        close: (browserId) => invoke('desktop_browser_close', { browserId }),
+      }),
       terminalProfiles: () => invoke('desktop_terminal_profiles'),
       terminalCreate: (options, onEvent) => {
         const channel = new Channel(onEvent)

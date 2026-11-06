@@ -1,0 +1,10 @@
+[[permission]]
+identifier = "allow-pisper-desktop-browser"
+description = "Allows the main authenticated Pisper desktop WebView to manage the side browser's native child WebViews."
+commands.allow = [
+  "desktop_browser_open",
+  "desktop_browser_navigate",
+  "desktop_browser_action",
+  "desktop_browser_sync",
+  "desktop_browser_close",
+]
