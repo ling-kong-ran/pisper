@@ -1,9 +1,9 @@
 {
-  "version": "0.1.85",
-  "tag": "app-v0.1.85",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.85",
+  "version": "0.1.86",
+  "tag": "app-v0.1.86",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.86",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.85\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.85`\n- 对比基线：`app-v0.1.84`\n\n## 更新内容\n\n### 新增功能\n\n- feat(chat): 回复里的 HTML 路径和地址可以点，在右侧浏览器打开\n- feat(memory): 记忆页新增“会话”视图，能看每次对话的摘要\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.84...app-v0.1.85)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/a1473dcf8f927d510793f568b3e1ad222527cf31)",
-  "releaseDate": "2026-11-06"
+  "notes": "## Pisper App 0.1.86\n\n- 发布日期：2026-11-07（北京时间）\n- 发布标签：`app-v0.1.86`\n- 对比基线：`app-v0.1.85`\n\n## 更新内容\n\n### 新增功能\n\n- feat(computer-use): 重写电脑操作，Windows 全屏遮罩加 Esc，macOS、Linux 小窗口\n- feat(chat): 桌面端 Agent 接管右侧浏览器，显示指针和光效\n- feat(chat): window.open 的弹窗显示成页签并保留 opener，window.close 时关掉\n- feat(chat): 右侧浏览器支持多个页签，切换时网页不重新加载\n- feat(chat): 桌面端右侧浏览器改用原生子 WebView，GitHub 这类拒绝内嵌的网站也能打开\n- feat(chat): 右侧栏宽度改按会话区比例保存，4K 屏不再卡在 720px\n- feat(chat): 上下文面板看得清系统提示词、工具、MCP 各占多少\n- feat(machines): 远程机器：Agent 直接在别的机器上工作，对方不用装 Pisper\n\n### 问题修复\n\n- fix(chat): 旧回复也隐藏更新代码带来的附件，git add 和重建的文件归属正确\n- fix(chat): 回复只显示 Agent 自己的产物，更新代码不再刷屏\n- fix(runtime): 运行约束只留模型从别处拿不到的内容\n- fix(chat): 地址栏能直接输入 localhost:5173，本机和局域网地址按 http 打开\n- fix(runtime): 新消息不再让对话历史命中不了缓存，系统提示词和工具定义精简近一半\n- fix(runtime): 历史用户数据不再让 Runtime 起不来，真起不来时窗口说明原因\n- fix(tools): 命令退出后留下的后台进程不再让工具一直显示运行中\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.85...app-v0.1.86)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/b2c4744006bb0e05e965c86351e67eed0c6dbbe0)",
+  "releaseDate": "2026-11-07"
 }
