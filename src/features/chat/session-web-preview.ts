@@ -28,3 +28,20 @@ export function openWebPreviewInSessionContext(sessionId: string, url: string) {
   const created = next && activeBrowserPage(next)
   return created ? navigate(created.id) : false
 }
+
+// window.open 的弹窗：原生层已经建好 WebView，这里开一个页签等它接管。resourceId 记着它的 id。
+// 地址相同也要开新页签：打开它的页面还拿着这个窗口。页签开满时返回 false。
+export function openBrowserPopupInSessionContext(sessionId: string, popupId: string, url: string) {
+  const store = useContextPagesStore.getState()
+  const opened = store.update(sessionId, 'browser', {
+    type: 'open',
+    kind: 'browser',
+    resourceId: popupId,
+  })
+  if (opened === 'limit') return false
+  const pages = useContextPagesStore.getState().sessions[sessionId]
+  const created = pages && activeBrowserPage(pages)
+  if (created && url)
+    store.update(sessionId, 'browser', { type: 'browser', id: created.id, url, draft: url })
+  return true
+}

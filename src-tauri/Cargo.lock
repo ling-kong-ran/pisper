@@ -4054,6 +4054,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing-subscriber",
+ "webview2-com",
  "windows-sys 0.59.0",
  "winreg 0.55.0",
  "wry",

@@ -125,6 +125,8 @@
       browser: Object.freeze({
         open: (input, onEvent) =>
           invoke('desktop_browser_open', { input, onEvent: new Channel(onEvent) }),
+        adopt: (browserId, onEvent) =>
+          invoke('desktop_browser_adopt', { browserId, onEvent: new Channel(onEvent) }),
         navigate: (browserId, url) => invoke('desktop_browser_navigate', { browserId, url }),
         action: (browserId, action) => invoke('desktop_browser_action', { browserId, action }),
         sync: (browserId, bounds, visible) =>

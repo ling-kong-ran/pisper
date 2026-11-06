@@ -102,6 +102,8 @@ dispatch2 = { version = "0.3", default-features = false, features = ["std", "all
 wry = { version = "0.55", default-features = false, features = ["protocol", "os-webview"] }
 
 [target.'cfg(windows)'.dependencies]
+# 监听网页的 window.close()（desktop_browser.rs）。wry 没有这个回调；版本跟随 wry，已在依赖树里。
+webview2-com = "0.38"
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
 # Windows 镜像流捕获后端（WGC 主路径 + GDI 轮询兜底）：独立 crate 以便在

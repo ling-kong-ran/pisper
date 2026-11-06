@@ -832,6 +832,7 @@ pub fn run() {
             desktop_terminal::desktop_terminal_close,
             desktop_terminal::desktop_terminal_close_all,
             desktop_browser::desktop_browser_open,
+            desktop_browser::desktop_browser_adopt,
             desktop_browser::desktop_browser_navigate,
             desktop_browser::desktop_browser_action,
             desktop_browser::desktop_browser_sync,

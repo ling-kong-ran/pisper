@@ -2,6 +2,7 @@
 // WebView 的生命周期等于占位区的挂载期，和之前的 iframe 一样；登录状态在原生层的独立数据目录里。
 // 打不开或平台不支持时 status 变成 unavailable，由调用方退回 iframe。
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { DesktopBrowserEvent } from '@/types/update'
 import {
   boundsFromRect,
   isOccluded,
@@ -23,38 +24,49 @@ let nextBrowserId = 0
 export function useNativeBrowser({
   enabled,
   url,
+  popupId,
   onNavigated,
   onTitle,
   onNewWindow,
+  onClosed,
 }: {
   enabled: boolean
   url: string
+  // 这个页签来自 window.open：原生层已经建好 WebView，要接管它而不是新开一个，window.opener 才连得上。
+  popupId: string
   onNavigated: (url: string) => void
   onTitle: (title: string) => void
-  onNewWindow: (url: string) => void
+  onNewWindow: (url: string, popupId: string | null) => void
+  onClosed: () => void
 }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const browserIdRef = useRef<string | null>(null)
   const urlRef = useRef(url)
   // 原生层当前所在的地址：它和 url 相同时不用再导航，否则页面自己跳转后会被重新加载一遍。
   const currentUrlRef = useRef(url)
-  const handlersRef = useRef({ onNavigated, onTitle, onNewWindow })
+  // 页面自己跳过、还没回到 url 的地址。登录会连续跳转，晚到的旧地址不是要去的地方，不能导航回去。
+  const reportedUrlsRef = useRef<string[]>([])
+  const popupIdRef = useRef(popupId)
+  const handlersRef = useRef({ onNavigated, onTitle, onNewWindow, onClosed })
   const [unavailable, setUnavailable] = useState(false)
+  // 弹窗已经不在了（离开过预览）而且没有地址可以重新打开：这时就是空白页。
+  const [popupGone, setPopupGone] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     urlRef.current = url
-    handlersRef.current = { onNavigated, onTitle, onNewWindow }
+    popupIdRef.current = popupId
+    handlersRef.current = { onNavigated, onTitle, onNewWindow, onClosed }
   })
 
-  const active = enabled && Boolean(url) && !unavailable
+  const active = enabled && Boolean(url || (popupId && !popupGone)) && !unavailable
 
   useEffect(() => {
     const browser = window.pisperDesktop?.browser
     const slot = slotRef.current
     if (!active || !browser || !slot) return
 
-    const browserId = `native-browser-${++nextBrowserId}`
+    let browserId = popupIdRef.current
     let disposed = false
     let opened = false
     let syncing = false
@@ -97,40 +109,61 @@ export function useNativeBrowser({
         })
     }
 
-    currentUrlRef.current = urlRef.current
-    const opening = browser
-      .open(
+    const handleEvent = (event: DesktopBrowserEvent) => {
+      if (disposed) return
+      if (event.type === 'title') {
+        handlersRef.current.onTitle(event.title)
+      } else if (event.type === 'newWindow') {
+        handlersRef.current.onNewWindow(event.url, event.browserId)
+      } else if (event.type === 'closed') {
+        handlersRef.current.onClosed()
+      } else {
+        if (event.url !== currentUrlRef.current) reportedUrlsRef.current.push(event.url)
+        currentUrlRef.current = event.url
+        setLoading(event.loading)
+        handlersRef.current.onNavigated(event.url)
+      }
+    }
+    const openNew = () => {
+      browserId = `native-browser-${++nextBrowserId}`
+      return browser.open(
         {
           browserId,
           url: urlRef.current,
           bounds: boundsFromRect(slot.getBoundingClientRect()),
         },
-        (event) => {
-          if (disposed) return
-          if (event.type === 'title') {
-            handlersRef.current.onTitle(event.title)
-          } else if (event.type === 'newWindow') {
-            handlersRef.current.onNewWindow(event.url)
-          } else {
-            currentUrlRef.current = event.url
-            setLoading(event.loading)
-            handlersRef.current.onNavigated(event.url)
-          }
-        },
+        handleEvent,
       )
-      .then((result) => {
-        if (result.status !== 'opened') {
-          giveUp()
-          return
-        }
-        opened = true
-        browserIdRef.current = browserId
-        // 打开期间地址又变了。
-        if (urlRef.current !== currentUrlRef.current) {
-          currentUrlRef.current = urlRef.current
-          void browser.navigate(browserId, urlRef.current).catch(() => {})
-        }
-      }, giveUp)
+    }
+    const requestedUrl = urlRef.current
+    currentUrlRef.current = requestedUrl
+    const opening = (
+      browserId
+        ? browser.adopt(browserId, handleEvent).catch(() => {
+            // 弹窗在离开预览时已经关了：按最后的地址重开，opener 没法再连上。
+            if (urlRef.current) return openNew()
+            if (!disposed) setPopupGone(true)
+            return null
+          })
+        : openNew()
+    ).then((result) => {
+      if (!result) return
+      if (result.status !== 'opened') {
+        giveUp()
+        return
+      }
+      opened = true
+      browserIdRef.current = browserId
+      // 打开期间用户又输入了别的地址。和 currentUrlRef 相同说明是页面自己跳过去的，不用再导航。
+      if (
+        urlRef.current &&
+        urlRef.current !== requestedUrl &&
+        urlRef.current !== currentUrlRef.current
+      ) {
+        currentUrlRef.current = urlRef.current
+        void browser.navigate(browserId, urlRef.current).catch(() => {})
+      }
+    }, giveUp)
     animationFrame = requestAnimationFrame(placeOnFrame)
 
     return () => {
@@ -140,11 +173,19 @@ export function useNativeBrowser({
       cancelAnimationFrame(animationFrame)
       setLoading(false)
       // 等打开做完再关，否则关闭先到达时 WebView 会留下来。
-      void opening.finally(() => browser.close(browserId).catch(() => {}))
+      void opening.finally(() => {
+        if (browserId) void browser.close(browserId).catch(() => {})
+      })
     }
   }, [active])
 
   useEffect(() => {
+    // 这是页面自己跳转的回声（连同它之前更旧的），不是新的导航请求。
+    const reported = reportedUrlsRef.current.indexOf(url)
+    if (reported >= 0) {
+      reportedUrlsRef.current.splice(0, reported + 1)
+      return
+    }
     const browser = window.pisperDesktop?.browser
     const browserId = browserIdRef.current
     if (!browser || !browserId || !url || url === currentUrlRef.current) return
