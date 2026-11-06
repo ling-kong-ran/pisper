@@ -64,6 +64,16 @@ export function fallbackReleaseTag(component, tags, currentVersion = '') {
   )
 }
 
+// Desktop 安装包内置的组件版本：同批次发布的用新版本，否则用最新标签，和构建时
+// fetch-bundled-components 实际取的一致。只按同批次写的话，重新触发或只改界面的发布
+// 不带这两个值，提交里的 bundled 就一直停在旧版本。
+export function bundledComponentVersion(component, plans, tags) {
+  return (
+    plans.find((plan) => plan.component === component)?.nextVersion ||
+    releaseVersionFromTag(component, fallbackReleaseTag(component, tags))
+  )
+}
+
 export async function readComponentVersion(root, component) {
   const normalized = assertReleaseComponent(component)
   if (normalized === 'desktop') {

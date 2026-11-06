@@ -13,6 +13,7 @@ import { APP_VERSION_FILE, appReleaseTag, appTagPattern, appVersionFromTag } fro
 import { isSubstantiveReleaseCommit } from './release-policy.mjs'
 import {
   RELEASE_COMPONENTS,
+  bundledComponentVersion,
   fallbackReleaseTag,
   readComponentVersion,
   releaseTag,
@@ -368,12 +369,10 @@ if (chainNpm) {
 runComponentChecks(selectedComponents)
 if (chainNpm) runNpm(['run', 'npm:pack:check'])
 
-// Desktop 派发携带同批次的新 TUI/Runtime 版本，使安装包 staging 能把组件清单
+// Desktop 派发携带它内置的 TUI/Runtime 版本，使安装包 staging 能把组件清单
 // 更新视为实质性变更；依赖已在派发前同步，发布版本与标签仍由远端 workflow 原子提交。
-const tuiPlan = plans.find(({ component }) => component === 'tui')
-const runtimePlan = plans.find(({ component }) => component === 'runtime')
-const desktopTuiVersion = tuiPlan?.nextVersion || ''
-const desktopRuntimeVersion = runtimePlan?.nextVersion || ''
+const desktopTuiVersion = bundledComponentVersion('tui', plans, tags)
+const desktopRuntimeVersion = bundledComponentVersion('runtime', plans, tags)
 
 function dispatchWorkflow(workflow, fields, label) {
   const output = run(

@@ -10,6 +10,7 @@ import {
   assertHasSubstantiveReleaseCommits,
   isSubstantiveReleaseCommit,
 } from '../../scripts/release-policy.mjs'
+import { bundledComponentVersion } from '../../scripts/release-components.mjs'
 import { releaseInputFromTriggerTag } from '../../scripts/release-trigger.mjs'
 
 function parseReleaseSource(source) {
@@ -243,6 +244,20 @@ test('release pre-checks verify lockfile integrity against the registry before i
   const script = await readFile('scripts/verify-lockfile-integrity.mjs', 'utf8')
   assert.match(script, /https:\/\/registry\.npmjs\.org\//)
   assert.match(script, /dist\.integrity/)
+})
+
+test('the desktop dispatch records the components it really bundles, also on a re-trigger', async () => {
+  const tags = ['v0.6.26', 'tui-v0.6.15', 'tui-v0.6.14', 'runtime-v0.6.24', 'npm-v0.6.26']
+  // 重新触发时只剩 Desktop：用最新标签，和构建时取的一致。
+  const onlyDesktop = [{ component: 'desktop', nextVersion: '0.6.27' }]
+  assert.equal(bundledComponentVersion('tui', onlyDesktop, tags), '0.6.15')
+  assert.equal(bundledComponentVersion('runtime', onlyDesktop, tags), '0.6.24')
+  // 同批次发布时标签还不存在，用计划里的新版本。
+  const chained = [...onlyDesktop, { component: 'runtime', nextVersion: '0.6.25' }]
+  assert.equal(bundledComponentVersion('runtime', chained, tags), '0.6.25')
+  assert.equal(bundledComponentVersion('tui', chained, tags), '0.6.15')
+  // 没有组件标签时不能拿桌面版本号冒充。
+  assert.equal(bundledComponentVersion('tui', onlyDesktop, ['v0.6.26']), '')
 })
 
 test('desktop staging treats a component bundle refresh as a substantive change', async () => {
