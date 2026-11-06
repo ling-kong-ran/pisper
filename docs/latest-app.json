@@ -1,9 +1,9 @@
 {
-  "version": "0.1.83",
-  "tag": "app-v0.1.83",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.83",
+  "version": "0.1.84",
+  "tag": "app-v0.1.84",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.84",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.83\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.83`\n- 对比基线：`app-v0.1.82`\n\n## 更新内容\n\n### 新增功能\n\n- feat(memory): 记忆年轮：按时间滑动演算记忆的生长、替换与沉淀\n- feat(memory): 记忆页可以清除保存的对话原文\n- feat(memory): 删除旧记忆页，重做新页面，星忆改名为记忆\n- feat(bots): Bot 记忆并入记忆引擎，默认只读全局画像\n- feat(memory): 记忆分层：时间摘要、常驻画像、合并重复与逐层展开\n- feat(memory): 保存对话原文，空闲时批量抽取记忆\n- feat(memory): 记忆自动对账与淘汰：矛盾事实替换、引用失效、到期归档，都可撤销\n- feat(memory): 重写记忆底层：中文检索、双时态、无需确认\n\n### 问题修复\n\n- fix(memory): 时间轴始终在首屏，整理记录写人话\n- fix(memory): 删除记忆时连带清除对话原文，并补上清除入口\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.82...app-v0.1.83)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/1e2ecb08d3e200656ae9a87505254315e8a626d9)",
+  "notes": "## Pisper App 0.1.84\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.84`\n- 对比基线：`app-v0.1.83`\n\n## 更新内容\n\n### 新增功能\n\n- feat(memory): 记忆年轮的视觉重心移到最新的外圈，手机默认对准外圈\n- feat(memory): 记忆年轮支持触屏双指缩放和双击复位\n- feat(memory): 会话摘要：一次对话做了什么、定了什么、还剩什么\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.83...app-v0.1.84)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/2be3dc366e027a233d87731654ee248b82abcfda)",
   "releaseDate": "2026-11-06"
 }
