@@ -162,10 +162,15 @@ export type DesktopBrowserBounds = { x: number; y: number; width: number; height
 export type DesktopBrowserEvent =
   | { type: 'navigated'; url: string; loading: boolean }
   | { type: 'title'; title: string }
-  | { type: 'newWindow'; url: string }
+  | { type: 'newWindow'; url: string; browserId: string | null }
+  | { type: 'closed' }
 export type DesktopBrowserBridge = {
   open: (
     input: { browserId: string; url: string; bounds: DesktopBrowserBounds },
+    onEvent: (event: DesktopBrowserEvent) => void,
+  ) => Promise<{ status: 'opened' | 'unsupported' }>
+  adopt: (
+    browserId: string,
     onEvent: (event: DesktopBrowserEvent) => void,
   ) => Promise<{ status: 'opened' | 'unsupported' }>
   navigate: (browserId: string, url: string) => Promise<void>

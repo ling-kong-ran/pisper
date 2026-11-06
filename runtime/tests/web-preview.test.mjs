@@ -6,7 +6,10 @@ import {
   shouldOpenWebPreview,
   webPreviewTabLabel,
 } from '../../src/lib/web-preview.ts'
-import { openWebPreviewInSessionContext } from '../../src/features/chat/session-web-preview.ts'
+import {
+  openBrowserPopupInSessionContext,
+  openWebPreviewInSessionContext,
+} from '../../src/features/chat/session-web-preview.ts'
 import { useContextPagesStore } from '../../src/features/chat/session-context-pages-store.ts'
 import {
   activeBrowserPage,
@@ -261,6 +264,36 @@ test('session web preview opens links in tabs without losing what is already ope
   }
 })
 
+test('a window.open popup gets its own tab even when the address is already open', () => {
+  const store = () => useContextPagesStore.getState()
+  const browserPages = () =>
+    store().sessions['popup-session'].pages.filter((page) => page.kind === 'browser')
+  try {
+    openWebPreviewInSessionContext('popup-session', 'https://example.com/')
+    // 打开它的页面拿着这个窗口：不能并进已有的页签。
+    assert.equal(
+      openBrowserPopupInSessionContext('popup-session', 'native-popup-1', 'https://example.com/'),
+      true,
+    )
+    assert.equal(browserPages().length, 2)
+    assert.equal(browserPages()[1].resourceId, 'native-popup-1')
+    assert.equal(browserPages()[1].url, 'https://example.com/')
+    assert.equal(store().sessions['popup-session'].activeBrowserId, browserPages()[1].id)
+    // window.open('') 还没有地址，页签也要有。
+    assert.equal(openBrowserPopupInSessionContext('popup-session', 'native-popup-2', ''), true)
+    assert.equal(browserPages()[2].resourceId, 'native-popup-2')
+    assert.equal(browserPages()[2].url, '')
+    while (store().sessions['popup-session'].pages.length < MAX_CONTEXT_PAGES)
+      store().update('popup-session', 'browser', { type: 'add', kind: 'browser' })
+    assert.equal(
+      openBrowserPopupInSessionContext('popup-session', 'native-popup-3', 'https://a.example/'),
+      false,
+    )
+  } finally {
+    store().forget('popup-session')
+  }
+})
+
 test('browser tabs have their own selection and closing one stays on a browser tab', () => {
   let state = createContextPages('browser')
   state = updateContextPages(state, { type: 'add', kind: 'files' })
@@ -368,7 +401,7 @@ test('the native browser stays isolated from the app and leaves the main window 
   assert.deepEqual(JSON.parse(capability).windows, ['main'])
   assert.match(permission, /identifier = "allow-pisper-desktop-browser"/)
   assert.ok(JSON.parse(config).app.security.capabilities.includes('desktop-browser'))
-  for (const command of ['open', 'navigate', 'action', 'sync', 'close']) {
+  for (const command of ['open', 'adopt', 'navigate', 'action', 'sync', 'close']) {
     assert.match(permission, new RegExp(`"desktop_browser_${command}"`))
     assert.match(bridge, new RegExp(`'desktop_browser_${command}'`))
     assert.match(
@@ -376,9 +409,14 @@ test('the native browser stays isolated from the app and leaves the main window 
       new RegExp(`pub async fn desktop_browser_${command}\\([\\s\\S]*?ensure_main\\(&window\\)\\?`),
     )
   }
-  // 新窗口开成新页签，不让系统另开一个窗口。
-  assert.match(browser, /BrowserEvent::NewWindow \{ url: target \}/)
-  assert.match(browser, /NewWindowResponse::Deny/)
+  // window.open 交回同一环境的 WebView，opener 才连得上，也不会另开系统窗口；数据仍在隔离的存储里。
+  assert.match(browser, /with_webview_configuration\(features\.opener\.target_configuration\)/)
+  assert.match(browser, /with_environment\(features\.opener\.environment\)/)
+  assert.match(browser, /NewWindowResponse::Create/)
+  assert.doesNotMatch(browser, /NewWindowResponse::Allow/)
+  // window.close() 两个系统都要接：Windows 的事件，macOS wry 没实现、要运行时补的代理方法。
+  assert.match(browser, /add_WindowCloseRequested/)
+  assert.match(browser, /webViewDidClose:/)
   // 不支持时明确退回 iframe，不留空白。
   assert.match(browser, /status: "unsupported"/)
   assert.match(pane, /native\.active \?[\s\S]*: url \?[\s\S]*<WebPreview/)

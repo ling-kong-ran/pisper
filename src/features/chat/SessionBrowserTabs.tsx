@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils'
 import { BrowserPane } from './SessionBrowserPane'
 import { activeBrowserPage, MAX_CONTEXT_PAGES } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
-import { openWebPreviewInSessionContext } from './session-web-preview'
 
 export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId: string }) {
   const { t } = useI18n()
@@ -57,6 +56,7 @@ export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId
     // 最后一个页签关掉后变回空白页，留在“预览”里，也还能输入地址。
     if (browsers.length === 1) {
       store.update(sessionId, 'browser', { type: 'browser', id, url: '', draft: '' })
+      store.update(sessionId, 'browser', { type: 'resource', id, resourceId: '' })
       return
     }
     store.update(sessionId, 'browser', { type: 'close', id })
@@ -104,7 +104,7 @@ export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId
               page.title ||
               (page.url ? webPreviewTabLabel(page.url) : t('common:webPreview.newTab'))
             // 只剩一个空白页签时没什么可关的。
-            const closable = browsers.length > 1 || Boolean(page.url)
+            const closable = browsers.length > 1 || Boolean(page.url || page.resourceId)
             return (
               <div
                 key={page.id}
@@ -178,13 +178,14 @@ export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId
               className={selected ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
             >
               <BrowserPane
+                sessionId={sessionId}
                 page={page}
                 onChange={(patch) =>
                   useContextPagesStore
                     .getState()
                     .update(sessionId, 'browser', { type: 'browser', id: page.id, ...patch })
                 }
-                onOpenNewTab={(url) => openWebPreviewInSessionContext(sessionId, url)}
+                onClosed={() => closeTab(page.id)}
               />
             </div>
           )

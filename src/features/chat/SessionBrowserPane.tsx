@@ -9,16 +9,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HTML_PREVIEW_SANDBOX, isHtmlPreviewUrl, normalizeWebPreviewInput } from '@/lib/web-preview'
 import type { ContextPage } from './session-context-pages'
+import {
+  openBrowserPopupInSessionContext,
+  openWebPreviewInSessionContext,
+} from './session-web-preview'
 import { useNativeBrowser } from './useNativeBrowser'
 
 export function BrowserPane({
+  sessionId,
   page,
   onChange,
-  onOpenNewTab,
+  onClosed,
 }: {
+  sessionId: string
   page: ContextPage
   onChange: (patch: { draft?: string; url?: string; title?: string }) => void
-  onOpenNewTab: (url: string) => void
+  // 网页调用了 window.close()。
+  onClosed: () => void
 }) {
   const { t } = useI18n()
   const { draft, url } = page
@@ -26,12 +33,19 @@ export function BrowserPane({
   const native = useNativeBrowser({
     enabled: Boolean(window.pisperDesktop?.browser),
     url,
+    popupId: page.resourceId,
     // 用户正在输入时不改地址栏；只有地址栏显示的还是旧地址才跟着变。
     onNavigated: (next) => {
       if (next !== url) onChange(draft === url ? { url: next, draft: next } : { url: next })
     },
     onTitle: (title) => onChange({ title }),
-    onNewWindow: onOpenNewTab,
+    onNewWindow: (next, popupId) => {
+      if (popupId && openBrowserPopupInSessionContext(sessionId, popupId, next)) return
+      // 页签开满了：弹窗显示不出来，关掉它，地址在当前页签打开。
+      if (popupId) void window.pisperDesktop?.browser?.close(popupId).catch(() => {})
+      if (next) openWebPreviewInSessionContext(sessionId, next)
+    },
+    onClosed,
   })
 
   return (
