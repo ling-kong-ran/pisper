@@ -29,6 +29,7 @@ export const BOT_CONVERSATION_BLOCKED_TOOLS = Object.freeze([
   ...SCHEDULE_TOOL_NAMES,
   ...WORKFLOW_TOOL_NAMES,
   'browser_automation',
+  'computer_use',
 ])
 
 // 本轮不可用的工具：隔离上下文的屏蔽项；没人在场的运行里的 ask_user、定时任务与工作流工具

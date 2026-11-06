@@ -232,3 +232,97 @@ test('the host route is closed to remote clients and the host only connects wher
   const scripts = await readFile('src/features/chat/agent-browser-scripts.ts', 'utf8')
   assert.doesNotMatch(scripts, /\.innerHTML|createElement\('style'\)|setAttribute\('style'/)
 })
+
+test('computer use goes to the desktop app, returns a screenshot and hands the screen back', async () => {
+  const { DesktopComputerService } = await import('../services/desktop-computer-service.mjs')
+  const service = new DesktopComputerService()
+  await assert.rejects(service.execute('s', { action: 'screenshot' }), /desktop app/)
+  const sent = []
+  service.attach((event, data) => sent.push({ event, data }))
+  const clicking = service.execute('s', { action: 'click', x: 10, y: 20 })
+  const command = sent.at(-1).data
+  assert.deepEqual(
+    { action: command.action, x: command.x, y: command.y, sessionId: command.sessionId },
+    { action: 'click', x: 10, y: 20, sessionId: 's' },
+  )
+  service.settle(command.requestId, {
+    ok: true,
+    result: { imageBase64: 'abc', width: 1440, height: 900, extra: 'dropped' },
+  })
+  assert.deepEqual(await clicking, {
+    action: 'click',
+    imageBase64: 'abc',
+    width: 1440,
+    height: 900,
+  })
+  // 动作成功了但没拿到截图，模型就是在盲操作：算失败。
+  const blind = service.execute('s', { action: 'screenshot' })
+  service.settle(sent.at(-1).data.requestId, { ok: true, result: {} })
+  await assert.rejects(blind, /usable screenshot/)
+  // 被用户按 Esc 停掉时，原生层的说明要传给模型。
+  const stopped = service.execute('s', { action: 'type', text: 'x' })
+  service.settle(sent.at(-1).data.requestId, { ok: false, error: 'The user stopped computer use.' })
+  await assert.rejects(stopped, /user stopped/)
+  service.release('s')
+  assert.deepEqual(sent.at(-1), { event: 'release', data: { sessionId: 's' } })
+})
+
+test('computer use asks once per session, even in auto mode, and hands the screen back to ask', async () => {
+  const { SessionPermissionService } = await import('../services/session-permission-service.mjs')
+  const requested = []
+  const released = []
+  const service = new SessionPermissionService({
+    getMode: () => 'auto',
+    getExecutionMode: () => 'auto',
+    getToolRisk: () => 'high',
+    isThirdPartyTool: () => false,
+    isToolBlocked: () => false,
+    onApprovalRequested: (sessionId) => released.push(sessionId),
+    emit: () => {},
+  })
+  service.requestApproval = (input) => {
+    requested.push(input.toolName)
+    service.onApprovalRequested?.(input.sessionId)
+    return Promise.resolve({ approved: true })
+  }
+  const call = (sessionId, args) =>
+    service.authorize({
+      sessionId,
+      cwd: '/tmp',
+      toolName: 'computer_use',
+      toolCallId: 't',
+      args,
+    })
+  assert.equal(await call('a', { action: 'click', x: 1, y: 1 }), undefined)
+  assert.equal(await call('a', { action: 'type', text: 'x' }), undefined)
+  assert.deepEqual(requested, ['computer_use'])
+  assert.deepEqual(released, ['a'])
+  // 换一个会话要重新问。
+  await call('b', { action: 'screenshot' })
+  assert.deepEqual(requested, ['computer_use', 'computer_use'])
+})
+
+test('computer use cannot be turned on for subagents or bots, and is desktop only', async () => {
+  const [multiAgent, activation, capabilities, browserHost, bridge] = await Promise.all([
+    readFile('runtime/services/multi-agent-service.mjs', 'utf8'),
+    readFile('runtime/runtime/tool-activation.mjs', 'utf8'),
+    readFile('runtime/runtime-capabilities.mjs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/computer_control.rs', 'utf8'),
+    readFile('src-tauri/capabilities/desktop-computer.json', 'utf8'),
+  ])
+  assert.match(multiAgent, /PARENT_ONLY_TOOL_NAMES = new Set\(\[[\s\S]*?'computer_use'/)
+  assert.match(
+    activation,
+    /BOT_CONVERSATION_BLOCKED_TOOLS = Object\.freeze\(\[[\s\S]*?'computer_use'/,
+  )
+  assert.match(capabilities, /if \(features\.computerUse\) tools\.add\('computer_use'\)/)
+  assert.deepEqual(JSON.parse(bridge).windows, ['main'])
+  // 原生层拒绝操作 Pisper 自己：不能靠模型遵守提示词，否则它能点自己的“批准”。
+  assert.match(browserHost, /point_hits_own_window\(x, y\)/)
+  assert.match(browserHost, /foreground_is_own\(\)/)
+  // Agent 自己发的 Esc 不能把自己停掉。
+  assert.match(browserHost, /LLKHF_INJECTED/)
+  // 遮罩不能挡输入，也不能抢焦点。
+  assert.match(browserHost, /set_ignore_cursor_events\(true\)/)
+  assert.match(browserHost, /focusable\(false\)/)
+})

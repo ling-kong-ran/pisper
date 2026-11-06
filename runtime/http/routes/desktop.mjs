@@ -7,36 +7,43 @@ function requireDesktopPet(services) {
 // 截图以 base64 放在结果里，4K 整屏也不到这个数。
 const MAX_BROWSER_RESULT_BYTES = 48_000_000
 
+// 桌面前端连上来接收指令。远程客户端不能接：指令里有 Agent 要在本机输入的内容，
+// 而且它操作不到这台机器上的网页和屏幕。
+function desktopHostRoutes(path, channelOf) {
+  return [
+    {
+      method: 'GET',
+      path,
+      async handler({ runtime, req, res, json, startSse, sendSse }) {
+        if (req.pisperRemote) {
+          json(403, { error: '远程客户端不能接收桌面指令。' })
+          return
+        }
+        startSse()
+        const detach = channelOf(runtime).attach((event, data) => sendSse(event, data))
+        sendSse('ready', {})
+        await new Promise((resolve) => res.once('close', resolve))
+        detach()
+      },
+    },
+    {
+      method: 'POST',
+      path: `${path}/:requestId`,
+      async handler({ runtime, req, params, bodyBuffer, json }) {
+        if (req.pisperRemote) {
+          json(403, { error: '远程客户端不能接收桌面指令。' })
+          return
+        }
+        const payload = JSON.parse((await bodyBuffer(MAX_BROWSER_RESULT_BYTES)).toString('utf8'))
+        json(200, { accepted: channelOf(runtime).settle(params.requestId, payload) })
+      },
+    },
+  ]
+}
+
 export const desktopRoutes = [
-  // 桌面前端连上来接收右侧浏览器的指令。远程客户端不能接：指令里有 Agent 要在本机页面输入的内容，
-  // 而且它看到的网页不是用户这台机器上的那个。
-  {
-    method: 'GET',
-    path: '/api/desktop-browser/host',
-    async handler({ runtime, req, res, json, startSse, sendSse }) {
-      if (req.pisperRemote) {
-        json(403, { error: '远程客户端不能接管右侧浏览器。' })
-        return
-      }
-      startSse()
-      const detach = runtime.desktopBrowserHost.attach((event, data) => sendSse(event, data))
-      sendSse('ready', {})
-      await new Promise((resolve) => res.once('close', resolve))
-      detach()
-    },
-  },
-  {
-    method: 'POST',
-    path: '/api/desktop-browser/host/:requestId',
-    async handler({ runtime, req, params, bodyBuffer, json }) {
-      if (req.pisperRemote) {
-        json(403, { error: '远程客户端不能接管右侧浏览器。' })
-        return
-      }
-      const payload = JSON.parse((await bodyBuffer(MAX_BROWSER_RESULT_BYTES)).toString('utf8'))
-      json(200, { accepted: runtime.desktopBrowserHost.settle(params.requestId, payload) })
-    },
-  },
+  ...desktopHostRoutes('/api/desktop-browser/host', (runtime) => runtime.desktopBrowserHost),
+  ...desktopHostRoutes('/api/desktop-computer/host', (runtime) => runtime.desktopComputer),
   {
     method: 'POST',
     path: '/api/desktop/reveal-path',

@@ -72,6 +72,30 @@ test('cleared team snapshots remove the team panel and progress without relabeli
   assert.equal(team.status, 'paused')
 })
 
+test('the computer use tool shows what it is doing and its screenshot', () => {
+  const html = render({
+    activityFeed: [
+      {
+        type: 'tool',
+        id: 'tool-c',
+        name: 'computer_use',
+        args: { action: 'key', keys: 'ctrl+s' },
+        status: 'running',
+        previewImage: {
+          id: 'a',
+          url: '/api/assets/a/download?inline=1',
+          name: 'a.jpg',
+          mimeType: 'image/jpeg',
+        },
+      },
+    ],
+  })
+  assert.ok(html.includes(t('chat:agentRunActivity.operatingComputer')))
+  assert.ok(html.includes('ctrl+s'))
+  assert.ok(html.includes('/api/assets/a/download?inline=1'))
+})
+
+// 旧版会话的历史记录里还有这些工具名，要能正常显示。
 test('computer use tool activities render localized labels and live preview images', () => {
   const previewImage = {
     id: 'asset-1',
@@ -102,46 +126,4 @@ test('computer use tool activities render localized labels and live preview imag
     activityFeed: [{ type: 'tool', id: 'tool-1', name: 'act_ui', args: {}, status: 'done' }],
   })
   assert.ok(doneHtml.includes(t('chat:agentRunActivity.interfaceActionCompleted')))
-})
-
-test('computer use live mirror renders when streaming with a window target', () => {
-  const html = render({
-    streaming: true,
-    activityFeed: [
-      {
-        type: 'tool',
-        id: 'tool-0',
-        name: 'act_ui',
-        args: { actions: [{ action: 'click' }] },
-        status: 'running',
-        target: { app: 'Weather', windowTitle: 'Weather', windowId: 77 },
-      },
-    ],
-  })
-  // 实时镜像容器存在；无桥接环境下回退到占位（不是静态预览）。
-  assert.ok(html.includes('computer-use-live-mirror'))
-  assert.ok(html.includes(t('chat:computerUseLive.waitingForFirstFrame')))
-  // 窗口标题透传展示。
-  assert.ok(html.includes('Weather'))
-})
-
-test('computer use live mirror stays hidden without streaming or compact mode', () => {
-  const props = {
-    activityFeed: [
-      {
-        type: 'tool',
-        id: 'tool-0',
-        name: 'act_ui',
-        args: {},
-        status: 'done',
-        target: { app: 'Weather', windowTitle: 'Weather', windowId: 77 },
-      },
-    ],
-  }
-  // 非流式（历史）不渲染镜像，由静态预览接管。
-  const doneHtml = render({ ...props, streaming: false })
-  assert.ok(!doneHtml.includes('computer-use-live-mirror'))
-  // 紧凑模式（输入框胶囊）不渲染镜像。
-  const compactHtml = render({ ...props, streaming: true, compact: true })
-  assert.ok(!compactHtml.includes('computer-use-live-mirror'))
 })

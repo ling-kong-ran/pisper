@@ -102,6 +102,7 @@ export const TOOL_PRESETS = {
     'component_create',
     'web_search',
     'browser_automation',
+    'computer_use',
     'generate_visual',
     'mobile_device',
     'memory_search',

@@ -2,7 +2,6 @@
 // 消息/历史/树/标签、权限审批、模型/工作目录切换等核心 API。
 import { projectStoredTeam } from '../../services/team-workflow.mjs'
 import { SessionOrganizationInputError } from '../../services/chat-session-organization.mjs'
-import { OFFICIAL_COMPUTER_USE_TOOL_NAMES } from '../../runtime/computer-use-extension.mjs'
 import { SideChatError } from '../../services/side-chat-service.mjs'
 import { QuestionInputError, isQuestionId } from '../../services/session-question-service.mjs'
 import { SessionQueueError } from '../../services/session-start-queue.mjs'
@@ -900,12 +899,7 @@ const routes = [
       }
       const skillName = invocation?.kind === 'skill' ? String(invocation.resourceName || '') : ''
       const toolName = invocation?.kind === 'tool' ? String(invocation.resourceId || '') : ''
-      const requestedToolNames =
-        toolName === 'computer-use'
-          ? OFFICIAL_COMPUTER_USE_TOOL_NAMES
-          : toolName
-            ? [toolName]
-            : null
+      const requestedToolNames = toolName ? [toolName] : null
       const prompt = skillName ? `/skill:${skillName}${message ? `\n${message}` : ''}` : message
       await runtime.streamPrompt({
         sessionId: input.sessionId,

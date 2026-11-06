@@ -22,10 +22,6 @@ import {
   createDefaultResourceLoader,
   loadSkills,
 } from '../runtime/pi-coding-agent.mjs'
-import {
-  getComputerUseOcrExtensionPath,
-  getOfficialComputerUseExtensionPath,
-} from '../runtime/computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PISPER_OPENING } from '../prompts/pisper-system-prompt.mjs'
 
@@ -578,7 +574,6 @@ export class SkillsService {
     ]
     const promptDir = projectPromptsDir(cwd)
     const appConfig = this.configPath ? await readJson(this.configPath, {}) : {}
-    const computerUseEnabled = appConfig.computerUseEnabled !== false
     const disabledExtensionSources = new Set(
       Object.entries(appConfig.piExtensions || {})
         .filter(([, enabled]) => enabled === false)
@@ -603,10 +598,6 @@ export class SkillsService {
       ...(this.extensionFactories.length ? { extensionFactories: this.extensionFactories } : {}),
       noExtensions: false,
       noSkills: true,
-      additionalExtensionPaths:
-        this.computerUseAvailable && !isMobileRuntime() && computerUseEnabled
-          ? [getOfficialComputerUseExtensionPath(), getComputerUseOcrExtensionPath()]
-          : [],
       additionalSkillPaths: resources.map((item) => item.path),
       extensionsOverride: (current) => ({
         ...current,

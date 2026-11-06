@@ -1,6 +1,6 @@
 mod cli_manager;
 mod component_updates;
-mod computer_use;
+mod computer_control;
 mod desktop_bridge;
 mod desktop_browser;
 mod desktop_browser_policy;
@@ -565,6 +565,7 @@ fn create_main_window(app: &tauri::App, ready: &SidecarReady) -> Result<(), Stri
         .on_page_load(|window, payload| {
             if payload.event() == PageLoadEvent::Started {
                 desktop_browser::close_all(window.app_handle());
+                computer_control::close_all(window.app_handle());
             }
         })
         .on_navigation(move |target| {
@@ -797,7 +798,7 @@ pub fn run() {
         )
         .manage(component_updates::ComponentUpdateState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
-        .manage(computer_use::ComputerUseStreamState::default())
+        .manage(computer_control::ComputerState::default())
         .manage(LifecycleState {
             quitting: AtomicBool::new(false),
         })
@@ -839,9 +840,10 @@ pub fn run() {
             desktop_browser::desktop_browser_action,
             desktop_browser::desktop_browser_sync,
             desktop_browser::desktop_browser_close,
-            computer_use::desktop_computer_use_start_stream,
-            computer_use::desktop_computer_use_stop_stream,
-            computer_use::desktop_computer_use_secure_input_state,
+            computer_control::desktop_computer_begin,
+            computer_control::desktop_computer_end,
+            computer_control::desktop_computer_screenshot,
+            computer_control::desktop_computer_act,
             desktop_pet::desktop_pet_apply_enabled,
             desktop_pet::desktop_pet_set_visible,
             desktop_pet::desktop_pet_start_dragging,
@@ -920,11 +922,6 @@ pub fn run() {
                             Ok(())
                         }
                     });
-                // 镜像管道启动自测（仅 debug 构建 + 显式环境变量）：在主窗口就绪后启动。
-                #[cfg(all(debug_assertions, target_os = "macos"))]
-                {
-                    computer_use::maybe_run_startup_self_test(app.handle().clone());
-                }
                 if let Err(error) = result {
                     stop_sidecar(app.handle());
                     return Err(error.into());

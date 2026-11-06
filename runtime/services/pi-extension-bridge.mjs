@@ -1,6 +1,5 @@
 // Pi Extension 到 Pisper 插件视图的桥接：安装和执行仍由 Pi 管理，页面只消费统一的插件记录。
 const EXTENSION_TOOL_PREFIX = 'pi_extension:'
-const OFFICIAL_COMPUTER_USE_SOURCE = 'npm:@injaneity/pi-computer-use@0.5.1'
 
 function extensionToolName(source, index) {
   return `${EXTENSION_TOOL_PREFIX}${encodeURIComponent(source)}:${index}`
@@ -62,25 +61,6 @@ export function bridgePiExtensionResource(
     version,
     description,
     extensions: entries,
-    enabled,
-  })
-}
-
-export function bridgeOfficialComputerUsePlugin({ enabled = true } = {}) {
-  return bridgePiExtensionPackage({
-    source: OFFICIAL_COMPUTER_USE_SOURCE,
-    scope: 'runtime',
-    name: 'Computer Use',
-    version: '0.5.1',
-    description: 'Official visual UI automation for desktop Runtime',
-    extensions: [
-      {
-        name: 'computer-use',
-        label: 'Computer Use',
-        description: 'Visual UI automation through the official Pi computer-use extension.',
-      },
-    ],
-    builtIn: true,
     enabled,
   })
 }

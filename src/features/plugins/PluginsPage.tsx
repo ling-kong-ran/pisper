@@ -19,6 +19,7 @@ import {
   FileCode2,
   FolderOpen,
   Globe2,
+  MousePointer2,
   Image,
   Package,
   PackagePlus,
@@ -130,6 +131,7 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   bash: Server,
   web_search: Globe2,
   browser_automation: Globe2,
+  computer_use: MousePointer2,
   generate_visual: Image,
 }
 
@@ -165,13 +167,6 @@ function toolEntries(plugins: InstalledPlugin[]): ToolEntry[] {
         pluginSystemAccess: Boolean(plugin.systemAccess),
       })),
     )
-}
-
-function computerUseEnabled(plugins: InstalledPlugin[]) {
-  const plugin = plugins.find(
-    (candidate) => candidate.source === 'pi' && candidate.name === 'Computer Use',
-  )
-  return plugin?.enabled !== false
 }
 
 function piExtensionSettings(plugins: InstalledPlugin[]) {
@@ -546,7 +541,6 @@ export function PluginsPage({ notify, onBack, requestText, requestConfirm }: Plu
   const draftEnabled = useMemo(() => enabledToolNames(draft), [draft])
   const dirty = data
     ? !sameNames(draftEnabled, data.enabledTools) ||
-      computerUseEnabled(draft) !== data.computerUseEnabled ||
       JSON.stringify(piExtensionSettings(draft)) !== JSON.stringify(data.piExtensions) ||
       JSON.stringify(webSearch) !== JSON.stringify(data.webSearch)
     : false
@@ -566,7 +560,6 @@ export function PluginsPage({ notify, onBack, requestText, requestConfirm }: Plu
         body: JSON.stringify({
           enabledTools: draftEnabled,
           webSearch,
-          computerUseEnabled: computerUseEnabled(draft),
           piExtensions: piExtensionSettings(draft),
         }),
       })

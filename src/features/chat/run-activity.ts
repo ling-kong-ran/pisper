@@ -14,6 +14,7 @@ const RESEARCH_TOOLS = new Set([
   'memory_search',
   'memory_open',
   'browser_automation',
+  'computer_use',
 ])
 const EDIT_TOOLS = new Set(['edit', 'write', 'memory_remember', 'memory_confirm', 'memory_forget'])
 const AGENT_TOOLS = new Set([

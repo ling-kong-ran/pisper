@@ -135,28 +135,6 @@ export type DesktopTerminalCreated = {
   cwd: string
 }
 
-// Computer Use 实时窗口帧事件：Rust 侧经 Channel 下发（与终端输出同一回调模式）。
-export type DesktopComputerUseFrameEvent =
-  | {
-      type: 'frame'
-      windowId: number
-      width: number
-      height: number
-      timestampMs: number
-      jpegBase64: string
-    }
-  | { type: 'error'; code: string; message: string }
-  // 降级提示（非致命）：SCStream 不可用已回退轮询，帧流继续。
-  | { type: 'downgraded'; reason: string }
-  | { type: 'stopped' }
-
-export type DesktopComputerUseStreamOptions = {
-  maxWidth?: number
-  fps?: number
-  // 诊断选项：'poll' 强制走 CGWindowListCreateImage 轮询捕获（默认 SCStream 优先）
-  mode?: 'poll'
-}
-
 // 右侧浏览器的原生子 WebView（src-tauri/src/desktop_shell/desktop_browser.rs）。
 export type DesktopBrowserBounds = { x: number; y: number; width: number; height: number }
 export type DesktopBrowserEvent =
@@ -183,9 +161,33 @@ export type DesktopBrowserBridge = {
   capture: (browserId: string) => Promise<string>
 }
 
+// Computer Use（src-tauri/src/desktop_shell/computer_control.rs）。坐标是最近一张截图上的像素。
+export type DesktopComputerAction =
+  | { type: 'move'; x: number; y: number }
+  | { type: 'click'; x: number; y: number; button?: 'left' | 'right'; count?: number }
+  | { type: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { type: 'scroll'; x: number; y: number; direction: string; amount?: number }
+  | { type: 'type'; text: string }
+  | { type: 'key'; keys: string }
+export type DesktopComputerBridge = {
+  begin: (
+    sessionId: string,
+    labels: { title: string; hint: string; stop: string },
+    onEvent: (event: { type: 'stopped' }) => void,
+  ) => Promise<{
+    status: 'started' | 'busy' | 'unsupported' | 'permission_required'
+    reason: string | null
+    missingPermissions: string[]
+  }>
+  end: () => Promise<void>
+  screenshot: (settleMs: number) => Promise<{ imageBase64: string; width: number; height: number }>
+  act: (action: DesktopComputerAction) => Promise<void>
+}
+
 export type DesktopBridge = {
   remoteWorkspaces?: RemoteWorkspaceBridge
   browser?: DesktopBrowserBridge
+  computer?: DesktopComputerBridge
   customTitlebar?: boolean
   windowAction?: (action: 'minimize' | 'maximize' | 'close' | 'drag') => Promise<void>
   platform?: string
@@ -221,15 +223,6 @@ export type DesktopBridge = {
   terminalResize?: (terminalId: string, cols: number, rows: number) => Promise<void>
   terminalClose?: (terminalId: string) => Promise<boolean>
   terminalCloseAll?: () => Promise<number>
-  computerUseStartStream?: (
-    windowId: number,
-    onFrame: (event: DesktopComputerUseFrameEvent) => void,
-    options?: DesktopComputerUseStreamOptions,
-  ) => Promise<void>
-  computerUseStopStream?: (windowId: number) => Promise<void>
-  // 系统安全输入状态：激活时合成键盘事件被拦截（macOS Secure Event Input /
-  // Windows 安全桌面），agent 的输入可能静默无效。
-  computerUseSecureInputState?: () => Promise<{ active: boolean }>
   getPetStatus?: () => Promise<DesktopPetStatus>
   setPetEnabled?: (enabled: boolean) => Promise<DesktopPetStatus>
   setPetOpacity?: (opacity: number) => Promise<DesktopPetStatus>

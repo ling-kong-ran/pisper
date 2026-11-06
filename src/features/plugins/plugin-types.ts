@@ -49,7 +49,6 @@ export type PluginsData = EntityRecord & {
   presets: Record<string, string[]>
   webSearch: WebSearchSettings
   piExtensions: Record<string, boolean>
-  computerUseEnabled: boolean
   changes: PluginChange[]
   preset?: string
 }

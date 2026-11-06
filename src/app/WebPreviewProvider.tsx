@@ -18,16 +18,16 @@ export function WebPreviewProvider() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useI18n()
-  const overlayLabelRef = useRef('')
-  overlayLabelRef.current = t('common:webPreview.agentOverlay')
+  const translateRef = useRef(t)
+  translateRef.current = t
 
-  // 桌面端右侧浏览器接收 Agent 的指令。按需加载：入口有体积预算，Web 版也用不上这些代码。
+  // 桌面端右侧浏览器和 Computer Use 接收 Agent 的指令。按需加载：入口有体积预算，Web 版也用不上这些代码。
   useEffect(() => {
-    if (!window.pisperDesktop?.browser) return
+    if (!window.pisperDesktop) return
     let stopped = false
     let stop = () => {}
-    void import('@/features/chat/agent-browser-host').then(({ startAgentBrowserHost }) => {
-      if (!stopped) stop = startAgentBrowserHost(() => overlayLabelRef.current)
+    void import('@/features/chat/desktop-hosts').then(({ startDesktopHosts }) => {
+      if (!stopped) stop = startDesktopHosts((key) => translateRef.current(key))
     })
     return () => {
       stopped = true

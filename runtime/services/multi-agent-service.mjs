@@ -16,7 +16,6 @@ import {
   PISPER_OPENING,
   pisperPromptExtension,
 } from '../prompts/pisper-system-prompt.mjs'
-import { getOfficialComputerUseExtensionPath } from '../runtime/computer-use-extension.mjs'
 import {
   createCompactionSettingsManager,
   pisperCompactionExtension,
@@ -53,6 +52,7 @@ const PARENT_ONLY_TOOL_NAMES = new Set([
   'update_goal',
   ...PLAN_WRITE_TOOL_NAMES,
   'browser_automation',
+  'computer_use',
   'mcp_list',
   'mcp_manage',
   // 定时任务与工作流会以完全访问权限无人值守运行：只有主会话能建或启动。
@@ -382,16 +382,12 @@ async function createAgentResourceLoader({
   skillPaths = [],
   appendSystemPrompt = MULTI_AGENT_SYSTEM_PROMPT,
 }) {
-  const mobileRuntime = ['mobile-embedded', 'mobile-store'].includes(
-    process.env.PISPER_RUNTIME_PROFILE,
-  )
   process.env.PI_CODING_AGENT_DIR = agentDir || cwd
   const loader = await createDefaultResourceLoader({
     cwd,
     agentDir: agentDir || cwd,
     ...(settingsManager ? { settingsManager: extensionSafeSettingsManager(settingsManager) } : {}),
     extensionFactories: [pisperPromptExtension, pisperCompactionExtension],
-    additionalExtensionPaths: mobileRuntime ? [] : [getOfficialComputerUseExtensionPath()],
     noExtensions: false,
     ...(skillPaths.length ? { additionalSkillPaths: skillPaths } : {}),
     systemPromptOverride: (base) => base ?? PISPER_OPENING,

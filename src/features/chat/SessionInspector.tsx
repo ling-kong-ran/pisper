@@ -29,8 +29,6 @@ import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { EntityRecord, Plan, TeamState } from '@/types/chat'
-import { latestComputerUseTarget } from './computer-use-live-support.ts'
-import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
 import { InspectorRunning, runningCount } from './InspectorRunning'
 import { InspectorPlan } from './InspectorPlan'
 import { getSessionChangeSummary } from './session-change-summary-api'
@@ -56,7 +54,7 @@ type SessionInspectorProps = {
   plan: Plan | null
   goal: EntityRecord | null
   team: TeamState | null
-  // 当前运行的活动流：计划标签的子代理、预览标签的电脑操作镜像都从这里取。
+  // 当前运行的活动流：计划标签的子代理从这里取。
   activity: readonly EntityRecord[]
   // 计划标签只在有目标、计划或团队时出现。
   planTab: boolean
@@ -363,20 +361,8 @@ export function SessionInspector({
       loading
     )
   } else if (tab === 'preview') {
-    // 预览 = 网页预览 + 电脑操作镜像（规格 4.4）：运行中有目标窗口时镜像排在网页预览上方；
-    // 这时转录里不再开第二条帧流（AgentRunActivity 读同一个检查器状态让出镜像）。
-    const mirrorTarget = streaming ? latestComputerUseTarget([...activity]) : null
     body = page ? (
       <div className="flex min-h-0 flex-1 flex-col" data-inspector-preview>
-        {mirrorTarget && (
-          <div className="max-h-[50%] shrink-0 overflow-y-auto border-b border-stroke-soft p-2">
-            <ComputerUseLiveMirror
-              target={mirrorTarget}
-              fallbackImage={mirrorTarget.previewImage}
-              streaming={streaming}
-            />
-          </div>
-        )}
         {/* 页签 id 只在会话内唯一：换会话要整组重建，否则会把另一个会话的网页留在原生层里。 */}
         <BrowserTabs key={sessionId} panelId={panelId} sessionId={sessionId} />
       </div>

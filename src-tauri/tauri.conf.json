@@ -16,6 +16,7 @@
         "desktop-terminal",
         "desktop-remote",
         "desktop-browser",
+        "desktop-computer",
         "mobile-bridge"
       ],
       "csp": null

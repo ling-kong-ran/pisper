@@ -9,7 +9,6 @@ import { BOT_CONVERSATION_TOOL_NAMES } from '../tools/app/bot-conversation-tool-
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
-import { SecureRefRegistry } from './computer-use-secure-refs.mjs'
 import { deriveApprovalSeverity } from '../../shared/session-board-status.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
@@ -60,7 +59,12 @@ function stableValue(value) {
 }
 
 // 审批键：对 bash 只按命令文本记忆审批，相同命令换超时仍复用用户之前的决定。
-function approvalKey({ cwd, toolName, args }) {
+function approvalKey({ sessionId, cwd, toolName, args }) {
+  // Computer Use 一个任务要点几十次，每次都问没法用，批准一次管这个会话。
+  if (toolName === 'computer_use')
+    return createHash('sha256')
+      .update(JSON.stringify([resolve(cwd), toolName, String(sessionId || '')]))
+      .digest('hex')
   // For bash, remember the approval on the command text only, so an identical
   // command with a different timeout still reuses the user's earlier approval.
   const normalizedArgs =
@@ -241,6 +245,10 @@ export function permissionRequirement({
     }
   }
   if (mode === 'auto') {
+    // 能看整个屏幕、能操作任何应用，自动模式下也要用户点头（同一会话只问一次，见 approvalKey）。
+    if (toolName === 'computer_use') {
+      return { risk: 'high', reason: 'Computer Use 将查看你的屏幕并操作鼠标键盘，需要确认后执行。' }
+    }
     if (
       toolName === 'browser_automation' &&
       ['click', 'type'].includes(String(args?.action || ''))
@@ -297,6 +305,7 @@ export class SessionPermissionService {
   constructor({
     getMode,
     getExecutionMode,
+    onApprovalRequested,
     getToolRisk,
     isThirdPartyTool,
     // 本轮不可用的工具（隔离上下文、无人值守、Bot 的工具范围）：执行前直接拦下，任何模式与允许规则都不放行。
@@ -307,7 +316,6 @@ export class SessionPermissionService {
     approvalPath,
     getFileChangePreview = createFileChangePreview,
     timeoutMs = 10 * 60_000,
-    computerUseSecureRefs = new SecureRefRegistry(),
     rules = null,
     onEvent,
   } = {}) {
@@ -322,7 +330,7 @@ export class SessionPermissionService {
     this.skipFileChangePreview = skipFileChangePreview || (() => false)
     this.getFileChangePreview = getFileChangePreview
     this.timeoutMs = timeoutMs
-    this.computerUseSecureRefs = computerUseSecureRefs
+    this.onApprovalRequested = onApprovalRequested
     this.approvalPath = approvalPath
     this.approvalWrite = Promise.resolve()
     this.pending = new Map()
@@ -441,11 +449,6 @@ export class SessionPermissionService {
   }
 
   // Computer Use 敏感关卡喂入：agent-runtime 在工具结果事件处调用，
-  // 从官方 outline 文本登记密码框 ref（见 computer-use-secure-refs.mjs）。
-  observeComputerUseResult(sessionId, toolName, result) {
-    return this.computerUseSecureRefs.observe(sessionId, toolName, result)
-  }
-
   async authorize({ sessionId, cwd, toolName, toolCallId, args, signal, noWait = false }) {
     if (this.isToolBlocked(sessionId, toolName))
       return { block: true, reason: `${toolName} 不在这次运行可用的工具范围内，未执行。` }
@@ -458,12 +461,7 @@ export class SessionPermissionService {
       : null
     if (rule?.effect === 'deny')
       return { block: true, reason: `命中禁止规则「${rule.pattern}」，命令未执行。` }
-    // 密码框控件级敏感关卡：先于通用 requirement 判定。auto 模式下 medium/high
-    // 风险工具本会免审批，此关卡仍强制确认；full-access 模式用户已声明完全
-    // 信任，保持与既有语义一致的豁免。evaluateAct 的焦点推断副作用在
-    // 任何模式下都执行，保证注册表状态与对话进度一致。
-    const secureAct = this.computerUseSecureRefs.evaluateAct(sessionId, toolName, args)
-    let requirement = permissionRequirement({
+    const requirement = permissionRequirement({
       mode,
       executionMode,
       cwd,
@@ -473,16 +471,6 @@ export class SessionPermissionService {
       thirdPartyTool: Boolean(this.isThirdPartyTool(toolName)),
       fenced: !this.isUnfenced(sessionId),
     })
-    if (secureAct && executionMode !== 'full-access') {
-      requirement = {
-        risk: 'high',
-        reason: secureAct.reason,
-        // 密码是一次性敏感内容：审批决定不进 5 分钟记忆缓存（相同密文重试
-        // 也必须重新确认），审批事件里的输入内容打码后才可落盘/上前端。
-        skipRemember: true,
-        args: this.computerUseSecureRefs.maskActArgs(args),
-      }
-    }
     if (!requirement) return undefined
     if (requirement.block) return { block: true, reason: requirement.reason }
     if (rule?.effect === 'allow' && !requirement.guarded && !requirement.skipRemember)
@@ -559,6 +547,7 @@ export class SessionPermissionService {
     fileChange,
     signal,
   }) {
+    this.onApprovalRequested?.(sessionId)
     const id = randomUUID()
     const createdAt = new Date().toISOString()
     const publicApproval = {

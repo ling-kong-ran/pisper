@@ -135,6 +135,13 @@
         evaluate: (browserId, script) => invoke('desktop_browser_evaluate', { browserId, script }),
         capture: (browserId) => invoke('desktop_browser_capture', { browserId }),
       }),
+      computer: Object.freeze({
+        begin: (sessionId, labels, onEvent) =>
+          invoke('desktop_computer_begin', { sessionId, labels, onEvent: new Channel(onEvent) }),
+        end: () => invoke('desktop_computer_end'),
+        screenshot: (settleMs) => invoke('desktop_computer_screenshot', { settleMs }),
+        act: (action) => invoke('desktop_computer_act', { action }),
+      }),
       terminalProfiles: () => invoke('desktop_terminal_profiles'),
       terminalCreate: (options, onEvent) => {
         const channel = new Channel(onEvent)
@@ -146,24 +153,6 @@
         invoke('desktop_terminal_resize', { terminalId, cols, rows }),
       terminalClose: (terminalId) => invoke('desktop_terminal_close', { terminalId }),
       terminalCloseAll: () => invoke('desktop_terminal_close_all'),
-      computerUseStartStream: (windowId, onFrame, options = {}) => {
-        // 帧流复用终端输出的 Channel 回调模式：不需额外的 Tauri 事件权限。
-        const channel = new Channel(onFrame)
-        return invoke('desktop_computer_use_start_stream', {
-          input: {
-            windowId,
-            maxWidth: options.maxWidth,
-            fps: options.fps,
-            mode: options.mode,
-          },
-          onFrame: channel,
-        })
-      },
-      computerUseStopStream: (windowId) =>
-        invoke('desktop_computer_use_stop_stream', { input: { windowId } }),
-      // 系统安全输入状态（Secure Event Input / 安全桌面）：激活时合成键盘事件
-      // 被系统拦截，镜像面板据此诚实上报 agent 输入可能无效。
-      computerUseSecureInputState: () => invoke('desktop_computer_use_secure_input_state'),
       getPetStatus: () => api('/api/desktop-pet'),
       setPetEnabled,
       setPetOpacity: (opacity) =>

@@ -9,10 +9,8 @@ export const RUNTIME_BUNDLE_VERSION = 1
 export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
   '@earendil-works/pi-coding-agent',
   '@homebridge/ciao',
-  '@injaneity/pi-computer-use',
   '@larksuiteoapi/node-sdk',
   '@modelcontextprotocol/sdk',
-  'tesseract.js',
   'tsx',
   'sherpa-onnx-node',
   'officeparser',
@@ -31,7 +29,6 @@ const SHARED_RESOURCES = Object.freeze([
   'speech-model-catalog.json',
   'speech-resource-notices.json',
   'speech-resources/xasr-bpe.vocab',
-  'ocr-model-catalog.mjs',
   'vendor/framebaker/LICENSE',
 ])
 
@@ -172,14 +169,6 @@ export async function bundleRuntime({ runtimeDir }) {
     cp(
       join(sourceRuntime, 'workers', 'team-workflow-worker.mjs'),
       join(outputRuntime, 'workers', 'team-workflow-worker.mjs'),
-    ),
-    cp(
-      join(sourceRuntime, 'extensions', 'computer-use-ocr.mjs'),
-      join(outputRuntime, 'extensions', 'computer-use-ocr.mjs'),
-    ),
-    cp(
-      join(sourceRuntime, 'services', 'tesseract-ocr-service.mjs'),
-      join(outputRuntime, 'services', 'tesseract-ocr-service.mjs'),
     ),
   ])
 

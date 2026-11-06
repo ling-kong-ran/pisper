@@ -175,7 +175,10 @@ test('embedded profile initializes the shared Agent runtime with only supported 
   assert.equal(catalogTools.includes('bash'), false)
   assert.equal(catalogTools.includes('memory_search'), false)
   assert.equal(catalogTools.includes('mcp_list'), false)
-  assert.equal(catalog.computerUseEnabled, false)
+  assert.equal(
+    catalog.tools.some((tool) => tool.id === 'computer_use'),
+    false,
+  )
   assert.equal(
     catalog.plugins.some((plugin) => plugin.name === 'Computer Use'),
     false,

@@ -97,6 +97,7 @@ import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
 import { DesktopBrowserHostService } from '../services/desktop-browser-host-service.mjs'
+import { DesktopComputerService } from '../services/desktop-computer-service.mjs'
 import {
   normalizeWorkspacePath,
   resolveWorkspaceDirectory,
@@ -545,6 +546,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       legacyPath: join(dataDir, 'pisper-task-lists.json'),
     })
     this.desktopBrowserHost = new DesktopBrowserHostService()
+    this.desktopComputer = new DesktopComputerService()
     this.browserAutomation = new BrowserAutomationService({
       driver: browserAutomationDriver,
       desktopHost: this.desktopBrowserHost,
@@ -664,6 +666,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.sessionMeta[sessionId]?.permissionMode ||
         permissionModeForExecutionMode(this.getSessionExecutionMode(sessionId)),
       getExecutionMode: (sessionId) => this.getSessionExecutionMode(sessionId),
+      // 主窗口可能被 Computer Use 最小化了：先还回来，否则用户看不到审批卡片。
+      onApprovalRequested: (sessionId) => this.desktopComputer.release(sessionId),
       getToolRisk: (toolName) => this.getToolRisk(toolName),
       isThirdPartyTool: (toolName) => this.toolPlugins?.isThirdPartyTool?.(toolName) || false,
       isToolBlocked: (sessionId, toolName) => {
@@ -2089,6 +2093,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           webSearchService: this.webSearch,
           browserAutomationService: this.browserAutomation,
           browserSessionId: runtimeSessionId,
+          desktopComputerService: this.desktopComputer,
           visualGenerationService: this.visualGeneration,
           imageAssets: this.imageAssets,
           mobileOperationService: this.mobileOperations,
@@ -3045,6 +3050,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           })
         }
       } else if (event.type === 'tool_execution_start') {
+        // 同审批：要问用户问题时先把主窗口还回来。
+        if (event.toolName === ASK_USER_TOOL_NAME) this.desktopComputer.release(session.sessionId)
         // 工具执行开始：记录工具状态与活动项；bash 工具附带输出缓冲。
         activeTextBlocks.clear()
         activeThinkingBlocks.clear()
@@ -3094,13 +3101,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             emit('generated_asset', attachment)
           }
         }
-        // 工具预览图：computer use / OCR / 浏览器截图等工具的图像随结果异步归档，
+        // 工具预览图：computer use / 浏览器截图等工具的图像随结果异步归档，
         // 归档完成后再以 tool_update 补发 previewImage，活动卡片即可实时渲染“实时窗口”。
         if (!event.isError && event.result) {
-          // Computer Use 敏感关卡喂入：从官方工具结果的 outline 文本登记密码框 ref，
-          // 后续 act_ui 向密码框写入时由权限服务据此强制用户确认（见
-          // computer-use-secure-refs.mjs）。只吃成功结果：错误载荷里没有可信 outline。
-          this.permissions.observeComputerUseResult(session.sessionId, event.toolName, event.result)
           this.attachToolPreviewImage({
             live,
             session,
@@ -3218,6 +3221,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           }),
         )
       } else if (event.type === 'agent_end') {
+        // 模型忘了调 finish 也要把屏幕还给用户。
+        this.desktopComputer.release(session.sessionId)
         // 目标模式下的多轮延续：正常结束时用延续提示再驱动一轮，直到目标完成/预算耗尽。
         if (event.willRetry) return
         const finalAssistant = [...(event.messages || [])]

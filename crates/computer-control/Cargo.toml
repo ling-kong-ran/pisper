@@ -1,0 +1,30 @@
+[package]
+name = "computer-control"
+version = "0.1.0"
+edition = "2021"
+description = "Pisper Computer Use 的控制层：整屏截图、键鼠输入、判断目标是不是 Pisper 自己"
+license = "MIT"
+publish = false
+
+# 独立 crate：主 crate 依赖太重，这里可以单独对三个平台做 cargo check，
+# Linux 部分还能在 Xvfb 上真机跑（见 examples/smoke.rs）。
+
+[dependencies]
+base64 = "0.22"
+# 键鼠输入。三个平台都由它处理键位和 Unicode 文本，Linux 用默认的 x11rb 后端（纯 Rust，不要 libxdo）。
+enigo = "0.6"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", features = ["std"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"

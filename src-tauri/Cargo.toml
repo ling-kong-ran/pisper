@@ -79,37 +79,26 @@ pisper-component-updater = { path = "../crates/component-updater" }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2.4.3"
 tauri-plugin-window-state = "2.4.1"
-# Computer Use 实时窗口流：捕获帧 BGRA→缩放 JPEG 编码；只开 jpeg 能性避免拖入多余编解码器。
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
-# Computer Use 实时镜像（macOS）：ScreenCaptureKit 运行时调用。
-# 关键约束：不得依赖 objc2-screen-capture-kit——它对 SCK 的 #[link] 会随 rlib 的
-# LC_LINKER_OPTION 把强链接写入主二进制，macOS 12.3 之前整个应用无法启动。
-# 计算机捕获完全在 computer_use.rs 内用 extern_protocol!/define_class!/msg_send!
-# 按名称运行时解析；这里只依赖远古框架（Foundation/CoreMedia/CoreVideo/CoreGraphics）。
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", features = ["std", "exception", "verify"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSError", "NSString", "NSArray", "NSProcessInfo"] }
-objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
-objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "CMTime", "CMSampleBuffer", "objc2-core-video"] }
-objc2-core-video = { version = "0.3", default-features = false, features = ["std", "objc2", "CVPixelBuffer", "CVBase", "CVBuffer", "CVImageBuffer", "CVReturn"] }
 block2 = { version = "0.6", default-features = false, features = ["std", "alloc"] }
-dispatch2 = { version = "0.3", default-features = false, features = ["std", "alloc", "objc2"] }
 
 # 右侧浏览器的子 WebView（desktop_browser.rs）。版本跟随 tauri-runtime-wry，升级 Tauri 时一起看：
 # 两边版本不同会编出两份 wry。Linux 不用：build_as_child 只支持 X11，右侧浏览器在那里继续用 iframe。
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 wry = { version = "0.55", default-features = false, features = ["protocol", "os-webview"] }
 
+# Computer Use 的截屏和键鼠。手机端不需要。
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+computer-control = { path = "../crates/computer-control" }
+
 [target.'cfg(windows)'.dependencies]
 # 监听网页的 window.close()（desktop_browser.rs）。wry 没有这个回调；版本跟随 wry，已在依赖树里。
 webview2-com = "0.38"
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
-# Windows 镜像流捕获后端（WGC 主路径 + GDI 轮询兜底）：独立 crate 以便在
-# 任意主机交叉 cargo check/clippy（主 crate 因 ring 的 C 依赖无法在 macOS
-# 主机对 MSVC 目标交叉编译）。
-computer-use-capture-win = { path = "../crates/computer-use-capture-win" }
 
 [dev-dependencies]
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。

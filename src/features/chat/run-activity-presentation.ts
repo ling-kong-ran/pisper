@@ -34,6 +34,7 @@ export function toolActivityLabel(name: unknown, t: Translate) {
   if (isPlanReadTool(name)) return t('chat:agentRunActivity.readingPlan')
   if (isPlanWriteTool(name)) return t('chat:agentRunActivity.updatingPlan')
   if (name === 'browser_automation') return t('chat:agentRunActivity.controllingBrowser')
+  if (name === 'computer_use') return t('chat:agentRunActivity.operatingComputer')
   if (name === 'observe_ui' || name === 'inspect_ui' || name === 'expand_ui')
     return t('chat:agentRunActivity.observingInterface')
   if (name === 'act_ui') return t('chat:agentRunActivity.operatingInterface')

@@ -48,6 +48,7 @@ function supportedTools(features) {
     tools.add('mcp_manage')
   }
   if (features.plugins) tools.add('plugin_create')
+  if (features.computerUse) tools.add('computer_use')
   if (features.schedules) {
     tools.add('schedule_list')
     tools.add('schedule_manage')

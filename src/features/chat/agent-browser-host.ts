@@ -2,7 +2,6 @@
 // 在原生 WebView 上执行，把结果 POST 回去。只在有原生桥接的桌面主窗口启动。
 // WebView 由这里创建并握着，所以用户切走标签或换会话时 Agent 的操作不会中断；
 // 页签挂在界面上时 useNativeBrowser 接管它的位置和事件，卸载时只隐藏（ContextPage.agent）。
-import { consumeEventStream } from '@/lib/event-stream'
 import { resolveWebPreviewUrl } from '@/lib/web-preview'
 import type { DesktopBrowserBridge, DesktopBrowserEvent } from '@/types/update'
 import {
@@ -18,6 +17,7 @@ import {
   removeOverlayScript,
   typeScript,
 } from './agent-browser-scripts'
+import { connectDesktopHost, reportDesktopHostResult } from './desktop-host-connection'
 import { activeBrowserPage, MAX_CONTEXT_PAGES } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
 import { openBrowserNewWindow } from './session-web-preview'
@@ -395,21 +395,17 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
     throw new Error(`Unsupported browser action: ${action}`)
   }
 
-  const report = (requestId: string, payload: Record<string, unknown>) =>
-    fetch(`${ENDPOINT}/${encodeURIComponent(requestId)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {})
-
   // 同一会话的指令按顺序执行。
   const enqueue = (command: Command) => {
     const previous = queues.get(command.sessionId) ?? Promise.resolve()
     const next = previous.then(async () => {
       try {
-        await report(command.requestId, { ok: true, result: await run(command) })
+        await reportDesktopHostResult(ENDPOINT, command.requestId, {
+          ok: true,
+          result: await run(command),
+        })
       } catch (error) {
-        await report(command.requestId, {
+        await reportDesktopHostResult(ENDPOINT, command.requestId, {
           ok: false,
           error: error instanceof Error ? error.message : String(error),
         })
@@ -460,32 +456,19 @@ export function startAgentBrowserHost(overlayLabel: () => string) {
   if (!browser) return () => {}
   const host = createHost(browser, overlayLabel)
   const controller = new AbortController()
-  const connect = async () => {
-    if (!(await nativeBrowserUsable(browser))) return
-    let delay = 1_000
-    while (!controller.signal.aborted) {
-      try {
-        const response = await fetch(ENDPOINT, { signal: controller.signal })
-        await consumeEventStream<unknown>(response, (event, data) => {
-          delay = 1_000
-          if (event === 'command') {
-            const command = parseCommand(data)
-            if (command) host.enqueue(command)
-            return
-          }
-          const sessionId = asString((data as { sessionId?: unknown } | null)?.sessionId)
-          if (event === 'cancel' && sessionId) host.cancel(sessionId)
-          if (event === 'release' && sessionId) host.release(sessionId)
-        })
-      } catch {
-        // Runtime 重启或还没就绪：退避后重连。
+  void nativeBrowserUsable(browser).then((usable) => {
+    if (!usable || controller.signal.aborted) return
+    return connectDesktopHost(ENDPOINT, controller.signal, (event, data) => {
+      if (event === 'command') {
+        const command = parseCommand(data)
+        if (command) host.enqueue(command)
+        return
       }
-      if (controller.signal.aborted) return
-      await sleep(delay)
-      delay = Math.min(30_000, delay * 2)
-    }
-  }
-  void connect()
+      const sessionId = asString((data as { sessionId?: unknown } | null)?.sessionId)
+      if (event === 'cancel' && sessionId) host.cancel(sessionId)
+      if (event === 'release' && sessionId) host.release(sessionId)
+    })
+  })
   return () => {
     controller.abort()
     host.dispose()

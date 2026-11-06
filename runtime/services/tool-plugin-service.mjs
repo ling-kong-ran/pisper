@@ -326,9 +326,13 @@ export class ToolPluginService {
   }
 
   // 注册默认工具开关（幂等）：首次运行时启用指定内置工具。
-  async ensureDefaultTools(toolIds, migrationKey) {
+  async ensureDefaultTools(toolIds, migrationKey, { skip } = {}) {
     const appConfig = await readJson(this.configPath, { toolMode: 'full' })
     if (appConfig[migrationKey]) return
+    if (skip?.(appConfig)) {
+      await writeJsonAtomic(this.configPath, { ...appConfig, [migrationKey]: true })
+      return
+    }
     const enabledTools = [
       ...new Set([...toolsFromConfig(appConfig), ...sanitizeEnabledTools(toolIds)]),
     ]
@@ -649,7 +653,6 @@ export class ToolPluginService {
         appConfig.piExtensions && typeof appConfig.piExtensions === 'object'
           ? { ...appConfig.piExtensions }
           : {},
-      computerUseEnabled: appConfig.computerUseEnabled !== false,
     }
   }
 
@@ -670,10 +673,6 @@ export class ToolPluginService {
     const webSearch = Object.hasOwn(input, 'webSearch')
       ? normalizeWebSearchConfig(input.webSearch)
       : normalizeWebSearchConfig(config.webSearch || {})
-    const computerUseEnabled =
-      typeof input.computerUseEnabled === 'boolean'
-        ? input.computerUseEnabled
-        : config.computerUseEnabled !== false
     const piExtensions =
       input.piExtensions && typeof input.piExtensions === 'object'
         ? { ...input.piExtensions }
@@ -712,7 +711,6 @@ export class ToolPluginService {
         pluginsUpdatedAt: now,
         webSearch,
         piExtensions,
-        computerUseEnabled,
       })
     } catch (error) {
       for (const [pluginId, installed] of this.installed) {

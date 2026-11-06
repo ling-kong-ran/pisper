@@ -256,8 +256,8 @@ export default function () {}
   const loadedPaths = loader.getExtensions().extensions.map((extension) => extension.path)
 
   assert.ok(loadedPaths.some((path) => path.includes('external.ts')))
-  assert.ok(loadedPaths.some((path) => path.includes('computer-use.ts')))
-  assert.ok(loadedPaths.some((path) => path.includes('computer-use-ocr.mjs')))
+  // Computer Use 现在是内建工具，不再是扩展，也不带 OCR。
+  assert.ok(!loadedPaths.some((path) => path.includes('computer-use')))
   assert.equal(await readFile(markerPath, 'utf8'), 'loaded')
 })
 

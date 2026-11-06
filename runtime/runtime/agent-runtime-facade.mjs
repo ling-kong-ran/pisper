@@ -43,11 +43,7 @@ import { ExecutorError, NodeExecutor } from '../services/bots/executor.mjs'
 import { pathWithinRoots } from '../services/bots/environment-service.mjs'
 import { isSshMachineId } from '../services/ssh-machine-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
-import {
-  bridgeOfficialComputerUsePlugin,
-  bridgePiExtensionPackages,
-  isPiExtensionPlugin,
-} from '../services/pi-extension-bridge.mjs'
+import { bridgePiExtensionPackages, isPiExtensionPlugin } from '../services/pi-extension-bridge.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { TOOL_PRESETS, toolsFromConfig } from '../tools/registry.mjs'
 import { projectSessionCommands } from './session-commands.mjs'
@@ -591,9 +587,6 @@ export class AgentRuntimeFacade {
           enabled: state.piExtensions?.[plugin.packageSource] !== false,
         })),
       })),
-      ...(this.capabilities?.features?.computerUse
-        ? [bridgeOfficialComputerUsePlugin({ enabled: state.computerUseEnabled !== false })]
-        : []),
     ]
     const plugins = [
       ...statePlugins
@@ -616,8 +609,6 @@ export class AgentRuntimeFacade {
     )
     const visibleState = {
       ...state,
-      computerUseEnabled:
-        this.capabilities?.features?.computerUse !== false && state.computerUseEnabled !== false,
       plugins,
       tools: stateTools.filter((tool) => visibleToolNames.has(tool.id)),
       presets: Object.fromEntries(
@@ -659,6 +650,10 @@ export class AgentRuntimeFacade {
     await this.toolPlugins.ensureDefaultTools(['workflow_list', 'workflow_run'], 'workflowToolsV1')
     await this.toolPlugins.ensureDefaultTools(['web_search'], 'webSearchToolV1')
     await this.toolPlugins.ensureDefaultTools(['browser_automation'], 'browserAutomationToolV1')
+    // 关过旧版 Computer Use 的人，新工具也保持关着。
+    await this.toolPlugins.ensureDefaultTools(['computer_use'], 'computerUseToolV1', {
+      skip: (config) => config.computerUseEnabled === false,
+    })
     await this.toolPlugins.ensureDefaultTools(['skill_create'], 'skillCreateToolV1')
     await this.toolPlugins.ensureDefaultTools(['plugin_create'], 'pluginCreateToolV1')
     // 原生组件写入工具（A7）：既有安装若已物化 enabledTools，也补上它。
@@ -2150,6 +2145,7 @@ export class AgentRuntimeFacade {
     await this.teamWorkflows?.pauseActive?.()
     await this.multiAgents.dispose()
     await this.browserAutomation.dispose()
+    this.desktopComputer.dispose()
     this.mobileOperations.dispose()
     this.permissions.dispose()
     this.questions?.dispose()
@@ -2172,10 +2168,8 @@ export class AgentRuntimeFacade {
     const [current, visible] = await Promise.all([this.toolPlugins.getState(), this.getPlugins()])
     const visibleToolNames = new Set(visible.tools.map((tool) => tool.id))
     const preservedToolNames = current.enabledTools.filter((tool) => !visibleToolNames.has(tool))
-    const requested = { ...input }
-    if (this.capabilities?.features?.computerUse === false) delete requested.computerUseEnabled
     await this.toolPlugins.saveState({
-      ...requested,
+      ...input,
       enabledTools: [...new Set([...(input?.enabledTools || []), ...preservedToolNames])],
     })
     this.invalidateSessionRuntimes()

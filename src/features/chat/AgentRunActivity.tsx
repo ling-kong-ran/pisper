@@ -2,16 +2,7 @@
 // 组标题“3 个操作 · 1 运行中 · 19s”（规格 v2 第 4.2 节），每行 36px：状态字形 + 等宽动词 + 路径/命令 +
 // 耗时 + 展开箭头，实时跟随 SSE 流更新。运行中整组展开、正在运行的 bash 行展开实时输出；
 // 这一轮结束后整组折叠成一行，需要时再点开。
-import {
-  lazy,
-  memo,
-  Suspense,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Activity, ChevronRight, Lightbulb } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
@@ -22,11 +13,7 @@ import MarkdownMessage from '@/components/MarkdownMessage'
 import { planFromActivity } from '@/lib/plan-protocol'
 import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
-import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
 import { ChatRequestNotice } from './ChatRequestNotice'
-import { latestComputerUseTarget } from './computer-use-live-support.ts'
-import { useSessionInspectorStore } from './session-inspector-store'
-import { SessionInspectorContext } from './session-workspace-context'
 import {
   agentActivityTitle,
   commandExitCode,
@@ -182,6 +169,10 @@ function toolDetail(tool?: EntityRecord | null) {
       text: [cleanInline(args.action), cleanInline(args.url || args.selector)]
         .filter(Boolean)
         .join(' · '),
+    }
+  if (tool?.name === 'computer_use')
+    return {
+      text: [cleanInline(args.action), cleanInline(args.keys)].filter(Boolean).join(' · '),
     }
   // computer use 工具：显示观察模式或动作摘要，帮助用户辨认当前在哪个窗口干什么。
   if (tool?.name === 'observe_ui') return { text: cleanInline(args.root || args.mode) }
@@ -808,13 +799,6 @@ function AgentRunActivity({
     setGroupOpen(Boolean(streaming))
   }, [streaming])
   // 会话页检查器的“预览”标签可见时，实时窗口镜像由那里承担：同一个窗口不同时开两条帧流。
-  const inspector = useContext(SessionInspectorContext)
-  const inspectorTab = useSessionInspectorStore((state) => state.tab)
-  const mirrorInInspector = Boolean(inspector?.open && inspectorTab === 'preview')
-  // computer use 实时镜像跟随 agent 当前操作的目标窗口；仅流式期间激活，
-  // 且镜像回退到同一活动的静态预览图。
-  const computerUseTarget =
-    streaming && !compact && !mirrorInInspector ? latestComputerUseTarget(activities) : null
   const activityVersion = activityScrollVersion(activities)
   const teamTasks: TeamTask[] = Array.isArray(team?.tasks) ? team.tasks : []
   const teamCompleted = Number(team?.completedTaskCount ?? 0)
@@ -1156,13 +1140,6 @@ function AgentRunActivity({
           )}
         </div>
       )}
-      {streaming && !compact && computerUseTarget ? (
-        <ComputerUseLiveMirror
-          fallbackImage={computerUseTarget.previewImage}
-          streaming={streaming}
-          target={computerUseTarget}
-        />
-      ) : null}
     </section>
   )
 }

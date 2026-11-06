@@ -15,6 +15,7 @@ import {
 } from './browser-automation.mjs'
 import { createSkillCreateTool, manifest as skillCreateManifest } from './skill-create.mjs'
 import { createPluginCreateTool, manifest as pluginCreateManifest } from './plugin-create.mjs'
+import { createComputerUseTool, manifest as computerUseManifest } from './computer-use.mjs'
 import { createMobileDeviceTool, manifest as mobileDeviceManifest } from './mobile-device.mjs'
 import { createImageAssetsTool, manifest as imageAssetsManifest } from './image-assets.mjs'
 import {
@@ -32,6 +33,7 @@ export const APP_TOOL_CATALOG = [
   pluginCreateManifest,
   componentCreateManifest,
   mobileDeviceManifest,
+  computerUseManifest,
   imageAssetsManifest,
   ...memoryManifests,
   ...mcpManifests,
@@ -48,6 +50,7 @@ const APP_TOOL_FACTORIES = {
   [pluginCreateManifest.id]: createPluginCreateTool,
   [componentCreateManifest.id]: createComponentCreateTool,
   [mobileDeviceManifest.id]: createMobileDeviceTool,
+  [computerUseManifest.id]: createComputerUseTool,
   [imageAssetsManifest.id]: createImageAssetsTool,
   ...memoryFactories,
   ...mcpFactories,

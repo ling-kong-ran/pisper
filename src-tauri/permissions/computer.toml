@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-pisper-desktop-computer"
+description = "Allows the main authenticated Pisper desktop WebView to run Computer Use: screenshots, mouse and keyboard."
+commands.allow = [
+  "desktop_computer_begin",
+  "desktop_computer_end",
+  "desktop_computer_screenshot",
+  "desktop_computer_act",
+]
