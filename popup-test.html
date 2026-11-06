@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>弹窗测试</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.6 system-ui, sans-serif; margin: 0 auto; max-width: 640px; padding: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 4px 0 14px; }
+  button { font: inherit; padding: 8px 14px; cursor: pointer; }
+  ul { list-style: none; padding: 0; margin: 14px 0; }
+  li { padding: 8px 0; border-top: 1px solid #8884; }
+  .pass::before { content: "通过  "; color: #1a8f3c; font-weight: 600; }
+  .fail::before { content: "失败  "; color: #d0342c; font-weight: 600; }
+  .wait::before { content: "等待  "; color: #888; font-weight: 600; }
+  code { font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<script>
+const params = new URLSearchParams(location.search)
+const mode = params.get('popup')
+// 换一个域名打开弹窗：和真实的第三方登录一样是跨域的。
+const otherOrigin = location.hostname === 'raw.githack.com' ? 'https://rawcdn.githack.com' : location.origin
+const popupUrl = (name) => `${otherOrigin}${location.pathname}?popup=${name}`
+
+if (mode) {
+  document.title = '模拟登录窗口'
+  document.body.innerHTML = '<h1>模拟登录窗口</h1><p id="s"></p>'
+  const say = (text) => { document.getElementById('s').textContent = text }
+  if (!window.opener) {
+    say('拿不到 window.opener：真实网站的弹窗登录会卡在这里。这个页签不会自动关，请手动关掉。')
+  } else {
+    window.opener.postMessage({ from: 'popup', mode }, '*')
+    say(mode === 'self' ? '已把结果传回原页面，2 秒后调用 window.close()。' : '已把结果传回原页面，等原页面关掉我。')
+    if (mode === 'self') setTimeout(() => window.close(), 2000)
+  }
+} else {
+  document.body.insertAdjacentHTML('beforeend', `
+    <h1>弹窗测试</h1>
+    <p>点下面的按钮，等 6 秒左右，把结果告诉我。每一步都应该开一个新页签，然后自己关掉。</p>
+    <button id="run">开始测试</button>
+    <ul id="list"></ul>
+    <p><code id="env"></code></p>
+    <p><a href="${popupUrl('noopener')}" target="_blank" rel="noopener">附加：普通的 target=_blank 链接</a>（应开新页签，提示拿不到 opener 是正常的，手动关掉）</p>`)
+  document.getElementById('env').textContent = navigator.userAgent
+  const list = document.getElementById('list')
+  const row = (text) => { const li = document.createElement('li'); li.className = 'wait'; li.textContent = text; list.append(li); return (ok, note) => { li.className = ok ? 'pass' : 'fail'; if (note) li.textContent = `${text}：${note}` } }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  const waitMessage = (name, ms) => new Promise((resolve) => {
+    const done = (value) => { removeEventListener('message', on); clearTimeout(timer); resolve(value) }
+    const on = (event) => { if (event.data?.from === 'popup' && event.data.mode === name) done(true) }
+    const timer = setTimeout(() => done(false), ms)
+    addEventListener('message', on)
+  })
+  const waitClosed = async (popup, ms) => {
+    for (let waited = 0; waited < ms; waited += 200) { if (popup.closed) return true; await sleep(200) }
+    return popup.closed
+  }
+  document.getElementById('run').onclick = async (event) => {
+    event.target.disabled = true
+    list.textContent = ''
+    // 1：真实弹窗登录的做法：跨域打开，弹窗把结果传回来，然后自己关掉。
+    const opened = row('1. window.open 返回窗口对象')
+    const message = row('2. 跨域弹窗能通过 opener 传回结果')
+    const selfClose = row('3. 弹窗调用 window.close() 后页签关掉')
+    const first = window.open(popupUrl('self'), 'pisper_login', 'width=480,height=640')
+    opened(Boolean(first), first ? '' : '被拒绝，返回了 null')
+    if (first) {
+      const got = waitMessage('self', 8000)
+      message(await got, (await got) ? '' : '8 秒内没收到')
+      selfClose(await waitClosed(first, 5000), first.closed ? '' : '5 秒后窗口还没关')
+    } else { message(false); selfClose(false) }
+    await sleep(800)
+    // 2：先开空窗口再设地址，不少登录库这样写，避开弹窗拦截。
+    const blank = row('4. 先开 about:blank 再设地址')
+    const parentClose = row('5. 原页面调用 popup.close() 后页签关掉')
+    const second = window.open('', 'pisper_blank', 'width=480,height=640')
+    if (second) {
+      const got = waitMessage('parent', 8000)
+      second.location = popupUrl('parent')
+      const received = await got
+      blank(received, received ? '' : '8 秒内没收到')
+      await sleep(1000)
+      second.close()
+      parentClose(await waitClosed(second, 3000), second.closed ? '' : '3 秒后窗口还没关')
+    } else { blank(false, '被拒绝，返回了 null'); parentClose(false) }
+    event.target.disabled = false
+  }
+}
+</script>
+</body>
+</html>
