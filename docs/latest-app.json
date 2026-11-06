@@ -1,9 +1,9 @@
 {
-  "version": "0.1.84",
-  "tag": "app-v0.1.84",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.84",
+  "version": "0.1.85",
+  "tag": "app-v0.1.85",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.85",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.84\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.84`\n- 对比基线：`app-v0.1.83`\n\n## 更新内容\n\n### 新增功能\n\n- feat(memory): 记忆年轮的视觉重心移到最新的外圈，手机默认对准外圈\n- feat(memory): 记忆年轮支持触屏双指缩放和双击复位\n- feat(memory): 会话摘要：一次对话做了什么、定了什么、还剩什么\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.83...app-v0.1.84)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/2be3dc366e027a233d87731654ee248b82abcfda)",
+  "notes": "## Pisper App 0.1.85\n\n- 发布日期：2026-11-06（北京时间）\n- 发布标签：`app-v0.1.85`\n- 对比基线：`app-v0.1.84`\n\n## 更新内容\n\n### 新增功能\n\n- feat(chat): 回复里的 HTML 路径和地址可以点，在右侧浏览器打开\n- feat(memory): 记忆页新增“会话”视图，能看每次对话的摘要\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.84...app-v0.1.85)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/a1473dcf8f927d510793f568b3e1ad222527cf31)",
   "releaseDate": "2026-11-06"
 }
