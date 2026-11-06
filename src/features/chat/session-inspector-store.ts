@@ -23,9 +23,15 @@ export type SessionInspectorChangesView = 'session' | 'workspace'
 // 改动详情的差异视图：统一（默认，适合 456px 检查器）或并排。
 export type SessionInspectorDiffMode = 'unified' | 'split'
 
-export const SESSION_INSPECTOR_DEFAULT_WIDTH = 456
+// 宽度按占会话区的比例保存，大屏上跟着变宽。默认值在 1440 宽的窗口里约等于原来的 456px。
+export const SESSION_INSPECTOR_DEFAULT_PERCENT = 39
+export const SESSION_INSPECTOR_MAX_PERCENT = 80
+// 比例的下限只防脏数据，真正的下限是 360px：8K 屏上 360px 也只占不到 5%。
+const SESSION_INSPECTOR_MIN_PERCENT = 3
 export const SESSION_INSPECTOR_MIN_WIDTH = 360
-export const SESSION_INSPECTOR_MAX_WIDTH = 720
+// 旧版保存的像素宽度。还留着这个字段：旧版本读到偏好时仍能用。
+export const SESSION_INSPECTOR_LEGACY_DEFAULT_WIDTH = 456
+const SESSION_INSPECTOR_LEGACY_MAX_WIDTH = 720
 // ≤1279 宽或 ≤760 高时检查器改为右侧滑出的覆盖层，宽度固定。
 export const SESSION_INSPECTOR_OVERLAY_WIDTH = 420
 // 对话列至少保留的宽度：拖宽检查器时不把对话挤到不可读。
@@ -35,6 +41,8 @@ type SessionInspectorPreferences = {
   open: boolean
   pinned: boolean
   tab: SessionInspectorTab
+  // 占会话区的百分比。null：旧版拖过的像素宽度，换算不出当时的比例，显示保持原样，下次拖动才变成比例。
+  widthPercent: number | null
   width: number
   terminalView: SessionInspectorTerminalView
   changesView: SessionInspectorChangesView
@@ -45,27 +53,60 @@ type SessionInspectorState = SessionInspectorPreferences & {
   setOpen: (open: boolean) => void
   setPinned: (pinned: boolean) => void
   setTab: (tab: SessionInspectorTab) => void
-  setWidth: (width: number) => void
+  // 拖动或键盘调整后的像素宽度，连同当时的会话区宽度一起换算成比例。
+  setWidth: (width: number, available: number) => void
+  resetWidth: () => void
   setTerminalView: (view: SessionInspectorTerminalView) => void
   setChangesView: (view: SessionInspectorChangesView) => void
   setDiffMode: (mode: SessionInspectorDiffMode) => void
 }
 
 export function normalizeInspectorWidth(value: unknown) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return SESSION_INSPECTOR_DEFAULT_WIDTH
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    return SESSION_INSPECTOR_LEGACY_DEFAULT_WIDTH
   return Math.min(
-    SESSION_INSPECTOR_MAX_WIDTH,
+    SESSION_INSPECTOR_LEGACY_MAX_WIDTH,
     Math.max(SESSION_INSPECTOR_MIN_WIDTH, Math.round(value)),
   )
 }
 
+function clampInspectorPercent(value: number) {
+  const percent = Math.min(
+    SESSION_INSPECTOR_MAX_PERCENT,
+    Math.max(SESSION_INSPECTOR_MIN_PERCENT, value),
+  )
+  return Math.round(percent * 100) / 100
+}
+
+// 没拖过的旧偏好（默认 456）用新的默认比例；拖过的保持原来的像素宽度，升级后不会突然变样。
+function normalizeInspectorPercent(percent: unknown, width: unknown) {
+  if (typeof percent === 'number' && Number.isFinite(percent)) return clampInspectorPercent(percent)
+  return typeof width === 'number' &&
+    normalizeInspectorWidth(width) !== SESSION_INSPECTOR_LEGACY_DEFAULT_WIDTH
+    ? null
+    : SESSION_INSPECTOR_DEFAULT_PERCENT
+}
+
 // 临时空间不足只收窄显示，不改写用户的宽度偏好（与旧上下文分栏同一原则）。
-export function inspectorDisplayWidth(preferred: number, available: number) {
+export function clampInspectorWidth(width: number, available: number) {
   const maximum = Math.max(
     SESSION_INSPECTOR_MIN_WIDTH,
-    Math.min(SESSION_INSPECTOR_MAX_WIDTH, available - SESSION_CONVERSATION_MIN_WIDTH - 8),
+    Math.min(
+      (available * SESSION_INSPECTOR_MAX_PERCENT) / 100,
+      available - SESSION_CONVERSATION_MIN_WIDTH - 8,
+    ),
   )
-  return Math.min(maximum, normalizeInspectorWidth(preferred))
+  return Math.round(Math.min(maximum, Math.max(SESSION_INSPECTOR_MIN_WIDTH, width)))
+}
+
+export function inspectorDisplayWidth(
+  { widthPercent, width }: Pick<SessionInspectorPreferences, 'widthPercent' | 'width'>,
+  available: number,
+) {
+  return clampInspectorWidth(
+    widthPercent === null ? normalizeInspectorWidth(width) : (available * widthPercent) / 100,
+    available,
+  )
 }
 
 export function normalizeInspectorPreferences(value: unknown): SessionInspectorPreferences {
@@ -82,6 +123,7 @@ export function normalizeInspectorPreferences(value: unknown): SessionInspectorP
     pinned,
     // 侧聊是临时标签：恢复时回到改动，不在下次打开会话时自动挂起一条侧聊。
     tab: tab === 'side-chat' ? 'changes' : tab,
+    widthPercent: normalizeInspectorPercent(record.widthPercent, record.width),
     width: normalizeInspectorWidth(record.width),
     terminalView: record.terminalView === 'processes' ? 'processes' : 'terminal',
     changesView: record.changesView === 'workspace' ? 'workspace' : 'session',
@@ -128,10 +170,17 @@ export const useSessionInspectorStore = create<SessionInspectorState>()(
       setTab: (tab) => {
         if (get().tab !== tab) set({ tab })
       },
-      setWidth: (value) => {
-        const width = normalizeInspectorWidth(value)
-        if (get().width !== width) set({ width })
+      setWidth: (value, available) => {
+        if (!(available > 0)) return
+        const widthPercent = clampInspectorPercent((value / available) * 100)
+        if (get().widthPercent !== widthPercent)
+          set({ widthPercent, width: normalizeInspectorWidth(value) })
       },
+      resetWidth: () =>
+        set({
+          widthPercent: SESSION_INSPECTOR_DEFAULT_PERCENT,
+          width: SESSION_INSPECTOR_LEGACY_DEFAULT_WIDTH,
+        }),
       setTerminalView: (terminalView) => set({ terminalView }),
       setChangesView: (changesView) => set({ changesView }),
       setDiffMode: (diffMode) => set({ diffMode }),
@@ -140,10 +189,20 @@ export const useSessionInspectorStore = create<SessionInspectorState>()(
       name: SESSION_INSPECTOR_STORAGE_KEY,
       version: 1,
       storage,
-      partialize: ({ open, pinned, tab, width, terminalView, changesView, diffMode }) => ({
+      partialize: ({
         open,
         pinned,
         tab,
+        widthPercent,
+        width,
+        terminalView,
+        changesView,
+        diffMode,
+      }) => ({
+        open,
+        pinned,
+        tab,
+        widthPercent,
         width,
         terminalView,
         changesView,

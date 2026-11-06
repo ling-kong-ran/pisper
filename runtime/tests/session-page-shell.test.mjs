@@ -123,8 +123,9 @@ test('inspector preferences persist pin, open, tab and width under a registered 
   })
   try {
     const {
-      SESSION_INSPECTOR_MAX_WIDTH,
+      SESSION_INSPECTOR_DEFAULT_PERCENT,
       SESSION_INSPECTOR_MIN_WIDTH,
+      clampInspectorWidth,
       inspectorDisplayWidth,
       normalizeInspectorPreferences,
       useSessionInspectorStore: store,
@@ -136,11 +137,20 @@ test('inspector preferences persist pin, open, tab and width under a registered 
     assert.equal(store.getState().open, false)
     assert.equal(store.getState().pinned, false)
     assert.equal(store.getState().tab, 'changes')
-    assert.equal(store.getState().width, SESSION_INSPECTOR_MAX_WIDTH)
+    // 旧版拖过的像素宽度显示不变，拖动后才变成比例。
+    assert.equal(store.getState().width, 720)
+    assert.equal(store.getState().widthPercent, null)
     assert.equal(store.getState().terminalView, 'processes')
     store.getState().setTab('preview')
-    store.getState().setWidth(100)
-    assert.equal(store.getState().width, SESSION_INSPECTOR_MIN_WIDTH)
+    store.getState().setWidth(900, 3000)
+    assert.equal(store.getState().widthPercent, 30)
+    assert.equal(JSON.parse(values.get('pisper-session-inspector')).state.widthPercent, 30)
+    // 还写旧字段：旧版本读到偏好时仍能用。
+    assert.equal(JSON.parse(values.get('pisper-session-inspector')).state.width, 720)
+    store.getState().setWidth(900, 0)
+    assert.equal(store.getState().widthPercent, 30)
+    store.getState().resetWidth()
+    assert.equal(store.getState().widthPercent, SESSION_INSPECTOR_DEFAULT_PERCENT)
     assert.equal(JSON.parse(values.get('pisper-session-inspector')).state.tab, 'preview')
     // 打开“固定”时顺带展开并写进偏好；取消固定不收起当前面板。字段只做加法：旧字段原样保留。
     store.getState().setPinned(true)
@@ -162,6 +172,7 @@ test('inspector preferences persist pin, open, tab and width under a registered 
       open: false,
       pinned: false,
       tab: 'changes',
+      widthPercent: SESSION_INSPECTOR_DEFAULT_PERCENT,
       width: 456,
       terminalView: 'terminal',
       changesView: 'session',
@@ -170,10 +181,21 @@ test('inspector preferences persist pin, open, tab and width under a registered 
     // 差异视图只认 unified / split，其余值回到统一视图。
     assert.equal(normalizeInspectorPreferences({ diffMode: 'split' }).diffMode, 'split')
     assert.equal(normalizeInspectorPreferences({ diffMode: 'side' }).diffMode, 'unified')
-    // 窗口变窄只收窄显示宽度，对话列至少保留 480px，不改写偏好。
-    assert.equal(inspectorDisplayWidth(600, 1400), 600)
-    assert.equal(inspectorDisplayWidth(600, 1000), 512)
-    assert.equal(inspectorDisplayWidth(600, 700), SESSION_INSPECTOR_MIN_WIDTH)
+    // 比例跟着窗口走，4K 屏上不再卡在 720px。
+    const preference = (widthPercent, width = 456) => ({ widthPercent, width })
+    assert.equal(inspectorDisplayWidth(preference(50), 3600), 1800)
+    assert.equal(inspectorDisplayWidth(preference(50), 1800), 900)
+    // 没拖过的旧偏好换成默认比例；拖过的保持像素宽度。
+    assert.equal(normalizeInspectorPreferences({ width: 456 }).widthPercent, 39)
+    assert.equal(normalizeInspectorPreferences({ width: 600 }).widthPercent, null)
+    assert.equal(normalizeInspectorPreferences({ widthPercent: 200 }).widthPercent, 80)
+    assert.equal(normalizeInspectorPreferences({ widthPercent: 'x' }).widthPercent, 39)
+    // 最宽 80%；窗口变窄只收窄显示宽度，对话列至少保留 480px，不改写偏好。
+    assert.equal(clampInspectorWidth(Number.POSITIVE_INFINITY, 4000), 3200)
+    assert.equal(inspectorDisplayWidth(preference(null, 600), 1400), 600)
+    assert.equal(inspectorDisplayWidth(preference(null, 600), 1000), 512)
+    assert.equal(inspectorDisplayWidth(preference(null, 600), 700), SESSION_INSPECTOR_MIN_WIDTH)
+    assert.equal(inspectorDisplayWidth(preference(5), 1400), SESSION_INSPECTOR_MIN_WIDTH)
   } finally {
     if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
     else delete globalThis.window
