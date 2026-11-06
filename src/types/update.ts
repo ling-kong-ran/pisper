@@ -177,6 +177,10 @@ export type DesktopBrowserBridge = {
   action: (browserId: string, action: 'back' | 'forward' | 'reload') => Promise<void>
   sync: (browserId: string, bounds: DesktopBrowserBounds, visible: boolean) => Promise<void>
   close: (browserId: string) => Promise<void>
+  // Agent 接管用：在网页里执行脚本，返回 JSON 字符串。只有主窗口的界面能调，网页本身拿不到。
+  evaluate: (browserId: string, script: string) => Promise<string>
+  // 当前可视区域的 PNG，base64。
+  capture: (browserId: string) => Promise<string>
 }
 
 export type DesktopBridge = {

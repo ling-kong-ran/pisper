@@ -96,6 +96,7 @@ import { GitChangesService } from '../services/git-changes-service.mjs'
 import { VcsChangesService } from '../services/vcs-changes-service.mjs'
 import { PlanService } from '../services/plan-service.mjs'
 import { BrowserAutomationService } from '../services/browser-automation-service.mjs'
+import { DesktopBrowserHostService } from '../services/desktop-browser-host-service.mjs'
 import {
   normalizeWorkspacePath,
   resolveWorkspaceDirectory,
@@ -540,7 +541,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       path: join(dataDir, 'pisper-plans.json'),
       legacyPath: join(dataDir, 'pisper-task-lists.json'),
     })
-    this.browserAutomation = new BrowserAutomationService({ driver: browserAutomationDriver })
+    this.desktopBrowserHost = new DesktopBrowserHostService()
+    this.browserAutomation = new BrowserAutomationService({
+      driver: browserAutomationDriver,
+      desktopHost: this.desktopBrowserHost,
+    })
     this.goalEmitters = new Map()
     // 正在运行的会话的流事件发射器：运行中途的旁路事件（如切换备用模型）经它下发给当前订阅者。
     this.runEmitters = new Map()

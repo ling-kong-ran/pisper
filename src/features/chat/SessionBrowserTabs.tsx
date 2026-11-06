@@ -1,7 +1,7 @@
 // 检查器“预览”里的浏览器页签：每个页签一个 BrowserPane，切走时只隐藏，网页不重新加载。
 // 没看过的页签不挂载，不会一开检查器就加载所有网页。
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Bot, Plus, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { webPreviewTabLabel } from '@/lib/web-preview'
@@ -55,7 +55,7 @@ export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId
     const store = useContextPagesStore.getState()
     // 最后一个页签关掉后变回空白页，留在“预览”里，也还能输入地址。
     if (browsers.length === 1) {
-      store.update(sessionId, 'browser', { type: 'browser', id, url: '', draft: '' })
+      store.update(sessionId, 'browser', { type: 'browser', id, url: '', draft: '', agent: false })
       store.update(sessionId, 'browser', { type: 'resource', id, resourceId: '' })
       return
     }
@@ -134,6 +134,14 @@ export function BrowserTabs({ panelId, sessionId }: { panelId: string; sessionId
                   )}
                   onClick={() => select(page.id)}
                 >
+                  {page.agent && (
+                    <Bot
+                      size={12}
+                      className="mr-1 flex-none text-focus"
+                      role="img"
+                      aria-label={t('common:webPreview.agentTab')}
+                    />
+                  )}
                   <span className="truncate">{label}</span>
                 </button>
                 {closable && (

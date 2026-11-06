@@ -401,7 +401,16 @@ test('the native browser stays isolated from the app and leaves the main window 
   assert.deepEqual(JSON.parse(capability).windows, ['main'])
   assert.match(permission, /identifier = "allow-pisper-desktop-browser"/)
   assert.ok(JSON.parse(config).app.security.capabilities.includes('desktop-browser'))
-  for (const command of ['open', 'adopt', 'navigate', 'action', 'sync', 'close']) {
+  for (const command of [
+    'open',
+    'adopt',
+    'navigate',
+    'action',
+    'sync',
+    'close',
+    'evaluate',
+    'capture',
+  ]) {
     assert.match(permission, new RegExp(`"desktop_browser_${command}"`))
     assert.match(bridge, new RegExp(`'desktop_browser_${command}'`))
     assert.match(

@@ -3,10 +3,12 @@
 // 预览落在会话页检查器的网页预览页：不在会话页时带着请求跳到最近的活动会话，
 // 请求随 localStorage 保留到会话页挂载时补开。没有有效的活动会话（从没打开过、已删除或已归档）时
 // 不为了显示网页去新建空会话，直接在外部浏览器打开。
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useI18n } from '@/app/use-i18n'
 import { sessionIdFromPath, sessionPath } from '@/app/routes'
 import { STORAGE_KEYS } from '@/app/storage'
+import { startAgentBrowserHost } from '@/features/chat/agent-browser-host'
 import { requestWebPreview } from '@/features/chat/web-preview-events'
 import { pageStateStorage } from '@/lib/page-state-storage'
 import { queryClient, SESSIONS_QUERY_KEY } from '@/lib/startup-queries'
@@ -16,6 +18,12 @@ import { previewSessionTarget, type CachedSessions } from './web-preview-target'
 export function WebPreviewProvider() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useI18n()
+  const overlayLabelRef = useRef('')
+  overlayLabelRef.current = t('common:webPreview.agentOverlay')
+
+  // 桌面端右侧浏览器接收 Agent 的指令。
+  useEffect(() => startAgentBrowserHost(() => overlayLabelRef.current), [])
 
   useEffect(() => {
     const captureExternalLink = (event: MouseEvent) => {

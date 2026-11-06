@@ -45,3 +45,10 @@ export function openBrowserPopupInSessionContext(sessionId: string, popupId: str
     store.update(sessionId, 'browser', { type: 'browser', id: created.id, url, draft: url })
   return true
 }
+
+// 网页请求新窗口：优先开成弹窗页签；开满了就关掉弹窗，地址在当前页签打开，链接不能白点。
+export function openBrowserNewWindow(sessionId: string, url: string, popupId: string | null) {
+  if (popupId && openBrowserPopupInSessionContext(sessionId, popupId, url)) return
+  if (popupId) void window.pisperDesktop?.browser?.close(popupId).catch(() => {})
+  if (url) openWebPreviewInSessionContext(sessionId, url)
+}

@@ -8,4 +8,6 @@ commands.allow = [
   "desktop_browser_action",
   "desktop_browser_sync",
   "desktop_browser_close",
+  "desktop_browser_evaluate",
+  "desktop_browser_capture",
 ]

@@ -21,10 +21,14 @@ const FLOATING_LAYER_SELECTOR =
 
 let nextBrowserId = 0
 
+// 正挂在界面上的 WebView。Agent 宿主自己导航时要先告诉 Hook，否则 Hook 看到地址变了会再导航一次。
+export const attachedNativeBrowsers = new Map<string, { noteUrl: (url: string) => void }>()
+
 export function useNativeBrowser({
   enabled,
   url,
   popupId,
+  keepAlive,
   onNavigated,
   onTitle,
   onNewWindow,
@@ -34,6 +38,8 @@ export function useNativeBrowser({
   url: string
   // 这个页签来自 window.open：原生层已经建好 WebView，要接管它而不是新开一个，window.opener 才连得上。
   popupId: string
+  // 卸载时只隐藏不关闭：Agent 还在用它，关闭由 Agent 宿主负责。
+  keepAlive: boolean
   onNavigated: (url: string) => void
   onTitle: (title: string) => void
   onNewWindow: (url: string, popupId: string | null) => void
@@ -47,6 +53,7 @@ export function useNativeBrowser({
   // 页面自己跳过、还没回到 url 的地址。登录会连续跳转，晚到的旧地址不是要去的地方，不能导航回去。
   const reportedUrlsRef = useRef<string[]>([])
   const popupIdRef = useRef(popupId)
+  const keepAliveRef = useRef(keepAlive)
   const handlersRef = useRef({ onNavigated, onTitle, onNewWindow, onClosed })
   const [unavailable, setUnavailable] = useState(false)
   // 弹窗已经不在了（离开过预览）而且没有地址可以重新打开：这时就是空白页。
@@ -56,6 +63,7 @@ export function useNativeBrowser({
   useEffect(() => {
     urlRef.current = url
     popupIdRef.current = popupId
+    keepAliveRef.current = keepAlive
     handlersRef.current = { onNavigated, onTitle, onNewWindow, onClosed }
   })
 
@@ -154,6 +162,12 @@ export function useNativeBrowser({
       }
       opened = true
       browserIdRef.current = browserId
+      attachedNativeBrowsers.set(browserId, {
+        noteUrl: (next) => {
+          if (next !== currentUrlRef.current) reportedUrlsRef.current.push(next)
+          currentUrlRef.current = next
+        },
+      })
       // 打开期间用户又输入了别的地址。和 currentUrlRef 相同说明是页面自己跳过去的，不用再导航。
       if (
         urlRef.current &&
@@ -173,8 +187,14 @@ export function useNativeBrowser({
       cancelAnimationFrame(animationFrame)
       setLoading(false)
       // 等打开做完再关，否则关闭先到达时 WebView 会留下来。
+      const keepAlive = keepAliveRef.current
+      const hiddenAt = placed?.bounds
       void opening.finally(() => {
-        if (browserId) void browser.close(browserId).catch(() => {})
+        if (!browserId) return
+        attachedNativeBrowsers.delete(browserId)
+        if (!keepAlive) void browser.close(browserId).catch(() => {})
+        // 原生视图盖在界面之上，不藏起来就会挡住别的标签。
+        else if (hiddenAt) void browser.sync(browserId, hiddenAt, false).catch(() => {})
       })
     }
   }, [active])

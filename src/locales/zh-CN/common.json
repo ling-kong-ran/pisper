@@ -48,6 +48,8 @@
   "webPreview.newTab": "新标签页",
   "webPreview.tabs": "网页标签页",
   "webPreview.closeTab": "关闭标签页",
+  "webPreview.agentTab": "Agent 正在操作",
+  "webPreview.agentOverlay": "Pisper 正在操作",
   "webPreview.back": "后退",
   "webPreview.forward": "前进",
   "webPreview.reload": "重新加载",

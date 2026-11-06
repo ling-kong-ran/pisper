@@ -156,11 +156,15 @@ async function inspectPage(page) {
 export class BrowserAutomationService {
   constructor({
     driver,
+    // 桌面端右侧浏览器（DesktopBrowserHostService）：连着时优先用，用户看得见 Agent 在操作。
+    desktopHost,
     idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
     setTimer = setTimeout,
     clearTimer = clearTimeout,
   } = {}) {
     this.driver = driver || null
+    this.desktopHost = desktopHost || null
+    this.desktopHostSessions = new Set()
     this.sessions = new Map()
     this.idleTimers = new Map()
     this.idleTimeoutMs = Math.max(0, Number(idleTimeoutMs) || 0)
@@ -187,6 +191,17 @@ export class BrowserAutomationService {
     }, this.idleTimeoutMs)
     timer?.unref?.()
     this.idleTimers.set(id, timer)
+  }
+
+  // 已经开了无头浏览器的会话不中途换：模型手里的选择器和页面状态都在那边。
+  activeDriver(id) {
+    if (this.driver) return this.driver
+    if (this.desktopHostSessions.has(id) && this.desktopHost?.available) return this.desktopHost
+    if (this.desktopHost?.available && !this.sessions.has(id)) {
+      this.desktopHostSessions.add(id)
+      return this.desktopHost
+    }
+    return null
   }
 
   async launchPlaywright(viewport) {
@@ -231,12 +246,24 @@ export class BrowserAutomationService {
     signal?.throwIfAborted?.()
     if (action === 'close') this.clearIdleTimer(id)
     else this.touchSession(id)
-    if (this.driver) {
+    const driver = this.activeDriver(id)
+    if (driver) {
       const outputPath =
         action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
-      return this.driver.execute(
+      if (action === 'close') this.desktopHostSessions.delete(id)
+      return driver.execute(
         id,
-        { ...input, action, viewport, outputPath },
+        {
+          ...input,
+          action,
+          viewport,
+          outputPath,
+          ...(action === 'open' ? { url: safeUrl(input.url) } : {}),
+          ...(action === 'click' || action === 'type'
+            ? { selector: safeSelector(input.selector) }
+            : {}),
+          ...(action === 'type' ? { text: String(input.text || '').slice(0, 5_000) } : {}),
+        },
         { signal, onProgress },
       )
     }
@@ -313,6 +340,7 @@ export class BrowserAutomationService {
     const id = String(sessionId || 'default')
     this.clearIdleTimer(id)
     if (this.driver) return this.driver.closeSession?.(id)
+    if (this.desktopHostSessions.delete(id)) return this.desktopHost?.closeSession(id)
     const current = this.sessions.get(id)
     if (!current) return false
     this.sessions.delete(id)
@@ -324,6 +352,7 @@ export class BrowserAutomationService {
   async dispose() {
     for (const id of [...this.idleTimers.keys()]) this.clearIdleTimer(id)
     if (this.driver) return this.driver.dispose?.()
+    this.desktopHost?.dispose()
     await Promise.all([...this.sessions.keys()].map((id) => this.closeSession(id)))
   }
 }
