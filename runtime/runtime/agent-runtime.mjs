@@ -148,6 +148,11 @@ import {
 } from '../security/execution-mode.mjs'
 import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
 import { createRuntimeToolGateway } from './tool-gateway-runtime.mjs'
+import {
+  createLeanCodingTools,
+  createLeanReadTool,
+  leanToolDefinition,
+} from '../tools/lean-coding-tools.mjs'
 import { agentSessionMethods } from './agent-session-methods.mjs'
 import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
@@ -2050,6 +2055,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           ),
         )
       : []
+    const leanCodingTools = remoteExecutor ? [] : await createLeanCodingTools(effectiveCwd)
+    const leanChildReadTool = remoteExecutor ? [] : [await createLeanReadTool(effectiveCwd)]
     const createInheritedCustomTools = (inheritedBashTool = bashTool) => [
       ...schemaOnlyToolDefinitions(
         createAppTools({
@@ -2126,7 +2133,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           enabledTools,
           planReader,
           baseToolNames,
-          createInheritedCustomTools,
+          // 子 Agent 也用精简说明的内置工具；不放进 createInheritedCustomTools，那份清单还是 call_tool 能调用的范围。
+          createInheritedCustomTools: (childBashTool) => [
+            ...leanChildReadTool,
+            ...leanCodingTools,
+            ...createInheritedCustomTools(childBashTool),
+          ],
           waitAgent: (timeoutMs, target) =>
             waitForAgentMailbox(this.multiAgents, runtimeSession.sessionId, timeoutMs, target),
           installSubagentPermissions,
@@ -2236,7 +2248,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...(conversationOnly ? BOT_CONVERSATION_TOOL_NAMES : []),
       ],
       customTools: [
-        ...(remoteExecutor ? executorTools : [await createCompressedReadTool(effectiveCwd)]),
+        ...(remoteExecutor
+          ? executorTools
+          : [leanToolDefinition(await createCompressedReadTool(effectiveCwd)), ...leanCodingTools]),
         ...inheritedCustomTools,
         toolDiscovery,
         toolGateway,

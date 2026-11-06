@@ -449,8 +449,5 @@ test('the spawn tool lists what each tier runs on right now', async (t) => {
     spawn.description,
     /Model tiers \(pass as tier when no agent definition fits\): fast → test-cheap\/fixture; standard → this session model; strong → this session model\./,
   )
-  assert.deepEqual(
-    spawn.parameters.properties.tier.anyOf.map((item) => item.const),
-    ['fast', 'standard', 'strong'],
-  )
+  assert.deepEqual(spawn.parameters.properties.tier.enum, ['fast', 'standard', 'strong'])
 })

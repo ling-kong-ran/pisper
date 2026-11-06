@@ -34,9 +34,8 @@ export function createToolGatewayTool({ getTool, authorize }) {
   return defineTool({
     name: TOOL_GATEWAY_NAME,
     label: 'Call Tool',
-    description: 'Call an optional tool by exact name with schema-valid arguments.',
-    promptSnippet: 'Call an optional tool by exact name',
-    promptGuidelines: ['Use the exact discovered name and only schema-supported arguments.'],
+    description:
+      'Call an optional tool by the exact name discover_tools returned, with arguments that match its schema.',
     parameters: Type.Object({
       name: Type.String({
         minLength: 1,
@@ -45,7 +44,7 @@ export function createToolGatewayTool({ getTool, authorize }) {
       }),
       arguments: Type.Optional(
         Type.Record(Type.String(), Type.Unknown(), {
-          description: 'Arguments validated against the selected tool schema',
+          description: 'Arguments for that tool',
         }),
       ),
     }),

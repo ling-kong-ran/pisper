@@ -8,10 +8,11 @@ import {
 import { Type } from 'typebox'
 import { applyWindowsUtf8Environment } from './windows-utf8-bash.mjs'
 import { formatGuardError, guardCommand } from './command-guard.mjs'
+import { leanToolDefinition } from './lean-coding-tools.mjs'
 
 const HOST_BASH_SCHEMA = Type.Object({
-  command: Type.String({ description: 'Shell command to execute' }),
-  timeout: Type.Optional(Type.Number({ description: 'Timeout in seconds' })),
+  command: Type.String({ description: 'Shell command' }),
+  timeout: Type.Optional(Type.Number({ description: 'Seconds' })),
 })
 
 const DENIED_ENVIRONMENT_NAMES = new Set([
@@ -111,15 +112,13 @@ export async function createPisperBashTool(
   const shellNote = selectedShell.fallback
     ? 'Bash was not found on Windows, so commands run with the system Windows PowerShell (powershell.exe).'
     : 'Commands run as the current operating-system user and can access host files and networks.'
+  const leanTool = leanToolDefinition(localTool)
   const description = selectedShell.fallback
-    ? localTool.description.replace('Execute a bash command', 'Execute a command')
-    : localTool.description
+    ? leanTool.description.replace('Run a bash command', 'Run a command')
+    : leanTool.description
   return {
-    ...localTool,
+    ...leanTool,
     description: `${description}\n${shellNote}`,
-    promptSnippet: selectedShell.fallback
-      ? 'Execute commands with Windows PowerShell'
-      : localTool.promptSnippet,
     parameters: HOST_BASH_SCHEMA,
   }
 }

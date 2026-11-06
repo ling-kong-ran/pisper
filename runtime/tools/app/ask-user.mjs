@@ -8,31 +8,26 @@ import { QuestionInputError, normalizeQuestions } from '../../services/session-q
 export const ASK_USER_TOOL_NAME = 'ask_user'
 
 const optionSchema = Type.Object({
-  label: Type.String({ description: 'Short option text shown on a clickable button (≤60 chars).' }),
-  description: Type.Optional(
-    Type.String({ description: 'Optional one-line explanation of the option (≤200 chars).' }),
-  ),
+  label: Type.String({ description: 'Button text (≤60 chars)' }),
+  description: Type.Optional(Type.String({ description: 'One-line explanation (≤200 chars)' })),
 })
 
 // Bot 对话的提问工具（bot_ask）用同一份题目格式，卡片与回答的校验一致。
 export const ASK_USER_QUESTION_SCHEMA = Type.Object({
   header: Type.Optional(
     Type.String({
-      description: 'Very short title for the question, e.g. "Auth method" (≤24 chars).',
+      description: 'Short title (≤24 chars)',
     }),
   ),
   question: Type.String({
-    description: 'The full question, ending with a question mark (≤400 chars).',
+    description: 'Full question (≤400 chars)',
   }),
   options: Type.Array(optionSchema, {
     minItems: 2,
     maxItems: 6,
-    description:
-      '2–6 distinct choices. Do not add an "Other" option: the user can always answer in free text.',
+    description: 'Distinct choices. No "Other" option: the user can type an answer.',
   }),
-  multiSelect: Type.Optional(
-    Type.Boolean({ description: 'Allow selecting several options. Defaults to false.' }),
-  ),
+  multiSelect: Type.Optional(Type.Boolean()),
 })
 
 // 代理收到的结果：每题的已选项与自由文本；跳过或取消时明确告诉代理接下来该怎么做。
@@ -60,13 +55,9 @@ export function createAskUserTool({ requestAnswers, isAvailable = () => true }) 
     name: ASK_USER_TOOL_NAME,
     label: 'Ask User',
     description:
-      'Ask the user 1–4 multiple-choice questions and wait for the answers. Each question has 2–6 clickable options; the user may also answer in free text or skip.',
-    promptSnippet:
-      'Ask the user clickable multiple-choice questions when a decision genuinely needs them',
+      'Ask the user 1–4 multiple-choice questions and wait for the answers. They can also type an answer or skip.',
     promptGuidelines: [
-      'Use ask_user only when you cannot proceed well without the user choosing between concrete alternatives (requirements, trade-offs, destructive choices). Do not use it for permission to run tools; approvals are handled separately.',
-      'Batch related questions into one call (at most 4). Keep options short, distinct and mutually exclusive unless multiSelect is true. Put the recommended option first.',
-      'The call blocks until the user answers, skips, or stops the run. If the user skips, decide on your own.',
+      'Use ask_user only when you cannot proceed well without the user choosing between concrete alternatives (requirements, trade-offs, destructive choices), not for tool permission. Put related questions in one call and the recommended option first. If the user skips, decide on your own.',
     ],
     parameters: Type.Object({
       questions: Type.Array(ASK_USER_QUESTION_SCHEMA, { minItems: 1, maxItems: 4 }),

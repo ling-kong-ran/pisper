@@ -5,6 +5,7 @@ import { Type } from 'typebox'
 import { agentProfileSummary } from '../../services/agent-profiles.mjs'
 const category = 'collaboration'
 const source = 'app'
+const AGENT_TARGET = 'Agent id, task name or canonical name'
 
 export const TEAM_MEMBER_TOOL_NAMES = Object.freeze(['send_team_message', 'list_team_members'])
 
@@ -147,8 +148,9 @@ function agentDefinitionsText(agentProfiles) {
     .join('\n')}`
 }
 
-// 档位此刻对应的模型；没设置的档位跟随当前会话模型。
+// 档位此刻对应的模型；一个都没设置时全部跟随当前会话模型，不必写。
 function tierModelsText(tierModels = {}) {
+  if (!['fast', 'standard', 'strong'].some((tier) => tierModels[tier])) return ''
   return `\n\nModel tiers (pass as tier when no agent definition fits): ${[
     'fast',
     'standard',
@@ -180,67 +182,49 @@ function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [], tierModel
   return defineTool({
     name: 'spawn_agent',
     label: 'Spawn Agent',
-    description: `Spawn an isolated Agent for a concrete, bounded subtask that can run independently while you continue useful local work.${agentDefinitionsText(agentProfiles)}${tierModelsText(tierModels)}`,
-    promptSnippet:
-      'Proactively delegate concrete independent work to an asynchronous background Agent',
+    description: `Start an isolated background Agent on a concrete, bounded subtask.${agentDefinitionsText(agentProfiles)}${tierModelsText(tierModels)}`,
+    // 子 Agent 的规则都在这一份里，list_agents、wait_agent 不再各写一遍。
     promptGuidelines: [
-      'For substantial work, briefly identify whether two or more concrete workstreams can proceed independently; use spawn_agent proactively when delegation will shorten the critical path, even if the user did not explicitly request subagents.',
-      'Good candidates include independent codebase investigation, platform-specific checks, focused test diagnosis, and review of a bounded area while the parent continues implementation.',
-      'Do not spawn for trivial work, a single linear task, tightly coupled changes in the same files, or work whose coordination cost is likely higher than doing it directly.',
-      'Use spawn_agent only for a concrete, bounded task that can run independently while you continue non-overlapping local work.',
-      'Keep the immediate critical-path step in the parent session and continue useful work after delegating it.',
-      'Provide a self-contained message with every constraint and piece of context the Agent needs; Agents never inherit the parent transcript.',
-      'Without agent, an Agent inherits the current model, reasoning level and tools. Permission mode and workspace boundary always come from this session. Agents cannot recursively spawn more Agents.',
-      'When an agent definition fits the task, pass its name as agent: the definition chooses the model (cheap fast models for simple lookups, stronger ones for hard work), reasoning level, a narrower tool set, and standing instructions. Match the task to the definition’s tools; do not send file-changing work to a definition without write tools.',
-      'When no agent definition fits, pass tier to pick a model for the task: fast for lookups, searches, summaries and other simple work; standard for ordinary implementation and edits; strong for design, hard debugging and review. The user maps tiers to models in settings; an unset tier runs on the current model. A definition that names a model or tier takes precedence over tier.',
-      'To create or change agent definitions for the user, load the pisper-subagents skill first.',
-      'A spawned Agent is a background task. Its running state must not delay replying to the user, handling later user instructions, or spawning other independent Agents.',
-      'After spawning, acknowledge only that the work was delegated to a background Agent, phrased briefly in the user’s language, without explaining mailbox, prompt, or context internals.',
-      'Do not call list_agents or wait_agent merely to monitor progress. Completed results remain durable, update the UI, and are automatically delivered to the parent session.',
-      'Use wait_agent only when the user explicitly asks you to wait for a specific Agent result before replying.',
+      'For substantial work, check once whether independent workstreams exist and use spawn_agent proactively when delegation shortens the critical path, even if the user did not explicitly request subagents: codebase investigation, platform-specific checks, test diagnosis, review of a bounded area.',
+      'Do not spawn for trivial work, a single linear task, tightly coupled changes in the same files, or when coordination costs more than doing it directly. Keep the immediate critical-path step in the parent session and keep working after delegating.',
+      "Agents never inherit the transcript: give a self-contained message with every constraint and piece of context. They use this session's permission mode and workspace and cannot spawn Agents.",
+      "Pass agent when a definition fits; it sets model, reasoning, tools and standing instructions, so do not send file-changing work to one without write tools. Otherwise pass tier: fast for lookups and summaries, standard for ordinary edits, strong for design, hard debugging and review. Without either, the Agent inherits this session's model, reasoning and tools.",
+      "Agents run in the background and must not delay replying to the user, handling later instructions, or spawning other independent Agents. After spawning, say briefly in the user's language that the work was delegated, without internals.",
+      'Do not call list_agents or wait_agent merely to monitor progress: results are automatically delivered to the parent session. Use list_agents only when asked for status and wait_agent only when the user asks to wait for a result; never repeat wait_agent after a timeout.',
     ],
     parameters: Type.Object({
       taskName: Type.String({
         minLength: 1,
         maxLength: 48,
-        description: 'Stable short task name using letters, digits, hyphens, or underscores.',
+        description: 'Short stable name (letters, digits, - or _)',
       }),
       message: Type.String({
         minLength: 1,
         maxLength: 12_000,
-        description:
-          'Concrete, self-contained delegated task including all required context and constraints.',
+        description: 'Self-contained task',
       }),
       role: Type.Optional(
-        Type.String({
-          maxLength: 80,
-          description:
-            'Team role such as investigator, architect, implementer, tester, or reviewer.',
-        }),
+        Type.String({ maxLength: 80, description: 'Team role, e.g. investigator or tester' }),
       ),
       agent: Type.Optional(
-        Type.String({
-          maxLength: 48,
-          description:
-            'Name of an agent definition (.pisper/agents/*.md in the project, or the global agents folder). Omit to inherit this session.',
-        }),
+        Type.String({ maxLength: 48, description: 'Agent definition name (.pisper/agents/*.md)' }),
       ),
       tier: Type.Optional(
-        Type.Union([Type.Literal('fast'), Type.Literal('standard'), Type.Literal('strong')], {
-          description:
-            'Model tier for this task when no definition fits: fast (simple lookups), standard (ordinary implementation), strong (design, debugging, review). Ignored when the agent definition already names a model or tier.',
+        Type.String({
+          enum: ['fast', 'standard', 'strong'],
+          description: 'Ignored if the definition names a model or tier',
         }),
       ),
       files: Type.Optional(
         Type.Array(Type.String({ maxLength: 240 }), {
           maxItems: 96,
-          description: 'Workspace-relative files or directories this task owns while it is active.',
+          description: 'Paths this task owns while active (Team)',
         }),
       ),
       dependsOn: Type.Optional(
         Type.Array(Type.String({ maxLength: 48 }), {
           maxItems: 32,
-          description: 'Earlier Team task names that must be completed before this task starts.',
+          description: 'Task names that must finish first (Team)',
         }),
       ),
     }),
@@ -255,13 +239,7 @@ function createListAgentsTool({ multiAgentRuntime }) {
   return defineTool({
     name: 'list_agents',
     label: 'List Agents',
-    description:
-      'List Agents created by the current primary session, including live and completed states. Use only for an explicit status inspection, not periodic monitoring.',
-    promptSnippet: 'Inspect Subagent status only when the user explicitly requests it',
-    promptGuidelines: [
-      'Do not call list_agents repeatedly to monitor background Agents.',
-      'Running Agents do not block the parent from replying or starting other independent Agents.',
-    ],
+    description: "List this session's Agents and their status.",
     parameters: Type.Object({}),
     async execute() {
       const agents = await requireRuntime(multiAgentRuntime, 'list')()
@@ -279,12 +257,9 @@ function createSendMessageTool({ multiAgentRuntime }) {
   return defineTool({
     name: 'send_message',
     label: 'Send Message',
-    description: 'Send information to an existing Agent without starting a separate new Agent.',
+    description: 'Send information to a running Agent.',
     parameters: Type.Object({
-      target: Type.String({
-        minLength: 1,
-        description: 'Agent id, task name, or canonical name returned by spawn_agent.',
-      }),
+      target: Type.String({ minLength: 1, description: AGENT_TARGET }),
       message: Type.String({ minLength: 1, maxLength: 12_000 }),
     }),
     async execute(_toolCallId, params) {
@@ -301,12 +276,9 @@ function createFollowupTaskTool({ multiAgentRuntime }) {
   return defineTool({
     name: 'followup_task',
     label: 'Follow-up Task',
-    description: 'Give an existing Agent another task while preserving that Agent context.',
+    description: 'Give an existing Agent another task, keeping its context.',
     parameters: Type.Object({
-      target: Type.String({
-        minLength: 1,
-        description: 'Agent id, task name, or canonical name returned by spawn_agent.',
-      }),
+      target: Type.String({ minLength: 1, description: AGENT_TARGET }),
       message: Type.String({ minLength: 1, maxLength: 12_000 }),
     }),
     async execute(_toolCallId, params) {
@@ -323,29 +295,13 @@ function createWaitAgentTool({ multiAgentRuntime }) {
   return defineTool({
     name: 'wait_agent',
     label: 'Wait Agent',
-    description:
-      'Wait briefly for an Agent to reach a terminal state only when the user explicitly asks to wait. Never use this tool as a polling loop.',
-    promptSnippet:
-      'Wait for a Subagent only when the user explicitly requires its result before the current reply',
-    promptGuidelines: [
-      'Do not use wait_agent merely because an Agent is running.',
-      'Never call wait_agent repeatedly after a timeout to poll for completion.',
-      'The parent should normally reply while Agents continue in the background. Completion updates the UI and durable mailbox without injecting model context; inspect results later with list_agents or an explicitly requested wait_agent call.',
-    ],
+    description: 'Wait briefly for an Agent to finish.',
     parameters: Type.Object({
       target: Type.Optional(
-        Type.String({
-          minLength: 1,
-          description:
-            'Optional Agent id, task name, or canonical name. Without a target, returns when any currently active Agent finishes.',
-        }),
+        Type.String({ minLength: 1, description: `${AGENT_TARGET}; omit for any active Agent` }),
       ),
       timeoutMs: Type.Optional(
-        Type.Integer({
-          minimum: 250,
-          maximum: 30_000,
-          description: 'Maximum time to wait for completion. Defaults to 15000 ms.',
-        }),
+        Type.Integer({ minimum: 250, maximum: 30_000, description: 'Default 15000' }),
       ),
     }),
     async execute(_toolCallId, params) {
@@ -368,10 +324,9 @@ function createInterruptAgentTool({ multiAgentRuntime }) {
   return defineTool({
     name: 'interrupt_agent',
     label: 'Interrupt Agent',
-    description:
-      'Interrupt an Agent current run while preserving its record for inspection or a later follow-up.',
+    description: "Stop an Agent's current run, keeping its record.",
     parameters: Type.Object({
-      target: Type.String({ minLength: 1, description: 'Agent id, task name, or canonical name.' }),
+      target: Type.String({ minLength: 1, description: AGENT_TARGET }),
     }),
     async execute(_toolCallId, params) {
       const agent = await requireRuntime(multiAgentRuntime, 'interrupt')(params.target)

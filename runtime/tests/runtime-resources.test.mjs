@@ -353,7 +353,11 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.ok(value.session.getActiveToolNames().includes('discover_tools'))
   assert.equal(value.session.getActiveToolNames().includes('generate_visual'), false)
   assert.ok(value.session.getActiveToolNames().includes('call_tool'))
-  assert.match(applyPisperSystemPrompt(value.session), /discover_tools/)
+  // 规则随会话的工具进系统提示词：模型要知道可选能力得先用 discover_tools 找。
+  assert.match(
+    value.session.getToolDefinition('discover_tools').promptGuidelines.join('\n'),
+    /find the tool with discover_tools/,
+  )
   assert.match(value.session.getToolDefinition('generate_visual').description, /mockup/)
   assert.deepEqual(
     value.session.getToolDefinition('generate_visual').parameters.properties.aspectRatio.enum,

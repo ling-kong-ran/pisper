@@ -289,6 +289,9 @@ async function realSessionFixture(t, stopReasons) {
   return { session, requests, beforeStarts }
 }
 
+// 请求里的用户消息带发送时间（只投影到请求上，转录里没有）。
+const withoutSentAt = (text) => text.replace(/^<sent_at>[^\n]*\n/, '')
+
 test('a real prompt finishes after a max-output continuation in the same call', async (t) => {
   const { session, requests, beforeStarts } = await realSessionFixture(t, ['length', 'stop'])
 
@@ -301,11 +304,12 @@ test('a real prompt finishes after a max-output continuation in the same call', 
       message.role === 'user' &&
       Array.isArray(message.content) &&
       message.content.some(
-        (part) => part.type === 'text' && isOutputLimitContinuationMessage(part.text),
+        (part) =>
+          part.type === 'text' && isOutputLimitContinuationMessage(withoutSentAt(part.text)),
       ),
   )
   assert.ok(continuation)
-  assert.equal(isInternalParentMessage(continuation.content[0].text), true)
+  assert.equal(isInternalParentMessage(withoutSentAt(continuation.content[0].text)), true)
   assert.deepEqual(
     session.messages
       .filter((message) => message.role === 'assistant')

@@ -11,7 +11,11 @@ import {
   formatSize,
   SessionManager,
 } from '../runtime/pi-coding-agent.mjs'
-import { applyPisperSystemPrompt, pisperPromptExtension } from '../prompts/pisper-system-prompt.mjs'
+import {
+  applyPisperSystemPrompt,
+  PISPER_OPENING,
+  pisperPromptExtension,
+} from '../prompts/pisper-system-prompt.mjs'
 import { getOfficialComputerUseExtensionPath } from '../runtime/computer-use-extension.mjs'
 import {
   createCompactionSettingsManager,
@@ -64,11 +68,8 @@ const RESTART_INTERRUPTION_REASON = 'Agent was interrupted because Pisper restar
 
 // 子 Agent 系统提示：强调隔离上下文、只做委派任务、可验证结果、遵守父会话约束。
 export const MULTI_AGENT_SYSTEM_PROMPT = `You are a Pisper subagent working in an isolated context on one delegated task.
-
-Guidelines:
 - Complete only the concrete task you were given and return a concise, evidence-based result.
 - Inspect the relevant files before drawing conclusions or editing.
-- Respect the tools, permission mode, and workspace boundary provided by the parent session.
 - Do not duplicate unrelated work or wait for additional instructions.
 - You cannot spawn other agents.
 - In Team mode, you may inspect teammates and send direct handoff messages through the restricted team communication tools.
@@ -393,6 +394,7 @@ async function createAgentResourceLoader({
     additionalExtensionPaths: mobileRuntime ? [] : [getOfficialComputerUseExtensionPath()],
     noExtensions: false,
     ...(skillPaths.length ? { additionalSkillPaths: skillPaths } : {}),
+    systemPromptOverride: (base) => base ?? PISPER_OPENING,
     appendSystemPromptOverride: (base) => [...base, appendSystemPrompt],
   })
   await loader.reload()

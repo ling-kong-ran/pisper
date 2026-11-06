@@ -10,6 +10,7 @@ import {
   createReadTool,
   createWriteTool,
 } from './pi-coding-agent.mjs'
+import { leanToolDefinition } from '../tools/lean-coding-tools.mjs'
 
 export const REMOTE_EXECUTOR_TOOL_NAMES = Object.freeze([
   'read',
@@ -53,5 +54,5 @@ export async function createExecutorTools(cwd, executor, enabledTools) {
   ]
   if (enabled.has('bash') && executor.capabilities.shell)
     tools.push(await createBashTool(cwd, { operations: operations.bash }))
-  return tools.filter((tool) => enabled.has(tool.name))
+  return tools.filter((tool) => enabled.has(tool.name)).map(leanToolDefinition)
 }

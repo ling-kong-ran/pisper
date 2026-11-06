@@ -614,12 +614,9 @@ test('list_agents returns statuses without a task graph or role expansion', asyn
 
 test('background Agents are considered proactively without polling or blocking the parent', () => {
   const tools = createMultiAgentTools({ multiAgentRuntime: {} })
-  const spawn = tools.find((tool) => tool.name === 'spawn_agent')
-  const list = tools.find((tool) => tool.name === 'list_agents')
-  const wait = tools.find((tool) => tool.name === 'wait_agent')
-  const spawnGuidance = spawn.promptGuidelines.join('\n')
-  const listGuidance = list.promptGuidelines.join('\n')
-  const waitGuidance = wait.promptGuidelines.join('\n')
+  const spawnGuidance = tools
+    .find((tool) => tool.name === 'spawn_agent')
+    .promptGuidelines.join('\n')
 
   assert.match(spawnGuidance, /use spawn_agent proactively/i)
   assert.match(spawnGuidance, /even if the user did not explicitly request subagents/i)
@@ -629,11 +626,14 @@ test('background Agents are considered proactively without polling or blocking t
   assert.match(spawnGuidance, /do not call list_agents or wait_agent merely to monitor progress/i)
   assert.match(spawnGuidance, /automatically delivered to the parent session/)
   assert.match(spawnGuidance, /spawning other independent Agents/)
+  assert.match(spawnGuidance, /never repeat wait_agent after a timeout/)
+  assert.match(spawnGuidance, /Agents never inherit the transcript/)
   assert.doesNotMatch(spawnGuidance, /explorer|reviewer|dependsOn/)
-  assert.match(listGuidance, /Do not call list_agents repeatedly/)
-  assert.match(waitGuidance, /Never call wait_agent repeatedly after a timeout/)
-  assert.match(waitGuidance, /reply while Agents continue in the background/)
-  assert.match(waitGuidance, /without injecting model context/)
+  // 规则只写一份：其余工具不再各写一遍，也不再写“完成不进模型上下文”（完成结果确实会送回父会话）。
+  for (const tool of tools.filter((item) => item.name !== 'spawn_agent')) {
+    if (['list_agents', 'wait_agent', 'send_message'].includes(tool.name))
+      assert.equal(tool.promptGuidelines, undefined, tool.name)
+  }
 })
 
 test('unknown or missing tool modes fall back to the full preset with Shell enabled', () => {

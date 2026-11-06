@@ -16,7 +16,7 @@ function text(result) {
   }
 }
 
-const TIER = Type.Union(['fast', 'standard', 'strong'].map((value) => Type.Literal(value)))
+const TIER = Type.String({ enum: ['fast', 'standard', 'strong'] })
 
 /** @param {{ runtime: Record<string, (input: any) => Promise<any>> }} options */
 export function createBotConversationTools({ runtime }) {
@@ -83,7 +83,7 @@ export function createBotConversationTools({ runtime }) {
       description:
         'Schedule a message to yourself, for anything that should happen later or repeatedly ("in an hour, check CI"; "every Friday, follow skill X"). At that time the message arrives in this conversation and you act on it. Never start a job that just waits. Also lists and removes your own schedules.',
       parameters: Type.Object({
-        action: Type.Union([Type.Literal('create'), Type.Literal('list'), Type.Literal('remove')]),
+        action: Type.String({ enum: ['create', 'list', 'remove'] }),
         message: Type.Optional(
           Type.String({
             maxLength: 4000,
@@ -110,7 +110,8 @@ export function createBotConversationTools({ runtime }) {
           }),
         ),
         repeat: Type.Optional(
-          Type.Union([Type.Literal('daily'), Type.Literal('weekly')], {
+          Type.String({
+            enum: ['daily', 'weekly'],
             description: 'Repeat daily or weekly at time instead of once.',
           }),
         ),
@@ -128,11 +129,7 @@ export function createBotConversationTools({ runtime }) {
         'Remember one short durable fact, preference or rule (what the user asked you to remember, a correction such as "以后别…", a lesson from finished work). Not for one-off task details.',
       parameters: Type.Object({
         text: Type.String({ minLength: 1, maxLength: 500 }),
-        source: Type.Optional(
-          Type.Union(
-            ['told', 'correction', 'review', 'proactive'].map((value) => Type.Literal(value)),
-          ),
-        ),
+        source: Type.Optional(Type.String({ enum: ['told', 'correction', 'review', 'proactive'] })),
         again: Type.Optional(
           Type.Boolean({
             description:
@@ -170,13 +167,14 @@ export function createBotConversationTools({ runtime }) {
           Type.Boolean({ description: 'Also return facts that a newer version has replaced.' }),
         ),
         order: Type.Optional(
-          Type.Union(
-            [Type.Literal('relevance'), Type.Literal('recent'), Type.Literal('chronological')],
-            { description: 'relevance (default), recent first, or oldest first.' },
-          ),
+          Type.String({
+            enum: ['relevance', 'recent', 'chronological'],
+            description: 'relevance (default), recent first, or oldest first.',
+          }),
         ),
         level: Type.Optional(
-          Type.Union([Type.Literal('facts'), Type.Literal('digests')], {
+          Type.String({
+            enum: ['facts', 'digests'],
             description: 'facts (default), or summaries by day, week and month first.',
           }),
         ),

@@ -25,6 +25,7 @@ const [
   textUtils,
   messages,
   frontmatter,
+  systemPrompt,
 ] = await Promise.all([
   packageModule('./core/compaction/index.js'),
   packageModule('./core/model-runtime.js'),
@@ -37,8 +38,10 @@ const [
   packageModule('./utils/text.js'),
   packageModule('./core/messages.js'),
   packageModule('./utils/frontmatter.js'),
+  packageModule('./core/system-prompt.js'),
 ])
 
+export const buildSystemPromptSections = systemPrompt.buildSystemPromptSections
 export const calculateContextTokens = compaction.calculateContextTokens
 export const compact = compaction.compact
 export const estimateTokens = compaction.estimateTokens
@@ -126,6 +129,11 @@ export async function createEditTool(cwd, options) {
 export async function createWriteTool(cwd, options) {
   const runtime = await packageModule('./core/tools/write.js')
   return runtime.createWriteTool(cwd, options)
+}
+
+export async function createGrepTool(cwd, options) {
+  const runtime = await packageModule('./core/tools/grep.js')
+  return runtime.createGrepTool(cwd, options)
 }
 
 export async function createLsTool(cwd, options) {

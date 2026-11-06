@@ -27,6 +27,7 @@ import {
   getOfficialComputerUseExtensionPath,
 } from '../runtime/computer-use-extension.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { PISPER_OPENING } from '../prompts/pisper-system-prompt.mjs'
 
 const SKILLS_STATE_VERSION = 2
 const MAX_SKILL_SOURCE_CHARS = 2_000
@@ -626,6 +627,8 @@ export class SkillsService {
         this.applySkillOverrides(this.applyResourceMetadata(current, resources), {
           includeDisabled,
         }),
+      // 用户没配 SYSTEM.md 时用 Pisper 的开头：从会话创建起就不带 Pi 的工具清单和文档指引。
+      systemPromptOverride: (base) => base ?? PISPER_OPENING,
       ...(appendSystemPrompt
         ? { appendSystemPromptOverride: (base) => [...base, appendSystemPrompt] }
         : {}),

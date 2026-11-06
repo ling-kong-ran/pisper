@@ -218,7 +218,7 @@ export function agentProfileSummary(profile, selection = null) {
 // 限制直接取自本文件的常量，规则一改技能文字跟着变；不设 disable-model-invocation，模型按需自动加载。
 const AGENT_PROFILES_SKILL_MD = `---
 name: pisper-subagents
-description: 新建或修改 Pisper 子代理定义（.pisper/agents/*.md）：给不同任务指定模型档位、思考强度、工具范围和固定说明。用户要求定义、新增、调整子代理或给子代理换模型时先读这份说明。
+description: 新建或修改 Pisper 子代理定义（.pisper/agents/*.md：模型档位、思考强度、工具范围、固定说明）时先读。
 ---
 
 # Pisper 子代理定义

@@ -144,7 +144,6 @@ test('Pisper bash describes the PowerShell fallback instead of claiming Bash', a
 
   assert.match(tool.description, /system Windows PowerShell \(powershell\.exe\)/)
   assert.doesNotMatch(tool.description, /Execute a bash command/)
-  assert.equal(tool.promptSnippet, 'Execute commands with Windows PowerShell')
 })
 
 test(
