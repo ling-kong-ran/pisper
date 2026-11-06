@@ -14,9 +14,11 @@ import { useNativeBrowser } from './useNativeBrowser'
 export function BrowserPane({
   page,
   onChange,
+  onOpenNewTab,
 }: {
   page: ContextPage
-  onChange: (patch: { draft?: string; url?: string }) => void
+  onChange: (patch: { draft?: string; url?: string; title?: string }) => void
+  onOpenNewTab: (url: string) => void
 }) {
   const { t } = useI18n()
   const { draft, url } = page
@@ -28,6 +30,8 @@ export function BrowserPane({
     onNavigated: (next) => {
       if (next !== url) onChange(draft === url ? { url: next, draft: next } : { url: next })
     },
+    onTitle: (title) => onChange({ title }),
+    onNewWindow: onOpenNewTab,
   })
 
   return (

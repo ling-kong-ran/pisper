@@ -1,15 +1,26 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { normalizeWebPreviewInput, shouldOpenWebPreview } from '../../src/lib/web-preview.ts'
+import {
+  normalizeWebPreviewInput,
+  shouldOpenWebPreview,
+  webPreviewTabLabel,
+} from '../../src/lib/web-preview.ts'
 import { openWebPreviewInSessionContext } from '../../src/features/chat/session-web-preview.ts'
 import { useContextPagesStore } from '../../src/features/chat/session-context-pages-store.ts'
+import {
+  activeBrowserPage,
+  createContextPages,
+  MAX_CONTEXT_PAGES,
+  updateContextPages,
+} from '../../src/features/chat/session-context-pages.ts'
 import { previewSessionTarget } from '../../src/app/web-preview-target.ts'
 import {
   isOccluded,
   occlusionProbePoints,
   overlapsAny,
   placementChanged,
+  placementFromRect,
 } from '../../src/features/chat/native-browser-geometry.ts'
 import {
   EXIT_PRESENCE_FALLBACK_MS,
@@ -139,8 +150,9 @@ test('application routes external links into the session inspector web preview',
   assert.match(workspace, /\(page\.kind === 'browser' && page\.url !== previousPage\?\.url\)/)
   assert.match(workspace, /if \(changed\) reveal\(page\.kind\)/)
   assert.match(inspector, /if \(tab === 'preview'\) return 'browser'/)
+  assert.match(inspector, /<BrowserTabs key=\{sessionId\}/)
   assert.match(
-    inspector,
+    await readFile('src/features/chat/SessionBrowserTabs.tsx', 'utf8'),
     /<BrowserPane[\s\S]*?update\(sessionId, 'browser', \{ type: 'browser', id: page\.id, \.\.\.patch \}\)/,
   )
   // 检查器收起时整个面板不渲染：预览 iframe 只在“预览”标签可见时存在（取代 Dock 面板的可见性判断）。
@@ -205,28 +217,97 @@ test('link previews only target a live, unarchived session from the catalog cach
   assert.equal(previewSessionTarget('live', undefined), '')
 })
 
-test('session web preview reuses one browser page per session and moves it to the new address', () => {
+test('session web preview opens links in tabs without losing what is already open', () => {
+  const store = () => useContextPagesStore.getState()
   const browserPages = (sessionId) =>
-    (useContextPagesStore.getState().sessions[sessionId]?.pages || []).filter(
-      (page) => page.kind === 'browser',
-    )
+    (store().sessions[sessionId]?.pages || []).filter((page) => page.kind === 'browser')
   assert.equal(openWebPreviewInSessionContext('', 'https://example.com/'), false)
   assert.equal(openWebPreviewInSessionContext('preview-session', ''), false)
   try {
     assert.equal(openWebPreviewInSessionContext('preview-session', 'https://example.com/a'), true)
     const [first] = browserPages('preview-session')
     assert.equal(first.url, 'https://example.com/a')
-    assert.equal(useContextPagesStore.getState().sessions['preview-session'].activeId, first.id)
+    assert.equal(store().sessions['preview-session'].activeId, first.id)
+    // 新地址开新页签，原来的网页还在。
     assert.equal(openWebPreviewInSessionContext('preview-session', 'https://example.com/b'), true)
     const pages = browserPages('preview-session')
-    assert.equal(pages.length, 1)
-    assert.equal(pages[0].id, first.id)
-    assert.equal(pages[0].url, 'https://example.com/b')
+    assert.deepEqual(
+      pages.map((page) => page.url),
+      ['https://example.com/a', 'https://example.com/b'],
+    )
+    assert.equal(store().sessions['preview-session'].activeBrowserId, pages[1].id)
+    // 已经开着的地址切过去，不再多开。
+    assert.equal(openWebPreviewInSessionContext('preview-session', 'https://example.com/a'), true)
+    assert.equal(browserPages('preview-session').length, 2)
+    assert.equal(store().sessions['preview-session'].activeBrowserId, first.id)
+    // 当前是空白页签时直接用它。
+    store().update('preview-session', 'browser', { type: 'add', kind: 'browser' })
+    assert.equal(openWebPreviewInSessionContext('preview-session', 'https://example.com/c'), true)
+    assert.equal(browserPages('preview-session').length, 3)
+    assert.equal(browserPages('preview-session')[2].url, 'https://example.com/c')
     // 预览只落在发起的会话里，不影响其他会话的检查器。
     assert.equal(browserPages('other-session').length, 0)
+    // 开满后在当前页签打开，链接不能白点。
+    for (let index = 0; index < MAX_CONTEXT_PAGES; index++)
+      store().update('preview-session', 'browser', { type: 'add', kind: 'files' })
+    while (store().sessions['preview-session'].pages.length < MAX_CONTEXT_PAGES)
+      store().update('preview-session', 'browser', { type: 'add', kind: 'browser' })
+    const before = browserPages('preview-session').length
+    assert.equal(openWebPreviewInSessionContext('preview-session', 'https://example.com/d'), true)
+    assert.equal(browserPages('preview-session').length, before)
+    assert.ok(browserPages('preview-session').some((page) => page.url === 'https://example.com/d'))
   } finally {
-    useContextPagesStore.getState().forget('preview-session')
+    store().forget('preview-session')
   }
+})
+
+test('browser tabs have their own selection and closing one stays on a browser tab', () => {
+  let state = createContextPages('browser')
+  state = updateContextPages(state, { type: 'add', kind: 'files' })
+  state = updateContextPages(state, { type: 'add', kind: 'browser' })
+  state = updateContextPages(state, { type: 'add', kind: 'browser' })
+  assert.equal(activeBrowserPage(state).id, 'page-4')
+  // 切页签不碰“只显示内容”和当前页。
+  const hidden = updateContextPages(state, { type: 'workspace', contentOpen: false })
+  const switched = updateContextPages(hidden, { type: 'browser-tab', id: 'page-3' })
+  assert.equal(activeBrowserPage(switched).id, 'page-3')
+  assert.equal(switched.contentOpen, false)
+  assert.equal(switched.activeId, hidden.activeId)
+  // 别的种类不能被选成浏览器页签。
+  assert.equal(updateContextPages(state, { type: 'browser-tab', id: 'page-2' }), state)
+  // 关掉最右边的落到左边的浏览器页签，不落到中间的“文件”上，否则检查器会跳走。
+  state = updateContextPages(state, { type: 'close', id: 'page-4' })
+  assert.equal(state.activeId, 'page-3')
+  assert.equal(activeBrowserPage(state).id, 'page-3')
+  state = updateContextPages(state, { type: 'close', id: 'page-3' })
+  assert.equal(state.activeId, 'page-1')
+  assert.equal(activeBrowserPage(state).id, 'page-1')
+  // 换地址时旧标题作废；标题和地址同时给时以给的为准。
+  state = updateContextPages(state, { type: 'browser', id: 'page-1', title: 'Old' })
+  assert.equal(activeBrowserPage(state).title, 'Old')
+  state = updateContextPages(state, { type: 'browser', id: 'page-1', draft: 'typing' })
+  assert.equal(activeBrowserPage(state).title, 'Old')
+  state = updateContextPages(state, { type: 'browser', id: 'page-1', url: 'https://b.example/' })
+  assert.equal(activeBrowserPage(state).title, '')
+})
+
+test('browser tab labels fall back to the host or the previewed file', () => {
+  assert.equal(webPreviewTabLabel('https://github.com/login'), 'github.com')
+  assert.equal(webPreviewTabLabel('http://localhost:5173/'), 'localhost:5173')
+  assert.equal(
+    webPreviewTabLabel('http://127.0.0.1:1/_pisper/html-preview/token/%E6%8A%A5%E5%91%8A.html'),
+    '报告.html',
+  )
+  assert.equal(webPreviewTabLabel('not a url'), 'not a url')
+})
+
+test('a hidden browser tab keeps its size so the page does not lay out at zero width', () => {
+  const rect = { left: 10, top: 20, width: 300, height: 200 }
+  const shown = placementFromRect(null, rect, false)
+  assert.deepEqual(shown, { bounds: { x: 10, y: 20, width: 300, height: 200 }, visible: true })
+  const hidden = placementFromRect(shown, { left: 0, top: 0, width: 0, height: 0 }, false)
+  assert.deepEqual(hidden, { bounds: shown.bounds, visible: false })
+  assert.deepEqual(placementFromRect(shown, rect, true), { bounds: shown.bounds, visible: false })
 })
 
 test('the native browser follows its slot and gets out of the way of overlays', () => {
@@ -295,6 +376,9 @@ test('the native browser stays isolated from the app and leaves the main window 
       new RegExp(`pub async fn desktop_browser_${command}\\([\\s\\S]*?ensure_main\\(&window\\)\\?`),
     )
   }
+  // 新窗口开成新页签，不让系统另开一个窗口。
+  assert.match(browser, /BrowserEvent::NewWindow \{ url: target \}/)
+  assert.match(browser, /NewWindowResponse::Deny/)
   // 不支持时明确退回 iframe，不留空白。
   assert.match(browser, /status: "unsupported"/)
   assert.match(pane, /native\.active \?[\s\S]*: url \?[\s\S]*<WebPreview/)
