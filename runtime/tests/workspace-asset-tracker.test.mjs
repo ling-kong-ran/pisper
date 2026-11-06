@@ -291,6 +291,62 @@ test('only files the agent created reach the reply next to a git update', async 
   assert.equal(f.archived.length, 3)
 })
 
+test('files the agent creates and then stages or commits still reach the reply', async (t) => {
+  const f = await fixture(t)
+  await repositoryWithUpdate(f.cwd)
+  await f.run('staged', async () => {
+    await writeFile(join(f.cwd, 'staged.txt'), 'staged output')
+    await git(f.cwd, 'add', 'staged.txt')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('staged')).map((asset) => asset.content),
+    ['staged output'],
+  )
+  await f.run('committed', async () => {
+    await writeFile(join(f.cwd, 'committed.txt'), 'committed output')
+    await git(f.cwd, 'add', 'committed.txt')
+    await git(f.cwd, 'commit', '-q', '-m', 'add output')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('committed')).map((asset) => asset.content),
+    ['committed output'],
+  )
+})
+
+test('a repository without commits does not hide staged files', async (t) => {
+  const f = await fixture(t)
+  await git(f.cwd, 'init', '-q')
+  await f.run('fresh', async () => {
+    await writeFile(join(f.cwd, 'first.txt'), 'first output')
+    await git(f.cwd, 'add', 'first.txt')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('fresh')).map((asset) => asset.content),
+    ['first output'],
+  )
+})
+
+test('a merge stopped by a conflict does not attribute incoming files to the agent', async (t) => {
+  const f = await fixture(t)
+  await repositoryWithUpdate(f.cwd)
+  await writeFile(join(f.cwd, 'tracked.txt'), 'conflicting change')
+  await git(f.cwd, 'commit', '-q', '-am', 'local change')
+  await f.run('merge', () =>
+    assert.rejects(git(f.cwd, 'merge', '-q', '--no-edit', '--no-ff', 'update')),
+  )
+  await assert.doesNotReject(readFile(join(f.cwd, 'docs', 'added.md')))
+  assert.deepEqual(await f.tracker.drain('merge'), [])
+  assert.ok(f.archived.length > 0)
+})
+
+test('restoring deleted tracked files is not attributed to the agent', async (t) => {
+  const f = await fixture(t)
+  await repositoryWithUpdate(f.cwd)
+  await rm(join(f.cwd, 'tracked.txt'))
+  await f.run('restore', () => git(f.cwd, 'checkout', '--', 'tracked.txt'))
+  assert.deepEqual(await f.tracker.drain('restore'), [])
+})
+
 test('a broken git repository does not hide created files', async (t) => {
   const f = await fixture(t)
   await mkdir(join(f.cwd, '.git'))
@@ -451,10 +507,15 @@ test('a real agent turn shows only what the agent produced, live and after a rel
   // 从历史重建时，产物要挂回产生它的那一轮，而不是上一条回复。
   assert.deepEqual(await namesPerReply(), [['report.txt'], ['notes.md']])
 
+  // 删掉后重建的文件挂到新的一轮，之前那轮保持原样；刷新后也一样。
+  await rm(join(workspace, 'notes.md'))
+  assert.deepEqual(await turn('新建文件'), { streamed: ['notes.md'], done: ['notes.md'] })
+  assert.deepEqual(await namesPerReply(), [['report.txt'], ['notes.md'], ['notes.md']])
+
   // edit 改已有文件不进回复，但仍能在“改动”面板里查看并撤销。
   assert.deepEqual(await turn('改文件'), { streamed: [], done: [] })
   assert.equal(await readFile(join(workspace, 'tracked.txt'), 'utf8'), 'v3')
-  assert.deepEqual(await attachedNames(), ['notes.md', 'report.txt'])
+  assert.deepEqual(await attachedNames(), ['notes.md', 'notes.md', 'report.txt'])
   const changes = await runtime.getSessionFileChanges(created.id)
   assert.equal(changes.files.find((file) => file.path === 'tracked.txt')?.canRevert, true)
   assert.equal((await runtime.revertSessionFileChanges(created.id, 'tracked.txt')).reverted, 1)
@@ -464,12 +525,12 @@ test('a real agent turn shows only what the agent produced, live and after a rel
   const chart = join(root, 'chart.png')
   await writeFile(chart, 'image')
   await runtime.recordGeneratedFile(created.id, { name: '产物' }, chart)
-  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'report.txt'])
+  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'notes.md', 'report.txt'])
 
   // 重开运行时等同于刷新后从磁盘重建：隐藏标记必须落盘，资产页则保留全部文件。
   await runtime.dispose()
   runtime = await start()
-  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'report.txt'])
+  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'notes.md', 'report.txt'])
   assert.deepEqual(
     (await runtime.listAssets({ sessionId: created.id })).map((a) => a.name).sort(),
     ['added.md', 'chart.png', 'notes.md', 'promo.mp4', 'report.txt', 'tracked.txt'],

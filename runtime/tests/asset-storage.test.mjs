@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+import { promisify } from 'node:util'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   archiveGeneratedAsset,
@@ -11,6 +13,8 @@ import {
   reconcileAssetIndex,
 } from '../services/asset-storage.mjs'
 import { archivePreviewImagePart } from '../runtime/tool-preview-images.mjs'
+
+const execFileAsync = promisify(execFile)
 
 const PNG = Buffer.from(
   '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082',
@@ -413,7 +417,7 @@ test('non-media workspace file changes stay in generated assets after history re
   assert.equal(generated[0].name, 'app.ts')
 })
 
-test('a file the agent recreates loses its hidden-from-reply mark', async (t) => {
+test('a file produced again shows on the new turn and keeps the old turn as it was', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'pisper-asset-hidden-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const filePath = join(root, 'report.txt')
@@ -429,11 +433,17 @@ test('a file the agent recreates loses its hidden-from-reply mark', async (t) =>
       sessionName: 'session',
       hiddenInReply,
     })
-  assert.equal((await archive(true)).hiddenInReply, true)
-  assert.equal((await archive(true)).hiddenInReply, true)
-  assert.equal((await archive(false)).hiddenInReply, undefined)
-  assert.equal((await archive(true)).hiddenInReply, undefined)
+  await archive(true)
+  await archive(true)
   assert.equal(assets.length, 1)
+  const visible = () =>
+    generatedAssetsForSession(assets, 'session').filter((asset) => !asset.hiddenInReply)
+  assert.equal(visible().length, 0)
+  await archive(false)
+  assert.equal(assets.length, 1)
+  assert.equal(assets[0].hiddenInReply, true)
+  assert.equal(visible().length, 1)
+  assert.notEqual(visible()[0].created, undefined)
 })
 
 test('tool preview images stay out of replies, also when their content already exists', async (t) => {
@@ -453,4 +463,58 @@ test('tool preview images stay out of replies, also when their content already e
     assert.ok(generated.length > 0)
     assert.ok(generated.every((asset) => asset.hiddenInReply))
   }
+})
+
+test('legacy assets are hidden once when git tracks them or they are tool previews', async (t) => {
+  const { dataDir, workspace, runtime } = await createFixture(t)
+  const repository = await realpath(workspace)
+  const git = (...args) => execFileAsync('git', args, { cwd: repository })
+  await git('init', '-q')
+  await writeFile(join(repository, 'tracked.md'), 'tracked')
+  await writeFile(join(repository, 'generated.md'), 'generated')
+  await git('add', 'tracked.md')
+  await git('-c', 'user.name=P', '-c', 'user.email=p@example.invalid', 'commit', '-q', '-m', 'v1')
+  const previewPath = join(dataDir, 'pisper-assets', 'read.png')
+  await writeFile(previewPath, PNG)
+  const fileAsset = (id, name) => ({
+    id,
+    kind: 'file',
+    name,
+    mimeType: 'text/markdown',
+    size: 1,
+    filePath: join(repository, name),
+    source: 'agent',
+    sessionId: 'session',
+    created: new Date(2000).toISOString(),
+  })
+  runtime.assetIndex = {
+    assets: [
+      fileAsset('tracked', 'tracked.md'),
+      fileAsset('generated', 'generated.md'),
+      {
+        id: 'preview',
+        kind: 'image',
+        name: 'read.png',
+        mimeType: 'image/png',
+        size: PNG.length,
+        storagePath: previewPath,
+        source: 'agent',
+        sessionId: 'session',
+        created: new Date(2000).toISOString(),
+      },
+    ],
+  }
+  await runtime.startAssetReconciliation()
+  await runtime.assetWrite
+  const hidden = () =>
+    Object.fromEntries(runtime.assetIndex.assets.map((asset) => [asset.id, asset.hiddenInReply]))
+  assert.deepEqual(hidden(), { tracked: true, generated: undefined, preview: true })
+  const saved = JSON.parse(await readFile(join(dataDir, 'pisper-assets.json'), 'utf8'))
+  assert.equal(saved.replyVisibilityVersion, 1)
+  assert.equal(saved.assets.find((asset) => asset.id === 'tracked').hiddenInReply, true)
+
+  // 迁移只跑一次：之后被 git 跟踪的文件不再回头隐藏。
+  await git('add', 'generated.md')
+  await runtime.startAssetReconciliation()
+  assert.equal(hidden().generated, undefined)
 })

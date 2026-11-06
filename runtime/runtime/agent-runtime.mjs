@@ -103,6 +103,7 @@ import {
 } from './workspace-directories.mjs'
 import { projectlessChatsRoot } from './projectless-chats.mjs'
 import { assetMessageAttachment, attachmentIdentity } from '../services/session-assets.mjs'
+import { hideLegacyReplyAssets } from '../services/workspace-asset-capture.mjs'
 import { dedupeAssetsForDisplay } from '../services/asset-storage.mjs'
 import * as assetStorage from '../services/asset-storage.mjs'
 import {
@@ -220,6 +221,8 @@ import { BotLinkService } from '../services/bots/bot-links.mjs'
 import { BotProactiveStore } from '../services/bots/bot-proactive.mjs'
 import { EnvironmentService } from '../services/bots/environment-service.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
+// 资产索引里回复可见性标记的版本：低于它的索引启动时迁移一次。
+const REPLY_VISIBILITY_VERSION = 1
 // 附件文本/文档提取后的最大字符数，防止超大文件撑爆上下文。
 const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
@@ -1512,6 +1515,14 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return this.assetWrite
   }
 
+  // 只迁移一次：之后的资产在归档时就带上了标记。放在对账之后，要动资产的操作都会等它完成。
+  async migrateLegacyReplyAssets() {
+    if (this.assetIndex.replyVisibilityVersion >= REPLY_VISIBILITY_VERSION) return
+    await hideLegacyReplyAssets(this.assetIndex.assets)
+    this.assetIndex.replyVisibilityVersion = REPLY_VISIBILITY_VERSION
+    await this.saveAssetIndex()
+  }
+
   // 启动时对账资产索引：删除磁盘上已不存在的孤儿资产记录。
   startAssetReconciliation() {
     this.assetReconcile = Promise.resolve()
@@ -1525,6 +1536,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             await this.saveAssetIndex()
           },
         })
+      })
+      .then(async (changed) => {
+        // 迁移失败只是旧回复多显示一些附件，不影响对账结果；下次启动再试。
+        await this.migrateLegacyReplyAssets().catch(() => {})
+        return changed
       })
       .catch(() => false)
     return this.assetReconcile

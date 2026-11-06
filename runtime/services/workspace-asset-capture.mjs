@@ -155,6 +155,124 @@ export async function workspaceAssetFile(path) {
   }
 }
 
+const queryGit = (repository, ...args) =>
+  runGit(repository, ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args], {
+    timeout: GIT_QUERY_TIMEOUT_MS,
+  })
+
+const nulSeparated = (result) => new Set(result.ok ? result.stdout.split('\0').filter(Boolean) : [])
+
+// 工作区可能只是仓库的子目录，也可能含嵌套仓库（clone、子模块），因此按文件逐级向上找。
+async function gitRepositoryRoot(path, cache) {
+  const directory = dirname(path)
+  if (cache.has(directory)) return cache.get(directory)
+  const parent = dirname(directory)
+  let repository = null
+  if (await lstat(join(directory, '.git')).catch(() => null)) repository = directory
+  else if (parent !== directory) repository = await gitRepositoryRoot(directory, cache)
+  cache.set(directory, repository)
+  return repository
+}
+
+const gitHead = async (repository) => {
+  const result = await queryGit(repository, 'rev-parse', '-q', '--verify', 'HEAD')
+  return result.ok ? result.stdout.trim() : ''
+}
+
+// HEAD 自基线以来只因本地 commit 前进：提交里的新文件是这条命令自己写的，不是拉下来的。
+// 没有基线（新出现的嵌套仓库）时看全部记录，clone 留下的记录会让它不成立。
+async function onlyLocalCommitsSince(repository, baselineHead) {
+  const reflog = await queryGit(repository, 'log', '-g', '-n', '500', '--format=%H%x00%gs', 'HEAD')
+  if (!reflog.ok) return false
+  let entries = 0
+  for (const line of reflog.stdout.split('\n').filter(Boolean)) {
+    const [hash, subject = ''] = line.split('\0')
+    if (baselineHead && hash === baselineHead) return entries > 0
+    if (!subject.startsWith('commit')) return false
+    entries += 1
+  }
+  return !baselineHead && entries > 0
+}
+
+// 合并、变基、拣选停在半路时，带进来的新文件已暂存但不在 HEAD 里，要和 Agent 自己 git add 的区分开。
+async function gitIntegrationInProgress(repository) {
+  const names = ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'REBASE_HEAD', 'SQUASH_MSG']
+  const paths = await queryGit(
+    repository,
+    'rev-parse',
+    ...names.flatMap((name) => ['--git-path', name]),
+  )
+  if (!paths.ok) return false
+  const found = await Promise.all(
+    paths.stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((path) => lstat(resolve(repository, path)).catch(() => null)),
+  )
+  return found.some(Boolean)
+}
+
+// 查询失败（如没装 git）时都算不是：宁可多显示，也不漏掉 Agent 新建的文件。
+async function gitArrivalCheck(repository, baselineHead) {
+  const [tracked, committed, head] = await Promise.all([
+    queryGit(repository, 'ls-files', '-z').then(nulSeparated),
+    queryGit(repository, 'ls-tree', '-r', '-z', '--name-only', 'HEAD').then(nulSeparated),
+    gitHead(repository),
+  ])
+  const integrating = await gitIntegrationInProgress(repository)
+  const localCommits =
+    Boolean(head) &&
+    head !== baselineHead &&
+    (await onlyLocalCommitsSince(repository, baselineHead))
+  return (path) => tracked.has(path) && (committed.has(path) ? !localCommits : integrating)
+}
+
+// pull、切分支、clone 带来的新文件是更新代码，不算 Agent 新建；它自己写完再 git add 或提交的仍然算。
+async function withGitArrivalsNotAdded(files, baseline) {
+  const roots = new Map()
+  const checks = new Map()
+  for (const file of files) {
+    if (!file.added) continue
+    const repository = await gitRepositoryRoot(file.path, roots)
+    if (!repository) continue
+    if (!checks.has(repository)) {
+      const baselineHead = repository === baseline.repository ? baseline.head : ''
+      checks.set(repository, await gitArrivalCheck(repository, baselineHead))
+    }
+    file.added = !checks.get(repository)(relative(repository, file.path).split(sep).join('/'))
+  }
+  return files
+}
+
+// 升级前的旧资产没有隐藏标记，也无从得知当时是否新建。能确认的只有两类：
+// 已被 git 跟踪的文件（更新代码或改已有文件留下的）和没有文件路径的工具预览图。
+// 查询失败或不在仓库里的文件保持原样，返回是否有改动。
+export async function hideLegacyReplyAssets(assets) {
+  const roots = new Map()
+  const tracked = new Map()
+  let changed = false
+  for (const asset of assets) {
+    if (!asset.filePath) {
+      for (const item of [asset, ...(asset.references || [])]) {
+        if (item.source !== 'agent' || item.hiddenInReply) continue
+        item.hiddenInReply = true
+        changed = true
+      }
+      continue
+    }
+    if (asset.source !== 'agent' || asset.hiddenInReply) continue
+    const path = resolve(asset.filePath)
+    const repository = await gitRepositoryRoot(path, roots)
+    if (!repository) continue
+    if (!tracked.has(repository))
+      tracked.set(repository, nulSeparated(await queryGit(repository, 'ls-files', '-z')))
+    if (!tracked.get(repository).has(relative(repository, path).split(sep).join('/'))) continue
+    asset.hiddenInReply = true
+    changed = true
+  }
+  return changed
+}
+
 // 基线不完整时返回 null，防止把无法确认的新旧文件整批误收进资产页。
 export async function captureWorkspaceAssetBaseline(cwd, { exclude = [] } = {}) {
   // 根路径与排除目录统一为真实路径，防止经 symlink/junction 把运行时数据当产物。
@@ -164,7 +282,17 @@ export async function captureWorkspaceAssetBaseline(cwd, { exclude = [] } = {}) 
   const info = await stat(root).catch(() => null)
   if (!info?.isDirectory()) return null
   const files = await scanWorkspace(root, exclude)
-  return files ? { root, files: new Set(files.keys()), entries: files, exclude } : null
+  if (!files) return null
+  // 只记工作区所在仓库的 HEAD：判断这条命令是本地提交还是更新代码时要用。
+  const repository = await gitRepositoryRoot(join(root, 'file'), new Map())
+  return {
+    root,
+    files: new Set(files.keys()),
+    entries: files,
+    exclude,
+    repository,
+    head: repository ? await gitHead(repository) : '',
+  }
 }
 
 export async function listNewWorkspaceAssets(baseline) {
@@ -180,42 +308,6 @@ export async function listNewWorkspaceAssets(baseline) {
     )
 }
 
-// 工作区可能只是仓库的子目录，也可能含嵌套仓库（clone、子模块），因此按文件逐级向上找。
-async function gitRepositoryRoot(path, cache) {
-  const directory = dirname(path)
-  if (cache.has(directory)) return cache.get(directory)
-  const parent = dirname(directory)
-  let repository = null
-  if (await lstat(join(directory, '.git')).catch(() => null)) repository = directory
-  else if (parent !== directory) repository = await gitRepositoryRoot(directory, cache)
-  cache.set(directory, repository)
-  return repository
-}
-
-// 查询失败（如没装 git）时返回空集：宁可多显示，也不漏掉 Agent 新建的文件。
-async function gitTrackedFiles(repository) {
-  const result = await runGit(
-    repository,
-    ['--no-optional-locks', '-c', 'core.fsmonitor=false', 'ls-files', '-z'],
-    { timeout: GIT_QUERY_TIMEOUT_MS },
-  )
-  return new Set(result.ok ? result.stdout.split('\0').filter(Boolean) : [])
-}
-
-// pull、切分支、clone 带来的新文件已被 git 跟踪，是更新代码，不算 Agent 新建。
-async function withGitArrivalsNotAdded(files) {
-  const roots = new Map()
-  const tracked = new Map()
-  for (const file of files) {
-    if (!file.added) continue
-    const repository = await gitRepositoryRoot(file.path, roots)
-    if (!repository) continue
-    if (!tracked.has(repository)) tracked.set(repository, await gitTrackedFiles(repository))
-    file.added = !tracked.get(repository).has(relative(repository, file.path).split(sep).join('/'))
-  }
-  return files
-}
-
 export async function listChangedWorkspaceAssets(baseline) {
   if (!baseline?.entries) return []
   const current = await scanWorkspace(baseline.root, baseline.exclude)
@@ -224,5 +316,6 @@ export async function listChangedWorkspaceAssets(baseline) {
     [...current.entries()]
       .filter(([key, file]) => baseline.entries.get(key)?.version !== file.version)
       .map(([key, file]) => ({ ...file, added: !baseline.entries.has(key) })),
+    baseline,
   )
 }

@@ -96,7 +96,8 @@ export function addAssetReference(asset, input) {
     created: String(input.created || new Date().toISOString()),
   }
   if (input.filePath) reference.filePath = resolve(input.filePath)
-  if (input.hiddenInReply) reference.hiddenInReply = true
+  // 引用展开时会盖在资产字段上：明确写 false 才能让重建的文件不继承资产上的隐藏标记。
+  if (input.hiddenInReply !== undefined) reference.hiddenInReply = Boolean(input.hiddenInReply)
   if (!Array.isArray(asset.references)) asset.references = []
   asset.references.push(reference)
   return reference
@@ -234,8 +235,20 @@ export async function archiveGeneratedAsset({
   const duplicate = findAssetByFilePath(assets, sourcePath)
   if (duplicate) {
     const existing = assets.find((asset) => asset.id === duplicate.id) || duplicate
-    // 删掉后被 Agent 重新创建的文件是新产物，不能沿用之前的隐藏标记。
-    if (!hiddenInReply) delete existing.hiddenInReply
+    // 再次产出（如删掉后重建）记一条新引用：挂到这一轮的回复上，之前那一轮保持原样。
+    if (!hiddenInReply)
+      addAssetReference(existing, {
+        source: 'agent',
+        sessionId,
+        sessionName,
+        name: basename(sourcePath),
+        kind,
+        mimeType,
+        size: fileInfo.size,
+        created: now,
+        filePath: sourcePath,
+        hiddenInReply: false,
+      })
     return existing
   }
   const id = randomUUID()
