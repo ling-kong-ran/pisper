@@ -43,9 +43,9 @@ import { useContextPagesStore } from './session-context-pages-store'
 import { openSessionSideChat } from './session-header-menu'
 import {
   SESSION_CONVERSATION_MIN_WIDTH,
-  SESSION_INSPECTOR_DEFAULT_WIDTH,
   SESSION_INSPECTOR_MIN_WIDTH,
   SESSION_INSPECTOR_OVERLAY_WIDTH,
+  clampInspectorWidth,
   inspectorDisplayWidth,
   useSessionInspectorStore,
   type SessionInspectorTab,
@@ -179,8 +179,10 @@ export function SessionWorkspace({
   const asideOpen = useSessionInspectorStore((state) => state.open)
   const pinned = useSessionInspectorStore((state) => state.pinned)
   const setAsideOpen = useSessionInspectorStore((state) => state.setOpen)
+  const preferredPercent = useSessionInspectorStore((state) => state.widthPercent)
   const preferredWidth = useSessionInspectorStore((state) => state.width)
   const setWidth = useSessionInspectorStore((state) => state.setWidth)
+  const resetWidth = useSessionInspectorStore((state) => state.resetWidth)
   // 覆盖层每次进入紧凑形态都从关闭开始（规格：≤1279 时默认关闭），不写进持久化偏好。
   const [overlayOpen, setOverlayOpen] = useState(false)
   useEffect(() => {
@@ -204,7 +206,10 @@ export function SessionWorkspace({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  const displayWidth = inspectorDisplayWidth(preferredWidth, width || preferredWidth + 800)
+  const displayWidth = inspectorDisplayWidth(
+    { widthPercent: preferredPercent, width: preferredWidth },
+    width || window.innerWidth,
+  )
   // 覆盖层从会话顶栏下方开始：标题菜单、⑂ 与改动按钮始终可点。
   const [headerHeight, setHeaderHeight] = useState(0)
   useLayoutEffect(() => {
@@ -381,7 +386,7 @@ export function SessionWorkspace({
     const startX = event.clientX
     const startWidth = displayWidth
     const move = (next: PointerEvent) =>
-      setWidth(inspectorDisplayWidth(startWidth - (next.clientX - startX), width))
+      setWidth(clampInspectorWidth(startWidth - (next.clientX - startX), width), width)
     const finish = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
@@ -511,23 +516,24 @@ export function SessionWorkspace({
                 title={t('chat:sessionContext.resizeHint')}
                 aria-controls={panelId}
                 aria-valuemin={SESSION_INSPECTOR_MIN_WIDTH}
-                aria-valuemax={inspectorDisplayWidth(Number.POSITIVE_INFINITY, width)}
+                aria-valuemax={clampInspectorWidth(Number.POSITIVE_INFINITY, width)}
                 aria-valuenow={displayWidth}
                 onPointerDown={beginResize}
-                onDoubleClick={() => setWidth(SESSION_INSPECTOR_DEFAULT_WIDTH)}
+                onDoubleClick={resetWidth}
                 onKeyDown={(event) => {
                   if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(event.key)) return
                   event.preventDefault()
                   if (event.key === 'Enter') {
-                    setWidth(SESSION_INSPECTOR_DEFAULT_WIDTH)
+                    resetWidth()
                     return
                   }
                   const step = event.shiftKey ? 64 : 16
                   setWidth(
-                    inspectorDisplayWidth(
+                    clampInspectorWidth(
                       displayWidth + (event.key === 'ArrowLeft' ? step : -step),
                       width,
                     ),
+                    width,
                   )
                 }}
                 className="relative -mr-1 w-2 shrink-0 cursor-col-resize touch-none select-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-stroke-soft after:transition-colors after:duration-(--d-fast) hover:after:w-[3px] hover:after:-translate-x-px hover:after:bg-focus focus-visible:after:w-[3px] focus-visible:after:bg-focus"
