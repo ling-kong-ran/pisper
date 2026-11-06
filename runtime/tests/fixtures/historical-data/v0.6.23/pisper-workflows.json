@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "workflows": [
+    {
+      "id": "8a39e88d-6281-459a-8d5e-cc6705d18ec1",
+      "name": "旧工作流",
+      "description": "",
+      "status": "draft",
+      "revision": 1,
+      "cwd": "/home/fixture",
+      "model": null,
+      "inputs": [],
+      "tags": [],
+      "visibility": "private",
+      "notifications": [],
+      "nodes": [],
+      "edges": [],
+      "createdAt": "2026-11-06T10:18:49.961Z",
+      "updatedAt": "2026-11-06T10:18:49.961Z",
+      "publishedAt": null,
+      "lastRunAt": null,
+      "lastStatus": "idle",
+      "lastSummary": "",
+      "lastError": ""
+    }
+  ],
+  "runs": []
+}

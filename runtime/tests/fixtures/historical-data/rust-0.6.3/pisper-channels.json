@@ -1,0 +1,132 @@
+{
+  "version": 5,
+  "connections": {
+    "feishu": null,
+    "weixin": null,
+    "qq": null,
+    "telegram": null
+  },
+  "scopes": {},
+  "templates": {
+    "chat.completed": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}"
+        },
+        "weixin": {
+          "content": "💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}"
+        },
+        "qq": {
+          "content": "💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}"
+        },
+        "telegram": {
+          "content": "💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}"
+        },
+        "browser": {
+          "content": "💬 对话「{{chat.title}}」已完成\n\n{{chat.summary}}\n\n模型：{{chat.model}}"
+        }
+      }
+    },
+    "chat.waiting": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}"
+        },
+        "weixin": {
+          "content": "⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}"
+        },
+        "qq": {
+          "content": "⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}"
+        },
+        "telegram": {
+          "content": "⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}"
+        },
+        "browser": {
+          "content": "⏸️ 对话「{{chat.title}}」正在等待你的确认\n\n操作：{{chat.tool}}\n原因：{{chat.reason}}\n\n模型：{{chat.model}}"
+        }
+      }
+    },
+    "schedule.completed": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "✅ 定时任务「{{task.name}}」已完成\n\n{{task.summary}}\n\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "weixin": {
+          "content": "✅ 定时任务「{{task.name}}」已完成\n\n{{task.summary}}\n\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "qq": {
+          "content": "✅ 定时任务「{{task.name}}」已完成\n\n{{task.summary}}\n\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "telegram": {
+          "content": "✅ 定时任务「{{task.name}}」已完成\n\n{{task.summary}}\n\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "browser": {
+          "content": "✅ 定时任务「{{task.name}}」已完成\n\n{{task.summary}}\n\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        }
+      }
+    },
+    "schedule.failed": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "❌ 定时任务「{{task.name}}」执行失败\n\n错误：{{task.error}}\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "weixin": {
+          "content": "❌ 定时任务「{{task.name}}」执行失败\n\n错误：{{task.error}}\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "qq": {
+          "content": "❌ 定时任务「{{task.name}}」执行失败\n\n错误：{{task.error}}\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "telegram": {
+          "content": "❌ 定时任务「{{task.name}}」执行失败\n\n错误：{{task.error}}\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        },
+        "browser": {
+          "content": "❌ 定时任务「{{task.name}}」执行失败\n\n错误：{{task.error}}\n耗时：{{task.duration}}\n下次运行：{{task.nextRun}}"
+        }
+      }
+    },
+    "workflow.completed": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "✅ 工作流「{{workflow.name}}」已完成\n\n{{workflow.summary}}\n\n耗时：{{workflow.duration}}\n运行 ID：{{workflow.runId}}"
+        },
+        "weixin": {
+          "content": "✅ 工作流「{{workflow.name}}」已完成\n\n{{workflow.summary}}\n\n耗时：{{workflow.duration}}\n运行 ID：{{workflow.runId}}"
+        },
+        "qq": {
+          "content": "✅ 工作流「{{workflow.name}}」已完成\n\n{{workflow.summary}}\n\n耗时：{{workflow.duration}}\n运行 ID：{{workflow.runId}}"
+        },
+        "telegram": {
+          "content": "✅ 工作流「{{workflow.name}}」已完成\n\n{{workflow.summary}}\n\n耗时：{{workflow.duration}}\n运行 ID：{{workflow.runId}}"
+        },
+        "browser": {
+          "content": "✅ 工作流「{{workflow.name}}」已完成\n\n{{workflow.summary}}\n\n耗时：{{workflow.duration}}\n运行 ID：{{workflow.runId}}"
+        }
+      }
+    },
+    "workflow.failed": {
+      "enabled": true,
+      "channels": {
+        "feishu": {
+          "content": "❌ 工作流「{{workflow.name}}」执行失败\n\n节点：{{workflow.node}}\n错误：{{workflow.error}}\n运行 ID：{{workflow.runId}}"
+        },
+        "weixin": {
+          "content": "❌ 工作流「{{workflow.name}}」执行失败\n\n节点：{{workflow.node}}\n错误：{{workflow.error}}\n运行 ID：{{workflow.runId}}"
+        },
+        "qq": {
+          "content": "❌ 工作流「{{workflow.name}}」执行失败\n\n节点：{{workflow.node}}\n错误：{{workflow.error}}\n运行 ID：{{workflow.runId}}"
+        },
+        "telegram": {
+          "content": "❌ 工作流「{{workflow.name}}」执行失败\n\n节点：{{workflow.node}}\n错误：{{workflow.error}}\n运行 ID：{{workflow.runId}}"
+        },
+        "browser": {
+          "content": "❌ 工作流「{{workflow.name}}」执行失败\n\n节点：{{workflow.node}}\n错误：{{workflow.error}}\n运行 ID：{{workflow.runId}}"
+        }
+      }
+    }
+  }
+}

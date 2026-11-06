@@ -1,0 +1,6 @@
+{"type":"session","version":3,"id":"01a1b05d-e8a4-77a2-bf19-efb9e402f439","timestamp":"2026-11-06T10:18:27.640Z","cwd":"/home/fixture/project"}
+{"type":"session_info","id":"8e1349c2","parentId":null,"timestamp":"2026-11-06T10:18:27.640Z","name":"旧会话"}
+{"type":"model_change","id":"28f0faf2","parentId":"8e1349c2","timestamp":"2026-11-06T10:18:27.658Z","provider":"old-provider","modelId":"fake-model"}
+{"type":"thinking_level_change","id":"c7885fd3","parentId":"28f0faf2","timestamp":"2026-11-06T10:18:27.658Z","thinkingLevel":"medium"}
+{"type":"message","id":"7b9f514a","parentId":"c7885fd3","timestamp":"2026-11-06T10:18:27.695Z","message":{"role":"user","content":[{"type":"text","text":"记一下我们用 pnpm"}],"timestamp":1793960307691}}
+{"type":"message","id":"535be66c","parentId":"7b9f514a","timestamp":"2026-11-06T10:18:27.797Z","message":{"role":"assistant","content":[{"type":"text","text":"好的，记下了。"}],"api":"openai-completions","provider":"old-provider","model":"fake-model","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1793960307780,"responseId":"x"}}

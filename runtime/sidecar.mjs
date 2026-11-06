@@ -52,6 +52,17 @@ async function shutdown(code = 0) {
   }
 }
 
+// 未捕获异常/拒绝必须记录并带错误码退出，避免 sidecar 处于“半死”状态被桌面误认为健康。
+// 放在最前面：READY 之前出的错也要留下记录，否则用户只能看到“无法启动”。
+process.on('uncaughtException', (error) => {
+  console.error(error)
+  void shutdown(1)
+})
+process.on('unhandledRejection', (error) => {
+  console.error(error)
+  void shutdown(1)
+})
+
 // deferRuntimeInitialization 让 HTTP 先监听、运行时后初始化：WebView 可以尽早拿到 READY 消息；
 // 运行时的真实初始化进度通过 initialized Promise 上报，失败时整体退出。
 pisper = await createPisperRuntime({
@@ -84,7 +95,9 @@ process.stdout.write(
 void pisper.initialized.catch((error) => {
   reportStartupStage('failed')
   console.error('Pisper sidecar runtime initialization failed.', error)
-  void shutdown(1)
+  // 桌面窗口已经打开，退出只会留下一个死窗口：留着 HTTP，让页面从 /api/startup-status 读到原因。
+  // PISPER_IROH_STATUS_FILE 只有桌面壳会传；TUI 靠退出码和 stderr 判断失败，仍然退出。
+  if (!process.env.PISPER_IROH_STATUS_FILE) void shutdown(1)
 })
 
 // 父进程可通过 stdin 发送 `shutdown` 命令，或关闭 stdin 触发退出（stdin 关闭即父进程消失）。
@@ -109,12 +122,3 @@ if (Number.isInteger(parentPid) && parentPid > 0) {
 
 process.on('SIGINT', () => void shutdown(0))
 process.on('SIGTERM', () => void shutdown(0))
-// 未捕获异常/拒绝必须记录并带错误码退出，避免 sidecar 处于“半死”状态被桌面误认为健康。
-process.on('uncaughtException', (error) => {
-  console.error(error)
-  void shutdown(1)
-})
-process.on('unhandledRejection', (error) => {
-  console.error(error)
-  void shutdown(1)
-})

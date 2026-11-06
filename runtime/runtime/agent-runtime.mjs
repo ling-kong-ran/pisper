@@ -27,6 +27,7 @@ import {
 } from './prompt-cache-diagnostics.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { cleanupRemovedLocalEmbeddingData } from '../data-dir-migration.mjs'
+import { checkDataFiles } from '../services/startup-data-check.mjs'
 import { ChannelService } from '../services/channels/channel-service.mjs'
 import { NotificationSettingsService } from '../services/notification-settings-service.mjs'
 import { McpService } from '../services/mcp-service.mjs'
@@ -936,70 +937,134 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   async init(options = {}) {
     const startup = prepareRuntimeInitialization(this, options)
-    const { stage } = startup
+    const { stage, attempt } = startup
 
     stage('filesystem')
-    // 先建目录与清理旧数据，保证后续文件读写路径都存在。
-    await mkdir(this.sessionDir, { recursive: true })
-    await mkdir(this.assetsDir, { recursive: true })
-    await this.spriteEngines.init()
-    await this.workflowMedia.init()
-    await cleanupRemovedLocalEmbeddingData(this.dataDir)
+    // 先把读不了的数据文件挪开：后面每个服务读到的都是能解析的内容。
+    await attempt('dataCheck', async () => {
+      this.startupReport.setAside.push(...(await checkDataFiles(this.dataDir)))
+    })
+    // 建目录与清理旧数据，保证后续文件读写路径都存在。会话目录建不出来就没法继续。
+    await attempt('sessionDir', () => mkdir(this.sessionDir, { recursive: true }), {
+      required: true,
+    })
+    await attempt('assetsDir', () => mkdir(this.assetsDir, { recursive: true }))
+    await attempt('spriteEngines', () => this.spriteEngines.init())
+    await attempt('workflowMedia', () => this.workflowMedia.init())
+    // 旧模型目录删不掉（Windows 上可能被占用）只是多占点磁盘，下次启动再试。
+    await attempt('legacyCleanup', () => cleanupRemovedLocalEmbeddingData(this.dataDir))
 
     stage('session-state')
     // 只加载轻量状态；会话正文等用户真正请求列表或恢复会话时再读取。
-    this.sessionMeta = await readJson(this.sessionMetaPath, {})
-    this.usageLedger = await readJson(this.usagePath, { days: {}, sessionScans: {} })
-    this.usageLedger.days ||= {}
-    this.usageLedger.sessionScans ||= {}
-    this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
-    this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
-    this.startAssetReconciliation()
-    const appConfig = await readJson(this.appConfigPath, {})
-    this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
-      appConfig.compactionThresholdPercent,
+    await attempt(
+      'sessionState',
+      async () => {
+        this.sessionMeta = await readJson(this.sessionMetaPath, {})
+        this.usageLedger = await readJson(this.usagePath, { days: {}, sessionScans: {} })
+        this.usageLedger.days ||= {}
+        this.usageLedger.sessionScans ||= {}
+      },
+      { files: ['pisper-sessions.json', 'pisper-usage.json'] },
     )
-    this.betaFeatureFlags = normalizeStoredBetaFlags(appConfig.betaFeatures)
+    await attempt(
+      'assetIndex',
+      async () => {
+        this.assetIndex = await readJson(this.assetIndexPath, { assets: [] })
+        this.assetIndex.assets = Array.isArray(this.assetIndex.assets) ? this.assetIndex.assets : []
+        this.startAssetReconciliation()
+      },
+      { files: ['pisper-assets.json'] },
+    )
+    await attempt(
+      'appConfig',
+      async () => {
+        const appConfig = await readJson(this.appConfigPath, {})
+        this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
+          appConfig.compactionThresholdPercent,
+        )
+        this.betaFeatureFlags = normalizeStoredBetaFlags(appConfig.betaFeatures)
+      },
+      { files: ['pisper.json'] },
+    )
 
     stage('providers')
     // 兼容历史 KimiCode Provider 配置，再加载模型目录/元数据。
-    await migrateKimiCodeProvider({
-      authPath: this.authPath,
-      modelsPath: this.modelsPath,
-      settingsPath: this.settingsPath,
-      appConfigPath: this.appConfigPath,
+    await attempt('providerMigration', () =>
+      migrateKimiCodeProvider({
+        authPath: this.authPath,
+        modelsPath: this.modelsPath,
+        settingsPath: this.settingsPath,
+        appConfigPath: this.appConfigPath,
+      }),
+    )
+    await attempt('providerCatalog', () => this.providerModelCatalog.init(), {
+      files: ['pisper-provider-models.json'],
     })
-    await Promise.all([this.providerModelCatalog.init(), this.modelMetadata.init()])
-    this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
+    await attempt('modelMetadata', () => this.modelMetadata.init(), {
+      files: ['pisper-model-metadata.json'],
+    })
+    await attempt(
+      'settings',
+      () => {
+        this.settingsManager = SettingsManager.create(this.cwd, this.dataDir)
+      },
+      { files: ['settings.json'], required: true },
+    )
 
     stage('skills')
-    await this.skills.init()
+    await attempt('skills', () => this.skills.init(), { files: ['pisper-skills.json'] })
     stage('mcp')
-    await this.mcp.init()
+    await attempt('mcp', () => this.mcp.init(), { files: ['pisper-mcp.json'] })
     stage('default-tools')
-    await this.initializeToolPlugins()
+    await attempt('toolPlugins', () => this.initializeToolPlugins(), {
+      files: ['pisper-plugins.json'],
+    })
 
     stage('model-runtime')
     // 模型运行时就绪后对齐默认模型，再初始化记忆（记忆的语义摘要依赖模型）。
-    await this.reloadModelRuntime()
-    await this.reconcileDefaultModel()
+    // 模型配置读不了时应用仍要能打开：用户得进设置页重新配置。
+    await attempt(
+      'modelRuntime',
+      async () => {
+        await this.reloadModelRuntime()
+        await this.reconcileDefaultModel()
+      },
+      { files: ['models.json'] },
+    )
     await startup.initializeRequiredMemory()
 
     stage('automation-services')
     // 移动嵌入宿主仍使用这些同源服务对象，但只初始化能力清单允许的模块。
-    if (this.capabilities.features.goals) await this.goals.init({ pauseActive: true })
-    if (this.capabilities.features.plans) await this.plans.init()
-    if (this.capabilities.features.multiAgent) await this.multiAgents.init()
-    if (this.capabilities.features.goals && this.capabilities.features.multiAgent)
-      await this.teamWorkflows.init({ pauseActive: true })
-    if (this.capabilities.features.channels) await this.channels.init()
-    if (this.capabilities.features.workflows) await this.workflows.init()
-    if (this.capabilities.features.schedules) await this.schedules.init()
-    if (this.capabilities.features.bots) {
-      await this.environments.init()
-      await this.bots.init()
+    const { features } = this.capabilities
+    if (features.goals)
+      await attempt('goals', () => this.goals.init({ pauseActive: true }), {
+        files: ['pisper-goals.json'],
+      })
+    if (features.plans)
+      await attempt('plans', () => this.plans.init(), {
+        files: ['pisper-plans.json', 'pisper-task-lists.json'],
+      })
+    if (features.multiAgent)
+      await attempt('multiAgents', () => this.multiAgents.init(), {
+        files: ['pisper-agents.json'],
+      })
+    if (features.goals && features.multiAgent)
+      await attempt('teamWorkflows', () => this.teamWorkflows.init({ pauseActive: true }), {
+        files: ['pisper-teams.json'],
+      })
+    if (features.channels)
+      await attempt('channels', () => this.channels.init(), { files: ['pisper-channels.json'] })
+    if (features.workflows)
+      await attempt('workflows', () => this.workflows.init(), { files: ['pisper-workflows.json'] })
+    if (features.schedules)
+      await attempt('schedules', () => this.schedules.init(), { files: ['pisper-schedules.json'] })
+    if (features.bots) {
+      await attempt('environments', () => this.environments.init(), {
+        files: ['pisper-environments.json'],
+      })
+      await attempt('bots', () => this.bots.init(), { files: ['pisper-bots.json'] })
     }
-    await this.sideChats.sweep()
+    await attempt('sideChats', () => this.sideChats.sweep())
     this.startSessionRuntimeSweeper()
     this.startBotProactiveTimer()
     await startup.complete()
@@ -2462,7 +2527,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     // 记忆检索只依赖本条消息、工作目录和当前上下文：提前发起，与目标调度、标题落盘、附件归档并行，
     // 到组装提示词时再取结果。先挂一个空 catch，准备阶段提前抛错时不留下未处理的 rejection。
-    const memoryInitialized = !this.memoryReady || this.initialization.memory === 'ready'
+    const memoryInitialized =
+      this.initialization?.memory !== 'failed' &&
+      (!this.memoryReady || this.initialization.memory === 'ready')
     const memoryContextEnabled =
       memoryInitialized && !value.isolatedContext && value.enabledTools?.includes('memory_search')
     // Bot 的会话走它自己的空间（默认只读全局画像），不受普通会话的工具开关影响。

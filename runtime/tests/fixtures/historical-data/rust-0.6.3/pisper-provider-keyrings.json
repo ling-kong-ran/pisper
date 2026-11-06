@@ -1,0 +1,11 @@
+{
+  "providers": {
+    "old-provider": [
+      {
+        "id": "fa77d7bdb2ae64fbd28ade4f",
+        "key": "not-a-real-key"
+      }
+    ]
+  },
+  "version": 1
+}

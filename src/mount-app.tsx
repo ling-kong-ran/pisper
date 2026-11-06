@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AppProviders } from '@/app/providers'
+import { RuntimeStartupGate } from '@/app/RuntimeStartupGate'
 import { router } from '@/app/router'
 import { legacyHashPath } from '@/app/routes'
 
@@ -27,6 +28,7 @@ createRoot(rootElement).render(
   <StrictMode>
     <AppProviders>
       <RouterProvider router={router} />
+      <RuntimeStartupGate />
     </AppProviders>
   </StrictMode>,
 )

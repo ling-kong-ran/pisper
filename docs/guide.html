@@ -709,6 +709,9 @@ pisper web        # 打开 Web 前端配置页</code></pre>
 ./Pisper_*_linux_x86_64.AppImage</code></pre>
           <p>缺少 FUSE 时安装 <code>libfuse2</code> 或 <code>libfuse2t64</code>，也可改用 <code>.deb</code>。</p>
 
+          <h3>提示有文件读不了</h3>
+          <p>启动时发现读不了的数据文件（比如断电留下的半截文件），Pisper 会把它改名为 <code>原文件名.corrupt-时间</code> 留在数据目录 <code>~/.pisper/agent</code>，用默认值继续启动，并在窗口右下角告诉你是哪些文件。原内容还在，能手动修好后改回原名。如果窗口显示「Pisper Runtime 无法启动」，请把下面那行错误发给我们。</p>
+
           <h3>模型请求失败</h3>
           <p>
             确认 Provider 可达、凭据有效、所选模型对你的账号可用。Provider 流量由你选定的 Runtime 直连，不经过第三方中转。

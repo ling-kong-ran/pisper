@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "3d934717-0bb6-41e6-9eb8-7bde350514f6",
+      "name": "旧工作流",
+      "description": "",
+      "status": "draft",
+      "cwd": "/home/fixture",
+      "model": null,
+      "notifications": [],
+      "nodes": [],
+      "edges": [],
+      "createdAt": "2026-11-06T10:18:08.224Z",
+      "updatedAt": "2026-11-06T10:18:08.224Z",
+      "publishedAt": null,
+      "lastRunAt": null,
+      "lastStatus": "idle",
+      "lastSummary": "",
+      "lastError": ""
+    }
+  ],
+  "runs": []
+}

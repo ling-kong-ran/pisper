@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "old-mcp",
+      "name": "old-mcp",
+      "transport": "stdio",
+      "enabled": false,
+      "requestTimeoutMs": 60000,
+      "toolStates": {},
+      "tools": [],
+      "createdAt": "2026-11-06T10:18:30.806Z",
+      "updatedAt": "2026-11-06T10:18:30.806Z",
+      "command": "/bin/true",
+      "args": [],
+      "cwd": "",
+      "env": {}
+    }
+  ],
+  "calls": []
+}

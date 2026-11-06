@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "b083522a-282a-414b-83bf-04626ef48eeb",
+      "name": "旧定时",
+      "targetType": "prompt",
+      "prompt": "每天检查",
+      "workflowId": "",
+      "workflowInputs": {},
+      "enabled": false,
+      "frequency": "daily",
+      "intervalValue": 1.0,
+      "intervalUnit": "hours",
+      "time": "09:00",
+      "timezone": "Asia/Hong_Kong",
+      "dayOfWeek": 1.0,
+      "dayOfMonth": 1.0,
+      "cwd": "/home/fixture/project",
+      "executionMode": "full-access",
+      "model": null,
+      "notifications": [],
+      "notifyOn": "always",
+      "createdAt": "2026-11-06T10:18:46.776Z",
+      "updatedAt": "2026-11-06T10:18:46.776Z",
+      "nextRunAt": null,
+      "lastRunAt": null,
+      "lastStatus": "idle",
+      "lastSummary": "",
+      "lastError": "",
+      "lastNotificationError": ""
+    }
+  ],
+  "runs": []
+}

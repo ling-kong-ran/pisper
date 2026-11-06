@@ -1,0 +1,35 @@
+{
+  "01a1b05e-433b-76f7-856c-5234d60f0834": {
+    "name": "旧会话",
+    "manual": true,
+    "cwd": "/home/fixture/project",
+    "executionMode": "approval-required",
+    "permissionMode": "ask",
+    "model": "old-provider/fake-model",
+    "timing": {
+      "requests": 1,
+      "firstTokenSamples": 1,
+      "firstTokenTotalMs": 4,
+      "durationTotalMs": 5,
+      "lastFirstTokenMs": 4,
+      "lastDurationMs": 5
+    },
+    "organization": {
+      "pinned": false,
+      "archived": false,
+      "unread": true,
+      "failed": false,
+      "lastCompletedAt": "2026-11-06T10:18:52.277Z"
+    },
+    "boardCard": {
+      "v": 1,
+      "outcome": "completed",
+      "finishedAt": "2026-11-06T10:18:52.277Z",
+      "lastAssistantPreview": "好的，记下了。",
+      "contextPct": 2.7,
+      "usage": {
+        "totalTokens": 0
+      }
+    }
+  }
+}

@@ -1,6 +1,8 @@
 // mDNS 广播：远程模式开启时向局域网广播 _pisper._tcp 服务，
 // 让移动端无需扫码也能发现桌面端。广播失败（无组播权限、容器网络等）
 // 只记录警告，不影响远程访问主流程（二维码/手动输入仍可用）。
+const MDNS_ADVERTISE_TIMEOUT_MS = 10_000
+
 export class MdnsAdvertiser {
   constructor() {
     this.responder = null
@@ -22,9 +24,16 @@ export class MdnsAdvertiser {
         port,
         txt: txt || {},
       })
-      await this.service.advertise()
-      this.error = null
-      return true
+      // advertise 在部分网卡环境下可能一直不落定；它卡住不能拖住远程访问的后续步骤。
+      let timer
+      const announced = await Promise.race([
+        this.service.advertise().then(() => true),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), MDNS_ADVERTISE_TIMEOUT_MS)
+        }),
+      ]).finally(() => clearTimeout(timer))
+      this.error = announced ? null : 'mDNS 广播超时。'
+      return announced
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error)
       this.service = null

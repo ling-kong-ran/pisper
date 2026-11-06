@@ -1,0 +1,4 @@
+{
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-5"
+}

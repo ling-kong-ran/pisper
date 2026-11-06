@@ -1,0 +1,9 @@
+{
+  "01a1b05d-a005-7e4b-8eb4-d0eae6a688b2": {
+    "name": "旧会话",
+    "manual": true,
+    "executionMode": "workspace",
+    "permissionMode": "auto",
+    "model": "old-provider/fake-model"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "providers": {
+    "old-provider": {
+      "name": "Old Provider",
+      "api": "openai-completions",
+      "baseUrl": "http://127.0.0.1:9/v1",
+      "models": [
+        {
+          "id": "fake-model",
+          "name": "fake-model",
+          "kind": "chat",
+          "userConfigured": true,
+          "capabilities": [
+            "chat"
+          ]
+        }
+      ]
+    }
+  }
+}

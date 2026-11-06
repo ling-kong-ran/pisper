@@ -287,9 +287,10 @@ test('scheduled tasks use structured prompt or workflow targets across every for
   assert.match(facade, /\.map\(\(\{ id, name, description, revision, inputs \}\)/)
   assert.match(facade, /createScheduleWorkflowAdapter[\s\S]*?list:[\s\S]*?run:[\s\S]*?getRun:/)
   assert.match(runtime, /workflows: createScheduleWorkflowAdapter\(this\.workflows\)/)
-  assert.ok(
-    runtime.indexOf('await this.workflows.init()') < runtime.indexOf('await this.schedules.init()'),
-  )
+  // 定时任务要读已发布的工作流，初始化顺序不能反。
+  const workflowsInit = runtime.indexOf('this.workflows.init()')
+  const schedulesInit = runtime.indexOf('this.schedules.init()')
+  assert.ok(workflowsInit > 0 && workflowsInit < schedulesInit)
 })
 
 test('historical sessions transition through loading before resolving the welcome or transcript', async () => {

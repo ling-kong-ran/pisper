@@ -22,6 +22,7 @@ import { readIrohTunnelStatus } from './iroh-endpoint.mjs'
 import { resolveRuntimeCapabilities, mobileBaseInitialization } from './runtime-capabilities.mjs'
 import { createStartupObserver } from './startup-observer.mjs'
 import { json as sendJson } from './http/response.mjs'
+import { describeStartupError } from './services/startup-data-check.mjs'
 import { SpeechEngineService } from './services/speech-engine-service.mjs'
 import { SpeechModelDownloadService } from './services/speech-model-download-service.mjs'
 import speechCatalog from '../shared/speech-model-catalog.json' with { type: 'json' }
@@ -132,6 +133,7 @@ export async function createPisperRuntime({
   let speechModels = null
   let runtimeInitialized = null
   let startInitialization
+  let startupFailure = null
 
   // ── 远程访问（移动端互联）────────────────────────────────────────────
   // 远程监听与回环监听完全解耦：回环侧行为（桌面 Cookie/免鉴权）不变；
@@ -412,6 +414,7 @@ export async function createPisperRuntime({
           rejectBase(error)
         }
         initialization.background = 'failed'
+        startupFailure = describeStartupError(error, { dataDir: agentDir })
         stage('runtime-initialization-failed')
         rejectInitialized(error)
       })
@@ -469,6 +472,21 @@ export async function createPisperRuntime({
       })
       return
     }
+    if (req.method === 'GET' && url.pathname === '/api/startup-status') {
+      // 启动结果：页面据此说明起不来的原因，或提示哪些数据文件被挪开了。不等初始化，失败时也要答得上来。
+      sendJson(res, 200, {
+        version: 1,
+        state: startupFailure
+          ? 'failed'
+          : initialization.background === 'ready'
+            ? 'ready'
+            : 'pending',
+        failure: startupFailure,
+        setAside: runtime?.startupReport?.setAside ?? [],
+        failed: runtime?.startupReport?.failed ?? [],
+      })
+      return
+    }
     if (url.pathname.startsWith('/api/')) {
       // 移动基础 API 不等后台任务；只有实际依赖的路由等待相应服务。
       try {
@@ -506,14 +524,13 @@ export async function createPisperRuntime({
     })
   })
   stage('http-listening')
-  // 延迟模式下先返回实例（端口已监听），初始化放到下一个事件循环轮次执行。
-  if (deferRuntimeInitialization) setImmediate(startInitialization)
 
   // 远程监听：显式开关优先，其次持久化状态。启动失败只记录状态，不影响主服务。
   const remoteRequested =
     capabilities.features.remoteAccess && (remote.enabled ?? remoteAccess.isEnabled())
   if (capabilities.features.remoteAccess && remote.enabled === true) remoteAccess.setEnabled(true)
-  if (capabilities.features.remoteAccess) {
+  const startPersistedRemote = async () => {
+    if (!capabilities.features.remoteAccess) return
     if (remoteRequested) {
       if (await startRemote()) {
         await remoteFirewall.reconcile({
@@ -525,6 +542,14 @@ export async function createPisperRuntime({
     } else {
       await remoteFirewall.reconcile({ enabled: false, inspectOnly: true })
     }
+  }
+  if (deferRuntimeInitialization) {
+    // 桌面壳等 READY 只等 30 秒，超时就杀进程，下次又从头来。所以 READY 不能等任何看数据量或系统状态的事：
+    // mDNS、PowerShell 防火墙检查放后台；初始化排到下一轮事件循环，READY 已经写出去了（首次迁移可能很久）。
+    void transitionRemote(startPersistedRemote).catch(() => {})
+    setImmediate(startInitialization)
+  } else {
+    await transitionRemote(startPersistedRemote)
   }
 
   const address = server.address()

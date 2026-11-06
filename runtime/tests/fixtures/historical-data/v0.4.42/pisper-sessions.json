@@ -1,0 +1,10 @@
+{
+  "01a1b05d-d985-70ef-9573-40e41df63b7b": {
+    "name": "旧会话",
+    "manual": true,
+    "cwd": "/home/fixture/project",
+    "executionMode": "approval-required",
+    "permissionMode": "ask",
+    "model": "old-provider/fake-model"
+  }
+}

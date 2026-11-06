@@ -1,0 +1,38 @@
+{
+  "toolMode": "full",
+  "enabledTools": [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "edit",
+    "write",
+    "bash",
+    "skill_create",
+    "plugin_create",
+    "web_search",
+    "browser_automation",
+    "generate_visual",
+    "mobile_device",
+    "memory_search",
+    "memory_remember",
+    "mcp_list",
+    "mcp_manage"
+  ],
+  "memoryToolsV1": true,
+  "mcpManagementToolsV1": true,
+  "webSearchToolV1": true,
+  "browserAutomationToolV1": true,
+  "skillCreateToolV1": true,
+  "pluginCreateToolV1": true,
+  "mobileDeviceToolV2": true,
+  "visualGenerateToolV1": true,
+  "disabledProviders": [],
+  "providerTypes": {
+    "old-provider": "chat"
+  },
+  "providerDefaultModels": {
+    "old-provider": "fake-model"
+  },
+  "compactionThresholdPercent": 70
+}

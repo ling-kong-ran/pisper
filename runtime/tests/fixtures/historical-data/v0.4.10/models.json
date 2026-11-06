@@ -1,0 +1,24 @@
+{
+  "providers": {
+    "old-provider": {
+      "name": "Old Provider",
+      "api": "openai-completions",
+      "baseUrl": "http://127.0.0.1:9/v1",
+      "models": [
+        {
+          "id": "fake-model",
+          "name": "fake-model",
+          "api": "openai-completions",
+          "kind": "chat",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 200000,
+          "maxTokens": 128000
+        }
+      ]
+    }
+  }
+}

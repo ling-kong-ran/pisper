@@ -5,6 +5,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
+import { setAsideDataFile } from '../startup-data-check.mjs'
 import { platform } from 'node:os'
 import { redactSecretText } from '../../security/secret-redaction.mjs'
 import { extractEntities, isInformativeQuery } from './memory-tokenizer.mjs'
@@ -216,6 +217,17 @@ function itemFromHit(hit) {
   }
 }
 
+const INDEX_CATCH_UP_BATCH = 500
+
+// SQLITE_CORRUPT(11) 与 SQLITE_NOTADB(26)。只读、打不开、版本比程序新都不算：那些不是文件坏了，不能动。
+function isCorruptDatabaseError(error) {
+  return (
+    error?.errcode === 11 ||
+    error?.errcode === 26 ||
+    /file is not a database|database disk image is malformed/i.test(String(error?.message))
+  )
+}
+
 export class LocalMemoryRuntime {
   constructor({
     path,
@@ -228,6 +240,8 @@ export class LocalMemoryRuntime {
     this.path = path
     this.cwd = resolve(cwd)
     this.db = null
+    this.setAsideFiles = []
+    this.unavailableReason = null
     this.index = null
     this.store = null
     this.ftsAvailable = false
@@ -251,6 +265,41 @@ export class LocalMemoryRuntime {
   async init() {
     // 移动 Node 可能没有 node:sqlite；由上层能力清单跳过记忆初始化。
     if (!DatabaseSync) throw new Error('当前 Runtime 不支持本地 SQLite 记忆。')
+    try {
+      await this.openDatabase()
+    } catch (error) {
+      this.closeFailedDatabase()
+      if (!isCorruptDatabaseError(error) || !this.path || this.path === ':memory:') {
+        this.unavailableReason = error
+        throw error
+      }
+      // 库文件坏了：改名留底，新建一个空库。记忆没了总比整个应用打不开强，原文件还能尝试修复。
+      for (const suffix of ['', '-wal', '-shm']) {
+        const kept = await setAsideDataFile(`${this.path}${suffix}`)
+        if (kept && !suffix)
+          this.setAsideFiles.push({ file: basename(this.path), reason: 'corrupt_database' })
+      }
+      try {
+        await this.openDatabase()
+      } catch (retryError) {
+        this.closeFailedDatabase()
+        this.unavailableReason = retryError
+        throw retryError
+      }
+    }
+  }
+
+  closeFailedDatabase() {
+    try {
+      this.db?.close()
+    } catch {}
+    this.db = null
+    this.index = null
+    this.store = null
+    this.ftsAvailable = false
+  }
+
+  async openDatabase() {
     this.db = new DatabaseSync(this.path)
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
     initializeMemorySchema(this.db, {
@@ -261,7 +310,7 @@ export class LocalMemoryRuntime {
     this.ftsAvailable = this.fullTextSearchInitializer(this.db)
     this.index = new MemorySearchIndex(this.db, { ftsAvailable: this.ftsAvailable })
     this.store = this.createStore()
-    this.catchUpIndex()
+    await this.catchUpIndex()
     await this.ensureGlobalSpace()
     await this.ensureWorkspaceSpace(this.cwd)
     this.cleanupRetention({ force: true })
@@ -303,7 +352,7 @@ export class LocalMemoryRuntime {
   }
 
   // 索引模式变了（换了不带 FTS5 的 Node）或旧版本写入过新行时，把差的部分补上。
-  catchUpIndex() {
+  async catchUpIndex() {
     const db = this.requireDb()
     const mode = this.ftsAvailable ? 'fts' : 'scan'
     const previous = readMemoryMeta(db, 'index_mode')
@@ -312,19 +361,24 @@ export class LocalMemoryRuntime {
       if (this.ftsAvailable) db.exec('DELETE FROM memory_search')
       db.exec('UPDATE memories SET indexed_at = NULL')
       this.reindexDerivedDocuments()
+      // 清空已经落盘：下面中途被打断时，下次按新模式接着补，不再清一遍。
+      writeMemoryMeta(db, 'index_mode', mode)
     }
     const rows = db
       .prepare(`SELECT id FROM memories WHERE indexed_at IS NULL OR updated_at > indexed_at`)
       .all()
-    if (rows.length) {
+    // 分批提交：记忆很多的老用户首次升级要补很久，一个大事务被打断就白做，
+    // 每次启动都从头来；批与批之间让出事件循环，页面和 /api/ready 还能响应。
+    for (let start = 0; start < rows.length; start += INDEX_CATCH_UP_BATCH) {
       db.exec('BEGIN IMMEDIATE')
       try {
-        for (const row of rows) this.indexFact(row.id)
+        for (const row of rows.slice(start, start + INDEX_CATCH_UP_BATCH)) this.indexFact(row.id)
         db.exec('COMMIT')
       } catch (error) {
         db.exec('ROLLBACK')
         throw error
       }
+      await new Promise((resume) => setImmediate(resume))
     }
     writeMemoryMeta(db, 'index_mode', mode)
   }
@@ -399,7 +453,13 @@ export class LocalMemoryRuntime {
   }
 
   requireDb() {
-    if (!this.db) throw new Error('记忆 Runtime 尚未初始化。')
+    if (!this.db) {
+      throw new Error(
+        this.unavailableReason
+          ? `记忆库暂时不可用：${this.unavailableReason.message}`
+          : '记忆 Runtime 尚未初始化。',
+      )
+    }
     return this.db
   }
 

@@ -77,7 +77,10 @@ export class WebDesktopPetService {
     this.resetTimer = null
     // 图集通常较大，缓存校验后的内容可避免桌面宠物轮询反复读盘和分配大块内存。
     this.petCache = new Map()
-    mkdirSync(this.managedRoot, { recursive: true })
+    // 这一步在 READY 之前：目录建不出来（被同名文件占位、没权限）顶多没有宠物，不能让 Runtime 起不来。
+    try {
+      mkdirSync(this.managedRoot, { recursive: true })
+    } catch {}
   }
 
   roots() {
