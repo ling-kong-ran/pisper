@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { fetchMemoryDetail, fetchMemoryEvolution } from './memory-api'
 import {
   buildEvolutionScene,
+  clampEvolutionZoom,
   EVOLUTION_TYPES,
   FLAG_LATE,
   FLAG_PINNED,
@@ -25,6 +26,7 @@ import {
   factStateNameAt,
   OPENING_DURATION_MS,
   openingProgress,
+  pinchEvolutionZoom,
   sliderFromTime,
   SLIDER_MAX,
   statsAt,
@@ -109,6 +111,8 @@ const IDLE_AFTER_MS = 20_000
 // 选中时把这条记忆转到靠近观众的一侧，略微推近。
 const SELECTED_SCREEN_ANGLE = Math.PI * 0.62
 const SELECTED_ZOOM = 1.1
+const DOUBLE_TAP_MS = 320
+const DOUBLE_TAP_DISTANCE = 30
 const HISTOGRAM_HEIGHT = 30
 // 滑块的中心在轨道两端各内缩半个滑块，密度图要对齐它。
 const THUMB_INSET = 7
@@ -184,6 +188,8 @@ export function MemoryEvolution({
   const tiltTouchedRef = useRef(false)
   const yawTargetRef = useRef<number | null>(null)
   const zoomRef = useRef(1)
+  const pinchRef = useRef<{ spread: number; zoom: number } | null>(null)
+  const lastTapRef = useRef<{ at: number; x: number; y: number } | null>(null)
   const layoutRef = useRef<(animate?: boolean) => void>(() => {})
   const dragRef = useRef<{
     id: number
@@ -267,7 +273,7 @@ export function MemoryEvolution({
           if (Math.abs(target - effectWindowRef.current) > span * 0.0002) moving = true
         }
       }
-      const dragging = Boolean(dragRef.current?.moved)
+      const dragging = Boolean(dragRef.current?.moved || pinchRef.current)
       if (
         !reduced &&
         !dragging &&
@@ -293,7 +299,9 @@ export function MemoryEvolution({
       }
       const zoomTarget = zoomRef.current * (selectedIndexRef.current >= 0 ? SELECTED_ZOOM : 1)
       if (Math.abs(renderer.camera.zoom - zoomTarget) > 0.001 && !reduced) {
-        renderer.camera.zoom += (zoomTarget - renderer.camera.zoom) * (1 - Math.exp(-dt / 240))
+        // 捏合时要贴着手指，慢半拍会觉得黏。
+        const rate = pinchRef.current ? 50 : 240
+        renderer.camera.zoom += (zoomTarget - renderer.camera.zoom) * (1 - Math.exp(-dt / rate))
         moving = true
       } else {
         renderer.camera.zoom = zoomTarget
@@ -358,6 +366,16 @@ export function MemoryEvolution({
     dirtyRef.current = true
     if (runningRef.current && !rafRef.current) rafRef.current = requestAnimationFrame(tick)
   }, [tick])
+
+  const setZoom = useCallback(
+    (next: number) => {
+      const zoom = clampEvolutionZoom(next)
+      zoomRef.current = zoom
+      stageRef.current?.setAttribute('data-zoom', zoom.toFixed(2))
+      wake()
+    },
+    [wake],
+  )
 
   // 用户一碰时间轴就接管：开场和播放都停下。
   const takeOver = useCallback(() => {
@@ -515,17 +533,69 @@ export function MemoryEvolution({
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
       event.preventDefault()
-      const renderer = rendererRef.current
-      if (!renderer) return
-      zoomRef.current = Math.min(
-        2.6,
-        Math.max(0.72, zoomRef.current * Math.exp(-event.deltaY * 0.0022)),
-      )
-      wake()
+      if (!rendererRef.current) return
+      setZoom(zoomRef.current * Math.exp(-event.deltaY * 0.0022))
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', onWheel)
-  }, [wake])
+  }, [setZoom])
+
+  // 触屏双指缩放。舞台要留着单指上下滚页面（touch-pan-y），浏览器一旦开始滚动就会取消指针事件，
+  // 所以捏合不走指针事件，直接听 touch 并拦下默认行为。单指旋转和点选仍然走指针事件。
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const anchor = (touches: TouchList) => {
+      pinchRef.current =
+        touches.length >= 2
+          ? {
+              spread: Math.hypot(
+                touches[0].clientX - touches[1].clientX,
+                touches[0].clientY - touches[1].clientY,
+              ),
+              zoom: zoomRef.current,
+            }
+          : null
+    }
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.targetTouches.length < 2) return
+      // 页面已经在滚了：这次手势归滚动，不中途抢成缩放。
+      if (!event.cancelable) return
+      event.preventDefault()
+      // 第一根手指刚才可能算作拖动，到这里就是捏合了，抬手时不能再转一下或当成点选。
+      dragRef.current = null
+      anchor(event.targetTouches)
+      if (modeRef.current === 'opening') takeOver()
+      wake()
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      const pinch = pinchRef.current
+      if (!pinch || event.targetTouches.length < 2) return
+      if (event.cancelable) event.preventDefault()
+      const [first, second] = [event.targetTouches[0], event.targetTouches[1]]
+      setZoom(
+        pinchEvolutionZoom(
+          pinch.zoom,
+          pinch.spread,
+          Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY),
+        ),
+      )
+    }
+    // 抬起一根时，如果还剩两根，以它们现在的距离为准重新开始，画面不跳。
+    const onTouchEnd = (event: TouchEvent) => {
+      if (pinchRef.current) anchor(event.targetTouches)
+    }
+    const controller = new AbortController()
+    const options = { passive: false, signal: controller.signal }
+    canvas.addEventListener('touchstart', onTouchStart, options)
+    canvas.addEventListener('touchmove', onTouchMove, options)
+    canvas.addEventListener('touchend', onTouchEnd, { signal: controller.signal })
+    canvas.addEventListener('touchcancel', onTouchEnd, { signal: controller.signal })
+    return () => {
+      controller.abort()
+      pinchRef.current = null
+    }
+  }, [setZoom, takeOver, wake])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -752,7 +822,8 @@ export function MemoryEvolution({
   }
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (event.button !== 0) return
+    // 第二根手指归捏合。
+    if (event.button !== 0 || !event.isPrimary) return
     dragRef.current = {
       id: event.pointerId,
       x: event.clientX,
@@ -808,6 +879,21 @@ export function MemoryEvolution({
     dragRef.current = null
     const renderer = rendererRef.current
     if (!renderer || !sceneRef.current || !drag || drag.moved) return
+    // 触屏上发不发 dblclick 各家 WebView 不一致，自己认。第一下照常算点选，第二下只复位。
+    if (event.pointerType !== 'mouse') {
+      const last = lastTapRef.current
+      const isDoubleTap =
+        last !== null &&
+        event.timeStamp - last.at < DOUBLE_TAP_MS &&
+        Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_TAP_DISTANCE
+      lastTapRef.current = isDoubleTap
+        ? null
+        : { at: event.timeStamp, x: event.clientX, y: event.clientY }
+      if (isDoubleTap) {
+        resetView()
+        return
+      }
+    }
     const rect = event.currentTarget.getBoundingClientRect()
     const index = renderer.pick(
       event.clientX - rect.left,
@@ -827,10 +913,10 @@ export function MemoryEvolution({
     setHover(null)
   }
 
-  const onDoubleClick = () => {
+  const resetView = () => {
     const renderer = rendererRef.current
     if (!renderer) return
-    zoomRef.current = 1
+    setZoom(1)
     tiltTouchedRef.current = false
     tiltRef.current = (stageRef.current?.clientWidth ?? 800) >= 720 ? WIDE_TILT : NARROW_TILT
     renderer.camera.tilt = tiltRef.current
@@ -900,7 +986,7 @@ export function MemoryEvolution({
             dragRef.current = null
           }}
           onPointerLeave={onPointerLeave}
-          onDoubleClick={onDoubleClick}
+          onDoubleClick={resetView}
           className="absolute inset-0 size-full cursor-grab touch-pan-y outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset active:cursor-grabbing"
         />
 

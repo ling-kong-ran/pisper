@@ -233,6 +233,43 @@ export async function verifyMemoryLifecycle({ page, base, api, runtime, report, 
     'Memory evolution keeps the time axis above the fold and scrubs from the keyboard',
   )
 
+  // 触屏双指捏合：走真实的触摸手势管线，纵向张开最容易被浏览器当成滚动页面。
+  const touch = await page.context().newCDPSession(page)
+  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 })
+  const stage = await evolution.boundingBox()
+  const pinchAt = (spread) => {
+    const x = stage.x + stage.width / 2
+    const y = stage.y + stage.height * 0.45
+    return [
+      { x, y: y - spread, id: 0 },
+      { x, y: y + spread, id: 1 },
+    ]
+  }
+  const scrollTopBefore = await page.evaluate(
+    () => document.querySelector('[data-feature-scroller]')?.scrollTop ?? 0,
+  )
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pinchAt(40) })
+  for (const spread of [55, 70, 85]) {
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: pinchAt(spread),
+    })
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await page.waitForFunction(
+    () =>
+      Number(document.querySelector('[data-memory-evolution]')?.getAttribute('data-zoom')) > 1.5,
+  )
+  assert.equal(
+    await page.evaluate(() => document.querySelector('[data-feature-scroller]')?.scrollTop ?? 0),
+    scrollTopBefore,
+    '捏合不应滚动页面',
+  )
+  assert.equal(await evolution.locator('[data-memory-evolution-card]').count(), 0)
+  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+  await touch.detach()
+  report.checks.push('Memory evolution zooms with a two-finger pinch without scrolling the page')
+
   await layout.getByRole('tab', { name: '整理记录', exact: true }).click()
   const activity = layout.locator('[data-memory-event]')
   await activity.first().waitFor()

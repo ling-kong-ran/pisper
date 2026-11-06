@@ -4,6 +4,7 @@ import {
   buildEvolutionScene,
   buildRings,
   chooseRingUnit,
+  clampEvolutionZoom,
   computeDomain,
   discX,
   discY,
@@ -15,7 +16,10 @@ import {
   factStateNameAt,
   FLAG_LATE,
   FLAG_PINNED,
+  EVOLUTION_MAX_ZOOM,
+  EVOLUTION_MIN_ZOOM,
   openingProgress,
+  pinchEvolutionZoom,
   rhoAt,
   sliderFromTime,
   SLIDER_MAX,
@@ -459,4 +463,15 @@ test('the opening curve starts slow, ends exactly at one and never goes backward
     assert.ok(value >= previous)
     previous = value
   }
+})
+
+test('pinching scales with the finger spread and stays within the zoom range', () => {
+  assert.equal(pinchEvolutionZoom(1, 100, 200), 2)
+  assert.equal(pinchEvolutionZoom(1.5, 200, 100), 0.75)
+  assert.equal(pinchEvolutionZoom(1, 100, 1000), EVOLUTION_MAX_ZOOM)
+  assert.equal(pinchEvolutionZoom(1, 100, 1), EVOLUTION_MIN_ZOOM)
+  // 两指落在同一点时不能除以零。
+  assert.equal(pinchEvolutionZoom(1, 0, 2), 2)
+  assert.equal(clampEvolutionZoom(0.72), EVOLUTION_MIN_ZOOM)
+  assert.equal(clampEvolutionZoom(9), EVOLUTION_MAX_ZOOM)
 })

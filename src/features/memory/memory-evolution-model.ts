@@ -17,6 +17,9 @@ const CORE_RHO = 0.055
 const RADIAL_POWER = 0.85
 
 export const SLIDER_MAX = 1000
+// 再小看不清结构，再大只剩几个光点。
+export const EVOLUTION_MIN_ZOOM = 0.72
+export const EVOLUTION_MAX_ZOOM = 2.6
 export const OPENING_DURATION_MS = 6000
 
 export const EVOLUTION_TYPES: readonly MemoryType[] = [
@@ -613,6 +616,15 @@ export function versionChainOf(scene: EvolutionScene, index: number) {
   return [...older, index, ...newer].sort(
     (left, right) => scene.appearAt[left] - scene.appearAt[right] || left - right,
   )
+}
+
+export function clampEvolutionZoom(zoom: number) {
+  return Math.min(EVOLUTION_MAX_ZOOM, Math.max(EVOLUTION_MIN_ZOOM, zoom))
+}
+
+// 捏合时缩放倍数跟两指间距的比例走，手指张开一倍画面就放大一倍。
+export function pinchEvolutionZoom(startZoom: number, startSpread: number, spread: number) {
+  return clampEvolutionZoom((startZoom * spread) / Math.max(1, startSpread))
 }
 
 export function timeFromSlider(domain: EvolutionDomain, value: number) {
