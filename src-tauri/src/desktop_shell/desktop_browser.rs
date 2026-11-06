@@ -37,6 +37,8 @@ pub enum BrowserAction {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+// Linux 上右侧浏览器是 iframe，没有地方发这些事件。
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 pub enum BrowserEvent {
     Navigated {
         url: String,

@@ -3,6 +3,8 @@ mod component_updates;
 mod computer_control;
 mod desktop_bridge;
 mod desktop_browser;
+// Linux 上右侧浏览器是 iframe，导航判定用不到，但它的测试照跑。
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 mod desktop_browser_policy;
 mod desktop_pet;
 mod desktop_terminal;
