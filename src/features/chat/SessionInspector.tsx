@@ -34,7 +34,7 @@ import { ComputerUseLiveMirror } from './ComputerUseLiveMirror'
 import { InspectorRunning, runningCount } from './InspectorRunning'
 import { InspectorPlan } from './InspectorPlan'
 import { getSessionChangeSummary } from './session-change-summary-api'
-import { BrowserPane } from './SessionBrowserPane'
+import { BrowserTabs } from './SessionBrowserTabs'
 import { InspectorChanges } from './InspectorChanges'
 import type { ContextPageView, SessionContextTab } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
@@ -377,14 +377,8 @@ export function SessionInspector({
             />
           </div>
         )}
-        <BrowserPane
-          page={page}
-          onChange={(patch) =>
-            useContextPagesStore
-              .getState()
-              .update(sessionId, 'browser', { type: 'browser', id: page.id, ...patch })
-          }
-        />
+        {/* 页签 id 只在会话内唯一：换会话要整组重建，否则会把另一个会话的网页留在原生层里。 */}
+        <BrowserTabs key={sessionId} panelId={panelId} sessionId={sessionId} />
       </div>
     ) : (
       loading

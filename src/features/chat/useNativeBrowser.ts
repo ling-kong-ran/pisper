@@ -8,6 +8,7 @@ import {
   occlusionProbePoints,
   overlapsAny,
   placementChanged,
+  placementFromRect,
   type NativeBrowserPlacement,
 } from './native-browser-geometry'
 
@@ -23,23 +24,27 @@ export function useNativeBrowser({
   enabled,
   url,
   onNavigated,
+  onTitle,
+  onNewWindow,
 }: {
   enabled: boolean
   url: string
   onNavigated: (url: string) => void
+  onTitle: (title: string) => void
+  onNewWindow: (url: string) => void
 }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const browserIdRef = useRef<string | null>(null)
   const urlRef = useRef(url)
   // 原生层当前所在的地址：它和 url 相同时不用再导航，否则页面自己跳转后会被重新加载一遍。
   const currentUrlRef = useRef(url)
-  const onNavigatedRef = useRef(onNavigated)
+  const handlersRef = useRef({ onNavigated, onTitle, onNewWindow })
   const [unavailable, setUnavailable] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     urlRef.current = url
-    onNavigatedRef.current = onNavigated
+    handlersRef.current = { onNavigated, onTitle, onNewWindow }
   })
 
   const active = enabled && Boolean(url) && !unavailable
@@ -66,7 +71,8 @@ export function useNativeBrowser({
       animationFrame = requestAnimationFrame(placeOnFrame)
       if (!opened || syncing) return
       const rect = slot.getBoundingClientRect()
-      if (frames++ % OCCLUSION_INTERVAL_FRAMES === 0) {
+      // 隐藏的页签不用查遮挡。
+      if (rect.width > 0 && rect.height > 0 && frames++ % OCCLUSION_INTERVAL_FRAMES === 0) {
         const points = occlusionProbePoints(rect, {
           width: window.innerWidth,
           height: window.innerHeight,
@@ -78,10 +84,7 @@ export function useNativeBrowser({
           isOccluded(slot, points, (x, y) => document.elementFromPoint(x, y)) ||
           overlapsAny(rect, layers)
       }
-      const next: NativeBrowserPlacement = {
-        bounds: boundsFromRect(rect),
-        visible: rect.width > 0 && rect.height > 0 && !occluded,
-      }
+      const next = placementFromRect(placed, rect, occluded)
       if (!placementChanged(placed, next)) return
       placed = next
       // 一次只发一个：等上一个做完再发最新的位置，不会乱序，也不会堆积。
@@ -104,9 +107,15 @@ export function useNativeBrowser({
         },
         (event) => {
           if (disposed) return
-          currentUrlRef.current = event.url
-          setLoading(event.loading)
-          onNavigatedRef.current(event.url)
+          if (event.type === 'title') {
+            handlersRef.current.onTitle(event.title)
+          } else if (event.type === 'newWindow') {
+            handlersRef.current.onNewWindow(event.url)
+          } else {
+            currentUrlRef.current = event.url
+            setLoading(event.loading)
+            handlersRef.current.onNavigated(event.url)
+          }
         },
       )
       .then((result) => {

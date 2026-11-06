@@ -1,21 +1,30 @@
-// 单会话布局（会话页）没有 Dockview 右侧预览面板：外链预览改为打开该会话检查器里的“网页预览”页。
-// 已有预览页时复用并切到新地址，与旧 Dock 预览面板“更新地址并聚焦”的行为一致。
+// 回复里的链接、网页里的新窗口都从这里进检查器的“预览”：已经开着这个地址就切过去，
+// 当前页签是空白的就用它，否则开一个新页签。
+import { activeBrowserPage } from './session-context-pages'
 import { useContextPagesStore } from './session-context-pages-store'
 
 export function openWebPreviewInSessionContext(sessionId: string, url: string) {
   if (!sessionId || !url) return false
   const store = useContextPagesStore.getState()
-  const existing = store.sessions[sessionId]?.pages.find((page) => page.kind === 'browser')
-  if (existing) {
-    store.update(sessionId, 'browser', { type: 'select', id: existing.id })
-    store.update(sessionId, 'browser', { type: 'browser', id: existing.id, url, draft: url })
+  const pages = store.sessions[sessionId]
+  const current = pages && activeBrowserPage(pages)
+  const opened = pages?.pages.find((page) => page.kind === 'browser' && page.url === url)
+  if (opened) {
+    // 地址没变时检查器看不出有新请求，不会切回“预览”：先收起再打开，才算一次新的打开。
+    store.update(sessionId, 'browser', { type: 'workspace', contentOpen: false })
+    store.update(sessionId, 'browser', { type: 'select', id: opened.id })
     return true
   }
+  const navigate = (id: string) => {
+    store.update(sessionId, 'browser', { type: 'select', id })
+    store.update(sessionId, 'browser', { type: 'browser', id, url, draft: url })
+    return true
+  }
+  if (current && !current.url) return navigate(current.id)
+  // 页签开满了就在当前页签打开，链接不能白点。
   if (store.update(sessionId, 'browser', { type: 'open', kind: 'browser' }) === 'limit')
-    return false
-  const pages = useContextPagesStore.getState().sessions[sessionId]
-  const opened = pages?.pages.find((page) => page.id === pages.activeId)
-  if (opened?.kind !== 'browser') return false
-  store.update(sessionId, 'browser', { type: 'browser', id: opened.id, url, draft: url })
-  return true
+    return current ? navigate(current.id) : false
+  const next = useContextPagesStore.getState().sessions[sessionId]
+  const created = next && activeBrowserPage(next)
+  return created ? navigate(created.id) : false
 }

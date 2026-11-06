@@ -41,6 +41,7 @@ import type { TaskSource } from './task-sources'
 import { TaskNewTab } from './TaskNewTab'
 import { SideChatPane } from './SideChatPane'
 import { BrowserPane } from './SessionBrowserPane'
+import { openWebPreviewInSessionContext } from './session-web-preview'
 
 export type { SessionContextTab } from './session-context-pages'
 
@@ -315,6 +316,7 @@ export function SessionContextPanel({
               <BrowserPane
                 page={page}
                 onChange={(patch) => dispatch({ type: 'browser', id: page.id, ...patch })}
+                onOpenNewTab={(url) => openWebPreviewInSessionContext(sessionId, url)}
               />
             ) : (
               active &&

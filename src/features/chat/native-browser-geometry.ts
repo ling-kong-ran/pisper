@@ -9,6 +9,19 @@ export function boundsFromRect({ left, top, width, height }: RectLike): NativeBr
   return { x: left, y: top, width, height }
 }
 
+// 页签隐藏时占位区是 0×0：只把原生视图藏起来，大小不动。缩到 0 宽网页会重新排版，切回来滚动位置就丢了。
+export function placementFromRect(
+  previous: NativeBrowserPlacement | null,
+  rect: RectLike,
+  occluded: boolean,
+): NativeBrowserPlacement {
+  const shown = rect.width > 0 && rect.height > 0
+  return {
+    bounds: shown || !previous ? boundsFromRect(rect) : previous.bounds,
+    visible: shown && !occluded,
+  }
+}
+
 // 小于半个像素的抖动不值得跨一次 IPC。
 export function placementChanged(
   previous: NativeBrowserPlacement | null,

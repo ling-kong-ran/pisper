@@ -159,7 +159,10 @@ export type DesktopComputerUseStreamOptions = {
 
 // 右侧浏览器的原生子 WebView（src-tauri/src/desktop_shell/desktop_browser.rs）。
 export type DesktopBrowserBounds = { x: number; y: number; width: number; height: number }
-export type DesktopBrowserEvent = { type: 'navigated'; url: string; loading: boolean }
+export type DesktopBrowserEvent =
+  | { type: 'navigated'; url: string; loading: boolean }
+  | { type: 'title'; title: string }
+  | { type: 'newWindow'; url: string }
 export type DesktopBrowserBridge = {
   open: (
     input: { browserId: string; url: string; bounds: DesktopBrowserBounds },

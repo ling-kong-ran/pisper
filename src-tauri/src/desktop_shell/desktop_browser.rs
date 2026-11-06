@@ -35,6 +35,8 @@ pub enum BrowserAction {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BrowserEvent {
     Navigated { url: String, loading: bool },
+    Title { title: String },
+    NewWindow { url: String },
 }
 
 #[derive(Serialize)]
@@ -54,7 +56,7 @@ fn ensure_main(window: &WebviewWindow) -> Result<(), String> {
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod native {
     use super::super::desktop_browser_policy::{
-        navigation_decision, reportable_url, BrowserBounds, NavigationDecision,
+        navigation_decision, parse_browser_url, reportable_url, BrowserBounds, NavigationDecision,
     };
     use super::{BrowserAction, BrowserEvent};
     use std::{cell::RefCell, collections::HashMap};
@@ -65,8 +67,10 @@ mod native {
         NewWindowResponse, PageLoadEvent, Rect, WebContext, WebView, WebViewBuilder,
     };
 
-    // 同一时间只有一个面板可见，这个上限只防止前端失控时泄漏 WebView。
-    const MAX_BROWSERS: usize = 4;
+    // 一个会话最多 12 个辅助页面，换会话时旧的还在关。这个上限只防止前端失控时泄漏 WebView。
+    const MAX_BROWSERS: usize = 16;
+    // 标题来自网页，不让它把事件撑大。
+    const MAX_TITLE_CHARS: usize = 200;
     const PROFILE_DIRECTORY: &str = "browser-profile";
 
     thread_local! {
@@ -168,7 +172,8 @@ mod native {
         let navigation_app = app.clone();
         let navigation_origin = app_origin.clone();
         let new_window_app = app.clone();
-        let new_window_id = browser_id.clone();
+        let new_window_events = on_event.clone();
+        let title_events = on_event.clone();
         let builder = WebViewBuilder::new_with_web_context(&mut web_context)
             .with_url(url.as_str())
             .with_bounds(rect(bounds))
@@ -190,21 +195,27 @@ mod native {
                     NavigationDecision::Deny => false,
                 }
             })
-            // 面板只有一页：新窗口在原地打开。
+            // 新窗口开成新页签。about:blank 这类地址在新页签里没有内容可看，不打开。
             .with_new_window_req_handler(move |target, _features| {
                 let decision = Url::parse(&target)
                     .map(|parsed| navigation_decision(&parsed, &app_origin))
                     .unwrap_or(NavigationDecision::Deny);
                 match decision {
-                    NavigationDecision::Allow => {
-                        let _ = with_browser(&new_window_id, |webview| webview.load_url(&target));
+                    NavigationDecision::Allow if parse_browser_url(&target).is_ok() => {
+                        let _ = new_window_events.send(BrowserEvent::NewWindow { url: target });
                     }
+                    NavigationDecision::Allow => {}
                     NavigationDecision::OpenExternally => {
                         open_externally(&new_window_app, &target);
                     }
                     NavigationDecision::Deny => {}
                 }
                 NewWindowResponse::Deny
+            })
+            .with_document_title_changed_handler(move |title| {
+                let _ = title_events.send(BrowserEvent::Title {
+                    title: title.chars().take(MAX_TITLE_CHARS).collect(),
+                });
             })
             .with_on_page_load_handler(move |event, current| {
                 if let Some(url) = reportable_url(&current) {

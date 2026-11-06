@@ -26,6 +26,17 @@ export function isHtmlPreviewUrl(value: string) {
   }
 }
 
+// 拿不到网页标题时标签上显示什么：工作区 HTML 显示文件名，其余显示主机名。
+export function webPreviewTabLabel(url: string) {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.startsWith(HTML_PREVIEW_PATH)) return parsed.host
+    return decodeURIComponent(parsed.pathname.split('/').pop() || '') || parsed.host
+  } catch {
+    return url
+  }
+}
+
 // 解析 Web 预览链接：基于 baseUrl 解析并只接受 http/https 协议，
 // 其余协议（javascript: 等）返回 null 防止安全风险。
 export function resolveWebPreviewUrl(href: string, baseUrl: string) {
