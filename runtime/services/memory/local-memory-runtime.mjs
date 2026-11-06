@@ -707,6 +707,30 @@ export class LocalMemoryRuntime {
     return { id, versions: chain.map(rowMemory) }
   }
 
+  // 会话摘要不进年轮，也不进自动回忆，这里是用户看到它们的地方。按最后一轮的时间从新到旧。
+  listSessionDigests({ spaceId = '', limit = 30, before = '' } = {}) {
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30))
+    return this.requireDb()
+      .prepare(
+        // 和整理记录一样，不带上 Bot 的空间。
+        `SELECT id, space_id, session_id, window_start, window_end, text
+         FROM memory_digests
+         WHERE level = 'session' AND dirty < 2
+           AND (? = '' OR space_id = ?) AND space_id NOT LIKE 'bot:%' AND (? = '' OR window_end < ?)
+         ORDER BY window_end DESC, id DESC LIMIT ?`,
+      )
+      .all(spaceId, spaceId, before, before, safeLimit)
+      .map((row) => ({
+        id: row.id,
+        spaceId: row.space_id,
+        sessionId: row.session_id,
+        windowStart: row.window_start,
+        windowEnd: row.window_end,
+        // 规则版第一行是给检索用的时间标签，界面自己会写时间。
+        text: row.text.replace(/^会话 \d{4}-[^\n]*\n/, ''),
+      }))
+  }
+
   listEvents({ spaceId = '', limit = 50, before = '' } = {}) {
     const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50))
     const db = this.requireDb()

@@ -1,6 +1,6 @@
 // 记忆页（功能 › 会话与资料）。用功能页模板：“‹ 功能”· 标题 · 工具行（搜索、添加记忆、更多；空间选择）·
-// 三个视图：演算（默认，懒加载，按时间滑动看记忆如何演变，选中后详情在下方）、时间线（从新到旧，按日期分组，
-// 展开看详情）、整理记录（每次改动和理由，可撤销）。记忆不需要确认，所以这里没有候选箱。
+// 四个视图：演算（默认，懒加载，按时间滑动看记忆如何演变，选中后详情在下方）、时间线（从新到旧，按日期分组，
+// 展开看详情）、会话（每次对话的摘要）、整理记录（每次改动和理由，可撤销）。记忆不需要确认，所以这里没有候选箱。
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Ellipsis, Plus, RefreshCw } from 'lucide-react'
 import { FEATURE_SEARCH_INPUT_ID } from '@/app/more-pages'
@@ -34,6 +34,7 @@ import { useShortcutLabel } from '@/lib/shortcuts'
 import { MemoryActivity } from './MemoryActivity'
 import { MemoryBadges, MemoryDetailPanel } from './MemoryDetailPanel'
 import { MemoryEditDialog, MemorySpaceDialog } from './MemoryDialogs'
+import { MemorySessions } from './MemorySessions'
 import {
   clearMemoryEpisodes,
   consolidateMemory,
@@ -55,14 +56,16 @@ import type { MemoryDashboard, MemoryListStatus, MemoryNode, MemorySpace } from 
 // 画布和动画不小，只有打开这个视图才加载。
 const MemoryEvolution = lazy(() => import('./MemoryEvolution'))
 
-type MemoryView = 'evolution' | 'timeline' | 'activity'
+type MemoryView = 'evolution' | 'timeline' | 'sessions' | 'activity'
 type TimelineStatus = Exclude<MemoryListStatus, 'all'>
 const ALL_SPACES = 'all'
 
 function readStoredView(): MemoryView {
   try {
     const stored = pageStateStorage.getItem(STORAGE_KEYS.memoryView)
-    return stored === 'timeline' || stored === 'activity' ? stored : 'evolution'
+    return stored === 'timeline' || stored === 'sessions' || stored === 'activity'
+      ? stored
+      : 'evolution'
   } catch {
     return 'evolution'
   }
@@ -430,6 +433,9 @@ export function MemoryPage({
                     <TabsTrigger value="timeline">
                       {t('memory:memoryPage.timelineView')}
                     </TabsTrigger>
+                    <TabsTrigger value="sessions">
+                      {t('memory:memoryPage.sessionsView')}
+                    </TabsTrigger>
                     <TabsTrigger value="activity">
                       {t('memory:memoryPage.activityView')}
                     </TabsTrigger>
@@ -588,6 +594,9 @@ export function MemoryPage({
                     </Button>
                   </div>
                 )}
+              </TabsContent>
+              <TabsContent value="sessions" className="min-w-0">
+                <MemorySessions spaceId={spaceId} spaces={data.spaces} refreshKey={refreshKey} />
               </TabsContent>
               <TabsContent value="activity" className="min-w-0">
                 <MemoryActivity spaceId={spaceId} refreshKey={refreshKey} onChanged={onChanged} />

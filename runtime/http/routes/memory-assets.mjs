@@ -136,6 +136,19 @@ export const memoryAssetRoutes = [
     },
   },
   {
+    method: 'GET',
+    path: '/api/memory/sessions',
+    async handler({ runtime, url, json }) {
+      json(200, {
+        sessions: await runtime.listMemorySessionDigests({
+          spaceId: url.searchParams.get('spaceId') || '',
+          before: isoParam(url.searchParams.get('before')),
+          limit: url.searchParams.get('limit') || undefined,
+        }),
+      })
+    },
+  },
+  {
     method: 'POST',
     path: '/api/memory/events/:eventId/undo',
     handler({ runtime, params, json }) {

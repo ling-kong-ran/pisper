@@ -70,6 +70,20 @@ export type MemoryDetail = {
   item: MemoryNode
   history: MemoryNode[]
   episode?: { id: string; sessionId: string; at: string; userText: string; assistantText: string }
+  // 摘要下的事实；会话摘要是这次对话记下的那些。
+  children?: { id: string; title: string; validFrom: string }[]
+}
+
+// 一次对话的摘要。对话已经不在会话目录里时 sessionAvailable 为 false。
+export type MemorySessionDigest = {
+  id: string
+  spaceId: string
+  sessionId: string
+  windowStart: string
+  windowEnd: string
+  text: string
+  sessionName: string
+  sessionAvailable: boolean
 }
 
 // 时间演算的一条事实：只有标题没有正文，正文在选中时按 id 取。

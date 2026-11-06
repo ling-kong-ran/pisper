@@ -250,6 +250,17 @@ export class AgentRuntimeFacade {
     return this.memory.listEvents(input)
   }
 
+  async listMemorySessionDigests(input) {
+    const digests = this.memory.listSessionDigests(input)
+    if (!digests.length) return digests
+    // 标题在会话目录里，记忆库不存。目录里已经没有的会话只显示摘要，不给跳转。
+    const sessions = new Map((await this.listSessions()).map((session) => [session.id, session]))
+    return digests.map((digest) => {
+      const session = sessions.get(digest.sessionId)
+      return { ...digest, sessionName: session?.name || '', sessionAvailable: Boolean(session) }
+    })
+  }
+
   undoMemoryEvent(id) {
     return this.memory.undoEvent(id)
   }

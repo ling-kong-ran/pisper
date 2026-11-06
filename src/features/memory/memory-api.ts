@@ -7,6 +7,7 @@ import type {
   MemoryEvolutionData,
   MemoryListStatus,
   MemoryNode,
+  MemorySessionDigest,
   MemorySpace,
 } from './memory-types'
 
@@ -49,6 +50,17 @@ export function fetchMemoryEvents(
   if (options.before) params.set('before', options.before)
   if (options.limit) params.set('limit', String(options.limit))
   return apiJson<{ events: MemoryEvent[] }>(`/api/memory/events?${params}`, { signal })
+}
+
+export function fetchMemorySessionDigests(
+  options: { spaceId?: string; before?: string; limit?: number } = {},
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams()
+  if (options.spaceId) params.set('spaceId', options.spaceId)
+  if (options.before) params.set('before', options.before)
+  if (options.limit) params.set('limit', String(options.limit))
+  return apiJson<{ sessions: MemorySessionDigest[] }>(`/api/memory/sessions?${params}`, { signal })
 }
 
 export function undoMemoryEvent(id: string) {

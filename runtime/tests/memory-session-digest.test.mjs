@@ -70,6 +70,54 @@ const searchDigests = (memory, query) =>
     trackAccess: false,
   })
 
+test('the sessions list shows newest first, pages by last turn, and hides what must not surface', async () => {
+  await withMemory(async (memory, { clock }) => {
+    for (const [session, minutes] of [
+      ['old', 300],
+      ['middle', 200],
+      ['new', 100],
+    ]) {
+      turn(memory, session, minutes + 5, `${session} 第一句`)
+      turn(memory, session, minutes, `${session} 第二句`)
+    }
+    const db = memory.requireDb()
+    await runMemoryConsolidation(memory.requireStore(), { now: clock.value, client: null })
+    const list = (input) => memory.listSessionDigests(input)
+
+    assert.deepEqual(
+      list().map((digest) => digest.sessionId),
+      ['new', 'middle', 'old'],
+    )
+    const [newest] = list({ limit: 1 })
+    assert.equal(newest.windowEnd, ago(100))
+    assert.equal(newest.spaceId, 'global')
+    assert.match(newest.id, /./)
+    // 规则版第一行的时间标签是给检索用的，界面自己写时间。
+    assert.doesNotMatch(newest.text, /^会话 /)
+    assert.match(newest.text, /new 第一句/)
+    assert.deepEqual(
+      list({ before: newest.windowEnd, limit: 1 }).map((digest) => digest.sessionId),
+      ['middle'],
+    )
+    assert.deepEqual(list({ spaceId: 'nothing-here' }), [])
+
+    // 待重算（来源被用户删了）的不露面，Bot 的空间也不混进来。
+    db.prepare("UPDATE memory_digests SET dirty = 2 WHERE session_id = 'middle'").run()
+    assert.deepEqual(
+      list().map((digest) => digest.sessionId),
+      ['new', 'old'],
+    )
+    db.prepare(
+      "INSERT OR IGNORE INTO memory_spaces (id, kind, name, created_at, updated_at) VALUES ('bot:x', 'custom', 'x', '', '')",
+    ).run()
+    db.prepare("UPDATE memory_digests SET space_id = 'bot:x' WHERE session_id = 'old'").run()
+    assert.deepEqual(
+      list().map((digest) => digest.sessionId),
+      ['new'],
+    )
+  })
+})
+
 test('a session digest waits until the session has gone quiet, and one turn is not enough', async () => {
   await withMemory(async (memory, { clock }) => {
     turn(memory, 'busy', 5, '修一下登录页')

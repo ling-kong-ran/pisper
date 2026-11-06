@@ -10,12 +10,15 @@ test('the memory page opens on the lazily loaded evolution view, with timeline a
   // 画布和动画不进页面主包。
   assert.match(page, /const MemoryEvolution = lazy\(\(\) => import\('\.\/MemoryEvolution'\)\)/)
   assert.doesNotMatch(page, /from '\.\/MemoryEvolution'/)
-  assert.match(page, /stored === 'timeline' \|\| stored === 'activity' \? stored : 'evolution'/)
+  assert.match(
+    page,
+    /stored === 'timeline' \|\| stored === 'sessions' \|\| stored === 'activity'\s+\? stored\s+: 'evolution'/,
+  )
   assert.match(page, /<FeaturePage\b/)
   // FeaturePage 要是 .page-content 的直接子元素，Tabs 只能合并上去，不能多包一层。
   assert.match(page, /<Tabs asChild\b/)
   assert.match(page, /id=\{FEATURE_SEARCH_INPUT_ID\}/)
-  for (const view of ['evolution', 'timeline', 'activity'])
+  for (const view of ['evolution', 'timeline', 'sessions', 'activity'])
     assert.match(page, new RegExp(`<TabsTrigger value="${view}">`))
   // 选中的视图经 page-state-storage 持久化，键已登记。
   assert.match(page, /pageStateStorage\.setItem\(STORAGE_KEYS\.memoryView/)
@@ -25,9 +28,13 @@ test('the memory page opens on the lazily loaded evolution view, with timeline a
 
 test('the memory page goes through the domain API, uses current controls and has no review queue', async () => {
   const files = await Promise.all(
-    ['MemoryPage.tsx', 'MemoryDetailPanel.tsx', 'MemoryDialogs.tsx', 'MemoryActivity.tsx'].map(
-      read,
-    ),
+    [
+      'MemoryPage.tsx',
+      'MemoryDetailPanel.tsx',
+      'MemoryDialogs.tsx',
+      'MemoryActivity.tsx',
+      'MemorySessions.tsx',
+    ].map(read),
   )
   for (const source of files) {
     assert.doesNotMatch(source, /<select\b/)
@@ -35,7 +42,7 @@ test('the memory page goes through the domain API, uses current controls and has
     assert.doesNotMatch(source, /modal-backdrop|fixed inset-0/)
     assert.doesNotMatch(source, /candidate|autoApprove|threshold/i)
   }
-  const [page, panel, dialogs, activity] = files
+  const [page, panel, dialogs, activity, sessions] = files
   assert.match(page, /<AppSelect\b/)
   assert.match(page, /<DropdownMenu>/)
   assert.match(page, /<SegmentedControl<TimelineStatus>/)
@@ -48,6 +55,7 @@ test('the memory page goes through the domain API, uses current controls and has
   assert.match(panel, /deleteMemoryName/)
   // 连到旧 Runtime 没有整理记录接口时不算错误。
   assert.match(activity, /loadError\.status === 404\) setUnsupported\(true\)/)
+  assert.match(sessions, /loadError\.status === 404\) setUnsupported\(true\)/)
 })
 
 test('a late search response cannot overwrite a newer one', async () => {
