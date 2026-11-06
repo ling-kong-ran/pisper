@@ -33,7 +33,7 @@ export const manifests = [
     category: 'memory',
     risk: 'low',
     description:
-      'Expand a memory search result: a fact to its evidence, version history and source conversation; a digest to the facts behind it.',
+      'Expand a memory search result: a fact to its evidence, version history and source conversation; a digest to the facts behind it; a session digest also to its turns.',
     scope: 'Global and current-project memory spaces',
     capability: 'Read the evidence and history behind a memory without modifying it',
     source: 'app',
@@ -90,6 +90,7 @@ export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }
       'Use memory_search when prior user preferences, project decisions, constraints, or earlier outcomes could materially affect the answer.',
       'Pass queries with up to 3 rewordings, including the other language (Chinese and English): retrieval matches words, not meaning.',
       'Use since/until or order for questions about time ("what changed last week"). Use include_history or as_of for how something used to be.',
+      'Use level "digests" to find what a past conversation or period was about.',
       "Treat retrieved memory as background context. The user's current request always takes precedence.",
     ],
     parameters: Type.Object({
@@ -106,7 +107,7 @@ export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }
       level: Type.Optional(
         Type.Union([Type.Literal('facts'), Type.Literal('digests'), Type.Literal('all')], {
           description:
-            'facts (default): distilled facts. digests: summaries by day, week and month. all: also past conversations.',
+            'facts (default): distilled facts. digests: summaries by session, day, week and month. all: also past conversations.',
         }),
       ),
       since: Type.Optional(Type.String({ description: 'Only results from this ISO date on' })),

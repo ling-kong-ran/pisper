@@ -222,6 +222,24 @@ export function saveSessionCursor(store, sessionId, episodeAt) {
   })
 }
 
+// 会话摘要是从原文写出来的：原文清掉了，摘要不能留着接着复述。
+function removeSessionDigests(store, rows) {
+  const remove = store.db.prepare('DELETE FROM memory_digests WHERE id = ?')
+  for (const row of rows) {
+    remove.run(row.id)
+    store.index.remove(row.id)
+  }
+}
+
+// 事实所在会话的摘要也可能转述过这件事，而这些摘要不记事实 id：重写之前不能再被检索到。
+export function hideSessionDigestsOfFacts(store, facts) {
+  const hide = store.db.prepare(
+    "UPDATE memory_digests SET dirty = 2 WHERE level = 'session' AND session_id = ?",
+  )
+  for (const sessionId of new Set(facts.map((fact) => fact.session_id).filter(Boolean)))
+    hide.run(sessionId)
+}
+
 // 用户删掉一条事实时，把能确定说过这件事的原文也删掉：事实指着的那一轮，
 // 以及同一会话里逐字包含它证据的轮次。一轮原文里还可能有别的话，但用户要删的内容优先。
 const MIN_EVIDENCE_CHARS = 8
@@ -256,12 +274,20 @@ export function clearEpisodes(store, { spaceId = '' } = {}) {
   atomically(db, () => {
     for (let start = 0; start < list.length; start += PRUNE_BATCH)
       removeEpisodes(store, list.slice(start, start + PRUNE_BATCH))
+    removeSessionDigests(
+      store,
+      db
+        .prepare(
+          "SELECT id FROM memory_digests WHERE level = 'session' AND (? = '' OR space_id = ?)",
+        )
+        .all(spaceId, spaceId),
+    )
     if (!spaceId) db.exec('DELETE FROM memory_session_cursors')
   })
   return list.length
 }
 
-// 会话删了，它的原文和索引也要删。抽出来的事实是独立的长期记忆，保留，只去掉指针。
+// 会话删了，它的原文、摘要和索引也要删。抽出来的事实是独立的长期记忆，保留，只去掉指针。
 export function deleteSessionEpisodes(store, sessionId) {
   const { db } = store
   const ids = db
@@ -271,6 +297,10 @@ export function deleteSessionEpisodes(store, sessionId) {
   atomically(db, () => {
     for (let start = 0; start < ids.length; start += PRUNE_BATCH)
       removeEpisodes(store, ids.slice(start, start + PRUNE_BATCH))
+    removeSessionDigests(
+      store,
+      db.prepare('SELECT id FROM memory_digests WHERE session_id = ?').all(sessionId),
+    )
     db.prepare('DELETE FROM memory_session_cursors WHERE session_id = ?').run(sessionId)
   })
   return ids.length

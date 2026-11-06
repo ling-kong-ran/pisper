@@ -296,7 +296,8 @@ export function retrieve({ db, index }, options) {
           `SELECT * FROM memory_digests
            WHERE space_id IN (${placeholders(spaceIds)}) AND dirty < 2
              AND window_start < ? AND window_end > ?
-           ORDER BY window_start DESC LIMIT 12`,
+           -- 会话摘要可能很多，不能把这段时间的周摘要挤出候选。
+           ORDER BY level = 'session', window_start DESC LIMIT 12`,
         )
         .all(...spaceIds, timeWindow.until, timeWindow.since)
       remember(rows, 'digest')

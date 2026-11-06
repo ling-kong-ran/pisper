@@ -36,6 +36,7 @@ import {
   clearEpisodes,
   deleteEpisodesOfFacts,
   deleteSessionEpisodes,
+  hideSessionDigestsOfFacts,
   pendingEpisodeBatches,
   recordEpisode,
   saveSessionCursor,
@@ -198,6 +199,7 @@ function itemFromHit(hit) {
       id: hit.row.id,
       spaceId: hit.row.space_id,
       level: hit.row.level,
+      ...(hit.row.session_id ? { sessionId: hit.row.session_id } : {}),
       windowStart: hit.row.window_start,
       windowEnd: hit.row.window_end,
       title: `${hit.row.level} ${String(hit.row.window_start).slice(0, 10)}`,
@@ -658,8 +660,9 @@ export class LocalMemoryRuntime {
     }))
     const digests = db
       .prepare(
+        // 年轮上的弧标的是日历窗口；会话一天能有几十个，画上去只剩噪点。
         `SELECT id, space_id, level, window_start, window_end FROM memory_digests
-         WHERE space_id IN (${marks}) AND dirty < 2 ORDER BY window_start`,
+         WHERE space_id IN (${marks}) AND dirty < 2 AND level <> 'session' ORDER BY window_start`,
       )
       .all(...ids)
       .map((row) => ({
@@ -1043,6 +1046,7 @@ export class LocalMemoryRuntime {
     this.transaction(() => {
       // 原文里也有这段内容：不删的话 memory_search 还能从原文层搜到，批量抽取也可能再抽出来。
       deleteEpisodesOfFacts(this.requireStore(), chain)
+      hideSessionDigestsOfFacts(this.requireStore(), chain)
       const insertForgotten = db.prepare(
         'INSERT OR REPLACE INTO memory_forgotten (fingerprint, expires_at) VALUES (?, ?)',
       )

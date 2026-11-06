@@ -310,6 +310,15 @@ function promotePendingCandidates(db, now) {
   return rows.length
 }
 
+// 会话摘要要能按会话找回来。这一列不提高 schema_revision：已发布的版本看到更高的 revision 会拒绝打开记忆库，
+// 而它们只读具名列，多一列不受影响，用户还能回退。
+function ensureDigestSessionColumn(db) {
+  const columns = db.prepare('PRAGMA table_info(memory_digests)').all()
+  if (!columns.some((column) => column.name === 'session_id'))
+    db.exec("ALTER TABLE memory_digests ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+  db.exec('CREATE INDEX IF NOT EXISTS memory_digests_session ON memory_digests(session_id)')
+}
+
 function applyRevision5(db, now) {
   const columns = new Set(
     db
@@ -399,6 +408,7 @@ export function initializeMemorySchema(
     }
     upgraded = true
   }
+  ensureDigestSessionColumn(db)
   // 回退旧版期间写入的行没有这些字段，下次打开时补上；条件查询很便宜，每次启动跑一次。
   db.prepare(
     `
