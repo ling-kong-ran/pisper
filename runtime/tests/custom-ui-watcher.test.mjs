@@ -176,9 +176,18 @@ test('服务层：监听到的变化按 rev 去重；手改文件发 files（带
   assert.match(events[1].rev, /^[a-f0-9]{24}$/)
   assert.notEqual(events[1].rev, created.rev)
 
+  // rm -r 不是原子的：扫描可能先撞上缺 manifest 的目录，多发一条 rev 为 null 的 files，但必须收敛到 deleted。
+  const beforeDelete = events.length
   await rm(join(service.root, 'demo'), { recursive: true })
-  await until(() => events.length === 3, '手动删除没有发事件')
-  assert.deepEqual(events[2], { id: 'demo', rev: null, reason: 'deleted' })
+  await until(() => events.at(-1).reason === 'deleted', '手动删除没有发事件')
+  assert.deepEqual(events.at(-1), { id: 'demo', rev: null, reason: 'deleted' })
+  assert.deepEqual(
+    events
+      .slice(beforeDelete, -1)
+      .map((event) => event.reason)
+      .filter((reason) => reason !== 'files'),
+    [],
+  )
 
   service.dispose()
   assert.equal(watchers[0].mode, 'disposed')
