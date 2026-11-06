@@ -55,6 +55,33 @@ export function spawnProcessSync(command, args, options) {
     return { status: null, signal: null, stdout: "", stderr: "", error: unavailableError() };
 }`,
       },
+      // 命令退出后，留在后台的进程只要持续输出，宽限计时就不断重置，工具永远结束不了，
+      // 会话一直显示“运行中”。退出后最多再读这么久，超过就算后台进程，不再收集它的输出。
+      {
+        before: 'const EXIT_STDIO_GRACE_MS = 100;',
+        after: 'const EXIT_STDIO_GRACE_MS = 100;\nconst EXIT_STDIO_MAX_MS = 5000;',
+      },
+      {
+        before: `        const armIdleTimer = () => {
+            if (postExitTimer)
+                clearTimeout(postExitTimer);
+            postExitTimer = setTimeout(() => finalize(exitCode), EXIT_STDIO_GRACE_MS);
+        };`,
+        after: `        let exitDeadline = 0;
+        const armIdleTimer = () => {
+            if (postExitTimer)
+                clearTimeout(postExitTimer);
+            const remaining = Math.max(0, exitDeadline - Date.now());
+            postExitTimer = setTimeout(() => finalize(exitCode), Math.min(EXIT_STDIO_GRACE_MS, remaining));
+        };`,
+      },
+      {
+        before: `            exited = true;
+            exitCode = code;`,
+        after: `            exited = true;
+            exitCode = code;
+            exitDeadline = Date.now() + EXIT_STDIO_MAX_MS;`,
+      },
     ],
   },
   {

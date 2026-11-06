@@ -175,3 +175,21 @@ test('Pisper bash exposes only command and timeout without sandbox escalation fl
   assert.match(tool.description, /host files and networks/)
   assert.doesNotMatch(tool.description, /sandbox/i)
 })
+
+test(
+  'a background process that keeps printing cannot hold a finished command open',
+  { timeout: 20_000, skip: process.platform === 'win32' },
+  async (t) => {
+    const cwd = await mkdtemp(join(tmpdir(), 'pisper-bash-chatty-'))
+    t.after(() => rm(cwd, { recursive: true, force: true }))
+    const tool = await createPisperBashTool(cwd)
+    const startedAt = Date.now()
+    // shell 立刻退出，留下的子进程每 50ms 输出一次（比宽限计时短，会不断把它重置）。
+    const result = await tool.execute('chatty', {
+      command: '(for i in $(seq 1 240); do echo tick; sleep 0.05; done) & echo started',
+    })
+    const elapsed = Date.now() - startedAt
+    assert.ok(elapsed < 9_000, `command stayed open for ${elapsed}ms`)
+    assert.match(result.content[0].text, /started/)
+  },
+)
