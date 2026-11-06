@@ -45,7 +45,7 @@
 - **Stable prefix, hot cache.** Canonically ordered tool definitions and hash-based prompt-shape diagnostics keep provider prompt caches hitting — long sessions get faster and cheaper.
 - **Missing a capability? Just ask.** Pisper writes, validates and installs local plugins by itself — callable from the very next turn.
 - **Independent on your phone, connected when you want.** The Android / iOS app bundles the same Node/Pisper Runtime, standard sessions, and React interface as Desktop, hiding only capabilities the device cannot host. It can also pair with Desktop, prefer LAN, and fall back to Iroh P2P while retaining TLS fingerprint pinning and device Bearer tokens.
-- **Your data stays on your machine.** The runtime binds to 127.0.0.1 by default, known secret formats are redacted, and inferred memories wait for your approval. Your context, your call.
+- **Your data stays on your machine.** The runtime binds to 127.0.0.1 by default, known secret formats are redacted, and every memory change is logged and can be undone. Your context, your call.
 
 <a id="features"></a>
 
@@ -55,7 +55,7 @@
 | --- | --- |
 | Split-view parallel sessions · Session Tree branching · Stable Turn labels · Per-turn file rewind · Ctrl+K cross-session jump · Per-session model/directory/permissions · Persistent command and file permission rules | Self-generated local plugins · Connect external MCP servers · Built-in MCP server for other local agents · Skill center · Multi-provider model configuration · Automatic switch to backup models when the primary is unavailable |
 | **⚡ Automation & notifications** | **🖥️ Desktop & terminal, one core** |
-| Visual workflows · Scheduled tasks · Feishu / WeChat channels · Project memory · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
+| Visual workflows · Scheduled tasks · Feishu / WeChat channels · Layered memory (retires outdated facts, replays over time) · Git & SVN changes | Ratatui TUI sharing the Desktop Runtime · Android / iOS on-device Runtime or Desktop connection · Desktop pets (Petdex) · Independent Desktop / TUI / Runtime / App updates |
 
 Want another agent on the same computer to use Pisper? Enable the built-in server on the MCP page and copy its connection settings. It exposes sessions, memory, workflows, and more behind a token.
 
@@ -198,7 +198,7 @@ There is no "our cloud" in Pisper. Your data is held by the local Runtime. Provi
 - **Redaction and sandboxed credentials**: common API keys, Bearer/JWT tokens, private keys, and connection strings are replaced before memories are persisted or summaries are shown. On-device Provider credentials and remote device tokens currently remain in the App-private directory under OS sandbox and file permissions; Android Keystore / iOS Keychain integration is still pending.
 - **Permission boundaries**: approval-required, workspace-write and full-access modes; credentials are never echoed back to agents through ordinary config APIs, and the host shell strips common credential environment variables.
 - **Opt-in MCP server**: off by default, bound to 127.0.0.1, and protected by a separate Bearer token. A local client holding that token can call every exposed tool.
-- **Memory on approval**: automatically inferred memories sit in a review queue and are never recalled until you confirm them.
+- **Memory you can audit and undo**: memories take effect without a review step, and every change is logged and can be undone. A model's inference never overrides what you said, messages from external channels are not recalled automatically, and deleting a memory also removes the conversation text behind it.
 
 > Honest boundary: redaction only recognizes common secret formats; it is not full DLP, a sandbox, or end-to-end encryption. Desktop Runtime Provider credentials still live in the local Agent data directory, so protect that directory and its backups. Mobile secure storage does not replace device lock screens, OS updates, or trusted sideload sources.
 
