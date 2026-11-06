@@ -323,7 +323,7 @@ export function MessageAttachments({
   const checkFileDiff = async (key: string, path: string) => {
     if (!sessionId) return
     try {
-      const result = await chatApi.getFileDiff(sessionId, path)
+      const result = await chatApi.getFileDiff(sessionId, path, { preferSession: true })
       setDiffInfo((current) => ({
         ...current,
         [key]: result.diff?.trim()
@@ -365,7 +365,7 @@ export function MessageAttachments({
     if (!sessionId || loadingDiff) return
     setLoadingDiff(key)
     try {
-      const result = await chatApi.getFileDiff(sessionId, path)
+      const result = await chatApi.getFileDiff(sessionId, path, { preferSession: true })
       if (result.diff?.trim()) {
         setFileMenuFor(null)
         setFileDiff({ diff: result.diff, truncated: Boolean(result.diffTruncated) })
@@ -392,7 +392,7 @@ export function MessageAttachments({
   return (
     <>
       <div
-        className={`message-attachments flex flex-wrap gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
+        className={`message-attachments flex flex-wrap items-start gap-[6px] [margin-top:6px] ${compact ? 'compact' : ''}`}
       >
         {attachments.map((attachment, index) => {
           if (hiddenFileCount && (fileChipOrder.get(index) ?? -1) >= FILE_CHIP_COLLAPSED)

@@ -5,10 +5,12 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
+  archiveGeneratedAsset,
   dedupeAssetsForDisplay,
   generatedAssetsForSession,
   reconcileAssetIndex,
 } from '../services/asset-storage.mjs'
+import { archivePreviewImagePart } from '../runtime/tool-preview-images.mjs'
 
 const PNG = Buffer.from(
   '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082',
@@ -409,4 +411,46 @@ test('non-media workspace file changes stay in generated assets after history re
   const generated = runtime.streamProjection.generatedAssets('session-9')
   assert.equal(generated.length, 1)
   assert.equal(generated[0].name, 'app.ts')
+})
+
+test('a file the agent recreates loses its hidden-from-reply mark', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-asset-hidden-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const filePath = join(root, 'report.txt')
+  await writeFile(filePath, 'report')
+  const assets = []
+  const archive = (hiddenInReply) =>
+    archiveGeneratedAsset({
+      assets,
+      filePath,
+      kind: 'file',
+      mimeType: 'text/plain',
+      sessionId: 'session',
+      sessionName: 'session',
+      hiddenInReply,
+    })
+  assert.equal((await archive(true)).hiddenInReply, true)
+  assert.equal((await archive(true)).hiddenInReply, true)
+  assert.equal((await archive(false)).hiddenInReply, undefined)
+  assert.equal((await archive(true)).hiddenInReply, undefined)
+  assert.equal(assets.length, 1)
+})
+
+test('tool preview images stay out of replies, also when their content already exists', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-asset-preview-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const assets = []
+  const archive = (sessionId, created) =>
+    archivePreviewImagePart(
+      { data: PNG.toString('base64'), mimeType: 'image/png', toolName: 'read' },
+      { assets, assetsDir: root, sessionId, sessionName: sessionId, created },
+    )
+  await archive('first', new Date(2000).toISOString())
+  await archive('second', new Date(3000).toISOString())
+  assert.equal(assets.length, 1)
+  for (const sessionId of ['first', 'second']) {
+    const generated = generatedAssetsForSession(assets, sessionId)
+    assert.ok(generated.length > 0)
+    assert.ok(generated.every((asset) => asset.hiddenInReply))
+  }
 })

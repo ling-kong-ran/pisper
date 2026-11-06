@@ -1,7 +1,9 @@
 import { lstat, opendir, realpath, stat } from 'node:fs/promises'
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { runGit } from './git-changes-service.mjs'
 
 const MAX_SCANNED_ENTRIES = 30_000
+const GIT_QUERY_TIMEOUT_MS = 10_000
 export const MAX_AUTO_ARCHIVE_BYTES = 128 * 1024 * 1024
 
 const IGNORED_DIRECTORY_NAMES = new Set([
@@ -178,11 +180,49 @@ export async function listNewWorkspaceAssets(baseline) {
     )
 }
 
+// 工作区可能只是仓库的子目录，也可能含嵌套仓库（clone、子模块），因此按文件逐级向上找。
+async function gitRepositoryRoot(path, cache) {
+  const directory = dirname(path)
+  if (cache.has(directory)) return cache.get(directory)
+  const parent = dirname(directory)
+  let repository = null
+  if (await lstat(join(directory, '.git')).catch(() => null)) repository = directory
+  else if (parent !== directory) repository = await gitRepositoryRoot(directory, cache)
+  cache.set(directory, repository)
+  return repository
+}
+
+// 查询失败（如没装 git）时返回空集：宁可多显示，也不漏掉 Agent 新建的文件。
+async function gitTrackedFiles(repository) {
+  const result = await runGit(
+    repository,
+    ['--no-optional-locks', '-c', 'core.fsmonitor=false', 'ls-files', '-z'],
+    { timeout: GIT_QUERY_TIMEOUT_MS },
+  )
+  return new Set(result.ok ? result.stdout.split('\0').filter(Boolean) : [])
+}
+
+// pull、切分支、clone 带来的新文件已被 git 跟踪，是更新代码，不算 Agent 新建。
+async function withGitArrivalsNotAdded(files) {
+  const roots = new Map()
+  const tracked = new Map()
+  for (const file of files) {
+    if (!file.added) continue
+    const repository = await gitRepositoryRoot(file.path, roots)
+    if (!repository) continue
+    if (!tracked.has(repository)) tracked.set(repository, await gitTrackedFiles(repository))
+    file.added = !tracked.get(repository).has(relative(repository, file.path).split(sep).join('/'))
+  }
+  return files
+}
+
 export async function listChangedWorkspaceAssets(baseline) {
   if (!baseline?.entries) return []
   const current = await scanWorkspace(baseline.root, baseline.exclude)
   if (!current) return []
-  return [...current.entries()]
-    .filter(([key, file]) => baseline.entries.get(key)?.version !== file.version)
-    .map(([, file]) => file)
+  return withGitArrivalsNotAdded(
+    [...current.entries()]
+      .filter(([key, file]) => baseline.entries.get(key)?.version !== file.version)
+      .map(([key, file]) => ({ ...file, added: !baseline.entries.has(key) })),
+  )
 }

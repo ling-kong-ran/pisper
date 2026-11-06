@@ -73,6 +73,8 @@ export async function archivePreviewImagePart(
     sessionId,
     sessionName,
     created: created || new Date().toISOString(),
+    // 预览图只属于活动卡片：读图、截屏的画面不是 Agent 的产物，不挂到回复上。
+    hiddenInReply: true,
   })
   return previewImageFromAsset(asset)
 }

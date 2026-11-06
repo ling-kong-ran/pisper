@@ -1,12 +1,43 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { getEventListeners } from 'node:events'
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setImmediate as nextTick } from 'node:timers/promises'
 import test from 'node:test'
+import { promisify } from 'node:util'
+import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { workspaceAssetFile } from '../services/workspace-asset-capture.mjs'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { createToolGatewayTool } from '../tools/app/tool-gateway.mjs'
+
+const execFileAsync = promisify(execFile)
+
+const git = (cwd, ...args) =>
+  execFileAsync(
+    'git',
+    ['-c', 'user.name=Pisper Test', '-c', 'user.email=test@example.invalid', ...args],
+    { cwd },
+  )
+
+// 建一个带两个提交的仓库：main 上一个文件，update 分支改它并再加两个（模拟待更新的代码）。
+async function repositoryWithUpdate(path) {
+  await mkdir(path, { recursive: true })
+  await git(path, 'init', '-q', '-b', 'main')
+  await writeFile(join(path, 'tracked.txt'), 'v1')
+  await git(path, 'add', '.')
+  await git(path, 'commit', '-q', '-m', 'v1')
+  await git(path, 'checkout', '-q', '-b', 'update')
+  await writeFile(join(path, 'tracked.txt'), 'v2 is longer')
+  await mkdir(join(path, 'docs'))
+  await writeFile(join(path, 'docs', 'added.md'), 'added')
+  await writeFile(join(path, 'docs', 'promo.mp4'), 'video')
+  await git(path, 'add', '.')
+  await git(path, 'commit', '-q', '-m', 'v2')
+  await git(path, 'checkout', '-q', 'main')
+}
 
 function deferred() {
   let resolve
@@ -35,9 +66,9 @@ async function fixture(t, archiveHook, trackerOptions = {}) {
   const archived = []
   const attempts = []
   const warnings = []
-  const archive = async (sessionId, path) => {
+  const archive = async (sessionId, path, { hiddenInReply } = {}) => {
     const content = await readFile(path, 'utf8')
-    const asset = { id: `${sessionId}:${path}`, sessionId, path, content }
+    const asset = { id: `${sessionId}:${path}`, sessionId, path, content, hiddenInReply }
     attempts.push(asset)
     await archiveHook?.(asset, attempts.length)
     archived.push(asset)
@@ -154,7 +185,7 @@ test('a long-running shell yields the workspace without claiming files of later 
   assert.equal(f.tracker.detached.size, 0)
 })
 
-test('shell overwrites archive the updated content at the same path', async (t) => {
+test('shell overwrites stay archived but are not delivered to the reply again', async (t) => {
   const f = await fixture(t)
   const path = join(f.cwd, 'report.txt')
   await f.run('session-a', () => writeFile(path, 'first'))
@@ -163,13 +194,17 @@ test('shell overwrites archive the updated content at the same path', async (t) 
     ['first'],
   )
   await f.run('session-a', () => writeFile(path, 'second version'))
+  assert.deepEqual(await f.tracker.drain('session-a'), [])
   assert.deepEqual(
-    (await f.tracker.drain('session-a')).map((asset) => asset.content),
-    ['second version'],
-  )
-  assert.deepEqual(
-    f.archived.map((asset) => asset.path),
-    [path, path],
+    f.archived.map(({ path: assetPath, content, hiddenInReply }) => [
+      assetPath,
+      content,
+      hiddenInReply,
+    ]),
+    [
+      [path, 'first', false],
+      [path, 'second version', true],
+    ],
   )
 })
 
@@ -210,6 +245,235 @@ test('one shell call archives all 201 generated files', async (t) => {
   )
   assert.equal(f.attempts.length, 201)
   assert.deepEqual(f.warnings, [])
+})
+
+test('updating code through git is archived but hidden from the reply', async (t) => {
+  const f = await fixture(t)
+  await repositoryWithUpdate(f.cwd)
+  await f.run('pull', () => git(f.cwd, 'merge', '-q', '--ff-only', 'update'))
+  assert.deepEqual(await f.tracker.drain('pull'), [])
+  assert.deepEqual(
+    f.archived.map((asset) => asset.hiddenInReply),
+    [true, true, true],
+  )
+})
+
+test('a clone into the workspace is archived but hidden from the reply', async (t) => {
+  const f = await fixture(t)
+  const source = join(f.cwd, '..', 'source')
+  await repositoryWithUpdate(source)
+  await f.run('clone', () => git(f.cwd, 'clone', '-q', source, 'cloned'))
+  assert.deepEqual(await f.tracker.drain('clone'), [])
+  assert.equal(f.archived.length, 1)
+  assert.equal(f.archived[0].hiddenInReply, true)
+})
+
+test('only files the agent created reach the reply next to a git update', async (t) => {
+  const f = await fixture(t)
+  const repository = join(f.cwd, 'repository')
+  // 工作区是仓库的子目录时，也要认出上层仓库。
+  const cwd = join(repository, 'docs')
+  await repositoryWithUpdate(repository)
+  await mkdir(cwd)
+  await f.run(
+    'mixed',
+    async () => {
+      await git(repository, 'merge', '-q', '--ff-only', 'update')
+      await writeFile(join(cwd, 'report.txt'), 'untracked output')
+      await writeFile(join(cwd, 'added.md'), 'tracked file changed by a script')
+    },
+    { cwd },
+  )
+  assert.deepEqual(
+    (await f.tracker.drain('mixed')).map((asset) => asset.content),
+    ['untracked output'],
+  )
+  assert.equal(f.archived.length, 3)
+})
+
+test('a broken git repository does not hide created files', async (t) => {
+  const f = await fixture(t)
+  await mkdir(join(f.cwd, '.git'))
+  await f.run('broken', () => writeFile(join(f.cwd, 'report.txt'), 'output'))
+  assert.deepEqual(
+    (await f.tracker.drain('broken')).map((asset) => asset.content),
+    ['output'],
+  )
+})
+
+test('restored retries from before the upgrade keep showing in the reply', async (t) => {
+  const f = await fixture(t)
+  const path = join(f.cwd, 'legacy.txt')
+  await writeFile(path, 'legacy')
+  const file = await workspaceAssetFile(path)
+  await writeFile(
+    join(f.dataDir, 'pisper-workspace-asset-retries.json'),
+    JSON.stringify({ files: [{ ...file, sessionId: 'legacy', cwd: f.cwd }] }),
+  )
+  assert.deepEqual(
+    (await f.createTracker().drain('legacy')).map((asset) => asset.content),
+    ['legacy'],
+  )
+})
+
+test('a real agent turn shows only what the agent produced, live and after a reload', async (t) => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'pisper-asset-reply-')))
+  const directory = join(root, 'data')
+  const workspace = join(root, 'workspace')
+  await mkdir(directory)
+  await repositoryWithUpdate(workspace)
+  const chunk = (delta, finish_reason = null) => ({
+    id: 'test',
+    object: 'chat.completion.chunk',
+    created: 0,
+    model: 'fixture',
+    choices: [{ index: 0, delta, finish_reason }],
+  })
+  const toolCalls = {
+    更新代码: {
+      name: 'bash',
+      arguments: { command: 'git merge -q --ff-only update && echo output > report.txt' },
+    },
+    新建文件: { name: 'write', arguments: { path: 'notes.md', content: 'notes' } },
+    改文件: {
+      name: 'edit',
+      arguments: { path: 'tracked.txt', edits: [{ oldText: 'v2 is longer', newText: 'v3' }] },
+    },
+  }
+  const server = createServer(async (request, reply) => {
+    if (request.method === 'GET' && request.url.endsWith('/models')) {
+      reply.writeHead(200, { 'content-type': 'application/json' })
+      reply.end(JSON.stringify({ data: [{ id: 'fixture' }] }))
+      return
+    }
+    const parts = []
+    for await (const part of request) parts.push(part)
+    const last = JSON.parse(Buffer.concat(parts).toString('utf8')).messages.at(-1)
+    reply.writeHead(200, { 'content-type': 'text/event-stream' })
+    const send = (value) => reply.write(`data: ${JSON.stringify(value)}\n\n`)
+    if (last.role === 'tool') {
+      send(chunk({ role: 'assistant', content: 'done' }))
+      send(chunk({}, 'stop'))
+    } else {
+      const text = JSON.stringify(last.content)
+      const key = Object.keys(toolCalls).find((name) => text.includes(name))
+      const { name, arguments: toolArguments } = toolCalls[key]
+      send(
+        chunk({
+          role: 'assistant',
+          tool_calls: [
+            {
+              index: 0,
+              id: `call_${name}`,
+              type: 'function',
+              function: { name, arguments: JSON.stringify(toolArguments) },
+            },
+          ],
+        }),
+      )
+      send(chunk({}, 'tool_calls'))
+    }
+    reply.end('data: [DONE]\n\n')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  let runtime
+  t.after(async () => {
+    await runtime?.dispose()
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+    await rm(root, { recursive: true, force: true })
+  })
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        'test-reply': {
+          api: 'openai-completions',
+          baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+          models: [
+            {
+              id: 'fixture',
+              name: 'Fixture',
+              reasoning: false,
+              input: ['text'],
+              contextWindow: 200000,
+              maxTokens: 8192,
+            },
+          ],
+        },
+      },
+    }),
+  )
+  await writeFile(
+    join(directory, 'auth.json'),
+    JSON.stringify({ 'test-reply': { type: 'api_key', key: 'test-only-reply-key' } }),
+  )
+  const start = async () => {
+    const service = new AgentRuntimeService({ cwd: workspace, dataDir: directory })
+    service.memorySummarizer = { summarize: async (entries) => entries.map(() => '') }
+    await service.init()
+    service.memory.setSemanticSummarizer(null)
+    return service
+  }
+  runtime = await start()
+  const created = await runtime.createSession('产物', workspace)
+  await runtime.setSessionModel(created.id, 'test-reply', 'fixture')
+  await runtime.setSessionExecutionMode(created.id, 'full-access')
+  const turn = async (message) => {
+    const names = { streamed: [], done: [] }
+    await runtime.streamPrompt({
+      sessionId: created.id,
+      message,
+      send: (event, data) => {
+        if (event === 'generated_asset') names.streamed.push(data.name)
+        if (event === 'done') names.done.push(...(data.assets || []).map((asset) => asset.name))
+      },
+    })
+    return names
+  }
+  const attachedNames = async () =>
+    (await runtime.getSessionMessages(created.id))
+      .flatMap((message) => (message.attachments || []).map((attachment) => attachment.name))
+      .sort()
+  const namesPerReply = async () =>
+    (await runtime.getSessionMessages(created.id))
+      .filter((message) => message.role === 'agent')
+      .map((message) => (message.attachments || []).map((attachment) => attachment.name))
+
+  // bash 更新代码并生成一个文件：只有生成的文件进回复。
+  assert.deepEqual(await turn('更新代码'), { streamed: ['report.txt'], done: ['report.txt'] })
+  assert.equal(await readFile(join(workspace, 'docs', 'added.md'), 'utf8'), 'added')
+  assert.deepEqual(await attachedNames(), ['report.txt'])
+
+  // write 新建的文件进回复。
+  assert.deepEqual(await turn('新建文件'), { streamed: ['notes.md'], done: ['notes.md'] })
+  assert.deepEqual(await attachedNames(), ['notes.md', 'report.txt'])
+  // 从历史重建时，产物要挂回产生它的那一轮，而不是上一条回复。
+  assert.deepEqual(await namesPerReply(), [['report.txt'], ['notes.md']])
+
+  // edit 改已有文件不进回复，但仍能在“改动”面板里查看并撤销。
+  assert.deepEqual(await turn('改文件'), { streamed: [], done: [] })
+  assert.equal(await readFile(join(workspace, 'tracked.txt'), 'utf8'), 'v3')
+  assert.deepEqual(await attachedNames(), ['notes.md', 'report.txt'])
+  const changes = await runtime.getSessionFileChanges(created.id)
+  assert.equal(changes.files.find((file) => file.path === 'tracked.txt')?.canRevert, true)
+  assert.equal((await runtime.revertSessionFileChanges(created.id, 'tracked.txt')).reverted, 1)
+  assert.equal(await readFile(join(workspace, 'tracked.txt'), 'utf8'), 'v2 is longer')
+
+  // generate_visual 等生成工具走默认入口，照常进回复。
+  const chart = join(root, 'chart.png')
+  await writeFile(chart, 'image')
+  await runtime.recordGeneratedFile(created.id, { name: '产物' }, chart)
+  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'report.txt'])
+
+  // 重开运行时等同于刷新后从磁盘重建：隐藏标记必须落盘，资产页则保留全部文件。
+  await runtime.dispose()
+  runtime = await start()
+  assert.deepEqual(await attachedNames(), ['chart.png', 'notes.md', 'report.txt'])
+  assert.deepEqual(
+    (await runtime.listAssets({ sessionId: created.id })).map((a) => a.name).sort(),
+    ['added.md', 'chart.png', 'notes.md', 'promo.mp4', 'report.txt', 'tracked.txt'],
+  )
 })
 
 test('drain retries a failed archive once and consumes successful deliveries', async (t) => {
@@ -257,10 +521,7 @@ test('retry never attributes a later session overwrite to the original session',
   await f.run('old', () => writeFile(path, 'old content'))
   await f.run('new', () => writeFile(path, 'new content is longer'))
   assert.deepEqual(await f.tracker.drain('old'), [])
-  assert.deepEqual(
-    (await f.tracker.drain('new')).map((asset) => asset.content),
-    ['new content is longer'],
-  )
+  assert.deepEqual(await f.tracker.drain('new'), [])
   assert.deepEqual(
     f.attempts.map(({ sessionId, content }) => [sessionId, content]),
     [
@@ -285,7 +546,7 @@ test('restored retries discard externally replaced files without claiming their 
   assert.deepEqual(await f.createTracker().drain('old'), [])
 })
 
-test('explicit write and edit capture their target including paths outside cwd', async (t) => {
+test('explicit writes deliver new files and edits only archive, including outside cwd', async (t) => {
   const f = await fixture(t)
   const path = join(f.cwd, '..', 'explicit.txt')
   await f.run('writer', () => writeFile(path, 'written'), {
@@ -300,13 +561,13 @@ test('explicit write and edit capture their target including paths outside cwd',
     (await f.tracker.drain('writer')).map((asset) => asset.content),
     ['written'],
   )
+  assert.deepEqual(await f.tracker.drain('editor'), [])
   assert.deepEqual(
-    (await f.tracker.drain('editor')).map((asset) => asset.content),
-    ['edited content'],
-  )
-  assert.deepEqual(
-    f.archived.map((asset) => asset.path),
-    [path, path],
+    f.archived.map((asset) => [asset.path, asset.hiddenInReply]),
+    [
+      [path, false],
+      [path, true],
+    ],
   )
 })
 

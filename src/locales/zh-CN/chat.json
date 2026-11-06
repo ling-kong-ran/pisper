@@ -608,7 +608,7 @@
   "chatMessage.fileActionReveal": "在文件管理器中显示",
   "chatMessage.fileActionDiff": "查看改动",
   "chatMessage.fileActionRevert": "撤销改动",
-  "chatMessage.fileActionConfirmRevert": "再次点击确认撤销",
+  "chatMessage.fileActionConfirmRevert": "再次点击撤销（当前内容会丢失）",
   "chatMessage.fileActionRevertDone": "已撤销改动：{path}",
   "chatMessage.fileActionRevertFailed": "撤销改动失败：{path}",
   "chatMessage.moreFiles": "还有 {count} 个文件",

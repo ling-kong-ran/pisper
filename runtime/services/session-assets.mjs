@@ -41,6 +41,25 @@ export function assetMessageAttachment(asset) {
   }
 }
 
+function messageTime(message) {
+  return Number(message.timestamp) || new Date(message.timestamp || 0).getTime()
+}
+
+// 资产归属到创建时所处的轮次（最后一条不晚于它的用户消息到下一条用户消息）。
+// 回复的时间戳是工具跑完后最终消息的开始时间，晚于工具产出的资产，不能只按“不晚于资产”找。
+function assetTargetIndex(messages, agentIndexes, created) {
+  const start = messages.findLastIndex(
+    (message) => message.role === 'user' && messageTime(message) <= created,
+  )
+  const next = messages.findIndex((message, index) => index > start && message.role === 'user')
+  const turn = agentIndexes.filter((index) => index > start && (next < 0 || index < next))
+  // 一轮可能有多条回复（如目标续跑）：取资产之后第一条，都早于资产时取最后一条。
+  if (turn.length)
+    return turn.find((index) => messageTime(messages[index]) >= created) ?? turn.at(-1)
+  // 这一轮还没有回复（仍在运行或异常结束）：挂最近的一条，早于所有消息（异常时序）挂第一条。
+  return agentIndexes.findLast((index) => index < start) ?? agentIndexes[0]
+}
+
 export function attachGeneratedAssets(messages, assets) {
   const result = messages.map((message) => ({
     ...message,
@@ -51,17 +70,9 @@ export function attachGeneratedAssets(messages, assets) {
     .filter((index) => index >= 0)
   if (!agentIndexes.length) return result
   for (const asset of assets) {
+    if (asset.hiddenInReply) continue
     const created = new Date(asset.created || asset.modified || 0).getTime()
-    // 归属到资产创建时所处的轮次：工具执行产生的资产晚于该轮助手消息的起始时间戳，
-    // 取「最后一个不晚于创建时间的 agent 消息」；早于所有消息（异常时序）挂第一条。
-    // 旧逻辑取「第一条晚于创建时间的消息」，会把上一轮的产物错挂到下一轮。
-    let targetIndex = agentIndexes[0]
-    for (const index of agentIndexes) {
-      const timestamp =
-        Number(result[index].timestamp) || new Date(result[index].timestamp || 0).getTime()
-      if (timestamp <= created) targetIndex = index
-      else break
-    }
+    const targetIndex = assetTargetIndex(result, agentIndexes, created)
     const attachment = assetMessageAttachment(asset)
     const targetAttachments = result[targetIndex].attachments
     const identity = attachmentIdentity(attachment)

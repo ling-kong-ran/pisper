@@ -96,6 +96,7 @@ export function addAssetReference(asset, input) {
     created: String(input.created || new Date().toISOString()),
   }
   if (input.filePath) reference.filePath = resolve(input.filePath)
+  if (input.hiddenInReply) reference.hiddenInReply = true
   if (!Array.isArray(asset.references)) asset.references = []
   asset.references.push(reference)
   return reference
@@ -173,6 +174,7 @@ export async function storeAssetBuffer({
   sessionId,
   sessionName,
   created,
+  hiddenInReply = false,
 }) {
   const hash = hashBuffer(buffer)
   const duplicate = await findContentDuplicate(assets, hash)
@@ -186,6 +188,7 @@ export async function storeAssetBuffer({
       mimeType,
       size: buffer.length,
       created,
+      hiddenInReply,
     })
     duplicate.modified = created
     if (sessionId && !duplicate.sessionId) duplicate.sessionId = sessionId
@@ -208,6 +211,7 @@ export async function storeAssetBuffer({
     sessionName: sessionName || '',
     created,
     modified: created,
+    ...(hiddenInReply ? { hiddenInReply: true } : {}),
   }
   assets.unshift(asset)
   return asset
@@ -221,13 +225,19 @@ export async function archiveGeneratedAsset({
   mimeType,
   sessionId,
   sessionName,
+  hiddenInReply = false,
 }) {
   const sourcePath = resolve(filePath)
   const fileInfo = await stat(sourcePath).catch(() => null)
   if (!fileInfo?.isFile()) return null
   const now = new Date().toISOString()
   const duplicate = findAssetByFilePath(assets, sourcePath)
-  if (duplicate) return assets.find((asset) => asset.id === duplicate.id) || duplicate
+  if (duplicate) {
+    const existing = assets.find((asset) => asset.id === duplicate.id) || duplicate
+    // 删掉后被 Agent 重新创建的文件是新产物，不能沿用之前的隐藏标记。
+    if (!hiddenInReply) delete existing.hiddenInReply
+    return existing
+  }
   const id = randomUUID()
   const name = basename(sourcePath)
   const asset = {
@@ -242,6 +252,7 @@ export async function archiveGeneratedAsset({
     sessionName,
     created: now,
     modified: now,
+    ...(hiddenInReply ? { hiddenInReply: true } : {}),
   }
   assets.unshift(asset)
   return asset

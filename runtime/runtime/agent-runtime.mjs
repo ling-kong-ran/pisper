@@ -1620,7 +1620,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
   }
 
-  async recordGeneratedFile(sessionId, value, filePath) {
+  async recordGeneratedFile(sessionId, value, filePath, { hiddenInReply = false } = {}) {
     await this.assetReconcile
     const name = basename(filePath)
     const asset = await assetStorage.archiveGeneratedAsset({
@@ -1631,6 +1631,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       mimeType: mimeFromName(filePath),
       sessionId,
       sessionName: value.name,
+      hiddenInReply,
     })
     if (!asset) return null
     await this.saveAssetIndex()

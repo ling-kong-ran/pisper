@@ -53,3 +53,35 @@ test('restored files do not advertise a header-only diff or snapshot revert', as
   assert.equal(result.diff, '')
   assert.notEqual(result.canRevert, true)
 })
+
+test('the file chip prefers the session snapshot while the workspace view keeps the git diff', async (t) => {
+  const { cwd, service, runtime } = await fixture(t)
+  const gitDiff =
+    'diff --git a/notes.txt b/notes.txt\n--- a/notes.txt\n+++ b/notes.txt\n@@ git @@\n'
+  runtime.vcsChanges = { getFileDiff: async () => ({ isRepo: true, vcs: 'git', diff: gitDiff }) }
+  const path = join(cwd, 'notes.txt')
+  await writeFile(path, 'before\n')
+  await service.run({ sessionId: 's1', cwd, name: 'write', args: { path } }, () =>
+    writeFile(path, 'after\n'),
+  )
+  const workspace = await runtime.getSessionFileDiff('s1', path)
+  assert.equal(workspace.source, 'git')
+  assert.equal(workspace.diff, gitDiff)
+  assert.equal(workspace.canRevert, false)
+
+  const chip = await runtime.getSessionFileDiff('s1', path, { preferSession: true })
+  assert.equal(chip.source, 'snapshot')
+  assert.equal(chip.canRevert, true)
+  assert.match(chip.diff, /\+after/)
+
+  // 没有快照（如 shell 生成）或已经撤销时退回 git diff，并且不提供撤销。
+  const generated = join(cwd, 'generated.txt')
+  await writeFile(generated, 'output\n')
+  const untracked = await runtime.getSessionFileDiff('s1', generated, { preferSession: true })
+  assert.equal(untracked.source, 'git')
+  assert.equal(untracked.canRevert, false)
+  await service.revert('s1', cwd, 'notes.txt')
+  const restored = await runtime.getSessionFileDiff('s1', path, { preferSession: true })
+  assert.equal(restored.source, 'git')
+  assert.equal(restored.canRevert, false)
+})

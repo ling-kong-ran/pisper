@@ -435,7 +435,12 @@ const routes = [
     method: 'GET',
     path: '/api/sessions/:sessionId/vcs/file-diff',
     async handler({ runtime, params, url, json }) {
-      json(200, await runtime.getSessionFileDiff(params.sessionId, url.searchParams.get('path')))
+      json(
+        200,
+        await runtime.getSessionFileDiff(params.sessionId, url.searchParams.get('path'), {
+          preferSession: url.searchParams.get('prefer') === 'session',
+        }),
+      )
     },
   },
   {

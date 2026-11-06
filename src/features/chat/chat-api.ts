@@ -524,14 +524,21 @@ export const chatApi = {
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/changes`, options),
 
   // 单文件差异：消息文件 chip「查看改动」；非版本控制工作区回退到修改前快照。
-  getFileDiff: (sessionId: string, path: string, options: { signal?: AbortSignal } = {}) =>
+  getFileDiff: (
+    sessionId: string,
+    path: string,
+    { preferSession = false, ...options }: { signal?: AbortSignal; preferSession?: boolean } = {},
+  ) =>
     requestJson<{
       isRepo: boolean
       diff: string
       diffTruncated?: boolean
       source?: string
       canRevert?: boolean
-    }>(`${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}`, options),
+    }>(
+      `${sessionPath(sessionId)}/vcs/file-diff?path=${encodeURIComponent(path)}${preferSession ? '&prefer=session' : ''}`,
+      options,
+    ),
 
   commitVcsChanges: (sessionId: string, message: string) =>
     requestJson<GitChangesResponse>(`${sessionPath(sessionId)}/vcs/commit`, {

@@ -183,9 +183,9 @@ export class WorkspaceAssetTracker {
           const internalPath = path && nested(this.dataDir, await canonical(path))
           let files = op.shell
             ? await listChangedWorkspaceAssets(before)
-            : [await workspaceAssetFile(path)].filter(
-                (file) => file && file.version !== before?.version && !internalPath,
-              )
+            : [await workspaceAssetFile(path)]
+                .filter((file) => file && file.version !== before?.version && !internalPath)
+                .map((file) => ({ ...file, added: !before }))
           if (detached || this.detached.size) {
             const claims = await Promise.all(files.map((file) => this.claim(file)))
             if (detached) files = files.filter((_, index) => !detached.has(claims[index]))
@@ -219,9 +219,13 @@ export class WorkspaceAssetTracker {
           this.pending.delete(this.key(file))
           continue
         }
-        const asset = await this.archive(file.sessionId, file.path)
+        // 只有 Agent 新建的文件才挂到回复上；改动已有文件、更新代码只进资产。
+        // 升级前落盘的重试项没有 added 字段，按原行为显示。
+        const hiddenInReply = file.added === false
+        const asset = await this.archive(file.sessionId, file.path, { hiddenInReply })
         if (!asset) continue
         this.pending.delete(this.key(file))
+        if (hiddenInReply) continue
         const assets = this.deliveries.get(file.sessionId) || new Map()
         assets.set(asset.id, asset)
         this.deliveries.set(file.sessionId, assets)

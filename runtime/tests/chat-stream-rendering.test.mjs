@@ -517,3 +517,29 @@ test('chat keeps hidden panels and continuous canvas work out of the renderer', 
   assert.match(dock, /if \(sessionId\) void loadMessages\?\.\(sessionId/)
   assert.match(dispatcher, /tools: pushCurrentActivity\(current\.tools, activity\)/)
 })
+
+test('file chips keep their own height next to generated media', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      TooltipProvider,
+      null,
+      React.createElement(FocusChatMessage, {
+        sessionId: 'test',
+        message: {
+          id: 'reply',
+          role: 'agent',
+          text: 'done',
+          attachments: [
+            { id: 'image', kind: 'image', name: 'chart.png', url: '/api/assets/image' },
+            { id: 'file', kind: 'file', name: 'notes.md', path: '/workspace/notes.md' },
+          ],
+        },
+        agentState: 'idle',
+        showRunActivity: false,
+      }),
+    ),
+  )
+  assert.match(html, /chart\.png/)
+  assert.match(html, /notes\.md/)
+  assert.match(html, /message-attachments[^"]*\bitems-start\b/)
+})

@@ -608,7 +608,7 @@
   "chatMessage.fileActionReveal": "Reveal in file manager",
   "chatMessage.fileActionDiff": "View changes",
   "chatMessage.fileActionRevert": "Revert changes",
-  "chatMessage.fileActionConfirmRevert": "Click again to confirm revert",
+  "chatMessage.fileActionConfirmRevert": "Click again to revert (current content is lost)",
   "chatMessage.fileActionRevertDone": "Changes reverted: {path}",
   "chatMessage.fileActionRevertFailed": "Failed to revert changes: {path}",
   "chatMessage.moreFiles": "{count} more files",

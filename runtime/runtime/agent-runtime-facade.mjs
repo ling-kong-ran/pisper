@@ -382,11 +382,12 @@ export class AgentRuntimeFacade {
   installWorkspaceAssetCapture(session, cwd, sessionId = session.sessionId) {
     this.workspaceAssetTracker ||= new WorkspaceAssetTracker({
       dataDir: this.dataDir,
-      archive: (id, path) =>
+      archive: (id, path, options) =>
         this.recordGeneratedFile(
           id,
           this.sessions.get(id) || { name: this.sessionMeta[id]?.name },
           path,
+          options,
         ),
     })
     this.workspaceAssetTracker.install(session, { sessionId, cwd })
@@ -2270,18 +2271,17 @@ export class AgentRuntimeFacade {
   // 单文件差异：会话文件 chip「查看改动」的数据源；
   // 路径必须落在会话工作区内，避免借会话读取任意目录的 diff。
   // 非 VCS 工作区回退到会话内修改前快照，保证无 Git/SVN 也能预览。
-  async getSessionFileDiff(id, filePath) {
+  // preferSession：文件 chip 的撤销恢复的是快照，有快照时 diff 也用它，看到的和撤销的才是同一份改动。
+  async getSessionFileDiff(id, filePath, { preferSession = false } = {}) {
     const cwd = await this.sessionGitCwd(id)
     const target = resolve(cwd, String(filePath || ''))
     const relativePath = relative(cwd, target)
     if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
       throw new Error('文件路径超出会话工作区范围。')
-    const vcs = await this.vcsChanges.getFileDiff(cwd, target)
-    if (vcs.isRepo && vcs.diff?.trim())
-      return { ...vcs, source: vcs.vcs || 'vcs', canRevert: false }
     const relPath = relativePath.replace(/\\/g, '/')
-    const snapshot = await this.getFileChangesService().diff(id, cwd, relPath)
-    if (snapshot.found && snapshot.diff.trim())
+    const snapshotDiff = async () => {
+      const snapshot = await this.getFileChangesService().diff(id, cwd, relPath)
+      if (!snapshot.found || !snapshot.diff.trim()) return null
       return {
         isRepo: false,
         vcs: '',
@@ -2290,7 +2290,15 @@ export class AgentRuntimeFacade {
         source: 'snapshot',
         canRevert: true,
       }
-    return { ...vcs, source: vcs.isRepo ? vcs.vcs || 'vcs' : '' }
+    }
+    if (preferSession) {
+      const session = await snapshotDiff()
+      if (session) return session
+    }
+    const vcs = await this.vcsChanges.getFileDiff(cwd, target)
+    if (vcs.isRepo && vcs.diff?.trim())
+      return { ...vcs, source: vcs.vcs || 'vcs', canRevert: false }
+    return (await snapshotDiff()) || { ...vcs, source: vcs.isRepo ? vcs.vcs || 'vcs' : '' }
   }
 
   getFileChangesService() {

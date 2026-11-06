@@ -40,7 +40,7 @@ async function buildUntrackedFileDiff(cwd, filePath) {
   }
 }
 
-async function runGit(cwd, args, { timeout = GIT_TIMEOUT_MS } = {}) {
+export async function runGit(cwd, args, { timeout = GIT_TIMEOUT_MS } = {}) {
   try {
     const result = await runProcess('git', args, {
       cwd,
