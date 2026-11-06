@@ -30,6 +30,8 @@ export type ContextPage = {
   url: string
   // 网页自己的标题（只有原生浏览器拿得到），标签上优先显示它。
   title: string
+  // Agent 正在用这个页签。离开“预览”时 WebView 不关，只隐藏：操作还要继续。
+  agent: boolean
   view: ContextPageView
 }
 export type ContextPages = {
@@ -49,7 +51,7 @@ export type ContextPageAction =
   | { type: 'select'; id: string }
   | { type: 'close'; id: string }
   | { type: 'kind'; id: string; kind: SessionContextTab }
-  | { type: 'browser'; id: string; draft?: string; url?: string; title?: string }
+  | { type: 'browser'; id: string; draft?: string; url?: string; title?: string; agent?: boolean }
   | { type: 'browser-tab'; id: string }
   | { type: 'resource'; id: string; resourceId: string }
   | { type: 'view'; id: string; patch: Partial<ContextPageView> }
@@ -79,6 +81,7 @@ function createPage(id: string, kind: SessionContextTab, resourceId = ''): Conte
     draft: '',
     url: '',
     title: '',
+    agent: false,
     view: {
       reading: {},
       expandedFiles: [],
@@ -230,6 +233,7 @@ export function updateContextPages(state: ContextPages, action: ContextPageActio
                 // 换了地址旧标题就不对了，新页面的标题到了再显示。
                 ...(action.url !== undefined && action.url !== page.url ? { title: '' } : {}),
                 ...(action.title !== undefined ? { title: action.title } : {}),
+                ...(action.agent !== undefined ? { agent: action.agent } : {}),
               },
     ),
   }

@@ -3,8 +3,9 @@
 // 预览落在会话页检查器的网页预览页：不在会话页时带着请求跳到最近的活动会话，
 // 请求随 localStorage 保留到会话页挂载时补开。没有有效的活动会话（从没打开过、已删除或已归档）时
 // 不为了显示网页去新建空会话，直接在外部浏览器打开。
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useI18n } from '@/app/use-i18n'
 import { sessionIdFromPath, sessionPath } from '@/app/routes'
 import { STORAGE_KEYS } from '@/app/storage'
 import { requestWebPreview } from '@/features/chat/web-preview-events'
@@ -16,6 +17,23 @@ import { previewSessionTarget, type CachedSessions } from './web-preview-target'
 export function WebPreviewProvider() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useI18n()
+  const overlayLabelRef = useRef('')
+  overlayLabelRef.current = t('common:webPreview.agentOverlay')
+
+  // 桌面端右侧浏览器接收 Agent 的指令。按需加载：入口有体积预算，Web 版也用不上这些代码。
+  useEffect(() => {
+    if (!window.pisperDesktop?.browser) return
+    let stopped = false
+    let stop = () => {}
+    void import('@/features/chat/agent-browser-host').then(({ startAgentBrowserHost }) => {
+      if (!stopped) stop = startAgentBrowserHost(() => overlayLabelRef.current)
+    })
+    return () => {
+      stopped = true
+      stop()
+    }
+  }, [])
 
   useEffect(() => {
     const captureExternalLink = (event: MouseEvent) => {

@@ -132,6 +132,8 @@
         sync: (browserId, bounds, visible) =>
           invoke('desktop_browser_sync', { browserId, bounds, visible }),
         close: (browserId) => invoke('desktop_browser_close', { browserId }),
+        evaluate: (browserId, script) => invoke('desktop_browser_evaluate', { browserId, script }),
+        capture: (browserId) => invoke('desktop_browser_capture', { browserId }),
       }),
       terminalProfiles: () => invoke('desktop_terminal_profiles'),
       terminalCreate: (options, onEvent) => {

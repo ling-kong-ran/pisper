@@ -48,6 +48,8 @@
   "webPreview.newTab": "New tab",
   "webPreview.tabs": "Browser tabs",
   "webPreview.closeTab": "Close tab",
+  "webPreview.agentTab": "Agent is working here",
+  "webPreview.agentOverlay": "Pisper is working",
   "webPreview.back": "Back",
   "webPreview.forward": "Forward",
   "webPreview.reload": "Reload",

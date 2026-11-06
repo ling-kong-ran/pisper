@@ -60,6 +60,9 @@ pub struct BrowserOpenResult {
     status: &'static str,
 }
 
+// 输入内容最多 5000 字，转义后也远小于这个数。
+const MAX_SCRIPT_BYTES: usize = 256 * 1024;
+
 fn ensure_main(window: &WebviewWindow) -> Result<(), String> {
     if window.label() == "main" {
         Ok(())
@@ -82,6 +85,7 @@ mod native {
     };
     use tauri::{ipc::Channel, AppHandle, Manager, Url, WebviewWindow};
     use tauri_plugin_opener::OpenerExt;
+    use tokio::sync::oneshot;
     use wry::{
         dpi::{LogicalPosition, LogicalSize},
         NewWindowFeatures, NewWindowResponse, PageLoadEvent, Rect, WebContext, WebView,
@@ -491,6 +495,137 @@ mod native {
         Ok(())
     }
 
+    pub fn evaluate(
+        browser_id: &str,
+        script: &str,
+        done: oneshot::Sender<String>,
+    ) -> Result<(), String> {
+        // wry 要求回调是 Fn，结果只发一次。
+        let done = Mutex::new(Some(done));
+        with_browser(browser_id, |webview| {
+            webview.evaluate_script_with_callback(script, move |result| {
+                if let Some(done) = done.lock().ok().and_then(|mut done| done.take()) {
+                    let _ = done.send(result);
+                }
+            })
+        })
+    }
+
+    // WebView2 的预览截图接口要 COM 流，DevTools 协议直接给 base64，也不用多依赖 windows crate。
+    #[cfg(target_os = "windows")]
+    pub fn capture(
+        browser_id: &str,
+        done: oneshot::Sender<Result<String, String>>,
+    ) -> Result<(), String> {
+        use webview2_com::{CallDevToolsProtocolMethodCompletedHandler, CoTaskMemPWSTR};
+        use wry::WebViewExtWindows;
+
+        let done = Mutex::new(Some(done));
+        with_browser(browser_id, |webview| {
+            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
+                move |result, json: String| {
+                    let image = result
+                        .map_err(|error| error.to_string())
+                        .and_then(|()| {
+                            serde_json::from_str::<serde_json::Value>(&json)
+                                .map_err(|error| error.to_string())
+                        })
+                        .and_then(|value| {
+                            value["data"]
+                                .as_str()
+                                .map(str::to_owned)
+                                .ok_or_else(|| "The screenshot came back empty.".to_string())
+                        });
+                    if let Some(done) = done.lock().ok().and_then(|mut done| done.take()) {
+                        let _ = done.send(image);
+                    }
+                    Ok(())
+                },
+            ));
+            let method = CoTaskMemPWSTR::from("Page.captureScreenshot");
+            let params = CoTaskMemPWSTR::from(r#"{"format":"png"}"#);
+            // SAFETY: 两个字符串在调用期间有效，handler 是有效的 COM 对象。
+            unsafe {
+                webview.webview().CallDevToolsProtocolMethod(
+                    *method.as_ref().as_pcwstr(),
+                    *params.as_ref().as_pcwstr(),
+                    &handler,
+                )
+            }
+            .map_err(|error| wry::Error::Io(std::io::Error::other(error.to_string())))
+        })
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn capture(
+        browser_id: &str,
+        done: oneshot::Sender<Result<String, String>>,
+    ) -> Result<(), String> {
+        use block2::RcBlock;
+        use objc2::{msg_send, runtime::AnyObject};
+        use wry::WebViewExtMacOS;
+
+        let done = Mutex::new(Some(done));
+        with_browser(browser_id, |webview| {
+            let view = webview.webview();
+            let block = RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
+                // SAFETY: WebKit 把 NSImage 或 nil 传给回调，png_base64 处理 nil。
+                let result = unsafe { png_base64(image) };
+                if let Some(done) = done.lock().ok().and_then(|mut done| done.take()) {
+                    let _ = done.send(result);
+                }
+            });
+            // SAFETY: 配置传 nil 是截取整个可视区域；WebKit 会复制这个 block。
+            unsafe {
+                let _: () = msg_send![
+                    &*view,
+                    takeSnapshotWithConfiguration: std::ptr::null_mut::<AnyObject>(),
+                    completionHandler: &*block
+                ];
+            }
+            Ok(())
+        })
+    }
+
+    // SAFETY: image 必须是 NSImage 或 nil。这几个 AppKit 类从 macOS 10.0 起就有，
+    // 按名字调用，不多依赖 objc2-app-kit。
+    #[cfg(target_os = "macos")]
+    unsafe fn png_base64(image: *mut objc2::runtime::AnyObject) -> Result<String, String> {
+        use base64::Engine;
+        use objc2::{
+            msg_send,
+            runtime::{AnyClass, AnyObject},
+        };
+        // NSBitmapImageFileTypePNG
+        const PNG_FILE_TYPE: usize = 4;
+
+        // 隐藏的视图可能截不出图。
+        let empty = || "The browser has nothing to capture while it is hidden.".to_string();
+        if image.is_null() {
+            return Err(empty());
+        }
+        let bitmap_class = AnyClass::get(c"NSBitmapImageRep").ok_or_else(empty)?;
+        let dictionary_class = AnyClass::get(c"NSDictionary").ok_or_else(empty)?;
+        let tiff: *mut AnyObject = msg_send![image, TIFFRepresentation];
+        if tiff.is_null() {
+            return Err(empty());
+        }
+        let bitmap: *mut AnyObject = msg_send![bitmap_class, imageRepWithData: tiff];
+        if bitmap.is_null() {
+            return Err(empty());
+        }
+        let properties: *mut AnyObject = msg_send![dictionary_class, dictionary];
+        let png: *mut AnyObject =
+            msg_send![bitmap, representationUsingType: PNG_FILE_TYPE, properties: properties];
+        if png.is_null() {
+            return Err(empty());
+        }
+        let bytes: *const std::ffi::c_void = msg_send![png, bytes];
+        let length: usize = msg_send![png, length];
+        let data = std::slice::from_raw_parts(bytes.cast::<u8>(), length);
+        Ok(base64::engine::general_purpose::STANDARD.encode(data))
+    }
+
     pub fn navigate(browser_id: &str, url: &Url) -> Result<(), String> {
         with_browser(browser_id, |webview| webview.load_url(url.as_str()))
     }
@@ -643,6 +778,57 @@ pub async fn desktop_browser_sync(
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = visible;
+        Err("unsupported".into())
+    }
+}
+
+// Agent 接管时在网页里执行脚本。网页不可信，但这条命令只有主窗口能调，网页自己调不到。
+#[tauri::command]
+pub async fn desktop_browser_evaluate(
+    window: WebviewWindow,
+    browser_id: String,
+    script: String,
+) -> Result<String, String> {
+    ensure_main(&window)?;
+    validate_browser_id(&browser_id)?;
+    if script.len() > MAX_SCRIPT_BYTES {
+        return Err("The browser script is too long.".into());
+    }
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        on_main_thread(&window, move || {
+            native::evaluate(&browser_id, &script, sender)
+        })
+        .await?;
+        receiver
+            .await
+            .map_err(|_| "The browser closed before the script finished.".to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = script;
+        Err("unsupported".into())
+    }
+}
+
+#[tauri::command]
+pub async fn desktop_browser_capture(
+    window: WebviewWindow,
+    browser_id: String,
+) -> Result<String, String> {
+    ensure_main(&window)?;
+    validate_browser_id(&browser_id)?;
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        on_main_thread(&window, move || native::capture(&browser_id, sender)).await?;
+        receiver
+            .await
+            .map_err(|_| "The browser closed before the screenshot finished.".to_string())?
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
         Err("unsupported".into())
     }
 }
