@@ -37,13 +37,31 @@ export function resolveWebPreviewUrl(href: string, baseUrl: string) {
   }
 }
 
-// 规范化预览输入：无协议时补 https://（或 // 协议相对），再解析为绝对 URL。
+// 本机和局域网的开发服务一般没有证书，没写协议时按 http 打开才连得上。
+function isLocalNetworkHost(hostname: string) {
+  return (
+    /^(?:localhost|.+\.localhost|.+\.local|0\.0\.0\.0|\[::1\])$/i.test(hostname) ||
+    /^(?:127|10)\.\d+\.\d+\.\d+$/.test(hostname) ||
+    /^192\.168\.\d+\.\d+$/.test(hostname) ||
+    /^172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)
+  )
+}
+
+// 规范化预览输入：无协议时补协议（本机和局域网 http，其余 https；// 协议相对不补），再解析为绝对 URL。
 export function normalizeWebPreviewInput(value: string, baseUrl: string) {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const candidate =
-    /^[a-z][a-z\d+.-]*:/i.test(trimmed) || trimmed.startsWith('//') ? trimmed : `https://${trimmed}`
-  return resolveWebPreviewUrl(candidate, baseUrl)?.href || null
+  // localhost:5173 的“localhost:”不是协议：冒号后面是端口时按主机名处理。
+  const hasScheme = /^[a-z][a-z\d+.-]*:(?!\d+(?:[/?#]|$))/i.test(trimmed)
+  if (hasScheme || trimmed.startsWith('//')) {
+    return resolveWebPreviewUrl(trimmed, baseUrl)?.href || null
+  }
+  const assumed = resolveWebPreviewUrl(`https://${trimmed}`, baseUrl)
+  // 重新按 http 解析而不是改 protocol：localhost:443 在 https 下端口会被当默认值丢掉。
+  if (assumed && isLocalNetworkHost(assumed.hostname)) {
+    return resolveWebPreviewUrl(`http://${trimmed}`, baseUrl)?.href || null
+  }
+  return assumed?.href || null
 }
 
 // 判断链接点击是否应交给 Web 预览：仅“无修饰键的左键点击 + 跨源 URL”

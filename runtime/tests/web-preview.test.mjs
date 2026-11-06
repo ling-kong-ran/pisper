@@ -47,6 +47,44 @@ test('URL bar input and dock panel metadata normalize preview destinations', () 
   assert.equal(normalizeWebPreviewInput('javascript:alert(1)', 'http://127.0.0.1:5173/chat'), null)
 })
 
+test('URL bar reads host:port as an address and opens local servers over http', () => {
+  const base = 'http://127.0.0.1:5173/chat'
+  for (const [input, expected] of [
+    ['localhost:5173', 'http://localhost:5173/'],
+    ['localhost:5173/docs?a=1#b', 'http://localhost:5173/docs?a=1#b'],
+    ['localhost', 'http://localhost/'],
+    ['localhost:443', 'http://localhost:443/'],
+    ['app.localhost:3000', 'http://app.localhost:3000/'],
+    ['printer.local', 'http://printer.local/'],
+    ['127.0.0.1:3000', 'http://127.0.0.1:3000/'],
+    ['0.0.0.0:8000', 'http://0.0.0.0:8000/'],
+    ['[::1]:3000', 'http://[::1]:3000/'],
+    ['10.0.0.8:3000', 'http://10.0.0.8:3000/'],
+    ['172.20.1.2:3000', 'http://172.20.1.2:3000/'],
+    ['192.168.1.20:8080', 'http://192.168.1.20:8080/'],
+    // 公网地址和域名仍然默认 https；用户写明的协议不改。
+    ['example.com:8080', 'https://example.com:8080/'],
+    ['example.com:8080/a', 'https://example.com:8080/a'],
+    ['172.32.1.2:3000', 'https://172.32.1.2:3000/'],
+    ['8.8.8.8', 'https://8.8.8.8/'],
+    ['https://localhost:5173', 'https://localhost:5173/'],
+    ['http://example.com:8080', 'http://example.com:8080/'],
+  ]) {
+    assert.equal(normalizeWebPreviewInput(input, base), expected, input)
+  }
+  // 端口判断不能给脚本协议开口子：结果要么被拒绝，要么只是 http(s) 地址。
+  for (const input of [
+    'javascript:alert(1)',
+    'javascript:1,alert(1)',
+    'data:text/html,x',
+    'file:///etc/passwd',
+    'localhost:99999',
+  ]) {
+    assert.equal(normalizeWebPreviewInput(input, base), null, input)
+  }
+  assert.equal(normalizeWebPreviewInput('javascript:12', base), 'https://javascript:12/')
+})
+
 test('application routes external links into the session inspector web preview', async () => {
   const [app, provider, chatPage, workspace, inspector, browserPane, component] = await Promise.all(
     [
