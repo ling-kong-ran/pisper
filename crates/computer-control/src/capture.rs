@@ -28,8 +28,8 @@ pub fn encode_jpeg(
         return Err("The screen capture came back empty.".into());
     }
     let mut rgb = Vec::with_capacity(frame.width as usize * frame.height as usize * 3);
-    for pixel in frame.bgra[..expected].chunks_exact(4) {
-        rgb.extend_from_slice(&[pixel[2], pixel[1], pixel[0]]);
+    for [blue, green, red, _] in frame.bgra[..expected].as_chunks::<4>().0 {
+        rgb.extend_from_slice(&[*red, *green, *blue]);
     }
     let source = image::RgbImage::from_raw(frame.width, frame.height, rgb)
         .ok_or("The screen capture has the wrong size.")?;

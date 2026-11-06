@@ -326,7 +326,10 @@ mod native {
             class_addMethod(
                 class.cast_mut(),
                 sel!(webViewDidClose:),
-                std::mem::transmute::<_, Imp>(imp),
+                std::mem::transmute::<
+                    unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject),
+                    Imp,
+                >(imp),
                 c"v@:@".as_ptr(),
             );
             let _: () = msg_send![&*view, setUIDelegate: delegate];
