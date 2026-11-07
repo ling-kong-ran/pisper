@@ -119,6 +119,8 @@ function buildCapabilities({
     sessionExport: true,
     // 新建项目文件夹：只建一层空目录，各档案都提供。
     workspaceFolders: true,
+    // 列出子文件夹（GET /api/workspace-folders）：目录选择面板据此逐级点选，各档案都提供。
+    workspaceFolderList: true,
     // 插队（立即发送）：/input 的 behavior: 'interrupt' 与排队项的 send-now，只打断当前这一步。
     inputInterrupt: true,
     // 实验功能开关：只读写应用配置里的一个字段，各档案都提供；单项功能是否可用另看它 requires 的能力。

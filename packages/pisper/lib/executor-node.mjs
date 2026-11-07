@@ -27,6 +27,8 @@ import tls from 'node:tls'
 
 const MAX_READ_BYTES = 16 * 1024 * 1024
 const MAX_GLOB_VISITS = 200_000
+// 选工作目录时一层最多列这么多文件夹，与大脑本机的列表同一上限。
+const MAX_LISTED_FOLDERS = 1000
 const POLL_TIMEOUT_MS = 40_000
 const CHUNK_FLUSH_MS = 150
 export class NodeOperationError extends Error {
@@ -208,6 +210,37 @@ export class ExecutorNode {
     return found
   }
 
+  // 列出一层子文件夹，供大脑的界面在这台电脑上点选 Bot 的目录：只给文件夹名和路径，不列文件。
+  // 隐藏文件夹不列；符号链接指向允许范围外的不列（点进去也会被拒）。到允许的根就不再往上。
+  async #folders({ path }) {
+    const base = await this.allowed(path)
+    const roots = await this.#allowedRoots()
+    const folders = []
+    for (const entry of await readdir(base, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) continue
+      const child = join(base, entry.name)
+      if (entry.isDirectory()) folders.push({ name: entry.name, path: child })
+      else if (entry.isSymbolicLink()) {
+        const target = await this.allowed(child).catch(() => null)
+        if (target && (await stat(target).catch(() => null))?.isDirectory())
+          folders.push({ name: entry.name, path: child })
+      }
+    }
+    folders.sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }),
+    )
+    const parent = dirname(base)
+    const parentAllowed =
+      !roots.includes(base) &&
+      roots.some((root) => parent === root || parent.startsWith(`${root}${sep}`))
+    return {
+      path: base,
+      parent: parentAllowed ? parent : '',
+      folders: folders.slice(0, MAX_LISTED_FOLDERS),
+      truncated: folders.length > MAX_LISTED_FOLDERS,
+    }
+  }
+
   // 执行一个请求；emit 用来流式交回命令输出。返回 { ok, value } 或 { ok: false, error }。
   async handle(request, emit = () => {}) {
     const { id, op } = request
@@ -251,6 +284,8 @@ export class ExecutorNode {
           return { ok: true, value: await readdir(await this.allowed(args.path)) }
         case 'fs.glob':
           return { ok: true, value: await this.#glob(args) }
+        case 'fs.folders':
+          return { ok: true, value: await this.#folders(args) }
         default:
           fail('op_unsupported', `不支持的操作：${op}`)
       }

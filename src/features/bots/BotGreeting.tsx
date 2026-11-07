@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/item'
 import { announceSessionsUpdated } from '@/features/chat/public-events'
 import { useBetaFeature } from '@/features/labs/public-flags'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { cn } from '@/lib/utils'
 import { BotAvatar } from './BotAvatar'
 import { botAvatarState, botDutyLine, botFolderName } from './bot-presentation'
@@ -93,7 +94,7 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
 
   // 没写职责时这张卡片是在选职责：巡看要持续消耗模型用量，所以先在 watch 表单里讲清频率与用量，
   // 用户点了确认、选好目录才连同“盯着它”的说明一起打开；已有职责只换目录，不碰巡看。
-  // 失败时抛给目录选择器，由它在对话框里显示原因（Runtime 校验目录是否存在）。
+  // 失败时抛给调用方显示原因（Runtime 校验目录是否存在）：系统对话框路径写到卡片的错误行，退回的目录面板在对话框里显示。
   const pickFolder = async (cwd: string) => {
     const updated = await updateBot(bot.id, {
       workspace: { ...bot.workspace, cwd },
@@ -108,6 +109,23 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
     // 保存后目录变了，选择器会按新的 initialPath 重置，不再自己关闭。
     setPicking(false)
     setConfirmingWatch(false)
+  }
+
+  // 先打开系统文件管理器；卡片上没有路径输入框，系统对话框出不来（配对设备、无图形会话的主机）时
+  // 才退回应用内的目录面板手填。
+  const chooseFolder = async () => {
+    if (saving) return
+    setSaving(true)
+    setError('')
+    try {
+      const result = await pickSystemDirectory(bot.workspace.cwd, t('bots:greeting.folder'))
+      if (result.status === 'picked') await pickFolder(result.path)
+      else if (result.status === 'unavailable') setPicking(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -219,7 +237,7 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
                 className="flex flex-col gap-3 rounded-[var(--r-md)] border border-stroke px-3 py-2.5"
                 onSubmit={(event) => {
                   event.preventDefault()
-                  setPicking(true)
+                  void chooseFolder()
                 }}
                 onKeyDown={(event) => {
                   // 下拉菜单在 Portal 里，它的 Esc 只关菜单，不算取消这个表单。
@@ -271,7 +289,7 @@ function GreetingCard({ bot, collapsed }: { bot: Bot; collapsed: boolean }) {
                 disabled={saving}
                 onClick={() => {
                   if (duty) {
-                    setPicking(true)
+                    void chooseFolder()
                     return
                   }
                   setEveryHours(bot.proactive.everyHours)

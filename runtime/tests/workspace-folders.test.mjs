@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { requiredRuntimeFeature } from '../http/api-handler.mjs'
 import { workspaceFolderRoutes } from '../http/routes/workspace-folders.mjs'
 import { resolveRuntimeCapabilities } from '../runtime-capabilities.mjs'
 import {
   createWorkspaceFolder,
+  listWorkspaceFolders,
   normalizeWorkspaceFolderName,
   WorkspaceFolderError,
 } from '../services/workspace-folder-service.mjs'
+import { parseWorkspaceFolderListing } from '../../src/lib/workspace-folders.ts'
 import {
   folderSeparator,
   joinFolderPath,
@@ -131,6 +133,89 @@ test('workspace folder route requires JSON, returns structured codes and is capa
         .features.workspaceFolders,
       true,
     )
+})
+
+test('lists only visible subfolders with full paths so phones can pick a folder on the host', async (t) => {
+  const root = await scratch(t)
+  for (const name of ['b10', 'b2', 'A', '.git']) await mkdir(join(root, name))
+  await writeFile(join(root, 'readme.md'), 'x')
+  // 指向文件夹的符号链接照常列出，指向文件的不列。
+  await symlink(join(root, 'A'), join(root, 'link-dir'), 'dir')
+  await symlink(join(root, 'readme.md'), join(root, 'link-file'), 'file')
+  const listing = await listWorkspaceFolders({ path: root })
+  assert.equal(listing.path, root)
+  assert.equal(listing.parent, dirname(root))
+  assert.equal(listing.truncated, false)
+  assert.deepEqual(listing.folders, [
+    { name: 'A', path: join(root, 'A') },
+    { name: 'b2', path: join(root, 'b2') },
+    { name: 'b10', path: join(root, 'b10') },
+    { name: 'link-dir', path: join(root, 'link-dir') },
+  ])
+  // 空路径从 Runtime 默认工作目录开始；到根时 parent 为空。
+  assert.equal(
+    (await listWorkspaceFolders({}, { fallback: join(root, 'A') })).path,
+    join(root, 'A'),
+  )
+  assert.equal((await listWorkspaceFolders({ path: '/' })).parent, '')
+  await rejectsWithCode(listWorkspaceFolders({ path: join(root, 'missing') }), 'folder_missing')
+  await rejectsWithCode(listWorkspaceFolders({ path: join(root, 'readme.md') }), 'folder_missing')
+  await rejectsWithCode(listWorkspaceFolders({ path: 'x'.repeat(5000) }), 'folder_path_invalid')
+
+  const route = workspaceFolderRoutes.find((entry) => entry.method === 'GET')
+  assert.equal(route.path, '/api/workspace-folders')
+  const invoke = async (query) => {
+    let response
+    await route.handler({
+      runtime: { cwd: join(root, 'b2') },
+      url: new URL(`http://runtime/api/workspace-folders${query}`),
+      json: (status, value) => {
+        response = { status, value }
+      },
+    })
+    return response
+  }
+  assert.equal((await invoke('')).value.path, join(root, 'b2'))
+  assert.equal(
+    (await invoke(`?path=${encodeURIComponent(root)}`)).value.folders.length,
+    listing.folders.length,
+  )
+  const missing = await invoke(`?path=${encodeURIComponent(join(root, 'nope'))}`)
+  assert.equal(missing.status, 404)
+  assert.equal(missing.value.code, 'folder_missing')
+  assert.equal(requiredRuntimeFeature('/api/workspace-folders', 'GET'), 'workspaceFolders')
+  for (const profile of ['desktop', 'mobile-embedded', 'mobile-store'])
+    assert.equal(
+      (await resolveRuntimeCapabilities({ environment: { PISPER_RUNTIME_PROFILE: profile } }))
+        .features.workspaceFolderList,
+      true,
+    )
+
+  // 客户端把不可信响应归一化：缺字段的项丢掉，不信任非布尔的 truncated。
+  assert.deepEqual(
+    parseWorkspaceFolderListing({
+      path: '/w',
+      parent: 7,
+      folders: [{ name: 'a', path: '/w/a' }, { name: 'b' }, null, 'c'],
+      truncated: 'yes',
+    }),
+    { path: '/w', parent: '', folders: [{ name: 'a', path: '/w/a' }], truncated: false },
+  )
+  assert.deepEqual(parseWorkspaceFolderListing(null), {
+    path: '',
+    parent: '',
+    folders: [],
+    truncated: false,
+  })
+
+  // 目录面板只在 Runtime 声明能力时出现，经统一 HTTP 客户端请求，点进文件夹就把它填进路径框。
+  const picker = await readFile('src/components/WorkspacePicker.tsx', 'utf8')
+  assert.match(picker, /state\.capabilities\.features\.workspaceFolderList/)
+  // 默认问 Runtime 所在电脑；调用方给了 listFolders（Bot 在另一台电脑上）时问那台电脑。
+  assert.match(picker, /\(listFolders \?\? listWorkspaceFolders\)\(target, controller\.signal\)/)
+  assert.match(picker, /const canBrowse = Boolean\(listFolders\) \|\| runtimeCanList/)
+  assert.match(picker, /if \(follow && next\.path\) setPath\(next\.path\)/)
+  assert.doesNotMatch(picker, /\bfetch\(/)
 })
 
 test('new folder dialog derives the sibling location and preview path for either separator', () => {

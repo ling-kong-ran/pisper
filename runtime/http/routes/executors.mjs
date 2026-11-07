@@ -62,6 +62,27 @@ export const executorRoutes = [
     }),
   },
   {
+    // 在 Bot 的电脑上点选目录：本机直接列，执行节点经连接中枢转过去，只在它允许的目录里。
+    method: 'GET',
+    path: '/api/environments/:environmentId/folders',
+    handler: botRoute(async ({ runtime, params, url, req, json }) => {
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      req.once('close', abort)
+      try {
+        const path = String(url.searchParams.get('path') || '').slice(0, 4096)
+        json(
+          200,
+          await runtime.listEnvironmentFolders(params.environmentId, path, {
+            signal: controller.signal,
+          }),
+        )
+      } finally {
+        req.off('close', abort)
+      }
+    }),
+  },
+  {
     method: 'DELETE',
     path: '/api/environments/:environmentId',
     handler: botRoute(async ({ runtime, params, json }) => {

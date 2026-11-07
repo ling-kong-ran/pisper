@@ -18,6 +18,7 @@ export class NodeExecutor {
     this.id = environment.id
     this.kind = 'node'
     this.name = environment.name
+    this.roots = Array.isArray(environment.roots) ? environment.roots.map(String) : []
     this.capabilities = Object.freeze({
       shell: environment.capabilities?.shell === true,
       browser: false,
@@ -30,6 +31,36 @@ export class NodeExecutor {
 
   #call(op, args, options) {
     return this.hub.call(this.id, op, args, options)
+  }
+
+  // 列出那台电脑上一层子文件夹，供界面点选 Bot 的目录；不给路径时从它允许的第一个目录开始。
+  // 旧版节点没有这个操作，明确回“版本太旧”，不拿空列表冒充。
+  async listFolders(path, { signal } = {}) {
+    const target = String(path || '').trim() || this.roots[0] || ''
+    if (!target) throw new ExecutorError('path_not_allowed', '这台电脑没有允许的目录。')
+    let value
+    try {
+      value = await this.#call('fs.folders', { path: target }, { signal })
+    } catch (error) {
+      if (error?.code === 'op_unsupported')
+        throw new ExecutorError(
+          'executor_outdated',
+          '这台电脑上的 pisper 版本太旧，升级后才能点选文件夹；也可以直接填写路径。',
+        )
+      throw error
+    }
+    const record = value && typeof value === 'object' ? value : {}
+    const text = (field) => (typeof field === 'string' ? field : '')
+    return {
+      path: text(record.path),
+      parent: text(record.parent),
+      folders: (Array.isArray(record.folders) ? record.folders : []).flatMap((folder) =>
+        folder && typeof folder.name === 'string' && typeof folder.path === 'string'
+          ? [{ name: folder.name, path: folder.path }]
+          : [],
+      ),
+      truncated: record.truncated === true,
+    }
   }
 
   operations() {

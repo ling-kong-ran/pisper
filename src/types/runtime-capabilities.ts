@@ -34,6 +34,7 @@ export type RuntimeFeature =
   | 'sessionQueue'
   | 'sessionExport'
   | 'workspaceFolders'
+  | 'workspaceFolderList'
   | 'inputInterrupt'
   | 'betaFeatures'
   | 'bots'
@@ -93,6 +94,8 @@ const fullFeatures = {
   sessionExport: false,
   // 新建项目文件夹：旧 Runtime 没有这个接口，项目菜单里不出现“新建文件夹…”。
   workspaceFolders: false,
+  // 列出子文件夹：旧 Runtime 没有这个接口，目录选择面板只留路径输入。
+  workspaceFolderList: false,
   // 插队（立即发送）：旧 Runtime 不认 interrupt，⌥↵ 退回排队（下一步送达），排队项不出现“立即发送”。
   inputInterrupt: false,
   // 实验功能：旧 Runtime 没有这个接口，设置里不出现“实验功能”分区。

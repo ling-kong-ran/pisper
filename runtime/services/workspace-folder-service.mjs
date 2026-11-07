@@ -1,13 +1,17 @@
 // 新建项目文件夹：在已存在的上级目录里建一个新的空文件夹，供新任务直接选为项目。
 // 只建一层：上级目录必须已经存在（沿用工作目录的统一校验），名称必须是单个路径段，
 // 不能借名称里的分隔符或 .. 跳到别处，也不会因为上级路径打错而凭空建出一串目录。
-import { mkdirSync, statSync } from 'node:fs'
-import { mkdir, stat } from 'node:fs/promises'
+// 列出子文件夹：手机、配对设备看不到主机的系统文件管理器，靠它在应用里逐级点选工作目录；
+// 只给文件夹名，不列文件、不读内容。
+import { mkdirSync, readdirSync, statSync } from 'node:fs'
+import { mkdir, readdir, stat } from 'node:fs/promises'
 import { posix, win32 } from 'node:path'
 import { resolveWorkspaceDirectory } from '../runtime/workspace-directories.mjs'
 
 const MAX_FOLDER_NAME_LENGTH = 255
 const MAX_PARENT_PATH_LENGTH = 4096
+// 一层里文件夹再多也只回这么多：选工作目录用不着翻几千项，也免得超大目录拖慢请求。
+const MAX_LISTED_FOLDERS = 1000
 // Windows 文件名里不允许的字符与保留设备名；其他平台只禁止分隔符，但统一按最严格的规则校验，
 // 同一个项目名在桌面与配对设备之间搬动时不会在某一端变成非法名称。
 const INVALID_NAME_CHARACTERS = /[<>:"/\\|?*]/
@@ -50,10 +54,13 @@ function folderIo(profile) {
     return {
       makeDirectory: async (/** @type {string} */ path) => mkdirSync(path),
       inspect: async (/** @type {string} */ path) => statSync(path),
+      readDirectory: async (/** @type {string} */ path) =>
+        readdirSync(path, { withFileTypes: true }),
     }
   return {
     makeDirectory: (/** @type {string} */ path) => mkdir(path),
     inspect: (/** @type {string} */ path) => stat(path),
+    readDirectory: (/** @type {string} */ path) => readdir(path, { withFileTypes: true }),
   }
 }
 
@@ -95,5 +102,63 @@ export async function createWorkspaceFolder(input, options = {}) {
     if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS')
       throw new WorkspaceFolderError('没有权限在这里新建文件夹。', 'folder_permission_denied', 403)
     throw new WorkspaceFolderError('新建文件夹失败。', 'folder_create_failed', 500)
+  }
+}
+
+/**
+ * 列出 path 下的子文件夹；path 为空时从 Runtime 的默认工作目录开始。
+ * 隐藏文件夹（点开头）不列，指向文件夹的符号链接照常列出；parent 为空表示已经到根。
+ * 子文件夹直接给出完整路径：客户端不必按主机平台自己拼分隔符。
+ * @param {{ path?: unknown }} input
+ * @param {{ fallback?: string, platform?: NodeJS.Platform, profile?: string }} [options]
+ * @returns {Promise<{ path: string, parent: string, folders: { name: string, path: string }[], truncated: boolean }>}
+ */
+export async function listWorkspaceFolders(input, options = {}) {
+  const {
+    fallback = '',
+    platform = process.platform,
+    profile = process.env.PISPER_RUNTIME_PROFILE,
+  } = options
+  const pathInput = typeof input?.path === 'string' ? input.path.trim() : ''
+  if (pathInput.length > MAX_PARENT_PATH_LENGTH)
+    throw new WorkspaceFolderError('文件夹路径太长。', 'folder_path_invalid')
+  let path
+  try {
+    path = await resolveWorkspaceDirectory(pathInput, fallback, { platform, profile })
+  } catch {
+    throw new WorkspaceFolderError('文件夹不存在或不是文件夹。', 'folder_missing', 404)
+  }
+  const io = folderIo(profile)
+  const paths = platform === 'win32' ? win32 : posix
+  let entries
+  try {
+    entries = await io.readDirectory(path)
+  } catch (error) {
+    const code = /** @type {{ code?: string }} */ (error)?.code
+    if (code === 'EACCES' || code === 'EPERM')
+      throw new WorkspaceFolderError('没有权限打开这个文件夹。', 'folder_permission_denied', 403)
+    throw new WorkspaceFolderError('读取文件夹失败。', 'folder_list_failed', 500)
+  }
+  /** @type {string[]} */
+  const folders = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory()) folders.push(entry.name)
+    else if (entry.isSymbolicLink()) {
+      const info = await io.inspect(paths.join(path, entry.name)).catch(() => null)
+      if (info?.isDirectory()) folders.push(entry.name)
+    }
+  }
+  folders.sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }),
+  )
+  const parent = paths.dirname(path)
+  return {
+    path,
+    parent: parent === path ? '' : parent,
+    folders: folders
+      .slice(0, MAX_LISTED_FOLDERS)
+      .map((name) => ({ name, path: paths.join(path, name) })),
+    truncated: folders.length > MAX_LISTED_FOLDERS,
   }
 }

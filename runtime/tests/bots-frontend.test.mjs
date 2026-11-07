@@ -364,6 +364,19 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
   const dialog = await readFile(join(root, 'src/features/bots/NewBotDialog.tsx'), 'utf8')
   assert.match(dialog, /disabled=\{saving \|\| !name\.trim\(\)\}/)
   const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
+  // “选择…”先调系统文件管理器；只有系统对话框出不来（手机、配对设备）时才打开目录面板。
+  const computer = await readFile(join(root, 'src/features/bots/BotComputerTab.tsx'), 'utf8')
+  for (const source of [dialog, computer]) {
+    assert.match(source, /pickSystemDirectory\(/)
+    assert.match(source, /status === 'unavailable'\) setBrowsing\(true\)/)
+    assert.match(source, /<WorkspacePicker\s+open=\{browsing\}/)
+  }
+  // 另一台电脑上的 Bot：目录面板列的是那台电脑的文件夹。
+  assert.match(computer, /\(local \|\| selected\) && \(/)
+  assert.match(
+    computer,
+    /listFolders=\{\(path, signal\) => listEnvironmentFolders\(environmentId, path, signal\)\}/,
+  )
   for (const section of ['computer', 'chats', 'schedules', 'advanced'])
     assert.match(details, new RegExp(`<AccordionItem value="${section}">`))
 })
@@ -450,7 +463,7 @@ test('bot greeting derives from settings and stays at the start of the conversat
   assert.equal(greeting.match(/enabled: true/g).length, 1)
   assert.match(
     greeting,
-    /setPicking\(true\)\s+return\s+\}\s+setEveryHours\(bot\.proactive\.everyHours\)\s+setConfirmingWatch\(true\)/,
+    /void chooseFolder\(\)\s+return\s+\}\s+setEveryHours\(bot\.proactive\.everyHours\)\s+setConfirmingWatch\(true\)/,
   )
   for (const key of ['greeting.watchHint', 'greeting.folderWatchHint']) {
     assert.match(JSON.parse(zh)[key], /\{count\} 小时[\s\S]*消耗模型用量/)

@@ -14,6 +14,7 @@ import {
   normalizeFingerprint,
 } from '../../packages/pisper/lib/executor-node.mjs'
 import { createApiHandler } from '../http/api-handler.mjs'
+import { executorRoutes } from '../http/routes/executors.mjs'
 import { authorizeRemoteRequest } from '../remote-auth.mjs'
 import {
   createExecutorTools,
@@ -24,6 +25,7 @@ import { runToolBlocker } from '../runtime/tool-activation.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
 import { EnvironmentService, pathWithinRoots } from '../services/bots/environment-service.mjs'
 import { NodeExecutor } from '../services/bots/executor.mjs'
+import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { ExecutorHub } from '../services/bots/executor-hub.mjs'
 
 async function until(predicate, timeoutMs = 5_000) {
@@ -163,6 +165,73 @@ test('the node only touches files inside its allowed folders, by real path', asy
     code: 'path_not_allowed',
   })
   await assert.rejects(ops.read.readFile('relative.txt'), { code: 'path_invalid' })
+})
+
+test('the brain can list folders on the node to pick a bot folder, never above its roots', async (t) => {
+  const { allowed, repo, directory, hub, environment } = await machine(t)
+  const executor = new NodeExecutor({ hub, environment })
+  await until(() => executor.online())
+  await mkdir(join(repo, 'src'))
+  await mkdir(join(repo, '.git'))
+  await symlink(directory, join(allowed, 'escape'))
+  await symlink(repo, join(allowed, 'repo-link'))
+  const realAllowed = (await executor.listFolders('')).path
+  // 不给路径时从第一个允许目录开始；到允许的根就没有上一级，指向外面的链接不列。
+  const top = await executor.listFolders('')
+  assert.equal(top.parent, '')
+  assert.deepEqual(
+    top.folders.map((folder) => folder.name),
+    ['repo', 'repo-link'],
+  )
+  const inner = await executor.listFolders(join(allowed, 'repo'))
+  assert.equal(inner.parent, realAllowed)
+  assert.deepEqual(inner.folders, [{ name: 'src', path: join(inner.path, 'src') }])
+  await assert.rejects(executor.listFolders(directory), { code: 'path_not_allowed' })
+
+  // 界面经 /api/environments/:id/folders 问：本机走 Runtime 自己的列表，节点转过去，不认识的电脑 404。
+  const facade = {
+    cwd: allowed,
+    environments: { get: (id) => (id === environment.id ? environment : null) },
+    executorFor: AgentRuntimeFacade.prototype.executorFor,
+    executorHub: hub,
+    isBetaFeatureEnabled: () => true,
+  }
+  facade.listEnvironmentFolders = AgentRuntimeFacade.prototype.listEnvironmentFolders.bind(facade)
+  const route = executorRoutes.find(
+    (entry) => entry.method === 'GET' && entry.path === '/api/environments/:environmentId/folders',
+  )
+  const ask = async (environmentId, path = '') => {
+    let response
+    await route.handler({
+      runtime: facade,
+      params: { environmentId },
+      url: new URL(`http://x/api/environments/x/folders?path=${encodeURIComponent(path)}`),
+      req: { once() {}, off() {} },
+      json: (status, body) => {
+        response = { status, body }
+      },
+    })
+    return response
+  }
+  assert.deepEqual((await ask(environment.id, repo)).body.folders, inner.folders)
+  assert.equal((await ask('local')).body.path, allowed)
+  const unknown = await ask('env_unknown')
+  assert.equal(unknown.status, 404)
+  assert.equal(unknown.body.code, 'environment_not_found')
+  const outside = await ask(environment.id, directory)
+  assert.equal(outside.status, 400)
+  assert.equal(outside.body.code, 'path_not_allowed')
+
+  // 旧版节点没有 fs.folders：明确回“版本太旧”，不拿空列表冒充。
+  const old = new ExecutorHub()
+  t.after(() => old.dispose())
+  const stopOld = connect(old, environment.id, {
+    handle: async () => ({ ok: false, error: { code: 'op_unsupported', message: 'x' } }),
+  })
+  t.after(stopOld)
+  const outdated = new NodeExecutor({ hub: old, environment })
+  await until(() => outdated.online())
+  await assert.rejects(outdated.listFolders(repo), { code: 'executor_outdated' })
 })
 
 test('the node runs no git for anyone: the only commands are the shell tool', async (t) => {

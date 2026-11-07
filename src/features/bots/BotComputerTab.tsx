@@ -1,5 +1,6 @@
 // 设置里的「电脑」分区（B6，设计稿 botim-computer）：Bot 在哪台电脑、哪个目录干活，以及有哪些电脑可选。
-// 换电脑：选电脑、填那台电脑上的目录（本机可以用目录选择器），保存后下一个任务起生效。
+// 换电脑：选电脑、填那台电脑上的目录，保存后下一个任务起生效。“选择…”在本机先开系统文件管理器，
+// 另一台电脑（或系统对话框出不来时）用目录面板逐级点选那台电脑上的文件夹。
 // 添加电脑：就地显示一次性配对码与要在那台电脑上运行的两条命令；不弹窗。
 // 移除电脑：就地确认；还有 Bot 在用时由 Runtime 拒绝并说明是哪些 Bot。
 import { useEffect, useState } from 'react'
@@ -10,9 +11,11 @@ import { AppSelect } from '@/components/AppSelect'
 import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { cn } from '@/lib/utils'
 import {
   createEnvironmentPairing,
+  listEnvironmentFolders,
   removeEnvironment,
   updateBot,
   type Bot,
@@ -175,6 +178,7 @@ export function BotComputerTab({
   const [environmentId, setEnvironmentId] = useState(bot.workspace.environmentId)
   const [cwd, setCwd] = useState(bot.workspace.cwd)
   const [picking, setPicking] = useState(false)
+  const [browsing, setBrowsing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [pairing, setPairing] = useState<Pairing | null>(null)
   useEffect(() => {
@@ -194,6 +198,25 @@ export function BotComputerTab({
       onError(caught instanceof Error ? caught.message : String(caught))
     } finally {
       setSaving(false)
+    }
+  }
+  // 本机先打开系统文件管理器，出不来（手机、配对设备、无图形会话的主机）时退回目录面板；
+  // 另一台电脑的文件夹系统对话框看不到，直接用目录面板问那台电脑。
+  const pickFolder = async () => {
+    if (picking) return
+    if (!local) {
+      setBrowsing(true)
+      return
+    }
+    setPicking(true)
+    try {
+      const result = await pickSystemDirectory(cwd || bot.workspace.cwd, t('bots:computer.folder'))
+      if (result.status === 'picked') setCwd(result.path)
+      else if (result.status === 'unavailable') setBrowsing(true)
+    } catch (caught) {
+      onError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setPicking(false)
     }
   }
   const startPairing = async () => {
@@ -251,8 +274,13 @@ export function BotComputerTab({
             disabled={saving}
             onChange={(event) => setCwd(event.target.value)}
           />
-          {local && (
-            <Button size="sm" variant="outline" disabled={saving} onClick={() => setPicking(true)}>
+          {(local || selected) && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving || picking}
+              onClick={() => void pickFolder()}
+            >
               {t('bots:new.pick')}
             </Button>
           )}
@@ -302,12 +330,13 @@ export function BotComputerTab({
         )}
       </section>
       <WorkspacePicker
-        open={picking}
-        initialPath={cwd || bot.workspace.cwd}
-        onOpenChange={setPicking}
+        open={browsing}
+        initialPath={cwd}
+        onOpenChange={setBrowsing}
+        listFolders={(path, signal) => listEnvironmentFolders(environmentId, path, signal)}
         onSelect={(path) => {
           setCwd(path)
-          setPicking(false)
+          setBrowsing(false)
         }}
       />
     </div>

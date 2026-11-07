@@ -2,6 +2,7 @@
 // - 它负责什么：可选，写了就成为它记得的工作说明；不写就在对话里告诉它。
 // - 样子：随机给一个，点头像换一个；想自己挑再展开。
 // - 工作目录：不选就用本机的默认工作目录，之后在设置里能换（包括换到另一台电脑）。
+//   “选择…”先打开系统文件管理器；系统对话框出不来（手机、配对设备）时退回目录面板逐级点选。
 import { useEffect, useState, type FormEvent } from 'react'
 import { FolderOpen, Shuffle } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
@@ -18,6 +19,7 @@ import {
 import { FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { randomBotAvatar, type BotAvatarValue } from './avatar'
 import { BotAvatar } from './BotAvatar'
 import { BotAvatarPicker } from './BotAvatarPicker'
@@ -42,6 +44,7 @@ export function NewBotDialog({
   const [cwd, setCwd] = useState('')
   const [editingFolder, setEditingFolder] = useState(false)
   const [picking, setPicking] = useState(false)
+  const [browsing, setBrowsing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,6 +56,21 @@ export function NewBotDialog({
     setEditingFolder(false)
     setError('')
   }, [open])
+
+  const pickFolder = async () => {
+    if (picking) return
+    setPicking(true)
+    setError('')
+    try {
+      const result = await pickSystemDirectory(cwd.trim(), t('bots:new.folder'))
+      if (result.status === 'picked') setCwd(result.path)
+      else if (result.status === 'unavailable') setBrowsing(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setPicking(false)
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -141,7 +159,12 @@ export function NewBotDialog({
                   placeholder={t('bots:new.folderDefault')}
                   onChange={(event) => setCwd(event.target.value)}
                 />
-                <Button type="button" variant="outline" onClick={() => setPicking(true)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={picking}
+                  onClick={() => void pickFolder()}
+                >
                   <FolderOpen aria-hidden="true" />
                   {t('bots:new.pick')}
                 </Button>
@@ -174,12 +197,12 @@ export function NewBotDialog({
           </DialogFooter>
         </form>
         <WorkspacePicker
-          open={picking}
+          open={browsing}
           initialPath={cwd}
-          onOpenChange={setPicking}
+          onOpenChange={setBrowsing}
           onSelect={(path) => {
             setCwd(path)
-            setPicking(false)
+            setBrowsing(false)
           }}
         />
       </DialogContent>

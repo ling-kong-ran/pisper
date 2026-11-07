@@ -41,8 +41,9 @@ import {
 } from '../services/bots/bot-proactive.mjs'
 import { agentCompletionPrompt } from '../services/multi-agent-service.mjs'
 import { ExecutorError, NodeExecutor } from '../services/bots/executor.mjs'
-import { pathWithinRoots } from '../services/bots/environment-service.mjs'
+import { EnvironmentError, pathWithinRoots } from '../services/bots/environment-service.mjs'
 import { isSshMachineId } from '../services/ssh-machine-service.mjs'
+import { listWorkspaceFolders } from '../services/workspace-folder-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import { bridgePiExtensionPackages, isPiExtensionPlugin } from '../services/pi-extension-bridge.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -1769,6 +1770,15 @@ export class AgentRuntimeFacade {
       capabilities: {},
     }
     return new NodeExecutor({ hub: this.executorHub, environment })
+  }
+
+  // Bot 的电脑上一层子文件夹（设置里点选目录用）。本机走与目录面板同一个列表，执行节点转过去问它。
+  async listEnvironmentFolders(environmentId, path, { signal } = {}) {
+    if (environmentId === 'local')
+      return listWorkspaceFolders({ path }, { fallback: this.cwd || '' })
+    if (isSshMachineId(environmentId) || !this.environments.get(environmentId))
+      throw new EnvironmentError('environment_not_found', '这台电脑不存在。', 404)
+    return this.executorFor(environmentId).listFolders(path, { signal })
   }
 
   listEnvironments() {

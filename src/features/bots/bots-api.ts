@@ -4,6 +4,7 @@
 import { requestJson } from '@/lib/http'
 import { invalidResponseError } from '@/lib/http-response'
 import { fetchStartupQuery } from '@/lib/startup-queries'
+import { parseWorkspaceFolderListing } from '@/lib/workspace-folders'
 import { isBotCharacter, isBotColor, type BotAvatarValue } from './avatar'
 
 // 此刻的动态：在不在忙（对话在说话或子 agent 在干活），在等你批准还是回答；
@@ -327,6 +328,15 @@ export function createEnvironmentPairing() {
         remote: parseRemote(input.remote),
       }
     },
+  })
+}
+
+// 在 Bot 的电脑上列一层子文件夹：执行节点上的目录由那台电脑回答，只在它允许的目录里。
+export function listEnvironmentFolders(id: string, path: string, signal?: AbortSignal) {
+  const query = path ? `?path=${encodeURIComponent(path)}` : ''
+  return requestJson(`/api/environments/${encodeURIComponent(id)}/folders${query}`, {
+    signal,
+    parse: parseWorkspaceFolderListing,
   })
 }
 

@@ -12,7 +12,7 @@ import {
   workspacePathKey,
 } from '../runtime/workspace-directories.mjs'
 
-test('HTTP clients cannot enumerate host directories through the retired file browser APIs', () => {
+test('the retired file browser APIs stay removed; folder listing lives on /api/workspace-folders', () => {
   const registry = createRouteRegistry(memoryAssetRoutes)
   assert.equal(registry.match('GET', '/api/directories'), null)
   assert.equal(registry.match('GET', '/api/workspace-entries'), null)

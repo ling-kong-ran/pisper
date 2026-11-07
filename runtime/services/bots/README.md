@@ -44,6 +44,8 @@
 
 `pisper executor` 是 npm 包里的无状态守护进程：**主动连回大脑**（HTTPS 长轮询，不开放端口），沿用远程访问的证书指纹配对；不保存会话、不持有模型密钥，只保存配对信息（0600），只在 `--root` 允许的目录里按真实路径做文件操作，`--no-shell` 时不执行任意命令。它不替谁跑 git。
 
+设置里给 Bot 选目录时，界面经 `GET /api/environments/:id/folders` 逐级列出那台电脑上的文件夹（节点的 `fs.folders`：只给文件夹名和路径，不列文件，到 `--root` 就不再往上）；旧版节点没有这个操作时回 `executor_outdated`，界面提示升级或手填。
+
 Bot 的电脑是执行节点时，它的会话在大脑这边用一个占位目录（`<dataDir>/executor-sessions/<envId>`），会话元数据记 `remoteExecutor: { environmentId, cwd }`，会话的 read / edit / write / ls / find / bash 经 `NodeExecutor.operations()` 在那台电脑上执行（路径是那边的）；grep（依赖本机 ripgrep）、浏览器、计算机操作、MCP、插件、子代理、记忆等只在大脑本机可用的工具不提供，并由 `runToolBlocker` 在权限层拦下。审批不做本地改动预览。
 
 ## 概念模型
