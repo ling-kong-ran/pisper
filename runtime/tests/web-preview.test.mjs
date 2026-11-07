@@ -430,3 +430,22 @@ test('the native browser stays isolated from the app and leaves the main window 
   assert.match(browser, /status: "unsupported"/)
   assert.match(pane, /native\.active \?[\s\S]*: url \?[\s\S]*<WebPreview/)
 })
+
+test('a desktop that falls back to the embedded preview says why instead of failing silently', async () => {
+  const [pane, bridge, hosts, zh] = await Promise.all([
+    readFile('src/features/chat/SessionBrowserPane.tsx', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
+    readFile('src/features/chat/desktop-hosts.ts', 'utf8'),
+    readFile('src/locales/zh-CN/common.json', 'utf8'),
+  ])
+  // 桌面壳早于内置浏览器（没有 browser 桥接）或这次没建起来：说明原因，旧壳给下载最新版的入口。
+  assert.match(pane, /if \(!desktop\.browser\) return 'outdated'/)
+  assert.match(pane, /return nativeUnavailable \? 'failed' : null/)
+  assert.match(pane, /window\.pisperDesktop\?\.openReleases\(\)/)
+  assert.match(JSON.parse(zh)['webPreview.shellOutdated'], /组件更新不会替换桌面程序本身/)
+  // 桥接没有同步的 platform 字段，平台只能看 UA（与桥接判断 Windows 标题栏一致）。
+  assert.doesNotMatch(bridge, /^\s*platform:/m)
+  assert.match(bridge, /customTitlebar: \/Windows\/\.test\(navigator\.userAgent\)/)
+  assert.match(pane, /\/Windows\|Macintosh\/\.test\(navigator\.userAgent\)/)
+  assert.doesNotMatch(hosts, /pisperDesktop\?\.platform/)
+})

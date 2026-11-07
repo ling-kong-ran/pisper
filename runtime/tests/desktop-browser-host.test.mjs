@@ -141,6 +141,9 @@ test('browser automation prefers the visible browser and only falls back when no
   // 没连：无头浏览器。这个会话之后也不中途换，模型手里的页面状态在那边。
   const headless = await service.execute('old', { action: 'open', url: 'https://a.example/' })
   assert.equal(headless.title, 'headless')
+  // 结果写明用户看不见：模型不能把后台打开的页面说成在右侧浏览器里（桌面壳太旧时就是这样）。
+  assert.equal(headless.visibleToUser, false)
+  assert.match(headless.note, /cannot see this page[\s\S]*Do not tell the user it is open/)
 
   const sent = []
   host.attach((event, data) => sent.push({ event, data }))
@@ -158,7 +161,10 @@ test('browser automation prefers the visible browser and only falls back when no
   const command = sent.at(-1).data
   assert.equal(command.url, 'https://b.example/')
   host.settle(command.requestId, { ok: true, result: { url: command.url, title: 'visible' } })
-  assert.equal((await opening).title, 'visible')
+  const visible = await opening
+  assert.equal(visible.title, 'visible')
+  assert.equal(visible.visibleToUser, true)
+  assert.equal(visible.note, undefined)
   assert.equal(launched.length, 1)
 
   // 空闲超时把页面还给用户。

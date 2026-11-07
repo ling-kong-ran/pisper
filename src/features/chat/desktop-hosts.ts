@@ -10,10 +10,10 @@ export function startDesktopHosts(t: Translate) {
     startAgentComputerHost(() => ({
       title: t('common:computerUse.title'),
       // Windows 上是全屏遮罩，按 Esc 停止；macOS 和 Linux 是带停止按钮的小窗口。
-      hint:
-        window.pisperDesktop?.platform === 'win32'
-          ? t('common:computerUse.hintEsc')
-          : t('common:computerUse.hintButton'),
+      // 桥接没有同步的 platform 字段，与桥接判断 Windows 标题栏一样看 UA。
+      hint: /Windows/.test(navigator.userAgent)
+        ? t('common:computerUse.hintEsc')
+        : t('common:computerUse.hintButton'),
       stop: t('common:computerUse.stop'),
     })),
   ]

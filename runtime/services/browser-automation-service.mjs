@@ -153,6 +153,12 @@ async function inspectPage(page) {
   return snapshot
 }
 
+// 结果里写明用户看不看得见：模型不能把后台无头浏览器里打开的页面说成“在右侧浏览器里打开了”。
+const HEADLESS_VISIBILITY = Object.freeze({
+  visibleToUser: false,
+  note: 'This ran in a hidden background browser, not the browser panel: the user cannot see this page and it has none of their sign-ins. Do not tell the user it is open in their browser panel. If they need to see it or sign in, say so and give them the URL.',
+})
+
 export class BrowserAutomationService {
   constructor({
     driver,
@@ -251,7 +257,7 @@ export class BrowserAutomationService {
       const outputPath =
         action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
       if (action === 'close') this.desktopHostSessions.delete(id)
-      return driver.execute(
+      const result = await driver.execute(
         id,
         {
           ...input,
@@ -266,7 +272,16 @@ export class BrowserAutomationService {
         },
         { signal, onProgress },
       )
+      return driver === this.desktopHost ? { ...result, visibleToUser: true } : result
     }
+    return {
+      ...(await this.runHeadless(sessionId, action, input, viewport, { cwd, onProgress })),
+      ...HEADLESS_VISIBILITY,
+    }
+  }
+
+  // 无头浏览器：Web、Linux、远程窗口，或桌面程序没连上右侧浏览器（例如桌面壳版本太旧）时用。
+  async runHeadless(sessionId, action, input, viewport, { cwd, onProgress } = {}) {
     if (action === 'close') {
       await this.closeSession(sessionId)
       return { action, closed: true }

@@ -1,16 +1,38 @@
 // 会话内的网页预览页：地址栏 + 网页 + 外部打开。旧上下文面板与会话页检查器的“预览”标签共用。
 // 桌面端用原生子 WebView（useNativeBrowser），Web、手机和不支持的平台用 iframe。
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, ExternalLink, Globe2, LoaderCircle, RotateCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Download,
+  ExternalLink,
+  Globe2,
+  LoaderCircle,
+  RotateCw,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { InlineEmptyState } from '@/components/app/PageState'
 import { WebPreview, WebPreviewBody } from '@/components/ai-elements/web-preview'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HTML_PREVIEW_SANDBOX, isHtmlPreviewUrl, normalizeWebPreviewInput } from '@/lib/web-preview'
 import type { ContextPage } from './session-context-pages'
 import { openBrowserNewWindow } from './session-web-preview'
 import { useNativeBrowser } from './useNativeBrowser'
+
+// macOS 和 Windows 的桌面程序本该用内置浏览器。退回嵌入式预览时很多网站（如 Steam）会拒绝打开，
+// 而且 Agent 也只能用看不见的后台浏览器：要说清楚原因，不能悄悄降级。
+// outdated：桌面程序（壳）早于 v0.6.28，没有内置浏览器，组件更新换不了壳，要重新安装。
+// failed：有内置浏览器但这次没能建起来。
+function nativeBrowserFallback(nativeUnavailable: boolean): 'outdated' | 'failed' | null {
+  const desktop = window.pisperDesktop
+  // 桥接没有同步的 platform 字段（旧壳也没有），与桥接判断 Windows 标题栏一样看 UA。
+  if (!desktop || !/Windows|Macintosh/.test(navigator.userAgent)) return null
+  if (!desktop.browser) return 'outdated'
+  return nativeUnavailable ? 'failed' : null
+}
 
 export function BrowserPane({
   sessionId,
@@ -40,6 +62,8 @@ export function BrowserPane({
     onNewWindow: (next, popupId) => openBrowserNewWindow(sessionId, next, popupId),
     onClosed,
   })
+
+  const fallback = nativeBrowserFallback(native.unavailable)
 
   return (
     <section
@@ -151,7 +175,28 @@ export function BrowserPane({
           {t('common:webPreview.openExternal')}
         </Button>
       )}
-      {!native.active && (
+      {!native.active && fallback && url && (
+        <Alert data-native-browser-fallback={fallback}>
+          <AlertTriangle />
+          <AlertDescription className="flex flex-col items-start gap-2">
+            {fallback === 'outdated'
+              ? t('common:webPreview.shellOutdated')
+              : t('common:webPreview.nativeFailed')}
+            {fallback === 'outdated' && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void window.pisperDesktop?.openReleases()}
+              >
+                <Download size={14} />
+                {t('common:webPreview.downloadDesktop')}
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+      {!native.active && !(fallback && url) && (
         <p className="text-xs text-content-muted">{t('common:webPreview.embedNotice')}</p>
       )}
     </section>
