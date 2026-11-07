@@ -54,8 +54,7 @@ export function parseBotMention(content, bots) {
 }
 
 // 这个 Bot 在这个聊天里、对这个人可用吗？返回 null 表示可以，否则是拒绝原因。
-// 群聊必须写明谁能叫它（模型层已强制）；私聊没写名单时只认渠道的创建者，
-// 渠道的“所有人可用”不放宽 Bot 的名单。
+// 没写名单时（私聊、群聊一样）只认渠道的创建者；渠道的“所有人可用”不放宽 Bot 的名单。
 export function botRefusal(bot, { platform, peerId, chatType, senderId }, { ownerId = '' } = {}) {
   if (!bot.enabled) return 'paused'
   const kind = chatType === 'p2p' ? 'p2p' : 'group'
@@ -69,7 +68,7 @@ export function botRefusal(bot, { platform, peerId, chatType, senderId }, { owne
   const allowed = rules.some((channel) =>
     channel.senderIds.length
       ? channel.senderIds.includes(String(senderId))
-      : kind === 'p2p' && Boolean(ownerId) && String(senderId) === String(ownerId),
+      : Boolean(ownerId) && String(senderId) === String(ownerId),
   )
   return allowed ? null : 'sender_not_allowed'
 }

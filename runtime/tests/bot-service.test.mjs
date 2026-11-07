@@ -83,11 +83,13 @@ test('bot fields are validated and given safe defaults', () => {
   )
 })
 
-test('group chats need a sender allow-list and cannot grant full access', () => {
+test('group chats without a sender list mean only the owner, and cannot grant full access', () => {
+  // 名单为空不再拒绝：路由按“只有渠道创建者”处理（bot-routing.test）。
   const group = { platform: 'feishu', chatType: 'group', peerIds: ['oc_1'], senderIds: [] }
+  assert.deepEqual(normalizeBotInput({ ...base, channels: [group] }).channels, [group])
   assert.equal(
-    codeOf(() => normalizeBotInput({ ...base, channels: [group] })),
-    'bot_group_needs_senders',
+    codeOf(() => normalizeBotInput({ ...base, channels: [group], executionMode: 'full-access' })),
+    'bot_group_full_access',
   )
   const allowed = { ...group, senderIds: ['ou_a'] }
   assert.equal(

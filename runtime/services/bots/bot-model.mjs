@@ -165,10 +165,9 @@ function normalizeChannels(value) {
       input.peerIds === null || input.peerIds === undefined
         ? null
         : normalizeIdList(input.peerIds, '聊天')
+    // 名单为空表示只有渠道的创建者能叫它（私聊、群聊一样），群成员或被拉进群的人叫不动；
+    // 这样在设置里直接点选一个已接入的群就能用，不必先查自己的 ID。
     const senderIds = normalizeIdList(input.senderIds, '可以叫它的人')
-    // 群里谁都能发消息：必须写明谁可以叫它，否则群成员（或被拉进群的人）都能让 Bot 干活。
-    if (chatType === 'group' && senderIds.length === 0)
-      throw invalid('bot_group_needs_senders', '群聊必须写明哪些人可以叫这个 Bot。')
     return { platform, chatType, peerIds: peerIds && peerIds.length ? peerIds : null, senderIds }
   })
 }

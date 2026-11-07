@@ -79,6 +79,21 @@ test('only enabled bots, in their chats, for allowed people', () => {
   )
   assert.equal(routeChannelMessage({ ...dm, senderId: 'me' }, bots, { ownerId: 'me' }).kind, 'bot')
   assert.equal(botRefusal(review, { ...dm, senderId: 'me' }, { ownerId: '' }), 'sender_not_allowed')
+  // 群聊没写名单（在设置里直接点选了一个群）：同样只有渠道创建者能叫，群里其他人叫不动。
+  const ownerGroup = bot('b5', {
+    name: '群助手',
+    channels: [{ platform: 'qq', chatType: 'group', peerIds: ['g1'], senderIds: [] }],
+  })
+  const inGroup = { platform: 'qq', peerId: 'g1', chatType: 'group' }
+  assert.equal(botRefusal(ownerGroup, { ...inGroup, senderId: 'me' }, { ownerId: 'me' }), null)
+  assert.equal(
+    botRefusal(ownerGroup, { ...inGroup, senderId: 'member' }, { ownerId: 'me' }),
+    'sender_not_allowed',
+  )
+  assert.equal(
+    botRefusal(ownerGroup, { ...inGroup, senderId: 'me' }, { ownerId: '' }),
+    'sender_not_allowed',
+  )
 })
 
 test('a default bot takes unnamed direct messages; other messages stay with Pisper', () => {

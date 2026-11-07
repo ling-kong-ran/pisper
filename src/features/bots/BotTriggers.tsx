@@ -1,14 +1,20 @@
 // 设置里 Bot 的两种触发方式（B3），各在一个折叠分区里就地编辑，不弹窗：
-// - 可以叫它的聊天：哪个渠道、私聊还是群聊、哪些聊天、哪些人。群聊必须写明哪些人（Runtime 会拒绝空名单）；
-//   私聊不写人时只有渠道的创建者能叫它。ID 在聊天里发 /whoami 就能看到。
+// - 可以叫它的聊天：直接点选已接入渠道的私聊、或跟 Pisper 说过话的群，默认只有你能叫它；
+//   要让别人也能叫，再手动填写聊天与人的 ID（在聊天里发 /whoami 就能看到）。没写人时私聊、群聊都只认渠道的创建者。
 // - 定时让它做：到点给它派一件事（每天、每周或某一天一次），就是 targetType = bot 的定时任务。
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { MessageCircle, Plus, Users } from 'lucide-react'
+import { PAGE_PATHS } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
+import { InlineEmptyState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Switch } from '@/components/ui/switch'
+import { fetchChannelChats, type ChannelChats } from '@/features/channels/channel-chats'
 import {
   BOT_PLATFORMS,
   createBotSchedule,
@@ -24,15 +30,57 @@ import {
 import { platformLabel, scheduleLabel, splitIds, weekdayLabel } from './bot-labels'
 import { useBotsStore } from './bots-store'
 
+// 一条可以直接点选的规则：已接入渠道的私聊，或跟 Pisper 说过话的群。没写名单 = 只有你能叫它。
+type ChatOption = {
+  key: string
+  title: string
+  detail: string
+  channel: BotChannel
+  unavailable: boolean
+}
+
+// 已有规则是否已经覆盖这个聊天（“所有聊天”的规则覆盖同一平台、同一类的任意聊天）。
+function covered(channels: BotChannel[], option: BotChannel) {
+  return channels.some(
+    (channel) =>
+      channel.platform === option.platform &&
+      channel.chatType === option.chatType &&
+      channel.senderIds.length === 0 &&
+      (channel.peerIds === null ||
+        (option.peerIds !== null && option.peerIds.every((id) => channel.peerIds?.includes(id)))),
+  )
+}
+
 export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
   const { t } = useI18n()
   const upsert = useBotsStore((state) => state.upsert)
   const [adding, setAdding] = useState(false)
+  const [manual, setManual] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [chats, setChats] = useState<ChannelChats | null>(null)
+  const [chatsError, setChatsError] = useState('')
   const [platform, setPlatform] = useState<BotPlatform>('feishu')
   const [chatType, setChatType] = useState<'p2p' | 'group'>('p2p')
   const [peers, setPeers] = useState('')
   const [senders, setSenders] = useState('')
+
+  // 打开分区时问一次接入了哪些渠道（已有规则里的群用它显示名字），每次展开“添加聊天”再拉一次，
+  // 接入新渠道后不用刷新页面。
+  useEffect(() => {
+    const controller = new AbortController()
+    setChatsError('')
+    fetchChannelChats(controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setChats(value)
+      },
+      (caught: unknown) => {
+        if (!controller.signal.aborted)
+          setChatsError(caught instanceof Error ? caught.message : String(caught))
+      },
+    )
+    return () => controller.abort()
+  }, [adding])
+
   const save = async (channels: BotChannel[]) => {
     setSaving(true)
     try {
@@ -45,22 +93,64 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
       setSaving(false)
     }
   }
-  const add = async () => {
-    const peerIds = splitIds(peers)
-    const ok = await save([
-      ...bot.channels,
-      {
-        platform,
-        chatType,
-        peerIds: peerIds.length ? peerIds : null,
-        senderIds: splitIds(senders),
-      },
-    ])
-    if (!ok) return
+  const close = () => {
     setAdding(false)
+    setManual(false)
     setPeers('')
     setSenders('')
   }
+  const addChannel = async (channel: BotChannel) => {
+    if (await save([...bot.channels, channel])) close()
+  }
+  const addManual = () => {
+    const peerIds = splitIds(peers)
+    void addChannel({
+      platform,
+      chatType,
+      peerIds: peerIds.length ? peerIds : null,
+      senderIds: splitIds(senders),
+    })
+  }
+
+  const options: ChatOption[] = chats
+    ? [
+        ...chats.channels.map((channel) => ({
+          key: `${channel.platform}:p2p`,
+          title: t('bots:triggers.pickP2p', { platform: platformLabel(t, channel.platform) }),
+          detail: channel.ownerConfigured
+            ? t('bots:triggers.ownerOnly')
+            : t('bots:triggers.ownerMissing'),
+          channel: {
+            platform: channel.platform,
+            chatType: 'p2p' as const,
+            peerIds: null,
+            senderIds: [],
+          },
+          unavailable: !channel.ownerConfigured,
+        })),
+        ...chats.groups.map((group) => {
+          const owner = chats.channels.find((channel) => channel.platform === group.platform)
+          return {
+            key: `${group.platform}:group:${group.peerId}`,
+            title: group.title,
+            detail: [
+              t('bots:triggers.pickGroup', { platform: platformLabel(t, group.platform) }),
+              group.lastMessage,
+            ]
+              .filter(Boolean)
+              .join(' · '),
+            channel: {
+              platform: group.platform,
+              chatType: 'group' as const,
+              peerIds: [group.peerId],
+              senderIds: [],
+            },
+            unavailable: !owner?.ownerConfigured,
+          }
+        }),
+      ]
+    : []
+
   return (
     <div className="flex flex-col">
       <p className="mb-2 text-xs text-content-muted">
@@ -81,7 +171,17 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
                 </b>
                 <span className="block truncate text-content-muted">
                   {channel.peerIds
-                    ? t('bots:triggers.peers', { ids: channel.peerIds.join('、') })
+                    ? t('bots:triggers.peers', {
+                        ids: channel.peerIds
+                          .map(
+                            (id) =>
+                              chats?.groups.find(
+                                (group) =>
+                                  group.platform === channel.platform && group.peerId === id,
+                              )?.title || id,
+                          )
+                          .join('、'),
+                      })
                     : t('bots:triggers.allPeers')}
                   {' · '}
                   {channel.senderIds.length
@@ -102,56 +202,124 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
         </ul>
       )}
       {adding ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-stroke p-2.5">
-          <div className="flex items-center gap-2">
-            <AppSelect
-              value={platform}
-              className="w-32"
-              aria-label={t('bots:triggers.platform')}
-              onChange={(event) => setPlatform(event.target.value as BotPlatform)}
-            >
-              {BOT_PLATFORMS.map((item) => (
-                <option key={item} value={item}>
-                  {platformLabel(t, item)}
-                </option>
-              ))}
-            </AppSelect>
-            <SegmentedControl
-              value={chatType}
-              onValueChange={(value) => setChatType(value)}
-              options={[
-                { value: 'p2p', label: t('bots:triggers.p2p') },
-                { value: 'group', label: t('bots:triggers.group') },
-              ]}
+        <div
+          data-bot-channel-picker
+          className="flex flex-col gap-2 rounded-lg border border-stroke p-2.5"
+        >
+          {manual ? (
+            <>
+              <p className="m-0 text-xs text-content-muted">{t('bots:triggers.manualHint')}</p>
+              <div className="flex items-center gap-2">
+                <AppSelect
+                  value={platform}
+                  className="w-32"
+                  aria-label={t('bots:triggers.platform')}
+                  onChange={(event) => setPlatform(event.target.value as BotPlatform)}
+                >
+                  {BOT_PLATFORMS.map((item) => (
+                    <option key={item} value={item}>
+                      {platformLabel(t, item)}
+                    </option>
+                  ))}
+                </AppSelect>
+                <SegmentedControl
+                  value={chatType}
+                  onValueChange={(value) => setChatType(value)}
+                  options={[
+                    { value: 'p2p', label: t('bots:triggers.p2p') },
+                    { value: 'group', label: t('bots:triggers.group') },
+                  ]}
+                />
+              </div>
+              <Input
+                value={peers}
+                aria-label={t('bots:triggers.peerIds')}
+                placeholder={t('bots:triggers.peerIdsPlaceholder')}
+                onChange={(event) => setPeers(event.target.value)}
+              />
+              <Input
+                value={senders}
+                aria-label={t('bots:triggers.senderIds')}
+                placeholder={t('bots:triggers.senderIdsPlaceholder')}
+                onChange={(event) => setSenders(event.target.value)}
+              />
+            </>
+          ) : chatsError ? (
+            <p role="alert" className="m-0 text-xs text-destructive">
+              {chatsError}
+            </p>
+          ) : !chats ? (
+            <div role="status" className="grid min-h-16 place-items-center">
+              <OrbitSpinner className="size-4" />
+            </div>
+          ) : options.length === 0 ? (
+            <InlineEmptyState
+              compact
+              icon={MessageCircle}
+              title={t('bots:triggers.noChannels')}
+              description={t('bots:triggers.noChannelsHint')}
+              action={
+                <Button asChild size="sm" variant="outline">
+                  <Link to={PAGE_PATHS.channels}>{t('bots:triggers.openChannels')}</Link>
+                </Button>
+              }
             />
-          </div>
-          <Input
-            value={peers}
-            aria-label={t('bots:triggers.peerIds')}
-            placeholder={t('bots:triggers.peerIdsPlaceholder')}
-            onChange={(event) => setPeers(event.target.value)}
-          />
-          <Input
-            value={senders}
-            aria-label={t('bots:triggers.senderIds')}
-            placeholder={
-              chatType === 'group'
-                ? t('bots:triggers.senderIdsRequired')
-                : t('bots:triggers.senderIdsPlaceholder')
-            }
-            onChange={(event) => setSenders(event.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
-              {t('bots:triggers.cancel')}
-            </Button>
-            <Button
-              size="sm"
-              disabled={saving || (chatType === 'group' && !splitIds(senders).length)}
-              onClick={() => void add()}
+          ) : (
+            <ul
+              role="list"
+              aria-label={t('bots:triggers.pickTitle')}
+              className="m-0 flex list-none flex-col p-0"
             >
-              {t('bots:triggers.add')}
-            </Button>
+              {options.map((option) => {
+                const added = covered(bot.channels, option.channel)
+                const Icon = option.channel.chatType === 'group' ? Users : MessageCircle
+                return (
+                  <li key={option.key}>
+                    <button
+                      type="button"
+                      data-bot-chat-option={option.key}
+                      className="flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || added || option.unavailable}
+                      onClick={() => void addChannel(option.channel)}
+                    >
+                      <Icon className="size-4 flex-none text-content-muted" aria-hidden="true" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-content">{option.title}</span>
+                        <span className="block truncate text-xs text-content-muted">
+                          {option.detail}
+                        </span>
+                      </span>
+                      {added ? (
+                        <span className="flex-none text-xs text-content-muted">
+                          {t('bots:triggers.added')}
+                        </span>
+                      ) : (
+                        <Plus className="size-4 flex-none text-content-muted" aria-hidden="true" />
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            {manual ? (
+              <span />
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setManual(true)}>
+                {t('bots:triggers.manual')}
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={close}>
+                {t('bots:triggers.cancel')}
+              </Button>
+              {manual && (
+                <Button size="sm" disabled={saving} onClick={addManual}>
+                  {t('bots:triggers.add')}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       ) : (

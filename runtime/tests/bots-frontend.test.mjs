@@ -24,6 +24,7 @@ import {
   sidebarBots,
 } from '../../src/features/bots/bot-presentation.ts'
 import { parseBot } from '../../src/features/bots/bots-api.ts'
+import { parseChannelChats } from '../../src/features/channels/channel-chats.ts'
 import { parseBoardCard } from '../../src/features/board/board-api.ts'
 import { buildBoardItems } from '../../src/features/board/board-model.ts'
 import { buildSidebarModel } from '../../src/features/board/sidebar-model.ts'
@@ -489,4 +490,43 @@ test('bot greeting derives from settings and stays at the start of the conversat
       .sort()
   assert.ok(keys(zh).length > 0)
   assert.deepEqual(keys(zh), keys(en))
+})
+
+test('chats are picked from connected channels instead of typing IDs', async () => {
+  // 只列启用的渠道；群聊只列已接入平台上跟 Pisper 说过话的群，私聊不进群列表。
+  assert.deepEqual(
+    parseChannelChats({
+      connections: {
+        qq: { enabled: true, ownerConfigured: true },
+        feishu: { enabled: false, ownerConfigured: true },
+        weixin: null,
+        telegram: { ownerConfigured: false },
+      },
+      scopes: [
+        { platform: 'qq', peerId: 'g1', chatType: 'group', title: '运维群', lastMessage: '在吗' },
+        { platform: 'qq', peerId: 'u1', chatType: 'p2p', title: '张三' },
+        { platform: 'feishu', peerId: 'oc_1', chatType: 'group', title: '已停用的渠道' },
+        { platform: 'qq', chatType: 'group' },
+        { platform: 'line', peerId: 'x', chatType: 'group' },
+      ],
+    }),
+    {
+      channels: [
+        { platform: 'qq', ownerConfigured: true },
+        { platform: 'telegram', ownerConfigured: false },
+      ],
+      groups: [{ platform: 'qq', peerId: 'g1', title: '运维群', lastMessage: '在吗' }],
+    },
+  )
+  assert.throws(() => parseChannelChats({ scopes: [] }))
+
+  const editor = await readFile(join(root, 'src/features/bots/BotTriggers.tsx'), 'utf8')
+  // 点一下就加：规则不写名单（只有你能叫它），手动填 ID 收在次级入口里。
+  assert.match(editor, /fetchChannelChats\(controller\.signal\)/)
+  assert.equal(editor.match(/senderIds: \[\],/g).length, 2)
+  assert.match(editor, /onClick=\{\(\) => void addChannel\(option\.channel\)\}/)
+  assert.match(editor, /onClick=\{\(\) => setManual\(true\)\}/)
+  // 渠道没记下创建者时，没写名单的规则谁也叫不动：不给点。
+  assert.match(editor, /disabled=\{saving \|\| added \|\| option\.unavailable\}/)
+  assert.doesNotMatch(editor, /senderIdsRequired/)
 })
