@@ -83,10 +83,49 @@ test('bot fields are validated and given safe defaults', () => {
   )
 })
 
+test('commands are validated: unique, not just digits, with content; extra text only for tasks', () => {
+  const command = (input) => ({ name: '查部署', kind: 'task', text: '查看部署状态', ...input })
+  const commands = (list) => normalizeBotInput({ ...base, commands: list }).commands
+  assert.deepEqual(normalizeBotInput(base).commands, [])
+  assert.deepEqual(commands([command({ audience: 'everyone', allowExtra: true })]), [
+    { name: '查部署', kind: 'task', text: '查看部署状态', audience: 'everyone', allowExtra: true },
+  ])
+  // 默认只给管理员；固定回复不带补充。
+  assert.deepEqual(commands([command({ kind: 'reply', allowExtra: true })]), [
+    { name: '查部署', kind: 'reply', text: '查看部署状态', audience: 'admins', allowExtra: false },
+  ])
+  for (const list of [
+    [command({}), command({ name: '查部署 ' })],
+    [command({ name: '12' })],
+    [command({ text: '  ' })],
+    [command({ name: '' })],
+    Array.from({ length: 21 }, (_, index) => command({ name: `指令${index}` })),
+    'x',
+  ])
+    assert.equal(
+      codeOf(() => normalizeBotInput({ ...base, commands: list })),
+      'bot_command_invalid',
+    )
+  // 打开“所有人”的私聊规则同样不能配完全访问。
+  const open = {
+    platform: 'telegram',
+    chatType: 'p2p',
+    peerIds: null,
+    senderIds: [],
+    everyone: true,
+  }
+  assert.equal(
+    codeOf(() => normalizeBotInput({ ...base, channels: [open], executionMode: 'full-access' })),
+    'bot_group_full_access',
+  )
+})
+
 test('group chats without a sender list mean only the owner, and cannot grant full access', () => {
   // 名单为空不再拒绝：路由按“只有渠道创建者”处理（bot-routing.test）。
   const group = { platform: 'feishu', chatType: 'group', peerIds: ['oc_1'], senderIds: [] }
-  assert.deepEqual(normalizeBotInput({ ...base, channels: [group] }).channels, [group])
+  assert.deepEqual(normalizeBotInput({ ...base, channels: [group] }).channels, [
+    { ...group, everyone: false },
+  ])
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, channels: [group], executionMode: 'full-access' })),
     'bot_group_full_access',

@@ -63,6 +63,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
   const [chatType, setChatType] = useState<'p2p' | 'group'>('p2p')
   const [peers, setPeers] = useState('')
   const [senders, setSenders] = useState('')
+  const [everyone, setEveryone] = useState(false)
 
   // 打开分区时问一次接入了哪些渠道（已有规则里的群用它显示名字），每次展开“添加聊天”再拉一次，
   // 接入新渠道后不用刷新页面。
@@ -98,6 +99,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
     setManual(false)
     setPeers('')
     setSenders('')
+    setEveryone(false)
   }
   const addChannel = async (channel: BotChannel) => {
     if (await save([...bot.channels, channel])) close()
@@ -109,6 +111,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
       chatType,
       peerIds: peerIds.length ? peerIds : null,
       senderIds: splitIds(senders),
+      everyone,
     })
   }
 
@@ -125,6 +128,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
             chatType: 'p2p' as const,
             peerIds: null,
             senderIds: [],
+            everyone: false,
           },
           unavailable: !channel.ownerConfigured,
         })),
@@ -144,6 +148,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
               chatType: 'group' as const,
               peerIds: [group.peerId],
               senderIds: [],
+              everyone: false,
             },
             unavailable: !owner?.ownerConfigured,
           }
@@ -185,9 +190,25 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
                     : t('bots:triggers.allPeers')}
                   {' · '}
                   {channel.senderIds.length
-                    ? t('bots:triggers.senders', { ids: channel.senderIds.join('、') })
-                    : t('bots:triggers.ownerOnly')}
+                    ? t('bots:triggers.adminsWith', { ids: channel.senderIds.join('、') })
+                    : t('bots:triggers.admins')}
                 </span>
+                {/* 打开后这个聊天里的其他人也能叫它，但只能用“指令”里公开的那些。 */}
+                <label className="mt-1.5 flex items-center gap-2 text-content-secondary">
+                  <Switch
+                    size="sm"
+                    checked={channel.everyone}
+                    disabled={saving}
+                    onCheckedChange={(checked) =>
+                      void save(
+                        bot.channels.map((item, position) =>
+                          position === index ? { ...item, everyone: checked } : item,
+                        ),
+                      )
+                    }
+                  />
+                  {t('bots:triggers.everyone')}
+                </label>
               </span>
               <Button
                 size="sm"
@@ -243,6 +264,10 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
                 placeholder={t('bots:triggers.senderIdsPlaceholder')}
                 onChange={(event) => setSenders(event.target.value)}
               />
+              <label className="flex items-center gap-2 text-xs text-content-secondary">
+                <Switch size="sm" checked={everyone} onCheckedChange={setEveryone} />
+                {t('bots:triggers.everyone')}
+              </label>
             </>
           ) : chatsError ? (
             <p role="alert" className="m-0 text-xs text-destructive">

@@ -35,6 +35,9 @@ export const BOT_AVATAR_COLORS = Object.freeze([
 export const LOCAL_ENVIRONMENT_ID = 'local'
 const THINKING_LEVELS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh'])
 const MAX_CHANNELS = 8
+export const MAX_BOT_COMMANDS = 20
+export const MAX_BOT_COMMAND_NAME_CHARS = 24
+export const MAX_BOT_COMMAND_TEXT_CHARS = 4_000
 const MAX_IDS = 50
 const MAX_ID_CHARS = 200
 const MAX_TOOLS = 64
@@ -165,10 +168,57 @@ function normalizeChannels(value) {
       input.peerIds === null || input.peerIds === undefined
         ? null
         : normalizeIdList(input.peerIds, '聊天')
-    // 名单为空表示只有渠道的创建者能叫它（私聊、群聊一样），群成员或被拉进群的人叫不动；
-    // 这样在设置里直接点选一个已接入的群就能用，不必先查自己的 ID。
+    // senderIds 是管理员：渠道的创建者之外还有谁能让它做任何事（名单为空时只有创建者）。
+    // everyone 打开时这个聊天里的其他人也能叫它，但只能用公开的指令（见 normalizeCommands）。
     const senderIds = normalizeIdList(input.senderIds, '可以叫它的人')
-    return { platform, chatType, peerIds: peerIds && peerIds.length ? peerIds : null, senderIds }
+    return {
+      platform,
+      chatType,
+      peerIds: peerIds && peerIds.length ? peerIds : null,
+      senderIds,
+      everyone: input.everyone === true,
+    }
+  })
+}
+
+// 指令：在聊天里点名后发序号或名字就能用。reply 直接发写好的文字，不调用模型；task 把写好的事交给 Bot 做。
+// audience = everyone 时聊天规则里打开了“所有人”的聊天中谁都能用，admins 只有管理员能用。
+// allowExtra 只对 task 有意义：允许在指令后面带一句补充，作为对方的说法交给 Bot。
+function normalizeCommands(value) {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw invalid('bot_command_invalid', '指令必须是列表。')
+  if (value.length > MAX_BOT_COMMANDS)
+    throw invalid('bot_command_invalid', `指令最多 ${MAX_BOT_COMMANDS} 条。`)
+  const seen = new Set()
+  return value.map((item) => {
+    const input = record(item)
+    const name = String(input.name ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!name) throw invalid('bot_command_invalid', '请给每条指令起个名字。')
+    if ([...name].length > MAX_BOT_COMMAND_NAME_CHARS)
+      throw invalid('bot_command_invalid', `指令名字最多 ${MAX_BOT_COMMAND_NAME_CHARS} 个字。`)
+    // 纯数字的名字会和“回复序号”混在一起。
+    if (/^\d+$/.test(name)) throw invalid('bot_command_invalid', '指令名字不能只有数字。')
+    const key = name.toLocaleLowerCase()
+    if (seen.has(key)) throw invalid('bot_command_invalid', `指令名字重复：${name}`)
+    seen.add(key)
+    const kind = input.kind === 'reply' ? 'reply' : 'task'
+    const text = String(input.text ?? '').trim()
+    if (!text)
+      throw invalid(
+        'bot_command_invalid',
+        kind === 'reply' ? `请写好「${name}」要回复的话。` : `请写好「${name}」要做的事。`,
+      )
+    if (text.length > MAX_BOT_COMMAND_TEXT_CHARS)
+      throw invalid('bot_command_invalid', `「${name}」的内容太长。`)
+    return {
+      name,
+      kind,
+      text,
+      audience: input.audience === 'everyone' ? 'everyone' : 'admins',
+      allowExtra: kind === 'task' && input.allowExtra === true,
+    }
   })
 }
 
@@ -246,8 +296,11 @@ export function normalizeBotInput(input, current = null) {
   // Bot 是替用户干活的：新建默认放手做（工作区写入档），只有命令守卫标出的危险操作、浏览器提交、
   // 第三方插件这类事才停下来问。已经存下的 Bot 保留它自己的权限，不悄悄放宽。
   const executionMode = normalizeExecutionMode(merged.executionMode, DEFAULT_BOT_EXECUTION_MODE)
-  // 执行权限是上限：有群聊触发时不能是完全访问，否则群里一句话就能让 Bot 不经确认执行任何命令。
-  if (executionMode === 'full-access' && channels.some((channel) => channel.chatType === 'group'))
+  // 执行权限是上限：有群聊或“所有人”触发时不能是完全访问，否则别人一句话就能让 Bot 不经确认执行任何命令。
+  if (
+    executionMode === 'full-access' &&
+    channels.some((channel) => channel.chatType === 'group' || channel.everyone)
+  )
     throw invalid('bot_group_full_access', '有群聊触发的 Bot 不能使用完全访问权限。')
   const thinking = THINKING_LEVELS.has(String(merged.thinking))
     ? String(merged.thinking)
@@ -268,6 +321,7 @@ export function normalizeBotInput(input, current = null) {
     executionMode,
     tools: normalizeTools(merged.tools),
     channels,
+    commands: normalizeCommands(merged.commands),
     defaultIn: normalizeDefaultIn(merged.defaultIn, channels),
     maxParallelAgents: normalizeParallel(merged.maxParallelAgents),
     readGlobalMemory: merged.readGlobalMemory !== false,

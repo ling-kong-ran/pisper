@@ -304,6 +304,8 @@ export class QQGateway {
       senderId: String(senderId),
       senderName: raw.author?.member_openid || raw.author?.username || '',
       chatType: type === 'AT_MESSAGE_CREATE' ? 'channel' : group ? 'group' : 'p2p',
+      // QQ 只投递 @ 了机器人的群消息，内容里已经去掉了 @：标上平台无关的 mentioned，分派时照样算点名。
+      ...(group ? { mentioned: true } : {}),
       content: String(raw.content || '').trim(),
       resources: [],
     }

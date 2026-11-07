@@ -36,6 +36,8 @@ export type Bot = {
   thinking: BotThinking | null
   // 渠道里哪些聊天、哪些人可以叫它（B3）。
   channels: BotChannel[]
+  // 在聊天里点名后发序号或名字就能用的指令；公开的指令其他人也能用。
+  commands: BotCommand[]
   // 工具范围：null 表示用当前启用的全部工具。
   tools: string[] | null
   workspace: { environmentId: string; cwd: string }
@@ -79,7 +81,38 @@ export type BotChannel = {
   platform: BotPlatform
   chatType: 'p2p' | 'group'
   peerIds: string[] | null
+  // 管理员：渠道创建者之外还有谁能让它做任何事。
   senderIds: string[]
+  // 这个聊天里的其他人也能叫它，但只能用公开的指令。
+  everyone: boolean
+}
+
+export type BotCommand = {
+  name: string
+  // reply：直接发写好的文字，不调用模型；task：把写好的事交给 Bot 做。
+  kind: 'reply' | 'task'
+  text: string
+  audience: 'everyone' | 'admins'
+  // 允许在指令后面带一句补充（只对 task）。
+  allowExtra: boolean
+}
+
+function parseCommands(value: unknown): BotCommand[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const input = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    if (typeof input.name !== 'string' || typeof input.text !== 'string') return []
+    const kind = input.kind === 'reply' ? 'reply' : 'task'
+    return [
+      {
+        name: input.name,
+        kind,
+        text: input.text,
+        audience: input.audience === 'everyone' ? 'everyone' : 'admins',
+        allowExtra: kind === 'task' && input.allowExtra === true,
+      },
+    ]
+  })
 }
 
 function parseChannels(value: unknown): BotChannel[] {
@@ -95,6 +128,7 @@ function parseChannels(value: unknown): BotChannel[] {
         chatType: input.chatType === 'group' ? 'group' : 'p2p',
         peerIds: Array.isArray(input.peerIds) ? ids(input.peerIds) : null,
         senderIds: ids(input.senderIds),
+        everyone: input.everyone === true,
       },
     ]
   })
@@ -145,6 +179,7 @@ export function parseBot(value: unknown): Bot {
     model: parseModel(input.model),
     thinking: BOT_THINKING_LEVELS.find((level) => level === input.thinking) ?? null,
     channels: parseChannels(input.channels),
+    commands: parseCommands(input.commands),
     tools: Array.isArray(input.tools)
       ? input.tools.filter((tool): tool is string => typeof tool === 'string')
       : null,

@@ -364,7 +364,6 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
 
   const dialog = await readFile(join(root, 'src/features/bots/NewBotDialog.tsx'), 'utf8')
   assert.match(dialog, /disabled=\{saving \|\| !name\.trim\(\)\}/)
-  const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
   // “选择…”先调系统文件管理器；只有系统对话框出不来（手机、配对设备）时才打开目录面板。
   const computer = await readFile(join(root, 'src/features/bots/BotComputerTab.tsx'), 'utf8')
   for (const source of [dialog, computer]) {
@@ -378,7 +377,8 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
     computer,
     /listFolders=\{\(path, signal\) => listEnvironmentFolders\(environmentId, path, signal\)\}/,
   )
-  for (const section of ['computer', 'chats', 'schedules', 'advanced'])
+  const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
+  for (const section of ['computer', 'chats', 'commands', 'schedules', 'advanced'])
     assert.match(details, new RegExp(`<AccordionItem value="${section}">`))
 })
 

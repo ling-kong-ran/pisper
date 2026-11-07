@@ -2,7 +2,17 @@
 // 渠道收到的消息通过 agent.prompt 转成会话运行，并支持附件（图片/文件）。
 import { extname } from 'node:path'
 import { botChatAction } from '../bots/bot-notifications.mjs'
-import { botsForChat, refusalText, routeChannelMessage } from '../bots/bot-routing.mjs'
+import {
+  botAccess,
+  botCommandPrompt,
+  botCommandsFor,
+  botMenuText,
+  botsForChat,
+  matchBotCommand,
+  parseBotMention,
+  refusalText,
+  routeChannelMessage,
+} from '../bots/bot-routing.mjs'
 import QRCode from 'qrcode'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
 import { FeishuGateway } from './feishu-gateway.mjs'
@@ -197,6 +207,12 @@ function botStatusText(bot, activity) {
   return `${bot.name} 正在忙。`
 }
 
+// 指令清单发出后，回序号的有效时间。
+const BOT_MENU_TTL_MS = 5 * 60_000
+// 非管理员交给 Bot 做的指令：每人每 10 分钟最多 6 次，免得群里有人刷指令一直打断 Bot、耗光用量。
+const PUBLIC_TASK_WINDOW_MS = 10 * 60_000
+const PUBLIC_TASK_LIMIT = 6
+
 export class ChannelService {
   constructor({ path, cwd, agent, bots = null, gatewayFactories = {}, onboardingFactories = {} }) {
     this.path = path
@@ -207,6 +223,10 @@ export class ChannelService {
     this.bots = bots
     // 叫过 Bot 的聊天的回复上下文（微信要 contextToken 才能主动发消息）；只在内存里，B5 回推用。
     this.botPeers = new Map()
+    // 发过指令清单的人：几分钟内直接回序号就能选，不必再点名。键是“平台:聊天:人”，只在内存里。
+    this.botMenus = new Map()
+    // 非管理员最近交给 Bot 的指令时间，按“平台:人”记，只在内存里。
+    this.publicTaskTimes = new Map()
     this.state = defaultState()
     this.writeQueue = Promise.resolve()
     this.chatQueues = new Map()
@@ -601,6 +621,12 @@ export class ChannelService {
             ? connection.ownerUserId
             : ''
     if (connection.accessMode !== 'all' && (!ownerId || message.senderId !== ownerId)) {
+      // 渠道本身只给创建者用；别人只能经 Bot 的聊天规则进来（规则里写了他、或打开了“所有人”）。
+      if (
+        this.bots?.enabled() &&
+        (await this.handleBotMessage(platform, message, ownerId, { guest: true }))
+      )
+        return
       await this.gateways[platform].send(message, {
         text: ownerId
           ? '当前机器人仅允许扫码创建者使用。'
@@ -809,7 +835,9 @@ export class ChannelService {
   }
 
   // 点名了某个 Bot 的消息交给它；返回 false 表示与 Bot 无关，照旧直接对话。
-  async handleBotMessage(platform, message, ownerId) {
+  // 渠道消息交给 Bot：管理员什么都能让它做，其他人（规则打开了“所有人”）只能用公开的指令。
+  // guest：渠道本身不对这个人开放，只有确实交给了某个 Bot 才算处理；没处理时由调用方照旧拒绝。
+  async handleBotMessage(platform, message, ownerId, { guest = false } = {}) {
     const gateway = this.gateways[platform]
     const bots = this.bots.list()
     const command = message.content.trim().toLowerCase()
@@ -822,43 +850,134 @@ export class ChannelService {
     }
     if (command === '/bots') {
       const available = botsForChat(context, bots, { ownerId })
+      if (guest && !available.length) return false
       await gateway.send(message, {
         text: available.length
-          ? `这里可以叫的 Bot：\n${available.map((bot) => `· ${bot.name}`).join('\n')}\n用法：/名字 要做的事，或 @Pisper 名字 要做的事。/名字 状态 查看它在做什么。`
+          ? `这里可以叫的 Bot：\n${available.map((bot) => `· ${bot.name}`).join('\n')}\n用法：@ 机器人后写“名字 要做的事”（也可以用 /名字）；只写名字会列出能用的指令。`
           : '这个聊天里还没有可以叫的 Bot。在 Pisper 里给 Bot 加上这个聊天（/whoami 查看 ID）。',
       })
       return true
     }
+    // 刚收到指令清单的人直接回序号：不必再点名。只认序号，免得把闲聊当成指令。
+    const menuKey = `${platform}:${message.peerId}:${message.senderId}`
+    const menu = this.botMenus.get(menuKey)
+    if (menu && menu.expiresAt > Date.now()) {
+      const parsed = parseBotMention(message.content, bots)
+      if (!parsed.bot && !parsed.command && /^\d{1,2}(?:$|[\s,，:：、.．])/.test(parsed.text)) {
+        const bot = bots.find((item) => item.id === menu.botId)
+        const access = bot ? botAccess(bot, context, { ownerId }) : { reason: 'not_in_chat' }
+        if (bot && access.role) {
+          this.botMenus.delete(menuKey)
+          return this.runBotRequest(platform, message, ownerId, bot, access.role, parsed.text)
+        }
+      }
+    } else if (menu) this.botMenus.delete(menuKey)
     const routed = routeChannelMessage(context, bots, { ownerId })
     if (routed.kind === 'none') return false
     if (routed.kind === 'refused') {
+      if (guest) return false
       await gateway.send(message, { text: refusalText(routed.bot, routed.reason) })
       return true
     }
-    const { bot, text } = routed
+    return this.runBotRequest(platform, message, ownerId, routed.bot, routed.role, routed.text)
+  }
+
+  // 点名之后的一句话：指令（序号或名字）、批准与状态（只给管理员），或交给 Bot 的话（只给管理员）。
+  async runBotRequest(platform, message, ownerId, bot, role, text) {
+    const gateway = this.gateways[platform]
+    const admin = role === 'admin'
     this.botPeers.set(scopeKey(platform, message.peerId), {
       platform,
       peerId: message.peerId,
       chatType: message.chatType,
       contextToken: message.contextToken || '',
     })
-    const action = botChatAction(text)
-    if (action) {
-      const reply = await this.bots
-        .act(bot.id, action)
-        .catch((error) => (error instanceof Error ? error.message : String(error)))
-      await gateway.send(message, { text: reply })
+    const showMenu = async (prefix = '') => {
+      const commands = botCommandsFor(bot, role)
+      if (commands.length) {
+        this.#rememberMenu(`${platform}:${message.peerId}:${message.senderId}`, bot.id)
+      }
+      await gateway.send(message, {
+        text: `${prefix}${botMenuText(bot, role, { group: message.chatType !== 'p2p' })}`,
+      })
       return true
     }
-    if (/^(?:状态|status)$/i.test(text)) {
+    if (!text) return showMenu()
+    const action = botChatAction(text)
+    if (action || /^(?:状态|status)$/i.test(text)) {
+      if (!admin) {
+        await gateway.send(message, { text: refusalText(bot, 'admin_only') })
+        return true
+      }
+      if (action) {
+        const reply = await this.bots
+          .act(bot.id, action)
+          .catch((error) => (error instanceof Error ? error.message : String(error)))
+        await gateway.send(message, { text: reply })
+        return true
+      }
       const activity = this.bots.activity(bot.id)
       await gateway.send(message, { text: botStatusText(bot, activity) })
       return true
     }
-    if (!text) {
-      await gateway.send(message, { text: `要让 ${bot.name} 做什么？在名字后面写上。` })
-      return true
+    const matched = matchBotCommand(text, botCommandsFor(bot, role))
+    if (matched && (!matched.extra || matched.command.allowExtra)) {
+      if (matched.command.kind === 'reply') {
+        await gateway.send(message, { text: matched.command.text })
+        return true
+      }
+      if (!admin && !this.#allowPublicTask(`${platform}:${message.senderId}`)) {
+        await gateway.send(message, { text: `用得太频繁了，过几分钟再叫 ${bot.name}。` })
+        return true
+      }
+      return this.sendToBot(
+        platform,
+        message,
+        ownerId,
+        bot,
+        botCommandPrompt(matched.command, matched.extra, {
+          admin,
+          senderName: String(message.senderName || ''),
+        }),
+        matched.command.name,
+      )
     }
+    // 管理员没对上指令（或给不带补充的指令加了话）：整句交给 Bot；其他人只能用指令，列给他看。
+    if (admin) return this.sendToBot(platform, message, ownerId, bot, text, '')
+    return showMenu(
+      matched ? `「${matched.command.name}」后面不能带补充。\n` : '这里只能用下面的指令。\n',
+    )
+  }
+
+  #allowPublicTask(key) {
+    const now = Date.now()
+    const recent = (this.publicTaskTimes.get(key) || []).filter(
+      (time) => now - time < PUBLIC_TASK_WINDOW_MS,
+    )
+    if (recent.length >= PUBLIC_TASK_LIMIT) {
+      this.publicTaskTimes.set(key, recent)
+      return false
+    }
+    recent.push(now)
+    this.publicTaskTimes.set(key, recent)
+    if (this.publicTaskTimes.size > 1000)
+      for (const [entry, times] of this.publicTaskTimes)
+        if (!times.some((time) => now - time < PUBLIC_TASK_WINDOW_MS))
+          this.publicTaskTimes.delete(entry)
+    return true
+  }
+
+  #rememberMenu(key, botId) {
+    const now = Date.now()
+    for (const [entry, value] of this.botMenus)
+      if (value.expiresAt <= now) this.botMenus.delete(entry)
+    // 极端情况下（很多人同时点名）只留最近的一批，不让内存无限长。
+    if (this.botMenus.size >= 1000) this.botMenus.delete(this.botMenus.keys().next().value)
+    this.botMenus.set(key, { botId, expiresAt: now + BOT_MENU_TTL_MS })
+  }
+
+  async sendToBot(platform, message, ownerId, bot, text, commandName) {
+    const gateway = this.gateways[platform]
     try {
       // 话直接进 Bot 的长期会话；这一轮说完，回复由 Runtime 发回这个聊天（B5）。
       const sent = await this.bots.message(bot.id, {
@@ -873,6 +992,7 @@ export class ChannelService {
           messageId: String(message.messageId || ''),
           // 渠道绑定的用户本人：Bot 把他的话当用户的话记，其他人的话只算外部说法。
           fromOwner: Boolean(ownerId) && String(message.senderId || '') === String(ownerId),
+          ...(commandName ? { command: commandName } : {}),
         },
       })
       const attachmentNote = message.resources?.length ? '（附件暂不转给 Bot，只收到了文字。）' : ''

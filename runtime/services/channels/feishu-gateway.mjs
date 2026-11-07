@@ -48,7 +48,15 @@ export class FeishuGateway {
     this.channel = channel
     channel.on({
       message: (message) => {
-        Promise.resolve(this.onMessage({ ...message, peerId: message.chatId })).catch((error) => {
+        // SDK 只投递 @ 了机器人的群消息（requireMention），mentionedBot 归一成平台无关的 mentioned。
+        const addressed = message.chatType === 'group' && message.mentionedBot === true
+        Promise.resolve(
+          this.onMessage({
+            ...message,
+            peerId: message.chatId,
+            ...(addressed ? { mentioned: true } : {}),
+          }),
+        ).catch((error) => {
           this.setStatus({ lastError: error instanceof Error ? error.message : String(error) })
         })
       },

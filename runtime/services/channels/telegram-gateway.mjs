@@ -203,6 +203,7 @@ export class TelegramGateway {
         fileId: raw.document.file_id,
         name: raw.document.file_name || 'telegram-document',
       })
+    const chatType = raw.chat.type === 'private' ? 'p2p' : 'group'
     return {
       messageId: String(raw.message_id || `${raw.chat.id}-${raw.date || Date.now()}`),
       peerId: String(raw.chat.id),
@@ -211,10 +212,34 @@ export class TelegramGateway {
         [raw.from.first_name, raw.from.last_name].filter(Boolean).join(' ') ||
         raw.from.username ||
         '',
-      chatType: raw.chat.type === 'private' ? 'p2p' : 'group',
+      chatType,
+      ...(chatType === 'group' && this.addressedToBot(raw) ? { mentioned: true } : {}),
       content: String(raw.text || raw.caption || ''),
       resources,
     }
+  }
+
+  // 群里这条消息是不是对机器人说的：@ 了机器人的用户名、点了它（text_mention）、/命令@机器人，
+  // 或者回复的是机器人自己的消息。分派 Bot 时与 @ 同等看待（平台无关的 mentioned 字段）。
+  addressedToBot(raw) {
+    const bot = this.status.bot
+    if (!bot?.id) return false
+    if (String(raw.reply_to_message?.from?.id ?? '') === String(bot.id)) return true
+    const text = String(raw.text || raw.caption || '')
+    const username = `@${String(bot.username || '').toLowerCase()}`
+    const entities = Array.isArray(raw.entities)
+      ? raw.entities
+      : Array.isArray(raw.caption_entities)
+        ? raw.caption_entities
+        : []
+    return entities.some((entity) => {
+      if (entity?.type === 'text_mention') return String(entity.user?.id ?? '') === String(bot.id)
+      if (username === '@' || (entity?.type !== 'mention' && entity?.type !== 'bot_command'))
+        return false
+      // 实体的偏移按 UTF-16 计，与 JS 字符串下标一致。
+      const word = text.slice(entity.offset, entity.offset + entity.length).toLowerCase()
+      return entity.type === 'mention' ? word === username : word.endsWith(username)
+    })
   }
 
   async send(message, input = {}) {

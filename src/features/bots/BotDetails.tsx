@@ -19,6 +19,7 @@ import { BotModelSection } from './BotModelSection'
 import { BotMemorySection } from './BotMemorySection'
 import { BotSkillsSection } from './BotSkillsSection'
 import { BotProactiveSection } from './BotProactiveSection'
+import { BotCommandsSection } from './BotCommandsSection'
 import { ChannelEditor, ScheduleEditor } from './BotTriggers'
 import { updateBot, type Bot, type BotEnvironment } from './bots-api'
 import { environmentLabel } from './bot-environments'
@@ -234,6 +235,26 @@ export function BotDetails({
           </AccordionTrigger>
           <AccordionContent className="h-auto">
             <ChannelEditor bot={bot} onError={onError} />
+          </AccordionContent>
+        </AccordionItem>
+        {/* 指令：在聊天里点名后回序号就能用；公开的指令其他人也能用。 */}
+        <AccordionItem value="commands">
+          <AccordionTrigger>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              {t('bots:commands.title')}
+              <span className="truncate text-xs font-normal text-content-muted">
+                {bot.commands.length
+                  ? t('bots:commands.count', {
+                      count: bot.commands.length,
+                      open: bot.commands.filter((command) => command.audience === 'everyone')
+                        .length,
+                    })
+                  : t('bots:settings.notSet')}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="h-auto">
+            <BotCommandsSection bot={bot} onError={onError} />
           </AccordionContent>
         </AccordionItem>
         <AccordionItem value="schedules">
