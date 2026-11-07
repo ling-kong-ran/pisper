@@ -94,6 +94,10 @@ test('the prompt: quick work itself, long or approval-needing work to sub-agents
   assert.match(prompt, /不要为了确认计划而停下来问/)
   assert.match(prompt, /先回应新消息/)
   assert.match(prompt, /也不要承诺系统没有的东西/)
+  // 打开网页走右侧浏览器，不退回 shell 命令。
+  assert.match(prompt, /browser_automation/)
+  assert.match(prompt, /computer_use/)
+  assert.match(prompt, /不要改用 shell 命令打开网页/)
   assert.match(prompt, /\[小橙 的工作说明\]\n负责 acme-web 前端/)
 })
 
@@ -351,7 +355,7 @@ test('the runtime wires a non-blocking bot conversation', async () => {
     read('../runtime/agent-runtime-facade.mjs'),
     read('../runtime/agent-session-methods.mjs'),
   ])
-  // 对话有工具：Bot 的范围外加 bot_*；通用的多 Agent、ask_user、定时、工作流、目标、浏览器自动化挡掉。
+  // 对话有工具：Bot 的范围外加 bot_*；只挡有 bot_* 替代的多 Agent、ask_user、定时。
   assert.match(
     activation,
     /\.\.\.\(value\.conversationOnly \? BOT_CONVERSATION_TOOL_NAMES : \[\]\)/,
@@ -364,9 +368,12 @@ test('the runtime wires a non-blocking bot conversation', async () => {
     runtime,
     /\.\.\.ISOLATED_CONTEXT_BLOCKED_TOOLS, \.\.\.BOT_CONVERSATION_BLOCKED_TOOLS/,
   )
-  // 不阻塞：长命令转后台、不在对话里等批准、运行中发来的话插队。
+  // 不阻塞：长命令转后台、子 agent 能做的不在对话里等批准、运行中发来的话插队。
   assert.match(runtime, /this\.botCommands\.wrap\(bashTool, \{ sessionId: runtimeSessionId \}\)/)
-  assert.match(runtime, /noWait: conversationOnly/)
+  assert.match(
+    runtime,
+    /noWait: \(toolName\) => this\.botApprovalRefusal\(runtimeSessionId, toolName\)/,
+  )
   assert.match(
     methods,
     /if \(value\.conversationOnly && behavior === 'steer'\) behavior = 'interrupt'/,

@@ -47,6 +47,10 @@ const INTERNAL_SAFE_TOOLS = new Set([
 export const NO_WAIT_APPROVAL_REASON =
   'Not run: this step needs the user’s approval, and a bot conversation never stops to wait for approval. Hand it to a sub-agent with bot_job_start (its approval card appears in the conversation and waiting only holds up that job), then carry on.'
 
+// 子 agent 也做不了、这一轮又没人能批准：只能告诉用户，等用户在场时再做。
+export const NO_ONE_TO_APPROVE_REASON =
+  'Not run: this step needs the user’s approval, nobody can approve it during this turn, and a sub-agent cannot do it. Tell the user what you wanted to do so they can ask for it when they are here.'
+
 function stableValue(value) {
   if (Array.isArray(value)) return value.map((item) => stableValue(item))
   if (value && typeof value === 'object')
@@ -336,6 +340,8 @@ export class SessionPermissionService {
     this.pending = new Map()
     this.resolved = new Map()
     this.remembered = new Map()
+    // Bot 的对话里 Computer Use 批准过的那一轮：会话 → 运行标识。
+    this.runApprovals = new Map()
     this.emitters = new Map()
     // 审批事件观察者（看板事件流）：不依赖本轮运行是否挂着 emitter，后台子代理的审批也能上看板。
     this.onEvent = typeof onEvent === 'function' ? onEvent : null
@@ -373,8 +379,9 @@ export class SessionPermissionService {
     } catch {}
   }
 
-  // noWait：这个会话不停下来等批准（Bot 的对话）——要批准的操作直接退回并说明交给子 agent 去做。
-  install(session, { sessionId, cwd, noWait = false }) {
+  // noWait：这个会话不停下来等批准（Bot 的对话）——要批准的操作直接退回并说明原因。可以是函数，按工具返回退回的原因，
+  // 空串表示这个工具照常等。approvalRun：Computer Use 的批准只管这一轮（见 authorize）。
+  install(session, { sessionId, cwd, noWait = false, approvalRun }) {
     if (!session?.agent || this.installedSessions.has(session)) return
     this.installedSessions.add(session)
     const upstream = session.agent.beforeToolCall
@@ -389,6 +396,7 @@ export class SessionPermissionService {
         args: context.args,
         signal,
         noWait,
+        approvalRun,
       })
     }
   }
@@ -449,7 +457,16 @@ export class SessionPermissionService {
   }
 
   // Computer Use 敏感关卡喂入：agent-runtime 在工具结果事件处调用，
-  async authorize({ sessionId, cwd, toolName, toolCallId, args, signal, noWait = false }) {
+  async authorize({
+    sessionId,
+    cwd,
+    toolName,
+    toolCallId,
+    args,
+    signal,
+    noWait = false,
+    approvalRun,
+  }) {
     if (this.isToolBlocked(sessionId, toolName))
       return { block: true, reason: `${toolName} 不在这次运行可用的工具范围内，未执行。` }
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
@@ -489,13 +506,18 @@ export class SessionPermissionService {
       }
     }
     const rememberedKey = approvalKey({ sessionId, cwd, toolName, args })
-    if (
-      !requirement.skipRemember &&
-      !previewedFileChange &&
-      (await this.hasRememberedApproval(rememberedKey))
-    )
-      return undefined
-    if (noWait) return { block: true, reason: NO_WAIT_APPROVAL_REASON }
+    // Computer Use 的批准平时管一个会话，还会落盘。Bot 的对话不会结束，那样批准一次就永远有效，
+    // 之后聊天软件里的一句话也能直接操作电脑，所以只记在内存里，下一轮重新问。
+    const run = toolName === 'computer_use' ? approvalRun?.() || '' : ''
+    const remembered = run
+      ? this.runApprovals.get(sessionId) === run
+      : !requirement.skipRemember &&
+        !previewedFileChange &&
+        (await this.hasRememberedApproval(rememberedKey))
+    if (remembered) return undefined
+    const refusal =
+      typeof noWait === 'function' ? noWait(toolName) : noWait ? NO_WAIT_APPROVAL_REASON : ''
+    if (refusal) return { block: true, reason: refusal }
     const approval = await this.requestApproval({
       sessionId,
       toolName,
@@ -522,6 +544,8 @@ export class SessionPermissionService {
             reason: error instanceof Error ? error.message : String(error),
           }
         }
+      } else if (run) {
+        this.runApprovals.set(sessionId, run)
       } else if (!requirement.skipRemember) {
         await this.rememberApproval(rememberedKey, {
           resolvedAt: new Date().toISOString(),

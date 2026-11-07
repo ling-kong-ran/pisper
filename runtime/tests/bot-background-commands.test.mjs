@@ -9,10 +9,18 @@ import {
   isBotCommandResultMessage,
 } from '../runtime/bot-background-commands.mjs'
 import { isInternalParentMessage } from '../runtime/stream-projection.mjs'
+import { installStepInterrupt, interruptCurrentStep } from '../runtime/step-interrupt.mjs'
 import {
+  BOT_CONVERSATION_BLOCKED_TOOLS,
+  botConversationApprovalRefusal,
+  runToolBlocker,
+} from '../runtime/tool-activation.mjs'
+import {
+  NO_ONE_TO_APPROVE_REASON,
   NO_WAIT_APPROVAL_REASON,
   SessionPermissionService,
 } from '../services/session-permission-service.mjs'
+import { createToolGatewayTool } from '../tools/app/tool-gateway.mjs'
 
 // 假的 bash：等 ms 毫秒后返回输出；收到中止信号时报错（和真的一样会被杀掉）。
 function fakeBash() {
@@ -133,4 +141,169 @@ test('a bot conversation never waits for approval: the step comes back telling i
     }),
     undefined,
   )
+})
+
+test('a bot conversation can use every tool except those with a bot_* replacement', () => {
+  const blocked = runToolBlocker({ blockedToolNames: BOT_CONVERSATION_BLOCKED_TOOLS })
+  for (const name of [
+    'browser_automation',
+    'computer_use',
+    'workflow_list',
+    'workflow_run',
+    'get_goal',
+    'update_goal',
+  ])
+    assert.equal(blocked(name), false, name)
+  for (const name of ['ask_user', 'spawn_agent', 'wait_agent', 'schedule_manage'])
+    assert.equal(blocked(name), true, name)
+  // Bot 设定里自定义的工具范围仍然有效。
+  const scoped = runToolBlocker({
+    blockedToolNames: BOT_CONVERSATION_BLOCKED_TOOLS,
+    allowedToolNames: ['read'],
+  })
+  assert.equal(scoped('browser_automation'), true)
+  assert.equal(scoped('computer_use'), true)
+})
+
+test('approvals wait in the conversation only for tools a sub-agent cannot run, and only when someone can answer', () => {
+  const refusal = (toolName, flags = {}) => botConversationApprovalRefusal({ toolName, ...flags })
+  assert.equal(refusal('bash'), NO_WAIT_APPROVAL_REASON)
+  assert.equal(refusal('edit'), NO_WAIT_APPROVAL_REASON)
+  for (const toolName of ['browser_automation', 'computer_use', 'workflow_run']) {
+    assert.equal(refusal(toolName), '', toolName)
+    assert.equal(refusal(toolName, { unattended: true }), NO_ONE_TO_APPROVE_REASON, toolName)
+    assert.equal(refusal(toolName, { quiet: true }), NO_ONE_TO_APPROVE_REASON, toolName)
+  }
+  // 子 agent 做不了，就不能再叫它“交给子 agent”。
+  assert.doesNotMatch(NO_ONE_TO_APPROVE_REASON, /bot_job_start/)
+})
+
+function botPermissions() {
+  return new SessionPermissionService({
+    getMode: () => 'auto',
+    getExecutionMode: () => 'workspace-write',
+  })
+}
+
+const botApprovalInput = (toolName, args, flags = {}) => ({
+  sessionId: 'conv',
+  cwd: '/repo',
+  toolName,
+  toolCallId: `call-${toolName}`,
+  args,
+  noWait: (name) => botConversationApprovalRefusal({ toolName: name, ...flags }),
+})
+
+async function waitForPending(permissions) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [pending] = permissions.getPending('conv')
+    if (pending) return pending
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  throw new Error('the approval card never appeared')
+}
+
+test('browser clicks in a bot conversation show a card and run once approved', async () => {
+  const permissions = botPermissions()
+  // 只是打开网页，不要批准。
+  assert.equal(
+    await permissions.authorize(
+      botApprovalInput('browser_automation', { action: 'open', url: 'https://example.com' }),
+    ),
+    undefined,
+  )
+  const click = permissions.authorize(
+    botApprovalInput('browser_automation', { action: 'click', selector: '#go' }),
+  )
+  const pending = await waitForPending(permissions)
+  assert.equal(pending.toolName, 'browser_automation')
+  permissions.resolve('conv', pending.id, true)
+  assert.equal(await click, undefined)
+})
+
+test('nobody around: browser clicks are refused at once without leaving a card', async () => {
+  const permissions = botPermissions()
+  assert.deepEqual(
+    await permissions.authorize(
+      botApprovalInput(
+        'browser_automation',
+        { action: 'click', selector: '#go' },
+        { unattended: true },
+      ),
+    ),
+    { block: true, reason: NO_ONE_TO_APPROVE_REASON },
+  )
+  assert.deepEqual(permissions.getPending('conv'), [])
+})
+
+test('computer use approval in a bot conversation lasts one run, not the whole long-lived conversation', async () => {
+  const permissions = botPermissions()
+  let run = 'run-1'
+  const input = () => ({
+    ...botApprovalInput('computer_use', { action: 'screenshot' }),
+    approvalRun: () => run,
+  })
+  const first = permissions.authorize(input())
+  permissions.resolve('conv', (await waitForPending(permissions)).id, true)
+  assert.equal(await first, undefined)
+  // 同一轮不再问。
+  assert.equal(await permissions.authorize(input()), undefined)
+  assert.deepEqual(permissions.getPending('conv'), [])
+  // 下一轮要重新批准。
+  run = 'run-2'
+  const next = permissions.authorize(input())
+  permissions.resolve('conv', (await waitForPending(permissions)).id, false)
+  assert.equal((await next).block, true)
+})
+
+test('a new message cancels a pending approval reached through call_tool, without ending the run', async () => {
+  const permissions = botPermissions()
+  const executed = []
+  const tools = new Map([
+    [
+      'browser_automation',
+      {
+        name: 'browser_automation',
+        parameters: {},
+        execute: async (_id, args) => {
+          executed.push(args)
+          return { content: [] }
+        },
+      },
+    ],
+  ])
+  const gateway = createToolGatewayTool({
+    getTool: (name) => tools.get(name),
+    authorize: (input) =>
+      permissions.authorize({
+        ...input,
+        sessionId: 'conv',
+        cwd: '/repo',
+        noWait: (name) => botConversationApprovalRefusal({ toolName: name }),
+      }),
+  })
+  const session = {
+    agent: {
+      runWithLifecycle: (run) => run(new AbortController().signal),
+      streamFunction: async () => {},
+      beforeToolCall: async () => undefined,
+    },
+  }
+  installStepInterrupt(session)
+  const run = new AbortController()
+  await session.agent.beforeToolCall(
+    { toolCall: { name: 'call_tool' }, context: { tools: [gateway] } },
+    run.signal,
+  )
+  const call = gateway.execute(
+    'call-1',
+    { name: 'browser_automation', arguments: { action: 'click', selector: '#go' } },
+    run.signal,
+  )
+  await waitForPending(permissions)
+  assert.equal(interruptCurrentStep(session), true)
+  await assert.rejects(call, /操作已停止/)
+  assert.deepEqual(permissions.getPending('conv'), [])
+  assert.deepEqual(executed, [])
+  assert.equal(run.signal.aborted, false)
 })

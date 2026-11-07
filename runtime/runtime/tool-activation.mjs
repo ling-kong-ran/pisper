@@ -1,4 +1,8 @@
-import { MULTI_AGENT_TOOL_NAMES } from '../services/multi-agent-service.mjs'
+import { MULTI_AGENT_TOOL_NAMES, PARENT_ONLY_TOOL_NAMES } from '../services/multi-agent-service.mjs'
+import {
+  NO_ONE_TO_APPROVE_REASON,
+  NO_WAIT_APPROVAL_REASON,
+} from '../services/session-permission-service.mjs'
 import { GOAL_TOOL_NAMES } from '../tools/app/goal.mjs'
 import { ASK_USER_TOOL_NAME } from '../tools/app/ask-user.mjs'
 import { SCHEDULE_TOOL_NAMES } from '../tools/app/schedules.mjs'
@@ -20,17 +24,21 @@ const SCOPE_INFRA_TOOL_NAMES = [
   ASK_USER_TOOL_NAME,
 ]
 
-// Bot 的对话（v2.1）用自己的经理工具（bot_*）代替这些：通用的多 Agent、提问、定时、工作流与目标工具会让它
-// 阻塞（ask_user 等回答、目标循环）或绕过 Bot 的设定（派出的子 agent 不带 Bot 的范围与记忆）；浏览器自动化太慢，交给子 agent。
+// Bot 的对话只挡有 bot_* 替代的工具：提问（ask_user 会等回答，bot_ask 不等）、多 Agent（派出的子 agent 不带
+// Bot 的范围与记忆，bot_job_* 带）、定时（bot_schedule 只能给自己定）。其余工具都能用，范围由 Bot 的设定决定。
 export const BOT_CONVERSATION_BLOCKED_TOOLS = Object.freeze([
   ...MULTI_AGENT_TOOL_NAMES,
   ASK_USER_TOOL_NAME,
-  ...GOAL_TOOL_NAMES,
   ...SCHEDULE_TOOL_NAMES,
-  ...WORKFLOW_TOOL_NAMES,
-  'browser_automation',
-  'computer_use',
 ])
+
+// Bot 的对话里这个工具要批准时为什么不等（返回空串表示等）。子 agent 能做的退回去让它改派，对话不被占住；
+// 子 agent 拿不到的工具（右侧浏览器、Computer Use、工作流等）没处改派，只能在对话里等，新消息会取消等待。
+// 没人在场的一轮和只出建议的一轮（巡看结果、每日简报）不等也不弹卡片。
+export function botConversationApprovalRefusal({ toolName, unattended = false, quiet = false }) {
+  if (!PARENT_ONLY_TOOL_NAMES.has(toolName)) return NO_WAIT_APPROVAL_REASON
+  return unattended || quiet ? NO_ONE_TO_APPROVE_REASON : ''
+}
 
 // 本轮不可用的工具：隔离上下文的屏蔽项；没人在场的运行里的 ask_user、定时任务与工作流工具
 // （定时任务、工作流本身的运行不能再建定时任务或启动工作流，避免自我复制）；

@@ -302,19 +302,14 @@ test('computer use asks once per session, even in auto mode, and hands the scree
   assert.deepEqual(requested, ['computer_use', 'computer_use'])
 })
 
-test('computer use cannot be turned on for subagents or bots, and is desktop only', async () => {
-  const [multiAgent, activation, capabilities, browserHost, bridge] = await Promise.all([
+test('computer use stays with the primary agent and bot conversations, and is desktop only', async () => {
+  const [multiAgent, capabilities, browserHost, bridge] = await Promise.all([
     readFile('runtime/services/multi-agent-service.mjs', 'utf8'),
-    readFile('runtime/runtime/tool-activation.mjs', 'utf8'),
     readFile('runtime/runtime-capabilities.mjs', 'utf8'),
     readFile('src-tauri/src/desktop_shell/computer_control.rs', 'utf8'),
     readFile('src-tauri/capabilities/desktop-computer.json', 'utf8'),
   ])
   assert.match(multiAgent, /PARENT_ONLY_TOOL_NAMES = new Set\(\[[\s\S]*?'computer_use'/)
-  assert.match(
-    activation,
-    /BOT_CONVERSATION_BLOCKED_TOOLS = Object\.freeze\(\[[\s\S]*?'computer_use'/,
-  )
   assert.match(capabilities, /if \(features\.computerUse\) tools\.add\('computer_use'\)/)
   assert.deepEqual(JSON.parse(bridge).windows, ['main'])
   // 原生层拒绝操作 Pisper 自己：不能靠模型遵守提示词，否则它能点自己的“批准”。

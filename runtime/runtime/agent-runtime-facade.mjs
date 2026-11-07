@@ -27,6 +27,7 @@ import {
   resolveBotAgent,
 } from '../services/bots/bot-conversation.mjs'
 import { botTurnTrigger, requestBotText } from './bot-decisions.mjs'
+import { botConversationApprovalRefusal } from './tool-activation.mjs'
 import { normalizeQuestions } from '../services/session-question-service.mjs'
 import { botAnswerText, botScheduleInput } from '../services/bots/bot-schedule-input.mjs'
 import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-service.mjs'
@@ -1195,17 +1196,30 @@ export class AgentRuntimeFacade {
     return trigger
   }
 
+  // 巡看结果与每日简报那一轮只出建议（用户说“做吧”的那一轮才照常）。
+  botTurnIsQuiet(trigger) {
+    return trigger.brief || trigger.completedAgents.some((id) => this.botProactiveAgents?.has(id))
+  }
+
+  // Bot 的对话里这个工具要批准时为什么不等，见 botConversationApprovalRefusal。
+  botApprovalRefusal(sessionId, toolName) {
+    const value = this.sessions.get(sessionId)
+    return botConversationApprovalRefusal({
+      toolName,
+      unattended: Boolean(value?.unattendedRun),
+      quiet: this.botTurnIsQuiet(botTurnTrigger(value?.session?.messages || [])),
+    })
+  }
+
   // bot_* 工具背后的运行时：每次调用时按这一刻的会话与 Bot 设定执行，只碰这个 Bot 自己的活、记忆与定时。
-  // 巡看结果与每日简报那一轮只出建议：派活、找别的 Bot 一律拒绝（用户说“做吧”的那一轮才照常）。
+  // 只出建议的那一轮，派活、找别的 Bot 一律拒绝。
   botConversationRuntime(sessionId) {
     const context = () => {
       const value = this.sessions.get(sessionId)
       const bot = this.botForSession(sessionId)
       if (!value?.session || !bot) throw new Error('这不是 Bot 的对话，工具不可用。')
       const trigger = botTurnTrigger(value.session.messages || [])
-      const quiet =
-        trigger.brief || trigger.completedAgents.some((id) => this.botProactiveAgents?.has(id))
-      return { value, bot, trigger, quiet }
+      return { value, bot, trigger, quiet: this.botTurnIsQuiet(trigger) }
     }
     const act = async (input, { work = false } = {}) => {
       const { value, bot, trigger, quiet } = context()

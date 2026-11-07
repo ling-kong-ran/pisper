@@ -46,7 +46,7 @@ export const MULTI_AGENT_TOOL_NAMES = Object.freeze([
   'run_team_workflow',
 ])
 
-const PARENT_ONLY_TOOL_NAMES = new Set([
+export const PARENT_ONLY_TOOL_NAMES = new Set([
   ...MULTI_AGENT_TOOL_NAMES,
   'get_goal',
   'update_goal',

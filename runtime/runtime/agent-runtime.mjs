@@ -2241,10 +2241,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
     // 工具网关：集中管控工具调用（权限审批），
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
+    const botApprovalPolicy = conversationOnly
+      ? {
+          noWait: (toolName) => this.botApprovalRefusal(runtimeSessionId, toolName),
+          approvalRun: () => runtimeValue?.approvalRun || '',
+        }
+      : {}
     const toolGateway = createRuntimeToolGateway({
       tools: callableTools,
       authorize: (input) =>
-        this.permissions.authorize({ cwd: toolCwd, ...input, noWait: conversationOnly }),
+        this.permissions.authorize({ cwd: toolCwd, ...input, ...botApprovalPolicy }),
       sessionId: runtimeSessionId,
     })
     // Bot 对话当经理用的工具：派活、提问卡片、给自己定时、记忆、找别的 Bot（都立即返回）。
@@ -2344,7 +2350,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.permissions.install(session, {
       sessionId: session.sessionId,
       cwd: toolCwd,
-      noWait: conversationOnly,
+      ...botApprovalPolicy,
     })
     // 捕获提示词缓存形态：对比形状变化以诊断 prompt cache 失效原因。
     value.promptCache = capturePromptCacheShape({
@@ -2525,6 +2531,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   ) {
     // 没有人在场的运行（定时任务、工作流节点、外部 MCP 调用）：本轮不提供 ask_user（规格 8.4）。
     value.unattendedRun = Boolean(unattended)
+    value.approvalRun = randomUUID()
     value.botTurnTrust = this.takeBotTurnTrust(value.session?.sessionId || sessionId, unattended)
     // Bot 的会话：不管这句话来自应用、聊天还是定时任务，每一轮都按 Bot 的设定跑——工具范围取 Bot 的
     // tools（null 为当前启用的全部），上下文隔离（不读其他会话；记忆走它自己的空间）。设定在 Bot 被删或
