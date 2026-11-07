@@ -97,6 +97,54 @@ test('component update notes retain distinct component changes without compare-l
   assert.equal(status.notes, "## What's Changed\n\n- Desktop fix\n\n- TUI fix")
 })
 
+test('a shared rate limit shows one reason and the latest retry time', () => {
+  const failed = (name, retryAt) => ({
+    ...component(name, 'error', 0),
+    message: 'GitHub rate limit reached',
+    retryAt,
+  })
+  const status = componentUpdateStatus([
+    failed('desktop', 1000),
+    failed('tui', 1200),
+    failed('runtime', 1100),
+  ])
+
+  assert.equal(status.state, 'error')
+  assert.equal(status.message, 'GitHub rate limit reached')
+  assert.equal(status.rateLimited, true)
+  assert.equal(status.retryAt, 1200)
+})
+
+test('rate limits are recognised from the error text of older desktop shells', () => {
+  const message =
+    'component release request failed after 3 attempts: Pisper component release request failed: ' +
+    'HTTP status client error (403 Forbidden) for url ' +
+    '(https://api.github.com/repos/ling-kong-ran/pisper/releases?per_page=100)'
+  const status = componentUpdateStatus(
+    ['desktop', 'tui', 'runtime'].map((name) => ({ ...component(name, 'error', 0), message })),
+  )
+
+  assert.equal(status.rateLimited, true)
+  assert.equal(status.retryAt, undefined)
+  assert.equal(status.message, message)
+})
+
+test('other failures are not reported as rate limits', () => {
+  const missing = {
+    ...component('tui', 'error', 0),
+    message: 'HTTP status client error (404 Not Found) for url (https://api.github.com/x)',
+  }
+  const status = componentUpdateStatus([component('desktop', 'error', 20), missing])
+
+  assert.equal(status.rateLimited, false)
+  assert.match(status.message, /desktop: network interrupted/)
+  assert.match(status.message, /tui: HTTP status client error/)
+
+  const healthy = componentUpdateStatus([component('desktop', 'current', 0)])
+  assert.equal(healthy.rateLimited, false)
+  assert.equal(healthy.message, '')
+})
+
 test('remaining component downloads keep the batch active after another component fails', () => {
   const status = componentUpdateStatus([
     component('desktop', 'error', 20),

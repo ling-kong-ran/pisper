@@ -20,6 +20,8 @@ export type UpdateStatus = {
   total?: number
   transferred?: number
   releaseDate?: string
+  rateLimited?: boolean
+  retryAt?: number
 }
 
 export type ComponentUpdateStatus = {
@@ -34,6 +36,8 @@ export type ComponentUpdateStatus = {
   transferred: number
   canInstall: boolean
   restartRequired: boolean
+  // GitHub 限流时可重试的 Unix 时间（秒）；旧版桌面壳没有这个字段。
+  retryAt?: number | null
 }
 
 export type AppUpdateInfo = {

@@ -1,9 +1,10 @@
 use pisper_component_updater::{
-    resolve_installed, Component, ComponentUpdater, InstalledComponent,
+    rate_limited_until, resolve_installed, Component, ComponentUpdater, InstalledComponent,
+    ReleaseFeed, ReleaseInfo, CHECK_FEED_MAX_AGE, INSTALL_FEED_MAX_AGE,
 };
 use semver::Version;
 use serde::Serialize;
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 use tauri::{AppHandle, Manager, State};
 
 use crate::desktop_shell::{
@@ -25,6 +26,8 @@ pub struct ComponentUpdateStatus {
     transferred: u64,
     can_install: bool,
     restart_required: bool,
+    /// GitHub 限流时可重试的 Unix 时间（秒）；其他失败和正常状态为 null。
+    retry_at: Option<u64>,
 }
 
 impl ComponentUpdateStatus {
@@ -41,6 +44,7 @@ impl ComponentUpdateStatus {
             transferred: 0,
             can_install: false,
             restart_required: false,
+            retry_at: None,
         }
     }
 }
@@ -124,6 +128,45 @@ fn restart_pending(state: &ComponentUpdateState, component: Component) -> bool {
         .is_some_and(|status| status.restart_required)
 }
 
+#[derive(Clone)]
+struct FeedFailure {
+    message: String,
+    retry_at: Option<u64>,
+}
+
+// 三个组件共用一次请求和同一个结果，失败时也只记一条日志。
+async fn load_feed(
+    app: &AppHandle,
+    updater: &ComponentUpdater,
+    max_age: Duration,
+) -> Result<ReleaseFeed, FeedFailure> {
+    updater.release_feed(max_age).await.map_err(|error| {
+        log_component_update(app, &format!("release check failed: {error:#}"));
+        FeedFailure {
+            message: format!("{error:#}"),
+            retry_at: rate_limited_until(&error),
+        }
+    })
+}
+
+fn latest_release(
+    app: &AppHandle,
+    feed: &Result<ReleaseFeed, FeedFailure>,
+    component: Component,
+) -> Result<ReleaseInfo, FeedFailure> {
+    let feed = feed.as_ref().map_err(FeedFailure::clone)?;
+    feed.latest(component).map_err(|error| {
+        log_component_update(
+            app,
+            &format!("{} release check failed: {error:#}", component.name()),
+        );
+        FeedFailure {
+            message: format!("{error:#}"),
+            retry_at: None,
+        }
+    })
+}
+
 #[tauri::command]
 pub fn desktop_component_update_status(
     app: AppHandle,
@@ -143,17 +186,20 @@ pub async fn desktop_check_component_updates(
     })?;
     log_component_update(&app, "checking Desktop, TUI, and Runtime releases");
     for component in Component::ALL {
-        let current_version = effective_version(&app, component);
-        let pending_restart = restart_pending(&state, component);
         store(
             &state,
             ComponentUpdateStatus {
                 state: "checking".into(),
-                restart_required: pending_restart,
-                ..ComponentUpdateStatus::current(component, current_version.clone())
+                restart_required: restart_pending(&state, component),
+                ..ComponentUpdateStatus::current(component, effective_version(&app, component))
             },
         );
-        let status = match updater.latest(component).await {
+    }
+    let feed = load_feed(&app, &updater, CHECK_FEED_MAX_AGE).await;
+    for component in Component::ALL {
+        let current_version = effective_version(&app, component);
+        let pending_restart = restart_pending(&state, component);
+        let status = match latest_release(&app, &feed, component) {
             Ok(release) => {
                 let current =
                     Version::parse(&current_version).unwrap_or_else(|_| Version::new(0, 0, 0));
@@ -173,22 +219,18 @@ pub async fn desktop_check_component_updates(
                     transferred: 0,
                     can_install: available,
                     restart_required: pending_restart,
+                    retry_at: None,
                 }
             }
-            Err(error) => {
-                log_component_update(
-                    &app,
-                    &format!("{} release check failed: {error:#}", component.name()),
-                );
-                ComponentUpdateStatus {
-                    component,
-                    state: "error".into(),
-                    current_version,
-                    message: format!("{error:#}"),
-                    restart_required: pending_restart,
-                    ..ComponentUpdateStatus::current(component, String::new())
-                }
-            }
+            Err(failure) => ComponentUpdateStatus {
+                component,
+                state: "error".into(),
+                current_version,
+                message: failure.message,
+                restart_required: pending_restart,
+                retry_at: failure.retry_at,
+                ..ComponentUpdateStatus::current(component, String::new())
+            },
         };
         store(&state, status);
     }
@@ -205,24 +247,22 @@ pub async fn desktop_install_component_updates(
         error
     })?;
     log_component_update(&app, "component update batch started");
+    let feed = load_feed(&app, &updater, INSTALL_FEED_MAX_AGE).await;
     for component in Component::ALL {
         let current_version = effective_version(&app, component);
         let pending_restart = restart_pending(&state, component);
-        let release = match updater.latest(component).await {
+        let release = match latest_release(&app, &feed, component) {
             Ok(release) => release,
-            Err(error) => {
-                log_component_update(
-                    &app,
-                    &format!("{} release check failed: {error:#}", component.name()),
-                );
+            Err(failure) => {
                 store(
                     &state,
                     ComponentUpdateStatus {
                         component,
                         state: "error".into(),
                         current_version,
-                        message: format!("{error:#}"),
+                        message: failure.message,
                         restart_required: pending_restart,
+                        retry_at: failure.retry_at,
                         ..ComponentUpdateStatus::current(component, String::new())
                     },
                 );
@@ -247,6 +287,7 @@ pub async fn desktop_install_component_updates(
                         transferred: 0,
                         can_install: false,
                         restart_required: pending_restart,
+                        retry_at: None,
                     },
                 );
                 continue;
@@ -323,6 +364,7 @@ pub async fn desktop_install_component_updates(
                         transferred: 0,
                         can_install: true,
                         restart_required: pending_restart,
+                        retry_at: rate_limited_until(&error),
                     },
                 );
                 continue;
@@ -355,6 +397,7 @@ pub async fn desktop_install_component_updates(
                 transferred: release.size,
                 can_install: false,
                 restart_required: matches!(component, Component::Desktop | Component::Runtime),
+                retry_at: None,
             },
         );
     }

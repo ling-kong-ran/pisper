@@ -3,6 +3,21 @@
 import type { ComponentUpdateStatus, UpdateStatus } from '@/types/update'
 
 const PROGRESS_STATES = new Set(['available', 'downloading', 'installed', 'error'])
+// 桌面壳不随组件更新，旧壳不上报 retryAt，只能从底层错误文本认出限流：
+// 它匿名请求 GitHub API 时拿到的 403/429 基本都是额度耗尽。
+const LEGACY_RATE_LIMIT_MESSAGE = /\b(?:403|429)\b[\s\S]*api\.github\.com/
+
+function isRateLimited(item: ComponentUpdateStatus) {
+  return item.retryAt != null || LEGACY_RATE_LIMIT_MESSAGE.test(item.message)
+}
+
+// 三个组件共用一次发布信息请求，同一个原因不用重复说三遍。
+function failureMessage(failed: ComponentUpdateStatus[]) {
+  if (failed.length > 1 && failed.every((item) => item.message === failed[0].message)) {
+    return failed[0].message
+  }
+  return failed.map((item) => `${item.component}: ${item.message}`).join('\n')
+}
 
 // 当前桌面版版本：优先取组件状态里的 desktop 版本，否则用宿主版本。
 export function currentDesktopVersion(
@@ -58,6 +73,7 @@ export function componentUpdateStatus(
   const downloading = items.filter((item) => item.state === 'downloading')
   const installed = items.some((item) => item.state === 'installed')
   const release = downloading[0] || available[0] || failed[0] || items[0]
+  const retryTimes = failed.flatMap((item) => (item.retryAt == null ? [] : [item.retryAt]))
   const notes = componentReleaseNotes(items)
   const progress = progressItems(items)
   const total = progress.reduce((sum, item) => sum + item.size, 0)
@@ -82,7 +98,9 @@ export function componentUpdateStatus(
                 ? 'current'
                 : 'idle',
     checkedAt,
-    message: failed.map((item) => `${item.component}: ${item.message}`).join('\n'),
+    message: failureMessage(failed),
+    rateLimited: failed.length > 0 && failed.every(isRateLimited),
+    retryAt: retryTimes.length ? Math.max(...retryTimes) : undefined,
     releaseUrl: release?.releaseUrl,
     canDownload: available.length > 0,
     availableVersion: release?.availableVersion,

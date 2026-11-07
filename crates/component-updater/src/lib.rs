@@ -4,7 +4,7 @@ use flate2::read::GzDecoder;
 use fs2::FileExt as _;
 use minisign_verify::{PublicKey, Signature};
 use reqwest::{
-    header::{ACCEPT, CONTENT_RANGE, RANGE, USER_AGENT},
+    header::{HeaderMap, ACCEPT, CONTENT_RANGE, RANGE, RETRY_AFTER, USER_AGENT},
     StatusCode,
 };
 use semver::Version;
@@ -13,11 +13,30 @@ use std::{
     fs::{self, OpenOptions},
     io::Cursor,
     path::{Component as PathComponent, Path, PathBuf},
-    time::Duration,
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+const GITHUB_API_ORIGIN: &str = "https://api.github.com/";
 const RELEASES_API: &str =
     "https://api.github.com/repos/ling-kong-ran/pisper/releases?per_page=100";
+// Git 的引用列表和 releases/download 直链都不计入 GitHub API 额度，限流时靠它们继续工作。
+const RELEASE_TAG_REFS: &str =
+    "https://github.com/ling-kong-ran/pisper.git/info/refs?service=git-upload-pack";
+const RELEASES_BASE: &str = "https://github.com/ling-kong-ran/pisper/releases";
+const FEED_CACHE_FILE: &str = "release-feed.json";
+const FEED_CACHE_SCHEMA: u32 = 1;
+/// 手动检查要能尽快看到新版本；GitHub 自身也把这个接口缓存 60 秒，再短没有意义。
+pub const CHECK_FEED_MAX_AGE: Duration = Duration::from_secs(60);
+/// 安装只是执行刚才检查到的结果，用户读更新说明的时间不值得再花一次额度。
+pub const INSTALL_FEED_MAX_AGE: Duration = Duration::from_secs(30 * 60);
+const FEED_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const MIN_RATE_LIMIT_BACKOFF_SECS: u64 = 60;
+// 匿名额度按小时重置；封顶可防止错误的响应头或本机时钟把更新检查长期关掉。
+const MAX_RATE_LIMIT_BACKOFF_SECS: u64 = 60 * 60;
+const MAX_TAG_REFS_BYTES: u64 = 8 * 1024 * 1024;
+// 标签先于资产推送，且并非每个版本都有全部平台的包，所以允许往回找几个版本。
+const MAX_TAG_PROBES: usize = 5;
 const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 100_000;
@@ -100,7 +119,7 @@ impl Component {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseInfo {
     pub component: Component,
@@ -127,6 +146,150 @@ impl ReleaseInfo {
     /// 签名文件的下载候选链，顺序与归档一致。
     pub fn signature_candidates(&self) -> Vec<String> {
         download_candidates(&self.signature_url, &self.signature_fallback_url)
+    }
+}
+
+/// 一轮检查共用的发布信息：只含当前平台各组件的最新可安装版本。
+#[derive(Clone, Debug)]
+pub struct ReleaseFeed {
+    releases: Vec<ReleaseInfo>,
+}
+
+impl ReleaseFeed {
+    pub fn latest(&self, component: Component) -> Result<ReleaseInfo> {
+        self.releases
+            .iter()
+            .find(|release| release.component == component)
+            .cloned()
+            .ok_or_else(|| anyhow!("no signed {} release is available", component.name()))
+    }
+}
+
+/// GitHub API 限流，且不占额度的来源也没能给出结果。
+#[derive(Debug)]
+struct RateLimited {
+    retry_at: u64,
+}
+
+impl std::fmt::Display for RateLimited {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let minutes = self.retry_at.saturating_sub(unix_now()).div_ceil(60).max(1);
+        write!(
+            formatter,
+            "GitHub rate limit reached; try again in about {minutes} min"
+        )
+    }
+}
+
+impl std::error::Error for RateLimited {}
+
+/// 错误由限流引起时返回可重试的 Unix 时间（秒），供界面显示。
+pub fn rate_limited_until(error: &anyhow::Error) -> Option<u64> {
+    error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<RateLimited>())
+        .map(|limited| limited.retry_at)
+}
+
+/// 落盘的发布信息和限流状态。桌面端每次命令、TUI 每次启动都会新建更新器，
+/// 只有放在磁盘上才能跨调用共用，并让限流状态在重启后依然有效。
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FeedCache {
+    schema: u32,
+    platform: String,
+    fetched_at: u64,
+    releases: Vec<ReleaseInfo>,
+    rate_limited_until: Option<u64>,
+}
+
+impl FeedCache {
+    fn empty() -> Self {
+        Self {
+            schema: FEED_CACHE_SCHEMA,
+            platform: feed_platform(),
+            fetched_at: 0,
+            releases: Vec::new(),
+            rate_limited_until: None,
+        }
+    }
+
+    // 缓存只是省请求用的：读不出来就当没有，绝不能让更新检查因此失败。
+    fn read(root: &Path) -> Self {
+        fs::read(root.join(FEED_CACHE_FILE))
+            .ok()
+            .and_then(|value| serde_json::from_slice::<Self>(&value).ok())
+            .filter(|cache| cache.schema == FEED_CACHE_SCHEMA && cache.platform == feed_platform())
+            .map(|mut cache| {
+                // 新版本可能撤回了缓存写入时还有效的版本，读出时要重新过滤。
+                cache.releases.retain(|release| {
+                    Version::parse(&release.version)
+                        .is_ok_and(|version| !release.component.is_withdrawn(&version))
+                });
+                cache
+            })
+            .unwrap_or_else(Self::empty)
+    }
+
+    fn write(&self, root: &Path) {
+        static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
+        let temporary = root.join(format!(
+            "{FEED_CACHE_FILE}.{}-{}.tmp",
+            std::process::id(),
+            NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed)
+        ));
+        let written = fs::create_dir_all(root)
+            .and_then(|_| {
+                let content = serde_json::to_vec(self).map_err(std::io::Error::other)?;
+                fs::write(&temporary, content)
+            })
+            .and_then(|_| fs::rename(&temporary, root.join(FEED_CACHE_FILE)));
+        if written.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+    }
+
+    fn fresh_releases(&self, now: u64, max_age: Duration) -> Option<Vec<ReleaseInfo>> {
+        // 时钟回拨时 fetched_at 会落在未来，这种缓存不能算新鲜。
+        let age = now.checked_sub(self.fetched_at)?;
+        (age < max_age.as_secs() && !self.releases.is_empty()).then(|| self.releases.clone())
+    }
+
+    fn active_rate_limit(&self, now: u64) -> Option<u64> {
+        // 超过上限说明本机时钟被调过，继续信它可能把 API 关很久。
+        self.rate_limited_until.filter(|until| {
+            *until > now && *until <= now.saturating_add(MAX_RATE_LIMIT_BACKOFF_SECS)
+        })
+    }
+}
+
+fn feed_platform() -> String {
+    format!("{}-{}", platform_name(), architecture_name())
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
+#[derive(Clone)]
+struct ReleaseSources {
+    api_origin: String,
+    feed_url: String,
+    tag_refs_url: String,
+    releases_base: String,
+}
+
+impl Default for ReleaseSources {
+    fn default() -> Self {
+        Self {
+            api_origin: GITHUB_API_ORIGIN.into(),
+            feed_url: RELEASES_API.into(),
+            tag_refs_url: RELEASE_TAG_REFS.into(),
+            releases_base: RELEASES_BASE.into(),
+        }
     }
 }
 
@@ -214,6 +377,7 @@ pub struct ComponentUpdater {
     root: PathBuf,
     public_key: PublicKey,
     client: reqwest::Client,
+    sources: ReleaseSources,
 }
 
 impl ComponentUpdater {
@@ -231,6 +395,7 @@ impl ComponentUpdater {
             root,
             public_key,
             client,
+            sources: ReleaseSources::default(),
         })
     }
 
@@ -243,47 +408,236 @@ impl ComponentUpdater {
     }
 
     pub async fn latest(&self, component: Component) -> Result<ReleaseInfo> {
-        let releases = self.releases_with_retry().await?;
-        releases
-            .into_iter()
-            .filter_map(|release| release_info(component, release))
-            .max_by(|left, right| version_of(&left.version).cmp(&version_of(&right.version)))
-            .ok_or_else(|| anyhow!("no signed {} release is available", component.name()))
+        self.release_feed(CHECK_FEED_MAX_AGE)
+            .await?
+            .latest(component)
     }
 
-    async fn releases_with_retry(&self) -> Result<Vec<GitHubRelease>> {
-        let urls = release_feed_candidates();
+    /// 取发布信息：优先复用 `max_age` 内的缓存，其次 GitHub API（含配置的镜像），
+    /// 都不行时改从 Git 标签定位。三个组件共用同一份结果，一轮只花一个 API 额度。
+    pub async fn release_feed(&self, max_age: Duration) -> Result<ReleaseFeed> {
+        let now = unix_now();
+        let mut cache = FeedCache::read(&self.root);
+        if let Some(releases) = cache.fresh_releases(now, max_age) {
+            return Ok(ReleaseFeed { releases });
+        }
+        let mut rate_limit = cache.active_rate_limit(now);
+        let previous = std::mem::take(&mut cache.releases);
+
+        let mut feed_error = None;
+        let mut releases = None;
+        for url in release_feed_candidates(&self.sources.feed_url) {
+            let is_api = url == self.sources.feed_url;
+            if is_api && rate_limit.is_some() {
+                continue;
+            }
+            match self.fetch_releases(&url).await {
+                Ok(value) => {
+                    releases = Some(latest_releases(value));
+                    break;
+                }
+                Err(error) => {
+                    // 镜像的出口 IP 不是用户的，它被限流不代表用户自己的额度耗尽。
+                    if is_api {
+                        rate_limit = rate_limited_until(&error);
+                    }
+                    feed_error = Some(error);
+                }
+            }
+        }
+
+        let mut tags_error = None;
+        if releases.is_none() {
+            match self.releases_from_tags(&previous).await {
+                Ok(value) => releases = Some(value),
+                Err(error) => tags_error = Some(error),
+            }
+        }
+
+        cache.rate_limited_until = rate_limit;
+        match releases {
+            Some(releases) => {
+                cache.fetched_at = now;
+                cache.releases = releases.clone();
+                cache.write(&self.root);
+                Ok(ReleaseFeed { releases })
+            }
+            None => {
+                // 不拿旧缓存充数：列表可能早已过期，会把用户误导成“已是最新”。
+                cache.releases = previous;
+                cache.write(&self.root);
+                if let Some(retry_at) = rate_limit {
+                    return Err(RateLimited { retry_at }.into());
+                }
+                let error =
+                    feed_error.unwrap_or_else(|| anyhow!("component release request failed"));
+                Err(match tags_error {
+                    Some(tags_error) => {
+                        error.context(format!("release tag lookup failed: {tags_error:#}"))
+                    }
+                    None => error,
+                })
+            }
+        }
+    }
+
+    async fn fetch_releases(&self, url: &str) -> Result<Vec<GitHubRelease>> {
         let mut last_error = None;
-        for url in &urls {
-            for attempt in 0..NETWORK_ATTEMPTS {
-                let result = async {
-                    self.client
-                        .get(url.as_str())
-                        .header(ACCEPT, "application/vnd.github+json")
-                        .header(USER_AGENT, "Pisper component updater")
-                        .send()
-                        .await
-                        .context("failed to request Pisper component releases")?
-                        .error_for_status()
-                        .context("Pisper component release request failed")?
-                        .json::<Vec<GitHubRelease>>()
-                        .await
-                        .context("invalid Pisper component release response")
-                }
-                .await;
-                match result {
-                    Ok(releases) => return Ok(releases),
-                    Err(error) => last_error = Some(error),
-                }
-                if attempt + 1 < NETWORK_ATTEMPTS {
-                    tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
-                }
+        for attempt in 0..NETWORK_ATTEMPTS {
+            let result = async {
+                let response = self
+                    .client
+                    .get(url)
+                    .header(ACCEPT, "application/vnd.github+json")
+                    .header(USER_AGENT, "Pisper component updater")
+                    .timeout(FEED_REQUEST_TIMEOUT)
+                    .send()
+                    .await
+                    .context("failed to request Pisper component releases")?;
+                ensure_success(response)
+                    .await
+                    .context("Pisper component release request failed")?
+                    .json::<Vec<GitHubRelease>>()
+                    .await
+                    .context("invalid Pisper component release response")
+            }
+            .await;
+            match result {
+                Ok(releases) => return Ok(releases),
+                Err(error) if is_permanent_failure(&error) => return Err(error),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt + 1 < NETWORK_ATTEMPTS {
+                tokio::time::sleep(Duration::from_millis(250 * (attempt as u64 + 1))).await;
             }
         }
         let error = last_error.unwrap_or_else(|| anyhow!("component release request failed"));
         Err(error.context(format!(
             "component release request failed after {NETWORK_ATTEMPTS} attempts"
         )))
+    }
+
+    /// 不经 API 定位版本：标签给出版本号，直链探测确认当前平台的包和签名都已上传。
+    /// 这条路拿不到更新说明，所以已知的版本直接沿用 `previous` 里的完整信息。
+    async fn releases_from_tags(&self, previous: &[ReleaseInfo]) -> Result<Vec<ReleaseInfo>> {
+        let tags = self.fetch_release_tags().await?;
+        let mut releases = Vec::new();
+        for component in Component::ALL {
+            for tag in stable_tags_newest_first(component, &tags)
+                .into_iter()
+                .take(MAX_TAG_PROBES)
+            {
+                let known = previous
+                    .iter()
+                    .find(|release| release.component == component && release.tag == tag);
+                let found = match known {
+                    Some(release) => Some(release.clone()),
+                    None => self.probe_tag_release(component, &tag).await?,
+                };
+                if let Some(release) = found {
+                    releases.push(release);
+                    break;
+                }
+            }
+        }
+        if releases.is_empty() {
+            bail!("no signed component release matches the release tags");
+        }
+        Ok(releases)
+    }
+
+    async fn fetch_release_tags(&self) -> Result<Vec<String>> {
+        let response = self
+            .client
+            .get(&self.sources.tag_refs_url)
+            .timeout(FEED_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .context("failed to request Pisper release tags")?;
+        let mut response = ensure_success(response)
+            .await
+            .context("Pisper release tag request failed")?;
+        let mut body = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .context("Pisper release tag request was interrupted")?
+        {
+            if body.len() as u64 + chunk.len() as u64 > MAX_TAG_REFS_BYTES {
+                bail!("Pisper release tag list exceeds the size limit");
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok(parse_tag_refs(&body))
+    }
+
+    async fn probe_tag_release(
+        &self,
+        component: Component,
+        tag: &str,
+    ) -> Result<Option<ReleaseInfo>> {
+        let Some(version) = tag.strip_prefix(component.tag_prefix()) else {
+            return Ok(None);
+        };
+        let archive_name = component_asset_name(component, version);
+        let base = format!("{}/download/{tag}", self.sources.releases_base);
+        let archive_url = format!("{base}/{archive_name}");
+        let signature_url = format!("{archive_url}.sig");
+        let Some(size) = self.probe_asset(&archive_url).await? else {
+            return Ok(None);
+        };
+        if self.probe_asset(&signature_url).await?.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(ReleaseInfo {
+            component,
+            version: version.to_string(),
+            tag: tag.to_string(),
+            notes: String::new(),
+            release_url: format!("{}/tag/{tag}", self.sources.releases_base),
+            published_at: None,
+            archive_url: archive_url.clone(),
+            signature_url: signature_url.clone(),
+            archive_fallback_url: archive_url,
+            signature_fallback_url: signature_url,
+            size,
+        }))
+    }
+
+    /// 只请求一个字节确认资产存在并顺带拿到总大小；404 表示这个版本没有当前平台的包。
+    async fn probe_asset(&self, url: &str) -> Result<Option<u64>> {
+        let response = self
+            .client
+            .get(url)
+            .header(ACCEPT, "application/octet-stream")
+            .header(RANGE, "bytes=0-0")
+            .timeout(FEED_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .context("failed to probe a Pisper release asset")?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = ensure_success(response)
+            .await
+            .context("Pisper release asset probe failed")?;
+        let size = parse_content_range(response.headers().get(CONTENT_RANGE))
+            .map(|(_, _, total)| total)
+            .or_else(|| response.content_length())
+            .unwrap_or(0);
+        Ok(Some(size))
+    }
+
+    fn rate_limit_active(&self) -> bool {
+        FeedCache::read(&self.root)
+            .active_rate_limit(unix_now())
+            .is_some()
+    }
+
+    fn record_rate_limit(&self, retry_at: u64) {
+        let mut cache = FeedCache::read(&self.root);
+        cache.rate_limited_until = Some(retry_at);
+        cache.write(&self.root);
     }
 
     pub async fn install(&self, release: &ReleaseInfo) -> Result<InstalledComponent> {
@@ -343,12 +697,20 @@ impl ComponentUpdater {
     {
         let mut last_error = None;
         for url in urls {
+            let is_api = url.starts_with(&self.sources.api_origin);
+            // 限流期间 API 地址只会再失败一次，直接走不占额度的直链。
+            if is_api && self.rate_limit_active() {
+                continue;
+            }
             match self
                 .download_with_progress(url, limit, expected_size, &mut on_progress)
                 .await
             {
                 Ok(bytes) => return Ok(bytes),
                 Err(error) => {
+                    if let Some(retry_at) = rate_limited_until(&error).filter(|_| is_api) {
+                        self.record_rate_limit(retry_at);
+                    }
                     last_error = Some(error);
                     on_progress(0, expected_size);
                 }
@@ -367,16 +729,15 @@ impl ComponentUpdater {
     where
         F: FnMut(u64, u64),
     {
-        if expected_size >= MIN_PARALLEL_DOWNLOAD_BYTES
-            && expected_size <= limit
-            && self.supports_range_download(url, expected_size).await
-        {
-            match self
-                .download_in_parallel(url, limit, expected_size, &mut on_progress)
-                .await
-            {
-                Ok(bytes) => return Ok(bytes),
-                Err(_) => on_progress(0, expected_size),
+        if expected_size >= MIN_PARALLEL_DOWNLOAD_BYTES && expected_size <= limit {
+            if let Some(range_url) = self.resolve_range_url(url, expected_size).await? {
+                match self
+                    .download_in_parallel(&range_url, limit, expected_size, &mut on_progress)
+                    .await
+                {
+                    Ok(bytes) => return Ok(bytes),
+                    Err(_) => on_progress(0, expected_size),
+                }
             }
         }
 
@@ -390,6 +751,7 @@ impl ComponentUpdater {
                 .await
             {
                 Ok(bytes) => return Ok(bytes),
+                Err(error) if is_permanent_failure(&error) => return Err(error),
                 Err(error) => last_error = Some(error),
             }
             if attempt + 1 < NETWORK_ATTEMPTS {
@@ -402,33 +764,46 @@ impl ComponentUpdater {
         )))
     }
 
-    async fn supports_range_download(&self, url: &str, expected_size: u64) -> bool {
-        let result = async {
-            let mut response = self
-                .client
-                .get(url)
-                .header(ACCEPT, "application/octet-stream")
-                .header(RANGE, "bytes=0-0")
-                .send()
-                .await?;
-            if response.status() != StatusCode::PARTIAL_CONTENT
-                || parse_content_range(response.headers().get(CONTENT_RANGE))
-                    != Some((0, 0, expected_size))
-                || response.content_length().is_some_and(|size| size != 1)
-            {
-                return Ok::<bool, reqwest::Error>(false);
-            }
-            let mut received = 0_u64;
-            while let Some(chunk) = response.chunk().await? {
-                received = received.saturating_add(chunk.len() as u64);
-                if received > 1 {
-                    return Ok(false);
-                }
-            }
-            Ok(received == 1)
+    /// 探测分段下载，可用时返回重定向后的最终地址。GitHub API 的资产地址每请求一次
+    /// 就占一个额度，分段都打最终地址，一个大包只花探测这一个额度。
+    async fn resolve_range_url(&self, url: &str, expected_size: u64) -> Result<Option<String>> {
+        let response = self
+            .client
+            .get(url)
+            .header(ACCEPT, "application/octet-stream")
+            .header(RANGE, "bytes=0-0")
+            .send()
+            .await;
+        let Ok(mut response) = response else {
+            return Ok(None);
+        };
+        if response.status() != StatusCode::PARTIAL_CONTENT {
+            // 被限流时普通下载同样会失败，直接上报，省掉一次注定失败的请求。
+            return match ensure_success(response).await {
+                Err(error) if rate_limited_until(&error).is_some() => Err(error),
+                _ => Ok(None),
+            };
         }
-        .await;
-        result.unwrap_or(false)
+        if parse_content_range(response.headers().get(CONTENT_RANGE)) != Some((0, 0, expected_size))
+            || response.content_length().is_some_and(|size| size != 1)
+        {
+            return Ok(None);
+        }
+        let range_url = response.url().to_string();
+        let mut received = 0_u64;
+        loop {
+            match response.chunk().await {
+                Ok(Some(chunk)) => {
+                    received = received.saturating_add(chunk.len() as u64);
+                    if received > 1 {
+                        return Ok(None);
+                    }
+                }
+                Ok(None) => break,
+                Err(_) => return Ok(None),
+            }
+        }
+        Ok((received == 1).then_some(range_url))
     }
 
     async fn download_in_parallel<F>(
@@ -544,14 +919,15 @@ impl ComponentUpdater {
     where
         F: FnMut(u64, u64),
     {
-        let mut response = self
+        let response = self
             .client
             .get(url)
             .header(ACCEPT, "application/octet-stream")
             .send()
             .await
-            .with_context(|| format!("failed to download {url}"))?
-            .error_for_status()
+            .with_context(|| format!("failed to download {url}"))?;
+        let mut response = ensure_success(response)
+            .await
             .with_context(|| format!("component download failed: {url}"))?;
         if response.content_length().is_some_and(|size| size > limit) {
             bail!("component download exceeds the size limit");
@@ -581,6 +957,68 @@ fn parse_content_range(value: Option<&reqwest::header::HeaderValue>) -> Option<(
     let (range, total) = value.split_once('/')?;
     let (start, end) = range.split_once('-')?;
     Some((start.parse().ok()?, end.parse().ok()?, total.parse().ok()?))
+}
+
+fn header_u64(headers: &HeaderMap, name: &str) -> Option<u64> {
+    headers.get(name)?.to_str().ok()?.trim().parse().ok()
+}
+
+fn rate_limit_retry_at(headers: &HeaderMap, now: u64) -> u64 {
+    let wanted = header_u64(headers, RETRY_AFTER.as_str())
+        .map(|seconds| now.saturating_add(seconds))
+        .or_else(|| {
+            (header_u64(headers, "x-ratelimit-remaining") == Some(0))
+                .then(|| header_u64(headers, "x-ratelimit-reset"))
+                .flatten()
+        })
+        .unwrap_or(0);
+    wanted.clamp(
+        now.saturating_add(MIN_RATE_LIMIT_BACKOFF_SECS),
+        now.saturating_add(MAX_RATE_LIMIT_BACKOFF_SECS),
+    )
+}
+
+/// 区分限流和普通失败。错误里不带响应正文（GitHub 会写入用户的出口 IP），
+/// 也不带 URL（重定向后的地址含临时签名），调用方自己补原始地址。
+async fn ensure_success(mut response: reqwest::Response) -> Result<reqwest::Response> {
+    let status = response.status();
+    if status == StatusCode::FORBIDDEN || status == StatusCode::TOO_MANY_REQUESTS {
+        let headers = response.headers().clone();
+        let limited = status == StatusCode::TOO_MANY_REQUESTS
+            || headers.contains_key(RETRY_AFTER)
+            || header_u64(&headers, "x-ratelimit-remaining") == Some(0)
+            // 次级限流可能不带上面这些响应头，只能看正文。
+            || response
+                .chunk()
+                .await
+                .ok()
+                .flatten()
+                .is_some_and(|body| {
+                    String::from_utf8_lossy(&body)
+                        .to_ascii_lowercase()
+                        .contains("rate limit")
+                });
+        if limited {
+            let retry_at = rate_limit_retry_at(&headers, unix_now());
+            return Err(RateLimited { retry_at }.into());
+        }
+    }
+    response
+        .error_for_status()
+        .map_err(|error| error.without_url().into())
+}
+
+/// 限流和明确的 4xx 马上重试也不会变，只会白白消耗额度。
+fn is_permanent_failure(error: &anyhow::Error) -> bool {
+    rate_limited_until(error).is_some()
+        || error.chain().any(|cause| {
+            cause
+                .downcast_ref::<reqwest::Error>()
+                .and_then(reqwest::Error::status)
+                .is_some_and(|status| {
+                    status.is_client_error() && status != StatusCode::REQUEST_TIMEOUT
+                })
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -627,12 +1065,14 @@ async fn download_range_once(
     index: usize,
     sender: &tokio::sync::mpsc::UnboundedSender<ParallelDownloadEvent>,
 ) -> Result<()> {
+    // 这里的 url 可能是带临时签名的重定向地址，不能跟着错误进日志。
     let mut response = client
         .get(url)
         .header(ACCEPT, "application/octet-stream")
         .header(RANGE, format!("bytes={start}-{end}"))
         .send()
         .await
+        .map_err(reqwest::Error::without_url)
         .with_context(|| format!("failed to download component range {start}-{end}"))?;
     if response.status() != StatusCode::PARTIAL_CONTENT {
         bail!(
@@ -655,6 +1095,7 @@ async fn download_range_once(
     while let Some(chunk) = response
         .chunk()
         .await
+        .map_err(reqwest::Error::without_url)
         .context("component range download was interrupted")?
     {
         let next = transferred
@@ -775,6 +1216,68 @@ fn release_info(component: Component, release: GitHubRelease) -> Option<ReleaseI
     })
 }
 
+/// 按组件挑出最新的可安装版本，只留这几条，缓存不必保存整份列表。
+fn latest_releases(releases: Vec<GitHubRelease>) -> Vec<ReleaseInfo> {
+    Component::ALL
+        .into_iter()
+        .filter_map(|component| {
+            releases
+                .iter()
+                .filter_map(|release| release_info(component, release.clone()))
+                .max_by(|left, right| version_of(&left.version).cmp(&version_of(&right.version)))
+        })
+        .collect()
+}
+
+/// 解析 Git Smart HTTP 的引用列表（pkt-line 格式），只取标签名。
+fn parse_tag_refs(body: &[u8]) -> Vec<String> {
+    let mut tags = Vec::new();
+    let mut rest = body;
+    while rest.len() >= 4 {
+        let Some(length) = std::str::from_utf8(&rest[..4])
+            .ok()
+            .and_then(|value| usize::from_str_radix(value, 16).ok())
+        else {
+            break;
+        };
+        // 长度 0 是分隔包，只占长度字段本身。
+        if length == 0 {
+            rest = &rest[4..];
+            continue;
+        }
+        if length < 4 || length > rest.len() {
+            break;
+        }
+        let line = &rest[4..length];
+        rest = &rest[length..];
+        // 首条引用后面用 NUL 接能力列表。
+        let line = line.split(|byte| *byte == 0).next().unwrap_or_default();
+        let name = std::str::from_utf8(line)
+            .ok()
+            .and_then(|value| value.trim_end().split_once(' '))
+            .map(|(_, name)| name);
+        if let Some(tag) = name.and_then(|name| name.strip_prefix("refs/tags/")) {
+            if !tag.ends_with("^{}") {
+                tags.push(tag.to_string());
+            }
+        }
+    }
+    tags
+}
+
+fn stable_tags_newest_first(component: Component, tags: &[String]) -> Vec<String> {
+    let mut versions = tags
+        .iter()
+        .filter_map(|tag| {
+            let version = Version::parse(tag.strip_prefix(component.tag_prefix())?).ok()?;
+            (version.pre.is_empty() && !component.is_withdrawn(&version))
+                .then_some((version, tag.clone()))
+        })
+        .collect::<Vec<_>>();
+    versions.sort_by(|left, right| right.0.cmp(&left.0));
+    versions.into_iter().map(|(_, tag)| tag).collect()
+}
+
 /// 组装组件下载候选地址列表：GitHub API 资产地址优先（对直连 github.com
 /// 受限的网络更友好），随后回退到 github.com 直连地址；若设置了
 /// PISPER_GITHUB_MIRROR（逗号分隔的镜像前缀），再追加经镜像中转的直连地址。
@@ -789,24 +1292,28 @@ fn download_candidates_with_mirrors(
     mirrors: &[String],
 ) -> Vec<String> {
     let mut urls = vec![primary.to_string()];
-    if !browser_url.is_empty() && browser_url != primary {
-        urls.push(browser_url.to_string());
-        urls.extend(
-            mirrors
-                .iter()
-                .map(|prefix| format!("{prefix}{browser_url}")),
-        );
+    if browser_url.is_empty() {
+        return urls;
     }
+    if browser_url != primary {
+        urls.push(browser_url.to_string());
+    }
+    // 从标签定位到的版本主地址就是直连地址，同样要能走镜像。
+    urls.extend(
+        mirrors
+            .iter()
+            .map(|prefix| format!("{prefix}{browser_url}")),
+    );
     urls
 }
 
 /// 组件发布列表的候选地址：GitHub API 优先，镜像（若配置）兜底。
-fn release_feed_candidates() -> Vec<String> {
-    let mut urls = vec![RELEASES_API.to_string()];
+fn release_feed_candidates(feed_url: &str) -> Vec<String> {
+    let mut urls = vec![feed_url.to_string()];
     urls.extend(
         mirror_prefixes()
             .iter()
-            .map(|prefix| format!("{prefix}{RELEASES_API}")),
+            .map(|prefix| format!("{prefix}{feed_url}")),
     );
     urls
 }
@@ -1839,10 +2346,13 @@ mod tests {
                 "https://gh-proxy.com/https://github.example.test/asset".to_string(),
             ]
         );
-        // 直连地址与主地址相同或为空时去重，且不再追加镜像候选。
+        // 直连地址与主地址相同时去重，但仍要能走镜像；为空时没有可中转的地址。
         assert_eq!(
             super::download_candidates_with_mirrors("https://same", "https://same", &mirrors),
-            vec!["https://same".to_string()]
+            vec![
+                "https://same".to_string(),
+                "https://gh-proxy.com/https://same".to_string(),
+            ]
         );
         assert_eq!(
             super::download_candidates_with_mirrors("https://same", "", &mirrors),
@@ -1906,6 +2416,551 @@ mod tests {
         serving_server.join().unwrap();
 
         assert_eq!(bytes, b"abcdef");
+    }
+
+    // 按路径应答的本地服务器，记下每个请求的路径，用来断言到底发了多少次请求。
+    struct RecordingServer {
+        address: std::net::SocketAddr,
+        requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl RecordingServer {
+        fn start(respond: impl Fn(&str) -> Vec<u8> + Send + Sync + 'static) -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let recorded = requests.clone();
+            let respond = std::sync::Arc::new(respond);
+            // 线程随测试进程退出，监听线程不需要回收。
+            thread::spawn(move || {
+                for stream in listener.incoming() {
+                    let mut stream = stream.unwrap();
+                    let recorded = recorded.clone();
+                    let respond = respond.clone();
+                    thread::spawn(move || {
+                        let mut request = Vec::new();
+                        let mut chunk = [0_u8; 1024];
+                        while !request.windows(4).any(|value| value == b"\r\n\r\n") {
+                            let count = stream.read(&mut chunk).unwrap_or(0);
+                            if count == 0 {
+                                return;
+                            }
+                            request.extend_from_slice(&chunk[..count]);
+                        }
+                        let request = String::from_utf8_lossy(&request).to_string();
+                        let path = request.split_whitespace().nth(1).unwrap().to_string();
+                        let response = respond(&path);
+                        recorded.lock().unwrap().push(path);
+                        let _ = stream.write_all(&response);
+                    });
+                }
+            });
+            Self { address, requests }
+        }
+
+        fn updater(&self, root: &Path) -> super::ComponentUpdater {
+            let mut updater = super::ComponentUpdater::new(
+                root.to_path_buf(),
+                include_str!("../../../src-tauri/updater.pubkey"),
+                "Pisper rate limit test",
+            )
+            .unwrap();
+            let base = format!("http://{}", self.address);
+            updater.sources = super::ReleaseSources {
+                api_origin: format!("{base}/api/"),
+                feed_url: format!("{base}/api/releases"),
+                tag_refs_url: format!("{base}/info/refs"),
+                releases_base: format!("{base}/releases"),
+            };
+            updater
+        }
+
+        fn count(&self, prefix: &str) -> usize {
+            self.requests
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        }
+    }
+
+    fn http_response(status: &str, headers: &str, body: &str) -> Vec<u8> {
+        format!(
+            "HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .into_bytes()
+    }
+
+    fn rate_limited_response() -> Vec<u8> {
+        http_response(
+            "403 Forbidden",
+            &format!(
+                "X-RateLimit-Remaining: 0\r\nX-RateLimit-Reset: {}\r\n",
+                super::unix_now() + 600
+            ),
+            "{\"message\":\"API rate limit exceeded for 203.0.113.9.\"}",
+        )
+    }
+
+    fn pkt_line(value: &str) -> String {
+        format!("{:04x}{value}", value.len() + 4)
+    }
+
+    fn tag_refs(tags: &[&str]) -> String {
+        let mut body = pkt_line("# service=git-upload-pack\n");
+        body.push_str("0000");
+        body.push_str(&pkt_line(&format!(
+            "{} HEAD\0multi_ack symref=HEAD:refs/heads/release\n",
+            "a".repeat(40)
+        )));
+        for tag in tags {
+            body.push_str(&pkt_line(&format!("{} refs/tags/{tag}\n", "b".repeat(40))));
+            body.push_str(&pkt_line(&format!(
+                "{} refs/tags/{tag}^{{}}\n",
+                "c".repeat(40)
+            )));
+        }
+        body.push_str("0000");
+        body
+    }
+
+    fn feed_json(address: std::net::SocketAddr, version: &str) -> String {
+        let release = |component: Component| {
+            let archive = component_asset_name(component, version);
+            let asset = |name: String| {
+                serde_json::json!({
+                    "name": name,
+                    "url": format!("http://{address}/api/assets/{name}"),
+                    "browser_download_url": format!("http://{address}/direct/{name}"),
+                    "size": 42,
+                })
+            };
+            serde_json::json!({
+                "tag_name": format!("{}{version}", component.tag_prefix()),
+                "html_url": "https://example.test/release",
+                "body": "release notes",
+                "published_at": null,
+                "draft": false,
+                "prerelease": false,
+                "assets": [asset(archive.clone()), asset(format!("{archive}.sig"))],
+            })
+        };
+        serde_json::to_string(&Component::ALL.map(release)).unwrap()
+    }
+
+    fn run<T>(future: impl std::future::Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(future)
+    }
+
+    #[test]
+    fn a_check_round_requests_the_feed_once_and_install_reuses_it() {
+        let server = std::sync::Arc::new(std::sync::OnceLock::new());
+        let address = server.clone();
+        let started = RecordingServer::start(move |_| {
+            let address: &std::net::SocketAddr = address.get().unwrap();
+            http_response("200 OK", "", &feed_json(*address, "1.2.3"))
+        });
+        server.set(started.address).unwrap();
+        let directory = TestDirectory::new();
+        let updater = started.updater(&directory.0);
+
+        for component in Component::ALL {
+            assert_eq!(run(updater.latest(component)).unwrap().version, "1.2.3");
+        }
+        // 桌面端每条命令都新建更新器，缓存必须跨实例生效。
+        let next_command = started.updater(&directory.0);
+        let feed = run(next_command.release_feed(super::INSTALL_FEED_MAX_AGE)).unwrap();
+        assert_eq!(
+            feed.latest(Component::Runtime).unwrap().notes,
+            "release notes"
+        );
+        assert_eq!(started.count("/api/releases"), 1);
+
+        // 缓存过期后才会重新请求。
+        let mut cache = super::FeedCache::read(&directory.0);
+        cache.fetched_at -= super::CHECK_FEED_MAX_AGE.as_secs() + 1;
+        cache.write(&directory.0);
+        run(updater.latest(Component::Desktop)).unwrap();
+        assert_eq!(started.count("/api/releases"), 2);
+    }
+
+    #[test]
+    fn a_rate_limited_feed_falls_back_to_tags_without_more_api_requests() {
+        let newest = component_asset_name(Component::Runtime, "2.0.0");
+        let older = component_asset_name(Component::Runtime, "1.9.0");
+        let server = RecordingServer::start(move |path| {
+            if path.starts_with("/api/") {
+                return rate_limited_response();
+            }
+            if path == "/info/refs" {
+                return http_response(
+                    "200 OK",
+                    "",
+                    &tag_refs(&[
+                        "app-v9.9.9",
+                        "runtime-v1.9.0",
+                        "runtime-v2.0.0",
+                        "runtime-v3.0.0-beta.1",
+                        "runtime-v0.6.2",
+                    ]),
+                );
+            }
+            // 2.0.0 的包已上传但签名还没传完：不能选它，要退回 1.9.0。
+            if path.ends_with(&newest) {
+                return http_response(
+                    "206 Partial Content",
+                    "Content-Range: bytes 0-0/1000\r\n",
+                    "x",
+                );
+            }
+            if path.ends_with(&older) {
+                return http_response(
+                    "206 Partial Content",
+                    "Content-Range: bytes 0-0/900\r\n",
+                    "x",
+                );
+            }
+            if path.ends_with(&format!("{older}.sig")) {
+                return http_response(
+                    "206 Partial Content",
+                    "Content-Range: bytes 0-0/100\r\n",
+                    "x",
+                );
+            }
+            http_response("404 Not Found", "", "")
+        });
+        let directory = TestDirectory::new();
+        let updater = server.updater(&directory.0);
+
+        let feed = run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).unwrap();
+        let release = feed.latest(Component::Runtime).unwrap();
+        assert_eq!(release.version, "1.9.0");
+        assert_eq!(release.size, 900);
+        assert!(release
+            .archive_url
+            .contains("/releases/download/runtime-v1.9.0/"));
+        assert!(feed.latest(Component::Desktop).is_err());
+        assert_eq!(server.count("/api/"), 1);
+
+        // 恢复时间之前绕开 API，即使缓存已过期或重新启动。
+        let mut cache = super::FeedCache::read(&directory.0);
+        cache.fetched_at = 0;
+        cache.write(&directory.0);
+        let restarted = server.updater(&directory.0);
+        run(restarted.release_feed(super::CHECK_FEED_MAX_AGE)).unwrap();
+        assert_eq!(server.count("/api/"), 1);
+        assert_eq!(server.count("/info/refs"), 2);
+    }
+
+    #[test]
+    fn tag_fallback_keeps_notes_for_versions_it_already_knows() {
+        let directory = TestDirectory::new();
+        let server = RecordingServer::start(|path| {
+            if path == "/info/refs" {
+                return http_response("200 OK", "", &tag_refs(&["runtime-v1.2.3"]));
+            }
+            rate_limited_response()
+        });
+        let mut known = release_info(
+            Component::Runtime,
+            signed_release(Component::Runtime, "1.2.3"),
+        )
+        .unwrap();
+        known.notes = "known notes".into();
+        let mut cache = super::FeedCache::empty();
+        cache.releases = vec![known];
+        cache.write(&directory.0);
+
+        let updater = server.updater(&directory.0);
+        let feed = run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).unwrap();
+        assert_eq!(
+            feed.latest(Component::Runtime).unwrap().notes,
+            "known notes"
+        );
+        // 已知版本不用再探测资产。
+        assert_eq!(server.count("/releases/"), 0);
+    }
+
+    #[test]
+    fn exhausted_sources_report_a_rate_limit_without_leaking_the_client_ip() {
+        let server = RecordingServer::start(|path| {
+            if path == "/info/refs" {
+                return http_response("503 Service Unavailable", "", "");
+            }
+            rate_limited_response()
+        });
+        let directory = TestDirectory::new();
+        let updater = server.updater(&directory.0);
+
+        let error = run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).unwrap_err();
+        let retry_at = super::rate_limited_until(&error).unwrap();
+        let now = super::unix_now();
+        assert!(retry_at > now + 500 && retry_at <= now + 600);
+        assert!(!format!("{error:#}").contains("203.0.113.9"));
+        assert_eq!(server.count("/api/"), 1);
+
+        // 第二次检查不再碰 API，并且仍能告诉用户恢复时间。
+        let error = run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).unwrap_err();
+        assert_eq!(super::rate_limited_until(&error), Some(retry_at));
+        assert_eq!(server.count("/api/"), 1);
+    }
+
+    #[test]
+    fn stale_feed_is_not_reused_when_every_source_fails() {
+        let server = RecordingServer::start(|_| http_response("404 Not Found", "", ""));
+        let directory = TestDirectory::new();
+        let mut cache = super::FeedCache::empty();
+        cache.releases =
+            vec![release_info(Component::Tui, signed_release(Component::Tui, "1.0.0")).unwrap()];
+        cache.fetched_at = 1;
+        cache.write(&directory.0);
+
+        let updater = server.updater(&directory.0);
+        assert!(run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).is_err());
+        // 明确的 404 不重试。
+        assert_eq!(server.count("/api/"), 1);
+        assert_eq!(super::FeedCache::read(&directory.0).releases.len(), 1);
+    }
+
+    #[test]
+    fn transient_feed_errors_still_retry() {
+        let server = RecordingServer::start(|path| {
+            if path == "/info/refs" {
+                return http_response("404 Not Found", "", "");
+            }
+            http_response("502 Bad Gateway", "", "")
+        });
+        let directory = TestDirectory::new();
+        let updater = server.updater(&directory.0);
+        assert!(run(updater.release_feed(super::CHECK_FEED_MAX_AGE)).is_err());
+        assert_eq!(server.count("/api/"), super::NETWORK_ATTEMPTS);
+    }
+
+    #[test]
+    fn a_rate_limited_download_moves_on_and_skips_the_api_afterwards() {
+        let server = RecordingServer::start(|path| {
+            if path.starts_with("/api/") {
+                return rate_limited_response();
+            }
+            http_response("200 OK", "", "abcdef")
+        });
+        let directory = TestDirectory::new();
+        let updater = server.updater(&directory.0);
+        let base = format!("http://{}", server.address);
+        let candidates = [format!("{base}/api/asset"), format!("{base}/direct/asset")];
+
+        for _ in 0..2 {
+            let bytes =
+                run(updater.download_candidates_with_progress(&candidates, 1024, 6, |_, _| {}))
+                    .unwrap();
+            assert_eq!(bytes, b"abcdef");
+        }
+        // 第一次只试一下 API 就转直链，第二次连试都不试。
+        assert_eq!(server.count("/api/"), 1);
+        assert_eq!(server.count("/direct/"), 2);
+    }
+
+    #[test]
+    fn parallel_segments_go_to_the_redirect_target_not_the_api() {
+        let size = super::MIN_PARALLEL_DOWNLOAD_BYTES as usize;
+        let payload = std::sync::Arc::new(vec![7_u8; size]);
+        let ranges = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_ranges = ranges.clone();
+        let server_payload = payload.clone();
+        thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let ranges = server_ranges.clone();
+                let payload = server_payload.clone();
+                thread::spawn(move || {
+                    let mut request = Vec::new();
+                    let mut chunk = [0_u8; 1024];
+                    while !request.windows(4).any(|value| value == b"\r\n\r\n") {
+                        let count = stream.read(&mut chunk).unwrap();
+                        request.extend_from_slice(&chunk[..count]);
+                    }
+                    let request = String::from_utf8(request).unwrap();
+                    let path = request.split_whitespace().nth(1).unwrap().to_string();
+                    let range = request.lines().find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("range").then_some(value.trim())
+                    });
+                    let (start, end) = range
+                        .and_then(|value| value.strip_prefix("bytes="))
+                        .and_then(|value| value.split_once('-'))
+                        .map(|(start, end)| {
+                            (start.parse::<u64>().unwrap(), end.parse::<u64>().unwrap())
+                        })
+                        .unwrap();
+                    ranges.lock().unwrap().push((path.clone(), start));
+                    if path.starts_with("/api/") {
+                        stream
+                            .write_all(
+                                b"HTTP/1.1 302 Found\r\nLocation: /cdn/asset\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                            )
+                            .unwrap();
+                        return;
+                    }
+                    let _ = stream.write_all(
+                        format!(
+                            "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {start}-{end}/{}\r\nConnection: close\r\n\r\n",
+                            end - start + 1,
+                            payload.len(),
+                        )
+                        .as_bytes(),
+                    );
+                    let _ = stream.write_all(&payload[start as usize..=end as usize]);
+                });
+            }
+        });
+        let directory = TestDirectory::new();
+        let updater = super::ComponentUpdater::new(
+            directory.0.clone(),
+            include_str!("../../../src-tauri/updater.pubkey"),
+            "Pisper redirect test",
+        )
+        .unwrap();
+        let bytes = run(updater.download_with_progress(
+            &format!("http://{address}/api/asset"),
+            size as u64,
+            size as u64,
+            |_, _| {},
+        ))
+        .unwrap();
+
+        assert_eq!(bytes, *payload);
+        let ranges = ranges.lock().unwrap();
+        assert_eq!(
+            ranges
+                .iter()
+                .filter(|(path, _)| path.starts_with("/api/"))
+                .count(),
+            1
+        );
+        assert!(
+            ranges
+                .iter()
+                .filter(|(path, _)| path == "/cdn/asset")
+                .count()
+                >= 3
+        );
+    }
+
+    #[test]
+    fn rate_limit_backoff_is_bounded() {
+        let now = 1_000_000;
+        let headers = |pairs: &[(&'static str, String)]| {
+            let mut map = reqwest::header::HeaderMap::new();
+            for (name, value) in pairs {
+                map.insert(*name, value.parse().unwrap());
+            }
+            map
+        };
+        let reset = |value: u64| {
+            headers(&[
+                ("x-ratelimit-remaining", "0".into()),
+                ("x-ratelimit-reset", value.to_string()),
+            ])
+        };
+        assert_eq!(
+            super::rate_limit_retry_at(&reset(now + 600), now),
+            now + 600
+        );
+        // 响应头或本机时钟异常时收敛到上下限。
+        assert_eq!(super::rate_limit_retry_at(&reset(now - 5), now), now + 60);
+        assert_eq!(
+            super::rate_limit_retry_at(&reset(now + 99_999), now),
+            now + 3600
+        );
+        assert_eq!(
+            super::rate_limit_retry_at(&headers(&[("retry-after", "120".into())]), now),
+            now + 120
+        );
+        assert_eq!(
+            super::rate_limit_retry_at(&headers(&[("retry-after", "soon".into())]), now),
+            now + 60
+        );
+
+        // 时钟被调回后，超出上限的旧记录不再生效。
+        let mut cache = super::FeedCache::empty();
+        cache.rate_limited_until = Some(now + 3601);
+        assert_eq!(cache.active_rate_limit(now), None);
+        cache.rate_limited_until = Some(now + 100);
+        assert_eq!(cache.active_rate_limit(now), Some(now + 100));
+        assert_eq!(cache.active_rate_limit(now + 100), None);
+    }
+
+    #[test]
+    fn broken_or_foreign_feed_caches_are_ignored() {
+        let directory = TestDirectory::new();
+        let path = directory.0.join(super::FEED_CACHE_FILE);
+        fs::write(&path, b"{not json").unwrap();
+        assert!(super::FeedCache::read(&directory.0).releases.is_empty());
+
+        let mut foreign = super::FeedCache::empty();
+        foreign.releases =
+            vec![release_info(Component::Tui, signed_release(Component::Tui, "1.0.0")).unwrap()];
+        foreign.platform = "other-platform".into();
+        foreign.write(&directory.0);
+        assert!(super::FeedCache::read(&directory.0).releases.is_empty());
+
+        // 写缓存时还有效、读取时已被撤回的版本不能再提供。
+        let mut withdrawn = super::FeedCache::empty();
+        let mut release =
+            release_info(Component::Tui, signed_release(Component::Tui, "1.0.0")).unwrap();
+        release.version = "0.6.2".into();
+        withdrawn.releases = vec![release];
+        withdrawn.write(&directory.0);
+        assert!(super::FeedCache::read(&directory.0).releases.is_empty());
+    }
+
+    #[test]
+    fn tag_refs_are_parsed_and_filtered_per_component() {
+        let tags = super::parse_tag_refs(
+            tag_refs(&[
+                "v1.2.3",
+                "tui-v0.9.0",
+                "runtime-v2.0.0",
+                "app-v0.1.0",
+                "not a tag",
+            ])
+            .as_bytes(),
+        );
+        assert_eq!(
+            tags,
+            [
+                "v1.2.3",
+                "tui-v0.9.0",
+                "runtime-v2.0.0",
+                "app-v0.1.0",
+                "not a tag"
+            ]
+        );
+        assert!(super::parse_tag_refs(b"zzzz").is_empty());
+        assert!(super::parse_tag_refs(b"ffff0000").is_empty());
+
+        let tags = [
+            "v0.6.1",
+            "v0.6.4",
+            "v0.10.0",
+            "v0.9.0",
+            "v1.0.0-beta.1",
+            "tui-v5.0.0",
+            "vnext",
+        ]
+        .map(String::from);
+        assert_eq!(
+            super::stable_tags_newest_first(Component::Desktop, &tags),
+            ["v0.10.0", "v0.9.0", "v0.6.4"]
+        );
     }
 
     #[test]

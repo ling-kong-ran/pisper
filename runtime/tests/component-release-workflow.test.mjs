@@ -139,6 +139,7 @@ test('desktop and TUI launch independently installed signed components with bund
     bridge,
     permissions,
     settings,
+    desktopUpdates,
   ] = await Promise.all([
     readFile('crates/component-updater/src/lib.rs', 'utf8'),
     readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
@@ -149,8 +150,12 @@ test('desktop and TUI launch independently installed signed components with bund
     readFile('src-tauri/src/desktop_shell/desktop-bridge.js', 'utf8'),
     readFile('src-tauri/permissions/desktop.toml', 'utf8'),
     readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/component_updates.rs', 'utf8'),
   ])
 
+  // 匿名 API 额度只有 60 次/小时：一轮检查或安装只能请求一次发布信息。
+  assert.doesNotMatch(desktopUpdates, /updater\s*\.latest\(/)
+  assert.equal(desktopUpdates.match(/load_feed\(&app, &updater,/g)?.length, 2)
   assert.match(updater, /component signature verification failed/)
   assert.match(updater, /component archive path escapes its root/)
   assert.match(updater, /write_pointer\(&component_root, version\)/)

@@ -446,6 +446,8 @@
   "updateSettings.downloadAndInstallUpdates": "Download and install updates",
   "updateSettings.downloadProgress": "Download progress",
   "updateSettings.downloadUpdate": "Download update",
+  "updateSettings.githubRateLimited": "GitHub is temporarily limiting update checks from this network. You can keep using the current version. Try again later, usually within an hour.",
+  "updateSettings.githubRateLimitedUntil": "GitHub is temporarily limiting update checks from this network. You can keep using the current version. Try again after {time}.",
   "updateSettings.installed": "Installed",
   "updateSettings.installingUpdates": "Installing updates…",
   "updateSettings.newVersionReleaseNotes": "New version release notes",

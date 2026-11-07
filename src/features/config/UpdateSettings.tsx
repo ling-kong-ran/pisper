@@ -125,6 +125,15 @@ export function UpdateSettings({
             branch: status.branch || DEFAULT_BRANCH,
           })
         : t('config:updateSettings.commitsThatHaveNotBeenSyncedWillAppearHereAfterTheCheck'))
+  const rateLimitMessage = !status.rateLimited
+    ? ''
+    : status.retryAt
+      ? t('config:updateSettings.githubRateLimitedUntil', {
+          time: new Intl.DateTimeFormat(language, { timeStyle: 'short' }).format(
+            new Date(status.retryAt * 1000),
+          ),
+        })
+      : t('config:updateSettings.githubRateLimited')
   const available = status.state === 'available'
   const resumable = status.state === 'error' && status.canResume && status.canDownload
   const downloaded = status.state === 'downloaded'
@@ -222,7 +231,7 @@ export function UpdateSettings({
         </dl>
         {status.message &&
           (status.state === 'error' ? (
-            <FeatureAlert>{status.message}</FeatureAlert>
+            <FeatureAlert>{rateLimitMessage || status.message}</FeatureAlert>
           ) : (
             <p className="mt-4 flex items-start gap-2 text-sm text-content-secondary">
               <Laptop className="mt-0.5 shrink-0 text-content-muted" size={15} aria-hidden="true" />
@@ -341,7 +350,7 @@ export function UpdateSettings({
                   key={component.component}
                   icon={<Icon />}
                   name={label}
-                  description={component.message || undefined}
+                  description={rateLimitMessage ? undefined : component.message || undefined}
                   meta={
                     <span className="flex items-center gap-1.5 font-mono tabular-nums">
                       <span>v{component.currentVersion}</span>

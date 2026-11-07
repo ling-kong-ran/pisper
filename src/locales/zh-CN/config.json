@@ -446,6 +446,8 @@
   "updateSettings.downloadAndInstallUpdates": "下载并安装更新",
   "updateSettings.downloadProgress": "下载进度",
   "updateSettings.downloadUpdate": "下载更新",
+  "updateSettings.githubRateLimited": "GitHub 暂时限制了这个网络的更新查询，当前版本可以继续使用。请稍后再试，通常不超过一小时。",
+  "updateSettings.githubRateLimitedUntil": "GitHub 暂时限制了这个网络的更新查询，当前版本可以继续使用。请在 {time} 之后再试。",
   "updateSettings.installed": "已安装",
   "updateSettings.installingUpdates": "正在安装更新…",
   "updateSettings.newVersionReleaseNotes": "新版本更新日志",
