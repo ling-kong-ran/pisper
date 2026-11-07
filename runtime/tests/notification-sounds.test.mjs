@@ -7,6 +7,7 @@ import test from 'node:test'
 import { BROWSER_PREFERENCE_KEYS } from '../../shared/browser-preferences.mjs'
 import { STORAGE_KEYS } from '../../src/app/storage.ts'
 import { sessionAlerts } from '../../src/features/board/session-alerts.ts'
+import { synthesizeNotificationSound } from '../../src/lib/notification-sound-synth.ts'
 import { NOTIFICATION_SOUNDS, isNotificationSound } from '../../src/lib/notification-sounds.ts'
 import {
   DEFAULT_NOTIFICATION_SOUND_PREFERENCE,
@@ -100,4 +101,47 @@ test('the app shell plays one sound per batch, respecting the switches', async (
     'utf8',
   )
   assert.match(settings, /<NotificationSoundSettings \/>/)
+})
+
+function fakeAudioContext(state = 'running') {
+  const oscillators = []
+  const param = () => ({
+    value: 0,
+    setValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+  })
+  return {
+    state,
+    currentTime: 0,
+    destination: {},
+    oscillators,
+    createGain: () => ({ gain: param(), connect() {}, disconnect() {} }),
+    createOscillator() {
+      const oscillator = { frequency: param(), connect() {}, start() {}, stop() {} }
+      oscillators.push(oscillator)
+      return oscillator
+    },
+  }
+}
+
+test('every sound synthesizes notes; a closed context or zero volume stays silent', (t) => {
+  t.mock.method(globalThis, 'setTimeout', () => 0)
+  globalThis.window ??= globalThis
+  for (const sound of NOTIFICATION_SOUNDS) {
+    const ctx = fakeAudioContext()
+    assert.equal(synthesizeNotificationSound(ctx, sound, 70), true, sound)
+    assert.ok(ctx.oscillators.length > 0, sound)
+  }
+  const closed = fakeAudioContext('closed')
+  assert.equal(synthesizeNotificationSound(closed, 'chime', 70), false)
+  assert.equal(closed.oscillators.length, 0)
+  const muted = fakeAudioContext()
+  assert.equal(synthesizeNotificationSound(muted, 'chime', 0), false)
+  assert.equal(muted.oscillators.length, 0)
+})
+
+test('the synth stays out of the startup bundle: only a dynamic import reaches it', async () => {
+  const source = await readFile('src/lib/notification-sounds.ts', 'utf8')
+  assert.match(source, /import\('@\/lib\/notification-sound-synth'\)/)
+  assert.doesNotMatch(source, /from '@\/lib\/notification-sound-synth'/)
 })

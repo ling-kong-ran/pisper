@@ -95,7 +95,6 @@ import {
   startupQueryOptions,
 } from '@/lib/startup-queries'
 import { markStartupPhase } from '@/lib/startup-diagnostics'
-import { showBrowserSystemNotification } from '@/lib/browser-notifications'
 import { installNotificationSoundUnlock, playNotificationSound } from '@/lib/notification-sounds'
 import { useNotificationSoundStore } from '@/stores/notification-sound-store'
 import type { SessionAlert } from '@/features/board/public'
@@ -533,12 +532,17 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
         void tauriNotificationNotify(title, body).catch(() => {})
         return
       }
-      void showBrowserSystemNotification({
-        title,
-        body,
-        tag: `pisper-${title}`,
-        url: window.location.href,
-      }).catch(() => {})
+      // 启动时用不到，按需加载，不占启动体积。
+      void import('@/lib/browser-notifications')
+        .then(({ showBrowserSystemNotification }) =>
+          showBrowserSystemNotification({
+            title,
+            body,
+            tag: `pisper-${title}`,
+            url: window.location.href,
+          }),
+        )
+        .catch(() => {})
     },
     [notificationSettings.browser?.enabled],
   )
