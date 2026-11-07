@@ -5,6 +5,7 @@ import {
   searchOptionalTools,
   TOOL_DISCOVERY_NAME,
 } from '../tools/app/tool-discovery.mjs'
+import { createRuntimeToolGateway } from '../runtime/tool-gateway-runtime.mjs'
 
 const tools = [
   {
@@ -218,4 +219,68 @@ test('discover_tools expands literal action values instead of reporting any', as
   )
   assert.match(result.content[0].text, /params: action: "get_device_info" \| "get_capabilities"/)
   assert.doesNotMatch(result.content[0].text, /action: any/)
+})
+
+test('discover_tools spells out the name to pass to call_tool, not just the display label', async () => {
+  const tool = createToolDiscoveryTool({
+    listTools: () => [
+      { name: 'browser_automation', label: 'Browser Control', description: 'Browser' },
+    ],
+  })
+  const result = await tool.execute('discover', { query: 'browser' })
+  assert.match(result.content[0].text, /call through call_tool with name "browser_automation"/)
+})
+
+function gatewayFixture(extra = []) {
+  const calls = []
+  const authorized = []
+  const execute = (name) => async () => {
+    calls.push(name)
+    return { content: [] }
+  }
+  const tools = new Map(
+    [
+      { name: 'browser_automation', label: 'Browser Control' },
+      { name: 'computer_use', label: 'Computer Use' },
+      ...extra,
+    ].map((tool) => [tool.name, { parameters: {}, execute: execute(tool.name), ...tool }]),
+  )
+  const gateway = createRuntimeToolGateway({
+    tools,
+    sessionId: 's',
+    authorize: async (input) => {
+      authorized.push(input.toolName)
+      return input.toolName === 'computer_use' ? { block: true, reason: 'blocked' } : undefined
+    },
+  })
+  return { gateway, calls, authorized }
+}
+
+test('call_tool accepts a display label that maps to exactly one tool, and authorizes the real name', async () => {
+  for (const name of [
+    'browser_automation',
+    'Browser Control',
+    'browser control',
+    'Browser Control [browser_automation]',
+  ]) {
+    const { gateway, calls, authorized } = gatewayFixture()
+    const result = await gateway.execute('call', { name })
+    assert.deepEqual(calls, ['browser_automation'], name)
+    assert.deepEqual(authorized, ['browser_automation'], name)
+    assert.equal(result.details.gatewayToolName, 'browser_automation', name)
+  }
+  // 用显示名也绕不过审批。
+  const { gateway, calls } = gatewayFixture()
+  await assert.rejects(gateway.execute('call', { name: 'Computer Use' }), /blocked/)
+  assert.deepEqual(calls, [])
+})
+
+test('call_tool still refuses unknown or ambiguous names without guessing', async () => {
+  const { gateway } = gatewayFixture([{ name: 'other_browser', label: 'Browser Control' }])
+  await assert.rejects(
+    gateway.execute('call', { name: 'Browser Control' }),
+    /Optional tool is unavailable: Browser Control\. Use the exact name/,
+  )
+  await assert.rejects(gateway.execute('call', { name: 'browser' }), /unavailable/)
+  await assert.rejects(gateway.execute('call', { name: 'Nope [missing]' }), /unavailable/)
 })

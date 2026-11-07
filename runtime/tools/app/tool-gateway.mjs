@@ -49,10 +49,14 @@ export function createToolGatewayTool({ getTool, authorize }) {
       ),
     }),
     async execute(toolCallId, params, signal) {
-      const name = String(params.name || '').trim()
-      const tool = getTool?.(name)
+      const requested = String(params.name || '').trim()
+      const tool = getTool?.(requested)
+      // 权限、校验和结果都按工具的真实名字走：别名只是入口，不能绕过按名字的审批与范围检查。
+      const name = tool?.name || requested
       if (!tool || name === TOOL_GATEWAY_NAME || name === 'discover_tools')
-        throw new Error(`Optional tool is unavailable: ${name}`)
+        throw new Error(
+          `Optional tool is unavailable: ${requested}. Use the exact name shown in [brackets] by discover_tools.`,
+        )
       const args = params.arguments || {}
       const validationError = validationMessage(tool.parameters || {}, args)
       if (validationError) throw new Error(`Invalid arguments for ${name}: ${validationError}`)

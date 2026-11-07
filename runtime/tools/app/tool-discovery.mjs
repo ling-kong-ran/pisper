@@ -281,7 +281,7 @@ function formatSignature(tool) {
 function formatMatch(tool) {
   const invocation = tool.active
     ? '; active: call this tool directly'
-    : '; inactive: call through call_tool'
+    : `; inactive: call through call_tool with name ${JSON.stringify(tool.name)}`
   const profile = discoveryProfile(tool)
   const label = profile?.label || tool.label || tool.name
   const exactName = label === tool.name ? tool.name : `${label} [${tool.name}]`
