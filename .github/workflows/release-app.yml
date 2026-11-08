@@ -138,7 +138,17 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Install cosign
+        id: cosign
+        # 这个 Action 只从 github.com 的 releases/download 下载，入口回 504 时整步失败：失败时由下一步备用安装。
+        continue-on-error: true
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Install cosign (fallback through the GitHub API)
+        if: steps.cosign.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/install-cosign.mjs "$RUNNER_TEMP/cosign-bin"
+          "$RUNNER_TEMP/cosign-bin/cosign" version
       - name: Verify and stage fixed Android Node 24
         # github.com 下载入口回 504 时脚本改经 GitHub API 下载，带上令牌免得匿名限流。
         env:
@@ -288,7 +298,17 @@ jobs:
       - name: Materialize fixed iOS Node smoke source
         run: bash scripts/build-mobile-node-ios.sh --materialize-only
       - name: Install cosign
+        id: cosign
+        # 这个 Action 只从 github.com 的 releases/download 下载，入口回 504 时整步失败：失败时由下一步备用安装。
+        continue-on-error: true
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+      - name: Install cosign (fallback through the GitHub API)
+        if: steps.cosign.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/install-cosign.mjs "$RUNNER_TEMP/cosign-bin"
+          "$RUNNER_TEMP/cosign-bin/cosign" version
       - name: Verify and stage fixed iOS Node 24 framework
         # github.com 下载入口回 504 时脚本改经 GitHub API 下载，带上令牌免得匿名限流。
         env:
