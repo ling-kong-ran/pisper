@@ -142,6 +142,11 @@ test('same URL connections keep model catalogs and credentials independent', asy
       },
     },
   })
+  // 不连网：发现未知模型时 Runtime 会去 models.dev 补元数据，CI 里那份结果在两次读配置之间落地，
+  // 内置模型的上下文窗口跟着变，两份配置快照就对不上了。
+  runtime.modelMetadata.fetchImpl = async () => {
+    throw new Error('offline in tests')
+  }
   t.after(async () => {
     await runtime.dispose()
     await rm(directory, { recursive: true, force: true })

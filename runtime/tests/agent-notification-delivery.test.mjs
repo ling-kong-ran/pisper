@@ -8,7 +8,11 @@ import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 
 async function setup(t, { steer, prompt = async () => {}, afterPrompt = async () => {} }) {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-agent-note-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
+  // 停掉还没触发的唤醒；已经触发的那一轮可能还在往目录里写文件，删目录时遇到 ENOTEMPTY 就重试。
+  t.after(() => {
+    for (const timer of runtime.agentWakeupTimers.values()) clearTimeout(timer)
+  })
+  t.after(() => rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.archiveAttachments = async () => []
   runtime.captureConversationMemory = async () => []
@@ -41,9 +45,6 @@ async function setup(t, { steer, prompt = async () => {}, afterPrompt = async ()
   const value = { session, cwd: directory, name: '通知', baseToolNames: [] }
   runtime.sessions.set(session.sessionId, value)
   runtime.getOrCreateSession = async () => value
-  t.after(() => {
-    for (const timer of runtime.agentWakeupTimers.values()) clearTimeout(timer)
-  })
   return { runtime, value }
 }
 
