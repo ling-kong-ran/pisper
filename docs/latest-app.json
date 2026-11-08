@@ -1,9 +1,9 @@
 {
-  "version": "0.1.89",
-  "tag": "app-v0.1.89",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.89",
+  "version": "0.1.91",
+  "tag": "app-v0.1.91",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.91",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.89\n\n- 发布日期：2026-11-07（北京时间）\n- 发布标签：`app-v0.1.89`\n- 对比基线：`app-v0.1.88`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): 群里分管理员与所有人，Bot 可设指令清单，回序号执行\n- feat(bots): 添加聊天直接点选已接入的渠道与群，不必查 ID\n- feat(workspace): 选择目录先开系统文件管理器，手机与远程电脑可在应用里逐级点选\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.88...app-v0.1.89)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/b62f32056d25c09874453d1b2b58f28b32b7d53e)",
-  "releaseDate": "2026-11-07"
+  "notes": "## Pisper App 0.1.91\n\n- 发布日期：2026-11-08（北京时间）\n- 发布标签：`app-v0.1.91`\n- 对比基线：`app-v0.1.89`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): bot\\_notify 能往 Bot 聊天规则里的群推送（Telegram、飞书、QQ）\n- feat(bots): Bot 能在 QQ、Telegram 等聊天软件上通知用户（bot\\_notify）\n\n### 问题修复\n\n- fix(web): 技能页与定时任务页的文案随页面加载，启动包回到体积预算内\n- fix(desktop): 没有内置浏览器时说清原因，Agent 不再把后台浏览器说成右侧浏览器\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.89...app-v0.1.91)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/ac74c431f03f31c26e05af73720097ef6324ef41)",
+  "releaseDate": "2026-11-08"
 }
