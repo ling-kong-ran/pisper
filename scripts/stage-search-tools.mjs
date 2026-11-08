@@ -4,17 +4,11 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:f
 import { basename, join, win32 } from 'node:path'
 import { promisify } from 'node:util'
 import resources from './search-tool-resources.json' with { type: 'json' }
+import { downloadReleaseAsset } from './github-download.mjs'
 
 const run = promisify(execFile)
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 const TOOL_ROOT = 'node_modules/@earendil-works/pi-coding-agent/vendor/bin'
-// 下载源（GitHub Releases）偶尔连续一阵子回 5xx 或断连（发布 CI 连着遇到 504）：服务端错误与网络错误
-// 先换 GitHub API 下同一个文件，再按 5、10、20、40 秒退避重试，共 5 轮；4xx 与摘要不符直接失败。
-// 发布工作流另外缓存了下载过的压缩包。
-const DOWNLOAD_ATTEMPTS = 5
-const RETRY_DELAY_MS = 5_000
-
-class TransientDownloadError extends Error {}
 
 export function searchArchiveCommand(platform = process.platform, env = process.env) {
   // Git/MSYS 的 GNU tar 会把盘符当远端地址且不能解 ZIP；Windows 必须使用系统 bsdtar。
@@ -50,72 +44,6 @@ function checksum(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-const GITHUB_RELEASE_ASSET =
-  /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/
-
-function githubHeaders(env) {
-  const token = env.GH_TOKEN || env.GITHUB_TOKEN
-  return {
-    'User-Agent': 'pisper-release',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
-
-// github.com 的 releases/download 跳转入口整段时间回 504 时（发布 CI 遇到过），API 那边往往还好：
-// 按仓库、标签和文件名查到资源 id，经 API 下载同一个文件。摘要照样校验，换来源不换内容。
-export async function githubApiAssetUrl(url, fetchImpl, env = process.env) {
-  const match = GITHUB_RELEASE_ASSET.exec(url)
-  if (!match) return ''
-  const [, owner, repo, tag, name] = match
-  let response
-  try {
-    response = await fetchImpl(
-      `https://api.github.com/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tag)}`,
-      {
-        headers: { Accept: 'application/vnd.github+json', ...githubHeaders(env) },
-        signal: AbortSignal.timeout(30_000),
-      },
-    )
-  } catch (error) {
-    throw new TransientDownloadError(`Search tool release lookup: ${error?.message || error}`)
-  }
-  if (!response.ok)
-    throw new TransientDownloadError(`Search tool release lookup: HTTP ${response.status}`)
-  const release = await response.json()
-  const id = (Array.isArray(release?.assets) ? release.assets : []).find(
-    (item) => item?.name === decodeURIComponent(name),
-  )?.id
-  if (!Number.isSafeInteger(id))
-    throw new TransientDownloadError('Search tool release lookup: asset not found')
-  return `https://api.github.com/repos/${owner}/${repo}/releases/assets/${id}`
-}
-
-async function downloadArchive(asset, fetchImpl, url = asset.url, headers = undefined) {
-  let response
-  try {
-    response = await fetchImpl(url, {
-      ...(headers ? { headers } : {}),
-      signal: AbortSignal.timeout(120_000),
-    })
-  } catch (error) {
-    throw new TransientDownloadError(`Search tool download: ${error?.message || error}`)
-  }
-  if (response.status >= 500)
-    throw new TransientDownloadError(`Search tool download: HTTP ${response.status}`)
-  if (!response.ok || !response.body)
-    throw new Error(`Search tool download: HTTP ${response.status}`)
-  const chunks = []
-  let size = 0
-  for await (const chunk of response.body) {
-    size += chunk.length
-    if (size > MAX_ARCHIVE_BYTES) throw new Error('Search tool archive exceeds size limit')
-    chunks.push(chunk)
-  }
-  const bytes = Buffer.concat(chunks)
-  if (checksum(bytes) !== asset.sha256) throw new Error('Search tool archive checksum mismatch')
-  return bytes
-}
-
 async function archiveBytes(asset, cachePath, fetchImpl, retryDelayMs) {
   try {
     const bytes = await readFile(cachePath)
@@ -123,28 +51,16 @@ async function archiveBytes(asset, cachePath, fetchImpl, retryDelayMs) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
-  // 每一轮先走原地址，服务端错误时再经 GitHub API 下同一个文件；两条路都是暂时性失败才退避重试。
-  const viaApi = async () => {
-    const url = await githubApiAssetUrl(asset.url, fetchImpl)
-    if (!url) throw new TransientDownloadError('Search tool download: no fallback source')
-    return downloadArchive(asset, fetchImpl, url, {
-      Accept: 'application/octet-stream',
-      ...githubHeaders(process.env),
-    })
-  }
-  for (let attempt = 1; ; attempt += 1) {
-    let failure
-    for (const source of [() => downloadArchive(asset, fetchImpl), viaApi]) {
-      try {
-        return await source()
-      } catch (error) {
-        if (!(error instanceof TransientDownloadError)) throw error
-        failure ||= error
-      }
-    }
-    if (attempt >= DOWNLOAD_ATTEMPTS) throw failure
-    await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)))
-  }
+  // 下载源偶尔整段时间回 504：重试与经 GitHub API 的备用路径见 github-download.mjs；
+  // 发布工作流另外缓存了下载过的压缩包。
+  return downloadReleaseAsset(asset.url, {
+    fetchImpl,
+    ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
+    maxBytes: MAX_ARCHIVE_BYTES,
+    verify: (bytes) => {
+      if (checksum(bytes) !== asset.sha256) throw new Error('Search tool archive checksum mismatch')
+    },
+  })
 }
 
 // 下载仅发生在构建机。交付闭包使用固定版本与摘要，不依赖用户缓存、PATH 或公网。
@@ -153,7 +69,7 @@ export async function stageSearchTools({
   runtimeDir,
   target,
   fetchImpl = globalThis.fetch,
-  retryDelayMs = RETRY_DELAY_MS,
+  retryDelayMs,
 }) {
   const entries = searchToolEntries(target)
   if (!entries.length) return

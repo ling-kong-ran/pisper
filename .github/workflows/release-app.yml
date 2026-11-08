@@ -140,6 +140,9 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
       - name: Verify and stage fixed Android Node 24
+        # github.com 下载入口回 504 时脚本改经 GitHub API 下载，带上令牌免得匿名限流。
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/stage-mobile-node-android.mjs release/mobile-node-android --require-sigstore
       - name: Prepare Android project with embedded Node
         env:
@@ -287,6 +290,9 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
       - name: Verify and stage fixed iOS Node 24 framework
+        # github.com 下载入口回 504 时脚本改经 GitHub API 下载，带上令牌免得匿名限流。
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/stage-mobile-node-ios.mjs release/mobile-node-ios --require-sigstore
       - name: Sign, verify, and restage iOS Node framework
         env:

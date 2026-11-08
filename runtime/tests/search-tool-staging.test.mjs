@@ -139,7 +139,7 @@ test('search tool downloads fall back to the GitHub API and retry server errors'
       calls += 1
       throw new TypeError('fetch failed')
     }),
-    /Search tool download: fetch failed/,
+    /download failed: fetch failed/,
   )
   assert.equal(calls, 10)
   calls = 0

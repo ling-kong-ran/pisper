@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { downloadReleaseAsset } from './github-download.mjs'
 
 const run = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -46,14 +47,15 @@ async function download(url, target, expectedSha256) {
     if (error?.code !== 'ENOENT') throw error
   }
   await mkdir(dirname(target), { recursive: true })
-  const response = await fetch(url, { redirect: 'follow' })
-  if (!response.ok) throw new Error(`无法下载 ${url}：HTTP ${response.status}`)
-  await writeFile(target, Buffer.from(await response.arrayBuffer()))
-  const actual = await digest(target)
-  if (actual !== expectedSha256) {
-    await rm(target, { force: true })
-    throw new Error(`${basename(target)} SHA256 不匹配：${actual}`)
-  }
+  // github.com 下载入口回 504 时重试并经 GitHub API 下载同一个文件（github-download.mjs）；
+  // 摘要不符直接失败，不写盘。
+  const bytes = await downloadReleaseAsset(url, {
+    verify: (value) => {
+      const actual = createHash('sha256').update(value).digest('hex')
+      if (actual !== expectedSha256) throw new Error(`${basename(target)} SHA256 不匹配：${actual}`)
+    },
+  })
+  await writeFile(target, bytes)
 }
 
 async function verifySigstore() {

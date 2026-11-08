@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { PublicKey, Signature } from '@threema/wasm-minisign-verify'
 import { x as extractTar } from 'tar'
 import { execFileSync } from 'node:child_process'
+import { downloadReleaseAsset } from './github-download.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repository = 'ling-kong-ran/pisper'
@@ -70,21 +71,17 @@ function decodeWrapped(value) {
   return decoded.startsWith('untrusted comment:') ? decoded : trimmed
 }
 
+// github.com 下载入口回 504 时重试并经 GitHub API 下载同一个文件（github-download.mjs）；
+// 内容随后照旧验签。
 async function download(url, destination) {
-  const response = await fetch(url, {
+  const bytes = await downloadReleaseAsset(url, {
     headers: { 'User-Agent': 'pisper-desktop-bundler' },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(600_000),
+    timeoutMs: 600_000,
+    maxBytes: MAX_ARCHIVE_BYTES,
+    verify: (value) => {
+      if (value.length === 0) throw new Error(`unexpected download size for ${url}`)
+    },
   })
-  if (!response.ok) throw new Error(`download failed with HTTP ${response.status}: ${url}`)
-  const declaredSize = Number(response.headers.get('content-length') || 0)
-  if (declaredSize > MAX_ARCHIVE_BYTES) {
-    throw new Error(`download is larger than ${MAX_ARCHIVE_BYTES} bytes: ${url}`)
-  }
-  const bytes = Buffer.from(await response.arrayBuffer())
-  if (bytes.length === 0 || bytes.length > MAX_ARCHIVE_BYTES) {
-    throw new Error(`unexpected download size for ${url}`)
-  }
   await writeFile(destination, bytes)
   return bytes
 }
