@@ -7,6 +7,8 @@ import {
   ensureChannelsMessages,
   ensureCustomUiMessages,
   ensureMcpMessages,
+  ensureSchedulesMessages,
+  ensureSkillsMessages,
   ensureWorkflowMessages,
 } from './i18n'
 import type { AppRouteContext } from './route-context'
@@ -179,7 +181,10 @@ export async function botsRoute() {
 }
 
 export async function schedulesRoute() {
-  const { SchedulesPage } = await import('@/features/schedules/SchedulesPage')
+  const [{ SchedulesPage }] = await Promise.all([
+    import('@/features/schedules/SchedulesPage'),
+    ensureSchedulesMessages(),
+  ])
 
   function SchedulesRoute() {
     const context = useAppRouteContext()
@@ -280,7 +285,10 @@ export async function mcpRoute() {
 }
 
 export async function skillsRoute() {
-  const { SkillsPage } = await import('@/features/skills/SkillsPage')
+  const [{ SkillsPage }] = await Promise.all([
+    import('@/features/skills/SkillsPage'),
+    ensureSkillsMessages(),
+  ])
   function SkillsRoute() {
     const context = useAppRouteContext()
     return (

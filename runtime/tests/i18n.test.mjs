@@ -5,6 +5,8 @@ import test from 'node:test'
 import {
   ensureChannelsMessages,
   ensureMcpMessages,
+  ensureSchedulesMessages,
+  ensureSkillsMessages,
   i18n,
   translateText,
 } from '../../src/app/i18n.ts'
@@ -98,4 +100,24 @@ test('MCP route messages load for both languages before navigation', async () =>
   assert.equal(translateText('mcp:hostTitle', 'zh-CN'), 'Pisper 内置 MCP 服务')
   assert.equal(translateText('mcp:hostTitle', 'en-US'), 'Pisper MCP server')
   await ensureMcpMessages()
+})
+
+test('skills and schedules messages load with their pages, not at startup', async () => {
+  for (const [namespace, ensure] of [
+    ['skills', ensureSkillsMessages],
+    ['schedules', ensureSchedulesMessages],
+  ]) {
+    assert.equal(i18n.hasResourceBundle('zh-CN', namespace), false)
+    assert.equal(i18n.hasResourceBundle('en-US', namespace), false)
+    await ensure()
+    assert.equal(i18n.hasResourceBundle('zh-CN', namespace), true)
+    assert.equal(i18n.hasResourceBundle('en-US', namespace), true)
+    await ensure()
+  }
+  const routes = await readFile('src/app/route-elements.tsx', 'utf8')
+  assert.match(routes, /import\('@\/features\/skills\/SkillsPage'\),\s+ensureSkillsMessages\(\)/)
+  assert.match(
+    routes,
+    /import\('@\/features\/schedules\/SchedulesPage'\),\s+ensureSchedulesMessages\(\)/,
+  )
 })

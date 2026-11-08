@@ -11,8 +11,6 @@ import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
-import enSchedules from '@/locales/en-US/schedules.json' with { type: 'json' }
-import enSkills from '@/locales/en-US/skills.json' with { type: 'json' }
 import enTerminal from '@/locales/en-US/terminal.json' with { type: 'json' }
 import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
@@ -21,8 +19,6 @@ import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
-import zhSchedules from '@/locales/zh-CN/schedules.json' with { type: 'json' }
-import zhSkills from '@/locales/zh-CN/skills.json' with { type: 'json' }
 import zhTerminal from '@/locales/zh-CN/terminal.json' with { type: 'json' }
 import { STORAGE_KEYS } from './storage.ts'
 import { pageStateStorage } from '@/lib/page-state-storage'
@@ -93,8 +89,6 @@ void i18n.use(initReactI18next).init({
       config: zhConfig,
       memory: zhMemory,
       plugins: zhPlugins,
-      schedules: zhSchedules,
-      skills: zhSkills,
       terminal: zhTerminal,
     },
     'en-US': {
@@ -105,8 +99,6 @@ void i18n.use(initReactI18next).init({
       config: enConfig,
       memory: enMemory,
       plugins: enPlugins,
-      schedules: enSchedules,
-      skills: enSkills,
       terminal: enTerminal,
     },
   },
@@ -174,6 +166,36 @@ export function ensureMcpMessages(): Promise<void> {
     })
   return mcpMessagesPromise
 }
+
+// 技能页与定时任务页的文案各自只有那一页用，随路由加载，不占会话首屏预算。
+function lazyMessages(
+  namespace: I18nNamespace,
+  load: () => Promise<[{ default: I18nValues }, { default: I18nValues }]>,
+): () => Promise<void> {
+  let pending: Promise<void> | null = null
+  return () => {
+    if (i18n.hasResourceBundle('zh-CN', namespace) && i18n.hasResourceBundle('en-US', namespace))
+      return Promise.resolve()
+    pending ??= load()
+      .then(([zh, en]) => {
+        i18n.addResourceBundle('zh-CN', namespace, zh.default)
+        i18n.addResourceBundle('en-US', namespace, en.default)
+      })
+      .catch((error: unknown) => {
+        pending = null
+        throw error
+      })
+    return pending
+  }
+}
+
+export const ensureSkillsMessages = lazyMessages('skills', () =>
+  Promise.all([import('@/locales/zh-CN/skills.json'), import('@/locales/en-US/skills.json')]),
+)
+
+export const ensureSchedulesMessages = lazyMessages('schedules', () =>
+  Promise.all([import('@/locales/zh-CN/schedules.json'), import('@/locales/en-US/schedules.json')]),
+)
 
 // 非 React 场景翻译：固定语言取翻译，避免依赖当前组件实例状态；
 // 供事件派发、工具函数等非组件代码使用。
