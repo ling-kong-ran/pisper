@@ -163,9 +163,17 @@ test('two sessions in one folder coordinate through the runtime', async (t) => {
   assert.equal(betaLive.workspace.neighbours[0].title, 'Alpha')
   assert.deepEqual(betaLive.workspace.neighbours[0].files, ['notes.txt'])
 
+  // 开着的会话页靠看板事件流知道留言来了（空闲会话不轮询 /live）。
+  const workspaceEvents = []
+  const notify = runtime.boardEvents.sessionWorkspaceChanged.bind(runtime.boardEvents)
+  runtime.boardEvents.sessionWorkspaceChanged = (id) => {
+    workspaceEvents.push(id)
+    notify(id)
+  }
   // Alpha 给空闲的 Beta 留言：不替 Beta 开一轮，留言进它的留言箱。
   await prompt(alpha, 'TELL:Beta:I am rewriting notes.txt, please wait')
   assert.match((await toolResults(alpha)).at(-1).text, /Left for "Beta"; it is idle/)
+  assert.ok(workspaceEvents.includes(beta))
   const waiting = await runtime.getSessionLive(beta)
   assert.equal(waiting.streaming, false)
   assert.deepEqual(

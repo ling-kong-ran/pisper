@@ -119,6 +119,10 @@ export class BoardEventHub {
     this.heartbeatTimer = null
     /** @type {ReturnType<typeof setTimeout> | null} */
     this.catalogTimer = null
+    /** @type {Set<string>} */
+    this.workspaceDirty = new Set()
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this.workspaceTimer = null
     /** @type {Promise<void>} */
     this.queue = Promise.resolve()
     this.disposed = false
@@ -152,6 +156,28 @@ export class BoardEventHub {
       })
     }, BOARD_CATALOG_COALESCE_MS)
     this.catalogTimer.unref?.()
+  }
+
+  /**
+   * 会话的协作提示变了（同一文件夹里别的会话留言、改文件）：空闲的会话页不轮询 /live，靠这个事件重读。
+   * 只带会话 id，短时间内的多次变化合并成一帧。只做加法，旧客户端忽略。
+   * @param {string} sessionId
+   */
+  sessionWorkspaceChanged(sessionId) {
+    if (this.disposed || typeof sessionId !== 'string' || !sessionId) return
+    this.workspaceDirty.add(sessionId)
+    if (this.workspaceTimer) return
+    this.workspaceTimer = setTimeout(() => {
+      this.workspaceTimer = null
+      if (this.disposed) return
+      const ids = [...this.workspaceDirty]
+      this.workspaceDirty.clear()
+      this.enqueue(async () => {
+        for (const id of ids)
+          this.publish('session_workspace', '', (revision) => ({ id, revision }))
+      })
+    }, BOARD_CATALOG_COALESCE_MS)
+    this.workspaceTimer.unref?.()
   }
 
   /**
@@ -460,6 +486,9 @@ export class BoardEventHub {
     this.disposed = true
     if (this.catalogTimer) clearTimeout(this.catalogTimer)
     this.catalogTimer = null
+    if (this.workspaceTimer) clearTimeout(this.workspaceTimer)
+    this.workspaceTimer = null
+    this.workspaceDirty.clear()
     for (const connection of [...this.connections]) this.closeConnection(connection)
     this.stopTimers()
     this.buffer = []

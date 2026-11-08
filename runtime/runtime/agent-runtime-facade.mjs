@@ -414,10 +414,16 @@ export class AgentRuntimeFacade {
     this.workspaceCoordination ||= new WorkspaceCoordination({
       dataDir: this.dataDir,
       describeSession: (id) => this.coordinationSession(id),
-      // 台账变了：相关会话页的“谁在这里改文件”和留言要重新投影。
+      sessionsNear: (file) =>
+        Object.entries(this.sessionMeta || {})
+          .filter(([, meta]) => meta?.cwd && foldersOverlap(meta.cwd, file))
+          .map(([id]) => id),
+      // 台账变了：相关会话页的“谁在这里改文件”和留言要重新投影，开着的会话页经看板事件流重读。
       onChange: (ids) => {
-        for (const id of ids)
+        for (const id of ids) {
           this.streamProjection?.invalidate(id, { transcript: false, activity: true, usage: false })
+          this.boardEvents?.sessionWorkspaceChanged(id)
+        }
       },
       warn: () => console.warn('会话协作台账更新失败。'),
     })
@@ -515,7 +521,6 @@ export class AgentRuntimeFacade {
       }
     }
     await coordination.queueMessage(target.id, message)
-    this.boardEvents?.touch(target.id)
     return { session: { id: target.id, title: target.name || '' }, delivered: 'later' }
   }
 

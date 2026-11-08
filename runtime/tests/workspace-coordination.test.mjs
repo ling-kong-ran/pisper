@@ -25,6 +25,8 @@ async function setup(t) {
     dataDir: directory,
     now: () => clock,
     describeSession: (id) => (titles[id] ? { title: titles[id], running: id === 'a' } : null),
+    // 'c' 在同一文件夹，但 Runtime 启动后还没跑过（不在台账里）。
+    sessionsNear: () => ['a', 'c'],
     onChange: (ids) => changed.push(...ids),
   })
   // 一个 Agent：工具调用走钩子链，执行就是对真实文件的读写。
@@ -141,7 +143,7 @@ test('the other session hears about the change once, at the end of its next tool
 })
 
 test('the session page shows who else changed files here in the last half hour', async (t) => {
-  const { cwd, coordination, agent, advance } = await setup(t)
+  const { cwd, coordination, agent, advance, changed } = await setup(t)
   const a = agent('a')
   agent('b')
   await a.write('one.txt', '1')
@@ -159,6 +161,8 @@ test('the session page shows who else changed files here in the last half hour',
     },
   )
   assert.equal(coordination.projection('a', cwd), null)
+  // 同一文件夹里还没跑过的会话也收到刷新通知，开着的会话页才会更新。
+  assert.ok(changed.includes('c'))
   advance(31 * 60_000)
   assert.equal(coordination.projection('b', cwd), null)
 })

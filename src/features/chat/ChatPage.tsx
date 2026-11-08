@@ -21,6 +21,7 @@ import { chatApi, type BranchFromHereOptions, type FileRewindResult } from './ch
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useSessionSelection } from './use-session-selection'
 import { shouldReloadForCatalogRun, useLiveSessionSync } from './use-live-session-sync'
+import { subscribeSessionWorkspaceChanges } from '@/features/board/session-workspace-changes'
 import { usePromptCommands } from './use-prompt-commands'
 import { useSessionCatalog } from './use-session-catalog'
 import { useSessionCommands } from './use-session-commands'
@@ -230,6 +231,21 @@ export function ChatPage({
     )
       void loadSessionMessages(activeId, { force: true })
   }, [activeCatalogStreaming, activeId, loadSessionMessages, sessionStatesRef])
+
+  // 同一文件夹里别的会话留言、改文件：空闲的会话页不轮询 /live，收到看板事件流的通知就重读一次，
+  // 留言不用刷新页面就出现。正在跑的会话由 /live 或本地流负责，不另读。
+  useEffect(
+    () =>
+      subscribeSessionWorkspaceChanges((changedId) => {
+        const ids = changedId === '*' ? (activeId ? [activeId] : []) : [changedId]
+        for (const id of ids) {
+          const state = sessionStatesRef.current[id]
+          if (!state?.loaded || state.streaming || localStreamSessionsRef.current.has(id)) continue
+          void syncLiveSession(id)
+        }
+      }),
+    [activeId, sessionStatesRef, syncLiveSession],
+  )
 
   // 会话页没有 Dock 预览面板：外链预览落到当前会话检查器的网页预览页；
   // 从别的页面带过来的预览请求在进入会话页时补开。只在路由会话确认存在后消费：

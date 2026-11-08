@@ -39,6 +39,7 @@ import {
   type BoardFeedState,
 } from './board-feed'
 import { notifyComponentFeedEvent } from './component-changes'
+import { notifySessionWorkspaceFeedEvent } from './session-workspace-changes'
 
 export const BOARD_SESSIONS_QUERY_KEY = SESSIONS_QUERY_KEY
 export const BOARD_POLL_INTERVAL_MS = 3_000
@@ -672,10 +673,15 @@ function handleFeedEvent(event: string, data: unknown): BoardFeedEffects {
   // 心跳只推进修订号：读者只订阅条目与分钟级时钟，不会因此重算；也不必重新安排 /live。
   commitFeed(
     result,
-    event === 'heartbeat' || event === 'component_changed' || event === 'catalog_changed',
+    event === 'heartbeat' ||
+      event === 'component_changed' ||
+      event === 'catalog_changed' ||
+      event === 'session_workspace',
   )
   // 组件宿主按 component_changed 作废组件查询；重连快照可能跨过了组件事件，再通知一次 '*'。
   notifyComponentFeedEvent(event, data, result.effects.changed)
+  // 开着的会话页按 session_workspace 重读协作提示（留言、谁在这里改文件）。
+  notifySessionWorkspaceFeedEvent(event, data, result.effects.changed)
   return result.effects
 }
 

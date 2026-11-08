@@ -157,6 +157,8 @@ export class WorkspaceCoordination {
     dataDir = '',
     now = () => Date.now(),
     describeSession = () => null,
+    // (file) => 工作目录包含这个文件的会话 id（包括 Runtime 启动后还没跑过、不在台账里的会话）。
+    sessionsNear = () => [],
     onChange = () => {},
     warn = () => {},
   } = {}) {
@@ -164,6 +166,7 @@ export class WorkspaceCoordination {
     this.now = now
     // (sessionId) => { title, running } | null
     this.describeSession = describeSession
+    this.sessionsNear = sessionsNear
     this.onChange = onChange
     this.warn = warn
     this.installed = new WeakSet()
@@ -367,9 +370,12 @@ export class WorkspaceCoordination {
       notified.push(other)
     }
     // 同一文件夹里的会话页要刷新“谁在这里改文件”。
-    const neighbours = [...this.sessions.entries()]
-      .filter(([id, value]) => id !== sessionId && inside(resolve(value.cwd), file))
-      .map(([id]) => id)
+    const neighbours = [
+      ...[...this.sessions.entries()]
+        .filter(([, value]) => inside(resolve(value.cwd), file))
+        .map(([id]) => id),
+      ...(this.sessionsNear(file) || []),
+    ].filter((id) => id !== sessionId)
     this.bump([...notified, ...neighbours])
   }
 

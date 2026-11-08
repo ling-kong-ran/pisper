@@ -520,3 +520,34 @@ test('catalog changes are coalesced into one catalog_changed frame and replayabl
   await sleep(300)
   assert.equal(client.events('catalog_changed').length, 1)
 })
+
+// 会话协作提示变了（留言、隔壁改文件）：同一会话的多次变化合并成一帧，只带会话 id，可补发。
+test('session workspace changes are coalesced per session into session_workspace frames', async (t) => {
+  const source = fakeSource()
+  const hub = hubFor(source)
+  t.after(() => hub.dispose())
+  const client = recorder()
+  const connection = hub.connect({ send: client.send, close: client.close })
+  await connection.ready
+  const before = hub.revision
+  hub.sessionWorkspaceChanged('s1')
+  hub.sessionWorkspaceChanged('s1')
+  hub.sessionWorkspaceChanged('s2')
+  hub.sessionWorkspaceChanged('')
+  await waitFor(() => (client.events('session_workspace').length >= 2 ? true : null))
+  await sleep(300)
+  const frames = client.events('session_workspace')
+  assert.deepEqual(
+    frames.map((frame) => frame.data.id),
+    ['s1', 's2'],
+  )
+  assert.ok(frames.every((frame) => frame.data.revision > before))
+  const late = recorder()
+  const replayed = hub.connect({ send: late.send, close: late.close, after: before })
+  await replayed.ready
+  assert.equal(late.events('session_workspace').length, 2)
+  hub.dispose()
+  hub.sessionWorkspaceChanged('s1')
+  await sleep(300)
+  assert.equal(client.events('session_workspace').length, 2)
+})
