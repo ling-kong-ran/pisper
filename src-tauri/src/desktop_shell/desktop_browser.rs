@@ -83,7 +83,8 @@ mod native {
         cell::{Cell, RefCell},
         collections::HashMap,
         rc::Rc,
-        sync::{Arc, Mutex},
+        sync::{mpsc, Arc, Mutex},
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
     use tauri::{ipc::Channel, AppHandle, Manager, Url, WebviewWindow};
     use tauri_plugin_opener::OpenerExt;
@@ -140,6 +141,127 @@ mod native {
     struct Browser {
         webview: WebView,
         events: EventSink,
+        // 上次把会话 Cookie 改成持久的时间：标题变化很频繁，隔一会儿才做一次。
+        logins_kept_at: Cell<Option<Instant>>,
+    }
+
+    // 很多网站登录时不勾“记住我”只给会话 Cookie，内核关掉就丢，重启 Pisper 后就得重新登录。
+    // 页面加载完、标题变化（单页应用登录后不一定重新加载）、关页签和退出前，
+    // 把会话 Cookie 改成 30 天后过期，内核就会把它写进 browser-profile，重启后还在。
+    const KEEP_LOGINS_DAYS: u64 = 30;
+    const KEEP_LOGINS_INTERVAL: Duration = Duration::from_secs(5);
+
+    fn keep_logins_soon(app: &AppHandle, browser_id: &str) {
+        let browser_id = browser_id.to_string();
+        let _ = app.run_on_main_thread(move || {
+            let browser = BROWSERS.with_borrow(|browsers| browsers.get(&browser_id).cloned());
+            let Some(browser) = browser else {
+                return;
+            };
+            let due = browser
+                .logins_kept_at
+                .get()
+                .is_none_or(|at| at.elapsed() >= KEEP_LOGINS_INTERVAL);
+            if due {
+                browser.logins_kept_at.set(Some(Instant::now()));
+                keep_logins(browser);
+            }
+        });
+    }
+
+    fn keep_logins_expiry() -> f64 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_secs())
+            .unwrap_or_default();
+        (now + KEEP_LOGINS_DAYS * 86_400) as f64
+    }
+
+    // 异步改：回调里拿着 browser，WebView 要等 Cookie 改完才会真正销毁（关页签时不用阻塞界面）。
+    // 返回的 Receiver 在改完（或失败）时收到消息，退出前用它等一会儿。
+    // 直接改 WebView2 自己的 Cookie 对象再写回：wry 的 Cookie 转换会去掉域名前面的点，
+    // 让整站共用的 Cookie 变成只对一个主机有效。
+    #[cfg(target_os = "windows")]
+    fn keep_logins(browser: Rc<Browser>) -> Option<mpsc::Receiver<()>> {
+        use webview2_com::{
+            GetCookiesCompletedHandler, Microsoft::Web::WebView2::Win32::ICoreWebView2_2,
+        };
+        use windows_core::{Interface, BOOL, PCWSTR};
+        use wry::WebViewExtWindows;
+
+        let webview = browser.webview.webview().cast::<ICoreWebView2_2>().ok()?;
+        // SAFETY: webview 是有效的 COM 对象。
+        let manager = unsafe { webview.CookieManager() }.ok()?;
+        let expires = keep_logins_expiry();
+        let (done, finished) = mpsc::channel();
+        let callback_manager = manager.clone();
+        let handler = GetCookiesCompletedHandler::create(Box::new(move |result, list| {
+            if let Some(list) = result.ok().and(list) {
+                let mut count = 0u32;
+                // SAFETY: list 与 manager 都是 WebView2 交回的有效 COM 对象，只在主线程上用。
+                unsafe {
+                    let _ = list.Count(&mut count);
+                    for index in 0..count {
+                        let Ok(cookie) = list.GetValueAtIndex(index) else {
+                            continue;
+                        };
+                        let mut session = BOOL::default();
+                        if cookie.IsSession(&mut session).is_err() || !session.as_bool() {
+                            continue;
+                        }
+                        if cookie.SetExpires(expires).is_ok() {
+                            let _ = callback_manager.AddOrUpdateCookie(&cookie);
+                        }
+                    }
+                }
+            }
+            let _ = done.send(());
+            drop(browser);
+            Ok(())
+        }));
+        // SAFETY: handler 是有效的 COM 对象；空 URI 表示取全部 Cookie。
+        unsafe { manager.GetCookies(PCWSTR::null(), &handler) }.ok()?;
+        Some(finished)
+    }
+
+    // macOS 还没做：wry 的 Cookie 转换会丢掉域名前的点，要改成直接操作 NSHTTPCookie。
+    #[cfg(target_os = "macos")]
+    fn keep_logins(_browser: Rc<Browser>) -> Option<mpsc::Receiver<()>> {
+        None
+    }
+
+    // 退出前等 Cookie 写完，但最多等 1.5 秒：WebView 已经在拆时回调可能不来，不能卡住退出。
+    // 等的时候要转消息循环，WebView2 的回调靠它送到主线程。
+    #[cfg(target_os = "windows")]
+    fn wait_for_logins(pending: Vec<mpsc::Receiver<()>>) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+        };
+        let deadline = Instant::now() + Duration::from_millis(1_500);
+        let mut pending = pending;
+        while !pending.is_empty() && Instant::now() < deadline {
+            pending
+                .retain(|finished| matches!(finished.try_recv(), Err(mpsc::TryRecvError::Empty)));
+            // SAFETY: msg 是本地变量，只在这个循环里用。
+            unsafe {
+                let mut msg: MSG = std::mem::zeroed();
+                while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn wait_for_logins(_pending: Vec<mpsc::Receiver<()>>) {}
+
+    // 退出前：Pisper 退出时 WebView 不一定走正常关闭，先把登录留下。
+    pub fn keep_all_logins() {
+        let browsers: Vec<_> =
+            BROWSERS.with_borrow(|browsers| browsers.values().cloned().collect());
+        wait_for_logins(browsers.into_iter().filter_map(keep_logins).collect());
     }
 
     thread_local! {
@@ -354,6 +476,10 @@ mod native {
         let new_window_events = events.clone();
         let title_events = events.clone();
         let load_events = events.clone();
+        let title_app = app.clone();
+        let title_browser = browser_id.clone();
+        let load_app = app.clone();
+        let load_browser = browser_id.clone();
         let builder = builder
             // 第一次同步时才显示：那时前端已经判断过面板有没有被遮住。
             .with_visible(false)
@@ -396,8 +522,12 @@ mod native {
                 title_events.send(BrowserEvent::Title {
                     title: title.chars().take(MAX_TITLE_CHARS).collect(),
                 });
+                keep_logins_soon(&title_app, &title_browser);
             })
             .with_on_page_load_handler(move |event, current| {
+                if matches!(event, PageLoadEvent::Finished) {
+                    keep_logins_soon(&load_app, &load_browser);
+                }
                 if let Some(url) = reportable_url(&current) {
                     load_events.send(BrowserEvent::Navigated {
                         url,
@@ -410,7 +540,11 @@ mod native {
             .build_as_child(window)
             .map_err(|error| error.to_string())?;
         watch_window_close(&webview, events.clone());
-        let browser = Rc::new(Browser { webview, events });
+        let browser = Rc::new(Browser {
+            webview,
+            events,
+            logins_kept_at: Cell::new(None),
+        });
         BROWSERS.with_borrow_mut(|browsers| {
             browsers.insert(browser_id, browser.clone());
         });
@@ -654,12 +788,19 @@ mod native {
     // 销毁放在借用之外：销毁时系统可能回调进来，再次访问 BROWSERS。
     pub fn close(browser_id: &str) {
         let removed = BROWSERS.with_borrow_mut(|browsers| browsers.remove(browser_id));
-        drop(removed);
+        // 先藏起来，回调拿着它直到 Cookie 改完才真正销毁。
+        if let Some(browser) = removed {
+            let _ = browser.webview.set_visible(false);
+            keep_logins(browser);
+        }
     }
 
     pub fn close_all() {
         let removed = BROWSERS.with_borrow_mut(std::mem::take);
-        drop(removed);
+        for browser in removed.into_values() {
+            let _ = browser.webview.set_visible(false);
+            keep_logins(browser);
+        }
     }
 }
 
@@ -852,6 +993,12 @@ pub async fn desktop_browser_close(
     })
     .await?;
     Ok(())
+}
+
+// 退出前把内置浏览器里的登录留下（在主线程的事件循环回调里调用）。
+pub fn keep_logins_before_exit() {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    native::keep_all_logins();
 }
 
 // 主页面重新加载后前端不再记得这些 WebView，不关掉就成了盖在界面上的孤儿。

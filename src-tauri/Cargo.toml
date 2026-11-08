@@ -95,8 +95,10 @@ wry = { version = "0.55", default-features = false, features = ["protocol", "os-
 computer-control = { path = "../crates/computer-control" }
 
 [target.'cfg(windows)'.dependencies]
-# 监听网页的 window.close()（desktop_browser.rs）。wry 没有这个回调；版本跟随 wry，已在依赖树里。
+# 监听网页的 window.close()、把会话 Cookie 改成持久（desktop_browser.rs）。wry 没有这些接口；
+# 版本跟随 wry，已在依赖树里（windows-core 用来把 ICoreWebView2 转成带 CookieManager 的接口）。
 webview2-com = "0.38"
+windows-core = "0.61"
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55"
 

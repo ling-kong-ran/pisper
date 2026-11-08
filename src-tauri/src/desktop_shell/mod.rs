@@ -975,6 +975,10 @@ pub fn run() {
         if matches!(&event, RunEvent::Reopen { .. }) {
             show_main_window(app);
         }
+        // 退出请求时事件循环还在：这时把内置浏览器的登录写下来，到 Exit 时 WebView 已经在拆了。
+        if matches!(&event, RunEvent::ExitRequested { .. }) {
+            desktop_browser::keep_logins_before_exit();
+        }
         if matches!(&event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
                 desktop_terminal::close_all(&state);
