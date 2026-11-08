@@ -221,3 +221,50 @@ test('notifying the owner goes only to the owner’s own private chat, never a g
   // 只发指定平台；没连接的平台不出现在结果里。
   assert.deepEqual(await service.notifyOwner('x', { platforms: ['qq'] }), [])
 })
+
+test('group pushes use the group’s own chat type, remember Telegram group names and never go to WeChat', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-bot-notify-group-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const weixin = new FakeGateway()
+  const idle = () => ({
+    start: async () => ({}),
+    get: () => null,
+    cancel: () => false,
+    dispose() {},
+  })
+  const service = new ChannelService({
+    path: join(directory, 'channels.json'),
+    cwd: directory,
+    agent: {
+      prompt: async () => ({ sessionId: 's', text: '好的', cwd: directory, assets: [] }),
+      abort: async () => false,
+      validateDirectory: async (value) => value,
+    },
+    gatewayFactories: { feishu: () => new FakeGateway(), weixin: () => weixin },
+    onboardingFactories: { feishu: idle, weixin: idle, qq: idle },
+  })
+  await service.init()
+  await service.completeOnboarding('weixin', { botToken: 't', accountId: 'acc', ownerUserId: 'u1' })
+  service.state.scopes['weixin:g1'] = {
+    platform: 'weixin',
+    peerId: 'g1',
+    chatType: 'group',
+    chatTitle: '旧名',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+  service.botPeers.set('weixin:g1', {
+    platform: 'weixin',
+    peerId: 'g1',
+    chatType: 'group',
+    chatTitle: '发布群',
+    updatedAt: '2026-02-01T00:00:00.000Z',
+  })
+  // 同一个群只列一次，名字取最近的；私聊不算群。
+  assert.deepEqual(
+    service.knownGroups('weixin').map(({ peerId, title }) => [peerId, title]),
+    [['g1', '发布群']],
+  )
+  await assert.rejects(service.notifyGroup('weixin', 'g1', 'x'), /微信只支持私聊/)
+  await assert.rejects(service.notifyGroup('telegram', '-100', 'x'), /没有连接/)
+  assert.equal(weixin.pushed.length, 0)
+})

@@ -800,6 +800,7 @@ export class ChannelService {
         sessionId: result.sessionId,
         chatType: message.chatType,
         title:
+          message.chatTitle ||
           message.senderName ||
           `${platform === 'feishu' ? '飞书' : platform === 'weixin' ? '微信' : platform === 'qq' ? 'QQ' : 'Telegram'}${message.chatType === 'p2p' ? '私聊' : '群聊'}`,
         cwd: result.cwd || connection.defaultCwd || this.cwd,
@@ -811,6 +812,7 @@ export class ChannelService {
         contextToken: message.contextToken || scope.contextToken || '',
         // 谁在这个聊天里说话：bot_notify 只发到创建者本人的私聊，靠它分辨。
         senderId: message.senderId || scope.senderId || '',
+        chatTitle: String(message.chatTitle || scope.chatTitle || '').slice(0, 80),
         executionMode: scope.executionMode || connection.executionMode || 'approval-required',
         runMode: scope.runMode || connection.runMode || 'plan',
         lastMessage: prompt.slice(0, 120),
@@ -887,6 +889,7 @@ export class ChannelService {
       chatType: message.chatType,
       contextToken: message.contextToken || '',
       senderId: message.senderId || '',
+      chatTitle: String(message.chatTitle || '').slice(0, 80),
       updatedAt: new Date().toISOString(),
     })
     const showMenu = async (prefix = '') => {
@@ -1045,6 +1048,49 @@ export class ChannelService {
             : latest,
         null,
       )
+  }
+
+  // 这个平台上见过的群（聊天记录与叫过 Bot 的群）：Bot 规则写“所有群”时，能推送的就是这些。
+  knownGroups(platform) {
+    const groups = new Map()
+    for (const chat of [...Object.values(this.state.scopes), ...this.botPeers.values()]) {
+      if (chat.platform !== platform || (chat.chatType || 'p2p') === 'p2p') continue
+      const known = groups.get(chat.peerId)
+      if (
+        known &&
+        new Date(known.updatedAt || 0).getTime() > new Date(chat.updatedAt || 0).getTime()
+      )
+        continue
+      groups.set(chat.peerId, {
+        platform,
+        peerId: chat.peerId,
+        chatType: chat.chatType,
+        title: chat.chatTitle || known?.title || '',
+        updatedAt: chat.updatedAt || known?.updatedAt || null,
+      })
+    }
+    return [...groups.values()]
+  }
+
+  // Bot 往群里推送（bot_notify 的 to=group）。能推哪些群由 Bot 的规则决定，这里只管发：
+  // 没见过的群按普通群发（QQ 群与私聊走不同接口）；微信只支持私聊。
+  async notifyGroup(platform, peerId, text) {
+    if (platform === 'weixin') throw new Error('微信只支持私聊，不能往群里发。')
+    if (!this.state.connections[platform]?.enabled || !this.gateways[platform])
+      throw new Error('这个渠道没有连接。')
+    const key = scopeKey(platform, peerId)
+    const known = this.knownGroups(platform).find((group) => group.peerId === peerId)
+    await this.gateways[platform].sendToPeer(
+      peerId,
+      platform === 'feishu' ? { markdown: text } : { text },
+      {
+        ...(this.state.scopes[key] || {}),
+        ...(this.botPeers.get(key) || {}),
+        platform,
+        peerId,
+        chatType: known?.chatType || 'group',
+      },
+    )
   }
 
   // Bot 的 bot_notify：发到创建者本人的私聊。只发已连接的平台，逐个报告结果，一个失败不影响别的。

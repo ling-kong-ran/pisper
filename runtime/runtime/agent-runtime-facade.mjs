@@ -82,6 +82,7 @@ const MAX_PREPARING_MESSAGE_CHARS = 20_000
 // 每个 Bot 每小时最多发几条 bot_notify。
 const BOT_NOTIFY_LIMIT = 10
 const BOT_NOTIFY_WINDOW_MS = 60 * 60_000
+const CHANNEL_NAMES = { qq: 'QQ', telegram: 'Telegram', feishu: '飞书', weixin: '微信' }
 
 // 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
@@ -1310,9 +1311,21 @@ export class AgentRuntimeFacade {
         // 没人在场的运行（定时、别的 Bot 叫起来的）里不建新的定时，避免自己不停地给自己排活。
         if (value.unattendedRun)
           throw new Error('Schedules cannot be created in an unattended turn.')
-        const created = await this.schedules.create(botScheduleInput({ bot, input }), {
-          createdBy: { kind: 'agent', sessionId },
-        })
+        // 在群里定的：消息里写明是哪个群，到点那一轮才知道往哪个群里说（bot_notify to=group）。
+        const origin = this.botChatOrigins?.get(sessionId)
+        const where =
+          origin?.chatType === 'group'
+            ? `（在${CHANNEL_NAMES[origin.platform] || origin.platform}群里定的，群 ID ${origin.peerId}）`
+            : ''
+        const message = where
+          ? `${String(input.message ?? '').slice(0, 4000 - where.length)}${where}`
+          : input.message
+        const created = await this.schedules.create(
+          botScheduleInput({ bot, input: { ...input, message } }),
+          {
+            createdBy: { kind: 'agent', sessionId },
+          },
+        )
         return {
           type: 'schedule',
           id: created?.id,
@@ -1346,9 +1359,9 @@ export class AgentRuntimeFacade {
             : 'Sent. Its reply will come back here automatically.',
         }
       },
-      // 发到用户自己和机器人的私聊，开头带上 Bot 的名字，用户知道是谁说的。
-      notify: async ({ text, platform }) => {
-        const { bot } = context()
+      // 默认发到用户自己和机器人的私聊；to=group 时发到 Bot 规则里的群。开头带上 Bot 的名字，看的人知道是谁说的。
+      notify: async ({ text, platform, to, group }) => {
+        const { value, bot } = context()
         const message = String(text ?? '').trim()
         if (!message || message.length > 2_000) throw new Error('通知要写内容，最多 2000 个字。')
         const now = Date.now()
@@ -1359,6 +1372,26 @@ export class AgentRuntimeFacade {
           throw new Error(
             `Not sent: already ${BOT_NOTIFY_LIMIT} notifications in the last hour. Put it in your reply here instead.`,
           )
+        if (to === 'group' || group) {
+          // 群里其他人或别的 Bot 叫起来的那一轮不能往群里推：别人的话不能让它去别的群里说。
+          if (value.botTurnTrust === 'external')
+            throw new Error(
+              'Not sent: this turn was started by someone other than the user, so it cannot post to groups.',
+            )
+          const target = this.botGroupTarget(bot, {
+            group,
+            platform,
+            origin: this.botChatOrigins?.get(sessionId),
+          })
+          await this.channels.notifyGroup(target.platform, target.peerId, `${bot.name}：${message}`)
+          this.botNotifyTimes.set(bot.id, [...recent, now])
+          return {
+            type: 'notify',
+            sent: [target.platform],
+            group: target.peerId,
+            text: `Posted to the ${target.platform} group ${target.title ? `"${target.title}" ` : ''}(${target.peerId}).`,
+          }
+        }
         const results =
           (await this.channels?.notifyOwner(`${bot.name}：${message}`, {
             platforms: platform ? [String(platform)] : undefined,
@@ -1761,6 +1794,49 @@ export class AgentRuntimeFacade {
       message: (botId, input) => this.messageBot(botId, input),
       act: (botId, action) => this.botChannelAction(botId, action),
     }
+  }
+
+  // Bot 能推送的群：它的聊天规则里的群（规则写了群就是那些，写“所有群”就是这个平台上见过的群）。
+  // 选哪个：给了就按 ID 或群名找；没给时用这一轮来自的群，或只有一个时就是它。微信没有群。
+  botGroupTarget(bot, { group, platform, origin } = {}) {
+    const groups = new Map()
+    for (const rule of bot.channels || []) {
+      if (rule.chatType !== 'group' || rule.platform === 'weixin') continue
+      if (platform && rule.platform !== platform) continue
+      const known = this.channels?.knownGroups(rule.platform) || []
+      const ids = rule.peerIds || known.map((item) => item.peerId)
+      for (const peerId of ids) {
+        const title = known.find((item) => item.peerId === peerId)?.title || ''
+        groups.set(`${rule.platform}:${peerId}`, { platform: rule.platform, peerId, title })
+      }
+    }
+    const all = [...groups.values()]
+    const wanted = String(group ?? '').trim()
+    const named = wanted
+      ? all.filter(
+          (item) =>
+            item.peerId === wanted ||
+            `${item.platform}:${item.peerId}` === wanted ||
+            (item.title && item.title.toLowerCase() === wanted.toLowerCase()),
+        )
+      : origin?.chatType === 'group'
+        ? all.filter((item) => item.platform === origin.platform && item.peerId === origin.peerId)
+        : all
+    if (named.length === 1) return named[0]
+    const list = all.length
+      ? all
+          .map((item) => `${item.platform}:${item.peerId}${item.title ? ` (${item.title})` : ''}`)
+          .join(', ')
+      : ''
+    if (!all.length)
+      throw new Error(
+        'Not sent: your chat rules include no group you can post to (WeChat has no groups; with "all groups", only groups where someone has talked since are known). The user can add one under your 聊天 settings.',
+      )
+    throw new Error(
+      wanted
+        ? `Not sent: "${wanted}" is not one of your groups: ${list}.`
+        : `Not sent: say which group. Your groups: ${list}.`,
+    )
   }
 
   // B5：从聊天里对 Bot 说的话，回复回到同一个聊天。回推失败只记日志，不影响会话。

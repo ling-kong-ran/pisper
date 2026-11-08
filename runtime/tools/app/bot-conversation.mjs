@@ -213,13 +213,27 @@ export function createBotConversationTools({ runtime }) {
       name: 'bot_notify',
       label: 'Notify the user on their chat apps',
       description:
-        'Send the user a short message on the chat apps they connected to Pisper (QQ, Telegram, Feishu, WeChat), in their own private chat with the Pisper bot. Use it when they asked to be told something there, typically from a scheduled check ("when it passes, tell me on QQ"). Your normal reply only stays in this conversation. If they are talking to you from a chat app right now, your reply already goes there, so do not also notify.',
+        'Send a short message on the chat apps connected to Pisper (QQ, Telegram, Feishu, WeChat). By default it goes to the user\'s own private chat with the Pisper bot; with to="group" it is posted in one of the groups in your chat rules, where everyone in the group sees it, so never put private details there. Use it when asked to tell someone there, typically from a scheduled check ("when it passes, tell me on QQ", "post the daily summary in the team group"). Your normal reply only stays in this conversation; if you are being talked to from a chat right now, your reply already goes to that chat, so do not also send it. A schedule made from a group names that group\'s ID in its message.',
       parameters: Type.Object({
         text: Type.String({ minLength: 1, maxLength: 2000 }),
+        to: Type.Optional(
+          Type.String({
+            enum: ['me', 'group'],
+            description:
+              "me (default): the user's private chats. group: a group in your chat rules.",
+          }),
+        ),
+        group: Type.Optional(
+          Type.String({
+            maxLength: 200,
+            description:
+              'For to="group": the group ID or name. Omit to use the group this message came from, or your only group.',
+          }),
+        ),
         platform: Type.Optional(
           Type.String({
             enum: ['qq', 'telegram', 'feishu', 'weixin'],
-            description: 'Only this app. Omit to send to every connected app.',
+            description: 'Only this app. Omit to send to every connected app (or any group).',
           }),
         ),
       }),

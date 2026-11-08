@@ -213,6 +213,8 @@ export class TelegramGateway {
         raw.from.username ||
         '',
       chatType,
+      // 群名：Bot 往群里推送时，用户和模型都按名字认群。
+      ...(chatType === 'group' && raw.chat.title ? { chatTitle: String(raw.chat.title) } : {}),
       ...(chatType === 'group' && this.addressedToBot(raw) ? { mentioned: true } : {}),
       content: String(raw.text || raw.caption || ''),
       resources,

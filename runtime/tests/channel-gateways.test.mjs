@@ -19,7 +19,7 @@ test('Telegram gateway maps direct and group messages and preserves attachments'
   assert.deepEqual(
     gateway.mapMessage({
       message_id: 12,
-      chat: { id: -100, type: 'supergroup' },
+      chat: { id: -100, type: 'supergroup', title: '发布群' },
       from: { id: 7, first_name: 'Ada' },
       caption: '请看图',
       photo: [{ file_id: 'small' }, { file_id: 'large' }],
@@ -30,6 +30,7 @@ test('Telegram gateway maps direct and group messages and preserves attachments'
       senderId: '7',
       senderName: 'Ada',
       chatType: 'group',
+      chatTitle: '发布群',
       content: '请看图',
       resources: [{ type: 'image', fileId: 'large', name: 'telegram-large.jpg' }],
     },

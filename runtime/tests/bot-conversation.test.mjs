@@ -442,3 +442,71 @@ test('bot_notify reaches the user’s own chats with the bot’s name, explains 
   for (let index = 2; index < 10; index += 1) await tools.notify({ text: `第 ${index} 条` })
   await assert.rejects(tools.notify({ text: '第 11 条' }), /already 10 notifications/)
 })
+
+test('bot_notify posts to groups in the bot’s rules only, picks the group it was asked from, and refuses others’ turns', async () => {
+  const runtime = fakeRuntime()
+  const bot = runtime.bots.get()
+  bot.channels = [
+    { platform: 'telegram', chatType: 'group', peerIds: null, senderIds: [], everyone: false },
+    { platform: 'feishu', chatType: 'group', peerIds: ['oc_team'], senderIds: [], everyone: false },
+    { platform: 'weixin', chatType: 'group', peerIds: ['wx_g'], senderIds: [], everyone: false },
+    { platform: 'qq', chatType: 'p2p', peerIds: null, senderIds: [], everyone: false },
+  ]
+  const posted = []
+  runtime.channels = {
+    knownGroups: (platform) =>
+      platform === 'telegram'
+        ? [
+            { platform, peerId: '-100', chatType: 'group', title: '发布群' },
+            { platform, peerId: '-200', chatType: 'group', title: '' },
+          ]
+        : [],
+    notifyGroup: async (...input) => posted.push(input),
+  }
+  runtime.botNotifyTimes = new Map()
+  runtime.botChatOrigins = new Map()
+  const tools = runtime.botConversationRuntime('conv')
+
+  // 按群名或 ID 找；“所有群”的规则就是见过的那些群，写了群的规则就是写的那些。
+  await tools.notify({ text: '发布好了', to: 'group', group: '发布群' })
+  assert.deepEqual(posted.at(-1), ['telegram', '-100', '小橙：发布好了'])
+  await tools.notify({ text: 'x', group: 'oc_team' })
+  assert.deepEqual(posted.at(-1).slice(0, 2), ['feishu', 'oc_team'])
+  // 微信没有群；不在规则里的群不发，并列出能发的群。
+  await assert.rejects(tools.notify({ text: 'x', group: 'wx_g' }), /not one of your groups/)
+  await assert.rejects(tools.notify({ text: 'x', group: '-999' }), /telegram:-100 \(发布群\)/)
+  // 没说哪个：有几个群就要问清楚；这一轮来自某个群时就是那个群；限定平台后只剩一个也行。
+  await assert.rejects(tools.notify({ text: 'x', to: 'group' }), /say which group/)
+  runtime.botChatOrigins.set('conv', {
+    kind: 'channel',
+    platform: 'telegram',
+    peerId: '-200',
+    chatType: 'group',
+  })
+  await tools.notify({ text: 'x', to: 'group' })
+  assert.deepEqual(posted.at(-1).slice(0, 2), ['telegram', '-200'])
+  runtime.botChatOrigins.clear()
+  await tools.notify({ text: 'x', to: 'group', platform: 'feishu' })
+  assert.deepEqual(posted.at(-1).slice(0, 2), ['feishu', 'oc_team'])
+
+  // 群里别人（或别的 Bot）叫起来的那一轮，不能让它去群里说。
+  runtime.value.botTurnTrust = 'external'
+  const before = posted.length
+  await assert.rejects(tools.notify({ text: 'x', group: '发布群' }), /someone other than the user/)
+  assert.equal(posted.length, before)
+})
+
+test('a schedule made from a group remembers which group it was', async () => {
+  const runtime = fakeRuntime()
+  runtime.botChatOrigins = new Map([
+    ['conv', { kind: 'channel', platform: 'telegram', peerId: '-100', chatType: 'group' }],
+  ])
+  await runtime.botConversationRuntime('conv').schedule({
+    action: 'create',
+    message: '每天汇总一下进度',
+    time: '18:00',
+    repeat: 'daily',
+  })
+  const [, input] = runtime.calls.find(([name]) => name === 'schedule')
+  assert.equal(input.botMessage, '每天汇总一下进度（在Telegram群里定的，群 ID -100）')
+})
