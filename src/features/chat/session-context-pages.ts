@@ -109,6 +109,23 @@ export function createContextPages(kind?: SessionContextTab): ContextPages {
   }
 }
 
+// 重启后恢复的浏览器页签：只有地址和标题；Agent 和弹窗都不在了，所以不带 agent / resourceId。
+// 内容区保持收起：恢复只是让“预览”里还是那些网页，不能一启动就把会话切到网页上。
+export function restoreBrowserPages(
+  tabs: ReadonlyArray<{ url: string; title: string }>,
+  active: number,
+): ContextPages {
+  const state = createContextPages()
+  const pages = tabs.slice(0, MAX_CONTEXT_PAGES).map((tab, index) => ({
+    ...createPage(`page-${index + 1}`, 'browser'),
+    url: tab.url,
+    draft: tab.url,
+    title: tab.title,
+  }))
+  const activeId = (pages[active] ?? pages[0])?.id ?? ''
+  return { ...state, pages, activeId, activeBrowserId: activeId, nextId: pages.length + 1 }
+}
+
 export function activeBrowserPage(state: ContextPages) {
   const browsers = state.pages.filter((page) => page.kind === 'browser')
   return browsers.find((page) => page.id === state.activeBrowserId) ?? browsers[0]

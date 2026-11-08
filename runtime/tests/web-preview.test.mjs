@@ -171,7 +171,8 @@ test('application routes external links into the session inspector web preview',
   assert.match(workspace, /\{!overlayMode && open && \(/)
   assert.match(inspector, /\} else if \(tab === 'preview'\) \{/)
   assert.match(browserPane, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/)
-  assert.match(browserPane, /normalizeWebPreviewInput\(draft, window\.location\.href\)/)
+  // 地址栏既接受网址也接受搜索词（browser-address.ts，网址部分仍走 normalizeWebPreviewInput）。
+  assert.match(browserPane, /resolveBrowserAddress\(draft, window\.location\.href\)/)
   assert.match(browserPane, /<WebPreviewBody\s+src=\{url\}/)
   assert.match(
     component,

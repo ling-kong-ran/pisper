@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { normalizeWebPreviewInput } from '@/lib/web-preview'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/app/use-i18n'
+import { resolveBrowserAddress } from './browser-address'
 import type { SessionContextTab } from './session-context-pages'
 
 export function TaskNewTab({
@@ -25,9 +25,10 @@ export function TaskNewTab({
         className="mb-4 flex gap-2"
         onSubmit={(event) => {
           event.preventDefault()
-          const normalized = normalizeWebPreviewInput(url, window.location.href)
-          setInvalid(!normalized)
-          if (normalized) onOpenUrl(normalized)
+          // 和预览的地址栏一样：不像网址的输入按搜索打开。
+          const address = resolveBrowserAddress(url, window.location.href)
+          setInvalid(!address)
+          if (address) onOpenUrl(address.url)
         }}
       >
         <Input

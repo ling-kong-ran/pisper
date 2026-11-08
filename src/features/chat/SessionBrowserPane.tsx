@@ -1,6 +1,7 @@
 // 会话内的网页预览页：地址栏 + 网页 + 外部打开。旧上下文面板与会话页检查器的“预览”标签共用。
 // 桌面端用原生子 WebView（useNativeBrowser），Web、手机和不支持的平台用 iframe。
-import { useState } from 'react'
+// 地址栏既能输网址也能搜索（browser-address.ts）；看过的页面记进本设备的浏览历史。
+import { useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -17,7 +18,10 @@ import { WebPreview, WebPreviewBody } from '@/components/ai-elements/web-preview
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { HTML_PREVIEW_SANDBOX, isHtmlPreviewUrl, normalizeWebPreviewInput } from '@/lib/web-preview'
+import { HTML_PREVIEW_SANDBOX, isHtmlPreviewUrl } from '@/lib/web-preview'
+import { BrowserHistoryMenu } from './BrowserHistoryMenu'
+import { resolveBrowserAddress } from './browser-address'
+import { useBrowserHistoryStore } from './browser-history-store'
 import type { ContextPage } from './session-context-pages'
 import { openBrowserNewWindow } from './session-web-preview'
 import { useNativeBrowser } from './useNativeBrowser'
@@ -49,6 +53,13 @@ export function BrowserPane({
   const { t } = useI18n()
   const { draft, url } = page
   const [error, setError] = useState(false)
+  // 这个页签最后记进历史的地址：原生层一次导航会报好几次（开始加载、加载完），只算一次访问。
+  const visitedUrlRef = useRef('')
+  const recordVisit = (next: string) => {
+    if (!next || next === visitedUrlRef.current) return
+    visitedUrlRef.current = next
+    useBrowserHistoryStore.getState().visit(next)
+  }
   const native = useNativeBrowser({
     enabled: Boolean(window.pisperDesktop?.browser),
     url,
@@ -56,14 +67,26 @@ export function BrowserPane({
     keepAlive: page.agent,
     // 用户正在输入时不改地址栏；只有地址栏显示的还是旧地址才跟着变。
     onNavigated: (next) => {
+      recordVisit(next)
       if (next !== url) onChange(draft === url ? { url: next, draft: next } : { url: next })
     },
-    onTitle: (title) => onChange({ title }),
+    onTitle: (title) => {
+      if (visitedUrlRef.current)
+        useBrowserHistoryStore.getState().title(visitedUrlRef.current, title)
+      onChange({ title })
+    },
     onNewWindow: (next, popupId) => openBrowserNewWindow(sessionId, next, popupId),
     onClosed,
   })
 
   const fallback = nativeBrowserFallback(native.unavailable)
+
+  // iframe 看不到页面里的跳转（跨源），只能记下打开的地址；原生浏览器由导航事件记录。
+  useEffect(() => {
+    if (native.active || !url || visitedUrlRef.current === url) return
+    visitedUrlRef.current = url
+    useBrowserHistoryStore.getState().visit(url)
+  }, [native.active, url])
 
   return (
     <section
@@ -74,9 +97,15 @@ export function BrowserPane({
         className="flex gap-2"
         onSubmit={(event) => {
           event.preventDefault()
-          const normalized = normalizeWebPreviewInput(draft, window.location.href)
-          setError(!normalized)
-          if (normalized) onChange({ url: normalized })
+          const address = resolveBrowserAddress(draft, window.location.href)
+          setError(!address)
+          // 搜索时地址栏换成搜索结果页的地址，和普通浏览器一样。
+          if (address)
+            onChange(
+              address.kind === 'search'
+                ? { url: address.url, draft: address.url }
+                : { url: address.url },
+            )
         }}
       >
         {native.active && (
@@ -129,6 +158,7 @@ export function BrowserPane({
         <Button type="submit" variant="secondary">
           {t('chat:sessionContext.openUrl')}
         </Button>
+        <BrowserHistoryMenu onOpen={(next) => onChange({ url: next, draft: next })} />
       </form>
       {error && (
         <p role="alert" className="text-xs text-danger">

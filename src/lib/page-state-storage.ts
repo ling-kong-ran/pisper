@@ -1,5 +1,5 @@
 // 本机桌面/手机 Runtime 使用随机回环端口，localStorage 因端口变化不能单独充当持久化来源。
-// 仅同步共享协议列出的界面偏好；一次性会话请求、预览 URL 和凭据不写入此文件。
+// 仅同步共享协议列出的界面偏好；一次性会话请求、凭据和带令牌的应用预览地址不写入此文件。
 import {
   BROWSER_PREFERENCE_KEYS,
   parseBrowserPreferenceSnapshot,

@@ -7,7 +7,7 @@
   "sessionContext.planEmpty": "此会话还没有执行计划。",
   "sessionContext.openUrl": "打开",
   "sessionContext.invalidUrl": "请输入有效的 http 或 https 地址。",
-  "sessionContext.browserEmpty": "输入网址以预览页面。",
+  "sessionContext.browserEmpty": "搜索或输入网址来打开网页。",
   "resourcePicker.title": "调用资源",
   "resourcePicker.description": "插入 Prompt，调用 Skill 或工具，或启动可持续跟踪的工作流。",
   "resourcePicker.open": "技能与工具",

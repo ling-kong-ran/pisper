@@ -7,7 +7,7 @@
   "sessionContext.planEmpty": "This session has no execution plan yet.",
   "sessionContext.openUrl": "Open",
   "sessionContext.invalidUrl": "Enter a valid http or https address.",
-  "sessionContext.browserEmpty": "Enter a URL to preview a page.",
+  "sessionContext.browserEmpty": "Search or enter an address to open a page.",
   "resourcePicker.title": "Invoke a resource",
   "resourcePicker.description": "Insert a Prompt, invoke a Skill or Tool, or start a workflow you can track over time.",
   "resourcePicker.open": "Skills and tools",

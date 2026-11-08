@@ -1,4 +1,4 @@
-// 只同步真正需要跨随机回环端口保留的界面偏好；一次性请求和预览 URL 不进入持久化文件。
+// 只同步真正需要跨随机回环端口保留的界面偏好；一次性请求、凭据和应用自己的带令牌预览地址不进入持久化文件。
 export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   // ui-store 持有主题/排印；UI/代码数值字号分别默认14/12，旧三档恢复13.5/14/14.5；不保存输入草稿。
   // 旧快照里的 sidebarCollapsed / sidebarWidth 属于已退役的旧侧栏，读取时忽略、下次写入时自然丢弃。
@@ -42,6 +42,14 @@ export const BROWSER_PREFERENCE_KEYS = Object.freeze([
   'pisper-web-desktop-pet-position',
   // 记忆页上次看的视图（演算 / 时间线 / 整理记录）。
   'pisper-memory-view',
+  // 用户要求重启后保留“预览”里打开的网页：每个会话的浏览器页签（地址 + 标题 + 当前页签），
+  // 最多 40 个会话、每个 12 页（src/features/chat/session-context-pages-store.ts 是唯一读写方）。
+  // 地址落盘前清洗（browser-persistence.ts）：只留 http(s)，去掉账号密码、#片段和凭据样的查询参数，
+  // 应用自己的地址（/_pisper/ 下的 HTML 预览、桌面引导等带一次性令牌的）不保存。登录 Cookie 在原生层，不在这里。
+  'pisper-session-browser-tabs',
+  // 右侧浏览器的浏览历史：地址、标题、最后访问时间、次数，最多 500 条，地址清洗规则同上
+  // （src/features/chat/browser-history-store.ts 是唯一读写方）。经 /api/local 镜像，按设备记。
+  'pisper-browser-history',
 ])
 
 const allowed = new Set(BROWSER_PREFERENCE_KEYS)
