@@ -8,8 +8,9 @@ import resources from './search-tool-resources.json' with { type: 'json' }
 const run = promisify(execFile)
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 const TOOL_ROOT = 'node_modules/@earendil-works/pi-coding-agent/vendor/bin'
-// 下载源偶尔回 5xx 或断连（发布 CI 遇到过 504）：服务端错误与网络错误重试，4xx 与摘要不符直接失败。
-const DOWNLOAD_ATTEMPTS = 3
+// 下载源（GitHub Releases）偶尔连续一阵子回 5xx 或断连（发布 CI 连着遇到 504）：服务端错误与网络错误
+// 按 5、10、20、40 秒退避重试，共 5 次；4xx 与摘要不符直接失败。发布工作流另外缓存了下载过的压缩包。
+const DOWNLOAD_ATTEMPTS = 5
 const RETRY_DELAY_MS = 5_000
 
 class TransientDownloadError extends Error {}
@@ -83,7 +84,7 @@ async function archiveBytes(asset, cachePath, fetchImpl, retryDelayMs) {
       return await downloadArchive(asset, fetchImpl)
     } catch (error) {
       if (!(error instanceof TransientDownloadError) || attempt >= DOWNLOAD_ATTEMPTS) throw error
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)))
     }
   }
 }

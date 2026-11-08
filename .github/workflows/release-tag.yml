@@ -44,6 +44,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # 搜索工具（ripgrep、fd）的固定版本压缩包：GitHub Releases 下载偶尔连续 504，缓存住就不用每次重下
+      # （读缓存时仍按 search-tool-resources.json 里的摘要校验）。
+      - uses: actions/cache@v4
+        with:
+          path: release/cache/search-tools
+          key: search-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/search-tool-resources.json') }}
       - name: Resolve release input and verify the source
         id: input
         shell: bash

@@ -99,7 +99,7 @@ test('a tampered search archive fails the build before extraction', async (t) =>
   )
 })
 
-// 下载源偶尔回 5xx：重试到第三次；4xx 不重试。
+// 下载源偶尔回 5xx：重试（这里第三次成功下到内容，摘要不符失败）；断连重试到上限；4xx 不重试。
 test('search tool downloads retry server errors but not client errors', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'pisper-retry-search-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -128,7 +128,7 @@ test('search tool downloads retry server errors but not client errors', async (t
     }),
     /Search tool download: fetch failed/,
   )
-  assert.equal(calls, 3)
+  assert.equal(calls, 5)
   calls = 0
   await assert.rejects(
     stage(async () => {
