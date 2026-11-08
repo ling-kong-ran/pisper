@@ -2037,10 +2037,12 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const optionalToolNames = [...new Set(this.optionalToolNames(runtimeValue))]
         const staticHotToolNames = new Set(hotToolNames(optionalToolNames))
         const activeToolNames = new Set(runtimeSession.getActiveToolNames())
+        // Bot 对话的工具常驻可见，也照样列出：模型没注意到它、来这里搜时得搜得到（结果标为直接调用）。
         return optionalToolNames
           .filter(
             (name) =>
-              !staticHotToolNames.has(name) && !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name),
+              (!staticHotToolNames.has(name) || BOT_CONVERSATION_TOOL_NAMES.includes(name)) &&
+              !PLAN_COMPATIBILITY_TOOL_NAMES.includes(name),
           )
           .map((name) => {
             const definition = runtimeSession.getToolDefinition(name)
@@ -2240,7 +2242,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ? this.botCommands.wrap(bashTool, { sessionId: runtimeSessionId })
         : bashTool,
     )
-    const callableTools = new Map(inheritedCustomTools.map((tool) => [tool.name, tool]))
+    // Bot 对话当经理用的工具：派活、提问卡片、给自己定时、记忆、找别的 Bot、发通知（都立即返回）。
+    const botTools = conversationOnly
+      ? createBotConversationTools({ runtime: this.botConversationRuntime(runtimeSessionId) })
+      : []
+    // 网关也认 Bot 工具：模型没看到某个 bot_* 工具（中转服务丢了声明，或它认定自己没有）而经 call_tool
+    // 按名字调用时照样能用；权限与工具范围仍在 authorize 里检查。
+    const callableTools = new Map(
+      [...inheritedCustomTools, ...botTools].map((tool) => [tool.name, tool]),
+    )
     // 工具网关：集中管控工具调用（权限审批），
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
     const botApprovalPolicy = conversationOnly
@@ -2255,10 +2265,6 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         this.permissions.authorize({ cwd: toolCwd, ...input, ...botApprovalPolicy }),
       sessionId: runtimeSessionId,
     })
-    // Bot 对话当经理用的工具：派活、提问卡片、给自己定时、记忆、找别的 Bot（都立即返回）。
-    const botTools = conversationOnly
-      ? createBotConversationTools({ runtime: this.botConversationRuntime(runtimeSessionId) })
-      : []
     const sessionSettingsManager = createCompactionSettingsManager(
       this.settingsManager,
       () => runtimeSession?.model?.contextWindow,

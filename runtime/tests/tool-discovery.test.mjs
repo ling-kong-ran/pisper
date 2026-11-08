@@ -62,6 +62,17 @@ test('computer-use discovery aliases find the tool from natural tasks', () => {
 
 test('optional tool search understands capability aliases and exact dynamic tool labels', () => {
   assert.equal(searchOptionalTools(tools, '帮我生图', 1)[0].name, 'generate_visual')
+  // Bot 的通知工具：中文说法与平台名都搜得到。
+  const botTools = [
+    {
+      name: 'bot_notify',
+      label: 'Notify the user on their chat apps',
+      description: 'Send a message',
+    },
+    { name: 'bot_schedule', label: 'Schedule a message to yourself', description: 'Schedule' },
+  ]
+  for (const query of ['通过了 QQ 上通知我', 'notify push message plugin user', '推送到飞书群'])
+    assert.equal(searchOptionalTools(botTools, query, 1)[0]?.name, 'bot_notify', query)
   assert.equal(
     searchOptionalTools(tools, 'search the latest information online', 1)[0].name,
     'web_search',
