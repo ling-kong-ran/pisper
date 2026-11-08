@@ -2,7 +2,9 @@
 // 和 CI 同一套脚本（release.mjs 算计划，stage-*/archive-*/validate-* 构建与校验），只是把三个平台的构建
 // 分到三台机器上，用 GitHub 草稿 Release 汇合：
 //
-//   plan [patch|minor|major|X.Y.Z]  任一台：检测通道、算版本、跑发布前检查，为每个版本建草稿 Release
+//   plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin]
+//                                   任一台：检测通道、算版本、跑发布前检查，为每个版本建草稿 Release；
+//                                   --platforms 可以跳过某个平台（跳过时这次不发 npm）
 //   build                           每台各跑一次：按草稿里的计划构建本平台产物、签名并上传到草稿
 //   status                          看各草稿还缺哪些平台的产物
 //   publish                         三个平台都传完后任一台：校验资产、提交版本号并打标签、推送、
@@ -39,6 +41,28 @@ const PLATFORM =
 const ARCH = process.arch === 'x64' ? 'x86_64' : process.arch === 'arm64' ? 'aarch64' : process.arch
 const TARGET = `${PLATFORM}_${ARCH}`
 const SUPPORTED_TARGETS = ['windows_x86_64', 'darwin_aarch64', 'linux_x86_64']
+
+// 这次发布哪些平台：plan --platforms=windows,darwin 可以跳过某个平台（例如 Linux 构建机暂时不可用）。
+// 跳过的平台在组件更新里停在上一版（更新器只认带本平台产物的 Release），npm 这次不发。
+function parsePlatforms(value) {
+  if (!value) return SUPPORTED_TARGETS
+  const targets = value
+    .split(',')
+    .map((name) =>
+      SUPPORTED_TARGETS.find(
+        (target) => target.startsWith(`${name.trim()}_`) || target === name.trim(),
+      ),
+    )
+  if (targets.some((target) => !target) || !targets.length)
+    throw new Error(`--platforms 只能是 windows、darwin、linux 的组合：${value}`)
+  return [...new Set(targets)]
+}
+
+function planPlatforms(current) {
+  return Array.isArray(current.platforms) && current.platforms.length
+    ? current.platforms
+    : SUPPORTED_TARGETS
+}
 
 const [command = 'help', ...rest] = process.argv.slice(2)
 const flags = new Set(rest.filter((value) => value.startsWith('--')))
@@ -198,7 +222,21 @@ async function plan() {
     }
   }
 
-  const result = { schema: 1, createdAt: new Date().toISOString(), ...computed, components }
+  const platforms = parsePlatforms(
+    rest.find((value) => value.startsWith('--platforms='))?.slice('--platforms='.length),
+  )
+  // npm 的三个平台包缺一不可：跳过平台时这次不发 npm，下次三个平台齐了再一起发。
+  if (computed.npm && platforms.length < SUPPORTED_TARGETS.length) {
+    console.warn(`跳过了部分平台，这次不发布 npm（pisper@${computed.npm.version}）。`)
+    computed.npm = null
+  }
+  const result = {
+    schema: 1,
+    createdAt: new Date().toISOString(),
+    ...computed,
+    platforms,
+    components,
+  }
   if (dryRun) {
     console.log(
       JSON.stringify(
@@ -279,6 +317,8 @@ async function build() {
   assertCleanTree()
   const source = git(['rev-parse', 'HEAD'])
   const current = await findPlan(api, { source })
+  if (!planPlatforms(current).includes(TARGET))
+    throw new Error(`这次发布不包含 ${TARGET}（计划平台：${planPlatforms(current).join('、')}）。`)
   const has = (component) => current.components.some((item) => item.component === component)
   const item = (component) => current.components.find((entry) => entry.component === component)
   if (has('desktop') && PLATFORM === 'darwin' && !flags.has('--allow-unsigned-mac'))
@@ -378,19 +418,21 @@ async function signComponentArchives() {
   }
 }
 
-function expectedAssetsReport(entry, names) {
-  const missing = SUPPORTED_TARGETS.filter((target) => !names.some((name) => name.includes(target)))
-  return `${entry.tag}: ${names.length - 1} 个产物${missing.length ? `，缺 ${missing.join('、')}` : '，三个平台齐了'}`
+function expectedAssetsReport(entry, names, platforms) {
+  const missing = platforms.filter((target) => !names.some((name) => name.includes(target)))
+  return `${entry.tag}: ${names.length - 1} 个产物${missing.length ? `，缺 ${missing.join('、')}` : '，计划的平台都齐了'}`
 }
 
 async function status() {
   await loadSecrets()
   const api = github()
   const current = await findPlan(api)
-  console.log(`发布计划：源 ${current.source}，${current.createdAt}`)
+  console.log(
+    `发布计划：源 ${current.source}，${current.createdAt}，平台 ${planPlatforms(current).join('、')}`,
+  )
   for (const entry of current.components) {
     const names = (await api.listAssets(entry.releaseId)).map((asset) => asset.name)
-    console.log(expectedAssetsReport(entry, names))
+    console.log(expectedAssetsReport(entry, names, planPlatforms(current)))
   }
   if (current.npm) console.log(`npm：pisper@${current.npm.version}（publish 时发布）`)
 }
@@ -412,10 +454,15 @@ async function publish() {
   // 计划之后 release 上只能有版本提交，和 CI 的规则一样。
   node(['scripts/verify-release-head.mjs', current.source, head])
 
-  // 1. 下载并校验每个草稿的完整资产集合；Desktop 生成并补传 latest.json。
+  const platforms = planPlatforms(current)
+  const platformsArg = `--platforms=${platforms.join(',')}`
+
+  // 1. 下载每个草稿的产物（计划文件与旧的 latest.json 除外）。
   const publishRoot = join(root, 'release', 'publish')
   await rm(publishRoot, { recursive: true, force: true })
   for (const entry of current.components) {
+    if (git(['ls-remote', 'origin', `refs/tags/${entry.tag}`]))
+      throw new Error(`远端已有标签 ${entry.tag}。`)
     const directory = join(publishRoot, entry.tag)
     await mkdir(directory, { recursive: true })
     const assets = (await api.listAssets(entry.releaseId)).filter(
@@ -423,50 +470,73 @@ async function publish() {
     )
     for (const asset of assets)
       await writeFile(join(directory, asset.name), await api.downloadAsset(asset.id))
-    if (entry.component === 'desktop') {
-      node([
-        'scripts/create-tauri-update-manifest.mjs',
-        entry.tag,
-        directory,
-        '--require-all',
-        '--output',
-        join(directory, 'latest.json'),
-      ])
-      node(['scripts/validate-tauri-release-assets.mjs', entry.tag, directory])
-    } else {
-      node(['scripts/validate-component-release-assets.mjs', entry.component, entry.tag, directory])
-    }
   }
 
-  // 2. 版本提交与标签：每个通道一个提交（与 CI 的提交信息、文件范围相同），最后原子推送。
+  // 2. 本地版本提交与标签：每个通道一个提交（与 CI 的提交信息、文件范围相同）。
+  //    latest.json 要读暂存后的 Desktop 版本，所以先提交、再生成清单和校验，全部通过才推送。
   const tags = []
   const bundledEnv = {
     RELEASE_TUI_VERSION: current.bundled.tui || '',
     RELEASE_RUNTIME_VERSION: current.bundled.runtime || '',
   }
-  for (const entry of current.components) {
-    if (git(['ls-remote', 'origin', `refs/tags/${entry.tag}`]))
-      throw new Error(`远端已有标签 ${entry.tag}。`)
-    node(['scripts/stage-release-version.mjs', entry.component, entry.version], { env: bundledEnv })
-    git(['add', ...VERSION_FILES[entry.component]])
-    git(['commit', '-m', `chore(release-${entry.component}): ${entry.tag}`])
-    git(['tag', entry.tag])
-    tags.push(entry.tag)
-  }
-  const npmTag = current.npm ? `npm-v${current.npm.version}` : ''
-  if (current.npm) {
-    node([
-      'scripts/stage-npm-release-version.mjs',
-      current.npm.version,
-      current.npm.tui,
-      current.npm.runtime,
-    ])
-    git(['add', ...VERSION_FILES.npm])
-    git(['commit', '-m', `chore(release-npm): ${npmTag}`])
-    git(['tag', npmTag])
-    tags.push(npmTag)
+  const undo = () => {
+    for (const tag of tags) git(['tag', '-d', tag])
+    git(['reset', '--keep', head])
   }
   try {
+    for (const entry of current.components) {
+      node(['scripts/stage-release-version.mjs', entry.component, entry.version], {
+        env: bundledEnv,
+      })
+      git(['add', ...VERSION_FILES[entry.component]])
+      git(['commit', '-m', `chore(release-${entry.component}): ${entry.tag}`])
+      git(['tag', entry.tag])
+      tags.push(entry.tag)
+    }
+    if (current.npm) {
+      const npmTag = `npm-v${current.npm.version}`
+      node([
+        'scripts/stage-npm-release-version.mjs',
+        current.npm.version,
+        current.npm.tui,
+        current.npm.runtime,
+      ])
+      git(['add', ...VERSION_FILES.npm])
+      git(['commit', '-m', `chore(release-npm): ${npmTag}`])
+      git(['tag', npmTag])
+      tags.push(npmTag)
+    }
+
+    // 3. 校验完整资产集合；Desktop 用它的更新日志生成 latest.json。
+    for (const entry of current.components) {
+      const directory = join(publishRoot, entry.tag)
+      if (entry.component === 'desktop') {
+        await writeFile(join(root, 'release-body.md'), entry.body)
+        try {
+          node([
+            'scripts/create-tauri-update-manifest.mjs',
+            entry.tag,
+            directory,
+            '--require-all',
+            platformsArg,
+            '--output',
+            join(directory, 'latest.json'),
+          ])
+        } finally {
+          await rm(join(root, 'release-body.md'), { force: true })
+        }
+        node(['scripts/validate-tauri-release-assets.mjs', entry.tag, directory, platformsArg])
+      } else {
+        node([
+          'scripts/validate-component-release-assets.mjs',
+          entry.component,
+          entry.tag,
+          directory,
+          platformsArg,
+        ])
+      }
+    }
+
     git([
       'push',
       '--atomic',
@@ -475,13 +545,12 @@ async function publish() {
       ...tags.map((tag) => `refs/tags/${tag}`),
     ])
   } catch (error) {
-    // 推送失败时远端没有任何变化：撤掉本地的版本提交和标签，修好后可以直接重跑 publish。
-    for (const tag of tags) git(['tag', '-d', tag])
-    git(['reset', '--keep', head])
+    // 推送之前任何一步失败，远端都没有变化：撤掉本地的版本提交和标签，修好后直接重跑 publish。
+    undo()
     throw error
   }
 
-  // 3. 发布草稿：先补传 latest.json、删掉计划文件；TUI、Runtime 先发，Desktop 最后并设为 Latest。
+  // 4. 发布草稿：先补传 latest.json、删掉计划文件；TUI、Runtime 先发，Desktop 最后并设为 Latest。
   for (const entry of current.components) {
     const existing = await api.listAssets(entry.releaseId)
     if (entry.component === 'desktop')
@@ -577,7 +646,7 @@ async function publishNpm(current, publishRoot) {
 const commands = { plan, build, status, publish }
 if (!commands[command]) {
   console.log(
-    '用法：npm run release:local -- <plan [patch|minor|major|X.Y.Z] [--skip-checks] [--dry-run] | build [--no-install] [--allow-unsigned-mac] | status | publish>',
+    '用法：npm run release:local -- <plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin,linux] [--skip-checks] [--dry-run] | build [--no-install] [--allow-unsigned-mac] | status | publish>',
   )
   process.exit(command === 'help' ? 0 : 1)
 }

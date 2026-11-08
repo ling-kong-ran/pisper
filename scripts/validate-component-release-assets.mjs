@@ -7,6 +7,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const component = assertReleaseComponent(process.argv[2])
 const tag = String(process.argv[3] || '').trim()
 const directory = resolve(root, process.argv[4] || 'artifacts')
+// --platforms=：本机发布可以跳过某个平台（scripts/release-local.mjs），缺省时三个平台都要齐。
+const platformsArg = process.argv.find((value) => value.startsWith('--platforms='))
 if (component === 'desktop') {
   throw new Error('Use scripts/validate-tauri-release-assets.mjs for desktop releases.')
 }
@@ -26,7 +28,9 @@ async function filesUnder(path) {
 }
 
 const label = component === 'tui' ? 'TUI' : 'Runtime'
-const platforms = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
+const platforms = platformsArg
+  ? platformsArg.slice('--platforms='.length).split(',').filter(Boolean)
+  : ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
 const archives = platforms.flatMap((platform) => {
   const distribution = `Pisper_${label}_${version}_${platform}.tar.gz`
   if (component === 'tui') {

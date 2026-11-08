@@ -7,6 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const tag = String(args.find((value) => /^v/.test(value)) || '').trim()
 const requireAll = args.includes('--require-all')
+// --platforms=darwin_aarch64,windows_x86_64：本机发布跳过某个平台时只要求这些平台齐全。
+const platformsArg = args.find((value) => value.startsWith('--platforms='))
 const outputIndex = args.indexOf('--output')
 const artifactsArg = args.find(
   (value, index) => index > 0 && !value.startsWith('--') && args[index - 1] !== '--output',
@@ -58,7 +60,13 @@ const updaterSuffixes = {
   windows: '-setup.exe',
 }
 // 不再发布 macOS Intel。
-const expectedPlatforms = ['darwin-aarch64', 'linux-x86_64', 'windows-x86_64']
+const expectedPlatforms = platformsArg
+  ? platformsArg
+      .slice('--platforms='.length)
+      .split(',')
+      .filter(Boolean)
+      .map((platform) => platform.replace('_', '-'))
+  : ['darwin-aarch64', 'linux-x86_64', 'windows-x86_64']
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // 离线包仅供首次部署选择，更新入口始终匹配普通包，避免重复分发 WebView2。
 const artifactPattern = new RegExp(

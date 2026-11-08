@@ -12,6 +12,11 @@ if (!match) {
 }
 
 const version = match[1]
+// --platforms=：本机发布可以跳过某个平台（scripts/release-local.mjs），缺省时三个平台都要齐。
+const platformsArg = process.argv.find((value) => value.startsWith('--platforms='))
+const platforms = platformsArg
+  ? platformsArg.slice('--platforms='.length).split(',').filter(Boolean)
+  : ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
 const tauriAssets = [
   'latest.json',
   `Pisper_${version}_darwin_aarch64.app.tar.gz`,
@@ -24,8 +29,8 @@ const tauriAssets = [
   `Pisper_${version}_windows_x86_64-setup.exe.sig`,
   `Pisper_${version}_windows_x86_64-offline-setup.exe`,
   `Pisper_${version}_windows_x86_64-offline-setup.exe.sig`,
-]
-const componentAssets = ['darwin_aarch64', 'linux_x86_64', 'windows_x86_64']
+].filter((name) => name === 'latest.json' || platforms.some((platform) => name.includes(platform)))
+const componentAssets = platforms
   .map((platform) => `Pisper_Desktop_${version}_${platform}.tar.gz`)
   .flatMap((archive) => [archive, `${archive}.sig`])
 const expected = new Set([...tauriAssets, ...componentAssets])

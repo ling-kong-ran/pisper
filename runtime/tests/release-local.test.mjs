@@ -69,3 +69,27 @@ test('release.mjs can stop after planning, and desktop builds can bundle local a
   assert.match(local, /scripts\/verify-release-head\.mjs/)
   assert.doesNotMatch(local, /console\.log\([^)]*(TOKEN|PRIVATE_KEY|PASSWORD)/)
 })
+
+test('a release that skips Linux validates only the planned platforms', async (t) => {
+  const { execFileSync } = await import('node:child_process')
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-release-platforms-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const platforms = ['darwin_aarch64', 'windows_x86_64']
+  for (const platform of platforms)
+    for (const name of [
+      `Pisper_TUI_9.9.9_${platform}.tar.gz`,
+      `Pisper_TUI_Component_9.9.9_${platform}.tar.gz`,
+    ]) {
+      await writeFile(join(directory, name), 'x')
+      await writeFile(join(directory, `${name}.sig`), 'x')
+    }
+  const validate = (...extra) =>
+    execFileSync(
+      process.execPath,
+      ['scripts/validate-component-release-assets.mjs', 'tui', 'tui-v9.9.9', directory, ...extra],
+      { stdio: 'pipe' },
+    )
+  // 不带 --platforms 时仍要求三个平台齐全（CI 的行为不变）。
+  assert.throws(() => validate(), /Missing release assets: .*linux_x86_64/)
+  validate(`--platforms=${platforms.join(',')}`)
+})
