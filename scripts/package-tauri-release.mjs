@@ -112,6 +112,11 @@ if (process.platform === 'win32') {
 env.PISPER_TAURI_BUNDLE_DIR = bundleDir
 await rm(bundleDir, { recursive: true, force: true })
 
+// Windows（NSIS）与 Linux（AppImage）：Tauri 打包时自己从 github.com 下载工具，那个入口回 504
+// 会让整次发版失败；先经带重试与 GitHub API 备用路径的下载把同一批文件放好（stage-tauri-tools.mjs）。
+if (process.platform === 'win32' || process.platform === 'linux')
+  await run(process.execPath, [path.join(root, 'scripts', 'stage-tauri-tools.mjs')], env)
+
 const buildArgs = [tauriCli, 'build', '--bundles', bundles, ...tauriTargetArgs]
 if (signingKey.trim()) {
   env.TAURI_SIGNING_PRIVATE_KEY = signingKey
