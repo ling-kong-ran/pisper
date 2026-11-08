@@ -1,7 +1,18 @@
 // 聚焦会话输入区的小型展示组件：输入框上方的托盘（运行状态 + 停止、排队消息）、
 // 资源调用芯片与发送键。
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Braces, CornerDownLeft, Pencil, RefreshCw, Square, Wrench, X } from 'lucide-react'
+import {
+  ArrowUp,
+  Braces,
+  CornerDownLeft,
+  MessageSquareText,
+  Pencil,
+  RefreshCw,
+  Square,
+  Users,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { useShortcutLabel } from '@/lib/shortcuts'
@@ -9,7 +20,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { runDurationMs } from '@/features/chat/run-activity'
-import type { EntityRecord, ResourceInvocation } from '@/types/chat'
+import type { EntityRecord, ResourceInvocation, SessionWorkspaceActivity } from '@/types/chat'
 
 // 手机（≤650）输入框工具行的触控范围：看得见的圆 / 胶囊是 36，透明的 ::after 向四周各扩 4px，
 // 手指能点到的仍是 44（规格 v2 的触屏 44 不变），只是画面上不再是一排 44 的大灰圆（参考 Claude 手机端）。
@@ -62,7 +73,120 @@ const TRAY_ROW_CLASS =
 const TRAY_ACTION_CLASS =
   'grid size-[26px] flex-none cursor-pointer place-items-center rounded-sm text-content-muted opacity-0 transition-opacity duration-(--d-fast) group-hover/queued:opacity-100 group-focus-within/queued:opacity-100 hover:bg-surface-hover hover:text-content focus-visible:opacity-100 disabled:cursor-default disabled:opacity-40 max-[650px]:size-11 max-[650px]:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100'
 
-// 输入框正上方的托盘（规格 4.3）：只在运行中、压缩上下文或有排队时出现。
+// 托盘里的文字键（停止、现在处理）：桌面 26 高，手机与触屏 44。
+const TRAY_TEXT_BUTTON_CLASS =
+  'inline-flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:min-w-[72px] max-[650px]:justify-center pointer-coarse:h-11 pointer-coarse:min-w-[72px]'
+const TRAY_LABEL_CLASS =
+  'inline-block h-[18px] max-w-[40%] flex-none truncate max-[650px]:max-w-full rounded-xs border border-stroke bg-solid px-1.5 text-[11.5px] leading-4 text-content-muted'
+const MAX_TRAY_SESSION_MESSAGES = 3
+
+// 同一文件夹里的协作（托盘的两类行）：最近在这里改文件的其他会话（只是提示），
+// 别的会话留的言（“现在处理”在后台开一轮交给这个会话，“忽略”清掉；运行中会在下一步自动交给它）。
+function WorkspaceRows({
+  workspace,
+  streaming,
+  onDeliver,
+  onDismiss,
+}: {
+  workspace: SessionWorkspaceActivity
+  streaming: boolean
+  onDeliver?: () => Promise<void>
+  onDismiss?: () => Promise<void>
+}) {
+  const { t } = useI18n()
+  const [busy, setBusy] = useState(false)
+  const untitled = t('chat:chatHistoryPage.untitledChat')
+  const { neighbours, messages } = workspace
+  const run = (action?: () => Promise<void>) => {
+    if (!action || busy) return
+    setBusy(true)
+    void action().finally(() => setBusy(false))
+  }
+  const first = neighbours[0]
+  const neighbourText = !first
+    ? ''
+    : neighbours.length === 1
+      ? t('chat:workspaceActivity.neighbour', {
+          title: first.title || untitled,
+          count: first.fileCount,
+        })
+      : t('chat:workspaceActivity.neighbours', { count: neighbours.length })
+  const neighbourDetail = neighbours
+    .map((item) => `${item.title || untitled}: ${item.files.join(', ')}`)
+    .join('\n')
+  return (
+    <>
+      {first && (
+        <div className={TRAY_ROW_CLASS} data-workspace-neighbours={neighbours.length}>
+          <Users size={14} aria-hidden="true" className="flex-none text-content-muted" />
+          <span className="min-w-0 flex-1 truncate" title={neighbourDetail}>
+            {neighbourText}
+          </span>
+        </div>
+      )}
+      {messages.length > 0 && (
+        <ul
+          className="m-0 flex min-w-0 list-none flex-col p-0 [&>*+*]:border-t [&>*+*]:border-stroke-soft"
+          aria-label={t('chat:workspaceActivity.label')}
+          data-session-messages={messages.length}
+        >
+          {messages.slice(0, MAX_TRAY_SESSION_MESSAGES).map((message, index) => (
+            <li key={message.id} className={TRAY_ROW_CLASS}>
+              <MessageSquareText
+                size={14}
+                aria-hidden="true"
+                className="flex-none text-content-muted max-[650px]:hidden"
+              />
+              {/* 手机上一行放不下：谁留的言在上，正文在下（最多两行，手机没有悬停看全文）。 */}
+              <span className="flex min-w-0 flex-1 items-center gap-2 max-[650px]:flex-col max-[650px]:items-start max-[650px]:gap-0.5 max-[650px]:py-1.5">
+                <span className={TRAY_LABEL_CLASS}>
+                  {t('chat:workspaceActivity.from', { title: message.from.title || untitled })}
+                </span>
+                <span
+                  className="min-w-0 flex-1 truncate text-content [overflow-wrap:anywhere] max-[650px]:line-clamp-2 max-[650px]:w-full max-[650px]:whitespace-normal"
+                  title={message.text}
+                >
+                  {message.text}
+                </span>
+              </span>
+              {index === 0 && !streaming && (
+                <>
+                  {onDeliver && (
+                    <button
+                      type="button"
+                      className={TRAY_TEXT_BUTTON_CLASS}
+                      disabled={busy}
+                      aria-busy={busy || undefined}
+                      data-session-messages-deliver
+                      onClick={() => run(onDeliver)}
+                    >
+                      {t('chat:workspaceActivity.deliver')}
+                    </button>
+                  )}
+                  {onDismiss && (
+                    <button
+                      type="button"
+                      className={cn(TRAY_ACTION_CLASS, 'opacity-100')}
+                      aria-label={t('chat:workspaceActivity.dismiss')}
+                      title={t('chat:workspaceActivity.dismiss')}
+                      disabled={busy}
+                      data-session-messages-dismiss
+                      onClick={() => run(onDismiss)}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  )}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// 输入框正上方的托盘（规格 4.3）：只在运行中、压缩上下文、有排队或同一文件夹里有协作提示时出现。
 // 运行行只写“运行中 3:12 · 停止 Esc”，不重复正在跑的命令（命令在转录的工具组里）；
 // 停止键是唯一的停止入口，发送键不兼作停止。排队消息一行一条，编辑 / 取消。
 export function ComposerTray({
@@ -78,7 +202,13 @@ export function ComposerTray({
   onSendNow,
   runRow = true,
   queueList = true,
+  workspace = null,
+  onDeliverSessionMessages,
+  onDismissSessionMessages,
 }: {
+  workspace?: SessionWorkspaceActivity | null
+  onDeliverSessionMessages?: () => Promise<void>
+  onDismissSessionMessages?: () => Promise<void>
   // 桌面排队列表：每条可“立即发送”（打断当前这一步，这条马上送达）。
   onSendNow?: (inputId: string) => void
   // 手机不画排队列表（排队消息在对话里是标着“排队中”的气泡）。
@@ -99,13 +229,21 @@ export function ComposerTray({
   const compacting = Boolean(compaction?.active)
   const running = (Boolean(streaming) && runRow) || compacting
   const listed = queueList ? queuedInputs : []
-  if (!running && !listed.length) return null
+  if (!running && !listed.length && !workspace) return null
   const queueLabel = t('chat:focusSession.sentToTheRunningAgent')
   return (
     <div
       className="composer-tray mx-3.5 flex min-w-0 flex-col overflow-hidden rounded-t-(--r-lg) border border-b-0 border-stroke bg-well text-content-secondary max-[650px]:mx-2 [&>*+*]:border-t [&>*+*]:border-stroke"
       data-composer-tray
     >
+      {workspace && (
+        <WorkspaceRows
+          workspace={workspace}
+          streaming={Boolean(streaming)}
+          onDeliver={onDeliverSessionMessages}
+          onDismiss={onDismissSessionMessages}
+        />
+      )}
       {running && (
         <div className={TRAY_ROW_CLASS} data-run-bar={compacting ? 'compacting' : 'running'}>
           <span role="status" className="flex min-w-0 flex-1 items-center gap-2">
@@ -124,7 +262,7 @@ export function ComposerTray({
           {streaming && onStop && (
             <button
               type="button"
-              className="inline-flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-[13px] text-content transition-colors hover:bg-surface-hover disabled:cursor-default disabled:opacity-60 max-[650px]:h-11 max-[650px]:min-w-[72px] max-[650px]:justify-center pointer-coarse:h-11 pointer-coarse:min-w-[72px]"
+              className={TRAY_TEXT_BUTTON_CLASS}
               aria-label={stopping ? t('chat:focusSession.stopping') : t('chat:focusSession.stop')}
               title={t('chat:focusSession.stopRunShortcut')}
               aria-busy={stopping || undefined}

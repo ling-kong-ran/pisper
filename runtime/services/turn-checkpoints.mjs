@@ -3,6 +3,9 @@
 // 只覆盖 Pisper 文件工具（写入/编辑，含子 Agent，归属父会话）；bash、MCP 等其它途径的改动不在其中，
 // 预览和确认里必须如实说明。快照放在数据目录，按内容哈希去重，不碰工作区和用户的 Git 仓库。
 //
+// 回退不盖掉别人的修改：每次写入后记下文件留下的内容（written）；回退时磁盘上的内容已经不是
+// 本会话最后写下的（隔壁会话、命令行或编辑器之后又改过），这个文件就不回退，在预览里列出来。
+//
 // 去重规则：同一文件在每条用户消息之后只记第一次修改前的内容（markTurn 记下最近一条用户消息的时间）。
 // 回退目标总是某条消息的时间，而它之后对每个文件的第一次修改一定落在某条用户消息之后的“第一次”里，
 // 所以取目标时间之后最早的那份快照就是该文件在目标时间的内容。
@@ -21,12 +24,14 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { writeOperation } from './session-file-changes.mjs'
+import { ABSENT, UNHASHABLE, fingerprint } from './workspace-coordination.mjs'
 import { resolveToCwd } from '../runtime/pi-coding-agent.mjs'
 
 export const MAX_CHECKPOINT_FILE_BYTES = 4 * 1024 * 1024
 // 单个会话最多保留的快照条数；更早的被淘汰后，回退到那之前时如实提示不完整。
 const MAX_SNAPSHOTS_PER_SESSION = 2000
 const MAX_CHECKPOINT_SESSIONS = 50
+const MAX_WRITTEN_FILES = 5000
 const INDEX_VERSION = 1
 
 function sha256(value) {
@@ -53,7 +58,17 @@ async function realInside(root, file) {
 }
 
 function emptyIndex() {
-  return { version: INDEX_VERSION, mark: 0, truncatedBefore: 0, snapshots: [] }
+  return { version: INDEX_VERSION, mark: 0, truncatedBefore: 0, snapshots: [], written: {} }
+}
+
+// 旧索引没有 written：那些文件照旧回退（不知道最后写下的是什么）。
+function writtenFiles(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([file, hash]) => isAbsolute(file) && (hash === null || typeof hash === 'string'),
+    ),
+  )
 }
 
 export class TurnCheckpointService {
@@ -92,6 +107,7 @@ export class TurnCheckpointService {
                 typeof item.cwd === 'string' &&
                 Number.isFinite(item.at),
             ),
+            written: writtenFiles(data.written),
           }
         : emptyIndex()
     this.indexes.set(sessionId, index)
@@ -142,6 +158,33 @@ export class TurnCheckpointService {
       }
       return decision
     }
+    const after = session.agent.afterToolCall
+    session.agent.afterToolCall = async (context, signal) => {
+      const override = await after?.(context, signal)
+      const op = writeOperation(context.toolCall?.name, context.args)
+      if (op && !(override?.isError ?? context.isError))
+        await this.recordWritten(sessionId, cwd, resolveToCwd(op.path, cwd)).catch((error) =>
+          this.warn(error),
+        )
+      return override
+    }
+  }
+
+  // 写入之后文件留下的内容：回退时据此判断之后有没有被别人改过。
+  recordWritten(sessionId, cwd, file) {
+    const root = resolve(cwd)
+    const target = resolve(file)
+    if (!nested(root, target)) return Promise.resolve()
+    return this.serialize(sessionId, async () => {
+      const index = await this.load(sessionId)
+      const hash = await fingerprint(target)
+      delete index.written[target]
+      index.written[target] = hash === ABSENT ? null : hash
+      const files = Object.keys(index.written)
+      for (const stale of files.slice(0, Math.max(0, files.length - MAX_WRITTEN_FILES)))
+        delete index.written[stale]
+      await this.save(sessionId, index)
+    })
   }
 
   capture(sessionId, cwd, file) {
@@ -222,7 +265,7 @@ export class TurnCheckpointService {
     }
     const files = []
     for (const snapshot of [...earliest.values()].sort((a, b) => a.file.localeCompare(b.file))) {
-      files.push(await this.describe(sessionId, snapshot))
+      files.push(await this.describe(sessionId, snapshot, index.written))
     }
     return {
       files,
@@ -231,7 +274,7 @@ export class TurnCheckpointService {
     }
   }
 
-  async describe(sessionId, snapshot) {
+  async describe(sessionId, snapshot, written = {}) {
     const path = relative(snapshot.cwd, snapshot.file).replaceAll('\\', '/')
     const base = { path, file: snapshot.file, cwd: snapshot.cwd }
     if (!nested(snapshot.cwd, snapshot.file) || !(await realInside(snapshot.cwd, snapshot.file)))
@@ -239,6 +282,13 @@ export class TurnCheckpointService {
     if (snapshot.reason) return { ...base, action: 'unavailable', reason: snapshot.reason }
     const current = await lstat(snapshot.file).catch(() => null)
     if (current && !current.isFile()) return { ...base, action: 'unavailable', reason: 'not-file' }
+    // 本会话最后一次写下之后又被改过：回退会盖掉别人的修改，这个文件不动。
+    if (Object.hasOwn(written, snapshot.file)) {
+      const expected = written[snapshot.file]
+      const now = current ? await fingerprint(snapshot.file) : null
+      if (expected !== UNHASHABLE && now !== UNHASHABLE && now !== expected)
+        return { ...base, action: 'unavailable', reason: 'changed' }
+    }
     if (!snapshot.existed) return { ...base, action: current ? 'delete' : 'unchanged' }
     const blob = await readFile(this.blobPath(sessionId, snapshot.blob)).catch(() => null)
     if (!blob) return { ...base, action: 'unavailable', reason: 'missing' }
@@ -263,14 +313,18 @@ export class TurnCheckpointService {
     return this.serialize(sessionId, async () => {
       const { files, incomplete } = await this.plan(sessionId, at)
       const result = { restored: [], deleted: [], unavailable: [], incomplete }
+      // 回退写下的内容也算本会话写的：之后再回退不把它当成别人的修改。
+      const written = {}
       for (const item of files) {
         if (item.action === 'restore') {
           const content = await readFile(this.blobPath(sessionId, item.blob))
           await mkdir(dirname(item.file), { recursive: true })
           await writeFile(item.file, content)
+          written[item.file] = sha256(content)
           result.restored.push(item.path)
         } else if (item.action === 'delete') {
           await unlink(item.file)
+          written[item.file] = null
           result.deleted.push(item.path)
         } else if (item.action === 'unavailable') {
           result.unavailable.push({ path: item.path, reason: item.reason })
@@ -279,6 +333,7 @@ export class TurnCheckpointService {
       // 回退后文件回到了目标时间的样子：之后再改，按新的一轮重新记快照。
       const index = await this.load(sessionId)
       index.mark = Math.max(index.mark, this.now())
+      Object.assign(index.written, written)
       await this.save(sessionId, index)
       return result
     })

@@ -27,6 +27,7 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
     '@/lib/streaming-debug': { recordStreamingDebug() {} },
     './mobile-operations': {},
     './run-activity': { settleToolCalls: (tools) => tools || [] },
+    './session-workspace-activity': { workspaceActivity: () => null },
   }
   const module = { exports: {} }
   runInNewContext(compiled, {
@@ -146,6 +147,7 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
     './voice-response-stream': responseStream,
     './mobile-operations': {},
     './run-activity': { settleToolCalls: (tools) => tools || [] },
+    './session-workspace-activity': { workspaceActivity: () => null },
     './chat-errors': { chatErrorMessage: (error) => error.message },
     './live-session-sync': {},
     './use-session-catalog': { FOCUS_MESSAGE_PAGE_SIZE: 40 },

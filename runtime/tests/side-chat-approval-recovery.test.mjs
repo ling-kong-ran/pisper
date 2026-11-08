@@ -63,6 +63,7 @@ function fixture({ resolveApproval, getLiveSession }) {
     './session-runtime-selections': {},
     './live-session-sync': {},
     './run-activity': runActivity,
+    './session-workspace-activity': { workspaceActivity: () => null },
     './use-session-catalog': { FOCUS_MESSAGE_PAGE_SIZE: 40 },
     './voice-response-stream': { publishVoiceSnapshot: () => {} },
     './chat-api': {

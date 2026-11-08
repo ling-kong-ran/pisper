@@ -134,6 +134,7 @@ export const FocusSession = memo(function FocusSession({
   tools,
   thinkingText,
   queuedInputs,
+  workspace,
   withdrawingInputIds,
   compaction,
   contextUsage,
@@ -182,6 +183,8 @@ export const FocusSession = memo(function FocusSession({
   onQueue,
   onWithdrawQueuedInput,
   onSendQueuedInputNow,
+  onDeliverSessionMessages,
+  onDismissSessionMessages,
   onAbort,
 }: FocusSessionProps) {
   const slots = useContext(TaskWorkspaceSlots)
@@ -995,6 +998,9 @@ export const FocusSession = memo(function FocusSession({
           }
           // 手机不画排队列表：排队的消息就是对话里标着“排队中”的气泡（参考稿），托盘只剩压缩提示。
           queueList={!phonePage}
+          workspace={draft ? null : workspace}
+          onDeliverSessionMessages={onDeliverSessionMessages}
+          onDismissSessionMessages={onDismissSessionMessages}
         />
         {/* 输入卡片：圆角 22（守卫）+ 控件级描边（≥3:1），输入时焦点描边与 3px 焦点环。 */}
         <div

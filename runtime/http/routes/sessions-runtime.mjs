@@ -290,6 +290,21 @@ const routes = [
       json(200, await runtime.rewindFiles(params.sessionId, params.entryId))
     },
   },
+  // 同一文件夹里别的会话留的言：会话页的“现在处理”在后台开一轮交给它，“忽略”直接清掉。
+  {
+    method: 'POST',
+    path: '/api/sessions/:sessionId/session-messages/deliver',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.deliverSessionMessages(params.sessionId))
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId/session-messages',
+    async handler({ runtime, params, json }) {
+      json(200, await runtime.dismissSessionMessages(params.sessionId))
+    },
+  },
   {
     method: 'PUT',
     path: '/api/sessions/:sessionId/tree/labels/:entryId',

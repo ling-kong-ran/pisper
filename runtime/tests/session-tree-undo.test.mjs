@@ -167,6 +167,7 @@ test('the file rewind confirmation lists changes, unavailable files and the scop
         { path: 'src/a.ts', action: 'restore' },
         { path: 'new.txt', action: 'delete' },
         { path: 'big.bin', action: 'unavailable', reason: 'too-large' },
+        { path: 'shared.md', action: 'unavailable', reason: 'changed' },
       ],
       incomplete: true,
     },
@@ -178,6 +179,8 @@ test('the file rewind confirmation lists changes, unavailable files and the scop
     'chat:fileRewind.summary {"count":2,"restore":1,"remove":1}',
     'chat:fileRewind.restoreItem {"path":"src/a.ts"}',
     'chat:fileRewind.deleteItem {"path":"new.txt"}',
+    // 之后被别的会话改过的文件单独说明：不回退，免得盖掉那些修改。
+    'chat:fileRewind.changed {"count":1,"paths":"shared.md"}',
     'chat:fileRewind.unavailable {"count":1,"paths":"big.bin"}',
     'chat:fileRewind.incomplete',
     'chat:fileRewind.scope',

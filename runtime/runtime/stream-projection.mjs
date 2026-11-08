@@ -11,6 +11,7 @@ import {
 } from '../services/multi-agent-service.mjs'
 import { isGoalContinuationMessage } from '../services/goal-service.mjs'
 import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
+import { parseSessionMessageTag } from '../services/workspace-coordination.mjs'
 import { isBotBriefMessage } from '../services/bots/bot-proactive.mjs'
 import { isBotCommandResultMessage } from './bot-background-commands.mjs'
 import { isOutputLimitContinuationMessage } from './output-limit-continuation.mjs'
@@ -167,6 +168,8 @@ function serializeMessage(message, index, resolveImageUrl = null) {
   // 别的 Bot 说进来的话：来源标记只认附件上下文里的（用户正文里写的不算），界面据此显示它的头像与名字。
   const markerAt = message.role === 'user' ? rawText.indexOf(ATTACHMENT_MARKER) : -1
   const fromBot = markerAt >= 0 ? parseBotMessageTag(rawText.slice(markerAt))?.from : ''
+  // 同一文件夹里别的会话留的言：同样只认附件上下文里的标记。
+  const fromSessions = markerAt >= 0 ? parseSessionMessageTag(rawText.slice(markerAt)) : null
   const attachments = Array.isArray(message.content)
     ? message.content
         .filter((part) => part?.type === 'image')
@@ -195,6 +198,7 @@ function serializeMessage(message, index, resolveImageUrl = null) {
       ? { interrupted: true }
       : {}),
     ...(fromBot ? { fromBot } : {}),
+    ...(fromSessions ? { fromSessions } : {}),
   }
 }
 
@@ -688,6 +692,7 @@ export class StreamProjection {
     multiAgents,
     permissions,
     questions,
+    coordination,
     settingsManager,
     modelRuntime,
     compactionThresholdPercent,
@@ -715,6 +720,8 @@ export class StreamProjection {
     this.permissions = permissions
     // ask_user 的待回答问题；旧装配（测试）没有传时视为没有问题。
     this.questions = questions || { getPending: () => [] }
+    // 会话之间的协作（谁在同一文件夹改文件、留言箱）；旧装配（测试）没有传时视为没有。
+    this.coordination = coordination || { revision: () => 0, projection: () => null }
     this.settingsManager = settingsManager
     this.modelRuntime = modelRuntime
     this.compactionThresholdPercent = compactionThresholdPercent
@@ -1208,8 +1215,17 @@ export class StreamProjection {
       ? Math.min(messages.length, Math.max(0, requestedEnd))
       : messages.length
     const start = Math.max(0, end - pageSize)
+    // 最新一页带上同一文件夹里的协作提示：没在跑的会话只读页、不读 /live，留言要在这里就看得到。
+    const latest = before == null || before === ''
+    const workspace = latest
+      ? this.coordination.projection(
+          id,
+          this.sessions().get(id)?.cwd || this.sessionMeta()[id]?.cwd || this.cwd,
+        )
+      : null
     return {
       messages: messages.slice(start, end),
+      ...(latest ? { workspace } : {}),
       // 页读不带实时内容，只告诉客户端这一轮还在跑：别处发起的运行（看板派发、另一台设备、TUI）
       // 由客户端据此改读 /live 并轮询，否则打开后只看到当时的历史、不再更新。
       streaming: this.sessionStreaming(id),
@@ -1264,6 +1280,7 @@ export class StreamProjection {
       approvals.at(-1),
       questions.length,
       questions.at(-1),
+      this.coordination.revision(),
     ]
   }
 
@@ -1333,6 +1350,8 @@ export class StreamProjection {
     }
     const meta = this.sessionMeta()
     const executionMode = this.getExecutionMode(id)
+    const sessionCwd = active?.cwd || meta[id]?.cwd || persisted?.cwd || this.cwd
+    const workspace = this.coordination.projection(id, sessionCwd)
     const value = {
       id,
       streaming,
@@ -1353,7 +1372,7 @@ export class StreamProjection {
               `${active.session.model.provider}/${active.session.model.id}`,
             )
           : page.model || meta[id]?.model || '',
-      cwd: active?.cwd || meta[id]?.cwd || persisted?.cwd || this.cwd,
+      cwd: sessionCwd,
       permissionMode: meta[id]?.permissionMode || permissionModeForExecutionMode(executionMode),
       executionMode,
       runMode: meta[id]?.runMode || 'plan',
@@ -1385,6 +1404,8 @@ export class StreamProjection {
       approvals,
       // 只做加法：有待回答的问题时才带，旧客户端忽略。
       ...(questions.length ? { questions } : {}),
+      // 只做加法：同一文件夹里最近有别的会话改文件、或有留言时才带。
+      ...(workspace ? { workspace } : {}),
       pageInfo: page.pageInfo,
     }
     return active || live ? this.cache.storeLiveSnapshot(id, token, value) : value

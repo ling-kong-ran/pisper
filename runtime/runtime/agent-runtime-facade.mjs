@@ -8,6 +8,12 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
 import { SessionFileChangesService } from '../services/session-file-changes.mjs'
 import { TurnCheckpointService } from '../services/turn-checkpoints.mjs'
+import {
+  SESSION_MESSAGE_LIMIT,
+  WorkspaceCoordination,
+  foldersOverlap,
+  sessionMessageContent,
+} from '../services/workspace-coordination.mjs'
 import { loadAgentProfiles } from '../services/agent-profiles.mjs'
 import { revealLocalPath } from '../services/local-path-service.mjs'
 import { projectApproval } from '../services/session-card-summary.mjs'
@@ -346,6 +352,7 @@ export class AgentRuntimeFacade {
       await this.getFileChangesService().clear(id)
       await this.getTurnCheckpoints().clear(id)
       if (result) {
+        await this.workspaceCoordination?.forget(id).catch(() => {})
         // 删除后丢掉内存摘要，并让看板事件流对在线客户端发 removed。
         this.sessionCards?.forget(id, { deleted: true })
         this.boardEvents?.touch(id)
@@ -393,11 +400,151 @@ export class AgentRuntimeFacade {
         ),
     })
     this.workspaceAssetTracker.install(session, { sessionId, cwd })
+    // 会话之间的读写台账：装在文件快照之前，被拒绝的写入不记快照。远程会话的文件在别的电脑上，不记。
+    if (!this.sessions.get(sessionId)?.remoteExecutor)
+      this.getWorkspaceCoordination().install(session, { sessionId, cwd })
     // 同一安装点顺手挂上文件变更追踪：子会话也归属父会话 ID，审批视图自动聚合。
     this.fileChanges ||= new SessionFileChangesService({ dataDir: this.dataDir })
     this.fileChanges.install(session, { sessionId, cwd })
     // 按轮回退文件的快照也挂在这里：子 Agent 的写入同样记在父会话下。
     this.getTurnCheckpoints().install(session, { sessionId, cwd })
+  }
+
+  getWorkspaceCoordination() {
+    this.workspaceCoordination ||= new WorkspaceCoordination({
+      dataDir: this.dataDir,
+      describeSession: (id) => this.coordinationSession(id),
+      // 台账变了：相关会话页的“谁在这里改文件”和留言要重新投影。
+      onChange: (ids) => {
+        for (const id of ids)
+          this.streamProjection?.invalidate(id, { transcript: false, activity: true, usage: false })
+      },
+      warn: () => console.warn('会话协作台账更新失败。'),
+    })
+    return this.workspaceCoordination
+  }
+
+  coordinationSession(id) {
+    const value = this.sessions.get(id)
+    const meta = this.sessionMeta?.[id]
+    if (!value && !meta) return null
+    return {
+      title: value?.name || meta?.name || '',
+      running: Boolean(this.sessionRunIsActive?.(id, value)),
+    }
+  }
+
+  // 同一个文件夹（目录有包含关系）里的其他会话，最近活动的在前；侧聊不算。
+  async workspaceSessions(sessionId) {
+    const cwd = this.sessions.get(sessionId)?.cwd || this.sessionMeta?.[sessionId]?.cwd || ''
+    if (!cwd) return []
+    return (await this.listSessions())
+      .filter((item) => item.id !== sessionId && foldersOverlap(item.cwd, cwd))
+      .sort((left, right) => String(right.modified).localeCompare(String(left.modified)))
+  }
+
+  async listWorkspaceSessions(sessionId) {
+    const coordination = this.getWorkspaceCoordination()
+    const cwd = this.sessions.get(sessionId)?.cwd || this.sessionMeta?.[sessionId]?.cwd || ''
+    return (await this.workspaceSessions(sessionId)).slice(0, 15).map((item) => ({
+      id: item.id,
+      title: item.name || '',
+      running: Boolean(item.streaming),
+      modified: item.modified,
+      recentFiles: coordination.recentFiles(item.id, cwd),
+    }))
+  }
+
+  // 按 id、至少 6 位的 id 前缀或完整标题找同一文件夹里的会话。
+  async resolveWorkspaceSession(sessionId, reference) {
+    const ref = String(reference || '').trim()
+    if (!ref) throw new Error('Name the session to message (its title or id from list_sessions).')
+    const candidates = await this.workspaceSessions(sessionId)
+    const lower = ref.toLowerCase()
+    const byId = candidates.filter(
+      (item) => item.id === ref || (ref.length >= 6 && item.id.startsWith(ref)),
+    )
+    const matches = byId.length
+      ? byId
+      : candidates.filter(
+          (item) =>
+            String(item.name || '')
+              .trim()
+              .toLowerCase() === lower,
+        )
+    if (matches.length === 1) return matches[0]
+    const listed = candidates
+      .slice(0, 10)
+      .map((item) => `"${item.name || 'Untitled'}" (id ${item.id.slice(0, 8)})`)
+      .join(', ')
+    if (matches.length > 1)
+      throw new Error(`More than one session matches "${ref}"; use the id instead: ${listed}.`)
+    throw new Error(
+      candidates.length
+        ? `No session in this folder matches "${ref}". Sessions here: ${listed}.`
+        : 'No other session works in this folder.',
+    )
+  }
+
+  // session_message：对方在跑就插进它的下一步；没在跑先存进它的留言箱，不替它开一轮。
+  async sendSessionMessage(sessionId, { session, text } = {}) {
+    const body = String(text || '').trim()
+    if (!body) throw new Error('The message is empty.')
+    const coordination = this.getWorkspaceCoordination()
+    const target = await this.resolveWorkspaceSession(sessionId, session)
+    if (!coordination.allowSend(sessionId))
+      throw new Error(
+        `Not sent: a session can send at most ${SESSION_MESSAGE_LIMIT} messages an hour.`,
+      )
+    const message = coordination.newMessage({
+      from: { id: sessionId, title: this.coordinationSession(sessionId)?.title || '' },
+      text: body,
+    })
+    const value = this.sessions.get(target.id)
+    // 引擎这一轮已经说完、只剩收尾时 steer 送不到任何一轮：当作没在跑。
+    if (
+      value?.session &&
+      this.sessionRunIsActive(target.id, value) &&
+      value.session.isStreaming !== false
+    ) {
+      try {
+        await value.session.steer(sessionMessageContent([message], ATTACHMENT_MARKER))
+        return { session: { id: target.id, title: target.name || '' }, delivered: 'now' }
+      } catch {
+        console.warn('会话留言没能插进对方正在跑的一轮，已存进它的留言箱。')
+      }
+    }
+    await coordination.queueMessage(target.id, message)
+    this.boardEvents?.touch(target.id)
+    return { session: { id: target.id, title: target.name || '' }, delivered: 'later' }
+  }
+
+  // 会话页的“现在处理”：把留言箱里的留言作为一条消息交给这个会话，在后台开一轮。
+  async deliverSessionMessages(id) {
+    const sessionId = String(id || '').trim()
+    if (!sessionId) throw new Error('会话无效。')
+    const coordination = this.getWorkspaceCoordination()
+    const value = this.sessions.get(sessionId)
+    if (this.sessionRunIsActive(sessionId, value) || this.startingRuns.has(sessionId))
+      throw new Error('当前会话正在运行，留言会在下一步交给它。')
+    const messages = await coordination.takeMessages(sessionId)
+    if (!messages.length) return { started: false }
+    void this.streamPrompt({
+      sessionId,
+      message: sessionMessageContent(messages, ATTACHMENT_MARKER),
+      send: () => {},
+    }).catch(async () => {
+      // 没能开跑（模型不可用等）：留言放回去，会话页照旧显示。
+      console.warn('处理会话留言的一轮没能开始，留言已放回。')
+      for (const message of messages)
+        await coordination.queueMessage(sessionId, message).catch(() => {})
+    })
+    return { started: true }
+  }
+
+  async dismissSessionMessages(id) {
+    const removed = await this.getWorkspaceCoordination().takeMessages(String(id || '').trim())
+    return { removed: removed.length }
   }
 
   getTurnCheckpoints() {
@@ -460,7 +607,7 @@ export class AgentRuntimeFacade {
           // 供 /live 在准备阶段投影这条还没写进会话的消息；内部唤醒消息对用户隐藏，不投影。
           message: isInternalParentMessage(message)
             ? ''
-            : message.slice(0, MAX_PREPARING_MESSAGE_CHARS),
+            : message.split(ATTACHMENT_MARKER)[0].slice(0, MAX_PREPARING_MESSAGE_CHARS),
           acceptedAt: new Date().toISOString(),
         }
       : null

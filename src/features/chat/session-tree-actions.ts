@@ -106,7 +106,13 @@ export function fileRewindConfirmOptions(
   t: Translate,
 ): ConfirmDialogOptions {
   const changes = preview.files.filter((item) => item.action !== 'unavailable')
-  const unavailable = preview.files.filter((item) => item.action === 'unavailable')
+  // 之后被别的会话或程序改过的文件不回退（回退会盖掉别人的修改），和“无法回退”分开说。
+  const changed = preview.files.filter(
+    (item) => item.action === 'unavailable' && item.reason === 'changed',
+  )
+  const unavailable = preview.files.filter(
+    (item) => item.action === 'unavailable' && item.reason !== 'changed',
+  )
   const lines: string[] = []
   if (changes.length) {
     lines.push(
@@ -127,6 +133,16 @@ export function fileRewindConfirmOptions(
   } else {
     lines.push(t('chat:fileRewind.nothing'))
   }
+  if (changed.length)
+    lines.push(
+      t('chat:fileRewind.changed', {
+        count: changed.length,
+        paths: changed
+          .slice(0, FILE_REWIND_LIST_LIMIT)
+          .map((item) => item.path)
+          .join(', '),
+      }),
+    )
   if (unavailable.length)
     lines.push(
       t('chat:fileRewind.unavailable', {

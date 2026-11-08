@@ -9,6 +9,7 @@ import { chatApi, type ApiRecord } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { shouldPollLiveSession } from './live-session-sync'
 import { settleToolCalls } from './run-activity'
+import { workspaceActivity } from './session-workspace-activity'
 import { FOCUS_MESSAGE_PAGE_SIZE } from './use-session-catalog'
 import { publishVoiceSnapshot } from './voice-response-stream'
 
@@ -199,6 +200,8 @@ export function reconcileLiveSnapshot(
     approvals: data.approvals || [],
     // 旧 Runtime 的 /live 没有 questions：沿用事件流已经收到的，不清空。
     questions: Array.isArray(data.questions) ? data.questions : current.questions || [],
+    // 没有这个字段就是没有协作提示（旧 Runtime 也不带）。
+    workspace: workspaceActivity(data.workspace),
     agents: data.agents || [],
     currentActivity: data.streaming
       ? data.currentActivity || current.currentActivity || null
@@ -378,6 +381,7 @@ export function useLiveSessionSync({
             model: latest.model || data.model || undefined,
             contextUsage: data.contextUsage ?? latest.contextUsage ?? null,
             sessionUsage: data.sessionUsage ?? latest.sessionUsage ?? null,
+            workspace: workspaceActivity(data.workspace),
             loaded: true,
             loading: false,
             pageSize: Math.max(latest.pageSize || 0, limit),

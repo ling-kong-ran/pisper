@@ -263,6 +263,10 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
         context?.withdrawQueuedInput(sessionId, inputId) ?? Promise.resolve(null),
       onSendQueuedInputNow: (inputId: string) =>
         context?.sendQueuedInputNow(sessionId, inputId) ?? Promise.resolve(false),
+      onDeliverSessionMessages: () =>
+        context?.deliverSessionMessages(sessionId) ?? Promise.resolve(),
+      onDismissSessionMessages: () =>
+        context?.dismissSessionMessages(sessionId) ?? Promise.resolve(),
       onAbort: () => context?.abort(sessionId),
     }),
     [context, sessionId, session],
@@ -351,6 +355,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       tools={state.tools || EMPTY_LIST}
       thinkingText={state.thinkingText || ''}
       queuedInputs={state.queuedInputs || EMPTY_LIST}
+      workspace={state.workspace || null}
       withdrawingInputIds={state.withdrawingInputIds || EMPTY_LIST}
       compaction={state.compaction}
       contextUsage={state.contextUsage}

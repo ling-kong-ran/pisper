@@ -362,7 +362,10 @@ test('the runtime wires a non-blocking bot conversation', async () => {
     runtime,
     /!staticHotToolNames\.has\(name\) \|\| BOT_CONVERSATION_TOOL_NAMES\.includes\(name\)/,
   )
-  assert.match(runtime, /\[\.\.\.inheritedCustomTools, \.\.\.botTools\]\.map/)
+  assert.match(
+    runtime,
+    /\[\.\.\.inheritedCustomTools, \.\.\.botTools, \.\.\.coordinationTools\]\.map/,
+  )
   // 对话有工具：Bot 的范围外加 bot_*；只挡有 bot_* 替代的多 Agent、ask_user、定时。
   assert.match(
     activation,

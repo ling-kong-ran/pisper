@@ -301,6 +301,16 @@ export const chatApi = {
       `${sessionPath(sessionId)}/tree/${encodeURIComponent(entryId)}/file-rewind`,
     ),
 
+  deliverSessionMessages: (sessionId: string) =>
+    requestJson<{ started: boolean }>(`${sessionPath(sessionId)}/session-messages/deliver`, {
+      method: 'POST',
+    }),
+
+  dismissSessionMessages: (sessionId: string) =>
+    requestJson<{ removed: number }>(`${sessionPath(sessionId)}/session-messages`, {
+      method: 'DELETE',
+    }),
+
   rewindFiles: (sessionId: string, entryId: string) =>
     requestJson<FileRewindResult>(
       `${sessionPath(sessionId)}/tree/${encodeURIComponent(entryId)}/file-rewind`,

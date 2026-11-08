@@ -10,6 +10,7 @@ import type {
   Plan,
   ResourceInvocation,
   SessionSummary,
+  SessionWorkspaceActivity,
 } from '@/types/chat'
 import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
 import type { BranchFromHereOptions, WithdrawnInput } from '@/features/chat/chat-api'
@@ -44,6 +45,8 @@ export type FocusSessionProps = {
   tools: EntityRecord[]
   thinkingText?: string
   queuedInputs: EntityRecord[]
+  // 同一文件夹里的协作：最近在这里改文件的其他会话、等着处理的留言。
+  workspace?: SessionWorkspaceActivity | null
   withdrawingInputIds?: string[]
   compaction?: EntityRecord | null
   contextUsage?: EntityRecord | null
@@ -112,5 +115,7 @@ export type FocusSessionProps = {
   ) => Promise<boolean> | boolean
   onWithdrawQueuedInput?: (inputId: string) => Promise<WithdrawnInput | null>
   onSendQueuedInputNow?: (inputId: string) => Promise<boolean>
+  onDeliverSessionMessages?: () => Promise<void>
+  onDismissSessionMessages?: () => Promise<void>
   onAbort: () => Promise<void> | void
 }

@@ -519,6 +519,38 @@ export function useSessionCommands({
     [syncLiveSession, updateSessionState],
   )
 
+  // 同一文件夹里别的会话留的言：“现在处理”在后台开一轮交给这个会话，随后转入实时同步；
+  // “忽略”直接清掉。失败时用服务端快照接管（留言可能已被别处处理）。
+  const deliverSessionMessages = useCallback(
+    async (sessionId: string) => {
+      try {
+        await chatApi.deliverSessionMessages(sessionId)
+      } catch (error) {
+        notify(chatErrorMessage(error), 'error')
+      }
+      await syncLiveSession(sessionId, { force: true })
+    },
+    [notify, syncLiveSession],
+  )
+
+  const dismissSessionMessages = useCallback(
+    async (sessionId: string) => {
+      try {
+        await chatApi.dismissSessionMessages(sessionId)
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          workspace: current.workspace?.neighbours.length
+            ? { ...current.workspace, messages: [] }
+            : null,
+        }))
+      } catch (error) {
+        notify(chatErrorMessage(error), 'error')
+        await syncLiveSession(sessionId, { force: true })
+      }
+    },
+    [notify, syncLiveSession, updateSessionState],
+  )
+
   // 切换会话工作目录（流式中忽略），成功后同步摘要。
   const switchSessionCwd = useCallback(
     async (session: SessionSummary, cwd: string) => {
@@ -612,5 +644,7 @@ export function useSessionCommands({
     switchSessionRunMode,
     resolveToolApproval,
     answerQuestion,
+    deliverSessionMessages,
+    dismissSessionMessages,
   }
 }

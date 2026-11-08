@@ -68,6 +68,39 @@ test('rewinding restores every file to its content at the chosen turn', async (t
   assert.deepEqual((await service.preview('s1', turn1)).files, [])
 })
 
+// 回退不盖掉别人的修改：本会话最后一次写下之后又被改过的文件不回退，单独列出来。
+test('rewinding leaves alone files someone else changed after this session last wrote them', async (t) => {
+  const { cwd, service, turn, read } = await setup(t)
+  await writeFile(join(cwd, 'a.txt'), 'a0')
+  const at = await turn()
+  // 经钩子写入：执行前记快照，执行后记下写下的内容。
+  const session = { agent: {} }
+  service.install(session, { sessionId: 's1', cwd })
+  const write = async (path, content) => {
+    const context = { toolCall: { id: path, name: 'write' }, args: { path, content } }
+    await session.agent.beforeToolCall(context)
+    await writeFile(join(cwd, path), content)
+    await session.agent.afterToolCall({ ...context, result: { content: [] }, isError: false })
+  }
+  await write('a.txt', 'a1')
+  await write('b.txt', 'b1')
+  await writeFile(join(cwd, 'a.txt'), 'changed by another session')
+
+  assert.deepEqual(await service.preview('s1', at), {
+    files: [
+      { path: 'a.txt', action: 'unavailable', reason: 'changed' },
+      { path: 'b.txt', action: 'delete' },
+    ],
+    incomplete: false,
+  })
+  const result = await service.restore('s1', at)
+  assert.deepEqual(result.deleted, ['b.txt'])
+  assert.deepEqual(result.unavailable, [{ path: 'a.txt', reason: 'changed' }])
+  assert.equal(await read('a.txt'), 'changed by another session')
+  // 回退自己写下的内容不算别人的修改：再回退一次没有可做的。
+  assert.deepEqual((await service.restore('s1', at)).deleted, [])
+})
+
 test('files that cannot be snapshotted are reported instead of silently skipped', async (t) => {
   const { directory, cwd, service, write, turn } = await setup(t)
   await writeFile(join(cwd, 'big.bin'), Buffer.alloc(MAX_CHECKPOINT_FILE_BYTES + 1))

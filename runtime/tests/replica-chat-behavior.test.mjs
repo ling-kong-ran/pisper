@@ -530,6 +530,7 @@ async function liveSyncFixture(api, initial, locallyOwned = false) {
     './chat-errors': { chatErrorMessage: (error) => error.message },
     './live-session-sync': { shouldPollLiveSession: () => false },
     './run-activity': { settleToolCalls: (tools) => tools },
+    './session-workspace-activity': { workspaceActivity: () => null },
     './use-session-catalog': { FOCUS_MESSAGE_PAGE_SIZE: 50 },
     './voice-response-stream': { publishVoiceSnapshot() {} },
   }

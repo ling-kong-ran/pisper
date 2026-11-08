@@ -27,6 +27,7 @@ import {
   GitFork,
   History,
   MessageSquarePlus,
+  MessageSquareText,
   MoreHorizontal,
   LoaderCircle,
   RotateCcw,
@@ -982,6 +983,25 @@ export const FocusChatMessage = memo(function FocusChatMessage({
           </span>
         </div>
       )}
+      {message.role === 'user' &&
+        !message.fromBot &&
+        Array.isArray(message.fromSessions) &&
+        message.fromSessions.length > 0 && (
+          // 同一文件夹里别的会话留的言：气泡上面写是哪个会话说的，不当成用户说的。
+          <div
+            className="mb-1.5 flex h-6 min-w-0 items-center gap-1.5 text-[13px] text-content-secondary"
+            data-message-from-session
+          >
+            <MessageSquareText size={14} aria-hidden="true" className="flex-none" />
+            <span className="min-w-0 truncate font-medium">
+              {t('chat:chatMessage.fromSession', {
+                title: message.fromSessions
+                  .map((sender) => sender.title || t('chat:chatHistoryPage.untitledChat'))
+                  .join(' / '),
+              })}
+            </span>
+          </div>
+        )}
       <div
         ref={contentRef}
         className={cn(

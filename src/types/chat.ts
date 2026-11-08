@@ -51,6 +51,23 @@ export type ChatMessage = EntityRecord & {
   interrupted?: boolean
   // 别的 Bot 说进 Bot 对话的话：发话 Bot 的 id（气泡上面显示它的头像与名字）。
   fromBot?: string
+  // 同一文件夹里别的会话留的言：发话会话（气泡上面写“来自会话「X」”）。
+  fromSessions?: SessionMessageSender[]
+}
+
+export type SessionMessageSender = { id: string; title: string }
+
+// 同一文件夹里的协作（Runtime /live 的 workspace 字段）：最近在这里改文件的其他会话、等着处理的留言。
+export type SessionWorkspaceActivity = {
+  neighbours: {
+    id: string
+    title: string
+    running: boolean
+    fileCount: number
+    files: string[]
+    lastChangedAt: string
+  }[]
+  messages: { id: string; from: SessionMessageSender; text: string; at: string }[]
 }
 
 export type ToolActivity = EntityRecord & {
@@ -174,6 +191,7 @@ export type SessionState = EntityRecord & {
   sessionTreeRevision: number
   thinkingText: string
   queuedInputs: EntityRecord[]
+  workspace?: SessionWorkspaceActivity | null
   // 这一轮里已经送达代理的排队输入 id：HTTP 响应晚于送达时，乐观气泡直接按“已送达”放进时间线。
   deliveredInputIds?: string[]
   hadQueuedInput: boolean

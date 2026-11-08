@@ -126,6 +126,8 @@ import {
   BOT_CONVERSATION_TOOL_NAMES,
   createBotConversationTools,
 } from '../tools/app/bot-conversation.mjs'
+import { createSessionCoordinationTools } from '../tools/app/session-coordination.mjs'
+import { sessionMessageContent } from '../services/workspace-coordination.mjs'
 import { BotCommandJobs, botCommandResultPrompt } from './bot-background-commands.mjs'
 import { SessionQuestionService } from '../services/session-question-service.mjs'
 import { SessionStartQueue } from '../services/session-start-queue.mjs'
@@ -810,6 +812,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       multiAgents: { summaries: (id) => this.multiAgents.summaries(id) },
       permissions: { getPending: (id) => this.permissions.getPending(id) },
       questions: { getPending: (id) => this.questions.getPending(id) },
+      coordination: {
+        revision: () => this.workspaceCoordination?.revision || 0,
+        projection: (id, cwd) => this.workspaceCoordination?.projection(id, cwd) || null,
+      },
       settingsManager: () => this.settingsManager,
       modelRuntime: () => this.modelRuntime,
       compactionThresholdPercent: () => this.compactionThresholdPercent,
@@ -992,6 +998,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
       { files: ['pisper-sessions.json', 'pisper-usage.json'] },
     )
+    // 会话之间的留言：会话页要显示还没处理的留言。读不了就当没有。
+    await attempt('sessionMessages', () => this.getWorkspaceCoordination().load(), {
+      files: ['session-messages.json'],
+    })
     await attempt(
       'assetIndex',
       async () => {
@@ -2246,10 +2256,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const botTools = conversationOnly
       ? createBotConversationTools({ runtime: this.botConversationRuntime(runtimeSessionId) })
       : []
+    // 同一文件夹里会话之间的协调（看谁在这里、给它留言）：可选工具，discover_tools 搜得到、call_tool 调得到，
+    // 不常驻声明；写入被拒或收到隔壁提醒时，提示里会点名它。远程会话的文件不在这台电脑上，不给。
+    const coordinationTools = remoteExecutor
+      ? []
+      : createSessionCoordinationTools({
+          runtime: {
+            list: () => this.listWorkspaceSessions(runtimeSessionId),
+            send: (input) => this.sendSessionMessage(runtimeSessionId, input),
+          },
+        })
     // 网关也认 Bot 工具：模型没看到某个 bot_* 工具（中转服务丢了声明，或它认定自己没有）而经 call_tool
     // 按名字调用时照样能用；权限与工具范围仍在 authorize 里检查。
     const callableTools = new Map(
-      [...inheritedCustomTools, ...botTools].map((tool) => [tool.name, tool]),
+      [...inheritedCustomTools, ...botTools, ...coordinationTools].map((tool) => [tool.name, tool]),
     )
     // 工具网关：集中管控工具调用（权限审批），
     // 让 Pi 会话通过单一 tool_gateway 工具间接调用应用工具。
@@ -2300,6 +2320,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ...multiAgentTools,
         ...askUserTools,
         ...botTools,
+        ...coordinationTools,
       ],
     })
     markRunStage('rt.agentSession')
@@ -2687,7 +2708,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
     // 注入待处理的 Agent 完成通知（对用户隐藏）
     // steer 失败的通知改为随本条消息一起发出，不丢失。
-    const pendingAgentNotes = value.pendingAgentNotifications || []
+    // 同一文件夹里别的会话留的言（会话页显示着、还没处理）：这一轮一起交给它，转录里标着来自谁。
+    const sessionMessages = this.workspaceCoordination
+      ? await this.workspaceCoordination.takeMessages(session.sessionId).catch(() => [])
+      : []
+    const pendingAgentNotes = [
+      ...(sessionMessages.length
+        ? [sessionMessageContent(sessionMessages, ATTACHMENT_MARKER)]
+        : []),
+      ...(value.pendingAgentNotifications || []),
+    ]
     value.pendingAgentNotifications = []
     const undeliveredAgentNotes = []
     for (const note of pendingAgentNotes) {

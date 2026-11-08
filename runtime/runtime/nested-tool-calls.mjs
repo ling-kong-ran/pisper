@@ -1,7 +1,7 @@
 // 嵌套工具调用的钩子接线：codemode 脚本里调用的工具不走 agent.beforeToolCall，
 // 而是由 Pi 的 NestedToolCallRunner 直接调 session._beforeToolCall(context, parentToolCallId)。
 // Pisper 的审批、文件快照、Team 文件范围和资产捕获都挂在 agent.beforeToolCall 上，
-// 不接线的话脚本里的写文件、Shell 调用会绕过全部检查。
+// 不接线的话脚本里的写文件、Shell 调用会绕过全部检查。afterToolCall 同理（读写台账、写后内容）。
 const NESTED_TOOL_CALL_PATCH = Symbol('pisper.nested-tool-call-patch')
 
 export function installNestedToolCallHooks(session) {
@@ -12,6 +12,7 @@ export function installNestedToolCallHooks(session) {
   )
     return session
   session[NESTED_TOOL_CALL_PATCH] = true
+  installNestedAfterToolCall(session)
   const original = session._beforeToolCall
   // Pisper 钩子链的末端是 Pi 的 (context) => this._beforeToolCall(context)，会丢掉父调用 id；
   // 按 context 对象记下来，回到原方法时补上，Pi 扩展的 tool_call 事件仍能看到父调用。
@@ -29,4 +30,18 @@ export function installNestedToolCallHooks(session) {
     return this.agent.beforeToolCall(nested, undefined)
   }
   return session
+}
+
+function installNestedAfterToolCall(session) {
+  if (typeof session._afterToolCall !== 'function') return
+  const original = session._afterToolCall
+  const parents = new WeakMap()
+  session._afterToolCall = function (context, parentToolCallId) {
+    if (!parentToolCallId) return original.call(this, context, parents.get(context))
+    parents.set(context, parentToolCallId)
+    // Pi 默认的 agent.afterToolCall 回到这里时不带父调用 id：按 context 对象补上。
+    return this.agent.afterToolCall
+      ? this.agent.afterToolCall(context, undefined)
+      : original.call(this, context, parentToolCallId)
+  }
 }

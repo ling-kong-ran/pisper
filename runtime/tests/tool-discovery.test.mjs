@@ -73,6 +73,21 @@ test('optional tool search understands capability aliases and exact dynamic tool
   ]
   for (const query of ['通过了 QQ 上通知我', 'notify push message plugin user', '推送到飞书群'])
     assert.equal(searchOptionalTools(botTools, query, 1)[0]?.name, 'bot_notify', query)
+  // 会话之间的协调：写入被拒或收到隔壁提醒后，按“协调”“别的会话”搜得到。
+  const coordinationTools = [
+    { name: 'list_sessions', label: 'List sessions in this folder', description: 'List' },
+    { name: 'session_message', label: 'Message another session', description: 'Send' },
+  ]
+  for (const query of ['给隔壁会话留言', 'message another session', 'tell the other session'])
+    assert.equal(
+      searchOptionalTools(coordinationTools, query, 1)[0]?.name,
+      'session_message',
+      query,
+    )
+  assert.equal(
+    searchOptionalTools(coordinationTools, 'who else works in the same folder', 1)[0]?.name,
+    'list_sessions',
+  )
   assert.equal(
     searchOptionalTools(tools, 'search the latest information online', 1)[0].name,
     'web_search',

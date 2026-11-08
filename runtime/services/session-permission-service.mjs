@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan-tool-names.mjs'
 import { BOT_CONVERSATION_TOOL_NAMES } from '../tools/app/bot-conversation-tool-names.mjs'
+import { SESSION_COORDINATION_TOOL_NAMES } from '../tools/app/session-coordination-tool-names.mjs'
 import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
@@ -35,12 +36,14 @@ const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
 const SCHEDULE_ESCALATING_ACTIONS = new Set(['create', 'update', 'resume', 'run_now'])
 // ask_user 不是权限：问题本身就是等用户决定，再叠一层审批只会让用户点两次（规格 8.4）。
 // Bot 对话的经理工具只是派活、提问、定时、记忆与传话：真正的动手各自走子 agent 与定时任务自己的权限。
+// 会话之间的协调工具只是看看谁在同一文件夹、给它留言：不给对方任何权限。
 const INTERNAL_SAFE_TOOLS = new Set([
   'get_goal',
   'update_goal',
   'ask_user',
   ...PLAN_ALL_TOOL_NAMES,
   ...BOT_CONVERSATION_TOOL_NAMES,
+  ...SESSION_COORDINATION_TOOL_NAMES,
 ])
 
 // Bot 的对话不停下来等批准：要批准的操作退回给它，让它改派子 agent。
