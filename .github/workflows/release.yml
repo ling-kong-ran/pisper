@@ -138,6 +138,9 @@ jobs:
           cargo clippy --manifest-path src-tui/Cargo.toml --all-targets --locked -- -D warnings
       - name: Check integrated desktop source
         if: inputs.component == 'desktop'
+        # 构建 SEA 时搜索工具下载失败会退到 GitHub API，带上令牌免得匿名限流。
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           npm test
           npm run check
@@ -225,6 +228,9 @@ jobs:
           test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured." >&2; exit 1; }
       - name: Build scoped release artifacts
         shell: bash
+        # 构建 SEA 时搜索工具下载失败会退到 GitHub API，带上令牌免得匿名限流。
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           case "$RELEASE_COMPONENT" in
             desktop)

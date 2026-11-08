@@ -9,7 +9,8 @@ const run = promisify(execFile)
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 const TOOL_ROOT = 'node_modules/@earendil-works/pi-coding-agent/vendor/bin'
 // 下载源（GitHub Releases）偶尔连续一阵子回 5xx 或断连（发布 CI 连着遇到 504）：服务端错误与网络错误
-// 按 5、10、20、40 秒退避重试，共 5 次；4xx 与摘要不符直接失败。发布工作流另外缓存了下载过的压缩包。
+// 先换 GitHub API 下同一个文件，再按 5、10、20、40 秒退避重试，共 5 轮；4xx 与摘要不符直接失败。
+// 发布工作流另外缓存了下载过的压缩包。
 const DOWNLOAD_ATTEMPTS = 5
 const RETRY_DELAY_MS = 5_000
 
@@ -49,10 +50,53 @@ function checksum(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function downloadArchive(asset, fetchImpl) {
+const GITHUB_RELEASE_ASSET =
+  /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/]+)$/
+
+function githubHeaders(env) {
+  const token = env.GH_TOKEN || env.GITHUB_TOKEN
+  return {
+    'User-Agent': 'pisper-release',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
+// github.com 的 releases/download 跳转入口整段时间回 504 时（发布 CI 遇到过），API 那边往往还好：
+// 按仓库、标签和文件名查到资源 id，经 API 下载同一个文件。摘要照样校验，换来源不换内容。
+export async function githubApiAssetUrl(url, fetchImpl, env = process.env) {
+  const match = GITHUB_RELEASE_ASSET.exec(url)
+  if (!match) return ''
+  const [, owner, repo, tag, name] = match
   let response
   try {
-    response = await fetchImpl(asset.url, { signal: AbortSignal.timeout(120_000) })
+    response = await fetchImpl(
+      `https://api.github.com/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tag)}`,
+      {
+        headers: { Accept: 'application/vnd.github+json', ...githubHeaders(env) },
+        signal: AbortSignal.timeout(30_000),
+      },
+    )
+  } catch (error) {
+    throw new TransientDownloadError(`Search tool release lookup: ${error?.message || error}`)
+  }
+  if (!response.ok)
+    throw new TransientDownloadError(`Search tool release lookup: HTTP ${response.status}`)
+  const release = await response.json()
+  const id = (Array.isArray(release?.assets) ? release.assets : []).find(
+    (item) => item?.name === decodeURIComponent(name),
+  )?.id
+  if (!Number.isSafeInteger(id))
+    throw new TransientDownloadError('Search tool release lookup: asset not found')
+  return `https://api.github.com/repos/${owner}/${repo}/releases/assets/${id}`
+}
+
+async function downloadArchive(asset, fetchImpl, url = asset.url, headers = undefined) {
+  let response
+  try {
+    response = await fetchImpl(url, {
+      ...(headers ? { headers } : {}),
+      signal: AbortSignal.timeout(120_000),
+    })
   } catch (error) {
     throw new TransientDownloadError(`Search tool download: ${error?.message || error}`)
   }
@@ -79,13 +123,27 @@ async function archiveBytes(asset, cachePath, fetchImpl, retryDelayMs) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
+  // 每一轮先走原地址，服务端错误时再经 GitHub API 下同一个文件；两条路都是暂时性失败才退避重试。
+  const viaApi = async () => {
+    const url = await githubApiAssetUrl(asset.url, fetchImpl)
+    if (!url) throw new TransientDownloadError('Search tool download: no fallback source')
+    return downloadArchive(asset, fetchImpl, url, {
+      Accept: 'application/octet-stream',
+      ...githubHeaders(process.env),
+    })
+  }
   for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await downloadArchive(asset, fetchImpl)
-    } catch (error) {
-      if (!(error instanceof TransientDownloadError) || attempt >= DOWNLOAD_ATTEMPTS) throw error
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)))
+    let failure
+    for (const source of [() => downloadArchive(asset, fetchImpl), viaApi]) {
+      try {
+        return await source()
+      } catch (error) {
+        if (!(error instanceof TransientDownloadError)) throw error
+        failure ||= error
+      }
     }
+    if (attempt >= DOWNLOAD_ATTEMPTS) throw failure
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)))
   }
 }
 

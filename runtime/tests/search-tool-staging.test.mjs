@@ -99,8 +99,8 @@ test('a tampered search archive fails the build before extraction', async (t) =>
   )
 })
 
-// 下载源偶尔回 5xx：重试（这里第三次成功下到内容，摘要不符失败）；断连重试到上限；4xx 不重试。
-test('search tool downloads retry server errors but not client errors', async (t) => {
+// 下载源偶尔连续回 5xx：每轮先走原地址、再经 GitHub API 下同一个文件，都是暂时性失败才重试；4xx 不重试。
+test('search tool downloads fall back to the GitHub API and retry server errors', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'pisper-retry-search-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const stage = (fetchImpl) =>
@@ -111,16 +111,29 @@ test('search tool downloads retry server errors but not client errors', async (t
       fetchImpl,
       retryDelayMs: 1,
     })
-  let calls = 0
+  const urls = []
+  const releaseLookup = (url) =>
+    url.startsWith('https://api.github.com/repos/') && url.includes('/releases/tags/')
+  // 原地址一直 504：经 API 查到资源 id 并下载（内容不对，摘要不符失败，说明真的走到了 API 下载）。
   await assert.rejects(
-    stage(async () => {
-      calls += 1
-      return calls < 3 ? new Response('busy', { status: 504 }) : new Response('tampered archive')
+    stage(async (url) => {
+      urls.push(url)
+      if (releaseLookup(url))
+        return Response.json({
+          assets: [{ id: 42, name: 'ripgrep-15.2.0-x86_64-pc-windows-msvc.zip' }],
+        })
+      if (url.endsWith('/releases/assets/42')) return new Response('tampered archive')
+      return new Response('busy', { status: 504 })
     }),
     /checksum mismatch/,
   )
-  assert.equal(calls, 3)
-  calls = 0
+  assert.deepEqual(urls, [
+    'https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip',
+    'https://api.github.com/repos/BurntSushi/ripgrep/releases/tags/15.2.0',
+    'https://api.github.com/repos/BurntSushi/ripgrep/releases/assets/42',
+  ])
+  // 两条路都断：重试到 5 轮为止，报原地址的错。
+  let calls = 0
   await assert.rejects(
     stage(async () => {
       calls += 1
@@ -128,7 +141,7 @@ test('search tool downloads retry server errors but not client errors', async (t
     }),
     /Search tool download: fetch failed/,
   )
-  assert.equal(calls, 5)
+  assert.equal(calls, 10)
   calls = 0
   await assert.rejects(
     stage(async () => {
