@@ -27,4 +27,4 @@ LangString webview2DownloadSuccess ${LANG_ENGLISH} "WebView2 bootstrapper downlo
 LangString webview2Downloading ${LANG_ENGLISH} "Microsoft WebView2 is missing. Downloading its installer (not a speech model)..."
 LangString webview2InstallError ${LANG_ENGLISH} "Error: Installing WebView2 failed with exit code $1"
 LangString webview2InstallSuccess ${LANG_ENGLISH} "WebView2 installed successfully"
-LangString deleteAppData ${LANG_ENGLISH} "Delete the application data"
+LangString deleteAppData ${LANG_ENGLISH} "Also delete sessions, settings and sign-ins"

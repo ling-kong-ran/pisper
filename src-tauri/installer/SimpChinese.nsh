@@ -27,4 +27,4 @@ LangString webview2DownloadSuccess ${LANG_SIMPCHINESE} "WebView2 引导程序下
 LangString webview2Downloading ${LANG_SIMPCHINESE} "缺少 Microsoft WebView2，正在下载依赖安装器（不是语音模型）..."
 LangString webview2InstallError ${LANG_SIMPCHINESE} "错误：安装 WebView2 时失败，错误代码：$1"
 LangString webview2InstallSuccess ${LANG_SIMPCHINESE} "成功安装 WebView2"
-LangString deleteAppData ${LANG_SIMPCHINESE} "删除应用程序数据"
+LangString deleteAppData ${LANG_SIMPCHINESE} "同时删除会话、设置和登录状态"

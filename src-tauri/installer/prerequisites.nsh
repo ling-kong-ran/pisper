@@ -38,3 +38,6 @@ Section "-Pisper prerequisites"
   Pop $1
   Pop $0
 SectionEnd
+
+; 升级和卸载时清掉旧文件；离线包经 offline.nsh 包含本文件，同样生效。
+!include "${__FILEDIR__}\cleanup.nsh"

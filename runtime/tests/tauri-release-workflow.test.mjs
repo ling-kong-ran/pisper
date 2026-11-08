@@ -448,3 +448,51 @@ test('Windows variants stage independently and only the standard installer enter
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+test('Windows installer clears bundled folders on every install and leaves nothing behind on uninstall', async () => {
+  const config = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'))
+  const hooks = await readFile(join('src-tauri', config.bundle.windows.nsis.installerHooks), 'utf8')
+  // 标准包与离线包共用 prerequisites.nsh，清理逻辑经它包含，两种安装包都生效。
+  assert.ok(hooks.includes('!include "${__FILEDIR__}\\cleanup.nsh"'))
+  const cleanup = await readFile('src-tauri/installer/cleanup.nsh', 'utf8')
+  const macro = (name) => cleanup.match(new RegExp(`!macro ${name}\\b([\\s\\S]*?)!macroend`))?.[1]
+  const clear = macro('PisperClearBundledDirs')
+  // 随包目录全部在清理范围内：新增 resources 目录时这里必须跟着加，否则旧文件又会留下。
+  const bundled = new Set(
+    Object.values(config.bundle.resources).map((target) => target.split('/')[0]),
+  )
+  for (const directory of bundled) assert.ok(clear.includes(`RMDir /r "$INSTDIR\\${directory}"`))
+  // 只删随包目录，绝不递归删除安装目录本身。
+  assert.doesNotMatch(cleanup, /RMDir \/r "\$INSTDIR"/)
+
+  // 程序还开着时先走运行检查；用户取消会中止安装，此时还没删任何东西。
+  const preinstall = macro('NSIS_HOOK_PREINSTALL')
+  assert.ok(
+    preinstall.indexOf('CheckIfAppIsRunning') >= 0 &&
+      preinstall.indexOf('CheckIfAppIsRunning') < preinstall.indexOf('PisperClearBundledDirs'),
+  )
+
+  const uninstall = macro('NSIS_HOOK_POSTUNINSTALL')
+  assert.match(uninstall, /\$\{If\} \$UpdateMode <> 1/)
+  // 命令行工具：只动带托管标记的那份，并从用户 PATH 去掉它的目录。
+  assert.match(
+    uninstall,
+    /\.pisper-cli-managed"[\s\S]*Delete \/REBOOTOK "\$LOCALAPPDATA\\\$\{BUNDLEID\}\\cli\\pisper\.exe"[\s\S]*Call un\.PisperRemoveUserPathEntry/,
+  )
+  assert.match(uninstall, /RMDir \/r "\$LOCALAPPDATA\\\$\{BUNDLEID\}\\components"/)
+  // 会话与设置只在勾选“删除应用程序数据”时删除。
+  assert.match(
+    uninstall,
+    /\$\{If\} \$DeleteAppDataCheckboxState = 1\s+RMDir \/r "\$PROFILE\\\.pisper"/,
+  )
+  // PATH 读到可能截断的长度时不写回，避免把用户的 PATH 写坏。
+  assert.match(cleanup, /IntOp \$6 \$\{NSIS_MAX_STRLEN\} - 2/)
+  assert.match(cleanup, /WriteRegExpandStr HKCU "Environment" "Path" \$1/)
+  for (const language of ['English', 'SimpChinese']) {
+    const strings = await readFile(
+      join('src-tauri', config.bundle.windows.nsis.customLanguageFiles[language]),
+      'utf8',
+    )
+    assert.match(strings, /LangString deleteAppData .*(sessions|会话)/)
+  }
+})
