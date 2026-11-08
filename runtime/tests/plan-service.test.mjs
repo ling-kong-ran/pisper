@@ -9,6 +9,7 @@ import {
   createPlanTools,
   PLAN_COMPATIBILITY_TOOL_NAMES,
   PLAN_TOOL_NAMES,
+  planText,
 } from '../tools/app/plan.mjs'
 import { createTaskListTools } from '../tools/app/task-list.mjs'
 
@@ -218,6 +219,29 @@ test('canonical plan tools return { plan }, aliases share behavior, and empty it
     resumed.content[0].text,
     /Runtime continuation: a previously unfinished plan is active/,
   )
+  // 给模型的是一行进度加每项一行，不再是整份缩进 JSON。
+  assert.match(
+    resumed.content[0].text,
+    /^Plan: 0\/1 completed, 1 in progress\n- \[in_progress\] restored: Restored work/,
+  )
+  assert.equal(
+    planText({
+      items: [
+        { id: 'a', title: '写测试', status: 'completed' },
+        {
+          id: 'b',
+          title: '发布',
+          status: 'blocked',
+          assignee: 'ops',
+          dependsOn: ['a'],
+          note: '等审批',
+        },
+      ],
+      suspendedCount: 1,
+    }),
+    'Plan: 1/2 completed, 1 blocked, 1 suspended plan waiting\n- [completed] a: 写测试\n- [blocked] b: 发布 (assignee: ops; after: a; note: 等审批)',
+  )
+  assert.equal(cleared.content[0].text, 'Plan is empty.')
   assert.equal(tools.find((tool) => tool.name === 'get_task_list').promptSnippet, undefined)
   assert.equal(tools.find((tool) => tool.name === 'update_task_list').promptGuidelines, undefined)
 })

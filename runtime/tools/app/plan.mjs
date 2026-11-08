@@ -48,12 +48,38 @@ const updateParameters = Type.Object({
   ),
 })
 
+// 给模型看的计划：一行进度、每项一行（编号、状态、标题，有负责人、依赖、备注才写）。
+// 以前整份计划按缩进 JSON 回给模型，每次更新都把它刚发出的内容再占一遍上下文；界面读 details，不受影响。
+export function planText(plan) {
+  const items = Array.isArray(plan?.items) ? plan.items : []
+  if (!items.length) return 'Plan is empty.'
+  const count = (status) => items.filter((item) => item.status === status).length
+  const suspended = Number(plan?.suspendedCount) || 0
+  const head = [
+    `Plan: ${count('completed')}/${items.length} completed`,
+    count('in_progress') ? `${count('in_progress')} in progress` : '',
+    count('blocked') ? `${count('blocked')} blocked` : '',
+    suspended ? `${suspended} suspended plan${suspended === 1 ? '' : 's'} waiting` : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+  const lines = items.map((item) => {
+    const extra = [
+      item.assignee ? `assignee: ${item.assignee}` : '',
+      item.dependsOn?.length ? `after: ${item.dependsOn.join(', ')}` : '',
+      item.note ? `note: ${item.note}` : '',
+    ].filter(Boolean)
+    return `- [${item.status}] ${item.id}: ${item.title}${extra.length ? ` (${extra.join('; ')})` : ''}`
+  })
+  return [head, ...lines].join('\n')
+}
+
 function planResult(plan) {
   const continuation = plan?.resumed
     ? '\n\nRuntime continuation: a previously unfinished plan is active again; continue it unless the user explicitly cancelled or redirected it.'
     : ''
   return {
-    content: [{ type: 'text', text: `${JSON.stringify({ plan }, null, 2)}${continuation}` }],
+    content: [{ type: 'text', text: `${planText(plan)}${continuation}` }],
     details: { plan },
   }
 }
