@@ -429,12 +429,15 @@ test('runtime navigation uses AgentSession tree semantics and survives a cold re
   await runtime.setSessionTreeLabel(created.id, entries.firstAssistant, 'Resume here')
   assert.equal(active.session.sessionManager.getEntries().length, entryCount)
   active.runActive = true
-  await assert.rejects(
-    runtime.navigateSessionTree(created.id, entries.alternateAssistant),
-    /正在运行/,
-  )
+  await assert.rejects(runtime.navigateSessionTree(created.id, entries.alternateAssistant), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
   active.runActive = false
-  await assert.rejects(runtime.navigateSessionTree(created.id, 'missing-entry'), /节点不存在/)
+  await assert.rejects(runtime.navigateSessionTree(created.id, 'missing-entry'), {
+    code: 'not_found',
+    params: { subject: 'message', detail: 'tree entry' },
+  })
   // 持久化索引：重启后的首次搜索无需重扫会话文件，直接命中磁盘索引。
   const indexPath = join(directory, 'pisper-session-label-index.json')
   await runtime.dispose()

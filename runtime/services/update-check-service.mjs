@@ -1,5 +1,6 @@
 // 更新检查服务：对比当前版本/提交与远端 release 分支，判断是否有新版本可更新。
 import { promisify } from 'node:util'
+import { pisperError } from '../../shared/errors.mjs'
 import {
   DEFAULT_BRANCH,
   normalizedVersion,
@@ -43,7 +44,7 @@ function commitNotes(commits = [], branch = DEFAULT_BRANCH) {
         .trim() || 'Untitled commit'
     return `- ${title} (${String(item.sha || '').slice(0, 7)})`
   })
-  return lines.length ? `## ${branch} 分支更新\n\n${lines.join('\n')}` : ''
+  return lines.length ? `## ${branch} updates\n\n${lines.join('\n')}` : ''
 }
 
 export class UpdateCheckService {
@@ -72,8 +73,10 @@ export class UpdateCheckService {
 
   async fetchLatest() {
     if (!this.currentCommit)
-      throw new Error(
-        '无法识别当前 Web 源码的 Git commit。请使用 Git 仓库运行，或设置 PISPER_COMMIT_SHA。',
+      throw pisperError(
+        'unavailable',
+        'git',
+        'current commit unknown; run from a Git checkout or set PISPER_COMMIT_SHA',
       )
     const response = await this.fetcher(
       `${REPOSITORY_API}/compare/${this.currentCommit}...${encodeURIComponent(this.branch)}`,
@@ -86,7 +89,8 @@ export class UpdateCheckService {
         },
       },
     )
-    if (!response.ok) throw new Error(`GitHub commit 比较失败：HTTP ${response.status}`)
+    if (!response.ok)
+      throw pisperError('failed', 'network', `GitHub compare HTTP ${response.status}`)
     const comparison = await response.json()
     const commits = Array.isArray(comparison.commits) ? comparison.commits : []
     const aheadBy = Math.max(0, Number(comparison.ahead_by) || 0)
@@ -105,8 +109,8 @@ export class UpdateCheckService {
       canDownload: false,
       checkedAt: new Date(this.now()).toISOString(),
       message: available
-        ? `Web 源码落后 ${this.branch} ${aheadBy} 个提交，请查看更新内容后自行更新。`
-        : `当前 Web 源码已同步 ${this.branch}。`,
+        ? `Web source is ${aheadBy} commits behind ${this.branch}; review the changes and update.`
+        : `Web source is up to date with ${this.branch}.`,
     }
     return value
   }

@@ -10,8 +10,8 @@ export const COMPONENT_TEMPLATES = Object.freeze(
 
 /** @typedef {(typeof COMPONENT_TEMPLATES)[number]} ComponentTemplate */
 
-const USAGE_TODAY_JS = String.raw`// 今日用量：统计今天有更新的会话（按状态计数），并累加会话报告的 token 用量。
-// 需要 sessions.read；compact（宽度 < 300）时只显示数字。
+const USAGE_TODAY_JS = String.raw`// Usage today: sessions updated today (counted by status) plus the tokens they report.
+// Needs sessions.read; compact (width < 300) shows only the numbers.
 function formatTokens(value) {
   if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M'
   if (value >= 1e3) return (value / 1e3).toFixed(1) + 'k'
@@ -58,7 +58,7 @@ export default function UsageToday({ size, ctx }) {
 }
 `
 
-const NOTES_JS = String.raw`// 便签：每个放置实例各存一份（存储键 note:<instanceId>），输入停 600ms 后保存。需要 storage。
+const NOTES_JS = String.raw`// Notes: one note per placement (storage key note:<instanceId>), saved 600 ms after typing stops. Needs storage.
 export default function Notes({ placement, ctx }) {
   const { html, React, t, ui } = ctx
   const key = 'note:' + placement.instanceId
@@ -115,13 +115,13 @@ export default function Notes({ placement, ctx }) {
 /** @param {string} name */
 function blankSource(name) {
   // 名称经 JSON.stringify 成为合法的 JS 字符串字面量，不会被当成代码执行。
-  return String.raw`// 空白组件：用工作室的提示词生成，或直接编辑 component.js（保存即热重载）。
+  return String.raw`// Blank component: generate it from a prompt in the studio, or edit component.js (hot-reloads on save).
 const NAME = ${JSON.stringify(name)}
 
 export default function Component({ ctx }) {
   const { html, t } = ctx
   return html${'`'}<div style=${'$'}{{ display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center', height: '100%', padding: '10px 12px', boxSizing: 'border-box' }}>
-    <strong style=${'$'}{{ fontWeight: 600 }}>${'$'}{NAME}</strong>
+    <strong style=${'$'}{{ fontWeight: 600 }}>${'$'}{NAME || t('title')}</strong>
     <span style=${'$'}{{ color: 'var(--text-muted)', fontSize: 12 }}>${'$'}{t('hint')}</span>
   </div>${'`'}
 }
@@ -142,6 +142,8 @@ export function templateDefaultId(template) {
   return TEMPLATE_DEFAULT_IDS[template]
 }
 
+// 模板的 i18n['zh-CN'] 是组件自带的中文文案（组件按应用语言用 ctx.t 读），属于数据，必须留中文；
+// 顶层 name / description / reason 用英文。
 /**
  * 生成模板的 manifest 与文件。name 由调用方校验（≤120、已去掉孤立代理项）；给了 name 就覆盖内置的双语名称。
  * @param {ComponentTemplate} template
@@ -154,9 +156,9 @@ export function buildComponentTemplate(template, { name = '' } = {}) {
       manifest: {
         runtime: 'native',
         sdk: 1,
-        name: name || '今日用量',
+        name: name || 'Usage today',
         version: '1.0.0',
-        description: '今天有更新的会话数与 token 用量。',
+        description: 'Sessions updated today and tokens used.',
         icon: 'gauge',
         entry: 'component.js',
         i18n: {
@@ -184,7 +186,7 @@ export function buildComponentTemplate(template, { name = '' } = {}) {
           { surface: 'feature-page' },
           { surface: 'floating', size: { w: 260, h: 96 } },
         ],
-        capabilities: { 'sessions.read': { reason: '统计今天的会话与用量' } },
+        capabilities: { 'sessions.read': { reason: 'Count today’s sessions and usage' } },
       },
       files: [{ path: 'component.js', content: USAGE_TODAY_JS }],
     }
@@ -194,9 +196,9 @@ export function buildComponentTemplate(template, { name = '' } = {}) {
       manifest: {
         runtime: 'native',
         sdk: 1,
-        name: name || '便签',
+        name: name || 'Notes',
         version: '1.0.0',
-        description: '随手记，每个放置位置各存一份。',
+        description: 'Quick notes, one per placement.',
         icon: 'sticky-note',
         entry: 'component.js',
         i18n: {
@@ -227,17 +229,16 @@ export function buildComponentTemplate(template, { name = '' } = {}) {
           { surface: 'feature-page' },
           { surface: 'floating', size: { w: 280, h: 200 } },
         ],
-        capabilities: { storage: { quotaKb: 64, reason: '保存便签内容' } },
+        capabilities: { storage: { quotaKb: 64, reason: 'Save note text' } },
       },
       files: [{ path: 'component.js', content: NOTES_JS }],
     }
   }
-  const title = name || '新组件'
   return {
     manifest: {
       runtime: 'native',
       sdk: 1,
-      name: title,
+      name: name || 'New component',
       version: '0.1.0',
       description: '',
       icon: 'box',
@@ -245,14 +246,14 @@ export function buildComponentTemplate(template, { name = '' } = {}) {
       i18n: {
         'zh-CN': {
           ...(name ? {} : { name: '新组件' }),
-          strings: { hint: '用提示词生成或编辑 component.js' },
+          strings: { title: '新组件', hint: '用提示词生成或编辑 component.js' },
         },
         'en-US': {
           ...(name ? {} : { name: 'New component' }),
-          strings: { hint: 'Generate with a prompt or edit component.js' },
+          strings: { title: 'New component', hint: 'Generate with a prompt or edit component.js' },
         },
       },
     },
-    files: [{ path: 'component.js', content: blankSource(title) }],
+    files: [{ path: 'component.js', content: blankSource(name) }],
   }
 }

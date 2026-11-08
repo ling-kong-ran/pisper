@@ -1,4 +1,5 @@
 // xAI 视觉驱动：调用 Grok 图像/视频生成接口。
+import { pisperError } from '../../../shared/errors.mjs'
 function authHeaders(model, extra = {}) {
   return {
     Authorization: `Bearer ${model.apiKey}`,
@@ -16,11 +17,8 @@ async function jsonRequest(url, model, init, signal) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const message =
-      data.error?.message ||
-      data.error ||
-      data.message ||
-      `xAI 视觉接口请求失败 (${response.status})`
-    const error = new Error(String(message))
+      data.error?.message || data.error || data.message || `xAI HTTP ${response.status}`
+    const error = pisperError('failed', 'provider', String(message), { status: response.status })
     error.status = response.status
     throw error
   }
@@ -29,7 +27,7 @@ async function jsonRequest(url, model, init, signal) {
 
 async function download(url, model, signal) {
   const response = await fetch(url, { headers: authHeaders(model), signal })
-  if (!response.ok) throw new Error(`下载 xAI 视觉结果失败 (${response.status})`)
+  if (!response.ok) throw pisperError('failed', 'image', `xAI download: HTTP ${response.status}`)
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
     mimeType: response.headers.get('content-type') || 'application/octet-stream',
@@ -83,12 +81,11 @@ async function generateImage(model, request, signal) {
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok)
-      throw new Error(
+      throw pisperError(
+        'failed',
+        'image',
         String(
-          data.error?.message ||
-            data.error ||
-            data.message ||
-            `xAI 图片编辑失败 (${response.status})`,
+          data.error?.message || data.error || data.message || `xAI edit: HTTP ${response.status}`,
         ),
       )
     const result = imageResult(data)
@@ -97,7 +94,7 @@ async function generateImage(model, request, signal) {
       const downloaded = await download(result.url, model, signal)
       return { ...downloaded, extension: extensionFor(downloaded.mimeType) }
     }
-    throw new Error('xAI 图片编辑接口没有返回图片数据。')
+    throw pisperError('failed', 'image', 'xAI edit returned no image data')
   }
 
   const data = await jsonRequest(
@@ -122,7 +119,7 @@ async function generateImage(model, request, signal) {
     const downloaded = await download(result.url, model, signal)
     return { ...downloaded, extension: extensionFor(downloaded.mimeType) }
   }
-  throw new Error('xAI 图片生成接口没有返回图片数据。')
+  throw pisperError('failed', 'image', 'xAI returned no image data')
 }
 
 function videoUrl(value) {
@@ -214,16 +211,20 @@ async function generateVideo(model, request, signal, onProgress) {
   while (!url && id) {
     const status = videoStatus(task)
     if (['failed', 'error', 'cancelled', 'canceled'].includes(status))
-      throw new Error(task.error?.message || task.error || 'xAI 视频生成失败。')
+      throw pisperError(
+        'failed',
+        'image',
+        task.error?.message || task.error || 'xAI video generation',
+      )
     if (['completed', 'succeeded', 'done'].includes(status)) break
-    onProgress?.(`视频生成中${status ? `：${status}` : ''}…`)
+    onProgress?.(`Generating video${status ? `: ${status}` : ''}…`)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, 5000)
       signal?.addEventListener(
         'abort',
         () => {
           clearTimeout(timer)
-          reject(signal.reason || new Error('已取消'))
+          reject(signal.reason || pisperError('cancelled', 'operation'))
         },
         { once: true },
       )
@@ -239,12 +240,13 @@ async function generateVideo(model, request, signal, onProgress) {
       remoteId: id || null,
     }
   }
-  if (!id) throw new Error('xAI 视频接口没有返回任务 ID 或下载地址。')
+  if (!id) throw pisperError('failed', 'image', 'xAI video returned no task ID or URL')
   const response = await fetch(`${root}/videos/${encodeURIComponent(id)}/content`, {
     headers: authHeaders(model),
     signal,
   })
-  if (!response.ok) throw new Error(`下载 xAI 视频失败 (${response.status})`)
+  if (!response.ok)
+    throw pisperError('failed', 'image', `xAI video download: HTTP ${response.status}`)
   const mimeType = response.headers.get('content-type') || 'video/mp4'
   return {
     buffer: Buffer.from(await response.arrayBuffer()),

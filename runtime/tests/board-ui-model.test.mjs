@@ -267,6 +267,12 @@ test('a press that starts on a row or card control never opens the session', asy
 test('card presentation shows only data the runtime provides', () => {
   assert.equal(guardReasonSummary('命令守卫拦截：改写远端分支'), '改写远端分支')
   assert.equal(guardReasonSummary('命令守卫拦截: 递归删除。请确认'), '递归删除')
+  assert.equal(
+    guardReasonSummary(
+      'Blocked by the command guard: rewrites remote branch history. Needs confirmation.',
+    ),
+    'rewrites remote branch history',
+  )
   assert.equal(guardReasonSummary(''), '')
   assert.equal(projectLabel('/home/dev/billing-service/'), 'billing-service')
   assert.equal(projectLabel('C:\\work\\pisper'), 'pisper')

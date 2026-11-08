@@ -3,7 +3,21 @@
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { normalizeSubagentTier } from './agent-profiles.mjs'
-export const TEAM_EXECUTION_MARKER = '[Pisper internal team execution]'
+import {
+  TEAM_BLOCKED_REASON,
+  TEAM_NOT_ACTIVE,
+  teamMissingEvidenceReason,
+  teamOwnershipConflictNote,
+  teamUnfinishedReason,
+  teamWaitingReason,
+} from '../prompts/team-workflow.mjs'
+import { pisperError } from '../../shared/errors.mjs'
+
+export {
+  TEAM_EXECUTION_MARKER,
+  hasFullTeamExecutionPrompt,
+  teamExecutionPrompt,
+} from '../prompts/team-workflow.mjs'
 export const TEAM_WORKFLOW_STATUSES = Object.freeze(
   new Set(['active', 'paused', 'budget_limited', 'stalled', 'complete']),
 )
@@ -364,10 +378,7 @@ function publicTeam(team, now = Date.now()) {
       .map((task) => ({
         taskName: task.taskName,
         status: task.status,
-        reason:
-          task.error ||
-          task.blockedReason ||
-          (task.dependsOn.length ? `等待依赖：${task.dependsOn.join(', ')}` : '工作流尚未完成'),
+        reason: task.error || task.blockedReason || teamWaitingReason(task.dependsOn),
       })),
     summary: {
       text: team.summaryText,
@@ -538,7 +549,7 @@ export class TeamWorkflowService {
 
   async ensure(sessionId, { goalId, objective, tokenBudget } = {}) {
     const id = String(sessionId || '').trim()
-    if (!id) throw new Error('Team requires a session.')
+    if (!id) throw pisperError('invalid', 'session')
     const current = this.state.teams[id]
     const claimableTasks = (team) =>
       Object.values(team?.tasks || {}).filter(
@@ -578,10 +589,12 @@ export class TeamWorkflowService {
         await this.recordConflict(current, {
           taskName: conflict.taskName,
           files: conflict.files,
-          message: `Team file ownership conflict detected while resuming: ${conflict.taskName}.`,
+          message: teamOwnershipConflictNote(conflict.taskName, [], { resuming: true }),
         })
-        throw new Error(
-          `Team file ownership conflict while resuming ${conflict.taskName}: ${conflict.files.join(', ')}.`,
+        throw pisperError(
+          'busy',
+          'file',
+          `file ownership conflict while resuming ${conflict.taskName}: ${conflict.files.join(', ')}`,
         )
       }
       current.updatedAt = nowIso(this.now())
@@ -679,7 +692,7 @@ export class TeamWorkflowService {
       task.leaseId = ''
       task.claimedAt = null
       task.leaseExpiresAt = null
-      task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动认领' : ''
+      task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.autoClaim : ''
       task.updatedAt = nowIso(this.now())
       changed = true
     }
@@ -735,7 +748,7 @@ export class TeamWorkflowService {
     task.leaseId = ''
     task.claimedAt = null
     task.leaseExpiresAt = null
-    task.blockedReason = task.status === 'blocked' ? '等待依赖完成后重新认领' : ''
+    task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.reclaim : ''
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
     return expired
@@ -788,7 +801,7 @@ export class TeamWorkflowService {
     task.error = String(error || '').slice(0, 1_000)
     task.errorKind = classifyTeamTaskError(error, task.status)
     task.nextRetryAt = null
-    task.blockedReason = task.status === 'blocked' ? '等待依赖完成后重新认领' : ''
+    task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.reclaim : ''
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
     await this.save()
@@ -825,18 +838,20 @@ export class TeamWorkflowService {
     } = {},
   ) {
     const team = this.state.teams[String(sessionId || '')]
-    if (!team || team.status !== 'active') throw new Error('No active Team is available.')
+    if (!team || team.status !== 'active')
+      throw pisperError('unavailable', 'task', 'no active team')
     const normalizedName = normalizeName(taskName)
-    if (!normalizedName) throw new Error('Team taskName cannot be empty.')
+    if (!normalizedName) throw pisperError('invalid', 'task', 'taskName is required')
     if (taskByName(team, normalizedName))
-      throw new Error(`Team task already exists: ${normalizedName}. Use followup_task instead.`)
+      throw pisperError('exists', 'task', `${normalizedName}; use followup_task`)
     if (Object.keys(team.tasks).length >= MAX_TEAM_TASKS)
-      throw new Error(`Team task limit is ${MAX_TEAM_TASKS}.`)
+      throw pisperError('limit', 'task', `max ${MAX_TEAM_TASKS}`)
     const dependencies = normalizeDependencies(dependsOn)
     const missing = dependencies.filter((dependency) => !taskByName(team, dependency))
-    if (missing.length) throw new Error(`Unknown Team task dependencies: ${missing.join(', ')}.`)
+    if (missing.length)
+      throw pisperError('not_found', 'task', `unknown dependencies: ${missing.join(', ')}`)
     if (hasDependencyCycle(team, { taskName: normalizedName }, dependencies))
-      throw new Error(`Team task dependency cycle detected: ${normalizedName}.`)
+      throw pisperError('invalid', 'task', `dependency cycle: ${normalizedName}`)
     const normalizedFiles = normalizeFiles(files)
     const pending = { taskName: normalizedName, dependsOn: dependencies }
     const activeConflict = Object.values(team.tasks).find(
@@ -846,13 +861,13 @@ export class TeamWorkflowService {
         scopesOverlap(normalizedFiles, task.files),
     )
     if (activeConflict) {
-      const conflictMessage = `Team file ownership conflict with ${activeConflict.taskName}: ${normalizedFiles.join(', ')}.`
+      const conflictMessage = teamOwnershipConflictNote(activeConflict.taskName, normalizedFiles)
       await this.recordConflict(team, {
         taskName: normalizedName,
         files: normalizedFiles,
         message: conflictMessage,
       })
-      throw new Error(conflictMessage)
+      throw pisperError('busy', 'file', `file ownership conflict with ${activeConflict.taskName}`)
     }
     const now = nowIso(this.now())
     const ready = dependencies.every(
@@ -875,7 +890,7 @@ export class TeamWorkflowService {
       leaseId: '',
       claimedAt: null,
       leaseExpiresAt: null,
-      blockedReason: ready ? '' : '等待依赖完成后自动认领',
+      blockedReason: ready ? '' : TEAM_BLOCKED_REASON.autoClaim,
       status: ready ? 'queued' : 'blocked',
       output: '',
       error: '',
@@ -914,28 +929,29 @@ export class TeamWorkflowService {
     const team = this.state.teams[String(sessionId || '')]
     const task = team?.tasks[String(taskId || '')]
     if (!team || !task || team.status !== 'active')
-      throw new Error('No active Team task is available.')
+      throw pisperError('unavailable', 'task', 'no active team task')
     if (['starting', 'running'].includes(task.status))
-      throw new Error('Running Team tasks must be interrupted before changing their graph entry.')
+      throw pisperError('busy', 'task', 'interrupt it before changing its graph entry')
     const previousName = task.taskName
     const nextName = taskName === undefined ? previousName : normalizeName(taskName)
-    if (!nextName) throw new Error('Team taskName cannot be empty.')
+    if (!nextName) throw pisperError('invalid', 'task', 'taskName is required')
     const duplicate = Object.values(team.tasks).find(
       (candidate) => candidate.id !== task.id && candidate.taskName === nextName,
     )
-    if (duplicate) throw new Error(`Team task already exists: ${nextName}.`)
+    if (duplicate) throw pisperError('exists', 'task', nextName)
     const nextDependencies =
       dependsOn === undefined ? [...task.dependsOn] : normalizeDependencies(dependsOn)
     if (nextDependencies.includes(previousName) || nextDependencies.includes(nextName))
-      throw new Error(`Team task ${nextName} cannot depend on itself.`)
+      throw pisperError('invalid', 'task', `${nextName} cannot depend on itself`)
     const missing = nextDependencies.filter(
       (dependency) =>
         dependency !== previousName && dependency !== nextName && !taskByName(team, dependency),
     )
-    if (missing.length) throw new Error(`Unknown Team task dependencies: ${missing.join(', ')}.`)
+    if (missing.length)
+      throw pisperError('not_found', 'task', `unknown dependencies: ${missing.join(', ')}`)
     const dependencyTask = { ...task, taskName: nextName, dependsOn: nextDependencies }
     if (hasDependencyCycle(team, dependencyTask, nextDependencies))
-      throw new Error(`Team task dependency cycle detected: ${nextName}.`)
+      throw pisperError('invalid', 'task', `dependency cycle: ${nextName}`)
     const nextFiles = files === undefined ? [...task.files] : normalizeFiles(files)
     // 依赖方此刻仍按旧名引用本任务；改名前两种名字都要算作“排在本任务之后”。
     const dependsOnTask = (candidate) =>
@@ -950,13 +966,13 @@ export class TeamWorkflowService {
         scopesOverlap(nextFiles, candidate.files),
     )
     if (activeConflict) {
-      const conflictMessage = `Team file ownership conflict with ${activeConflict.taskName}.`
+      const conflictMessage = teamOwnershipConflictNote(activeConflict.taskName)
       await this.recordConflict(team, {
         taskName: nextName,
         files: nextFiles,
         message: conflictMessage,
       })
-      throw new Error(conflictMessage)
+      throw pisperError('busy', 'file', `file ownership conflict with ${activeConflict.taskName}`)
     }
     task.taskName = nextName
     task.role = String(role === undefined ? task.role : role || '')
@@ -991,7 +1007,7 @@ export class TeamWorkflowService {
     task.errorKind = ''
     task.completedAt = null
     task.status = dependenciesComplete(team, task) ? 'queued' : 'blocked'
-    task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动认领' : ''
+    task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.autoClaim : ''
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
     team.lastProgressAt = task.updatedAt
@@ -1042,7 +1058,7 @@ export class TeamWorkflowService {
     task.leaseId = ''
     task.claimedAt = null
     task.leaseExpiresAt = null
-    task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动认领' : ''
+    task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.autoClaim : ''
     task.nextRetryAt = null
     task.updatedAt = nowIso(this.now())
     team.updatedAt = task.updatedAt
@@ -1083,7 +1099,7 @@ export class TeamWorkflowService {
       task.claimedAt = null
       task.leaseExpiresAt = null
       task.nextRetryAt = null
-      task.blockedReason = task.status === 'blocked' ? '等待依赖完成后自动重试' : ''
+      task.blockedReason = task.status === 'blocked' ? TEAM_BLOCKED_REASON.autoRetry : ''
       task.updatedAt = nowIso(now)
       team.updatedAt = task.updatedAt
       team.lastProgressAt = task.updatedAt
@@ -1217,7 +1233,7 @@ export class TeamWorkflowService {
     const task = taskByName(team, target) || team?.tasks[String(target || '')]
     if (!team || !task) return null
     if (!TERMINAL_TEAM_TASK_STATUSES.has(status))
-      throw new Error('Team tasks can only be resolved to a terminal status.')
+      throw pisperError('invalid', 'task', 'status must be completed, failed or interrupted')
     task.status = status
     task.agentId = ''
     task.leaseId = ''
@@ -1241,7 +1257,7 @@ export class TeamWorkflowService {
     if (!team || team.status !== 'active')
       return {
         ok: false,
-        reason: 'No active Team is available.',
+        reason: TEAM_NOT_ACTIVE,
         team: publicTeam(team),
       }
     const tasks = Object.values(team.tasks)
@@ -1255,8 +1271,8 @@ export class TeamWorkflowService {
       )
       const name = (task) => `${task.taskName} (${task.status})`
       const reason = activeTasks.length
-        ? `Team 仍有未完成工作流：${activeTasks.map(name).join(', ')}。`
-        : `Team 仍有未完成工作流：${terminalTasks.map(name).join(', ')}。可用 followup_task 继续，或用 spawn_agent 以相同 taskName 重启收尾。`
+        ? teamUnfinishedReason(activeTasks.map(name), false)
+        : teamUnfinishedReason(terminalTasks.map(name), true)
       return { ok: false, reason, team: publicTeam(team) }
     }
     const missingEvidence = tasks.filter(
@@ -1265,80 +1281,9 @@ export class TeamWorkflowService {
     if (missingEvidence.length)
       return {
         ok: false,
-        reason: `Team 完成任务缺少可验证结果：${missingEvidence.map((task) => task.taskName).join(', ')}。`,
+        reason: teamMissingEvidenceReason(missingEvidence.map((task) => task.taskName)),
         team: publicTeam(team),
       }
     return { ok: true, team: publicTeam(team) }
   }
-}
-
-// Team 模式提示：主 Agent 负责动态拆解、并行委派、结果整合和最终验收。
-// brief：完整的团队规则与目标已在当前上下文里时只发当前状态，规则不再每轮重复写进历史。
-export function teamExecutionPrompt(goal, activeAgents = [], team = null, { brief = false } = {}) {
-  const objective = String(goal?.objective || '').trim()
-  const agents = Array.isArray(activeAgents)
-    ? activeAgents
-        .map((agent) => `${agent.canonicalName || agent.taskName || agent.id}: ${agent.status}`)
-        .join(', ')
-    : ''
-  const tasks = Array.isArray(team?.tasks)
-    ? team.tasks
-        .map(
-          (task) =>
-            `${task.taskName}${task.role ? ` [${task.role}]` : ''} ${task.status}${task.dependsOn?.length ? ` (depends on ${task.dependsOn.join(', ')})` : ''}`,
-        )
-        .join('; ')
-    : ''
-  const status = `${
-    tasks
-      ? `
-Current workflow status: ${tasks}`
-      : ''
-  }
-${
-  agents
-    ? `
-Current teammate status: ${agents}`
-    : ''
-}`
-  if (brief)
-    return `${TEAM_EXECUTION_MARKER}
-Continue leading the team toward the objective, under the team operating rules stated earlier in this conversation.
-${status}`
-  return `${TEAM_EXECUTION_MARKER}
-You are the lead of a dynamic software engineering team. The user objective below is the team's mission, not a request for a one-turn answer.
-
-${teamObjectiveBlock(objective)}
-
-Team operating rules:
-- Start by maintaining a concrete Plan with non-overlapping workstreams, deliverables, dependencies, and acceptance evidence.
-- Decompose the objective only as far as the repository and acceptance criteria require. A single direct task is valid; create multiple tasks when parallel work or independent evidence makes it useful.
-- Give each subagent a bounded task, relevant file scope, expected output, and verification criteria. Roles are optional labels chosen from the actual work, not a fixed cast. Include role, files, and dependsOn in spawn_agent when applicable so the runtime can enforce ownership and dependencies.
-- Members can inspect the teammate roster and send direct messages to one another. Use member-to-member messages for handoffs, questions, and evidence; do not route every coordination step through the lead.
-- Tasks whose prerequisites are unfinished remain queued and are claimed automatically when they become ready. Let independent tasks run in parallel. Do not busy-poll; use completion notifications or a targeted wait only when a decision depends on a result.
-- Treat subagent output as evidence and suggestions, not as proof that the project is complete. Inspect and integrate changes, resolve conflicts, run the relevant tests, and request follow-up work when a result is incomplete.
-- Keep the parent session responsible for final integration, user-facing decisions, and the completion audit. Never call update_goal while a teammate is queued or running; call it with status "complete" only after every explicit requirement has concrete evidence and no required teammate result remains unresolved.
-- If a task is too small to justify multiple agents, explain that decision internally and complete it directly instead of creating artificial work.
-- When the task needs dynamic fan-out, branching, aggregation, or repeated verification, write a workspace JavaScript workflow and run it with run_team_workflow. The restricted script API provides agent, pipeline, parallel, phase, log, and args; the script itself has no file or Shell access. Prefer this when the orchestration logic should be visible, repeatable, and driven by intermediate results.
-
-${TEAM_RUNTIME_GUARANTEES}
-${status}`
-}
-
-const TEAM_RUNTIME_GUARANTEES =
-  'The runtime persists the task graph, prevents unsafe overlapping active file ownership, recovers abandoned task leases, schedules ready work, and blocks team completion until registered work converges.'
-
-function teamObjectiveBlock(objective) {
-  return `<team_objective>
-${objective}
-</team_objective>`
-}
-
-// 这段文本里是否带着该目标的完整团队执行提示（目标原文加团队规则）。
-export function hasFullTeamExecutionPrompt(text, goal) {
-  const value = String(text || '')
-  return (
-    value.includes(teamObjectiveBlock(String(goal?.objective || '').trim())) &&
-    value.includes(TEAM_RUNTIME_GUARANTEES)
-  )
 }

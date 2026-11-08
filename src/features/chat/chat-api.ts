@@ -9,6 +9,7 @@ import {
   type HttpRequestOptions,
 } from '@/lib/http'
 import { fetchStartupQuery, invalidateStartupQuery } from '@/lib/startup-queries'
+import { localizedRuntimeError } from '@/lib/runtime-error'
 // 会话目录缓存键随会话 API 一起公开：chatApi.listSessions 读写的就是这份缓存，
 // 目录垫片与看板通过同一个键协作，不各自持有会话列表。
 export { SESSIONS_QUERY_KEY } from '@/lib/startup-queries'
@@ -398,7 +399,8 @@ export const chatApi = {
     let result: SideQuestionResult | null = null
     await consumeEventStream<Record<string, unknown>>(response, (event, data) => {
       if (event === 'delta' && typeof data.text === 'string') onDelta?.(data.text)
-      else if (event === 'error') throw new Error(String(data.message || ''))
+      else if (event === 'error')
+        throw new Error(localizedRuntimeError(data, String(data.message || '')))
       else if (event === 'done') {
         result = {
           text: typeof data.text === 'string' ? data.text : '',

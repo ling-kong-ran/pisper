@@ -108,7 +108,7 @@ test('side questions never run tools and surface model errors', async () => {
       session: fakeSession({ model: null }),
       question: '在吗',
     }),
-    /没有可用模型/,
+    { code: 'unavailable', params: { subject: 'model', detail: 'pick a model first' } },
   )
   // 思考关闭时不传 reasoning。
   const off = fakeModelRuntime([])
@@ -122,9 +122,11 @@ test('side questions never run tools and surface model errors', async () => {
 
 test('side question input is trimmed and bounded', () => {
   assert.equal(normalizeSideQuestion('  问题  '), '问题')
-  assert.throws(() => normalizeSideQuestion('   '), /不能为空/)
-  assert.throws(() => normalizeSideQuestion(42), /不能为空/)
-  assert.throws(() => normalizeSideQuestion('x'.repeat(SIDE_QUESTION_MAX_CHARS + 1)), /不能超过/)
+  assert.throws(() => normalizeSideQuestion('   '), /question is required/)
+  assert.throws(() => normalizeSideQuestion(42), /question is required/)
+  assert.throws(() => normalizeSideQuestion('x'.repeat(SIDE_QUESTION_MAX_CHARS + 1)), {
+    code: 'too_large',
+  })
   // 正在流式输出的会话也只取已完成的消息快照。
   const session = fakeSession({ messages: [] })
   assert.equal(sideQuestionContext(session, 'q').messages.length, 1)
@@ -283,6 +285,6 @@ test('a real runtime answers a side question from the session context without to
   const keys = Object.values(runtime.usageLedger.days).flatMap((day) => Object.keys(day.records))
   assert.ok(keys.some((key) => key.startsWith(`side-question:${created.id}:`)))
 
-  await assert.rejects(runtime.askSideQuestion('missing', '在吗'), /会话不存在/)
-  await assert.rejects(runtime.askSideQuestion(created.id, '  '), /不能为空/)
+  await assert.rejects(runtime.askSideQuestion('missing', '在吗'), /Session not found/)
+  await assert.rejects(runtime.askSideQuestion(created.id, '  '), /question is required/)
 })

@@ -33,13 +33,13 @@ export function normalizeSshConnection(input) {
   if (!target || target.length > MAX_TARGET_CHARS || !TARGET_PATTERN.test(target))
     throw new ExecutorError(
       'invalid_target',
-      '地址只能是 user@host、host 或 ~/.ssh/config 里的别名。',
+      'Address must be user@host, host or an alias from ~/.ssh/config.',
     )
   let port = null
   if (value.port !== undefined && value.port !== null && value.port !== '') {
     port = Number(value.port)
     if (!Number.isInteger(port) || port < 1 || port > 65_535)
-      throw new ExecutorError('invalid_port', '端口必须是 1 到 65535 之间的整数。')
+      throw new ExecutorError('invalid_port', 'Port must be an integer from 1 to 65535.')
   }
   return { target, port }
 }
@@ -132,7 +132,7 @@ export class SshMachineService {
   async add(input) {
     const connection = normalizeSshConnection(input)
     if (this.machines.size >= MAX_MACHINES)
-      throw new ExecutorError('too_many_machines', `最多添加 ${MAX_MACHINES} 台机器。`)
+      throw new ExecutorError('too_many_machines', `Machine limit reached: max ${MAX_MACHINES}.`)
     const machine = {
       id: `ssh_${randomBytes(9).toString('base64url')}`,
       name: cleanText(input?.name, MAX_NAME_CHARS) || connection.target,
@@ -204,7 +204,7 @@ class RemovedMachineExecutor {
 
   operations() {
     const fail = async () => {
-      throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+      throw new ExecutorError('machine_not_found', 'Machine was removed.')
     }
     return {
       read: { readFile: fail, access: fail },
@@ -217,10 +217,10 @@ class RemovedMachineExecutor {
   }
 
   async resolveDirectory() {
-    throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+    throw new ExecutorError('machine_not_found', 'Machine was removed.')
   }
 
   async probe() {
-    throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+    throw new ExecutorError('machine_not_found', 'Machine was removed.')
   }
 }

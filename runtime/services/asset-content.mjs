@@ -72,7 +72,7 @@ export const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp
 
 // 附件名清洗：去掉换行与尖括号等可能破坏 Markdown/文件名的字符，并限制长度。
 export function safeAttachmentName(name) {
-  return String(name || '附件')
+  return String(name || 'attachment')
     .replace(/[\r\n<>]/g, '_')
     .slice(0, 180)
 }

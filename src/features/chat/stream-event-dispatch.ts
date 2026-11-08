@@ -18,6 +18,7 @@ import type {
   createTypewriterDisplay,
 } from '@/lib/streaming-ui'
 import type { EntityRecord, ChatAttachment, SessionState, SessionSummary } from '@/types/chat'
+import { localizedRuntimeError } from '@/lib/runtime-error'
 import type { ApiRecord } from './chat-api'
 import {
   handleMobileOperationCancellation,
@@ -680,9 +681,11 @@ export function createStreamEventDispatcher({
       if (typeof data.text === 'string') state.responseText = data.text
       state.responseRenderingStreaming = false
       state.terminal = true
+      const errorText =
+        event === 'error' ? localizedRuntimeError(data, String(data.message || '')) : ''
       publishResponse(
         event === 'done' ? 'completed' : 'failed',
-        event === 'error' ? data.message || 'Speech response failed.' : undefined,
+        event === 'error' ? errorText || 'Speech response failed.' : undefined,
       )
       typewriter.setTarget(state.responseText, finishedAt)
       if (event === 'error') typewriter.flush()
@@ -695,7 +698,7 @@ export function createStreamEventDispatcher({
           data,
           finishedAt,
           preserveDisplayedText: event === 'done',
-          ...(event === 'error' ? { error: data.message } : {}),
+          ...(event === 'error' ? { error: errorText } : {}),
         }),
       )
       if (event === 'done') {

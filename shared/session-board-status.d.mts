@@ -13,6 +13,8 @@ export const BOARD_DONE_WINDOWS: readonly ['today', '7d']
 export const BOARD_CARD_STATUSES: readonly ['attention', 'running', 'queued', 'done', 'idle']
 export const BOARD_CARD_OUTCOMES: readonly ['completed', 'failed', 'stopped']
 export const COMMAND_GUARD_REASON_PREFIX: string
+export const COMMAND_GUARD_REASON_PREFIXES: readonly string[]
+export function commandGuardReasonPrefix(reason: unknown): string
 
 export type BoardLane = (typeof BOARD_LANES)[number]
 export type BoardStatus = (typeof BOARD_STATUSES)[number]

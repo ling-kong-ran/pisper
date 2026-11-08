@@ -50,14 +50,14 @@ test('workspace paths are validated without listing directory contents on deskto
       join(root, 'project'),
     )
     assert.equal(await resolveWorkspaceDirectory('', root, { profile }), root)
-    await assert.rejects(
-      resolveWorkspaceDirectory('missing', root, { profile }),
-      /工作目录不存在或不是文件夹/,
-    )
-    await assert.rejects(
-      resolveWorkspaceDirectory('file.txt', root, { profile }),
-      /工作目录不存在或不是文件夹/,
-    )
+    await assert.rejects(resolveWorkspaceDirectory('missing', root, { profile }), {
+      code: 'not_found',
+      params: { subject: 'folder' },
+    })
+    await assert.rejects(resolveWorkspaceDirectory('file.txt', root, { profile }), {
+      code: 'not_found',
+      params: { subject: 'folder' },
+    })
   }
 })
 

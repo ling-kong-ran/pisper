@@ -40,7 +40,7 @@ test('the source tag round-trips and courtesy messages are recognised', () => {
     hop: 2,
     reply: true,
   })
-  assert.match(context, /来自 Bot「小橙」，不是用户/)
+  assert.match(context, /from the bot "小橙", not from the user/)
   assert.equal(parseBotMessageTag('普通的话'), null)
   for (const text of ['收到', '好的！', '谢谢', 'OK', 'thanks', '👍', '']) {
     assert.equal(isCourtesyMessage(text), true, text)
@@ -261,10 +261,10 @@ test('polite back-and-forth ends: courtesy is not sent, and a chain stops after 
   // 不能找自己，也不能找不存在或暂停的 Bot。
   await assert.rejects(
     runtime.executeBotDecision('conv-a', {}, A, { type: 'message', bot: '小橙', text: 'x' }),
-    /不存在/,
+    /no such bot|bot not found/i,
   )
   await assert.rejects(
     runtime.executeBotDecision('conv-a', {}, A, { type: 'message', bot: '没有这个', text: 'x' }),
-    /不存在/,
+    /no such bot|bot not found/i,
   )
 })

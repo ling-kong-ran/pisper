@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 export const MAX_PERMISSION_RULES = 200
@@ -38,29 +39,43 @@ function normalizeCommand(value) {
 export function normalizePermissionRule(input) {
   const value = input && typeof input === 'object' ? input : {}
   const effect = value.effect === 'deny' ? 'deny' : value.effect === 'allow' ? 'allow' : ''
-  if (!effect) throw new Error('规则类型只能是允许或禁止。')
+  if (!effect) throw pisperError('invalid', 'rule', 'effect: allow or deny')
   const tool = value.tool === 'bash' || value.tool === 'files' ? value.tool : ''
-  if (!tool) throw new Error('规则只支持命令或文件写入。')
-  if (tool === 'files' && effect === 'deny') throw new Error('文件写入只支持允许规则。')
+  if (!tool) throw pisperError('invalid', 'rule', 'tool: bash or files')
+  if (tool === 'files' && effect === 'deny')
+    throw pisperError('invalid', 'rule', 'files rules can only allow')
   let pattern = typeof value.pattern === 'string' ? value.pattern.trim() : ''
-  if (!pattern) throw new Error('规则内容不能为空。')
-  if (pattern.length > MAX_PATTERN_CHARS) throw new Error('规则内容过长。')
+  if (!pattern) throw pisperError('invalid', 'rule', 'pattern is required')
+  if (pattern.length > MAX_PATTERN_CHARS)
+    throw pisperError('too_large', 'rule', `pattern max ${MAX_PATTERN_CHARS} characters`)
   if (tool === 'bash') {
     pattern = normalizeCommand(pattern)
     if (effect === 'allow' && SHELL_CONTROL_PATTERN.test(pattern))
-      throw new Error('允许规则只能是一条不含管道、重定向或变量的命令前缀。')
+      throw pisperError(
+        'invalid',
+        'rule',
+        'allow needs a single command prefix without pipes, redirects or variables',
+      )
   } else {
     pattern = pattern
       .replaceAll('\\', '/')
       .replace(/^\.\/+/, '')
       .replace(/\/+$/, '')
     if (!pattern || pattern === '.' || isAbsolute(pattern) || /^[a-z]:/i.test(pattern))
-      throw new Error('文件规则必须是工作区内的相对目录。')
+      throw pisperError(
+        'invalid',
+        'rule',
+        'files pattern must be a relative folder in the workspace',
+      )
     if (pattern.split('/').some((part) => part === '..' || part === ''))
-      throw new Error('文件规则必须是工作区内的相对目录。')
+      throw pisperError(
+        'invalid',
+        'rule',
+        'files pattern must be a relative folder in the workspace',
+      )
   }
   const cwd = typeof value.cwd === 'string' && value.cwd.trim() ? value.cwd.trim() : ''
-  if (cwd && !isAbsolute(cwd)) throw new Error('规则的项目目录必须是绝对路径。')
+  if (cwd && !isAbsolute(cwd)) throw pisperError('invalid', 'rule', 'cwd must be absolute')
   return { effect, tool, pattern, cwd: cwd ? canonicalDirectory(cwd) : '' }
 }
 
@@ -106,7 +121,7 @@ export class PermissionRuleService {
       )
       if (existing) return rules
       if (rules.length >= MAX_PERMISSION_RULES)
-        throw new Error(`最多保存 ${MAX_PERMISSION_RULES} 条权限规则。`)
+        throw pisperError('limit', 'rule', `max ${MAX_PERMISSION_RULES}`)
       return [...rules, { id: randomUUID(), ...rule, createdAt: new Date().toISOString() }]
     })
   }

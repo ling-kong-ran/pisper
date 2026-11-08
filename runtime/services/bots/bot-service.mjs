@@ -3,24 +3,10 @@
 import { randomBytes } from 'node:crypto'
 import { pathWithinRoots } from './environment-service.mjs'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
-import {
-  BotValidationError,
-  LOCAL_ENVIRONMENT_ID,
-  MAX_BOTS,
-  botNameKey,
-  normalizeBotInput,
-} from './bot-model.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
+import { LOCAL_ENVIRONMENT_ID, MAX_BOTS, botNameKey, normalizeBotInput } from './bot-model.mjs'
 
 const STORE_VERSION = 1
-
-export class BotServiceError extends Error {
-  constructor(code, message, statusCode) {
-    super(message)
-    this.name = 'BotServiceError'
-    this.code = code
-    this.statusCode = statusCode
-  }
-}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -95,15 +81,10 @@ export class BotService {
   #checkConflicts(bot, selfId = '') {
     const key = botNameKey(bot.name)
     if (this.bots.some((item) => item.id !== selfId && botNameKey(item.name) === key))
-      throw new BotServiceError('bot_name_taken', `已经有叫“${bot.name}”的 Bot 了。`, 409)
+      throw pisperError('exists', 'bot', bot.name)
     for (const chat of bot.defaultIn) {
       const owner = this.bots.find((item) => item.id !== selfId && item.defaultIn.includes(chat))
-      if (owner)
-        throw new BotServiceError(
-          'bot_default_chat_taken',
-          `这个聊天的默认 Bot 已经是“${owner.name}”。`,
-          409,
-        )
+      if (owner) throw pisperError('exists', 'bot', `default bot of this chat is ${owner.name}`)
     }
   }
 
@@ -111,27 +92,24 @@ export class BotService {
     // 执行节点上的目录在节点那边按真实路径检查；这里只要求是它允许的目录之一里的绝对路径。
     if (bot.workspace.environmentId !== LOCAL_ENVIRONMENT_ID) {
       const environment = this.getEnvironment(bot.workspace.environmentId)
-      if (!environment)
-        throw new BotServiceError('environment_not_found', '这台电脑不存在或已经移除。', 400)
+      if (!environment) throw pisperError('not_found', 'machine')
       if (!pathWithinRoots(bot.workspace.cwd, environment.roots))
-        throw new BotServiceError(
-          'directory_not_allowed',
-          '工作目录必须在这台电脑允许的目录里。',
-          400,
-        )
+        throw pisperError('forbidden', 'folder', "not inside the machine's allowed folders", {
+          status: 400,
+        })
       return bot
     }
     try {
       bot.workspace.cwd = await this.validateDirectory(bot.workspace.cwd)
     } catch {
-      throw new BotServiceError('directory_not_allowed', '工作目录不存在或不可访问。', 400)
+      throw pisperError('not_found', 'folder', 'missing or not accessible', { status: 400 })
     }
     return bot
   }
 
   async create(input) {
     if (this.bots.length >= MAX_BOTS)
-      throw new BotServiceError('bot_limit', `最多可以有 ${MAX_BOTS} 个 Bot。`, 409)
+      throw pisperError('limit', 'bot', `max ${MAX_BOTS}`, { status: 409 })
     const bot = await this.#resolveWorkspace(normalizeBotInput(input))
     this.#checkConflicts(bot)
     const at = new Date(this.now()).toISOString()
@@ -177,15 +155,9 @@ export class BotService {
     const index = this.bots.findIndex((item) => item.id === id)
     if (index < 0) return false
     if (await this.isBusy(id))
-      throw new BotServiceError(
-        'invalid_state',
-        '这个 Bot 还有进行中或待确认的任务，先停止或处理完再删除。',
-        409,
-      )
+      throw pisperError('busy', 'bot', 'stop or finish its jobs and approvals first')
     this.bots.splice(index, 1)
     await this.save()
     return true
   }
 }
-
-export { BotValidationError }

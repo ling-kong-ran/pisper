@@ -84,7 +84,10 @@ test('thinking reads for an unconfigured first-run session stay empty before and
     assert.equal(await readFile(path, 'utf8'), persisted)
   }
   await read(runtime)
-  await assert.rejects(runtime.setSessionThinkingLevel(session.id, 'high'), /没有可用模型/)
+  await assert.rejects(runtime.setSessionThinkingLevel(session.id, 'high'), {
+    code: 'unavailable',
+    params: { subject: 'model' },
+  })
   await fixture.close(runtime)
   const restarted = fixture.create()
   assert.equal(restarted.pendingSessions.size, 0)

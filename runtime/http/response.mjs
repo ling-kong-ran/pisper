@@ -1,3 +1,5 @@
+import { errorPayload, pisperError } from '../../shared/errors.mjs'
+
 // JSON.stringify 对孤立代理项（lone surrogate）会输出字面量 \uDxxx 转义。
 // 浏览器容忍它，但 Rust 的 serde_json 会拒绝并摧毁整个 TUI 流。
 // 因此在任何响应离开运行时之前，把所有孤立代理项归一化为 U+FFFD，
@@ -53,12 +55,18 @@ export function json(res, status, body) {
   res.end(JSON.stringify(body, jsonReplacer))
 }
 
+// 路由直接回错误时的 JSON 体：英文 message 加 { code, params }，前端按界面语言翻译。
+/** @param {Error} error @param {Record<string, unknown>} [extra] */
+export function errorBody(error, extra = {}) {
+  return { error: error.message, ...errorPayload(error), ...extra }
+}
+
 export async function bodyBuffer(req, maxBytes = 32_000_000) {
   const chunks = []
   let size = 0
   for await (const chunk of req) {
     size += chunk.length
-    if (size > maxBytes) throw new Error('请求体过大。')
+    if (size > maxBytes) throw pisperError('too_large', 'request')
     chunks.push(chunk)
   }
   return Buffer.concat(chunks)

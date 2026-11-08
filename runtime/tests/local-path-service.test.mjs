@@ -32,7 +32,7 @@ test('local path reveal selects the native command for each desktop platform', (
 })
 
 test('local path reveal rejects unsafe or relative paths before launching a process', async () => {
-  await assert.rejects(revealLocalPath('relative/report.txt'), /必须是绝对路径/)
-  await assert.rejects(revealLocalPath(''), /本地路径无效/)
-  await assert.rejects(revealLocalPath('bad\u0000path'), /本地路径无效/)
+  await assert.rejects(revealLocalPath('relative/report.txt'), /must be absolute/)
+  await assert.rejects(revealLocalPath(''), /Path is invalid/)
+  await assert.rejects(revealLocalPath('bad\u0000path'), /Path is invalid/)
 })

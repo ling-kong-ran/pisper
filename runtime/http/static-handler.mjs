@@ -3,7 +3,8 @@
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { extname, join, normalize, resolve, sep } from 'node:path'
-import { json } from './response.mjs'
+import { errorBody, json } from './response.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -23,7 +24,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
     const requested = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, '')
     let file = resolve(dist, requested || 'index.html')
     if (file !== dist && !file.startsWith(`${dist}${sep}`)) {
-      json(res, 403, { error: '禁止访问。' })
+      json(res, 403, errorBody(pisperError('forbidden', 'path')))
       return
     }
     let info = await stat(file).catch(() => null)
@@ -36,7 +37,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
     // 也会掩盖真正的资源不一致。
     const isAssetPath = requested === 'assets' || requested.startsWith(`assets${sep}`)
     if (!info?.isFile() && isAssetPath) {
-      json(res, 404, { error: '静态资源不存在。' })
+      json(res, 404, errorBody(pisperError('not_found', 'file')))
       return
     }
     // SPA 回退：未知页面路径返回应用壳 index.html。
@@ -45,7 +46,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
       info = await stat(file).catch(() => null)
     }
     if (!info?.isFile()) {
-      json(res, 404, { error: '文件不存在。' })
+      json(res, 404, errorBody(pisperError('not_found', 'file')))
       return
     }
     // Vite 的 content-hash 产物位于 assets/ 下，可以无限期缓存。
@@ -57,7 +58,7 @@ export function createStaticHandler(root, { distRoot } = {}) {
     })
     createReadStream(file)
       .on('error', () => {
-        if (!res.headersSent) json(res, 404, { error: '文件不存在。' })
+        if (!res.headersSent) json(res, 404, errorBody(pisperError('not_found', 'file')))
         else res.destroy()
       })
       .pipe(res)

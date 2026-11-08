@@ -1,4 +1,6 @@
 import { normalizeExecutionMode } from '../security/execution-mode.mjs'
+import { pisperError } from '../../shared/errors.mjs'
+import { ATTACHMENTS_ONLY_PROMPT } from '../prompts/sessions.mjs'
 import { PERMISSION_MODES } from '../services/session-permission-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import { exportFileName, sessionToMarkdown } from '../services/session-export.mjs'
@@ -233,22 +235,25 @@ export const agentSessionMethods = {
   // （按 steer 入队后立即打断当前这一步，见 step-interrupt.mjs）。
   async queueSessionMessage(id, { message, attachments = [], behavior = 'steer' } = {}) {
     const value = this.sessions.get(id)
-    if (!value) throw new Error('会话不存在或尚未加载。')
+    if (!value) throw pisperError('not_found', 'session', 'not loaded')
     const text = String(message || '').trim()
-    if (!text && !attachments.length) throw new Error('消息不能为空。')
-    if (text.length > 12_000) throw new Error('运行中追加消息不能超过 12000 个字符。')
-    if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
+    if (!text && !attachments.length) throw pisperError('invalid', 'message', 'message is required')
+    if (text.length > 12_000) throw pisperError('too_large', 'message', 'max 12000 characters')
+    // Web 与 TUI 按 “session … ended” 识别这条错误，把消息改作新消息发送；改文案时保留这几个词。
+    if (!value.session.isStreaming)
+      throw pisperError('unavailable', 'session', 'the run has ended; send it as a new message')
     // Bot 的对话不阻塞：运行中发来的话（除了排到这一轮之后的）一律插队，打断这一步马上看；
     // 正在跑的命令转到后台，不杀掉。
     if (value.conversationOnly && behavior === 'steer') behavior = 'interrupt'
     const streamingBehavior = behavior === 'followUp' ? 'followUp' : 'steer'
-    const displayText = text || '请分析这些附件。'
+    const displayText = text || ATTACHMENTS_ONLY_PROMPT
     const prepared = await this.preparePromptAttachments(value, attachments)
     const prompt = prepared.contexts.length
       ? `${displayText}${ATTACHMENT_MARKER}${prepared.contexts.join('\n\n')}`
       : displayText
     await this.selectToolsForMessage(value, displayText, { preserveRequested: true })
-    if (!value.session.isStreaming) throw new Error('当前会话已经结束运行，请作为新消息发送。')
+    if (!value.session.isStreaming)
+      throw pisperError('unavailable', 'session', 'the run has ended; send it as a new message')
     const inputId = await captureQueuedSessionInput(
       value.session,
       streamingBehavior,
@@ -308,8 +313,9 @@ export const agentSessionMethods = {
   // 排队列表里的“立即发送”：挪到队首并打断当前这一步。已经被送达或撤回时 sent 为 false。
   sendQueuedSessionMessageNow(id, inputId) {
     const value = this.sessions.get(id)
-    if (!value) throw new Error('会话不存在或尚未加载。')
-    if (typeof inputId !== 'string' || !inputId.trim()) throw new Error('待发送消息标识不能为空。')
+    if (!value) throw pisperError('not_found', 'session', 'not loaded')
+    if (typeof inputId !== 'string' || !inputId.trim())
+      throw pisperError('invalid', 'input', 'inputId is required')
     const sent = value.session.isStreaming && promoteQueuedSessionInput(value.session, inputId)
     const interrupted = sent && this.interruptForInput(id, inputId)
     if (sent) value.modified = new Date().toISOString()
@@ -324,8 +330,9 @@ export const agentSessionMethods = {
 
   withdrawSessionMessage(id, inputId) {
     const value = this.sessions.get(id)
-    if (!value) throw new Error('会话不存在或尚未加载。')
-    if (typeof inputId !== 'string' || !inputId.trim()) throw new Error('待发送消息标识不能为空。')
+    if (!value) throw pisperError('not_found', 'session', 'not loaded')
+    if (typeof inputId !== 'string' || !inputId.trim())
+      throw pisperError('invalid', 'input', 'inputId is required')
     const pending = queuedSessionInputs(value.session).some((item) => item.id === inputId)
     const withdrawnInput = pending ? withdrawQueuedSessionInput(value.session, inputId) : null
     if (withdrawnInput) value.modified = new Date().toISOString()
@@ -344,9 +351,8 @@ export const agentSessionMethods = {
     const value = await this.getOrCreateSession(id)
     const { session } = value
     const existingLive = this.liveSessions.get(session.sessionId)
-    if (this.sessionRunIsActive(session.sessionId, value))
-      throw new Error('当前会话仍在运行，请等待完成后再压缩上下文。')
-    if (existingLive?.compaction?.active) throw new Error('当前会话正在压缩上下文。')
+    if (this.sessionRunIsActive(session.sessionId, value)) throw pisperError('busy', 'session')
+    if (existingLive?.compaction?.active) throw pisperError('busy', 'session', 'compacting context')
 
     const startedAt = new Date().toISOString()
     const live = existingLive || {
@@ -536,7 +542,7 @@ export const agentSessionMethods = {
       settings,
       this.modelRuntime,
     )
-    if (!selected) throw new Error('当前会话没有可用模型。')
+    if (!selected) throw pisperError('unavailable', 'model')
     const model = await this.providerPreferences.resolveSessionModel(
       selected.provider,
       selected.modelId,
@@ -545,7 +551,7 @@ export const agentSessionMethods = {
     const requested = String(level || '')
     const thinking = modelThinkingState(model, requested)
     if (!thinking.availableLevels.includes(requested)) {
-      throw new Error('当前模型不支持该思考等级。')
+      throw pisperError('unsupported', 'model', 'thinking level')
     }
     const currentThinkingLevel = configuredSessionThinkingLevel(
       target.manager,

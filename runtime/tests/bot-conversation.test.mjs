@@ -72,14 +72,14 @@ test('the state snapshot lists jobs, background commands, models and other bots'
     models: ['luna/gpt-5.6-luna'],
     bots: [{ name: '测试', instructions: '补测试' }],
   })
-  assert.match(snapshot, /^\[当前状态\]/)
-  assert.match(snapshot, /现在在做 1 个，1 个操作在等用户批准/)
+  assert.match(snapshot, /^\[Current state\]/)
+  assert.match(snapshot, /1 running, 1 action\(s\) waiting for the user's approval/)
   assert.match(snapshot, /- \[a1b2c3d4\] 补退款测试 · running · 写完了退款用例，正在跑/)
-  assert.match(snapshot, /最近结束：\n- \[e5f6a7b8\] 依赖巡检 · completed/)
-  assert.match(snapshot, /后台命令：\n- \[cmd_abc123\] npm test/)
-  assert.match(snapshot, /可以挑的模型.*luna\/gpt-5\.6-luna/)
-  assert.match(snapshot, /可以找的别的 Bot：测试（补测试）/)
-  assert.match(botStateSnapshot(), /手上没有活/)
+  assert.match(snapshot, /Recently finished:\n- \[e5f6a7b8\] 依赖巡检 · completed/)
+  assert.match(snapshot, /Background commands:\n- \[cmd_abc123\] npm test/)
+  assert.match(snapshot, /Models for bot_job_start: luna\/gpt-5\.6-luna/)
+  assert.match(snapshot, /Other bots: 测试 \(补测试\)/)
+  assert.match(botStateSnapshot(), /No jobs\./)
   assert.equal(resolveBotAgent(agents, 'a1b2')?.id, 'a1b2c3d4-1')
   assert.equal(resolveBotAgent(agents, ''), null)
   assert.equal(resolveBotAgent(agents, 'zz'), null)
@@ -87,20 +87,22 @@ test('the state snapshot lists jobs, background commands, models and other bots'
 
 test('the prompt: quick work itself, long or approval-needing work to sub-agents, never confirm plans', () => {
   const prompt = botConversationPrompt({ name: '小橙', instructions: '负责 acme-web 前端' })
-  assert.match(prompt, /你是 小橙/)
-  assert.match(prompt, /快的事自己做/)
+  assert.match(prompt, /You are 小橙/)
+  assert.match(prompt, /Do quick work yourself/)
   assert.match(prompt, /bot_job_start/)
-  assert.match(prompt, /bot_schedule 给自己定时；不要派一个干等的子 agent/)
-  assert.match(prompt, /不要为了确认计划而停下来问/)
-  assert.match(prompt, /先回应新消息/)
-  assert.match(prompt, /也不要承诺系统没有的东西/)
+  assert.match(prompt, /Do not stop just to confirm a plan/)
+  assert.match(prompt, /Answer a new message first/)
+  assert.match(prompt, /Never claim work you did not do/)
   // 回复只留在对话里；要在聊天软件上告诉用户，用 bot_notify。
-  assert.match(prompt, /bot_notify 发到他和机器人的私聊/)
-  // 打开网页走右侧浏览器，不退回 shell 命令。
+  assert.match(
+    prompt,
+    /replies stay in this conversation; reach the user's chat apps with bot_notify/,
+  )
+  // 浏览器、Computer Use、工作流是对话自己的工具（子 agent 拿不到）；怎么用写在工具说明里。
   assert.match(prompt, /browser_automation/)
   assert.match(prompt, /computer_use/)
-  assert.match(prompt, /不要改用 shell 命令打开网页/)
-  assert.match(prompt, /\[小橙 的工作说明\]\n负责 acme-web 前端/)
+  assert.match(prompt, /not your sub-agents'/)
+  assert.match(prompt, /\[小橙's instructions\]\n负责 acme-web 前端/)
 })
 
 test('scheduling to yourself: once in N minutes, at a date, or repeating; always to this bot', () => {
@@ -117,7 +119,7 @@ test('scheduling to yourself: once in N minutes, at a date, or repeating; always
       targetType: 'bot',
       botId: bot.id,
       botMessage: '看一下 Actions',
-      name: '小橙：看一下 Actions',
+      name: '小橙: 看一下 Actions',
       enabled: true,
       timezone: 'Asia/Shanghai',
       frequency: 'once',
@@ -134,7 +136,10 @@ test('scheduling to yourself: once in N minutes, at a date, or repeating; always
     5,
   )
   assert.throws(() => botScheduleInput({ bot, input: { message: '' }, now }), /message/)
-  assert.throws(() => botScheduleInput({ bot, input: { message: 'x' }, now }), /什么时候/)
+  assert.throws(() => botScheduleInput({ bot, input: { message: 'x' }, now }), {
+    code: 'invalid',
+    params: { subject: 'schedule', detail: 'say when: inMinutes, date + time, or repeat + time' },
+  })
   assert.equal(
     botAnswerText([{ question: '部署到哪？' }], {
       outcome: 'answered',
@@ -235,12 +240,12 @@ test('bot tools start, add to and stop only the bot’s own jobs, with its setti
     runtime.calls.find(([name]) => name === 'interrupt'),
     ['interrupt', 'conv', 'a1b2c3d4'],
   )
-  await assert.rejects(tools.stopJob({ job: 'not-mine' }), /对不上/)
-  await assert.rejects(tools.startJob({ title: '', task: 'x' }), /参数/)
+  await assert.rejects(tools.stopJob({ job: 'not-mine' }), /does not match/)
+  await assert.rejects(tools.startJob({ title: '', task: 'x' }), /incomplete or too long/)
   // 不是 Bot 的对话：工具不可用。
   await assert.rejects(
     runtime.botConversationRuntime('other').startJob({ title: 'a', task: 'b' }),
-    /不是 Bot 的对话/,
+    /not a bot conversation/,
   )
 })
 
@@ -298,7 +303,7 @@ test('schedules go only to the bot itself, and never from an unattended turn', a
   assert.match((await tools.schedule({ action: 'list' })).text, /sch_1/)
   await tools.schedule({ action: 'remove', id: 'sch_1' })
   assert.deepEqual(runtime.calls.at(-1), ['unschedule', 'sch_1'])
-  await assert.rejects(tools.schedule({ action: 'remove', id: 'someone-else' }), /不是你的/)
+  await assert.rejects(tools.schedule({ action: 'remove', id: 'someone-else' }), /not yours/)
   const unattended = fakeRuntime({ unattended: true }).botConversationRuntime('conv')
   await assert.rejects(
     unattended.schedule({ action: 'create', message: 'x', inMinutes: 5 }),
@@ -440,10 +445,10 @@ test('bot_notify reaches the user’s own chats with the bot’s name, explains 
   )
   results = []
   await assert.rejects(tools.notify({ text: 'x' }), /no chat app is connected/)
-  await assert.rejects(tools.notify({ text: '   ' }), /最多 2000/)
+  await assert.rejects(tools.notify({ text: '   ' }), /at most 2000/)
   await assert.rejects(
     runtime.botConversationRuntime('other').notify({ text: 'x' }),
-    /不是 Bot 的对话/,
+    /not a bot conversation/,
   )
 
   // 一小时最多 10 条，发失败的不算。
@@ -517,5 +522,5 @@ test('a schedule made from a group remembers which group it was', async () => {
     repeat: 'daily',
   })
   const [, input] = runtime.calls.find(([name]) => name === 'schedule')
-  assert.equal(input.botMessage, '每天汇总一下进度（在Telegram群里定的，群 ID -100）')
+  assert.equal(input.botMessage, '每天汇总一下进度 (scheduled in a Telegram group, group ID -100)')
 })

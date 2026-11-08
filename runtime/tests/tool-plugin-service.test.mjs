@@ -134,7 +134,7 @@ test('plugin definitions create global source, install, and execute without over
         tools: [{ name: 'replacement_tool', description: 'Replacement.' }],
         entryCode: 'export async function execute() { return true }',
       }),
-      /已安装/,
+      { code: 'exists' },
     )
     assert.match(await readFile(join(created.sourcePath, 'index.mjs'), 'utf8'), /version\.mjs/)
   })
@@ -153,7 +153,7 @@ test('local plugins can be inspected, installed, executed, toggled, and removed'
     assert.equal(inspection.plugin.id, 'example.echo')
     assert.equal(inspection.plugin.systemAccess, true)
     assert.equal(inspection.fileCount, 2)
-    assert.match(inspection.warnings.join('\n'), /除“完全访问”外，每次调用前都需要确认/)
+    assert.match(inspection.warnings.join('\n'), /outside Full access each call needs confirmation/)
 
     const installed = await service.install(inspection.inspectionId)
     assert.equal(installed.enabled, true)
@@ -217,7 +217,7 @@ test('uninstall removes every plugin tool and is blocked while one is running', 
     assert.equal(definitions.length, 2)
 
     const running = definitions[0].execute('tool-call-active', {})
-    await assert.rejects(service.uninstall('example.echo'), /正在执行/)
+    await assert.rejects(service.uninstall('example.echo'), { code: 'busy' })
     await running
     const state = await service.uninstall('example.echo')
     assert.equal(
@@ -250,17 +250,20 @@ test('installation rejects a source changed after inspection', async () => {
     const source = await createFixture(root)
     const inspection = await service.inspect(source)
     await writeFile(join(source, 'index.mjs'), 'export const execute = () => "changed"\n', 'utf8')
-    await assert.rejects(service.install(inspection.inspectionId), /发生了变化/)
+    await assert.rejects(
+      service.install(inspection.inspectionId),
+      /folder changed after inspection/,
+    )
   })
 })
 
 test('inspection rejects built-in tool conflicts and invalid manifests', async () => {
   await withService(async ({ root, service }) => {
-    await assert.rejects(service.uninstall('builtin.filesystem'), /本地插件/)
+    await assert.rejects(service.uninstall('builtin.filesystem'), { code: 'not_found' })
     const source = await createFixture(root, {
       tools: [{ name: 'read', description: 'Conflicts with the built-in read tool.' }],
     })
-    await assert.rejects(service.inspect(source), /与内置工具冲突/)
+    await assert.rejects(service.inspect(source), /is a built-in tool/)
 
     const invalidSchema = await createFixture(root, {
       tools: [
@@ -271,16 +274,16 @@ test('inspection rejects built-in tool conflicts and invalid manifests', async (
         },
       ],
     })
-    await assert.rejects(service.inspect(invalidSchema), /required 必须为字符串数组/)
+    await assert.rejects(service.inspect(invalidSchema), /required must be a string array/)
 
     const invalid = join(root, 'invalid')
     await mkdir(invalid)
     await writeFile(join(invalid, 'pisper-plugin.json'), '{', 'utf8')
-    await assert.rejects(service.inspect(invalid), /不是有效的 JSON/)
+    await assert.rejects(service.inspect(invalid), /is not valid JSON/)
 
     const oversized = join(root, 'oversized')
     await mkdir(oversized)
     await writeFile(join(oversized, 'pisper-plugin.json'), ' '.repeat(256 * 1024 + 1), 'utf8')
-    await assert.rejects(service.inspect(oversized), /超过 256 KB/)
+    await assert.rejects(service.inspect(oversized), /max 256 KB/)
   })
 })

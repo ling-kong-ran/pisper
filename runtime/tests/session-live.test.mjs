@@ -269,18 +269,18 @@ test('live tool runs block reentrant prompts and session configuration between P
     getModel: () => ({ provider: 'openai', id: 'gpt-next' }),
   }
 
-  await assert.rejects(
-    runtime.providerPreferences.setSessionModel(id, 'openai', 'gpt-next'),
-    /当前会话正在运行/,
-  )
-  await assert.rejects(
-    runtime.providerPreferences.setSessionThinkingLevel(id, 'high'),
-    /当前会话正在运行/,
-  )
-  await assert.rejects(runtime.compactSession(id), /当前会话仍在运行/)
+  await assert.rejects(runtime.providerPreferences.setSessionModel(id, 'openai', 'gpt-next'), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
+  await assert.rejects(runtime.providerPreferences.setSessionThinkingLevel(id, 'high'), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
+  await assert.rejects(runtime.compactSession(id), { code: 'busy', params: { subject: 'session' } })
   await assert.rejects(
     runtime.streamPrompt({ sessionId: id, message: 'Do not start twice.', send: () => {} }),
-    /当前会话仍在运行/,
+    { code: 'busy', params: { subject: 'session' } },
   )
 })
 
@@ -1477,7 +1477,9 @@ test('manual compaction persists through the Agent session and returns safe live
   assert.ok(value.modified)
 
   session.isStreaming = true
-  await assert.rejects(runtime.compactSession(session.sessionId), /仍在运行/)
+  await assert.rejects(runtime.compactSession(session.sessionId), {
+    code: 'busy',
+  })
 })
 
 test('compaction threshold defaults to 80% and persists valid updates', async (t) => {
@@ -1495,7 +1497,7 @@ test('compaction threshold defaults to 80% and persists valid updates', async (t
     JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionThresholdPercent,
     72,
   )
-  await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /10%.*95%/)
+  await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /10-95%/)
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {

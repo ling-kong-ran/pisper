@@ -19,6 +19,7 @@ import {
   petStateForAgentEvent,
   readImageDimensions,
 } from '../../shared/desktop-pet-state.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 const PETDEX_MANIFEST_URL = 'https://petdex.dev/api/manifest'
 const PETDEX_PAGE_URL = 'https://petdex.dev'
@@ -42,21 +43,21 @@ function safeJson(path, fallback) {
 async function boundedFetch(fetchFn, value, maxBytes, allowedHost, redirectHosts = []) {
   const url = new URL(value)
   if (url.protocol !== 'https:' || url.hostname !== allowedHost)
-    throw new Error('Petdex 资源地址不受信任。')
+    throw pisperError('forbidden', 'url', 'untrusted Petdex URL')
   const response = await fetchFn(url.href, {
     headers: { 'User-Agent': 'Pisper Web Desktop Pet' },
   })
-  if (!response.ok) throw new Error(`Petdex request failed: HTTP ${response.status}`)
+  if (!response.ok) throw pisperError('failed', 'network', `Petdex HTTP ${response.status}`)
   const finalUrl = new URL(response.url || url.href)
   if (
     finalUrl.protocol !== 'https:' ||
     ![allowedHost, ...redirectHosts].includes(finalUrl.hostname)
   )
-    throw new Error('Petdex 资源地址不受信任。')
+    throw pisperError('forbidden', 'url', 'untrusted Petdex URL')
   const declaredSize = Number(response.headers.get('content-length') || 0)
-  if (declaredSize > maxBytes) throw new Error('宠物资源超过允许的大小。')
+  if (declaredSize > maxBytes) throw pisperError('too_large', 'pet')
   const buffer = Buffer.from(await response.arrayBuffer())
-  if (!buffer.length || buffer.length > maxBytes) throw new Error('宠物资源超过允许的大小。')
+  if (!buffer.length || buffer.length > maxBytes) throw pisperError('too_large', 'pet')
   return {
     buffer,
     contentType: String(response.headers.get('content-type') || '').toLowerCase(),
@@ -219,7 +220,7 @@ export class WebDesktopPetService {
 
   setEnabled(enabled) {
     const installed = this.installedPets()
-    if (enabled && !installed.length) throw new Error('请先安装一只宠物。')
+    if (enabled && !installed.length) throw pisperError('unavailable', 'pet', 'install a pet first')
     const current = this.preferences()
     this.savePreferences({
       enabled: Boolean(enabled),
@@ -230,7 +231,7 @@ export class WebDesktopPetService {
 
   select(slug) {
     const pet = this.findPet(String(slug || ''))
-    if (!pet) throw new Error('宠物尚未安装。')
+    if (!pet) throw pisperError('not_found', 'pet')
     this.savePreferences({ selectedSlug: pet.slug })
     return this.status()
   }
@@ -239,14 +240,15 @@ export class WebDesktopPetService {
     const slug = String(inputSlug || '')
       .trim()
       .toLowerCase()
-    if (!SLUG_PATTERN.test(slug)) throw new Error('宠物标识格式无效。')
-    if (!this.loadPet(this.managedRoot, slug)) throw new Error('只能删除由 Pisper 安装的宠物。')
+    if (!SLUG_PATTERN.test(slug)) throw pisperError('invalid', 'pet', 'invalid pet id')
+    if (!this.loadPet(this.managedRoot, slug))
+      throw pisperError('forbidden', 'pet', 'only pets installed by Pisper can be removed')
 
     const managedRoot = realpathSync(this.managedRoot)
     const directory = realpathSync(join(this.managedRoot, slug))
     const relativePath = relative(managedRoot, directory)
     if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath))
-      throw new Error('宠物目录无效。')
+      throw pisperError('invalid', 'folder', 'invalid pet folder')
     rmSync(directory, { recursive: true })
     for (const [path, pet] of this.petCache) {
       if (pet.slug === slug || path.startsWith(`${directory}/`)) this.petCache.delete(path)
@@ -313,10 +315,10 @@ export class WebDesktopPetService {
     const slug = String(inputSlug || '')
       .trim()
       .toLowerCase()
-    if (!SLUG_PATTERN.test(slug)) throw new Error('宠物标识格式无效。')
+    if (!SLUG_PATTERN.test(slug)) throw pisperError('invalid', 'pet', 'invalid pet id')
     const manifest = await this.manifest()
     const entry = manifest.find((pet) => pet.slug === slug)
-    if (!entry) throw new Error('Petdex 中未找到这只宠物。')
+    if (!entry) throw pisperError('not_found', 'pet', 'not in Petdex')
     const { buffer, contentType } = await boundedFetch(
       this.fetchFn,
       entry.spritesheetUrl,
@@ -324,8 +326,10 @@ export class WebDesktopPetService {
       'assets.petdex.dev',
     )
     const image = readImageDimensions(buffer)
-    if (!image || !isPetSheetDimensions(image)) throw new Error('宠物图集格式无效。')
-    if (contentType && !contentType.startsWith(image.mime)) throw new Error('宠物图集格式无效。')
+    if (!image || !isPetSheetDimensions(image))
+      throw pisperError('invalid', 'pet', 'invalid sprite sheet')
+    if (contentType && !contentType.startsWith(image.mime))
+      throw pisperError('invalid', 'pet', 'invalid sprite sheet')
     const directory = join(this.managedRoot, slug)
     for (const [path, pet] of this.petCache) {
       if (pet.slug === slug) this.petCache.delete(path)

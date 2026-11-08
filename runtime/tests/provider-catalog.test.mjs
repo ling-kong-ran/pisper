@@ -221,8 +221,11 @@ test('provider API keys update without changing the active model configuration',
   assert.equal(JSON.stringify(saved).includes(apiKey), false)
   const credentials = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'))
   assert.equal(credentials['kimi-coding'].key, apiKey)
-  await assert.rejects(() => runtime.setProviderApiKey('missing', { apiKey }), /Provider 不存在/)
-  await assert.rejects(() => runtime.setProviderApiKey('openai', { apiKey: '   ' }), /不能为空/)
+  await assert.rejects(() => runtime.setProviderApiKey('missing', { apiKey }), /Provider not found/)
+  await assert.rejects(
+    () => runtime.setProviderApiKey('openai', { apiKey: '   ' }),
+    /API key is required/,
+  )
 })
 
 test('provider connections update protocol, effective Base URL, and optional API Key only', async (t) => {
@@ -283,7 +286,7 @@ test('provider connections update protocol, effective Base URL, and optional API
         api: 'unsupported',
         baseUrl: defaultBaseUrl,
       }),
-    /不受支持/,
+    /not supported here: API protocol/,
   )
   await assert.rejects(
     () =>
@@ -291,7 +294,7 @@ test('provider connections update protocol, effective Base URL, and optional API
         api: 'openai-responses',
         baseUrl: 'file:///tmp/provider',
       }),
-    /HTTP 或 HTTPS/,
+    /http or https/,
   )
   await assert.rejects(
     () =>
@@ -299,7 +302,7 @@ test('provider connections update protocol, effective Base URL, and optional API
         api: 'openai-responses',
         baseUrl: defaultBaseUrl,
       }),
-    /Provider 不存在/,
+    /Provider not found/,
   )
 })
 
@@ -337,7 +340,7 @@ test('saving an unauthenticated Provider fails before changing configuration', a
         setAsDefault: false,
         enabled: true,
       }),
-    /填写 API Key 或加载 Provider 认证/,
+    /enter an API key or load provider credentials/,
   )
 
   const after = await runtime.getConfig()

@@ -383,7 +383,7 @@ test('runtime imports OAuth login without creating a custom Provider or overwrit
   await writeFile(authPath, JSON.stringify(auth), 'utf8')
   await assert.rejects(
     () => runtime.importDiscoveredProvider('codex-auth-test'),
-    /认证，不会自动覆盖/,
+    /credentials; not overwritten/,
   )
 
   delete auth['openai-codex']
@@ -400,10 +400,7 @@ test('runtime imports OAuth login without creating a custom Provider or overwrit
     }),
     'utf8',
   )
-  await assert.rejects(
-    () => runtime.importDiscoveredProvider('codex-auth-test'),
-    /避免登录凭据外发/,
-  )
+  await assert.rejects(() => runtime.importDiscoveredProvider('codex-auth-test'), /custom Base URL/)
 })
 
 test('login discovery ignores API keys and rejects incomplete OAuth sessions', async (t) => {
@@ -542,7 +539,7 @@ test('runtime imports provider definitions and embedded configuration credential
   await writeFile(join(directory, 'models.json'), JSON.stringify(models), 'utf8')
   await assert.rejects(
     () => runtime.importDiscoveredProvider('codex-config-company-test'),
-    /模型配置，不会自动覆盖/,
+    /model config; not overwritten/,
   )
 })
 

@@ -14,6 +14,16 @@ import { lstat, readFile, realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { resolveToCwd } from '../runtime/pi-coding-agent.mjs'
+import {
+  agoText,
+  changedByText,
+  neighbourChangesNote,
+  sessionMessageBody,
+  sessionMessageNotice,
+  staleWriteReason,
+  unreadOverwriteReason,
+  withCoordinationHint,
+} from '../prompts/workspace-coordination.mjs'
 
 export const ABSENT = 'absent'
 // 太大或不是普通文件：不比较，照常放行。
@@ -96,17 +106,6 @@ function displayPath(cwd, file) {
   return file.replaceAll('\\', '/')
 }
 
-function ago(now, at) {
-  const minutes = Math.max(0, Math.round((now - at) / 60_000))
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes} min ago`
-  return `${Math.round(minutes / 60)} h ago`
-}
-
-function quoted(title) {
-  return `"${String(title || 'Untitled').replaceAll('"', "'")}"`
-}
-
 // 留言的来源标记：放在附件上下文里（转录不显示），转录投影据此标出“来自会话「X」”。
 const SESSION_MESSAGE_TAG = /\[pisper:session-message from=([A-Za-z0-9%._~!*'()-]{3,4000})\]/
 
@@ -139,16 +138,8 @@ export function sessionMessageContent(messages, attachmentMarker) {
   const senders = []
   for (const message of messages)
     if (!senders.some((sender) => sender.id === message.from.id)) senders.push(message.from)
-  const body =
-    messages.length === 1
-      ? messages[0].text
-      : messages.map((message) => `「${message.from.title}」：${message.text}`).join('\n\n')
-  const names = senders.map((sender) => `「${sender.title}」`).join('、')
-  const context = [
-    sessionMessageTag(senders),
-    `这条消息来自同一个文件夹里的会话${names}，不是用户：它在协调对文件的修改。按需要照做或回话；` +
-      '回话用 session_message 发给它（工具列表里没有时经 call_tool 调用）。不需要回的不回，不发客套话。',
-  ].join('\n')
+  const body = sessionMessageBody(messages)
+  const context = [sessionMessageTag(senders), sessionMessageNotice(senders)].join('\n')
   return `${body}${attachmentMarker}${context}`
 }
 
@@ -319,20 +310,22 @@ export class WorkspaceCoordination {
     }
     if (seen) {
       if (seen !== current && seen !== UNHASHABLE && current !== UNHASHABLE)
-        reason = `${path} has changed since you last read or wrote it (${this.changedBy({ sessionId, viewKey, writer, current })}). Read it again and make your change on top of the current content, so the other changes are not lost.`
+        reason = staleWriteReason(path, this.changedBy({ sessionId, viewKey, writer, current }))
     } else if (
       op.tool === 'write' &&
       current !== UNHASHABLE &&
       writer &&
       writer.sessionId !== sessionId
     ) {
-      reason = `${path} was written by another session, ${quoted(this.title(writer.sessionId))}, ${ago(this.now(), writer.at)}, and you have not read it. Read it before overwriting it.`
+      reason = unreadOverwriteReason(
+        path,
+        this.title(writer.sessionId),
+        agoText(this.now(), writer.at),
+      )
     }
     if (reason) {
       const others = writer && writer.sessionId !== sessionId
-      return others
-        ? `${reason} If you need to agree on who changes what, message that session with session_message (through call_tool if it is not listed).`
-        : reason
+      return others ? withCoordinationHint(reason) : reason
     }
     pending.set(key, this.now())
     return ''
@@ -341,10 +334,14 @@ export class WorkspaceCoordination {
   changedBy({ sessionId, viewKey, writer, current }) {
     if (writer && writer.hash === current) {
       if (writer.sessionId !== sessionId)
-        return `session ${quoted(this.title(writer.sessionId))} wrote it ${ago(this.now(), writer.at)}`
-      if (writer.viewKey !== viewKey) return 'another agent in this session wrote it'
+        return changedByText({
+          kind: 'session',
+          title: this.title(writer.sessionId),
+          ago: agoText(this.now(), writer.at),
+        })
+      if (writer.viewKey !== viewKey) return changedByText({ kind: 'agent' })
     }
-    return 'changed outside the file tools: a shell command, an editor, git or a formatter'
+    return changedByText({ kind: 'outside' })
   }
 
   async recordResult({ sessionId, viewKey, cwd, op, failed }) {
@@ -404,17 +401,17 @@ export class WorkspaceCoordination {
       bySession.set(note.from, list)
     }
     if (!bySession.size) return ''
-    const lines = [...bySession.entries()].map(([from, list]) => {
+    const entries = [...bySession.entries()].map(([from, list]) => {
       list.sort((left, right) => right.at - left.at)
       const shown = list.slice(0, NOTE_FILES_SHOWN).map((note) => displayPath(cwd, note.file))
-      const more = list.length > shown.length ? ` and ${list.length - shown.length} more` : ''
-      return `- Session ${quoted(this.title(from))} changed ${shown.join(', ')}${more} (${ago(now, list[0].at)}).`
+      return {
+        title: this.title(from),
+        files: shown,
+        more: list.length - shown.length,
+        ago: agoText(now, list[0].at),
+      }
     })
-    return [
-      '[Pisper] Another session working in the same folder changed files you have used:',
-      ...lines,
-      'Read them again before relying on what you saw earlier. To agree on who changes what, message that session with session_message (through call_tool if it is not listed).',
-    ].join('\n')
+    return neighbourChangesNote(entries)
   }
 
   // 最近在 cwd 里改过文件的其他会话（会话页的提示与 list_sessions 用）。

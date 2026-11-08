@@ -219,7 +219,10 @@ test('paused bots and empty messages are refused; failures reach the chat', asyn
     prompt: async () => ({ sessionId: 'existing', text: '', error: '模型不可用' }),
   })
   await assert.rejects(runtime.messageBot('停着', { text: 'x' }), { code: 'bot_paused' })
-  await assert.rejects(runtime.messageBot('小橙', { text: '   ' }), { code: 'bot_message_empty' })
+  await assert.rejects(runtime.messageBot('小橙', { text: '   ' }), {
+    code: 'invalid',
+    params: { subject: 'message', detail: 'say what the bot should do' },
+  })
   await assert.rejects(runtime.messageBot('没有', { text: 'x' }), { code: 'bot_not_found' })
   await runtime.messageBot('小橙', { text: '跑一下', source: channel })
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -312,12 +315,18 @@ test('bot sessions are not fenced to their folder', async () => {
 })
 
 test('the bot system prompt says who it is and carries its instructions', () => {
-  assert.match(botSystemPrompt(bot('小橙')), /你是 小橙[\s\S]*\[小橙 的工作说明\]\n盯着首页性能/)
-  assert.doesNotMatch(botSystemPrompt(bot('空白', { instructions: '' })), /工作说明/)
+  assert.match(
+    botSystemPrompt(bot('小橙')),
+    /You are 小橙[\s\S]*\[小橙's instructions\]\n盯着首页性能/,
+  )
+  assert.doesNotMatch(botSystemPrompt(bot('空白', { instructions: '' })), /instructions\]/)
   // 能自己做完的就做完：只有缺信息、要拍板或确实做不了时才问。
-  assert.match(botSystemPrompt(bot('小橙')), /直接做完[\s\S]*确实做不了时，才问用户/)
+  assert.match(
+    botSystemPrompt(bot('小橙')),
+    /do not stop to ask for confirmation[\s\S]*really cannot do it/,
+  )
   assert.equal(normalizeBotMessage('  hi  '), 'hi')
-  assert.throws(() => normalizeBotMessage('x'.repeat(12_001)), { code: 'bot_message_too_long' })
+  assert.throws(() => normalizeBotMessage('x'.repeat(12_001)), { code: 'too_large' })
   assert.equal(botReplyText('小橙', { text: '' }), '小橙 做完了。')
   assert.match(botReplyText('小橙', { text: '长'.repeat(3_100) }), /完整回复在 Pisper 里/)
 })

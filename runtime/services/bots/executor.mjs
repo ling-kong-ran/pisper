@@ -1,6 +1,7 @@
 // 执行节点（B6）：Bot 的电脑是另一台机器时，会话的文件与命令工具经连接中枢转发过去，
 // 由节点在它允许的目录里执行。本机的 Bot 直接用本机工具，不经过这里。
 
+// 执行节点的错误保留各自的 code（界面与 SSH 机器按它分辨离线、版本太旧、目录不允许等），message 用英文。
 export class ExecutorError extends Error {
   constructor(code, message) {
     super(message)
@@ -37,7 +38,11 @@ export class NodeExecutor {
   // 旧版节点没有这个操作，明确回“版本太旧”，不拿空列表冒充。
   async listFolders(path, { signal } = {}) {
     const target = String(path || '').trim() || this.roots[0] || ''
-    if (!target) throw new ExecutorError('path_not_allowed', '这台电脑没有允许的目录。')
+    if (!target)
+      throw new ExecutorError(
+        'path_not_allowed',
+        'Folder is not allowed: this machine allows none.',
+      )
     let value
     try {
       value = await this.#call('fs.folders', { path: target }, { signal })
@@ -45,7 +50,7 @@ export class NodeExecutor {
       if (error?.code === 'op_unsupported')
         throw new ExecutorError(
           'executor_outdated',
-          '这台电脑上的 pisper 版本太旧，升级后才能点选文件夹；也可以直接填写路径。',
+          'Machine is not supported here: update pisper on it to browse folders, or type the path',
         )
       throw error
     }
@@ -74,7 +79,8 @@ export class NodeExecutor {
     }
     const stat = async (path) => {
       const value = await this.#call('fs.stat', { path })
-      if (!value?.exists) throw new ExecutorError('not_found', `找不到 ${path}`)
+      if (!value?.exists)
+        throw new ExecutorError('not_found', `ENOENT: no such file or directory, '${path}'`)
       const directory = value.isDirectory === true
       return { isDirectory: () => directory }
     }
@@ -106,7 +112,10 @@ export class NodeExecutor {
       bash: {
         exec: async (command, cwd, { onData, signal, timeout } = {}) => {
           if (!this.capabilities.shell)
-            throw new ExecutorError('shell_disabled', '这台电脑没有允许执行命令。')
+            throw new ExecutorError(
+              'shell_disabled',
+              'Machine does not allow commands (--no-shell).',
+            )
           const timeoutMs = timeout ? Math.max(1, Number(timeout)) * 1000 : 10 * 60_000
           const value = await this.#call(
             'shell',

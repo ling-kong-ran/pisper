@@ -319,27 +319,36 @@ test('unavailable definition models fall back to the parent model and say why', 
   // 文件存在但没通过校验时，报错带上原因，代理能照着改。
   await assert.rejects(
     multiAgentRuntime.spawn({ taskName: 'broken', message: 'x', agent: 'broken' }),
-    /\.pisper\/agents\/broken\.md is invalid: thinking 只能是/,
+    /\.pisper\/agents\/broken\.md is invalid: .*thinking: one of off/,
   )
   assert.equal(runtime.multiAgents.list(sessionId).length, 2)
 })
 
 test('tier settings are validated on save and definitions are listed per workspace', async (t) => {
   const { runtime } = await profileRuntime(t)
-  await assert.rejects(runtime.setSubagentModelTiers({ tiers: { fast: 'test-gone/x' } }), /不存在/)
-  await assert.rejects(runtime.setSubagentModelTiers({ tiers: { turbo: 'a/b' } }), /未知/)
+  await assert.rejects(runtime.setSubagentModelTiers({ tiers: { fast: 'test-gone/x' } }), {
+    code: 'not_found',
+    params: { subject: 'model' },
+  })
+  await assert.rejects(
+    runtime.setSubagentModelTiers({ tiers: { turbo: 'a/b' } }),
+    /unknown subagent tiers: turbo/,
+  )
   await assert.rejects(
     runtime.setSubagentModelTiers({ tiers: { fast: 'nope' } }),
     /provider\/modelId/,
   )
-  await assert.rejects(runtime.setSubagentModelTiers({}), /格式无效/)
+  await assert.rejects(runtime.setSubagentModelTiers({}), { code: 'invalid' })
   assert.deepEqual((await runtime.setSubagentModelTiers({ tiers: {} })).subagentModelTiers, {})
   const listed = await runtime.listAgentProfiles({ cwd: runtime.cwd })
   assert.deepEqual(
     listed.profiles.map((profile) => profile.name),
     ['pinned', 'scout'],
   )
-  await assert.rejects(runtime.listAgentProfiles({ cwd: join(runtime.cwd, 'missing') }), /工作目录/)
+  await assert.rejects(runtime.listAgentProfiles({ cwd: join(runtime.cwd, 'missing') }), {
+    code: 'not_found',
+    params: { subject: 'folder' },
+  })
   // 设置页不带项目时只看全局定义。
   assert.deepEqual(await runtime.listAgentProfiles(), { profiles: [], errors: [] })
 })
@@ -347,7 +356,7 @@ test('tier settings are validated on save and definitions are listed per workspa
 test('the built-in pisper-subagents skill teaches a format the parser accepts', () => {
   const skill = AGENT_PROFILES_SKILL.files['SKILL.md']
   assert.equal(AGENT_PROFILES_SKILL.name, 'pisper-subagents')
-  assert.match(skill, /^---\nname: pisper-subagents\ndescription: .+子代理定义/)
+  assert.match(skill, /^---\nname: pisper-subagents\ndescription: .+agent definitions/)
   // 要让模型在用户提出时自动加载，不能像 pisper-component 那样只允许显式调用。
   assert.doesNotMatch(skill, /disable-model-invocation/)
   const example = skill.match(/~~~markdown\n([\s\S]*?)~~~/)?.[1]
@@ -367,7 +376,7 @@ test('the parent session sees the skill and each definition with its tier model 
   await runtime.setSessionModel(created.id, 'test-parent', 'fixture')
   const { session } = await runtime.getOrCreateSession(created.id)
   assert.match(session.systemPrompt, /pisper-subagents/)
-  assert.match(session.systemPrompt, /新建或修改 Pisper 子代理定义/)
+  assert.match(session.systemPrompt, /creating or editing Pisper agent definitions/)
   const spawn = session.getToolDefinition('spawn_agent')
   assert.match(
     spawn.description,

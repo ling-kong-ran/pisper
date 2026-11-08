@@ -1,7 +1,7 @@
 // 卡片展示用的纯推导：状态 → 字形与色调、元信息（项目、模型、消息数）、子代理行、时长。
 // 只读看板卡片与会话摘要，不读写任何 store；没有数据的字段一律返回空，由界面隐藏。
 import {
-  COMMAND_GUARD_REASON_PREFIX,
+  commandGuardReasonPrefix,
   type BoardLane,
   type BoardStatus,
 } from '@shared/session-board-status.mjs'
@@ -117,12 +117,15 @@ export function elapsedSince(since: number | null, now: number) {
   return since === null ? null : Math.max(0, now - since)
 }
 
+// 守卫原因的前缀：新 Runtime 写英文“Blocked by the command guard: …”，旧会话历史里是中文前缀，两种都认。
+const guardReasonPrefix = commandGuardReasonPrefix
+
 // 守卫原因形如“命令守卫拦截：改写远端分支”；危险等级标签只取冒号后的摘要。
+// 英文原因的句号后面跟着“Needs confirmation.”，按“. ”断句，不切断命令里的点。
 export function guardReasonSummary(reason: string) {
-  const text = reason.startsWith(COMMAND_GUARD_REASON_PREFIX)
-    ? reason.slice(COMMAND_GUARD_REASON_PREFIX.length).replace(/^[\s:：·-]+/u, '')
-    : reason
-  return text.split(/[\n。；;]/u)[0]?.trim() || ''
+  const prefix = guardReasonPrefix(reason)
+  const text = prefix ? reason.slice(prefix.length).replace(/^[\s:：·-]+/u, '') : reason
+  return text.split(/[\n。；;]|\.(?:\s|$)/u)[0]?.trim() || ''
 }
 
 // 审批的完整内容：bash 是命令本身；其余工具（插件安装、浏览器交互、MCP 等）没有命令和路径时，
@@ -146,7 +149,7 @@ export function approvalArgsText(approval: Pick<BoardApproval, 'command' | 'args
 
 // 守卫原因进危险等级标签；其他原因（插件安装、浏览器交互等）单独成行展示，帮助判断。
 export function isGuardReason(reason: string) {
-  return reason.trimStart().startsWith(COMMAND_GUARD_REASON_PREFIX)
+  return Boolean(guardReasonPrefix(reason.trimStart()))
 }
 
 // 同名项目（worktree、fork 很常见）只靠显示名分不清：重名时返回简写路径作为辅助说明。

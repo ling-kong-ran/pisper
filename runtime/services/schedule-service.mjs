@@ -4,6 +4,7 @@
 // 不补跑——“9 点发布”这类任务晚几个小时再执行可能有害，需要的话由人手动立即运行。
 import { randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 export const DEFAULT_SCHEDULE_EXECUTION_MODE = 'full-access'
 
@@ -16,10 +17,10 @@ const NOTIFICATION_TARGETS = new Set(['browser', 'feishu', 'weixin', 'qq', 'tele
 const SCHEDULE_TARGETS = new Set(['prompt', 'workflow', 'bot'])
 const MAX_BOT_MESSAGE_CHARS = 12_000
 const TERMINAL_WORKFLOW_STATUSES = new Set(['completed', 'failed', 'cancelled', 'interrupted'])
-const RESTART_INTERRUPTED_ERROR = '任务因 Pisper 重启而中断。'
-const SHUTDOWN_INTERRUPTED_ERROR = '任务因 Pisper 关闭而中断。'
-const MISSED_ONCE_ERROR = '计划时间 Pisper 没有运行，一次性任务已跳过；需要的话可以手动立即运行。'
-const PAST_ONCE_ERROR = '一次性任务的时间已经过去，请选择将来的时间。'
+const RESTART_INTERRUPTED_ERROR = 'Interrupted because Pisper restarted.'
+const SHUTDOWN_INTERRUPTED_ERROR = 'Interrupted because Pisper closed.'
+const MISSED_ONCE_ERROR =
+  'Skipped: Pisper was not running at the scheduled time. Run it now manually if needed.'
 const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 
 function defaultState() {
@@ -134,7 +135,7 @@ function normalizeStoredTask(task, cwd) {
   try {
     new Intl.DateTimeFormat('en', { timeZone: timezone }).format()
   } catch {
-    throw new Error('定时任务时区无效。')
+    throw pisperError('invalid', 'schedule', 'invalid time zone')
   }
   const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(task.time || ''))
     ? String(task.time)
@@ -142,7 +143,7 @@ function normalizeStoredTask(task, cwd) {
   const frequency = FREQUENCIES.has(task.frequency) ? task.frequency : 'daily'
   const normalized = {
     id: String(task.id || randomUUID()),
-    name: String(task.name || '未命名任务').slice(0, 120),
+    name: String(task.name || 'Untitled task').slice(0, 120),
     targetType: SCHEDULE_TARGETS.has(task.targetType) ? task.targetType : 'prompt',
     prompt: String(task.prompt || '').slice(0, 100_000),
     workflowId: String(task.workflowId || '').slice(0, 200),
@@ -209,14 +210,15 @@ function normalizeStoredTask(task, cwd) {
   return normalized
 }
 
+// 通知模板里的耗时：用不分语言的 45s / 3m 12s，聊天软件里的中文模板与英文都看得懂。
 function durationLabel(durationMs) {
   const seconds = Math.max(0, Math.round(durationMs / 1000))
-  if (seconds < 60) return `${seconds} 秒`
-  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
 function nextRunLabel(task) {
-  if (!task.nextRunAt) return '未安排'
+  if (!task.nextRunAt) return '-'
   return new Intl.DateTimeFormat('zh-CN', {
     timeZone: task.timezone,
     dateStyle: 'medium',
@@ -320,27 +322,30 @@ export class ScheduleService {
       !Array.isArray(merged.workflowInputs)
         ? merged.workflowInputs
         : {}
-    if (!name) throw new Error('任务名称不能为空。')
-    if (targetType === 'prompt' && !prompt) throw new Error('任务 Prompt 不能为空。')
+    if (!name) throw pisperError('invalid', 'schedule', 'name is required')
+    if (targetType === 'prompt' && !prompt)
+      throw pisperError('invalid', 'schedule', 'prompt is required')
     if (targetType === 'workflow') {
-      if (!workflowId) throw new Error('请选择要运行的工作流。')
+      if (!workflowId) throw pisperError('invalid', 'schedule', 'choose a workflow')
       const workflow = this.workflows?.list().find((item) => item.id === workflowId)
-      if (!workflow) throw new Error('选择的工作流不存在。')
-      if (workflow.status !== 'published') throw new Error('定时任务只能调用已发布的工作流。')
+      if (!workflow) throw pisperError('not_found', 'workflow')
+      if (workflow.status !== 'published')
+        throw pisperError('invalid', 'workflow', 'only published workflows can be scheduled')
       const missingInput = (workflow.inputs || []).find((definition) => {
         const value = Object.hasOwn(workflowInputs, definition.name)
           ? workflowInputs[definition.name]
           : definition.defaultValue
         return definition.required && (value === undefined || value === null || value === '')
       })
-      if (missingInput) throw new Error(`工作流输入「${missingInput.label}」不能为空。`)
+      if (missingInput) throw pisperError('invalid', 'input', `${missingInput.label} is required`)
     }
     if (targetType === 'bot') {
-      if (!this.bots?.enabled()) throw new Error('Bots 是实验功能，请先在设置 › 实验功能里打开。')
-      if (!this.bots.get(botId)) throw new Error('选择的 Bot 不存在。')
-      if (!botMessage) throw new Error('要让 Bot 做什么？请写下要做的事。')
+      if (!this.bots?.enabled())
+        throw pisperError('unavailable', 'bot', 'turn on Bots in Settings › Labs')
+      if (!this.bots.get(botId)) throw pisperError('not_found', 'bot')
+      if (!botMessage) throw pisperError('invalid', 'message', 'say what the bot should do')
       if (botMessage.length > MAX_BOT_MESSAGE_CHARS)
-        throw new Error(`要做的事最多 ${MAX_BOT_MESSAGE_CHARS} 个字符。`)
+        throw pisperError('too_large', 'message', `max ${MAX_BOT_MESSAGE_CHARS} characters`)
     }
     if (targetType === 'prompt' && Object.hasOwn(input || {}, 'cwd'))
       merged.cwd = await this.agent.validateDirectory(input.cwd)
@@ -360,8 +365,10 @@ export class ScheduleService {
     )
     task.nextRunAt = task.enabled ? calculateNextRun(task) : null
     if (task.frequency === 'once') {
-      if (!task.date) throw new Error('一次性任务需要日期。')
-      if (task.enabled && !task.nextRunAt) throw new Error(PAST_ONCE_ERROR)
+      if (!task.date)
+        throw pisperError('invalid', 'schedule', 'date is required for a one-time task')
+      if (task.enabled && !task.nextRunAt)
+        throw pisperError('invalid', 'schedule', 'the time has passed; choose a future time')
     }
     return task
   }
@@ -398,7 +405,7 @@ export class ScheduleService {
   }
 
   async remove(id) {
-    if (this.running.has(id)) throw new Error('任务正在运行，暂时不能删除。')
+    if (this.running.has(id)) throw pisperError('busy', 'schedule')
     const before = this.state.tasks.length
     this.state.tasks = this.state.tasks.filter((task) => task.id !== id)
     this.state.runs = this.state.runs.filter((run) => run.taskId !== id)
@@ -428,7 +435,7 @@ export class ScheduleService {
   }
 
   async startRun(task, trigger) {
-    if (this.running.has(task.id)) throw new Error('任务已经在运行。')
+    if (this.running.has(task.id)) throw pisperError('busy', 'schedule')
     this.running.add(task.id)
     const run = {
       id: randomUUID(),
@@ -463,9 +470,9 @@ export class ScheduleService {
   // 到点对 Bot 说一句话：话进它的长期会话，用它自己的设定（电脑、权限上限、工具）去做；
   // 它正在说话时排在这一轮之后。不走渠道白名单（计划由本机用户配置），也不用定时任务的完全访问默认值。
   async executeBot(task) {
-    if (!this.bots?.enabled()) throw new Error('Bots 实验功能已关闭，这次没有交给 Bot。')
+    if (!this.bots?.enabled()) throw pisperError('unavailable', 'bot', 'Bots are turned off')
     const bot = this.bots.get(task.botId)
-    if (!bot) throw new Error('这个 Bot 已经删除。')
+    if (!bot) throw pisperError('not_found', 'bot')
     const sent = await this.bots.message(task.botId, {
       text: task.botMessage,
       source: { kind: 'schedule', scheduleTaskId: task.id },
@@ -473,8 +480,8 @@ export class ScheduleService {
     return {
       text:
         sent.status === 'queued'
-          ? `${bot.name} 正在忙，这句话排在它这一轮之后。`
-          : `已交给 ${bot.name}。`,
+          ? `${bot.name} is busy; queued after its current turn.`
+          : `Sent to ${bot.name}.`,
       sessionId: sent.sessionId,
     }
   }
@@ -501,14 +508,14 @@ export class ScheduleService {
             : await this.agent.prompt({
                 message: task.prompt,
                 cwd: task.cwd,
-                title: `定时任务 · ${task.name}`,
+                title: `Schedule · ${task.name}`,
                 model: task.model,
                 executionMode: task.executionMode,
                 isolatedContext: true,
                 // 定时任务没有人在场，不提供 ask_user（规格 8.4）。
                 unattended: true,
               })
-      const summary = String(result.text || '任务已完成。')
+      const summary = String(result.text || 'Task completed.')
         .trim()
         .slice(0, 1200)
       run.status = 'completed'
@@ -570,14 +577,15 @@ export class ScheduleService {
 
   async executeWorkflow(task, scheduleRun) {
     const workflow = this.workflows?.list().find((item) => item.id === task.workflowId)
-    if (!workflow) throw new Error('选择的工作流不存在。')
-    if (workflow.status !== 'published') throw new Error('定时任务只能调用已发布的工作流。')
+    if (!workflow) throw pisperError('not_found', 'workflow')
+    if (workflow.status !== 'published')
+      throw pisperError('invalid', 'workflow', 'only published workflows can be scheduled')
     const workflowRun = await this.workflows.run(task.workflowId, {
       trigger: 'schedule',
       sourceMessage: task.name,
       inputs: task.workflowInputs,
     })
-    if (!workflowRun) throw new Error('选择的工作流不存在。')
+    if (!workflowRun) throw pisperError('not_found', 'workflow')
     scheduleRun.workflowRunId = workflowRun.id
     await this.save()
 
@@ -587,12 +595,14 @@ export class ScheduleService {
           code: 'SCHEDULE_INTERRUPTED',
         })
       const current = this.workflows.getRun(workflowRun.id)
-      if (!current) throw new Error('工作流运行记录不存在。')
+      if (!current) throw pisperError('not_found', 'workflow_run')
       if (TERMINAL_WORKFLOW_STATUSES.has(current.status)) {
         if (current.status !== 'completed')
-          throw new Error(current.error || `工作流运行${current.status}。`)
+          throw current.error
+            ? new Error(current.error)
+            : pisperError('failed', 'workflow_run', current.status)
         return {
-          text: current.summary || '工作流已完成。',
+          text: current.summary || 'Workflow completed.',
           sessionId: current.sessionId || '',
           workflowRunId: current.id,
         }

@@ -3,6 +3,7 @@
 import { readFile, rm, stat } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
+import { pisperError } from '../../shared/errors.mjs'
 
 let execFileAsync
 async function runProcess(command, args, options) {
@@ -138,9 +139,9 @@ async function buildAddedFileDiff(cwd, relativePath) {
 
 function validateCommitMessage(message) {
   const text = String(message || '').trim()
-  if (!text) throw new Error('Commit message 不能为空。')
+  if (!text) throw pisperError('invalid', 'message', 'commit message is required')
   if (text.length > MAX_COMMIT_MESSAGE_CHARS)
-    throw new Error(`Commit message 不能超过 ${MAX_COMMIT_MESSAGE_CHARS} 个字符。`)
+    throw pisperError('too_large', 'message', `max ${MAX_COMMIT_MESSAGE_CHARS} characters`)
   return text
 }
 
@@ -220,26 +221,27 @@ export class SvnChangesService {
   async commit(cwd, message) {
     const text = validateCommitMessage(message)
     const changes = await this.getChanges(cwd)
-    if (!changes.isRepo) throw new Error('当前目录不是 SVN 工作区。')
+    if (!changes.isRepo) throw pisperError('unsupported', 'svn', 'not an SVN working copy')
     for (const file of changes.files.filter((item) => item.status === '?')) {
       const addResult = await runSvn(cwd, ['add', file.path])
       if (!addResult.ok && !/already under version control/i.test(addResult.message))
-        throw new Error(`svn add 失败：${addResult.message}`)
+        throw pisperError('failed', 'svn', `svn add: ${addResult.message}`)
     }
     for (const file of changes.files.filter((item) => item.status === '!')) {
       const deleteResult = await runSvn(cwd, ['delete', '--force', file.path])
-      if (!deleteResult.ok) throw new Error(`svn delete 失败：${deleteResult.message}`)
+      if (!deleteResult.ok)
+        throw pisperError('failed', 'svn', `svn delete: ${deleteResult.message}`)
     }
     const commitResult = await runSvn(cwd, ['commit', '-m', text], { timeout: COMMIT_TIMEOUT_MS })
-    if (!commitResult.ok) throw new Error(`svn commit 失败：${commitResult.message}`)
+    if (!commitResult.ok) throw pisperError('failed', 'svn', `svn commit: ${commitResult.message}`)
     return this.getChanges(cwd)
   }
 
   async revert(cwd) {
     const changes = await this.getChanges(cwd)
-    if (!changes.isRepo) throw new Error('当前目录不是 SVN 工作区。')
+    if (!changes.isRepo) throw pisperError('unsupported', 'svn', 'not an SVN working copy')
     const revertResult = await runSvn(cwd, ['revert', '-R', '.'])
-    if (!revertResult.ok) throw new Error(`svn revert 失败：${revertResult.message}`)
+    if (!revertResult.ok) throw pisperError('failed', 'svn', `svn revert: ${revertResult.message}`)
     const root = resolve(cwd)
     for (const file of changes.files.filter((item) => item.status === '?')) {
       const absolute = resolve(cwd, file.path)

@@ -1,5 +1,6 @@
 import { i18n, storedLanguage, translateText, isSupportedLanguage } from '@/app/i18n'
 import { ApiError, type ApiErrorPayload } from '@/lib/api-error'
+import { localizedRuntimeError } from '@/lib/runtime-error'
 
 export function invalidResponseError(status?: number) {
   return new ApiError(
@@ -30,7 +31,8 @@ function errorPayload(text: string): ApiErrorPayload | undefined {
 
 export async function readHttpError(response: Response): Promise<ApiError> {
   const data = errorPayload(await response.text())
-  return new ApiError(data?.error || response.statusText || `HTTP ${response.status}`, {
+  const fallback = data?.error || response.statusText || `HTTP ${response.status}`
+  return new ApiError(localizedRuntimeError(data, fallback), {
     status: response.status,
     data,
     kind: 'http',

@@ -124,7 +124,7 @@ test('customTerms patches are unknown fields regardless of value and never chang
   for (const customTerms of [[], ['ValidTerm'], null, 'term', true, [1], [{}], Array(1)]) {
     await assert.rejects(
       service.updateSettings({ projectTermsEnabled: true, customTerms }),
-      /未知字段/,
+      /unknown speech setting/,
     )
     assert.deepEqual(await service.getSettings(), before)
     assert.equal(await readFile(path, 'utf8'), original)

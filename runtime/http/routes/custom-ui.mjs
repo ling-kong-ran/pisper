@@ -6,9 +6,10 @@
 // A8：导入暂存与信任确认、版本 / 对比 / 回滚、导出 ZIP、回收站恢复与能力台账（都只做加法）。
 import { normalizeSessionOrganization } from '../../services/chat-session-organization.mjs'
 import { CustomUiError } from '../../services/custom-ui-error.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 function customUiUnavailable(services) {
-  if (!services.customUi) throw new Error('当前 Runtime 不支持自定义 UI 组件。')
+  if (!services.customUi) throw pisperError('unsupported', 'component')
   return services.customUi
 }
 
@@ -175,8 +176,7 @@ const nativeComponentRoutes = [
         Object.keys(input).some((key) => key !== 'sessionId')
       )
         throw new CustomUiError('component_request_invalid', 400)
-      if (!context.runtime?.selectSessionProvider)
-        throw new Error('当前 Runtime 不支持 Provider 请求。')
+      if (!context.runtime?.selectSessionProvider) throw pisperError('unsupported', 'provider')
       context.json(
         200,
         context.runtime.selectSessionProvider(input.sessionId, providerRequestContext(context.req)),
@@ -234,7 +234,7 @@ const nativeComponentRoutes = [
         throw new CustomUiError('component_request_invalid', 400)
       const { runtime } = context
       if (!runtime?.createSession || !runtime?.findSessionInfo)
-        throw new Error('当前 Runtime 不支持代理会话。')
+        throw pisperError('unsupported', 'session', 'agent sessions')
       context.json(
         200,
         await customUiUnavailable(context.services).ensureAgentSession(context.params.componentId, {

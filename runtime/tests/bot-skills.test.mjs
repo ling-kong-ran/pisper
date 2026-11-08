@@ -54,10 +54,14 @@ test('skills are standard SKILL.md files, kept per bot, updated by name and remo
       ['release-check'],
     )
     await assert.rejects(skills.write(BOT, { ...releaseCheck, name: '../x' }), {
-      code: 'bot_skill_invalid',
+      code: 'invalid',
+      params: { subject: 'skill', detail: 'name: lowercase letters, digits and single hyphens' },
     })
-    await assert.rejects(skills.get(BOT, '../../memory'), { code: 'bot_skill_not_found' })
-    await assert.rejects(skills.list('../etc'), { code: 'bot_not_found' })
+    await assert.rejects(skills.get(BOT, '../../memory'), {
+      code: 'not_found',
+      params: { subject: 'skill' },
+    })
+    await assert.rejects(skills.list('../etc'), { code: 'not_found', params: { subject: 'bot' } })
     assert.equal(await skills.remove(BOT, 'release-check'), true)
     assert.equal(await skills.remove(BOT, 'release-check'), false)
     assert.equal(existsSync(file), false)
@@ -70,7 +74,8 @@ test('each bot has a bounded number of skills', async () => {
     for (let index = 0; index < MAX_BOT_SKILLS; index += 1)
       await skills.write(BOT, { ...releaseCheck, name: `skill-${index}` })
     await assert.rejects(skills.write(BOT, { ...releaseCheck, name: 'one-more' }), {
-      code: 'bot_skill_limit',
+      code: 'limit',
+      params: { subject: 'skill', detail: 'max 40 per bot' },
     })
     // 同名更新不算新增。
     await skills.write(BOT, { ...releaseCheck, name: 'skill-0', body: '新的做法' })
@@ -98,7 +103,10 @@ test('the review is parsed strictly; anything malformed means no skill', () => {
   })
   assert.match(instruction, /Existing skills: release-check \(/)
   assert.match(instruction, /User corrections to respect:\n- 以后别跳过 iPhone 检查/)
-  assert.match(botSkillsContext([releaseCheck]), /^\[你会的技能\].*\n- release-check：发版前的检查/)
+  assert.match(
+    botSkillsContext([releaseCheck]),
+    /^\[Your skills\].*\n- release-check: 发版前的检查/,
+  )
   assert.equal(botSkillsContext([]), '')
 })
 
@@ -186,7 +194,7 @@ test('sub-agents the bot hands work to carry its skills; a deleted skill is no l
       permissions: { getPending: () => [] },
       providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
     })
-    assert.match(await runtime.botStateContext('conv'), /\[你会的技能\][^\n]*\n- release-check：/)
+    assert.match(await runtime.botStateContext('conv'), /\[Your skills\][^\n]*\n- release-check: /)
     await runtime.executeBotDecision(
       'conv',
       {

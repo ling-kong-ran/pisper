@@ -1,5 +1,7 @@
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { COMPUTER_USE } from '../../prompts/tools/computer-use.mjs'
+import { DISCOVER_TOOLS } from '../../prompts/tools/tool-discovery.mjs'
 
 // 工具发现工具：让模型按别名/关键词发现可选工具（discover_tools），
 // 配合 call_tool 网关实现按需激活。
@@ -180,7 +182,7 @@ const TOOL_ALIASES = {
 const TOOL_DISCOVERY_PROFILES = {
   computer_use: {
     label: 'Computer Use',
-    description: 'See the screen and control the mouse and keyboard to operate desktop apps.',
+    description: COMPUTER_USE.description,
   },
 }
 
@@ -338,22 +340,19 @@ export function createToolDiscoveryTool({ listTools }) {
     name: TOOL_DISCOVERY_NAME,
     label: 'Discover Tools',
     // 描述里直接枚举常见能力，避免模型不知道有哪些可选工具（如生图）可用。
-    description:
-      'Find optional tools by capability: image/video generation & editing (generate_visual), web search, browser automation, mobile device control, memory, MCP, plugins and more.',
-    promptGuidelines: [
-      'When the user wants generated images or video, device actions, web info, or other app capabilities, find the tool with discover_tools and call it instead of claiming it is unavailable.',
-    ],
+    description: DISCOVER_TOOLS.description,
+    promptGuidelines: DISCOVER_TOOLS.guidelines,
     parameters: Type.Object({
       query: Type.String({
         minLength: 1,
         maxLength: 240,
-        description: 'Capability or task',
+        description: DISCOVER_TOOLS.params.query,
       }),
       limit: Type.Optional(
         Type.Integer({
           minimum: 1,
           maximum: 5,
-          description: 'Max matches (default 3)',
+          description: DISCOVER_TOOLS.params.limit,
         }),
       ),
     }),

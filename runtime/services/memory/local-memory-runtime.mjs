@@ -8,6 +8,7 @@ import { basename, resolve } from 'node:path'
 import { setAsideDataFile } from '../startup-data-check.mjs'
 import { platform } from 'node:os'
 import { redactSecretText } from '../../security/secret-redaction.mjs'
+import { isPisperError, PisperError, pisperError } from '../../../shared/errors.mjs'
 import { extractEntities, isInformativeQuery } from './memory-tokenizer.mjs'
 import {
   initializeMemorySchema,
@@ -264,7 +265,7 @@ export class LocalMemoryRuntime {
 
   async init() {
     // 移动 Node 可能没有 node:sqlite；由上层能力清单跳过记忆初始化。
-    if (!DatabaseSync) throw new Error('当前 Runtime 不支持本地 SQLite 记忆。')
+    if (!DatabaseSync) throw pisperError('unsupported', 'memory', 'no SQLite in this runtime')
     try {
       await this.openDatabase()
     } catch (error) {
@@ -305,7 +306,7 @@ export class LocalMemoryRuntime {
     initializeMemorySchema(this.db, {
       path: this.path,
       now: this.isoNow(),
-      onBackupError: () => console.warn('[memory] 升级前备份失败，继续升级。'),
+      onBackupError: () => console.warn('[memory] backup before upgrade failed; upgrading anyway.'),
     })
     this.ftsAvailable = this.fullTextSearchInitializer(this.db)
     this.index = new MemorySearchIndex(this.db, { ftsAvailable: this.ftsAvailable })
@@ -454,11 +455,11 @@ export class LocalMemoryRuntime {
 
   requireDb() {
     if (!this.db) {
-      throw new Error(
-        this.unavailableReason
-          ? `记忆库暂时不可用：${this.unavailableReason.message}`
-          : '记忆 Runtime 尚未初始化。',
-      )
+      const reason = this.unavailableReason
+      // 打不开的原因（如版本比程序新）原样带上：已经是错误码的沿用它的码，其余放进 detail。
+      if (isPisperError(reason))
+        throw new PisperError(reason.code, reason.params, { status: reason.statusCode })
+      throw pisperError('unavailable', 'memory', reason ? reason.message : 'not initialized')
     }
     return this.db
   }
@@ -492,7 +493,7 @@ export class LocalMemoryRuntime {
     const now = this.isoNow()
     db.prepare(
       'INSERT INTO memory_spaces (id, name, kind, root_path, root_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run('global', '全局', 'global', '', '', now, now)
+    ).run('global', 'Global', 'global', '', '', now, now)
     return 'global'
   }
 
@@ -505,7 +506,7 @@ export class LocalMemoryRuntime {
     const id = stableProjectId(rootPath)
     const collision = db.prepare('SELECT root_key FROM memory_spaces WHERE id = ?').get(id)
     if (collision && collision.root_key !== rootKey)
-      throw new Error('项目记忆空间标识发生碰撞，请更换工作目录。')
+      throw pisperError('exists', 'memory', 'project space id collision; use another folder')
     const now = this.isoNow()
     db.prepare(
       'INSERT INTO memory_spaces (id, name, kind, root_path, root_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -544,7 +545,7 @@ export class LocalMemoryRuntime {
 
   createSpace(input = {}) {
     const name = safeText(input.name, 80)
-    if (!name) throw new Error('记忆空间名称不能为空。')
+    if (!name) throw pisperError('invalid', 'memory', 'name is required')
     const kind = MEMORY_SCOPES.has(input.kind) ? input.kind : 'custom'
     const rootPath = kind === 'project' && input.rootPath ? resolve(String(input.rootPath)) : ''
     const rootKey = rootPath ? canonicalProjectPath(rootPath) : ''
@@ -557,7 +558,8 @@ export class LocalMemoryRuntime {
         )
         .run(id, name, kind, rootPath, rootKey, now, now)
     } catch (error) {
-      if (String(error).includes('UNIQUE')) throw new Error('该工作目录已经有记忆空间。')
+      if (String(error).includes('UNIQUE'))
+        throw pisperError('exists', 'memory', 'this folder already has a memory space')
       throw error
     }
     return this.getSpace(id)
@@ -582,7 +584,7 @@ export class LocalMemoryRuntime {
     const current = this.getSpace(id)
     if (!current) return null
     const name = safeText(input.name ?? current.name, 80)
-    if (!name) throw new Error('记忆空间名称不能为空。')
+    if (!name) throw pisperError('invalid', 'memory', 'name is required')
     this.requireDb()
       .prepare('UPDATE memory_spaces SET name = ?, updated_at = ? WHERE id = ?')
       .run(name, this.isoNow(), id)
@@ -592,7 +594,8 @@ export class LocalMemoryRuntime {
   deleteSpace(id) {
     const space = this.getSpace(id)
     if (!space) return false
-    if (space.kind === 'global') throw new Error('全局记忆空间不能删除。')
+    if (space.kind === 'global')
+      throw pisperError('forbidden', 'operation', 'the global memory space cannot be deleted')
     return this.transaction((db) => {
       this.index.removeSpace(id)
       db.prepare('DELETE FROM memory_events WHERE space_id = ?').run(id)
@@ -786,8 +789,8 @@ export class LocalMemoryRuntime {
         sessionId: row.session_id,
         windowStart: row.window_start,
         windowEnd: row.window_end,
-        // 规则版第一行是给检索用的时间标签，界面自己会写时间。
-        text: row.text.replace(/^会话 \d{4}-[^\n]*\n/, ''),
+        // 规则版第一行是给检索用的时间标签，界面自己会写时间。旧版写的是中文“会话”。
+        text: row.text.replace(/^(?:Session|会话) \d{4}-[^\n]*\n/, ''),
       }))
   }
 
@@ -879,9 +882,9 @@ export class LocalMemoryRuntime {
   remember(input = {}) {
     const title = safeText(input.title, 140)
     const content = safeText(input.content, 12_000)
-    if (!title || !content) throw new Error('记忆的标题和内容不能为空。')
+    if (!title || !content) throw pisperError('invalid', 'memory', 'title and content are required')
     const spaceId = String(input.spaceId || '')
-    if (!this.getSpace(spaceId)) throw new Error('记忆空间不存在。')
+    if (!this.getSpace(spaceId)) throw pisperError('not_found', 'memory', 'space')
     const db = this.requireDb()
     const fingerprint = this.forgetFingerprint(spaceId, content)
     // 用户亲手再加一次，说明又想记住了：解除指纹。自动抽取到的一律丢弃。
@@ -1027,10 +1030,10 @@ export class LocalMemoryRuntime {
     if (!currentRow) return null
     const current = rowMemory(currentRow)
     const nextSpaceId = input.spaceId || current.spaceId
-    if (!this.getSpace(nextSpaceId)) throw new Error('记忆空间不存在。')
+    if (!this.getSpace(nextSpaceId)) throw pisperError('not_found', 'memory', 'space')
     const title = safeText(input.title ?? current.title, 140)
     const content = safeText(input.content ?? current.content, 12_000)
-    if (!title || !content) throw new Error('记忆的标题和内容不能为空。')
+    if (!title || !content) throw pisperError('invalid', 'memory', 'title and content are required')
     const type = MEMORY_TYPES.has(input.type) ? input.type : current.type
     const explicitTopic = Object.hasOwn(input, 'topicKey') || Object.hasOwn(input, 'topic')
     const topicKey = normalizeKey(
@@ -1373,12 +1376,12 @@ export class LocalMemoryRuntime {
         '',
         ...rows.map(
           (memory) =>
-            `- **${memory.title}**（${memory.type} · ${String(memory.validFrom).slice(0, 10)}）：${memory.content.replace(/\s+/g, ' ')}`,
+            `- **${memory.title}** (${memory.type} · ${String(memory.validFrom).slice(0, 10)}): ${memory.content.replace(/\s+/g, ' ')}`,
         ),
         '',
       ].join('\n')
     })
-    return ['# Pisper 记忆', '', ...sections].join('\n')
+    return ['# Pisper memory', '', ...sections].join('\n')
   }
 
   setSemanticSummarizer(summarizer) {
@@ -1526,7 +1529,8 @@ export class LocalMemoryRuntime {
         await Promise.resolve()
           .then(() => step(controller.signal))
           .catch(() => {
-            if (!controller.signal.aborted) console.warn('[memory] 后台任务没能完成。')
+            if (!controller.signal.aborted)
+              console.warn('[memory] a background task did not finish.')
           })
       }
     })().finally(() => {

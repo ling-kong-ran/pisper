@@ -100,7 +100,7 @@ export function normalizeAnswers(questions, input) {
   if (body.skip === true) return { skip: true }
   const answers = Array.isArray(body.answers) ? body.answers : null
   if (!answers || answers.length !== questions.length)
-    throw new QuestionInputError('answers_mismatch', '回答数量与问题数量不一致。')
+    throw new QuestionInputError('answers_mismatch', 'Answer count does not match question count.')
   return {
     skip: false,
     answers: answers.map((raw, index) => {
@@ -109,23 +109,29 @@ export function normalizeAnswers(questions, input) {
       const labels = new Set(question.options.map((option) => option.label))
       const selectedInput = Array.isArray(answer.selected) ? answer.selected : []
       if (selectedInput.length > question.options.length)
-        throw new QuestionInputError('invalid_selection', `第 ${index + 1} 题的选项无效。`)
+        throw new QuestionInputError(
+          'invalid_selection',
+          `Question ${index + 1} has an invalid option.`,
+        )
       const selected = []
       for (const value of selectedInput) {
         if (typeof value !== 'string' || !labels.has(value) || selected.includes(value))
-          throw new QuestionInputError('invalid_selection', `第 ${index + 1} 题的选项无效。`)
+          throw new QuestionInputError(
+            'invalid_selection',
+            `Question ${index + 1} has an invalid option.`,
+          )
         selected.push(value)
       }
       if (!question.multiSelect && selected.length > 1)
-        throw new QuestionInputError('single_select', `第 ${index + 1} 题只能选一项。`)
+        throw new QuestionInputError('single_select', `Question ${index + 1} takes one option.`)
       if (
         typeof answer.other === 'string' &&
         Array.from(answer.other).length > QUESTION_LIMITS.other
       )
-        throw new QuestionInputError('other_too_long', `第 ${index + 1} 题的补充回答太长。`)
+        throw new QuestionInputError('other_too_long', `Question ${index + 1} answer is too long.`)
       const other = cleanText(answer.other, QUESTION_LIMITS.other)
       if (!selected.length && !other)
-        throw new QuestionInputError('answer_required', `第 ${index + 1} 题还没有回答。`)
+        throw new QuestionInputError('answer_required', `Question ${index + 1} has no answer.`)
       return other ? { selected, other } : { selected }
     }),
   }
@@ -209,7 +215,7 @@ export class SessionQuestionService {
         resolveQuestion(result)
         return resolution
       }
-      const abort = () => settle({ outcome: 'cancelled', reason: '运行已停止。' })
+      const abort = () => settle({ outcome: 'cancelled', reason: 'Run stopped.' })
       if (signal?.aborted) {
         abort()
         return
@@ -241,7 +247,7 @@ export class SessionQuestionService {
   }
 
   // 停止运行、释放或删除会话：取消该会话全部待回答的问题。
-  cancelSession(sessionId, reason = '运行已停止。') {
+  cancelSession(sessionId, reason = 'Run stopped.') {
     let count = 0
     for (const question of [...this.pending.values()]) {
       if (question.sessionId !== sessionId) continue
@@ -259,7 +265,7 @@ export class SessionQuestionService {
 
   dispose() {
     for (const question of [...this.pending.values()])
-      question.settle({ outcome: 'cancelled', reason: '应用正在关闭。' })
+      question.settle({ outcome: 'cancelled', reason: 'App is closing.' })
     this.emitters.clear()
     this.resolved.clear()
   }

@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto'
 import { readFile, realpath } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 import { Worker } from 'node:worker_threads'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
 import { createTeamMemberTools, TEAM_MEMBER_TOOL_NAMES } from '../tools/app/multi-agent.mjs'
@@ -559,7 +560,7 @@ export function createMultiAgentRuntime({
 
   const spawn = async (input) => {
     const runtimeSession = getRuntimeSession()
-    if (!runtimeSession?.model) throw new Error('当前会话没有可用模型，无法启动 Agent。')
+    if (!runtimeSession?.model) throw pisperError('unavailable', 'model', 'cannot start the agent')
     // 先解析子代理定义：名字写错时直接报错，不登记 Team 任务、不占 Agent 名额。
     const profileName = String(input?.agent || '')
       .trim()

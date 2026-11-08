@@ -1,8 +1,7 @@
 // VCS 变更服务：Git/SVN 统一封装——自动探测工作区类型并转发到对应实现。
 import { GitChangesService } from './git-changes-service.mjs'
 import { SvnChangesService } from './svn-changes-service.mjs'
-
-const NOT_A_WORKSPACE_ERROR = '当前目录不是 Git/SVN 工作区。'
+import { pisperError } from '../../shared/errors.mjs'
 
 export class VcsChangesService {
   constructor({ git, svn } = {}) {
@@ -40,20 +39,21 @@ export class VcsChangesService {
     const vcs = await this.detectVcs(cwd)
     if (vcs === 'svn') return this.svn.commit(cwd, message)
     if (vcs === 'git') return this.git.commit(cwd, message)
-    throw new Error(NOT_A_WORKSPACE_ERROR)
+    throw pisperError('unsupported', 'folder', 'not a Git or SVN working copy')
   }
 
   async push(cwd) {
     const vcs = await this.detectVcs(cwd)
-    if (vcs === 'svn') throw new Error('SVN 工作区无需推送，提交即同步到仓库。')
+    if (vcs === 'svn')
+      throw pisperError('unsupported', 'svn', 'commits sync directly; there is nothing to push')
     if (vcs === 'git') return this.git.push(cwd)
-    throw new Error(NOT_A_WORKSPACE_ERROR)
+    throw pisperError('unsupported', 'folder', 'not a Git or SVN working copy')
   }
 
   async revert(cwd) {
     const vcs = await this.detectVcs(cwd)
     if (vcs === 'svn') return this.svn.revert(cwd)
     if (vcs === 'git') return this.git.revert(cwd)
-    throw new Error(NOT_A_WORKSPACE_ERROR)
+    throw pisperError('unsupported', 'folder', 'not a Git or SVN working copy')
   }
 }

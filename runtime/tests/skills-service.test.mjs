@@ -46,7 +46,7 @@ test('skills service discovers Pi skills and applies persistent enable/invocatio
   assert.deepEqual(skill.allowedTools, ['read', 'grep'])
   assert.equal(skill.command, '/skill:docs-search')
   assert.equal(skill.removable, false)
-  await assert.rejects(service.remove(skill.id), /只能卸载由 Pisper 安装的技能/)
+  await assert.rejects(service.remove(skill.id), /only skills installed by Pisper/)
 
   const disabled = await service.update(skill.id, { enabled: false })
   assert.equal(disabled.enabled, false)
@@ -189,7 +189,7 @@ test('mobile extension catalog and installer exclude the desktop Computer Use pa
   )
   await assert.rejects(
     service.installExtension({ source: 'npm:@injaneity/pi-computer-use@0.5.1' }),
-    /仅支持桌面 Runtime/,
+    /needs the desktop Runtime/,
   )
 })
 
@@ -241,10 +241,7 @@ test('extension installation uses Pi package settings and classifies prompt reso
   assert.deepEqual(promptEntry.resourceTypes, ['prompt'])
   assert.equal(settingsManager.getGlobalSettings().packages.length, 2)
 
-  await assert.rejects(
-    service.installExtension({ source: skillOnlyPackage }),
-    /没有发现 Pi Extension/,
-  )
+  await assert.rejects(service.installExtension({ source: skillOnlyPackage }), /no Pi extension/)
   assert.equal(settingsManager.getGlobalSettings().packages.length, 2)
   assert.equal(await service.removeExtension(extensionPackage), true)
   assert.equal(await service.removeExtension(promptPackage), true)
@@ -294,7 +291,7 @@ test('skills service creates validated project and global skills without overwri
       description: 'Replacement description.',
       instructions: '# Replacement',
     }),
-    /已存在.*不能覆盖/,
+    { code: 'exists', params: { subject: 'skill', detail: 'release-helper' } },
   )
   assert.match(await readFile(project.filePath, 'utf8'), /Inspect commits/)
 })
@@ -316,7 +313,7 @@ test('skills service rejects invalid create input and occupied directories', asy
 
   await assert.rejects(
     service.create({ name: '../escape', description: 'Invalid.', instructions: '# Invalid' }),
-    /技能名称必须/,
+    /name is 1-64 lowercase/,
   )
   await assert.rejects(
     service.create({
@@ -325,19 +322,19 @@ test('skills service rejects invalid create input and occupied directories', asy
       instructions: '# Invalid',
       scope: 'shared',
     }),
-    /作用域必须为 project 或 global/,
+    /scope must be project or global/,
   )
   await assert.rejects(
     service.create({ name: 'empty-description', instructions: '# Invalid' }),
-    /技能描述不能为空/,
+    /description is required/,
   )
   await assert.rejects(
     service.create({ name: 'empty-instructions', description: 'Invalid.' }),
-    /技能说明不能为空/,
+    /instructions are required/,
   )
   await assert.rejects(
     service.create({ name: 'occupied', description: 'Occupied.', instructions: '# Occupied' }),
-    /目录.*已存在.*不能覆盖/,
+    { code: 'exists', params: { subject: 'folder', detail: 'skills/occupied' } },
   )
 })
 
@@ -369,7 +366,7 @@ test('skills service rejects project Skill directories linked outside the worksp
       description: 'Must remain in the workspace.',
       instructions: '# Escaped Helper',
     }),
-    /符号链接指向当前工作目录之外/,
+    /links outside the working folder/,
   )
 })
 
@@ -494,16 +491,13 @@ test('skills service installs only skill resources from a local source and can r
   })
   await service.init()
 
-  await assert.rejects(
-    service.install({ source: emptySource }),
-    /没有发现符合 Agent Skills 标准的技能/,
-  )
+  await assert.rejects(service.install({ source: emptySource }), /no Agent Skills found/)
   const installed = await service.install({ source })
   assert.equal(installed.installed.length, 1)
   assert.equal(installed.installed[0].name, 'release-notes')
   assert.equal(installed.installed[0].removable, true)
 
-  await assert.rejects(service.install({ source }), /已存在|已安装/)
+  await assert.rejects(service.install({ source }), { code: 'exists' })
   assert.equal(await service.remove(installed.installed[0].id), true)
   assert.equal(
     (await service.dashboard()).skills.some((item) => item.name === 'release-notes'),

@@ -10,6 +10,13 @@ import {
   PLAN_STATUSES,
 } from '../../services/plan-service.mjs'
 import { PLAN_COMPATIBILITY_TOOL_NAMES, PLAN_TOOL_NAMES } from './plan-tool-names.mjs'
+import {
+  GET_PLAN,
+  GET_TASK_LIST,
+  PLAN_RESUMED,
+  UPDATE_PLAN,
+  UPDATE_TASK_LIST,
+} from '../../prompts/tools/plan.mjs'
 
 export {
   PLAN_ALL_TOOL_NAMES,
@@ -21,29 +28,33 @@ export {
 
 const statusSchema = Type.String({ enum: PLAN_STATUSES })
 const updateParameters = Type.Object({
-  mode: Type.Optional(Type.String({ enum: ['auto', 'replace'], description: 'Default auto' })),
+  mode: Type.Optional(
+    Type.String({ enum: ['auto', 'replace'], description: UPDATE_PLAN.params.mode }),
+  ),
   items: Type.Array(
     Type.Object({
-      id: Type.Optional(Type.String({ minLength: 1, maxLength: 80, description: 'Stable id' })),
+      id: Type.Optional(
+        Type.String({ minLength: 1, maxLength: 80, description: UPDATE_PLAN.params.id }),
+      ),
       title: Type.String({ minLength: 1, maxLength: MAX_PLAN_TITLE_CHARS }),
       status: statusSchema,
       note: Type.Optional(Type.String({ maxLength: MAX_PLAN_NOTE_CHARS })),
       assignee: Type.Optional(
         Type.String({
           maxLength: MAX_PLAN_ASSIGNEE_CHARS,
-          description: 'Agent canonical name, or empty',
+          description: UPDATE_PLAN.params.assignee,
         }),
       ),
       dependsOn: Type.Optional(
         Type.Array(Type.String({ minLength: 1, maxLength: 80 }), {
           maxItems: MAX_PLAN_DEPENDS_ON,
-          description: 'Item ids that must complete first',
+          description: UPDATE_PLAN.params.dependsOn,
         }),
       ),
     }),
     {
       maxItems: MAX_PLAN_ITEMS,
-      description: 'The complete plan',
+      description: UPDATE_PLAN.params.items,
     },
   ),
 })
@@ -75,9 +86,7 @@ export function planText(plan) {
 }
 
 function planResult(plan) {
-  const continuation = plan?.resumed
-    ? '\n\nRuntime continuation: a previously unfinished plan is active again; continue it unless the user explicitly cancelled or redirected it.'
-    : ''
+  const continuation = plan?.resumed ? `\n\n${PLAN_RESUMED}` : ''
   return {
     content: [{ type: 'text', text: `${planText(plan)}${continuation}` }],
     details: { plan },
@@ -92,37 +101,29 @@ export function createPlanTools({ getPlan, updatePlan }) {
     defineTool({
       name: PLAN_TOOL_NAMES[0],
       label: 'Get Plan',
-      description:
-        "Read this session's plan and progress. Subagents can read it but cannot change it.",
+      description: GET_PLAN.description,
       parameters: Type.Object({}),
       execute: get,
     }),
     defineTool({
       name: PLAN_TOOL_NAMES[1],
       label: 'Update Plan',
-      description: "Set this session's plan (primary Agent only).",
-      promptGuidelines: [
-        'Use update_plan for work with several concrete steps or when asked for a plan. Keep items outcome-level, not one per tool call.',
-        'Reuse item ids when updating and keep unfinished items unless they left the scope. Set in_progress before substantive work, completed only after verification, blocked only on a concrete blocker.',
-        'For a temporary side request, send entirely new ids with mode auto: the unfinished plan is suspended and restored when the new items complete. After resumed: true, continue the restored plan unless the user cancelled or redirected it.',
-        'Use mode replace only when the user abandons all earlier work. An empty items array clears the active and suspended plans.',
-      ],
+      description: UPDATE_PLAN.description,
+      promptGuidelines: UPDATE_PLAN.guidelines,
       parameters: updateParameters,
       execute: update,
     }),
     defineTool({
       name: PLAN_COMPATIBILITY_TOOL_NAMES[0],
       label: 'Get Plan (Legacy Alias)',
-      description:
-        'One-release compatibility alias for get_plan. Read the current primary Agent session execution plan.',
+      description: GET_TASK_LIST.description,
       parameters: Type.Object({}),
       execute: get,
     }),
     defineTool({
       name: PLAN_COMPATIBILITY_TOOL_NAMES[1],
       label: 'Update Plan (Legacy Alias)',
-      description:
-        'One-release compatibility alias for update_plan. Update the current primary Agent session execution plan with automatic suspend and resume behavior.',
+      description: UPDATE_TASK_LIST.description,
       parameters: updateParameters,
       execute: update,
     }),

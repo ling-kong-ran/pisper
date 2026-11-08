@@ -16,7 +16,7 @@ test('runtime service exposes setSessionRunMode and persists the run mode per se
 
   runtime.sessions.set('session-1', {})
   // 非法模式直接拒绝；不存在的会话返回 null（路由层转 404）。
-  await assert.rejects(runtime.setSessionRunMode('session-1', 'full-access'), /运行模式无效/)
+  await assert.rejects(runtime.setSessionRunMode('session-1', 'full-access'), /run mode/)
   assert.equal(await runtime.setSessionRunMode('missing-session', 'team'), null)
 
   const updated = await runtime.setSessionRunMode('session-1', 'team')
@@ -34,7 +34,10 @@ test('run mode cannot switch while the session is running', async (t) => {
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
   runtime.sessions.set('session-1', { runActive: true })
-  await assert.rejects(runtime.setSessionRunMode('session-1', 'plan'), /正在运行/)
+  await assert.rejects(runtime.setSessionRunMode('session-1', 'plan'), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
   assert.equal(runtime.sessionMeta['session-1']?.runMode, undefined)
 })
 

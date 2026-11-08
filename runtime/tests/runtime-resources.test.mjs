@@ -54,7 +54,7 @@ test('chat Dock layout persists in the Runtime data directory', async (t) => {
     JSON.parse(await readFile(join(directory, 'pisper-chat-dock-layout.json'))),
     layout,
   )
-  await assert.rejects(runtime.saveChatDockLayout(null), /必须是 JSON 对象/)
+  await assert.rejects(runtime.saveChatDockLayout(null), /must be a JSON object/)
 })
 
 test('blank chat sessions stay lightweight until an Agent is first required', async (t) => {
@@ -1123,7 +1123,7 @@ test('streamPrompt refuses to run on the default model while the binding is bloc
       message: 'hello',
       send: () => {},
     }),
-    /会话绑定的模型 anthropic\/tokenhub\/glm-5\.3 当前不可用/,
+    /Model is unavailable: anthropic\/tokenhub\/glm-5\.3/,
   )
   assert.equal(prompted, 0)
 

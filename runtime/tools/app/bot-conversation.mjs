@@ -6,6 +6,18 @@ import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { ASK_USER_QUESTION_SCHEMA } from './ask-user.mjs'
 import { isoDate, memoryLine } from './memory.mjs'
+import {
+  BOT_ASK,
+  BOT_FORGET,
+  BOT_JOB_ADD,
+  BOT_JOB_START,
+  BOT_JOB_STOP,
+  BOT_MESSAGE,
+  BOT_NOTIFY,
+  BOT_RECALL,
+  BOT_REMEMBER,
+  BOT_SCHEDULE,
+} from '../../prompts/tools/bot-conversation.mjs'
 
 export { BOT_CONVERSATION_TOOL_NAMES } from './bot-conversation-tool-names.mjs'
 
@@ -25,24 +37,20 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_job_start',
       label: 'Start a job',
-      description:
-        'Hand a job to a background sub-agent: anything long, multi-step, or that needs the user’s approval. It runs in parallel with your tools and its own approvals; you are told when it finishes. Returns immediately with the job id.',
-      promptSnippet: 'Start a background sub-agent job for long or approval-needing work',
+      description: BOT_JOB_START.description,
+      promptSnippet: BOT_JOB_START.snippet,
       parameters: Type.Object({
         title: Type.String({
           minLength: 1,
           maxLength: 80,
-          description: 'Short title in the user’s language.',
+          description: BOT_JOB_START.params.title,
         }),
         task: Type.String({
           minLength: 1,
           maxLength: 8000,
-          description:
-            'Self-contained instructions: goal, relevant paths and context, what to report back. Name a skill from [你会的技能] when one fits.',
+          description: BOT_JOB_START.params.task,
         }),
-        model: Type.Optional(
-          Type.String({ description: 'provider/model from the available list (optional).' }),
-        ),
+        model: Type.Optional(Type.String({ description: BOT_JOB_START.params.model })),
         tier: Type.Optional(TIER),
       }),
       execute: call('startJob'),
@@ -50,10 +58,9 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_job_add',
       label: 'Add to a job',
-      description:
-        'Send a follow-up to a running job (delivered after its current step, without interrupting it).',
+      description: BOT_JOB_ADD.description,
       parameters: Type.Object({
-        job: Type.String({ minLength: 1, maxLength: 64, description: 'Job id prefix.' }),
+        job: Type.String({ minLength: 1, maxLength: 64, description: BOT_JOB_ADD.params.job }),
         text: Type.String({ minLength: 1, maxLength: 4000 }),
       }),
       execute: call('addToJob'),
@@ -61,7 +68,7 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_job_stop',
       label: 'Stop a job',
-      description: 'Stop a running job or background command (id prefix from [当前状态]).',
+      description: BOT_JOB_STOP.description,
       parameters: Type.Object({
         job: Type.String({ minLength: 1, maxLength: 64 }),
       }),
@@ -70,8 +77,7 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_ask',
       label: 'Ask the user',
-      description:
-        'Ask the user 1–4 multiple-choice questions as a card. Use it only when the user must choose and you cannot reasonably decide yourself; never to confirm a plan you can carry out. It does not wait: end your turn after asking; the answers arrive as the next message.',
+      description: BOT_ASK.description,
       parameters: Type.Object({
         questions: Type.Array(ASK_USER_QUESTION_SCHEMA, { minItems: 1, maxItems: 4 }),
       }),
@@ -80,60 +86,57 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_schedule',
       label: 'Schedule a message to yourself',
-      description:
-        'Schedule a message to yourself, for anything that should happen later or repeatedly ("in an hour, check CI"; "every Friday, follow skill X"). At that time the message arrives in this conversation and you act on it. Never start a job that just waits. Also lists and removes your own schedules.',
+      description: BOT_SCHEDULE.description,
       parameters: Type.Object({
         action: Type.String({ enum: ['create', 'list', 'remove'] }),
         message: Type.Optional(
           Type.String({
             maxLength: 4000,
-            description: 'What you want to be told / asked to do at that time.',
+            description: BOT_SCHEDULE.params.message,
           }),
         ),
         inMinutes: Type.Optional(
           Type.Integer({
             minimum: 1,
             maximum: 60 * 24 * 30,
-            description: 'Once, this many minutes from now.',
+            description: BOT_SCHEDULE.params.inMinutes,
           }),
         ),
         date: Type.Optional(
           Type.String({
             pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-            description: 'Once, on this date (YYYY-MM-DD).',
+            description: BOT_SCHEDULE.params.date,
           }),
         ),
         time: Type.Optional(
           Type.String({
             pattern: '^([01]\\d|2[0-3]):[0-5]\\d$',
-            description: 'HH:MM, local time.',
+            description: BOT_SCHEDULE.params.time,
           }),
         ),
         repeat: Type.Optional(
           Type.String({
             enum: ['daily', 'weekly'],
-            description: 'Repeat daily or weekly at time instead of once.',
+            description: BOT_SCHEDULE.params.repeat,
           }),
         ),
         weekday: Type.Optional(
-          Type.Integer({ minimum: 0, maximum: 6, description: '0 = Sunday.' }),
+          Type.Integer({ minimum: 0, maximum: 6, description: BOT_SCHEDULE.params.weekday }),
         ),
-        id: Type.Optional(Type.String({ maxLength: 80, description: 'Schedule id, for remove.' })),
+        id: Type.Optional(Type.String({ maxLength: 80, description: BOT_SCHEDULE.params.id })),
       }),
       execute: call('schedule'),
     }),
     defineTool({
       name: 'bot_remember',
       label: 'Remember',
-      description:
-        'Remember one short durable fact, preference or rule (what the user asked you to remember, a correction such as "以后别…", a lesson from finished work). Not for one-off task details.',
+      description: BOT_REMEMBER.description,
       parameters: Type.Object({
         text: Type.String({ minLength: 1, maxLength: 500 }),
         source: Type.Optional(Type.String({ enum: ['told', 'correction', 'review', 'proactive'] })),
         again: Type.Optional(
           Type.Boolean({
-            description:
-              'Only when the user just asked again to remember something they had deleted.',
+            description: BOT_REMEMBER.params.again,
           }),
         ),
       }),
@@ -142,40 +145,38 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_forget',
       label: 'Forget',
-      description:
-        'Forget a memory the user says is wrong or no longer true. Use its id from <pisper_memory_context> or bot_recall; the first 6 characters after mem_ are enough.',
+      description: BOT_FORGET.description,
       parameters: Type.Object({ memory: Type.String({ minLength: 1, maxLength: 64 }) }),
       execute: call('forget'),
     }),
     defineTool({
       name: 'bot_recall',
       label: 'Recall',
-      description:
-        'Search your memory. What relates to the current message is already attached to it; use this for anything else: older things, what happened in a period, how something changed. Pass the question and rewordings, including the other language (Chinese and English), because search matches words.',
-      promptSnippet: 'Search your own memory beyond what is attached to this message',
+      description: BOT_RECALL.description,
+      promptSnippet: BOT_RECALL.snippet,
       parameters: Type.Object({
         query: Type.String({ minLength: 1, maxLength: 2000 }),
         queries: Type.Optional(
           Type.Array(Type.String({ minLength: 1, maxLength: 400 }), {
             maxItems: 3,
-            description: 'Rewordings of the query, for example in the other language.',
+            description: BOT_RECALL.params.queries,
           }),
         ),
-        since: Type.Optional(Type.String({ description: 'Only results from this ISO date on.' })),
-        until: Type.Optional(Type.String({ description: 'Only results before this ISO date.' })),
+        since: Type.Optional(Type.String({ description: BOT_RECALL.params.since })),
+        until: Type.Optional(Type.String({ description: BOT_RECALL.params.until })),
         include_history: Type.Optional(
-          Type.Boolean({ description: 'Also return facts that a newer version has replaced.' }),
+          Type.Boolean({ description: BOT_RECALL.params.include_history }),
         ),
         order: Type.Optional(
           Type.String({
             enum: ['relevance', 'recent', 'chronological'],
-            description: 'relevance (default), recent first, or oldest first.',
+            description: BOT_RECALL.params.order,
           }),
         ),
         level: Type.Optional(
           Type.String({
             enum: ['facts', 'digests'],
-            description: 'facts (default), or summaries by day, week and month first.',
+            description: BOT_RECALL.params.level,
           }),
         ),
       }),
@@ -200,10 +201,9 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_message',
       label: 'Message another bot',
-      description:
-        'Ask another bot for something that is its responsibility. Its reply, and the result of work it does for you, come back here automatically. Do not repeat a reply that is forwarded automatically, and never send courtesy messages.',
+      description: BOT_MESSAGE.description,
       parameters: Type.Object({
-        bot: Type.String({ minLength: 1, maxLength: 64, description: 'The other bot’s name.' }),
+        bot: Type.String({ minLength: 1, maxLength: 64, description: BOT_MESSAGE.params.bot }),
         text: Type.String({ minLength: 1, maxLength: 4000 }),
         expectsReply: Type.Optional(Type.Boolean()),
       }),
@@ -212,28 +212,25 @@ export function createBotConversationTools({ runtime }) {
     defineTool({
       name: 'bot_notify',
       label: 'Notify the user on their chat apps',
-      description:
-        'Send a short message on the chat apps connected to Pisper (QQ, Telegram, Feishu, WeChat). By default it goes to the user\'s own private chat with the Pisper bot; with to="group" it is posted in one of the groups in your chat rules, where everyone in the group sees it, so never put private details there. Use it when asked to tell someone there, typically from a scheduled check ("when it passes, tell me on QQ", "post the daily summary in the team group"). Your normal reply only stays in this conversation; if you are being talked to from a chat right now, your reply already goes to that chat, so do not also send it. A schedule made from a group names that group\'s ID in its message.',
+      description: BOT_NOTIFY.description,
       parameters: Type.Object({
         text: Type.String({ minLength: 1, maxLength: 2000 }),
         to: Type.Optional(
           Type.String({
             enum: ['me', 'group'],
-            description:
-              "me (default): the user's private chats. group: a group in your chat rules.",
+            description: BOT_NOTIFY.params.to,
           }),
         ),
         group: Type.Optional(
           Type.String({
             maxLength: 200,
-            description:
-              'For to="group": the group ID or name. Omit to use the group this message came from, or your only group.',
+            description: BOT_NOTIFY.params.group,
           }),
         ),
         platform: Type.Optional(
           Type.String({
             enum: ['qq', 'telegram', 'feishu', 'weixin'],
-            description: 'Only this app. Omit to send to every connected app (or any group).',
+            description: BOT_NOTIFY.params.platform,
           }),
         ),
       }),

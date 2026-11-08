@@ -4,6 +4,7 @@
 // 旧代码只读具名列、只认 status='active'，新增内容对它不可见但不会被破坏。
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export const FROZEN_USER_VERSION = 4
 export const MEMORY_SCHEMA_REVISION = 5
@@ -120,6 +121,12 @@ const MEMORY_COLUMNS = [
   ['indexed_at', 'TEXT'],
 ]
 
+// memory_digests.dirty：0 干净；1 需要重算但可读；2 来源被用户删除，重算前不得参与检索。
+// memory_events：审计与撤销，只追加；物理删除时连同快照一起清除。
+// memory_forgotten：用户删掉的内容的 HMAC 指纹，不存明文：再次抽到同样的内容时直接丢弃，不让它复活。
+// memory_episodes.captured：1 表示这一轮已经抽取过（即时路径或批量），批量不再处理。
+// memory_episodes.bytes：正文字节数，算总量用；放在正文前面，SUM 时不用读溢出页。
+// （说明写在这里而不是 SQL 注释里：SQL 文本里只放英文。）
 const V5_TABLES = `
   CREATE TABLE IF NOT EXISTS memory_docs (
     rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,9 +148,7 @@ const V5_TABLES = `
     session_id TEXT NOT NULL,
     entry_id TEXT NOT NULL DEFAULT '',
     cwd TEXT NOT NULL DEFAULT '',
-    -- 1 表示这一轮已经抽取过（即时路径或批量），批量不再处理
     captured INTEGER NOT NULL DEFAULT 0,
-    -- 正文字节数，算总量用；放在正文前面，SUM 时不用读溢出页
     bytes INTEGER NOT NULL DEFAULT 0,
     at TEXT NOT NULL,
     user_text TEXT NOT NULL,
@@ -161,7 +166,6 @@ const V5_TABLES = `
     window_end TEXT NOT NULL,
     text TEXT NOT NULL,
     source_ids TEXT NOT NULL DEFAULT '[]',
-    -- 0 干净；1 需要重算但可读；2 来源被用户删除，重算前不得参与检索
     dirty INTEGER NOT NULL DEFAULT 0,
     generated_at TEXT NOT NULL,
     UNIQUE(space_id, level, window_start)
@@ -174,7 +178,6 @@ const V5_TABLES = `
     dirty INTEGER NOT NULL DEFAULT 1,
     generated_at TEXT NOT NULL
   );
-  -- 审计与撤销：只追加；物理删除时连同快照一起清除
   CREATE TABLE IF NOT EXISTS memory_events (
     id TEXT PRIMARY KEY,
     at TEXT NOT NULL,
@@ -193,7 +196,6 @@ const V5_TABLES = `
     episode_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-  -- 用户删掉的内容的 HMAC 指纹，不存明文：再次抽到同样的内容时直接丢弃，不让它复活
   CREATE TABLE IF NOT EXISTS memory_forgotten (
     fingerprint TEXT PRIMARY KEY,
     expires_at TEXT NOT NULL
@@ -330,11 +332,11 @@ function applyRevision5(db, now) {
     if (!columns.has(name)) db.exec(`ALTER TABLE memories ADD COLUMN ${name} ${definition}`)
   }
   db.exec(V5_TABLES)
+  // 新索引由 memory-index.mjs 用预分词写入；旧的 memory_fts 与触发器不再需要。
+  // 回退旧版时，旧代码的 CREATE IF NOT EXISTS 会把它们重建出来。
   db.exec(`
     CREATE INDEX IF NOT EXISTS memories_timeline ON memories(space_id, status, valid_from DESC);
     CREATE INDEX IF NOT EXISTS memories_reconcile ON memories(reconcile_status, status);
-    -- 新索引由 memory-index.mjs 用预分词写入；旧的 memory_fts 与触发器不再需要。
-    -- 回退旧版时，旧代码的 CREATE IF NOT EXISTS 会把它们重建出来。
     DROP TRIGGER IF EXISTS memories_ai;
     DROP TRIGGER IF EXISTS memories_ad;
     DROP TRIGGER IF EXISTS memories_au;
@@ -355,10 +357,8 @@ function applyRevision5(db, now) {
       END
   `,
   ).run()
-  // 旧版把全局空间写死成这个名字；导出 Markdown 等地方会直接用它。
-  db.prepare(
-    "UPDATE memory_spaces SET name = '全局' WHERE id = 'global' AND name = '全局星域'",
-  ).run()
+  // 旧版把全局空间写死成中文名；界面按 kind 翻译，库里统一存英文，导出 Markdown 时直接用它。
+  db.prepare("UPDATE memory_spaces SET name = 'Global' WHERE id = 'global'").run()
   const moved = promotePendingCandidates(db, now)
   if (moved) {
     db.prepare(
@@ -380,7 +380,11 @@ export function initializeMemorySchema(
   let backupPath = ''
   if (existing && version !== FROZEN_USER_VERSION) {
     if (version > FROZEN_USER_VERSION) {
-      throw new Error(`记忆库版本 ${version} 比当前程序新，无法打开。`)
+      throw pisperError(
+        'unsupported',
+        'memory',
+        `database version ${version} is newer than this app`,
+      )
     }
     // 更早的 schema 缺的列太多，和历史行为一样重建；但这次先留备份。
     backupPath = backupDatabase(db, path, `v${version}`, onBackupError)
@@ -391,7 +395,11 @@ export function initializeMemorySchema(
   db.exec('CREATE TABLE IF NOT EXISTS memory_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
   const revision = Number(readMemoryMeta(db, 'schema_revision') || 0)
   if (revision > MEMORY_SCHEMA_REVISION) {
-    throw new Error(`记忆库版本 ${revision} 比当前程序新，无法打开。`)
+    throw pisperError(
+      'unsupported',
+      'memory',
+      `database version ${revision} is newer than this app`,
+    )
   }
   let upgraded = false
   if (revision < MEMORY_SCHEMA_REVISION) {

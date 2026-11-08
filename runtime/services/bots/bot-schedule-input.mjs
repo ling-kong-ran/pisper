@@ -1,5 +1,7 @@
 // bot_schedule 与 bot_ask 的纯逻辑：把“给自己定时”的输入换成定时任务的字段（只能发给 Bot 自己），
 // 把问题卡片的回答写成说回对话的一句话。
+import { pisperError } from '../../../shared/errors.mjs'
+
 const DEFAULT_TIMEZONE = 'Asia/Hong_Kong'
 
 function localTimezone() {
@@ -36,18 +38,19 @@ export function zonedDateTime(at, timeZone) {
  */
 export function botScheduleInput({ bot, input, now = Date.now(), timezone = localTimezone() }) {
   const message = String(input?.message || '').trim()
-  if (!message) throw new Error('定时要写清到点时要对你说什么（message）。')
+  if (!message)
+    throw pisperError('invalid', 'schedule', 'message: say what to tell you when the time comes')
   const base = {
     targetType: 'bot',
     botId: bot.id,
     botMessage: message.slice(0, 4_000),
-    name: `${bot.name}：${message.slice(0, 40)}`,
+    name: `${bot.name}: ${message.slice(0, 40)}`,
     enabled: true,
     timezone,
   }
   if (input?.repeat === 'daily' || input?.repeat === 'weekly') {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(input.time || '')))
-      throw new Error('重复的定时要写时刻（time，HH:MM）。')
+      throw pisperError('invalid', 'schedule', 'a repeating schedule needs time (HH:MM)')
     return {
       ...base,
       frequency: input.repeat,
@@ -62,17 +65,8 @@ export function botScheduleInput({ bot, input, now = Date.now(), timezone = loca
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input?.date || '')) && input?.time)
     return { ...base, frequency: 'once', date: input.date, time: input.time }
-  throw new Error('写清什么时候：inMinutes，或 date + time，或 repeat + time。')
+  throw pisperError('invalid', 'schedule', 'say when: inMinutes, date + time, or repeat + time')
 }
 
-// 问题卡片的回答：说回对话的一句话（用户看得到，写明是对哪个问题的回答）。
-export function botAnswerText(questions, result) {
-  if (result?.outcome === 'skipped') return '（你的问题我跳过了，你自己判断吧。）'
-  return questions
-    .map((question, index) => {
-      const answer = result?.answers?.[index] || {}
-      const chosen = [...(answer.selected || []), ...(answer.other ? [answer.other] : [])]
-      return `${question.question} → ${chosen.length ? chosen.join('、') : '（没选）'}`
-    })
-    .join('\n')
-}
+// 问题卡片的回答说回对话的那句话在 runtime/prompts/bots.mjs，这里按原名转出。
+export { botAnswerText } from '../../prompts/bots.mjs'

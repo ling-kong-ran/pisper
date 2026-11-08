@@ -3,6 +3,7 @@
 import { statSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { isAbsolute, resolve, win32 } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 
 /** @typedef {(path: string) => import('node:fs').Stats | Promise<import('node:fs').Stats>} InspectDirectory */
 /**
@@ -80,6 +81,6 @@ export async function resolveWorkspaceDirectory(input, fallback, options = {}) {
   const info = await Promise.resolve()
     .then(() => inspectDirectory(path))
     .catch(() => null)
-  if (!info?.isDirectory()) throw new Error('工作目录不存在或不是文件夹。')
+  if (!info?.isDirectory()) throw pisperError('not_found', 'folder', undefined, { status: 400 })
   return path
 }

@@ -55,7 +55,7 @@ test('execution modes decide approvals, not which tools exist', async () => {
   assert.equal(auto('memory_remember'), null)
   assert.match(
     auto('plugin_tool', { toolRisk: 'high', thirdPartyTool: true }).reason,
-    /来自第三方插件/,
+    /third-party plugin/,
   )
   // 完全访问：不再询问。
   assert.equal(
@@ -109,7 +109,7 @@ test('approval-visible multi-agent mutations still request per-call approval', (
       }),
       {
         risk: 'medium',
-        reason: `${toolName} 属于medium工具，需要确认后执行。`,
+        reason: `${toolName} is a medium-risk tool. Needs confirmation.`,
       },
     )
   }
@@ -140,7 +140,7 @@ test('plugin_create still requests approval outside full-access', () => {
   })
   assert.deepEqual(requirement, {
     risk: 'high',
-    reason: 'plugin_create 将创建并安装全局插件，需要确认后执行。',
+    reason: 'plugin_create will create and install a global plugin. Needs confirmation.',
   })
 })
 
@@ -152,7 +152,7 @@ test('component_create follows the session permission mode like an ordinary file
     {
       risk: 'high',
       reason:
-        'component_create 将写入组件 ci-status（数据目录/custom-ui/ci-status），需要确认后执行。',
+        'component_create will write component ci-status (data folder/custom-ui/ci-status). Needs confirmation.',
     },
   )
   assert.equal(

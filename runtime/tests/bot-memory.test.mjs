@@ -59,9 +59,15 @@ test('each bot keeps its own memory; the same thing is not remembered twice', as
     assert.equal(edited.text, '别直接 push 到 main，走 PR')
     assert.equal((await service.forget(A, { id: first.id }))?.id, first.id)
     assert.equal(await service.forget(A, { id: first.id }), null)
-    await assert.rejects(service.remember(A, '  '), { code: 'bot_memory_empty' })
-    await assert.rejects(service.remember(A, 'x'.repeat(501)), { code: 'bot_memory_too_long' })
-    await assert.rejects(service.list('../etc'), { code: 'bot_not_found' })
+    await assert.rejects(service.remember(A, '  '), {
+      code: 'invalid',
+      params: { subject: 'memory', detail: 'text is required' },
+    })
+    await assert.rejects(service.remember(A, 'x'.repeat(501)), {
+      code: 'too_large',
+      params: { subject: 'memory', detail: 'max 500 characters' },
+    })
+    await assert.rejects(service.list('../etc'), { code: 'not_found', params: { subject: 'bot' } })
     // 删 Bot 清掉整个空间。
     await service.removeBot(B)
     assert.equal(memory.getSpace(`bot:${B}`), null)
@@ -79,7 +85,10 @@ test('entries keep the shape the settings page and API already use', async () =>
     const manual = await service.remember(A, '周五不发版', 'manual')
     assert.equal(manual.source, 'manual')
     assert.equal((await service.list(A)).at(-1).id, manual.id)
-    await assert.rejects(service.edit(A, 'mem_missing123', '改'), { code: 'bot_memory_not_found' })
+    await assert.rejects(service.edit(A, 'mem_missing123', '改'), {
+      code: 'not_found',
+      params: { subject: 'memory' },
+    })
   })
 })
 
@@ -157,13 +166,16 @@ test('bots cannot see or touch each other’s memory, even with the right id', a
     const recall = await service.turnContext(botA, { message: '部署密语是什么' })
     assert.doesNotMatch(recall.text, /蓝莓/)
     assert.equal(await service.forget(A, { id: theirs.id }), null)
-    await assert.rejects(service.edit(A, theirs.id, '改掉'), { code: 'bot_memory_not_found' })
+    await assert.rejects(service.edit(A, theirs.id, '改掉'), {
+      code: 'not_found',
+      params: { subject: 'memory' },
+    })
     assert.equal(memory.getMemory(theirs.id).content, '小蓝的部署密语是蓝莓')
     const runtime = Object.create(AgentRuntimeFacade.prototype)
     runtime.botMemory = service
     await assert.rejects(
       runtime.executeBotDecision('conv', {}, botA, { type: 'forget', memory: theirs.id }),
-      /对不上/,
+      /does not match/,
     )
     // 工具的参数里没有能指定空间或别的 Bot 的字段。
     const recallTool = createBotConversationTools({ runtime: {} }).find(
@@ -346,7 +358,7 @@ test('the conversation can remember and forget by id, and only writes this bot�
     assert.deepEqual(await service.list(A), [])
     await assert.rejects(
       runtime.executeBotDecision('conv', {}, botA, { type: 'forget', memory: 'nope' }),
-      /对不上/,
+      /does not match/,
     )
     assert.deepEqual(
       [
@@ -456,7 +468,7 @@ test('sub-agents get the profile and what relates to their task, not everything'
       providerPreferences: { resolveSubagentModel: async () => ({ model: null }) },
     })
     // 状态快照里不再塞记忆。
-    assert.match(await runtime.botStateContext('conv'), /^\[当前状态\]/)
+    assert.match(await runtime.botStateContext('conv'), /^\[Current state\]/)
     assert.doesNotMatch(await runtime.botStateContext('conv'), /iPhone/)
     const value = {
       baseToolNames: ['read'],
@@ -472,7 +484,7 @@ test('sub-agents get the profile and what relates to their task, not everything'
       title: '修首页',
       task: '修好首页，修之前先看一遍',
     })
-    assert.match(spawned[0].instructions, /\[小橙 的工作说明\]\n负责 acme-web 前端/)
+    assert.match(spawned[0].instructions, /\[小橙's instructions\]\n负责 acme-web 前端/)
     assert.match(spawned[0].instructions, /<pisper_memory_profile>用户偏好中文/)
     assert.match(spawned[0].instructions, /iPhone/)
     assert.doesNotMatch(spawned[0].instructions, /数据库备份/)
@@ -483,8 +495,11 @@ test('an environment without memory does not take the conversation down', async 
   const dataDir = await mkdtemp(join(tmpdir(), 'pisper-bot-memory-off-'))
   try {
     const service = new BotMemoryService({ dataDir, memory: { db: null } })
-    await assert.rejects(service.list(A), { code: 'bot_memory_unavailable', statusCode: 503 })
-    await assert.rejects(service.remember(A, '记一条'), { code: 'bot_memory_unavailable' })
+    await assert.rejects(service.list(A), { code: 'unavailable', statusCode: 503 })
+    await assert.rejects(service.remember(A, '记一条'), {
+      code: 'unavailable',
+      params: { subject: 'memory' },
+    })
     assert.deepEqual(await service.turnContext(botA, { message: '你好啊朋友' }), {
       text: '',
       memories: [],
@@ -498,7 +513,7 @@ test('an environment without memory does not take the conversation down', async 
         throw new Error('初始化失败')
       },
     })
-    await assert.rejects(failing.list(A), { code: 'bot_memory_unavailable' })
+    await assert.rejects(failing.list(A), { code: 'unavailable', params: { subject: 'memory' } })
   } finally {
     await rm(dataDir, { recursive: true, force: true })
   }
@@ -531,6 +546,7 @@ test('readGlobalMemory defaults on, is kept across edits, and must be a boolean'
   assert.equal(normalizeBotInput({ instructions: '改一下' }, off).readGlobalMemory, false)
   assert.equal(normalizeBotInput({ readGlobalMemory: true }, off).readGlobalMemory, true)
   assert.throws(() => normalizeBotInput({ ...base, readGlobalMemory: 'no' }), {
-    code: 'bot_read_global_memory_invalid',
+    code: 'invalid',
+    params: { subject: 'memory', detail: 'readGlobalMemory must be true or false' },
   })
 })

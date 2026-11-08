@@ -29,26 +29,26 @@ const pisper = await createPisperRuntime({
   remote: remoteFlag ? { enabled: true } : { enabled: false },
 })
 console.log('')
-console.log(`Pisper 已启动：${pisper.url}`)
-console.log(`数据目录：${pisper.dataDir}`)
+console.log(`Pisper is running: ${pisper.url}`)
+console.log(`Data folder: ${pisper.dataDir}`)
 const remoteStatus = pisper.remoteControl.status()
 if (remoteStatus.listening) {
-  console.log('远程访问已开启，移动端可用以下地址连接：')
+  console.log('Remote access is on; phones can connect at:')
   for (const endpoint of remoteStatus.endpoints) console.log(`  [${endpoint.t}] ${endpoint.url}`)
-  console.log(`证书指纹：${remoteStatus.fingerprint}`)
-  console.log('在「设置 → 远程访问」中生成配对二维码。')
+  console.log(`Certificate fingerprint: ${remoteStatus.fingerprint}`)
+  console.log('Create a pairing QR code in Settings → Remote access.')
 } else if (remoteStatus.enabled) {
-  console.log(`远程访问启动失败：${remoteStatus.error || '未知原因'}`)
+  console.log(`Remote access failed to start: ${remoteStatus.error || 'unknown reason'}`)
 }
 // 仅在显式设置 PISPER_OPEN_BROWSER=1 且非 CI 环境时自动打开浏览器，
 // 避免在无人值守/远程场景下意外拉起浏览器窗口。
 if (shouldOpenBrowser({ host })) {
   const opening = openBrowser(pisper.url)
-  console.log(opening ? '正在打开默认浏览器…' : '未能自动打开浏览器。')
+  console.log(opening ? 'Opening the default browser…' : 'Could not open the browser.')
 }
-console.log(`请在浏览器中访问：${pisper.url}`)
-console.log('如需启动时自动打开浏览器，可设置 PISPER_OPEN_BROWSER=1。')
-console.log('按 Ctrl+C 停止 Pisper。')
+console.log(`Open in your browser: ${pisper.url}`)
+console.log('Set PISPER_OPEN_BROWSER=1 to open the browser on start.')
+console.log('Press Ctrl+C to stop Pisper.')
 console.log('')
 
 // 优雅退出：信号可能重复触发（如连续两次 Ctrl+C），用标志位保证只执行一次清理。

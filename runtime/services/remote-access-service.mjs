@@ -202,7 +202,10 @@ export class RemoteAccessService {
   assertNotRateLimited(ip) {
     const record = this.rateLimitState(ip)
     if (record && record.count >= PAIRING_RATE_LIMIT_MAX_FAILURES) {
-      throw new RemoteAccessError('pairing_rate_limited', '配对失败次数过多，请稍后再试。')
+      throw new RemoteAccessError(
+        'pairing_rate_limited',
+        'Too many failed pairing attempts; try again later.',
+      )
     }
   }
 
@@ -215,7 +218,7 @@ export class RemoteAccessService {
       name:
         String(deviceName || '')
           .trim()
-          .slice(0, 80) || '未命名设备',
+          .slice(0, 80) || 'Unnamed device',
       tokenHash: hashSecret(token),
       createdAt: now,
       lastSeenAt: now,
@@ -235,13 +238,18 @@ export class RemoteAccessService {
     }
     const pending = this.state.pairingCode
     if (!pending) {
-      fail(new RemoteAccessError('pairing_code_invalid', '配对码不正确，请核对后重试。'))
+      fail(new RemoteAccessError('pairing_code_invalid', 'Pairing code is incorrect.'))
     }
     if (Date.parse(pending.expiresAt) < Date.now()) {
-      fail(new RemoteAccessError('pairing_code_expired', '配对码已过期，请在桌面端重新生成。'))
+      fail(
+        new RemoteAccessError(
+          'pairing_code_expired',
+          'Pairing code expired; generate a new one on the desktop.',
+        ),
+      )
     }
     if (!secretEquals(normalizePairingCode(code), pending.codeHash)) {
-      fail(new RemoteAccessError('pairing_code_invalid', '配对码不正确，请核对后重试。'))
+      fail(new RemoteAccessError('pairing_code_invalid', 'Pairing code is incorrect.'))
     }
     this.state.pairingCode = null
     this.failures.delete(ip)
@@ -271,7 +279,10 @@ export class RemoteAccessService {
 
   requestPairingApproval({ deviceName, ip = 'unknown' } = {}) {
     if (!isPrivateNetworkAddress(ip)) {
-      throw new RemoteAccessError('pairing_lan_required', '局域网配对申请只接受私有网络来源。')
+      throw new RemoteAccessError(
+        'pairing_lan_required',
+        'LAN pairing requests must come from a private network.',
+      )
     }
     this.assertNotRateLimited(ip)
     this.cleanupPairingRequests()
@@ -283,7 +294,10 @@ export class RemoteAccessService {
       this.pendingPairingRequests.size >= MAX_PENDING_PAIRING_REQUESTS
     ) {
       this.recordFailure(ip)
-      throw new RemoteAccessError('pairing_rate_limited', '配对申请过多，请稍后再试。')
+      throw new RemoteAccessError(
+        'pairing_rate_limited',
+        'Too many pairing requests; try again later.',
+      )
     }
     const requestId = `pair_${randomBytes(12).toString('base64url')}`
     const secret = `pps_${randomBytes(24).toString('base64url')}`
@@ -295,7 +309,7 @@ export class RemoteAccessService {
       deviceName:
         String(deviceName || '')
           .trim()
-          .slice(0, 80) || '未命名设备',
+          .slice(0, 80) || 'Unnamed device',
       ip,
       requestedAt,
       expiresAt,
@@ -324,12 +338,16 @@ export class RemoteAccessService {
   resolvePairingApproval(id, approved) {
     this.cleanupPairingRequests()
     const request = this.pendingPairingRequests.get(id)
-    if (!request) throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+    if (!request)
+      throw new RemoteAccessError('pairing_request_not_found', 'Pairing request not found.')
     if (Date.parse(request.expiresAt) < Date.now()) {
-      throw new RemoteAccessError('pairing_request_expired', '配对申请已过期。')
+      throw new RemoteAccessError('pairing_request_expired', 'Pairing request expired.')
     }
     if (request.status !== 'pending') {
-      throw new RemoteAccessError('pairing_request_resolved', '配对申请已经处理。')
+      throw new RemoteAccessError(
+        'pairing_request_resolved',
+        'Pairing request was already handled.',
+      )
     }
     request.status = approved ? 'approved' : 'rejected'
     request.resolvedAt = new Date().toISOString()
@@ -341,7 +359,7 @@ export class RemoteAccessService {
     this.cleanupPairingRequests()
     const request = this.pendingPairingRequests.get(id)
     if (!request || !secretEquals(secret, request.secretHash)) {
-      throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+      throw new RemoteAccessError('pairing_request_not_found', 'Pairing request not found.')
     }
     this.discardPairingRequest(id)
   }
@@ -350,7 +368,7 @@ export class RemoteAccessService {
     this.cleanupPairingRequests()
     const request = this.pendingPairingRequests.get(id)
     if (!request || !secretEquals(secret, request.secretHash)) {
-      throw new RemoteAccessError('pairing_request_not_found', '配对申请不存在。')
+      throw new RemoteAccessError('pairing_request_not_found', 'Pairing request not found.')
     }
     if (request.status === 'pending') {
       if (Date.parse(request.expiresAt) >= Date.now()) {
@@ -398,7 +416,7 @@ export class RemoteAccessService {
   // except：发起吊销的请求自身不在断开之列，保证它能正常返回 204。
   revokeDevice(id, { except = null } = {}) {
     const device = this.state.devices.find((item) => item.id === id && !item.revokedAt)
-    if (!device) throw new RemoteAccessError('device_not_found', '设备不存在或已被吊销。')
+    if (!device) throw new RemoteAccessError('device_not_found', 'Device not found or revoked.')
     device.revokedAt = new Date().toISOString()
     this.save()
     for (const res of this.activeResponses.get(id) || []) {

@@ -1,4 +1,6 @@
 import { createReadStream } from 'node:fs'
+import { pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
 
 // 记忆与资产路由：资产（上传/下载/删除）、记忆空间/候选/搜索、
 // 会话树标签等辅助能力。
@@ -57,7 +59,7 @@ export const memoryAssetRoutes = [
       const content = await runtime.getAssetContent(params.assetId, {
         previewOnly: url.searchParams.get('preview') === '1',
       })
-      if (!content) json(404, { error: '资产不存在。' })
+      if (!content) json(404, errorBody(pisperError('not_found', 'file', 'asset')))
       else json(200, content)
     },
   },
@@ -67,7 +69,7 @@ export const memoryAssetRoutes = [
     async handler({ runtime, params, url, req, res, json }) {
       const download = await runtime.getAssetDownload(params.assetId, { includeBuffer: false })
       if (!download) {
-        json(404, { error: '资产不存在或不可下载。' })
+        json(404, errorBody(pisperError('not_found', 'file', 'asset')))
         return
       }
       const rangeHeader = req.headers.range
@@ -95,7 +97,7 @@ export const memoryAssetRoutes = [
     path: '/api/assets/:assetId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteAsset(params.assetId)
-      if (!deleted) json(404, { error: '资产不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'file', 'asset')))
       else json(200, { deleted: true })
     },
   },
@@ -153,7 +155,11 @@ export const memoryAssetRoutes = [
     path: '/api/memory/events/:eventId/undo',
     handler({ runtime, params, json }) {
       const result = runtime.undoMemoryEvent(params.eventId)
-      if (!result) json(404, { error: '这次改动已经不能撤销。' })
+      if (!result)
+        json(
+          404,
+          errorBody(pisperError('not_found', 'memory', 'this change can no longer be undone')),
+        )
       else json(200, result)
     },
   },
@@ -200,7 +206,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/spaces/:spaceId',
     async handler({ runtime, params, body, json }) {
       const updated = runtime.updateMemorySpace(params.spaceId, await body())
-      if (!updated) json(404, { error: '记忆空间不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'memory', 'memory space')))
       else json(200, updated)
     },
   },
@@ -209,7 +215,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/spaces/:spaceId',
     handler({ runtime, params, json }) {
       const deleted = runtime.deleteMemorySpace(params.spaceId)
-      if (!deleted) json(404, { error: '记忆空间不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'memory', 'memory space')))
       else json(200, { deleted: true })
     },
   },
@@ -225,7 +231,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/nodes/:memoryId',
     async handler({ runtime, params, body, json }) {
       const updated = runtime.updateMemory(params.memoryId, await body())
-      if (!updated) json(404, { error: '记忆不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'memory')))
       else json(200, updated)
     },
   },
@@ -234,7 +240,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/nodes/:memoryId',
     handler({ runtime, params, json }) {
       const deleted = runtime.deleteMemory(params.memoryId)
-      if (!deleted) json(404, { error: '记忆不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'memory')))
       else json(200, { deleted: true })
     },
   },
@@ -243,7 +249,7 @@ export const memoryAssetRoutes = [
     path: '/api/memory/nodes/:memoryId',
     handler({ runtime, params, json }) {
       const detail = runtime.getMemoryDetail(params.memoryId)
-      if (!detail) json(404, { error: '记忆不存在。' })
+      if (!detail) json(404, errorBody(pisperError('not_found', 'memory')))
       else json(200, detail)
     },
   },
@@ -258,7 +264,7 @@ export const memoryAssetRoutes = [
           : params.action === 'confirm'
             ? runtime.confirmMemory(params.memoryId)
             : runtime.setMemoryPinned(params.memoryId, params.action === 'pin')
-      if (!result) json(404, { error: '记忆不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'memory')))
       else json(200, result)
     },
   },
@@ -278,7 +284,11 @@ export const memoryAssetRoutes = [
         params.action === 'accept'
           ? runtime.acceptMemoryCandidate(params.candidateId)
           : runtime.rejectMemoryCandidate(params.candidateId)
-      if (!result) json(404, { error: '候选记忆不存在或已处理。' })
+      if (!result)
+        json(
+          404,
+          errorBody(pisperError('not_found', 'memory', 'candidate missing or already handled')),
+        )
       else json(200, result)
     },
   },

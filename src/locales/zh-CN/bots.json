@@ -172,6 +172,7 @@
   "model.thinkingXhigh": "极深",
   "activity.working": "{count} 件在做",
   "activity.workingOn": "{count} 件在做 · 在做：{task}",
+  "activity.proactiveCheck": "只读巡看",
   "memory.title": "记忆",
   "memory.count": "{count} 条",
   "memory.hint": "{name} 自己记得的事：你让它记住的、你纠正过的、做完一件活学到的。和当前这件事相关的会自动带上，它派出去的子 agent 也一样。",

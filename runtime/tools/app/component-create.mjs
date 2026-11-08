@@ -3,39 +3,27 @@
 // 结构化错误包装与结果摘要。权限按普通写文件处理：跟随会话权限模式，不算 critical（负责人决定）。
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
+import { COMPONENT_CREATE } from '../../prompts/tools/component-create.mjs'
 
 export const manifest = {
   id: 'component_create',
   name: 'Component Create',
   category: 'plugins',
   risk: 'high',
-  description:
-    'Create or update a Pisper native UI component (an ES module rendered same-origin inside the Pisper app).',
+  description: COMPONENT_CREATE.description,
   scope: 'Pisper data directory custom-ui/<id>',
   capability:
     'Write component manifest, JavaScript, CSS, JSON and SVG files with a version snapshot before each update; hot reloads open views',
   source: 'app',
 }
 
-// 非工作室会话里的精简契约（完整说明在内置技能 pisper-component，用 /skill:pisper-component 加载）。
-const PROMPT_GUIDELINES = [
-  'Use component_create when the user asks for a Pisper component, widget or card. For the full SDK reference load /skill:pisper-component.',
-  'manifest: {"runtime":"native","name":…,"version":"1.0.0","entry":"component.js","placements":[{"surface":"overview-card","sizes":["S","M"]}],"props":{"type":"object","properties":{…}}}. Full placement and capability schemas are in /skill:pisper-component.',
-  'component.js: export default function Component({ props, size, placement, ctx }) { const { html } = ctx; return html`<div>…</div>` }. No bare imports (React, ui and html come from ctx); relative imports like ./lib.js are fine. No .html files.',
-  'Network: fetch() directly if the target allows CORS, else ctx.net.fetch (https to declared hosts; local/LAN via network.privateOrigins e.g. "http://localhost:3000"). Declare capabilities for ctx.net/storage/notify/sessions. Use ctx.setTimeout/setInterval and ctx.signal so timers stop on unmount.',
-  'For saved auth declare provider.request with exact paths/methods; call ctx.provider.request({path}). Runtime keeps credentials private. Never add API Key props. Parse provider data in the component.',
-  'Sizes: overview S 320×120, M 320×248; ctx.size.compact is true under 300 px wide; render loading, empty, error and disabled states. Style with ctx.ui and CSS variables (var(--…)); Tailwind classes in component source are not compiled.',
-  'mode "update" sends only changed files (plus deleteFiles); omit manifest to keep it. Each update snapshots the previous version. New components are not placed anywhere until the user places them in the component studio.',
-]
-
 const fileSchema = Type.Object({
   path: Type.String({
     minLength: 1,
     maxLength: 200,
-    description:
-      'Component-relative path (.js .mjs .css .json .svg), e.g. component.js or lib/chart.js; not manifest.json',
+    description: COMPONENT_CREATE.params.path,
   }),
-  content: Type.String({ maxLength: 256 * 1024, description: 'UTF-8 file content' }),
+  content: Type.String({ maxLength: 256 * 1024, description: COMPONENT_CREATE.params.content }),
 })
 
 /** @param {unknown} error */
@@ -79,45 +67,44 @@ export function createComponentCreateTool({ componentRuntime, sessionId } = {}) 
   return defineTool({
     name: manifest.id,
     label: manifest.name,
-    description: `${manifest.description} Writes <data dir>/custom-ui/<id>/ and follows the session permission mode like an ordinary file write.`,
-    promptSnippet: 'Create or update a Pisper native UI component with component_create',
-    promptGuidelines: PROMPT_GUIDELINES,
+    description: COMPONENT_CREATE.toolDescription,
+    promptSnippet: COMPONENT_CREATE.snippet,
+    promptGuidelines: COMPONENT_CREATE.guidelines,
     parameters: Type.Object({
       mode: Type.Union([Type.Literal('create'), Type.Literal('update')], {
-        description: 'create a new component directory, or update an existing native component',
+        description: COMPONENT_CREATE.params.mode,
       }),
       id: Type.String({
         minLength: 1,
         maxLength: 64,
         pattern: '^[a-z0-9][a-z0-9._-]{0,63}$',
-        description: 'Component id = directory name (lowercase letters, digits, . _ -)',
+        description: COMPONENT_CREATE.params.id,
       }),
       manifest: Type.Optional(
         Type.Object(
           {},
           {
             additionalProperties: true,
-            description:
-              'manifest.json object (runtime must be "native"); required for create, optional for update',
+            description: COMPONENT_CREATE.params.manifest,
           },
         ),
       ),
       files: Type.Optional(
         Type.Array(fileSchema, {
           maxItems: 32,
-          description: 'Files to write (≤32, ≤256 KiB each, ≤1 MiB total)',
+          description: COMPONENT_CREATE.params.files,
         }),
       ),
       deleteFiles: Type.Optional(
         Type.Array(Type.String({ minLength: 1, maxLength: 200 }), {
           maxItems: 64,
-          description: 'Component-relative paths to delete (update only)',
+          description: COMPONENT_CREATE.params.deleteFiles,
         }),
       ),
       summary: Type.Optional(
         Type.String({
           maxLength: 200,
-          description: 'One-line change summary for the version list',
+          description: COMPONENT_CREATE.params.summary,
         }),
       ),
     }),

@@ -5,6 +5,8 @@ import { SessionOrganizationInputError } from '../../services/chat-session-organ
 import { SideChatError } from '../../services/side-chat-service.mjs'
 import { QuestionInputError, isQuestionId } from '../../services/session-question-service.mjs'
 import { SessionQueueError } from '../../services/session-start-queue.mjs'
+import { errorPayload, pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
 
 // 排队接口的统一错误出口：校验与状态错误带稳定 code，其余照常抛给通用错误处理。
 async function handleQueue(json, action) {
@@ -12,7 +14,7 @@ async function handleQueue(json, action) {
     json(200, await action())
   } catch (error) {
     if (!(error instanceof SessionQueueError)) throw error
-    json(error.status, { error: error.message, code: error.code })
+    json(error.status, { error: error.message, code: error.code, ...errorPayload(error) })
   }
 }
 import { BoardViewQueryError } from '../../services/session-board-view.mjs'
@@ -73,10 +75,12 @@ const routes = [
     path: '/api/speech/transcribe',
     async handler({ runtime, req, services, bodyBuffer, json }) {
       const sampleRate = Number(req.headers['x-pisper-sample-rate'])
-      if (sampleRate !== 16000) throw new Error('语音采样率必须是 16000 Hz。')
-      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      if (sampleRate !== 16000)
+        throw pisperError('invalid', 'speech', 'sample rate must be 16000 Hz')
+      if (!services.speech) throw pisperError('unavailable', 'speech')
       const bytes = await bodyBuffer(32_000_000)
-      if (!bytes.length || bytes.byteLength % 4 !== 0) throw new Error('语音 PCM 数据无效。')
+      if (!bytes.length || bytes.byteLength % 4 !== 0)
+        throw pisperError('invalid', 'speech', 'invalid PCM data')
       const samples = new Float32Array(
         bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       )
@@ -93,7 +97,7 @@ const routes = [
     method: 'POST',
     path: '/api/speech/stream/start',
     async handler({ runtime, req, services, json }) {
-      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      if (!services.speech) throw pisperError('unavailable', 'speech')
       services.speech.sweepExpiredSessions()
       const terms = await speechTermsForSession(
         runtime,
@@ -107,11 +111,13 @@ const routes = [
     method: 'POST',
     path: '/api/speech/stream/chunk',
     async handler({ req, services, bodyBuffer, json }) {
-      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      if (!services.speech) throw pisperError('unavailable', 'speech')
       const sampleRate = Number(req.headers['x-pisper-sample-rate'])
-      if (sampleRate !== 16000) throw new Error('语音采样率必须是 16000 Hz。')
+      if (sampleRate !== 16000)
+        throw pisperError('invalid', 'speech', 'sample rate must be 16000 Hz')
       const bytes = await bodyBuffer(32_000_000)
-      if (!bytes.length || bytes.byteLength % 4 !== 0) throw new Error('语音 PCM 数据无效。')
+      if (!bytes.length || bytes.byteLength % 4 !== 0)
+        throw pisperError('invalid', 'speech', 'invalid PCM data')
       const samples = new Float32Array(
         bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       )
@@ -122,7 +128,7 @@ const routes = [
     method: 'POST',
     path: '/api/speech/stream/finish',
     async handler({ req, services, json }) {
-      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      if (!services.speech) throw pisperError('unavailable', 'speech')
       json(200, await services.speech.finishSession(req.headers['x-pisper-speech-session']))
     },
   },
@@ -130,7 +136,7 @@ const routes = [
     method: 'POST',
     path: '/api/speech/stream/cancel',
     async handler({ req, services, json }) {
-      if (!services.speech) throw new Error('当前 Runtime 未启用语音识别。')
+      if (!services.speech) throw pisperError('unavailable', 'speech')
       json(200, await services.speech.cancelSession(req.headers['x-pisper-speech-session']))
     },
   },
@@ -172,7 +178,7 @@ const routes = [
         json(200, await runtime.listBoardSessions(parseBoardViewQuery(url.searchParams)))
       } catch (error) {
         if (!(error instanceof BoardViewQueryError)) throw error
-        json(error.statusCode, { error: error.message, code: error.code })
+        json(error.statusCode, { error: error.message, code: error.code, ...errorPayload(error) })
       }
     },
   },
@@ -259,13 +265,13 @@ const routes = [
     async handler({ runtime, params, body, json }) {
       const input = await body()
       if (typeof input.targetEntryId !== 'string' || !input.targetEntryId.trim()) {
-        throw new Error('targetEntryId 不能为空。')
+        throw pisperError('invalid', 'input', 'targetEntryId is required')
       }
       if (input.summarize != null && typeof input.summarize !== 'boolean') {
-        throw new Error('summarize 必须是布尔值。')
+        throw pisperError('invalid', 'input', 'summarize must be a boolean')
       }
       if (input.includeTree != null && typeof input.includeTree !== 'boolean') {
-        throw new Error('includeTree 必须是布尔值。')
+        throw pisperError('invalid', 'input', 'includeTree must be a boolean')
       }
       json(
         200,
@@ -310,7 +316,8 @@ const routes = [
     path: '/api/sessions/:sessionId/tree/labels/:entryId',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      if (typeof input.label !== 'string') throw new Error('label 必须是字符串。')
+      if (typeof input.label !== 'string')
+        throw pisperError('invalid', 'input', 'label must be a string')
       json(200, await runtime.setSessionTreeLabel(params.sessionId, params.entryId, input.label))
     },
   },
@@ -319,7 +326,7 @@ const routes = [
     path: '/api/commands',
     async handler({ runtime, url, json }) {
       const cwd = url.searchParams.get('cwd') || ''
-      if (cwd.length > 4096) throw new Error('cwd 过长。')
+      if (cwd.length > 4096) throw pisperError('too_large', 'path', 'max 4096 characters')
       json(200, await runtime.getWorkspaceCommands(cwd))
     },
   },
@@ -340,7 +347,7 @@ const routes = [
         String(input.provider || ''),
         String(input.model || ''),
       )
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -349,7 +356,7 @@ const routes = [
     path: '/api/sessions/:sessionId/thinking-level',
     async handler({ runtime, params, json }) {
       const state = await runtime.getSessionThinkingState(params.sessionId)
-      if (!state) json(404, { error: '会话不存在。' })
+      if (!state) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, state)
     },
   },
@@ -362,7 +369,7 @@ const routes = [
         params.sessionId,
         String(input.level || ''),
       )
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -371,7 +378,7 @@ const routes = [
     path: '/api/sessions/:sessionId/cwd',
     async handler({ runtime, params, body, json }) {
       const updated = await runtime.setSessionCwd(params.sessionId, (await body()).cwd)
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -380,7 +387,7 @@ const routes = [
     path: '/api/sessions/:sessionId/goal',
     handler({ runtime, params, json }) {
       const goal = runtime.getSessionGoal(params.sessionId)
-      if (!goal) json(404, { error: '当前会话没有 Goal。' })
+      if (!goal) json(404, errorBody(pisperError('not_found', 'task', 'no goal in this session')))
       else json(200, { goal })
     },
   },
@@ -389,7 +396,7 @@ const routes = [
     path: '/api/sessions/:sessionId/team',
     handler({ runtime, params, json }) {
       const team = runtime.getTeamProjection(params.sessionId)
-      if (!team) json(404, { error: '当前会话没有 Team。' })
+      if (!team) json(404, errorBody(pisperError('not_found', 'agent', 'no team in this session')))
       else json(200, { team })
     },
   },
@@ -400,13 +407,14 @@ const routes = [
       const input = await body()
       if (input.action === 'pause') {
         const goal = await runtime.pauseSessionGoal(params.sessionId)
-        if (!goal) json(404, { error: '当前会话没有进行中的 Goal。' })
+        if (!goal)
+          json(404, errorBody(pisperError('not_found', 'task', 'no active goal in this session')))
         else json(200, { goal })
       } else if (input.action === 'set-budget') {
         const goal = await runtime.setSessionGoalBudget(params.sessionId, input.tokenBudget)
         json(200, { goal })
       } else {
-        throw new Error('Goal 操作无效。')
+        throw pisperError('invalid', 'operation', 'action must be pause or set-budget')
       }
     },
   },
@@ -541,7 +549,7 @@ const routes = [
     path: '/api/sessions/:sessionId/context-breakdown',
     async handler({ runtime, params, json }) {
       const breakdown = await runtime.getSessionContextBreakdown(params.sessionId)
-      if (!breakdown) json(404, { error: '会话不存在。' })
+      if (!breakdown) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, breakdown)
     },
   },
@@ -550,7 +558,7 @@ const routes = [
     path: '/api/sessions/:sessionId/execution-mode',
     async handler({ runtime, params, body, json }) {
       const updated = await runtime.setSessionExecutionMode(params.sessionId, (await body()).mode)
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -559,7 +567,7 @@ const routes = [
     path: '/api/sessions/:sessionId/permission',
     async handler({ runtime, params, body, json }) {
       const updated = await runtime.setSessionPermission(params.sessionId, (await body()).mode)
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -568,7 +576,7 @@ const routes = [
     path: '/api/sessions/:sessionId/run-mode',
     async handler({ runtime, params, body, json }) {
       const updated = await runtime.setSessionRunMode(params.sessionId, (await body()).mode)
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -581,7 +589,7 @@ const routes = [
         params.approvalId,
         Boolean((await body()).approved),
       )
-      if (!resolution.found) json(404, { error: '授权请求不存在。' })
+      if (!resolution.found) json(404, errorBody(pisperError('not_found', 'request', 'approval')))
       else json(200, resolution)
     },
   },
@@ -592,13 +600,16 @@ const routes = [
     async handler({ runtime, params, url, res, json }) {
       const format = url.searchParams.get('format') || 'markdown'
       if (format !== 'markdown') {
-        json(400, { error: '只支持导出 Markdown。', code: 'export_format_unsupported' })
+        json(400, {
+          error: 'Only Markdown export is supported.',
+          code: 'export_format_unsupported',
+        })
         return
       }
       const locale = url.searchParams.get('lang') === 'en-US' ? 'en-US' : 'zh-CN'
       const exported = await runtime.exportSessionMarkdown(params.sessionId, { locale })
       if (!exported) {
-        json(404, { error: '会话不存在。', code: 'session_not_found' })
+        json(404, { error: 'Session not found.', code: 'session_not_found' })
         return
       }
       const body = Buffer.from(exported.markdown.toWellFormed(), 'utf8')
@@ -644,7 +655,7 @@ const routes = [
     path: '/api/sessions/:sessionId/questions/:questionId',
     async handler({ runtime, params, body, json }) {
       if (!isQuestionId(params.questionId)) {
-        json(404, { error: '问题不存在。', code: 'question_not_found' })
+        json(404, { error: 'Question not found.', code: 'question_not_found' })
         return
       }
       let resolution
@@ -656,13 +667,13 @@ const routes = [
         )
       } catch (error) {
         if (!(error instanceof QuestionInputError)) throw error
-        json(400, { error: error.message, code: error.code })
+        json(400, { error: error.message, code: error.code, ...errorPayload(error) })
         return
       }
-      if (!resolution.found) json(404, { error: '问题不存在。', code: 'question_not_found' })
+      if (!resolution.found) json(404, { error: 'Question not found.', code: 'question_not_found' })
       else if (resolution.alreadyResolved)
         json(409, {
-          error: '这组问题已经处理过了。',
+          error: 'These questions were already answered.',
           code: 'question_already_resolved',
           ...resolution,
         })
@@ -678,10 +689,10 @@ const routes = [
         updated = await runtime.updateSessionOrganization(params.sessionId, await body())
       } catch (error) {
         if (!(error instanceof SessionOrganizationInputError)) throw error
-        json(400, { error: error.message, code: error.code })
+        json(400, { error: error.message, code: error.code, ...errorPayload(error) })
         return
       }
-      if (!updated) json(404, { error: '会话不存在。', code: 'session_not_found' })
+      if (!updated) json(404, { error: 'Session not found.', code: 'session_not_found' })
       else json(200, updated)
     },
   },
@@ -692,7 +703,7 @@ const routes = [
       const updated = await runtime.renameSession(params.sessionId, (await body()).name, {
         manual: true,
       })
-      if (!updated) json(404, { error: '会话不存在。' })
+      if (!updated) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, updated)
     },
   },
@@ -701,7 +712,7 @@ const routes = [
     path: '/api/sessions/:sessionId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteSession(params.sessionId)
-      if (!deleted) json(404, { error: '会话不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'session')))
       else json(200, { deleted: true, id: params.sessionId })
     },
   },
@@ -766,7 +777,16 @@ const routes = [
     path: '/api/sessions/:sessionId/mobile-operations/:operationId',
     async handler({ runtime, req, params, body, json }) {
       if (!isMobileAppRequest(runtime, req)) {
-        json(403, { error: '仅当前 Pisper 移动 App 可以回传设备操作结果。' })
+        json(
+          403,
+          errorBody(
+            pisperError(
+              'forbidden',
+              'device',
+              'only the Pisper mobile app can report device results',
+            ),
+          ),
+        )
         return
       }
       const accepted = runtime.resolveMobileOperation(
@@ -817,7 +837,8 @@ const routes = [
     path: '/api/sessions/:sessionId/agents/:agentId/stop',
     handler({ runtime, params, json }) {
       const agent = runtime.stopSessionAgent(params.sessionId, params.agentId)
-      if (!agent) json(404, { error: '这个子 agent 不存在或已经结束。', code: 'agent_not_found' })
+      if (!agent)
+        json(404, { error: 'Agent not found or already finished.', code: 'agent_not_found' })
       else json(200, { agent })
     },
   },
@@ -873,7 +894,8 @@ const routes = [
       runtime.sideChats?.assertAvailable(input.sessionId)
       const invocation =
         input.invocation && typeof input.invocation === 'object' ? input.invocation : null
-      if (!message && !invocation) throw new Error('消息或资源调用不能为空。')
+      if (!message && !invocation)
+        throw pisperError('invalid', 'message', 'message or invocation is required')
       const unavailableFeature =
         invocation?.kind === 'workflow' && runtime.capabilities?.features?.workflows === false
           ? 'workflows'
@@ -888,7 +910,9 @@ const routes = [
                 : ''
       if (unavailableFeature) {
         json(409, {
-          error: `当前 Runtime 不支持 ${unavailableFeature} 能力。`,
+          ...errorBody(
+            pisperError('unsupported', 'capability', unavailableFeature, { status: 409 }),
+          ),
           capability: unavailableFeature,
         })
         return
@@ -903,7 +927,7 @@ const routes = [
           sourceSessionId: String(input.sessionId || ''),
           sourceMessage: message,
         })
-        if (!result) throw new Error('工作流不存在。')
+        if (!result) throw pisperError('not_found', 'workflow')
         sendSse('invocation_started', { invocation, run: result.run })
         sendSse('done', {
           sessionId: String(input.sessionId || ''),
@@ -942,7 +966,11 @@ export const sessionRuntimeRoutes = routes.map((route) => ({
       return await route.handler(context)
     } catch (error) {
       if (!(error instanceof SideChatError)) throw error
-      context.json(error.statusCode, { error: error.message, code: error.code })
+      context.json(error.statusCode, {
+        error: error.message,
+        code: error.code,
+        ...errorPayload(error),
+      })
     }
   },
 }))

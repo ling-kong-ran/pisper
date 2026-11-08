@@ -264,7 +264,13 @@ test('group pushes use the group’s own chat type, remember Telegram group name
     service.knownGroups('weixin').map(({ peerId, title }) => [peerId, title]),
     [['g1', '发布群']],
   )
-  await assert.rejects(service.notifyGroup('weixin', 'g1', 'x'), /微信只支持私聊/)
-  await assert.rejects(service.notifyGroup('telegram', '-100', 'x'), /没有连接/)
+  await assert.rejects(service.notifyGroup('weixin', 'g1', 'x'), {
+    code: 'unsupported',
+    params: { subject: 'channel', detail: 'WeChat has direct messages only, no groups' },
+  })
+  await assert.rejects(service.notifyGroup('telegram', '-100', 'x'), {
+    code: 'unavailable',
+    params: { subject: 'channel', detail: 'not connected' },
+  })
   assert.equal(weixin.pushed.length, 0)
 })

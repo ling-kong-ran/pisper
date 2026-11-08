@@ -188,7 +188,7 @@ test('image-only model reuses connection credentials and cannot be selected for 
   )
   await assert.rejects(
     () => runtime.providerPreferences.resolveSessionModel('capability-relay', 'fixture-model'),
-    /对话能力/,
+    /not a chat model/,
   )
   const visual = await runtime.getVisualModelStatus()
   assert.equal(visual.image.providerId, 'capability-relay')
@@ -259,7 +259,7 @@ test('model overrides survive discovery, independent saves and rejected input', 
         modelId: 'fixture-model',
         capabilities: [],
       }),
-    /有效的模型能力/,
+    /capabilities: one or more/,
   )
   assert.equal(await readFile(join(directory, 'models.json'), 'utf8'), before)
 })

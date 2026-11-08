@@ -12,7 +12,7 @@ export const directoryPickerRoutes = [
       }
       // JSON 请求需要浏览器预检，跨站表单不能借本机页面弹出系统对话框。
       if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
-        json(415, { error: '此操作需要 JSON 请求。', code: 'json_required' })
+        json(415, { error: 'This request needs a JSON body.', code: 'json_required' })
         return
       }
       const input = await body()

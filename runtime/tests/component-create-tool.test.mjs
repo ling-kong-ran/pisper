@@ -69,7 +69,7 @@ test('执行模式：审批模式每次审批；工作区写与完全访问直�
   assert.equal(ask.risk, 'high')
   assert.equal(
     ask.reason,
-    'component_create 将写入组件 ci-status（数据目录/custom-ui/ci-status），需要确认后执行。',
+    'component_create will write component ci-status (data folder/custom-ui/ci-status). Needs confirmation.',
   )
   assert.equal(
     permissionRequirement({ ...base, mode: 'auto', executionMode: 'workspace-write' }),

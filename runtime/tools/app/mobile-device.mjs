@@ -5,14 +5,15 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
+import { MOBILE_DEVICE } from '../../prompts/tools/mobile-device.mjs'
 
 export const manifest = {
   id: 'mobile_device',
   name: 'Mobile Device',
   category: 'device',
   risk: 'high',
-  description:
-    'Use phone capabilities permitted by the connected Pisper mobile App and operating system, including device status, storage, clipboard, photos, sensors, and constrained external apps.',
+  description: MOBILE_DEVICE.description,
   scope: 'Currently connected Pisper mobile App and its per-capability privacy controls',
   capability:
     'Inspect or update supported phone state, organize photos, use sensors, and open approved external targets',
@@ -65,43 +66,43 @@ const FORBIDDEN_APP_SCHEMES = new Set([
   'javascript:',
 ])
 
-function requiredText(value, label) {
+function requiredText(value, field) {
   const text = String(value || '').trim()
-  if (!text) throw new Error(`${label}不能为空。`)
+  if (!text) throw pisperError('invalid', 'input', `${field} is required`)
   return text
 }
 
 function webUrl(value) {
-  const text = requiredText(value, '网址')
+  const text = requiredText(value, 'url')
   let parsed
   try {
     parsed = new URL(text)
   } catch {
-    throw new Error('网址格式无效。')
+    throw pisperError('invalid', 'url', 'use an http or https URL')
   }
   if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) {
-    throw new Error('只能打开有效的 HTTP 或 HTTPS 网址。')
+    throw pisperError('invalid', 'url', 'use an http or https URL')
   }
   return parsed.href
 }
 
 function appUrl(value) {
-  const text = requiredText(value, 'App URL')
+  const text = requiredText(value, 'appUrl')
   let parsed
   try {
     parsed = new URL(text)
   } catch {
-    throw new Error('App URL 格式无效。')
+    throw pisperError('invalid', 'url', 'appUrl must use a third-party app URL scheme')
   }
   if (FORBIDDEN_APP_SCHEMES.has(parsed.protocol)) {
-    throw new Error('App URL 必须使用受支持的第三方应用 URL Scheme。')
+    throw pisperError('invalid', 'url', 'appUrl must use a third-party app URL scheme')
   }
   return parsed.href
 }
 
 function phoneNumber(value) {
-  const text = requiredText(value, '电话号码')
-  if (!PHONE_NUMBER.test(text)) throw new Error('电话号码格式无效。')
+  const text = requiredText(value, 'phoneNumber')
+  if (!PHONE_NUMBER.test(text)) throw pisperError('invalid', 'input', 'phoneNumber')
   return text
 }
 
@@ -113,10 +114,10 @@ function externalOperation(params) {
       const latitude = Number(params.latitude)
       const longitude = Number(params.longitude)
       if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-        throw new Error('纬度必须在 -90 到 90 之间。')
+        throw pisperError('invalid', 'input', 'latitude must be -90 to 90')
       }
       if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-        throw new Error('经度必须在 -180 到 180 之间。')
+        throw pisperError('invalid', 'input', 'longitude must be -180 to 180')
       }
       return [
         'apps.open_map',
@@ -143,10 +144,10 @@ function externalOperation(params) {
       const packageName = String(params.packageName || '').trim()
       const deepLink = String(params.appUrl || '').trim()
       if (!packageName && !deepLink) {
-        throw new Error('打开应用需要 Android 包名或 iOS App URL。')
+        throw pisperError('invalid', 'input', 'packageName or appUrl is required')
       }
       if (packageName && !PACKAGE_NAME.test(packageName)) {
-        throw new Error('Android 应用包名格式无效。')
+        throw pisperError('invalid', 'input', 'packageName')
       }
       return [
         'apps.open_app',
@@ -164,34 +165,34 @@ function externalOperation(params) {
 function safeImageData(value) {
   const data = String(value || '')
   if (!data || data.length > 12_000_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) {
-    throw new Error('手机返回了无效或过大的照片数据。')
+    throw pisperError('invalid', 'image', 'the phone returned invalid or oversized photo data')
   }
   return Buffer.from(data, 'base64')
 }
 
 function photoAssetIds(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 100) {
-    throw new Error('照片 ID 数量必须在 1 到 100 之间。')
+    throw pisperError('invalid', 'input', 'assetIds must have 1 to 100 items')
   }
   const ids = [...new Set(value.map((item) => String(item || '').trim()))]
   if (ids.length !== value.length || ids.some((id) => !id || id.length > 256)) {
-    throw new Error('照片 ID 无效。')
+    throw pisperError('invalid', 'input', 'assetIds')
   }
   return ids
 }
 
-function boundedText(value, label, maxLength = 100_000) {
+function boundedText(value, field, maxLength = 100_000) {
   const text = String(value ?? '')
   if (!text || text.length > maxLength)
-    throw new Error(`${label}不能为空且不能超过${maxLength}个字符。`)
+    throw pisperError('invalid', 'input', `${field} must be 1 to ${maxLength} characters`)
   return text
 }
 
-function dateFilter(value, label) {
+function dateFilter(value, field) {
   if (value === undefined) return undefined
-  const text = requiredText(value, label)
+  const text = requiredText(value, field)
   const timestamp = Date.parse(text)
-  if (!Number.isFinite(timestamp)) throw new Error(`${label}格式无效。`)
+  if (!Number.isFinite(timestamp)) throw pisperError('invalid', 'input', field)
   return new Date(timestamp).toISOString()
 }
 
@@ -205,32 +206,15 @@ export function createMobileDeviceTool({
     name: manifest.id,
     label: manifest.name,
     description: manifest.description,
-    promptSnippet:
-      'Use capabilities permitted by the currently connected Pisper mobile App and operating system, including constrained external app launch',
-    promptGuidelines: [
-      'Call mobile_device only when the user explicitly asks to use data, hardware, or an external app on their current phone.',
-      'Use search_contacts for contact lookup, capture_photo for one user-visible camera capture, and get_location for one foreground location fix.',
-      'Use get_capabilities before an unfamiliar mobile operation to inspect platform support, permission state, required parameters, and limitations. Use get_device_status for one complete read-only device snapshot, or use get_device_info, get_memory_status, get_storage_status, get_network_status, get_display_status, get_locale_status, and get_battery_status for focused queries. iOS does not expose global free system memory to third-party apps; report the platform limitation instead of guessing.',
-      'Use get_clipboard/set_clipboard only for text the user explicitly asks to read or replace. Clipboard reads may show an operating-system privacy notice.',
-      'Use list_photos to inspect metadata and create_photo_album for organization. add_photos_to_album moves Android media files and therefore requires explicit confirmation; use delete_photos only after the user explicitly confirms deletion and set confirmed=true.',
-      'Photo access is limited by OS permission and Android scoped storage; never claim that every library item was inspected when the result says limited.',
-      'Use vibrate and set_flashlight for small, user-requested physical feedback. Flashlight may require camera permission on both platforms.',
-      'Use send_notification only for a notification the user explicitly asks Pisper to post; it is local, user-visible, and does not run background work.',
-      'Use share_text for a user-visible system share sheet; opening the sheet is not confirmation that content was shared.',
-      'Use open_url for HTTP(S), open_map for coordinates, open_system_settings for settings, open_dialer to prefill a phone number, and compose_sms to prefill but never send a message.',
-      'Use open_app only with a known Android packageName or iOS custom-scheme appUrl. Opening an app does not authorize interaction inside it; never claim that a song, call, message, payment, or third-party action completed merely because its UI opened.',
-      'A specific third-party action such as playing a song is possible only when that app documents a matching deep link or system integration. Never guess a scheme or use accessibility/UI injection.',
-      'The phone may reject a capability through Pisper settings or operating-system permissions. Report that refusal without trying to bypass it.',
-      'Never infer that SMS reading exists. Play-compatible Pisper builds can only open a user-visible SMS composer and do not request SMS permissions.',
-      'Keep contact queries, photo limits, and asset ID batches narrow when the task does not require a broad scan.',
-    ],
+    promptSnippet: MOBILE_DEVICE.snippet,
+    promptGuidelines: MOBILE_DEVICE.guidelines,
     parameters: Type.Object({
       action: actionSchema,
       query: Type.Optional(
-        Type.String({ maxLength: 120, description: 'Name or phone fragment for search_contacts' }),
+        Type.String({ maxLength: 120, description: MOBILE_DEVICE.params.query }),
       ),
       limit: Type.Optional(
-        Type.Integer({ minimum: 1, maximum: 200, description: 'Maximum contacts to return' }),
+        Type.Integer({ minimum: 1, maximum: 200, description: MOBILE_DEVICE.params.limit }),
       ),
       cameraDirection: Type.Optional(Type.Union([Type.Literal('back'), Type.Literal('front')])),
       url: Type.Optional(Type.String({ maxLength: 2_048 })),
@@ -262,7 +246,7 @@ export function createMobileDeviceTool({
       toDate: Type.Optional(Type.String({ maxLength: 64 })),
     }),
     async execute(_toolCallId, params, signal) {
-      if (!mobileOperationService) throw new Error('移动设备操作服务未初始化。')
+      if (!mobileOperationService) throw pisperError('unavailable', 'device')
       const external = externalOperation(params)
       const operation =
         external?.[0] ||
@@ -290,12 +274,16 @@ export function createMobileDeviceTool({
           delete_photos: 'photos.delete',
           share_text: 'apps.share_text',
         }[params.action]
-      if (!operation) throw new Error('不支持的移动设备操作。')
+      if (!operation) throw pisperError('unsupported', 'operation', params.action)
       if (
         (params.action === 'add_photos_to_album' || params.action === 'delete_photos') &&
         params.confirmed !== true
       ) {
-        throw new Error('移动或删除照片前必须获得用户明确确认。')
+        throw pisperError(
+          'invalid',
+          'operation',
+          'set confirmed=true only after the user explicitly confirms',
+        )
       }
       const assetIds =
         params.action === 'add_photos_to_album' || params.action === 'delete_photos'
@@ -305,9 +293,9 @@ export function createMobileDeviceTool({
         ...(params.query ? { query: params.query } : {}),
         ...(params.limit ? { limit: params.limit } : {}),
         ...(params.cameraDirection ? { cameraDirection: params.cameraDirection } : {}),
-        ...(params.text !== undefined ? { text: boundedText(params.text, '文本') } : {}),
+        ...(params.text !== undefined ? { text: boundedText(params.text, 'text') } : {}),
         ...(params.title ? { title: String(params.title).trim() } : {}),
-        ...(params.body !== undefined ? { body: boundedText(params.body, '通知内容', 4_000) } : {}),
+        ...(params.body !== undefined ? { body: boundedText(params.body, 'body', 4_000) } : {}),
         ...(params.notifyId ? { notifyId: String(params.notifyId).trim() } : {}),
         ...(params.intensity ? { intensity: params.intensity } : {}),
         ...(params.durationMs ? { durationMs: params.durationMs } : {}),
@@ -317,8 +305,8 @@ export function createMobileDeviceTool({
         ...(assetIds ? { assetIds } : {}),
         ...(params.confirmed !== undefined ? { confirmed: params.confirmed } : {}),
         ...(params.mediaType ? { mediaType: params.mediaType } : {}),
-        ...(params.fromDate ? { fromDate: dateFilter(params.fromDate, '起始日期') } : {}),
-        ...(params.toDate ? { toDate: dateFilter(params.toDate, '结束日期') } : {}),
+        ...(params.fromDate ? { fromDate: dateFilter(params.fromDate, 'fromDate') } : {}),
+        ...(params.toDate ? { toDate: dateFilter(params.toDate, 'toDate') } : {}),
       }
       const result = await mobileOperationService.execute(mobileSessionId, operation, parameters, {
         signal,

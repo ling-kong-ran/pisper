@@ -118,7 +118,7 @@ test('canComplete distinguishes active blockers from terminal blockers with reco
   assert.equal(terminalBlock.ok, false)
   assert.match(terminalBlock.reason, /running-task \(interrupted\)/)
   assert.match(terminalBlock.reason, /followup_task/)
-  assert.match(terminalBlock.reason, /相同 taskName/)
+  assert.match(terminalBlock.reason, /same taskName/)
 })
 
 // —— list_agents：活跃 Agent 附带空闲时长 ——

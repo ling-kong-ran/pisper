@@ -131,22 +131,29 @@ export class SessionStartQueue {
     const id = typeof sessionId === 'string' ? sessionId : ''
     const after = typeof startAfter === 'string' ? startAfter.trim() : ''
     const text = typeof message === 'string' ? message.trim() : ''
-    if (!after) throw new SessionQueueError('start_after_required', '请选择要排在哪个会话之后。')
-    if (after === id) throw new SessionQueueError('start_after_self', '不能排在自己之后。')
-    if (!text) throw new SessionQueueError('message_required', '排队的消息不能为空。')
+    if (!after)
+      throw new SessionQueueError('start_after_required', 'Choose a session to start after.')
+    if (after === id)
+      throw new SessionQueueError('start_after_self', 'A session cannot start after itself.')
+    if (!text) throw new SessionQueueError('message_required', 'Queued message is required.')
     if (Array.from(text).length > SESSION_QUEUE_LIMITS.message)
-      throw new SessionQueueError('message_too_long', '排队的消息太长。')
+      throw new SessionQueueError('message_too_long', 'Queued message is too long.')
     if (!(await this.sessionExists(id)))
-      throw new SessionQueueError('session_not_found', '会话不存在。', 404)
+      throw new SessionQueueError('session_not_found', 'Session not found.', 404)
     if (!(await this.sessionExists(after)))
-      throw new SessionQueueError('start_after_not_found', '要排在其后的会话不存在。', 404)
+      throw new SessionQueueError('start_after_not_found', 'Session to start after not found.', 404)
     if (this.isRunning(id))
-      throw new SessionQueueError('session_running', '会话正在运行，不能再排队。', 409)
-    if (this.entries.has(id)) throw new SessionQueueError('already_queued', '会话已经在排队。', 409)
+      throw new SessionQueueError(
+        'session_running',
+        'Session is running; it cannot be queued.',
+        409,
+      )
+    if (this.entries.has(id))
+      throw new SessionQueueError('already_queued', 'Session is already queued.', 409)
     if (this.entries.size >= SESSION_QUEUE_LIMITS.entries)
-      throw new SessionQueueError('queue_full', '排队的会话太多了。', 409)
+      throw new SessionQueueError('queue_full', 'Queue limit reached.', 409)
     if (this.createsCycle(id, after))
-      throw new SessionQueueError('start_after_cycle', '排队顺序形成了循环。')
+      throw new SessionQueueError('start_after_cycle', 'Queue order would form a cycle.')
     const entry = {
       sessionId: id,
       startAfter: after,
@@ -169,7 +176,7 @@ export class SessionStartQueue {
   async startNow(sessionId) {
     await this.load()
     const entry = this.entries.get(sessionId)
-    if (!entry) throw new SessionQueueError('not_queued', '会话不在排队中。', 404)
+    if (!entry) throw new SessionQueueError('not_queued', 'Session is not queued.', 404)
     this.entries.delete(sessionId)
     await this.persist()
     this.onChange(sessionId)
@@ -181,7 +188,7 @@ export class SessionStartQueue {
   async cancel(sessionId) {
     await this.load()
     const entry = this.entries.get(sessionId)
-    if (!entry) throw new SessionQueueError('not_queued', '会话不在排队中。', 404)
+    if (!entry) throw new SessionQueueError('not_queued', 'Session is not queued.', 404)
     this.entries.delete(sessionId)
     await this.persist()
     this.onChange(sessionId)

@@ -3,12 +3,20 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 import { isComponentProxyRequest } from '../security/component-proxy-marker.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const STATE_VERSION = 1
 const MAX_BODY_BYTES = 256 * 1024
 const MAX_CONCURRENT_REQUESTS = 16
+// 监听状态的错误：status.errorCode 给界面翻译（只加字段），status.error 保留英文兜底文字。
+const HOST_ERRORS = Object.freeze({
+  settings_unreadable: 'MCP server settings could not be read; turn it on again.',
+  sdk_unavailable: 'MCP server component failed to load.',
+  port_in_use: 'Local MCP port is already in use.',
+  listen_failed: 'Local MCP listener failed to start.',
+})
 let sdkPromise
 
 function loadSdk() {
@@ -130,7 +138,8 @@ export class McpHostService {
       host: this.host,
       port,
       url: this.server?.listening ? `http://${this.host}:${port}/mcp` : '',
-      error: this.error || null,
+      error: (this.error && HOST_ERRORS[this.error]) || null,
+      errorCode: this.error || null,
     }
   }
 
@@ -154,7 +163,7 @@ export class McpHostService {
         // MCP 是可选能力；配置损坏或不可读不能让整个 Pisper 启动失败。
         this.state = { version: STATE_VERSION, enabled: false, token: '' }
         this.loaded = Promise.resolve()
-        this.error = '内置 MCP 设置读取失败，请重新开启。'
+        this.error = 'settings_unreadable'
         return this.status()
       }
       if (this.closed || !this.state.enabled) return this.status()
@@ -193,7 +202,8 @@ export class McpHostService {
     return this.queue(async () => {
       await this.load()
       if (this.closed) throw new Error('MCP host is closed.')
-      if (!this.state.enabled) throw new Error('请先开启 Pisper MCP 服务。')
+      if (!this.state.enabled)
+        throw pisperError('unavailable', 'mcp', 'turn on the Pisper MCP server first')
       const next = { ...this.state, token: randomBytes(32).toString('base64url') }
       await writeJsonAtomic(this.path, next, { mode: 0o600 })
       this.state = next
@@ -214,7 +224,7 @@ export class McpHostService {
     try {
       this.sdk = await loadSdk()
     } catch {
-      this.error = '内置 MCP 组件加载失败。'
+      this.error = 'sdk_unavailable'
       return
     }
     const server = createServer((req, res) => {
@@ -235,8 +245,7 @@ export class McpHostService {
       this.server = server
       this.error = ''
     } catch (error) {
-      this.error =
-        error?.code === 'EADDRINUSE' ? '本机 MCP 端口已被占用。' : '本机 MCP 监听启动失败。'
+      this.error = error?.code === 'EADDRINUSE' ? 'port_in_use' : 'listen_failed'
       try {
         server.close()
       } catch {

@@ -1,6 +1,7 @@
 // Web 搜索服务：通过 Bing RSS 实现网页搜索，无 API Key 依赖；
 // 提供配置归一化、结果解析与可用性测试。
 import { readJson } from '../storage/json-file.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 export const DEFAULT_WEB_SEARCH_CONFIG = Object.freeze({
   provider: 'bing',
@@ -88,15 +89,15 @@ export function parseBingRssResults(xml, limit = 8) {
 }
 
 function resultText(query, results) {
-  if (!results.length) return `Bing 没有找到“${query}”的结果。`
+  if (!results.length) return `No Bing results for "${query}".`
   return [
-    `Bing 搜索结果：${query}`,
+    `Bing results: ${query}`,
     ...results.map((result, index) =>
       [
         `${index + 1}. ${result.title}`,
         result.url,
-        result.snippet || '无摘要',
-        result.publishedAt ? `发布时间：${result.publishedAt}` : '',
+        result.snippet || '(no snippet)',
+        result.publishedAt ? `Published: ${result.publishedAt}` : '',
       ]
         .filter(Boolean)
         .join('\n'),
@@ -120,7 +121,7 @@ export class WebSearchService {
     const query = String(input?.query || '')
       .trim()
       .slice(0, 500)
-    if (!query) throw new Error('搜索关键词不能为空。')
+    if (!query) throw pisperError('invalid', 'search', 'query is required')
     const limit = boundedInteger(input.limit, settings.maxResults, 1, 12)
     const page = boundedInteger(input.page, 1, 1, 20)
     const endpoint = new URL(BING_RSS_URL)
@@ -149,16 +150,22 @@ export class WebSearchService {
     } catch (error) {
       if (signal?.aborted) throw error
       if (error?.name === 'TimeoutError' || error?.name === 'AbortError')
-        throw new Error('Bing 搜索请求超时，请检查网络后重试。')
-      throw new Error(`无法连接 Bing：${error instanceof Error ? error.message : String(error)}`)
+        throw pisperError('timeout', 'search')
+      throw pisperError(
+        'unavailable',
+        'search',
+        `cannot reach Bing: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
 
     const body = await response.text()
     if (!response.ok)
-      throw new Error(
-        `Bing 搜索失败（HTTP ${response.status}）：${plainText(body, 300) || '无响应内容'}`,
+      throw pisperError(
+        'failed',
+        'search',
+        `Bing HTTP ${response.status}${plainText(body, 300) ? `: ${plainText(body, 300)}` : ''}`,
       )
-    if (!/<rss\b/i.test(body)) throw new Error('Bing 没有返回可解析的 RSS 搜索结果，请稍后重试。')
+    if (!/<rss\b/i.test(body)) throw pisperError('failed', 'search', 'Bing returned no RSS results')
     const results = parseBingRssResults(body, limit)
     return {
       query,

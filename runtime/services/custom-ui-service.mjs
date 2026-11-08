@@ -997,7 +997,10 @@ export class CustomUiService {
         if (session && session.archived !== true)
           return { sessionId: bound, created: false, command: '/skill:pisper-component' }
       }
-      const created = await createSession(`生成组件 · ${inspected.row.name}`, this.componentDir(id))
+      const created = await createSession(
+        `Build component · ${inspected.row.name}`,
+        this.componentDir(id),
+      )
       if (!created || typeof created.id !== 'string' || !created.id)
         throw new Error('component session was not created')
       await this.state.update(id, { boundSessionId: created.id })
@@ -1119,7 +1122,8 @@ export class CustomUiService {
       if (inspected.row.kind !== 'native') throw new CustomUiError('component_invalid', 409)
       const { n, tree } = await this.requireSnapshot(id, rawN)
       const written = await this.replaceComponentTree(id, tree, {
-        summary: `回滚到 v${n}`,
+        // 界面已按 source 显示“回滚”，summary 只放语言无关的版本号。
+        summary: `v${n}`,
         source: 'restore',
       })
       return { component: written?.row ?? null, restored: n, ...(await this.listVersions(id)) }
@@ -1282,7 +1286,8 @@ export class CustomUiService {
         throw new CustomUiError('component_id_taken_by_legacy', 409)
       if (existing) {
         await this.replaceComponentTree(meta.id, tree, {
-          summary: `导入 ${meta.fileName}`.slice(0, 200),
+          // 界面已按 source 显示“导入”，summary 只放文件名。
+          summary: String(meta.fileName).slice(0, 200),
           source: 'import',
         })
       } else {

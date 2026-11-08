@@ -4,7 +4,7 @@ import { WorkflowInputError } from '../../../shared/workflow-inputs.mjs'
 /** @param {MediaContext} context @param {unknown} failure */
 function respondError(context, failure) {
   context.json(failure instanceof WorkflowInputError ? failure.statusCode : 400, {
-    error: '工作流素材上传或读取失败。',
+    error: 'Workflow media upload or read failed.',
     code: failure instanceof WorkflowInputError ? failure.code : 'workflow_media_invalid',
   })
 }

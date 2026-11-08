@@ -15,7 +15,11 @@ import { writeJsonAtomic } from '../storage/json-file.mjs'
 
 /** @param {string} code @param {number} [statusCode] */
 function failure(code, statusCode = 400) {
-  return new SpriteEngineError(code, '本地图片引擎资源不可用，请重试。', statusCode)
+  return new SpriteEngineError(
+    code,
+    'Local image engine files are unavailable; try again.',
+    statusCode,
+  )
 }
 /** @param {unknown} error */
 function missing(error) {

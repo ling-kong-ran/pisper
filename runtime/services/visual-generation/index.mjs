@@ -4,6 +4,7 @@ import { runVisualDriver } from './driver-registry.mjs'
 import { VisualModelCatalog } from './model-selection.mjs'
 import { saveVisualOutput } from './output.mjs'
 import { loadMaskImage, loadSourceImages } from './source-images.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export { inferModelKind } from './model-selection.mjs'
 
@@ -32,8 +33,10 @@ function canFallbackFrom(error, signal, nextModel, currentModel) {
 }
 
 function noModelsError(kind) {
-  return new Error(
-    `没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`,
+  return pisperError(
+    'unavailable',
+    'model',
+    `no ${kind} generation model is set up and enabled; add one in Settings`,
   )
 }
 
@@ -68,7 +71,8 @@ export class VisualGenerationService {
   }
 
   async getModelStatus(kind) {
-    if (!['image', 'video'].includes(kind)) throw new Error('视觉模型类型不受支持。')
+    if (!['image', 'video'].includes(kind))
+      throw pisperError('unsupported', 'model', 'kind must be image or video')
     return this.models.status(kind)
   }
 
@@ -91,7 +95,7 @@ export class VisualGenerationService {
   async generate(request, options = {}) {
     const kind = request.kind === 'video' ? 'video' : 'image'
     if (kind === 'video' && (request.sourceImages?.length || request.maskPath))
-      throw new Error('视频生成暂不支持图片编辑参数。')
+      throw pisperError('unsupported', 'input', 'source images and masks are for images only')
     const requestedModel = String(request.model || '').trim()
     const models = requestedModel
       ? [await this.models.select(kind, requestedModel)]
@@ -113,7 +117,7 @@ export class VisualGenerationService {
         maskImage,
       })
       options.onProgress?.(
-        `使用 ${model.providerName} / ${model.name} ${operation === 'edit' ? '编辑图片' : `生成${kind === 'video' ? '视频' : '图片'}`}…`,
+        `${operation === 'edit' ? 'Editing image' : `Generating ${kind}`} with ${model.providerName} / ${model.name}…`,
       )
       try {
         const result = await runVisualDriver(model, normalizedRequest, options)
@@ -147,7 +151,7 @@ export class VisualGenerationService {
         )
           throw error
         options.onProgress?.(
-          `${model.providerName} / ${model.name} 当前不可用，尝试 ${nextModel.providerName} / ${nextModel.name}…`,
+          `${model.providerName} / ${model.name} is unavailable; trying ${nextModel.providerName} / ${nextModel.name}…`,
         )
       }
     }

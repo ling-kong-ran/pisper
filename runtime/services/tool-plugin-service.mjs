@@ -30,6 +30,7 @@ import {
   toolsFromConfig,
 } from '../tools/registry.mjs'
 import { normalizeWebSearchConfig } from './web-search-service.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 const STATE_VERSION = 1
 const MANIFEST_FILE = 'pisper-plugin.json'
@@ -45,6 +46,8 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 const ALLOWED_ENTRY_EXTENSIONS = new Set(['.js', '.mjs', '.cjs'])
 const WORKER_URL = new URL('../plugins/local-plugin-worker.mjs', import.meta.url)
 const TOOL_IDS = new Set(TOOL_CATALOG.map((tool) => tool.id))
+// 内置工具分组没有自己的说明，界面只显示分组名。
+const BUILTIN_GROUP_DESCRIPTION = ''
 
 function defaultState() {
   return { version: STATE_VERSION, plugins: {} }
@@ -69,7 +72,7 @@ function normalizeRelativePath(value, field) {
     normalized.startsWith('../') ||
     normalized.includes('/../')
   ) {
-    throw new Error(`${field} 必须是插件目录内的相对路径。`)
+    throw pisperError('invalid', 'path', `${field} must be relative inside the plugin folder`)
   }
   return normalized
 }
@@ -81,41 +84,43 @@ function isPathInside(root, candidate) {
 
 function normalizeTool(tool, index) {
   if (!tool || typeof tool !== 'object' || Array.isArray(tool)) {
-    throw new Error(`tools[${index}] 必须是对象。`)
+    throw pisperError('invalid', 'plugin', `tools[${index}] must be an object`)
   }
   const name = String(tool.name || '').trim()
   if (!TOOL_NAME_PATTERN.test(name)) {
-    throw new Error(
-      `工具名称 ${name || `(index ${index})`} 无效；必须以小写字母开头，且只能包含小写字母、数字和下划线。`,
+    throw pisperError(
+      'invalid',
+      'tool',
+      `${name || `tools[${index}]`}: name is a lowercase letter then lowercase letters, digits or underscores`,
     )
   }
   const label = String(tool.label || name).trim()
   const description = String(tool.description || '').trim()
-  if (!description) throw new Error(`工具 ${name} 缺少 description。`)
+  if (!description) throw pisperError('invalid', 'tool', `${name}: description is required`)
   const parameters =
     tool.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
       ? tool.parameters
       : { type: 'object', properties: {} }
   if (parameters.type !== 'object') {
-    throw new Error(`工具 ${name} 的 parameters.type 必须为 object。`)
+    throw pisperError('invalid', 'tool', `${name}: parameters.type must be object`)
   }
   if (
     parameters.properties != null &&
     (typeof parameters.properties !== 'object' || Array.isArray(parameters.properties))
   ) {
-    throw new Error(`工具 ${name} 的 parameters.properties 必须为对象。`)
+    throw pisperError('invalid', 'tool', `${name}: parameters.properties must be an object`)
   }
   if (
     parameters.required != null &&
     (!Array.isArray(parameters.required) ||
       parameters.required.some((property) => typeof property !== 'string'))
   ) {
-    throw new Error(`工具 ${name} 的 parameters.required 必须为字符串数组。`)
+    throw pisperError('invalid', 'tool', `${name}: parameters.required must be a string array`)
   }
   try {
     Compile(Type.Unsafe(parameters))
   } catch {
-    throw new Error(`工具 ${name} 的 parameters 不是有效的 JSON Schema。`)
+    throw pisperError('invalid', 'tool', `${name}: parameters is not a valid JSON Schema`)
   }
   return {
     name,
@@ -130,24 +135,26 @@ function normalizeTool(tool, index) {
 
 function normalizeManifest(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    throw new Error('插件清单必须是 JSON 对象。')
+    throw pisperError('invalid', 'plugin', 'manifest must be a JSON object')
   const schemaVersion = Number(raw.schemaVersion || 1)
-  if (schemaVersion !== 1) throw new Error(`不支持插件清单版本 ${schemaVersion}。`)
+  if (schemaVersion !== 1)
+    throw pisperError('unsupported', 'plugin', `manifest schemaVersion ${schemaVersion}`)
   const id = String(raw.id || '').trim()
   if (!PLUGIN_ID_PATTERN.test(id))
-    throw new Error('插件 id 必须为 1-96 位小写字母、数字、点或连字符。')
+    throw pisperError('invalid', 'plugin', 'id is 1-96 lowercase letters, digits, dots or hyphens')
   const name = String(raw.name || '').trim()
-  if (!name || name.length > 100) throw new Error('插件 name 必须为 1-100 个字符。')
+  if (!name || name.length > 100) throw pisperError('invalid', 'plugin', 'name is 1-100 characters')
   const version = String(raw.version || '').trim()
   if (!VERSION_PATTERN.test(version))
-    throw new Error('插件 version 必须是有效的语义版本，例如 1.0.0。')
+    throw pisperError('invalid', 'plugin', 'version must be semver, e.g. 1.0.0')
   const entry = normalizeRelativePath(raw.entry, 'entry')
   if (!ALLOWED_ENTRY_EXTENSIONS.has(extname(entry).toLowerCase()))
-    throw new Error('插件 entry 仅支持 .js、.mjs 或 .cjs 文件。')
+    throw pisperError('invalid', 'plugin', 'entry must be a .js, .mjs or .cjs file')
   const tools = (Array.isArray(raw.tools) ? raw.tools : []).map(normalizeTool)
-  if (tools.length === 0 || tools.length > 32) throw new Error('插件必须声明 1-32 个工具。')
+  if (tools.length === 0 || tools.length > 32)
+    throw pisperError('invalid', 'plugin', 'declare 1-32 tools')
   if (new Set(tools.map((tool) => tool.name)).size !== tools.length)
-    throw new Error('插件工具名称不能重复。')
+    throw pisperError('invalid', 'plugin', 'tool names must be unique')
   return {
     schemaVersion,
     id,
@@ -168,12 +175,14 @@ async function readManifest(root) {
     const manifestPath = join(root, MANIFEST_FILE)
     const info = await lstat(manifestPath)
     if (info.isSymbolicLink() || !info.isFile())
-      throw new Error(`${MANIFEST_FILE} 必须是普通文件。`)
-    if (info.size > MAX_MANIFEST_BYTES) throw new Error(`${MANIFEST_FILE} 超过 256 KB 限制。`)
+      throw pisperError('invalid', 'plugin', `${MANIFEST_FILE} must be a regular file`)
+    if (info.size > MAX_MANIFEST_BYTES)
+      throw pisperError('too_large', 'plugin', `${MANIFEST_FILE} max 256 KB`)
     raw = JSON.parse(await readFile(manifestPath, 'utf8'))
   } catch (error) {
-    if (error?.code === 'ENOENT') throw new Error(`目录中缺少 ${MANIFEST_FILE}。`)
-    if (error instanceof SyntaxError) throw new Error(`${MANIFEST_FILE} 不是有效的 JSON。`)
+    if (error?.code === 'ENOENT') throw pisperError('not_found', 'file', MANIFEST_FILE)
+    if (error instanceof SyntaxError)
+      throw pisperError('invalid', 'plugin', `${MANIFEST_FILE} is not valid JSON`)
     throw error
   }
   return normalizeManifest(raw)
@@ -190,17 +199,20 @@ async function scanDirectory(root) {
     for (const entry of entries) {
       const absolutePath = join(directory, entry.name)
       const relativePath = relative(root, absolutePath).split(sep).join('/')
-      if (entry.isSymbolicLink()) throw new Error(`插件目录不能包含符号链接：${relativePath}`)
+      if (entry.isSymbolicLink())
+        throw pisperError('forbidden', 'plugin', `symbolic link: ${relativePath}`)
       if (entry.isDirectory()) {
         await visit(absolutePath)
         continue
       }
-      if (!entry.isFile()) throw new Error(`插件目录包含不支持的文件类型：${relativePath}`)
+      if (!entry.isFile())
+        throw pisperError('unsupported', 'plugin', `special file: ${relativePath}`)
       const info = await stat(absolutePath)
       fileCount += 1
       byteCount += info.size
-      if (fileCount > MAX_PLUGIN_FILES) throw new Error(`插件文件数不能超过 ${MAX_PLUGIN_FILES}。`)
-      if (byteCount > MAX_PLUGIN_BYTES) throw new Error('插件目录大小不能超过 20 MB。')
+      if (fileCount > MAX_PLUGIN_FILES)
+        throw pisperError('too_large', 'plugin', `max ${MAX_PLUGIN_FILES} files`)
+      if (byteCount > MAX_PLUGIN_BYTES) throw pisperError('too_large', 'plugin', 'max 20 MB')
       hash.update(relativePath)
       hash.update('\0')
       hash.update(await readFile(absolutePath))
@@ -228,7 +240,7 @@ function builtInPlugins(tools, enabledSet) {
   return [...groups.entries()].map(([category, capabilities]) => ({
     id: `builtin.${category}`,
     name: category,
-    description: '',
+    description: BUILTIN_GROUP_DESCRIPTION,
     version: 'builtin',
     source: 'builtin',
     builtIn: true,
@@ -277,10 +289,10 @@ function normalizeToolResult(result) {
   try {
     serialized = JSON.stringify(normalized)
   } catch {
-    throw new Error('插件返回了无法序列化的结果。')
+    throw pisperError('invalid', 'plugin', 'result is not serializable')
   }
   if (Buffer.byteLength(serialized, 'utf8') > MAX_RESULT_BYTES)
-    throw new Error('插件返回结果超过 1 MB 限制。')
+    throw pisperError('too_large', 'plugin', 'result max 1 MB')
   return normalized
 }
 
@@ -305,7 +317,7 @@ export class ToolPluginService {
     await mkdir(this.pluginRoot, { recursive: true })
     const pluginRootInfo = await lstat(this.pluginRoot)
     if (pluginRootInfo.isSymbolicLink() || !pluginRootInfo.isDirectory()) {
-      throw new Error('插件安装根目录必须是普通目录。')
+      throw pisperError('invalid', 'folder', 'plugin root must be a regular folder')
     }
     try {
       const parsed = JSON.parse(await readFile(this.statePath, 'utf8'))
@@ -349,12 +361,12 @@ export class ToolPluginService {
     for (const [id, record] of Object.entries(this.state.plugins)) {
       try {
         if (!PLUGIN_ID_PATTERN.test(id) || !record || typeof record !== 'object') {
-          throw new Error('插件安装记录无效。')
+          throw pisperError('invalid', 'plugin', 'invalid install record')
         }
         const root = join(this.pluginRoot, id, String(record.version || ''))
         const manifest = await readManifest(root)
         if (manifest.id !== id || manifest.version !== record.version)
-          throw new Error('插件清单与安装记录不一致。')
+          throw pisperError('invalid', 'plugin', 'manifest does not match install record')
         this.installed.set(id, { root, manifest, record })
       } catch (error) {
         console.warn(`[plugins] failed to load ${id}:`, error)
@@ -368,13 +380,14 @@ export class ToolPluginService {
 
   #validateToolConflicts(manifest, ignoredPluginId = '') {
     for (const tool of manifest.tools) {
-      if (TOOL_IDS.has(tool.name)) throw new Error(`工具名称 ${tool.name} 与内置工具冲突。`)
+      if (TOOL_IDS.has(tool.name))
+        throw pisperError('exists', 'tool', `${tool.name} is a built-in tool`)
       for (const [pluginId, installed] of this.installed) {
         if (
           pluginId !== ignoredPluginId &&
           installed.manifest.tools.some((candidate) => candidate.name === tool.name)
         ) {
-          throw new Error(`工具名称 ${tool.name} 已由插件 ${pluginId} 提供。`)
+          throw pisperError('exists', 'tool', `${tool.name} is provided by plugin ${pluginId}`)
         }
       }
     }
@@ -383,19 +396,19 @@ export class ToolPluginService {
   // 检查插件包：解析清单/入口/能力，生成可安装的检查结果。
   async inspect(sourcePath) {
     const requestedPath = String(sourcePath || '').trim()
-    if (!requestedPath) throw new Error('请选择插件目录。')
+    if (!requestedPath) throw pisperError('invalid', 'folder', 'choose a plugin folder')
     const requestedRoot = resolve(requestedPath)
     const requestedInfo = await lstat(requestedRoot)
     if (requestedInfo.isSymbolicLink() || !requestedInfo.isDirectory()) {
-      throw new Error('插件来源必须是不含符号链接的目录。')
+      throw pisperError('invalid', 'folder', 'plugin source must be a folder, not a link')
     }
     const sourceRoot = await realpath(requestedRoot)
     const manifest = await readManifest(sourceRoot)
     const entryPath = await realpath(join(sourceRoot, manifest.entry))
     if (!isPathInside(sourceRoot, entryPath) || !(await stat(entryPath)).isFile())
-      throw new Error('插件 entry 必须指向目录内的普通文件。')
+      throw pisperError('invalid', 'plugin', 'entry must be a regular file inside the folder')
     if (this.installed.has(manifest.id) || this.state.plugins[manifest.id])
-      throw new Error(`插件 ${manifest.id} 已安装；当前版本不支持覆盖安装。`)
+      throw pisperError('exists', 'plugin', manifest.id)
     this.#validateToolConflicts(manifest)
     const scan = await scanDirectory(sourceRoot)
     const inspectionId = randomUUID()
@@ -415,8 +428,8 @@ export class ToolPluginService {
       byteCount: scan.byteCount,
       digest: scan.digest,
       warnings: [
-        '插件代码将在独立 Worker 中运行，但仍拥有当前系统用户可访问的本机文件和网络权限。',
-        '第三方插件工具在所有执行模式下可用；除“完全访问”外，每次调用前都需要确认。',
+        'Plugin code runs in a separate worker but can still reach local files and the network as the current user.',
+        'Third-party plugin tools are available in every execution mode; outside Full access each call needs confirmation.',
       ],
     }
   }
@@ -425,17 +438,17 @@ export class ToolPluginService {
   async install(inspectionId) {
     const inspection = this.inspections.get(String(inspectionId || ''))
     if (!inspection || inspection.expiresAt < Date.now())
-      throw new Error('插件检查结果已过期，请重新检查目录。')
+      throw pisperError('invalid', 'plugin', 'inspection expired; inspect the folder again')
     const { sourceRoot, manifest, scan } = inspection
     if (this.installed.has(manifest.id) || this.state.plugins[manifest.id])
-      throw new Error(`插件 ${manifest.id} 已安装。`)
+      throw pisperError('exists', 'plugin', manifest.id)
     this.#validateToolConflicts(manifest)
-    if (this.changingPlugins.has(manifest.id)) throw new Error('插件正在变更，请稍后重试。')
+    if (this.changingPlugins.has(manifest.id)) throw pisperError('busy', 'plugin')
     this.changingPlugins.add(manifest.id)
     try {
       const currentScan = await scanDirectory(sourceRoot)
       if (currentScan.digest !== scan.digest)
-        throw new Error('插件目录在检查后发生了变化，请重新检查。')
+        throw pisperError('invalid', 'plugin', 'folder changed after inspection; inspect it again')
 
       const pluginDirectory = join(this.pluginRoot, manifest.id)
       const destination = join(pluginDirectory, manifest.version)
@@ -443,21 +456,21 @@ export class ToolPluginService {
       await mkdir(pluginDirectory, { recursive: true })
       const pluginDirectoryInfo = await lstat(pluginDirectory)
       if (pluginDirectoryInfo.isSymbolicLink() || !pluginDirectoryInfo.isDirectory()) {
-        throw new Error('插件安装目录必须是普通目录。')
+        throw pisperError('invalid', 'folder', 'plugin folder must be a regular folder')
       }
       try {
         await open(destination, 'wx')
           .then((handle) => handle.close())
           .catch((error) => {
             if (error?.code === 'EISDIR' || error?.code === 'EEXIST')
-              throw new Error(`插件 ${manifest.id}@${manifest.version} 已存在。`)
+              throw pisperError('exists', 'plugin', `${manifest.id}@${manifest.version}`)
             throw error
           })
         await rm(destination, { force: true })
         await cp(sourceRoot, stage, { recursive: true, errorOnExist: true, force: false })
         const copiedScan = await scanDirectory(stage)
         if (copiedScan.digest !== scan.digest)
-          throw new Error('插件目录在复制期间发生了变化，请重新检查。')
+          throw pisperError('invalid', 'plugin', 'folder changed while copying; inspect it again')
         await rename(stage, destination)
         const record = {
           version: manifest.version,
@@ -493,7 +506,7 @@ export class ToolPluginService {
 
   async #createValidatedPlugin(input) {
     const entryCode = String(input.entryCode || '')
-    if (!entryCode.trim()) throw new Error('插件入口代码不能为空。')
+    if (!entryCode.trim()) throw pisperError('invalid', 'plugin', 'entryCode is required')
     const manifest = normalizeManifest({
       schemaVersion: 1,
       id: input.id,
@@ -505,20 +518,20 @@ export class ToolPluginService {
       tools: input.tools,
     })
     if (this.installed.has(manifest.id) || this.state.plugins[manifest.id]) {
-      throw new Error(`插件 ${manifest.id} 已安装，不能覆盖。`)
+      throw pisperError('exists', 'plugin', manifest.id)
     }
 
     const extraFiles = Array.isArray(input.files) ? input.files : []
-    if (extraFiles.length > 64) throw new Error('插件附加文件不能超过 64 个。')
+    if (extraFiles.length > 64) throw pisperError('limit', 'file', 'max 64 extra files')
     const normalizedFiles = []
     const seenPaths = new Set([MANIFEST_FILE, manifest.entry])
     for (const [index, file] of extraFiles.entries()) {
       if (!file || typeof file !== 'object' || Array.isArray(file)) {
-        throw new Error(`files[${index}] 必须是对象。`)
+        throw pisperError('invalid', 'file', `files[${index}] must be an object`)
       }
       const path = normalizeRelativePath(file.path, `files[${index}].path`).replace(/^\.\//, '')
       if (path === '.' || path.endsWith('/') || seenPaths.has(path)) {
-        throw new Error(`插件附加文件路径重复或无效：${path}`)
+        throw pisperError('invalid', 'path', `duplicate or invalid: ${path}`)
       }
       const content = String(file.content ?? '')
       seenPaths.add(path)
@@ -535,7 +548,7 @@ export class ToolPluginService {
       (total, file) => total + Buffer.byteLength(file.content, 'utf8'),
       0,
     )
-    if (generatedBytes > MAX_PLUGIN_BYTES) throw new Error('插件生成内容不能超过 20 MB。')
+    if (generatedBytes > MAX_PLUGIN_BYTES) throw pisperError('too_large', 'plugin', 'max 20 MB')
 
     const canonicalDataDir = await realpath(this.dataDir)
     const sourceRoot = join(canonicalDataDir, 'plugin-sources')
@@ -544,11 +557,15 @@ export class ToolPluginService {
     })
     const sourceRootInfo = await lstat(sourceRoot)
     if (sourceRootInfo.isSymbolicLink() || !sourceRootInfo.isDirectory()) {
-      throw new Error('全局插件源码目录必须是普通目录，不能使用符号链接。')
+      throw pisperError('invalid', 'folder', 'plugin sources folder must be a regular folder')
     }
     const canonicalSourceRoot = await realpath(sourceRoot)
     if (!isPathInside(canonicalDataDir, canonicalSourceRoot)) {
-      throw new Error('全局插件源码目录不能指向 Pisper Agent 目录之外。')
+      throw pisperError(
+        'forbidden',
+        'folder',
+        'plugin sources folder links outside the data folder',
+      )
     }
 
     const destination = join(canonicalSourceRoot, manifest.id)
@@ -556,7 +573,7 @@ export class ToolPluginService {
       await mkdir(destination)
     } catch (error) {
       if (error?.code === 'EEXIST')
-        throw new Error(`插件源码目录 ${destination} 已存在，不能覆盖。`)
+        throw pisperError('exists', 'folder', `plugin-sources/${manifest.id}`)
       throw error
     }
 
@@ -728,7 +745,7 @@ export class ToolPluginService {
   async setPluginEnabled(pluginId, enabled) {
     const current = await this.getState()
     const plugin = current.plugins.find((candidate) => candidate.id === pluginId)
-    if (!plugin) throw new Error(`插件 ${pluginId} 不存在。`)
+    if (!plugin) throw pisperError('not_found', 'plugin', pluginId)
     const capabilityNames = new Set(plugin.capabilities.map((capability) => capability.name))
     const enabledTools = enabled
       ? [...new Set([...current.enabledTools, ...capabilityNames])]
@@ -740,7 +757,7 @@ export class ToolPluginService {
     const current = await this.getState()
     const plugin = current.plugins.find((candidate) => candidate.id === pluginId)
     if (!plugin?.capabilities.some((capability) => capability.name === toolName))
-      throw new Error(`插件 ${pluginId} 不提供能力 ${toolName}。`)
+      throw pisperError('not_found', 'tool', `${pluginId} has no ${toolName}`)
     const enabledTools = enabled
       ? [...new Set([...current.enabledTools, toolName])]
       : current.enabledTools.filter((name) => name !== toolName)
@@ -749,15 +766,14 @@ export class ToolPluginService {
 
   async uninstall(pluginId) {
     const installed = this.installed.get(pluginId)
-    if (!installed) throw new Error(`本地插件 ${pluginId} 不存在。`)
-    if (this.changingPlugins.has(pluginId)) throw new Error('插件正在变更，请稍后重试。')
+    if (!installed) throw pisperError('not_found', 'plugin', pluginId)
+    if (this.changingPlugins.has(pluginId)) throw pisperError('busy', 'plugin')
     this.changingPlugins.add(pluginId)
     const pluginDirectory = join(this.pluginRoot, pluginId)
     const quarantine = join(this.pluginRoot, `.uninstall-${pluginId}-${randomUUID()}`)
     let quarantined = false
     try {
-      if ((this.activeExecutions.get(pluginId) || 0) > 0)
-        throw new Error('插件正在执行，暂时无法卸载。')
+      if ((this.activeExecutions.get(pluginId) || 0) > 0) throw pisperError('busy', 'plugin')
       await rename(pluginDirectory, quarantine)
       quarantined = true
       const previousRecord = this.state.plugins[pluginId]
@@ -838,8 +854,8 @@ export class ToolPluginService {
   }
 
   async #execute(pluginId, installed, toolName, arguments_, context) {
-    if (this.disposed) throw new Error('插件服务已停止。')
-    if (this.changingPlugins.has(pluginId)) throw new Error('插件正在变更，请稍后重试。')
+    if (this.disposed) throw pisperError('unavailable', 'plugin', 'plugin service stopped')
+    if (this.changingPlugins.has(pluginId)) throw pisperError('busy', 'plugin')
     this.activeExecutions.set(pluginId, (this.activeExecutions.get(pluginId) || 0) + 1)
     let worker
     try {
@@ -872,20 +888,26 @@ export class ToolPluginService {
         }
         const abort = () => {
           void worker.terminate()
-          finish(rejectResult, new Error('插件执行已取消。'))
+          finish(rejectResult, pisperError('cancelled', 'plugin'))
         }
         const timer = setTimeout(() => {
           void worker.terminate()
-          finish(rejectResult, new Error('插件执行超过 120 秒，已终止。'))
+          finish(rejectResult, pisperError('timeout', 'plugin', 'max 120 seconds'))
         }, EXECUTION_TIMEOUT_MS)
         worker.on('message', (message) => {
           if (message?.type === 'result') finish(resolveResult, normalizeToolResult(message.result))
           else if (message?.type === 'error')
-            finish(rejectResult, new Error(message.error?.message || '插件执行失败。'))
+            finish(
+              rejectResult,
+              message.error?.message
+                ? new Error(message.error.message)
+                : pisperError('failed', 'plugin'),
+            )
         })
         worker.on('error', (error) => finish(rejectResult, error))
         worker.on('exit', (code) => {
-          if (code !== 0) finish(rejectResult, new Error(`插件 Worker 异常退出（code ${code}）。`))
+          if (code !== 0)
+            finish(rejectResult, pisperError('failed', 'plugin', `worker exited with code ${code}`))
         })
         if (context.signal?.aborted) abort()
         else context.signal?.addEventListener('abort', abort, { once: true })

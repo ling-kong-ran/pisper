@@ -1,6 +1,7 @@
 // MCP 管理工具：mcp_list（只读）+ mcp_manage（增删改/测试/启停）。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { MCP_LIST, MCP_MANAGE } from '../../prompts/tools/mcp-management.mjs'
 
 export const manifests = [
   {
@@ -8,7 +9,7 @@ export const manifests = [
     name: 'MCP List',
     category: 'mcp',
     risk: 'low',
-    description: 'Read configured MCP services, connection status, and available tools.',
+    description: MCP_LIST.description,
     scope: 'Application-level MCP configuration',
     capability: 'Read redacted MCP service information without changing configuration',
     source: 'app',
@@ -18,8 +19,7 @@ export const manifests = [
     name: 'MCP Manage',
     category: 'mcp',
     risk: 'high',
-    description:
-      'Manage MCP services with structured parameters. To add a service, use action="add" and put the complete connection in config: stdio requires name, transport="stdio", and command; http or sse requires name, transport, and url.',
+    description: MCP_MANAGE.description,
     scope: 'Application-level MCP configuration',
     capability:
       'Modify MCP service configuration without exposing sensitive headers or environment values',
@@ -101,15 +101,10 @@ export function createMcpListTool({ mcpRuntime }) {
     name: manifests[0].id,
     label: manifests[0].name,
     description: manifests[0].description,
-    promptSnippet: 'List configured MCP services and their current tool availability',
-    promptGuidelines: [
-      'Use mcp_list before changing an existing MCP service so you have its exact service ID and current transport.',
-      'The result is already credential-safe; never try to read MCP credential files directly.',
-    ],
+    promptSnippet: MCP_LIST.snippet,
+    promptGuidelines: MCP_LIST.guidelines,
     parameters: Type.Object({
-      refresh: Type.Optional(
-        Type.Boolean({ description: 'Reconnect and refresh tool discovery before returning.' }),
-      ),
+      refresh: Type.Optional(Type.Boolean({ description: MCP_LIST.params.refresh })),
     }),
     async execute(_toolCallId, params) {
       return resultContent(
@@ -124,15 +119,8 @@ export function createMcpManageTool({ mcpRuntime }) {
     name: manifests[1].id,
     label: manifests[1].name,
     description: manifests[1].description,
-    promptSnippet:
-      'Manage MCP services with typed fields instead of shell commands or local HTTP requests',
-    promptGuidelines: [
-      'Always use mcp_manage for MCP configuration. Never call the application MCP API through bash, PowerShell, curl, fetch, or an inline script.',
-      'To add a stdio server, call { action: "add", config: { name, transport: "stdio", command, args?, cwd?, env? } }. To add a remote server, call { action: "add", config: { name, transport: "http" or "sse", url, headers? } }.',
-      'Use Windows paths exactly as ordinary strings in the command or cwd field; do not add JavaScript, JSON, or shell escaping beyond the structured argument encoding.',
-      'Call mcp_list first when updating, deleting, testing, or toggling an existing service.',
-      'Do not read credential files. Put credentials only in the structured env or headers object supplied by the user or an approved onboarding flow.',
-    ],
+    promptSnippet: MCP_MANAGE.snippet,
+    promptGuidelines: MCP_MANAGE.guidelines,
     parameters: Type.Union([
       Type.Object({
         action: Type.Literal('add'),

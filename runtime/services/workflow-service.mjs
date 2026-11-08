@@ -3,6 +3,12 @@
 // 通知（浏览器/飞书/微信/QQ/Telegram）与运行记录。
 import { createHash, randomUUID } from 'node:crypto'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { pisperError } from '../../shared/errors.mjs'
+import {
+  WORKFLOW_NODE_SUMMARY,
+  workflowApprovalQuestion,
+  workflowNodeInstruction,
+} from '../prompts/workflows.mjs'
 import {
   analyzeWorkflowGraph,
   createLinearWorkflowEdges,
@@ -110,7 +116,7 @@ function normalizeNode(node, index) {
   return {
     id: String(node?.id || randomUUID()),
     kind,
-    label: boundedString(node?.label || `步骤 ${index + 1}`, 120),
+    label: boundedString(node?.label || `Step ${index + 1}`, 120),
     prompt: boundedString(node?.prompt, 100_000),
     x: Math.max(0, Math.min(4000, Number(node?.x) || 0)),
     y: Math.max(0, Math.min(4000, Number(node?.y) || 0)),
@@ -160,7 +166,7 @@ function normalizeStoredWorkflow(workflow, cwd) {
     : createLinearWorkflowEdges(nodes, () => randomUUID())
   return {
     id: String(workflow?.id || randomUUID()),
-    name: boundedString(workflow?.name || '未命名工作流', 120),
+    name: boundedString(workflow?.name || 'Untitled workflow', 120),
     description: boundedString(workflow?.description, 600),
     status: workflow?.status === 'published' ? 'published' : 'draft',
     revision: Math.max(1, Number(workflow?.revision) || 1),
@@ -184,10 +190,11 @@ function normalizeStoredWorkflow(workflow, cwd) {
   }
 }
 
+// 通知模板里的耗时：用不分语言的 45s / 3m 12s，聊天软件里的中文模板与英文都看得懂。
 function durationLabel(durationMs) {
   const seconds = Math.max(0, Math.round(durationMs / 1000))
-  if (seconds < 60) return `${seconds} 秒`
-  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
 function serializeValue(value) {
@@ -214,37 +221,17 @@ function workflowTemplateContext(workflow, run, previousOutputs) {
 function nodeInstruction(workflow, node, previousOutputs, run, mediaContext = '') {
   const inputs = run.inputs
   const context = workflowTemplateContext(workflow, run, previousOutputs)
-  const kindHints = {
-    prompt: '完成这个 Agent 任务。',
-    skill: node.skillName
-      ? `必须使用 Skill「${node.skillName}」完成任务。`
-      : '使用最合适的已启用 Skill 完成任务。',
-    file: '使用可用的文件工具完成这个文件处理任务。',
-    mcp: node.requestedToolNames.length
-      ? `优先调用这些 MCP 工具：${node.requestedToolNames.join(', ')}。`
-      : '优先使用已启用的 MCP 工具完成这个任务。',
-  }
-  const outputHint =
-    node.outputFormat === 'json'
-      ? '\n只输出有效 JSON，不要使用 Markdown 代码块。'
-      : '\n完成后简洁总结结果，供后续节点继续使用。'
-  const instruction = [
-    `你正在执行工作流「${workflow.name}」的节点「${node.label}」。`,
-    kindHints[node.kind] || '',
-    renderWorkflowTemplate(node.prompt, context),
-    Object.keys(inputs).length ? `\n工作流输入：\n${serializeValue(inputs)}` : '',
+  const instruction = workflowNodeInstruction({
+    workflowName: workflow.name,
+    node,
+    prompt: renderWorkflowTemplate(node.prompt, context),
+    inputs: Object.keys(inputs).length ? serializeValue(inputs) : '',
     mediaContext,
-    previousOutputs.length
-      ? `\n前序节点结果：\n${previousOutputs
-          .map(
-            (item) => `${item.label}：${serializeValue(item.output ?? item.summary ?? item.error)}`,
-          )
-          .join('\n')}`
-      : '',
-    outputHint,
-  ]
-    .filter(Boolean)
-    .join('\n')
+    previous: previousOutputs.map((item) => ({
+      label: item.label,
+      text: serializeValue(item.output ?? item.summary ?? item.error),
+    })),
+  })
   return node.kind === 'skill' && node.skillName
     ? `/skill:${node.skillName}\n${instruction}`
     : instruction
@@ -257,21 +244,34 @@ function validateRunnable(workflow) {
     !executable.length &&
     !graph.nodes.some((node) => node.kind === 'condition' || isWorkflowImageNodeKind(node.kind))
   )
-    throw new Error('工作流至少需要一个可执行节点。')
+    throw pisperError('invalid', 'workflow', 'add at least one executable node')
   const invalid = executable.find(
     (node) => !node.prompt && !(node.kind === 'skill' && node.skillName),
   )
-  if (invalid) throw new Error(`节点「${invalid.label}」还没有填写 Prompt。`)
-  if (graph.nodes.length > 1 && !graph.edges.length) throw new Error('工作流节点尚未建立连接。')
+  if (invalid) throw pisperError('invalid', 'workflow', `node "${invalid.label}" has no prompt`)
+  if (graph.nodes.length > 1 && !graph.edges.length)
+    throw pisperError('invalid', 'workflow', 'nodes are not connected')
   if (graph.invalidTriggerTargets.length)
-    throw new Error(`触发器「${graph.invalidTriggerTargets[0].label}」不能连接上游节点。`)
+    throw pisperError(
+      'invalid',
+      'workflow',
+      `trigger "${graph.invalidTriggerTargets[0].label}" cannot have upstream nodes`,
+    )
   if (graph.unconnected.length)
-    throw new Error(`节点「${graph.unconnected[0].label}」尚未连接到工作流。`)
-  if (graph.hasCycle) throw new Error('工作流不能包含循环连接。')
+    throw pisperError(
+      'invalid',
+      'workflow',
+      `node "${graph.unconnected[0].label}" is not connected`,
+    )
+  if (graph.hasCycle) throw pisperError('invalid', 'workflow', 'connections form a cycle')
   for (const node of graph.nodes.filter((item) => item.kind === 'condition')) {
     const ports = new Set((graph.outgoing.get(node.id) || []).map((edge) => edge.sourcePort))
     if (!ports.has('true') || !ports.has('false'))
-      throw new Error(`判断节点「${node.label}」需要同时连接 true 和 false 分支。`)
+      throw pisperError(
+        'invalid',
+        'workflow',
+        `condition "${node.label}" needs both true and false branches`,
+      )
   }
   return graph
 }
@@ -318,12 +318,12 @@ function evaluateCondition(condition, context) {
 }
 
 function parseNodeOutput(text, format) {
-  const value = boundedString(text || '节点已完成。', 100_000)
+  const value = boundedString(text || WORKFLOW_NODE_SUMMARY.completed, 100_000)
   if (format !== 'json') return value
   try {
     return JSON.parse(value)
   } catch {
-    throw new Error('节点声明了 JSON 输出，但模型没有返回有效 JSON。')
+    throw pisperError('invalid', 'workflow', 'node expects JSON output but got invalid JSON')
   }
 }
 
@@ -396,7 +396,7 @@ export class WorkflowService {
               ...run,
               status: 'interrupted',
               finishedAt: new Date().toISOString(),
-              error: '应用重启，工作流运行已中断。',
+              error: WORKFLOW_NODE_SUMMARY.interruptedByRestart,
             }
           : run
       }),
@@ -438,7 +438,7 @@ export class WorkflowService {
     const merged = { ...current, ...input }
     merged.inputs = validateWorkflowInputDefinitions(merged.inputs)
     const name = String(merged.name || '').trim()
-    if (!name) throw new Error('工作流名称不能为空。')
+    if (!name) throw pisperError('invalid', 'workflow', 'name is required')
     if (Object.hasOwn(input || {}, 'cwd'))
       merged.cwd = await this.agent.validateDirectory(input.cwd)
     const workflow = normalizeStoredWorkflow(
@@ -480,7 +480,7 @@ export class WorkflowService {
       this.starting.has(id) ||
       [...this.active.values()].some((record) => record.workflowId === id)
     )
-      throw new Error('工作流正在运行，暂时不能修改。')
+      throw pisperError('busy', 'workflow')
     const current = this.state.workflows[index]
     const workflow = await this.normalizeInput(input, current)
     workflow.id = current.id
@@ -503,7 +503,7 @@ export class WorkflowService {
       ...clone(current),
       ...input,
       id: undefined,
-      name: boundedString(input.name || `${current.name} 副本`, 120),
+      name: boundedString(input.name || `${current.name} copy`, 120),
       status: 'draft',
       revision: 1,
       publishedAt: null,
@@ -538,7 +538,7 @@ export class WorkflowService {
 
   async importWorkflow(input) {
     if (input?.format !== 'pisper-workflow' || !input?.workflow)
-      throw new Error('不是有效的 Pisper 工作流文件。')
+      throw pisperError('invalid', 'file', 'not a Pisper workflow file')
     return this.create({ ...input.workflow, status: 'draft', visibility: 'private' })
   }
 
@@ -547,7 +547,7 @@ export class WorkflowService {
       this.starting.has(id) ||
       [...this.active.values()].some((record) => record.workflowId === id)
     )
-      throw new Error('工作流正在运行，暂时不能删除。')
+      throw pisperError('busy', 'workflow')
     const before = this.state.workflows.length
     this.state.workflows = this.state.workflows.filter((workflow) => workflow.id !== id)
     this.state.runs = this.state.runs.filter((run) => run.workflowId !== id)
@@ -559,9 +559,11 @@ export class WorkflowService {
   // 立即运行工作流：校验发布状态、构建图并排队执行。
   runNow(id, options = {}) {
     if (this.closed) return Promise.reject(cancelledError())
-    if (this.starting.has(id)) return Promise.reject(new Error('工作流已经在运行。'))
+    if (this.starting.has(id)) return Promise.reject(pisperError('busy', 'workflow'))
     if (this.active.size + this.starting.size >= this.maxConcurrent)
-      return Promise.reject(new Error(`工作流并发已达到上限（${this.maxConcurrent}）。`))
+      return Promise.reject(
+        pisperError('limit', 'workflow_run', `max ${this.maxConcurrent} at once`),
+      )
     const pending = this.startRun(id, options)
     this.starting.set(id, pending)
     return pending.finally(() => this.starting.delete(id))
@@ -571,9 +573,9 @@ export class WorkflowService {
     const workflow = this.state.workflows.find((item) => item.id === id)
     if (!workflow) return null
     if ([...this.active.values()].some((record) => record.workflowId === id))
-      throw new Error('工作流已经在运行。')
+      throw pisperError('busy', 'workflow')
     if (this.active.size >= this.maxConcurrent)
-      throw new Error(`工作流并发已达到上限（${this.maxConcurrent}）。`)
+      throw pisperError('limit', 'workflow_run', `max ${this.maxConcurrent} at once`)
     const graph = validateRunnable(workflow)
     const onlyNode = options.nodeId ? graph.nodes.find((node) => node.id === options.nodeId) : null
     const sourceRun = options.nodeId
@@ -800,7 +802,7 @@ export class WorkflowService {
           const skipped = nodeRuns.get(node.id)
           skipped.status = 'skipped'
           skipped.skipReason = 'branch_not_selected'
-          skipped.summary = '上游条件分支未命中。'
+          skipped.summary = WORKFLOW_NODE_SUMMARY.branchNotSelected
           skipped.output = skipped.summary
           skipped.finishedAt = new Date().toISOString()
           run.completedNodes += 1
@@ -827,7 +829,7 @@ export class WorkflowService {
           .filter((node) => node && node.status !== 'skipped')
           .map((node) => node.summary)
           .filter(Boolean)
-          .join('\n') || '工作流已完成。'
+          .join('\n') || WORKFLOW_NODE_SUMMARY.workflowCompleted
       workflow.lastStatus = 'completed'
       workflow.lastSummary = run.summary
       workflow.lastError = ''
@@ -839,7 +841,9 @@ export class WorkflowService {
       failedNode = run.nodes.find((node) => node.status === 'failed') || null
       for (const nodeRun of run.nodes.filter((item) => item.status === 'pending')) {
         nodeRun.status = 'skipped'
-        nodeRun.summary = cancelled ? '工作流已停止。' : '上游节点失败，未执行。'
+        nodeRun.summary = cancelled
+          ? WORKFLOW_NODE_SUMMARY.workflowStopped
+          : WORKFLOW_NODE_SUMMARY.upstreamFailed
         nodeRun.output = nodeRun.summary
         nodeRun.finishedAt = new Date().toISOString()
       }
@@ -882,7 +886,7 @@ export class WorkflowService {
         nodeRun.output = run.inputs
         nodeRun.summary = Object.keys(run.inputs).length
           ? serializeValue(run.inputs)
-          : '工作流已触发。'
+          : WORKFLOW_NODE_SUMMARY.triggered
       } else if (node.kind === 'condition') {
         const nodes = Object.fromEntries([...nodeRuns].map(([id, value]) => [id, value]))
         const matched = evaluateCondition(node.condition, {
@@ -892,10 +896,14 @@ export class WorkflowService {
         })
         nodeRun.output = matched
         nodeRun.selectedPort = matched ? 'true' : 'false'
-        nodeRun.summary = matched ? '条件成立，进入 true 分支。' : '条件不成立，进入 false 分支。'
+        nodeRun.summary = matched
+          ? WORKFLOW_NODE_SUMMARY.conditionTrue
+          : WORKFLOW_NODE_SUMMARY.conditionFalse
       } else if (node.kind === 'parallel') {
         nodeRun.output = predecessors.map((item) => item.output)
-        nodeRun.summary = predecessors.length ? '并行分支已汇合。' : '并行分支已启动。'
+        nodeRun.summary = predecessors.length
+          ? WORKFLOW_NODE_SUMMARY.parallelJoined
+          : WORKFLOW_NODE_SUMMARY.parallelStarted
       } else if (node.kind === 'approval') {
         const decision = await this.waitForApproval(
           run,
@@ -913,16 +921,18 @@ export class WorkflowService {
           record,
         )
         if (!decision.approved)
-          throw new Error(decision.comment || `审批节点「${node.label}」已拒绝。`)
+          throw decision.comment
+            ? new Error(decision.comment)
+            : pisperError('forbidden', 'workflow', `approval "${node.label}" was rejected`)
         nodeRun.output = { approved: true, comment: decision.comment }
-        nodeRun.summary = decision.comment || '审批已通过。'
+        nodeRun.summary = decision.comment || WORKFLOW_NODE_SUMMARY.approved
       } else if (node.kind === 'notification') {
         nodeRun.output = predecessors.map((item) => item.output)
         const fallbackContent =
           predecessors
             .map((item) => item.summary)
             .filter(Boolean)
-            .join('\n') || '通知已发送。'
+            .join('\n') || WORKFLOW_NODE_SUMMARY.notificationSent
         const templateContext = workflowTemplateContext(workflow, run, predecessors)
         const content =
           renderWorkflowTemplate(node.notification.content, templateContext).trim() ||
@@ -996,7 +1006,7 @@ export class WorkflowService {
         await this.executeAgentNode(workflow, run, record, node, nodeRun, predecessors)
       } else {
         nodeRun.output = predecessors.map((item) => item.output)
-        nodeRun.summary = '控制节点已通过。'
+        nodeRun.summary = WORKFLOW_NODE_SUMMARY.controlPassed
       }
       nodeRun.status = 'completed'
     } catch (error) {
@@ -1010,7 +1020,7 @@ export class WorkflowService {
       if (node.failurePolicy === 'skip') {
         nodeRun.status = 'skipped'
         nodeRun.skipReason = 'failure_policy'
-        nodeRun.summary = `已跳过：${message}`
+        nodeRun.summary = WORKFLOW_NODE_SUMMARY.skipped(message)
         nodeRun.output = nodeRun.summary
       } else {
         nodeRun.status = 'failed'
@@ -1046,7 +1056,7 @@ export class WorkflowService {
           message: nodeInstruction(workflow, node, predecessors, run, media.context),
           attachments: media.attachments,
           cwd: workflow.cwd,
-          title: `工作流 · ${workflow.name}`,
+          title: `Workflow · ${workflow.name}`,
           // 工作流节点没有人在场，不提供 ask_user（规格 8.4）。
           unattended: true,
           model: node.model || workflow.model,
@@ -1065,10 +1075,8 @@ export class WorkflowService {
             if (activeSessionId) await this.agent.abort(activeSessionId).catch(() => {})
             reject(
               Object.assign(
-                new Error(`节点「${node.label}」执行超过 ${node.timeoutMinutes} 分钟。`),
-                {
-                  code: 'WORKFLOW_TIMEOUT',
-                },
+                new Error(`Node "${node.label}" timed out after ${node.timeoutMinutes} minutes.`),
+                { code: 'WORKFLOW_TIMEOUT' },
               ),
             )
           }, node.timeoutMinutes * 60_000)
@@ -1109,7 +1117,7 @@ export class WorkflowService {
     run.status = 'waiting_approval'
     nodeRun.status = 'waiting_approval'
     nodeRun.approval = {
-      message: node.approval.message || `是否允许工作流继续执行「${node.label}」？`,
+      message: node.approval.message || workflowApprovalQuestion(node.label),
       requestedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + node.approval.timeoutMinutes * 60_000).toISOString(),
     }
@@ -1117,7 +1125,7 @@ export class WorkflowService {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         record.approvals.delete(node.id)
-        reject(new Error(`审批节点「${node.label}」等待超时。`))
+        reject(pisperError('timeout', 'workflow', `approval "${node.label}"`))
       }, node.approval.timeoutMinutes * 60_000)
       timer.unref?.()
       record.approvals.set(node.id, {
@@ -1154,7 +1162,7 @@ export class WorkflowService {
         : {
             workflow: {
               name: workflow.name,
-              node: failedNode?.label || '未知节点',
+              node: failedNode?.label || 'Unknown node',
               error: run.error,
               runId: run.id,
             },
@@ -1179,5 +1187,5 @@ export class WorkflowService {
 }
 
 function cancelledError() {
-  return Object.assign(new Error('工作流已停止。'), { code: 'WORKFLOW_CANCELLED' })
+  return Object.assign(new Error('Workflow stopped.'), { code: 'WORKFLOW_CANCELLED' })
 }

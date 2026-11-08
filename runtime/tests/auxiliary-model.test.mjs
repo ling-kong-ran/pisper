@@ -122,9 +122,11 @@ async function settled(runtime) {
 test('auxiliary model settings are validated on save and cleared with an empty string', async (t) => {
   const { runtime } = await auxiliaryRuntime(t)
   assert.equal((await runtime.getConfig()).auxiliaryModel, '')
-  await assert.rejects(runtime.setAuxiliaryModel({}), /格式无效/)
+  await assert.rejects(runtime.setAuxiliaryModel({}), { code: 'invalid' })
   await assert.rejects(runtime.setAuxiliaryModel({ model: 'nope' }), /provider\/modelId/)
-  await assert.rejects(runtime.setAuxiliaryModel({ model: 'test-gone/fixture' }), /不存在/)
+  await assert.rejects(runtime.setAuxiliaryModel({ model: 'test-gone/fixture' }), {
+    code: 'not_found',
+  })
   const saved = await runtime.setAuxiliaryModel({ model: ' test-aux/fixture ' })
   assert.equal(saved.auxiliaryModel, 'test-aux/fixture')
   assert.equal((await runtime.resolveAuxiliaryModel())?.provider, 'test-aux')

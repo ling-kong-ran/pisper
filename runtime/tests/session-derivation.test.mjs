@@ -67,11 +67,11 @@ test('session derivation extracts a completed turn without changing its source s
 
   await assert.rejects(
     runtime.deriveSession(sourceId, firstUserId, 'Invalid user boundary'),
-    /已完成的 Agent 回复/,
+    /finished agent reply/,
   )
   await assert.rejects(
     runtime.deriveSession(sourceId, toolBoundaryId, 'Invalid tool boundary'),
-    /已完成的 Agent 回复/,
+    /finished agent reply/,
   )
 
   const derived = await runtime.deriveSession(sourceId, firstBoundaryId, 'Derived session')

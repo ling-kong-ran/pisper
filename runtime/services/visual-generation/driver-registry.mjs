@@ -1,6 +1,7 @@
 // 驱动注册表：按协议名映射到具体驱动实现（Google/xAI/New API/OpenAI 兼容），
 // 驱动模块懒加载，首次使用时才 import。
 import { isNewAPIProvider } from './protocol-detection.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 const DRIVER_LOADERS = new Map([
   ['google-image', () => import('./google.mjs').then((module) => module.generateGoogle)],
@@ -40,6 +41,6 @@ export async function runVisualDriver(model, request, options) {
       ? `new-api-${model.kind}`
       : model.driver
   const driver = await loadDriver(detectedDriver)
-  if (!driver) throw new Error(`不支持的视觉接口驱动：${model.driver}`)
+  if (!driver) throw pisperError('unsupported', 'provider', `visual driver ${model.driver}`)
   return driver(model, request, options)
 }

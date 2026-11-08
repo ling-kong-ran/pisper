@@ -32,7 +32,7 @@ export class MdnsAdvertiser {
           timer = setTimeout(() => resolve(false), MDNS_ADVERTISE_TIMEOUT_MS)
         }),
       ]).finally(() => clearTimeout(timer))
-      this.error = announced ? null : 'mDNS 广播超时。'
+      this.error = announced ? null : 'mDNS advertise timed out.'
       return announced
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error)

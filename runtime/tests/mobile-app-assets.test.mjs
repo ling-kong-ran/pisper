@@ -258,7 +258,7 @@ test('移动壳仅在核心 Runtime API 合同通过后挂载业务界面', asyn
   assert.match(iosBuild, /assertResumeCommandAcl\(\)/)
   assert.doesNotMatch(startupPage, /mobile_enter_local/)
   assert.match(staticHandler, /const isAssetPath = requested === 'assets'/)
-  assert.match(staticHandler, /静态资源不存在。/)
+  assert.match(staticHandler, /pisperError\('not_found', 'file'\)/)
   assert.match(proxy, /MAX_FRONTEND_RESPONSE_BYTES/)
   assert.match(proxy, /response\.bytes\(\)/)
   assert.match(proxy, /timeout\(Duration::from_secs\(15\)\)/)

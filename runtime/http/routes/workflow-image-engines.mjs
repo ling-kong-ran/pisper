@@ -1,11 +1,20 @@
 // 工作流图像节点的可选引擎资源。项目和运行状态由普通工作流持有。
 import { SpriteEngineError } from '../../../shared/sprite-engine-catalog.mjs'
+import { errorPayload } from '../../../shared/errors.mjs'
 /** @typedef {{runtime:{spriteEngines:import('../../services/sprite-engine-service.mjs').SpriteEngineService},params:Record<string,string>,json:(status:number,value:unknown)=>void,res:import('node:http').ServerResponse}} EngineRouteContext */
 /** @param {EngineRouteContext} context @param {unknown} error */
 function respondError(context, error) {
   if (error instanceof SpriteEngineError)
-    context.json(error.statusCode, { error: error.message, code: error.code })
-  else context.json(500, { error: '本地图像算法操作失败。', code: 'sprite_engine_download_failed' })
+    context.json(error.statusCode, {
+      error: error.message,
+      code: error.code,
+      ...errorPayload(error),
+    })
+  else
+    context.json(500, {
+      error: 'Local image engine operation failed.',
+      code: 'sprite_engine_download_failed',
+    })
 }
 /** @param {string} method @param {string} suffix @param {number} status @param {(context:EngineRouteContext)=>Promise<unknown>} action @param {string} base */
 function route(method, suffix, status, action, base) {

@@ -82,6 +82,7 @@ test('Runtime bundle preserves host entries and only declares external package r
       'runtime/services/speech-recognition-service.mjs',
       'runtime/services/speech-engine-service.mjs',
       'shared/speech-terms.mjs',
+      'shared/errors.mjs',
       'shared/speech-resources/xasr-bpe.vocab',
       'shared/speech-model-catalog.json',
       'shared/speech-resource-notices.json',

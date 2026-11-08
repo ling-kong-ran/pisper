@@ -211,9 +211,13 @@ test('fallback settings are validated on save and exposed through the config vie
   const saved = await runtime.setFallbackModels({ models: ['test-backup/fixture'] })
   assert.deepEqual(saved.fallbackModels, ['test-backup/fixture'])
   assert.deepEqual((await runtime.getConfig()).fallbackModels, ['test-backup/fixture'])
-  await assert.rejects(runtime.setFallbackModels({ models: ['test-gone/fixture'] }), /不存在/)
-  await assert.rejects(runtime.setFallbackModels({ models: ['a/x', 'a/x'] }), /重复/)
-  await assert.rejects(runtime.setFallbackModels({ models: ['a/x', 'b/y', 'c/z'] }), /最多/)
-  await assert.rejects(runtime.setFallbackModels({}), /格式无效/)
+  await assert.rejects(runtime.setFallbackModels({ models: ['test-gone/fixture'] }), {
+    code: 'not_found',
+  })
+  await assert.rejects(runtime.setFallbackModels({ models: ['a/x', 'a/x'] }), /unique/)
+  await assert.rejects(runtime.setFallbackModels({ models: ['a/x', 'b/y', 'c/z'] }), {
+    code: 'limit',
+  })
+  await assert.rejects(runtime.setFallbackModels({}), { code: 'invalid' })
   assert.deepEqual((await runtime.setFallbackModels({ models: [] })).fallbackModels, [])
 })

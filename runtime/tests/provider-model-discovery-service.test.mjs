@@ -177,7 +177,7 @@ test('rejects oversized model responses', async () => {
   })
   await assert.rejects(
     () => service.discover({ api: 'openai-responses', baseUrl: 'https://api.example.test/v1' }),
-    /过大/,
+    { code: 'too_large' },
   )
 })
 

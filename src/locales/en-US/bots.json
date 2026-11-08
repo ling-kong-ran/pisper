@@ -172,6 +172,7 @@
   "model.thinkingXhigh": "Extra high",
   "activity.working": "{count} in progress",
   "activity.workingOn": "{count} in progress · now: {task}",
+  "activity.proactiveCheck": "Read-only check-in",
   "memory.title": "Memory",
   "memory.count": "{count} items",
   "memory.hint": "What {name} remembers: what you asked it to remember, your corrections, and lessons from finished work. Whatever relates to the task at hand comes along automatically, also for sub-agents it hands work to.",

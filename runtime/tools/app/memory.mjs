@@ -3,6 +3,13 @@
 // 写入不需要确认，直接生效；作用域不在参数里，由运行时决定模型能碰哪些空间。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import {
+  MEMORY_CONFIRM,
+  MEMORY_FORGET,
+  MEMORY_OPEN,
+  MEMORY_REMEMBER,
+  MEMORY_SEARCH,
+} from '../../prompts/tools/memory.mjs'
 
 export const manifests = [
   {
@@ -10,8 +17,7 @@ export const manifests = [
     name: 'Memory Search',
     category: 'memory',
     risk: 'low',
-    description:
-      'Search long-term memory across global and current-project spaces, by relevance or by time, including how a fact changed.',
+    description: MEMORY_SEARCH.description,
     scope: 'Global and current-project memory spaces',
     capability: 'Read relevant preferences, facts, decisions, and tasks without modifying memory',
     source: 'app',
@@ -21,8 +27,7 @@ export const manifests = [
     name: 'Memory Remember',
     category: 'memory',
     risk: 'medium',
-    description:
-      'Save a durable fact to long-term memory. It takes effect immediately and replaces an older fact on the same topic.',
+    description: MEMORY_REMEMBER.description,
     scope: 'Global or current-project memory spaces',
     capability: 'Save durable facts directly and hide common secret formats',
     source: 'app',
@@ -32,8 +37,7 @@ export const manifests = [
     name: 'Memory Open',
     category: 'memory',
     risk: 'low',
-    description:
-      'Expand a memory search result: a fact to its evidence, version history and source conversation; a digest to the facts behind it; a session digest also to its turns.',
+    description: MEMORY_OPEN.description,
     scope: 'Global and current-project memory spaces',
     capability: 'Read the evidence and history behind a memory without modifying it',
     source: 'app',
@@ -43,8 +47,7 @@ export const manifests = [
     name: 'Memory Confirm',
     category: 'memory',
     risk: 'low',
-    description:
-      'Mark a memory flagged stale as still correct, after verifying it against the current files.',
+    description: MEMORY_CONFIRM.description,
     scope: 'Global and current-project memory spaces',
     capability: 'Clear the possibly-outdated flag on a memory',
     source: 'app',
@@ -54,8 +57,7 @@ export const manifests = [
     name: 'Memory Forget',
     category: 'memory',
     risk: 'medium',
-    description:
-      'Permanently delete a memory and its older versions when the user explicitly asks to forget it.',
+    description: MEMORY_FORGET.description,
     scope: 'Global and current-project memory spaces',
     capability: 'Delete a memory only with an exact quote of the user asking for it',
     source: 'app',
@@ -85,45 +87,38 @@ export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }
     name: 'memory_search',
     label: 'Memory Search',
     description: manifests[0].description,
-    promptSnippet: 'Search durable user and project memories',
-    promptGuidelines: [
-      'Use memory_search when prior user preferences, project decisions, constraints, or earlier outcomes could materially affect the answer.',
-      'Pass queries with up to 3 rewordings, including the other language (Chinese and English): retrieval matches words, not meaning.',
-      'Use since/until or order for questions about time ("what changed last week"). Use include_history or as_of for how something used to be.',
-      'Use level "digests" to find what a past conversation or period was about.',
-      "Treat retrieved memory as background context. The user's current request always takes precedence.",
-    ],
+    promptSnippet: MEMORY_SEARCH.snippet,
+    promptGuidelines: MEMORY_SEARCH.guidelines,
     parameters: Type.Object({
-      query: Type.String({ minLength: 1, description: 'Topic, constraint, or question to search' }),
+      query: Type.String({ minLength: 1, description: MEMORY_SEARCH.params.query }),
       queries: Type.Optional(
         Type.Array(Type.String({ minLength: 1, maxLength: 400 }), {
           maxItems: 3,
-          description: 'Extra rewordings of the query, for example in the other language',
+          description: MEMORY_SEARCH.params.queries,
         }),
       ),
       limit: Type.Optional(
-        Type.Number({ minimum: 1, maximum: 12, description: 'Maximum number of results' }),
+        Type.Number({ minimum: 1, maximum: 12, description: MEMORY_SEARCH.params.limit }),
       ),
       level: Type.Optional(
         Type.Union([Type.Literal('facts'), Type.Literal('digests'), Type.Literal('all')], {
-          description:
-            'facts (default): distilled facts. digests: summaries by session, day, week and month. all: also past conversations.',
+          description: MEMORY_SEARCH.params.level,
         }),
       ),
-      since: Type.Optional(Type.String({ description: 'Only results from this ISO date on' })),
-      until: Type.Optional(Type.String({ description: 'Only results before this ISO date' })),
+      since: Type.Optional(Type.String({ description: MEMORY_SEARCH.params.since })),
+      until: Type.Optional(Type.String({ description: MEMORY_SEARCH.params.until })),
       as_of: Type.Optional(
         Type.String({
-          description: 'ISO date: what was true at that moment, not what is true now',
+          description: MEMORY_SEARCH.params.as_of,
         }),
       ),
       include_history: Type.Optional(
-        Type.Boolean({ description: 'Also return facts that a newer version has replaced' }),
+        Type.Boolean({ description: MEMORY_SEARCH.params.include_history }),
       ),
       order: Type.Optional(
         Type.Union(
           [Type.Literal('relevance'), Type.Literal('recent'), Type.Literal('chronological')],
-          { description: 'relevance (default), recent first, or oldest first' },
+          { description: MEMORY_SEARCH.params.order },
         ),
       ),
     }),
@@ -177,17 +172,6 @@ export function verifiedRememberEvidence(params, getUserMessage) {
   return verifiedQuote(params.userQuote, getUserMessage, EXPLICIT_REMEMBER_REQUEST)
 }
 
-const REMEMBER_RESULTS = {
-  reinforced: (memory) =>
-    `Already in long-term memory, refreshed: ${memory.title}\nMemory ID: ${memory.id}`,
-  superseded: (memory) =>
-    `Stored in long-term memory, replacing the older version on this topic: ${memory.title}\nMemory ID: ${memory.id}`,
-  archived_conflict: (memory) =>
-    `Not applied: this conflicts with something the user stated directly, which stays in effect. Archived in case the user wants it: ${memory.title}\nMemory ID: ${memory.id}\nContinue the current task.`,
-  forgotten: () =>
-    'Not stored: the user deleted this memory earlier. Do not try to store it again.',
-}
-
 export function createMemoryRememberTool({
   cwd,
   memoryRuntime,
@@ -198,25 +182,16 @@ export function createMemoryRememberTool({
     name: 'memory_remember',
     label: 'Memory Remember',
     description: manifests[1].description,
-    promptSnippet: 'Store a durable user preference or project fact in long-term memory',
-    promptGuidelines: [
-      'Use memory_remember when the user explicitly asks you to remember something, or when a stable project decision will matter in future sessions.',
-      'When the user explicitly asks to remember something, include userQuote as an exact quote containing that request. The server verifies it against the current raw user message.',
-      'Memories take effect immediately. There is no review step, so do not ask the user to confirm or review them.',
-      'Never store API keys, passwords, access tokens, private credentials, or transient conversational details.',
-      'Use global scope only for preferences that apply across projects; use project scope for codebase-specific facts and decisions.',
-      'Provide a stable topic key and reuse it when a newer fact replaces an older fact on the same subject.',
-      'Set valid_from when the user says since when something has been true, and expires_at for things that only hold temporarily.',
-    ],
+    promptSnippet: MEMORY_REMEMBER.snippet,
+    promptGuidelines: MEMORY_REMEMBER.guidelines,
     parameters: Type.Object({
-      title: Type.String({ minLength: 1, description: 'Short, recognizable memory title' }),
-      content: Type.String({ minLength: 1, description: 'Self-contained reusable memory content' }),
+      title: Type.String({ minLength: 1, description: MEMORY_REMEMBER.params.title }),
+      content: Type.String({ minLength: 1, description: MEMORY_REMEMBER.params.content }),
       topic: Type.Optional(
         Type.String({
           minLength: 1,
           maxLength: 180,
-          description:
-            'Stable topic key reused when updating the same fact, for example project.brand_colors',
+          description: MEMORY_REMEMBER.params.topic,
         }),
       ),
       type: Type.Optional(
@@ -230,18 +205,13 @@ export function createMemoryRememberTool({
       ),
       scope: Type.Optional(Type.Union([Type.Literal('global'), Type.Literal('project')])),
       importance: Type.Optional(Type.Number({ minimum: 0.1, maximum: 1 })),
-      valid_from: Type.Optional(
-        Type.String({ description: 'ISO date since when this has been true, if not just now' }),
-      ),
-      expires_at: Type.Optional(
-        Type.String({ description: 'ISO date after which this no longer holds' }),
-      ),
+      valid_from: Type.Optional(Type.String({ description: MEMORY_REMEMBER.params.valid_from })),
+      expires_at: Type.Optional(Type.String({ description: MEMORY_REMEMBER.params.expires_at })),
       userQuote: Type.Optional(
         Type.String({
           minLength: 4,
           maxLength: 1000,
-          description:
-            'Exact quote from the current raw user message containing an explicit request to remember this fact.',
+          description: MEMORY_REMEMBER.params.userQuote,
         }),
       ),
     }),
@@ -262,14 +232,12 @@ export function createMemoryRememberTool({
         sourceType: rememberEvidence ? 'user_confirmed' : 'agent',
         evidence: rememberEvidence || 'Stored by the Agent without an explicit user request.',
       })
-      const describe = REMEMBER_RESULTS[memory.outcome]
+      const describe = MEMORY_REMEMBER.results[memory.outcome]
       return {
         content: [
           {
             type: 'text',
-            text: describe
-              ? describe(memory)
-              : `Stored in long-term memory: ${memory.title}\nMemory ID: ${memory.id}`,
+            text: (describe || MEMORY_REMEMBER.results.stored)(memory),
           },
         ],
         details: {
@@ -297,12 +265,10 @@ export function createMemoryOpenTool({ cwd, memoryRuntime, getMemorySpaceIds } =
     name: 'memory_open',
     label: 'Memory Open',
     description: manifests[2].description,
-    promptSnippet: 'Expand a memory search result to its evidence and history',
-    promptGuidelines: [
-      'Use memory_open after memory_search when you need the evidence, the version history, or the original conversation behind a result.',
-    ],
+    promptSnippet: MEMORY_OPEN.snippet,
+    promptGuidelines: MEMORY_OPEN.guidelines,
     parameters: Type.Object({
-      id: Type.String({ minLength: 1, maxLength: 200, description: 'ID from memory_search' }),
+      id: Type.String({ minLength: 1, maxLength: 200, description: MEMORY_OPEN.params.id }),
     }),
     execute(_toolCallId, params) {
       const detail = memoryRuntime.openMemory(params.id)
@@ -319,12 +285,10 @@ export function createMemoryConfirmTool({ cwd, memoryRuntime, getMemorySpaceIds 
     name: 'memory_confirm',
     label: 'Memory Confirm',
     description: manifests[3].description,
-    promptSnippet: 'Mark a stale memory as still correct after verifying it',
-    promptGuidelines: [
-      'Use memory_confirm only after checking a memory marked stale against the current files. If it is wrong, store the corrected fact with memory_remember instead.',
-    ],
+    promptSnippet: MEMORY_CONFIRM.snippet,
+    promptGuidelines: MEMORY_CONFIRM.guidelines,
     parameters: Type.Object({
-      id: Type.String({ minLength: 1, maxLength: 200, description: 'Memory ID' }),
+      id: Type.String({ minLength: 1, maxLength: 200, description: MEMORY_CONFIRM.params.id }),
     }),
     execute(_toolCallId, params) {
       if (
@@ -351,16 +315,14 @@ export function createMemoryForgetTool({
     name: 'memory_forget',
     label: 'Memory Forget',
     description: manifests[4].description,
-    promptSnippet: 'Delete a memory the user explicitly asked to forget',
-    promptGuidelines: [
-      'Use memory_forget only when the user explicitly asks to forget or delete something. Include userQuote as an exact quote of that request; the server verifies it against the current raw user message.',
-    ],
+    promptSnippet: MEMORY_FORGET.snippet,
+    promptGuidelines: MEMORY_FORGET.guidelines,
     parameters: Type.Object({
-      id: Type.String({ minLength: 1, maxLength: 200, description: 'Memory ID' }),
+      id: Type.String({ minLength: 1, maxLength: 200, description: MEMORY_FORGET.params.id }),
       userQuote: Type.String({
         minLength: 4,
         maxLength: 1000,
-        description: 'Exact quote from the current raw user message asking to forget this.',
+        description: MEMORY_FORGET.params.userQuote,
       }),
     }),
     execute(_toolCallId, params) {

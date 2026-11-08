@@ -51,7 +51,11 @@ test('API handler passes through non-API requests and returns the public JSON 40
     true,
   )
   assert.equal(missing.status, 404)
-  assert.deepEqual(JSON.parse(missing.body), { error: '接口不存在。' })
+  assert.deepEqual(JSON.parse(missing.body), {
+    error: 'Request not found.',
+    code: 'not_found',
+    params: { subject: 'request' },
+  })
   assert.equal(missing.headers['Content-Type'], 'application/json; charset=utf-8')
   assert.equal(missing.headers['Cache-Control'], 'no-store')
 })
@@ -74,7 +78,11 @@ test('remote clients cannot invoke the host file manager endpoint', async () => 
   )
 
   assert.equal(output.status, 403)
-  assert.deepEqual(JSON.parse(output.body), { error: '远程客户端不能打开宿主文件管理器。' })
+  assert.deepEqual(JSON.parse(output.body), {
+    error: 'Folder is not allowed: remote clients',
+    code: 'forbidden',
+    params: { subject: 'folder', detail: 'remote clients' },
+  })
   assert.equal(calls, 0)
 })
 
@@ -107,7 +115,11 @@ test('desktop service validation still precedes JSON body parsing', async () => 
   await handler(malformedRequest, output, new URL('http://localhost/api/desktop-pet/enabled'))
 
   assert.equal(output.status, 400)
-  assert.deepEqual(JSON.parse(output.body), { error: '桌面宠物服务尚未初始化。' })
+  assert.deepEqual(JSON.parse(output.body), {
+    error: 'Desktop pet is unavailable.',
+    code: 'unavailable',
+    params: { subject: 'pet' },
+  })
 })
 
 test('API handler completes successful SSE responses exactly once', async () => {

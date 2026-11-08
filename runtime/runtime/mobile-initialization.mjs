@@ -46,7 +46,7 @@ export function prepareRuntimeInitialization(
     const description = describeStartupError(failure, { dataDir: runtime.dataDir })
     runtime.initialization[name] = 'failed'
     runtime.startupReport.failed.push({ service: name, ...description })
-    console.error(`[startup] ${name} 初始化失败：${description.code} ${description.message}`)
+    console.error(`[startup] ${name} init failed: ${description.code} ${description.message}`)
     if (required) throw failure
     return false
   }

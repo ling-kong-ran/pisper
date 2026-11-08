@@ -80,7 +80,10 @@ export function AgentJobEvent({
           <span className="font-medium text-content">
             {agent.kind === 'command'
               ? t('chat:agentJob.command', { command: agent.taskName })
-              : t('chat:agentJob.title', { task: agent.taskName })}
+              : t('chat:agentJob.title', {
+                  task:
+                    agent.kind === 'proactive' ? t('chat:agentJob.proactiveCheck') : agent.taskName,
+                })}
           </span>
           <span className="text-content-muted">
             {' · '}

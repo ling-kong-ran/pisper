@@ -11,6 +11,11 @@ import { TOOL_CATALOG } from '../tools/registry.mjs'
 import { createFileChangePreview, sameFileChangeSource } from './file-change-preview.mjs'
 import { guardCommand } from '../tools/command-guard.mjs'
 import { deriveApprovalSeverity } from '../../shared/session-board-status.mjs'
+import {
+  ARGS_PLACEHOLDER,
+  PERMISSION_REASON,
+  PERMISSION_RESULT,
+} from '../prompts/permissions-session.mjs'
 
 export const PERMISSION_MODES = new Set(['ask', 'auto', 'ignore'])
 export const DEFAULT_PERMISSION_MODE = 'auto'
@@ -32,7 +37,8 @@ const TOOL_RISKS = new Map([
   ['send_team_message', 'low'],
   ['list_team_members', 'low'],
 ])
-const SENSITIVE_RISKS = new Set(['medium', 'high', '中风险', '高风险'])
+// 旧插件清单里的风险可能还是中文“中风险 / 高风险”，用正则一并认。
+const SENSITIVE_RISK = /^(?:medium|high|中风险|高风险)$/
 const SCHEDULE_ESCALATING_ACTIONS = new Set(['create', 'update', 'resume', 'run_now'])
 // ask_user 不是权限：问题本身就是等用户决定，再叠一层审批只会让用户点两次（规格 8.4）。
 // Bot 对话的经理工具只是派活、提问、定时、记忆与传话：真正的动手各自走子 agent 与定时任务自己的权限。
@@ -94,11 +100,11 @@ function publicFileChange(change) {
 }
 
 function safeArgs(value, depth = 0, key = '') {
-  if (depth > 3) return '[内容已省略]'
-  if (/api.?key|password|passwd|secret|token/i.test(key)) return '[已隐藏敏感信息]'
+  if (depth > 3) return ARGS_PLACEHOLDER.omitted
+  if (/api.?key|password|passwd|secret|token/i.test(key)) return ARGS_PLACEHOLDER.redacted
   if (typeof value === 'string') {
     if (/^(?:data|image|content)$/i.test(key) && value.length > 500)
-      return `[内容已省略，共 ${value.length} 字符]`
+      return ARGS_PLACEHOLDER.omittedChars(value.length)
     return value.length > 800 ? `${value.slice(0, 800)}…` : value
   }
   if (Array.isArray(value)) return value.slice(0, 12).map((item) => safeArgs(item, depth + 1, key))
@@ -155,7 +161,7 @@ export function teamFileOwnershipRequirement({ cwd, toolName, args, ownedFiles =
     return {
       block: true,
       risk: 'high',
-      reason: `${toolName} 没有目标路径，无法按 Team 文件所有权执行。`,
+      reason: PERMISSION_REASON.teamNoPath(toolName),
     }
   }
   const root = canonicalPath(cwd)
@@ -174,7 +180,7 @@ export function teamFileOwnershipRequirement({ cwd, toolName, args, ownedFiles =
   return {
     block: true,
     risk: 'high',
-    reason: `${toolName} 只能修改当前 Team 任务声明的文件：${scopes.join(', ')}。收到的是 ${workspaceRelative || rawPath}。`,
+    reason: PERMISSION_REASON.teamOutside(toolName, scopes, workspaceRelative || rawPath),
   }
 }
 
@@ -201,13 +207,13 @@ export function permissionRequirement({
   if (toolName === 'skill_create' && args?.scope === 'global') {
     return {
       risk: 'high',
-      reason: 'skill_create 将创建全局技能（所有项目可用），需要确认后执行。',
+      reason: PERMISSION_REASON.globalSkill,
     }
   }
   if (toolName === 'plugin_create') {
     return {
       risk: 'high',
-      reason: 'plugin_create 将创建并安装全局插件，需要确认后执行。',
+      reason: PERMISSION_REASON.pluginCreate,
     }
   }
   if (
@@ -217,7 +223,7 @@ export function permissionRequirement({
   ) {
     return {
       risk: 'high',
-      reason: `${toolName} 将访问当前工作目录之外的文件，需要确认后执行。`,
+      reason: PERMISSION_REASON.outsideWorkspace(toolName),
     }
   }
   if (['read', 'ls', 'grep', 'find'].includes(toolName)) return null
@@ -229,45 +235,47 @@ export function permissionRequirement({
   ) {
     return {
       risk: 'high',
-      reason:
-        'schedule_manage 将安排一个之后无人值守、以完全访问权限运行的定时任务，请核对任务内容与时间后确认。',
+      reason: PERMISSION_REASON.schedule,
       guarded: true,
     }
   }
   if (toolName === 'workflow_run' && String(args?.action || '') === 'start') {
     return {
       risk: 'high',
-      reason:
-        'workflow_run 将启动一个节点无人值守、以完全访问权限运行的工作流，请核对工作流与输入后确认。',
+      reason: PERMISSION_REASON.workflowStart,
       guarded: true,
     }
   }
   if (toolName === 'bash') {
     const decision = guardCommand(String(args?.command || ''))
     if (decision.blocked) {
-      const reason = `命令守卫拦截：${decision.reason}。`
-      if (decision.severity === 'block') return { block: true, risk: 'high', reason }
+      if (decision.severity === 'block')
+        return { block: true, risk: 'high', reason: PERMISSION_REASON.guard(decision.reason) }
       // guarded：守卫标出的危险命令，持久允许规则不能替用户确认。
-      return { risk: 'high', reason: `${reason}请确认后执行。`, guarded: true }
+      return {
+        risk: 'high',
+        reason: PERMISSION_REASON.guardConfirm(decision.reason),
+        guarded: true,
+      }
     }
   }
   if (mode === 'auto') {
     // 能看整个屏幕、能操作任何应用，自动模式下也要用户点头（同一会话只问一次，见 approvalKey）。
     if (toolName === 'computer_use') {
-      return { risk: 'high', reason: 'Computer Use 将查看你的屏幕并操作鼠标键盘，需要确认后执行。' }
+      return { risk: 'high', reason: PERMISSION_REASON.computerUse }
     }
     if (
       toolName === 'browser_automation' &&
       ['click', 'type'].includes(String(args?.action || ''))
     ) {
-      return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
+      return { risk: 'high', reason: PERMISSION_REASON.browserInteraction }
     }
     // 第三方插件工具在所有模式下都可用，代价是工作区写模式下也逐次确认：
     // 插件代码以当前系统用户权限运行，不像 bash 那样有命令守卫。
     if (thirdPartyTool) {
       return {
         risk: 'high',
-        reason: `${toolName} 来自第三方插件，会以当前系统用户权限运行本地代码，需要确认后执行。`,
+        reason: PERMISSION_REASON.thirdParty(toolName),
       }
     }
     return null
@@ -275,7 +283,7 @@ export function permissionRequirement({
   if (['edit', 'write', 'skill_create', 'plugin_create'].includes(toolName)) {
     return {
       risk: 'high',
-      reason: `${toolName} 将修改当前工作区中的文件，需要确认后执行。`,
+      reason: PERMISSION_REASON.workspaceWrite(toolName),
     }
   }
   // 组件写入按普通写文件处理（负责人决定，规格 5.2）：auto / full-access 直接放行（上面已返回），
@@ -285,25 +293,25 @@ export function permissionRequirement({
     const id =
       typeof args?.id === 'string' && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(args.id)
         ? args.id
-        : '（无效 id）'
+        : PERMISSION_REASON.invalidComponentId
     return {
       risk: 'high',
-      reason: `component_create 将写入组件 ${id}（数据目录/custom-ui/${id}），需要确认后执行。`,
+      reason: PERMISSION_REASON.componentCreate(id),
     }
   }
   if (toolName === 'bash') {
     return {
       risk: 'high',
-      reason: 'Shell 命令将以当前操作系统用户权限运行，批准后可访问工作区之外的文件和网络。',
+      reason: PERMISSION_REASON.shell,
     }
   }
   if (mode === 'ignore') return null
-  if (mode === 'ask' && SENSITIVE_RISKS.has(risk)) {
-    return { risk, reason: `${toolName} 属于${risk}工具，需要确认后执行。` }
+  if (mode === 'ask' && SENSITIVE_RISK.test(String(risk))) {
+    return { risk, reason: PERMISSION_REASON.riskTool(toolName, risk) }
   }
   if (mode !== 'auto') return null
   if (toolName === 'browser_automation' && ['click', 'type'].includes(String(args?.action || ''))) {
-    return { risk: 'high', reason: '浏览器交互可能提交表单或改变远端状态，需要确认后执行。' }
+    return { risk: 'high', reason: PERMISSION_REASON.browserInteraction }
   }
   return null
 }
@@ -471,7 +479,7 @@ export class SessionPermissionService {
     approvalRun,
   }) {
     if (this.isToolBlocked(sessionId, toolName))
-      return { block: true, reason: `${toolName} 不在这次运行可用的工具范围内，未执行。` }
+      return { block: true, reason: PERMISSION_RESULT.toolOutOfScope(toolName) }
     const mode = PERMISSION_MODES.has(this.getMode(sessionId))
       ? this.getMode(sessionId)
       : DEFAULT_PERMISSION_MODE
@@ -480,7 +488,7 @@ export class SessionPermissionService {
       ? await this.rules.evaluate({ cwd, toolName, args }).catch(() => null)
       : null
     if (rule?.effect === 'deny')
-      return { block: true, reason: `命中禁止规则「${rule.pattern}」，命令未执行。` }
+      return { block: true, reason: PERMISSION_RESULT.denyRule(rule.pattern) }
     const requirement = permissionRequirement({
       mode,
       executionMode,
@@ -538,7 +546,7 @@ export class SessionPermissionService {
           if (!sameFileChangeSource(fileChange, currentFileChange)) {
             return {
               block: true,
-              reason: '目标文件在审核期间发生了变化，请重新请求修改并查看最新 Diff。',
+              reason: PERMISSION_RESULT.fileChangedDuringReview,
             }
           }
         } catch (error) {
@@ -560,7 +568,7 @@ export class SessionPermissionService {
       }
       return undefined
     }
-    return { block: true, reason: approval.reason || `用户拒绝执行工具 ${toolName}。` }
+    return { block: true, reason: approval.reason || PERMISSION_RESULT.userDeniedTool(toolName) }
   }
 
   requestApproval({
@@ -612,8 +620,8 @@ export class SessionPermissionService {
         resolveApproval({ approved: resolution.approved, reason: resolution.reason })
         return resolution
       }
-      const abort = () => settle(false, '操作已停止，工具未执行。')
-      const timer = setTimeout(() => settle(false, '等待授权超时，工具未执行。'), this.timeoutMs)
+      const abort = () => settle(false, PERMISSION_RESULT.stopped)
+      const timer = setTimeout(() => settle(false, PERMISSION_RESULT.timedOut), this.timeoutMs)
       timer.unref?.()
       if (signal?.aborted) {
         abort()
@@ -630,7 +638,7 @@ export class SessionPermissionService {
     if (approval?.sessionId === sessionId) {
       const resolution = approval.settle(
         Boolean(approved),
-        approved ? '用户已授权执行。' : '用户拒绝执行该工具。',
+        approved ? PERMISSION_RESULT.approved : PERMISSION_RESULT.denied,
       )
       return { found: true, alreadyResolved: false, ...resolution }
     }
@@ -647,7 +655,7 @@ export class SessionPermissionService {
       if (approval.sessionId !== sessionId) continue
       approval.settle(
         Boolean(approved),
-        reason || (approved ? '权限模式已允许执行。' : '会话已停止。'),
+        reason || (approved ? PERMISSION_RESULT.modeAllowed : PERMISSION_RESULT.sessionStopped),
       )
       count += 1
     }
@@ -662,7 +670,7 @@ export class SessionPermissionService {
 
   dispose() {
     for (const approval of [...this.pending.values()])
-      approval.settle(false, '应用正在关闭，工具未执行。')
+      approval.settle(false, PERMISSION_RESULT.appClosing)
     this.emitters.clear()
     this.resolved.clear()
     this.remembered.clear()

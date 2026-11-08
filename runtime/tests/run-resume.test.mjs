@@ -222,7 +222,8 @@ test('chat handler without an explicit terminal emits a resumable error snapshot
   const frames = parseSseFrames(output.body)
   const runId = frames[0].data.runId
   assert.equal(frames.at(-1).event, 'error')
-  assert.match(frames.at(-1).data.message, /发送终态前结束/)
+  assert.match(frames.at(-1).data.message, /stream ended before the run finished/)
+  assert.equal(frames.at(-1).data.code, 'failed')
   assert.equal(registry.get(runId).closed, true)
 })
 

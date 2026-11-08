@@ -4,13 +4,16 @@ import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { requestJson } from '@/lib/http'
 import type { ChatMessage } from '@/types/chat'
 
+// 运行时派的只读巡看（runtime/services/bots/bot-proactive.mjs 的 BOT_PROACTIVE_TASK_NAME）。
+export const PROACTIVE_TASK_NAME = 'proactive_check'
+
 export type SessionAgentStatus =
   'queued' | 'starting' | 'running' | 'completed' | 'failed' | 'interrupted'
 
 export type SessionAgent = {
   id: string
   // agent = 派出去的子 agent；command = Bot 对话转到后台接着跑的命令。
-  kind: 'agent' | 'command'
+  kind: 'agent' | 'command' | 'proactive'
   taskName: string
   status: SessionAgentStatus
   message: string
@@ -58,7 +61,13 @@ export function parseSessionAgents(value: unknown): SessionAgent[] {
     return [
       {
         id: input.id,
-        kind: input.kind === 'command' ? 'command' : 'agent',
+        // 运行时派的只读巡看不带标题，按任务 id 认出来，界面显示本地化的名字。
+        kind:
+          input.kind === 'command'
+            ? 'command'
+            : !text(input.title, 120) && input.taskName === PROACTIVE_TASK_NAME
+              ? 'proactive'
+              : 'agent',
         // 人看的标题优先（Bot 派活时写的），没有时用规整过的 taskName。
         taskName: text(input.title, 120) || text(input.taskName, 120) || 'agent',
         status,

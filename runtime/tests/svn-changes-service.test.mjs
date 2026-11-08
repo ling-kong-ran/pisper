@@ -201,7 +201,7 @@ test('vcs changes service prefers git repositories and falls back to svn', async
       },
     },
   })
-  await assert.rejects(() => svnPush.push('/wc'), /无需推送/)
+  await assert.rejects(() => svnPush.push('/wc'), /nothing to push/)
 
-  await assert.rejects(() => neither.commit('/nowhere', 'msg'), /Git\/SVN/)
+  await assert.rejects(() => neither.commit('/nowhere', 'msg'), /Git or SVN/)
 })

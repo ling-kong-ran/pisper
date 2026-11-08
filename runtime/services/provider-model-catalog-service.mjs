@@ -1,5 +1,6 @@
 // Provider 模型目录服务：把发现的模型目录（discovery 结果）同步进模型配置，
 // 并维护能力元数据（上下文窗口/思考等级/输入类型）。
+import { pisperError } from '../../shared/errors.mjs'
 import { modelCapabilities } from './provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { PiDevModelMetadataService } from './pi-dev-model-metadata.mjs'
@@ -219,7 +220,8 @@ export class ProviderModelCatalogService {
           }),
       ).values(),
     ]
-    if (!cleanModels.length) throw new Error('Provider 没有返回可同步的模型。')
+    if (!cleanModels.length)
+      throw pisperError('unavailable', 'model', 'the provider returned no models to sync')
     const previous = this.state.providers?.[providerId]
     const previousIds = new Set(previous?.models?.map((model) => model.id) || [])
     const nextIds = new Set(cleanModels.map((model) => model.id))

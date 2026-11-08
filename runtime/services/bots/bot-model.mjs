@@ -3,6 +3,7 @@
 // 字段含义见本目录 README 的“概念模型”。
 import { normalizeExecutionMode } from '../../security/execution-mode.mjs'
 import { SUBAGENT_MODEL_TIERS } from '../agent-profiles.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export const MAX_BOTS = 32
 export const MAX_BOT_NAME_CHARS = 24
@@ -45,30 +46,13 @@ const MAX_MODEL_REF_CHARS = 300
 // 名字会出现在“@Pisper 审查员 …”“/审查员 …”里：只允许字母（含中文）、数字、下划线与连字符，不能有空白。
 const NAME_PATTERN = /^[\p{L}\p{N}_-]+$/u
 
-export class BotValidationError extends Error {
-  constructor(code, message) {
-    super(message)
-    this.name = 'BotValidationError'
-    this.code = code
-    this.statusCode = 400
-  }
+// 校验错误一律是 invalid 码：subject 说是哪类东西，detail 用英文短语点出哪个字段、什么限制。
+function invalid(subject, detail) {
+  return pisperError('invalid', subject, detail)
 }
 
-function invalid(code, message) {
-  return new BotValidationError(code, message)
-}
-
-// Bot 会话的系统提示追加段：它是谁、它的指令。每次重建会话运行时都按当前设定生成，改了指令下一轮就生效。
-export function botSystemPrompt(bot) {
-  const parts = [
-    `你是 ${bot.name}，用户在 Pisper 里的一个长期助手。这是你和用户的一段持续对话：前文都算数，消息也可能来自用户的聊天软件或定时任务。`,
-    // 用户把事交给 Bot 是为了不用盯着：能自己做完的就做完，别为了确认而停下来。
-    '能自己查到、自己做完的事直接做完，不要为了确认而停下来问；只有缺少只有用户知道的信息、要用户拍板，或者你确实做不了时，才问用户。',
-  ]
-  const instructions = String(bot.instructions || '').trim()
-  if (instructions) parts.push(`[${bot.name} 的工作说明]\n${instructions}`)
-  return parts.join('\n\n')
-}
+// Bot 会话的系统提示追加段在 runtime/prompts/bots.mjs，这里按原名转出。
+export { botSystemPrompt } from '../../prompts/bots.mjs'
 
 export const DEFAULT_BOT_EXECUTION_MODE = 'workspace-write'
 
@@ -77,9 +61,9 @@ export const MAX_BOT_MESSAGE_CHARS = 12_000
 // 渠道、定时任务交给 Bot 的一句话（应用里直接在 Bot 的会话里说，走普通会话的校验）。
 export function normalizeBotMessage(value) {
   const text = String(value ?? '').trim()
-  if (!text) throw invalid('bot_message_empty', '要让 Bot 做什么？请写下来。')
+  if (!text) throw invalid('message', 'say what the bot should do')
   if (text.length > MAX_BOT_MESSAGE_CHARS)
-    throw invalid('bot_message_too_long', `一次最多 ${MAX_BOT_MESSAGE_CHARS} 个字符。`)
+    throw pisperError('too_large', 'message', `max ${MAX_BOT_MESSAGE_CHARS} characters`)
   return text
 }
 
@@ -101,11 +85,11 @@ function normalizeName(value) {
   const name = String(value ?? '')
     .normalize('NFKC')
     .trim()
-  if (!name) throw invalid('bot_name_required', 'Bot 名字不能为空。')
+  if (!name) throw invalid('bot', 'name is required')
   if ([...name].length > MAX_BOT_NAME_CHARS)
-    throw invalid('bot_name_too_long', `Bot 名字最多 ${MAX_BOT_NAME_CHARS} 个字符。`)
+    throw invalid('bot', `name: max ${MAX_BOT_NAME_CHARS} characters`)
   if (!NAME_PATTERN.test(name))
-    throw invalid('bot_name_invalid', 'Bot 名字只能包含文字、数字、下划线和连字符，不能有空格。')
+    throw invalid('bot', 'name: letters, digits, _ and - only, no spaces')
   return name
 }
 
@@ -131,7 +115,7 @@ function normalizeModel(value) {
   if (typeof input.ref === 'string' && input.ref.trim()) {
     const ref = input.ref.trim()
     if (ref.length > MAX_MODEL_REF_CHARS || !ref.includes('/'))
-      throw invalid('bot_model_invalid', '模型必须写成 provider/model。')
+      throw invalid('model', 'use provider/model')
     return { ref }
   }
   const tier = SUBAGENT_MODEL_TIERS.includes(String(input.tier)) ? String(input.tier) : 'standard'
@@ -140,7 +124,7 @@ function normalizeModel(value) {
 
 function normalizeIdList(value, label) {
   if (value === null || value === undefined) return []
-  if (!Array.isArray(value)) throw invalid('bot_channel_invalid', `${label}必须是列表。`)
+  if (!Array.isArray(value)) throw invalid('channel', `${label} must be a list`)
   const ids = [
     ...new Set(
       value
@@ -148,29 +132,28 @@ function normalizeIdList(value, label) {
         .filter((item) => item && item.length <= MAX_ID_CHARS),
     ),
   ]
-  if (ids.length > MAX_IDS) throw invalid('bot_channel_invalid', `${label}最多 ${MAX_IDS} 个。`)
+  if (ids.length > MAX_IDS) throw invalid('channel', `${label}: max ${MAX_IDS}`)
   return ids
 }
 
 function normalizeChannels(value) {
   if (value === null || value === undefined) return []
-  if (!Array.isArray(value)) throw invalid('bot_channel_invalid', '渠道必须是列表。')
-  if (value.length > MAX_CHANNELS)
-    throw invalid('bot_channel_invalid', `渠道最多 ${MAX_CHANNELS} 个。`)
+  if (!Array.isArray(value)) throw invalid('channel', 'channels must be a list')
+  if (value.length > MAX_CHANNELS) throw invalid('channel', `max ${MAX_CHANNELS} channels`)
   return value.map((item) => {
     const input = record(item)
     const platform = String(input.platform || '')
     if (!BOT_PLATFORMS.includes(platform))
-      throw invalid('bot_channel_invalid', `不支持的渠道：${platform.slice(0, 40)}`)
+      throw pisperError('unsupported', 'channel', platform.slice(0, 40))
     const chatType = input.chatType === 'group' ? 'group' : 'p2p'
     // peerIds 为 null 表示该平台所有已允许的聊天；空数组同样按“不限”处理会造成误解，统一成 null。
     const peerIds =
       input.peerIds === null || input.peerIds === undefined
         ? null
-        : normalizeIdList(input.peerIds, '聊天')
+        : normalizeIdList(input.peerIds, 'peerIds')
     // senderIds 是管理员：渠道的创建者之外还有谁能让它做任何事（名单为空时只有创建者）。
     // everyone 打开时这个聊天里的其他人也能叫它，但只能用公开的指令（见 normalizeCommands）。
-    const senderIds = normalizeIdList(input.senderIds, '可以叫它的人')
+    const senderIds = normalizeIdList(input.senderIds, 'senderIds')
     return {
       platform,
       chatType,
@@ -186,32 +169,28 @@ function normalizeChannels(value) {
 // allowExtra 只对 task 有意义：允许在指令后面带一句补充，作为对方的说法交给 Bot。
 function normalizeCommands(value) {
   if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) throw invalid('bot_command_invalid', '指令必须是列表。')
-  if (value.length > MAX_BOT_COMMANDS)
-    throw invalid('bot_command_invalid', `指令最多 ${MAX_BOT_COMMANDS} 条。`)
+  if (!Array.isArray(value)) throw invalid('bot', 'commands must be a list')
+  if (value.length > MAX_BOT_COMMANDS) throw invalid('bot', `max ${MAX_BOT_COMMANDS} commands`)
   const seen = new Set()
   return value.map((item) => {
     const input = record(item)
     const name = String(input.name ?? '')
       .replace(/\s+/g, ' ')
       .trim()
-    if (!name) throw invalid('bot_command_invalid', '请给每条指令起个名字。')
+    if (!name) throw invalid('bot', 'every command needs a name')
     if ([...name].length > MAX_BOT_COMMAND_NAME_CHARS)
-      throw invalid('bot_command_invalid', `指令名字最多 ${MAX_BOT_COMMAND_NAME_CHARS} 个字。`)
+      throw invalid('bot', `command name: max ${MAX_BOT_COMMAND_NAME_CHARS} characters`)
     // 纯数字的名字会和“回复序号”混在一起。
-    if (/^\d+$/.test(name)) throw invalid('bot_command_invalid', '指令名字不能只有数字。')
+    if (/^\d+$/.test(name)) throw invalid('bot', 'command name cannot be only digits')
     const key = name.toLocaleLowerCase()
-    if (seen.has(key)) throw invalid('bot_command_invalid', `指令名字重复：${name}`)
+    if (seen.has(key)) throw invalid('bot', `duplicate command name: ${name}`)
     seen.add(key)
     const kind = input.kind === 'reply' ? 'reply' : 'task'
     const text = String(input.text ?? '').trim()
     if (!text)
-      throw invalid(
-        'bot_command_invalid',
-        kind === 'reply' ? `请写好「${name}」要回复的话。` : `请写好「${name}」要做的事。`,
-      )
+      throw invalid('bot', `command "${name}" needs ${kind === 'reply' ? 'reply text' : 'a task'}`)
     if (text.length > MAX_BOT_COMMAND_TEXT_CHARS)
-      throw invalid('bot_command_invalid', `「${name}」的内容太长。`)
+      throw invalid('bot', `command "${name}": max ${MAX_BOT_COMMAND_TEXT_CHARS} characters`)
     return {
       name,
       kind,
@@ -223,7 +202,7 @@ function normalizeCommands(value) {
 }
 
 function normalizeDefaultIn(value, channels) {
-  const keys = normalizeIdList(value, '默认聊天')
+  const keys = normalizeIdList(value, 'defaultIn')
   for (const key of keys) {
     const separator = key.indexOf(':')
     const platform = key.slice(0, separator)
@@ -236,7 +215,7 @@ function normalizeDefaultIn(value, channels) {
           channel.platform === platform &&
           (channel.peerIds === null || channel.peerIds.includes(peerId)),
       )
-    if (!covered) throw invalid('bot_default_chat_invalid', '默认聊天必须在这个 Bot 的渠道范围内。')
+    if (!covered) throw invalid('channel', "default chat must be one of the bot's chats")
   }
   return keys
 }
@@ -270,10 +249,10 @@ function normalizeProactive(value) {
 
 function normalizeTools(value) {
   if (value === null || value === undefined) return null
-  if (!Array.isArray(value)) throw invalid('bot_tools_invalid', '工具必须是列表。')
+  if (!Array.isArray(value)) throw invalid('tool', 'tools must be a list')
   const tools = [...new Set(value.map((item) => String(item ?? '').trim()).filter(Boolean))]
   if (tools.length > MAX_TOOLS || tools.some((tool) => tool.length > 100))
-    throw invalid('bot_tools_invalid', `工具最多 ${MAX_TOOLS} 个。`)
+    throw invalid('tool', `max ${MAX_TOOLS} tools`)
   return tools
 }
 
@@ -285,13 +264,13 @@ export function normalizeBotInput(input, current = null) {
   const name = normalizeName(merged.name)
   const instructions = String(merged.instructions ?? '')
   if (instructions.length > MAX_BOT_INSTRUCTIONS_CHARS)
-    throw invalid('bot_instructions_too_long', `指令最多 ${MAX_BOT_INSTRUCTIONS_CHARS} 个字符。`)
+    throw invalid('bot', `instructions: max ${MAX_BOT_INSTRUCTIONS_CHARS} characters`)
   const workspaceInput = { ...record(current?.workspace), ...record(patch.workspace) }
   const environmentId = String(workspaceInput.environmentId || LOCAL_ENVIRONMENT_ID)
   if (environmentId !== LOCAL_ENVIRONMENT_ID && !/^env_[A-Za-z0-9_-]{8,32}$/.test(environmentId))
-    throw invalid('environment_not_found', '这台电脑不存在或已经移除。')
+    throw pisperError('not_found', 'machine')
   const cwd = String(workspaceInput.cwd ?? '').trim()
-  if (!cwd) throw invalid('bot_cwd_required', '请为 Bot 选择工作目录。')
+  if (!cwd) throw invalid('folder', 'choose a working folder')
   const channels = normalizeChannels(merged.channels)
   // Bot 是替用户干活的：新建默认放手做（工作区写入档），只有命令守卫标出的危险操作、浏览器提交、
   // 第三方插件这类事才停下来问。已经存下的 Bot 保留它自己的权限，不悄悄放宽。
@@ -301,13 +280,13 @@ export function normalizeBotInput(input, current = null) {
     executionMode === 'full-access' &&
     channels.some((channel) => channel.chatType === 'group' || channel.everyone)
   )
-    throw invalid('bot_group_full_access', '有群聊触发的 Bot 不能使用完全访问权限。')
+    throw invalid('bot', 'bots triggered from groups or by everyone cannot use full access')
   const thinking = THINKING_LEVELS.has(String(merged.thinking))
     ? String(merged.thinking)
     : undefined
   // 默认能只读用户的全局记忆：用户的偏好不用每个 Bot 再教一遍。
   if (merged.readGlobalMemory !== undefined && typeof merged.readGlobalMemory !== 'boolean')
-    throw invalid('bot_read_global_memory_invalid', '“读取全局记忆”必须是开或关。')
+    throw invalid('memory', 'readGlobalMemory must be true or false')
   return {
     name,
     avatar: normalizeAvatar(merged.avatar, name),

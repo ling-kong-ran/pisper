@@ -39,7 +39,7 @@ function nodeRoute(handler) {
   return executorRoute(async (context) => {
     const environment = context.runtime.authenticateExecutor(bearerToken(context.req))
     if (!environment) {
-      context.json(401, { error: '执行节点未授权。', code: 'executor_unauthorized' })
+      context.json(401, { error: 'Executor is not authorized.', code: 'executor_unauthorized' })
       return
     }
     await handler({ ...context, environment })
@@ -87,7 +87,7 @@ export const executorRoutes = [
     path: '/api/environments/:environmentId',
     handler: botRoute(async ({ runtime, params, json }) => {
       const removed = await runtime.removeEnvironment(params.environmentId)
-      if (!removed) json(404, { error: '这台电脑不存在。', code: 'environment_not_found' })
+      if (!removed) json(404, { error: 'Machine not found.', code: 'environment_not_found' })
       else json(200, { ok: true })
     }),
   },

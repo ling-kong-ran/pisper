@@ -1,4 +1,7 @@
 // 配置与设置路由：Provider/模型配置、压缩/记忆偏好、通知设置等。
+import { errorPayload, pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
+
 const notificationChannels = ['feishu', 'weixin', 'qq', 'telegram', 'browser']
 
 function notificationText(value, fallback, maxLength) {
@@ -24,7 +27,7 @@ export const configSettingsRoutes = [
     method: 'GET',
     path: '/api/settings/speech',
     async handler({ services, json }) {
-      if (!services.speechTerms) throw new Error('当前 Runtime 不支持语音术语设置。')
+      if (!services.speechTerms) throw pisperError('unsupported', 'speech', 'speech terms')
       json(200, await services.speechTerms.getSettings())
     },
   },
@@ -32,7 +35,7 @@ export const configSettingsRoutes = [
     method: 'PATCH',
     path: '/api/settings/speech',
     async handler({ services, body, json }) {
-      if (!services.speechTerms) throw new Error('当前 Runtime 不支持语音术语设置。')
+      if (!services.speechTerms) throw pisperError('unsupported', 'speech', 'speech terms')
       json(200, await services.speechTerms.updateSettings(await body()))
     },
   },
@@ -275,7 +278,7 @@ export const configSettingsRoutes = [
         typeof input.channelEnabled !== 'boolean'
       ) {
         json(400, {
-          error: '通知渠道开关必须是布尔值。',
+          error: 'channelEnabled must be a boolean.',
           code: 'INVALID_NOTIFICATION_CHANNEL_ENABLED',
         })
         return
@@ -391,7 +394,7 @@ export const configSettingsRoutes = [
           PROVIDER_MODEL_NOT_FOUND: 404,
         }[error?.code]
         if (!(error instanceof Error) || typeof status !== 'number') throw error
-        json(status, { error: error.message, code: error.code })
+        json(status, { error: error.message, code: error.code, ...errorPayload(error) })
       }
     },
   },
@@ -428,7 +431,7 @@ export const configSettingsRoutes = [
     path: '/api/providers/:providerId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteProvider(params.providerId)
-      if (!deleted) json(404, { error: 'Provider 不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'provider')))
       else json(200, deleted)
     },
   },

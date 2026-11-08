@@ -11,7 +11,7 @@ const DEFAULT_RETENTION_MS = 10 * 60 * 1000
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 export class RunNotResumableError extends Error {
-  constructor(message = '该运行已结束且缓存已清理，无法续传。') {
+  constructor(message = 'Run has ended and its buffer was cleared; it cannot be resumed.') {
     super(message)
     this.name = 'RunNotResumableError'
     this.code = 'run_not_resumable'

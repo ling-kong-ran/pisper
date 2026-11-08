@@ -5,6 +5,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
+import { pisperError } from '../../shared/errors.mjs'
 
 const CODEX_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 const ANTHROPIC_DEFAULT_BASE_URL = 'https://api.anthropic.com'
@@ -60,7 +61,11 @@ function codexOAuthCredential(data) {
   )
   const expires = oauthExpiry(tokens?.expires_at ?? tokens?.expiresAt, access)
   if (!access || !refresh || !expires || !accountId)
-    throw new Error('Codex 登录状态缺少可续期的 OAuth 凭据。请在 Codex 中重新登录后再导入。')
+    throw pisperError(
+      'invalid',
+      'login',
+      'no renewable Codex OAuth credential; sign in to Codex again',
+    )
   return { type: 'oauth', access, refresh, expires, accountId }
 }
 
@@ -70,7 +75,11 @@ function claudeOAuthCredential(data) {
   const refresh = nonEmptyString(oauth?.refreshToken, oauth?.refresh_token)
   const expires = oauthExpiry(oauth?.expiresAt ?? oauth?.expires_at, access)
   if (!access || !refresh || !expires)
-    throw new Error('Claude 登录状态缺少可续期的 OAuth 凭据。请在 Claude Code 中重新登录后再导入。')
+    throw pisperError(
+      'invalid',
+      'login',
+      'no renewable Claude OAuth credential; sign in to Claude Code again',
+    )
   return { type: 'oauth', access, refresh, expires }
 }
 

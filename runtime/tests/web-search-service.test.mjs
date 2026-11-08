@@ -56,7 +56,7 @@ test('Bing RSS parser removes unsafe links and reports invalid responses', async
   const invalid = new WebSearchService({
     fetchImpl: async () => new Response('<html>Temporarily unavailable</html>', { status: 200 }),
   })
-  await assert.rejects(invalid.search({ query: 'test' }), /没有返回可解析的 RSS/)
+  await assert.rejects(invalid.search({ query: 'test' }), /no RSS results/)
 })
 
 test('web_search needs no endpoint, belongs to writable presets, and persists preferences', async (t) => {

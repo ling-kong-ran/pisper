@@ -1,4 +1,5 @@
-// 发回来源渠道的 Bot 消息（B5）：从聊天里对 Bot 说的话，回复与中途的审批、提问回到同一个聊天。纯函数，便于测试。
+// 发回聊天软件的 Bot 文字（B5）：从聊天里对 Bot 说的话，回复与中途的审批、提问回到同一个聊天；指令清单与拒绝的回话。
+// 聊天里的人直接看到、不经过前端翻译，所以保留中文；给模型看的文字不放这里。纯函数，便于测试。
 // 回复命令（/名字 批准 等）只有这个 Bot 名单里的人能用：分派时已按名单校验。
 import { approvalArgsPreview } from '../session-card-summary.mjs'
 
@@ -55,4 +56,40 @@ export function botChatAction(text) {
   if (/^(?:批准|同意|approve|yes)$/.test(value)) return 'approve'
   if (/^(?:拒绝|deny|no)$/.test(value)) return 'deny'
   return null
+}
+
+// 指令清单：只列这个人能用的，管理员另外提示可以直接说要做的事。不调用模型。
+// 群里不是每个平台都投递不带 @ 的消息（QQ、飞书只投递 @ 了机器人的），所以群里提示先 @ 机器人。
+export function botMenuReply(name, commands, { admin = false, group = false } = {}) {
+  if (!commands.length)
+    return admin ? `要让 ${name} 做什么？在名字后面写上。` : `${name} 在这里还没有开放的指令。`
+  return [
+    group ? `${name} 可以做这些，@ 机器人后写序号即可：` : `${name} 可以做这些，回复序号即可：`,
+    ...commands.map((command, index) => `${index + 1}. ${command}`),
+    admin ? '也可以在名字后面直接写要做的事。' : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+// 叫不动时的回话：已暂停、不在名单里、只有管理员能做、不在这个聊天里。
+export function botRefusalReply(name, reason) {
+  if (reason === 'paused') return `${name} 已暂停，不接新任务。`
+  if (reason === 'sender_not_allowed') return `你不在 ${name} 的名单里，叫不动它。`
+  if (reason === 'admin_only') return `这件事只有 ${name} 的管理员能让它做。`
+  return `${name} 不在这个聊天里。`
+}
+
+// Bot 用 bot_notify 发到聊天应用的消息：前面带上 Bot 名字，聊天里看得出是谁说的。
+export function botNotifyText(name, message) {
+  return `${name}：${message}`
+}
+
+// 聊天里“/名字 批准 | 拒绝”的回复；outcome 由运行时判定。
+export function botChannelActionReply(name, outcome) {
+  if (outcome === 'no_bot') return 'Bot 不存在。'
+  if (outcome === 'nothing') return `${name} 现在没有等批准的操作。`
+  if (outcome === 'critical') return '这是高风险操作，请在 Pisper 里看完再批准。'
+  if (outcome === 'handled') return '这个审批已经处理过了。'
+  return outcome === 'approved' ? `已批准，${name} 继续干活。` : '已拒绝这次操作。'
 }

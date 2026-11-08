@@ -34,7 +34,7 @@ test('移动端拒绝、断连与结果大小限制不会泄漏挂起操作', as
   const controller = new AbortController()
   const aborted = service.execute('session-a', 'contacts.search', {}, { signal: controller.signal })
   controller.abort()
-  await assert.rejects(aborted, /已取消/)
+  await assert.rejects(aborted, { code: 'cancelled' })
   assert.equal(events.at(-1).event, 'mobile_operation_cancel')
   assert.equal(events.at(-1).data.reason, 'aborted')
 
@@ -50,5 +50,5 @@ test('移动端拒绝、断连与结果大小限制不会泄漏挂起操作', as
   await assert.rejects(oversized, /12 MB/)
 
   service.dispose()
-  await assert.rejects(service.execute('session-b', 'contacts.search'), /没有已连接/)
+  await assert.rejects(service.execute('session-b', 'contacts.search'), { code: 'unavailable' })
 })

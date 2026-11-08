@@ -8,6 +8,7 @@ import {
   updateModelOptions,
 } from '../services/provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 import { ModelRuntime } from './pi-coding-agent.mjs'
 import { inferModelKind } from '../services/visual-generation/index.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
@@ -17,6 +18,10 @@ import { SUBAGENT_MODEL_TIERS, normalizeSubagentModelTiers } from '../services/a
 import { normalizeAuxiliaryModelRef } from './auxiliary-model.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
+
+// 官方 Provider 的 OAuth 凭据只发往官方端点：中转站要用独立 Provider ID 和 API Key，避免登录凭据外发。
+const OFFICIAL_OAUTH_ONLY =
+  'OAuth sign-in only reaches the official endpoint; use a separate provider ID and API key for relays'
 
 // 内置 Provider 标识与展示名；其余自定义 Provider 由用户配置。
 const KNOWN_PROVIDERS = [
@@ -157,10 +162,11 @@ function inputApiKeys(input = {}) {
     const key = String(value || '').trim()
     if (!key || seen.has(key)) continue
     seen.add(key)
-    if (key.length > 16_384) throw new Error('API Key 过长。')
+    if (key.length > 16_384) throw pisperError('too_large', 'api_key', undefined, { status: 400 })
     keys.push(key)
   }
-  if (keys.length > 1) throw new Error('每个 Provider 只能配置一个 API Key，请创建独立 Provider。')
+  if (keys.length > 1)
+    throw pisperError('limit', 'api_key', 'one key per provider; create another provider')
   return keys
 }
 
@@ -428,7 +434,7 @@ export class ProviderPreferences {
     }
     if (!models.size) {
       const first = failures[0]
-      throw first || new Error('Provider 没有返回可用的模型。')
+      throw first || pisperError('not_found', 'model', 'provider returned no usable models')
     }
     return { models: [...models.values()], modelKeyIds }
   }
@@ -543,15 +549,15 @@ export class ProviderPreferences {
         disabledProviders: [],
       })
       if ((appConfig.disabledProviders || []).includes(String(provider || ''))) {
-        throw new Error('该 Provider 当前未启用。')
+        throw pisperError('unavailable', 'provider', 'disabled')
       }
     }
     // 内网模型的选择不依赖公网模型目录，后台结果供后续展示使用。
     void this.modelMetadata.ensure(modelId).catch(() => {})
     const model = this.getModelRuntime().getModel(String(provider || ''), String(modelId || ''))
-    if (!model) throw new Error('指定的模型不存在。')
+    if (!model) throw pisperError('not_found', 'model')
     if (inferModelKind(model.id, model.pisperKind) !== 'chat')
-      throw new Error('该模型未启用对话能力，请选择对话模型。')
+      throw pisperError('invalid', 'model', 'not a chat model')
     return model
   }
 
@@ -559,7 +565,7 @@ export class ProviderPreferences {
   async setSessionModel(id, provider, modelId) {
     const value = await this.getSession(id)
     if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换模型。')
+      throw pisperError('busy', 'session')
     }
     const model = await this.resolveSessionModel(provider, modelId)
     const settingsManager = this.getSettingsManager()
@@ -601,12 +607,12 @@ export class ProviderPreferences {
   async setSessionThinkingLevel(id, level) {
     const value = await this.getSession(id)
     if (this.isSessionRunActive?.(id, value) ?? value.session.isStreaming) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换思考等级。')
+      throw pisperError('busy', 'session')
     }
     const requested = String(level || '')
     const availableLevels = value.session.getAvailableThinkingLevels()
     if (!availableLevels.includes(requested)) {
-      throw new Error('当前模型不支持该思考等级。')
+      throw pisperError('unsupported', 'model', 'thinking level')
     }
     const settingsManager = this.getSettingsManager()
     const defaultThinkingLevel =
@@ -744,21 +750,23 @@ export class ProviderPreferences {
       loaded.kind === 'authentication' &&
       hasNonOfficialOAuthEndpoint(loaded.providerId, existingProvider)
     )
-      throw new Error(
-        '该官方 Provider 配置了自定义 Base URL。为避免登录凭据外发，请先为中转站使用独立 Provider ID。',
+      throw pisperError(
+        'forbidden',
+        'login',
+        'this official provider has a custom Base URL; use a separate provider ID for relays',
       )
     if (
       loaded.kind !== 'authentication' &&
       existingProvider &&
       JSON.stringify(existingProvider) !== JSON.stringify(loaded.providerConfig)
     )
-      throw new Error('Pisper 已存在该 Provider 的模型配置，不会自动覆盖。')
+      throw pisperError('exists', 'provider', 'model config; not overwritten', { status: 400 })
     if (
       loaded.credential &&
       credentials[loaded.providerId] &&
       JSON.stringify(credentials[loaded.providerId]) !== JSON.stringify(loaded.credential)
     )
-      throw new Error('Pisper 已存在该 Provider 的认证，不会自动覆盖。')
+      throw pisperError('exists', 'provider', 'credentials; not overwritten', { status: 400 })
 
     if (loaded.kind !== 'authentication') {
       // 导入的本地配置同样按协议归一化 Base URL（防 anthropic 端点 /v1/v1）。
@@ -870,7 +878,7 @@ export class ProviderPreferences {
   // 合并桌面端配置到本机：桌面端覆盖同名 Provider，手机独有 Provider 保留。
   async importProviderConfig(input = {}) {
     if (input?.version !== 1 || !input.providers || typeof input.providers !== 'object') {
-      throw new Error('桌面端模型配置格式无效。')
+      throw pisperError('invalid', 'config', 'desktop model config')
     }
     const [modelsJson, credentials, appConfig] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
@@ -1040,11 +1048,12 @@ export class ProviderPreferences {
   // 备用模型设置：按顺序保存 "provider/modelId"，保存前逐个确认是已启用的对话模型。
   async setFallbackModels(input) {
     const requested = Array.isArray(input?.models) ? input.models : null
-    if (!requested) throw new Error('备用模型列表格式无效。')
+    if (!requested) throw pisperError('invalid', 'model', 'fallback model list')
     if (requested.length > MAX_FALLBACK_MODELS)
-      throw new Error(`最多设置 ${MAX_FALLBACK_MODELS} 个备用模型。`)
+      throw pisperError('limit', 'model', `max ${MAX_FALLBACK_MODELS} fallback models`)
     const models = normalizeFallbackModels(requested)
-    if (models.length !== requested.length) throw new Error('备用模型不能重复或为空。')
+    if (models.length !== requested.length)
+      throw pisperError('invalid', 'model', 'fallback models must be unique and non-empty')
     for (const ref of models) {
       const slash = ref.indexOf('/')
       await this.resolveSessionModel(ref.slice(0, slash), ref.slice(slash + 1))
@@ -1058,12 +1067,14 @@ export class ProviderPreferences {
   async setSubagentModelTiers(input) {
     const requested = input?.tiers
     if (!requested || typeof requested !== 'object' || Array.isArray(requested))
-      throw new Error('子代理模型档位格式无效。')
+      throw pisperError('invalid', 'model', 'subagent model tiers')
     const unknown = Object.keys(requested).filter((key) => !SUBAGENT_MODEL_TIERS.includes(key))
-    if (unknown.length) throw new Error(`未知的子代理模型档位：${unknown.join('、')}。`)
+    if (unknown.length)
+      throw pisperError('invalid', 'model', `unknown subagent tiers: ${unknown.join(', ')}`)
     const tiers = normalizeSubagentModelTiers(requested)
     for (const tier of SUBAGENT_MODEL_TIERS) {
-      if (requested[tier] && !tiers[tier]) throw new Error('子代理模型必须写成 provider/modelId。')
+      if (requested[tier] && !tiers[tier])
+        throw pisperError('invalid', 'model', 'use provider/modelId')
       if (!tiers[tier]) continue
       const slash = tiers[tier].indexOf('/')
       await this.resolveSessionModel(tiers[tier].slice(0, slash), tiers[tier].slice(slash + 1))
@@ -1076,9 +1087,9 @@ export class ProviderPreferences {
   // 辅助模型：一个 "provider/modelId"，空字符串表示不设置（后台杂活跟随各自原来的模型）。
   async setAuxiliaryModel(input) {
     const requested = input?.model
-    if (typeof requested !== 'string') throw new Error('辅助模型格式无效。')
+    if (typeof requested !== 'string') throw pisperError('invalid', 'model', 'auxiliary model')
     const ref = normalizeAuxiliaryModelRef(requested)
-    if (requested.trim() && !ref) throw new Error('辅助模型必须写成 provider/modelId。')
+    if (requested.trim() && !ref) throw pisperError('invalid', 'model', 'use provider/modelId')
     if (ref) {
       const slash = ref.indexOf('/')
       await this.resolveSessionModel(ref.slice(0, slash), ref.slice(slash + 1))
@@ -1188,7 +1199,7 @@ export class ProviderPreferences {
   async saveConfig(input, toolsFromConfig, toolPresets) {
     const provider = String(input.provider || '').trim()
     const model = String(input.model || '').trim()
-    if (!provider) throw new Error('Provider 不能为空。')
+    if (!provider) throw pisperError('invalid', 'provider', 'provider is required')
     if (
       model &&
       input.setAsDefault === false &&
@@ -1197,7 +1208,7 @@ export class ProviderPreferences {
       const config = await this.getConfigFacade()
       const target = config.providers.find((entry) => entry.id === provider)
       if (!target || !target.models.some((entry) => entry.id === model && entry.kind === 'chat'))
-        throw new Error('指定的对话模型不属于该 Provider。')
+        throw pisperError('invalid', 'model', 'not from this provider')
       const appConfig = await readJson(this.appConfigPath, {})
       await writeJsonAtomic(this.appConfigPath, {
         ...appConfig,
@@ -1216,7 +1227,11 @@ export class ProviderPreferences {
       const config = await this.getConfigFacade()
       const target = config.providers.find((entry) => entry.id === provider)
       if (!target?.configured || !target.enabled || target.type !== 'chat' || !target.defaultModel)
-        throw new Error('请选择已配置并启用且有默认对话模型的 Provider。')
+        throw pisperError(
+          'invalid',
+          'provider',
+          'pick a configured, enabled provider with a default chat model',
+        )
       const settingsManager = this.getSettingsManager()
       settingsManager.setDefaultModelAndProvider(provider, target.defaultModel)
       await settingsManager.flush()
@@ -1240,7 +1255,7 @@ export class ProviderPreferences {
     const disabledProviders = new Set(currentAppConfig.disabledProviders || [])
     if (input.enabled === true) disabledProviders.delete(provider)
     if (disabledProviders.has(provider) && input.setAsDefault !== false) {
-      throw new Error('请先启用该 Provider，再将其设为默认配置。')
+      throw pisperError('unavailable', 'provider', 'enable it before making it the default')
     }
 
     const providerOverlay = { ...(existingOverlay.providers?.[provider] || {}) }
@@ -1253,18 +1268,18 @@ export class ProviderPreferences {
     const modelBaseUrl = normalizeProtocolBaseUrl(input.modelBaseUrl, effectiveApi)
     const organization = String(input.organization || '').trim()
     if (!baseUrl && !PROVIDER_DEFAULT_BASE_URLS[provider]) {
-      throw new Error('请先填写 Provider Base URL，再保存。')
+      throw pisperError('invalid', 'provider', 'Base URL is required')
     }
     if (providerType !== 'visual' && !model) {
-      throw new Error('请先选择一个对话模型，再保存。')
+      throw pisperError('invalid', 'model', 'pick a chat model')
     }
     if (model) {
       const modelKind = inferModelKind(model, input.modelKind)
       if (providerType === 'visual' && modelKind !== 'image' && modelKind !== 'video') {
-        throw new Error('视觉 Provider 只能保存图像或视频模型。')
+        throw pisperError('invalid', 'model', 'visual providers take image or video models only')
       }
       if (providerType === 'chat' && modelKind !== 'chat') {
-        throw new Error('对话 Provider 只能保存对话模型。')
+        throw pisperError('invalid', 'model', 'chat providers take chat models only')
       }
     }
 
@@ -1296,15 +1311,13 @@ export class ProviderPreferences {
       ]
     if (isOAuthCredential(credentials[provider]) && !credentialSecret(credentials[provider])) {
       if (hasNonOfficialOAuthEndpoint(provider, oauthOverlay))
-        throw new Error(
-          '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
-        )
+        throw pisperError('forbidden', 'login', OFFICIAL_OAUTH_ONLY)
     }
     const hasAuthentication =
       Boolean(configuredProviderSecret(credentials[provider], providerOverlay)) ||
       modelRuntime.hasConfiguredAuth(provider)
     if (!hasAuthentication) {
-      throw new Error('请先填写 API Key 或加载 Provider 认证，再保存。')
+      throw pisperError('invalid', 'api_key', 'enter an API key or load provider credentials')
     }
     if (apiKeyUpdated) await this.writeAuth(credentials)
 
@@ -1439,10 +1452,10 @@ export class ProviderPreferences {
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
     const apiKeys = inputApiKeys(input)
     const apiKey = apiKeys[0] || ''
-    if (!provider) throw new Error('Provider 不能为空。')
-    if (!PROVIDER_API_IDS.has(api)) throw new Error('Provider API 协议不受支持。')
-    if (!baseUrl) throw new Error('Provider Base URL 不能为空。')
-    if (baseUrl.length > 4_096) throw new Error('Provider Base URL 过长。')
+    if (!provider) throw pisperError('invalid', 'provider', 'provider is required')
+    if (!PROVIDER_API_IDS.has(api)) throw pisperError('unsupported', 'provider', 'API protocol')
+    if (!baseUrl) throw pisperError('invalid', 'provider', 'Base URL is required')
+    if (baseUrl.length > 4_096) throw pisperError('invalid', 'provider', 'Base URL is too long')
     try {
       const parsed = new URL(baseUrl)
       if (
@@ -1454,13 +1467,14 @@ export class ProviderPreferences {
         throw new Error()
       }
     } catch {
-      throw new Error('Provider Base URL 必须是有效的 HTTP 或 HTTPS 地址。')
+      throw pisperError('invalid', 'url', 'Base URL must be http or https')
     }
-    if (apiKeys.some((key) => key.length > 16_384)) throw new Error('API Key 过长。')
+    if (apiKeys.some((key) => key.length > 16_384))
+      throw pisperError('too_large', 'api_key', undefined, { status: 400 })
 
     const config = await this.getConfigFacade()
     if (!config.providers.some((item) => item.id === provider)) {
-      throw new Error('Provider 不存在。')
+      throw pisperError('not_found', 'provider', undefined, { status: 400 })
     }
 
     const [modelsJson, credentials] = await Promise.all([
@@ -1473,14 +1487,12 @@ export class ProviderPreferences {
       !apiKey &&
       hasNonOfficialOAuthEndpoint(provider, { ...existingOverlay, baseUrl })
     )
-      throw new Error(
-        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
-      )
+      throw pisperError('forbidden', 'login', OFFICIAL_OAUTH_ONLY)
     modelsJson.providers ||= {}
     const providerOverlay = { ...existingOverlay, api }
     if (Object.hasOwn(input, 'name')) {
       const name = typeof input.name === 'string' ? input.name.trim() : ''
-      if (!name || name.length > 240) throw new Error('Provider 名称无效。')
+      if (!name || name.length > 240) throw pisperError('invalid', 'provider', 'name')
       providerOverlay.name = name
     }
     if (Array.isArray(providerOverlay.models)) {
@@ -1518,12 +1530,12 @@ export class ProviderPreferences {
   async setProviderApiKey(id, input = {}) {
     const provider = String(id || '').trim()
     const apiKeys = inputApiKeys(input)
-    if (!provider) throw new Error('Provider 不能为空。')
-    if (!apiKeys.length) throw new Error('API Key 不能为空。')
+    if (!provider) throw pisperError('invalid', 'provider', 'provider is required')
+    if (!apiKeys.length) throw pisperError('invalid', 'api_key', 'API key is required')
 
     const config = await this.getConfigFacade()
     if (!config.providers.some((item) => item.id === provider)) {
-      throw new Error('Provider 不存在。')
+      throw pisperError('not_found', 'provider', undefined, { status: 400 })
     }
     const credentials = await readJson(this.authPath, {})
     const records = await this.providerKeyring.replace(provider, apiKeys)
@@ -1546,7 +1558,7 @@ export class ProviderPreferences {
       !modelRuntime.getProviders().some((item) => item.id === provider) &&
       !KNOWN_PROVIDERS.includes(provider)
     )
-      throw new Error('Provider 不存在。')
+      throw pisperError('not_found', 'provider', undefined, { status: 400 })
     const appConfig = await readJson(this.appConfigPath, {
       toolMode: 'full',
       disabledProviders: [],
@@ -1574,7 +1586,8 @@ export class ProviderPreferences {
             .some((model) => inferModelKind(model.id, model.pisperKind) === 'chat')
         )
       })
-      if (!alternative) throw new Error('至少需要保留一个已配置并启用的 Provider。')
+      if (!alternative)
+        throw pisperError('invalid', 'provider', 'keep at least one configured, enabled provider')
       const alternativeModel = this.providerChatDefaultModel(alternative.id, {
         appConfig,
         settings,
@@ -1593,7 +1606,7 @@ export class ProviderPreferences {
   async cloneProvider(sourceId, input = {}) {
     const config = await this.getConfigFacade()
     const source = config.providers.find((entry) => entry.id === sourceId)
-    if (!source) throw new Error('Provider 不存在。')
+    if (!source) throw pisperError('not_found', 'provider', undefined, { status: 400 })
     const [modelsJson, credentials] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.authPath, {}),
@@ -1601,7 +1614,8 @@ export class ProviderPreferences {
     const overlay = modelsJson.providers?.[sourceId] || {}
     const suppliedKeys = inputApiKeys(input)
     const apiKey = suppliedKeys[0] || configuredProviderSecret(credentials[sourceId], overlay)
-    if (!apiKey) throw new Error('该 Provider 没有可复制的 API Key，请为克隆连接填写 API Key。')
+    if (!apiKey)
+      throw pisperError('invalid', 'api_key', 'nothing to copy; enter an API key for the clone')
     const models = this.getModelRuntime()
       .getModels(sourceId)
       .map((model) => ({
@@ -1645,7 +1659,7 @@ export class ProviderPreferences {
           .some((entry) => entry.id === id) ||
         KNOWN_PROVIDERS.includes(id)
       )
-        throw new Error('Provider ID 已存在，请使用不同的连接标识。')
+        throw pisperError('exists', 'provider', 'use a different provider ID', { status: 400 })
       try {
         return await this.createProviderRecord(input, clone)
       } catch (error) {
@@ -1683,20 +1697,25 @@ export class ProviderPreferences {
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl, api)
     const modelId = String(input.model || '').trim()
     const initialApiKeys = inputApiKeys(input)
-    if (initialApiKeys.some((key) => key.length > 16_384)) throw new Error('API Key 过长。')
+    if (initialApiKeys.some((key) => key.length > 16_384))
+      throw pisperError('too_large', 'api_key', undefined, { status: 400 })
     const providerType =
       input.providerType === 'visual' || inferModelKind(modelId, input.modelKind) !== 'chat'
         ? 'visual'
         : 'chat'
     if (!id || !name || !baseUrl || !modelId) {
-      throw new Error('名称、Provider ID、Base URL 和初始模型不能为空。')
+      throw pisperError(
+        'invalid',
+        'provider',
+        'name, provider ID, Base URL and initial model are required',
+      )
     }
     if (providerType === 'visual' && inferModelKind(modelId, input.modelKind) === 'chat') {
-      throw new Error('视觉 Provider 的初始模型必须是图像或视频模型。')
+      throw pisperError('invalid', 'model', 'visual providers take image or video models only')
     }
     const modelRuntime = this.getModelRuntime()
     if (modelRuntime.getProviders().some((item) => item.id === id) || KNOWN_PROVIDERS.includes(id))
-      throw new Error('Provider ID 已存在，请使用不同的连接标识。')
+      throw pisperError('exists', 'provider', 'use a different provider ID', { status: 400 })
 
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     modelsJson.providers ||= {}
@@ -1875,16 +1894,14 @@ export class ProviderPreferences {
     const overlay = providerId ? modelsJson.providers?.[providerId] || {} : {}
     const api = String(input.api || overlay.api || 'openai-responses').trim()
     const baseUrl = normalizeProtocolBaseUrl(input.baseUrl || overlay.baseUrl, api)
-    if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
+    if (!baseUrl) throw pisperError('invalid', 'provider', 'Base URL is required')
     const explicitApiKeys = inputApiKeys(input)
     if (
       isOAuthCredential(credentials[providerId]) &&
       !explicitApiKeys.length &&
       hasNonOfficialOAuthEndpoint(providerId, { ...overlay, baseUrl })
     )
-      throw new Error(
-        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
-      )
+      throw pisperError('forbidden', 'login', OFFICIAL_OAUTH_ONLY)
     const discovered = await this.discoverWithKeys({
       provider: providerId,
       credentials,
@@ -1901,7 +1918,7 @@ export class ProviderPreferences {
     })
     const providerType = String(input.providerType || '').trim()
     if (providerType !== 'chat' && providerType !== 'visual') {
-      throw new Error('Provider 类型必须是 chat 或 visual。')
+      throw pisperError('invalid', 'provider', 'type must be chat or visual')
     }
     const scope = providerType
     const models =
@@ -1909,10 +1926,13 @@ export class ProviderPreferences {
         ? discovered.models.filter((model) => model.kind === 'image' || model.kind === 'video')
         : discovered.models.filter((model) => model.kind === 'chat')
     if (!models.length) {
-      throw new Error(
+      throw pisperError(
+        'not_found',
+        'model',
         scope === 'visual'
-          ? 'Provider 没有返回可用的图像或视频模型。'
-          : 'Provider 没有返回可用的对话模型。',
+          ? 'provider returned no image or video models'
+          : 'provider returned no chat models',
+        { status: 400 },
       )
     }
     // keyIds 只用于内部目录同步，普通发现响应不暴露任何 Key 关联信息。
@@ -1928,7 +1948,7 @@ export class ProviderPreferences {
       !modelRuntime.getProviders().some((item) => item.id === provider) &&
       !KNOWN_PROVIDERS.includes(provider)
     )
-      throw new Error('Provider 不存在。')
+      throw pisperError('not_found', 'provider', undefined, { status: 400 })
     const [modelsJson, credentials, appConfig] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.authPath, {}),
@@ -1941,16 +1961,14 @@ export class ProviderPreferences {
       overlay.baseUrl || PROVIDER_DEFAULT_BASE_URLS[provider] || '',
     ).trim()
     const baseUrl = String(input.baseUrl || configuredBaseUrl || '').trim()
-    if (!baseUrl) throw new Error('请先配置 Provider Base URL。')
+    if (!baseUrl) throw pisperError('invalid', 'provider', 'Base URL is required')
     const explicitApiKeys = inputApiKeys(input)
     if (
       isOAuthCredential(credentials[provider]) &&
       !explicitApiKeys.length &&
       hasNonOfficialOAuthEndpoint(provider, { ...overlay, baseUrl })
     )
-      throw new Error(
-        '该官方 Provider 的 OAuth 登录仅能连接官方端点。请为中转站使用独立 Provider ID 和 API Key。',
-      )
+      throw pisperError('forbidden', 'login', OFFICIAL_OAUTH_ONLY)
     const discovered = await this.discoverWithKeys({
       provider,
       credentials,
@@ -1968,7 +1986,8 @@ export class ProviderPreferences {
         ? input.providerType
         : appConfig.providerTypes?.[provider] || inferredProviderType(overlay)
     const models = discovered.models
-    if (!models.length) throw new Error('Provider 没有返回可用的模型。')
+    if (!models.length)
+      throw pisperError('not_found', 'model', 'provider returned no usable models')
     const result = { ...discovered, count: models.length, models, scope }
     const previousModelIds = new Set(modelRuntime.getModels(provider).map((model) => model.id))
     let sync = { addedModelIds: [], removedModelIds: [] }
@@ -2005,7 +2024,7 @@ export class ProviderPreferences {
       const provider = String(providerId || '').trim()
       const modelId = String(input?.modelId || '').trim()
       const runtimeModel = this.getModelRuntime().getModel(provider, modelId)
-      if (!runtimeModel) throw new Error('模型不存在。')
+      if (!runtimeModel) throw pisperError('not_found', 'model', undefined, { status: 400 })
       const modelsJson = await readJson(this.modelsPath, { providers: {} })
       const overlay = { ...(modelsJson.providers?.[provider] || {}) }
       const models = [...(overlay.models || [])]
@@ -2072,10 +2091,10 @@ export class ProviderPreferences {
       !modelRuntime.getProviders().some((item) => item.id === provider) &&
       !KNOWN_PROVIDERS.includes(provider)
     )
-      throw new Error('Provider 不存在。')
+      throw pisperError('not_found', 'provider', undefined, { status: 400 })
     const models = Array.isArray(inputs) ? inputs : []
-    if (!models.length) throw new Error('请至少选择一个模型。')
-    if (models.length > 250) throw new Error('单次最多添加 250 个模型。')
+    if (!models.length) throw pisperError('invalid', 'model', 'pick at least one model')
+    if (models.length > 250) throw pisperError('limit', 'model', 'max 250 per request')
     const [modelsJson, appConfig] = await Promise.all([
       readJson(this.modelsPath, { providers: {} }),
       readJson(this.appConfigPath, { providerTypes: {} }),
@@ -2091,12 +2110,12 @@ export class ProviderPreferences {
     const addedModelIds = []
     for (const input of models) {
       const modelId = String(input?.id || '').trim()
-      if (!modelId) throw new Error('模型 ID 不能为空。')
-      if (modelId.length > 240) throw new Error('模型 ID 过长。')
+      if (!modelId) throw pisperError('invalid', 'model', 'model ID is required')
+      if (modelId.length > 240) throw pisperError('invalid', 'model', 'model ID is too long')
       const modelKind = inferModelKind(modelId, input.kind)
 
       if (existing.has(modelId)) {
-        if (!skipExisting) throw new Error('该模型已经存在。')
+        if (!skipExisting) throw pisperError('exists', 'model', undefined, { status: 400 })
         continue
       }
       overlay.models.push(
@@ -2122,7 +2141,10 @@ export class ProviderPreferences {
       existing.add(modelId)
       addedModelIds.push(modelId)
     }
-    if (!addedModelIds.length) throw new Error('所选模型均已添加。')
+    if (!addedModelIds.length)
+      throw pisperError('exists', 'model', 'all selected models were already added', {
+        status: 400,
+      })
     // 显式重新添加恢复用户删掉的型号；远程目录刷新不能清除此排除记录。
     if (Array.isArray(overlay.excludedModels)) {
       overlay.excludedModels = overlay.excludedModels.filter((id) => !addedModelIds.includes(id))
@@ -2163,7 +2185,7 @@ export class ProviderPreferences {
       !modelId.trim() ||
       modelId.trim().length > 240
     ) {
-      throw Object.assign(new Error('供应商或模型 ID 无效。'), {
+      throw Object.assign(new Error('Invalid provider or model ID.'), {
         code: 'INVALID_PROVIDER_MODEL',
         statusCode: 400,
       })
@@ -2173,7 +2195,7 @@ export class ProviderPreferences {
     const config = await this.getConfigFacade()
     const target = config.providers.find((entry) => entry.id === provider)
     if (!target) {
-      throw Object.assign(new Error('Provider 不存在。'), {
+      throw Object.assign(new Error('Provider not found.'), {
         code: 'PROVIDER_NOT_FOUND',
         statusCode: 404,
       })
@@ -2183,7 +2205,7 @@ export class ProviderPreferences {
     const excluded = new Set(Array.isArray(overlay.excludedModels) ? overlay.excludedModels : [])
     if (!target.models.some((model) => model.id === id)) {
       if (excluded.has(id)) return config
-      throw Object.assign(new Error('模型不存在。'), {
+      throw Object.assign(new Error('Model not found.'), {
         code: 'PROVIDER_MODEL_NOT_FOUND',
         statusCode: 404,
       })
@@ -2226,7 +2248,12 @@ export class ProviderPreferences {
   async deleteProvider(id) {
     const provider = String(id || '').trim()
     if (KNOWN_PROVIDERS.includes(provider)) {
-      throw new Error('内置 Provider 不能删除，可以将其停用。')
+      throw pisperError(
+        'forbidden',
+        'provider',
+        'built-in providers can be disabled, not deleted',
+        { status: 400 },
+      )
     }
     const modelsJson = await readJson(this.modelsPath, { providers: {} })
     if (!modelsJson.providers?.[provider]) return null

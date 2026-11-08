@@ -1,6 +1,7 @@
 // Bot 对话这一轮的来由（谁叫起来的、交回了哪些结果），以及复盘用的无头请求
 // （不建会话、不写会话文件、不带工具）。
 import { ATTACHMENT_MARKER, textFromContent } from './stream-projection.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 import { isAgentCompletionMessage } from '../services/multi-agent-service.mjs'
 import { parseBotMessageTag } from '../services/bots/bot-links.mjs'
 import { isBotBriefMessage } from '../services/bots/bot-proactive.mjs'
@@ -49,7 +50,7 @@ export function botTurnTrigger(messages) {
 
 // 一次不带上下文、不带工具的无头请求（复盘）：出错或取消时 text 为 null。
 export async function requestBotText({ modelRuntime, model, text: prompt, signal }) {
-  if (!model) throw new Error('没有可用模型。')
+  if (!model) throw pisperError('unavailable', 'model')
   const stream = modelRuntime.streamSimple(
     model,
     {

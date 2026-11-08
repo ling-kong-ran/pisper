@@ -2,6 +2,8 @@
 // 操作仍由 Pisper 自己的工具权限与审批流程处理。
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import { pisperError } from '../../shared/errors.mjs'
+import { MCP_HOST_RESULT_TOO_LARGE, MCP_HOST_TOOLS } from '../prompts/tools/mcp.mjs'
 import { redactSecretText, redactSecretValue } from '../security/secret-redaction.mjs'
 
 const MAX_RESULT_BYTES = 96 * 1024
@@ -44,7 +46,7 @@ function result(value) {
           type: 'text',
           text: JSON.stringify({
             error: 'result_too_large',
-            message: '结果超过大小限制。请缩小查询范围或减少返回条数。',
+            message: MCP_HOST_RESULT_TOO_LARGE,
           }),
         },
       ],
@@ -68,9 +70,10 @@ function failure(error) {
   }
 }
 
-function requireFound(value, kind) {
+// PisperError 的 code 就是 not_found，failure() 据此回报 not_found。
+function requireFound(value, subject) {
   if (value != null) return value
-  throw Object.assign(new Error(`${kind}不存在。`), { code: 'not_found' })
+  throw pisperError('not_found', subject)
 }
 
 function pruneRuns(runs) {
@@ -110,9 +113,9 @@ function visibleSession(message) {
 function register(server, name, config, handler, context) {
   server.registerTool(name, config, async (input) => {
     try {
-      if (!context.isEnabled()) throw new Error('Pisper MCP 服务已关闭。')
+      if (!context.isEnabled()) throw pisperError('unavailable', 'mcp')
       const runtime = await context.getRuntime()
-      if (!runtime) throw new Error('Pisper Runtime 尚未就绪。')
+      if (!runtime) throw pisperError('unavailable', 'runtime')
       return result(await handler(runtime, input, context))
     } catch (error) {
       return failure(error)
@@ -132,7 +135,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_capabilities',
     {
-      description: 'List the Pisper Runtime capabilities available on this device.',
+      description: MCP_HOST_TOOLS.pisper_capabilities,
       annotations: readOnly,
     },
     async (runtime) => runtime.capabilities,
@@ -142,7 +145,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_list_sessions',
     {
-      description: 'List Pisper conversations, optionally filtering by title. Returns at most 100.',
+      description: MCP_HOST_TOOLS.pisper_list_sessions,
       inputSchema: z.object({
         query: z.string().max(160).optional(),
         limit: z.number().int().min(1).max(100).optional(),
@@ -166,7 +169,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_get_session_messages',
     {
-      description: 'Read one page of conversation messages. Use nextCursor to page backwards.',
+      description: MCP_HOST_TOOLS.pisper_get_session_messages,
       inputSchema: z.object({
         sessionId,
         before: z.string().max(30).optional(),
@@ -188,8 +191,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_get_session_live',
     {
-      description:
-        'Get live status of a conversation, including whether it is streaming or waiting for user approval.',
+      description: MCP_HOST_TOOLS.pisper_get_session_live,
       inputSchema: z.object({ sessionId }),
       annotations: readOnly,
     },
@@ -208,8 +210,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_create_session',
     {
-      description:
-        'Create a Pisper conversation. New conversations retain Pisper’s default approval-required mode.',
+      description: MCP_HOST_TOOLS.pisper_create_session,
       inputSchema: z.object({
         name: z.string().min(1).max(160).optional(),
         cwd: z.string().min(1).max(2_000).optional(),
@@ -223,20 +224,19 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_rename_session',
     {
-      description: 'Rename an existing Pisper conversation.',
+      description: MCP_HOST_TOOLS.pisper_rename_session,
       inputSchema: z.object({ sessionId, name: z.string().min(1).max(160) }),
       annotations: changesState,
     },
     async (runtime, { sessionId: id, name }) =>
-      requireFound(await runtime.renameSession(id, name, { manual: true }), '会话'),
+      requireFound(await runtime.renameSession(id, name, { manual: true }), 'session'),
     context,
   )
   register(
     server,
     'pisper_send_message',
     {
-      description:
-        'Start a Pisper agent turn. Returns a run ID immediately; poll pisper_get_run. Pisper session permissions and approvals still apply.',
+      description: MCP_HOST_TOOLS.pisper_send_message,
       inputSchema: z.object({
         sessionId: sessionId.optional(),
         message: z.string().min(1).max(12_000),
@@ -250,10 +250,14 @@ export function registerMcpHostTools(server, context) {
     async (runtime, input, { runs, isEnabled }) => {
       pruneRuns(runs)
       if ([...runs.values()].filter((run) => run.status === 'running').length >= MAX_ACTIVE_RUNS)
-        throw new Error('外部会话运行数量已达到上限，请等待已有任务完成。')
+        throw pisperError(
+          'limit',
+          'session',
+          `max ${MAX_ACTIVE_RUNS} running; wait for one to finish`,
+        )
       let id = input.sessionId
-      if (id && !(await runtime.hasSession(id))) throw new Error('会话不存在。')
-      if (!id) id = (await runtime.createSession(input.name || 'MCP 会话', input.cwd)).id
+      if (id && !(await runtime.hasSession(id))) throw pisperError('not_found', 'session')
+      if (!id) id = (await runtime.createSession(input.name || 'MCP session', input.cwd)).id
       const run = {
         id: `mcp_run_${randomUUID()}`,
         sessionId: id,
@@ -268,7 +272,7 @@ export function registerMcpHostTools(server, context) {
       runs.set(run.id, run)
       void Promise.resolve()
         .then(async () => {
-          if (!isEnabled()) throw new Error('Pisper MCP 服务已关闭。')
+          if (!isEnabled()) throw pisperError('unavailable', 'mcp')
           const output = await runtime.promptFromChannel({
             sessionId: id,
             message: input.message,
@@ -284,7 +288,7 @@ export function registerMcpHostTools(server, context) {
               // streamPrompt 会发送 error 终态并正常返回，不能把该轮误报为成功。
               if (event === 'error') {
                 run.status = 'failed'
-                run.error = redactSecretText(String(data?.message || '会话运行失败。')).slice(
+                run.error = redactSecretText(String(data?.message || 'Session run failed.')).slice(
                   0,
                   500,
                 )
@@ -315,14 +319,14 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_get_run',
     {
-      description: 'Poll a Pisper turn started by pisper_send_message.',
+      description: MCP_HOST_TOOLS.pisper_get_run,
       inputSchema: z.object({ runId }),
       annotations: readOnly,
     },
     async (_runtime, { runId: id }, { runs }) => {
       pruneRuns(runs)
       const run = runs.get(id)
-      if (!run) throw new Error('运行不存在或结果已过期。')
+      if (!run) throw pisperError('not_found', 'task', 'unknown or expired run')
       return publicRun(run)
     },
     context,
@@ -331,7 +335,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_abort_session',
     {
-      description: 'Stop an active Pisper conversation turn.',
+      description: MCP_HOST_TOOLS.pisper_abort_session,
       inputSchema: z.object({ sessionId }),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
@@ -342,7 +346,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_get_goal',
     {
-      description: 'Read goal state for a Pisper conversation.',
+      description: MCP_HOST_TOOLS.pisper_get_goal,
       inputSchema: z.object({ sessionId }),
       annotations: readOnly,
     },
@@ -353,7 +357,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_pause_goal',
     {
-      description: 'Pause an active Pisper goal.',
+      description: MCP_HOST_TOOLS.pisper_pause_goal,
       inputSchema: z.object({ sessionId }),
       annotations: changesState,
     },
@@ -364,7 +368,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_search_memory',
     {
-      description: 'Search Pisper long-term memory for relevant user or project context.',
+      description: MCP_HOST_TOOLS.pisper_search_memory,
       inputSchema: z.object({
         query: z.string().min(1).max(500),
         limit: z.number().int().min(1).max(12).optional(),
@@ -379,7 +383,7 @@ export function registerMcpHostTools(server, context) {
   register(
     server,
     'pisper_list_workflows',
-    { description: 'List available Pisper workflows.', annotations: readOnly },
+    { description: MCP_HOST_TOOLS.pisper_list_workflows, annotations: readOnly },
     async (runtime) => {
       const value = await runtime.getWorkflows()
       return { workflows: (value.workflows || []).slice(0, 100) }
@@ -390,7 +394,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_run_workflow',
     {
-      description: 'Start a published Pisper workflow using its existing approval rules.',
+      description: MCP_HOST_TOOLS.pisper_run_workflow,
       inputSchema: z.object({
         workflowId: identifier,
         inputs: z.record(z.string(), z.unknown()).optional(),
@@ -398,35 +402,37 @@ export function registerMcpHostTools(server, context) {
       annotations: changesState,
     },
     async (runtime, { workflowId, inputs = {} }) =>
-      requireFound(await runtime.runWorkflow(workflowId, { trigger: 'mcp', inputs }), '工作流'),
+      requireFound(await runtime.runWorkflow(workflowId, { trigger: 'mcp', inputs }), 'workflow'),
     context,
   )
   register(
     server,
     'pisper_get_workflow_run',
     {
-      description: 'Read a Pisper workflow run.',
+      description: MCP_HOST_TOOLS.pisper_get_workflow_run,
       inputSchema: z.object({ runId }),
       annotations: readOnly,
     },
-    async (runtime, { runId: id }) => requireFound(await runtime.getWorkflowRun(id), '工作流运行'),
+    async (runtime, { runId: id }) =>
+      requireFound(await runtime.getWorkflowRun(id), 'workflow_run'),
     context,
   )
   register(
     server,
     'pisper_stop_workflow_run',
     {
-      description: 'Stop a Pisper workflow run.',
+      description: MCP_HOST_TOOLS.pisper_stop_workflow_run,
       inputSchema: z.object({ runId }),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
-    async (runtime, { runId: id }) => requireFound(await runtime.stopWorkflowRun(id), '工作流运行'),
+    async (runtime, { runId: id }) =>
+      requireFound(await runtime.stopWorkflowRun(id), 'workflow_run'),
     context,
   )
   register(
     server,
     'pisper_list_schedules',
-    { description: 'List Pisper scheduled tasks.', annotations: readOnly },
+    { description: MCP_HOST_TOOLS.pisper_list_schedules, annotations: readOnly },
     async (runtime) => {
       const value = await runtime.getSchedules()
       return { tasks: (value.tasks || []).slice(0, 100) }
@@ -437,18 +443,18 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_run_schedule',
     {
-      description: 'Run an existing Pisper scheduled task now.',
+      description: MCP_HOST_TOOLS.pisper_run_schedule,
       inputSchema: z.object({ scheduleId: identifier }),
       annotations: changesState,
     },
     async (runtime, { scheduleId }) =>
-      requireFound(await runtime.runSchedule(scheduleId), '定时任务'),
+      requireFound(await runtime.runSchedule(scheduleId), 'schedule'),
     context,
   )
   register(
     server,
     'pisper_get_usage_today',
-    { description: 'Read today’s Pisper token usage.', annotations: readOnly },
+    { description: MCP_HOST_TOOLS.pisper_get_usage_today, annotations: readOnly },
     async (runtime) => runtime.getTodayUsage(),
     context,
   )
@@ -456,7 +462,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_list_assets',
     {
-      description: 'Search Pisper assets by name or session.',
+      description: MCP_HOST_TOOLS.pisper_list_assets,
       inputSchema: z.object({
         query: z.string().max(160).optional(),
         sessionId: sessionId.optional(),
@@ -472,7 +478,7 @@ export function registerMcpHostTools(server, context) {
     server,
     'pisper_get_session_changes',
     {
-      description: 'Read tracked file changes for a Pisper conversation.',
+      description: MCP_HOST_TOOLS.pisper_get_session_changes,
       inputSchema: z.object({ sessionId }),
       annotations: readOnly,
     },

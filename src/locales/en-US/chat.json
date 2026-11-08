@@ -679,6 +679,7 @@
   "focusSession.waitingForModel": "Switching model. Please wait.",
   "focusSession.returnToLatest": "Return to latest messages",
   "agentJob.title": "Handed off: {task}",
+  "agentJob.proactiveCheck": "Read-only check-in",
   "agentJob.command": "Background command: {command}",
   "agentJob.queued": "queued",
   "agentJob.running": "working",

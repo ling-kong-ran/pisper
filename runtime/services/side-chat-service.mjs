@@ -83,14 +83,18 @@ export class SideChatService {
     if (!this.isSideChat(id)) return
     const metadata = this.getMetadata()[id]?.sideChat
     if (!metadata || this.deleting.has(id)) {
-      throw new SideChatError('side_chat_not_found', '临时侧聊已过期或已删除，请重新打开。', 404)
+      throw new SideChatError(
+        'side_chat_not_found',
+        'Side chat expired or was deleted; open it again.',
+        404,
+      )
     }
     if (
       (!Number.isFinite(Date.parse(metadata.expiresAt)) ||
         Date.parse(metadata.expiresAt) <= this.now()) &&
       !this.protected(id)
     ) {
-      throw new SideChatError('side_chat_expired', '临时侧聊已过期，请重新打开。', 410)
+      throw new SideChatError('side_chat_expired', 'Side chat expired; open it again.', 410)
     }
   }
 
@@ -117,13 +121,17 @@ export class SideChatService {
   async get(parentId, { create = false } = {}) {
     return this.withParent(parentId, async () => {
       if (this.closed || this.deleting.has(parentId)) {
-        throw new SideChatError('session_not_found', '会话不存在。', 404)
+        throw new SideChatError('session_not_found', 'Session not found.', 404)
       }
       if (this.isSideChat(parentId)) {
-        throw new SideChatError('invalid_side_chat_parent', '临时侧聊不能再创建侧聊。', 400)
+        throw new SideChatError(
+          'invalid_side_chat_parent',
+          'A side chat cannot open another side chat.',
+          400,
+        )
       }
       const parent = await this.getSummary(parentId)
-      if (!parent) throw new SideChatError('session_not_found', '会话不存在。', 404)
+      if (!parent) throw new SideChatError('session_not_found', 'Session not found.', 404)
       for (const id of this.children(parentId)) {
         // children 已筛选属于当前父会话的 sideChat；这里只缩窄该领域不变量。
         const metadata = /** @type {SideChatMetadata} */ (this.getMetadata()[id].sideChat)
@@ -183,7 +191,7 @@ export class SideChatService {
   async beginRun(id) {
     if (!this.isSideChat(id)) return null
     this.assertAvailable(id)
-    if (this.closed) throw new SideChatError('runtime_stopping', '服务正在关闭。', 503)
+    if (this.closed) throw new SideChatError('runtime_stopping', 'Runtime is stopping.', 503)
     // 在任何异步装配之前预留，防止清理器与首次发送同时取得同一个会话。
     this.reservations.set(id, (this.reservations.get(id) || 0) + 1)
     const release = () => {

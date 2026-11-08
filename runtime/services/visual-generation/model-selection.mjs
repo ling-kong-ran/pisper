@@ -2,6 +2,7 @@
 // 提供按 Provider 筛选可用图像/视频模型的能力。
 import { modelCapabilities } from '../provider-model-options.mjs'
 import { readJson, writeJsonAtomic } from '../../storage/json-file.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 // 不再按模型 ID 猜测用途：类型完全由用户在添加时显式选择。
 // 保留函数签名以兼容既有调用点与历史配置（'auto' 或缺省一律按对话模型处理）。
@@ -224,7 +225,8 @@ export class VisualModelCatalog {
   }
 
   async setPreferred(kind, requestedModel) {
-    if (!['image', 'video'].includes(kind)) throw new Error('视觉模型类型不受支持。')
+    if (!['image', 'video'].includes(kind))
+      throw pisperError('unsupported', 'model', 'kind must be image or video')
     const requested = String(requestedModel || '').trim()
     const selected = requested ? await this.select(kind, requested) : null
     const appConfig = await readJson(this.appConfigPath, { visualDefaultModels: {} })
@@ -241,8 +243,10 @@ export class VisualModelCatalog {
   async select(kind, requestedModel) {
     const candidates = await this.candidates(kind)
     if (!candidates.length)
-      throw new Error(
-        `没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`,
+      throw pisperError(
+        'unavailable',
+        'model',
+        `no ${kind} generation model is set up and enabled; add one in Settings`,
       )
     const requested = String(requestedModel || '')
       .trim()
@@ -257,15 +261,20 @@ export class VisualModelCatalog {
     const models = await this.orderedModels(kind, candidates)
     if (!requested) return publicModel(models[0])
     const exact = models.find((model) => model.id.toLowerCase() === requested)
-    if (!exact) throw new Error(`未找到已启用的视觉模型：${requestedModel}`)
+    if (!exact)
+      throw pisperError('not_found', 'model', `no enabled visual model ${requestedModel}`, {
+        status: 400,
+      })
     return publicModel(exact)
   }
 
   async all(kind) {
     const candidates = await this.candidates(kind)
     if (!candidates.length)
-      throw new Error(
-        `没有已配置并启用的${kind === 'video' ? '视频' : '图像'}生成模型。请先在配置页添加视觉模型。`,
+      throw pisperError(
+        'unavailable',
+        'model',
+        `no ${kind} generation model is set up and enabled; add one in Settings`,
       )
     return (await this.orderedModels(kind, candidates)).map(publicModel)
   }

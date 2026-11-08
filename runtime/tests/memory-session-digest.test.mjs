@@ -93,7 +93,7 @@ test('the sessions list shows newest first, pages by last turn, and hides what m
     assert.equal(newest.spaceId, 'global')
     assert.match(newest.id, /./)
     // 规则版第一行的时间标签是给检索用的，界面自己写时间。
-    assert.doesNotMatch(newest.text, /^会话 /)
+    assert.doesNotMatch(newest.text, /^Session /)
     assert.match(newest.text, /new 第一句/)
     assert.deepEqual(
       list({ before: newest.windowEnd, limit: 1 }).map((digest) => digest.sessionId),
@@ -133,7 +133,7 @@ test('a session digest waits until the session has gone quiet, and one turn is n
     assert.equal(rows[0].session_id, 'busy')
     assert.equal(rows[0].window_start, ago(5))
     assert.equal(rows[0].window_end, ago(2))
-    assert.match(rows[0].text, /^会话 2026-11-05 /)
+    assert.match(rows[0].text, /^Session 2026-11-05 /)
     assert.match(rows[0].text, /修一下登录页/)
     assert.match(rows[0].text, /再加个测试/)
   })
@@ -618,7 +618,7 @@ test('memory_open expands a session digest to its facts and turns', async () => 
     assert.equal(opened.spaceId, 'global')
     assert.equal(opened.item.level, 'session')
     assert.equal(opened.item.sessionId, 's')
-    assert.match(opened.item.title, /^会话 2026-11-05/)
+    assert.match(opened.item.title, /^Session 2026-11-05/)
     assert.deepEqual(
       opened.children.map((child) => child.id),
       [fact.id],

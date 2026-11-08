@@ -526,7 +526,7 @@ test('a database from a newer version is refused and left untouched', async () =
       .run()
     await first.dispose()
     const refused = new LocalMemoryRuntime({ path, cwd })
-    await assert.rejects(refused.init(), /比当前程序新/)
+    await assert.rejects(refused.init(), { code: 'unsupported', message: /newer than this app/ })
     refused.db?.close()
     refused.db = null
     const raw = new DatabaseSync(path)
@@ -576,7 +576,7 @@ test('a released v4 database upgrades in place: nothing lost, backed up, candida
   try {
     await memory.init()
     assert.ok(existsSync(`${path}.pre-v5.bak`))
-    assert.equal(memory.getSpace('global').name, '全局')
+    assert.equal(memory.getSpace('global').name, 'Global')
     assert.equal(memory.getMemory('new').status, 'active')
     assert.equal(memory.getMemory('old').status, 'superseded')
     assert.equal(memory.getMemory('old').validTo, '2026-01-02T00:00:00.000Z')

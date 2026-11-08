@@ -1,6 +1,7 @@
 // Provider 多 Key 私有存储：auth.json 仍保留主 Key 供 Pi 原生兼容，
 // 其余 Key 单独以 0600 保存，并只向普通配置视图暴露不可逆标识和掩码。
 import { createHash } from 'node:crypto'
+import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const MAX_KEYS_PER_PROVIDER = 32
@@ -13,7 +14,8 @@ function keyId(value) {
 function cleanKey(value) {
   const key = String(value || '').trim()
   if (!key) return ''
-  if (key.length > MAX_KEY_LENGTH) throw new Error('API Key 过长。')
+  if (key.length > MAX_KEY_LENGTH)
+    throw pisperError('too_large', 'api_key', `max ${MAX_KEY_LENGTH} characters`)
   return key
 }
 
@@ -27,7 +29,7 @@ function uniqueKeys(values) {
     result.push(key)
   }
   if (result.length > MAX_KEYS_PER_PROVIDER) {
-    throw new Error(`单个 Provider 最多保存 ${MAX_KEYS_PER_PROVIDER} 个 API Key。`)
+    throw pisperError('limit', 'api_key', `max ${MAX_KEYS_PER_PROVIDER} per provider`)
   }
   return result
 }
@@ -86,7 +88,7 @@ export class ProviderKeyringService {
       if (!merged.some((record) => record.key === key)) merged.push({ id: keyId(key), key })
     }
     if (merged.length > MAX_KEYS_PER_PROVIDER) {
-      throw new Error(`单个 Provider 最多保存 ${MAX_KEYS_PER_PROVIDER} 个 API Key。`)
+      throw pisperError('limit', 'api_key', `max ${MAX_KEYS_PER_PROVIDER} per provider`)
     }
     this.queue = this.queue
       .catch(() => {})

@@ -263,5 +263,5 @@ test('a real runtime rewinds files written by the agent to a chosen turn', async
   const toStart = await runtime.rewindFiles(created.id, firstUser.id)
   assert.deepEqual(toStart.deleted, ['notes.txt'])
   assert.equal(await stat(join(workspace, 'notes.txt')).catch(() => null), null)
-  await assert.rejects(runtime.rewindFiles(created.id, 'missing'), /不存在/)
+  await assert.rejects(runtime.rewindFiles(created.id, 'missing'), { code: 'not_found' })
 })

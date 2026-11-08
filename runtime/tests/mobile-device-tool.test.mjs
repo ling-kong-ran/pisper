@@ -142,15 +142,15 @@ test('mobile_device 绑定当前会话并把相机结果写入私有捕获目录
 
     await assert.rejects(
       tool.execute('call-6', { action: 'open_url', url: 'file:///data/local/tmp/token' }),
-      /HTTP 或 HTTPS/,
+      /http or https URL/,
     )
     await assert.rejects(
       tool.execute('call-7', { action: 'open_app', appUrl: 'intent://unsafe' }),
-      /URL Scheme/,
+      /app URL scheme/,
     )
     await assert.rejects(
       tool.execute('call-8', { action: 'open_dialer', phoneNumber: '13800;rm -rf' }),
-      /电话号码格式无效/,
+      { code: 'invalid', params: { subject: 'input', detail: 'phoneNumber' } },
     )
 
     await tool.execute('call-9', { action: 'get_device_info' })
@@ -191,7 +191,7 @@ test('mobile_device 绑定当前会话并把相机结果写入私有捕获目录
         albumId: 'Pictures/Trips/',
         assetIds: ['42', '43'],
       }),
-      /明确确认/,
+      /confirmed=true/,
     )
     assert.equal(calls.length, 8)
     await tool.execute('call-13', {
@@ -208,7 +208,7 @@ test('mobile_device 绑定当前会话并把相机结果写入私有捕获目录
 
     await assert.rejects(
       tool.execute('call-14', { action: 'delete_photos', assetIds: ['42'] }),
-      /明确确认/,
+      /confirmed=true/,
     )
     assert.equal(calls.length, 9)
     await tool.execute('call-15', {

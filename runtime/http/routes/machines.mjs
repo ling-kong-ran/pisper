@@ -1,6 +1,7 @@
 // 远程机器路由：列出、添加 SSH 机器、测试连接、移除；让对方连过来的配对码也在这里。
 // 只做校验和调用服务，经能力 remoteMachines 把关，不受 Bots 实验开关影响。
 import { remoteInfo } from './executors.mjs'
+import { errorPayload } from '../../../shared/errors.mjs'
 import { respondError } from './bots.mjs'
 
 function machineRoute(handler) {
@@ -40,6 +41,7 @@ export const machineRoutes = [
         if (error?.code === 'invalid_target' || error?.code === 'invalid_port') throw error
         json(200, {
           ok: false,
+          ...errorPayload(error),
           code: String(error?.code || 'connection_failed'),
           message: String(error?.message || error),
         })
@@ -78,7 +80,7 @@ export const machineRoutes = [
     path: '/api/machines/:machineId',
     handler: machineRoute(async ({ runtime, params, json }) => {
       const removed = await runtime.removeMachine(params.machineId)
-      if (!removed) json(404, { error: '这台机器不存在。', code: 'machine_not_found' })
+      if (!removed) json(404, { error: 'Machine not found.', code: 'machine_not_found' })
       else json(200, { ok: true })
     }),
   },

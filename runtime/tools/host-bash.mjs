@@ -9,10 +9,12 @@ import { Type } from 'typebox'
 import { applyWindowsUtf8Environment } from './windows-utf8-bash.mjs'
 import { formatGuardError, guardCommand } from './command-guard.mjs'
 import { leanToolDefinition } from './lean-coding-tools.mjs'
+import { hostBashDescription } from '../prompts/tools/host-bash.mjs'
+import { LEAN_TOOL_TEXT } from '../prompts/tools/lean-coding-tools.mjs'
 
 const HOST_BASH_SCHEMA = Type.Object({
-  command: Type.String({ description: 'Shell command' }),
-  timeout: Type.Optional(Type.Number({ description: 'Seconds' })),
+  command: Type.String({ description: LEAN_TOOL_TEXT.bash.parameters.command }),
+  timeout: Type.Optional(Type.Number({ description: LEAN_TOOL_TEXT.bash.parameters.timeout })),
 })
 
 const DENIED_ENVIRONMENT_NAMES = new Set([
@@ -109,16 +111,10 @@ export async function createPisperBashTool(
       )
     },
   })
-  const shellNote = selectedShell.fallback
-    ? 'Bash was not found on Windows, so commands run with the system Windows PowerShell (powershell.exe).'
-    : 'Commands run as the current operating-system user and can access host files and networks.'
   const leanTool = leanToolDefinition(localTool)
-  const description = selectedShell.fallback
-    ? leanTool.description.replace('Run a bash command', 'Run a command')
-    : leanTool.description
   return {
     ...leanTool,
-    description: `${description}\n${shellNote}`,
+    description: hostBashDescription(leanTool.description, { powershell: selectedShell.fallback }),
     parameters: HOST_BASH_SCHEMA,
   }
 }

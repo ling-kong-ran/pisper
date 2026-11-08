@@ -10,6 +10,8 @@ import {
   workflowImageError,
 } from '../../../shared/workflow-image-nodes.mjs'
 import { parseWorkflowMedia } from '../../../shared/workflow-inputs.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
 
 export const workflowScheduleRoutes = [
   {
@@ -68,7 +70,7 @@ export const workflowScheduleRoutes = [
         nodeId: params.nodeId,
         sourceRunId: input.sourceRunId,
       })
-      if (!run) return json(404, { error: '工作流不存在。' })
+      if (!run) return json(404, errorBody(pisperError('not_found', 'workflow')))
       json(202, { started: true, run })
     },
   },
@@ -92,7 +94,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflows/:workflowId/bundle',
     async handler({ runtime, params, json, res }) {
       const workflow = runtime.exportWorkflow(params.workflowId)
-      if (!workflow) return json(404, { error: '工作流不存在。' })
+      if (!workflow) return json(404, errorBody(pisperError('not_found', 'workflow')))
       const buffer = await exportPortableWorkflowBundle(
         workflow,
         runtime.workflowMedia,
@@ -145,7 +147,7 @@ export const workflowScheduleRoutes = [
     path: '/api/schedules/:scheduleId/run',
     async handler({ runtime, params, json }) {
       const result = await runtime.runSchedule(params.scheduleId)
-      if (!result) json(404, { error: '定时任务不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'schedule')))
       else json(202, result)
     },
   },
@@ -154,7 +156,7 @@ export const workflowScheduleRoutes = [
     path: '/api/schedules/:scheduleId',
     async handler({ runtime, params, body, json }) {
       const result = await runtime.updateSchedule(params.scheduleId, await body())
-      if (!result) json(404, { error: '定时任务不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'schedule')))
       else json(200, result)
     },
   },
@@ -163,7 +165,7 @@ export const workflowScheduleRoutes = [
     path: '/api/schedules/:scheduleId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteSchedule(params.scheduleId)
-      if (!deleted) json(404, { error: '定时任务不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'schedule')))
       else json(200, { deleted: true })
     },
   },
@@ -186,7 +188,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflow-runs/:runId',
     handler({ runtime, params, json }) {
       const run = runtime.getWorkflowRun(params.runId)
-      if (!run) json(404, { error: '工作流运行不存在。' })
+      if (!run) json(404, errorBody(pisperError('not_found', 'workflow_run')))
       else json(200, run)
     },
   },
@@ -195,7 +197,11 @@ export const workflowScheduleRoutes = [
     path: '/api/workflow-runs/:runId/retry',
     async handler({ runtime, params, json }) {
       const result = await runtime.retryWorkflowRun(params.runId)
-      if (!result) json(404, { error: '工作流运行不存在或不能重试。' })
+      if (!result)
+        json(
+          404,
+          errorBody(pisperError('not_found', 'workflow_run', 'missing or cannot be retried')),
+        )
       else json(202, result)
     },
   },
@@ -208,7 +214,13 @@ export const workflowScheduleRoutes = [
         params.nodeId,
         await body(),
       )
-      if (!result) json(404, { error: '待审批节点不存在或已经处理。' })
+      if (!result)
+        json(
+          404,
+          errorBody(
+            pisperError('not_found', 'workflow_run', 'approval missing or already handled'),
+          ),
+        )
       else json(200, result)
     },
   },
@@ -217,7 +229,11 @@ export const workflowScheduleRoutes = [
     path: '/api/workflow-runs/:runId/stop',
     async handler({ runtime, params, json }) {
       const result = await runtime.stopWorkflowRun(params.runId)
-      if (!result) json(404, { error: '工作流运行不存在或已经结束。' })
+      if (!result)
+        json(
+          404,
+          errorBody(pisperError('not_found', 'workflow_run', 'missing or already finished')),
+        )
       else json(202, result)
     },
   },
@@ -226,7 +242,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflows/:workflowId/run',
     async handler({ runtime, params, body, json }) {
       const result = await runtime.runWorkflow(params.workflowId, await body())
-      if (!result) json(404, { error: '工作流不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'workflow')))
       else json(202, result)
     },
   },
@@ -235,7 +251,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflows/:workflowId/duplicate',
     async handler({ runtime, params, body, json }) {
       const result = await runtime.duplicateWorkflow(params.workflowId, await body())
-      if (!result) json(404, { error: '工作流不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'workflow')))
       else json(201, result)
     },
   },
@@ -244,7 +260,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflows/:workflowId',
     async handler({ runtime, params, body, json }) {
       const result = await runtime.updateWorkflow(params.workflowId, await body())
-      if (!result) json(404, { error: '工作流不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'workflow')))
       else json(200, result)
     },
   },
@@ -253,7 +269,7 @@ export const workflowScheduleRoutes = [
     path: '/api/workflows/:workflowId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteWorkflow(params.workflowId)
-      if (!deleted) json(404, { error: '工作流不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'workflow')))
       else json(200, { deleted: true })
     },
   },

@@ -64,7 +64,14 @@ export function botActivityLine(t: Translate, bot: Pick<Bot, 'activity' | 'enabl
   const activity = bot.activity
   const work = activity?.working
     ? activity.current
-      ? t('bots:activity.workingOn', { count: activity.working, task: activity.current })
+      ? t('bots:activity.workingOn', {
+          count: activity.working,
+          // 运行时派的只读巡看只有任务 id，显示本地化的名字。
+          task:
+            activity.current === 'proactive_check'
+              ? t('bots:activity.proactiveCheck')
+              : activity.current,
+        })
       : t('bots:activity.working', { count: activity.working })
     : ''
   if (activity?.waiting === 'approval')

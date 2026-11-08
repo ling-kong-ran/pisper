@@ -32,6 +32,7 @@ import { BrowserPreferencesService } from './services/browser-preferences-servic
 import { McpHostService } from './services/mcp-host-service.mjs'
 import { createMcpHostAdapter } from './runtime/mcp-host-adapter.mjs'
 import { handleLocalBrowserPreferences } from './http/local-browser-preferences.mjs'
+import { pisperError } from '../shared/errors.mjs'
 
 // 运行时尚未初始化完成时的 503 响应：避免把半初始化状态当成正常服务暴露。
 function serviceUnavailable(res) {
@@ -185,8 +186,7 @@ export async function createPisperRuntime({
     },
     setEnabled(enabled, { configureFirewall = false } = {}) {
       return transitionRemote(async () => {
-        if (!capabilities.features.remoteAccess)
-          throw new Error('当前 Runtime 不支持远程访问服务端。')
+        if (!capabilities.features.remoteAccess) throw pisperError('unsupported', 'remote')
         remoteAccess.setEnabled(enabled)
         if (enabled) {
           if (await startRemote()) {
@@ -211,7 +211,8 @@ export async function createPisperRuntime({
       return transitionRemote(async () => {
         const status = remoteControl.status()
         if (status.enabled && !status.listening) {
-          if (!(await startRemote())) throw new Error('远程 HTTPS 监听尚未启动。')
+          if (!(await startRemote()))
+            throw pisperError('unavailable', 'remote', 'HTTPS listener not started')
         }
         return remoteFirewall.reconcile({
           enabled: remoteAccess.isEnabled(),

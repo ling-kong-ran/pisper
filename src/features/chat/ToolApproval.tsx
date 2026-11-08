@@ -5,7 +5,7 @@
 // 键盘：焦点不在输入框时，A 只把焦点移到允许 / 按住允许键，D 移到拒绝键，不直接批准。
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, ChevronRight, FileDiff, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { approvalSeverity, COMMAND_GUARD_REASON_PREFIX } from '@shared/session-board-status.mjs'
+import { approvalSeverity, commandGuardReasonPrefix } from '@shared/session-board-status.mjs'
 import { ensureBoardMessages } from '@/app/i18n'
 import { useI18n } from '@/app/use-i18n'
 import { HoldToConfirmButton } from '@/components/app/HoldToConfirmButton'
@@ -58,13 +58,13 @@ import {
 } from '@/features/config/public-permission-rules'
 
 // 命令守卫的拦截原因摘要（“命令守卫拦截：改写远端分支。…” → “改写远端分支”），用于危险等级标签。
+// 新 Runtime 写英文前缀，旧会话历史里是中文前缀，两种都认；英文按“. ”断句，不切断命令里的点。
 function guardReasonSummary(reason: string) {
-  if (!reason.trimStart().startsWith(COMMAND_GUARD_REASON_PREFIX)) return ''
-  const rest = reason
-    .trimStart()
-    .slice(COMMAND_GUARD_REASON_PREFIX.length)
-    .replace(/^[\s:：·-]+/u, '')
-  return rest.split(/[\n。；;]/u)[0]?.trim() || ''
+  const trimmed = reason.trimStart()
+  const prefix = commandGuardReasonPrefix(trimmed)
+  if (!prefix) return ''
+  const rest = trimmed.slice(prefix.length).replace(/^[\s:：·-]+/u, '')
+  return rest.split(/[\n。；;]|\.(?:\s|$)/u)[0]?.trim() || ''
 }
 
 // 批准前必须能看到完整命令（规格 3.5 / 4.3）：命令井按行折叠到 3 行，超出时给“展开完整命令”，

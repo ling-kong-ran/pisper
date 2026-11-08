@@ -4,7 +4,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 
 function serializeError(error) {
   return {
-    message: String(error?.message || error || '插件执行失败'),
+    message: String(error?.message || error || 'Plugin failed.'),
     stack: typeof error?.stack === 'string' ? error.stack : undefined,
   }
 }
@@ -14,7 +14,7 @@ async function main() {
     const module = await import(workerData.entryUrl)
     const execute = module.execute || module.default?.execute || module.default
     if (typeof execute !== 'function') {
-      throw new Error('插件入口必须导出 execute 函数。')
+      throw new Error('Plugin entry must export an execute function.')
     }
     const result = await execute({
       toolName: workerData.toolName,

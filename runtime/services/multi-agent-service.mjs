@@ -398,7 +398,7 @@ async function createAgentResourceLoader({
 }
 
 function summaryValue(value, depth = 0) {
-  if (depth > 1) return '[内容已省略]'
+  if (depth > 1) return '[omitted]'
   if (typeof value === 'string') return value.slice(0, 250)
   if (Array.isArray(value)) return value.slice(0, 4).map((item) => summaryValue(item, depth + 1))
   if (value && typeof value === 'object')

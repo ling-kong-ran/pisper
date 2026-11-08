@@ -404,10 +404,10 @@ test('different hotword contexts cannot replace an active recognizer or overwrit
   const { service, instances } = await nativeService(t)
   const { id } = await service.startSession({ terms: ['useEffect'] })
   const active = service.recognizer
-  await assert.rejects(service.startSession({ terms: ['TypeScript'] }), /另一个语音会话/)
+  await assert.rejects(service.startSession({ terms: ['TypeScript'] }), /different project terms/)
   await assert.rejects(
     service.transcribe(new Float32Array([0.5]), { terms: ['TypeScript'] }),
-    /另一个语音会话/,
+    /different project terms/,
   )
   assert.equal(service.recognizer, active)
   assert.equal(service.sessions.size, 1)

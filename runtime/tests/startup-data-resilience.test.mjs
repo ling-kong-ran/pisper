@@ -337,7 +337,7 @@ test(
     assert.deepEqual(status.setAside, [], 'never touch data a newer version wrote')
     const memory = await sidecar.api('GET', '/api/memory')
     assert.ok(memory.status >= 400)
-    assert.match(await memory.text(), /记忆库暂时不可用/)
+    assert.match(await memory.text(), /newer than this app/)
     await sidecar.close()
     const after = new DatabaseSync(path, { readOnly: true })
     defer(t, () => after.close())

@@ -76,11 +76,11 @@ test('service startup reconciles stale running runs with interrupted tasks', asy
   assert.equal(state.tasks[0].workflowId, '')
   assert.deepEqual(state.tasks[0].workflowInputs, {})
   assert.equal(state.tasks[0].lastStatus, 'interrupted')
-  assert.match(state.tasks[0].lastError, /Pisper 重启/)
+  assert.match(state.tasks[0].lastError, /Pisper restarted/)
   assert.equal(state.tasks[1].lastStatus, 'interrupted')
-  assert.match(state.tasks[1].lastError, /Pisper 重启/)
+  assert.match(state.tasks[1].lastError, /Pisper restarted/)
   assert.equal(state.runs[0].status, 'interrupted')
-  assert.match(state.runs[0].error, /Pisper 重启/)
+  assert.match(state.runs[0].error, /Pisper restarted/)
   assert.ok(state.runs[0].finishedAt)
   assert.ok(state.runs[0].durationMs > 0)
 
@@ -336,7 +336,7 @@ test('disposing scheduled workflow polling interrupts the schedule run', async (
 
   const state = service.getState()
   assert.equal(state.tasks[0].lastStatus, 'interrupted')
-  assert.match(state.tasks[0].lastError, /Pisper 关闭/)
+  assert.match(state.tasks[0].lastError, /Pisper closed/)
   assert.equal(state.runs[0].workflowRunId, 'workflow-run-1')
   assert.equal(state.runs[0].status, 'interrupted')
 })
@@ -369,7 +369,7 @@ test('scheduled workflow targets must exist and remain published', async (t) => 
       time: '09:00',
       timezone: 'UTC',
     }),
-    /不存在/,
+    { code: 'not_found', params: { subject: 'workflow' } },
   )
   await assert.rejects(
     service.create({
@@ -380,7 +380,7 @@ test('scheduled workflow targets must exist and remain published', async (t) => 
       time: '09:00',
       timezone: 'UTC',
     }),
-    /已发布/,
+    /only published workflows/,
   )
   workflows.push({
     id: 'published-1',
@@ -398,7 +398,7 @@ test('scheduled workflow targets must exist and remain published', async (t) => 
       time: '09:00',
       timezone: 'UTC',
     }),
-    /Branch.*不能为空/,
+    /Branch is required/,
   )
 })
 
@@ -537,8 +537,8 @@ test('one-time tasks resolve to a single instant in their timezone and then stop
 test('one-time tasks need a future date', async (t) => {
   const { service } = await onceService(t)
   const base = { name: '一次', prompt: 'test', frequency: 'once', timezone: 'UTC' }
-  await assert.rejects(service.create({ ...base, ...utcParts(-60 * 60_000) }), /已经过去/)
-  await assert.rejects(service.create({ ...base, time: '09:00' }), /需要日期/)
+  await assert.rejects(service.create({ ...base, ...utcParts(-60 * 60_000) }), /time has passed/)
+  await assert.rejects(service.create({ ...base, time: '09:00' }), /date is required/)
   const task = await service.create({ ...base, ...utcParts(2 * 60 * 60_000) })
   assert.equal(task.enabled, true)
   assert.ok(task.nextRunAt)
@@ -571,7 +571,7 @@ test('a one-time task runs once at its time and then disables itself', async (t)
   // 停用后再启用时，时间已过会被拒绝。
   await assert.rejects(
     service.update(task.id, { enabled: true, ...utcParts(-60 * 60_000) }),
-    /已经过去/,
+    /time has passed/,
   )
 })
 
@@ -607,7 +607,7 @@ test('a one-time task missed while Pisper was off is marked missed and not run',
   const [missed, future] = service.getState().tasks
   assert.equal(missed.enabled, false)
   assert.equal(missed.lastStatus, 'missed')
-  assert.match(missed.lastError, /没有运行/)
+  assert.match(missed.lastError, /Pisper was not running/)
   assert.equal(future.enabled, true)
   assert.ok(future.nextRunAt)
   await service.tick()

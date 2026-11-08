@@ -118,7 +118,7 @@ test('creating, editing, resuming or running a schedule always needs confirmatio
     for (const action of ['create', 'update', 'resume', 'run_now']) {
       const requirement = permissionRequirement({ ...base, mode, executionMode, args: { action } })
       assert.equal(requirement?.guarded, true, `${executionMode} ${action}`)
-      assert.match(requirement.reason, /无人值守、以完全访问权限运行/)
+      assert.match(requirement.reason, /unattended .*full access/)
     }
   }
   // 暂停与删除只会停掉工作：工作区写模式直接放行，审批模式按普通高风险确认（可被允许规则记住）。
@@ -297,7 +297,7 @@ test('starting a workflow needs confirmation outside full access; stopping does 
   ]) {
     const start = permissionRequirement({ ...base, mode, executionMode, args: { action: 'start' } })
     assert.equal(start?.guarded, true, executionMode)
-    assert.match(start.reason, /无人值守、以完全访问权限运行/)
+    assert.match(start.reason, /unattended .*full access/)
   }
   assert.equal(
     permissionRequirement({

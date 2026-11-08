@@ -258,7 +258,8 @@ test('MCP host bounds request size and does not expose token in status', async (
   const conflict = await conflicting.setEnabled(true)
   assert.equal(conflict.enabled, true)
   assert.equal(conflict.listening, false)
-  assert.match(conflict.error, /端口已被占用/)
+  assert.equal(conflict.errorCode, 'port_in_use')
+  assert.match(conflict.error, /port is already in use/)
   assert.equal(conflicting.getCredentials(), null)
 })
 
@@ -285,7 +286,7 @@ test('MCP host limits concurrent agent turns and revokes active turns when disab
     arguments: { message: 'One too many' },
   })
   assert.equal(rejected.isError, true)
-  assert.match(toolResult(rejected).message, /上限/)
+  assert.match(toolResult(rejected).message, /limit reached/)
   await client.close()
   await transport.close().catch(() => {})
   await host.setEnabled(false)
@@ -438,6 +439,7 @@ test('invalid optional MCP settings do not prevent Pisper startup', async (t) =>
   const status = await host.startIfEnabled()
   assert.equal(status.enabled, false)
   assert.equal(status.listening, false)
-  assert.match(status.error, /设置读取失败/)
+  assert.equal(status.errorCode, 'settings_unreadable')
+  assert.match(status.error, /settings could not be read/)
   assert.equal((await host.setEnabled(true)).listening, true)
 })

@@ -1,6 +1,7 @@
 // Run 重挂路由：断线后按游标续传事件流。
 // 帧格式与首次连接一致（run 头帧 → 业务帧带 id 游标），缓冲溢出时先插 resync_required。
 import { sseSendGuarded } from '../response.mjs'
+import { errorPayload } from '../../../shared/errors.mjs'
 import { RunNotResumableError } from '../../services/run-registry.mjs'
 
 export const runRoutes = [
@@ -15,7 +16,7 @@ export const runRoutes = [
         prepared = registry.prepareAttach(params.runId, after)
       } catch (error) {
         if (error instanceof RunNotResumableError) {
-          json(409, { error: error.message, code: error.code })
+          json(409, { error: error.message, code: error.code, ...errorPayload(error) })
           return
         }
         throw error

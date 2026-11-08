@@ -189,9 +189,9 @@ test('asynchronous media preflight reserves the run slot and shutdown prevents a
   })
   const pending = service.runNow(workflow.id)
   await entered.promise
-  await assert.rejects(service.runNow(workflow.id), /已经在运行/)
-  await assert.rejects(service.update(workflow.id, { name: 'Changed' }), /暂时不能修改/)
-  await assert.rejects(service.remove(workflow.id), /暂时不能删除/)
+  await assert.rejects(service.runNow(workflow.id), { code: 'busy' })
+  await assert.rejects(service.update(workflow.id, { name: 'Changed' }), { code: 'busy' })
+  await assert.rejects(service.remove(workflow.id), { code: 'busy' })
   const closing = service.dispose()
   const rejected = assert.rejects(pending, { code: 'WORKFLOW_CANCELLED' })
   gate.resolve()

@@ -1,6 +1,7 @@
 // 飞书网关：封装飞书长连接（WebSocket）接入、消息收发与连接状态管理。
 // SDK 懒加载：@larksuiteoapi/node-sdk 体积大，仅在飞书渠道接入时引入。
 // Lazily loaded: @larksuiteoapi/node-sdk is large and only needed once a Feishu channel connects.
+import { pisperError } from '../../../shared/errors.mjs'
 const larkSdk = () => import('@larksuiteoapi/node-sdk')
 
 export class FeishuGateway {
@@ -85,17 +86,17 @@ export class FeishuGateway {
   }
 
   async send(message, input) {
-    if (!this.channel) throw new Error('飞书机器人尚未连接。')
+    if (!this.channel) throw pisperError('unavailable', 'channel', 'Feishu bot is not connected')
     return this.channel.send(message.peerId, input, { replyTo: message.messageId })
   }
 
   async sendToPeer(peerId, input) {
-    if (!this.channel) throw new Error('飞书机器人尚未连接。')
+    if (!this.channel) throw pisperError('unavailable', 'channel', 'Feishu bot is not connected')
     return this.channel.send(peerId, input)
   }
 
   async sendAsset(peerId, asset) {
-    if (!this.channel) throw new Error('飞书机器人尚未连接。')
+    if (!this.channel) throw pisperError('unavailable', 'channel', 'Feishu bot is not connected')
     const input = asset.mimeType?.startsWith('image/')
       ? { image: { source: asset.path } }
       : asset.mimeType?.startsWith('video/')
@@ -105,14 +106,15 @@ export class FeishuGateway {
   }
 
   async downloadResources(resources = []) {
-    if (!this.channel) throw new Error('飞书机器人尚未连接。')
+    if (!this.channel) throw pisperError('unavailable', 'channel', 'Feishu bot is not connected')
     const result = []
     let total = 0
     for (const resource of resources.slice(0, 8)) {
       const kind = resource.type === 'image' ? 'image' : 'file'
       const buffer = await this.channel.downloadResource(resource.fileKey, kind)
       total += buffer.length
-      if (total > 24 * 1024 * 1024) throw new Error('附件总大小超过 24 MB。')
+      if (total > 24 * 1024 * 1024)
+        throw pisperError('too_large', 'attachment', 'max 24 MB in total')
       result.push({
         type: resource.type,
         name: resource.fileName || `${resource.type}-${result.length + 1}`,

@@ -16,14 +16,18 @@ import { BotService } from '../services/bots/bot-service.mjs'
 
 const base = { name: '审查员', instructions: '审查 PR', workspace: { cwd: '/repo' } }
 
+// 校验错误的 “码/名词|detail”：码只有通用的几个，具体是哪条规则看 detail。
 function codeOf(fn) {
   try {
     fn()
   } catch (error) {
-    return error.code
+    return `${error.code}/${error.params?.subject}|${error.params?.detail || ''}`
   }
   return ''
 }
+
+const FULL_ACCESS_REFUSED =
+  /^invalid\/bot\|bots triggered from groups or by everyone cannot use full access$/
 
 test('bot fields are validated and given safe defaults', () => {
   const bot = normalizeBotInput(base)
@@ -59,27 +63,27 @@ test('bot fields are validated and given safe defaults', () => {
 
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, name: '  ' })),
-    'bot_name_required',
+    'invalid/bot|name is required',
   )
-  assert.equal(
+  assert.match(
     codeOf(() => normalizeBotInput({ ...base, name: '代码 审查' })),
-    'bot_name_invalid',
+    /^invalid\/bot\|name: letters, digits/,
   )
-  assert.equal(
+  assert.match(
     codeOf(() => normalizeBotInput({ ...base, name: '/审查' })),
-    'bot_name_invalid',
+    /^invalid\/bot\|name: letters/,
   )
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, name: 'x'.repeat(25) })),
-    'bot_name_too_long',
+    'invalid/bot|name: max 24 characters',
   )
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, workspace: {} })),
-    'bot_cwd_required',
+    'invalid/folder|choose a working folder',
   )
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, model: { ref: 'no-slash' } })),
-    'bot_model_invalid',
+    'invalid/model|use provider/model',
   )
 })
 
@@ -102,9 +106,9 @@ test('commands are validated: unique, not just digits, with content; extra text 
     Array.from({ length: 21 }, (_, index) => command({ name: `指令${index}` })),
     'x',
   ])
-    assert.equal(
+    assert.match(
       codeOf(() => normalizeBotInput({ ...base, commands: list })),
-      'bot_command_invalid',
+      /^invalid\/bot\|.*command/,
     )
   // 打开“所有人”的私聊规则同样不能配完全访问。
   const open = {
@@ -114,9 +118,9 @@ test('commands are validated: unique, not just digits, with content; extra text 
     senderIds: [],
     everyone: true,
   }
-  assert.equal(
+  assert.match(
     codeOf(() => normalizeBotInput({ ...base, channels: [open], executionMode: 'full-access' })),
-    'bot_group_full_access',
+    FULL_ACCESS_REFUSED,
   )
 })
 
@@ -126,14 +130,14 @@ test('group chats without a sender list mean only the owner, and cannot grant fu
   assert.deepEqual(normalizeBotInput({ ...base, channels: [group] }).channels, [
     { ...group, everyone: false },
   ])
-  assert.equal(
+  assert.match(
     codeOf(() => normalizeBotInput({ ...base, channels: [group], executionMode: 'full-access' })),
-    'bot_group_full_access',
+    FULL_ACCESS_REFUSED,
   )
   const allowed = { ...group, senderIds: ['ou_a'] }
-  assert.equal(
+  assert.match(
     codeOf(() => normalizeBotInput({ ...base, channels: [allowed], executionMode: 'full-access' })),
-    'bot_group_full_access',
+    FULL_ACCESS_REFUSED,
   )
   // 私聊可以选完全访问。
   const p2p = { platform: 'telegram', chatType: 'p2p', peerIds: null, senderIds: [] }
@@ -144,7 +148,7 @@ test('group chats without a sender list mean only the owner, and cannot grant fu
   // 默认聊天必须落在渠道范围内。
   assert.equal(
     codeOf(() => normalizeBotInput({ ...base, channels: [allowed], defaultIn: ['feishu:oc_2'] })),
-    'bot_default_chat_invalid',
+    "invalid/channel|default chat must be one of the bot's chats",
   )
   assert.deepEqual(
     normalizeBotInput({ ...base, channels: [allowed], defaultIn: ['feishu:oc_1'] }).defaultIn,
@@ -183,22 +187,28 @@ test('bots persist with resolved directories, unique names and unique default ch
   assert.match(reviewer.id, /^bot_/)
   assert.equal(reviewer.workspace.cwd, '/abs/repo')
 
-  await assert.rejects(service.create({ ...base, name: '审查员' }), { code: 'bot_name_taken' })
+  await assert.rejects(service.create({ ...base, name: '审查员' }), {
+    code: 'exists',
+    params: { subject: 'bot', detail: '审查员' },
+  })
   // 全角与大小写变体视为同名。
   await service.create({ ...base, name: 'Reviewer' })
   await assert.rejects(service.create({ ...base, name: 'ＲＥＶＩＥＷＥＲ' }), {
-    code: 'bot_name_taken',
+    code: 'exists',
+    params: { subject: 'bot', detail: 'REVIEWER' },
   })
   await assert.rejects(
     service.create({ ...base, name: '日报', channels: [channel], defaultIn: ['feishu:oc_1'] }),
-    { code: 'bot_default_chat_taken' },
+    { code: 'exists', params: { subject: 'bot', detail: 'default bot of this chat is 审查员' } },
   )
   await assert.rejects(service.create({ ...base, name: '巡检', workspace: { cwd: '/missing' } }), {
-    code: 'directory_not_allowed',
+    code: 'not_found',
+    statusCode: 400,
+    params: { subject: 'folder', detail: 'missing or not accessible' },
   })
   await assert.rejects(
     service.create({ ...base, name: '巡检', workspace: { cwd: '/repo', environmentId: 'env_x' } }),
-    { code: 'environment_not_found' },
+    { code: 'not_found', params: { subject: 'machine' } },
   )
 
   // 只改名字不重新解析目录；改目录才解析。
@@ -248,13 +258,20 @@ test('a busy bot cannot be deleted and the bot limit is enforced', async (t) => 
   const { service } = await serviceFixture(t, { busy })
   const bot = await service.create(base)
   busy.add(bot.id)
-  await assert.rejects(service.remove(bot.id), { code: 'invalid_state', statusCode: 409 })
+  await assert.rejects(service.remove(bot.id), {
+    code: 'busy',
+    statusCode: 409,
+    params: { subject: 'bot', detail: 'stop or finish its jobs and approvals first' },
+  })
   busy.delete(bot.id)
   assert.equal(await service.remove(bot.id), true)
   assert.equal(await service.remove(bot.id), false)
   for (let index = 0; index < MAX_BOTS; index += 1)
     await service.create({ ...base, name: `bot${index}` })
-  await assert.rejects(service.create({ ...base, name: 'one-more' }), { code: 'bot_limit' })
+  await assert.rejects(service.create({ ...base, name: 'one-more' }), {
+    code: 'limit',
+    statusCode: 409,
+  })
 })
 
 function request(method, body) {
@@ -317,9 +334,12 @@ test('the bots API is gated by the capability and the Labs switch and returns er
   assert.equal((await call(handler, 'GET', '/api/bots')).body.bots.length, 1)
   assert.equal((await call(handler, 'GET', `/api/bots/${id}`)).body.bot.name, '审查员')
   const taken = await call(handler, 'POST', '/api/bots', base)
-  assert.deepEqual([taken.status, taken.body.code], [409, 'bot_name_taken'])
+  assert.deepEqual(
+    [taken.status, taken.body.code, taken.body.params],
+    [409, 'exists', { subject: 'bot', detail: '审查员' }],
+  )
   const bad = await call(handler, 'POST', '/api/bots', { ...base, name: 'a b' })
-  assert.deepEqual([bad.status, bad.body.code], [400, 'bot_name_invalid'])
+  assert.deepEqual([bad.status, bad.body.code, bad.body.params.subject], [400, 'invalid', 'bot'])
   const patched = await call(handler, 'PATCH', `/api/bots/${id}`, { enabled: false })
   assert.equal(patched.body.bot.enabled, false)
   assert.equal((await call(handler, 'GET', '/api/bots/bot_none')).body.code, 'bot_not_found')

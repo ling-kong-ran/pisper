@@ -2,6 +2,7 @@
 // 这些路由在回环监听与远程监听上都可达：回环侧供桌面 UI 管理用，
 // 远程侧供已配对设备（Bearer）查看/管理自身。
 import QRCode from 'qrcode'
+import { errorPayload } from '../../../shared/errors.mjs'
 import { RemoteAccessError } from '../../services/remote-access-service.mjs'
 import { isLocalAppRequest } from '../local-request.mjs'
 
@@ -41,7 +42,11 @@ function remoteErrorStatus(code) {
 // RemoteAccessError 映射为契约约定的状态码与机读 code；其他错误继续上抛。
 function respondRemoteError(json, error) {
   if (error instanceof RemoteAccessError) {
-    json(remoteErrorStatus(error.code), { error: error.message, code: error.code })
+    json(remoteErrorStatus(error.code), {
+      error: error.message,
+      code: error.code,
+      ...errorPayload(error),
+    })
     return
   }
   throw error
@@ -60,14 +65,20 @@ function pairedResponse(result, remoteControl) {
 
 function requireDesktopListener(req, json) {
   if (!req.pisperRemote) return true
-  json(403, { error: '配对申请只能在桌面端审批。', code: 'desktop_approval_required' })
+  json(403, {
+    error: 'Pairing requests can only be approved on the desktop.',
+    code: 'desktop_approval_required',
+  })
   return false
 }
 
 // 请求已经经过回环侧的原有桌面鉴权；这里再限制传输来源和主机，防止远端或 DNS 重绑定触发提权。
 function requireLocalFirewallRequest(req, json) {
   if (isLocalAppRequest(req)) return true
-  json(403, { error: '防火墙策略只能在本机桌面设置中管理。', code: 'local_firewall_required' })
+  json(403, {
+    error: 'Firewall rules can only be managed in desktop settings on this computer.',
+    code: 'local_firewall_required',
+  })
   return false
 }
 
@@ -88,7 +99,7 @@ export const remoteRoutes = [
       // 仅已通过本机监听鉴权的页面可读取；公共状态接口仍不暴露拓扑和指纹。
       if (req.pisperRemote) {
         json(403, {
-          error: '连接信息只能在服务器本机查看。',
+          error: 'Connection info is only shown on the server computer.',
           code: 'local_connection_info_required',
         })
         return
@@ -133,7 +144,7 @@ export const remoteRoutes = [
       if (!requireLocalFirewallRequest(req, json)) return
       // JSON 请求要求浏览器预检，未配置桌面 Cookie 的开发模式也不能被跨站表单触发。
       if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
-        json(415, { error: '此操作需要 JSON 请求。', code: 'json_required' })
+        json(415, { error: 'This request needs a JSON body.', code: 'json_required' })
         return
       }
       json(200, await services.remoteControl.retryFirewall())
@@ -145,13 +156,13 @@ export const remoteRoutes = [
     async handler({ services, json }) {
       const status = services.remoteControl.status()
       if (!status.listening) {
-        json(400, { error: '远程访问未启用，请先开启。', code: 'remote_disabled' })
+        json(400, { error: 'Remote access is off; turn it on first.', code: 'remote_disabled' })
         return
       }
       const readyStatus = await waitForRemoteEndpoints(services.remoteControl)
       if (!readyStatus.endpoints.length) {
         json(503, {
-          error: '桌面端尚未准备好可连接地址，请稍后重试。',
+          error: 'The desktop has no reachable address yet; try again shortly.',
           code: 'remote_endpoint_unavailable',
         })
         return
@@ -177,7 +188,7 @@ export const remoteRoutes = [
         const input = await body()
         const code = String(input.code || '')
         if (!code) {
-          json(400, { error: '缺少配对码。', code: 'invalid_request' })
+          json(400, { error: 'Pairing code is required.', code: 'invalid_request' })
           return
         }
         const result = services.remoteAccess.redeemPairingCode({
@@ -268,7 +279,7 @@ export const remoteRoutes = [
       try {
         const input = await body()
         if (typeof input?.approved !== 'boolean') {
-          json(400, { error: 'approved 必须是布尔值。', code: 'invalid_pairing_decision' })
+          json(400, { error: 'approved must be a boolean.', code: 'invalid_pairing_decision' })
           return
         }
         const result = services.remoteAccess.resolvePairingApproval(

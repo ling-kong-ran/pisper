@@ -3,6 +3,7 @@
 // 只是传话：不经审批，也不给对方任何权限。真正的发送、频率上限与目录范围在运行时里校验。
 import { Type } from 'typebox'
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
+import { LIST_SESSIONS, SESSION_MESSAGE } from '../../prompts/tools/session-coordination.mjs'
 
 export { SESSION_COORDINATION_TOOL_NAMES } from './session-coordination-tool-names.mjs'
 
@@ -35,8 +36,7 @@ export function createSessionCoordinationTools({ runtime }) {
     defineTool({
       name: 'list_sessions',
       label: 'List sessions in this folder',
-      description:
-        'List the other sessions (including bots) working in the same folder: whether each is running and which files it changed in the last 30 minutes.',
+      description: LIST_SESSIONS.description,
       parameters: Type.Object({}),
       async execute() {
         const sessions = await runtime.list()
@@ -49,13 +49,12 @@ export function createSessionCoordinationTools({ runtime }) {
     defineTool({
       name: 'session_message',
       label: 'Message another session',
-      description:
-        'Send a short message to another session in the same folder to coordinate changes, for example who edits which files. A running session reads it at its next step; an idle one gets it when the user next works in it — it is never started for you. Do not send courtesy messages.',
+      description: SESSION_MESSAGE.description,
       parameters: Type.Object({
         session: Type.String({
           minLength: 1,
           maxLength: 200,
-          description: 'The session’s title or id, as list_sessions shows it.',
+          description: SESSION_MESSAGE.params.session,
         }),
         text: Type.String({ minLength: 1, maxLength: 4000 }),
       }),
@@ -63,9 +62,7 @@ export function createSessionCoordinationTools({ runtime }) {
         const result = await runtime.send(params)
         const title = `"${result.session.title || 'Untitled'}"`
         const text =
-          result.delivered === 'now'
-            ? `Sent to ${title}; it reads it at its next step.`
-            : `Left for ${title}; it is idle and gets the message when the user next works in it.`
+          result.delivered === 'now' ? SESSION_MESSAGE.sentNow(title) : SESSION_MESSAGE.left(title)
         return { content: [{ type: 'text', text }], details: result }
       },
     }),

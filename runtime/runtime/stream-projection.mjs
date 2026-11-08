@@ -177,7 +177,7 @@ function serializeMessage(message, index, resolveImageUrl = null) {
           const attachment = {
             id: `image-${index}-${attachmentIndex}`,
             kind: 'image',
-            name: `图片附件 ${attachmentIndex + 1}`,
+            name: `image-${attachmentIndex + 1}`,
             mimeType: part.mimeType,
           }
           const url = resolveImageUrl?.(part)
@@ -251,7 +251,7 @@ export function serializeTranscriptMessages(messages, resolveImageUrl = null, en
       result.push(item)
     }
     const unresolvedMessage = String(
-      item.error || (!terminal ? '工具调用未记录完成结果。' : ''),
+      item.error || (!terminal ? 'Tool call has no recorded result.' : ''),
     ).trim()
     const activityTools = [...tools.values()].slice(-MAX_LIVE_ACTIVITY_ITEMS).map((tool) =>
       tool.status === 'running'

@@ -3,6 +3,7 @@ import { open, realpath } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 export const MAX_SPEECH_TERM_LENGTH = 64
 export const MAX_SPEECH_TERMS = 128
@@ -58,7 +59,11 @@ function normalizeTerm(value) {
     INVALID_TERM_CHARACTERS.test(value) ||
     !/[\p{L}\p{N}]/u.test(value)
   ) {
-    throw new Error('语音词条须为 1 到 64 字符，仅允许文字、数字、空格、点、加号、连字符和下划线。')
+    throw pisperError(
+      'invalid',
+      'speech',
+      'terms are 1-64 letters, digits, spaces, dots, plus signs, hyphens or underscores',
+    )
   }
   return value.trim().replace(/ +/g, ' ')
 }
@@ -83,15 +88,15 @@ function uniqueTerms(terms, limit) {
 
 function validateUpdate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('语音设置必须是 JSON 对象。')
+    throw pisperError('invalid', 'config', 'speech settings must be an object')
   }
   if (Object.keys(input).some((key) => key !== 'projectTermsEnabled')) {
-    throw new Error('语音设置包含未知字段。')
+    throw pisperError('invalid', 'config', 'unknown speech setting')
   }
   const result = {}
   if (Object.hasOwn(input, 'projectTermsEnabled')) {
     if (typeof input.projectTermsEnabled !== 'boolean') {
-      throw new Error('projectTermsEnabled 必须是布尔值。')
+      throw pisperError('invalid', 'config', 'projectTermsEnabled must be a boolean')
     }
     result.projectTermsEnabled = input.projectTermsEnabled
   }

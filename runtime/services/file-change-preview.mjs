@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 import {
   applyEditsToNormalizedContent,
   generateUnifiedPatch,
@@ -33,14 +34,14 @@ function editInput(args) {
   )
     edits = [{ oldText: args.oldText, newText: args.newText }]
   if (!path || !Array.isArray(edits) || !edits.length)
-    throw new Error('编辑参数无效，无法生成修改预览。')
+    throw pisperError('invalid', 'input', 'edit needs path and edits')
   return { path, edits }
 }
 
 function writeInput(args) {
   const path = String(args?.path || args?.file_path || '').trim()
   if (!path || typeof args?.content !== 'string')
-    throw new Error('写入参数无效，无法生成修改预览。')
+    throw pisperError('invalid', 'input', 'write needs path and content')
   return { path, content: args.content }
 }
 
@@ -55,7 +56,7 @@ function gitDiffPath(path) {
 // Windows 跨盘时 relative 只能给出绝对路径，按原样显示。
 function fileDiffPath(cwd, absolutePath) {
   const path = relative(cwd, absolutePath).replace(/\\/g, '/')
-  if (!path || /[\r\n\0]/.test(path)) throw new Error('文件路径无效，无法生成修改预览。')
+  if (!path || /[\r\n\0]/.test(path)) throw pisperError('invalid', 'path')
   return path
 }
 
@@ -85,12 +86,12 @@ async function sourceFile(absolutePath) {
 
 function validatePreviewSize(before, after) {
   if (Buffer.byteLength(before) > MAX_FILE_CHANGE_PREVIEW_BYTES)
-    throw new Error(
-      `当前文件超过 ${MAX_FILE_CHANGE_PREVIEW_BYTES / 1024 / 1024} MB，无法安全生成修改预览。`,
-    )
+    throw pisperError('too_large', 'file', `max ${MAX_FILE_CHANGE_PREVIEW_BYTES / 1024 / 1024} MB`)
   if (Buffer.byteLength(after) > MAX_FILE_CHANGE_PREVIEW_BYTES)
-    throw new Error(
-      `拟写入内容超过 ${MAX_FILE_CHANGE_PREVIEW_BYTES / 1024 / 1024} MB，无法安全生成修改预览。`,
+    throw pisperError(
+      'too_large',
+      'input',
+      `new content max ${MAX_FILE_CHANGE_PREVIEW_BYTES / 1024 / 1024} MB`,
     )
 }
 
@@ -111,7 +112,7 @@ export async function createFileChangePreview({ cwd, toolName, args }) {
   let after
 
   if (isEdit) {
-    if (!source.exists) throw new Error(`无法编辑文件：${input.path} 不存在。`)
+    if (!source.exists) throw pisperError('not_found', 'file', path)
     const { text } = stripBom(source.content)
     before = normalizeToLF(text)
     const result = applyEditsToNormalizedContent(before, input.edits, input.path)

@@ -68,7 +68,10 @@ test('abort guard force-settles a hung prompt after the abort deadline', async (
   value.abortedAt = Date.now()
   await assert.rejects(
     runPromptWithAbortGuard(value, () => new Promise(() => {})),
-    /强制中断/,
+    {
+      code: 'timeout',
+      params: { subject: 'agent', detail: 'did not stop in time; the run was force-stopped' },
+    },
   )
 })
 
@@ -81,7 +84,10 @@ test('abort guard disposes the agent session so hung tools are terminated', asyn
   value.abortedAt = Date.now()
   await assert.rejects(
     runPromptWithAbortGuard(value, () => new Promise(() => {})),
-    /强制中断/,
+    {
+      code: 'timeout',
+      params: { subject: 'agent', detail: 'did not stop in time; the run was force-stopped' },
+    },
   )
   assert.equal(disposed, 1, 'the agent session must be disposed to kill hung tools')
   assert.equal(value.forceDisposed, true, 'the resident must be flagged for cleanup')
@@ -308,7 +314,10 @@ test('renaming a running session is rejected and keeps the session intact', asyn
   const id = 'session-rename'
   const value = seedRunningSession(runtime, id, mockSession())
 
-  await assert.rejects(() => runtime.renameSession(id, '新标题'), /正在运行/)
+  await assert.rejects(() => runtime.renameSession(id, '新标题'), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
   assert.equal(runtime.sessions.get(id), value, 'resident runtime must survive a rejected rename')
   assert.equal(runtime.sessionRunIsActive(id), true, 'run state must survive a rejected rename')
 })
@@ -336,7 +345,10 @@ test('a running session switches execution mode without dropping its active runt
   assert.equal(runtime.getSessionExecutionMode(id), 'workspace-write')
   assert.equal(value.runtimeVersion, -1, 'the next prompt must rebuild the mode-specific tools')
 
-  await assert.rejects(() => runtime.setSessionPermission(id, 'ask'), /运行/)
+  await assert.rejects(() => runtime.setSessionPermission(id, 'ask'), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
   assert.equal(runtime.sessions.get(id), value, 'permission change must not drop the runtime')
 })
 

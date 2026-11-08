@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { errorMessage } from '../../shared/errors.mjs'
 
 export const HTML_PREVIEW_PREFIX = '/_pisper/html-preview/'
 
@@ -111,20 +112,32 @@ export class HtmlPreviewService {
       path.length > MAX_PATH_LENGTH ||
       hasControlCharacters(path)
     )
-      throw new HtmlPreviewError('html_preview_invalid_path', 400, '预览路径无效。')
+      throw new HtmlPreviewError(
+        'html_preview_invalid_path',
+        400,
+        errorMessage('invalid', { subject: 'path' }),
+      )
     const root = await realpath(workspace).catch(() => null)
     const file = await realpath(resolve(workspace, path.trim())).catch(() => null)
     const info = file ? await stat(file).catch(() => null) : null
     if (!root || !file || !info?.isFile())
-      throw new HtmlPreviewError('html_preview_not_found', 404, '要预览的文件不存在。')
+      throw new HtmlPreviewError(
+        'html_preview_not_found',
+        404,
+        errorMessage('not_found', { subject: 'file' }),
+      )
     if (!isInside(root, file))
       throw new HtmlPreviewError(
         'html_preview_outside_workspace',
         403,
-        '只能预览当前工作区内的文件。',
+        errorMessage('forbidden', { subject: 'path', detail: 'outside the workspace' }),
       )
     if (!['.html', '.htm'].includes(extname(file).toLowerCase()))
-      throw new HtmlPreviewError('html_preview_not_html', 400, '只能预览 HTML 文件。')
+      throw new HtmlPreviewError(
+        'html_preview_not_html',
+        400,
+        errorMessage('unsupported', { subject: 'file', detail: 'only .html and .htm' }),
+      )
 
     const token = randomBytes(32).toString('base64url')
     this.prune()

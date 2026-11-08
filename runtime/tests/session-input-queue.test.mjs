@@ -114,7 +114,7 @@ test('running sessions accept steering and follow-up user messages through the P
   session.isStreaming = false
   await assert.rejects(
     runtime.queueSessionMessage('session-1', { message: 'Too late.' }),
-    /已经结束运行/,
+    /Session is unavailable: the run has ended/,
   )
 })
 
@@ -351,9 +351,11 @@ test('an unsupported or inconsistent SDK queue fails before changing pending mes
   const { session, enqueue } = await sdkQueue(t)
   const first = await enqueue('Keep this')
   session._steeringMessages = []
-  assert.throws(() => withdrawQueuedSessionInput(session, first.inputId), /状态不一致/)
+  assert.throws(() => withdrawQueuedSessionInput(session, first.inputId), /inconsistent/)
   assert.equal(session.agent.steeringQueue.messages.length, 1)
-  assert.throws(() => withdrawQueuedSessionInput({}, first.inputId), /引擎版本不支持/)
+  assert.throws(() => withdrawQueuedSessionInput({}, first.inputId), {
+    code: 'unsupported',
+  })
 })
 
 test('queueing rechecks run state after asynchronous attachment preparation', async (t) => {
@@ -362,7 +364,7 @@ test('queueing rechecks run state after asynchronous attachment preparation', as
     session._isAgentRunActive = false
     return { images: [], contexts: [] }
   }
-  await assert.rejects(enqueue('Too late'), /已经结束运行/)
+  await assert.rejects(enqueue('Too late'), /Session is unavailable: the run has ended/)
   assert.deepEqual(session.agent.steeringQueue.messages, [])
 })
 

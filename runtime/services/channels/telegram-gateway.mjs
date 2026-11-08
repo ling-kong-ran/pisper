@@ -1,5 +1,6 @@
 // Telegram 网关：通过 Bot API 长轮询收发消息，凭据仅保存在渠道服务的私有状态中。
 import { readFile } from 'node:fs/promises'
+import { pisperError } from '../../../shared/errors.mjs'
 
 const DEFAULT_BASE_URL = 'https://api.telegram.org'
 const DEFAULT_FILE_BASE_URL = 'https://api.telegram.org/file'
@@ -26,7 +27,7 @@ function safeError(error) {
 function validToken(value) {
   const token = String(value || '').trim()
   if (!token || !/^\d+:[A-Za-z0-9_-]+$/.test(token))
-    throw new Error('Telegram Bot Token 格式无效。')
+    throw pisperError('invalid', 'api_key', 'Telegram bot token format')
   return token
 }
 
@@ -36,7 +37,8 @@ export class TelegramGateway {
     onMessage = () => {},
     onStatusChange = () => {},
   } = {}) {
-    if (typeof fetchImpl !== 'function') throw new Error('Telegram 网关需要可用的 fetch 实现。')
+    if (typeof fetchImpl !== 'function')
+      throw pisperError('unavailable', 'network', 'Telegram gateway needs fetch')
     this.fetchImpl = fetchImpl
     this.onMessage = onMessage
     this.onStatusChange = onStatusChange
@@ -70,17 +72,21 @@ export class TelegramGateway {
         signal,
       })
     } catch (error) {
-      throw new Error(`Telegram ${method} 请求失败：${safeError(error)}`)
+      throw pisperError('failed', 'network', `Telegram ${method}: ${safeError(error)}`)
     }
     let payload
     try {
       payload = await response.json()
     } catch {
-      throw new Error(`Telegram ${method} 返回了无效响应（HTTP ${response.status}）。`)
+      throw pisperError(
+        'failed',
+        'channel',
+        `Telegram ${method}: invalid response (HTTP ${response.status})`,
+      )
     }
     if (!response.ok || payload?.ok !== true) {
       const description = String(payload?.description || `HTTP ${response.status}`)
-      throw new Error(`Telegram ${method} 失败：${description.slice(0, 500)}`)
+      throw pisperError('failed', 'channel', `Telegram ${method}: ${description.slice(0, 500)}`)
     }
     return payload.result
   }
@@ -131,7 +137,7 @@ export class TelegramGateway {
     this.setStatus({ state: 'connecting', lastError: '', bot: null })
     try {
       const bot = await this.getMe()
-      if (!bot?.id) throw new Error('Telegram getMe 未返回机器人身份。')
+      if (!bot?.id) throw pisperError('failed', 'channel', 'Telegram getMe returned no bot')
       this.controller = new AbortController()
       const controller = this.controller
       this.setStatus({
@@ -245,19 +251,22 @@ export class TelegramGateway {
   }
 
   async send(message, input = {}) {
-    if (!this.connection || !this.controller) throw new Error('Telegram 机器人尚未连接。')
+    if (!this.connection || !this.controller)
+      throw pisperError('unavailable', 'channel', 'Telegram bot is not connected')
     return this.sendMessage(message.peerId, input.markdown || input.text || '', {
       replyTo: message.messageId,
     })
   }
 
   async sendToPeer(peerId, input = {}) {
-    if (!this.connection || !this.controller) throw new Error('Telegram 机器人尚未连接。')
+    if (!this.connection || !this.controller)
+      throw pisperError('unavailable', 'channel', 'Telegram bot is not connected')
     return this.sendMessage(peerId, input.markdown || input.text || '')
   }
 
   async sendAsset(peerId, asset) {
-    if (!this.connection || !this.controller) throw new Error('Telegram 机器人尚未连接。')
+    if (!this.connection || !this.controller)
+      throw pisperError('unavailable', 'channel', 'Telegram bot is not connected')
     const data = await readFile(asset.path)
     return asset.mimeType?.startsWith('image/')
       ? this.sendPhoto(peerId, new Blob([data], { type: asset.mimeType }), asset)
@@ -285,12 +294,14 @@ export class TelegramGateway {
           },
         )
       } catch (error) {
-        throw new Error(`Telegram 附件下载请求失败：${safeError(error)}`)
+        throw pisperError('failed', 'attachment', `Telegram download: ${safeError(error)}`)
       }
-      if (!response.ok) throw new Error(`Telegram 附件下载失败（HTTP ${response.status}）。`)
+      if (!response.ok)
+        throw pisperError('failed', 'attachment', `Telegram download: HTTP ${response.status}`)
       const buffer = Buffer.from(await response.arrayBuffer())
       total += buffer.length
-      if (total > 24 * 1024 * 1024) throw new Error('Telegram 附件总大小超过 24 MB。')
+      if (total > 24 * 1024 * 1024)
+        throw pisperError('too_large', 'attachment', 'max 24 MB in total')
       result.push({
         type: resource.type,
         name: resource.name,

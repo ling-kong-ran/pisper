@@ -4,6 +4,7 @@
 // 避免工作流节点再启动工作流。新建与编辑工作流仍在工作流页里完成。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { WORKFLOW_LIST, WORKFLOW_RUN } from '../../prompts/tools/workflows.mjs'
 
 export const WORKFLOW_TOOL_NAMES = Object.freeze(['workflow_list', 'workflow_run'])
 const RECENT_RUNS = 5
@@ -14,7 +15,7 @@ export const manifests = [
     name: 'Workflow List',
     category: 'workflows',
     risk: 'low',
-    description: 'List Pisper workflows with their inputs, and recent runs of one workflow.',
+    description: WORKFLOW_LIST.description,
     scope: 'Application-level workflows',
     capability: 'Read workflows and run results without changing them',
     source: 'app',
@@ -24,7 +25,7 @@ export const manifests = [
     name: 'Workflow Run',
     category: 'workflows',
     risk: 'high',
-    description: 'Start or stop a published Pisper workflow.',
+    description: WORKFLOW_RUN.description,
     scope: 'Application-level workflows',
     capability:
       'Start workflows whose nodes run unattended with full access; starting needs confirmation unless the session already has full access',
@@ -74,11 +75,8 @@ export function createWorkflowListTool({ workflowRuntime }) {
     name: manifests[0].id,
     label: manifests[0].name,
     description: manifests[0].description,
-    promptSnippet: 'List Pisper workflows, their inputs and recent runs',
-    promptGuidelines: [
-      'Call workflow_list to find the workflow id and its required inputs before workflow_run.',
-      'Pass workflowId to also get its recent runs; use that to check on a run you started.',
-    ],
+    promptSnippet: WORKFLOW_LIST.snippet,
+    promptGuidelines: WORKFLOW_LIST.guidelines,
     parameters: Type.Object({
       workflowId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     }),
@@ -103,13 +101,8 @@ export function createWorkflowRunTool({ workflowRuntime }) {
     name: manifests[1].id,
     label: manifests[1].name,
     description: manifests[1].description,
-    promptSnippet: 'Start or stop a published Pisper workflow',
-    promptGuidelines: [
-      'Only published workflows can be started. Provide every required input; omitted optional inputs use their defaults.',
-      'Workflow nodes run later without the user present and with full access. Starting one asks the user to confirm unless the session already has full access.',
-      'workflow_run returns right away; use workflow_list with the workflowId to check progress instead of waiting in a loop.',
-      'To run a workflow on a schedule, use schedule_manage with workflowId instead.',
-    ],
+    promptSnippet: WORKFLOW_RUN.snippet,
+    promptGuidelines: WORKFLOW_RUN.guidelines,
     parameters: Type.Union([
       Type.Object({
         action: Type.Literal('start'),

@@ -1,6 +1,7 @@
 // 移动设备操作协调器：把 Agent 工具调用绑定到当前手机 SSE 客户端，
 // 等待 App 完成系统授权与原生操作后，再把受限结果返回给该工具。
 import { randomUUID } from 'node:crypto'
+import { pisperError } from '../../shared/errors.mjs'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 const MAX_RESULT_BYTES = 12 * 1024 * 1024
@@ -35,8 +36,9 @@ export class MobileOperationService {
 
   async execute(sessionId, operation, parameters = {}, { signal } = {}) {
     const channel = this.channels.get(sessionId)
-    if (!channel) throw new Error('当前会话没有已连接的 Pisper 移动 App。')
-    if (signal?.aborted) throw new Error('移动设备操作已取消。')
+    if (!channel)
+      throw pisperError('unavailable', 'device', 'no Pisper mobile app connected to this session')
+    if (signal?.aborted) throw pisperError('cancelled', 'operation')
 
     const id = operationId()
     const expiresAt = new Date(Date.now() + this.timeoutMs).toISOString()
@@ -51,14 +53,14 @@ export class MobileOperationService {
       const timer = setTimeout(() => {
         this.pending.delete(id)
         emitCancellation('timeout')
-        reject(new Error('等待手机完成设备操作超时。'))
+        reject(pisperError('timeout', 'device', 'the phone did not finish the operation'))
       }, this.timeoutMs)
       timer.unref?.()
       const abort = () => {
         clearTimeout(timer)
         this.pending.delete(id)
         emitCancellation('aborted')
-        reject(new Error('移动设备操作已取消。'))
+        reject(pisperError('cancelled', 'operation'))
       }
       signal?.addEventListener('abort', abort, { once: true })
       this.pending.set(id, {
@@ -88,11 +90,15 @@ export class MobileOperationService {
     clearTimeout(pending.timer)
     pending.cleanup()
     if (input.ok === false) {
-      pending.reject(new Error(String(input.error || '手机拒绝了设备操作。').slice(0, 2_000)))
+      pending.reject(
+        input.error
+          ? new Error(String(input.error).slice(0, 2_000))
+          : pisperError('failed', 'device', 'declined on the phone'),
+      )
       return true
     }
     if (resultSize(input.result) > MAX_RESULT_BYTES) {
-      pending.reject(new Error('手机设备操作结果超过 12 MB 限制。'))
+      pending.reject(pisperError('too_large', 'operation', 'result max 12 MB'))
       return true
     }
     pending.resolve(input.result ?? null)
@@ -105,7 +111,7 @@ export class MobileOperationService {
       clearTimeout(pending.timer)
       pending.cleanup()
       pending.cancel('runtime_disposed')
-      pending.reject(new Error('Runtime 已关闭，移动设备操作已取消。'))
+      pending.reject(pisperError('cancelled', 'operation', 'runtime closed'))
     }
     this.pending.clear()
   }

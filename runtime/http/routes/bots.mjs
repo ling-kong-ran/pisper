@@ -1,7 +1,9 @@
 // Bot 路由（B1）：Bot 注册表的增删改查，以及打开 Bot 的长期会话。只做门控、调用服务与序列化；
 // 校验与唯一性在 BotService。Bot 就是一个会话加上设定：在应用里和它说话走普通会话的接口。
 // 两道门：Runtime 能力 bots（经 CAPABILITY_ROUTES）与实验功能开关 bots（用户在设置 › 实验功能里打开）。
-// 错误统一返回 { error, code }，code 供客户端区分名字重复、群聊缺白名单等情况。
+// 错误统一返回 { error, code }，code 供客户端区分名字重复、群聊缺白名单等情况；
+// PisperError 另带 params，前端据此按界面语言翻译。
+import { errorPayload } from '../../../shared/errors.mjs'
 
 const BOTS_FEATURE_ID = 'bots'
 
@@ -12,6 +14,7 @@ export function respondError(json, error) {
   if (!code) throw error
   json(Number.isInteger(status) && status >= 400 && status < 500 ? status : 400, {
     error: error.message,
+    ...errorPayload(error),
     code,
   })
 }
@@ -21,7 +24,7 @@ export function botRoute(handler) {
   return async (context) => {
     if (!context.runtime.isBetaFeatureEnabled(BOTS_FEATURE_ID)) {
       context.json(409, {
-        error: 'Bots 是实验功能，请先在设置 › 实验功能里打开。',
+        error: 'Bots is a Labs feature; turn it on in Settings › Labs.',
         code: 'beta_feature_disabled',
       })
       return
@@ -54,7 +57,7 @@ export const botRoutes = [
     path: '/api/bots/:botId',
     handler: botRoute(({ runtime, params, json }) => {
       const bot = runtime.getBot(params.botId)
-      if (!bot) json(404, { error: 'Bot 不存在。', code: 'bot_not_found' })
+      if (!bot) json(404, { error: 'Bot not found.', code: 'bot_not_found' })
       else json(200, { bot })
     }),
   },
@@ -63,7 +66,7 @@ export const botRoutes = [
     path: '/api/bots/:botId',
     handler: botRoute(async ({ runtime, params, body, json }) => {
       const bot = await runtime.updateBot(params.botId, await body())
-      if (!bot) json(404, { error: 'Bot 不存在。', code: 'bot_not_found' })
+      if (!bot) json(404, { error: 'Bot not found.', code: 'bot_not_found' })
       else json(200, { bot })
     }),
   },
@@ -80,7 +83,7 @@ export const botRoutes = [
     path: '/api/bots/:botId',
     handler: botRoute(async ({ runtime, params, json }) => {
       const deleted = await runtime.deleteBot(params.botId)
-      if (!deleted) json(404, { error: 'Bot 不存在。', code: 'bot_not_found' })
+      if (!deleted) json(404, { error: 'Bot not found.', code: 'bot_not_found' })
       else json(200, { deleted: true })
     }),
   },
@@ -113,7 +116,7 @@ export const botRoutes = [
     path: '/api/bots/:botId/memory/:entryId',
     handler: botRoute(async ({ runtime, params, json }) => {
       const forgotten = await runtime.forgetBotMemory(params.botId, params.entryId)
-      if (!forgotten) json(404, { error: '这条记忆不存在。', code: 'bot_memory_not_found' })
+      if (!forgotten) json(404, { error: 'Memory not found.', code: 'bot_memory_not_found' })
       else json(200, { deleted: true })
     }),
   },
@@ -137,7 +140,7 @@ export const botRoutes = [
     path: '/api/bots/:botId/skills/:name',
     handler: botRoute(async ({ runtime, params, json }) => {
       const deleted = await runtime.deleteBotSkill(params.botId, params.name)
-      if (!deleted) json(404, { error: '这个技能不存在。', code: 'bot_skill_not_found' })
+      if (!deleted) json(404, { error: 'Skill not found.', code: 'bot_skill_not_found' })
       else json(200, { deleted: true })
     }),
   },

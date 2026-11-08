@@ -1,6 +1,7 @@
 // 微信网关：基于微信开放平台协议的机器人接入（同步缓冲区轮询 + 媒体收发），
 // 与飞书网关对等，供 weixin 渠道使用。
 import { WeixinProtocol, weixinMediaItems, weixinTextFromItems } from './weixin-protocol.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 function abortableDelay(ms, signal) {
   if (signal.aborted) return Promise.resolve()
@@ -49,7 +50,7 @@ export class WeixinGateway {
     try {
       const started = await this.protocol.notifyStart(connection)
       if (started.ret && started.ret !== 0)
-        throw new Error(started.errmsg || `微信连接失败（${started.ret}）`)
+        throw pisperError('failed', 'channel', `WeChat connect: ${started.errmsg || started.ret}`)
       const controller = this.controller
       this.setStatus({ state: 'connected', connectedAt: new Date().toISOString(), lastError: '' })
       this.monitorPromise = this.monitor(controller.signal).catch((error) => {
@@ -78,7 +79,11 @@ export class WeixinGateway {
         const result = await this.protocol.getUpdates(this.connection, syncBuf, signal, timeout)
         if (signal.aborted) return
         if ((result.ret && result.ret !== 0) || (result.errcode && result.errcode !== 0))
-          throw new Error(result.errmsg || `微信同步失败（${result.errcode || result.ret}）`)
+          throw pisperError(
+            'failed',
+            'channel',
+            `WeChat sync: ${result.errmsg || result.errcode || result.ret}`,
+          )
         failures = 0
         this.setStatus({ state: 'connected', lastEventAt: new Date().toISOString(), lastError: '' })
         if (result.longpolling_timeout_ms > 0) timeout = result.longpolling_timeout_ms
@@ -173,7 +178,8 @@ export class WeixinGateway {
       const resource = await this.protocol.downloadItem(this.connection, item)
       if (!resource) continue
       total += resource.buffer.length
-      if (total > 24 * 1024 * 1024) throw new Error('微信附件总大小超过 24 MB。')
+      if (total > 24 * 1024 * 1024)
+        throw pisperError('too_large', 'attachment', 'max 24 MB in total')
       result.push(resource)
     }
     return result

@@ -137,7 +137,7 @@ test('quiet windows are listed by rule without calling the model; busy ones and 
       add(memory, new Date(2026, 9, 20, 9).toISOString(), '一件小事', '只有一条事实。')
       await memory.consolidate({ force: true })
       assert.equal(client.calls.length, 0)
-      assert.match(digests(memory, 'day')[0].text, /一件小事：只有一条事实。/)
+      assert.match(digests(memory, 'day')[0].text, /一件小事: 只有一条事实。/)
 
       add(memory, YESTERDAY, '一项决定', '决定改用 Vite。', { type: 'decision' })
       await memory.consolidate({ force: true })

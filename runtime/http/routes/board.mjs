@@ -1,7 +1,8 @@
 // 看板路由：GET /api/board/events（SSE）以及 GET /api/sessions?view=board 的查询校验。
 // 查询串全部按不可信输入处理：多值参数限个数与长度，未知泳道与非法数字直接 400。
 import { BOARD_LANES, BOARD_DONE_WINDOWS } from '../../../shared/session-board-status.mjs'
-import { serializeSsePayload, sseSendGuarded } from '../response.mjs'
+import { errorBody, serializeSsePayload, sseSendGuarded } from '../response.mjs'
+import { errorPayload, pisperError } from '../../../shared/errors.mjs'
 import { BoardEventsLimitError } from '../../services/board-event-hub.mjs'
 import {
   BOARD_VIEW_DEFAULT_LIMIT,
@@ -25,7 +26,7 @@ const MAX_TIME_ZONE_OFFSET_MINUTES = 14 * 60
 /** @param {string | null} value @param {string} name */
 function integerParam(value, name) {
   if (value === null || value === '') return null
-  if (!/^-?\d{1,6}$/.test(value)) throw new BoardViewQueryError(`${name} 必须是整数。`)
+  if (!/^-?\d{1,6}$/.test(value)) throw new BoardViewQueryError(`${name} must be an integer.`)
   return Number(value)
 }
 
@@ -37,10 +38,10 @@ function integerParam(value, name) {
  */
 export function parseBoardViewQuery(params) {
   const cwds = params.getAll('cwd')
-  if (cwds.length > MAX_CWD_FILTERS) throw new BoardViewQueryError('cwd 筛选条件过多。')
+  if (cwds.length > MAX_CWD_FILTERS) throw new BoardViewQueryError('Too many cwd filters.')
   for (const cwd of cwds) {
     if (!cwd.trim() || cwd.length > MAX_CWD_LENGTH || cwd.includes('\0'))
-      throw new BoardViewQueryError('cwd 筛选条件无效。')
+      throw new BoardViewQueryError('Invalid cwd filter.')
   }
   /** @type {BoardLane[]} */
   const lanes = []
@@ -48,23 +49,23 @@ export function parseBoardViewQuery(params) {
     const lane = value.trim()
     if (!lane) continue
     if (!(/** @type {readonly string[]} */ (BOARD_LANES).includes(lane)))
-      throw new BoardViewQueryError('lane 只能是 attention、running、queued 或 done。')
+      throw new BoardViewQueryError('lane must be one of attention, running, queued, done.')
     if (!lanes.includes(/** @type {BoardLane} */ (lane)))
       lanes.push(/** @type {BoardLane} */ (lane))
   }
   const requestedLimit = integerParam(params.get('limit'), 'limit')
   if (requestedLimit !== null && requestedLimit < 1)
-    throw new BoardViewQueryError('limit 必须大于 0。')
+    throw new BoardViewQueryError('limit must be greater than 0.')
   const limit = Math.min(BOARD_VIEW_MAX_LIMIT, requestedLimit ?? BOARD_VIEW_DEFAULT_LIMIT)
   const cursor = params.get('cursor') || ''
   if (cursor.length > MAX_CURSOR_LENGTH || !/^[A-Za-z0-9_-]*$/.test(cursor))
-    throw new BoardViewQueryError('看板游标无效。', 'invalid_board_cursor')
+    throw new BoardViewQueryError('Invalid board cursor.', 'invalid_board_cursor')
   const window = params.get('window') || BOARD_VIEW_DEFAULT_WINDOW
   if (!(/** @type {readonly string[]} */ (BOARD_DONE_WINDOWS).includes(window)))
-    throw new BoardViewQueryError('window 只能是 today 或 7d。')
+    throw new BoardViewQueryError('window must be today or 7d.')
   const offset = integerParam(params.get('tzOffset'), 'tzOffset')
   if (offset !== null && Math.abs(offset) > MAX_TIME_ZONE_OFFSET_MINUTES)
-    throw new BoardViewQueryError('tzOffset 超出范围。')
+    throw new BoardViewQueryError('tzOffset is out of range.')
   return {
     cwds,
     lanes,
@@ -117,7 +118,10 @@ export const boardRoutes = [
     async handler({ runtime, url, res, json, startSse }) {
       const hub = runtime.boardEvents
       if (!hub) {
-        json(409, { error: '当前 Runtime 不支持看板事件流。', capability: 'board.events' })
+        json(409, {
+          ...errorBody(pisperError('unsupported', 'capability', 'board.events', { status: 409 })),
+          capability: 'board.events',
+        })
         return
       }
       const after = parseBoardEventsAfter(url.searchParams.get('after'))
@@ -137,7 +141,7 @@ export const boardRoutes = [
         })
       } catch (error) {
         if (!(error instanceof BoardEventsLimitError)) throw error
-        json(error.statusCode, { error: error.message, code: error.code })
+        json(error.statusCode, { error: error.message, code: error.code, ...errorPayload(error) })
         return
       }
       startSse()

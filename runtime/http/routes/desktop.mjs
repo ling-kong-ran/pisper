@@ -1,6 +1,9 @@
 // 桌面路由：应用更新检查、赞助内容、桌面宠物皮肤等桌面专属 API。
+import { errorPayload, pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
+
 function requireDesktopPet(services) {
-  if (!services.desktopPet) throw new Error('桌面宠物服务尚未初始化。')
+  if (!services.desktopPet) throw pisperError('unavailable', 'pet')
   return services.desktopPet
 }
 
@@ -16,7 +19,7 @@ function desktopHostRoutes(path, channelOf) {
       path,
       async handler({ runtime, req, res, json, startSse, sendSse }) {
         if (req.pisperRemote) {
-          json(403, { error: '远程客户端不能接收桌面指令。' })
+          json(403, errorBody(pisperError('forbidden', 'device', 'remote clients')))
           return
         }
         startSse()
@@ -31,7 +34,7 @@ function desktopHostRoutes(path, channelOf) {
       path: `${path}/:requestId`,
       async handler({ runtime, req, params, bodyBuffer, json }) {
         if (req.pisperRemote) {
-          json(403, { error: '远程客户端不能接收桌面指令。' })
+          json(403, errorBody(pisperError('forbidden', 'device', 'remote clients')))
           return
         }
         const payload = JSON.parse((await bodyBuffer(MAX_BROWSER_RESULT_BYTES)).toString('utf8'))
@@ -49,7 +52,7 @@ export const desktopRoutes = [
     path: '/api/desktop/reveal-path',
     async handler({ runtime, req, body, json }) {
       if (req.pisperRemote) {
-        json(403, { error: '远程客户端不能打开宿主文件管理器。' })
+        json(403, errorBody(pisperError('forbidden', 'folder', 'remote clients')))
         return
       }
       const input = await body()
@@ -60,14 +63,14 @@ export const desktopRoutes = [
     method: 'GET',
     path: '/api/app-update',
     async handler({ services, url, publicError, json }) {
-      if (!services.updates) throw new Error('更新检查服务尚未初始化。')
+      if (!services.updates) throw pisperError('unavailable', 'component', 'update check')
       try {
         json(
           200,
           await services.updates.check({ refresh: url.searchParams.get('refresh') === '1' }),
         )
       } catch (error) {
-        json(502, { error: publicError(error) })
+        json(502, { error: publicError(error), ...errorPayload(error) })
       }
     },
   },
@@ -130,7 +133,7 @@ export const desktopRoutes = [
     handler({ services, url, res, json }) {
       const sprite = requireDesktopPet(services).sprite(url.searchParams.get('slug') || '')
       if (!sprite) {
-        json(404, { error: '宠物资源不存在。' })
+        json(404, errorBody(pisperError('not_found', 'pet')))
         return
       }
       res.writeHead(200, {

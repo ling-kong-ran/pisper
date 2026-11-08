@@ -21,6 +21,8 @@ import {
   botApprovalText,
   botQuestionText,
   botReplyText,
+  botChannelActionReply,
+  botNotifyText,
 } from '../services/bots/bot-notifications.mjs'
 import { botNameKey, normalizeBotMessage } from '../services/bots/bot-model.mjs'
 import { botMessageContext, isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
@@ -40,6 +42,7 @@ import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-se
 import { botSkillsContext } from '../services/bots/bot-skill-service.mjs'
 import {
   BOT_PROACTIVE_NOTE,
+  BOT_PROACTIVE_TASK_NAME,
   botBriefPrompt,
   botProactiveDue,
   botProactiveTask,
@@ -72,6 +75,7 @@ import {
   normalizeStoredBetaFlags,
   projectBetaFeatures,
 } from '../../shared/beta-features.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 // 隔离上下文模式（工作流/渠道的独立子任务）下屏蔽的记忆相关工具：
 // 子任务不应读写主会话的长期记忆。
@@ -88,7 +92,7 @@ const MAX_PREPARING_MESSAGE_CHARS = 20_000
 // 每个 Bot 每小时最多发几条 bot_notify。
 const BOT_NOTIFY_LIMIT = 10
 const BOT_NOTIFY_WINDOW_MS = 60 * 60_000
-const CHANNEL_NAMES = { qq: 'QQ', telegram: 'Telegram', feishu: '飞书', weixin: '微信' }
+const CHANNEL_NAMES = { qq: 'QQ', telegram: 'Telegram', feishu: 'Feishu', weixin: 'WeChat' }
 
 // 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
@@ -134,7 +138,7 @@ export function filterWorkflowNotificationTargets(input, enabledTargets) {
 export class AgentRuntimeFacade {
   async revealLocalPath(path) {
     if (this.capabilities?.profile !== 'desktop')
-      throw new Error('当前 Runtime 不支持打开宿主文件管理器。')
+      throw pisperError('unsupported', 'folder', 'reveal in file manager')
     return await revealLocalPath(path)
   }
 
@@ -143,7 +147,7 @@ export class AgentRuntimeFacade {
   async askSideQuestion(sessionId, question, { signal, onStart, onDelta } = {}) {
     const text = normalizeSideQuestion(question)
     const current = await this.getExistingSession(String(sessionId || ''))
-    if (!current?.session) throw Object.assign(new Error('会话不存在。'), { statusCode: 404 })
+    if (!current?.session) throw pisperError('not_found', 'session')
     onStart?.()
     const result = await streamSideQuestion({
       modelRuntime: this.modelRuntime,
@@ -373,7 +377,7 @@ export class AgentRuntimeFacade {
       try {
         this.memory.forgetSession?.(id)
       } catch {
-        console.warn('[memory] 会话原文没能清理。')
+        console.warn('[memory] Could not clear the session transcript.')
       }
     }
     const state = this.initialization?.memory
@@ -425,7 +429,7 @@ export class AgentRuntimeFacade {
           this.boardEvents?.sessionWorkspaceChanged(id)
         }
       },
-      warn: () => console.warn('会话协作台账更新失败。'),
+      warn: () => console.warn('Could not update the session coordination ledger.'),
     })
     return this.workspaceCoordination
   }
@@ -517,7 +521,9 @@ export class AgentRuntimeFacade {
         await value.session.steer(sessionMessageContent([message], ATTACHMENT_MARKER))
         return { session: { id: target.id, title: target.name || '' }, delivered: 'now' }
       } catch {
-        console.warn('会话留言没能插进对方正在跑的一轮，已存进它的留言箱。')
+        console.warn(
+          'Could not deliver the session message into the running turn; saved to its inbox.',
+        )
       }
     }
     await coordination.queueMessage(target.id, message)
@@ -527,11 +533,11 @@ export class AgentRuntimeFacade {
   // 会话页的“现在处理”：把留言箱里的留言作为一条消息交给这个会话，在后台开一轮。
   async deliverSessionMessages(id) {
     const sessionId = String(id || '').trim()
-    if (!sessionId) throw new Error('会话无效。')
+    if (!sessionId) throw pisperError('invalid', 'session')
     const coordination = this.getWorkspaceCoordination()
     const value = this.sessions.get(sessionId)
     if (this.sessionRunIsActive(sessionId, value) || this.startingRuns.has(sessionId))
-      throw new Error('当前会话正在运行，留言会在下一步交给它。')
+      throw pisperError('busy', 'session', 'messages are delivered at its next step')
     const messages = await coordination.takeMessages(sessionId)
     if (!messages.length) return { started: false }
     void this.streamPrompt({
@@ -540,7 +546,7 @@ export class AgentRuntimeFacade {
       send: () => {},
     }).catch(async () => {
       // 没能开跑（模型不可用等）：留言放回去，会话页照旧显示。
-      console.warn('处理会话留言的一轮没能开始，留言已放回。')
+      console.warn('Could not start a turn for session messages; messages were put back.')
       for (const message of messages)
         await coordination.queueMessage(sessionId, message).catch(() => {})
     })
@@ -555,7 +561,10 @@ export class AgentRuntimeFacade {
   getTurnCheckpoints() {
     this.turnCheckpoints ||= new TurnCheckpointService({
       dataDir: this.dataDir,
-      warn: () => console.warn('文件回退快照写入失败，该文件之后不能按轮回退。'),
+      warn: () =>
+        console.warn(
+          'Could not write a file rewind snapshot; that file cannot be rewound by turn.',
+        ),
     })
     return this.turnCheckpoints
   }
@@ -564,18 +573,18 @@ export class AgentRuntimeFacade {
   async fileRewindTarget(id, entryId) {
     const sessionId = String(id || '').trim()
     const targetId = String(entryId || '').trim()
-    if (!sessionId || !targetId) throw new Error('会话树节点无效。')
+    if (!sessionId || !targetId) throw pisperError('invalid', 'message', 'tree entry')
     if (this.sessionRunIsActive(sessionId, this.sessions.get(sessionId)))
-      throw new Error('当前会话正在运行，请等待完成或停止后再回退文件。')
+      throw pisperError('busy', 'session')
     const value = await this.getOrCreateSession(sessionId)
-    if (this.sessionRunIsActive(sessionId, value))
-      throw new Error('当前会话正在运行，请等待完成或停止后再回退文件。')
+    if (this.sessionRunIsActive(sessionId, value)) throw pisperError('busy', 'session')
     const entry = value.session.sessionManager.getEntry(targetId)
-    if (entry?.type !== 'message') throw new Error('会话树节点不存在。')
+    if (entry?.type !== 'message') throw pisperError('not_found', 'message', 'tree entry')
     const at = Number.isFinite(entry.message?.timestamp)
       ? entry.message.timestamp
       : Date.parse(entry.timestamp)
-    if (!Number.isFinite(at)) throw new Error('这条消息没有时间信息，无法回退文件。')
+    if (!Number.isFinite(at))
+      throw pisperError('unsupported', 'message', 'no timestamp to rewind files to')
     return { sessionId, at }
   }
 
@@ -603,8 +612,7 @@ export class AgentRuntimeFacade {
     // 会话列表、看板、/messages 与 /live 都要报告“在跑”，否则别处打开会话会读到“空页、未运行”。
     // 同一会话的第二次 prompt 在准备阶段就拒绝，不再两轮并发装配。
     const requestedId = typeof options.sessionId === 'string' ? options.sessionId : ''
-    if (requestedId && this.startingRuns.has(requestedId))
-      throw new Error('当前会话仍在运行，请等待完成或先停止。')
+    if (requestedId && this.startingRuns.has(requestedId)) throw pisperError('busy', 'session')
     const message = typeof options.message === 'string' ? options.message : ''
     const starting = requestedId
       ? {
@@ -645,7 +653,7 @@ export class AgentRuntimeFacade {
         : this.pendingSessions.has(id) && !this.sessionRunIsActive(id)
       if (empty) await this.deleteSession(id)
     } catch {
-      console.warn('停止后清理空会话失败。')
+      console.warn('Could not remove the empty session after stop.')
     }
   }
 
@@ -662,16 +670,16 @@ export class AgentRuntimeFacade {
         id = value.session.sessionId
       }
       if (this.sessionLifecycle.sessionEngineRunIsActive(id, value))
-        throw new Error('当前会话仍在运行，请等待完成或先停止。')
+        throw pisperError('busy', 'session')
       // 历史会话不允许自动切换模型：绑定模型不可用时拒绝执行并显式告知，
       // 而不是静默用默认模型消耗额度、并把回退结果写回会话绑定。
       if (value.blockedModel) {
         const ref = `${value.blockedModel.provider}/${value.blockedModel.modelId}`
         const reason =
           value.blockedModel.reason === 'missing-auth'
-            ? 'Provider 缺少可用凭据'
-            : '模型不存在或 Provider 未配置'
-        throw new Error(`会话绑定的模型 ${ref} 当前不可用（${reason}），请重新选择模型后再发送。`)
+            ? 'provider has no credentials'
+            : 'model missing or provider not configured'
+        throw pisperError('unavailable', 'model', `${ref}: ${reason}; pick another model`)
       }
       // 中止标记只属于单次运行：留在常驻运行时上会让下一次 prompt 继承上次的截止时间。
       delete value.abortedAt
@@ -696,7 +704,9 @@ export class AgentRuntimeFacade {
         if (!value.abortedAt && value.pendingAgentNotifications?.length)
           this.scheduleAgentWakeup(id)
         // 这一轮结束（完成、失败、停止都算）：启动排在它后面的会话（sessionQueue）。
-        void this.sessionQueue?.onRunFinished(id).catch(() => console.warn('排队的会话启动失败。'))
+        void this.sessionQueue
+          ?.onRunFinished(id)
+          .catch(() => console.warn('Could not start the queued session.'))
         const forceDisposed = value.forceDisposed
         delete value.abortedAt
         delete value.forceDisposed
@@ -858,7 +868,7 @@ export class AgentRuntimeFacade {
     )
       id = ''
     if (!id) {
-      const created = await this.createSession(title || '飞书会话')
+      const created = await this.createSession(title || 'Feishu chat')
       id = created.id
       if (executor !== undefined) await this.setSessionExecutor(id, executor)
       if (cwd) await this.setSessionCwd(id, cwd)
@@ -904,7 +914,7 @@ export class AgentRuntimeFacade {
         }
         if (event === 'tool_start') finalText = ''
         if (event === 'generated_asset' && data?.id) assetIds.add(data.id)
-        if (event === 'error') runError = String(data?.message || '运行失败。').slice(0, 500)
+        if (event === 'error') runError = String(data?.message || 'Run failed.').slice(0, 500)
         onEvent?.(event, data)
       },
     })
@@ -1005,7 +1015,7 @@ export class AgentRuntimeFacade {
 
   async saveChatDockLayout(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
-      throw new Error('Dock 布局必须是 JSON 对象。')
+      throw pisperError('invalid', 'config', 'dock layout must be a JSON object')
     }
     const snapshot = structuredClone(input)
     this.chatDockLayoutWrite = this.chatDockLayoutWrite
@@ -1126,7 +1136,7 @@ export class AgentRuntimeFacade {
       ?.summaries(String(sessionId || ''))
       .find((item) => item.id === agentId)
     if (!agent || !['queued', 'starting', 'running'].includes(agent.status)) return null
-    return this.multiAgents.interrupt(sessionId, agentId, '用户让它停下了。')
+    return this.multiAgents.interrupt(sessionId, agentId, "Stopped at the user's request.")
   }
 
   // 会话属于哪个 Bot（Bots 实验功能关着时一律不算）：运行时据此套用 Bot 的指令、工具范围与隔离上下文。
@@ -1169,7 +1179,11 @@ export class AgentRuntimeFacade {
           this.botProactiveAgents?.has(agent.id) &&
           ['queued', 'starting', 'running'].includes(agent.status)
         )
-          this.multiAgents.interrupt(bot.threadSessionId, agent.id, '主动巡看已关闭。')
+          this.multiAgents.interrupt(
+            bot.threadSessionId,
+            agent.id,
+            'Proactive checks were turned off.',
+          )
       }
     }
     return bot
@@ -1179,7 +1193,7 @@ export class AgentRuntimeFacade {
   async ensureBotSession(botId) {
     const bot = this.bots.get(botId)
     if (!bot)
-      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+      throw Object.assign(new Error('Bot not found.'), { code: 'bot_not_found', statusCode: 404 })
     const existing = bot.threadSessionId
     if (
       existing &&
@@ -1233,9 +1247,9 @@ export class AgentRuntimeFacade {
   async messageBot(botId, { text, source = { kind: 'chat' } } = {}) {
     const bot = this.bots.get(botId)
     if (!bot)
-      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+      throw Object.assign(new Error('Bot not found.'), { code: 'bot_not_found', statusCode: 404 })
     if (!bot.enabled)
-      throw Object.assign(new Error(`${bot.name} 已暂停。`), {
+      throw Object.assign(new Error(`${bot.name} is paused.`), {
         code: 'bot_paused',
         statusCode: 409,
       })
@@ -1329,7 +1343,7 @@ export class AgentRuntimeFacade {
     const previous = this.botTurnChains.get(sessionId) || Promise.resolve()
     const next = previous
       .then(() => this.afterBotTurn(sessionId))
-      .catch(() => console.warn('[bots] Bot 这一轮的收尾没能完成。'))
+      .catch(() => console.warn('[bots] Could not finish the bot turn.'))
       .finally(() => {
         if (this.botTurnChains.get(sessionId) === next) this.botTurnChains.delete(sessionId)
       })
@@ -1345,7 +1359,7 @@ export class AgentRuntimeFacade {
     if (!value?.conversationOnly || !bot) return null
     const trigger = botTurnTrigger(value.session.messages || [])
     await this.forwardBotReplies(bot, value, trigger).catch(() =>
-      console.warn('[bots] 回话没能交给另一个 Bot。'),
+      console.warn('[bots] Could not pass the reply to the other bot.'),
     )
     for (const source of (value.pendingChatReplies || []).splice(0))
       this.notifyBotChat(source, botReplyText(bot.name, { text: trigger.reply }))
@@ -1374,14 +1388,15 @@ export class AgentRuntimeFacade {
     const context = () => {
       const value = this.sessions.get(sessionId)
       const bot = this.botForSession(sessionId)
-      if (!value?.session || !bot) throw new Error('这不是 Bot 的对话，工具不可用。')
+      if (!value?.session || !bot)
+        throw new Error('This is not a bot conversation; the tool is unavailable.')
       const trigger = botTurnTrigger(value.session.messages || [])
       return { value, bot, trigger, quiet: this.botTurnIsQuiet(trigger) }
     }
     const act = async (input, { work = false } = {}) => {
       const { value, bot, trigger, quiet } = context()
       const decision = normalizeBotAction(input)
-      if (!decision) throw new Error('参数不完整或太长。')
+      if (!decision) throw new Error('Arguments are incomplete or too long.')
       if (work && quiet)
         throw new Error(
           'This turn reports a read-only check or the daily brief: suggest, do not start work or message other bots. Wait for the user to say so.',
@@ -1428,7 +1443,7 @@ export class AgentRuntimeFacade {
                   source: { kind: 'answer' },
                 }),
           )
-          .catch(() => console.warn('[bots] 问题的回答没能交回 Bot 的对话。'))
+          .catch(() => console.warn('[bots] Could not return the answer to the bot conversation.'))
         return {
           type: 'ask',
           text: 'The question card is now shown to the user. End your turn here; their answer will arrive as the next message.',
@@ -1456,7 +1471,7 @@ export class AgentRuntimeFacade {
         }
         if (input.action === 'remove') {
           const task = own().find((item) => item.id === String(input.id || ''))
-          if (!task) throw new Error('这个定时不存在，或不是你的。')
+          if (!task) throw new Error('No such schedule, or it is not yours.')
           await this.schedules.remove(task.id)
           return { type: 'schedule', text: `Removed schedule ${task.id}.` }
         }
@@ -1467,7 +1482,7 @@ export class AgentRuntimeFacade {
         const origin = this.botChatOrigins?.get(sessionId)
         const where =
           origin?.chatType === 'group'
-            ? `（在${CHANNEL_NAMES[origin.platform] || origin.platform}群里定的，群 ID ${origin.peerId}）`
+            ? ` (scheduled in a ${CHANNEL_NAMES[origin.platform] || origin.platform} group, group ID ${origin.peerId})`
             : ''
         const message = where
           ? `${String(input.message ?? '').slice(0, 4000 - where.length)}${where}`
@@ -1515,7 +1530,8 @@ export class AgentRuntimeFacade {
       notify: async ({ text, platform, to, group }) => {
         const { value, bot } = context()
         const message = String(text ?? '').trim()
-        if (!message || message.length > 2_000) throw new Error('通知要写内容，最多 2000 个字。')
+        if (!message || message.length > 2_000)
+          throw new Error('The notification needs text, at most 2000 characters.')
         const now = Date.now()
         const recent = (this.botNotifyTimes.get(bot.id) || []).filter(
           (time) => now - time < BOT_NOTIFY_WINDOW_MS,
@@ -1535,7 +1551,11 @@ export class AgentRuntimeFacade {
             platform,
             origin: this.botChatOrigins?.get(sessionId),
           })
-          await this.channels.notifyGroup(target.platform, target.peerId, `${bot.name}：${message}`)
+          await this.channels.notifyGroup(
+            target.platform,
+            target.peerId,
+            botNotifyText(bot.name, message),
+          )
           this.botNotifyTimes.set(bot.id, [...recent, now])
           return {
             type: 'notify',
@@ -1545,7 +1565,7 @@ export class AgentRuntimeFacade {
           }
         }
         const results =
-          (await this.channels?.notifyOwner(`${bot.name}：${message}`, {
+          (await this.channels?.notifyOwner(botNotifyText(bot.name, message), {
             platforms: platform ? [String(platform)] : undefined,
           })) || []
         const sent = results.filter((result) => result.status === 'sent')
@@ -1561,7 +1581,7 @@ export class AgentRuntimeFacade {
           throw new Error(
             results.length
               ? `Not sent. ${reasons.join('; ')}.`
-              : 'Not sent: no chat app is connected to Pisper (or not the one asked for). Tell the user to connect one under 渠道.',
+              : 'Not sent: no chat app is connected to Pisper (or not the one asked for). Tell the user to connect one under Channels.',
           )
         return {
           type: 'notify',
@@ -1588,7 +1608,7 @@ export class AgentRuntimeFacade {
       const prefix = decision.memory.replace(/^mem_/, '')
       const entries = await this.botMemory.list(bot.id)
       const matches = entries.filter((entry) => entry.id.slice(4).startsWith(prefix))
-      if (matches.length !== 1) throw new Error('要忘掉的记忆对不上。')
+      if (matches.length !== 1) throw new Error('The memory to forget does not match any memory.')
       await this.botMemory.forget(bot.id, { id: matches[0].id })
       return { type: 'forget', id: matches[0].id }
     }
@@ -1625,12 +1645,12 @@ export class AgentRuntimeFacade {
       return { type: 'spawn', id: agent.id, title: decision.title }
     }
     const agent = resolveBotAgent(this.multiAgents.list(sessionId), decision.agent)
-    if (!agent) throw new Error('决定里的子 agent 对不上。')
+    if (!agent) throw new Error('The job does not match any of your jobs.')
     if (decision.type === 'add') {
       await this.multiAgents.followup(sessionId, agent.id, decision.text)
       return { type: 'add', id: agent.id }
     }
-    this.multiAgents.interrupt(sessionId, agent.id, '用户让它停下了。')
+    this.multiAgents.interrupt(sessionId, agent.id, "Stopped at the user's request.")
     return { type: 'stop', id: agent.id }
   }
 
@@ -1639,7 +1659,7 @@ export class AgentRuntimeFacade {
     const memory = await this.botMemory.agentContext(bot, { task, cwd: bot.workspace?.cwd })
     return [
       String(bot.instructions || '').trim()
-        ? `[${bot.name} 的工作说明]\n${bot.instructions.trim()}`
+        ? `[${bot.name}'s instructions]\n${bot.instructions.trim()}`
         : '',
       memory,
     ]
@@ -1676,7 +1696,7 @@ export class AgentRuntimeFacade {
           if (agent) started.push({ bot: bot.id, kind: 'check', agent: agent.id })
         }
       } catch {
-        console.warn('[bots] 主动巡看没能开始。')
+        console.warn('[bots] Could not start the proactive check.')
       }
     }
     return started
@@ -1691,8 +1711,8 @@ export class AgentRuntimeFacade {
     if (!value?.conversationOnly || !value.multiAgentRuntime) return null
     const instructions = await this.botAgentInstructions(bot)
     const agent = await value.multiAgentRuntime.spawn({
-      taskName: 'proactive_check',
-      title: '巡看',
+      // 不写标题：界面按任务 id 显示本地化的“只读巡看”。
+      taskName: BOT_PROACTIVE_TASK_NAME,
       ...(instructions ? { instructions } : {}),
       message: botProactiveTask(bot),
       tier: 'fast',
@@ -1725,13 +1745,13 @@ export class AgentRuntimeFacade {
       sessionId,
       message: botBriefPrompt({ bot, jobs, schedules }),
       unattended: true,
-    }).catch(() => console.warn('[bots] 每日简报没能写出。'))
+    }).catch(() => console.warn('[bots] Could not write the daily brief.'))
   }
 
   startBotProactiveTimer() {
     if (this.botProactiveTimer || !this.capabilities.features.bots) return
     this.botProactiveTimer = setInterval(() => {
-      void this.botProactiveTick().catch(() => console.warn('[bots] 主动巡看检查失败。'))
+      void this.botProactiveTick().catch(() => console.warn('[bots] Proactive check tick failed.'))
     }, 60_000)
     this.botProactiveTimer.unref?.()
   }
@@ -1743,8 +1763,8 @@ export class AgentRuntimeFacade {
     const target = this.bots
       .list()
       .find((item) => item.id === decision.bot || botNameKey(item.name) === key)
-    if (!target || target.id === bot.id) throw new Error('要找的 Bot 不存在。')
-    if (!target.enabled) throw new Error(`${target.name} 已暂停。`)
+    if (!target || target.id === bot.id) throw new Error('No such bot.')
+    if (!target.enabled) throw new Error(`${target.name} is paused.`)
     if (isCourtesyMessage(decision.text)) return { type: 'message', skipped: 'courtesy' }
     const continuing = trigger?.message?.from === target.id ? trigger.message : null
     const chain = continuing?.chain || newBotChainId()
@@ -1840,7 +1860,7 @@ export class AgentRuntimeFacade {
     const previous = this.botReviewChains.get(bot.id) || Promise.resolve()
     const next = previous
       .then(() => this.reviewBotJob(bot, agent))
-      .catch(() => console.warn('[bots] 复盘没能完成。'))
+      .catch(() => console.warn('[bots] Could not finish the review.'))
       .finally(() => {
         if (this.botReviewChains.get(bot.id) === next) this.botReviewChains.delete(bot.id)
       })
@@ -1913,7 +1933,7 @@ export class AgentRuntimeFacade {
   requireBot(botId) {
     const bot = this.bots.get(botId)
     if (!bot)
-      throw Object.assign(new Error('Bot 不存在。'), { code: 'bot_not_found', statusCode: 404 })
+      throw Object.assign(new Error('Bot not found.'), { code: 'bot_not_found', statusCode: 404 })
     return bot
   }
 
@@ -1982,7 +2002,7 @@ export class AgentRuntimeFacade {
       : ''
     if (!all.length)
       throw new Error(
-        'Not sent: your chat rules include no group you can post to (WeChat has no groups; with "all groups", only groups where someone has talked since are known). The user can add one under your 聊天 settings.',
+        'Not sent: your chat rules include no group you can post to (WeChat has no groups; with "all groups", only groups where someone has talked since are known). The user can add one under your Chats settings.',
       )
     throw new Error(
       wanted
@@ -1998,7 +2018,10 @@ export class AgentRuntimeFacade {
     void this.channels
       ?.sendToChat(source.platform, source.peerId, text)
       .catch((error) =>
-        console.warn('[bots] 回推到渠道失败：', error instanceof Error ? error.message : error),
+        console.warn(
+          '[bots] Could not send to the channel:',
+          error instanceof Error ? error.message : error,
+        ),
       )
   }
 
@@ -2019,15 +2042,15 @@ export class AgentRuntimeFacade {
   // 聊天里的处理命令：/名字 批准 | 拒绝。发送者已按 Bot 的名单校验过。
   async botChannelAction(botId, action) {
     const bot = this.bots.get(botId)
-    if (!bot) return 'Bot 不存在。'
+    if (!bot) return botChannelActionReply('', 'no_bot')
     const sessionId = bot.threadSessionId
     const approval = sessionId ? this.botWaiting(sessionId).approval : null
-    if (!approval) return `${bot.name} 现在没有等批准的操作。`
+    if (!approval) return botChannelActionReply(bot.name, 'nothing')
     if (action === 'approve' && approval.severity === 'critical')
-      return '这是高风险操作，请在 Pisper 里看完再批准。'
+      return botChannelActionReply(bot.name, 'critical')
     const resolution = this.resolveToolApproval(sessionId, approval.id, action === 'approve')
-    if (!resolution?.found) return '这个审批已经处理过了。'
-    return action === 'approve' ? `已批准，${bot.name} 继续干活。` : '已拒绝这次操作。'
+    if (!resolution?.found) return botChannelActionReply(bot.name, 'handled')
+    return botChannelActionReply(bot.name, action === 'approve' ? 'approved' : 'denied')
   }
 
   // 远程会话的执行节点（B6）。节点不存在时也返回执行器，调用会以“离线”失败，绝不悄悄退回在本机执行。
@@ -2046,7 +2069,7 @@ export class AgentRuntimeFacade {
     if (environmentId === 'local')
       return listWorkspaceFolders({ path }, { fallback: this.cwd || '' })
     if (isSshMachineId(environmentId) || !this.environments.get(environmentId))
-      throw new EnvironmentError('environment_not_found', '这台电脑不存在。', 404)
+      throw new EnvironmentError('environment_not_found', 'Machine not found.', 404)
     return this.executorFor(environmentId).listFolders(path, { signal })
   }
 
@@ -2116,23 +2139,23 @@ export class AgentRuntimeFacade {
   async resolveMachineFolder(id, input) {
     if (isSshMachineId(id)) {
       if (!this.sshMachines.get(id))
-        throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+        throw new ExecutorError('machine_not_found', 'Machine was removed.')
       const cwd = await this.sshMachines.executor(id).resolveDirectory(input)
       await this.sshMachines.recordReachable(id)
       return cwd
     }
     const environment = this.environments.get(id)
-    if (!environment) throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+    if (!environment) throw new ExecutorError('machine_not_found', 'Machine was removed.')
     if (!this.executorHub.online(id))
       throw new ExecutorError(
         'machine_offline',
-        '这台机器现在不在线：请在对方机器上运行 npx pisper executor。',
+        'Machine is offline: run npx pisper executor on it.',
       )
     const cwd = String(input ?? '').trim() || environment.roots[0] || ''
     if (!pathWithinRoots(cwd, environment.roots))
       throw new ExecutorError(
         'machine_folder_outside_roots',
-        `这个目录不在对方允许的范围内：${environment.roots.join('、')}`,
+        `Folder is outside the allowed roots: ${environment.roots.join(', ')}`,
       )
     return cwd
   }
@@ -2212,8 +2235,10 @@ export class AgentRuntimeFacade {
       requested < MIN_COMPACTION_THRESHOLD_PERCENT ||
       requested > MAX_COMPACTION_THRESHOLD_PERCENT
     ) {
-      throw new Error(
-        `自动压缩阈值必须在 ${MIN_COMPACTION_THRESHOLD_PERCENT}% 到 ${MAX_COMPACTION_THRESHOLD_PERCENT}% 之间。`,
+      throw pisperError(
+        'invalid',
+        'config',
+        `compaction threshold must be ${MIN_COMPACTION_THRESHOLD_PERCENT}-${MAX_COMPACTION_THRESHOLD_PERCENT}%`,
       )
     }
     const thresholdPercent = normalizeCompactionThresholdPercent(requested)
@@ -2538,7 +2563,7 @@ export class AgentRuntimeFacade {
   }
 
   async commitSessionGitChanges(id, message) {
-    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    if (this.sessionRunIsActive(id)) throw pisperError('busy', 'session')
     return this.gitChanges.commit(await this.sessionGitCwd(id), message)
   }
 
@@ -2547,7 +2572,7 @@ export class AgentRuntimeFacade {
   }
 
   async revertSessionGitChanges(id) {
-    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessionRunIsActive(id)) throw pisperError('busy', 'session')
     return this.gitChanges.revert(await this.sessionGitCwd(id))
   }
 
@@ -2564,7 +2589,7 @@ export class AgentRuntimeFacade {
     const target = resolve(cwd, String(filePath || ''))
     const relativePath = relative(cwd, target)
     if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
-      throw new Error('文件路径超出会话工作区范围。')
+      throw pisperError('forbidden', 'path', 'outside the session workspace')
     const relPath = relativePath.replace(/\\/g, '/')
     const snapshotDiff = async () => {
       const snapshot = await this.getFileChangesService().diff(id, cwd, relPath)
@@ -2612,7 +2637,7 @@ export class AgentRuntimeFacade {
   }
 
   async revertSessionFileChanges(id, filePath) {
-    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessionRunIsActive(id)) throw pisperError('busy', 'session')
     const cwd = await this.sessionWorkspaceCwd(id)
     const relPath = filePath ? this.fileChangeRelPath(cwd, filePath) : ''
     const result = await this.getFileChangesService().revert(id, cwd, relPath || undefined)
@@ -2632,12 +2657,12 @@ export class AgentRuntimeFacade {
     const target = resolve(cwd, String(filePath || ''))
     const relativePath = relative(cwd, target)
     if (!String(filePath || '') || relativePath.startsWith('..') || isAbsolute(relativePath))
-      throw new Error('文件路径超出会话工作区范围。')
+      throw pisperError('forbidden', 'path', 'outside the session workspace')
     return relativePath.replace(/\\/g, '/')
   }
 
   async commitSessionVcsChanges(id, message) {
-    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再提交改动。')
+    if (this.sessionRunIsActive(id)) throw pisperError('busy', 'session')
     return this.vcsChanges.commit(await this.sessionGitCwd(id), message)
   }
 
@@ -2646,7 +2671,7 @@ export class AgentRuntimeFacade {
   }
 
   async revertSessionVcsChanges(id) {
-    if (this.sessionRunIsActive(id)) throw new Error('当前会话正在运行，请完成或停止后再撤销改动。')
+    if (this.sessionRunIsActive(id)) throw pisperError('busy', 'session')
     return this.vcsChanges.revert(await this.sessionGitCwd(id))
   }
 

@@ -2,6 +2,7 @@
 import { basename } from 'node:path'
 import OpenAI, { toFile } from 'openai'
 import { createOpenAIRequestFetch } from '../openai-request-transport.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 function dataUrlImage(value) {
   const match = String(value || '').match(/^data:([^;]+);base64,(.+)$/)
@@ -10,7 +11,7 @@ function dataUrlImage(value) {
 
 async function download(url, signal, headers = {}) {
   const response = await fetch(url, { signal, headers })
-  if (!response.ok) throw new Error(`下载生成结果失败 (${response.status})`)
+  if (!response.ok) throw pisperError('failed', 'image', `download: HTTP ${response.status}`)
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
     mimeType: response.headers.get('content-type') || 'application/octet-stream',
@@ -57,7 +58,7 @@ async function openRouterImage(client, model, request, signal) {
     const value = await download(imageUrl, signal)
     return { ...value, extension: imageExtension(value.mimeType) }
   }
-  throw new Error('视觉模型没有返回图片数据。')
+  throw pisperError('failed', 'image', 'the model returned no image data')
 }
 
 async function openAIImage(client, model, request, signal) {
@@ -111,7 +112,7 @@ async function openAIImage(client, model, request, signal) {
     const value = await download(image.url, signal)
     return { ...value, extension: imageExtension(value.mimeType) }
   }
-  throw new Error('视觉模型没有返回图片数据。')
+  throw pisperError('failed', 'image', 'the model returned no image data')
 }
 
 async function openAIResponsesImage(client, model, request, signal) {
@@ -154,7 +155,7 @@ async function openAIResponsesImage(client, model, request, signal) {
       remoteId: response.id,
     }
   }
-  throw new Error('Responses 视觉模型没有返回图片数据。')
+  throw pisperError('failed', 'image', 'Responses API returned no image data')
 }
 
 async function openAIVideo(client, model, request, signal, onProgress) {
@@ -168,22 +169,23 @@ async function openAIVideo(client, model, request, signal, onProgress) {
     { signal },
   )
   while (!['completed', 'failed'].includes(video.status)) {
-    onProgress?.(`视频生成中：${Math.round(video.progress || 0)}%`)
+    onProgress?.(`Generating video: ${Math.round(video.progress || 0)}%`)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, 5000)
       signal?.addEventListener(
         'abort',
         () => {
           clearTimeout(timer)
-          reject(signal.reason || new Error('已取消'))
+          reject(signal.reason || pisperError('cancelled', 'operation'))
         },
         { once: true },
       )
     })
     video = await client.videos.retrieve(video.id, { signal })
   }
-  if (video.status === 'failed') throw new Error(video.error?.message || '视频生成失败。')
-  onProgress?.('视频已生成，正在下载…')
+  if (video.status === 'failed')
+    throw pisperError('failed', 'image', video.error?.message || 'video generation')
+  onProgress?.('Video ready; downloading…')
   const response = await client.videos.downloadContent(video.id, { variant: 'video' }, { signal })
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
@@ -213,7 +215,7 @@ export async function generateOpenAICompatible(
   } catch (error) {
     if (allowFallback === false || !shouldFallbackToResponsesImage(error, model, request))
       throw error
-    onProgress?.('Images 接口不可用，正在通过 Responses 接口生成图片…')
+    onProgress?.('Images API unavailable; generating through the Responses API…')
     return openAIResponsesImage(client, model, request, signal)
   }
 }

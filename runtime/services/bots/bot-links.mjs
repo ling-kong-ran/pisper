@@ -3,6 +3,7 @@
 // 同一对 Bot 每分钟有条数上限；“收到”“好的”这类客气话不发。权限不传递：对方用自己的设定干活。
 // 这里是纯逻辑与内存状态（链只在内存里，和子 agent 一样，Runtime 重启后不恢复）。
 import { randomBytes } from 'node:crypto'
+import { botMessageNote } from '../../prompts/bots.mjs'
 
 export const MAX_BOT_LINK_HOPS = 6
 export const MAX_BOT_LINK_MESSAGES_PER_MINUTE = 6
@@ -27,16 +28,11 @@ export function parseBotMessageTag(text) {
   return { from: match[1], chain: match[2], hop: Number(match[3]), reply: match[4] === '1' }
 }
 
-// 给对方模型看的说明：这句话是谁说的、要不要回。和标记一起放在附件上下文里。
+// 给对方模型看的说明：来源标记加上一句“这是谁说的、要不要回”（文字在 runtime/prompts/bots.mjs）。和标记一起放在附件上下文里。
 export function botMessageContext({ fromName, chain, from, hop, reply }) {
-  return [
-    botMessageTag({ from, chain, hop, reply }),
-    `这条消息来自 Bot「${fromName}」，不是用户。${
-      reply
-        ? '它在等你回话：你这一轮的回复会自动发回给它；要动手的照常派子 agent，做完的结果也会自动交给它。'
-        : '这是它的回话，不用再回给它；需要它再做什么时，用 message 决定。'
-    }`,
-  ].join('\n')
+  return [botMessageTag({ from, chain, hop, reply }), botMessageNote({ fromName, reply })].join(
+    '\n',
+  )
 }
 
 // 客气话：不触发回话，免得两个 Bot 互相“好的”“谢谢”停不下来。

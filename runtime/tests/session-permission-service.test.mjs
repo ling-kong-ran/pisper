@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
+import { guardCommand } from '../tools/command-guard.mjs'
 import {
   permissionRequirement,
   SessionPermissionService,
@@ -28,7 +29,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   )
   assert.match(
     permissionRequirement({ mode: 'ask', cwd, toolName: 'read', args: { path: outside } }).reason,
-    /工作目录之外/,
+    /outside the working folder/,
   )
   // Bot 的会话不围工作目录：目录外的文件照常按模式判定（读直接读，写在 ask 下要确认，auto 下直接写）。
   assert.equal(
@@ -49,7 +50,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       args: { path: outside },
       fenced: false,
     }).reason,
-    /需要确认/,
+    /Needs confirmation/,
   )
   assert.equal(
     permissionRequirement({
@@ -65,7 +66,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   assert.match(
     permissionRequirement({ mode: 'ask', cwd, toolName: 'write', args: { path: 'README.md' } })
       .reason,
-    /需要确认/,
+    /Needs confirmation/,
   )
   assert.match(
     permissionRequirement({
@@ -75,7 +76,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       toolName: 'skill_create',
       args: { name: 'project-helper', scope: 'project' },
     }).reason,
-    /需要确认/,
+    /Needs confirmation/,
   )
   assert.match(
     permissionRequirement({
@@ -85,7 +86,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       toolName: 'skill_create',
       args: { name: 'global-helper', scope: 'global' },
     }).reason,
-    /全局技能.*需要确认/,
+    /global skill.*Needs confirmation/,
   )
   for (const [mode, executionMode] of [
     ['ask', 'approval-required'],
@@ -119,7 +120,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       toolName: 'spawn_agent',
       args: { message: 'inspect the repository' },
     }).reason,
-    /需要确认/,
+    /Needs confirmation/,
   )
   assert.equal(
     permissionRequirement({
@@ -139,7 +140,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
       toolRisk: 'high',
       args: {},
     }).reason,
-    /需要确认/,
+    /Needs confirmation/,
   )
   for (const action of [
     'get_device_info',
@@ -189,7 +190,7 @@ test('permission modes progress from ask to automatic to ignored checks', () => 
   )
   assert.match(
     permissionRequirement({ mode: 'auto', cwd, toolName: 'write', args: { path: outside } }).reason,
-    /工作目录之外/,
+    /outside the working folder/,
   )
   // 执行模式只决定是否逐次确认：工作区之外的文件是“确认后执行”，不是直接拒绝。
   for (const mode of ['ask', 'auto'])
@@ -253,7 +254,7 @@ test('path checks resolve symbolic links before authorization', async (t) => {
     toolName: 'write',
     args: { path: join(workspace, 'linked-outside', 'escaped.txt') },
   })
-  assert.match(requirement.reason, /工作目录之外/)
+  assert.match(requirement.reason, /outside the working folder/)
 })
 
 test('pending tool approval can be accepted or denied', async () => {
@@ -322,7 +323,7 @@ test('pending tool approval can be accepted or denied', async () => {
   await new Promise((resolve) => setImmediate(resolve))
   const second = service.getPending('session-1')[0]
   service.resolve('session-1', second.id, false)
-  assert.deepEqual(await denied, { block: true, reason: '用户拒绝执行该工具。' })
+  assert.deepEqual(await denied, { block: true, reason: 'Not run: the user denied this tool.' })
   assert.ok(events.some((item) => item.event === 'permission_request'))
   assert.ok(events.some((item) => item.event === 'permission_resolved'))
 
@@ -340,7 +341,7 @@ test('pending tool approval can be accepted or denied', async () => {
     await new Promise((resolve) => setImmediate(resolve))
   const outsideRequest = service.getPending('session-1')[0]
   assert.equal(outsideRequest.toolName, 'write')
-  assert.match(outsideRequest.reason, /工作目录之外.*需要确认/)
+  assert.match(outsideRequest.reason, /outside the working folder.*Needs confirmation/)
   assert.equal(outsideRequest.fileChange.path, '../pisper-outside-preview.txt')
   service.resolve('session-1', outsideRequest.id, true)
   assert.equal(await outsideWrite, undefined)
@@ -395,7 +396,7 @@ test('approval-required file changes include a diff and are not remembered', asy
   const repeatedApprovals = await waitForPending(service, 'session-file-change')
   assert.equal(repeatedApprovals.length, 1)
   service.resolve('session-file-change', repeatedApprovals[0].id, false)
-  assert.deepEqual(await repeated, { block: true, reason: '用户拒绝执行该工具。' })
+  assert.deepEqual(await repeated, { block: true, reason: 'Not run: the user denied this tool.' })
   service.dispose()
 })
 
@@ -421,7 +422,8 @@ test('approval-required changes are rejected when the source file changes during
   service.resolve('session-file-revision', approval.id, true)
   assert.deepEqual(await pending, {
     block: true,
-    reason: '目标文件在审核期间发生了变化，请重新请求修改并查看最新 Diff。',
+    reason:
+      'Not run: the target file changed during review. Request the change again to see the latest diff.',
   })
   service.dispose()
 })
@@ -482,7 +484,7 @@ test('approved dangerous bash commands are reused even with a different timeout'
     args: { command: 'rm -rf node_modules', timeout: 30 },
   })
   const [approval] = await waitForPending(service, 'session-danger')
-  assert.match(approval.reason, /命令守卫拦截/)
+  assert.match(approval.reason, /^Blocked by the command guard: /)
   service.resolve('session-danger', approval.id, true)
   assert.equal(await first, undefined)
 
@@ -508,7 +510,7 @@ test('approved dangerous bash commands are reused even with a different timeout'
     args: { command: 'rm -rf dist' },
   })
   const [approval2] = await waitForPending(service, 'session-danger')
-  assert.match(approval2.reason, /命令守卫拦截/)
+  assert.match(approval2.reason, /^Blocked by the command guard: /)
   service.resolve('session-danger', approval2.id, true)
   assert.equal(await other, undefined)
   service.dispose()
@@ -584,7 +586,11 @@ test('command guard blocks catastrophic bash and routes recursive rm to approval
       toolName: 'bash',
       args: { command: 'rm -rf /' },
     }),
-    { block: true, risk: 'high', reason: '命令守卫拦截：递归删除根目录或家目录。' },
+    {
+      block: true,
+      risk: 'high',
+      reason: `Blocked by the command guard: ${guardCommand('rm -rf /').reason}.`,
+    },
   )
   // Relative recursive rm requires approval even in automatic mode.
   assert.deepEqual(
@@ -596,7 +602,11 @@ test('command guard blocks catastrophic bash and routes recursive rm to approval
       args: { command: 'rm -rf node_modules' },
     }),
     // guarded：持久允许规则不能替用户确认守卫标出的危险命令。
-    { risk: 'high', reason: '命令守卫拦截：递归删除（rm -r）。请确认后执行。', guarded: true },
+    {
+      risk: 'high',
+      reason: `Blocked by the command guard: ${guardCommand('rm -rf node_modules').reason}. Needs confirmation.`,
+      guarded: true,
+    },
   )
   // Ordinary bash stays approval-free in automatic mode.
   assert.equal(
@@ -683,7 +693,7 @@ test('bot sessions edit files outside their folder without the folder fence', as
     args: { path: outside },
   })
   assert.equal(fenced.block, undefined)
-  assert.match(fenced.reason, /工作目录之外.*确认/)
+  assert.match(fenced.reason, /outside the working folder.*confirmation/)
   assert.equal(
     permissionRequirement({
       mode: 'auto',

@@ -315,7 +315,7 @@ test('an OpenAI Responses visual Provider falls back from Images to image_genera
   assert.deepEqual(await readFile(result.path), PNG)
   assert.ok(requestedPaths.includes('/v1/images/generations'))
   assert.ok(requestedPaths.includes('/v1/responses'))
-  assert.ok(progress.some((message) => message.includes('Responses 接口生成图片')))
+  assert.ok(progress.some((message) => message.includes('through the Responses API')))
 })
 
 test('automatic visual selection falls back when the preferred model has no available channel', async () => {
@@ -377,7 +377,7 @@ test('automatic visual selection falls back when the preferred model has no avai
     assert.equal(requestedModels.at(-1), 'grok-imagine-image')
     assert.ok(
       progress.some(
-        (message) => message.includes('当前不可用') && message.includes('grok-imagine-image'),
+        (message) => message.includes('is unavailable') && message.includes('grok-imagine-image'),
       ),
     )
     requestedModels.length = 0
@@ -889,7 +889,7 @@ test('New API channel conversion failures are exposed without retrying another v
         cwd: value.directory,
         durationSeconds: 4,
       }),
-      /New API 视频渠道转发失败.*duplicate field `duration`.*渠道映射或协议适配/,
+      /New API video channel.*duplicate field `duration`.*channel mapping or protocol adapter/,
     )
     assert.deepEqual(requests, ['GET /', 'POST /v1/videos'])
   } finally {

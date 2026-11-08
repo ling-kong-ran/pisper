@@ -8,14 +8,14 @@ import {
   parseImageOutput,
   imageOperationError,
 } from '../../../shared/image-operations.mjs'
+import { IMAGE_ASSETS } from '../../prompts/tools/image-assets.mjs'
 
 export const manifest = {
   id: 'image_assets',
   name: 'Image Assets',
   category: 'visual',
   risk: 'high',
-  description:
-    'Generate action frames, remove backgrounds locally, split, manually edit, and export image assets.',
+  description: IMAGE_ASSETS.description,
   scope: 'Imported workspace images and managed image assets',
   capability: 'Use the same image-processing engine as workflows and the game assets workbench',
   source: 'app',
@@ -73,8 +73,7 @@ const parameters = Type.Object(
       Type.String({
         minLength: 1,
         maxLength: 4096,
-        description:
-          'Image path inside the current workspace. Imported into managed media before processing; no URLs.',
+        description: IMAGE_ASSETS.params.sourceImage,
       }),
     ),
     source: Type.Optional(mediaSchema),
@@ -82,15 +81,14 @@ const parameters = Type.Object(
       Type.Array(frameSchema, {
         minItems: 1,
         maxItems: 512,
-        description: 'Frames returned by a previous image_assets call.',
+        description: IMAGE_ASSETS.params.images,
       }),
     ),
     prompt: Type.Optional(Type.String({ maxLength: 16000 })),
     model: Type.Optional(
       Type.String({
         maxLength: 240,
-        description:
-          'provider/model; omit for the configured image model. Model IDs may include additional slashes.',
+        description: IMAGE_ASSETS.params.model,
       }),
     ),
     settings: Type.Optional(
@@ -99,8 +97,7 @@ const parameters = Type.Object(
           method: Type.Optional(
             Type.String({
               enum: ['color', 'model'],
-              description:
-                'Background removal: color key or downloaded local segmentation model. Neither uses a remote image model.',
+              description: IMAGE_ASSETS.params.method,
             }),
           ),
           colors: Type.Optional(
@@ -212,14 +209,8 @@ export function createImageAssetsTool({ cwd, imageAssets, onGeneratedFile }) {
     name: manifest.id,
     label: manifest.name,
     description: manifest.description,
-    promptSnippet: 'Process game image assets and animation frames',
-    promptGuidelines: [
-      'Import a workspace image with sourceImage or reuse managed media / frames from a prior result. Never fabricate media IDs.',
-      'Only generate calls a configured image model. Background, inpaint, frames, transform, edit and export are local operations; downloaded engines may be required.',
-      'Ask the user to inspect animation quality. Use edit to reorder, duplicate, remove, transform or erase individual frames without regenerating them.',
-      'Export writes a PNG atlas and frame-metadata JSON under workspace/generated/image-assets. Use the paths returned in files; other operations return managed media references.',
-      'Do not enable this tool yourself. It is available to agents only when the user enables Image Assets in Plugins; workbench and workflow usage is independent.',
-    ],
+    promptSnippet: IMAGE_ASSETS.snippet,
+    promptGuidelines: IMAGE_ASSETS.guidelines,
     parameters,
     async execute(_toolCallId, params, signal) {
       if (!imageAssets) throw imageOperationError('image_tools_unavailable')

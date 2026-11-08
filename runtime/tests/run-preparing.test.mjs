@@ -45,7 +45,7 @@ async function preparingFixture(t, id, options) {
   }
   // 代替真实的模型运行：和 runSessionPrompt 一样，先看停止标记，再建立 live 并移除准备标记。
   runtime.runSessionPrompt = async (_value, { sessionId }) => {
-    if (runtime.startingRuns.get(sessionId)?.aborted) throw new Error('会话已停止。')
+    if (runtime.startingRuns.get(sessionId)?.aborted) throw new Error('Session was stopped.')
     runtime.liveSessions.set(sessionId, {
       streaming: true,
       text: '',
@@ -87,10 +87,10 @@ test('a second prompt is rejected while the first one is still preparing', async
   const id = 'session-preparing-twice'
   const { runtime, ready } = await preparingFixture(t, id)
   const first = runtime.streamPrompt({ sessionId: id, message: '第一条', send: () => {} })
-  await assert.rejects(
-    runtime.streamPrompt({ sessionId: id, message: '第二条', send: () => {} }),
-    /仍在运行/,
-  )
+  await assert.rejects(runtime.streamPrompt({ sessionId: id, message: '第二条', send: () => {} }), {
+    code: 'busy',
+    params: { subject: 'session' },
+  })
   ready.resolve()
   await first
 })
@@ -106,7 +106,7 @@ test('stopping during preparation ends the run before it starts', async (t) => {
   assert.deepEqual(live.messages, [])
 
   ready.resolve()
-  await assert.rejects(run, /会话已停止/)
+  await assert.rejects(run, /Session was stopped/)
   assert.equal(runtime.startingRuns.has(id), false)
   assert.equal(runtime.liveSessions.has(id), false)
 })
@@ -190,7 +190,7 @@ test('a new session stopped before its first prompt starts is discarded, one wit
     const run = runtime.streamPrompt({ sessionId: id, message: '马上停', send: () => {} })
     await runtime.abortSession(id)
     ready.resolve()
-    await assert.rejects(run, /会话已停止/)
+    await assert.rejects(run, /Session was stopped/)
     await new Promise((resolve) => setImmediate(resolve))
     assert.deepEqual(deleted, expected)
   }

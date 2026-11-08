@@ -1,6 +1,7 @@
 // New API 视觉驱动：适配 New API 中转站的图像/视频生成协议，
 // 附带针对中转站常见转发错误的友好提示。
 import { generateOpenAICompatible } from './openai-compatible.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 function errorText(value) {
   if (typeof value === 'string') return value.trim()
@@ -16,11 +17,14 @@ function errorText(value) {
 function newAPIRequestError(data, status) {
   const upstream = errorText(data?.error?.message || data?.error || data?.message)
   if (/duplicate field\s+[`'"]?duration/i.test(upstream)) {
-    return new Error(
-      `New API 视频渠道转发失败：${upstream}。请检查中转站中该模型的渠道映射或协议适配。`,
+    return pisperError(
+      'failed',
+      'provider',
+      `New API video channel: ${upstream}; check the relay's channel mapping or protocol adapter for this model`,
+      { status },
     )
   }
-  return new Error(upstream || `New API 视觉接口请求失败 (${status})`)
+  return pisperError('failed', 'provider', upstream || `New API HTTP ${status}`, { status })
 }
 
 function headers(model, extra = {}) {
@@ -80,7 +84,7 @@ async function wait(delayMs, signal) {
       'abort',
       () => {
         clearTimeout(timer)
-        reject(signal.reason || new Error('已取消'))
+        reject(signal.reason || pisperError('cancelled', 'operation'))
       },
       { once: true },
     )
@@ -89,7 +93,8 @@ async function wait(delayMs, signal) {
 
 async function download(url, model, signal) {
   const response = await fetch(url, { headers: headers(model), signal })
-  if (!response.ok) throw new Error(`下载 New API 视频失败 (${response.status})`)
+  if (!response.ok)
+    throw pisperError('failed', 'image', `New API video download: HTTP ${response.status}`)
   const mimeType = response.headers.get('content-type') || 'video/mp4'
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
@@ -158,7 +163,7 @@ async function generateVideo(model, request, signal, onProgress) {
       throw newAPIRequestError({ error: task.error }, 502)
     }
     if (['completed', 'succeeded', 'done'].includes(status)) break
-    onProgress?.(`视频生成中${status ? `：${status}` : ''}…`)
+    onProgress?.(`Generating video${status ? `: ${status}` : ''}…`)
     await wait(5000, signal)
     task = await jsonRequest(
       `${root}/${route}/${encodeURIComponent(id)}`,
@@ -169,7 +174,7 @@ async function generateVideo(model, request, signal, onProgress) {
     url = videoUrl(task)
   }
   if (url) return { ...(await download(url, model, signal)), remoteId: id || null }
-  if (!id) throw new Error('New API 视频接口没有返回任务 ID。')
+  if (!id) throw pisperError('failed', 'image', 'New API video returned no task ID')
   return {
     ...(await download(`${root}/videos/${encodeURIComponent(id)}/content`, model, signal)),
     remoteId: id,

@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 import { WeixinProtocol, WEIXIN_API_BASE, WEIXIN_CDN_BASE } from './weixin-protocol.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 function publicJob(job) {
   return {
@@ -47,7 +48,7 @@ export class WeixinOnboardingService {
       if (!['completed', 'failed', 'cancelled'].includes(job.status)) job.controller.abort()
     const response = await this.protocol.startQr({ localTokens })
     if (!response.qrcode || !response.qrcode_img_content)
-      throw new Error('微信登录服务未返回二维码。')
+      throw pisperError('failed', 'login', 'WeChat returned no QR code')
     const job = {
       id: randomUUID(),
       controller: new AbortController(),
@@ -92,15 +93,20 @@ export class WeixinOnboardingService {
           await delay(500, job.controller.signal)
         continue
       } else if (result.status === 'verify_code_blocked')
-        throw new Error('配对码多次输入错误，请重新扫码。')
+        throw pisperError('limit', 'login', 'too many wrong pairing codes; scan again')
       else if (result.status === 'scaned_but_redirect') {
         if (result.redirect_host) job.baseUrl = `https://${result.redirect_host}`
         job.status = 'scanned'
       } else if (result.status === 'binded_redirect')
-        throw new Error('该微信已绑定当前机器人，请先解除旧连接后重试。')
+        throw pisperError(
+          'exists',
+          'channel',
+          'this WeChat is already bound; disconnect the old link first',
+        )
       else if (result.status === 'expired') {
         refreshes += 1
-        if (refreshes > 2) throw new Error('微信二维码已多次过期，请重新开始。')
+        if (refreshes > 2)
+          throw pisperError('timeout', 'login', 'WeChat QR code expired; start again')
         const next = await this.protocol.startQr()
         job.qrcode = next.qrcode
         job.qrUrl = next.qrcode_img_content
@@ -109,7 +115,11 @@ export class WeixinOnboardingService {
         job.status = 'waiting'
       } else if (result.status === 'confirmed') {
         if (!result.bot_token || !result.ilink_bot_id)
-          throw new Error('微信确认成功，但登录凭据不完整。')
+          throw pisperError(
+            'failed',
+            'login',
+            'WeChat confirmed but the credentials are incomplete',
+          )
         job.status = 'connecting'
         await this.onCompleted({
           accountId: result.ilink_bot_id,
@@ -123,14 +133,15 @@ export class WeixinOnboardingService {
       }
       await delay(800, job.controller.signal)
     }
-    if (!job.controller.signal.aborted) throw new Error('微信扫码登录已超时。')
+    if (!job.controller.signal.aborted) throw pisperError('timeout', 'login', 'WeChat QR sign-in')
   }
 
   verify(id, code) {
     const job = this.jobs.get(id)
     if (!job) return null
     const value = String(code || '').trim()
-    if (!/^\d{4,8}$/.test(value)) throw new Error('请输入微信显示的数字配对码。')
+    if (!/^\d{4,8}$/.test(value))
+      throw pisperError('invalid', 'input', 'enter the numeric pairing code shown in WeChat')
     job.verifyCode = value
     job.verifyVersion += 1
     job.status = 'scanned'

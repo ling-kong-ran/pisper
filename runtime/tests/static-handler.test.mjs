@@ -40,7 +40,11 @@ test('缺失的前端 assets 不回退为 index.html', async () => {
     const result = capture.read()
     assert.equal(result.status, 404)
     assert.equal(result.headers['Content-Type'], 'application/json; charset=utf-8')
-    assert.deepEqual(JSON.parse(result.body), { error: '静态资源不存在。' })
+    assert.deepEqual(JSON.parse(result.body), {
+      error: 'File not found.',
+      code: 'not_found',
+      params: { subject: 'file' },
+    })
   } finally {
     await rm(root, { recursive: true, force: true })
   }

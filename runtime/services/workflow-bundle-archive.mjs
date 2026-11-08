@@ -8,10 +8,13 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024
 const decoder = new TextDecoder('utf-8', { fatal: true })
 
 export function bundleError() {
-  return Object.assign(new Error('工作流压缩包无效、包含不支持的文件或超出大小限制。'), {
-    code: 'workflow_bundle_invalid',
-    statusCode: 400,
-  })
+  return Object.assign(
+    new Error('Workflow bundle is invalid, contains unsupported files or exceeds the size limit.'),
+    {
+      code: 'workflow_bundle_invalid',
+      statusCode: 400,
+    },
+  )
 }
 
 /** @param {string} name */

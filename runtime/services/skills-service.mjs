@@ -17,6 +17,7 @@ import {
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parse } from 'parse5'
+import { pisperError } from '../../shared/errors.mjs'
 import {
   createDefaultPackageManager,
   createDefaultResourceLoader,
@@ -164,8 +165,10 @@ function parsePackageCatalog(html, query = '') {
 
 function extensionSource(value) {
   const source = String(value || '').trim()
-  if (!source) throw new Error('请输入 npm 包、git 地址或本地扩展目录。')
-  if (source.length > MAX_EXTENSION_SOURCE_CHARS) throw new Error('扩展来源过长。')
+  if (!source)
+    throw pisperError('invalid', 'plugin', 'enter an npm package, git URL or local folder')
+  if (source.length > MAX_EXTENSION_SOURCE_CHARS)
+    throw pisperError('too_large', 'plugin', 'source is too long')
   return source
 }
 
@@ -352,20 +355,22 @@ async function validateSkillSource(path) {
   while (pending.length) {
     const current = pending.pop()
     const info = await lstat(current)
-    if (info.isSymbolicLink()) throw new Error('技能来源包含符号链接，出于安全原因无法安装。')
+    if (info.isSymbolicLink())
+      throw pisperError('forbidden', 'skill', 'source contains symbolic links')
     if (info.isDirectory()) {
       const children = await readdir(current)
       entries += children.length
       if (entries > MAX_SKILL_FILES)
-        throw new Error(`单个技能最多包含 ${MAX_SKILL_FILES} 个文件和目录。`)
+        throw pisperError('too_large', 'skill', `max ${MAX_SKILL_FILES} files and folders`)
       for (const entry of children) pending.push(join(current, entry))
       continue
     }
-    if (!info.isFile()) throw new Error('技能来源包含不支持的特殊文件。')
+    if (!info.isFile()) throw pisperError('unsupported', 'skill', 'source contains special files')
     files += 1
     bytes += info.size
-    if (files > MAX_SKILL_FILES) throw new Error(`单个技能最多包含 ${MAX_SKILL_FILES} 个文件。`)
-    if (bytes > MAX_SKILL_BYTES) throw new Error('单个技能大小不能超过 256 MB。')
+    if (files > MAX_SKILL_FILES)
+      throw pisperError('too_large', 'skill', `max ${MAX_SKILL_FILES} files`)
+    if (bytes > MAX_SKILL_BYTES) throw pisperError('too_large', 'skill', 'max 256 MB')
   }
 }
 
@@ -492,7 +497,7 @@ export class SkillsService {
           })
         }
       } catch {
-        console.warn('内置技能写入失败。')
+        console.warn('Built-in skills could not be written.')
       }
     }
   }
@@ -735,7 +740,7 @@ export class SkillsService {
 
   async packageManager(cwd = this.cwd) {
     const settingsManager = this.getSettingsManager(cwd)
-    if (!settingsManager) throw new Error('Pisper 技能运行时尚未初始化。')
+    if (!settingsManager) throw pisperError('unavailable', 'skill', 'skill runtime is not ready')
     const options = { cwd, agentDir: this.agentDir, settingsManager }
     return this.createPackageManager
       ? this.createPackageManager(options)
@@ -835,34 +840,48 @@ export class SkillsService {
     const instructions = String(input.instructions || '').trim()
     const requestedScope = String(input.scope || 'project')
     if (!['project', 'global'].includes(requestedScope))
-      throw new Error('技能作用域必须为 project 或 global。')
+      throw pisperError('invalid', 'skill', 'scope must be project or global')
     const scope = requestedScope
     if (!name || name.length > 64 || !SKILL_NAME_PATTERN.test(name)) {
-      throw new Error(
-        '技能名称必须为 1-64 位小写字母、数字或连字符，且不能以连字符开头、结尾或包含连续连字符。',
+      throw pisperError(
+        'invalid',
+        'skill',
+        'name is 1-64 lowercase letters, digits or single inner hyphens',
       )
     }
-    if (!description) throw new Error('技能描述不能为空。')
+    if (!description) throw pisperError('invalid', 'skill', 'description is required')
     if (description.length > MAX_SKILL_DESCRIPTION_CHARS)
-      throw new Error(`技能描述不能超过 ${MAX_SKILL_DESCRIPTION_CHARS} 个字符。`)
-    if (!instructions) throw new Error('技能说明不能为空。')
+      throw pisperError(
+        'too_large',
+        'skill',
+        `description max ${MAX_SKILL_DESCRIPTION_CHARS} characters`,
+      )
+    if (!instructions) throw pisperError('invalid', 'skill', 'instructions are required')
     if (instructions.length > MAX_SKILL_INSTRUCTIONS_CHARS)
-      throw new Error(`技能说明不能超过 ${MAX_SKILL_INSTRUCTIONS_CHARS} 个字符。`)
+      throw pisperError(
+        'too_large',
+        'skill',
+        `instructions max ${MAX_SKILL_INSTRUCTIONS_CHARS} characters`,
+      )
 
     const existing = (await this.discover(cwd)).skills.find((skill) => skill.name === name)
-    if (existing) throw new Error(`技能 ${name} 已存在，不能覆盖。`)
+    if (existing) throw pisperError('exists', 'skill', name)
 
     const root = scope === 'global' ? this.skillsDir : projectSkillsDir(cwd)
     if (scope === 'project' && !pathInside(await canonicalPath(cwd), await canonicalPath(root))) {
-      throw new Error('项目技能目录通过符号链接指向当前工作目录之外，无法创建技能。')
+      throw pisperError(
+        'forbidden',
+        'skill',
+        'project skills folder links outside the working folder',
+      )
     }
     const directory = join(root, name)
-    if (await pathExists(directory)) throw new Error(`技能目录 ${directory} 已存在，不能覆盖。`)
+    if (await pathExists(directory)) throw pisperError('exists', 'folder', `skills/${name}`)
     await mkdir(root, { recursive: true })
     try {
       await mkdir(directory)
     } catch (error) {
-      if (error?.code === 'EEXIST') throw new Error(`技能目录 ${directory} 已存在，不能覆盖。`)
+      if (error?.code === 'EEXIST') throw pisperError('exists', 'folder', `skills/${name}`)
       throw error
     }
 
@@ -878,7 +897,9 @@ export class SkillsService {
         const diagnostic = discovered.diagnostics.find(
           (item) => normalizedPath(item.path || '') === normalizedPath(filePath),
         )
-        throw new Error(diagnostic?.message || '创建后的 SKILL.md 未通过 Agent Skills 发现与验证。')
+        throw diagnostic?.message
+          ? new Error(diagnostic.message)
+          : pisperError('invalid', 'skill', 'SKILL.md failed Agent Skills validation')
       }
       this.invalidateDashboardCache()
       return {
@@ -905,9 +926,9 @@ export class SkillsService {
         includeDefaults: false,
       })
       if (loaded.skills.length) return loaded
-      throw new Error(
-        loaded.diagnostics[0]?.message || '该本地路径没有发现符合 Agent Skills 标准的技能。',
-      )
+      throw loaded.diagnostics[0]?.message
+        ? new Error(loaded.diagnostics[0].message)
+        : pisperError('not_found', 'skill', 'no Agent Skills found at this path')
     }
 
     const manager = await this.packageManager(cwd)
@@ -915,7 +936,8 @@ export class SkillsService {
     const paths = [
       ...new Set(resolved.skills.filter((item) => item.enabled).map((item) => item.path)),
     ]
-    if (!paths.length) throw new Error('该来源没有发现符合 Agent Skills 标准的技能。')
+    if (!paths.length)
+      throw pisperError('not_found', 'skill', 'no Agent Skills found in this source')
     return loadSkills({ cwd, agentDir: this.agentDir, skillPaths: paths, includeDefaults: false })
   }
 
@@ -923,7 +945,7 @@ export class SkillsService {
     const skillName = slug(skill.name)
     if (basename(skill.filePath).toLowerCase() === 'skill.md') {
       const destination = join(this.skillsDir, skillName)
-      if (await pathExists(destination)) throw new Error(`技能 ${skill.name} 已安装。`)
+      if (await pathExists(destination)) throw pisperError('exists', 'skill', skill.name)
       await validateSkillSource(skill.baseDir)
       await cp(skill.baseDir, destination, {
         recursive: true,
@@ -935,7 +957,7 @@ export class SkillsService {
     }
     const extension = extname(skill.filePath) || '.md'
     const destination = join(this.skillsDir, `${skillName}${extension}`)
-    if (await pathExists(destination)) throw new Error(`技能 ${skill.name} 已安装。`)
+    if (await pathExists(destination)) throw pisperError('exists', 'skill', skill.name)
     await validateSkillSource(skill.filePath)
     await cp(skill.filePath, destination, { errorOnExist: true, force: false, dereference: false })
     return destination
@@ -944,15 +966,21 @@ export class SkillsService {
   // 安装技能（本地路径/市场包）：校验后复制到用户或项目技能目录。
   async install(input = {}, { cwd = this.cwd } = {}) {
     const source = String(input.source || '').trim()
-    if (!source) throw new Error('请输入技能目录、SKILL.md、npm 包或 git 来源。')
-    if (source.length > MAX_SKILL_SOURCE_CHARS) throw new Error('技能来源过长。')
+    if (!source)
+      throw pisperError(
+        'invalid',
+        'skill',
+        'enter a skill folder, SKILL.md, npm package or git source',
+      )
+    if (source.length > MAX_SKILL_SOURCE_CHARS)
+      throw pisperError('too_large', 'skill', 'source is too long')
     const loaded = await this.resolveInstallSkills(source, cwd)
-    if (!loaded.skills.length) throw new Error('没有发现可安装技能。')
+    if (!loaded.skills.length) throw pisperError('not_found', 'skill')
     if (loaded.skills.length > MAX_SKILLS_PER_INSTALL)
-      throw new Error(`一次最多安装 ${MAX_SKILLS_PER_INSTALL} 个技能。`)
+      throw pisperError('limit', 'skill', `max ${MAX_SKILLS_PER_INSTALL} per install`)
     const existingNames = new Set((await this.discover(cwd)).skills.map((skill) => skill.name))
     const duplicate = loaded.skills.find((skill) => existingNames.has(skill.name))
-    if (duplicate) throw new Error(`技能 ${duplicate.name} 已存在，可直接启用或调用。`)
+    if (duplicate) throw pisperError('exists', 'skill', `${duplicate.name}; enable or use it`)
     const installedPaths = []
     try {
       for (const skill of loaded.skills) installedPaths.push(await this.copySkill(skill))
@@ -1005,7 +1033,8 @@ export class SkillsService {
     if (normalizedQuery) url.searchParams.set('name', normalizedQuery)
     if (normalizedPage > 1) url.searchParams.set('page', String(normalizedPage))
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
-    if (!response.ok) throw new Error(`插件市场暂时不可用（HTTP ${response.status}）。`)
+    if (!response.ok)
+      throw pisperError('unavailable', 'plugin', `marketplace HTTP ${response.status}`)
     return {
       source: PI_PACKAGE_CATALOG_URL,
       query: normalizedQuery,
@@ -1057,7 +1086,7 @@ export class SkillsService {
   async installExtension(input = {}, { cwd = this.cwd } = {}) {
     const source = extensionSource(input.source)
     if ((!this.computerUseAvailable || isMobileRuntime()) && isOfficialComputerUseSource(source))
-      throw new Error('computer-use 仅支持桌面 Runtime，移动端无法安装。')
+      throw pisperError('unsupported', 'plugin', 'computer-use needs the desktop Runtime')
     const local = input.scope === 'project'
     const manager = await this.packageManager(cwd)
     await manager.installAndPersist(source, { local })
@@ -1070,7 +1099,7 @@ export class SkillsService {
     )
     if (!installed) {
       await manager.removeAndPersist(source, { local }).catch(() => {})
-      throw new Error('该来源没有发现 Pi Extension。')
+      throw pisperError('not_found', 'plugin', 'no Pi extension in this source')
     }
     return dashboard
   }
@@ -1089,7 +1118,11 @@ export class SkillsService {
     if (!skill) return false
     const key = normalizedPath(skill.filePath)
     if (!this.state.installed[key] || !pathInside(this.skillsDir, skill.filePath))
-      throw new Error('只能卸载由 Pisper 安装的技能；其他来源可以禁用。')
+      throw pisperError(
+        'forbidden',
+        'skill',
+        'only skills installed by Pisper can be removed; disable others',
+      )
     const target =
       basename(skill.filePath).toLowerCase() === 'skill.md'
         ? dirname(skill.filePath)

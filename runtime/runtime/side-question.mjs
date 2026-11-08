@@ -3,6 +3,7 @@
 // 系统提示词、工具列表和消息前缀与主会话保持一致，便于命中服务商的提示缓存；
 // 工具定义只为保持缓存前缀，旁问本身不执行任何工具，因此不需要经过审批链路。
 import { convertToLlm } from './pi-coding-agent.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 export const SIDE_QUESTION_MAX_CHARS = 4000
 
@@ -16,9 +17,11 @@ const SIDE_QUESTION_INSTRUCTION = [
 /** @param {unknown} value */
 export function normalizeSideQuestion(value) {
   const question = typeof value === 'string' ? value.trim() : ''
-  if (!question) throw new Error('旁问内容不能为空。')
+  if (!question) throw pisperError('invalid', 'message', 'question is required')
   if (question.length > SIDE_QUESTION_MAX_CHARS)
-    throw new Error(`旁问不能超过 ${SIDE_QUESTION_MAX_CHARS} 个字符。`)
+    throw pisperError('too_large', 'message', `max ${SIDE_QUESTION_MAX_CHARS} characters`, {
+      status: 400,
+    })
   return question
 }
 
@@ -49,7 +52,7 @@ export function sideQuestionContext(session, question, now = Date.now()) {
  */
 export async function streamSideQuestion({ modelRuntime, session, question, signal, onDelta }) {
   const model = session.model
-  if (!model) throw new Error('当前会话还没有可用模型，请先选择模型。')
+  if (!model) throw pisperError('unavailable', 'model', 'pick a model first')
   const level = session.thinkingLevel
   const stream = modelRuntime.streamSimple(model, sideQuestionContext(session, question), {
     ...(level && level !== 'off' ? { reasoning: level } : {}),
@@ -69,7 +72,10 @@ export async function streamSideQuestion({ modelRuntime, session, question, sign
     }
   }
   const message = await stream.result()
-  if (message.stopReason === 'aborted') throw new Error('旁问已取消。')
-  if (message.stopReason === 'error') throw new Error(message.errorMessage || '旁问请求失败。')
+  if (message.stopReason === 'aborted') throw pisperError('cancelled', 'request', 'side question')
+  if (message.stopReason === 'error')
+    throw message.errorMessage
+      ? new Error(message.errorMessage)
+      : pisperError('failed', 'request', 'side question')
   return { text, toolCallIgnored, usage: message.usage || null }
 }

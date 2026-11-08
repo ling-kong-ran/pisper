@@ -2,6 +2,12 @@
 // 消息先脱敏、evidence 必须逐字来自原文，防止密钥入库与模型编造。
 import { containsSecretText, redactSecretText } from '../../security/secret-redaction.mjs'
 import { awaitMemoryOperation } from './abortable-memory-operation.mjs'
+import {
+  EXTRACT_BATCH_SYSTEM,
+  EXTRACT_TURN_SYSTEM,
+  extractBatchTurn,
+  extractTurnUser,
+} from '../../prompts/memory.mjs'
 
 const REDACTED_MARK = '[REDACTED SECRET]'
 const MEMORY_ITEM_TYPES = ['preference', 'decision', 'fact', 'risk', 'task']
@@ -80,11 +86,6 @@ const itemContent = (item) =>
     .trim()
     .slice(0, 4000)
 
-const FACT_TIME_RULES = [
-  'Add "valid_from" (ISO date) only when the conversation states since when something has been true, resolved against the date of that turn. Otherwise leave it out.',
-  'Add "expires_at" (ISO date) only when the conversation says it is temporary, such as "use X this week". Otherwise leave it out.',
-]
-
 // 是否应抽取：消息足够长且命中记忆相关关键词（记住/偏好/决定/不再使用等）。
 export function shouldExtractConversationMemory(user, _assistant = '') {
   const value = String(user || '').trim()
@@ -122,23 +123,11 @@ export async function extractConversationMemories({
       modelRuntime.completeSimple(
         model,
         {
-          systemPrompt: [
-            'You extract long-term memories for Pisper. They take effect immediately without user review, so only keep what you are sure of.',
-            'Keep only reusable and relatively stable information explicitly supported by the source conversation.',
-            'Allowed: lasting user preferences, explicit constraints, confirmed project architecture or technical decisions, and recurring risks.',
-            'Do not treat the assistant claiming that work is complete, tests passed, or a fact is true as verified evidence.',
-            'Never store temporary questions, small talk, speculation, plans in progress, API keys, passwords, tokens, private keys, or other secrets.',
-            'Output only a JSON array with at most 3 items. Output [] when there is nothing worth proposing.',
-            'Every item must include an exact short evidence quote copied verbatim from either the user or assistant message.',
-            'Use a narrow stable topic key. A topic groups the same individual fact; do not use broad topics such as project.architecture.',
-            'Use the source conversation language for title and content.',
-            ...FACT_TIME_RULES,
-            'Item format: {"title":"short title","content":"self-contained fact","topic":"narrow stable topic key","type":"preference|decision|fact|risk|task","scope":"global|project","importance":0.1 to 1,"confidence":0 to 1,"evidence":"exact source quote","valid_from":"optional ISO date","expires_at":"optional ISO date"}',
-          ].join('\n'),
+          systemPrompt: EXTRACT_TURN_SYSTEM,
           messages: [
             {
               role: 'user',
-              content: `用户消息：\n${safeUser}\n\nAgent 回复：\n${safeAssistant}`,
+              content: extractTurnUser(safeUser, safeAssistant),
               timestamp: Date.now(),
             },
           ],
@@ -190,19 +179,6 @@ const BATCH_PROMPT_CHARS = 24_000
 const MIN_TURN_CHARS = 400
 const MIN_EVIDENCE_CHARS = 4
 
-const BATCH_SYSTEM_PROMPT = [
-  'You read a stretch of conversation between a user and an assistant and extract long-term memories for Pisper.',
-  'Memories take effect immediately. Nobody reviews them, so if you are not sure, leave it out. An empty result is normal and fine.',
-  'Keep only reusable and relatively stable information explicitly supported by the conversation: lasting user preferences, facts about the user, explicit constraints, confirmed project architecture or technical decisions, and recurring risks.',
-  'Do not treat the assistant claiming that work is complete, tests passed, or a fact is true as verified evidence.',
-  'Never store temporary questions, small talk, speculation, plans in progress, API keys, passwords, tokens, private keys, or other secrets.',
-  'Every item must include an exact short evidence quote copied verbatim from one turn. Prefer quoting what the user said.',
-  'Use a narrow stable topic key. A topic groups the same individual fact; do not use broad topics such as project.architecture.',
-  'Use the source conversation language for title and content, and make each content self-contained.',
-  ...FACT_TIME_RULES,
-  'Output only a JSON array. Item format: {"title":"short title","content":"self-contained fact","topic":"narrow stable topic key","type":"preference|decision|fact|risk|task","scope":"global|project","importance":0.1 to 1,"evidence":"exact source quote","valid_from":"optional ISO date","expires_at":"optional ISO date"}',
-].join('\n')
-
 function batchPrompt(turns) {
   const perTurn = Math.max(MIN_TURN_CHARS, Math.floor(BATCH_PROMPT_CHARS / turns.length))
   return turns
@@ -210,7 +186,7 @@ function batchPrompt(turns) {
       const user = String(turn.user || '').slice(0, Math.floor(perTurn * 0.6))
       const assistant = String(turn.assistant || '').slice(0, perTurn - user.length)
       const date = String(turn.at || '').slice(0, 10)
-      return `第 ${index + 1} 轮（${date}）\n用户：\n${user}\n\nAgent：\n${assistant}`
+      return extractBatchTurn({ index, date, user, assistant })
     })
     .join('\n\n=====\n\n')
 }
@@ -237,7 +213,7 @@ export async function extractBatchMemories({ modelClient, turns, signal, now = D
       modelClient.complete({
         purpose: 'extract',
         allowMain: false,
-        system: BATCH_SYSTEM_PROMPT,
+        system: EXTRACT_BATCH_SYSTEM,
         user: batchPrompt(turns),
         maxTokens: 2048,
         signal,

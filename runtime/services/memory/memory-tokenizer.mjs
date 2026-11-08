@@ -256,3 +256,6 @@ export function jaccard(left, right) {
   for (const token of left) if (right.has(token)) shared += 1
   return shared / (left.size + right.size - shared)
 }
+
+// 会话摘要的索引标题带上中英两种说法：标签本身是英文（Session …），中文查询“会话”也要能命中。
+export const SESSION_INDEX_TERMS = 'session 会话'

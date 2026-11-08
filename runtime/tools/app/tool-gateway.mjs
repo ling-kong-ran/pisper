@@ -2,6 +2,7 @@
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
 import { Check, Errors } from 'typebox/value'
+import { CALL_TOOL } from '../../prompts/tools/tool-gateway.mjs'
 
 export const TOOL_GATEWAY_NAME = 'call_tool'
 
@@ -34,17 +35,16 @@ export function createToolGatewayTool({ getTool, authorize }) {
   return defineTool({
     name: TOOL_GATEWAY_NAME,
     label: 'Call Tool',
-    description:
-      'Call an optional tool by the exact name discover_tools returned, with arguments that match its schema.',
+    description: CALL_TOOL.description,
     parameters: Type.Object({
       name: Type.String({
         minLength: 1,
         maxLength: 240,
-        description: 'Exact tool name',
+        description: CALL_TOOL.params.name,
       }),
       arguments: Type.Optional(
         Type.Record(Type.String(), Type.Unknown(), {
-          description: 'Arguments for that tool',
+          description: CALL_TOOL.params.arguments,
         }),
       ),
     }),

@@ -237,7 +237,7 @@ test('workflow edges determine execution order independently from canvas node or
   )
   assert.match(prompts[0].message, /第一步/)
   assert.match(prompts[1].message, /第二步/)
-  assert.match(prompts[1].message, /第一步：first/)
+  assert.match(prompts[1].message, /第一步: first/)
   assert.equal(prompts[1].sessionId, 'graph-session')
   await service.dispose()
   await rm(directory, { recursive: true, force: true })
@@ -270,7 +270,7 @@ test('published workflows reject cycles and disconnected nodes', async () => {
           { id: 'b-a', source: 'b', target: 'a' },
         ],
       }),
-    /循环连接/,
+    /connections form a cycle/,
   )
   await assert.rejects(
     () =>
@@ -284,7 +284,7 @@ test('published workflows reject cycles and disconnected nodes', async () => {
         ],
         edges: [{ id: 'trigger-a', source: 'trigger', target: 'a' }],
       }),
-    /尚未连接/,
+    /is not connected/,
   )
   await service.dispose()
   await rm(directory, { recursive: true, force: true })
@@ -554,7 +554,10 @@ test('workflow revisions remain attached to runs and duplicate preserves graph c
   assert.equal(imported.visibility, 'private')
   assert.equal(imported.nodes.length, 2)
   assert.equal(imported.edges.length, 1)
-  await assert.rejects(() => service.importWorkflow({ format: 'other' }), /有效的 Pisper 工作流/)
+  await assert.rejects(
+    () => service.importWorkflow({ format: 'other' }),
+    /not a Pisper workflow file/,
+  )
   await service.dispose()
   await rm(directory, { recursive: true, force: true })
 })

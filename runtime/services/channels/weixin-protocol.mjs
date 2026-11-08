@@ -5,6 +5,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export const WEIXIN_API_BASE = 'https://ilinkai.weixin.qq.com'
 export const WEIXIN_CDN_BASE = 'https://novac2c.cdn.weixin.qq.com/c2c'
@@ -43,11 +44,15 @@ function requestSignal(timeoutMs, external) {
 async function responseJson(response, label) {
   const text = await response.text()
   if (!response.ok)
-    throw new Error(`${label} 请求失败（HTTP ${response.status}）：${text.slice(0, 300)}`)
+    throw pisperError(
+      'failed',
+      'channel',
+      `${label}: HTTP ${response.status} ${text.slice(0, 300)}`,
+    )
   try {
     return text ? JSON.parse(text) : {}
   } catch {
-    throw new Error(`${label} 返回了无法解析的数据。`)
+    throw pisperError('failed', 'channel', `${label}: unreadable response`)
   }
 }
 
@@ -56,7 +61,7 @@ function parseAesKey(value) {
   if (decoded.length === 16) return decoded
   if (decoded.length === 32 && /^[0-9a-f]{32}$/i.test(decoded.toString('ascii')))
     return Buffer.from(decoded.toString('ascii'), 'hex')
-  throw new Error('微信媒体 AES 密钥格式不正确。')
+  throw pisperError('invalid', 'attachment', 'WeChat media AES key format')
 }
 
 function decryptAesEcb(ciphertext, key) {
@@ -117,7 +122,7 @@ export class WeixinProtocol {
       timeoutMs = 15_000,
       signal,
       authenticated = true,
-      label = '微信接口',
+      label = 'WeChat API',
     } = {},
   ) {
     const response = await this.fetchImpl(url, {
@@ -133,7 +138,7 @@ export class WeixinProtocol {
     return this.request(`${WEIXIN_API_BASE}/ilink/bot/get_bot_qrcode?bot_type=3`, {
       body: { local_token_list: localTokens.slice(-10) },
       timeoutMs: 0,
-      label: '获取微信登录二维码',
+      label: 'WeChat QR code',
     })
   }
 
@@ -146,7 +151,7 @@ export class WeixinProtocol {
         authenticated: false,
         timeoutMs: 35_000,
         signal,
-        label: '查询微信扫码状态',
+        label: 'WeChat QR status',
       })
     } catch (error) {
       if (!signal?.aborted && (error?.name === 'TimeoutError' || error?.name === 'AbortError'))
@@ -158,7 +163,7 @@ export class WeixinProtocol {
   async notifyStart(connection) {
     const result = await this.authPost(connection, 'ilink/bot/msg/notifystart', {})
     if (result.ret && result.ret !== 0)
-      throw new Error(result.errmsg || `微信连接失败（${result.ret}）`)
+      throw pisperError('failed', 'channel', `WeChat connect: ${result.errmsg || result.ret}`)
     return result
   }
 
@@ -188,7 +193,7 @@ export class WeixinProtocol {
       body: { ...body, base_info: baseInfo() },
       timeoutMs: options.timeoutMs ?? 15_000,
       signal: options.signal,
-      label: options.label || '微信 iLink',
+      label: options.label || 'WeChat iLink',
     })
   }
 
@@ -207,8 +212,12 @@ export class WeixinProtocol {
     })
     if (result.ret && result.ret !== 0) {
       if (result.ret === -2 && result.errmsg === 'prepare failed')
-        throw new Error('微信会话上下文已失效，请先在微信中向机器人发送一条消息后重试。')
-      throw new Error(result.errmsg || `微信消息发送失败（${result.ret}）`)
+        throw pisperError(
+          'unavailable',
+          'channel',
+          'WeChat chat context expired; send the bot a message in WeChat, then retry',
+        )
+      throw pisperError('failed', 'message', `WeChat send: ${result.errmsg || result.ret}`)
     }
     return { messageId: clientId }
   }
@@ -240,7 +249,8 @@ export class WeixinProtocol {
         : '')
     if (!url) return null
     const response = await this.fetchImpl(url, { signal: AbortSignal.timeout(30_000) })
-    if (!response.ok) throw new Error(`微信附件下载失败（HTTP ${response.status}）`)
+    if (!response.ok)
+      throw pisperError('failed', 'attachment', `WeChat download: HTTP ${response.status}`)
     const encrypted = Buffer.from(await response.arrayBuffer())
     const key = rawAesKey || (media?.aes_key ? parseAesKey(media.aes_key) : null)
     const buffer = key ? decryptAesEcb(encrypted, key) : encrypted
@@ -276,16 +286,18 @@ export class WeixinProtocol {
       (result.upload_param
         ? `${String(connection.cdnBaseUrl || WEIXIN_CDN_BASE).replace(/\/$/, '')}/upload?encrypted_query_param=${encodeURIComponent(result.upload_param)}&filekey=${filekey}`
         : '')
-    if (!uploadUrl) throw new Error('微信媒体上传地址为空。')
+    if (!uploadUrl) throw pisperError('failed', 'attachment', 'WeChat returned no upload URL')
     const upload = await this.fetchImpl(uploadUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: new Uint8Array(encryptAesEcb(plaintext, key)),
       signal: AbortSignal.timeout(60_000),
     })
-    if (!upload.ok) throw new Error(`微信媒体上传失败（HTTP ${upload.status}）`)
+    if (!upload.ok)
+      throw pisperError('failed', 'attachment', `WeChat upload: HTTP ${upload.status}`)
     const downloadParam = upload.headers.get('x-encrypted-param')
-    if (!downloadParam) throw new Error('微信媒体上传响应缺少下载参数。')
+    if (!downloadParam)
+      throw pisperError('failed', 'attachment', 'WeChat upload response has no download parameter')
     const media = {
       encrypt_query_param: downloadParam,
       aes_key: Buffer.from(key.toString('hex')).toString('base64'),
@@ -323,8 +335,12 @@ export class WeixinProtocol {
     })
     if (sent.ret && sent.ret !== 0) {
       if (sent.ret === -2 && sent.errmsg === 'prepare failed')
-        throw new Error('微信会话上下文已失效，请先在微信中向机器人发送一条消息后重试。')
-      throw new Error(sent.errmsg || `微信媒体发送失败（${sent.ret}）`)
+        throw pisperError(
+          'unavailable',
+          'channel',
+          'WeChat chat context expired; send the bot a message in WeChat, then retry',
+        )
+      throw pisperError('failed', 'attachment', `WeChat send: ${sent.errmsg || sent.ret}`)
     }
     return { messageId: clientId }
   }

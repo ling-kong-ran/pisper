@@ -7,6 +7,7 @@ import {
   resolveWorkspaceAssetPath,
   workspaceAssetFile,
 } from './workspace-asset-capture.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 const FILE_TOOLS = new Set(['write', 'edit', 'bash', 'powershell'])
 // shell 独占工作区的上限：多数命令在此之内结束，产物归属精确；更久的 watch、开发服务器
@@ -40,7 +41,7 @@ export class WorkspaceAssetTracker {
   constructor({
     dataDir,
     archive,
-    warn = (error) => console.warn('资产归档待重试：', error.message),
+    warn = (error) => console.warn('Asset archive will retry:', error.message),
     shellExclusiveMs = SHELL_EXCLUSIVE_MS,
   }) {
     this.dataDir = resolve(dataDir)
@@ -105,7 +106,7 @@ export class WorkspaceAssetTracker {
       request.abort = () => {
         const index = this.waiters.indexOf(request)
         if (index >= 0) this.waiters.splice(index, 1)
-        reject(signal.reason || new Error('操作已停止。'))
+        reject(signal.reason || pisperError('cancelled', 'operation'))
       }
       signal?.addEventListener('abort', request.abort, { once: true })
       this.waiters.push(request)

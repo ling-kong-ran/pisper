@@ -2,6 +2,7 @@
 // 职责包括：会话创建/生命周期管理、消息流式执行与实时事件桥接、上下文压缩、
 // 多 Agent 协作、目标(Goal)/计划(Plan)、记忆、资产、权限审批、Provider/模型偏好等。
 // 对外暴露的能力被 HTTP API（runtime/http/）与 agent-runtime-facade 包装层消费。
+import { CODE_BLOCK_TITLE, DEFAULT_SESSION_NAME } from './session-default-names.mjs'
 import { mkdir, open, readFile, stat, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
@@ -216,6 +217,7 @@ import { SessionCardSummaries } from '../services/session-card-summary.mjs'
 import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
+import { errorPayload, pisperError } from '../../shared/errors.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
 import { botSystemPrompt } from '../services/bots/bot-model.mjs'
 import { botConversationPrompt } from '../services/bots/bot-conversation.mjs'
@@ -232,7 +234,6 @@ const MAX_EXTRACTED_CHARS = 400_000
 // 资产（上传文件）存储上限；聊天中直接注入的资产另有更严格的限制。
 const MAX_ASSET_BYTES = 24 * 1024 * 1024
 const MAX_CHAT_ASSET_BYTES = 10 * 1024 * 1024
-const DEFAULT_SESSION_NAME = '新会话'
 const MAX_SESSION_TITLE_CHARS = 20
 // 常驻会话运行时（resident runtime）的上限：会话关闭后运行时不会立即销毁，
 // 而是保留最近使用的一批以加速重新打开；超出的空闲运行时被周期回收。
@@ -264,7 +265,9 @@ async function runPromptWithAbortGuard(value, run) {
           } catch {}
           value.forceDisposed = true
         }
-        forceSettle(new Error('Agent 未能在超时时间内响应停止，本次运行已被强制中断。'))
+        forceSettle(
+          pisperError('timeout', 'agent', 'did not stop in time; the run was force-stopped'),
+        )
       },
       Math.max(0, abortedAt + timeoutMs - Date.now()),
     )
@@ -389,7 +392,7 @@ export async function resolveSessionDirectory(
 // 由首条消息生成会话标题：去掉代码块、取第一句，失败时回退到附件名或默认名。
 export function sessionTitleFromFirstMessage(message, attachments = []) {
   const content = String(message || '')
-    .replace(/```[\s\S]*?```/g, '代码内容')
+    .replace(/```[\s\S]*?```/g, CODE_BLOCK_TITLE)
     .trim()
   const firstSentence = content.match(/^.*?(?:[。！？!?]+|[.]+(?=\s|$)|\r?\n|$)/u)?.[0] || ''
   const title = firstSentence.replace(/\s+/g, ' ').trim()
@@ -402,7 +405,8 @@ export function sessionTitleFromFirstMessage(message, attachments = []) {
 // 解析办公文档附件：base64 解码后交给 officeparser 提取文本；模块懒加载，真正收到文档附件时才引入依赖。
 async function extractDocumentText(attachment) {
   const buffer = Buffer.from(String(attachment.data || ''), 'base64')
-  if (!buffer.length) throw new Error(`${safeAttachmentName(attachment.name)} 内容为空`)
+  if (!buffer.length)
+    throw pisperError('invalid', 'attachment', `${safeAttachmentName(attachment.name)} is empty`)
   // Lazily loaded: officeparser is only needed when a document attachment arrives.
   const { OfficeParser } = await import('officeparser')
   const ast = await OfficeParser.parseOffice(buffer, {
@@ -411,7 +415,12 @@ async function extractDocumentText(attachment) {
   })
   const extracted = typeof ast.toText === 'function' ? await ast.toText() : await ast.to('text')
   const text = typeof extracted === 'string' ? extracted : extracted?.value
-  if (!text?.trim()) throw new Error(`${safeAttachmentName(attachment.name)} 未提取到可分析文本`)
+  if (!text?.trim())
+    throw pisperError(
+      'invalid',
+      'attachment',
+      `${safeAttachmentName(attachment.name)} has no extractable text`,
+    )
   return text.slice(0, MAX_EXTRACTED_CHARS)
 }
 
@@ -712,7 +721,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             (await this.findSessionInfo(sessionId))),
         ),
       onChange: (sessionId) => this.boardEvents?.touch(sessionId),
-      onError: () => console.warn('排队的会话启动失败。'),
+      onError: () => console.warn('Could not start the queued session.'),
     })
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
@@ -843,7 +852,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.boardEvents = new BoardEventHub({
       listItems: (ids) => this.boardHubItems(ids),
       snapshotLimit: BOARD_SNAPSHOT_LIMIT,
-      onError: () => console.warn('看板事件流刷新失败。'),
+      onError: () => console.warn('Could not refresh the board event stream.'),
     })
     this.toolActivation = new ToolActivation({
       getSessionMeta: () => this.sessionMeta,
@@ -931,7 +940,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           (session) => session.id === id,
         ) || null,
       createSession: ({ id, cwd, metadata }) =>
-        this.sessionLifecycle.createSession('临时侧聊', cwd, { id, metadata }),
+        this.sessionLifecycle.createSession('Side chat', cwd, { id, metadata }),
       deleteSession: (id) => this.deleteSession(id),
       isProtected: (id) => this.sessionRuntimeIsProtected(id, this.sessions.get(id)),
     })
@@ -1110,7 +1119,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await startup.complete()
     // 排队恢复放在就绪之后：前置会话的那一轮已随上次进程结束，等它的会话现在启动（后台进行，不拖住启动）。
     if (this.capabilities.features.sessionQueue)
-      void this.sessionQueue.resume().catch(() => console.warn('排队恢复失败。'))
+      void this.sessionQueue
+        .resume()
+        .catch(() => console.warn('Could not resume the session queue.'))
   }
 
   async waitForInitialization(service) {
@@ -1175,7 +1186,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     ) {
       // 父轮次结束后，子 Agent 仍可能继续执行；最后一次完成也属于侧聊活动。
       void this.sideChats.touch(sessionId).catch(() => {
-        console.warn('临时侧聊活动时间保存失败。')
+        console.warn('Could not save side chat activity time.')
       })
     }
     const allAgents = this.multiAgents.summaries(sessionId)
@@ -1339,7 +1350,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       } catch {}
       void this.sideChats.sweep().catch(() => {
         // 后台清理失败可在下次扫描重试，不输出会话内容与个人路径。
-        console.warn('临时侧聊清理失败，将稍后重试。')
+        console.warn('Side chat cleanup failed; will retry later.')
       })
     }, intervalMs)
     this.sessionRuntimeSweepTimer.unref?.()
@@ -1578,7 +1589,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const source = String(input.source || 'upload')
     if (input.kind === 'link' || input.url) {
       const url = new URL(String(input.url || ''))
-      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('链接只支持 http 或 https。')
+      if (!['http:', 'https:'].includes(url.protocol))
+        throw pisperError('invalid', 'url', 'only http or https')
       const existing = this.assetIndex.assets.find(
         (asset) => asset.kind === 'link' && asset.url === url.href,
       )
@@ -1606,8 +1618,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       input.text !== undefined
         ? Buffer.from(String(input.text), 'utf8')
         : Buffer.from(String(input.data || ''), 'base64')
-    if (!buffer.length) throw new Error(`${name} 内容为空。`)
-    if (buffer.length > MAX_ASSET_BYTES) throw new Error(`${name} 超过 24 MB 资产限制。`)
+    if (!buffer.length) throw pisperError('invalid', 'file', `${name} is empty`)
+    if (buffer.length > MAX_ASSET_BYTES)
+      throw pisperError('too_large', 'file', `${name}: max 24 MB`)
     const mimeType = String(input.mimeType || mimeFromName(name))
     const kind =
       mimeType.startsWith('image/') || IMAGE_EXTENSIONS.has(extname(name).toLowerCase())
@@ -1708,14 +1721,18 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         name: `${asset.name}.url.txt`,
         mimeType: 'text/plain',
         size: asset.url.length,
-        text: `链接：${asset.url}`,
+        text: `Link: ${asset.url}`,
       }
     }
     const path = asset.storagePath || asset.filePath
     const info = await stat(path)
     const extension = extname(asset.name).toLowerCase()
     if (!previewOnly && info.size > MAX_CHAT_ASSET_BYTES)
-      throw new Error('资产超过 10 MB，无法直接加入对话；仍可下载或在工作目录中读取。')
+      throw pisperError(
+        'too_large',
+        'file',
+        'max 10 MB in chat; download it or read it from the workspace',
+      )
     const knownText = ASSET_TEXT_EXTENSIONS.has(extension) || mimeMayContainText(asset.mimeType)
     if (knownText) {
       const buffer = await readFilePrefix(path, Math.min(info.size, 2 * 1024 * 1024))
@@ -1780,8 +1797,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       mimeType: 'text/plain',
       size: path.length,
       text: asset.filePath
-        ? `本地文件路径：${asset.filePath}`
-        : `资产 ${asset.name} 是二进制文件，请结合文件名称和元数据分析。`,
+        ? `Local file path: ${asset.filePath}`
+        : `Asset ${asset.name} is a binary file; work from its name and metadata.`,
     }
   }
 
@@ -1968,7 +1985,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
               const currentGoal = this.goals.get(runtimeSessionId)
               if (currentGoal?.mode === 'team') {
                 if (this.multiAgents.hasActive(runtimeSessionId))
-                  throw new Error('Team 仍有成员在执行，请先等待所有成员完成并完成最终验收。')
+                  throw new Error(
+                    'Team members are still running; wait for all to finish, then do the final review.',
+                  )
                 await this.teamWorkflows.syncAgents(
                   runtimeSessionId,
                   this.multiAgents.list(runtimeSessionId),
@@ -2407,18 +2426,20 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       const name = safeAttachmentName(attachment.name)
       if (attachment.kind === 'path') {
         const path = normalizeWorkspacePath(attachment.path)
-        if (!path || !isAbsolute(path)) throw new Error(`${name} 不是有效的本地绝对路径`)
+        if (!path || !isAbsolute(path))
+          throw pisperError('invalid', 'path', `${name} is not an absolute local path`)
         contexts.push(
           `[Local path attachment] ${name}\nPath: ${path}\nThis attachment is a path reference only. Read it with available workspace tools when needed.`,
         )
       } else if (attachment.kind === 'image') {
         if (!this.capabilities.features.imageProcessing) {
-          throw new Error('当前 Runtime 不支持图片附件处理。')
+          throw pisperError('unsupported', 'image', 'image attachments')
         }
         const data = String(attachment.data || '')
         const mimeType = String(attachment.mimeType || '')
-        if (!mimeType.startsWith('image/') || !data) throw new Error(`${name} 不是有效图片`)
-        if (data.length > 15_000_000) throw new Error(`${name} 图片数据过大`)
+        if (!mimeType.startsWith('image/') || !data)
+          throw pisperError('invalid', 'image', `${name} is not an image`)
+        if (data.length > 15_000_000) throw pisperError('too_large', 'image', name)
         images.push({ type: 'image', data, mimeType })
         const localPath = archivedAttachments[attachmentIndex]?.path
         contexts.push(
@@ -2459,7 +2480,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (!value?.session) {
       if (this.botForSession?.(sessionId))
         void this.promptFromChannel({ sessionId, message: prompt, unattended: true }).catch(() =>
-          console.warn('[bots] 结果没能交回 Bot 的对话。'),
+          console.warn('[bots] Could not return the result to the bot conversation.'),
         )
       return
     }
@@ -2507,7 +2528,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     return Promise.resolve()
       .then(() => value.session.steer(note))
       .catch(() => {
-        console.warn('Agent 完成通知注入失败，已留待本轮结束后补发。')
+        console.warn('Could not inject the agent completion note; it will be sent after this turn.')
         value.pendingAgentNotifications = [note, ...(value.pendingAgentNotifications || [])]
       })
   }
@@ -2616,10 +2637,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     markRunStage('p.appConfig')
     // 前置校验：停用的 Provider、不可用模型都直接拒绝，避免发起注定失败的调用。
     if ((appConfig.disabledProviders || []).includes(session.model?.provider)) {
-      throw new Error('当前会话使用的 Provider 已停用，请先启用或切换模型。')
+      throw pisperError('unavailable', 'provider', 'disabled; enable it or switch models')
     }
     if (!session.model || session.model.provider === 'unknown' || session.model.id === 'unknown') {
-      throw new Error('没有可用模型，请先在配置页设置 Provider、模型和 API Key。')
+      throw pisperError('unavailable', 'model', 'set up a provider, model and API key in Settings')
     }
     // 记忆检索只依赖本条消息、工作目录和当前上下文：提前发起，与目标调度、标题落盘、附件归档并行，
     // 到组装提示词时再取结果。先挂一个空 catch，准备阶段提前抛错时不留下未处理的 rejection。
@@ -2730,7 +2751,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
     markRunStage('p.agentNotes')
     // 准备阶段收到了停止：这一轮不再开跑。
-    if (this.startingRuns.get(session.sessionId)?.aborted) throw new Error('会话已停止。')
+    if (this.startingRuns.get(session.sessionId)?.aborted) throw pisperError('cancelled', 'session')
     const startedAt = new Date().toISOString()
     value.modified = startedAt
     const attachTeam = shouldAttachTeamSnapshot({ goalMode, teamMode, goal })
@@ -3162,7 +3183,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const resultOutput =
           event.toolName === 'bash' ? liveThinkingTail(textFromContent(event.result?.content)) : ''
         const resultMessage = event.isError
-          ? resultOutput || textFromContent(event.result?.content) || '工具执行失败。'
+          ? resultOutput || textFromContent(event.result?.content) || 'Tool failed.'
           : ''
         const completedTool = live.tools.find((item) => item.id === event.toolCallId)
         const outputPatch =
@@ -3417,6 +3438,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         queueRevision: sessionInputQueueRevision(session),
         sessionId: session.sessionId,
         message: live.error,
+        // PisperError 带 code/params，前端按界面语言翻译；模型或 Provider 的原始错误没有码，按原文显示。
+        ...errorPayload(error),
         text: live.text,
         tools: live.tools,
         assets: live.assets,
@@ -3543,7 +3566,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       // 只改内存里的元数据，本轮 finally 的 saveSessionMeta 统一落盘。
       if (persisted) this.persistBoardCard(sessionId, persisted, false)
     } catch {
-      console.warn('看板卡片摘要记录失败。')
+      console.warn('Could not record the board card summary.')
     }
     // Bot 的对话这一轮说完：收尾（把回话交给别的 Bot、回复发回聊天）。
     // 只记下“该收尾了”，等这一轮真正放下运行标记再排（streamPrompt 的收尾）：否则这时交回来的完成通知
@@ -3558,7 +3581,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     const meta = this.sessionMeta[sessionId]
     if (!meta && !this.sessions.has(sessionId) && !this.pendingSessions.has(sessionId)) return
     this.sessionMeta[sessionId] = { ...(meta || {}), boardCard: card }
-    if (save) void this.saveSessionMeta().catch(() => console.warn('看板卡片摘要保存失败。'))
+    if (save)
+      void this.saveSessionMeta().catch(() =>
+        console.warn('Could not save the board card summary.'),
+      )
   }
 }
 Object.assign(AgentRuntimeService.prototype, agentSessionMethods)

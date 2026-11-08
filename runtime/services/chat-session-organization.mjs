@@ -1,5 +1,7 @@
 // 会话导航状态只由明确的用户操作或 Agent 轮次结算改变；文件修改时间不代表未读。
 // dismissAttention 是第 2 期新增的可选字段（只增不改）：看板“标记已处理”用它清掉失败注意力。
+import { errorMessage } from '../../shared/errors.mjs'
+
 const ORGANIZATION_PATCH_KEYS = new Set(['pinned', 'archived', 'read', 'dismissAttention'])
 
 /**
@@ -7,10 +9,11 @@ const ORGANIZATION_PATCH_KEYS = new Set(['pinned', 'archived', 'read', 'dismissA
  * @typedef {{ pinned?: boolean, archived?: boolean, read?: boolean, dismissAttention?: true }} SessionOrganizationPatch
  */
 
+// code 是既有接口字段，客户端按它识别；message 只给日志和兜底展示，用统一错误码的英文写法。
 export class SessionOrganizationInputError extends Error {
-  /** @param {string} message */
-  constructor(message) {
-    super(message)
+  /** @param {string} detail */
+  constructor(detail) {
+    super(errorMessage('invalid', { subject: 'session', detail }))
     this.code = 'invalid_session_organization'
   }
 }
@@ -67,18 +70,18 @@ export function projectSessionOrganization(
 /** @param {unknown} input @returns {SessionOrganizationPatch} */
 export function parseSessionOrganizationPatch(input) {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
-    throw new SessionOrganizationInputError('会话组织状态请求必须是对象。')
+    throw new SessionOrganizationInputError('body must be an object')
   }
   const entries = Object.entries(input)
-  if (!entries.length) throw new SessionOrganizationInputError('至少指定一个会话组织状态字段。')
+  if (!entries.length) throw new SessionOrganizationInputError('no fields given')
   for (const [key, value] of entries) {
     if (!ORGANIZATION_PATCH_KEYS.has(key))
-      throw new SessionOrganizationInputError('未知会话组织状态字段。')
+      throw new SessionOrganizationInputError(`unknown field ${key.slice(0, 60)}`)
     if (typeof value !== 'boolean')
-      throw new SessionOrganizationInputError(`会话组织状态字段 ${key} 必须是布尔值。`)
+      throw new SessionOrganizationInputError(`${key} must be a boolean`)
     // 注意力只能由新一轮运行的结局重新设置，客户端不能把它“标回”未处理。
     if (key === 'dismissAttention' && value !== true)
-      throw new SessionOrganizationInputError('dismissAttention 只能为 true。')
+      throw new SessionOrganizationInputError('dismissAttention must be true')
   }
   return /** @type {SessionOrganizationPatch} */ (Object.fromEntries(entries))
 }

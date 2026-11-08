@@ -1,6 +1,7 @@
 // QQ 官方机器人扫码绑定：调用腾讯 QQ Bot Connector 获取一次性二维码和官方凭据。
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
+import { pisperError } from '../../../shared/errors.mjs'
 
 const defaultStartQrConnect = async (callbacks, options) => {
   const { startQrConnect } = await import('@tencent-connect/qqbot-connector')
@@ -88,7 +89,11 @@ export class QQOnboardingService {
         void (async () => {
           const credential = credentials?.[0]
           if (!credential?.appId || !credential?.appSecret)
-            throw new Error('QQ 扫码成功，但未返回完整的官方机器人凭据。')
+            throw pisperError(
+              'failed',
+              'login',
+              'QQ scan succeeded but returned incomplete bot credentials',
+            )
           job.status = 'connecting'
           await this.onCompleted({
             appId: credential.appId,
@@ -127,7 +132,7 @@ export class QQOnboardingService {
 
     let timeoutId
     const timeout = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('QQ 扫码地址生成超时。')), 15_000)
+      timeoutId = setTimeout(() => reject(pisperError('timeout', 'login', 'QQ QR code')), 15_000)
     })
     try {
       await Promise.race([ready, timeout])

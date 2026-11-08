@@ -251,7 +251,6 @@ const RULES = [
     id: 'rm-root',
     severity: 'block',
     message: 'recursive rm targeting the filesystem root or home directory',
-    reason: '递归删除根目录或家目录',
     hint: 'use a scoped, non-recursive path and ask the user to confirm',
     test(segments) {
       return segments.some((seg) => {
@@ -264,7 +263,6 @@ const RULES = [
     id: 'rm-recursive',
     severity: 'warn',
     message: 'recursive rm (recursive deletion)',
-    reason: '递归删除（rm -r）',
     hint: 'ask the user to confirm before deleting directories recursively',
     test(segments) {
       return segments.some((seg) => {
@@ -277,7 +275,6 @@ const RULES = [
     id: 'dd-device',
     severity: 'block',
     message: 'dd writing to a raw block device',
-    reason: '使用 dd 写入原始块设备',
     test(segments) {
       return segments.some((seg) => {
         const { program } = parseSegment(seg)
@@ -289,7 +286,6 @@ const RULES = [
     id: 'write-device',
     severity: 'block',
     message: 'shell redirection writing to a raw block device',
-    reason: '重定向写入原始块设备',
     test(segments, masked) {
       return />\s*\/dev\/(?:sd|hd|vd|xvd|nvme|mmcblk|mapper|disk|loop)/i.test(masked)
     },
@@ -298,7 +294,6 @@ const RULES = [
     id: 'disk-tool',
     severity: 'block',
     message: 'disk-partitioning / filesystem-creation tool',
-    reason: '磁盘分区或格式化工具',
     hint: 'these rewrite disks or partitions and are never safe to run unattended',
     test(segments) {
       const TOOLS = /^(mkfs(\.\w+)?|fdisk|parted|mkswap|wipefs|sfdisk|sgdisk|cgdisk|gdisk)$/i
@@ -312,7 +307,6 @@ const RULES = [
     id: 'chmod-root',
     severity: 'block',
     message: 'chmod on the filesystem root or home directory',
-    reason: '修改根目录或家目录权限',
     hint: 'never make system/home trees world-writable',
     test(segments) {
       return segments.some((seg) => {
@@ -330,7 +324,6 @@ const RULES = [
     id: 'chown-root',
     severity: 'block',
     message: 'recursive chown on the filesystem root or home directory',
-    reason: '递归修改根目录或家目录属主',
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
@@ -342,7 +335,6 @@ const RULES = [
     id: 'fork-bomb',
     severity: 'block',
     message: 'fork bomb',
-    reason: 'fork 炸弹',
     test(segments, masked) {
       return /:\(\)\s*\{\s*[^}]*:\s*\|/.test(masked) || /\(\)\s*\{\s*[^}]*\|[^}]*&/.test(masked)
     },
@@ -351,7 +343,6 @@ const RULES = [
     id: 'git-reset-hard',
     severity: 'warn',
     message: 'git reset --hard (discards uncommitted work)',
-    reason: 'git reset --hard 丢弃未提交改动',
     hint: 'use `git reset --soft/--mixed`, stash, or ask the user to confirm',
     test(segments) {
       return segments.some((seg) => {
@@ -364,7 +355,6 @@ const RULES = [
     id: 'git-clean-force',
     severity: 'warn',
     message: 'git clean with --force (deletes untracked files)',
-    reason: 'git clean -f 删除未跟踪文件',
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
@@ -380,7 +370,6 @@ const RULES = [
     id: 'git-checkout-force',
     severity: 'warn',
     message: 'git checkout/restore with --force (discards local changes)',
-    reason: 'git checkout/restore -f 丢弃本地改动',
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
@@ -394,7 +383,6 @@ const RULES = [
     id: 'git-push-force',
     severity: 'block',
     message: 'git push with --force/--mirror (rewrites remote history)',
-    reason: 'git push --force 覆盖远端历史',
     hint: 'prefer `git push --force-with-lease`',
     test(segments) {
       return segments.some((seg) => {
@@ -413,7 +401,6 @@ const RULES = [
     id: 'git-branch-delete-force',
     severity: 'warn',
     message: 'git branch -D (force-deletes a branch)',
-    reason: 'git branch -D 强制删除分支',
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
@@ -426,7 +413,6 @@ const RULES = [
     id: 'git-history-rewrite',
     severity: 'block',
     message: 'git history rewrite or permanent object pruning',
-    reason: '重写或永久清除 git 历史',
     hint: 'this permanently destroys commits and is irreversible',
     test(segments) {
       return segments.some((seg) => {
@@ -444,7 +430,6 @@ const RULES = [
     id: 'curl-pipe-shell',
     severity: 'block',
     message: 'remote content piped to a shell interpreter (remote code execution)',
-    reason: '将远程内容直接管道给 shell 执行（远程代码执行）',
     hint: 'download the script, inspect it, then run it explicitly',
     test(segments, masked) {
       return (
@@ -462,7 +447,6 @@ const RULES = [
     id: 'rm-system-file',
     severity: 'block',
     message: 'rm targeting a system file or directory',
-    reason: '删除系统文件或目录',
     test(segments) {
       return segments.some((seg) => {
         const { program } = parseSegment(seg)
@@ -474,7 +458,6 @@ const RULES = [
     id: 'redirect-system-file',
     severity: 'block',
     message: 'shell redirection overwriting a system file',
-    reason: '重定向覆盖系统文件',
     test(segments, masked) {
       return />+\s*\/(?:etc|bin|sbin|boot|lib|lib64|usr|var|proc|sys|root)(?:\/|\b)/i.test(masked)
     },
@@ -483,7 +466,6 @@ const RULES = [
     id: 'find-delete-root',
     severity: 'block',
     message: 'find -delete / -exec rm on root or home',
-    reason: '使用 find 递归删除根目录或家目录',
     test(segments) {
       return segments.some((seg) => {
         const { program } = parseSegment(seg)
@@ -497,7 +479,6 @@ const RULES = [
     id: 'find-delete',
     severity: 'warn',
     message: 'find -delete / -exec rm (recursive deletion)',
-    reason: '使用 find 递归删除文件',
     test(segments) {
       return segments.some((seg) => {
         const { program } = parseSegment(seg)
@@ -510,7 +491,6 @@ const RULES = [
     id: 'shutdown',
     severity: 'warn',
     message: 'shutdown / reboot / poweroff',
-    reason: '关机或重启系统',
     hint: 'confirm with the user before powering off or rebooting',
     test(segments) {
       const REBOOT =
@@ -529,7 +509,6 @@ const RULES = [
     id: 'mv-dev-null',
     severity: 'block',
     message: 'mv to /dev/null (destroys the source file)',
-    reason: '将文件移动到 /dev/null（销毁文件）',
     test(segments) {
       return segments.some((seg) => {
         const { program, args } = parseSegment(seg)
@@ -542,7 +521,6 @@ const RULES = [
     id: 'format-drive',
     severity: 'block',
     message: 'format (formats a disk volume)',
-    reason: '格式化磁盘卷',
     platforms: ['win32'],
     test(segments) {
       return segments.some((seg) => {
@@ -555,7 +533,6 @@ const RULES = [
     id: 'diskpart',
     severity: 'block',
     message: 'diskpart (disk management)',
-    reason: '磁盘管理（diskpart）',
     platforms: ['win32'],
     test(segments) {
       return segments.some((seg) => {
@@ -568,7 +545,6 @@ const RULES = [
     id: 'del-tree',
     severity: 'block',
     message: 'del/erase with /s (recursive delete)',
-    reason: 'del/erase /s 递归删除',
     platforms: ['win32'],
     test(segments) {
       return segments.some((seg) => {
@@ -582,7 +558,6 @@ const RULES = [
     id: 'rd-tree',
     severity: 'block',
     message: 'rd/rmdir with /s (recursive remove)',
-    reason: 'rd/rmdir /s 递归删除',
     platforms: ['win32'],
     test(segments) {
       return segments.some((seg) => {
@@ -596,7 +571,6 @@ const RULES = [
     id: 'ps-remove-recurse',
     severity: 'block',
     message: 'PowerShell Remove-Item with -Recurse (recursive delete)',
-    reason: 'PowerShell Remove-Item -Recurse 递归删除',
     platforms: ['win32'],
     test(segments) {
       return segments.some((seg) => {
@@ -624,7 +598,8 @@ export function guardCommand(command, { platform = process.platform } = {}) {
         severity: rule.severity,
         ruleId: rule.id,
         message: rule.message,
-        reason: rule.reason,
+        // reason 是审批卡片上显示的拦截原因，与 message 同为英文；按界面语言翻译交给前端（可按 ruleId）。
+        reason: rule.message,
         hint: rule.hint || '',
       }
     }

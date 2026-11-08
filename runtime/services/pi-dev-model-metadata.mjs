@@ -125,7 +125,7 @@ export class PiDevModelMetadataService {
     if (this.fetching) return this.fetching
     this.fetching = this.fetchAndPersist()
       .catch((err) => {
-        if (!this.disposed) console.warn('[PiDev] 模型元数据抓取失败:', err.message)
+        if (!this.disposed) console.warn('[PiDev] model metadata fetch failed:', err.message)
       })
       .finally(() => {
         this.fetching = null

@@ -1,6 +1,7 @@
 // 通知设置服务：统一管理通知渠道（浏览器/飞书/微信/QQ/Telegram）的启用状态、模板与事件记录，
 // 并负责把运行事件转发到各渠道。
 import { randomUUID } from 'node:crypto'
+import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { sampleNotificationData } from './channels/notification-templates.mjs'
 
@@ -51,7 +52,8 @@ export class NotificationSettingsService {
 
   async testBrowserTemplate(event) {
     const appConfig = await readJson(this.path, {})
-    if (appConfig.notifications?.browser?.enabled !== true) throw new Error('请先启用通知。')
+    if (appConfig.notifications?.browser?.enabled !== true)
+      throw pisperError('unavailable', 'channel', 'turn on notifications first')
     const rendered = this.channels.renderNotification(event, 'browser', sampleNotificationData())
     return { sent: 1, title: rendered.title, body: rendered.content, preview: rendered.content }
   }
@@ -108,7 +110,7 @@ export class NotificationSettingsService {
     const failures = results.filter((result) => result.status === 'rejected')
     if (failures.length) {
       const message = failures.map((failure) => `${failure.platform}: ${failure.error}`).join('; ')
-      throw new Error(`通知发送失败：${message}`)
+      throw pisperError('failed', 'channel', message)
     }
     return results
   }

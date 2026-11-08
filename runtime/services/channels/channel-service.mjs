@@ -31,11 +31,48 @@ import {
 import { WeixinGateway } from './weixin-gateway.mjs'
 import { WeixinOnboardingService } from './weixin-onboarding.mjs'
 import { normalizeExecutionMode } from '../../security/execution-mode.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
+import {
+  CHAT_REPLIES,
+  botStatusText,
+  channelQuestionText,
+  chatApprovalText,
+  chatBotBusy,
+  chatBotRejected,
+  chatBotsText,
+  chatDirSwitched,
+  chatDirText,
+  chatFailed,
+  chatModeSwitched,
+  chatModeText,
+  chatNoExtra,
+  chatRateLimited,
+  chatRunSwitched,
+  chatRunText,
+  chatStatusText,
+  chatWhoamiText,
+} from './chat-replies.mjs'
+
+// 发回聊天的中文文字在 chat-replies.mjs；ask_user 的等待通知按原名转出。
+export { channelQuestionText }
 
 const PLATFORMS = new Set(['feishu', 'weixin', 'qq', 'telegram'])
 const MANUAL_PLATFORMS = new Set(['telegram'])
 const TEMPLATE_PLATFORMS = new Set(['feishu', 'weixin', 'qq', 'telegram', 'browser'])
 const CHANNEL_RUN_MODES = new Set(['plan', 'goal', 'team'])
+// 平台的英文名：会话标题、默认机器人名、错误里用；界面上的平台名由前端按界面语言翻译。
+const PLATFORM_NAMES = Object.freeze({
+  feishu: 'Feishu',
+  weixin: 'WeChat',
+  qq: 'QQ',
+  telegram: 'Telegram',
+})
+const DEFAULT_BOT_NAMES = Object.freeze({
+  feishu: 'Pisper Agent',
+  weixin: 'WeChat Bot',
+  qq: 'QQ Bot',
+  telegram: 'Telegram Bot',
+})
 const TEXT_EXTENSIONS = new Set([
   '.txt',
   '.md',
@@ -187,33 +224,6 @@ function normalizeState(stored) {
   return defaultState()
 }
 
-// ask_user 在渠道里的等待通知：问题与选项编号列出，提示去 Pisper 应用里回答。
-export function channelQuestionText(data) {
-  const questions = Array.isArray(data?.questions) ? data.questions : []
-  const lines = ['代理在等你回答：']
-  questions.forEach((question, index) => {
-    const prefix = questions.length > 1 ? `${index + 1}. ` : ''
-    lines.push(
-      `${prefix}${String(question?.question || '')}${question?.multiSelect ? '（可多选）' : ''}`,
-    )
-    const options = Array.isArray(question?.options) ? question.options : []
-    options.forEach((option, optionIndex) => {
-      lines.push(`   ${String.fromCharCode(65 + optionIndex)}. ${String(option?.label || '')}`)
-    })
-  })
-  lines.push('请在 Pisper 应用里点选回答。')
-  return lines.join('\n')
-}
-
-// /名字 状态 的回复：它此刻在不在说话、有没有在等人。
-function botStatusText(bot, activity) {
-  if (!bot.enabled) return `${bot.name} 已暂停。`
-  if (activity?.status !== 'running') return `${bot.name} 现在空闲。`
-  if (activity.waiting === 'approval') return `${bot.name} 在忙，正等人批准一个操作。`
-  if (activity.waiting === 'question') return `${bot.name} 在忙，有问题等人回答。`
-  return `${bot.name} 正在忙。`
-}
-
 // 指令清单发出后，回序号的有效时间。
 const BOT_MENU_TTL_MS = 5 * 60_000
 // 非管理员交给 Bot 做的指令：每人每 10 分钟最多 6 次，免得群里有人刷指令一直打断 Bot、耗光用量。
@@ -346,10 +356,10 @@ export class ChannelService {
         (platform === 'feishu'
           ? live.bot?.name || 'Pisper Agent'
           : platform === 'weixin'
-            ? '微信机器人'
+            ? DEFAULT_BOT_NAMES.weixin
             : platform === 'qq'
-              ? live.bot?.username || live.bot?.nickname || 'QQ 官方机器人'
-              : live.bot?.username || live.bot?.name || 'Telegram Bot'),
+              ? live.bot?.username || live.bot?.nickname || DEFAULT_BOT_NAMES.qq
+              : live.bot?.username || live.bot?.name || DEFAULT_BOT_NAMES.telegram),
       enabled: connection.enabled !== false,
       accountId: maskedId(
         platform === 'feishu'
@@ -377,26 +387,27 @@ export class ChannelService {
   getState() {
     return {
       providers: [
+        // 界面按 type 显示本地化的平台名与说明，这里的英文只是兜底。
         {
           type: 'feishu',
-          name: '飞书应用机器人',
-          description: '官方扫码创建，WebSocket 长连接，支持私聊与群聊 @',
+          name: 'Feishu app bot',
+          description: 'Created by QR scan; WebSocket; direct and group @ messages',
         },
         {
           type: 'weixin',
-          name: '微信',
-          description: '腾讯 iLink Bot 扫码登录，支持个人微信私聊与媒体消息',
+          name: 'WeChat',
+          description: 'iLink Bot QR sign-in; personal WeChat direct messages and media',
         },
         {
           type: 'qq',
-          name: 'QQ 官方机器人',
-          description: '腾讯 QQ Bot Connector 扫码创建，使用官方 OpenAPI 与 WebSocket 接入',
+          name: 'QQ official bot',
+          description: 'QQ Bot Connector QR setup; official OpenAPI and WebSocket',
           accessMode: 'qr',
         },
         {
           type: 'telegram',
           name: 'Telegram Bot',
-          description: '使用 Telegram Bot API 长轮询接入',
+          description: 'Telegram Bot API long polling',
           accessMode: 'manual',
         },
       ],
@@ -414,8 +425,9 @@ export class ChannelService {
   }
 
   startOnboarding(platform, input = undefined) {
-    if (!PLATFORMS.has(platform)) throw new Error('不支持这个渠道。')
-    if (input?.mode === 'personal') throw new Error('不支持个人账号接入，请使用官方机器人。')
+    if (!PLATFORMS.has(platform)) throw pisperError('unsupported', 'channel', platform)
+    if (input?.mode === 'personal')
+      throw pisperError('unsupported', 'channel', 'personal accounts; use an official bot')
     if (MANUAL_PLATFORMS.has(platform) || platform === 'qq') {
       if (input && typeof input === 'object' && Object.keys(input).length)
         return this.completeOnboarding(platform, input)
@@ -437,22 +449,16 @@ export class ChannelService {
   }
 
   verifyOnboarding(platform, id, code) {
-    if (platform !== 'weixin') throw new Error('该渠道不需要配对码。')
+    if (platform !== 'weixin')
+      throw pisperError('unsupported', 'operation', 'this channel has no pairing code')
     return this.onboardings.weixin.verify(id, code)
   }
 
   async completeOnboarding(platform, credentials = {}) {
-    if (!PLATFORMS.has(platform)) throw new Error('不支持这个渠道。')
+    if (!PLATFORMS.has(platform)) throw pisperError('unsupported', 'channel', platform)
     const current = this.state.connections[platform]
     const common = {
-      name:
-        platform === 'feishu'
-          ? 'Pisper Agent'
-          : platform === 'weixin'
-            ? '微信机器人'
-            : platform === 'qq'
-              ? 'QQ 官方机器人'
-              : 'Telegram Bot',
+      name: DEFAULT_BOT_NAMES[platform],
       accessMode: platform === 'telegram' ? 'all' : 'owner',
       defaultCwd: current?.defaultCwd || this.cwd,
       replyModel: current?.replyModel || null,
@@ -515,16 +521,10 @@ export class ChannelService {
   async connect(platform) {
     const connection = this.state.connections[platform]
     if (!connection)
-      throw new Error(
-        `请先${MANUAL_PLATFORMS.has(platform) ? '填写凭据连接' : '扫码连接'}${
-          platform === 'feishu'
-            ? '飞书'
-            : platform === 'weixin'
-              ? '微信'
-              : platform === 'qq'
-                ? 'QQ'
-                : 'Telegram'
-        }。`,
+      throw pisperError(
+        'unavailable',
+        'channel',
+        `${MANUAL_PLATFORMS.has(platform) ? 'enter the credentials for' : 'scan to connect'} ${PLATFORM_NAMES[platform]} first`,
       )
     if (connection.enabled === false) return this.gateways[platform].getStatus()
     return this.gateways[platform].connect(connection)
@@ -532,7 +532,7 @@ export class ChannelService {
 
   async update(platform, input) {
     const connection = this.state.connections[platform]
-    if (!connection) throw new Error('渠道尚未连接。')
+    if (!connection) throw pisperError('unavailable', 'channel', 'not connected')
     const enabledChanged = Object.hasOwn(input || {}, 'enabled')
     if (Object.hasOwn(input || {}, 'enabled')) connection.enabled = Boolean(input.enabled)
     if (Object.hasOwn(input || {}, 'accessMode'))
@@ -541,7 +541,8 @@ export class ChannelService {
       connection.executionMode = normalizeExecutionMode(input.executionMode)
     if (Object.hasOwn(input || {}, 'runMode')) {
       const runMode = String(input.runMode || '')
-      if (!CHANNEL_RUN_MODES.has(runMode)) throw new Error('运行模式无效。')
+      if (!CHANNEL_RUN_MODES.has(runMode))
+        throw pisperError('invalid', 'input', 'runMode: one of plan, goal, team')
       connection.runMode = runMode
     }
     if (Object.hasOwn(input || {}, 'defaultCwd'))
@@ -621,9 +622,7 @@ export class ChannelService {
       )
         return
       await this.gateways[platform].send(message, {
-        text: ownerId
-          ? '当前机器人仅允许扫码创建者使用。'
-          : '未获取到创建者身份，请重新扫码或调整访问范围。',
+        text: ownerId ? CHAT_REPLIES.ownerOnly : CHAT_REPLIES.ownerUnknown,
       })
       return
     }
@@ -633,20 +632,24 @@ export class ChannelService {
     const normalizedCommand = command.toLowerCase()
     if (normalizedCommand === '/new' || normalizedCommand === '/reset') {
       await this.resetScope(key)
-      await this.gateways[platform].send(message, { text: '已开始新的 Pisper 会话。' })
+      await this.gateways[platform].send(message, { text: CHAT_REPLIES.newSession })
       return
     }
     if (normalizedCommand === '/status') {
       await this.gateways[platform].send(message, {
-        text: scope.sessionId
-          ? `会话：${scope.sessionId}\n模型：${scope.model || '默认'}\n工作目录：${scope.cwd || connection.defaultCwd}\n审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n执行模式：${scope.runMode || connection.runMode || 'plan'}`
-          : `当前聊天还没有绑定 Pisper 会话。\n审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n执行模式：${scope.runMode || connection.runMode || 'plan'}`,
+        text: chatStatusText({
+          sessionId: scope.sessionId,
+          model: scope.model,
+          cwd: scope.cwd || connection.defaultCwd,
+          executionMode: scope.executionMode || connection.executionMode || 'approval-required',
+          runMode: scope.runMode || connection.runMode || 'plan',
+        }),
       })
       return
     }
     if (normalizedCommand === '/mode') {
       await this.gateways[platform].send(message, {
-        text: `当前审批模式：${scope.executionMode || connection.executionMode || 'approval-required'}\n可选：approval-required、workspace-write、full-access\n用法：/mode <模式>`,
+        text: chatModeText(scope.executionMode || connection.executionMode || 'approval-required'),
       })
       return
     }
@@ -659,7 +662,7 @@ export class ChannelService {
         !['approval-required', 'workspace-write', 'full-access'].includes(mode)
       ) {
         await this.gateways[platform].send(message, {
-          text: '用法：/mode approval-required|workspace-write|full-access',
+          text: CHAT_REPLIES.modeUsage,
         })
         return
       }
@@ -667,12 +670,12 @@ export class ChannelService {
         await this.agent.setExecutionMode(scope.sessionId, mode)
       this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, executionMode: mode }
       await this.save()
-      await this.gateways[platform].send(message, { text: `审批模式已切换为 ${mode}。` })
+      await this.gateways[platform].send(message, { text: chatModeSwitched(mode) })
       return
     }
     if (normalizedCommand === '/run') {
       await this.gateways[platform].send(message, {
-        text: `当前执行模式：${scope.runMode || connection.runMode || 'plan'}\n可选：plan、goal、team\n用法：/run <模式>`,
+        text: chatRunText(scope.runMode || connection.runMode || 'plan'),
       })
       return
     }
@@ -680,7 +683,7 @@ export class ChannelService {
       const runParts = command.split(/\s+/)
       const runMode = runParts[1]?.toLowerCase() || ''
       if (runParts.length !== 2 || !CHANNEL_RUN_MODES.has(runMode)) {
-        await this.gateways[platform].send(message, { text: '用法：/run plan|goal|team' })
+        await this.gateways[platform].send(message, { text: CHAT_REPLIES.runUsage })
         return
       }
       if (scope.sessionId && this.agent.setRunMode) {
@@ -695,19 +698,19 @@ export class ChannelService {
       }
       this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, runMode }
       await this.save()
-      await this.gateways[platform].send(message, { text: `执行模式已切换为 ${runMode}。` })
+      await this.gateways[platform].send(message, { text: chatRunSwitched(runMode) })
       return
     }
     if (normalizedCommand === '/dir') {
       await this.gateways[platform].send(message, {
-        text: `当前工作目录：${scope.cwd || connection.defaultCwd}\n用法：/dir <path>`,
+        text: chatDirText(scope.cwd || connection.defaultCwd),
       })
       return
     }
     if (normalizedCommand.startsWith('/dir ')) {
       const requested = command.slice(command.search(/\s/) + 1).trim()
       if (!requested) {
-        await this.gateways[platform].send(message, { text: '用法：/dir <path>' })
+        await this.gateways[platform].send(message, { text: CHAT_REPLIES.dirUsage })
         return
       }
       const directory = await this.agent.validateDirectory(requested)
@@ -723,7 +726,7 @@ export class ChannelService {
       }
       this.state.scopes[key] = { ...scope, platform, peerId: message.peerId, cwd: directory }
       await this.save()
-      await this.gateways[platform].send(message, { text: `工作目录已切换为 ${directory}。` })
+      await this.gateways[platform].send(message, { text: chatDirSwitched(directory) })
       return
     }
     if (/^\/(?:approve|deny|yes|no)(?:\s|$)/i.test(command)) {
@@ -736,16 +739,16 @@ export class ChannelService {
       await this.gateways[platform].send(message, {
         text: resolved?.found
           ? approved
-            ? '已批准，继续执行。'
-            : '已拒绝本次操作。'
-          : '没有找到待处理的审批请求。',
+            ? CHAT_REPLIES.approved
+            : CHAT_REPLIES.denied
+          : CHAT_REPLIES.noApproval,
       })
       return
     }
     if (normalizedCommand === '/stop') {
       const stopped = scope.sessionId ? await this.agent.abort(scope.sessionId) : false
       await this.gateways[platform].send(message, {
-        text: stopped ? '已停止当前任务。' : '当前没有运行中的任务。',
+        text: stopped ? CHAT_REPLIES.stopped : CHAT_REPLIES.nothingRunning,
       })
       return
     }
@@ -753,14 +756,15 @@ export class ChannelService {
     try {
       const resources = await this.gateways[platform].downloadResources(message.resources)
       const attachments = resources.map(attachmentFromResource).filter(Boolean)
-      const prompt = message.content.trim() || (attachments.length ? '请分析这些附件。' : '')
+      const prompt =
+        message.content.trim() || (attachments.length ? 'Analyze these attachments.' : '')
       if (!prompt) return
       const result = await this.agent.prompt({
         sessionId: scope.sessionId || '',
         message: prompt,
         attachments,
         cwd: scope.cwd || connection.defaultCwd || this.cwd,
-        title: `${platform === 'feishu' ? '飞书' : platform === 'weixin' ? '微信' : platform === 'qq' ? 'QQ' : 'Telegram'} · ${message.senderName || (message.chatType === 'p2p' ? '私聊' : '群聊')}`,
+        title: `${PLATFORM_NAMES[platform]} · ${message.senderName || (message.chatType === 'p2p' ? 'DM' : 'Group')}`,
         model: connection.replyModel,
         executionMode: scope.executionMode || connection.executionMode,
         goalMode: (scope.runMode || connection.runMode || 'plan') === 'goal',
@@ -779,7 +783,7 @@ export class ChannelService {
             void this.save()
             void this.gateways[platform]
               .send(message, {
-                text: `需要审批：${data.toolName || '工具'}\n${data.reason || ''}\n请回复 /approve 批准，或 /deny 拒绝。`,
+                text: chatApprovalText(data),
               })
               .catch(() => {})
           } else if (event === 'question_request') {
@@ -802,7 +806,7 @@ export class ChannelService {
         title:
           message.chatTitle ||
           message.senderName ||
-          `${platform === 'feishu' ? '飞书' : platform === 'weixin' ? '微信' : platform === 'qq' ? 'QQ' : 'Telegram'}${message.chatType === 'p2p' ? '私聊' : '群聊'}`,
+          `${PLATFORM_NAMES[platform]} ${message.chatType === 'p2p' ? 'DM' : 'group'}`,
         cwd: result.cwd || connection.defaultCwd || this.cwd,
         model:
           result.model ||
@@ -819,13 +823,13 @@ export class ChannelService {
         updatedAt: new Date().toISOString(),
       }
       await this.save()
-      await this.gateways[platform].send(message, { markdown: result.text || '任务已完成。' })
+      await this.gateways[platform].send(message, { markdown: result.text || CHAT_REPLIES.done })
       for (const asset of result.assets || [])
         await this.gateways[platform].sendAsset(message.peerId, asset, this.state.scopes[key])
     } catch (error) {
       await this.gateways[platform]
         .send(message, {
-          text: `执行失败：${error instanceof Error ? error.message : String(error)}`,
+          text: chatFailed(error instanceof Error ? error.message : String(error)),
         })
         .catch(() => {})
     }
@@ -841,7 +845,7 @@ export class ChannelService {
     const context = { ...message, platform, content: message.content }
     if (command === '/whoami') {
       await gateway.send(message, {
-        text: `渠道：${platform}\n这个聊天：${message.peerId}\n你的 ID：${message.senderId}\n在 Bot 的“可以叫它的聊天”里填这两个 ID。`,
+        text: chatWhoamiText({ platform, peerId: message.peerId, senderId: message.senderId }),
       })
       return true
     }
@@ -850,8 +854,8 @@ export class ChannelService {
       if (guest && !available.length) return false
       await gateway.send(message, {
         text: available.length
-          ? `这里可以叫的 Bot：\n${available.map((bot) => `· ${bot.name}`).join('\n')}\n用法：@ 机器人后写“名字 要做的事”（也可以用 /名字）；只写名字会列出能用的指令。`
-          : '这个聊天里还没有可以叫的 Bot。在 Pisper 里给 Bot 加上这个聊天（/whoami 查看 ID）。',
+          ? chatBotsText(available.map((bot) => bot.name))
+          : CHAT_REPLIES.noBotsHere,
       })
       return true
     }
@@ -927,7 +931,7 @@ export class ChannelService {
         return true
       }
       if (!admin && !this.#allowPublicTask(`${platform}:${message.senderId}`)) {
-        await gateway.send(message, { text: `用得太频繁了，过几分钟再叫 ${bot.name}。` })
+        await gateway.send(message, { text: chatRateLimited(bot.name) })
         return true
       }
       return this.sendToBot(
@@ -944,9 +948,7 @@ export class ChannelService {
     }
     // 管理员没对上指令（或给不带补充的指令加了话）：整句交给 Bot；其他人只能用指令，列给他看。
     if (admin) return this.sendToBot(platform, message, ownerId, bot, text, '')
-    return showMenu(
-      matched ? `「${matched.command.name}」后面不能带补充。\n` : '这里只能用下面的指令。\n',
-    )
+    return showMenu(matched ? chatNoExtra(matched.command.name) : CHAT_REPLIES.onlyCommands)
   }
 
   #allowPublicTask(key) {
@@ -995,15 +997,15 @@ export class ChannelService {
           ...(commandName ? { command: commandName } : {}),
         },
       })
-      const attachmentNote = message.resources?.length ? '（附件暂不转给 Bot，只收到了文字。）' : ''
+      const attachmentNote = message.resources?.length ? CHAT_REPLIES.attachmentsDropped : ''
       if (sent.status === 'busy')
         await gateway.send(message, {
-          text: `${bot.name} 正在忙别的事，等它说完再叫它，或者在 Pisper 里接着说。`,
+          text: chatBotBusy(bot.name),
         })
       else if (attachmentNote) await gateway.send(message, { text: attachmentNote })
     } catch (error) {
       await gateway.send(message, {
-        text: `${bot.name} 没接下这句话：${error instanceof Error ? error.message : String(error)}`,
+        text: chatBotRejected(bot.name, error instanceof Error ? error.message : String(error)),
       })
     }
     return true
@@ -1075,9 +1077,10 @@ export class ChannelService {
   // Bot 往群里推送（bot_notify 的 to=group）。能推哪些群由 Bot 的规则决定，这里只管发：
   // 没见过的群按普通群发（QQ 群与私聊走不同接口）；微信只支持私聊。
   async notifyGroup(platform, peerId, text) {
-    if (platform === 'weixin') throw new Error('微信只支持私聊，不能往群里发。')
+    if (platform === 'weixin')
+      throw pisperError('unsupported', 'channel', 'WeChat has direct messages only, no groups')
     if (!this.state.connections[platform]?.enabled || !this.gateways[platform])
-      throw new Error('这个渠道没有连接。')
+      throw pisperError('unavailable', 'channel', 'not connected')
     const key = scopeKey(platform, peerId)
     const known = this.knownGroups(platform).find((group) => group.peerId === peerId)
     await this.gateways[platform].sendToPeer(
@@ -1124,12 +1127,12 @@ export class ChannelService {
 
   async updateTemplate(event, platform, input) {
     if (!NOTIFICATION_EVENTS[event] || !TEMPLATE_PLATFORMS.has(platform))
-      throw new Error('通知模板类型不存在。')
+      throw pisperError('not_found', 'input', 'notification template')
     const patch = {}
     if (Object.hasOwn(input || {}, 'enabled')) patch.enabled = Boolean(input.enabled)
     if (Object.hasOwn(input || {}, 'channelEnabled')) {
       if (typeof input.channelEnabled !== 'boolean') {
-        throw Object.assign(new Error('通知渠道开关必须是布尔值。'), {
+        throw Object.assign(new Error('Input is invalid: channelEnabled must be true or false'), {
           code: 'INVALID_NOTIFICATION_CHANNEL_ENABLED',
         })
       }
@@ -1137,7 +1140,7 @@ export class ChannelService {
     }
     if (Object.hasOwn(input || {}, 'content')) {
       const content = String(input.content || '').trim()
-      if (!content) throw new Error('通知模板不能为空。')
+      if (!content) throw pisperError('invalid', 'input', 'template content is required')
       patch.content = content.slice(0, 12_000)
     }
     // 模板修改与现有持久化队列串行；只有磁盘确认后才发布到投递使用的状态。
@@ -1161,7 +1164,7 @@ export class ChannelService {
   renderNotification(event, platform, data) {
     const definition = NOTIFICATION_EVENTS[event]
     const variant = this.state.templates[event]?.channels?.[platform]
-    if (!definition || !variant) throw new Error('通知模板不存在。')
+    if (!definition || !variant) throw pisperError('not_found', 'input', 'notification template')
     return { title: definition.name, content: renderNotificationTemplate(variant.content, data) }
   }
 
@@ -1202,9 +1205,10 @@ export class ChannelService {
 
   async testNotification(event, platform) {
     const variant = this.state.templates[event]?.channels?.[platform]
-    if (!variant) throw new Error('通知模板不存在。')
+    if (!variant) throw pisperError('not_found', 'input', 'notification template')
     const scope = this.latestScope(platform)
-    if (!scope) throw new Error('该渠道还没有可接收通知的历史会话。')
+    if (!scope)
+      throw pisperError('unavailable', 'channel', 'no chat to send to yet; message the bot first')
     const content = this.renderNotification(event, platform, sampleNotificationData()).content
     await this.gateways[platform].sendToPeer(
       scope.peerId,

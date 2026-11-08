@@ -90,7 +90,7 @@ test('Team file ownership hard-blocks scoped member writes outside declared file
     ownedFiles: ['src/owned.ts'],
   })
   assert.equal(requirement.block, true)
-  assert.match(requirement.reason, /Team 任务声明的文件/)
+  assert.match(requirement.reason, /owned by this Team task/)
 
   const permissions = new SessionPermissionService({
     getMode: () => 'ignore',
@@ -182,7 +182,7 @@ test('team workflow enforces dependencies, active file ownership, and completion
     id: 'agent-2',
     status: 'completed',
   })
-  assert.match(service.canComplete('session-1').reason, /缺少可验证结果/)
+  assert.match(service.canComplete('session-1').reason, /lack verifiable results/)
   await service.updateAgent('session-1', {
     id: 'agent-2',
     status: 'completed',

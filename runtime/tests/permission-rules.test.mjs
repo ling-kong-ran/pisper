@@ -30,31 +30,31 @@ test('rules are validated: allow rules must be a single plain command, file rule
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'allow', tool: 'bash', pattern: 'npm test && x' }),
-    /管道/,
+    /without pipes/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'allow', tool: 'bash', pattern: '' }),
-    /不能为空/,
+    /pattern is required/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'deny', tool: 'files', pattern: 'src' }),
-    /只支持允许/,
+    /can only allow/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'allow', tool: 'files', pattern: '../x' }),
-    /相对目录/,
+    /relative folder/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'allow', tool: 'files', pattern: '/etc' }),
-    /相对目录/,
+    /relative folder/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'allow', tool: 'files', pattern: '.' }),
-    /相对目录/,
+    /relative folder/,
   )
   assert.throws(
     () => normalizePermissionRule({ effect: 'maybe', tool: 'bash', pattern: 'x' }),
-    /允许或禁止/,
+    /allow or deny/,
   )
   assert.equal(
     normalizePermissionRule({ effect: 'allow', tool: 'files', pattern: './src/' }).pattern,
@@ -138,7 +138,7 @@ test('authorization: deny beats full access, allow skips plain approval but neve
   // 禁止规则在完全访问模式下也拦截，而且不发审批。
   executionMode = 'full-access'
   const denied = await authorize('bash', { command: 'git push origin main' })
-  assert.deepEqual(denied, { block: true, reason: '命中禁止规则「git push」，命令未执行。' })
+  assert.deepEqual(denied, { block: true, reason: 'Not run: matches the deny rule "git push".' })
   assert.deepEqual(requested, ['bash', 'bash'])
   service.dispose()
 })

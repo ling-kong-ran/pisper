@@ -96,7 +96,10 @@ test('流式会话增量返回部分文本，finish 汇总并卸载', async (t) 
   await settle()
   assert.equal(service.recognizer, null, '会话结束后空闲超时应卸载')
 
-  await assert.rejects(() => service.acceptChunk(id, new Float32Array(10)), /会话不存在/)
+  await assert.rejects(
+    () => service.acceptChunk(id, new Float32Array(10)),
+    /recording session ended/,
+  )
 })
 
 test('cancel 移除会话且静默幂等', async (t) => {
@@ -109,7 +112,7 @@ test('cancel 移除会话且静默幂等', async (t) => {
   assert.deepEqual(await service.cancelSession(id), { ok: true })
   assert.deepEqual(await service.cancelSession(id), { ok: true })
   assert.equal(service.sessions.size, 0)
-  await assert.rejects(() => service.finishSession(id), /会话不存在/)
+  await assert.rejects(() => service.finishSession(id), /recording session ended/)
 })
 
 test('会话总量超过 10 分钟限制时拒绝继续喂入', async (t) => {
@@ -119,7 +122,7 @@ test('会话总量超过 10 分钟限制时拒绝继续喂入', async (t) => {
   const { id } = await service.startSession()
   // 直接把累计量撑到上限边界，避免构造巨大数组。
   service.getSession(id).totalSamples = 16_000 * 10 * 60
-  await assert.rejects(() => service.acceptChunk(id, new Float32Array(1)), /10 分钟/)
+  await assert.rejects(() => service.acceptChunk(id, new Float32Array(1)), /max 10 minutes/)
 })
 
 test('过期会话被清扫，未知会话与空数据被拒绝', async (t) => {
@@ -130,11 +133,14 @@ test('过期会话被清扫，未知会话与空数据被拒绝', async (t) => {
   service.getSession(id).lastActive = Date.now() - 11 * 60_000
   service.sweepExpiredSessions()
   assert.equal(service.sessions.size, 0)
-  await assert.rejects(() => service.acceptChunk('missing', new Float32Array(1)), /会话不存在/)
-  await assert.rejects(() => service.acceptChunk(id, new Float32Array(0)), /语音数据为空/)
+  await assert.rejects(
+    () => service.acceptChunk('missing', new Float32Array(1)),
+    /recording session ended/,
+  )
+  await assert.rejects(() => service.acceptChunk(id, new Float32Array(0)), /audio is empty/)
 })
 
 test('模型缺失时给出明确错误', async () => {
   const service = new SpeechRecognitionService({ modelDir: '/nonexistent', nativeModule: null })
-  await assert.rejects(() => service.transcribe(new Float32Array(1)), /语音模型尚未安装/)
+  await assert.rejects(() => service.transcribe(new Float32Array(1)), /download the speech model/)
 })

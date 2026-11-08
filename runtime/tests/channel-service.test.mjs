@@ -376,7 +376,10 @@ test('channel default modes persist and are passed to the Agent prompt', async (
   })
   t.after(() => rm(directory, { recursive: true, force: true }))
   await service.completeOnboarding('telegram', { accountId: 'bot', token: '1:valid_token' })
-  await assert.rejects(() => service.update('telegram', { runMode: 'bogus' }), /运行模式无效/)
+  await assert.rejects(() => service.update('telegram', { runMode: 'bogus' }), {
+    code: 'invalid',
+    params: { subject: 'input', detail: 'runMode: one of plan, goal, team' },
+  })
   await service.update('telegram', { executionMode: 'full-access', runMode: 'goal' })
   const connection = service.getState().connections.telegram
   assert.equal(connection.executionMode, 'full-access')
@@ -608,7 +611,7 @@ test('WeChat expired contexts return an actionable notification error', async ()
       { token: 'token' },
       { to: 'wx-owner', text: 'scheduled notification', contextToken: 'expired' },
     ),
-    /请先在微信中向机器人发送一条消息/,
+    /send the bot a message in WeChat/,
   )
 })
 

@@ -401,7 +401,7 @@ test(
     assert.equal((await call('DELETE', `/api/machines/${machineId}`)).status, 404)
     const after = await chat(sessionId, 'bash', { command: 'touch after-remove.txt' })
     assert.equal(after.toolEnd?.error, true, JSON.stringify(after))
-    assert.match(after.output, /已被移除/)
+    assert.match(after.output, /removed/)
     assert.equal(existsSync(join(placeholder, 'after-remove.txt')), false)
     assert.equal(existsSync(join(sshd.work, 'after-remove.txt')), false)
   },

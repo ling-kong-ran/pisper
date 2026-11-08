@@ -29,9 +29,9 @@ export class WorkspaceFolderError extends Error {
 /** @param {unknown} value */
 export function normalizeWorkspaceFolderName(value) {
   const name = typeof value === 'string' ? value.trim() : ''
-  if (!name) throw new WorkspaceFolderError('请填写文件夹名称。', 'folder_name_required')
+  if (!name) throw new WorkspaceFolderError('Folder name is required.', 'folder_name_required')
   if (name.length > MAX_FOLDER_NAME_LENGTH)
-    throw new WorkspaceFolderError('文件夹名称太长。', 'folder_name_invalid')
+    throw new WorkspaceFolderError('Folder name is too long.', 'folder_name_invalid')
   if (
     name === '.' ||
     name === '..' ||
@@ -41,7 +41,7 @@ export function normalizeWorkspaceFolderName(value) {
     RESERVED_WINDOWS_NAMES.test(name)
   )
     throw new WorkspaceFolderError(
-      '文件夹名称不能包含 / \\ : * ? " < > | 等字符，也不能以点或空格结尾。',
+      'Folder name cannot contain / \\ : * ? " < > | or end with a dot or space.',
       'folder_name_invalid',
     )
   return name
@@ -80,12 +80,12 @@ export async function createWorkspaceFolder(input, options = {}) {
   const name = normalizeWorkspaceFolderName(input?.name)
   const parentInput = typeof input?.parent === 'string' ? input.parent.trim() : ''
   if (parentInput.length > MAX_PARENT_PATH_LENGTH)
-    throw new WorkspaceFolderError('上级文件夹路径太长。', 'folder_parent_invalid')
+    throw new WorkspaceFolderError('Parent folder path is too long.', 'folder_parent_invalid')
   let parent
   try {
     parent = await resolveWorkspaceDirectory(parentInput, fallback, { platform, profile })
   } catch {
-    throw new WorkspaceFolderError('上级文件夹不存在或不是文件夹。', 'folder_parent_missing')
+    throw new WorkspaceFolderError('Parent folder not found.', 'folder_parent_missing')
   }
   const path = (platform === 'win32' ? win32 : posix).join(parent, name)
   const io = folderIo(profile)
@@ -97,11 +97,19 @@ export async function createWorkspaceFolder(input, options = {}) {
     if (code === 'EEXIST') {
       const info = await io.inspect(path).catch(() => null)
       if (info?.isDirectory()) return { path, created: false }
-      throw new WorkspaceFolderError('同名的文件已经存在。', 'folder_exists_as_file', 409)
+      throw new WorkspaceFolderError(
+        'A file with this name already exists.',
+        'folder_exists_as_file',
+        409,
+      )
     }
     if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS')
-      throw new WorkspaceFolderError('没有权限在这里新建文件夹。', 'folder_permission_denied', 403)
-    throw new WorkspaceFolderError('新建文件夹失败。', 'folder_create_failed', 500)
+      throw new WorkspaceFolderError(
+        'No permission to create a folder here.',
+        'folder_permission_denied',
+        403,
+      )
+    throw new WorkspaceFolderError('Folder creation failed.', 'folder_create_failed', 500)
   }
 }
 
@@ -121,12 +129,12 @@ export async function listWorkspaceFolders(input, options = {}) {
   } = options
   const pathInput = typeof input?.path === 'string' ? input.path.trim() : ''
   if (pathInput.length > MAX_PARENT_PATH_LENGTH)
-    throw new WorkspaceFolderError('文件夹路径太长。', 'folder_path_invalid')
+    throw new WorkspaceFolderError('Folder path is too long.', 'folder_path_invalid')
   let path
   try {
     path = await resolveWorkspaceDirectory(pathInput, fallback, { platform, profile })
   } catch {
-    throw new WorkspaceFolderError('文件夹不存在或不是文件夹。', 'folder_missing', 404)
+    throw new WorkspaceFolderError('Folder not found.', 'folder_missing', 404)
   }
   const io = folderIo(profile)
   const paths = platform === 'win32' ? win32 : posix
@@ -136,8 +144,12 @@ export async function listWorkspaceFolders(input, options = {}) {
   } catch (error) {
     const code = /** @type {{ code?: string }} */ (error)?.code
     if (code === 'EACCES' || code === 'EPERM')
-      throw new WorkspaceFolderError('没有权限打开这个文件夹。', 'folder_permission_denied', 403)
-    throw new WorkspaceFolderError('读取文件夹失败。', 'folder_list_failed', 500)
+      throw new WorkspaceFolderError(
+        'No permission to open this folder.',
+        'folder_permission_denied',
+        403,
+      )
+    throw new WorkspaceFolderError('Folder could not be read.', 'folder_list_failed', 500)
   }
   /** @type {string[]} */
   const folders = []

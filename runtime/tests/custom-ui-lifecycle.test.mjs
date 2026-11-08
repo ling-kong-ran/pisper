@@ -303,7 +303,7 @@ test('替换导入：给出与已安装版本的 diff，信任后先快照再替
   const versions = await callJson('GET', '/api/custom-ui/components/ci-status/versions')
   assert.equal(versions.body.current.n, 2)
   assert.equal(versions.body.current.source, 'import')
-  assert.equal(versions.body.current.summary, '导入 ci-status-1.1.zip')
+  assert.equal(versions.body.current.summary, 'ci-status-1.1.zip')
   assert.deepEqual(versions.body.current.files.map((entry) => entry.path).sort(), [
     'component.js',
     'manifest.json',
@@ -410,7 +410,7 @@ test('版本：代理写入产生快照与改动摘要；对比给出统一 diff
   assert.equal(restored.status, 200)
   assert.equal(restored.body.restored, 1)
   assert.equal(restored.body.current.n, 4)
-  assert.equal(restored.body.current.summary, '回滚到 v1')
+  assert.equal(restored.body.current.summary, 'v1')
   assert.equal(restored.body.current.source, 'restore')
   assert.deepEqual(restored.body.current.deleted, ['lib.js'])
   assert.deepEqual(

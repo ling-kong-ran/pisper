@@ -236,8 +236,10 @@ test('same URL connections keep model catalogs and credentials independent', asy
   )
   assert.equal(JSON.stringify(cloned).includes('key-b'), false)
   const configBeforeError = await runtime.getConfig()
-  await assert.rejects(runtime.cloneProvider('relay-b', { id: 'relay-a' }), /已存在/)
-  await assert.rejects(runtime.cloneProvider('missing-source'), /不存在/)
+  await assert.rejects(runtime.cloneProvider('relay-b', { id: 'relay-a' }), {
+    code: 'exists',
+  })
+  await assert.rejects(runtime.cloneProvider('missing-source'), { code: 'not_found' })
   assert.deepEqual(await runtime.getConfig(), configBeforeError)
   const before = runtime.settingsManager.getGlobalSettings()
   await runtime.saveConfig({ provider: 'relay-b', model: 'model-b-extra', setAsDefault: false })
@@ -298,7 +300,7 @@ test('cloning preserves custom headers and never converts OAuth tokens into API 
   const auth = JSON.parse(await readFile(authPath, 'utf8'))
   auth['clone-source'] = { type: 'oauth', access: 'test-oauth-token' }
   await writeFile(authPath, JSON.stringify(auth))
-  await assert.rejects(runtime.cloneProvider('clone-source', { id: 'oauth-copy' }), /API Key/)
+  await assert.rejects(runtime.cloneProvider('clone-source', { id: 'oauth-copy' }), /API key/)
   assert.equal(JSON.parse(await readFile(modelsPath, 'utf8')).providers['oauth-copy'], undefined)
   assert.equal(JSON.stringify(result).includes('private-clone-key'), false)
 })

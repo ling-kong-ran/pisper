@@ -31,6 +31,7 @@ import { spriteEngineRoutes } from './routes/workflow-image-engines.mjs'
 import { gameAssetRoutes } from './routes/game-assets.mjs'
 import { workflowMediaRoutes } from './routes/workflow-media.mjs'
 import { WorkflowInputError } from '../../shared/workflow-inputs.mjs'
+import { errorPayload, pisperError } from '../../shared/errors.mjs'
 import { workflowScheduleRoutes } from './routes/workflows-schedules.mjs'
 import { RunRegistry } from '../services/run-registry.mjs'
 
@@ -216,15 +217,18 @@ export function createApiHandler(
     try {
       const requiredFeature = requiredRuntimeFeature(url.pathname, req.method)
       if (requiredFeature && runtime.capabilities?.features?.[requiredFeature] === false) {
+        const error = pisperError('unsupported', 'capability', requiredFeature, { status: 409 })
         sendJson(res, 409, {
-          error: `当前 Runtime 不支持 ${requiredFeature} 能力。`,
+          error: error.message,
+          ...errorPayload(error),
           capability: requiredFeature,
         })
         return true
       }
       const match = registry.match(req.method, url.pathname)
       if (!match) {
-        sendJson(res, 404, { error: '接口不存在。' })
+        const error = pisperError('not_found', 'request')
+        sendJson(res, 404, { error: error.message, ...errorPayload(error) })
         return true
       }
       handlerContext = createHandlerContext({
@@ -239,11 +243,15 @@ export function createApiHandler(
     } catch (error) {
       if (handlerContext?.isSse()) {
         if (!handlerContext.context.hasTerminal?.())
-          handlerContext.context.sendSse('error', { message: publicError(error) })
+          handlerContext.context.sendSse('error', {
+            message: publicError(error),
+            ...errorPayload(error),
+          })
       } else if (!res.headersSent && !res.writableEnded && !res.destroyed) {
         const invalidWorkflowBundle = error?.code === 'workflow_bundle_invalid'
         sendJson(res, errorStatus(error), {
-          error: invalidWorkflowBundle ? '工作流压缩包无效或内容不完整。' : publicError(error),
+          error: invalidWorkflowBundle ? 'Invalid workflow archive.' : publicError(error),
+          ...errorPayload(error),
           ...(invalidWorkflowBundle ? { code: 'workflow_bundle_invalid' } : {}),
           ...(typeof error?.code === 'string' && /^workflow_image_[a-z_]+$/.test(error.code)
             ? { code: error.code }
@@ -262,8 +270,10 @@ export function createApiHandler(
     if (handlerContext?.isSse()) {
       // chat handler 正常返回却没有终态时也要显式失败，避免客户端把干净 EOF 当成成功。
       // 只有带 active run 的首连需要这条护栏，重挂路由的响应由已缓存的帧决定。
-      if (handlerContext.context.hasActiveRun?.() && !handlerContext.context.hasTerminal?.())
-        handlerContext.context.sendSse('error', { message: '流式运行在发送终态前结束。' })
+      if (handlerContext.context.hasActiveRun?.() && !handlerContext.context.hasTerminal?.()) {
+        const error = pisperError('failed', 'session', 'the stream ended before the run finished')
+        handlerContext.context.sendSse('error', { message: error.message, ...errorPayload(error) })
+      }
       // SSE 结束前关闭 run：终态帧（done/error）已在上方记录，此后进入重放保留期。
       handlerContext.context.endRun?.()
       if (!res.writableEnded && !res.destroyed) res.end()

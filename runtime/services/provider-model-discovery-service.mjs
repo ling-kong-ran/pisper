@@ -1,5 +1,6 @@
 // Provider 模型发现：调用各 Provider 的 /models 端点拉取远程模型列表，
 // 自动推断模型能力（kind/reasoning/上下文窗口），错误信息先脱敏再返回。
+import { pisperError } from '../../shared/errors.mjs'
 import { redactSecretText } from '../security/secret-redaction.mjs'
 import { inferModelKind } from './visual-generation/index.mjs'
 
@@ -15,10 +16,10 @@ function modelsUrlCandidates(baseUrl, api = '') {
   try {
     url = new URL(String(baseUrl || '').trim())
   } catch {
-    throw new Error('Provider Base URL 无效。')
+    throw pisperError('invalid', 'url', 'provider base URL')
   }
   if (!['http:', 'https:'].includes(url.protocol))
-    throw new Error('Provider Base URL 仅支持 HTTP 或 HTTPS。')
+    throw pisperError('invalid', 'url', 'HTTP or HTTPS only')
   url.search = ''
   url.hash = ''
   const path = url.pathname.replace(/\/+$/, '')
@@ -34,11 +35,11 @@ function modelsUrlCandidates(baseUrl, api = '') {
   return api === 'anthropic-messages' ? [versioned, direct] : [direct, versioned]
 }
 
-// 带 HTTP 状态的错误：供候选端点按 404 判定是否回退到下一个候选。
-function httpError(message, status) {
-  const error = new Error(message)
-  error.status = status
-  return error
+// 带 HTTP 状态的错误：供候选端点按 404 判定是否回退到下一个候选；
+// statusCode 沿用上游状态，路由按它回给客户端（与迁移前的 error.status 一致）。
+function httpError(status, upstream = '') {
+  const detail = upstream ? `HTTP ${status}: ${upstream}` : `HTTP ${status}`
+  return Object.assign(pisperError('failed', 'provider', detail, { status }), { status })
 }
 
 function apiKeyValue(value) {
@@ -67,10 +68,11 @@ function requestHeaders(api, apiKey, organization, extraHeaders) {
 
 async function readJsonLimited(response, maxBytes) {
   const declaredSize = Number(response.headers?.get?.('content-length') || 0)
-  if (declaredSize > maxBytes) throw new Error('Provider 返回的模型列表过大。')
+  if (declaredSize > maxBytes) throw pisperError('too_large', 'provider', 'model list')
   if (!response.body?.getReader) {
     const text = await response.text()
-    if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new Error('Provider 返回的模型列表过大。')
+    if (Buffer.byteLength(text, 'utf8') > maxBytes)
+      throw pisperError('too_large', 'provider', 'model list')
     return { payload: text ? JSON.parse(text) : {}, bytes: Buffer.byteLength(text, 'utf8') }
   }
 
@@ -84,7 +86,7 @@ async function readJsonLimited(response, maxBytes) {
     size += value.byteLength
     if (size > maxBytes) {
       await reader.cancel().catch(() => {})
-      throw new Error('Provider 返回的模型列表过大。')
+      throw pisperError('too_large', 'provider', 'model list')
     }
     text += decoder.decode(value, { stream: true })
   }
@@ -92,10 +94,9 @@ async function readJsonLimited(response, maxBytes) {
   return { payload: text ? JSON.parse(text) : {}, bytes: size }
 }
 
-function errorMessage(payload, status) {
+function upstreamMessage(payload) {
   const raw = payload?.error?.message || payload?.error || payload?.message || payload?.detail || ''
-  const detail = typeof raw === 'string' ? redactSecretText(raw).slice(0, 240) : ''
-  return detail ? `获取模型失败 (${status})：${detail}` : `获取模型失败 (${status})。`
+  return typeof raw === 'string' ? redactSecretText(raw).slice(0, 240) : ''
 }
 
 const KNOWN_IMAGE_MODEL =
@@ -199,7 +200,7 @@ export class ProviderModelDiscoveryService {
         'google-generative-ai',
       ].includes(protocol)
     ) {
-      throw new Error('当前 API 协议不支持自动获取模型。')
+      throw pisperError('unsupported', 'provider', 'model discovery for this API protocol')
     }
     // 按候选端点顺序尝试：404 说明路径形态不对（如缺 /v1 前缀），回退下一个候选。
     const candidates = modelsUrlCandidates(baseUrl, protocol)
@@ -227,7 +228,8 @@ export class ProviderModelDiscoveryService {
       let totalBytes = 0
       for (let page = 0; page < 50 && pageUrl; page += 1) {
         const pageKey = String(pageUrl)
-        if (seenPages.has(pageKey)) throw new Error('Provider 返回了重复的模型分页游标。')
+        if (seenPages.has(pageKey))
+          throw pisperError('invalid', 'provider', 'repeated model page cursor')
         seenPages.add(pageKey)
         const response = await this.fetch(pageUrl, {
           method: 'GET',
@@ -238,28 +240,30 @@ export class ProviderModelDiscoveryService {
         try {
           pageResult = await readJsonLimited(response, this.maxResponseBytes - totalBytes)
         } catch (error) {
-          if (!response.ok) throw httpError(`获取模型失败 (${response.status})。`, response.status)
-          if (error instanceof SyntaxError) throw new Error('Provider 返回了无效的模型列表。')
+          if (!response.ok) throw httpError(response.status)
+          if (error instanceof SyntaxError)
+            throw pisperError('invalid', 'provider', 'model list is not valid JSON')
           throw error
         }
         const { payload, bytes } = pageResult
         totalBytes += bytes
-        if (!response.ok) throw httpError(errorMessage(payload, response.status), response.status)
+        if (!response.ok) throw httpError(response.status, upstreamMessage(payload))
         for (const item of responseItems(payload, protocol)) {
           const candidate = candidateFrom(item, protocol)
           if (candidate && !unique.has(candidate.id)) unique.set(candidate.id, candidate)
         }
         pageUrl = nextPageUrl(payload, protocol, pageUrl)
-        if (page === 49 && pageUrl) throw new Error('Provider 返回的模型分页过多。')
+        if (page === 49 && pageUrl) throw pisperError('limit', 'provider', 'too many model pages')
       }
       const models = [...unique.values()].sort((left, right) =>
         left.id.localeCompare(right.id, undefined, { numeric: true, sensitivity: 'base' }),
       )
-      if (!models.length) throw new Error('Provider 没有返回可用的模型 ID。')
+      if (!models.length)
+        throw pisperError('unavailable', 'model', 'the provider returned no model IDs')
       return { models, count: models.length }
     } catch (error) {
       if (error?.name === 'AbortError')
-        throw new Error('获取模型超时，请检查 Provider 地址或网络。')
+        throw pisperError('timeout', 'provider', 'check the base URL or network')
       throw error
     } finally {
       clearTimeout(timer)

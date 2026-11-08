@@ -26,8 +26,9 @@ const QUOTED_SECRET = new RegExp(
   `((?:["'])?${EXPLICIT_SENSITIVE_KEY_PATTERN}(?:["'])?\\s*[:=]\\s*)(["'])([^\\r\\n]*?)\\2`,
   'gi',
 )
+// 全角逗号、分号、括号、冒号写成 \uFF0C 一类转义：中文文本里的“api_key：xxx”同样会被脱敏。
 const PLAIN_SECRET = new RegExp(
-  `((?:^|[\\s,{;，；（(])(?:${EXPLICIT_SENSITIVE_KEY_PATTERN})\\s*[:=：]\\s*)(?!["']|\\[REDACTED SECRET\\])[^\\s,，;}；\\]]+`,
+  `((?:^|[\\s,{;\\uFF0C\\uFF1B\\uFF08(])(?:${EXPLICIT_SENSITIVE_KEY_PATTERN})\\s*[:=\\uFF1A]\\s*)(?!["']|\\[REDACTED SECRET\\])[^\\s,\\uFF0C;}\\uFF1B\\]]+`,
   'gim',
 )
 const CLI_SECRET = new RegExp(
@@ -39,7 +40,7 @@ const QUOTED_GENERIC_TOKEN = new RegExp(
   'gi',
 )
 const PLAIN_GENERIC_TOKEN = new RegExp(
-  `((?:^|[\\s,{;，；（(])${GENERIC_TOKEN_KEY_PATTERN}\\s*[:=：]\\s*)(?!["']|\\[REDACTED SECRET\\])([^\\s,，;}；\\]]+)`,
+  `((?:^|[\\s,{;\\uFF0C\\uFF1B\\uFF08(])${GENERIC_TOKEN_KEY_PATTERN}\\s*[:=\\uFF1A]\\s*)(?!["']|\\[REDACTED SECRET\\])([^\\s,\\uFF0C;}\\uFF1B\\]]+)`,
   'gim',
 )
 const CLI_GENERIC_TOKEN = new RegExp(

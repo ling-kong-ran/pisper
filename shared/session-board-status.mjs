@@ -20,7 +20,18 @@ export const BOARD_CARD_OUTCOMES = Object.freeze(
 )
 // 命令守卫 warn 级拦截写入 approvals[].reason 的固定前缀，见
 // runtime/services/session-permission-service.mjs 的 permissionRequirement()。
-export const COMMAND_GUARD_REASON_PREFIX = '命令守卫拦截'
+// Runtime 现在写英文前缀；旧会话里存着的审批还是中文前缀，两种都要认，否则旧的高危审批会变成一键批准。
+export const COMMAND_GUARD_REASON_PREFIX = 'Blocked by the command guard'
+export const COMMAND_GUARD_REASON_PREFIXES = Object.freeze([
+  COMMAND_GUARD_REASON_PREFIX,
+  '命令守卫拦截',
+])
+
+/** @param {unknown} reason */
+export function commandGuardReasonPrefix(reason) {
+  const text = typeof reason === 'string' ? reason.trimStart() : ''
+  return COMMAND_GUARD_REASON_PREFIXES.find((prefix) => text.startsWith(prefix)) ?? ''
+}
 
 const DAY_MS = 86_400_000
 const DONE_WINDOW_DAYS = { today: 1, '7d': 7 }
@@ -137,7 +148,7 @@ function criticalTool(toolName, args) {
 export function deriveApprovalSeverity(approval) {
   const value = record(approval)
   const reason = typeof value.reason === 'string' ? value.reason.trimStart() : ''
-  if (reason.startsWith(COMMAND_GUARD_REASON_PREFIX)) return 'critical'
+  if (commandGuardReasonPrefix(reason)) return 'critical'
   const toolName = typeof value.toolName === 'string' ? value.toolName : ''
   return criticalTool(toolName, record(value.args)) ? 'critical' : 'standard'
 }

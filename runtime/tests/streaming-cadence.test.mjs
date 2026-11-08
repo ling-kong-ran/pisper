@@ -60,6 +60,7 @@ function transportFixture(t, { onOpen, onHistory } = {}) {
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
     '@/lib/session-state': sessionState,
+    '@/lib/runtime-error': { localizedRuntimeError: (_data, fallback) => fallback },
     '@/lib/streaming-ui': {
       createStreamingTextScheduler(callback, options) {
         callbacks.thinking = callback

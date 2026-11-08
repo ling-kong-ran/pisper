@@ -304,15 +304,19 @@ test('bots can only point at a paired node and a folder inside its roots', async
   assert.equal(created.workspace.environmentId, 'env_testmachine1')
   await assert.rejects(
     service.create({ name: '越界', workspace: { environmentId: 'env_testmachine1', cwd: '/etc' } }),
-    { code: 'directory_not_allowed' },
+    {
+      code: 'forbidden',
+      statusCode: 400,
+      params: { subject: 'folder', detail: "not inside the machine's allowed folders" },
+    },
   )
   await assert.rejects(
     service.create({ name: '没有', workspace: { environmentId: 'env_unknown123', cwd: '/work' } }),
-    { code: 'environment_not_found' },
+    { code: 'not_found', params: { subject: 'machine' } },
   )
   await assert.rejects(
     service.create({ name: '乱写', workspace: { environmentId: '../../x', cwd: '/work' } }),
-    { code: 'environment_not_found' },
+    { code: 'not_found', params: { subject: 'machine' } },
   )
 })
 

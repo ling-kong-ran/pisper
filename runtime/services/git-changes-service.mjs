@@ -3,6 +3,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
+import { pisperError } from '../../shared/errors.mjs'
 
 let execFileAsync
 async function runProcess(command, args, options) {
@@ -172,13 +173,13 @@ export class GitChangesService {
 
   async commit(cwd, message) {
     const text = String(message || '').trim()
-    if (!text) throw new Error('Commit message 不能为空。')
+    if (!text) throw pisperError('invalid', 'message', 'commit message is required')
     if (text.length > MAX_COMMIT_MESSAGE_CHARS)
-      throw new Error(`Commit message 不能超过 ${MAX_COMMIT_MESSAGE_CHARS} 个字符。`)
+      throw pisperError('too_large', 'message', `max ${MAX_COMMIT_MESSAGE_CHARS} characters`)
     const addResult = await runGit(cwd, ['add', '-A'])
-    if (!addResult.ok) throw new Error(`git add 失败：${addResult.message}`)
+    if (!addResult.ok) throw pisperError('failed', 'git', `add: ${addResult.message}`)
     const commitResult = await runGit(cwd, ['commit', '-m', text])
-    if (!commitResult.ok) throw new Error(`git commit 失败：${commitResult.message}`)
+    if (!commitResult.ok) throw pisperError('failed', 'git', `commit: ${commitResult.message}`)
     return this.getChanges(cwd)
   }
 
@@ -193,7 +194,7 @@ export class GitChangesService {
         })
       }
     }
-    if (!pushResult.ok) throw new Error(`git push 失败：${pushResult.message}`)
+    if (!pushResult.ok) throw pisperError('failed', 'git', `push: ${pushResult.message}`)
     return this.getChanges(cwd)
   }
 
@@ -201,10 +202,10 @@ export class GitChangesService {
     const headResult = await runGit(cwd, ['rev-parse', '--verify', 'HEAD'])
     if (headResult.ok) {
       const resetResult = await runGit(cwd, ['reset', '--hard', 'HEAD'])
-      if (!resetResult.ok) throw new Error(`git reset 失败：${resetResult.message}`)
+      if (!resetResult.ok) throw pisperError('failed', 'git', `reset: ${resetResult.message}`)
     }
     const cleanResult = await runGit(cwd, ['clean', '-fd'])
-    if (!cleanResult.ok) throw new Error(`git clean 失败：${cleanResult.message}`)
+    if (!cleanResult.ok) throw pisperError('failed', 'git', `clean: ${cleanResult.message}`)
     return this.getChanges(cwd)
   }
 }

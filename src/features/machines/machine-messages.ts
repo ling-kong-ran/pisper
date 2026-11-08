@@ -27,6 +27,8 @@ export function machineFailureMessage(t: Translate, code: string, fallback = '')
       return t('machines:failure.offline')
     case 'machine_not_found':
       return t('machines:failure.notFound')
+    case 'too_many_machines':
+      return t('machines:failure.tooMany')
     default:
       return fallback || t('machines:failure.generic')
   }

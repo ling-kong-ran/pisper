@@ -923,10 +923,10 @@ try {
     `[data-sidebar-group="running"] [data-sidebar-row="${boundId}"][data-sidebar-group-row="running"]`,
   )
   await runningRow.waitFor({ timeout: 30_000 })
-  assert.match(await runningRow.textContent(), /生成组件 · 原生卡片/)
+  assert.match(await runningRow.textContent(), /Build component · 原生卡片/)
   await agentPage.screenshot({ path: join(output, 'agent-running-sidebar.png') })
   report.checks.push(
-    'Prompt card: ⌘↵ hands the prompt to a bound “生成组件 · 名称” session created by the Runtime; the message starts with “/skill:pisper-component ” (space), the session is recorded and shows under Running in the sidebar',
+    'Prompt card: ⌘↵ hands the prompt to a bound “Build component · <name>” session created by the Runtime; the message starts with “/skill:pisper-component ” (space), the session is recorded and shows under Running in the sidebar',
   )
 
   // 错误卡 [让代理修复]：同样建绑定会话，提示词是“修复以下错误：”+ 错误摘要（含消息与调用栈）。

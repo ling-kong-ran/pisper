@@ -118,7 +118,7 @@ test('Web pet service installs validated resources and publishes Agent state', a
     assert.equal(status.selectedSlug, '')
     assert.deepEqual(status.installed, [])
     assert.equal(service.sprite('boba'), null)
-    assert.throws(() => service.remove('boba'), /只能删除由 Pisper 安装的宠物/)
+    assert.throws(() => service.remove('boba'), /only pets installed by Pisper/)
   } finally {
     service.dispose()
     await rm(dataDir, { recursive: true, force: true })

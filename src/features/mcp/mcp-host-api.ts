@@ -8,6 +8,20 @@ export type McpHostStatus = {
   port: number
   url: string
   error: string | null
+  /** Runtime 给的稳定错误码，界面按它翻译；旧 Runtime 没有这个字段。 */
+  errorCode: McpHostErrorCode | null
+}
+
+const MCP_HOST_ERROR_CODES = [
+  'settings_unreadable',
+  'sdk_unavailable',
+  'port_in_use',
+  'listen_failed',
+] as const
+export type McpHostErrorCode = (typeof MCP_HOST_ERROR_CODES)[number]
+
+function hostErrorCode(value: unknown): McpHostErrorCode | null {
+  return MCP_HOST_ERROR_CODES.find((code) => code === value) ?? null
 }
 
 export type McpHostCredentials = {
@@ -40,6 +54,7 @@ function parseStatus(value: unknown): McpHostStatus {
     port: item.port,
     url: item.url,
     error: item.error,
+    errorCode: hostErrorCode(item.errorCode),
   }
 }
 

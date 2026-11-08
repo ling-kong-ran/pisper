@@ -176,6 +176,6 @@ test('workflow media HTTP uploads raw bytes and returns reference metadata witho
   assert.equal(invalidBundle.status, 400)
   assert.deepEqual(await invalidBundle.json(), {
     code: 'workflow_bundle_invalid',
-    error: '工作流压缩包无效或内容不完整。',
+    error: 'Invalid workflow archive.',
   })
 })

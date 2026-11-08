@@ -42,7 +42,7 @@ test('.d.ts 的 Ctx 成员等于 CTX_V1_KEYS，UiKit 成员等于 UI_KIT_V1_KEYS
 })
 
 test('技能里的示例 component.js 没有裸导入（与写入校验同一条规则）', () => {
-  const example = /## 4\. component\.js 契约\n\n~~~js\n([\s\S]*?)~~~/.exec(
+  const example = /## 4\. component\.js contract\n\n~~~js\n([\s\S]*?)~~~/.exec(
     PISPER_COMPONENT_SKILL_MD,
   )
   assert.ok(example)

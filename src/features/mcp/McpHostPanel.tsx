@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 import type { Notify } from '@/app/route-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
-import { mcpHostApi, type McpHostCredentials } from './mcp-host-api'
+import { mcpHostApi, type McpHostCredentials, type McpHostStatus } from './mcp-host-api'
 
 const MCP_HOST_QUERY_KEY = ['mcp-host', 'status'] as const
 
@@ -38,6 +38,24 @@ function connectionConfig(credentials: McpHostCredentials) {
     null,
     2,
   )
+}
+
+type Translate = ReturnType<typeof useI18n>['t']
+
+// 监听失败的原因按错误码翻译；旧 Runtime 只给文字时原样显示。
+function hostErrorText(status: Pick<McpHostStatus, 'error' | 'errorCode'>, t: Translate) {
+  switch (status.errorCode) {
+    case 'settings_unreadable':
+      return t('mcp:hostErrorSettingsUnreadable')
+    case 'sdk_unavailable':
+      return t('mcp:hostErrorSdkUnavailable')
+    case 'port_in_use':
+      return t('mcp:hostErrorPortInUse')
+    case 'listen_failed':
+      return t('mcp:hostErrorListenFailed')
+    default:
+      return status.error || ''
+  }
 }
 
 export function McpHostPanel({
@@ -109,9 +127,10 @@ export function McpHostPanel({
       const result = await mcpHostApi.setEnabled(enabled)
       queryClient.setQueryData(MCP_HOST_QUERY_KEY, result)
       if (!enabled) closeDialog()
+      const errorText = hostErrorText(result, t)
       notify(
-        result.error || (enabled ? t('mcp:hostEnabledNotice') : t('mcp:hostDisabledNotice')),
-        result.error ? 'error' : 'success',
+        errorText || (enabled ? t('mcp:hostEnabledNotice') : t('mcp:hostDisabledNotice')),
+        errorText ? 'error' : 'success',
       )
     } catch (error) {
       notify(error instanceof Error ? error.message : t('mcp:hostUpdateFailed'), 'error')
@@ -226,7 +245,7 @@ export function McpHostPanel({
                 )}
                 {status?.error && (
                   <Alert role="status" className="text-xs text-muted-foreground">
-                    {status.error}
+                    {hostErrorText(status, t)}
                   </Alert>
                 )}
                 {status?.listening && (

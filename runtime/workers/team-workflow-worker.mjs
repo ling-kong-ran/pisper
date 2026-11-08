@@ -83,7 +83,7 @@ try {
   )
   const script = new Script(
     `(async (__pisperApi, __pisperArgs) => {
-  // 只把脚本需要的窄 API 放入工作流函数作用域，避免脚本通过闭包参数接触主线程桥接函数。
+  // Expose only the narrow API the script needs; keep the main-thread bridge out of reach.
   delete globalThis.__pisperAgentBridge
   delete globalThis.__pisperArgsJson
   const { agent, parallel, pipeline, phase, log, logs } = __pisperApi

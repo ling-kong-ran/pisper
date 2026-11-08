@@ -18,6 +18,7 @@ const MAX_FAILED_ATTEMPTS = 20
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const ID_PATTERN = /^env_[A-Za-z0-9_-]{8,32}$/
 
+// 执行环境的错误保留各自的 code（运行时与执行节点按它分辨），message 用英文，形如通用错误码的英文句子。
 export class EnvironmentError extends Error {
   constructor(code, message, statusCode = 400) {
     super(message)
@@ -101,7 +102,8 @@ export class EnvironmentService {
       .map((item) => ({
         id: item.id,
         kind: 'node',
-        name: cleanText(item.name, MAX_NAME_CHARS) || '执行节点',
+        // 节点没报名字时留空：界面按界面语言显示“未命名的电脑”。
+        name: cleanText(item.name, MAX_NAME_CHARS),
         tokenHash: item.tokenHash,
         ...normalizeNodeReport(item),
         createdAt: String(item.createdAt || ''),
@@ -137,7 +139,7 @@ export class EnvironmentService {
     if (this.environments.length >= MAX_ENVIRONMENTS)
       throw new EnvironmentError(
         'environment_limit',
-        `最多可以配对 ${MAX_ENVIRONMENTS} 台电脑。`,
+        `Machine limit reached: max ${MAX_ENVIRONMENTS}`,
         409,
       )
     while (this.codes.size >= MAX_ACTIVE_CODES) this.codes.delete(this.codes.keys().next().value)
@@ -160,24 +162,27 @@ export class EnvironmentService {
     if (!this.codes.has(code)) {
       this.failedAttempts += 1
       if (this.failedAttempts >= MAX_FAILED_ATTEMPTS) this.codes.clear()
-      throw new EnvironmentError('pairing_code_invalid', '配对码无效或已过期。', 403)
+      throw new EnvironmentError('pairing_code_invalid', 'Pairing code is invalid or expired.', 403)
     }
     this.codes.delete(code)
     if (this.environments.length >= MAX_ENVIRONMENTS)
       throw new EnvironmentError(
         'environment_limit',
-        `最多可以配对 ${MAX_ENVIRONMENTS} 台电脑。`,
+        `Machine limit reached: max ${MAX_ENVIRONMENTS}`,
         409,
       )
     const report = normalizeNodeReport(value)
     if (!report.roots.length)
-      throw new EnvironmentError('environment_roots_required', '执行节点至少要允许一个目录。')
+      throw new EnvironmentError(
+        'environment_roots_required',
+        'Machine is invalid: allow at least one folder (--root)',
+      )
     const token = randomBytes(32).toString('base64url')
     const at = new Date(this.now()).toISOString()
     const environment = {
       id: `env_${randomBytes(9).toString('base64url')}`,
       kind: 'node',
-      name: cleanText(value.name, MAX_NAME_CHARS) || '执行节点',
+      name: cleanText(value.name, MAX_NAME_CHARS),
       tokenHash: digest(token).toString('hex'),
       ...report,
       createdAt: at,
@@ -223,7 +228,7 @@ export class EnvironmentService {
     if (inUseBy.length)
       throw new EnvironmentError(
         'environment_in_use',
-        `还有 Bot 在用这台电脑：${inUseBy.join('、')}。先给它们换一台电脑。`,
+        `Machine is busy: used by ${inUseBy.join(', ')}; move those bots to another machine first`,
         409,
       )
     this.environments.splice(index, 1)

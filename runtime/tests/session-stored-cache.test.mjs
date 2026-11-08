@@ -208,7 +208,7 @@ test('manual session titles accept 120 characters and reject longer input withou
   const title = '长'.repeat(120)
 
   assert.equal((await runtime.renameSession(created.id, title)).name, title)
-  await assert.rejects(() => runtime.renameSession(created.id, `${title}字`), /不能超过 120 个字符/)
+  await assert.rejects(() => runtime.renameSession(created.id, `${title}字`), /max 120 characters/)
   assert.equal((await runtime.listSessions())[0].name, title)
 })
 

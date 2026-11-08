@@ -74,7 +74,10 @@ export class ExecutorHub {
   #send(environmentId, request) {
     const queue = this.queues.get(environmentId) || []
     if (queue.length >= MAX_QUEUED_PER_ENVIRONMENT)
-      throw new ExecutorError('executor_busy', '这台电脑上排队的操作太多了，稍后再试。')
+      throw new ExecutorError(
+        'executor_busy',
+        'Machine is busy: too many queued operations; try again later',
+      )
     queue.push(request)
     this.queues.set(environmentId, queue)
     this.#wake(environmentId)
@@ -82,10 +85,11 @@ export class ExecutorHub {
 
   // 发一个请求给节点并等结果。onChunk 收命令的实时输出（Buffer）。
   call(environmentId, op, args, { signal, timeoutMs = DEFAULT_CALL_TIMEOUT_MS, onChunk } = {}) {
-    if (signal?.aborted) return Promise.reject(new ExecutorError('aborted', '操作已取消。'))
+    if (signal?.aborted)
+      return Promise.reject(new ExecutorError('aborted', 'Operation was stopped.'))
     if (!this.online(environmentId))
       return Promise.reject(
-        new ExecutorError('executor_offline', '这台电脑现在不在线，等它连上后再继续。'),
+        new ExecutorError('executor_offline', 'Machine is offline; continue once it reconnects.'),
       )
     const id = `req_${randomBytes(9).toString('base64url')}`
     return new Promise((resolve, reject) => {
@@ -102,10 +106,16 @@ export class ExecutorHub {
         try {
           this.#send(environmentId, { id: `${id}:cancel`, op: 'cancel', args: { id } })
         } catch {}
-        settle(new ExecutorError('aborted', '操作已取消。'))
+        settle(new ExecutorError('aborted', 'Operation was stopped.'))
       }
       const timer = setTimeout(
-        () => settle(new ExecutorError('executor_timeout', '这台电脑太久没有回应，可能已经断线。')),
+        () =>
+          settle(
+            new ExecutorError(
+              'executor_timeout',
+              'Machine timed out: no response, it may be disconnected',
+            ),
+          ),
         timeoutMs,
       )
       this.pending.set(id, { environmentId, onChunk, settle, timer })
@@ -138,7 +148,7 @@ export class ExecutorHub {
         entry.settle(
           new ExecutorError(
             String(error.code || 'executor_failed').slice(0, 60),
-            String(error.message || '执行节点上的操作失败了。').slice(0, 500),
+            String(error.message || 'Operation failed on the machine.').slice(0, 500),
           ),
         )
       }
@@ -158,12 +168,12 @@ export class ExecutorHub {
     this.lastPollAt.delete(environmentId)
     for (const entry of [...this.pending.values()])
       if (entry.environmentId === environmentId)
-        entry.settle(new ExecutorError('executor_offline', '这台电脑已经移除。'))
+        entry.settle(new ExecutorError('executor_offline', 'Machine was removed.'))
   }
 
   dispose() {
     for (const id of [...this.waiters.keys()]) this.disconnect(id)
     for (const entry of [...this.pending.values()])
-      entry.settle(new ExecutorError('executor_offline', '应用正在关闭。'))
+      entry.settle(new ExecutorError('executor_offline', 'Pisper is shutting down.'))
   }
 }

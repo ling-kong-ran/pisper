@@ -7,6 +7,7 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readJson } from '../../storage/json-file.mjs'
 import { botSpaceId } from '../memory/local-memory-runtime.mjs'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export const MAX_BOT_MEMORY_CHARS = 500
 export const BOT_MEMORY_SOURCES = Object.freeze([
@@ -24,21 +25,13 @@ const LIST_PAGE = 300
 const PROFILE_TAG = '<pisper_memory_profile>'
 const NO_CONTEXT = Object.freeze({ text: '', memories: [] })
 
-export class BotMemoryError extends Error {
-  constructor(code, message, statusCode = 400) {
-    super(message)
-    this.code = code
-    this.statusCode = statusCode
-  }
-}
-
 function normalizeText(value) {
   const text = String(value ?? '')
     .replace(/\s+/g, ' ')
     .trim()
-  if (!text) throw new BotMemoryError('bot_memory_empty', '记忆不能为空。')
+  if (!text) throw pisperError('invalid', 'memory', 'text is required')
   if (text.length > MAX_BOT_MEMORY_CHARS)
-    throw new BotMemoryError('bot_memory_too_long', `一条记忆最多 ${MAX_BOT_MEMORY_CHARS} 个字符。`)
+    throw pisperError('too_large', 'memory', `max ${MAX_BOT_MEMORY_CHARS} characters`)
   return text
 }
 
@@ -115,8 +108,7 @@ export class BotMemoryService {
   }
 
   legacyFile(botId) {
-    if (!BOT_ID_PATTERN.test(String(botId || '')))
-      throw new BotMemoryError('bot_not_found', 'Bot 不存在。', 404)
+    if (!BOT_ID_PATTERN.test(String(botId || ''))) throw pisperError('not_found', 'bot')
     return join(this.dataDir, 'bots', botId, 'memory.json')
   }
 
@@ -135,7 +127,7 @@ export class BotMemoryService {
   }
 
   unavailable() {
-    return new BotMemoryError('bot_memory_unavailable', '当前环境用不了记忆。', 503)
+    return pisperError('unavailable', 'memory', undefined, { status: 503 })
   }
 
   // 旧版把记忆存在 memory.json：第一次用到时导入一次，然后删掉文件。
@@ -144,7 +136,7 @@ export class BotMemoryService {
     let task = this.imports.get(botId)
     if (!task) {
       task = this.readLegacy(botId, spaceId).catch(() =>
-        console.warn('[bots] 旧的记忆文件没能导入，下次启动再试。'),
+        console.warn('[bots] Could not import the old memory file; will retry next start.'),
       )
       this.imports.set(botId, task)
     }
@@ -229,8 +221,7 @@ export class BotMemoryService {
   async edit(botId, id, text) {
     const value = normalizeText(text)
     const spaceId = await this.space(botId)
-    if (!this.own(spaceId, id))
-      throw new BotMemoryError('bot_memory_not_found', '这条记忆不存在。', 404)
+    if (!this.own(spaceId, id)) throw pisperError('not_found', 'memory')
     return entryFrom(
       this.memory.updateMemory(id, { title: value.slice(0, TITLE_CHARS), content: value }),
     )
@@ -305,7 +296,7 @@ export class BotMemoryService {
       await this.waitForMemory()
       if (this.memory?.db) this.memory.deleteSpace(botSpaceId(botId))
     } catch {
-      console.warn('[bots] Bot 的记忆空间没能删除。')
+      console.warn('[bots] Could not delete the bot memory space.')
     }
     await rm(join(this.dataDir, 'bots', botId), { recursive: true, force: true }).catch(() => {})
   }

@@ -3,20 +3,13 @@
 // （技能加载器按名字与说明列进系统提示，子 agent 用到时再读全文）。Bot 之间互不可见，不进全局技能列表。
 import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pisperError } from '../../../shared/errors.mjs'
 
 export const MAX_BOT_SKILLS = 40
 export const MAX_BOT_SKILL_DESCRIPTION_CHARS = 1_024
 export const MAX_BOT_SKILL_BODY_CHARS = 20_000
 const BOT_ID_PATTERN = /^bot_[A-Za-z0-9_-]{6,40}$/
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-
-export class BotSkillError extends Error {
-  constructor(code, message, statusCode = 400) {
-    super(message)
-    this.code = code
-    this.statusCode = statusCode
-  }
-}
 
 export function validBotSkillName(value) {
   const name = String(value ?? '').trim()
@@ -27,19 +20,24 @@ export function validBotSkillName(value) {
 export function normalizeBotSkill(input) {
   const name = validBotSkillName(input?.name)
   if (!name)
-    throw new BotSkillError('bot_skill_invalid', '技能名只能用小写字母、数字和单个连字符。')
+    throw pisperError('invalid', 'skill', 'name: lowercase letters, digits and single hyphens')
   const description = String(input?.description ?? '')
     .replace(/\s+/g, ' ')
     .trim()
   if (!description || description.length > MAX_BOT_SKILL_DESCRIPTION_CHARS)
-    throw new BotSkillError('bot_skill_invalid', '技能要有一句说明（什么时候用它）。')
+    throw pisperError(
+      'invalid',
+      'skill',
+      `description is required, max ${MAX_BOT_SKILL_DESCRIPTION_CHARS} characters`,
+    )
   const body = String(input?.body ?? '')
     .replace(/^---[\s\S]*?\n---\s*\n?/, '')
     .trim()
   if (!body || body.length > MAX_BOT_SKILL_BODY_CHARS)
-    throw new BotSkillError(
-      'bot_skill_invalid',
-      `技能正文不能为空，最多 ${MAX_BOT_SKILL_BODY_CHARS} 字。`,
+    throw pisperError(
+      'invalid',
+      'skill',
+      `body is required, max ${MAX_BOT_SKILL_BODY_CHARS} characters`,
     )
   return { name, description, body }
 }
@@ -81,14 +79,13 @@ export class BotSkillService {
   }
 
   dir(botId) {
-    if (!BOT_ID_PATTERN.test(String(botId || '')))
-      throw new BotSkillError('bot_not_found', 'Bot 不存在。', 404)
+    if (!BOT_ID_PATTERN.test(String(botId || ''))) throw pisperError('not_found', 'bot')
     return join(this.dataDir, 'bots', botId, 'skills')
   }
 
   skillPath(botId, name) {
     const valid = validBotSkillName(name)
-    if (!valid) throw new BotSkillError('bot_skill_not_found', '这个技能不存在。', 404)
+    if (!valid) throw pisperError('not_found', 'skill')
     return join(this.dir(botId), valid, 'SKILL.md')
   }
 
@@ -129,7 +126,7 @@ export class BotSkillService {
       stat(file).catch(() => null),
     ])
     const parsed = content ? parseSkillFile(content, validBotSkillName(name)) : null
-    if (!parsed || !info) throw new BotSkillError('bot_skill_not_found', '这个技能不存在。', 404)
+    if (!parsed || !info) throw pisperError('not_found', 'skill')
     return { ...parsed, name: validBotSkillName(name), updatedAt: info.mtime.toISOString() }
   }
 
@@ -140,7 +137,7 @@ export class BotSkillService {
       const file = this.skillPath(botId, skill.name)
       const existed = Boolean(await stat(file).catch(() => null))
       if (!existed && (await this.list(botId)).length >= MAX_BOT_SKILLS)
-        throw new BotSkillError('bot_skill_limit', `每个 Bot 最多 ${MAX_BOT_SKILLS} 个技能。`)
+        throw pisperError('limit', 'skill', `max ${MAX_BOT_SKILLS} per bot`)
       await mkdir(join(this.dir(botId), skill.name), { recursive: true })
       const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
       await writeFile(temporary, skillFile(skill), 'utf8')
@@ -164,11 +161,5 @@ export class BotSkillService {
   }
 }
 
-// 对话看到的那一段：它会哪些技能（名字与说明），派活时可以在交代里点名用哪个。
-export function botSkillsContext(skills, limit = 40) {
-  if (!skills?.length) return ''
-  return [
-    '[你会的技能]（派出的子 agent 都带着，交代里可以点名用哪个）',
-    ...skills.slice(0, limit).map((skill) => `- ${skill.name}：${skill.description}`),
-  ].join('\n')
-}
+// 对话看到的技能清单在 runtime/prompts/bots.mjs，这里按原名转出。
+export { botSkillsContext } from '../../prompts/bots.mjs'

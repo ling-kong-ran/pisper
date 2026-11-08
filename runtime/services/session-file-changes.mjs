@@ -25,6 +25,7 @@ import {
   resolveToCwd,
   stripBom,
 } from '../runtime/pi-coding-agent.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 
 // 快照大小上限：超过后只记录变动事实，不提供 diff/撤销。
 export const MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
@@ -210,7 +211,10 @@ function snapshotFileDiff(path, before, after, isNew) {
 }
 
 export class SessionFileChangesService {
-  constructor({ dataDir, warn = (error) => console.warn('文件变更快照待重试：', error.message) }) {
+  constructor({
+    dataDir,
+    warn = (error) => console.warn('File change snapshot will retry:', error.message),
+  }) {
     this.root = resolve(dataDir, 'file-change-snapshots')
     this.warn = warn
     this.installed = new WeakSet()
@@ -257,7 +261,8 @@ export class SessionFileChangesService {
   // 新会话创建时由调用方显式建立空索引：有索引的零写入才可证明为零改动。
   // 历史会话缺少索引可能是 50 会话快照淘汰，不能补建或推断为零。
   async markSessionTracked(sessionId, cwd) {
-    if (typeof cwd !== 'string' || !cwd) throw new Error('会话工作区路径不能为空。')
+    if (typeof cwd !== 'string' || !cwd)
+      throw pisperError('invalid', 'folder', 'session folder is required')
     await this.pruned
     return this.serialize(sessionId, async () => {
       try {

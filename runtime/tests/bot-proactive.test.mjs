@@ -170,8 +170,10 @@ test('an idle bot with checks on gets a read-only check, then waits for the next
     const started = await runtime.botProactiveTick(now)
     assert.equal(started[0].kind, 'check')
     assert.deepEqual(runtime.spawned[0].toolNames, ['read', 'grep', 'find', 'ls'])
-    assert.equal(runtime.spawned[0].title, '巡看')
-    assert.match(runtime.spawned[0].message, /只读/)
+    // 不写标题：界面按任务 id 显示本地化的“只读巡看”。
+    assert.equal(runtime.spawned[0].title, undefined)
+    assert.equal(runtime.spawned[0].taskName, 'proactive_check')
+    assert.match(runtime.spawned[0].message, /read-only/)
     assert.match(
       runtime.botCompletionPromptFor({ ...runtime.agents[0], output: '没什么问题' }),
       /read-only check; nobody asked/,

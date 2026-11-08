@@ -49,5 +49,6 @@
   "failure.outsideRoots": "That folder is outside what the other machine allows.",
   "failure.offline": "This machine is offline. Run npx pisper executor on it.",
   "failure.notFound": "This machine was removed.",
+  "failure.tooMany": "You can add up to 32 machines.",
   "failure.generic": "The connection to that machine failed."
 }

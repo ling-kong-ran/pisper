@@ -1,4 +1,7 @@
 // 集成路由：飞书、微信、QQ 与 Telegram 渠道的接入引导、消息、通知模板与插件/技能管理。
+import { pisperError } from '../../../shared/errors.mjs'
+import { errorBody } from '../response.mjs'
+
 const channelKinds = ['feishu', 'weixin', 'qq', 'telegram']
 
 export const integrationRoutes = [
@@ -30,7 +33,8 @@ export const integrationRoutes = [
     where: { channel: channelKinds },
     handler({ runtime, params, json }) {
       const result = runtime.getChannelOnboarding(params.channel, params.onboardingId)
-      if (!result) json(404, { error: '扫码任务不存在或已过期。' })
+      if (!result)
+        json(404, errorBody(pisperError('not_found', 'login', 'QR login expired or not found')))
       else json(200, result)
     },
   },
@@ -54,7 +58,8 @@ export const integrationRoutes = [
         params.onboardingId,
         (await body()).code,
       )
-      if (!result) json(404, { error: '扫码任务不存在或已过期。' })
+      if (!result)
+        json(404, errorBody(pisperError('not_found', 'login', 'QR login expired or not found')))
       else json(200, result)
     },
   },
@@ -88,7 +93,7 @@ export const integrationRoutes = [
     path: '/api/channels/scopes/:scopeId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.resetChannelScope(params.scopeId)
-      if (!deleted) json(404, { error: '渠道会话不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'session', 'channel session')))
       else json(200, { deleted: true })
     },
   },
@@ -118,7 +123,8 @@ export const integrationRoutes = [
     path: '/api/plugins/:pluginId',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      if (typeof input.enabled !== 'boolean') throw new Error('插件启用状态无效。')
+      if (typeof input.enabled !== 'boolean')
+        throw pisperError('invalid', 'plugin', 'enabled must be a boolean')
       json(200, await runtime.setPluginEnabled(params.pluginId, input.enabled))
     },
   },
@@ -127,7 +133,8 @@ export const integrationRoutes = [
     path: '/api/plugins/:pluginId/capabilities/:capabilityName',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      if (typeof input.enabled !== 'boolean') throw new Error('插件能力启用状态无效。')
+      if (typeof input.enabled !== 'boolean')
+        throw pisperError('invalid', 'capability', 'enabled must be a boolean')
       json(
         200,
         await runtime.setPluginCapabilityEnabled(
@@ -186,13 +193,14 @@ export const integrationRoutes = [
     path: '/api/mcp/:serverId/tools/:toolName',
     async handler({ runtime, params, body, json }) {
       const input = await body()
-      if (typeof input.enabled !== 'boolean') throw new Error('MCP 工具启用状态无效。')
+      if (typeof input.enabled !== 'boolean')
+        throw pisperError('invalid', 'tool', 'enabled must be a boolean')
       const result = await runtime.setMcpToolEnabled(
         params.serverId,
         params.toolName,
         input.enabled,
       )
-      if (!result) json(404, { error: 'MCP 服务或工具不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'tool', 'MCP server or tool')))
       else json(200, result)
     },
   },
@@ -202,10 +210,10 @@ export const integrationRoutes = [
     async handler({ runtime, params, body, json }) {
       const input = await body()
       if ('enabled' in input && typeof input.enabled !== 'boolean') {
-        throw new Error('MCP 服务启用状态无效。')
+        throw pisperError('invalid', 'mcp', 'enabled must be a boolean')
       }
       const result = await runtime.updateMcpServer(params.serverId, input)
-      if (!result) json(404, { error: 'MCP 服务不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'mcp')))
       else json(200, result)
     },
   },
@@ -214,7 +222,7 @@ export const integrationRoutes = [
     path: '/api/mcp/:serverId',
     async handler({ runtime, params, json }) {
       const deleted = await runtime.deleteMcpServer(params.serverId)
-      if (!deleted) json(404, { error: 'MCP 服务不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'mcp')))
       else json(200, { deleted: true })
     },
   },
@@ -258,7 +266,7 @@ export const integrationRoutes = [
         input?.scope || 'user',
         url.searchParams.get('sessionId') || '',
       )
-      if (!removed) json(404, { error: '扩展包不存在。' })
+      if (!removed) json(404, errorBody(pisperError('not_found', 'plugin', 'extension package')))
       else json(200, { deleted: true })
     },
   },
@@ -289,17 +297,17 @@ export const integrationRoutes = [
     async handler({ runtime, params, url, body, json }) {
       const input = await body()
       if ('enabled' in input && typeof input.enabled !== 'boolean') {
-        throw new Error('技能启用状态无效。')
+        throw pisperError('invalid', 'skill', 'enabled must be a boolean')
       }
       if ('modelInvocationEnabled' in input && typeof input.modelInvocationEnabled !== 'boolean') {
-        throw new Error('技能自动调用状态无效。')
+        throw pisperError('invalid', 'skill', 'modelInvocationEnabled must be a boolean')
       }
       const result = await runtime.updateSkill(
         params.skillName,
         input,
         url.searchParams.get('sessionId') || '',
       )
-      if (!result) json(404, { error: '技能不存在。' })
+      if (!result) json(404, errorBody(pisperError('not_found', 'skill')))
       else json(200, result)
     },
   },
@@ -311,7 +319,7 @@ export const integrationRoutes = [
         params.skillName,
         url.searchParams.get('sessionId') || '',
       )
-      if (!deleted) json(404, { error: '技能不存在。' })
+      if (!deleted) json(404, errorBody(pisperError('not_found', 'skill')))
       else json(200, { deleted: true })
     },
   },

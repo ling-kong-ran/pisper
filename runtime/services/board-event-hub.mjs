@@ -52,7 +52,7 @@ const COMPONENT_CHANGE_REASONS = new Set(['files', 'state', 'instances', 'delete
 
 export class BoardEventsLimitError extends Error {
   constructor() {
-    super('看板事件流连接数已达上限。')
+    super('Board event stream connection limit reached.')
     this.name = 'BoardEventsLimitError'
     this.code = 'board_events_limit'
     this.statusCode = 429

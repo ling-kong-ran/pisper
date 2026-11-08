@@ -24,6 +24,7 @@ test('actual SSE byte frames publish reconstructed text and prompt ownership bef
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
     '@/lib/session-state': sessionState,
+    '@/lib/runtime-error': { localizedRuntimeError: (_data, fallback) => fallback },
     '@/lib/streaming-debug': { recordStreamingDebug() {} },
     './mobile-operations': {},
     './run-activity': { settleToolCalls: (tools) => tools || [] },
@@ -138,6 +139,7 @@ function transportFixture(t, { openStream, live, loadError } = {}) {
       planFromPayloadOr: (data, fallback) => data.plan ?? fallback,
     },
     '@/lib/session-state': sessionState,
+    '@/lib/runtime-error': { localizedRuntimeError: (_data, fallback) => fallback },
     '@/lib/streaming-debug': { recordStreamingDebug() {} },
     '@/lib/streaming-ui': {
       createStreamingTextScheduler: scheduler,

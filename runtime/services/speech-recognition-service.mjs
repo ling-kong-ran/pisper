@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 import { formatSpeechTerms, speechHotwords } from '../../shared/speech-terms.mjs'
 
 const SAMPLE_RATE = 16_000
@@ -28,7 +29,8 @@ async function hasModelFiles(directory) {
 }
 
 function assertSamples(samples) {
-  if (!(samples instanceof Float32Array) || samples.length === 0) throw new Error('语音数据为空。')
+  if (!(samples instanceof Float32Array) || samples.length === 0)
+    throw pisperError('invalid', 'speech', 'audio is empty')
 }
 
 export class SpeechRecognitionService {
@@ -60,7 +62,7 @@ export class SpeechRecognitionService {
     for (const candidate of candidates) {
       if (await hasModelFiles(candidate)) return candidate
     }
-    throw new Error('语音模型尚未安装，请先下载语音识别模型。')
+    throw pisperError('unavailable', 'speech', 'download the speech model first')
   }
 
   async loadRecognizer(terms = []) {
@@ -68,7 +70,7 @@ export class SpeechRecognitionService {
     if (this.recognizer && this.hotwordsKey === hotwords) return this.recognizer
     if (this.recognizer) {
       if ([...this.sessions.values()].some((session) => session.stream)) {
-        throw new Error('另一个语音会话正在使用不同的项目术语，请结束后重试。')
+        throw pisperError('busy', 'speech', 'another recording uses different project terms')
       }
       // 保持单一识别器，不能为每个项目常驻一份模型。
       this.unloadRecognizer()
@@ -92,13 +94,16 @@ export class SpeechRecognitionService {
       try {
         this.nativeModule = this.injectedNativeModule || (await import('sherpa-onnx-node'))
       } catch (error) {
-        throw new Error(
-          `当前平台没有可用的 sherpa-onnx 原生运行时：${error instanceof Error ? error.message : String(error)}`,
+        throw pisperError(
+          'unsupported',
+          'speech',
+          `sherpa-onnx native runtime: ${error instanceof Error ? error.message : String(error)}`,
         )
       }
     }
     const OnlineRecognizer = this.nativeModule.OnlineRecognizer
-    if (typeof OnlineRecognizer !== 'function') throw new Error('sherpa-onnx 原生运行时接口无效。')
+    if (typeof OnlineRecognizer !== 'function')
+      throw pisperError('unsupported', 'speech', 'invalid sherpa-onnx native runtime')
     this.recognizer = new OnlineRecognizer({
       featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
       modelConfig: {
@@ -159,7 +164,7 @@ export class SpeechRecognitionService {
     return this.enqueue(async () => {
       this.markActive()
       try {
-        if (samples.length > MAX_SAMPLES) throw new Error('单次语音输入不能超过 10 分钟。')
+        if (samples.length > MAX_SAMPLES) throw pisperError('too_large', 'speech', 'max 10 minutes')
         const recognizer = await this.loadRecognizer(terms)
         const stream = recognizer.createStream()
         stream.acceptWaveform({ samples, sampleRate: SAMPLE_RATE })
@@ -174,7 +179,8 @@ export class SpeechRecognitionService {
   }
 
   async startSession({ terms = [] } = {}) {
-    if (this.sessions.size >= MAX_SESSIONS) throw new Error('语音识别会话过多，请稍后重试。')
+    if (this.sessions.size >= MAX_SESSIONS)
+      throw pisperError('limit', 'speech', `max ${MAX_SESSIONS} sessions`)
     this.markActive()
     const id = randomUUID()
     const session = { stream: null, totalSamples: 0, lastActive: Date.now(), terms: [...terms] }
@@ -194,7 +200,7 @@ export class SpeechRecognitionService {
 
   getSession(id) {
     const session = this.sessions.get(String(id || ''))
-    if (!session?.stream) throw new Error('语音识别会话不存在或已结束。')
+    if (!session?.stream) throw pisperError('not_found', 'speech', 'recording session ended')
     return session
   }
 
@@ -205,8 +211,10 @@ export class SpeechRecognitionService {
       this.markActive()
       session.lastActive = Date.now()
       session.totalSamples += samples.length
-      if (session.totalSamples > MAX_SAMPLES) throw new Error('单次语音输入不能超过 10 分钟。')
-      if (!this.recognizer) throw new Error('语音识别器已卸载，请重新开始录音。')
+      if (session.totalSamples > MAX_SAMPLES)
+        throw pisperError('too_large', 'speech', 'max 10 minutes')
+      if (!this.recognizer)
+        throw pisperError('unavailable', 'speech', 'recognizer unloaded; start recording again')
       session.stream.acceptWaveform({ samples, sampleRate: SAMPLE_RATE })
       return { text: this.decodeReady(this.recognizer, session.stream) }
     })
@@ -217,7 +225,8 @@ export class SpeechRecognitionService {
       const session = this.getSession(id)
       this.markActive()
       try {
-        if (!this.recognizer) throw new Error('语音识别器已卸载，请重新开始录音。')
+        if (!this.recognizer)
+          throw pisperError('unavailable', 'speech', 'recognizer unloaded; start recording again')
         if (session.totalSamples > 0) {
           session.stream.acceptWaveform({
             samples: new Float32Array(SAMPLE_RATE),
@@ -229,7 +238,7 @@ export class SpeechRecognitionService {
           this.decodeReady(this.recognizer, session.stream),
           session.terms,
         )
-        if (!text) throw new Error('未识别到语音内容。')
+        if (!text) throw pisperError('not_found', 'speech', 'no speech detected')
         return { text }
       } finally {
         this.sessions.delete(id)

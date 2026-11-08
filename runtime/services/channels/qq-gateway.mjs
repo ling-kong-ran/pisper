@@ -1,5 +1,8 @@
 // QQ 官方机器人网关：封装鉴权、OpenAPI 请求与 WebSocket 事件循环。
 // 将 HTTP API 与传输层分开，便于协议升级、替换代理以及在测试中诊断失败。
+import { pisperError } from '../../../shared/errors.mjs'
+import { CHAT_REPLIES, qqFileText } from './chat-replies.mjs'
+
 const DEFAULT_API_BASE = 'https://api.sgroup.qq.com'
 
 function safeError(error) {
@@ -21,7 +24,8 @@ function removeListener(socket, event, listener) {
 
 export class QQBotApi {
   constructor({ fetchImpl = globalThis.fetch, baseUrl = DEFAULT_API_BASE, accessToken = '' } = {}) {
-    if (typeof fetchImpl !== 'function') throw new Error('QQ 网关需要可用的 fetch 实现。')
+    if (typeof fetchImpl !== 'function')
+      throw pisperError('unavailable', 'network', 'QQ gateway needs fetch')
     this.fetchImpl = fetchImpl
     this.baseUrl = String(baseUrl).replace(/\/$/, '')
     this.accessToken = accessToken
@@ -31,11 +35,11 @@ export class QQBotApi {
     return { authorization: `QQBot ${this.accessToken}`, 'content-type': 'application/json' }
   }
 
-  async request(url, options, label = '接口') {
+  async request(url, options, label = 'API') {
     try {
       return await this.fetchImpl(url, options)
     } catch (error) {
-      throw new Error(`QQ ${label} 请求失败：${safeError(error)}`)
+      throw pisperError('failed', 'network', `QQ ${label}: ${safeError(error)}`)
     }
   }
 
@@ -44,26 +48,31 @@ export class QQBotApi {
     try {
       value = await response.json()
     } catch {
-      throw new Error(`QQ ${label} 返回了无效响应（HTTP ${response.status}）。`)
+      throw pisperError(
+        'failed',
+        'channel',
+        `QQ ${label}: invalid response (HTTP ${response.status})`,
+      )
     }
     if (!response.ok) {
       const reason = value?.message || value?.msg || `HTTP ${response.status}`
-      throw new Error(`QQ ${label} 失败：${String(reason).slice(0, 500)}`)
+      throw pisperError('failed', 'channel', `QQ ${label}: ${String(reason).slice(0, 500)}`)
     }
     return value
   }
 
   async getAppAccessToken(appId, appSecret, signal) {
     if (!String(appId || '').trim() || !String(appSecret || '').trim())
-      throw new Error('QQ App ID 与 App Secret 均不能为空。')
+      throw pisperError('invalid', 'api_key', 'QQ App ID and App Secret are required')
     const response = await this.request('https://bots.qq.com/app/getAppAccessToken', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ appId: String(appId), clientSecret: String(appSecret) }),
       signal,
     })
-    const result = await this.parse(response, '获取访问令牌')
-    if (!result?.access_token) throw new Error('QQ 鉴权响应缺少 access_token。')
+    const result = await this.parse(response, 'access token')
+    if (!result?.access_token)
+      throw pisperError('failed', 'login', 'QQ auth response has no access_token')
     this.accessToken = result.access_token
     return result
   }
@@ -73,8 +82,9 @@ export class QQBotApi {
       headers: this.headers(),
       signal,
     })
-    const result = await this.parse(response, '获取 WebSocket 地址')
-    if (!result?.url) throw new Error('QQ 网关响应缺少 WebSocket 地址。')
+    const result = await this.parse(response, 'gateway URL')
+    if (!result?.url)
+      throw pisperError('failed', 'channel', 'QQ gateway response has no WebSocket URL')
     return result.url
   }
 
@@ -83,7 +93,7 @@ export class QQBotApi {
       headers: this.headers(),
       signal,
     })
-    return this.parse(response, '获取机器人身份')
+    return this.parse(response, 'bot profile')
   }
 
   async sendMessage(peer, input, signal) {
@@ -100,19 +110,15 @@ export class QQBotApi {
       }),
       signal,
     })
-    return this.parse(response, '发送消息')
+    return this.parse(response, 'send message')
   }
 
   async sendPhoto(peer, file, signal) {
-    return this.sendMessage(
-      peer,
-      { content: file?.url || '图片附件暂不支持直接上传，请使用图片 URL。' },
-      signal,
-    )
+    return this.sendMessage(peer, { content: file?.url || CHAT_REPLIES.qqPhotoUnsupported }, signal)
   }
 
   async sendDocument(peer, file, signal) {
-    return this.sendMessage(peer, { content: file?.url || `文件：${file?.name || '附件'}` }, signal)
+    return this.sendMessage(peer, { content: file?.url || qqFileText(file?.name) }, signal)
   }
 }
 
@@ -148,9 +154,10 @@ export class QQGateway {
 
   async connect(config) {
     await this.disconnect()
-    if (!String(config?.appId || '').trim()) throw new Error('QQ App ID 不能为空。')
+    if (!String(config?.appId || '').trim())
+      throw pisperError('invalid', 'api_key', 'QQ App ID is required')
     if (!String(config?.appSecret || config?.token || '').trim())
-      throw new Error('QQ App Secret/Token 不能为空。')
+      throw pisperError('invalid', 'api_key', 'QQ App Secret/Token is required')
     this.controller = new AbortController()
     const signal = this.controller.signal
     this.setStatus({ state: 'connecting', lastError: '', bot: null })
@@ -159,11 +166,11 @@ export class QQGateway {
       if (config.appSecret && typeof this.api.getAppAccessToken === 'function')
         await this.api.getAppAccessToken(config.appId, config.appSecret, signal)
       else if (config.token) this.api.accessToken = String(config.token)
-      else throw new Error('QQ 未提供可用的 App Secret/Token，无法鉴权。')
+      else throw pisperError('invalid', 'api_key', 'QQ App Secret/Token is required')
       const bot = await this.api.getMe(signal).catch(() => null)
       const gatewayUrl = await this.api.getGateway(signal)
       if (typeof this.WebSocketImpl !== 'function')
-        throw new Error('当前运行环境没有 WebSocket，无法连接 QQ 官方机器人网关。')
+        throw pisperError('unsupported', 'channel', 'no WebSocket in this environment for QQ')
       const socket = new this.WebSocketImpl(gatewayUrl)
       this.socket = socket
       await this.waitOpen(socket, signal)
@@ -188,8 +195,12 @@ export class QQGateway {
     return new Promise((resolve, reject) => {
       const onOpen = () => cleanup(resolve)
       const onError = (event) =>
-        cleanup(reject, new Error(`QQ WebSocket 连接失败：${event?.message || '未知错误'}`))
-      const onAbort = () => cleanup(reject, signal.reason || new Error('QQ 连接已停止。'))
+        cleanup(
+          reject,
+          pisperError('failed', 'network', `QQ WebSocket: ${event?.message || 'unknown error'}`),
+        )
+      const onAbort = () =>
+        cleanup(reject, signal.reason || pisperError('cancelled', 'channel', 'QQ connection'))
       const cleanup = (callback, value) => {
         removeListener(socket, 'open', onOpen)
         removeListener(socket, 'error', onError)
@@ -209,7 +220,9 @@ export class QQGateway {
         const value = event?.data ?? event
         packet = JSON.parse(typeof value === 'string' ? value : Buffer.from(value).toString('utf8'))
       } catch (error) {
-        this.setStatus({ lastError: `QQ WebSocket 消息解析失败：${safeError(error)}` })
+        this.setStatus({
+          lastError: `QQ WebSocket message could not be parsed: ${safeError(error)}`,
+        })
         return
       }
       this.handlePacket(packet, config)
@@ -218,12 +231,12 @@ export class QQGateway {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
       if (!signal.aborted) {
-        this.setStatus({ state: 'reconnecting', lastError: 'QQ WebSocket 已断开。' })
+        this.setStatus({ state: 'reconnecting', lastError: 'QQ WebSocket disconnected.' })
         this.scheduleReconnect(config, signal)
       }
     })
     addListener(socket, 'error', (error) => {
-      if (!signal.aborted) this.setStatus({ lastError: `QQ WebSocket 错误：${safeError(error)}` })
+      if (!signal.aborted) this.setStatus({ lastError: `QQ WebSocket error: ${safeError(error)}` })
     })
   }
 
@@ -236,7 +249,7 @@ export class QQGateway {
         await this.connect(config)
       } catch (error) {
         if (!signal.aborted)
-          this.setStatus({ state: 'failed', lastError: `QQ 重连失败：${safeError(error)}` })
+          this.setStatus({ state: 'failed', lastError: `QQ reconnect failed: ${safeError(error)}` })
       }
     }, 1_000)
   }
@@ -265,14 +278,14 @@ export class QQGateway {
       return
     }
     if (packet.op === 7) {
-      this.setStatus({ state: 'reconnecting', lastError: 'QQ 网关要求重新连接。' })
+      this.setStatus({ state: 'reconnecting', lastError: 'QQ gateway asked to reconnect.' })
       this.socket?.close()
       return
     }
     if (packet.op === 9) {
       this.setStatus({
         state: 'failed',
-        lastError: 'QQ 网关鉴权失败：请检查 App ID、App Secret/Token 与 intents 配置。',
+        lastError: 'QQ gateway sign-in failed: check App ID, App Secret/Token and intents.',
       })
       return
     }
@@ -312,7 +325,8 @@ export class QQGateway {
   }
 
   async send(message, input = {}) {
-    if (!this.api || !this.controller || !this.socket) throw new Error('QQ 机器人尚未连接。')
+    if (!this.api || !this.controller || !this.socket)
+      throw pisperError('unavailable', 'channel', 'QQ bot is not connected')
     return this.api.sendMessage(
       { peerId: message.peerId, chatType: message.chatType },
       { content: input.markdown || input.text, replyTo: message.messageId },
@@ -321,7 +335,8 @@ export class QQGateway {
   }
 
   async sendToPeer(peerId, input = {}, scope = {}) {
-    if (!this.api || !this.controller) throw new Error('QQ 机器人尚未连接。')
+    if (!this.api || !this.controller)
+      throw pisperError('unavailable', 'channel', 'QQ bot is not connected')
     return this.api.sendMessage(
       { peerId, chatType: scope.chatType || 'p2p' },
       { content: input.markdown || input.text },
@@ -330,7 +345,8 @@ export class QQGateway {
   }
 
   async sendAsset(peerId, asset, scope = {}) {
-    if (!this.api || !this.controller) throw new Error('QQ 机器人尚未连接。')
+    if (!this.api || !this.controller)
+      throw pisperError('unavailable', 'channel', 'QQ bot is not connected')
     const peer = { peerId, chatType: scope.chatType || 'p2p' }
     return asset.mimeType?.startsWith('image/')
       ? this.api.sendPhoto(peer, asset, this.controller.signal)

@@ -4,6 +4,7 @@
 // 子代理与无人值守的运行拿不到这两个工具，避免任务自我复制。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { SCHEDULE_LIST, SCHEDULE_MANAGE } from '../../prompts/tools/schedules.mjs'
 
 export const SCHEDULE_TOOL_NAMES = Object.freeze(['schedule_list', 'schedule_manage'])
 
@@ -13,7 +14,7 @@ export const manifests = [
     name: 'Schedule List',
     category: 'schedules',
     risk: 'low',
-    description: 'List Pisper scheduled tasks with their timing, next run and last result.',
+    description: SCHEDULE_LIST.description,
     scope: 'Application-level scheduled tasks',
     capability: 'Read scheduled tasks without changing them',
     source: 'app',
@@ -23,8 +24,7 @@ export const manifests = [
     name: 'Schedule Manage',
     category: 'schedules',
     risk: 'high',
-    description:
-      'Create, update, pause, resume, delete or run Pisper scheduled tasks, including one-time tasks that disable themselves after running.',
+    description: SCHEDULE_MANAGE.description,
     scope: 'Application-level scheduled tasks',
     capability:
       'Create tasks that later run unattended with full access in an isolated session; creating, changing, resuming or running them needs confirmation unless the session already has full access',
@@ -35,8 +35,7 @@ export const manifests = [
 const FREQUENCY = Type.Union(
   ['once', 'interval', 'daily', 'weekly', 'monthly'].map((value) => Type.Literal(value)),
   {
-    description:
-      'once = a single run at date + time; interval = every intervalValue intervalUnit; daily / weekly / monthly at time.',
+    description: SCHEDULE_MANAGE.params.frequency,
   },
 )
 const NOTIFICATION = Type.Union(
@@ -46,27 +45,29 @@ const timing = {
   date: Type.Optional(
     Type.String({
       pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-      description: 'YYYY-MM-DD in the task timezone. Required for frequency "once".',
+      description: SCHEDULE_MANAGE.params.date,
     }),
   ),
   time: Type.Optional(
     Type.String({
       pattern: '^([01]\\d|2[0-3]):[0-5]\\d$',
-      description: 'HH:MM (24h) in the task timezone.',
+      description: SCHEDULE_MANAGE.params.time,
     }),
   ),
   timezone: Type.Optional(
     Type.String({
       minLength: 1,
       maxLength: 64,
-      description: 'IANA timezone. Omit to use the timezone of the machine running Pisper.',
+      description: SCHEDULE_MANAGE.params.timezone,
     }),
   ),
   intervalValue: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_000 })),
   intervalUnit: Type.Optional(
     Type.Union(['minutes', 'hours', 'days'].map((value) => Type.Literal(value))),
   ),
-  dayOfWeek: Type.Optional(Type.Integer({ minimum: 0, maximum: 6, description: '0 = Sunday.' })),
+  dayOfWeek: Type.Optional(
+    Type.Integer({ minimum: 0, maximum: 6, description: SCHEDULE_MANAGE.params.dayOfWeek }),
+  ),
   dayOfMonth: Type.Optional(Type.Integer({ minimum: 1, maximum: 28 })),
 }
 const details = {
@@ -74,20 +75,19 @@ const details = {
   prompt: Type.String({
     minLength: 1,
     maxLength: 20_000,
-    description:
-      'Self-contained instructions for the future unattended run: include paths, the goal and what to report.',
+    description: SCHEDULE_MANAGE.params.prompt,
   }),
   cwd: Type.Optional(
     Type.String({
       minLength: 1,
       maxLength: 4_000,
-      description: 'Working directory. Omit to use the current workspace.',
+      description: SCHEDULE_MANAGE.params.cwd,
     }),
   ),
   notifications: Type.Optional(
     Type.Array(NOTIFICATION, {
       maxItems: 5,
-      description: 'Where to send the result. Only channels the user has connected will deliver.',
+      description: SCHEDULE_MANAGE.params.notifications,
     }),
   ),
 }
@@ -98,7 +98,7 @@ const workflowTarget = {
     Type.String({
       minLength: 1,
       maxLength: 200,
-      description: 'Run this published workflow instead of a prompt.',
+      description: SCHEDULE_MANAGE.params.workflowId,
     }),
   ),
   workflowInputs: Type.Optional(Type.Record(Type.String({ maxLength: 120 }), Type.Unknown())),
@@ -168,11 +168,8 @@ export function createScheduleListTool({ scheduleRuntime }) {
     name: manifests[0].id,
     label: manifests[0].name,
     description: manifests[0].description,
-    promptSnippet: 'List Pisper scheduled tasks and the current time',
-    promptGuidelines: [
-      'Call schedule_list first to get the exact task id before updating, pausing, resuming, deleting or running a task.',
-      'The result includes the current time; use it to turn relative times such as "tomorrow at 9" into a date.',
-    ],
+    promptSnippet: SCHEDULE_LIST.snippet,
+    promptGuidelines: SCHEDULE_LIST.guidelines,
     parameters: Type.Object({}),
     async execute() {
       const state = await scheduleRuntime.list()
@@ -186,16 +183,8 @@ export function createScheduleManageTool({ scheduleRuntime, cwd }) {
     name: manifests[1].id,
     label: manifests[1].name,
     description: manifests[1].description,
-    promptSnippet:
-      'Create reminders and one-time or recurring scheduled tasks inside Pisper instead of OS schedulers',
-    promptGuidelines: [
-      'Use schedule_manage for anything the user wants done later or repeatedly. Never use cron, at, launchd, systemd timers, Windows Task Scheduler or sleep loops through bash for this.',
-      'A scheduled run happens later without the user present, in a fresh isolated session with full access. Write the prompt so it stands on its own: paths, goal and what to report.',
-      'For a single run use frequency "once" with date (YYYY-MM-DD) and time (HH:MM); the task disables itself after it runs. Times in the past are rejected.',
-      'Omit timezone unless the user names one; Pisper then uses the timezone of the machine it runs on.',
-      'Creating, changing, resuming or running a task asks the user to confirm unless the session already has full access. Pausing and deleting only stop work.',
-      'To run a published workflow on a schedule, give workflowId (and workflowInputs) instead of prompt; find both with workflow_list.',
-    ],
+    promptSnippet: SCHEDULE_MANAGE.snippet,
+    promptGuidelines: SCHEDULE_MANAGE.guidelines,
     parameters: Type.Union([
       Type.Object({
         action: Type.Literal('create'),

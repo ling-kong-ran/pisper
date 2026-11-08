@@ -190,7 +190,7 @@ test('错误日志：每分钟 20 条，超出 429 并计入 dropped；每个组
   assert.deepEqual(log.list('demo'), { entries: [], dropped: 0 })
 })
 
-test('绑定会话：首次新建“生成组件 · 名称”（cwd 是组件目录），之后复用；归档或不见了就新建', async (t) => {
+test('绑定会话：首次新建“Build component · 名称”（cwd 是组件目录），之后复用；归档或不见了就新建', async (t) => {
   const { service, write } = await fixture(t)
   await write('ci', { runtime: 'native', name: 'CI 状态' })
   await write('old', { name: 'Legacy', entry: 'index.html' })
@@ -214,7 +214,7 @@ test('绑定会话：首次新建“生成组件 · 名称”（cwd 是组件目
   })
   assert.deepEqual(created[0], {
     id: 's1',
-    name: '生成组件 · CI 状态',
+    name: 'Build component · CI 状态',
     cwd: join(service.root, 'ci'),
   })
   assert.equal((await service.state.get('ci')).boundSessionId, 's1')

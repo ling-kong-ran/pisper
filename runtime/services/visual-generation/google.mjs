@@ -1,4 +1,5 @@
 // Google 视觉驱动：调用 Gemini 图像/视频生成接口（REST + 长任务轮询）。
+import { pisperError } from '../../../shared/errors.mjs'
 function googleHeaders(model) {
   return { 'Content-Type': 'application/json', 'x-goog-api-key': model.apiKey, ...model.headers }
 }
@@ -11,7 +12,7 @@ async function googleJson(url, model, init, signal) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok)
-    throw new Error(data.error?.message || `Google 视觉接口请求失败 (${response.status})`)
+    throw pisperError('failed', 'image', data.error?.message || `Google HTTP ${response.status}`)
   return data
 }
 
@@ -58,7 +59,7 @@ async function generateGoogleImage(model, request, signal) {
   )
   const parts = data.candidates?.flatMap((candidate) => candidate.content?.parts || []) || []
   const inline = parts.map((part) => part.inlineData || part.inline_data).find((part) => part?.data)
-  if (!inline) throw new Error('Gemini 视觉模型没有返回图片数据。')
+  if (!inline) throw pisperError('failed', 'image', 'Gemini returned no image data')
   const mimeType = inline.mimeType || inline.mime_type || 'image/png'
   return {
     buffer: Buffer.from(inline.data, 'base64'),
@@ -86,16 +87,17 @@ async function generateGoogleVideo(model, request, signal, onProgress) {
     },
     signal,
   )
-  if (!operation.name) throw new Error('Google 视频接口没有返回任务 ID。')
+  if (!operation.name)
+    throw pisperError('failed', 'image', 'Google video API returned no operation ID')
   while (!operation.done) {
-    onProgress?.('视频生成中，等待 Google Veo 完成…')
+    onProgress?.('Generating video; waiting for Google Veo…')
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, 5000)
       signal?.addEventListener(
         'abort',
         () => {
           clearTimeout(timer)
-          reject(signal.reason || new Error('已取消'))
+          reject(signal.reason || pisperError('cancelled', 'operation'))
         },
         { once: true },
       )
@@ -107,12 +109,15 @@ async function generateGoogleVideo(model, request, signal, onProgress) {
       signal,
     )
   }
-  if (operation.error) throw new Error(operation.error.message || 'Google 视频生成失败。')
+  if (operation.error)
+    throw pisperError('failed', 'image', operation.error.message || 'Google video generation')
   const uri = findVideoUri(operation.response)
-  if (!uri) throw new Error('Google 视频任务完成，但没有返回可下载文件。')
-  onProgress?.('视频已生成，正在下载…')
+  if (!uri)
+    throw pisperError('failed', 'image', 'Google video finished without a downloadable file')
+  onProgress?.('Video ready; downloading…')
   const response = await fetch(uri, { headers: { 'x-goog-api-key': model.apiKey }, signal })
-  if (!response.ok) throw new Error(`下载 Google 视频失败 (${response.status})`)
+  if (!response.ok)
+    throw pisperError('failed', 'image', `Google video download: HTTP ${response.status}`)
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
     mimeType: response.headers.get('content-type') || 'video/mp4',

@@ -85,7 +85,7 @@ export function decodeBoardCursor(value) {
   try {
     parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
   } catch {
-    throw new BoardViewQueryError('看板游标无效。', 'invalid_board_cursor')
+    throw new BoardViewQueryError('Board cursor is invalid.', 'invalid_board_cursor')
   }
   if (
     !Array.isArray(parsed) ||
@@ -99,7 +99,7 @@ export function decodeBoardCursor(value) {
     !parsed[3] ||
     parsed[3].length > MAX_CURSOR_ID_LENGTH
   )
-    throw new BoardViewQueryError('看板游标无效。', 'invalid_board_cursor')
+    throw new BoardViewQueryError('Board cursor is invalid.', 'invalid_board_cursor')
   return { rank: parsed[1], modified: parsed[2], id: parsed[3] }
 }
 

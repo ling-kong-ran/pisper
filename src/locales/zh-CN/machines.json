@@ -49,5 +49,6 @@
   "failure.outsideRoots": "这个目录不在对方允许的范围内。",
   "failure.offline": "这台机器现在不在线：请在对方机器上运行 npx pisper executor。",
   "failure.notFound": "这台机器已被移除。",
+  "failure.tooMany": "最多只能添加 32 台机器。",
   "failure.generic": "和对方机器的连接失败。"
 }

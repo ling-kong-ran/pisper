@@ -2,6 +2,8 @@
 // 验证码/二维码均通过状态轮询查询。
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
+import { pisperError } from '../../../shared/errors.mjs'
+import { FEISHU_APP_DESCRIPTION } from './chat-replies.mjs'
 
 // Lazily loaded: @larksuiteoapi/node-sdk is large and only needed during Feishu onboarding.
 const defaultRegisterApp = async (options) => {
@@ -70,7 +72,7 @@ export class FeishuOnboardingService {
       createOnly: true,
       appPreset: {
         name: 'Pisper Agent',
-        desc: '通过飞书与本机 Pisper Agent 进行双向对话',
+        desc: FEISHU_APP_DESCRIPTION,
       },
       addons: {
         preset: false,
@@ -115,7 +117,10 @@ export class FeishuOnboardingService {
 
     let timeoutId
     const timeout = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('飞书扫码地址生成超时。')), 15_000)
+      timeoutId = setTimeout(
+        () => reject(pisperError('timeout', 'login', 'Feishu QR code')),
+        15_000,
+      )
     })
     try {
       await Promise.race([ready, timeout])

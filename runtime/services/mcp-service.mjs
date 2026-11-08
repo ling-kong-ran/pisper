@@ -12,6 +12,8 @@ import {
   truncateHead,
 } from '../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { pisperError } from '../../shared/errors.mjs'
+import { mcpRemoteTool } from '../prompts/tools/mcp.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const MCP_STATE_VERSION = 1
@@ -209,7 +211,7 @@ function normalizeServer(value, existing = {}) {
   server.toolStates = pruneToolStates(server.toolStates, server.tools)
   if (transport === 'stdio') {
     server.command = safeString(value?.command ?? existing.command, 2_000)
-    if (!server.command) throw new Error('stdio MCP 服务需要 command。')
+    if (!server.command) throw pisperError('invalid', 'mcp', 'stdio needs command')
     server.args = safeArgs(value?.args ?? existing.args)
     server.cwd = safeString(value?.cwd ?? existing.cwd, 4_000)
     server.env = safeRecord(value?.env ?? existing.env)
@@ -218,7 +220,7 @@ function normalizeServer(value, existing = {}) {
   } else {
     const url = new URL(safeString(value?.url ?? existing.url, 8_000))
     if (!['http:', 'https:'].includes(url.protocol))
-      throw new Error('MCP URL 仅支持 http 或 https。')
+      throw pisperError('invalid', 'url', 'http or https only')
     server.url = url.toString()
     server.headers = safeRecord(value?.headers ?? existing.headers)
     delete server.command
@@ -451,7 +453,7 @@ function unwrapMcpServerConfig(value) {
   const collection = value?.mcpServers || value?.servers
   if (!collection || typeof collection !== 'object' || Array.isArray(collection)) return value
   const entries = Object.entries(collection)
-  if (entries.length !== 1) throw new Error('一次只能添加一个 MCP 服务。')
+  if (entries.length !== 1) throw pisperError('invalid', 'mcp', 'add one server at a time')
   const [name, config] = entries[0]
   return { ...(config || {}), name: config?.name || name }
 }
@@ -460,15 +462,15 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
   if (input && typeof input === 'object' && !Array.isArray(input) && !input.spec)
     return normalizeServer(unwrapMcpServerConfig(input))
   const rawSpec = String(input?.spec ?? input ?? '')
-  if (rawSpec.length > 12_000) throw new Error('MCP 配置过长。')
+  if (rawSpec.length > 12_000) throw pisperError('too_large', 'config', 'max 12000 characters')
   const spec = rawSpec.trim()
-  if (!spec) throw new Error('请输入 MCP URL、stdio 命令或 JSON 配置。')
+  if (!spec) throw pisperError('invalid', 'mcp', 'enter a URL, stdio command or JSON config')
   if (spec.startsWith('{')) {
     let parsed
     try {
       parsed = JSON.parse(spec)
     } catch {
-      throw new Error('MCP JSON 配置格式无效。')
+      throw pisperError('invalid', 'config', 'not valid JSON')
     }
     return normalizeServer(unwrapMcpServerConfig(parsed))
   }
@@ -481,7 +483,7 @@ export function parseMcpServerInput(input, cwd = process.cwd()) {
   let match
   while ((match = matcher.exec(spec)))
     parts.push((match[1] ?? match[2] ?? match[3] ?? '').replace(/\\"/g, '"'))
-  if (!parts.length) throw new Error('stdio MCP 命令不能为空。')
+  if (!parts.length) throw pisperError('invalid', 'mcp', 'stdio command is empty')
   return normalizeServer({
     name: slug(
       parts[0]
@@ -688,8 +690,8 @@ export class McpService {
     if (this.closed) throw new Error('MCP service closed.')
     signal?.throwIfAborted()
     const server = this.getServer(id)
-    if (!server) throw new Error('MCP 服务不存在。')
-    if (!server.enabled) throw new Error('MCP 服务已禁用。')
+    if (!server) throw pisperError('not_found', 'mcp')
+    if (!server.enabled) throw pisperError('unavailable', 'mcp', 'disabled')
     const connection = this.connectionFor(id)
     if (connection.closing) {
       await waitForConnection(connection.closing, signal)
@@ -698,7 +700,9 @@ export class McpService {
     if (connection.connecting) return waitForConnection(connection.connecting, signal)
     if (!force && connection.status === 'online' && connection.client) return connection
     if (!force && connection.nextRetryAt > Date.now())
-      throw new Error(connection.error || 'MCP 服务暂时离线，请稍后重试。')
+      throw connection.error
+        ? new Error(connection.error)
+        : pisperError('unavailable', 'mcp', 'offline; try again later')
     const controller = new AbortController()
     connection.controller = controller
     connection.status = 'connecting'
@@ -873,9 +877,7 @@ export class McpService {
         totalServices: services.length,
         onlineServices: services.filter((server) => server.status === 'online').length,
         availableTools: tools.filter((tool) => tool.available).length,
-        restrictedTools: tools.filter(
-          (tool) => tool.available && (tool.risk === 'high' || tool.risk === '高风险'),
-        ).length,
+        restrictedTools: tools.filter((tool) => tool.available && tool.risk === 'high').length,
         errorRate: recent.length ? Math.round((errors / recent.length) * 1_000) / 10 : 0,
       },
     }
@@ -888,7 +890,7 @@ export class McpService {
 
   async add(input = {}) {
     if (this.state.servers.length >= MAX_MCP_SERVERS)
-      throw new Error(`最多配置 ${MAX_MCP_SERVERS} 个 MCP 服务。`)
+      throw pisperError('limit', 'mcp', `max ${MAX_MCP_SERVERS}`)
     const server = parseMcpServerInput(input, this.cwd)
     await this.validateServer(server)
     if (
@@ -896,7 +898,7 @@ export class McpService {
         (item) => item.name === server.name && formatEndpoint(item) === formatEndpoint(server),
       )
     ) {
-      throw new Error('该 MCP 服务已存在。')
+      throw pisperError('exists', 'mcp')
     }
     this.state.servers.push(server)
     await this.save()
@@ -981,14 +983,18 @@ export class McpService {
   createToolDefinition(server, tool) {
     const name = piToolName(server, tool)
     const service = this
+    const prompt = mcpRemoteTool({
+      name,
+      serverName: server.name,
+      remoteName: tool.name,
+      remoteDescription: tool.description,
+    })
     return defineTool({
       name,
       label: `MCP · ${server.name} · ${tool.title || tool.name}`,
-      description: `${tool.description || tool.name}\nRemote MCP server: ${server.name}. Remote tool name: ${tool.name}.`,
-      promptSnippet: `Call ${tool.name} on the ${server.name} MCP server`,
-      promptGuidelines: [
-        `Use ${name} only when the ${server.name} MCP capability is relevant to the user's task.`,
-      ],
+      description: prompt.description,
+      promptSnippet: prompt.promptSnippet,
+      promptGuidelines: prompt.promptGuidelines,
       parameters: Type.Unsafe(tool.inputSchema || { type: 'object', properties: {} }),
       async execute(_toolCallId, params, signal, onUpdate) {
         const startedAt = Date.now()
@@ -996,7 +1002,7 @@ export class McpService {
         try {
           const currentServer = service.getServer(server.id)
           if (!currentServer?.enabled || currentServer.toolStates?.[tool.name] === false)
-            throw new Error('该 MCP 工具当前已禁用。')
+            throw pisperError('unavailable', 'tool', 'disabled')
           const connection = await service.ensureConnected(server.id, {
             signal,
           })

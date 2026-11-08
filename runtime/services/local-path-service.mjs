@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, parse, resolve } from 'node:path'
+import { pisperError } from '../../shared/errors.mjs'
 
 const MAX_PATH_LENGTH = 32_768
 const MAX_ANCESTOR_HOPS = 32
@@ -17,9 +18,9 @@ function validatePath(value) {
       return codePoint < 32 || codePoint === 127
     })
   ) {
-    throw new Error('本地路径无效。')
+    throw pisperError('invalid', 'path')
   }
-  if (!isAbsolute(path)) throw new Error('本地路径必须是绝对路径。')
+  if (!isAbsolute(path)) throw pisperError('invalid', 'path', 'must be absolute')
   return resolve(path)
 }
 
@@ -39,7 +40,7 @@ async function existingTarget(path) {
       current = parent
     }
   }
-  throw new Error(`本地路径不存在：${path}`)
+  throw pisperError('not_found', 'path')
 }
 
 function commandFor(target, platform = process.platform) {
@@ -74,13 +75,13 @@ function launch(command, args, verbatim = false) {
       if (settled) return
       settled = true
       child.kill()
-      reject(new Error(`启动文件管理器超时：${command}`))
+      reject(pisperError('timeout', 'operation', `file manager ${command}`))
     }, SPAWN_TIMEOUT_MS)
     child.once('error', (error) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      reject(new Error(`启动文件管理器失败：${error.message}`))
+      reject(pisperError('failed', 'operation', `file manager: ${error.message}`))
     })
     child.once('spawn', () => {
       if (process.platform === 'win32') {
@@ -98,7 +99,14 @@ function launch(command, args, verbatim = false) {
         settled = true
         clearTimeout(timer)
         if (code === 0) resolvePromise(true)
-        else reject(new Error(`文件管理器退出失败：${command}（退出码 ${code ?? 'unknown'}）`))
+        else
+          reject(
+            pisperError(
+              'failed',
+              'operation',
+              `file manager ${command} exited with ${code ?? 'unknown'}`,
+            ),
+          )
       })
     }
   })

@@ -1,5 +1,6 @@
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
 import { Type } from 'typebox'
+import { GET_GOAL, UPDATE_GOAL } from '../../prompts/tools/goal.mjs'
 
 // 目标工具：get_goal / update_goal（证据审计后完成目标）。
 export const GOAL_TOOL_NAMES = Object.freeze(['get_goal', 'update_goal'])
@@ -9,11 +10,9 @@ export function createGoalTools({ getGoal, completeGoal }) {
     defineTool({
       name: 'get_goal',
       label: 'Get Goal',
-      description: 'Read the current active Goal objective, status, and remaining token budget.',
-      promptSnippet: 'Read the current Goal objective and progress while pursuing it',
-      promptGuidelines: [
-        'Use get_goal only when the current Goal details are needed; active Goal continuation messages already include the objective and budget.',
-      ],
+      description: GET_GOAL.description,
+      promptSnippet: GET_GOAL.snippet,
+      promptGuidelines: GET_GOAL.guidelines,
       parameters: Type.Object({}),
       async execute() {
         const goal = await getGoal?.()
@@ -26,20 +25,16 @@ export function createGoalTools({ getGoal, completeGoal }) {
     defineTool({
       name: 'update_goal',
       label: 'Complete Goal',
-      description:
-        'Mark the current active Goal complete after verifying every requirement with concrete evidence.',
-      promptSnippet: 'Mark the active Goal complete after a strict evidence-based completion audit',
-      promptGuidelines: [
-        'Call update_goal only when every explicit Goal requirement is complete and verified with real evidence.',
-        'Do not use it merely because work seems plausible, tests partially pass, progress is substantial, or the token budget is low.',
-      ],
+      description: UPDATE_GOAL.description,
+      promptSnippet: UPDATE_GOAL.snippet,
+      promptGuidelines: UPDATE_GOAL.guidelines,
       parameters: Type.Object({
-        status: Type.Literal('complete', { description: 'Only complete is accepted.' }),
+        status: Type.Literal('complete', { description: UPDATE_GOAL.params.status }),
       }),
       async execute(_toolCallId, params) {
         if (params.status !== 'complete')
           return {
-            content: [{ type: 'text', text: 'update_goal only accepts status=complete.' }],
+            content: [{ type: 'text', text: UPDATE_GOAL.invalidStatus }],
             isError: true,
           }
         const goal = await completeGoal?.()

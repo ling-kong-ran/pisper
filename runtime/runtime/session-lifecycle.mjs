@@ -1,9 +1,12 @@
 // SessionLifecycle：会话生命周期管理——创建/列出/查找/重命名/删除会话，
 // 常驻会话运行时（resident runtime）的缓存与回收，会话树导航/标签，
 // 以及权限/执行模式/工作目录切换等元数据操作。
+import { DEFAULT_SESSION_NAME, DERIVED_SESSION_SUFFIX } from './session-default-names.mjs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import { SessionManager } from './pi-coding-agent.mjs'
+import { errorMessage, pisperError } from '../../shared/errors.mjs'
+import { APPROVAL_SETTLED, QUESTION_CANCELLED } from '../prompts/sessions.mjs'
 import { ensureSessionFilePersisted } from './session-file-persist.mjs'
 import { createProjectlessDirectory, isProjectlessDirectory } from './projectless-chats.mjs'
 import {
@@ -30,7 +33,6 @@ import {
   treeRestoreTarget,
 } from './session-tree.mjs'
 
-const DEFAULT_SESSION_NAME = '新会话'
 // Pi 会话管理器给空会话填的英文占位；列表输出时视为“无摘要”，由客户端显示本地化文案。
 const PI_EMPTY_FIRST_MESSAGE = '(no messages)'
 const MAX_MANUAL_SESSION_TITLE_CHARS = 120
@@ -41,7 +43,11 @@ function cleanManualSessionTitle(value) {
     .replace(/[\r\n]+/g, ' ')
     .trim()
   if (title.length > MAX_MANUAL_SESSION_TITLE_CHARS) {
-    throw new Error(`会话标题不能超过 ${MAX_MANUAL_SESSION_TITLE_CHARS} 个字符。`)
+    throw pisperError(
+      'invalid',
+      'session',
+      `title is max ${MAX_MANUAL_SESSION_TITLE_CHARS} characters`,
+    )
   }
   return title
 }
@@ -200,8 +206,8 @@ export class SessionLifecycle {
     this.agentWakeupTimers.delete(id)
     this.pendingSessions.delete(id)
     this.liveSessions.delete(id)
-    this.getPermissions().resolveSession(id, false, '会话运行时已从内存释放，请重新发送消息。')
-    this.getQuestions()?.cancelSession(id, '会话运行时已从内存释放。')
+    this.getPermissions().resolveSession(id, false, APPROVAL_SETTLED.runtimeReleased)
+    this.getQuestions()?.cancelSession(id, QUESTION_CANCELLED.runtimeReleased)
     try {
       value.session.dispose()
     } finally {
@@ -557,7 +563,7 @@ export class SessionLifecycle {
       await this.markSessionTracked?.(id, effectiveCwd)
     } catch {
       // 索引失败时不阻止新建会话；日志不包含会话 ID、路径或原始异常。
-      console.warn('新会话文件变更索引创建失败。')
+      console.warn('Could not create the file change index for the new session.')
     }
     // 新会话文件已落盘；把它的信息增量插入存储会话缓存，使 listSessions /
     // findSessionInfo 立即可见，而无需为单个新文件全量重扫所有会话（listAll
@@ -603,15 +609,16 @@ export class SessionLifecycle {
   // 获取会话的 SessionManager：活动运行时优先，其次待物化，最后从磁盘打开。
   async sessionTreeManager(id) {
     const sessionId = String(id || '').trim()
-    if (!sessionId) throw new Error('会话不存在。')
+    if (!sessionId) throw pisperError('not_found', 'session')
     const active = this.sessions.get(sessionId)
     if (active?.session?.sessionManager) return active.session.sessionManager
     const pending = this.pendingSessions.get(sessionId)
     if (pending?.manager) return pending.manager
     const info = await this.findSessionInfo(sessionId)
-    if (!info?.path) throw new Error('会话不存在。')
+    if (!info?.path) throw pisperError('not_found', 'session')
     const manager = this.openStoredSession(info.path)
-    if (manager.getSessionId() !== sessionId) throw new Error('会话标识不匹配。')
+    if (manager.getSessionId() !== sessionId)
+      throw pisperError('invalid', 'session', 'session id mismatch')
     return manager
   }
 
@@ -845,17 +852,17 @@ export class SessionLifecycle {
   async navigateSessionTree(id, targetEntryId, options = {}) {
     const sessionId = String(id || '').trim()
     const entryId = String(targetEntryId || '').trim()
-    if (!sessionId || !entryId) throw new Error('会话树节点无效。')
+    if (!sessionId || !entryId) throw pisperError('invalid', 'message', 'tree entry')
     const existing = this.sessions.get(sessionId)
     if (this.sessionRunIsActive(sessionId, existing)) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再切换分支。')
+      throw pisperError('busy', 'session')
     }
     const value = await this.getOrCreateSession(sessionId)
     if (this.sessionRunIsActive(sessionId, value)) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再切换分支。')
+      throw pisperError('busy', 'session')
     }
     const manager = value.session.sessionManager
-    if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
+    if (!manager.getEntry(entryId)) throw pisperError('not_found', 'message', 'tree entry')
     const pendingPositionId = findPendingTreePosition(manager, entryId)
     const navigationEntryId = pendingPositionId || entryId
     if (manager.getLeafId() === navigationEntryId) {
@@ -907,7 +914,7 @@ export class SessionLifecycle {
   // 文本与图片附件，由 HTTP 层重新走 streamPrompt。
   async prepareLastTurnRetry(id) {
     const sessionId = String(id || '').trim()
-    if (!sessionId) throw new Error('会话无效。')
+    if (!sessionId) throw pisperError('invalid', 'session')
     const value = await this.getOrCreateSession(sessionId)
     const manager = value.session.sessionManager
     let entry = null
@@ -921,9 +928,10 @@ export class SessionLifecycle {
       }
       entry = entry.parentId ? manager.getEntry(entry.parentId) : null
     }
-    if (!userEntry) throw new Error('没有可重试的用户消息。')
+    if (!userEntry) throw pisperError('not_found', 'message', 'no user message to retry')
     const parentId = userEntry.parentId
-    if (!parentId || !manager.getEntry(parentId)) throw new Error('无法定位重试位置。')
+    if (!parentId || !manager.getEntry(parentId))
+      throw pisperError('not_found', 'message', 'retry point')
     const content = userEntry.message.content
     const parts = Array.isArray(content) ? content : [{ type: 'text', text: String(content ?? '') }]
     const message = parts
@@ -940,7 +948,8 @@ export class SessionLifecycle {
         mimeType: part.mimeType || 'image/png',
         data: part.data,
       }))
-    if (!message && !attachments.length) throw new Error('没有可重试的用户消息。')
+    if (!message && !attachments.length)
+      throw pisperError('not_found', 'message', 'no user message to retry')
     // 复用树导航的校验与缓存失效逻辑；不在此处创建摘要。
     await this.navigateSessionTree(sessionId, parentId, { summarize: false, includeTree: false })
     return { message, attachments }
@@ -953,18 +962,19 @@ export class SessionLifecycle {
     const normalizedLabel = String(label || '')
       .replace(/\s+/g, ' ')
       .trim()
-    if (!sessionId || !entryId) throw new Error('会话树节点无效。')
-    if (normalizedLabel.length > 80) throw new Error('节点标签不能超过 80 个字符。')
+    if (!sessionId || !entryId) throw pisperError('invalid', 'message', 'tree entry')
+    if (normalizedLabel.length > 80)
+      throw pisperError('invalid', 'input', 'label is max 80 characters')
     const existing = this.sessions.get(sessionId)
     if (this.sessionRunIsActive(sessionId, existing)) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再修改标签。')
+      throw pisperError('busy', 'session')
     }
     const value = await this.getOrCreateSession(sessionId)
     if (this.sessionRunIsActive(sessionId, value)) {
-      throw new Error('当前会话正在运行，请等待完成或停止后再修改标签。')
+      throw pisperError('busy', 'session')
     }
     const manager = value.session.sessionManager
-    if (!manager.getEntry(entryId)) throw new Error('会话树节点不存在。')
+    if (!manager.getEntry(entryId)) throw pisperError('not_found', 'message', 'tree entry')
     if ((manager.getLabel(entryId) || '') === normalizedLabel) {
       return {
         ...projectSessionTree(manager, { sessionId, streaming: false }),
@@ -993,24 +1003,26 @@ export class SessionLifecycle {
   async deriveSession(id, boundaryEntryId, name) {
     const sourceId = String(id || '').trim()
     const entryId = String(boundaryEntryId || '').trim()
-    if (!sourceId || !entryId) throw new Error('衍生边界无效。')
+    if (!sourceId || !entryId) throw pisperError('invalid', 'message', 'derive boundary')
     const active = this.sessions.get(sourceId)
-    if (this.pendingSessions.has(sourceId)) throw new Error('当前会话还没有可衍生的完整回复。')
+    if (this.pendingSessions.has(sourceId))
+      throw pisperError('unavailable', 'session', 'no finished reply to derive from yet')
 
     const info = await this.findSessionInfo(sourceId)
     const sourcePath = active?.session?.sessionFile || info?.path
     const sourceFile = sourcePath ? await stat(sourcePath).catch(() => null) : null
-    if (!sourceFile?.isFile()) throw new Error('源会话不存在或尚未持久化。')
+    if (!sourceFile?.isFile()) throw pisperError('not_found', 'session', 'source not saved yet')
 
     // 从已完成的历史节点衍生时，即使源会话仍在流式生成也允许：
     // 历史节点已持久化到磁盘，openStoredSession 只会读到最新写入点，
     // 而 createBranchedSession 在独立的 manager 副本上写新文件，不触碰源会话。
     const manager = this.openStoredSession(sourcePath)
-    if (manager.getSessionId() !== sourceId) throw new Error('源会话标识不匹配。')
+    if (manager.getSessionId() !== sourceId)
+      throw pisperError('invalid', 'session', 'source session id mismatch')
     const branch = manager.getBranch(entryId)
     const boundary = branch.find((entry) => entry?.id === entryId)
     if (boundary?.type !== 'message' || !isCompletedTurnBoundaryMessage(boundary.message)) {
-      throw new Error('只能从已完成的 Agent 回复衍生会话。')
+      throw pisperError('invalid', 'message', 'derive only from a finished agent reply')
     }
 
     const sessionMeta = this.getSessionMeta()
@@ -1018,7 +1030,8 @@ export class SessionLifecycle {
     const sourceName =
       active?.name || sourceMeta.name || info?.name || info?.firstMessage || DEFAULT_SESSION_NAME
     const derivedName =
-      this.cleanSessionTitle(name) || `${this.cleanSessionTitle(sourceName)} · 衍生`
+      this.cleanSessionTitle(name) ||
+      `${this.cleanSessionTitle(sourceName)}${DERIVED_SESSION_SUFFIX}`
     const context = manager.buildSessionContext()
     const now = new Date().toISOString()
     let derivedPath = ''
@@ -1027,7 +1040,7 @@ export class SessionLifecycle {
       derivedPath = manager.createBranchedSession(entryId) || ''
       derivedId = manager.getSessionId()
       if (!derivedPath || !derivedId || derivedId === sourceId) {
-        throw new Error('无法创建衍生会话文件。')
+        throw pisperError('failed', 'session', 'could not create the derived session file')
       }
       manager.appendSessionInfo(derivedName)
       const model =
@@ -1142,11 +1155,11 @@ export class SessionLifecycle {
   // 重命名会话：同时更新运行时/待物化/存储三处名称并写回元数据。
   async renameSession(id, name, { manual = true } = {}) {
     const title = cleanManualSessionTitle(name)
-    if (!title) throw new Error('会话标题不能为空。')
+    if (!title) throw pisperError('invalid', 'session', 'title is required')
     const active = this.sessions.get(id)
     const pending = this.pendingSessions.get(id)
     if (this.sessionRunIsActive(id, active)) {
-      throw new Error('当前会话正在运行，请完成或停止后再修改标题。')
+      throw pisperError('busy', 'session')
     }
     const modified = new Date().toISOString()
     if (active) {
@@ -1225,7 +1238,8 @@ export class SessionLifecycle {
   // 切换权限模式：非 ask 模式立即结算（approve/deny）全部待审批项。
   async setSessionPermission(id, mode, permissionModes) {
     const permissionMode = String(mode || '')
-    if (!permissionModes.has(permissionMode)) throw new Error('权限模式无效。')
+    if (!permissionModes.has(permissionMode))
+      throw pisperError('invalid', 'input', 'permission mode')
     if (
       !this.sessions.has(id) &&
       !this.pendingSessions.has(id) &&
@@ -1234,7 +1248,7 @@ export class SessionLifecycle {
       return null
     const active = this.sessions.get(id)
     if (this.sessionRunIsActive(id, active)) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换权限模式。')
+      throw pisperError('busy', 'session')
     }
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), permissionMode }
@@ -1243,7 +1257,7 @@ export class SessionLifecycle {
       this.getPermissions().resolveSession(
         id,
         true,
-        `权限模式已切换为${permissionMode === 'ignore' ? '忽略' : '自动'}。`,
+        APPROVAL_SETTLED.permissionMode(permissionMode),
       )
     }
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
@@ -1253,7 +1267,7 @@ export class SessionLifecycle {
   // 切换执行模式：运行中则仅标记 runtimeVersion 失效（下次 prompt 重建工具集），
   // 否则直接释放运行时；并同步权限模式。
   async setSessionExecutionMode(id, executionMode) {
-    if (!executionMode) throw new Error('执行模式无效。')
+    if (!executionMode) throw pisperError('invalid', 'input', 'execution mode')
     if (
       !this.sessions.has(id) &&
       !this.pendingSessions.has(id) &&
@@ -1277,8 +1291,8 @@ export class SessionLifecycle {
       id,
       executionMode === 'full-access',
       executionMode === 'full-access'
-        ? '已切换为完全访问。'
-        : '执行模式已切换，请按新权限重新发起工具调用。',
+        ? APPROVAL_SETTLED.fullAccess
+        : APPROVAL_SETTLED.executionModeChanged,
     )
     this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
     return { id, executionMode, permissionMode }
@@ -1288,7 +1302,7 @@ export class SessionLifecycle {
   // 不影响运行中的工具集与权限，下一条消息按新模式发送。
   async setSessionRunMode(id, mode) {
     const runMode = String(mode || '')
-    if (!COMPOSER_RUN_MODES.has(runMode)) throw new Error('运行模式无效。')
+    if (!COMPOSER_RUN_MODES.has(runMode)) throw pisperError('invalid', 'input', 'run mode')
     if (
       !this.sessions.has(id) &&
       !this.pendingSessions.has(id) &&
@@ -1296,8 +1310,7 @@ export class SessionLifecycle {
     )
       return null
     // 运行中切换会让进行中的 Goal/Team 轮次与后续消息的模式错位，必须等本轮收尾。
-    if (this.sessionRunIsActive(id, this.sessions.get(id)))
-      throw new Error('当前会话正在运行，请完成或停止后再切换运行模式。')
+    if (this.sessionRunIsActive(id, this.sessions.get(id))) throw pisperError('busy', 'session')
     const sessionMeta = this.getSessionMeta()
     sessionMeta[id] = { ...(sessionMeta[id] || {}), runMode }
     await this.saveSessionMeta()
@@ -1320,7 +1333,7 @@ export class SessionLifecycle {
       return { id, cwd }
     }
     if (this.sessionRunIsActive(id, active)) {
-      throw new Error('当前会话正在运行，请完成或停止后再切换工作目录。')
+      throw pisperError('busy', 'session')
     }
     const activeSessionFile = active?.session.sessionFile
     const activeSessionFileInfo = activeSessionFile
@@ -1441,16 +1454,16 @@ export class SessionLifecycle {
     // Bot 的对话：停的只是这一句回复；派出去的子 agent 和它们等着的批准照常（要停就对它说“停掉那件”）。
     if (!value?.conversationOnly) {
       this.getMultiAgents().abortParent(id)
-      this.getPermissions().resolveSession(id, false, '会话已停止，工具未执行。')
+      this.getPermissions().resolveSession(id, false, APPROVAL_SETTLED.stopped)
     }
     // 停止运行即取消问题（规格 8.4）：代理拿到 cancelled，不会把沉默当成回答。
-    this.getQuestions()?.cancelSession(id, '运行已停止。')
+    this.getQuestions()?.cancelSession(id, QUESTION_CANCELLED.stopped)
     if (live) {
       const finishedAt = new Date().toISOString()
       live.streaming = false
       live.finishedAt = finishedAt
       live.lastActivityAt = finishedAt
-      live.error = '会话已停止。'
+      live.error = errorMessage('cancelled', { subject: 'session' })
       live.thinkingText = ''
       live.queuedInputs = []
       live.agents = this.getMultiAgents()
@@ -1478,8 +1491,8 @@ export class SessionLifecycle {
     await this.getPlans().remove(id)
     await this.getBrowserAutomation().closeSession(id)
     await this.getMultiAgents().removeParent(id)
-    this.getPermissions().resolveSession(id, false, '会话已删除，工具未执行。')
-    this.getQuestions()?.cancelSession(id, '会话已删除。')
+    this.getPermissions().resolveSession(id, false, APPROVAL_SETTLED.deleted)
+    this.getQuestions()?.cancelSession(id, QUESTION_CANCELLED.deleted)
     const active = this.sessions.get(id)
     const pending = this.pendingSessions.get(id)
     this.pendingSessions.delete(id)
@@ -1517,7 +1530,7 @@ export class SessionLifecycle {
     const root = resolve(this.sessionDir)
     const target = resolve(sessionFile)
     if (target !== root && !target.startsWith(`${root}${sep}`)) {
-      throw new Error('拒绝删除会话目录之外的文件。')
+      throw pisperError('forbidden', 'path', 'outside the session folder')
     }
     try {
       await unlink(target)

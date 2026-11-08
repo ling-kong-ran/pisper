@@ -302,7 +302,7 @@ test('a new message cancels a pending approval reached through call_tool, withou
   )
   await waitForPending(permissions)
   assert.equal(interruptCurrentStep(session), true)
-  await assert.rejects(call, /操作已停止/)
+  await assert.rejects(call, /operation was stopped/)
   assert.deepEqual(permissions.getPending('conv'), [])
   assert.deepEqual(executed, [])
   assert.equal(run.signal.aborted, false)

@@ -34,7 +34,8 @@ const REQUIRED_COMMANDS = ['cat', 'find', 'ls', 'mkdir']
 // 远程命令总要经对方的 shell 解析一次：路径和命令一律单引号包起来，没有拼接的余地。
 export function shellQuote(value) {
   const text = String(value)
-  if (text.includes('\0')) throw new ExecutorError('invalid_path', '路径不能包含空字符。')
+  if (text.includes('\0'))
+    throw new ExecutorError('invalid_path', 'Path cannot contain NUL characters.')
   return `'${text.replaceAll("'", `'\\''`)}'`
 }
 
@@ -103,13 +104,13 @@ export function classifySshFailure(stderr) {
 }
 
 const FAILURE_MESSAGES = {
-  ssh_client_missing: '这台电脑上找不到 ssh 命令。',
+  ssh_client_missing: 'ssh command not found on this computer.',
   host_key_changed:
-    '对方的主机指纹变了，为了安全已拒绝连接。确认机器确实重装过之后，再更新 known_hosts。',
-  connection_refused: '连接被拒绝：对方可能没有运行 SSH 服务，或者端口不对。',
-  auth_failed: '对方拒绝了登录：Pisper 只用密钥登录，请先把密钥配到对方机器上。',
-  unreachable: '连不上对方机器：请检查地址、网络和防火墙。',
-  connection_failed: '和对方机器的 SSH 连接失败。',
+    'Host key changed; connection refused for safety. Update known_hosts once you confirm the machine was reinstalled.',
+  connection_refused: 'Connection refused: SSH may not be running, or the port is wrong.',
+  auth_failed: 'Sign-in refused: Pisper uses key sign-in only; add your key to the machine.',
+  unreachable: 'Machine unreachable: check the address, network and firewall.',
+  connection_failed: 'SSH connection failed.',
 }
 
 function sshFailure(code) {
@@ -226,7 +227,7 @@ export class SshExecutor {
 
   #spawn(remoteCommand) {
     // 驻留的会话还拿着这个执行器：机器移除后不能再连过去。
-    if (!this.isAvailable()) throw new ExecutorError('machine_not_found', '这台机器已被移除。')
+    if (!this.isAvailable()) throw new ExecutorError('machine_not_found', 'Machine was removed.')
     return this.spawnProcess('ssh', [...this.#arguments(), remoteCommand], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
@@ -249,7 +250,7 @@ export class SshExecutor {
       let settled = false
       const stderr = collectStderr(child)
       const timer = setTimeout(() => {
-        finish(new ExecutorError('ssh_timeout', '对方机器太久没有响应。'))
+        finish(new ExecutorError('ssh_timeout', 'Machine did not respond in time.'))
         child.kill()
       }, timeoutMs)
       const finish = (error, exitCode) => {
@@ -302,7 +303,7 @@ export class SshExecutor {
     if (result.code === EXIT_DENIED)
       throw new ExecutorError('permission_denied', `EACCES: permission denied, ${what} '${shown}'`)
     const detail = result.stderr.trim().slice(0, 300)
-    throw new ExecutorError('remote_failed', detail || `${what} '${shown}' 失败。`)
+    throw new ExecutorError('remote_failed', detail || `${what} '${shown}' failed.`)
   }
 
   // 真实连上去跑一遍，不看对方装的是哪种 SSH 服务：有 shell、命令齐全才算能用。
@@ -319,13 +320,16 @@ export class SshExecutor {
     if (start < 0)
       throw new ExecutorError(
         'unsupported_remote',
-        '对方没有可用的 POSIX shell（Windows 的 SSH 服务和受限账号暂不支持）。',
+        'No POSIX shell on the machine (Windows SSH and restricted accounts are not supported).',
       )
     const missing = lines
       .filter((line) => line.startsWith('missing:'))
       .map((line) => line.slice('missing:'.length))
     if (missing.length)
-      throw new ExecutorError('unsupported_remote', `对方缺少这些命令：${missing.join('、')}。`)
+      throw new ExecutorError(
+        'unsupported_remote',
+        `Missing commands on the machine: ${missing.join(', ')}.`,
+      )
     return { platform: lines[start + 1] || 'unknown', home: lines[start + 2] || '' }
   }
 
@@ -340,7 +344,10 @@ export class SshExecutor {
           : this.#path(text)
     const result = await this.#run(`cd ${target} 2>/dev/null || exit ${EXIT_MISSING}; pwd`)
     if (result.code === EXIT_MISSING)
-      throw new ExecutorError('machine_folder_missing', `对方机器上没有这个目录：${text || '~'}`)
+      throw new ExecutorError(
+        'machine_folder_missing',
+        `Folder not found on the machine: ${text || '~'}`,
+      )
     if (result.code !== 0) this.#fail(result, text, 'cd')
     return result.stdout.toString('utf8').trim()
   }
@@ -351,7 +358,7 @@ export class SshExecutor {
       `[ -e ${quoted} ] || exit ${EXIT_MISSING}; [ -d ${quoted} ] && exit ${EXIT_IS_DIRECTORY}; exec cat -- ${quoted}`,
       { maxBytes: MAX_READ_BYTES },
     )
-    if (result.overflow) throw new ExecutorError('too_large', '文件太大，读不了。')
+    if (result.overflow) throw new ExecutorError('too_large', 'File is too large to read.')
     if (result.code !== 0) this.#fail(result, path, 'open')
     return result.stdout
   }
@@ -550,7 +557,10 @@ export class SshExecutor {
         // 没等到结束标记就断了：命令是否跑完不知道，不能当成成功。
         else
           finish(
-            new ExecutorError('ssh_disconnected', '和对方机器的连接断开了，命令可能没有跑完。'),
+            new ExecutorError(
+              'ssh_disconnected',
+              'Connection to the machine dropped; the command may not have finished.',
+            ),
           )
       })
       child.stdin.on('error', () => {})

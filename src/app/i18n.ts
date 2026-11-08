@@ -8,6 +8,7 @@ import enAssets from '@/locales/en-US/assets.json' with { type: 'json' }
 import enChat from '@/locales/en-US/chat.json' with { type: 'json' }
 import enCommon from '@/locales/en-US/common.json' with { type: 'json' }
 import enConfig from '@/locales/en-US/config.json' with { type: 'json' }
+import enErrors from '@/locales/en-US/errors.json' with { type: 'json' }
 import enMemory from '@/locales/en-US/memory.json' with { type: 'json' }
 import enNavigation from '@/locales/en-US/navigation.json' with { type: 'json' }
 import enPlugins from '@/locales/en-US/plugins.json' with { type: 'json' }
@@ -16,6 +17,7 @@ import zhAssets from '@/locales/zh-CN/assets.json' with { type: 'json' }
 import zhChat from '@/locales/zh-CN/chat.json' with { type: 'json' }
 import zhCommon from '@/locales/zh-CN/common.json' with { type: 'json' }
 import zhConfig from '@/locales/zh-CN/config.json' with { type: 'json' }
+import zhErrors from '@/locales/zh-CN/errors.json' with { type: 'json' }
 import zhMemory from '@/locales/zh-CN/memory.json' with { type: 'json' }
 import zhNavigation from '@/locales/zh-CN/navigation.json' with { type: 'json' }
 import zhPlugins from '@/locales/zh-CN/plugins.json' with { type: 'json' }
@@ -47,6 +49,7 @@ export const I18N_NAMESPACES = Object.freeze([
   'navigation',
   'chat',
   'config',
+  'errors',
   'labs',
   'providers',
   'remote-workspace',
@@ -87,6 +90,7 @@ void i18n.use(initReactI18next).init({
       navigation: zhNavigation,
       chat: zhChat,
       config: zhConfig,
+      errors: zhErrors,
       memory: zhMemory,
       plugins: zhPlugins,
       terminal: zhTerminal,
@@ -97,6 +101,7 @@ void i18n.use(initReactI18next).init({
       navigation: enNavigation,
       chat: enChat,
       config: enConfig,
+      errors: enErrors,
       memory: enMemory,
       plugins: enPlugins,
       terminal: enTerminal,
