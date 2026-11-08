@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -31,6 +31,11 @@ if (args.length > 1) {
   throw new Error('用法：npm run release -- <major|minor|patch|X.Y.Z>')
 }
 const input = args[0] || 'patch'
+// 本机发布（scripts/release-local.mjs）只要检测和检查的结果：写出发布计划就结束，不派发 GitHub Actions。
+const planOutput = rawArgs.find((value) => value.startsWith('--plan-json='))?.slice(12) || ''
+const skipChecks = rawArgs.includes('--skip-checks')
+// 试算计划时不能提交、推送依赖更新。
+const skipDependencyUpdate = rawArgs.includes('--skip-dependency-update')
 
 function run(command, commandArgs, { capture = false } = {}) {
   const result = execFileSync(command, commandArgs, {
@@ -194,7 +199,7 @@ if (source !== remoteSource) {
   )
 }
 
-updateUpstreamPiDependency()
+if (!skipDependencyUpdate) updateUpstreamPiDependency()
 source = run('git', ['rev-parse', 'HEAD'], { capture: true })
 remoteSource = run('git', ['rev-parse', `origin/${releaseBranch}`], { capture: true })
 if (source !== remoteSource) {
@@ -366,13 +371,38 @@ if (chainNpm) {
       `（TUI ${npmTuiVersion} / Runtime ${npmRuntimeVersion}）。`,
   )
 }
-runComponentChecks(selectedComponents)
-if (chainNpm) runNpm(['run', 'npm:pack:check'])
+if (skipChecks) console.log('已跳过发布前检查（--skip-checks）。')
+else runComponentChecks(selectedComponents)
+if (chainNpm && !skipChecks) runNpm(['run', 'npm:pack:check'])
 
 // Desktop 派发携带它内置的 TUI/Runtime 版本，使安装包 staging 能把组件清单
 // 更新视为实质性变更；依赖已在派发前同步，发布版本与标签仍由远端 workflow 原子提交。
 const desktopTuiVersion = bundledComponentVersion('tui', plans, tags)
 const desktopRuntimeVersion = bundledComponentVersion('runtime', plans, tags)
+
+if (planOutput) {
+  await writeFile(
+    resolve(root, planOutput),
+    `${JSON.stringify(
+      {
+        source,
+        components: plans.map(({ component, nextVersion, tag }) => ({
+          component,
+          version: nextVersion,
+          tag,
+        })),
+        bundled: { tui: desktopTuiVersion, runtime: desktopRuntimeVersion },
+        npm: chainNpm
+          ? { version: npmReleaseVersion, tui: npmTuiVersion, runtime: npmRuntimeVersion }
+          : null,
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  console.log(`已写出发布计划：${planOutput}`)
+  process.exit(0)
+}
 
 function dispatchWorkflow(workflow, fields, label) {
   const output = run(

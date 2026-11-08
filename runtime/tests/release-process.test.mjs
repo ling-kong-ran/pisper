@@ -220,7 +220,8 @@ test('release validates immutable source and dispatches without versioning or ta
   }
   visit(sourceFile)
   assert.deepEqual(mutations, ['add', 'commit', 'push'])
-  const updateCall = source.indexOf('\nupdateUpstreamPiDependency()')
+  // 本机发布试算计划时用 --skip-dependency-update 跳过，正式发布照常更新。
+  const updateCall = source.indexOf('\nif (!skipDependencyUpdate) updateUpstreamPiDependency()')
   const updatedSource = source.indexOf("source = run('git', ['rev-parse', 'HEAD']", updateCall)
   const updatedRemote = source.indexOf('remoteSource = run(', updateCall)
   const synchronized = source.indexOf('if (source !== remoteSource)', updatedRemote)

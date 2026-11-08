@@ -2,8 +2,10 @@
 // into the desktop installer payload. The full installer then bundles the
 // newest published components instead of locally built ones.
 //
-// Usage: node scripts/fetch-bundled-components.mjs [--tui=X.Y.Z] [--runtime=X.Y.Z]
+// Usage: node scripts/fetch-bundled-components.mjs [--tui=X.Y.Z] [--runtime=X.Y.Z] [--local=DIR]
 // Without explicit versions the newest tui-v* / runtime-v* tags win.
+// --local=DIR：本机发布（release-local.mjs）里 TUI/Runtime 刚在这台机器上构建并签名，还没发布，
+// 先在 DIR 里找同名的归档与签名，找不到再去 GitHub Releases 下载；两种来源都照样验签。
 //
 // Outputs:
 //   TUI     pisper(.exe)            -> src-tauri/binaries/pisper-cli-<triple>(.exe)
@@ -35,6 +37,9 @@ const requestedTui = rawArgs.find((value) => value.startsWith('--tui='))?.slice(
 const requestedRuntime = rawArgs
   .find((value) => value.startsWith('--runtime='))
   ?.slice('--runtime='.length)
+const localArchives = rawArgs
+  .find((value) => value.startsWith('--local='))
+  ?.slice('--local='.length)
 
 function runGit(args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
@@ -118,8 +123,19 @@ async function fetchComponent({ component, version, label, assetName, stageDir }
   const archivePath = join(stageDir, `${component}.tar.gz`)
   const signaturePath = join(stageDir, `${component}.tar.gz.sig`)
   await mkdir(stageDir, { recursive: true })
-  const archiveBytes = await download(`${baseUrl}/${assetName}`, archivePath)
-  const signatureBytes = await download(`${baseUrl}/${assetName}.sig`, signaturePath)
+  const local = localArchives ? resolve(root, localArchives, assetName) : ''
+  const localFound = local && (await stat(local).catch(() => null))?.isFile()
+  if (localFound) {
+    await cp(local, archivePath)
+    await cp(`${local}.sig`, signaturePath)
+    console.log(`Using locally built ${label} ${version} archive (${target}).`)
+  }
+  const archiveBytes = localFound
+    ? await readFile(archivePath)
+    : await download(`${baseUrl}/${assetName}`, archivePath)
+  const signatureBytes = localFound
+    ? await readFile(signaturePath)
+    : await download(`${baseUrl}/${assetName}.sig`, signaturePath)
   await verifyArchive(component, archiveBytes, signatureBytes)
   console.log(`Verified ${label} ${version} archive signature (${target}).`)
   return { archivePath, tag }

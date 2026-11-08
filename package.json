@@ -40,6 +40,7 @@
     "tui:package": "node scripts/package-tui.mjs",
     "tui:build": "npm run sidecar:sea && npm run tui:package",
     "release": "node scripts/release.mjs",
+    "release:local": "node scripts/release-local.mjs",
     "npm:pack": "node scripts/package-npm.mjs",
     "npm:pack:check": "node scripts/validate-npm-package.mjs",
     "lint": "oxlint",
