@@ -14,7 +14,7 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { formatCompactDuration, workspaceName } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { SessionSummary } from '@/types/chat'
+import type { EntityRecord, SessionSummary } from '@/types/chat'
 import { getSessionChangeSummary } from './session-change-summary-api'
 import {
   openSessionSideChat,
@@ -26,6 +26,7 @@ import {
 import { SessionInspectorContext, SessionPageChromeContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
 import { machineProjectLabel } from './session-workspaces'
+import { SessionRunningChip } from './SessionRunningChip'
 
 type SessionPhoneHeaderProps = SessionMenuActions & {
   leading: ReactNode
@@ -39,6 +40,7 @@ type SessionPhoneHeaderProps = SessionMenuActions & {
   treeAvailable: boolean
   branches: number
   onOpenTree: (view: SessionTreeView, opener?: HTMLElement | null) => void
+  runningActivity?: readonly EntityRecord[]
 }
 
 // 运行状态：只有一种成立时才显示；琥珀只表示需要你（等待批准、失败待处理）。
@@ -60,6 +62,7 @@ export function SessionPhoneHeader({
   treeAvailable,
   branches,
   onOpenTree,
+  runningActivity = [],
   ...actions
 }: SessionPhoneHeaderProps) {
   // 远程机器上的会话：cwd 只是本机占位目录，这里显示机器和对方的目录。
@@ -193,7 +196,13 @@ export function SessionPhoneHeader({
           )}
         </span>
       </button>
-      <div className="flex min-w-0 items-center justify-end">
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        <SessionRunningChip
+          sessionId={session.id}
+          streaming={streaming}
+          activity={runningActivity}
+          phoneButtonClass={ICON_BUTTON}
+        />
         {changedFiles > 0 && inspector ? (
           <button
             type="button"

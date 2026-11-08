@@ -227,7 +227,19 @@ test('stopping a run puts queued messages back and stops the plan spinner', asyn
   assert.match(composer, /await onAbort\(\)\s+return true/)
   // 中断后计划项保留 in_progress，但不再画转圈。
   assert.match(board, /item\.status === 'in_progress' && !running/)
-  // “运行中”标签始终可见，不依赖终端能力。
-  assert.match(inspector, /id: 'running' as const/)
-  assert.match(inspector, /<InspectorRunning sessionId=\{sessionId\}/)
+  // “运行中”不再占检查器标签：移到会话顶栏的芯片（有东西在跑才出现，不依赖终端能力），旧偏好退回默认标签。
+  assert.doesNotMatch(inspector, /id: 'running' as const/)
+  assert.match(inspector, /storedTab === 'running' \|\|/)
+  const [pageHeader, phoneHeader, chip] = await Promise.all(
+    [
+      'src/features/chat/SessionPageHeader.tsx',
+      'src/features/chat/SessionPhoneHeader.tsx',
+      'src/features/chat/SessionRunningChip.tsx',
+    ].map((file) => readFile(file, 'utf8')),
+  )
+  assert.match(pageHeader, /<SessionRunningChip\s+sessionId=\{session\.id\}/)
+  assert.match(phoneHeader, /<SessionRunningChip\s+sessionId=\{session\.id\}/)
+  assert.match(chip, /if \(!rows\.length\) return null/)
+  // 终端 / 后台进程一行跳到检查器“终端 › 进程”。
+  assert.match(chip, /setTerminalView\('processes'\)\s+inspector\?\.show\('terminal'\)/)
 })

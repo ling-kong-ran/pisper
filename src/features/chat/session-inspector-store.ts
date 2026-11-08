@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { pageStateStorage } from '@/lib/page-state-storage'
 
+// 'running' 已移到会话顶栏的芯片，不再是标签；保留取值只为读旧偏好时不报错（检查器把它退回默认标签）。
 export const SESSION_INSPECTOR_TABS = [
   'changes',
   'terminal',

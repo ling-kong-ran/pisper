@@ -6,7 +6,6 @@
 import { Suspense, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Activity,
   FileDiff,
   Files,
   Globe2,
@@ -29,7 +28,6 @@ import { cn } from '@/lib/utils'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { runtimeFeatureAvailable } from '@/types/runtime-capabilities'
 import type { EntityRecord, Plan, TeamState } from '@/types/chat'
-import { InspectorRunning, runningCount } from './InspectorRunning'
 import { InspectorPlan } from './InspectorPlan'
 import { getSessionChangeSummary } from './session-change-summary-api'
 import { BrowserTabs } from './SessionBrowserTabs'
@@ -120,8 +118,10 @@ export function SessionInspector({
   const pages = useContextPagesStore((store) => store.sessions[sessionId]?.pages) ?? EMPTY_PAGES
   const sideChatOpen = pages.some((page) => page.kind === 'side-chat')
   // 当前会话没有侧聊页或计划时，记住的标签退回“改动”，不显示一个不存在的标签。
-  const fallbackTab: SessionInspectorTab = remoteMachine ? 'running' : 'changes'
+  // “运行中”已移到顶栏芯片（SessionRunningChip），旧偏好里记着它时同样退回。
+  const fallbackTab: SessionInspectorTab = remoteMachine ? 'preview' : 'changes'
   const tab: SessionInspectorTab =
+    storedTab === 'running' ||
     (storedTab === 'side-chat' && !sideChatOpen) ||
     (storedTab === 'plan' && !planTab) ||
     (remoteMachine && LOCAL_ONLY_TABS.has(storedTab))
@@ -181,7 +181,6 @@ export function SessionInspector({
   const changedFiles =
     changeSummary.data?.status === 'known' ? (changeSummary.data.changedFiles ?? 0) : 0
 
-  const runningTotal = runningCount(activity, streaming)
   const tabs = [
     ...(remoteMachine
       ? []
@@ -196,13 +195,6 @@ export function SessionInspector({
           },
           { id: 'terminal' as const, icon: TerminalSquare, label: t('board:inspector.terminal') },
         ]),
-    {
-      id: 'running' as const,
-      icon: Activity,
-      label: runningTotal
-        ? t('board:inspector.runningCount', { count: runningTotal })
-        : t('board:inspector.running'),
-    },
     ...(remoteMachine
       ? []
       : [{ id: 'files' as const, icon: Files, label: t('board:inspector.files') }]),
@@ -379,8 +371,6 @@ export function SessionInspector({
         activity={activity}
       />
     )
-  } else if (tab === 'running') {
-    body = <InspectorRunning sessionId={sessionId} streaming={streaming} activity={activity} />
   } else {
     body = <SideChatPane parentId={sessionId} active />
   }

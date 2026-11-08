@@ -1,5 +1,6 @@
 // 会话顶栏（规格 v2 第 4.1 节，52px）：左边是标题 ▾（标题菜单收纳会话的其余操作）、项目标签（等宽浅色）
-// 与 ⑂ 会话树按钮（有分支时写数量）；右边只有改动按钮“N 个文件 +x −y”，它同时是检查器开关（没有改动时只剩图标）。
+// 与 ⑂ 会话树按钮（有分支时写数量）；右边是“运行中 N”芯片（有东西在跑时才出现，点开列出正在跑的东西）
+// 与改动按钮“N 个文件 +x −y”，后者同时是检查器开关（没有改动时只剩图标）。
 // 第 1–4 期页头上的状态胶囊、上下文环、分支与标签两个按钮、侧聊按钮和“⋯”都并进了标题菜单或侧栏：
 // 运行状态在侧栏会话行与输入框托盘里，上下文用量写在“压缩上下文”一项上，分支与标记在会话树对话框的页签里。
 // Windows 自绘标题栏时右侧再让出 144px 给窗口按钮，顶栏空白处是拖拽区（交互元素由桌面壳排除）。
@@ -20,12 +21,13 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { TOUCH_HIT_AREA } from '@/lib/touch-target'
 import { cn } from '@/lib/utils'
 import { useShortcutStore } from '@/stores/shortcut-store'
-import type { SessionSummary } from '@/types/chat'
+import type { EntityRecord, SessionSummary } from '@/types/chat'
 import { getSessionChangeSummary } from './session-change-summary-api'
 import { openSessionSideChat, useSessionMenu, type SessionMenuActions } from './session-header-menu'
 import { SessionInspectorContext } from './session-workspace-context'
 import type { SessionTreeView } from './SessionTreeControl'
 import { machineProjectLabel } from './session-workspaces'
+import { SessionRunningChip } from './SessionRunningChip'
 
 // Bot 的长期会话：页头换上它的头像与设置入口（Bots 是实验功能，部件按需加载，不进会话页的包）。
 const BotSessionChip = lazy(() => import('@/features/bots/public-session'))
@@ -37,6 +39,8 @@ type SessionPageHeaderProps = Omit<SessionMenuActions, 'onSideChat' | 'extraItem
   treeAvailable: boolean
   branches: number
   onOpenTree: (view: SessionTreeView, opener?: HTMLElement | null) => void
+  // 运行活动（工具、子代理）：顶栏“运行中”芯片据此列出正在跑的东西。
+  runningActivity?: readonly EntityRecord[]
 }
 
 export function SessionPageHeader({
@@ -46,6 +50,7 @@ export function SessionPageHeader({
   treeAvailable,
   branches,
   onOpenTree,
+  runningActivity = [],
   ...actions
 }: SessionPageHeaderProps) {
   // 远程机器上的会话：cwd 只是本机占位目录，这里显示机器和对方的目录。
@@ -162,6 +167,8 @@ export function SessionPageHeader({
           </Button>
         )}
       </div>
+      {/* 正在跑的命令、子代理、终端与后台进程：不占检查器面板，没东西在跑时不显示。 */}
+      <SessionRunningChip sessionId={session.id} streaming={streaming} activity={runningActivity} />
       {inspector && (
         <Button
           type="button"

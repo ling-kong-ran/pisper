@@ -803,6 +803,8 @@ export const FocusSession = memo(function FocusSession({
     onVoiceMode: () => setVoiceModeOpen(true),
     notify: notify ?? (() => undefined),
   }
+  // 顶栏“运行中”芯片用的运行活动：与检查器同一份（活动流，没有时退回工具列表）。
+  const runningActivity = activityFeed.length ? activityFeed : tools
   const pageHeaderBlock = pageChrome && (
     <SessionTreeControl
       visible={messages.length > 0}
@@ -832,6 +834,7 @@ export const FocusSession = memo(function FocusSession({
             leading={routeLeading}
             branches={tree.branches}
             onOpenTree={tree.open}
+            runningActivity={runningActivity}
           />
         ) : (
           <SessionPageHeader
@@ -839,6 +842,7 @@ export const FocusSession = memo(function FocusSession({
             contextPercent={runMetricsContextPercent}
             branches={tree.branches}
             onOpenTree={tree.open}
+            runningActivity={runningActivity}
           />
         )
       }
