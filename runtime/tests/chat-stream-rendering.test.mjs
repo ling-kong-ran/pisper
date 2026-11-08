@@ -195,11 +195,13 @@ test('conversation layout keeps a compact title header without a persistent avat
     /<DropdownMenuTrigger asChild>[\s\S]{0,600}text-\[15px\] leading-6[\s\S]{0,800}data-session-title[\s\S]{0,400}<DropdownMenuContent[^>]*>\s*\{menu\.items\}/,
   )
   const headerMenu = await readFile('src/features/chat/session-header-menu.tsx', 'utf8')
-  // 菜单项是一份数据（entries），第一项是重命名；桌面下拉菜单按它渲染。
+  // 菜单项是一份数据（entries），第一项是重命名（Bot 的会话没有：标题跟着 Bot 名字）；桌面下拉菜单按它渲染。
   assert.match(
     headerMenu,
-    /const entries: SessionMenuEntry\[\] = \[\s*\{\s*key: 'rename',[\s\S]{0,120}onSelect: actions\.onRename,/,
+    /const entries: SessionMenuEntry\[\] = \[\s*\.\.\.\(botId\s*\? \[\]\s*: \[\s*\{\s*key: 'rename',[\s\S]{0,120}onSelect: actions\.onRename,/,
   )
+  // Bot 的会话不归档，换成删除 Bot。
+  assert.match(headerMenu, /botId\s*\? \{\s*key: 'delete-bot'[\s\S]{0,400}: \{\s*key: 'archive'/)
   assert.match(headerMenu, /const items = \(\s*<>\s*\{entries\.map\(/)
   assert.equal(pageHeader.match(/data-session-title/g)?.length, 1)
   assert.doesNotMatch(pageHeader, /Avatar|BrandLogo/)

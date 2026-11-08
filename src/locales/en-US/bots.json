@@ -256,5 +256,11 @@
   "commands.add": "Add command",
   "commands.edit": "Edit",
   "commands.moveUp": "Move up",
-  "commands.moveDown": "Move down"
+  "commands.moveDown": "Move down",
+  "delete.title": "Delete this bot",
+  "delete.hint": "Its schedules and memory are deleted too; your conversation with it stays as a regular session.",
+  "delete.action": "Delete bot",
+  "delete.confirmTitle": "Delete {name}?",
+  "delete.confirmDescription": "Its schedules, memory and skills are deleted too, and it can no longer be called from chat apps. Your conversation with it stays as a regular session. This can't be undone.",
+  "delete.deleted": "Deleted {name}"
 }

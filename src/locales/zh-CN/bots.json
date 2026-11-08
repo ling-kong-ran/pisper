@@ -256,5 +256,11 @@
   "commands.add": "添加指令",
   "commands.edit": "编辑",
   "commands.moveUp": "上移",
-  "commands.moveDown": "下移"
+  "commands.moveDown": "下移",
+  "delete.title": "删除这个 Bot",
+  "delete.hint": "它的定时任务和记忆会一并删除；和它的对话会留下，变成普通会话。",
+  "delete.action": "删除 Bot",
+  "delete.confirmTitle": "删除 {name}？",
+  "delete.confirmDescription": "它的定时任务、记忆和技能会一并删除，聊天应用里也不能再叫它。和它的对话会留下，变成普通会话。这一步不能撤销。",
+  "delete.deleted": "已删除 {name}"
 }

@@ -10,6 +10,7 @@ type BotsState = {
   error: string
   load: () => Promise<void>
   upsert: (bot: Bot) => void
+  remove: (id: string) => void
 }
 
 let loading: Promise<void> | null = null
@@ -40,6 +41,8 @@ export const useBotsStore = create<BotsState>()((set, get) => ({
           : bots.map((item) => (item.id === bot.id ? { ...bot, activity: item.activity } : item)),
     })
   },
+  // 删除后立刻从侧栏消失，不等下一次轮询。
+  remove: (id) => set({ bots: get().bots.filter((item) => item.id !== id) }),
 }))
 
 // 有 Bot 在说话时 3 秒刷一次，否则 10 秒；页面隐藏时不刷。

@@ -700,5 +700,6 @@
   "sessionMenu.workflowRuns": "Workflow runs",
   "sessionMenu.voiceMode": "Voice chat",
   "planBoard.paused": "Paused",
-  "planBoard.countPaused": "{count} paused"
+  "planBoard.countPaused": "{count} paused",
+  "sessionMenu.deleteBot": "Delete bot…"
 }

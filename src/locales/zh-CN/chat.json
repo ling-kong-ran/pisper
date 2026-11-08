@@ -700,5 +700,6 @@
   "sessionMenu.workflowRuns": "工作流记录",
   "sessionMenu.voiceMode": "语音对话",
   "planBoard.paused": "已暂停",
-  "planBoard.countPaused": "{count} 已暂停"
+  "planBoard.countPaused": "{count} 已暂停",
+  "sessionMenu.deleteBot": "删除 Bot…"
 }

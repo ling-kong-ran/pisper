@@ -700,6 +700,8 @@ export class AgentRuntimeFacade {
           value.botTurnDue = false
           if (!value.abortedAt) this.scheduleAfterBotTurn(id)
         }
+        // Bot 在这一轮跑的时候改了名：运行中改不了会话标题，放下运行标记后补上。
+        if (this.pendingThreadNames?.has(id)) void this.renameBotThread(id)
         // 运行期间注入失败、放回队列的 Agent 完成通知：本轮结束后补发；用户主动停止时不自动再起一轮。
         if (!value.abortedAt && value.pendingAgentNotifications?.length)
           this.scheduleAgentWakeup(id)
@@ -1170,8 +1172,10 @@ export class AgentRuntimeFacade {
     if (!bot?.threadSessionId) return bot
     await this.applyBotSettings(bot, bot.threadSessionId)
     // 会话标题就是 Bot 的名字：改名时跟着改，侧栏、看板与会话页头一致。
-    if (before && before.name !== bot.name)
-      await this.renameSession(bot.threadSessionId, bot.name).catch(() => {})
+    if (before && before.name !== bot.name) {
+      ;(this.pendingThreadNames ??= new Map()).set(bot.threadSessionId, bot.name)
+      await this.renameBotThread(bot.threadSessionId)
+    }
     // 关掉主动巡看：正在跑的巡看也停下，之后不再巡看。
     if (before?.proactive?.enabled && !bot.proactive?.enabled) {
       for (const agent of this.multiAgents?.list(bot.threadSessionId) || []) {
@@ -1187,6 +1191,19 @@ export class AgentRuntimeFacade {
       }
     }
     return bot
+  }
+
+  // 把 Bot 会话的标题改成记下的新名字。会话正在跑时改不了（会话服务拒绝改标题），
+  // 名字留在 pendingThreadNames，等这一轮结束（runStartedPrompt 收尾）再改，不能悄悄丢掉。
+  async renameBotThread(sessionId) {
+    const name = this.pendingThreadNames?.get(sessionId)
+    if (!name) return
+    try {
+      await this.renameSession(sessionId, name)
+      if (this.pendingThreadNames.get(sessionId) === name) this.pendingThreadNames.delete(sessionId)
+    } catch (error) {
+      if (error?.code !== 'busy') this.pendingThreadNames.delete(sessionId)
+    }
   }
 
   // 打开 Bot：返回它的长期会话，还没有（或会话文件已经不在）就新建一个。

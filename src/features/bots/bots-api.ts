@@ -266,6 +266,11 @@ export function updateBot(
   })
 }
 
+// 删除 Bot：它的定时任务和记忆一并删掉，会话留下变成普通会话（Runtime 负责）。
+export function deleteBot(id: string) {
+  return requestJson(`/api/bots/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 // 打开 Bot：它的长期会话 id（还没有就由 Runtime 新建），界面随后打开这个会话。
 export function openBotSession(id: string) {
   return requestJson(`/api/bots/${encodeURIComponent(id)}/session`, {

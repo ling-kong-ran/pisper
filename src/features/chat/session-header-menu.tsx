@@ -12,8 +12,10 @@ import {
   MessageSquare,
   Pencil,
   Shrink,
+  Trash2,
   Workflow,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
 import {
@@ -105,6 +107,10 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
   )
   const title = session.name || t('navigation:pageHeader.newChat')
   const { notify } = actions
+  const navigate = useNavigate()
+  // Bot 的长期会话：标题跟着 Bot 的名字、目录在 Bot 设置里改，也不该被归档；
+  // 这三项换成“删除 Bot”（到 Bot 设置页确认，删除后会话变成普通会话，那时才能改名、归档）。
+  const botId = session.botId
 
   const archive = async () => {
     if (archiving) return
@@ -147,12 +153,16 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       : null
 
   const entries: SessionMenuEntry[] = [
-    {
-      key: 'rename',
-      icon: Pencil,
-      label: t('chat:sessionMenu.rename'),
-      onSelect: actions.onRename,
-    },
+    ...(botId
+      ? []
+      : [
+          {
+            key: 'rename',
+            icon: Pencil,
+            label: t('chat:sessionMenu.rename'),
+            onSelect: actions.onRename,
+          },
+        ]),
     ...(actions.onSideChat
       ? [
           {
@@ -177,7 +187,7 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
         ]
       : []),
     // 远程机器上的会话不能换成本机目录：工具还在对方机器上跑，换了只会让界面和实际对不上。
-    ...(session.machine
+    ...(session.machine || botId
       ? []
       : [
           {
@@ -214,14 +224,23 @@ export function useSessionMenu(session: SessionSummary, actions: SessionMenuActi
       label: t('chat:sessionMenu.voiceMode'),
       onSelect: actions.onVoiceMode,
     },
-    {
-      key: 'archive',
-      icon: Archive,
-      label: t('board:card.archive'),
-      onSelect: () => void archive(),
-      disabled: archiving,
-      separator: true,
-    },
+    botId
+      ? {
+          key: 'delete-bot',
+          icon: Trash2,
+          label: t('chat:sessionMenu.deleteBot'),
+          onSelect: () => navigate(`/bots/${encodeURIComponent(botId)}?action=delete`),
+          separator: true,
+          marker: 'session-delete-bot',
+        }
+      : {
+          key: 'archive',
+          icon: Archive,
+          label: t('board:card.archive'),
+          onSelect: () => void archive(),
+          disabled: archiving,
+          separator: true,
+        },
   ]
 
   const items = (

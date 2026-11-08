@@ -10,6 +10,7 @@ import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import { useBetaFeature } from '@/features/labs/public-flags'
+import { BotDeleteSection } from './BotDeleteSection'
 import { BotDetails } from './BotDetails'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { NewBotDialog } from './NewBotDialog'
@@ -66,6 +67,10 @@ export function BotsPage({ notify }: { notify: Notify }) {
       key={bot.id}
       botId={bot.id}
       onOpenChat={() => void openBot(bot)}
+      onDeleted={() => {
+        notify(t('bots:delete.deleted', { name: bot.name }))
+        navigate('/', { replace: true })
+      }}
       onError={reportError}
     />
   )
@@ -74,10 +79,12 @@ export function BotsPage({ notify }: { notify: Notify }) {
 function BotSettingsPage({
   botId,
   onOpenChat,
+  onDeleted,
   onError,
 }: {
   botId: string
   onOpenChat: () => void
+  onDeleted: () => void
   onError: (message: string) => void
 }) {
   const { t } = useI18n()
@@ -87,6 +94,8 @@ function BotSettingsPage({
   // 招呼里的“在聊天软件里找我”直接打开聊天分区；其余情况分区都收着。
   const [searchParams] = useSearchParams()
   const openSection = searchParams.get('section') === 'chats' ? 'chats' : undefined
+  // 会话页头菜单的“删除 Bot”带 ?action=delete 过来：直接打开确认。
+  const confirmDelete = searchParams.get('action') === 'delete'
   if (!bot) return null
   return (
     <div data-bot-settings={bot.id} className="flex h-full min-h-0 w-full min-w-0 flex-col">
@@ -111,6 +120,12 @@ function BotSettingsPage({
               void environments.refresh()
               void loadBots()
             }}
+            onError={onError}
+          />
+          <BotDeleteSection
+            bot={bot}
+            initiallyOpen={confirmDelete}
+            onDeleted={onDeleted}
             onError={onError}
           />
         </div>

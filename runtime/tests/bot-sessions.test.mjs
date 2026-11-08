@@ -1,5 +1,6 @@
 // Bot 就是一个长期会话加上它的设定：打开 Bot 打开这个会话，设定套到会话上，渠道与定时任务把话发进去，
 // 回复与中途的审批、提问回到来源聊天。这里用最小的假 Runtime 驱动 AgentRuntimeFacade 上的 Bot 方法。
+import { pisperError } from '../../shared/errors.mjs'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
@@ -147,6 +148,25 @@ test('changing a bot applies to its session and renaming it renames the session'
   await runtime.updateBot('小橙', { instructions: '只看不改' })
   assert.equal(runtime.calls.filter(([name]) => name === 'rename').length, 0)
   assert.ok(runtime.calls.some((call) => call[0] === 'dispose'))
+})
+
+test('renaming a bot while its session runs renames the session once the turn ends', async () => {
+  const runtime = fakeRuntime({ bots: [bot('小橙', { threadSessionId: 'existing' })] })
+  // 运行中的会话拒绝改标题：名字记下，不能悄悄丢掉。
+  let busy = true
+  runtime.renameSession = async (id, name) => {
+    if (busy) throw pisperError('busy', 'session')
+    runtime.calls.push(['rename', id, name])
+  }
+  await runtime.updateBot('小橙', { name: '小橘' })
+  assert.equal(runtime.calls.filter(([name]) => name === 'rename').length, 0)
+  // 这一轮结束后（runStartedPrompt 收尾调用）补上。
+  busy = false
+  await runtime.renameBotThread('existing')
+  assert.deepEqual(runtime.calls.at(-1), ['rename', 'existing', '小橘'])
+  runtime.calls.length = 0
+  await runtime.renameBotThread('existing')
+  assert.equal(runtime.calls.length, 0)
 })
 
 test('changing a bot never releases a runtime that still owes the conversation a report', async () => {
