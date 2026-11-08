@@ -8,6 +8,11 @@ import resources from './search-tool-resources.json' with { type: 'json' }
 const run = promisify(execFile)
 const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 const TOOL_ROOT = 'node_modules/@earendil-works/pi-coding-agent/vendor/bin'
+// 下载源偶尔回 5xx 或断连（发布 CI 遇到过 504）：服务端错误与网络错误重试，4xx 与摘要不符直接失败。
+const DOWNLOAD_ATTEMPTS = 3
+const RETRY_DELAY_MS = 5_000
+
+class TransientDownloadError extends Error {}
 
 export function searchArchiveCommand(platform = process.platform, env = process.env) {
   // Git/MSYS 的 GNU tar 会把盘符当远端地址且不能解 ZIP；Windows 必须使用系统 bsdtar。
@@ -43,14 +48,15 @@ function checksum(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function archiveBytes(asset, cachePath, fetchImpl) {
+async function downloadArchive(asset, fetchImpl) {
+  let response
   try {
-    const bytes = await readFile(cachePath)
-    if (checksum(bytes) === asset.sha256) return bytes
+    response = await fetchImpl(asset.url, { signal: AbortSignal.timeout(120_000) })
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error
+    throw new TransientDownloadError(`Search tool download: ${error?.message || error}`)
   }
-  const response = await fetchImpl(asset.url, { signal: AbortSignal.timeout(120_000) })
+  if (response.status >= 500)
+    throw new TransientDownloadError(`Search tool download: HTTP ${response.status}`)
   if (!response.ok || !response.body)
     throw new Error(`Search tool download: HTTP ${response.status}`)
   const chunks = []
@@ -65,8 +71,31 @@ async function archiveBytes(asset, cachePath, fetchImpl) {
   return bytes
 }
 
+async function archiveBytes(asset, cachePath, fetchImpl, retryDelayMs) {
+  try {
+    const bytes = await readFile(cachePath)
+    if (checksum(bytes) === asset.sha256) return bytes
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await downloadArchive(asset, fetchImpl)
+    } catch (error) {
+      if (!(error instanceof TransientDownloadError) || attempt >= DOWNLOAD_ATTEMPTS) throw error
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
+    }
+  }
+}
+
 // 下载仅发生在构建机。交付闭包使用固定版本与摘要，不依赖用户缓存、PATH 或公网。
-export async function stageSearchTools({ root, runtimeDir, target, fetchImpl = globalThis.fetch }) {
+export async function stageSearchTools({
+  root,
+  runtimeDir,
+  target,
+  fetchImpl = globalThis.fetch,
+  retryDelayMs = RETRY_DELAY_MS,
+}) {
   const entries = searchToolEntries(target)
   if (!entries.length) return
   const cacheDir = join(root, 'release', 'cache', 'search-tools')
@@ -75,7 +104,7 @@ export async function stageSearchTools({ root, runtimeDir, target, fetchImpl = g
   await mkdir(destination, { recursive: true })
   for (const { name, version, source, license, licenseFiles, asset, filename } of entries) {
     const cachePath = join(cacheDir, basename(new URL(asset.url).pathname))
-    const bytes = await archiveBytes(asset, cachePath, fetchImpl)
+    const bytes = await archiveBytes(asset, cachePath, fetchImpl, retryDelayMs)
     const temporary = await mkdtemp(join(cacheDir, 'extract-'))
     try {
       // 使用独占临时副本解包；并行构建不能读取尚未写完的共享缓存。

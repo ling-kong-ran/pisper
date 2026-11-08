@@ -98,3 +98,44 @@ test('a tampered search archive fails the build before extraction', async (t) =>
     [],
   )
 })
+
+// 下载源偶尔回 5xx：重试到第三次；4xx 不重试。
+test('search tool downloads retry server errors but not client errors', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'pisper-retry-search-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const stage = (fetchImpl) =>
+    stageSearchTools({
+      root,
+      runtimeDir: join(root, 'runtime'),
+      target: { platform: 'win32', arch: 'x64' },
+      fetchImpl,
+      retryDelayMs: 1,
+    })
+  let calls = 0
+  await assert.rejects(
+    stage(async () => {
+      calls += 1
+      return calls < 3 ? new Response('busy', { status: 504 }) : new Response('tampered archive')
+    }),
+    /checksum mismatch/,
+  )
+  assert.equal(calls, 3)
+  calls = 0
+  await assert.rejects(
+    stage(async () => {
+      calls += 1
+      throw new TypeError('fetch failed')
+    }),
+    /Search tool download: fetch failed/,
+  )
+  assert.equal(calls, 3)
+  calls = 0
+  await assert.rejects(
+    stage(async () => {
+      calls += 1
+      return new Response('missing', { status: 404 })
+    }),
+    /HTTP 404/,
+  )
+  assert.equal(calls, 1)
+})
