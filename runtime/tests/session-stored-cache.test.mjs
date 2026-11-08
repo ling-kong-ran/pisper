@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { sessionRuntimeRoutes } from '../http/routes/sessions-runtime.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { SessionManager } from '../runtime/pi-coding-agent.mjs'
 import { ensureSessionFilePersisted } from '../runtime/session-file-persist.mjs'
 import { isProjectlessDirectory, projectlessChatsRoot } from '../runtime/projectless-chats.mjs'
 
@@ -311,4 +312,27 @@ test('only direct children of the chats root count as projectless', () => {
     isProjectlessDirectory('C:\\Users\\me\\.pisper\\chats', 'c:/users/me/.pisper/chats/x', 'win32'),
     true,
   )
+})
+
+test('a session created while the folder is being rescanned stays listed after its runtime is released', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-rescan-race-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+  await runtime.createSession('先有的', directory)
+  // 全量重扫先读完目录，新会话在扫描结果回来之前才落盘：扫描结果里没有它。
+  const listAll = SessionManager.listAll
+  let finishScan
+  const snapshot = await listAll.call(SessionManager, runtime.sessionDir)
+  SessionManager.listAll = () => new Promise((resolve) => (finishScan = () => resolve(snapshot)))
+  t.after(() => {
+    SessionManager.listAll = listAll
+  })
+  const scan = runtime.listStoredSessions({ refresh: true })
+  const created = await runtime.createSession('扫描中新建', directory)
+  finishScan()
+  await scan
+  // 运行时释放后，列表只能靠存储缓存找到它。
+  runtime.sessionLifecycle.pendingSessions.delete(created.id)
+  const ids = (await runtime.listSessions()).map((session) => session.id)
+  assert.ok(ids.includes(created.id), 'the new session must not drop out of the catalog')
 })

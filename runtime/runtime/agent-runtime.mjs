@@ -1237,20 +1237,28 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     }
     if (!refresh && this.storedSessionsCache) return Promise.resolve(this.storedSessionsCache)
     if (this.storedSessionsPromise) return this.storedSessionsPromise
-    this.storedSessionsPromise = SessionManager.listAll(this.sessionDir)
+    // 扫描期间登记的会话（新建、物化、改名）：扫描可能在它们落盘前就读过目录，
+    // 结果回来后补进去，否则会话只在内存里还有运行时时可见，运行时一释放就从列表消失。
+    const upserts = new Map()
+    this.storedSessionsUpserts = upserts
+    const scan = SessionManager.listAll(this.sessionDir)
       .then((sessions) => {
-        this.storedSessionsCache = sessions
+        for (const info of upserts.values()) upsertStoredSessionCache(sessions, info)
+        if (this.storedSessionsPromise === scan) this.storedSessionsCache = sessions
         return sessions
       })
       .finally(() => {
-        this.storedSessionsPromise = null
+        if (this.storedSessionsPromise === scan) this.storedSessionsPromise = null
+        if (this.storedSessionsUpserts === upserts) this.storedSessionsUpserts = null
       })
-    return this.storedSessionsPromise
+    this.storedSessionsPromise = scan
+    return scan
   }
 
   upsertStoredSession(info) {
     // 只做增量插入，避免新建/物化单个会话时全量重扫所有会话文件。
     upsertStoredSessionCache(this.storedSessionsCache, info)
+    this.storedSessionsUpserts?.set(info.id, info)
   }
 
   openStoredSession(path) {
