@@ -774,6 +774,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.botProactiveTimer = null
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
+    // bot_notify 最近一小时发过的时间（按 Bot），防止它一轮轮地刷屏。
+    this.botNotifyTimes = new Map()
     // 渠道、定时、别的 Bot 叫起来的那一轮：运行开始时取走，写到 value.botTurnTrust。
     this.botPendingTrust = new Map()
     this.multiAgents.setCompletionNotifier((agent) => this.injectAgentCompletion(agent))

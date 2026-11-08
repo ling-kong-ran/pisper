@@ -79,6 +79,9 @@ export const ISOLATED_CONTEXT_BLOCKED_TOOLS = [
 
 // 准备阶段在 /live 里投影的待发消息上限（只用于显示，完整消息照常写进会话）。
 const MAX_PREPARING_MESSAGE_CHARS = 20_000
+// 每个 Bot 每小时最多发几条 bot_notify。
+const BOT_NOTIFY_LIMIT = 10
+const BOT_NOTIFY_WINDOW_MS = 60 * 60_000
 
 // 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
@@ -1341,6 +1344,44 @@ export class AgentRuntimeFacade {
           text: result.skipped
             ? `Not sent (${result.skipped}).`
             : 'Sent. Its reply will come back here automatically.',
+        }
+      },
+      // 发到用户自己和机器人的私聊，开头带上 Bot 的名字，用户知道是谁说的。
+      notify: async ({ text, platform }) => {
+        const { bot } = context()
+        const message = String(text ?? '').trim()
+        if (!message || message.length > 2_000) throw new Error('通知要写内容，最多 2000 个字。')
+        const now = Date.now()
+        const recent = (this.botNotifyTimes.get(bot.id) || []).filter(
+          (time) => now - time < BOT_NOTIFY_WINDOW_MS,
+        )
+        if (recent.length >= BOT_NOTIFY_LIMIT)
+          throw new Error(
+            `Not sent: already ${BOT_NOTIFY_LIMIT} notifications in the last hour. Put it in your reply here instead.`,
+          )
+        const results =
+          (await this.channels?.notifyOwner(`${bot.name}：${message}`, {
+            platforms: platform ? [String(platform)] : undefined,
+          })) || []
+        const sent = results.filter((result) => result.status === 'sent')
+        if (sent.length) this.botNotifyTimes.set(bot.id, [...recent, now])
+        const reasons = results
+          .filter((result) => result.status !== 'sent')
+          .map((result) =>
+            result.status === 'no_chat'
+              ? `${result.platform}: the user has never messaged the Pisper bot in a private chat there, so it cannot write first`
+              : `${result.platform}: ${result.error}`,
+          )
+        if (!sent.length)
+          throw new Error(
+            results.length
+              ? `Not sent. ${reasons.join('; ')}.`
+              : 'Not sent: no chat app is connected to Pisper (or not the one asked for). Tell the user to connect one under 渠道.',
+          )
+        return {
+          type: 'notify',
+          sent: sent.map((result) => result.platform),
+          text: `Sent to ${sent.map((result) => result.platform).join(', ')}.${reasons.length ? ` Not sent: ${reasons.join('; ')}.` : ''}`,
         }
       },
     }

@@ -94,6 +94,8 @@ test('the prompt: quick work itself, long or approval-needing work to sub-agents
   assert.match(prompt, /不要为了确认计划而停下来问/)
   assert.match(prompt, /先回应新消息/)
   assert.match(prompt, /也不要承诺系统没有的东西/)
+  // 回复只留在对话里；要在聊天软件上告诉用户，用 bot_notify。
+  assert.match(prompt, /bot_notify 发到他和机器人的私聊/)
   // 打开网页走右侧浏览器，不退回 shell 命令。
   assert.match(prompt, /browser_automation/)
   assert.match(prompt, /computer_use/)
@@ -401,4 +403,42 @@ test('the runtime wires a non-blocking bot conversation', async () => {
     /if \(!this\.sessionRuntimeIsProtected\(sessionId, value\)\)\s*this\.disposeSessionRuntime/,
   )
   assert.match(lifecycle, /this\.getBotCommands\(\)\?\.hasActive\?\.\(id\)/)
+})
+
+test('bot_notify reaches the user’s own chats with the bot’s name, explains failures and is rate limited', async () => {
+  const runtime = fakeRuntime()
+  const outbox = []
+  let results = [{ platform: 'qq', status: 'sent' }]
+  runtime.channels = {
+    notifyOwner: async (text, options) => {
+      outbox.push([text, options])
+      return results
+    },
+  }
+  runtime.botNotifyTimes = new Map()
+  const tools = runtime.botConversationRuntime('conv')
+  const sent = await tools.notify({ text: ' 税务审核通过了 ', platform: 'qq' })
+  assert.deepEqual(outbox[0], ['小橙：税务审核通过了', { platforms: ['qq'] }])
+  assert.deepEqual(sent.sent, ['qq'])
+  await tools.notify({ text: '全部渠道' })
+  assert.deepEqual(outbox[1][1], { platforms: undefined })
+
+  // 没发出去要说清楚为什么，模型才能如实告诉用户。
+  results = [{ platform: 'qq', status: 'no_chat' }]
+  await assert.rejects(
+    tools.notify({ text: 'x' }),
+    /never messaged the Pisper bot in a private chat/,
+  )
+  results = []
+  await assert.rejects(tools.notify({ text: 'x' }), /no chat app is connected/)
+  await assert.rejects(tools.notify({ text: '   ' }), /最多 2000/)
+  await assert.rejects(
+    runtime.botConversationRuntime('other').notify({ text: 'x' }),
+    /不是 Bot 的对话/,
+  )
+
+  // 一小时最多 10 条，发失败的不算。
+  results = [{ platform: 'qq', status: 'sent' }]
+  for (let index = 2; index < 10; index += 1) await tools.notify({ text: `第 ${index} 条` })
+  await assert.rejects(tools.notify({ text: '第 11 条' }), /already 10 notifications/)
 })

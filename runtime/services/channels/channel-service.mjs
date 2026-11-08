@@ -129,6 +129,13 @@ function attachmentFromResource(resource) {
   return null
 }
 
+// 渠道创建者在这个平台上的身份：飞书是 open_id，其余平台是用户 id。
+function ownerIdOf(platform, connection) {
+  if (!connection) return ''
+  if (platform === 'feishu') return connection.ownerOpenId || ''
+  return PLATFORMS.has(platform) ? connection.ownerUserId || '' : ''
+}
+
 function publicScope(key, scope) {
   return {
     key,
@@ -330,14 +337,7 @@ export class ChannelService {
     const connection = this.state.connections[platform]
     if (!connection) return null
     const live = this.gateways[platform].getStatus()
-    const ownerId =
-      platform === 'feishu'
-        ? connection.ownerOpenId
-        : platform === 'weixin'
-          ? connection.ownerUserId
-          : platform === 'qq' || platform === 'telegram'
-            ? connection.ownerUserId
-            : ''
+    const ownerId = ownerIdOf(platform, connection)
     return {
       id: platform,
       type: platform,
@@ -612,14 +612,7 @@ export class ChannelService {
   async handleMessage(platform, message) {
     const connection = this.state.connections[platform]
     if (!connection?.enabled) return
-    const ownerId =
-      platform === 'feishu'
-        ? connection.ownerOpenId
-        : platform === 'weixin'
-          ? connection.ownerUserId
-          : platform === 'qq' || platform === 'telegram'
-            ? connection.ownerUserId
-            : ''
+    const ownerId = ownerIdOf(platform, connection)
     if (connection.accessMode !== 'all' && (!ownerId || message.senderId !== ownerId)) {
       // 渠道本身只给创建者用；别人只能经 Bot 的聊天规则进来（规则里写了他、或打开了“所有人”）。
       if (
@@ -816,6 +809,8 @@ export class ChannelService {
             ? `${connection.replyModel.provider}/${connection.replyModel.model}`
             : ''),
         contextToken: message.contextToken || scope.contextToken || '',
+        // 谁在这个聊天里说话：bot_notify 只发到创建者本人的私聊，靠它分辨。
+        senderId: message.senderId || scope.senderId || '',
         executionMode: scope.executionMode || connection.executionMode || 'approval-required',
         runMode: scope.runMode || connection.runMode || 'plan',
         lastMessage: prompt.slice(0, 120),
@@ -891,6 +886,8 @@ export class ChannelService {
       peerId: message.peerId,
       chatType: message.chatType,
       contextToken: message.contextToken || '',
+      senderId: message.senderId || '',
+      updatedAt: new Date().toISOString(),
     })
     const showMenu = async (prefix = '') => {
       const commands = botCommandsFor(bot, role)
@@ -1026,6 +1023,57 @@ export class ChannelService {
       scope,
     )
     return true
+  }
+
+  // 创建者本人和机器人的私聊（最近说过话的那个）。只认私聊、只认他本人：旧记录没写发送者时，
+  // 渠道只给创建者用才算他的。他从没在私聊里说过话的平台找不到（平台不允许机器人先开口）。
+  ownerChat(platform) {
+    const connection = this.state.connections[platform]
+    const ownerId = ownerIdOf(platform, connection)
+    if (!connection?.enabled || !this.gateways[platform] || !ownerId) return null
+    const mine = (chat) =>
+      chat.platform === platform &&
+      (chat.chatType || 'p2p') === 'p2p' &&
+      (chat.senderId ? chat.senderId === ownerId : connection.accessMode !== 'all')
+    return [...Object.values(this.state.scopes), ...this.botPeers.values()]
+      .filter(mine)
+      .reduce(
+        (latest, chat) =>
+          !latest ||
+          new Date(chat.updatedAt || 0).getTime() >= new Date(latest.updatedAt || 0).getTime()
+            ? chat
+            : latest,
+        null,
+      )
+  }
+
+  // Bot 的 bot_notify：发到创建者本人的私聊。只发已连接的平台，逐个报告结果，一个失败不影响别的。
+  async notifyOwner(text, { platforms } = {}) {
+    const results = []
+    for (const platform of PLATFORMS) {
+      if (platforms && !platforms.includes(platform)) continue
+      if (!this.state.connections[platform]?.enabled || !this.gateways[platform]) continue
+      const chat = this.ownerChat(platform)
+      if (!chat) {
+        results.push({ platform, status: 'no_chat' })
+        continue
+      }
+      try {
+        await this.gateways[platform].sendToPeer(
+          chat.peerId,
+          platform === 'feishu' ? { markdown: text } : { text },
+          { ...(this.state.scopes[scopeKey(platform, chat.peerId)] || {}), ...chat },
+        )
+        results.push({ platform, status: 'sent' })
+      } catch (error) {
+        results.push({
+          platform,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+    return results
   }
 
   async updateTemplate(event, platform, input) {

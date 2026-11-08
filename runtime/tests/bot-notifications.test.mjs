@@ -149,3 +149,75 @@ test('a chat hands its words to the bot, says so when it is busy, and replies re
   assert.deepEqual(weixin.pushed[0].input, { text: '下一次在今天 18:00。' })
   assert.equal(await service.sendToChat('qq', 'x', 'hi'), false)
 })
+
+test('notifying the owner goes only to the owner’s own private chat, never a group or someone else', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-bot-notify-owner-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const weixin = new FakeGateway()
+  const idle = () => ({
+    start: async () => ({}),
+    get: () => null,
+    cancel: () => false,
+    dispose() {},
+  })
+  const service = new ChannelService({
+    path: join(directory, 'channels.json'),
+    cwd: directory,
+    agent: {
+      prompt: async () => ({ sessionId: 's', text: '好的', cwd: directory, assets: [] }),
+      abort: async () => false,
+      validateDirectory: async (value) => value,
+    },
+    gatewayFactories: { feishu: () => new FakeGateway(), weixin: () => weixin },
+    onboardingFactories: { feishu: idle, weixin: idle, qq: idle },
+  })
+  await service.init()
+  // 还没连接任何渠道、或创建者从没私聊过：发不出去，结果写明原因。
+  assert.deepEqual(await service.notifyOwner('x'), [])
+  await service.completeOnboarding('weixin', { botToken: 't', accountId: 'acc', ownerUserId: 'u1' })
+  assert.deepEqual(await service.notifyOwner('x'), [{ platform: 'weixin', status: 'no_chat' }])
+
+  await service.handleMessage('weixin', {
+    messageId: 'm1',
+    peerId: 'u1',
+    chatType: 'p2p',
+    senderId: 'u1',
+    content: '你好',
+    contextToken: 'ctx-owner',
+    resources: [],
+  })
+  // 之后别人的私聊、创建者所在的群更晚说过话，也不能发过去。
+  const later = new Date(Date.now() + 60_000).toISOString()
+  service.state.scopes['weixin:u2'] = {
+    platform: 'weixin',
+    peerId: 'u2',
+    chatType: 'p2p',
+    senderId: 'u2',
+    updatedAt: later,
+  }
+  service.state.scopes['weixin:g1'] = {
+    platform: 'weixin',
+    peerId: 'g1',
+    chatType: 'group',
+    senderId: 'u1',
+    updatedAt: later,
+  }
+  assert.deepEqual(await service.notifyOwner('审核通过了'), [
+    { platform: 'weixin', status: 'sent' },
+  ])
+  assert.equal(weixin.pushed.at(-1).peerId, 'u1')
+  assert.deepEqual(weixin.pushed.at(-1).input, { text: '审核通过了' })
+  assert.equal(weixin.pushed.at(-1).scope.contextToken, 'ctx-owner')
+  // 公开出去的会话列表不带发送者身份。
+  assert.equal(
+    service.getState().scopes.some((scope) => 'senderId' in scope),
+    false,
+  )
+  // 旧记录没写发送者：渠道只给创建者用时算他的；对所有人开放时不认。
+  delete service.state.scopes['weixin:u1'].senderId
+  assert.equal(service.ownerChat('weixin')?.peerId, 'u1')
+  service.state.connections.weixin.accessMode = 'all'
+  assert.equal(service.ownerChat('weixin'), null)
+  // 只发指定平台；没连接的平台不出现在结果里。
+  assert.deepEqual(await service.notifyOwner('x', { platforms: ['qq'] }), [])
+})

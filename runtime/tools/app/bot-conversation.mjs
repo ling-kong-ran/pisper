@@ -209,5 +209,21 @@ export function createBotConversationTools({ runtime }) {
       }),
       execute: call('message'),
     }),
+    defineTool({
+      name: 'bot_notify',
+      label: 'Notify the user on their chat apps',
+      description:
+        'Send the user a short message on the chat apps they connected to Pisper (QQ, Telegram, Feishu, WeChat), in their own private chat with the Pisper bot. Use it when they asked to be told something there, typically from a scheduled check ("when it passes, tell me on QQ"). Your normal reply only stays in this conversation. If they are talking to you from a chat app right now, your reply already goes there, so do not also notify.',
+      parameters: Type.Object({
+        text: Type.String({ minLength: 1, maxLength: 2000 }),
+        platform: Type.Optional(
+          Type.String({
+            enum: ['qq', 'telegram', 'feishu', 'weixin'],
+            description: 'Only this app. Omit to send to every connected app.',
+          }),
+        ),
+      }),
+      execute: call('notify'),
+    }),
   ]
 }

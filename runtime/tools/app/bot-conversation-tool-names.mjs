@@ -9,4 +9,5 @@ export const BOT_CONVERSATION_TOOL_NAMES = Object.freeze([
   'bot_forget',
   'bot_recall',
   'bot_message',
+  'bot_notify',
 ])
