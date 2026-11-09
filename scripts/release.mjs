@@ -357,12 +357,8 @@ if (chainNpm) {
   if (compareVersions(npmReleaseVersion, manifest.version) <= 0) {
     throw new Error(`npm 新版本 ${npmReleaseVersion} 必须高于当前版本 ${manifest.version}。`)
   }
-  npmTuiVersion =
-    npmComponents.find(({ component }) => component === 'tui')?.nextVersion ||
-    manifest.pisper.tuiVersion
-  npmRuntimeVersion =
-    npmComponents.find(({ component }) => component === 'runtime')?.nextVersion ||
-    manifest.pisper.runtimeVersion
+  npmTuiVersion = bundledComponentVersion('tui', plans, tags)
+  npmRuntimeVersion = bundledComponentVersion('runtime', plans, tags)
 }
 console.log(`自动发布通道：${selectedComponents.join('、')}`)
 if (chainNpm) {

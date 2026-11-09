@@ -250,6 +250,23 @@ test('release pre-checks verify lockfile integrity against the registry before i
   assert.match(script, /dist\.integrity/)
 })
 
+test('npm release catches up to published components while preferring same-batch versions', async () => {
+  const source = await readText('scripts/release.mjs')
+  const tags = ['tui-v0.6.18', 'tui-v0.6.17', 'runtime-v0.6.34', 'npm-v0.6.35']
+  const manifest = { pisper: { tuiVersion: '0.6.17', runtimeVersion: '0.6.34' } }
+  const plans = [{ component: 'runtime', nextVersion: '0.6.35' }]
+
+  // npm manifest 可能因上次缺平台产物而未发布；此时必须追赶已发布组件标签。
+  assert.equal(manifest.pisper.tuiVersion, '0.6.17')
+  assert.equal(bundledComponentVersion('tui', plans, tags), '0.6.18')
+  // 同批次组件尚未有标签，计划的新版本必须优先。
+  assert.equal(bundledComponentVersion('runtime', plans, tags), '0.6.35')
+  assert.match(source, /npmTuiVersion = bundledComponentVersion\('tui', plans, tags\)/)
+  assert.match(source, /npmRuntimeVersion = bundledComponentVersion\('runtime', plans, tags\)/)
+  assert.doesNotMatch(source, /npmTuiVersion =[\s\S]*?manifest\.pisper\.tuiVersion/)
+  assert.doesNotMatch(source, /npmRuntimeVersion =[\s\S]*?manifest\.pisper\.runtimeVersion/)
+})
+
 test('the desktop dispatch records the components it really bundles, also on a re-trigger', async () => {
   const tags = ['v0.6.26', 'tui-v0.6.15', 'tui-v0.6.14', 'runtime-v0.6.24', 'npm-v0.6.26']
   // 重新触发时只剩 Desktop：用最新标签，和构建时取的一致。
