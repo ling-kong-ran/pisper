@@ -75,6 +75,9 @@ fn ensure_main(window: &WebviewWindow) -> Result<(), String> {
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod native {
+    // 当前工具链的 HashMap::new 不是 const，无法采用该 lint 给出的 const 初始化建议。
+    #![allow(clippy::missing_const_for_thread_local)]
+
     use super::super::desktop_browser_policy::{
         navigation_decision, reportable_url, BrowserBounds, NavigationDecision,
     };
