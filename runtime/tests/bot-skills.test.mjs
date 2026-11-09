@@ -222,21 +222,25 @@ test('sub-agents the bot hands work to carry its skills; a deleted skill is no l
         throw new Error('stop here')
       },
     })
-    await service.spawn({
-      parentSessionId: 'conv',
-      cwd: dataDir,
-      model: { provider: 'luna', id: 'm' },
-      taskName: 'release_check',
-      message: '按技能 release-check 做',
-      skillPaths: spawned[0].skillPaths,
-    })
-    // 等这条子 agent 失败落盘（加载器在这里抛错），再收拾临时目录。
-    for (let index = 0; index < 200; index += 1) {
-      if (service.list('conv')[0]?.status === 'failed') break
-      await new Promise((resolve) => setTimeout(resolve, 5))
+    try {
+      const agent = await service.spawn({
+        parentSessionId: 'conv',
+        cwd: dataDir,
+        model: { provider: 'luna', id: 'm' },
+        taskName: 'release_check',
+        message: '按技能 release-check 做',
+        skillPaths: spawned[0].skillPaths,
+      })
+      // 等这条子 agent 的运行 Promise 完整落定（包含失败落盘后的队列调度收尾），
+      // 再 dispose 服务清掉终态保留计时器；否则 Windows 可能在异步写 agents.json 时拒绝 rmdir。
+      const record = service.records.get(agent.id)
+      assert.ok(record)
+      await record.runningPromise
+      assert.equal(service.list('conv')[0]?.status, 'failed')
+      assert.deepEqual(loaderCalls[0].skillPaths, spawned[0].skillPaths)
+    } finally {
+      await service.dispose()
     }
-    await service.save()
-    assert.deepEqual(loaderCalls[0].skillPaths, spawned[0].skillPaths)
 
     assert.equal(await runtime.deleteBotSkill(BOT, 'release-check'), true)
     assert.equal(existsSync(join(dataDir, 'bots', BOT, 'skills', 'release-check')), false)
