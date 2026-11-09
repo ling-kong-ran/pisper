@@ -140,6 +140,8 @@ export type SessionSummary = EntityRecord & {
   attentionReason?: 'approval' | 'failure' | null
   lastCompletedAt?: string | null
   firstMessage?: string
+  // 最后一条有文字的用户 / 助手消息（已压成一行并截短）；Runtime 还没读到时没有这个字段。
+  lastMessage?: { role: 'user' | 'assistant'; text: string }
   model?: string
   thinkingLevel?: string
   cwd?: string

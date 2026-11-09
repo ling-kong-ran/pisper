@@ -16,6 +16,7 @@ import {
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { projectStoredTeam } from '../services/team-workflow.mjs'
 import { isSideChatId } from '../services/side-chat-service.mjs'
+import { createLastMessageCache, lastMessageFromMessages } from './session-last-message.mjs'
 import { parseSessionModelRef } from './session-model-ref.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
@@ -36,6 +37,11 @@ import {
 // Pi 会话管理器给空会话填的英文占位；列表输出时视为“无摘要”，由客户端显示本地化文案。
 const PI_EMPTY_FIRST_MESSAGE = '(no messages)'
 const MAX_MANUAL_SESSION_TITLE_CHARS = 120
+
+// 新增的可选字段：还没读到或会话没有文字消息时不出现，旧客户端忽略它。
+function lastMessageField(lastMessage) {
+  return lastMessage ? { lastMessage } : {}
+}
 
 // 手动输入的标题独立于首条消息自动命名；超过输入框上限时明确报错，避免静默截断。
 function cleanManualSessionTitle(value) {
@@ -145,6 +151,8 @@ export class SessionLifecycle {
     // 会话文件标签扫描缓存：path → { mtimeMs, size, scannedBytes, lastId,
     // activeChain, assistantIds, entries }。扫描结果同步持久化到索引文件，
     // 重启后只需 stat 校验，不再全量遍历会话文件。
+    // 列表“最近一条”的会话文件尾部读取缓存，见 session-last-message.mjs。
+    this.lastMessages = createLastMessageCache()
     this.sessionLabelScanCache = new Map()
     this.sessionLabelScans = new Map()
     this.sessionLabelIndex = null
@@ -450,6 +458,11 @@ export class SessionLifecycle {
           firstMessage ||
           DEFAULT_SESSION_NAME,
         firstMessage: firstMessage || '',
+        ...lastMessageField(
+          active
+            ? lastMessageFromMessages(active.session.messages)
+            : this.lastMessages.get(session),
+        ),
         messageCount: active
           ? active.session.messages.filter((message) =>
               ['user', 'assistant'].includes(message.role),
@@ -474,6 +487,7 @@ export class SessionLifecycle {
           id,
           name: value.name || DEFAULT_SESSION_NAME,
           firstMessage: '',
+          ...lastMessageField(lastMessageFromMessages(value.session.messages)),
           messageCount: value.session.messages.filter((message) =>
             ['user', 'assistant'].includes(message.role),
           ).length,

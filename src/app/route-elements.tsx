@@ -111,7 +111,11 @@ export async function moreRoute() {
 }
 
 export async function chatHistoryRoute() {
-  const { ChatHistoryPage } = await import('@/features/chat/ChatHistoryPage')
+  // 项目下拉与“无项目”沿用看板的项目文案（与全部代理页同一份），手机外壳不一定已经加载它。
+  const [{ ChatHistoryPage }] = await Promise.all([
+    import('@/features/chat/ChatHistoryPage'),
+    ensureBoardMessages(),
+  ])
 
   function ChatHistoryRoute() {
     const context = useAppRouteContext()

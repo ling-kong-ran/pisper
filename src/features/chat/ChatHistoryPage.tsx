@@ -1,6 +1,8 @@
 // 历史会话页（功能 › 会话与资料）：搜索完整会话目录并分批展示，支持继续打开和管理。
-// 用功能页模板（规格 v2 第 10 节 A6 第 2 批）：“‹ 功能”· 标题 · 工具行（搜索、新任务、未归档 / 已归档）·
-// 按置顶 / 今天 / 近 7 天 / 更早分区的列表行（名称、首条消息、工作区与消息数、右侧时间与 ⋯ 菜单）。
+// 用功能页模板（规格 v2 第 10 节 A6 第 2 批）：“‹ 功能”· 标题 · 工具行（搜索、新任务、未归档 / 已归档、项目）·
+// 列表行（名称、首条消息、消息数与模型、右侧时间与 ⋯ 菜单）。没选项目时按项目分区，每个项目先列最近几条，
+// “查看全部”进入这个项目；选了项目时按置顶 / 今天 / 近 7 天 / 更早分区并分批加载。
+// 项目与全部代理页的项目下拉同一来源（useCatalogProjects），名称与顺序一致。
 // 会话目录只有一个权威所有者（['sessions','board'] 缓存，由看板同步每 3 秒刷新）：本页只读这份缓存，
 // 写操作把服务端确认的结果写回缓存，不再保留第二份本地列表，也不自带轮询。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -8,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Archive,
   ArchiveRestore,
-  FolderClosed,
+  ChevronRight,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -33,6 +35,7 @@ import {
   FeatureToolbar,
 } from '@/components/app/FeaturePage'
 import { PageState } from '@/components/app/PageState'
+import { AppSelect } from '@/components/AppSelect'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -50,6 +53,7 @@ import { apiJson } from '@/lib/api'
 import { relativeTime, workspaceName } from '@/lib/format'
 import { useShortcutLabel } from '@/lib/shortcuts'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
+import { useCatalogProjects } from '@/features/board/useCatalogProjects'
 import {
   fetchStartupQuery,
   queryClient,
@@ -65,6 +69,7 @@ import {
 } from './events'
 import {
   HISTORY_BATCH_SIZE,
+  selectHistoryProjects,
   selectHistorySessions,
   type HistoryGroupKey,
   type HistoryView,
@@ -116,7 +121,11 @@ export function ChatHistoryPage({
     [sessionsQuery.data],
   )
   const [historyView, setHistoryView] = useState<HistoryView>('active')
-  const filterKey = `${historyView}\0${query}`
+  const projects = useCatalogProjects()
+  const [projectFilter, setProjectFilter] = useState('')
+  // 选中的项目被删掉或改了目录后回到全部项目，不停在一个下拉里已经没有的值上。
+  const project = projects.some((item) => item.key === projectFilter) ? projectFilter : ''
+  const filterKey = `${historyView}\0${query}\0${project}`
   const [pageLimit, setPageLimit] = useState({ filterKey, count: HISTORY_BATCH_SIZE })
   const completedBatchFocusRef = useRef(false)
   const completedBatchStatusRef = useRef<HTMLParagraphElement>(null)
@@ -175,8 +184,17 @@ export function ChatHistoryPage({
   // 搜索先覆盖完整目录，再限制挂载行数；切换搜索词立即回到首批结果。
   const visibleCount = pageLimit.filterKey === filterKey ? pageLimit.count : HISTORY_BATCH_SIZE
   const visible = useMemo(
-    () => selectHistorySessions(sessions, query, visibleCount, historyView),
-    [historyView, query, sessions, visibleCount],
+    () => selectHistorySessions(sessions, query, visibleCount, historyView, { project }),
+    [historyView, project, query, sessions, visibleCount],
+  )
+  const byProject = useMemo(
+    () => (project ? null : selectHistoryProjects(sessions, query, historyView)),
+    [historyView, project, query, sessions],
+  )
+  const total = byProject ? byProject.total : visible.total
+  const projectLabels = useMemo(
+    () => new Map(projects.map((item) => [item.key, item.label])),
+    [projects],
   )
   const archivedCount = sessions.filter((session) => session.archived).length
   const viewCounts: Record<HistoryView, number> = {
@@ -297,6 +315,166 @@ export function ChatHistoryPage({
     )
   }
 
+  const renderRow = (session: SessionSummary) => {
+    const name = session.name || t('chat:chatHistoryPage.untitledChat')
+    const model =
+      session.model && !/(^|\/)unknown$/i.test(String(session.model))
+        ? String(session.model).split('/').at(-1)
+        : ''
+    const active = session.id === activeId
+    const last = session.lastMessage
+    const summary =
+      typeof last?.text === 'string' && last.text
+        ? last.role === 'user'
+          ? t('chat:chatHistoryPage.lastFromYou', { text: last.text })
+          : last.text
+        : session.firstMessage || ''
+    return (
+      <FeatureRow
+        key={session.id}
+        data-history-session={session.id}
+        data-current={active || undefined}
+        // 本设备当前会话：名称前 3px 石墨刻度（不用强调色，规格 6.1）。
+        className={cn(
+          'chat-history-row relative',
+          active &&
+            'after:absolute after:top-3.5 after:bottom-3.5 after:-left-3 after:w-[3px] after:rounded-r-[3px] after:bg-star max-[650px]:after:-left-2.5',
+        )}
+        onOpen={() => openSession(session.id)}
+        openLabel={t('chat:chatHistoryPage.openChatNamed', { name })}
+        name={
+          <span className="chat-history-copy inline-flex max-w-full min-w-0 items-center gap-2">
+            {session.unread && (
+              <span
+                role="img"
+                aria-label={t('chat:chatHistoryPage.unread')}
+                className="size-1.5 shrink-0 rounded-full bg-ink"
+              />
+            )}
+            {session.pinned && (
+              <Pin className="size-3.5 shrink-0 text-content-muted" aria-hidden="true" />
+            )}
+            <strong data-history-name className="min-w-0 truncate font-medium" title={name}>
+              {name}
+            </strong>
+          </span>
+        }
+        // 摘要是最后一次对话（最后一条有文字的消息），停在用户那句时标上“你：”；
+        // 旧 Runtime 没有这个字段时退回首条消息。项目已经写在分区标题或筛选里，行内不再重复。
+        description={
+          <span className={cn('line-clamp-2', summary ? 'text-content-secondary' : undefined)}>
+            {summary || t('chat:chatHistoryPage.noMessageSummary')}
+          </span>
+        }
+        meta={
+          <>
+            {statusLabel(session)}
+            {session.archived && query.trim() && (
+              <Badge>{t('chat:chatHistoryPage.archived')}</Badge>
+            )}
+            <span className="shrink-0 tabular-nums">
+              {t('chat:chatHistoryPage.countMessages', {
+                count: session.messageCount || 0,
+              })}
+            </span>
+            {model && (
+              <>
+                <span aria-hidden="true" className="max-[650px]:hidden">
+                  ·
+                </span>
+                <span className="min-w-0 truncate font-mono max-[650px]:hidden">{model}</span>
+              </>
+            )}
+            <SessionChangeIndicator
+              sessionId={session.id}
+              lastCompletedAt={session.lastCompletedAt}
+              streaming={session.streaming}
+            />
+          </>
+        }
+        status={<time dateTime={session.modified}>{relativeTime(session.modified, language)}</time>}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-content-muted max-[650px]:size-11 pointer-coarse:size-11"
+                aria-label={t('chat:chatHistoryPage.moreActionsForChat', {
+                  name,
+                })}
+              >
+                <MoreHorizontal size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuItem className="min-h-11" onSelect={() => void renameSession(session)}>
+                <Pencil />
+                {t('chat:chatHistoryPage.renameChat')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="min-h-11"
+                onSelect={() =>
+                  void organizeSession(
+                    session,
+                    { pinned: !session.pinned },
+                    session.pinned
+                      ? t('chat:chatHistoryPage.unpinned')
+                      : t('chat:chatHistoryPage.pinned'),
+                  )
+                }
+              >
+                {session.pinned ? <PinOff /> : <Pin />}
+                {session.pinned ? t('chat:chatHistoryPage.unpin') : t('chat:chatHistoryPage.pin')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="min-h-11"
+                onSelect={() =>
+                  void organizeSession(
+                    session,
+                    { archived: !session.archived },
+                    session.archived
+                      ? t('chat:chatHistoryPage.restored')
+                      : t('chat:chatHistoryPage.movedToArchive'),
+                  )
+                }
+              >
+                {session.archived ? <ArchiveRestore /> : <Archive />}
+                {session.archived
+                  ? t('chat:chatHistoryPage.restore')
+                  : t('chat:chatHistoryPage.archive')}
+              </DropdownMenuItem>
+              {session.unread && (
+                <DropdownMenuItem
+                  className="min-h-11"
+                  onSelect={() =>
+                    void organizeSession(
+                      session,
+                      { read: true },
+                      t('chat:chatHistoryPage.markedRead'),
+                    )
+                  }
+                >
+                  {t('chat:chatHistoryPage.markRead')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                className="min-h-11"
+                onSelect={() => void deleteSession(session)}
+              >
+                <Trash2 />
+                {t('chat:chatHistoryPage.deleteChat')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+    )
+  }
+
   const title = t('chat:chatHistoryPage.chatHistory')
   const emptyTitle = query
     ? t('chat:chatHistoryPage.noMatchingConversations')
@@ -348,51 +526,70 @@ export function ChatHistoryPage({
             )
           }
           filters={
-            // 分段控件与统计同一行：选中段抬起为键帽，计数用等宽数字；手机上分段铺满整行、每段 44。
+            // 分段控件、项目下拉与统计同一行：选中段抬起为键帽，计数用等宽数字；
+            // 手机上分段与刷新一行、项目下拉另起一整行，高 44。
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <div
-                role="group"
-                aria-label={t('chat:chatHistoryPage.historySections')}
-                className="inline-grid h-8 grid-cols-2 rounded-md border border-stroke bg-chrome p-[3px] max-[650px]:h-auto max-[650px]:flex-1 max-[650px]:rounded-[10px] pointer-coarse:h-auto"
-              >
-                {(['active', 'archived'] as const).map((view) => (
-                  <button
-                    key={view}
-                    type="button"
-                    aria-pressed={historyView === view}
-                    aria-label={
-                      view === 'active'
-                        ? t('chat:chatHistoryPage.activeChatsCount', { count: viewCounts.active })
-                        : t('chat:chatHistoryPage.archivedChats', { count: viewCounts.archived })
-                    }
-                    className={cn(
-                      'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-sm border border-transparent px-3 text-sm text-content-secondary transition-colors duration-(--d-fast) hover:text-content max-[650px]:h-11 max-[650px]:text-base pointer-coarse:h-11',
-                      historyView === view &&
-                        'border-key-border bg-key font-medium text-content shadow-key',
-                    )}
-                    onClick={() => setHistoryView(view)}
-                  >
-                    {view === 'active'
-                      ? t('chat:chatHistoryPage.activeChats')
-                      : t('chat:chatHistoryPage.archived')}
-                    <span
+              <div className="flex min-w-0 flex-wrap items-center gap-2 max-[650px]:contents">
+                <div
+                  role="group"
+                  aria-label={t('chat:chatHistoryPage.historySections')}
+                  className="inline-grid h-8 grid-cols-2 rounded-md border border-stroke bg-chrome p-[3px] max-[650px]:h-auto max-[650px]:flex-1 max-[650px]:rounded-[10px] pointer-coarse:h-auto"
+                >
+                  {(['active', 'archived'] as const).map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      aria-pressed={historyView === view}
+                      aria-label={
+                        view === 'active'
+                          ? t('chat:chatHistoryPage.activeChatsCount', { count: viewCounts.active })
+                          : t('chat:chatHistoryPage.archivedChats', { count: viewCounts.archived })
+                      }
                       className={cn(
-                        'text-xs font-normal tabular-nums',
-                        historyView === view ? 'text-content-secondary' : 'text-content-muted',
+                        'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-sm border border-transparent px-3 text-sm text-content-secondary transition-colors duration-(--d-fast) hover:text-content max-[650px]:h-11 max-[650px]:text-base pointer-coarse:h-11',
+                        historyView === view &&
+                          'border-key-border bg-key font-medium text-content shadow-key',
                       )}
+                      onClick={() => setHistoryView(view)}
                     >
-                      {viewCounts[view]}
-                    </span>
-                  </button>
-                ))}
+                      {view === 'active'
+                        ? t('chat:chatHistoryPage.activeChats')
+                        : t('chat:chatHistoryPage.archived')}
+                      <span
+                        className={cn(
+                          'text-xs font-normal tabular-nums',
+                          historyView === view ? 'text-content-secondary' : 'text-content-muted',
+                        )}
+                      >
+                        {viewCounts[view]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {/* 项目筛选：全部项目时按项目分区，选中一个项目时只看它、按时间分区。 */}
+                <AppSelect
+                  aria-label={t('board:filter.projects')}
+                  className="w-48 max-[650px]:order-last max-[650px]:w-full"
+                  value={project}
+                  onChange={(event) => setProjectFilter(event.target.value)}
+                >
+                  <option value="">{t('board:filter.allProjects')}</option>
+                  {projects.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.label}
+                    </option>
+                  ))}
+                </AppSelect>
               </div>
               <div className="flex min-w-0 items-center gap-1 text-xs text-content-muted tabular-nums">
                 <span className={cn('truncate', !query && 'max-[650px]:hidden')}>
                   {t('chat:chatHistoryPage.countChatHistoryItems', { count: sessions.length })}
                   {' · '}
                   {query
-                    ? t('chat:chatHistoryPage.countCurrentlyFiltered', { count: visible.total })
-                    : t('chat:chatHistoryPage.sortedByMostRecentlyUpdated')}
+                    ? t('chat:chatHistoryPage.countCurrentlyFiltered', { count: total })
+                    : byProject
+                      ? t('chat:chatHistoryPage.groupedByProject')
+                      : t('chat:chatHistoryPage.sortedByMostRecentlyUpdated')}
                 </span>
                 <Button
                   variant="ghost"
@@ -435,193 +632,47 @@ export function ChatHistoryPage({
         <>
           {/* 读取成功后的操作失败（重命名、整理、删除）与刷新失败：写在列表上方，列表保留。 */}
           {(error || listError) && <FeatureAlert>{error || listError}</FeatureAlert>}
-          {visible.total ? (
+          {byProject && byProject.total ? (
+            <div className="chat-history-list">
+              {byProject.groups.map((group) => {
+                const label = projectLabels.get(group.key) || workspaceName(group.cwd, language)
+                return (
+                  // 每个项目一个分区，标题旁是它在筛选结果里的会话数；只列最近几条，其余进入这个项目看。
+                  <FeatureSection
+                    key={group.key}
+                    data-history-project={group.key}
+                    title={label}
+                    count={group.count}
+                    actions={
+                      group.count > group.items.length && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-content-secondary tabular-nums"
+                          aria-label={t('chat:chatHistoryPage.showAllInProjectNamed', {
+                            project: label,
+                            count: group.count,
+                          })}
+                          onClick={() => setProjectFilter(group.key)}
+                        >
+                          {t('chat:chatHistoryPage.showAllInProject', { count: group.count })}
+                          <ChevronRight aria-hidden="true" />
+                        </Button>
+                      )
+                    }
+                  >
+                    <FeatureList>{group.items.map(renderRow)}</FeatureList>
+                  </FeatureSection>
+                )
+              })}
+            </div>
+          ) : !byProject && visible.total ? (
             <div className="chat-history-list">
               {visible.groups.map((group) => (
                 // 分组（置顶 / 今天 / 近 7 天 / 更早）各是一个分区，标题旁是该组在完整筛选结果中的会话数。
                 <FeatureSection key={group.key} title={groupLabels[group.key]} count={group.count}>
-                  <FeatureList>
-                    {group.items.map((session) => {
-                      const name = session.name || t('chat:chatHistoryPage.untitledChat')
-                      const model =
-                        session.model && !/(^|\/)unknown$/i.test(String(session.model))
-                          ? String(session.model).split('/').at(-1)
-                          : ''
-                      const active = session.id === activeId
-                      return (
-                        <FeatureRow
-                          key={session.id}
-                          data-history-session={session.id}
-                          data-current={active || undefined}
-                          // 本设备当前会话：名称前 3px 石墨刻度（不用强调色，规格 6.1）。
-                          className={cn(
-                            'chat-history-row relative',
-                            active &&
-                              'after:absolute after:top-3.5 after:bottom-3.5 after:-left-3 after:w-[3px] after:rounded-r-[3px] after:bg-star max-[650px]:after:-left-2.5',
-                          )}
-                          onOpen={() => openSession(session.id)}
-                          openLabel={t('chat:chatHistoryPage.openChatNamed', { name })}
-                          name={
-                            <span className="chat-history-copy inline-flex max-w-full min-w-0 items-center gap-2">
-                              {session.unread && (
-                                <span
-                                  role="img"
-                                  aria-label={t('chat:chatHistoryPage.unread')}
-                                  className="size-1.5 shrink-0 rounded-full bg-ink"
-                                />
-                              )}
-                              {session.pinned && (
-                                <Pin
-                                  className="size-3.5 shrink-0 text-content-muted"
-                                  aria-hidden="true"
-                                />
-                              )}
-                              <strong
-                                data-history-name
-                                className="min-w-0 truncate font-medium"
-                                title={name}
-                              >
-                                {name}
-                              </strong>
-                            </span>
-                          }
-                          description={
-                            <span
-                              className={cn(
-                                'line-clamp-1',
-                                session.firstMessage ? 'text-content-secondary' : undefined,
-                              )}
-                            >
-                              {session.firstMessage || t('chat:chatHistoryPage.noMessageSummary')}
-                            </span>
-                          }
-                          meta={
-                            <>
-                              {statusLabel(session)}
-                              {session.archived && query.trim() && (
-                                <Badge>{t('chat:chatHistoryPage.archived')}</Badge>
-                              )}
-                              <span className="inline-flex min-w-0 items-center gap-1 font-mono">
-                                <FolderClosed className="size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="truncate">
-                                  {workspaceName(session.projectless ? '' : session.cwd, language)}
-                                </span>
-                              </span>
-                              <span aria-hidden="true">·</span>
-                              <span className="shrink-0 tabular-nums">
-                                {t('chat:chatHistoryPage.countMessages', {
-                                  count: session.messageCount || 0,
-                                })}
-                              </span>
-                              {model && (
-                                <>
-                                  <span aria-hidden="true" className="max-[650px]:hidden">
-                                    ·
-                                  </span>
-                                  <span className="min-w-0 truncate font-mono max-[650px]:hidden">
-                                    {model}
-                                  </span>
-                                </>
-                              )}
-                              <SessionChangeIndicator
-                                sessionId={session.id}
-                                lastCompletedAt={session.lastCompletedAt}
-                                streaming={session.streaming}
-                              />
-                            </>
-                          }
-                          status={
-                            <time dateTime={session.modified}>
-                              {relativeTime(session.modified, language)}
-                            </time>
-                          }
-                          actions={
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8 shrink-0 text-content-muted max-[650px]:size-11 pointer-coarse:size-11"
-                                  aria-label={t('chat:chatHistoryPage.moreActionsForChat', {
-                                    name,
-                                  })}
-                                >
-                                  <MoreHorizontal size={16} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="min-w-48">
-                                <DropdownMenuItem
-                                  className="min-h-11"
-                                  onSelect={() => void renameSession(session)}
-                                >
-                                  <Pencil />
-                                  {t('chat:chatHistoryPage.renameChat')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-11"
-                                  onSelect={() =>
-                                    void organizeSession(
-                                      session,
-                                      { pinned: !session.pinned },
-                                      session.pinned
-                                        ? t('chat:chatHistoryPage.unpinned')
-                                        : t('chat:chatHistoryPage.pinned'),
-                                    )
-                                  }
-                                >
-                                  {session.pinned ? <PinOff /> : <Pin />}
-                                  {session.pinned
-                                    ? t('chat:chatHistoryPage.unpin')
-                                    : t('chat:chatHistoryPage.pin')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="min-h-11"
-                                  onSelect={() =>
-                                    void organizeSession(
-                                      session,
-                                      { archived: !session.archived },
-                                      session.archived
-                                        ? t('chat:chatHistoryPage.restored')
-                                        : t('chat:chatHistoryPage.movedToArchive'),
-                                    )
-                                  }
-                                >
-                                  {session.archived ? <ArchiveRestore /> : <Archive />}
-                                  {session.archived
-                                    ? t('chat:chatHistoryPage.restore')
-                                    : t('chat:chatHistoryPage.archive')}
-                                </DropdownMenuItem>
-                                {session.unread && (
-                                  <DropdownMenuItem
-                                    className="min-h-11"
-                                    onSelect={() =>
-                                      void organizeSession(
-                                        session,
-                                        { read: true },
-                                        t('chat:chatHistoryPage.markedRead'),
-                                      )
-                                    }
-                                  >
-                                    {t('chat:chatHistoryPage.markRead')}
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  className="min-h-11"
-                                  onSelect={() => void deleteSession(session)}
-                                >
-                                  <Trash2 />
-                                  {t('chat:chatHistoryPage.deleteChat')}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          }
-                        />
-                      )
-                    })}
-                  </FeatureList>
+                  <FeatureList>{group.items.map(renderRow)}</FeatureList>
                 </FeatureSection>
               ))}
               {visible.total > HISTORY_BATCH_SIZE && (
