@@ -64,6 +64,11 @@ function planPlatforms(current) {
     : SUPPORTED_TARGETS
 }
 
+const PLATFORM_NAMES = { windows: 'Windows', darwin: 'macOS', linux: 'Linux' }
+function platformNames(targets) {
+  return targets.map((target) => PLATFORM_NAMES[target.split('_')[0]] || target).join('、')
+}
+
 const [command = 'help', ...rest] = process.argv.slice(2)
 const flags = new Set(rest.filter((value) => value.startsWith('--')))
 const positional = rest.filter((value) => !value.startsWith('--'))
@@ -133,11 +138,13 @@ async function restoreWorkingTree(components) {
 }
 
 // 草稿里的计划：每个草稿都带一份 pisper-release-plan.json；HEAD 等于计划的源提交才算本次发布。
-async function findPlan(api, { source } = {}) {
-  const drafts = (await api.listReleases()).filter((release) => release.draft)
+// publish 中途失败时部分 Release 可能已经发布：resume 时也从已发布的 Release 里找计划，并标出哪些已发布。
+async function findPlan(api, { source, resume = false } = {}) {
+  const releases = await api.listReleases()
+  const drafts = releases.filter((release) => release.draft)
   const plans = []
-  for (const draft of drafts) {
-    const asset = draft.assets?.find((item) => item.name === PLAN_ASSET)
+  for (const release of resume ? releases : drafts) {
+    const asset = release.assets?.find((item) => item.name === PLAN_ASSET)
     if (!asset) continue
     const plan = JSON.parse((await api.downloadAsset(asset.id)).toString('utf8'))
     if (!plans.some((item) => item.source === plan.source)) plans.push(plan)
@@ -152,9 +159,11 @@ async function findPlan(api, { source } = {}) {
   if (matching.length > 1) throw new Error('找到多份发布计划，请先删除过期的草稿 Release。')
   const plan = matching[0]
   for (const item of plan.components) {
-    const draft = drafts.find((release) => release.id === item.releaseId)
-    if (!draft) throw new Error(`计划里的草稿 ${item.tag} 不见了，请重新运行 plan。`)
-    item.draft = draft
+    const release = (resume ? releases : drafts).find((entry) => entry.id === item.releaseId)
+    if (!release || (!release.draft && release.tag_name !== item.tag))
+      throw new Error(`计划里的草稿 ${item.tag} 不见了，请重新运行 plan。`)
+    item.draft = release
+    item.published = !release.draft
   }
   return plan
 }
@@ -168,12 +177,12 @@ async function plan() {
   assertCleanTree()
   if (
     api &&
-    (await api.listReleases()).some(
-      (release) => release.draft && release.assets?.some((asset) => asset.name === PLAN_ASSET),
+    (await api.listReleases()).some((release) =>
+      release.assets?.some((asset) => asset.name === PLAN_ASSET),
     )
   )
     throw new Error(
-      '已有一份进行中的发布计划（草稿 Release）。先 publish，或删除那些草稿再重新 plan。',
+      '已有一份进行中的发布计划（草稿 Release，或 publish 中途失败留下的计划）。先 publish，或删除那些草稿再重新 plan。',
     )
 
   const planPath = join(tmpdir(), `pisper-release-plan-${process.pid}.json`)
@@ -270,7 +279,7 @@ async function plan() {
   await rm(file, { force: true })
   console.log(`已建草稿：${components.map((item) => item.tag).join('、')}`)
   console.log(
-    `接下来在 Windows、macOS、Linux 上各切到 ${computed.source} 运行：npm run release:local -- build`,
+    `接下来在 ${platformNames(platforms)} 上各切到 ${computed.source} 运行：npm run release:local -- build`,
   )
 }
 
@@ -406,7 +415,7 @@ async function build() {
     }
   }
   console.log(
-    `${TARGET} 的产物已上传。三个平台都传完后运行：npm run release:local -- status / publish`,
+    `${TARGET} 的产物已上传。${platformNames(planPlatforms(current))} 都传完后运行：npm run release:local -- status / publish`,
   )
 }
 
@@ -426,13 +435,15 @@ function expectedAssetsReport(entry, names, platforms) {
 async function status() {
   await loadSecrets()
   const api = github()
-  const current = await findPlan(api)
+  const current = await findPlan(api, { resume: true })
   console.log(
     `发布计划：源 ${current.source}，${current.createdAt}，平台 ${planPlatforms(current).join('、')}`,
   )
   for (const entry of current.components) {
     const names = (await api.listAssets(entry.releaseId)).map((asset) => asset.name)
-    console.log(expectedAssetsReport(entry, names, planPlatforms(current)))
+    console.log(
+      `${expectedAssetsReport(entry, names, planPlatforms(current))}${entry.published ? '（已发布）' : ''}`,
+    )
   }
   if (current.npm) console.log(`npm：pisper@${current.npm.version}（publish 时发布）`)
 }
@@ -449,20 +460,42 @@ async function publish() {
     throw new Error(
       `本地 ${RELEASE_BRANCH} 必须与 origin/${RELEASE_BRANCH} 一致（先 git pull --rebase）。`,
     )
-  const current = await findPlan(api)
+  const current = await findPlan(api, { resume: true })
   if (current.npm) requireEnv('NPM_TOKEN')
   // 计划之后 release 上只能有版本提交，和 CI 的规则一样。
   node(['scripts/verify-release-head.mjs', current.source, head])
 
   const platforms = planPlatforms(current)
   const platformsArg = `--platforms=${platforms.join(',')}`
+  const npmTag = current.npm ? `npm-v${current.npm.version}` : null
+
+  // 上次 publish 已推送（标签都在远端、指向 release 上的版本提交）就跳过提交和推送，只补发布草稿和 npm。
+  // 只有一部分标签在远端说明不是这份计划推的，停下来人工处理。
+  const plannedTags = [...current.components.map((entry) => entry.tag), ...(npmTag ? [npmTag] : [])]
+  const remoteTags = plannedTags.filter((tag) => git(['ls-remote', 'origin', `refs/tags/${tag}`]))
+  const pushed = remoteTags.length === plannedTags.length
+  if (remoteTags.length && !pushed) throw new Error(`远端已有标签 ${remoteTags.join('、')}。`)
+  if (pushed) {
+    for (const tag of plannedTags) {
+      const component =
+        tag === npmTag ? 'npm' : current.components.find((e) => e.tag === tag).component
+      const subject = git(['log', '-1', '--format=%s', `refs/tags/${tag}^{commit}`])
+      let reachable = true
+      try {
+        git(['merge-base', '--is-ancestor', `refs/tags/${tag}`, head])
+      } catch {
+        reachable = false
+      }
+      if (!reachable || subject !== `chore(release-${component}): ${tag}`)
+        throw new Error(`远端标签 ${tag} 不是这份计划的版本提交。`)
+    }
+    console.log(`版本提交和标签上次已推送，继续发布草稿：${plannedTags.join('、')}`)
+  }
 
   // 1. 下载每个草稿的产物（计划文件与旧的 latest.json 除外）。
   const publishRoot = join(root, 'release', 'publish')
   await rm(publishRoot, { recursive: true, force: true })
   for (const entry of current.components) {
-    if (git(['ls-remote', 'origin', `refs/tags/${entry.tag}`]))
-      throw new Error(`远端已有标签 ${entry.tag}。`)
     const directory = join(publishRoot, entry.tag)
     await mkdir(directory, { recursive: true })
     const assets = (await api.listAssets(entry.releaseId)).filter(
@@ -484,7 +517,8 @@ async function publish() {
     git(['reset', '--keep', head])
   }
   try {
-    for (const entry of current.components) {
+    // 已推送时 HEAD 上的版本文件已经是这次的版本，直接生成清单和校验。
+    for (const entry of pushed ? [] : current.components) {
       node(['scripts/stage-release-version.mjs', entry.component, entry.version], {
         env: bundledEnv,
       })
@@ -493,8 +527,7 @@ async function publish() {
       git(['tag', entry.tag])
       tags.push(entry.tag)
     }
-    if (current.npm) {
-      const npmTag = `npm-v${current.npm.version}`
+    if (npmTag && !pushed) {
       node([
         'scripts/stage-npm-release-version.mjs',
         current.npm.version,
@@ -537,26 +570,30 @@ async function publish() {
       }
     }
 
-    git([
-      'push',
-      '--atomic',
-      'origin',
-      `HEAD:refs/heads/${RELEASE_BRANCH}`,
-      ...tags.map((tag) => `refs/tags/${tag}`),
-    ])
+    if (!pushed)
+      git([
+        'push',
+        '--atomic',
+        'origin',
+        `HEAD:refs/heads/${RELEASE_BRANCH}`,
+        ...tags.map((tag) => `refs/tags/${tag}`),
+      ])
   } catch (error) {
     // 推送之前任何一步失败，远端都没有变化：撤掉本地的版本提交和标签，修好后直接重跑 publish。
     undo()
     throw error
   }
 
-  // 4. 发布草稿：先补传 latest.json、删掉计划文件；TUI、Runtime 先发，Desktop 最后并设为 Latest。
+  // 4. 发布草稿：先补传 latest.json；TUI、Runtime 先发，Desktop 最后并设为 Latest。
+  //    计划文件等 npm 也发完才删：中途失败时重跑 publish 还能找到这份计划，从断点继续。
   for (const entry of current.components) {
+    if (entry.published) {
+      console.log(`${entry.tag} 已发布，跳过`)
+      continue
+    }
     const existing = await api.listAssets(entry.releaseId)
     if (entry.component === 'desktop')
       await api.uploadAsset(entry.releaseId, join(publishRoot, entry.tag, 'latest.json'), existing)
-    const planAsset = existing.find((asset) => asset.name === PLAN_ASSET)
-    if (planAsset) await api.deleteAsset(planAsset.id)
     await api.publish(entry.releaseId, {
       tag: entry.tag,
       title: entry.title,
@@ -567,6 +604,12 @@ async function publish() {
   }
 
   if (current.npm) await publishNpm(current, publishRoot)
+  for (const entry of current.components) {
+    const planAsset = (await api.listAssets(entry.releaseId)).find(
+      (asset) => asset.name === PLAN_ASSET,
+    )
+    if (planAsset) await api.deleteAsset(planAsset.id)
+  }
   console.log('本机发布完成。')
 }
 

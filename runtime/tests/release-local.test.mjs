@@ -69,6 +69,12 @@ test('release.mjs can stop after planning, and desktop builds can bundle local a
   assert.match(local, /'--local=release\/component-artifacts'/)
   assert.match(local, /scripts\/verify-release-head\.mjs/)
   assert.doesNotMatch(local, /console\.log\([^)]*(TOKEN|PRIVATE_KEY|PASSWORD)/)
+  // publish 推送后中途失败可以重跑：标签都已在远端时跳过提交与推送，计划文件最后才删。
+  assert.match(local, /findPlan\(api, \{ resume: true \}\)/)
+  assert.match(local, /if \(!pushed\)\s+git\(\[\s+'push'/)
+  assert.ok(
+    local.indexOf('await publishNpm(current') < local.lastIndexOf('api.deleteAsset(planAsset.id)'),
+  )
 })
 
 test('a release that skips Linux validates only the planned platforms', async (t) => {
@@ -129,12 +135,16 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
 
   const plan = step('Plan Windows-only release')
   assert.equal(plan.if, "inputs.stage == 'all' || inputs.stage == 'plan'")
-  assert.match(plan.run, /npm run release:local -- plan /)
-  assert.match(plan.run, /--platforms=windows$/)
+  assert.match(plan.run, /npm run release:local -- plan \$env:RELEASE_VERSION --platforms=windows/)
+  // 手动输入只经环境变量进入脚本，先校验再使用。
+  assert.equal(plan.env.RELEASE_VERSION, '${{ inputs.version }}')
+  assert.doesNotMatch(plan.run, /\$\{\{/)
+  assert.match(plan.run, /-cnotmatch '\^\(patch\|minor\|major\|/)
 
   const build = step('Build and upload Windows artifacts')
   assert.equal(build.if, "inputs.stage == 'all' || inputs.stage == 'build'")
-  assert.equal(build.run, 'npm run release:local -- build --no-install')
+  // plan 可能刚升级依赖，build 必须自己重新 npm ci。
+  assert.equal(build.run, 'npm run release:local -- build')
   assert.equal(build.env.TAURI_SIGNING_PRIVATE_KEY, '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')
   assert.equal(
     build.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
@@ -145,6 +155,8 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
   const publish = step('Publish validated draft releases')
   assert.equal(publish.if, "inputs.stage == 'all' || inputs.stage == 'publish'")
   assert.equal(publish.run, 'npm run release:local -- publish')
+
+  assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
 
   // Windows-only 计划没有 npm；入口只能复用 release-local，不能走 release.mjs 的 Actions 派发。
   assert.doesNotMatch(source, /\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/)

@@ -64,14 +64,23 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Plan Windows-only release
         if: inputs.stage == 'all' || inputs.stage == 'plan'
-        run: npm run release:local -- plan "${{ inputs.version }}" --platforms=windows
+        # 输入经环境变量传入并先校验，不直接拼进脚本，避免命令注入。
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -cnotmatch '^(patch|minor|major|\d+\.\d+\.\d+)$') {
+            throw "version must be patch, minor, major or X.Y.Z, got: $env:RELEASE_VERSION"
+          }
+          npm run release:local -- plan $env:RELEASE_VERSION --platforms=windows
       - name: Build and upload Windows artifacts
         if: inputs.stage == 'all' || inputs.stage == 'build'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        # 上方已执行 npm ci；保留发布脚本自己的检查、签名、上传和资产覆盖逻辑。
-        run: npm run release:local -- build --no-install
+        # 不加 --no-install：plan 可能刚把 Pi 依赖升级并提交，build 要按新的锁文件重新 npm ci，
+        # 否则产物里打包的还是旧版本。
+        run: npm run release:local -- build
       - name: Inspect draft release assets
         if: inputs.stage == 'all' || inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'
         run: npm run release:local -- status

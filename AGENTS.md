@@ -161,13 +161,14 @@ npm run release:local -- plan patch   # Actions 额度用尽时本机发布，�
 - 本机发布（`scripts/release-local.mjs`，Actions 额度用尽时用）：
   1. 任一台机器在 release 分支、干净工作区上运行 `npm run release:local -- plan patch`（或 `minor`、`major`、`X.Y.Z`）。它跑发布前检查，并为每个要发的版本建一个 GitHub 草稿 Release，草稿里存着计划。暂时没有某个平台的构建机时加 `--platforms=windows,darwin`：跳过的平台在组件更新里停在上一版，这次也不发 npm。
   2. 计划里的每个平台各在一台机器上检出 plan 打印的提交，运行 `npm run release:local -- build`。它构建本平台产物、签名并上传到草稿；重跑会覆盖上一次上传的同名产物。
-  3. 用 `npm run release:local -- status` 确认各平台都已上传，再在任一台运行 `npm run release:local -- publish`：校验产物，提交版本号、打版本标签并推送，发布草稿，最后发 npm。推送前出错会撤销本地版本提交和标签，修好后重跑即可。
+  3. 用 `npm run release:local -- status` 确认各平台都已上传，再在任一台运行 `npm run release:local -- publish`：校验产物，提交版本号、打版本标签并推送，发布草稿，最后发 npm。推送前出错会撤销本地版本提交和标签；推送后出错（发布草稿或 npm 时）重跑 publish 会跳过提交和推送，从断点继续。计划文件在全部发完后才删除。
   - 从 plan 到 publish 之间冻结 release 分支。移动 App 仍只走 CI。
   - 本机发布凭据只放在不入库的 `~/.config/pisper-release/env`（或 `PISPER_RELEASE_ENV` 指定的文件），每行一个 `KEY=VALUE`：`GITHUB_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；发 npm 时加 `NPM_TOKEN`；macOS 打桌面包时加 `APPLE_*` 签名与公证变量。
 - 自托管 Windows 发布（Actions 托管额度用尽，且已有 Windows x64 构建机时）：
-  1. 在仓库或组织的 Actions Runner 设置中注册 Windows x64 Runner，并添加自定义标签 `pisper-windows`；workflow 只匹配 `[self-hosted, pisper-windows]`，不得改成 GitHub 托管标签。GitHub Secrets 配置 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，由 build 步骤注入；`GITHUB_TOKEN` 使用 `github.token`，无需在这台机器上保存本机发布凭据文件。
-  2. 在 Actions 手动运行 `Release from self-hosted Windows`（只支持 `workflow_dispatch`），选择 release 分支。完整发布用 `stage=all`、`version=patch`，依次执行 `npm ci`、`npm run release:local -- plan patch --platforms=windows`、`build --no-install`、`status`、`publish`；也可用 `stage=plan` 只建草稿、`stage=status` 只检查资产。
-  3. plan 已建草稿而 build 失败时，修复后用 `stage=build` 重跑，不要再次选择 all/plan；只需重试最终发布时用 `stage=publish`。两者都复用草稿里的现有计划，不自动删除草稿，也不跳过检查或资产校验。
+  1. 仓库是公开的，任何 fork PR 都能加一个 `runs-on: [self-hosted, pisper-windows]` 的 workflow 在这台机器上执行代码。注册 Runner 前必须在 Settings → Actions 把 “Fork pull request workflows” 设为所有外部贡献者都需批准；Runner 用专用的非管理员 Windows 账户运行，不用登录着个人浏览器或存有本机发布凭据的账户，最好放在单独的虚拟机或机器上。机器需要 Git for Windows（`dtolnay/rust-toolchain` 的步骤用 bash）、rustup、Visual Studio Build Tools（MSVC）并开启长路径支持。
+  2. 在仓库或组织的 Actions Runner 设置中注册 Windows x64 Runner，并添加自定义标签 `pisper-windows`；workflow 只匹配 `[self-hosted, pisper-windows]`，不得改成 GitHub 托管标签。GitHub Secrets 配置 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，由 build 步骤注入；`GITHUB_TOKEN` 使用 `github.token`，无需在这台机器上保存本机发布凭据文件。
+  3. 在 Actions 手动运行 `Release from self-hosted Windows`（只支持 `workflow_dispatch`），选择 release 分支。完整发布用 `stage=all`、`version=patch`，依次执行 `npm ci`、`npm run release:local -- plan patch --platforms=windows`、`build`（plan 可能刚升级 Pi 依赖，build 自己重新 `npm ci`）、`status`、`publish`；也可用 `stage=plan` 只建草稿、`stage=status` 只检查资产。
+  4. plan 已建草稿而 build 失败时，修复后用 `stage=build` 重跑，不要再次选择 all/plan；publish 失败（推送前或推送后都可以）时用 `stage=publish` 重跑。两者都复用草稿里的现有计划，不自动删除草稿，也不跳过检查或资产校验。
   - 这条路径只构建 Windows x64，其他平台停在上一版且不发 npm；移动 App 仍只走 CI。plan 到 publish 之间同样冻结 release 分支。
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
