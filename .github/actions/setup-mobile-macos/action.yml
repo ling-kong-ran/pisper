@@ -1,0 +1,48 @@
+name: Prepare self-hosted mobile macOS
+description: Prepare shared tools and check native build prerequisites on Apple Silicon
+inputs:
+  target:
+    description: Native target to check (base, android, ios)
+    default: base
+runs:
+  using: composite
+  steps:
+    - name: Prepare mobile build host
+      shell: bash
+      env:
+        MOBILE_TARGET: ${{ inputs.target }}
+      run: |
+        set -Eeuo pipefail
+        if [[ "$RUNNER_OS" != macOS || "$RUNNER_ARCH" != ARM64 ]]; then
+          echo 'Mobile jobs require an Apple Silicon pisper-macos Runner.' >&2
+          exit 1
+        fi
+        case "$MOBILE_TARGET" in
+          base|android|ios) ;;
+          *) echo 'Unknown mobile build target.' >&2; exit 1 ;;
+        esac
+        # launchd 的 PATH 不保证包含 Homebrew；只在当前任务中补齐。
+        export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+        printf '%s\n' /opt/homebrew/bin /opt/homebrew/sbin >> "$GITHUB_PATH"
+        command -v brew >/dev/null
+        for tool in jq minisign gh; do
+          command -v "$tool" >/dev/null || brew install "$tool"
+        done
+        if [[ "$MOBILE_TARGET" == android ]]; then
+          # 固定 NDK 的 macOS host 工具仍为 x86_64，需要预先安装 Rosetta。
+          arch -x86_64 /usr/bin/true || {
+            echo 'Android NDK requires Rosetta; install it on the Runner before retrying.' >&2
+            exit 1
+          }
+        elif [[ "$MOBILE_TARGET" == ios ]]; then
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          for tool in xcodegen pod; do
+            if ! command -v "$tool" >/dev/null; then
+              package="$tool"
+              [[ "$tool" != pod ]] || package=cocoapods
+              brew install "$package"
+            fi
+          done
+        fi

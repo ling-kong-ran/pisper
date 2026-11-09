@@ -39,11 +39,17 @@ env:
 jobs:
   embedded-runtime:
     name: Build store embedded Runtime
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-macos]
+    env:
+      GIT_CONFIG_GLOBAL: ${{ github.workspace }}/../pisper-mobile-gitconfig-${{ github.run_id }}-${{ github.run_attempt }}-embedded-runtime
+      GIT_CONFIG_NOSYSTEM: '1'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_sha }}
+      - uses: ./.github/actions/setup-mobile-macos
+        with:
+          target: base
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -60,7 +66,7 @@ jobs:
           npm run mobile:runtime
           tar -xOzf release/pisper-embedded-runtime.tar.gz ./embedded-runtime.json |
             jq -e '.appVersion == "${{ inputs.version }}" and .runtimeProfile == "mobile-store"'
-          RUNTIME_CONTENTS=/tmp/pisper-store-runtime-contents.txt
+          RUNTIME_CONTENTS="$RUNNER_TEMP"/pisper-store-runtime-contents.txt
           tar -tzf release/pisper-embedded-runtime.tar.gz > "$RUNTIME_CONTENTS"
           grep -Fx './dist/index.html' "$RUNTIME_CONTENTS"
           grep -Fx './runtime/mobile-embedded.mjs' "$RUNTIME_CONTENTS"
@@ -71,8 +77,8 @@ jobs:
             exit 1
           fi
           for RESOURCE in speech-model-catalog.json speech-resource-notices.json speech-resources/xasr-bpe.vocab; do
-            test "$(tar -xOzf release/pisper-embedded-runtime.tar.gz "./shared/$RESOURCE" | sha256sum | awk '{print $1}')" = \
-              "$(sha256sum "shared/$RESOURCE" | awk '{print $1}')"
+            test "$(tar -xOzf release/pisper-embedded-runtime.tar.gz "./shared/$RESOURCE" | shasum -a 256 | awk '{print $1}')" = \
+              "$(shasum -a 256 "shared/$RESOURCE" | awk '{print $1}')"
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -83,11 +89,17 @@ jobs:
   android:
     name: Build signed Google Play AAB
     needs: embedded-runtime
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-macos]
+    env:
+      GIT_CONFIG_GLOBAL: ${{ github.workspace }}/../pisper-mobile-gitconfig-${{ github.run_id }}-${{ github.run_attempt }}-android
+      GIT_CONFIG_NOSYSTEM: '1'
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_sha }}
+      - uses: ./.github/actions/setup-mobile-macos
+        with:
+          target: android
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -101,8 +113,12 @@ jobs:
           packages: platform-tools
       - name: Install Android SDK packages and NDK
         run: |
+          # yes 会在 sdkmanager 关闭管道后收到 SIGPIPE；只以 sdkmanager 的状态判断成功。
+          set +o pipefail
           yes | sdkmanager --licenses > /dev/null
+          set -o pipefail
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.3.13750724"
+          echo "ANDROID_READELF=$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readelf" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -151,7 +167,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           test -n "$APP_ANDROID_KEYSTORE" || { echo "APP_ANDROID_KEYSTORE is required." >&2; exit 1; }
-          echo "$APP_ANDROID_KEYSTORE" | base64 -d > /tmp/pisper-play-upload.jks
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/pisper-play-upload.jks"' EXIT
+          echo "$APP_ANDROID_KEYSTORE" | base64 --decode > "$RUNNER_TEMP"/pisper-play-upload.jks
           WRY_CLIENT=src-tauri/gen/android/app/src/main/java/com/lingkongran/pisper/generated/RustWebChromeClient.kt
           grep -Fq 'MainActivity.isTrustedProxyOrigin(request.origin)' "$WRY_CLIENT"
           grep -Fq 'request.grant(audioResources)' "$WRY_CLIENT"
@@ -162,35 +180,35 @@ jobs:
           fi
           AAB=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' -type f | head -1)
           test -n "$AAB" || { echo "AAB output was not found." >&2; exit 1; }
-          unzip -Z1 "$AAB" > /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/pisper-embedded-runtime.tgz' /tmp/pisper-aab-contents.txt
-          grep -Fx 'base/assets/speech-model-catalog.json' /tmp/pisper-aab-contents.txt
-          grep -Fx 'base/assets/speech-resources/xasr-bpe.vocab' /tmp/pisper-aab-contents.txt
-          if grep -Eiq '^base/assets/speech-model(/|$)|\.onnx($|/)' /tmp/pisper-aab-contents.txt; then
+          unzip -Z1 "$AAB" > "$RUNNER_TEMP"/pisper-aab-contents.txt
+          grep -F 'base/assets/pisper-embedded-runtime.tgz' "$RUNNER_TEMP"/pisper-aab-contents.txt
+          grep -Fx 'base/assets/speech-model-catalog.json' "$RUNNER_TEMP"/pisper-aab-contents.txt
+          grep -Fx 'base/assets/speech-resources/xasr-bpe.vocab' "$RUNNER_TEMP"/pisper-aab-contents.txt
+          if grep -Eiq '^base/assets/speech-model(/|$)|\.onnx($|/)' "$RUNNER_TEMP"/pisper-aab-contents.txt; then
             echo 'Store AAB must not contain bundled speech models or any ONNX weights.' >&2
             exit 1
           fi
           for RESOURCE in speech-model-catalog.json speech-resource-notices.json speech-resources/xasr-bpe.vocab; do
-            test "$(unzip -p "$AAB" "base/assets/$RESOURCE" | sha256sum | awk '{print $1}')" = \
-              "$(sha256sum "shared/$RESOURCE" | awk '{print $1}')"
+            test "$(unzip -p "$AAB" "base/assets/$RESOURCE" | shasum -a 256 | awk '{print $1}')" = \
+              "$(shasum -a 256 "shared/$RESOURCE" | awk '{print $1}')"
           done
-          test "$(unzip -p "$AAB" base/assets/speech-resources/xasr-bpe.vocab | sha256sum | awk '{print $1}')" = \
+          test "$(unzip -p "$AAB" base/assets/speech-resources/xasr-bpe.vocab | shasum -a 256 | awk '{print $1}')" = \
             '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
-          test "$(unzip -p "$AAB" base/assets/pisper-embedded-runtime.tgz | sha256sum | awk '{print $1}')" = \
-            "$(sha256sum embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
-          grep -F 'base/lib/arm64-v8a/libnode.so' /tmp/pisper-aab-contents.txt
-          grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' /tmp/pisper-aab-contents.txt
-          if grep -E '^base/lib/' /tmp/pisper-aab-contents.txt | grep -Ev '^base/lib/arm64-v8a/'; then
+          test "$(unzip -p "$AAB" base/assets/pisper-embedded-runtime.tgz | shasum -a 256 | awk '{print $1}')" = \
+            "$(shasum -a 256 embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
+          grep -F 'base/lib/arm64-v8a/libnode.so' "$RUNNER_TEMP"/pisper-aab-contents.txt
+          grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' "$RUNNER_TEMP"/pisper-aab-contents.txt
+          if grep -E '^base/lib/' "$RUNNER_TEMP"/pisper-aab-contents.txt | grep -Ev '^base/lib/arm64-v8a/'; then
             echo 'Store AAB contains a non-arm64 native library.' >&2
             exit 1
           fi
-          if grep -Eqi 'root-runtime|rootfs|/su$|/chroot$' /tmp/pisper-aab-contents.txt; then
+          if grep -Eqi 'root-runtime|rootfs|/su$|/chroot$' "$RUNNER_TEMP"/pisper-aab-contents.txt; then
             echo "Store AAB contains a rooted Runtime asset." >&2
             exit 1
           fi
-          rm -rf /tmp/pisper-aab-native
-          mkdir -p /tmp/pisper-aab-native
-          unzip -q "$AAB" 'base/lib/arm64-v8a/*.so' -d /tmp/pisper-aab-native
+          rm -rf "$RUNNER_TEMP"/pisper-aab-native
+          mkdir -p "$RUNNER_TEMP"/pisper-aab-native
+          unzip -q "$AAB" 'base/lib/arm64-v8a/*.so' -d "$RUNNER_TEMP"/pisper-aab-native
           while IFS= read -r library; do
             while IFS= read -r alignment; do
               value=${alignment#0x}
@@ -198,13 +216,13 @@ jobs:
                 echo "$library has LOAD alignment $alignment; 16 KB is required." >&2
                 exit 1
               fi
-            done < <("$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
-          done < <(find /tmp/pisper-aab-native -name '*.so' -type f)
-          rm -rf /tmp/pisper-aab-dex
-          mkdir -p /tmp/pisper-aab-dex
-          unzip -q "$AAB" 'base/dex/*.dex' -d /tmp/pisper-aab-dex
+            done < <("$ANDROID_READELF" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
+          done < <(find "$RUNNER_TEMP"/pisper-aab-native -name '*.so' -type f)
+          rm -rf "$RUNNER_TEMP"/pisper-aab-dex
+          mkdir -p "$RUNNER_TEMP"/pisper-aab-dex
+          unzip -q "$AAB" 'base/dex/*.dex' -d "$RUNNER_TEMP"/pisper-aab-dex
           "$ANDROID_HOME/build-tools/36.0.0/dexdump" -n \
-            /tmp/pisper-aab-dex/base/dex/*.dex > /tmp/pisper-aab-dex.txt
+            "$RUNNER_TEMP"/pisper-aab-dex/base/dex/*.dex > "$RUNNER_TEMP"/pisper-aab-dex.txt
           require_dex_member() {
             local descriptor="$1"
             local member="$2"
@@ -212,7 +230,7 @@ jobs:
               /Class descriptor/ { active = index($0, descriptor) > 0 }
               active && /name[[:space:]]*:/ && index($0, member) > 0 { found = 1 }
               END { exit found ? 0 : 1 }
-            ' /tmp/pisper-aab-dex.txt
+            ' "$RUNNER_TEMP"/pisper-aab-dex.txt
           }
           require_dex_member 'Lcom/k2fsa/sherpa/onnx/OnlineRecognizerConfig;' 'decodingMethod'
           require_dex_member 'Lcom/k2fsa/sherpa/onnx/FeatureConfig;' 'sampleRate'
@@ -227,7 +245,7 @@ jobs:
           require_dex_member 'Lcom/lingkongran/pisper/RustWebChromeClient;' 'onShowFileChooser'
           cp "$AAB" pisper-google-play.aab
           jarsigner \
-            -keystore /tmp/pisper-play-upload.jks \
+            -keystore "$RUNNER_TEMP"/pisper-play-upload.jks \
             -storepass "$APP_ANDROID_STORE_PASSWORD" \
             -keypass "$APP_ANDROID_KEY_PASSWORD" \
             -sigalg SHA256withRSA -digestalg SHA-256 \
@@ -251,12 +269,18 @@ jobs:
   ios:
     name: Build Apple Distribution IPA
     needs: embedded-runtime
-    runs-on: macos-26
+    runs-on: [self-hosted, pisper-macos]
+    env:
+      GIT_CONFIG_GLOBAL: ${{ github.workspace }}/../pisper-mobile-gitconfig-${{ github.run_id }}-${{ github.run_attempt }}-ios
+      GIT_CONFIG_NOSYSTEM: '1'
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_sha }}
+      - uses: ./.github/actions/setup-mobile-macos
+        with:
+          target: ios
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -324,7 +348,7 @@ jobs:
           set -Eeuo pipefail
           IPA=$(find src-tauri/gen/apple -name '*.ipa' -type f | head -1)
           test -n "$IPA" || { echo "Signed IPA output was not found." >&2; exit 1; }
-          unzip -Z1 "$IPA" > /tmp/pisper-ios-contents.txt
+          unzip -Z1 "$IPA" > "$RUNNER_TEMP"/pisper-ios-contents.txt
           SPEECH_CHECK_DIR=$(mktemp -d)
           trap 'rm -rf "$SPEECH_CHECK_DIR"' EXIT
           unzip -q "$IPA" -d "$SPEECH_CHECK_DIR"
@@ -334,9 +358,9 @@ jobs:
           require_ipa_entry() {
             local pattern="$1"
             local label="$2"
-            grep -Eq "$pattern" /tmp/pisper-ios-contents.txt && return
+            grep -Eq "$pattern" "$RUNNER_TEMP"/pisper-ios-contents.txt && return
             echo "Store IPA is missing $label. Actual contents:" >&2
-            cat /tmp/pisper-ios-contents.txt >&2
+            cat "$RUNNER_TEMP"/pisper-ios-contents.txt >&2
             exit 1
           }
           require_ipa_entry \
@@ -348,9 +372,9 @@ jobs:
           require_ipa_entry \
             '^Payload/[^/]+\.app/pisper-embedded-runtime\.tar\.gz$' \
             'the embedded Runtime archive'
-          rm -rf /tmp/pisper-store-ipa
-          unzip -q "$IPA" -d /tmp/pisper-store-ipa
-          APP=$(find /tmp/pisper-store-ipa/Payload -maxdepth 1 -name '*.app' -type d | head -1)
+          rm -rf "$RUNNER_TEMP"/pisper-store-ipa
+          unzip -q "$IPA" -d "$RUNNER_TEMP"/pisper-store-ipa
+          APP=$(find "$RUNNER_TEMP"/pisper-store-ipa/Payload -maxdepth 1 -name '*.app' -type d | head -1)
           codesign --verify --deep --strict --verbose=2 "$APP"
           cp "$IPA" pisper-app-store.ipa
       - uses: actions/upload-artifact@v4
@@ -367,9 +391,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           test -n "$APP_STORE_CONNECT_API_KEY_ID" || { echo "App Store Connect API key is required." >&2; exit 1; }
-          mkdir -p "$HOME/private_keys"
+          umask 077
+          API_PRIVATE_KEYS_DIR="$(mktemp -d "$RUNNER_TEMP/pisper-testflight.XXXXXX")"
+          export API_PRIVATE_KEYS_DIR
+          trap 'rm -rf "$API_PRIVATE_KEYS_DIR"' EXIT
           printf '%s' "$APP_STORE_CONNECT_API_PRIVATE_KEY" > \
-            "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+            "$API_PRIVATE_KEYS_DIR/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
           xcrun altool --upload-app --type ios --file pisper-app-store.ipa \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"

@@ -565,7 +565,8 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
     assert.match(source, /speech-model-catalog\.json/)
     assert.match(source, /speech-resources\/xasr-bpe\.vocab/)
     assert.match(source, /must not contain bundled speech models or any ONNX weights/)
-    assert.match(source, /sha256sum "shared\/\$RESOURCE"/)
+    // 使用 macOS 自带的 SHA-256 工具，仍逐项核对共享资源摘要。
+    assert.match(source, /shasum -a 256 "shared\/\$RESOURCE"/)
     assert.match(source, /01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5/)
     assert.doesNotMatch(
       source,

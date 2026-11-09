@@ -173,6 +173,10 @@ npm run release:local -- plan patch   # Actions 额度用尽时本机发布，�
 - 自托管 macOS 发布（需要与 Windows 同一个版本时）：
   1. 先在任一台机器运行 `npm run release:local -- plan patch --platforms=windows,darwin`，再分别用 Windows workflow 和 `Release from self-hosted macOS` 的 `stage=build` 复用这份草稿。macOS workflow 只提供 `build/status/publish`，不单独创建计划；两平台产物齐全后再执行 `stage=publish`。
   2. Runner 必须是 Apple Silicon，并添加自定义标签 `pisper-macos`；workflow 只匹配 `[self-hosted, pisper-macos]`。GitHub Secrets 配置 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，仅由 build 步骤注入；Mac 应用沿用 `--allow-unsigned-mac`，不做 Apple 开发者签名和公证。`GITHUB_TOKEN` 使用 `github.token`，不在 Mac 上保存本机发布凭据文件。
+- 移动端自托管构建：`Release app` 与 `Build store apps` 的全部 job 使用同一个 `pisper-macos` Apple Silicon Runner，不消耗托管 Runner 额度。Android 在 Mac 上交叉编译 arm64，iOS 使用 Xcode；保留 App 独立的 `mobile-package.json`、`app-vX.Y.Z` 和商店 build number，不同步 Desktop/TUI/Runtime 版本。
+  - Windows 上可手动派发 workflow；`source_sha` 必须包含 `.github/actions/setup-mobile-macos/`。`Release app` 验证两端产物后会发布独立 App Release；`Build store apps` 只上传构建产物，Google Play/TestFlight 上传仍由原有布尔输入控制。修改 workflow 不代表允许触发发布。
+  - Runner 预装并完成 Xcode 首次启动与许可确认、iOS Simulator Runtime、Homebrew 和 Android NDK host 工具所需的 Rosetta。共用 action 检查平台并按需安装 jq、minisign、gh、XcodeGen/CocoaPods；Java 17、Android SDK/固定 NDK 和 Rust targets 由原有 setup 步骤准备。单个 Runner 顺序执行任务，移动端与桌面任务共用机器会排队。
+  - Android keystore 与 TestFlight API 私钥仅写入 `RUNNER_TEMP`，步骤退出时删除；不写入个人目录。首次迁移后需分别验证 Android APK/AAB、iOS 未签名 IPA/商店签名 IPA；本地源码检查不能替代这些构建与设备验收。
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
 - 提交后必须尽快 rebase 到最新的 release 并合入：只留在本地或功能分支上的提交没有人能看到，也不会被检查。合入前先取最新的 release，确认没有别人的新提交被覆盖。`.github/workflows/branch-pr.yml` 是手动入口，可把所选分支对齐 release 并开 PR（需要先在仓库设置里允许 Actions 创建 PR）。

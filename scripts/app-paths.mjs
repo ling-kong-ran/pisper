@@ -43,6 +43,7 @@ const APP_EXCLUSIVE_PREFIXES = [
   'scripts/verify-tauri-signature.mjs',
   'scripts/app-paths.mjs',
   'scripts/prepare-app-release.mjs',
+  '.github/actions/setup-mobile-macos/',
   '.github/workflows/release-app.yml',
   '.github/workflows/build-store-app.yml',
 ]
