@@ -135,7 +135,7 @@ npm run build:android
 npm run build:ios
 npm run release -- patch     # 本机发布，也可传 minor、major 或明确版本号（需要 gh）
 git push origin release:refs/tags/release-patch   # 推触发标签在 CI 里发布，同样可用 release-minor / release-major / release-X.Y.Z
-npm run release:local -- plan patch   # Actions 额度用尽时本机发布：plan 一次，Windows/macOS/Linux 各 build，再 publish（见脚本开头说明）
+npm run release:local -- plan patch   # Actions 额度用尽时本机发布，步骤见“发布与协作”的本机发布
 ```
 
 开发 Web 由 `runtime/index.mjs` 嵌入 Vite 中间件；桌面端为 Tauri 壳 → `pisper-sidecar`（Node SEA）→ `sidecar-runtime/`。
@@ -158,6 +158,12 @@ npm run release:local -- plan patch   # Actions 额度用尽时本机发布：pl
 - 发布只包含实质性行为、产物、安全或兼容性变更；纯文档、格式化和版本记账不单独创建版本。
 - 发布以 `scripts/release.mjs`、`scripts/release-policy.mjs` 和 GitHub Actions 为准；不得绕过脚本手改版本、建标签或重复发布。
 - 触发标签 `release-<patch|minor|major|X.Y.Z>` 只是入口：`.github/workflows/release-tag.yml` 在 CI 里执行同一个 `npm run release`，用后即删；它必须指向 release 分支最新提交。版本标签（`v*`、`tui-v*`、`runtime-v*`、`app-v*`、`npm-v*`）只由发布 workflow 或本机发布脚本 `scripts/release-local.mjs` 在产物验证后创建，不得手动推送。
+- 本机发布（`scripts/release-local.mjs`，Actions 额度用尽时用）：
+  1. 任一台机器在 release 分支、干净工作区上运行 `npm run release:local -- plan patch`（或 `minor`、`major`、`X.Y.Z`）。它跑发布前检查，并为每个要发的版本建一个 GitHub 草稿 Release，草稿里存着计划。暂时没有某个平台的构建机时加 `--platforms=windows,darwin`：跳过的平台在组件更新里停在上一版，这次也不发 npm。
+  2. 计划里的每个平台各在一台机器上检出 plan 打印的提交，运行 `npm run release:local -- build`。它构建本平台产物、签名并上传到草稿；重跑会覆盖上一次上传的同名产物。
+  3. 用 `npm run release:local -- status` 确认各平台都已上传，再在任一台运行 `npm run release:local -- publish`：校验产物，提交版本号、打版本标签并推送，发布草稿，最后发 npm。推送前出错会撤销本地版本提交和标签，修好后重跑即可。
+  - 从 plan 到 publish 之间冻结 release 分支。移动 App 仍只走 CI。
+  - 凭据只放在不入库的 `~/.config/pisper-release/env`（或 `PISPER_RELEASE_ENV` 指定的文件），每行一个 `KEY=VALUE`：`GITHUB_TOKEN`、`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；发 npm 时加 `NPM_TOKEN`；macOS 打桌面包时加 `APPLE_*` 签名与公证变量。
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
 - 提交后必须尽快 rebase 到最新的 release 并合入：只留在本地或功能分支上的提交没有人能看到，也不会被检查。合入前先取最新的 release，确认没有别人的新提交被覆盖。`.github/workflows/branch-pr.yml` 是手动入口，可把所选分支对齐 release 并开 PR（需要先在仓库设置里允许 Actions 创建 PR）。
