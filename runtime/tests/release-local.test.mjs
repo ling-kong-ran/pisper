@@ -121,7 +121,10 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
   assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-windows'])
   assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
   assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
-  assert.equal(job.env.GIT_CONFIG_GLOBAL, '${{ runner.temp }}/pisper-release-gitconfig')
+  assert.equal(
+    job.env.GIT_CONFIG_GLOBAL,
+    '${{ github.workspace }}/../pisper-release-gitconfig-${{ github.run_id }}',
+  )
   assert.equal(job.env.GIT_CONFIG_NOSYSTEM, '1')
 
   const step = (name) => {
@@ -188,7 +191,10 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
   assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-macos'])
   assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
   assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
-  assert.equal(job.env.GIT_CONFIG_GLOBAL, '${{ runner.temp }}/pisper-release-gitconfig')
+  assert.equal(
+    job.env.GIT_CONFIG_GLOBAL,
+    '${{ github.workspace }}/../pisper-release-gitconfig-${{ github.run_id }}',
+  )
   assert.equal(job.env.GIT_CONFIG_NOSYSTEM, '1')
 
   const step = (name) => {

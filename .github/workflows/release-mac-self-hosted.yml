@@ -32,7 +32,7 @@ jobs:
       GITHUB_TOKEN: ${{ github.token }}
       GH_TOKEN: ${{ github.token }}
       # 不继承个人 Git URL rewrite；checkout 和 publish 都使用注入的 GitHub Token。
-      GIT_CONFIG_GLOBAL: ${{ runner.temp }}/pisper-release-gitconfig
+      GIT_CONFIG_GLOBAL: ${{ github.workspace }}/../pisper-release-gitconfig-${{ github.run_id }}
       GIT_CONFIG_NOSYSTEM: '1'
     steps:
       - name: Require macOS arm64
