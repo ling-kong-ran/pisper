@@ -203,21 +203,16 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
 
   const build = step('Build and upload macOS artifacts')
   assert.equal(build.if, "inputs.stage == 'build'")
-  assert.equal(build.run, 'npm run release:local -- build')
+  assert.equal(build.run, 'npm run release:local -- build --allow-unsigned-mac')
   assert.equal(build.env.TAURI_SIGNING_PRIVATE_KEY, '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')
   assert.equal(
     build.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
     '${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}',
   )
-  for (const name of [
-    'APPLE_CERTIFICATE',
-    'APPLE_CERTIFICATE_PASSWORD',
-    'APPLE_SIGNING_IDENTITY',
-    'APPLE_ID',
-    'APPLE_TEAM_ID',
+  assert.deepEqual(Object.keys(build.env).sort(), [
+    'TAURI_SIGNING_PRIVATE_KEY',
+    'TAURI_SIGNING_PRIVATE_KEY_PASSWORD',
   ])
-    assert.equal(build.env[name], `\${{ secrets.${name} }}`)
-  assert.equal(build.env.APPLE_PASSWORD, '${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}')
 
   assert.equal(
     step('Inspect draft release assets').if,
@@ -226,10 +221,10 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
   assert.equal(step('Publish validated draft releases').if, "inputs.stage == 'publish'")
   assert.equal(step('Publish validated draft releases').run, 'npm run release:local -- publish')
 
-  // Mac 只能复用既有计划；不能绕过完整 plan，也不能静默生成未签名应用。
+  // Mac 只能复用既有计划；沿用现有发布方式，显式构建不做 Apple 签名/公证的应用。
   assert.doesNotMatch(
     source,
-    /release:local -- plan|--allow-unsigned-mac|\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/,
+    /release:local -- plan|\bAPPLE_[A-Z_]+\b|\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/,
   )
   assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
   assert.doesNotMatch(source, /npm run release(?!:local)/)

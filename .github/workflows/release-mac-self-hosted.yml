@@ -1,6 +1,7 @@
 name: Release from self-hosted macOS
 
-# 在自托管 Apple Silicon Mac 上复用既有计划；签名和公证凭据只由 Secrets 注入。
+# 在自托管 Apple Silicon Mac 上复用既有计划；Tauri 更新签名由 Secrets 注入。
+# 与此前发布一致，Mac 应用不做 Apple 开发者签名和公证。
 on:
   workflow_dispatch:
     inputs:
@@ -63,14 +64,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         # 不加 --no-install：计划可能已经更新依赖，构建必须服从当前锁文件。
-        run: npm run release:local -- build
+        run: npm run release:local -- build --allow-unsigned-mac
       - name: Inspect draft release assets
         if: inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'
         run: npm run release:local -- status
