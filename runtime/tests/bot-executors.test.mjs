@@ -20,6 +20,7 @@ import {
   createExecutorTools,
   normalizeRemoteExecutor,
   REMOTE_EXECUTOR_TOOL_NAMES,
+  toRemotePath,
 } from '../runtime/executor-tools.mjs'
 import { runToolBlocker } from '../runtime/tool-activation.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
@@ -253,9 +254,15 @@ test('shell commands stream output, report exit codes and stop when aborted', as
   const executor = new NodeExecutor({ hub, environment })
   await until(() => executor.online())
   const chunks = []
+  // Windows 节点用 cmd.exe 执行命令，没有 ; 和 sleep。
+  const windows = process.platform === 'win32'
   const result = await executor
     .operations()
-    .bash.exec('echo hello; echo oops 1>&2; exit 3', repo, { onData: (data) => chunks.push(data) })
+    .bash.exec(
+      windows ? 'echo hello& echo oops 1>&2& exit 3' : 'echo hello; echo oops 1>&2; exit 3',
+      repo,
+      { onData: (data) => chunks.push(data) },
+    )
   assert.equal(result.exitCode, 3)
   assert.match(Buffer.concat(chunks).toString(), /hello/)
   assert.match(Buffer.concat(chunks).toString(), /oops/)
@@ -264,7 +271,10 @@ test('shell commands stream output, report exit codes and stop when aborted', as
   const started = Date.now()
   const running = executor
     .operations()
-    .bash.exec('sleep 30', repo, { onData: () => {}, signal: controller.signal })
+    .bash.exec(windows ? 'ping -n 31 127.0.0.1 >nul' : 'sleep 30', repo, {
+      onData: () => {},
+      signal: controller.signal,
+    })
   setTimeout(() => controller.abort(), 100)
   await assert.rejects(running, { code: 'aborted' })
   assert.ok(Date.now() - started < 5_000)
@@ -461,6 +471,52 @@ test('remote sessions get node-backed file and shell tools and nothing local-onl
   })
   assert.equal(normalizeRemoteExecutor({ environmentId: 'local', cwd: '/w' }), null)
   assert.equal(normalizeRemoteExecutor({ environmentId: 'env_testmachine1', cwd: 'w' }), null)
+})
+
+// 大脑和执行节点的系统不同时，路径按执行节点的写法交出去（Pi 按大脑本机的规则解析路径）。
+test('remote paths keep the remote machine style whatever the brain runs on', async () => {
+  assert.equal(
+    toRemotePath('E:\\remote\\repo\\src\\a.txt', '/remote/repo', 'win32'),
+    '/remote/repo/src/a.txt',
+  )
+  assert.equal(
+    toRemotePath('/home/me/C:\\repo/D:\\data\\x.txt', 'C:\\repo', 'linux'),
+    'D:\\data\\x.txt',
+  )
+  assert.equal(toRemotePath('/remote/repo/a', '/remote/repo', 'linux'), '/remote/repo/a')
+  assert.equal(toRemotePath('C:\\repo\\a', 'C:\\repo', 'win32'), 'C:\\repo\\a')
+
+  // 真实的 Pi 工具：远程是另一种系统时，相对路径、../ 和绝对路径都换成那台机器的写法。
+  const remoteCwd = process.platform === 'win32' ? '/remote/repo' : 'C:\\repo'
+  const calls = []
+  const executor = {
+    capabilities: { shell: true },
+    operations: () => ({
+      read: {
+        readFile: async (path) => (calls.push(path), Buffer.from('x\n')),
+        access: async () => {},
+      },
+      edit: {},
+      write: {},
+      ls: {},
+      find: {},
+      bash: {
+        exec: async (_command, cwd) => (calls.push(cwd), { exitCode: 0 }),
+      },
+    }),
+  }
+  const tools = await createExecutorTools(remoteCwd, executor, ['read', 'bash'])
+  const read = tools.find((tool) => tool.name === 'read')
+  for (const path of ['src/a.txt', '../other/b.txt']) await read.execute('call-1', { path })
+  await read.execute('call-1', {
+    path: process.platform === 'win32' ? '/etc/hosts' : 'D:\\data\\c.txt',
+  })
+  assert.deepEqual(
+    calls,
+    process.platform === 'win32'
+      ? ['/remote/repo/src/a.txt', '/remote/other/b.txt', '/etc/hosts']
+      : ['C:\\repo\\src\\a.txt', 'C:\\other\\b.txt', 'D:\\data\\c.txt'],
+  )
 })
 
 test('the executor CLI pins the brain certificate and explains itself', async () => {

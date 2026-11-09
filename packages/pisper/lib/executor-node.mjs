@@ -150,9 +150,15 @@ export class ExecutorNode {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
+    // 杀整棵进程树：Windows 上只杀 cmd.exe 会留下它启动的程序，继续占着输出管道和工作目录。
     const kill = () => {
       try {
-        if (!windows && child.pid) process.kill(-child.pid, 'SIGKILL')
+        if (windows && child.pid)
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+            stdio: 'ignore',
+            windowsHide: true,
+          }).once('error', () => child.kill('SIGKILL'))
+        else if (child.pid) process.kill(-child.pid, 'SIGKILL')
         else child.kill('SIGKILL')
       } catch {}
     }

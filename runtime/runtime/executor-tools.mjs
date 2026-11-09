@@ -10,6 +10,7 @@ import {
   createReadTool,
   createWriteTool,
 } from './pi-coding-agent.mjs'
+import { posix, win32 } from 'node:path'
 import { leanToolDefinition } from '../tools/lean-coding-tools.mjs'
 
 export const REMOTE_EXECUTOR_TOOL_NAMES = Object.freeze([
@@ -42,17 +43,79 @@ export function machineSystemPrompt(machine, cwd) {
   ].join('\n')
 }
 
-export async function createExecutorTools(cwd, executor, enabledTools) {
+// Pi 的工具按大脑本机的路径规则解析路径：Windows 大脑会把远程 Linux 的 /repo/a 解析成 E:\repo\a，
+// Linux 大脑会把远程 Windows 的 C:\repo 当成相对路径接在自己的目录后面。
+// 交给执行节点之前换回远程机器的写法。
+const isWindowsPath = (path) => /^[A-Za-z]:[\\/]/.test(path)
+export function toRemotePath(path, remoteCwd, hostPlatform = process.platform) {
+  const value = String(path)
+  const remoteWindows = isWindowsPath(remoteCwd)
+  if (remoteWindows === (hostPlatform === 'win32')) return value
+  if (!remoteWindows) return isWindowsPath(value) ? value.slice(2).replaceAll('\\', '/') : value
+  // 远程是 Windows：路径已先按 Windows 规则解析成绝对路径（resolveRemoteParam），
+  // 本机再接上自己的目录，最后一个盘符起就是原路径。
+  const index = [...value.matchAll(/[A-Za-z]:[\\/]/g)].at(-1)?.index ?? -1
+  return index > 0 ? win32.normalize(value.slice(index)) : value
+}
+
+// 按远程机器的路径规则把工具参数里的路径解析成绝对路径，本机解析时就不会再改动它。
+function resolveRemoteParam(value, remoteCwd) {
+  if (typeof value !== 'string' || !value || value.startsWith('~')) return value
+  const flavor = isWindowsPath(remoteCwd) ? win32 : posix
+  return flavor.resolve(remoteCwd, value.startsWith('@') ? value.slice(1) : value)
+}
+
+// 每个操作的哪个参数是路径：find.glob 的第一个参数是模式，写文件的第二个参数是内容。
+const PATH_ARGUMENT = { glob: 1, exec: 1 }
+function remoteOperations(operations, remoteCwd, hostPlatform) {
+  return Object.fromEntries(
+    Object.entries(operations).map(([name, operation]) => [
+      name,
+      typeof operation !== 'function'
+        ? operation
+        : (...args) => {
+            const at = PATH_ARGUMENT[name] ?? 0
+            if (typeof args[at] === 'string')
+              args[at] = toRemotePath(args[at], remoteCwd, hostPlatform)
+            return operation(...args)
+          },
+    ]),
+  )
+}
+
+export async function createExecutorTools(
+  cwd,
+  executor,
+  enabledTools,
+  { hostPlatform = process.platform } = {},
+) {
   const operations = executor.operations()
+  const remote = (name) => ({ operations: remoteOperations(operations[name], cwd, hostPlatform) })
   const enabled = new Set(enabledTools)
   const tools = [
-    await createReadTool(cwd, { operations: operations.read }),
-    await createEditTool(cwd, { operations: operations.edit }),
-    await createWriteTool(cwd, { operations: operations.write }),
-    await createLsTool(cwd, { operations: operations.ls }),
-    await createFindTool(cwd, { operations: operations.find }),
+    await createReadTool(cwd, remote('read')),
+    await createEditTool(cwd, remote('edit')),
+    await createWriteTool(cwd, remote('write')),
+    await createLsTool(cwd, remote('ls')),
+    await createFindTool(cwd, remote('find')),
   ]
   if (enabled.has('bash') && executor.capabilities.shell)
-    tools.push(await createBashTool(cwd, { operations: operations.bash }))
-  return tools.filter((tool) => enabled.has(tool.name)).map(leanToolDefinition)
+    tools.push(await createBashTool(cwd, remote('bash')))
+  return tools
+    .filter((tool) => enabled.has(tool.name))
+    .map((tool) => {
+      const execute = tool.execute
+      return leanToolDefinition({
+        ...tool,
+        execute: (toolCallId, params, ...rest) =>
+          execute.call(
+            tool,
+            toolCallId,
+            params && typeof params === 'object' && 'path' in params
+              ? { ...params, path: resolveRemoteParam(params.path, cwd) }
+              : params,
+            ...rest,
+          ),
+      })
+    })
 }
