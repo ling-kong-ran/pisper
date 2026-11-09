@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { load as parseYaml } from 'js-yaml'
 import { createGitHubReleases } from '../../scripts/github-release-api.mjs'
 
 function fakeFetch(handler) {
@@ -92,4 +93,60 @@ test('a release that skips Linux validates only the planned platforms', async (t
   // 不带 --platforms 时仍要求三个平台齐全（CI 的行为不变）。
   assert.throws(() => validate(), /Missing release assets: .*linux_x86_64/)
   validate(`--platforms=${platforms.join(',')}`)
+})
+
+test('self-hosted Windows releases inject secrets and can resume existing drafts', async () => {
+  const source = await readFile('.github/workflows/release-self-hosted.yml', 'utf8')
+  const workflow = parseYaml(source)
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  assert.deepEqual(workflow.permissions, { contents: 'write' })
+
+  const inputs = workflow.on.workflow_dispatch.inputs
+  assert.deepEqual(inputs.stage.options, ['all', 'plan', 'build', 'status', 'publish'])
+  assert.equal(inputs.stage.default, 'all')
+  assert.equal(inputs.version.default, 'patch')
+
+  const jobs = Object.values(workflow.jobs)
+  assert.equal(jobs.length, 1)
+  const [job] = jobs
+  // 必须同时匹配 self-hosted 和仓库自定义标签，不能回退到 GitHub 托管 Runner。
+  assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-windows'])
+  assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
+  assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
+
+  const step = (name) => {
+    const found = job.steps.find((entry) => entry.name === name)
+    assert.ok(found, `missing workflow step: ${name}`)
+    return found
+  }
+  assert.match(step('Require Windows x64').run, /RUNNER_OS.*Windows.*RUNNER_ARCH.*X64/s)
+  assert.equal(
+    job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
+    24,
+  )
+  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@stable'))
+  assert.equal(step('Install Node dependencies').run, 'npm ci')
+
+  const plan = step('Plan Windows-only release')
+  assert.equal(plan.if, "inputs.stage == 'all' || inputs.stage == 'plan'")
+  assert.match(plan.run, /npm run release:local -- plan /)
+  assert.match(plan.run, /--platforms=windows$/)
+
+  const build = step('Build and upload Windows artifacts')
+  assert.equal(build.if, "inputs.stage == 'all' || inputs.stage == 'build'")
+  assert.equal(build.run, 'npm run release:local -- build --no-install')
+  assert.equal(build.env.TAURI_SIGNING_PRIVATE_KEY, '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')
+  assert.equal(
+    build.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+    '${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}',
+  )
+  assert.match(step('Inspect draft release assets').if, /inputs\.stage == 'publish'/)
+
+  const publish = step('Publish validated draft releases')
+  assert.equal(publish.if, "inputs.stage == 'all' || inputs.stage == 'publish'")
+  assert.equal(publish.run, 'npm run release:local -- publish')
+
+  // Windows-only 计划没有 npm；入口只能复用 release-local，不能走 release.mjs 的 Actions 派发。
+  assert.doesNotMatch(source, /\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/)
+  assert.doesNotMatch(source, /npm run release(?!:local)/)
 })

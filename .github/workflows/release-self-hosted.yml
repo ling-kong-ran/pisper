@@ -1,0 +1,80 @@
+name: Release from self-hosted Windows
+
+# GitHub 托管额度用尽时，由仓库自托管的 Windows x64 Runner 复用本机发布脚本。
+# 只发 Windows，其他平台停在上一版且不发 npm；移动 App 仍走独立的 CI 流程。
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to run; use build or publish to resume an existing draft plan'
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - plan
+          - build
+          - status
+          - publish
+      version:
+        description: 'Version increment for all/plan (patch, minor, major, or X.Y.Z)'
+        required: true
+        default: patch
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-self-hosted-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Windows x64 release (${{ inputs.stage }})
+    # 只选择明确登记了 pisper-windows 自定义标签的自托管 Runner，不消耗托管额度。
+    runs-on: [self-hosted, pisper-windows]
+    timeout-minutes: 360
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require Windows x64
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
+            throw "This workflow requires Windows x64, got $env:RUNNER_OS $env:RUNNER_ARCH."
+          }
+      - uses: actions/checkout@v5
+        with:
+          ref: release
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Configure release commit identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Plan Windows-only release
+        if: inputs.stage == 'all' || inputs.stage == 'plan'
+        run: npm run release:local -- plan "${{ inputs.version }}" --platforms=windows
+      - name: Build and upload Windows artifacts
+        if: inputs.stage == 'all' || inputs.stage == 'build'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        # 上方已执行 npm ci；保留发布脚本自己的检查、签名、上传和资产覆盖逻辑。
+        run: npm run release:local -- build --no-install
+      - name: Inspect draft release assets
+        if: inputs.stage == 'all' || inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'
+        run: npm run release:local -- status
+      - name: Publish validated draft releases
+        if: inputs.stage == 'all' || inputs.stage == 'publish'
+        run: npm run release:local -- publish
