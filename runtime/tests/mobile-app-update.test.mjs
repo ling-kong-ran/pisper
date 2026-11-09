@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { access, readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { load as loadYaml } from 'js-yaml'
 import { isAppExclusivePath, isAppOwnedPath } from '../../scripts/app-paths.mjs'
 
 test('移动 App 更新实现归独立 App 发布通道', () => {
@@ -24,6 +25,29 @@ test('统一 release 命令自动检测，App 通道与组件发布同批并行�
   assert.match(release, /releaseOrder = \{ tui: 0, runtime: 1, app: 2, desktop: 3 \}/)
   // App 在第一批派发，不等桌面版。
   assert.match(release, /filter\(\(\{ component \}\) => component !== 'desktop'\)/)
+})
+
+test('App Release 全部 job 只使用指定的 Linux 与 macOS 自托管 Runner', async () => {
+  const workflow = await readFile('.github/workflows/release-app.yml', 'utf8')
+  const document = loadYaml(workflow)
+  const expectedRunners = {
+    prepare: ['self-hosted', 'pisper-linux'],
+    'embedded-runtime': ['self-hosted', 'pisper-linux'],
+    android: ['self-hosted', 'pisper-linux'],
+    ios: ['self-hosted', 'pisper-macos'],
+    publish: ['self-hosted', 'pisper-linux'],
+  }
+
+  assert.deepEqual(Object.keys(document.jobs), Object.keys(expectedRunners))
+  for (const [job, labels] of Object.entries(expectedRunners)) {
+    assert.deepEqual(document.jobs[job]['runs-on'], labels, `${job} 必须只使用指定自托管标签`)
+  }
+  assert.doesNotMatch(workflow, /\b(?:ubuntu-latest|windows-latest|macos-[\w.-]+)\b/)
+  assert.equal(
+    document.env.GIT_CONFIG_GLOBAL,
+    '${{ github.workspace }}/../pisper-app-release-gitconfig-${{ github.run_id }}',
+  )
+  assert.equal(document.env.GIT_CONFIG_NOSYSTEM, '1')
 })
 
 test('Android 与 iOS 发布包都写入独立 App 版本', async () => {

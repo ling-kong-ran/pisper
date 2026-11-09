@@ -27,11 +27,14 @@ env:
   RELEASE_VERSION: ${{ inputs.version }}
   RELEASE_TAG: app-v${{ inputs.version }}
   RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+  # 自托管构建机不继承个人 Git URL rewrite；checkout 与 publish 只使用 workflow 凭据。
+  GIT_CONFIG_GLOBAL: ${{ github.workspace }}/../pisper-app-release-gitconfig-${{ github.run_id }}
+  GIT_CONFIG_NOSYSTEM: '1'
 
 jobs:
   prepare:
     name: Prepare staged app release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-linux]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -58,7 +61,7 @@ jobs:
 
   embedded-runtime:
     name: Build shared embedded Runtime
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-linux]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -110,7 +113,7 @@ jobs:
   android:
     name: Build signed Android APK
     needs: [prepare, embedded-runtime]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-linux]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -280,7 +283,7 @@ jobs:
   ios:
     name: Build iOS app (unsigned)
     needs: [prepare, embedded-runtime]
-    runs-on: macos-26
+    runs-on: [self-hosted, pisper-macos]
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
@@ -433,7 +436,7 @@ jobs:
     name: Publish $RELEASE_TAG
     needs: [prepare, embedded-runtime, android, ios]
     if: ${{ always() && needs.prepare.result == 'success' && needs['embedded-runtime'].result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pisper-linux]
     # 构建可以并行，提交版本号并打标签这一步逐个执行：各通道都向 release 推版本提交，
     # 排到时先取最新 release 再重放本通道的提交。GitHub 并发组只留一个在跑、一个在等，
     # 第三个到来会取消在等的那个；按 release.mjs 的编排（TUI/Runtime 约 10 分钟、App 约 30 分钟、
