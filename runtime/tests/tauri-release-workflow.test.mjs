@@ -88,7 +88,7 @@ test('transparent desktop pet enables the required macOS Tauri API', async () =>
   ])
 
   assert.match(desktopPet, /\.transparent\(true\)/)
-  assert.match(cargo, /features = \["tray-icon", "macos-private-api"\]/)
+  assert.match(cargo, /^tauri = \{[^\n]*"macos-private-api"/m)
   assert.equal(JSON.parse(config).app.macOSPrivateApi, true)
 })
 

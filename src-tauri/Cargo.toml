@@ -33,7 +33,8 @@ tauri-build = { version = "2.6.3", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
-tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api"] }
+# webview-data-url：Computer Use 的指示窗口用 data: 页面（computer_control.rs），没有它 Tauri 直接拒绝建窗口。
+tauri = { version = "2.11.5", features = ["tray-icon", "macos-private-api", "webview-data-url"] }
 tauri-plugin-notification = "2.3.3"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-barcode-scanner = "2"

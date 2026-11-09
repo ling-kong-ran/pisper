@@ -309,11 +309,12 @@ test('computer use asks once per session, even in auto mode, and hands the scree
 })
 
 test('computer use stays with the primary agent and bot conversations, and is desktop only', async () => {
-  const [multiAgent, capabilities, browserHost, bridge] = await Promise.all([
+  const [multiAgent, capabilities, browserHost, bridge, cargo] = await Promise.all([
     readFile('runtime/services/multi-agent-service.mjs', 'utf8'),
     readFile('runtime/runtime-capabilities.mjs', 'utf8'),
     readFile('src-tauri/src/desktop_shell/computer_control.rs', 'utf8'),
     readFile('src-tauri/capabilities/desktop-computer.json', 'utf8'),
+    readFile('src-tauri/Cargo.toml', 'utf8'),
   ])
   assert.match(multiAgent, /PARENT_ONLY_TOOL_NAMES = new Set\(\[[\s\S]*?'computer_use'/)
   assert.match(capabilities, /if \(features\.computerUse\) tools\.add\('computer_use'\)/)
@@ -326,4 +327,8 @@ test('computer use stays with the primary agent and bot conversations, and is de
   // 遮罩不能挡输入，也不能抢焦点。
   assert.match(browserHost, /set_ignore_cursor_events\(true\)/)
   assert.match(browserHost, /focusable\(false\)/)
+  // 指示窗口是 data: 页面，Tauri 没开 webview-data-url 时建窗口直接报错，整个 Computer Use 都用不了。
+  if (browserHost.includes('data:text/html')) {
+    assert.match(cargo, /^tauri = \{[^\n]*"webview-data-url"/m)
+  }
 })
