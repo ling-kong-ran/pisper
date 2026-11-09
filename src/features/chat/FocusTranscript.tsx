@@ -40,6 +40,17 @@ import { lastSettledMessageIndex } from '@/lib/session-state'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
+// 离开时贴着底部（与 useAutoScroll 的贴底阈值一致）就记 null：回来时照样落到最新消息。
+// 只有往上翻着读的才记像素位置——虚拟行重新进入时先按估算高度排版，加上离开期间的新消息，
+// 同一个像素值会落在转录中间。
+const BOTTOM_SLACK_PX = 64
+
+function readingPosition(element: HTMLElement) {
+  return element.scrollHeight - element.clientHeight - element.scrollTop <= BOTTOM_SLACK_PX
+    ? null
+    : element.scrollTop
+}
+
 // 只有 Bot 的会话才加载招呼。
 const BotGreeting = lazy(() => import('@/features/bots/public-greeting'))
 
@@ -208,10 +219,11 @@ export function FocusTranscript({
       const element = transcriptElement
       if (!element || transcriptLoadState !== 'ready' || element.clientHeight <= 0) return
       const store = useContextPagesStore.getState()
-      if (store.sessions[sessionId]?.conversationScrollTop !== element.scrollTop)
+      const position = readingPosition(element)
+      if (store.sessions[sessionId]?.conversationScrollTop !== position)
         store.update(sessionId, 'files', {
           type: 'workspace',
-          conversationScrollTop: element.scrollTop,
+          conversationScrollTop: position,
         })
     }
     const beforeSelection = () => {
@@ -241,10 +253,11 @@ export function FocusTranscript({
     return () => {
       if (element.clientHeight <= 0) return
       const store = useContextPagesStore.getState()
-      if (store.sessions[sessionId]?.conversationScrollTop !== element.scrollTop)
+      const position = readingPosition(element)
+      if (store.sessions[sessionId]?.conversationScrollTop !== position)
         store.update(sessionId, 'files', {
           type: 'workspace',
-          conversationScrollTop: element.scrollTop,
+          conversationScrollTop: position,
         })
     }
   }, [sessionId, transcriptElement, transcriptLoadState])
@@ -302,7 +315,7 @@ export function FocusTranscript({
       ) {
         useContextPagesStore.getState().update(sessionId, 'files', {
           type: 'workspace',
-          conversationScrollTop: event.currentTarget.scrollTop,
+          conversationScrollTop: readingPosition(event.currentTarget),
         })
       }
       // 收起更早的对话时不自动翻页：胶囊之上没有可读内容，翻页只会白白拉历史。

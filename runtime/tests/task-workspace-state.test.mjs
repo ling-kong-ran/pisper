@@ -127,6 +127,24 @@ test('the transcript saves its reading position before it unmounts on a plain ro
   const source = await readFile('src/features/chat/FocusTranscript.tsx', 'utf8')
   assert.match(
     source,
-    /useLayoutEffect\(\(\) => \{\s*const element = transcriptElement\s*if \(!element \|\| transcriptLoadState !== 'ready'\) return\s*return \(\) => \{\s*if \(element\.clientHeight <= 0\) return[\s\S]{0,300}conversationScrollTop: element\.scrollTop,/,
+    /useLayoutEffect\(\(\) => \{\s*const element = transcriptElement\s*if \(!element \|\| transcriptLoadState !== 'ready'\) return\s*return \(\) => \{\s*if \(element\.clientHeight <= 0\) return[\s\S]{0,350}conversationScrollTop: position,/,
   )
+  // 离开时贴着底部记 null，回来时落到最新消息，不按像素值停在转录中间。
+  assert.match(
+    source,
+    /function readingPosition\(element: HTMLElement\) \{\s*return element\.scrollHeight - element\.clientHeight - element\.scrollTop <= BOTTOM_SLACK_PX\s*\? null/,
+  )
+})
+
+test('a reader who left at the bottom clears the saved reading position', () => {
+  useContextPagesStore.setState({ sessions: {} })
+  const store = () => useContextPagesStore.getState()
+  store().update('a', 'files', { type: 'workspace', conversationScrollTop: 412 })
+  assert.equal(store().sessions.a.conversationScrollTop, 412)
+  store().update('a', 'files', { type: 'workspace', conversationScrollTop: null })
+  assert.equal(store().sessions.a.conversationScrollTop, null)
+  // 只改别的工作区字段时不动阅读位置。
+  store().update('a', 'files', { type: 'workspace', conversationScrollTop: 300 })
+  store().update('a', 'files', { type: 'workspace', summaryOpen: true })
+  assert.equal(store().sessions.a.conversationScrollTop, 300)
 })

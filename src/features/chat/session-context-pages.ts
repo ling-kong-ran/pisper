@@ -60,7 +60,8 @@ export type ContextPageAction =
       contentWidth?: number
       contentOpen?: boolean
       summaryOpen?: boolean
-      conversationScrollTop?: number
+      // null：离开时贴着底部，回来时落到最新消息。
+      conversationScrollTop?: number | null
     }
 
 export const MAX_CONTEXT_PAGES = 12
@@ -149,10 +150,12 @@ export function updateContextPages(state: ContextPages, action: ContextPageActio
         ? { contentOpen: action.contentOpen && state.pages.length > 0 }
         : {}),
       ...(action.summaryOpen !== undefined ? { summaryOpen: action.summaryOpen } : {}),
-      ...(action.conversationScrollTop !== undefined &&
-      Number.isFinite(action.conversationScrollTop)
-        ? { conversationScrollTop: Math.max(0, action.conversationScrollTop) }
-        : {}),
+      ...(action.conversationScrollTop === null
+        ? { conversationScrollTop: null }
+        : action.conversationScrollTop !== undefined &&
+            Number.isFinite(action.conversationScrollTop)
+          ? { conversationScrollTop: Math.max(0, action.conversationScrollTop) }
+          : {}),
     }
   }
   if (action.type === 'add' || action.type === 'open' || action.type === 'kind') {
