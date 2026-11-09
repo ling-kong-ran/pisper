@@ -65,11 +65,16 @@ async function machine(t, { shell = true } = {}) {
 // 节点的轮询循环，换成直接调用中枢：领请求、执行、交回结果与输出。
 function connect(hub, environmentId, node) {
   let stopped = false
+  const active = new Set()
+  const track = (promise) => {
+    active.add(promise)
+    void promise.finally(() => active.delete(promise)).catch(() => {})
+  }
   const loop = (async () => {
     while (!stopped) {
       const requests = await hub.poll(environmentId, { waitMs: 30 })
-      for (const request of requests)
-        void node
+      for (const request of requests) {
+        const running = node
           .handle(request, (data) =>
             hub.deliver(environmentId, [
               { id: request.id, chunk: Buffer.from(data).toString('base64') },
@@ -78,11 +83,17 @@ function connect(hub, environmentId, node) {
           .then((result) => {
             if (request.op !== 'cancel') hub.deliver(environmentId, [{ id: request.id, ...result }])
           })
+        track(running)
+      }
     }
   })()
   return async () => {
     stopped = true
+    // Windows 会在命令进程和 stdio/CWD 句柄完全退出前拒绝 rmdir；测试拥有临时目录，
+    // 断开节点时按真实生命周期取消并等待仍在跑的 node.handle，而不是对 rm 做重试。
+    node.cancelAll?.()
     await loop
+    await Promise.allSettled([...active])
   }
 }
 
