@@ -106,6 +106,8 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
   const workflow = parseYaml(source)
   assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
   assert.deepEqual(workflow.permissions, { contents: 'write' })
+  assert.match(workflow.concurrency.group, /windows-/)
+  assert.match(workflow.concurrency.group, /inputs\.stage == 'publish'/)
 
   const inputs = workflow.on.workflow_dispatch.inputs
   assert.deepEqual(inputs.stage.options, ['all', 'plan', 'build', 'status', 'publish'])
@@ -172,6 +174,8 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
   const workflow = parseYaml(source)
   assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
   assert.deepEqual(workflow.permissions, { contents: 'write' })
+  assert.match(workflow.concurrency.group, /macos-/)
+  assert.match(workflow.concurrency.group, /inputs\.stage == 'publish'/)
 
   const inputs = workflow.on.workflow_dispatch.inputs
   assert.deepEqual(inputs.stage.options, ['build', 'status', 'publish'])
