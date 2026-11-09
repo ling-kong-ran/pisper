@@ -172,6 +172,89 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
   assert.doesNotMatch(source, /npm run release(?!:local)/)
 })
 
+test('self-hosted Linux releases inject signing secrets and only resume existing drafts', async () => {
+  const source = await readFile('.github/workflows/release-linux-self-hosted.yml', 'utf8')
+  const workflow = parseYaml(source)
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  assert.deepEqual(workflow.permissions, { contents: 'write' })
+  assert.equal(
+    workflow.concurrency.group,
+    "release-self-hosted-${{ github.repository }}-${{ inputs.stage == 'publish' && 'publish' || format('linux-{0}', inputs.stage) }}",
+  )
+  assert.equal(workflow.concurrency['cancel-in-progress'], false)
+
+  const inputs = workflow.on.workflow_dispatch.inputs
+  assert.deepEqual(inputs.stage.options, ['build', 'status', 'publish'])
+  assert.equal(inputs.stage.default, 'build')
+  assert.deepEqual(Object.keys(inputs), ['stage'])
+
+  const jobs = Object.values(workflow.jobs)
+  assert.equal(jobs.length, 1)
+  const [job] = jobs
+  // 必须同时匹配 self-hosted 和 Linux 自定义标签，不能回退到 GitHub 托管 Runner。
+  assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-linux'])
+  assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
+  assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
+  assert.equal(
+    job.env.GIT_CONFIG_GLOBAL,
+    '${{ github.workspace }}/../pisper-release-gitconfig-${{ github.run_id }}',
+  )
+  assert.equal(job.env.GIT_CONFIG_NOSYSTEM, '1')
+
+  const step = (name) => {
+    const found = job.steps.find((entry) => entry.name === name)
+    assert.ok(found, `missing workflow step: ${name}`)
+    return found
+  }
+  assert.equal(step('Require Linux x64').shell, 'bash')
+  assert.match(step('Require Linux x64').run, /RUNNER_OS.*Linux.*RUNNER_ARCH.*X64/s)
+
+  const checkout = job.steps.find((entry) => entry.uses === 'actions/checkout@v5')
+  assert.deepEqual(checkout.with, { ref: 'release', 'fetch-depth': 0 })
+  assert.equal(
+    job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
+    24,
+  )
+  const rust = job.steps.find((entry) => entry.uses === 'dtolnay/rust-toolchain@stable')
+  assert.equal(rust.with.components, 'rustfmt, clippy')
+  assert.equal(step('Install Node dependencies').run, 'npm ci')
+  assert.match(
+    step('Configure release commit identity').run,
+    /git config user\.name[\s\S]*git config user\.email/,
+  )
+
+  const build = step('Build and upload Linux artifacts')
+  assert.equal(build.if, "inputs.stage == 'build'")
+  assert.equal(build.run, 'npm run release:local -- build')
+  assert.equal(build.env.TAURI_SIGNING_PRIVATE_KEY, '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')
+  assert.equal(
+    build.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+    '${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}',
+  )
+  assert.deepEqual(Object.keys(build.env).sort(), [
+    'TAURI_SIGNING_PRIVATE_KEY',
+    'TAURI_SIGNING_PRIVATE_KEY_PASSWORD',
+  ])
+
+  const status = step('Inspect draft release assets')
+  assert.equal(
+    status.if,
+    "inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'",
+  )
+  assert.equal(status.run, 'npm run release:local -- status')
+  const publish = step('Publish validated draft releases')
+  assert.equal(publish.if, "inputs.stage == 'publish'")
+  assert.equal(publish.run, 'npm run release:local -- publish')
+
+  // Linux 只能复用既有计划，且不得绕开依赖安装、检查或发布入口。
+  assert.doesNotMatch(
+    source,
+    /release:local -- plan|--no-install|--allow-unsigned-mac|\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/,
+  )
+  assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
+  assert.doesNotMatch(source, /npm run release(?!:local)/)
+})
+
 test('self-hosted macOS releases inject signing secrets and only resume existing drafts', async () => {
   const source = await readFile('.github/workflows/release-mac-self-hosted.yml', 'utf8')
   const workflow = parseYaml(source)
