@@ -27,16 +27,24 @@ const IGNORED_DIRECTORY_NAMES = new Set([
   '__pycache__',
   'bower_components',
   'build',
+  'cmakefiles',
   'coverage',
+  'deriveddata',
   'dist',
+  'elm-stuff',
+  'jspm_packages',
   'node_modules',
   'out',
+  'pods',
   'release',
+  'site-packages',
   'target',
   'temp',
   'tmp',
   'vendor',
   'venv',
+  'zig-cache',
+  'zig-out',
 ])
 
 const IGNORED_FILE_NAMES = new Set([
@@ -227,6 +235,43 @@ async function gitArrivalCheck(repository, baselineHead) {
   return (path) => tracked.has(path) && (committed.has(path) ? !localCommits : integrating)
 }
 
+// git 忽略的文件（依赖目录、构建输出、生成代码）不是 Agent 交付的结果：上面的目录名单列不全，
+// 以仓库自己的 .gitignore 为准。--directory 让被忽略的整个目录只占一行，node_modules 再大也不展开。
+// 已跟踪的文件不算被忽略（ls-files --others 只列未跟踪的）。查询失败时不过滤。
+async function gitIgnoredCheck(repository) {
+  const result = await queryGit(
+    repository,
+    'ls-files',
+    '-z',
+    '--others',
+    '--ignored',
+    '--exclude-standard',
+    '--directory',
+  )
+  if (!result.ok) return () => false
+  const ignored = nulSeparated(result)
+  return (path) => {
+    if (ignored.has(path)) return true
+    for (let index = path.indexOf('/'); index >= 0; index = path.indexOf('/', index + 1))
+      if (ignored.has(path.slice(0, index + 1))) return true
+    return false
+  }
+}
+
+async function withoutGitIgnored(files) {
+  const roots = new Map()
+  const checks = new Map()
+  const kept = []
+  for (const file of files) {
+    const repository = await gitRepositoryRoot(file.path, roots)
+    if (repository && !checks.has(repository))
+      checks.set(repository, await gitIgnoredCheck(repository))
+    const relativePath = repository ? relative(repository, file.path).split(sep).join('/') : ''
+    if (!repository || !checks.get(repository)(relativePath)) kept.push(file)
+  }
+  return kept
+}
+
 // pull、切分支、clone 带来的新文件是更新代码，不算 Agent 新建；它自己写完再 git add 或提交的仍然算。
 async function withGitArrivalsNotAdded(files, baseline) {
   const roots = new Map()
@@ -313,9 +358,11 @@ export async function listChangedWorkspaceAssets(baseline) {
   const current = await scanWorkspace(baseline.root, baseline.exclude)
   if (!current) return []
   return withGitArrivalsNotAdded(
-    [...current.entries()]
-      .filter(([key, file]) => baseline.entries.get(key)?.version !== file.version)
-      .map(([key, file]) => ({ ...file, added: !baseline.entries.has(key) })),
+    await withoutGitIgnored(
+      [...current.entries()]
+        .filter(([key, file]) => baseline.entries.get(key)?.version !== file.version)
+        .map(([key, file]) => ({ ...file, added: !baseline.entries.has(key) })),
+    ),
     baseline,
   )
 }

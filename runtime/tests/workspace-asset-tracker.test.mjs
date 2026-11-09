@@ -1035,3 +1035,39 @@ test('archiving commits the asset index once per command without holding back it
   assert.equal((await draining).length, 3)
   assert.equal(commits, 1)
 })
+
+test('files git ignores, such as dependencies and generated code, are not agent results', async (t) => {
+  const f = await fixture(t)
+  await git(f.cwd, 'init', '-q', '-b', 'main')
+  await writeFile(join(f.cwd, '.gitignore'), 'deps/\n*.gen.ts\n')
+  await f.run('session-a', async () => {
+    // 任何生态都一样：依赖目录、生成代码由仓库的 .gitignore 认出，不靠目录名单。
+    await mkdir(join(f.cwd, 'deps', 'left-pad', 'lib'), { recursive: true })
+    await writeFile(join(f.cwd, 'deps', 'left-pad', 'lib', 'index.js'), 'module.exports = 1')
+    await writeFile(join(f.cwd, 'api.gen.ts'), 'export {}')
+    await writeFile(join(f.cwd, 'report.md'), 'done')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('session-a')).map(({ path }) => path),
+    [join(f.cwd, 'report.md')],
+  )
+  assert.deepEqual(
+    f.attempts.map(({ path }) => path),
+    [join(f.cwd, 'report.md')],
+  )
+})
+
+test('well-known dependency folders are skipped outside git repositories too', async (t) => {
+  const f = await fixture(t)
+  await f.run('session-a', async () => {
+    for (const folder of ['site-packages', 'Pods', 'node_modules']) {
+      await mkdir(join(f.cwd, folder, 'pkg'), { recursive: true })
+      await writeFile(join(f.cwd, folder, 'pkg', 'mod.py'), 'x = 1')
+    }
+    await writeFile(join(f.cwd, 'chart.svg'), '<svg/>')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('session-a')).map(({ path }) => path),
+    [join(f.cwd, 'chart.svg')],
+  )
+})
