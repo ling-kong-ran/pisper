@@ -518,3 +518,29 @@ test('legacy assets are hidden once when git tracks them or they are tool previe
   await runtime.startAssetReconciliation()
   assert.equal(hidden().generated, undefined)
 })
+
+test('re-recording an unchanged hidden asset does not rewrite the index, and a batch writes once', async (t) => {
+  const { workspace, runtime } = await createFixture(t)
+  const paths = ['a.java', 'b.java', 'c.java'].map((name) => join(workspace, name))
+  for (const path of paths) await writeFile(path, 'class X {}')
+  let writes = 0
+  const save = runtime.saveAssetIndex.bind(runtime)
+  runtime.saveAssetIndex = () => {
+    writes += 1
+    return save()
+  }
+  // 一条命令的一批产物：只记内存，最后提交一次。
+  for (const path of paths)
+    await runtime.recordGeneratedFile('s', { name: 'S' }, path, { deferSave: true })
+  assert.equal(writes, 0)
+  await runtime.flushGeneratedAssets()
+  assert.equal(writes, 1)
+  await runtime.flushGeneratedAssets()
+  assert.equal(writes, 1)
+  // 重复构建：同一批文件已归档、又不挂到回复上，什么都没变，不写盘。
+  for (const path of paths)
+    await runtime.recordGeneratedFile('s', { name: 'S' }, path, { hiddenInReply: true })
+  await runtime.flushGeneratedAssets()
+  assert.equal(writes, 1)
+  assert.equal(runtime.assetIndex.assets.length, 3)
+})

@@ -400,8 +400,9 @@ export class AgentRuntimeFacade {
           id,
           this.sessions.get(id) || { name: this.sessionMeta[id]?.name },
           path,
-          options,
+          { ...options, deferSave: true },
         ),
+      commit: () => this.flushGeneratedAssets(),
     })
     this.workspaceAssetTracker.install(session, { sessionId, cwd })
     // 会话之间的读写台账：装在文件快照之前，被拒绝的写入不记快照。远程会话的文件在别的电脑上，不记。

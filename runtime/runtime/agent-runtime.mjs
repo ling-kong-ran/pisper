@@ -795,6 +795,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.usageWrite = Promise.resolve()
     this.assetIndex = { assets: [] }
     this.assetWrite = Promise.resolve()
+    this.assetIndexDirty = false
     this.assetReconcile = Promise.resolve(false)
     this.providerState = { refreshPromise: null }
     Object.defineProperty(this, 'providerModelRefreshPromise', {
@@ -1546,6 +1547,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
 
   // 资产索引保存：版本号递增并失效资产投影缓存，写盘同样串行化。
   saveAssetIndex() {
+    this.assetIndexDirty = false
     this.assetProjectionRevision += 1
     this.streamProjection.invalidateAssets()
     const snapshot = structuredClone(this.assetIndex)
@@ -1678,9 +1680,16 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     )
   }
 
-  async recordGeneratedFile(sessionId, value, filePath, { hiddenInReply = false } = {}) {
+  // deferSave：一批文件（一条命令的产物）只在最后由 flushGeneratedAssets 写一次索引。
+  async recordGeneratedFile(
+    sessionId,
+    value,
+    filePath,
+    { hiddenInReply = false, deferSave = false } = {},
+  ) {
     await this.assetReconcile
     const name = basename(filePath)
+    const known = this.assetIndex.assets.length
     const asset = await assetStorage.archiveGeneratedAsset({
       assets: this.assetIndex.assets,
       assetsDir: this.assetsDir,
@@ -1692,8 +1701,15 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       hiddenInReply,
     })
     if (!asset) return null
-    await this.saveAssetIndex()
+    // 已归档过、又不挂到回复上的文件什么都没变（更新代码、重复构建）：不写盘。
+    const changed = !hiddenInReply || this.assetIndex.assets.length !== known
+    if (changed && deferSave) this.assetIndexDirty = true
+    else if (changed) await this.saveAssetIndex()
     return this.publicAsset(assetStorage.assetForSession(asset, sessionId) || asset)
+  }
+
+  async flushGeneratedAssets() {
+    if (this.assetIndexDirty) await this.saveAssetIndex()
   }
 
   async listAssets({ query = '', kind = '', sessionId = '' } = {}) {

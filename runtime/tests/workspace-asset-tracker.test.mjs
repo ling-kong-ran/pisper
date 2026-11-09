@@ -10,7 +10,11 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import { workspaceAssetFile } from '../services/workspace-asset-capture.mjs'
-import { WorkspaceAssetTracker } from '../services/workspace-asset-tracker.mjs'
+import {
+  MAX_PENDING_FILES_PER_SESSION,
+  MAX_SHELL_CAPTURED_FILES,
+  WorkspaceAssetTracker,
+} from '../services/workspace-asset-tracker.mjs'
 import { createToolGatewayTool } from '../tools/app/tool-gateway.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -950,4 +954,84 @@ test('a failed shell still archives its output and releases the workspace lock',
     (await f.tracker.drain('next-shell')).map((asset) => asset.content),
     ['next output'],
   )
+})
+
+test('a shell command that rewrites a whole tree is a build, not a reply attachment', async (t) => {
+  const f = await fixture(t)
+  // 例如每次构建删掉重建几千个 protobuf 生成的 Java 类：整批不记，也不复制进资产库。
+  const generated = join(f.cwd, 'src', 'generated')
+  await mkdir(generated, { recursive: true })
+  assert.equal(
+    await f.run('session-a', async () => {
+      for (let i = 0; i <= MAX_SHELL_CAPTURED_FILES; i += 1)
+        await writeFile(join(generated, `Message${i}.java`), `class Message${i} {}`)
+      return 'built'
+    }),
+    'built',
+  )
+  assert.deepEqual(await f.tracker.drain('session-a'), [])
+  assert.equal(f.attempts.length, 0)
+  // 同一工作区里普通的少量产物照常记录。
+  await f.run('session-a', () => writeFile(join(f.cwd, 'report.md'), 'done'))
+  assert.deepEqual(
+    (await f.tracker.drain('session-a')).map(({ path }) => path),
+    [join(f.cwd, 'report.md')],
+  )
+})
+
+test('retries left over from an earlier bulk capture are dropped instead of replayed', async (t) => {
+  const f = await fixture(t)
+  const kept = join(f.cwd, 'kept.md')
+  await writeFile(kept, 'kept')
+  const keptFile = await workspaceAssetFile(kept)
+  const bulk = Array.from({ length: MAX_PENDING_FILES_PER_SESSION + 1 }, (_, i) => ({
+    sessionId: 'bulk',
+    cwd: f.cwd,
+    path: join(f.cwd, `Gen${i}.java`),
+    version: 'gone',
+  }))
+  const retriesPath = join(f.dataDir, 'pisper-workspace-asset-retries.json')
+  await writeFile(
+    retriesPath,
+    JSON.stringify({ files: [...bulk, { ...keptFile, sessionId: 'normal', cwd: f.cwd }] }),
+  )
+  const tracker = f.createTracker()
+  assert.deepEqual(await tracker.drain('bulk'), [])
+  assert.equal(f.attempts.length, 0)
+  assert.deepEqual(
+    (await tracker.drain('normal')).map(({ path }) => path),
+    [kept],
+  )
+  await tracker.saving
+  assert.deepEqual(JSON.parse(await readFile(retriesPath, 'utf8')).files, [])
+})
+
+test('archiving commits the asset index once per command without holding back its result', async (t) => {
+  const blocked = deferred()
+  let commits = 0
+  const f = await fixture(t, undefined, {
+    commit: () => {
+      commits += 1
+      return blocked.promise
+    },
+  })
+  const result = await f.run('session-a', async () => {
+    for (const name of ['one.md', 'two.md', 'three.md']) await writeFile(join(f.cwd, name), name)
+    return 'done'
+  })
+  // 索引还在写，命令结果已经回来；三个文件只提交一次。
+  assert.equal(result, 'done')
+  assert.equal(f.archived.length, 3)
+  await nextTick()
+  assert.equal(commits, 1)
+  let drained = false
+  const draining = f.tracker.drain('session-a').then((assets) => {
+    drained = true
+    return assets
+  })
+  await nextTick()
+  assert.equal(drained, false, '本轮收尾要等索引写完')
+  blocked.resolve()
+  assert.equal((await draining).length, 3)
+  assert.equal(commits, 1)
 })

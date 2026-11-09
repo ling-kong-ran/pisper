@@ -13,6 +13,11 @@ const FILE_TOOLS = new Set(['write', 'edit', 'bash', 'powershell'])
 // shell 独占工作区的上限：多数命令在此之内结束，产物归属精确；更久的 watch、开发服务器
 // 到点后让出锁，否则其它会话在同一项目里的命令和写入会一直排队。
 const SHELL_EXCLUSIVE_MS = 5_000
+// 一条命令改动的文件超过这个数，就是构建、代码生成、安装依赖或切换分支，不是 Agent 交付的结果：
+// 整批不记。否则一次生成几千个类全进资产库，回复上挂几千个附件，资产索引也越写越大。
+export const MAX_SHELL_CAPTURED_FILES = 500
+// 待重试的产物超过这个数的会话，是旧版本整批记下的构建产物：读入时丢掉，不再在每轮收尾时重试。
+export const MAX_PENDING_FILES_PER_SESSION = 1_000
 
 function operation(name, args) {
   if (name === 'call_tool') {
@@ -41,6 +46,8 @@ export class WorkspaceAssetTracker {
   constructor({
     dataDir,
     archive,
+    // 一批归档结束后调用一次（写资产索引）；archive 本身只改内存。
+    commit = async () => {},
     warn = (error) => console.warn('Asset archive will retry:', error.message),
     shellExclusiveMs = SHELL_EXCLUSIVE_MS,
   }) {
@@ -50,6 +57,9 @@ export class WorkspaceAssetTracker {
     this.detached = new Set()
     this.path = join(dataDir, 'pisper-workspace-asset-retries.json')
     this.archive = archive
+    this.commit = commit
+    // 写资产索引在后台串行进行：命令结果不等它，本轮收尾的 drain 等它。
+    this.committing = Promise.resolve()
     this.warn = warn
     this.pending = new Map()
     this.deliveries = new Map()
@@ -61,10 +71,16 @@ export class WorkspaceAssetTracker {
     this.ready = Promise.all([canonical(dataDir), readJson(this.path, { files: [] })]).then(
       ([dataPath, state]) => {
         this.dataDir = dataPath
-        for (const file of state.files || []) {
-          if (typeof file?.sessionId === 'string' && typeof file?.path === 'string')
-            this.pending.set(this.key(file), file)
+        const valid = (state.files || []).filter(
+          (file) => typeof file?.sessionId === 'string' && typeof file?.path === 'string',
+        )
+        const counts = new Map()
+        for (const file of valid) counts.set(file.sessionId, (counts.get(file.sessionId) || 0) + 1)
+        for (const file of valid) {
+          if (counts.get(file.sessionId) > MAX_PENDING_FILES_PER_SESSION) continue
+          this.pending.set(this.key(file), file)
         }
+        if (this.pending.size < valid.length) void this.save().catch((error) => this.warn(error))
       },
     )
   }
@@ -187,6 +203,7 @@ export class WorkspaceAssetTracker {
             : [await workspaceAssetFile(path)]
                 .filter((file) => file && file.version !== before?.version && !internalPath)
                 .map((file) => ({ ...file, added: !before }))
+          if (op.shell && files.length > MAX_SHELL_CAPTURED_FILES) files = []
           if (detached || this.detached.size) {
             const claims = await Promise.all(files.map((file) => this.claim(file)))
             if (detached) files = files.filter((_, index) => !detached.has(claims[index]))
@@ -196,7 +213,12 @@ export class WorkspaceAssetTracker {
             this.pending.set(this.key({ ...file, sessionId }), { ...file, sessionId, cwd })
           if (files.length) {
             await this.save()
-            await this.archiveFiles(files.map((file) => ({ ...file, sessionId, cwd })))
+            // 归档本身只记内存，必须在让出锁之前做完：之后别的调用改了文件，版本就对不上了。
+            const archived = await this.archiveFiles(
+              files.map((file) => ({ ...file, sessionId, cwd })),
+              { commit: false },
+            )
+            if (archived) this.commitInBackground()
           }
         } catch (error) {
           this.warn(error)
@@ -207,11 +229,21 @@ export class WorkspaceAssetTracker {
     }
   }
 
+  // 排在前面的提交已经写进了之后的改动时，后面这次由 commit 自己判断为无事可做。
+  commitInBackground() {
+    this.committing = this.committing
+      .catch(() => {})
+      .then(() => this.commit())
+      .catch((error) => this.warn(error))
+  }
+
   async claim(file) {
     return JSON.stringify([await canonical(file.path), file.version])
   }
 
-  async archiveFiles(files) {
+  // 返回是否归档了文件。commit=false 时由调用方在整批结束后自己提交。
+  async archiveFiles(files, { save = true, commit = true } = {}) {
+    let archived = false
     for (const file of files) {
       try {
         const current = await workspaceAssetFile(file.path)
@@ -225,6 +257,7 @@ export class WorkspaceAssetTracker {
         const hiddenInReply = file.added === false
         const asset = await this.archive(file.sessionId, file.path, { hiddenInReply })
         if (!asset) continue
+        archived = true
         this.pending.delete(this.key(file))
         if (hiddenInReply) continue
         const assets = this.deliveries.get(file.sessionId) || new Map()
@@ -234,20 +267,28 @@ export class WorkspaceAssetTracker {
         this.warn(error)
       }
     }
-    await this.save()
+    if (archived && commit) await this.commit()
+    if (save) await this.save()
+    return archived
   }
 
   async drain(sessionId) {
     await this.ready
     const files = [...this.pending.values()].filter((file) => file.sessionId === sessionId)
+    let archived = false
     for (const file of files) {
       const release = await this.lock([file.cwd || dirname(file.path), dirname(file.path)])
       try {
-        if (this.pending.get(this.key(file)) === file) await this.archiveFiles([file])
+        if (this.pending.get(this.key(file)) === file)
+          archived = (await this.archiveFiles([file], { save: false, commit: false })) || archived
       } finally {
         release()
       }
     }
+    // 每个文件都重写一遍资产索引和待重试清单是平方级的；整批结束时各写一次。
+    if (archived) this.commitInBackground()
+    await this.committing
+    if (files.length) await this.save()
     const assets = [...(this.deliveries.get(sessionId)?.values() || [])]
     this.deliveries.delete(sessionId)
     return assets
