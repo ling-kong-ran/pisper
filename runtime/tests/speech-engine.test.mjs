@@ -3,7 +3,7 @@ import { fork } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { once } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import { dirname, join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import test from 'node:test'
@@ -453,6 +453,62 @@ test('idle recycle and dispose wait for child exit; queued and running operation
   await disposing
   await Promise.all([first, second])
   await rejected(service.startSession(), 'disposed')
+})
+
+test('dispose waits for worker close after exit before releasing process resources', async () => {
+  let resolveExit
+  let child
+  class StagedChild extends EventEmitter {
+    pid = 424242
+    exitCode = null
+    signalCode = null
+
+    send(message, callback) {
+      callback?.(null)
+      queueMicrotask(() => {
+        this.emit('message', {
+          id: message.id,
+          ok: true,
+          result: message.method === 'init' ? { ready: true } : 'transcript',
+        })
+      })
+      return true
+    }
+
+    kill(signal) {
+      this.signalCode = signal
+      queueMicrotask(() => {
+        this.emit('exit', null, signal)
+        resolveExit()
+      })
+      return true
+    }
+  }
+  const exited = new Promise((resolveExitEvent) => {
+    resolveExit = resolveExitEvent
+  })
+  const service = new SpeechEngineService({
+    catalog: catalog(),
+    modelDownloads: { modelDirectory: async () => resolve('fixture-models') },
+    idleUnloadMs: 0,
+    sessionSweepMs: 0,
+    forkProcess() {
+      child = new StagedChild()
+      return child
+    },
+  })
+  assert.equal(await service.transcribe(new Float32Array([1])), 'transcript')
+  const disposing = service.dispose()
+  await exited
+  let disposed = false
+  void disposing.then(() => {
+    disposed = true
+  })
+  await Promise.resolve()
+  assert.equal(disposed, false)
+  child.emit('close', null, 'SIGKILL')
+  await disposing
+  assert.equal(disposed, true)
 })
 
 test('dispose during installation prevents late spawning', async (t) => {

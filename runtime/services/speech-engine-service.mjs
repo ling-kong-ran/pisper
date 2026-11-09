@@ -271,6 +271,7 @@ export class SpeechEngineService {
     }
     const worker = { child, kind, stopping: false, exited: false, exitPromise: null }
     worker.exitPromise = new Promise((resolveExit) => {
+      let closed = false
       const exited = () => {
         if (worker.exited) return
         worker.exited = true
@@ -281,12 +282,20 @@ export class SpeechEngineService {
           if (session.worker === worker) this.sessions.delete(id)
         }
         this.rejectPending(worker, speechEngineError('worker'))
+      }
+      const close = () => {
+        if (closed) return
+        closed = true
+        exited()
+        // exit 先报告进程终态；close 还确认 stdio/IPC 已关闭。Windows 在两者之间可能仍能按 PID
+        // 查询到进程，因此 dispose 和复用必须等 close，才能真正交还 worker 的资源所有权。
         resolveExit()
       }
       child.once('exit', exited)
+      child.once('close', close)
       child.once('error', () => {
         this.rejectPending(worker, speechEngineError('worker'))
-        if (!child.pid) exited()
+        if (!child.pid) close()
         else void this.stopWorker(worker, speechEngineError('worker'), true)
       })
       child.on('message', (message) => this.receive(worker, message))
