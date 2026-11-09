@@ -119,6 +119,8 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
   assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-windows'])
   assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
   assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
+  assert.equal(job.env.GIT_CONFIG_GLOBAL, '${{ runner.temp }}/pisper-release-gitconfig')
+  assert.equal(job.env.GIT_CONFIG_NOSYSTEM, '1')
 
   const step = (name) => {
     const found = job.steps.find((entry) => entry.name === name)
@@ -162,5 +164,73 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
 
   // Windows-only 计划没有 npm；入口只能复用 release-local，不能走 release.mjs 的 Actions 派发。
   assert.doesNotMatch(source, /\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/)
+  assert.doesNotMatch(source, /npm run release(?!:local)/)
+})
+
+test('self-hosted macOS releases inject signing secrets and only resume existing drafts', async () => {
+  const source = await readFile('.github/workflows/release-mac-self-hosted.yml', 'utf8')
+  const workflow = parseYaml(source)
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  assert.deepEqual(workflow.permissions, { contents: 'write' })
+
+  const inputs = workflow.on.workflow_dispatch.inputs
+  assert.deepEqual(inputs.stage.options, ['build', 'status', 'publish'])
+  assert.equal(inputs.stage.default, 'build')
+  assert.deepEqual(Object.keys(inputs), ['stage'])
+
+  const jobs = Object.values(workflow.jobs)
+  assert.equal(jobs.length, 1)
+  const [job] = jobs
+  assert.deepEqual(job['runs-on'], ['self-hosted', 'pisper-macos'])
+  assert.equal(job.env.GITHUB_TOKEN, '${{ github.token }}')
+  assert.equal(job.env.GH_TOKEN, '${{ github.token }}')
+  assert.equal(job.env.GIT_CONFIG_GLOBAL, '${{ runner.temp }}/pisper-release-gitconfig')
+  assert.equal(job.env.GIT_CONFIG_NOSYSTEM, '1')
+
+  const step = (name) => {
+    const found = job.steps.find((entry) => entry.name === name)
+    assert.ok(found, `missing workflow step: ${name}`)
+    return found
+  }
+  assert.equal(step('Require macOS arm64').shell, 'bash')
+  assert.match(step('Require macOS arm64').run, /RUNNER_OS.*macOS.*RUNNER_ARCH.*ARM64/s)
+  assert.equal(
+    job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
+    24,
+  )
+  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@stable'))
+  assert.equal(step('Install Node dependencies').run, 'npm ci')
+
+  const build = step('Build and upload macOS artifacts')
+  assert.equal(build.if, "inputs.stage == 'build'")
+  assert.equal(build.run, 'npm run release:local -- build')
+  assert.equal(build.env.TAURI_SIGNING_PRIVATE_KEY, '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')
+  assert.equal(
+    build.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+    '${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}',
+  )
+  for (const name of [
+    'APPLE_CERTIFICATE',
+    'APPLE_CERTIFICATE_PASSWORD',
+    'APPLE_SIGNING_IDENTITY',
+    'APPLE_ID',
+    'APPLE_TEAM_ID',
+  ])
+    assert.equal(build.env[name], `\${{ secrets.${name} }}`)
+  assert.equal(build.env.APPLE_PASSWORD, '${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}')
+
+  assert.equal(
+    step('Inspect draft release assets').if,
+    "inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'",
+  )
+  assert.equal(step('Publish validated draft releases').if, "inputs.stage == 'publish'")
+  assert.equal(step('Publish validated draft releases').run, 'npm run release:local -- publish')
+
+  // Mac 只能复用既有计划；不能绕过完整 plan，也不能静默生成未签名应用。
+  assert.doesNotMatch(
+    source,
+    /release:local -- plan|--allow-unsigned-mac|\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/,
+  )
+  assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
   assert.doesNotMatch(source, /npm run release(?!:local)/)
 })

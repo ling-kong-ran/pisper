@@ -1,0 +1,79 @@
+name: Release from self-hosted macOS
+
+# 在自托管 Apple Silicon Mac 上复用既有计划；签名和公证凭据只由 Secrets 注入。
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to run against an existing draft plan'
+        required: true
+        default: build
+        type: choice
+        options:
+          - build
+          - status
+          - publish
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-self-hosted-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: macOS arm64 release (${{ inputs.stage }})
+    # 只选择明确登记了 pisper-macos 自定义标签的自托管 Runner，不消耗托管额度。
+    runs-on: [self-hosted, pisper-macos]
+    timeout-minutes: 360
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+      # 不继承个人 Git URL rewrite；checkout 和 publish 都使用注入的 GitHub Token。
+      GIT_CONFIG_GLOBAL: ${{ runner.temp }}/pisper-release-gitconfig
+      GIT_CONFIG_NOSYSTEM: '1'
+    steps:
+      - name: Require macOS arm64
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" != "macOS" || "$RUNNER_ARCH" != "ARM64" ]]; then
+            echo "This workflow requires macOS arm64, got $RUNNER_OS $RUNNER_ARCH." >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+        with:
+          ref: release
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Configure release commit identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Build and upload macOS artifacts
+        if: inputs.stage == 'build'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        # 不加 --no-install：计划可能已经更新依赖，构建必须服从当前锁文件。
+        run: npm run release:local -- build
+      - name: Inspect draft release assets
+        if: inputs.stage == 'build' || inputs.stage == 'status' || inputs.stage == 'publish'
+        run: npm run release:local -- status
+      - name: Publish validated draft releases
+        if: inputs.stage == 'publish'
+        run: npm run release:local -- publish

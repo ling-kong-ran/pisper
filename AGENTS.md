@@ -170,6 +170,9 @@ npm run release:local -- plan patch   # Actions 额度用尽时本机发布，�
   3. 在 Actions 手动运行 `Release from self-hosted Windows`（只支持 `workflow_dispatch`），选择 release 分支。完整发布用 `stage=all`、`version=patch`，依次执行 `npm ci`、`npm run release:local -- plan patch --platforms=windows`、`build`（plan 可能刚升级 Pi 依赖，build 自己重新 `npm ci`）、`status`、`publish`；也可用 `stage=plan` 只建草稿、`stage=status` 只检查资产。
   4. plan 已建草稿而 build 失败时，修复后用 `stage=build` 重跑，不要再次选择 all/plan；publish 失败（推送前或推送后都可以）时用 `stage=publish` 重跑。两者都复用草稿里的现有计划，不自动删除草稿，也不跳过检查或资产校验。
   - 这条路径只构建 Windows x64，其他平台停在上一版且不发 npm；移动 App 仍只走 CI。plan 到 publish 之间同样冻结 release 分支。
+- 自托管 macOS 发布（需要与 Windows 同一个版本时）：
+  1. 先在任一台机器运行 `npm run release:local -- plan patch --platforms=windows,darwin`，再分别用 Windows workflow 和 `Release from self-hosted macOS` 的 `stage=build` 复用这份草稿。macOS workflow 只提供 `build/status/publish`，不单独创建计划；两平台产物齐全后再执行 `stage=publish`。
+  2. Runner 必须是 Apple Silicon，并添加自定义标签 `pisper-macos`；workflow 只匹配 `[self-hosted, pisper-macos]`。除 Tauri 签名 Secrets 外，还配置 `APPLE_CERTIFICATE`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`（注入为 `APPLE_PASSWORD`）和 `APPLE_TEAM_ID`，全部仅由 build 步骤注入，不在 Mac 上保存本机发布凭据文件。
 - 发布前检查分支、工作区、标签和渠道实际变更；工作流运行期间冻结发布分支，失败先查日志与远端状态。
 - 分支集成禁止 `git merge` 和 merge commit，只用 `git rebase` 或 `git cherry-pick`；共享/发布分支禁止强制推送和改写他人提交。
 - 提交后必须尽快 rebase 到最新的 release 并合入：只留在本地或功能分支上的提交没有人能看到，也不会被检查。合入前先取最新的 release，确认没有别人的新提交被覆盖。`.github/workflows/branch-pr.yml` 是手动入口，可把所选分支对齐 release 并开 PR（需要先在仓库设置里允许 Actions 创建 PR）。
