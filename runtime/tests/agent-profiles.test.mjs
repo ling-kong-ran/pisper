@@ -171,6 +171,15 @@ async function profileRuntime(t) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   let runtime
   t.after(async () => {
+    // finished() 只等到记录进入终态；MultiAgentService.startRun 的 finally 里还可能在
+    // 发完成通知、调度队列和落盘。Windows 上如果这里直接 dispose/rm，未结束的写入或
+    // 唤醒计时器可能继续占用临时目录。
+    if (runtime?.multiAgents?.records) {
+      const running = [...runtime.multiAgents.records.values()]
+        .map((record) => record.runningPromise)
+        .filter((promise) => promise && typeof promise.then === 'function')
+      await Promise.allSettled(running)
+    }
     await runtime?.dispose()
     server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))
