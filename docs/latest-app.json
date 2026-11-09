@@ -1,9 +1,9 @@
 {
-  "version": "0.1.91",
-  "tag": "app-v0.1.91",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.91",
+  "version": "0.1.92",
+  "tag": "app-v0.1.92",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.92",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.91\n\n- 发布日期：2026-11-08（北京时间）\n- 发布标签：`app-v0.1.91`\n- 对比基线：`app-v0.1.89`\n\n## 更新内容\n\n### 新增功能\n\n- feat(bots): bot\\_notify 能往 Bot 聊天规则里的群推送（Telegram、飞书、QQ）\n- feat(bots): Bot 能在 QQ、Telegram 等聊天软件上通知用户（bot\\_notify）\n\n### 问题修复\n\n- fix(web): 技能页与定时任务页的文案随页面加载，启动包回到体积预算内\n- fix(desktop): 没有内置浏览器时说清原因，Agent 不再把后台浏览器说成右侧浏览器\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.89...app-v0.1.91)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/ac74c431f03f31c26e05af73720097ef6324ef41)",
-  "releaseDate": "2026-11-08"
+  "notes": "## Pisper App 0.1.92\n\n- 发布日期：2026-11-09（北京时间）\n- 发布标签：`app-v0.1.92`\n- 对比基线：`app-v0.1.91`\n\n## 更新内容\n\n### 新增功能\n\n- feat(history): 全部会话按项目归类、可按项目筛选，每行显示最后一次对话\n- feat(browser): 右侧浏览器重启后恢复各会话已打开的网页，可查看浏览历史，地址栏支持搜索\n- feat(runtime): 提示词集中到 runtime/prompts 并改成英文，错误统一成 12 个错误码\n- feat(sessions): “运行中”从检查器标签移到顶栏芯片，点开看正在跑的命令、子代理与进程\n- feat(sessions): 同一文件夹里的会话互相协调，写文件不再盖掉别人的修改\n\n### 问题修复\n\n- fix(speech): wait for worker resources to close\n- fix(chat): 离开时停在最新消息的会话，回来仍落到最新消息\n- fix(assets): git 忽略的文件和常见依赖目录不再当成 Agent 的产物\n- fix(assets): 构建生成几千个文件时会话不再卡在运行中、停不下来\n- fix(desktop): 开启 Tauri webview-data-url，Computer Use 指示窗口能建出来\n- fix(executor): 大脑与执行节点系统不同时路径按执行节点的写法交出，Windows 节点中止命令时结束整棵进程树\n- fix(desktop): 内置浏览器的登录在重启 Pisper 后保留（Windows）\n- fix(sessions): 会话目录全量重扫期间新建或物化的会话不再从列表里消失\n- fix(bots): Bot 改名在会话运行时也会同步到会话标题；新增删除 Bot，Bot 会话不再显示归档\n- fix(sessions): 开着的空闲会话页收到留言、隔壁改文件时实时更新\n- fix(plans): get\\_plan / update\\_plan 回给模型的计划改成一行进度加每项一行\n- fix(bots): 模型没看到 bot\\_\\* 工具时也能搜到、经 call\\_tool 调用\n\n### 其他变更\n\n- ci(release-app): 全面切换自托管 Runner\n- ci(release): 本机发布脚本，Actions 额度用尽时在 Windows、macOS、Linux 上发布\n- ci(release-app): cosign-installer 下载失败时改用固定摘要的 cosign 备用安装\n- ci(release): 构建机从 GitHub Releases 下载固定资源统一走重试与 API 备用路径\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.91...app-v0.1.92)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/293eb654e0e96de874abea9d836cbcc100241382)",
+  "releaseDate": "2026-11-09"
 }
