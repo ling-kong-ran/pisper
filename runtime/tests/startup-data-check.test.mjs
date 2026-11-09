@@ -186,12 +186,17 @@ test('the memory index catch-up keeps what it finished when interrupted', async 
     return indexResumed(id)
   }
   await resumed.init()
-  t.after(() => resumed.dispose())
-  assert.equal(resumedCalls, 700, 'the first full batch was kept, only the rest is redone')
-  const left = resumed
-    .requireDb()
-    .prepare('SELECT COUNT(*) AS n FROM memories WHERE indexed_at IS NULL')
-  assert.equal(left.get().n, 0)
+  // 在这里关库，不用 t.after：t.after 按注册顺序执行，删临时目录排在前面，
+  // Windows 上数据库还开着时 memory.sqlite-wal 删不掉（EBUSY）。
+  try {
+    assert.equal(resumedCalls, 700, 'the first full batch was kept, only the rest is redone')
+    const left = resumed
+      .requireDb()
+      .prepare('SELECT COUNT(*) AS n FROM memories WHERE indexed_at IS NULL')
+    assert.equal(left.get().n, 0)
+  } finally {
+    await resumed.dispose()
+  }
 })
 
 test('the page reads the startup status defensively', () => {

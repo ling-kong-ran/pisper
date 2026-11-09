@@ -107,7 +107,8 @@ test('AppImage tools are staged once, executable, and the optional plugin may be
   const { mode } = await import('node:fs/promises').then(({ stat }) =>
     stat(join(toolsDir, 'linuxdeploy-x86_64.AppImage')),
   )
-  assert.equal(mode & 0o111, 0o111)
+  // Windows 没有 POSIX 执行位（stat 的 mode 里恒为 0）；AppImage 只在 Linux 上用。
+  if (process.platform !== 'win32') assert.equal(mode & 0o111, 0o111)
   assert.ok(!(await readdir(toolsDir)).some((name) => name.endsWith('.partial')))
   urls.length = 0
   assert.deepEqual(

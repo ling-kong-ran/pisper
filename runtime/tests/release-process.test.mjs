@@ -13,6 +13,9 @@ import {
 import { bundledComponentVersion } from '../../scripts/release-components.mjs'
 import { releaseInputFromTriggerTag } from '../../scripts/release-trigger.mjs'
 
+// Windows 上 git 检出（core.autocrlf）会把行尾换成 CRLF：源码断言统一按 LF 比较。
+const readText = async (path) => (await readFile(path, 'utf8')).replaceAll('\r\n', '\n')
+
 function parseReleaseSource(source) {
   const sourceFile = parse(source, { sourceType: 'module' })
   const updater = sourceFile.program.body.find(
@@ -31,7 +34,7 @@ async function dependencyUpdateFixture({
   status = ' M package.json\n M package-lock.json',
   failOn = '',
 } = {}) {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const { updater, runner } = parseReleaseSource(source)
   const calls = []
   // 保留真实输出处理，仅替换进程边界，避免 mock 掩盖 porcelain 首列被裁剪的问题。
@@ -81,7 +84,7 @@ const dependencyDiffCommand = [
 ]
 
 test('release increments from the latest published version after a source rollback', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const ast = parse(source, { sourceType: 'module' })
   const functions = ['parseVersion', 'compareVersions', 'resolveVersion'].map((name) => {
     const node = ast.program.body.find(
@@ -103,7 +106,7 @@ test('release increments from the latest published version after a source rollba
 })
 
 test('npm release baseline includes stable versions outside the latest tag', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const ast = parse(source, { sourceType: 'module' })
   const functions = ['parseVersion', 'compareVersions', 'highestPublishedVersion'].map((name) => {
     const node = ast.program.body.find(
@@ -172,7 +175,7 @@ for (const failOn of ['npm', 'commit', 'push']) {
 }
 
 test('release validates immutable source and dispatches without versioning or tagging locally', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const substantiveCheck = source.indexOf('subjects.filter(isSubstantiveReleaseCommit)')
   const checks = source.indexOf('runComponentChecks(selectedComponents)')
   const dispatch = source.indexOf("'workflow'")
@@ -236,13 +239,13 @@ test('release validates immutable source and dispatches without versioning or ta
 
 test('release pre-checks verify lockfile integrity against the registry before installing', async () => {
   // 手写损坏的 integrity 只会在冷 `npm ci` 时爆发，必须在派发前的本地检查里拦住。
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const guard = source.indexOf("'scripts/verify-lockfile-integrity.mjs'")
   const postinstall = source.indexOf("runNpm(['run', 'postinstall'])")
   assert.ok(guard >= 0)
   assert.ok(postinstall > guard)
 
-  const script = await readFile('scripts/verify-lockfile-integrity.mjs', 'utf8')
+  const script = await readText('scripts/verify-lockfile-integrity.mjs')
   assert.match(script, /https:\/\/registry\.npmjs\.org\//)
   assert.match(script, /dist\.integrity/)
 })
@@ -262,7 +265,7 @@ test('the desktop dispatch records the components it really bundles, also on a r
 })
 
 test('desktop staging treats a component bundle refresh as a substantive change', async () => {
-  const stage = await readFile('scripts/stage-release-version.mjs', 'utf8')
+  const stage = await readText('scripts/stage-release-version.mjs')
   assert.match(stage, /RELEASE_TUI_VERSION/)
   assert.match(stage, /RELEASE_RUNTIME_VERSION/)
   assert.match(stage, /bundled\.tui = tuiVersion/)
@@ -270,7 +273,7 @@ test('desktop staging treats a component bundle refresh as a substantive change'
 })
 
 test('the npm lockfile preserves third-party package registry identities', async () => {
-  const lockfile = await readFile('package-lock.json', 'utf8')
+  const lockfile = await readText('package-lock.json')
 
   assert.match(lockfile, /@hono\/node-server\/-\/node-server-2\.1\.0\.tgz/)
   assert.doesNotMatch(lockfile, /@hono\/node-runtime/)
@@ -417,7 +420,7 @@ test('trigger tags map to release inputs and never reuse version tag names', () 
 
 test('pushing a trigger tag runs the same release script in CI', async () => {
   // 触发标签只是入口：检测通道、算版本、检查与派发都走 scripts/release.mjs，CI 不另写一份。
-  const workflow = await readFile('.github/workflows/release-tag.yml', 'utf8')
+  const workflow = await readText('.github/workflows/release-tag.yml')
   assert.match(workflow, /push:\n\s+tags:\n\s+- 'release-\*'/)
   assert.match(workflow, /actions: write/)
   // 不能与组件发布同一并发组：本 job 等待它派发的组件发布，同组会互相等死。
@@ -433,7 +436,7 @@ test('pushing a trigger tag runs the same release script in CI', async () => {
 })
 
 test('release checks stage Tauri build inputs on a clean checkout before cargo', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const ensure = source.indexOf('ensureTauriBuildInputs()\n')
   const tauriFmt = source.indexOf("['fmt', '--manifest-path', 'src-tauri/Cargo.toml'")
   assert.ok(ensure >= 0 && tauriFmt > ensure)
@@ -442,7 +445,7 @@ test('release checks stage Tauri build inputs on a clean checkout before cargo',
 })
 
 test('releases build in parallel and only Desktop waits for its bundled components', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   // TUI、Runtime、App 一起派发；等 TUI/Runtime 成功后再派发 npm 与 Desktop。
   const firstWave = source.indexOf("filter(({ component }) => component !== 'desktop')")
   const waitComponents = source.indexOf(
@@ -459,7 +462,7 @@ test('releases build in parallel and only Desktop waits for its bundled componen
 
   const [component, app, npmWorkflow, trigger] = await Promise.all(
     ['release', 'release-app', 'publish-npm', 'release-tag'].map((name) =>
-      readFile(`.github/workflows/${name}.yml`, 'utf8'),
+      readText(`.github/workflows/${name}.yml`),
     ),
   )
   // 每个通道单独排队；不同发布可同时构建。
@@ -485,10 +488,10 @@ test('releases build in parallel and only Desktop waits for its bundled componen
 
 test('macOS releases are Apple Silicon only', async () => {
   const [workflow, updateManifest, site, index] = await Promise.all([
-    readFile('.github/workflows/release.yml', 'utf8'),
-    readFile('scripts/create-tauri-update-manifest.mjs', 'utf8'),
-    readFile('docs/site.js', 'utf8'),
-    readFile('docs/index.html', 'utf8'),
+    readText('.github/workflows/release.yml'),
+    readText('scripts/create-tauri-update-manifest.mjs'),
+    readText('docs/site.js'),
+    readText('docs/index.html'),
   ])
   assert.doesNotMatch(workflow, /darwin-x86_64|macos-15-intel|install-rosetta/)
   assert.match(workflow, /target: darwin-aarch64\n\s+os: macos-26\n/)
@@ -499,7 +502,7 @@ test('macOS releases are Apple Silicon only', async () => {
 })
 
 test('waiting on a dispatched run tolerates its first seconds of 404 and transient watch errors', async () => {
-  const source = await readFile('scripts/release.mjs', 'utf8')
+  const source = await readText('scripts/release.mjs')
   const start = source.indexOf('function runState(')
   const end = source.indexOf('\n}\n', source.indexOf('function waitFor(')) + 2
   assert.ok(start > 0 && end > start)
@@ -548,7 +551,7 @@ test('waiting on a dispatched run tolerates its first seconds of 404 and transie
 })
 
 test('the manual branch workflow rebases onto release and opens a PR without touching release', async () => {
-  const workflow = await readFile('.github/workflows/branch-pr.yml', 'utf8')
+  const workflow = await readText('.github/workflows/branch-pr.yml')
   // 目前只手动触发，推送不会自动改写分支；不能选 release，只写所选的功能分支。
   assert.match(workflow, /^on:\s+workflow_dispatch:\s*$/m)
   assert.doesNotMatch(workflow, /^\s+push:/m)
@@ -567,7 +570,7 @@ test('the manual branch workflow rebases onto release and opens a PR without tou
 
 test('flaky iOS speech tests warn instead of blocking a release', async () => {
   for (const file of ['release-app.yml', 'build-store-app.yml']) {
-    const workflow = await readFile(`.github/workflows/${file}`, 'utf8')
+    const workflow = await readText(`.github/workflows/${file}`)
     assert.match(
       workflow,
       /name: Test iOS speech native contracts\s+id: ios_speech_tests\s+continue-on-error: true\s+run: npm run test:ios/,
