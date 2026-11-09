@@ -687,11 +687,32 @@ export class AgentRuntimeFacade {
       delete value.abortedAt
       delete value.forceDisposed
       value.runActive = true
+      // 群里的席位会话：这一轮开始时贴出“在做”的工作卡，结束时写上结果（错误与停止也算结束）。
+      const seat = this.roomSeatOf?.(id)
+      let seatError = ''
+      if (seat) {
+        this.onSeatRunStart(id)
+        const send = options.send
+        options = {
+          ...options,
+          send: (event, data) => {
+            if (event === 'error') seatError = String(data?.message || 'Run failed.')
+            return send(event, data)
+          },
+        }
+      }
       try {
         this.installWorkspaceAssetCapture(value.session, value.cwd)
         markRunStage('assetCapture')
         return await this.runSessionPrompt(value, options)
+      } catch (error) {
+        if (seat) seatError ||= error instanceof Error ? error.message : String(error)
+        throw error
       } finally {
+        if (seat)
+          void this.onSeatRunEnd(id, { error: seatError, aborted: Boolean(value.abortedAt) }).catch(
+            () => console.warn('[rooms] Could not finish the work card.'),
+          )
         value.runActive = false
         // 运行收尾的两次落盘发生在 done/error 帧之后：落盘慢于看板 flush 时，最后一帧
         // 仍读到 runActive=true。这里在真正放下运行标记后再失效一次活动投影，
@@ -1104,21 +1125,28 @@ export class AgentRuntimeFacade {
   // Bot 此刻的动态：对话在说话，或者有子 agent 在干活，都算在忙；在等批准或回答时需要你。
   // working = 在做的子 agent 件数，current = 正在做的那件（头像悬停时显示）。
   botActivity(bot) {
-    const sessionId = bot?.threadSessionId
-    if (!sessionId) return null
-    const talking = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
+    if (!bot?.threadSessionId) return null
+    // 长期对话与各个群里的席位一起算：哪条在说话、手上的活、在等你的批准或回答。
+    const sessionIds = this.botSessionIds(bot)
+    const talking = sessionIds.some(
+      (sessionId) => this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId),
+    )
     // 后台命令也算手上的活。
-    // Bots 列表每几秒轮询一次：手上没有在跑的活时，不为每个 Bot 把子 agent 记录过滤、排序、投影一遍。
-    const mayWork =
-      !this.multiAgents?.hasActive ||
-      this.multiAgents.hasActive(sessionId) ||
-      Boolean(this.botCommands?.list(sessionId)?.length)
-    const agents = mayWork
-      ? this.listSessionAgents(sessionId).filter((agent) =>
-          ['queued', 'starting', 'running'].includes(agent.status),
-        )
-      : []
-    const { approval, question } = this.botWaiting(sessionId)
+    // Bots 列表每几秒轮询一次：手上没有在跑的活时，不为每个 Bot（的每条会话）把子 agent 记录过滤、排序、投影一遍。
+    const agents = sessionIds.flatMap((sessionId) => {
+      const mayWork =
+        !this.multiAgents?.hasActive ||
+        this.multiAgents.hasActive(sessionId) ||
+        Boolean(this.botCommands?.list(sessionId)?.length)
+      return mayWork
+        ? this.listSessionAgents(sessionId).filter((agent) =>
+            ['queued', 'starting', 'running'].includes(agent.status),
+          )
+        : []
+    })
+    const waits = sessionIds.map((sessionId) => this.botWaiting(sessionId))
+    const approval = waits.find((item) => item.approval)?.approval || null
+    const question = waits.find((item) => item.question)?.question || null
     const waiting = approval ? 'approval' : question ? 'question' : null
     if (!talking && !agents.length && !waiting)
       return { status: 'idle', waiting: null, needsYou: false, working: 0, current: '' }
@@ -1168,8 +1196,17 @@ export class AgentRuntimeFacade {
     if (!sessionId || !this.bots || !this.capabilities.features.bots) return null
     if (!this.isBetaFeatureEnabled('bots')) return null
     // 每次权限判断都会问到这里：按会话直接找，不把全部 Bot 拷贝一遍。
+    // 一个 Bot 有好几条会话：它自己的长期对话，加上它在各个群里的席位会话（R0）。
+    const seat = this.rooms?.seatOfSession(sessionId)
+    if (seat) return this.bots.get(seat.botId)
     if (this.bots.forSession) return this.bots.forSession(sessionId)
     return this.bots.list().find((bot) => bot.threadSessionId === sessionId) || null
+  }
+
+  // 这个 Bot 的全部会话：长期对话在前，然后是各个群里的席位。
+  botSessionIds(bot) {
+    const seats = this.rooms?.sessionsOfBot(bot.id).map((seat) => seat.sessionId) || []
+    return [bot.threadSessionId, ...seats].filter(Boolean)
   }
 
   // 新建时可以只给名字：没选目录就在本机的默认工作目录里干活，之后在设置里再换。
@@ -1195,6 +1232,14 @@ export class AgentRuntimeFacade {
     const bot = await this.bots.update(id, input)
     if (!bot?.threadSessionId) return bot
     await this.applyBotSettings(bot, bot.threadSessionId)
+    // 群里的席位会话用同一套设定，只是起始目录取群的目录（本机的 Bot）。
+    for (const seat of this.rooms?.sessionsOfBot(bot.id) || []) {
+      const room = this.rooms.get(seat.roomId)
+      if (room)
+        await this.applyBotSettings(bot, seat.sessionId, {
+          cwd: await this.seatSessionCwd(room, bot),
+        }).catch(() => console.warn('[rooms] Could not apply the bot settings to its seat.'))
+    }
     // 会话标题就是 Bot 的名字：改名时跟着改，侧栏、看板与会话页头一致。
     if (before && before.name !== bot.name) {
       ;(this.pendingThreadNames ??= new Map()).set(bot.threadSessionId, bot.name)
@@ -1257,14 +1302,14 @@ export class AgentRuntimeFacade {
       : this.executorSessionDirectory(environmentId)
   }
 
-  async applyBotSettings(bot, sessionId) {
+  async applyBotSettings(bot, sessionId, { cwd } = {}) {
     const environmentId = bot.workspace.environmentId || 'local'
     await this.setSessionExecutor(
       sessionId,
       environmentId === 'local' ? null : { environmentId, cwd: bot.workspace.cwd },
     )
     // 运行中换不了目录（会话服务拒绝）：这次先跳过，其余设定照常生效；跑完后再保存一次设定即可。
-    await this.setSessionCwd(sessionId, await this.botSessionCwd(bot)).catch(() => {})
+    await this.setSessionCwd(sessionId, cwd || (await this.botSessionCwd(bot))).catch(() => {})
     await this.setSessionExecutionMode(sessionId, bot.executionMode)
     const resolved = await this.providerPreferences.resolveSubagentModel(
       bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
@@ -1297,6 +1342,15 @@ export class AgentRuntimeFacade {
         statusCode: 409,
       })
     const message = normalizeBotMessage(text)
+    // 在群里定的定时：到点送回那个群里的席位（群没了或它已不在群里时退回它的长期对话）。
+    if (source.kind === 'schedule' && source.roomId && this.roomsEnabled?.()) {
+      const room = this.rooms.get(source.roomId)
+      if (room?.members.includes(botId)) {
+        const seatSession = await this.ensureSeatSession(room, bot)
+        await this.deliverSeatNote(seatSession, message, { kind: 'schedule', trust: 'agent' })
+        return { sessionId: seatSession, status: 'started' }
+      }
+    }
     const sessionId = await this.ensureBotSession(botId)
     // 这句话是谁说的，决定这一轮 bot_remember 写入的可信度：外部的话不能冒充用户的话。
     const trust = botSourceTrust(source)
@@ -1388,9 +1442,13 @@ export class AgentRuntimeFacade {
     const models = bot
       ? await this.providerPreferences?.availableChatModelRefs?.().catch(() => [])
       : []
+    // 群里的席位只列这个群的成员：bot_message 在群里只能找成员。
+    const seat = this.roomSeatOf?.(sessionId)
+    const members = seat ? this.rooms.get(seat.roomId)?.members || [] : null
     const bots = bot
       ? (this.bots?.list?.() || [])
           .filter((item) => item.id !== bot.id && item.enabled)
+          .filter((item) => !members || members.includes(item.id))
           .map((item) => ({ name: item.name, instructions: item.instructions }))
       : []
     return [
@@ -1513,10 +1571,16 @@ export class AgentRuntimeFacade {
           .then((result) =>
             result?.outcome === 'cancelled'
               ? null
-              : this.messageBot(bot.id, {
-                  text: botAnswerText(normalized, result),
-                  source: { kind: 'answer' },
-                }),
+              : this.roomSeatOf?.(sessionId)
+                ? // 在群里问的：回答送回这个席位，不送进它的长期对话。
+                  this.deliverSeatNote(sessionId, botAnswerText(normalized, result), {
+                    kind: 'answer',
+                    trust: 'user',
+                  })
+                : this.messageBot(bot.id, {
+                    text: botAnswerText(normalized, result),
+                    source: { kind: 'answer' },
+                  }),
           )
           .catch(() => console.warn('[bots] Could not return the answer to the bot conversation.'))
         return {
@@ -1562,8 +1626,13 @@ export class AgentRuntimeFacade {
         const message = where
           ? `${String(input.message ?? '').slice(0, 4000 - where.length)}${where}`
           : input.message
+        // 在群里定的：到点送回这个群里的席位。
+        const seat = this.roomSeatOf?.(sessionId)
         const created = await this.schedules.create(
-          botScheduleInput({ bot, input: { ...input, message } }),
+          {
+            ...botScheduleInput({ bot, input: { ...input, message } }),
+            ...(seat ? { roomId: seat.roomId } : {}),
+          },
           {
             createdBy: { kind: 'agent', sessionId },
           },
@@ -1593,6 +1662,19 @@ export class AgentRuntimeFacade {
         return { type: 'recall', count: memories.length, memories }
       },
       message: async ({ bot, text, expectsReply }) => {
+        // 群里的席位：话留在群里（@ 对方），你看得见；不私下送进对方的长期对话。
+        if (this.roomSeatOf?.(sessionId)) {
+          const { bot: self, quiet } = context()
+          if (quiet) throw new Error('This turn only suggests; do not message other bots.')
+          const key = botNameKey(String(bot || ''))
+          const target = this.bots
+            .list()
+            .find((item) => item.id === bot || botNameKey(item.name) === key)
+          if (!target || target.id === self.id) throw new Error('No such bot.')
+          if (!target.enabled) throw new Error(`${target.name} is paused.`)
+          const posted = await this.postBotRoomMessage(sessionId, self, target, String(text || ''))
+          return { ...posted, text: 'Posted in the room. Its answer will appear in the room.' }
+        }
         const result = await act({ type: 'message', bot, text, expectsReply }, { work: true })
         return {
           ...result,
@@ -2017,6 +2099,8 @@ export class AgentRuntimeFacade {
     // 它自己的记忆一并删掉（会话留着，变成普通会话）。
     if (removed) await this.botMemory?.removeBot(id)
     if (removed) this.botLinks?.removeBot(id)
+    // 从所有群里移出；它在群里说过的话留着。
+    if (removed) await this.removeBotFromRooms?.(id)
     return removed
   }
 

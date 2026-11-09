@@ -7,7 +7,9 @@
 // 触屏（pointer: coarse）：按钮抬到 44px，标题与项目标签保持可见尺寸，命中区用伪元素补到 44px。
 import { lazy, Suspense, useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, FileDiff, GitFork, PanelRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, FileDiff, GitFork, PanelRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { roomPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -106,6 +108,19 @@ export function SessionPageHeader({
       className="flex h-[52px] min-w-0 shrink-0 items-center gap-2 pr-3 pl-4 [[data-custom-titlebar]_&]:pr-[144px]"
     >
       <div className="flex min-w-0 flex-1 items-center gap-1.5" data-window-drag-region>
+        {/* 从群里的“过程”进来的席位会话：左边一个回到群聊的入口。 */}
+        {session.roomId && (
+          <Button asChild variant="ghost" size="icon-sm" className="-ml-1">
+            <Link
+              to={roomPath(session.roomId)}
+              data-session-back-room
+              aria-label={t('board:session.backToRoom')}
+              title={t('board:session.backToRoom')}
+            >
+              <ChevronLeft />
+            </Link>
+          </Button>
+        )}
         {session.botId && (
           <Suspense fallback={null}>
             <BotSessionChip botId={session.botId} part="avatar" />

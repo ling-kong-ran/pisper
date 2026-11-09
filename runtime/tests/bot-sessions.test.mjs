@@ -363,9 +363,10 @@ test('every turn in a bot session runs with the bot scope, prompt and isolation'
     source,
     /const conversationOnly = Boolean\(\s*bot && !remoteExecutor && this\.capabilities\.features\.multiAgent,?\s*\)/,
   )
+  // 群里的席位会话在 Bot 的提示后面再接上群里的规矩。
   assert.match(
     source,
-    /appendSystemPrompt: conversationOnly\s*\? botConversationPrompt\(bot\)\s*: botSystemPrompt\(bot\)/,
+    /appendSystemPrompt: \[\s*conversationOnly \? botConversationPrompt\(bot\) : botSystemPrompt\(bot\),[\s\S]{0,200}?this\.roomSeatPromptFor\?\.\(runtimeSessionId, bot\) \|\| '',\s*\]/,
   )
   // 关掉 Bots 实验功能后不再套用。
   const runtime = fakeRuntime({ bots: [bot('小橙', { threadSessionId: 'existing' })] })

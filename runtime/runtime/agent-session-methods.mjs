@@ -78,19 +78,38 @@ export const agentSessionMethods = {
       return sessions.filter((session) => !threads.has(session.id))
     // 打开时带上 botId（界面据此把它当成 Bot 的对话：侧栏“最近”不重复列出，会话页头换成 Bot）
     // 与 Bot 的目录（Bot 在执行节点上时会话 cwd 只是大脑这边的占位目录，按 Bot 的目录归组）。只做加法。
+    // 群里的席位会话另带 roomId：侧栏“最近”、全部代理与历史据此不单独列出（从群里的“过程”进去）。
     return sessions.map((session) => {
       const thread = threads.get(session.id)
-      return thread ? { ...session, botId: thread.botId, projectCwd: thread.cwd } : session
+      return thread
+        ? {
+            ...session,
+            botId: thread.botId,
+            projectCwd: thread.cwd,
+            ...(thread.roomId ? { roomId: thread.roomId } : {}),
+          }
+        : session
     })
   },
 
-  // Bot 的长期会话 → { botId, cwd }：Bot 就是这个会话加上它的设定。
+  // Bot 的会话 → { botId, cwd, roomId? }：Bot 就是长期会话加上它的设定；它在群里的席位也算它的会话。
   botSessionProjects() {
     if (!this.bots) return new Map()
     const threads = new Map()
-    for (const bot of this.bots.list())
+    const bots = this.bots.list()
+    for (const bot of bots)
       if (bot.threadSessionId)
         threads.set(bot.threadSessionId, { botId: bot.id, cwd: bot.workspace?.cwd || '' })
+    for (const room of this.rooms?.list() || [])
+      for (const seat of this.rooms.sessionsOfRoom(room.id)) {
+        const bot = bots.find((item) => item.id === seat.botId)
+        if (bot)
+          threads.set(seat.sessionId, {
+            botId: bot.id,
+            cwd: room.cwd || bot.workspace?.cwd || '',
+            roomId: room.id,
+          })
+      }
     return threads
   },
 
@@ -124,9 +143,12 @@ export const agentSessionMethods = {
   botCardFor(sessionId) {
     if (!sessionId || !this.bots || !this.isBetaFeatureEnabled?.('bots')) return null
     // 看板上每张卡都要问一次：按会话直接找，不为此把全部 Bot（连同上万字的指令）拷贝一遍。
-    const bot = this.bots.forSession
-      ? this.bots.forSession(sessionId)
-      : this.bots.list().find((item) => item.threadSessionId === sessionId)
+    const seat = this.rooms?.seatOfSession(sessionId)
+    const bot = seat
+      ? this.bots.get(seat.botId)
+      : this.bots.forSession
+        ? this.bots.forSession(sessionId)
+        : this.bots.list().find((item) => item.threadSessionId === sessionId)
     if (!bot) return null
     return {
       id: bot.id,

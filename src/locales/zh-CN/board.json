@@ -432,5 +432,6 @@
   "composer.context.deferred": "{count} 个待用，用到才占上下文",
   "composer.context.callCount": "{count} 次调用",
   "composer.context.composition": "占用构成",
-  "composer.context.toolCount": "{count} 个工具"
+  "composer.context.toolCount": "{count} 个工具",
+  "session.backToRoom": "回到群聊"
 }

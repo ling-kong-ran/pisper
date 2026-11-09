@@ -44,6 +44,7 @@ export const ERROR_SUBJECTS = Object.freeze({
   api_key: 'API key',
   agent: 'Agent',
   bot: 'Bot',
+  room: 'Room',
   skill: 'Skill',
   plugin: 'Plugin',
   tool: 'Tool',

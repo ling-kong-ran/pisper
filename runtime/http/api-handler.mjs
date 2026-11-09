@@ -13,6 +13,7 @@ import { createRouteRegistry } from './route-registry.mjs'
 import { configSettingsRoutes } from './routes/config-settings.mjs'
 import { boardRoutes } from './routes/board.mjs'
 import { botRoutes } from './routes/bots.mjs'
+import { roomRoutes } from './routes/rooms.mjs'
 import { executorRoutes } from './routes/executors.mjs'
 import { machineRoutes } from './routes/machines.mjs'
 import { customUiRoutes } from './routes/custom-ui.mjs'
@@ -54,6 +55,7 @@ const registry = createRouteRegistry([
   ...customUiRoutes,
   ...boardRoutes,
   ...botRoutes,
+  ...roomRoutes,
   ...executorRoutes,
   ...machineRoutes,
 ])
@@ -75,7 +77,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/game-assets(?:\/|$)/, feature: 'imageAssets' },
   { pattern: /^\/api\/memory(?:\/|$)|^\/api\/settings\/memory$/, feature: 'memory' },
   { pattern: /^\/api\/settings\/beta-features$/, feature: 'betaFeatures' },
-  { pattern: /^\/api\/(?:bots|bot-tasks|environments)(?:\/|$)/, feature: 'bots' },
+  { pattern: /^\/api\/(?:bots|bot-tasks|environments|rooms)(?:\/|$)/, feature: 'bots' },
   { pattern: /^\/api\/(?:machines|executor)(?:\/|$)/, feature: 'remoteMachines' },
   { pattern: /^\/api\/mcp(?:\/|$)/, feature: 'mcp' },
   { pattern: /^\/api\/mcp-host(?:\/|$)/, feature: 'mcp' },

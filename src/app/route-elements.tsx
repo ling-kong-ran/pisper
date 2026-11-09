@@ -184,6 +184,21 @@ export async function botsRoute() {
   return { Component: BotsRoute }
 }
 
+// Bot 群聊页：手机上左上角是外壳的 ☰（带需要你计数），和会话页一样。
+export async function roomRoute() {
+  const [{ RoomPage }, { PhoneMenuButton }] = await Promise.all([
+    import('@/features/bots/public'),
+    import('@/app/PhoneMenuButton'),
+  ])
+
+  function RoomRoute() {
+    const context = useAppRouteContext()
+    return <RoomPage notify={context.notify} phoneLeading={<PhoneMenuButton />} />
+  }
+
+  return { Component: RoomRoute }
+}
+
 export async function schedulesRoute() {
   const [{ SchedulesPage }] = await Promise.all([
     import('@/features/schedules/SchedulesPage'),

@@ -481,7 +481,8 @@ test('bot greeting derives from settings and stays at the start of the conversat
     transcript,
     /messages\.length > 0 &&\s+!hasOlder &&\s+!collapsed && \(\s+<Suspense fallback=\{null\}>\s+<BotGreeting botId=\{botId\} collapsed \/>/,
   )
-  assert.match(focus, /botId=\{botId\}\s+key="transcript"/)
+  // 群里的席位会话不放招呼卡（那是 Bot 私聊的开场）。
+  assert.match(focus, /botId=\{session\?\.roomId \? undefined : botId\}\s+key="transcript"/)
   // 只认聊天分区，地址里的其他值不进 Accordion。
   assert.match(page, /searchParams\.get\('section'\) === 'chats' \? 'chats' : undefined/)
   const keys = (json) =>

@@ -443,5 +443,6 @@
   "composer.context.deferred": "{count} on standby, free until called",
   "composer.context.callCount": "{count} calls",
   "composer.context.composition": "What is using it",
-  "composer.context.toolCount": "{count} tools"
+  "composer.context.toolCount": "{count} tools",
+  "session.backToRoom": "Back to the group chat"
 }

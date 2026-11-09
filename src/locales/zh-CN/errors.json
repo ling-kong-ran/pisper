@@ -28,6 +28,7 @@
   "subject.api_key": "API Key",
   "subject.agent": "Agent",
   "subject.bot": "Bot",
+  "subject.room": "群聊",
   "subject.skill": "技能",
   "subject.plugin": "插件",
   "subject.tool": "工具",

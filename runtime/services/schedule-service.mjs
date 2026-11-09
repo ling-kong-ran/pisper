@@ -149,6 +149,10 @@ function normalizeStoredTask(task, cwd) {
     workflowId: String(task.workflowId || '').slice(0, 200),
     botId: String(task.botId || '').slice(0, 64),
     botMessage: String(task.botMessage || '').slice(0, MAX_BOT_MESSAGE_CHARS),
+    // Bot 在群里给自己定的：到点送回那个群里的席位（旧版本不认识这个字段，照常发进 Bot 的长期对话）。
+    ...(task.targetType === 'bot' && /^room_[A-Za-z0-9_-]{6,40}$/.test(String(task.roomId || ''))
+      ? { roomId: String(task.roomId) }
+      : {}),
     workflowInputs:
       task.workflowInputs &&
       typeof task.workflowInputs === 'object' &&
@@ -475,7 +479,11 @@ export class ScheduleService {
     if (!bot) throw pisperError('not_found', 'bot')
     const sent = await this.bots.message(task.botId, {
       text: task.botMessage,
-      source: { kind: 'schedule', scheduleTaskId: task.id },
+      source: {
+        kind: 'schedule',
+        scheduleTaskId: task.id,
+        ...(task.roomId ? { roomId: task.roomId } : {}),
+      },
       // 等到它真的开始：开不起来（模型不可用等）时这次运行记为失败，不写“已发送”。
       waitForStart: true,
     })

@@ -153,6 +153,8 @@ export type SessionSummary = EntityRecord & {
   machine?: { id: string; kind: 'ssh' | 'node'; name: string; cwd: string }
   // Bot 的长期会话：是哪个 Bot（Bots 实验功能打开时由 Runtime 带上）。会话页头据此换成 Bot 的头像与设置入口。
   botId?: string
+  // Bot 在某个群里的席位会话：是哪个群（从群里的“过程”进来；不显示 Bot 私聊的招呼）。
+  roomId?: string
   streaming?: boolean
   plan?: Plan | null
   team?: TeamState | null

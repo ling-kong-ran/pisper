@@ -32,6 +32,12 @@ const PALETTES: Record<BotColor, Palette> = {
   teal: { body: '#85d6d6', shade: '#43a9ab', tile: '#e3f5f5' },
   pink: { body: '#ffaccd', shade: '#ea7aa8', tile: '#ffe9f2' },
 }
+// 头像色的深浅两档：群聊里 @ 高亮、“发给”芯片的小圆点跟着 Bot 的头像色。
+export function botAvatarTone(color: BotColor) {
+  const palette = PALETTES[color] || PALETTES.blue
+  return { shade: palette.shade, tile: palette.tile }
+}
+
 const INK = '#1f2430'
 const BLUSH = '#ff7a9c'
 

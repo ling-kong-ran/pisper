@@ -160,6 +160,7 @@ import {
   leanToolDefinition,
 } from '../tools/lean-coding-tools.mjs'
 import { agentSessionMethods } from './agent-session-methods.mjs'
+import { roomMethods } from './room-methods.mjs'
 import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
@@ -219,6 +220,7 @@ import { BOARD_SNAPSHOT_LIMIT } from '../services/session-board-view.mjs'
 import { normalizeStoredBetaFlags } from '../../shared/beta-features.mjs'
 import { errorPayload, pisperError } from '../../shared/errors.mjs'
 import { BotService } from '../services/bots/bot-service.mjs'
+import { RoomService } from '../services/rooms/room-service.mjs'
 import { botSystemPrompt } from '../services/bots/bot-model.mjs'
 import { botConversationPrompt } from '../services/bots/bot-conversation.mjs'
 import { BotMemoryService } from '../services/bots/bot-memory-service.mjs'
@@ -755,17 +757,22 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       path: join(dataDir, 'pisper-bots.json'),
       validateDirectory: (input) => resolveDirectory(input, this.cwd),
       getEnvironment: (id) => this.environments.get(id),
-      // 正在说话、或还有子 agent 在干活的 Bot 不能删除：先停下。
+      // 正在说话、或还有子 agent 在干活的 Bot 不能删除：先停下（群里的席位也算）。
       isBusy: (botId) => {
-        const sessionId = this.bots.get(botId)?.threadSessionId
+        const bot = this.bots.get(botId)
         return Boolean(
-          sessionId &&
-          (this.sessionRunIsActive(sessionId) ||
-            this.multiAgents.hasActive(sessionId) ||
-            this.botCommands?.hasActive(sessionId)),
+          bot &&
+          this.botSessionIds(bot).some(
+            (sessionId) =>
+              this.sessionRunIsActive(sessionId) ||
+              this.multiAgents.hasActive(sessionId) ||
+              this.botCommands?.hasActive(sessionId),
+          ),
         )
       },
     })
+    // Bot 群聊：一份共用的聊天记录，每个 Bot 在每个群里一条席位会话（见 room-methods.mjs）。
+    this.rooms = new RoomService({ dataDir })
     // 每个 Bot 的记忆是引擎里的一个独立空间：只写自己的，全局默认只读。
     this.botMemory = new BotMemoryService({
       dataDir,
@@ -1116,6 +1123,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       })
     if (features.bots)
       await attempt('bots', () => this.bots.init(), { files: ['pisper-bots.json'] })
+    if (features.bots)
+      await attempt('rooms', () => this.rooms.init(), { files: ['pisper-rooms.json'] })
     await attempt('sideChats', () => this.sideChats.sweep())
     this.startSessionRuntimeSweeper()
     this.startBotProactiveTimer()
@@ -1964,9 +1973,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
           effectiveCwd,
           bot
             ? {
-                appendSystemPrompt: conversationOnly
-                  ? botConversationPrompt(bot)
-                  : botSystemPrompt(bot),
+                appendSystemPrompt: [
+                  conversationOnly ? botConversationPrompt(bot) : botSystemPrompt(bot),
+                  // 群里的席位：再加上群里的规矩（回复会贴到群里、@ 会叫醒人、@所有人 时可以跳过）。
+                  this.roomSeatPromptFor?.(runtimeSessionId, bot) || '',
+                ]
+                  .filter(Boolean)
+                  .join('\n\n'),
                 // 对话自己也动手：它写的技能它自己也带着。
                 ...(conversationOnly && this.botSkills
                   ? { extraSkillPaths: [this.botSkills.dir(bot.id)] }
@@ -2652,6 +2665,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       try {
         const id = boardCardId()
         if (id) this.sessionCards.observe(id, event, data)
+        if (id) this.observeSeatEvent?.(id, event, data)
       } catch {
         // 卡片摘要是旁路统计，任何异常都不能打断 Agent 流。
       }
@@ -3633,4 +3647,4 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       )
   }
 }
-Object.assign(AgentRuntimeService.prototype, agentSessionMethods)
+Object.assign(AgentRuntimeService.prototype, agentSessionMethods, roomMethods)

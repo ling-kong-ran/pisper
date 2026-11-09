@@ -901,7 +901,8 @@ export const FocusSession = memo(function FocusSession({
   const transcriptBlock = (
     <FocusTranscript
       emptyState={draft ? <NewTaskGreeting /> : emptyState}
-      botId={botId}
+      // 群里的席位会话不放 Bot 的招呼卡：那是它私聊的开场，这里是它在群里的工作记录。
+      botId={session?.roomId ? undefined : botId}
       key="transcript"
       layoutMeasurementKey="fixed"
       sessionId={session.id}

@@ -1,0 +1,294 @@
+// 群聊输入框：外观沿用会话页的输入卡片。打 @ 弹出成员补全（Popover + Command，键盘可选）；
+// “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在；
+// @ 到的和“发给”的合起来就是这句话要叫醒的人，3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。
+// 不 @、不选时只留言，不叫醒谁。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { ArrowUp, ChevronDown, X } from 'lucide-react'
+import { useI18n } from '@/app/use-i18n'
+import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
+import { Command, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
+import { BotAvatar } from './BotAvatar'
+import { botAvatarTone } from './avatar'
+import { activeMentionQuery, mentionedIds } from './room-presentation'
+import type { RoomMember, RoomMessage } from './rooms-api'
+
+const MAX_CHARS = 12_000
+
+export function RoomComposer({
+  members,
+  recipients,
+  onRecipientsChange,
+  replyTo,
+  replyName,
+  onCancelReply,
+  onSend,
+  placeholder,
+}: {
+  members: readonly RoomMember[]
+  recipients: string[] | 'all'
+  onRecipientsChange: (value: string[] | 'all') => void
+  replyTo: RoomMessage | null
+  replyName: string
+  onCancelReply: () => void
+  onSend: (text: string, mentions: string[]) => Promise<boolean>
+  placeholder: string
+}) {
+  const { t } = useI18n()
+  const [value, setValue] = useState('')
+  const [caret, setCaret] = useState(0)
+  const [highlight, setHighlight] = useState('')
+  const [dismissed, setDismissed] = useState(-1)
+  const [sending, setSending] = useState(false)
+  const composing = useRef(false)
+  const input = useRef<HTMLTextAreaElement>(null)
+  const active = members.filter((member) => !member.deleted)
+
+  const query = activeMentionQuery(value, caret)
+  const options = useMemo(() => {
+    if (!query) return []
+    const needle = query.query.toLowerCase()
+    return active.filter((member) => member.name.toLowerCase().includes(needle)).slice(0, 8)
+  }, [active, query])
+  const mentionOpen = Boolean(query && options.length && dismissed !== query.start)
+  const selected = options.find((member) => member.id === highlight) || options[0]
+
+  const everyone = recipients === 'all'
+  const chosen = everyone ? active.map((member) => member.id) : recipients
+  const wakes = new Set([...chosen, ...mentionedIds(value, active)]).size
+  const chosenMembers = active.filter((member) => chosen.includes(member.id))
+
+  const insertMention = (member: RoomMember) => {
+    if (!query) return
+    const before = value.slice(0, query.start)
+    const after = value.slice(caret)
+    const next = `${before}@${member.name} ${after}`
+    const position = before.length + member.name.length + 2
+    setValue(next)
+    setCaret(position)
+    window.requestAnimationFrame(() => {
+      input.current?.focus()
+      input.current?.setSelectionRange(position, position)
+    })
+  }
+
+  const toggle = (id: string, checked: boolean) => {
+    const current = everyone ? active.map((member) => member.id) : recipients
+    const next = checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)
+    onRecipientsChange(next.length === active.length && active.length > 1 ? 'all' : next)
+  }
+
+  const send = async () => {
+    const text = value.trim()
+    if (!text || sending) return
+    setSending(true)
+    try {
+      if (await onSend(text, mentionedIds(text, active))) {
+        setValue('')
+        setCaret(0)
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (composing.current || event.nativeEvent.isComposing) return
+    if (mentionOpen && selected) {
+      const index = options.indexOf(selected)
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const step = event.key === 'ArrowDown' ? 1 : -1
+        setHighlight(options[(index + step + options.length) % options.length].id)
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        insertMention(selected)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setDismissed(query!.start)
+        return
+      }
+    }
+    if (event.key === 'Escape' && replyTo) {
+      event.preventDefault()
+      onCancelReply()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void send()
+    }
+  }
+
+  const sendLabel = everyone
+    ? t('bots:room.composer.sendToAll')
+    : chosenMembers.length === 0
+      ? t('bots:room.composer.leaveOnly')
+      : chosenMembers.length === 1
+        ? t('bots:room.composer.sendTo', { name: chosenMembers[0].name })
+        : t('bots:room.composer.sendToCount', { count: chosenMembers.length })
+
+  return (
+    <Popover open={mentionOpen}>
+      <PopoverAnchor asChild>
+        <div
+          data-room-composer
+          className="relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] max-[650px]:border-stroke-strong max-[650px]:shadow-none max-[650px]:has-[textarea:focus]:border-control max-[650px]:has-[textarea:focus]:ring-0"
+        >
+          {replyTo && (
+            <div className="mx-3 mt-2.5 flex min-w-0 items-center gap-2 rounded-lg bg-surface-subtle px-2.5 py-1.5 text-[12.5px] text-content-secondary">
+              <span className="min-w-0 flex-1 truncate">
+                {t('bots:room.replyTo', {
+                  name: replyName,
+                  text: replyTo.text.replace(/\s+/g, ' ') || '…',
+                })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t('bots:room.composer.cancelReply')}
+                onClick={onCancelReply}
+              >
+                <X />
+              </Button>
+            </div>
+          )}
+          <textarea
+            ref={input}
+            rows={1}
+            value={value}
+            maxLength={MAX_CHARS}
+            aria-label={t('bots:room.composer.label')}
+            aria-autocomplete="list"
+            aria-expanded={mentionOpen}
+            placeholder={placeholder}
+            enterKeyHint="send"
+            className="max-h-[220px] min-h-11 w-full min-w-0 resize-none overflow-y-auto border-0 bg-transparent px-4 pt-3 pb-1 text-[length:calc(var(--app-message-font-size)*.9375)] leading-5 text-content [font-family:var(--font-content-family)] [outline:0] placeholder:text-content-muted max-[650px]:px-3.5 max-[650px]:text-[length:var(--app-message-font-size)]"
+            onChange={(event) => {
+              setValue(event.target.value)
+              setCaret(event.target.selectionStart ?? event.target.value.length)
+              event.currentTarget.style.height = 'auto'
+              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
+            }}
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
+            onCompositionStart={() => (composing.current = true)}
+            onCompositionEnd={() => window.setTimeout(() => (composing.current = false), 0)}
+            onKeyDown={onKeyDown}
+          />
+          <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-2 max-[650px]:pb-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Chip data-room-recipients aria-label={t('bots:room.composer.recipients')}>
+                  {chosenMembers.length > 0 && (
+                    <span aria-hidden="true" className="flex items-center">
+                      {chosenMembers.slice(0, 3).map((member, index) => (
+                        <span
+                          key={member.id}
+                          className={cn('rounded-[30%] ring-2 ring-solid', index > 0 && '-ml-1.5')}
+                        >
+                          <BotAvatar avatar={member.avatar} size={16} animate={false} />
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  <span className="max-w-40 truncate">{sendLabel}</span>
+                  <ChevronDown aria-hidden="true" />
+                </Chip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="min-w-52">
+                {active.map((member) => (
+                  <DropdownMenuCheckboxItem
+                    key={member.id}
+                    checked={chosen.includes(member.id)}
+                    disabled={!member.enabled}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => toggle(member.id, checked === true)}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 flex-none rounded-full"
+                      style={{ background: botAvatarTone(member.avatar.color).shade }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                    {!member.enabled && (
+                      <span className="text-xs text-content-muted">{t('bots:room.paused')}</span>
+                    )}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {active.length > 1 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={everyone}
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(checked) =>
+                        onRecipientsChange(checked === true ? 'all' : [])
+                      }
+                    >
+                      {t('bots:room.composer.everyone')}
+                    </DropdownMenuCheckboxItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="min-w-0 flex-1" />
+            {wakes >= 3 && (
+              <span className="flex-none px-1 text-[12px] text-content-muted max-[650px]:hidden">
+                {t('bots:room.composer.wakes', { count: wakes })}
+              </span>
+            )}
+            <Button
+              size="icon"
+              className="size-8 rounded-full pointer-coarse:size-11"
+              aria-label={t('bots:room.composer.send')}
+              disabled={!value.trim() || sending}
+              onClick={() => void send()}
+            >
+              <ArrowUp aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="w-64 p-1"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <Command
+          value={selected?.id || ''}
+          shouldFilter={false}
+          aria-label={t('bots:room.composer.mentionList')}
+        >
+          <CommandList>
+            {options.map((member) => (
+              <CommandItem
+                key={member.id}
+                value={member.id}
+                onMouseEnter={() => setHighlight(member.id)}
+                onSelect={() => insertMention(member)}
+              >
+                <BotAvatar avatar={member.avatar} size={18} animate={false} />
+                <span className="min-w-0 flex-1 truncate">{member.name}</span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}

@@ -1,12 +1,18 @@
 // 侧栏里的 Bots 分组：每个 Bot 一行，像联系人——头像随状态动、名字，需要你时加琥珀点。
 // 点一下打开它的长期会话（Bot 就是这个会话加上设定），正在看它的会话或设置页时这一行亮起。
-// 只在实验功能 Bots 打开时出现。点“+”新建。Bot 多时只显示最要紧的 3 个（需要你 → 在说话 → 其余），
-// 其余点“显示全部”就地展开（sidebarBots）。
+// 只在实验功能 Bots 打开时出现。点“+”新建 Bot 或群聊。Bot 多时只显示最要紧的 3 个（需要你 → 在说话 → 其余），
+// 其余点“显示全部”就地展开（sidebarBots）。Bot 下面列群聊：叠头像 + 群名 + 在做的件数，有事等你时加琥珀点。
 import './bots-messages'
 import { useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { sessionIdFromPath } from '@/app/routes'
-import { Plus } from 'lucide-react'
+import { roomPath, sessionIdFromPath } from '@/app/routes'
+import { Bot as BotIcon, Plus, Users } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useI18n } from '@/app/use-i18n'
 import { useBetaFeature } from '@/features/labs/public-flags'
 import { cn } from '@/lib/utils'
@@ -14,6 +20,9 @@ import { BotAvatar } from './BotAvatar'
 import { botActivityLine, botAvatarState, SIDEBAR_BOT_LIMIT, sidebarBots } from './bot-presentation'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { NewBotDialog } from './NewBotDialog'
+import { NewRoomDialog } from './NewRoomDialog'
+import { RoomAvatarStack } from './RoomAvatarStack'
+import { useRoomsPolling, useRoomsStore } from './rooms-store'
 import { useOpenBot } from './use-open-bot'
 
 export function BotsSidebarSection() {
@@ -23,7 +32,9 @@ export function BotsSidebarSection() {
   const navigate = useNavigate()
   const location = useLocation()
   const [creating, setCreating] = useState(false)
+  const [creatingRoom, setCreatingRoom] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const rooms = useRoomsStore((state) => state.rooms)
   // 侧栏没有提示条：会话打不开时退到这个 Bot 的设置页，在那里“和它聊天”重试并看到原因。
   const openBot = useOpenBot(
     useCallback(
@@ -32,6 +43,7 @@ export function BotsSidebarSection() {
     ),
   )
   useBotsPolling(enabled)
+  useRoomsPolling(enabled)
   if (!enabled) return null
   const sessionId = sessionIdFromPath(location.pathname)
   const current =
@@ -42,15 +54,29 @@ export function BotsSidebarSection() {
     <section data-sidebar-bots aria-label={t('bots:sidebar.title')} className="mb-2">
       <div className="flex h-[26px] items-center gap-1.5 px-2.5 text-xs font-medium text-content-muted">
         <h2 className="flex-1">{t('bots:sidebar.title')}</h2>
-        <button
-          type="button"
-          className="grid size-6 place-items-center rounded-md hover:bg-surface-hover hover:text-content"
-          aria-label={t('bots:sidebar.newBot')}
-          title={t('bots:sidebar.newBot')}
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="size-3.5" aria-hidden="true" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-sidebar-bots-new
+              className="grid size-6 place-items-center rounded-md hover:bg-surface-hover hover:text-content"
+              aria-label={t('bots:sidebar.new')}
+              title={t('bots:sidebar.new')}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setCreating(true)}>
+              <BotIcon aria-hidden="true" />
+              {t('bots:sidebar.newBot')}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!bots.length} onSelect={() => setCreatingRoom(true)}>
+              <Users aria-hidden="true" />
+              {t('bots:sidebar.newRoom')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <ul role="list" className="m-0 list-none p-0">
         {shown.map((bot) => {
@@ -106,6 +132,57 @@ export function BotsSidebarSection() {
             : t('bots:sidebar.showAll', { count: bots.length })}
         </button>
       )}
+      {rooms.length > 0 && (
+        <ul role="list" aria-label={t('bots:sidebar.rooms')} className="m-0 mt-0.5 list-none p-0">
+          {rooms.map((room) => {
+            const active = location.pathname === roomPath(room.id)
+            const avatars = room.members
+              .map((id) => bots.find((bot) => bot.id === id)?.avatar)
+              .filter((avatar) => avatar !== undefined)
+            return (
+              <li key={room.id}>
+                <button
+                  type="button"
+                  data-sidebar-room={room.id}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex h-8 w-full min-w-0 items-center gap-2.5 rounded-[var(--r-md)] px-2.5 text-left hover:bg-surface-hover pointer-coarse:h-11',
+                    active && 'bg-surface-active hover:bg-surface-active',
+                  )}
+                  onClick={() => navigate(roomPath(room.id))}
+                >
+                  <RoomAvatarStack avatars={avatars} variant="tile" />
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-content">
+                    {room.name}
+                    {room.activity.needsYou && (
+                      <span className="sr-only">{` · ${t('bots:room.needsYou')}`}</span>
+                    )}
+                  </span>
+                  {room.activity.working > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="flex-none text-[11.5px] text-content-muted tabular-nums"
+                    >
+                      {room.activity.working}
+                    </span>
+                  )}
+                  {room.activity.needsYou && (
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 flex-none rounded-full bg-st-attn"
+                    />
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <NewRoomDialog
+        open={creatingRoom}
+        onOpenChange={setCreatingRoom}
+        onCreated={(room) => navigate(roomPath(room.id))}
+      />
       <NewBotDialog
         open={creating}
         onOpenChange={setCreating}

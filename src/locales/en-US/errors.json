@@ -28,6 +28,7 @@
   "subject.api_key": "API key",
   "subject.agent": "Agent",
   "subject.bot": "Bot",
+  "subject.room": "Room",
   "subject.skill": "Skill",
   "subject.plugin": "Plugin",
   "subject.tool": "Tool",

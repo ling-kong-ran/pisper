@@ -74,6 +74,8 @@ export function pageFromPath(pathname: string): PageId | null {
   if (/^\/tools\/components\/[^/]+$/.test(normalized)) return 'customComponentTool'
   if (/^\/components\/[^/]+$/.test(normalized)) return 'components'
   if (/^\/bots\/[^/]+$/.test(normalized)) return 'bots'
+  // Bot 群聊（/bots/rooms/:roomId）归 Bots 页。
+  if (/^\/bots\/rooms\/[^/]+$/.test(normalized)) return 'bots'
   if (/^\/config(?:\/[^/]+)?$/.test(normalized)) return 'config'
   return PATH_PAGES.get(normalized) || null
 }
@@ -100,6 +102,16 @@ export function activeSessionIdForRoute(pathname: string, storedActiveSessionId:
   const routeSessionId = sessionIdFromPath(pathname)
   if (!routeSessionId) return storedActiveSessionId
   return routeSessionId === NEW_SESSION_ROUTE_ID ? '' : routeSessionId
+}
+
+// Bot 群聊路径（/bots/rooms/:roomId）；id 做 URL 编码。
+export function roomPath(id: string) {
+  return `/bots/rooms/${encodeURIComponent(id)}`
+}
+
+// 是不是群聊页：手机上群聊页和会话页一样有自己的顶栏。
+export function isRoomPath(pathname: string) {
+  return /^\/bots\/rooms\/[^/]+\/?$/.test(pathname)
 }
 
 // 组件详情路径（/components/:componentId）；空 id 回到组件列表。
