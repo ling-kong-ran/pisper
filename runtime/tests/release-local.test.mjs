@@ -125,6 +125,7 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
     assert.ok(found, `missing workflow step: ${name}`)
     return found
   }
+  assert.equal(step('Require Windows x64').shell, 'powershell')
   assert.match(step('Require Windows x64').run, /RUNNER_OS.*Windows.*RUNNER_ARCH.*X64/s)
   assert.equal(
     job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
@@ -135,6 +136,7 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
 
   const plan = step('Plan Windows-only release')
   assert.equal(plan.if, "inputs.stage == 'all' || inputs.stage == 'plan'")
+  assert.equal(plan.shell, 'powershell')
   assert.match(plan.run, /npm run release:local -- plan \$env:RELEASE_VERSION --platforms=windows/)
   // 手动输入只经环境变量进入脚本，先校验再使用。
   assert.equal(plan.env.RELEASE_VERSION, '${{ inputs.version }}')

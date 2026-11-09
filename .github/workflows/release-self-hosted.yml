@@ -40,7 +40,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Require Windows x64
-        shell: pwsh
+        shell: powershell
         run: |
           if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
             throw "This workflow requires Windows x64, got $env:RUNNER_OS $env:RUNNER_ARCH."
@@ -67,7 +67,7 @@ jobs:
         # 输入经环境变量传入并先校验，不直接拼进脚本，避免命令注入。
         env:
           RELEASE_VERSION: ${{ inputs.version }}
-        shell: pwsh
+        shell: powershell
         run: |
           if ($env:RELEASE_VERSION -cnotmatch '^(patch|minor|major|\d+\.\d+\.\d+)$') {
             throw "version must be patch, minor, major or X.Y.Z, got: $env:RELEASE_VERSION"
