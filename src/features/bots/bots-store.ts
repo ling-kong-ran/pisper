@@ -45,19 +45,33 @@ export const useBotsStore = create<BotsState>()((set, get) => ({
   remove: (id) => set({ bots: get().bots.filter((item) => item.id !== id) }),
 }))
 
-// 有 Bot 在说话时 3 秒刷一次，否则 10 秒；页面隐藏时不刷。
+// 全应用共用一个轮询：侧栏、Bots 页、会话页头像都要这份列表，各挂一个定时器就是同一个接口被错开着多打几遍。
+// 有人在用（subscribers > 0）才跑；有 Bot 在说话时 3 秒刷一次，否则 10 秒；页面隐藏时不刷。
+let subscribers = 0
+let pollTimer = 0
+
+function schedulePoll() {
+  window.clearTimeout(pollTimer)
+  if (!subscribers) return
+  const busy = useBotsStore.getState().bots.some((bot) => bot.activity?.status === 'running')
+  pollTimer = window.setTimeout(
+    () => {
+      if (document.visibilityState !== 'visible') return schedulePoll()
+      void useBotsStore.getState().load().finally(schedulePoll)
+    },
+    busy ? 3_000 : 10_000,
+  )
+}
+
 export function useBotsPolling(enabled: boolean) {
-  const load = useBotsStore((state) => state.load)
-  const busy = useBotsStore((state) => state.bots.some((bot) => bot.activity?.status === 'running'))
   useEffect(() => {
     if (!enabled) return
-    void load()
-    const timer = window.setInterval(
-      () => {
-        if (document.visibilityState === 'visible') void load()
-      },
-      busy ? 3_000 : 10_000,
-    )
-    return () => window.clearInterval(timer)
-  }, [enabled, busy, load])
+    subscribers += 1
+    // 新加入的页面要马上有数据；并发的读取由 load 自己去重。
+    void useBotsStore.getState().load().finally(schedulePoll)
+    return () => {
+      subscribers -= 1
+      if (!subscribers) window.clearTimeout(pollTimer)
+    }
+  }, [enabled])
 }

@@ -25,6 +25,8 @@ type PromptCommandOptions = {
   defaultModel: string
   localStreamSessionsRef: React.MutableRefObject<Set<string>>
   streamGenerationRef: React.MutableRefObject<Map<string, number>>
+  // 本页持有的流最近一次有动静的时刻（按会话）：回到前台时据此判断这条流还活着没有。
+  streamActivityRef?: React.MutableRefObject<Map<string, number>>
   sessionStatesRef: React.MutableRefObject<Record<string, SessionState>>
   setActiveId: (id: string) => void
   setGlobalError: (error: string) => void
@@ -44,6 +46,7 @@ export function usePromptCommands({
   defaultModel,
   localStreamSessionsRef,
   streamGenerationRef,
+  streamActivityRef,
   sessionStatesRef,
   setActiveId,
   setGlobalError,
@@ -279,6 +282,7 @@ export function usePromptCommands({
       const dispatchStreamEvent = (event: string, data: Record<string, any>) => {
         // 前台恢复会使陈旧流失效，避免它在服务端快照之后写回过期增量。
         if (!ownsStream()) return false
+        streamActivityRef?.current.set(sessionId, Date.now())
         if (!accepted && (event === 'run' || event === 'meta')) {
           accepted = true
           options.onAccepted?.()
@@ -344,6 +348,7 @@ export function usePromptCommands({
         )
       }
       localStreamSessionsRef.current.add(sessionId)
+      streamActivityRef?.current.set(sessionId, Date.now())
       // 记录流是否以异常收场：runtime 的 run 与连接解耦，连接断开后 run 可能仍在
       // 运行甚至已完成，finally 里据此用实时快照恢复现场，而不是定格为失败。
       let streamFailed = false
@@ -532,6 +537,7 @@ export function usePromptCommands({
       localStreamSessionsRef,
       refreshSessions,
       streamGenerationRef,
+      streamActivityRef,
       sessionStatesRef,
       setActiveId,
       setGlobalError,

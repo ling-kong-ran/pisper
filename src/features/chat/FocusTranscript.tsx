@@ -137,6 +137,8 @@ function lineageHref(sessionId: string) {
     : sessionPath(sessionId)
 }
 
+const SCROLL_SAVE_DELAY_MS = 200
+
 export function FocusTranscript({
   sessionId,
   botId,
@@ -309,20 +311,25 @@ export function FocusTranscript({
     if (activeSessionRef.current !== originSession) return
     if (!loaded && olderRequestRef.current === identity) olderRequestRef.current = null
   }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, sessionId, transcriptRef])
+  // 阅读位置在滚动停下后才记一次：流式跟随时每帧都有 scroll 事件，每帧写一次 store 会带着订阅这份状态的
+  // 面板每帧重渲染。离开会话前另有保存（上面两个 effect），不靠这里的最后一次。
+  const scrollSaveTimer = useRef(0)
+  useEffect(() => () => window.clearTimeout(scrollSaveTimer.current), [sessionId])
   const handleTranscriptScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
-      if (
-        !leaving.current &&
-        transcriptLoadState === 'ready' &&
-        event.currentTarget.clientHeight > 0
-      ) {
-        useContextPagesStore.getState().update(sessionId, 'files', {
-          type: 'workspace',
-          conversationScrollTop: readingPosition(event.currentTarget),
-        })
+      const element = event.currentTarget
+      window.clearTimeout(scrollSaveTimer.current)
+      if (!leaving.current && transcriptLoadState === 'ready' && element.clientHeight > 0) {
+        scrollSaveTimer.current = window.setTimeout(() => {
+          if (leaving.current || element.clientHeight <= 0) return
+          useContextPagesStore.getState().update(sessionId, 'files', {
+            type: 'workspace',
+            conversationScrollTop: readingPosition(element),
+          })
+        }, SCROLL_SAVE_DELAY_MS)
       }
       // 收起更早的对话时不自动翻页：胶囊之上没有可读内容，翻页只会白白拉历史。
-      if (!collapsed && event.currentTarget.scrollTop <= 96) void loadOlder()
+      if (!collapsed && element.scrollTop <= 96) void loadOlder()
     },
     [collapsed, loadOlder, sessionId, transcriptLoadState],
   )

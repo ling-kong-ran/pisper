@@ -20,6 +20,7 @@ import { clearComposerDraft, NEW_TASK_COMPOSER_KEY } from './composer-drafts'
 import { chatApi, type BranchFromHereOptions, type FileRewindResult } from './chat-api'
 import { ChatDockContext, type ChatDockContextValue } from './chat-dock-context'
 import { useSessionSelection } from './use-session-selection'
+import { shouldReclaimLocalStream } from './live-session-sync'
 import { shouldReloadForCatalogRun, useLiveSessionSync } from './use-live-session-sync'
 import { subscribeSessionWorkspaceChanges } from '@/features/board/session-workspace-changes'
 import { usePromptCommands } from './use-prompt-commands'
@@ -101,6 +102,7 @@ export function ChatPage({
   const chatLayoutRef = useRef<HTMLDivElement>(null)
   const localStreamSessionsRef = useRef(new Set<string>())
   const streamGenerationRef = useRef(new Map<string, number>())
+  const streamActivityRef = useRef(new Map<string, number>())
   const resumeSyncRef = useRef<Promise<void> | null>(null)
   const catalog = useSessionCatalog({ notify })
   const markingReadRef = useRef(new Set<string>())
@@ -268,6 +270,7 @@ export function ChatPage({
     defaultModel: catalog.defaultModel,
     localStreamSessionsRef,
     streamGenerationRef,
+    streamActivityRef,
     sessionStatesRef: catalog.sessionStatesRef,
     setActiveId: catalog.setActiveId,
     setGlobalError: catalog.setGlobalError,
@@ -338,33 +341,60 @@ export function ChatPage({
 
   // 移动 WebView 从后台恢复时，SSE 可能既不报错也不再产生活动；
   // 先刷新目录，再强制用服务端快照校准所有已缓存/仍运行的会话。
-  const syncAfterForeground = useCallback(() => {
-    if (document.visibilityState !== 'visible' || resumeSyncRef.current) return
-    const request = (async () => {
-      if (mobileApp) {
-        // 与 API 共用有界恢复闸门，避免独立原生命令挂起后永久锁住 resumeSyncRef。
-        await waitForMobileRuntimeReady().catch(() => undefined)
-      }
-      let sessions: SessionSummary[] = []
-      try {
-        sessions = await refreshSessions(undefined, { preserveExistingOnEmpty: true })
-      } catch {
-        // 实时快照仍可使用已缓存的会话状态，目录请求失败不阻断恢复。
-      }
-      const ids = new Set([
-        ...Object.keys(sessionStatesRef.current),
-        ...(catalog.activeId ? [catalog.activeId] : []),
-        ...sessions.filter((session) => session.streaming).map((session) => session.id),
-      ])
-      await Promise.allSettled(Array.from(ids).map((id) => syncLiveSession(id, { force: true })))
-    })().finally(() => {
-      resumeSyncRef.current = null
-    })
-    resumeSyncRef.current = request
-  }, [catalog.activeId, mobileApp, refreshSessions, sessionStatesRef, syncLiveSession])
+  // 本页自己持有的流只在它多半已经断了的时候才作废（见 shouldReclaimLocalStream）：桌面上切一下标签页，
+  // 流还在正常收，作废它会让这一轮剩下的部分降成整页轮询、完成通知也不发。
+  const syncAfterForeground = useCallback(
+    (reason: 'visible' | 'online' | 'restored') => {
+      if (document.visibilityState !== 'visible' || resumeSyncRef.current) return
+      const mobile =
+        mobileApp ||
+        (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches)
+      const request = (async () => {
+        if (mobileApp) {
+          // 与 API 共用有界恢复闸门，避免独立原生命令挂起后永久锁住 resumeSyncRef。
+          await waitForMobileRuntimeReady().catch(() => undefined)
+        }
+        let sessions: SessionSummary[] = []
+        try {
+          sessions = await refreshSessions(undefined, { preserveExistingOnEmpty: true })
+        } catch {
+          // 实时快照仍可使用已缓存的会话状态，目录请求失败不阻断恢复。
+        }
+        const ids = new Set([
+          ...Object.keys(sessionStatesRef.current),
+          ...(catalog.activeId ? [catalog.activeId] : []),
+          ...sessions.filter((session) => session.streaming).map((session) => session.id),
+        ])
+        await Promise.allSettled(
+          Array.from(ids).map((id) => {
+            const keepLocalStream =
+              localStreamSessionsRef.current.has(id) &&
+              !shouldReclaimLocalStream({
+                mobile,
+                reason,
+                lastEventAt: streamActivityRef.current.get(id) ?? 0,
+              })
+            return keepLocalStream ? undefined : syncLiveSession(id, { force: true })
+          }),
+        )
+      })().finally(() => {
+        resumeSyncRef.current = null
+      })
+      resumeSyncRef.current = request
+    },
+    [catalog.activeId, mobileApp, refreshSessions, sessionStatesRef, syncLiveSession],
+  )
 
   useEffect(() => {
-    const recover = () => syncAfterForeground()
+    // 断网恢复、从往返缓存恢复的页面，连接已经断了；其余只是回到前台。
+    const recover = (event: Event) =>
+      syncAfterForeground(
+        event.type === 'online'
+          ? 'online'
+          : event.type === 'pageshow' && (event as PageTransitionEvent).persisted
+            ? 'restored'
+            : 'visible',
+      )
     document.addEventListener('visibilitychange', recover)
     window.addEventListener('pageshow', recover)
     window.addEventListener('online', recover)

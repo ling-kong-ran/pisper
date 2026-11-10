@@ -231,6 +231,10 @@ export function agentForSpawnCall(
 }
 
 const ACTIVE_POLL_MS = 2_500
+
+function sameJson(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
 const IDLE_POLL_MS = 15_000
 
 // 页面开着时轮询：有在跑的活或在等别的 Bot 回话时 2.5 秒一次，没有时 15 秒一次；换会话或关掉时取消。
@@ -256,7 +260,15 @@ export function useSessionAgents(sessionId: string, enabled: boolean, onFinished
     if (!enabled || !sessionId) return undefined
     const controller = new AbortController()
     let timer = 0
+    let skipped = false
     const load = async () => {
+      // 页面看不见时不读；回到前台时补一次（见下面的 visibilitychange）。
+      if (document.visibilityState !== 'visible') {
+        skipped = true
+        timer = window.setTimeout(load, activeRef.current ? ACTIVE_POLL_MS : IDLE_POLL_MS)
+        return
+      }
+      skipped = false
       try {
         const loaded = await fetchSessionAgents(sessionId, controller.signal)
         if (controller.signal.aborted) return
@@ -281,18 +293,26 @@ export function useSessionAgents(sessionId: string, enabled: boolean, onFinished
               next.some((agent) => !known.has(agent.id) && !isActiveAgent(agent))))
         )
           onFinishedRef.current?.()
-        setAgents(next)
-        setLinks(loaded.links)
+        // 内容没变就沿用原来的数组：时间线按它重算，不能每 2.5 秒白算一遍。
+        setAgents((current) => (sameJson(current, next) ? current : next))
+        setLinks((current) => (sameJson(current, loaded.links) ? current : loaded.links))
       } catch {
         // 读不到时保留上一次的结果，下一轮再试。
       }
       if (!controller.signal.aborted)
         timer = window.setTimeout(load, activeRef.current ? ACTIVE_POLL_MS : IDLE_POLL_MS)
     }
+    const resume = () => {
+      if (!skipped || document.visibilityState !== 'visible') return
+      window.clearTimeout(timer)
+      void load()
+    }
+    document.addEventListener('visibilitychange', resume)
     void load()
     return () => {
       controller.abort()
       window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', resume)
     }
   }, [enabled, refresh, sessionId])
   const reload = useCallback(() => setRefresh((value) => value + 1), [])

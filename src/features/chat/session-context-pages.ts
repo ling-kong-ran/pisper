@@ -141,7 +141,7 @@ function neighborBrowserId(pages: ContextPage[], closingId: string) {
 
 export function updateContextPages(state: ContextPages, action: ContextPageAction): ContextPages {
   if (action.type === 'workspace') {
-    return {
+    const next = {
       ...state,
       ...(action.contentWidth !== undefined
         ? { contentWidth: normalizeSessionContextWidth(action.contentWidth) }
@@ -157,6 +157,13 @@ export function updateContextPages(state: ContextPages, action: ContextPageActio
           ? { conversationScrollTop: Math.max(0, action.conversationScrollTop) }
           : {}),
     }
+    // 值没变就还是原来那个对象：订阅这份状态的面板（检查器、浏览器页签）不用跟着重渲染。
+    return next.contentWidth === state.contentWidth &&
+      next.contentOpen === state.contentOpen &&
+      next.summaryOpen === state.summaryOpen &&
+      next.conversationScrollTop === state.conversationScrollTop
+      ? state
+      : next
   }
   if (action.type === 'add' || action.type === 'open' || action.type === 'kind') {
     const replaceId =

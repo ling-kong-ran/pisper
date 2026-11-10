@@ -69,3 +69,15 @@ test('side chat uses one tab per parent while repeated opening restores its sele
   state = update(state, { type: 'add', kind: 'side-chat' })
   assert.notEqual(state.activeId, side)
 })
+
+test('a workspace update that changes nothing returns the same state object', () => {
+  const state = update(createContextPages('browser'), {
+    type: 'workspace',
+    conversationScrollTop: 120,
+  })
+  assert.equal(update(state, { type: 'workspace', conversationScrollTop: 120 }), state)
+  assert.equal(update(state, { type: 'workspace', contentOpen: state.contentOpen }), state)
+  const moved = update(state, { type: 'workspace', conversationScrollTop: 121 })
+  assert.notEqual(moved, state)
+  assert.equal(moved.conversationScrollTop, 121)
+})

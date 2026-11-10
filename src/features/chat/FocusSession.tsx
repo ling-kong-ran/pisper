@@ -516,10 +516,17 @@ export const FocusSession = memo(function FocusSession({
       sessionHasSubagents(messages, activityFeed.length ? activityFeed : tools),
     [activityFeed, messages, subagentsAvailable, tools],
   )
+  // 正在翻更早的对话时不重拉：强制重读会把人拉回最新一页；“回到最新”一直在，点它就能看到汇报。
+  const readingHistoryRef = useRef(Boolean(hasNewer))
+  readingHistoryRef.current = Boolean(hasNewer)
   const sessionAgents = useSessionAgents(session.id, Boolean(botId) || hasSubagents, () => {
     if (!botId) return
     for (const delay of [1_500, 4_000, 9_000])
-      refreshTimersRef.current.push(window.setTimeout(() => void onLoadLatest?.(), delay))
+      refreshTimersRef.current.push(
+        window.setTimeout(() => {
+          if (!readingHistoryRef.current) void onLoadLatest?.()
+        }, delay),
+      )
   })
   // 对话这一句说完后运行时才做决定（派活）：一两秒后拉一次子 agent，新派的活马上出现在时间线里。
   const wasStreamingRef = useRef(streaming)

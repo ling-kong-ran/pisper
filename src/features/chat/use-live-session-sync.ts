@@ -7,7 +7,7 @@ import type { SessionStateUpdate } from '@/lib/session-state'
 import type { ChatMessage, EntityRecord, SessionState, SessionSummary } from '@/types/chat'
 import { chatApi, type ApiRecord } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
-import { shouldPollLiveSession } from './live-session-sync'
+import { liveSessionPollEvery, shouldPollLiveSession } from './live-session-sync'
 import { settleToolCalls } from './run-activity'
 import { workspaceActivity } from './session-workspace-activity'
 import { FOCUS_MESSAGE_PAGE_SIZE } from './use-session-catalog'
@@ -40,11 +40,25 @@ export const MAX_FOCUS_MESSAGES = 200
 // 合并消息页时按 ID 复用内容完全一致的旧消息对象：SSE 结束后强制重拉历史，
 // 服务端返回的消息都是新对象，若直接替换会让每条消息的 memo 失效、可见行整体重渲染，
 // 表现为“整页刷一下”；保持引用不变即可让 FocusChatMessage 的 memo 命中跳过。
+// 留在状态里的消息对象不会被原地改（更新都是换新对象），所以它的序列化结果可以记住：
+// 轮询每来一页，旧消息不用再各序列化一遍。
+const serializedMessages = new WeakMap<ChatMessage, string>()
+
+function serializedMessage(message: ChatMessage) {
+  let text = serializedMessages.get(message)
+  if (text === undefined) {
+    text = JSON.stringify(message)
+    serializedMessages.set(message, text)
+  }
+  return text
+}
+
 function reuseStableMessages(current: ChatMessage[], incoming: ChatMessage[]) {
   const currentById = new Map(current.map((message) => [message.id, message]))
   return incoming.map((message) => {
     const previous = currentById.get(message.id)
-    return previous && JSON.stringify(previous) === JSON.stringify(message) ? previous : message
+    if (!previous) return message
+    return serializedMessage(previous) === serializedMessage(message) ? previous : message
   })
 }
 
@@ -241,8 +255,11 @@ export function useLiveSessionSync({
   pollOnly,
 }: SessionSyncOptions) {
   const liveSyncInFlightRef = useRef(new Set<string>())
-  const pollingRef = useRef<{ timer: number | null; activeSessions: Set<string> }>({
+  // 每个会话最新一次 /live 请求的序号：强制恢复可以越过在途的请求再发一次，晚到的旧响应按序号丢弃。
+  const liveSyncSeqRef = useRef(new Map<string, number>())
+  const pollingRef = useRef<{ timer: number | null; tick: number; activeSessions: Set<string> }>({
     timer: null,
+    tick: 0,
     activeSessions: new Set(),
   })
   const kickRef = useRef<{ timer: number | null; ids: Set<string> }>({
@@ -254,16 +271,20 @@ export function useLiveSessionSync({
   // 并让旧流失去写入资格，解决移动 WebView 挂起后连接表面存活但不再更新的问题。
   const syncLiveSession = useCallback(
     async (id: string, { force = false }: { force?: boolean } = {}) => {
+      // 强制恢复不让在途的普通轮询挡住：手机 WebView 挂起时悬着的那个请求可能要等到超时才结束。
       if (
         !id ||
-        (!force && localStreamSessionsRef.current.has(id)) ||
-        liveSyncInFlightRef.current.has(id)
+        (!force && (localStreamSessionsRef.current.has(id) || liveSyncInFlightRef.current.has(id)))
       )
         return
+      const seq = (liveSyncSeqRef.current.get(id) || 0) + 1
+      liveSyncSeqRef.current.set(id, seq)
+      const superseded = () => liveSyncSeqRef.current.get(id) !== seq
       liveSyncInFlightRef.current.add(id)
       const selectionRevision = sessionStatesRef.current[id]?.runtimeSelectionRevision || 0
       try {
         const data = await chatApi.getLiveSession(id)
+        if (superseded()) return
         // 请求期间新流仍拥有状态；强制恢复时则使旧流失去写入资格，再采用服务端快照。
         if (!force && localStreamSessionsRef.current.has(id)) return
         if (force && localStreamSessionsRef.current.has(id)) {
@@ -294,7 +315,7 @@ export function useLiveSessionSync({
           ),
         )
       } catch (error) {
-        if (!localStreamSessionsRef.current.has(id)) {
+        if (!superseded() && !localStreamSessionsRef.current.has(id)) {
           updateSessionState(id, {
             recovering: false,
             loading: false,
@@ -302,7 +323,7 @@ export function useLiveSessionSync({
           })
         }
       } finally {
-        liveSyncInFlightRef.current.delete(id)
+        if (!superseded()) liveSyncInFlightRef.current.delete(id)
       }
     },
     [
@@ -455,6 +476,8 @@ export function useLiveSessionSync({
       // 标签页隐藏时跳过本轮：用户看不见界面，全量快照轮询纯属浪费；
       // 回到前台时由 ChatPage 的 visibilitychange 恢复逻辑强制补一轮。
       if (typeof document !== 'undefined' && document.hidden) return
+      pollingRef.current.tick += 1
+      const tick = pollingRef.current.tick
       const requests = Array.from(pollingRef.current.activeSessions).map(async (id) => {
         const state = sessionStatesRef.current[id]
         if (
@@ -465,6 +488,8 @@ export function useLiveSessionSync({
           pollingRef.current.activeSessions.delete(id)
           return
         }
+        // 对话本身空闲、只是挂着批准或后台的活时降频。
+        if (tick % liveSessionPollEvery(state) !== 0) return
         await syncLiveSession(id)
       })
       void Promise.allSettled(requests).then(() => {
