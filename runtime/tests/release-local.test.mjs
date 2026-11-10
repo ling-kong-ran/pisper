@@ -104,7 +104,9 @@ test('a release that skips Linux validates only the planned platforms', async (t
 test('self-hosted Windows releases inject secrets and can resume existing drafts', async () => {
   const source = await readFile('.github/workflows/release-self-hosted.yml', 'utf8')
   const workflow = parseYaml(source)
-  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  // 手动运行，或由 self-release-* 标签流程调用（只用 build）。
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch', 'workflow_call'])
+  assert.deepEqual(Object.keys(workflow.on.workflow_call.inputs), ['stage', 'version'])
   assert.deepEqual(workflow.permissions, { contents: 'write' })
   assert.match(workflow.concurrency.group, /windows-/)
   assert.match(workflow.concurrency.group, /inputs\.stage == 'publish'/)
@@ -175,7 +177,8 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
 test('self-hosted Linux releases inject signing secrets and only resume existing drafts', async () => {
   const source = await readFile('.github/workflows/release-linux-self-hosted.yml', 'utf8')
   const workflow = parseYaml(source)
-  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch', 'workflow_call'])
+  assert.deepEqual(Object.keys(workflow.on.workflow_call.inputs), ['stage'])
   assert.deepEqual(workflow.permissions, { contents: 'write' })
   assert.equal(
     workflow.concurrency.group,
@@ -245,11 +248,14 @@ test('self-hosted Linux releases inject signing secrets and only resume existing
   const publish = step('Publish validated draft releases')
   assert.equal(publish.if, "inputs.stage == 'publish'")
   assert.equal(publish.run, 'npm run release:local -- publish')
+  // 三个平台齐全的计划在这里发 npm：自托管 Runner 没有 npm 的可信发布，只能用令牌，且只给 publish 这一步。
+  assert.deepEqual(publish.env, { NPM_TOKEN: '${{ secrets.NPM_TOKEN }}' })
+  assert.equal(source.split('\n').filter((line) => /\bNPM_TOKEN\b/.test(line)).length, 1)
 
   // Linux 只能复用既有计划，且不得绕开依赖安装、检查或发布入口。
   assert.doesNotMatch(
     source,
-    /release:local -- plan|--no-install|--allow-unsigned-mac|\bNPM_TOKEN\b|--skip-checks|gh workflow run|scripts\/release\.mjs/,
+    /release:local -- plan|--no-install|--allow-unsigned-mac|--skip-checks|gh workflow run|scripts\/release\.mjs/,
   )
   assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
   assert.doesNotMatch(source, /npm run release(?!:local)/)
@@ -258,7 +264,8 @@ test('self-hosted Linux releases inject signing secrets and only resume existing
 test('self-hosted macOS releases inject signing secrets and only resume existing drafts', async () => {
   const source = await readFile('.github/workflows/release-mac-self-hosted.yml', 'utf8')
   const workflow = parseYaml(source)
-  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch', 'workflow_call'])
+  assert.deepEqual(Object.keys(workflow.on.workflow_call.inputs), ['stage'])
   assert.deepEqual(workflow.permissions, { contents: 'write' })
   assert.match(workflow.concurrency.group, /macos-/)
   assert.match(workflow.concurrency.group, /inputs\.stage == 'publish'/)
@@ -321,4 +328,85 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
   )
   assert.doesNotMatch(source, /run:.*\$\{\{\s*inputs\./)
   assert.doesNotMatch(source, /npm run release(?!:local)/)
+})
+
+test('a self-release tag runs plan, three platform builds, publish and the app on self-hosted runners', async () => {
+  const source = await readFile('.github/workflows/release-self-hosted-tag.yml', 'utf8')
+  const workflow = parseYaml(source)
+  // 与托管路径的 release-* 互不重叠：self-release-* 不会同时触发 release-tag.yml。
+  assert.deepEqual(workflow.on, { push: { tags: ['self-release-*'] } })
+  assert.deepEqual(workflow.permissions, { contents: 'write', actions: 'write' })
+  // 和 release-tag.yml 同一分组，两条标签发布不会同时跑。
+  assert.equal(workflow.concurrency.group, 'release-trigger-${{ github.repository }}')
+  assert.equal(workflow.concurrency['cancel-in-progress'], false)
+
+  const { plan, ...rest } = workflow.jobs
+  // 每个 job 都只落在自托管 Runner 上：plan 自己声明，其余都调用自托管 workflow。
+  assert.deepEqual(plan['runs-on'], ['self-hosted', 'pisper-linux'])
+  assert.equal(plan.env.GIT_CONFIG_NOSYSTEM, '1')
+  const step = (name) => {
+    const found = plan.steps.find((entry) => entry.name === name)
+    assert.ok(found, `missing workflow step: ${name}`)
+    return found
+  }
+  const order = plan.steps.map((entry) => entry.name || entry.uses)
+  assert.ok(
+    order.indexOf('Consume trigger tag') <
+      order.indexOf('Resolve release input and verify the source'),
+  )
+  assert.ok(
+    order.indexOf('Resolve release input and verify the source') <
+      order.indexOf('Plan release drafts'),
+  )
+  assert.match(step('Consume trigger tag').run, /git push origin ":refs\/tags\/\$TRIGGER_TAG"/)
+  const resolveStep = step('Resolve release input and verify the source').run
+  assert.match(resolveStep, /node scripts\/release-trigger\.mjs "\$TRIGGER_TAG" --self-hosted/)
+  assert.match(resolveStep, /"\$head" != "\$TRIGGER_SHA"/)
+  const planStep = step('Plan release drafts')
+  assert.match(planStep.run, /npm run release:local -- plan "\$RELEASE_INPUT" --github-output/)
+  // 没有 NPM_TOKEN 时这次不发 npm，而不是等到 publish 才因缺凭据失败；令牌本身不交给 plan。
+  assert.equal(planStep.env.HAS_NPM_TOKEN, "${{ secrets.NPM_TOKEN != '' }}")
+  assert.match(planStep.run, /--no-npm/)
+  assert.doesNotMatch(source, /secrets\.NPM_TOKEN \}\}/)
+  assert.doesNotMatch(source, /run:.*\$\{\{/)
+
+  const calls = Object.fromEntries(
+    Object.entries(rest).map(([name, job]) => [name, [job.uses, job.with]]),
+  )
+  assert.deepEqual(calls, {
+    'build-windows': ['./.github/workflows/release-self-hosted.yml', { stage: 'build' }],
+    'build-macos': ['./.github/workflows/release-mac-self-hosted.yml', { stage: 'build' }],
+    'build-linux': ['./.github/workflows/release-linux-self-hosted.yml', { stage: 'build' }],
+    publish: ['./.github/workflows/release-linux-self-hosted.yml', { stage: 'publish' }],
+    app: [
+      './.github/workflows/release-app.yml',
+      {
+        version: '${{ needs.plan.outputs.app_version }}',
+        source_sha: '${{ needs.plan.outputs.source }}',
+      },
+    ],
+  })
+  for (const job of Object.values(rest)) assert.equal(job.secrets, 'inherit')
+  assert.deepEqual(rest.publish.needs, ['plan', 'build-windows', 'build-macos', 'build-linux'])
+  // App 在组件发布成功之后（或只有 App 要发时）才发，两边不会同时往 release 推版本提交。
+  assert.deepEqual(rest.app.needs, ['plan', 'publish'])
+  assert.match(
+    rest.app.if,
+    /needs\.plan\.outputs\.components == '' \|\| needs\.publish\.result == 'success'/,
+  )
+
+  const app = parseYaml(await readFile('.github/workflows/release-app.yml', 'utf8'))
+  assert.deepEqual(Object.keys(app.on), ['workflow_dispatch', 'workflow_call'])
+  assert.deepEqual(Object.keys(app.on.workflow_call.inputs), ['version', 'source_sha'])
+})
+
+test('plan can skip npm and hand its result to the tag workflow', async () => {
+  const local = await readFile('scripts/release-local.mjs', 'utf8')
+  assert.match(local, /flags\.has\('--no-npm'\)[\s\S]*computed\.npm = null/)
+  // 输出只在建完草稿后写（只有 App 要发时不建草稿也写），下一步按它决定构建什么。
+  assert.ok(
+    local.indexOf('if (githubOutput) await writeGithubOutput') > local.indexOf('api.createDraft('),
+  )
+  assert.match(local, /`source=\$\{source\}`/)
+  assert.match(local, /`app_version=\$\{app\?\.version \|\| ''\}`/)
 })

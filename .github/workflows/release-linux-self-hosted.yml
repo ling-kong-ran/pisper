@@ -13,6 +13,12 @@ on:
           - build
           - status
           - publish
+  # 推 self-release-* 标签时由 release-self-hosted-tag.yml 调用。
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -70,4 +76,8 @@ jobs:
         run: npm run release:local -- status
       - name: Publish validated draft releases
         if: inputs.stage == 'publish'
+        # 三个平台都在的计划会发 npm：自托管 Runner 用不了 npm 的可信发布（OIDC），只能用令牌。
+        # 没配这个 Secret 时，标签流程在 plan 时就加了 --no-npm，这里用不到它。
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run release:local -- publish

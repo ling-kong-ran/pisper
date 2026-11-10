@@ -13,6 +13,15 @@ on:
         description: 'Exact release branch commit to build'
         required: true
         type: string
+  # 推 self-release-* 标签时，release-self-hosted-tag.yml 在桌面版等组件发布完后调用。
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
 
 permissions:
   actions: write

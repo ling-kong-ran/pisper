@@ -21,6 +21,16 @@ on:
         required: true
         default: patch
         type: string
+  # 推 self-release-* 标签时由 release-self-hosted-tag.yml 调用，只用 build。
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
+      version:
+        required: false
+        default: patch
+        type: string
 
 permissions:
   contents: write

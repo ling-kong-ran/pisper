@@ -14,6 +14,12 @@ on:
           - build
           - status
           - publish
+  # 推 self-release-* 标签时由 release-self-hosted-tag.yml 调用。
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
 
 permissions:
   contents: write

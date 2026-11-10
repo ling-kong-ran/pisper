@@ -135,6 +135,7 @@ npm run build:android
 npm run build:ios
 npm run release -- patch     # 本机发布，也可传 minor、major 或明确版本号（需要 gh）
 git push origin release:refs/tags/release-patch   # 推触发标签在 CI 里发布，同样可用 release-minor / release-major / release-X.Y.Z
+git push origin release:refs/tags/self-release-patch   # 托管额度用尽时：全程在自托管 Runner 上发布，后缀同上
 npm run release:local -- plan patch   # Actions 额度用尽时本机发布，步骤见“发布与协作”的本机发布
 ```
 
@@ -158,6 +159,10 @@ npm run release:local -- plan patch   # Actions 额度用尽时本机发布，�
 - 发布只包含实质性行为、产物、安全或兼容性变更；纯文档、格式化和版本记账不单独创建版本。
 - 发布以 `scripts/release.mjs`、`scripts/release-policy.mjs` 和 GitHub Actions 为准；不得绕过脚本手改版本、建标签或重复发布。
 - 触发标签 `release-<patch|minor|major|X.Y.Z>` 只是入口：`.github/workflows/release-tag.yml` 在 CI 里执行同一个 `npm run release`，用后即删；它必须指向 release 分支最新提交。版本标签（`v*`、`tui-v*`、`runtime-v*`、`app-v*`、`npm-v*`）只由发布 workflow 或本机发布脚本 `scripts/release-local.mjs` 在产物验证后创建，不得手动推送。
+- 自托管标签发布（Actions 托管额度用尽、三台自托管 Runner 都在线时首选）：推 `self-release-<patch|minor|major|X.Y.Z>`，`.github/workflows/release-self-hosted-tag.yml` 只用自托管 Runner，依次执行：Linux 上 `release:local -- plan`（发布前检查、建草稿）→ 调用 Windows、macOS、Linux 三个自托管 workflow 的 `stage=build` → 调用 Linux workflow 的 `stage=publish` → 有 App 变更时再调用 `release-app.yml`。
+  - 触发标签同样用后即删，必须指向 release 最新提交；与 `release-*` 共用并发组，两条路径不会同时跑。
+  - 发 npm 需要仓库 Secret `NPM_TOKEN`（自托管 Runner 用不了 npm 的可信发布）；没有时 plan 加 `--no-npm`，这次只发 Desktop、TUI、Runtime 和 App。
+  - 中途失败时修好后手动运行对应自托管 workflow 的 `stage=build` 或 `stage=publish` 续跑，不要再推标签：草稿里已有计划，plan 会拒绝再建一份。App 失败时手动运行 `release-app.yml`。
 - 本机发布（`scripts/release-local.mjs`，Actions 额度用尽时用）：
   1. 任一台机器在 release 分支、干净工作区上运行 `npm run release:local -- plan patch`（或 `minor`、`major`、`X.Y.Z`）。它跑发布前检查，并为每个要发的版本建一个 GitHub 草稿 Release，草稿里存着计划。暂时没有某个平台的构建机时加 `--platforms=windows,darwin`：跳过的平台在组件更新里停在上一版，这次也不发 npm。
   2. 计划里的每个平台各在一台机器上检出 plan 打印的提交，运行 `npm run release:local -- build`。它构建本平台产物、签名并上传到草稿；重跑会覆盖上一次上传的同名产物。

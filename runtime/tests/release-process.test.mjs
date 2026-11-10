@@ -11,7 +11,10 @@ import {
   isSubstantiveReleaseCommit,
 } from '../../scripts/release-policy.mjs'
 import { bundledComponentVersion } from '../../scripts/release-components.mjs'
-import { releaseInputFromTriggerTag } from '../../scripts/release-trigger.mjs'
+import {
+  releaseInputFromTriggerTag,
+  SELF_HOSTED_TRIGGER_PREFIX,
+} from '../../scripts/release-trigger.mjs'
 
 // Windows 上 git 检出（core.autocrlf）会把行尾换成 CRLF：源码断言统一按 LF 比较。
 const readText = async (path) => (await readFile(path, 'utf8')).replaceAll('\r\n', '\n')
@@ -433,6 +436,18 @@ test('trigger tags map to release inputs and never reuse version tag names', () 
   for (const tag of ['v0.6.5', 'tui-v0.6.7', 'release-', 'release-latest', 'release-0.7', '']) {
     assert.throws(() => releaseInputFromTriggerTag(tag))
   }
+  // 自托管路径用 self-release-*：两种前缀互不接受对方的标签。
+  assert.equal(
+    releaseInputFromTriggerTag('self-release-patch', SELF_HOSTED_TRIGGER_PREFIX),
+    'patch',
+  )
+  assert.equal(
+    releaseInputFromTriggerTag('self-release-0.7.0', SELF_HOSTED_TRIGGER_PREFIX),
+    '0.7.0',
+  )
+  assert.throws(() => releaseInputFromTriggerTag('self-release-patch'))
+  assert.throws(() => releaseInputFromTriggerTag('release-patch', SELF_HOSTED_TRIGGER_PREFIX))
+  assert.throws(() => releaseInputFromTriggerTag('self-release-latest', SELF_HOSTED_TRIGGER_PREFIX))
 })
 
 test('pushing a trigger tag runs the same release script in CI', async () => {

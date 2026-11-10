@@ -2,16 +2,18 @@
 // 和 CI 同一套脚本（release.mjs 算计划，stage-*/archive-*/validate-* 构建与校验），只是把三个平台的构建
 // 分到三台机器上，用 GitHub 草稿 Release 汇合：
 //
-//   plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin]
+//   plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin] [--no-npm] [--github-output]
 //                                   任一台：检测通道、算版本、跑发布前检查，为每个版本建草稿 Release；
-//                                   --platforms 可以跳过某个平台（跳过时这次不发 npm）
+//                                   --platforms 可以跳过某个平台（跳过时这次不发 npm）；--no-npm 这次不发 npm
+//                                   （自托管流程里没有 NPM_TOKEN 时）；--github-output 把源提交和 App 版本
+//                                   写进 $GITHUB_OUTPUT，供 release-self-hosted-tag.yml 接着构建、发布与发 App
 //   build                           每台各跑一次：按草稿里的计划构建本平台产物、签名并上传到草稿
 //   status                          看各草稿还缺哪些平台的产物
 //   publish                         三个平台都传完后任一台：校验资产、提交版本号并打标签、推送、
 //                                   发布草稿，最后发布 npm
 //
 // 从 plan 到 publish 期间 release 分支冻结（不推别的提交），verify-release-head 只放行版本提交。
-// 移动 App 仍走 CI（release-app.yml），计划里有 app 时这里跳过并提示。
+// 移动 App 仍走 CI（release-app.yml），计划里有 app 时这里跳过并提示；标签触发的自托管流程在 publish 后接着发 App。
 //
 // 凭据放在不入库的文件里：默认 ~/.config/pisper-release/env（或用 PISPER_RELEASE_ENV 指定），
 // 每行 KEY=VALUE：GITHUB_TOKEN、TAURI_SIGNING_PRIVATE_KEY、TAURI_SIGNING_PRIVATE_KEY_PASSWORD、
@@ -168,6 +170,18 @@ async function findPlan(api, { source, resume = false } = {}) {
   return plan
 }
 
+// 自托管标签流程的下一步要用的计划结果：源提交、本机发布的组件、要另外发的 App 版本。
+async function writeGithubOutput({ source, components, app }) {
+  const path = process.env.GITHUB_OUTPUT
+  if (!path) throw new Error('--github-output 只能在 GitHub Actions 里使用（缺少 GITHUB_OUTPUT）。')
+  const lines = [
+    `source=${source}`,
+    `components=${components.map((item) => item.component).join(',')}`,
+    `app_version=${app?.version || ''}`,
+  ]
+  await writeFile(path, `${lines.join('\n')}\n`, { flag: 'a' })
+}
+
 async function plan() {
   await loadSecrets()
   const dryRun = flags.has('--dry-run')
@@ -209,7 +223,17 @@ async function plan() {
       (left, right) =>
         COMPONENT_ORDER.indexOf(left.component) - COMPONENT_ORDER.indexOf(right.component),
     )
-  if (!components.length) throw new Error('计划里没有 Desktop、TUI 或 Runtime。')
+  const app = skipped.find((item) => item.component === 'app')
+  const githubOutput = flags.has('--github-output') && !dryRun
+  if (!components.length) {
+    // 只有 App 要发：不建草稿，交给标签流程直接发 App。
+    if (githubOutput && app) {
+      await writeGithubOutput({ source: computed.source, components, app })
+      console.log(`这次只有 App ${app.version} 要发布，不建草稿。`)
+      return
+    }
+    throw new Error('计划里没有 Desktop、TUI 或 Runtime。')
+  }
 
   // 更新日志在这里生成一次写进计划：各台机器构建时用同一份，不因日期或时区不同而不一致。
   for (const item of components) {
@@ -237,6 +261,10 @@ async function plan() {
   // npm 的三个平台包缺一不可：跳过平台时这次不发 npm，下次三个平台齐了再一起发。
   if (computed.npm && platforms.length < SUPPORTED_TARGETS.length) {
     console.warn(`跳过了部分平台，这次不发布 npm（pisper@${computed.npm.version}）。`)
+    computed.npm = null
+  }
+  if (computed.npm && flags.has('--no-npm')) {
+    console.warn(`指定了 --no-npm，这次不发布 npm（pisper@${computed.npm.version}）。`)
     computed.npm = null
   }
   const result = {
@@ -278,6 +306,7 @@ async function plan() {
   for (const item of components) await api.uploadAsset(item.releaseId, file)
   await rm(file, { force: true })
   console.log(`已建草稿：${components.map((item) => item.tag).join('、')}`)
+  if (githubOutput) await writeGithubOutput({ source: computed.source, components, app })
   console.log(
     `接下来在 ${platformNames(platforms)} 上各切到 ${computed.source} 运行：npm run release:local -- build`,
   )
@@ -689,7 +718,7 @@ async function publishNpm(current, publishRoot) {
 const commands = { plan, build, status, publish }
 if (!commands[command]) {
   console.log(
-    '用法：npm run release:local -- <plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin,linux] [--skip-checks] [--dry-run] | build [--no-install] [--allow-unsigned-mac] | status | publish>',
+    '用法：npm run release:local -- <plan [patch|minor|major|X.Y.Z] [--platforms=windows,darwin,linux] [--no-npm] [--github-output] [--skip-checks] [--dry-run] | build [--no-install] [--allow-unsigned-mac] | status | publish>',
   )
   process.exit(command === 'help' ? 0 : 1)
 }
