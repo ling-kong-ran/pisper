@@ -1362,8 +1362,10 @@ export class AgentRuntimeFacade {
   }
 
   // 没说完的一轮（停下、出错）：告诉在等回复的聊天这次没答上，名单清空。
+  // 是你自己点的停止：只清名单，不往外面的聊天里发“没做成”（停下是你的决定，不用替 Bot 向群里解释）。
   dropBotChatReplies(sessionId, value) {
     const sources = (value.pendingChatReplies || []).splice(0)
+    if (value.abortedAt) return
     const bot = this.botForSession(sessionId)
     if (!bot) return
     for (const source of sources)

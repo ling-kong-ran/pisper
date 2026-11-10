@@ -1057,6 +1057,28 @@ test('files git ignores, such as dependencies and generated code, are not agent 
   )
 })
 
+test('a chart or report a command writes into an ignored folder is still a result; bulk output is not', async (t) => {
+  const f = await fixture(t)
+  await git(f.cwd, 'init', '-q', '-b', 'main')
+  await writeFile(join(f.cwd, '.gitignore'), 'output/\ndist/\n*.log\n')
+  await f.run('session-a', async () => {
+    await mkdir(join(f.cwd, 'output'), { recursive: true })
+    await writeFile(join(f.cwd, 'output', 'chart.png'), 'png')
+    await writeFile(join(f.cwd, 'output', 'data.json'), '{}')
+    await writeFile(join(f.cwd, 'run.log'), 'log')
+  })
+  assert.deepEqual(
+    (await f.tracker.drain('session-a')).map(({ path }) => path),
+    [join(f.cwd, 'output', 'chart.png')],
+  )
+  await f.run('session-b', async () => {
+    await mkdir(join(f.cwd, 'dist', 'icons'), { recursive: true })
+    for (let index = 0; index < 30; index += 1)
+      await writeFile(join(f.cwd, 'dist', 'icons', `icon-${index}.png`), 'png')
+  })
+  assert.deepEqual(await f.tracker.drain('session-b'), [])
+})
+
 test('well-known dependency folders are skipped outside git repositories too', async (t) => {
   const f = await fixture(t)
   await f.run('session-a', async () => {

@@ -1,5 +1,6 @@
 import { lstat, opendir, realpath, stat } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { ASSET_DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS } from './asset-content.mjs'
 import { runGit } from './git-changes-service.mjs'
 
 const MAX_SCANNED_ENTRIES = 30_000
@@ -258,18 +259,38 @@ async function gitIgnoredCheck(repository) {
   }
 }
 
+// 被忽略的文件里也有 Agent 交付的结果：很多仓库忽略 output/、reports/、*.png，而图表、报告、导出的表格
+// 正是命令生成到这些地方的。只放行“给人看的成品”这几类，代码、JSON、依赖里的文件照旧不算。
+const RESULT_MEDIA_EXTENSIONS = new Set(['.csv', '.mp4', '.mov', '.webm', '.mp3', '.wav'])
+// 一轮里被忽略的成品超过这么多，就是批量生成的（构建输出里的图标、依赖自带的图片），一个也不放行。
+const MAX_IGNORED_RESULTS = 12
+
+function resultFile(path) {
+  const extension = extname(path).toLowerCase()
+  return (
+    IMAGE_EXTENSIONS.has(extension) ||
+    ASSET_DOCUMENT_EXTENSIONS.has(extension) ||
+    RESULT_MEDIA_EXTENSIONS.has(extension)
+  )
+}
+
 async function withoutGitIgnored(files) {
   const roots = new Map()
   const checks = new Map()
   const kept = []
+  const ignoredResults = []
   for (const file of files) {
     const repository = await gitRepositoryRoot(file.path, roots)
     if (repository && !checks.has(repository))
       checks.set(repository, await gitIgnoredCheck(repository))
     const relativePath = repository ? relative(repository, file.path).split(sep).join('/') : ''
     if (!repository || !checks.get(repository)(relativePath)) kept.push(file)
+    else if (resultFile(file.path)) ignoredResults.push(file)
   }
-  return kept
+  if (!ignoredResults.length || ignoredResults.length > MAX_IGNORED_RESULTS) return kept
+  // 放行的排回原来的顺序里。
+  const order = new Map(files.map((file, index) => [file, index]))
+  return [...kept, ...ignoredResults].sort((left, right) => order.get(left) - order.get(right))
 }
 
 // pull、切分支、clone 带来的新文件是更新代码，不算 Agent 新建；它自己写完再 git add 或提交的仍然算。
