@@ -329,7 +329,7 @@ export function FocusTranscript({
         }, SCROLL_SAVE_DELAY_MS)
       }
       // 收起更早的对话时不自动翻页：胶囊之上没有可读内容，翻页只会白白拉历史。
-      if (!collapsed && element.scrollTop <= 96) void loadOlder()
+      if (!collapsed && event.currentTarget.scrollTop <= 96) void loadOlder()
     },
     [collapsed, loadOlder, sessionId, transcriptLoadState],
   )
