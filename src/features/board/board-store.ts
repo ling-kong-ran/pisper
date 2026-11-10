@@ -39,6 +39,7 @@ import {
   type BoardFeedState,
 } from './board-feed'
 import { notifyComponentFeedEvent } from './component-changes'
+import { markRoomFeedOffline, notifyRoomFeedEvent } from './room-changes'
 import { notifySessionWorkspaceFeedEvent } from './session-workspace-changes'
 
 export const BOARD_SESSIONS_QUERY_KEY = SESSIONS_QUERY_KEY
@@ -557,6 +558,7 @@ function stopEvents() {
   const controller = events.controller
   events.controller = null
   controller?.abort()
+  markRoomFeedOffline()
 }
 
 function clearEventsWatchdog() {
@@ -649,6 +651,7 @@ function connectEvents() {
       if (events.controller !== controller) return
       events.controller = null
       clearEventsWatchdog()
+      markRoomFeedOffline()
       // 主动中止（页面隐藏、模式切换、停止同步）由中止方负责后续，这里不重连。
       if (controller.signal.aborted || !sync.active) return
       sync.feedSettled = true
@@ -676,12 +679,15 @@ function handleFeedEvent(event: string, data: unknown): BoardFeedEffects {
     event === 'heartbeat' ||
       event === 'component_changed' ||
       event === 'catalog_changed' ||
-      event === 'session_workspace',
+      event === 'session_workspace' ||
+      event === 'room',
   )
   // 组件宿主按 component_changed 作废组件查询；重连快照可能跨过了组件事件，再通知一次 '*'。
   notifyComponentFeedEvent(event, data, result.effects.changed)
   // 开着的会话页按 session_workspace 重读协作提示（留言、谁在这里改文件）。
   notifySessionWorkspaceFeedEvent(event, data, result.effects.changed)
+  // 开着的群页面与侧栏群列表按 room 帧去取增量；重连快照通知 '*'，各自补一次。
+  notifyRoomFeedEvent(event, data, result.effects.changed)
   return result.effects
 }
 

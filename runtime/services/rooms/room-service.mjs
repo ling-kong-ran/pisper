@@ -74,10 +74,12 @@ function parseLine(line) {
 }
 
 export class RoomService {
-  constructor({ dataDir, now = () => Date.now() }) {
+  constructor({ dataDir, now = () => Date.now(), onChange = null }) {
     this.path = join(dataDir, 'pisper-rooms.json')
     this.dir = join(dataDir, 'rooms')
     this.now = now
+    // 有页面要显示的东西变了：(roomId, scope) → 看板事件流的 room 帧。只是通知，抛错不影响写入。
+    this.onChange = typeof onChange === 'function' ? onChange : null
     this.rooms = []
     // roomId → { messages, state, queue }，第一次用到时读盘。
     this.logs = new Map()
@@ -120,6 +122,14 @@ export class RoomService {
     return this.writeQueue
   }
 
+  #changed(id, scope) {
+    try {
+      this.onChange?.(id, scope)
+    } catch {
+      // 推送只是提示，页面还有兜底轮询。
+    }
+  }
+
   list() {
     return clone(this.rooms)
   }
@@ -144,6 +154,7 @@ export class RoomService {
     this.logs.set(room.id, { messages: [], state: emptyState(), queue: Promise.resolve() })
     await mkdir(this.roomDir(room.id), { recursive: true, mode: 0o700 })
     await this.save()
+    this.#changed(room.id, ['list', 'detail'])
     return clone(room)
   }
 
@@ -160,6 +171,7 @@ export class RoomService {
     this.rooms[index] = updated
     this.#indexSeats(id)
     await this.save()
+    this.#changed(id, ['list', 'detail'])
     return clone(updated)
   }
 
@@ -173,6 +185,7 @@ export class RoomService {
     this.logs.delete(id)
     await this.save()
     await rm(this.roomDir(id), { recursive: true, force: true })
+    this.#changed(id, ['list', 'deleted'])
     return true
   }
 
@@ -299,6 +312,11 @@ export class RoomService {
     return log.messages.at(-1)?.seq || 0
   }
 
+  // 同步读最后一条的序号（推送帧用）：群还没读进内存时为 0。
+  peekLastSeq(id) {
+    return this.logs.get(id)?.messages.at(-1)?.seq || 0
+  }
+
   /**
    * 追加一条消息，返回带 seq 与 id 的完整消息。
    * @param {string} id
@@ -324,6 +342,7 @@ export class RoomService {
         mode: FILE_MODE,
       })
     })
+    this.#changed(id, ['messages', 'detail'])
     return clone(message)
   }
 
@@ -342,6 +361,7 @@ export class RoomService {
         { encoding: 'utf8', mode: FILE_MODE },
       ),
     )
+    this.#changed(id, ['messages', 'detail'])
     return clone(message)
   }
 
@@ -362,6 +382,7 @@ export class RoomService {
     }
     log.messages[index] = placeholder
     await this.#rewrite(id, log)
+    this.#changed(id, ['messages', 'detail'])
     return clone(placeholder)
   }
 
@@ -400,6 +421,7 @@ export class RoomService {
     log.state.seats[botId] = seat
     this.#indexSeats(id)
     await this.#saveState(id, log)
+    this.#changed(id, ['detail'])
     return clone(seat)
   }
 
@@ -417,6 +439,7 @@ export class RoomService {
     const log = await this.load(id)
     log.state.brief = brief ? clone(brief) : null
     await this.#saveState(id, log)
+    this.#changed(id, ['detail'])
     return clone(log.state.brief)
   }
 

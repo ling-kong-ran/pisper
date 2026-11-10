@@ -1,8 +1,13 @@
-// 群聊页的数据：群详情（成员状态、简报）与消息。先读最后一页，之后轮询“某条之后的”增量
-// （同时带回还没做完的工作卡，状态会变）；有 Bot 在干活时 1.5 秒一次，否则 5 秒；页面隐藏时不刷，
-// 回到前台立刻补一次。请求按群切换或卸载时取消；乱序到达的旧群响应丢弃。
+// 群聊页的数据：群详情（成员状态、简报）与消息。先读最后一页，之后取“某条之后的”增量
+// （同时带回还没做完的工作卡，状态会变）。Runtime 推 room 帧（rooms.events）时收到这个群的帧就取，
+// 只留 25 秒一次的兜底轮询；旧 Runtime 或事件流断了时照旧轮询：有 Bot 在干活时 1.5 秒一次，否则 5 秒。
+// 页面隐藏时不刷，回到前台、事件流重连时立刻补一次。请求按群切换或卸载时取消；乱序到达的旧群响应丢弃。
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { retainBoardSync } from '@/features/board/public'
+import { roomFeedAlive, subscribeRoomChanges } from '@/features/board/room-changes'
 import { ApiError } from '@/lib/api-error'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { ROOM_BUSY_POLL_MS, roomChangeAffectsPage, roomPollDelay } from './room-live-policy'
 import { fetchRoom, fetchRoomMessages, type RoomDetail, type RoomMessage } from './rooms-api'
 
 // 合并一批消息。内容没变的那条沿用原来的对象，一条都没变时沿用原来的数组：
@@ -45,17 +50,30 @@ export function useRoomLive(roomId: string) {
   const lastSeq = useRef(0)
   const generation = useRef(0)
   const polling = useRef<Promise<void> | null>(null)
+  // 正在取的时候又来了一帧：这次取完再取一次，不漏掉取的过程中发生的变化。
+  const again = useRef(false)
+  const lastPollAt = useRef(0)
   const recalled = useRef(new Set<string>())
   const shown = useRef<RoomMessage[]>([])
   const soon = useRef(0)
   shown.current = messages
 
   const busy = (detail?.activity.working ?? 0) > 0 || messages.some(isLive)
+  const push = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features['rooms.events'] === true,
+  )
+  // room 帧走看板事件流：页面开着时持有看板同步（手机上侧栏不在时也连着）；没有推送时不必持有。
+  useEffect(() => (push ? retainBoardSync() : undefined), [push])
 
-  const poll = useCallback(async () => {
+  const poll = useCallback(async (): Promise<void> => {
     const current = generation.current
     let more = false
-    polling.current ??= Promise.all([
+    if (polling.current) {
+      again.current = true
+      return polling.current
+    }
+    lastPollAt.current = Date.now()
+    polling.current = Promise.all([
       fetchRoom(roomId),
       fetchRoomMessages(roomId, {
         after: lastSeq.current,
@@ -84,7 +102,9 @@ export function useRoomLive(roomId: string) {
         polling.current = null
       })
     await polling.current
-    if (more && current === generation.current) await poll()
+    const repeat = more || again.current
+    again.current = false
+    if (repeat && current === generation.current) await poll()
   }, [roomId])
 
   // 换群：清空、读详情与最后一页。
@@ -126,16 +146,29 @@ export function useRoomLive(roomId: string) {
 
   useEffect(() => {
     if (loading || gone) return
-    const tick = () => {
-      if (document.visibilityState === 'visible') void poll()
+    const visible = () => document.visibilityState === 'visible'
+    const now = () => {
+      if (visible()) void poll()
     }
-    const timer = window.setInterval(tick, busy ? 1_500 : 5_000)
-    document.addEventListener('visibilitychange', tick)
+    // 定时器按最勤的节奏走，每次看离上次取过了多久：推送在线时只当兜底，断了马上退回勤轮询。
+    const tick = () => {
+      if (!visible()) return
+      const delay = roomPollDelay({ push, alive: roomFeedAlive(), busy })
+      if (Date.now() - lastPollAt.current >= delay) void poll()
+    }
+    const timer = window.setInterval(tick, ROOM_BUSY_POLL_MS)
+    document.addEventListener('visibilitychange', now)
+    const unsubscribe = push
+      ? subscribeRoomChanges((change) => {
+          if (roomChangeAffectsPage(change, roomId)) now()
+        })
+      : () => {}
     return () => {
       window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', tick)
+      document.removeEventListener('visibilitychange', now)
+      unsubscribe()
     }
-  }, [busy, gone, loading, poll])
+  }, [busy, gone, loading, poll, push, roomId])
 
   // 现在刷一次，稍后再刷一次：刚发出的话要过一小会儿才贴出 Bot 的工作卡，不等到 5 秒后的下一次。
   const pollSoon = useCallback(() => {

@@ -6,7 +6,8 @@ export { useFleetSystemInfo, type FleetSystemInfo } from './useFleetSystemInfo'
 export { useSessionListQuery } from './useSessionListQuery'
 // 新任务草稿（'/board/new'）的看板一侧：项目芯片、派发偏好、“排在…之后”与第一条消息前的建会话。
 export { useNewTaskDraftChrome } from './new-task-draft'
-export { BOARD_SESSIONS_QUERY_KEY } from './board-store'
+// retainBoardSync：群聊页持有看板同步，room 帧走同一条看板事件流（手机上侧栏不在时也要连着）。
+export { BOARD_SESSIONS_QUERY_KEY, retainBoardSync } from './board-store'
 export {
   parseComponentChange,
   subscribeComponentChanges,

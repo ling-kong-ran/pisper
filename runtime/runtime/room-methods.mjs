@@ -136,6 +136,40 @@ export const roomMethods = {
     return { working, needsYou }
   },
 
+  // —— 推送：看板事件流的 room 帧只带群 id、最后一条的序号和变化范围，页面再去取增量 ——
+
+  // RoomService 写了东西（消息、补丁、撤回、席位、简报、群设定）。
+  roomStoreChanged(roomId, scope) {
+    if (this.roomsEnabled()) this.boardEvents?.roomChanged(roomId, { scope })
+  },
+
+  // 看板集线器的旁听：每个会话的每次变化都会来（流事件、审批、提问），先用一次 Map 查找筛出席位会话。
+  roomSeatTouched(sessionId) {
+    const seat = this.rooms?.seatOfSession(sessionId)
+    if (!seat || !this.roomsEnabled()) return
+    this.boardEvents?.roomChanged(seat.roomId, {
+      scope: ['messages', 'detail', 'list'],
+      probe: true,
+    })
+  },
+
+  // 群页面上会跟着席位变的那部分（状态、当前这一步、等你批准或回答什么、走到第几步）的签名：
+  // 集线器拿它判断一次探测是不是真有变化，Bot 一边说话一边吐字时不至于每秒推四帧。
+  roomLiveState(roomId) {
+    if (!this.roomsEnabled() || !this.rooms.get(roomId)) return null
+    const seats = this.rooms
+      .sessionsOfRoom(roomId)
+      .map(({ sessionId, botId }) => [
+        botId,
+        this.seatStatus(sessionId),
+        this.roomSeatTurns?.get(sessionId)?.stepCount || 0,
+      ])
+    return {
+      lastSeq: this.rooms.peekLastSeq(roomId),
+      signature: JSON.stringify([seats, Boolean(this.roomBriefRuns?.has(roomId))]),
+    }
+  },
+
   listRooms() {
     if (!this.roomsEnabled()) return []
     return this.rooms.list().map((room) => ({ ...room, activity: this.roomActivity(room.id) }))
@@ -1001,10 +1035,13 @@ export const roomMethods = {
       return brief
     })()
     this.roomBriefRuns.set(id, run)
+    // 右栏的“正在整理”跟着变。
+    this.roomStoreChanged(id, ['detail'])
     try {
       return await run
     } finally {
       this.roomBriefRuns.delete(id)
+      this.roomStoreChanged(id, ['detail'])
     }
   },
 

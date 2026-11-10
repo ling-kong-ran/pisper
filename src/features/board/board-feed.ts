@@ -4,7 +4,7 @@
 // - snapshot 整体替换条目（同时也是 resync_required 之后“丢弃旧覆盖层”的落点）；
 // - session_card 只接受修订号大于已见修订号的帧，重复与乱序帧直接丢弃；
 // - resync_required 之后、新快照到达之前的增量一律忽略，flush_failed 还要求断开重连（不带 after）；
-// - heartbeat / component_changed / session_workspace 只推进修订号，供断线后带 after 补发。
+// - heartbeat / component_changed / session_workspace / room 只推进修订号，供断线后带 after 补发。
 // 条目保存 Runtime 给出的原样审批；“正在提交决定的审批不再冒出来”在派生卡片时过滤（board-model）。
 import type { SessionSummary } from '@/types/chat'
 import {
@@ -147,7 +147,8 @@ export function applyBoardFeedEvent(
     event === 'heartbeat' ||
     event === 'component_changed' ||
     event === 'catalog_changed' ||
-    event === 'session_workspace'
+    event === 'session_workspace' ||
+    event === 'room'
   ) {
     const effects = noEffects()
     effects.changed = true

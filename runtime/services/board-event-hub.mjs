@@ -5,11 +5,16 @@
 //   每个会话两次增量至少间隔 250ms（每秒最多 4 次），尾巴等高频变化在窗口内自然合并。
 // - 没有连接时不跑任何定时器，只累计脏会话 id（有上限）；下一次连接时先补算再发快照或补发。
 // 传输细节（SSE 写出、序列化）由路由层通过连接的 send/close 回调提供，这里不依赖 HTTP 模块。
+// - room 帧（Bot 群聊）：只带群 id、最后一条的序号和变化范围，不带消息正文；页面据此再去取增量。
+//   同一个群两帧之间至少隔 250ms（同会话卡片）；“可能变了”的探测帧在 flush 时比对群的实时签名，没变就不发。
 
 /**
  * @typedef {{ id: string, session: Record<string, unknown>, card: Record<string, unknown> } | null} BoardHubItem
+ * @typedef {{ lastSeq: number, signature: string } | null} BoardRoomState
  * @typedef {{
  *   listItems: (ids: string[] | null) => Promise<Map<string, BoardHubItem>>,
+ *   onTouch?: (sessionId: string) => void,
+ *   roomState?: (roomId: string) => BoardRoomState,
  *   snapshotLimit?: number,
  *   minIntervalMs?: number,
  *   coalesceMs?: number,
@@ -49,6 +54,11 @@ const DEFAULT_MAX_QUEUED_PER_CONNECTION = 1024
 const MAX_ELIGIBILITY_ENTRIES = 4096
 // component_changed 的 reason 取值（A7，计划 §3.10）。
 const COMPONENT_CHANGE_REASONS = new Set(['files', 'state', 'instances', 'deleted', 'created'])
+// room 帧的变化范围：messages（消息新增、改动、撤回，或进行中的工作卡变了）、detail（成员状态、读到哪、
+// 简报、设定）、list（侧栏群列表：新建、改名、删除、有没有 Bot 在干活）、deleted（群被删了）。
+const ROOM_CHANGE_SCOPES = new Set(['messages', 'detail', 'list', 'deleted'])
+// 待发的 room 帧最多记这么多个群（群最多 32 个，留余量）。
+const MAX_PENDING_ROOMS = 256
 
 export class BoardEventsLimitError extends Error {
   constructor() {
@@ -72,6 +82,8 @@ export class BoardEventHub {
   /** @param {BoardEventHubOptions} options */
   constructor({
     listItems,
+    onTouch,
+    roomState,
     snapshotLimit = 500,
     minIntervalMs = BOARD_CARD_MIN_INTERVAL_MS,
     coalesceMs = DEFAULT_COALESCE_MS,
@@ -86,6 +98,9 @@ export class BoardEventHub {
     onError,
   }) {
     this.listItems = listItems
+    // 会话变化的旁听者（群聊据此认出席位会话的变化）；它抛错不影响看板。
+    this.onTouch = onTouch || null
+    this.roomState = roomState || null
     this.snapshotLimit = snapshotLimit
     this.minIntervalMs = minIntervalMs
     this.coalesceMs = coalesceMs
@@ -123,6 +138,14 @@ export class BoardEventHub {
     this.workspaceDirty = new Set()
     /** @type {ReturnType<typeof setTimeout> | null} */
     this.workspaceTimer = null
+    /** @type {Map<string, { scope: Set<string>, probe: boolean }>} */
+    this.roomPending = new Map()
+    /** @type {Map<string, number>} */
+    this.roomLastSent = new Map()
+    /** @type {Map<string, string>} */
+    this.roomSignatures = new Map()
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this.roomTimer = null
     /** @type {Promise<void>} */
     this.queue = Promise.resolve()
     this.disposed = false
@@ -131,6 +154,11 @@ export class BoardEventHub {
   /** 会话卡片可能变化：只记脏标记，有连接时再安排 flush。 @param {string} sessionId */
   touch(sessionId) {
     if (this.disposed || typeof sessionId !== 'string' || !sessionId) return
+    try {
+      this.onTouch?.(sessionId)
+    } catch (error) {
+      this.onError?.(error)
+    }
     if (!this.dirty.has(sessionId) && this.dirty.size >= this.maxDirty) {
       // 记不下哪些会话变了：清空并把修订号推进一格作为缺口，带旧修订号重连的客户端会收到 resync_required。
       this.dirty.clear()
@@ -199,6 +227,84 @@ export class BoardEventHub {
         ...extra,
       }))
     })
+  }
+
+  /**
+   * Bot 群聊里有页面要显示的东西变了。scope 见 ROOM_CHANGE_SCOPES；probe 表示“可能变了”
+   * （席位会话的任何流事件都会来一次）：flush 时比对 roomState 给出的签名，没变就不发。
+   * 同一个群在节流窗口内的多次变化合并成一帧（范围取并集）。只做加法，旧客户端忽略 room 帧。
+   * @param {string} roomId
+   * @param {{ scope?: string[], probe?: boolean }} [change]
+   */
+  roomChanged(roomId, { scope = [], probe = false } = {}) {
+    if (this.disposed || typeof roomId !== 'string' || !roomId) return
+    let pending = this.roomPending.get(roomId)
+    if (!pending) {
+      if (this.roomPending.size >= MAX_PENDING_ROOMS) return
+      pending = { scope: new Set(), probe: true }
+      this.roomPending.set(roomId, pending)
+    }
+    for (const item of scope) if (ROOM_CHANGE_SCOPES.has(item)) pending.scope.add(item)
+    if (!probe) pending.probe = false
+    this.scheduleRoomFlush()
+  }
+
+  scheduleRoomFlush() {
+    if (this.roomTimer || this.disposed || !this.roomPending.size) return
+    const now = this.now()
+    let delay = Number.POSITIVE_INFINITY
+    for (const id of this.roomPending.keys()) {
+      const sentAt = this.roomLastSent.get(id) ?? Number.NEGATIVE_INFINITY
+      delay = Math.min(delay, Math.max(this.coalesceMs, sentAt + this.minIntervalMs - now))
+    }
+    this.roomTimer = setTimeout(
+      () => {
+        this.roomTimer = null
+        if (this.disposed) return
+        this.enqueue(async () => this.flushRooms())
+      },
+      Math.max(0, delay),
+    )
+    this.roomTimer.unref?.()
+  }
+
+  flushRooms() {
+    if (this.disposed) return
+    const now = this.now()
+    for (const [id, pending] of [...this.roomPending]) {
+      const sentAt = this.roomLastSent.get(id) ?? Number.NEGATIVE_INFINITY
+      if (now - sentAt < this.minIntervalMs) continue
+      this.roomPending.delete(id)
+      const deleted = pending.scope.has('deleted')
+      /** @type {BoardRoomState} */
+      let state = null
+      if (!deleted && this.roomState) {
+        try {
+          state = this.roomState(id)
+        } catch (error) {
+          this.onError?.(error)
+        }
+      }
+      if (pending.probe && !deleted && this.roomState) {
+        // 群不在了（或群聊关着），或者签名和上次发出去的一样：这次探测没有可显示的变化。
+        if (!state || state.signature === this.roomSignatures.get(id)) continue
+      }
+      if (state) this.roomSignatures.set(id, state.signature)
+      else this.roomSignatures.delete(id)
+      this.roomLastSent.set(id, now)
+      const scope = [...pending.scope]
+      this.publish('room', `room:${id}`, (revision) => ({
+        revision,
+        roomId: id,
+        lastSeq: state && Number.isSafeInteger(state.lastSeq) ? state.lastSeq : 0,
+        scope,
+        ...(deleted ? { deleted: true } : {}),
+      }))
+    }
+    for (const [id, sentAt] of this.roomLastSent)
+      if (now - sentAt >= this.minIntervalMs && !this.roomPending.has(id))
+        this.roomLastSent.delete(id)
+    this.scheduleRoomFlush()
   }
 
   /** @param {number} delay */
@@ -489,6 +595,11 @@ export class BoardEventHub {
     if (this.workspaceTimer) clearTimeout(this.workspaceTimer)
     this.workspaceTimer = null
     this.workspaceDirty.clear()
+    if (this.roomTimer) clearTimeout(this.roomTimer)
+    this.roomTimer = null
+    this.roomPending.clear()
+    this.roomLastSent.clear()
+    this.roomSignatures.clear()
     for (const connection of [...this.connections]) this.closeConnection(connection)
     this.stopTimers()
     this.buffer = []

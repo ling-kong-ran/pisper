@@ -772,7 +772,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       },
     })
     // Bot 群聊：一份共用的聊天记录，每个 Bot 在每个群里一条席位会话（见 room-methods.mjs）。
-    this.rooms = new RoomService({ dataDir })
+    // 群里有页面要显示的东西变了：经看板事件流推一帧 room（不带正文），页面再去取增量。
+    this.rooms = new RoomService({
+      dataDir,
+      onChange: (roomId, scope) => this.roomStoreChanged?.(roomId, scope),
+    })
     // 每个 Bot 的记忆是引擎里的一个独立空间：只写自己的，全局默认只读。
     this.botMemory = new BotMemoryService({
       dataDir,
@@ -861,6 +865,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     })
     this.boardEvents = new BoardEventHub({
       listItems: (ids) => this.boardHubItems(ids),
+      // 席位会话的每次变化都“可能”改了群页面（在做哪一步、等你批准）：交给群聊判断，签名没变不发帧。
+      onTouch: (id) => this.roomSeatTouched?.(id),
+      roomState: (roomId) => this.roomLiveState?.(roomId) ?? null,
       snapshotLimit: BOARD_SNAPSHOT_LIMIT,
       onError: () => console.warn('Could not refresh the board event stream.'),
     })

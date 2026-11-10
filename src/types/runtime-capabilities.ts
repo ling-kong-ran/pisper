@@ -39,6 +39,7 @@ export type RuntimeFeature =
   | 'inputInterrupt'
   | 'betaFeatures'
   | 'bots'
+  | 'rooms.events'
   | 'remoteMachines'
   | 'codemode'
 
@@ -105,6 +106,8 @@ const fullFeatures = {
   betaFeatures: false,
   // Bots：旧 Runtime 没有这组接口。
   bots: false,
+  // 群聊推送：旧 Runtime 没有，群页面与侧栏照旧轮询。
+  'rooms.events': false,
   // 远程机器：旧 Runtime 没有这组接口。
   remoteMachines: false,
   // codemode：旧 Runtime 没有声明时插件页不显示该开关。

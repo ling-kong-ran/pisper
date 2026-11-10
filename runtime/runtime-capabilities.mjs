@@ -130,6 +130,8 @@ function buildCapabilities({
     betaFeatures: BETA_FEATURES.length > 0,
     // Bots（B1 起）：依赖渠道、定时任务与本机工作目录，只在桌面档案提供。
     bots: !embedded,
+    // 群聊推送：看板事件流上的 room 帧（只带群 id、序号和变化范围），群页面与侧栏据此刷新，只留慢速兜底轮询。
+    'rooms.events': !embedded,
     // 远程机器：SSH 要拉起系统的 ssh，执行节点要连回桌面端的远程访问；手机端不能发起，连到桌面端时用桌面端配好的。
     remoteMachines: processes && !embedded,
     // codemode 脚本跑在 worker + QuickJS(wasm) 沙箱；手机端未验证（iOS 嵌入式 Node 无 JIT），先不提供。

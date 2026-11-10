@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { createApiHandler } from '../http/api-handler.mjs'
+import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { roomMethods } from '../runtime/room-methods.mjs'
 import { BotLinkService } from '../services/bots/bot-links.mjs'
@@ -53,7 +54,11 @@ async function fakeRuntime({
   bots = [bot(KE, '小克'), bot(PRO, '小克pro'), bot(FISH, '肥鱼')],
 } = {}) {
   const dataDir = await tempDir()
-  const rooms = new RoomService({ dataDir })
+  // 写入后的变化通知照真实接线转给运行时（init 不发通知，这时 runtime 还没建好也无妨）。
+  const rooms = new RoomService({
+    dataDir,
+    onChange: (roomId, scope) => runtime.roomStoreChanged(roomId, scope),
+  })
   await rooms.init()
   const registry = new Map(bots.map((item) => [item.id, item]))
   const runtime = Object.create(AgentRuntimeFacade.prototype)
@@ -72,6 +77,11 @@ async function fakeRuntime({
     startingRuns: new Map(),
     botPendingTrust: new Map(),
     botLinks: new BotLinkService(),
+    // 看板事件流只记下 room 帧的请求（集线器自己的合并与节流另有测试）。
+    roomFrames: [],
+    boardEvents: {
+      roomChanged: (roomId, change) => runtime.roomFrames.push({ roomId, ...change }),
+    },
     bots: {
       list: () => [...registry.values()].map((item) => ({ ...item })),
       get: (id) => (registry.has(id) ? { ...registry.get(id) } : null),
@@ -1064,4 +1074,176 @@ test('timeline keys move message by message and act only on a focused message', 
   assert.equal(timelineKeyAction(key('Enter'), card('done'), 1, 3, false), null)
   assert.equal(timelineKeyAction(key('r', { metaKey: true }), user, 0, 3, true), null)
   assert.equal(timelineKeyAction(key('ArrowDown', { altKey: true }), user, 0, 3, true), null)
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function waitFor(check, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const value = check()
+    if (value) return value
+    if (Date.now() > deadline) throw new Error('timed out')
+    await sleep(5)
+  }
+}
+
+test('room changes reach the board stream as small hints, never message bodies', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  assert.deepEqual(runtime.roomFrames.at(-1), { roomId: room.id, scope: ['list', 'detail'] })
+  runtime.roomFrames.length = 0
+
+  // 追加：消息与详情（未读数、最后一条）。
+  const { message } = await runtime.postRoomMessage(room.id, { text: '机密的正文' })
+  assert.deepEqual(runtime.roomFrames, [{ roomId: room.id, scope: ['messages', 'detail'] }])
+  // 补丁、撤回也一样；席位与简报只动详情。
+  await runtime.rooms.patch(room.id, message.id, { mentions: [] })
+  await runtime.recallRoomMessage(room.id, message.id)
+  await runtime.rooms.setSeat(room.id, PRO, { sessionId: 'seat-x' })
+  await runtime.editRoomBrief(room.id, { decisions: ['先做撤回'] })
+  assert.deepEqual(
+    runtime.roomFrames.slice(1).map((frame) => frame.scope),
+    [['messages', 'detail'], ['messages', 'detail'], ['detail'], ['detail']],
+  )
+  assert.doesNotMatch(JSON.stringify(runtime.roomFrames), /机密/)
+
+  // 席位会话的任何变化都是一次“可能变了”的探测；别的会话不算。
+  runtime.roomFrames.length = 0
+  runtime.roomSeatTouched('seat-x')
+  runtime.roomSeatTouched('some-other-session')
+  assert.deepEqual(runtime.roomFrames, [
+    { roomId: room.id, scope: ['messages', 'detail', 'list'], probe: true },
+  ])
+  // 探测比的是群的实时签名：席位开始干活、走到下一步时签名变；没变时集线器不发帧。
+  const idle = runtime.roomLiveState(room.id)
+  assert.equal(idle.lastSeq, 1)
+  assert.equal(runtime.roomLiveState(room.id).signature, idle.signature)
+  runtime.running.add('seat-x')
+  const running = runtime.roomLiveState(room.id)
+  assert.notEqual(running.signature, idle.signature)
+  runtime.onSeatRunStart('seat-x')
+  runtime.observeSeatEvent('seat-x', 'tool_start', { name: 'bash', args: { command: 'ls' } })
+  assert.notEqual(runtime.roomLiveState(room.id).signature, running.signature)
+  await runtime.roomSeatTurns.get('seat-x').ready
+
+  // 删群：列表 + deleted。
+  runtime.running.clear()
+  runtime.roomFrames.length = 0
+  await runtime.deleteRoom(room.id)
+  assert.deepEqual(runtime.roomFrames, [{ roomId: room.id, scope: ['list', 'deleted'] }])
+  assert.equal(runtime.roomLiveState(room.id), null)
+
+  // Labs 关着：不发帧。
+  const other = await runtime.createRoom({ name: '后端小组', members: [KE] })
+  runtime.labsOn = false
+  runtime.roomFrames.length = 0
+  await runtime.rooms.append(other.id, { author: { kind: 'user' }, text: 'x', mentions: [] })
+  assert.deepEqual(runtime.roomFrames, [])
+})
+
+test('the board hub merges a burst into one room frame, drops probes that changed nothing and throttles each room', async () => {
+  const ROOM = 'room_AAAAAAAAAA'
+  let signature = 'idle'
+  const hub = new BoardEventHub({
+    listItems: async () => new Map(),
+    roomState: (roomId) => (roomId === ROOM ? { lastSeq: 7, signature } : null),
+    minIntervalMs: 80,
+    coalesceMs: 5,
+  })
+  const frames = []
+  const { ready } = hub.connect({
+    send: (event, data) => {
+      if (event === 'room') frames.push({ ...data, sentAt: Date.now() })
+    },
+    close: () => {},
+  })
+  await ready
+  try {
+    // 一阵变化（工具一秒好几步）合成一帧，范围取并集，认不出的范围丢掉。
+    for (let index = 0; index < 10; index += 1) hub.roomChanged(ROOM, { scope: ['messages'] })
+    hub.roomChanged(ROOM, { scope: ['detail', 'bogus'] })
+    await waitFor(() => frames.length === 1)
+    assert.deepEqual(frames[0].scope, ['messages', 'detail'])
+    assert.equal(frames[0].roomId, ROOM)
+    assert.equal(frames[0].lastSeq, 7)
+    assert.equal(typeof frames[0].revision, 'number')
+
+    // 签名没变的探测（Bot 在吐字，页面上没东西可变）：flush 掉，但不发帧。
+    hub.roomChanged(ROOM, { scope: ['messages'], probe: true })
+    await waitFor(() => hub.roomPending.size === 0)
+    await hub.queue
+    assert.equal(frames.length, 1)
+
+    // 签名变了（走到下一步）：发，而且离上一帧至少隔一个节流窗口。
+    signature = 'running · step 1'
+    hub.roomChanged(ROOM, { scope: ['messages', 'detail', 'list'], probe: true })
+    await waitFor(() => frames.length === 2)
+    assert.ok(frames[1].sentAt - frames[0].sentAt >= 70)
+    hub.roomChanged(ROOM, { scope: ['messages'] })
+    await waitFor(() => frames.length === 3)
+    assert.ok(frames[2].sentAt - frames[1].sentAt >= 70)
+
+    // 不认识的群的探测不发；删群一定发，带 deleted。
+    hub.roomChanged('room_BBBBBBBBBB', { scope: ['messages'], probe: true })
+    hub.roomChanged('room_BBBBBBBBBB', { scope: ['list', 'deleted'] })
+    await waitFor(() => frames.length === 4)
+    assert.deepEqual(
+      { roomId: frames[3].roomId, scope: frames[3].scope, deleted: frames[3].deleted },
+      { roomId: 'room_BBBBBBBBBB', scope: ['messages', 'list', 'deleted'], deleted: true },
+    )
+    // 补发：带 after 重连时 room 帧也在缓冲里。
+    assert.ok(hub.buffer.some((entry) => entry.event === 'room'))
+  } finally {
+    hub.dispose()
+  }
+  assert.equal(hub.roomTimer, null)
+})
+
+test('the room page and sidebar refresh on frames for them and keep a slow fallback poll', async () => {
+  const { notifyRoomFeedEvent, parseRoomChange, roomFeedAlive, subscribeRoomChanges } =
+    await import('../../src/features/board/room-changes.ts')
+  const policy = await import('../../src/features/bots/room-live-policy.ts')
+  const { applyBoardFeedEvent, emptyBoardFeed } =
+    await import('../../src/features/board/board-feed.ts')
+  const ROOM = 'room_AAAAAAAAAA'
+  // 帧按不可信数据解析：群 id 要像样，范围只认几种。
+  assert.equal(parseRoomChange({ roomId: 'nope', scope: ['messages'] }), null)
+  assert.deepEqual(parseRoomChange({ roomId: ROOM, lastSeq: 3, scope: ['detail', 'x'] }), {
+    roomId: ROOM,
+    lastSeq: 3,
+    scope: ['detail'],
+    deleted: false,
+  })
+  const seen = []
+  const unsubscribe = subscribeRoomChanges((change) => seen.push(change))
+  notifyRoomFeedEvent('room', { roomId: ROOM, lastSeq: 4, scope: ['messages'] }, true, 1_000)
+  notifyRoomFeedEvent('room', { roomId: ROOM, scope: ['messages'] }, false, 1_000)
+  notifyRoomFeedEvent('snapshot', { revision: 1, items: [] }, true, 1_000)
+  notifyRoomFeedEvent('heartbeat', { revision: 2 }, true, 1_000)
+  unsubscribe()
+  assert.deepEqual(seen, [{ roomId: ROOM, lastSeq: 4, scope: ['messages'], deleted: false }, '*'])
+  assert.equal(roomFeedAlive(1_000 + 10_000), true)
+  assert.equal(roomFeedAlive(1_000 + 60_000), false)
+
+  // 看板数据层把 room 帧当作只推进修订号的帧，不改条目。
+  const feed = { ...emptyBoardFeed('events'), ready: true, revision: 10 }
+  const result = applyBoardFeedEvent(feed, 'room', { revision: 11, roomId: ROOM, scope: [] })
+  assert.equal(result.feed.revision, 11)
+  assert.equal(result.effects.changed, true)
+  assert.deepEqual(result.feed.entries, {})
+
+  // 推送在线：25 / 30 秒兜底；没有推送或断了：照旧 1.5 / 5 秒、3 / 10 秒。
+  assert.equal(policy.roomPollDelay({ push: true, alive: true, busy: true }), 25_000)
+  assert.equal(policy.roomPollDelay({ push: true, alive: false, busy: true }), 1_500)
+  assert.equal(policy.roomPollDelay({ push: false, alive: true, busy: false }), 5_000)
+  assert.equal(policy.roomListPollDelay({ push: true, alive: true, busy: true }), 30_000)
+  assert.equal(policy.roomListPollDelay({ push: false, alive: false, busy: true }), 3_000)
+  const change = (scope, roomId = ROOM) => ({ roomId, lastSeq: 1, scope, deleted: false })
+  assert.equal(policy.roomChangeAffectsPage('*', ROOM), true)
+  assert.equal(policy.roomChangeAffectsPage(change(['messages']), ROOM), true)
+  assert.equal(policy.roomChangeAffectsPage(change(['list']), ROOM), false)
+  assert.equal(policy.roomChangeAffectsPage(change(['messages'], 'room_BBBBBBBBBB'), ROOM), false)
+  assert.equal(policy.roomChangeAffectsList(change(['messages', 'detail'])), false)
+  assert.equal(policy.roomChangeAffectsList(change(['list'])), true)
+  assert.equal(policy.roomChangeAffectsList({ ...change([]), deleted: true }), true)
 })
