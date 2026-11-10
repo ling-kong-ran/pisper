@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir, userInfo } from 'node:os'
@@ -621,9 +621,10 @@ test('a password machine connects only to the host key the user confirmed', asyn
   })
   const spawnProcess = (file, spawnArgs, options) => {
     const child = fetch.spawnProcess(file, spawnArgs, options)
-    // 假的 ssh 在“握手”时把公钥写进它被指到的 known_hosts。
+    // 假的 ssh 在“握手”时把公钥写进它被指到的 known_hosts。同步写：异步写时假进程可能先“退出”，
+    // 被测代码读到空文件，测试时好时坏。
     const knownHosts = optionValue(spawnArgs, 'UserKnownHostsFile')
-    if (knownHosts) writeFile(knownHosts, knownHostsLine(HOST_KEY)).catch(() => {})
+    if (knownHosts) writeFileSync(knownHosts, knownHostsLine(HOST_KEY))
     return child
   }
   const fetched = await new SshExecutor({
