@@ -56,7 +56,16 @@ export const truncateHead = truncate.truncateHead
 export const applyEditsToNormalizedContent = editDiff.applyEditsToNormalizedContent
 export const generateUnifiedPatch = editDiff.generateUnifiedPatch
 export const normalizeToLF = editDiff.normalizeToLF
-export const detectLineEnding = editDiff.detectLineEnding
+// Pi 1.5.2 起编辑按每一行原来的换行写回，不再导出整文件的 detectLineEnding；文件改动统计仍要按
+// 整个文件判断 CRLF/LF，这里沿用 Pi 1.5.0 的规则：第一个换行是 \r\n 就算 CRLF。
+export const detectLineEnding =
+  editDiff.detectLineEnding ??
+  ((content) => {
+    const crlf = content.indexOf('\r\n')
+    const lf = content.indexOf('\n')
+    if (lf === -1 || crlf === -1) return '\n'
+    return crlf < lf ? '\r\n' : '\n'
+  })
 // 保留预览调用方的 { bom, text } 合同；新版 Pi 将该能力命名为 splitBom。
 export const stripBom = textUtils.splitBom
 // 会话消息（含 bash 执行、压缩摘要等自定义类型）转换为发给模型的消息，与 Pi 代理循环同一口径。

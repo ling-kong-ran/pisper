@@ -80,3 +80,16 @@ test('file source fingerprints invalidate a preview after an external change', a
 
   assert.equal(sameFileChangeSource(first, second), false)
 })
+
+test('every helper re-exported from Pi still exists after a Pi upgrade', async () => {
+  // 发版前会自动把 Pi 升到最新：Pi 改名或删掉某个导出时，这里先失败，而不是到运行时才报
+  // “xxx is not a function”（Pi 1.5.2 删了 detectLineEnding，文件改动统计整块失效）。
+  const pi = await import('../runtime/pi-coding-agent.mjs')
+  const missing = Object.entries(pi)
+    .filter(([, value]) => value === undefined)
+    .map(([name]) => name)
+  assert.deepEqual(missing, [])
+  assert.equal(pi.detectLineEnding('a\r\nb\nc'), '\r\n')
+  assert.equal(pi.detectLineEnding('a\nb\r\nc'), '\n')
+  assert.equal(pi.detectLineEnding('no newline'), '\n')
+})
