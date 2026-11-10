@@ -94,6 +94,12 @@ export function selectUnread({ messages, readSeq, late = [], selfId, budget, nam
       : message.author?.kind === 'bot'
         ? clip(message.text, ROOM_BOT_REPLY_CLIP_CHARS, message.seq)
         : String(message.text || '')
+    // 附件只带名字（撤回的占位没有附件）。
+    const files = message.recalled
+      ? []
+      : (Array.isArray(message.attachments) ? message.attachments : []).map((file) =>
+          String(file?.name || 'attachment'),
+        )
     const item = {
       seq: message.seq,
       time: time(message.at),
@@ -102,8 +108,13 @@ export function selectUnread({ messages, readSeq, late = [], selfId, budget, nam
       ...(message.replyTo && bySeq.has(message.replyTo)
         ? { replyToSeq: bySeq.get(message.replyTo) }
         : {}),
+      ...(files.length ? { attachments: files } : {}),
     }
-    const size = item.text.length + item.author.length + 24
+    const size =
+      item.text.length +
+      item.author.length +
+      24 +
+      files.reduce((sum, file) => sum + file.length + 2, 0)
     if (items.length && used + size > budget) break
     // 单条就超过整份预算：截到预算以内，不至于一条也送不进去。
     if (size > budget) item.text = `${item.text.slice(0, Math.max(0, budget - 200))}…`

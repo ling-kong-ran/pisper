@@ -28,9 +28,23 @@ function memberLine(member, selfId) {
   return `- ${member.name}${member.paused ? ' (paused)' : ''}${duty ? `: ${duty}` : ''}`
 }
 
+// 消息带的附件只写名字：内容只送给被这条消息叫醒的 Bot（走正常的附件上下文），别的 Bot 读到时只知道有这几个文件。
+export function roomAttachmentsNote(names) {
+  return names.length ? `[attached: ${names.map((name) => oneLine(name, 120)).join(', ')}]` : ''
+}
+
+// 并在一次叫醒里的附件超出会话的上限、或上传的文件已经不在了：只告诉它名字。
+export function roomSkippedAttachmentsNote(names) {
+  return names.length
+    ? `[Attachments not delivered (over the limit or no longer stored): ${names.map((name) => oneLine(name, 120)).join(', ')}. Ask the user to resend them if you need them.]`
+    : ''
+}
+
 function messageLine(item) {
   const reply = item.replyToSeq ? ` (replying to #${item.replyToSeq})` : ''
-  return `#${item.seq} ${item.time} ${item.author}${reply}: ${item.text}`
+  const files = roomAttachmentsNote(item.attachments || [])
+  const body = [item.text, files].filter(Boolean).join(' ')
+  return `#${item.seq} ${item.time} ${item.author}${reply}: ${body}`
 }
 
 function reasonLine(reason) {
@@ -52,7 +66,7 @@ function reasonLine(reason) {
  *   members: { id: string, name: string, instructions?: string, paused?: boolean }[],
  *   brief?: { decisions: string[], todos: { text: string, owner: string, done: boolean }[], upToSeq: number } | null,
  *   ownerName?: (id: string) => string,
- *   items: { seq: number, time: string, author: string, text: string, replyToSeq?: number }[],
+ *   items: { seq: number, time: string, author: string, text: string, replyToSeq?: number, attachments?: string[] }[],
  *   omitted: number,
  *   recalled: number[],
  *   reasons: Record<string, any>[],

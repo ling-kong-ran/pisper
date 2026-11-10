@@ -23,6 +23,7 @@ import {
   isPassReply,
   mentionsEveryone,
   normalizeBrief,
+  normalizeRoomAttachments,
   normalizeUserRoomMessage,
   parseBriefReply,
   parseMentions,
@@ -95,9 +96,41 @@ async function fakeRuntime({
       runtime.runs.push(input)
       return { sessionId: input.sessionId, text: '', error: '' }
     },
+    // 资产库：和真的一样同内容只存一份，重复的记成引用。
+    assets: new Map(),
+    createAsset: async (input) => {
+      const buffer =
+        input.text !== undefined
+          ? Buffer.from(String(input.text), 'utf8')
+          : Buffer.from(String(input.data || ''), 'base64')
+      const entry = { source: input.source, sessionId: input.sessionId || '' }
+      const existing = [...runtime.assets.values()].find((asset) => asset.buffer.equals(buffer))
+      if (existing) {
+        existing.references.push(entry)
+        return { id: existing.id }
+      }
+      const id = `asset-${runtime.assets.size + 1}`
+      runtime.assets.set(id, { id, ...entry, name: input.name, buffer, references: [] })
+      return { id }
+    },
+    findAsset: (id) => runtime.assets.get(id),
+    getAssetDownload: async (id) => {
+      const asset = runtime.assets.get(id)
+      return asset ? { size: asset.buffer.length, buffer: asset.buffer } : null
+    },
+    deleteAsset: async (id) => runtime.assets.delete(id),
   })
   return runtime
 }
+
+const PNG = Buffer.from('fake png bytes').toString('base64')
+const image = (name = 'shot.png', data = PNG) => ({
+  kind: 'image',
+  name,
+  mimeType: 'image/png',
+  size: 14,
+  data,
+})
 
 // 模拟席位会话跑完一轮：开始 → 会话里留下这一轮的回复 → 结束。
 async function finishTurn(runtime, sessionId, reply, { error = '' } = {}) {
@@ -801,4 +834,234 @@ test('a seat picks up new bot settings when it is next woken; a removed member l
   assert.equal(runtime.roomSeatOf(seat), null)
   await runtime.rooms.update(room.id, { members: [KE, PRO] })
   assert.deepEqual(runtime.roomSeatOf(seat), { roomId: room.id, botId: PRO })
+})
+
+test('attachments are checked like the session composer: count, size, kind and absolute paths', () => {
+  const tooMany = Array.from({ length: 9 }, (_, index) => image(`p${index}.png`))
+  assert.throws(() => normalizeRoomAttachments(tooMany), /limit/)
+  const big = Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64')
+  assert.throws(() => normalizeRoomAttachments([image('big.png', big)]), /too large/)
+  assert.throws(() => normalizeRoomAttachments([image('bad.png', 'not base64!')]), /invalid/)
+  assert.throws(
+    () => normalizeRoomAttachments([{ kind: 'binary', name: 'a.exe', data: PNG }]),
+    /not supported/,
+  )
+  assert.throws(
+    () => normalizeRoomAttachments([{ kind: 'path', name: 'x', path: 'relative/x.ts' }]),
+    /absolute/,
+  )
+  assert.throws(
+    () => normalizeRoomAttachments([{ kind: 'document', name: 'a.zip', data: PNG }]),
+    /not supported/,
+  )
+  // 实际大小按内容算，不信客户端报的；没写 MIME 的图片按扩展名补上。
+  const [png, note, file] = normalizeRoomAttachments([
+    { ...image(), size: 1, mimeType: '' },
+    { kind: 'text', name: 'notes.md', text: '要点' },
+    { kind: 'path', name: 'app.ts', path: '/repo/src/app.ts' },
+  ])
+  assert.equal(png.size, 14)
+  assert.equal(png.mimeType, 'image/png')
+  assert.equal(note.size, Buffer.byteLength('要点'))
+  assert.equal(file.path, '/repo/src/app.ts')
+  // 只带附件、不写字也能发；什么都没有才算空。
+  const only = normalizeUserRoomMessage({ attachments: [image()] }, [KE], () => true)
+  assert.equal(only.text, '')
+  assert.equal(only.attachments.length, 1)
+  assert.throws(() => normalizeUserRoomMessage({ attachments: [] }, [KE], () => true), /required/)
+})
+
+test('attachments reach the woken seat like a normal prompt; the log keeps only references', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const posted = await runtime.postRoomMessage(room.id, {
+    text: '@小克pro 看看这张图',
+    attachments: [
+      image(),
+      { kind: 'text', name: 'notes.md', text: 'secret notes' },
+      { kind: 'path', name: 'app.ts', path: '/repo/src/app.ts' },
+    ],
+  })
+  await settle(runtime)
+  assert.deepEqual(
+    posted.message.attachments.map((ref) => [ref.kind, ref.name, ref.id || ref.path]),
+    [
+      ['image', 'shot.png', 'asset-1'],
+      ['text', 'notes.md', 'asset-2'],
+      ['path', 'app.ts', '/repo/src/app.ts'],
+    ],
+  )
+  const log = await readFile(join(runtime.dataDir, 'rooms', room.id, 'messages.jsonl'), 'utf8')
+  assert.doesNotMatch(log, new RegExp(PNG))
+  assert.doesNotMatch(log, /secret notes/)
+  const [run] = runtime.runs
+  assert.deepEqual(
+    run.attachments.map((item) => [item.kind, item.name]),
+    [
+      ['image', 'shot.png'],
+      ['text', 'notes.md'],
+      ['path', 'app.ts'],
+    ],
+  )
+  assert.equal(run.attachments[0].data, PNG)
+  assert.equal(run.attachments[0].mimeType, 'image/png')
+  assert.equal(run.attachments[1].text, 'secret notes')
+  assert.equal(run.attachments[2].path, '/repo/src/app.ts')
+  assert.equal(run.message.split(ATTACHMENT_MARKER)[0], '@小克pro 看看这张图')
+
+  // 只发附件：看得见的那句是文件名。
+  await runtime.postRoomMessage(room.id, {
+    attachments: [image('two.png', 'dHdv')],
+    recipients: [PRO],
+  })
+  await settle(runtime)
+  assert.equal(runtime.runs[1].message.split(ATTACHMENT_MARKER)[0], '[attached: two.png]')
+  assert.equal(runtime.runs[1].attachments[0].data, 'dHdv')
+})
+
+test('a busy seat gets the attachments with the queued wake', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(PRO))
+  runtime.running.add(seat)
+  runtime.sessions.set(seat, { session: { isStreaming: true, messages: [] } })
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 顺便看图', attachments: [image()] })
+  await settle(runtime)
+  assert.equal(runtime.queued.length, 1)
+  assert.equal(runtime.queued[0].attachments[0].data, PNG)
+})
+
+test('other bots read only the attachment names; the content goes to the woken bot alone', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  await runtime.postRoomMessage(room.id, {
+    text: '@小克pro 先看这份',
+    attachments: [{ kind: 'text', name: 'plan.md', text: 'the full plan body' }],
+  })
+  await settle(runtime)
+  await runtime.postRoomMessage(room.id, { text: '@小克 你也跟一下' })
+  await settle(runtime)
+  const ke = runtime.runs.find((run) => run.message.startsWith('@小克 '))
+  assert.deepEqual(ke.attachments, [])
+  const context = ke.message.split(ATTACHMENT_MARKER)[1]
+  assert.match(context, /#1 .*user: @小克pro 先看这份 \[attached: plan\.md\]/)
+  assert.doesNotMatch(context, /the full plan body/)
+})
+
+test('a recall scrubs the references and deletes files only that message used', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  const kept = await runtime.postRoomMessage(room.id, {
+    text: '留着',
+    attachments: [image('a.png')],
+  })
+  const twice = await runtime.postRoomMessage(room.id, {
+    text: '同一张',
+    attachments: [image('b.png')],
+  })
+  const alone = await runtime.postRoomMessage(room.id, {
+    text: '密钥截图',
+    attachments: [{ kind: 'text', name: 'key.txt', text: 'sk-secret' }],
+  })
+  const seen = await runtime.postRoomMessage(room.id, {
+    text: '给 Bot 看过',
+    attachments: [{ kind: 'text', name: 'seen.txt', text: 'already delivered' }],
+  })
+  // Bot 收到过这一份：它的席位会话里也存了一份引用。
+  const seenId = seen.message.attachments[0].id
+  runtime.assets.get(seenId).references.push({ source: 'attachment', sessionId: 'seat-1' })
+
+  await runtime.recallRoomMessage(room.id, alone.message.id)
+  await runtime.recallRoomMessage(room.id, twice.message.id)
+  await runtime.recallRoomMessage(room.id, seen.message.id)
+  const log = await readFile(join(runtime.dataDir, 'rooms', room.id, 'messages.jsonl'), 'utf8')
+  assert.doesNotMatch(log, /key\.txt|seen\.txt|b\.png/)
+  assert.equal(runtime.assets.has(alone.message.attachments[0].id), false)
+  // 同内容只存一份：还有没撤回的消息在用，不删。Bot 收到过的也不删。
+  assert.equal(twice.message.attachments[0].id, kept.message.attachments[0].id)
+  assert.equal(runtime.assets.has(kept.message.attachments[0].id), true)
+  assert.equal(runtime.assets.has(seenId), true)
+  const placeholder = (await runtime.rooms.messages(room.id)).find(
+    (message) => message.id === alone.message.id,
+  )
+  assert.equal(placeholder.attachments, undefined)
+})
+
+test('the room page shows attachments through the session attachment shape', async () => {
+  const { roomAttachmentViews } = await import('../../src/features/bots/room-presentation.ts')
+  const { parseRoomMessage } = await import('../../src/features/bots/rooms-api.ts')
+  const message = parseRoomMessage({
+    seq: 1,
+    id: 'msg_aaaaaaaa',
+    author: { kind: 'user' },
+    text: '',
+    attachments: [
+      { id: 'asset-1', kind: 'image', name: 'shot.png', mimeType: 'image/png', size: 14 },
+      { kind: 'path', name: 'app.ts', path: '/repo/src/app.ts' },
+      { kind: 'image', name: 'no id' },
+      { id: 'asset-2', kind: 'binary', name: 'x' },
+    ],
+  })
+  assert.equal(message.attachments.length, 2)
+  const [shot, file] = roomAttachmentViews(message.attachments)
+  assert.equal(shot.url, '/api/assets/asset-1/download?inline=1')
+  assert.equal(shot.downloadUrl, '/api/assets/asset-1/download')
+  assert.equal(file.id, 'path:/repo/src/app.ts')
+  assert.equal(file.path, '/repo/src/app.ts')
+  assert.equal(file.url, undefined)
+})
+
+test('timeline keys move message by message and act only on a focused message', async () => {
+  const { timelineKeyAction } = await import('../../src/features/bots/room-presentation.ts')
+  const key = (value, extra = {}) => ({
+    key: value,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    ...extra,
+  })
+  const base = { seq: 1, at: '', text: '', attachments: [], mentions: [], replyTo: '' }
+  const user = {
+    kind: 'user',
+    round: null,
+    message: { ...base, id: 'm1', author: { kind: 'user' } },
+  }
+  const card = (state) => ({
+    kind: 'card',
+    handoff: null,
+    message: {
+      ...base,
+      id: 'm2',
+      author: { kind: 'bot', botId: KE },
+      turn: { state, sessionId: 'seat-1' },
+    },
+  })
+  const system = { kind: 'system', message: { ...base, id: 'm3', author: { kind: 'system' } } }
+  assert.deepEqual(timelineKeyAction(key('ArrowDown'), user, 0, 3, true), {
+    type: 'move',
+    index: 1,
+  })
+  assert.deepEqual(timelineKeyAction(key('ArrowDown'), user, 2, 3, true), {
+    type: 'move',
+    index: 2,
+  })
+  assert.deepEqual(timelineKeyAction(key('ArrowUp'), user, 0, 3, true), { type: 'move', index: 0 })
+  assert.deepEqual(timelineKeyAction(key('Home'), user, 2, 3, false), { type: 'move', index: 0 })
+  assert.deepEqual(timelineKeyAction(key('End'), user, 0, 3, false), { type: 'move', index: 2 })
+  assert.deepEqual(timelineKeyAction(key('r'), user, 0, 3, true), { type: 'reply' })
+  assert.deepEqual(timelineKeyAction(key('Delete'), user, 0, 3, true), { type: 'recall' })
+  assert.deepEqual(timelineKeyAction(key('Backspace'), card('done'), 1, 3, true), {
+    type: 'recall',
+  })
+  assert.deepEqual(timelineKeyAction(key('Enter'), card('running'), 1, 3, true), {
+    type: 'process',
+  })
+  // 还在做的卡不能回复、隐藏；系统行什么都不接；焦点在按钮上时只接移动；带修饰键的留给别的快捷键。
+  assert.equal(timelineKeyAction(key('r'), card('running'), 1, 3, true), null)
+  assert.equal(timelineKeyAction(key('Delete'), system, 2, 3, true), null)
+  assert.equal(timelineKeyAction(key('Enter'), user, 0, 3, true), null)
+  assert.equal(timelineKeyAction(key('r'), user, 0, 3, false), null)
+  assert.equal(timelineKeyAction(key('Enter'), card('done'), 1, 3, false), null)
+  assert.equal(timelineKeyAction(key('r', { metaKey: true }), user, 0, 3, true), null)
+  assert.equal(timelineKeyAction(key('ArrowDown', { altKey: true }), user, 0, 3, true), null)
 })

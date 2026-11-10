@@ -1,7 +1,9 @@
 // Bot 群聊（room）的数据形状与校验：群、群里的消息、发消息的输入。外部输入一律按不可信 unknown 归一，
 // 不合法时抛 PisperError。纯函数，不碰文件；落盘与索引在 room-service.mjs。
 import { randomBytes } from 'node:crypto'
+import { extname, isAbsolute } from 'node:path'
 import { pisperError } from '../../../shared/errors.mjs'
+import { ASSET_DOCUMENT_EXTENSIONS, mimeFromName, safeAttachmentName } from '../asset-content.mjs'
 
 export const MAX_ROOMS = 32
 export const MAX_ROOM_MEMBERS = 8
@@ -19,6 +21,12 @@ export const ROOM_BOT_REPLY_CLIP_CHARS = 4_000
 // 简报里决定、待办各最多几条，每条多长。
 export const MAX_BRIEF_ITEMS = 12
 export const MAX_BRIEF_ITEM_CHARS = 200
+// 一条消息的附件：和会话输入框同一套上限（最多 8 个，单个 10 MB，合计 20 MB）。
+export const MAX_ROOM_ATTACHMENTS = 8
+export const MAX_ROOM_ATTACHMENT_BYTES = 10 * 1024 * 1024
+export const MAX_ROOM_ATTACHMENTS_BYTES = 20 * 1024 * 1024
+const MAX_ATTACHMENT_PATH_CHARS = 4_096
+const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/
 
 export const ROOM_ID_PATTERN = /^room_[A-Za-z0-9_-]{6,40}$/
 export const ROOM_MESSAGE_ID_PATTERN = /^msg_[A-Za-z0-9_-]{6,40}$/
@@ -93,8 +101,120 @@ export function normalizeRoomInput(input, current = null) {
   }
 }
 
+function attachmentTooLarge(name) {
+  return pisperError('too_large', 'attachment', `${name}: max 10 MB`)
+}
+
+/**
+ * 一条消息带的附件：形状和会话输入框发的一样（图片、文字、文档带内容，桌面端选的文件只带本地路径）。
+ * 大小按实际内容算，不信客户端报的 size。返回的条目仍带内容，归档成资产后消息里只留引用。
+ * @param {unknown} value
+ * @returns {{ kind: 'image' | 'text' | 'document' | 'path', name: string, mimeType: string, size: number, data?: string, text?: string, path?: string, extension?: string }[]}
+ */
+export function normalizeRoomAttachments(value) {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw invalid('attachments must be a list')
+  if (value.length > MAX_ROOM_ATTACHMENTS)
+    throw pisperError('limit', 'attachment', `at most ${MAX_ROOM_ATTACHMENTS} per message`)
+  const result = []
+  let total = 0
+  for (const item of value) {
+    const input = record(item)
+    const kind = String(input.kind ?? '')
+    const name = safeAttachmentName(String(input.name ?? '').trim() || 'attachment')
+    if (kind === 'path') {
+      const path = String(input.path ?? '').trim()
+      if (
+        !path ||
+        path.length > MAX_ATTACHMENT_PATH_CHARS ||
+        path.includes('\0') ||
+        !isAbsolute(path)
+      )
+        throw pisperError('invalid', 'path', `${name} is not an absolute local path`)
+      result.push({ kind, name, mimeType: '', size: 0, path })
+      continue
+    }
+    if (kind === 'text') {
+      if (typeof input.text !== 'string') throw pisperError('invalid', 'attachment', name)
+      const size = Buffer.byteLength(input.text, 'utf8')
+      if (!size) throw pisperError('invalid', 'attachment', `${name} is empty`)
+      if (size > MAX_ROOM_ATTACHMENT_BYTES) throw attachmentTooLarge(name)
+      total += size
+      result.push({
+        kind,
+        name,
+        mimeType: String(input.mimeType || 'text/plain').slice(0, 120),
+        size,
+        text: input.text,
+      })
+      continue
+    }
+    if (kind !== 'image' && kind !== 'document')
+      throw pisperError('unsupported', 'attachment', `${name}: choose an image, text or document`)
+    const data = typeof input.data === 'string' ? input.data : ''
+    // 先按长度粗判再跑正则：超大的字符串不值得逐字检查。
+    if (!data || data.length > Math.ceil(MAX_ROOM_ATTACHMENT_BYTES / 3) * 4 + 4) {
+      if (!data) throw pisperError('invalid', 'attachment', `${name} is empty`)
+      throw attachmentTooLarge(name)
+    }
+    if (!BASE64_PATTERN.test(data)) throw pisperError('invalid', 'attachment', name)
+    const size = Buffer.byteLength(data, 'base64')
+    if (size > MAX_ROOM_ATTACHMENT_BYTES) throw attachmentTooLarge(name)
+    total += size
+    if (kind === 'image') {
+      const given = String(input.mimeType || '')
+      const mimeType = given.startsWith('image/') ? given.slice(0, 120) : mimeFromName(name)
+      if (!mimeType.startsWith('image/'))
+        throw pisperError('invalid', 'image', `${name} is not an image`)
+      result.push({ kind, name, mimeType, size, data })
+      continue
+    }
+    const extension = extname(name).toLowerCase()
+    if (!ASSET_DOCUMENT_EXTENSIONS.has(extension))
+      throw pisperError('unsupported', 'attachment', `${name}: choose an image, text or document`)
+    result.push({
+      kind,
+      name,
+      mimeType: String(input.mimeType || mimeFromName(name)).slice(0, 120),
+      size,
+      extension: extension.slice(1),
+      data,
+    })
+  }
+  if (total > MAX_ROOM_ATTACHMENTS_BYTES)
+    throw pisperError('too_large', 'attachment', 'max 20 MB in total')
+  return result
+}
+
+// 消息里存的附件引用：只有名字、类型、大小与资产 id（或本地路径），没有内容。读盘和投影时都按这个形状收。
+export function roomAttachmentRefs(value) {
+  if (!Array.isArray(value)) return []
+  const refs = []
+  for (const item of value.slice(0, MAX_ROOM_ATTACHMENTS)) {
+    const input = record(item)
+    const kind = String(input.kind ?? '')
+    const name = safeAttachmentName(input.name)
+    if (kind === 'path' && typeof input.path === 'string' && input.path)
+      refs.push({ kind, name, path: input.path.slice(0, MAX_ATTACHMENT_PATH_CHARS) })
+    else if (
+      ['image', 'text', 'document'].includes(kind) &&
+      typeof input.id === 'string' &&
+      /^[A-Za-z0-9_-]{1,80}$/.test(input.id)
+    )
+      refs.push({
+        id: input.id,
+        kind,
+        name,
+        mimeType: String(input.mimeType || '').slice(0, 120),
+        size: Number.isSafeInteger(input.size) && input.size > 0 ? input.size : 0,
+      })
+  }
+  return refs
+}
+
 /**
  * 你在群里发的一句话。mentions 由输入框的 @ 补全给出（Bot id）；正文里手打的 @名字 另由服务端解析补上。
+ * 只带附件、不写字也可以（和会话输入框一样）。
  * @param {unknown} input
  * @param {string[]} members
  * @param {(id: string) => boolean} hasMessage
@@ -102,7 +222,8 @@ export function normalizeRoomInput(input, current = null) {
 export function normalizeUserRoomMessage(input, members, hasMessage) {
   const value = record(input)
   const text = String(value.text ?? '').trim()
-  if (!text) throw pisperError('invalid', 'message', 'message is required')
+  const attachments = normalizeRoomAttachments(value.attachments)
+  if (!text && !attachments.length) throw pisperError('invalid', 'message', 'message is required')
   if (text.length > MAX_ROOM_MESSAGE_CHARS)
     throw pisperError('too_large', 'message', `max ${MAX_ROOM_MESSAGE_CHARS} characters`)
   const mentions = (botIds(value.mentions ?? [], MAX_ROOM_MEMBERS) || []).filter((id) =>
@@ -116,6 +237,7 @@ export function normalizeUserRoomMessage(input, members, hasMessage) {
     mentions,
     ...(replyTo ? { replyTo } : {}),
     recipients: normalizeRecipients(value.recipients, members),
+    attachments,
   }
 }
 

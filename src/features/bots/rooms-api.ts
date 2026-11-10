@@ -2,6 +2,7 @@
 // 系统行（链停了、Bot 暂停了没叫醒）。响应按不可信数据校验：关键字段不对整体拒绝，可选字段给安全默认值。
 import { requestJson } from '@/lib/http'
 import { invalidResponseError } from '@/lib/http-response'
+import type { ChatAttachment } from '@/types/chat'
 import { isBotCharacter, isBotColor, type BotAvatarValue } from './avatar'
 
 export type RoomActivity = { working: number; needsYou: boolean }
@@ -49,6 +50,16 @@ export type RoomTurn = {
   endedAt: string
 }
 
+// 消息带的附件：只有引用（资产 id 或桌面端选的本地路径），内容在资产库里。
+export type RoomAttachment = {
+  id: string
+  kind: 'image' | 'text' | 'document' | 'path'
+  name: string
+  mimeType: string
+  size: number
+  path: string
+}
+
 export type RoomAuthor = { kind: 'user' } | { kind: 'bot'; botId: string } | { kind: 'system' }
 
 export type RoomEvent = {
@@ -65,6 +76,7 @@ export type RoomMessage = {
   at: string
   author: RoomAuthor
   text: string
+  attachments: RoomAttachment[]
   mentions: string[]
   replyTo: string
   recipients: string[] | 'all' | null
@@ -221,6 +233,30 @@ function parseTurn(value: unknown): RoomTurn | null {
   }
 }
 
+const ATTACHMENT_KINDS: readonly RoomAttachment['kind'][] = ['image', 'text', 'document', 'path']
+
+function parseAttachments(value: unknown): RoomAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const input = object(item)
+    const kind = ATTACHMENT_KINDS.find((entry) => entry === input.kind)
+    if (!kind) return []
+    const path = string(input.path)
+    const id = kind === 'path' ? '' : string(input.id)
+    if (kind === 'path' ? !path : !id) return []
+    return [
+      {
+        id,
+        kind,
+        name: string(input.name, 'attachment'),
+        mimeType: string(input.mimeType),
+        size: count(input.size),
+        path,
+      },
+    ]
+  })
+}
+
 function parseAuthor(value: unknown): RoomAuthor {
   const input = object(value)
   if (input.kind === 'bot' && typeof input.botId === 'string')
@@ -240,6 +276,7 @@ export function parseRoomMessage(value: unknown): RoomMessage {
     at: string(input.at),
     author: parseAuthor(input.author),
     text: string(input.text),
+    attachments: parseAttachments(input.attachments),
     mentions: strings(input.mentions),
     replyTo: string(input.replyTo),
     recipients: input.recipients === undefined ? null : recipients(input.recipients),
@@ -386,6 +423,8 @@ export function fetchRoomMessages(
 
 export type RoomMessageDraft = {
   text: string
+  // 和会话输入框发的同一种附件（图片、文字、文档带内容，桌面端选的文件只带路径）。
+  attachments?: ChatAttachment[]
   mentions: string[]
   recipients: string[] | 'all'
   replyTo?: string

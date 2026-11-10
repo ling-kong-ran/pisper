@@ -1,6 +1,7 @@
 // 群聊页的纯逻辑：消息列表 → 时间线条目（你的气泡、Bot 的工作卡、“这一轮”、交接行、系统行），
 // 正文里的 @ 高亮切段，输入框里 @ 补全的查询。不碰网络与 React，单测直接调。
-import type { RoomMember, RoomMessage, RoomTodo } from './rooms-api'
+import type { ChatAttachment } from '@/types/chat'
+import type { RoomAttachment, RoomMember, RoomMessage, RoomTodo } from './rooms-api'
 
 export type TimelineMember = { id: string; name: string }
 
@@ -188,4 +189,73 @@ export function parseTodoLine(line: string, members: readonly RoomMember[]): Roo
     }
   }
   return rest ? { text: rest, owner, done } : null
+}
+
+// 消息的附件 → 会话里显示附件用的那种形状：图片走资产的内联地址（缩略图），文件带下载地址，
+// 桌面端选的本地文件带路径（id 以 path: 开头，预览不去资产库取）。
+export function roomAttachmentViews(attachments: readonly RoomAttachment[]): ChatAttachment[] {
+  return attachments.map((attachment) => {
+    if (attachment.kind === 'path')
+      return {
+        id: `path:${attachment.path}`,
+        kind: 'path',
+        name: attachment.name,
+        path: attachment.path,
+      }
+    const asset = `/api/assets/${encodeURIComponent(attachment.id)}`
+    return {
+      id: attachment.id,
+      kind: attachment.kind,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      downloadUrl: `${asset}/download`,
+      ...(attachment.kind === 'image' ? { url: `${asset}/download?inline=1` } : {}),
+    }
+  })
+}
+
+export type TimelineKeyAction =
+  { type: 'move'; index: number } | { type: 'reply' } | { type: 'recall' } | { type: 'process' }
+
+type TimelineKey = {
+  key: string
+  altKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+}
+
+// 这一条能不能回复、撤回 / 隐藏：和条目上的按钮一致（你的话；Bot 写完了的卡）。
+function actionable(item: TimelineItem) {
+  if (item.kind === 'user') return true
+  if (item.kind !== 'card') return false
+  const state = item.message.turn?.state
+  return state !== 'running' && state !== 'waiting'
+}
+
+/**
+ * 时间线的键盘操作（焦点在某一条消息上时）：上下方向键逐条移动，Home / End 到第一条 / 最后一条；
+ * R 回复，Delete / Backspace 撤回或隐藏，Enter 打开工作卡的过程。带 Ctrl / ⌘ / Alt 的组合键不接，
+ * 留给浏览器与应用的快捷键。onMessage 为假时（焦点在条目里的按钮上）只接移动，不抢按钮自己的 Enter。
+ */
+export function timelineKeyAction(
+  event: TimelineKey,
+  item: TimelineItem,
+  index: number,
+  count: number,
+  onMessage: boolean,
+): TimelineKeyAction | null {
+  if (event.altKey || event.ctrlKey || event.metaKey || count <= 0) return null
+  const last = count - 1
+  if (event.key === 'ArrowDown') return { type: 'move', index: Math.min(last, index + 1) }
+  if (event.key === 'ArrowUp') return { type: 'move', index: Math.max(0, index - 1) }
+  if (event.key === 'Home') return { type: 'move', index: 0 }
+  if (event.key === 'End') return { type: 'move', index: last }
+  if (!onMessage) return null
+  if ((event.key === 'r' || event.key === 'R') && actionable(item)) return { type: 'reply' }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && actionable(item))
+    return { type: 'recall' }
+  if (event.key === 'Enter' && item.kind === 'card' && item.message.turn?.sessionId)
+    return { type: 'process' }
+  return null
 }

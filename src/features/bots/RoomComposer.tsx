@@ -2,7 +2,8 @@
 // “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在；
 // @ 到的和“发给”的合起来就是这句话要叫醒的人，3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。
 // 不 @、不选时只留言，不叫醒谁。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
+// 附件和会话输入框是同一套（附件键、粘贴图片、拖文件进来、附件托盘），只带附件不写字也能发。
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, ChevronDown, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import {
+  AttachmentPicker,
+  AttachmentTray,
+  isFileDrag,
+  useAttachmentSelection,
+} from '@/features/chat/public-attachments'
 import { cn } from '@/lib/utils'
+import type { ChatAttachment } from '@/types/chat'
 import { BotAvatar } from './BotAvatar'
 import { botAvatarTone } from './avatar'
 import { activeMentionQuery, mentionedIds } from './room-presentation'
@@ -25,6 +33,8 @@ import type { RoomMember, RoomMessage } from './rooms-api'
 const MAX_CHARS = 12_000
 
 export function RoomComposer({
+  roomId,
+  cwd,
   members,
   recipients,
   onRecipientsChange,
@@ -34,13 +44,15 @@ export function RoomComposer({
   onSend,
   placeholder,
 }: {
+  roomId: string
+  cwd?: string
   members: readonly RoomMember[]
   recipients: string[] | 'all'
   onRecipientsChange: (value: string[] | 'all') => void
   replyTo: RoomMessage | null
   replyName: string
   onCancelReply: () => void
-  onSend: (text: string, mentions: string[]) => Promise<boolean>
+  onSend: (text: string, mentions: string[], attachments: ChatAttachment[]) => Promise<boolean>
   placeholder: string
 }) {
   const { t } = useI18n()
@@ -49,9 +61,21 @@ export function RoomComposer({
   const [highlight, setHighlight] = useState('')
   const [dismissed, setDismissed] = useState(-1)
   const [sending, setSending] = useState(false)
+  const [dropActive, setDropActive] = useState(false)
   const composing = useRef(false)
   const input = useRef<HTMLTextAreaElement>(null)
   const active = members.filter((member) => !member.deleted)
+  const selection = useAttachmentSelection([], undefined, roomId)
+  const hasAttachments = selection.attachments.length > 0
+  // 附件还在读：先别发，不然这几个就丢了。
+  const preparing = selection.preparingAttachments.length > 0
+  const canSend = Boolean(value.trim() || hasAttachments) && !preparing && !sending
+
+  // 点了“回复”（或在时间线上按 R）：光标回到输入框，接着就能打字。
+  const replyId = replyTo?.id
+  useEffect(() => {
+    if (replyId) input.current?.focus()
+  }, [replyId])
 
   const query = activeMentionQuery(value, caret)
   const options = useMemo(() => {
@@ -93,12 +117,13 @@ export function RoomComposer({
 
   const send = async () => {
     const text = value.trim()
-    if (!text || sending) return
+    if (!canSend) return
     setSending(true)
     try {
-      if (await onSend(text, mentionedIds(text, active))) {
+      if (await onSend(text, mentionedIds(text, active), selection.attachments)) {
         setValue('')
         setCaret(0)
+        selection.clearAttachments()
         // 高度是输入时按内容撑开的：清空后收回一行。
         if (input.current) input.current.style.height = 'auto'
       }
@@ -139,6 +164,18 @@ export function RoomComposer({
     }
   }
 
+  const showDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setDropActive(true)
+  }
+  const hideDrop = (event: DragEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget
+    if (next instanceof Node && event.currentTarget.contains(next)) return
+    setDropActive(false)
+  }
+
   const sendLabel = everyone
     ? t('bots:room.composer.sendToAll')
     : chosenMembers.length === 0
@@ -149,17 +186,43 @@ export function RoomComposer({
 
   return (
     <Popover open={mentionOpen}>
+      {selection.attachmentError && (
+        <p role="alert" className="m-0 mb-2 text-[13px] text-danger">
+          {selection.attachmentError}
+        </p>
+      )}
       <PopoverAnchor asChild>
         <div
           data-room-composer
-          className="relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] max-[650px]:border-stroke-strong max-[650px]:shadow-none max-[650px]:has-[textarea:focus]:border-control max-[650px]:has-[textarea:focus]:ring-0"
+          className={cn(
+            'relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] max-[650px]:border-stroke-strong max-[650px]:shadow-none max-[650px]:has-[textarea:focus]:border-control max-[650px]:has-[textarea:focus]:ring-0 [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3',
+            dropActive && 'border-focus ring-3 ring-focus-ring',
+          )}
+          onDragEnter={showDrop}
+          onDragOver={showDrop}
+          onDragLeave={hideDrop}
+          onDrop={(event) => {
+            setDropActive(false)
+            selection.dropFiles(event)
+          }}
         >
+          {dropActive && (
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] border border-dashed border-focus bg-panel px-4 text-center text-sm text-content"
+            >
+              {t('chat:focusSession.dropAttachment')}
+            </div>
+          )}
           {replyTo && (
             <div className="mx-3 mt-2.5 flex min-w-0 items-center gap-2 rounded-lg bg-surface-subtle px-2.5 py-1.5 text-[12.5px] text-content-secondary">
               <span className="min-w-0 flex-1 truncate">
                 {t('bots:room.replyTo', {
                   name: replyName,
-                  text: replyTo.text.replace(/\s+/g, ' ') || '…',
+                  text:
+                    replyTo.text.replace(/\s+/g, ' ') ||
+                    replyTo.attachments.map((file) => file.name).join('、') ||
+                    '…',
                 })}
               </span>
               <Button
@@ -172,6 +235,11 @@ export function RoomComposer({
               </Button>
             </div>
           )}
+          <AttachmentTray
+            attachments={selection.attachments}
+            preparing={selection.preparingAttachments}
+            onRemove={selection.removeAttachment}
+          />
           <textarea
             ref={input}
             rows={1}
@@ -190,11 +258,13 @@ export function RoomComposer({
               event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
             }}
             onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
+            onPaste={selection.pasteFiles}
             onCompositionStart={() => (composing.current = true)}
             onCompositionEnd={() => window.setTimeout(() => (composing.current = false), 0)}
             onKeyDown={onKeyDown}
           />
           <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-2 max-[650px]:pb-3">
+            <AttachmentPicker cwd={cwd} selection={selection} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Chip data-room-recipients aria-label={t('bots:room.composer.recipients')}>
@@ -260,7 +330,7 @@ export function RoomComposer({
               size="icon"
               className="size-8 rounded-full pointer-coarse:size-11"
               aria-label={t('bots:room.composer.send')}
-              disabled={!value.trim() || sending}
+              disabled={!canSend}
               onClick={() => void send()}
             >
               <ArrowUp aria-hidden="true" />

@@ -316,7 +316,7 @@
   "room.composer.label": "Message to the group",
   "room.composer.leaveOnly": "Just post",
   "room.composer.mentionList": "Mention a member",
-  "room.composer.placeholder": "Say something; @ someone to wake them, no @ just posts",
+  "room.composer.placeholder": "Say something; @ someone to wake them, no @ just posts. Paste images or drop files here",
   "room.composer.placeholderPhone": "@ someone to wake them",
   "room.composer.recipients": "Send to",
   "room.composer.send": "Send",
@@ -405,5 +405,10 @@
   "sidebar.newRoom": "New group chat",
   "sidebar.rooms": "Group chats",
   "room.card.pendingApproval": "Its job needs your approval",
-  "room.card.pendingQuestion": "Its job needs your answer"
+  "room.card.pendingQuestion": "Its job needs your answer",
+  "room.timeline.label": "Room messages",
+  "room.timeline.hint": "Use the up and down arrow keys to move between messages, Home and End to jump to the first or last. On a message, press R to reply or Delete to recall or hide it; on a bot's work card, press Enter to open its process.",
+  "room.a11y.message": "{name} · {time}",
+  "room.a11y.card": "{name} · {state} · {time}",
+  "room.a11y.attachments": "{count} attachments"
 }

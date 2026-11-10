@@ -32,6 +32,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { useBetaFeature } from '@/features/labs/public-flags'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
+import type { ChatAttachment } from '@/types/chat'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { compactTokens, timelineItems } from './room-presentation'
 import { RoomComposer } from './RoomComposer'
@@ -86,6 +87,9 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   // 正在处理的批准 / 停下（按卡记），连点不重复发。
   const acting = useRef(new Set<string>())
   const listRef = useRef<HTMLDivElement>(null)
+  // 撤回确认框是按状态打开的（没有触发按钮）：关掉时焦点回到打开它的那条消息或按钮上，
+  // 键盘用户接着从原处往下走，不掉回页面开头。
+  const recallReturn = useRef<{ node: HTMLElement | null; id: string } | null>(null)
 
   const members = useMemo(
     () => new Map((detail?.members || []).map((member) => [member.id, member])),
@@ -135,7 +139,13 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
 
   const actions: TimelineActions = {
     onReply: (message) => setReplyTo(message),
-    onRecall: (message) => setRecalling(message),
+    onRecall: (message) => {
+      recallReturn.current = {
+        node: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        id: message.id,
+      }
+      setRecalling(message)
+    },
     onOpenProcess: (sessionId) => navigate(sessionPath(sessionId)),
     onApprove: (message, approvalId, approve) =>
       once(`approval:${approvalId}`, () =>
@@ -145,6 +155,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     onJump: (messageId) => {
       const node = listRef.current?.querySelector(`[data-room-message="${CSS.escape(messageId)}"]`)
       if (node instanceof HTMLElement) {
+        // 跳过去的那条同时拿到焦点：接着用方向键从这里往下看。
+        node.focus({ preventScroll: true })
         node.scrollIntoView({ block: 'center', behavior: 'smooth' })
         node.classList.add('ring-2', 'ring-focus-ring', 'rounded-xl')
         window.setTimeout(
@@ -155,11 +167,12 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     },
   }
 
-  const send = async (text: string, mentions: string[]) => {
+  const send = async (text: string, mentions: string[], attachments: ChatAttachment[]) => {
     if (!detail) return false
     try {
       const result = await postRoomMessage(roomId, {
         text,
+        ...(attachments.length ? { attachments } : {}),
         mentions,
         recipients: recipients ?? detail.room.recipients,
         ...(replyTo ? { replyTo: replyTo.id } : {}),
@@ -193,7 +206,13 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     if (!message) return
     try {
       const result = await recallRoomMessage(roomId, message.id)
-      live.replace({ ...message, text: '', mentions: [], recalled: { seenBy: result.seenBy } })
+      live.replace({
+        ...message,
+        text: '',
+        attachments: [],
+        mentions: [],
+        recalled: { seenBy: result.seenBy },
+      })
       if (result.briefMayContain) notify(t('bots:room.recall.briefNote'))
     } catch (caught) {
       reportError(caught)
@@ -395,6 +414,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
             </p>
           )}
           <RoomComposer
+            roomId={room.id}
+            cwd={room.cwd || undefined}
             members={activeMembers}
             recipients={recipients ?? room.recipients}
             onRecipientsChange={changeRecipients}
@@ -451,7 +472,21 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         }}
       />
       <AlertDialog open={Boolean(recalling)} onOpenChange={(open) => !open && setRecalling(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            const back = recallReturn.current
+            recallReturn.current = null
+            // 撤回之后那条换成了占位、按钮不在了：落到这条消息本身。
+            const target = back?.node?.isConnected
+              ? back.node
+              : back
+                ? listRef.current?.querySelector(`[data-room-message="${CSS.escape(back.id)}"]`)
+                : null
+            if (!(target instanceof HTMLElement)) return
+            event.preventDefault()
+            target.focus({ preventScroll: true })
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>
               {recalling?.author.kind === 'bot'

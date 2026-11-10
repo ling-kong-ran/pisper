@@ -316,7 +316,7 @@
   "room.composer.label": "群消息",
   "room.composer.leaveOnly": "只留言",
   "room.composer.mentionList": "提及成员",
-  "room.composer.placeholder": "说点什么；@ 谁就叫醒谁，不 @ 只留言",
+  "room.composer.placeholder": "说点什么；@ 谁就叫醒谁，不 @ 只留言；可以粘贴图片、拖文件进来",
   "room.composer.placeholderPhone": "@ 谁就叫醒谁，不 @ 只留言",
   "room.composer.recipients": "发给谁",
   "room.composer.send": "发送",
@@ -405,5 +405,10 @@
   "sidebar.newRoom": "新建群聊",
   "sidebar.rooms": "群聊",
   "room.card.pendingApproval": "它派的活在等你批准",
-  "room.card.pendingQuestion": "它派的活在等你回答"
+  "room.card.pendingQuestion": "它派的活在等你回答",
+  "room.timeline.label": "群聊记录",
+  "room.timeline.hint": "用上下方向键逐条移动，Home、End 跳到第一条、最后一条。在某条上按 R 回复，按 Delete 撤回或隐藏，在 Bot 的工作卡上按 Enter 打开过程。",
+  "room.a11y.message": "{name} · {time}",
+  "room.a11y.card": "{name} · {state} · {time}",
+  "room.a11y.attachments": "{count} 个附件"
 }
