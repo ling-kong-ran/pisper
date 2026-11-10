@@ -275,8 +275,17 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   // 流式行高变化由虚拟器的 ResizeObserver + rAF 通道重测（useAnimationFrameWithResizeObserver），
   // 不再在 useLayoutEffect 里同步 measureElement——那会在每个流式帧强制同步布局。
 
+  // 正在进行的“按消息还原阅读位置”：跳到某一轮时要让位（见下面的还原 effect）。
+  const restoreAnchorRef = useRef(restoreAnchor)
+  const endAnchorRestoreRef = useRef<(() => void) | null>(null)
+  const targetEntryIdRef = useRef(targetEntryId)
+  targetEntryIdRef.current = targetEntryId
   useEffect(() => {
     if (!targetEntryId) return undefined
+    // 带着“跳到某一轮”来的（搜索结果、目录、分支）：目标说了算，上次读到哪不再还原。
+    // 目标还没加载出来（要先翻更早的历史）也一样，否则还原会在跳转之后把画面拉回旧位置。
+    restoreAnchorRef.current = null
+    endAnchorRestoreRef.current?.()
     const targetIndex = messages.findIndex(
       (message) => message.turnBoundaryEntryId === targetEntryId,
     )
@@ -293,9 +302,8 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
 
   // 按离开时视口顶上那条消息校正阅读位置：useAutoScroll 先按像素恢复（同时停掉跟随），但那时各行还是估算高度，
   // 像素落在别的消息上。之后几帧用真实 DOM 位置把那条消息挪回原处，稳定几帧或读者自己动了就停。
-  const restoreAnchorRef = useRef(restoreAnchor)
   useEffect(() => {
-    const anchor = restoreAnchorRef.current
+    const anchor = targetEntryIdRef.current ? null : restoreAnchorRef.current
     if (!anchor || !scrollElement) return undefined
     const index = messages.findIndex((message) => message.id === anchor.messageId)
     // 那条消息不在已加载的这一页（或收在“上一轮”胶囊里）：保留像素位置。
@@ -314,8 +322,10 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     // 还原完成（或读者接手）才作废锚点；effect 清理只停下，开发模式的二次挂载还能接着还原。
     const finish = () => {
       restoreAnchorRef.current = null
+      endAnchorRestoreRef.current = null
       stop()
     }
+    endAnchorRestoreRef.current = finish
     const align = () => {
       frame = null
       const row = Array.from(

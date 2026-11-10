@@ -274,7 +274,8 @@ export function FocusTranscript({
   }, [sessionId, transcriptElement, transcriptLoadState])
   // 路由直接换会话（侧栏、⌥↑⌥↓、浏览器后退）时没有“导航前”通知：最后一次滚动的 scroll 事件还没派发，
   // 转录就卸载了，阅读位置会停在上一次保存的值上。布局 effect 的清理在 DOM 移除之前运行，此刻 scrollTop 仍可读，
-  // 在这里补存一次（同一个元素换会话时，清理闭包里是旧会话 id，存给旧会话）。
+  // 在这里补存一次。清理里量的是 DOM 上的消息行：会话面板按会话 id 做 key（见 ChatDock），
+  // 换会话一定重挂，所以这些行就是这个会话的；不要让同一个转录实例跨会话复用。
   // 滚动停下后才写的那次（scrollSaveTimer）可能还没到点：先取消它，由这里同步写入，不靠定时器活过卸载。
   useLayoutEffect(() => {
     const element = transcriptElement

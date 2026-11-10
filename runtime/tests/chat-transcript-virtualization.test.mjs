@@ -113,6 +113,17 @@ test('virtualization source owns only message rows and preserves stable render b
   )
   assert.match(transcriptSource, /isFollowingLatest=\{isFollowing\}/)
   assert.match(autoScrollSource, /else controller\.settleAtBottom\(\)/)
+  // 带着“跳到某一轮”来的：目标说了算。还原上次阅读位置要让位（挂载时就有目标则不还原，还原途中来了目标则立刻结束），
+  // 否则高亮打在目标上、画面却被连续几十帧拉回旧位置。
+  assert.match(
+    virtualSource,
+    /if \(!targetEntryId\) return undefined\s*(?:\/\/[^\n]*\s*)*restoreAnchorRef\.current = null\s*endAnchorRestoreRef\.current\?\.\(\)/,
+  )
+  assert.match(
+    virtualSource,
+    /const anchor = targetEntryIdRef\.current \? null : restoreAnchorRef\.current/,
+  )
+  assert.match(virtualSource, /endAnchorRestoreRef\.current = finish/)
   // “回到最新”在不在最新消息时就显示，不只是看更早的历史页或停跟随后来了新内容。
   assert.match(transcriptSource, /\(hasUnread \|\| hasNewer \|\| awayFromLatest\) &&/)
   // 这里只保护虚拟器显式接收身份键；消息序列变化后的锚点由真实浏览器翻页用例验证，

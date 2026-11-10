@@ -414,3 +414,37 @@ test('reading upward during the settle window ends it', (t) => {
   assert.equal(f.node.scrollTop, 700)
   assert.deepEqual(f.unread, [true])
 })
+
+test('a write that does not move the position sends no scroll event', (t) => {
+  // 不满一屏的页面：打开时 scrollTop 从 0 写到 0。浏览器不派发事件，这里也不能补发，
+  // 否则转录会以为滚到了顶，自动去翻更早的历史并停掉跟随。
+  const f = fixture(t, { silentScroll: true })
+  f.node.scrollTop = 0
+  f.node.scrollHeight = 200
+  const seen = []
+  f.node.addEventListener('scroll', () => seen.push(f.node.scrollTop))
+  f.controller.settleAtBottom()
+  f.settle()
+  assert.deepEqual(seen, [])
+  assert.equal(f.controller.isFollowing(), true)
+  // 内容长出一屏后才真的移动，这时照常补发。
+  f.node.scrollHeight = 900
+  f.controller.contentChanged()
+  f.settle()
+  assert.equal(f.node.scrollTop, 600)
+  assert.ok(seen.length > 0)
+})
+
+test('while the reader holds the mouse or a finger, row corrections are not skipped as following', (t) => {
+  const f = fixture(t)
+  assert.equal(f.controller.isFollowing(), true)
+  f.event('pointerdown', { pointerType: 'mouse', button: 0 })
+  // 按着的时候控制器自己不动位置，虚拟行的校正得照常落到容器上。
+  assert.equal(f.controller.isFollowing(), false)
+  f.event('pointerup', {}, f.document)
+  assert.equal(f.controller.isFollowing(), true)
+  f.event('touchstart', { touches: [{ clientX: 0, clientY: 0 }] })
+  assert.equal(f.controller.isFollowing(), false)
+  f.event('touchend', { touches: [] })
+  assert.equal(f.controller.isFollowing(), true)
+})

@@ -140,6 +140,11 @@ test('the transcript saves its reading position before it unmounts on a plain ro
   assert.match(source, /conversationAnchor: position\?\.anchor \?\? null/)
   // 回来时按那条消息校正（像素只作后备）。
   assert.match(source, /restoreAnchor=\{/)
+  // 清理里量的是 DOM 上的行，只有“一个转录实例只属于一个会话”时才是这个会话的行：
+  // 会话面板按会话 id 做 key，换会话必定重挂；去掉 key 会把新会话的行记成旧会话的阅读位置。
+  const dock = await readFile('src/features/chat/ChatDock.tsx', 'utf8')
+  assert.match(dock, /<SessionWorkspace\s+key=\{sessionId\}/)
+  assert.match(dock, /<TaskWorkspace[\s\S]{0,300}?key=\{sessionId\}/)
 })
 
 const view = (scrollTop, extra = {}) => ({

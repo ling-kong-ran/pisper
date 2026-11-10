@@ -103,8 +103,12 @@ export function createScrollFollowController(
     })
   }
   const writeTop = (top: number) => {
+    const before = node.scrollTop
     node.scrollTo({ top, behavior: 'instant' })
     lastTop = node.scrollTop
+    // 位置没变就不补发：浏览器这时也不会派发 scroll 事件。补发会让不满一屏的页面一打开就被当成“滚到了顶”，
+    // 自动去翻更早的历史，并因此停掉跟随。
+    if (lastTop === before) return
     // 浏览器下一帧才派发 scroll 事件。转录的虚拟器只从 scroll 事件里更新它记的位置，在那之前按旧位置做行高校正，
     // 会把这里刚写的位置改回去（切回长会话时从底部跳到中间，跟随也因此被当成上翻而停掉）。
     // 写完立刻补发一次，让其它 scroll 监听者同步拿到新位置；稍后的真实事件位置相同，不会重复处理。
@@ -260,7 +264,9 @@ export function createScrollFollowController(
     maintainBottom,
     pauseFollowing,
     // 正贴着最新消息跟随：位置由本控制器定，别的写入者（虚拟行重测）不必再挪。
-    isFollowing: () => !disposed && pinned,
+    // 读者按着鼠标或手指时本控制器不动位置（见 maintainBottom），这段时间不算在跟随：
+    // 虚拟行的校正得照常落到容器上，不然虚拟器记的位置和真实位置对不上。
+    isFollowing: () => !disposed && pinned && !interacting(),
     restorePosition(top: number) {
       if (disposed || !Number.isFinite(top)) return
       pauseFollowing()
