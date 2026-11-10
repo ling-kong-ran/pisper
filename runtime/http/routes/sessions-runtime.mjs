@@ -831,6 +831,16 @@ const routes = [
       })
     },
   },
+  // 只读查看会话派出的某个子 agent 的过程（检查器的“子代理”标签，运行中按需轮询）。
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/agents/:agentId/transcript',
+    handler({ runtime, params, json }) {
+      const transcript = runtime.getSessionAgentTranscript(params.sessionId, params.agentId)
+      if (!transcript) json(404, { error: 'Agent not found.', code: 'agent_not_found' })
+      else json(200, transcript)
+    },
+  },
   // 停掉会话派出的某个子 agent：只认这个会话自己的子 agent。
   {
     method: 'POST',

@@ -97,6 +97,7 @@ const CAPABILITY_ROUTES = [
   { pattern: /^\/api\/sessions\/[^/]+\/workflow-runs(?:\/|$)/, feature: 'workflows' },
   { pattern: /^\/api\/board\/events$/, feature: 'board.events' },
   { pattern: /^\/api\/sessions\/[^/]+\/questions(?:\/|$)/, feature: 'askUser' },
+  { pattern: /^\/api\/sessions\/[^/]+\/agents\/[^/]+\/transcript$/, feature: 'agentTranscripts' },
   // 原生组件的新接口；组件列表与旧 iframe 路由不在其中，旧行为不受这项能力影响。
   // A8 的版本、导出、台账、回收站与暂存导入同样只在支持原生组件的 Runtime 上提供。
   {

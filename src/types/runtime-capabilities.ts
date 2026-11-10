@@ -20,6 +20,7 @@ export type RuntimeFeature =
   | 'goals'
   | 'plans'
   | 'multiAgent'
+  | 'agentTranscripts'
   | 'channels'
   | 'workflows'
   | 'schedules'
@@ -78,6 +79,8 @@ const fullFeatures = {
   goals: true,
   plans: true,
   multiAgent: true,
+  // 子代理过程：旧 Runtime 不保存子代理的对话，没有声明时不出现“查看过程”。
+  agentTranscripts: false,
   channels: true,
   workflows: true,
   schedules: true,

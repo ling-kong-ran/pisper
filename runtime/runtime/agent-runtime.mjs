@@ -726,6 +726,8 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.mobileOperations = new MobileOperationService()
     this.multiAgents = new MultiAgentService({
       path: join(dataDir, 'pisper-agents.json'),
+      // 子代理的对话记录（只读查看用），跟着父会话删除。
+      transcriptDir: join(dataDir, 'pisper-agent-transcripts'),
       agentDir: this.dataDir,
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,

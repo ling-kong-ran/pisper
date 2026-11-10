@@ -95,6 +95,8 @@ type FocusTranscriptProps = {
   onWorkspace?: () => void
   // 手机会话页：只展开最新一轮，之前的对话收成“上一轮”摘要胶囊（规格 7.3），点开显示完整历史。
   collapseEarlierTurns?: boolean
+  // 只读转录（检查器里的子代理过程）：没有重试；内容从顶部排起，不贴着底部（那里没有输入框）。
+  readOnly?: boolean
 }
 
 function TranscriptLoading({ label }: { label: string }) {
@@ -169,6 +171,7 @@ export function FocusTranscript({
   onCreateChildSession,
   onRetryLastTurn,
   collapseEarlierTurns = false,
+  readOnly = false,
 }: FocusTranscriptProps) {
   const { t } = useI18n()
   const [earlierOpen, setEarlierOpen] = useState(false)
@@ -413,7 +416,7 @@ export function FocusTranscript({
       >
         {/* 内容锚定底部（规格 4.3）：消息不满一屏时整段贴着输入框，而不是悬在顶部。 */}
         <div
-          className={`[display:flow-root] w-full ${transcriptLoadState === 'ready' && messages.length > 0 ? 'mt-auto' : ''}`}
+          className={`[display:flow-root] w-full ${transcriptLoadState === 'ready' && messages.length > 0 && !readOnly ? 'mt-auto' : ''}`}
           ref={transcriptPrefixRef}
         >
           {/* Bot 的招呼留在对话最前面：还有更早的消息没加载或被折叠时不显示，免得夹在中间。 */}
@@ -576,6 +579,7 @@ export function FocusTranscript({
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
               onRetryLastTurn={onRetryLastTurn}
+              readOnly={readOnly}
               turnsKnown={!hasOlder}
               turnBase={collapsed && earlier ? earlier.turnBase : 0}
             />

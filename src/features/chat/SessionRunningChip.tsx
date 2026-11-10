@@ -11,11 +11,13 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { useTerminals } from '@/features/terminal/public'
 import { cn } from '@/lib/utils'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import type { EntityRecord } from '@/types/chat'
 import { formatTrayClock } from './focus-session-composer-bits'
 import { runDurationMs } from './run-activity'
 import { useSessionInspectorStore } from './session-inspector-store'
 import { SessionInspectorContext } from './session-workspace-context'
+import { useSubagentViewStore } from './subagent-view-store'
 
 const ACTIVE_AGENT_STATUSES = new Set(['queued', 'starting', 'running'])
 const ACTIVE_TERMINAL_STATUSES = new Set(['starting', 'running', 'stopping'])
@@ -23,6 +25,8 @@ const ACTIVE_TERMINAL_STATUSES = new Set(['starting', 'running', 'stopping'])
 type RunningRow = {
   key: string
   kind: 'tool' | 'agent' | 'terminal'
+  // 子代理行：点开在检查器里看它的过程。
+  agentId?: string
   icon: ReactNode
   name: string
   detail: string
@@ -97,6 +101,7 @@ function useRunningRows(
       .map((agent) => ({
         key: `agent:${String(agent.id)}`,
         kind: 'agent' as const,
+        agentId: text(agent.id),
         icon: <Bot size={14} aria-hidden="true" />,
         name: text(agent.title) || text(agent.taskName) || t('board:inspector.runningAgent'),
         detail: text(agent.message),
@@ -161,6 +166,9 @@ export function SessionRunningChip({
   const inspector = useContext(SessionInspectorContext)
   const [open, setOpen] = useState(false)
   const rows = useRunningRows(sessionId, streaming, activity)
+  const transcripts = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features.agentTranscripts,
+  )
   if (!rows.length) return null
   const label = t('board:inspector.runningCount', { count: rows.length })
   // 终端 / 进程：到检查器“终端 › 进程”看输出、停止。
@@ -168,6 +176,12 @@ export function SessionRunningChip({
     setOpen(false)
     useSessionInspectorStore.getState().setTerminalView('processes')
     inspector?.show('terminal')
+  }
+  // 子代理：到检查器“子代理”标签看它的过程。
+  const openAgent = (agentId: string) => {
+    setOpen(false)
+    useSubagentViewStore.getState().select(sessionId, agentId)
+    inspector?.show('subagent')
   }
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -216,7 +230,19 @@ export function SessionRunningChip({
         <ul className="m-0 flex list-none flex-col gap-px p-0">
           {rows.map((row) => (
             <li key={row.key} data-running-item={row.kind}>
-              {row.kind === 'terminal' && inspector ? (
+              {row.kind === 'agent' && row.agentId && transcripts && inspector ? (
+                <button
+                  type="button"
+                  className={cn(
+                    ROW_CLASS,
+                    'group cursor-pointer hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                  )}
+                  aria-label={t('board:subagent.open', { name: row.name })}
+                  onClick={() => openAgent(row.agentId ?? '')}
+                >
+                  <RowBody row={row} />
+                </button>
+              ) : row.kind === 'terminal' && inspector ? (
                 <button
                   type="button"
                   className={cn(

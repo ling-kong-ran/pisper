@@ -191,8 +191,9 @@ function createSpawnAgentTool({ multiAgentRuntime, agentProfiles = [], tierModel
         }),
       ),
     }),
-    async execute(_toolCallId, params) {
-      const agent = await requireRuntime(multiAgentRuntime, 'spawn')(params)
+    async execute(toolCallId, params) {
+      // 记下是哪次调用派的：父会话的工具行据此打开这个子代理的过程。
+      const agent = await requireRuntime(multiAgentRuntime, 'spawn')({ ...params, toolCallId })
       return { ...text(spawnResultText(agent)), details: agent }
     },
   })

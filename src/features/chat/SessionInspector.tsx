@@ -6,6 +6,7 @@
 import { Suspense, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Bot,
   FileDiff,
   Files,
   Globe2,
@@ -37,6 +38,8 @@ import { useContextPagesStore } from './session-context-pages-store'
 import { useSessionInspectorStore, type SessionInspectorTab } from './session-inspector-store'
 import type { SessionComponentTabs } from './session-workspace-context'
 import { SideChatPane } from './SideChatPane'
+import { SubagentPane } from './SubagentPane'
+import { useSubagentViewStore } from './subagent-view-store'
 import { TaskSourcesPane } from './TaskSourcesPane'
 import type { TaskSource } from './task-sources'
 
@@ -117,12 +120,15 @@ export function SessionInspector({
   const setChangesView = useSessionInspectorStore((state) => state.setChangesView)
   const pages = useContextPagesStore((store) => store.sessions[sessionId]?.pages) ?? EMPTY_PAGES
   const sideChatOpen = pages.some((page) => page.kind === 'side-chat')
+  // 打开过某个子代理的过程时才有“子代理”标签（与侧聊一样按需出现）。
+  const subagentOpen = useSubagentViewStore((state) => sessionId in state.selected)
   // 当前会话没有侧聊页或计划时，记住的标签退回“改动”，不显示一个不存在的标签。
   // “运行中”已移到顶栏芯片（SessionRunningChip），旧偏好里记着它时同样退回。
   const fallbackTab: SessionInspectorTab = remoteMachine ? 'preview' : 'changes'
   const tab: SessionInspectorTab =
     storedTab === 'running' ||
     (storedTab === 'side-chat' && !sideChatOpen) ||
+    (storedTab === 'subagent' && !subagentOpen) ||
     (storedTab === 'plan' && !planTab) ||
     (remoteMachine && LOCAL_ONLY_TABS.has(storedTab))
       ? fallbackTab
@@ -203,6 +209,9 @@ export function SessionInspector({
     ...(sideChatOpen
       ? [{ id: 'side-chat' as const, icon: MessageSquare, label: t('board:inspector.sideChat') }]
       : []),
+    ...(subagentOpen
+      ? [{ id: 'subagent' as const, icon: Bot, label: t('board:inspector.subagent') }]
+      : []),
   ]
 
   const view = (patch: Partial<ContextPageView>) => {
@@ -226,6 +235,16 @@ export function SessionInspector({
       return
     }
     requestAnimationFrame(() => document.getElementById(`${panelId}-changes-tab`)?.focus())
+  }
+
+  const closeSubagent = () => {
+    useSubagentViewStore.getState().close(sessionId)
+    setTab(fallbackTab)
+    if (sheet) {
+      onClose()
+      return
+    }
+    requestAnimationFrame(() => document.getElementById(`${panelId}-${fallbackTab}-tab`)?.focus())
   }
 
   const componentTabId = (id: string) => `${panelId}-component-${id}-tab`
@@ -371,6 +390,8 @@ export function SessionInspector({
         activity={activity}
       />
     )
+  } else if (tab === 'subagent') {
+    body = <SubagentPane sessionId={sessionId} sheet={sheet} />
   } else {
     body = <SideChatPane parentId={sessionId} active />
   }
@@ -435,6 +456,18 @@ export function SessionInspector({
               </button>
             )
           })}
+          {!activeComponent && tab === 'subagent' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={cn(sheet && 'size-11')}
+              aria-label={t('board:inspector.closeTab', { tab: t('board:inspector.subagent') })}
+              onClick={closeSubagent}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          )}
           {!activeComponent && tab === 'side-chat' && (
             <Button
               type="button"

@@ -169,7 +169,11 @@ test('the bot conversation page shows jobs from the session and reloads after th
     focus,
     /return botId \? withAgentEvents\(shown, sessionAgents\.agents, sessionAgents\.links\) : shown/,
   )
-  assert.match(focus, /useSessionAgents\(session\.id, Boolean\(botId\), \(\) => \{/)
+  // Bot 页总是拉子代理；派过子代理的普通会话也拉（子代理行与过程），但活做完后重拉对话只在 Bot 页。
+  assert.match(
+    focus,
+    /useSessionAgents\(session\.id, Boolean\(botId\) \|\| hasSubagents, \(\) => \{\s*if \(!botId\) return/,
+  )
   const transcript = await readFile(
     new URL('../../src/features/chat/VirtualMessageTranscript.tsx', import.meta.url),
     'utf8',

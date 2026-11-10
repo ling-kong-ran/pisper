@@ -2,7 +2,16 @@
 // 组标题“3 个操作 · 1 运行中 · 19s”（规格 v2 第 4.2 节），每行 36px：状态字形 + 等宽动词 + 路径/命令 +
 // 耗时 + 展开箭头，实时跟随 SSE 流更新。运行中整组展开、正在运行的 bash 行展开实时输出；
 // 这一轮结束后整组折叠成一行，需要时再点开。
-import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Activity, ChevronRight, Lightbulb } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { StatusGlyph } from '@/components/app/StatusGlyph'
@@ -14,6 +23,18 @@ import { planFromActivity } from '@/lib/plan-protocol'
 import { terminalDisplayOutput } from '@/lib/terminal-output'
 import type { EntityRecord, TeamCommunication, TeamState, TeamTask } from '@/types/chat'
 import { ChatRequestNotice } from './ChatRequestNotice'
+import {
+  SessionSubagentsContext,
+  agentForSpawnCall,
+  isActiveAgent,
+  type SessionAgent,
+} from './session-agents'
+import {
+  SUBAGENT_STATUS_GLYPH,
+  subagentActivityText,
+  subagentElapsed,
+  subagentStatusText,
+} from './subagent-presentation'
 import {
   agentActivityTitle,
   commandExitCode,
@@ -400,9 +421,28 @@ function ToneGlyph({ tone, spin = true }: { tone: string; spin?: boolean }) {
   )
 }
 
+// 工具组里派出子代理的那一行（spawn_agent 调用，或运行中的子代理活动）对应的子代理。
+function subagentForActivity(activity: EntityRecord, agents: readonly SessionAgent[] | undefined) {
+  if (!agents?.length) return undefined
+  if (activity.type === 'agent')
+    return agents.find((agent) => agent.id === String(activity.agent?.id || ''))
+  if (activity.type !== 'tool' || activity.name !== 'spawn_agent') return undefined
+  const args =
+    activity.args && typeof activity.args === 'object' ? (activity.args as EntityRecord) : {}
+  return agentForSpawnCall(agents, String(activity.id || ''), String(args.taskName || ''))
+}
+
 // 工具组标题的计数：只按活动自身的状态归类（完成 / 运行中 / 失败），不另外推导；
 // 运行结束后残留的 running 记录按完成计，避免历史回复里出现“运行中”。
-function activityOutcome(activity: EntityRecord, streaming?: boolean) {
+// 派出去的子代理例外：spawn_agent 调用一返回就算完成，标题按子代理自己还在不在跑来数。
+function activityOutcome(
+  activity: EntityRecord,
+  streaming?: boolean,
+  agents?: readonly SessionAgent[],
+) {
+  const subagent = subagentForActivity(activity, agents)
+  if (subagent)
+    return isActiveAgent(subagent) ? 'running' : subagent.status === 'failed' ? 'failed' : 'done'
   const status = activity.type === 'agent' ? activity.agent?.status : activity.status
   if (status === 'error' || status === 'failed') return 'failed'
   if (streaming && ['running', 'starting', 'queued'].includes(String(status))) return 'running'
@@ -410,10 +450,74 @@ function activityOutcome(activity: EntityRecord, streaming?: boolean) {
   return 'done'
 }
 
-function activityGroupCounts(activities: EntityRecord[], streaming?: boolean) {
+function activityGroupCounts(
+  activities: EntityRecord[],
+  streaming?: boolean,
+  agents?: readonly SessionAgent[],
+) {
   const counts = { total: activities.length, done: 0, running: 0, failed: 0 }
-  for (const activity of activities) counts[activityOutcome(activity, streaming)] += 1
+  for (const activity of activities) counts[activityOutcome(activity, streaming, agents)] += 1
   return counts
+}
+
+// 子代理行：状态、用时跟着子代理本身走（不是 spawn_agent 这一下的耗时），在跑时写它正在做什么；
+// 整行点开在检查器的“子代理”标签里看它的过程。
+function SubagentActivityRow({
+  agent,
+  onOpen,
+  t,
+}: {
+  agent: SessionAgent
+  onOpen: (agentId: string) => void
+  t: Translate
+}) {
+  const active = isActiveAgent(agent)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return undefined
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [active])
+  const glyph = SUBAGENT_STATUS_GLYPH[agent.status]
+  const detail = active ? subagentActivityText(agent, t) : subagentStatusText(agent.status, t)
+  return (
+    <div
+      className="agent-run-summary flex w-full min-w-0 flex-none flex-col"
+      data-pisper-activity-type="subagent"
+      data-subagent-row={agent.id}
+    >
+      <button
+        type="button"
+        className={`${LOG_ROW_CLASS} group w-full text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${active ? 'bg-st-run-soft' : ''}`}
+        aria-label={t('board:subagent.open', { name: agent.taskName })}
+        onClick={() => onOpen(agent.id)}
+      >
+        <span className="agent-run-status-icon grid size-[18px] flex-none place-items-center">
+          <StatusGlyph
+            status={glyph.kind}
+            spin={glyph.kind === 'run'}
+            className={`size-[15px] ${glyph.color}`}
+          />
+        </span>
+        <span
+          className={`agent-run-verb flex-none text-[12px] font-semibold ${active ? 'text-st-run' : 'text-content-secondary'}`}
+        >
+          {t('board:subagent.verb')}
+        </span>
+        <span className="agent-run-arg min-w-0 flex-1 truncate" title={agent.message}>
+          <span className="font-mono text-[12.5px] text-foreground">{agent.taskName}</span>
+          <span className="text-[12.5px] text-content-muted"> · {detail}</span>
+        </span>
+        <span className="agent-run-elapsed min-w-[44px] flex-none text-right font-mono text-[12px] text-content-muted tabular-nums">
+          {subagentElapsed(agent.startedAt, agent.completedAt, now)}
+        </span>
+        <span className="flex flex-none items-center gap-0.5 text-[12px] text-content-secondary group-hover:text-content">
+          <span className="max-[650px]:hidden">{t('board:subagent.view')}</span>
+          <ChevronRight aria-hidden="true" className="size-3.5" />
+        </span>
+      </button>
+    </div>
+  )
 }
 
 function ActivityElement({
@@ -619,6 +723,8 @@ const ActivityCard = memo(function ActivityCard({
   notice,
   lastActivityAt,
 }: ActivityCardProps) {
+  const subagents = useContext(SessionSubagentsContext)
+  const subagent = subagents ? subagentForActivity(activity, subagents.agents) : undefined
   const presentation = activityPresentation(activity, {
     t,
     streaming,
@@ -636,6 +742,8 @@ const ActivityCard = memo(function ActivityCard({
     streaming && activity.type === 'tool' && activity.status === 'running',
   )
   const showCommandOutput = activity.name === 'bash' && Boolean(activity.output || runningTool)
+  if (subagent && subagents)
+    return <SubagentActivityRow agent={subagent} onOpen={subagents.open} t={t} />
   if (activity.type === 'retry') {
     return (
       <ChatRequestNotice
@@ -775,6 +883,8 @@ function AgentRunActivity({
   compact = false,
 }: AgentRunActivityProps) {
   const { t } = useI18n()
+  // 会话页提供时，派出去的子代理按它自己的状态计数、显示，并能点开看过程。
+  const subagents = useContext(SessionSubagentsContext)
   const thinking = String(thinkingText || '').trim()
   const thinkingScrollRef = useRef<HTMLDivElement>(null)
   const liveFeedRef = useRef<HTMLDivElement>(null)
@@ -822,7 +932,7 @@ function AgentRunActivity({
   // 没有任何可见内容时不占位：运行状态由输入框的呼吸灯胶囊承载。
   if (!thinking && !activities.length && !team) return null
 
-  const counts = activityGroupCounts(activities, streaming)
+  const counts = activityGroupCounts(activities, streaming, subagents?.agents)
   const renderActivityCards = (items: EntityRecord[]) =>
     items.map((activity, index) => (
       <ActivityCard

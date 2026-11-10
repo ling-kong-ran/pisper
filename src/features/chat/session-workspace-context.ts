@@ -90,6 +90,8 @@ export const SessionInspectorContext = createContext<SessionInspectorControl | n
 export type TranscriptMeta = {
   model: string
   botId?: string
+  // 信息行固定写这个名字（检查器里子代理的过程写子代理的名字），不写 Pisper 或模型。
+  name?: string
 }
 
 export const TranscriptMetaContext = createContext<TranscriptMeta | null>(null)

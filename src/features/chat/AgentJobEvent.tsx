@@ -1,12 +1,17 @@
 // 时间线里的一件活（Bot 派出的子 agent）：一行写它在做什么、到哪一步、用了多久，在跑时可以停；
-// 展开看交代、模型和最近的输出。结果由 Bot 在对话里用一句话汇报，这里不重复贴整段。
-import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Square, X } from 'lucide-react'
+// 展开看交代、模型和最近的输出；“查看过程”在检查器里只读看它的完整过程。结果由 Bot 在对话里用一句话汇报，这里不重复贴整段。
+import { useContext, useEffect, useState } from 'react'
+import { Check, ChevronDown, ChevronRight, Square, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { isActiveAgent, stopSessionAgent, type SessionAgent } from './session-agents'
+import {
+  SessionSubagentsContext,
+  isActiveAgent,
+  stopSessionAgent,
+  type SessionAgent,
+} from './session-agents'
 
 function duration(from: string, to: string | null, now: number) {
   const start = Date.parse(from)
@@ -30,6 +35,7 @@ export function AgentJobEvent({
   const [open, setOpen] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const subagents = useContext(SessionSubagentsContext)
   const active = isActiveAgent(agent)
   // 在跑的那件每秒走一下时间；结束了就不再刷新。
   useEffect(() => {
@@ -107,6 +113,19 @@ export function AgentJobEvent({
           >
             <Square aria-hidden="true" />
             {t('chat:agentJob.stop')}
+          </Button>
+        )}
+        {subagents && agent.kind !== 'command' && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="flex-none text-content-secondary pointer-coarse:h-11"
+            aria-label={t('board:subagent.open', { name: agent.taskName })}
+            onClick={() => subagents.open(agent.id)}
+          >
+            {t('board:subagent.view')}
+            <ChevronRight aria-hidden="true" data-icon="inline-end" />
           </Button>
         )}
         <Button

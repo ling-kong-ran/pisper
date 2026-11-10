@@ -99,6 +99,8 @@ function buildCapabilities({
     goals: !embedded,
     plans: !embedded,
     multiAgent: !embedded,
+    // 只读查看子代理的过程：子代理的对话记录跟着父会话落盘，随多 Agent 一起提供。
+    agentTranscripts: !embedded,
     channels: !embedded,
     workflows: !embedded,
     schedules: !embedded,

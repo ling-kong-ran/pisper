@@ -926,6 +926,8 @@ export const FocusChatMessage = memo(function FocusChatMessage({
                   fallback={latest && meta.model ? meta.model : 'Pisper'}
                 />
               </Suspense>
+            ) : meta?.name ? (
+              meta.name
             ) : meta && latest && meta.model ? (
               meta.model
             ) : (

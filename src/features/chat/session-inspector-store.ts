@@ -16,6 +16,8 @@ export const SESSION_INSPECTOR_TABS = [
   'preview',
   'plan',
   'side-chat',
+  // 只读查看某个子代理的过程：打开过子代理时才出现；旧版本读到这个值会退回默认标签。
+  'subagent',
 ] as const
 export type SessionInspectorTab = (typeof SESSION_INSPECTOR_TABS)[number]
 export type SessionInspectorTerminalView = 'terminal' | 'processes'

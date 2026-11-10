@@ -2,7 +2,7 @@
 // 在跑的时候按状态刷新，可以展开看最近的输出，也可以停掉。数据来自 /api/sessions/:id/agents。
 import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { requestJson } from '@/lib/http'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, EntityRecord } from '@/types/chat'
 
 // 运行时派的只读巡看（runtime/services/bots/bot-proactive.mjs 的 BOT_PROACTIVE_TASK_NAME）。
 export const PROACTIVE_TASK_NAME = 'proactive_check'
@@ -24,6 +24,8 @@ export type SessionAgent = {
   completedAt: string | null
   toolCallCount: number
   activity: string
+  // 派出它的那次 spawn_agent 调用（旧 Runtime 不带）：父会话的工具行据此找到对应的子代理。
+  toolCallId: string
 }
 
 const STATUSES: readonly SessionAgentStatus[] = [
@@ -79,6 +81,7 @@ export function parseSessionAgents(value: unknown): SessionAgent[] {
         completedAt: text(input.completedAt, 40) || null,
         toolCallCount: Number.isInteger(toolCalls) && toolCalls > 0 ? toolCalls : 0,
         activity: text(activity.name, 80) || text(activity.stage, 40),
+        toolCallId: text(input.toolCallId, 128),
       },
     ]
   })
@@ -130,6 +133,45 @@ export function fetchSessionAgents(sessionId: string, signal?: AbortSignal) {
   })
 }
 
+// 一个子代理的过程（只读）：主代理交给它的任务、和普通会话同样形状的消息。
+// available 为假：这个子代理是在保存过程之前派出的，没有留下记录。
+export type AgentTranscript = {
+  available: boolean
+  active: boolean
+  task: string
+  // 第一条消息就是任务本身（界面已经放在“任务”块里，不再当成一条发言显示）。
+  taskShown: boolean
+  omitted: number
+  messages: ChatMessage[]
+}
+
+export function parseAgentTranscript(value: unknown): AgentTranscript {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const messages = (Array.isArray(input.messages) ? input.messages : []).filter(
+    (item): item is ChatMessage =>
+      Boolean(item) &&
+      typeof item === 'object' &&
+      typeof (item as Record<string, unknown>).id === 'string' &&
+      typeof (item as Record<string, unknown>).role === 'string',
+  )
+  const omitted = Number(input.omitted)
+  return {
+    available: input.available === true,
+    active: input.active === true,
+    task: text(input.task, 12_000),
+    taskShown: input.taskShown === true,
+    omitted: Number.isInteger(omitted) && omitted > 0 ? omitted : 0,
+    messages,
+  }
+}
+
+export function fetchAgentTranscript(sessionId: string, agentId: string, signal?: AbortSignal) {
+  return requestJson(
+    `/api/sessions/${encodeURIComponent(sessionId)}/agents/${encodeURIComponent(agentId)}/transcript`,
+    { signal, parse: parseAgentTranscript },
+  )
+}
+
 export function stopSessionAgent(sessionId: string, agentId: string) {
   return requestJson(
     `/api/sessions/${encodeURIComponent(sessionId)}/agents/${encodeURIComponent(agentId)}/stop`,
@@ -146,6 +188,47 @@ export type AgentJobsValue = {
 }
 
 export const AgentJobsContext = createContext<AgentJobsValue | null>(null)
+
+// 会话页的子代理（只在 Runtime 能给出子代理过程时提供）：工具组里的子代理行、运行中弹层与 Bot 工作卡
+// 据此显示子代理自己的状态，并在检查器的“子代理”标签里打开它的过程。
+export type SessionSubagentsValue = {
+  sessionId: string
+  agents: readonly SessionAgent[]
+  open: (agentId: string) => void
+}
+
+export const SessionSubagentsContext = createContext<SessionSubagentsValue | null>(null)
+
+// 这个会话派过子代理吗（历史回复的工具活动或当前运行里出现过 spawn_agent / 子代理活动）：
+// 派过才去拉子代理列表，普通会话不多发请求。
+export function sessionHasSubagents(
+  messages: readonly ChatMessage[],
+  live: readonly EntityRecord[],
+) {
+  const spawned = (activity: unknown) => {
+    const entry = activity && typeof activity === 'object' ? (activity as EntityRecord) : null
+    return Boolean(entry && (entry.type === 'agent' || entry.name === 'spawn_agent'))
+  }
+  if (live.some(spawned)) return true
+  return messages.some((message) => {
+    const run = message.runActivity as EntityRecord | undefined
+    return Array.isArray(run?.tools) && run.tools.some(spawned)
+  })
+}
+
+// 工具组里一次 spawn_agent 调用对应的子代理：新 Runtime 按调用 id 对上；旧记录没有调用 id 时按任务名找最近一个。
+export function agentForSpawnCall(
+  agents: readonly SessionAgent[],
+  toolCallId: string,
+  taskName: string,
+) {
+  return (
+    (toolCallId ? agents.find((agent) => agent.toolCallId === toolCallId) : undefined) ??
+    (taskName
+      ? [...agents].reverse().find((agent) => !agent.toolCallId && agent.taskName === taskName)
+      : undefined)
+  )
+}
 
 const ACTIVE_POLL_MS = 2_500
 const IDLE_POLL_MS = 15_000

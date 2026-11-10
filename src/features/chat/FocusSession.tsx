@@ -53,7 +53,14 @@ import {
 import { runtimeSettingCommands, sideQuestionText, type BuiltinCommand } from './builtin-commands'
 import { SideQuestionPanel } from './SideQuestionPanel'
 import { useSideQuestion } from './useSideQuestion'
-import { AgentJobsContext, useSessionAgents, withAgentEvents } from './session-agents'
+import {
+  AgentJobsContext,
+  SessionSubagentsContext,
+  sessionHasSubagents,
+  useSessionAgents,
+  withAgentEvents,
+} from './session-agents'
+import { useSubagentViewStore } from './subagent-view-store'
 import { chatApi } from './chat-api'
 import { FocusTranscript } from './FocusTranscript'
 import { SessionTreeControl } from './SessionTreeControl'
@@ -501,7 +508,16 @@ export const FocusSession = memo(function FocusSession({
     },
     [session.id],
   )
-  const sessionAgents = useSessionAgents(session.id, Boolean(botId), () => {
+  // 子代理的过程（检查器“子代理”标签）：Runtime 能给出、且这个会话派过子代理时才拉列表。
+  const subagentsAvailable = Boolean(capabilities.features.agentTranscripts && inspector && !draft)
+  const hasSubagents = useMemo(
+    () =>
+      subagentsAvailable &&
+      sessionHasSubagents(messages, activityFeed.length ? activityFeed : tools),
+    [activityFeed, messages, subagentsAvailable, tools],
+  )
+  const sessionAgents = useSessionAgents(session.id, Boolean(botId) || hasSubagents, () => {
+    if (!botId) return
     for (const delay of [1_500, 4_000, 9_000])
       refreshTimersRef.current.push(window.setTimeout(() => void onLoadLatest?.(), delay))
   })
@@ -528,6 +544,22 @@ export const FocusSession = memo(function FocusSession({
           }
         : null,
     [botId, session.id, sessionAgents.agents, sessionAgents.links, sessionAgents.reload],
+  )
+  const selectSubagent = useSubagentViewStore((state) => state.select)
+  const showInspector = inspector?.show
+  const subagents = useMemo(
+    () =>
+      subagentsAvailable && showInspector
+        ? {
+            sessionId: session.id,
+            agents: sessionAgents.agents,
+            open: (agentId: string) => {
+              selectSubagent(session.id, agentId)
+              showInspector('subagent')
+            },
+          }
+        : null,
+    [selectSubagent, session.id, sessionAgents.agents, showInspector, subagentsAvailable],
   )
   const transcriptMessages = useMemo(() => {
     const shown = phonePage
@@ -1196,13 +1228,15 @@ export const FocusSession = memo(function FocusSession({
           data-focus-region="content"
         >
           <AgentJobsContext.Provider value={agentJobs}>
-            {transcriptMeta ? (
-              <TranscriptMetaContext.Provider value={transcriptMeta}>
-                {transcriptBlock}
-              </TranscriptMetaContext.Provider>
-            ) : (
-              transcriptBlock
-            )}
+            <SessionSubagentsContext.Provider value={subagents}>
+              {transcriptMeta ? (
+                <TranscriptMetaContext.Provider value={transcriptMeta}>
+                  {transcriptBlock}
+                </TranscriptMetaContext.Provider>
+              ) : (
+                transcriptBlock
+              )}
+            </SessionSubagentsContext.Provider>
           </AgentJobsContext.Provider>
         </div>
         <div className="shrink-0" data-chat-region="composer" data-focus-region="composer">

@@ -63,6 +63,7 @@ import { normalizeSideQuestion, streamSideQuestion } from './side-question.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
 import { finishRunStartTiming, markRunStage, withRunStartTiming } from './run-start-timing.mjs'
 import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.mjs'
+import { projectAgentTranscript } from './agent-transcript.mjs'
 import { sessionInputQueueSnapshot } from './session-input-queue.mjs'
 import {
   MAX_COMPACTION_THRESHOLD_PERCENT,
@@ -1128,6 +1129,14 @@ export class AgentRuntimeFacade {
     if (!commands.length) return agents
     return [...agents, ...commands].sort((left, right) =>
       String(left.startedAt).localeCompare(String(right.startedAt)),
+    )
+  }
+
+  // 只读查看会话自己的某个子 agent 的过程；后台命令没有对话，和不是它的子 agent 一样返回 null。
+  getSessionAgentTranscript(sessionId, agentId) {
+    if (!this.multiAgents || String(agentId).startsWith('cmd_')) return null
+    return projectAgentTranscript(
+      this.multiAgents.transcriptSource(String(sessionId || ''), String(agentId || '')),
     )
   }
 

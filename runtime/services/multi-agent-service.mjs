@@ -2,7 +2,9 @@
 // 通过邮箱（mailbox）收发消息；服务负责注册表持久化、并发限制、运行/中断/回收
 // 生命周期管理，以及子 Agent 会话的定时释放（保留期后销毁）。
 import { randomUUID } from 'node:crypto'
-import { isAbsolute } from 'node:path'
+import { existsSync } from 'node:fs'
+import { readdir, rm, unlink } from 'node:fs/promises'
+import { dirname, isAbsolute, join } from 'node:path'
 import {
   createAgentSession,
   createDefaultResourceLoader,
@@ -166,6 +168,7 @@ function durableRecord(record) {
     id: record.id,
     taskName: record.taskName,
     title: record.title || '',
+    ...(record.toolCallId ? { toolCallId: record.toolCallId } : {}),
     ...(record.parentLimit ? { parentLimit: record.parentLimit } : {}),
     ...(record.skillPaths?.length ? { skillPaths: record.skillPaths } : {}),
     canonicalName: record.canonicalName,
@@ -240,6 +243,7 @@ function restoredRecord(value) {
     title: String(value?.title || '')
       .trim()
       .slice(0, 80),
+    toolCallId: toolCallIdValue(value?.toolCallId),
     parentLimit: Number.isInteger(parentLimit) && parentLimit > 0 ? parentLimit : null,
     skillPaths: skillPathList(value?.skillPaths),
     canonicalName: String(
@@ -364,6 +368,21 @@ function inheritedCustomTools(tools, customTools) {
   return Array.isArray(customTools) ? customTools.filter((tool) => enabled.has(tool?.name)) : []
 }
 
+// 工具调用 id 来自模型输出，只当作不透明的短标识。
+function toolCallIdValue(value) {
+  const id = String(value || '').trim()
+  return id.length <= 128 && ![...id].some((char) => char.charCodeAt(0) < 32) ? id : ''
+}
+
+// 子代理的对话记录放在 <transcriptDir>/<父会话>/<子代理>.jsonl：父会话 id 只保留安全字符，不会跳出目录。
+function transcriptSegment(value) {
+  return (
+    String(value || '')
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .slice(0, 128) || '_'
+  )
+}
+
 function normalizeTaskName(value) {
   const normalized = String(value || '')
     .trim()
@@ -447,6 +466,8 @@ function summaryRecord(record) {
     id: record.id,
     taskName: record.taskName,
     title: record.title || '',
+    // 派出它的那次 spawn_agent 调用：父会话的工具行据此找到对应的子代理（同名任务可以派多次）。
+    toolCallId: record.toolCallId || '',
     canonicalName: record.canonicalName,
     parentSessionId: record.parentSessionId,
     status: record.status,
@@ -491,7 +512,10 @@ export class MultiAgentService {
     getSettingsManager,
     getCompactionThresholdPercent,
     createSession = createAgentSession,
-    createSessionManager = (cwd) => SessionManager.inMemory(cwd),
+    // 第二个参数是这个子代理对话记录的文件；没有时（未配置 transcriptDir）只留在内存里。
+    createSessionManager = (cwd, file) =>
+      file ? SessionManager.open(file, dirname(file), cwd) : SessionManager.inMemory(cwd),
+    transcriptDir = '',
     createResourceLoader = createAgentResourceLoader,
     maxConcurrent = MAX_CONCURRENT_AGENTS,
     terminalSessionRetentionMs = TERMINAL_AGENT_SESSION_RETENTION_MS,
@@ -506,6 +530,7 @@ export class MultiAgentService {
     this.getCompactionThresholdPercent = getCompactionThresholdPercent || (() => undefined)
     this.createSession = createSession
     this.createSessionManager = createSessionManager
+    this.transcriptDir = transcriptDir ? String(transcriptDir) : ''
     this.createResourceLoader = createResourceLoader
     this.maxConcurrent = Math.max(1, Number(maxConcurrent) || MAX_CONCURRENT_AGENTS)
     this.terminalSessionRetentionMs = Math.max(0, Number(terminalSessionRetentionMs) || 0)
@@ -549,6 +574,7 @@ export class MultiAgentService {
     if (!state) return
     if (state.version !== AGENT_REGISTRY_VERSION) {
       await this.save()
+      void this.sweepTranscripts().catch(() => {})
       return
     }
     this.sequence = Math.max(0, Number(state.sequence) || 0)
@@ -579,6 +605,65 @@ export class MultiAgentService {
       this.records.set(record.id, record)
     }
     if (changed) await this.save()
+    // 不等它：启动不依赖用户数据，清理失败下次启动再试。
+    void this.sweepTranscripts().catch(() => {})
+  }
+
+  transcriptFile(record) {
+    if (!this.transcriptDir || !record?.id || !record.parentSessionId) return ''
+    return join(
+      this.transcriptDir,
+      transcriptSegment(record.parentSessionId),
+      `${transcriptSegment(record.id)}.jsonl`,
+    )
+  }
+
+  removeTranscript(record) {
+    const file = this.transcriptFile(record)
+    if (file) void unlink(file).catch(() => {})
+  }
+
+  // 登记表里已经没有的子代理（裁剪、父会话删除时进程没在跑、登记表换了版本）留下的记录文件与空目录。
+  async sweepTranscripts() {
+    if (!this.transcriptDir) return
+    const known = new Set(
+      [...this.records.values()].map((record) => this.transcriptFile(record)).filter(Boolean),
+    )
+    const parents = await readdir(this.transcriptDir, { withFileTypes: true }).catch(() => [])
+    for (const parent of parents) {
+      if (!parent.isDirectory()) continue
+      const directory = join(this.transcriptDir, parent.name)
+      const files = await readdir(directory).catch(() => [])
+      let kept = 0
+      for (const name of files) {
+        const file = join(directory, name)
+        if (known.has(file)) kept += 1
+        else await unlink(file).catch(() => {})
+      }
+      if (!kept) await rm(directory, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  // 只读查看一个子代理的对话：在内存里就用当前会话的消息（运行中也能看），否则读它的记录文件。
+  // 返回 Pi 的原始消息，由运行时层投影成界面消息；不是这个父会话的子代理返回 null。
+  transcriptSource(parentSessionId, agentId) {
+    const record = this.records.get(String(agentId || ''))
+    if (!record || record.parentSessionId !== parentSessionId) return null
+    const agent = summaryRecord(record)
+    const active = ACTIVE_AGENT_STATUSES.has(record.status)
+    if (record.session?.messages) return { agent, active, messages: record.session.messages }
+    const file = this.transcriptFile(record)
+    if (!file || !existsSync(file)) return { agent, active, messages: null }
+    try {
+      return {
+        agent,
+        active,
+        messages: SessionManager.open(file, dirname(file), record.cwd).buildSessionContext()
+          .messages,
+      }
+    } catch {
+      return { agent, active, messages: null }
+    }
   }
 
   save() {
@@ -720,6 +805,7 @@ export class MultiAgentService {
   removeRecord(record) {
     this.releaseTerminalSession(record)
     this.records.delete(record.id)
+    this.removeTranscript(record)
     for (const [mailboxId, entry] of this.mailbox) {
       if (entry.id === record.id) this.mailbox.delete(mailboxId)
     }
@@ -862,6 +948,7 @@ export class MultiAgentService {
     parentLimit,
     title,
     skillPaths,
+    toolCallId,
   } = {}) {
     if (!parentSessionId) throw new Error('Agent requires a parent session.')
     if (!cwd) throw new Error('Agent requires a workspace directory.')
@@ -887,6 +974,7 @@ export class MultiAgentService {
       title: String(title || '')
         .trim()
         .slice(0, 80),
+      toolCallId: toolCallIdValue(toolCallId),
       canonicalName: `/root/${normalizedName}_${++this.sequence}`,
       parentSessionId,
       cwd,
@@ -972,7 +1060,7 @@ export class MultiAgentService {
         })
         if (!isCurrent()) return
         if (record.aborted) throw new Error(record.abortReason || 'Agent was interrupted.')
-        const sessionManager = this.createSessionManager(record.cwd)
+        const sessionManager = this.createSessionManager(record.cwd, this.transcriptFile(record))
         let suppliedCustomTools = record.customTools
         if (record.createCustomTools) {
           const created = await record.createCustomTools({
@@ -1331,6 +1419,11 @@ export class MultiAgentService {
       if (entry.parentSessionId === parentSessionId) this.mailbox.delete(mailboxId)
     }
     await this.save()
+    if (this.transcriptDir)
+      await rm(join(this.transcriptDir, transcriptSegment(parentSessionId)), {
+        recursive: true,
+        force: true,
+      }).catch(() => {})
   }
 
   async dispose() {

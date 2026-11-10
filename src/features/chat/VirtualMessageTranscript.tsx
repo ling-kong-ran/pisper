@@ -43,6 +43,8 @@ type VirtualMessageTranscriptProps = {
   ) => Promise<void> | void
   onCreateChildSession?: (boundaryEntryId: string) => Promise<void> | void
   onRetryLastTurn: () => Promise<void> | void
+  // 只读转录（子代理的过程）：没有重试。
+  readOnly?: boolean
   /** 已加载的消息是否从会话开头开始：只有这样才数得出“第 N 轮”。 */
   turnsKnown?: boolean
   // 列表前面被收起的用户消息条数（手机会话页的“上一轮”胶囊）：第 N 轮从它之后接着数。
@@ -118,6 +120,7 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   onBranchFromHere,
   onCreateChildSession,
   onRetryLastTurn,
+  readOnly = false,
   turnsKnown = false,
   turnBase = 0,
 }: VirtualMessageTranscriptProps) {
@@ -328,7 +331,9 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
               sessionStreaming={streaming}
               onBranchFromHere={onBranchFromHere}
               onCreateChildSession={onCreateChildSession}
-              retryUserMessageId={isLatestAgent ? retryUserIdByIndex[virtualItem.index] : undefined}
+              retryUserMessageId={
+                isLatestAgent && !readOnly ? retryUserIdByIndex[virtualItem.index] : undefined
+              }
               hideErrorNotice={isLatestAgent && Boolean(message.error)}
               onRetryLastTurn={onRetryLastTurn}
               latest={isLatestAgent}

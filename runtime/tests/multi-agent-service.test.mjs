@@ -582,7 +582,12 @@ test('Codex-style Agent tools replace delegate_task and stay hidden from the plu
     taskName: 'inspect',
     message: 'Inspect the runtime.',
   })
-  assert.deepEqual(input, { taskName: 'inspect', message: 'Inspect the runtime.' })
+  // 带上派发它的工具调用 id：父会话的工具行据此打开子代理的过程。
+  assert.deepEqual(input, {
+    taskName: 'inspect',
+    message: 'Inspect the runtime.',
+    toolCallId: 'spawn-1',
+  })
   assert.match(result.content[0].text, /Started \/root\/inspect_1 in the background/)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'role'), true)
   assert.equal(Object.hasOwn(tool.parameters.properties, 'files'), true)
