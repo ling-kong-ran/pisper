@@ -30,6 +30,7 @@ import {
   normalizeRoomAttachments,
   normalizeRoomInput,
   normalizeUserRoomMessage,
+  roomRecipients,
   parseBriefReply,
   parseMentions,
   parseRouteReply,
@@ -367,16 +368,26 @@ test('a seat session belongs to its bot; with Labs off it is just a session', as
   assert.equal(runtime.roomSeatOf('seat-x'), null)
 })
 
-test('nobody wakes without an @; a mention wakes only that bot in its own seat', async () => {
+test('a message that names nobody goes to everyone; a mention wakes only that bot in its own seat', async () => {
+  // 没有“只留言”：没 @ 谁、也没选“发给”时叫醒所有成员（旧客户端发来的空“发给”也一样）。
+  const everyone = await fakeRuntime()
+  const shared = await everyone.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const unnamed = await everyone.postRoomMessage(shared.id, { text: '大家看看', recipients: [] })
+  assert.deepEqual(unnamed.woke.toSorted(), [KE, PRO].toSorted())
+
   const runtime = await fakeRuntime()
   const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
-  const quiet = await runtime.postRoomMessage(room.id, { text: '先铺垫一下背景' })
-  assert.deepEqual(quiet.woke, [])
-  const asked = await runtime.postRoomMessage(room.id, { text: '@小克pro 看看还缺什么' })
+  // 先只发给小克：小克pro 这时没被叫醒，下一次叫醒时补上这条没读过的。
+  const first = await runtime.postRoomMessage(room.id, { text: '先铺垫一下背景', recipients: [KE] })
+  assert.deepEqual(first.woke, [KE])
+  // “发给”选的是所有人，但这句点了名：只叫点到的。
+  const asked = await runtime.postRoomMessage(room.id, {
+    text: '@小克pro 看看还缺什么',
+    recipients: 'all',
+  })
   await settle(runtime)
   assert.deepEqual(asked.woke, [PRO])
-  assert.equal(runtime.runs.length, 1)
-  const run = runtime.runs[0]
+  const run = runtime.runs.find((item) => item.message.startsWith('@小克pro'))
   // 看得见的是你的原话；群上下文藏在附件上下文里，带着两条没读过的消息与叫醒来由。
   const [visible, context] = run.message.split(ATTACHMENT_MARKER)
   assert.equal(visible, '@小克pro 看看还缺什么')
@@ -1116,6 +1127,8 @@ test('room changes reach the board stream as small hints, never message bodies',
   runtime.roomFrames.length = 0
 
   // 追加：消息与详情（未读数、最后一条）。
+  // 这里只看推送帧，不看叫醒（没 @ 的话会叫醒所有人，席位那边另有测试）。
+  runtime.wakeSeat = async () => {}
   const { message } = await runtime.postRoomMessage(room.id, { text: '机密的正文' })
   assert.deepEqual(runtime.roomFrames, [{ roomId: room.id, scope: ['messages', 'detail'] }])
   // 补丁、撤回也一样；席位与简报只动详情。
@@ -1666,9 +1679,14 @@ test('messages that name nobody go to everyone in new rooms, or to the host in h
     hostBotId: KE,
   })
   assert.deepEqual(hosted.recipients, [])
-  // 记着的选择不被无关的修改冲掉，包括选了“只留言”。
-  const quiet = normalizeRoomInput({ recipients: [] }, plain)
-  assert.deepEqual(normalizeRoomInput({ goal: '收尾' }, quiet).recipients, [])
+  // 记着的选择不被无关的修改冲掉。
+  const picked = normalizeRoomInput({ recipients: [PRO] }, plain)
+  assert.deepEqual(normalizeRoomInput({ goal: '收尾' }, picked).recipients, [PRO])
+  // 没有“只留言”：“@ 谁谁答”的群里空的“发给”就是所有人，选的人被移出群也一样。
+  assert.equal(normalizeRoomInput({ recipients: [] }, plain).recipients, 'all')
+  assert.equal(normalizeRoomInput({ members: [KE] }, picked).recipients, 'all')
+  assert.equal(roomRecipients([], 'mention'), 'all')
+  assert.deepEqual(roomRecipients([], 'host'), [])
   // 切换谁来回答时按新模式的默认来，除非这次一起给了“发给”。
   assert.deepEqual(normalizeRoomInput({ answerMode: 'host', hostBotId: PRO }, plain).recipients, [])
   assert.equal(normalizeRoomInput({ answerMode: 'mention' }, hosted).recipients, 'all')
@@ -1676,9 +1694,9 @@ test('messages that name nobody go to everyone in new rooms, or to the host in h
     normalizeRoomInput({ answerMode: 'mention', recipients: [PRO] }, hosted).recipients,
     [PRO],
   )
-  // 老的群没有 answerMode、“发给”为空：加载时原样保留，不算切换。
+  // 老的群没有 answerMode、“发给”为空（以前的“只留言”）：加载时按所有人算。
   const old = { name: '老群', members: [KE], recipients: [] }
-  assert.deepEqual(normalizeRoomInput({}, old).recipients, [])
+  assert.equal(normalizeRoomInput({}, old).recipients, 'all')
 })
 
 test('the composer counts the same wakes as the Runtime: naming someone skips Send to', async () => {

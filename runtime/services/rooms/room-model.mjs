@@ -65,8 +65,15 @@ function botIds(value, max) {
   return ids
 }
 
-// 收件人（输入框的“发给”，没 @ 谁时才用）：'all' 表示所有成员 Bot；否则是 Bot id 列表
-// （可以为空，只发到群里不叫醒谁）。
+// 收件人（输入框的“发给”，没 @ 谁时才用）：'all' 表示所有成员 Bot；否则是 Bot id 列表。
+// 列表为空只在主持人模式里有意义（交给主持人）；“@ 谁谁答”的群没有“只留言”，空的按所有人算，见 roomRecipients。
+// “@ 谁谁答”的群里“发给”至少有人：空的（老的群、选的人都被移出了群、旧客户端发来的）按所有人算。
+export function roomRecipients(recipients, answerMode) {
+  return answerMode !== 'host' && Array.isArray(recipients) && recipients.length === 0
+    ? 'all'
+    : recipients
+}
+
 export function normalizeRecipients(value, members) {
   if (value === 'all') return 'all'
   if (value === undefined || value === null) return []
@@ -120,7 +127,7 @@ export function normalizeRoomInput(input, current = null) {
     cwd,
     // 维护简报的 Bot 必须是成员；移出群后自动清空。
     briefBotId: members.includes(briefBotId) ? briefBotId : '',
-    recipients: normalizeRecipients(recipients, members),
+    recipients: roomRecipients(normalizeRecipients(recipients, members), answerMode),
     answerMode,
     hostBotId: host,
   }

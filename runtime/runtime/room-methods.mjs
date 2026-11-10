@@ -38,6 +38,7 @@ import {
   parseBriefReply,
   parseMentions,
   roomAttachmentRefs,
+  roomRecipients,
   parseRouteReply,
 } from '../services/rooms/room-model.mjs'
 import { botTurnTrigger, requestBotText } from './bot-decisions.mjs'
@@ -379,9 +380,8 @@ export const roomMethods = {
     const room = this.requireRoom(id)
     const messages = await this.rooms.messages(id)
     const byId = new Map(messages.map((message) => [message.id, message]))
-    const normalized = normalizeUserRoomMessage(input, room.members, (messageId) =>
-      byId.has(messageId),
-    )
+    const parsed = normalizeUserRoomMessage(input, room.members, (messageId) => byId.has(messageId))
+    const normalized = { ...parsed, recipients: roomRecipients(parsed.recipients, room.answerMode) }
     const members = this.roomMembers(room)
     const mentions = unique([
       ...normalized.mentions,
