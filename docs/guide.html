@@ -699,10 +699,10 @@ pisper web        # 打开 Web 前端配置页</code></pre>
           <h2>远程机器</h2>
           <p>让 Agent 直接在别的机器上工作，对方不用安装 Pisper。模型和 API Key 留在这台电脑上，文件和命令工具在对方机器上运行，审批模式照常生效。在「远程访问」页添加机器，新建任务时在项目芯片里选择机器和目录。</p>
           <ul>
-            <li><strong>SSH：</strong>用这台电脑自带的 <code>ssh</code> 命令连接（Windows 用系统的 OpenSSH 客户端）。对方可以是 Linux、macOS 这类有 POSIX shell 的系统，也可以是开了 OpenSSH 服务的 Windows（登录后是 cmd 还是 PowerShell 都行，命令在 Windows PowerShell 里执行）。第一次连上时会认出对方的系统并告诉 Agent，让它按那边的 shell 写命令。
+            <li><strong>SSH：</strong>用这台电脑自带的 <code>ssh</code> 命令连接（Windows 用系统的 OpenSSH 客户端）。对方可以是 Linux、macOS 这类有 POSIX shell 的系统，也可以是开了 OpenSSH 服务的 Windows（登录后是 cmd 还是 PowerShell 都行，命令在 Windows PowerShell 里执行，启动时带 <code>-ExecutionPolicy Bypass</code>：只对这一次执行生效，不改对方的系统设置，也就是说对方机器上的脚本执行策略不会拦住 Pisper 发过去的命令）。第一次连上时会认出对方的系统并告诉 Agent，让它按那边的 shell 写命令。
               <ul>
                 <li><strong>密钥登录（推荐）：</strong>沿用这台电脑现有的 <code>~/.ssh/config</code>、密钥和 ssh-agent，Pisper 不保存任何凭据。</li>
-                <li><strong>密码登录：</strong>填用户名（写在地址里）和密码。密码保存在这台电脑的数据目录里，只有你的系统账户能读，保存后不会再显示；编辑时留空表示保持原密码，改回密钥登录或移除机器会把它删掉。密码不会出现在命令行里。还要求验证码之类第二重验证的机器不支持。从 Windows 电脑用密码登录需要 OpenSSH 8.4 以上（Windows 10 自带的版本太旧，请更新或改用密钥）。</li>
+                <li><strong>密码登录：</strong>填用户名（写在地址里）和密码。密码保存在这台电脑的数据目录里，只有你的系统账户能读，保存后不会再显示；编辑时留空表示保持原密码，改回密钥登录或移除机器会把它删掉；改了地址或端口要重新输入，保存的密码不会发到新的地址。密码不会出现在命令行里，只答给这台机器本身：途中的跳板机也要密码时不会把它交出去（跳板机请用密钥），你的 SSH 配置里有会把环境变量发给对方的 <code>SendEnv</code>（比如 <code>SendEnv *</code>）时会拒绝连接并说明。密码被拒绝一次后 Pisper 就不再用它重试，直到你改了密码或重新点测试，免得把账户锁住。还要求验证码之类第二重验证的机器不支持。从 Windows 电脑用密码登录需要 OpenSSH 8.4 以上（Windows 10 自带的版本太旧，请更新或改用密钥）。</li>
               </ul>
               首次连接自动记下对方的主机指纹，之后指纹变了就拒绝连接，密码登录也一样。</li>
             <li><strong>让对方连过来：</strong>适合没有 SSH 服务的机器。对方需要 Node.js 20 以上，运行页面上给出的 <code>npx pisper executor</code> 命令配对，不开放端口。这台电脑要打开远程访问，并且对方能访问到它的地址。Agent 只能在配对时用 <code>--root</code> 指定的目录里工作。对方是 Windows 时命令在 cmd 里执行。</li>

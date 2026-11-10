@@ -22,6 +22,7 @@
   "form.authPassword": "Password",
   "form.password": "Password",
   "form.passwordKeep": "A password is saved; leave empty to keep it",
+  "form.passwordAgain": "The address or port changed, so enter the password again: the saved one is only used for the previous address and is never sent to a new one.",
   "form.name": "Name",
   "form.namePlaceholder": "Optional, like \"Production\"",
   "form.defaultCwd": "Default folder",

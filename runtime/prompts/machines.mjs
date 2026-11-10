@@ -12,6 +12,12 @@ const SHELL_HINTS = {
     "The machine is macOS with BSD tools: `sed -i` needs a suffix argument (sed -i '' ...), and GNU-only flags such as `readlink -f`, `grep -P` or `date -d` may be missing.",
 }
 
+// 系统名和 shell 名来自对方机器（SSH 探测，或执行节点自己上报）：进提示词前只认“一个词，后面可带版本号”，
+// 别的写法一律换成固定的说法，不让对方借这两个字段塞进指令。
+const LABEL = /^[A-Za-z][A-Za-z0-9_.-]{0,23}(?: \d[0-9.]{0,19})?$/
+const OS_NAMES = { linux: 'Linux', macos: 'macOS', windows: 'Windows', unix: 'Unix' }
+const label = (value, fallback) => (LABEL.test(String(value ?? '')) ? String(value) : fallback)
+
 /**
  * @param {{ name: string, system?: { os?: string, family?: string, name?: string, shell?: string } | null }} machine
  * @param {string} cwd
@@ -24,11 +30,11 @@ export function machineSystemPrompt(machine, cwd) {
   ]
   if (system?.family === 'windows') {
     const shell = /^cmd/i.test(system.shell || '') ? 'cmd' : 'powershell'
-    lines.push(`Operating system: ${system.name || 'Windows'}.`, SHELL_HINTS[shell])
+    lines.push(`Operating system: ${label(system.name, 'Windows')}.`, SHELL_HINTS[shell])
   } else if (system) {
-    const shell = system.shell || 'sh'
+    const shell = label(system.shell, 'sh')
     lines.push(
-      `Operating system: ${system.name || system.os}. Commands run in its login shell (${shell}).`,
+      `Operating system: ${label(system.name, OS_NAMES[system.os] || 'Unix')}. Commands run in its login shell (${shell}).`,
     )
     if (system.os === 'macos') lines.push(SHELL_HINTS.macos)
   }

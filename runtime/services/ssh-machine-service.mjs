@@ -174,6 +174,10 @@ export class SshMachineService {
     this.machines = new Map()
     this.secrets = new SshSecretStore(secretsPath)
     this.write = Promise.resolve()
+    // 存着的密码被对方拒绝过的机器：之后的连接直接失败，不再拿同一个密码反复去试（每个工具调用都新开一次
+    // 连接，几次就能锁住账户或被 fail2ban 封掉）。改了密码或地址、或用户点了测试就解除。只记在内存里：
+    // 重启后会再试一次，再被拒绝就又记上。
+    this.authRefused = new Set()
   }
 
   async init() {
@@ -227,10 +231,12 @@ export class SshMachineService {
       isAvailable: () => this.machines.has(id),
       password: () => this.secrets.get(id),
       onSystem: (system) => this.recordSystem(id, system),
+      authBlocked: () => this.authRefused.has(id),
+      onAuthFailed: () => this.authRefused.add(id),
     })
   }
 
-  executorFor(machine, { isAvailable, password, onSystem } = {}) {
+  executorFor(machine, { isAvailable, password, onSystem, authBlocked, onAuthFailed } = {}) {
     return new SshExecutor({
       machine,
       muxDirectory: this.muxDirectory,
@@ -238,18 +244,37 @@ export class SshMachineService {
       ...(isAvailable ? { isAvailable } : {}),
       ...(password ? { password } : {}),
       ...(onSystem ? { onSystem } : {}),
+      ...(authBlocked ? { authBlocked } : {}),
+      ...(onAuthFailed ? { onAuthFailed } : {}),
     })
   }
 
-  // 还没保存的连接也能测：添加表单在保存前就给出结果。编辑已有机器时没重新输入密码，就用存着的那个。
+  // 存着的密码只属于存它时的那个地址和端口：地址或端口不一样时不能拿来用，否则一次“测试连接”或一次改地址
+  // 就能把密码送到另一台主机上。
+  #savedPasswordFor(id, connection) {
+    const machine = this.machines.get(id)
+    if (!machine || machine.auth !== 'password') return ''
+    if (machine.target !== connection.target || machine.port !== connection.port) return ''
+    return this.secrets.get(id)
+  }
+
+  // 还没保存的连接也能测：添加表单在保存前就给出结果。编辑已有机器时没重新输入密码，就用存着的那个——
+  // 但只在地址和端口都没变的时候。
   async test(input) {
     const connection = normalizeSshConnection(input)
     const auth = normalizeSshAuth(input?.auth)
     const typed = auth === 'password' ? normalizeSshPassword(input?.password) : ''
     const existing = isSshMachineId(input?.id) ? String(input.id) : ''
-    const password = typed || (auth === 'password' && existing ? this.secrets.get(existing) : '')
+    const password =
+      typed || (auth === 'password' && existing ? this.#savedPasswordFor(existing, connection) : '')
     if (auth === 'password' && !password)
-      throw pisperError('invalid', 'login', 'enter the password')
+      throw pisperError(
+        'invalid',
+        'login',
+        existing && this.secrets.has(existing)
+          ? 'enter the password again: the saved one belongs to the previous address'
+          : 'enter the password',
+      )
     const executor = this.executorFor(
       { id: 'ssh_unsaved0', name: connection.target, ...connection, auth },
       { password: () => password },
@@ -292,8 +317,14 @@ export class SshMachineService {
     })
     const auth = input?.auth === undefined ? machine.auth : normalizeSshAuth(input.auth)
     const password = auth === 'password' ? normalizeSshPassword(input?.password) : ''
-    if (auth === 'password' && !password && !this.secrets.has(id))
-      throw pisperError('invalid', 'login', 'enter the password')
+    if (auth === 'password' && !password && !this.#savedPasswordFor(id, connection))
+      throw pisperError(
+        'invalid',
+        'login',
+        this.secrets.has(id) && machine.auth === 'password'
+          ? 'enter the password again: the saved one belongs to the previous address'
+          : 'enter the password',
+      )
     const changed =
       connection.target !== machine.target ||
       connection.port !== machine.port ||
@@ -309,12 +340,14 @@ export class SshMachineService {
     if (changed) {
       machine.lastCheck = null
       delete machine.system
+      this.authRefused.delete(id)
     }
     await this.persist()
     return this.publicMachine(machine)
   }
 
   async remove(id) {
+    this.authRefused.delete(id)
     if (!this.machines.delete(id)) return false
     await this.persist()
     await this.secrets.delete(id)
@@ -355,6 +388,8 @@ export class SshMachineService {
 
   // 真实连一次，结果记下来：列表据此显示能不能连。失败不是异常，分类后交给界面。
   async check(id) {
+    // 用户点的测试：放开一次，让这次真的去连；再被拒绝就又记上。
+    this.authRefused.delete(id)
     const executor = this.executor(id)
     try {
       const result = await executor.probe()

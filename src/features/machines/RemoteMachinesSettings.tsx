@@ -56,7 +56,13 @@ function SshForm({
   const [busy, setBusy] = useState<'' | 'test' | 'save'>('')
   const [result, setResult] = useState<SshTestResult | null>(null)
   const [error, setError] = useState('')
-  const savedPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
+  // 存着的密码只属于存它时的地址和端口：改了其中一个就要重新输入，Runtime 也不会把旧密码发到新地址。
+  const addressChanged =
+    Boolean(machine) &&
+    (target.trim() !== machine?.target ||
+      (port.trim() ? Number(port.trim()) : null) !== (machine?.port ?? null))
+  const hadPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
+  const savedPassword = hadPassword && !addressChanged
   const needsPassword = auth === 'password' && !password && !savedPassword
   const connection = () => ({
     target: target.trim(),
@@ -195,6 +201,9 @@ function SshForm({
         </label>
       </div>
       <p id={`${fieldId}-password-hint`} className="m-0 text-xs text-content-muted">
+        {auth === 'password' && hadPassword && addressChanged && (
+          <span data-machine-password-again>{t('machines:form.passwordAgain')} </span>
+        )}
         {auth === 'password' ? t('machines:form.passwordHint') : t('machines:form.keyHint')}
       </p>
       {result?.ok && (

@@ -7,19 +7,31 @@
 // 登录默认用密钥（BatchMode）；用户选了密码时经 askpass 助手（runtime/workers/ssh-askpass.mjs）交给 ssh，密码不进命令行。
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync } from 'node:fs'
-import { posix, win32 } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, posix, win32 } from 'node:path'
 import { isSea } from 'node:sea'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ExecutorError } from './bots/executor.mjs'
 import { POWERSHELL_COMMAND, POWERSHELL_SCRIPTS, powershellPayload } from './ssh-powershell.mjs'
-import { ASKPASS_FLAG, ASKPASS_REFUSED, ASKPASS_SECRET } from '../workers/ssh-askpass.mjs'
+import {
+  ASKPASS_BARE,
+  ASKPASS_EXPECT,
+  ASKPASS_FLAG,
+  ASKPASS_ONCE,
+  ASKPASS_OTHER_HOST,
+  ASKPASS_REFUSED,
+  ASKPASS_SECRET,
+  ASKPASS_VARIABLES,
+} from '../workers/ssh-askpass.mjs'
 
 const CONNECT_TIMEOUT_SECONDS = 10
 const OPERATION_TIMEOUT_MS = 60_000
 const PROBE_TIMEOUT_MS = 25_000
 const KILL_TIMEOUT_MS = 8_000
 const VERSION_TIMEOUT_MS = 5_000
+// 密码登录前用 ssh -G 看这台机器实际会怎么连；结果只记这么久（用户可能刚改了 ~/.ssh/config）。
+const LOGIN_PLAN_TTL_MS = 30_000
 const MAX_READ_BYTES = 16 * 1024 * 1024
 const MAX_STDERR_CHARS = 4_000
 const MAX_GLOB_ENTRIES = 200_000
@@ -151,6 +163,10 @@ export function askpassEnvironment(
     packaged = isSea(),
     execPath = process.execPath,
     helper = ASKPASS_HELPER,
+    // 目标机的身份（user@host）、是否允许回答没写来源的“Password:”、一次性令牌文件：见助手开头的说明。
+    expect = [],
+    bare = false,
+    once = '',
   } = {},
 ) {
   const next = {
@@ -159,16 +175,59 @@ export function askpassEnvironment(
     SSH_ASKPASS_REQUIRE: 'force',
     [ASKPASS_FLAG]: '1',
     [ASKPASS_SECRET]: String(password),
+    [ASKPASS_EXPECT]: expect.join(','),
   }
+  if (bare) next[ASKPASS_BARE] = '1'
+  else delete next[ASKPASS_BARE]
+  if (once) next[ASKPASS_ONCE] = once
+  else delete next[ASKPASS_ONCE]
   if (platform !== 'win32') next.DISPLAY = env.DISPLAY || ':0'
   if (packaged) delete next.NODE_OPTIONS
   else next.NODE_OPTIONS = `--import=${pathToFileURL(helper).href}`
   return next
 }
 
+// ssh -G 的输出（这台电脑的配置对这台机器实际生效的值）里，密码登录要看的几项：
+// 最终连的是谁（提示语里的 user@host 要和它对上）、中间有没有跳板或代理命令、SendEnv 会把哪些环境变量发给对方。
+export function parseSshConfig(text) {
+  const plan = { user: '', hostname: '', hostKeyAlias: '', proxy: false, sendEnv: [] }
+  for (const line of String(text).split(/\r?\n/)) {
+    const at = line.indexOf(' ')
+    if (at < 0) continue
+    const key = line.slice(0, at).toLowerCase()
+    const value = line.slice(at + 1).trim()
+    if (!value) continue
+    if (key === 'user') plan.user = value
+    else if (key === 'hostname') plan.hostname = value
+    else if (key === 'hostkeyalias') plan.hostKeyAlias = value
+    else if ((key === 'proxyjump' || key === 'proxycommand') && value.toLowerCase() !== 'none')
+      plan.proxy = true
+    else if (key === 'sendenv') plan.sendEnv.push(...value.split(/\s+/))
+  }
+  return plan
+}
+
+function envPatternMatches(pattern, name) {
+  const source = Array.from(String(pattern), (char) =>
+    char === '*' ? '.*' : char === '?' ? '.' : char.replace(/[.+^$(){}|[\]\\]/g, '\\$&'),
+  ).join('')
+  return new RegExp(`^${source}$`).test(name)
+}
+
+// 用户的配置里有没有会把密码那几个环境变量发给对方的 SendEnv（比如 SendEnv *）。命令行上的
+// -o SendEnv=-PISPER_* 管不住配置文件里后读到的 SendEnv（实测 OpenSSH 9.6），所以只能事先查出来、不连。
+export function sendsAskpassEnvironment(patterns) {
+  return (Array.isArray(patterns) ? patterns : []).some(
+    (pattern) =>
+      !String(pattern).startsWith('-') &&
+      ASKPASS_VARIABLES.some((name) => envPatternMatches(pattern, name)),
+  )
+}
+
 // ssh 客户端的错误只有英文，分类后由界面按语言给出下一步。
 export function classifySshFailure(stderr) {
   const text = String(stderr)
+  if (text.includes(ASKPASS_OTHER_HOST)) return 'askpass_other_host'
   if (text.includes(ASKPASS_REFUSED)) return 'unsupported_remote'
   if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/i.test(text))
     return 'host_key_changed'
@@ -198,6 +257,12 @@ const FAILURE_MESSAGES = {
 
 // 只看分类，不带 ssh 的原文：原文里有用户名、主机和对方的横幅，没有必要外传。
 function sshFailure(code, { password = false } = {}) {
+  // 问密码的不是目标机（多半是跳板机）：密码没有交出去，说清楚怎么办。
+  if (code === 'askpass_other_host')
+    return new ExecutorError(
+      'unsupported_remote',
+      'Another host on the way (a jump host) asked for a password, or the prompt did not name this machine; the saved password was not sent. Use key sign-in for the jump host.',
+    )
   if (code === 'auth_failed' && password)
     return new ExecutorError(
       'auth_failed',
@@ -330,12 +395,45 @@ function osKind(platform) {
   return 'unix'
 }
 
-// 控制字符换成空格（对方输出的东西会进界面和提示词），再截断。
-const clip = (value, max) =>
-  Array.from(String(value ?? ''), (char) => (char < ' ' || char === '\u007f' ? ' ' : char))
-    .join('')
-    .trim()
-    .slice(0, max)
+// 系统名和 shell 名是对方机器自己报上来的，会写进系统提示：只留认得的写法（一个词，或已知名字加版本号），
+// 不让一台恶意的机器借这两个字段往提示词里塞句子。
+const POSIX_SHELLS = new Set([
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'dash',
+  'ksh',
+  'mksh',
+  'ash',
+  'csh',
+  'tcsh',
+  'busybox',
+])
+const OS_LABELS = { linux: 'Linux', macos: 'macOS', windows: 'Windows', unix: 'Unix' }
+const versionIn = (text) => /\d+(?:\.\d+){0,3}/.exec(String(text ?? ''))?.[0] || ''
+
+export function safeSystemName(os, raw) {
+  const text = String(raw ?? '').trim()
+  if (os === 'windows') {
+    const version = versionIn(text)
+    return version ? `Windows ${version}` : 'Windows'
+  }
+  // uname -s：Linux、Darwin、FreeBSD、CYGWIN_NT-10.0-19045 这样的一个词。
+  return /^[A-Za-z][A-Za-z0-9_.-]{0,23}$/.test(text) ? text : OS_LABELS[os] || 'Unix'
+}
+
+export function safeShellName(os, raw) {
+  const text = String(raw ?? '').trim()
+  if (os === 'windows') {
+    if (/^cmd/i.test(text)) return 'cmd.exe'
+    const version = versionIn(text)
+    return version ? `PowerShell ${version}` : 'PowerShell'
+  }
+  if (!text) return ''
+  const name = posix.basename(text).toLowerCase()
+  return POSIX_SHELLS.has(name) ? name : 'sh'
+}
 
 // 探测结果 → 记在机器记录上的 system。shell 是命令实际在哪个 shell 里跑：
 // POSIX 是对方的登录 shell（$SHELL -lc），Windows 一律是 PowerShell（与登录 shell 是 cmd 还是 PowerShell 无关）。
@@ -345,8 +443,8 @@ export function systemFromProbe(probe, loginShell = '') {
   return {
     os,
     family: windows ? 'windows' : 'posix',
-    name: clip(windows ? `Windows ${probe.version}` : probe.platform, 60),
-    shell: clip(windows ? probe.shell || 'PowerShell' : posix.basename(probe.shell || 'sh'), 60),
+    name: safeSystemName(os, windows ? probe.version : probe.platform),
+    shell: safeShellName(os, windows ? probe.shell : probe.shell || 'sh'),
     ...(windows ? { loginShell: loginShell === 'powershell' ? 'powershell' : 'cmd' } : {}),
   }
 }
@@ -361,8 +459,8 @@ export function normalizeSystem(value, lastCheck = null) {
     return {
       os: value.os,
       family: windows ? 'windows' : 'posix',
-      name: clip(value.name, 60),
-      shell: clip(value.shell, 60),
+      name: safeSystemName(value.os, value.name),
+      shell: safeShellName(value.os, value.shell),
       ...(windows ? { loginShell: value.loginShell === 'powershell' ? 'powershell' : 'cmd' } : {}),
     }
   }
@@ -370,7 +468,7 @@ export function normalizeSystem(value, lastCheck = null) {
     return {
       os: osKind(lastCheck.platform),
       family: 'posix',
-      name: clip(lastCheck.platform, 60),
+      name: safeSystemName(osKind(lastCheck.platform), lastCheck.platform),
       shell: '',
     }
   return null
@@ -488,6 +586,8 @@ export class SshExecutor {
     password = () => '',
     onSystem = null,
     sshPath = sshExecutable(platform),
+    authBlocked = null,
+    onAuthFailed = null,
   }) {
     this.machine = machine
     this.id = machine.id
@@ -512,6 +612,14 @@ export class SshExecutor {
     // 没保存的机器（添加前测试）探测结果只记在这里；保存过的机器以机器记录为准。
     this.detectedSystem = null
     this.detecting = null
+    // 密码被对方拒绝过：不再拿同一个密码去试（每个工具调用都会新开一次连接，几次就能把账户锁住或让
+    // fail2ban 封掉这台电脑）。保存过的机器由登记表记着（所有会话共用，改密码或点测试后解除）；
+    // 没保存的（添加前测试）只记在这个执行器上。
+    this.authRefused = false
+    this.authBlocked = typeof authBlocked === 'function' ? authBlocked : () => this.authRefused
+    this.onAuthFailed =
+      typeof onAuthFailed === 'function' ? onAuthFailed : () => (this.authRefused = true)
+    this.loginPlan = null
   }
 
   online() {
@@ -531,7 +639,81 @@ export class SshExecutor {
     if (this.machine.auth !== 'password') return ''
     const value = this.password()
     if (!value) throw new ExecutorError('auth_failed', 'No password is saved for this machine.')
+    if (this.authBlocked())
+      throw new ExecutorError(
+        'auth_failed',
+        'The saved password was refused earlier, so Pisper stopped trying it. Update the password in Settings, or test the connection there.',
+      )
     return value
+  }
+
+  // 认证失败的那一次：记下来，之后不再用这个密码连。
+  #failure(stderr, password) {
+    const code = classifySshFailure(stderr)
+    if (code === 'auth_failed' && password) this.onAuthFailed()
+    return sshFailure(code, { password: Boolean(password) })
+  }
+
+  // 密码登录前问一次这台电脑的 ssh：这台机器实际连的是谁、经不经过跳板、会不会把环境变量发给对方。
+  // 助手据此只把密码答给目标机；查不出来就不连（宁可失败，不能把密码交给认不出的一方）。
+  async #loginPlan() {
+    const cached = this.loginPlan
+    if (
+      cached &&
+      this.now() - cached.at < LOGIN_PLAN_TTL_MS &&
+      cached.target === this.machine.target
+    )
+      return cached.plan
+    const args = sshArguments(this.machine, {
+      extraArguments: [...this.extraArguments, '-G'],
+      password: true,
+    })
+    const output = await new Promise((resolve, reject) => {
+      let child
+      try {
+        child = this.spawnProcess(this.sshPath, args, {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: true,
+        })
+      } catch (error) {
+        reject(error)
+        return
+      }
+      let stdout = ''
+      let settled = false
+      const finish = (error, value) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        if (error) reject(error)
+        else resolve(value)
+      }
+      const timer = setTimeout(() => {
+        child.kill()
+        finish(null, '')
+      }, VERSION_TIMEOUT_MS)
+      child.stdout?.on('data', (chunk) => (stdout += chunk))
+      child.stderr?.on('data', () => {})
+      child.on('error', (error) =>
+        finish(error?.code === 'ENOENT' ? sshFailure('ssh_client_missing') : null, ''),
+      )
+      child.on('close', (code) => finish(null, code === 0 ? stdout : ''))
+      child.stdin?.on('error', () => {})
+      child.stdin?.end()
+    })
+    const plan = parseSshConfig(output)
+    if (!plan.user || !plan.hostname)
+      throw new ExecutorError(
+        'unsupported_remote',
+        'Could not work out from the SSH configuration on this computer which host this machine is, so the saved password was not sent. Password sign-in needs OpenSSH 6.8 or later.',
+      )
+    if (sendsAskpassEnvironment(plan.sendEnv))
+      throw new ExecutorError(
+        'unsupported_remote',
+        'The SSH configuration on this computer has a SendEnv pattern that would send the saved password to the machine as an environment variable. Remove that SendEnv pattern for this host, or use key sign-in.',
+      )
+    this.loginPlan = { at: this.now(), target: this.machine.target, plan }
+    return plan
   }
 
   #arguments(password) {
@@ -581,29 +763,52 @@ export class SshExecutor {
       )
   }
 
-  #spawn(remoteCommand, password) {
+  #spawn(remoteCommand, password, login) {
     // 驻留的会话还拿着这个执行器：机器移除后不能再连过去。
     if (!this.isAvailable()) throw new ExecutorError('machine_not_found', 'Machine was removed.')
-    return this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-      ...(password
-        ? {
-            env: askpassEnvironment(password, { platform: this.platform }),
-            detached: this.platform !== 'win32',
-          }
-        : {}),
-    })
+    if (!password)
+      return this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    // 一次性令牌：助手删掉它的那一次才回答，这次连接里再问就不答了。文件是空的，密码不写盘。
+    const tokenDirectory = mkdtempSync(join(tmpdir(), 'pisper-askpass-'))
+    const once = join(tokenDirectory, 'once')
+    const release = () => rmSync(tokenDirectory, { recursive: true, force: true })
+    try {
+      writeFileSync(once, '', { mode: 0o600 })
+      const identities = [login.hostname, login.hostKeyAlias]
+        .filter(Boolean)
+        .map((host) => `${login.user}@${host}`)
+      const child = this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+        env: askpassEnvironment(password, {
+          platform: this.platform,
+          expect: identities,
+          bare: !login.proxy,
+          once,
+        }),
+        detached: this.platform !== 'win32',
+      })
+      child.once('exit', release)
+      child.once('error', release)
+      return child
+    } catch (error) {
+      release()
+      throw error
+    }
   }
 
   // 跑一条远程命令，结果整段收回来。maxBytes 防止把巨大的文件读进内存。
   async #run(request, { timeoutMs = OPERATION_TIMEOUT_MS, maxBytes = 0 } = {}) {
     const password = this.#secret()
     await this.#checkClient(password)
+    const login = password ? await this.#loginPlan() : null
     return new Promise((resolve, reject) => {
       let child
       try {
-        child = this.#spawn(request.command, password)
+        child = this.#spawn(request.command, password, login)
       } catch (error) {
         reject(error)
         return
@@ -628,7 +833,7 @@ export class SshExecutor {
           return
         }
         if (exitCode === EXIT_SSH_FAILED) {
-          reject(sshFailure(classifySshFailure(stderr()), { password: Boolean(password) }))
+          reject(this.#failure(stderr(), password))
           return
         }
         resolve({ code: exitCode, stdout: Buffer.concat(chunks), stderr: stderr(), overflow })
@@ -857,6 +1062,7 @@ export class SshExecutor {
     const { family } = await this.#ensureSystem()
     const password = this.#secret()
     await this.#checkClient(password)
+    const login = password ? await this.#loginPlan() : null
     const nonce = randomBytes(8).toString('hex')
     const remoteCwd = this.#path(cwd)
     const request =
@@ -872,7 +1078,7 @@ export class SshExecutor {
       const prefix = Buffer.from(`\u001e${nonce}`, 'utf8')
       let child
       try {
-        child = this.#spawn(request.command, password)
+        child = this.#spawn(request.command, password, login)
       } catch (error) {
         reject(error)
         return
@@ -949,8 +1155,7 @@ export class SshExecutor {
         if (pending.length) onData?.(pending)
         if (code === EXIT_NO_CWD)
           finish(new Error(`Working directory does not exist: ${remoteCwd}`))
-        else if (code === EXIT_SSH_FAILED)
-          finish(sshFailure(classifySshFailure(stderr()), { password: Boolean(password) }))
+        else if (code === EXIT_SSH_FAILED) finish(this.#failure(stderr(), password))
         // 没等到结束标记就断了：命令是否跑完不知道，不能当成成功。
         else
           finish(

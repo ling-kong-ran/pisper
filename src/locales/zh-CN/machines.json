@@ -22,6 +22,7 @@
   "form.authPassword": "密码",
   "form.password": "密码",
   "form.passwordKeep": "已保存密码，留空则保持不变",
+  "form.passwordAgain": "地址或端口改了，请重新输入密码：保存的密码只用于原来的地址，不会发到新的地址。",
   "form.name": "名称",
   "form.namePlaceholder": "可选，比如“生产服务器”",
   "form.defaultCwd": "默认目录",
