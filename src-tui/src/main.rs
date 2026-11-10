@@ -104,6 +104,8 @@ Environment:
   PISPER_TUI_MOUSE=0           Disable mouse capture (enabled by default for wheel scrolling
                                and clicking a command to expand it). While capture is on, most
                                terminals select text with Shift+drag.
+  PISPER_TUI_MOUSE=1           Force mouse capture on. It is off by default in JetBrains IDE
+                               terminals, where mouse reports end up typed into the input box.
   PISPER_TUI_REDUCED_MOTION=1  Disable the typewriter reveal and status animations
                                (streaming text appears immediately).";
 
@@ -1812,7 +1814,7 @@ impl TerminalSession {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
         configure_bracketed_paste(&mut stdout)?;
-        if mouse_capture_enabled() {
+        if mouse_capture_enabled(is_jetbrains_terminal()) {
             execute!(stdout, EnableMouseCapture)?;
         }
         let terminal = Terminal::new(CrosstermBackend::new(stdout))?;

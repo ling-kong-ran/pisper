@@ -74,13 +74,25 @@ fn env_flag(name: &str) -> bool {
 
 /// 鼠标捕获默认开启（滚轮滚动、点击展开命令详情）；
 /// `PISPER_TUI_MOUSE=0/false/no/off` 关闭，以恢复终端原生的文本拖选。
-pub(crate) fn mouse_capture_enabled() -> bool {
-    !std::env::var("PISPER_TUI_MOUSE").is_ok_and(|value| {
-        matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "0" | "false" | "no" | "off"
-        )
-    })
+/// JetBrains 系 IDE 的内置终端里默认关闭：那里鼠标上报会被当成按键送进来，一动鼠标输入框里就攒出
+/// 一串符号；`PISPER_TUI_MOUSE=1/true/yes/on` 可以强制打开。
+pub(crate) fn mouse_capture_enabled(jetbrains_terminal: bool) -> bool {
+    mouse_capture_choice(
+        std::env::var("PISPER_TUI_MOUSE").ok().as_deref(),
+        jetbrains_terminal,
+    )
+}
+
+fn mouse_capture_choice(setting: Option<&str>, jetbrains_terminal: bool) -> bool {
+    match setting
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("0" | "false" | "no" | "off") => false,
+        Some("1" | "true" | "yes" | "on") => true,
+        // 没设或写了别的：按终端的默认。
+        _ => !jetbrains_terminal,
+    }
 }
 // 整页滚动步长。
 const PAGE_SCROLL_STEP: u16 = 8;
@@ -4608,6 +4620,20 @@ mod tests {
     use serde_json::json;
 
     /// 验证文本补丁从指定位置替换文本尾部。
+    #[test]
+    fn mouse_capture_is_off_by_default_only_in_jetbrains_terminals() {
+        assert!(super::mouse_capture_choice(None, false));
+        assert!(!super::mouse_capture_choice(None, true));
+        // 明确写了就照写的来，两边都能改。
+        assert!(super::mouse_capture_choice(Some("1"), true));
+        assert!(super::mouse_capture_choice(Some(" ON "), true));
+        assert!(!super::mouse_capture_choice(Some("0"), false));
+        assert!(!super::mouse_capture_choice(Some("off"), true));
+        // 认不出的值按终端的默认。
+        assert!(super::mouse_capture_choice(Some("maybe"), false));
+        assert!(!super::mouse_capture_choice(Some("maybe"), true));
+    }
+
     #[test]
     fn text_patch_replaces_the_existing_tail() {
         let mut text = "hello wor".to_owned();
