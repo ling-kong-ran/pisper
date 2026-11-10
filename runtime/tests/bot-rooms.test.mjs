@@ -207,15 +207,29 @@ test('who wakes up: mentions, recipients, a reply to a bot, everyone; paused bot
   ]
   const nobody = userWakeTargets({ mentions: [], recipients: [], text: '先铺垫一下' }, members)
   assert.deepEqual(nobody, { wake: [], paused: [] })
+  // 点了名就只叫点到的：“发给”里选的这次不叫。
   const some = userWakeTargets(
     { mentions: [PRO], recipients: [KE], replyToAuthor: FISH, text: 'x' },
     members,
   )
-  assert.deepEqual(some.wake, [
-    { botId: PRO, kind: 'mention' },
-    { botId: KE, kind: 'recipient' },
-  ])
+  assert.deepEqual(some.wake, [{ botId: PRO, kind: 'mention' }])
   assert.deepEqual(some.paused, [FISH])
+  const named = userWakeTargets({ mentions: [KE], recipients: 'all', text: '@小克 看下' }, members)
+  assert.deepEqual(named.wake, [{ botId: KE, kind: 'mention' }])
+  const replied = userWakeTargets(
+    { mentions: [], recipients: 'all', replyToAuthor: PRO, text: '接着说' },
+    members,
+  )
+  assert.deepEqual(replied.wake, [{ botId: PRO, kind: 'reply' }])
+  // 没点名才按“发给”：所有人 = 全部成员（暂停的单独列出），或选中的那几个。
+  const unnamed = userWakeTargets({ mentions: [], recipients: 'all', text: '大家看看' }, members)
+  assert.deepEqual(unnamed.wake, [
+    { botId: KE, kind: 'everyone' },
+    { botId: PRO, kind: 'everyone' },
+  ])
+  assert.deepEqual(unnamed.paused, [FISH])
+  const picked = userWakeTargets({ mentions: [], recipients: [KE], text: '你看看' }, members)
+  assert.deepEqual(picked.wake, [{ botId: KE, kind: 'recipient' }])
   const all = userWakeTargets({ mentions: [], recipients: [], text: '@所有人 收尾' }, members)
   assert.deepEqual(
     all.wake.map((item) => item.kind),
@@ -1640,4 +1654,52 @@ test('a frame that only says messages changed does not refetch the room detail',
   assert.equal(policy.roomChangeNeedsDetail(change([])), true)
   assert.equal(policy.roomChangeNeedsDetail('*'), true)
   assert.ok(policy.ROOM_FRAME_COALESCE_MS >= 300 && policy.ROOM_FRAME_COALESCE_MS <= 500)
+})
+
+test('messages that name nobody go to everyone in new rooms, or to the host in host rooms', () => {
+  const plain = normalizeRoomInput({ name: '群', members: [KE, PRO] })
+  assert.equal(plain.recipients, 'all')
+  const hosted = normalizeRoomInput({
+    name: '群',
+    members: [KE, PRO],
+    answerMode: 'host',
+    hostBotId: KE,
+  })
+  assert.deepEqual(hosted.recipients, [])
+  // 记着的选择不被无关的修改冲掉，包括选了“只留言”。
+  const quiet = normalizeRoomInput({ recipients: [] }, plain)
+  assert.deepEqual(normalizeRoomInput({ goal: '收尾' }, quiet).recipients, [])
+  // 切换谁来回答时按新模式的默认来，除非这次一起给了“发给”。
+  assert.deepEqual(normalizeRoomInput({ answerMode: 'host', hostBotId: PRO }, plain).recipients, [])
+  assert.equal(normalizeRoomInput({ answerMode: 'mention' }, hosted).recipients, 'all')
+  assert.deepEqual(
+    normalizeRoomInput({ answerMode: 'mention', recipients: [PRO] }, hosted).recipients,
+    [PRO],
+  )
+  // 老的群没有 answerMode、“发给”为空：加载时原样保留，不算切换。
+  const old = { name: '老群', members: [KE], recipients: [] }
+  assert.deepEqual(normalizeRoomInput({}, old).recipients, [])
+})
+
+test('the composer counts the same wakes as the Runtime: naming someone skips Send to', async () => {
+  const { composerWakeTargets } = await import('../../src/features/bots/room-presentation.ts')
+  const members = [
+    { id: KE, name: '小克' },
+    { id: PRO, name: '小克pro' },
+  ]
+  const all = [KE, PRO]
+  assert.deepEqual(composerWakeTargets({ text: '大家看看', members, chosen: all }), {
+    addressed: false,
+    mentionsAll: false,
+    targets: all,
+  })
+  assert.deepEqual(composerWakeTargets({ text: '@小克pro 看下', members, chosen: all }).targets, [
+    PRO,
+  ])
+  assert.deepEqual(
+    composerWakeTargets({ text: '接着说', members, chosen: all, repliedBot: KE }).targets,
+    [KE],
+  )
+  assert.deepEqual(composerWakeTargets({ text: '@所有人 收尾', members, chosen: [] }).targets, all)
+  assert.deepEqual(composerWakeTargets({ text: '先记一下', members, chosen: [] }).targets, [])
 })

@@ -147,6 +147,27 @@ export function mentionedIds(text: string, members: readonly TimelineMember[]) {
   ]
 }
 
+/**
+ * 输入框里这句话要叫醒谁（和 Runtime 的 userWakeTargets 同一条规则）：点了名（@成员、@所有人、回复某个 Bot）
+ * 就只叫点到的；没点名才按“发给”。chosen 是“发给”展开后的 id；返回去重的 id，暂停的由调用方再筛。
+ */
+export function composerWakeTargets(input: {
+  text: string
+  members: readonly TimelineMember[]
+  chosen: readonly string[]
+  repliedBot?: string
+}) {
+  const mentioned = mentionedIds(input.text, input.members)
+  const mentionsAll = mentionSegments(input.text, input.members).some((segment) => segment.everyone)
+  const addressed = mentioned.length > 0 || mentionsAll || Boolean(input.repliedBot)
+  const targets = mentionsAll
+    ? input.members.map((member) => member.id)
+    : addressed
+      ? [...mentioned, ...(input.repliedBot ? [input.repliedBot] : [])]
+      : input.chosen
+  return { addressed, mentionsAll, targets: [...new Set(targets)] }
+}
+
 // 用量：1234 → 1.2K，1_400_000 → 1.4M。
 export function compactTokens(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`

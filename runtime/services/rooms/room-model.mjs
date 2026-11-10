@@ -65,7 +65,8 @@ function botIds(value, max) {
   return ids
 }
 
-// 收件人：'all' 表示所有成员 Bot；否则是 Bot id 列表（可以为空，只发到群里不叫醒谁）。
+// 收件人（输入框的“发给”，没 @ 谁时才用）：'all' 表示所有成员 Bot；否则是 Bot id 列表
+// （可以为空，只发到群里不叫醒谁）。
 export function normalizeRecipients(value, members) {
   if (value === 'all') return 'all'
   if (value === undefined || value === null) return []
@@ -102,6 +103,16 @@ export function normalizeRoomInput(input, current = null) {
   // 认不出的取值当没给：沿用旧值。
   const mode = ROOM_ANSWER_MODES.includes(value.answerMode) ? value.answerMode : current?.answerMode
   const answerMode = mode === 'host' && host ? 'host' : 'mention'
+  // 没 @ 谁时默认发给所有人；主持人分派的群默认交给主持人（“发给”为空）。新建群、或这次切换了谁来回答
+  // 而没一起给“发给”时按这个默认来；其余沿用记着的选择（老的群没有 answerMode，按“@ 谁谁答”算，不算切换）。
+  const previousMode = current ? (current.answerMode === 'host' ? 'host' : 'mention') : null
+  const recipients = Object.hasOwn(value, 'recipients')
+    ? value.recipients
+    : !current || previousMode !== answerMode
+      ? answerMode === 'host'
+        ? []
+        : 'all'
+      : current.recipients
   return {
     name,
     members,
@@ -109,7 +120,7 @@ export function normalizeRoomInput(input, current = null) {
     cwd,
     // 维护简报的 Bot 必须是成员；移出群后自动清空。
     briefBotId: members.includes(briefBotId) ? briefBotId : '',
-    recipients: normalizeRecipients(merged.recipients, members),
+    recipients: normalizeRecipients(recipients, members),
     answerMode,
     hostBotId: host,
   }

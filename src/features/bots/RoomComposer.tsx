@@ -1,10 +1,10 @@
-// 群聊输入框：外观沿用会话页的输入卡片。打 @ 弹出成员补全（Popover + Command，键盘可选）；
-// “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在；
-// @ 到的和“发给”的合起来就是这句话要叫醒的人，3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。
-// 不 @、不选时只留言，不叫醒谁。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
+// 群聊输入框：外观沿用会话页的输入卡片。打 @ 弹出成员补全（Popover + Command，键盘可选，含“所有人”）；
+// “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在，新建的群默认所有人。
+// 点了名（@ 谁、回复某个 Bot、@所有人）就只叫点到的；没点名才发给芯片里选的人，芯片为空时只留言。
+// 要叫醒 3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
 // 附件和会话输入框是同一套（附件键、粘贴图片、拖文件进来、附件托盘），只带附件不写字也能发。
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, ChevronDown, X } from 'lucide-react'
+import { ArrowUp, ChevronDown, Users, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -27,10 +27,13 @@ import { cn } from '@/lib/utils'
 import type { ChatAttachment } from '@/types/chat'
 import { BotAvatar } from './BotAvatar'
 import { botAvatarTone } from './avatar'
-import { activeMentionQuery, mentionSegments, mentionedIds } from './room-presentation'
+import { activeMentionQuery, composerWakeTargets, mentionedIds } from './room-presentation'
 import type { RoomMember, RoomMessage } from './rooms-api'
 
 const MAX_CHARS = 12_000
+// @ 补全里“所有人”那一项的 id（不会和 Bot id 撞上）。
+const EVERYONE = '@everyone'
+const EVERYONE_WORDS = ['所有人', 'all', 'everyone']
 
 export function RoomComposer({
   roomId,
@@ -84,31 +87,45 @@ export function RoomComposer({
   }, [replyId])
 
   const query = activeMentionQuery(value, caret)
+  const everyoneName = t('bots:room.composer.everyone')
   const options = useMemo(() => {
     if (!query) return []
     const needle = query.query.toLowerCase()
-    return active.filter((member) => member.name.toLowerCase().includes(needle)).slice(0, 8)
-  }, [active, query])
+    const matched: { id: string; name: string; member?: RoomMember }[] = active
+      .filter((member) => member.name.toLowerCase().includes(needle))
+      .slice(0, 8)
+      .map((member) => ({ id: member.id, name: member.name, member }))
+    // 两个以上成员才有“所有人”；排在最后，打“所”“all”时也能找到。
+    if (
+      active.length > 1 &&
+      [everyoneName, ...EVERYONE_WORDS].some((word) => word.toLowerCase().startsWith(needle))
+    )
+      matched.push({ id: EVERYONE, name: everyoneName })
+    return matched
+  }, [active, query, everyoneName])
   const mentionOpen = Boolean(query && options.length && dismissed !== query.start)
-  const selected = options.find((member) => member.id === highlight) || options[0]
+  const selected = options.find((option) => option.id === highlight) || options[0]
 
   const everyone = recipients === 'all'
   const chosen = everyone ? active.map((member) => member.id) : recipients
+  const chosenMembers = active.filter((member) => chosen.includes(member.id))
+  // 点名：@成员、@所有人、回复某个 Bot。点了名就只叫点到的，“发给”这次不用（也不经过主持人）。
+  const { addressed, mentionsAll, targets } = composerWakeTargets({
+    text: value,
+    members: active,
+    chosen,
+    repliedBot: replyTo?.author.kind === 'bot' ? replyTo.author.botId : '',
+  })
   // 暂停的 Bot 叫不醒，不算进“会叫醒 N 个”。
   const awake = new Set(active.filter((member) => member.enabled).map((member) => member.id))
-  const wakes = [...new Set([...chosen, ...mentionedIds(value, active)])].filter((id) =>
-    awake.has(id),
-  ).length
-  const chosenMembers = active.filter((member) => chosen.includes(member.id))
-  // 正文里写了 @所有人 也算点了名（不经过主持人）。
-  const mentionsAll = mentionSegments(value, active).some((segment) => segment.everyone)
+  const wakes = targets.filter((id) => awake.has(id)).length
 
-  const insertMention = (member: RoomMember) => {
+  const insertMention = (option: { name: string }) => {
     if (!query) return
     const before = value.slice(0, query.start)
     const after = value.slice(caret)
-    const next = `${before}@${member.name} ${after}`
-    const position = before.length + member.name.length + 2
+    const next = `${before}@${option.name} ${after}`
+    const position = before.length + option.name.length + 2
     setValue(next)
     setCaret(position)
     window.requestAnimationFrame(() => {
@@ -333,7 +350,14 @@ export function RoomComposer({
               <span className="flex-none px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {t('bots:room.composer.wakes', { count: wakes })}
               </span>
-            ) : idleHint && wakes === 0 && !mentionsAll ? (
+            ) : addressed && !mentionsAll && chosenMembers.length > 0 ? (
+              <span
+                data-room-addressed-only
+                className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden"
+              >
+                {t('bots:room.composer.addressedOnly')}
+              </span>
+            ) : idleHint && !addressed && chosenMembers.length === 0 ? (
               <span className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {idleHint}
               </span>
@@ -363,15 +387,20 @@ export function RoomComposer({
           aria-label={t('bots:room.composer.mentionList')}
         >
           <CommandList>
-            {options.map((member) => (
+            {options.map((option) => (
               <CommandItem
-                key={member.id}
-                value={member.id}
-                onMouseEnter={() => setHighlight(member.id)}
-                onSelect={() => insertMention(member)}
+                key={option.id}
+                value={option.id}
+                data-room-mention-everyone={option.member ? undefined : ''}
+                onMouseEnter={() => setHighlight(option.id)}
+                onSelect={() => insertMention(option)}
               >
-                <BotAvatar avatar={member.avatar} size={18} animate={false} />
-                <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                {option.member ? (
+                  <BotAvatar avatar={option.member.avatar} size={18} animate={false} />
+                ) : (
+                  <Users aria-hidden="true" className="size-[18px] p-0.5 text-content-muted" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{option.name}</span>
               </CommandItem>
             ))}
           </CommandList>

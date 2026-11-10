@@ -14,20 +14,24 @@ export function wakeBudgetChars(contextWindowTokens) {
 }
 
 /**
- * 你发的一句话叫醒谁：@ 到的、“发给”里选的（所有人 = 全部成员）、你回复的那条消息的作者 Bot。
+ * 你发的一句话叫醒谁：点了名就只叫点到的——@ 到的、你回复的那条消息的作者 Bot、@所有人 时全部成员；
+ * 没点名才按“发给”里选的（所有人 = 全部成员，新建的群默认就是所有人）。
  * 暂停的 Bot 不叫，单独列出来（群里写一行说明）。
  * @param {{ mentions: string[], recipients: string[] | 'all', replyToAuthor?: string, text: string }} message
  * @param {{ id: string, enabled: boolean }[]} members
  */
 export function userWakeTargets(message, members) {
-  const everyone = message.recipients === 'all' || mentionsEveryone(message.text)
+  const addressed =
+    message.mentions.length > 0 || Boolean(message.replyToAuthor) || mentionsEveryone(message.text)
+  const everyone = mentionsEveryone(message.text) || (!addressed && message.recipients === 'all')
   const reasons = new Map()
   const add = (id, kind) => {
     if (!reasons.has(id)) reasons.set(id, kind)
   }
   for (const id of message.mentions) add(id, 'mention')
   if (message.replyToAuthor) add(message.replyToAuthor, 'reply')
-  if (Array.isArray(message.recipients)) for (const id of message.recipients) add(id, 'recipient')
+  if (!addressed && Array.isArray(message.recipients))
+    for (const id of message.recipients) add(id, 'recipient')
   if (everyone) for (const member of members) add(member.id, 'everyone')
   const byId = new Map(members.map((member) => [member.id, member]))
   const wake = []
