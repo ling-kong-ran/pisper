@@ -143,6 +143,8 @@ test('release dependency update commits only manifests and pushes only the relea
     ['git', 'add', 'package.json', 'package-lock.json'],
     ['git', 'commit', '-m', 'chore(deps): update pi coding agent'],
     ['git', 'push', 'origin', 'release'],
+    // 改完锁文件要重装：发布前检查必须跑在要发出去的依赖上，而不是旧的 node_modules。
+    ['npm', 'ci'],
   ])
 })
 
@@ -152,7 +154,10 @@ test('release dependency update preserves the leading status column for a single
     status: ' M package-lock.json\n',
   })
   assert.equal(update(), true)
-  assert.deepEqual(calls.at(-1), ['git', 'push', 'origin', 'release'])
+  assert.deepEqual(calls.slice(-2), [
+    ['git', 'push', 'origin', 'release'],
+    ['npm', 'ci'],
+  ])
 })
 
 test('release dependency update rejects unexpected tracked changes before staging or pushing', async () => {

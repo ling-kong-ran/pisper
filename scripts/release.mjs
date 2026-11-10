@@ -82,6 +82,9 @@ function updateUpstreamPiDependency() {
   run('git', ['commit', '-m', 'chore(deps): update pi coding agent'])
   run('git', ['push', 'origin', releaseBranch])
   console.log(`已提交并推送 ${PI_CODING_AGENT_PACKAGE} 更新。`)
+  // 上面只改了锁文件，node_modules 还是旧版本：不重装的话，后面的发布前检查测的是旧 Pi，
+  // 发出去的却是新 Pi（Pi 1.5.2 删了 detectLineEnding，检查全过、文件改动统计却整块失效）。
+  runNpm(['ci'])
   return true
 }
 
