@@ -2,6 +2,7 @@
 // 结束后统一刷新权威缓存。动作从不抛出，结果对象交给界面决定如何提示。
 import { chatApi } from '@/features/chat/chat-api'
 import { announceSessionsUpdated, type SessionOrganizationUpdate } from '@/features/chat/events'
+import { ApiError } from '@/lib/http'
 import { queryClient } from '@/lib/startup-queries'
 import { boardApi } from './board-api'
 import {
@@ -24,7 +25,7 @@ import {
   type BoardSessionsData,
 } from './board-store'
 
-export type BoardActionFailure = 'pending' | 'confirmation-required' | 'failed'
+export type BoardActionFailure = 'pending' | 'confirmation-required' | 'failed' | 'closed'
 
 export type BoardActionResult =
   { ok: true } | { ok: false; reason: BoardActionFailure; error: unknown }
@@ -131,7 +132,9 @@ export async function answerBoardQuestion(
     clearBoardPatch(sessionId, token)
     endBoardAction(key)
     refreshInBackground()
-    return { ok: false, reason: 'failed', error }
+    // 这个提问已经结束（在别处答过、运行停了、Runtime 重启过）：不是“失败、再试一次”，和会话页说同一句话。
+    const closed = error instanceof ApiError && (error.status === 404 || error.status === 409)
+    return { ok: false, reason: closed ? 'closed' : 'failed', error }
   }
   try {
     await confirmBoardSession(sessionId, undefined, { fresh: true })

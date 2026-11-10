@@ -246,8 +246,12 @@ export function useBoardController({
         void (async () => {
           await collapse(item.id)
           const result = await actionsRef.current.answer(item.id, question.id, label)
-          if (!result.ok) restore(item.id)
-          reportFailure(result)
+          // 提问已经结束时不把卡片放回来（后台刷新会把它拿掉），只说明一句。
+          if (!result.ok && result.reason === 'closed') notify(t('board:question.closed'), 'info')
+          else {
+            if (!result.ok) restore(item.id)
+            reportFailure(result)
+          }
           if (result.ok && followUp) void focusCard(followUp)
         })()
       },
