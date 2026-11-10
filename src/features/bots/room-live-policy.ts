@@ -32,6 +32,16 @@ export function roomChangeAffectsPage(change: RoomChange | '*', roomId: string) 
   return change.deleted || change.scope.some((item) => item !== 'list') || !change.scope.length
 }
 
+// 收到帧后等这么久再取：Bot 连着跑工具时 Runtime 每 250ms 一帧，一帧取一次就成了一个接一个地请求。
+// 卡片上的步骤最多晚这么久出现，看起来仍是实时的。
+export const ROOM_FRAME_COALESCE_MS = 350
+
+/** 这一帧之后要不要重读群详情（成员状态、读到哪、简报、用量）；只是消息变了的不用。 */
+export function roomChangeNeedsDetail(change: RoomChange | '*') {
+  if (change === '*') return true
+  return change.deleted || change.scope.includes('detail') || !change.scope.length
+}
+
 /** 这一帧要不要刷新侧栏群列表。 */
 export function roomChangeAffectsList(change: RoomChange | '*') {
   if (change === '*') return true

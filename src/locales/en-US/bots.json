@@ -425,5 +425,10 @@
   "room.timeline.hint": "Use the up and down arrow keys to move between messages, Home and End to jump to the first or last. On a message, press R to reply or Delete to recall or hide it; on a bot's work card, press Enter to open its process.",
   "room.a11y.message": "{name} · {time}",
   "room.a11y.card": "{name} · {state} · {time}",
-  "room.a11y.attachments": "{count} attachments"
+  "room.a11y.attachments": "{count} attachments",
+  "room.recall.attachmentsKept": "{count} attachment(s) a bot already received are still in Assets; delete them there if needed.",
+  "room.recallConfirm.attachments": "Attachments they received also stay in Assets.",
+  "room.composer.hostHint": "{name} routes it; one extra model call",
+  "room.system.wakeFailedAttachment": "{name} couldn't be woken: an attachment couldn't be read. Try sending a different file.",
+  "room.system.wakeFailedModel": "{name} couldn't be woken: its model is unavailable right now."
 }

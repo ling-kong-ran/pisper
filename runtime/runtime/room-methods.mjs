@@ -4,7 +4,7 @@
 // 叫醒在席位会话忙时插进当前这一轮（v2.1 的不阻塞）；插不进去（正要开始或刚结束）就记下，这一轮结束后再叫。
 // “读到第几条”送达后才前移：插队排进了，或新的一轮真正开始了。
 import { randomUUID } from 'node:crypto'
-import { pisperError } from '../../shared/errors.mjs'
+import { isPisperError, pisperError } from '../../shared/errors.mjs'
 import {
   roomAttachmentsNote,
   roomBriefInstruction,
@@ -55,6 +55,8 @@ const MAX_WATCHED_CARDS = 50
 const ROUTE_TAIL_MESSAGES = 8
 const ROUTE_TAIL_CHARS = 400
 const ROUTE_TIMEOUT_MS = 60_000
+// 同一条消息叫醒几个 Bot 时共用的附件内容留多久。
+const ROOM_ATTACHMENT_SHARE_MS = 15_000
 
 function unique(values) {
   return [...new Set(values)]
@@ -391,6 +393,10 @@ export const roomMethods = {
     const replied = normalized.replyTo ? byId.get(normalized.replyTo) : null
     const chain = { id: newBotChainId(), hop: 1 }
     const attachments = await this.storeRoomAttachments(room, normalized.attachments)
+    // 写进记录（或没写成）之后，这些资产不再算“正在用”：之后由记录里的引用说了算。
+    const unhold = () => {
+      for (const ref of attachments) if (ref.id) this.holdRoomAsset(ref.id, -1)
+    }
     const message = await this.rooms
       .append(id, {
         author: { kind: 'user' },
@@ -404,9 +410,11 @@ export const roomMethods = {
         chain,
       })
       .catch(async (error) => {
+        unhold()
         await this.releaseRoomAttachments(attachments).catch(() => {})
         throw error
       })
+    unhold()
     // “发给”的选择留在群里（像收件人），下次打开还在。
     if (
       input &&
@@ -480,7 +488,8 @@ export const roomMethods = {
     const eligible = this.roomMembers(room).filter(
       (member) => member.name && !member.deleted && member.enabled,
     )
-    const messages = await this.rooms.messages(roomId)
+    // 只读：不改记录本身。
+    const messages = await this.rooms.peekMessages(roomId)
     const names = (author) =>
       author?.kind === 'bot'
         ? eligible.find((member) => member.id === author.botId)?.name || 'a removed bot'
@@ -493,6 +502,7 @@ export const roomMethods = {
       .slice(-ROUTE_TAIL_MESSAGES)
       .map((item) => `#${item.seq} ${names(item.author)}: ${oneLine(item.text, ROUTE_TAIL_CHARS)}`)
     let result
+    const timeout = AbortSignal.timeout(ROUTE_TIMEOUT_MS)
     try {
       const model = await this.roomBriefModel(roomId, host)
       if (!model) throw pisperError('unavailable', 'model')
@@ -507,7 +517,7 @@ export const roomMethods = {
           message,
           max: ROOM_ROUTE_MAX_WAKES,
         }),
-        signal: AbortSignal.timeout(ROUTE_TIMEOUT_MS),
+        signal: timeout,
       })
     } catch {
       return note({ type: 'route_failed', reason: 'failed' })
@@ -518,7 +528,10 @@ export const roomMethods = {
         `room-route:${roomId}:${randomUUID()}`,
         result.usage,
       ).catch(() => {})
-    const parsed = result.text === null ? null : parseRouteReply(result.text, eligible)
+    // 请求出错或超时（没有回复）是“没问成”，不是“回复不对”。
+    if (result.text === null || timeout.aborted)
+      return note({ type: 'route_failed', reason: 'failed' })
+    const parsed = parseRouteReply(result.text, eligible)
     if (!parsed) return note({ type: 'route_failed', reason: 'invalid' })
     // 等主持人的这一会儿，这句话被撤回了、群被删了或改回“@ 谁谁答”：不再叫人。
     const current = this.rooms.get(roomId)
@@ -720,8 +733,18 @@ export const roomMethods = {
         if (!isBusy()) void this.flushSeatWake(roomId, botId)
         return
       }
+      // 写明是哪一类原因（附件读不了、模型用不了），只给类别，不带出错信息里的路径。
+      const subject = isPisperError(error) ? String(error.params?.subject || '') : ''
+      const reason = ['attachment', 'image', 'file'].includes(subject)
+        ? 'attachment'
+        : subject === 'model' || subject === 'provider'
+          ? 'model'
+          : ''
       await this.rooms
-        .append(roomId, { author: { kind: 'system' }, event: { type: 'wake_failed', botId } })
+        .append(roomId, {
+          author: { kind: 'system' },
+          event: { type: 'wake_failed', botId, ...(reason ? { reason } : {}) },
+        })
         .catch(() => {})
       // 开不起来的这会儿又来了新的叫醒（它在等“这一轮结束”）：没有哪一轮会结束了，现在就送。
       if (this.roomWakes.has(key) && !isBusy()) void this.flushSeatWake(roomId, botId)
@@ -780,6 +803,7 @@ export const roomMethods = {
     const files = await wakeAttachments(
       triggers.filter((message) => message.author?.kind === 'user'),
       (assetId) => this.getAssetDownload(assetId),
+      this.sharedRoomAttachmentReads(),
     )
     const visible =
       [
@@ -1032,12 +1056,18 @@ export const roomMethods = {
     if (seenBy.length) await this.rooms.noteRecall(id, seenBy, message.seq)
     // 记录里的附件引用随占位一起擦掉了；只有这条消息用到的上传文件也删掉。
     // Bot 已经收到过的（席位会话里有引用）留着：它的会话记录里本来就还有。
-    await this.releaseRoomAttachments(message.attachments).catch(() =>
-      console.warn('[rooms] Could not delete the recalled attachments.'),
-    )
+    const uploaded = unique(
+      (message.attachments || []).map((ref) => ref?.id).filter((item) => typeof item === 'string'),
+    ).length
+    const deleted = await this.releaseRoomAttachments(message.attachments).catch(() => {
+      console.warn('[rooms] Could not delete the recalled attachments.')
+      return 0
+    })
     return {
       message: placeholder,
       seenBy,
+      // 还留在资产库里的上传文件有几个：如实告诉你，撤回擦掉的是群记录，不是 Bot 已经拿到的那份。
+      attachmentsKept: Math.max(0, uploaded - deleted),
       briefMayContain: Boolean(state.brief && state.brief.upToSeq >= message.seq),
     }
   },
@@ -1190,9 +1220,37 @@ export const roomMethods = {
     return archiveRoomAttachments({
       attachments,
       roomName: room.name,
-      createAsset: (input) => this.createAsset(input),
-      release: (assetId) => this.releaseRoomAttachments([{ id: assetId }]),
+      // 归档到写进群记录之间，这份资产“还没有哪条消息引用”：记为正在用，免得同时进行的撤回
+      //（撤回的那条带着同一个文件）把它当成没人要的删掉。
+      createAsset: async (input) => {
+        const asset = await this.createAsset(input)
+        if (asset?.id) this.holdRoomAsset(asset.id, 1)
+        return asset
+      },
+      release: (assetId) => {
+        this.holdRoomAsset(assetId, -1)
+        return this.releaseRoomAttachments([{ id: assetId }])
+      },
     })
+  },
+
+  holdRoomAsset(assetId, delta) {
+    this.roomAssetHolds ||= new Map()
+    const count = (this.roomAssetHolds.get(assetId) || 0) + delta
+    if (count > 0) this.roomAssetHolds.set(assetId, count)
+    else this.roomAssetHolds.delete(assetId)
+  },
+
+  // 同一条消息叫醒好几个 Bot 时共用一份附件内容；最后一次用到的几秒后放掉，不长期占着内存。
+  sharedRoomAttachmentReads() {
+    this.roomAttachmentReads ||= new Map()
+    if (this.roomAttachmentReadsTimer) clearTimeout(this.roomAttachmentReadsTimer)
+    this.roomAttachmentReadsTimer = setTimeout(() => {
+      this.roomAttachmentReadsTimer = null
+      this.roomAttachmentReads.clear()
+    }, ROOM_ATTACHMENT_SHARE_MS)
+    this.roomAttachmentReadsTimer.unref?.()
+    return this.roomAttachmentReads
   },
 
   // 删掉只被群消息用过、现在也没有哪条没撤回的群消息还引用着的资产；别处用到的一律不动。
@@ -1208,6 +1266,7 @@ export const roomMethods = {
     )
     let deleted = 0
     for (const assetId of ids) {
+      if (this.roomAssetHolds?.has(assetId)) continue
       if (!isRoomOnlyAsset(this.findAsset(assetId)) || roomsStillUse(lists, assetId)) continue
       if (await this.deleteAsset(assetId)) deleted += 1
     }
@@ -1217,6 +1276,16 @@ export const roomMethods = {
   // 删 Bot 时：从所有群里移出。
   async removeBotFromRooms(botId) {
     if (!this.rooms) return
+    // 只剩它一个成员的群会跟着删掉：群里上传、别处没用到的附件一并清掉（同 deleteRoom）。
+    const refs = []
+    for (const room of this.rooms.list())
+      if (room.members.length === 1 && room.members[0] === botId)
+        refs.push(
+          ...(await this.rooms.peekMessages(room.id).catch(() => [])).flatMap(
+            (message) => message.attachments || [],
+          ),
+        )
     await this.rooms.removeBot(botId)
+    if (refs.length) await this.releaseRoomAttachments(refs).catch(() => {})
   },
 }

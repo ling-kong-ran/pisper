@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { createApiHandler } from '../http/api-handler.mjs'
+import { pisperError } from '../../shared/errors.mjs'
 import { BoardEventHub } from '../services/board-event-hub.mjs'
 import { AgentRuntimeFacade } from '../runtime/agent-runtime-facade.mjs'
 import { roomMethods } from '../runtime/room-methods.mjs'
@@ -1064,9 +1065,11 @@ test('timeline keys move message by message and act only on a focused message', 
   assert.deepEqual(timelineKeyAction(key('End'), user, 0, 3, false), { type: 'move', index: 2 })
   assert.deepEqual(timelineKeyAction(key('r'), user, 0, 3, true), { type: 'reply' })
   assert.deepEqual(timelineKeyAction(key('Delete'), user, 0, 3, true), { type: 'recall' })
-  assert.deepEqual(timelineKeyAction(key('Backspace'), card('done'), 1, 3, true), {
+  assert.deepEqual(timelineKeyAction(key('Delete'), card('done'), 1, 3, true), {
     type: 'recall',
   })
+  // 退格不撤回：选中文字后习惯性按退格的人不该被确认框打断。
+  assert.equal(timelineKeyAction(key('Backspace'), user, 0, 3, true), null)
   assert.deepEqual(timelineKeyAction(key('Enter'), card('running'), 1, 3, true), {
     type: 'process',
   })
@@ -1474,7 +1477,8 @@ test('the host is skipped for addressed messages; a bad, failed or empty answer 
       ['route_failed', 'invalid', ''],
       ['route_failed', 'failed', ''],
       ['routed', '', '只是留个言'],
-      ['route_failed', 'invalid', ''],
+      // 请求出错或超时（没有回复）是“没问成”，不是“回复不对”。
+      ['route_failed', 'failed', ''],
     ],
   )
   assert.deepEqual(lines[2].event.bots, [])
@@ -1515,4 +1519,125 @@ test('the room page reads who answers safely from any Runtime and shows the host
     event: { type: 'routed', botId: KE, bots: [PRO, 7, FISH], note: '一个改，一个看' },
   })
   assert.deepEqual([line.event.bots, line.event.note], [[PRO, FISH], '一个改，一个看'])
+})
+
+test('a recall says how many uploads a bot already took; a file being sent is not deleted under it', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  const seen = await runtime.postRoomMessage(room.id, {
+    text: '给 Bot 看过',
+    attachments: [
+      { kind: 'text', name: 'seen.txt', text: 'already delivered' },
+      { kind: 'text', name: 'alone.txt', text: 'nobody read this' },
+    ],
+  })
+  const [seenRef, aloneRef] = seen.message.attachments
+  runtime.assets.get(seenRef.id).references.push({ source: 'attachment', sessionId: 'seat-1' })
+  const result = await runtime.recallRoomMessage(room.id, seen.message.id)
+  assert.equal(result.attachmentsKept, 1)
+  assert.equal(runtime.assets.has(aloneRef.id), false)
+  assert.equal(runtime.assets.has(seenRef.id), true)
+
+  // 正在发的那条（归档了、还没写进记录）用着同一个文件：同时进行的撤回不能把它删掉。
+  const first = await runtime.postRoomMessage(room.id, {
+    text: '第一条',
+    attachments: [{ kind: 'text', name: 'shared.txt', text: 'same bytes' }],
+  })
+  const sharedId = first.message.attachments[0].id
+  runtime.holdRoomAsset(sharedId, 1)
+  assert.equal((await runtime.recallRoomMessage(room.id, first.message.id)).attachmentsKept, 1)
+  assert.equal(runtime.assets.has(sharedId), true)
+  runtime.holdRoomAsset(sharedId, -1)
+  assert.equal(await runtime.releaseRoomAttachments([{ id: sharedId }]), 1)
+  // 发完之后不再占着。
+  assert.equal(runtime.roomAssetHolds.size, 0)
+})
+
+test('one message waking several bots reads its attachment once; a lone room goes with its bot and its uploads', async () => {
+  const runtime = await fakeRuntime()
+  let reads = 0
+  const read = runtime.getAssetDownload
+  runtime.getAssetDownload = async (id) => {
+    reads += 1
+    return read(id)
+  }
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO, FISH] })
+  await runtime.postRoomMessage(room.id, { text: '@所有人 看图', attachments: [image()] })
+  await settle(runtime)
+  assert.equal(runtime.runs.length, 3)
+  assert.equal(reads, 1)
+  assert.ok(runtime.runs.every((run) => run.attachments[0].data === PNG))
+  clearTimeout(runtime.roomAttachmentReadsTimer)
+
+  const solo = await runtime.createRoom({ name: '只有它', members: [FISH] })
+  const posted = await runtime.postRoomMessage(solo.id, {
+    text: '留个文件',
+    attachments: [{ kind: 'text', name: 'solo.txt', text: 'only in the solo room' }],
+  })
+  const soloAsset = posted.message.attachments[0].id
+  await runtime.removeBotFromRooms(FISH)
+  assert.equal(runtime.rooms.get(solo.id), null)
+  assert.equal(runtime.assets.has(soloAsset), false)
+})
+
+test('a wake that cannot start says which kind of thing failed, never the error text', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  runtime.promptFromChannel = async () => {
+    throw pisperError('invalid', 'attachment', '/home/someone/secret/broken.pdf')
+  }
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 看这个' })
+  await settle(runtime)
+  await new Promise((resolve) => setImmediate(resolve))
+  const line = (await runtime.rooms.messages(room.id)).at(-1)
+  assert.deepEqual(line.event, { type: 'wake_failed', botId: PRO, reason: 'attachment' })
+})
+
+test('the host sees the file names of an attachment-only message', async () => {
+  const { runtime, room } = await hostRuntime([JSON.stringify({ bots: [], reason: '' })])
+  await runtime.postRoomMessage(room.id, {
+    text: '',
+    attachments: [{ kind: 'text', name: '报表.csv', text: 'a,b\n1,2' }],
+  })
+  await routed(runtime, room.id)
+  assert.match(JSON.stringify(runtime.modelRuntime.prompts.at(-1)), /\[attached: 报表\.csv\]/)
+})
+
+test('with nobody connected the board hub keeps no room frames and no timer', async () => {
+  const hub = new BoardEventHub({
+    listItems: async () => new Map(),
+    roomState: () => ({ lastSeq: 1, signature: 'x' }),
+    minIntervalMs: 20,
+    coalesceMs: 5,
+  })
+  try {
+    hub.roomChanged('room_AAAAAAAAAA', { scope: ['messages'] })
+    assert.equal(hub.roomPending.size, 0)
+    assert.equal(hub.roomTimer, null)
+    assert.equal(
+      hub.buffer.some((entry) => entry.event === 'room'),
+      false,
+    )
+    // 连着的页面走了：待发的不留，定时器停掉。
+    const connection = hub.connect({ send: () => {}, close: () => {} })
+    await connection.ready
+    hub.roomChanged('room_AAAAAAAAAA', { scope: ['messages'] })
+    hub.roomChanged('room_AAAAAAAAAA', { scope: ['detail'] })
+    assert.equal(hub.roomPending.size, 1)
+    connection.detach()
+    assert.equal(hub.roomPending.size, 0)
+    assert.equal(hub.roomTimer, null)
+  } finally {
+    hub.dispose()
+  }
+})
+
+test('a frame that only says messages changed does not refetch the room detail', async () => {
+  const policy = await import('../../src/features/bots/room-live-policy.ts')
+  const change = (scope) => ({ roomId: 'room_AAAAAAAAAA', lastSeq: 3, scope, deleted: false })
+  assert.equal(policy.roomChangeNeedsDetail(change(['messages'])), false)
+  assert.equal(policy.roomChangeNeedsDetail(change(['messages', 'detail'])), true)
+  assert.equal(policy.roomChangeNeedsDetail(change([])), true)
+  assert.equal(policy.roomChangeNeedsDetail('*'), true)
+  assert.ok(policy.ROOM_FRAME_COALESCE_MS >= 300 && policy.ROOM_FRAME_COALESCE_MS <= 500)
 })

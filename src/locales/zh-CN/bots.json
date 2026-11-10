@@ -425,5 +425,10 @@
   "room.timeline.hint": "用上下方向键逐条移动，Home、End 跳到第一条、最后一条。在某条上按 R 回复，按 Delete 撤回或隐藏，在 Bot 的工作卡上按 Enter 打开过程。",
   "room.a11y.message": "{name} · {time}",
   "room.a11y.card": "{name} · {state} · {time}",
-  "room.a11y.attachments": "{count} 个附件"
+  "room.a11y.attachments": "{count} 个附件",
+  "room.recall.attachmentsKept": "Bot 已经收到过的 {count} 个附件还留在资产里，需要的话到资产页删除。",
+  "room.recallConfirm.attachments": "它们收到过的附件也还会留在资产里。",
+  "room.composer.hostHint": "由 {name} 分派，多一次模型调用",
+  "room.system.wakeFailedAttachment": "{name} 没能被叫醒：附件读不了，换一个文件再发试试",
+  "room.system.wakeFailedModel": "{name} 没能被叫醒：它的模型现在用不了"
 }

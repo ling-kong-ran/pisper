@@ -238,6 +238,9 @@ export class BoardEventHub {
    */
   roomChanged(roomId, { scope = [], probe = false } = {}) {
     if (this.disposed || typeof roomId !== 'string' || !roomId) return
+    // 没有页面连着：不记、不跑定时器、不往重放缓冲里塞帧（界面关着、Bot 在群里长时间干活时，
+    // 不该把会话卡片的旧帧挤出缓冲）。页面连上或重连时自己会取一次最新的。
+    if (!this.connections.size) return
     let pending = this.roomPending.get(roomId)
     if (!pending) {
       if (this.roomPending.size >= MAX_PENDING_ROOMS) return
@@ -574,6 +577,9 @@ export class BoardEventHub {
     this.heartbeatTimer = null
     if (this.flushTimer) clearTimeout(this.flushTimer)
     this.flushTimer = null
+    if (this.roomTimer) clearTimeout(this.roomTimer)
+    this.roomTimer = null
+    this.roomPending.clear()
   }
 
   /** 供诊断与测试：当前连接数与缓冲占用。 */

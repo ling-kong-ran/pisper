@@ -59,8 +59,28 @@ export async function archiveRoomAttachments({ attachments, roomName, createAsse
  * 几句话并在一次叫醒里时合起来也守会话的上限（8 个、20 MB）；超出的、资产已经不在的只写名字。
  * @param {Record<string, any>[]} messages 触发这次叫醒的消息（按顺序）
  * @param {(assetId: string) => Promise<{ size: number, buffer?: Buffer } | null>} readAsset
+ * @param {Map<string, Promise<{ size: number, text?: string, data?: string } | null>>} [shared]
+ *   同一条消息叫醒好几个 Bot 时共用的读取结果（@所有人 带大附件时不各读一遍、各转一遍 base64）。
  */
-export async function wakeAttachments(messages, readAsset) {
+export async function wakeAttachments(messages, readAsset, shared = new Map()) {
+  // 读一次、转一次：文字按 UTF-8，其余按 base64；几个席位拿到的是同一个字符串。
+  const load = (ref) => {
+    let pending = shared.get(ref.id)
+    if (!pending) {
+      pending = readAsset(ref.id).then(
+        (stored) => {
+          const buffer = stored?.buffer
+          if (!buffer?.length) return null
+          return ref.kind === 'text'
+            ? { size: buffer.length, text: buffer.toString('utf8') }
+            : { size: buffer.length, data: buffer.toString('base64') }
+        },
+        () => null,
+      )
+      shared.set(ref.id, pending)
+    }
+    return pending
+  }
   const attachments = []
   const skipped = []
   let total = 0
@@ -74,24 +94,22 @@ export async function wakeAttachments(messages, readAsset) {
         attachments.push({ id: `path:${ref.path}`, kind: 'path', name: ref.name, path: ref.path })
         continue
       }
-      const stored = await readAsset(ref.id).catch(() => null)
-      const buffer = stored?.buffer
-      if (!buffer?.length || total + buffer.length > MAX_ROOM_ATTACHMENTS_BYTES) {
+      const content = await load(ref)
+      if (!content || total + content.size > MAX_ROOM_ATTACHMENTS_BYTES) {
         skipped.push(ref.name)
         continue
       }
-      total += buffer.length
-      const common = { id: ref.id, name: ref.name, mimeType: ref.mimeType, size: buffer.length }
-      if (ref.kind === 'text')
-        attachments.push({ ...common, kind: 'text', text: buffer.toString('utf8') })
+      total += content.size
+      const common = { id: ref.id, name: ref.name, mimeType: ref.mimeType, size: content.size }
+      if (ref.kind === 'text') attachments.push({ ...common, kind: 'text', text: content.text })
       else if (ref.kind === 'image')
-        attachments.push({ ...common, kind: 'image', data: buffer.toString('base64') })
+        attachments.push({ ...common, kind: 'image', data: content.data })
       else
         attachments.push({
           ...common,
           kind: 'document',
           extension: String(ref.name.split('.').at(-1) || '').toLowerCase(),
-          data: buffer.toString('base64'),
+          data: content.data,
         })
     }
   }

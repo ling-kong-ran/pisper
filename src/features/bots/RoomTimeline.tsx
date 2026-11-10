@@ -174,7 +174,7 @@ function routeLine(
 }
 
 export function RoomTimeline({
-  items,
+  items: allItems,
   messages,
   members,
   canAct,
@@ -191,6 +191,34 @@ export function RoomTimeline({
   const name = (id: string) => members.get(id)?.name || t('bots:room.removedBot')
   const feed = useRef<HTMLDivElement>(null)
   const hintId = useId()
+  const systemText = (message: RoomMessage) => {
+    const event = message.event
+    return event?.type === 'paused'
+      ? t('bots:room.system.paused', { name: name(event.botId) })
+      : event?.type === 'chain_stopped'
+        ? t('bots:room.system.chainStopped', {
+            from: name(event.from),
+            to: name(event.to),
+            reason:
+              event.reason === 'hops'
+                ? t('bots:room.system.reason.hops')
+                : event.reason === 'rate'
+                  ? t('bots:room.system.reason.rate')
+                  : t('bots:room.system.reason.total'),
+          })
+        : event?.type === 'wake_failed'
+          ? event.reason === 'attachment'
+            ? t('bots:room.system.wakeFailedAttachment', { name: name(event.botId) })
+            : event.reason === 'model'
+              ? t('bots:room.system.wakeFailedModel', { name: name(event.botId) })
+              : t('bots:room.system.wakeFailed', { name: name(event.botId) })
+          : event
+            ? routeLine(event, name, t)
+            : ''
+  }
+  // 键盘移动、“第几条 / 共几条”都按真正画出来的条目算：认不出类型的系统行不画，
+  // 留在列表里的话方向键会停在一条不存在的消息上，它恰好是最后一条时整个时间线也 Tab 不进来。
+  const items = allItems.filter((item) => item.kind !== 'system' || systemText(item.message))
   // 能 Tab 进来的那一条：上次聚焦过的；没有（或它已经不在了）时是最近的一条。
   const [current, setCurrent] = useState('')
   const activeId = items.some((item) => item.message.id === current)
@@ -212,9 +240,10 @@ export function RoomTimeline({
     if (!(target instanceof HTMLElement)) return
     const article = target.closest('[data-room-message]')
     if (!(article instanceof HTMLElement) || !feed.current?.contains(article)) return
-    const onMessage = target === article
-    if (!onMessage && !(target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement))
-      return
+    // 条目里的输入控件不接；按钮、链接上只接移动；其余（包括点一下工作卡后焦点落在卡片内层上）
+    // 都当作焦点在这条消息上，方向键、R、Enter 照常。
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+    const onMessage = target === article || !target.closest('button, a, [role="button"]')
     const index = items.findIndex((item) => item.message.id === article.dataset.roomMessage)
     if (index < 0) return
     const action = timelineKeyAction(event, items[index], index, items.length, onMessage)
@@ -253,219 +282,203 @@ export function RoomTimeline({
   )
 
   return (
-    <div
-      ref={feed}
-      role="feed"
-      aria-label={t('bots:room.timeline.label')}
-      aria-describedby={hintId}
-      className="flex flex-col gap-4"
-      onKeyDown={onKeyDown}
-    >
+    <>
+      {/* 操作提示放在 feed 外面：feed 里只该有一条条 article。 */}
       <p id={hintId} className="sr-only">
         {t('bots:room.timeline.hint')}
       </p>
-      {items.map((item, index) => {
-        const { message } = item
-        const reply = message.replyTo ? byId.get(message.replyTo) : null
-        const at = time(message.at)
-        if (item.kind === 'system') {
-          const event = message.event
-          const text =
-            event?.type === 'paused'
-              ? t('bots:room.system.paused', { name: name(event.botId) })
-              : event?.type === 'chain_stopped'
-                ? t('bots:room.system.chainStopped', {
-                    from: name(event.from),
-                    to: name(event.to),
-                    reason:
-                      event.reason === 'hops'
-                        ? t('bots:room.system.reason.hops')
-                        : event.reason === 'rate'
-                          ? t('bots:room.system.reason.rate')
-                          : t('bots:room.system.reason.total'),
+      <div
+        ref={feed}
+        role="feed"
+        aria-label={t('bots:room.timeline.label')}
+        aria-describedby={hintId}
+        className="flex flex-col gap-4"
+        onKeyDown={onKeyDown}
+      >
+        {items.map((item, index) => {
+          const { message } = item
+          const reply = message.replyTo ? byId.get(message.replyTo) : null
+          const at = time(message.at)
+          if (item.kind === 'system') {
+            const text = systemText(message)
+            return text ? article(message, index, text, <SystemLine>{text}</SystemLine>) : null
+          }
+          if (item.kind === 'recalled') {
+            const seen = message.recalled?.seenBy.map(name) || []
+            const text =
+              message.author.kind === 'user'
+                ? t('bots:room.recalledMine')
+                : t('bots:room.recalledBot', {
+                    name: message.author.kind === 'bot' ? name(message.author.botId) : '',
                   })
-                : event?.type === 'wake_failed'
-                  ? t('bots:room.system.wakeFailed', { name: name(event.botId) })
-                  : event
-                    ? routeLine(event, name, t)
-                    : ''
-          return text ? article(message, index, text, <SystemLine>{text}</SystemLine>) : null
-        }
-        if (item.kind === 'recalled') {
-          const seen = message.recalled?.seenBy.map(name) || []
-          const text =
-            message.author.kind === 'user'
-              ? t('bots:room.recalledMine')
-              : t('bots:room.recalledBot', {
-                  name: message.author.kind === 'bot' ? name(message.author.botId) : '',
-                })
-          return article(
-            message,
-            index,
-            text,
-            <SystemLine>
-              {text}
-              {seen.length > 0 && ` · ${t('bots:room.seenBy', { names: seen.join('、') })}`}
-            </SystemLine>,
-          )
-        }
-        if (item.kind === 'user')
-          return article(
-            message,
-            index,
-            [
-              t('bots:room.a11y.message', { name: t('bots:room.you'), time: at }),
-              message.attachments.length
-                ? t('bots:room.a11y.attachments', { count: message.attachments.length })
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' · '),
-            <>
-              <div className="flex flex-col items-end gap-1">
-                {reply && (
-                  <div className="max-w-[78%]">
-                    <Quote message={reply} members={members} onJump={actions.onJump} />
-                  </div>
-                )}
-                {message.text && (
-                  <div className="max-w-[78%] rounded-[18px] bg-[var(--user-bubble-bg)] px-4 py-2.5 text-[length:calc(var(--app-message-font-size)*.9375)] leading-[1.65] break-words whitespace-pre-wrap text-[var(--user-bubble-text)] max-[650px]:max-w-[88%]">
-                    <Mentions text={message.text} members={members} />
-                  </div>
-                )}
-                {message.attachments.length > 0 && (
-                  <div className="flex max-w-[78%] justify-end max-[650px]:max-w-[88%] [&_.message-attachments]:justify-end">
-                    <MessageAttachments
-                      attachments={roomAttachmentViews(message.attachments)}
-                      compact
-                    />
-                  </div>
-                )}
-                <div className="flex items-center gap-0.5 pr-1">
-                  <span className="flex items-center gap-0.5 pointer-events-none opacity-0 transition-opacity group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 group-focus-within/msg:pointer-events-auto group-focus-within/msg:opacity-100">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="text-content-muted"
-                      aria-keyshortcuts="R"
-                      onClick={() => actions.onReply(message)}
+            return article(
+              message,
+              index,
+              text,
+              <SystemLine>
+                {text}
+                {seen.length > 0 && ` · ${t('bots:room.seenBy', { names: seen.join('、') })}`}
+              </SystemLine>,
+            )
+          }
+          if (item.kind === 'user')
+            return article(
+              message,
+              index,
+              [
+                t('bots:room.a11y.message', { name: t('bots:room.you'), time: at }),
+                message.attachments.length
+                  ? t('bots:room.a11y.attachments', { count: message.attachments.length })
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' · '),
+              <>
+                <div className="flex flex-col items-end gap-1">
+                  {reply && (
+                    <div className="max-w-[78%]">
+                      <Quote message={reply} members={members} onJump={actions.onJump} />
+                    </div>
+                  )}
+                  {message.text && (
+                    <div className="max-w-[78%] rounded-[18px] bg-[var(--user-bubble-bg)] px-4 py-2.5 text-[length:calc(var(--app-message-font-size)*.9375)] leading-[1.65] break-words whitespace-pre-wrap text-[var(--user-bubble-text)] max-[650px]:max-w-[88%]">
+                      <Mentions text={message.text} members={members} />
+                    </div>
+                  )}
+                  {message.attachments.length > 0 && (
+                    <div className="flex max-w-[78%] justify-end max-[650px]:max-w-[88%] [&_.message-attachments]:justify-end">
+                      <MessageAttachments
+                        attachments={roomAttachmentViews(message.attachments)}
+                        compact
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-0.5 pr-1">
+                    <span className="flex items-center gap-0.5 pointer-events-none opacity-0 transition-opacity group-hover/msg:pointer-events-auto group-hover/msg:opacity-100 group-focus-within/msg:pointer-events-auto group-focus-within/msg:opacity-100">
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-content-muted"
+                        aria-keyshortcuts="R"
+                        onClick={() => actions.onReply(message)}
+                      >
+                        <CornerUpLeft aria-hidden="true" />
+                        {t('bots:room.reply')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-content-muted"
+                        aria-keyshortcuts="Delete"
+                        onClick={() => actions.onRecall(message)}
+                      >
+                        <Undo2 aria-hidden="true" />
+                        {t('bots:room.recall')}
+                      </Button>
+                    </span>
+                    <time
+                      dateTime={message.at}
+                      className="text-[11.5px] text-content-muted tabular-nums"
                     >
-                      <CornerUpLeft aria-hidden="true" />
-                      {t('bots:room.reply')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="text-content-muted"
-                      aria-keyshortcuts="Delete"
-                      onClick={() => actions.onRecall(message)}
-                    >
-                      <Undo2 aria-hidden="true" />
-                      {t('bots:room.recall')}
-                    </Button>
-                  </span>
-                  <time
-                    dateTime={message.at}
-                    className="text-[11.5px] text-content-muted tabular-nums"
-                  >
-                    {at}
-                  </time>
+                      {at}
+                    </time>
+                  </div>
                 </div>
-              </div>
-              {item.round && <Round entries={item.round} members={members} />}
-            </>,
-            'flex flex-col gap-2',
-          )
-        if (item.kind === 'post') {
+                {item.round && <Round entries={item.round} members={members} />}
+              </>,
+              'flex flex-col gap-2',
+            )
+          if (item.kind === 'post') {
+            const author = message.author.kind === 'bot' ? members.get(message.author.botId) : null
+            return article(
+              message,
+              index,
+              t('bots:room.a11y.message', {
+                name: author?.name || t('bots:room.removedBot'),
+                time: at,
+              }),
+              <>
+                {author && <BotAvatar avatar={author.avatar} size={22} animate={false} />}
+                <div className="min-w-0 flex-1 text-[length:calc(var(--app-message-font-size)*.9375)] leading-[1.65] text-content">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[13.5px] font-semibold">
+                      {author?.name || t('bots:room.removedBot')}
+                    </span>
+                    <time
+                      dateTime={message.at}
+                      className="text-[11.5px] text-content-muted tabular-nums"
+                    >
+                      {at}
+                    </time>
+                  </div>
+                  <MarkdownMessage>{message.text}</MarkdownMessage>
+                </div>
+              </>,
+              'flex gap-2.5',
+            )
+          }
           const author = message.author.kind === 'bot' ? members.get(message.author.botId) : null
+          const answeredRefs = (message.turn?.alsoAnswered || [])
+            .map((id) => byId.get(id)?.seq)
+            .filter((seq): seq is number => typeof seq === 'number')
+          const calledBy = item.handoff
+            ? t('bots:room.card.calledBy', { name: name(item.handoff.from) })
+            : message.turn?.reason === 'report'
+              ? t('bots:room.card.report')
+              : ''
+          const turn = message.turn
+          const state =
+            turn?.state === 'waiting'
+              ? turn.waiting === 'question'
+                ? t('bots:room.card.waitingQuestion')
+                : t('bots:room.card.waitingApproval')
+              : turn?.state === 'running'
+                ? t('bots:room.card.runningStart')
+                : turn?.state === 'error'
+                  ? t('bots:room.card.error')
+                  : turn?.state === 'stopped'
+                    ? t('bots:room.card.stopped')
+                    : t('bots:room.card.replied')
           return article(
             message,
             index,
-            t('bots:room.a11y.message', {
+            t('bots:room.a11y.card', {
               name: author?.name || t('bots:room.removedBot'),
+              state,
               time: at,
             }),
             <>
-              {author && <BotAvatar avatar={author.avatar} size={22} animate={false} />}
-              <div className="min-w-0 flex-1 text-[length:calc(var(--app-message-font-size)*.9375)] leading-[1.65] text-content">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[13.5px] font-semibold">
-                    {author?.name || t('bots:room.removedBot')}
-                  </span>
-                  <time
-                    dateTime={message.at}
-                    className="text-[11.5px] text-content-muted tabular-nums"
-                  >
-                    {at}
-                  </time>
-                </div>
-                <MarkdownMessage>{message.text}</MarkdownMessage>
-              </div>
-            </>,
-            'flex gap-2.5',
-          )
-        }
-        const author = message.author.kind === 'bot' ? members.get(message.author.botId) : null
-        const answeredRefs = (message.turn?.alsoAnswered || [])
-          .map((id) => byId.get(id)?.seq)
-          .filter((seq): seq is number => typeof seq === 'number')
-        const calledBy = item.handoff
-          ? t('bots:room.card.calledBy', { name: name(item.handoff.from) })
-          : message.turn?.reason === 'report'
-            ? t('bots:room.card.report')
-            : ''
-        const turn = message.turn
-        const state =
-          turn?.state === 'waiting'
-            ? turn.waiting === 'question'
-              ? t('bots:room.card.waitingQuestion')
-              : t('bots:room.card.waitingApproval')
-            : turn?.state === 'running'
-              ? t('bots:room.card.runningStart')
-              : turn?.state === 'error'
-                ? t('bots:room.card.error')
-                : turn?.state === 'stopped'
-                  ? t('bots:room.card.stopped')
-                  : t('bots:room.card.replied')
-        return article(
-          message,
-          index,
-          t('bots:room.a11y.card', {
-            name: author?.name || t('bots:room.removedBot'),
-            state,
-            time: at,
-          }),
-          <>
-            {item.handoff && message.author.kind === 'bot' && (
-              <Handoff
-                from={item.handoff.from}
-                to={message.author.botId}
-                hop={item.handoff.hop}
-                members={members}
+              {item.handoff && message.author.kind === 'bot' && (
+                <Handoff
+                  from={item.handoff.from}
+                  to={message.author.botId}
+                  hop={item.handoff.hop}
+                  members={members}
+                />
+              )}
+              <RoomWorkCard
+                message={message}
+                member={{
+                  id: author?.id || '',
+                  name: author?.name || '',
+                  avatar: author?.avatar || null,
+                }}
+                calledBy={calledBy}
+                answeredRefs={answeredRefs}
+                canAct={canAct}
+                onOpenProcess={() =>
+                  message.turn?.sessionId && actions.onOpenProcess(message.turn.sessionId)
+                }
+                onApprove={(approvalId, approve) => actions.onApprove(message, approvalId, approve)}
+                onStop={() => actions.onStop(message)}
+                onReply={() => actions.onReply(message)}
+                onHide={() => actions.onRecall(message)}
               />
-            )}
-            <RoomWorkCard
-              message={message}
-              member={{
-                id: author?.id || '',
-                name: author?.name || '',
-                avatar: author?.avatar || null,
-              }}
-              calledBy={calledBy}
-              answeredRefs={answeredRefs}
-              canAct={canAct}
-              onOpenProcess={() =>
-                message.turn?.sessionId && actions.onOpenProcess(message.turn.sessionId)
-              }
-              onApprove={(approvalId, approve) => actions.onApprove(message, approvalId, approve)}
-              onStop={() => actions.onStop(message)}
-              onReply={() => actions.onReply(message)}
-              onHide={() => actions.onRecall(message)}
-            />
-          </>,
-          'flex flex-col gap-2',
-        )
-      })}
-    </div>
+            </>,
+            'flex flex-col gap-2',
+          )
+        })}
+      </div>
+    </>
   )
 }

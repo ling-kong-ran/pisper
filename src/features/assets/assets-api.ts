@@ -88,6 +88,7 @@ export function normalizeAssetFilter(filter: AssetFilter = {}) {
 }
 const assetPath = (id: string) => `/api/assets/${encodeURIComponent(id)}`
 export const assetMediaUrl = (id: string) => `${assetPath(id)}/download?inline=1`
+export const assetDownloadUrl = (id: string) => `${assetPath(id)}/download`
 
 export const assetsApi = {
   async list(filter: AssetFilter = {}, signal?: AbortSignal) {

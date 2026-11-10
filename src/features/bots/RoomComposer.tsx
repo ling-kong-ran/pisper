@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 import type { ChatAttachment } from '@/types/chat'
 import { BotAvatar } from './BotAvatar'
 import { botAvatarTone } from './avatar'
-import { activeMentionQuery, mentionedIds } from './room-presentation'
+import { activeMentionQuery, mentionSegments, mentionedIds } from './room-presentation'
 import type { RoomMember, RoomMessage } from './rooms-api'
 
 const MAX_CHARS = 12_000
@@ -44,6 +44,7 @@ export function RoomComposer({
   onSend,
   placeholder,
   idleLabel,
+  idleHint,
 }: {
   roomId: string
   cwd?: string
@@ -57,6 +58,8 @@ export function RoomComposer({
   placeholder: string
   // 没选“发给”时芯片上写什么：默认“只留言”；主持人分派的群写“交给主持人”。
   idleLabel?: string
+  // 主持人模式下没点名时发送键旁的那句（由主持人分派，多一次模型调用）。
+  idleHint?: string
 }) {
   const { t } = useI18n()
   const [value, setValue] = useState('')
@@ -97,6 +100,8 @@ export function RoomComposer({
     awake.has(id),
   ).length
   const chosenMembers = active.filter((member) => chosen.includes(member.id))
+  // 正文里写了 @所有人 也算点了名（不经过主持人）。
+  const mentionsAll = mentionSegments(value, active).some((segment) => segment.everyone)
 
   const insertMention = (member: RoomMember) => {
     if (!query) return
@@ -324,11 +329,15 @@ export function RoomComposer({
               </DropdownMenuContent>
             </DropdownMenu>
             <span className="min-w-0 flex-1" />
-            {wakes >= 3 && (
+            {wakes >= 3 ? (
               <span className="flex-none px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {t('bots:room.composer.wakes', { count: wakes })}
               </span>
-            )}
+            ) : idleHint && wakes === 0 && !mentionsAll ? (
+              <span className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden">
+                {idleHint}
+              </span>
+            ) : null}
             <Button
               size="icon"
               className="size-8 rounded-full pointer-coarse:size-11"

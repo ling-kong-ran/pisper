@@ -218,6 +218,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         recalled: { seenBy: result.seenBy },
       })
       if (result.briefMayContain) notify(t('bots:room.recall.briefNote'))
+      if (result.attachmentsKept > 0)
+        notify(t('bots:room.recall.attachmentsKept', { count: result.attachmentsKept }))
     } catch (caught) {
       reportError(caught)
     }
@@ -442,6 +444,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
                   : t('bots:room.composer.placeholder')
             }
             idleLabel={hostName ? t('bots:room.composer.toHost') : undefined}
+            idleHint={hostName ? t('bots:room.composer.hostHint', { name: hostName }) : undefined}
           />
         </div>
       </div>
@@ -514,6 +517,9 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
               {t('bots:room.recallConfirm.description')}
               {recallSeen.length > 0 && (
                 <> {t('bots:room.recallConfirm.seen', { names: recallSeen.join('、') })}</>
+              )}
+              {recallSeen.length > 0 && Boolean(recalling?.attachments.length) && (
+                <> {t('bots:room.recallConfirm.attachments')}</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -1,5 +1,6 @@
 // 群聊页的纯逻辑：消息列表 → 时间线条目（你的气泡、Bot 的工作卡、“这一轮”、交接行、系统行），
 // 正文里的 @ 高亮切段，输入框里 @ 补全的查询。不碰网络与 React，单测直接调。
+import { assetDownloadUrl, assetMediaUrl } from '@/features/assets/public'
 import type { ChatAttachment } from '@/types/chat'
 import type { RoomAttachment, RoomMember, RoomMessage, RoomTodo } from './rooms-api'
 
@@ -202,15 +203,14 @@ export function roomAttachmentViews(attachments: readonly RoomAttachment[]): Cha
         name: attachment.name,
         path: attachment.path,
       }
-    const asset = `/api/assets/${encodeURIComponent(attachment.id)}`
     return {
       id: attachment.id,
       kind: attachment.kind,
       name: attachment.name,
       mimeType: attachment.mimeType,
       size: attachment.size,
-      downloadUrl: `${asset}/download`,
-      ...(attachment.kind === 'image' ? { url: `${asset}/download?inline=1` } : {}),
+      downloadUrl: assetDownloadUrl(attachment.id),
+      ...(attachment.kind === 'image' ? { url: assetMediaUrl(attachment.id) } : {}),
     }
   })
 }
@@ -235,7 +235,8 @@ function actionable(item: TimelineItem) {
 
 /**
  * 时间线的键盘操作（焦点在某一条消息上时）：上下方向键逐条移动，Home / End 到第一条 / 最后一条；
- * R 回复，Delete / Backspace 撤回或隐藏，Enter 打开工作卡的过程。带 Ctrl / ⌘ / Alt 的组合键不接，
+ * R 回复，Delete 撤回或隐藏（不接 Backspace：选中文字后习惯性按退格的人不该被确认框打断），
+ * Enter 打开工作卡的过程。带 Ctrl / ⌘ / Alt 的组合键不接，
  * 留给浏览器与应用的快捷键。onMessage 为假时（焦点在条目里的按钮上）只接移动，不抢按钮自己的 Enter。
  */
 export function timelineKeyAction(
@@ -253,8 +254,7 @@ export function timelineKeyAction(
   if (event.key === 'End') return { type: 'move', index: last }
   if (!onMessage) return null
   if ((event.key === 'r' || event.key === 'R') && actionable(item)) return { type: 'reply' }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && actionable(item))
-    return { type: 'recall' }
+  if (event.key === 'Delete' && actionable(item)) return { type: 'recall' }
   if (event.key === 'Enter' && item.kind === 'card' && item.message.turn?.sessionId)
     return { type: 'process' }
   return null

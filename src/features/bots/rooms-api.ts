@@ -467,6 +467,8 @@ export function recallRoomMessage(id: string, messageId: string) {
       parse: (value) => ({
         seenBy: strings(object(value).seenBy),
         briefMayContain: object(value).briefMayContain === true,
+        // 旧 Runtime 没有这个字段：按 0。
+        attachmentsKept: count(object(value).attachmentsKept),
       }),
     },
   )

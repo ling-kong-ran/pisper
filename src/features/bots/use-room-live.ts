@@ -7,7 +7,13 @@ import { retainBoardSync } from '@/features/board/public'
 import { roomFeedAlive, subscribeRoomChanges } from '@/features/board/room-changes'
 import { ApiError } from '@/lib/api-error'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
-import { ROOM_BUSY_POLL_MS, roomChangeAffectsPage, roomPollDelay } from './room-live-policy'
+import {
+  ROOM_BUSY_POLL_MS,
+  ROOM_FRAME_COALESCE_MS,
+  roomChangeAffectsPage,
+  roomChangeNeedsDetail,
+  roomPollDelay,
+} from './room-live-policy'
 import { fetchRoom, fetchRoomMessages, type RoomDetail, type RoomMessage } from './rooms-api'
 
 // 合并一批消息。内容没变的那条沿用原来的对象，一条都没变时沿用原来的数组：
@@ -52,6 +58,9 @@ export function useRoomLive(roomId: string) {
   const polling = useRef<Promise<void> | null>(null)
   // 正在取的时候又来了一帧：这次取完再取一次，不漏掉取的过程中发生的变化。
   const again = useRef(false)
+  const againDetail = useRef(false)
+  // 收到的帧攒一小会儿再取（见 ROOM_FRAME_COALESCE_MS）；这期间有哪一帧要重读群详情就记下。
+  const frame = useRef({ timer: 0, detail: false })
   const lastPollAt = useRef(0)
   const recalled = useRef(new Set<string>())
   const shown = useRef<RoomMessage[]>([])
@@ -65,47 +74,54 @@ export function useRoomLive(roomId: string) {
   // room 帧走看板事件流：页面开着时持有看板同步（手机上侧栏不在时也连着）；没有推送时不必持有。
   useEffect(() => (push ? retainBoardSync() : undefined), [push])
 
-  const poll = useCallback(async (): Promise<void> => {
-    const current = generation.current
-    let more = false
-    if (polling.current) {
-      again.current = true
-      return polling.current
-    }
-    lastPollAt.current = Date.now()
-    polling.current = Promise.all([
-      fetchRoom(roomId),
-      fetchRoomMessages(roomId, {
-        after: lastSeq.current,
-        // 页面上还显示“在做”的卡：做完后它可能既不在运行、也不是这个 Bot 最近的一张，点名要回来。
-        watch: shown.current.filter(isLive).map((message) => message.id),
-      }),
-    ])
-      .then(([room, page]) => {
-        if (current !== generation.current) return
-        setDetail((previous) => (sameDetail(previous, room) ? previous : room))
-        setMessages((previous) => merge(previous, page.messages, recalled.current))
-        // 一次最多带回一页：还有更多时只前进到这一页的最后一条，马上接着取，中间不跳过。
-        more = page.hasMore && page.messages.length > 0
-        const reached = more
-          ? Math.max(...page.messages.map((message) => message.seq))
-          : page.lastSeq
-        lastSeq.current = Math.max(lastSeq.current, reached)
-        setError('')
-      })
-      .catch((caught: unknown) => {
-        if (current !== generation.current) return
-        if (caught instanceof ApiError && caught.status === 404) setGone(true)
-        setError(caught instanceof Error ? caught.message : String(caught))
-      })
-      .finally(() => {
-        polling.current = null
-      })
-    await polling.current
-    const repeat = more || again.current
-    again.current = false
-    if (repeat && current === generation.current) await poll()
-  }, [roomId])
+  // detail 为假时只取消息增量（帧说了只有消息变了）：群详情要按成员过滤全部消息算未读，不必每次都取。
+  const poll = useCallback(
+    async ({ detail: withDetail = true } = {}): Promise<void> => {
+      const current = generation.current
+      let more = false
+      if (polling.current) {
+        again.current = true
+        if (withDetail) againDetail.current = true
+        return polling.current
+      }
+      lastPollAt.current = Date.now()
+      polling.current = Promise.all([
+        withDetail ? fetchRoom(roomId) : null,
+        fetchRoomMessages(roomId, {
+          after: lastSeq.current,
+          // 页面上还显示“在做”的卡：做完后它可能既不在运行、也不是这个 Bot 最近的一张，点名要回来。
+          watch: shown.current.filter(isLive).map((message) => message.id),
+        }),
+      ])
+        .then(([room, page]) => {
+          if (current !== generation.current) return
+          if (room) setDetail((previous) => (sameDetail(previous, room) ? previous : room))
+          setMessages((previous) => merge(previous, page.messages, recalled.current))
+          // 一次最多带回一页：还有更多时只前进到这一页的最后一条，马上接着取，中间不跳过。
+          more = page.hasMore && page.messages.length > 0
+          const reached = more
+            ? Math.max(...page.messages.map((message) => message.seq))
+            : page.lastSeq
+          lastSeq.current = Math.max(lastSeq.current, reached)
+          setError('')
+        })
+        .catch((caught: unknown) => {
+          if (current !== generation.current) return
+          if (caught instanceof ApiError && caught.status === 404) setGone(true)
+          setError(caught instanceof Error ? caught.message : String(caught))
+        })
+        .finally(() => {
+          polling.current = null
+        })
+      await polling.current
+      const repeat = more || again.current
+      const repeatDetail = againDetail.current
+      again.current = false
+      againDetail.current = false
+      if (repeat && current === generation.current) await poll({ detail: repeatDetail })
+    },
+    [roomId],
+  )
 
   // 换群：清空、读详情与最后一页。
   useEffect(() => {
@@ -158,15 +174,26 @@ export function useRoomLive(roomId: string) {
     }
     const timer = window.setInterval(tick, ROOM_BUSY_POLL_MS)
     document.addEventListener('visibilitychange', now)
+    const pending = frame.current
     const unsubscribe = push
       ? subscribeRoomChanges((change) => {
-          if (roomChangeAffectsPage(change, roomId)) now()
+          if (!roomChangeAffectsPage(change, roomId) || !visible()) return
+          if (roomChangeNeedsDetail(change)) pending.detail = true
+          if (pending.timer) return
+          pending.timer = window.setTimeout(() => {
+            pending.timer = 0
+            const detail = pending.detail
+            pending.detail = false
+            void poll({ detail })
+          }, ROOM_FRAME_COALESCE_MS)
         })
       : () => {}
     return () => {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', now)
       unsubscribe()
+      window.clearTimeout(pending.timer)
+      pending.timer = 0
     }
   }, [busy, gone, loading, poll, push, roomId])
 

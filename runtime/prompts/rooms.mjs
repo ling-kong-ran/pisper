@@ -153,7 +153,13 @@ export function roomRouteInstruction({ room, host, members, lines, message, max 
       }),
     ].join('\n'),
     lines.length ? `Recent messages:\n${lines.join('\n')}` : '',
-    `New message #${message.seq} from the user:\n${oneLine(message.text, 4_000)}`,
+    // 只发附件没写字时，主持人至少要看到文件名，不然无从判断该谁答。
+    `New message #${message.seq} from the user:\n${[
+      oneLine(message.text, 4_000),
+      roomAttachmentsNote((message.attachments || []).map((ref) => ref?.name || 'attachment')),
+    ]
+      .filter(Boolean)
+      .join('\n')}`,
     `Pick the fewest members who can answer it well, at most ${max}. You may pick yourself. Pick nobody when it needs no answer (a note for later, thanks, an aside).`,
     'Return only JSON: {"bots": [member id, ...], "reason": "one short line, in the language the room uses"}.',
   ]
