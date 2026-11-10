@@ -43,6 +43,7 @@ export function RoomComposer({
   onCancelReply,
   onSend,
   placeholder,
+  idleLabel,
 }: {
   roomId: string
   cwd?: string
@@ -54,6 +55,8 @@ export function RoomComposer({
   onCancelReply: () => void
   onSend: (text: string, mentions: string[], attachments: ChatAttachment[]) => Promise<boolean>
   placeholder: string
+  // 没选“发给”时芯片上写什么：默认“只留言”；主持人分派的群写“交给主持人”。
+  idleLabel?: string
 }) {
   const { t } = useI18n()
   const [value, setValue] = useState('')
@@ -179,7 +182,7 @@ export function RoomComposer({
   const sendLabel = everyone
     ? t('bots:room.composer.sendToAll')
     : chosenMembers.length === 0
-      ? t('bots:room.composer.leaveOnly')
+      ? (idleLabel ?? t('bots:room.composer.leaveOnly'))
       : chosenMembers.length === 1
         ? t('bots:room.composer.sendTo', { name: chosenMembers[0].name })
         : t('bots:room.composer.sendToCount', { count: chosenMembers.length })

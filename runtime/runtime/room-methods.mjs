@@ -11,6 +11,7 @@ import {
   roomSeatPrompt,
   roomSkippedAttachmentsNote,
 } from '../prompts/rooms.mjs'
+import { roomBriefInstruction, roomRouteInstruction, roomSeatPrompt } from '../prompts/rooms.mjs'
 import { MAX_BOT_LINK_HOPS, isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
 import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-service.mjs'
 import { toolArgsSummary } from '../services/session-card-summary.mjs'
@@ -23,18 +24,21 @@ import {
 import {
   botWakeTargets,
   buildWake,
+  routesToHost,
   userWakeTargets,
   wakeBudgetChars,
 } from '../services/rooms/room-context.mjs'
 import {
   ROOM_CHAIN_MAX_WAKES,
   ROOM_MESSAGE_ID_PATTERN,
+  ROOM_ROUTE_MAX_WAKES,
   isPassReply,
   normalizeBrief,
   normalizeUserRoomMessage,
   parseBriefReply,
   parseMentions,
   roomAttachmentRefs,
+  parseRouteReply,
 } from '../services/rooms/room-model.mjs'
 import { botTurnTrigger, requestBotText } from './bot-decisions.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
@@ -47,6 +51,10 @@ const MAX_CHAINS = 500
 const BRIEF_SOURCE_CHARS = 60_000
 const PAGE_LIMIT = 200
 const MAX_WATCHED_CARDS = 50
+// 主持人分派时带上最近几条（每条截到多长），以及这次请求最多等多久。
+const ROUTE_TAIL_MESSAGES = 8
+const ROUTE_TAIL_CHARS = 400
+const ROUTE_TIMEOUT_MS = 60_000
 
 function unique(values) {
   return [...new Set(values)]
@@ -426,7 +434,104 @@ export const roomMethods = {
         chain,
         trust: 'user',
       }).catch(() => console.warn('[rooms] Could not wake the bot.'))
-    return { message, woke: wake.map((target) => target.botId) }
+    // 主持人分派：没点名的话交给主持人判断该谁答。在后台做，不拖住这次发送的响应。
+    const routing = routesToHost(
+      {
+        ...normalized,
+        mentions,
+        replyToAuthor: replied?.author?.kind === 'bot' ? replied.author.botId : '',
+      },
+      room,
+    )
+    if (routing) void this.routeRoomMessage(id, message, chain)
+    return { message, woke: wake.map((target) => target.botId), ...(routing ? { routing } : {}) }
+  },
+
+  // 同一个群的分派按顺序来：连着发几句没点名的话时，主持人的判断按发出的顺序贴出来。永不抛错。
+  routeRoomMessage(roomId, message, chain) {
+    this.roomRouteQueues ||= new Map()
+    const previous = this.roomRouteQueues.get(roomId) || Promise.resolve()
+    const next = previous
+      .then(() => this.routeRoomMessageNow(roomId, message, chain))
+      .catch(() => console.warn('[rooms] Could not route the message to the host.'))
+      .finally(() => {
+        if (this.roomRouteQueues.get(roomId) === next) this.roomRouteQueues.delete(roomId)
+      })
+    this.roomRouteQueues.set(roomId, next)
+    return next
+  },
+
+  // 主持人用自己的模型做一次不带工具的独立请求（同简报），只回 JSON：该谁答、一句理由。
+  // 选中的照常经 wakeSeat 叫醒（链沿用你这句话的）；谁也没选、请求失败或回复不对，都只在群里写一行，不叫人。
+  async routeRoomMessageNow(roomId, message, chain) {
+    const room = this.rooms.get(roomId)
+    if (!room || room.answerMode !== 'host' || !this.roomsEnabled()) return
+    const hostId = room.hostBotId
+    const note = (event) =>
+      this.rooms.append(roomId, {
+        author: { kind: 'system' },
+        event: { botId: hostId, seq: message.seq, ...event },
+      })
+    const host = this.bots.get(hostId)
+    if (!host || !room.members.includes(hostId))
+      return note({ type: 'route_failed', reason: 'no_host' })
+    if (!host.enabled) return note({ type: 'route_failed', reason: 'host_paused' })
+    // 能被请来的：还在群里、没暂停的成员（主持人自己也可以）。
+    const eligible = this.roomMembers(room).filter(
+      (member) => member.name && !member.deleted && member.enabled,
+    )
+    const messages = await this.rooms.messages(roomId)
+    const names = (author) =>
+      author?.kind === 'bot'
+        ? eligible.find((member) => member.id === author.botId)?.name || 'a removed bot'
+        : 'user'
+    const lines = messages
+      .filter(
+        (item) =>
+          item.seq < message.seq && !item.recalled && item.text && item.author?.kind !== 'system',
+      )
+      .slice(-ROUTE_TAIL_MESSAGES)
+      .map((item) => `#${item.seq} ${names(item.author)}: ${oneLine(item.text, ROUTE_TAIL_CHARS)}`)
+    let result
+    try {
+      const model = await this.roomBriefModel(roomId, host)
+      if (!model) throw pisperError('unavailable', 'model')
+      result = await requestBotText({
+        modelRuntime: this.modelRuntime,
+        model,
+        text: roomRouteInstruction({
+          room,
+          host,
+          members: eligible,
+          lines,
+          message,
+          max: ROOM_ROUTE_MAX_WAKES,
+        }),
+        signal: AbortSignal.timeout(ROUTE_TIMEOUT_MS),
+      })
+    } catch {
+      return note({ type: 'route_failed', reason: 'failed' })
+    }
+    if (result.usage)
+      await this.recordUsage?.(
+        localDayKey(),
+        `room-route:${roomId}:${randomUUID()}`,
+        result.usage,
+      ).catch(() => {})
+    const parsed = result.text === null ? null : parseRouteReply(result.text, eligible)
+    if (!parsed) return note({ type: 'route_failed', reason: 'invalid' })
+    // 等主持人的这一会儿，这句话被撤回了、群被删了或改回“@ 谁谁答”：不再叫人。
+    const current = this.rooms.get(roomId)
+    const still = await this.rooms.message(roomId, message.id)
+    if (!current || current.answerMode !== 'host' || !still || still.recalled) return
+    await note({ type: 'routed', bots: parsed.bots, note: parsed.reason })
+    for (const botId of parsed.bots)
+      void this.wakeSeat(roomId, botId, {
+        trigger: message,
+        reason: { kind: 'host', seq: message.seq, host: host.name, why: parsed.reason },
+        chain,
+        trust: 'user',
+      }).catch(() => console.warn('[rooms] Could not wake the bot.'))
   },
 
   // 记下要叫醒某个席位，然后尽快送进去。同一个席位的送达按顺序来（不会建出两条席位会话、不会并发开两轮）。

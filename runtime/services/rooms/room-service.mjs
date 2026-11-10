@@ -101,7 +101,8 @@ export class RoomService {
         if (typeof value?.id !== 'string' || !ROOM_ID_PATTERN.test(value.id)) continue
         rooms.push({
           id: value.id,
-          ...normalizeRoomInput(value),
+          // 存下来的群当“沿用旧值”归一：主持人不在了就退回默认，不让这个群加载失败。
+          ...normalizeRoomInput({}, value),
           createdAt: String(value.createdAt || ''),
           updatedAt: String(value.updatedAt || ''),
         })

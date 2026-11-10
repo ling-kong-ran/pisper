@@ -27,6 +27,10 @@ export const MAX_ROOM_ATTACHMENT_BYTES = 10 * 1024 * 1024
 export const MAX_ROOM_ATTACHMENTS_BYTES = 20 * 1024 * 1024
 const MAX_ATTACHMENT_PATH_CHARS = 4_096
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/
+// 谁来回答：mention（默认，@ / 发给 / 回复谁就叫醒谁）或 host（没点名的话由主持人 Bot 判断该谁答）。
+export const ROOM_ANSWER_MODES = ['mention', 'host']
+// 主持人一次最多请几个 Bot 来回答（每个都要跑一整轮）。
+export const ROOM_ROUTE_MAX_WAKES = 3
 
 export const ROOM_ID_PATTERN = /^room_[A-Za-z0-9_-]{6,40}$/
 export const ROOM_MESSAGE_ID_PATTERN = /^msg_[A-Za-z0-9_-]{6,40}$/
@@ -90,6 +94,14 @@ export function normalizeRoomInput(input, current = null) {
   const cwd = String(merged.cwd ?? '').trim()
   if (cwd.length > 4_096) throw pisperError('too_large', 'folder')
   const briefBotId = String(merged.briefBotId ?? '').trim()
+  // 主持人必须是成员。这次明确要主持人分派却没给成员当主持人：报错；主持人被移出群（删 Bot、改成员）
+  // 或这次改的是别的字段：退回默认的“@ 谁谁答”，不让一次无关的修改失败。老的群没有这两个字段，也是默认。
+  const hostBotId = String(merged.hostBotId ?? '').trim()
+  const host = members.includes(hostBotId) ? hostBotId : ''
+  if (value.answerMode === 'host' && !host) throw invalid('pick a member bot as the host')
+  // 认不出的取值当没给：沿用旧值。
+  const mode = ROOM_ANSWER_MODES.includes(value.answerMode) ? value.answerMode : current?.answerMode
+  const answerMode = mode === 'host' && host ? 'host' : 'mention'
   return {
     name,
     members,
@@ -98,6 +110,8 @@ export function normalizeRoomInput(input, current = null) {
     // 维护简报的 Bot 必须是成员；移出群后自动清空。
     briefBotId: members.includes(briefBotId) ? briefBotId : '',
     recipients: normalizeRecipients(merged.recipients, members),
+    answerMode,
+    hostBotId: host,
   }
 }
 
@@ -210,6 +224,42 @@ export function roomAttachmentRefs(value) {
       })
   }
   return refs
+}
+
+/**
+ * 主持人的分派结果：从回复里取 JSON（第一个 { 到最后一个 }），bots 只留能叫醒的成员（去重、最多 max 个），
+ * 写名字的也认；reason 是一行理由。解析不了、没有 bots 列表时为 null（这次分派失败）。
+ * @param {unknown} raw
+ * @param {{ id: string, name: string }[]} eligible
+ * @param {number} [max]
+ */
+export function parseRouteReply(raw, eligible, max = ROOM_ROUTE_MAX_WAKES) {
+  const source = String(raw || '')
+  const start = source.indexOf('{')
+  const end = source.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  let value
+  try {
+    value = JSON.parse(source.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  const input = record(value)
+  if (!Array.isArray(input.bots)) return null
+  const bots = []
+  for (const item of input.bots) {
+    const text = String(item ?? '').trim()
+    const member =
+      eligible.find((candidate) => candidate.id === text) ||
+      eligible.find((candidate) => candidate.name && candidate.name === text.replace(/^@/, ''))
+    if (member && !bots.includes(member.id)) bots.push(member.id)
+    if (bots.length >= max) break
+  }
+  const reason = String(input.reason ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_BRIEF_ITEM_CHARS)
+  return { bots, reason }
 }
 
 /**

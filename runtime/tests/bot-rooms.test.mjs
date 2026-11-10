@@ -15,19 +15,23 @@ import { BotLinkService } from '../services/bots/bot-links.mjs'
 import { normalizeBotInput } from '../services/bots/bot-model.mjs'
 import {
   botWakeTargets,
+  routesToHost,
   selectUnread,
   userWakeTargets,
   wakeBudgetChars,
 } from '../services/rooms/room-context.mjs'
 import {
   ROOM_CHAIN_MAX_WAKES,
+  ROOM_ROUTE_MAX_WAKES,
   isPassReply,
   mentionsEveryone,
   normalizeBrief,
   normalizeRoomAttachments,
+  normalizeRoomInput,
   normalizeUserRoomMessage,
   parseBriefReply,
   parseMentions,
+  parseRouteReply,
 } from '../services/rooms/room-model.mjs'
 import { RoomService } from '../services/rooms/room-service.mjs'
 import { ATTACHMENT_MARKER } from '../runtime/stream-projection.mjs'
@@ -1074,6 +1078,7 @@ test('timeline keys move message by message and act only on a focused message', 
   assert.equal(timelineKeyAction(key('Enter'), card('done'), 1, 3, false), null)
   assert.equal(timelineKeyAction(key('r', { metaKey: true }), user, 0, 3, true), null)
   assert.equal(timelineKeyAction(key('ArrowDown', { altKey: true }), user, 0, 3, true), null)
+})
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -1246,4 +1251,268 @@ test('the room page and sidebar refresh on frames for them and keep a slow fallb
   assert.equal(policy.roomChangeAffectsList(change(['messages', 'detail'])), false)
   assert.equal(policy.roomChangeAffectsList(change(['list'])), true)
   assert.equal(policy.roomChangeAffectsList({ ...change([]), deleted: true }), true)
+})
+
+// 主持人的模型：按顺序给出脚本里的回复（字符串）；Error 表示请求本身失败，null 表示模型报错。
+// gate 给了时等它放行才回，用来确认发送不等主持人。
+function scriptedModel(replies, { gate = null } = {}) {
+  const prompts = []
+  return {
+    prompts,
+    streamSimple(model, context) {
+      prompts.push({ model, text: context.messages[0].content[0].text, tools: context.tools })
+      const reply = replies.shift()
+      if (reply instanceof Error) throw reply
+      return {
+        async *[Symbol.asyncIterator]() {
+          if (gate) await gate
+          if (typeof reply === 'string') yield { type: 'text_delta', delta: reply }
+        },
+        result: async () =>
+          reply === null
+            ? { stopReason: 'error', usage: null }
+            : { stopReason: 'stop', usage: { totalTokens: 42 } },
+      }
+    },
+  }
+}
+
+const DOG = 'bot_dogAAAAAAA'
+const CAT = 'bot_catAAAAAAA'
+const NAP = 'bot_napAAAAAAA'
+
+async function hostRuntime(replies, options) {
+  const runtime = await fakeRuntime({
+    bots: [
+      bot(KE, '小克'),
+      bot(PRO, '小克pro'),
+      bot(FISH, '肥鱼'),
+      bot(DOG, '阿黄'),
+      bot(CAT, '咪咪'),
+      bot(NAP, '睡觉的', { enabled: false }),
+    ],
+  })
+  runtime.modelRuntime = scriptedModel(replies, options)
+  runtime.usage = []
+  runtime.recordUsage = async (day, key, usage) => runtime.usage.push({ key, usage })
+  runtime.providerPreferences = {
+    resolveSubagentModel: async () => ({ model: { provider: 'luna', id: 'host-model' } }),
+  }
+  const room = await runtime.createRoom({
+    name: '前端小组',
+    members: [KE, PRO, FISH, DOG, CAT, NAP],
+    answerMode: 'host',
+    hostBotId: KE,
+  })
+  return { runtime, room }
+}
+
+async function routed(runtime, roomId) {
+  await runtime.roomRouteQueues?.get(roomId)
+  await settle(runtime)
+  return (await runtime.rooms.messages(roomId)).filter(
+    (message) => message.author.kind === 'system',
+  )
+}
+
+test('who answers: rooms stored before host mode default to @ only; a host must be a member', async () => {
+  // 老的群没有这两个字段：默认“@ 谁谁答”。
+  const dir = await tempDir()
+  await writeFile(
+    join(dir, 'pisper-rooms.json'),
+    JSON.stringify({
+      version: 1,
+      rooms: [
+        { id: 'room_oldAAAAAAAA', name: '老群', members: [KE], recipients: [] },
+        // 主持人已经不在群里：退回默认，这个群照常加载。
+        {
+          id: 'room_hostGoneAAAA',
+          name: '主持人走了',
+          members: [KE],
+          answerMode: 'host',
+          hostBotId: PRO,
+        },
+      ],
+    }),
+  )
+  const rooms = new RoomService({ dataDir: dir })
+  await rooms.init()
+  assert.deepEqual(
+    rooms.list().map((room) => [room.id, room.answerMode, room.hostBotId]),
+    [
+      ['room_oldAAAAAAAA', 'mention', ''],
+      ['room_hostGoneAAAA', 'mention', ''],
+    ],
+  )
+  // 明确要主持人分派却没给成员当主持人：报错；改成员时把主持人移出去：退回默认，不让这次修改失败。
+  assert.throws(
+    () => normalizeRoomInput({ name: 'x', members: [KE], answerMode: 'host', hostBotId: PRO }),
+    (error) => error.code === 'invalid',
+  )
+  const current = normalizeRoomInput({
+    name: 'x',
+    members: [KE, PRO],
+    answerMode: 'host',
+    hostBotId: PRO,
+  })
+  assert.deepEqual([current.answerMode, current.hostBotId], ['host', PRO])
+  const later = normalizeRoomInput({ members: [KE] }, current)
+  assert.deepEqual([later.answerMode, later.hostBotId], ['mention', ''])
+  assert.equal(normalizeRoomInput({ answerMode: 'bogus' }, current).answerMode, 'host')
+
+  // 点了名的话不送给主持人。
+  const host = { answerMode: 'host', hostBotId: KE }
+  const plain = { mentions: [], recipients: [], replyToAuthor: '', text: '大家看看' }
+  assert.equal(routesToHost(plain, host), true)
+  assert.equal(routesToHost(plain, { answerMode: 'mention', hostBotId: KE }), false)
+  assert.equal(routesToHost({ ...plain, mentions: [PRO] }, host), false)
+  assert.equal(routesToHost({ ...plain, recipients: 'all' }, host), false)
+  assert.equal(routesToHost({ ...plain, recipients: [PRO] }, host), false)
+  assert.equal(routesToHost({ ...plain, replyToAuthor: PRO }, host), false)
+  assert.equal(routesToHost({ ...plain, text: '@所有人 看看' }, host), false)
+
+  // 分派结果：只留能叫醒的成员，写名字的也认，最多 3 个；不是 JSON、没有 bots 列表时失败。
+  const eligible = [
+    { id: KE, name: '小克' },
+    { id: PRO, name: '小克pro' },
+    { id: FISH, name: '肥鱼' },
+    { id: DOG, name: '阿黄' },
+  ]
+  assert.deepEqual(
+    parseRouteReply(
+      `好的：{"bots": ["bot_nopeAAAAAA", "${PRO}", "@肥鱼", "${PRO}", "${KE}", "${DOG}"], "reason": " 一个  改代码，一个看文案 "}`,
+      eligible,
+    ),
+    { bots: [PRO, FISH, KE], reason: '一个 改代码，一个看文案' },
+  )
+  assert.equal(ROOM_ROUTE_MAX_WAKES, 3)
+  assert.equal(parseRouteReply('谁都行', eligible), null)
+  assert.equal(parseRouteReply('{"reason": "x"}', eligible), null)
+  assert.deepEqual(parseRouteReply('{"bots": []}', eligible), { bots: [], reason: '' })
+})
+
+test('the host routes an un-addressed message to the members it picks, at most three, never paused or outsiders', async () => {
+  let release
+  const gate = new Promise((resolve) => (release = resolve))
+  const { runtime, room } = await hostRuntime(
+    [
+      JSON.stringify({
+        bots: [PRO, 'bot_nopeAAAAAA', NAP, KE, FISH, DOG, CAT],
+        reason: '小克pro 改代码，小克和肥鱼看看',
+      }),
+    ],
+    { gate },
+  )
+  // 前情直接写进记录（不经分派）。
+  await runtime.rooms.append(room.id, {
+    author: { kind: 'user' },
+    text: '先铺垫一下背景',
+    mentions: [],
+  })
+  // 发送不等主持人：模型还没回，响应已经回来了，只说“在分派”。
+  const sent = await runtime.postRoomMessage(room.id, { text: '撤回按钮好像坏了' })
+  assert.deepEqual(sent.woke, [])
+  assert.equal(sent.routing, true)
+  assert.equal(runtime.runs.length, 0)
+  release()
+  const lines = await routed(runtime, room.id)
+  // 只请了能叫醒的成员（不在群里的、暂停的不算），最多 3 个；主持人可以请自己。
+  assert.deepEqual(
+    runtime.runs.map((run) => runtime.roomSeatOf(run.sessionId).botId).sort(),
+    [FISH, KE, PRO].sort(),
+  )
+  assert.equal(runtime.modelRuntime.prompts.length, 1)
+  const prompt = runtime.modelRuntime.prompts[0]
+  // 不带工具的独立请求，用主持人的模型；带着这句话、前面几条与每个成员的名字和职责。
+  assert.deepEqual(prompt.tools, [])
+  assert.equal(prompt.model.id, 'host-model')
+  assert.match(prompt.text, /You are 小克, the host of the group room "前端小组"/)
+  assert.match(prompt.text, /#1 user: 先铺垫一下背景/)
+  assert.match(prompt.text, /New message #2 from the user:\n撤回按钮好像坏了/)
+  assert.match(prompt.text, new RegExp(`- ${PRO}: 小克pro — 小克pro duty`))
+  assert.doesNotMatch(prompt.text, /睡觉的/)
+  // 群里写一行：主持人请了谁、为什么；用量记下来。
+  assert.deepEqual(lines.at(-1).event, {
+    botId: KE,
+    seq: 2,
+    type: 'routed',
+    bots: [PRO, KE, FISH],
+    note: '小克pro 改代码，小克和肥鱼看看',
+  })
+  assert.equal(runtime.usage.length, 1)
+  assert.match(runtime.usage[0].key, new RegExp(`^room-route:${room.id}:`))
+  // 被请来的 Bot 知道是主持人派的，看得见的是你的原话，按你说的话算可信度。
+  const run = runtime.runs.find((item) => runtime.roomSeatOf(item.sessionId).botId === PRO)
+  const [visible, context] = run.message.split(ATTACHMENT_MARKER)
+  assert.equal(visible, '撤回按钮好像坏了')
+  assert.match(context, /the room host 小克 picked you to answer it \(小克pro 改代码/)
+  assert.equal(run.unattended, false)
+})
+
+test('the host is skipped for addressed messages; a bad, failed or empty answer wakes nobody and says so', async () => {
+  const { runtime, room } = await hostRuntime([
+    '我觉得应该让小克pro 来',
+    new Error('provider down'),
+    JSON.stringify({ bots: [], reason: '只是留个言' }),
+    null,
+  ])
+  // 点了名：照常叫醒，不问主持人。
+  const asked = await runtime.postRoomMessage(room.id, { text: '@肥鱼 看看' })
+  assert.deepEqual(asked.woke, [FISH])
+  assert.equal(asked.routing, undefined)
+  await settle(runtime)
+  assert.equal(runtime.modelRuntime.prompts.length, 0)
+  runtime.runs.length = 0
+
+  for (const text of ['一', '二', '三', '四'])
+    await runtime.postRoomMessage(room.id, { text: `没点名的话${text}` })
+  const lines = await routed(runtime, room.id)
+  assert.equal(runtime.runs.length, 0)
+  assert.deepEqual(
+    lines.map((line) => [line.event.type, line.event.reason || '', line.event.note || '']),
+    [
+      ['route_failed', 'invalid', ''],
+      ['route_failed', 'failed', ''],
+      ['routed', '', '只是留个言'],
+      ['route_failed', 'invalid', ''],
+    ],
+  )
+  assert.deepEqual(lines[2].event.bots, [])
+
+  // 主持人暂停了：不问模型，写一行。
+  runtime.bots.get = ((get) => (id) => (id === KE ? { ...get(id), enabled: false } : get(id)))(
+    runtime.bots.get,
+  )
+  const before = runtime.modelRuntime.prompts.length
+  const last = await runtime.postRoomMessage(room.id, { text: '还有人吗' })
+  const after = await routed(runtime, room.id)
+  assert.equal(runtime.modelRuntime.prompts.length, before)
+  assert.deepEqual(after.at(-1).event, {
+    botId: KE,
+    seq: last.message.seq,
+    type: 'route_failed',
+    reason: 'host_paused',
+  })
+})
+
+test('the room page reads who answers safely from any Runtime and shows the host decision', async () => {
+  const { parseRoom, parseRoomMessage } = await import('../../src/features/bots/rooms-api.ts')
+  // 旧 Runtime 没有这两个字段：按“@ 谁谁答”。
+  const old = parseRoom({ id: 'room_oldAAAAAAAA', name: '老群', members: [KE] })
+  assert.deepEqual([old.answerMode, old.hostBotId], ['mention', ''])
+  const hosted = parseRoom({
+    id: 'room_newAAAAAAAA',
+    name: '新群',
+    answerMode: 'host',
+    hostBotId: KE,
+  })
+  assert.deepEqual([hosted.answerMode, hosted.hostBotId], ['host', KE])
+  assert.equal(parseRoom({ id: 'room_x', name: 'x', answerMode: 'boss' }).answerMode, 'mention')
+  const line = parseRoomMessage({
+    seq: 3,
+    id: 'msg_AAAAAAAA',
+    author: { kind: 'system' },
+    event: { type: 'routed', botId: KE, bots: [PRO, 7, FISH], note: '一个改，一个看' },
+  })
+  assert.deepEqual([line.event.bots, line.event.note], [[PRO, FISH], '一个改，一个看'])
 })

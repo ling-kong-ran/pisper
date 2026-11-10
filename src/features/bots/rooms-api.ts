@@ -17,8 +17,13 @@ export type Room = {
   briefBotId: string
   // 输入框“发给”记住的收件人：'all' 是所有成员。
   recipients: string[] | 'all'
+  // 谁来回答：mention（@ 谁谁答）或 host（没点名的话由主持人 hostBotId 分派）。旧 Runtime 没有，按 mention。
+  answerMode: RoomAnswerMode
+  hostBotId: string
   activity: RoomActivity
 }
+
+export type RoomAnswerMode = 'mention' | 'host'
 
 export type RoomApproval = {
   id: string
@@ -68,6 +73,9 @@ export type RoomEvent = {
   reason: string
   from: string
   to: string
+  // 主持人分派（routed）：请了哪几个 Bot、一句理由。
+  bots: string[]
+  note: string
 }
 
 export type RoomMessage = {
@@ -168,6 +176,8 @@ export function parseRoom(value: unknown): Room {
     cwd: string(input.cwd),
     briefBotId: string(input.briefBotId),
     recipients: recipients(input.recipients),
+    answerMode: input.answerMode === 'host' ? 'host' : 'mention',
+    hostBotId: string(input.hostBotId),
     activity: parseActivity(input.activity),
   }
 }
@@ -289,6 +299,8 @@ export function parseRoomMessage(value: unknown): RoomMessage {
           reason: string(event.reason),
           from: string(event.from),
           to: string(event.to),
+          bots: strings(event.bots),
+          note: string(event.note),
         }
       : null,
     recalled: recalled ? { seenBy: strings(recalled.seenBy) } : null,
@@ -363,7 +375,12 @@ export function createRoom(draft: RoomDraft) {
 
 export function updateRoom(
   id: string,
-  patch: Partial<Pick<Room, 'name' | 'members' | 'goal' | 'cwd' | 'briefBotId' | 'recipients'>>,
+  patch: Partial<
+    Pick<
+      Room,
+      'name' | 'members' | 'goal' | 'cwd' | 'briefBotId' | 'recipients' | 'answerMode' | 'hostBotId'
+    >
+  >,
 ) {
   return requestJson(`/api/rooms/${encodeURIComponent(id)}`, {
     method: 'PATCH',

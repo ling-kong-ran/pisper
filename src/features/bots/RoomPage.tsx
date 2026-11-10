@@ -33,6 +33,7 @@ import { useBetaFeature } from '@/features/labs/public-flags'
 import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
 import type { ChatAttachment } from '@/types/chat'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { useBotsPolling, useBotsStore } from './bots-store'
 import { compactTokens, timelineItems } from './room-presentation'
 import { RoomComposer } from './RoomComposer'
@@ -72,6 +73,9 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   const bots = useBotsStore((state) => state.bots)
   const upsertRoom = useRoomsStore((state) => state.upsert)
   const removeRoom = useRoomsStore((state) => state.remove)
+  const hostAvailable = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features['rooms.host'] === true,
+  )
   const live = useRoomLive(roomId)
   const { detail, messages } = live
   const [replyTo, setReplyTo] = useState<RoomMessage | null>(null)
@@ -231,7 +235,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     }
   }
 
-  const saveSettings = async (draft: RoomSettingsDraft) => {
+  const saveSettings = async (draft: Partial<RoomSettingsDraft>) => {
     const room = await updateRoom(roomId, draft)
     upsertRoom(room)
     await live.poll()
@@ -274,6 +278,11 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
 
   const { room } = detail
   const activeMembers = detail.members.filter((member) => !member.deleted)
+  // 主持人分派：没点名的话不再是“只留言”，而是交给主持人。
+  const hostName =
+    hostAvailable && room.answerMode === 'host'
+      ? members.get(room.hostBotId)?.name || t('bots:room.removedBot')
+      : ''
   const rail = (
     <RoomRail
       detail={detail}
@@ -424,8 +433,15 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
             onCancelReply={() => setReplyTo(null)}
             onSend={send}
             placeholder={
-              phone ? t('bots:room.composer.placeholderPhone') : t('bots:room.composer.placeholder')
+              hostName
+                ? phone
+                  ? t('bots:room.composer.placeholderHostPhone', { name: hostName })
+                  : t('bots:room.composer.placeholderHost', { name: hostName })
+                : phone
+                  ? t('bots:room.composer.placeholderPhone')
+                  : t('bots:room.composer.placeholder')
             }
+            idleLabel={hostName ? t('bots:room.composer.toHost') : undefined}
           />
         </div>
       </div>
@@ -459,6 +475,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         onOpenChange={setSettingsOpen}
         room={room}
         bots={bots}
+        hostAvailable={hostAvailable}
         onSave={saveSettings}
       />
       <RoomBriefDialog

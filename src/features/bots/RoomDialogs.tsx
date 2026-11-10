@@ -1,4 +1,4 @@
-// 群聊页的两个对话框：群设置（名字、目标、成员、项目目录、维护简报的 Bot）与手改简报
+// 群聊页的两个对话框：群设置（名字、目标、成员、谁来回答、项目目录、维护简报的 Bot）与手改简报
 // （已定一行一条；待办一行一条，开头写 [x] 表示做完，写 @名字 指定负责的人）。
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { FolderOpen } from 'lucide-react'
@@ -17,29 +17,42 @@ import {
 } from '@/components/ui/dialog'
 import { FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Textarea } from '@/components/ui/textarea'
 import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { BotAvatar } from './BotAvatar'
 import type { Bot } from './bots-api'
 import { parseTodoLine, todoLine } from './room-presentation'
-import type { Room, RoomBrief, RoomMember, RoomTodo } from './rooms-api'
+import type { Room, RoomAnswerMode, RoomBrief, RoomMember, RoomTodo } from './rooms-api'
 
 const MAX_MEMBERS = 8
 
-export type RoomSettingsDraft = Pick<Room, 'name' | 'goal' | 'members' | 'cwd' | 'briefBotId'>
+export type RoomSettingsDraft = Pick<
+  Room,
+  'name' | 'goal' | 'members' | 'cwd' | 'briefBotId' | 'answerMode' | 'hostBotId'
+>
+
+// 主持人不在成员里了：主持人分派时换成第一个成员，否则清空。
+function keepHost(draft: RoomSettingsDraft, members: string[]) {
+  if (members.includes(draft.hostBotId)) return draft.hostBotId
+  return draft.answerMode === 'host' ? members[0] || '' : ''
+}
 
 export function RoomSettingsDialog({
   open,
   onOpenChange,
   room,
   bots,
+  hostAvailable,
   onSave,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   room: Room
   bots: readonly Bot[]
-  onSave: (draft: RoomSettingsDraft) => Promise<void>
+  // Runtime 支持主持人分派（rooms.host）时才出现“谁来回答”。
+  hostAvailable: boolean
+  onSave: (draft: Partial<RoomSettingsDraft>) => Promise<void>
 }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState<RoomSettingsDraft>(room)
@@ -58,6 +71,8 @@ export function RoomSettingsDialog({
         members: room.members,
         cwd: room.cwd,
         briefBotId: room.briefBotId,
+        answerMode: room.answerMode,
+        hostBotId: room.hostBotId,
       })
       setError('')
     }
@@ -89,17 +104,28 @@ export function RoomSettingsDialog({
         ...current,
         members,
         briefBotId: members.includes(current.briefBotId) ? current.briefBotId : '',
+        hostBotId: keepHost(current, members),
       }
     })
 
+  const chooseMode = (answerMode: RoomAnswerMode) =>
+    setDraft((current) => {
+      const next = { ...current, answerMode }
+      return { ...next, hostBotId: keepHost(next, current.members) }
+    })
+  const hostMissing = hostAvailable && draft.answerMode === 'host' && !draft.hostBotId
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!draft.name.trim() || !draft.members.length) return
+    if (!draft.name.trim() || !draft.members.length || hostMissing) return
     setSaving(true)
     setError('')
     try {
+      // 旧 Runtime 不认这两个字段：不支持时不发。
+      const { answerMode, hostBotId, ...rest } = draft
       await onSave({
-        ...draft,
+        ...rest,
+        ...(hostAvailable ? { answerMode, hostBotId } : {}),
         name: draft.name.trim(),
         goal: draft.goal.trim(),
         cwd: draft.cwd.trim(),
@@ -168,6 +194,42 @@ export function RoomSettingsDialog({
                 })}
               </ul>
             </fieldset>
+            {hostAvailable && (
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel id="room-settings-answer-label">
+                  {t('bots:room.settings.answerMode')}
+                </FieldLabel>
+                <SegmentedControl<RoomAnswerMode>
+                  aria-labelledby="room-settings-answer-label"
+                  value={draft.answerMode}
+                  onValueChange={chooseMode}
+                  options={[
+                    { value: 'mention', label: t('bots:room.settings.answerMention') },
+                    { value: 'host', label: t('bots:room.settings.answerHost') },
+                  ]}
+                />
+                {draft.answerMode === 'host' && (
+                  <AppSelect
+                    aria-label={t('bots:room.settings.host')}
+                    value={draft.hostBotId}
+                    onChange={(event) => setDraft({ ...draft, hostBotId: event.target.value })}
+                  >
+                    {bots
+                      .filter((bot) => draft.members.includes(bot.id))
+                      .map((bot) => (
+                        <option key={bot.id} value={bot.id}>
+                          {bot.name}
+                        </option>
+                      ))}
+                  </AppSelect>
+                )}
+                <p className="m-0 text-xs text-content-muted">
+                  {draft.answerMode === 'host'
+                    ? t('bots:room.settings.answerHostHint')
+                    : t('bots:room.settings.answerMentionHint')}
+                </p>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <FieldLabel htmlFor="room-settings-folder">
                 {t('bots:room.settings.folder')}
@@ -224,7 +286,10 @@ export function RoomSettingsDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t('common:ui.cancel')}
             </Button>
-            <Button type="submit" disabled={saving || !draft.name.trim() || !draft.members.length}>
+            <Button
+              type="submit"
+              disabled={saving || !draft.name.trim() || !draft.members.length || hostMissing}
+            >
               {t('bots:room.settings.save')}
             </Button>
           </DialogFooter>

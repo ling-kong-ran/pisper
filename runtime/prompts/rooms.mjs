@@ -55,6 +55,10 @@ function reasonLine(reason) {
   if (reason.kind === 'reply') return `The user replied to your message in #${reason.seq}.`
   if (reason.kind === 'schedule') return 'A schedule you set earlier is due; its note is above.'
   if (reason.kind === 'recipient') return `The user sent #${reason.seq} to you.`
+  if (reason.kind === 'host') {
+    const why = oneLine(reason.why, 160)
+    return `The user posted #${reason.seq} without addressing anyone; the room host ${reason.host} picked you to answer it${why ? ` (${why})` : ''}. Answer in the room.`
+  }
   return `The user mentioned you in #${reason.seq}.`
 }
 
@@ -121,6 +125,37 @@ export function roomBriefInstruction({ room, previous, members, lines }) {
     'Keep it short: at most 12 decisions and 12 todos, each one line. Keep earlier items that still hold; mark finished todos done; drop what was reversed. Write in the language the room uses.',
     previous ? `Current brief:\n${JSON.stringify(previous)}` : 'There is no brief yet.',
     `New messages:\n${lines.join('\n')}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+/**
+ * 主持人分派的交代：一次不带工具的独立请求（不进席位会话），只回 JSON，说这句话该谁来回答。
+ * @param {{
+ *   room: { name: string, goal?: string },
+ *   host: { id: string, name: string },
+ *   members: { id: string, name: string, instructions?: string }[],
+ *   lines: string[],
+ *   message: { seq: number, text: string },
+ *   max: number,
+ * }} input
+ */
+export function roomRouteInstruction({ room, host, members, lines, message, max }) {
+  return [
+    `You are ${host.name}, the host of the group room "${room.name}" in Pisper. The user posted a message without addressing anyone. Decide which members should answer it.`,
+    room.goal ? `The room's goal: ${oneLine(room.goal, 200)}` : '',
+    [
+      'Members you can pick (id: name — duty):',
+      ...members.map((member) => {
+        const duty = oneLine(member.instructions, 120)
+        return `- ${member.id}: ${member.name}${member.id === host.id ? ' (you)' : ''}${duty ? ` — ${duty}` : ''}`
+      }),
+    ].join('\n'),
+    lines.length ? `Recent messages:\n${lines.join('\n')}` : '',
+    `New message #${message.seq} from the user:\n${oneLine(message.text, 4_000)}`,
+    `Pick the fewest members who can answer it well, at most ${max}. You may pick yourself. Pick nobody when it needs no answer (a note for later, thanks, an aside).`,
+    'Return only JSON: {"bots": [member id, ...], "reason": "one short line, in the language the room uses"}.',
   ]
     .filter(Boolean)
     .join('\n\n')

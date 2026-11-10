@@ -41,6 +41,23 @@ export function userWakeTargets(message, members) {
   return { wake, paused }
 }
 
+/**
+ * 主持人分派只管没点名的话：群设成 host、有主持人，而且这句话没有 @ 谁、没选“发给”、不是回复某个 Bot、
+ * 没有 @所有人。点了名的（哪怕点的是暂停的 Bot）照常走上面的规则，不送给主持人。
+ * @param {{ mentions: string[], recipients: string[] | 'all', replyToAuthor?: string, text: string }} message
+ * @param {{ answerMode?: string, hostBotId?: string }} room
+ */
+export function routesToHost(message, room) {
+  if (room.answerMode !== 'host' || !room.hostBotId) return false
+  const addressed =
+    message.mentions.length > 0 ||
+    message.recipients === 'all' ||
+    (Array.isArray(message.recipients) && message.recipients.length > 0) ||
+    Boolean(message.replyToAuthor) ||
+    mentionsEveryone(message.text)
+  return !addressed
+}
+
 // Bot 的回复叫醒谁：只认正文里的 @（自动带的“回复”引用不叫人），不叫自己，不能叫“所有人”。
 export function botWakeTargets({ authorId, mentions }, members) {
   const enabled = new Set(members.filter((member) => member.enabled).map((member) => member.id))

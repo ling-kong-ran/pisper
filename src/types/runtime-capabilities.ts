@@ -40,6 +40,7 @@ export type RuntimeFeature =
   | 'betaFeatures'
   | 'bots'
   | 'rooms.events'
+  | 'rooms.host'
   | 'remoteMachines'
   | 'codemode'
 
@@ -108,6 +109,8 @@ const fullFeatures = {
   bots: false,
   // 群聊推送：旧 Runtime 没有，群页面与侧栏照旧轮询。
   'rooms.events': false,
+  // 主持人分派：旧 Runtime 不认 answerMode，群设置里不出现“谁来回答”。
+  'rooms.host': false,
   // 远程机器：旧 Runtime 没有这组接口。
   remoteMachines: false,
   // codemode：旧 Runtime 没有声明时插件页不显示该开关。

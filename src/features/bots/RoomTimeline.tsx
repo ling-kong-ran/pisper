@@ -150,6 +150,29 @@ function SystemLine({ children }: { children: ReactNode }) {
   return <p className="my-1 text-center text-[12px] text-content-muted">{children}</p>
 }
 
+// 主持人分派的系统行：请了谁（或谁也不用）、一句理由；分派失败、主持人暂停时各一句。
+function routeLine(
+  event: NonNullable<RoomMessage['event']>,
+  name: (id: string) => string,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const host = name(event.botId)
+  if (event.type === 'route_failed')
+    return event.reason === 'host_paused'
+      ? t('bots:room.system.routeHostPaused', { host })
+      : t('bots:room.system.routeFailed', { host })
+  if (event.type !== 'routed') return ''
+  const reason = event.note
+  if (!event.bots.length)
+    return reason
+      ? t('bots:room.system.routedNobody', { host, reason })
+      : t('bots:room.system.routedNobodyPlain', { host })
+  const names = event.bots.map(name).join('、')
+  return reason
+    ? t('bots:room.system.routed', { host, names, reason })
+    : t('bots:room.system.routedPlain', { host, names })
+}
+
 export function RoomTimeline({
   items,
   messages,
@@ -263,7 +286,9 @@ export function RoomTimeline({
                   })
                 : event?.type === 'wake_failed'
                   ? t('bots:room.system.wakeFailed', { name: name(event.botId) })
-                  : ''
+                  : event
+                    ? routeLine(event, name, t)
+                    : ''
           return text ? article(message, index, text, <SystemLine>{text}</SystemLine>) : null
         }
         if (item.kind === 'recalled') {
