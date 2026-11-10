@@ -2,7 +2,7 @@
 // 就叫醒谁；叫醒一次就是一轮，在它自己的席位会话里干活，过程点“过程”看。页头写目标与用量；右栏是简报与成员
 // （手机上收进页头的“成员”按钮）。数据由 useRoomLive 轮询，Bot 在干活时更勤。
 import './bots-messages'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Ellipsis, PanelRight, Target, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -53,11 +53,17 @@ import {
 import { useRoomsStore } from './rooms-store'
 import { useRoomLive } from './use-room-live'
 
-export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeading?: ReactNode }) {
+type RoomPageProps = { notify: Notify; phoneLeading?: ReactNode }
+
+// 每个群一份页面状态：换群时整页重挂，上一个群的“回复”引用、没发的草稿、开着的对话框不会带过来。
+export function RoomPage(props: RoomPageProps) {
+  const roomId = String(useParams().roomId || '')
+  return <RoomView key={roomId} roomId={roomId} {...props} />
+}
+
+function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: string }) {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const params = useParams()
-  const roomId = String(params.roomId || '')
   const enabled = useBetaFeature('bots')
   // 和应用壳同一个判断：手机外壳不画通用顶栏（见 App 的 phoneTopBar），这里自带顶栏。
   const phone = usePhoneShell()
@@ -75,6 +81,10 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
   const [briefOpen, setBriefOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [briefing, setBriefing] = useState(false)
+  // “发给”改过之后以本地为准：保存之前发出的轮询晚到时带的还是旧值，不能把刚选的盖回去。
+  const [recipients, setRecipients] = useState<string[] | 'all' | null>(null)
+  // 正在处理的批准 / 停下（按卡记），连点不重复发。
+  const acting = useRef(new Set<string>())
   const listRef = useRef<HTMLDivElement>(null)
 
   const members = useMemo(
@@ -100,6 +110,24 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
     [lastId, live.loading],
   )
 
+  // 群在别处被删了：说一声，退回 Bots 页。
+  const goneName = detail?.room.name || ''
+  useEffect(() => {
+    if (!live.gone) return
+    removeRoom(roomId)
+    notify(t('bots:room.gone', { name: goneName }), 'error')
+    navigate(pagePath('bots'), { replace: true })
+  }, [goneName, live.gone, navigate, notify, removeRoom, roomId, t])
+
+  const once = (key: string, task: () => Promise<unknown>) => {
+    if (acting.current.has(key)) return
+    acting.current.add(key)
+    void task()
+      .then(() => live.poll())
+      .catch(reportError)
+      .finally(() => acting.current.delete(key))
+  }
+
   const nameOf = (author: RoomMessage['author']) =>
     author.kind === 'bot'
       ? members.get(author.botId)?.name || t('bots:room.removedBot')
@@ -109,16 +137,11 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
     onReply: (message) => setReplyTo(message),
     onRecall: (message) => setRecalling(message),
     onOpenProcess: (sessionId) => navigate(sessionPath(sessionId)),
-    onApprove: (message, approvalId, approve) => {
-      void resolveRoomApproval(roomId, message.id, approvalId, approve)
-        .then(() => live.poll())
-        .catch(reportError)
-    },
-    onStop: (message) => {
-      void stopRoomTurn(roomId, message.id)
-        .then(() => live.poll())
-        .catch(reportError)
-    },
+    onApprove: (message, approvalId, approve) =>
+      once(`approval:${approvalId}`, () =>
+        resolveRoomApproval(roomId, message.id, approvalId, approve),
+      ),
+    onStop: (message) => once(`stop:${message.id}`, () => stopRoomTurn(roomId, message.id)),
     onJump: (messageId) => {
       const node = listRef.current?.querySelector(`[data-room-message="${CSS.escape(messageId)}"]`)
       if (node instanceof HTMLElement) {
@@ -138,13 +161,13 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
       const result = await postRoomMessage(roomId, {
         text,
         mentions,
-        recipients: detail.room.recipients,
+        recipients: recipients ?? detail.room.recipients,
         ...(replyTo ? { replyTo: replyTo.id } : {}),
       })
       live.replace(result.message)
       setReplyTo(null)
       stickRef.current = true
-      void live.poll()
+      live.pollSoon()
       return true
     } catch (caught) {
       reportError(caught)
@@ -154,9 +177,14 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
 
   const changeRecipients = (value: string[] | 'all') => {
     if (!detail) return
-    // 先改本地，输入框立刻反映；发消息时 Runtime 也会记下这次的选择。
-    live.setDetail({ ...detail, room: { ...detail.room, recipients: value } })
-    void updateRoom(roomId, { recipients: value }).then(upsertRoom).catch(reportError)
+    // 先改本地，输入框立刻反映；发消息时 Runtime 也会记下这次的选择。没存上就退回群里记着的。
+    setRecipients(value)
+    void updateRoom(roomId, { recipients: value })
+      .then(upsertRoom)
+      .catch((caught: unknown) => {
+        setRecipients(null)
+        reportError(caught)
+      })
   }
 
   const confirmRecall = async () => {
@@ -337,7 +365,7 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
                 variant="ghost"
                 size="sm"
                 className="self-center"
-                onClick={() => void live.loadOlder()}
+                onClick={() => void live.loadOlder().catch(reportError)}
               >
                 {t('bots:room.loadOlder')}
               </Button>
@@ -368,7 +396,7 @@ export function RoomPage({ notify, phoneLeading }: { notify: Notify; phoneLeadin
           )}
           <RoomComposer
             members={activeMembers}
-            recipients={room.recipients}
+            recipients={recipients ?? room.recipients}
             onRecipientsChange={changeRecipients}
             replyTo={replyTo}
             replyName={replyTo ? nameOf(replyTo.author) : ''}

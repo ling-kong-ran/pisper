@@ -691,7 +691,7 @@ export class AgentRuntimeFacade {
       const seat = this.roomSeatOf?.(id)
       let seatError = ''
       if (seat) {
-        this.onSeatRunStart(id)
+        this.onSeatRunStart(id, typeof options.message === 'string' ? options.message : '')
         const send = options.send
         options = {
           ...options,
@@ -1125,9 +1125,11 @@ export class AgentRuntimeFacade {
   // Bot 此刻的动态：对话在说话，或者有子 agent 在干活，都算在忙；在等批准或回答时需要你。
   // working = 在做的子 agent 件数，current = 正在做的那件（头像悬停时显示）。
   botActivity(bot) {
-    if (!bot?.threadSessionId) return null
+    if (!bot) return null
     // 长期对话与各个群里的席位一起算：哪条在说话、手上的活、在等你的批准或回答。
+    // 还没开过长期对话、只在群里干活的 Bot 也算。
     const sessionIds = this.botSessionIds(bot)
+    if (!sessionIds.length) return null
     const talking = sessionIds.some(
       (sessionId) => this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId),
     )
@@ -1673,7 +1675,12 @@ export class AgentRuntimeFacade {
           if (!target || target.id === self.id) throw new Error('No such bot.')
           if (!target.enabled) throw new Error(`${target.name} is paused.`)
           const posted = await this.postBotRoomMessage(sessionId, self, target, String(text || ''))
-          return { ...posted, text: 'Posted in the room. Its answer will appear in the room.' }
+          return {
+            ...posted,
+            text: posted.woke
+              ? 'Posted in the room. Its answer will appear in the room.'
+              : `Posted in the room, but ${target.name} was not woken (${posted.reason}). Do not wait for an answer.`,
+          }
         }
         const result = await act({ type: 'message', bot, text, expectsReply }, { work: true })
         return {

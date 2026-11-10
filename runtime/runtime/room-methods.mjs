@@ -17,6 +17,7 @@ import {
 } from '../services/rooms/room-context.mjs'
 import {
   ROOM_CHAIN_MAX_WAKES,
+  ROOM_MESSAGE_ID_PATTERN,
   isPassReply,
   normalizeBrief,
   normalizeUserRoomMessage,
@@ -25,7 +26,7 @@ import {
 } from '../services/rooms/room-model.mjs'
 import { botTurnTrigger, requestBotText } from './bot-decisions.mjs'
 import { localDayKey } from './conversation-memory-capture.mjs'
-import { ATTACHMENT_MARKER } from './stream-projection.mjs'
+import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.mjs'
 
 // 插进正在跑的一轮时整句话（含上下文）不能超过 queueSessionMessage 的 12000 字。
 const QUEUED_WAKE_MAX_CHARS = 10_000
@@ -33,6 +34,7 @@ const MAX_TURN_STEPS = 6
 const MAX_CHAINS = 500
 const BRIEF_SOURCE_CHARS = 60_000
 const PAGE_LIMIT = 200
+const MAX_WATCHED_CARDS = 50
 
 function unique(values) {
   return [...new Set(values)]
@@ -130,14 +132,16 @@ export const roomMethods = {
   // 群详情：成员（各自的状态、读到哪、还有几条没读）、简报、用量。
   async getRoom(id) {
     const room = this.requireRoom(id)
-    const [state, messages] = await Promise.all([this.rooms.state(id), this.rooms.messages(id)])
+    const [state, messages] = await Promise.all([this.rooms.state(id), this.rooms.peekMessages(id)])
     const members = this.roomMembers(room).map((member) => {
       const seat = state.seats[member.id] || null
       const unread = messages.filter(
         (message) =>
           message.seq > (seat?.readSeq || 0) &&
           !(message.author?.kind === 'bot' && message.author.botId === member.id) &&
-          message.author?.kind !== 'system',
+          message.author?.kind !== 'system' &&
+          // 跳过的那张卡没有内容可读。
+          message.turn?.state !== 'skipped',
       ).length
       return {
         id: member.id,
@@ -262,10 +266,12 @@ export const roomMethods = {
   },
 
   // 分页读消息：默认最后一页；before 往前翻；after 取某条之后的（轮询增量，同时带回还在进行中的工作卡
-  // 与每个 Bot 最近的那张卡：它们的状态会变）。
-  async listRoomMessages(id, { before, after, limit } = {}) {
+  // 与每个 Bot 最近的那张卡：它们的状态会变）。watch 是页面上还显示“在做”的卡：它们在页面没刷的时候
+  // 做完了、又不是最近的那张时，靠这个带回最后的结果，不然页面上永远转圈。
+  async listRoomMessages(id, { before, after, limit, watch } = {}) {
     this.requireRoom(id)
-    const messages = await this.rooms.messages(id)
+    // 只读：投影出来的都是新对象，不改记录本身。
+    const messages = await this.rooms.peekMessages(id)
     const latest = this.latestRoomCards(messages)
     const latestIds = new Set(latest.values())
     const size = Math.min(Math.max(Number(limit) || 50, 1), PAGE_LIMIT)
@@ -274,9 +280,18 @@ export const roomMethods = {
     if (Number.isSafeInteger(Number(after)) && after !== undefined && after !== '') {
       const from = Number(after)
       const newer = messages.filter((message) => message.seq > from)
+      const watched = new Set(
+        String(watch || '')
+          .split(',')
+          .filter((item) => ROOM_MESSAGE_ID_PATTERN.test(item))
+          .slice(0, MAX_WATCHED_CARDS),
+      )
       const live = messages.filter(
         (message) =>
-          message.seq <= from && (message.turn?.state === 'running' || latestIds.has(message.id)),
+          message.seq <= from &&
+          (message.turn?.state === 'running' ||
+            latestIds.has(message.id) ||
+            watched.has(message.id)),
       )
       page = [...live, ...newer.slice(0, PAGE_LIMIT)]
       hasMore = newer.length > PAGE_LIMIT
@@ -399,7 +414,20 @@ export const roomMethods = {
   },
 
   // 这个 Bot 在这个群里的席位会话：没有（或会话文件已经不在）就新建，设定都来自这个 Bot。
-  async ensureSeatSession(room, bot) {
+  // 同一个席位同时只建一次：定时到点和你 @ 它撞在一起时，不会各建一条、后写的把先建的顶成孤儿。
+  ensureSeatSession(room, bot) {
+    this.roomSeatCreates ||= new Map()
+    const key = `${room.id}:${bot.id}`
+    const running = this.roomSeatCreates.get(key)
+    if (running) return running
+    const task = this.createSeatSession(room, bot).finally(() => {
+      if (this.roomSeatCreates.get(key) === task) this.roomSeatCreates.delete(key)
+    })
+    this.roomSeatCreates.set(key, task)
+    return task
+  },
+
+  async createSeatSession(room, bot) {
     const seat = await this.rooms.seat(room.id, bot.id)
     const existing = seat?.sessionId
     if (
@@ -428,13 +456,17 @@ export const roomMethods = {
       return
     }
     const sessionId = await this.ensureSeatSession(room, bot)
+    const isBusy = () => this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
     const value = this.sessions.get(sessionId)
-    const busy = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
+    const busy = isBusy()
     // 正在开始（还没进入流式）：等这一轮结束后的 flush。
     if (busy && !value?.session?.isStreaming) return
     const window = value?.session?.model?.contextWindow
     const budget = busy ? QUEUED_WAKE_MAX_CHARS : wakeBudgetChars(window)
     const wake = await this.composeSeatWake(room, bot, pending, budget)
+    // 拼上下文的这一会儿，席位可能被别的来源开了一轮（子任务做完的通知、你直接在席位会话里说话）
+    // 或刚好说完：按新的状态重来，不拿过期的判断去送。
+    if (isBusy() !== busy) return this.deliverSeatWake(roomId, botId)
     if (busy) {
       try {
         await this.queueSessionMessage(sessionId, { message: wake.message, behavior: 'interrupt' })
@@ -443,19 +475,21 @@ export const roomMethods = {
         return
       }
       this.roomWakes.delete(key)
-      await this.rooms.setSeat(roomId, botId, {
-        readSeq: wake.upToSeq,
-        recalls: [],
-        lastWakeAt: new Date().toISOString(),
-      })
+      await this.commitSeatRead(roomId, botId, wake)
       const turn = this.roomSeatTurns?.get(sessionId)
-      if (turn) turn.alsoAnswered.push(...pending.triggers)
+      if (turn) {
+        turn.alsoAnswered.push(...pending.triggers)
+        // 插进来的是 @所有人：这一轮也可以用 [pass] 表示没什么要说的。
+        if (pending.reasons.some((reason) => reason.kind === 'everyone')) turn.everyone = true
+        turn.chain ||= pending.chain || null
+      }
       if (value) value.botTurnTrust = stricterBotTrust(value.botTurnTrust, pending.trust)
       return
     }
     this.roomWakes.delete(key)
     this.roomSeatStarts ||= new Map()
-    this.roomSeatStarts.set(sessionId, { roomId, botId, pending, upToSeq: wake.upToSeq })
+    const start = { roomId, botId, pending, wake, message: wake.message }
+    this.roomSeatStarts.set(sessionId, start)
     this.botPendingTrust?.set(sessionId, pending.trust)
     if (wake.needsBrief && room.briefBotId)
       void this.refreshRoomBrief(roomId, { auto: true }).catch(() => {})
@@ -463,12 +497,52 @@ export const roomMethods = {
       sessionId,
       message: wake.message,
       unattended: pending.trust !== 'user',
-    }).catch(async () => {
+    }).catch(async (error) => {
+      // 这一轮已经开始了（工作卡贴出来了）：失败写在卡上，这里不用管。
+      if (this.roomSeatStarts.get(sessionId) !== start) return
       this.roomSeatStarts.delete(sessionId)
       this.botPendingTrust?.delete(sessionId)
+      if (error?.code === 'busy') {
+        // 被别的来源抢先开了一轮：这次叫醒没送进去，放回去；那一轮结束时会再送，已经结束了就现在送。
+        this.restoreSeatWake(key, pending)
+        if (!isBusy()) void this.flushSeatWake(roomId, botId)
+        return
+      }
       await this.rooms
         .append(roomId, { author: { kind: 'system' }, event: { type: 'wake_failed', botId } })
         .catch(() => {})
+      // 开不起来的这会儿又来了新的叫醒（它在等“这一轮结束”）：没有哪一轮会结束了，现在就送。
+      if (this.roomWakes.has(key) && !isBusy()) void this.flushSeatWake(roomId, botId)
+    })
+  },
+
+  // 没送进去的叫醒放回待送（排在这期间新来的前面）。
+  restoreSeatWake(key, pending) {
+    const later = this.roomWakes.get(key)
+    this.roomWakes.set(
+      key,
+      later
+        ? {
+            triggers: [...pending.triggers, ...later.triggers],
+            reasons: [...pending.reasons, ...later.reasons],
+            notes: [...pending.notes, ...later.notes],
+            chain: pending.chain || later.chain,
+            trust: stricterBotTrust(pending.trust, later.trust),
+          }
+        : pending,
+    )
+  },
+
+  // 送达后记下读到哪：越过去的进行中的卡记进 late（写完后补送），这次告知过的撤回划掉。
+  // 更早算出的那次晚到时不覆盖已经记下的进度。
+  async commitSeatRead(roomId, botId, wake) {
+    const seat = await this.rooms.seat(roomId, botId)
+    if (seat && seat.readSeq > wake.upToSeq) return
+    await this.rooms.setSeat(roomId, botId, {
+      readSeq: wake.upToSeq,
+      late: wake.late,
+      recalls: (seat?.recalls || []).filter((seq) => !wake.recalled.includes(seq)),
+      lastWakeAt: new Date().toISOString(),
     })
   },
 
@@ -486,9 +560,10 @@ export const roomMethods = {
         : author?.kind === 'system'
           ? 'system'
           : 'user'
+    // 排队期间被撤回的触发消息不再原样送进去。
     const triggers = pending.triggers
       .map((id) => messages.find((message) => message.id === id))
-      .filter(Boolean)
+      .filter((message) => message && !message.recalled)
     const visible =
       [
         ...triggers.map((message) =>
@@ -514,18 +589,24 @@ export const roomMethods = {
     return {
       message: `${visible}${ATTACHMENT_MARKER}${result.context}`,
       upToSeq: result.upToSeq,
+      late: result.late,
+      recalled: result.recalled,
       needsBrief: result.needsBrief,
     }
   },
 
   // 席位会话的一轮开始（streamPrompt 进入运行前调用）：贴出“在做”的工作卡，送达的那段记为已读。
-  onSeatRunStart(sessionId) {
+  // message 是这一轮送进会话的那句话：只有它正是我们送的那次叫醒，才算“送达”。别的来源抢先开的一轮
+  // （子任务做完的通知、你直接在席位会话里说话）不能把还没送进去的叫醒记成已读。
+  onSeatRunStart(sessionId, message) {
     const seat = this.roomSeatOf(sessionId)
     if (!seat) return
     this.roomSeatStarts ||= new Map()
     this.roomSeatTurns ||= new Map()
-    const start = this.roomSeatStarts.get(sessionId)
-    this.roomSeatStarts.delete(sessionId)
+    this.roomSeatChains ||= new Map()
+    const waiting = this.roomSeatStarts.get(sessionId)
+    const start = waiting && (message == null || waiting.message === message) ? waiting : null
+    if (start) this.roomSeatStarts.delete(sessionId)
     const value = this.sessions.get(sessionId)
     const model = value?.session?.model
       ? `${value.session.model.provider}/${value.session.model.id}`
@@ -535,7 +616,14 @@ export const roomMethods = {
       roomId: seat.roomId,
       botId: seat.botId,
       messageId: '',
-      chain: pending?.chain || null,
+      // 子任务做完后的汇报接着派它出去的那一轮的链算：不然“汇报里 @ 对方 → 对方再派活 → 它的汇报又 @ 回来”
+      // 每次都是一条新链，总共 12 次的上限就挡不住了。你直接在席位会话里说的话仍是新的开始。
+      chain:
+        pending?.chain ||
+        (!pending && isInternalParentMessage(String(message || ''))
+          ? this.roomSeatChains.get(sessionId)
+          : null) ||
+        null,
       everyone: Boolean(pending?.reasons.some((reason) => reason.kind === 'everyone')),
       alsoAnswered: [],
       steps: [],
@@ -543,6 +631,12 @@ export const roomMethods = {
       ready: null,
     }
     this.roomSeatTurns.set(sessionId, turn)
+    if (turn.chain) {
+      this.roomSeatChains.delete(sessionId)
+      this.roomSeatChains.set(sessionId, turn.chain)
+      while (this.roomSeatChains.size > MAX_CHAINS)
+        this.roomSeatChains.delete(this.roomSeatChains.keys().next().value)
+    }
     turn.ready = (async () => {
       const message = await this.rooms.append(seat.roomId, {
         author: { kind: 'bot', botId: seat.botId },
@@ -562,12 +656,7 @@ export const roomMethods = {
         ...(turn.chain ? { chain: turn.chain } : {}),
       })
       turn.messageId = message.id
-      if (start)
-        await this.rooms.setSeat(seat.roomId, seat.botId, {
-          readSeq: start.upToSeq,
-          recalls: [],
-          lastWakeAt: new Date().toISOString(),
-        })
+      if (start) await this.commitSeatRead(seat.roomId, seat.botId, start.wake)
     })().catch(() => console.warn('[rooms] Could not post the work card.'))
   },
 
@@ -585,12 +674,20 @@ export const roomMethods = {
   // 这一轮结束（完成、失败、停止都算）：写上结果；正文里 @ 了别的 Bot 就沿链叫醒；没送进去的叫醒补上。
   async onSeatRunEnd(sessionId, { error = '', aborted = false } = {}) {
     const turn = this.roomSeatTurns?.get(sessionId)
-    if (!turn) return
+    if (!turn) {
+      // 这一轮没开起来（比如模型不可用）：没有卡要收，但等着“这一轮结束后再送”的叫醒不能一直挂着。
+      const seat = this.roomSeatOf(sessionId)
+      if (seat && this.roomWakes?.has(`${seat.roomId}:${seat.botId}`))
+        void this.flushSeatWake(seat.roomId, seat.botId)
+      return
+    }
     this.roomSeatTurns.delete(sessionId)
     await turn.ready
-    if (!turn.messageId) return
     const room = this.rooms.get(turn.roomId)
-    if (!room) return
+    if (!turn.messageId || !room) {
+      if (room) void this.flushSeatWake(turn.roomId, turn.botId)
+      return
+    }
     const value = this.sessions.get(sessionId)
     const reply = botTurnTrigger(value?.session?.messages || []).reply
     const state = aborted
@@ -637,24 +734,35 @@ export const roomMethods = {
 
   // Bot 在群里 @ 了另一个 Bot：走 Bot 之间的限制（6 跳、每对每分钟、客气话不叫），外加一条链总共 12 次。
   async wakeFromBot(room, from, toId, message, chain) {
-    if (!from || isCourtesyMessage(message.text)) return
+    if (!from) return { woke: false, reason: 'no sender' }
+    // 去掉 @名字 再看是不是只有一句客气话（“@小克 谢谢”不值得叫醒一轮）。
+    let said = String(message.text || '')
+    const names = this.roomMembers(room)
+      .map((member) => member.name)
+      .filter(Boolean)
+      .sort((left, right) => right.length - left.length)
+    for (const name of names) said = said.replaceAll(`@${name}`, ' ')
+    if (isCourtesyMessage(said)) return { woke: false, reason: 'courtesy only' }
     const chainId = chain?.id || newBotChainId()
     const hop = (chain?.hop || 0) + 1
     const total = this.roomChainWakes?.get(chainId) || 0
-    const stop = async (reason) =>
-      this.rooms.append(room.id, {
+    const stop = async (reason) => {
+      await this.rooms.append(room.id, {
         author: { kind: 'system' },
         event: { type: 'chain_stopped', reason, from: from.id, to: toId, wakes: total },
       })
+      return { woke: false, reason: `chain limit: ${reason}` }
+    }
     if (total >= ROOM_CHAIN_MAX_WAKES) return stop('total')
     const admitted = this.botLinks.admit({ from: from.id, to: toId, chain: chainId, hop })
     if (!admitted.ok) return stop(admitted.reason)
-    return this.wakeSeat(room.id, toId, {
+    await this.wakeSeat(room.id, toId, {
       trigger: message,
       reason: { kind: 'bot', seq: message.seq, from: from.name, hop, maxHops: MAX_BOT_LINK_HOPS },
       chain: { id: chainId, hop },
       trust: botSourceTrust({ kind: 'bot' }),
     })
+    return { woke: true, reason: '' }
   },
 
   // 席位会话里的 bot_message：话留在群里（作者是这个 Bot，正文 @ 对方），再按链叫醒对方。
@@ -672,8 +780,9 @@ export const roomMethods = {
       mentions: [target.id],
       ...(turn?.chain ? { chain: turn.chain } : {}),
     })
-    await this.wakeFromBot(room, from, target.id, message, turn?.chain || null)
-    return { type: 'message', bot: target.id, room: room.id }
+    // 没叫醒对方（客气话、链到上限）要如实告诉这个 Bot，不然它会一直等回答。
+    const result = await this.wakeFromBot(room, from, target.id, message, turn?.chain || null)
+    return { type: 'message', bot: target.id, room: room.id, ...result }
   },
 
   // 席位会话收到一句不在群记录里的话（问题卡片的回答、到点的定时）：当成叫醒送进去。
@@ -729,6 +838,8 @@ export const roomMethods = {
     const message = await this.rooms.message(id, String(messageId || ''))
     const sessionId = message?.turn?.sessionId
     if (!sessionId) throw pisperError('not_found', 'message')
+    // 只停这张卡自己的那一轮：点的是旧卡（它早结束了）时，不能把这个席位正在跑的新一轮停掉。
+    if (this.roomSeatTurns?.get(sessionId)?.messageId !== message.id) return { stopped: false }
     await this.abortSession(sessionId)
     return { stopped: true }
   },
@@ -753,11 +864,17 @@ export const roomMethods = {
           ? members.find((member) => member.id === author.botId)?.name || 'a removed bot'
           : 'user'
       const from = state.brief?.upToSeq || 0
+      // 只整理到第一张还在做的卡之前：它的结果还没写上，越过去就再也不会被整理进来。
+      const unfinished = messages.find(
+        (message) => message.seq > from && message.turn?.state === 'running',
+      )
+      const cover = unfinished ? unfinished.seq - 1 : messages.at(-1)?.seq || from
       const lines = []
       let size = 0
       const fresh = messages.filter(
         (message) =>
           message.seq > from &&
+          message.seq <= cover &&
           !message.recalled &&
           message.text &&
           message.author?.kind !== 'system',
@@ -790,7 +907,7 @@ export const roomMethods = {
       if (!parsed) throw pisperError('failed', 'operation', 'the bot did not return a brief')
       const brief = {
         ...parsed,
-        upToSeq: messages.at(-1)?.seq || from,
+        upToSeq: cover,
         by: maintainer,
         at: new Date().toISOString(),
       }

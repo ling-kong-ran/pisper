@@ -362,12 +362,13 @@ export type RoomMessagePage = { messages: RoomMessage[]; lastSeq: number; hasMor
 
 export function fetchRoomMessages(
   id: string,
-  query: { before?: number; after?: number } = {},
+  query: { before?: number; after?: number; watch?: readonly string[] } = {},
   signal?: AbortSignal,
 ): Promise<RoomMessagePage> {
   const params = new URLSearchParams()
   if (query.before) params.set('before', String(query.before))
   if (query.after !== undefined) params.set('after', String(query.after))
+  if (query.watch?.length) params.set('watch', query.watch.slice(0, 50).join(','))
   const search = params.size ? `?${params}` : ''
   return requestJson(`/api/rooms/${encodeURIComponent(id)}/messages${search}`, {
     signal,

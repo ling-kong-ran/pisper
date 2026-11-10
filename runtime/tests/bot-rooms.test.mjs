@@ -589,3 +589,180 @@ test('the room page groups an everyone round, hides passes and draws bot handoff
   assert.deepEqual(activeMentionQuery('你好 @小', 5), { start: 3, query: '小' })
   assert.equal(activeMentionQuery('mail@x', 6), null)
 })
+
+test('a card that was still running when a bot was woken reaches it once it is written', () => {
+  const names = (author) => (author.kind === 'user' ? 'user' : author.botId)
+  const running = [
+    { seq: 1, id: 'a', author: { kind: 'bot', botId: PRO }, text: '', turn: { state: 'running' } },
+    { seq: 2, id: 'b', author: { kind: 'user' }, text: '@小克 看一下' },
+  ]
+  const first = selectUnread({ messages: running, readSeq: 0, selfId: KE, budget: 10_000, names })
+  assert.deepEqual([first.items.map((item) => item.seq), first.upToSeq, first.late], [[2], 2, [1]])
+  const written = [
+    { ...running[0], text: '结论在这', turn: { state: 'done' } },
+    running[1],
+    { seq: 3, id: 'c', author: { kind: 'user' }, text: '@小克 再看' },
+  ]
+  const next = selectUnread({
+    messages: written,
+    readSeq: first.upToSeq,
+    late: first.late,
+    selfId: KE,
+    budget: 10_000,
+    names,
+  })
+  assert.deepEqual([next.items.map((item) => item.seq), next.late], [[1, 3], []])
+})
+
+test('a card left running by a quit is closed on the next start, and read progress never moves back', async () => {
+  const dataDir = await tempDir()
+  const service = new RoomService({ dataDir })
+  await service.init()
+  const room = await service.create({ name: '前端小组', members: [KE] })
+  const card = await service.append(room.id, {
+    author: { kind: 'bot', botId: KE },
+    text: '',
+    turn: { state: 'running', sessionId: 'seat-1' },
+  })
+  await service.setSeat(room.id, KE, { sessionId: 'seat-1', readSeq: 5 })
+  assert.equal((await service.setSeat(room.id, KE, { readSeq: 3 })).readSeq, 5)
+
+  const again = new RoomService({ dataDir })
+  await again.init()
+  const closed = await again.message(room.id, card.id)
+  assert.deepEqual([closed.turn.state, closed.turn.interrupted], ['stopped', true])
+  await again.append(room.id, { author: { kind: 'user' }, text: 'next' })
+  const third = new RoomService({ dataDir })
+  await third.init()
+  assert.deepEqual(
+    (await third.messages(room.id)).map((message) => [message.seq, message.turn?.state]),
+    [
+      [1, 'stopped'],
+      [2, undefined],
+    ],
+  )
+})
+
+test('a wake that loses the seat to another run is not marked read and is sent again', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 第一件' })
+  await settle(runtime)
+  const seat = runtime.runs[0].sessionId
+  await finishTurn(runtime, seat, '第一件做完了')
+  await settle(runtime)
+  const before = (await runtime.rooms.seat(room.id, PRO)).readSeq
+
+  // 子任务做完的通知抢先开了一轮：我们的 prompt 被拒（busy）。
+  runtime.promptFromChannel = async (input) => {
+    runtime.runs.push(input)
+    runtime.onSeatRunStart(seat, '[Pisper internal agent completion] done')
+    runtime.running.add(seat)
+    throw Object.assign(new Error('busy'), { code: 'busy' })
+  }
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 第二件' })
+  await settle(runtime)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal((await runtime.rooms.seat(room.id, PRO)).readSeq, before)
+  assert.equal(
+    (await runtime.rooms.messages(room.id)).some(
+      (message) => message.event?.type === 'wake_failed',
+    ),
+    false,
+  )
+
+  runtime.promptFromChannel = async (input) => {
+    runtime.runs.push(input)
+    return { sessionId: input.sessionId, text: '', error: '' }
+  }
+  runtime.running.delete(seat)
+  runtime.sessions.set(seat, { session: { messages: [] } })
+  await runtime.onSeatRunEnd(seat, {})
+  await settle(runtime)
+  assert.match(runtime.runs.at(-1).message, /第二件/)
+})
+
+test('a report after a background job stays on the chain that started the job', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  await runtime.postRoomMessage(room.id, { text: '@小克 派个活' })
+  await settle(runtime)
+  const seat = runtime.runs[0].sessionId
+  await finishTurn(runtime, seat, '派出去了')
+  const chain = (await runtime.rooms.messages(room.id)).at(-1).chain
+  assert.ok(chain?.id)
+
+  runtime.onSeatRunStart(seat, '[Pisper internal agent completion] done')
+  assert.deepEqual(runtime.roomSeatTurns.get(seat).chain, chain)
+  await runtime.onSeatRunEnd(seat, {})
+  // 你直接在席位会话里说的话是新的开始。
+  runtime.onSeatRunStart(seat, '接着做')
+  assert.equal(runtime.roomSeatTurns.get(seat).chain, null)
+  await runtime.onSeatRunEnd(seat, {})
+})
+
+test('stopping an old card leaves the turn that is running now alone; a seat is created once', async () => {
+  const runtime = await fakeRuntime()
+  const aborted = []
+  runtime.abortSession = async (id) => aborted.push(id)
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  const [one, two] = await Promise.all([
+    runtime.ensureSeatSession(room, runtime.bots.get(PRO)),
+    runtime.ensureSeatSession(room, runtime.bots.get(PRO)),
+  ])
+  assert.equal(one, two)
+  await finishTurn(runtime, one, '第一轮')
+  const old = (await runtime.rooms.messages(room.id)).at(-1)
+  runtime.onSeatRunStart(one, '第二轮')
+  await runtime.roomSeatTurns.get(one).ready
+  assert.deepEqual(await runtime.stopRoomTurn(room.id, old.id), { stopped: false })
+  assert.deepEqual(aborted, [])
+  const live = (await runtime.rooms.messages(room.id)).at(-1)
+  assert.deepEqual(await runtime.stopRoomTurn(room.id, live.id), { stopped: true })
+  assert.deepEqual(aborted, [one])
+})
+
+test('a bot is told when its room message did not wake the other bot', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(KE))
+  const thanks = await runtime.postBotRoomMessage(
+    seat,
+    runtime.bots.get(KE),
+    runtime.bots.get(PRO),
+    '谢谢',
+  )
+  assert.equal(thanks.woke, false)
+  const asked = await runtime.postBotRoomMessage(
+    seat,
+    runtime.bots.get(KE),
+    runtime.bots.get(PRO),
+    '帮我核对一下撤回的测试',
+  )
+  assert.equal(asked.woke, true)
+})
+
+test('polling brings back a card the page still shows as running, even when it is no longer the latest', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(PRO))
+  await finishTurn(runtime, seat, '第一轮')
+  await finishTurn(runtime, seat, '第二轮')
+  const [first, second] = await runtime.rooms.messages(room.id)
+  const plain = await runtime.listRoomMessages(room.id, { after: second.seq })
+  assert.deepEqual(
+    plain.messages.map((message) => message.id),
+    [second.id],
+  )
+  const watched = await runtime.listRoomMessages(room.id, {
+    after: second.seq,
+    watch: `${first.id},not-an-id`,
+  })
+  assert.deepEqual(
+    watched.messages.map((message) => [message.id, message.turn.state]),
+    [
+      [first.id, 'done'],
+      [second.id, 'done'],
+    ],
+  )
+})

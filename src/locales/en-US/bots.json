@@ -373,6 +373,7 @@
   "room.recalledBot": "A reply from {name} was hidden",
   "room.recalledMine": "You withdrew a message",
   "room.recalledShort": "Withdrawn message",
+  "room.gone": "\"{name}\" was deleted.",
   "room.reconnecting": "Can't reach the Runtime; retrying…",
   "room.removedBot": "Deleted bot",
   "room.reply": "Reply",

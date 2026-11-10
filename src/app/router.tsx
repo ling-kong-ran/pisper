@@ -55,6 +55,8 @@ export const router = createHashRouter([
       { path: PAGE_PATHS.channels, lazy: channelsRoute },
       { path: PAGE_PATHS.schedules, lazy: schedulesRoute },
       { path: '/bots/:botId?', lazy: botsRoute },
+      // 不带群 id 的 /bots/rooms 不是哪个 Bot，回 Bots 页。
+      { path: '/bots/rooms', element: <Navigate to="/bots" replace /> },
       { path: '/bots/rooms/:roomId', lazy: roomRoute },
       { path: PAGE_PATHS.config, lazy: configRoute },
       { path: '/config/:configSection', lazy: configRoute },

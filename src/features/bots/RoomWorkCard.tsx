@@ -194,8 +194,9 @@ export function RoomWorkCard({
           </span>
         )}
         <span className="flex-1" />
-        {/* 卡上的操作：悬停或聚焦（手机上点一下卡片）时出现，平时只留“过程”。 */}
-        <span className="flex items-center opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
+        {/* 卡上的操作：悬停或聚焦（手机上点一下卡片）时出现，平时只留“过程”。看不见的时候点不到：
+            不然在手机上点卡片头部的空白会直接点中“停下”。 */}
+        <span className="flex items-center pointer-events-none opacity-0 transition-opacity group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100">
           {live && canAct ? (
             <Button
               variant="ghost"

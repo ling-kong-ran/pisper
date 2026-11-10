@@ -373,6 +373,7 @@
   "room.recalledBot": "{name} 的一条回复已隐藏",
   "room.recalledMine": "你撤回了一条消息",
   "room.recalledShort": "已撤回的消息",
+  "room.gone": "“{name}”已经被删除了。",
   "room.reconnecting": "连不上 Runtime，正在重试…",
   "room.removedBot": "已删除的 Bot",
   "room.reply": "回复",

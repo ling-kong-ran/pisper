@@ -64,7 +64,11 @@ export function RoomComposer({
 
   const everyone = recipients === 'all'
   const chosen = everyone ? active.map((member) => member.id) : recipients
-  const wakes = new Set([...chosen, ...mentionedIds(value, active)]).size
+  // 暂停的 Bot 叫不醒，不算进“会叫醒 N 个”。
+  const awake = new Set(active.filter((member) => member.enabled).map((member) => member.id))
+  const wakes = [...new Set([...chosen, ...mentionedIds(value, active)])].filter((id) =>
+    awake.has(id),
+  ).length
   const chosenMembers = active.filter((member) => chosen.includes(member.id))
 
   const insertMention = (member: RoomMember) => {
@@ -95,6 +99,8 @@ export function RoomComposer({
       if (await onSend(text, mentionedIds(text, active))) {
         setValue('')
         setCaret(0)
+        // 高度是输入时按内容撑开的：清空后收回一行。
+        if (input.current) input.current.style.height = 'auto'
       }
     } finally {
       setSending(false)

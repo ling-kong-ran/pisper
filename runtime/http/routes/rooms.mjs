@@ -52,6 +52,7 @@ export const roomRoutes = [
         await runtime.listRoomMessages(id(params), {
           before: query?.get('before') ?? undefined,
           after: query?.get('after') ?? undefined,
+          watch: query?.get('watch') ?? undefined,
           limit: query?.get('limit') ?? undefined,
         }),
       )

@@ -1,8 +1,10 @@
 // 群聊页的两个对话框：群设置（名字、目标、成员、项目目录、维护简报的 Bot）与手改简报
 // （已定一行一条；待办一行一条，开头写 [x] 表示做完，写 @名字 指定负责的人）。
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { FolderOpen } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
+import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -16,6 +18,7 @@ import {
 import { FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { BotAvatar } from './BotAvatar'
 import type { Bot } from './bots-api'
 import { parseTodoLine, todoLine } from './room-presentation'
@@ -42,18 +45,40 @@ export function RoomSettingsDialog({
   const [draft, setDraft] = useState<RoomSettingsDraft>(room)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [picking, setPicking] = useState(false)
+  const [browsing, setBrowsing] = useState(false)
+  const wasOpen = useRef(false)
 
+  // 只在打开的那一下填表：群详情每一两秒轮询一次，跟着它重填会把正在打的字清掉。
   useEffect(() => {
-    if (!open) return
-    setDraft({
-      name: room.name,
-      goal: room.goal,
-      members: room.members,
-      cwd: room.cwd,
-      briefBotId: room.briefBotId,
-    })
-    setError('')
+    if (open && !wasOpen.current) {
+      setDraft({
+        name: room.name,
+        goal: room.goal,
+        members: room.members,
+        cwd: room.cwd,
+        briefBotId: room.briefBotId,
+      })
+      setError('')
+    }
+    wasOpen.current = open
   }, [open, room])
+
+  // 先开系统的文件夹对话框；开不了（手机、配对设备）时退回目录面板逐级点选，不用手打路径。
+  const pickFolder = async () => {
+    if (picking) return
+    setPicking(true)
+    setError('')
+    try {
+      const result = await pickSystemDirectory(draft.cwd.trim(), t('bots:room.settings.folder'))
+      if (result.status === 'picked') setDraft((current) => ({ ...current, cwd: result.path }))
+      else if (result.status === 'unavailable') setBrowsing(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setPicking(false)
+    }
+  }
 
   const toggle = (id: string, checked: boolean) =>
     setDraft((current) => {
@@ -147,12 +172,24 @@ export function RoomSettingsDialog({
               <FieldLabel htmlFor="room-settings-folder">
                 {t('bots:room.settings.folder')}
               </FieldLabel>
-              <Input
-                id="room-settings-folder"
-                value={draft.cwd}
-                placeholder={t('bots:room.settings.folderPlaceholder')}
-                onChange={(event) => setDraft({ ...draft, cwd: event.target.value })}
-              />
+              <span className="flex gap-2">
+                <Input
+                  id="room-settings-folder"
+                  value={draft.cwd}
+                  className="font-mono"
+                  placeholder={t('bots:room.settings.folderPlaceholder')}
+                  onChange={(event) => setDraft({ ...draft, cwd: event.target.value })}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={picking}
+                  onClick={() => void pickFolder()}
+                >
+                  <FolderOpen aria-hidden="true" />
+                  {t('bots:new.pick')}
+                </Button>
+              </span>
               <p className="m-0 text-xs text-content-muted">{t('bots:room.settings.folderHint')}</p>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -192,6 +229,15 @@ export function RoomSettingsDialog({
             </Button>
           </DialogFooter>
         </form>
+        <WorkspacePicker
+          open={browsing}
+          initialPath={draft.cwd}
+          onOpenChange={setBrowsing}
+          onSelect={(path) => {
+            setDraft((current) => ({ ...current, cwd: path }))
+            setBrowsing(false)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -215,12 +261,16 @@ export function RoomBriefDialog({
   const [todos, setTodos] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const wasOpen = useRef(false)
 
+  // 同上：只在打开的那一下填，轮询带来的新简报不覆盖正在改的字。
   useEffect(() => {
-    if (!open) return
-    setDecisions((brief?.decisions || []).join('\n'))
-    setTodos((brief?.todos || []).map((todo) => todoLine(todo, members)).join('\n'))
-    setError('')
+    if (open && !wasOpen.current) {
+      setDecisions((brief?.decisions || []).join('\n'))
+      setTodos((brief?.todos || []).map((todo) => todoLine(todo, members)).join('\n'))
+      setError('')
+    }
+    wasOpen.current = open
   }, [open, brief, members])
 
   const submit = async (event: FormEvent) => {

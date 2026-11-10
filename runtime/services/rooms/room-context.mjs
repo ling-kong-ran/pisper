@@ -3,6 +3,9 @@
 import { roomWakeContext } from '../../prompts/rooms.mjs'
 import { ROOM_BOT_REPLY_CLIP_CHARS, ROOM_WAKE_MIN_CHARS, mentionsEveryone } from './room-model.mjs'
 
+// 一个席位最多记多少张“越过去了、还没写完”的卡。
+const MAX_LATE_CARDS = 20
+
 // 一次叫醒能带多少字：这一轮模型上下文窗口的 10%（按一个 token 约 3 个字估），不少于 24 千字。
 export function wakeBudgetChars(contextWindowTokens) {
   const window = Number(contextWindowTokens)
@@ -56,24 +59,32 @@ function time(at) {
 
 /**
  * 这次送哪些消息：readSeq 之后的，略过还在进行中的工作卡（没有正文）与自己的消息。
+ * 略过的进行中的卡记进 late：readSeq 会越过它，它写上结果后要在下一次叫醒时补送，不然那句回复谁也读不到。
  * 超过 budget 时从后往前取，能放下多少放多少；有简报且简报覆盖到被省掉的那段时用简报顶上。
  * @param {{
  *   messages: Record<string, any>[],
  *   readSeq: number,
+ *   late?: number[],
  *   selfId: string,
  *   budget: number,
  *   names: (author: Record<string, any>) => string,
  * }} input
  */
-export function selectUnread({ messages, readSeq, selfId, budget, names }) {
+export function selectUnread({ messages, readSeq, late = [], selfId, budget, names }) {
   const bySeq = new Map(messages.map((message) => [message.id, message.seq]))
-  const candidates = messages.filter(
+  const owed = new Set(late)
+  const pending = messages.filter(
     (message) =>
-      message.seq > readSeq &&
-      !(message.author?.kind === 'bot' && message.author.botId === selfId) &&
-      !(message.turn && message.turn.state === 'running') &&
-      !(message.turn && message.turn.state === 'skipped'),
+      (message.seq > readSeq || owed.has(message.seq)) &&
+      !(message.author?.kind === 'bot' && message.author.botId === selfId),
   )
+  const candidates = pending.filter(
+    (message) => !(message.turn && ['running', 'skipped'].includes(message.turn.state)),
+  )
+  const stillRunning = pending
+    .filter((message) => message.turn?.state === 'running')
+    .map((message) => message.seq)
+    .slice(-MAX_LATE_CARDS)
   const items = []
   let used = 0
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
@@ -103,6 +114,7 @@ export function selectUnread({ messages, readSeq, selfId, budget, names }) {
     items,
     omitted: candidates.length - items.length,
     upToSeq: messages.at(-1)?.seq || readSeq,
+    late: stillRunning,
     chars: used,
   }
 }
@@ -115,6 +127,7 @@ export function buildWake({ room, bot, members, messages, seat, brief, reasons, 
   const selection = selectUnread({
     messages,
     readSeq: seat?.readSeq || 0,
+    late: seat?.late || [],
     selfId: bot.id,
     budget,
     names,
@@ -134,5 +147,12 @@ export function buildWake({ room, bot, members, messages, seat, brief, reasons, 
     recalled: seat?.recalls || [],
     reasons,
   })
-  return { context, upToSeq: selection.upToSeq, needsBrief, omitted: selection.omitted }
+  return {
+    context,
+    upToSeq: selection.upToSeq,
+    late: selection.late,
+    recalled: seat?.recalls || [],
+    needsBrief,
+    omitted: selection.omitted,
+  }
 }

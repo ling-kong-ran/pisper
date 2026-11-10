@@ -100,7 +100,10 @@ export function mentionSegments(text: string, members: readonly TimelineMember[]
         const next = rest.charAt(item.name.length)
         return !next || !/[\p{L}\p{N}_-]/u.test(next)
       })
-      const everyone = /^(所有人|all|everyone)(?![\p{L}\p{N}_])/iu.exec(rest)
+      // 和 Runtime 的判定一致：@ 前面不能紧挨着字母数字（“a@all”不是在叫所有人）。
+      const everyone = /[\p{L}\p{N}_]/u.test(text.charAt(index - 1))
+        ? null
+        : /^(所有人|all|everyone)(?![\p{L}\p{N}_])/iu.exec(rest)
       if (member || everyone) {
         if (buffer) segments.push({ text: buffer })
         buffer = ''

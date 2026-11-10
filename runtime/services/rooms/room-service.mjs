@@ -19,6 +19,8 @@ import {
 
 const STORE_VERSION = 1
 const FILE_MODE = 0o600
+// 补丁行攒到这么多，下次读盘时把文件重写一遍合并掉。
+const PATCH_COMPACT_LINES = 500
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -40,6 +42,9 @@ function normalizeState(value, members) {
       lastWakeAt: typeof seat.lastWakeAt === 'string' ? seat.lastWakeAt.slice(0, 40) : '',
       recalls: Array.isArray(seat.recalls)
         ? seat.recalls.filter((seq) => Number.isSafeInteger(seq)).slice(-50)
+        : [],
+      late: Array.isArray(seat.late)
+        ? seat.late.filter((seq) => Number.isSafeInteger(seq)).slice(-20)
         : [],
     }
   }
@@ -191,11 +196,13 @@ export class RoomService {
       if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return ''
       throw error
     })
+    let patches = 0
     for (const line of text.split('\n')) {
       if (!line.trim()) continue
       const value = parseLine(line)
       if (!value) continue
       if (value.op === 'patch') {
+        patches += 1
         const target = byId.get(value.id)
         if (target && value.set && typeof value.set === 'object') Object.assign(target, value.set)
         continue
@@ -206,6 +213,19 @@ export class RoomService {
       byId.set(value.id, value)
     }
     messages.sort((left, right) => left.seq - right.seq)
+    // 读盘只发生在进程第一次用到这个群时，这时不可能有哪一轮真在跑：盘上还写着“在做”的卡是上次退出时
+    // 留下的，收成“已停下”。不收的话它永远转圈、撤不回，也永远进不了别的 Bot 的未读。
+    let stale = 0
+    for (const message of messages) {
+      if (message.turn?.state !== 'running') continue
+      stale += 1
+      message.turn = {
+        ...message.turn,
+        state: 'stopped',
+        interrupted: true,
+        endedAt: new Date(this.now()).toISOString(),
+      }
+    }
     let state = emptyState()
     const statePath = join(dir, 'state.json')
     try {
@@ -218,6 +238,8 @@ export class RoomService {
     // 并发的第一次读：以先放进去的为准。
     if (this.logs.has(id)) return this.logs.get(id)
     this.logs.set(id, log)
+    if (stale || patches > PATCH_COMPACT_LINES)
+      void this.#rewrite(id, log).catch(() => console.warn('[rooms] Could not tidy the room log.'))
     for (const [botId, seat] of Object.entries(state.seats))
       if (seat.sessionId) this.seatSessions.set(seat.sessionId, { roomId: id, botId })
     return log
@@ -230,8 +252,24 @@ export class RoomService {
     return next
   }
 
+  // 把内存里的记录原子地重写到盘上（补丁行合并掉）。内容在排队时就定下，之后排进来的追加照常接在后面。
+  #rewrite(id, log) {
+    const path = join(this.roomDir(id), 'messages.jsonl')
+    const body = log.messages.map((item) => JSON.stringify(item)).join('\n')
+    return this.#enqueue(log, async () => {
+      const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
+      await writeFile(temporary, body ? `${body}\n` : '', { encoding: 'utf8', mode: FILE_MODE })
+      await rename(temporary, path)
+    })
+  }
+
   async messages(id) {
     return clone((await this.load(id)).messages)
+  }
+
+  // 只读视图：不拷贝，调用方不得改动（轮询每一两秒读一次，整份深拷贝太贵）。
+  async peekMessages(id) {
+    return (await this.load(id)).messages
   }
 
   async message(id, messageId) {
@@ -306,13 +344,7 @@ export class RoomService {
       recalled: { at: new Date(this.now()).toISOString(), seenBy },
     }
     log.messages[index] = placeholder
-    const path = join(this.roomDir(id), 'messages.jsonl')
-    const body = log.messages.map((item) => JSON.stringify(item)).join('\n')
-    await this.#enqueue(log, async () => {
-      const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
-      await writeFile(temporary, body ? `${body}\n` : '', { encoding: 'utf8', mode: FILE_MODE })
-      await rename(temporary, path)
-    })
+    await this.#rewrite(id, log)
     return clone(placeholder)
   }
 
@@ -340,9 +372,12 @@ export class RoomService {
       readSeq: 0,
       lastWakeAt: '',
       recalls: [],
+      late: [],
       ...(log.state.seats[botId] || {}),
       ...patch,
     }
+    // “读到第几条”只进不退：晚到的写入不能把它拉回去（拉回去就会把同一段再送一遍）。
+    seat.readSeq = Math.max(seat.readSeq || 0, log.state.seats[botId]?.readSeq || 0)
     log.state.seats[botId] = seat
     if (seat.sessionId) this.seatSessions.set(seat.sessionId, { roomId: id, botId })
     await this.#saveState(id, log)

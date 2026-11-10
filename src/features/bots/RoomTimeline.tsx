@@ -216,7 +216,7 @@ export function RoomTimeline({
                   <Mentions text={message.text} members={members} />
                 </div>
                 <div className="flex items-center gap-0.5 pr-1">
-                  <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/mine:opacity-100 group-focus-within/mine:opacity-100">
+                  <span className="flex items-center gap-0.5 pointer-events-none opacity-0 transition-opacity group-hover/mine:pointer-events-auto group-hover/mine:opacity-100 group-focus-within/mine:pointer-events-auto group-focus-within/mine:opacity-100">
                     <Button
                       variant="ghost"
                       size="xs"
