@@ -293,6 +293,7 @@
   "room.card.processHint": "Open its session in this room: steps, changes, terminal",
   "room.card.questionHint": "It is waiting for your answer.",
   "room.card.reading": "Reading the new messages…",
+  "room.card.stop": "Stop this turn",
   "room.card.waitingApproval": "Needs approval",
   "room.card.waitingQuestion": "Needs your answer",
   "room.composer.addressedOnly": "You named someone, so only they wake up",

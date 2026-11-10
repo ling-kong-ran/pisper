@@ -57,6 +57,7 @@ import {
   recallRoomMessage,
   refreshRoomBrief,
   resolveRoomApproval,
+  stopRoomTurn,
   updateRoom,
   type RoomAnswerMode,
   type RoomMember,
@@ -518,6 +519,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
             modeLabel={modeLabel}
             onOpenProcess={(sessionId) => navigate(sessionPath(sessionId))}
             onApprove={approve}
+            onStop={(message) => once(`stop:${message.id}`, () => stopRoomTurn(roomId, message.id))}
           />
           {prompt && (
             <RoomBriefPrompt

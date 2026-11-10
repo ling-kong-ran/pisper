@@ -1,10 +1,10 @@
 // 输入框上方的实时状态行（第一版的样子）：每个在干活的 Bot 一行——头像在动、名字、“正在做”、
-// 这个 Bot 的执行方式、这一步在做什么，右边“查看过程”。有批准或提问在等时这一行变成琥珀色的“等你批准 /
+// 这个 Bot 的执行方式、这一步在做什么，右边“停下”和“查看过程”。有批准或提问在等时这一行变成琥珀色的“等你批准 /
 // 等你回答”：批准、拒绝就在这一行上（和“查看”同一种键），高风险的只给“查看”，去过程里处理。
 // 一轮结束、它派出去的活还在等你时也是这样一行。做完这一行消失，回复贴进时间线。
 //
 // 下面的“找谁写一份简报”提示条也在这里：聊长了、简报没人维护时问一句，选一个 Bot 就让它整理。
-import { ListTree, NotebookPen, X } from 'lucide-react'
+import { ListTree, NotebookPen, Square, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -19,6 +19,7 @@ export function RoomStatusRows({
   modeLabel,
   onOpenProcess,
   onApprove,
+  onStop,
 }: {
   entries: readonly RoomStatusEntry[]
   members: ReadonlyMap<string, RoomMember>
@@ -26,6 +27,8 @@ export function RoomStatusRows({
   modeLabel: (botId: string) => string
   onOpenProcess: (sessionId: string) => void
   onApprove: (message: RoomMessage, approvalId: string, approve: boolean) => void
+  // 停下这一轮（只停它自己这张卡对应的那一轮）。
+  onStop: (message: RoomMessage) => void
 }) {
   const { t } = useI18n()
   return (
@@ -62,7 +65,8 @@ export function RoomStatusRows({
             data-room-status={entry.waiting || 'running'}
             className={cn(
               'flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px]',
-              waiting && 'bg-st-attn-soft',
+              // 手机上一行放不下按钮：按钮换到下一行，不把“想运行 …”挤成一个字。
+              waiting && 'bg-st-attn-soft max-[650px]:flex-wrap',
             )}
           >
             {member && (
@@ -89,7 +93,7 @@ export function RoomStatusRows({
               {step}
             </span>
             {waiting ? (
-              <>
+              <span className="flex flex-none items-center gap-2.5 max-[650px]:basis-full max-[650px]:justify-end">
                 {approval && approval.severity !== 'critical' && (
                   <>
                     <Button
@@ -121,19 +125,30 @@ export function RoomStatusRows({
                 >
                   {t('bots:room.status.view')}
                 </Button>
-              </>
+              </span>
             ) : (
-              turn.sessionId && (
+              <>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={t('bots:room.viewProcess')}
-                  title={t('bots:room.viewProcess')}
-                  onClick={open}
+                  aria-label={t('bots:room.card.stop')}
+                  title={t('bots:room.card.stop')}
+                  onClick={() => onStop(entry.message)}
                 >
-                  <ListTree />
+                  <Square />
                 </Button>
-              )
+                {turn.sessionId && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('bots:room.viewProcess')}
+                    title={t('bots:room.viewProcess')}
+                    onClick={open}
+                  >
+                    <ListTree />
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )

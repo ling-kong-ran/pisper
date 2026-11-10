@@ -293,6 +293,7 @@
   "room.card.processHint": "打开它在这个群里的会话：每一步、改动、终端",
   "room.card.questionHint": "它在等你回答一个问题。",
   "room.card.reading": "在读群里的新消息…",
+  "room.card.stop": "停下这一轮",
   "room.card.waitingApproval": "等你批准",
   "room.card.waitingQuestion": "等你回答",
   "room.composer.addressedOnly": "这句点了名，只叫醒点到的",
