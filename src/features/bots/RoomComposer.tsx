@@ -1,27 +1,37 @@
-// 群聊输入框：外观沿用会话页的输入卡片。打 @ 弹出成员补全（Popover + Command，键盘可选，含“所有人”）；
-// “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在，新建的群默认所有人。
+// 群聊输入框：外观是第一版的样子（沿用会话页的输入卡片）。打 @ 弹出成员补全（Popover + Command，键盘可选，
+// 含“所有人”）。工具行：“+”（附件、@ 成员）、附件键，“发给”后面每个成员一个芯片（圆点是它的头像色，按下 = 选中，
+// 暂停的点不了），最后是“所有人”；成员多了这一排横着滑（触屏手指滑、鼠标滚轮也能横滑，键盘 Tab 过去自动滚到）。
 // 点了名（@ 谁、回复某个 Bot、@所有人）就只叫点到的；没点名才发给芯片里选的人。没有“只留言”：
-// 芯片一个人都没选时就是所有人；只有主持人分派的群里，空着表示交给主持人。
+// 一个都没选时就是所有人；只有主持人分派的群里，空着表示交给主持人。
 // 要叫醒 3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
 // 附件和会话输入框是同一套（附件键、粘贴图片、拖文件进来、附件托盘），只带附件不写字也能发。
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, ChevronDown, Users, X } from 'lucide-react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type WheelEvent,
+} from 'react'
+import { AtSign, Paperclip, Plus, Users, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { Command, CommandItem, CommandList } from '@/components/ui/command'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuSeparator,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import {
-  AttachmentPicker,
   AttachmentTray,
+  ComposerSendButton,
   isFileDrag,
+  useAttachmentChooser,
   useAttachmentSelection,
 } from '@/features/chat/public-attachments'
 import { cn } from '@/lib/utils'
@@ -30,6 +40,11 @@ import { BotAvatar } from './BotAvatar'
 import { botAvatarTone } from './avatar'
 import { activeMentionQuery, composerWakeTargets, mentionedIds } from './room-presentation'
 import type { RoomMember, RoomMessage } from './rooms-api'
+
+// “发给”芯片在触屏上看得见的仍是第一版的小芯片，透明的 ::after 把能点到的范围上下扩到 44px
+// （滑动的那一排上下留了同样的内边距，扩出来的部分不会被横向滚动裁掉）。
+const CHIP_TOUCH =
+  'relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2.5'
 
 const MAX_CHARS = 12_000
 // @ 补全里“所有人”那一项的 id（不会和 Bot id 撞上）。
@@ -66,6 +81,9 @@ export function RoomComposer({
   idleHint?: string
 }) {
   const { t } = useI18n()
+  const toId = useId()
+  // “+”菜单里选了“@ 成员”：菜单关上时焦点留在输入框，不回到“+”键上。
+  const mentionFromMenu = useRef(false)
   const [value, setValue] = useState('')
   const [caret, setCaret] = useState(0)
   const [highlight, setHighlight] = useState('')
@@ -76,6 +94,7 @@ export function RoomComposer({
   const input = useRef<HTMLTextAreaElement>(null)
   const active = members.filter((member) => !member.deleted)
   const selection = useAttachmentSelection([], undefined, roomId)
+  const chooser = useAttachmentChooser({ cwd, selection })
   const hasAttachments = selection.attachments.length > 0
   // 附件还在读：先别发，不然这几个就丢了。
   const preparing = selection.preparingAttachments.length > 0
@@ -138,6 +157,31 @@ export function RoomComposer({
     })
   }
 
+  // “+”菜单里的“@ 成员”：在光标处插一个 @，补全列表随即弹出。
+  const startMention = () => {
+    const node = input.current
+    const at = node?.selectionStart ?? value.length
+    const before = value.slice(0, at)
+    const prefix = before && !/\s$/.test(before) ? ' @' : '@'
+    const next = `${before}${prefix}${value.slice(at)}`
+    const position = at + prefix.length
+    setValue(next)
+    setCaret(position)
+    setDismissed(-1)
+    window.requestAnimationFrame(() => {
+      input.current?.focus()
+      input.current?.setSelectionRange(position, position)
+    })
+  }
+
+  // 鼠标滚轮在芯片那一排上竖着滚时横着滑（触控板和触屏本来就能横滑）。
+  const wheelChips = (event: WheelEvent<HTMLDivElement>) => {
+    const node = event.currentTarget
+    if (node.scrollWidth <= node.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY))
+      return
+    node.scrollLeft += event.deltaY
+  }
+
   const toggle = (id: string, checked: boolean) => {
     const current = everyone ? active.map((member) => member.id) : recipients
     const next = checked ? [...new Set([...current, id])] : current.filter((item) => item !== id)
@@ -197,25 +241,17 @@ export function RoomComposer({
     }
   }
 
-  const showDrop = (event: DragEvent<HTMLDivElement>) => {
+  const showDrop = (event: DragEvent<HTMLFormElement>) => {
     if (!isFileDrag(event.dataTransfer)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
     setDropActive(true)
   }
-  const hideDrop = (event: DragEvent<HTMLDivElement>) => {
+  const hideDrop = (event: DragEvent<HTMLFormElement>) => {
     const next = event.relatedTarget
     if (next instanceof Node && event.currentTarget.contains(next)) return
     setDropActive(false)
   }
-
-  const sendLabel = everyone
-    ? t('bots:room.composer.sendToAll')
-    : chosenMembers.length === 0
-      ? idleLabel
-      : chosenMembers.length === 1
-        ? t('bots:room.composer.sendTo', { name: chosenMembers[0].name })
-        : t('bots:room.composer.sendToCount', { count: chosenMembers.length })
 
   return (
     <Popover open={mentionOpen}>
@@ -225,8 +261,12 @@ export function RoomComposer({
         </p>
       )}
       <PopoverAnchor asChild>
-        <div
+        <form
           data-room-composer
+          onSubmit={(event) => {
+            event.preventDefault()
+            void send()
+          }}
           className={cn(
             'relative flex min-w-0 flex-col rounded-[var(--composer-radius,22px)] border border-control bg-solid shadow-composer transition-[border-color,box-shadow] duration-(--d-fast) has-[textarea:focus]:border-focus has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-focus-ring max-[650px]:rounded-[28px] max-[650px]:border-stroke-strong max-[650px]:shadow-none max-[650px]:has-[textarea:focus]:border-control max-[650px]:has-[textarea:focus]:ring-0 [&>.attachment-tray]:px-3 [&>.attachment-tray]:pt-3',
             dropActive && 'border-focus ring-3 ring-focus-ring',
@@ -296,66 +336,106 @@ export function RoomComposer({
             onCompositionEnd={() => window.setTimeout(() => (composing.current = false), 0)}
             onKeyDown={onKeyDown}
           />
-          <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-2 max-[650px]:pb-3">
-            <AttachmentPicker cwd={cwd} selection={selection} />
+          <div className="flex min-w-0 items-center gap-1 px-2 pt-1 pb-2 max-[650px]:gap-2 max-[650px]:pb-3">
+            {chooser.input}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Chip data-room-recipients aria-label={t('bots:room.composer.recipients')}>
-                  {chosenMembers.length > 0 && (
-                    <span aria-hidden="true" className="flex items-center">
-                      {chosenMembers.slice(0, 3).map((member, index) => (
-                        <span
-                          key={member.id}
-                          className={cn('rounded-[30%] ring-2 ring-solid', index > 0 && '-ml-1.5')}
-                        >
-                          <BotAvatar avatar={member.avatar} size={16} animate={false} />
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                  <span className="max-w-40 truncate">{sendLabel}</span>
-                  <ChevronDown aria-hidden="true" />
-                </Chip>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="rounded-full"
+                  aria-label={t('bots:room.composer.add')}
+                  title={t('bots:room.composer.add')}
+                >
+                  <Plus />
+                </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="min-w-52">
-                {active.map((member) => (
-                  <DropdownMenuCheckboxItem
+              <DropdownMenuContent
+                align="start"
+                side="top"
+                className="w-52"
+                onCloseAutoFocus={(event) => {
+                  if (!mentionFromMenu.current) return
+                  mentionFromMenu.current = false
+                  event.preventDefault()
+                }}
+              >
+                <DropdownMenuItem onSelect={() => void chooser.choose()}>
+                  <Paperclip aria-hidden="true" />
+                  {t('chat:focusSession.addAttachment')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    mentionFromMenu.current = true
+                    startMention()
+                  }}
+                >
+                  <AtSign aria-hidden="true" />
+                  {t('bots:room.composer.mentionMember')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full max-[650px]:hidden"
+              aria-label={t('chat:focusSession.addAttachment')}
+              title={t('chat:focusSession.addAttachment')}
+              onClick={() => void chooser.choose()}
+            >
+              <Paperclip />
+            </Button>
+            <span id={toId} className="ml-1 flex-none text-[12.5px] text-content-muted">
+              {t('bots:room.composer.sendToLabel')}
+            </span>
+            <div
+              role="group"
+              aria-labelledby={toId}
+              data-room-recipients
+              onWheel={wheelChips}
+              className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] pointer-coarse:-my-2.5 pointer-coarse:py-2.5 [&::-webkit-scrollbar]:hidden"
+            >
+              {active.map((member) => {
+                const pressed = chosen.includes(member.id)
+                return (
+                  <Chip
                     key={member.id}
-                    checked={chosen.includes(member.id)}
+                    size="sm"
+                    aria-pressed={pressed}
                     disabled={!member.enabled}
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={(checked) => toggle(member.id, checked === true)}
+                    className={CHIP_TOUCH}
+                    onClick={() => toggle(member.id, !pressed)}
                   >
                     <span
                       aria-hidden="true"
-                      className="size-1.5 flex-none rounded-full"
+                      className="size-1.5 rounded-full"
                       style={{ background: botAvatarTone(member.avatar.color).shade }}
                     />
-                    <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                    {member.name}
                     {!member.enabled && (
-                      <span className="text-xs text-content-muted">{t('bots:room.paused')}</span>
+                      <span className="font-normal text-content-muted">
+                        · {t('bots:room.paused')}
+                      </span>
                     )}
-                  </DropdownMenuCheckboxItem>
-                ))}
-                {active.length > 1 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuCheckboxItem
-                      checked={everyone}
-                      onSelect={(event) => event.preventDefault()}
-                      // 只有主持人分派的群能取消“所有人”（空着交给主持人）；别的群要缩小范围就勾具体的人。
-                      disabled={everyone && !idleLabel}
-                      onCheckedChange={(checked) =>
-                        onRecipientsChange(checked === true ? 'all' : [])
-                      }
-                    >
-                      {t('bots:room.composer.everyone')}
-                    </DropdownMenuCheckboxItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <span className="min-w-0 flex-1" />
+                  </Chip>
+                )
+              })}
+              {active.length > 1 && (
+                <Chip
+                  size="sm"
+                  data-room-recipients-everyone
+                  aria-pressed={everyone}
+                  className={CHIP_TOUCH}
+                  // 只有主持人分派的群能取消“所有人”（空着交给主持人）；别的群要缩小范围就点掉具体的人。
+                  onClick={() => {
+                    if (!everyone) onRecipientsChange('all')
+                    else if (idleLabel) onRecipientsChange([])
+                  }}
+                >
+                  {t('bots:room.composer.everyone')}
+                </Chip>
+              )}
+            </div>
             {wakes >= 3 ? (
               <span className="flex-none px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {t('bots:room.composer.wakes', { count: wakes })}
@@ -363,26 +443,24 @@ export function RoomComposer({
             ) : addressed && !mentionsAll && chosenMembers.length > 0 ? (
               <span
                 data-room-addressed-only
-                className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden"
+                className="max-w-[40%] min-w-0 flex-none truncate px-1 text-[12px] text-content-muted max-[650px]:hidden"
               >
                 {t('bots:room.composer.addressedOnly')}
               </span>
             ) : idleHint && !addressed && chosenMembers.length === 0 ? (
-              <span className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden">
+              <span className="max-w-[40%] min-w-0 flex-none truncate px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {idleHint}
               </span>
             ) : null}
-            <Button
-              size="icon"
-              className="size-8 rounded-full pointer-coarse:size-11"
-              aria-label={t('bots:room.composer.send')}
+            <ComposerSendButton
+              queueing={false}
+              submitting={sending}
+              preparing={preparing}
+              hasDraft={Boolean(value.trim() || hasAttachments)}
               disabled={!canSend}
-              onClick={() => void send()}
-            >
-              <ArrowUp aria-hidden="true" />
-            </Button>
+            />
           </div>
-        </div>
+        </form>
       </PopoverAnchor>
       <PopoverContent
         side="top"

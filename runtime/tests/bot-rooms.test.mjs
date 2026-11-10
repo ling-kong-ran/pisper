@@ -1721,3 +1721,139 @@ test('the composer counts the same wakes as the Runtime: naming someone skips Se
   assert.deepEqual(composerWakeTargets({ text: '@所有人 收尾', members, chosen: [] }).targets, all)
   assert.deepEqual(composerWakeTargets({ text: '先记一下', members, chosen: [] }).targets, [])
 })
+
+test('working bots sit above the composer, finished turns become rows, long chats ask for a brief', async () => {
+  const { roomStatusEntries, mergesWithPrevious, briefPromptStats, ROOM_BRIEF_PROMPT_CHARS } =
+    await import('../../src/features/bots/room-presentation.ts')
+  const { ROOM_WAKE_MIN_CHARS } = await import('../services/rooms/room-model.mjs')
+  // 提示条的门槛就是一次叫醒最少能带的字数：两边改一边会让提示条提前或太晚出现。
+  assert.equal(ROOM_BRIEF_PROMPT_CHARS, ROOM_WAKE_MIN_CHARS)
+  const approval = { id: 'ap', toolName: 'bash', argsPreview: 'npm test', severity: 'standard' }
+  const bot = (id, seq, botId, turn, extra = {}) => ({
+    id,
+    seq,
+    at: `2026-11-10T10:0${seq}:00Z`,
+    author: { kind: 'bot', botId },
+    text: 'ok',
+    recalled: null,
+    replyTo: '',
+    turn: { state: 'done', waiting: null, approval: null, pending: null, ...turn },
+    ...extra,
+  })
+  const entries = roomStatusEntries([
+    bot('a', 1, KE, { state: 'running' }),
+    bot('b', 2, PRO, { state: 'waiting', waiting: 'approval', approval }),
+    bot('c', 3, FISH, { pending: { waiting: 'approval', approval } }),
+    bot('d', 4, KE, {}),
+    bot('e', 5, PRO, { state: 'skipped' }),
+    bot('f', 6, FISH, { state: 'running' }, { recalled: { seenBy: [] } }),
+  ])
+  assert.deepEqual(
+    entries.map((entry) => [entry.message.id, entry.waiting, entry.pending]),
+    [
+      ['a', null, false],
+      ['b', 'approval', false],
+      ['c', 'approval', true],
+    ],
+  )
+  assert.equal(entries[1].approval.id, 'ap')
+
+  // “这一轮”只挂在真叫醒了所有人的那句下面：“发给”记着所有人、但这句 @ 了某个 Bot，就不是一轮。
+  const { timelineItems } = await import('../../src/features/bots/room-presentation.ts')
+  const said = (id, seq, text, mentions) => ({
+    id,
+    seq,
+    at: '',
+    author: { kind: 'user' },
+    text,
+    mentions,
+    replyTo: '',
+    recipients: 'all',
+    turn: null,
+    recalled: null,
+  })
+  const rounds = timelineItems([
+    said('n1', 1, '@小克 看下', [KE]),
+    bot('n2', 2, KE, { triggers: ['n1'], alsoAnswered: [] }),
+    said('n3', 3, '大家看看', []),
+    bot('n4', 4, KE, { triggers: ['n3'], alsoAnswered: [] }),
+  ])
+  assert.equal(rounds[0].round, null)
+  assert.deepEqual(rounds[2].round, [{ botId: KE, state: 'replied' }])
+
+  // 同一个人两分钟内接着说的合并头部；隔久了、换了人、回复了某条都不合并。
+  const user = (id, at, extra = {}) => ({
+    id,
+    at,
+    author: { kind: 'user' },
+    replyTo: '',
+    recalled: null,
+    ...extra,
+  })
+  const first = user('u1', '2026-11-10T10:00:00Z')
+  assert.equal(mergesWithPrevious(first, user('u2', '2026-11-10T10:01:30Z')), true)
+  assert.equal(mergesWithPrevious(first, user('u3', '2026-11-10T10:03:00Z')), false)
+  assert.equal(
+    mergesWithPrevious(first, user('u4', '2026-11-10T10:00:30Z', { replyTo: 'x' })),
+    false,
+  )
+  assert.equal(
+    mergesWithPrevious(first, {
+      ...user('u5', '2026-11-10T10:00:30Z'),
+      author: { kind: 'bot', botId: KE },
+    }),
+    false,
+  )
+
+  // 没人维护简报、简报之后没整理的超过一次叫醒能带的量时才问；有维护的 Bot 时 Runtime 自己会让它整理。
+  const long = Array.from({ length: 30 }, (_, index) => ({
+    seq: index + 1,
+    text: 'x'.repeat(1_000),
+    recalled: null,
+  }))
+  assert.deepEqual(
+    briefPromptStats({ messages: long, brief: null, lastSeq: 30, maintained: false }),
+    { count: 30, chars: 30_000 },
+  )
+  assert.equal(
+    briefPromptStats({ messages: long, brief: null, lastSeq: 30, maintained: true }),
+    null,
+  )
+  assert.equal(
+    briefPromptStats({ messages: long, brief: { upToSeq: 10 }, lastSeq: 30, maintained: false }),
+    null,
+  )
+  assert.equal(
+    briefPromptStats({ messages: long, brief: null, lastSeq: 30, maintained: false, skipUpTo: 20 }),
+    null,
+  )
+})
+
+test('the room page keeps the first look: list rows, status rows, a scrolling Send to row, no cards', async () => {
+  const root = join(import.meta.dirname, '../..')
+  const read = (file) => readFile(join(root, 'src/features/bots', file), 'utf8')
+  const [timeline, composer, page, status] = await Promise.all([
+    read('RoomTimeline.tsx'),
+    read('RoomComposer.tsx'),
+    read('RoomPage.tsx'),
+    read('RoomStatusRows.tsx'),
+  ])
+  // 时间线：一个 feed，每条一个 article，roving tabindex 与“第几条 / 共几条”；不再有右侧气泡和工作卡。
+  assert.match(timeline, /role="feed"/)
+  assert.match(timeline, /aria-posinset=\{index \+ 1\}/)
+  assert.match(timeline, /tabIndex=\{message\.id === activeId \? 0 : -1\}/)
+  assert.match(timeline, /timelineKeyAction\(/)
+  assert.doesNotMatch(timeline, /user-bubble|RoomWorkCard|items-end/)
+  await assert.rejects(read('RoomWorkCard.tsx'), { code: 'ENOENT' })
+  await assert.rejects(read('RoomRail.tsx'), { code: 'ENOENT' })
+  // 在做的 Bot 是输入框上方的一行，读屏会念出变化；批准就在这一行上。
+  assert.match(status, /aria-live="polite"/)
+  assert.match(status, /onApprove\(entry\.message, approval\.id, true\)/)
+  // “发给”：每个成员一个按下式芯片，多了横着滑；没有原生 select、没有下拉多选。
+  assert.match(composer, /aria-pressed=\{pressed\}/)
+  assert.match(composer, /overflow-x-auto/)
+  assert.doesNotMatch(composer, /DropdownMenuCheckboxItem|<select/)
+  // Windows 自绘标题栏：面板没开时页头右边给窗口按钮让出 144px，开着时面板内容从按钮下面开始。
+  assert.match(page, /\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/)
+  assert.match(page, /\[\[data-custom-titlebar\]_&\]:pt-\[52px\]/)
+})

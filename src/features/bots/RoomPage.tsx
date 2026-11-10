@@ -1,10 +1,12 @@
-// Bot 群聊页（/bots/rooms/:roomId）：一份你和几个 Bot 共用的聊天记录。Bot 默认不说话，@ 谁（或“发给”谁）
-// 就叫醒谁；叫醒一次就是一轮，在它自己的席位会话里干活，过程点“过程”看。页头写目标与用量；右栏是简报与成员
-// （手机上收进页头的“成员”按钮）。数据由 useRoomLive 轮询，Bot 在干活时更勤。
+// Bot 群聊页（/bots/rooms/:roomId），第一版的样子：一份你和几个 Bot 共用的聊天记录。@ 谁（或“发给”谁）
+// 就叫醒谁；叫醒一次就是一轮，在它自己的席位会话里干活，“查看过程”看。页头一行：成员头像、群名、
+// “N 个 Bot · 目录”，右边用量、简报、成员、更多、右侧面板开关；简报与成员在右侧面板里（一次一个，
+// 手机上从“更多”打开底部表单）。在干活的 Bot 画成输入框上方的状态行，聊长了、简报没人维护时问一句找谁整理。
+// 数据由 useRoomLive 取（有 room 帧时按帧取，否则轮询）。
 import './bots-messages'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Ellipsis, PanelRight, Target, Users } from 'lucide-react'
+import { Ellipsis, NotebookPen, PanelRight, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Notify } from '@/app/route-context'
 import { pagePath, sessionPath } from '@/app/routes'
@@ -34,11 +36,19 @@ import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { cn } from '@/lib/utils'
 import type { ChatAttachment } from '@/types/chat'
 import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
+import { botModelLabel, executionModeLabel } from './bot-labels'
 import { useBotsPolling, useBotsStore } from './bots-store'
-import { compactTokens, timelineItems } from './room-presentation'
+import {
+  briefPromptStats,
+  compactTokens,
+  roomStatusEntries,
+  timelineItems,
+} from './room-presentation'
+import { RoomAvatarStack } from './RoomAvatarStack'
 import { RoomComposer } from './RoomComposer'
 import { RoomBriefDialog, RoomSettingsDialog, type RoomSettingsDraft } from './RoomDialogs'
-import { RoomRail } from './RoomRail'
+import { RoomBriefPanel, RoomMembersPanel } from './RoomPanels'
+import { RoomBriefPrompt, RoomStatusRows } from './RoomStatusRows'
 import { RoomTimeline, type TimelineActions } from './RoomTimeline'
 import {
   deleteRoom,
@@ -47,8 +57,8 @@ import {
   recallRoomMessage,
   refreshRoomBrief,
   resolveRoomApproval,
-  stopRoomTurn,
   updateRoom,
+  type RoomAnswerMode,
   type RoomMember,
   type RoomMessage,
 } from './rooms-api'
@@ -56,6 +66,7 @@ import { useRoomsStore } from './rooms-store'
 import { useRoomLive } from './use-room-live'
 
 type RoomPageProps = { notify: Notify; phoneLeading?: ReactNode }
+type RoomPanel = 'brief' | 'members'
 
 // 每个群一份页面状态：换群时整页重挂，上一个群的“回复”引用、没发的草稿、开着的对话框不会带过来。
 export function RoomPage(props: RoomPageProps) {
@@ -80,8 +91,12 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   const { detail, messages } = live
   const [replyTo, setReplyTo] = useState<RoomMessage | null>(null)
   const [recalling, setRecalling] = useState<RoomMessage | null>(null)
-  const [railOpen, setRailOpen] = useState(true)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  // 右侧面板（桌面）/ 底部表单（手机）：开着哪一个；panelTab 记着上次开的，面板开关键按它重新打开。
+  const [panel, setPanel] = useState<RoomPanel | null>(null)
+  const [panelTab, setPanelTab] = useState<RoomPanel>('brief')
+  // “找谁写一份简报”：稍后 = 这次打开群聊不再问；这段不用 = 到这一条为止的都不必整理。
+  const [promptLater, setPromptLater] = useState(false)
+  const [promptSkipUpTo, setPromptSkipUpTo] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [briefOpen, setBriefOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -100,6 +115,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     [detail?.members],
   )
   const items = useMemo(() => timelineItems(messages), [messages])
+  const statusEntries = useMemo(() => roomStatusEntries(messages), [messages])
+  const botsById = useMemo(() => new Map(bots.map((bot) => [bot.id, bot])), [bots])
   const reportError = useCallback(
     (caught: unknown) => notify(caught instanceof Error ? caught.message : String(caught), 'error'),
     [notify],
@@ -151,22 +168,14 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
       setRecalling(message)
     },
     onOpenProcess: (sessionId) => navigate(sessionPath(sessionId)),
-    onApprove: (message, approvalId, approve) =>
-      once(`approval:${approvalId}`, () =>
-        resolveRoomApproval(roomId, message.id, approvalId, approve),
-      ),
-    onStop: (message) => once(`stop:${message.id}`, () => stopRoomTurn(roomId, message.id)),
     onJump: (messageId) => {
       const node = listRef.current?.querySelector(`[data-room-message="${CSS.escape(messageId)}"]`)
       if (node instanceof HTMLElement) {
         // 跳过去的那条同时拿到焦点：接着用方向键从这里往下看。
         node.focus({ preventScroll: true })
         node.scrollIntoView({ block: 'center', behavior: 'smooth' })
-        node.classList.add('ring-2', 'ring-focus-ring', 'rounded-xl')
-        window.setTimeout(
-          () => node.classList.remove('ring-2', 'ring-focus-ring', 'rounded-xl'),
-          1_200,
-        )
+        node.classList.add('ring-2', 'ring-focus-ring')
+        window.setTimeout(() => node.classList.remove('ring-2', 'ring-focus-ring'), 1_200)
       }
     },
   }
@@ -237,6 +246,26 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     }
   }
 
+  const approve = (message: RoomMessage, approvalId: string, allow: boolean) =>
+    once(`approval:${approvalId}`, () => resolveRoomApproval(roomId, message.id, approvalId, allow))
+
+  const changeAnswerMode = (answerMode: RoomAnswerMode, hostBotId: string) => {
+    // 换了谁来回答，Runtime 会按新模式给“发给”一个默认值：本地记着的选择作废，以群里存的为准。
+    void updateRoom(roomId, { answerMode, hostBotId })
+      .then((next) => {
+        setRecipients(null)
+        upsertRoom(next)
+        return live.poll()
+      })
+      .catch(reportError)
+  }
+
+  // 简报 / 成员：同一个再点一下收起；面板开关键重新打开上次那个。
+  const togglePanel = (next: RoomPanel) => {
+    setPanelTab(next)
+    setPanel((current) => (current === next ? null : next))
+  }
+
   const saveSettings = async (draft: Partial<RoomSettingsDraft>) => {
     const room = await updateRoom(roomId, draft)
     upsertRoom(room)
@@ -285,17 +314,45 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     hostAvailable && room.answerMode === 'host'
       ? members.get(room.hostBotId)?.name || t('bots:room.removedBot')
       : ''
-  const rail = (
-    <RoomRail
-      detail={detail}
-      briefing={briefing || detail.briefing}
-      onTidy={(botId) => void tidy(botId)}
-      onEditBrief={() => setBriefOpen(true)}
-      onOpenMember={(member: RoomMember) =>
-        member.sessionId && navigate(sessionPath(member.sessionId))
-      }
-    />
-  )
+  const panelContent =
+    panel === 'members' ? (
+      <RoomMembersPanel
+        detail={detail}
+        hostAvailable={hostAvailable}
+        onOpenMember={(member: RoomMember) =>
+          member.sessionId && navigate(sessionPath(member.sessionId))
+        }
+        onAnswerModeChange={changeAnswerMode}
+      />
+    ) : (
+      <RoomBriefPanel
+        detail={detail}
+        briefing={briefing || detail.briefing}
+        onTidy={(botId) => void tidy(botId)}
+        onEditBrief={() => setBriefOpen(true)}
+      />
+    )
+  const panelTitle = panel === 'members' ? t('bots:room.header.members') : t('bots:room.brief')
+  const prompt =
+    promptLater || briefing || detail.briefing
+      ? null
+      : briefPromptStats({
+          messages,
+          brief: detail.brief,
+          lastSeq: detail.lastSeq,
+          maintained: Boolean(room.briefBotId),
+          skipUpTo: promptSkipUpTo,
+        })
+  // 页头“N 个 Bot · 目录”只写目录的最后一段（完整路径在群设置里）。
+  const folder = room.cwd.split(/[\\/]/).filter(Boolean).at(-1) || ''
+  const modelLabel = (botId: string) => {
+    const bot = botsById.get(botId)
+    return bot ? botModelLabel(t, bot.model) : ''
+  }
+  const modeLabel = (botId: string) => {
+    const bot = botsById.get(botId)
+    return bot ? executionModeLabel(t, bot.executionMode) : ''
+  }
   const recallSeen =
     recalling && !recalling.turn
       ? detail.members
@@ -312,48 +369,58 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         : []
 
   return (
-    <div data-room-page={room.id} className="flex h-full min-h-0 bg-panel">
+    <div
+      data-room-page={room.id}
+      className="flex h-full min-h-0 bg-[var(--main-surface-bg,var(--panel))]"
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Windows 自绘的窗口按钮压在窗口右上角：右栏不在时页头右边要给它们让出位置（右栏在时它们压在右栏上）。 */}
+        {/* Windows 自绘的窗口按钮压在窗口右上角：右侧面板没开时页头右边给它们让出位置（开着时它们压在面板上）。 */}
         <header
           className={cn(
-            'flex min-h-[52px] flex-none items-center gap-2 px-4 max-[650px]:min-h-14 max-[650px]:px-3 max-[650px]:pt-[var(--pisper-safe-area-top,0px)]',
-            railOpen
-              ? 'max-[1100px]:[[data-custom-titlebar]_&]:pr-[144px]'
-              : '[[data-custom-titlebar]_&]:pr-[144px]',
+            'flex h-[52px] flex-none items-center gap-2 px-4 max-[650px]:h-[calc(52px+var(--pisper-safe-area-top,0px))] max-[650px]:px-2 max-[650px]:pt-[var(--pisper-safe-area-top,0px)]',
+            !(panel && !phone) && '[[data-custom-titlebar]_&]:pr-[144px]',
           )}
         >
           {phone && phoneLeading}
-          <div className="min-w-0 flex-1 py-1.5">
-            <h1 className="m-0 truncate text-[15px] font-semibold text-content">{room.name}</h1>
-            {room.goal && (
-              <p className="m-0 flex min-w-0 items-center gap-1 text-[12px] text-content-muted">
-                <Target className="size-3 flex-none" aria-hidden="true" />
-                <span className="truncate">{room.goal}</span>
-              </p>
-            )}
-          </div>
+          <RoomAvatarStack avatars={activeMembers.map((member) => member.avatar)} />
+          <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold text-content">
+            {room.name}
+          </h1>
+          <span className="flex-none text-[13px] text-content-muted max-[650px]:hidden">
+            {folder
+              ? t('bots:room.header.summaryWithFolder', {
+                  count: activeMembers.length,
+                  folder,
+                })
+              : t('bots:room.header.summary', { count: activeMembers.length })}
+          </span>
+          <span className="flex-1" />
           {detail.totalTokens > 0 && (
             <span className="flex-none text-[12px] text-content-muted tabular-nums max-[650px]:hidden">
               {t('bots:room.usage', { tokens: compactTokens(detail.totalTokens) })}
             </span>
           )}
-          {phone && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="relative"
-              aria-label={t('bots:room.openRail')}
-              onClick={() => setSheetOpen(true)}
-            >
-              <Users />
-              {detail.activity.needsYou && (
-                <span
-                  aria-hidden="true"
-                  className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-st-attn"
-                />
-              )}
-            </Button>
+          {!phone && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={panel === 'brief'}
+                onClick={() => togglePanel('brief')}
+              >
+                <NotebookPen />
+                {t('bots:room.brief')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={panel === 'members'}
+                onClick={() => togglePanel('members')}
+              >
+                <Users />
+                {t('bots:room.header.members')}
+              </Button>
+            </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -362,6 +429,19 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {phone && (
+                <>
+                  <DropdownMenuItem onSelect={() => setPanel('brief')}>
+                    <NotebookPen aria-hidden="true" />
+                    {t('bots:room.brief')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setPanel('members')}>
+                    <Users aria-hidden="true" />
+                    {t('bots:room.header.members')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
                 {t('bots:room.settings.title')}
               </DropdownMenuItem>
@@ -379,9 +459,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
               variant="ghost"
               size="icon-sm"
               aria-label={t('bots:room.toggleRail')}
-              aria-pressed={railOpen}
-              onClick={() => setRailOpen(!railOpen)}
-              className="max-[1100px]:hidden"
+              aria-pressed={Boolean(panel)}
+              onClick={() => setPanel(panel ? null : panelTab)}
             >
               <PanelRight />
             </Button>
@@ -397,23 +476,24 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
             stickRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
           }}
         >
-          <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 px-6 pt-3 pb-6 max-[650px]:px-4">
+          <div className="mx-auto w-full max-w-[768px] px-6 pt-2 pb-4 max-[650px]:px-4">
             {live.hasMore && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="self-center"
-                onClick={() => void live.loadOlder().catch(reportError)}
-              >
-                {t('bots:room.loadOlder')}
-              </Button>
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void live.loadOlder().catch(reportError)}
+                >
+                  {t('bots:room.loadOlder')}
+                </Button>
+              </div>
             )}
             {items.length ? (
               <RoomTimeline
                 items={items}
                 messages={messages}
                 members={members}
-                canAct
+                modelLabel={modelLabel}
                 actions={actions}
               />
             ) : (
@@ -426,11 +506,31 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-[768px] flex-none px-6 pb-4 max-[650px]:px-3 max-[650px]:pb-[calc(12px+var(--pisper-safe-area-bottom,0px))]">
+        <div className="mx-auto w-full max-w-[816px] flex-none px-6 pb-4 max-[650px]:px-3 max-[650px]:pb-[calc(12px+var(--pisper-safe-area-bottom,0px))]">
           {live.error && (
             <p role="status" className="m-0 mb-2 text-center text-[12px] text-content-muted">
               {t('bots:room.reconnecting')}
             </p>
+          )}
+          <RoomStatusRows
+            entries={statusEntries}
+            members={members}
+            modeLabel={modeLabel}
+            onOpenProcess={(sessionId) => navigate(sessionPath(sessionId))}
+            onApprove={approve}
+          />
+          {prompt && (
+            <RoomBriefPrompt
+              count={prompt.count}
+              chars={prompt.chars}
+              members={activeMembers}
+              phone={phone}
+              onPick={(botId) => void tidy(botId)}
+              onWrite={() => setBriefOpen(true)}
+              onLater={() => setPromptLater(true)}
+              onSkip={() => setPromptSkipUpTo(detail.lastSeq)}
+              onOpen={() => setPanel('brief')}
+            />
           )}
           <RoomComposer
             roomId={room.id}
@@ -457,25 +557,25 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         </div>
       </div>
 
-      {!phone && railOpen && (
+      {!phone && panel && (
         <aside
-          aria-label={t('bots:room.rail')}
-          // 右栏顶上是窗口按钮（Windows 自绘标题栏）：内容从按钮下面开始，简报的编辑键不会被压住。
-          className="w-[288px] flex-none overflow-y-auto border-l border-stroke-soft px-3 py-3 max-[1100px]:hidden [[data-custom-titlebar]_&]:pt-[52px]"
+          aria-label={panelTitle}
+          // 面板顶上是窗口按钮（Windows 自绘标题栏）：内容从按钮下面开始，简报的编辑键不会被压住。
+          className="w-[288px] flex-none overflow-y-auto border-l border-stroke-soft px-3 py-3 [[data-custom-titlebar]_&]:pt-[52px]"
         >
-          {rail}
+          {panelContent}
         </aside>
       )}
 
       {phone && (
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <Sheet open={Boolean(panel)} onOpenChange={(open) => !open && setPanel(null)}>
           <SheetContent
             side="bottom"
             className="max-h-[85dvh] overflow-y-auto px-4 pt-12 pb-[calc(16px+var(--pisper-safe-area-bottom,0px))]"
           >
-            <SheetTitle className="sr-only">{t('bots:room.rail')}</SheetTitle>
+            <SheetTitle className="sr-only">{panelTitle}</SheetTitle>
             <SheetDescription className="sr-only">{room.name}</SheetDescription>
-            {rail}
+            {panelContent}
           </SheetContent>
         </Sheet>
       )}

@@ -1,8 +1,16 @@
-// 群聊页的纯逻辑：消息列表 → 时间线条目（你的气泡、Bot 的工作卡、“这一轮”、交接行、系统行），
-// 正文里的 @ 高亮切段，输入框里 @ 补全的查询。不碰网络与 React，单测直接调。
+// 群聊页的纯逻辑：消息列表 → 时间线条目（你的话、Bot 每一轮的回复、“这一轮”、交接行、系统行），
+// 输入框上方的状态行、“找谁写一份简报”提示条，正文里的 @ 高亮切段，输入框里 @ 补全的查询。
+// 不碰网络与 React，单测直接调。
 import { assetDownloadUrl, assetMediaUrl } from '@/features/assets/public'
 import type { ChatAttachment } from '@/types/chat'
-import type { RoomAttachment, RoomMember, RoomMessage, RoomTodo } from './rooms-api'
+import type {
+  RoomApproval,
+  RoomAttachment,
+  RoomBrief,
+  RoomMember,
+  RoomMessage,
+  RoomTodo,
+} from './rooms-api'
 
 export type TimelineMember = { id: string; name: string }
 
@@ -15,12 +23,16 @@ export type TimelineItem =
   | { kind: 'system'; message: RoomMessage }
   | { kind: 'recalled'; message: RoomMessage }
 
-// 这句话是不是发给“所有人”：发给里选了所有人，或正文写了 @所有人 / @all / @everyone。
-export function addressesEveryone(message: RoomMessage) {
-  return (
-    message.recipients === 'all' ||
-    /(^|[^\p{L}\p{N}_])@(所有人|all|everyone)(?![\p{L}\p{N}_])/iu.test(message.text)
-  )
+// 这句话是不是叫醒了“所有人”（一轮“所有人”）：正文写了 @所有人 / @all / @everyone；或者没点名
+// （没 @ 谁、没回复某个 Bot）、“发给”是所有人。点了名的话只叫点到的（和 Runtime 的 userWakeTargets 一致），
+// 即使“发给”记着所有人也不算一轮——不然每句 @ 某人的话下面都会多一行“这一轮”。
+export function addressesEveryone(
+  message: RoomMessage,
+  byId: ReadonlyMap<string, RoomMessage> = new Map(),
+) {
+  if (/(^|[^\p{L}\p{N}_])@(所有人|all|everyone)(?![\p{L}\p{N}_])/iu.test(message.text)) return true
+  const repliedBot = message.replyTo ? byId.get(message.replyTo)?.author.kind === 'bot' : false
+  return message.recipients === 'all' && !message.mentions?.length && !repliedBot
 }
 
 /**
@@ -36,7 +48,7 @@ export function timelineItems(messages: readonly RoomMessage[]): TimelineItem[] 
     const botId = message.author.botId
     for (const trigger of [...turn.triggers, ...turn.alsoAnswered]) {
       const target = byId.get(trigger)
-      if (!target || target.author.kind !== 'user' || !addressesEveryone(target)) continue
+      if (!target || target.author.kind !== 'user' || !addressesEveryone(target, byId)) continue
       const entries = rounds.get(trigger) || []
       // 同一个 Bot 只记一次（插进来的几句话并成一轮时可能指向同一句）。
       if (entries.some((entry) => entry.botId === botId)) continue
@@ -279,4 +291,95 @@ export function timelineKeyAction(
   if (event.key === 'Enter' && item.kind === 'card' && item.message.turn?.sessionId)
     return { type: 'process' }
   return null
+}
+
+// 还在做的一轮（在做、等你）：不在时间线里占一行，画成输入框上方的状态行；做完了回复才贴进时间线。
+export function isLiveTurn(message: RoomMessage) {
+  return message.turn?.state === 'running' || message.turn?.state === 'waiting'
+}
+
+export type RoomStatusEntry = {
+  message: RoomMessage
+  botId: string
+  // 等你什么：批准、回答；null 是正在做。
+  waiting: 'approval' | 'question' | null
+  approval: RoomApproval | null
+  // 这一轮已经结束，是它派出去的活在等你。
+  pending: boolean
+}
+
+/**
+ * 输入框上方的状态行：每个在做的一轮一行（在做 / 等你批准 / 等你回答）；一轮结束了、它派出去的活还在等你的，
+ * 也占一行琥珀色的，批准就在这一行上。按时间先后排。
+ */
+export function roomStatusEntries(messages: readonly RoomMessage[]): RoomStatusEntry[] {
+  const entries: RoomStatusEntry[] = []
+  for (const message of messages) {
+    const turn = message.turn
+    if (!turn || message.author.kind !== 'bot' || message.recalled) continue
+    if (turn.state === 'running' || turn.state === 'waiting') {
+      entries.push({
+        message,
+        botId: message.author.botId,
+        waiting: turn.state === 'waiting' ? turn.waiting || 'approval' : null,
+        approval: turn.state === 'waiting' ? turn.approval : null,
+        pending: false,
+      })
+    } else if (turn.pending) {
+      entries.push({
+        message,
+        botId: message.author.botId,
+        waiting: turn.pending.waiting,
+        approval: turn.pending.approval,
+        pending: true,
+      })
+    }
+  }
+  return entries
+}
+
+// 同一个人两分钟内接着说的话合并头部（头像、名字、时间只画一次），像 Slack。
+export const ROOM_MERGE_WINDOW_MS = 2 * 60_000
+
+export function mergesWithPrevious(previous: RoomMessage | undefined, message: RoomMessage) {
+  if (!previous || previous.recalled || message.replyTo) return false
+  const same =
+    previous.author.kind === message.author.kind &&
+    (message.author.kind !== 'bot' ||
+      (previous.author.kind === 'bot' && previous.author.botId === message.author.botId))
+  if (!same || message.author.kind === 'system') return false
+  const gap = Date.parse(message.at) - Date.parse(previous.at)
+  return Number.isFinite(gap) && gap >= 0 && gap <= ROOM_MERGE_WINDOW_MS
+}
+
+// 本地日期（年-月-日）：时间线在换天的地方画一条“今天 / 昨天 / 日期”分隔线。
+export function roomDayKey(at: string) {
+  const date = new Date(at)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+}
+
+// 和 Runtime 的 ROOM_WAKE_MIN_CHARS 一致（runtime/services/rooms/room-model.mjs，测试核对）：
+// 一次叫醒至少能带这么多字；简报之后没整理的消息超过它，就有 Bot 读不全了。
+export const ROOM_BRIEF_PROMPT_CHARS = 24_000
+
+/**
+ * “找谁写一份简报”提示条：没有指定维护简报的 Bot（有的话 Runtime 读不下时会让它自动整理）、
+ * 简报之后（以及“这段不用”之后）没整理的消息超过一次叫醒能带的量时出现。
+ * 只按已经加载的消息算字数（更早的没加载时偏少，宁可晚一点出现）；条数用 lastSeq 算。
+ */
+export function briefPromptStats(input: {
+  messages: readonly RoomMessage[]
+  brief: RoomBrief | null
+  lastSeq: number
+  maintained: boolean
+  skipUpTo?: number
+}) {
+  if (input.maintained) return null
+  const from = Math.max(input.brief?.upToSeq || 0, input.skipUpTo || 0)
+  const count = Math.max(0, input.lastSeq - from)
+  const chars = input.messages
+    .filter((message) => message.seq > from && !message.recalled)
+    .reduce((sum, message) => sum + message.text.length, 0)
+  return count > 0 && chars >= ROOM_BRIEF_PROMPT_CHARS ? { count, chars } : null
 }
