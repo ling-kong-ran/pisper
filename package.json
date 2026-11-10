@@ -66,7 +66,7 @@
     "test:extra:ui": "node scripts/smoke-session-rename.mjs && node scripts/smoke-provider-profiles.mjs && node scripts/smoke-replica-assets.mjs && node scripts/smoke-replica-notifications.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
     "@homebridge/ciao": "^1.3.12",
     "@jsquash/webp": "1.5.0",
     "@larksuiteoapi/node-sdk": "^1.71.1",
