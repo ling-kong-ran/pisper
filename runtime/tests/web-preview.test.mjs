@@ -450,3 +450,23 @@ test('a desktop that falls back to the embedded preview says why instead of fail
   assert.match(pane, /\/Windows\|Macintosh\/\.test\(navigator\.userAgent\)/)
   assert.doesNotMatch(hosts, /pisperDesktop\?\.platform/)
 })
+
+test('a closed browser tab is never torn down inside its own WebView2 callback', async () => {
+  const browser = await readFile('src-tauri/src/desktop_shell/desktop_browser.rs', 'utf8')
+  // 关页签后 Cookie 回调手里是最后一个引用：在回调里放手会当场拆掉 WebView，回调返回后内核读到
+  // 已释放的对象，主线程访问违例，整个 Pisper 闪退（Windows dump：EmbeddedBrowserWebView.dll 内 AV）。
+  const callback = browser.slice(
+    browser.indexOf('GetCookiesCompletedHandler::create'),
+    browser.indexOf('manager.GetCookies('),
+  )
+  assert.ok(callback.length > 0)
+  assert.doesNotMatch(callback, /drop\(browser\)/)
+  assert.match(callback, /retire\(browser\)/)
+  // retire 只挂起来，真正销毁放到下一轮消息循环。
+  const retire = browser.slice(browser.indexOf('fn retire('), browser.indexOf('fn rect('))
+  assert.match(retire, /RETIRED\.with_borrow_mut\(\|retired\| retired\.push\(browser\)\)/)
+  assert.match(
+    retire,
+    /run_on_main_thread\(\|\| \{\s*let retired = RETIRED\.with_borrow_mut\(std::mem::take\)/,
+  )
+})

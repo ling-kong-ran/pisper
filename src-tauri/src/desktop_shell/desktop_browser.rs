@@ -86,7 +86,7 @@ mod native {
         cell::{Cell, RefCell},
         collections::HashMap,
         rc::Rc,
-        sync::{mpsc, Arc, Mutex},
+        sync::{mpsc, Arc, Mutex, OnceLock},
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
     use tauri::{ipc::Channel, AppHandle, Manager, Url, WebviewWindow};
@@ -219,7 +219,7 @@ mod native {
                 }
             }
             let _ = done.send(());
-            drop(browser);
+            retire(browser);
             Ok(())
         }));
         // SAFETY: handler 是有效的 COM 对象；空 URI 表示取全部 Cookie。
@@ -271,6 +271,25 @@ mod native {
         // 用 Rc：操作 WebView 时系统可能回调进来（比如弹窗请求），那时不能还借着这张表。
         static BROWSERS: RefCell<HashMap<String, Rc<Browser>>> = RefCell::new(HashMap::new());
         static NEXT_POPUP_ID: Cell<u64> = const { Cell::new(1) };
+        // WebView2 回调里放手的页签，等下一轮消息循环再销毁，见 retire。
+        static RETIRED: RefCell<Vec<Rc<Browser>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    // 安排“下一轮再做”要用的句柄：开第一个页签时记下。
+    static APP: OnceLock<AppHandle> = OnceLock::new();
+
+    // 不能在 WebView2 自己的回调里销毁它：关页签后 Cookie 回调手里是最后一个引用，在回调里放手就会
+    // 当场拆掉 WebView，回调返回后内核还要用这个对象，读到已释放的内存，整个 Pisper 闪退。
+    // 先挂在这里，下一轮消息循环（已经离开回调）再真正销毁。
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    fn retire(browser: Rc<Browser>) {
+        RETIRED.with_borrow_mut(|retired| retired.push(browser));
+        if let Some(app) = APP.get() {
+            let _ = app.run_on_main_thread(|| {
+                let retired = RETIRED.with_borrow_mut(std::mem::take);
+                drop(retired);
+            });
+        }
     }
 
     fn rect(bounds: BrowserBounds) -> Rect {
@@ -611,6 +630,7 @@ mod native {
         on_event: Channel<BrowserEvent>,
     ) -> Result<(), String> {
         ensure_room(&browser_id)?;
+        let _ = APP.set(window.app_handle().clone());
         let app_origin = window.url().map_err(|error| error.to_string())?;
         let profile = window
             .app_handle()
