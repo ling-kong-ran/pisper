@@ -31,6 +31,14 @@ import {
 } from './machines-api'
 import { useMachines } from './useMachines'
 
+// 用户名和主机分开填，存的仍是一个 target（user@host）：按最后一个 @ 拆开，IPv6 的方括号里没有 @。
+function splitTarget(target: string) {
+  const at = target.lastIndexOf('@')
+  return at < 0
+    ? { user: '', host: target }
+    : { user: target.slice(0, at), host: target.slice(at + 1) }
+}
+
 function machineAddress(machine: Machine) {
   const system = machine.system?.name ? ` · ${machine.system.name}` : ''
   if (machine.kind === 'node') return machine.roots.join(' · ') + system
@@ -53,7 +61,9 @@ function SshForm({
   const { t } = useI18n()
   const fieldId = useId()
   const [name, setName] = useState(machine?.name ?? '')
-  const [target, setTarget] = useState(machine?.target ?? '')
+  const [host, setHost] = useState(() => splitTarget(machine?.target ?? '').host)
+  const [user, setUser] = useState(() => splitTarget(machine?.target ?? '').user)
+  const target = user.trim() ? `${user.trim()}@${host.trim()}` : host.trim()
   const [port, setPort] = useState(machine?.port ? String(machine.port) : '')
   const [defaultCwd, setDefaultCwd] = useState(machine?.defaultCwd ?? '')
   const [auth, setAuth] = useState<MachineAuth>(machine?.auth ?? 'key')
@@ -64,7 +74,7 @@ function SshForm({
   // 存着的密码只属于存它时的地址和端口：改了其中一个就要重新输入，Runtime 也不会把旧密码发到新地址。
   const addressChanged =
     Boolean(machine) &&
-    (target.trim() !== machine?.target ||
+    (target !== machine?.target ||
       (port.trim() ? Number(port.trim()) : null) !== (machine?.port ?? null))
   const hadPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
   // 刚取到、等用户核对的主机公钥；confirmed 是用户勾了“我已核对”。
@@ -82,9 +92,12 @@ function SshForm({
     Boolean(fetched) && (!savedHostKey || savedHostKey.fingerprint !== fetched?.fingerprint)
   const savedPassword = hadPassword && !addressChanged && !hostKeyChanged
   const needsPassword = auth === 'password' && !password && !savedPassword
+  // 密码登录不读 SSH 配置，不填用户名 ssh 会拿这台电脑的登录名去试，几乎总是错的。
+  const needsUser = auth === 'password' && !user.trim()
   const hostKeyReady = auth !== 'password' || (fetched ? confirmed : Boolean(savedHostKey))
+  const incomplete = !host.trim() || needsUser || needsPassword || !hostKeyReady
   const address = () => ({
-    target: target.trim(),
+    target,
     port: port.trim() ? Number(port.trim()) : null,
   })
   const connection = () => ({
@@ -151,7 +164,7 @@ function SshForm({
   }
   const save = async (event: FormEvent) => {
     event.preventDefault()
-    if (needsPassword || !hostKeyReady) return
+    if (incomplete) return
     setBusy('save')
     setError('')
     try {
@@ -184,12 +197,15 @@ function SshForm({
             required
             autoFocus
             spellCheck={false}
-            value={target}
+            value={host}
             className="font-mono text-xs"
             placeholder={t('machines:form.targetPlaceholder')}
             data-machine-target
             onChange={(event) => {
-              setTarget(event.target.value)
+              // 粘贴整段 user@host 时顺手拆到两个框里。
+              const next = splitTarget(event.target.value)
+              setHost(next.host)
+              if (next.user) setUser(next.user)
               resetHostKey()
             }}
           />
@@ -209,6 +225,27 @@ function SshForm({
           />
         </label>
       </div>
+      <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
+        {t('machines:form.user')}
+        <Input
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="username"
+          value={user}
+          required={auth === 'password'}
+          className="font-mono text-xs"
+          placeholder={
+            auth === 'password'
+              ? t('machines:form.userPlaceholder')
+              : t('machines:form.userPlaceholderKey')
+          }
+          data-machine-user
+          onChange={(event) => {
+            setUser(event.target.value)
+            resetHostKey()
+          }}
+        />
+      </label>
       <div className="grid gap-1.5 text-xs font-medium text-content-secondary">
         <span id={`${fieldId}-auth`}>{t('machines:form.auth')}</span>
         <SegmentedControl<MachineAuth>
@@ -260,7 +297,7 @@ function SshForm({
               type="button"
               variant="outline"
               size="sm"
-              disabled={fetching || !target.trim()}
+              disabled={fetching || !host.trim()}
               data-machine-host-key-fetch
               onClick={() => void fetchHostKey()}
             >
@@ -376,18 +413,14 @@ function SshForm({
         <Button
           type="button"
           variant="outline"
-          disabled={Boolean(busy) || !target.trim() || needsPassword || !hostKeyReady}
+          disabled={Boolean(busy) || incomplete}
           data-machine-test
           onClick={() => void test()}
         >
           {busy === 'test' && <OrbitSpinner className="size-3.5" />}
           {busy === 'test' ? t('machines:form.testing') : t('machines:form.test')}
         </Button>
-        <Button
-          type="submit"
-          disabled={Boolean(busy) || !target.trim() || needsPassword || !hostKeyReady}
-          data-machine-save
-        >
+        <Button type="submit" disabled={Boolean(busy) || incomplete} data-machine-save>
           {t('machines:form.save')}
         </Button>
       </div>
