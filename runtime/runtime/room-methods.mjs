@@ -8,10 +8,10 @@ import { pisperError } from '../../shared/errors.mjs'
 import {
   roomAttachmentsNote,
   roomBriefInstruction,
+  roomRouteInstruction,
   roomSeatPrompt,
   roomSkippedAttachmentsNote,
 } from '../prompts/rooms.mjs'
-import { roomBriefInstruction, roomRouteInstruction, roomSeatPrompt } from '../prompts/rooms.mjs'
 import { MAX_BOT_LINK_HOPS, isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
 import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-service.mjs'
 import { toolArgsSummary } from '../services/session-card-summary.mjs'
