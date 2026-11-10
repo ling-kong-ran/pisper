@@ -314,7 +314,15 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   return (
     <div data-room-page={room.id} className="flex h-full min-h-0 bg-panel">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex min-h-[52px] flex-none items-center gap-2 px-4 max-[650px]:min-h-14 max-[650px]:px-3 max-[650px]:pt-[var(--pisper-safe-area-top,0px)]">
+        {/* Windows 自绘的窗口按钮压在窗口右上角：右栏不在时页头右边要给它们让出位置（右栏在时它们压在右栏上）。 */}
+        <header
+          className={cn(
+            'flex min-h-[52px] flex-none items-center gap-2 px-4 max-[650px]:min-h-14 max-[650px]:px-3 max-[650px]:pt-[var(--pisper-safe-area-top,0px)]',
+            railOpen
+              ? 'max-[1100px]:[[data-custom-titlebar]_&]:pr-[144px]'
+              : '[[data-custom-titlebar]_&]:pr-[144px]',
+          )}
+        >
           {phone && phoneLeading}
           <div className="min-w-0 flex-1 py-1.5">
             <h1 className="m-0 truncate text-[15px] font-semibold text-content">{room.name}</h1>
@@ -452,9 +460,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
       {!phone && railOpen && (
         <aside
           aria-label={t('bots:room.rail')}
-          className={cn(
-            'w-[288px] flex-none overflow-y-auto border-l border-stroke-soft px-3 py-3 max-[1100px]:hidden',
-          )}
+          // 右栏顶上是窗口按钮（Windows 自绘标题栏）：内容从按钮下面开始，简报的编辑键不会被压住。
+          className="w-[288px] flex-none overflow-y-auto border-l border-stroke-soft px-3 py-3 max-[1100px]:hidden [[data-custom-titlebar]_&]:pt-[52px]"
         >
           {rail}
         </aside>

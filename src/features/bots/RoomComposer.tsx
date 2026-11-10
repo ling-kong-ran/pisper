@@ -1,6 +1,8 @@
 // 群聊输入框：外观沿用会话页的输入卡片。打 @ 弹出成员补全（Popover + Command，键盘可选，含“所有人”）；
 // “发给”是一个芯片（DropdownMenu 多选，含“所有人”），选中的人叠头像，记在群里下次还在，新建的群默认所有人。
-// 点了名（@ 谁、回复某个 Bot、@所有人）就只叫点到的；没点名才发给芯片里选的人，芯片为空时只留言。
+// 点了名（@ 谁、回复某个 Bot、@所有人）就只叫点到的；没点名才发给芯片里选的人。
+// “只留言”是芯片里单独的一项：话记进群里但谁也不叫醒（不花模型用量），下次谁被叫醒时会一起读到，
+// 适合先铺垫背景、材料再提问。选中时发送键旁写明这一点，免得以为 Bot 没反应。
 // 要叫醒 3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
 // 附件和会话输入框是同一套（附件键、粘贴图片、拖文件进来、附件托盘），只带附件不写字也能发。
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
@@ -109,6 +111,8 @@ export function RoomComposer({
   const everyone = recipients === 'all'
   const chosen = everyone ? active.map((member) => member.id) : recipients
   const chosenMembers = active.filter((member) => chosen.includes(member.id))
+  // 只留言：“@ 谁谁答”的群里谁也没选（主持人分派的群空着是交给主持人）。
+  const quiet = !idleLabel && !everyone && chosenMembers.length === 0
   // 点名：@成员、@所有人、回复某个 Bot。点了名就只叫点到的，“发给”这次不用（也不经过主持人）。
   const { addressed, mentionsAll, targets } = composerWakeTargets({
     text: value,
@@ -343,6 +347,26 @@ export function RoomComposer({
                     </DropdownMenuCheckboxItem>
                   </>
                 )}
+                {!idleLabel && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={quiet}
+                      data-room-leave-only
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(checked) =>
+                        onRecipientsChange(checked === true ? [] : 'all')
+                      }
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span>{t('bots:room.composer.leaveOnly')}</span>
+                        <span className="text-xs text-content-muted">
+                          {t('bots:room.composer.leaveOnlyDescription')}
+                        </span>
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <span className="min-w-0 flex-1" />
@@ -357,9 +381,12 @@ export function RoomComposer({
               >
                 {t('bots:room.composer.addressedOnly')}
               </span>
-            ) : idleHint && !addressed && chosenMembers.length === 0 ? (
-              <span className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden">
-                {idleHint}
+            ) : (idleHint || quiet) && !addressed && chosenMembers.length === 0 ? (
+              <span
+                data-room-idle-hint
+                className="min-w-0 truncate px-1 text-[12px] text-content-muted max-[650px]:hidden"
+              >
+                {idleHint || t('bots:room.composer.leaveOnlyHint')}
               </span>
             ) : null}
             <Button
