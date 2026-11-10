@@ -93,6 +93,26 @@ test('the computer use tool shows what it is doing and its screenshot', () => {
   assert.ok(html.includes(t('chat:agentRunActivity.operatingComputer')))
   assert.ok(html.includes('ctrl+s'))
   assert.ok(html.includes('/api/assets/a/download?inline=1'))
+  // 批量动作列出前几步，而不只是 batch。
+  const batch = render({
+    activityFeed: [
+      {
+        type: 'tool',
+        id: 'tool-d',
+        name: 'computer_use',
+        args: {
+          action: 'batch',
+          steps: [
+            { action: 'click', x: 1, y: 1 },
+            { action: 'type', text: 'hi' },
+            { action: 'key', keys: 'Enter' },
+          ],
+        },
+        status: 'done',
+      },
+    ],
+  })
+  assert.ok(batch.includes('click · type · key · Enter'))
 })
 
 // 旧版会话的历史记录里还有这些工具名，要能正常显示。

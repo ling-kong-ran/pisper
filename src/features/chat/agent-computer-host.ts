@@ -6,7 +6,11 @@ import { connectDesktopHost, reportDesktopHostResult } from './desktop-host-conn
 const ENDPOINT = '/api/desktop-computer/host'
 // 动作之后等界面反应过来再截图。
 const SETTLE_MS = 450
+// 批量动作里两步之间等一下（比如点开搜索框之后再打字），比截图前等得短。
+const STEP_SETTLE_MS = 200
 const MAX_WAIT_MS = 15_000
+// 要指着屏幕上某处的动作：坐标来自最近一张截图，还没截过图就没有坐标可言。
+const POINTING = new Set(['move', 'click', 'double_click', 'right_click', 'drag', 'scroll'])
 
 type Labels = { title: string; hint: string; stop: string }
 
@@ -47,6 +51,67 @@ export function computerActionFromCommand(
   }
 }
 
+type ComputerDevice = Pick<DesktopComputerBridge, 'screenshot' | 'act'>
+
+/**
+ * 执行一条已开始操作的指令：截图、等待、单个动作，或一次按顺序执行的几步（batch，只在最后截图）。
+ * 还没截过图就要点屏幕时什么都不做，先截一张交回。stopped 为真时（用户按了停止）不再往下做。
+ */
+export async function runComputerCommand(
+  computer: ComputerDevice,
+  command: Record<string, unknown>,
+  screen: { seen: boolean },
+  stopped: () => boolean,
+) {
+  const action = asString(command.action)
+  const shot = async (settleMs: number) => {
+    const image = await computer.screenshot(settleMs)
+    screen.seen = true
+    return image
+  }
+  // 等待也交给原生层计时（截一张不用的图）：主窗口最小化时前端的定时器会被限速。
+  const pause = (waitMs: unknown) => {
+    const value = asNumber(waitMs)
+    return shot(Number.isFinite(value) ? Math.min(MAX_WAIT_MS, value) : 1_000)
+  }
+  if (action === 'screenshot') return shot(0)
+  if (action === 'wait') return pause(command.waitMs)
+  const batch = action === 'batch'
+  const steps = (batch ? (Array.isArray(command.steps) ? command.steps : []) : [command]).map(
+    (step) => (step && typeof step === 'object' ? (step as Record<string, unknown>) : {}),
+  )
+  if (!steps.length) throw new Error('batch needs at least one step.')
+  // 没截过图就要点屏幕：什么都不做，先把屏幕交回去，模型下一轮就有坐标了。
+  if (!screen.seen && steps.some((step) => POINTING.has(asString(step.action))))
+    return { ...(await shot(0)), skipped: 'no_screenshot' }
+  for (const [index, step] of steps.entries()) {
+    if (stopped()) throw new Error('The user stopped computer use.')
+    const stepAction = asString(step.action)
+    try {
+      if (batch && stepAction === 'wait') {
+        await pause(step.waitMs)
+        continue
+      }
+      const native = computerActionFromCommand(step)
+      if (!native) throw new Error(`Unsupported computer action: ${stepAction}`)
+      if (index > 0) await computer.screenshot(STEP_SETTLE_MS)
+      await computer.act(native)
+    } catch (error) {
+      // 单个动作照旧报错；批量里某一步失败时停在这一步，把现在的屏幕和原因交回去，不用再截一轮。
+      if (!batch || stopped()) throw error
+      return {
+        ...(await shot(SETTLE_MS)),
+        failedStep: {
+          index,
+          action: stepAction,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }
+    }
+  }
+  return shot(SETTLE_MS)
+}
+
 function beginFailure(result: Awaited<ReturnType<DesktopComputerBridge['begin']>>) {
   if (result.status === 'permission_required') {
     const names = result.missingPermissions
@@ -62,6 +127,8 @@ export function startAgentComputerHost(labels: () => Labels) {
   if (!computer) return () => {}
   const controller = new AbortController()
   let activeSession = ''
+  // 这次开始操作以来截过图没有（原生层的坐标换算也是从第一张截图才有的）。
+  const screen = { seen: false }
   // 用户按停的会话：这一轮结束（release）前，还在路上的指令不能把遮罩又开起来。
   const stoppedSessions = new Set<string>()
   let queue: Promise<unknown> = Promise.resolve()
@@ -92,16 +159,14 @@ export function startAgentComputerHost(labels: () => Labels) {
       })
       if (result.status !== 'started') throw new Error(beginFailure(result))
       activeSession = sessionId
+      screen.seen = false
     }
-    if (action === 'screenshot') return computer.screenshot(0)
-    if (action === 'wait') {
-      const waitMs = asNumber(command.waitMs)
-      return computer.screenshot(Number.isFinite(waitMs) ? Math.min(MAX_WAIT_MS, waitMs) : 1_000)
-    }
-    const native = computerActionFromCommand(command)
-    if (!native) throw new Error(`Unsupported computer action: ${action}`)
-    await computer.act(native)
-    return computer.screenshot(SETTLE_MS)
+    return runComputerCommand(
+      computer,
+      command,
+      screen,
+      () => stoppedSessions.has(sessionId) || activeSession !== sessionId,
+    )
   }
 
   const enqueue = (command: Record<string, unknown>) => {

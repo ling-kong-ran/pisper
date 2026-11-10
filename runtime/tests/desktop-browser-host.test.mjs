@@ -332,3 +332,184 @@ test('computer use stays with the primary agent and bot conversations, and is de
     assert.match(cargo, /^tauri = \{[^\n]*"webview-data-url"/m)
   }
 })
+
+test('computer use can run several steps in one call and only looks at the screen at the end', async () => {
+  const { runComputerCommand } = await import('../../src/features/chat/agent-computer-host.ts')
+  const calls = []
+  const computer = {
+    screenshot: async (settleMs) => {
+      calls.push(['screenshot', settleMs])
+      return { imageBase64: 'img', width: 1440, height: 900 }
+    },
+    act: async (action) => {
+      calls.push(['act', action.type])
+      if (action.type === 'key' && action.keys === 'boom') throw new Error('Unknown key: boom')
+    },
+  }
+  const screen = { seen: false }
+  const notStopped = () => false
+  // 还没截过图就要点：什么都不做，先截一张交回。
+  assert.deepEqual(
+    await runComputerCommand(computer, { action: 'click', x: 1, y: 2 }, screen, notStopped),
+    { imageBase64: 'img', width: 1440, height: 900, skipped: 'no_screenshot' },
+  )
+  assert.deepEqual(calls, [['screenshot', 0]])
+  assert.equal(screen.seen, true)
+  // 不指着屏幕的动作（打字、按键）不需要先截图。
+  assert.equal(
+    (await runComputerCommand(computer, { action: 'type', text: 'x' }, { seen: false }, notStopped))
+      .skipped,
+    undefined,
+  )
+
+  // 点搜索框 → 打字 → 回车：中间只按原生层计时等一下，最后截一张。
+  calls.length = 0
+  const steps = [
+    { action: 'click', x: 10, y: 890 },
+    { action: 'type', text: '我是pisper' },
+    { action: 'key', keys: 'Enter' },
+  ]
+  const done = await runComputerCommand(computer, { action: 'batch', steps }, screen, notStopped)
+  assert.equal(done.failedStep, undefined)
+  assert.deepEqual(calls, [
+    ['act', 'click'],
+    ['screenshot', 200],
+    ['act', 'type'],
+    ['screenshot', 200],
+    ['act', 'key'],
+    ['screenshot', 450],
+  ])
+
+  // 中途一步失败：停在这一步，后面的不做，交回现在的屏幕和原因。
+  calls.length = 0
+  const failed = await runComputerCommand(
+    computer,
+    {
+      action: 'batch',
+      steps: [
+        { action: 'click', x: 1, y: 1 },
+        { action: 'key', keys: 'boom' },
+        { action: 'type', text: 'never' },
+      ],
+    },
+    screen,
+    notStopped,
+  )
+  assert.deepEqual(failed.failedStep, { index: 1, action: 'key', error: 'Unknown key: boom' })
+  assert.ok(!calls.some(([kind, type]) => kind === 'act' && type === 'type'))
+  // 单个动作失败照旧报错。
+  await assert.rejects(
+    runComputerCommand(computer, { action: 'key', keys: 'boom' }, screen, notStopped),
+    /Unknown key/,
+  )
+  // 用户按了停止：剩下的步骤一步也不做。
+  calls.length = 0
+  await assert.rejects(
+    runComputerCommand(computer, { action: 'batch', steps }, screen, () => true),
+    /user stopped/,
+  )
+  assert.deepEqual(calls, [])
+})
+
+test('the computer use tool checks batches and tells the model what happened', async () => {
+  const { createComputerUseTool } = await import('../tools/app/computer-use.mjs')
+  const { DesktopComputerService } = await import('../services/desktop-computer-service.mjs')
+  const replies = []
+  const service = {
+    execute: async (_session, params) => {
+      replies.push(params)
+      return replies.reply
+    },
+  }
+  const tool = createComputerUseTool({ browserSessionId: 's', desktopComputerService: service })
+  const run = (params) => tool.execute('t', params)
+  await assert.rejects(run({ action: 'batch' }), /needs steps/)
+  await assert.rejects(
+    run({
+      action: 'batch',
+      steps: [
+        { action: 'type', text: 'x'.repeat(3_000) },
+        { action: 'type', text: 'x'.repeat(3_000) },
+      ],
+    }),
+    /under 5000/,
+  )
+  await assert.rejects(
+    run({
+      action: 'batch',
+      steps: [
+        { action: 'wait', waitMs: 10_000 },
+        { action: 'wait', waitMs: 10_000 },
+      ],
+    }),
+    /under 15000 ms/,
+  )
+  // 点击、拖动、滚动之后只能等，不能接着打字、按键或再点：点没点对要先看截图。
+  const calls = replies.length
+  for (const after of [
+    { action: 'type', text: 'hi' },
+    { action: 'key', keys: 'Enter' },
+    { action: 'click', x: 2, y: 2 },
+  ])
+    await assert.rejects(
+      run({
+        action: 'batch',
+        steps: [{ action: 'click', x: 1, y: 1 }, { action: 'wait', waitMs: 300 }, after],
+      }),
+      /Step 3 \(\w+\) comes after a click, drag or scroll[\s\S]*Nothing was done/,
+    )
+  await assert.rejects(
+    run({
+      action: 'batch',
+      steps: [
+        { action: 'scroll', x: 1, y: 1 },
+        { action: 'type', text: 'x' },
+      ],
+    }),
+    /after a click, drag or scroll/,
+  )
+  assert.equal(replies.length, calls)
+  // 键盘动作在前、点击收尾，或点击后只等一等：可以。
+  const image = { action: 'batch', imageBase64: 'img', width: 1440, height: 900 }
+  replies.reply = image
+  await run({
+    action: 'batch',
+    steps: [
+      { action: 'click', x: 1, y: 1 },
+      { action: 'wait', waitMs: 500 },
+    ],
+  })
+  const steps = [
+    { action: 'type', text: 'hi' },
+    { action: 'key', keys: 'Enter' },
+  ]
+  assert.match((await run({ action: 'batch', steps })).content[0].text, /All 2 steps done/)
+  replies.reply = { ...image, failedStep: { index: 1, action: 'type', error: 'Nope.' } }
+  assert.match(
+    (await run({ action: 'batch', steps })).content[0].text,
+    /Step 2 of 2 \(type\) failed: Nope\./,
+  )
+  replies.reply = { ...image, action: 'click', skipped: 'no_screenshot' }
+  const blind = await run({ action: 'click', x: 1, y: 1 })
+  assert.match(blind.content[0].text, /nothing was done/)
+  assert.equal(blind.content[1].data, 'img')
+
+  // 服务把这两个字段原样带回，别的丢掉。
+  const real = new DesktopComputerService()
+  const sent = []
+  real.attach((event, data) => sent.push({ event, data }))
+  const pending = real.execute('s', { action: 'batch', steps })
+  assert.deepEqual(sent.at(-1).data.steps, steps)
+  real.settle(sent.at(-1).data.requestId, {
+    ok: true,
+    result: {
+      imageBase64: 'img',
+      width: 1,
+      height: 1,
+      failedStep: { index: 0, action: 'click', error: 'x'.repeat(900), extra: 1 },
+    },
+  })
+  const result = await pending
+  assert.equal(result.failedStep.error.length, 500)
+  assert.equal(result.failedStep.extra, undefined)
+})

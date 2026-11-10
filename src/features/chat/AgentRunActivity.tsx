@@ -193,7 +193,11 @@ function toolDetail(tool?: EntityRecord | null) {
     }
   if (tool?.name === 'computer_use')
     return {
-      text: [cleanInline(args.action), cleanInline(args.keys)].filter(Boolean).join(' · '),
+      // 批量动作：列出前几步做了什么（点击 · 输入 · 按键），不只写 batch。
+      text: (Array.isArray(args.steps) ? args.steps.slice(0, 4) : [args])
+        .flatMap((step: EntityRecord) => [cleanInline(step?.action), cleanInline(step?.keys)])
+        .filter(Boolean)
+        .join(' · '),
     }
   // computer use 工具：显示观察模式或动作摘要，帮助用户辨认当前在哪个窗口干什么。
   if (tool?.name === 'observe_ui') return { text: cleanInline(args.root || args.mode) }

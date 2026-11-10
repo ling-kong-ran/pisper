@@ -22,11 +22,24 @@ export class DesktopComputerService extends DesktopHostChannel {
     const image = typeof record.imageBase64 === 'string' ? record.imageBase64 : ''
     if (!image || image.length > MAX_IMAGE_BASE64_CHARS)
       throw new Error('The desktop app did not return a usable screenshot.')
+    // 批量动作中途某一步失败时，前端照样截图交回，并说明是哪一步、为什么；还没截过图就要点屏幕时什么都没做。
+    const failed =
+      record.failedStep && typeof record.failedStep === 'object' ? record.failedStep : null
     return {
       action: input.action,
       imageBase64: image,
       width: Number(record.width) || 0,
       height: Number(record.height) || 0,
+      ...(record.skipped === 'no_screenshot' ? { skipped: 'no_screenshot' } : {}),
+      ...(failed && Number.isInteger(failed.index) && failed.index >= 0
+        ? {
+            failedStep: {
+              index: failed.index,
+              action: String(failed.action || '').slice(0, 40),
+              error: String(failed.error || 'Unknown error.').slice(0, 500),
+            },
+          }
+        : {}),
     }
   }
 
