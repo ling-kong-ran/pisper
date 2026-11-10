@@ -766,3 +766,39 @@ test('polling brings back a card the page still shows as running, even when it i
     ],
   )
 })
+
+test('a seat picks up new bot settings when it is next woken; a removed member loses its seat', async () => {
+  const runtime = await fakeRuntime()
+  const applied = []
+  const renamed = []
+  runtime.applyBotSettings = async (item, sessionId) => applied.push([sessionId, item.updatedAt])
+  runtime.renameSession = async (sessionId, title) => renamed.push([sessionId, title])
+  // 席位会话在盘上、不在内存里。
+  runtime.findSessionInfo = async () => ({})
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(PRO))
+  assert.equal(applied.length, 1)
+
+  // 改了设定、会话不在内存里：不为它装配运行时，只把标题改掉。
+  const changed = {
+    ...runtime.bots.get(PRO),
+    name: '小克pro',
+    updatedAt: '2026-11-10T10:00:00.000Z',
+  }
+  runtime.bots.get = (id) => (id === PRO ? { ...changed } : null)
+  await runtime.syncBotSeats(changed)
+  assert.equal(applied.length, 1)
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 看一下' })
+  await settle(runtime)
+  assert.deepEqual(applied.at(-1), [seat, '2026-11-10T10:00:00.000Z'])
+  assert.equal(applied.length, 2)
+
+  await runtime.updateRoom(room.id, { name: '新名字' })
+  assert.deepEqual(renamed.at(-1), [seat, '小克pro · 新名字'])
+
+  assert.deepEqual(runtime.roomSeatOf(seat), { roomId: room.id, botId: PRO })
+  await runtime.rooms.update(room.id, { members: [KE] })
+  assert.equal(runtime.roomSeatOf(seat), null)
+  await runtime.rooms.update(room.id, { members: [KE, PRO] })
+  assert.deepEqual(runtime.roomSeatOf(seat), { roomId: room.id, botId: PRO })
+})

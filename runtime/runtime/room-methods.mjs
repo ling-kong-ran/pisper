@@ -202,6 +202,12 @@ export const roomMethods = {
   async updateRoom(id, input) {
     const before = this.requireRoom(id)
     const room = await this.rooms.update(id, await this.validRoomInput(input))
+    // 群改名：席位会话的标题（“小克 · 群名”）跟着改。
+    if (room && room.name !== before.name)
+      for (const { sessionId, botId } of this.rooms.sessionsOfRoom(id)) {
+        const bot = this.bots.get(botId)
+        if (bot) await this.refreshSeat(room, bot, sessionId, { settings: false }).catch(() => {})
+      }
     // 群目录变了：已有的席位会话跟着换（运行中的换不了，下次空闲时 updateBot 或再次改群设置时补上）。
     if (room && room.cwd !== before.cwd)
       for (const { sessionId, botId } of this.rooms.sessionsOfRoom(id)) {
@@ -442,7 +448,44 @@ export const roomMethods = {
     // 先登记席位再套设定：第一轮装配运行时（botForSession）时就得认出它是这个 Bot 的会话。
     await this.rooms.setSeat(room.id, bot.id, { sessionId: created.id })
     await this.applyBotSettings(bot, created.id, { cwd })
+    await this.rooms.setSeat(room.id, bot.id, {
+      applied: String(bot.updatedAt || ''),
+      title: `${bot.name} · ${room.name}`,
+    })
     return created.id
+  },
+
+  // 席位会话跟上 Bot 的最新设定与名字。套设定要装配这条会话的运行时，所以只在用得上的时候做：
+  // 会话已经在内存里（改完立即生效），或它正要被叫醒；别的席位等下次叫醒。改名不用装配，随时做。
+  async refreshSeat(room, bot, sessionId, { settings = true } = {}) {
+    const seat = await this.rooms.seat(room.id, bot.id)
+    const stamp = String(bot.updatedAt || '')
+    const title = `${bot.name} · ${room.name}`
+    const patch = {}
+    if (settings && seat?.applied !== stamp) {
+      await this.applyBotSettings(bot, sessionId, { cwd: await this.seatSessionCwd(room, bot) })
+      patch.applied = stamp
+    }
+    if (seat?.title !== title && this.renameSession) {
+      // 正在跑时改不了标题：留着，下次再改。
+      const renamed = await this.renameSession(sessionId, title).then(
+        () => true,
+        () => false,
+      )
+      if (renamed) patch.title = title
+    }
+    if (Object.keys(patch).length) await this.rooms.setSeat(room.id, bot.id, patch)
+  },
+
+  // Bot 的设定或名字变了：同步到它在各个群里的席位。
+  async syncBotSeats(bot) {
+    for (const seat of this.rooms?.sessionsOfBot(bot.id) || []) {
+      const room = this.rooms.get(seat.roomId)
+      if (!room) continue
+      await this.refreshSeat(room, bot, seat.sessionId, {
+        settings: this.sessions.has(seat.sessionId),
+      }).catch(() => console.warn('[rooms] Could not apply the bot settings to its seat.'))
+    }
   },
 
   async deliverSeatWake(roomId, botId) {
@@ -461,6 +504,8 @@ export const roomMethods = {
     const busy = isBusy()
     // 正在开始（还没进入流式）：等这一轮结束后的 flush。
     if (busy && !value?.session?.isStreaming) return
+    // 要新开一轮：先让这条席位跟上 Bot 的最新设定（改设定时没加载的席位是留到这里才套的）。
+    if (!busy) await this.refreshSeat(room, bot, sessionId).catch(() => {})
     const window = value?.session?.model?.contextWindow
     const budget = busy ? QUEUED_WAKE_MAX_CHARS : wakeBudgetChars(window)
     const wake = await this.composeSeatWake(room, bot, pending, budget)

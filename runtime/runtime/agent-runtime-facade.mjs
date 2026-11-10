@@ -1232,16 +1232,11 @@ export class AgentRuntimeFacade {
   async updateBot(id, input) {
     const before = this.bots.get(id)
     const bot = await this.bots.update(id, input)
-    if (!bot?.threadSessionId) return bot
+    if (!bot) return bot
+    // 群里的席位会话用同一套设定，只是起始目录取群的目录（本机的 Bot）。还没开过长期对话的 Bot 也要同步。
+    await this.syncBotSeats?.(bot)
+    if (!bot.threadSessionId) return bot
     await this.applyBotSettings(bot, bot.threadSessionId)
-    // 群里的席位会话用同一套设定，只是起始目录取群的目录（本机的 Bot）。
-    for (const seat of this.rooms?.sessionsOfBot(bot.id) || []) {
-      const room = this.rooms.get(seat.roomId)
-      if (room)
-        await this.applyBotSettings(bot, seat.sessionId, {
-          cwd: await this.seatSessionCwd(room, bot),
-        }).catch(() => console.warn('[rooms] Could not apply the bot settings to its seat.'))
-    }
     // 会话标题就是 Bot 的名字：改名时跟着改，侧栏、看板与会话页头一致。
     if (before && before.name !== bot.name) {
       ;(this.pendingThreadNames ??= new Map()).set(bot.threadSessionId, bot.name)

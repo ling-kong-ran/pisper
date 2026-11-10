@@ -46,6 +46,9 @@ function normalizeState(value, members) {
       late: Array.isArray(seat.late)
         ? seat.late.filter((seq) => Number.isSafeInteger(seq)).slice(-20)
         : [],
+      // 这条席位会话上次套用的是 Bot 哪一版设定、标题是什么：变了才在下次叫醒时重套、改名。
+      applied: typeof seat.applied === 'string' ? seat.applied.slice(0, 40) : '',
+      title: typeof seat.title === 'string' ? seat.title.slice(0, 200) : '',
     }
   }
   const brief = value?.brief
@@ -155,6 +158,7 @@ export class RoomService {
       updatedAt: new Date(this.now()).toISOString(),
     }
     this.rooms[index] = updated
+    this.#indexSeats(id)
     await this.save()
     return clone(updated)
   }
@@ -240,9 +244,22 @@ export class RoomService {
     this.logs.set(id, log)
     if (stale || patches > PATCH_COMPACT_LINES)
       void this.#rewrite(id, log).catch(() => console.warn('[rooms] Could not tidy the room log.'))
-    for (const [botId, seat] of Object.entries(state.seats))
-      if (seat.sessionId) this.seatSessions.set(seat.sessionId, { roomId: id, botId })
+    this.#indexSeats(id)
     return log
+  }
+
+  // 席位索引只认现在还在群里的成员：被移出的 Bot 留下的那条会话不再算它在这个群里的席位
+  // （不然它继续按 Bot 会话处理、计入它的动态）。席位记录留着，再加回来时接着用。
+  #indexSeats(id) {
+    const log = this.logs.get(id)
+    const room = this.rooms.find((item) => item.id === id)
+    if (!log || !room) return
+    for (const [botId, seat] of Object.entries(log.state.seats)) {
+      if (!seat.sessionId) continue
+      if (room.members.includes(botId)) this.seatSessions.set(seat.sessionId, { roomId: id, botId })
+      else if (this.seatSessions.get(seat.sessionId)?.roomId === id)
+        this.seatSessions.delete(seat.sessionId)
+    }
   }
 
   // 同一个群的写入按顺序来（追加、补丁、重写、状态）。
@@ -373,13 +390,15 @@ export class RoomService {
       lastWakeAt: '',
       recalls: [],
       late: [],
+      applied: '',
+      title: '',
       ...(log.state.seats[botId] || {}),
       ...patch,
     }
     // “读到第几条”只进不退：晚到的写入不能把它拉回去（拉回去就会把同一段再送一遍）。
     seat.readSeq = Math.max(seat.readSeq || 0, log.state.seats[botId]?.readSeq || 0)
     log.state.seats[botId] = seat
-    if (seat.sessionId) this.seatSessions.set(seat.sessionId, { roomId: id, botId })
+    this.#indexSeats(id)
     await this.#saveState(id, log)
     return clone(seat)
   }
