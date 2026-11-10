@@ -15,6 +15,7 @@ mod plan_protocol;
 mod sidecar;
 mod startup;
 mod ui;
+mod vt_input;
 mod workspace;
 
 use std::{
@@ -32,7 +33,7 @@ use crossterm::{
     cursor::MoveTo,
     event::{
         DisableBracketedPaste, DisableMouseCapture, EnableMouseCapture, Event, EventStream,
-        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     },
     execute,
     terminal::{
@@ -324,6 +325,7 @@ async fn run_event_loop(
     let mut resize_to_draw = None;
     let mut paste_burst = PasteBurst::default();
     let mut release_chars = ReleaseOnlyChars::default();
+    let mut vt_mouse = vt_input::VtMouseFilter::default();
     // 已通知过「等待审批」的请求 id 集合：同一审批只弹一次通知，避免重复打扰。
     let mut notified_approval_ids = HashSet::new();
     let mut pending_thumbnail_keys = HashSet::new();
@@ -338,25 +340,31 @@ async fn run_event_loop(
         }
         // 粘贴缓冲有截止时间时，把它并入 select 的睡眠分支，到时自动 flush。
         let paste_burst_deadline = paste_burst.deadline();
+        // 被当成按键送来的鼠标上报要等后续字符；扣住的 Esc 到点放行。
+        let vt_mouse_deadline = vt_mouse.deadline();
         redraw = tokio::select! {
             maybe_event = input.next() => {
                 match maybe_event {
-                    Some(Ok(Event::Key(key))) => if let Some(key) = release_chars.admit(key) {
-                        if handle_key_with_paste_burst(
-                            key,
+                    Some(Ok(Event::Key(key))) => {
+                        // 先认出被当成按键送来的鼠标上报（见 vt_input）：认出来的按鼠标处理，其余照常当按键。
+                        let filtered = vt_mouse.feed(key, Instant::now());
+                        let outcome = dispatch_filtered(
+                            filtered,
+                            &mut release_chars,
                             &mut paste_burst,
                             &mut app,
                             &api,
                             &runtime_tx,
                         )
-                        .await?
-                        {
+                        .await?;
+                        if outcome.quit {
                             break;
                         }
-                        pending_resize.is_none() && !paste_burst.is_buffering()
-                    } else {
-                        false
-                    },
+                        outcome.mouse_redraw
+                            || (outcome.key_handled
+                                && pending_resize.is_none()
+                                && !paste_burst.is_buffering())
+                    }
                     Some(Ok(Event::Paste(value))) => {
                         // bracketed-paste 事件：先取出突发缓冲，再插入粘贴内容。
                         apply_paste_flush(paste_burst.flush(), &mut app);
@@ -365,26 +373,12 @@ async fn run_event_loop(
                         pending_resize.is_none()
                     }
                     Some(Ok(Event::Mouse(mouse))) => {
-                        // 滚轮翻聊天记录，左键点击展开/收起命令、思考与折叠的工具组
-                        // （PISPER_TUI_MOUSE=0 关闭捕获后终端不再上报）。
-                        // 鼠标移动等其他事件不触发重绘，避免捕获开启后每次移动都整屏刷新。
-                        let action = match mouse.kind {
-                            MouseEventKind::ScrollUp => Some(app.handle_mouse_wheel(true)),
-                            MouseEventKind::ScrollDown => Some(app.handle_mouse_wheel(false)),
-                            MouseEventKind::Down(MouseButton::Left) => app
-                                .handle_mouse_click(mouse.column, mouse.row)
-                                .then_some(Action::None),
-                            _ => None,
-                        };
-                        match action {
-                            Some(action) => {
-                                if execute_action(action, &mut app, &api, &runtime_tx).await? {
-                                    break;
-                                }
-                                true
-                            }
-                            None => false,
+                        let (quit, redraw) =
+                            handle_mouse_event(mouse, &mut app, &api, &runtime_tx).await?;
+                        if quit {
+                            break;
                         }
+                        redraw
                     }
                     Some(Ok(Event::Resize(width, height))) => {
                         // 终端缩放会产生连续事件，先记录区域并等待其稳定后再重绘。
@@ -697,6 +691,27 @@ async fn run_event_loop(
                 }
             }
             _ = tokio::time::sleep_until(
+                vt_mouse_deadline.unwrap_or_else(Instant::now)
+            ), if vt_mouse_deadline.is_some() => {
+                let filtered = vt_mouse.flush_if_due(Instant::now());
+                let outcome = dispatch_filtered(
+                    filtered,
+                    &mut release_chars,
+                    &mut paste_burst,
+                    &mut app,
+                    &api,
+                    &runtime_tx,
+                )
+                .await?;
+                if outcome.quit {
+                    break;
+                }
+                outcome.mouse_redraw
+                    || (outcome.key_handled
+                        && pending_resize.is_none()
+                        && !paste_burst.is_buffering())
+            }
+            _ = tokio::time::sleep_until(
                 paste_burst_deadline.unwrap_or_else(Instant::now)
             ), if paste_burst_deadline.is_some() => {
                 apply_paste_flush(paste_burst.flush_if_due(Instant::now()), &mut app);
@@ -815,6 +830,73 @@ async fn handle_key_with_paste_burst(
     apply_paste_flush(paste_burst.flush(), app);
     let action = app.handle_key(key);
     execute_action(action, app, api, runtime_tx).await
+}
+
+/// 一批过滤后的输入处理完的结果。
+#[derive(Debug, Default)]
+struct InputOutcome {
+    quit: bool,
+    /// 有按键进了输入处理（是否重绘还要看缩放与粘贴缓冲）。
+    key_handled: bool,
+    mouse_redraw: bool,
+}
+
+/// 按顺序处理过滤器放行的事件：按键走原来的按键路径，还原出来的鼠标事件走鼠标路径。
+async fn dispatch_filtered(
+    filtered: Vec<vt_input::Filtered>,
+    release_chars: &mut ReleaseOnlyChars,
+    paste_burst: &mut PasteBurst,
+    app: &mut App,
+    api: &ApiClient,
+    runtime_tx: &mpsc::UnboundedSender<RuntimeEvent>,
+) -> Result<InputOutcome> {
+    let mut outcome = InputOutcome::default();
+    for event in filtered {
+        match event {
+            vt_input::Filtered::Key(key) => {
+                let Some(key) = release_chars.admit(key) else {
+                    continue;
+                };
+                outcome.key_handled = true;
+                if handle_key_with_paste_burst(key, paste_burst, app, api, runtime_tx).await? {
+                    outcome.quit = true;
+                    break;
+                }
+            }
+            vt_input::Filtered::Mouse(mouse) => {
+                let (quit, redraw) = handle_mouse_event(mouse, app, api, runtime_tx).await?;
+                outcome.mouse_redraw |= redraw;
+                if quit {
+                    outcome.quit = true;
+                    break;
+                }
+            }
+        }
+    }
+    Ok(outcome)
+}
+
+/// 滚轮翻聊天记录，左键点击展开/收起命令、思考与折叠的工具组
+/// （PISPER_TUI_MOUSE=0 关闭捕获后终端不再上报）。
+/// 鼠标移动等其他事件不触发重绘，避免捕获开启后每次移动都整屏刷新。返回（是否退出，是否重绘）。
+async fn handle_mouse_event(
+    mouse: MouseEvent,
+    app: &mut App,
+    api: &ApiClient,
+    runtime_tx: &mpsc::UnboundedSender<RuntimeEvent>,
+) -> Result<(bool, bool)> {
+    let action = match mouse.kind {
+        MouseEventKind::ScrollUp => Some(app.handle_mouse_wheel(true)),
+        MouseEventKind::ScrollDown => Some(app.handle_mouse_wheel(false)),
+        MouseEventKind::Down(MouseButton::Left) => app
+            .handle_mouse_click(mouse.column, mouse.row)
+            .then_some(Action::None),
+        _ => None,
+    };
+    match action {
+        Some(action) => Ok((execute_action(action, app, api, runtime_tx).await?, true)),
+        None => Ok((false, false)),
+    }
 }
 
 /// 只在松开时才带出字符的按键：Windows 控制台把键盘布局里没有的字符（中文等）
