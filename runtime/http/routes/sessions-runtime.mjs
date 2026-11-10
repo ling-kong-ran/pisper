@@ -20,6 +20,26 @@ async function handleQueue(json, action) {
 import { BoardViewQueryError } from '../../services/session-board-view.mjs'
 import { parseBoardViewQuery } from './board.mjs'
 import { respondError } from './bots.mjs'
+
+// 子代理过程推送：多久比一次有没有变化；每次只重发最后这么多条（前面的已经定了，不会再变）。
+const AGENT_TRANSCRIPT_TICK_MS = 250
+const AGENT_TRANSCRIPT_TAIL = 2
+
+// 一帧推送：第一帧和形状变了（条数变少、省略数变了）时发完整的 messages，
+// 其余只发 from 之后的几条，界面用前面已有的接上。
+export function transcriptFrame(previous, transcript) {
+  const { messages, ...meta } = transcript
+  if (
+    !previous?.available ||
+    !transcript.available ||
+    previous.omitted !== transcript.omitted ||
+    messages.length < previous.messages.length
+  )
+    return transcript
+  const from = Math.max(0, previous.messages.length - AGENT_TRANSCRIPT_TAIL)
+  return { ...meta, from, tail: messages.slice(from) }
+}
+
 function isMobileAppRequest(runtime, req) {
   const mobileProfile = String(runtime.capabilities?.profile || '').startsWith('mobile-')
   return (
@@ -839,6 +859,43 @@ const routes = [
       const transcript = runtime.getSessionAgentTranscript(params.sessionId, params.agentId)
       if (!transcript) json(404, { error: 'Agent not found.', code: 'agent_not_found' })
       else json(200, transcript)
+    },
+  },
+  // 子代理过程的推送：先发一份完整的，之后有变化才发（多数时候只发最后几条），子代理结束后发 done 收尾。
+  // 运行中正在输出的文字也在里面，界面跟着子代理一起动，不用轮询。
+  {
+    method: 'GET',
+    path: '/api/sessions/:sessionId/agents/:agentId/transcript/events',
+    async handler({ runtime, res, params, json, startSse, sendSse }) {
+      const read = () => runtime.getSessionAgentTranscript(params.sessionId, params.agentId)
+      const first = read()
+      if (!first) {
+        json(404, { error: 'Agent not found.', code: 'agent_not_found' })
+        return
+      }
+      startSse()
+      let closed = false
+      res.once('close', () => (closed = true))
+      let sent = null
+      let version = runtime.getSessionAgentTranscriptVersion(params.sessionId, params.agentId)
+      const send = (transcript) => {
+        sendSse('transcript', transcriptFrame(sent, transcript))
+        sent = transcript
+      }
+      send(first)
+      while (!closed && sent?.active) {
+        await new Promise((resolve) => setTimeout(resolve, AGENT_TRANSCRIPT_TICK_MS))
+        if (closed) break
+        const next = runtime.getSessionAgentTranscriptVersion(params.sessionId, params.agentId)
+        if (next === null) break
+        if (next === version) continue
+        version = next
+        const transcript = read()
+        if (!transcript) break
+        send(transcript)
+      }
+      // 收尾由外层结束响应（和其它 SSE 路由一样）。
+      if (!closed) sendSse('done', {})
     },
   },
   // 停掉会话派出的某个子 agent：只认这个会话自己的子 agent。

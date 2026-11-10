@@ -335,3 +335,158 @@ test('the client parses transcripts defensively and matches spawn calls to their
     false,
   )
 })
+
+test('a running sub-agent shows the reply it is still writing, and its version moves with it', async (t) => {
+  const directory = await tempDir(t)
+  const gate = Promise.withResolvers()
+  const session = fakeSession(async (active) => {
+    active.messages.push(assistantWithTool('call_bash'), toolResult('call_bash'))
+    await gate.promise
+    active.state.streamingMessage = undefined
+    active.messages.push(assistantText('撤回只追加一条记录。'))
+  })
+  session.state = { pendingToolCalls: new Set() }
+  const { service: agents } = service(directory, session)
+  const started = await agents.spawn(input())
+  await waitFor(() => session.messages.length === 3, 'tool result')
+  const version = () => agents.transcriptVersion('parent/1', started.id)
+  const before = version()
+
+  // 模型正在写下一段：还不在 messages 里，但界面要能看到，版本也要变。
+  session.state.streamingMessage = {
+    role: 'assistant',
+    content: [{ type: 'text', text: '撤回只' }],
+    timestamp: Date.parse('2026-11-10T06:00:03Z'),
+  }
+  const writing = version()
+  assert.notEqual(writing, before)
+  const partial = projectAgentTranscript(agents.transcriptSource('parent/1', started.id))
+  assert.equal(partial.messages.at(-1).text, '撤回只')
+  // 这一轮还没结束：按进行中画，不写“全部完成”。
+  assert.equal(partial.messages.at(-1).runActivity.streaming, true)
+  session.state.streamingMessage.content[0].text = '撤回只追加'
+  assert.notEqual(version(), writing)
+
+  gate.resolve()
+  await waitFor(() => agents.summaries('parent/1')[0].status === 'completed', 'completion')
+  const done = projectAgentTranscript(agents.transcriptSource('parent/1', started.id))
+  assert.equal(done.messages.at(-1).text, '撤回只追加一条记录。')
+  assert.equal(done.messages.at(-1).runActivity.streaming, undefined)
+  assert.equal(agents.transcriptVersion('parent-2', started.id), null)
+  await agents.dispose()
+})
+
+test('pushed frames resend only the tail and the client stitches them back', async () => {
+  const { transcriptFrame } = await import('../http/routes/sessions-runtime.mjs')
+  const { applyAgentTranscriptFrame } = await import('../../src/features/chat/session-agents.ts')
+  const message = (id, text) => ({ id, role: 'agent', text, attachments: [] })
+  const base = {
+    agent: { id: 'a1' },
+    active: true,
+    available: true,
+    task: 't',
+    taskShown: false,
+    omitted: 0,
+  }
+  const first = { ...base, messages: [message('m1', 'a'), message('m2', 'b'), message('m3', 'c')] }
+  const second = {
+    ...base,
+    messages: [...first.messages.slice(0, 2), message('m3', 'cd'), message('m4', 'e')],
+  }
+  const full = transcriptFrame(null, first)
+  assert.equal(full.messages.length, 3)
+  const tail = transcriptFrame(first, second)
+  assert.equal(tail.messages, undefined)
+  assert.equal(tail.from, 1)
+  assert.deepEqual(
+    tail.tail.map((item) => item.id),
+    ['m2', 'm3', 'm4'],
+  )
+  const shown = applyAgentTranscriptFrame(applyAgentTranscriptFrame(null, full), tail)
+  assert.deepEqual(
+    shown.messages.map((item) => item.text),
+    ['a', 'b', 'cd', 'e'],
+  )
+  // 形状变了（更早的被省略）：发完整的。
+  assert.ok(Array.isArray(transcriptFrame(first, { ...second, omitted: 1 }).messages))
+  // 接不上：没有上一份，或 from 越界。
+  assert.equal(applyAgentTranscriptFrame(null, tail), null)
+  assert.equal(applyAgentTranscriptFrame(shown, { ...tail, from: 9 }), null)
+})
+
+test('the transcript events route pushes changes until the sub-agent stops', async () => {
+  const { EventEmitter } = await import('node:events')
+  assert.equal(
+    requiredRuntimeFeature('/api/sessions/s1/agents/a1/transcript/events', 'GET'),
+    'agentTranscripts',
+  )
+  const message = (text) => ({ id: 'm1', role: 'agent', text, attachments: [] })
+  // 先读一份（a），记下版本 v1；下一次比较没变（不发），再下一次变成 v2（ab），最后 v3 时已经结束（abc）。
+  const states = [
+    ['v1', true, 'a'],
+    ['v1', true, 'a'],
+    ['v1', true, 'a'],
+    ['v2', true, 'ab'],
+    ['v3', false, 'abc'],
+  ]
+  let step = 0
+  const runtime = {
+    capabilities: { features: { agentTranscripts: true } },
+    getSessionAgentTranscriptVersion: (_session, agentId) => {
+      if (agentId !== 'a1') return null
+      step = Math.min(step + 1, states.length - 1)
+      return states[step][0]
+    },
+    getSessionAgentTranscript: (_session, agentId) =>
+      agentId === 'a1'
+        ? {
+            agent: { id: 'a1' },
+            active: states[step][1],
+            available: true,
+            task: 't',
+            taskShown: false,
+            omitted: 0,
+            messages: [message(states[step][2])],
+          }
+        : null,
+  }
+  const handler = createApiHandler(runtime)
+  const res = Object.assign(new EventEmitter(), {
+    status: 0,
+    body: '',
+    writeHead(status) {
+      this.status = status
+    },
+    setHeader() {},
+    flushHeaders() {},
+    write(chunk = '') {
+      this.body += chunk
+      return true
+    },
+    end(chunk = '') {
+      this.body += chunk
+      this.writableEnded = true
+    },
+  })
+  step = 0
+  const request = { method: 'GET', headers: {}, async *[Symbol.asyncIterator]() {} }
+  await handler(
+    request,
+    res,
+    new URL('http://localhost/api/sessions/s1/agents/a1/transcript/events'),
+  )
+  const frames = [...res.body.matchAll(/event: (\w+)\ndata: (.*)\n/g)].map(([, event, data]) => [
+    event,
+    JSON.parse(data),
+  ])
+  assert.deepEqual(
+    frames.map(([event, data]) => [event, data.messages?.[0]?.text ?? data.tail?.[0]?.text]),
+    [
+      ['transcript', 'a'],
+      ['transcript', 'ab'],
+      ['transcript', 'abc'],
+      ['done', undefined],
+    ],
+  )
+  assert.equal(frames.at(-2)[1].active, false)
+})

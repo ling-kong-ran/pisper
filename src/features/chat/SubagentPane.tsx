@@ -16,11 +16,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { useRuntimeCapabilitiesStore } from '@/stores/runtime-capabilities-store'
 import { ChatRequestNotice } from './ChatRequestNotice'
 import { chatErrorMessage } from './chat-errors'
 import { FocusTranscript } from './FocusTranscript'
 import {
   fetchAgentTranscript,
+  streamAgentTranscript,
   isActiveAgent,
   stopSessionAgent,
   useSessionAgents,
@@ -37,6 +39,8 @@ import {
 import { useSubagentViewStore } from './subagent-view-store'
 
 const ACTIVE_POLL_MS = 2_500
+// 推送断了（子代理还在跑）时隔多久重连。
+const RECONNECT_MS = 1_500
 
 function AgentGlyph({ agent }: { agent: SessionAgent }) {
   const glyph = SUBAGENT_STATUS_GLYPH[agent.status]
@@ -71,6 +75,10 @@ export function SubagentPane({ sessionId, sheet = false }: { sessionId: string; 
   const selectedId = useSubagentViewStore((state) => state.selected[sessionId] ?? '')
   const select = useSubagentViewStore((state) => state.select)
   const { agents: all, reload } = useSessionAgents(sessionId, true)
+  // 新 Runtime 推送子代理的过程（正在写的字也在里面）；旧的只能轮询。
+  const pushed = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features.agentTranscriptEvents,
+  )
   // 后台命令没有对话可看，不在切换列表里。
   const agents = useMemo(() => all.filter((agent) => agent.kind !== 'command'), [all])
   const agent = agents.find((item) => item.id === selectedId)
@@ -95,6 +103,38 @@ export function SubagentPane({ sessionId, sheet = false }: { sessionId: string; 
     if (!agentId) return undefined
     const controller = new AbortController()
     let timer = 0
+    if (pushed) {
+      let received = false
+      const open = async () => {
+        let last: AgentTranscript | null = null
+        try {
+          last = await streamAgentTranscript(
+            sessionId,
+            agentId,
+            (next) => {
+              received = true
+              setTranscript(next)
+              setError('')
+            },
+            controller.signal,
+          )
+        } catch (cause) {
+          if (controller.signal.aborted) return
+          // 一帧都没收到就失败：显示错误（可重试）；收到过的是中途断了，悄悄重连。
+          if (!received) {
+            setError(chatErrorMessage(cause))
+            return
+          }
+        }
+        if (controller.signal.aborted || last?.active === false) return
+        timer = window.setTimeout(() => void open(), RECONNECT_MS)
+      }
+      void open()
+      return () => {
+        controller.abort()
+        window.clearTimeout(timer)
+      }
+    }
     const load = async () => {
       try {
         const next = await fetchAgentTranscript(sessionId, agentId, controller.signal)
@@ -111,7 +151,7 @@ export function SubagentPane({ sessionId, sheet = false }: { sessionId: string; 
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [agentId, attempt, sessionId, status])
+  }, [agentId, attempt, pushed, sessionId, status])
 
   const stop = useCallback(async () => {
     if (!agentId) return
@@ -192,7 +232,8 @@ export function SubagentPane({ sessionId, sheet = false }: { sessionId: string; 
           }
           activityFeed={[]}
           tools={[]}
-          streaming={false}
+          // 子代理还在跑：按进行中的回复画（跟到底部、工具组写“运行中”）。
+          streaming={transcript.active}
           readOnly
           onRetryLastTurn={() => {}}
         />

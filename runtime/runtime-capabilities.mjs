@@ -101,6 +101,8 @@ function buildCapabilities({
     multiAgent: !embedded,
     // 只读查看子代理的过程：子代理的对话记录跟着父会话落盘，随多 Agent 一起提供。
     agentTranscripts: !embedded,
+    // 子代理过程的推送（/transcript/events）：有它时界面不再轮询。
+    agentTranscriptEvents: !embedded,
     channels: !embedded,
     workflows: !embedded,
     schedules: !embedded,

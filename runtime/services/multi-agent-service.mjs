@@ -651,7 +651,16 @@ export class MultiAgentService {
     if (!record || record.parentSessionId !== parentSessionId) return null
     const agent = summaryRecord(record)
     const active = ACTIVE_AGENT_STATUSES.has(record.status)
-    if (record.session?.messages) return { agent, active, messages: record.session.messages }
+    if (record.session?.messages) {
+      // 正在输出的那段回复还不在 messages 里（整条结束才放进去）：运行中把它接在后面，文字边写边能看到。
+      const streaming = active ? record.session.state?.streamingMessage : null
+      const messages = record.session.messages
+      return {
+        agent,
+        active,
+        messages: streaming && messages.at(-1) !== streaming ? [...messages, streaming] : messages,
+      }
+    }
     const file = this.transcriptFile(record)
     if (!file || !existsSync(file)) return { agent, active, messages: null }
     try {
@@ -664,6 +673,31 @@ export class MultiAgentService {
     } catch {
       return { agent, active, messages: null }
     }
+  }
+
+  // 子代理过程的变化标记：推送时每隔一会儿比一次，变了才重新投影、发给界面。很便宜，不读文件。
+  transcriptVersion(parentSessionId, agentId) {
+    const record = this.records.get(String(agentId || ''))
+    if (!record || record.parentSessionId !== parentSessionId) return null
+    const state = record.session?.state
+    const streaming = state?.streamingMessage
+    const parts = Array.isArray(streaming?.content) ? streaming.content : []
+    const streamed = parts.reduce(
+      (sum, part) =>
+        sum +
+        String(part?.text || '').length +
+        String(part?.thinking || '').length +
+        (part?.arguments ? JSON.stringify(part.arguments).length : 0),
+      0,
+    )
+    return [
+      record.status,
+      record.session?.messages?.length ?? -1,
+      streaming ? 1 : 0,
+      streamed,
+      state?.pendingToolCalls?.size ?? 0,
+      record.toolCallCount,
+    ].join('|')
   }
 
   save() {

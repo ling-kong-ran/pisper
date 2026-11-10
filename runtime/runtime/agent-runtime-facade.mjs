@@ -1183,6 +1183,12 @@ export class AgentRuntimeFacade {
     )
   }
 
+  // 子代理过程有没有变化（推送用）：不是这个会话的子 agent 返回 null。
+  getSessionAgentTranscriptVersion(sessionId, agentId) {
+    if (!this.multiAgents || String(agentId).startsWith('cmd_')) return null
+    return this.multiAgents.transcriptVersion(String(sessionId || ''), String(agentId || ''))
+  }
+
   // 停掉会话自己的某个子 agent 或后台命令；不是它的、或已经结束的返回 null。
   stopSessionAgent(sessionId, agentId) {
     if (String(agentId).startsWith('cmd_'))

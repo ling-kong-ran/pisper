@@ -43,6 +43,8 @@ export function projectAgentTranscript(source, { limit = AGENT_TRANSCRIPT_MESSAG
             tools: activity.tools.map(running),
             activityFeed: activity.activityFeed.map(running),
             finishedAt: null,
+            // 这一轮还没结束：工具组标题写“运行中”，还在跑的工具显示计时，而不是“全部完成”。
+            streaming: true,
           },
         },
       ]

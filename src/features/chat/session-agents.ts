@@ -1,6 +1,7 @@
 // 会话派出的子 agent：Bot 的对话把它们当作时间线里的事件（“派了：补退款测试 · 在跑 2:10”），
 // 在跑的时候按状态刷新，可以展开看最近的输出，也可以停掉。数据来自 /api/sessions/:id/agents。
 import { createContext, useCallback, useEffect, useRef, useState } from 'react'
+import { consumeEventStream } from '@/lib/event-stream'
 import { requestJson } from '@/lib/http'
 import type { ChatMessage, EntityRecord } from '@/types/chat'
 
@@ -170,6 +171,46 @@ export function fetchAgentTranscript(sessionId: string, agentId: string, signal?
     `/api/sessions/${encodeURIComponent(sessionId)}/agents/${encodeURIComponent(agentId)}/transcript`,
     { signal, parse: parseAgentTranscript },
   )
+}
+
+// 推送的一帧：完整的（带 messages），或只带 from 之后几条的（tail），用上一份的前面接上。
+// 接不上（还没有上一份、from 越界）时返回 null，调用方重连拿一份完整的。
+export function applyAgentTranscriptFrame(
+  previous: AgentTranscript | null,
+  value: unknown,
+): AgentTranscript | null {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  if (!Array.isArray(input.tail)) return parseAgentTranscript(value)
+  const from = Number(input.from)
+  if (!previous || !Number.isInteger(from) || from < 0 || from > previous.messages.length)
+    return null
+  const next = parseAgentTranscript({ ...input, messages: input.tail })
+  return { ...next, messages: [...previous.messages.slice(0, from), ...next.messages] }
+}
+
+// 子代理过程的推送：每收到一帧交给 onTranscript；子代理结束（done）或连接断开时返回。
+// 返回最后一份，调用方据此决定要不要重连（还在跑就重连）。
+export async function streamAgentTranscript(
+  sessionId: string,
+  agentId: string,
+  onTranscript: (transcript: AgentTranscript) => void,
+  signal: AbortSignal,
+): Promise<AgentTranscript | null> {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/agents/${encodeURIComponent(agentId)}/transcript/events`,
+    { signal, headers: { Accept: 'text/event-stream' } },
+  )
+  let current = null as AgentTranscript | null
+  await consumeEventStream<unknown>(response, (event, data) => {
+    if (event === 'done') return false
+    if (event !== 'transcript') return true
+    const next = applyAgentTranscriptFrame(current, data)
+    if (!next) return false
+    current = next
+    onTranscript(next)
+    return true
+  })
+  return current
 }
 
 export function stopSessionAgent(sessionId: string, agentId: string) {
