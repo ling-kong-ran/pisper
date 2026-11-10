@@ -49,6 +49,7 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "check": "npm run typecheck && npm run lint && npm run i18n:check && npm run format:check && npm run test:startup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc -p tsconfig.jscheck.json",
+    "pretest": "node scripts/patch-pi-mobile-compat.mjs",
     "test": "tsx --test runtime/tests/*.test.mjs",
     "test:startup": "node scripts/check-sidecar-startup.mjs",
     "preview": "node runtime/index.mjs --production",
