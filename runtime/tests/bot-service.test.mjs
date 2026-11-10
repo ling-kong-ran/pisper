@@ -373,3 +373,15 @@ test('the bots store file is plain JSON', async (t) => {
   assert.equal(stored.version, 1)
   assert.equal(stored.bots[0].name, '审查员')
 })
+
+test('a bot is found by its conversation without handing out the stored object', async (t) => {
+  const { service } = await serviceFixture(t)
+  const bot = await service.create(base)
+  await service.setThread(bot.id, 'thread-1')
+  const found = service.forSession('thread-1')
+  assert.equal(found.id, bot.id)
+  found.name = 'changed by the caller'
+  assert.equal(service.forSession('thread-1').name, base.name)
+  assert.equal(service.forSession('thread-2'), null)
+  assert.equal(service.forSession(''), null)
+})

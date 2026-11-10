@@ -476,6 +476,8 @@ export class ScheduleService {
     const sent = await this.bots.message(task.botId, {
       text: task.botMessage,
       source: { kind: 'schedule', scheduleTaskId: task.id },
+      // 等到它真的开始：开不起来（模型不可用等）时这次运行记为失败，不写“已发送”。
+      waitForStart: true,
     })
     return {
       text:

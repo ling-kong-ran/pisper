@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -194,4 +194,124 @@ test('a new session stopped before its first prompt starts is discarded, one wit
     await new Promise((resolve) => setImmediate(resolve))
     assert.deepEqual(deleted, expected)
   }
+})
+
+async function bareRuntime(t) {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-review-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.listStoredSessions = async () => []
+  runtime.settingsManager = {
+    getGlobalSettings: () => ({ defaultProvider: 'openai', defaultModel: 'gpt-5.4' }),
+  }
+  return { runtime, directory }
+}
+
+test('a stop that lands while attachments and memory are prepared keeps the model call from starting', async () => {
+  // runSessionPrompt 要一整套引擎才能跑起来，这里守住源码里的顺序：发请求前再看一次停止标记，
+  // 起名没存上不会在收尾的 try 之外抛出去（否则会话永远停在“运行中”）。
+  const source = await readFile(new URL('../runtime/agent-runtime.mjs', import.meta.url), 'utf8')
+  assert.match(
+    source,
+    /if \(value\.abortedAt\) throw pisperError\('cancelled', 'session'\)\s+await runPromptWithAbortGuard\(value, \(\) => session\.prompt\(prompt, \{ images \}\)\)/,
+  )
+  assert.match(
+    source,
+    /await this\.markSessionTitle\(session\.sessionId, firstMessageTitle, false\)\.catch\(/,
+  )
+})
+
+test('deleting a running session does not wait forever for an engine that never stops', async (t) => {
+  const { runtime } = await bareRuntime(t)
+  const id = 'session-hung'
+  let disposed = 0
+  const value = residentSession(runtime, id)
+  value.session.isStreaming = true
+  value.session.abort = () => new Promise(() => {})
+  value.session.dispose = () => (disposed += 1)
+  runtime.sessionLifecycle.deleteAbortWaitMs = 40
+  const started = Date.now()
+  assert.equal(await runtime.deleteSession(id), true)
+  assert.ok(Date.now() - started < 2_000)
+  assert.equal(disposed, 1)
+  assert.equal(runtime.sessions.has(id), false)
+})
+
+test('session metadata saves pile into one pending write that carries the latest changes', async (t) => {
+  const { runtime, directory } = await bareRuntime(t)
+  runtime.sessionMeta.a = { name: 'first' }
+  const first = runtime.saveSessionMeta()
+  // 第一次还没开始写：后面的保存不再各排一次，开始写时取到的是最新内容。
+  runtime.sessionMeta.b = { name: 'second' }
+  const second = runtime.saveSessionMeta()
+  runtime.sessionMeta.c = { name: 'third' }
+  assert.equal(runtime.saveSessionMeta(), second)
+  assert.equal(first, second)
+  await second
+  const stored = JSON.parse(await readFile(join(directory, 'pisper-sessions.json'), 'utf8'))
+  assert.deepEqual(Object.keys(stored).sort(), ['a', 'b', 'c'])
+  // 落定之后的保存是新的一次写，改动不会丢。
+  runtime.sessionMeta.d = { name: 'fourth' }
+  const later = runtime.saveSessionMeta()
+  assert.notEqual(later, second)
+  await later
+  assert.ok(
+    JSON.parse(await readFile(join(directory, 'pisper-sessions.json'), 'utf8')).d,
+    'a save after the write settled must reach the disk',
+  )
+})
+
+test('board deltas project only the sessions that changed', async (t) => {
+  const { runtime } = await bareRuntime(t)
+  residentSession(runtime, 'session-a')
+  residentSession(runtime, 'session-b')
+  const asked = []
+  const original = runtime.sessionLifecycle.listSessions.bind(runtime.sessionLifecycle)
+  runtime.sessionLifecycle.listSessions = (options) => {
+    asked.push(options?.ids || null)
+    return original(options)
+  }
+  const one = await runtime.boardHubItems(['session-a', 'session-gone'])
+  assert.deepEqual(asked, [['session-a', 'session-gone']])
+  assert.deepEqual([...one.keys()].sort(), ['session-a', 'session-gone'])
+  assert.equal(one.get('session-gone'), null)
+  assert.deepEqual(
+    (await runtime.listSessions({ ids: ['session-b'] })).map((session) => session.id),
+    ['session-b'],
+  )
+  // 快照仍是全部。
+  const all = await runtime.boardHubItems()
+  assert.deepEqual([...all.keys()].sort(), ['session-a', 'session-b'])
+})
+
+test('session usage adds only the history read since last time', async (t) => {
+  const { runtime, directory } = await bareRuntime(t)
+  const path = join(directory, 'usage.jsonl')
+  const line = (input) =>
+    `${JSON.stringify({
+      type: 'message',
+      id: `m${input}`,
+      message: { role: 'assistant', usage: { input, output: 1, totalTokens: input + 1 } },
+    })}\n`
+  await writeFile(path, line(10) + line(20))
+  runtime.sessionHistoryPaths.set('session-usage', path)
+  const first = await runtime.streamProjection.getSessionTokenUsage('session-usage')
+  const cached = runtime.sessionHistoryCache.get(path)
+  assert.equal(cached.usageCount, 2)
+  // 返回的是副本：调用方往上挂 timing、改数字都不影响累计值。
+  first.totalTokens = -1
+  await appendFile(path, line(30))
+  const second = await runtime.streamProjection.getSessionTokenUsage('session-usage')
+  assert.equal(cached.usageCount, 3)
+  const fresh = await runtime.streamProjection.getSessionTokenUsage('session-usage')
+  assert.deepEqual(second, fresh)
+  // 和从头汇总的结果一致。
+  const { summarizeSessionUsage } = await import('../runtime/stream-projection.mjs')
+  assert.deepEqual(
+    { ...second, timing: undefined },
+    {
+      ...summarizeSessionUsage(cached.entries.map((entry) => entry.message)),
+      timing: undefined,
+    },
+  )
 })

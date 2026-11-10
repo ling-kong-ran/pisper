@@ -988,14 +988,22 @@ export class StreamProjection {
     if (path) {
       try {
         const history = await this.readSessionHistoryEntries(path)
-        return Object.assign(
-          summarizeSessionUsage(
-            history.entries
-              .filter((entry) => entry?.type === 'message')
-              .map((entry) => entry.message),
-          ),
-          { timing },
-        )
+        // 累计值跟着增量读取走：只把上次之后新读到的条目加进去。每一轮开跑都要这个数，
+        // 长会话里每次从头扫一遍全部历史要上百毫秒。文件被重写时缓存对象整个换新，这里随之从零算。
+        if (!history.usageTotal || history.usageCount > history.entries.length) {
+          history.usageTotal = emptySessionUsage()
+          history.usageCount = 0
+        }
+        for (; history.usageCount < history.entries.length; history.usageCount += 1) {
+          const entry = history.entries[history.usageCount]
+          if (
+            entry?.type === 'message' &&
+            entry.message?.role === 'assistant' &&
+            entry.message.usage
+          )
+            addSessionUsage(history.usageTotal, entry.message.usage)
+        }
+        return Object.assign(structuredClone(history.usageTotal), { timing })
       } catch (error) {
         if (error?.code !== 'ENOENT') throw error
       }

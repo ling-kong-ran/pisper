@@ -268,3 +268,170 @@ test('polite back-and-forth ends: courtesy is not sent, and a chain stops after 
     /no such bot|bot not found/i,
   )
 })
+
+test('a message to a third bot keeps counting hops, so a ring of bots still stops at 6', async () => {
+  const C = { id: 'bot_cccccccccccc', name: '发布', enabled: true, tools: null, instructions: 'CI' }
+  const runtime = twoBots()
+  runtime.bots = {
+    list: () => [A, B, C],
+    get: (id) => [A, B, C].find((bot) => bot.id === id) || null,
+  }
+  // B 这一轮是 A 说进来的话（第 2 跳），它转头找 C：新的一条来往，但跳数接着数。
+  const sent = await runtime.executeBotDecision(
+    'conv-b',
+    {},
+    B,
+    { type: 'message', bot: '发布', text: '帮我看下 CI 为什么红了', expectsReply: true },
+    { message: { from: A.id, chain: 'ch_ringringri', hop: 2, reply: true }, completedAgents: [] },
+  )
+  assert.notEqual(sent.chain, 'ch_ringringri')
+  assert.equal(parseBotMessageTag(runtime.delivered[0].text).hop, 3)
+  // 替别的 Bot 做的活做完后的那一轮同样接着数。
+  runtime.botAgentRequests = new Map([
+    ['11111111-2222-3333-4444-555555555555', { fromBotId: A.id, chain: 'ch_ringringri', hop: 4 }],
+  ])
+  await runtime.executeBotDecision(
+    'conv-b',
+    {},
+    B,
+    { type: 'message', bot: '发布', text: '回归里有 3 个失败和 CI 有关', expectsReply: false },
+    { message: null, completedAgents: ['11111111-2222-3333-4444-555555555555'] },
+  )
+  assert.equal(parseBotMessageTag(runtime.delivered[1].text).hop, 5)
+  // 已经在第 6 跳：再找第三个 Bot 就停下。
+  const stopped = await runtime.executeBotDecision(
+    'conv-b',
+    {},
+    B,
+    { type: 'message', bot: '发布', text: '那再跑一遍吧', expectsReply: true },
+    {
+      message: { from: A.id, chain: 'ch_ringringri', hop: MAX_BOT_LINK_HOPS, reply: true },
+      completedAgents: [],
+    },
+  )
+  assert.equal(stopped.skipped, 'hops')
+  assert.equal(runtime.delivered.length, 2)
+  // 你说的话开头的一轮还是第 1 跳。
+  await runtime.executeBotDecision(
+    'conv-b',
+    {},
+    B,
+    { type: 'message', bot: '发布', text: '帮我确认一下发布时间', expectsReply: true },
+    { message: null, completedAgents: [] },
+  )
+  assert.equal(parseBotMessageTag(runtime.delivered[2].text).hop, 1)
+})
+
+// messageBot 用得到的那几样：会话空闲，promptFromChannel 由每条测试自己给。
+function messagingRuntime() {
+  const runtime = Object.create(AgentRuntimeFacade.prototype)
+  const notified = []
+  Object.assign(runtime, {
+    notified,
+    bots: { list: () => [A, B], get: (id) => [A, B].find((bot) => bot.id === id) || null },
+    ensureBotSession: async () => 'conv-a',
+    sessionRunIsActive: () => false,
+    startingRuns: new Map(),
+    sessions: new Map(),
+    botChatOrigins: new Map(),
+    botPendingTrust: new Map(),
+    notifyBotChat: (source, text) => notified.push({ source, text }),
+  })
+  return runtime
+}
+
+test('a schedule learns whether the bot really started; a failed start is an error, not “sent”', async () => {
+  const runtime = messagingRuntime()
+  const finish = Promise.withResolvers()
+  runtime.promptFromChannel = async ({ onEvent }) => {
+    onEvent('meta', {})
+    await finish.promise
+    return { text: '做完了', error: '' }
+  }
+  // 这一轮开始就返回，不等它说完。
+  assert.deepEqual(
+    await runtime.messageBot(A.id, {
+      text: '查依赖',
+      source: { kind: 'schedule' },
+      waitForStart: true,
+    }),
+    { sessionId: 'conv-a', status: 'started' },
+  )
+  finish.resolve()
+
+  runtime.promptFromChannel = async () => {
+    throw new Error('Model is unavailable')
+  }
+  await assert.rejects(
+    runtime.messageBot(A.id, { text: '查依赖', source: { kind: 'schedule' }, waitForStart: true }),
+    /Model is unavailable/,
+  )
+  // 运行出错不抛、只在结果里带 error 的那种也算没做成。
+  runtime.promptFromChannel = async () => ({ text: '', error: 'Session is busy' })
+  await assert.rejects(
+    runtime.messageBot(A.id, { text: '查依赖', source: { kind: 'schedule' }, waitForStart: true }),
+    /Session is busy/,
+  )
+  // 不要求等的调用方（聊天、别的 Bot）照旧立刻返回。
+  runtime.promptFromChannel = () => new Promise(() => {})
+  assert.equal((await runtime.messageBot(A.id, { text: '在吗' })).status, 'started')
+})
+
+test('trust waiting for a turn is never loosened by a later source', async () => {
+  const runtime = messagingRuntime()
+  runtime.promptFromChannel = () => new Promise(() => {})
+  await runtime.messageBot(A.id, {
+    text: '群里的人说的',
+    source: { kind: 'channel', platform: 'feishu', peerId: 'g1' },
+  })
+  assert.equal(runtime.botPendingTrust.get('conv-a'), 'external')
+  // 还没被这一轮取走时你又说了一句：不能把上一句变成“用户说的”。
+  await runtime.messageBot(A.id, { text: '我说的', source: { kind: 'chat' } })
+  assert.equal(runtime.botPendingTrust.get('conv-a'), 'external')
+  assert.equal(runtime.takeBotTurnTrust('conv-a'), 'external')
+  await runtime.messageBot(A.id, { text: '我说的', source: { kind: 'chat' } })
+  assert.equal(runtime.takeBotTurnTrust('conv-a'), 'user')
+})
+
+test('a turn that was stopped or failed tells the waiting chats and forgets them', () => {
+  const runtime = messagingRuntime()
+  runtime.botForSession = () => A
+  const group = { kind: 'channel', platform: 'feishu', peerId: 'g1' }
+  const value = { pendingChatReplies: [group] }
+  runtime.dropBotChatReplies('conv-a', value)
+  assert.deepEqual(value.pendingChatReplies, [])
+  assert.equal(runtime.notified.length, 1)
+  assert.equal(runtime.notified[0].source, group)
+  assert.match(runtime.notified[0].text, /小橙/)
+})
+
+test('the bots list does not project job records for a bot with nothing running', () => {
+  const runtime = Object.create(AgentRuntimeFacade.prototype)
+  let projected = 0
+  Object.assign(runtime, {
+    sessionRunIsActive: () => false,
+    startingRuns: new Map(),
+    botCommands: { list: () => [] },
+    permissions: { getPending: () => [] },
+    questions: { getPending: () => [] },
+    multiAgents: {
+      hasActive: () => runtime.active,
+      summaries: () => {
+        projected += 1
+        return [{ id: 'j1', status: 'running', title: '跑回归' }]
+      },
+    },
+  })
+  runtime.active = false
+  assert.deepEqual(runtime.botActivity({ ...A, threadSessionId: 'conv-a' }), {
+    status: 'idle',
+    waiting: null,
+    needsYou: false,
+    working: 0,
+    current: '',
+  })
+  assert.equal(projected, 0)
+  runtime.active = true
+  const busy = runtime.botActivity({ ...A, threadSessionId: 'conv-a' })
+  assert.deepEqual([busy.status, busy.working, busy.current], ['running', 1, '跑回归'])
+})

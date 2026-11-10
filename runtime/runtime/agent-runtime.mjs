@@ -1400,12 +1400,21 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   }
 
   // 会话元数据持久化：写盘串行化（链式 Promise），防止并发写覆盖。
+  // 整份文件随会话数变大（几千个会话时几 MB），每次保存都要把它序列化一遍，所以：
+  // - 已有一次排着、还没开始的写时不再排新的：它开始时才取内容，自然带上这次的改动；
+  // - 内容在真正开始写的那一刻同步序列化（writeJsonAtomic 的第一步），不再先深拷贝一份。
+  // 没有定时器，返回的 Promise 落定时这次改动一定已经在盘上（或写失败）。
   saveSessionMeta() {
-    const snapshot = JSON.parse(JSON.stringify(this.sessionMeta))
-    this.sessionMetaWrite = this.sessionMetaWrite
+    if (this.sessionMetaQueued) return this.sessionMetaQueued
+    const queued = (this.sessionMetaWrite || Promise.resolve())
       .catch(() => {})
-      .then(() => writeJsonAtomic(this.sessionMetaPath, snapshot))
-    return this.sessionMetaWrite
+      .then(() => {
+        if (this.sessionMetaQueued === queued) this.sessionMetaQueued = null
+        return writeJsonAtomic(this.sessionMetaPath, this.sessionMeta)
+      })
+    this.sessionMetaQueued = queued
+    this.sessionMetaWrite = queued
+    return queued
   }
 
   async markSessionTitle(id, name, manual) {
@@ -2818,7 +2827,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     if (firstMessageTitle && firstMessageTitle !== value.name) {
       session.setSessionName(firstMessageTitle)
       value.name = firstMessageTitle
-      await this.markSessionTitle(session.sessionId, firstMessageTitle, false)
+      // 起名没存上不影响这一轮：live 已经建立而收尾的 try 还没开始，在这里抛出去会话就永远停在“运行中”。
+      await this.markSessionTitle(session.sessionId, firstMessageTitle, false).catch(() =>
+        console.warn('Could not save the session title.'),
+      )
       emit('session_title', {
         sessionId: session.sessionId,
         name: firstMessageTitle,
@@ -3386,6 +3398,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         ? `${message}${ATTACHMENT_MARKER}${contexts.join('\n\n')}`
         : message
       applyPisperSystemPrompt(session, session.model)
+      // 准备附件、检索记忆的这一会儿按了停止：不再把请求发出去。不查的话界面已经显示停下，
+      // 模型和工具却照跑，要等中止护栏到点才强制释放。
+      if (value.abortedAt) throw pisperError('cancelled', 'session')
       await runPromptWithAbortGuard(value, () => session.prompt(prompt, { images }))
       await this.settleBarrier.settle(session.sessionId)
       const last = [...session.messages].reverse().find((item) => item.role === 'assistant')

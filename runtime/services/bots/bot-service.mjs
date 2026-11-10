@@ -77,6 +77,14 @@ export class BotService {
     return bot ? clone(bot) : null
   }
 
+  // 这个会话是哪个 Bot 的长期对话。每次权限判断、看板上每张卡都会问：只拷贝找到的那一个，
+  // 不走 list()（它把全部 Bot 连同指令深拷贝一遍）。
+  forSession(sessionId) {
+    if (!sessionId) return null
+    const bot = this.bots.find((item) => item.threadSessionId === sessionId)
+    return bot ? clone(bot) : null
+  }
+
   // 名字全局唯一；一个聊天最多一个默认 Bot（否则 @Pisper 不点名时不知道该交给谁）。
   #checkConflicts(bot, selfId = '') {
     const key = botNameKey(bot.name)

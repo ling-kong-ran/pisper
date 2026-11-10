@@ -488,6 +488,8 @@ test('schedules talk to a bot in its session without ever running a full-access 
     botId: 'b1',
     text: '查依赖有没有安全更新',
     source: { kind: 'schedule', scheduleTaskId: task.id },
+    // 等到 Bot 真的开始这一轮：开不起来时这次运行记为失败。
+    waitForStart: true,
   })
 
   enabled = false

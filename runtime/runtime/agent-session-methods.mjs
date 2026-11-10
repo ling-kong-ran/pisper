@@ -67,9 +67,9 @@ function withMachineFields(runtime, session) {
 }
 
 export const agentSessionMethods = {
-  async listSessions() {
-    const sessions = (await this.sessionLifecycle.listSessions()).map((session) =>
-      withMachineFields(this, session),
+  async listSessions({ ids = null } = {}) {
+    const sessions = (await this.sessionLifecycle.listSessions(ids ? { ids } : undefined)).map(
+      (session) => withMachineFields(this, session),
     )
     const threads = this.botSessionProjects()
     if (!threads.size) return sessions
@@ -123,7 +123,10 @@ export const agentSessionMethods = {
   // 这个会话是不是某个 Bot 的长期会话。只在 Bots 实验功能打开时投影。
   botCardFor(sessionId) {
     if (!sessionId || !this.bots || !this.isBetaFeatureEnabled?.('bots')) return null
-    const bot = this.bots.list().find((item) => item.threadSessionId === sessionId)
+    // 看板上每张卡都要问一次：按会话直接找，不为此把全部 Bot（连同上万字的指令）拷贝一遍。
+    const bot = this.bots.forSession
+      ? this.bots.forSession(sessionId)
+      : this.bots.list().find((item) => item.threadSessionId === sessionId)
     if (!bot) return null
     return {
       id: bot.id,
@@ -157,7 +160,7 @@ export const agentSessionMethods = {
     const now = Date.now()
     const wanted = ids ? new Set(ids) : null
     const projected = []
-    for (const session of await this.listSessions()) {
+    for (const session of await this.listSessions(wanted ? { ids: [...wanted] } : undefined)) {
       if (wanted && !wanted.has(session.id)) continue
       projected.push({ ...session, card: this.boardCardFor(session, { now, doneWindow: '7d' }) })
     }
@@ -242,6 +245,10 @@ export const agentSessionMethods = {
     // Web 与 TUI 按 “session … ended” 识别这条错误，把消息改作新消息发送；改文案时保留这几个词。
     if (!value.session.isStreaming)
       throw pisperError('unavailable', 'session', 'the run has ended; send it as a new message')
+    // 已经按了停止、引擎还没停稳：这时排进去的话会随收尾的 clearQueue 丢掉，当成新消息发又会撞上 busy。
+    // 明说“正在停”，让发的人稍后再发，不假装收下。
+    if (value.abortedAt)
+      throw pisperError('busy', 'session', 'it is still stopping; send again in a moment')
     // Bot 的对话不阻塞：运行中发来的话（除了排到这一轮之后的）一律插队，打断这一步马上看；
     // 正在跑的命令转到后台，不杀掉。
     if (value.conversationOnly && behavior === 'steer') behavior = 'interrupt'
@@ -254,6 +261,8 @@ export const agentSessionMethods = {
     await this.selectToolsForMessage(value, displayText, { preserveRequested: true })
     if (!value.session.isStreaming)
       throw pisperError('unavailable', 'session', 'the run has ended; send it as a new message')
+    if (value.abortedAt)
+      throw pisperError('busy', 'session', 'it is still stopping; send again in a moment')
     const inputId = await captureQueuedSessionInput(
       value.session,
       streamingBehavior,

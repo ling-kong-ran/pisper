@@ -701,6 +701,11 @@ export class AgentRuntimeFacade {
         if (value.botTurnDue) {
           value.botTurnDue = false
           if (!value.abortedAt) this.scheduleAfterBotTurn(id)
+          else this.dropBotChatReplies(id, value)
+        } else if (value.pendingChatReplies?.length) {
+          // 这一轮被停下或出错，不走收尾：在它说话时插话的聊天不会有回复了。告诉对方没答上，并把名单清掉——
+          // 留着的话，下一轮（比如你私下问它的一句）的回复会被发到那个群里。
+          this.dropBotChatReplies(id, value)
         }
         // Bot 在这一轮跑的时候改了名：运行中改不了会话标题，放下运行标记后补上。
         if (this.pendingThreadNames?.has(id)) void this.renameBotThread(id)
@@ -1103,9 +1108,16 @@ export class AgentRuntimeFacade {
     if (!sessionId) return null
     const talking = this.sessionRunIsActive(sessionId) || this.startingRuns.has(sessionId)
     // 后台命令也算手上的活。
-    const agents = this.listSessionAgents(sessionId).filter((agent) =>
-      ['queued', 'starting', 'running'].includes(agent.status),
-    )
+    // Bots 列表每几秒轮询一次：手上没有在跑的活时，不为每个 Bot 把子 agent 记录过滤、排序、投影一遍。
+    const mayWork =
+      !this.multiAgents?.hasActive ||
+      this.multiAgents.hasActive(sessionId) ||
+      Boolean(this.botCommands?.list(sessionId)?.length)
+    const agents = mayWork
+      ? this.listSessionAgents(sessionId).filter((agent) =>
+          ['queued', 'starting', 'running'].includes(agent.status),
+        )
+      : []
     const { approval, question } = this.botWaiting(sessionId)
     const waiting = approval ? 'approval' : question ? 'question' : null
     if (!talking && !agents.length && !waiting)
@@ -1155,6 +1167,8 @@ export class AgentRuntimeFacade {
   botForSession(sessionId) {
     if (!sessionId || !this.bots || !this.capabilities.features.bots) return null
     if (!this.isBetaFeatureEnabled('bots')) return null
+    // 每次权限判断都会问到这里：按会话直接找，不把全部 Bot 拷贝一遍。
+    if (this.bots.forSession) return this.bots.forSession(sessionId)
     return this.bots.list().find((bot) => bot.threadSessionId === sessionId) || null
   }
 
@@ -1271,7 +1285,9 @@ export class AgentRuntimeFacade {
 
   // 渠道、定时任务对 Bot 说一句话：发进它的长期会话。这一轮结束后把回复发回来源聊天。
   // Bot 正在说话时：定时任务排在这一轮之后（不需要回复）；聊天里的人收到“在忙”，不排队等很久才回。
-  async messageBot(botId, { text, source = { kind: 'chat' } } = {}) {
+  // waitForStart：等到这一轮真的开始（或开不起来）再返回；开不起来时抛出原因。定时任务用它，
+  // 不然模型不可用、撞上正忙时任务记录仍写着“已发送”。
+  async messageBot(botId, { text, source = { kind: 'chat' }, waitForStart = false } = {}) {
     const bot = this.bots.get(botId)
     if (!bot)
       throw Object.assign(new Error('Bot not found.'), { code: 'bot_not_found', statusCode: 404 })
@@ -1303,15 +1319,32 @@ export class AgentRuntimeFacade {
       // 正好在这一刻说完了：当成新的一句发进去。
     }
     if (source.kind === 'channel') this.botChatOrigins.set(sessionId, source)
-    // 运行开始时取走（runSessionPrompt）。
-    this.botPendingTrust?.set(sessionId, trust)
+    // 运行开始时取走（runSessionPrompt）。还有一份没取走时按更不可信的那个算：会话还没加载时开跑前要等一会儿，
+    // 这段空档里第二个来源直接覆盖，会让外部的话那一轮按“用户说的”写记忆。
+    const waitingTrust = this.botPendingTrust?.get(sessionId)
+    this.botPendingTrust?.set(
+      sessionId,
+      waitingTrust ? stricterBotTrust(waitingTrust, trust) : trust,
+    )
+    let settleStart = () => {}
+    const started = new Promise((resolveStart) => {
+      settleStart = resolveStart
+    })
     void this.promptFromChannel({
       sessionId,
       message,
       unattended: source.kind === 'schedule' || source.kind === 'bot',
+      // meta 是运行状态建立后的第一帧：到这里这一轮就算开始了。
+      onEvent: (event) => {
+        if (event === 'meta') settleStart('')
+      },
     })
-      .then((result) => this.notifyBotChat(source, botReplyText(bot.name, result)))
+      .then((result) => {
+        settleStart(result?.error || '')
+        return this.notifyBotChat(source, botReplyText(bot.name, result))
+      })
       .catch((error) => {
+        settleStart(error instanceof Error ? error.message : String(error))
         this.botPendingTrust?.delete(sessionId)
         return this.notifyBotChat(
           source,
@@ -1321,7 +1354,20 @@ export class AgentRuntimeFacade {
       .finally(() => {
         if (this.botChatOrigins.get(sessionId) === source) this.botChatOrigins.delete(sessionId)
       })
+    if (waitForStart) {
+      const failure = await started
+      if (failure) throw pisperError('failed', 'bot', failure)
+    }
     return { sessionId, status: 'started' }
+  }
+
+  // 没说完的一轮（停下、出错）：告诉在等回复的聊天这次没答上，名单清空。
+  dropBotChatReplies(sessionId, value) {
+    const sources = (value.pendingChatReplies || []).splice(0)
+    const bot = this.botForSession(sessionId)
+    if (!bot) return
+    for (const source of sources)
+      this.notifyBotChat(source, botReplyText(bot.name, { error: 'the reply was interrupted' }))
   }
 
   // 一轮开始时定下这一轮的话是谁说的（见 botSourceTrust），bot_remember 按它定可信度。
@@ -1795,7 +1841,11 @@ export class AgentRuntimeFacade {
     if (isCourtesyMessage(decision.text)) return { type: 'message', skipped: 'courtesy' }
     const continuing = trigger?.message?.from === target.id ? trigger.message : null
     const chain = continuing?.chain || newBotChainId()
-    const hop = continuing ? Math.max(continuing.hop, this.botLinks.get(chain)?.hops || 0) + 1 : 1
+    // 发给第三个 Bot 时开一条新的来往（时间线上各记各的），但跳数接着这一轮的来由往下数：
+    // 不然 A→B、B→C、C→A 每一句都是“新链第 1 跳”，6 跳的上限永远到不了。
+    const hop = continuing
+      ? Math.max(continuing.hop, this.botLinks.get(chain)?.hops || 0) + 1
+      : this.botTurnOriginHop(trigger) + 1
     if (!continuing) this.botLinks.open({ chain, from: bot.id, to: target.id, text: decision.text })
     const sent = await this.deliverBotMessage(bot, target, {
       text: decision.text,
@@ -1805,6 +1855,18 @@ export class AgentRuntimeFacade {
     })
     if (sent.ok && continuing) this.botLinks.advance(chain, { hop, waiting: decision.expectsReply })
     return { type: 'message', bot: target.id, chain, ...(sent.ok ? {} : { skipped: sent.reason }) }
+  }
+
+  // 这一轮是从 Bot 之间的哪一跳来的：别的 Bot 说进来的话，或替别的 Bot 做的活做完了；都不是就是 0（你说的话、定时）。
+  botTurnOriginHop(trigger) {
+    let hop = 0
+    const message = trigger?.message
+    if (message) hop = Math.max(message.hop, this.botLinks.get(message.chain)?.hops || 0)
+    for (const agentId of trigger?.completedAgents || []) {
+      const request = this.botAgentRequests?.get(agentId)
+      if (request) hop = Math.max(hop, request.hop, this.botLinks.get(request.chain)?.hops || 0)
+    }
+    return hop
   }
 
   // 这一轮说完后把话交回去：别的 Bot 在等回话的，回复发给它；替别的 Bot 做的活做完了，汇报发给它。

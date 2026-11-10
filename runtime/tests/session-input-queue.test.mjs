@@ -442,3 +442,18 @@ test('POST send-now API promotes the queued input and is gated by the inputInter
   assert.equal(requiredRuntimeFeature('/api/sessions/s/input', 'POST'), '')
   assert.equal(requiredRuntimeFeature('/api/sessions/s/input/i', 'DELETE'), '')
 })
+
+test('a message sent while the run is still stopping is refused, not queued and then dropped', async (t) => {
+  const { runtime, session, enqueue } = await sdkQueue(t)
+  runtime.sessions.get(session.sessionId).abortedAt = Date.now()
+  await assert.rejects(enqueue('Too late'), { code: 'busy' })
+  assert.deepEqual(session.agent.steeringQueue.messages, [])
+  // 准备附件的这一会儿按了停止：入队前再看一次。
+  delete runtime.sessions.get(session.sessionId).abortedAt
+  runtime.preparePromptAttachments = async () => {
+    runtime.sessions.get(session.sessionId).abortedAt = Date.now()
+    return { images: [], contexts: [] }
+  }
+  await assert.rejects(enqueue('Also too late'), { code: 'busy' })
+  assert.deepEqual(session.agent.steeringQueue.messages, [])
+})

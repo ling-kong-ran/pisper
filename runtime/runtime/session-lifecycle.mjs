@@ -63,6 +63,8 @@ const COMPOSER_RUN_MODES = new Set(['plan', 'goal', 'team'])
 export const DEFAULT_COMPOSER_RUN_MODE = 'plan'
 const MAX_RESIDENT_SESSION_RUNTIMES = 3
 const SESSION_RUNTIME_IDLE_TTL_MS = 5 * 60 * 1000
+// 删除运行中的会话时最多等引擎停多久，之后直接释放。
+const DELETE_ABORT_WAIT_MS = 3_000
 const SESSION_HISTORY_CACHE_MEMORY_MULTIPLIER = 4
 
 export class SessionLifecycle {
@@ -378,8 +380,11 @@ export class SessionLifecycle {
   }
 
   // 会话列表：磁盘会话 + 活动运行时 + 待物化会话合并，附目标/计划/Agent/血缘信息。
-  async listSessions({ includeSideChats = false } = {}) {
-    const sessions = await this.listStoredSessions()
+  // ids：只投影这几个会话（看板增量每秒几次，只有一两张卡变了，不为它们把全部会话算一遍）。
+  async listSessions({ includeSideChats = false, ids = null } = {}) {
+    const wanted = ids ? new Set(ids) : null
+    const stored = await this.listStoredSessions()
+    const sessions = wanted ? stored.filter((session) => wanted.has(session.id)) : stored
     const settings = this.getSettingsManager().getGlobalSettings()
     const sessionMeta = this.getSessionMeta()
     const goals = this.getGoals()
@@ -481,7 +486,7 @@ export class SessionLifecycle {
     })
     const persistedIds = new Set(result.map((session) => session.id))
     for (const [id, value] of this.sessions) {
-      if (persistedIds.has(id)) continue
+      if (persistedIds.has(id) || (wanted && !wanted.has(id))) continue
       result.unshift(
         sessionValue(id, {
           id,
@@ -503,7 +508,7 @@ export class SessionLifecycle {
       )
     }
     for (const [id, value] of this.pendingSessions) {
-      if (persistedIds.has(id) || this.sessions.has(id)) continue
+      if (persistedIds.has(id) || this.sessions.has(id) || (wanted && !wanted.has(id))) continue
       result.unshift(
         sessionValue(id, {
           id,
@@ -1512,7 +1517,20 @@ export class SessionLifecycle {
     this.pendingSessions.delete(id)
     let sessionFile = active?.session.sessionFile
     if (active) {
-      if (this.sessionRunIsActive(id, active)) await active.session.abort()
+      if (this.sessionRunIsActive(id, active)) {
+        // Pi 的 abort 等会话 idle，Provider 流失联时可能永不结束（见 abortSession）：最多等一小会儿，
+        // 之后直接 dispose。不设上限的话删除接口不返回，会话停在“目标和子 agent 已删、文件还在”的半删状态。
+        let timer = null
+        await Promise.race([
+          Promise.resolve()
+            .then(() => active.session.abort())
+            .catch(() => {}),
+          new Promise((resolveWait) => {
+            timer = setTimeout(resolveWait, Number(this.deleteAbortWaitMs) || DELETE_ABORT_WAIT_MS)
+          }),
+        ])
+        clearTimeout(timer)
+      }
       active.session.dispose()
       this.sessions.delete(id)
     }
