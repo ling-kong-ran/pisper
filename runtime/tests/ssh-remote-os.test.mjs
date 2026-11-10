@@ -789,6 +789,8 @@ test('the askpass helper answers password prompts only', async () => {
   assert.deepEqual(await helper("me@host's password: "), [0, `${SECRET}\n`, ''])
   // 一次连接只给一次：再问就不给，也不留“第二重验证”的标记（那是密码错了）。
   assert.deepEqual(await helper("me@host's password: "), [1, '', ''])
+  // 密码给过之后对方接着要验证码：如实说“不支持第二重验证”，不能看起来像密码错了。
+  assert.deepEqual(await helper('(me@host) Verification code: '), [1, '', ASKPASS_REFUSED])
   // 继承了这份环境的别的 node 程序（比如 ssh 起的子进程）：照常运行，环境里没有密码，也不会替 ssh 去要。
   const other = join(directory, 'other.mjs')
   await writeFile(
@@ -876,7 +878,19 @@ test('passwords live in their own 0600 file and never in the machine list', asyn
     }),
     (error) => error.code === 'invalid' && /host key/.test(error.message),
   )
+  // 合法的公钥也不行：只认这边刚从这个地址取到、等用户核对的那一把，调接口的一方塞不进自己的公钥。
+  await assert.rejects(
+    service.add({ target: 'me@new', auth: 'password', password: SECRET, hostKey: pinned() }),
+    (error) => error.code === 'invalid' && /fingerprint of this machine again/.test(error.message),
+  )
+  service.rememberFetchedHostKey({ target: 'me@elsewhere', port: null }, HOST_KEY)
+  await assert.rejects(
+    service.add({ target: 'me@new', auth: 'password', password: SECRET, hostKey: pinned() }),
+    { code: 'invalid' },
+    'a key fetched from another address does not count',
+  )
   assert.ok(!existsSync(secretsPath), 'a refused add stores nothing')
+  service.rememberFetchedHostKey({ target: 'me@new', port: null }, HOST_KEY)
   const added = await service.add({
     target: 'me@new',
     auth: 'password',
@@ -1240,6 +1254,7 @@ test('a refused password is not tried again until it is changed or tested', asyn
   t.after(() => rm(dir, { recursive: true, force: true }))
   const service = new SshMachineService({ path: join(dir, 'm.json'), dataDir: dir })
   await service.init()
+  service.rememberFetchedHostKey({ target: 'me@new', port: null }, HOST_KEY)
   const added = await service.add({
     target: 'me@new',
     auth: 'password',
@@ -1263,6 +1278,7 @@ test('a saved password is only ever used for the address it was saved for', asyn
   t.after(() => rm(dir, { recursive: true, force: true }))
   const service = new SshMachineService({ path: join(dir, 'm.json'), dataDir: dir })
   await service.init()
+  service.rememberFetchedHostKey({ target: 'me@host', port: 2222 }, HOST_KEY)
   const added = await service.add({
     target: 'me@host',
     port: 2222,
@@ -1300,6 +1316,7 @@ test('a saved password is only ever used for the address it was saved for', asyn
     (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
   )
   const otherKey = testHostKey(2)
+  service.rememberFetchedHostKey({ target: 'me@other', port: null }, otherKey)
   await service.test({
     id: added.id,
     target: 'me@other',
@@ -1324,6 +1341,8 @@ test('a saved password is only ever used for the address it was saved for', asyn
     (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
   )
   assert.equal(service.get(added.id).target, 'me@host')
+  // 只改地址时端口沿用原来的 2222：指纹要为这个地址和端口取。
+  service.rememberFetchedHostKey({ target: 'me@other', port: 2222 }, otherKey)
   const moved = await service.update(added.id, {
     target: 'me@other',
     password: 'for-other',
@@ -1338,8 +1357,34 @@ test('a saved password is only ever used for the address it was saved for', asyn
   assert.equal(await service.secrets.get(added.id), 'for-other')
   assert.equal(service.get(added.id).hostKey.key, otherKey.key)
   // 对方换了主机密钥：重新确认后才认新的那把，之前的连通结果作废。
+  // 这正是最可能有人冒充的时候：存着的密码不跟着新公钥走，要重新输入（测试连接也一样）。
   await service.recordCheck(added.id, { ok: true, platform: 'Linux' })
-  const repinned = await service.update(added.id, { hostKey: pinned() })
+  await assert.rejects(
+    service.update(added.id, { hostKey: pinned() }),
+    { code: 'invalid' },
+    'a key this side did not just fetch from that address is refused',
+  )
+  service.rememberFetchedHostKey({ target: 'me@other', port: 2222 }, HOST_KEY)
+  const before = used.length
+  for (const attempt of [
+    () => service.update(added.id, { hostKey: pinned() }),
+    () =>
+      service.test({
+        id: added.id,
+        target: 'me@other',
+        port: 2222,
+        auth: 'password',
+        hostKey: pinned(),
+      }),
+  ])
+    await assert.rejects(
+      attempt(),
+      (error) => error.code === 'invalid' && /again/.test(error.message),
+    )
+  assert.equal(used.length, before, 'the saved password was not sent to the new host key')
+  assert.equal(service.get(added.id).hostKey.key, otherKey.key)
+  const repinned = await service.update(added.id, { hostKey: pinned(), password: 'for-new-key' })
+  assert.equal(await service.secrets.get(added.id), 'for-new-key')
   assert.deepEqual([repinned.hostKey.fingerprint, repinned.lastCheck], [HOST_KEY.fingerprint, null])
   // 取指纹：不带任何凭据（按密钥方式建执行器，没有密码回调）。
   let fetchedWith = null
@@ -1350,6 +1395,8 @@ test('a saved password is only ever used for the address it was saved for', asyn
     },
   })
   assert.deepEqual(await service.hostKey({ target: 'me@other', port: 22 }), HOST_KEY)
+  // 取到的那把记在这边，等用户核对后保存时对照。
+  assert.equal(service.fetchedHostKeys.get('me@other|22').key, HOST_KEY.key)
   assert.deepEqual(fetchedWith, ['key', 'me@other', 22, undefined])
   await assert.rejects(service.hostKey({ target: '-oProxyCommand=x' }), { code: 'invalid_target' })
   // 密钥登录的机器没有存着的密码可拿。
@@ -1607,3 +1654,46 @@ test(
     assert.notEqual(again.fingerprint, hostKey.fingerprint)
   },
 )
+
+test('only a failure while signing in counts as a refused password; password sign-in never reuses a connection', async (t) => {
+  // 登录成功、收到过对方的输出之后断开：stderr 里的 Permission denied 是远程命令自己打的。
+  const dropped = fakeSsh(() => ({
+    code: 255,
+    stdout: 'partial output\n',
+    stderr: 'find: /root: Permission denied\nConnection to host closed by remote host.\n',
+  }))
+  const blocked = []
+  const executor = new SshExecutor({
+    machine: {
+      ...passwordMachine,
+      system: { family: 'posix', name: 'Linux', os: 'linux', shell: 'sh' },
+    },
+    platform: 'linux',
+    password: () => SECRET,
+    spawnProcess: dropped.spawnProcess,
+    muxDirectory: '/tmp/pisper-mux-test',
+    onAuthFailed: () => blocked.push('x'),
+  })
+  await assert.rejects(executor.operations().bash.exec('find /', '/', {}), {
+    code: 'ssh_disconnected',
+  })
+  await assert.rejects(executor.operations().read.readFile('/x'), { code: 'ssh_disconnected' })
+  assert.deepEqual(blocked, [], 'a dropped connection does not lock the machine')
+  // 密码登录的每条连接都不带连接复用。
+  assert.ok(dropped.calls.length >= 2)
+  for (const call of dropped.calls)
+    assert.ok(
+      !call.args.some((arg) => /^Control(Master|Path|Persist)=/.test(arg)),
+      call.args.join(' '),
+    )
+
+  // 启动时清掉上次没删的每次连接的临时目录，别的不动。
+  const dir = await mkdtemp(join(tmpdir(), 'pisper-ssh-scratch-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  await mkdir(join(dir, 'ssh-password', 'pw-left'), { recursive: true })
+  await mkdir(join(dir, 'ssh-password', 'keep'), { recursive: true })
+  const service = new SshMachineService({ path: join(dir, 'm.json'), dataDir: dir })
+  await service.init()
+  assert.equal(existsSync(join(dir, 'ssh-password', 'pw-left')), false)
+  assert.equal(existsSync(join(dir, 'ssh-password', 'keep')), true)
+})

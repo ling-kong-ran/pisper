@@ -4,6 +4,7 @@
 // 密码不常驻内存：只在要连的那一刻从文件读出，交给这一次连接的密码通道，用完就放掉。
 // 密码机器还存着用户核对过指纹的主机公钥（hostKey）：连接只认它，没确认过就不连（见 ssh-host-key.mjs）。
 import { randomBytes } from 'node:crypto'
+import { readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
@@ -21,6 +22,9 @@ const MAX_PASSWORD_CHARS = 1024
 // 和执行器里的 socket 路径上限一致：数据目录太长时（macOS 的 Application Support）改用 /tmp 下自己的目录。
 const MAX_MUX_DIRECTORY_CHARS = 45
 const ID_PATTERN = /^ssh_[A-Za-z0-9_-]{8,32}$/
+// 取到的主机公钥等用户核对的时间：过了就要重新取。
+const FETCHED_HOST_KEY_TTL_MS = 10 * 60_000
+const MAX_FETCHED_HOST_KEYS = 32
 // user@host 或 ~/.ssh/config 里的别名。白名单而不是黑名单：开头的 - 会被 ssh 当成选项（-oProxyCommand=…），
 // 主机名里的 shell 元字符配合 ProxyCommand 的 %h 也能执行命令。IPv6 地址放在方括号里。
 const TARGET_PATTERN =
@@ -208,6 +212,8 @@ export class SshMachineService {
     // 连接，几次就能锁住账户或被 fail2ban 封掉）。改了密码或地址、或用户点了测试就解除。只记在内存里：
     // 重启后会再试一次，再被拒绝就又记上。
     this.authRefused = new Set()
+    // 这边刚从某个地址取到的主机公钥（地址 → 公钥与时间）：保存时只认这里有的那一把。
+    this.fetchedHostKeys = new Map()
   }
 
   async init() {
@@ -222,6 +228,17 @@ export class SshMachineService {
     for (const id of [...this.secrets.ids])
       if (!this.machines.get(id) || this.machines.get(id).auth !== 'password')
         await this.secrets.delete(id)
+    await this.#clearScratch()
+  }
+
+  // 上次没来得及删的每次连接的临时目录（Runtime 崩溃、被杀掉时留下的；里面没有密码）：启动时清掉。
+  async #clearScratch() {
+    const entries = await readdir(this.scratchDirectory, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries)
+      if (entry.isDirectory() && entry.name.startsWith('pw-'))
+        await rm(join(this.scratchDirectory, entry.name), { recursive: true, force: true }).catch(
+          () => {},
+        )
   }
 
   persist() {
@@ -301,14 +318,41 @@ export class SshMachineService {
       : null
   }
 
-  // 这次用哪把主机公钥：请求里带了就是用户刚确认的那把（按不可信输入校验），没带就用存着的（地址没变时）。
+  #addressKey(connection) {
+    return `${connection.target.toLowerCase()}|${connection.port ?? ''}`
+  }
+
+  // 记下这边刚从这个地址取到的公钥，等用户核对。
+  rememberFetchedHostKey(connection, hostKey) {
+    const key = this.#addressKey(connection)
+    this.fetchedHostKeys.delete(key)
+    this.fetchedHostKeys.set(key, { type: hostKey.type, key: hostKey.key, at: Date.now() })
+    while (this.fetchedHostKeys.size > MAX_FETCHED_HOST_KEYS)
+      this.fetchedHostKeys.delete(this.fetchedHostKeys.keys().next().value)
+  }
+
+  // 这次用哪把主机公钥：请求里带了就是用户刚确认的那把，没带就用存着的（地址没变时）。
+  // 请求里带的公钥不能是随便一把：要么就是这台机器已经存着的，要么是这边刚从这个地址取到、等用户核对的那一把。
+  // 不然调接口的一方可以直接塞一把自己的公钥，让之后的连接去认冒充的主机。
   #confirmedHostKey(input, id, connection) {
+    const saved = id ? this.#savedHostKeyFor(id, connection) : null
     if (input?.hostKey !== undefined && input.hostKey !== null) {
       const given = normalizeHostKey(input.hostKey)
       if (!given) throw pisperError('invalid', 'login', 'the host key is not a valid public key')
+      if (saved && sameHostKey(given, saved)) return given
+      const fetched = this.fetchedHostKeys.get(this.#addressKey(connection))
+      if (
+        !fetched ||
+        Date.now() - fetched.at > FETCHED_HOST_KEY_TTL_MS ||
+        !sameHostKey(given, fetched)
+      )
+        throw pisperError(
+          'invalid',
+          'login',
+          'get the host fingerprint of this machine again and confirm it',
+        )
       return given
     }
-    const saved = id ? this.#savedHostKeyFor(id, connection) : null
     if (!saved)
       throw pisperError(
         'invalid',
@@ -321,12 +365,35 @@ export class SshMachineService {
   // 取一台机器的主机公钥给用户核对指纹：只握手，不带密码也不带密钥，不读这台电脑的 ssh 配置。
   async hostKey(input) {
     const connection = normalizeSshConnection(input)
-    return this.executorFor({
+    const hostKey = await this.executorFor({
       id: 'ssh_unsaved0',
       name: connection.target,
       ...connection,
       auth: 'key',
     }).hostKey()
+    this.rememberFetchedHostKey(connection, hostKey)
+    return hostKey
+  }
+
+  // 存着的密码能不能接着用：地址、端口没变，而且要认的还是存密码时确认的那把主机公钥。
+  // 公钥换了（“身份变了”后重新确认）正是最可能有人冒充的时候：和改地址一样，要用户重新输入密码。
+  #reusesPassword(id, connection, hostKey) {
+    return (
+      this.#sameAddress(id, connection) &&
+      this.secrets.has(id) &&
+      sameHostKey(hostKey, this.machines.get(id).hostKey)
+    )
+  }
+
+  #passwordAgain(id) {
+    const machine = this.machines.get(id)
+    return pisperError(
+      'invalid',
+      'login',
+      machine && machine.auth === 'password' && this.secrets.has(id)
+        ? 'enter the password again: the saved one belongs to the previous address and host fingerprint'
+        : 'enter the password',
+    )
   }
 
   // 还没保存的连接也能测：添加表单在保存前就给出结果。编辑已有机器时没重新输入密码，就用存着的那个——
@@ -343,16 +410,15 @@ export class SshMachineService {
         auth,
       }).probe()
     const typed = normalizeSshPassword(input?.password)
-    const saved = existing && this.#sameAddress(existing, connection) && this.secrets.has(existing)
-    if (!typed && !saved)
-      throw pisperError(
-        'invalid',
-        'login',
-        existing && this.secrets.has(existing)
-          ? 'enter the password again: the saved one belongs to the previous address'
-          : 'enter the password',
-      )
+    // 地址变了又没给密码：先说这个（存着的密码不会发到新地址），再谈指纹。
+    if (
+      !typed &&
+      !(existing && this.#sameAddress(existing, connection) && this.secrets.has(existing))
+    )
+      throw this.#passwordAgain(existing)
     const hostKey = this.#confirmedHostKey(input, existing, connection)
+    const saved = existing && this.#reusesPassword(existing, connection, hostKey)
+    if (!typed && !saved) throw this.#passwordAgain(existing)
     const executor = this.executorFor(
       {
         id: 'ssh_unsaved0',
@@ -404,16 +470,15 @@ export class SshMachineService {
     })
     const auth = input?.auth === undefined ? machine.auth : normalizeSshAuth(input.auth)
     const password = auth === 'password' ? normalizeSshPassword(input?.password) : ''
-    const keepsPassword = this.#sameAddress(id, connection) && this.secrets.has(id)
-    if (auth === 'password' && !password && !keepsPassword)
-      throw pisperError(
-        'invalid',
-        'login',
-        this.secrets.has(id) && machine.auth === 'password'
-          ? 'enter the password again: the saved one belongs to the previous address'
-          : 'enter the password',
-      )
+    if (
+      auth === 'password' &&
+      !password &&
+      !(this.#sameAddress(id, connection) && this.secrets.has(id))
+    )
+      throw this.#passwordAgain(id)
     const hostKey = auth === 'password' ? this.#confirmedHostKey(input, id, connection) : null
+    if (auth === 'password' && !password && !this.#reusesPassword(id, connection, hostKey))
+      throw this.#passwordAgain(id)
     const changed =
       connection.target !== machine.target ||
       connection.port !== machine.port ||

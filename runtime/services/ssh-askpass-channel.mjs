@@ -3,7 +3,8 @@
 // 和令牌，ssh 的子进程继承了也拿不到密码；令牌只换一次密码，而且提示语必须是目标机在要密码。
 // 通道只为一次连接开：POSIX 上是只有自己能进的目录（0700）里的 unix socket；Windows 上是名字带随机串的命名管道
 // （Node 设不了管道的访问控制，用的是系统默认：创建者、管理员和 SYSTEM 可读写，其他账户只读——只读的一方发不了
-// 令牌，要不到密码）。ssh 退出、答过一次或超时后关闭。
+// 令牌，要不到密码）。密码只给一次，给过之后通道还开着：ssh 接着问别的（验证码）时要能告诉它“这个不支持”，
+// 而不是让它看起来像密码错了。ssh 退出或超时后关闭。
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
@@ -59,9 +60,9 @@ export async function openAskpassChannel({
     socket.on('error', () => {})
     let text = ''
     let handled = false
-    const reply = (value, after) => {
+    const reply = (value) => {
       handled = true
-      socket.end(`${JSON.stringify(value)}\n`, after)
+      socket.end(`${JSON.stringify(value)}\n`)
     }
     socket.on('data', (chunk) => {
       if (handled) return
@@ -81,19 +82,21 @@ export async function openAskpassChannel({
         reply({ ok: false, reason: 'denied' })
         return
       }
-      // 密码错了 ssh 会换一种方式再问：同一次连接不送第二遍。
-      if (!password) {
-        reply({ ok: false, reason: 'used' })
-        return
-      }
+      // 先看问的是什么：不是目标机在问、或问的不是密码（验证码等），即使密码已经给过也要如实说，
+      // 这样“密码之后还要验证码”的机器报的是“不支持第二重验证”，不是“密码不对”。
       const decision = askpassDecision(request.prompt, { expect, bare })
       if (decision !== 'answer') {
         reply({ ok: false, reason: decision })
         return
       }
+      // 密码错了 ssh 会换一种方式再问：同一次连接不送第二遍。
+      if (!password) {
+        reply({ ok: false, reason: 'used' })
+        return
+      }
       const answer = password
       password = ''
-      reply({ ok: true, secret: answer }, close)
+      reply({ ok: true, secret: answer })
     })
   })
   server.on('error', () => {})

@@ -67,8 +67,6 @@ function SshForm({
     (target.trim() !== machine?.target ||
       (port.trim() ? Number(port.trim()) : null) !== (machine?.port ?? null))
   const hadPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
-  const savedPassword = hadPassword && !addressChanged
-  const needsPassword = auth === 'password' && !password && !savedPassword
   // 刚取到、等用户核对的主机公钥；confirmed 是用户勾了“我已核对”。
   const [fetched, setFetched] = useState<(MachineHostKey & { key: string }) | null>(null)
   const [confirmed, setConfirmed] = useState(false)
@@ -78,6 +76,12 @@ function SshForm({
   const savedHostKey =
     machine?.auth === 'password' && !addressChanged ? (machine.hostKey ?? null) : null
   const shownHostKey = fetched ?? savedHostKey
+  // 存着的密码也只属于存它时确认的那把主机公钥：取到的指纹和原来的不一样（对方换了密钥，或有人冒充）时，
+  // 和改地址一样要重新输入，Runtime 不会把旧密码发给持有新密钥的一方。
+  const hostKeyChanged =
+    Boolean(fetched) && (!savedHostKey || savedHostKey.fingerprint !== fetched?.fingerprint)
+  const savedPassword = hadPassword && !addressChanged && !hostKeyChanged
+  const needsPassword = auth === 'password' && !password && !savedPassword
   const hostKeyReady = auth !== 'password' || (fetched ? confirmed : Boolean(savedHostKey))
   const address = () => ({
     target: target.trim(),
@@ -343,6 +347,11 @@ function SshForm({
       <p id={`${fieldId}-password-hint`} className="m-0 text-xs text-content-muted">
         {auth === 'password' && hadPassword && addressChanged && (
           <span data-machine-password-again>{t('machines:form.passwordAgain')} </span>
+        )}
+        {auth === 'password' && hadPassword && !addressChanged && hostKeyChanged && (
+          <span data-machine-password-again="host-key">
+            {t('machines:form.passwordAgainHostKey')}{' '}
+          </span>
         )}
         {auth === 'password' ? t('machines:form.passwordHint') : t('machines:form.keyHint')}
       </p>

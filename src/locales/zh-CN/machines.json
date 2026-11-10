@@ -23,6 +23,7 @@
   "form.password": "密码",
   "form.passwordKeep": "已保存密码，留空则保持不变",
   "form.passwordAgain": "地址或端口改了，请重新输入密码并重新核对指纹：保存的密码只用于原来的地址，不会发到新的地址。",
+  "form.passwordAgainHostKey": "这台机器的主机指纹和原来确认的不一样，请重新输入密码：保存的密码只用于原来那把主机密钥，不会发给新的这一把。",
   "form.hostKey": "主机指纹",
   "form.hostKeyFetch": "获取指纹",
   "form.hostKeyRefetch": "重新获取",

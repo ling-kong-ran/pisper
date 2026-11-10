@@ -23,6 +23,7 @@
   "form.password": "Password",
   "form.passwordKeep": "A password is saved; leave empty to keep it",
   "form.passwordAgain": "The address or port changed, so enter the password again and check the fingerprint again: the saved password is only used for the previous address and is not sent to the new one.",
+  "form.passwordAgainHostKey": "This machine's host fingerprint differs from the one confirmed before, so enter the password again: the saved password is only used with the previous host key and is not sent to the new one.",
   "form.hostKey": "Host fingerprint",
   "form.hostKeyFetch": "Get fingerprint",
   "form.hostKeyRefetch": "Get again",

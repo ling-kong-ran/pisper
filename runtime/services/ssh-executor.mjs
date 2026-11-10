@@ -751,8 +751,15 @@ export class SshExecutor {
   }
 
   // 认证失败的那一次：记下来，之后不再用这个密码连。
-  #failure(stderr, password) {
+  // started：这条连接已经登录成功、收到过对方的输出。之后再断开，stderr 里的 “Permission denied” 是远程命令
+  // 自己的报错（find、cat 都会打），不是密码被拒：按连接中断报，不能把机器记成“密码不对”锁住。
+  #failure(stderr, password, { started = false } = {}) {
     const code = classifySshFailure(stderr)
+    if (code === 'auth_failed' && started)
+      return new ExecutorError(
+        'ssh_disconnected',
+        'Connection to the machine dropped; the command may not have finished.',
+      )
     if (code === 'auth_failed' && password) this.onAuthFailed()
     return sshFailure(code, { password: Boolean(password) })
   }
@@ -852,9 +859,13 @@ export class SshExecutor {
     return plan
   }
 
+  // 密码登录不复用连接：复用的主连接可能是同地址的密钥机器按“首次信任”建的（没按确认过的指纹核对），
+  // 改了密码或指纹后的两分钟里也还会接着用旧连接。代价是每个操作都完整握手、登录一次，比密钥登录慢。
   #arguments(scratch = null) {
     const muxDirectory =
-      this.muxDirectory && usableMuxDirectory(this.muxDirectory) ? this.muxDirectory : ''
+      !scratch && this.muxDirectory && usableMuxDirectory(this.muxDirectory)
+        ? this.muxDirectory
+        : ''
     return sshArguments(this.machine, {
       muxDirectory,
       extraArguments: this.extraArguments,
@@ -1060,7 +1071,7 @@ export class SshExecutor {
           return
         }
         if (exitCode === EXIT_SSH_FAILED) {
-          reject(this.#failure(stderr(), password))
+          reject(this.#failure(stderr(), password, { started: size > 0 }))
           return
         }
         resolve({ code: exitCode, stdout: Buffer.concat(chunks), stderr: stderr(), overflow })
@@ -1315,6 +1326,8 @@ export class SshExecutor {
       let pending = Buffer.alloc(0)
       let remotePid = 0
       let markerExit = null
+      // 收到过对方的任何输出：登录已经成功。
+      let sawRemote = false
       let settled = false
       let stopping = ''
       let timer
@@ -1343,6 +1356,7 @@ export class SshExecutor {
       const onAbort = () => stop('abort')
       // 标记可能被切在两个数据块之间：留够一个标记长度不发出去，下一块来了再看。
       const consume = (chunk) => {
+        if (chunk.length) sawRemote = true
         pending = pending.length ? Buffer.concat([pending, chunk]) : chunk
         for (;;) {
           const start = pending.indexOf(prefix)
@@ -1383,7 +1397,8 @@ export class SshExecutor {
         if (pending.length) onData?.(pending)
         if (code === EXIT_NO_CWD)
           finish(new Error(`Working directory does not exist: ${remoteCwd}`))
-        else if (code === EXIT_SSH_FAILED) finish(this.#failure(stderr(), password))
+        else if (code === EXIT_SSH_FAILED)
+          finish(this.#failure(stderr(), password, { started: sawRemote }))
         // 没等到结束标记就断了：命令是否跑完不知道，不能当成成功。
         else
           finish(
