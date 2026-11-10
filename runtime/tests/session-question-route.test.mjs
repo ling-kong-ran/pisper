@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import { createApiHandler, requiredRuntimeFeature } from '../http/api-handler.mjs'
+import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
 import {
   SessionQuestionService,
   normalizeQuestions,
@@ -117,4 +121,56 @@ test('unknown or malformed question ids and wrong sessions are 404', async () =>
   }
   assert.equal(questions.getPending('s3').length, 1)
   questions.dispose()
+})
+
+// 问题结束了（运行停止、Runtime 重启）而前端没收到 question_resolved 时，问题卡只能靠 /live 清掉：
+// 没有待回答的问题也必须带空数组，前端把缺字段当成旧 Runtime、沿用本地问题，卡片就一直关不掉。
+test('/live always carries the pending question list so ended questions clear in the client', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-question-live-'))
+  t.after(() => rm(directory, { recursive: true, force: true }).catch(() => {}))
+  const runtime = new AgentRuntimeService({ cwd: directory, dataDir: directory })
+  runtime.listStoredSessions = async () => []
+  const id = 'session-question-live'
+  runtime.sessions.set(id, {
+    cwd: directory,
+    name: '提问',
+    session: {
+      sessionId: id,
+      isStreaming: false,
+      model: { provider: 'openai', id: 'gpt-5.4' },
+      messages: [],
+      abort: async () => {},
+      clearQueue: () => {},
+      setActiveToolsByName: () => {},
+      dispose: () => {},
+    },
+  })
+  const controller = new AbortController()
+  const result = runtime.questions.request({
+    sessionId: id,
+    questions: normalizeQuestions([{ question: 'Which?', options: ['A', 'B'] }]),
+    signal: controller.signal,
+  })
+  const asked = await runtime.getSessionLive(id)
+  assert.equal(asked.questions.length, 1)
+
+  controller.abort()
+  assert.equal((await result).outcome, 'cancelled')
+  const ended = await runtime.getSessionLive(id)
+  assert.deepEqual(ended.questions, [])
+  const answer = runtime.answerSessionQuestion(id, asked.questions[0].id, { skip: true })
+  assert.equal(answer.alreadyResolved, true)
+})
+
+// 问题已经结束（404 / 409）时前端移除问题卡并提示，而不是留着一张怎么点都失败的卡片（兼容旧 Runtime）。
+test('answering an ended question removes the card instead of failing forever', async () => {
+  const source = await readFile(
+    new URL('../../src/features/chat/use-session-commands.ts', import.meta.url),
+    'utf8',
+  )
+  const answer = source.slice(source.indexOf('const answerQuestion = useCallback'))
+  assert.match(
+    answer.slice(0, answer.indexOf('\n  )\n')),
+    /error\.status === 404 \|\| error\.status === 409\)\) \{\s*removeQuestion\(\)\s*notify\(t\('board:question\.closed'\), 'info'\)\s*return/,
+  )
 })

@@ -495,28 +495,36 @@ export function useSessionCommands({
     [notify, syncLiveSession, t, updateSessionState],
   )
 
-  // 回答代理的提问（ask_user）：POST 成功后移除本地问题；问题已在别处回答（409）或不存在（404）时
-  // 用服务端快照接管，再抛给问题卡提示，答案留在卡片里。
+  // 回答代理的提问（ask_user）：POST 成功后移除本地问题。问题已在别处回答（409）或已经不在（404：运行停了、
+  // Runtime 重启过）时也移除并提示，否则卡片会一直留着、怎么点都失败（旧 Runtime 的 /live 不带空的 questions）。
+  // 其他失败用服务端快照接管，再抛给问题卡提示，答案留在卡片里。
   const answerQuestion = useCallback(
     async (
       sessionId: string,
       questionId: string,
       body: { answers: { selected: string[]; other?: string }[] } | { skip: true },
     ) => {
-      try {
-        await chatApi.answerQuestion(sessionId, questionId, body)
+      const removeQuestion = () =>
         updateSessionState(sessionId, (current) => ({
           ...current,
           questions: (current.questions || []).filter(
             (item) => (item.id ?? item.questionId) !== questionId,
           ),
         }))
+      try {
+        await chatApi.answerQuestion(sessionId, questionId, body)
+        removeQuestion()
       } catch (error) {
         await syncLiveSession(sessionId, { force: true })
+        if (error instanceof ApiError && (error.status === 404 || error.status === 409)) {
+          removeQuestion()
+          notify(t('board:question.closed'), 'info')
+          return
+        }
         throw error
       }
     },
-    [syncLiveSession, updateSessionState],
+    [notify, syncLiveSession, t, updateSessionState],
   )
 
   // 同一文件夹里别的会话留的言：“现在处理”在后台开一轮交给这个会话，随后转入实时同步；

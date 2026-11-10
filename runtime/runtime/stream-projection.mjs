@@ -1402,8 +1402,8 @@ export class StreamProjection {
       promptCache: live?.promptCache || active?.promptCache || null,
       compaction: live?.compaction || null,
       approvals,
-      // 只做加法：有待回答的问题时才带，旧客户端忽略。
-      ...(questions.length ? { questions } : {}),
+      // 没有问题时也带空数组：客户端靠它清掉已经结束（取消、Runtime 重启）却没收到 question_resolved 的问题卡。
+      questions,
       // 只做加法：同一文件夹里最近有别的会话改文件、或有留言时才带。
       ...(workspace ? { workspace } : {}),
       pageInfo: page.pageInfo,
