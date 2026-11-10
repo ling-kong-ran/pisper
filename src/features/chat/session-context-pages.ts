@@ -34,6 +34,25 @@ export type ContextPage = {
   agent: boolean
   view: ContextPageView
 }
+// 往上翻着读时视口顶上那条消息，和它的顶边在视口顶之上多少像素。回来时按它还原：
+// 虚拟行重新进入时先按估算高度排版，同一个像素值会落在另一条消息上。
+export type ConversationAnchor = { messageId: string; offset: number }
+const MAX_ANCHOR_ID_LENGTH = 256
+
+function normalizeConversationAnchor(value: unknown): ConversationAnchor | null | undefined {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') return undefined
+  const { messageId, offset } = value as Record<string, unknown>
+  if (typeof messageId !== 'string' || !messageId || messageId.length > MAX_ANCHOR_ID_LENGTH)
+    return undefined
+  if (typeof offset !== 'number' || !Number.isFinite(offset)) return undefined
+  return { messageId, offset: Math.round(offset) }
+}
+
+function sameAnchor(a: ConversationAnchor | null, b: ConversationAnchor | null) {
+  return a === b || (!!a && !!b && a.messageId === b.messageId && a.offset === b.offset)
+}
+
 export type ContextPages = {
   pages: ContextPage[]
   activeId: string
@@ -44,6 +63,7 @@ export type ContextPages = {
   summaryOpen: boolean
   contentWidth: number | null
   conversationScrollTop: number | null
+  conversationAnchor: ConversationAnchor | null
 }
 export type ContextPageAction =
   | { type: 'add'; kind: SessionContextTab; resourceId?: string }
@@ -62,6 +82,7 @@ export type ContextPageAction =
       summaryOpen?: boolean
       // null：离开时贴着底部，回来时落到最新消息。
       conversationScrollTop?: number | null
+      conversationAnchor?: ConversationAnchor | null
     }
 
 export const MAX_CONTEXT_PAGES = 12
@@ -107,6 +128,7 @@ export function createContextPages(kind?: SessionContextTab): ContextPages {
     summaryOpen: false,
     contentWidth: null,
     conversationScrollTop: null,
+    conversationAnchor: null,
   }
 }
 
@@ -141,6 +163,7 @@ function neighborBrowserId(pages: ContextPage[], closingId: string) {
 
 export function updateContextPages(state: ContextPages, action: ContextPageAction): ContextPages {
   if (action.type === 'workspace') {
+    const anchor = normalizeConversationAnchor(action.conversationAnchor)
     const next = {
       ...state,
       ...(action.contentWidth !== undefined
@@ -156,12 +179,16 @@ export function updateContextPages(state: ContextPages, action: ContextPageActio
             Number.isFinite(action.conversationScrollTop)
           ? { conversationScrollTop: Math.max(0, action.conversationScrollTop) }
           : {}),
+      ...(anchor !== undefined && !sameAnchor(anchor, state.conversationAnchor)
+        ? { conversationAnchor: anchor }
+        : {}),
     }
     // 值没变就还是原来那个对象：订阅这份状态的面板（检查器、浏览器页签）不用跟着重渲染。
     return next.contentWidth === state.contentWidth &&
       next.contentOpen === state.contentOpen &&
       next.summaryOpen === state.summaryOpen &&
-      next.conversationScrollTop === state.conversationScrollTop
+      next.conversationScrollTop === state.conversationScrollTop &&
+      next.conversationAnchor === state.conversationAnchor
       ? state
       : next
   }

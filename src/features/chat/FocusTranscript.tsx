@@ -32,6 +32,7 @@ import { activityScrollVersion } from './run-activity'
 import { earlierTurnSummary } from './transcript-turns'
 import { VirtualMessageTranscript } from './VirtualMessageTranscript'
 import { useContextPagesStore } from './session-context-pages-store'
+import { captureReadingPosition } from './transcript-reading-position'
 
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -40,15 +41,37 @@ import { lastSettledMessageIndex } from '@/lib/session-state'
 
 export type TranscriptLoadState = 'loading' | 'ready' | 'error'
 
-// 离开时贴着底部（与 useAutoScroll 的贴底阈值一致）就记 null：回来时照样落到最新消息。
-// 只有往上翻着读的才记像素位置——虚拟行重新进入时先按估算高度排版，加上离开期间的新消息，
-// 同一个像素值会落在转录中间。
-const BOTTOM_SLACK_PX = 64
-
+// 离开时贴着底部就记 null：回来时照样落到最新消息。往上翻着读的记下视口顶上那条消息（像素位置只作后备）：
+// 虚拟行重新进入时先按估算高度排版，加上离开期间的新消息，同一个像素值会落在转录中间。
 function readingPosition(element: HTMLElement) {
-  return element.scrollHeight - element.clientHeight - element.scrollTop <= BOTTOM_SLACK_PX
-    ? null
-    : element.scrollTop
+  const viewportTop = element.getBoundingClientRect().top
+  const rows = Array.from(
+    element.querySelectorAll<HTMLElement>('[data-pisper-virtual-item]'),
+    (row) => {
+      const box = row.getBoundingClientRect()
+      return { messageId: row.dataset.pisperVirtualItem || '', top: box.top, bottom: box.bottom }
+    },
+  )
+  return captureReadingPosition(
+    {
+      scrollTop: element.scrollTop,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+      viewportTop,
+    },
+    rows,
+  )
+}
+
+// 布局不可信（容器收起、消息行已卸载）时不写，留着上一次的值。
+function saveReadingPosition(sessionId: string, element: HTMLElement) {
+  const position = readingPosition(element)
+  if (position === undefined) return
+  useContextPagesStore.getState().update(sessionId, 'files', {
+    type: 'workspace',
+    conversationScrollTop: position?.top ?? null,
+    conversationAnchor: position?.anchor ?? null,
+  })
 }
 
 // 只有 Bot 的会话才加载招呼。
@@ -201,18 +224,24 @@ export function FocusTranscript({
   const thinkingScrollBucket = Math.floor(String(thinkingText || '').length / 128)
   const transcriptVersion = `${sessionId}:${messages.length}:${lastMessage?.id || ''}:${textScrollBucket}:${thinkingScrollBucket}:${lastMessage?.attachments?.length || 0}:${activityVersion}:${compaction?.status || ''}:${compaction?.finishedAt || ''}:${error || ''}:${streaming ? '1' : '0'}`
   const leaving = useRef(false)
+  const scrollSaveTimer = useRef(0)
   // 恢复值在实例挂载时固定，避免初始行高测量触发 scroll 后反过来覆盖恢复目标。
   const initialReadingPosition = useRef(
     useContextPagesStore.getState().sessions[sessionId]?.conversationScrollTop ?? null,
+  )
+  const initialReadingAnchor = useRef(
+    useContextPagesStore.getState().sessions[sessionId]?.conversationAnchor ?? null,
   )
   const {
     scrollRef: transcriptRef,
     scrollElement: transcriptElement,
     setScrollRef: setTranscriptRef,
     hasUnread,
+    awayFromLatest,
     scrollToBottom,
     maintainBottom,
     pauseFollowing,
+    isFollowing,
   } = useAutoScroll(transcriptVersion, {
     resetKey: `${sessionId}:${transcriptLoadState}`,
     readInitialPosition: () =>
@@ -222,14 +251,8 @@ export function FocusTranscript({
     let frame: number | null = null
     const save = () => {
       const element = transcriptElement
-      if (!element || transcriptLoadState !== 'ready' || element.clientHeight <= 0) return
-      const store = useContextPagesStore.getState()
-      const position = readingPosition(element)
-      if (store.sessions[sessionId]?.conversationScrollTop !== position)
-        store.update(sessionId, 'files', {
-          type: 'workspace',
-          conversationScrollTop: position,
-        })
+      if (!element || transcriptLoadState !== 'ready') return
+      saveReadingPosition(sessionId, element)
     }
     const beforeSelection = () => {
       save()
@@ -252,18 +275,14 @@ export function FocusTranscript({
   // 路由直接换会话（侧栏、⌥↑⌥↓、浏览器后退）时没有“导航前”通知：最后一次滚动的 scroll 事件还没派发，
   // 转录就卸载了，阅读位置会停在上一次保存的值上。布局 effect 的清理在 DOM 移除之前运行，此刻 scrollTop 仍可读，
   // 在这里补存一次（同一个元素换会话时，清理闭包里是旧会话 id，存给旧会话）。
+  // 滚动停下后才写的那次（scrollSaveTimer）可能还没到点：先取消它，由这里同步写入，不靠定时器活过卸载。
   useLayoutEffect(() => {
     const element = transcriptElement
     if (!element || transcriptLoadState !== 'ready') return
     return () => {
+      window.clearTimeout(scrollSaveTimer.current)
       if (element.clientHeight <= 0) return
-      const store = useContextPagesStore.getState()
-      const position = readingPosition(element)
-      if (store.sessions[sessionId]?.conversationScrollTop !== position)
-        store.update(sessionId, 'files', {
-          type: 'workspace',
-          conversationScrollTop: position,
-        })
+      saveReadingPosition(sessionId, element)
     }
   }, [sessionId, transcriptElement, transcriptLoadState])
   const latestRunProps = useMemo(
@@ -312,8 +331,7 @@ export function FocusTranscript({
     if (!loaded && olderRequestRef.current === identity) olderRequestRef.current = null
   }, [hasOlder, loadingOlder, onLoadOlder, pauseFollowing, sessionId, transcriptRef])
   // 阅读位置在滚动停下后才记一次：流式跟随时每帧都有 scroll 事件，每帧写一次 store 会带着订阅这份状态的
-  // 面板每帧重渲染。离开会话前另有保存（上面两个 effect），不靠这里的最后一次。
-  const scrollSaveTimer = useRef(0)
+  // 面板每帧重渲染。离开会话前另有同步保存（上面两个 effect），不靠这里的最后一次。
   useEffect(() => () => window.clearTimeout(scrollSaveTimer.current), [sessionId])
   const handleTranscriptScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
@@ -321,11 +339,8 @@ export function FocusTranscript({
       window.clearTimeout(scrollSaveTimer.current)
       if (!leaving.current && transcriptLoadState === 'ready' && element.clientHeight > 0) {
         scrollSaveTimer.current = window.setTimeout(() => {
-          if (leaving.current || element.clientHeight <= 0) return
-          useContextPagesStore.getState().update(sessionId, 'files', {
-            type: 'workspace',
-            conversationScrollTop: readingPosition(element),
-          })
+          if (leaving.current || !element.isConnected) return
+          saveReadingPosition(sessionId, element)
         }, SCROLL_SAVE_DELAY_MS)
       }
       // 收起更早的对话时不自动翻页：胶囊之上没有可读内容，翻页只会白白拉历史。
@@ -578,7 +593,13 @@ export function FocusTranscript({
               cwd={cwd}
               targetEntryId={targetEntryId}
               onContentSizeChange={maintainBottom}
+              isFollowingLatest={isFollowing}
               onTargetScroll={pauseFollowing}
+              restoreAnchor={
+                typeof initialReadingPosition.current === 'number'
+                  ? initialReadingAnchor.current
+                  : null
+              }
               onTargetLocated={(entryId) => {
                 clearSessionMessageTarget(sessionId, entryId)
                 setTargetEntryId('')
@@ -601,13 +622,20 @@ export function FocusTranscript({
           className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-6 bg-linear-to-b from-panel to-transparent max-[650px]:h-10"
         />
       )}
-      {(hasUnread || hasNewer) && (
+      {/* 不在最新消息就给“回到最新”：往上翻着读、回来时停在上次读到的地方、看着更早的历史页、或跟随停了又来了新内容。
+          跟随中（流式贴底）不显示，不会随着每帧的内容增长闪烁；不显示时整个按钮不在 DOM 里，也就不在 Tab 顺序里。 */}
+      {(hasUnread || hasNewer || awayFromLatest) && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[6px] z-[5] flex justify-center">
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             className="pointer-events-auto rounded-full px-3 shadow-float max-[650px]:h-11"
+            data-pisper-return-latest
+            aria-label={
+              hasUnread && !hasNewer
+                ? t('chat:focusSession.newContent')
+                : t('chat:focusSession.returnToLatest')
+            }
             disabled={loadingLatest}
             aria-busy={loadingLatest || undefined}
             onClick={async () => {
@@ -628,8 +656,10 @@ export function FocusTranscript({
               requestAnimationFrame(() => scrollToBottom('auto'))
             }}
           >
-            <ArrowDown size={14} />
-            {hasNewer ? t('chat:focusSession.returnToLatest') : t('chat:focusSession.newContent')}
+            <ArrowDown size={14} aria-hidden="true" />
+            {hasUnread && !hasNewer
+              ? t('chat:focusSession.newContent')
+              : t('chat:focusSession.returnToLatest')}
           </Button>
         </div>
       )}

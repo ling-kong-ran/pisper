@@ -104,6 +104,17 @@ test('virtualization source owns only message rows and preserves stable render b
   assert.ok(packageJson.devDependencies['@tanstack/react-virtual'])
   assert.match(virtualSource, /useVirtualizer<HTMLDivElement, HTMLDivElement>/)
   assert.match(virtualSource, /getScrollElement: \(\) => scrollElement/)
+  // 切回长会话停在中间（2026-11）：虚拟器接上容器时不能把它拉回 0；贴底跟随时不按它记的旧位置做行高校正，
+  // 往上读时按容器的实际位置平移。位置由 useAutoScroll 定，虚拟器只在它不跟随时帮着保持。
+  assert.match(virtualSource, /initialOffset: \(\) => scrollElement\?\.scrollTop \?\? 0/)
+  assert.match(
+    virtualSource,
+    /if \(adjustments\) \{\s*if \(isFollowingLatest\?\.\(\)\) return\s*element\.scrollTo\(\{ top: element\.scrollTop \+ adjustments, behavior \}\)/,
+  )
+  assert.match(transcriptSource, /isFollowingLatest=\{isFollowing\}/)
+  assert.match(autoScrollSource, /else controller\.settleAtBottom\(\)/)
+  // “回到最新”在不在最新消息时就显示，不只是看更早的历史页或停跟随后来了新内容。
+  assert.match(transcriptSource, /\(hasUnread \|\| hasNewer \|\| awayFromLatest\) &&/)
   // 这里只保护虚拟器显式接收身份键；消息序列变化后的锚点由真实浏览器翻页用例验证，
   // 不限定通过闭包数组还是 ref 读取 ID，否则缓存失效的正确修复反而会被拦截。
   assert.match(virtualSource, /getItemKey[,:\s]/)

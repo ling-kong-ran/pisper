@@ -2,12 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createScrollFollowController } from '../../src/lib/scroll-follow.ts'
 
-function fixture(t, { reducedMotion, threshold, rounded = false } = {}) {
+function fixture(t, { reducedMotion, threshold, rounded = false, silentScroll = false } = {}) {
   let time = 0
   let nextId = 0
   const frames = new Map()
   const writes = []
   const unread = []
+  const away = []
   const document = new EventTarget()
   const media = { matches: false }
   document.documentElement = { dataset: {} }
@@ -25,13 +26,15 @@ function fixture(t, { reducedMotion, threshold, rounded = false } = {}) {
         Math.min(this.scrollHeight - this.clientHeight, rounded ? Math.round(top) : top),
       )
       writes.push(this.scrollTop)
-      this.dispatchEvent(new Event('scroll'))
+      // silentScroll：像真实浏览器一样不在写入时同步派发 scroll 事件。
+      if (!silentScroll) this.dispatchEvent(new Event('scroll'))
     },
   })
   const controller = createScrollFollowController(node, {
     reducedMotion,
     threshold,
     onUnreadChange: (value) => unread.push(value),
+    onAwayChange: (value) => away.push(value),
     requestFrame(callback) {
       const id = ++nextId
       frames.set(id, callback)
@@ -60,7 +63,20 @@ function fixture(t, { reducedMotion, threshold, rounded = false } = {}) {
     node.scrollTop = top
     event('scroll')
   }
-  return { controller, node, document, media, event, tick, settle, scroll, frames, writes, unread }
+  return {
+    controller,
+    node,
+    document,
+    media,
+    event,
+    tick,
+    settle,
+    scroll,
+    frames,
+    writes,
+    unread,
+    away,
+  }
 }
 
 test('restoring a task reading position cancels bottom following until the reader resumes', (t) => {
@@ -322,4 +338,79 @@ test('an upward write during the release frames after arriving at the bottom is 
   f.node.scrollHeight += 200
   f.settle()
   assert.equal(f.node.scrollTop, 120)
+})
+
+test('other scroll listeners learn a programmatic position synchronously, before the browser event', (t) => {
+  // 转录的虚拟器只从 scroll 事件里更新它记的位置；它按旧位置做行高校正，会把刚写的底部位置改回去。
+  const f = fixture(t, { silentScroll: true })
+  const seen = []
+  f.node.addEventListener('scroll', () => seen.push(f.node.scrollTop))
+  f.scroll(0)
+  seen.length = 0
+  f.controller.scrollToBottom()
+  assert.deepEqual(seen, [700])
+  f.controller.restorePosition(120)
+  assert.deepEqual(seen, [700, 120])
+})
+
+test('the return-to-latest state shows only when the reader is away from the latest message', (t) => {
+  const f = fixture(t)
+  // 跟随中内容一直长：不显示，不随流式闪烁。
+  for (let i = 0; i < 5; i += 1) {
+    f.node.scrollHeight += 400
+    f.controller.contentChanged()
+    f.tick()
+  }
+  f.settle()
+  assert.deepEqual(f.away, [])
+  // 回来时恢复到往上读的位置：立刻显示。
+  f.controller.restorePosition(200)
+  assert.deepEqual(f.away, [true])
+  assert.equal(f.controller.isFollowing(), false)
+  // 读者自己滚回底部附近：收起。
+  f.scroll(f.node.scrollHeight - f.node.clientHeight - 10)
+  assert.deepEqual(f.away, [true, false])
+  // 上翻但还在阈值内不显示；翻过阈值才显示。
+  f.event('wheel', { deltaX: 0, deltaY: -8, ctrlKey: false })
+  f.scroll(f.node.scrollTop - 20)
+  assert.deepEqual(f.away, [true, false])
+  f.scroll(f.node.scrollTop - 200)
+  assert.deepEqual(f.away, [true, false, true])
+  f.controller.scrollToBottom()
+  assert.deepEqual(f.away, [true, false, true, false])
+  assert.equal(f.controller.isFollowing(), true)
+})
+
+test('opening a session lands on the latest message and keeps snapping while rows settle', (t) => {
+  const f = fixture(t)
+  f.scroll(0)
+  f.controller.settleAtBottom()
+  assert.equal(f.node.scrollTop, 700)
+  f.tick(0)
+  // 虚拟行量出真实高度，内容一下长出几屏：直接落到底部，不从中间一路滚下来。
+  f.node.scrollHeight += 4000
+  f.controller.maintainBottom()
+  f.tick()
+  assert.equal(f.node.scrollTop, 4700)
+  f.settle()
+  // 安顿期过后恢复平滑跟随。
+  f.tick(1500)
+  f.node.scrollHeight += 1000
+  f.controller.contentChanged()
+  f.tick()
+  assert.ok(f.node.scrollTop > 4700 && f.node.scrollTop < 5700)
+  f.settle()
+  assert.equal(f.node.scrollTop, 5700)
+})
+
+test('reading upward during the settle window ends it', (t) => {
+  const f = fixture(t)
+  f.controller.settleAtBottom()
+  f.tick(0)
+  f.event('wheel', { deltaX: 0, deltaY: -10, ctrlKey: false })
+  f.node.scrollHeight += 2000
+  f.controller.contentChanged()
+  f.settle()
+  assert.equal(f.node.scrollTop, 700)
+  assert.deepEqual(f.unread, [true])
 })

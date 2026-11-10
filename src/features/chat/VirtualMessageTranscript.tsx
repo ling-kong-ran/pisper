@@ -11,7 +11,7 @@ import {
   useState,
   type RefObject,
 } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { lastSettledMessageIndex, resolveMessageRunActivity } from '@/lib/session-state'
 import type { ChatMessage } from '@/types/chat'
 import type { AgentRunActivityProps } from './AgentRunActivity'
@@ -21,6 +21,8 @@ import { BotLinkEvent } from './BotLinkEvent'
 import { AgentJobsContext } from './session-agents'
 import { estimateTranscriptRowHeight, TRANSCRIPT_OVERSCAN } from './transcript-virtualization'
 import type { BranchFromHereOptions } from './chat-api'
+import type { ConversationAnchor } from './session-context-pages'
+import { anchorScrollDelta } from './transcript-reading-position'
 
 type VirtualMessageTranscriptProps = {
   sessionId: string
@@ -34,7 +36,11 @@ type VirtualMessageTranscriptProps = {
   /** 会话工作区根目录：Markdown 内相对路径文件链接的解析基址。 */
   cwd?: string
   targetEntryId?: string
+  // 回到往上翻着读的会话：离开时视口顶上那条消息。只在挂载时用一次。
+  restoreAnchor?: ConversationAnchor | null
   onContentSizeChange: () => void
+  // 转录正贴着最新消息跟随（由 useAutoScroll 定位置）。
+  isFollowingLatest?: () => boolean
   onTargetScroll: () => void
   onTargetLocated: (entryId: string) => void
   onBranchFromHere?: (
@@ -50,6 +56,10 @@ type VirtualMessageTranscriptProps = {
   // 列表前面被收起的用户消息条数（手机会话页的“上一轮”胶囊）：第 N 轮从它之后接着数。
   turnBase?: number
 }
+
+// 读者自己动了滚动就不再校正阅读位置。
+const INTERACTION_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+const ANCHOR_RESTORE_MAX_FRAMES = 40
 
 function measuredElementHeight(element: HTMLDivElement, entry?: ResizeObserverEntry) {
   const borderBox = entry?.borderBoxSize?.[0]
@@ -114,7 +124,9 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
   prefixRef,
   cwd,
   targetEntryId,
+  restoreAnchor = null,
   onContentSizeChange,
+  isFollowingLatest,
   onTargetScroll,
   onTargetLocated,
   onBranchFromHere,
@@ -163,6 +175,27 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     [messageKeys],
   )
   // 行高估算随容器宽度分档：窄屏实际行高更大，固定估算会让滚动条明显跳动。
+  // 虚拟器做行高校正（adjustments）时按它自己记的位置去挪，而那个位置只在 scroll 事件里更新，
+  // 可能落后于跟随控制器刚写的位置。一次校正把位置往上拉一千多像素，跟随就被当成读者上翻而停掉，
+  // 切回长会话时停在转录中间。贴底跟随时不做这种校正（跟随控制器下一帧照样定到底部）；
+  // 往上翻着读时按容器此刻的实际位置平移。
+  const scrollToFn = useCallback(
+    (
+      offset: number,
+      { adjustments, behavior }: { adjustments?: number; behavior?: ScrollBehavior },
+      instance: Virtualizer<HTMLDivElement, HTMLDivElement>,
+    ) => {
+      const element = instance.scrollElement
+      if (!element) return
+      if (adjustments) {
+        if (isFollowingLatest?.()) return
+        element.scrollTo({ top: element.scrollTop + adjustments, behavior })
+        return
+      }
+      element.scrollTo({ top: offset, behavior })
+    },
+    [isFollowingLatest],
+  )
   const estimateSize = useCallback(
     () => estimateTranscriptRowHeight(scrollElement?.clientWidth),
     [scrollElement],
@@ -175,6 +208,10 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     followOnAppend: false,
     count: messages.length,
     getScrollElement: () => scrollElement,
+    scrollToFn,
+    // 虚拟器第一次接上滚动容器时会把容器滚到它自己记的位置，不给就是 0：转录此前已由 useAutoScroll
+    // 定到最新消息或恢复的阅读位置，被拉回顶部会触发翻页并停掉跟随。从容器当前位置读，接上时原地不动。
+    initialOffset: () => scrollElement?.scrollTop ?? 0,
     getItemKey,
     estimateSize,
     measureElement: measuredElementHeight,
@@ -253,6 +290,63 @@ export const VirtualMessageTranscript = memo(function VirtualMessageTranscript({
     })
     return () => window.cancelAnimationFrame(frame)
   }, [messages, onTargetLocated, onTargetScroll, targetEntryId, virtualizer])
+
+  // 按离开时视口顶上那条消息校正阅读位置：useAutoScroll 先按像素恢复（同时停掉跟随），但那时各行还是估算高度，
+  // 像素落在别的消息上。之后几帧用真实 DOM 位置把那条消息挪回原处，稳定几帧或读者自己动了就停。
+  const restoreAnchorRef = useRef(restoreAnchor)
+  useEffect(() => {
+    const anchor = restoreAnchorRef.current
+    if (!anchor || !scrollElement) return undefined
+    const index = messages.findIndex((message) => message.id === anchor.messageId)
+    // 那条消息不在已加载的这一页（或收在“上一轮”胶囊里）：保留像素位置。
+    if (index < 0) {
+      restoreAnchorRef.current = null
+      return undefined
+    }
+    let frame: number | null = null
+    let rounds = 0
+    let steady = 0
+    const stop = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      frame = null
+      for (const type of INTERACTION_EVENTS) scrollElement.removeEventListener(type, finish)
+    }
+    // 还原完成（或读者接手）才作废锚点；effect 清理只停下，开发模式的二次挂载还能接着还原。
+    const finish = () => {
+      restoreAnchorRef.current = null
+      stop()
+    }
+    const align = () => {
+      frame = null
+      const row = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[data-pisper-virtual-item]') ?? [],
+      ).find((node) => node.dataset.pisperVirtualItem === anchor.messageId)
+      if (!row) {
+        steady = 0
+        virtualizer.scrollToIndex(index, { align: 'start' })
+      } else {
+        const delta = anchorScrollDelta(
+          row.getBoundingClientRect().top,
+          scrollElement.getBoundingClientRect().top,
+          anchor,
+        )
+        if (Math.abs(delta) < 1) steady += 1
+        else {
+          steady = 0
+          virtualizer.scrollToOffset(scrollElement.scrollTop + delta)
+        }
+      }
+      if (steady >= 3 || ++rounds >= ANCHOR_RESTORE_MAX_FRAMES) finish()
+      else frame = window.requestAnimationFrame(align)
+    }
+    onTargetScroll()
+    for (const type of INTERACTION_EVENTS)
+      scrollElement.addEventListener(type, finish, { passive: true })
+    frame = window.requestAnimationFrame(align)
+    return stop
+    // 只在接上滚动容器时还原一次；之后的消息变化交给虚拟器自己的锚定。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollElement])
 
   useEffect(() => {
     if (!highlightedEntryId) return undefined

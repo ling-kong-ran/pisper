@@ -14,6 +14,8 @@ export function useAutoScroll(
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [hasUnread, setHasUnread] = useState(false)
+  // 不在最新消息（读者往上翻了、或回来时停在上次读到的地方）：显示“回到最新”。
+  const [awayFromLatest, setAwayFromLatest] = useState(false)
   const controllerRef = useRef<ReturnType<typeof createScrollFollowController> | null>(null)
   const setScrollRef = useCallback((node: HTMLDivElement | null) => {
     scrollRef.current = node
@@ -25,13 +27,15 @@ export function useAutoScroll(
     const controller = createScrollFollowController(scrollElement, {
       threshold,
       onUnreadChange: setHasUnread,
+      onAwayChange: setAwayFromLatest,
     })
     controllerRef.current = controller
     setHasUnread(false)
+    setAwayFromLatest(false)
     // 首次打开或切换会话直接定位最新消息，只有后续内容增长才做平滑跟随。
     const position = readInitialPositionRef.current?.()
     if (typeof position === 'number') controller.restorePosition(position)
-    else controller.scrollToBottom()
+    else controller.settleAtBottom()
     return () => {
       controller.dispose()
       controllerRef.current = null
@@ -51,14 +55,17 @@ export function useAutoScroll(
   const pauseFollowing = useCallback(() => {
     controllerRef.current?.pauseFollowing()
   }, [])
+  const isFollowing = useCallback(() => controllerRef.current?.isFollowing() ?? false, [])
 
   return {
     scrollRef,
     scrollElement,
     setScrollRef,
     hasUnread,
+    awayFromLatest,
     scrollToBottom,
     maintainBottom,
     pauseFollowing,
+    isFollowing,
   }
 }

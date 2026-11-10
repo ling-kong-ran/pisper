@@ -1,10 +1,16 @@
 type ScrollFollowOptions = {
   threshold?: number
   onUnreadChange: (unread: boolean) => void
+  // 读者离开了最新消息（不在跟随、且离底部超过阈值）：用来显示“回到最新”。跟随中永远是 false，流式时不闪。
+  onAwayChange?: (away: boolean) => void
   requestFrame?: typeof requestAnimationFrame
   cancelFrame?: typeof cancelAnimationFrame
   reducedMotion?: () => boolean
 }
+
+// 打开（或切回）会话后的这段时间里，虚拟行陆续量出真实高度、代码块和 Markdown 渐次排好，内容可能一下长出几屏。
+// 这段时间里贴底直接落到底部，不做平滑跟随：否则读者会看着转录从中间一路滚下来。
+const SETTLE_MS = 1200
 
 // 动画与用户意图共用一个控制器，避免内容更新和虚拟行重测分别发起滚动。
 export function createScrollFollowController(
@@ -12,6 +18,7 @@ export function createScrollFollowController(
   {
     threshold = 64,
     onUnreadChange,
+    onAwayChange,
     requestFrame = (callback) => requestAnimationFrame(callback),
     cancelFrame = (frame) => cancelAnimationFrame(frame),
     reducedMotion,
@@ -27,6 +34,7 @@ export function createScrollFollowController(
     })
   let pinned = true
   let unread = false
+  let away = false
   let disposed = false
   let frame: number | null = null
   let releaseFrame: number | null = null
@@ -35,6 +43,9 @@ export function createScrollFollowController(
   let programmatic = false
   let pointerDown = false
   let touchPoint: { x: number; y: number } | null = null
+  // 刚打开时的安顿期截止时刻（帧时间戳）；null = 不在安顿期。
+  let settleUntil: number | null = null
+  let settleFrame: number | null = null
 
   const bottom = () => Math.max(0, node.scrollHeight - node.clientHeight)
   const interacting = () => pointerDown || touchPoint !== null
@@ -48,6 +59,12 @@ export function createScrollFollowController(
     if (unread === value) return
     unread = value
     onUnreadChange(value)
+  }
+  const syncAway = () => {
+    const next = !disposed && !pinned && bottom() - node.scrollTop > threshold
+    if (away === next) return
+    away = next
+    onAwayChange?.(next)
   }
   const clearRelease = () => {
     if (releaseFrame !== null) cancelFrame(releaseFrame)
@@ -88,6 +105,10 @@ export function createScrollFollowController(
   const writeTop = (top: number) => {
     node.scrollTo({ top, behavior: 'instant' })
     lastTop = node.scrollTop
+    // 浏览器下一帧才派发 scroll 事件。转录的虚拟器只从 scroll 事件里更新它记的位置，在那之前按旧位置做行高校正，
+    // 会把这里刚写的位置改回去（切回长会话时从底部跳到中间，跟随也因此被当成上翻而停掉）。
+    // 写完立刻补发一次，让其它 scroll 监听者同步拿到新位置；稍后的真实事件位置相同，不会重复处理。
+    node.dispatchEvent(new Event('scroll'))
   }
   const step = (timestamp: number) => {
     frame = null
@@ -102,7 +123,8 @@ export function createScrollFollowController(
     lastTime = timestamp
     // 按帧间隔校正 0.15 的逼近比例，让 60Hz 与高刷屏保持相同节奏。
     const alpha = 1 - Math.pow(0.85, Math.max(0, elapsed) / (1000 / 60))
-    if (prefersReducedMotion() || Math.abs(gap) <= 1) {
+    const settling = settleUntil !== null && timestamp < settleUntil
+    if (prefersReducedMotion() || settling || Math.abs(gap) <= 1) {
       if (gap !== 0) writeTop(target)
       lastTime = null
       releaseProgrammatic()
@@ -119,14 +141,22 @@ export function createScrollFollowController(
     markProgrammatic()
     if (frame === null) frame = requestFrame(step)
   }
+  const endSettle = () => {
+    if (settleFrame !== null) cancelFrame(settleFrame)
+    settleFrame = null
+    settleUntil = null
+  }
   const pauseFollowing = () => {
     if (disposed) return
+    endSettle()
     pinned = false
     stopAnimation()
+    syncAway()
   }
   const resumeFollowing = () => {
     pinned = true
     setUnread(false)
+    syncAway()
     maintainBottom()
   }
   const onScroll = () => {
@@ -143,6 +173,7 @@ export function createScrollFollowController(
     // 真实上翻已由滚轮、键盘和触摸各自处理，这里只在离开底部时才视为上翻。
     if (delta < -0.5 && bottom() - node.scrollTop > 1) pauseFollowing()
     else if (delta > 0.5 && bottom() - node.scrollTop <= threshold) resumeFollowing()
+    else syncAway()
   }
   const onWheel = (event: WheelEvent) => {
     if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
@@ -191,6 +222,20 @@ export function createScrollFollowController(
       pauseFollowing()
   }
 
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+    if (disposed) return
+    stopAnimation()
+    pinned = true
+    setUnread(false)
+    syncAway()
+    if (behavior === 'smooth') maintainBottom()
+    else {
+      markProgrammatic()
+      writeTop(bottom())
+      releaseProgrammatic()
+    }
+  }
+
   node.addEventListener('scroll', onScroll, { passive: true })
   node.addEventListener('wheel', onWheel, { passive: true })
   node.addEventListener('touchstart', onTouchStart, { passive: true })
@@ -202,37 +247,49 @@ export function createScrollFollowController(
   document.addEventListener('pointerup', onPointerUp, { passive: true })
   document.addEventListener('pointercancel', onPointerUp, { passive: true })
   motionQuery?.addEventListener?.('change', maintainBottom)
-  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(maintainBottom)
+  const observer =
+    typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => {
+          maintainBottom()
+          syncAway()
+        })
   observer?.observe(node)
 
   return {
     maintainBottom,
     pauseFollowing,
+    // 正贴着最新消息跟随：位置由本控制器定，别的写入者（虚拟行重测）不必再挪。
+    isFollowing: () => !disposed && pinned,
     restorePosition(top: number) {
       if (disposed || !Number.isFinite(top)) return
       pauseFollowing()
       setUnread(false)
       writeTop(Math.max(0, top))
+      syncAway()
     },
     contentChanged() {
       if (disposed) return
       if (pinned) maintainBottom()
-      else setUnread(true)
-    },
-    scrollToBottom(behavior: ScrollBehavior = 'auto') {
-      if (disposed) return
-      stopAnimation()
-      pinned = true
-      setUnread(false)
-      if (behavior === 'smooth') maintainBottom()
       else {
-        markProgrammatic()
-        writeTop(bottom())
-        releaseProgrammatic()
+        setUnread(true)
+        syncAway()
       }
     },
+    // 打开或切回会话：直接落到最新消息，之后一小段时间里内容长高也直接贴底（见 SETTLE_MS）。
+    settleAtBottom() {
+      if (disposed) return
+      scrollToBottom('auto')
+      endSettle()
+      settleFrame = requestFrame((timestamp) => {
+        settleFrame = null
+        if (pinned) settleUntil = timestamp + SETTLE_MS
+      })
+    },
+    scrollToBottom,
     dispose() {
       disposed = true
+      endSettle()
       stopAnimation()
       observer?.disconnect()
       node.removeEventListener('scroll', onScroll)
