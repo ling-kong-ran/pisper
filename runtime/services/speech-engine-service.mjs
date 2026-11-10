@@ -147,6 +147,8 @@ export class SpeechEngineService {
     this.worker = null
     // ASR/TTS 各自持有进程和串行队列，两类计算可并行，类内请求仍有序。
     this.workers = new Map()
+    // 已经 exit、还没 close 的 worker：自己崩掉的也要等 close 才算交还资源，dispose 和重新启动都等它。
+    this.closingWorkers = new Set()
     this.voiceSessions = new Map()
     this.warmupOperations = 0
     this.sessions = new Map()
@@ -243,6 +245,12 @@ export class SpeechEngineService {
       return cached
     }
     if (cached) await this.stopWorker(cached)
+    // 同类的上一个 worker 自己退出了但还没 close：等它关干净再起新的。
+    await Promise.all(
+      [...this.closingWorkers]
+        .filter((worker) => worker.kind === kind)
+        .map((worker) => worker.exitPromise),
+    )
     this.checkTask(task)
     const model = this.model(kind)
     let modelDir
@@ -278,6 +286,7 @@ export class SpeechEngineService {
         clearTimeout(worker.killTimer)
         if (this.worker === worker) this.worker = null
         if (this.workers.get(kind) === worker) this.workers.delete(kind)
+        if (!closed) this.closingWorkers.add(worker)
         for (const [id, session] of this.sessions) {
           if (session.worker === worker) this.sessions.delete(id)
         }
@@ -287,6 +296,7 @@ export class SpeechEngineService {
         if (closed) return
         closed = true
         exited()
+        this.closingWorkers.delete(worker)
         // exit 先报告进程终态；close 还确认 stdio/IPC 已关闭。Windows 在两者之间可能仍能按 PID
         // 查询到进程，因此 dispose 和复用必须等 close，才能真正交还 worker 的资源所有权。
         resolveExit()
@@ -658,6 +668,7 @@ export class SpeechEngineService {
           this.stopWorker(worker, speechEngineError('disposed'), true),
         ),
       )
+      await Promise.all([...this.closingWorkers].map((worker) => worker.exitPromise))
       await Promise.all(this.operations.values())
       this.sessions.clear()
       this.speechTasks.clear()

@@ -1565,6 +1565,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.assetWrite = this.assetWrite
       .catch(() => {})
       .then(() => writeJsonAtomic(this.assetIndexPath, snapshot))
+      .catch((error) => {
+        // 没写上：标回“有改动”，下一次 flush 再写，不能只留在内存里等重启丢掉。
+        this.assetIndexDirty = true
+        throw error
+      })
     return this.assetWrite
   }
 

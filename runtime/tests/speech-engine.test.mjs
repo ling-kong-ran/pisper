@@ -511,6 +511,54 @@ test('dispose waits for worker close after exit before releasing process resourc
   assert.equal(disposed, true)
 })
 
+test('a worker that exits on its own is still awaited until close before dispose returns', async () => {
+  let child
+  class CrashedChild extends EventEmitter {
+    pid = 424243
+    exitCode = null
+    signalCode = null
+
+    send(message, callback) {
+      callback?.(null)
+      queueMicrotask(() => {
+        this.emit('message', {
+          id: message.id,
+          ok: true,
+          result: message.method === 'init' ? { ready: true } : 'transcript',
+        })
+      })
+      return true
+    }
+
+    kill() {
+      return true
+    }
+  }
+  const service = new SpeechEngineService({
+    catalog: catalog(),
+    modelDownloads: { modelDirectory: async () => resolve('fixture-models') },
+    idleUnloadMs: 0,
+    sessionSweepMs: 0,
+    forkProcess() {
+      child = new CrashedChild()
+      return child
+    },
+  })
+  assert.equal(await service.transcribe(new Float32Array([1])), 'transcript')
+  // 自己崩掉：exit 到了，close 还没到。
+  child.exitCode = 1
+  child.emit('exit', 1, null)
+  let disposed = false
+  const disposing = service.dispose().then(() => {
+    disposed = true
+  })
+  await new Promise((resolveTick) => setImmediate(resolveTick))
+  assert.equal(disposed, false)
+  child.emit('close', 1, null)
+  await disposing
+  assert.equal(disposed, true)
+})
+
 test('dispose during installation prevents late spawning', async (t) => {
   let release
   const installed = new Promise((resolveInstall) => {

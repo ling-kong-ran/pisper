@@ -13,9 +13,13 @@ export const LAST_MESSAGE_MAX_CHARS = 160
 const TAIL_BYTES = [64 * 1024, 1024 * 1024]
 const MAX_CACHED = 5000
 
+const PREVIEW_SOURCE_CHARS = 16_000
+
 // 一行摘要：去掉 Markdown 记号、代码块和多余空白，截到上限。
 export function compactPreview(text) {
+  // 只清洗开头一段：预览最多留一两百字，对几万字的回复整段跑正则是白做（列会话时每个驻留会话都要算）。
   const plain = String(text || '')
+    .slice(0, PREVIEW_SOURCE_CHARS)
     .replace(/```[\s\S]*?(```|$)/g, ' ')
     .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, '')
     .replace(/[*_`~]+/g, '')

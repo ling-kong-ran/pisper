@@ -86,3 +86,14 @@ test('the session list adds lastMessage from live messages or the background fil
   )
   assert.match(lifecycle, /this\.lastMessages = createLastMessageCache\(\)/)
 })
+
+test('a very long reply is previewed from its opening, not cleaned in full', () => {
+  const reply = `**结论**：改好了。${'x'.repeat(200_000)}`
+  const started = performance.now()
+  const preview = lastMessageFromMessages([
+    { role: 'assistant', content: [{ type: 'text', text: reply }] },
+  ])
+  assert.ok(preview.text.startsWith('结论：改好了。'))
+  assert.equal(preview.text.length, LAST_MESSAGE_MAX_CHARS)
+  assert.ok(performance.now() - started < 50)
+})
