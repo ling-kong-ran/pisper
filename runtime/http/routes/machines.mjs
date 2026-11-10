@@ -1,6 +1,6 @@
 // 远程机器路由：列出、添加和修改 SSH 机器、测试连接、移除；让对方连过来的配对码也在这里。
 // 只做校验和调用服务，经能力 remoteMachines 把关，不受 Bots 实验开关影响。
-// 密码只进不出：请求里可以带 password，任何响应里都只有 passwordSet。
+// 密码只进不出：请求里可以带 password，任何响应里都只有 passwordSet。主机公钥是公开信息，可以来回传。
 import { remoteInfo } from './executors.mjs'
 import { errorPayload } from '../../../shared/errors.mjs'
 import { respondError } from './bots.mjs'
@@ -46,6 +46,25 @@ export const machineRoutes = [
           error?.code === 'invalid'
         )
           throw error
+        json(200, {
+          ok: false,
+          ...errorPayload(error),
+          code: String(error?.code || 'connection_failed'),
+          message: String(error?.message || error),
+        })
+      }
+    }),
+  },
+  {
+    // 密码登录前取对方的主机公钥给用户核对指纹：只握手，不带任何凭据。连不上同样不是接口错误。
+    method: 'POST',
+    path: '/api/machines/ssh/host-key',
+    handler: machineRoute(async ({ runtime, body, json }) => {
+      const input = await body()
+      try {
+        json(200, { ok: true, hostKey: await runtime.sshMachines.hostKey(input) })
+      } catch (error) {
+        if (error?.code === 'invalid_target' || error?.code === 'invalid_port') throw error
         json(200, {
           ok: false,
           ...errorPayload(error),

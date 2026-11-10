@@ -1,12 +1,15 @@
 // SSH 机器的登记表：存怎么连（地址、端口、默认目录、登录方式）和连上后探测到的系统。
 // 密钥登录不存任何凭据，全部留给系统的 ssh；用户选了密码登录时，密码单独存进 pisper-ssh-secrets.json
 // （和 Provider 的多 Key 一样原子写入、0600），机器列表、接口响应、会话文件里都只有“设了密码”这一个布尔值。
+// 密码不常驻内存：只在要连的那一刻从文件读出，交给这一次连接的密码通道，用完就放掉。
+// 密码机器还存着用户核对过指纹的主机公钥（hostKey）：连接只认它，没确认过就不连（见 ssh-host-key.mjs）。
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ExecutorError } from './bots/executor.mjs'
 import { normalizeSystem, SshExecutor } from './ssh-executor.mjs'
+import { normalizeHostKey, sameHostKey } from './ssh-host-key.mjs'
 
 const STORE_VERSION = 1
 const SECRETS_VERSION = 1
@@ -93,11 +96,15 @@ function normalizeStored(value) {
           }
         : null
     const system = normalizeSystem(value.system, lastCheck)
+    const auth = normalizeSshAuth(value.auth)
+    // 只有密码机器留着主机公钥；读回时重新校验，指纹每次从公钥算。
+    const hostKey = auth === 'password' ? normalizeHostKey(value.hostKey) : null
     return {
       id: value.id,
       name: cleanText(value.name, MAX_NAME_CHARS) || connection.target,
       ...connection,
-      auth: normalizeSshAuth(value.auth),
+      auth,
+      ...(hostKey ? { hostKey: { type: hostKey.type, key: hostKey.key } } : {}),
       defaultCwd: cleanText(value.defaultCwd, MAX_PATH_CHARS),
       addedAt: String(value.addedAt || ''),
       lastCheck,
@@ -108,53 +115,73 @@ function normalizeStored(value) {
   }
 }
 
-// 机器的密码：只在这个文件里，只在要连的那一刻交给执行器。
+// 机器的密码：只在这个文件里。内存里只记“哪些机器存了密码”，密码本身每次用到时从文件读，
+// 不在这个常驻对象里留一份。读、改都排在同一条队列上，不会互相覆盖。
 class SshSecretStore {
   constructor(path) {
     this.path = path
-    this.passwords = new Map()
+    this.ids = new Set()
     this.write = Promise.resolve()
   }
 
-  async init() {
+  async #read() {
     const stored = await readJson(this.path, { version: SECRETS_VERSION, passwords: {} })
-    this.passwords.clear()
-    const passwords =
-      stored?.passwords && typeof stored.passwords === 'object' ? stored.passwords : {}
-    for (const [id, password] of Object.entries(passwords)) {
+    const passwords = new Map()
+    const raw = stored?.passwords && typeof stored.passwords === 'object' ? stored.passwords : {}
+    for (const [id, password] of Object.entries(raw)) {
       if (!isSshMachineId(id)) continue
       try {
         const value = normalizeSshPassword(password)
-        if (value) this.passwords.set(id, value)
+        if (value) passwords.set(id, value)
       } catch {}
     }
+    return passwords
+  }
+
+  #queue(task) {
+    const next = this.write.catch(() => {}).then(task)
+    this.write = next
+    return next
+  }
+
+  async init() {
+    this.ids = new Set((await this.#read()).keys())
   }
 
   has(id) {
-    return this.passwords.has(id)
+    return this.ids.has(id)
   }
 
+  // 只在要连的那一刻调用；返回值由调用方用完即弃。
   get(id) {
-    return this.passwords.get(id) || ''
+    if (!this.ids.has(id)) return Promise.resolve('')
+    return this.#queue(async () => (await this.#read()).get(id) || '')
   }
 
-  persist() {
-    const snapshot = { version: SECRETS_VERSION, passwords: Object.fromEntries(this.passwords) }
-    this.write = this.write
-      .catch(() => {})
-      .then(() => writeJsonAtomic(this.path, snapshot, { mode: 0o600 }))
-    return this.write
+  #update(change) {
+    return this.#queue(async () => {
+      const passwords = await this.#read()
+      if (!change(passwords)) return
+      await writeJsonAtomic(
+        this.path,
+        { version: SECRETS_VERSION, passwords: Object.fromEntries(passwords) },
+        { mode: 0o600 },
+      )
+      this.ids = new Set(passwords.keys())
+    })
   }
 
-  async set(id, password) {
-    if (this.passwords.get(id) === password) return
-    this.passwords.set(id, password)
-    await this.persist()
+  set(id, password) {
+    return this.#update((passwords) => {
+      if (passwords.get(id) === password) return false
+      passwords.set(id, password)
+      return true
+    })
   }
 
-  async delete(id) {
-    if (!this.passwords.delete(id)) return
-    await this.persist()
+  delete(id) {
+    if (!this.ids.has(id)) return Promise.resolve()
+    return this.#update((passwords) => passwords.delete(id))
   }
 }
 
@@ -166,9 +193,12 @@ export class SshMachineService {
     extraArguments = [],
     now = () => new Date().toISOString(),
     muxDirectory = muxDirectoryFor(dataDir),
+    scratchDirectory = join(dataDir, 'ssh-password'),
   }) {
     this.path = path
     this.muxDirectory = muxDirectory
+    // 密码登录每次连接的临时文件（空配置、known_hosts、密码通道）建在这里，用完即删。
+    this.scratchDirectory = scratchDirectory
     this.extraArguments = extraArguments
     this.now = now
     this.machines = new Map()
@@ -189,8 +219,9 @@ export class SshMachineService {
     }
     await this.secrets.init()
     // 机器已经不在的密码不留着。
-    for (const id of [...this.secrets.passwords.keys()])
-      if (!this.machines.has(id)) await this.secrets.delete(id)
+    for (const id of [...this.secrets.ids])
+      if (!this.machines.get(id) || this.machines.get(id).auth !== 'password')
+        await this.secrets.delete(id)
   }
 
   persist() {
@@ -199,8 +230,9 @@ export class SshMachineService {
     return this.write
   }
 
-  // 给界面和接口的形状：密码只以 passwordSet 出现。
+  // 给界面和接口的形状：密码只以 passwordSet 出现；主机公钥只给类型和指纹（公钥本体留在这边）。
   publicMachine(machine) {
+    const hostKey = normalizeHostKey(machine.hostKey)
     return {
       id: machine.id,
       name: machine.name,
@@ -208,6 +240,7 @@ export class SshMachineService {
       port: machine.port,
       auth: machine.auth,
       passwordSet: machine.auth === 'password' && this.secrets.has(machine.id),
+      hostKey: hostKey ? { type: hostKey.type, fingerprint: hostKey.fingerprint } : null,
       defaultCwd: machine.defaultCwd,
       addedAt: machine.addedAt,
       lastCheck: machine.lastCheck ? { ...machine.lastCheck } : null,
@@ -240,6 +273,7 @@ export class SshMachineService {
     return new SshExecutor({
       machine,
       muxDirectory: this.muxDirectory,
+      scratchDirectory: this.scratchDirectory,
       extraArguments: this.extraArguments,
       ...(isAvailable ? { isAvailable } : {}),
       ...(password ? { password } : {}),
@@ -249,25 +283,68 @@ export class SshMachineService {
     })
   }
 
-  // 存着的密码只属于存它时的那个地址和端口：地址或端口不一样时不能拿来用，否则一次“测试连接”或一次改地址
-  // 就能把密码送到另一台主机上。
-  #savedPasswordFor(id, connection) {
+  // 存着的密码和确认过的主机公钥都只属于存它们时的那个地址和端口：地址或端口不一样时不能拿来用，
+  // 否则一次“测试连接”或一次改地址就能把密码送到另一台主机上，或者拿旧主机的指纹去认新主机。
+  #sameAddress(id, connection) {
     const machine = this.machines.get(id)
-    if (!machine || machine.auth !== 'password') return ''
-    if (machine.target !== connection.target || machine.port !== connection.port) return ''
-    return this.secrets.get(id)
+    return Boolean(
+      machine &&
+      machine.auth === 'password' &&
+      machine.target === connection.target &&
+      machine.port === connection.port,
+    )
+  }
+
+  #savedHostKeyFor(id, connection) {
+    return this.#sameAddress(id, connection)
+      ? normalizeHostKey(this.machines.get(id).hostKey)
+      : null
+  }
+
+  // 这次用哪把主机公钥：请求里带了就是用户刚确认的那把（按不可信输入校验），没带就用存着的（地址没变时）。
+  #confirmedHostKey(input, id, connection) {
+    if (input?.hostKey !== undefined && input.hostKey !== null) {
+      const given = normalizeHostKey(input.hostKey)
+      if (!given) throw pisperError('invalid', 'login', 'the host key is not a valid public key')
+      return given
+    }
+    const saved = id ? this.#savedHostKeyFor(id, connection) : null
+    if (!saved)
+      throw pisperError(
+        'invalid',
+        'login',
+        'confirm the host fingerprint of this machine before signing in with a password',
+      )
+    return saved
+  }
+
+  // 取一台机器的主机公钥给用户核对指纹：只握手，不带密码也不带密钥，不读这台电脑的 ssh 配置。
+  async hostKey(input) {
+    const connection = normalizeSshConnection(input)
+    return this.executorFor({
+      id: 'ssh_unsaved0',
+      name: connection.target,
+      ...connection,
+      auth: 'key',
+    }).hostKey()
   }
 
   // 还没保存的连接也能测：添加表单在保存前就给出结果。编辑已有机器时没重新输入密码，就用存着的那个——
-  // 但只在地址和端口都没变的时候。
+  // 但只在地址和端口都没变的时候。密码登录要带上用户确认过的主机公钥。
   async test(input) {
     const connection = normalizeSshConnection(input)
     const auth = normalizeSshAuth(input?.auth)
-    const typed = auth === 'password' ? normalizeSshPassword(input?.password) : ''
     const existing = isSshMachineId(input?.id) ? String(input.id) : ''
-    const password =
-      typed || (auth === 'password' && existing ? this.#savedPasswordFor(existing, connection) : '')
-    if (auth === 'password' && !password)
+    if (auth !== 'password')
+      return this.executorFor({
+        id: 'ssh_unsaved0',
+        name: connection.target,
+        ...connection,
+        auth,
+      }).probe()
+    const typed = normalizeSshPassword(input?.password)
+    const saved = existing && this.#sameAddress(existing, connection) && this.secrets.has(existing)
+    if (!typed && !saved)
       throw pisperError(
         'invalid',
         'login',
@@ -275,9 +352,16 @@ export class SshMachineService {
           ? 'enter the password again: the saved one belongs to the previous address'
           : 'enter the password',
       )
+    const hostKey = this.#confirmedHostKey(input, existing, connection)
     const executor = this.executorFor(
-      { id: 'ssh_unsaved0', name: connection.target, ...connection, auth },
-      { password: () => password },
+      {
+        id: 'ssh_unsaved0',
+        name: connection.target,
+        ...connection,
+        auth,
+        hostKey: { type: hostKey.type, key: hostKey.key },
+      },
+      { password: () => typed || this.secrets.get(existing) },
     )
     return executor.probe()
   }
@@ -288,6 +372,7 @@ export class SshMachineService {
     const password = auth === 'password' ? normalizeSshPassword(input?.password) : ''
     if (auth === 'password' && !password)
       throw pisperError('invalid', 'login', 'enter the password')
+    const hostKey = auth === 'password' ? this.#confirmedHostKey(input, '', connection) : null
     if (this.machines.size >= MAX_MACHINES)
       throw new ExecutorError('too_many_machines', `Machine limit reached: max ${MAX_MACHINES}.`)
     const machine = {
@@ -295,6 +380,7 @@ export class SshMachineService {
       name: cleanText(input?.name, MAX_NAME_CHARS) || connection.target,
       ...connection,
       auth,
+      ...(hostKey ? { hostKey: { type: hostKey.type, key: hostKey.key } } : {}),
       defaultCwd: cleanText(input?.defaultCwd, MAX_PATH_CHARS),
       addedAt: this.now(),
       lastCheck: null,
@@ -306,8 +392,9 @@ export class SshMachineService {
     return this.publicMachine(machine)
   }
 
-  // 编辑：密码登录时不填密码 = 保留原来的；填了 = 换掉；改回密钥登录 = 删掉存着的密码。
-  // 地址、端口或登录方式变了，之前的连通结果和探测到的系统都不再算数。
+  // 编辑：密码登录时不填密码 = 保留原来的；填了 = 换掉；改回密钥登录 = 删掉存着的密码和主机公钥。
+  // 主机公钥同理：没带 = 沿用确认过的那把（地址没变时），带了 = 用户重新确认的那把。
+  // 地址、端口、登录方式、密码或主机公钥变了，之前的连通结果和探测到的系统都不再算数。
   async update(id, input) {
     const machine = this.machines.get(id)
     if (!machine) throw new ExecutorError('machine_not_found', 'Machine was removed.')
@@ -317,7 +404,8 @@ export class SshMachineService {
     })
     const auth = input?.auth === undefined ? machine.auth : normalizeSshAuth(input.auth)
     const password = auth === 'password' ? normalizeSshPassword(input?.password) : ''
-    if (auth === 'password' && !password && !this.#savedPasswordFor(id, connection))
+    const keepsPassword = this.#sameAddress(id, connection) && this.secrets.has(id)
+    if (auth === 'password' && !password && !keepsPassword)
       throw pisperError(
         'invalid',
         'login',
@@ -325,14 +413,18 @@ export class SshMachineService {
           ? 'enter the password again: the saved one belongs to the previous address'
           : 'enter the password',
       )
+    const hostKey = auth === 'password' ? this.#confirmedHostKey(input, id, connection) : null
     const changed =
       connection.target !== machine.target ||
       connection.port !== machine.port ||
       auth !== machine.auth ||
-      (Boolean(password) && password !== this.secrets.get(id))
+      Boolean(password) ||
+      (Boolean(hostKey) && !sameHostKey(hostKey, machine.hostKey))
     if (auth === 'password' && password) await this.secrets.set(id, password)
     if (auth === 'key') await this.secrets.delete(id)
     Object.assign(machine, connection, { auth })
+    if (hostKey) machine.hostKey = { type: hostKey.type, key: hostKey.key }
+    else delete machine.hostKey
     if (input?.name !== undefined)
       machine.name = cleanText(input.name, MAX_NAME_CHARS) || connection.target
     if (input?.defaultCwd !== undefined)

@@ -4,32 +4,50 @@
 // 对方是 Linux、macOS 等有 POSIX shell 的系统时走 sh 脚本；是 Windows（OpenSSH 服务，默认 shell 是 cmd 或 PowerShell）
 // 时走固定的 PowerShell 引导命令，脚本和数据经 stdin 传过去（ssh-powershell.mjs）。对方是什么系统由连上后探测一次，
 // 记在机器记录上，不信用户填的值。不依赖 SFTP，也不要 PTY。
-// 登录默认用密钥（BatchMode）；用户选了密码时经 askpass 助手（runtime/workers/ssh-askpass.mjs）交给 ssh，密码不进命令行。
+// 登录默认用密钥（BatchMode）；用户选了密码时经 askpass 助手（runtime/workers/ssh-askpass.mjs）交给 ssh：
+// 密码不进命令行也不进环境变量（助手拿着一次性令牌向 Runtime 要，见 ssh-askpass-channel.mjs），ssh 不读用户和
+// 系统的配置文件（没有代理命令、跳板机之类会继承环境的子进程），而且只认用户确认过指纹的那把主机公钥
+// （ssh-host-key.mjs）——第一次连接也不会把密码交给冒充的服务器。
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, posix, win32 } from 'node:path'
 import { isSea } from 'node:sea'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ExecutorError } from './bots/executor.mjs'
-import { POWERSHELL_COMMAND, POWERSHELL_SCRIPTS, powershellPayload } from './ssh-powershell.mjs'
+import { openAskpassChannel } from './ssh-askpass-channel.mjs'
 import {
-  ASKPASS_BARE,
-  ASKPASS_EXPECT,
+  ASKPASS_CHANNEL,
   ASKPASS_FLAG,
-  ASKPASS_ONCE,
   ASKPASS_OTHER_HOST,
   ASKPASS_REFUSED,
-  ASKPASS_SECRET,
-  ASKPASS_VARIABLES,
-} from '../workers/ssh-askpass.mjs'
+  ASKPASS_TOKEN,
+} from './ssh-askpass-prompt.mjs'
+import {
+  HOST_KEY_ALIAS,
+  knownHostsLine,
+  normalizeHostKey,
+  parseKnownHosts,
+} from './ssh-host-key.mjs'
+import { POWERSHELL_COMMAND, POWERSHELL_SCRIPTS, powershellPayload } from './ssh-powershell.mjs'
 
 const CONNECT_TIMEOUT_SECONDS = 10
 const OPERATION_TIMEOUT_MS = 60_000
 const PROBE_TIMEOUT_MS = 25_000
 const KILL_TIMEOUT_MS = 8_000
 const VERSION_TIMEOUT_MS = 5_000
+const HOST_KEY_TIMEOUT_MS = 20_000
+// unix socket 路径上限 104 字节（macOS）：放密码通道的临时目录名和 socket 名一共 20 来个字符，上级目录不能太长。
+const MAX_SCRATCH_PARENT_CHARS = 70
 // 密码登录前用 ssh -G 看这台机器实际会怎么连；结果只记这么久（用户可能刚改了 ~/.ssh/config）。
 const LOGIN_PLAN_TTL_MS = 30_000
 const MAX_READ_BYTES = 16 * 1024 * 1024
@@ -97,13 +115,37 @@ function versionAtLeast(version, [major, minor]) {
   return Boolean(version) && (version[0] > major || (version[0] === major && version[1] >= minor))
 }
 
-// 选项写死在这里：不转发 agent 和端口（对方机器不该能用你的密钥），首次连接记下指纹，之后指纹变了就拒绝。
-// 密码登录时关掉 BatchMode（否则 ssh 不问密码），只试密码和键盘交互、不试密钥（免得先把失败次数用掉），
-// 每种方式只问一次，密码错了立刻失败。指纹的处理和密钥登录一样，不放宽。
+// 路径放进 -o 选项时，带空格的要用双引号包起来（ssh 按空白拆多个文件）；路径里不允许有双引号。
+function optionPath(path) {
+  const text = String(path)
+  if (text.includes('"') || /[\r\n\0]/.test(text))
+    throw new ExecutorError('invalid_path', 'The data folder path cannot be used with ssh.')
+  return /\s/.test(text) ? `"${text}"` : text
+}
+
+// 选项写死在这里：不转发 agent 和端口（对方机器不该能用你的密钥）。
+// 密钥登录：读这台电脑的 ssh 配置（别名、跳板机照旧），首次连接记下指纹，之后指纹变了就拒绝。
+// 密码登录：
+// - 关掉 BatchMode（否则 ssh 不问密码），只试密码和键盘交互、不试密钥（免得先把失败次数用掉），每种方式只问一次。
+// - 只认 knownHostsFile 里那一把用户确认过的主机公钥（StrictHostKeyChecking=yes，不看别的 known_hosts，
+//   也不让 ssh 往里加别的公钥）：对不上就在发密码之前断开。
+// - 用 -F 指向一个空的配置文件：用户和系统的 ssh 配置都不读，ProxyCommand、ProxyJump、KnownHostsCommand、
+//   LocalCommand、Match exec、SendEnv 一个都没有。-F 放在最后（后写的生效），其余选项放在最前（先写的生效）。
 export function sshArguments(
   machine,
-  { muxDirectory = '', extraArguments = [], password = false } = {},
+  {
+    muxDirectory = '',
+    extraArguments = [],
+    password = false,
+    configFile = '',
+    knownHostsFile = '',
+  } = {},
 ) {
+  if (password && (!configFile || !knownHostsFile))
+    throw new ExecutorError(
+      'host_key_unconfirmed',
+      'Password sign-in needs a confirmed host fingerprint.',
+    )
   return [
     '-T',
     ...(password
@@ -116,16 +158,26 @@ export function sshArguments(
           'PubkeyAuthentication=no',
           '-o',
           'NumberOfPasswordPrompts=1',
+          '-o',
+          'StrictHostKeyChecking=yes',
+          '-o',
+          `UserKnownHostsFile=${optionPath(knownHostsFile)}`,
+          '-o',
+          `GlobalKnownHostsFile=${optionPath(knownHostsFile)}`,
+          '-o',
+          `HostKeyAlias=${HOST_KEY_ALIAS}`,
+          '-o',
+          'CheckHostIP=no',
+          '-o',
+          'UpdateHostKeys=no',
         ]
-      : ['-o', 'BatchMode=yes']),
+      : ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new']),
     '-o',
     `ConnectTimeout=${CONNECT_TIMEOUT_SECONDS}`,
     '-o',
     'ServerAliveInterval=15',
     '-o',
     'ServerAliveCountMax=3',
-    '-o',
-    'StrictHostKeyChecking=accept-new',
     '-o',
     'ForwardAgent=no',
     '-o',
@@ -146,27 +198,69 @@ export function sshArguments(
       : []),
     ...(machine.port ? ['-p', String(machine.port)] : []),
     ...extraArguments,
+    ...(password ? ['-F', configFile] : []),
     '--',
     machine.target,
   ]
 }
 
-// 密码登录时给 ssh 的环境：SSH_ASKPASS 指向 Pisper 自己的可执行文件，密码放在只有它读的环境变量里。
-// 打包版由入口脚本认出 PISPER_SSH_ASKPASS；开发版是 node，用 NODE_OPTIONS 先加载助手（替换而不是追加，
-// 只影响这次 ssh 及其子进程）。旧版 OpenSSH 不认 SSH_ASKPASS_REQUIRE，要有 DISPLAY 且没有控制终端才调用助手：
-// POSIX 上同时给 DISPLAY，并以新会话启动（spawnOptions 里的 detached）。
+// 取主机公钥：只握手、不登录。所有认证方式都关掉（不带密钥、不问密码），ssh 在验证完对方持有这把私钥后
+// 把公钥写进一个临时的 known_hosts，随后因为没有可用的认证方式而退出。同样不读任何配置文件。
+export function hostKeyArguments(machine, { configFile, knownHostsFile, extraArguments = [] }) {
+  return [
+    '-T',
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'PubkeyAuthentication=no',
+    '-o',
+    'PasswordAuthentication=no',
+    '-o',
+    'StrictHostKeyChecking=accept-new',
+    '-o',
+    `UserKnownHostsFile=${optionPath(knownHostsFile)}`,
+    '-o',
+    `GlobalKnownHostsFile=${optionPath(knownHostsFile)}`,
+    '-o',
+    `HostKeyAlias=${HOST_KEY_ALIAS}`,
+    '-o',
+    'HashKnownHosts=no',
+    '-o',
+    'CheckHostIP=no',
+    '-o',
+    'UpdateHostKeys=no',
+    '-o',
+    `ConnectTimeout=${CONNECT_TIMEOUT_SECONDS}`,
+    '-o',
+    'ForwardAgent=no',
+    '-o',
+    'ForwardX11=no',
+    '-o',
+    'ClearAllForwardings=yes',
+    '-o',
+    'LogLevel=ERROR',
+    ...(machine.port ? ['-p', String(machine.port)] : []),
+    ...extraArguments,
+    '-F',
+    configFile,
+    '--',
+    machine.target,
+    'exit',
+  ]
+}
+
+// 密码登录时给 ssh 的环境：SSH_ASKPASS 指向 Pisper 自己的可执行文件，再加上向 Runtime 要密码的通道地址和
+// 一次性令牌。密码本身不在这里。打包版由入口脚本认出 PISPER_SSH_ASKPASS；开发版是 node，用 NODE_OPTIONS
+// 先加载助手（替换而不是追加，只影响这次 ssh 及其子进程）。旧版 OpenSSH 不认 SSH_ASKPASS_REQUIRE，
+// 要有 DISPLAY 且没有控制终端才调用助手：POSIX 上同时给 DISPLAY，并以新会话启动（spawnOptions 里的 detached）。
 export function askpassEnvironment(
-  password,
+  channel,
   {
     env = process.env,
     platform = process.platform,
     packaged = isSea(),
     execPath = process.execPath,
     helper = ASKPASS_HELPER,
-    // 目标机的身份（user@host）、是否允许回答没写来源的“Password:”、一次性令牌文件：见助手开头的说明。
-    expect = [],
-    bare = false,
-    once = '',
   } = {},
 ) {
   const next = {
@@ -174,23 +268,19 @@ export function askpassEnvironment(
     SSH_ASKPASS: execPath,
     SSH_ASKPASS_REQUIRE: 'force',
     [ASKPASS_FLAG]: '1',
-    [ASKPASS_SECRET]: String(password),
-    [ASKPASS_EXPECT]: expect.join(','),
+    [ASKPASS_CHANNEL]: String(channel.address),
+    [ASKPASS_TOKEN]: String(channel.token),
   }
-  if (bare) next[ASKPASS_BARE] = '1'
-  else delete next[ASKPASS_BARE]
-  if (once) next[ASKPASS_ONCE] = once
-  else delete next[ASKPASS_ONCE]
   if (platform !== 'win32') next.DISPLAY = env.DISPLAY || ':0'
   if (packaged) delete next.NODE_OPTIONS
   else next.NODE_OPTIONS = `--import=${pathToFileURL(helper).href}`
   return next
 }
 
-// ssh -G 的输出（这台电脑的配置对这台机器实际生效的值）里，密码登录要看的几项：
-// 最终连的是谁（提示语里的 user@host 要和它对上）、中间有没有跳板或代理命令、SendEnv 会把哪些环境变量发给对方。
+// ssh -G 的输出（对这台机器实际生效的值）里，密码登录要看的几项：最终连的是谁（提示语里的 user@host 要和它对上）、
+// 端口、中间有没有跳板或代理命令。
 export function parseSshConfig(text) {
-  const plan = { user: '', hostname: '', hostKeyAlias: '', proxy: false, sendEnv: [] }
+  const plan = { user: '', hostname: '', port: '', hostKeyAlias: '', proxy: false }
   for (const line of String(text).split(/\r?\n/)) {
     const at = line.indexOf(' ')
     if (at < 0) continue
@@ -199,28 +289,23 @@ export function parseSshConfig(text) {
     if (!value) continue
     if (key === 'user') plan.user = value
     else if (key === 'hostname') plan.hostname = value
+    else if (key === 'port') plan.port = value
     else if (key === 'hostkeyalias') plan.hostKeyAlias = value
     else if ((key === 'proxyjump' || key === 'proxycommand') && value.toLowerCase() !== 'none')
       plan.proxy = true
-    else if (key === 'sendenv') plan.sendEnv.push(...value.split(/\s+/))
   }
   return plan
 }
 
-function envPatternMatches(pattern, name) {
-  const source = Array.from(String(pattern), (char) =>
-    char === '*' ? '.*' : char === '?' ? '.' : char.replace(/[.+^$(){}|[\]\\]/g, '\\$&'),
-  ).join('')
-  return new RegExp(`^${source}$`).test(name)
-}
-
-// 用户的配置里有没有会把密码那几个环境变量发给对方的 SendEnv（比如 SendEnv *）。命令行上的
-// -o SendEnv=-PISPER_* 管不住配置文件里后读到的 SendEnv（实测 OpenSSH 9.6），所以只能事先查出来、不连。
-export function sendsAskpassEnvironment(patterns) {
-  return (Array.isArray(patterns) ? patterns : []).some(
-    (pattern) =>
-      !String(pattern).startsWith('-') &&
-      ASKPASS_VARIABLES.some((name) => envPatternMatches(pattern, name)),
+// 密码登录不读这台电脑的 ssh 配置。地址要是靠配置才连得上（别名、配置里写的用户名或端口、跳板机），
+// 不读配置就会连到别处或连不上：事先比一下“读配置”和“不读配置”两种解析结果，不一样就说清楚，不悄悄失败。
+export function dependsOnUserConfig(literal, configured) {
+  if (!configured?.hostname) return false
+  return (
+    configured.proxy ||
+    configured.hostname.toLowerCase() !== literal.hostname.toLowerCase() ||
+    configured.user !== literal.user ||
+    (configured.port || '22') !== (literal.port || '22')
   )
 }
 
@@ -257,6 +342,12 @@ const FAILURE_MESSAGES = {
 
 // 只看分类，不带 ssh 的原文：原文里有用户名、主机和对方的横幅，没有必要外传。
 function sshFailure(code, { password = false } = {}) {
+  // 密码机器的主机公钥和用户确认过的不一样：ssh 在发密码之前就断开了。要用户重新核对指纹，不能自动接受。
+  if (code === 'host_key_changed' && password)
+    return new ExecutorError(
+      'host_key_changed',
+      'This machine no longer presents the host key you confirmed, so the connection was refused before the password was sent. If the machine was reinstalled, confirm its new fingerprint in Settings.',
+    )
   // 问密码的不是目标机（多半是跳板机）：密码没有交出去，说清楚怎么办。
   if (code === 'askpass_other_host')
     return new ExecutorError(
@@ -588,6 +679,7 @@ export class SshExecutor {
     sshPath = sshExecutable(platform),
     authBlocked = null,
     onAuthFailed = null,
+    scratchDirectory = '',
   }) {
     this.machine = machine
     this.id = machine.id
@@ -620,6 +712,9 @@ export class SshExecutor {
     this.onAuthFailed =
       typeof onAuthFailed === 'function' ? onAuthFailed : () => (this.authRefused = true)
     this.loginPlan = null
+    // 密码登录每次连接用的临时目录（空配置文件、只有一行的 known_hosts、密码通道的 socket）建在这下面；
+    // 没给或太长（socket 路径有上限）时用系统的临时目录。目录由 mkdtemp 新建，只有自己能进。
+    this.scratchDirectory = scratchDirectory
   }
 
   online() {
@@ -635,16 +730,24 @@ export class SshExecutor {
     return this.system?.family || 'posix'
   }
 
-  #secret() {
-    if (this.machine.auth !== 'password') return ''
-    const value = this.password()
-    if (!value) throw new ExecutorError('auth_failed', 'No password is saved for this machine.')
+  // 密码登录这一次要用的两样东西：用户确认过的主机公钥和密码。顺序有讲究：没确认过指纹、或密码被拒绝过，
+  // 就连密码文件都不去读。密码只在这次调用里经手，不记在执行器上。
+  async #credentials() {
+    if (this.machine.auth !== 'password') return null
+    const hostKey = normalizeHostKey(this.machine.hostKey)
+    if (!hostKey)
+      throw new ExecutorError(
+        'host_key_unconfirmed',
+        'Password sign-in needs a host fingerprint you have confirmed. Open this machine in Settings and confirm its fingerprint.',
+      )
     if (this.authBlocked())
       throw new ExecutorError(
         'auth_failed',
         'The saved password was refused earlier, so Pisper stopped trying it. Update the password in Settings, or test the connection there.',
       )
-    return value
+    const password = await this.password()
+    if (!password) throw new ExecutorError('auth_failed', 'No password is saved for this machine.')
+    return { password, hostKey }
   }
 
   // 认证失败的那一次：记下来，之后不再用这个密码连。
@@ -654,21 +757,27 @@ export class SshExecutor {
     return sshFailure(code, { password: Boolean(password) })
   }
 
-  // 密码登录前问一次这台电脑的 ssh：这台机器实际连的是谁、经不经过跳板、会不会把环境变量发给对方。
-  // 助手据此只把密码答给目标机；查不出来就不连（宁可失败，不能把密码交给认不出的一方）。
-  async #loginPlan() {
-    const cached = this.loginPlan
-    if (
-      cached &&
-      this.now() - cached.at < LOGIN_PLAN_TTL_MS &&
-      cached.target === this.machine.target
-    )
-      return cached.plan
-    const args = sshArguments(this.machine, {
-      extraArguments: [...this.extraArguments, '-G'],
-      password: true,
-    })
-    const output = await new Promise((resolve, reject) => {
+  // 每次连接（或一次查询）用完就删的临时目录。
+  #scratch() {
+    const parent =
+      this.scratchDirectory && this.scratchDirectory.length <= MAX_SCRATCH_PARENT_CHARS
+        ? this.scratchDirectory
+        : tmpdir()
+    if (parent === this.scratchDirectory) mkdirSync(parent, { recursive: true, mode: 0o700 })
+    const directory = mkdtempSync(join(parent, 'pw-'))
+    const configFile = join(directory, 'config')
+    writeFileSync(configFile, '', { mode: 0o600 })
+    return {
+      directory,
+      configFile,
+      knownHostsFile: join(directory, 'known_hosts'),
+      remove: () => rmSync(directory, { recursive: true, force: true }),
+    }
+  }
+
+  // 跑一次不连网的 ssh（-G、-V 这类查询），收它的 stdout。失败时给空串。
+  #query(args) {
+    return new Promise((resolve, reject) => {
       let child
       try {
         child = this.spawnProcess(this.sshPath, args, {
@@ -701,28 +810,58 @@ export class SshExecutor {
       child.stdin?.on('error', () => {})
       child.stdin?.end()
     })
-    const plan = parseSshConfig(output)
+  }
+
+  // 密码登录前问一次这台电脑的 ssh：不读配置文件时这个地址实际连的是谁（助手只把密码给它）。
+  // 再按“读配置”解析一遍对比：靠配置才连得上的地址（别名、跳板机）不能用密码登录，说清楚。
+  // 两次查询都不带密码通道，查不出来就不连（宁可失败，不能把密码交给认不出的一方）。
+  async #loginPlan() {
+    const cached = this.loginPlan
+    if (
+      cached &&
+      this.now() - cached.at < LOGIN_PLAN_TTL_MS &&
+      cached.target === this.machine.target
+    )
+      return cached.plan
+    const scratch = this.#scratch()
+    let plan
+    let configured
+    try {
+      const base = [
+        ...(this.machine.port ? ['-p', String(this.machine.port)] : []),
+        ...this.extraArguments,
+      ]
+      plan = parseSshConfig(
+        await this.#query(['-G', ...base, '-F', scratch.configFile, '--', this.machine.target]),
+      )
+      configured = parseSshConfig(await this.#query(['-G', ...base, '--', this.machine.target]))
+    } finally {
+      scratch.remove()
+    }
     if (!plan.user || !plan.hostname)
       throw new ExecutorError(
         'unsupported_remote',
-        'Could not work out from the SSH configuration on this computer which host this machine is, so the saved password was not sent. Password sign-in needs OpenSSH 6.8 or later.',
+        'Could not work out which host this machine is, so the saved password was not sent. Password sign-in needs OpenSSH 6.8 or later.',
       )
-    if (sendsAskpassEnvironment(plan.sendEnv))
+    if (dependsOnUserConfig(plan, configured))
       throw new ExecutorError(
         'unsupported_remote',
-        'The SSH configuration on this computer has a SendEnv pattern that would send the saved password to the machine as an environment variable. Remove that SendEnv pattern for this host, or use key sign-in.',
+        'Password sign-in does not read the SSH configuration on this computer, and this address only works through it (an alias, a configured user name or port, or a jump host). Enter the real user@host and port, or use key sign-in for aliases and jump hosts.',
       )
     this.loginPlan = { at: this.now(), target: this.machine.target, plan }
     return plan
   }
 
-  #arguments(password) {
+  #arguments(scratch = null) {
     const muxDirectory =
       this.muxDirectory && usableMuxDirectory(this.muxDirectory) ? this.muxDirectory : ''
     return sshArguments(this.machine, {
       muxDirectory,
       extraArguments: this.extraArguments,
-      password: Boolean(password),
+      password: Boolean(scratch),
+      ...(scratch
+        ? { configFile: scratch.configFile, knownHostsFile: scratch.knownHostsFile }
+        : {}),
     })
   }
 
@@ -763,52 +902,140 @@ export class SshExecutor {
       )
   }
 
-  #spawn(remoteCommand, password, login) {
+  // 准备好这一次连接，返回一个同步的“启动 ssh”函数：要等的事（开密码通道）都在这里做完，
+  // 启动和挂监听之间不能再隔一个 await——找不到 ssh 时的 error 事件在下一拍就发出来，隔开就收不到了。
+  async #connection(credentials, login) {
     // 驻留的会话还拿着这个执行器：机器移除后不能再连过去。
     if (!this.isAvailable()) throw new ExecutorError('machine_not_found', 'Machine was removed.')
-    if (!password)
-      return this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-      })
-    // 一次性令牌：助手删掉它的那一次才回答，这次连接里再问就不答了。文件是空的，密码不写盘。
-    const tokenDirectory = mkdtempSync(join(tmpdir(), 'pisper-askpass-'))
-    const once = join(tokenDirectory, 'once')
-    const release = () => rmSync(tokenDirectory, { recursive: true, force: true })
+    if (!credentials)
+      return (remoteCommand) => {
+        if (!this.isAvailable())
+          throw new ExecutorError('machine_not_found', 'Machine was removed.')
+        return this.spawnProcess(this.sshPath, [...this.#arguments(), remoteCommand], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: true,
+        })
+      }
+    // 这一次连接专用：空配置文件、只有那一把公钥的 known_hosts、密码通道。ssh 退出就全部关掉、删掉。
+    const scratch = this.#scratch()
+    let channel = null
+    const release = () => {
+      channel?.close()
+      scratch.remove()
+    }
     try {
-      writeFileSync(once, '', { mode: 0o600 })
-      const identities = [login.hostname, login.hostKeyAlias]
-        .filter(Boolean)
-        .map((host) => `${login.user}@${host}`)
-      const child = this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-        env: askpassEnvironment(password, {
-          platform: this.platform,
-          expect: identities,
-          bare: !login.proxy,
-          once,
-        }),
-        detached: this.platform !== 'win32',
+      writeFileSync(scratch.knownHostsFile, knownHostsLine(credentials.hostKey), { mode: 0o600 })
+      // ssh 的密码提示里写的主机名是 HostKeyAlias；键盘交互方式下老版本不写来源，只有“Password:”——
+      // 不读配置文件就没有跳板机，这句只可能来自目标机。
+      channel = await openAskpassChannel({
+        directory: scratch.directory,
+        platform: this.platform,
+        secret: credentials.password,
+        expect: [`${login.user}@${HOST_KEY_ALIAS}`, `${login.user}@${login.hostname}`],
+        bare: true,
       })
-      child.once('exit', release)
-      child.once('error', release)
-      return child
+      // 密码已经交给通道（它答过一次就放掉）：这边不再留着。
+      credentials.password = ''
     } catch (error) {
       release()
       throw error
+    }
+    return (remoteCommand) => {
+      try {
+        const child = this.spawnProcess(
+          this.sshPath,
+          [...this.#arguments(scratch), remoteCommand],
+          {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true,
+            env: askpassEnvironment(channel, { platform: this.platform }),
+            detached: this.platform !== 'win32',
+          },
+        )
+        child.once('exit', release)
+        child.once('error', release)
+        return child
+      } catch (error) {
+        release()
+        throw error
+      }
+    }
+  }
+
+  // 取这台机器的主机公钥给用户核对：只握手，不带任何凭据，也不读配置文件（见 hostKeyArguments）。
+  // 只有握手完整走完（对方证明了它持有这把私钥，然后因为没有可用的登录方式被拒绝）才算数。
+  async hostKey() {
+    const scratch = this.#scratch()
+    try {
+      const args = hostKeyArguments(this.machine, {
+        configFile: scratch.configFile,
+        knownHostsFile: scratch.knownHostsFile,
+        extraArguments: this.extraArguments,
+      })
+      const outcome = await new Promise((resolve, reject) => {
+        let child
+        try {
+          child = this.spawnProcess(this.sshPath, args, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true,
+          })
+        } catch (error) {
+          reject(error)
+          return
+        }
+        const stderr = collectStderr(child)
+        let settled = false
+        const finish = (error, value) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          child.stdout?.destroy()
+          child.stderr?.destroy()
+          if (error) reject(error)
+          else resolve(value)
+        }
+        const timer = setTimeout(() => {
+          child.kill()
+          finish(new ExecutorError('ssh_timeout', 'Machine did not respond in time.'))
+        }, HOST_KEY_TIMEOUT_MS)
+        child.on('error', (error) =>
+          finish(error?.code === 'ENOENT' ? sshFailure('ssh_client_missing') : error),
+        )
+        child.stdout?.on('data', () => {})
+        whenFinished(child, (code) => finish(null, { code, stderr: stderr() }))
+        child.stdin?.on('error', () => {})
+        child.stdin?.end()
+      })
+      const failure = outcome.code === 0 ? '' : classifySshFailure(outcome.stderr)
+      // 退出码 0：对方不要求登录就放行了（少见），握手同样完整。认证被拒是预期的结果。
+      if (failure && failure !== 'auth_failed') throw sshFailure(failure)
+      let recorded = ''
+      try {
+        recorded = readFileSync(scratch.knownHostsFile, 'utf8')
+      } catch {}
+      const hostKey = parseKnownHosts(recorded)
+      if (!hostKey)
+        throw new ExecutorError(
+          'connection_failed',
+          'Could not read the host key of this machine. Fetching it needs OpenSSH 7.6 or later on this computer.',
+        )
+      return hostKey
+    } finally {
+      scratch.remove()
     }
   }
 
   // 跑一条远程命令，结果整段收回来。maxBytes 防止把巨大的文件读进内存。
   async #run(request, { timeoutMs = OPERATION_TIMEOUT_MS, maxBytes = 0 } = {}) {
-    const password = this.#secret()
+    const credentials = await this.#credentials()
+    const password = Boolean(credentials)
     await this.#checkClient(password)
-    const login = password ? await this.#loginPlan() : null
+    const login = credentials ? await this.#loginPlan() : null
+    const connect = await this.#connection(credentials, login)
     return new Promise((resolve, reject) => {
       let child
       try {
-        child = this.#spawn(request.command, password, login)
+        child = connect(request.command)
       } catch (error) {
         reject(error)
         return
@@ -1060,25 +1287,24 @@ export class SshExecutor {
   async #exec(command, cwd, { onData, signal, timeout } = {}) {
     if (signal?.aborted) throw new Error('aborted')
     const { family } = await this.#ensureSystem()
-    const password = this.#secret()
+    const credentials = await this.#credentials()
+    const password = Boolean(credentials)
     await this.#checkClient(password)
-    const login = password ? await this.#loginPlan() : null
+    const login = credentials ? await this.#loginPlan() : null
     const nonce = randomBytes(8).toString('hex')
     const remoteCwd = this.#path(cwd)
     const request =
       family === 'windows'
         ? remoteRequest(family, 'exec', { cwd: remoteCwd, nonce, data: String(command) })
         : remoteRequest(family, 'exec', { cwd: remoteCwd, nonce, command: String(command) })
+    if (signal?.aborted) throw new Error('aborted')
+    const connect = await this.#connection(credentials, login)
     return new Promise((resolve, reject) => {
-      if (signal?.aborted) {
-        reject(new Error('aborted'))
-        return
-      }
       const separator = Buffer.from('\u001e', 'utf8')
       const prefix = Buffer.from(`\u001e${nonce}`, 'utf8')
       let child
       try {
-        child = this.#spawn(request.command, password, login)
+        child = connect(request.command)
       } catch (error) {
         reject(error)
         return
@@ -1146,6 +1372,8 @@ export class SshExecutor {
       }
       if (timeout) timer = setTimeout(() => stop('timeout'), Math.max(1, Number(timeout)) * 1000)
       signal?.addEventListener('abort', onAbort, { once: true })
+      // 等密码通道的那一会儿里已经被取消了：监听不会再触发，这里补上。
+      if (signal?.aborted) onAbort()
       child.on('error', (error) =>
         finish(error?.code === 'ENOENT' ? sshFailure('ssh_client_missing') : error),
       )

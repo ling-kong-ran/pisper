@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir, userInfo } from 'node:os'
@@ -18,15 +18,17 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { machineSystemPrompt } from '../prompts/machines.mjs'
 import { nodeMachineSystem } from '../runtime/executor-tools.mjs'
+import { openAskpassChannel } from '../services/ssh-askpass-channel.mjs'
 import {
   askpassEnvironment,
+  dependsOnUserConfig,
+  hostKeyArguments,
   normalizeSystem,
   parseProbeOutput,
   parseShellProbe,
   parseSshConfig,
   parseSshVersion,
   remoteRequest,
-  sendsAskpassEnvironment,
   shellQuote,
   SHELL_PROBE_COMMAND,
   SshExecutor,
@@ -34,6 +36,12 @@ import {
   sshExecutable,
   systemFromProbe,
 } from '../services/ssh-executor.mjs'
+import {
+  HOST_KEY_ALIAS,
+  knownHostsLine,
+  normalizeHostKey,
+  parseKnownHosts,
+} from '../services/ssh-host-key.mjs'
 import {
   muxDirectoryFor,
   normalizeSshPassword,
@@ -44,18 +52,37 @@ import {
   POWERSHELL_COMMAND,
   POWERSHELL_SCRIPTS,
 } from '../services/ssh-powershell.mjs'
+import * as askpassNames from '../services/ssh-askpass-prompt.mjs'
 import {
   ASKPASS_OTHER_HOST,
   ASKPASS_REFUSED,
   askpassAnswer,
   askpassDecision,
-  askpassPrompt,
-  consumeAskpassToken,
-  invokedAsAskpass,
-} from '../workers/ssh-askpass.mjs'
+} from '../services/ssh-askpass-prompt.mjs'
+import * as askpassHelper from '../workers/ssh-askpass.mjs'
+import { askpassPrompt, invokedAsAskpass, requestAskpassSecret } from '../workers/ssh-askpass.mjs'
 
 const run = promisify(execFile)
 const SECRET = 'S3cr3t pass"wörd $(id) `x`'
+
+// 一把格式合法的 ed25519 主机公钥（内容是填充字节，只用来过校验）。
+function testHostKey(fill = 1) {
+  const type = 'ssh-ed25519'
+  const length = (value) => {
+    const buffer = Buffer.alloc(4)
+    buffer.writeUInt32BE(value)
+    return buffer
+  }
+  const blob = Buffer.concat([
+    length(type.length),
+    Buffer.from(type),
+    length(32),
+    Buffer.alloc(32, fill),
+  ])
+  return normalizeHostKey({ type, key: blob.toString('base64') })
+}
+const HOST_KEY = testHostKey()
+const pinned = (hostKey = HOST_KEY) => ({ type: hostKey.type, key: hostKey.key })
 
 // ---------- 命令构造：纯函数，逐字比对 ----------
 
@@ -296,7 +323,7 @@ function fakeSsh(script, { config = 'user me\nhostname host\n' } = {}) {
       child.stdin = new PassThrough()
       child.kill = () => {}
       configCalls.push({ file, args, options })
-      const reply = typeof config === 'function' ? config() : config
+      const reply = typeof config === 'function' ? config(args) : config
       setImmediate(() => {
         if (reply) child.stdout.write(reply)
         child.stdout.end()
@@ -313,8 +340,9 @@ function fakeSsh(script, { config = 'user me\nhostname host\n' } = {}) {
     child.stdin.on('data', (chunk) => stdin.push(chunk))
     const call = { file, args, options, stdin }
     calls.push(call)
-    child.stdin.on('finish', () => {
-      const reply = script(call) || {}
+    child.stdin.on('finish', async () => {
+      // 脚本可以是异步的：在“ssh 还在跑”的时候去密码通道要一次密码。
+      const reply = (await script(call)) || {}
       if (reply.stdout) child.stdout.write(reply.stdout)
       if (reply.stderr) child.stderr.write(reply.stderr)
       child.stdout.end()
@@ -335,32 +363,81 @@ const passwordMachine = {
   target: 'me@host',
   port: 2222,
   auth: 'password',
+  hostKey: pinned(),
   system: { os: 'linux', family: 'posix', name: 'Linux', shell: 'bash' },
 }
+const optionValue = (args, name) =>
+  args.find((arg) => String(arg).startsWith(`${name}=`))?.slice(name.length + 1)
 
-test('password sign-in sets the right options and keeps the password out of argv and errors', async () => {
-  const args = sshArguments(passwordMachine, { password: true })
+test('password sign-in pins the host key, ignores ssh config and keeps the password out of argv, env and errors', async () => {
+  const files = { configFile: '/s/config', knownHostsFile: '/s/known_hosts' }
+  const args = sshArguments(passwordMachine, { password: true, ...files })
   const joined = args.join(' ')
   for (const option of [
     'BatchMode=no',
     'PreferredAuthentications=password,keyboard-interactive',
     'PubkeyAuthentication=no',
     'NumberOfPasswordPrompts=1',
-    'StrictHostKeyChecking=accept-new',
+    'StrictHostKeyChecking=yes',
+    'UserKnownHostsFile=/s/known_hosts',
+    'GlobalKnownHostsFile=/s/known_hosts',
+    `HostKeyAlias=${HOST_KEY_ALIAS}`,
+    'UpdateHostKeys=no',
     'ForwardAgent=no',
   ])
     assert.ok(joined.includes(option), option)
   assert.ok(!joined.includes('BatchMode=yes'))
-  assert.ok(sshArguments(passwordMachine).join(' ').includes('BatchMode=yes'))
+  assert.ok(
+    !joined.includes('accept-new'),
+    'a password is never sent to a host seen for the first time',
+  )
+  // -F 放在最后（后写的生效），紧挨着 -- 和地址：别的参数盖不掉它。
+  assert.deepEqual(args.slice(-4), ['-F', '/s/config', '--', 'me@host'])
+  assert.deepEqual(
+    sshArguments(passwordMachine, {
+      password: true,
+      ...files,
+      extraArguments: ['-F', '/user/config'],
+    }).slice(-6),
+    ['-F', '/user/config', '-F', '/s/config', '--', 'me@host'],
+  )
+  // 路径里有空格：加引号，不会被 ssh 拆成两个文件。
+  assert.ok(
+    sshArguments(passwordMachine, {
+      password: true,
+      configFile: '/a b/config',
+      knownHostsFile: '/a b/known_hosts',
+    }).includes('UserKnownHostsFile="/a b/known_hosts"'),
+  )
+  assert.throws(() => sshArguments(passwordMachine, { password: true }), {
+    code: 'host_key_unconfirmed',
+  })
+  // 密钥登录照旧：读用户配置（没有 -F），首次连接记下指纹。
+  const keyArgs = sshArguments(passwordMachine).join(' ')
+  assert.ok(
+    keyArgs.includes('BatchMode=yes') && keyArgs.includes('StrictHostKeyChecking=accept-new'),
+  )
+  assert.ok(!sshArguments(passwordMachine).includes('-F'))
 
-  const ssh = fakeSsh(() => ({
-    code: 255,
-    stderr: 'me@host: Permission denied (password,keyboard-interactive).\r\n',
-  }))
+  // ssh “还在跑”的时候：known_hosts 里只有确认过的那一把公钥，密码只能凭令牌从通道要到，而且只给一次。
+  const seen = {}
+  const ssh = fakeSsh(async (call) => {
+    const env = call.options.env
+    seen.knownHosts = readFileSync(optionValue(call.args, 'UserKnownHostsFile'), 'utf8')
+    seen.config = readFileSync(call.args[call.args.lastIndexOf('-F') + 1], 'utf8')
+    const ask = (prompt, token = env.PISPER_SSH_ASKPASS_TOKEN) =>
+      requestAskpassSecret(env.PISPER_SSH_ASKPASS_CHANNEL, token, prompt)
+    seen.wrongToken = await ask(`me@${HOST_KEY_ALIAS}'s password: `, 'f'.repeat(64))
+    seen.otherHost = await ask("me@gate's password: ")
+    seen.secondFactor = await ask('Verification code: ')
+    seen.answer = await ask(`me@${HOST_KEY_ALIAS}'s password: `)
+    seen.again = await ask(`me@${HOST_KEY_ALIAS}'s password: `)
+    return { code: 255, stderr: 'me@host: Permission denied (password,keyboard-interactive).\r\n' }
+  })
   const executor = new SshExecutor({
     machine: passwordMachine,
     platform: 'linux',
-    password: () => SECRET,
+    password: async () => SECRET,
     spawnProcess: ssh.spawnProcess,
   })
   const startedAt = Date.now()
@@ -368,10 +445,17 @@ test('password sign-in sets the right options and keeps the password out of argv
     .operations()
     .read.readFile('/x')
     .catch((caught) => caught)
-  assert.equal(error.code, 'auth_failed')
-  assert.ok(Date.now() - startedAt < 2_000, 'a wrong password fails at once')
+  assert.equal(error.code, 'auth_failed', error.message)
+  assert.ok(Date.now() - startedAt < 5_000, 'a wrong password fails at once')
   assert.match(error.message, /wrong user name or password/)
   assert.ok(!error.message.includes(SECRET) && !error.message.includes('S3cr3t'))
+  assert.equal(seen.knownHosts, knownHostsLine(HOST_KEY))
+  assert.equal(seen.config, '', 'ssh is pointed at an empty configuration file')
+  assert.deepEqual(seen.wrongToken, { ok: false, reason: 'denied' })
+  assert.deepEqual(seen.otherHost, { ok: false, reason: 'other_host' })
+  assert.deepEqual(seen.secondFactor, { ok: false, reason: 'second_factor' })
+  assert.deepEqual(seen.answer, { ok: true, secret: SECRET })
+  assert.equal(seen.again.ok, false, 'one connection gets the password once')
   const [call] = ssh.calls
   assert.equal(call.file, 'ssh')
   assert.ok(!call.args.some((arg) => arg.includes('S3cr3t')), 'never on the command line')
@@ -380,19 +464,29 @@ test('password sign-in sets the right options and keeps the password out of argv
   assert.equal(env.SSH_ASKPASS, process.execPath)
   assert.equal(env.SSH_ASKPASS_REQUIRE, 'force')
   assert.equal(env.PISPER_SSH_ASKPASS, '1')
-  assert.equal(env.PISPER_SSH_ASKPASS_SECRET, SECRET)
-  // 助手只答给 ssh -G 解析出的那台机器；不经过跳板时才答没写来源的“Password:”；一次性令牌是个空文件。
-  assert.equal(env.PISPER_SSH_ASKPASS_EXPECT, 'me@host')
-  assert.equal(env.PISPER_SSH_ASKPASS_BARE, '1')
-  assert.match(env.PISPER_SSH_ASKPASS_ONCE, /pisper-askpass-.*once$/)
-  assert.ok(!existsSync(env.PISPER_SSH_ASKPASS_ONCE), 'the token folder is removed when ssh exits')
-  assert.equal(ssh.configCalls.length, 1)
-  assert.ok(ssh.configCalls[0].args.includes('-G') && ssh.configCalls[0].args.includes('2222'))
+  // 环境里只有通道地址和令牌：密码不在任何一个变量里，ssh 的子进程继承了也读不到。
+  assert.ok(!JSON.stringify(env).includes('S3cr3t'), 'the password is in no environment variable')
+  assert.equal(env.PISPER_SSH_ASKPASS_SECRET, undefined)
+  assert.match(env.PISPER_SSH_ASKPASS_TOKEN, /^[0-9a-f]{64}$/)
+  assert.ok(env.PISPER_SSH_ASKPASS_CHANNEL)
+  // ssh 退出后：这次连接的临时目录（配置、known_hosts、通道）都没了，令牌也换不到密码了。
+  assert.ok(!existsSync(optionValue(call.args, 'UserKnownHostsFile')))
   assert.equal(
-    ssh.configCalls[0].options.env,
-    undefined,
-    'the config query never gets the password',
+    (
+      await requestAskpassSecret(
+        env.PISPER_SSH_ASKPASS_CHANNEL,
+        env.PISPER_SSH_ASKPASS_TOKEN,
+        `me@${HOST_KEY_ALIAS}'s password: `,
+      )
+    ).ok,
+    false,
   )
+  // 连接前问两次 ssh -G（不读配置 / 读配置），都不带密码通道。
+  assert.equal(ssh.configCalls.length, 2)
+  assert.ok(ssh.configCalls[0].args.includes('-F') && ssh.configCalls[0].args.includes('2222'))
+  assert.ok(!ssh.configCalls[1].args.includes('-F'))
+  for (const query of ssh.configCalls)
+    assert.equal(query.options.env, undefined, 'the config query never gets the channel')
   assert.ok(env.DISPLAY)
   assert.equal(call.options.detached, true, 'no controlling terminal, so old ssh also uses askpass')
 
@@ -428,6 +522,130 @@ test('password sign-in sets the right options and keeps the password out of argv
   await assert.rejects(
     new SshExecutor({ machine: passwordMachine, spawnProcess: ssh.spawnProcess }).probe(),
     { code: 'auth_failed' },
+  )
+})
+
+test('a password machine connects only to the host key the user confirmed', async () => {
+  // 没确认过指纹（今天之前存下的密码机器）：不连，连密码文件都不读。
+  let read = 0
+  const ssh = fakeSsh(() => ({ code: 0 }))
+  const unconfirmed = new SshExecutor({
+    machine: { ...passwordMachine, hostKey: undefined },
+    platform: 'linux',
+    password: () => {
+      read += 1
+      return SECRET
+    },
+    spawnProcess: ssh.spawnProcess,
+  })
+  for (const attempt of [
+    () => unconfirmed.probe(),
+    () => unconfirmed.operations().bash.exec('ls', '/'),
+  ])
+    await assert.rejects(
+      attempt(),
+      (error) => error.code === 'host_key_unconfirmed' && /fingerprint/.test(error.message),
+    )
+  assert.deepEqual([read, ssh.calls.length, ssh.configCalls.length], [0, 0, 0])
+  // 存着的公钥被改坏了（不是合法公钥）：同样不连。
+  await assert.rejects(
+    new SshExecutor({
+      machine: { ...passwordMachine, hostKey: { type: 'ssh-ed25519', key: 'AAAA' } },
+      platform: 'linux',
+      password: () => SECRET,
+      spawnProcess: ssh.spawnProcess,
+    }).probe(),
+    { code: 'host_key_unconfirmed' },
+  )
+  // 对方给出的公钥和确认过的不一样：ssh 在认证之前就断开；报“身份变了”，不算密码错，也不熔断。
+  const changed = fakeSsh(() => ({
+    code: 255,
+    stderr:
+      '@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.\n',
+  }))
+  const refusedBy = []
+  await assert.rejects(
+    new SshExecutor({
+      machine: passwordMachine,
+      platform: 'linux',
+      password: () => SECRET,
+      spawnProcess: changed.spawnProcess,
+      onAuthFailed: () => refusedBy.push('x'),
+    }).probe(),
+    (error) =>
+      error.code === 'host_key_changed' &&
+      /before the password was sent/.test(error.message) &&
+      /confirm its new fingerprint/.test(error.message),
+  )
+  assert.deepEqual(refusedBy, [])
+
+  // 公钥的校验：类型在白名单里、公钥本体里写的类型要对得上；指纹从公钥算，不信传进来的。
+  assert.match(HOST_KEY.fingerprint, /^SHA256:[A-Za-z0-9+/]{43}$/)
+  assert.equal(
+    normalizeHostKey({ ...pinned(), fingerprint: 'SHA256:forged' }).fingerprint,
+    HOST_KEY.fingerprint,
+  )
+  for (const bad of [
+    null,
+    {},
+    { type: 'ssh-ed25519', key: '' },
+    { type: 'ssh-dss', key: HOST_KEY.key },
+    { type: 'ssh-rsa', key: HOST_KEY.key },
+    { type: 'ssh-ed25519', key: `${HOST_KEY.key}\nevil ssh-ed25519 AAAA` },
+    { type: 'ssh-ed25519', key: 'x'.repeat(5000) },
+  ])
+    assert.equal(normalizeHostKey(bad), null, JSON.stringify(bad)?.slice(0, 60))
+  assert.equal(knownHostsLine(HOST_KEY), `${HOST_KEY_ALIAS} ssh-ed25519 ${HOST_KEY.key}\n`)
+  assert.deepEqual(parseKnownHosts(`# c\nother ssh-ed25519 ${HOST_KEY.key}\n`), null)
+  assert.deepEqual(parseKnownHosts(knownHostsLine(HOST_KEY)), HOST_KEY)
+
+  // 取指纹：只握手。不带密钥、不问密码、不读配置，公钥写进临时文件后读出来，临时文件随即删掉。
+  const args = hostKeyArguments(
+    { target: 'me@host', port: 2222 },
+    { configFile: '/s/config', knownHostsFile: '/s/known_hosts' },
+  )
+  for (const option of [
+    'BatchMode=yes',
+    'PubkeyAuthentication=no',
+    'PasswordAuthentication=no',
+    'StrictHostKeyChecking=accept-new',
+    'UserKnownHostsFile=/s/known_hosts',
+    'HashKnownHosts=no',
+  ])
+    assert.ok(args.includes(option), option)
+  assert.deepEqual(args.slice(-5), ['-F', '/s/config', '--', 'me@host', 'exit'])
+  let scratch = ''
+  const fetch = fakeSsh((call) => {
+    scratch = optionValue(call.args, 'UserKnownHostsFile')
+    return { code: 255, stderr: 'me@host: Permission denied (publickey,password).\n', scratch }
+  })
+  const spawnProcess = (file, spawnArgs, options) => {
+    const child = fetch.spawnProcess(file, spawnArgs, options)
+    // 假的 ssh 在“握手”时把公钥写进它被指到的 known_hosts。
+    const knownHosts = optionValue(spawnArgs, 'UserKnownHostsFile')
+    if (knownHosts) writeFile(knownHosts, knownHostsLine(HOST_KEY)).catch(() => {})
+    return child
+  }
+  const fetched = await new SshExecutor({
+    machine: { id: 'ssh_unsaved0', name: 'x', target: 'me@host', port: 2222, auth: 'key' },
+    platform: 'linux',
+    spawnProcess,
+  }).hostKey()
+  assert.deepEqual(fetched, HOST_KEY)
+  assert.equal(fetch.calls[0].options.env, undefined, 'no credentials of any kind')
+  assert.ok(scratch && !existsSync(scratch), 'the temporary known_hosts is removed')
+  // 握手没走完（连不上、对方不是 ssh）：不给指纹。
+  const down = fakeSsh(() => ({
+    code: 255,
+    stderr: 'ssh: connect to host h port 22: Connection refused\n',
+  }))
+  await assert.rejects(
+    new SshExecutor({
+      machine: { id: 'ssh_unsaved0', name: 'x', target: 'me@host', auth: 'key' },
+      platform: 'linux',
+      spawnProcess: down.spawnProcess,
+    }).hostKey(),
+    { code: 'connection_refused' },
   )
 })
 
@@ -468,6 +686,31 @@ test('password sign-in from Windows needs OpenSSH 8.4 for SSH_ASKPASS_REQUIRE', 
 })
 
 test('the askpass helper answers password prompts only', async () => {
+  // 助手是单独启动的进程，名字自己留了一份：和 Runtime 这边的必须一致。
+  for (const name of [
+    'ASKPASS_FLAG',
+    'ASKPASS_CHANNEL',
+    'ASKPASS_TOKEN',
+    'ASKPASS_REFUSED',
+    'ASKPASS_OTHER_HOST',
+  ])
+    assert.equal(askpassHelper[name], askpassNames[name], name)
+  assert.deepEqual(askpassHelper.ASKPASS_VARIABLES, askpassNames.ASKPASS_VARIABLES)
+  // 助手只依赖 Node 内建模块（打包时原样复制），而且 Runtime 的代码不导入它。
+  const helperSource = readFileSync(
+    fileURLToPath(new URL('../workers/ssh-askpass.mjs', import.meta.url)),
+    'utf8',
+  )
+  assert.deepEqual(
+    [...helperSource.matchAll(/^import .* from '([^']+)'/gm)].map((match) => match[1]),
+    ['node:fs', 'node:net', 'node:path', 'node:sea'],
+  )
+  for (const file of ['ssh-executor.mjs', 'ssh-askpass-channel.mjs', 'ssh-machine-service.mjs'])
+    assert.doesNotMatch(
+      readFileSync(fileURLToPath(new URL(`../services/${file}`, import.meta.url)), 'utf8'),
+      /from '\.\.\/workers\/ssh-askpass\.mjs'/,
+      file,
+    )
   const target = { expect: ['me@host'], bare: true }
   assert.equal(askpassAnswer("me@host's password: ", 'pw', target), 'pw\n')
   assert.equal(askpassAnswer("ME@Host's password: ", 'pw', target), 'pw\n')
@@ -510,62 +753,78 @@ test('the askpass helper answers password prompts only', async () => {
   )
   assert.equal(invokedAsAskpass(['node', '/x/prompt', 'extra'], { packaged: false }), false)
   assert.equal(invokedAsAskpass(['/app/pisper', '/app/pisper', 'p'], { packaged: true }), true)
-  let removed = 0
-  assert.equal(
-    consumeAskpassToken('/t', () => (removed += 1)),
-    true,
-  )
-  assert.equal(
-    consumeAskpassToken('/t', () => {
-      throw new Error('ENOENT')
-    }),
-    false,
-  )
-  assert.equal(removed, 1)
   assert.equal(
     askpassPrompt(['node', "/cwd/me@host's password: "], '/cwd', 'node'),
     "me@host's password: ",
   )
   assert.equal(askpassPrompt(['/app/pisper', '/app/pisper'], '/x', '/app/pisper'), '')
 
-  // 真的按 ssh 的方式启动一次（开发版：node + NODE_OPTIONS）：提示语是参数，密码从 stdout 出来。
-  const tokenDirectory = await mkdtemp(join(tmpdir(), 'pisper-askpass-test-'))
-  const once = join(tokenDirectory, 'once')
-  await writeFile(once, '')
-  const env = askpassEnvironment(SECRET, { packaged: false, expect: ['me@host'], bare: true, once })
-  const answered = spawnSync(process.execPath, ["me@host's password: "], { env })
-  assert.equal(answered.status, 0, answered.stderr.toString())
-  assert.equal(answered.stdout.toString(), `${SECRET}\n`)
-  assert.equal(answered.stderr.toString(), '')
-  const refused = spawnSync(process.execPath, ['Verification code: '], { env })
-  assert.equal(refused.status, 1)
-  assert.equal(refused.stdout.toString(), '')
-  assert.equal(refused.stderr.toString().trim(), ASKPASS_REFUSED)
-  // 一次连接只答一次：令牌已经用掉，再问就不答，也不留“第二重验证”的标记（那是密码错了）。
-  assert.ok(!existsSync(once))
-  const again = spawnSync(process.execPath, ["me@host's password: "], { env })
-  assert.deepEqual([again.status, again.stdout.toString(), again.stderr.toString()], [1, '', ''])
-  // 跳板机来问：不答，标记是“别的主机”。
-  await writeFile(once, '')
-  const jump = spawnSync(process.execPath, ["jump@gate's password: "], { env })
+  // 真的按 ssh 的方式启动一次（开发版：node + NODE_OPTIONS）：提示语是参数，助手拿着令牌向通道要，密码从 stdout 出来。
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-askpass-test-'))
+  const channel = await openAskpassChannel({
+    directory,
+    secret: SECRET,
+    expect: ['me@host'],
+    bare: true,
+  })
+  const env = askpassEnvironment(channel, { packaged: false })
+  assert.ok(!JSON.stringify(env).includes('S3cr3t'), 'the helper is not handed the password')
+  // 通道在这个进程里：助手必须异步启动（同步等它会把通道也卡住）。
+  const helper = (prompt, helperEnv = env) =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, [prompt], { env: helperEnv })
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', (chunk) => (stdout += chunk))
+      child.stderr.on('data', (chunk) => (stderr += chunk))
+      child.on('close', (status) => resolve([status, stdout, stderr.trim()]))
+    })
+  // 问的不是密码、问的不是目标机、令牌不对：都要不到，也不占用那一次机会。
+  assert.deepEqual(await helper('Verification code: '), [1, '', ASKPASS_REFUSED])
+  assert.deepEqual(await helper("jump@gate's password: "), [1, '', ASKPASS_OTHER_HOST])
   assert.deepEqual(
-    [jump.status, jump.stdout.toString(), jump.stderr.toString().trim()],
-    [1, '', ASKPASS_OTHER_HOST],
+    await helper("me@host's password: ", { ...env, PISPER_SSH_ASKPASS_TOKEN: '0'.repeat(64) }),
+    [1, '', ''],
   )
-  assert.ok(existsSync(once), 'a refused prompt does not use up the token')
-  // 继承了这份环境的别的 node 程序（ProxyCommand 里的）：照常运行，拿不到密码，也不会替 ssh 回答。
-  const other = join(tokenDirectory, 'other.mjs')
+  assert.deepEqual(await helper("me@host's password: "), [0, `${SECRET}\n`, ''])
+  // 一次连接只给一次：再问就不给，也不留“第二重验证”的标记（那是密码错了）。
+  assert.deepEqual(await helper("me@host's password: "), [1, '', ''])
+  // 继承了这份环境的别的 node 程序（比如 ssh 起的子进程）：照常运行，环境里没有密码，也不会替 ssh 去要。
+  const other = join(directory, 'other.mjs')
   await writeFile(
     other,
-    'process.stdout.write(JSON.stringify([process.env.PISPER_SSH_ASKPASS_SECRET ?? null, process.env.NODE_OPTIONS ?? null]))',
+    'process.stdout.write(JSON.stringify([process.env.PISPER_SSH_ASKPASS_TOKEN ?? null, process.env.PISPER_SSH_ASKPASS_CHANNEL ?? null, process.env.NODE_OPTIONS ?? null]))',
   )
-  const unrelated = spawnSync(process.execPath, [other], { env })
+  const fresh = await openAskpassChannel({
+    directory: await mkdtemp(join(directory, 'c-')),
+    secret: SECRET,
+    expect: ['me@host'],
+  })
+  const unrelated = spawnSync(process.execPath, [other], {
+    env: askpassEnvironment(fresh, { packaged: false }),
+  })
   assert.equal(unrelated.status, 0, unrelated.stderr.toString())
-  assert.equal(unrelated.stdout.toString(), '[null,null]')
-  await rm(tokenDirectory, { recursive: true, force: true })
+  assert.equal(unrelated.stdout.toString(), '[null,null,null]')
+  // 说不成一行 JSON 的、太大的请求：直接断开，什么都不给。
+  assert.equal(
+    (await requestAskpassSecret(fresh.address, fresh.token, 'x'.repeat(40_000))).ok,
+    false,
+  )
+  // 关掉之后令牌作废。
+  fresh.close()
+  channel.close()
+  assert.deepEqual(await requestAskpassSecret(fresh.address, fresh.token, "me@host's password: "), {
+    ok: false,
+    reason: 'unavailable',
+  })
+  if (process.platform !== 'win32') assert.ok(!existsSync(fresh.address), 'the socket is gone')
+  await rm(directory, { recursive: true, force: true })
   // 打包版不改 NODE_OPTIONS（入口脚本自己认 PISPER_SSH_ASKPASS）。
   assert.equal(
-    askpassEnvironment('x', { packaged: true, env: { NODE_OPTIONS: '--a' } }).NODE_OPTIONS,
+    askpassEnvironment(
+      { address: 'a', token: 't' },
+      { packaged: true, env: { NODE_OPTIONS: '--a' } },
+    ).NODE_OPTIONS,
     undefined,
   )
 })
@@ -603,28 +862,76 @@ test('passwords live in their own 0600 file and never in the machine list', asyn
     service.add({ target: 'me@new', auth: 'password', password: 'a\nb' }),
     (error) => error.code === 'invalid' && !error.message.includes('a\nb'),
   )
-  const added = await service.add({ target: 'me@new', auth: 'password', password: SECRET })
+  // 密码登录必须带上确认过的主机公钥：没有、或不是合法公钥，都不保存。
+  await assert.rejects(
+    service.add({ target: 'me@new', auth: 'password', password: SECRET }),
+    (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
+  )
+  await assert.rejects(
+    service.add({
+      target: 'me@new',
+      auth: 'password',
+      password: SECRET,
+      hostKey: { type: 'ssh-ed25519', key: 'AAAA' },
+    }),
+    (error) => error.code === 'invalid' && /host key/.test(error.message),
+  )
+  assert.ok(!existsSync(secretsPath), 'a refused add stores nothing')
+  const added = await service.add({
+    target: 'me@new',
+    auth: 'password',
+    password: SECRET,
+    hostKey: pinned(),
+  })
   assert.deepEqual([added.auth, added.passwordSet], ['password', true])
+  // 接口给的是类型和指纹；公钥本体存在机器记录里。
+  assert.deepEqual(added.hostKey, { type: HOST_KEY.type, fingerprint: HOST_KEY.fingerprint })
+  assert.deepEqual(
+    JSON.parse(await readFile(machinesPath, 'utf8')).machines.find((item) => item.id === added.id)
+      .hostKey,
+    pinned(),
+  )
   const shown = JSON.stringify([added, service.list()])
   assert.ok(!shown.includes('S3cr3t'), 'list and add responses never carry the password')
   assert.ok(!(await readFile(machinesPath, 'utf8')).includes('S3cr3t'))
   assert.equal(JSON.parse(await readFile(secretsPath, 'utf8')).passwords[added.id], SECRET)
   if (process.platform !== 'win32') assert.equal((await stat(secretsPath)).mode & 0o777, 0o600)
-  assert.equal(service.executor(added.id).password(), SECRET)
+  assert.equal(await service.executor(added.id).password(), SECRET)
+  // 密码不常驻内存：服务里只记“哪些机器存了密码”，用到时才从文件读。
+  assert.equal(service.secrets.passwords, undefined)
+  assert.deepEqual([...service.secrets.ids], [added.id])
+  assert.ok(!JSON.stringify([...service.machines.values()]).includes('S3cr3t'))
 
-  // 编辑：不填密码 = 保留；填了 = 换掉；改成密钥 = 删掉。
+  // 编辑：不填密码 = 保留；填了 = 换掉；改成密钥 = 删掉（确认过的主机公钥一起删）。
   const renamed = await service.update(added.id, { name: '改名', auth: 'password' })
   assert.deepEqual([renamed.name, renamed.passwordSet], ['改名', true])
-  assert.equal(service.secrets.get(added.id), SECRET)
+  assert.equal(renamed.hostKey.fingerprint, HOST_KEY.fingerprint, 'the confirmed key is kept')
+  assert.equal(await service.secrets.get(added.id), SECRET)
   await service.update(added.id, { auth: 'password', password: 'second' })
-  assert.equal(service.secrets.get(added.id), 'second')
+  assert.equal(await service.secrets.get(added.id), 'second')
   const cleared = await service.update(added.id, { auth: 'key' })
-  assert.deepEqual([cleared.auth, cleared.passwordSet], ['key', false])
+  assert.deepEqual([cleared.auth, cleared.passwordSet, cleared.hostKey], ['key', false, null])
   assert.equal(JSON.parse(await readFile(secretsPath, 'utf8')).passwords[added.id], undefined)
+  assert.equal(service.get(added.id).hostKey, undefined)
   await assert.rejects(service.update(added.id, { auth: 'password' }), { code: 'invalid' })
+  // 改回密码登录：密码和主机公钥都要重新给。
+  await assert.rejects(
+    service.update(added.id, { auth: 'password', password: SECRET }),
+    (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
+  )
+
+  // 之前版本存下的密码机器没有主机公钥：照常读回，但确认指纹之前不连，也改不了别的。
+  service.machines.get(added.id).auth = 'password'
+  await service.secrets.set(added.id, SECRET)
+  assert.equal(service.list().find((item) => item.id === added.id).hostKey, null)
+  await assert.rejects(service.executor(added.id).probe(), { code: 'host_key_unconfirmed' })
+  await assert.rejects(
+    service.update(added.id, { name: '只改名' }),
+    (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
+  )
 
   // 删除机器连同密码一起删；重启后读回一致。
-  await service.update(added.id, { auth: 'password', password: SECRET })
+  await service.update(added.id, { auth: 'password', password: SECRET, hostKey: pinned() })
   assert.equal(await service.remove(added.id), true)
   assert.ok(!(await readFile(secretsPath, 'utf8')).includes('S3cr3t'))
   const reloaded = new SshMachineService({ path: machinesPath, dataDir: dir })
@@ -798,7 +1105,7 @@ psTest('commands run in PowerShell with output, exit codes and no input', async 
 
 // ---------- 密码只答给目标机、只试一次、不发到别的地址 ----------
 
-test('what ssh -G says decides who may get the password', async () => {
+test('password sign-in works out the target without the ssh config and refuses addresses that need it', async () => {
   const plan = parseSshConfig(
     [
       'user alice',
@@ -806,7 +1113,6 @@ test('what ssh -G says decides who may get the password', async () => {
       'port 2222',
       'hostkeyalias box',
       'sendenv LANG',
-      'sendenv LC_*',
       'proxyjump jump@gate',
       '',
     ].join('\n'),
@@ -814,50 +1120,68 @@ test('what ssh -G says decides who may get the password', async () => {
   assert.deepEqual(plan, {
     user: 'alice',
     hostname: 'real.example.com',
+    port: '2222',
     hostKeyAlias: 'box',
     proxy: true,
-    sendEnv: ['LANG', 'LC_*'],
   })
   assert.equal(parseSshConfig('user me\nhostname h\nproxycommand none\n').proxy, false)
   assert.equal(parseSshConfig('user me\nhostname h\nproxycommand nc %h %p\n').proxy, true)
-  assert.equal(sendsAskpassEnvironment(['LANG', 'LC_*']), false)
-  for (const pattern of ['*', 'PISPER_*', 'PISPER_SSH_ASKPASS_SECRET', 'P?SPER_SSH_ASKPASS*'])
-    assert.equal(sendsAskpassEnvironment([pattern]), true, pattern)
-  assert.equal(sendsAskpassEnvironment(['-PISPER_*']), false)
+  const literal = { user: 'me', hostname: 'box', port: '22', proxy: false }
+  assert.equal(dependsOnUserConfig(literal, { ...literal, hostname: 'BOX' }), false)
+  assert.equal(dependsOnUserConfig(literal, { ...literal, port: '' }), false)
+  assert.equal(dependsOnUserConfig(literal, { user: '', hostname: '', port: '' }), false)
+  for (const configured of [
+    { ...literal, hostname: 'real.example.com' },
+    { ...literal, user: 'alice' },
+    { ...literal, port: '2222' },
+    { ...literal, proxy: true },
+  ])
+    assert.equal(dependsOnUserConfig(literal, configured), true, JSON.stringify(configured))
 
-  const connect = (config) => {
-    const ssh = fakeSsh(() => ({ code: 0 }), { config })
+  // config(args)：带 -F 的那次是“不读配置”的解析，不带的是这台电脑的配置实际会怎么连。
+  const connect = (literalReply, configuredReply = literalReply) => {
+    const ssh = fakeSsh(() => ({ code: 0 }), {
+      config: (args) => (args.includes('-F') ? literalReply : configuredReply),
+    })
     const executor = new SshExecutor({
-      machine: { ...passwordMachine, target: 'box' },
+      machine: { ...passwordMachine, target: 'box', port: null },
       platform: 'linux',
       password: () => SECRET,
       spawnProcess: ssh.spawnProcess,
     })
     return { ssh, done: executor.operations().write.mkdir('/x') }
   }
-  // 地址是 ~/.ssh/config 里的别名：助手认的是解析出来的真实用户名和主机（以及 HostKeyAlias）。
-  const alias = connect('user alice\nhostname real.example.com\nhostkeyalias box\n')
-  await alias.done
-  assert.equal(
-    alias.ssh.calls[0].options.env.PISPER_SSH_ASKPASS_EXPECT,
-    'alice@real.example.com,alice@box',
-  )
-  assert.equal(alias.ssh.calls[0].options.env.PISPER_SSH_ASKPASS_BARE, '1')
-  // 经过跳板：没写来源的“Password:”不答。
-  const jumped = connect('user alice\nhostname real.example.com\nproxyjump jump@gate\n')
-  await jumped.done
-  assert.equal(jumped.ssh.calls[0].options.env.PISPER_SSH_ASKPASS_BARE, undefined)
-  // 配置里的 SendEnv 会把密码变量发给对方：不连，说明原因。
-  const leaky = connect('user alice\nhostname real.example.com\nsendenv LANG\nsendenv *\n')
-  await assert.rejects(
-    leaky.done,
-    (error) => error.code === 'unsupported_remote' && /SendEnv/.test(error.message),
-  )
-  assert.equal(leaky.ssh.calls.length, 0, 'never connects')
+  const plain = connect('user me\nhostname box\nport 22\n')
+  await plain.done
+  assert.equal(plain.ssh.calls.length, 1)
+  // 地址是 ~/.ssh/config 里的别名、配置里另写了用户名或端口、要经过跳板机：不读配置就连不到同一台机器。
+  // 不连，说清楚该怎么办。
+  for (const configured of [
+    'user alice\nhostname real.example.com\nport 22\n',
+    'user alice\nhostname box\nport 22\n',
+    'user me\nhostname box\nport 2200\n',
+    'user me\nhostname box\nport 22\nproxyjump jump@gate\n',
+    'user me\nhostname box\nport 22\nproxycommand nc %h %p\n',
+  ]) {
+    const refused = connect('user me\nhostname box\nport 22\n', configured)
+    await assert.rejects(
+      refused.done,
+      (error) =>
+        error.code === 'unsupported_remote' &&
+        /does not read the SSH configuration/.test(error.message) &&
+        /key sign-in/.test(error.message),
+      configured,
+    )
+    assert.equal(refused.ssh.calls.length, 0, 'never connects')
+  }
   // 问不出这台机器是谁（ssh -G 失败或太旧）：不连，密码不交给认不出的一方。
   const unknown = connect(null)
   await assert.rejects(unknown.done, { code: 'unsupported_remote' })
   assert.equal(unknown.ssh.calls.length, 0)
+  // 这台电脑的配置读不出来（坏了）：不影响密码登录，它本来就不读。
+  const broken = connect('user me\nhostname box\nport 22\n', null)
+  await broken.done
+  assert.equal(broken.ssh.calls.length, 1)
   // 密钥登录不问配置。
   const key = fakeSsh(() => ({ code: 0 }))
   await new SshExecutor({
@@ -868,7 +1192,7 @@ test('what ssh -G says decides who may get the password', async () => {
     .operations()
     .write.mkdir('/x')
   assert.equal(key.configCalls.length, 0)
-  // 问密码的是别的主机：报“不支持”，说明密码没交出去，不算密码错。
+  // 问密码的不是这台机器：报“不支持”，说明密码没交出去，不算密码错。
   const other = fakeSsh(() => ({
     code: 255,
     stderr: `${ASKPASS_OTHER_HOST}\nPermission denied (password).\n`,
@@ -884,7 +1208,7 @@ test('what ssh -G says decides who may get the password', async () => {
     })
       .operations()
       .read.readFile('/x'),
-    (error) => error.code === 'unsupported_remote' && /jump host/.test(error.message),
+    (error) => error.code === 'unsupported_remote' && /was not sent/.test(error.message),
   )
   assert.deepEqual(blockedBy, [], 'a refused prompt is not a wrong password')
 })
@@ -916,7 +1240,12 @@ test('a refused password is not tried again until it is changed or tested', asyn
   t.after(() => rm(dir, { recursive: true, force: true }))
   const service = new SshMachineService({ path: join(dir, 'm.json'), dataDir: dir })
   await service.init()
-  const added = await service.add({ target: 'me@new', auth: 'password', password: SECRET })
+  const added = await service.add({
+    target: 'me@new',
+    auth: 'password',
+    password: SECRET,
+    hostKey: pinned(),
+  })
   service.executor(added.id).onAuthFailed()
   await assert.rejects(service.executor(added.id).probe(), /refused earlier/)
   await service.update(added.id, { name: '只改名字' })
@@ -939,11 +1268,14 @@ test('a saved password is only ever used for the address it was saved for', asyn
     port: 2222,
     auth: 'password',
     password: SECRET,
+    hostKey: pinned(),
   })
   const used = []
+  const keys = []
   service.executorFor = (machine, options) => ({
     probe: async () => {
-      used.push([machine.target, machine.port, options.password()])
+      used.push([machine.target, machine.port, await options.password()])
+      keys.push(machine.hostKey?.key)
       return { platform: 'Linux', home: '/h' }
     },
   })
@@ -962,24 +1294,64 @@ test('a saved password is only ever used for the address it was saved for', asyn
       JSON.stringify(changed),
     )
   assert.equal(used.length, 1, 'the saved password went nowhere else')
-  // 新地址配新输入的密码可以测。
-  await service.test({ id: added.id, target: 'me@other', auth: 'password', password: 'typed' })
+  // 新地址要配新输入的密码，还要配为它确认的主机公钥：原来那台的指纹不能拿来认新主机。
+  await assert.rejects(
+    service.test({ id: added.id, target: 'me@other', auth: 'password', password: 'typed' }),
+    (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
+  )
+  const otherKey = testHostKey(2)
+  await service.test({
+    id: added.id,
+    target: 'me@other',
+    auth: 'password',
+    password: 'typed',
+    hostKey: pinned(otherKey),
+  })
   assert.deepEqual(used[1], ['me@other', null, 'typed'])
+  assert.deepEqual(keys, [HOST_KEY.key, otherKey.key])
   // 保存：改了地址或端口又不给密码，拒绝，记录和密码都不动。
   await assert.rejects(service.update(added.id, { target: 'me@attacker.example' }), {
     code: 'invalid',
   })
   await assert.rejects(service.update(added.id, { port: 22 }), { code: 'invalid' })
   assert.deepEqual(
-    [service.get(added.id).target, service.get(added.id).port, service.secrets.get(added.id)],
+    [service.get(added.id).target, service.get(added.id).port, await service.secrets.get(added.id)],
     ['me@host', 2222, SECRET],
   )
-  // 给了新密码才能换地址；只改名字、目录照常保留密码。
-  const moved = await service.update(added.id, { target: 'me@other', password: 'for-other' })
-  assert.deepEqual([moved.target, moved.passwordSet], ['me@other', true])
-  assert.equal(service.secrets.get(added.id), 'for-other')
+  // 给了新密码、确认了新主机的指纹才能换地址；只改名字、目录照常保留密码和确认过的公钥。
+  await assert.rejects(
+    service.update(added.id, { target: 'me@other', password: 'for-other' }),
+    (error) => error.code === 'invalid' && /fingerprint/.test(error.message),
+  )
+  assert.equal(service.get(added.id).target, 'me@host')
+  const moved = await service.update(added.id, {
+    target: 'me@other',
+    password: 'for-other',
+    hostKey: pinned(otherKey),
+  })
+  assert.deepEqual(
+    [moved.target, moved.passwordSet, moved.hostKey.fingerprint],
+    ['me@other', true, otherKey.fingerprint],
+  )
+  assert.equal(await service.secrets.get(added.id), 'for-other')
   await service.update(added.id, { name: '改名', defaultCwd: '/srv' })
-  assert.equal(service.secrets.get(added.id), 'for-other')
+  assert.equal(await service.secrets.get(added.id), 'for-other')
+  assert.equal(service.get(added.id).hostKey.key, otherKey.key)
+  // 对方换了主机密钥：重新确认后才认新的那把，之前的连通结果作废。
+  await service.recordCheck(added.id, { ok: true, platform: 'Linux' })
+  const repinned = await service.update(added.id, { hostKey: pinned() })
+  assert.deepEqual([repinned.hostKey.fingerprint, repinned.lastCheck], [HOST_KEY.fingerprint, null])
+  // 取指纹：不带任何凭据（按密钥方式建执行器，没有密码回调）。
+  let fetchedWith = null
+  service.executorFor = (machine, options) => ({
+    hostKey: async () => {
+      fetchedWith = [machine.auth, machine.target, machine.port, options]
+      return HOST_KEY
+    },
+  })
+  assert.deepEqual(await service.hostKey({ target: 'me@other', port: 22 }), HOST_KEY)
+  assert.deepEqual(fetchedWith, ['key', 'me@other', 22, undefined])
+  await assert.rejects(service.hostKey({ target: '-oProxyCommand=x' }), { code: 'invalid_target' })
   // 密钥登录的机器没有存着的密码可拿。
   const keyed = await service.add({ target: 'me@keyed' })
   await assert.rejects(service.test({ id: keyed.id, target: 'me@keyed', auth: 'password' }), {
@@ -1048,19 +1420,19 @@ async function freePort() {
 }
 
 test(
-  'a real sshd receives the password from the helper and a wrong one fails fast',
-  { skip: skipSshd, timeout: 60_000 },
+  'a real sshd: the fingerprint is fetched without credentials, the password goes only to the confirmed host',
+  { skip: skipSshd, timeout: 90_000 },
   async (t) => {
     const dir = await mkdtemp(join(tmpdir(), 'pspw-'))
     await chmod(dir, 0o700)
     const port = await freePort()
     await run('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(dir, 'host_key')])
-    await writeFile(
-      join(dir, 'sshd_config'),
+    await run('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(dir, 'other_key')])
+    const sshdConfig = (hostKey) =>
       [
         `Port ${port}`,
         'ListenAddress 127.0.0.1',
-        `HostKey ${join(dir, 'host_key')}`,
+        `HostKey ${join(dir, hostKey)}`,
         `PidFile ${join(dir, 'sshd.pid')}`,
         'StrictModes no',
         'PubkeyAuthentication no',
@@ -1069,61 +1441,133 @@ test(
         'UsePAM no',
         'LogLevel VERBOSE',
         '',
-      ].join('\n'),
-    )
+      ].join('\n')
+    await writeFile(join(dir, 'sshd_config'), sshdConfig('host_key'))
+    await writeFile(join(dir, 'sshd_config_other'), sshdConfig('other_key'))
+    // 这台电脑的“用户配置”里有一条握手时会执行的 KnownHostsCommand（它会继承 ssh 的环境）：
+    // 密码登录不读配置，它不能被执行。
+    const marker = join(dir, 'config-command-ran')
     const config = join(dir, 'ssh_config')
-    await writeFile(config, `Host *\n  UserKnownHostsFile ${join(dir, 'known_hosts')}\n`)
+    await writeFile(
+      config,
+      `Host *\n  UserKnownHostsFile ${join(dir, 'known_hosts')}\n  KnownHostsCommand /bin/sh -c 'touch ${marker}'\n`,
+    )
+    // 另一份配置里这个地址要经过代理命令才连得上：密码登录直接说不行，不绕过代理去连。
+    const proxied = join(dir, 'ssh_config_proxy')
+    await writeFile(proxied, `Host *\n  ProxyCommand /bin/sh -c 'touch ${marker}; exit 1'\n`)
     let log = ''
-    const daemon = spawn(SSHD, ['-D', '-e', '-f', join(dir, 'sshd_config')], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-    })
-    daemon.stderr.on('data', (chunk) => (log += chunk))
+    let daemon = null
+    const start = async (file) => {
+      log = ''
+      daemon = spawn(SSHD, ['-D', '-e', '-f', join(dir, file)], {
+        stdio: ['ignore', 'ignore', 'pipe'],
+      })
+      daemon.stderr.on('data', (chunk) => (log += chunk))
+      for (let attempt = 0; attempt < 50 && !log.includes('listening'); attempt += 1)
+        await new Promise((resume) => setTimeout(resume, 100))
+    }
+    const stop = () =>
+      new Promise((resolve) => {
+        daemon.once('exit', resolve)
+        daemon.kill()
+      })
     t.after(async () => {
-      daemon.kill()
+      daemon?.kill()
       await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     })
-    for (let attempt = 0; attempt < 50 && !log.includes('listening'); attempt += 1)
-      await new Promise((resume) => setTimeout(resume, 100))
+    await start('sshd_config')
+    const attempts = () => log.split('Failed password for').length - 1
+    const base = {
+      id: 'ssh_realpass',
+      name: 'real',
+      target: `${userInfo().username}@127.0.0.1`,
+      port,
+    }
+
+    // 取指纹：就是 sshd 的那把主机公钥；对方一次登录尝试都没看到（没带密钥，也没发密码）。
+    const hostKey = await new SshExecutor({
+      machine: { ...base, auth: 'key' },
+      extraArguments: ['-F', config],
+    }).hostKey()
+    const [type, key] = (await readFile(join(dir, 'host_key.pub'), 'utf8')).split(' ')
+    assert.deepEqual([hostKey.type, hostKey.key], [type, key])
+    const { stdout: printed } = await run('ssh-keygen', ['-lf', join(dir, 'host_key.pub')])
+    assert.ok(printed.includes(hostKey.fingerprint), 'the same fingerprint ssh-keygen -l prints')
+    await new Promise((resume) => setTimeout(resume, 300))
+    assert.equal(attempts(), 0)
+    assert.ok(!/Accepted|publickey/.test(log))
+    assert.ok(!existsSync(marker), 'fetching the key does not read the user configuration')
+
+    // 没确认过指纹的密码机器：不连。
+    await assert.rejects(
+      new SshExecutor({
+        machine: { ...base, auth: 'password' },
+        extraArguments: ['-F', config],
+        password: () => SECRET,
+      }).probe(),
+      { code: 'host_key_unconfirmed' },
+    )
+    assert.equal(attempts(), 0)
+
+    await assert.rejects(
+      new SshExecutor({
+        machine: { ...base, auth: 'password', hostKey: pinned(hostKey) },
+        extraArguments: ['-F', proxied],
+        password: () => SECRET,
+      }).probe(),
+      (error) =>
+        error.code === 'unsupported_remote' &&
+        /does not read the SSH configuration/.test(error.message),
+    )
+    assert.equal(attempts(), 0)
+
+    // 确认过的主机：密码经通道交给 ssh。ssh 的环境（以及内核里看得到的那份）、命令行里都没有密码。
+    const spawned = []
+    const realSpawn = spawn
+    const watching = (file, args, options) => {
+      const child = realSpawn(file, args, options)
+      if (options.env && !args.includes('-G')) {
+        let environ = ''
+        try {
+          environ = readFileSync(`/proc/${child.pid}/environ`, 'utf8')
+        } catch {}
+        spawned.push({ args, env: options.env, environ })
+      }
+      return child
+    }
     const executor = new SshExecutor({
-      machine: {
-        id: 'ssh_realpass',
-        name: 'real',
-        target: `${userInfo().username}@127.0.0.1`,
-        port,
-        auth: 'password',
-      },
+      machine: { ...base, auth: 'password', hostKey: pinned(hostKey) },
       extraArguments: ['-F', config],
       password: () => SECRET,
+      spawnProcess: watching,
     })
     const startedAt = Date.now()
     const error = await executor.probe().catch((caught) => caught)
     assert.equal(error.code, 'auth_failed', error.message)
     assert.ok(Date.now() - startedAt < 15_000, 'no hanging on a prompt')
     assert.ok(!error.message.includes('S3cr3t'))
-    // 对方确实收到了一次密码尝试（askpass 工作了）；Pisper 这一侧的输出里没有密码。
+    // 对方确实收到了一次密码尝试（助手从通道要到了密码）；Pisper 这一侧的输出里没有密码。
     for (let attempt = 0; attempt < 20 && !/Failed password/.test(log); attempt += 1)
       await new Promise((resume) => setTimeout(resume, 100))
     assert.match(log, /Failed password for/)
     assert.ok(!log.includes('S3cr3t'))
+    assert.equal(spawned.length, 1)
+    assert.ok(!JSON.stringify(spawned[0].env).includes('S3cr3t'), 'not in the environment')
+    assert.ok(!spawned[0].environ.includes('S3cr3t'), 'not in /proc/<pid>/environ')
+    assert.ok(!spawned[0].args.join(' ').includes('S3cr3t'), 'not on the command line')
+    assert.ok(!existsSync(marker), 'commands in the user configuration never ran')
+    assert.ok(!existsSync(join(dir, 'known_hosts')), 'nothing was added to the user known_hosts')
     // 被拒绝之后不再连：对方只看到过一次密码尝试。
-    const attempts = () => log.split('Failed password for').length - 1
     assert.equal(attempts(), 1)
     await assert.rejects(executor.probe(), /refused earlier/)
     await assert.rejects(executor.operations().bash.exec('true', '/'), /refused earlier/)
     await new Promise((resume) => setTimeout(resume, 300))
     assert.equal(attempts(), 1)
 
-    // 真实的 ssh 问的是“这个用户@127.0.0.1 的密码”，而 Pisper 认定的目标是另一台：助手不答，
-    // 对方一次密码都收不到（跳板机来问密码时就是这种情况）。
-    const realSpawn = spawn
+    // 真实的 ssh 问的是“这个用户的密码”，而 Pisper 认定的目标是另一个用户、另一台机器：通道不给，
+    // 对方一次密码都收不到。
     const mismatched = new SshExecutor({
-      machine: {
-        id: 'ssh_realjump',
-        name: 'jump',
-        target: `${userInfo().username}@127.0.0.1`,
-        port,
-        auth: 'password',
-      },
+      machine: { ...base, id: 'ssh_realjump', auth: 'password', hostKey: pinned(hostKey) },
       extraArguments: ['-F', config],
       password: () => SECRET,
       spawnProcess: (file, args, options) =>
@@ -1137,9 +1581,29 @@ test(
     })
     const refused = await mismatched.probe().catch((caught) => caught)
     assert.equal(refused.code, 'unsupported_remote', refused.message)
-    assert.match(refused.message, /jump host/)
+    assert.match(refused.message, /was not sent/)
     await new Promise((resume) => setTimeout(resume, 300))
     assert.equal(attempts(), 1, 'the password never left this computer')
-    assert.ok(existsSync(join(dir, 'known_hosts')), 'the host key is still recorded first time')
+
+    // 同一个地址后面换了一台机器（主机密钥不一样了，比如有人在中间冒充）：握手阶段就断开，
+    // 冒充的一方一次密码尝试都看不到。重新取指纹拿到的是新的那把，要用户再确认。
+    await stop()
+    await start('sshd_config_other')
+    const impostor = new SshExecutor({
+      machine: { ...base, id: 'ssh_realswap', auth: 'password', hostKey: pinned(hostKey) },
+      extraArguments: ['-F', config],
+      password: () => SECRET,
+    })
+    const swapped = await impostor.probe().catch((caught) => caught)
+    assert.equal(swapped.code, 'host_key_changed', swapped.message)
+    assert.match(swapped.message, /before the password was sent/)
+    await new Promise((resume) => setTimeout(resume, 300))
+    assert.equal(attempts(), 0, 'the impostor saw no password attempt')
+    assert.ok(!log.includes('S3cr3t'))
+    const again = await new SshExecutor({
+      machine: { ...base, auth: 'key' },
+      extraArguments: ['-F', config],
+    }).hostKey()
+    assert.notEqual(again.fingerprint, hostKey.fingerprint)
   },
 )

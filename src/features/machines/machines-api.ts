@@ -7,6 +7,9 @@ export type MachineCheck = { ok: boolean; at: string; code: string; platform: st
 
 export type MachineAuth = 'key' | 'password'
 
+// 主机公钥：密码登录前由用户核对指纹，之后这台机器只认它。key 是公钥本体（公开信息），只在确认时来回传。
+export type MachineHostKey = { type: string; fingerprint: string; key?: string }
+
 // 连上后探测到的系统（SSH）或执行节点报告的系统；还没连过时为 null。
 export type MachineSystem = { os: string; family: 'posix' | 'windows'; name: string; shell: string }
 
@@ -19,6 +22,8 @@ export type Machine = {
   // 密码本身永远不会回到前端，只知道设没设。
   auth: MachineAuth
   passwordSet: boolean
+  // 密码机器上用户确认过的主机指纹；密钥机器和还没确认过的为 null。
+  hostKey: MachineHostKey | null
   defaultCwd: string
   online: boolean
   lastCheck: MachineCheck | null
@@ -58,6 +63,16 @@ function parseSystem(value: unknown): MachineSystem | null {
   }
 }
 
+function parseHostKey(value: unknown): MachineHostKey | null {
+  const input = record(value)
+  if (!text(input.type) || !text(input.fingerprint)) return null
+  return {
+    type: text(input.type),
+    fingerprint: text(input.fingerprint),
+    ...(text(input.key) ? { key: text(input.key) } : {}),
+  }
+}
+
 export function parseMachine(value: unknown): Machine {
   const input = record(value)
   const check = input.lastCheck ? record(input.lastCheck) : null
@@ -69,6 +84,7 @@ export function parseMachine(value: unknown): Machine {
     port: typeof input.port === 'number' ? input.port : null,
     auth: input.auth === 'password' ? 'password' : 'key',
     passwordSet: input.passwordSet === true,
+    hostKey: parseHostKey(input.hostKey),
     defaultCwd: text(input.defaultCwd),
     online: input.online === true,
     lastCheck: check
@@ -116,6 +132,30 @@ export type SshMachineInput = {
   auth?: MachineAuth
   // 只在新填或要换掉时发送；编辑时不填表示保留已存的密码，改成密钥登录会删掉它。
   password?: string
+  // 密码登录时用户刚确认的主机公钥；编辑时地址没变可以不带，沿用已确认的那把。
+  hostKey?: { type: string; key: string }
+}
+
+export type SshHostKeyResult =
+  | { ok: true; hostKey: MachineHostKey & { key: string } }
+  | { ok: false; code: string; message: string }
+
+export function parseSshHostKeyResult(value: unknown): SshHostKeyResult {
+  const input = record(value)
+  const hostKey = input.ok === true ? parseHostKey(input.hostKey) : null
+  return hostKey?.key
+    ? { ok: true, hostKey: { ...hostKey, key: hostKey.key } }
+    : { ok: false, code: text(input.code), message: text(input.message) }
+}
+
+// 取对方的主机公钥给用户核对指纹：只握手，不带密码。
+export function fetchSshHostKey(input: Pick<SshMachineInput, 'target' | 'port'>) {
+  return requestJson('/api/machines/ssh/host-key', {
+    method: 'POST',
+    data: input,
+    timeout: 30_000,
+    parse: parseSshHostKeyResult,
+  })
 }
 
 export function createSshMachine(input: SshMachineInput) {
@@ -139,7 +179,9 @@ export function parseSshTestResult(value: unknown): SshTestResult {
 
 // 编辑已有机器时带上 id：没重新输入密码就用存着的那个测试。
 export function testSshConnection(
-  input: Pick<SshMachineInput, 'target' | 'port' | 'auth' | 'password'> & { id?: string },
+  input: Pick<SshMachineInput, 'target' | 'port' | 'auth' | 'password' | 'hostKey'> & {
+    id?: string
+  },
 ) {
   return requestJson('/api/machines/ssh/test', {
     method: 'POST',

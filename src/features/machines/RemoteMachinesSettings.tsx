@@ -3,10 +3,11 @@
 import './machines-messages'
 import { useId, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Copy, Laptop, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react'
+import { Copy, Fingerprint, Laptop, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -17,12 +18,14 @@ import {
   checkMachine,
   createMachinePairing,
   createSshMachine,
+  fetchSshHostKey,
   machineErrorCode,
   removeMachine,
   testSshConnection,
   updateSshMachine,
   type Machine,
   type MachineAuth,
+  type MachineHostKey,
   type MachinePairing,
   type SshTestResult,
 } from './machines-api'
@@ -36,6 +39,8 @@ function machineAddress(machine: Machine) {
 
 // 添加和编辑共用一张表单。登录方式二选一：密钥（推荐，什么都不存）或密码（存在这台电脑上）。
 // 编辑密码机器时密码框留空 = 保留已存的密码；改回密钥会删掉它。密码只发给 Runtime，不会再读回来。
+// 密码登录要先核对对方的主机指纹：取指纹不带密码；勾了“我已核对”才能测试和保存，之后这台机器只认这把公钥。
+// 地址或端口改了，之前确认的指纹和保存的密码都不再算数。
 function SshForm({
   machine,
   onDone,
@@ -64,12 +69,59 @@ function SshForm({
   const hadPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
   const savedPassword = hadPassword && !addressChanged
   const needsPassword = auth === 'password' && !password && !savedPassword
-  const connection = () => ({
+  // 刚取到、等用户核对的主机公钥；confirmed 是用户勾了“我已核对”。
+  const [fetched, setFetched] = useState<(MachineHostKey & { key: string }) | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const [hostKeyError, setHostKeyError] = useState('')
+  // 已经确认过、地址也没变：沿用它，不用再核对一次。
+  const savedHostKey =
+    machine?.auth === 'password' && !addressChanged ? (machine.hostKey ?? null) : null
+  const shownHostKey = fetched ?? savedHostKey
+  const hostKeyReady = auth !== 'password' || (fetched ? confirmed : Boolean(savedHostKey))
+  const address = () => ({
     target: target.trim(),
     port: port.trim() ? Number(port.trim()) : null,
+  })
+  const connection = () => ({
+    ...address(),
     auth,
     ...(auth === 'password' && password ? { password } : {}),
+    ...(auth === 'password' && fetched && confirmed
+      ? { hostKey: { type: fetched.type, key: fetched.key } }
+      : {}),
   })
+  // 地址一改，取到的指纹就是别的机器的了。
+  const resetHostKey = () => {
+    setFetched(null)
+    setConfirmed(false)
+    setHostKeyError('')
+    setResult(null)
+  }
+  const fetchHostKey = async () => {
+    setFetching(true)
+    setHostKeyError('')
+    setConfirmed(false)
+    try {
+      const reply = await fetchSshHostKey(address())
+      if (reply.ok) setFetched(reply.hostKey)
+      else {
+        setFetched(null)
+        setHostKeyError(machineFailureMessage(t, reply.code, reply.message))
+      }
+    } catch (caught) {
+      setFetched(null)
+      setHostKeyError(
+        machineFailureMessage(
+          t,
+          machineErrorCode(caught),
+          caught instanceof Error ? caught.message : '',
+        ),
+      )
+    } finally {
+      setFetching(false)
+    }
+  }
   const failed = (caught: unknown) =>
     setError(
       machineFailureMessage(
@@ -95,7 +147,7 @@ function SshForm({
   }
   const save = async (event: FormEvent) => {
     event.preventDefault()
-    if (needsPassword) return
+    if (needsPassword || !hostKeyReady) return
     setBusy('save')
     setError('')
     try {
@@ -132,7 +184,10 @@ function SshForm({
             className="font-mono text-xs"
             placeholder={t('machines:form.targetPlaceholder')}
             data-machine-target
-            onChange={(event) => setTarget(event.target.value)}
+            onChange={(event) => {
+              setTarget(event.target.value)
+              resetHostKey()
+            }}
           />
         </label>
         <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
@@ -143,7 +198,10 @@ function SshForm({
             className="font-mono text-xs"
             placeholder="22"
             data-machine-port
-            onChange={(event) => setPort(event.target.value)}
+            onChange={(event) => {
+              setPort(event.target.value)
+              resetHostKey()
+            }}
           />
         </label>
       </div>
@@ -178,6 +236,88 @@ function SshForm({
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
+      )}
+      {auth === 'password' && (
+        <section
+          aria-labelledby={`${fieldId}-host-key`}
+          data-machine-host-key={hostKeyReady ? 'confirmed' : shownHostKey ? 'shown' : 'missing'}
+          className="grid gap-2 rounded-[var(--r-md)] border border-stroke bg-surface-raised p-3 text-xs"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              id={`${fieldId}-host-key`}
+              className="inline-flex items-center gap-1.5 font-medium text-content-secondary"
+            >
+              <Fingerprint className="size-3.5" aria-hidden="true" />
+              {t('machines:form.hostKey')}
+            </span>
+            <span className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={fetching || !target.trim()}
+              data-machine-host-key-fetch
+              onClick={() => void fetchHostKey()}
+            >
+              {fetching && <OrbitSpinner className="size-3.5" />}
+              {shownHostKey ? t('machines:form.hostKeyRefetch') : t('machines:form.hostKeyFetch')}
+            </Button>
+          </div>
+          {shownHostKey ? (
+            <>
+              <div className="flex items-start gap-2">
+                <code
+                  className="min-w-0 flex-1 rounded-[var(--r-sm)] bg-surface-subtle px-2 py-1.5 font-mono break-all text-content select-all"
+                  data-machine-host-key-fingerprint
+                >
+                  {shownHostKey.type} {shownHostKey.fingerprint}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('machines:form.hostKeyCopy')}
+                  title={t('machines:form.hostKeyCopy')}
+                  onClick={() =>
+                    void navigator.clipboard
+                      ?.writeText(`${shownHostKey.type} ${shownHostKey.fingerprint}`)
+                      .catch(() => undefined)
+                  }
+                >
+                  <Copy className="size-3.5" />
+                </Button>
+              </div>
+              {fetched ? (
+                <label
+                  htmlFor={`${fieldId}-host-key-confirm`}
+                  className="flex items-start gap-2 text-content-secondary"
+                >
+                  <Checkbox
+                    id={`${fieldId}-host-key-confirm`}
+                    checked={confirmed}
+                    data-machine-host-key-confirm
+                    onCheckedChange={(value) => {
+                      setConfirmed(value === true)
+                      setResult(null)
+                    }}
+                  />
+                  <span>
+                    {savedHostKey && savedHostKey.fingerprint !== fetched.fingerprint
+                      ? t('machines:form.hostKeyConfirmChanged')
+                      : t('machines:form.hostKeyConfirm')}
+                  </span>
+                </label>
+              ) : (
+                <p className="m-0 text-content-muted">{t('machines:form.hostKeySaved')}</p>
+              )}
+            </>
+          ) : (
+            <p className="m-0 text-content-muted">{t('machines:form.hostKeyMissing')}</p>
+          )}
+          <p className="m-0 text-content-muted">{t('machines:form.hostKeyHint')}</p>
+          {hostKeyError && <FeatureAlert className="mt-0">{hostKeyError}</FeatureAlert>}
+        </section>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
@@ -227,7 +367,7 @@ function SshForm({
         <Button
           type="button"
           variant="outline"
-          disabled={Boolean(busy) || !target.trim() || needsPassword}
+          disabled={Boolean(busy) || !target.trim() || needsPassword || !hostKeyReady}
           data-machine-test
           onClick={() => void test()}
         >
@@ -236,7 +376,7 @@ function SshForm({
         </Button>
         <Button
           type="submit"
-          disabled={Boolean(busy) || !target.trim() || needsPassword}
+          disabled={Boolean(busy) || !target.trim() || needsPassword || !hostKeyReady}
           data-machine-save
         >
           {t('machines:form.save')}

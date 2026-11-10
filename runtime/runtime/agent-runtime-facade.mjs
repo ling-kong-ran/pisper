@@ -2289,6 +2289,8 @@ export class AgentRuntimeFacade {
         port: machine.port,
         auth: machine.auth,
         passwordSet: machine.passwordSet,
+        // 密码机器上用户确认过的主机指纹（类型 + 指纹）。
+        hostKey: machine.hostKey,
         defaultCwd: machine.defaultCwd,
         online: machine.lastCheck?.ok === true,
         lastCheck: machine.lastCheck,

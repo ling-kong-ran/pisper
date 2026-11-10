@@ -4,8 +4,8 @@ const { pathToFileURL } = require('node:url')
 
 const executableDirectory = dirname(process.execPath)
 const appRoot = resolve(process.env.PISPER_APP_ROOT || join(executableDirectory, 'runtime'))
-// SSH 密码登录时 ssh 把这个可执行文件当 askpass 助手调用：只加载助手，不启动 Runtime。助手只在提示语确实是
-// 目标机在要密码时写出密码（见 runtime/workers/ssh-askpass.mjs），然后立即退出。
+// SSH 密码登录时 ssh 把这个可执行文件当 askpass 助手调用：只加载助手，不启动 Runtime。助手自己没有密码，
+// 它拿着环境里的一次性令牌向正在运行的 Runtime 要，要到就写给 ssh（见 runtime/workers/ssh-askpass.mjs），然后立即退出。
 const sshAskpass = process.env.PISPER_SSH_ASKPASS === '1'
 // 语音子进程只加载推理入口，不能再次启动 HTTP、Agent 或桌面握手。
 const speechWorker = process.argv.includes('--pisper-speech-worker')

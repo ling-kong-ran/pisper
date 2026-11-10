@@ -467,15 +467,38 @@ test(
       auth: 'password',
     })
     assert.deepEqual([missing.status, missing.data.code], [400, 'invalid'])
+    // 密码登录要先确认主机指纹：没带确认过的主机公钥就不保存，密码也不落盘。
+    const unconfirmed = await call('POST', '/api/machines/ssh', {
+      target: sshd.target,
+      port: sshd.port,
+      auth: 'password',
+      password,
+    })
+    assert.deepEqual([unconfirmed.status, unconfirmed.data.code], [400, 'invalid'])
+    assert.match(unconfirmed.data.error, /fingerprint/)
+    assert.deepEqual(await filesContaining(dataDir, password), [])
+    // 取指纹：请求里没有密码，拿回来的是公钥和算好的指纹。
+    const fetched = await call('POST', '/api/machines/ssh/host-key', {
+      target: sshd.target,
+      port: sshd.port,
+    })
+    assert.equal(fetched.data.ok, true, JSON.stringify(fetched.data))
+    assert.match(fetched.data.hostKey.fingerprint, /^SHA256:/)
+    const hostKey = { type: fetched.data.hostKey.type, key: fetched.data.hostKey.key }
     const added = await call('POST', '/api/machines/ssh', {
       name: '密码机',
       target: sshd.target,
       port: sshd.port,
       auth: 'password',
       password,
+      hostKey,
     })
     assert.equal(added.status, 201, JSON.stringify(added.data))
     assert.deepEqual([added.data.auth, added.data.passwordSet], ['password', true])
+    assert.deepEqual(added.data.hostKey, {
+      type: hostKey.type,
+      fingerprint: fetched.data.hostKey.fingerprint,
+    })
     assert.ok(!leaks(added.data))
     const id = added.data.id
     const listed = await call('GET', '/api/machines')
@@ -510,7 +533,8 @@ test(
     assert.equal((await call('PATCH', '/api/machines/ssh_doesnotexist', {})).status, 404)
 
     // 删除机器连同密码一起删。
-    await call('PATCH', `/api/machines/${id}`, { auth: 'password', password })
+    await call('PATCH', `/api/machines/${id}`, { auth: 'password', password, hostKey })
+    assert.deepEqual(await filesContaining(dataDir, password), ['pisper-ssh-secrets.json'])
     assert.equal((await call('DELETE', `/api/machines/${id}`)).status, 200)
     assert.deepEqual(await filesContaining(dataDir, password), [])
   },

@@ -16,7 +16,11 @@ export function machineFailureMessage(
     case 'auth_failed':
       return auth === 'password' ? t('machines:failure.authPassword') : t('machines:failure.auth')
     case 'host_key_changed':
-      return t('machines:failure.hostKey')
+      return auth === 'password'
+        ? t('machines:failure.hostKeyPassword')
+        : t('machines:failure.hostKey')
+    case 'host_key_unconfirmed':
+      return t('machines:failure.hostKeyUnconfirmed')
     case 'ssh_client_missing':
       return t('machines:failure.clientMissing')
     case 'ssh_timeout':
