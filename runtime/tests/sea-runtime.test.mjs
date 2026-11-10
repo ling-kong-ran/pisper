@@ -445,6 +445,7 @@ test('SEA critical closure audits dynamic packages and reports missing files', a
       'runtime/mobile-embedded.mjs',
       'runtime/plugins/local-plugin-worker.mjs',
       'runtime/workers/team-workflow-worker.mjs',
+      'runtime/workers/ssh-askpass.mjs',
       'runtime/workers/workflow-image-worker.mjs',
       'shared/vendor/framebaker/LICENSE',
       'node_modules/@jsquash/webp/codec/dec/webp_dec.wasm',

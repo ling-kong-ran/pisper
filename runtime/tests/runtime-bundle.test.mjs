@@ -140,6 +140,11 @@ test('Runtime bundle preserves host entries and only declares external package r
         'runtime/workers/team-workflow-worker.mjs',
         "export const teamWorker = 'fixture'\n",
       ),
+      createFile(
+        runtimeDir,
+        'runtime/workers/ssh-askpass.mjs',
+        "export const askpass = 'fixture'\n",
+      ),
       createFile(runtimeDir, 'shared/value.mjs', "export const value = 'bundled'\n"),
       createFile(runtimeDir, 'shared/unreferenced.onnx', 'not a packaged model'),
       createFile(runtimeDir, 'runtime/unreferenced.onnx', 'not a packaged model'),
@@ -199,6 +204,8 @@ test('Runtime bundle preserves host entries and only declares external package r
       await exists(join(runtimeDir, 'runtime', 'workers', 'team-workflow-worker.mjs')),
       true,
     )
+    // ssh 直接启动 askpass 助手，它不能被合进 bundle。
+    assert.equal(await exists(join(runtimeDir, 'runtime', 'workers', 'ssh-askpass.mjs')), true)
     assert.ok(manifest.inputFileCount >= 3)
     assert.ok(manifest.outputFileCount >= 3)
 

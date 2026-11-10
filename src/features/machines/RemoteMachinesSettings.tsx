@@ -1,13 +1,14 @@
 // 远程访问页里的“远程机器”：让 Agent 在别的机器上工作，对方不用装 Pisper。两种连法在这里并排：
-// 有 SSH 服务的走 SSH（用这台电脑现有的配置和密钥）；没有的让对方运行一条命令连过来。
+// 有 SSH 服务的走 SSH（用这台电脑现有的配置和密钥，或用户名加密码）；没有的让对方运行一条命令连过来。
 import './machines-messages'
 import { useId, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Copy, Laptop, Plus, RefreshCw, Server, Trash2 } from 'lucide-react'
+import { Copy, Laptop, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { OrbitSpinner } from '@/components/ui/spinner'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 import { cn } from '@/lib/utils'
@@ -19,30 +20,49 @@ import {
   machineErrorCode,
   removeMachine,
   testSshConnection,
+  updateSshMachine,
   type Machine,
+  type MachineAuth,
   type MachinePairing,
   type SshTestResult,
 } from './machines-api'
 import { useMachines } from './useMachines'
 
 function machineAddress(machine: Machine) {
-  if (machine.kind === 'node') return machine.roots.join(' · ')
-  return machine.port ? `${machine.target}:${machine.port}` : machine.target
+  const system = machine.system?.name ? ` · ${machine.system.name}` : ''
+  if (machine.kind === 'node') return machine.roots.join(' · ') + system
+  return (machine.port ? `${machine.target}:${machine.port}` : machine.target) + system
 }
 
-function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+// 添加和编辑共用一张表单。登录方式二选一：密钥（推荐，什么都不存）或密码（存在这台电脑上）。
+// 编辑密码机器时密码框留空 = 保留已存的密码；改回密钥会删掉它。密码只发给 Runtime，不会再读回来。
+function SshForm({
+  machine,
+  onDone,
+  onCancel,
+}: {
+  machine?: Machine
+  onDone: () => void
+  onCancel: () => void
+}) {
   const { t } = useI18n()
   const fieldId = useId()
-  const [name, setName] = useState('')
-  const [target, setTarget] = useState('')
-  const [port, setPort] = useState('')
-  const [defaultCwd, setDefaultCwd] = useState('')
+  const [name, setName] = useState(machine?.name ?? '')
+  const [target, setTarget] = useState(machine?.target ?? '')
+  const [port, setPort] = useState(machine?.port ? String(machine.port) : '')
+  const [defaultCwd, setDefaultCwd] = useState(machine?.defaultCwd ?? '')
+  const [auth, setAuth] = useState<MachineAuth>(machine?.auth ?? 'key')
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState<'' | 'test' | 'save'>('')
   const [result, setResult] = useState<SshTestResult | null>(null)
   const [error, setError] = useState('')
+  const savedPassword = Boolean(machine?.passwordSet) && machine?.auth === 'password'
+  const needsPassword = auth === 'password' && !password && !savedPassword
   const connection = () => ({
     target: target.trim(),
     port: port.trim() ? Number(port.trim()) : null,
+    auth,
+    ...(auth === 'password' && password ? { password } : {}),
   })
   const failed = (caught: unknown) =>
     setError(
@@ -50,6 +70,7 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
         t,
         machineErrorCode(caught),
         caught instanceof Error ? caught.message : '',
+        { auth },
       ),
     )
   const test = async () => {
@@ -57,7 +78,9 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
     setError('')
     setResult(null)
     try {
-      setResult(await testSshConnection(connection()))
+      setResult(
+        await testSshConnection({ ...connection(), ...(machine ? { id: machine.id } : {}) }),
+      )
     } catch (caught) {
       failed(caught)
     } finally {
@@ -66,16 +89,17 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
   }
   const save = async (event: FormEvent) => {
     event.preventDefault()
+    if (needsPassword) return
     setBusy('save')
     setError('')
     try {
-      const machine = await createSshMachine({
-        name: name.trim(),
-        ...connection(),
-        defaultCwd: defaultCwd.trim(),
-      })
+      const input = { name: name.trim(), ...connection(), defaultCwd: defaultCwd.trim() }
+      const saved = machine
+        ? await updateSshMachine(machine.id, input)
+        : await createSshMachine(input)
       // 保存后顺手连一次，列表里马上能看到通不通；连不上也已经存下了。
-      await checkMachine(machine.id).catch(() => undefined)
+      await checkMachine(saved.id).catch(() => undefined)
+      setPassword('')
       onDone()
     } catch (caught) {
       failed(caught)
@@ -86,7 +110,8 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
   return (
     <form
       onSubmit={(event) => void save(event)}
-      data-machine-ssh-form
+      data-machine-ssh-form={machine ? 'edit' : 'add'}
+      aria-label={machine ? t('machines:edit', { name: machine.name }) : t('machines:addSsh')}
       className="mt-3 grid gap-3 rounded-[var(--r-md)] border border-stroke bg-surface-subtle p-3"
     >
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem]">
@@ -116,6 +141,38 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
           />
         </label>
       </div>
+      <div className="grid gap-1.5 text-xs font-medium text-content-secondary">
+        <span id={`${fieldId}-auth`}>{t('machines:form.auth')}</span>
+        <SegmentedControl<MachineAuth>
+          aria-labelledby={`${fieldId}-auth`}
+          value={auth}
+          onValueChange={(next) => {
+            setAuth(next)
+            setResult(null)
+          }}
+          options={[
+            { value: 'key', label: t('machines:form.authKey') },
+            { value: 'password', label: t('machines:form.authPassword') },
+          ]}
+          data-machine-auth
+        />
+      </div>
+      {auth === 'password' && (
+        <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
+          {t('machines:form.password')}
+          <Input
+            type="password"
+            autoComplete="new-password"
+            spellCheck={false}
+            value={password}
+            required={!savedPassword}
+            placeholder={savedPassword ? t('machines:form.passwordKeep') : ''}
+            aria-describedby={`${fieldId}-password-hint`}
+            data-machine-password
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1.5 text-xs font-medium text-content-secondary">
           {t('machines:form.name')}
@@ -137,7 +194,9 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
           />
         </label>
       </div>
-      <p className="m-0 text-xs text-content-muted">{t('machines:form.keyHint')}</p>
+      <p id={`${fieldId}-password-hint`} className="m-0 text-xs text-content-muted">
+        {auth === 'password' ? t('machines:form.passwordHint') : t('machines:form.keyHint')}
+      </p>
       {result?.ok && (
         <p role="status" className="m-0 text-xs text-success" data-machine-test-ok>
           {t('machines:form.testOk', {
@@ -148,7 +207,7 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
       )}
       {result && !result.ok && (
         <FeatureAlert className="mt-0" data-machine-test-failed>
-          {machineFailureMessage(t, result.code, result.message)}
+          {machineFailureMessage(t, result.code, result.message, { auth })}
         </FeatureAlert>
       )}
       {error && <FeatureAlert className="mt-0">{error}</FeatureAlert>}
@@ -159,14 +218,18 @@ function SshForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
         <Button
           type="button"
           variant="outline"
-          disabled={Boolean(busy) || !target.trim()}
+          disabled={Boolean(busy) || !target.trim() || needsPassword}
           data-machine-test
           onClick={() => void test()}
         >
           {busy === 'test' && <OrbitSpinner className="size-3.5" />}
           {busy === 'test' ? t('machines:form.testing') : t('machines:form.test')}
         </Button>
-        <Button type="submit" disabled={Boolean(busy) || !target.trim()} data-machine-save>
+        <Button
+          type="submit"
+          disabled={Boolean(busy) || !target.trim() || needsPassword}
+          data-machine-save
+        >
           {t('machines:form.save')}
         </Button>
       </div>
@@ -264,6 +327,7 @@ export function RemoteMachinesSettings({
   const navigate = useNavigate()
   const { available, machines, refresh } = useMachines()
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Machine | null>(null)
   const [pairing, setPairing] = useState<MachinePairing | null>(null)
   const [checking, setChecking] = useState('')
   const [failure, setFailure] = useState('')
@@ -272,6 +336,7 @@ export function RemoteMachinesSettings({
   const startPairing = async () => {
     setFailure('')
     setAdding(false)
+    setEditing(null)
     try {
       setPairing(await createMachinePairing())
     } catch (caught) {
@@ -283,7 +348,8 @@ export function RemoteMachinesSettings({
     setFailure('')
     try {
       const result = await checkMachine(machine.id)
-      if (!result.ok) setFailure(machineFailureMessage(t, result.code, result.message))
+      if (!result.ok)
+        setFailure(machineFailureMessage(t, result.code, result.message, { auth: machine.auth }))
       await refresh()
     } catch (caught) {
       setFailure(caught instanceof Error ? caught.message : String(caught))
@@ -300,6 +366,7 @@ export function RemoteMachinesSettings({
     setFailure('')
     try {
       await removeMachine(machine.id)
+      if (editing?.id === machine.id) setEditing(null)
       await refresh()
     } catch (caught) {
       setFailure(caught instanceof Error ? caught.message : String(caught))
@@ -320,6 +387,7 @@ export function RemoteMachinesSettings({
             data-machine-add-ssh
             onClick={() => {
               setPairing(null)
+              setEditing(null)
               setAdding(true)
             }}
           >
@@ -350,6 +418,23 @@ export function RemoteMachinesSettings({
               status={<MachineStatus machine={machine} checking={checking === machine.id} />}
               actions={
                 <>
+                  {machine.kind === 'ssh' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('machines:edit', { name: machine.name })}
+                      title={t('machines:edit', { name: machine.name })}
+                      data-machine-edit
+                      onClick={() => {
+                        setAdding(false)
+                        setPairing(null)
+                        setEditing(machine)
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                  )}
                   {machine.kind === 'ssh' && (
                     <Button
                       type="button"
@@ -386,6 +471,17 @@ export function RemoteMachinesSettings({
           onCancel={() => setAdding(false)}
           onDone={() => {
             setAdding(false)
+            void refresh()
+          }}
+        />
+      )}
+      {editing && (
+        <SshForm
+          key={editing.id}
+          machine={editing}
+          onCancel={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null)
             void refresh()
           }}
         />

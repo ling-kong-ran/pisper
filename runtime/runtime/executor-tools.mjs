@@ -34,13 +34,19 @@ export function normalizeRemoteExecutor(value) {
   return { environmentId, cwd }
 }
 
-// 普通会话选了远程机器时告诉模型：路径和命令都在那台机器上，不要按用户自己的电脑去想。
-export function machineSystemPrompt(machine, cwd) {
-  return [
-    `You are working on the remote machine "${machine.name}", not on the user's own computer.`,
-    `File and shell tools run on that machine, in ${cwd}. All paths are paths on that machine.`,
-    'Tools that are not listed are not available here.',
-  ].join('\n')
+// 普通会话选了远程机器时告诉模型的话放在 runtime/prompts/machines.mjs。
+export { machineSystemPrompt } from '../prompts/machines.mjs'
+
+// 执行节点连上来时报告的 process.platform → 和 SSH 探测结果同形的 system。
+// 节点在 Windows 上用 cmd.exe 跑命令，其余系统用 bash（没有时 sh），见 packages/pisper/lib/executor-node.mjs。
+export function nodeMachineSystem(platform) {
+  if (platform === 'win32')
+    return { os: 'windows', family: 'windows', name: 'Windows', shell: 'cmd.exe' }
+  if (platform === 'darwin') return { os: 'macos', family: 'posix', name: 'macOS', shell: 'bash' }
+  if (platform === 'linux') return { os: 'linux', family: 'posix', name: 'Linux', shell: 'bash' }
+  return platform
+    ? { os: 'unix', family: 'posix', name: String(platform).slice(0, 20), shell: 'sh' }
+    : null
 }
 
 // Pi 的工具按大脑本机的路径规则解析路径：Windows 大脑会把远程 Linux 的 /repo/a 解析成 E:\repo\a，

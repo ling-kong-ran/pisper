@@ -52,6 +52,7 @@ import { agentCompletionPrompt } from '../services/multi-agent-service.mjs'
 import { ExecutorError, NodeExecutor } from '../services/bots/executor.mjs'
 import { EnvironmentError, pathWithinRoots } from '../services/bots/environment-service.mjs'
 import { isSshMachineId } from '../services/ssh-machine-service.mjs'
+import { nodeMachineSystem } from './executor-tools.mjs'
 import { listWorkspaceFolders } from '../services/workspace-folder-service.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import { bridgePiExtensionPackages, isPiExtensionPlugin } from '../services/pi-extension-bridge.mjs'
@@ -2279,15 +2280,19 @@ export class AgentRuntimeFacade {
   // 远程机器：SSH 和对方连过来（执行节点）在界面和 Agent 那边是一回事，只是连法不同。
   listMachines() {
     return [
+      // 密码不在这里：服务只给 passwordSet。
       ...this.sshMachines.list().map((machine) => ({
         id: machine.id,
         kind: 'ssh',
         name: machine.name,
         target: machine.target,
         port: machine.port,
+        auth: machine.auth,
+        passwordSet: machine.passwordSet,
         defaultCwd: machine.defaultCwd,
         online: machine.lastCheck?.ok === true,
         lastCheck: machine.lastCheck,
+        system: machine.system,
         roots: [],
       })),
       ...this.environments.list().map((environment) => ({
@@ -2297,9 +2302,21 @@ export class AgentRuntimeFacade {
         defaultCwd: environment.roots[0] || '',
         online: this.executorHub.online(environment.id),
         lastCheck: null,
+        system: nodeMachineSystem(environment.platform),
         roots: environment.roots,
       })),
     ]
+  }
+
+  // 给模型看的那台机器：名字、系统和命令在哪个 shell 里跑。SSH 机器用探测记下的结果，
+  // 执行节点用它连上来时报告的 process.platform。
+  machinePromptInfo(id) {
+    if (isSshMachineId(id)) {
+      const machine = this.sshMachines.get(id)
+      return { name: machine?.name || '', system: machine?.system || null }
+    }
+    const environment = this.environments.get(id)
+    return { name: environment?.name || '', system: nodeMachineSystem(environment?.platform) }
   }
 
   machineSummary(id) {

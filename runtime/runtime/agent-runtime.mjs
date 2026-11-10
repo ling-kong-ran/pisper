@@ -746,7 +746,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // Bot 的电脑（B6）：本机之外已配对的执行节点，以及它们连回来的长轮询中枢。
     this.environments = new EnvironmentService({ path: join(dataDir, 'pisper-environments.json') })
     this.executorHub = new ExecutorHub()
-    // 远程机器里走 SSH 的那些：只存怎么连，凭据留给系统的 ssh。
+    // 远程机器里走 SSH 的那些：存怎么连；密钥留给系统的 ssh，选了密码登录的密码单独 0600 存放。
     this.sshMachines = new SshMachineService({
       path: join(dataDir, 'pisper-ssh-machines.json'),
       dataDir,
@@ -1126,7 +1126,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       })
     if (features.remoteMachines)
       await attempt('sshMachines', () => this.sshMachines.init(), {
-        files: ['pisper-ssh-machines.json'],
+        files: ['pisper-ssh-machines.json', 'pisper-ssh-secrets.json'],
       })
     if (features.bots)
       await attempt('bots', () => this.bots.init(), { files: ['pisper-bots.json'] })
@@ -1995,7 +1995,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             : remoteExecutor
               ? {
                   appendSystemPrompt: machineSystemPrompt(
-                    this.machineSummary(remoteExecutor.environmentId),
+                    this.machinePromptInfo(remoteExecutor.environmentId),
                     remoteExecutor.cwd,
                   ),
                 }

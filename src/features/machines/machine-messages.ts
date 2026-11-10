@@ -1,14 +1,20 @@
 // Runtime 的结构化错误码 → 当前语言的文案和下一步。不认识的错误码用 Runtime 给的原文。
 import type { Translate } from '@/app/navigation'
 
-export function machineFailureMessage(t: Translate, code: string, fallback = '') {
+// auth：这台机器用什么登录，认证失败时给出对应的下一步。
+export function machineFailureMessage(
+  t: Translate,
+  code: string,
+  fallback = '',
+  { auth = 'key' }: { auth?: 'key' | 'password' } = {},
+) {
   switch (code) {
     case 'connection_refused':
       return t('machines:failure.refused')
     case 'unreachable':
       return t('machines:failure.unreachable')
     case 'auth_failed':
-      return t('machines:failure.auth')
+      return auth === 'password' ? t('machines:failure.authPassword') : t('machines:failure.auth')
     case 'host_key_changed':
       return t('machines:failure.hostKey')
     case 'ssh_client_missing':

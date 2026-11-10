@@ -12,6 +12,7 @@ import {
   executorCommand,
   globToRegExp,
   normalizeFingerprint,
+  shellInvocation,
 } from '../../packages/pisper/lib/executor-node.mjs'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { executorRoutes } from '../http/routes/executors.mjs'
@@ -289,6 +290,28 @@ test('shell commands stream output, report exit codes and stop when aborted', as
   setTimeout(() => controller.abort(), 100)
   await assert.rejects(running, { code: 'aborted' })
   assert.ok(Date.now() - started < 5_000)
+})
+
+test('the node hands commands to its shell without mangling quotes, per platform', () => {
+  // Windows：cmd 不认 C 运行库的 \" 转义，整条命令原样包一对引号交给 /s /c，先切到 UTF-8 代码页。
+  assert.deepEqual(
+    shellInvocation('echo "a b" && dir', {
+      platform: 'win32',
+      env: { ComSpec: 'C:\\Windows\\system32\\cmd.exe' },
+    }),
+    {
+      file: 'C:\\Windows\\system32\\cmd.exe',
+      args: ['/d', '/s', '/c', '"chcp 65001 >nul & echo "a b" && dir"'],
+      verbatim: true,
+    },
+  )
+  // macOS 和 Linux：有 bash 用 bash（macOS 自带 /bin/bash），否则 sh；参数照常传。
+  assert.deepEqual(shellInvocation('echo "a b"', { platform: 'darwin', exists: () => true }), {
+    file: '/bin/bash',
+    args: ['-c', 'echo "a b"'],
+    verbatim: false,
+  })
+  assert.equal(shellInvocation('x', { platform: 'linux', exists: () => false }).file, '/bin/sh')
 })
 
 test('a node without --no-shell refuses commands; offline nodes fail fast', async (t) => {

@@ -1,17 +1,25 @@
 // SSH 机器的执行器：会话的文件与命令工具经系统自带的 ssh 客户端在对方机器上执行，对方不用装 Pisper。
 // 接口和执行节点一样（operations() 就是引擎工具可替换的 operations）。用系统 ssh 而不是 JS 实现：
-// ~/.ssh/config、密钥、ssh-agent、ProxyJump 全部照旧，Pisper 不碰也不保存任何凭据。
-// 对方只要是有 POSIX shell 的 SSH 服务就行（OpenSSH、Dropbear、Tailscale SSH）；不依赖 SFTP，也不要 PTY。
+// ~/.ssh/config、密钥、ssh-agent、ProxyJump 全部照旧，不新增依赖。
+// 对方是 Linux、macOS 等有 POSIX shell 的系统时走 sh 脚本；是 Windows（OpenSSH 服务，默认 shell 是 cmd 或 PowerShell）
+// 时走固定的 PowerShell 引导命令，脚本和数据经 stdin 传过去（ssh-powershell.mjs）。对方是什么系统由连上后探测一次，
+// 记在机器记录上，不信用户填的值。不依赖 SFTP，也不要 PTY。
+// 登录默认用密钥（BatchMode）；用户选了密码时经 askpass 助手（runtime/workers/ssh-askpass.mjs）交给 ssh，密码不进命令行。
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
-import { posix } from 'node:path'
+import { existsSync, lstatSync, mkdirSync } from 'node:fs'
+import { posix, win32 } from 'node:path'
+import { isSea } from 'node:sea'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ExecutorError } from './bots/executor.mjs'
+import { POWERSHELL_COMMAND, POWERSHELL_SCRIPTS, powershellPayload } from './ssh-powershell.mjs'
+import { ASKPASS_FLAG, ASKPASS_REFUSED, ASKPASS_SECRET } from '../workers/ssh-askpass.mjs'
 
 const CONNECT_TIMEOUT_SECONDS = 10
 const OPERATION_TIMEOUT_MS = 60_000
 const PROBE_TIMEOUT_MS = 25_000
 const KILL_TIMEOUT_MS = 8_000
+const VERSION_TIMEOUT_MS = 5_000
 const MAX_READ_BYTES = 16 * 1024 * 1024
 const MAX_STDERR_CHARS = 4_000
 const MAX_GLOB_ENTRIES = 200_000
@@ -19,8 +27,11 @@ const MAX_GLOB_RESULTS = 10_000
 const LIST_CACHE_TTL_MS = 5_000
 // ssh 退出后 stdout 还没结束时最多再等这么久：ControlPersist 分出的后台进程可能还握着管道。
 const EXIT_DRAIN_MS = 1_000
-// Unix socket 路径上限（macOS 104 字节）：%C 展开后是 40 位十六进制。
-const MAX_MUX_DIRECTORY_CHARS = 60
+// Unix socket 路径上限：macOS 104 字节（含结尾 NUL）。ssh 在目录后面接 /%C（40 位十六进制），
+// 建立时还要再接 . 和 16 位随机串，一共 58 个字符；目录超过 45 个字符时 ssh 会直接以失败退出。
+const MAX_MUX_DIRECTORY_CHARS = 45
+// SSH_ASKPASS_REQUIRE 从 OpenSSH 8.4 起才有；Windows 上没有它就不会去调用 askpass。
+const ASKPASS_REQUIRE_VERSION = [8, 4]
 
 const EXIT_MISSING = 44
 const EXIT_IS_DIRECTORY = 45
@@ -29,7 +40,10 @@ const EXIT_NO_CWD = 97
 // ssh 客户端自己失败（连不上、认证失败）的退出码；远程命令的退出码由对方决定。
 const EXIT_SSH_FAILED = 255
 const PROBE_MARKER = 'PISPER_SSH_PROBE'
+const SHELL_MARKER = 'PISPER_SSH_SHELL_'
 const REQUIRED_COMMANDS = ['cat', 'find', 'ls', 'mkdir']
+
+export const ASKPASS_HELPER = fileURLToPath(new URL('../workers/ssh-askpass.mjs', import.meta.url))
 
 // 远程命令总要经对方的 shell 解析一次：路径和命令一律单引号包起来，没有拼接的余地。
 export function shellQuote(value) {
@@ -40,19 +54,58 @@ export function shellQuote(value) {
 }
 
 // 大脑在 Windows 时引擎工具用 path.resolve 拼路径，会把 /srv/app/a 变成 C:\srv\app\a。
-// 对方一定是 POSIX，这里还原回去。
-export function toRemotePath(value, platform = process.platform) {
+// 对方是 POSIX 时这里还原回去；对方是 Windows 时路径本来就是 Windows 写法，不动。
+export function toRemotePath(value, platform = process.platform, family = 'posix') {
   const text = String(value)
+  if (family === 'windows') {
+    if (text.includes('\0'))
+      throw new ExecutorError('invalid_path', 'Path cannot contain NUL characters.')
+    return text
+  }
   if (platform !== 'win32') return text
   return text.replace(/^[A-Za-z]:(?=[\\/])/, '').replaceAll('\\', '/')
 }
 
+// 这台电脑上的 ssh：Windows 10/11 自带的在 System32\OpenSSH（可选功能，可能没装），没有时再找 PATH 里的。
+// 只会是这两个之一，不接受用户填的路径。
+export function sshExecutable(platform = process.platform, env = process.env, exists = existsSync) {
+  if (platform !== 'win32') return 'ssh'
+  const root = env.SystemRoot || env.windir || 'C:\\Windows'
+  const bundled = win32.join(root, 'System32', 'OpenSSH', 'ssh.exe')
+  return exists(bundled) ? bundled : 'ssh'
+}
+
+// ssh -V 的输出（在 stderr）：OpenSSH_9.6p1 …、OpenSSH_for_Windows_8.6p1 …。认不出时返回 null。
+export function parseSshVersion(text) {
+  const match = /OpenSSH(?:_for_Windows)?_(\d+)\.(\d+)/.exec(String(text))
+  return match ? [Number(match[1]), Number(match[2])] : null
+}
+
+function versionAtLeast(version, [major, minor]) {
+  return Boolean(version) && (version[0] > major || (version[0] === major && version[1] >= minor))
+}
+
 // 选项写死在这里：不转发 agent 和端口（对方机器不该能用你的密钥），首次连接记下指纹，之后指纹变了就拒绝。
-export function sshArguments(machine, { muxDirectory = '', extraArguments = [] } = {}) {
+// 密码登录时关掉 BatchMode（否则 ssh 不问密码），只试密码和键盘交互、不试密钥（免得先把失败次数用掉），
+// 每种方式只问一次，密码错了立刻失败。指纹的处理和密钥登录一样，不放宽。
+export function sshArguments(
+  machine,
+  { muxDirectory = '', extraArguments = [], password = false } = {},
+) {
   return [
     '-T',
-    '-o',
-    'BatchMode=yes',
+    ...(password
+      ? [
+          '-o',
+          'BatchMode=no',
+          '-o',
+          'PreferredAuthentications=password,keyboard-interactive',
+          '-o',
+          'PubkeyAuthentication=no',
+          '-o',
+          'NumberOfPasswordPrompts=1',
+        ]
+      : ['-o', 'BatchMode=yes']),
     '-o',
     `ConnectTimeout=${CONNECT_TIMEOUT_SECONDS}`,
     '-o',
@@ -86,9 +139,37 @@ export function sshArguments(machine, { muxDirectory = '', extraArguments = [] }
   ]
 }
 
+// 密码登录时给 ssh 的环境：SSH_ASKPASS 指向 Pisper 自己的可执行文件，密码放在只有它读的环境变量里。
+// 打包版由入口脚本认出 PISPER_SSH_ASKPASS；开发版是 node，用 NODE_OPTIONS 先加载助手（替换而不是追加，
+// 只影响这次 ssh 及其子进程）。旧版 OpenSSH 不认 SSH_ASKPASS_REQUIRE，要有 DISPLAY 且没有控制终端才调用助手：
+// POSIX 上同时给 DISPLAY，并以新会话启动（spawnOptions 里的 detached）。
+export function askpassEnvironment(
+  password,
+  {
+    env = process.env,
+    platform = process.platform,
+    packaged = isSea(),
+    execPath = process.execPath,
+    helper = ASKPASS_HELPER,
+  } = {},
+) {
+  const next = {
+    ...env,
+    SSH_ASKPASS: execPath,
+    SSH_ASKPASS_REQUIRE: 'force',
+    [ASKPASS_FLAG]: '1',
+    [ASKPASS_SECRET]: String(password),
+  }
+  if (platform !== 'win32') next.DISPLAY = env.DISPLAY || ':0'
+  if (packaged) delete next.NODE_OPTIONS
+  else next.NODE_OPTIONS = `--import=${pathToFileURL(helper).href}`
+  return next
+}
+
 // ssh 客户端的错误只有英文，分类后由界面按语言给出下一步。
 export function classifySshFailure(stderr) {
   const text = String(stderr)
+  if (text.includes(ASKPASS_REFUSED)) return 'unsupported_remote'
   if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/i.test(text))
     return 'host_key_changed'
   if (/Connection refused/i.test(text)) return 'connection_refused'
@@ -108,12 +189,20 @@ const FAILURE_MESSAGES = {
   host_key_changed:
     'Host key changed; connection refused for safety. Update known_hosts once you confirm the machine was reinstalled.',
   connection_refused: 'Connection refused: SSH may not be running, or the port is wrong.',
-  auth_failed: 'Sign-in refused: Pisper uses key sign-in only; add your key to the machine.',
+  auth_failed: 'Sign-in refused: Pisper signed in with a key; add your key to the machine.',
   unreachable: 'Machine unreachable: check the address, network and firewall.',
   connection_failed: 'SSH connection failed.',
+  unsupported_remote:
+    'The machine asks for more than a password (such as a one-time code); this is not supported. Use key sign-in.',
 }
 
-function sshFailure(code) {
+// 只看分类，不带 ssh 的原文：原文里有用户名、主机和对方的横幅，没有必要外传。
+function sshFailure(code, { password = false } = {}) {
+  if (code === 'auth_failed' && password)
+    return new ExecutorError(
+      'auth_failed',
+      'Sign-in refused: wrong user name or password, or the machine does not accept password sign-in.',
+    )
   return new ExecutorError(code, FAILURE_MESSAGES[code] || FAILURE_MESSAGES.connection_failed)
 }
 
@@ -185,6 +274,208 @@ function globToRegExp(pattern) {
   return new RegExp(`^${source}$`)
 }
 
+// 第一步探测：不知道对方的 shell 是什么，发一句三种 shell 都能执行的 echo，看变量怎么展开。
+// cmd 只展开 %OS%，PowerShell 只展开 $PSHOME，POSIX shell（含 zsh、fish）只展开 $PSHOME 且它是空的。
+export const SHELL_PROBE_COMMAND = `echo "${SHELL_MARKER}%OS%_$PSHOME"`
+
+// 返回 { family: 'posix' | 'windows' | 'unsupported', loginShell } 或 null（没认出来，可能是 csh 之类，按 POSIX 再试）。
+export function parseShellProbe(text) {
+  const line = String(text)
+    .split(/\r?\n/)
+    .map((item) => item.replaceAll('"', '').trim())
+    .find((item) => item.startsWith(SHELL_MARKER))
+  if (!line) return null
+  const rest = line.slice(SHELL_MARKER.length)
+  if (rest.startsWith('Windows_NT_')) return { family: 'windows', loginShell: 'cmd' }
+  if (!rest.startsWith('%OS%_')) return null
+  const home = rest.slice('%OS%_'.length)
+  if (!home) return { family: 'posix', loginShell: '' }
+  // 登录 shell 是 Linux / macOS 上的 PowerShell：单引号脚本传不过去，明确说不支持。
+  return /^[A-Za-z]:\\/.test(home)
+    ? { family: 'windows', loginShell: 'powershell' }
+    : { family: 'unsupported', loginShell: 'powershell' }
+}
+
+const POSIX_PROBE = [
+  `printf '%s\\n' ${PROBE_MARKER}`,
+  `printf 'os=%s\\n' "$(uname -s 2>/dev/null || echo unknown)"`,
+  `printf 'home=%s\\n' "\${HOME:-}"`,
+  `printf 'shell=%s\\n' "\${SHELL:-}"`,
+  `for name in ${REQUIRED_COMMANDS.join(' ')}; do command -v "$name" >/dev/null 2>&1 || printf 'missing=%s\\n' "$name"; done`,
+].join('; ')
+
+// 第二步探测的输出：标记行之后是 key=value。没有标记时返回 null。
+export function parseProbeOutput(text) {
+  const lines = String(text).split(/\r?\n/)
+  const start = lines.indexOf(PROBE_MARKER)
+  if (start < 0) return null
+  const result = { platform: 'unknown', version: '', home: '', shell: '', missing: [] }
+  for (const line of lines.slice(start + 1)) {
+    const at = line.indexOf('=')
+    if (at < 0) continue
+    const key = line.slice(0, at)
+    const value = line.slice(at + 1).trim()
+    if (key === 'missing') result.missing.push(value)
+    else if (key === 'os') result.platform = value || 'unknown'
+    else if (key === 'version' || key === 'home' || key === 'shell') result[key] = value
+  }
+  return result
+}
+
+function osKind(platform) {
+  const text = String(platform)
+  if (/^windows/i.test(text)) return 'windows'
+  if (/^linux/i.test(text)) return 'linux'
+  if (/^darwin/i.test(text)) return 'macos'
+  return 'unix'
+}
+
+// 控制字符换成空格（对方输出的东西会进界面和提示词），再截断。
+const clip = (value, max) =>
+  Array.from(String(value ?? ''), (char) => (char < ' ' || char === '\u007f' ? ' ' : char))
+    .join('')
+    .trim()
+    .slice(0, max)
+
+// 探测结果 → 记在机器记录上的 system。shell 是命令实际在哪个 shell 里跑：
+// POSIX 是对方的登录 shell（$SHELL -lc），Windows 一律是 PowerShell（与登录 shell 是 cmd 还是 PowerShell 无关）。
+export function systemFromProbe(probe, loginShell = '') {
+  const os = osKind(probe.platform)
+  const windows = os === 'windows'
+  return {
+    os,
+    family: windows ? 'windows' : 'posix',
+    name: clip(windows ? `Windows ${probe.version}` : probe.platform, 60),
+    shell: clip(windows ? probe.shell || 'PowerShell' : posix.basename(probe.shell || 'sh'), 60),
+    ...(windows ? { loginShell: loginShell === 'powershell' ? 'powershell' : 'cmd' } : {}),
+  }
+}
+
+const SYSTEM_OS = new Set(['linux', 'macos', 'windows', 'unix'])
+
+// 存盘的 system（只来自探测，读回时仍按不可信数据校验）。旧版本只支持 POSIX，
+// 没有 system 但探测成功过的机器按 POSIX 处理，系统名取当时记下的 uname。
+export function normalizeSystem(value, lastCheck = null) {
+  if (value && typeof value === 'object' && SYSTEM_OS.has(value.os)) {
+    const windows = value.os === 'windows'
+    return {
+      os: value.os,
+      family: windows ? 'windows' : 'posix',
+      name: clip(value.name, 60),
+      shell: clip(value.shell, 60),
+      ...(windows ? { loginShell: value.loginShell === 'powershell' ? 'powershell' : 'cmd' } : {}),
+    }
+  }
+  if (lastCheck?.ok === true && lastCheck.platform && osKind(lastCheck.platform) !== 'windows')
+    return {
+      os: osKind(lastCheck.platform),
+      family: 'posix',
+      name: clip(lastCheck.platform, 60),
+      shell: '',
+    }
+  return null
+}
+
+// 每个操作在对方机器上怎么执行：返回发给对方 shell 的那一条命令和 stdin。纯函数，参数都已是对方机器上的路径。
+// POSIX：sh -c 加单引号包好的脚本；Windows：固定的 PowerShell 引导命令，脚本和参数作为数据走 stdin。
+export function remoteRequest(family, op, params = {}) {
+  if (family === 'windows') {
+    const script = POWERSHELL_SCRIPTS[op]
+    if (!script) throw new Error(`Unknown remote operation: ${op}`)
+    const { data, ...args } = params
+    return {
+      command: POWERSHELL_COMMAND,
+      stdin: powershellPayload(script, args, data === undefined ? undefined : Buffer.from(data)),
+    }
+  }
+  const script = posixScript(op, params)
+  return {
+    command: `sh -c ${shellQuote(script)}`,
+    stdin: params.data === undefined ? null : Buffer.from(params.data),
+  }
+}
+
+function posixScript(op, params) {
+  const quoted = () => shellQuote(params.path)
+  switch (op) {
+    case 'probe':
+      return POSIX_PROBE
+    case 'resolveDirectory': {
+      const text = String(params.path ?? '')
+      const target =
+        !text || text === '~'
+          ? '"$HOME"'
+          : text.startsWith('~/')
+            ? `"$HOME"/${shellQuote(text.slice(2))}`
+            : shellQuote(text)
+      return `cd ${target} 2>/dev/null || exit ${EXIT_MISSING}; pwd`
+    }
+    case 'readFile':
+      return `[ -e ${quoted()} ] || exit ${EXIT_MISSING}; [ -d ${quoted()} ] && exit ${EXIT_IS_DIRECTORY}; exec cat -- ${quoted()}`
+    case 'access': {
+      const checks = [
+        `[ -e ${quoted()} ] || exit ${EXIT_MISSING}`,
+        `[ -r ${quoted()} ] || exit ${EXIT_DENIED}`,
+      ]
+      if (params.write) checks.push(`[ -w ${quoted()} ] || exit ${EXIT_DENIED}`)
+      return checks.join('; ')
+    }
+    case 'writeFile':
+      return `cat > ${quoted()}`
+    case 'mkdir':
+      return `mkdir -p -- ${quoted()}`
+    case 'kind':
+      return `if [ -d ${quoted()} ]; then echo directory; elif [ -e ${quoted()} ]; then echo file; else echo none; fi`
+    case 'readdir':
+      return `[ -d ${quoted()} ] || exit ${EXIT_MISSING}; cd ${quoted()} || exit ${EXIT_DENIED}; LC_ALL=C exec ls -Ap1`
+    case 'glob': {
+      const prune = params.prune.includes('node_modules')
+        ? '\\( -name .git -o -name node_modules \\)'
+        : '-name .git'
+      return `cd ${shellQuote(params.cwd)} || exit ${EXIT_MISSING}; find . ${prune} -prune -o -print 2>/dev/null | head -n ${Number(params.max)}`
+    }
+    case 'exec':
+      // 没有 PTY：靠带随机串的标记知道命令何时结束和它的退出码；stdin 接 /dev/null。
+      return (
+        `printf '\\036${params.nonce}P%s\\036' "$$"; ` +
+        `cd ${shellQuote(params.cwd)} 2>/dev/null || exit ${EXIT_NO_CWD}; ` +
+        `"\${SHELL:-/bin/sh}" -lc ${shellQuote(params.command)} </dev/null 2>&1; rc=$?; ` +
+        `printf '\\036${params.nonce}E%s\\036' "$rc"`
+      )
+    case 'kill': {
+      // 结束对方的整个进程组：断开 ssh 不会结束没有终端的远程进程。Linux 读 /proc，macOS 等没有 /proc 时用 ps。
+      const pid = Number(params.pid)
+      return [
+        `pg=$(cut -d' ' -f5 /proc/${pid}/stat 2>/dev/null)`,
+        `[ -n "$pg" ] || pg=$(ps -o pgid= -p ${pid} 2>/dev/null | tr -d ' ')`,
+        `if [ -n "$pg" ] && [ "$pg" != 0 ] && [ "$pg" != 1 ]; then kill -s TERM -- "-$pg" 2>/dev/null; else kill -s TERM -- ${pid} 2>/dev/null; fi`,
+      ].join('; ')
+    }
+    default:
+      throw new Error(`Unknown remote operation: ${op}`)
+  }
+}
+
+// 每个 ssh 路径只问一次版本（只有 Windows 上的密码登录需要）。
+const sshVersions = new Map()
+
+// 连接复用的目录：socket 能让人直接用这条已登录的连接，目录必须只属于自己（0700，不是符号链接），否则不复用。
+// 每次都检查：目录可能被清理掉，缺了目录 ssh 会直接以失败退出。
+export function usableMuxDirectory(path) {
+  try {
+    mkdirSync(path, { recursive: true, mode: 0o700 })
+    const info = lstatSync(path)
+    return (
+      info.isDirectory() &&
+      !info.isSymbolicLink() &&
+      (typeof process.getuid !== 'function' || info.uid === process.getuid()) &&
+      (info.mode & 0o077) === 0
+    )
+  } catch {
+    return false
+  }
+}
+
 export class SshExecutor {
   constructor({
     machine,
@@ -194,6 +485,9 @@ export class SshExecutor {
     spawnProcess = spawn,
     now = () => Date.now(),
     isAvailable = () => true,
+    password = () => '',
+    onSystem = null,
+    sshPath = sshExecutable(platform),
   }) {
     this.machine = machine
     this.id = machine.id
@@ -211,35 +505,105 @@ export class SshExecutor {
         : ''
     this.listCache = new Map()
     this.isAvailable = isAvailable
+    // 密码不放在 machine 上：machine 会被序列化、复制，密码只在要连的那一刻取一次。
+    this.password = typeof password === 'function' ? password : () => ''
+    this.onSystem = onSystem
+    this.sshPath = sshPath
+    // 没保存的机器（添加前测试）探测结果只记在这里；保存过的机器以机器记录为准。
+    this.detectedSystem = null
+    this.detecting = null
   }
 
   online() {
     return this.machine.lastCheck?.ok === true
   }
 
-  #arguments() {
-    if (this.muxDirectory) mkdirSync(this.muxDirectory, { recursive: true, mode: 0o700 })
+  // 每次都从机器记录读：编辑了地址（探测结果被清掉）后，驻留会话手里的执行器也会重新探测。
+  get system() {
+    return normalizeSystem(this.machine.system, this.machine.lastCheck) || this.detectedSystem
+  }
+
+  get family() {
+    return this.system?.family || 'posix'
+  }
+
+  #secret() {
+    if (this.machine.auth !== 'password') return ''
+    const value = this.password()
+    if (!value) throw new ExecutorError('auth_failed', 'No password is saved for this machine.')
+    return value
+  }
+
+  #arguments(password) {
+    const muxDirectory =
+      this.muxDirectory && usableMuxDirectory(this.muxDirectory) ? this.muxDirectory : ''
     return sshArguments(this.machine, {
-      muxDirectory: this.muxDirectory,
+      muxDirectory,
       extraArguments: this.extraArguments,
+      password: Boolean(password),
     })
   }
 
-  #spawn(remoteCommand) {
+  // Windows 自带的 OpenSSH 太旧（Windows 10 是 7.7）时不会调用 askpass，会卡在等输入：先说清楚。
+  async #checkClient(password) {
+    if (!password || this.platform !== 'win32') return
+    if (!sshVersions.has(this.sshPath))
+      sshVersions.set(
+        this.sshPath,
+        new Promise((resolve) => {
+          let output = ''
+          let child
+          try {
+            child = this.spawnProcess(this.sshPath, ['-V'], {
+              stdio: ['pipe', 'pipe', 'pipe'],
+              windowsHide: true,
+            })
+          } catch {
+            resolve(null)
+            return
+          }
+          const timer = setTimeout(() => child.kill(), VERSION_TIMEOUT_MS)
+          child.stdout?.on('data', (chunk) => (output += chunk))
+          child.stderr?.on('data', (chunk) => (output += chunk))
+          child.on('error', () => resolve(null))
+          child.on('close', () => {
+            clearTimeout(timer)
+            resolve(parseSshVersion(output))
+          })
+          child.stdin?.end()
+        }),
+      )
+    const version = await sshVersions.get(this.sshPath)
+    if (version && !versionAtLeast(version, ASKPASS_REQUIRE_VERSION))
+      throw new ExecutorError(
+        'unsupported_remote',
+        `Password sign-in needs OpenSSH ${ASKPASS_REQUIRE_VERSION.join('.')} or later on this computer (found ${version.join('.')}). Update OpenSSH or use key sign-in.`,
+      )
+  }
+
+  #spawn(remoteCommand, password) {
     // 驻留的会话还拿着这个执行器：机器移除后不能再连过去。
     if (!this.isAvailable()) throw new ExecutorError('machine_not_found', 'Machine was removed.')
-    return this.spawnProcess('ssh', [...this.#arguments(), remoteCommand], {
+    return this.spawnProcess(this.sshPath, [...this.#arguments(password), remoteCommand], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      ...(password
+        ? {
+            env: askpassEnvironment(password, { platform: this.platform }),
+            detached: this.platform !== 'win32',
+          }
+        : {}),
     })
   }
 
-  // 跑一段短脚本，结果整段收回来。maxBytes 防止把巨大的文件读进内存。
-  #run(script, { stdin, timeoutMs = OPERATION_TIMEOUT_MS, maxBytes = 0 } = {}) {
+  // 跑一条远程命令，结果整段收回来。maxBytes 防止把巨大的文件读进内存。
+  async #run(request, { timeoutMs = OPERATION_TIMEOUT_MS, maxBytes = 0 } = {}) {
+    const password = this.#secret()
+    await this.#checkClient(password)
     return new Promise((resolve, reject) => {
       let child
       try {
-        child = this.#spawn(`sh -c ${shellQuote(script)}`)
+        child = this.#spawn(request.command, password)
       } catch (error) {
         reject(error)
         return
@@ -264,7 +628,7 @@ export class SshExecutor {
           return
         }
         if (exitCode === EXIT_SSH_FAILED) {
-          reject(sshFailure(classifySshFailure(stderr())))
+          reject(sshFailure(classifySshFailure(stderr()), { password: Boolean(password) }))
           return
         }
         resolve({ code: exitCode, stdout: Buffer.concat(chunks), stderr: stderr(), overflow })
@@ -283,16 +647,32 @@ export class SshExecutor {
       })
       whenFinished(child, (exitCode) => finish(null, exitCode))
       child.stdin.on('error', () => {})
-      child.stdin.end(stdin ?? undefined)
+      child.stdin.end(request.stdin ?? undefined)
     })
   }
 
+  // 对方是什么系统、命令在哪个 shell 里跑：第一次用到时探测一次并记下，之后不再问。
+  async #ensureSystem() {
+    if (this.system) return this.system
+    if (!this.detecting)
+      this.detecting = this.#detect().finally(() => {
+        this.detecting = null
+      })
+    await this.detecting
+    return this.system
+  }
+
+  async #call(op, params, options) {
+    const { family } = await this.#ensureSystem()
+    return this.#run(remoteRequest(family, op, params), options)
+  }
+
   #path(value) {
-    return shellQuote(toRemotePath(value, this.platform))
+    return toRemotePath(value, this.platform, this.family)
   }
 
   #fail(result, path, what) {
-    const shown = toRemotePath(path, this.platform)
+    const shown = this.#path(path)
     if (result.code === EXIT_MISSING)
       throw new ExecutorError('not_found', `ENOENT: no such file or directory, ${what} '${shown}'`)
     if (result.code === EXIT_IS_DIRECTORY)
@@ -306,43 +686,49 @@ export class SshExecutor {
     throw new ExecutorError('remote_failed', detail || `${what} '${shown}' failed.`)
   }
 
-  // 真实连上去跑一遍，不看对方装的是哪种 SSH 服务：有 shell、命令齐全才算能用。
-  async probe() {
-    const script = [
-      `printf '%s\\n' ${PROBE_MARKER}`,
-      'uname -s 2>/dev/null || echo unknown',
-      `printf '%s\\n' "\${HOME:-}"`,
-      `for name in ${REQUIRED_COMMANDS.join(' ')}; do command -v "$name" >/dev/null 2>&1 || printf 'missing:%s\\n' "$name"; done`,
-    ].join('; ')
-    const result = await this.#run(script, { timeoutMs: PROBE_TIMEOUT_MS })
-    const lines = result.stdout.toString('utf8').split(/\r?\n/)
-    const start = lines.indexOf(PROBE_MARKER)
-    if (start < 0)
+  // 真实连上去跑两步：先看登录 shell 是哪一类，再按那一类跑探测脚本，有 shell、命令齐全才算能用。
+  async #detect() {
+    const login = parseShellProbe(
+      (await this.#run({ command: SHELL_PROBE_COMMAND }, { timeoutMs: PROBE_TIMEOUT_MS })).stdout,
+    )
+    if (login?.family === 'unsupported')
       throw new ExecutorError(
         'unsupported_remote',
-        'No POSIX shell on the machine (Windows SSH and restricted accounts are not supported).',
+        'The account logs in to PowerShell on a non-Windows system; set a POSIX login shell.',
       )
-    const missing = lines
-      .filter((line) => line.startsWith('missing:'))
-      .map((line) => line.slice('missing:'.length))
-    if (missing.length)
+    const family = login?.family || 'posix'
+    const result = await this.#run(remoteRequest(family, 'probe'), { timeoutMs: PROBE_TIMEOUT_MS })
+    const probe = parseProbeOutput(result.stdout.toString('utf8'))
+    if (!probe)
       throw new ExecutorError(
         'unsupported_remote',
-        `Missing commands on the machine: ${missing.join(', ')}.`,
+        family === 'windows'
+          ? 'Windows PowerShell could not run on the machine (it may be removed or restricted).'
+          : 'No POSIX shell on the machine (restricted accounts are not supported).',
       )
-    return { platform: lines[start + 1] || 'unknown', home: lines[start + 2] || '' }
+    if (probe.missing.length)
+      throw new ExecutorError(
+        'unsupported_remote',
+        `Missing commands on the machine: ${probe.missing.join(', ')}.`,
+      )
+    const system = systemFromProbe(probe, login?.loginShell)
+    this.detectedSystem = system
+    await this.onSystem?.(system)
+    return { platform: probe.platform, home: probe.home, system }
   }
 
-  // 目录解析成绝对路径：~ 和空值都从对方的 HOME 算起。目录不存在时明确报错，不等到第一个工具才失败。
+  // 测试连接、重新检查：每次都真实探测，结果覆盖记下的系统。
+  async probe() {
+    const { platform, home, system } = await this.#detect()
+    return { platform, home, os: system.os, shell: system.shell }
+  }
+
+  // 目录解析成绝对路径：~ 和空值都从对方的家目录算起。目录不存在时明确报错，不等到第一个工具才失败。
   async resolveDirectory(input) {
     const text = String(input ?? '').trim()
-    const target =
-      !text || text === '~'
-        ? '"$HOME"'
-        : text.startsWith('~/')
-          ? `"$HOME"/${shellQuote(text.slice(2))}`
-          : this.#path(text)
-    const result = await this.#run(`cd ${target} 2>/dev/null || exit ${EXIT_MISSING}; pwd`)
+    const { family } = await this.#ensureSystem()
+    const path = text && text !== '~' && !text.startsWith('~/') ? this.#path(text) : text
+    const result = await this.#run(remoteRequest(family, 'resolveDirectory', { path }))
     if (result.code === EXIT_MISSING)
       throw new ExecutorError(
         'machine_folder_missing',
@@ -353,9 +739,10 @@ export class SshExecutor {
   }
 
   async #readFile(path) {
-    const quoted = this.#path(path)
-    const result = await this.#run(
-      `[ -e ${quoted} ] || exit ${EXIT_MISSING}; [ -d ${quoted} ] && exit ${EXIT_IS_DIRECTORY}; exec cat -- ${quoted}`,
+    await this.#ensureSystem()
+    const result = await this.#call(
+      'readFile',
+      { path: this.#path(path) },
       { maxBytes: MAX_READ_BYTES },
     )
     if (result.overflow) throw new ExecutorError('too_large', 'File is too large to read.')
@@ -364,85 +751,89 @@ export class SshExecutor {
   }
 
   async #access(path, mode) {
-    const quoted = this.#path(path)
-    const checks = [
-      `[ -e ${quoted} ] || exit ${EXIT_MISSING}`,
-      `[ -r ${quoted} ] || exit ${EXIT_DENIED}`,
-    ]
-    if (mode === 'rw') checks.push(`[ -w ${quoted} ] || exit ${EXIT_DENIED}`)
-    const result = await this.#run(checks.join('; '))
+    await this.#ensureSystem()
+    const result = await this.#call('access', { path: this.#path(path), write: mode === 'rw' })
     if (result.code !== 0) this.#fail(result, path, 'access')
   }
 
   async #writeFile(path, content) {
+    await this.#ensureSystem()
     this.listCache.clear()
-    const result = await this.#run(`cat > ${this.#path(path)}`, { stdin: String(content) })
+    const result = await this.#call('writeFile', {
+      path: this.#path(path),
+      data: Buffer.isBuffer(content) ? content : String(content),
+    })
     if (result.code !== 0) this.#fail(result, path, 'open')
   }
 
   async #mkdir(path) {
+    await this.#ensureSystem()
     this.listCache.clear()
-    const result = await this.#run(`mkdir -p -- ${this.#path(path)}`)
+    const result = await this.#call('mkdir', { path: this.#path(path) })
     if (result.code !== 0) this.#fail(result, path, 'mkdir')
+  }
+
+  // 列目录缓存的键：Windows 路径不分大小写、两种分隔符都算。
+  #cacheKey(path) {
+    return this.family === 'windows' ? win32.normalize(path).toLowerCase() : path
   }
 
   // 引擎的 ls 工具对每一项都查一次 stat：列目录时顺带记下类型，免得几百次连接。
   #cached(path) {
-    const entry = this.listCache.get(path)
+    const key = this.#cacheKey(path)
+    const entry = this.listCache.get(key)
     if (!entry) return null
     if (this.now() - entry.at > LIST_CACHE_TTL_MS) {
-      this.listCache.delete(path)
+      this.listCache.delete(key)
       return null
     }
     return entry
   }
 
   async #kind(path) {
-    const remote = toRemotePath(path, this.platform)
+    await this.#ensureSystem()
+    const remote = this.#path(path)
     const cached = this.#cached(remote)
     if (cached) return cached.directory ? 'directory' : 'file'
-    const quoted = shellQuote(remote)
-    const result = await this.#run(
-      `if [ -d ${quoted} ]; then echo directory; elif [ -e ${quoted} ]; then echo file; else echo none; fi`,
-    )
+    const result = await this.#call('kind', { path: remote })
     if (result.code !== 0) this.#fail(result, path, 'stat')
     return result.stdout.toString('utf8').trim()
   }
 
   async #readdir(path) {
-    const remote = toRemotePath(path, this.platform)
-    const quoted = shellQuote(remote)
-    const result = await this.#run(
-      `[ -d ${quoted} ] || exit ${EXIT_MISSING}; cd ${quoted} || exit ${EXIT_DENIED}; LC_ALL=C exec ls -Ap1`,
-    )
+    await this.#ensureSystem()
+    const remote = this.#path(path)
+    const result = await this.#call('readdir', { path: remote })
     if (result.code !== 0) this.#fail(result, path, 'scandir')
     const at = this.now()
+    const join = this.family === 'windows' ? win32.join : posix.join
     return result.stdout
       .toString('utf8')
-      .split('\n')
+      .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => {
         const directory = line.endsWith('/')
         const name = directory ? line.slice(0, -1) : line
-        this.listCache.set(posix.join(remote, name), { directory, at })
+        this.listCache.set(this.#cacheKey(join(remote, name)), { directory, at })
         return name
       })
   }
 
   async #glob(pattern, cwd, { ignore = [], limit = 1000 } = {}) {
+    await this.#ensureSystem()
     const matcher = globToRegExp(pattern)
     const ignored = (Array.isArray(ignore) ? ignore : []).map(globToRegExp)
     const max = Math.min(Math.max(1, Number(limit) || 1000), MAX_GLOB_RESULTS)
     // 依赖目录动辄几十万个文件：除非明确在找它，否则不进去。
-    const prune = String(pattern).includes('node_modules')
-      ? '-name .git'
-      : '\\( -name .git -o -name node_modules \\)'
-    const result = await this.#run(
-      `cd ${this.#path(cwd)} || exit ${EXIT_MISSING}; find . ${prune} -prune -o -print 2>/dev/null | head -n ${MAX_GLOB_ENTRIES}`,
-    )
+    const prune = String(pattern).includes('node_modules') ? ['.git'] : ['.git', 'node_modules']
+    const result = await this.#call('glob', {
+      cwd: this.#path(cwd),
+      prune,
+      max: MAX_GLOB_ENTRIES,
+    })
     if (result.code === EXIT_MISSING) this.#fail(result, cwd, 'scandir')
     const found = []
-    for (const line of result.stdout.toString('utf8').split('\n')) {
+    for (const line of result.stdout.toString('utf8').split(/\r?\n/)) {
       if (found.length >= max) break
       if (!line || line === '.') continue
       const relative = line.replace(/^\.\//, '')
@@ -452,41 +843,43 @@ export class SshExecutor {
     return found
   }
 
-  // 结束对方的整个进程组：断开 ssh 不会结束没有终端的远程进程。
+  // 结束对方的命令：POSIX 结束进程组，Windows 用 taskkill /T 结束整棵进程树。
   #killRemote(pid) {
-    const script = [
-      `pg=$(cut -d' ' -f5 /proc/${pid}/stat 2>/dev/null)`,
-      `[ -n "$pg" ] || pg=$(ps -o pgid= -p ${pid} 2>/dev/null | tr -d ' ')`,
-      `if [ -n "$pg" ] && [ "$pg" != 0 ] && [ "$pg" != 1 ]; then kill -s TERM -- "-$pg" 2>/dev/null; else kill -s TERM -- ${pid} 2>/dev/null; fi`,
-    ].join('; ')
-    return this.#run(script, { timeoutMs: KILL_TIMEOUT_MS }).catch(() => {})
+    if (!Number.isSafeInteger(pid) || pid <= 1) return Promise.resolve()
+    return this.#call('kill', { pid }, { timeoutMs: KILL_TIMEOUT_MS }).catch(() => {})
   }
 
   // 没有 PTY：靠带随机串的标记知道命令何时结束和它的退出码。命令一结束就断开，
   // 留在后台的进程（npm run dev &）继续跑，也不会因为它还握着管道而把工具卡住，和本机行为一致。
-  // 标记不给模型看；stdin 接 /dev/null，sudo 这类要输入的命令立刻失败，不会一直挂着。
-  #exec(command, cwd, { onData, signal, timeout } = {}) {
+  // 标记不给模型看；命令读 stdin 立刻读到结尾，sudo 这类要输入的命令会失败，不会一直挂着。
+  async #exec(command, cwd, { onData, signal, timeout } = {}) {
+    if (signal?.aborted) throw new Error('aborted')
+    const { family } = await this.#ensureSystem()
+    const password = this.#secret()
+    await this.#checkClient(password)
+    const nonce = randomBytes(8).toString('hex')
+    const remoteCwd = this.#path(cwd)
+    const request =
+      family === 'windows'
+        ? remoteRequest(family, 'exec', { cwd: remoteCwd, nonce, data: String(command) })
+        : remoteRequest(family, 'exec', { cwd: remoteCwd, nonce, command: String(command) })
     return new Promise((resolve, reject) => {
       if (signal?.aborted) {
         reject(new Error('aborted'))
         return
       }
-      const nonce = randomBytes(8).toString('hex')
       const separator = Buffer.from('\u001e', 'utf8')
       const prefix = Buffer.from(`\u001e${nonce}`, 'utf8')
-      const script =
-        `printf '\\036${nonce}P%s\\036' "$$"; ` +
-        `cd ${this.#path(cwd)} 2>/dev/null || exit ${EXIT_NO_CWD}; ` +
-        `"\${SHELL:-/bin/sh}" -lc ${shellQuote(command)} </dev/null 2>&1; rc=$?; ` +
-        `printf '\\036${nonce}E%s\\036' "$rc"`
       let child
       try {
-        child = this.#spawn(`sh -c ${shellQuote(script)}`)
+        child = this.#spawn(request.command, password)
       } catch (error) {
         reject(error)
         return
       }
       const stderr = collectStderr(child)
+      // Windows 上命令的 stderr 走 ssh 的 stderr 通道（POSIX 那边已经 2>&1 合进 stdout）：一样交给模型看。
+      if (family === 'windows') child.stderr?.on('data', (chunk) => onData?.(chunk))
       let pending = Buffer.alloc(0)
       let remotePid = 0
       let markerExit = null
@@ -535,8 +928,11 @@ export class SshExecutor {
             return
           }
         }
-        const hold = Math.min(pending.length, prefix.length + 24)
-        const ready = pending.length - hold
+        // 只扣下最后一个分隔符起的那一小段（可能是没收全的标记），其余立刻交出去：
+        // Windows 上 stderr 另走一路，扣得太多会让两路输出错位。
+        const last = pending.lastIndexOf(separator)
+        const ready =
+          last >= 0 && pending.length - last <= prefix.length + 24 ? last : pending.length
         if (ready > 0) {
           onData?.(pending.subarray(0, ready))
           pending = pending.subarray(ready)
@@ -552,8 +948,9 @@ export class SshExecutor {
         if (settled || stopping) return
         if (pending.length) onData?.(pending)
         if (code === EXIT_NO_CWD)
-          finish(new Error(`Working directory does not exist: ${toRemotePath(cwd, this.platform)}`))
-        else if (code === EXIT_SSH_FAILED) finish(sshFailure(classifySshFailure(stderr())))
+          finish(new Error(`Working directory does not exist: ${remoteCwd}`))
+        else if (code === EXIT_SSH_FAILED)
+          finish(sshFailure(classifySshFailure(stderr()), { password: Boolean(password) }))
         // 没等到结束标记就断了：命令是否跑完不知道，不能当成成功。
         else
           finish(
@@ -564,7 +961,7 @@ export class SshExecutor {
           )
       })
       child.stdin.on('error', () => {})
-      child.stdin.end()
+      child.stdin.end(request.stdin ?? undefined)
     })
   }
 

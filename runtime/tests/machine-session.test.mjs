@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
 import { tmpdir, userInfo } from 'node:os'
@@ -30,7 +30,7 @@ async function freePort() {
   })
 }
 
-async function startSshd(t) {
+async function startSshd(t, { passwords = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'pms-'))
   await chmod(dir, 0o700)
   const port = await freePort()
@@ -48,7 +48,8 @@ async function startSshd(t) {
       `AuthorizedKeysFile ${join(dir, 'authorized_keys')}`,
       `PidFile ${join(dir, 'sshd.pid')}`,
       'StrictModes no',
-      'PasswordAuthentication no',
+      // 密码登录：没有 root 就读不了系统的密码库，任何密码都会被拒——正好用来测“错了立刻失败”。
+      `PasswordAuthentication ${passwords ? 'yes' : 'no'}`,
       'KbdInteractiveAuthentication no',
       'UsePAM no',
       'LogLevel ERROR',
@@ -348,8 +349,9 @@ test(
     assert.ok(ran.output.includes(sshd.work), ran.output)
     assert.ok(ran.output.includes('from-remote'), ran.output)
 
-    // 模型知道自己在哪，手里只有能交给那台机器的工具。
+    // 模型知道自己在哪、那台机器是什么系统，手里只有能交给那台机器的工具。
     assert.match(model.seen.system, /remote machine/)
+    assert.match(model.seen.system, /Operating system: Linux\. Commands run in its login shell/)
     assert.ok(model.seen.tools.includes('bash'))
     assert.ok(model.seen.tools.includes('read'))
     for (const tool of ['memory_search', 'grep', 'browser_automation'])
@@ -436,5 +438,80 @@ test(
     )
     assert.equal(blocked.approvals.length, 1, 'outside the remote folder asks first')
     assert.equal(existsSync(outside), false)
+  },
+)
+
+// 递归找出数据目录里含有某段文字的文件（只看文本能读出的内容）。
+async function filesContaining(directory, needle) {
+  const found = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) found.push(...(await filesContaining(path, needle)))
+    else if (entry.isFile() && (await readFile(path)).includes(needle)) found.push(entry.name)
+  }
+  return found
+}
+
+test(
+  'a machine password goes in and never comes back out',
+  { skip, timeout: 90_000 },
+  async (t) => {
+    const sshd = await startSshd(t, { passwords: true })
+    const model = await startModel(t)
+    const { dataDir, call } = await startSidecar(t, { bin: sshd.bin, modelPort: model.port })
+    const password = 'pw-should-stay-private-123'
+    const leaks = (value) => JSON.stringify(value).includes(password)
+
+    const missing = await call('POST', '/api/machines/ssh', {
+      target: sshd.target,
+      auth: 'password',
+    })
+    assert.deepEqual([missing.status, missing.data.code], [400, 'invalid'])
+    const added = await call('POST', '/api/machines/ssh', {
+      name: '密码机',
+      target: sshd.target,
+      port: sshd.port,
+      auth: 'password',
+      password,
+    })
+    assert.equal(added.status, 201, JSON.stringify(added.data))
+    assert.deepEqual([added.data.auth, added.data.passwordSet], ['password', true])
+    assert.ok(!leaks(added.data))
+    const id = added.data.id
+    const listed = await call('GET', '/api/machines')
+    assert.equal(listed.data.machines[0].passwordSet, true)
+    assert.ok(!leaks(listed.data))
+    // 只有密码文件里有它，且只有自己能读。
+    assert.deepEqual(await filesContaining(dataDir, password), ['pisper-ssh-secrets.json'])
+    assert.equal((await stat(join(dataDir, 'pisper-ssh-secrets.json'))).mode & 0o777, 0o600)
+
+    // 测试已保存的机器：不重新输入，用存着的密码；对方拒绝时报认证失败，不回显密码。
+    const tested = await call('POST', '/api/machines/ssh/test', {
+      id,
+      target: sshd.target,
+      port: sshd.port,
+      auth: 'password',
+    })
+    assert.deepEqual([tested.data.ok, tested.data.code], [false, 'auth_failed'])
+    assert.ok(!leaks(tested.data))
+    const checked = await call('POST', `/api/machines/${id}/check`)
+    assert.deepEqual([checked.data.ok, checked.data.code], [false, 'auth_failed'])
+    assert.ok(!leaks(checked.data))
+
+    // 编辑：保留、换掉、清掉。
+    const kept = await call('PATCH', `/api/machines/${id}`, { name: '改名', auth: 'password' })
+    assert.deepEqual([kept.data.name, kept.data.passwordSet], ['改名', true])
+    const replaced = await call('PATCH', `/api/machines/${id}`, { password: 'another-one-456' })
+    assert.equal(replaced.data.passwordSet, true)
+    assert.deepEqual(await filesContaining(dataDir, password), [])
+    const cleared = await call('PATCH', `/api/machines/${id}`, { auth: 'key' })
+    assert.deepEqual([cleared.data.auth, cleared.data.passwordSet], ['key', false])
+    assert.deepEqual(await filesContaining(dataDir, 'another-one-456'), [])
+    assert.equal((await call('PATCH', '/api/machines/ssh_doesnotexist', {})).status, 404)
+
+    // 删除机器连同密码一起删。
+    await call('PATCH', `/api/machines/${id}`, { auth: 'password', password })
+    assert.equal((await call('DELETE', `/api/machines/${id}`)).status, 200)
+    assert.deepEqual(await filesContaining(dataDir, password), [])
   },
 )

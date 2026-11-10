@@ -82,6 +82,27 @@ export function globToRegExp(pattern) {
   return new RegExp(`^${source}$`)
 }
 
+// 命令交给哪个 shell、参数怎么传。Windows 上 cmd.exe 不按 C 运行库的规则解析命令行：
+// 照常传参时 Node 会把命令里的 " 转成 \"，cmd 原样收到，带引号的命令就坏了。
+// 所以和 Node 的 shell: true 一样，整条命令用一对引号包起来原样传（/s 会去掉这对引号）。
+// 先 chcp 65001 把这个控制台的代码页切到 UTF-8，dir、type 这类内建命令的中文输出才不会乱码。
+export function shellInvocation(
+  command,
+  { platform = process.platform, env = process.env, exists = existsSync } = {},
+) {
+  if (platform === 'win32')
+    return {
+      file: env.ComSpec || 'cmd.exe',
+      args: ['/d', '/s', '/c', `"chcp 65001 >nul & ${command}"`],
+      verbatim: true,
+    }
+  return {
+    file: exists('/bin/bash') ? '/bin/bash' : '/bin/sh',
+    args: ['-c', command],
+    verbatim: false,
+  }
+}
+
 export class ExecutorNode {
   constructor({ roots, shell = true }) {
     this.roots = roots.map((root) => resolve(root))
@@ -139,15 +160,12 @@ export class ExecutorNode {
     if (!this.shell) fail('shell_disabled', '这台电脑没有允许执行命令（--no-shell）。')
     const directory = await this.allowed(cwd)
     const windows = process.platform === 'win32'
-    const shellPath = windows
-      ? process.env.ComSpec || 'cmd.exe'
-      : existsSync('/bin/bash')
-        ? '/bin/bash'
-        : '/bin/sh'
-    const child = spawn(shellPath, windows ? ['/d', '/s', '/c', command] : ['-c', command], {
+    const shell = shellInvocation(command)
+    const child = spawn(shell.file, shell.args, {
       cwd: directory,
       detached: !windows,
       windowsHide: true,
+      windowsVerbatimArguments: shell.verbatim,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     // 杀整棵进程树：Windows 上只杀 cmd.exe 会留下它启动的程序，继续占着输出管道和工作目录。

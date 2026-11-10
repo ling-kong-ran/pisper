@@ -170,6 +170,11 @@ export async function bundleRuntime({ runtimeDir }) {
       join(sourceRuntime, 'workers', 'team-workflow-worker.mjs'),
       join(outputRuntime, 'workers', 'team-workflow-worker.mjs'),
     ),
+    // SSH 密码登录的 askpass 助手：ssh 单独启动它，只依赖 Node 内建模块，原样复制。
+    cp(
+      join(sourceRuntime, 'workers', 'ssh-askpass.mjs'),
+      join(outputRuntime, 'workers', 'ssh-askpass.mjs'),
+    ),
   ])
 
   // 无前端的 Runtime/TUI 也需要离线来源说明；仅保留可信小资源，不复制模型权重。

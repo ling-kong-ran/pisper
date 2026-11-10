@@ -488,6 +488,7 @@ export function criticalRuntimeEntries(nativeSelection = {}, runtimeDir) {
     ['app', 'runtime/mobile-embedded.mjs'],
     ['app', 'runtime/plugins/local-plugin-worker.mjs'],
     ['app', 'runtime/workers/team-workflow-worker.mjs'],
+    ['app', 'runtime/workers/ssh-askpass.mjs'],
     ['app', 'runtime/workers/speech-inference-worker.mjs'],
     ['app', 'runtime/workers/workflow-image-worker.mjs'],
     ['license', 'shared/vendor/framebaker/LICENSE'],

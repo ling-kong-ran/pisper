@@ -1,8 +1,10 @@
-// 远程机器路由：列出、添加 SSH 机器、测试连接、移除；让对方连过来的配对码也在这里。
+// 远程机器路由：列出、添加和修改 SSH 机器、测试连接、移除；让对方连过来的配对码也在这里。
 // 只做校验和调用服务，经能力 remoteMachines 把关，不受 Bots 实验开关影响。
+// 密码只进不出：请求里可以带 password，任何响应里都只有 passwordSet。
 import { remoteInfo } from './executors.mjs'
 import { errorPayload } from '../../../shared/errors.mjs'
 import { respondError } from './bots.mjs'
+import { isSshMachineId } from '../../services/ssh-machine-service.mjs'
 
 function machineRoute(handler) {
   return async (context) => {
@@ -38,7 +40,12 @@ export const machineRoutes = [
       try {
         json(200, { ok: true, ...(await runtime.sshMachines.test(input)) })
       } catch (error) {
-        if (error?.code === 'invalid_target' || error?.code === 'invalid_port') throw error
+        if (
+          error?.code === 'invalid_target' ||
+          error?.code === 'invalid_port' ||
+          error?.code === 'invalid'
+        )
+          throw error
         json(200, {
           ok: false,
           ...errorPayload(error),
@@ -82,6 +89,18 @@ export const machineRoutes = [
       const removed = await runtime.removeMachine(params.machineId)
       if (!removed) json(404, { error: 'Machine not found.', code: 'machine_not_found' })
       else json(200, { ok: true })
+    }),
+  },
+  {
+    // 只有 SSH 机器能改；执行节点的设定在对方那台电脑上。
+    method: 'PATCH',
+    path: '/api/machines/:machineId',
+    handler: machineRoute(async ({ runtime, params, body, json }) => {
+      if (!isSshMachineId(params.machineId) || !runtime.sshMachines.get(params.machineId)) {
+        json(404, { error: 'Machine not found.', code: 'machine_not_found' })
+        return
+      }
+      json(200, await runtime.sshMachines.update(params.machineId, await body()))
     }),
   },
 ]
