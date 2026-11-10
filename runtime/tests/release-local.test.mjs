@@ -1,6 +1,7 @@
 // 本机发布（scripts/release-local.mjs）：GitHub 接口的重试、覆盖上传与下载跳转，
 // 以及它依赖的 release.mjs 计划模式和 fetch-bundled-components 的本地归档来源。
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,7 +12,13 @@ import { createGitHubReleases } from '../../scripts/github-release-api.mjs'
 function fakeFetch(handler) {
   const calls = []
   const fetchImpl = async (url, init = {}) => {
-    calls.push({ url, method: init.method || 'GET', headers: init.headers || {}, body: init.body })
+    calls.push({
+      url,
+      method: init.method || 'GET',
+      headers: init.headers || {},
+      body: init.body,
+      dispatcher: init.dispatcher,
+    })
     return handler(url, init, calls.length)
   }
   return { calls, fetchImpl }
@@ -35,10 +42,89 @@ test('a re-uploaded asset replaces the earlier one with the same name', async (t
   assert.equal(calls[1].headers.Authorization, 'Bearer secret')
 })
 
-test('server errors are retried and asset downloads drop the token after the redirect', async () => {
+test('an asset completed before an upload timeout is reused instead of uploaded twice', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-release-local-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const name = 'Pisper_TUI_1.0.0_linux_x86_64.tar.gz'
+  const file = join(directory, name)
+  await writeFile(file, 'archive')
+  const digest = `sha256:${createHash('sha256').update('archive').digest('hex')}`
+  const { calls, fetchImpl } = fakeFetch(async (url) => {
+    if (url.includes('uploads.github.com')) {
+      throw Object.assign(new TypeError('fetch failed'), {
+        cause: { code: 'UND_ERR_HEADERS_TIMEOUT' },
+      })
+    }
+    return new Response(JSON.stringify([{ id: 7, name, state: 'uploaded', size: 7, digest }]), {
+      status: 200,
+    })
+  })
+  const api = createGitHubReleases({ token: 'secret', fetchImpl, sleepImpl: async () => {} })
+  const uploaded = await api.uploadAsset(42, file)
+  assert.equal(uploaded.id, 7)
+  assert.equal(calls.length, 2)
+  assert.equal(calls.filter((call) => call.method === 'POST').length, 1)
+})
+
+test('an upload network failure removes an incomplete asset and retries', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-release-local-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const name = 'Pisper_TUI_1.0.0_linux_x86_64.tar.gz'
+  const file = join(directory, name)
+  await writeFile(file, 'archive')
+  let uploads = 0
+  const { calls, fetchImpl } = fakeFetch(async (url, init) => {
+    if (url.includes('uploads.github.com')) {
+      uploads += 1
+      if (uploads === 1) throw new TypeError('fetch failed')
+      return new Response(JSON.stringify({ id: 9, name, state: 'uploaded' }), { status: 201 })
+    }
+    if (init.method === 'DELETE') return new Response(null, { status: 204 })
+    return new Response(JSON.stringify([{ id: 8, name, state: 'starter', size: 0 }]), {
+      status: 200,
+    })
+  })
+  const api = createGitHubReleases({ token: 'secret', fetchImpl, sleepImpl: async () => {} })
+  const uploaded = await api.uploadAsset(42, file)
+  assert.equal(uploaded.id, 9)
+  assert.deepEqual(
+    calls.map((call) => call.method),
+    ['POST', 'GET', 'DELETE', 'POST'],
+  )
+})
+
+test('a duplicate response after an upload timeout is reconciled before failing', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-release-local-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const name = 'Pisper_TUI_1.0.0_linux_x86_64.tar.gz'
+  const file = join(directory, name)
+  await writeFile(file, 'archive')
+  let uploads = 0
+  let listings = 0
+  const { calls, fetchImpl } = fakeFetch(async (url) => {
+    if (url.includes('uploads.github.com')) {
+      uploads += 1
+      if (uploads === 1) throw new TypeError('fetch failed')
+      return new Response(JSON.stringify({ message: 'already_exists' }), { status: 422 })
+    }
+    listings += 1
+    return new Response(
+      JSON.stringify(listings === 1 ? [] : [{ id: 10, name, state: 'uploaded', size: 7 }]),
+      { status: 200 },
+    )
+  })
+  const api = createGitHubReleases({ token: 'secret', fetchImpl, sleepImpl: async () => {} })
+  const uploaded = await api.uploadAsset(42, file)
+  assert.equal(uploaded.id, 10)
+  assert.equal(uploads, 2)
+  assert.equal(calls.filter((call) => call.method === 'DELETE').length, 0)
+})
+
+test('network and server errors are retried and asset downloads drop the token after the redirect', async () => {
   const { calls, fetchImpl } = fakeFetch(async (url, _init, count) => {
     if (url.includes('/releases?')) {
-      return count === 1
+      if (count === 1) throw new TypeError('fetch failed')
+      return count === 2
         ? new Response('busy', { status: 502 })
         : new Response(JSON.stringify([{ id: 1, draft: true }]), { status: 200 })
     }
@@ -46,9 +132,16 @@ test('server errors are retried and asset downloads drop the token after the red
       return new Response(null, { status: 302, headers: { location: 'https://objects.example/x' } })
     return new Response('bytes', { status: 200 })
   })
-  const api = createGitHubReleases({ token: 'secret', fetchImpl })
+  const dispatcher = { dispatch() {} }
+  const api = createGitHubReleases({
+    token: 'secret',
+    fetchImpl,
+    sleepImpl: async () => {},
+    dispatcher,
+  })
   assert.deepEqual(await api.listReleases(), [{ id: 1, draft: true }])
   assert.equal((await api.downloadAsset(5)).toString(), 'bytes')
+  assert.ok(calls.every((call) => call.dispatcher === dispatcher))
   const redirected = calls.at(-1)
   assert.equal(redirected.url, 'https://objects.example/x')
   assert.equal(redirected.headers.Authorization, undefined)
