@@ -711,9 +711,10 @@ export const roomMethods = {
     const created = await this.createSession(`${bot.name} · ${room.name}`, cwd)
     // 先登记席位再套设定：第一轮装配运行时（botForSession）时就得认出它是这个 Bot 的会话。
     await this.rooms.setSeat(room.id, bot.id, { sessionId: created.id })
-    await this.applyBotSettings(bot, created.id, { cwd })
+    const applied = await this.applyBotSettings(bot, created.id, { cwd })
     await this.rooms.setSeat(room.id, bot.id, {
-      applied: String(bot.updatedAt || ''),
+      // 模型没套上就不记“已套用”：下次叫醒时再套一次。
+      ...(applied !== false ? { applied: String(bot.updatedAt || '') } : {}),
       title: `${bot.name} · ${room.name}`,
     })
     return created.id
@@ -726,9 +727,12 @@ export const roomMethods = {
     const stamp = String(bot.updatedAt || '')
     const title = `${bot.name} · ${room.name}`
     const patch = {}
-    if (settings && seat?.applied !== stamp) {
-      await this.applyBotSettings(bot, sessionId, { cwd: await this.seatSessionCwd(room, bot) })
-      patch.applied = stamp
+    if (settings && (seat?.applied !== stamp || (await this.seatModelDrifted(bot, sessionId)))) {
+      const applied = await this.applyBotSettings(bot, sessionId, {
+        cwd: await this.seatSessionCwd(room, bot),
+      })
+      // 模型没套上（席位正在说话、模型暂时不可用）：不记“已套用”，下次叫醒再套。
+      if (applied !== false) patch.applied = stamp
     }
     if (seat?.title !== title && this.renameSession) {
       // 正在跑时改不了标题：留着，下次再改。
@@ -739,6 +743,14 @@ export const roomMethods = {
       if (renamed) patch.title = title
     }
     if (Object.keys(patch).length) await this.rooms.setSeat(room.id, bot.id, patch)
+  },
+
+  // 席位实际在用的模型和 Bot 该用的不一样：早先套设定时模型没换成功，席位就一直留在默认模型上，
+  // 设定时间戳却已记成“已套用”。每次叫醒前对一下，不一样就重新套。
+  async seatModelDrifted(bot, sessionId) {
+    if (!this.botSessionModelRef) return false
+    const wanted = await this.botSessionModelRef(bot, sessionId).catch(() => '')
+    return Boolean(wanted) && this.sessionMeta?.[sessionId]?.model !== wanted
   },
 
   // Bot 的设定或名字变了：同步到它在各个群里的席位。

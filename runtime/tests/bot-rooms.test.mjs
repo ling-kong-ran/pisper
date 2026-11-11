@@ -881,6 +881,41 @@ test('polling brings back a card the page still shows as running, even when it i
   )
 })
 
+test('a seat whose model did not switch tries again on the next wake instead of staying on the default model', async () => {
+  const runtime = await fakeRuntime({
+    bots: [bot(KE, '小克'), bot(PRO, '小克pro', { updatedAt: '2026-11-11T08:00:00.000Z' })],
+  })
+  const calls = []
+  // 第一次套设定时模型没换成功（席位正在说话、模型暂时不可用）。
+  runtime.applyBotSettings = async (_item, sessionId) => {
+    calls.push(sessionId)
+    return calls.length > 1
+  }
+  runtime.findSessionInfo = async () => ({})
+  const room = await runtime.createRoom({ name: '运维群', members: [KE, PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(PRO))
+  assert.equal(calls.length, 1)
+  assert.equal((await runtime.rooms.seat(room.id, PRO)).applied, '')
+
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 看一下' })
+  await settle(runtime)
+  assert.deepEqual(calls, [seat, seat])
+  assert.equal((await runtime.rooms.seat(room.id, PRO)).applied, '2026-11-11T08:00:00.000Z')
+
+  // 设定已记成套用过，但席位实际还在别的模型上：叫醒前对一下，不一样就重新套。
+  runtime.sessionMeta = { [seat]: { model: 'openai-codex/gpt-5.5' } }
+  runtime.botSessionModelRef = async () => 'anthropic-relay/claude-opus'
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 再看一下' })
+  await settle(runtime)
+  assert.equal(calls.length, 3)
+
+  // 已经在 Bot 的模型上：不再重复套。
+  runtime.sessionMeta = { [seat]: { model: 'anthropic-relay/claude-opus' } }
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 第三次' })
+  await settle(runtime)
+  assert.equal(calls.length, 3)
+})
+
 test('a seat picks up new bot settings when it is next woken; a removed member loses its seat', async () => {
   const runtime = await fakeRuntime()
   const applied = []

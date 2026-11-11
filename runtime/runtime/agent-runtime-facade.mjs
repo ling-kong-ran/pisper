@@ -1315,13 +1315,16 @@ export class AgentRuntimeFacade {
     // 运行中换不了目录（会话服务拒绝）：这次先跳过，其余设定照常生效；跑完后再保存一次设定即可。
     await this.setSessionCwd(sessionId, cwd || (await this.botSessionCwd(bot))).catch(() => {})
     await this.setSessionExecutionMode(sessionId, bot.executionMode)
-    const resolved = await this.providerPreferences.resolveSubagentModel(
-      bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
-    )
-    if (resolved.model)
-      await this.setSessionModel(sessionId, resolved.model.provider, resolved.model.id).catch(
-        () => {},
-      )
+    const ref = await this.botSessionModelRef(bot, sessionId)
+    const slash = ref.indexOf('/')
+    // 换不了模型（正在说话、模型暂时不可用）时不报错，但要告诉调用方：群里的席位据此下次叫醒再试，
+    // 否则席位一直留在默认模型上（Bot 设的是别的服务商，群里却去刷默认账号的令牌）。
+    const modelApplied = ref
+      ? await this.setSessionModel(sessionId, ref.slice(0, slash), ref.slice(slash + 1)).then(
+          () => true,
+          () => false,
+        )
+      : !(bot.model.ref || bot.model.tier)
     // 思考等级：没设就用模型默认；模型不支持这一档时会话服务会拒绝，按模型默认处理。
     if (bot.thinking) await this.setSessionThinkingLevel(sessionId, bot.thinking).catch(() => {})
     // 指令进系统提示、工具范围进运行时：空闲时释放运行时，下次用到时按新设定重建。
@@ -1330,6 +1333,19 @@ export class AgentRuntimeFacade {
     const value = this.sessions.get(sessionId)
     if (!this.sessionRuntimeIsProtected(sessionId, value))
       this.disposeSessionRuntime(sessionId, value)
+    return modelApplied
+  }
+
+  // Bot 的会话该用的模型（provider/model）：Bot 设定里的模型或档位；暂时解析不出来时，
+  // 群里的席位跟它的长期对话用同一个模型（单独聊能用，群里也就能用），都没有时返回空串。
+  async botSessionModelRef(bot, sessionId) {
+    const resolved = await this.providerPreferences.resolveSubagentModel(
+      bot.model.ref ? { modelRef: bot.model.ref } : { tier: bot.model.tier },
+    )
+    if (resolved.model) return `${resolved.model.provider}/${resolved.model.id}`
+    const thread = bot.threadSessionId
+    const fallback = thread && thread !== sessionId ? this.sessionMeta?.[thread]?.model || '' : ''
+    return fallback.includes('/') ? fallback : ''
   }
 
   // 渠道、定时任务对 Bot 说一句话：发进它的长期会话。这一轮结束后把回复发回来源聊天。
