@@ -9,7 +9,7 @@ import type {
   SessionState,
   SessionSummary,
 } from '@/types/chat'
-import type { BranchFromHereOptions, CompactionPreferencePatch, WithdrawnInput } from './chat-api'
+import type { BranchFromHereOptions, WithdrawnInput } from './chat-api'
 import type { NewTaskDraftChrome } from './session-workspace-context'
 import type { ConfirmDialogOptions } from '@/hooks/useAppDialog'
 
@@ -72,7 +72,7 @@ export type ChatDockContextValue = {
   pauseGoal: (sessionId: string) => Promise<void>
   setGoalBudget: (sessionId: string, tokenBudget: number | null) => Promise<void>
   compactSession: (sessionId: string) => Promise<void>
-  setCompactionPreference: (patch: CompactionPreferencePatch) => Promise<void>
+  setCompactionThreshold: (thresholdPercent: number) => Promise<void>
   switchSessionModel: (sessionId: string, model: string) => Promise<void>
   loadSessionThinkingLevel: (sessionId: string) => Promise<void>
   switchSessionThinkingLevel: (sessionId: string, level: string) => Promise<void>

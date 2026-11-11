@@ -4,19 +4,13 @@ import { isAbsolute, resolve } from 'node:path'
 import { SUPERSEDED_READ } from '../prompts/sessions.mjs'
 import { compact } from './pi-coding-agent.mjs'
 
-export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
+export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 90
 // 下限 10：允许激进压缩策略（小窗口模型/长工具输出场景）；上限 95 保留，
 // 再高会挤掉摘要响应所需的预留 token。
 export const MIN_COMPACTION_THRESHOLD_PERCENT = 10
 export const MAX_COMPACTION_THRESHOLD_PERCENT = 95
 // 摘要响应的预留 token：压缩时不能把上下文窗口全部占满，否则摘要无法生成。
 export const COMPACTION_SUMMARY_RESERVE_TOKENS = 16_384
-// 压缩触发线的绝对上限：1M 窗口的模型按 80% 要到约 838K 才压缩，单次请求又慢又贵，
-// 模型效果也会下降。触发线取“窗口 × 阈值”与这个上限中较小的一个；0 表示不设上限。
-export const DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS = 256_000
-export const COMPACTION_MAX_CONTEXT_TOKEN_OPTIONS = Object.freeze([128_000, 256_000, 512_000, 0])
-const MIN_COMPACTION_MAX_CONTEXT_TOKENS = 32_000
-const MAX_COMPACTION_MAX_CONTEXT_TOKENS = 10_000_000
 
 const PISPER_TURN_COMPACTION_PATCH = Symbol('pisper.turn-compaction-patch')
 
@@ -38,36 +32,18 @@ export function normalizeCompactionThresholdPercent(
   )
 }
 
-// 上限只接受 0（不限）或合理区间内的整数，其余回退到默认值。
-export function normalizeCompactionMaxContextTokens(
-  value,
-  fallback = DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS,
-) {
-  if (value === 0 || value === '0') return 0
-  const number = Number(value)
-  if (
-    !Number.isSafeInteger(number) ||
-    number < MIN_COMPACTION_MAX_CONTEXT_TOKENS ||
-    number > MAX_COMPACTION_MAX_CONTEXT_TOKENS
-  )
-    return fallback
-  return number
-}
-
 // 计算有效压缩设置：由阈值百分比反推预留 token（窗口余量），
 // 未显式配置时兜底使用默认预留/保留最近 token 数。
 export function effectiveCompactionSettings(
   settings = {},
   contextWindow = 0,
   thresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT,
-  maxContextTokens = DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS,
 ) {
   const windowTokens = tokenCount(contextWindow)
   const normalizedThreshold = normalizeCompactionThresholdPercent(thresholdPercent)
-  const cap = normalizeCompactionMaxContextTokens(maxContextTokens)
-  const percentTrigger = Math.floor((windowTokens * normalizedThreshold) / 100)
-  const triggerTokens = cap ? Math.min(percentTrigger, cap) : percentTrigger
-  const thresholdReserve = windowTokens ? Math.max(1, windowTokens - triggerTokens) : 0
+  const thresholdReserve = windowTokens
+    ? Math.max(1, windowTokens - Math.floor((windowTokens * normalizedThreshold) / 100))
+    : 0
   const keepRecentTokens = tokenCount(settings.keepRecentTokens, 20_000)
   // 保留尾部不能反过来超过压缩触发线；至少留下一半给摘要、系统上下文和后续工作。
   const retainedLimit = windowTokens
@@ -88,7 +64,6 @@ export function createCompactionSettingsManager(
   settingsManager,
   getContextWindow = () => 0,
   getThresholdPercent = () => DEFAULT_COMPACTION_THRESHOLD_PERCENT,
-  getMaxContextTokens = () => DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS,
 ) {
   if (!settingsManager) return settingsManager
   return new Proxy(settingsManager, {
@@ -99,7 +74,6 @@ export function createCompactionSettingsManager(
             target.getCompactionSettings(),
             getContextWindow(),
             getThresholdPercent(),
-            getMaxContextTokens(),
           )
       }
       const value = Reflect.get(target, property, target)

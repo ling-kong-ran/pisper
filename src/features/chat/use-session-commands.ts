@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/http'
 import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import type { SessionStateUpdate } from '@/lib/session-state'
 import type { ModelOption, SessionState, SessionSummary } from '@/types/chat'
-import { chatApi, type CompactionPreferencePatch } from './chat-api'
+import { chatApi } from './chat-api'
 import { chatErrorMessage } from './chat-errors'
 import { announceSessionsUpdated } from './events'
 import { sessionRuntimeSelections } from './session-runtime-selections'
@@ -131,28 +131,22 @@ export function useSessionCommands({
     [notify, sessionStatesRef, syncLiveSession, t, updateSessionState],
   )
 
-  // 更新全局压缩偏好（阈值或绝对上限）：调运行时偏好并批量回写所有会话的压缩预算。
-  // 触发线 = min(窗口 × 阈值, 上限)，与 Runtime 的 effectiveCompactionSettings 一致。
-  const setCompactionPreference = useCallback(
-    async (patch: CompactionPreferencePatch) => {
-      const preference = await chatApi.updateCompactionPreference(patch)
-      const cap = Math.max(0, Number(preference.maxContextTokens) || 0)
+  // 更新全局压缩阈值：调运行时偏好并批量回写所有会话的压缩预算。
+  const setCompactionThreshold = useCallback(
+    async (thresholdPercent: number) => {
+      const preference = await chatApi.updateCompactionPreference(thresholdPercent)
       const states = Object.fromEntries(
         Object.entries(sessionStatesRef.current).map(([sessionId, state]) => {
           const contextWindow = Number(state.contextUsage?.contextWindow) || 0
           if (!contextWindow) return [sessionId, state]
-          const percentTokens = Math.floor((contextWindow * preference.thresholdPercent) / 100)
-          const compactAtTokens = cap ? Math.min(percentTokens, cap) : percentTokens
           return [
             sessionId,
             {
               ...state,
               contextUsage: {
                 ...state.contextUsage,
-                compactAtPercent: (compactAtTokens / contextWindow) * 100,
-                compactAtTokens,
-                compactionThresholdPercent: preference.thresholdPercent,
-                compactionMaxContextTokens: cap,
+                compactAtPercent: preference.thresholdPercent,
+                compactAtTokens: Math.floor((contextWindow * preference.thresholdPercent) / 100),
               },
             },
           ]
@@ -650,7 +644,7 @@ export function useSessionCommands({
     pauseGoal,
     setGoalBudget,
     compactSession,
-    setCompactionPreference,
+    setCompactionThreshold,
     loadSessionThinkingLevel,
     switchSessionModel,
     switchSessionThinkingLevel,

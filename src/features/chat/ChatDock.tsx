@@ -382,7 +382,7 @@ function SessionPanel({ sessionId, panelId, shortcutEnabled, onFocusCapture }: S
       onAssetConsumed={context.onAssetConsumed}
       notify={context.notify}
       onOpenModelSettings={context.openModelSettings}
-      onCompactionPreferenceChange={context.setCompactionPreference}
+      onCompactionThresholdChange={context.setCompactionThreshold}
       {...handlers}
     />
   )

@@ -19,8 +19,7 @@ import { formatTokenCount } from '@/lib/format'
 import { compactModelName } from '@/lib/model-display'
 import { cn } from '@/lib/utils'
 import type { EntityRecord, ModelOption } from '@/types/chat'
-import { AppSelect } from '@/components/AppSelect'
-import { chatApi, type CompactionPreferencePatch } from './chat-api'
+import { chatApi } from './chat-api'
 import { ContextBreakdownMeter, ContextCapacityBar } from './ContextBreakdownMeter'
 import { COMPOSER_PHONE_TARGET_CLASSES } from './focus-session-composer-bits'
 import { formatRunDuration } from './run-activity'
@@ -139,29 +138,19 @@ export function ContextUsageSection({
   sessionUsage,
   model,
   availableModels,
-  onCompactionChange,
+  onThresholdChange,
 }: {
   sessionId?: string
   usage?: EntityRecord | null
   sessionUsage?: EntityRecord | null
   model?: string
   availableModels?: ModelOption[]
-  onCompactionChange?: (patch: CompactionPreferencePatch) => Promise<void> | void
+  onThresholdChange?: (thresholdPercent: number) => Promise<void> | void
 }) {
   const { t } = useI18n()
   const contextWindow = Number(usage?.contextWindow) || 0
   const compactAtPercent = usage?.compactAtPercent == null ? 80 : Number(usage.compactAtPercent)
-  // 有绝对上限时实际触发位置可能低于设置的百分比；滑条显示设置值，旧 Runtime 没有这个字段时退回触发位置。
-  const configuredThreshold =
-    usage?.compactionThresholdPercent == null
-      ? compactAtPercent
-      : Number(usage.compactionThresholdPercent)
-  const currentThreshold = Number.isFinite(configuredThreshold)
-    ? Math.round(configuredThreshold)
-    : 80
-  const capKnown = usage?.compactionMaxContextTokens != null
-  const currentCap = Math.max(0, Number(usage?.compactionMaxContextTokens) || 0)
-  const [savingCap, setSavingCap] = useState(false)
+  const currentThreshold = Number.isFinite(compactAtPercent) ? Math.round(compactAtPercent) : 80
   const [draftThreshold, setDraftThreshold] = useState(currentThreshold)
   const [savingThreshold, setSavingThreshold] = useState(false)
   const [thresholdError, setThresholdError] = useState('')
@@ -214,11 +203,11 @@ export function ContextUsageSection({
   const saveThreshold = async (value: number) => {
     const next = Math.min(95, Math.max(10, Math.round(value)))
     setDraftThreshold(next)
-    if (!onCompactionChange || next === lastSavedThreshold.current) return
+    if (!onThresholdChange || next === lastSavedThreshold.current) return
     setSavingThreshold(true)
     setThresholdError('')
     try {
-      await onCompactionChange({ thresholdPercent: next })
+      await onThresholdChange(next)
       lastSavedThreshold.current = next
     } catch (error) {
       setThresholdError(error instanceof Error ? error.message : String(error))
@@ -234,19 +223,6 @@ export function ContextUsageSection({
   const commitThreshold = (value: number) => {
     window.clearTimeout(thresholdSaveTimer.current)
     void saveThreshold(value)
-  }
-  // 保存触发线的绝对上限：0 表示不限。失败原因与阈值共用一行。
-  const saveCap = async (value: number) => {
-    if (!onCompactionChange || value === currentCap) return
-    setSavingCap(true)
-    setThresholdError('')
-    try {
-      await onCompactionChange({ maxContextTokens: value })
-    } catch (error) {
-      setThresholdError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSavingCap(false)
-    }
   }
   const row = (label: string, value: string, key: string, title?: string) => (
     <div
@@ -339,33 +315,9 @@ export function ContextUsageSection({
               onValueChange={([next]) => scheduleThresholdSave(next)}
               onValueCommit={([next]) => commitThreshold(next)}
             />
-            {capKnown && (
-              <div className="flex items-center justify-between gap-3 font-medium text-content">
-                <span>{t('chat:focusSession.compactionCap')}</span>
-                <AppSelect
-                  aria-label={t('chat:focusSession.compactionCap')}
-                  className="w-32"
-                  value={String(currentCap)}
-                  disabled={savingCap || !onCompactionChange}
-                  onChange={(event) => void saveCap(Number(event.target.value))}
-                >
-                  {COMPACTION_CAP_OPTIONS.map((tokens) => (
-                    <option key={tokens} value={String(tokens)}>
-                      {tokens
-                        ? formatTokenCount(tokens)
-                        : t('chat:focusSession.compactionCapUnlimited')}
-                    </option>
-                  ))}
-                </AppSelect>
-              </div>
-            )}
             <small className={thresholdError ? 'text-danger' : 'text-content-muted'}>
               {thresholdError ||
-                (savingThreshold || savingCap
-                  ? t('chat:focusSession.savingCompactionThreshold')
-                  : capKnown
-                    ? t('chat:focusSession.compactionCapHint')
-                    : '\u00a0')}
+                (savingThreshold ? t('chat:focusSession.savingCompactionThreshold') : '\u00a0')}
             </small>
           </div>
         </details>
@@ -373,9 +325,6 @@ export function ContextUsageSection({
     </div>
   )
 }
-
-// 压缩触发线的绝对上限可选几档，与 Runtime 的 COMPACTION_MAX_CONTEXT_TOKEN_OPTIONS 一致；0 表示不限。
-const COMPACTION_CAP_OPTIONS = [128_000, 256_000, 512_000, 0]
 
 export function thinkingLevelLabel(t: Translate, level: string) {
   const thinkingLabels: Record<string, string> = {

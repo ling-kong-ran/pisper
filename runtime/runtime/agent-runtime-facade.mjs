@@ -67,10 +67,8 @@ import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.
 import { projectAgentTranscript } from './agent-transcript.mjs'
 import { sessionInputQueueSnapshot } from './session-input-queue.mjs'
 import {
-  COMPACTION_MAX_CONTEXT_TOKEN_OPTIONS,
   MAX_COMPACTION_THRESHOLD_PERCENT,
   MIN_COMPACTION_THRESHOLD_PERCENT,
-  normalizeCompactionMaxContextTokens,
   normalizeCompactionThresholdPercent,
 } from './compaction-policy.mjs'
 import {
@@ -1039,9 +1037,6 @@ export class AgentRuntimeFacade {
       thresholdPercent: this.compactionThresholdPercent,
       minPercent: MIN_COMPACTION_THRESHOLD_PERCENT,
       maxPercent: MAX_COMPACTION_THRESHOLD_PERCENT,
-      // 触发线的绝对上限（token），0 表示不限；options 是设置里可选的几档。
-      maxContextTokens: this.compactionMaxContextTokens,
-      maxContextTokenOptions: [...COMPACTION_MAX_CONTEXT_TOKEN_OPTIONS],
     }
   }
 
@@ -2435,18 +2430,12 @@ export class AgentRuntimeFacade {
     return { approval: approval ?? null, question }
   }
 
-  // 两项都可单独改：只带 thresholdPercent 的旧客户端行为不变。
   async updateCompactionPreference(input) {
-    const hasThreshold = input?.thresholdPercent !== undefined
-    const hasCap = input?.maxContextTokens !== undefined
-    if (!hasThreshold && !hasCap)
-      throw pisperError('invalid', 'config', 'nothing to update in the compaction preference')
     const requested = Number(input?.thresholdPercent)
     if (
-      hasThreshold &&
-      (!Number.isFinite(requested) ||
-        requested < MIN_COMPACTION_THRESHOLD_PERCENT ||
-        requested > MAX_COMPACTION_THRESHOLD_PERCENT)
+      !Number.isFinite(requested) ||
+      requested < MIN_COMPACTION_THRESHOLD_PERCENT ||
+      requested > MAX_COMPACTION_THRESHOLD_PERCENT
     ) {
       throw pisperError(
         'invalid',
@@ -2454,21 +2443,13 @@ export class AgentRuntimeFacade {
         `compaction threshold must be ${MIN_COMPACTION_THRESHOLD_PERCENT}-${MAX_COMPACTION_THRESHOLD_PERCENT}%`,
       )
     }
-    const requestedCap = input?.maxContextTokens
-    const maxContextTokens = hasCap ? normalizeCompactionMaxContextTokens(requestedCap, -1) : -1
-    if (hasCap && maxContextTokens < 0)
-      throw pisperError('invalid', 'config', 'compaction cap must be 0 or 32000-10000000 tokens')
-    const thresholdPercent = hasThreshold
-      ? normalizeCompactionThresholdPercent(requested)
-      : this.compactionThresholdPercent
+    const thresholdPercent = normalizeCompactionThresholdPercent(requested)
     const appConfig = await readJson(this.appConfigPath, {})
     await writeJsonAtomic(this.appConfigPath, {
       ...appConfig,
       compactionThresholdPercent: thresholdPercent,
-      ...(hasCap ? { compactionMaxContextTokens: maxContextTokens } : {}),
     })
     this.compactionThresholdPercent = thresholdPercent
-    if (hasCap) this.compactionMaxContextTokens = maxContextTokens
     this.sessionContextUsageCache.clear()
     this.streamProjection.invalidateAllUsage()
     return this.getCompactionPreference()
