@@ -114,6 +114,11 @@ export function isRoomPath(pathname: string) {
   return /^\/bots\/rooms\/[^/]+\/?$/.test(pathname)
 }
 
+// 某个 Bot 的设置页（/bots/:botId）：手机上和群聊页一样自带顶栏，外壳不再画一条“Bots”。
+export function isBotSettingsPath(pathname: string) {
+  return /^\/bots\/(?!rooms\/)[^/]+\/?$/.test(pathname)
+}
+
 // 组件详情路径（/components/:componentId）；空 id 回到组件列表。
 export function componentPath(id = '') {
   return id ? `/components/${encodeURIComponent(id)}` : '/components'

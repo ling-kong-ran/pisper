@@ -174,11 +174,15 @@ export async function channelsRoute() {
 }
 
 export async function botsRoute() {
-  const { BotsPage } = await import('@/features/bots/public')
+  const [{ BotsPage }, { PhoneMenuButton }] = await Promise.all([
+    import('@/features/bots/public'),
+    import('@/app/PhoneMenuButton'),
+  ])
 
+  // 手机上 Bot 设置页自带顶栏（左上角是外壳的 ☰），和群聊页一样。
   function BotsRoute() {
     const context = useAppRouteContext()
-    return <BotsPage notify={context.notify} />
+    return <BotsPage notify={context.notify} phoneLeading={<PhoneMenuButton />} />
   }
 
   return { Component: BotsRoute }

@@ -377,9 +377,24 @@ test('a bot needs only a name: the folder defaults and settings stay out of the 
     computer,
     /listFolders=\{\(path, signal\) => listEnvironmentFolders\(environmentId, path, signal\)\}/,
   )
+  // 设置页按组排成和设置页同一套的行；列表类在行下面就地展开，头部能改名、暂停。
   const details = await readFile(join(root, 'src/features/bots/BotDetails.tsx'), 'utf8')
-  for (const section of ['computer', 'chats', 'commands', 'schedules', 'advanced'])
-    assert.match(details, new RegExp(`<AccordionItem value="${section}">`))
+  for (const section of ['computer', 'chats', 'commands', 'schedules', 'memory', 'skills'])
+    assert.match(details, new RegExp(`\\{\\.\\.\\.row\\('${section}'\\)\\}`))
+  assert.match(details, /data-bot-setting=\{id\}/)
+  assert.match(details, /from '@\/components\/app\/SettingsRow'/)
+  assert.doesNotMatch(details, /Accordion/)
+  assert.match(details, /onSave\(\{ name \}\)/)
+  assert.match(details, /onCheckedChange=\{\(enabled\) => void onSave\(\{ enabled \}\)\}/)
+  // 群的设定都在“群信息”面板里，改了就生效；不再有群设置对话框。
+  const [panels, dialogs, roomPage] = await Promise.all(
+    ['RoomPanels.tsx', 'RoomDialogs.tsx', 'RoomPage.tsx'].map((file) =>
+      readFile(join(root, 'src/features/bots', file), 'utf8'),
+    ),
+  )
+  assert.match(panels, /export function RoomInfoPanel\(/)
+  assert.doesNotMatch(dialogs + roomPage, /RoomSettingsDialog/)
+  assert.match(roomPage, /<RoomInfoPanel\s/)
 })
 
 test('the sidebar keeps the bots that matter on top and folds the rest', () => {
@@ -483,7 +498,7 @@ test('bot greeting derives from settings and stays at the start of the conversat
   )
   // 群里的席位会话不放招呼卡（那是 Bot 私聊的开场）。
   assert.match(focus, /botId=\{session\?\.roomId \? undefined : botId\}\s+key="transcript"/)
-  // 只认聊天分区，地址里的其他值不进 Accordion。
+  // 只认聊天分区，地址里的其他值不展开任何一行。
   assert.match(page, /searchParams\.get\('section'\) === 'chats' \? 'chats' : undefined/)
   const keys = (json) =>
     Object.keys(JSON.parse(json))

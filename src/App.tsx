@@ -41,6 +41,7 @@ import {
   activeSessionIdForRoute,
   HOME_PATH,
   isHomeEntry,
+  isBotSettingsPath,
   isRoomPath,
   NEW_SESSION_ROUTE_ID,
   PAGE_IDS,
@@ -972,7 +973,11 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   // 只剩组件工作室与“我的组件”整页在 A7 之前沿用共享页头（面包屑与终端开关）。
   // 手机外壳（规格 7.1）：底部标签栏退役；会话页与主页有自己的顶栏，其余页面顶上是一条 56px 顶栏
   // （☰ 带需要你计数 · 页面标题 · ✎ 新任务），懒加载期间先占住高度，页面不跳。
-  const phoneTopBar = phoneShell && page !== 'session' && !isRoomPath(location.pathname)
+  const phoneTopBar =
+    phoneShell &&
+    page !== 'session' &&
+    !isRoomPath(location.pathname) &&
+    !isBotSettingsPath(location.pathname)
   // 手机设置（规格 7.4）：/config 是分区列表（不挂设置内容与页头），/config/<分区> 顶上一条“‹ 设置”回列表。
   const phoneSettingsList = phoneShell && settingsOwned && /^\/config\/?$/.test(location.pathname)
   const sharedPageHeader =

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+import { SettingsRow, SettingsSection } from '@/components/app/SettingsRow'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,21 +50,23 @@ export function BotDeleteSection({
   }
 
   return (
-    <section className="flex items-center justify-between gap-3 border-t border-stroke pt-4">
-      <div className="min-w-0">
-        <div className="text-sm text-content">{t('bots:delete.title')}</div>
-        <p className="text-xs text-content-muted">{t('bots:delete.hint')}</p>
-      </div>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        data-bot-delete={bot.id}
-        onClick={() => setOpen(true)}
-      >
-        <Trash2 aria-hidden="true" />
-        {t('bots:delete.action')}
-      </Button>
+    <SettingsSection title={t('bots:delete.section')} className="mt-4">
+      <SettingsRow
+        title={t('bots:delete.title')}
+        description={t('bots:delete.hint')}
+        control={
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            data-bot-delete={bot.id}
+            onClick={() => setOpen(true)}
+          >
+            <Trash2 aria-hidden="true" />
+            {t('bots:delete.action')}
+          </Button>
+        }
+      />
       <AlertDialog open={open} onOpenChange={(next) => !deleting && setOpen(next)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -87,6 +90,6 @@ export function BotDeleteSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </SettingsSection>
   )
 }

@@ -46,8 +46,8 @@ import {
 } from './room-presentation'
 import { RoomAvatarStack } from './RoomAvatarStack'
 import { RoomComposer } from './RoomComposer'
-import { RoomBriefDialog, RoomSettingsDialog, type RoomSettingsDraft } from './RoomDialogs'
-import { RoomBriefPanel, RoomMembersPanel } from './RoomPanels'
+import { RoomBriefDialog } from './RoomDialogs'
+import { RoomBriefPanel, RoomInfoPanel, type RoomSettingsPatch } from './RoomPanels'
 import { RoomBriefPrompt, RoomStatusRows } from './RoomStatusRows'
 import { RoomTimeline, type TimelineActions } from './RoomTimeline'
 import {
@@ -98,7 +98,6 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   // “找谁写一份简报”：稍后 = 这次打开群聊不再问；这段不用 = 到这一条为止的都不必整理。
   const [promptLater, setPromptLater] = useState(false)
   const [promptSkipUpTo, setPromptSkipUpTo] = useState(0)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [briefOpen, setBriefOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [briefing, setBriefing] = useState(false)
@@ -111,10 +110,25 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
   // 键盘用户接着从原处往下走，不掉回页面开头。
   const recallReturn = useRef<{ node: HTMLElement | null; id: string } | null>(null)
 
-  const members = useMemo(
-    () => new Map((detail?.members || []).map((member) => [member.id, member])),
-    [detail?.members],
-  )
+  // 时间线里的名字和头像：现在的成员，加上移出群但还在的 Bot（它之前说的话照常署名，
+  // 不显示成“已删除的 Bot”）。真正删掉的 Bot 两边都找不到，才退回“已删除的 Bot”。
+  const members = useMemo(() => {
+    const map = new Map((detail?.members || []).map((member) => [member.id, member]))
+    for (const bot of bots)
+      if (!map.has(bot.id))
+        map.set(bot.id, {
+          id: bot.id,
+          name: bot.name,
+          avatar: bot.avatar,
+          enabled: bot.enabled,
+          deleted: false,
+          sessionId: '',
+          readSeq: 0,
+          unread: 0,
+          status: { state: 'idle', waiting: null, current: '' },
+        })
+    return map
+  }, [detail?.members, bots])
   const items = useMemo(() => timelineItems(messages), [messages])
   const statusEntries = useMemo(() => roomStatusEntries(messages), [messages])
   const botsById = useMemo(() => new Map(bots.map((bot) => [bot.id, bot])), [bots])
@@ -267,10 +281,16 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
     setPanel((current) => (current === next ? null : next))
   }
 
-  const saveSettings = async (draft: Partial<RoomSettingsDraft>) => {
-    const room = await updateRoom(roomId, draft)
-    upsertRoom(room)
-    await live.poll()
+  // 群信息面板里改一项就存一项；失败时报错并告诉面板没存上，草稿留着。
+  const saveSettings = async (patch: RoomSettingsPatch) => {
+    try {
+      upsertRoom(await updateRoom(roomId, patch))
+      await live.poll()
+      return true
+    } catch (caught) {
+      reportError(caught)
+      return false
+    }
   }
 
   const remove = async () => {
@@ -317,13 +337,17 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
       : ''
   const panelContent =
     panel === 'members' ? (
-      <RoomMembersPanel
+      <RoomInfoPanel
         detail={detail}
+        bots={bots}
         hostAvailable={hostAvailable}
         onOpenMember={(member: RoomMember) =>
           member.sessionId && navigate(sessionPath(member.sessionId))
         }
+        onSave={saveSettings}
         onAnswerModeChange={changeAnswerMode}
+        onDelete={() => setDeleting(true)}
+        onError={reportError}
       />
     ) : (
       <RoomBriefPanel
@@ -333,7 +357,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         onEditBrief={() => setBriefOpen(true)}
       />
     )
-  const panelTitle = panel === 'members' ? t('bots:room.header.members') : t('bots:room.brief')
+  const panelTitle = panel === 'members' ? t('bots:room.header.info') : t('bots:room.brief')
   const prompt =
     promptLater || briefing || detail.briefing
       ? null
@@ -419,7 +443,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
                 onClick={() => togglePanel('members')}
               >
                 <Users />
-                {t('bots:room.header.members')}
+                {t('bots:room.header.info')}
               </Button>
             </>
           )}
@@ -438,14 +462,11 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setPanel('members')}>
                     <Users aria-hidden="true" />
-                    {t('bots:room.header.members')}
+                    {t('bots:room.header.info')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                {t('bots:room.settings.title')}
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setBriefOpen(true)}>
                 {t('bots:room.brief.edit')}
               </DropdownMenuItem>
@@ -582,14 +603,6 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         </Sheet>
       )}
 
-      <RoomSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        room={room}
-        bots={bots}
-        hostAvailable={hostAvailable}
-        onSave={saveSettings}
-      />
       <RoomBriefDialog
         open={briefOpen}
         onOpenChange={setBriefOpen}

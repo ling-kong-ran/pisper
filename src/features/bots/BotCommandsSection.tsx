@@ -246,6 +246,7 @@ export function BotCommandsSection({
         <Button
           size="sm"
           variant="outline"
+          className="self-start"
           disabled={editing !== null || bot.commands.length >= 20}
           onClick={() => setEditing(-1)}
         >

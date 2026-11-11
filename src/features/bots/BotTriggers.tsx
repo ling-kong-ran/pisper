@@ -348,7 +348,7 @@ export function ChannelEditor({ bot, onError }: { bot: Bot; onError: (message: s
           </div>
         </div>
       ) : (
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <Button size="sm" variant="outline" className="self-start" onClick={() => setAdding(true)}>
           {t('bots:triggers.addChat')}
         </Button>
       )}
@@ -471,18 +471,29 @@ export function ScheduleForm({
   )
 }
 
-export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: string) => void }) {
+export function ScheduleEditor({
+  bot,
+  onError,
+  onCount,
+}: {
+  bot: Bot
+  onError: (message: string) => void
+  // 设置页那一行的摘要跟着列表走（加了、删了都更新）。
+  onCount?: (count: number) => void
+}) {
   const { t } = useI18n()
   const [schedules, setSchedules] = useState<BotSchedule[]>([])
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
   const load = useCallback(async () => {
     try {
-      setSchedules(await fetchBotSchedules(bot.id))
+      const next = await fetchBotSchedules(bot.id)
+      setSchedules(next)
+      onCount?.(next.length)
     } catch {
       // 定时任务能力不可用时只是不显示这一节的列表。
     }
-  }, [bot.id])
+  }, [bot.id, onCount])
   useEffect(() => {
     void load()
   }, [load])
@@ -542,7 +553,7 @@ export function ScheduleEditor({ bot, onError }: { bot: Bot; onError: (message: 
           onError={onError}
         />
       ) : (
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <Button size="sm" variant="outline" className="self-start" onClick={() => setAdding(true)}>
           {t('bots:triggers.addSchedule')}
         </Button>
       )}

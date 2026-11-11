@@ -1,22 +1,47 @@
-// 群聊页头“简报”“成员”打开的面板内容（桌面在右侧，手机在底部表单），一次只开一个。
+// 群聊页头“简报”“群信息”打开的面板内容（桌面在右侧，手机在底部表单），一次只开一个。
 // 简报：目标、已定、待办与负责的人，整理到第几条、之后还有几条没整理，整理 / 编辑。
-// 成员：各自在做什么、读到哪、在等你什么，点一下打开它在这个群里的会话；下面是“谁来回答”。
-import { Check, CircleDashed, Pencil, Pin, Sparkles, Target, Users } from 'lucide-react'
+// 群信息：群的全部设定都在这里，改了就生效——名字与目标、成员（各自在做什么，能加、能移出）、
+// 没点名的话谁来回答、项目目录、维护简报的 Bot、删除这个群。
+import { useState, type FormEvent, type ReactNode } from 'react'
+import {
+  Check,
+  CircleDashed,
+  Ellipsis,
+  FolderOpen,
+  Pencil,
+  Pin,
+  Plus,
+  Sparkles,
+  Target,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { AppSelect } from '@/components/AppSelect'
+import { WorkspacePicker } from '@/components/WorkspacePicker'
 import { InlineEmptyState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { OrbitSpinner } from '@/components/ui/spinner'
+import { pickSystemDirectory } from '@/lib/pick-system-directory'
 import { cn } from '@/lib/utils'
 import { BotAvatar } from './BotAvatar'
-import type { RoomAnswerMode, RoomDetail, RoomMember } from './rooms-api'
+import type { Bot } from './bots-api'
+import type { Room, RoomAnswerMode, RoomDetail, RoomMember } from './rooms-api'
+
+const MAX_MEMBERS = 8
+
+export type RoomSettingsPatch = Partial<
+  Pick<Room, 'name' | 'goal' | 'members' | 'cwd' | 'briefBotId' | 'answerMode' | 'hostBotId'>
+>
 
 function MemberLine({ member }: { member: RoomMember }) {
   const { t } = useI18n()
@@ -207,21 +232,37 @@ export function RoomBriefPanel({
   )
 }
 
-export function RoomMembersPanel({
+export function RoomInfoPanel({
   detail,
+  bots,
   hostAvailable,
   onOpenMember,
+  onSave,
   onAnswerModeChange,
+  onDelete,
+  onError,
 }: {
   detail: RoomDetail
-  // Runtime 支持主持人分派时才有“谁来回答”。
+  // 能加进群的 Bot 从这里挑。
+  bots: readonly Bot[]
+  // Runtime 支持主持人分派时才有“谁来回答”；不支持时也不发这两个字段。
   hostAvailable: boolean
   onOpenMember: (member: RoomMember) => void
+  // 改了就存；失败由页面报错，面板里的草稿留着可以再试。
+  onSave: (patch: RoomSettingsPatch) => Promise<boolean>
   onAnswerModeChange: (answerMode: RoomAnswerMode, hostBotId: string) => void
+  onDelete: () => void
+  onError: (caught: unknown) => void
 }) {
   const { t } = useI18n()
   const { members, room } = detail
+  const [busy, setBusy] = useState(false)
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editingGoal, setEditingGoal] = useState<string | null>(null)
+  const [picking, setPicking] = useState(false)
+  const [browsing, setBrowsing] = useState(false)
   const candidates = members.filter((member) => !member.deleted)
+  const addable = bots.filter((bot) => !room.members.includes(bot.id))
   // 切到主持人分派时：原来记着的主持人还在群里就沿用，不然先请第一个成员。
   const hostFor = (mode: RoomAnswerMode) =>
     mode !== 'host'
@@ -229,26 +270,167 @@ export function RoomMembersPanel({
       : candidates.some((member) => member.id === room.hostBotId)
         ? room.hostBotId
         : candidates[0]?.id || ''
+
+  const save = async (patch: RoomSettingsPatch) => {
+    setBusy(true)
+    try {
+      return await onSave(patch)
+    } finally {
+      setBusy(false)
+    }
+  }
+  // 成员变了：维护简报的、主持人不在群里了就换掉（主持人分派时换成第一个成员）。
+  const saveMembers = (next: string[]) =>
+    void save({
+      members: next,
+      briefBotId: next.includes(room.briefBotId) ? room.briefBotId : '',
+      ...(hostAvailable
+        ? {
+            answerMode: room.answerMode,
+            hostBotId: next.includes(room.hostBotId)
+              ? room.hostBotId
+              : room.answerMode === 'host'
+                ? next[0] || ''
+                : '',
+          }
+        : {}),
+    })
+  const submitText = (key: 'name' | 'goal', value: string | null) => async (event: FormEvent) => {
+    event.preventDefault()
+    const text = value?.trim() ?? ''
+    if (key === 'name' && !text) return
+    const done = text === room[key] || (await save({ [key]: text }))
+    if (done) (key === 'name' ? setEditingName : setEditingGoal)(null)
+  }
+  // 先开系统的文件夹对话框；开不了（手机、配对设备）时退回目录面板逐级点选，不用手打路径。
+  const pickFolder = async () => {
+    if (picking) return
+    setPicking(true)
+    try {
+      const result = await pickSystemDirectory(room.cwd, t('bots:room.settings.folder'))
+      if (result.status === 'picked') void save({ cwd: result.path })
+      else if (result.status === 'unavailable') setBrowsing(true)
+    } catch (caught) {
+      onError(caught)
+    } finally {
+      setPicking(false)
+    }
+  }
+  const folderName = room.cwd.split(/[\\/]/).filter(Boolean).at(-1) || room.cwd
+
   return (
-    <div className="flex flex-col gap-4">
-      <section aria-labelledby="room-members-title">
-        <header className="mb-1 flex items-center gap-1.5 px-2 text-[12.5px] font-semibold text-content">
-          <Users className="size-3.5 text-content-muted" aria-hidden="true" />
-          <h2 id="room-members-title" className="m-0 text-[12.5px] font-semibold">
-            {t('bots:room.members.title', { count: members.length })}
-          </h2>
-        </header>
+    <div className="flex flex-col gap-5">
+      <section aria-labelledby="room-info-title" className="px-2">
+        {editingName !== null ? (
+          <form className="flex items-center gap-1.5" onSubmit={submitText('name', editingName)}>
+            <Input
+              autoFocus
+              value={editingName}
+              maxLength={40}
+              aria-label={t('bots:room.new.name')}
+              disabled={busy}
+              onChange={(event) => setEditingName(event.target.value)}
+              onKeyDown={(event) => event.key === 'Escape' && setEditingName(null)}
+            />
+            <Button type="submit" size="sm" disabled={busy || !editingName.trim()}>
+              {t('bots:room.settings.save')}
+            </Button>
+          </form>
+        ) : (
+          <div className="flex min-w-0 items-center gap-1">
+            <h2
+              id="room-info-title"
+              className="m-0 min-w-0 flex-1 truncate text-[15px] font-semibold text-content"
+            >
+              {room.name}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t('bots:room.info.rename')}
+              title={t('bots:room.info.rename')}
+              onClick={() => setEditingName(room.name)}
+            >
+              <Pencil />
+            </Button>
+          </div>
+        )}
+        {editingGoal !== null ? (
+          <form
+            className="mt-1.5 flex items-center gap-1.5"
+            onSubmit={submitText('goal', editingGoal)}
+          >
+            <Input
+              autoFocus
+              value={editingGoal}
+              maxLength={200}
+              aria-label={t('bots:room.new.goal')}
+              placeholder={t('bots:room.new.goalPlaceholder')}
+              disabled={busy}
+              onChange={(event) => setEditingGoal(event.target.value)}
+              onKeyDown={(event) => event.key === 'Escape' && setEditingGoal(null)}
+            />
+            <Button type="submit" size="sm" disabled={busy}>
+              {t('bots:room.settings.save')}
+            </Button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="mt-0.5 flex w-full min-w-0 items-start gap-1.5 rounded-[var(--r-sm)] text-left text-[12.5px] text-content-muted hover:text-content focus-visible:outline-2 focus-visible:outline-focus"
+            onClick={() => setEditingGoal(room.goal)}
+          >
+            {room.goal ? (
+              <>
+                <Target className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
+                <span className="min-w-0">{room.goal}</span>
+              </>
+            ) : (
+              t('bots:room.info.addGoal')
+            )}
+          </button>
+        )}
+      </section>
+
+      <InfoSection
+        title={t('bots:room.members.title', { count: room.members.length, max: MAX_MEMBERS })}
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={busy || !addable.length || room.members.length >= MAX_MEMBERS}
+              >
+                <Plus aria-hidden="true" />
+                {t('bots:room.info.add')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {addable.map((bot) => (
+                <DropdownMenuItem
+                  key={bot.id}
+                  onSelect={() => saveMembers([...room.members, bot.id])}
+                >
+                  <BotAvatar avatar={bot.avatar} size={16} animate={false} />
+                  {bot.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      >
         <ul className="m-0 list-none p-0">
           {members.map((member) => {
             const attention = Boolean(member.status.waiting)
             return (
-              <li key={member.id}>
+              <li key={member.id} className="flex items-center gap-0.5">
                 <button
                   type="button"
                   disabled={!member.sessionId}
                   title={member.sessionId ? t('bots:room.member.open') : undefined}
                   onClick={() => onOpenMember(member)}
-                  className="flex w-full min-w-0 items-start gap-2.5 rounded-[var(--r-md)] px-2 py-1.5 text-left enabled:hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                  className="flex min-w-0 flex-1 items-start gap-2.5 rounded-[var(--r-md)] px-2 py-1.5 text-left enabled:hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
                 >
                   <BotAvatar
                     avatar={member.avatar}
@@ -272,46 +454,174 @@ export function RoomMembersPanel({
                     </span>
                   </span>
                 </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="flex-none text-content-muted"
+                      aria-label={t('bots:room.info.memberMenu', {
+                        name: member.name || t('bots:room.removedBot'),
+                      })}
+                    >
+                      <Ellipsis />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={!member.sessionId}
+                      onSelect={() => onOpenMember(member)}
+                    >
+                      {t('bots:room.member.open')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {/* 群里至少留一个成员。 */}
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={busy || room.members.length <= 1}
+                      onSelect={() => saveMembers(room.members.filter((id) => id !== member.id))}
+                    >
+                      {t('bots:room.info.removeMember')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </li>
             )
           })}
         </ul>
-      </section>
+      </InfoSection>
+
       {hostAvailable && (
-        <section aria-labelledby="room-answer-title" className="flex flex-col gap-1.5 px-2">
-          <h2 id="room-answer-title" className="m-0 text-[12.5px] font-semibold text-content">
-            {t('bots:room.settings.answerMode')}
-          </h2>
-          <SegmentedControl<RoomAnswerMode>
-            size="sm"
-            aria-labelledby="room-answer-title"
-            value={room.answerMode}
-            onValueChange={(mode) => onAnswerModeChange(mode, hostFor(mode))}
-            options={[
-              { value: 'mention', label: t('bots:room.settings.answerMention') },
-              { value: 'host', label: t('bots:room.settings.answerHost') },
-            ]}
-          />
-          {room.answerMode === 'host' && (
-            <AppSelect
-              aria-label={t('bots:room.settings.host')}
-              value={hostFor('host')}
-              onChange={(event) => onAnswerModeChange('host', event.target.value)}
-            >
-              {candidates.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </AppSelect>
-          )}
-          <p className="m-0 text-xs text-content-muted">
-            {room.answerMode === 'host'
-              ? t('bots:room.settings.answerHostHint')
-              : t('bots:room.settings.answerMentionHint')}
-          </p>
-        </section>
+        <InfoSection title={t('bots:room.settings.answerMode')} titleId="room-answer-title">
+          <div className="flex flex-col gap-1.5 px-2">
+            <SegmentedControl<RoomAnswerMode>
+              size="sm"
+              aria-labelledby="room-answer-title"
+              value={room.answerMode}
+              onValueChange={(mode) => onAnswerModeChange(mode, hostFor(mode))}
+              options={[
+                { value: 'mention', label: t('bots:room.settings.answerMention') },
+                { value: 'host', label: t('bots:room.settings.answerHost') },
+              ]}
+            />
+            {room.answerMode === 'host' && (
+              <AppSelect
+                aria-label={t('bots:room.settings.host')}
+                value={hostFor('host')}
+                onChange={(event) => onAnswerModeChange('host', event.target.value)}
+              >
+                {candidates.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </AppSelect>
+            )}
+            <p className="m-0 text-xs text-content-muted">
+              {room.answerMode === 'host'
+                ? t('bots:room.settings.answerHostHint')
+                : t('bots:room.settings.answerMentionHint')}
+            </p>
+          </div>
+        </InfoSection>
       )}
+
+      <InfoSection title={t('bots:room.info.folder')}>
+        <div className="flex items-center gap-1.5 px-2">
+          <FolderOpen className="size-3.5 flex-none text-content-muted" aria-hidden="true" />
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-[12.5px]',
+              room.cwd ? 'font-mono text-content-secondary' : 'text-content-muted',
+            )}
+            title={room.cwd || undefined}
+          >
+            {room.cwd ? folderName : t('bots:room.info.folderNone')}
+          </span>
+          {room.cwd && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t('bots:room.info.folderClear')}
+              title={t('bots:room.info.folderClear')}
+              disabled={busy}
+              onClick={() => void save({ cwd: '' })}
+            >
+              <X />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={busy || picking}
+            onClick={() => void pickFolder()}
+          >
+            {t('bots:room.info.folderChange')}
+          </Button>
+        </div>
+        <p className="m-0 mt-1 px-2 text-xs text-content-muted">
+          {t('bots:room.settings.folderHint')}
+        </p>
+      </InfoSection>
+
+      <InfoSection title={t('bots:room.settings.briefBot')} titleId="room-brief-bot-title">
+        <div className="flex flex-col gap-1.5 px-2">
+          <AppSelect
+            aria-labelledby="room-brief-bot-title"
+            value={room.briefBotId}
+            disabled={busy}
+            onChange={(event) => void save({ briefBotId: event.target.value })}
+          >
+            <option value="">{t('bots:room.settings.briefBotNone')}</option>
+            {candidates.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </AppSelect>
+          <p className="m-0 text-xs text-content-muted">{t('bots:room.settings.briefBotHint')}</p>
+        </div>
+      </InfoSection>
+
+      <div className="border-t border-stroke-soft px-2 pt-3">
+        <Button variant="ghost" size="xs" className="text-destructive" onClick={onDelete}>
+          <Trash2 aria-hidden="true" />
+          {t('bots:room.delete')}
+        </Button>
+      </div>
+      <WorkspacePicker
+        open={browsing}
+        initialPath={room.cwd}
+        onOpenChange={setBrowsing}
+        onSelect={(path) => {
+          setBrowsing(false)
+          void save({ cwd: path })
+        }}
+      />
     </div>
+  )
+}
+
+function InfoSection({
+  title,
+  titleId,
+  action,
+  children,
+}: {
+  title: ReactNode
+  titleId?: string
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section aria-labelledby={titleId}>
+      <div className="mb-1 flex h-7 items-center gap-1.5 px-2">
+        <h3 id={titleId} className="m-0 min-w-0 flex-1 text-[12.5px] font-semibold text-content">
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
   )
 }

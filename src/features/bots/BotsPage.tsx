@@ -1,14 +1,15 @@
 // Bot 的设置页（路由 /bots/:botId）：Bot 就是一个长期会话加上它的设定，和它说话在它的会话里
-// （侧栏点 Bot 直接打开会话）；这里只放设定——头像、名字、它负责什么、电脑、聊天、定时、高级。
-// 顶栏左边“和它聊天”回到它的会话。/bots 没有 Bot 时给新建入口，有 Bot 时打开第一个的设置。
+// （侧栏点 Bot 直接打开会话）；这里只放设定（见 BotDetails）。顶栏左边“和它聊天”回到它的会话；
+// 手机上外壳不画顶栏，这里的顶栏左边先放外壳的 ☰。/bots 没有 Bot 时给新建入口，有 Bot 时打开第一个的设置。
 import './bots-messages'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, Plus } from 'lucide-react'
 import type { Notify } from '@/app/route-context'
 import { useI18n } from '@/app/use-i18n'
 import { PageState } from '@/components/app/PageState'
 import { Button } from '@/components/ui/button'
+import { usePhoneShell } from '@/hooks/usePhoneShell'
 import { useBetaFeature } from '@/features/labs/public-flags'
 import { BotDeleteSection } from './BotDeleteSection'
 import { BotDetails } from './BotDetails'
@@ -17,8 +18,13 @@ import { NewBotDialog } from './NewBotDialog'
 import { useBotEnvironments } from './use-bot-environments'
 import { useOpenBot } from './use-open-bot'
 
-export function BotsPage({ notify }: { notify: Notify }) {
+// 与会话顶栏同高 52；手机上加上安全区。空白处是窗口拖拽区，Windows 自绘标题栏时右上 144px 让给窗口按钮。
+const HEADER_CLASS =
+  'flex h-[52px] flex-none items-center gap-2 border-b border-stroke px-3 max-[650px]:h-[calc(52px+var(--pisper-safe-area-top,0px))] max-[650px]:px-2 max-[650px]:pt-[var(--pisper-safe-area-top,0px)] [[data-custom-titlebar]_&]:pr-[144px]'
+
+export function BotsPage({ notify, phoneLeading }: { notify: Notify; phoneLeading?: ReactNode }) {
   const { t } = useI18n()
+  const phone = usePhoneShell()
   const enabled = useBetaFeature('bots')
   const { botId = '' } = useParams()
   const navigate = useNavigate()
@@ -29,20 +35,30 @@ export function BotsPage({ notify }: { notify: Notify }) {
   const openBot = useOpenBot(reportError)
   useBotsPolling(enabled)
   const bot = bots.find((item) => item.id === botId) ?? null
+  // /bots/:id 在手机上没有外壳顶栏：加载中、找不到这个 Bot 时也留一条带 ☰ 的顶栏，不把人困在页里。
+  const framed = (node: ReactNode) =>
+    phone && botId ? (
+      <div className="flex h-full min-h-0 w-full flex-col">
+        <header className={HEADER_CLASS}>{phoneLeading}</header>
+        <div className="min-h-0 flex-1">{node}</div>
+      </div>
+    ) : (
+      node
+    )
 
   if (!enabled)
-    return (
+    return framed(
       <PageState
         kind="empty"
         title={t('bots:page.disabledTitle')}
         description={t('bots:page.disabledDescription')}
         action={<Button onClick={() => navigate('/config/labs')}>{t('bots:page.openLabs')}</Button>}
-      />
+      />,
     )
-  if (!loaded) return <PageState kind="loading" title={t('bots:page.loading')} />
+  if (!loaded) return framed(<PageState kind="loading" title={t('bots:page.loading')} />)
   if (!botId && bots[0]) return <Navigate to={`/bots/${encodeURIComponent(bots[0].id)}`} replace />
   if (!bot)
-    return (
+    return framed(
       <>
         <PageState
           kind="empty"
@@ -60,12 +76,13 @@ export function BotsPage({ notify }: { notify: Notify }) {
           onOpenChange={setCreating}
           onCreated={(created) => void openBot(created)}
         />
-      </>
+      </>,
     )
   return (
     <BotSettingsPage
       key={bot.id}
       botId={bot.id}
+      phoneLeading={phone ? phoneLeading : null}
       onOpenChat={() => void openBot(bot)}
       onDeleted={() => {
         notify(t('bots:delete.deleted', { name: bot.name }))
@@ -78,11 +95,13 @@ export function BotsPage({ notify }: { notify: Notify }) {
 
 function BotSettingsPage({
   botId,
+  phoneLeading,
   onOpenChat,
   onDeleted,
   onError,
 }: {
   botId: string
+  phoneLeading: ReactNode
   onOpenChat: () => void
   onDeleted: () => void
   onError: (message: string) => void
@@ -99,11 +118,11 @@ function BotSettingsPage({
   if (!bot) return null
   return (
     <div data-bot-settings={bot.id} className="flex h-full min-h-0 w-full min-w-0 flex-col">
-      {/* 与会话顶栏同高 52，空白处是窗口拖拽区；Windows 自绘标题栏时右上 144px 让给窗口按钮。 */}
       <header
         data-window-drag-region
-        className="flex h-[52px] flex-none items-center gap-2 border-b border-stroke px-3 [[data-custom-titlebar]_&]:pr-[144px]"
+        className="flex h-[52px] flex-none items-center gap-2 border-b border-stroke px-3 max-[650px]:h-[calc(52px+var(--pisper-safe-area-top,0px))] max-[650px]:px-2 max-[650px]:pt-[var(--pisper-safe-area-top,0px)] [[data-custom-titlebar]_&]:pr-[144px]"
       >
+        {phoneLeading}
         <Button variant="ghost" size="sm" onClick={onOpenChat}>
           <ChevronLeft aria-hidden="true" />
           {t('bots:settingsPage.backToChat', { name: bot.name })}

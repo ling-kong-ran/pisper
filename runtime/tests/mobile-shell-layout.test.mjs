@@ -125,7 +125,11 @@ test('the app shell derives the phone shell from the same inputs as the shared h
   assert.match(app, /document\.documentElement\.toggleAttribute\('data-phone-shell', phoneShell\)/)
   assert.match(app, /\{!phoneShell && \(\s*<ShellSidebar\b/)
   assert.match(app, /\{phoneShell && \(\s*<Suspense fallback=\{null\}>\s*<PhoneDrawer\b/)
-  assert.match(app, /const phoneTopBar = phoneShell && page !== 'session'/)
+  // 群聊页和某个 Bot 的设置页自带顶栏（左边是外壳的 ☰），外壳不再画一条。
+  assert.match(
+    app,
+    /const phoneTopBar =\s+phoneShell &&\s+page !== 'session' &&\s+!isRoomPath\(location\.pathname\) &&\s+!isBotSettingsPath\(location\.pathname\)/,
+  )
   assert.match(app, /\{phoneTopBar && \(\s*<Suspense[\s\S]{0,160}<PhoneTopBar\b/)
   assert.doesNotMatch(app, /ShellTabBar|tabBarFallback/)
   // 平板仍按移动端处理原生返回（BackNavigation）与软键盘，只是布局换成桌面。
