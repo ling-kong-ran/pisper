@@ -324,6 +324,7 @@ test('Pi built-in MCP and tool-search extensions stay out of the agent runtime',
     'pisperPromptExtension',
     'pisperCompactionExtension',
     'createSettleBarrierExtension',
+    'pisperToolOutputBudgetExtension',
     'createCodemodeExtension',
   ])
 })

@@ -414,7 +414,8 @@ test('main runtime keeps discovered cold MCP tools for the rest of the session w
   assert.equal(value.session.getActiveToolNames().includes('mcp_manage'), false)
   assert.deepEqual(value.promotedToolNames, [])
   assert.equal(runtime.sessionMeta[value.session.sessionId]?.promotedToolNames, undefined)
-  assert.equal(value.session.hasExtensionHandlers('tool_result'), false)
+  // 唯一的 tool_result 钩子是输出预算扩展（tool-output-budget），只收紧交给模型的长度。
+  assert.equal(value.session.hasExtensionHandlers('tool_result'), true)
   assert.equal(value.session.hasExtensionHandlers('message_end'), false)
 
   value.isolatedContext = true

@@ -142,6 +142,7 @@ import {
 import { createToolDiscoveryTool, TOOL_DISCOVERY_NAME } from '../tools/app/tool-discovery.mjs'
 import { TOOL_GATEWAY_NAME } from '../tools/app/tool-gateway.mjs'
 import { createPisperBashTool } from '../tools/host-bash.mjs'
+import { pisperToolOutputBudgetExtension } from '../tools/tool-output-budget.mjs'
 import { SshMachineService } from '../services/ssh-machine-service.mjs'
 import {
   hotToolNames,
@@ -593,6 +594,11 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
             resolveAuxiliaryModel: () => this.resolveAuxiliaryModel(),
           }),
         createSettleBarrierExtension(this.settleBarrier),
+        // 收紧 bash / read / grep / find / ls 交给模型的输出；远程执行节点的会话不动（完整输出文件在本机）。
+        (pi) =>
+          pisperToolOutputBudgetExtension(pi, {
+            isRemoteSession: (sessionId) => Boolean(this.sessions.get(sessionId)?.remoteExecutor),
+          }),
         ...(this.capabilities?.features?.codemode ? [createCodemodeExtension()] : []),
       ],
       // 内置技能 pisper-component：组件工作室的生成会话用 /skill:pisper-component 显式加载（不进模型自动调用列表）；
