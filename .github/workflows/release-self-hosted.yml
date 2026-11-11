@@ -58,6 +58,20 @@ jobs:
           if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') {
             throw "This workflow requires Windows x64, got $env:RUNNER_OS $env:RUNNER_ARCH."
           }
+      - name: Prefer Git Bash over the WSL launcher
+        # 系统 PATH 里 System32 排在前面时，shell: bash 找到的是 WSL 的 bash.exe，
+        # 没装发行版就直接失败（rust-toolchain 等步骤都用 bash）；把 Git for Windows 的 bin 放到最前。
+        shell: powershell
+        run: |
+          # git.exe 通常在 <Git>\cmd 下，bash.exe 在 <Git>\bin 下。
+          $candidates = @()
+          $git = Get-Command git.exe -ErrorAction SilentlyContinue
+          if ($git) { $candidates += Join-Path (Split-Path (Split-Path $git.Source)) 'bin' }
+          $candidates += Join-Path $env:ProgramFiles 'Git\bin'
+          $bin = $candidates | Where-Object { Test-Path (Join-Path $_ 'bash.exe') } | Select-Object -First 1
+          if (-not $bin) { throw 'Git Bash (bash.exe) not found; install Git for Windows on this runner.' }
+          Write-Output "Using Git Bash from $bin"
+          Add-Content -Path $env:GITHUB_PATH -Value $bin -Encoding utf8
       - uses: actions/checkout@v5
         with:
           ref: release
