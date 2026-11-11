@@ -14,6 +14,11 @@ function normalizedBaseUrl(value) {
     .toLowerCase()
 }
 
+function positiveTokens(value) {
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number > 0 ? number : 0
+}
+
 function zeroCost() {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 }
@@ -24,6 +29,19 @@ function zeroCost() {
 // 精确窗口一律来自 pi.dev 落盘文件与内置元数据表，避免硬编码随模型迭代腐烂。
 export function inferredContextWindow(modelId, fallback = 200_000) {
   return Number(fallback) || 200_000
+}
+
+// 窗口取值与来源：用户填写 > 这个 Key 的 /models 报告 > pi.dev 与内置元数据 > 模型自带值或默认值。
+// 来源回给设置页：落到最后一级、且模型不是 Pi 内置定义时记为 estimated，界面提示按估算值计算、请手动填写。
+function resolvedContextWindow({ explicit, reported, metadata, fallback, builtin }) {
+  if (explicit !== undefined && Number(explicit))
+    return { contextWindow: Number(explicit), source: 'configured' }
+  if (Number(reported)) return { contextWindow: Number(reported), source: 'provider' }
+  if (Number(metadata)) return { contextWindow: Number(metadata), source: 'metadata' }
+  return {
+    contextWindow: inferredContextWindow('', fallback),
+    source: builtin ? 'builtin' : 'estimated',
+  }
 }
 
 function normalizedInput(value) {
@@ -68,10 +86,18 @@ function modelWithMetadata(
   explicitContextWindow,
   explicitInput,
   explicitReasoning,
+  { reportedContextWindow = 0, reportedMaxTokens = 0, builtin = true } = {},
 ) {
   const remoteMetadata = metadata?.get(model.id)
   const metadataThinkingLevelMap = remoteMetadata?.thinkingLevelMap
   const modelThinkingLevelMap = model.thinkingLevelMap
+  const window = resolvedContextWindow({
+    explicit: explicitContextWindow,
+    reported: reportedContextWindow,
+    metadata: remoteMetadata?.contextWindow,
+    fallback: model.contextWindow,
+    builtin,
+  })
   return {
     ...model,
     input: normalizedInput(explicitInput) ||
@@ -85,12 +111,9 @@ function modelWithMetadata(
           : typeof model.reasoning === 'boolean'
             ? model.reasoning
             : (remoteMetadata?.reasoning ?? true),
-    contextWindow:
-      explicitContextWindow !== undefined && Number(explicitContextWindow)
-        ? Number(explicitContextWindow)
-        : Number(remoteMetadata?.contextWindow) ||
-          inferredContextWindow(model.id, model.contextWindow),
-    maxTokens: Number(remoteMetadata?.maxTokens) || model.maxTokens,
+    contextWindow: window.contextWindow,
+    pisperContextWindowSource: window.source,
+    maxTokens: Number(reportedMaxTokens) || Number(remoteMetadata?.maxTokens) || model.maxTokens,
     ...(metadataThinkingLevelMap || modelThinkingLevelMap
       ? {
           thinkingLevelMap: {
@@ -123,6 +146,11 @@ function runtimeModel(
         explicitContextWindow,
         explicitInput,
         explicitReasoning,
+        {
+          reportedContextWindow: candidate.reportedContextWindow,
+          reportedMaxTokens: candidate.reportedMaxTokens,
+          builtin: existing.pisperContextWindowSource !== 'estimated',
+        },
       ),
       name: candidate.name || existing.name,
       pisperKind: candidate.kind || 'chat',
@@ -131,6 +159,12 @@ function runtimeModel(
       pisperAuthKeyId: candidate.authKeyId || '',
     }
   }
+  const window = resolvedContextWindow({
+    explicit: explicitContextWindow,
+    reported: candidate.reportedContextWindow,
+    metadata: remoteMetadata?.contextWindow,
+    builtin: false,
+  })
   return {
     id: candidate.id,
     name: candidate.name || candidate.id,
@@ -145,11 +179,13 @@ function runtimeModel(
           : candidate.kind === 'chat' && (remoteMetadata?.reasoning ?? true),
     input: ['text', 'image'],
     cost: template?.cost || zeroCost(),
-    contextWindow:
-      explicitContextWindow !== undefined && Number(explicitContextWindow)
-        ? Number(explicitContextWindow)
-        : Number(remoteMetadata?.contextWindow) || inferredContextWindow(candidate.id),
-    maxTokens: Number(remoteMetadata?.maxTokens) || template?.maxTokens || 128_000,
+    contextWindow: window.contextWindow,
+    pisperContextWindowSource: window.source,
+    maxTokens:
+      Number(candidate.reportedMaxTokens) ||
+      Number(remoteMetadata?.maxTokens) ||
+      template?.maxTokens ||
+      128_000,
     headers: template?.headers ? { ...template.headers } : undefined,
     thinkingLevelMap:
       candidate.kind === 'chat'
@@ -220,6 +256,14 @@ export class ProviderModelCatalogService {
                 id,
                 name: String(model.name || model.id),
                 kind: ['chat', 'image', 'video'].includes(model.kind) ? model.kind : 'chat',
+                // /models 报告的窗口与输出上限；没有报告时不写，由元数据链兜底。
+                // 只认 reported* 字段：手动添加的模型带着 200K 占位值，不能当成接口报告。
+                ...(positiveTokens(model.reportedContextWindow)
+                  ? { reportedContextWindow: positiveTokens(model.reportedContextWindow) }
+                  : {}),
+                ...(positiveTokens(model.reportedMaxTokens)
+                  ? { reportedMaxTokens: positiveTokens(model.reportedMaxTokens) }
+                  : {}),
                 ...(keyIds.length ? { keyIds } : {}),
               },
             ]
@@ -334,6 +378,8 @@ export class ProviderModelCatalogService {
           explicitContextWindows.get(`${providerId}:${model.id}`),
           explicitInputs.get(`${providerId}:${model.id}`),
           explicitReasoning.get(`${providerId}:${model.id}`),
+          // models.json 里自己加的模型没有可靠的默认窗口；Pi 内置定义的窗口可信。
+          { builtin: !configuredModelOptions[`${providerId}:${model.id}`] },
         ),
       )
       const entries = catalogEntries(providerId)

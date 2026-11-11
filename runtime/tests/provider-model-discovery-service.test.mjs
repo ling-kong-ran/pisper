@@ -256,3 +256,62 @@ test('discovery never duplicates the /v1 prefix when the base URL already ends w
   )
   assert.deepEqual(urls, ['https://api.example.test/v1/models'])
 })
+
+test('reads context window and output limits that /models lists report', async () => {
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async () =>
+      jsonResponse({
+        data: [
+          { id: 'kimi-k3.1-pro', context_length: 262_144 },
+          {
+            id: 'router-model',
+            top_provider: { context_length: 1_000_000, max_completion_tokens: 64_000 },
+          },
+          { id: 'groq-model', context_window: 131_072, max_completion_tokens: 32_768 },
+          { id: 'vllm-model', max_model_len: '32768' },
+          { id: 'claude-x', max_input_tokens: 1_000_000, max_output_tokens: 128_000 },
+          { id: 'odd-model', context_length: 'big', max_output_tokens: 10 },
+          { id: 'inverted', context_length: 8_192, max_output_tokens: 100_000 },
+          { id: 'plain-model' },
+        ],
+      }),
+  })
+  const result = await service.discover({
+    api: 'openai-completions',
+    baseUrl: 'https://relay.example.test/v1',
+    apiKey: 'key',
+  })
+  const byId = Object.fromEntries(result.models.map((model) => [model.id, model]))
+  assert.equal(byId['kimi-k3.1-pro'].reportedContextWindow, 262_144)
+  assert.equal(byId['router-model'].reportedContextWindow, 1_000_000)
+  assert.equal(byId['router-model'].reportedMaxTokens, 64_000)
+  assert.equal(byId['groq-model'].reportedContextWindow, 131_072)
+  assert.equal(byId['groq-model'].reportedMaxTokens, 32_768)
+  assert.equal(byId['vllm-model'].reportedContextWindow, 32_768)
+  assert.equal(byId['claude-x'].reportedContextWindow, 1_000_000)
+  assert.equal(byId['claude-x'].reportedMaxTokens, 128_000)
+  // 不合理的值一律不用，交给元数据链兜底。
+  assert.equal(byId['odd-model'].reportedContextWindow, undefined)
+  assert.equal(byId['odd-model'].reportedMaxTokens, undefined)
+  assert.equal(byId.inverted.reportedMaxTokens, undefined)
+  assert.equal(byId['plain-model'].reportedContextWindow, undefined)
+})
+
+test('reads Gemini token limits from the models list', async () => {
+  const service = new ProviderModelDiscoveryService({
+    fetchImpl: async () =>
+      jsonResponse({
+        models: [
+          { name: 'models/gemini-3-pro', inputTokenLimit: 1_048_576, outputTokenLimit: 65_536 },
+        ],
+      }),
+  })
+  const result = await service.discover({
+    api: 'google-generative-ai',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    apiKey: 'key',
+  })
+  assert.equal(result.models[0].id, 'gemini-3-pro')
+  assert.equal(result.models[0].reportedContextWindow, 1_048_576)
+  assert.equal(result.models[0].reportedMaxTokens, 65_536)
+})

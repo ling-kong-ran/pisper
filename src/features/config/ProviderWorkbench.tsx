@@ -81,6 +81,20 @@ function formatContextWindow(tokens?: number) {
   return String(tokens)
 }
 
+// 窗口读数：只是默认估算时加“≈”并给出原因，提醒用户点开模型填写实际大小。
+function ContextWindowValue({ model }: { model: ProviderModel }) {
+  const { t } = useI18n()
+  if (model.contextWindowSource !== 'estimated')
+    return <>{formatContextWindow(model.contextWindow)}</>
+  const hint = t('providers:modelEditor.contextWindowEstimatedShort')
+  return (
+    <span className="text-warning-strong" title={hint} data-context-window-estimated>
+      ≈{formatContextWindow(model.contextWindow)}
+      <span className="sr-only"> {hint}</span>
+    </span>
+  )
+}
+
 function providerApiLabel(api: string) {
   return providerApiOptions(api).find(([value]) => value === api)?.[1] || api
 }
@@ -290,7 +304,9 @@ export function ProviderWorkbench(props: Props) {
                 {/* 窄详情：名称、上下文与能力折叠为 ID 下的一行读数。 */}
                 <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-content-muted @min-[560px]/card:hidden">
                   <span className="min-w-0 truncate">{model.name || model.id}</span>
-                  <span className="tabular-nums">{formatContextWindow(model.contextWindow)}</span>
+                  <span className="tabular-nums">
+                    <ContextWindowValue model={model} />
+                  </span>
                   {capabilityIcons(model)}
                 </span>
               </button>
@@ -298,7 +314,7 @@ export function ProviderWorkbench(props: Props) {
                 {model.name || model.id}
               </span>
               <span className="hidden text-right tabular-nums @min-[560px]/card:block">
-                {formatContextWindow(model.contextWindow)}
+                <ContextWindowValue model={model} />
               </span>
               <span className="hidden items-center gap-2 text-content-muted @min-[560px]/card:flex">
                 {capabilityIcons(model)}

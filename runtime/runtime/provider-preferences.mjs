@@ -973,6 +973,8 @@ export class ProviderPreferences {
               // 回显有效思考等级，供模型编辑弹窗预填（与 Composer 下拉一致）。
               thinkingLevels: resolvedKind === 'chat' ? availableThinkingLevelsForModel(model) : [],
               contextWindow: model.contextWindow || null,
+              // 窗口从哪来：configured / provider / metadata / builtin / estimated（只是默认估算）。
+              contextWindowSource: model.pisperContextWindowSource || null,
               baseUrl: model.baseUrl || '',
               baseUrlOverride: definition?.baseUrl || '',
             }

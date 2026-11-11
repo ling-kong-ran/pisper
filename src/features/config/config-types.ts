@@ -20,6 +20,8 @@ export type ProviderModel = EntityRecord & {
   // 该模型当前有效的思考等级（与对话输入框思考下拉一致），供编辑弹窗预填。
   thinkingLevels?: string[]
   contextWindow?: number
+  // 窗口来源：estimated 表示哪里都没查到，只是默认估算，界面提示用户填写。
+  contextWindowSource?: 'configured' | 'provider' | 'metadata' | 'builtin' | 'estimated' | null
   baseUrlOverride?: string
   added?: boolean
 }

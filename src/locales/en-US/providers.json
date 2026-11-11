@@ -13,6 +13,8 @@
   "modelEditor.reasoning": "Reasoning",
   "modelEditor.contextWindow": "Context window (tokens)",
   "modelEditor.maxTokens": "Maximum output (tokens)",
+  "modelEditor.contextWindowEstimated": "This model's context window could not be found, so a default estimate is used. Enter the real size, or the conversation may be compacted too early.",
+  "modelEditor.contextWindowEstimatedShort": "Window not found; using a default estimate",
   "modelEditor.editNamed": "Edit model {name}",
   "modelEditor.optionsNamed": "Model capabilities: {name}",
   "modelEditor.delete": "Delete model",

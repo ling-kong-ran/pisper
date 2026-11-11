@@ -69,6 +69,7 @@ export function ProviderModelEditor({
 }) {
   const { t } = useI18n()
   const [initialContextWindow] = useState(() => model?.contextWindow || 200000)
+  const windowEstimated = model?.contextWindowSource === 'estimated'
   const [draft, setDraft] = useState<Omit<ModelOptionsDraft, 'contextWindow' | 'maxTokens'>>(
     () => ({
       modelId: model?.id || '',
@@ -264,8 +265,21 @@ export function ProviderModelEditor({
                       max={100000000}
                       step={1}
                       value={limits[field]}
+                      aria-describedby={
+                        field === 'contextWindow' && windowEstimated
+                          ? 'model-context-window-estimated'
+                          : undefined
+                      }
                       onChange={(event) => setLimits({ ...limits, [field]: event.target.value })}
                     />
+                    {field === 'contextWindow' && windowEstimated && (
+                      <small
+                        id="model-context-window-estimated"
+                        className="text-xs text-content-muted"
+                      >
+                        {t('providers:modelEditor.contextWindowEstimated')}
+                      </small>
+                    )}
                   </label>
                 ))}
               </div>

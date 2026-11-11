@@ -134,6 +134,58 @@ function discoveredModelKind(item, id) {
   return inferModelKind(id, 'auto')
 }
 
+// 上下文窗口与输出上限：不少 /models 接口会带上，但字段名各家不同。按常见写法依次取，
+// 取到就比 pi.dev 和内置数据更可信（是这个 Key 实际能用的值），内网访问不了 pi.dev 时也能用。
+// Kimi、OpenRouter、Together、Fireworks：context_length；Groq：context_window；
+// Mistral、LM Studio：max_context_length；vLLM、SGLang：max_model_len；
+// Anthropic：max_input_tokens；Gemini：inputTokenLimit / outputTokenLimit。
+const CONTEXT_WINDOW_FIELDS = [
+  'context_window',
+  'contextWindow',
+  'context_length',
+  'contextLength',
+  'max_context_length',
+  'maxContextLength',
+  'max_model_len',
+  'max_input_tokens',
+  'maxInputTokens',
+  'inputTokenLimit',
+  'input_token_limit',
+  'max_sequence_length',
+]
+const MAX_OUTPUT_FIELDS = [
+  'max_output_tokens',
+  'maxOutputTokens',
+  'outputTokenLimit',
+  'output_token_limit',
+  'max_completion_tokens',
+  'maxCompletionTokens',
+]
+const MIN_REPORTED_TOKENS = 1_024
+const MAX_REPORTED_TOKENS = 100_000_000
+
+function reportedTokens(value) {
+  const number = typeof value === 'string' ? Number(value.replace(/[,_\s]/g, '')) : value
+  return Number.isSafeInteger(number) &&
+    number >= MIN_REPORTED_TOKENS &&
+    number <= MAX_REPORTED_TOKENS
+    ? number
+    : 0
+}
+
+// 先看条目本身，再看常见的嵌套位置（OpenRouter 的 top_provider、DeepInfra 的 metadata 等）。
+function firstReportedTokens(item, fields) {
+  const sources = [item, item.top_provider, item.topProvider, item.metadata, item.limits, item.meta]
+  for (const source of sources) {
+    if (!source || typeof source !== 'object') continue
+    for (const field of fields) {
+      const tokens = reportedTokens(source[field])
+      if (tokens) return tokens
+    }
+  }
+  return 0
+}
+
 function candidateFrom(item, api) {
   if (typeof item === 'string') return { id: item, name: item, kind: 'chat' }
   if (!item || typeof item !== 'object') return null
@@ -144,10 +196,17 @@ function candidateFrom(item, api) {
   const id = normalizeName(rawId).trim()
   if (!id) return null
   const name = normalizeName(item.display_name || item.displayName || item.name || id).trim() || id
+  const contextWindow = firstReportedTokens(item, CONTEXT_WINDOW_FIELDS)
+  const maxTokens = firstReportedTokens(item, MAX_OUTPUT_FIELDS)
   return {
     id,
     name,
     kind: discoveredModelKind(item, id),
+    // 单独的字段名：只有接口真的报告了才有，不会和 Pisper 自己写的 200K 占位值混淆。
+    ...(contextWindow ? { reportedContextWindow: contextWindow } : {}),
+    ...(maxTokens && (!contextWindow || maxTokens <= contextWindow)
+      ? { reportedMaxTokens: maxTokens }
+      : {}),
     ...(Array.isArray(item.supportedGenerationMethods)
       ? { supportedGenerationMethods: item.supportedGenerationMethods.map(String) }
       : {}),

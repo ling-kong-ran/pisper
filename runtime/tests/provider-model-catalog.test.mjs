@@ -456,3 +456,99 @@ test('explicit config wins over pi.dev metadata', async (t) => {
   const model = runtime.getModel('anthropic', 'claude-opus-5')
   assert.equal(model.contextWindow, 500_000)
 })
+
+test('context window from the provider /models list beats pi.dev, explicit config beats both', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-reported-window-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const piDevCachePath = join(directory, 'pi-dev-cache.json')
+  const { writeJsonAtomic } = await import('../storage/json-file.mjs')
+  await writeJsonAtomic(piDevCachePath, {
+    fetchedAt: new Date().toISOString(),
+    models: { 'glm-5.3': { contextWindow: 1_048_576 } },
+  })
+  const catalog = new ProviderModelCatalogService({
+    path: join(directory, 'catalog.json'),
+    piDevCachePath,
+  })
+  await catalog.init()
+  t.after(() => catalog.dispose())
+  await catalog.sync('relay', {
+    baseUrl: 'https://relay.example.test/v1',
+    api: 'openai-completions',
+    models: [
+      {
+        id: 'glm-5.3',
+        name: 'GLM',
+        kind: 'chat',
+        reportedContextWindow: 200_000,
+        reportedMaxTokens: 32_000,
+      },
+      { id: 'kimi-k9', name: 'Kimi', kind: 'chat', reportedContextWindow: 256_000 },
+      // 手动添加的模型带着占位值，不能当成接口报告。
+      { id: 'mystery-1', name: 'Mystery', kind: 'chat', contextWindow: 200_000 },
+      { id: 'pinned-1', name: 'Pinned', kind: 'chat', reportedContextWindow: 64_000 },
+    ],
+  })
+  const template = { provider: 'relay', id: 'old', contextWindow: 128_000, maxTokens: 16_000 }
+  const runtime = {
+    getModels: (provider) => (provider === 'relay' ? [template] : []),
+    getModel: () => undefined,
+    getAvailable: async () => [template],
+    getAvailableSnapshot: () => [template],
+  }
+  catalog.decorateRuntime(
+    runtime,
+    { relay: 'https://relay.example.test/v1' },
+    {},
+    { 'relay:pinned-1': 400_000 },
+  )
+
+  // 这个 Key 实际能用的窗口优先于 pi.dev 的最大值。
+  const glm = runtime.getModel('relay', 'glm-5.3')
+  assert.equal(glm.contextWindow, 200_000)
+  assert.equal(glm.maxTokens, 32_000)
+  assert.equal(glm.pisperContextWindowSource, 'provider')
+  assert.equal(runtime.getModel('relay', 'kimi-k9').pisperContextWindowSource, 'provider')
+  // 哪里都查不到：按默认值估算，并标记出来让设置页提示用户填写。
+  const mystery = runtime.getModel('relay', 'mystery-1')
+  assert.equal(mystery.contextWindow, 200_000)
+  assert.equal(mystery.pisperContextWindowSource, 'estimated')
+  // 用户填写的值始终优先。
+  const pinned = runtime.getModel('relay', 'pinned-1')
+  assert.equal(pinned.contextWindow, 400_000)
+  assert.equal(pinned.pisperContextWindowSource, 'configured')
+})
+
+test('built-in and custom raw models are told apart when no metadata knows the window', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-window-source-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const catalog = new ProviderModelCatalogService({ path: join(directory, 'catalog.json') })
+  await catalog.init()
+  const builtin = { provider: 'vendor', id: 'vendor-native-x', contextWindow: 400_000 }
+  const custom = { provider: 'vendor', id: 'hand-added-y', contextWindow: 200_000 }
+  const runtime = {
+    getModels: (provider) => (provider === 'vendor' ? [builtin, custom] : []),
+    getModel: () => undefined,
+    getAvailable: async () => [builtin, custom],
+    getAvailableSnapshot: () => [builtin, custom],
+  }
+  catalog.decorateRuntime(
+    runtime,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {
+      'vendor:hand-added-y': { id: 'hand-added-y', contextWindowConfigured: false },
+    },
+  )
+  const models = runtime.getModels('vendor')
+  const byId = Object.fromEntries(models.map((model) => [model.id, model]))
+  assert.equal(byId['vendor-native-x'].contextWindow, 400_000)
+  assert.equal(byId['vendor-native-x'].pisperContextWindowSource, 'builtin')
+  assert.equal(byId['hand-added-y'].pisperContextWindowSource, 'estimated')
+})

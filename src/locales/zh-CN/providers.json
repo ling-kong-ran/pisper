@@ -13,6 +13,8 @@
   "modelEditor.reasoning": "深度思考",
   "modelEditor.contextWindow": "上下文窗口（Token）",
   "modelEditor.maxTokens": "最大输出（Token）",
+  "modelEditor.contextWindowEstimated": "没查到这个模型的上下文窗口，暂按默认值估算。请填写实际大小，否则可能过早压缩。",
+  "modelEditor.contextWindowEstimatedShort": "未查到窗口，按默认值估算",
   "modelEditor.editNamed": "编辑模型 {name}",
   "modelEditor.optionsNamed": "模型能力：{name}",
   "modelEditor.delete": "删除模型",
