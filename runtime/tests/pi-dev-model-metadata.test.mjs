@@ -1,6 +1,6 @@
 // pi.dev 模型元数据匹配回归：网关前缀、矛盾条目取最大、后缀变体隔离。
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -152,4 +152,51 @@ test('init loads persisted data; a missing file fetches once without retry storm
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test('stale pi.dev data is refetched when idle, with a retry backoff after failures', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-pidev-stale-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const cachePath = join(directory, 'pi-dev-models.json')
+  const page = (id, context) =>
+    `<table><tr data-model-row="true" data-model-name="${id}" data-model-id="${id}"><td data-label="Context">${context}</td></tr></table>`
+  let html = page('glm-5.3', '1,048,576')
+  let fail = false
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls += 1
+    if (fail) throw new Error('offline in test')
+    return { ok: true, status: 200, text: async () => html }
+  })
+
+  // 旧版本落盘的文件没有抓取时间：视为过期，空闲时重抓，查得到新模型。
+  await writeJsonAtomic(cachePath, { models: { 'glm-5': { contextWindow: 200_000 } } })
+  const service = new PiDevModelMetadataService({ cachePath })
+  t.after(() => service.dispose())
+  await service.init()
+  assert.equal(calls, 0)
+  assert.equal(service.getContextWindowSync('glm-5.3'), null)
+  const day = 24 * 60 * 60 * 1000
+  await service.refreshIfStale(7 * day)
+  assert.equal(calls, 1)
+  assert.equal(service.getContextWindowSync('glm-5.3'), 1_048_576)
+  const stored = JSON.parse(await readFile(cachePath, 'utf8'))
+  assert.ok(Date.parse(stored.fetchedAt) > 0)
+
+  // 新鲜数据不重抓；重新加载后仍认得抓取时间。
+  assert.equal(service.refreshIfStale(7 * day), null)
+  const reloaded = new PiDevModelMetadataService({ cachePath })
+  t.after(() => reloaded.dispose())
+  await reloaded.init()
+  assert.equal(reloaded.refreshIfStale(7 * day), null)
+  assert.equal(calls, 1)
+
+  // 过期后抓取失败：保留旧数据，一小时内不再重试。
+  fail = true
+  const later = Date.now() + 8 * day
+  await reloaded.refreshIfStale(7 * day, { now: later })
+  assert.equal(calls, 2)
+  assert.equal(reloaded.getContextWindowSync('glm-5.3'), 1_048_576)
+  assert.equal(reloaded.refreshIfStale(7 * day, { now: later }), null)
+  assert.equal(calls, 2)
 })

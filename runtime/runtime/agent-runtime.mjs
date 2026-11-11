@@ -35,6 +35,7 @@ import { McpService } from '../services/mcp-service.mjs'
 import { migrateKimiCodeProvider } from '../services/provider-migrations.mjs'
 import { ProviderDiscoveryService } from '../services/provider-discovery.mjs'
 import { ProviderModelCatalogService } from '../services/provider-model-catalog-service.mjs'
+import { ProviderModelRefreshScheduler } from '../services/provider-model-refresh-scheduler.mjs'
 import { ProviderKeyringService } from '../services/provider-keyring-service.mjs'
 import { ModelMetadataService } from '../services/model-metadata-service.mjs'
 import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
@@ -796,6 +797,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     // 主动巡看与每日简报的上次时间（每个 Bot 一个小文件）；计时器在初始化完成后启动。
     this.botProactive = new BotProactiveStore({ dataDir })
     this.botProactiveTimer = null
+    this.modelListRefresh = null
     // 这一轮是从哪个聊天叫起来的：审批、提问与回复都回到那里（只在内存里，这一轮结束就清掉）。
     this.botChatOrigins = new Map()
     // bot_notify 最近一小时发过的时间（按 Bot），防止它一轮轮地刷屏。
@@ -1135,6 +1137,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     await attempt('sideChats', () => this.sideChats.sweep())
     this.startSessionRuntimeSweeper()
     this.startBotProactiveTimer()
+    this.startModelListRefresh()
     await startup.complete()
     // 排队恢复放在就绪之后：前置会话的那一轮已随上次进程结束，等它的会话现在启动（后台进行，不拖住启动）。
     if (this.capabilities.features.sessionQueue)
@@ -1381,6 +1384,29 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       })
     }, intervalMs)
     this.sessionRuntimeSweepTimer.unref?.()
+  }
+
+  // 空闲刷新模型目录与 pi.dev 窗口数据；只在没有任何运行时动手，见 provider-model-refresh-scheduler。
+  startModelListRefresh() {
+    if (this.modelListRefresh) return
+    this.modelListRefresh = new ProviderModelRefreshScheduler({
+      isBusy: () => this.hasActiveWork(),
+      refreshProviderModels: () => this.refreshProviderModels(),
+      refreshModelMetadata: (maxAgeMs) =>
+        this.providerModelCatalog.refreshMetadataIfStale(maxAgeMs),
+    })
+    this.modelListRefresh.start()
+  }
+
+  // 是否有会话在跑（含准备阶段）或子代理在执行：后台维护任务据此让路。
+  hasActiveWork() {
+    const ids = new Set([
+      ...this.sessions.keys(),
+      ...this.liveSessions.keys(),
+      ...this.startingRuns.keys(),
+    ])
+    for (const id of ids) if (this.sessionRunIsActive(id)) return true
+    return Boolean(this.multiAgents?.executingCount?.())
   }
 
   getRuntimeDiagnostics() {

@@ -1,14 +1,23 @@
 // Pi.dev 模型元数据：模型上下文窗口的持久化数据文件（不是缓存）。
 //
-// 设计约定：这份数据被当作恒定的参考数据对待——落盘一次即长期有效，
-// 不设 TTL、不做失效、不在未命中时触发网络刷新。仅当数据文件不存在
-// （首次运行）或损坏时，才在后台抓取一次 https://pi.dev/models 并落盘；
-// 抓取失败保持缺省，由上层优先级链（用户显式配置 > 本文件 > 内置元数据 >
-// 推断默认值）兜底，下次启动自然重试。
+// 设计约定：启动时只读落盘数据，查找不触发网络。数据文件不存在（首次运行）
+// 或损坏时，在后台抓取一次 https://pi.dev/models 并落盘。
+// 落盘数据会过期：抓取时间超过上限（或旧文件没有记录抓取时间）时，由空闲刷新
+// （provider-model-refresh-scheduler）重新抓取。否则早于新模型上线抓到的数据
+// 永远查不到它，窗口一直退回 200K 默认值，压缩来得过早。
+// 抓取失败保持既有数据，由上层优先级链（用户显式配置 > 本文件 > 内置元数据 >
+// 推断默认值）兜底，间隔一段时间后再试。
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 
 const PI_DEV_MODELS_URL = 'https://pi.dev/models'
 const FETCH_TIMEOUT_MS = 10_000 // 单次抓取超时
+// 抓取失败后的最短重试间隔：访问不了 pi.dev 的网络里，不能每次空闲检查都再打一次。
+export const PI_DEV_RETRY_INTERVAL_MS = 60 * 60 * 1000
+
+function timestampMs(value) {
+  const time = Date.parse(String(value || ''))
+  return Number.isFinite(time) ? time : 0
+}
 
 /**
  * 从 pi.dev/models HTML 页面解析模型元数据
@@ -66,7 +75,7 @@ function isSuffixAligned(a, b) {
 }
 
 /**
- * Pi.dev 模型元数据服务：启动时加载落盘数据；文件缺失时后台抓取一次并落盘。
+ * Pi.dev 模型元数据服务：启动时加载落盘数据；文件缺失时后台抓取一次并落盘，过期后由空闲刷新重新抓取。
  */
 export class PiDevModelMetadataService {
   /**
@@ -81,6 +90,8 @@ export class PiDevModelMetadataService {
     this.fetching = null // 进行中的抓取 Promise（防并发）
     this.controller = null
     this.disposed = false
+    this.fetchedAt = 0 // 落盘数据的抓取时间（毫秒），0 表示未知
+    this.lastAttemptAt = 0 // 本进程最近一次发起抓取的时间，用于失败退避
   }
 
   // 从落盘数据构建尾部 token 索引（尾部 token 是后缀对齐的必要条件，可先按它分桶）。
@@ -108,6 +119,7 @@ export class PiDevModelMetadataService {
       const stored = await readJson(this.cachePath)
       if (stored?.models) {
         this.buildIndex(new Map(Object.entries(stored.models)))
+        this.fetchedAt = timestampMs(stored.fetchedAt)
         return
       }
     } catch {
@@ -120,9 +132,10 @@ export class PiDevModelMetadataService {
    * 数据文件缺失时的一次性后台抓取：不阻塞启动，失败不重试
    * （数据保持缺省，由上层优先级链兜底，下次启动自然重试）。
    */
-  fetchOnceInBackground() {
+  fetchOnceInBackground(now = Date.now()) {
     if (this.disposed) return
     if (this.fetching) return this.fetching
+    this.lastAttemptAt = now
     this.fetching = this.fetchAndPersist()
       .catch((err) => {
         if (!this.disposed) console.warn('[PiDev] model metadata fetch failed:', err.message)
@@ -131,6 +144,18 @@ export class PiDevModelMetadataService {
         this.fetching = null
       })
     return this.fetching
+  }
+
+  /**
+   * 数据过期时在后台重新抓取：抓取时间未知或早于 maxAgeMs 前才抓，
+   * 失败后至少隔 retryIntervalMs 再试。不需要抓取时返回 null。
+   */
+  refreshIfStale(maxAgeMs, { now = Date.now(), retryIntervalMs = PI_DEV_RETRY_INTERVAL_MS } = {}) {
+    if (this.disposed) return null
+    if (this.fetching) return this.fetching
+    if (this.fetchedAt && now - this.fetchedAt < maxAgeMs) return null
+    if (this.lastAttemptAt && now - this.lastAttemptAt < retryIntervalMs) return null
+    return this.fetchOnceInBackground(now)
   }
 
   async dispose() {
@@ -193,8 +218,13 @@ export class PiDevModelMetadataService {
       const models = parseModelsFromHtml(await response.text())
       controller.signal.throwIfAborted()
       if (models.size > 0) {
+        const fetchedAt = new Date()
         this.buildIndex(models)
-        await writeJsonAtomic(this.cachePath, { models: Object.fromEntries(models) })
+        this.fetchedAt = fetchedAt.getTime()
+        await writeJsonAtomic(this.cachePath, {
+          fetchedAt: fetchedAt.toISOString(),
+          models: Object.fromEntries(models),
+        })
       }
     } finally {
       clearTimeout(timeoutId)

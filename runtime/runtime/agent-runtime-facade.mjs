@@ -2640,6 +2640,8 @@ export class AgentRuntimeFacade {
     this.sessionRuntimeSweepTimer = null
     if (this.botProactiveTimer) clearInterval(this.botProactiveTimer)
     this.botProactiveTimer = null
+    await this.modelListRefresh?.dispose()
+    this.modelListRefresh = null
     await this.sideChats?.dispose()
     for (const timer of this.agentWakeupTimers.values()) clearTimeout(timer)
     this.agentWakeupTimers.clear()

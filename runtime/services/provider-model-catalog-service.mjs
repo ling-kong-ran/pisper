@@ -186,6 +186,12 @@ export class ProviderModelCatalogService {
     }
   }
 
+  // 空闲刷新入口：pi.dev 窗口数据过期时后台重抓。新数据在下次取模型列表时生效，
+  // 驻留的空闲会话按闲置回收后重建，届时用上新窗口。
+  refreshMetadataIfStale(maxAgeMs) {
+    return this.piDevMetadata?.refreshIfStale(maxAgeMs) || null
+  }
+
   async dispose() {
     await this.piDevMetadata?.dispose()
     await this.writeQueue

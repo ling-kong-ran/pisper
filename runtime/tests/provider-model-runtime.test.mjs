@@ -869,3 +869,88 @@ test('disabling or deleting the default Provider switches to the alternative sav
   assert.equal(settingsAfterDelete.defaultProvider, 'relay-main')
   assert.equal(settingsAfterDelete.defaultModel, 'main-first')
 })
+
+test('idle model list refresh adds new models but keeps deleted models and disabled providers out', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-idle-refresh-'))
+  await writeFile(
+    join(directory, 'models.json'),
+    JSON.stringify({
+      providers: {
+        relay: {
+          name: 'Relay',
+          api: 'openai-completions',
+          baseUrl: 'https://relay.example.test/v1',
+          models: [],
+        },
+        // 停用 relay 时至少要留一个可用的 Provider。
+        spare: {
+          name: 'Spare',
+          api: 'openai-completions',
+          baseUrl: 'https://spare.example.test/v1',
+          models: [],
+        },
+      },
+    }),
+  )
+  await writeFile(
+    join(directory, 'auth.json'),
+    JSON.stringify({
+      relay: { type: 'api_key', key: 'relay-key' },
+      spare: { type: 'api_key', key: 'spare-key' },
+    }),
+  )
+  let remote = ['relay-a', 'relay-b']
+  let calls = 0
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover(input) {
+        if (!String(input.baseUrl).includes('spare')) calls += 1
+        const ids = String(input.baseUrl).includes('spare') ? ['spare-chat'] : remote
+        return {
+          count: ids.length,
+          models: ids.map((id) => ({ id, name: id, kind: 'chat' })),
+        }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  await runtime.init()
+  await runtime.refreshProviderModels()
+  assert.ok(runtime.modelRuntime.getModel('relay', 'relay-b'))
+  await runtime.deleteProviderModel('relay', 'relay-b')
+
+  const scheduler = runtime.modelListRefresh
+  assert.ok(scheduler, 'init starts the idle refresh')
+  // 还没到刷新间隔：只检查元数据，不重新拉模型列表。
+  const before = calls
+  await scheduler.tick()
+  assert.equal(calls, before)
+
+  // 到了间隔且空闲：新模型进来，删掉的模型不回来。
+  remote = ['relay-a', 'relay-b', 'relay-c']
+  scheduler.lastProviderRefreshAt = 0
+  await scheduler.tick()
+  assert.equal(calls, before + 1)
+  assert.ok(runtime.modelRuntime.getModel('relay', 'relay-c'))
+  assert.equal(runtime.modelRuntime.getModel('relay', 'relay-b'), undefined)
+
+  // 有会话在跑时让路。
+  const hasActiveWork = runtime.hasActiveWork
+  runtime.hasActiveWork = () => true
+  scheduler.lastProviderRefreshAt = 0
+  assert.equal(scheduler.tick(), null)
+  assert.equal(calls, before + 1)
+  runtime.hasActiveWork = hasActiveWork
+
+  // 停用的 Provider 不再请求它的模型列表。
+  await runtime.setProviderEnabled('relay', false)
+  scheduler.lastProviderRefreshAt = 0
+  await scheduler.tick()
+  assert.equal(calls, before + 1)
+})
