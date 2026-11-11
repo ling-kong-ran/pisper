@@ -15,15 +15,28 @@ export function wakeBudgetChars(contextWindowTokens) {
 
 /**
  * 你发的一句话叫醒谁：点了名就只叫点到的——@ 到的、你回复的那条消息的作者 Bot、@所有人 时全部成员；
- * 没点名才按“发给”里选的（所有人 = 全部成员，新建的群默认就是所有人）。
+ * 没点名才按“发给”里选的成员。“发给”是所有人（新建的群默认就是）时：triage 为真（“@ 谁谁答”的群）
+ * 就先由群里判断该谁答，只剩一个能叫醒的成员时直接叫它；否则叫醒全部成员。
  * 暂停的 Bot 不叫，单独列出来（群里写一行说明）。
  * @param {{ mentions: string[], recipients: string[] | 'all', replyToAuthor?: string, text: string }} message
  * @param {{ id: string, enabled: boolean }[]} members
+ * @param {{ triage?: boolean }} [options]
  */
-export function userWakeTargets(message, members) {
+export function userWakeTargets(message, members, { triage = false } = {}) {
   const addressed =
     message.mentions.length > 0 || Boolean(message.replyToAuthor) || mentionsEveryone(message.text)
-  const everyone = mentionsEveryone(message.text) || (!addressed && message.recipients === 'all')
+  const unnamedAll = !addressed && message.recipients === 'all'
+  const awake = members.filter((member) => member.enabled)
+  if (unnamedAll && triage) {
+    const paused = members.filter((member) => !member.enabled).map((member) => member.id)
+    if (awake.length >= 2) return { wake: [], paused, triage: true }
+    return {
+      wake: awake.map((member) => ({ botId: member.id, kind: 'recipient' })),
+      paused,
+      triage: false,
+    }
+  }
+  const everyone = mentionsEveryone(message.text) || unnamedAll
   const reasons = new Map()
   const add = (id, kind) => {
     if (!reasons.has(id)) reasons.set(id, kind)
@@ -42,7 +55,7 @@ export function userWakeTargets(message, members) {
     if (member.enabled) wake.push({ botId: id, kind })
     else paused.push(id)
   }
-  return { wake, paused }
+  return { wake, paused, triage: false }
 }
 
 /**

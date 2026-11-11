@@ -56,6 +56,8 @@ const MAX_WATCHED_CARDS = 50
 const ROUTE_TAIL_MESSAGES = 8
 const ROUTE_TAIL_CHARS = 400
 const ROUTE_TIMEOUT_MS = 60_000
+// 没有主持人时群里自己判断该谁答：等不到就叫醒所有人，所以宁短勿长。
+const TRIAGE_TIMEOUT_MS = 20_000
 // 同一条消息叫醒几个 Bot 时共用的附件内容留多久。
 const ROOM_ATTACHMENT_SHARE_MS = 15_000
 
@@ -422,13 +424,14 @@ export const roomMethods = {
       JSON.stringify(normalized.recipients) !== JSON.stringify(room.recipients)
     )
       await this.rooms.update(id, { recipients: normalized.recipients })
-    const { wake, paused } = userWakeTargets(
+    const { wake, paused, triage } = userWakeTargets(
       {
         ...normalized,
         mentions,
         replyToAuthor: replied?.author?.kind === 'bot' ? replied.author.botId : '',
       },
       members,
+      { triage: room.answerMode !== 'host' },
     )
     for (const botId of paused)
       await this.rooms.append(id, {
@@ -442,26 +445,32 @@ export const roomMethods = {
         chain,
         trust: 'user',
       }).catch(() => console.warn('[rooms] Could not wake the bot.'))
-    // 主持人分派：没点名的话交给主持人判断该谁答。在后台做，不拖住这次发送的响应。
-    const routing = routesToHost(
-      {
-        ...normalized,
-        mentions,
-        replyToAuthor: replied?.author?.kind === 'bot' ? replied.author.botId : '',
-      },
-      room,
-    )
-    if (routing) void this.routeRoomMessage(id, message, chain)
+    // 没点名的话先判断该谁答：主持人分派的群交给主持人，别的群由群里判断。在后台做，不拖住这次发送的响应。
+    const routing =
+      triage ||
+      routesToHost(
+        {
+          ...normalized,
+          mentions,
+          replyToAuthor: replied?.author?.kind === 'bot' ? replied.author.botId : '',
+        },
+        room,
+      )
+    if (routing) void this.routeRoomMessage(id, message, chain, { triage })
     return { message, woke: wake.map((target) => target.botId), ...(routing ? { routing } : {}) }
   },
 
   // 同一个群的分派按顺序来：连着发几句没点名的话时，主持人的判断按发出的顺序贴出来。永不抛错。
-  routeRoomMessage(roomId, message, chain) {
+  routeRoomMessage(roomId, message, chain, { triage = false } = {}) {
     this.roomRouteQueues ||= new Map()
     const previous = this.roomRouteQueues.get(roomId) || Promise.resolve()
     const next = previous
-      .then(() => this.routeRoomMessageNow(roomId, message, chain))
-      .catch(() => console.warn('[rooms] Could not route the message to the host.'))
+      .then(() =>
+        triage
+          ? this.triageRoomMessageNow(roomId, message, chain)
+          : this.routeRoomMessageNow(roomId, message, chain),
+      )
+      .catch(() => console.warn('[rooms] Could not route the message.'))
       .finally(() => {
         if (this.roomRouteQueues.get(roomId) === next) this.roomRouteQueues.delete(roomId)
       })
@@ -488,19 +497,7 @@ export const roomMethods = {
     const eligible = this.roomMembers(room).filter(
       (member) => member.name && !member.deleted && member.enabled,
     )
-    // 只读：不改记录本身。
-    const messages = await this.rooms.peekMessages(roomId)
-    const names = (author) =>
-      author?.kind === 'bot'
-        ? eligible.find((member) => member.id === author.botId)?.name || 'a removed bot'
-        : 'user'
-    const lines = messages
-      .filter(
-        (item) =>
-          item.seq < message.seq && !item.recalled && item.text && item.author?.kind !== 'system',
-      )
-      .slice(-ROUTE_TAIL_MESSAGES)
-      .map((item) => `#${item.seq} ${names(item.author)}: ${oneLine(item.text, ROUTE_TAIL_CHARS)}`)
+    const lines = await this.roomRouteLines(roomId, message, eligible)
     let result
     const timeout = AbortSignal.timeout(ROUTE_TIMEOUT_MS)
     try {
@@ -545,6 +542,98 @@ export const roomMethods = {
         chain,
         trust: 'user',
       }).catch(() => console.warn('[rooms] Could not wake the bot.'))
+  },
+
+  // 分派看的前情：这句话之前最近几条（只读，不改记录本身）。
+  async roomRouteLines(roomId, message, members) {
+    const messages = await this.rooms.peekMessages(roomId)
+    const names = (author) =>
+      author?.kind === 'bot'
+        ? members.find((member) => member.id === author.botId)?.name || 'a removed bot'
+        : 'user'
+    return messages
+      .filter(
+        (item) =>
+          item.seq < message.seq && !item.recalled && item.text && item.author?.kind !== 'system',
+      )
+      .slice(-ROUTE_TAIL_MESSAGES)
+      .map((item) => `#${item.seq} ${names(item.author)}: ${oneLine(item.text, ROUTE_TAIL_CHARS)}`)
+  },
+
+  // 没有主持人的群里没点名的话：一次不带工具的独立请求（同主持人分派）判断该谁答，只叫醒选中的。
+  // 判断不了（没有模型、出错、超时、回复不对）就叫醒所有人、各自可以跳过，一句话不能因此没人理。
+  async triageRoomMessageNow(roomId, message, chain) {
+    const room = this.rooms.get(roomId)
+    if (!room || room.answerMode === 'host' || !this.roomsEnabled()) return
+    const eligible = this.roomMembers(room).filter(
+      (member) => member.name && !member.deleted && member.enabled,
+    )
+    if (!eligible.length) return
+    // 等判断的这一会儿，这句话被撤回了、群被删了或改成主持人分派：不再叫人。
+    const stillOpen = async () => {
+      const current = this.rooms.get(roomId)
+      const still = await this.rooms.message(roomId, message.id)
+      return Boolean(current && current.answerMode !== 'host' && still && !still.recalled)
+    }
+    const wake = (botId, reason) =>
+      void this.wakeSeat(roomId, botId, {
+        trigger: message,
+        reason: { seq: message.seq, ...reason },
+        chain,
+        trust: 'user',
+      }).catch(() => console.warn('[rooms] Could not wake the bot.'))
+    const parsed = await this.requestRoomTriage(room, message, eligible)
+    if (!(await stillOpen())) return
+    if (!parsed) {
+      for (const member of eligible) wake(member.id, { kind: 'everyone', unnamed: true })
+      return
+    }
+    await this.rooms.append(roomId, {
+      author: { kind: 'system' },
+      event: { type: 'triaged', seq: message.seq, bots: parsed.bots, note: parsed.reason },
+    })
+    for (const botId of parsed.bots) wake(botId, { kind: 'triage', why: parsed.reason })
+  },
+
+  // 群里判断该谁答的那次请求：成功时返回 { bots, reason }，任何一步不成都返回 null。
+  async requestRoomTriage(room, message, eligible) {
+    const timeout = AbortSignal.timeout(TRIAGE_TIMEOUT_MS)
+    try {
+      const model = await this.roomTriageModel(room, eligible)
+      if (!model) return null
+      const result = await requestBotText({
+        modelRuntime: this.modelRuntime,
+        model,
+        text: roomRouteInstruction({
+          room,
+          host: null,
+          members: eligible,
+          lines: await this.roomRouteLines(room.id, message, eligible),
+          message,
+          max: ROOM_ROUTE_MAX_WAKES,
+        }),
+        signal: timeout,
+      })
+      if (result.usage)
+        await this.recordUsage?.(
+          localDayKey(),
+          `room-triage:${room.id}:${randomUUID()}`,
+          result.usage,
+        ).catch(() => {})
+      if (result.text === null || timeout.aborted) return null
+      return parseRouteReply(result.text, eligible)
+    } catch {
+      return null
+    }
+  },
+
+  // 群里判断用哪个模型：子代理的“快速”档，没配就用维护简报的 Bot 的模型，再没有就用第一个成员的。
+  async roomTriageModel(room, eligible) {
+    const fast = await this.providerPreferences?.resolveSubagentModel({ tier: 'fast' })
+    if (fast?.model) return fast.model
+    const keeper = eligible.find((member) => member.id === room.briefBotId) || eligible[0]
+    const bot = keeper && this.bots.get(keeper.id)
+    return bot ? this.roomBriefModel(room.id, bot) : null
   },
 
   // 记下要叫醒某个席位，然后尽快送进去。同一个席位的送达按顺序来（不会建出两条席位会话、不会并发开两轮）。

@@ -164,6 +164,8 @@ async function finishTurn(runtime, sessionId, reply, { error = '' } = {}) {
 }
 
 async function settle(runtime) {
+  // 没点名的话先在后台判断该谁答，等它叫完人再看席位。
+  await Promise.all([...(runtime.roomRouteQueues?.values() || [])])
   await Promise.all([...(runtime.roomSeatQueues?.values() || [])])
   await new Promise((resolve) => setImmediate(resolve))
   await Promise.all([...(runtime.roomSeatQueues?.values() || [])])
@@ -207,7 +209,7 @@ test('who wakes up: mentions, recipients, a reply to a bot, everyone; paused bot
     { id: FISH, enabled: false },
   ]
   const nobody = userWakeTargets({ mentions: [], recipients: [], text: '先铺垫一下' }, members)
-  assert.deepEqual(nobody, { wake: [], paused: [] })
+  assert.deepEqual(nobody, { wake: [], paused: [], triage: false })
   // 点了名就只叫点到的：“发给”里选的这次不叫。
   const some = userWakeTargets(
     { mentions: [PRO], recipients: [KE], replyToAuthor: FISH, text: 'x' },
@@ -229,6 +231,35 @@ test('who wakes up: mentions, recipients, a reply to a bot, everyone; paused bot
     { botId: PRO, kind: 'everyone' },
   ])
   assert.deepEqual(unnamed.paused, [FISH])
+  // “@ 谁谁答”的群里没点名、发给所有人：先由群里判断该谁答，这时谁也不直接叫；
+  // 只剩一个能叫醒的成员就直接叫它，它不能跳过（和“发给”选中的一样）。
+  const triaged = userWakeTargets({ mentions: [], recipients: 'all', text: '大家看看' }, members, {
+    triage: true,
+  })
+  assert.deepEqual(triaged, { wake: [], paused: [FISH], triage: true })
+  const lone = userWakeTargets(
+    { mentions: [], recipients: 'all', text: '大家看看' },
+    [members[0], members[2]],
+    { triage: true },
+  )
+  assert.deepEqual(lone, {
+    wake: [{ botId: KE, kind: 'recipient' }],
+    paused: [FISH],
+    triage: false,
+  })
+  // 点了名、@所有人、“发给”选了人：不经过判断。
+  for (const message of [
+    { mentions: [KE], recipients: 'all', text: '@小克 看下' },
+    { mentions: [], recipients: 'all', text: '@所有人 收尾' },
+    { mentions: [], recipients: [PRO], text: '你看看' },
+  ])
+    assert.equal(userWakeTargets(message, members, { triage: true }).triage, false)
+  assert.deepEqual(
+    userWakeTargets({ mentions: [], recipients: 'all', text: '@所有人 收尾' }, members, {
+      triage: true,
+    }).wake.map((item) => item.kind),
+    ['everyone', 'everyone'],
+  )
   const picked = userWakeTargets({ mentions: [], recipients: [KE], text: '你看看' }, members)
   assert.deepEqual(picked.wake, [{ botId: KE, kind: 'recipient' }])
   const all = userWakeTargets({ mentions: [], recipients: [], text: '@所有人 收尾' }, members)
@@ -369,11 +400,21 @@ test('a seat session belongs to its bot; with Labs off it is just a session', as
 })
 
 test('a message that names nobody goes to everyone; a mention wakes only that bot in its own seat', async () => {
-  // 没有“只留言”：没 @ 谁、也没选“发给”时叫醒所有成员（旧客户端发来的空“发给”也一样）。
+  // 没有“只留言”：没 @ 谁、也没选“发给”时发给所有成员（旧客户端发来的空“发给”也一样），先判断该谁答；
+  // 这里没有模型可用，判断不了就叫醒所有人，各自可以跳过。
   const everyone = await fakeRuntime()
   const shared = await everyone.createRoom({ name: '前端小组', members: [KE, PRO] })
   const unnamed = await everyone.postRoomMessage(shared.id, { text: '大家看看', recipients: [] })
-  assert.deepEqual(unnamed.woke.toSorted(), [KE, PRO].toSorted())
+  assert.deepEqual([unnamed.woke, unnamed.routing], [[], true])
+  await settle(everyone)
+  assert.deepEqual(
+    everyone.runs.map((run) => everyone.roomSeatOf(run.sessionId).botId).toSorted(),
+    [KE, PRO].toSorted(),
+  )
+  assert.match(
+    everyone.runs[0].message.split(ATTACHMENT_MARKER)[1],
+    /The user posted #1 without addressing anyone\. If nothing in it is for you, reply exactly \[pass\]/,
+  )
 
   const runtime = await fakeRuntime()
   const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
@@ -1630,6 +1671,187 @@ test('the host sees the file names of an attachment-only message', async () => {
   assert.match(JSON.stringify(runtime.modelRuntime.prompts.at(-1)), /\[attached: 报表\.csv\]/)
 })
 
+// “@ 谁谁答”的群：没点名的话由群里先判断该谁答。fast 为假时子代理没配“快速”档。
+async function triageRuntime(
+  replies,
+  { gate = null, fast = true, members = [KE, PRO, FISH, NAP] } = {},
+) {
+  const runtime = await fakeRuntime({
+    bots: [
+      bot(KE, '小克'),
+      bot(PRO, '小克pro'),
+      bot(FISH, '肥鱼'),
+      bot(NAP, '睡觉的', { enabled: false }),
+    ],
+  })
+  runtime.modelRuntime = scriptedModel(replies, { gate })
+  runtime.usage = []
+  runtime.recordUsage = async (day, key, usage) => runtime.usage.push({ key, usage })
+  runtime.providerPreferences = {
+    resolveSubagentModel: async ({ tier }) => ({
+      model:
+        tier === 'fast'
+          ? fast
+            ? { provider: 'luna', id: 'fast-model' }
+            : null
+          : { provider: 'luna', id: 'bot-model' },
+    }),
+  }
+  const room = await runtime.createRoom({ name: '前端小组', members })
+  return { runtime, room }
+}
+
+const botsOf = (runtime) => runtime.runs.map((run) => runtime.roomSeatOf(run.sessionId).botId)
+
+test('an un-addressed message is triaged: one small request picks who answers and only they wake', async () => {
+  let release
+  const gate = new Promise((resolve) => (release = resolve))
+  const { runtime, room } = await triageRuntime(
+    [JSON.stringify({ bots: [PRO, NAP, 'bot_nopeAAAAAA'], reason: '撤回按钮是它改的' })],
+    { gate },
+  )
+  await runtime.rooms.append(room.id, {
+    author: { kind: 'user' },
+    text: '先铺垫一下背景',
+    mentions: [],
+  })
+  // 发送不等判断：响应先回来，只说“在分派”，谁也没叫。
+  const sent = await runtime.postRoomMessage(room.id, { text: '撤回按钮好像坏了' })
+  assert.deepEqual([sent.woke, sent.routing], [[], true])
+  assert.equal(runtime.runs.length, 0)
+  release()
+  const lines = await routed(runtime, room.id)
+  // 只叫醒选中的、能叫醒的（暂停的、不在群里的不算）。
+  assert.deepEqual(botsOf(runtime), [PRO])
+  // 一次不带工具的请求，用子代理“快速”档；没有主持人的口吻，倾向只请一个。
+  assert.equal(runtime.modelRuntime.prompts.length, 1)
+  const prompt = runtime.modelRuntime.prompts[0]
+  assert.deepEqual(prompt.tools, [])
+  assert.equal(prompt.model.id, 'fast-model')
+  assert.match(prompt.text, /^You route messages in the group room "前端小组"/)
+  assert.doesNotMatch(prompt.text, /You are |\(you\)|睡觉的/)
+  assert.match(prompt.text, /usually one\. A short follow-up/)
+  assert.match(prompt.text, /#1 user: 先铺垫一下背景/)
+  // 群里写一行群里请了谁、为什么（没有主持人）；用量记在群下。
+  assert.deepEqual(lines.find((line) => line.event.type === 'triaged').event, {
+    type: 'triaged',
+    seq: 2,
+    bots: [PRO],
+    note: '撤回按钮是它改的',
+  })
+  assert.equal(runtime.usage.length, 1)
+  assert.match(runtime.usage[0].key, new RegExp(`^room-triage:${room.id}:`))
+  // 被选中的知道为什么是它，看得见的是你的原话；它不能跳过，写 [pass] 照原样贴出来。
+  const [visible, context] = runtime.runs[0].message.split(ATTACHMENT_MARKER)
+  assert.equal(visible, '撤回按钮好像坏了')
+  assert.match(
+    context,
+    /the room picked you to answer it \(撤回按钮是它改的\)\. Answer in the room/,
+  )
+  assert.doesNotMatch(context, /reply exactly \[pass\]/)
+  assert.equal(runtime.runs[0].unattended, false)
+  await finishTurn(runtime, runtime.runs[0].sessionId, '[pass]')
+  const card = (await runtime.rooms.messages(room.id)).find((message) => message.turn)
+  assert.deepEqual([card.turn.state, card.text], ['done', '[pass]'])
+  // 席位提示：只有叫醒说明里允许时才能跳过。
+  assert.match(
+    runtime.roomSeatPromptFor(runtime.runs[0].sessionId, runtime.bots.get(PRO)),
+    /allows \[pass\] and nothing is for you, reply exactly \[pass\] and nothing else\. Never reply \[pass\] otherwise\./,
+  )
+})
+
+test('a triage that fails or answers badly wakes everyone, who may pass; a message nobody needs to answer leaves a line', async () => {
+  for (const reply of [new Error('provider down'), null, '我觉得小克pro 来']) {
+    const { runtime, room } = await triageRuntime([reply])
+    await runtime.postRoomMessage(room.id, { text: '大家看看' })
+    const lines = await routed(runtime, room.id)
+    assert.deepEqual(botsOf(runtime).toSorted(), [KE, PRO, FISH].toSorted())
+    // 判断不了不写分派行（不然每次故障都刷一行），叫醒说明照实说“没点名”，允许跳过。
+    assert.equal(lines.filter((line) => line.event.type === 'triaged').length, 0)
+    assert.match(
+      runtime.runs[0].message.split(ATTACHMENT_MARKER)[1],
+      /The user posted #1 without addressing anyone\. If nothing in it is for you, reply exactly \[pass\]\./,
+    )
+    await finishTurn(runtime, runtime.runs[0].sessionId, '[pass]')
+    const card = (await runtime.rooms.messages(room.id)).find((message) => message.turn)
+    assert.equal(card.turn.state, 'skipped')
+  }
+  const { runtime, room } = await triageRuntime([JSON.stringify({ bots: [], reason: '只是道谢' })])
+  await runtime.postRoomMessage(room.id, { text: '谢谢大家' })
+  const lines = await routed(runtime, room.id)
+  assert.equal(runtime.runs.length, 0)
+  assert.deepEqual(lines.at(-1).event, { type: 'triaged', seq: 1, bots: [], note: '只是道谢' })
+})
+
+test('without a fast tier the triage uses the brief keeper model; a lone member and @everyone skip it', async () => {
+  const { runtime, room } = await triageRuntime([JSON.stringify({ bots: [KE], reason: '' })], {
+    fast: false,
+  })
+  await runtime.postRoomMessage(room.id, { text: '看看' })
+  await routed(runtime, room.id)
+  assert.equal(runtime.modelRuntime.prompts[0].model.id, 'bot-model')
+  assert.deepEqual(botsOf(runtime), [KE])
+
+  // @所有人：照旧叫醒每个成员、可以跳过，不问模型。
+  const everyone = await triageRuntime([])
+  await everyone.runtime.postRoomMessage(everyone.room.id, { text: '@所有人 收尾前还有顾虑吗' })
+  await settle(everyone.runtime)
+  assert.equal(everyone.runtime.modelRuntime.prompts.length, 0)
+  assert.equal(everyone.runtime.runs.length, 3)
+
+  // 只剩一个能叫醒的成员：直接叫它，不问模型；暂停的照常写一行。
+  const lone = await triageRuntime([], { members: [FISH, NAP] })
+  const sent = await lone.runtime.postRoomMessage(lone.room.id, { text: '看看' })
+  assert.deepEqual([sent.woke, sent.routing], [[FISH], undefined])
+  await settle(lone.runtime)
+  assert.equal(lone.runtime.modelRuntime.prompts.length, 0)
+  assert.match(
+    lone.runtime.runs[0].message.split(ATTACHMENT_MARKER)[1],
+    /The user sent #1 to you\./,
+  )
+  const notes = (await lone.runtime.rooms.messages(lone.room.id)).filter(
+    (message) => message.author.kind === 'system',
+  )
+  assert.deepEqual(
+    notes.map((message) => message.event.type),
+    ['paused'],
+  )
+
+  // 主持人分派的群里明确选了“所有人”：叫醒每个成员，不经过判断。
+  const { runtime: hosted, room: hostRoom } = await hostRuntime([])
+  const all = await hosted.postRoomMessage(hostRoom.id, { text: '大家看看', recipients: 'all' })
+  assert.deepEqual([all.woke.length, all.routing], [5, undefined])
+})
+
+test('a triage keeps order across messages and wakes nobody when the message is gone before it answers', async () => {
+  const { runtime, room } = await triageRuntime([
+    JSON.stringify({ bots: [KE], reason: '' }),
+    JSON.stringify({ bots: [KE], reason: '' }),
+  ])
+  const first = await runtime.postRoomMessage(room.id, { text: '第一句' })
+  const second = await runtime.postRoomMessage(room.id, { text: '第二句' })
+  const lines = await routed(runtime, room.id)
+  assert.deepEqual(
+    lines.filter((line) => line.event.type === 'triaged').map((line) => line.event.seq),
+    [first.message.seq, second.message.seq],
+  )
+  assert.match(runtime.modelRuntime.prompts[1].text, /#1 user: 第一句/)
+
+  for (const undo of ['recall', 'host']) {
+    let release
+    const gate = new Promise((resolve) => (release = resolve))
+    const { runtime, room } = await triageRuntime([new Error('down')], { gate })
+    const sent = await runtime.postRoomMessage(room.id, { text: '看看' })
+    if (undo === 'recall') await runtime.recallRoomMessage(room.id, sent.message.id)
+    else await runtime.updateRoom(room.id, { answerMode: 'host', hostBotId: KE })
+    release()
+    const lines = await routed(runtime, room.id)
+    // 失败时的“叫醒所有人”也不做。
+    assert.equal(runtime.runs.length, 0)
+    assert.equal(lines.filter((line) => line.event.type === 'triaged').length, 0)
+  }
+})
+
 test('with nobody connected the board hub keeps no room frames and no timer', async () => {
   const hub = new BoardEventHub({
     listItems: async () => new Map(),
@@ -1853,6 +2075,9 @@ test('the room page keeps the first look: list rows, status rows, a scrolling Se
   assert.match(composer, /aria-pressed=\{pressed\}/)
   assert.match(composer, /overflow-x-auto/)
   assert.doesNotMatch(composer, /DropdownMenuCheckboxItem|<select/)
+  // 没点名、发给所有人（不是主持人分派的群）：提示由群里判断谁答，而不是“会叫醒 N 个”。
+  assert.match(composer, /const triaging = !idleLabel && !addressed && everyone && wakes >= 2/)
+  assert.match(composer, /\{triaging \? \([\s\S]{0,400}room\.composer\.triageHint/)
   // Windows 自绘标题栏：面板没开时页头右边给窗口按钮让出 144px，开着时面板内容从按钮下面开始。
   assert.match(page, /\[\[data-custom-titlebar\]_&\]:pr-\[144px\]/)
   assert.match(page, /\[\[data-custom-titlebar\]_&\]:pt-\[52px\]/)

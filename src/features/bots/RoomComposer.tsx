@@ -142,6 +142,8 @@ export function RoomComposer({
   // 暂停的 Bot 叫不醒，不算进“会叫醒 N 个”。
   const awake = new Set(active.filter((member) => member.enabled).map((member) => member.id))
   const wakes = targets.filter((id) => awake.has(id)).length
+  // “@ 谁谁答”的群里没点名、发给所有人：不是全叫醒，由群里判断该谁答（和 Runtime 的 userWakeTargets 一致）。
+  const triaging = !idleLabel && !addressed && everyone && wakes >= 2
 
   const insertMention = (option: { name: string }) => {
     if (!query) return
@@ -436,7 +438,14 @@ export function RoomComposer({
                 </Chip>
               )}
             </div>
-            {wakes >= 3 ? (
+            {triaging ? (
+              <span
+                data-room-triage-hint
+                className="max-w-[40%] min-w-0 flex-none truncate px-1 text-[12px] text-content-muted max-[650px]:hidden"
+              >
+                {t('bots:room.composer.triageHint')}
+              </span>
+            ) : wakes >= 3 ? (
               <span className="flex-none px-1 text-[12px] text-content-muted max-[650px]:hidden">
                 {t('bots:room.composer.wakes', { count: wakes })}
               </span>

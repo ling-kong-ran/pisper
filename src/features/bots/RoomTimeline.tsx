@@ -157,12 +157,23 @@ function roundLine(entries: RoundEntry[], name: (id: string) => string, t: Trans
   return t('bots:room.round.line', { parts: parts.join(' · ') })
 }
 
-// 主持人分派的系统行：请了谁（或谁也不用）、一句理由；分派失败、主持人暂停时各一句。
+// 分派的系统行：请了谁（或谁也不用）、一句理由；分派失败、主持人暂停时各一句。没有主持人时是群里判断的（triaged）。
 function routeLine(
   event: NonNullable<RoomMessage['event']>,
   name: (id: string) => string,
   t: Translate,
 ) {
+  if (event.type === 'triaged') {
+    const reason = event.note
+    if (!event.bots.length)
+      return reason
+        ? t('bots:room.system.triagedNobody', { reason })
+        : t('bots:room.system.triagedNobodyPlain')
+    const names = event.bots.map(name).join('、')
+    return reason
+      ? t('bots:room.system.triaged', { names, reason })
+      : t('bots:room.system.triagedPlain', { names })
+  }
   const host = name(event.botId)
   if (event.type === 'route_failed')
     return event.reason === 'host_paused'
