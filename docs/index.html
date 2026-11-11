@@ -40,6 +40,7 @@
           <a href="#product">界面</a>
           <a href="#bot">Bot</a>
           <a href="#features">能力</a>
+          <a href="#metrics">实测数据</a>
           <a href="guide.html">使用教程</a>
           <a href="changelog.html">开发日志</a>
           <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
@@ -61,6 +62,7 @@
               <a href="#product">界面</a>
               <a href="#bot">Bot</a>
               <a href="#features">能力</a>
+              <a href="#metrics">实测数据</a>
               <a href="guide.html">使用教程</a>
               <a href="changelog.html">开发日志</a>
               <a href="https://github.com/ling-kong-ran/pisper">GitHub</a>
@@ -343,6 +345,47 @@
               <p>没有“我们的云”：会话、记忆和配置都在你自己的电脑上。</p>
             </a>
           </div>
+        </div>
+      </section>
+
+      <!-- 实测数据 -->
+      <section class="section" id="metrics" aria-labelledby="metrics-title">
+        <div class="shell">
+          <div class="section-head">
+            <p class="eyebrow">实测数据</p>
+            <h2 id="metrics-title">上下文留给你的文件，不留给提示词。</h2>
+            <p>
+              作者自己的使用记录，经 magpie 网关统计：680 个请求、32 个会话，模型为 glm-5.3、deepseek-v4-pro 与 kimi-k3.1-pro。评分与标签按所选时间范围内的请求算出。
+            </p>
+          </div>
+          <div class="metrics">
+            <figure class="shot metrics-shot">
+              <a href="shots/prompt-analysis.png" target="_blank" rel="noopener noreferrer" aria-label="查看提示词体检完整截图">
+                <img src="shots/web/prompt-analysis.webp" alt="magpie 网关统计的 Pisper 提示词体检：评分 100，缓存、起步轻、增速、可靠性四项满分；典型提示词 64K，起步 3.3K，缓存命中 91%" width="408" height="456" loading="lazy" decoding="async" />
+              </a>
+            </figure>
+            <dl class="metrics-list">
+              <div class="metric">
+                <dt>评分</dt>
+                <dd>100<small>缓存 35/35 · 起步轻 25/25 · 增速 20/20 · 可靠性 20/20</small></dd>
+              </div>
+              <div class="metric">
+                <dt>起步</dt>
+                <dd>3.3K<small>典型提示词 64K，最大 565K，每次增长 +1.3K</small></dd>
+              </div>
+              <div class="metric">
+                <dt>缓存命中</dt>
+                <dd>91%<small>窗口大小 1.05M</small></dd>
+              </div>
+              <div class="metric">
+                <dt>系统提示词占比</dt>
+                <dd>2%<small>文件 14% · 工具结果 67% · 会话内容 16%</small></dd>
+              </div>
+            </dl>
+          </div>
+          <p class="view-caption">
+            工具冷热分层、discover / call 按需加载、稳定排序的工具定义与提示词形态诊断，让 Provider 的 prompt cache 尽可能命中。
+          </p>
         </div>
       </section>
 

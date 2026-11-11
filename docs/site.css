@@ -399,6 +399,58 @@ code {
   }
 }
 
+/* ---------- 实测数据 ---------- */
+
+/* 截图是 1x 的卡片，固定在原尺寸附近，右侧用大数字复述图里的关键指标。 */
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 40px 56px;
+}
+
+.metrics-shot {
+  flex: 0 1 408px;
+  max-width: 100%;
+}
+
+.metrics-list {
+  display: grid;
+  flex: 1 1 280px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 32px;
+  margin: 0;
+}
+
+.metric dt {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.metric dd {
+  margin: 4px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.metric dd small {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .metrics-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- 终端安装 ---------- */
 
 .cli {
