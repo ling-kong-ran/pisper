@@ -105,9 +105,30 @@ function findStaticCycle(manifest) {
   return null
 }
 
+// node_modules 是指向别处的软链时（git worktree 共用主检出的依赖），Vite 按真实路径记键，
+// 依赖会写成 ../../<主检出>/node_modules/...；这里还原成项目内的 node_modules/...，
+// 否则按路径前缀写的 Shiki 检查在这种检出里全部误报。
+export function normalizeManifestKeys(manifest) {
+  const normalize = (key) => {
+    if (!key.startsWith('../')) return key
+    const index = key.indexOf('/node_modules/')
+    return index === -1 ? key : key.slice(index + 1)
+  }
+  return Object.fromEntries(
+    Object.entries(manifest).map(([key, record]) => [
+      normalize(key),
+      {
+        ...record,
+        ...(record.imports ? { imports: record.imports.map(normalize) } : {}),
+        ...(record.dynamicImports ? { dynamicImports: record.dynamicImports.map(normalize) } : {}),
+      },
+    ]),
+  )
+}
+
 export async function inspectBundle(distDirectory = resolve('dist')) {
   const manifestPath = resolve(distDirectory, '.vite/manifest.json')
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const manifest = normalizeManifestKeys(JSON.parse(await readFile(manifestPath, 'utf8')))
   const records = Object.entries(manifest)
   const fileMetrics = new Map()
 

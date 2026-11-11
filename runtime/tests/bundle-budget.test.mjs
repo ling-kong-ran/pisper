@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   BUNDLE_BUDGETS,
   initialApplicationClosure,
+  normalizeManifestKeys,
   validateBundle,
 } from '../../scripts/check-bundle-budget.mjs'
 
@@ -187,4 +188,30 @@ test('native component host code and htm never enter the entry closure', () => {
   const failures = validateBundle(report)
   assert.ok(failures.includes('native component host is eager: src/features/custom-ui/hosts.ts'))
   assert.ok(failures.includes('native component host is eager: _htm.module-abc.js'))
+})
+
+test('dependencies reached through a linked node_modules keep their project-relative keys', () => {
+  const outside = '../../../home/user/pisper/node_modules'
+  const manifest = normalizeManifestKeys({
+    'index.html': {
+      file: 'assets/index.js',
+      isEntry: true,
+      dynamicImports: [`${outside}/shiki/dist/wasm.mjs`],
+    },
+    [`${outside}/shiki/dist/wasm.mjs`]: {
+      file: 'assets/wasm.js',
+      isDynamicEntry: true,
+      imports: [`${outside}/a/node_modules/b/x.mjs`],
+    },
+    [`${outside}/a/node_modules/b/x.mjs`]: { file: 'assets/x.js' },
+  })
+  assert.deepEqual(Object.keys(manifest), [
+    'index.html',
+    'node_modules/shiki/dist/wasm.mjs',
+    'node_modules/a/node_modules/b/x.mjs',
+  ])
+  assert.deepEqual(manifest['index.html'].dynamicImports, ['node_modules/shiki/dist/wasm.mjs'])
+  assert.deepEqual(manifest['node_modules/shiki/dist/wasm.mjs'].imports, [
+    'node_modules/a/node_modules/b/x.mjs',
+  ])
 })
