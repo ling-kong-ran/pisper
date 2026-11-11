@@ -150,13 +150,17 @@ export async function listComponentFiles(dir) {
   return { files, error }
 }
 
+// 文件时间戳的精度可能粗到 2 秒（FAT），同一刻度里改了又不变大小时 (mtime, size) 看不出来。
+const RACY_MTIME_MS = 2_000
+
 /**
  * 组件内容哈希：对排序后的文件逐个计算 sha256(path\0size\0sha256(content)\n…)（含 manifest.json 原文），
- * rev 取前 24 位 hex。按 (mtimeMs, size) 缓存每个文件的摘要。
+ * rev 取前 24 位 hex。按 (mtimeMs, size) 缓存每个文件的摘要；算摘要时文件刚改过（离 mtime 不到 2 秒）的
+ * 不信缓存，下次重读（同 git 的 racy timestamp），不然同一刻度里改了同样大小的内容 rev 不会变。
  */
 export class ComponentHasher {
   constructor() {
-    /** @type {Map<string, { mtimeMs: number, size: number, digest: string }>} */
+    /** @type {Map<string, { mtimeMs: number, size: number, digest: string, checkedAt: number }>} */
     this.cache = new Map()
   }
 
@@ -170,13 +174,20 @@ export class ComponentHasher {
     const hash = createHash('sha256')
     for (const entry of listed.files) {
       let cached = this.cache.get(entry.file)
-      if (!cached || cached.mtimeMs !== entry.mtimeMs || cached.size !== entry.size) {
+      if (
+        !cached ||
+        cached.mtimeMs !== entry.mtimeMs ||
+        cached.size !== entry.size ||
+        cached.checkedAt - cached.mtimeMs < RACY_MTIME_MS
+      ) {
+        const checkedAt = Date.now()
         const content = await readFile(entry.file).catch(() => null)
         if (!content) continue
         cached = {
           mtimeMs: entry.mtimeMs,
           size: entry.size,
           digest: createHash('sha256').update(content).digest('hex'),
+          checkedAt,
         }
         this.cache.set(entry.file, cached)
       }

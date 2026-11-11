@@ -10,6 +10,7 @@ import {
   readlink,
   rm,
   symlink,
+  utimes,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -363,6 +364,32 @@ test('内容哈希按文件缓存，未变化时 rev 稳定，点开头的条目
   await mkdir(join(dir, 'a', 'b', 'c', 'd', 'e'), { recursive: true })
   await writeFile(join(dir, 'a', 'b', 'c', 'd', 'e', 'deep.js'), '')
   assert.equal((await hasher.compute(dir)).error, 'component_too_large')
+})
+
+test('同一个时间刻度里改了同样大小的内容，rev 也会变；改完很久的文件才信缓存', async (t) => {
+  const { service } = await fixture(t)
+  const dir = join(service.root, 'racy')
+  await mkdir(dir, { recursive: true })
+  const file = join(dir, 'component.js')
+  const hasher = new ComponentHasher()
+  // 时间戳粗的文件系统上，两次写入落在同一刻度：mtime 和大小都一样，只有内容变了。
+  const tick = new Date()
+  await writeFile(file, 'export default 1')
+  await utimes(file, tick, tick)
+  const first = await hasher.compute(dir)
+  await writeFile(file, 'export default 2')
+  await utimes(file, tick, tick)
+  const second = await hasher.compute(dir)
+  assert.notEqual(second.rev, first.rev)
+  // 改完已经过了好一阵：(mtime, size) 没变就用缓存，不再读内容。
+  const old = new Date(Date.now() - 60_000)
+  await utimes(file, old, old)
+  const settled = await hasher.compute(dir)
+  const cached = hasher.cache.get(file)
+  await writeFile(file, 'export default 3')
+  await utimes(file, old, old)
+  assert.equal((await hasher.compute(dir)).rev, settled.rev)
+  assert.equal(hasher.cache.get(file), cached)
 })
 
 test('三个模板生成可被 ESM 解析的源码与合法 manifest，名称不会被当成代码', async (t) => {
