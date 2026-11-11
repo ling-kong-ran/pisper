@@ -175,7 +175,7 @@ export const FocusSession = memo(function FocusSession({
   onExecutionModeChange,
   onRunModeChange,
   onCompact,
-  onCompactionThresholdChange,
+  onCompactionPreferenceChange,
   onGoalPause,
   onGoalBudgetChange,
   onApproval,
@@ -806,7 +806,7 @@ export const FocusSession = memo(function FocusSession({
           sessionUsage={sessionUsage}
           model={model}
           availableModels={availableModels}
-          onThresholdChange={onCompactionThresholdChange}
+          onCompactionChange={onCompactionPreferenceChange}
         />
       }
     />

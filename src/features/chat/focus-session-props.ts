@@ -13,7 +13,11 @@ import type {
   SessionWorkspaceActivity,
 } from '@/types/chat'
 import type { TranscriptLoadState } from '@/features/chat/FocusTranscript'
-import type { BranchFromHereOptions, WithdrawnInput } from '@/features/chat/chat-api'
+import type {
+  BranchFromHereOptions,
+  CompactionPreferencePatch,
+  WithdrawnInput,
+} from '@/features/chat/chat-api'
 import type { NewTaskDraftChrome } from '@/features/chat/session-workspace-context'
 
 export type FocusSessionProps = {
@@ -81,7 +85,7 @@ export type FocusSessionProps = {
   onGoalPause?: () => Promise<void> | void
   onGoalBudgetChange?: (tokenBudget: number | null) => Promise<void> | void
   onCompact?: () => Promise<void> | void
-  onCompactionThresholdChange?: (thresholdPercent: number) => Promise<void> | void
+  onCompactionPreferenceChange?: (patch: CompactionPreferencePatch) => Promise<void> | void
   onApproval: (approvalId: string, approved: boolean) => Promise<void> | void
   // 代理的提问（ask_user，A5）：Runtime 的待回答问题原样传入，由问题卡解析。
   questions?: EntityRecord[]

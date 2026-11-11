@@ -1419,6 +1419,8 @@ test('context usage reports the current window share and earlier automatic compa
     autoCompactEnabled: true,
     compactAtTokens: 160_000,
     compactAtPercent: 80,
+    compactionThresholdPercent: 80,
+    compactionMaxContextTokens: 256_000,
   })
   assert.deepEqual(
     runtime.decorateContextUsage(
@@ -1433,6 +1435,8 @@ test('context usage reports the current window share and earlier automatic compa
       autoCompactEnabled: true,
       compactAtTokens: 160_000,
       compactAtPercent: 80,
+      compactionThresholdPercent: 80,
+      compactionMaxContextTokens: 256_000,
     },
   )
 })
@@ -1492,12 +1496,33 @@ test('compaction threshold defaults to 80% and persists valid updates', async (t
     thresholdPercent: 72,
     minPercent: 10,
     maxPercent: 95,
+    maxContextTokens: 256_000,
+    maxContextTokenOptions: [128_000, 256_000, 512_000, 0],
   })
   assert.equal(
     JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionThresholdPercent,
     72,
   )
   await assert.rejects(runtime.updateCompactionPreference({ thresholdPercent: 99 }), /10-95%/)
+
+  // 绝对上限可以单独改，阈值保持不变；0 表示不限，非法值拒绝。
+  const capped = await runtime.updateCompactionPreference({ maxContextTokens: 512_000 })
+  assert.equal(capped.thresholdPercent, 72)
+  assert.equal(capped.maxContextTokens, 512_000)
+  assert.equal(
+    JSON.parse(await readFile(join(directory, 'pisper.json'), 'utf8')).compactionMaxContextTokens,
+    512_000,
+  )
+  assert.equal(
+    (await runtime.updateCompactionPreference({ maxContextTokens: 0 })).maxContextTokens,
+    0,
+  )
+  await assert.rejects(
+    runtime.updateCompactionPreference({ maxContextTokens: 5 }),
+    /compaction cap/,
+  )
+  await assert.rejects(runtime.updateCompactionPreference({}), /nothing to update/)
+  assert.equal(runtime.getCompactionPreference().maxContextTokens, 0)
 })
 
 test('session messages are returned newest-first by bounded cursor pages', async (t) => {

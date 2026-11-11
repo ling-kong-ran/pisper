@@ -57,6 +57,15 @@ type CompactionPreferenceResponse = {
   thresholdPercent: number
   minPercent: number
   maxPercent: number
+  // 触发线的绝对上限（token），0 表示不限；旧 Runtime 没有这两个字段。
+  maxContextTokens?: number
+  maxContextTokenOptions?: number[]
+}
+
+// 压缩偏好的局部修改：两项可以单独改。
+export type CompactionPreferencePatch = {
+  thresholdPercent?: number
+  maxContextTokens?: number
 }
 
 export type SessionTreeNode = {
@@ -333,10 +342,10 @@ export const chatApi = {
 
   getConfig: ({ refresh = false } = {}) => fetchStartupQuery<ChatConfigResponse>('config', refresh),
 
-  updateCompactionPreference: (thresholdPercent: number) =>
+  updateCompactionPreference: (patch: CompactionPreferencePatch) =>
     requestJson<CompactionPreferenceResponse>('/api/settings/compaction', {
       method: 'PATCH',
-      data: { thresholdPercent },
+      data: patch,
     }),
 
   getLiveSession: (sessionId: string, options: HttpRequestOptions = {}) =>

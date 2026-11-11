@@ -164,9 +164,11 @@ import { agentSessionMethods } from './agent-session-methods.mjs'
 import { roomMethods } from './room-methods.mjs'
 import { boundSessionModelRef } from './session-model-ref.mjs'
 import {
+  DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS,
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
   installTurnBoundaryCompaction,
+  normalizeCompactionMaxContextTokens,
   normalizeCompactionThresholdPercent,
   pisperCompactionExtension,
 } from './compaction-policy.mjs'
@@ -667,6 +669,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.modelRuntime = null
     this.settingsManager = null
     this.compactionThresholdPercent = DEFAULT_COMPACTION_THRESHOLD_PERCENT
+    this.compactionMaxContextTokens = DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS
     this.betaFeatureFlags = {}
     this.betaFeatureWrite = Promise.resolve()
     this.sessionMeta = {}
@@ -735,6 +738,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       getModelRuntime: () => this.modelRuntime,
       getSettingsManager: () => this.settingsManager,
       getCompactionThresholdPercent: () => this.compactionThresholdPercent,
+      getCompactionMaxContextTokens: () => this.compactionMaxContextTokens,
       createSession: (options) =>
         createSessionWithTransientStreamRetry(createAgentSession, options),
       createResourceLoader: ({ cwd: childCwd, appendSystemPrompt, skillPaths }) =>
@@ -844,6 +848,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       settingsManager: () => this.settingsManager,
       modelRuntime: () => this.modelRuntime,
       compactionThresholdPercent: () => this.compactionThresholdPercent,
+      compactionMaxContextTokens: () => this.compactionMaxContextTokens,
       findSessionInfo: (id) => this.findSessionInfo(id),
       openStoredSession: (path) => this.openStoredSession(path),
       touchSessionRuntime: (value) => this.touchSessionRuntime(value),
@@ -1045,6 +1050,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         const appConfig = await readJson(this.appConfigPath, {})
         this.compactionThresholdPercent = normalizeCompactionThresholdPercent(
           appConfig.compactionThresholdPercent,
+        )
+        this.compactionMaxContextTokens = normalizeCompactionMaxContextTokens(
+          appConfig.compactionMaxContextTokens,
         )
         this.betaFeatureFlags = normalizeStoredBetaFlags(appConfig.betaFeatures)
       },
@@ -2394,6 +2402,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       this.settingsManager,
       () => runtimeSession?.model?.contextWindow,
       () => this.compactionThresholdPercent,
+      () => this.compactionMaxContextTokens,
     )
     const { session, modelFallbackMessage } = await createAgentSession({
       cwd: toolCwd,

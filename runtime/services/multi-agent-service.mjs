@@ -511,6 +511,7 @@ export class MultiAgentService {
     getModelRuntime,
     getSettingsManager,
     getCompactionThresholdPercent,
+    getCompactionMaxContextTokens,
     createSession = createAgentSession,
     // 第二个参数是这个子代理对话记录的文件；没有时（未配置 transcriptDir）只留在内存里。
     createSessionManager = (cwd, file) =>
@@ -528,6 +529,7 @@ export class MultiAgentService {
     this.getModelRuntime = getModelRuntime || (() => null)
     this.getSettingsManager = getSettingsManager || (() => null)
     this.getCompactionThresholdPercent = getCompactionThresholdPercent || (() => undefined)
+    this.getCompactionMaxContextTokens = getCompactionMaxContextTokens || (() => undefined)
     this.createSession = createSession
     this.createSessionManager = createSessionManager
     this.transcriptDir = transcriptDir ? String(transcriptDir) : ''
@@ -1082,6 +1084,7 @@ export class MultiAgentService {
           this.getSettingsManager(),
           () => record.model?.contextWindow,
           this.getCompactionThresholdPercent,
+          this.getCompactionMaxContextTokens,
         )
         const resourceLoader = await this.createResourceLoader({
           cwd: record.cwd,

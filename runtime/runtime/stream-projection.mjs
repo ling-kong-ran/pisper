@@ -20,7 +20,11 @@ import { PLAN_ALL_TOOL_NAMES } from '../tools/app/plan.mjs'
 import { attachGeneratedAssets } from '../services/session-assets.mjs'
 import { assetHasSource, generatedAssetsForSession } from '../services/asset-storage.mjs'
 import { permissionModeForExecutionMode } from '../security/execution-mode.mjs'
-import { effectiveCompactionSettings } from './compaction-policy.mjs'
+import {
+  effectiveCompactionSettings,
+  normalizeCompactionMaxContextTokens,
+  normalizeCompactionThresholdPercent,
+} from './compaction-policy.mjs'
 import { isCompletedTurnBoundaryMessage } from './session-derivation.mjs'
 import { sessionInputQueueSnapshot, sessionInputQueueRevision } from './session-input-queue.mjs'
 import { buildContextBreakdown } from './context-breakdown.mjs'
@@ -696,6 +700,7 @@ export class StreamProjection {
     settingsManager,
     modelRuntime,
     compactionThresholdPercent,
+    compactionMaxContextTokens,
     findSessionInfo,
     openStoredSession,
     touchSessionRuntime,
@@ -725,6 +730,11 @@ export class StreamProjection {
     this.settingsManager = settingsManager
     this.modelRuntime = modelRuntime
     this.compactionThresholdPercent = compactionThresholdPercent
+    // 旧装配（测试）没有传时按默认上限算，与运行时一致。
+    this.compactionMaxContextTokens =
+      typeof compactionMaxContextTokens === 'function'
+        ? compactionMaxContextTokens
+        : () => undefined
     this.findSessionInfo = findSessionInfo
     this.openStoredSession = openStoredSession
     this.touchSessionRuntime = touchSessionRuntime
@@ -1099,6 +1109,7 @@ export class StreamProjection {
       },
       contextWindow,
       this.compactionThresholdPercent(),
+      this.compactionMaxContextTokens(),
     )
     const compactAtTokens = settings.enabled
       ? Math.max(0, contextWindow - Math.max(0, Number(settings.reserveTokens) || 0))
@@ -1111,6 +1122,13 @@ export class StreamProjection {
       autoCompactEnabled: Boolean(settings.enabled),
       compactAtTokens,
       compactAtPercent: compactAtTokens == null ? null : (compactAtTokens / contextWindow) * 100,
+      // 设置里的百分比：有绝对上限时它和实际触发位置不同，滑条要显示设置值。
+      compactionThresholdPercent: normalizeCompactionThresholdPercent(
+        this.compactionThresholdPercent(),
+      ),
+      compactionMaxContextTokens: normalizeCompactionMaxContextTokens(
+        this.compactionMaxContextTokens(),
+      ),
     }
   }
 
@@ -1123,6 +1141,7 @@ export class StreamProjection {
       session.model,
       compaction,
       this.compactionThresholdPercent(),
+      this.compactionMaxContextTokens(),
       ...messageToken(messages),
     ]
     return this.cache.contextUsage(key, token, () => {
