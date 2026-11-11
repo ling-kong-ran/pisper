@@ -21,3 +21,8 @@ export const QUESTION_CANCELLED = Object.freeze({
   stopped: 'Run stopped.',
   deleted: 'Session deleted.',
 })
+
+// 压缩保留段里，同一文件较早的读取结果被后面的读取取代时，替换原正文的占位。
+/** @param {string} path */
+export const SUPERSEDED_READ = (path) =>
+  `[Earlier read of ${path} omitted: a later read below shows the current content.]`

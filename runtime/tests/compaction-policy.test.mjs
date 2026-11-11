@@ -5,6 +5,7 @@ import {
   DEFAULT_COMPACTION_MAX_CONTEXT_TOKENS,
   DEFAULT_COMPACTION_THRESHOLD_PERCENT,
   createCompactionSettingsManager,
+  dedupeKeptReads,
   effectiveCompactionSettings,
   installTurnBoundaryCompaction,
   normalizeCompactionMaxContextTokens,
@@ -310,4 +311,139 @@ test('Pisper compaction falls back to the SDK when extension auth is unavailable
     },
   )
   assert.equal(result, undefined)
+})
+
+// ---- 压缩保留段的读取去重 ----
+const COMPACTED_AT = 10_000
+
+function readCall(id, args, timestamp) {
+  return {
+    role: 'assistant',
+    timestamp,
+    content: [{ type: 'toolCall', id, name: 'read', arguments: args }],
+  }
+}
+
+function readResult(id, text, timestamp, extra = {}) {
+  return {
+    role: 'toolResult',
+    toolCallId: id,
+    toolName: 'read',
+    isError: false,
+    timestamp,
+    content: [{ type: 'text', text }],
+    ...extra,
+  }
+}
+
+function summary() {
+  return { role: 'compactionSummary', summary: 'earlier work', timestamp: COMPACTED_AT }
+}
+
+function keptConversation() {
+  return [
+    { role: 'user', content: 'old request', timestamp: 1_000 },
+    summary(),
+    readCall('a', { path: 'src/app.ts' }, 2_000),
+    readResult('a', 'v1 of app', 2_001),
+    readCall('b', { path: './src/app.ts' }, 3_000),
+    readResult('b', 'v2 of app', 3_001),
+  ]
+}
+
+test('kept reads superseded by a later full read become a placeholder', () => {
+  const messages = keptConversation()
+  const result = dedupeKeptReads(messages, { cwd: '/repo' })
+  assert.notEqual(result, messages)
+  assert.match(result[3].content[0].text, /^\[Earlier read of src\/app\.ts omitted/)
+  assert.equal(result[5].content[0].text, 'v2 of app')
+  // 不改原数组（会话文件里的消息保持原样）。
+  assert.equal(messages[3].content[0].text, 'v1 of app')
+  // 两次投影完全相同，前缀稳定。
+  assert.deepEqual(dedupeKeptReads(keptConversation(), { cwd: '/repo' }), result)
+})
+
+test('messages after the compaction are never rewritten', () => {
+  const messages = [
+    summary(),
+    readCall('a', { path: 'src/app.ts' }, 2_000),
+    readResult('a', 'kept read', 2_001),
+    { role: 'user', content: 'next', timestamp: COMPACTED_AT + 1 },
+    readCall('b', { path: 'src/app.ts' }, COMPACTED_AT + 2),
+    readResult('b', 'new read', COMPACTED_AT + 3),
+    readCall('c', { path: 'src/app.ts' }, COMPACTED_AT + 4),
+    readResult('c', 'newer read', COMPACTED_AT + 5),
+  ]
+  assert.equal(dedupeKeptReads(messages, { cwd: '/repo' }), messages)
+})
+
+test('partial or truncated later reads do not replace earlier ones', () => {
+  const ranged = [
+    summary(),
+    readCall('a', { path: 'big.ts', offset: 1, limit: 100 }, 2_000),
+    readResult('a', 'lines 1-100', 2_001),
+    readCall('b', { path: 'big.ts', offset: 101, limit: 100 }, 3_000),
+    readResult('b', 'lines 101-200', 3_001),
+  ]
+  assert.equal(dedupeKeptReads(ranged), ranged)
+
+  const truncated = [
+    summary(),
+    readCall('a', { path: 'big.ts', offset: 3000 }, 2_000),
+    readResult('a', 'tail of file', 2_001),
+    readCall('b', { path: 'big.ts' }, 3_000),
+    readResult('b', 'head\n\n[Showing lines 1-2000 of 4000. Use offset=2001 to continue.]', 3_001),
+  ]
+  assert.equal(dedupeKeptReads(truncated), truncated)
+
+  const sameRange = [
+    summary(),
+    readCall('a', { path: 'big.ts', offset: 50, limit: 20 }, 2_000),
+    readResult('a', 'old 50-69', 2_001),
+    readCall('b', { path: 'big.ts', offset: 50, limit: 20 }, 3_000),
+    readResult('b', 'new 50-69', 3_001),
+  ]
+  assert.match(dedupeKeptReads(sameRange)[2].content[0].text, /^\[Earlier read of big\.ts/)
+})
+
+test('failed reads, images and other files are left alone', () => {
+  const messages = [
+    summary(),
+    readCall('a', { path: 'a.ts' }, 2_000),
+    readResult('a', 'a.ts content', 2_001),
+    readCall('b', { path: 'b.ts' }, 3_000),
+    readResult('b', 'b.ts content', 3_001),
+    readCall('c', { path: 'a.ts' }, 4_000),
+    readResult('c', 'ENOENT', 4_001, { isError: true }),
+    readCall('d', { path: 'shot.png' }, 5_000),
+    {
+      ...readResult('d', '', 5_001),
+      content: [{ type: 'image', data: 'x', mimeType: 'image/png' }],
+    },
+    readCall('e', { path: 'shot.png' }, 6_000),
+    {
+      ...readResult('e', '', 6_001),
+      content: [{ type: 'image', data: 'y', mimeType: 'image/png' }],
+    },
+  ]
+  assert.equal(dedupeKeptReads(messages), messages)
+})
+
+test('conversations without a compaction pass through unchanged', () => {
+  const messages = keptConversation().filter((message) => message.role !== 'compactionSummary')
+  assert.equal(dedupeKeptReads(messages, { cwd: '/repo' }), messages)
+})
+
+test('the compaction extension projects deduped reads through the context hook', async () => {
+  const handlers = new Map()
+  pisperCompactionExtension({ on: (name, handler) => handlers.set(name, handler) })
+  const contextHandler = handlers.get('context')
+  assert.equal(typeof contextHandler, 'function')
+  const deduped = await contextHandler({ messages: keptConversation() }, { cwd: '/repo' })
+  assert.match(deduped.messages[3].content[0].text, /^\[Earlier read/)
+  const untouched = await contextHandler(
+    { messages: [{ role: 'user', content: 'hi', timestamp: 1 }] },
+    { cwd: '/repo' },
+  )
+  assert.equal(untouched, undefined)
 })

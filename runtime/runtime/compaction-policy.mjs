@@ -1,5 +1,7 @@
 // 压缩策略：包装 Pi 引擎的压缩设置与触发逻辑，加入 Pisper 侧的阈值/预留 token 策略，
 // 并确保压缩发生在回合边界（工具结果落地之后），避免上下文被中途改写。
+import { isAbsolute, resolve } from 'node:path'
+import { SUPERSEDED_READ } from '../prompts/sessions.mjs'
 import { compact } from './pi-coding-agent.mjs'
 
 export const DEFAULT_COMPACTION_THRESHOLD_PERCENT = 80
@@ -149,6 +151,17 @@ export function pisperCompactionExtension(
   pi,
   { compactSession = compact, resolveAuxiliaryModel = async () => null } = {},
 ) {
+  // 压缩保留段的读取去重：只在发给模型的上下文里投影，不改会话文件。
+  pi.on('context', async (event, context) => {
+    let cwd = ''
+    try {
+      cwd = String(context?.cwd || '')
+    } catch {
+      // 扩展上下文已失效时按相对路径原样比较，宁可少去重。
+    }
+    const messages = dedupeKeptReads(event.messages, { cwd })
+    return messages === event.messages ? undefined : { messages }
+  })
   pi.on('session_before_compact', async (event, context) => {
     const model = context.model
     if (!model) return undefined
@@ -229,4 +242,129 @@ export function pisperCompactionExtension(
 
 function sameModel(left, right) {
   return left?.provider === right?.provider && left?.id === right?.id
+}
+
+// ---- 压缩保留段的读取去重 ----
+// 压缩后留下的最近一段对话里，同一文件常被读了好几次，早先那几份内容已经过时，
+// 却和最新的一份一起占着上下文。这里把被后面读取完整覆盖的旧结果换成一行占位。
+// 只动“压缩时保留下来”的那一段：摘要之后、时间戳不晚于压缩时刻的消息。
+// 这一段在两次压缩之间固定不变，所以每次请求投影出的前缀完全相同，不打断提示词缓存；
+// 压缩之后新产生的消息一律不动，否则每读一次文件，前面的历史就会变，整段缓存失效。
+
+const READ_TOOL = 'read'
+const CONTINUATION_MARKER = /Use offset=\d+ to continue/
+
+function finiteNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+
+// 读取范围：offset 从 1 开始，缺省为整文件开头；limit 缺省为不限。
+function readRange(args) {
+  const offset = finiteNumber(args?.offset)
+  const limit = finiteNumber(args?.limit)
+  return {
+    offset: offset && offset > 1 ? Math.floor(offset) : 1,
+    limit: limit && limit > 0 ? Math.floor(limit) : 0,
+  }
+}
+
+function readPathKey(path, cwd) {
+  const raw = typeof path === 'string' ? path.trim().replace(/^@/, '') : ''
+  if (!raw) return ''
+  if (isAbsolute(raw)) return resolve(raw)
+  return cwd ? resolve(cwd, raw) : raw
+}
+
+function textOnly(content) {
+  return (
+    Array.isArray(content) &&
+    content.length > 0 &&
+    content.every((part) => part?.type === 'text' && typeof part.text === 'string')
+  )
+}
+
+// 结果是否就是完整文件：没有指定范围，也没被截断（截断时 Pi 会提示用 offset 继续）。
+function isCompleteRead(read) {
+  return read.range.offset === 1 && !read.range.limit && !read.truncated
+}
+
+function covers(later, earlier) {
+  if (isCompleteRead(later)) return true
+  return later.range.offset === earlier.range.offset && later.range.limit === earlier.range.limit
+}
+
+/**
+ * 压缩保留段里，把被同一文件后续读取覆盖的旧读取结果换成占位。纯函数：没有可替换的内容时
+ * 原样返回同一个数组，便于调用方判断是否改动。
+ * @param {any[]} messages 发给模型前的消息（含 compactionSummary）
+ * @param {{ cwd?: string }} [options]
+ */
+export function dedupeKeptReads(messages, { cwd = '' } = {}) {
+  if (!Array.isArray(messages)) return messages
+  let summaryIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'compactionSummary') {
+      summaryIndex = index
+      break
+    }
+  }
+  if (summaryIndex < 0) return messages
+  const compactedAt = finiteNumber(messages[summaryIndex].timestamp)
+  if (compactedAt === undefined) return messages
+  let end = summaryIndex + 1
+  while (end < messages.length) {
+    const timestamp = finiteNumber(messages[end]?.timestamp)
+    if (timestamp === undefined || timestamp > compactedAt) break
+    end += 1
+  }
+
+  const calls = new Map()
+  const reads = []
+  for (let index = summaryIndex + 1; index < end; index++) {
+    const message = messages[index]
+    if (message?.role === 'assistant' && Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part?.type === 'toolCall' && part.name === READ_TOOL && part.id)
+          calls.set(part.id, part.arguments)
+      }
+      continue
+    }
+    if (message?.role !== 'toolResult' || message.toolName !== READ_TOOL || message.isError)
+      continue
+    if (!calls.has(message.toolCallId) || !textOnly(message.content)) continue
+    const args = calls.get(message.toolCallId)
+    const key = readPathKey(args?.path, cwd)
+    if (!key) continue
+    reads.push({
+      index,
+      key,
+      path: String(args.path).trim(),
+      range: readRange(args),
+      truncated:
+        message.details?.truncation?.truncated === true ||
+        message.content.some((part) => CONTINUATION_MARKER.test(part.text)),
+    })
+  }
+
+  const superseded = new Map()
+  for (let position = 0; position < reads.length; position++) {
+    const earlier = reads[position]
+    for (let next = position + 1; next < reads.length; next++) {
+      const later = reads[next]
+      if (later.key === earlier.key && covers(later, earlier)) {
+        superseded.set(earlier.index, earlier.path)
+        break
+      }
+    }
+  }
+  if (!superseded.size) return messages
+  return messages.map((message, index) =>
+    superseded.has(index)
+      ? {
+          ...message,
+          content: [{ type: 'text', text: SUPERSEDED_READ(superseded.get(index)) }],
+        }
+      : message,
+  )
 }
