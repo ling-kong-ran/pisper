@@ -6,227 +6,267 @@
   <img src="docs/brand/banner.svg" width="880" alt="Pisper — 想法，不必排队" />
 </p>
 
+<h3 align="center">几个代理同时干活，谁在等你、谁在跑、谁做完了，一眼看清。</h3>
+
 <p align="center">
-  跨桌面、终端与手机的多 Agent 应用：像管理代码分支一样管理 Agent 的思路，从任意已完成 Turn 长出分支，并行推进。
+  跨桌面、终端与手机的多代理应用。三端共用同一个内核——换设备，现场不换。
 </p>
 
 <p align="center">
-  <a href="https://github.com/ling-kong-ran/pisper/releases"><img src="https://img.shields.io/github/v/release/ling-kong-ran/pisper?style=flat-square&label=Release" alt="Release" /></a>
-  <a href="https://github.com/ling-kong-ran/pisper/stargazers"><img src="https://img.shields.io/github/stars/ling-kong-ran/pisper?style=flat-square&label=Stars" alt="GitHub Stars" /></a>
+  <a href="https://github.com/ling-kong-ran/pisper/releases/latest"><img src="https://img.shields.io/github/v/release/ling-kong-ran/pisper?style=flat-square&label=Desktop&color=F59E0B" alt="桌面版最新版本" /></a>
+  <a href="https://www.npmjs.com/package/pisper"><img src="https://img.shields.io/npm/v/pisper?style=flat-square&label=npm&color=17141F" alt="npm" /></a>
+  <a href="https://github.com/ling-kong-ran/pisper/stargazers"><img src="https://img.shields.io/github/stars/ling-kong-ran/pisper?style=flat-square&label=Stars&color=17141F" alt="GitHub Stars" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Node.js-20%2B-17141F?style=flat-square&logo=nodedotjs&logoColor=F59E0B" alt="Node.js 20+" />
-  <img src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-17141F?style=flat-square" alt="支持平台" />
+  <img src="https://img.shields.io/badge/Windows%20·%20macOS%20·%20Linux%20·%20Android%20·%20iOS-17141F?style=flat-square" alt="支持平台" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/ling-kong-ran/pisper/releases/latest">
-    <img src="https://img.shields.io/badge/下载桌面版-自带%20TUI%20与%20Runtime-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Pisper 桌面版" />
-  </a>
+  <a href="https://github.com/ling-kong-ran/pisper/releases/latest"><img src="https://img.shields.io/badge/下载桌面版-自带终端界面与%20Runtime-F59E0B?style=for-the-badge&logo=github&logoColor=17141F" alt="下载 Pisper 桌面版" /></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ling-kong-ran/pisper/releases?q=app-v">App Releases</a>
+  <a href="https://pisper.cc">官网</a> ·
+  <a href="https://pisper.cc/guide.html">使用教程</a> ·
+  <a href="https://pisper.cc/changelog.html">开发日志</a> ·
+  <a href="#quickstart">安装</a> ·
+  <a href="#features">能力</a> ·
+  <a href="#data-safety">数据安全</a>
 </p>
 
 <p align="center">
-  <a href="#quickstart">三分钟上手</a> ·
-  <a href="#features">能力地图</a> ·
-  <a href="#data-safety">数据安全</a> ·
-  <a href="./README.en.md">English</a>
+  <a href="docs/shots/desktop-overview.png"><img src="docs/shots/web/desktop-overview.webp" width="880" alt="Pisper 桌面端「全部代理」：按需要你、运行中、今天完成分组，待批准的命令可以就地允许或拒绝" /></a>
 </p>
 
 <a id="why"></a>
 
-## ✨ 为什么是 Pisper
+## ✨ 为什么用 Pisper
 
-- **对话也能开分支。** 在任意已完成 Turn 衍生新会话，继承上下文，源会话一字不改；稳定 Turn 标签把关键节点钉成可检索的锚点 —— 像 Git，但给 Agent 用。
-- **多 Agent 真并行。** 每个会话独享模型、上下文、工作目录与权限；拖动标签四面分屏，进度同屏可见。
-- **工具冷热分明。** 核心工具常驻上下文；插件、MCP 与技能经 discover/call 网关按需激活、用完即退 —— 能力再丰富，也不把上下文塞成杂物间。
-- **前缀稳，缓存才热。** 工具定义稳定化排序、提示词形态哈希诊断，尽量吃满 Provider 的 prompt cache —— 长会话更快、更省。
-- **缺什么能力，直接说。** Pisper 会自己编写、校验并安装本地插件，下一轮对话就能调用。
-- **手机能独立，也能接桌面。** Android / iOS App 内置与桌面同源的 Node/Pisper Runtime、标准会话和 React 界面，并按设备实际能力关闭不可用入口；也可扫码连接桌面，优先 LAN、离开局域网后自动回退 Iroh P2P。远程链路继续使用 TLS 指纹与设备 Bearer 令牌。
-- **数据默认不出机。** Runtime 默认只听 127.0.0.1，敏感格式自动脱敏，记忆的每次改动都有记录、可以撤销 —— 你的上下文，你说了算。
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h4>⚡ 几件事，同时进行</h4>
+      每个代理一行，按“需要你、运行中、今天完成”分组。谁在等你批准一眼就知道，高风险命令就地允许或拒绝，不用逐个点进会话。
+    </td>
+    <td width="33%" valign="top">
+      <h4>🌿 走错了，能回头</h4>
+      会话树保留每一条分支：按轮回退文件、从任意回合另开，原来的对话一字不改。给关键回合打标记，随时跳回去。
+    </td>
+    <td width="33%" valign="top">
+      <h4>📱 换设备，现场不换</h4>
+      桌面、终端和手机共用同一个内核。手机上的代理在本机运行，也能配对桌面，在路上直接批准命令。
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="70%" valign="top">
+      <a href="docs/shots/desktop-session.png"><img src="docs/shots/web/desktop-session.webp" alt="桌面端会话：代理的操作折叠成一行，回复带改动的文件" /></a>
+      <p align="center"><sub>桌面 · 会话</sub></p>
+      <a href="docs/shots/cli.png"><img src="docs/shots/web/cli.webp" alt="Ratatui 终端界面" /></a>
+      <p align="center"><sub>终端 · Ratatui</sub></p>
+    </td>
+    <td width="30%" valign="top">
+      <img src="docs/shots/web/mobile-session.webp" alt="手机端会话：代理在手机本机运行" />
+      <p align="center"><sub>手机 · 本机运行</sub></p>
+    </td>
+  </tr>
+</table>
 
 <a id="features"></a>
 
-## 🗺️ 能力地图
+## 🗺️ 能力
 
-| 🌿 并行与分叉 | 🧩 能力扩展 |
-| --- | --- |
-| 并行会话分屏 · 追忆分支树 · 稳定 Turn 标签 · 按轮回退文件 · Ctrl+K 跨会话直达 · 会话级模型/目录/权限 · 命令与文件的持久权限规则 | 本地插件自动生成 · 接入外部 MCP 服务 · 内置 MCP 服务供本机其他 Agent 调用 · 技能中心 · 多 Provider 模型配置 · 主模型不可用时自动切到备用模型 |
-| **⚡ 自动化与通知** | **🖥️ 终端与桌面一体** |
-| 可视化工作流 · 定时任务 · 飞书 / 个人微信双向渠道 · 分层记忆（自动淘汰过时内容、按时间回放） · Git 与 SVN 工作区 | Ratatui TUI 与桌面共用 Runtime · Android / iOS 同源本机 Runtime 或桌面连接 · 桌面宠物（Petdex）· Desktop / TUI / Runtime / App 独立更新 |
+| | 能力 | 说明 |
+| :---: | --- | --- |
+| 🧵 | **并行代理** | 侧栏常驻需要你、运行中和最近的会话；每个会话有自己的模型、目录和权限，批准、提问卡片就在对话里处理。`Ctrl/⌘ + K` 打开命令面板，跨会话直达。 |
+| 🌳 | **会话树与分支** | 从任意回合另开、按轮回退文件、给回合打标记；切换路径不删上下文。 |
+| 🧭 | **Plan · Goal · Team** | 三种推进方式：先出计划、盯着目标跑到底，或者交给一支代理小队。 |
+| 🪄 | **子代理** | 给 fast / standard / strong 三档各配一个模型：检索整理交给便宜的快模型，设计和排错交给强模型，工具范围按任务收窄。 |
+| 🛡️ | **审批与权限规则** | 审批后写入、自动审批、完全访问三档；按命令开头批量允许或禁止，危险命令单独拦下。 |
+| 🌐 | **网页与电脑操作** | 代理在右侧浏览器里打开、操作网站，沿用你的登录状态；Computer Use 操作电脑上的应用。点击、填写和操作电脑都先出批准卡片。 |
+| 🖥️ | **远程电脑** | 经 SSH 或执行器连上另一台机器，文件和命令工具在对方机器上运行，审批照常生效。 |
+| 🧩 | **工具 · 插件 · MCP** | 核心工具常驻，插件、MCP 与技能按需激活、用完即退；缺能力直接说，代理会写插件补上；也能开启内置 MCP 服务，让本机其他代理调用 Pisper。 |
+| 🎙️ | **语音输入与对话模式** | 说话转文字，编辑后发送；对话模式下自动提交、语音回复。 |
+| 🔀 | **可视化工作流** | Prompt、文件、MCP 与通知连成一张图，重复的事交给流程跑。 |
+| ⏰ | **定时任务与通知** | 到点自动开跑，结果经飞书、微信等渠道推给你，不用一直盯着屏幕。 |
+| 🧠 | **记忆** | 偏好、决策和事实直接记住，过时的自动淘汰；拖动时间轴，看它们一步步怎么变过来。 |
+| 🔁 | **模型与备用模型** | 多 Provider 配置；主模型重试后仍不可用或额度用尽时，按顺序切到备用模型接着跑。 |
+| 🎨 | **原生组件** | 一句话让代理做一个组件，放进组件栏、会话检查器、整页或浮窗；导入前先看源码与扫描结果，每次改动都能回滚。 |
+| 📦 | **Git · SVN · 桌面宠物** | 检查器里看工作区改动，支持 Git 与 SVN；还有来自 Petdex 的桌面宠物陪你干活。 |
 
-需要让同一台电脑上的其他 Agent 调用 Pisper？在 MCP 页面自行开启内置服务，复制连接配置。支持会话、记忆、工作流等能力；连接需要令牌。
+> 每一项的用法见 **[使用教程](https://pisper.cc/guide.html)**。
 
-<a id="pi-runtime"></a>
+<a id="bots"></a>
 
-## 🧠 基于 Pi Coding Agent 深度构建
+## 🤖 Pisper Bot <sup>实验功能</sup>
 
-Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 作为底层 Agent Runtime。在 Pi 提供的模型接入与工具执行基础上，Pisper 围绕真实的多 Agent 工作持续做深度产品化与优化：
+<a href="docs/shots/desktop-bot.png"><img src="docs/shots/web/desktop-bot.webp" width="420" align="right" alt="和 Bot 小橙的长期对话：修好 Safari 白屏后接着部署预览环境" /></a>
 
-- **运行时与会话编排**：把独立会话、并行执行、Turn 分支、工作目录与权限策略组织成可持续运行的多 Agent 系统。
-- **上下文与性能**：通过工具冷热分层、discover/call 按需加载、稳定工具定义与提示词形态诊断，减少上下文占用并提高 Provider prompt cache 命中率。
-- **完整产品层**：提供 Desktop、Ratatui TUI 与移动端体验；手机本机模式运行同一套 Node/Pisper Agent、Provider、会话、HTTP/SSE 与 React，并按 embedded Node 的实际能力清单关闭当前设备无法承载的入口。
+给常干的事建几个 Bot：每个 Bot 就是一个一直开着的会话，加上它是谁、管什么的设定。点开就接着聊，前情它都记得；改文件、跑命令它自己来，碰到危险操作或做不了时才找你。
+
+- **在聊天软件里叫它**：飞书、微信里发一句，它就去做。
+- **定时让它做事**：每天巡检依赖、整理日报，到点自己开跑。
+- **去另一台电脑上干**：把活派到远程机器上。
+- **拉几个 Bot 进群**：@ 谁就叫醒谁；不 @ 时由群里判断该谁答，只叫醒合适的那一个。
+
+Bots 默认关闭，在 **设置 › 实验功能** 里打开；关掉后 Bot 和它们的会话都不再显示，记录保留。见 [Bot 教程](https://pisper.cc/guide.html#bots)。
+
+<br clear="right" />
 
 <a id="quickstart"></a>
 
-## 🚀 三分钟上手
+## 🚀 安装
 
-### 方式一：桌面版（推荐）
+### 💻 桌面版（推荐）
 
-从 [Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载对应平台安装包，**自带 TUI 与 Runtime，无需安装 Node.js**。
+从 [Releases](https://github.com/ling-kong-ran/pisper/releases/latest) 下载对应平台的安装包。**自带终端界面与 Runtime，不用装 Node.js。**
 
-按系统和架构选择：
+| 系统 | 安装包 | 说明 |
+| --- | --- | --- |
+| **Windows x64** | `*-setup.exe` | 普通包（推荐），复用系统已有的 WebView2，缺失时联网安装。自动更新也走它。 |
+| | `*-offline-setup.exe` | 完整离线包，额外带 WebView2 安装器，适合缺少 WebView2 的内网电脑，体积明显更大。 |
+| **macOS** | `*.dmg` | 仅支持 Apple Silicon，使用系统 WKWebView。 |
+| **Linux x64** | `*.AppImage` / `*.deb` | AppImage 可能需要 FUSE；DEB 可能依赖 WebKitGTK 等系统库。 |
 
-| 系统 | 安装包与离线条件 |
-| --- | --- |
-| Windows x64 普通包（推荐） | `*-setup.exe`（不含 `-offline-`）：体积较小，复用已有 WebView2；缺失时联网安装。已有 WebView2 的内网电脑也可使用。 |
-| Windows x64 完整离线包 | `*-offline-setup.exe`：额外包含完整 WebView2 安装器，适合缺少该运行时或无法确认的离线电脑；因此体积明显更大。 |
-| macOS | 仅支持 Apple Silicon 的 DMG，使用系统 WKWebView，无需额外分发浏览器内核。 |
-| Linux x64 | AppImage 可能需要 FUSE；Debian / Ubuntu 可选 DEB。离线部署需提前准备发行版所需系统库，DEB 可能依赖 WebKitGTK 等包。 |
-
-Windows 自动更新使用普通包，已有 WebView2 无需随每次更新重复下载。**完整离线包不包含按需下载的本地语音模型**；各平台的模型、MCP 外部程序和扩展仍需单独准备，模型对话需要可达的模型服务（可以是内网服务）。旧版本未提供两种 Windows 包时，以 Release 实际资产为准。
-
-普通安装包检测到 WebView2 缺失时，会先说明依赖用途、联网要求和离线包选项；失败时显示修复方向及安装错误码。桌面启动时发现随包文件缺失或 Runtime 初始化失败，也会显示原生错误提示。Linux 在程序执行前发生的系统库错误，请从终端启动查看具体库名。
+离线包不含按需下载的本地语音模型；模型对话需要能访问到的模型服务（内网服务也可以）。
 
 <details>
-<summary>macOS 提示「无法打开」？</summary>
+<summary><b>macOS 提示「无法打开」？</b></summary>
+<br />
 
-Pisper 当前尚未经过 Apple 公证。请确认安装包来自官方 Releases，并在 **系统设置 → 隐私与安全性** 中选择 **仍要打开**。若没有该选项：
+Pisper 尚未经过 Apple 公证。确认安装包来自官方 Releases 后，在 **系统设置 → 隐私与安全性** 中选择 **仍要打开**。若没有该选项：
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/Pisper.app
 ```
 
-请仅对从官方 Releases 下载并放入 `/Applications` 的应用使用此命令。
+只对从官方 Releases 下载并放进 `/Applications` 的应用使用这条命令。
 
 </details>
 
 <details>
-<summary>Linux AppImage 无法启动？</summary>
+<summary><b>Linux AppImage 无法启动？</b></summary>
+<br />
 
 ```bash
 chmod +x Pisper_*_linux_x86_64.AppImage
 ./Pisper_*_linux_x86_64.AppImage
 ```
 
-缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可改用 `.deb`：
+缺少 FUSE 时安装 `libfuse2` 或 `libfuse2t64`，也可以改用 DEB：
 
 ```bash
 sudo apt install ./Pisper_*_linux_x86_64.deb
 ```
 
+程序启动前就报系统库错误时，从终端启动可以看到缺的是哪个库。
+
 </details>
 
-### 方式二：移动端 App
+### 📱 手机 App
 
-Android / iOS App 首次启动会直接进入内置的本机 Runtime；连接桌面端是正常 Pisper 界面中的可选设置，不会阻塞首次使用。安装包从 App Releases 下载：
+安装包在 [App Releases](https://github.com/ling-kong-ran/pisper/releases?q=app-v)。首次启动会直接进入内置的本机 Runtime——代理、工具和会话都在手机上运行，它不是桌面的遥控器。
 
-| 平台 | 下载 | 安装状态 |
+| 平台 | 安装包 | 说明 |
 | --- | --- | --- |
-| Android | [下载已签名 APK](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | 已签名 arm64 APK，可直接安装；首次侧载时按系统提示允许安装未知来源应用。 |
-| iOS | [下载未签名 IPA](https://github.com/ling-kong-ran/pisper/releases?q=app-v) | **未签名**，不能直接安装；需使用 AltStore、Sideloadly 或自己的 Apple 开发者账号重签。 |
-
-**本机运行**
+| **Android** | 已签名 arm64 APK | 可直接安装，首次侧载时按系统提示允许安装来源。 |
+| **iOS** | 未签名 IPA | 不能直接安装，需要用 AltStore、Sideloadly 或自己的开发者账号重签。 |
 
 <details>
-<summary>展开步骤</summary>
+<summary><b>连接桌面端</b></summary>
+<br />
 
-1. 首次启动等待内置 Runtime 就绪，App 会直接打开正常 Pisper 界面；从远程桌面返回时可进入 **设置 → 服务器 → 在本机运行**。
-2. 配置 Provider 和模型；会话、Provider 配置与工作区只保存在手机 App 私有目录。
-3. 本机 Runtime API 仅监听回环端口；用户开启内置 MCP 服务后，另在 127.0.0.1:5175 监听。Android/iOS 会按 embedded Node 的实际模块清单隐藏 Shell、MCP、工作流等不可用能力。
+1. 首次配对时让手机和电脑在同一局域网，桌面端打开 **设置 → 远程访问** 并开启。
+2. 手机进入 **设置 → 服务器 → 添加服务器**，允许本地网络访问，选择发现的桌面并发起申请；桌面明确批准后才签发设备令牌。
+3. 不在同一局域网时，在桌面生成一次性二维码，手机扫码或手动输入。连接优先走局域网，不通时回退 Iroh P2P；所有路径都校验 TLS 指纹并使用设备令牌。
+
+手机会记住当前使用的本机或远程 Runtime；Shell、MCP、工作流等手机上跑不了的能力会自动隐藏。
 
 </details>
 
-**连接桌面端**
+### ⌨️ npm
 
-<details>
-<summary>展开步骤</summary>
-
-1. 建议首次配对时让手机与电脑接入同一局域网，在桌面端打开 **设置 → 远程访问** 并开启远程访问。
-2. 在手机 **设置 → 服务器 → 添加服务器** 中允许本地网络访问，选择自动发现的桌面并发起申请；桌面用户明确批准后才会签发设备令牌。
-3. 异地连接或局域网发现失败时，在桌面生成一次性二维码，再由手机扫描二维码或手动输入。二维码截图可以发到异地手机；所有路径都校验 TLS 指纹并使用设备 Bearer 令牌，连接后优先 LAN、不可达时回退 Iroh P2P。
-
-</details>
-
-手机会记住当前使用的本机或远程 Runtime。
-
-### 方式三：npm（Node.js 20+）
+需要 Node.js 20 或更高版本；安装时会下载终端界面和 Runtime。
 
 ```bash
 npm i -g pisper
-pisper web   # 打开 Web 前端与本机配置页
+pisper            # 终端界面；首次用 /provider 配置模型
+pisper web        # 打开网页界面
 ```
 
-首次进入使用 `/provider` 选择 Provider 并配置 API Key。可用命令及参数见 **[TUI 命令参考](./src-tui/README.md)**。
+命令与参数见 [TUI 命令参考](./src-tui/README.md)。
 
-### 方式四：从源码运行
+### 🧪 从源码运行
 
 <details>
-<summary>展开</summary>
+<summary><b>展开</b></summary>
+<br />
 
-需要 Node.js 20+、npm，以及至少一个模型 Provider 与 API Key。
+需要 Node.js 24、npm，以及至少一个模型 Provider 与 API Key。
 
 ```bash
 git clone https://github.com/ling-kong-ran/pisper.git
 cd pisper
-npm install
-npm run dev
+npm ci
+npm run dev                   # Web 与 API，默认 http://127.0.0.1:5173
+npm run desktop:webview:dev   # 桌面壳
 ```
-
-桌面开发与打包：
-
-```bash
-npm run desktop:webview:dev
-npm run desktop:webview:build
-```
-
-移动端 App：`npm run build:ios` 产出本地签名调试 IPA（真机自测）。
 
 </details>
 
-数据默认保存在 `~/.pisper/agent`，可通过 `PISPER_AGENT_DIR` 修改。
+数据默认保存在 `~/.pisper/agent`，可以用环境变量 `PISPER_AGENT_DIR` 改到别处。
 
 <a id="data-safety"></a>
 
 ## 🔒 数据安全
 
-Pisper 没有「我们的云」。日常数据默认由本机 Runtime 持有；你配置并实际调用的 Provider、外部 MCP、搜索或渠道，以及你主动开启并授权令牌的本机 MCP 客户端，才能取得相应任务所需的数据。
+Pisper 没有“我们的云”。会话、记忆和配置都在你自己的设备上；只有你配置并实际调用的模型服务、外部 MCP、搜索和渠道，才拿得到对应任务需要的数据。
 
-- **默认只听本机**：桌面 Runtime 常规入口绑定 127.0.0.1；手机本机 Runtime 只监听随机回环端口。只有显式开启桌面远程访问后，才会额外启动 LAN HTTPS 与 Iroh P2P endpoint。Iroh 只承载原始加密字节，上层仍由 TLS 指纹和设备 Bearer 令牌保护。Pi 遥测默认关闭。
-- **敏感先脱敏、凭据留在沙箱**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘与摘要展示前被替换。手机本机 Provider 凭据与远程设备令牌当前保存在 App 私有目录，依赖系统沙箱与文件权限保护，尚未迁入 Android Keystore 或 iOS Keychain。
-- **权限有边界**：需审批、工作区写入、完全访问三档；凭据不经普通接口回显给 Agent，宿主 Shell 会移除常见凭据环境变量。
-- **对外 MCP 自行开启**：内置服务默认关闭，只监听 127.0.0.1，使用单独的 Bearer 令牌；持有令牌的本机客户端可以调用所有已开放工具。
-- **记忆可追溯、可撤销**：记忆直接生效，不用逐条审核；每次改动都写进整理记录，可以撤销。你亲口说过的内容不会被模型的推断顶掉，外部渠道的消息不会自动进入对话，你删除的内容连同对话原文一起清除。
+- **默认只听本机**：桌面 Runtime 绑定 127.0.0.1，手机本机 Runtime 只听随机回环端口。开启远程访问后才会启动局域网 HTTPS 与 Iroh P2P，由 TLS 指纹和设备令牌保护。Pi 遥测默认关闭。
+- **敏感先脱敏**：常见 API Key、Bearer/JWT、私钥与连接串，在记忆落盘和摘要展示前被替换；凭据不经普通接口回显给代理，宿主 Shell 会移除常见凭据环境变量。
+- **权限有边界**：审批后写入、自动审批、完全访问三档，危险命令与浏览器、电脑操作单独确认。
+- **对外 MCP 自己开**：内置 MCP 服务默认关闭，只听 127.0.0.1，使用单独令牌。
+- **记忆可追溯**：每次改动都有记录、可以撤销；你亲口说过的不会被模型的推断顶掉，你删除的内容连同对话原文一起清除。
 
-> 边界说明：脱敏只识别常见敏感格式，不是完整 DLP、沙箱或端到端加密。桌面 Runtime 的 Provider 凭据仍位于本机 Agent 数据目录，请保护该目录和备份；手机安全存储也不能替代设备锁屏、系统更新与可信侧载来源。
+> **边界说明**：脱敏只识别常见格式，不是完整的 DLP、沙箱或端到端加密。Provider 凭据保存在本机数据目录（手机上在 App 私有目录，尚未迁入 Keystore / Keychain），请保护好这个目录和它的备份。
 
-## 🧩 组件与独立更新
+## 🔄 独立更新
 
-Desktop、TUI、Runtime 与移动 App 各自独立版本、独立签名、独立更新，失败自动回退到内置版本。桌面端提供统一组件检查入口；移动 App 使用独立发布清单。
+Desktop、TUI、Runtime 与手机 App 各自有版本、各自签名、各自更新，更新失败自动回退到内置版本。桌面端在设置里统一检查组件更新。
 
-「功能 → 扩展 → 组件工作室」管理原生组件：在工作室的提示词卡片里用一句话描述（手机上是底部表单），代理会在这个组件专属的会话里用 `component_create` 生成或修改它，会话出现在侧栏「运行中」；组件出错时错误卡上的「让代理修复」也交给这个会话。也可以把含 `manifest.json`（`runtime: "native"`）与 `component.js` 的文件夹放进数据目录的 `custom-ui/`，改动会自动热重载；组件可以放到四处：「全部代理」右侧的组件栏（窄窗口收进页头「组件 N」，手机排在列表末尾）、会话检查器的组件标签（所有会话或指定项目）、「功能 → 我的组件」整页，以及浮窗（手机上不显示）。别人分享的组件 ZIP 用「导入 ZIP」导入：先只暂存，看过源码、声明的能力、静态扫描（直连网络、动态执行代码、未声明的主机会标红）与 sha256 后再「信任并启用」；组件与应用同源运行，扫描只是帮你看得见，不是隔离。每次代理写入、替换导入或回滚都会留一个版本，可以对比、回滚，也可以「导出 ZIP」；能力清单显示每项能力最近一次与今天的调用次数，可以随时撤销。删除的组件进回收站保留 7 天，可以恢复。旧版 iframe 组件与内置专注岛已不再支持：升级后首次启动会把旧组件文件夹原样移到数据目录的 `custom-ui-trash/`，这些旧组件不会被 7 天清理自动删掉。
+<a id="pi-runtime"></a>
 
-## 📚 文档
+## 🧠 基于 Pi Coding Agent
 
-| 文档 | 内容 |
-| --- | --- |
-| [TUI 命令参考](./src-tui/README.md) | CLI、Slash command 与参数说明 |
+Pisper 以 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 作为底层 Agent Runtime，在它的模型接入与工具执行之上，做了面向多代理日常使用的产品层：
+
+- **会话编排**：并行会话、会话树、工作目录与权限策略、子代理与 Bot，组织成可以长期运行的多代理系统。
+- **上下文与缓存**：工具冷热分层、discover/call 按需加载、稳定排序的工具定义与提示词形态诊断，尽量吃满 Provider 的 prompt cache。
+- **三端产品**：Tauri 桌面、Ratatui 终端与 Android / iOS，手机本机模式运行同一套 Node Runtime、HTTP/SSE 与 React 界面。
 
 <a id="development"></a>
 
 ## 🛠️ 开发
 
-底层 Agent Runtime 基于 [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 深度集成；产品层主要使用 React、TypeScript、Tauri、Rust 与 Node SEA。
+产品层主要用 React、TypeScript、Tauri、Rust 与 Node SEA。
 
 ```bash
-npm run check   # typecheck + lint + i18n + format + 启动检查
-npm test        # runtime 测试
-npm run build   # 生产构建
+npm run check   # 类型、lint、i18n、格式与启动检查
+npm test        # runtime/tests 下的全部测试
+npm run build   # 生产构建（含体积预算与 Safari 兼容检查）
 ```
 
-欢迎提交 [Issue](https://github.com/ling-kong-ran/pisper/issues) 与 [Pull Request](https://github.com/ling-kong-ran/pisper/pulls)。请勿提交 API Key、机器人凭据，或 `~/.pisper/agent` 中的个人数据。
+仓库约定见 [AGENTS.md](./AGENTS.md)。欢迎提交 [Issue](https://github.com/ling-kong-ran/pisper/issues) 与 [Pull Request](https://github.com/ling-kong-ran/pisper/pulls)；请勿提交 API Key、机器人凭据，或 `~/.pisper/agent` 中的个人数据。
+
+## 📚 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [使用教程](https://pisper.cc/guide.html) | 从安装、配置模型到 Bot、工作流、记忆与多端的完整说明 |
+| [开发日志](https://pisper.cc/changelog.html) | 每个版本改了什么 |
+| [TUI 命令参考](./src-tui/README.md) | 终端界面的命令、Slash command 与参数 |
+| [隐私](https://pisper.cc/privacy.html) · [支持](https://pisper.cc/support.html) | 数据如何处理，遇到问题去哪里找 |
 
 ## 🙏 致谢
 
@@ -240,7 +280,7 @@ npm run build   # 生产构建
 
 <p align="center">
   <strong>如果 Pisper 对你有用，点一颗 ⭐ —— 这是让项目继续生长的最大动力。</strong><br />
-  <sub>也欢迎分享给每一个把 Coding Agent 当生产力工具的人。</sub>
+  <sub>也欢迎分享给每一个把代理当生产力工具的人。</sub>
 </p>
 
 <p align="center">
