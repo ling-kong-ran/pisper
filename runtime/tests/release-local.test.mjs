@@ -184,6 +184,10 @@ test('release.mjs can stop after planning, and desktop builds can bundle local a
   assert.ok(
     local.indexOf('await publishNpm(current') < local.lastIndexOf('api.deleteAsset(planAsset.id)'),
   )
+  // 包内 publishConfig 仍要求 provenance；NPM_TOKEN 入口必须显式关闭，包括平台包和主包。
+  const npmPublishCalls = [...local.matchAll(/npm\(\[\s*'publish',([\s\S]*?)\]\)/g)]
+  assert.equal(npmPublishCalls.length, 2)
+  for (const call of npmPublishCalls) assert.match(call[1], /'--no-provenance'/)
 })
 
 test('a release that skips Linux validates only the planned platforms', async (t) => {

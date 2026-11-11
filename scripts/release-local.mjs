@@ -709,6 +709,7 @@ async function publishNpm(current, publishRoot) {
         `release/npm/tarballs/pisper-${platformVersion}.tgz`,
         '--access',
         'public',
+        '--no-provenance',
         '--tag',
         `platform-${slug}`,
         '--userconfig',
@@ -721,6 +722,7 @@ async function publishNpm(current, publishRoot) {
         `release/npm/tarballs/pisper-${version}.tgz`,
         '--access',
         'public',
+        '--no-provenance',
         '--userconfig',
         userconfig,
       ])
