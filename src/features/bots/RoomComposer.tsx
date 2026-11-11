@@ -1,6 +1,7 @@
 // 群聊输入框：外观是第一版的样子（沿用会话页的输入卡片）。打 @ 弹出成员补全（Popover + Command，键盘可选，
-// 含“所有人”）。工具行：“+”（附件、@ 成员）、附件键，“发给”后面每个成员一个芯片（圆点是它的头像色，按下 = 选中，
-// 暂停的点不了），最后是“所有人”；成员多了这一排横着滑（触屏手指滑、鼠标滚轮也能横滑，键盘 Tab 过去自动滚到）。
+// 含“所有人”）。工具行：“+”（附件、@ 成员）、附件键，“发给”后面每个成员一个芯片（按下 = 选中，暂停的点不了），
+// 最后是“所有人”。选中的芯片发它头像色的光（浅色底、描边、外发光，隔一会儿扫过一道高光），没选的退成淡字，
+// 一眼看得出这句发给谁；选了“所有人”时发光的是“所有人”（成员色的渐变），成员只带浅色底表示在里面；成员多了这一排横着滑（触屏手指滑、鼠标滚轮也能横滑，键盘 Tab 过去自动滚到）。
 // 点了名（@ 谁、回复某个 Bot、@所有人）就只叫点到的；没点名才发给芯片里选的人。没有“只留言”：
 // 一个都没选时就是所有人；只有主持人分派的群里，空着表示交给主持人。
 // 要叫醒 3 个以上时在发送键旁写“会叫醒 N 个”（每个都要跑一整轮）。Enter 发送，Shift+Enter 换行；输入法组词时不发送。
@@ -37,7 +38,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { ChatAttachment } from '@/types/chat'
 import { BotAvatar } from './BotAvatar'
-import { botAvatarTone } from './avatar'
+import { botAvatarGlow, botAvatarTone } from './avatar'
 import { activeMentionQuery, composerWakeTargets, mentionedIds } from './room-presentation'
 import type { RoomMember, RoomMessage } from './rooms-api'
 
@@ -45,6 +46,8 @@ import type { RoomMember, RoomMessage } from './rooms-api'
 // （滑动的那一排上下留了同样的内边距，扩出来的部分不会被横向滚动裁掉）。
 const CHIP_TOUCH =
   'relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2.5'
+// 没选的“发给”芯片：去掉灰底和边，只留淡字，和发光的选中芯片拉开差别。
+const RECIPIENT_OFF = 'border-transparent bg-transparent text-content-muted shadow-none'
 
 const MAX_CHARS = 12_000
 // @ 补全里“所有人”那一项的 id（不会和 Bot id 撞上）。
@@ -397,21 +400,38 @@ export function RoomComposer({
               onWheel={wheelChips}
               className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] pointer-coarse:-my-2.5 pointer-coarse:py-2.5 [&::-webkit-scrollbar]:hidden"
             >
-              {active.map((member) => {
+              {active.map((member, index) => {
                 const pressed = chosen.includes(member.id)
+                const glow = botAvatarGlow(member.avatar.color)
+                const shine = pressed && !everyone
                 return (
                   <Chip
                     key={member.id}
                     size="sm"
                     aria-pressed={pressed}
                     disabled={!member.enabled}
-                    className={CHIP_TOUCH}
+                    className={cn(CHIP_TOUCH, !pressed && RECIPIENT_OFF)}
+                    style={
+                      pressed
+                        ? {
+                            background: glow.fill,
+                            borderColor: shine ? glow.line : 'transparent',
+                            boxShadow: shine
+                              ? `0 0 0 1px ${glow.fill}, 0 0 14px -1px ${glow.glow}`
+                              : 'none',
+                          }
+                        : undefined
+                    }
                     onClick={() => toggle(member.id, !pressed)}
                   >
+                    {shine && <RecipientSheen delay={index * 0.3} />}
                     <span
                       aria-hidden="true"
-                      className="size-1.5 rounded-full"
-                      style={{ background: botAvatarTone(member.avatar.color).shade }}
+                      className={cn('size-1.5 rounded-full', !pressed && 'opacity-40')}
+                      style={{
+                        background: botAvatarTone(member.avatar.color).shade,
+                        ...(shine ? { boxShadow: `0 0 6px ${glow.glow}` } : {}),
+                      }}
                     />
                     {member.name}
                     {!member.enabled && (
@@ -427,13 +447,15 @@ export function RoomComposer({
                   size="sm"
                   data-room-recipients-everyone
                   aria-pressed={everyone}
-                  className={CHIP_TOUCH}
+                  className={cn(CHIP_TOUCH, !everyone && RECIPIENT_OFF)}
+                  style={everyone ? everyoneGlow(active) : undefined}
                   // 只有主持人分派的群能取消“所有人”（空着交给主持人）；别的群要缩小范围就点掉具体的人。
                   onClick={() => {
                     if (!everyone) onRecipientsChange('all')
                     else if (idleLabel) onRecipientsChange([])
                   }}
                 >
+                  {everyone && <RecipientSheen delay={0} />}
                   {t('bots:room.composer.everyone')}
                 </Chip>
               )}
@@ -504,5 +526,31 @@ export function RoomComposer({
         </Command>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// 选中的“所有人”：底色和描边是成员头像色的渐变（三层背景：渐变底、实色垫底、渐变描边）。
+function everyoneGlow(members: readonly RoomMember[]) {
+  const tones = members.map((member) => botAvatarGlow(member.avatar.color))
+  const stops = (key: 'fill' | 'line') => tones.map((tone) => tone[key]).join(', ')
+  return {
+    background: `linear-gradient(90deg, ${stops('fill')}) padding-box, linear-gradient(var(--solid), var(--solid)) padding-box, linear-gradient(90deg, ${stops('line')}) border-box`,
+    borderColor: 'transparent',
+    boxShadow: `0 0 14px -1px ${tones[0]?.glow || 'transparent'}`,
+  }
+}
+
+// 选中芯片上隔一会儿扫过的一道高光：裁在芯片圆角里，不挡点击；几个芯片错开一点，不齐刷刷地闪。
+function RecipientSheen({ delay }: { delay: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+    >
+      <span
+        className="absolute inset-y-0 left-0 w-2/5 animate-[chip-sheen_3.6s_ease-in-out_infinite] bg-linear-to-r from-transparent via-white/85 to-transparent dark:via-white/45"
+        style={{ animationDelay: `${delay}s` }}
+      />
+    </span>
   )
 }

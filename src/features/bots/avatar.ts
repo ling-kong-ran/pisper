@@ -38,6 +38,14 @@ export function botAvatarTone(color: BotColor) {
   return { shade: palette.shade, tile: palette.tile }
 }
 
+// 头像色的半透明几档（rgba，不用 color-mix：旧版 WebView2 不支持）：“发给”芯片选中时的底色、描边与外发光。
+export function botAvatarGlow(color: BotColor) {
+  const shade = (PALETTES[color] || PALETTES.blue).shade
+  const [r, g, b] = [1, 3, 5].map((start) => Number.parseInt(shade.slice(start, start + 2), 16))
+  const alpha = (value: number) => `rgba(${r}, ${g}, ${b}, ${value})`
+  return { fill: alpha(0.2), line: alpha(0.9), glow: alpha(0.7) }
+}
+
 const INK = '#1f2430'
 const BLUSH = '#ff7a9c'
 

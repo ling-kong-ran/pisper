@@ -757,6 +757,8 @@ h1, h2, h3, strong { overflow-wrap: anywhere; }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* 运行进度细线：不确定进度时沿底边横扫，只动 transform；减少动态时由全局规则停住。 */
 @keyframes hairline-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+/* 选中芯片上扫过的一道高光：前半程扫过，后半程停在外面，不一直晃；减少动态时由全局规则停住。 */
+@keyframes chip-sheen { 0% { transform: translateX(-120%) skewX(-20deg); } 45%, 100% { transform: translateX(320%) skewX(-20deg); } }
 
 @media (max-width: 900px) {
   body { overflow: auto; }
