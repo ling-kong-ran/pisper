@@ -292,19 +292,34 @@ async function plan() {
     )
     return
   }
-  for (const item of components) {
-    const draft = await api.createDraft({
-      tag: item.tag,
-      target: computed.source,
-      title: item.title,
-      body: item.body,
-    })
-    item.releaseId = draft.id
-  }
   const file = join(tmpdir(), PLAN_ASSET)
-  await writeFile(file, `${JSON.stringify(result, null, 2)}\n`)
-  for (const item of components) await api.uploadAsset(item.releaseId, file)
-  await rm(file, { force: true })
+  try {
+    for (const item of components) {
+      const draft = await api.createDraft({
+        tag: item.tag,
+        target: computed.source,
+        title: item.title,
+        body: item.body,
+      })
+      item.releaseId = draft.id
+    }
+    await writeFile(file, `${JSON.stringify(result, null, 2)}\n`)
+    for (const item of components) await api.uploadAsset(item.releaseId, file)
+  } catch (error) {
+    // 建到一半的草稿留着会让下一次 plan 以为已有计划（或留下没有计划的空草稿），先删掉再报错。
+    for (const item of components.filter((entry) => entry.releaseId)) {
+      try {
+        await api.deleteRelease(item.releaseId)
+      } catch (cleanupError) {
+        console.warn(
+          `删除未完成的草稿 ${item.tag} 失败，请到 GitHub 手动删除：${cleanupError.message}`,
+        )
+      }
+    }
+    throw error
+  } finally {
+    await rm(file, { force: true })
+  }
   console.log(`已建草稿：${components.map((item) => item.tag).join('、')}`)
   if (githubOutput) await writeGithubOutput({ source: computed.source, components, app })
   console.log(

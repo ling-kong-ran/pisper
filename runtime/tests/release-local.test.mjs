@@ -147,6 +147,22 @@ test('network and server errors are retried and asset downloads drop the token a
   assert.equal(redirected.headers.Authorization, undefined)
 })
 
+test('a write that never left the machine is retried, one that may have reached GitHub is not', async () => {
+  const unsent = (code) => Object.assign(new TypeError('fetch failed'), { cause: { code } })
+  const { calls, fetchImpl } = fakeFetch(async (_url, _init, count) => {
+    if (count === 1) throw unsent('EAI_AGAIN')
+    if (count === 2) return new Response(JSON.stringify({ id: 7 }), { status: 201 })
+    throw unsent('ECONNRESET')
+  })
+  const api = createGitHubReleases({ token: 'secret', fetchImpl, sleepImpl: async () => {} })
+  assert.deepEqual(await api.createDraft({ tag: 'v1.0.0', target: 'abc', title: 't', body: 'b' }), {
+    id: 7,
+  })
+  assert.equal(calls.length, 2)
+  await assert.rejects(api.publish(7, { tag: 'v1.0.0', title: 't', body: 'b' }), /fetch failed/)
+  assert.equal(calls.length, 3)
+})
+
 test('release.mjs can stop after planning, and desktop builds can bundle local archives', async () => {
   const release = await readFile('scripts/release.mjs', 'utf8')
   // 写出计划就退出，排在派发 workflow 之前。

@@ -14,6 +14,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// 域名解析或建连失败时请求根本没发出去，写请求重试也不会重复创建；
+// 自托管 Runner 的 DNS 偶尔抖一下（EAI_AGAIN），不该让跑了半小时的 plan 白跑。
+const NOT_SENT_CODES = new Set([
+  'EAI_AGAIN',
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'UND_ERR_CONNECT_TIMEOUT',
+])
+
+function neverSent(error) {
+  return NOT_SENT_CODES.has(error?.cause?.code) || NOT_SENT_CODES.has(error?.code)
+}
+
 export function createGitHubReleases({
   repository = 'ling-kong-ran/pisper',
   token,
@@ -36,7 +49,7 @@ export function createGitHubReleases({
   })
 
   // GitHub 偶尔回 5xx：重试几次；4xx 是请求本身的问题，直接报出来。
-  // GET 可安全重试；其他写请求不盲目重试网络异常，上传由调用方先核对资产。
+  // GET 可安全重试；其他写请求只在请求没发出去时重试，上传由调用方先核对资产。
   async function request(
     method,
     url,
@@ -53,11 +66,13 @@ export function createGitHubReleases({
           redirect: raw ? 'manual' : 'follow',
         })
       } catch (error) {
-        if (!retryNetwork) throw error
-        const recovered = await recoverUpload?.()
+        const unsent = neverSent(error)
+        if (!retryNetwork && !unsent) throw error
+        const recovered = unsent ? false : await recoverUpload?.()
         if (recovered && typeof recovered === 'object') return recovered
         if (attempt >= ATTEMPTS) throw error
-        await sleepImpl(2_000 * attempt)
+        // 解析失败通常要几秒到几十秒才恢复，等得比普通重试久一些。
+        await sleepImpl((unsent ? 5_000 : 2_000) * attempt)
         continue
       }
       // 上一次上传可能恰好在核对后才完成，重复上传会返回 422，再核对一次。
