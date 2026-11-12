@@ -151,6 +151,8 @@ mod native {
     // 很多网站登录时不勾“记住我”只给会话 Cookie，内核关掉就丢，重启 Pisper 后就得重新登录。
     // 页面加载完、标题变化（单页应用登录后不一定重新加载）、关页签和退出前，
     // 把会话 Cookie 改成 30 天后过期，内核就会把它写进 browser-profile，重启后还在。
+    // macOS 还没做 Cookie 持久化（见下面的 keep_logins），这两个只有 Windows 用到。
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     const KEEP_LOGINS_DAYS: u64 = 30;
     const KEEP_LOGINS_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -172,6 +174,7 @@ mod native {
         });
     }
 
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     fn keep_logins_expiry() -> f64 {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
