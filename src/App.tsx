@@ -401,6 +401,11 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
+  // 组件有更新，或者新版桌面安装包已下载、等用户安装时，侧栏都提示一下。
+  const showUpdateStatus =
+    (appUpdate.status &&
+      ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state)) ||
+    appUpdate.shellInstaller?.status.state === 'downloaded'
   useEffect(() => {
     applyUiPreferenceAttributes({
       accent,
@@ -1136,8 +1141,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   </Suspense>
                 }
                 update={
-                  appUpdate.status &&
-                  ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
+                  showUpdateStatus ? (
                     <Suspense fallback={null}>
                       {/* 沿用原侧栏的更新提示，收成 32px 图标键放在设置旁；触屏抬到 44px。 */}
                       <div className="flex-none [&>button]:size-8 [&>button]:min-h-0 pointer-coarse:[&>button]:size-11">
@@ -1262,8 +1266,7 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
                   </Suspense>
                 }
                 update={
-                  appUpdate.status &&
-                  ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state) ? (
+                  showUpdateStatus ? (
                     <Suspense fallback={null}>
                       <div className="flex-none [&>button]:size-11 [&>button]:min-h-0">
                         <SidebarUpdateStatus

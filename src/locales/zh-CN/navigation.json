@@ -149,5 +149,6 @@
   "phone.menu": "打开导航",
   "phone.menuAttention": "打开导航，{count} 个需要你",
   "phone.drawer": "导航",
-  "phone.drawerHint": "搜索、新任务、全部代理、功能、会话与设置"
+  "phone.drawerHint": "搜索、新任务、全部代理、功能、会话与设置",
+  "appSidebar.installerReady": "安装包已下载"
 }

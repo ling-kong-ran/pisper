@@ -753,6 +753,11 @@ pisper web        # 打开 Web 前端配置页</code></pre>
           <h2>组件更新</h2>
           <p>Desktop、TUI 与 Runtime 各自独立检查与更新，需要什么就只更新什么。</p>
           <p>在 <strong>设置 → 更新</strong> 中查看各组件版本并单独触发更新；涉及 Runtime 替换的更新会提示重启。</p>
+          <p>
+            组件更新不会替换桌面程序本身。桌面版默认在后台下载并校验新版安装包（Windows 安装程序、macOS
+            dmg、Linux AppImage），只保留最新的一个；下好后在 <strong>设置 → 更新 → 桌面安装包</strong> 点
+            <strong>安装</strong>，按安装程序的提示完成即可。不想自动下载可以在同一处关掉。
+          </p>
         </section>
 
         <section class="guide-section" id="faq">

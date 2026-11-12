@@ -40,6 +40,52 @@ export type ComponentUpdateStatus = {
   retryAt?: number | null
 }
 
+// 桌面壳安装包（src-tauri/src/desktop_shell/shell_installer.rs）：组件更新换不了壳本身，
+// 壳在后台下载并验签新版安装包，由用户点“安装”手动完成。旧壳没有这组桥接方法。
+export type ShellInstallerState =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'current'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export type ShellInstallerStatus = {
+  supported: boolean
+  state: ShellInstallerState
+  currentVersion: string
+  availableVersion: string
+  releaseUrl: string
+  notes: string
+  fileName: string
+  size: number
+  transferred: number
+  canDownload: boolean
+  autoDownload: boolean
+  message: string
+  retryAt: number | null
+}
+
+export type ShellInstallerBridge = {
+  status: () => Promise<unknown>
+  check: () => Promise<unknown>
+  download: () => Promise<unknown>
+  setAutoDownload: (enabled: boolean) => Promise<unknown>
+  open: () => Promise<boolean>
+  reveal: () => Promise<boolean>
+}
+
+export type ShellInstallerController = {
+  status: ShellInstallerStatus
+  check: () => Promise<void>
+  download: () => Promise<void>
+  setAutoDownload: (enabled: boolean) => Promise<void>
+  open: () => Promise<boolean>
+  reveal: () => Promise<boolean>
+}
+
 export type AppUpdateInfo = {
   desktop: boolean
   mobile?: boolean
@@ -62,6 +108,8 @@ export type AppUpdateController = {
   install: () => unknown
   openReleases: () => Promise<boolean>
   openUpdateLog: () => unknown
+  // 只在带 shellInstaller 桥接的新壳上有值；浏览器、手机和旧壳为 null。
+  shellInstaller: ShellInstallerController | null
 }
 
 export type DesktopNotificationPermission = NotificationPermission | 'checking' | 'unsupported'
@@ -209,6 +257,7 @@ export type DesktopBridge = {
   checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   installComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
   restartForComponentUpdate?: () => Promise<unknown>
+  shellInstaller?: ShellInstallerBridge
   openAsset?: (input: { name: string; data: string }) => Promise<boolean>
   openReleases: () => Promise<boolean>
   openUpdateLog?: () => Promise<unknown>

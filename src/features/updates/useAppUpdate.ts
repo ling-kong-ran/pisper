@@ -13,6 +13,7 @@ import {
   currentDesktopVersion,
 } from './component-update-state'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
+import { useShellInstaller } from './useShellInstaller'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
 
@@ -39,6 +40,12 @@ export function useAppUpdate(): AppUpdateController {
   const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
   const legacyShellUpdateRef = useRef(false)
   const mobileModeRef = useRef(false)
+  // 新壳在后台下载壳安装包；旧壳没有这组桥接时为 null，其余更新流程照旧。
+  const shellInstaller = useShellInstaller(bridge?.shellInstaller)
+  const shellInstallerCheckRef = useRef<(() => Promise<void>) | null>(null)
+  useEffect(() => {
+    shellInstallerCheckRef.current = shellInstaller?.check ?? null
+  }, [shellInstaller])
 
   const applyStatus = useCallback((value: UpdateStatus) => {
     statusRef.current = value
@@ -50,6 +57,9 @@ export function useAppUpdate(): AppUpdateController {
       if (checkInFlightRef.current) return checkInFlightRef.current
 
       applyStatus({ ...statusRef.current, state: 'checking', message: '' })
+      // 手动“检查更新”顺带让壳检查安装包（壳自己也会定时检查，所以自动检查不再重复触发）。
+      // 不等它：安装包的进度由 shellInstaller 自己轮询。
+      if (refresh) void shellInstallerCheckRef.current?.().catch(() => {})
       const pending = (async (): Promise<UpdateStatus> => {
         try {
           legacyShellUpdateRef.current = false
@@ -288,5 +298,6 @@ export function useAppUpdate(): AppUpdateController {
     install,
     openReleases,
     openUpdateLog,
+    shellInstaller,
   }
 }

@@ -15,6 +15,7 @@ import {
 import { DEFAULT_BRANCH } from '@shared/app-update.mjs'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { CliSettings } from './CliSettings'
+import { ShellInstallerSettings } from './ShellInstallerSettings'
 import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -311,6 +312,14 @@ export function UpdateSettings({
           )}
         </div>
       </FeatureSection>
+
+      {desktop && update.shellInstaller && (
+        <ShellInstallerSettings
+          installer={update.shellInstaller}
+          notify={notify}
+          openReleases={openReleases}
+        />
+      )}
 
       {!mobile && (
         <FeatureSection

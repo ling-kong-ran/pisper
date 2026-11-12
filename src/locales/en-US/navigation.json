@@ -149,5 +149,6 @@
   "phone.menu": "Open navigation",
   "phone.menuAttention": "Open navigation, {count} need you",
   "phone.drawer": "Navigation",
-  "phone.drawerHint": "Search, new task, all agents, features, sessions and settings"
+  "phone.drawerHint": "Search, new task, all agents, features, sessions and settings",
+  "appSidebar.installerReady": "Installer downloaded"
 }
