@@ -324,3 +324,19 @@ test('the old memory page stays retired: no star map, no review queue', async ()
     }
   }
 })
+
+test('the sub-agent pane reads as a title, not a form, and clamps its task cleanly', async () => {
+  // 子代理页头的名字就是切换下拉：用 ui/select 的 ghost 变体，不是一个带边框的输入框样子。
+  // 任务收起时只截两行：同一段文字上再加 overflow-auto 会盖掉截断，露出半行；“展开”只在真的截断时出现。
+  const [pane, select] = await Promise.all([
+    readFile('src/features/chat/SubagentPane.tsx', 'utf8'),
+    readFile('src/components/ui/select.tsx', 'utf8'),
+  ])
+  assert.match(select, /variant\?: 'default' \| 'ghost'/)
+  assert.match(pane, /<SelectTrigger\s+variant="ghost"/)
+  // 滚动只属于展开态，与收起态的截断互斥。
+  assert.match(pane, /open \? '[^']*overflow-y-auto[^']*' : 'line-clamp-2'/)
+  assert.doesNotMatch(pane, /'[^']*\boverflow-auto\b[^']*whitespace-pre-wrap[^']*'/)
+  assert.match(pane, /scrollHeight > element\.clientHeight/)
+  assert.match(pane, /aria-expanded=\{open\}/)
+})

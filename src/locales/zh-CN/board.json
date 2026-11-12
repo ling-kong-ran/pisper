@@ -191,6 +191,8 @@
   "subagent.switch": "切换子代理",
   "subagent.stop": "停止",
   "subagent.task": "主代理交给它的任务",
+  "subagent.taskExpand": "展开",
+  "subagent.taskCollapse": "收起",
   "subagent.toolCalls": "{count} 次工具调用",
   "subagent.startedAt": "开始于 {time}",
   "subagent.loading": "正在读取子代理的过程…",

@@ -194,6 +194,8 @@
   "subagent.switch": "Switch sub-agent",
   "subagent.stop": "Stop",
   "subagent.task": "Task from the main agent",
+  "subagent.taskExpand": "Show more",
+  "subagent.taskCollapse": "Show less",
   "subagent.toolCalls": "{count} tool calls",
   "subagent.toolCalls_one": "{count} tool call",
   "subagent.startedAt": "Started {time}",

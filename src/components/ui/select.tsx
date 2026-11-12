@@ -25,20 +25,26 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
 }
 
 // 全站下拉框只有这一种触发键：32px（小号 28），触屏与窄屏抬到 44；调用方只给宽度，不再改高度与内边距。
+// ghost 变体给“标题即切换”的场合（如检查器子代理页头）：同样的尺寸与焦点环，只是平时没有边框和底色，
+// 悬停或展开时才浮出底色，看起来是标题而不是表单输入框。
 function SelectTrigger({
   className,
   size = 'default',
+  variant = 'default',
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: 'sm' | 'default'
+  variant?: 'default' | 'ghost'
 }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
+      data-variant={variant}
       className={cn(
         "flex w-fit items-center justify-between gap-1.5 rounded-sm border border-input bg-panel py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-[border-color,box-shadow] outline-none select-none focus-visible:border-focus focus-visible:ring-3 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 max-[650px]:min-h-11 pointer-coarse:min-h-11 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        'data-[variant=ghost]:border-transparent data-[variant=ghost]:bg-transparent data-[variant=ghost]:pl-1.5 data-[variant=ghost]:transition-colors data-[variant=ghost]:hover:bg-surface-hover data-[variant=ghost]:data-[state=open]:bg-surface-hover',
         className,
       )}
       {...props}
