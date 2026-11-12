@@ -870,6 +870,57 @@ test('disabling or deleting the default Provider switches to the alternative sav
   assert.equal(settingsAfterDelete.defaultModel, 'main-first')
 })
 
+test('a new session never falls back to a disabled Provider that still has credentials', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-disabled-fallback-'))
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: {
+      async discover() {
+        return { models: [] }
+      },
+    },
+  })
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: 'relay-old',
+    name: 'Relay Old',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-old.example.test/v1',
+    apiKey: 'key-old',
+    model: 'old-chat',
+  })
+  await runtime.createProvider({
+    id: 'relay-new',
+    name: 'Relay New',
+    api: 'openai-responses',
+    baseUrl: 'https://relay-new.example.test/v1',
+    apiKey: 'key-new',
+    model: 'new-chat',
+  })
+  await runtime.setProviderEnabled('relay-old', false)
+  // 全局默认指向一个没有凭据的内置 Provider：Pi 只能从可用模型里兜底，停用的 relay-old 排在前面也不能被挑中。
+  runtime.settingsManager.setDefaultModelAndProvider('cerebras', 'gpt-oss-120b')
+  await runtime.settingsManager.flush()
+  assert.equal(
+    runtime.modelRuntime.getAvailableSnapshot().some((model) => model.provider === 'relay-old'),
+    false,
+  )
+  const created = await runtime.createSession('after-disable', directory)
+  const { session } = await runtime.getOrCreateSession(created.id)
+  assert.equal(`${session.model.provider}/${session.model.id}`, 'relay-new/new-chat')
+
+  // 重新启用后马上回到可用列表，不必等模型运行时重建。
+  await runtime.setProviderEnabled('relay-old', true)
+  assert.ok(
+    runtime.modelRuntime.getAvailableSnapshot().some((model) => model.provider === 'relay-old'),
+  )
+})
+
 test('idle model list refresh adds new models but keeps deleted models and disabled providers out', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-idle-refresh-'))
   await writeFile(

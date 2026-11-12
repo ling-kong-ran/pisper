@@ -357,6 +357,7 @@ export class ProviderPreferences {
     this.reconcileDefaultModelFacade = reconcileDefaultModel
     this.providerState = providerState
     this.providerCreationQueue = Promise.resolve()
+    this.disabledProviderIds = new Set()
     this.configurationWriteQueue = Promise.resolve()
     this.configurationWriteContext = new AsyncLocalStorage()
   }
@@ -537,6 +538,15 @@ export class ProviderPreferences {
             : options,
         )
     }
+    // Pi 给没绑定模型的新会话兜底时，从“可用模型”里挑第一个有凭据的；停用的 Provider 凭据还在，
+    // 不从这里拿掉就会被挑中，跑到发送时才报停用（或者去刷一个早已失效的登录）。
+    this.disabledProviderIds = new Set(appConfig.disabledProviders || [])
+    const getAvailable = modelRuntime.getAvailable.bind(modelRuntime)
+    const getAvailableSnapshot = modelRuntime.getAvailableSnapshot.bind(modelRuntime)
+    const enabled = (models) =>
+      models.filter((model) => !this.disabledProviderIds.has(model.provider))
+    modelRuntime.getAvailable = async (...args) => enabled(await getAvailable(...args))
+    modelRuntime.getAvailableSnapshot = (...args) => enabled(getAvailableSnapshot(...args))
     this.setModelRuntime(modelRuntime)
     this.invalidateProjection('', { allUsage: true })
   }
@@ -1601,6 +1611,8 @@ export class ProviderPreferences {
       ...appConfig,
       disabledProviders: [...disabled],
     })
+    // 启停不重建模型运行时，可用模型的过滤直接读这份名单。
+    this.disabledProviderIds = disabled
     this.invalidateSessionRuntimes()
     return this.getConfigFacade()
   }
