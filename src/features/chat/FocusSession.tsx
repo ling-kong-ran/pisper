@@ -14,7 +14,15 @@ import { TaskWorkspaceSlots } from './task-workspace-context'
 // use-focus-composer，输入区小组件（托盘/资源芯片/发送键）在 focus-session-composer-bits，
 // 盾牌芯片在 ComposerModeChip，模型芯片与用量在 FocusRuntimeControls；
 // composer 主体与发送行为约定保留在本文件。
-import { memo, useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
 import { Braces, ImagePlus, Mic, Paperclip, Plus } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import {
@@ -39,6 +47,7 @@ import { AttachmentTray } from './AttachmentTray'
 import { ChatResourcePicker } from './ChatResourcePicker'
 import { ComposerCommandMenu } from './ComposerCommandMenu'
 import { commandDraft, NEW_TASK_COMPOSER_KEY, useComposerDraft } from './composer-drafts'
+import { fitComposerInputHeight } from './composer-input-height'
 import { NewTaskDraftHeader, NewTaskGreeting } from './NewTaskDraftView'
 import { consumeNewTaskFocus, NEW_TASK_FOCUS_EVENT } from './events'
 import { ChatRequestNotice } from './ChatRequestNotice'
@@ -229,6 +238,12 @@ export const FocusSession = memo(function FocusSession({
   const [scrollRequest, setScrollRequest] = useState(0)
   const addSelectedAttachments = selection.addAttachments
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  // 输入框高度只按当前文字量：离开页面再回来、切换会话时草稿从缓存恢复，没有 onChange，
+  // 只在输入时量会留下 rows=1 的 44px 高度，长草稿挤在两行里滚动。值一变（输入、恢复、语音、
+  // 命令补全、发送后清空）就在绘制前重量一次。
+  useLayoutEffect(() => {
+    if (promptRef.current) fitComposerInputHeight(promptRef.current)
+  }, [value])
   const panelRootRef = useRef<HTMLDivElement>(null)
   // 会话页运行中（参考 Claude）：↵ 排队（steer，等当前这一步走完就送达）、⌥↵ 立即发送（interrupt，
   // 打断当前这一步马上送达）。提交前记下这次的方式，表单提交时读取后复位。
@@ -295,15 +310,9 @@ export const FocusSession = memo(function FocusSession({
 
   const requestTranscriptBottom = () => setScrollRequest((current) => current + 1)
 
-  // 语音文本写入草稿并自适应高度：value 可能是闭包旧值，以 textarea 实际值为准。
+  // 语音文本写入草稿；高度由上面按 value 重量的布局 effect 负责。
   const applyVoiceDraft = (text: string) => {
     updateValue(text)
-    requestAnimationFrame(() => {
-      const element = promptRef.current
-      if (!element) return
-      element.style.height = 'auto'
-      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
-    })
   }
 
   const {
@@ -602,8 +611,6 @@ export const FocusSession = memo(function FocusSession({
     requestAnimationFrame(() => {
       if (!element || promptRef.current !== element || !element.isConnected) return
       element.focus()
-      element.style.height = 'auto'
-      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
     })
   }
 
@@ -618,8 +625,6 @@ export const FocusSession = memo(function FocusSession({
       const element = promptRef.current
       if (!element) return
       element.focus()
-      element.style.height = 'auto'
-      element.style.height = `${Math.min(element.scrollHeight, 220)}px`
     })
   }
   const attachmentChooser = useAttachmentChooser({ cwd, selection })
@@ -1089,8 +1094,6 @@ export const FocusSession = memo(function FocusSession({
             value={value}
             onChange={(event) => {
               updateValue(event.target.value)
-              event.currentTarget.style.height = 'auto'
-              event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 220)}px`
             }}
             onPaste={selection.pasteFiles}
             onCompositionStart={() => (imeComposingRef.current = true)}

@@ -125,8 +125,6 @@ export function ComposerCommandMenu({
       if (!input) return
       input.focus()
       input.setSelectionRange(next.length, next.length)
-      input.style.height = 'auto'
-      input.style.height = `${Math.min(input.scrollHeight, 220)}px`
     })
   }
 
