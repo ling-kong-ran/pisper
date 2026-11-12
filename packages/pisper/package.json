@@ -1,6 +1,6 @@
 {
   "name": "pisper",
-  "version": "0.6.36",
+  "version": "0.6.37",
   "private": true,
   "description": "Pisper CLI.",
   "license": "MIT",
@@ -42,7 +42,7 @@
   },
   "pisper": {
     "repository": "ling-kong-ran/pisper",
-    "tuiVersion": "0.6.19",
-    "runtimeVersion": "0.6.36"
+    "tuiVersion": "0.6.20",
+    "runtimeVersion": "0.6.37"
   }
 }
