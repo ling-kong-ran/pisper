@@ -292,6 +292,116 @@ mod native {
         }
     }
 
+    // wry 0.55 销毁子 WebView 时，会把主窗口上属于主界面 WebView 的子类化一起摘掉（0.57 才改成只摘自己的）。
+    // 关过一个页签之后，最大化、还原、拖动都不再调整主界面的大小，焦点也不再交给主界面。
+    // 开第一个页签时在主窗口上另挂一份同样的处理，用自己的 id，wry 摘不到；wry 那份还在时两边做的是同一件事。
+    #[cfg(target_os = "windows")]
+    fn keep_main_resizing(window: &WebviewWindow) {
+        thread_local! {
+            static KEPT: Cell<bool> = const { Cell::new(false) };
+        }
+        if KEPT.get() {
+            return;
+        }
+        let Ok(hwnd) = window.hwnd() else {
+            return;
+        };
+        let hwnd = hwnd.0 as isize;
+        if window
+            .with_webview(move |webview| main_window::attach(hwnd, webview.controller()))
+            .is_ok()
+        {
+            KEPT.set(true);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn keep_main_resizing(_window: &WebviewWindow) {}
+
+    // 照 wry 给主 WebView 挂的那份写：跟随客户区大小、通知位置变化、把焦点交给网页。
+    #[cfg(target_os = "windows")]
+    mod main_window {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            ICoreWebView2Controller, COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC,
+        };
+        use windows::Win32::{
+            Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
+            UI::{
+                Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
+                WindowsAndMessaging::{
+                    GetClientRect, SetWindowPos, SIZE_MINIMIZED, SWP_ASYNCWINDOWPOS,
+                    SWP_NOACTIVATE, SWP_NOZORDER, WM_DESTROY, WM_ENTERSIZEMOVE, WM_MOVE, WM_MOVING,
+                    WM_SETFOCUS, WM_SIZE,
+                },
+            },
+        };
+
+        // 和 wry 的 WM_USER + 0x64 不同就行。
+        const SUBCLASS_ID: usize = 0x5049_5350;
+
+        pub fn attach(hwnd: isize, controller: ICoreWebView2Controller) {
+            let data = Box::into_raw(Box::new(controller));
+            // SAFETY: 在主窗口的线程上调用；data 在 WM_DESTROY 时收回，挂不上时当场收回。
+            unsafe {
+                let hwnd = HWND(hwnd as _);
+                if !SetWindowSubclass(hwnd, Some(subclass), SUBCLASS_ID, data as usize).as_bool() {
+                    drop(Box::from_raw(data));
+                }
+            }
+        }
+
+        unsafe extern "system" fn subclass(
+            hwnd: HWND,
+            msg: u32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+            _id: usize,
+            data: usize,
+        ) -> LRESULT {
+            if msg == WM_DESTROY {
+                let _ = RemoveWindowSubclass(hwnd, Some(subclass), SUBCLASS_ID);
+                drop(Box::from_raw(data as *mut ICoreWebView2Controller));
+                return DefSubclassProc(hwnd, msg, wparam, lparam);
+            }
+            let controller = &*(data as *const ICoreWebView2Controller);
+            match msg {
+                WM_SIZE if wparam.0 != SIZE_MINIMIZED as usize => {
+                    let mut client = RECT::default();
+                    if GetClientRect(hwnd, &mut client).is_ok() {
+                        let width = client.right - client.left;
+                        let height = client.bottom - client.top;
+                        let _ = controller.SetBounds(RECT {
+                            left: 0,
+                            top: 0,
+                            right: width,
+                            bottom: height,
+                        });
+                        let mut container = HWND::default();
+                        if controller.ParentWindow(&mut container).is_ok() {
+                            let _ = SetWindowPos(
+                                container,
+                                None,
+                                0,
+                                0,
+                                width,
+                                height,
+                                SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOZORDER,
+                            );
+                        }
+                    }
+                }
+                WM_MOVE | WM_MOVING => {
+                    let _ = controller.NotifyParentWindowPositionChanged();
+                }
+                WM_SETFOCUS | WM_ENTERSIZEMOVE => {
+                    let _ = controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+                }
+                _ => {}
+            }
+            DefSubclassProc(hwnd, msg, wparam, lparam)
+        }
+    }
+
     fn rect(bounds: BrowserBounds) -> Rect {
         Rect {
             position: LogicalPosition::new(bounds.x, bounds.y).into(),
@@ -631,6 +741,7 @@ mod native {
     ) -> Result<(), String> {
         ensure_room(&browser_id)?;
         let _ = APP.set(window.app_handle().clone());
+        keep_main_resizing(window);
         let app_origin = window.url().map_err(|error| error.to_string())?;
         let profile = window
             .app_handle()
