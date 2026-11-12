@@ -17,6 +17,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+pub mod shell_installer;
+
 const GITHUB_API_ORIGIN: &str = "https://api.github.com/";
 const RELEASES_API: &str =
     "https://api.github.com/repos/ling-kong-ran/pisper/releases?per_page=100";
@@ -382,15 +384,8 @@ pub struct ComponentUpdater {
 
 impl ComponentUpdater {
     pub fn new(root: PathBuf, encoded_public_key: &str, user_agent: &str) -> Result<Self> {
-        let public_key = decode_wrapped(encoded_public_key)
-            .and_then(|value| PublicKey::decode(&value).map_err(anyhow::Error::from))
-            .context("invalid Pisper component updater public key")?;
-        let client = reqwest::Client::builder()
-            .user_agent(user_agent)
-            .connect_timeout(Duration::from_secs(15))
-            .timeout(Duration::from_secs(10 * 60))
-            .build()
-            .context("failed to create component update client")?;
+        let public_key = decode_public_key(encoded_public_key)?;
+        let client = http_client(user_agent, Duration::from_secs(10 * 60))?;
         Ok(Self {
             root,
             public_key,
@@ -1350,10 +1345,31 @@ fn decode_wrapped(value: &str) -> Result<String> {
     Ok(trimmed.to_string())
 }
 
-fn verify_archive(public_key: &PublicKey, archive: &[u8], signature: &[u8]) -> Result<()> {
+/// 组件更新器和壳安装包共用的 HTTP 客户端：同样的连接超时和系统代理设置。
+fn http_client(user_agent: &str, timeout: Duration) -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(user_agent)
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(timeout)
+        .build()
+        .context("failed to create component update client")
+}
+
+fn decode_public_key(encoded_public_key: &str) -> Result<PublicKey> {
+    decode_wrapped(encoded_public_key)
+        .and_then(|value| PublicKey::decode(&value).map_err(anyhow::Error::from))
+        .context("invalid Pisper component updater public key")
+}
+
+/// 解析 Tauri signer 的签名文件（整份 base64 包着的 minisign 签名）。
+fn decode_signature(signature: &[u8]) -> Result<Signature> {
     let encoded = std::str::from_utf8(signature).context("component signature is not UTF-8")?;
     let decoded = decode_wrapped(encoded)?;
-    let signature = Signature::decode(&decoded).context("invalid component signature")?;
+    Signature::decode(&decoded).context("invalid component signature")
+}
+
+fn verify_archive(public_key: &PublicKey, archive: &[u8], signature: &[u8]) -> Result<()> {
+    let signature = decode_signature(signature)?;
     public_key
         .verify(archive, &signature, false)
         .context("component signature verification failed")
