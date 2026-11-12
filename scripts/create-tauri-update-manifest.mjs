@@ -94,6 +94,35 @@ for (const file of files) {
   }
 }
 
+// 壳在后台下载给用户手动安装的安装包（crates/component-updater 的 shell_installer）。Windows 与 Linux
+// 的更新包本身就是安装包，只有 macOS 的 .app.tar.gz 不能直接安装，另给签过名的 dmg。
+// 放在附加的 installer 字段里：Tauri 更新器和旧壳只读 url/signature，会忽略它；没有 dmg 签名时不写。
+const installerPattern = new RegExp(`^Pisper_${escapedVersion}_(darwin)_(aarch64|x86_64)\\.dmg$`)
+for (const file of files) {
+  const match = path.basename(file).match(installerPattern)
+  if (!match) continue
+  const [, platform, arch] = match
+  const platformKey = `${platform}-${arch}`
+  // 只给已有更新包条目的平台补字段，不造出缺 url/signature、会让 Tauri 更新器解析失败的条目。
+  if (!platforms[platformKey]) continue
+  if (platforms[platformKey].installer) {
+    throw new Error(`Duplicate installer artifact for ${platformKey} under ${artifactsDir}.`)
+  }
+  const signaturePath = `${file}.sig`
+  let signature = ''
+  try {
+    signature = (await readFile(signaturePath, 'utf8')).trim()
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  if (!signature) continue
+  const artifactName = path.basename(file)
+  platforms[platformKey].installer = {
+    url: `https://github.com/ling-kong-ran/pisper/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(artifactName)}`,
+    signature,
+  }
+}
+
 if (Object.keys(platforms).length === 0) {
   throw new Error(`No signed Tauri updater artifacts found under ${artifactsDir}.`)
 }

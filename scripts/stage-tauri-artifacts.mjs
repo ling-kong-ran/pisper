@@ -1,9 +1,11 @@
+import { spawnSync } from 'node:child_process'
 import { copyFile, mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const tauriCli = path.join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
 const bundleDir = path.resolve(
   root,
   process.env.PISPER_TAURI_BUNDLE_DIR || path.join('src-tauri', 'target', 'release', 'bundle'),
@@ -66,6 +68,24 @@ async function stage(source, destinationName) {
   return destination
 }
 
+function signArtifact(file) {
+  // 与发布流程签组件归档的方式相同（tauri signer sign 读 TAURI_SIGNING_PRIVATE_KEY / _PASSWORD），
+  // 输出写在 <file>.sig。参数数组调用，不经 shell。
+  const result = spawnSync(process.execPath, [tauriCli, 'signer', 'sign', file], {
+    cwd: root,
+    env: process.env,
+    stdio: ['ignore', 'inherit', 'inherit'],
+  })
+  if (result.status !== 0) {
+    throw new Error(
+      `Failed to sign ${path.basename(file)} (tauri signer exited with ${result.status}).`,
+    )
+  }
+  const signaturePath = `${file}.sig`
+  staged.push(signaturePath)
+  return signaturePath
+}
+
 async function stageUpdater(source, destinationName) {
   await stage(source, destinationName)
   const signaturePath = `${source}.sig`
@@ -88,7 +108,11 @@ if (platform === 'windows') {
   )
 } else if (platform === 'darwin') {
   const dmg = exactlyOne(files, (file) => file.endsWith('.dmg'), 'macOS DMG')
-  await stage(dmg, normalizedName('.dmg'))
+  const stagedDmg = await stage(dmg, normalizedName('.dmg'))
+  // 壳在后台下载新版 dmg 给用户手动安装，要用更新签名验过才交出去（crates/component-updater 的
+  // shell_installer）。Tauri 打包只签 .app.tar.gz，dmg 在这里用同一把密钥补签：签的是暂存后、
+  // 最终上传的这份文件。没有签名凭据的本机构建不签，也不要求。
+  if (requireSignature) signArtifact(stagedDmg)
   const updater = files.find((file) => file.endsWith('.app.tar.gz') && !file.endsWith('.sig'))
   if (updater) await stageUpdater(updater, normalizedName('.app.tar.gz'))
   else if (requireSignature) throw new Error(`No macOS updater archive found under ${bundleDir}.`)

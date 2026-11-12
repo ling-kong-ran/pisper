@@ -22,6 +22,8 @@ const tauriAssets = [
   `Pisper_${version}_darwin_aarch64.app.tar.gz`,
   `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
   `Pisper_${version}_darwin_aarch64.dmg`,
+  // 壳后台下载 dmg 前要验这份签名（scripts/stage-tauri-artifacts.mjs 补签）。
+  `Pisper_${version}_darwin_aarch64.dmg.sig`,
   `Pisper_${version}_linux_x86_64.AppImage`,
   `Pisper_${version}_linux_x86_64.AppImage.sig`,
   `Pisper_${version}_linux_x86_64.deb`,

@@ -335,6 +335,7 @@ test('release assets reject legacy updater metadata and unexpected files', async
     `Pisper_${version}_darwin_aarch64.app.tar.gz`,
     `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
     `Pisper_${version}_darwin_aarch64.dmg`,
+    `Pisper_${version}_darwin_aarch64.dmg.sig`,
     `Pisper_${version}_linux_x86_64.AppImage`,
     `Pisper_${version}_linux_x86_64.AppImage.sig`,
     `Pisper_${version}_linux_x86_64.deb`,
@@ -367,6 +368,17 @@ test('release assets reject legacy updater metadata and unexpected files', async
       assert.match(missingOffline.stderr, /Missing release assets:.*offline-setup/)
       await writeFile(join(directory, name), 'artifact')
     }
+
+    // 壳后台下载 dmg 前要验签：发布缺 dmg 签名必须在提交版本号之前失败。
+    await rm(join(directory, `Pisper_${version}_darwin_aarch64.dmg.sig`))
+    const missingDmgSignature = spawnSync(
+      process.execPath,
+      ['scripts/validate-tauri-release-assets.mjs', `v${version}`, directory],
+      { encoding: 'utf8' },
+    )
+    assert.notEqual(missingDmgSignature.status, 0)
+    assert.match(missingDmgSignature.stderr, /Missing release assets:.*darwin_aarch64\.dmg\.sig/)
+    await writeFile(join(directory, `Pisper_${version}_darwin_aarch64.dmg.sig`), 'artifact')
 
     await writeFile(join(directory, 'latest.yml'), 'version: 0.3.3')
     const invalid = spawnSync(
@@ -444,6 +456,100 @@ test('Windows variants stage independently and only the standard installer enter
     assert.match(offlineOnly.stderr, /No signed Tauri updater artifacts/)
     await rm(join(bundle, 'Pisper-test-setup.exe.sig'))
     assert.match(stage(true).stderr, /Missing updater signature/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('macOS staging signs the dmg and the manifest offers it without changing updater fields', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-macos-dmg-'))
+  const bundle = join(directory, 'bundle')
+  const staging = join(directory, 'staged')
+  const keyPath = join(directory, 'test.key')
+  const output = join(directory, 'latest.json')
+  const { version } = JSON.parse(await readFile('src-tauri/desktop-package.json', 'utf8'))
+  const tauriCli = join('node_modules', '@tauri-apps', 'cli', 'tauri.js')
+  const dmgName = `Pisper_${version}_darwin_aarch64.dmg`
+  const stage = (env) =>
+    spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        // 仅模拟脚本的 macOS 分支；签名用测试时现生成的一次性密钥，真正的 dmg 由 macOS 构建机产出。
+        `Object.defineProperty(process, 'platform', { value: 'darwin' });
+     Object.defineProperty(process, 'arch', { value: 'arm64' });
+     process.argv.push('--require-signature');
+     await import('./scripts/stage-tauri-artifacts.mjs');`,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PISPER_TAURI_BUNDLE_DIR: bundle,
+          PISPER_TAURI_STAGE_DIR: staging,
+          ...env,
+        },
+      },
+    )
+  const createManifest = () =>
+    spawnSync(
+      process.execPath,
+      ['scripts/create-tauri-update-manifest.mjs', `v${version}`, staging, '--output', output],
+      { encoding: 'utf8' },
+    )
+  try {
+    const generated = spawnSync(
+      process.execPath,
+      [tauriCli, 'signer', 'generate', '--ci', '-p', '', '-w', keyPath, '-f'],
+      { encoding: 'utf8' },
+    )
+    assert.equal(generated.status, 0, generated.stderr)
+    await mkdir(join(bundle, 'dmg'), { recursive: true })
+    await mkdir(join(bundle, 'macos'), { recursive: true })
+    await writeFile(join(bundle, 'dmg', 'Pisper_test_aarch64.dmg'), 'disk-image')
+    await writeFile(join(bundle, 'macos', 'Pisper.app.tar.gz'), 'updater-archive')
+    await writeFile(join(bundle, 'macos', 'Pisper.app.tar.gz.sig'), 'updater-signature')
+
+    const signed = stage({
+      TAURI_SIGNING_PRIVATE_KEY: await readFile(keyPath, 'utf8'),
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '',
+    })
+    assert.equal(signed.status, 0, signed.stderr)
+    const signature = (
+      await readFile(join(staging, 'darwin-aarch64', `${dmgName}.sig`), 'utf8')
+    ).trim()
+    assert.match(
+      Buffer.from(signature, 'base64').toString('utf8'),
+      /^untrusted comment: signature from tauri secret key\n/,
+    )
+
+    const manifest = createManifest()
+    assert.equal(manifest.status, 0, manifest.stderr)
+    const { platforms } = JSON.parse(await readFile(output, 'utf8'))
+    const darwin = platforms['darwin-aarch64']
+    // Tauri 更新器读的两个字段保持原样，dmg 只出现在附加的 installer 字段里。
+    assert.equal(darwin.signature, 'updater-signature')
+    assert.ok(darwin.url.endsWith(`/Pisper_${version}_darwin_aarch64.app.tar.gz`))
+    assert.deepEqual(darwin.installer, {
+      url: `https://github.com/ling-kong-ran/pisper/releases/download/v${version}/${dmgName}`,
+      signature,
+    })
+
+    // 旧发布那样没有 dmg 签名时，清单与以前完全相同。
+    await rm(join(staging, 'darwin-aarch64', `${dmgName}.sig`))
+    const legacy = createManifest()
+    assert.equal(legacy.status, 0, legacy.stderr)
+    const legacyDarwin = JSON.parse(await readFile(output, 'utf8')).platforms['darwin-aarch64']
+    assert.deepEqual(Object.keys(legacyDarwin).sort(), ['signature', 'url'])
+
+    // 带签名凭据时 dmg 签不出来就失败，不能悄悄发出一个没签名的 dmg。
+    const failed = stage({
+      TAURI_SIGNING_PRIVATE_KEY: 'not a key',
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '',
+    })
+    assert.notEqual(failed.status, 0)
+    assert.match(failed.stderr, /Failed to sign Pisper_.*\.dmg/)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

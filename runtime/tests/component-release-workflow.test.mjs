@@ -288,6 +288,7 @@ test('desktop release validator requires installers and signed frontend componen
     `Pisper_${version}_darwin_aarch64.app.tar.gz`,
     `Pisper_${version}_darwin_aarch64.app.tar.gz.sig`,
     `Pisper_${version}_darwin_aarch64.dmg`,
+    `Pisper_${version}_darwin_aarch64.dmg.sig`,
     `Pisper_${version}_linux_x86_64.AppImage`,
     `Pisper_${version}_linux_x86_64.AppImage.sig`,
     `Pisper_${version}_linux_x86_64.deb`,
