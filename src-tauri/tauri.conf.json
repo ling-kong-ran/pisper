@@ -17,6 +17,7 @@
         "desktop-remote",
         "desktop-browser",
         "desktop-computer",
+        "desktop-shell-installer",
         "mobile-bridge"
       ],
       "csp": null

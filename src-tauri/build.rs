@@ -52,6 +52,8 @@ fn main() {
     println!("cargo:rerun-if-changed=permissions/desktop-remote.toml");
     println!("cargo:rerun-if-changed=capabilities/desktop-remote.json");
     println!("cargo:rerun-if-changed=capabilities/mobile-bridge.json");
+    println!("cargo:rerun-if-changed=permissions/shell-installer.toml");
+    println!("cargo:rerun-if-changed=capabilities/desktop-shell-installer.json");
     println!("cargo:rerun-if-env-changed=PISPER_TAURI_UPDATER_PUBLIC_KEY");
     let updater_public_key = std::env::var("PISPER_TAURI_UPDATER_PUBLIC_KEY")
         .unwrap_or_else(|_| include_str!("updater.pubkey").trim().to_string());

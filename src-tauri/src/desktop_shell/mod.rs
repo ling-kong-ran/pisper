@@ -9,6 +9,7 @@ mod desktop_browser_policy;
 mod desktop_pet;
 mod desktop_terminal;
 mod remote_workspaces;
+mod shell_installer;
 mod startup_diagnostics;
 mod tunnel_lifecycle;
 
@@ -799,6 +800,7 @@ pub fn run() {
                 .build(),
         )
         .manage(component_updates::ComponentUpdateState::default())
+        .manage(shell_installer::ShellInstallerState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
         .manage(computer_control::ComputerState::default())
         .manage(LifecycleState {
@@ -821,6 +823,12 @@ pub fn run() {
             component_updates::desktop_check_component_updates,
             component_updates::desktop_install_component_updates,
             component_updates::desktop_restart_for_component_update,
+            shell_installer::desktop_shell_installer_status,
+            shell_installer::desktop_check_shell_installer,
+            shell_installer::desktop_download_shell_installer,
+            shell_installer::desktop_set_shell_installer_auto_download,
+            shell_installer::desktop_open_shell_installer,
+            shell_installer::desktop_reveal_shell_installer,
             desktop_bridge::desktop_open_url,
             desktop_bridge::desktop_open_asset,
             desktop_bridge::desktop_open_releases,
@@ -928,6 +936,8 @@ pub fn run() {
                     stop_sidecar(app.handle());
                     return Err(error.into());
                 }
+                // 壳安装包的整理和定时检查都在后台任务里，不拖慢启动。
+                shell_installer::start(app.handle());
                 Ok(())
             })();
             if result.is_err() {

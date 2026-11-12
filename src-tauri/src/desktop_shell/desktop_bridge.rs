@@ -184,6 +184,11 @@ pub(crate) fn log_component_update(app: &AppHandle, message: &str) {
     write_update_log(app, "component-update", message);
 }
 
+// 壳安装包的下载记录写进同一份更新诊断日志，“查看更新诊断日志”一次就能看到全部。
+pub(crate) fn log_shell_installer(app: &AppHandle, message: &str) {
+    write_update_log(app, "shell-installer", message);
+}
+
 #[tauri::command]
 pub fn desktop_get_app_info(app: AppHandle) -> AppInfo {
     AppInfo {
