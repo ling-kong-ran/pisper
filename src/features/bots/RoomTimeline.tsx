@@ -237,12 +237,15 @@ export function RoomTimeline({
         ? t('bots:room.system.chainStopped', {
             from: name(event.from),
             to: name(event.to),
+            // hops / rate / total 是旧版本的上限，老记录里还有；现在只会因为“只说话没动手”停。
             reason:
-              event.reason === 'hops'
-                ? t('bots:room.system.reason.hops')
-                : event.reason === 'rate'
-                  ? t('bots:room.system.reason.rate')
-                  : t('bots:room.system.reason.total'),
+              event.reason === 'idle'
+                ? t('bots:room.system.reason.idle')
+                : event.reason === 'hops'
+                  ? t('bots:room.system.reason.hops')
+                  : event.reason === 'rate'
+                    ? t('bots:room.system.reason.rate')
+                    : t('bots:room.system.reason.total'),
           })
         : event?.type === 'wake_failed'
           ? event.reason === 'attachment'

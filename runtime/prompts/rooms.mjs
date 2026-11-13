@@ -58,9 +58,9 @@ function reasonLine(reason) {
     return `The user posted #${reason.seq} without addressing anyone; the room picked you to answer it${why ? ` (${why})` : ''}. Answer in the room; if part of it belongs to another member, @ them.`
   }
   if (reason.kind === 'bot' && reason.returned)
-    return `${reason.from} answered your request in #${reason.seq} (bot-to-bot hop ${reason.hop} of ${reason.maxHops}). Act on it. If more work is needed, @ whoever does it; if it is done, report to the room without any @.`
+    return `${reason.from} answered your request in #${reason.seq}. Act on it. If more work is needed, @ whoever does it; if it is done, report to the room without any @.`
   if (reason.kind === 'bot')
-    return `${reason.from} mentioned you in #${reason.seq} (bot-to-bot hop ${reason.hop} of ${reason.maxHops}). Answer in the room; your reply goes back to ${reason.from}, no @ needed.`
+    return `${reason.from} mentioned you in #${reason.seq}. Answer in the room; your reply goes back to ${reason.from}, no @ needed.`
   if (reason.kind === 'reply') return `The user replied to your message in #${reason.seq}.`
   if (reason.kind === 'schedule') return 'A schedule you set earlier is due; its note is above.'
   if (reason.kind === 'recipient') return `The user sent #${reason.seq} to you.`

@@ -12,7 +12,7 @@ import {
   roomSeatPrompt,
   roomSkippedAttachmentsNote,
 } from '../prompts/rooms.mjs'
-import { MAX_BOT_LINK_HOPS, isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
+import { isCourtesyMessage, newBotChainId } from '../services/bots/bot-links.mjs'
 import { botSourceTrust, stricterBotTrust } from '../services/bots/bot-memory-service.mjs'
 import { toolArgsSummary } from '../services/session-card-summary.mjs'
 import {
@@ -29,7 +29,7 @@ import {
   wakeBudgetChars,
 } from '../services/rooms/room-context.mjs'
 import {
-  ROOM_CHAIN_MAX_WAKES,
+  ROOM_CHAIN_IDLE_TURNS,
   ROOM_MESSAGE_ID_PATTERN,
   ROOM_ROUTE_MAX_WAKES,
   isPassReply,
@@ -871,7 +871,11 @@ export const roomMethods = {
         await this.queueSessionMessage(sessionId, {
           message: wake.message,
           attachments: wake.attachments,
-          behavior: 'interrupt',
+          // 你说的话插队（同 Grok：你的话优先，可以改这一轮的方向）；别的 Bot 的话、到点的定时排到这一轮做完之后，
+          // 不打断它手上的长任务。
+          behavior: pending.reasons.some((reason) => !['bot', 'schedule'].includes(reason.kind))
+            ? 'interrupt'
+            : 'followUp',
         })
       } catch {
         // 恰好在这一刻说完了：留着，这一轮的收尾会再 flush。
@@ -1054,6 +1058,8 @@ export const roomMethods = {
       triggers: pending?.triggers || [],
       // 请它来做事的 Bot：这一轮的回复要回到它们那里（见 onSeatRunEnd）。子任务做完后的汇报接着
       // 派它出去的那一轮算：活交给子代理时答复留到汇报里一起回去。
+      // 子代理做完后的汇报：活是子代理干的，这一轮自己不跑工具也算有进展。
+      report: !pending && isInternalParentMessage(String(message || '')),
       askers: pending
         ? seatAskers(pending.reasons)
         : isInternalParentMessage(String(message || ''))
@@ -1162,6 +1168,8 @@ export const roomMethods = {
         ...(state === 'error' ? { error: oneLine(error, 300) } : {}),
       },
     })
+    if (turn.chain?.id && state === 'done')
+      this.noteChainTurn(turn.chain.id, turn.stepCount > 0 || Boolean(changes) || turn.report)
     if (message && state === 'done') {
       const bot = this.bots.get(turn.botId)
       const targets = botWakeTargets({ authorId: turn.botId, mentions }, members)
@@ -1190,7 +1198,18 @@ export const roomMethods = {
     void this.flushSeatWake(turn.roomId, turn.botId)
   },
 
-  // Bot 在群里 @ 了另一个 Bot：走 Bot 之间的限制（6 跳、每对每分钟、客气话不叫），外加一条链总共 12 次。
+  // 链上又做完一轮：动了手就把“连着只说话”的计数清零，没动手就加一。
+  noteChainTurn(chainId, acted) {
+    this.roomChainIdle ||= new Map()
+    const idle = acted ? 0 : (this.roomChainIdle.get(chainId) || 0) + 1
+    this.roomChainIdle.delete(chainId)
+    this.roomChainIdle.set(chainId, idle)
+    while (this.roomChainIdle.size > MAX_CHAINS)
+      this.roomChainIdle.delete(this.roomChainIdle.keys().next().value)
+  },
+
+  // Bot 在群里 @ 了另一个 Bot（或答复回到请它的那个）：客气话不叫；不限跳数、次数、频率，长任务一直接力下去，
+  // 只有链上连着 ROOM_CHAIN_IDLE_TURNS 轮只说话没动手（没有进展、多半在空转）才停，并在群里说明。
   async wakeFromBot(room, from, toId, message, chain, { returned = false } = {}) {
     if (!from) return { woke: false, reason: 'no sender' }
     // 去掉 @名字 再看是不是只有一句客气话（“@小克 谢谢”不值得叫醒一轮）。
@@ -1211,9 +1230,7 @@ export const roomMethods = {
       })
       return { woke: false, reason: `chain limit: ${reason}` }
     }
-    if (total >= ROOM_CHAIN_MAX_WAKES) return stop('total')
-    const admitted = this.botLinks.admit({ from: from.id, to: toId, chain: chainId, hop })
-    if (!admitted.ok) return stop(admitted.reason)
+    if ((this.roomChainIdle?.get(chainId) || 0) >= ROOM_CHAIN_IDLE_TURNS) return stop('idle')
     await this.wakeSeat(room.id, toId, {
       trigger: message,
       reason: {
@@ -1222,7 +1239,6 @@ export const roomMethods = {
         from: from.name,
         fromId: from.id,
         hop,
-        maxHops: MAX_BOT_LINK_HOPS,
         ...(returned ? { returned: true } : {}),
       },
       chain: { id: chainId, hop },

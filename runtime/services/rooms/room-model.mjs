@@ -12,8 +12,9 @@ export const MAX_ROOM_GOAL_CHARS = 200
 export const MAX_ROOM_MESSAGE_CHARS = 12_000
 // 群里一条消息最多存这么多字；Bot 的长回复超出部分不进群记录（完整的在它的席位会话里）。
 export const MAX_ROOM_STORED_CHARS = 20_000
-// 一条链（从你的一句话算起）总共最多叫醒几次：6 跳只限深度，挡不住一个 Bot @ 好几个的分叉。
-export const ROOM_CHAIN_MAX_WAKES = 12
+// 群里的接力不按次数、跳数截断（大项目交给一组 Bot 可以做上几个小时）：只在没有进展时停——
+// 一条链（从你的一句话算起）上连着这么多轮只说话、没动手（没跑工具、没改文件、不是子代理做完的汇报）。
+export const ROOM_CHAIN_IDLE_TURNS = 10
 // 一次叫醒最少能带多少字（约 8k token）；实际按这一轮模型上下文窗口的 10% 算，不低于它。
 export const ROOM_WAKE_MIN_CHARS = 24_000
 // 别的 Bot 的长回复送进上下文时截到这么长，后面写“全文在群里第 N 条”。

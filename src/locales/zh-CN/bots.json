@@ -380,6 +380,7 @@
   "room.system.chainStopped": "{from} 和 {to} 来回到这里先停了（{reason}），要继续就叫一下谁",
   "room.system.paused": "{name} 已暂停，这次没叫醒它",
   "room.system.reason.hops": "已经 6 跳",
+  "room.system.reason.idle": "连着 10 轮只说话、没动手",
   "room.system.reason.rate": "一分钟里来回太多次",
   "room.system.reason.total": "这件事已经叫醒 12 次",
   "room.system.routeFailed": "主持人 {host} 没能分派这句话，要找谁就 @ 它",

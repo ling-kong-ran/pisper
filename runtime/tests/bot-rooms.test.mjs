@@ -22,7 +22,7 @@ import {
   wakeBudgetChars,
 } from '../services/rooms/room-context.mjs'
 import {
-  ROOM_CHAIN_MAX_WAKES,
+  ROOM_CHAIN_IDLE_TURNS,
   ROOM_ROUTE_MAX_WAKES,
   isPassReply,
   mentionsEveryone,
@@ -465,7 +465,7 @@ test('a turn posts a work card, then its reply; an @ in the reply wakes the othe
   assert.equal(runtime.runs[1].unattended, true)
   assert.match(
     runtime.runs[1].message.split(ATTACHMENT_MARKER)[1],
-    /小克pro mentioned you in #2 \(bot-to-bot hop 2 of 6\)/,
+    /小克pro mentioned you in #2\. Answer in the room/,
   )
 })
 
@@ -536,7 +536,7 @@ test('a wake that misses a run that is just ending is delivered after it ends', 
   assert.ok((await runtime.rooms.seat(room.id, PRO)).readSeq <= before + 1)
 })
 
-test('a chain stops after 12 wakes in total and says so in the room', async () => {
+test('a relay keeps going while bots do work and stops only after many turns of talk alone', async () => {
   const runtime = await fakeRuntime()
   const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
   const message = await runtime.rooms.append(room.id, {
@@ -544,25 +544,62 @@ test('a chain stops after 12 wakes in total and says so in the room', async () =
     text: '@小克pro 继续',
     mentions: [PRO],
   })
-  runtime.roomChainWakes = new Map([['ch_fullchain1', ROOM_CHAIN_MAX_WAKES]])
+  // 次数、跳数都不再截断：第 40 跳、叫醒过 100 次也照常叫醒。
+  runtime.roomChainWakes = new Map([['ch_longchain1', 100]])
   await runtime.wakeFromBot(room, runtime.bots.get(KE), PRO, message, {
-    id: 'ch_fullchain1',
-    hop: 2,
+    id: 'ch_longchain1',
+    hop: 40,
   })
   await settle(runtime)
-  assert.equal(runtime.runs.length, 0)
-  const stopped = (await runtime.rooms.messages(room.id)).at(-1)
-  assert.equal(stopped.author.kind, 'system')
-  assert.deepEqual(
-    { type: stopped.event.type, reason: stopped.event.reason },
-    { type: 'chain_stopped', reason: 'total' },
+  assert.equal(runtime.runs.length, 1)
+  // 动过手（跑了工具、改了文件、子代理汇报）就清零；连着只说话到上限才停，并在群里说明。
+  for (let index = 0; index < ROOM_CHAIN_IDLE_TURNS - 1; index += 1)
+    runtime.noteChainTurn('ch_talky00001', false)
+  runtime.noteChainTurn('ch_talky00001', true)
+  for (let index = 0; index < ROOM_CHAIN_IDLE_TURNS - 1; index += 1)
+    runtime.noteChainTurn('ch_talky00001', false)
+  assert.equal(
+    (
+      await runtime.wakeFromBot(room, runtime.bots.get(KE), PRO, message, {
+        id: 'ch_talky00001',
+        hop: 3,
+      })
+    ).woke,
+    true,
   )
-  // 6 跳也挡着。
-  await runtime.wakeFromBot(room, runtime.bots.get(KE), PRO, message, {
-    id: 'ch_deepchain1',
-    hop: 6,
+  runtime.noteChainTurn('ch_talky00001', false)
+  const stopped = await runtime.wakeFromBot(room, runtime.bots.get(KE), PRO, message, {
+    id: 'ch_talky00001',
+    hop: 4,
   })
-  assert.equal((await runtime.rooms.messages(room.id)).at(-1).event.reason, 'hops')
+  assert.equal(stopped.woke, false)
+  const line = (await runtime.rooms.messages(room.id)).at(-1)
+  assert.deepEqual(
+    { type: line.event.type, reason: line.event.reason },
+    { type: 'chain_stopped', reason: 'idle' },
+  )
+})
+
+test('a busy bot finishes its step when another bot writes; only the user cuts in', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 做个大活' })
+  await settle(runtime)
+  const seat = runtime.runs[0].sessionId
+  runtime.onSeatRunStart(seat)
+  runtime.running.add(seat)
+  runtime.sessions.set(seat, { session: { isStreaming: true, messages: [] } })
+  const fromKe = await runtime.rooms.append(room.id, {
+    author: { kind: 'bot', botId: KE },
+    text: '@小克pro 顺便看下这个',
+    mentions: [PRO],
+  })
+  await runtime.wakeFromBot(room, runtime.bots.get(KE), PRO, fromKe, null)
+  await settle(runtime)
+  assert.equal(runtime.queued.at(-1).behavior, 'followUp')
+  await runtime.postRoomMessage(room.id, { text: '@小克pro 先停一下，改方向' })
+  await settle(runtime)
+  assert.equal(runtime.queued.at(-1).behavior, 'interrupt')
 })
 
 test('a recall tells the bots that read it, and the next wake says it was withdrawn', async () => {
@@ -2031,7 +2068,7 @@ test('a bot asked by another bot answers back to it without an @; the answer bac
   await finishTurn(runtime, runtime.runs[1].sessionId, '第 2 节缺例子，第 4 节结论不对')
   await settle(runtime)
   assert.deepEqual(botsOf(runtime), [KE, PRO, KE])
-  assert.match(runtime.runs[2].message, /小克pro answered your request in #\d+ .*Act on it\./)
+  assert.match(runtime.runs[2].message, /小克pro answered your request in #\d+\. Act on it\./)
   assert.equal(
     runtime.runs[2].message.split(ATTACHMENT_MARKER)[0],
     '小克pro: 第 2 节缺例子，第 4 节结论不对',

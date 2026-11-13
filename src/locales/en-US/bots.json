@@ -380,6 +380,7 @@
   "room.system.chainStopped": "{from} and {to} stopped here ({reason}); @ someone to continue",
   "room.system.paused": "{name} is paused and was not woken",
   "room.system.reason.hops": "6 hops",
+  "room.system.reason.idle": "10 turns in a row of talk with no work done",
   "room.system.reason.rate": "too many in a minute",
   "room.system.reason.total": "12 wakes for this thread",
   "room.system.routeFailed": "The host {host} could not route this message; @ someone to ask them",
