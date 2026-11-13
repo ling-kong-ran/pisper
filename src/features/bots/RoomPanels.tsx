@@ -56,6 +56,13 @@ function MemberLine({ member }: { member: RoomMember }) {
     ) : (
       <>{t('bots:room.member.running')}</>
     )
+  // 这一轮说完了，派出去的子代理还在做：不算空闲。
+  if (member.agents.working > 0)
+    return member.agents.current ? (
+      <>{t('bots:room.member.agentsStep', { task: member.agents.current })}</>
+    ) : (
+      <>{t('bots:room.member.agents', { count: member.agents.working })}</>
+    )
   return member.unread > 0 ? (
     <>{t('bots:room.member.unread', { count: member.unread })}</>
   ) : (

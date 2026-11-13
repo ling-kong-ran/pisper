@@ -36,6 +36,7 @@ import {
   parseRouteReply,
 } from '../services/rooms/room-model.mjs'
 import { RoomService } from '../services/rooms/room-service.mjs'
+import { roomSeatPrompt } from '../prompts/rooms.mjs'
 import { ATTACHMENT_MARKER } from '../runtime/stream-projection.mjs'
 
 const KE = 'bot_keAAAAAAAA'
@@ -1978,6 +1979,41 @@ test('a wake still queued when its message is recalled is dropped instead of sta
   await runtime.flushSeatWake(room.id, KE)
   assert.equal(runtime.runs.length, 0)
   assert.equal(runtime.roomWakes.has(`${room.id}:${KE}`), false)
+})
+
+test('a seat whose turn ended but whose subagents still work shows them on the room detail', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(KE))
+  const records = [
+    { id: 'a1', taskName: 'draft', title: '写笔记初稿', status: 'running', startedAt: '1' },
+    { id: 'a2', taskName: 'old', title: '', status: 'completed', startedAt: '0' },
+  ]
+  runtime.multiAgents = {
+    hasActive: (id) => id === seat && records.some((item) => item.status === 'running'),
+    summaries: (id) => (id === seat ? records : []),
+  }
+  const before = runtime.roomLiveState(room.id).signature
+  const detail = await runtime.getRoom(room.id)
+  const ke = detail.members.find((member) => member.id === KE)
+  // 席位这一轮没在说话，但子代理在做：不算空闲，标题给出来，群列表也算“在做”。
+  assert.equal(ke.status.state, 'idle')
+  assert.deepEqual(ke.agents, { working: 1, current: '写笔记初稿' })
+  assert.deepEqual(detail.members.find((member) => member.id === PRO).agents, {
+    working: 0,
+    current: '',
+  })
+  assert.equal(detail.activity.working, 1)
+  // 子代理做完：签名变，推一帧让页面收起这一行。
+  records[0].status = 'completed'
+  assert.notEqual(runtime.roomLiveState(room.id).signature, before)
+  assert.equal((await runtime.getRoom(room.id)).activity.working, 0)
+})
+
+test('the seat prompt says only an @ wakes someone and asks to keep review loops moving', () => {
+  const prompt = roomSeatPrompt({ name: '前端小组' }, { name: '小克' })
+  assert.match(prompt, /only an @ wakes them \(a name without @ does not\)/)
+  assert.match(prompt, /end your part with @ whoever acts next and what they must do/)
 })
 
 test('with nobody connected the board hub keeps no room frames and no timer', async () => {

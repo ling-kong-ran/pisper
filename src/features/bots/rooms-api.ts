@@ -111,6 +111,8 @@ export type RoomMember = {
   readSeq: number
   unread: number
   status: RoomMemberStatus
+  // 它派出去还在做的子代理与后台命令：件数和正在做的那件。旧 Runtime 没有，按 0。
+  agents: { working: number; current: string }
 }
 
 export type RoomTodo = { text: string; owner: string; done: boolean }
@@ -352,6 +354,10 @@ function parseMember(value: unknown): RoomMember {
       waiting:
         status.waiting === 'approval' || status.waiting === 'question' ? status.waiting : null,
       current: string(status.current),
+    },
+    agents: {
+      working: count(object(input.agents).working),
+      current: string(object(input.agents).current),
     },
   }
 }

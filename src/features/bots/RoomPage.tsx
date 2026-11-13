@@ -126,6 +126,7 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
           readSeq: 0,
           unread: 0,
           status: { state: 'idle', waiting: null, current: '' },
+          agents: { working: 0, current: '' },
         })
     return map
   }, [detail?.members, bots])

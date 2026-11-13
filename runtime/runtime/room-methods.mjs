@@ -138,12 +138,33 @@ export const roomMethods = {
     }
   },
 
+  // 席位派出去还在做的子代理与后台命令：这一轮说完了、活还在做，群里得看得出它没闲着。
+  // working = 件数，current = 正在做的那件的标题。
+  seatAgents(sessionId) {
+    if (!sessionId) return { working: 0, current: '' }
+    // 群页面每次刷新都会问：手上没有活时不把子 agent 记录过滤、投影一遍（同 botActivity）。
+    const mayWork =
+      !this.multiAgents?.hasActive ||
+      this.multiAgents.hasActive(sessionId) ||
+      Boolean(this.botCommands?.list(sessionId)?.length)
+    const agents = mayWork
+      ? (this.listSessionAgents?.(sessionId) || []).filter((agent) =>
+          ['queued', 'starting', 'running'].includes(agent.status),
+        )
+      : []
+    const shown = agents.find((agent) => agent.status === 'running') || agents[0]
+    return {
+      working: agents.length,
+      current: shown ? oneLine(shown.title || shown.taskName, 120) : '',
+    }
+  },
+
   roomActivity(roomId) {
     let working = 0
     let needsYou = false
     for (const { sessionId } of this.rooms.sessionsOfRoom(roomId)) {
       const status = this.seatStatus(sessionId)
-      if (status.state !== 'idle') working += 1
+      if (status.state !== 'idle' || this.seatAgents(sessionId).working) working += 1
       if (status.waiting) needsYou = true
     }
     return { working, needsYou }
@@ -176,6 +197,7 @@ export const roomMethods = {
         botId,
         this.seatStatus(sessionId),
         this.roomSeatTurns?.get(sessionId)?.stepCount || 0,
+        this.seatAgents(sessionId),
       ])
     return {
       lastSeq: this.rooms.peekLastSeq(roomId),
@@ -212,6 +234,7 @@ export const roomMethods = {
         readSeq: seat?.readSeq || 0,
         unread,
         status: this.seatStatus(seat?.sessionId || ''),
+        agents: this.seatAgents(seat?.sessionId || ''),
       }
     })
     let totalTokens = 0

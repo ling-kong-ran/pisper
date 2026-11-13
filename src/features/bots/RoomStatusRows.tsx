@@ -4,6 +4,8 @@
 // 一轮结束、它派出去的活还在等你时也是这样一行。做完这一行消失，回复贴进时间线。
 // 没点名的话还在判断该谁答时，最上面一行“正在看该谁来回答”（主持人分派的群是主持人的头像和“正在分派”），
 // 不然发出去到有人接话之间什么动静都没有。
+// 一轮说完了、它派出去的子代理（或后台命令）还在做：也有一行“子代理在做 · 哪件”，看得出它没闲着，
+// 子代理做完它会把结果贴回群里；正在说话的那一行后面也带上“N 个子代理在做”。
 //
 // 下面的“找谁写一份简报”提示条也在这里：聊长了、简报没人维护时问一句，选一个 Bot 就让它整理。
 import { ListTree, NotebookPen, Square, X } from 'lucide-react'
@@ -39,6 +41,12 @@ export function RoomStatusRows({
   onStop: (message: RoomMessage) => void
 }) {
   const { t } = useI18n()
+  const talking = new Set(entries.filter((entry) => !entry.pending).map((entry) => entry.botId))
+  const delegating = [...members.values()].filter(
+    (member) => !member.deleted && member.agents.working > 0 && !talking.has(member.id),
+  )
+  const agentsLabel = (count: number) =>
+    count > 1 ? t('bots:room.status.agentsCount', { count }) : t('bots:room.status.agentsWorking')
   return (
     <div aria-live="polite" className="mb-1.5 flex flex-col gap-0.5 empty:hidden">
       {routing.length > 0 && (
@@ -95,6 +103,7 @@ export function RoomStatusRows({
           : t('bots:room.status.working')
         const open = () => turn.sessionId && onOpenProcess(turn.sessionId)
         const approval = entry.waiting === 'approval' ? entry.approval : null
+        const agents = entry.pending ? 0 : member?.agents.working || 0
         return (
           <div
             key={entry.message.id}
@@ -121,6 +130,14 @@ export function RoomStatusRows({
             </span>
             {mode && (
               <span className="flex-none text-content-muted max-[650px]:hidden">· {mode}</span>
+            )}
+            {agents > 0 && (
+              <span
+                data-room-status-agents
+                className="flex-none text-content-muted max-[650px]:hidden"
+              >
+                · {t('bots:room.status.agentsCount', { count: agents })}
+              </span>
             )}
             <span
               className="min-w-0 flex-1 truncate font-mono text-[12px] text-content-secondary"
@@ -189,6 +206,31 @@ export function RoomStatusRows({
           </div>
         )
       })}
+      {delegating.map((member) => (
+        <div
+          key={`agents:${member.id}`}
+          data-room-status="agents"
+          className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px]"
+        >
+          <BotAvatar avatar={member.avatar} state="running" size={22} />
+          <span className="flex-none font-medium text-content">{member.name}</span>
+          <span className="flex-none text-content-muted">{agentsLabel(member.agents.working)}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-content-secondary">
+            {member.agents.current}
+          </span>
+          {member.sessionId && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('bots:room.viewProcess')}
+              title={t('bots:room.viewProcess')}
+              onClick={() => onOpenProcess(member.sessionId)}
+            >
+              <ListTree />
+            </Button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
