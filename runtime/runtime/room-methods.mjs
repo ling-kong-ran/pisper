@@ -46,6 +46,15 @@ import { localDayKey } from './conversation-memory-capture.mjs'
 import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.mjs'
 
 // 插进正在跑的一轮时整句话（含上下文）不能超过 queueSessionMessage 的 12000 字。
+// 叫醒理由里请它来做事的 Bot（回到它这里的回话不算：那是答复，不是请求）。
+function seatAskers(reasons) {
+  return unique(
+    (reasons || [])
+      .filter((reason) => reason?.kind === 'bot' && !reason.returned && reason.fromId)
+      .map((reason) => reason.fromId),
+  )
+}
+
 const QUEUED_WAKE_MAX_CHARS = 10_000
 const MAX_TURN_STEPS = 6
 const MAX_CHAINS = 500
@@ -873,6 +882,7 @@ export const roomMethods = {
       const turn = this.roomSeatTurns?.get(sessionId)
       if (turn) {
         turn.alsoAnswered.push(...pending.triggers)
+        turn.askers = unique([...turn.askers, ...seatAskers(pending.reasons)])
         // 插进来的是 @所有人：这一轮也可以用 [pass] 表示没什么要说的。
         if (pending.reasons.some((reason) => reason.kind === 'everyone')) turn.everyone = true
         turn.chain ||= pending.chain || null
@@ -1042,12 +1052,20 @@ export const roomMethods = {
       everyone: Boolean(pending?.reasons.some((reason) => reason.kind === 'everyone')),
       // 这一轮在答的群消息：撤回它们（全部）时停下这一轮。
       triggers: pending?.triggers || [],
+      // 请它来做事的 Bot：这一轮的回复要回到它们那里（见 onSeatRunEnd）。子任务做完后的汇报接着
+      // 派它出去的那一轮算：活交给子代理时答复留到汇报里一起回去。
+      askers: pending
+        ? seatAskers(pending.reasons)
+        : isInternalParentMessage(String(message || ''))
+          ? this.roomSeatAskers?.get(sessionId) || []
+          : [],
       alsoAnswered: [],
       steps: [],
       stepCount: 0,
       ready: null,
     }
     this.roomSeatTurns.set(sessionId, turn)
+    if (!pending) this.roomSeatAskers?.delete(sessionId)
     if (turn.chain) {
       this.roomSeatChains.delete(sessionId)
       this.roomSeatChains.set(sessionId, turn.chain)
@@ -1146,14 +1164,34 @@ export const roomMethods = {
     })
     if (message && state === 'done') {
       const bot = this.bots.get(turn.botId)
-      for (const target of botWakeTargets({ authorId: turn.botId, mentions }, members))
-        await this.wakeFromBot(room, bot, target, message, turn.chain)
+      const targets = botWakeTargets({ authorId: turn.botId, mentions }, members)
+      for (const target of targets) await this.wakeFromBot(room, bot, target, message, turn.chain)
+      // 被别的 Bot 请来做事：做完的回复回到请它的那个（同 Grok 的 Bot 间异步回话），不用它记得 @ 回去。
+      // 回到对方的这一轮再说什么不会自动回来，要接着来回就得 @：来回由请人的一方推动，不会两边自己打转；
+      // 跳数、每对每分钟、一条链 12 次的上限照旧。
+      const returns = botWakeTargets(
+        { authorId: turn.botId, mentions: turn.askers.filter((id) => !targets.includes(id)) },
+        members,
+      )
+      // 活交给了子代理、还在做：这句多半是“派出去了”，真正的结果在做完后的汇报里。答复留到汇报那一轮再回去。
+      if (returns.length && this.seatAgents(sessionId).working > 0) {
+        this.roomSeatAskers ||= new Map()
+        this.roomSeatAskers.set(
+          sessionId,
+          unique([...(this.roomSeatAskers.get(sessionId) || []), ...returns]),
+        )
+        while (this.roomSeatAskers.size > MAX_CHAINS)
+          this.roomSeatAskers.delete(this.roomSeatAskers.keys().next().value)
+        returns.length = 0
+      }
+      for (const target of returns)
+        await this.wakeFromBot(room, bot, target, message, turn.chain, { returned: true })
     }
     void this.flushSeatWake(turn.roomId, turn.botId)
   },
 
   // Bot 在群里 @ 了另一个 Bot：走 Bot 之间的限制（6 跳、每对每分钟、客气话不叫），外加一条链总共 12 次。
-  async wakeFromBot(room, from, toId, message, chain) {
+  async wakeFromBot(room, from, toId, message, chain, { returned = false } = {}) {
     if (!from) return { woke: false, reason: 'no sender' }
     // 去掉 @名字 再看是不是只有一句客气话（“@小克 谢谢”不值得叫醒一轮）。
     let said = String(message.text || '')
@@ -1178,7 +1216,15 @@ export const roomMethods = {
     if (!admitted.ok) return stop(admitted.reason)
     await this.wakeSeat(room.id, toId, {
       trigger: message,
-      reason: { kind: 'bot', seq: message.seq, from: from.name, hop, maxHops: MAX_BOT_LINK_HOPS },
+      reason: {
+        kind: 'bot',
+        seq: message.seq,
+        from: from.name,
+        fromId: from.id,
+        hop,
+        maxHops: MAX_BOT_LINK_HOPS,
+        ...(returned ? { returned: true } : {}),
+      },
       chain: { id: chainId, hop },
       trust: botSourceTrust({ kind: 'bot' }),
     })

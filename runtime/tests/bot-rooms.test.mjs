@@ -150,8 +150,8 @@ const image = (name = 'shot.png', data = PNG) => ({
 })
 
 // 模拟席位会话跑完一轮：开始 → 会话里留下这一轮的回复 → 结束。
-async function finishTurn(runtime, sessionId, reply, { error = '' } = {}) {
-  runtime.onSeatRunStart(sessionId)
+async function finishTurn(runtime, sessionId, reply, { error = '', message } = {}) {
+  runtime.onSeatRunStart(sessionId, message)
   runtime.sessions.set(sessionId, {
     session: {
       messages: [
@@ -2013,7 +2013,73 @@ test('a seat whose turn ended but whose subagents still work shows them on the r
 test('the seat prompt says only an @ wakes someone and asks to keep review loops moving', () => {
   const prompt = roomSeatPrompt({ name: '前端小组' }, { name: '小克' })
   assert.match(prompt, /only an @ wakes them \(a name without @ does not\)/)
-  assert.match(prompt, /end your part with @ whoever acts next and what they must do/)
+  assert.match(prompt, /end your part with @ whoever acts next, saying what is done, where it is/)
+})
+
+test('a bot asked by another bot answers back to it without an @; the answer back does not bounce', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO, FISH] })
+  await runtime.postRoomMessage(room.id, { text: '@小克 写一份笔记，写完请大家审' })
+  await settle(runtime)
+  const ke = runtime.runs[0].sessionId
+  // 小克写完请小克pro 审：小克pro 被叫醒，知道回复会回到小克。
+  await finishTurn(runtime, ke, '初稿在 notes.md。@小克pro 请审一下')
+  await settle(runtime)
+  assert.deepEqual(botsOf(runtime), [KE, PRO])
+  assert.match(runtime.runs[1].message, /your reply goes back to 小克, no @ needed/)
+  // 小克pro 审完只写意见、没 @：照样回到小克，说明里写着这是对它请求的答复。
+  await finishTurn(runtime, runtime.runs[1].sessionId, '第 2 节缺例子，第 4 节结论不对')
+  await settle(runtime)
+  assert.deepEqual(botsOf(runtime), [KE, PRO, KE])
+  assert.match(runtime.runs[2].message, /小克pro answered your request in #\d+ .*Act on it\./)
+  assert.equal(
+    runtime.runs[2].message.split(ATTACHMENT_MARKER)[0],
+    '小克pro: 第 2 节缺例子，第 4 节结论不对',
+  )
+  // 小克改完没 @：这是答复的答复，不再自动回去，来回到此为止；要再审就得 @。
+  await finishTurn(runtime, ke, '改好了')
+  await settle(runtime)
+  assert.equal(runtime.runs.length, 3)
+  // 改完 @ 小克pro 再审：又是一次请求，它的答复再回到小克。
+  await finishTurn(runtime, ke, '@小克pro 改好了，再看一遍第 2、4 节')
+  await settle(runtime)
+  await finishTurn(runtime, runtime.runs.at(-1).sessionId, '没问题了')
+  await settle(runtime)
+  assert.deepEqual(botsOf(runtime).slice(3), [PRO, KE])
+  // 小克pro 把审查交给子代理：这一轮说的是“派出去了”，不回去；子代理做完的汇报才回到小克。
+  await finishTurn(runtime, ke, '@小克pro 再细看一遍全文')
+  await settle(runtime)
+  const pro = runtime.runs.at(-1).sessionId
+  const agents = [
+    { id: 'a1', taskName: 'review', title: '细审全文', status: 'running', startedAt: '1' },
+  ]
+  runtime.multiAgents = {
+    hasActive: (id) => id === pro && agents[0].status === 'running',
+    summaries: (id) => (id === pro ? agents : []),
+  }
+  const count = runtime.runs.length
+  await finishTurn(runtime, pro, '派了子代理去细审，做完贴结果')
+  await settle(runtime)
+  assert.equal(runtime.runs.length, count)
+  agents[0].status = 'completed'
+  await finishTurn(runtime, pro, '细审完：第 5 节有个错字', {
+    message: '[Pisper internal agent completion] done',
+  })
+  await settle(runtime)
+  assert.equal(runtime.runs.length, count + 1)
+  assert.equal(botsOf(runtime).at(-1), KE)
+  assert.match(runtime.runs.at(-1).message, /小克pro answered your request/)
+
+  // 客气话的答复不回去。
+  const quiet = await fakeRuntime()
+  const quietRoom = await quiet.createRoom({ name: '前端小组', members: [KE, PRO] })
+  await quiet.postRoomMessage(quietRoom.id, { text: '@小克 开始吧' })
+  await settle(quiet)
+  await finishTurn(quiet, quiet.runs[0].sessionId, '@小克pro 你看看')
+  await settle(quiet)
+  await finishTurn(quiet, quiet.runs[1].sessionId, '好的')
+  await settle(quiet)
+  assert.equal(quiet.runs.length, 2)
 })
 
 test('with nobody connected the board hub keeps no room frames and no timer', async () => {
