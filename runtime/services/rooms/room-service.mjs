@@ -30,6 +30,30 @@ function emptyState() {
   return { seats: {}, brief: null }
 }
 
+// 席位手上没做完的活（重启后据此接着做，见 room-methods 的 resumeRoomWork）：坏的整个丢掉。
+function normalizeWork(value) {
+  if (!value || typeof value !== 'object') return null
+  const at = typeof value.at === 'string' ? value.at.slice(0, 40) : ''
+  if (!at || Number.isNaN(Date.parse(at))) return null
+  const chain =
+    value.chain &&
+    typeof value.chain.id === 'string' &&
+    /^ch_[A-Za-z0-9_-]{6,40}$/.test(value.chain.id) &&
+    Number.isSafeInteger(value.chain.hop)
+      ? { id: value.chain.id, hop: value.chain.hop }
+      : null
+  return {
+    at,
+    triggers: (Array.isArray(value.triggers) ? value.triggers : [])
+      .filter((item) => typeof item === 'string' && item.length <= 64)
+      .slice(-20),
+    askers: (Array.isArray(value.askers) ? value.askers : [])
+      .filter((item) => typeof item === 'string' && /^bot_[A-Za-z0-9_-]{6,40}$/.test(item))
+      .slice(0, 10),
+    chain,
+  }
+}
+
 // state.json 读进来逐项归一：坏的席位丢掉，不让一条坏数据拖垮整个群。
 function normalizeState(value, members) {
   const state = emptyState()
@@ -49,6 +73,7 @@ function normalizeState(value, members) {
       // 这条席位会话上次套用的是 Bot 哪一版设定、标题是什么：变了才在下次叫醒时重套、改名。
       applied: typeof seat.applied === 'string' ? seat.applied.slice(0, 40) : '',
       title: typeof seat.title === 'string' ? seat.title.slice(0, 200) : '',
+      work: normalizeWork(seat.work),
     }
   }
   const brief = value?.brief
@@ -414,6 +439,7 @@ export class RoomService {
       late: [],
       applied: '',
       title: '',
+      work: null,
       ...(log.state.seats[botId] || {}),
       ...patch,
     }

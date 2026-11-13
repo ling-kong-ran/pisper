@@ -231,6 +231,9 @@ export function RoomTimeline({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const systemText = (message: RoomMessage) => {
     const event = message.event
+    if (event?.type === 'resumed') return t('bots:room.system.resumed', { name: name(event.botId) })
+    if (event?.type === 'stopped_all')
+      return t('bots:room.system.stoppedAll', { names: event.bots.map(name).join('、') })
     return event?.type === 'paused'
       ? t('bots:room.system.paused', { name: name(event.botId) })
       : event?.type === 'chain_stopped'

@@ -521,6 +521,15 @@ export function stopRoomTurn(id: string, messageId: string) {
   )
 }
 
+// 全部停下：返回停下了哪些 Bot。
+export function stopRoom(id: string) {
+  return requestJson(`/api/rooms/${encodeURIComponent(id)}/stop`, {
+    method: 'POST',
+    data: {},
+    parse: (value) => ({ stopped: strings(object(value).stopped) }),
+  })
+}
+
 export function refreshRoomBrief(id: string, botId?: string) {
   return requestJson(`/api/rooms/${encodeURIComponent(id)}/brief`, {
     method: 'POST',

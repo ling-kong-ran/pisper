@@ -2119,6 +2119,128 @@ test('a bot asked by another bot answers back to it without an @; the answer bac
   assert.equal(quiet.runs.length, 2)
 })
 
+test('stop all halts every working bot, its subagents, pending wakes and the relay itself', async () => {
+  const runtime = await fakeRuntime()
+  const aborted = []
+  runtime.abortSession = async (id) => aborted.push(id)
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO, FISH] })
+  await runtime.postRoomMessage(room.id, { text: '@小克 @小克pro 开工' })
+  await settle(runtime)
+  const [ke, pro] = runtime.runs.map((run) => run.sessionId)
+  runtime.onSeatRunStart(ke)
+  runtime.onSeatRunStart(pro)
+  await runtime.roomSeatTurns.get(ke).ready
+  await runtime.roomSeatTurns.get(pro).ready
+  runtime.running.add(ke)
+  // 小克pro 这一轮在说话，另外还有一个子代理在后台做。
+  runtime.running.add(pro)
+  const agents = [{ id: 'a1', taskName: 'x', title: '整理', status: 'running', startedAt: '1' }]
+  const interrupted = []
+  runtime.multiAgents = {
+    hasActive: (id) => id === pro && agents[0].status === 'running',
+    summaries: (id) => (id === pro ? agents : []),
+    interrupt: (id, agentId) => {
+      interrupted.push(agentId)
+      agents[0].status = 'interrupted'
+      return { id: agentId }
+    },
+  }
+  const chain = runtime.roomSeatTurns.get(ke).chain
+  assert.ok((await runtime.rooms.seat(room.id, KE)).work)
+  const result = await runtime.stopRoom(room.id)
+  assert.deepEqual(result.stopped.toSorted(), [KE, PRO].toSorted())
+  assert.deepEqual(aborted.toSorted(), [ke, pro].toSorted())
+  assert.deepEqual(interrupted, ['a1'])
+  // 群里写一行；手上的活清掉（不会在重启后又接着做）。
+  const line = (await runtime.rooms.messages(room.id)).at(-1)
+  assert.equal(line.event.type, 'stopped_all')
+  assert.equal((await runtime.rooms.seat(room.id, KE)).work, null)
+  // 这条链上晚到的回复不再叫人。
+  const late = await runtime.rooms.append(room.id, {
+    author: { kind: 'bot', botId: KE },
+    text: '@肥鱼 接着做',
+    mentions: [FISH],
+  })
+  const count = runtime.runs.length
+  assert.deepEqual(await runtime.wakeFromBot(room, runtime.bots.get(KE), FISH, late, chain), {
+    woke: false,
+    reason: 'stopped',
+  })
+  await settle(runtime)
+  assert.equal(runtime.runs.length, count)
+})
+
+test('work left unfinished by a quit is picked up on the next start, once', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO, FISH] })
+  await runtime.postRoomMessage(room.id, { text: '@小克 写一份笔记' })
+  await settle(runtime)
+  const ke = runtime.runs[0].sessionId
+  runtime.onSeatRunStart(ke)
+  await runtime.roomSeatTurns.get(ke).ready
+  const work = (await runtime.rooms.seat(room.id, KE)).work
+  assert.equal(work.triggers.length, 1)
+  // 退出打断了这一轮：不收卡、不清活。
+  runtime.roomsClosing = true
+  await runtime.onSeatRunEnd(ke, { error: 'disposed' })
+  assert.ok((await runtime.rooms.seat(room.id, KE)).work)
+
+  // “下次启动”：同一份数据、新的运行时。别的席位上停了太久的活不接。
+  const restarted = await fakeRuntime()
+  restarted.rooms = new RoomService({ dataDir: runtime.dataDir })
+  await restarted.rooms.init()
+  await restarted.rooms.setSeat(room.id, FISH, {
+    sessionId: 'seat-old',
+    work: { at: '2020-01-01T00:00:00.000Z', triggers: [], askers: [], chain: null },
+  })
+  await restarted.resumeRoomWork()
+  await settle(restarted)
+  assert.deepEqual(botsOf(restarted), [KE])
+  const [visible, context] = restarted.runs[0].message.split(ATTACHMENT_MARKER)
+  assert.equal(visible, '@小克 写一份笔记')
+  assert.match(context, /Pisper restarted while you were working here/)
+  const lines = (await restarted.rooms.messages(room.id)).filter(
+    (message) => message.event?.type === 'resumed',
+  )
+  assert.deepEqual(
+    lines.map((message) => message.event.botId),
+    [KE],
+  )
+  assert.equal((await restarted.rooms.seat(room.id, FISH)).work, null)
+  // 只接一次：再启动一次不会再叫。
+  await restarted.resumeRoomWork()
+  await settle(restarted)
+  assert.equal(restarted.runs.length, 1)
+  // 正常做完就清掉。
+  await finishTurn(restarted, restarted.runs[0].sessionId, '写好了')
+  assert.equal((await restarted.rooms.seat(room.id, KE)).work, null)
+})
+
+test('a resumed turn that was asked by another bot still answers back to it', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const asked = await runtime.rooms.append(room.id, {
+    author: { kind: 'bot', botId: KE },
+    text: '@小克pro 审一下',
+    mentions: [PRO],
+  })
+  await runtime.rooms.setSeat(room.id, PRO, {
+    work: {
+      at: new Date().toISOString(),
+      triggers: [asked.id],
+      askers: [KE],
+      chain: { id: 'ch_resumechain', hop: 2 },
+    },
+  })
+  await runtime.resumeRoomWork()
+  await settle(runtime)
+  assert.deepEqual(botsOf(runtime), [PRO])
+  await finishTurn(runtime, runtime.runs[0].sessionId, '审完了，第 3 节要改')
+  await settle(runtime)
+  assert.deepEqual(botsOf(runtime), [PRO, KE])
+  assert.match(runtime.runs[1].message, /小克pro answered your request/)
+})
+
 test('with nobody connected the board hub keeps no room frames and no timer', async () => {
   const hub = new BoardEventHub({
     listItems: async () => new Map(),

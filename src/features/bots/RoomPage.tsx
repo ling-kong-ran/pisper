@@ -57,6 +57,7 @@ import {
   recallRoomMessage,
   refreshRoomBrief,
   resolveRoomApproval,
+  stopRoom,
   stopRoomTurn,
   updateRoom,
   type RoomAnswerMode,
@@ -552,6 +553,12 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
             onOpenProcess={(sessionId) => navigate(sessionPath(sessionId))}
             onApprove={approve}
             onStop={(message) => once(`stop:${message.id}`, () => stopRoomTurn(roomId, message.id))}
+            onStopAll={() =>
+              once('stop:all', async () => {
+                const result = await stopRoom(roomId)
+                notify(t('bots:room.status.stoppedAll', { count: result.stopped.length }))
+              })
+            }
           />
           {prompt && (
             <RoomBriefPrompt

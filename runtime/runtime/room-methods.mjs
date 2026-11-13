@@ -49,13 +49,20 @@ import { ATTACHMENT_MARKER, isInternalParentMessage } from './stream-projection.
 // 叫醒理由里请它来做事的 Bot（回到它这里的回话不算：那是答复，不是请求）。
 function seatAskers(reasons) {
   return unique(
-    (reasons || [])
-      .filter((reason) => reason?.kind === 'bot' && !reason.returned && reason.fromId)
-      .map((reason) => reason.fromId),
+    (reasons || []).flatMap((reason) =>
+      reason?.kind === 'bot' && !reason.returned && reason.fromId
+        ? [reason.fromId]
+        : reason?.kind === 'resume' && Array.isArray(reason.askers)
+          ? reason.askers
+          : [],
+    ),
   )
 }
 
 const QUEUED_WAKE_MAX_CHARS = 10_000
+// 重启后接着做：停得比这更久的活不再自动接上（电脑关了一个长假，回来不该突然一群 Bot 开工）。
+const RESUME_MAX_AGE_MS = 3 * 24 * 60 * 60_000
+const RESUME_NOTE = 'Pisper restarted; continue the work you were doing.'
 const MAX_TURN_STEPS = 6
 const MAX_CHAINS = 500
 const BRIEF_SOURCE_CHARS = 60_000
@@ -1098,6 +1105,16 @@ export const roomMethods = {
       })
       turn.messageId = message.id
       if (start) await this.commitSeatRead(seat.roomId, seat.botId, start.wake)
+      // 记下手上有活：这一轮没做完 Pisper 就退出了（关掉、崩溃、更新重启），下次启动时接着做。
+      if (pending || turn.report || turn.chain)
+        await this.rooms.setSeat(seat.roomId, seat.botId, {
+          work: {
+            at: new Date().toISOString(),
+            triggers: turn.triggers,
+            askers: turn.askers,
+            chain: turn.chain,
+          },
+        })
       // 送进去和开跑之间撤回了：这一轮刚开就停下。
       if (turn.triggers.length && (await this.allRecalled(seat.roomId, turn.triggers)))
         await this.abortSession(sessionId)
@@ -1117,6 +1134,8 @@ export const roomMethods = {
 
   // 这一轮结束（完成、失败、停止都算）：写上结果；正文里 @ 了别的 Bot 就沿链叫醒；没送进去的叫醒补上。
   async onSeatRunEnd(sessionId, { error = '', aborted = false } = {}) {
+    // Pisper 正在退出：这一轮是被退出打断的，不收卡、不叫人，手上的活留着，下次启动接着做。
+    if (this.roomsClosing) return
     const turn = this.roomSeatTurns?.get(sessionId)
     if (!turn) {
       // 这一轮没开起来（比如模型不可用）：没有卡要收，但等着“这一轮结束后再送”的叫醒不能一直挂着。
@@ -1168,6 +1187,9 @@ export const roomMethods = {
         ...(state === 'error' ? { error: oneLine(error, 300) } : {}),
       },
     })
+    // 做完、出错、被你停下都算这件活结束了；活交给了子代理还在做的，等汇报那一轮结束再算。
+    const delegated = state === 'done' && this.seatAgents(sessionId).working > 0
+    if (!delegated) await this.rooms.setSeat(turn.roomId, turn.botId, { work: null })
     if (turn.chain?.id && state === 'done')
       this.noteChainTurn(turn.chain.id, turn.stepCount > 0 || Boolean(changes) || turn.report)
     if (message && state === 'done') {
@@ -1182,7 +1204,7 @@ export const roomMethods = {
         members,
       )
       // 活交给了子代理、还在做：这句多半是“派出去了”，真正的结果在做完后的汇报里。答复留到汇报那一轮再回去。
-      if (returns.length && this.seatAgents(sessionId).working > 0) {
+      if (returns.length && delegated) {
         this.roomSeatAskers ||= new Map()
         this.roomSeatAskers.set(
           sessionId,
@@ -1221,6 +1243,8 @@ export const roomMethods = {
     for (const name of names) said = said.replaceAll(`@${name}`, ' ')
     if (isCourtesyMessage(said)) return { woke: false, reason: 'courtesy only' }
     const chainId = chain?.id || newBotChainId()
+    // 你按了“全部停下”：这条链上做完的、晚到的汇报都不再叫人。
+    if (this.roomHaltedChains?.has(chainId)) return { woke: false, reason: 'stopped' }
     const hop = (chain?.hop || 0) + 1
     const total = this.roomChainWakes?.get(chainId) || 0
     const stop = async (reason) => {
@@ -1361,6 +1385,85 @@ export const roomMethods = {
     if (this.roomSeatTurns?.get(sessionId)?.messageId !== message.id) return { stopped: false }
     await this.abortSession(sessionId)
     return { stopped: true }
+  },
+
+  // 全部停下：群里正在说话的 Bot、它们派出去的子代理与后台命令、还在判断该谁答的请求、排着没送的叫醒都停掉，
+  // 已经在走的接力也不再叫人（晚到的子代理汇报不会把别人叫起来）。你之后再说话是新的开始。返回停下了哪些 Bot。
+  async stopRoom(id) {
+    this.requireRoom(id)
+    for (const messageId of [...(this.roomRoutings?.get(id)?.keys() || [])])
+      this.endRoomRouting(id, messageId, { abort: true })
+    for (const key of [...(this.roomWakes?.keys() || [])])
+      if (key.startsWith(`${id}:`)) this.roomWakes.delete(key)
+    const state = await this.rooms.state(id)
+    const stopped = []
+    for (const { sessionId, botId } of this.rooms.sessionsOfRoom(id)) {
+      for (const chain of [
+        this.roomSeatTurns?.get(sessionId)?.chain,
+        this.roomSeatChains?.get(sessionId),
+      ])
+        if (chain?.id) this.haltRoomChain(chain.id)
+      this.roomSeatAskers?.delete(sessionId)
+      let acted = false
+      for (const agent of this.listSessionAgents?.(sessionId) || [])
+        if (['queued', 'starting', 'running'].includes(agent.status)) {
+          acted = Boolean(this.stopSessionAgent?.(sessionId, agent.id)) || acted
+        }
+      if (this.sessionRunIsActive?.(sessionId) || this.startingRuns?.has(sessionId)) {
+        await this.abortSession(sessionId).catch(() => {})
+        acted = true
+      }
+      if (state.seats[botId]?.work) await this.rooms.setSeat(id, botId, { work: null })
+      if (acted) stopped.push(botId)
+    }
+    const bots = unique(stopped)
+    if (bots.length)
+      await this.rooms.append(id, {
+        author: { kind: 'system' },
+        event: { type: 'stopped_all', bots },
+      })
+    return { stopped: bots }
+  },
+
+  haltRoomChain(chainId) {
+    this.roomHaltedChains ||= new Set()
+    this.roomHaltedChains.delete(chainId)
+    this.roomHaltedChains.add(chainId)
+    while (this.roomHaltedChains.size > MAX_CHAINS)
+      this.roomHaltedChains.delete(this.roomHaltedChains.values().next().value)
+  },
+
+  // 启动后：上次退出时手上还有活的席位接着做（被退出打断的那一轮、交给子代理还没汇报的）。
+  // 停得太久、Bot 暂停了或已经不在群里的不接；接上的在群里写一行。每个席位只接一次：开跑时会重新记下。
+  async resumeRoomWork() {
+    if (!this.roomsEnabled()) return
+    for (const room of this.rooms.list()) {
+      const state = await this.rooms.state(room.id).catch(() => null)
+      if (!state) continue
+      const messages = await this.rooms.peekMessages(room.id)
+      for (const [botId, seat] of Object.entries(state.seats)) {
+        const work = seat.work
+        if (!work) continue
+        await this.rooms.setSeat(room.id, botId, { work: null })
+        const bot = this.bots.get(botId)
+        if (!bot?.enabled || !room.members.includes(botId)) continue
+        if (Date.now() - Date.parse(work.at) > RESUME_MAX_AGE_MS) continue
+        const trigger = [...work.triggers]
+          .reverse()
+          .map((messageId) => messages.find((message) => message.id === messageId))
+          .find((message) => message && !message.recalled)
+        await this.rooms.append(room.id, {
+          author: { kind: 'system' },
+          event: { type: 'resumed', botId },
+        })
+        void this.wakeSeat(room.id, botId, {
+          ...(trigger ? { trigger } : { note: RESUME_NOTE }),
+          reason: { kind: 'resume', askers: work.askers },
+          chain: work.chain,
+          trust: work.askers.length ? botSourceTrust({ kind: 'bot' }) : 'user',
+        }).catch(() => console.warn('[rooms] Could not resume the bot.'))
+      }
+    }
   },
 
   // 整理简报：维护的 Bot 用它的模型做一次不带工具的独立请求（不进席位会话、不动任何文件），只回 JSON。

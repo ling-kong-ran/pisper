@@ -93,6 +93,14 @@ export const roomRoutes = [
       json(200, await runtime.stopRoomTurn(id(params), params.messageId))
     }),
   },
+  // 全部停下：群里正在干活的 Bot、它们的子代理和后台命令、还在进行的接力都停掉。
+  {
+    method: 'POST',
+    path: '/api/rooms/:roomId/stop',
+    handler: botRoute(async ({ runtime, params, json }) => {
+      json(200, await runtime.stopRoom(id(params)))
+    }),
+  },
   // 简报：{ botId } 请那个 Bot 整理（不给就用群设定里维护简报的 Bot）；PUT 是你自己改。
   {
     method: 'POST',

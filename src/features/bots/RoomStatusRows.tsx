@@ -27,6 +27,7 @@ export function RoomStatusRows({
   onOpenProcess,
   onApprove,
   onStop,
+  onStopAll,
 }: {
   entries: readonly RoomStatusEntry[]
   // 还在判断该谁答的话（按发出的顺序）；host 是主持人分派的群的主持人。
@@ -39,6 +40,8 @@ export function RoomStatusRows({
   onApprove: (message: RoomMessage, approvalId: string, approve: boolean) => void
   // 停下这一轮（只停它自己这张卡对应的那一轮）。
   onStop: (message: RoomMessage) => void
+  // 全部停下：一组 Bot 在接力、或者有子代理在后台做时，一次停掉整个群的活。
+  onStopAll: () => void
 }) {
   const { t } = useI18n()
   const talking = new Set(entries.filter((entry) => !entry.pending).map((entry) => entry.botId))
@@ -47,8 +50,19 @@ export function RoomStatusRows({
   )
   const agentsLabel = (count: number) =>
     count > 1 ? t('bots:room.status.agentsCount', { count }) : t('bots:room.status.agentsWorking')
+  // 只有一行在做时那一行自己的“停下”就够了；两件以上、或者有子代理在后台做（那一行没有停下键）时给“全部停下”。
+  const working = entries.filter((entry) => !entry.pending).length + delegating.length
+  const stopAll = working >= 2 || delegating.length > 0
   return (
     <div aria-live="polite" className="mb-1.5 flex flex-col gap-0.5 empty:hidden">
+      {stopAll && (
+        <div className="flex justify-end px-1">
+          <Button variant="ghost" size="xs" data-room-stop-all onClick={onStopAll}>
+            <Square />
+            {t('bots:room.status.stopAll')}
+          </Button>
+        </div>
+      )}
       {routing.length > 0 && (
         <div
           data-room-status="routing"

@@ -1150,6 +1150,9 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
       void this.sessionQueue
         .resume()
         .catch(() => console.warn('Could not resume the session queue.'))
+    // 群里上次退出时手上还有活的 Bot 接着做（同样在就绪之后、后台进行）。
+    if (features.bots)
+      void this.resumeRoomWork?.().catch(() => console.warn('[rooms] Could not resume room work.'))
   }
 
   async waitForInitialization(service) {

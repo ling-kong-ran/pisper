@@ -2647,6 +2647,8 @@ export class AgentRuntimeFacade {
 
   // 全局关闭流程：清理定时器、后台服务与挂起的写盘任务，保证进程可干净退出。
   async dispose() {
+    // 群里被退出打断的那一轮不收成“已停下”、手上的活留到下次启动接着做（见 onSeatRunEnd）。
+    this.roomsClosing = true
     // 先断开看板事件流：关闭期间不再为在线客户端生成卡片增量。
     this.boardEvents?.dispose()
     this.sessionCards?.dispose()

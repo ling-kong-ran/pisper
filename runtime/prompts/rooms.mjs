@@ -63,6 +63,8 @@ function reasonLine(reason) {
     return `${reason.from} mentioned you in #${reason.seq}. Answer in the room; your reply goes back to ${reason.from}, no @ needed.`
   if (reason.kind === 'reply') return `The user replied to your message in #${reason.seq}.`
   if (reason.kind === 'schedule') return 'A schedule you set earlier is due; its note is above.'
+  if (reason.kind === 'resume')
+    return 'Pisper restarted while you were working here, so your last turn was cut off. Pick up where you left off: check what is already done (files, the room above) before redoing anything. Subagents or background commands you had running were stopped; start them again if their work is not finished.'
   if (reason.kind === 'recipient') return `The user sent #${reason.seq} to you.`
   if (reason.kind === 'host') {
     const why = oneLine(reason.why, 160)
