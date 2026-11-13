@@ -229,6 +229,7 @@ export const roomMethods = {
       activity: this.roomActivity(id),
       usage: { totalTokens },
       briefing: Boolean(this.roomBriefRuns?.has(id)),
+      routing: this.roomRoutingOf(id),
     }
   },
 
@@ -456,31 +457,68 @@ export const roomMethods = {
         },
         room,
       )
-    if (routing) void this.routeRoomMessage(id, message, chain, { triage })
+    if (routing)
+      void this.routeRoomMessage(id, message, chain, {
+        triage,
+        signal: this.beginRoomRouting(id, message, triage ? 'triage' : 'host'),
+      })
     return { message, woke: wake.map((target) => target.botId), ...(routing ? { routing } : {}) }
   },
 
   // 同一个群的分派按顺序来：连着发几句没点名的话时，主持人的判断按发出的顺序贴出来。永不抛错。
-  routeRoomMessage(roomId, message, chain, { triage = false } = {}) {
+  routeRoomMessage(roomId, message, chain, { triage = false, signal = undefined } = {}) {
     this.roomRouteQueues ||= new Map()
     const previous = this.roomRouteQueues.get(roomId) || Promise.resolve()
     const next = previous
-      .then(() =>
-        triage
-          ? this.triageRoomMessageNow(roomId, message, chain)
-          : this.routeRoomMessageNow(roomId, message, chain),
-      )
+      .then(() => {
+        // 排着队的时候就撤回了：不用再问。
+        if (signal?.aborted) return
+        return triage
+          ? this.triageRoomMessageNow(roomId, message, chain, signal)
+          : this.routeRoomMessageNow(roomId, message, chain, signal)
+      })
       .catch(() => console.warn('[rooms] Could not route the message.'))
       .finally(() => {
+        this.endRoomRouting(roomId, message.id)
         if (this.roomRouteQueues.get(roomId) === next) this.roomRouteQueues.delete(roomId)
       })
     this.roomRouteQueues.set(roomId, next)
     return next
   },
 
+  // 还在判断该谁答的话（群里判断或主持人分派，排队的也算）：只记在内存里，群详情带出去，
+  // 页面据此在输入框上方显示“正在看该谁来回答”，不然发出去到有人接话之间什么动静都没有。撤回时拿它停下那次请求。
+  beginRoomRouting(roomId, message, kind) {
+    this.roomRoutings ||= new Map()
+    const routing = this.roomRoutings.get(roomId) || new Map()
+    const controller = new AbortController()
+    routing.set(message.id, { seq: message.seq, kind, controller })
+    this.roomRoutings.set(roomId, routing)
+    this.roomStoreChanged(roomId, ['detail'])
+    return controller.signal
+  },
+
+  endRoomRouting(roomId, messageId, { abort = false } = {}) {
+    const routing = this.roomRoutings?.get(roomId)
+    const entry = routing?.get(messageId)
+    if (!entry) return
+    if (abort) entry.controller.abort()
+    routing.delete(messageId)
+    if (!routing.size) this.roomRoutings.delete(roomId)
+    this.roomStoreChanged(roomId, ['detail'])
+  },
+
+  roomRoutingOf(roomId) {
+    return [...(this.roomRoutings?.get(roomId) || [])].map(([messageId, entry]) => ({
+      messageId,
+      seq: entry.seq,
+      kind: entry.kind,
+    }))
+  },
+
   // 主持人用自己的模型做一次不带工具的独立请求（同简报），只回 JSON：该谁答、一句理由。
   // 选中的照常经 wakeSeat 叫醒（链沿用你这句话的）；谁也没选、请求失败或回复不对，都只在群里写一行，不叫人。
-  async routeRoomMessageNow(roomId, message, chain) {
+  async routeRoomMessageNow(roomId, message, chain, signal) {
     const room = this.rooms.get(roomId)
     if (!room || room.answerMode !== 'host' || !this.roomsEnabled()) return
     const hostId = room.hostBotId
@@ -514,9 +552,11 @@ export const roomMethods = {
           message,
           max: ROOM_ROUTE_MAX_WAKES,
         }),
-        signal: timeout,
+        signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
       })
     } catch {
+      // 撤回停下的不算分派失败，不写那一行。
+      if (signal?.aborted) return
       return note({ type: 'route_failed', reason: 'failed' })
     }
     if (result.usage)
@@ -525,6 +565,7 @@ export const roomMethods = {
         `room-route:${roomId}:${randomUUID()}`,
         result.usage,
       ).catch(() => {})
+    if (signal?.aborted) return
     // 请求出错或超时（没有回复）是“没问成”，不是“回复不对”。
     if (result.text === null || timeout.aborted)
       return note({ type: 'route_failed', reason: 'failed' })
@@ -562,7 +603,7 @@ export const roomMethods = {
 
   // 没有主持人的群里没点名的话：一次不带工具的独立请求（同主持人分派）判断该谁答，只叫醒选中的。
   // 判断不了（没有模型、出错、超时、回复不对）就叫醒所有人、各自可以跳过，一句话不能因此没人理。
-  async triageRoomMessageNow(roomId, message, chain) {
+  async triageRoomMessageNow(roomId, message, chain, signal) {
     const room = this.rooms.get(roomId)
     if (!room || room.answerMode === 'host' || !this.roomsEnabled()) return
     const eligible = this.roomMembers(room).filter(
@@ -582,8 +623,8 @@ export const roomMethods = {
         chain,
         trust: 'user',
       }).catch(() => console.warn('[rooms] Could not wake the bot.'))
-    const parsed = await this.requestRoomTriage(room, message, eligible)
-    if (!(await stillOpen())) return
+    const parsed = await this.requestRoomTriage(room, message, eligible, signal)
+    if (signal?.aborted || !(await stillOpen())) return
     if (!parsed) {
       for (const member of eligible) wake(member.id, { kind: 'everyone', unnamed: true })
       return
@@ -596,7 +637,7 @@ export const roomMethods = {
   },
 
   // 群里判断该谁答的那次请求：成功时返回 { bots, reason }，任何一步不成都返回 null。
-  async requestRoomTriage(room, message, eligible) {
+  async requestRoomTriage(room, message, eligible, signal) {
     const timeout = AbortSignal.timeout(TRIAGE_TIMEOUT_MS)
     try {
       const model = await this.roomTriageModel(room, eligible)
@@ -612,7 +653,7 @@ export const roomMethods = {
           message,
           max: ROOM_ROUTE_MAX_WAKES,
         }),
-        signal: timeout,
+        signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
       })
       if (result.usage)
         await this.recordUsage?.(
@@ -785,6 +826,11 @@ export const roomMethods = {
     const window = value?.session?.model?.contextWindow
     const budget = busy ? QUEUED_WAKE_MAX_CHARS : wakeBudgetChars(window)
     const wake = await this.composeSeatWake(room, bot, pending, budget)
+    // 叫醒它的话在排队时都撤回了、也没有别的要送：不再开一轮（不然撤回了它还在答）。
+    if (pending.triggers.length && !wake.triggers.length && !pending.notes.length) {
+      if (this.roomWakes.get(key) === pending) this.roomWakes.delete(key)
+      return
+    }
     // 拼上下文的这一会儿，席位可能被别的来源开了一轮（子任务做完的通知、你直接在席位会话里说话）
     // 或刚好说完：按新的状态重来，不拿过期的判断去送。
     if (isBusy() !== busy) return this.deliverSeatWake(roomId, botId)
@@ -933,6 +979,7 @@ export const roomMethods = {
     return {
       message: `${visible}${ATTACHMENT_MARKER}${result.context}${skipped ? `\n\n${skipped}` : ''}`,
       attachments: files.attachments,
+      triggers: triggers.map((message) => message.id),
       upToSeq: result.upToSeq,
       late: result.late,
       recalled: result.recalled,
@@ -970,6 +1017,8 @@ export const roomMethods = {
           : null) ||
         null,
       everyone: Boolean(pending?.reasons.some((reason) => reason.kind === 'everyone')),
+      // 这一轮在答的群消息：撤回它们（全部）时停下这一轮。
+      triggers: pending?.triggers || [],
       alsoAnswered: [],
       steps: [],
       stepCount: 0,
@@ -1002,6 +1051,9 @@ export const roomMethods = {
       })
       turn.messageId = message.id
       if (start) await this.commitSeatRead(seat.roomId, seat.botId, start.wake)
+      // 送进去和开跑之间撤回了：这一轮刚开就停下。
+      if (turn.triggers.length && (await this.allRecalled(seat.roomId, turn.triggers)))
+        await this.abortSession(sessionId)
     })().catch(() => console.warn('[rooms] Could not post the work card.'))
   },
 
@@ -1155,6 +1207,7 @@ export const roomMethods = {
       .map(([botId]) => botId)
     const placeholder = await this.rooms.recall(id, message.id, { seenBy })
     if (seenBy.length) await this.rooms.noteRecall(id, seenBy, message.seq)
+    const stopped = await this.stopRecalledWork(id, message)
     // 记录里的附件引用随占位一起擦掉了；只有这条消息用到的上传文件也删掉。
     // Bot 已经收到过的（席位会话里有引用）留着：它的会话记录里本来就还有。
     const uploaded = unique(
@@ -1170,7 +1223,32 @@ export const roomMethods = {
       // 还留在资产库里的上传文件有几个：如实告诉你，撤回擦掉的是群记录，不是 Bot 已经拿到的那份。
       attachmentsKept: Math.max(0, uploaded - deleted),
       briefMayContain: Boolean(state.brief && state.brief.upToSeq >= message.seq),
+      stopped,
     }
+  },
+
+  // 撤回的话不再有人答：还在判断该谁答的停下那次请求；还排着没送进去的叫醒在送之前会自己丢掉（见 deliverSeatWake）；
+  // 正为它在做的那一轮停下，但这一轮还在答别的没撤回的话时照常做完。返回停下了哪些 Bot。
+  async stopRecalledWork(roomId, message) {
+    this.endRoomRouting(roomId, message.id, { abort: true })
+    const stopped = []
+    // 停下时这一轮的收尾会把它从表里删掉：先拷一份再遍历。
+    for (const [sessionId, turn] of [...(this.roomSeatTurns || [])]) {
+      if (turn.roomId !== roomId) continue
+      const answers = [...turn.triggers, ...turn.alsoAnswered]
+      if (!answers.includes(message.id) || !(await this.allRecalled(roomId, answers))) continue
+      await this.abortSession(sessionId).catch(() => {})
+      stopped.push(turn.botId)
+    }
+    return unique(stopped)
+  },
+
+  async allRecalled(roomId, messageIds) {
+    for (const id of unique(messageIds)) {
+      const message = await this.rooms.message(roomId, id)
+      if (message && !message.recalled) return false
+    }
+    return true
   },
 
   // 工作卡上的批准 / 拒绝：交给这张卡所在的席位会话。

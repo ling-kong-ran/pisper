@@ -241,6 +241,14 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
         mentions: [],
         recalled: { seenBy: result.seenBy },
       })
+      if (result.stopped.length)
+        notify(
+          t('bots:room.recall.stopped', {
+            names: result.stopped
+              .map((botId) => members.get(botId)?.name || t('bots:room.removedBot'))
+              .join('、'),
+          }),
+        )
       if (result.briefMayContain) notify(t('bots:room.recall.briefNote'))
       if (result.attachmentsKept > 0)
         notify(t('bots:room.recall.attachmentsKept', { count: result.attachmentsKept }))
@@ -536,6 +544,8 @@ function RoomView({ roomId, notify, phoneLeading }: RoomPageProps & { roomId: st
           )}
           <RoomStatusRows
             entries={statusEntries}
+            routing={detail.routing}
+            host={(room.answerMode === 'host' && members.get(room.hostBotId)) || null}
             members={members}
             modeLabel={modeLabel}
             onOpenProcess={(sessionId) => navigate(sessionPath(sessionId))}

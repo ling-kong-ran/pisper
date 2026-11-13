@@ -2,19 +2,24 @@
 // 这个 Bot 的执行方式、这一步在做什么，右边“停下”和“查看过程”。有批准或提问在等时这一行变成琥珀色的“等你批准 /
 // 等你回答”：批准、拒绝就在这一行上（和“查看”同一种键），高风险的只给“查看”，去过程里处理。
 // 一轮结束、它派出去的活还在等你时也是这样一行。做完这一行消失，回复贴进时间线。
+// 没点名的话还在判断该谁答时，最上面一行“正在看该谁来回答”（主持人分派的群是主持人的头像和“正在分派”），
+// 不然发出去到有人接话之间什么动静都没有。
 //
 // 下面的“找谁写一份简报”提示条也在这里：聊长了、简报没人维护时问一句，选一个 Bot 就让它整理。
 import { ListTree, NotebookPen, Square, X } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
+import { OrbitSpinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { BotAvatar } from './BotAvatar'
 import type { RoomStatusEntry } from './room-presentation'
-import type { RoomMember, RoomMessage } from './rooms-api'
+import type { RoomMember, RoomMessage, RoomRouting } from './rooms-api'
 
 export function RoomStatusRows({
   entries,
+  routing,
+  host,
   members,
   modeLabel,
   onOpenProcess,
@@ -22,6 +27,9 @@ export function RoomStatusRows({
   onStop,
 }: {
   entries: readonly RoomStatusEntry[]
+  // 还在判断该谁答的话（按发出的顺序）；host 是主持人分派的群的主持人。
+  routing: readonly RoomRouting[]
+  host: RoomMember | null
   members: ReadonlyMap<string, RoomMember>
   // 这个 Bot 的执行方式（审批后写入 / 工作区可写 / 完全访问）；读不到时为空。
   modeLabel: (botId: string) => string
@@ -33,6 +41,34 @@ export function RoomStatusRows({
   const { t } = useI18n()
   return (
     <div aria-live="polite" className="mb-1.5 flex flex-col gap-0.5 empty:hidden">
+      {routing.length > 0 && (
+        <div
+          data-room-status="routing"
+          className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px]"
+        >
+          {routing[0].kind === 'host' && host ? (
+            <>
+              <BotAvatar avatar={host.avatar} state="running" size={22} />
+              <span className="flex-none font-medium text-content">{host.name}</span>
+              <span className="flex-none text-content-muted">{t('bots:room.status.routing')}</span>
+            </>
+          ) : (
+            <>
+              <span className="flex size-[22px] flex-none items-center justify-center">
+                <OrbitSpinner />
+              </span>
+              <span className="min-w-0 truncate text-content-muted">
+                {t('bots:room.status.triaging')}
+              </span>
+            </>
+          )}
+          {routing.length > 1 && (
+            <span className="min-w-0 truncate text-[12px] text-content-muted">
+              · {t('bots:room.status.routingMore', { count: routing.length - 1 })}
+            </span>
+          )}
+        </div>
+      )}
       {entries.map((entry) => {
         const member = members.get(entry.botId)
         const turn = entry.message.turn!

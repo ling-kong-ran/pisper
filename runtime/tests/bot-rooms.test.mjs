@@ -1203,9 +1203,9 @@ test('room changes reach the board stream as small hints, never message bodies',
   runtime.roomFrames.length = 0
 
   // 追加：消息与详情（未读数、最后一条）。
-  // 这里只看推送帧，不看叫醒（没 @ 的话会叫醒所有人，席位那边另有测试）。
+  // 这里只看推送帧，不看叫醒（席位那边另有测试）；点了名，不经过“判断该谁答”（它的帧另有测试）。
   runtime.wakeSeat = async () => {}
-  const { message } = await runtime.postRoomMessage(room.id, { text: '机密的正文' })
+  const { message } = await runtime.postRoomMessage(room.id, { text: '@小克 机密的正文' })
   assert.deepEqual(runtime.roomFrames, [{ roomId: room.id, scope: ['messages', 'detail'] }])
   // 补丁、撤回也一样；席位与简报只动详情。
   await runtime.rooms.patch(room.id, message.id, { mentions: [] })
@@ -1885,6 +1885,99 @@ test('a triage keeps order across messages and wakes nobody when the message is 
     assert.equal(runtime.runs.length, 0)
     assert.equal(lines.filter((line) => line.event.type === 'triaged').length, 0)
   }
+})
+
+test('while the room works out who answers, the room detail says so and a recall stops the request', async () => {
+  let release
+  const gate = new Promise((resolve) => (release = resolve))
+  const { runtime, room } = await triageRuntime([JSON.stringify({ bots: [PRO], reason: '' })], {
+    gate,
+  })
+  runtime.roomFrames.length = 0
+  const sent = await runtime.postRoomMessage(room.id, { text: '撤回按钮好像坏了' })
+  // 发出去到有人接话之间：群详情里写着这句还在判断，推一帧让页面重读详情。
+  assert.deepEqual((await runtime.getRoom(room.id)).routing, [
+    { messageId: sent.message.id, seq: sent.message.seq, kind: 'triage' },
+  ])
+  assert.ok(runtime.roomFrames.some((frame) => frame.scope.join() === 'detail'))
+  release()
+  await routed(runtime, room.id)
+  assert.deepEqual((await runtime.getRoom(room.id)).routing, [])
+  assert.deepEqual(botsOf(runtime), [PRO])
+
+  // 主持人分派的群：同样有这一行（kind 是 host）；判断中撤回就停下那次请求，不写“分派失败”。
+  let open
+  const held = new Promise((resolve) => (open = resolve))
+  const hosted = await hostRuntime([JSON.stringify({ bots: [PRO], reason: '' })], { gate: held })
+  let signal = null
+  const stream = hosted.runtime.modelRuntime.streamSimple
+  hosted.runtime.modelRuntime.streamSimple = (model, context, options) => {
+    signal = options.signal
+    return stream(model, context, options)
+  }
+  const asked = await hosted.runtime.postRoomMessage(hosted.room.id, { text: '谁来看看' })
+  assert.equal((await hosted.runtime.getRoom(hosted.room.id)).routing[0].kind, 'host')
+  await hosted.runtime.recallRoomMessage(hosted.room.id, asked.message.id)
+  assert.deepEqual((await hosted.runtime.getRoom(hosted.room.id)).routing, [])
+  open()
+  const lines = await routed(hosted.runtime, hosted.room.id)
+  assert.equal(signal?.aborted, true)
+  assert.equal(hosted.runtime.runs.length, 0)
+  assert.deepEqual(lines, [])
+})
+
+test('recalling the message a bot is answering stops that turn, unless it is also answering a message still there', async () => {
+  const runtime = await fakeRuntime()
+  const aborted = []
+  runtime.abortSession = async (id) => aborted.push(id)
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const first = await runtime.postRoomMessage(room.id, { text: '@小克pro 看看撤回' })
+  await settle(runtime)
+  const seat = runtime.runs[0].sessionId
+  runtime.onSeatRunStart(seat)
+  await runtime.roomSeatTurns.get(seat).ready
+  // 这一轮还接着答了一句没撤回的：撤回第一句不停。
+  const other = await runtime.rooms.append(room.id, {
+    author: { kind: 'user' },
+    text: '再看看这个',
+    mentions: [PRO],
+  })
+  runtime.roomSeatTurns.get(seat).alsoAnswered = [other.id]
+  assert.deepEqual((await runtime.recallRoomMessage(room.id, first.message.id)).stopped, [])
+  assert.deepEqual(aborted, [])
+  // 它答的话都撤回了：停下这一轮，告诉页面停了谁。
+  assert.deepEqual((await runtime.recallRoomMessage(room.id, other.id)).stopped, [PRO])
+  assert.deepEqual(aborted, [seat])
+
+  // 送进去之后、开跑之前撤回：这一轮一开就停。
+  const late = await fakeRuntime()
+  const stops = []
+  late.abortSession = async (id) => stops.push(id)
+  const lateRoom = await late.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const asked = await late.postRoomMessage(lateRoom.id, { text: '@小克 看看' })
+  await settle(late)
+  await late.recallRoomMessage(lateRoom.id, asked.message.id)
+  const lateSeat = late.runs[0].sessionId
+  late.onSeatRunStart(lateSeat)
+  await late.roomSeatTurns.get(lateSeat).ready
+  assert.deepEqual(stops, [lateSeat])
+})
+
+test('a wake still queued when its message is recalled is dropped instead of starting a turn', async () => {
+  const runtime = await fakeRuntime()
+  const room = await runtime.createRoom({ name: '前端小组', members: [KE, PRO] })
+  const seat = await runtime.ensureSeatSession(room, runtime.bots.get(KE))
+  runtime.sessions.set(seat, { session: { messages: [] } })
+  // 席位正在开始别的一轮：叫醒先排着。
+  runtime.startingRuns.set(seat, {})
+  const asked = await runtime.postRoomMessage(room.id, { text: '@小克 看看' })
+  await settle(runtime)
+  assert.equal(runtime.runs.length, 0)
+  await runtime.recallRoomMessage(room.id, asked.message.id)
+  runtime.startingRuns.delete(seat)
+  await runtime.flushSeatWake(room.id, KE)
+  assert.equal(runtime.runs.length, 0)
+  assert.equal(runtime.roomWakes.has(`${room.id}:${KE}`), false)
 })
 
 test('with nobody connected the board hub keeps no room frames and no timer', async () => {

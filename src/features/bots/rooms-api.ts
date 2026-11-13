@@ -122,6 +122,9 @@ export type RoomBrief = {
   at: string
 }
 
+// 还在判断该谁答的话：triage 是群里判断，host 是主持人分派。旧 Runtime 没有这个字段，按空。
+export type RoomRouting = { messageId: string; seq: number; kind: 'triage' | 'host' }
+
 export type RoomDetail = {
   room: Room
   members: RoomMember[]
@@ -130,6 +133,7 @@ export type RoomDetail = {
   activity: RoomActivity
   totalTokens: number
   briefing: boolean
+  routing: RoomRouting[]
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -158,6 +162,21 @@ function nullableCount(value: unknown) {
 
 function recipients(value: unknown): string[] | 'all' {
   return value === 'all' ? 'all' : strings(value)
+}
+
+function parseRouting(value: unknown): RoomRouting[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const input = object(item)
+    if (typeof input.messageId !== 'string') return []
+    return [
+      {
+        messageId: input.messageId,
+        seq: count(input.seq),
+        kind: input.kind === 'host' ? ('host' as const) : ('triage' as const),
+      },
+    ]
+  })
 }
 
 function parseActivity(value: unknown): RoomActivity {
@@ -407,6 +426,7 @@ export function fetchRoom(id: string, signal?: AbortSignal): Promise<RoomDetail>
         activity: parseActivity(input.activity),
         totalTokens: count(object(input.usage).totalTokens),
         briefing: input.briefing === true,
+        routing: parseRouting(input.routing),
       }
     },
   })
@@ -469,6 +489,8 @@ export function recallRoomMessage(id: string, messageId: string) {
         briefMayContain: object(value).briefMayContain === true,
         // 旧 Runtime 没有这个字段：按 0。
         attachmentsKept: count(object(value).attachmentsKept),
+        // 撤回时停下了哪些正在答它的 Bot；旧 Runtime 没有，按空。
+        stopped: strings(object(value).stopped),
       }),
     },
   )

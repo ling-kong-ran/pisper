@@ -67,7 +67,10 @@ export function useRoomLive(roomId: string) {
   const soon = useRef(0)
   shown.current = messages
 
-  const busy = (detail?.activity.working ?? 0) > 0 || messages.some(isLive)
+  const busy =
+    (detail?.activity.working ?? 0) > 0 ||
+    (detail?.routing.length ?? 0) > 0 ||
+    messages.some(isLive)
   const push = useRuntimeCapabilitiesStore(
     (state) => state.capabilities.features['rooms.events'] === true,
   )
