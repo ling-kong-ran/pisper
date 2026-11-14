@@ -66,7 +66,9 @@ jobs:
             exit 1
           fi
           echo "value=$input" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@stable
+      # Rust 1.100 起 Cargo 的 build 目录多一层（build/<包>/<hash>/out），tauri-build 2.6 由此推算的
+      # target 目录错位，外部程序和资源复制错地方，桌面打包失败；升到 tauri-build 2.7.4+ 后改回 stable。
+      - uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2

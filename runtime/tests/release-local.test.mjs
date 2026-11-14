@@ -253,7 +253,7 @@ test('self-hosted Windows releases inject secrets and can resume existing drafts
     job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
     24,
   )
-  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@stable'))
+  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@1.99.1'))
   assert.equal(step('Install Node dependencies').run, 'npm ci')
 
   const plan = step('Plan Windows-only release')
@@ -331,7 +331,7 @@ test('self-hosted Linux releases inject signing secrets and only resume existing
     job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
     24,
   )
-  const rust = job.steps.find((entry) => entry.uses === 'dtolnay/rust-toolchain@stable')
+  const rust = job.steps.find((entry) => entry.uses === 'dtolnay/rust-toolchain@1.99.1')
   assert.equal(rust.with.components, 'rustfmt, clippy')
   assert.equal(step('Install Node dependencies').run, 'npm ci')
   assert.match(
@@ -411,7 +411,7 @@ test('self-hosted macOS releases inject signing secrets and only resume existing
     job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with['node-version'],
     24,
   )
-  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@stable'))
+  assert.ok(job.steps.some((entry) => entry.uses === 'dtolnay/rust-toolchain@1.99.1'))
   assert.equal(step('Install Node dependencies').run, 'npm ci')
 
   const build = step('Build and upload macOS artifacts')
