@@ -171,6 +171,9 @@ jobs:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
           PISPER_NODE_MOBILE_ANDROID_DIR: ${{ github.workspace }}/release/mobile-node-android
           PISPER_REQUIRE_EMBEDDED_NODE: '1'
+          # GitHub APK 不带语音原生库，首次下载语音模型时从本 Release 下载（约 9 MB）。
+          PISPER_ANDROID_SPEECH_NATIVE: download
+          PISPER_APP_VERSION: ${{ inputs.version }}
         run: node scripts/setup-mobile-android.mjs
       - uses: actions/download-artifact@v5
         with:
@@ -185,9 +188,11 @@ jobs:
             embedded-runtime/pisper-embedded-runtime.tar.gz \
             embedded-runtime/pisper-embedded-runtime.tar.gz.minisig
           mkdir -p src-tauri/gen/android/app/src/main/assets
-          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
-          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+          # 安装包里放同一个 tar 的 brotli 版本，比 gzip 小约三成。
+          node scripts/android-runtime-asset.mjs embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tar.br
           node scripts/stage-android-speech-model.mjs \
             --source shared \
             src-tauri/gen/android/app/src/main/assets
@@ -222,7 +227,7 @@ jobs:
             echo "GitHub APK contains a rooted Runtime asset." >&2
             exit 1
           fi
-          grep -F 'assets/pisper-embedded-runtime.tgz' /tmp/pisper-apk-contents.txt
+          grep -F 'assets/pisper-embedded-runtime.tar.br' /tmp/pisper-apk-contents.txt
           grep -Fx 'assets/speech-model-catalog.json' /tmp/pisper-apk-contents.txt
           grep -Fx 'assets/speech-resources/xasr-bpe.vocab' /tmp/pisper-apk-contents.txt
           if grep -Eiq '^assets/speech-model(/|$)|\.onnx($|/)' /tmp/pisper-apk-contents.txt; then
@@ -235,8 +240,9 @@ jobs:
           done
           test "$(unzip -p "$UNSIGNED" assets/speech-resources/xasr-bpe.vocab | sha256sum | awk '{print $1}')" = \
             '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
-          test "$(unzip -p "$UNSIGNED" assets/pisper-embedded-runtime.tgz | sha256sum | awk '{print $1}')" = \
-            "$(sha256sum embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
+          unzip -p "$UNSIGNED" assets/pisper-embedded-runtime.tar.br > /tmp/pisper-package-runtime.tar.br
+          node scripts/android-runtime-asset.mjs --verify \
+            embedded-runtime/pisper-embedded-runtime.tar.gz /tmp/pisper-package-runtime.tar.br
           unzip -l "$UNSIGNED" | grep -F 'assets/pisper-embedded-node-android.json'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libnode.so'
           unzip -l "$UNSIGNED" | grep -F 'lib/arm64-v8a/libc++_shared.so'
@@ -246,6 +252,19 @@ jobs:
             echo 'APK contains a non-arm64 native library.' >&2
             exit 1
           fi
+          if grep -Eq '^lib/arm64-v8a/lib(onnxruntime|sherpa-onnx-jni|sherpa-onnx-c-api|sherpa-onnx-cxx-api)\.so$' \
+            /tmp/pisper-apk-contents.txt; then
+            echo 'GitHub APK must download speech native libraries instead of bundling them.' >&2
+            exit 1
+          fi
+          SPEECH_NATIVE=$(find release -maxdepth 1 -name 'pisper-speech-native-android-arm64-v8a-*.tar.bz2' | head -1)
+          test -n "$SPEECH_NATIVE"
+          test "$(unzip -p "$UNSIGNED" assets/speech-native-android.json | jq -r '.archive.sha256')" = \
+            "$(sha256sum "$SPEECH_NATIVE" | awk '{print $1}')"
+          unzip -p "$UNSIGNED" assets/speech-native-android.json |
+            jq -e --arg tag "$RELEASE_TAG" --arg name "$(basename "$SPEECH_NATIVE")" \
+              '.archive.urls | length == 2 and all(endswith("/" + $tag + "/" + $name))'
+          cp "$SPEECH_NATIVE" .
           apkanalyzer dex packages --defined-only "$UNSIGNED" > /tmp/pisper-apk-dex.txt
           grep -F 'com.lingkongran.pisper.EmbeddedNodeHost java.lang.String start(java.lang.String[])' \
             /tmp/pisper-apk-dex.txt
@@ -287,7 +306,9 @@ jobs:
         with:
           name: app-android
           if-no-files-found: error
-          path: app-universal-release-signed.apk*
+          path: |
+            app-universal-release-signed.apk*
+            pisper-speech-native-android-arm64-v8a-*.tar.bz2
 
   ios:
     name: Build iOS app (unsigned)
@@ -490,6 +511,7 @@ jobs:
           test -f artifacts/pisper-embedded-runtime.tar.gz.minisig
           test -f artifacts/pisper-node-mobile-ios.tar.gz
           test -f artifacts/pisper-node-mobile-ios.tar.gz.minisig
+          compgen -G 'artifacts/pisper-speech-native-android-arm64-v8a-*.tar.bz2' > /dev/null
           ls -la artifacts
       - name: Commit app version, upload a draft, and publish atomically
         shell: bash

@@ -11,6 +11,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -23,8 +24,14 @@ import {
 } from './patch-wry-android.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
+import { configureAndroidNativePackaging } from './android-native-packaging.mjs'
+import {
+  androidSpeechNativeMode,
+  stageAndroidSpeechNative,
+} from './stage-android-speech-native.mjs'
 
 const env = resolveAndroidEnv()
+const speechNativeMode = androidSpeechNativeMode()
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const androidDir = join(root, 'src-tauri', 'gen', 'android')
@@ -99,6 +106,16 @@ const sherpaAar = join(
 )
 const requireEmbeddedNode = process.env.PISPER_REQUIRE_EMBEDDED_NODE === '1'
 
+// 手机上 WebView 只从 App 内置资源加载启动页，其余页面都由包内 Runtime 的本地服务提供
+// （mod.rs 的 WebviewUrl::App("mobile-startup.html")）。tauri.android.conf.json 让 Rust 库只嵌入
+// 这一页，不再把整份前端（Runtime 归档里已经有一份）再编译进去。
+const mobileShellDist = join(root, 'release', 'mobile-shell-dist')
+rmSync(mobileShellDist, { recursive: true, force: true })
+mkdirSync(mobileShellDist, { recursive: true })
+for (const name of ['mobile-startup.html', 'favicon.svg']) {
+  copyFileSync(join(root, 'public', name), join(mobileShellDist, name))
+}
+
 function resolveAndroidCppRuntime(ndkHome) {
   const prebuiltRoot = join(ndkHome || '', 'toolchains', 'llvm', 'prebuilt')
   if (!existsSync(prebuiltRoot)) return ''
@@ -118,11 +135,10 @@ function resolveAndroidCppRuntime(ndkHome) {
   return ''
 }
 
-if (!existsSync(sherpaAar)) {
-  // CI 的干净检出没有本地缓存的 AAR；使用与发布构建相同的下载和校验路径。
-  console.log('缺少 sherpa AAR，自动下载并校验官方 Android Runtime …')
-  await stageAndroidSpeechRuntime({ root })
-}
+// 每次都重新改写：旧检出里可能还留着未改写的原版 AAR（它的类会自己 loadLibrary）。
+// 官方包有本地缓存时只做校验和改写，CI 干净检出则走与发布构建相同的下载和校验路径。
+if (!existsSync(sherpaAar)) console.log('缺少 sherpa AAR，自动下载并校验官方 Android Runtime …')
+await stageAndroidSpeechRuntime({ root })
 
 if (!existsSync(manifestPath)) {
   assertAndroidEnv(env)
@@ -287,6 +303,36 @@ if (existingRustPageSizeBlock.test(rustBuildTask)) {
   )
 }
 
+// 只作用于 Android release：整体链接优化去掉跨 crate 的重复代码，按体积优化再小一截，
+// Rust 库合计小四成左右。库里主要是本地代理和 P2P 隧道，以 I/O 为主；加密走 ring 的汇编，
+// 不受优化级别影响。桌面构建不经过这个 Gradle 任务。已显式设置的环境变量优先。
+const rustSizeBlock = [
+  '            // Pisper：Android release 用整体链接优化缩小 Rust 库。',
+  '            environment(',
+  '                mapOf(',
+  '                    "CARGO_PROFILE_RELEASE_LTO" to (System.getenv("CARGO_PROFILE_RELEASE_LTO") ?: "true"),',
+  '                    "CARGO_PROFILE_RELEASE_CODEGEN_UNITS" to',
+  '                        (System.getenv("CARGO_PROFILE_RELEASE_CODEGEN_UNITS") ?: "1"),',
+  '                    "CARGO_PROFILE_RELEASE_OPT_LEVEL" to',
+  '                        (System.getenv("CARGO_PROFILE_RELEASE_OPT_LEVEL") ?: "s"),',
+  '                ),',
+  '            )',
+].join(rustBuildTaskEol)
+// 旧版本写的是逐个 environment(...)，一并认作同一块整体替换。
+const existingRustSizeBlock =
+  /            \/\/ Pisper：Android release 用整体链接优化缩小 Rust 库。\r?\n(?:            environment\([\s\S]*?\r?\n            \)\r?\n)+/
+if (existingRustSizeBlock.test(updatedRustBuildTask)) {
+  updatedRustBuildTask = updatedRustBuildTask.replace(
+    existingRustSizeBlock,
+    `${rustSizeBlock}${rustBuildTaskEol}`,
+  )
+} else {
+  updatedRustBuildTask = updatedRustBuildTask.replace(
+    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    `$1${rustSizeBlock}${rustBuildTaskEol}`,
+  )
+}
+
 const rendererRecoveryBlock = [
   '            // Pisper：注入 renderer 崩溃恢复回调。',
   '            environment(',
@@ -339,6 +385,9 @@ if (existingWryOriginPatchBlock.test(updatedRustBuildTask)) {
 }
 if (!updatedRustBuildTask.includes('CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS')) {
   throw new Error('无法把 16 KB 页 linker 参数接入 Android Rust 构建。')
+}
+if (!updatedRustBuildTask.includes('CARGO_PROFILE_RELEASE_OPT_LEVEL')) {
+  throw new Error('无法把整体链接优化接入 Android Rust 构建。')
 }
 if (!updatedRustBuildTask.includes('WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION')) {
   throw new Error('无法把 WebView renderer 恢复回调接入 Android Rust 构建。')
@@ -424,7 +473,10 @@ if (nodeLibrary && existsSync(nodeLibrary) && existsSync(nodeHeaders)) {
 
 const speechGradlePath = join(androidDir, 'app', 'build.gradle.kts')
 const speechGradle = readFileSync(speechGradlePath, 'utf8')
-const compatibleSpeechGradle = enableAndroidSpeechDesugaring(speechGradle)
+const compatibleSpeechGradle = configureAndroidNativePackaging(
+  enableAndroidSpeechDesugaring(speechGradle),
+  { downloadSpeechNative: speechNativeMode === 'download' },
+)
 if (speechGradle !== compatibleSpeechGradle)
   writeFileSync(speechGradlePath, compatibleSpeechGradle, 'utf8')
 
@@ -451,6 +503,20 @@ const hostTargetPath = join(
 if (existsSync(hostSourcePath) && existsSync(hostTargetPath)) {
   copyFileSync(hostSourcePath, hostTargetPath)
 }
+
+const mobilePackage = JSON.parse(
+  readFileSync(join(root, 'src-tauri', 'mobile-package.json'), 'utf8'),
+)
+const speechNative = await stageAndroidSpeechNative({
+  root,
+  assetsDir: join(androidDir, 'app', 'src', 'main', 'assets'),
+  mode: speechNativeMode,
+  version: process.env.PISPER_APP_VERSION || mobilePackage.version,
+  repository: process.env.GITHUB_REPOSITORY || undefined,
+})
+console.log(
+  speechNative ? `语音原生库改为按需下载：${speechNative.archive}` : '语音原生库随 APK 安装。',
+)
 
 console.log('Android 工程已就绪（权限、网络安全与 WebView renderer 恢复已应用）。')
 console.log('下一步：node scripts/build-mobile-android.mjs [--release] [--target aarch64]')

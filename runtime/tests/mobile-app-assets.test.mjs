@@ -1181,12 +1181,43 @@ test('App 发布必须签名并校验共享 Runtime 与平台产物', async () =
   ]) {
     assert.match(workflow, new RegExp(`${asset.replaceAll('.', '\\.')}\\.minisig`))
   }
-  assert.match(workflow, /pisper-embedded-runtime\.tgz/)
+  assert.match(workflow, /pisper-embedded-runtime\.tar\.br/)
   assert.doesNotMatch(workflow, /pisper-root-runtime-android-arm64|app-root-runtime/)
   assert.match(workflow, /needs\['embedded-runtime'\]\.result == 'success'/)
   assert.doesNotMatch(workflow, /needs\['root-runtime'\]\.result/)
   assert.equal(workflow.match(/node scripts\/verify-tauri-signature\.mjs/g)?.length, 3)
   assert.doesNotMatch(workflow, /minisign -Vm/)
+})
+
+test('GitHub APK 按需下载语音原生库，商店包与本地构建随包安装', async () => {
+  const [release, store, stage, setup, modelStore, native] = await Promise.all([
+    readFile('.github/workflows/release-app.yml', 'utf8'),
+    readFile('.github/workflows/build-store-app.yml', 'utf8'),
+    readFile('scripts/stage-android-speech-runtime.mjs', 'utf8'),
+    readFile('scripts/setup-mobile-android.mjs', 'utf8'),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/SpeechModelStore.kt',
+      'utf8',
+    ),
+    readFile(
+      'src-tauri/mobile-device-plugin/android/src/main/java/app/pisper/mobiledevice/SpeechNativeRuntime.kt',
+      'utf8',
+    ),
+  ])
+  assert.match(release, /PISPER_ANDROID_SPEECH_NATIVE: download/)
+  assert.match(release, /pisper-speech-native-android-arm64-v8a-\*\.tar\.bz2/)
+  assert.match(release, /GitHub APK must download speech native libraries/)
+  // 应用商店不允许下载可执行代码。
+  assert.doesNotMatch(store, /PISPER_ANDROID_SPEECH_NATIVE/)
+  assert.match(stage, /patchSherpaAar\(await readFile\(cachePath\)\)/)
+  assert.match(setup, /^await stageAndroidSpeechRuntime\(\{ root \}\)$/m)
+  assert.match(setup, /downloadSpeechNative: speechNativeMode === 'download'/)
+  // 识别器和合成器都经 installedDirectory 拿模型目录，原生库必须在那里先加载。
+  assert.match(modelStore, /native\.load\(check\)/)
+  assert.match(modelStore, /native\.install\(job\)/)
+  assert.match(native, /System\.loadLibrary\(JNI_LIBRARY\)/)
+  assert.match(native, /SpeechModelFiles\.verify\(file, spec, check\)/)
+  assert.match(native, /files\.forEach \{ System\.load\(it\.absolutePath\) \}/)
 })
 
 test('the phone run state follows the reference: no run row above the composer and stop on the send key', async () => {

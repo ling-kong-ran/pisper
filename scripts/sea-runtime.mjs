@@ -403,6 +403,9 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     ['pdfjs-dist', 'web'],
     ['highlight.js', 'scss'],
     ['highlight.js', 'styles'],
+    // officeparser 只在 ocr: true 时加载 OCR 引擎；Pisper 解析文档固定 ocr: false，
+    // 这 43 MB 的 wasm 从不会被读到。tesseract.js 本身很小，留着让模块解析保持完整。
+    ['tesseract.js-core'],
   ]
   for (const parts of explicitPaths) {
     await removePath(join(nodeModules, ...parts), 'explicitUnusedClosure', audit)
@@ -420,6 +423,8 @@ export async function pruneRuntime(runtimeDir, target = runtimeTarget()) {
     ]) {
       await removePath(join(nodeModules, ...parts), 'mobileSpeechNativeAddon', audit)
     }
+    // 浏览器自动化只在桌面档案开放（runtime-capabilities.mjs），手机上没有可启动的浏览器。
+    await removePath(join(nodeModules, 'playwright-core'), 'mobileBrowserAutomation', audit)
   }
 
   const pdfBuild = join(nodeModules, 'pdfjs-dist', 'build')
@@ -481,7 +486,7 @@ export function speechNativeEntries(target) {
   }))
 }
 
-export function criticalRuntimeEntries(nativeSelection = {}, runtimeDir) {
+export function criticalRuntimeEntries(nativeSelection = {}, runtimeDir, target) {
   const piTui = runtimeDir ? resolvePiTuiRuntimeRoot(runtimeDir) : PI_TUI
   const entries = [
     ['app', 'runtime/sidecar.mjs'],
@@ -529,7 +534,9 @@ export function criticalRuntimeEntries(nativeSelection = {}, runtimeDir) {
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js'],
     ['mcp', 'node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js'],
-    ['playwright', 'node_modules/playwright-core/index.mjs'],
+    ...(target?.platform === 'mobile'
+      ? []
+      : [['playwright', 'node_modules/playwright-core/index.mjs']]),
     ['locales', 'node_modules/zod/v4/locales/index.js'],
     ['native', `${piTui}/dist/native-platform.js`],
     ['native', `${piTui}/dist/native-module-path.js`],

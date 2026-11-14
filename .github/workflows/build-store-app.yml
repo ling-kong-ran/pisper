@@ -128,9 +128,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p src-tauri/gen/android/app/src/main/assets
-          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz
-          cp embedded-runtime/pisper-embedded-runtime.tar.gz \
+          rm -f src-tauri/gen/android/app/src/main/assets/pisper-root-runtime-*.tgz \
             src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tgz
+          # 安装包里放同一个 tar 的 brotli 版本，比 gzip 小约三成。
+          node scripts/android-runtime-asset.mjs embedded-runtime/pisper-embedded-runtime.tar.gz \
+            src-tauri/gen/android/app/src/main/assets/pisper-embedded-runtime.tar.br
           node scripts/stage-android-speech-model.mjs \
             --source shared \
             src-tauri/gen/android/app/src/main/assets
@@ -163,7 +165,7 @@ jobs:
           AAB=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' -type f | head -1)
           test -n "$AAB" || { echo "AAB output was not found." >&2; exit 1; }
           unzip -Z1 "$AAB" > /tmp/pisper-aab-contents.txt
-          grep -F 'base/assets/pisper-embedded-runtime.tgz' /tmp/pisper-aab-contents.txt
+          grep -F 'base/assets/pisper-embedded-runtime.tar.br' /tmp/pisper-aab-contents.txt
           grep -Fx 'base/assets/speech-model-catalog.json' /tmp/pisper-aab-contents.txt
           grep -Fx 'base/assets/speech-resources/xasr-bpe.vocab' /tmp/pisper-aab-contents.txt
           if grep -Eiq '^base/assets/speech-model(/|$)|\.onnx($|/)' /tmp/pisper-aab-contents.txt; then
@@ -176,8 +178,9 @@ jobs:
           done
           test "$(unzip -p "$AAB" base/assets/speech-resources/xasr-bpe.vocab | sha256sum | awk '{print $1}')" = \
             '01381aa0c3065832cb8d7462d529e3079a99be56c955ce93b4cb9b78e8aa34e5'
-          test "$(unzip -p "$AAB" base/assets/pisper-embedded-runtime.tgz | sha256sum | awk '{print $1}')" = \
-            "$(sha256sum embedded-runtime/pisper-embedded-runtime.tar.gz | awk '{print $1}')"
+          unzip -p "$AAB" base/assets/pisper-embedded-runtime.tar.br > /tmp/pisper-package-runtime.tar.br
+          node scripts/android-runtime-asset.mjs --verify \
+            embedded-runtime/pisper-embedded-runtime.tar.gz /tmp/pisper-package-runtime.tar.br
           grep -F 'base/lib/arm64-v8a/libnode.so' /tmp/pisper-aab-contents.txt
           grep -F 'base/lib/arm64-v8a/libpisper_webview_lib.so' /tmp/pisper-aab-contents.txt
           if grep -E '^base/lib/' /tmp/pisper-aab-contents.txt | grep -Ev '^base/lib/arm64-v8a/'; then

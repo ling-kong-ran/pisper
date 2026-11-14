@@ -19,6 +19,7 @@ import {
 import { bundleRuntime } from './runtime-bundle.mjs'
 import { stageSpeechModel } from './stage-speech-model.mjs'
 import { searchToolCriticalEntries, stageSearchTools } from './stage-search-tools.mjs'
+import { traceRuntimeFiles } from './trace-runtime-files.mjs'
 
 const run = promisify(execFile)
 
@@ -82,12 +83,24 @@ export async function stageRuntimeClosure({
   const beforePrune = await collectRuntimeSnapshot(runtimeDir)
   const { audit, nativeSelection } = await pruneRuntime(runtimeDir, target)
   await stageSearchTools({ root, runtimeDir, target })
+  if (target.platform === 'mobile') {
+    // 手机 Runtime 随 App 安装包下发，按文件裁掉不会被加载的依赖文件；桌面闭包保持整包。
+    const untraced = await traceRuntimeFiles({
+      runtimeDir,
+      criticalPaths: criticalRuntimeEntries(nativeSelection, runtimeDir, target).map(
+        ({ path }) => path,
+      ),
+    })
+    audit.bytes += untraced.bytes
+    audit.fileCount += untraced.fileCount
+    audit.rules.mobileUntracedFiles = { ...untraced, directoryCount: 0 }
+  }
   // bundleRuntime 会重建 runtime/ 目录，模型必须在 bundle 完成后再放入，避免被清理。
   if (includeSpeechModel) await stageSpeechModel({ root, runtimeDir })
   const afterPrune = await collectRuntimeSnapshot(runtimeDir)
   const [criticalFiles, native] = await Promise.all([
     inspectCriticalFiles(runtimeDir, [
-      ...criticalRuntimeEntries(nativeSelection, runtimeDir),
+      ...criticalRuntimeEntries(nativeSelection, runtimeDir, target),
       ...speechNativeEntries(target),
       ...searchToolCriticalEntries(target),
     ]),

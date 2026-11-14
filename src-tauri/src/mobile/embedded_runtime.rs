@@ -23,9 +23,10 @@ use super::android_bridge::{
 };
 use super::runtime_status::OnDeviceRuntimeStatus;
 
-// Android 的 aapt 会自动解压并改名 `.gz` 资产；使用 `.tgz` 才能让 Rust 收到原始 gzip。
+// Android 安装包里是同一个 tar 的 brotli 版本（scripts/android-runtime-asset.mjs），
+// 比 gzip 小约三成；iOS 资源仍是签名发布的 gzip 归档。解压时按 gzip 魔数区分两种格式。
 #[cfg(target_os = "android")]
-const EMBEDDED_ASSET: &str = "pisper-embedded-runtime.tgz";
+const EMBEDDED_ASSET: &str = "pisper-embedded-runtime.tar.br";
 #[cfg(not(target_os = "android"))]
 const EMBEDDED_ASSET: &str = "pisper-embedded-runtime.tar.gz";
 const START_TIMEOUT: Duration = Duration::from_secs(30);
@@ -461,14 +462,27 @@ fn publish_installation(root: &Path, staging: &Path, previous: &Path) -> Result<
     Ok(())
 }
 
+const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+
+fn decompress<'a>(reader: impl Read + 'a) -> std::io::Result<Box<dyn Read + 'a>> {
+    let mut reader = std::io::BufReader::new(reader);
+    let gzip = std::io::BufRead::fill_buf(&mut reader)?.starts_with(&GZIP_MAGIC);
+    Ok(if gzip {
+        Box::new(GzDecoder::new(reader))
+    } else {
+        Box::new(brotli_decompressor::Decompressor::new(reader, 64 * 1024))
+    })
+}
+
 fn unpack_archive(archive: &Path, target: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|error| format!("无法打开嵌入式 Runtime：{error}"))?;
-    let decoder = GzDecoder::new(file);
+    let decoder =
+        decompress(file).map_err(|error| format!("无法读取嵌入式 Runtime：{error}"))?;
     let mut archive = tar::Archive::new(decoder);
     archive
         .unpack(target)
         .map_err(|error| format!("无法解压嵌入式 Runtime：{error}"))?;
-    // tar 结束标记早于 gzip 尾部，继续读到 EOF 才会验证 CRC 和截断错误。
+    // tar 结束标记早于压缩流结尾，继续读到 EOF 才会发现截断（gzip 还会校验 CRC）。
     std::io::copy(&mut archive.into_inner(), &mut std::io::sink())
         .map(|_| ())
         .map_err(|error| format!("嵌入式 Runtime 压缩数据损坏：{error}"))
@@ -545,7 +559,7 @@ fn read_installed_manifest(root: &Path, app_version: &str) -> Option<EmbeddedMan
 
 fn archive_manifest(reader: impl Read) -> Option<EmbeddedManifest> {
     // 仅解析首个条目且限制压缩及解压字节数，旧包回退到完整验证，不能顺序扫描大包。
-    let decoder = GzDecoder::new(reader.take(ARCHIVE_PROBE_BYTES as u64));
+    let decoder = decompress(reader.take(ARCHIVE_PROBE_BYTES as u64)).ok()?;
     let mut archive = tar::Archive::new(decoder.take(MAX_MANIFEST_BYTES + 1024));
     let mut entries = archive.entries().ok()?.raw(true);
     let entry = entries.next()?.ok()?;
@@ -1043,6 +1057,44 @@ mod tests {
             ("./embedded-runtime.json", &serialized),
         ])))
         .is_none());
+    }
+
+    // Android 资产：同一个 tar 的 brotli 版本，首项清单之后 flush（android-runtime-asset.mjs）。
+    fn brotli_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (path, contents) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(contents.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder.append_data(&mut header, path, *contents).unwrap();
+        }
+        let tar = builder.into_inner().unwrap();
+        let first = 512 + entries[0].1.len().div_ceil(512) * 512;
+        let mut writer = brotli::CompressorWriter::new(Vec::new(), 4096, 11, 24);
+        writer.write_all(&tar[..first]).unwrap();
+        writer.flush().unwrap();
+        writer.write_all(&tar[first..]).unwrap();
+        writer.into_inner()
+    }
+
+    #[test]
+    fn android_brotli_archive_probes_manifest_and_unpacks() {
+        let serialized = serde_json::to_vec(&manifest()).unwrap();
+        let noise: Vec<u8> = (0..256 * 1024).map(|_| rand::random()).collect();
+        let bytes = brotli_tar(&[("./embedded-runtime.json", &serialized), ("large.bin", &noise)]);
+        assert!(bytes.len() > ARCHIVE_PROBE_BYTES);
+        let probed = archive_manifest(Cursor::new(&bytes[..ARCHIVE_PROBE_BYTES])).unwrap();
+        assert!(probed.matches_app("1.2.3"));
+
+        let fixture = Fixture::new();
+        let archive = fixture.0.join("runtime.tar.br");
+        std::fs::write(&archive, &bytes).unwrap();
+        let target = fixture.0.join("unpacked");
+        super::unpack_archive(&archive, &target).unwrap();
+        assert_eq!(std::fs::read(target.join("large.bin")).unwrap(), noise);
+        std::fs::write(&archive, &bytes[..bytes.len() - 64]).unwrap();
+        assert!(super::unpack_archive(&archive, &fixture.0.join("truncated")).is_err());
     }
 
     #[test]

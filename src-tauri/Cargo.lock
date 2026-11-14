@@ -4023,6 +4023,8 @@ version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "block2",
+ "brotli",
+ "brotli-decompressor",
  "bytes",
  "computer-control",
  "flate2",

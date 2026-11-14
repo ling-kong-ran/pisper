@@ -11,7 +11,6 @@ export const RUNTIME_EXTERNAL_PACKAGES = Object.freeze([
   '@homebridge/ciao',
   '@larksuiteoapi/node-sdk',
   '@modelcontextprotocol/sdk',
-  'tsx',
   'sherpa-onnx-node',
   'officeparser',
   'playwright-core',

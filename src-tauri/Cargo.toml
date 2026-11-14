@@ -64,6 +64,8 @@ base64 = "0.22"
 # 移动端首次启动从受信任 App 资产解出共享 Node Runtime 闭包；桌面测试也编译 mobile 模块。
 flate2 = "1"
 tar = "0.4"
+# Android 安装包里的 Runtime 归档用 brotli（比 gzip 小约三成）；纯 Rust 解码器，tauri 构建链已在用。
+brotli-decompressor = "5"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 pisper-mobile-device-plugin = { path = "mobile-device-plugin" }
@@ -106,6 +108,8 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_
 winreg = "0.55"
 
 [dev-dependencies]
+# Android Runtime 资产的 brotli 解包测试用。
+brotli = "8"
 # 代理集成测试用：自建 TLS 上游验证指纹锁定与 SSE 透传。
 rcgen = "0.13"
 tokio-rustls = "0.26"

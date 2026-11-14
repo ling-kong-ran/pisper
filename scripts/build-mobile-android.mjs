@@ -2,7 +2,7 @@
 // 移动端不打包 sidecar/外部资源，用 --config 覆盖掉桌面专属的产物声明。
 // 用法：node scripts/build-mobile-android.mjs [--release] [--target x86_64|aarch64|...]
 // 环境：需要 JAVA_HOME / ANDROID_HOME / NDK_HOME（Windows 上 symlink 需要开发者模式）。
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -10,6 +10,7 @@ import { assertAndroidEnv, resolveAndroidEnv } from './android-env.mjs'
 import { stageAndroidSpeechResources } from './stage-android-speech-model.mjs'
 import { stageAndroidSpeechRuntime } from './stage-android-speech-runtime.mjs'
 import { enableAndroidSpeechDesugaring } from './android-speech-desugaring.mjs'
+import { ANDROID_RUNTIME_ASSET, writeAndroidRuntimeAsset } from './android-runtime-asset.mjs'
 
 const env = resolveAndroidEnv()
 
@@ -72,9 +73,11 @@ await stageAndroidSpeechResources({
   targetDir: androidAssetsDir,
 })
 mkdirSync(androidAssetsDir, { recursive: true })
-copyFileSync(
+// 旧构建留下的 gzip 资产已不再读取，清掉以免同时打进安装包。
+rmSync(join(androidAssetsDir, 'pisper-embedded-runtime.tgz'), { force: true })
+await writeAndroidRuntimeAsset(
   join(root, 'release', 'pisper-embedded-runtime.tar.gz'),
-  join(androidAssetsDir, 'pisper-embedded-runtime.tgz'),
+  join(androidAssetsDir, ANDROID_RUNTIME_ASSET),
 )
 
 console.log(`==> 构建 Android APK（${release ? 'release' : 'debug'}，${target}）`)

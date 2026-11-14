@@ -901,6 +901,7 @@ test(
           'SpeechModelFiles.kt',
           'SpeechModelArchive.kt',
           'SpeechAudioState.kt',
+          'SpeechNativeRuntime.kt',
           'SpeechModelStore.kt',
           'SpeechAudioService.kt',
         ].map((name) => join(sourceDir, name)),

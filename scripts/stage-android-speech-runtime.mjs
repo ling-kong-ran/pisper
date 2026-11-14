@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { patchSherpaAar } from './sherpa-aar.mjs'
 
 const VERSION = '1.13.7'
 const ASSET_DOWNLOAD_URL =
@@ -63,8 +64,21 @@ export async function stageAndroidSpeechRuntime({ root }) {
   await mkdir(join(resolve(root), 'src-tauri', 'mobile-device-plugin', 'android', 'libs'), {
     recursive: true,
   })
-  await copyFile(cachePath, target)
+  // 摘要校验的是官方原包；写进工程的是去掉静态 loadLibrary、只留 arm64 库的改写版。
+  const { aar, libraries } = patchSherpaAar(await readFile(cachePath))
+  await writeFile(target, aar)
+  // 按需下载模式从这里打包原生库（stage-android-speech-native.mjs）。
+  const nativeDir = androidSpeechNativeDir(root)
+  await mkdir(nativeDir, { recursive: true })
+  for (const [name, bytes] of Object.entries(libraries))
+    await writeFile(join(nativeDir, name), bytes)
   return target
+}
+
+export const ANDROID_SPEECH_NATIVE_VERSION = VERSION
+
+export function androidSpeechNativeDir(root) {
+  return join(resolve(root), 'release', 'android-speech-native', 'arm64-v8a')
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replaceAll('\\', '/')}`) {

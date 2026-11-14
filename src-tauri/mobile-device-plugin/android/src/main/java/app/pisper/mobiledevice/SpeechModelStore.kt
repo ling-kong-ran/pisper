@@ -41,6 +41,8 @@ internal class SpeechModelStore private constructor(private val context: Context
         var job: SpeechDownloadCancellation? = null,
         var verifiedAttributes: List<Pair<Long, Long>>? = null,
         var verificationPending: Boolean = false,
+        // 本次下载里要先补的语音原生库字节数，计入进度和总大小。
+        var nativeBytes: Long = 0,
     )
 
     private val lock = Any()
@@ -50,6 +52,7 @@ internal class SpeechModelStore private constructor(private val context: Context
             require(it.isDirectory || it.mkdirs()) { "speech_storage_error" }
         }
     }
+    private val native by lazy { SpeechNativeRuntime(context, root) }
     private val catalog by lazy {
         val bytes = context.assets.open("speech-model-catalog.json").use { input ->
             val output = java.io.ByteArrayOutputStream()
@@ -293,9 +296,13 @@ internal class SpeechModelStore private constructor(private val context: Context
                 }
             }))
         }
-        put("status", state.status)
-        put("downloadedBytes", state.downloadedBytes)
-        put("totalBytes", model.totalBytes)
+        // 模型文件齐全但语音原生库还没下载时（GitHub APK 升级上来的情况），仍显示为待下载，
+        // 下载只补原生库。
+        val nativeBytes = if (state.job != null) state.nativeBytes else native.downloadBytes()
+        val waitingForNative = state.job == null && state.status == "installed" && nativeBytes > 0
+        put("status", if (waitingForNative) "not-installed" else state.status)
+        put("downloadedBytes", if (waitingForNative) 0 else state.downloadedBytes)
+        put("totalBytes", model.totalBytes + nativeBytes)
         put("filesBytes", model.filesBytes)
         state.error?.let { put("error", it) }
     }
@@ -321,16 +328,19 @@ internal class SpeechModelStore private constructor(private val context: Context
         val model = find(id)
         return synchronized(lock) {
             val state = state(model)
-            if (state.status == "installed" || state.job?.cancelled?.get() == false) {
+            val nativeBytes = native.downloadBytes()
+            if ((state.status == "installed" && nativeBytes == 0L) || state.job?.cancelled?.get() == false) {
                 return@synchronized snapshot(model, state)
             }
+            val modelInstalled = state.status == "installed"
             val job = SpeechDownloadCancellation()
             state.job = job
             state.status = "downloading"
             state.error = null
             state.downloadedBytes = 0
+            state.nativeBytes = nativeBytes
             try {
-                io.execute { install(model, state, job) }
+                io.execute { install(model, state, job, modelInstalled) }
             } catch (_: RejectedExecutionException) {
                 state.job = null
                 state.status = "error"
@@ -354,9 +364,33 @@ internal class SpeechModelStore private constructor(private val context: Context
         }
     }
 
-    private fun install(model: SpeechModel, state: State, job: SpeechDownloadCancellation) {
+    private fun install(
+        model: SpeechModel,
+        state: State,
+        job: SpeechDownloadCancellation,
+        modelInstalled: Boolean = false,
+    ) {
         try {
             job.check()
+            native.install(job) { bytes ->
+                synchronized(lock) {
+                    if (state.job === job && !job.cancelled.get()) state.downloadedBytes = bytes
+                }
+            }
+            val offset = state.nativeBytes
+            if (modelInstalled) {
+                synchronized(lock) {
+                    job.check()
+                    if (state.job === job) {
+                        state.downloadedBytes = model.totalBytes
+                        state.nativeBytes = 0
+                        state.status = "installed"
+                        state.error = null
+                        state.job = null
+                    }
+                }
+                return
+            }
             val staging = SpeechModelFiles.child(root, ".staging/${model.id}/${model.revision}")
             require(staging.isDirectory || staging.mkdirs()) { "speech_storage_error" }
             val archive = model.archive
@@ -368,7 +402,7 @@ internal class SpeechModelStore private constructor(private val context: Context
                 }
                 SpeechModelFiles.download(cached, archive.file, job, { bytes ->
                     synchronized(lock) {
-                        if (state.job === job && !job.cancelled.get()) state.downloadedBytes = bytes
+                        if (state.job === job && !job.cancelled.get()) state.downloadedBytes = offset + bytes
                     }
                 })
                 synchronized(lock) {
@@ -390,7 +424,9 @@ internal class SpeechModelStore private constructor(private val context: Context
                     job.check()
                     SpeechModelFiles.download(SpeechModelFiles.child(staging, file.path), file, job, { bytes ->
                         synchronized(lock) {
-                            if (state.job === job && !job.cancelled.get()) state.downloadedBytes = completed + bytes
+                            if (state.job === job && !job.cancelled.get()) {
+                                state.downloadedBytes = offset + completed + bytes
+                            }
                         }
                     })
                     completed += file.bytes
@@ -414,6 +450,7 @@ internal class SpeechModelStore private constructor(private val context: Context
                 SpeechModelFiles.publish(staging, target, old, job::check)
                 state.verifiedAttributes = stamps
                 state.downloadedBytes = model.totalBytes
+                state.nativeBytes = 0
                 state.status = "installed"
                 state.error = null
                 state.job = null
@@ -438,6 +475,8 @@ internal class SpeechModelStore private constructor(private val context: Context
         check()
         val directory = directory(model)
         require(SpeechModelFiles.child(directory, ".complete").isFile) { "speech_model_not_installed" }
+        // 识别器和合成器都从这里拿模型目录，原生库在创建它们之前加载。
+        native.load(check)
         val attrs = attributes(model, directory)
         val cached = synchronized(lock) { state(model).verifiedAttributes }
         if (cached != attrs) {
