@@ -1,9 +1,9 @@
 {
-  "version": "0.1.94",
-  "tag": "app-v0.1.94",
-  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.94",
+  "version": "0.1.95",
+  "tag": "app-v0.1.95",
+  "url": "https://github.com/ling-kong-ran/pisper/releases/tag/app-v0.1.95",
   "apk": "app-universal-release-signed.apk",
   "ipa": "pisper-ios-unsigned.ipa",
-  "notes": "## Pisper App 0.1.94\n\n- 发布日期：2026-11-12（北京时间）\n- 发布标签：`app-v0.1.94`\n- 对比基线：`app-v0.1.93`\n\n## 更新内容\n\n### 新增功能\n\n- feat(updates): 设置里显示桌面安装包的下载状态和安装入口\n- feat(bots): 群聊“发给”里选中的 Bot 发它头像色的光，没选的退成淡字，一眼看出发给谁\n\n### 问题修复\n\n- fix(chat): 输入框草稿恢复后按内容重量高度，长草稿回到新任务页不再挤成两行\n- fix(chat): 子代理页面头清爽了，任务两行截得干净，运行中也看得到这一轮的工具\n- fix(desktop): 关过右侧浏览器的页签后，最大化和还原时主界面仍跟着窗口变大小（Windows）\n- fix(providers): 停用的 Provider 不再被新会话兜底选中\n- fix(bots): 群里的 Bot 换不上模型时下次叫醒再换，不再一直用默认模型去刷别的账号\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.93...app-v0.1.94)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/56ba87cc291058b5b1493a2a59c7aac469ca23d1)",
-  "releaseDate": "2026-11-12"
+  "notes": "## Pisper App 0.1.95\n\n- 发布日期：2026-11-14（北京时间）\n- 发布标签：`app-v0.1.95`\n- 对比基线：`app-v0.1.94`\n\n## 更新内容\n\n### 新增功能\n\n- feat(mobile): Android 安装包从 202 MB 降到约 41 MB，语音引擎改为第一次用时下载\n- feat(bots): 群里“全部停下”，Pisper 重启后没做完的活接着做\n\n### 优化改进\n\n- style(mobile): 嵌入式 Runtime 解压代码按 rustfmt 排版\n\n### 问题修复\n\n- fix(mobile): 手机上输入时输入框浮到键盘上方，不再被输入法挡住\n- fix(bots): 群里的长任务不再被接力上限截断，别的 Bot 的话也不打断正在干活的 Bot\n- fix(bots): 群里被别的 Bot 请来做事，答复自动回到请它的那个\n- fix(bots): 群里看得出 Bot 的子代理还在做，写-审-改能接着来回\n- fix(bots): 群聊判断谁答时显示进度，撤回消息会停下正在答它的 Bot\n\n## 升级说明\n\n- Android 安装包（APK，已签名）与 iOS 构建产物见 Release 附件。\n- iOS 产物为未签名构建，需使用 AltStore、Sideloadly 或开发者账号重新签名后安装。\n\n## 完整变更\n\n- [查看完整变更](https://github.com/ling-kong-ran/pisper/compare/app-v0.1.94...app-v0.1.95)\n- [构建源提交](https://github.com/ling-kong-ran/pisper/commit/c4b3b36e0da03b2a89583e16f1fb527e433f9b99)",
+  "releaseDate": "2026-11-14"
 }
