@@ -476,8 +476,7 @@ fn decompress<'a>(reader: impl Read + 'a) -> std::io::Result<Box<dyn Read + 'a>>
 
 fn unpack_archive(archive: &Path, target: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|error| format!("无法打开嵌入式 Runtime：{error}"))?;
-    let decoder =
-        decompress(file).map_err(|error| format!("无法读取嵌入式 Runtime：{error}"))?;
+    let decoder = decompress(file).map_err(|error| format!("无法读取嵌入式 Runtime：{error}"))?;
     let mut archive = tar::Archive::new(decoder);
     archive
         .unpack(target)
@@ -1082,7 +1081,10 @@ mod tests {
     fn android_brotli_archive_probes_manifest_and_unpacks() {
         let serialized = serde_json::to_vec(&manifest()).unwrap();
         let noise: Vec<u8> = (0..256 * 1024).map(|_| rand::random()).collect();
-        let bytes = brotli_tar(&[("./embedded-runtime.json", &serialized), ("large.bin", &noise)]);
+        let bytes = brotli_tar(&[
+            ("./embedded-runtime.json", &serialized),
+            ("large.bin", &noise),
+        ]);
         assert!(bytes.len() > ARCHIVE_PROBE_BYTES);
         let probed = archive_manifest(Cursor::new(&bytes[..ARCHIVE_PROBE_BYTES])).unwrap();
         assert!(probed.matches_app("1.2.3"));
