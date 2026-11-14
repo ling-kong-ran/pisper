@@ -14,18 +14,21 @@ import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
+import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   private var rendererRecoveryScheduled = false
   private var safeAreaWebView: WebView? = null
   private var safeArea = SafeArea(0, 0, 0, 0)
+  private var keyboardInset = 0
 
   private data class SafeArea(val top: Int, val right: Int, val bottom: Int, val left: Int)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
-    // WebView 必须随输入法可视区缩放，否则底部会话输入框会落在键盘后方。
+    // edge-to-edge 下 adjustResize 不再缩小窗口，只负责让系统派发输入法 insets；
+    // 真正让出键盘高度由下面的 insets 监听完成。
     window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     super.onCreate(savedInstanceState)
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -51,7 +54,7 @@ class MainActivity : TauriActivity() {
         safeArea = next
         safeAreaWebView?.let(::publishSafeArea)
       }
-      view.onApplyWindowInsets(insets)
+      view.onApplyWindowInsets(applyKeyboardInset(insets))
     }
     window.decorView.requestApplyInsets()
   }
@@ -67,9 +70,30 @@ class MainActivity : TauriActivity() {
     val bars = compatible.getInsets(
       WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
     )
-    // 输入法已缩放 WebView 可视区时，底部不能再叠加导航栏留白。
+    // 输入法弹出时内容区已让到键盘顶部，底部不能再叠加导航栏留白。
     val bottom = if (compatible.isVisible(WindowInsetsCompat.Type.ime())) 0 else bars.bottom
     return SafeArea(bars.top, bars.right, bottom, bars.left)
+  }
+
+  // edge-to-edge 窗口不会随输入法变矮：由这里把内容区底边让到键盘顶部，WebView 随之变矮，
+  // 页面的 visualViewport 才会缩小，输入框才能浮在键盘上方。键盘高度只在这一处生效，
+  // 交给子 View 的 insets 去掉输入法部分，避免新版 WebView 自己再让一次。
+  private fun applyKeyboardInset(insets: WindowInsets): WindowInsets {
+    val compatible = WindowInsetsCompat.toWindowInsetsCompat(insets, window.decorView)
+    val next = if (compatible.isVisible(WindowInsetsCompat.Type.ime())) {
+      compatible.getInsets(WindowInsetsCompat.Type.ime()).bottom
+    } else {
+      0
+    }
+    val content = findViewById<ViewGroup>(android.R.id.content)
+    if (content != null && next != keyboardInset) {
+      keyboardInset = next
+      content.setPadding(content.paddingLeft, content.paddingTop, content.paddingRight, next)
+    }
+    return WindowInsetsCompat.Builder(compatible)
+      .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
+      .build()
+      .toWindowInsets() ?: insets
   }
 
   private fun attachSafeArea(webView: WebView) {

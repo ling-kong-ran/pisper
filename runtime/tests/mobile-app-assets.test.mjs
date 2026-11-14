@@ -383,6 +383,15 @@ test('Android 与 iOS 软键盘都使用可视视口保持会话输入框可见'
   assert.doesNotMatch(styles, /display: none !important/)
   assert.match(stabilizer, /Android adjustResize/)
   assert.match(activity, /SOFT_INPUT_ADJUST_RESIZE/)
+  // edge-to-edge 下 adjustResize 不会缩小窗口：内容区底边要让到键盘顶部，且只在这一处让，
+  // 传给 WebView 的 insets 去掉输入法部分。
+  assert.match(activity, /view\.onApplyWindowInsets\(applyKeyboardInset\(insets\)\)/)
+  assert.match(activity, /getInsets\(WindowInsetsCompat\.Type\.ime\(\)\)\.bottom/)
+  assert.match(
+    activity,
+    /content\.setPadding\(content\.paddingLeft, content\.paddingTop, content\.paddingRight, next\)/,
+  )
+  assert.match(activity, /setInsets\(WindowInsetsCompat\.Type\.ime\(\), Insets\.NONE\)/)
   assert.match(setup, /android:windowSoftInputMode="adjustResize"/)
   assert.match(iosPlugin, /keyboardDidShowNotification/)
   assert.match(iosPlugin, /keyboardDidChangeFrameNotification/)
