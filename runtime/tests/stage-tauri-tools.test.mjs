@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import {
+  LINUXDEPLOY_COMMIT,
   NSIS_REQUIRED_FILES,
   appImageTools,
   stageTauriAppImageTools,
@@ -21,6 +22,7 @@ const nsis = {
   url: 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-x/nsis-x.zip',
   sha1: sha1('zip'),
   root: 'nsis-x',
+  exeSha1: sha1('exe'),
 }
 const plugin = { ...NSIS_TAURI_UTILS, sha1: sha1('dll') }
 // 假的“解包”：按 Tauri 检查的文件把目录铺出来（插件除外，由脚本单独放）。
@@ -30,6 +32,7 @@ const extractZip = async (_archive, cwd) => {
     await mkdir(dirname(join(cwd, 'nsis-x', file)), { recursive: true })
     await writeFile(join(cwd, 'nsis-x', file), 'x')
   }
+  await writeFile(join(cwd, 'nsis-x', 'NSIS.exe'), 'exe')
 }
 
 test('the NSIS toolset is staged once from verified downloads', async (t) => {
@@ -52,6 +55,18 @@ test('the NSIS toolset is staged once from verified downloads', async (t) => {
     false,
   )
   assert.deepEqual(urls, [])
+})
+
+test('an older NSIS left by a previous CLI is replaced instead of reused', async (t) => {
+  const toolsDir = await mkdtemp(join(tmpdir(), 'pisper-tauri-tools-'))
+  t.after(() => rm(toolsDir, { recursive: true, force: true }))
+  const fetchImpl = async (url) => new Response(url.endsWith('.zip') ? 'zip' : 'dll')
+  await stageTauriNsis({ toolsDir, nsis, plugin, fetchImpl, extractZip })
+  // 文件都在、插件摘要也对，只有 NSIS.exe 是旧版本：Tauri 会删掉重下，这里必须先换掉。
+  await writeFile(join(toolsDir, 'NSIS', 'NSIS.exe'), 'nsis-3.11')
+  const again = await stageTauriNsis({ toolsDir, nsis, plugin, fetchImpl, extractZip })
+  assert.equal(again.staged, true)
+  assert.equal(await readFile(join(toolsDir, 'NSIS', 'NSIS.exe'), 'utf8'), 'exe')
 })
 
 test('a tampered download is rejected before anything is written', async (t) => {
@@ -105,7 +120,7 @@ test('AppImage tools are staged once, executable, and the optional plugin may be
   )
   assert.equal(urls.length, appImageTools().length)
   const { mode } = await import('node:fs/promises').then(({ stat }) =>
-    stat(join(toolsDir, 'linuxdeploy-x86_64.AppImage')),
+    stat(join(toolsDir, `linuxdeploy-${LINUXDEPLOY_COMMIT}-x86_64.AppImage`)),
   )
   // Windows 没有 POSIX 执行位（stat 的 mode 里恒为 0）；AppImage 只在 Linux 上用。
   if (process.platform !== 'win32') assert.equal(mode & 0o111, 0o111)

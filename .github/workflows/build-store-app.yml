@@ -103,9 +103,7 @@ jobs:
         run: |
           yes | sdkmanager --licenses > /dev/null
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.3.13750724"
-      # Rust 1.100 起 Cargo 的 build 目录多一层（build/<包>/<hash>/out），tauri-build 2.6 由此推算的
-      # target 目录错位，外部程序和资源复制错地方，桌面打包失败；升到 tauri-build 2.7.4+ 后改回 stable。
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
       - name: Install dependencies and build frontend
@@ -266,9 +264,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # Rust 1.100 起 Cargo 的 build 目录多一层（build/<包>/<hash>/out），tauri-build 2.6 由此推算的
-      # target 目录错位，外部程序和资源复制错地方，桌面打包失败；升到 tauri-build 2.7.4+ 后改回 stable。
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - name: Install dependencies

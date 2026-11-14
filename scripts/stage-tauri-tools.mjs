@@ -1,10 +1,10 @@
 // 打包前把 Tauri 打包要用的工具放进它的工具目录。Tauri 打包时自己从 github.com 的 releases/download
 // 下载这些工具，那个入口整段时间回 504 时整个桌面发版失败（2026-11-08 Windows 卡在 NSIS）。
 // 这里用 github-download.mjs 下载同一批文件（入口不通时走 GitHub API），Tauri 看到工具已在就不再下载：
-// - Windows：NSIS 3.11 与 nsis_tauri_utils 插件，按 Tauri 自己的 SHA1 校验后放进 %LOCALAPPDATA%\tauri\NSIS；
+// - Windows：NSIS 3.13 与 nsis_tauri_utils 插件，按 Tauri 自己的 SHA1 校验后放进 %LOCALAPPDATA%\tauri\NSIS；
 // - Linux：AppImage 用的 AppRun、linuxdeploy 与插件放进 ~/.cache/tauri（Tauri 只看文件在不在，也不校验）。
-// 地址与摘要抄自 tauri-bundler 2.9.x（src/bundle/windows/nsis/mod.rs、linux/appimage/linuxdeploy.rs），
-// 对应锁定的 @tauri-apps/cli 2.11.4；升级 CLI 时守卫测试会要求同步这里。
+// 地址与摘要抄自 tauri-bundler 2.10.4（src/bundle/windows/nsis/mod.rs、linux/appimage/linuxdeploy.rs），
+// 对应锁定的 @tauri-apps/cli 2.12.4；升级 CLI 时守卫测试会要求同步这里。
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
@@ -15,11 +15,13 @@ import { downloadReleaseAsset } from './github-download.mjs'
 
 const run = promisify(execFile)
 
-export const TAURI_CLI_VERSION = '2.11.4'
+export const TAURI_CLI_VERSION = '2.12.4'
 export const NSIS = {
-  url: 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip',
-  sha1: 'ef7ff767e5cbd9edd22add3a32c9b8f4500bb10d',
-  root: 'nsis-3.11',
+  url: 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip',
+  sha1: 'db14f8af2ea346b786c6ae19343f61aaf5e09b8e',
+  root: 'nsis-3.13',
+  // Tauri 2.10 起还按 NSIS.exe 的摘要认版本，对不上就删掉目录、自己去 github.com 重下。
+  exeSha1: '6d45d4e8ccf18fe1fdac9164058f356102a2ecf2',
 }
 export const NSIS_TAURI_UTILS = {
   url: 'https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll',
@@ -58,8 +60,10 @@ async function exists(path) {
   return Boolean(await stat(path).catch(() => null))
 }
 
-async function toolsetReady(toolset, pluginSha1 = NSIS_TAURI_UTILS.sha1) {
+async function toolsetReady(toolset, pluginSha1 = NSIS_TAURI_UTILS.sha1, exeSha1 = NSIS.exeSha1) {
   for (const file of NSIS_REQUIRED_FILES) if (!(await exists(join(toolset, file)))) return false
+  const exe = await readFile(join(toolset, 'NSIS.exe')).catch(() => null)
+  if (!exe || sha1(exe) !== exeSha1) return false
   const plugin = await readFile(join(toolset, NSIS_TAURI_UTILS.path)).catch(() => null)
   return Boolean(plugin && sha1(plugin) === pluginSha1)
 }
@@ -76,6 +80,8 @@ export function tauriToolsDirectory(env = process.env, platform = process.platfo
 }
 
 // AppImage 打包用的工具（Linux x86_64）。Tauri 只检查文件是否存在；最后一个是可选的，下不到时 Tauri 用内置版本。
+// gtk 与 gstreamer 插件脚本 2.10 起编进了 tauri-bundler，打包时自己写出来，不再下载。
+export const LINUXDEPLOY_COMMIT = '07333c6'
 export function appImageTools(arch = 'x86_64') {
   return [
     {
@@ -83,16 +89,8 @@ export function appImageTools(arch = 'x86_64') {
       url: `https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-${arch}`,
     },
     {
-      file: `linuxdeploy-${arch}.AppImage`,
-      url: `https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-${arch}.AppImage`,
-    },
-    {
-      file: 'linuxdeploy-plugin-gtk.sh',
-      url: 'https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh',
-    },
-    {
-      file: 'linuxdeploy-plugin-gstreamer.sh',
-      url: 'https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh',
+      file: `linuxdeploy-${LINUXDEPLOY_COMMIT}-${arch}.AppImage`,
+      url: `https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-${LINUXDEPLOY_COMMIT}/linuxdeploy-${arch}.AppImage`,
     },
     {
       file: 'linuxdeploy-plugin-appimage.AppImage',
@@ -147,7 +145,7 @@ export async function stageTauriNsis({
   extractZip = (archive, cwd) => run('tar', ['-xf', archive], { cwd, timeout: 120_000 }),
 } = {}) {
   const toolset = join(toolsDir, 'NSIS')
-  if (await toolsetReady(toolset, pluginAsset.sha1)) return { staged: false, toolset }
+  if (await toolsetReady(toolset, pluginAsset.sha1, nsis.exeSha1)) return { staged: false, toolset }
   const download = (asset, name) =>
     downloadReleaseAsset(asset.url, {
       fetchImpl,
@@ -175,7 +173,7 @@ export async function stageTauriNsis({
   const pluginPath = join(toolset, NSIS_TAURI_UTILS.path)
   await mkdir(join(pluginPath, '..'), { recursive: true })
   await writeFile(pluginPath, plugin)
-  if (!(await toolsetReady(toolset, pluginAsset.sha1)))
+  if (!(await toolsetReady(toolset, pluginAsset.sha1, nsis.exeSha1)))
     throw new Error(`Staged NSIS toolset is incomplete: ${toolset}`)
   return { staged: true, toolset }
 }

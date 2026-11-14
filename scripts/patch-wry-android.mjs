@@ -3,39 +3,37 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ORIGIN_GUARD_MARKER = 'Pisper：只允许当前回环应用代理请求纯音频 WebView 权限。'
-const LEGACY_ORIGIN_GUARD_MARKER = 'Pisper：只接受来自当前回环应用页面的 WebView 媒体权限请求。'
 
+// Wry 0.57 的默认回调先逐项问 Rust，没装处理器时把麦克风、摄像头等常见权限授给任何页面。
 function stockPermissionHandler(eol) {
   return [
     '  override fun onPermissionRequest(request: PermissionRequest) {',
-    '    val isRequestPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M',
-    '    val permissionList: MutableList<String> = ArrayList()',
-    '    if (listOf(*request.resources).contains("android.webkit.resource.VIDEO_CAPTURE")) {',
-    '      permissionList.add(Manifest.permission.CAMERA)',
+    '    val requestedResources = request.resources',
+    '    if (requestedResources.isEmpty()) {',
+    '      request.deny()',
+    '      return',
     '    }',
-    '    if (listOf(*request.resources).contains("android.webkit.resource.AUDIO_CAPTURE")) {',
-    '      permissionList.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)',
-    '      permissionList.add(Manifest.permission.RECORD_AUDIO)',
-    '    }',
-    '    if (permissionList.isNotEmpty() && isRequestPermissionRequired) {',
-    '      val permissions = permissionList.toTypedArray()',
-    '      permissionListener = object : PermissionListener {',
-    '        override fun onPermissionSelect(isGranted: Boolean?) {',
-    '          if (isGranted == true) {',
-    '            request.grant(request.resources)',
-    '          } else {',
-    '            request.deny()',
-    '          }',
-    '        }',
+    '',
+    '    val allowedResources = ArrayList<String>()',
+    '    val defaultResources = ArrayList<String>()',
+    '',
+    '    for (resource in requestedResources) {',
+    '      when (onPermissionRequestNative(webViewId, resource)) {',
+    '        PERMISSION_REQUEST_DENY -> {}',
+    '        PERMISSION_REQUEST_ALLOW -> allowedResources.add(resource)',
+    '        PERMISSION_REQUEST_DEFAULT -> defaultResources.add(resource)',
     '      }',
-    '      permissionLauncher.launch(permissions)',
-    '    } else {',
-    '      request.grant(request.resources)',
     '    }',
+    '',
+    '    val resources =',
+    '      allowedResources.plus(filterKnownPermissions(defaultResources)).toList().toTypedArray()',
+    '    grantPermissionRequest(request, resources)',
     '  }',
   ].join(eol)
 }
 
+// 系统授权走 Wry 0.57 的 activity.requestPermissions；不调 grantPermissionRequest，
+// 免得 Wry 改了那个函数时这里悄悄跟着放宽。
 function patchedPermissionHandler(eol) {
   return [
     '  override fun onPermissionRequest(request: PermissionRequest) {',
@@ -58,29 +56,14 @@ function patchedPermissionHandler(eol) {
     '      Manifest.permission.RECORD_AUDIO,',
     '    )',
     '    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {',
-    '      permissionListener = object : PermissionListener {',
-    '        override fun onPermissionSelect(isGranted: Boolean?) {',
-    '          if (isGranted == true) request.grant(audioResources) else request.deny()',
-    '        }',
+    '      activity.requestPermissions(permissions) { isGranted ->',
+    '        if (isGranted == true) request.grant(audioResources) else request.deny()',
     '      }',
-    '      permissionLauncher.launch(permissions)',
     '    } else {',
     '      request.grant(audioResources)',
     '    }',
     '  }',
   ].join(eol)
-}
-
-function removeLegacyGuard(source, eol) {
-  const legacy = [
-    '  override fun onPermissionRequest(request: PermissionRequest) {',
-    `    // ${LEGACY_ORIGIN_GUARD_MARKER}`,
-    '    if (request.origin.scheme != "http" || request.origin.host != "127.0.0.1") {',
-    '      request.deny()',
-    '      return',
-    '    }',
-  ].join(eol)
-  return source.replace(legacy, '  override fun onPermissionRequest(request: PermissionRequest) {')
 }
 
 export function transformWryAndroidWebChromeClient(source) {
@@ -93,17 +76,14 @@ export function transformWryAndroidWebChromeClient(source) {
     }
     return source
   }
-  const normalized = source.includes(LEGACY_ORIGIN_GUARD_MARKER)
-    ? removeLegacyGuard(source, eol)
-    : source
   const stock = stockPermissionHandler(eol)
-  const matches = normalized.split(stock).length - 1
+  const matches = source.split(stock).length - 1
   if (matches !== 1) {
     throw new Error(
       `Wry WebChromeClient 权限回调结构已变化（匹配 ${matches} 处），拒绝生成未校验来源的 Android 包。`,
     )
   }
-  return normalized.replace(stock, patched)
+  return source.replace(stock, patched)
 }
 
 export function transformWryAndroidWebViewClient(source) {

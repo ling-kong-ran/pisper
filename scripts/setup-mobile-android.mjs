@@ -283,6 +283,13 @@ const webViewClientExtension = `override fun onRenderProcessGone(
 }`
 const rustBuildTask = readFileSync(rustBuildTaskPath, 'utf8')
 const rustBuildTaskEol = rustBuildTask.includes('\r\n') ? '\r\n' : '\n'
+// Tauri CLI 2.12 的模板改用注入的 execOperations，projectDir 也成了字符串字段；
+// 旧模板是 project.exec 和 project.projectDir。两种都认，按模板生成对应写法。
+const rustBuildTaskAnchor =
+  /(            workingDir\(File\((?:project\.)?projectDir, rootDirRel\)\)\r?\n)/
+const usesExecOperations = rustBuildTask.includes('execOperations.exec')
+const rustBuildTaskExec = usesExecOperations ? 'execOperations.exec' : 'project.exec'
+const rustBuildTaskAppDir = usesExecOperations ? 'projectDir' : 'project.projectDir'
 const rustPageSizeBlock = [
   '            // Pisper：确保 Rust 宿主兼容 Android 16 KB 内存页。',
   '            environment(',
@@ -298,7 +305,7 @@ if (existingRustPageSizeBlock.test(rustBuildTask)) {
   updatedRustBuildTask = rustBuildTask.replace(existingRustPageSizeBlock, rustPageSizeBlock)
 } else {
   updatedRustBuildTask = rustBuildTask.replace(
-    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    rustBuildTaskAnchor,
     `$1${rustPageSizeBlock}${rustBuildTaskEol}`,
   )
 }
@@ -328,7 +335,7 @@ if (existingRustSizeBlock.test(updatedRustBuildTask)) {
   )
 } else {
   updatedRustBuildTask = updatedRustBuildTask.replace(
-    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    rustBuildTaskAnchor,
     `$1${rustSizeBlock}${rustBuildTaskEol}`,
   )
 }
@@ -348,26 +355,26 @@ if (existingRecoveryBlock.test(updatedRustBuildTask)) {
   updatedRustBuildTask = updatedRustBuildTask.replace(existingRecoveryBlock, rendererRecoveryBlock)
 } else {
   updatedRustBuildTask = updatedRustBuildTask.replace(
-    /(            workingDir\(File\(project\.projectDir, rootDirRel\)\)\r?\n)/,
+    rustBuildTaskAnchor,
     `$1${rendererRecoveryBlock}${rustBuildTaskEol}`,
   )
 }
 const wryOriginPatchBlock = [
   '        // Pisper：Wry 每次 cargo 构建都会重写 Kotlin，随后重放来源校验。',
-  '        project.exec {',
-  '            workingDir(File(project.projectDir, rootDirRel).canonicalFile.parentFile)',
+  `        ${rustBuildTaskExec} {`,
+  `            workingDir(File(${rustBuildTaskAppDir}, rootDirRel).canonicalFile.parentFile)`,
   '            executable("node")',
   '            args(',
   '                "scripts/patch-wry-android.mjs",',
   '                File(',
-  '                    project.projectDir,',
+  `                    ${rustBuildTaskAppDir},`,
   '                    "src/main/java/com/lingkongran/pisper/generated/RustWebChromeClient.kt",',
   '                ).absolutePath,',
   '            )',
   '        }.assertNormalExitValue()',
 ].join(rustBuildTaskEol)
 const existingWryOriginPatchBlock =
-  /        \/\/ Pisper：Wry 每次 cargo 构建都会重写 Kotlin，随后重放来源校验。\r?\n        project\.exec \{[\s\S]*?\r?\n        \}\.assertNormalExitValue\(\)/
+  /        \/\/ Pisper：Wry 每次 cargo 构建都会重写 Kotlin，随后重放来源校验。\r?\n        (?:project|execOperations)\.exec \{[\s\S]*?\r?\n        \}\.assertNormalExitValue\(\)/
 if (existingWryOriginPatchBlock.test(updatedRustBuildTask)) {
   updatedRustBuildTask = updatedRustBuildTask.replace(
     existingWryOriginPatchBlock,

@@ -546,8 +546,9 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
   assert.match(setup, /patchWryAndroidWebChromeClient/)
   assert.match(
     setup,
-    /workingDir\(File\(project\.projectDir, rootDirRel\)\.canonicalFile\.parentFile\)/,
+    /workingDir\(File\(\$\{rustBuildTaskAppDir\}, rootDirRel\)\.canonicalFile\.parentFile\)/,
   )
+  assert.match(setup, /usesExecOperations \? 'execOperations\.exec' : 'project\.exec'/)
   assert.match(setup, /compileUniversal\$\{profileCapitalized\}Kotlin/)
   assert.match(setup, /compile\$targetArchCapitalized\$\{profileCapitalized\}Kotlin/)
   assert.match(setup, /scripts\/patch-wry-android\.mjs/)
@@ -619,31 +620,28 @@ test('移动语音输入具有受控原生链路、平台边界与可复现打�
 })
 
 test('Wry 媒体权限补丁精确替换一次并在模板漂移时失败', () => {
+  // Wry 0.57 生成的原始回调（src/android/kotlin/RustWebChromeClient.kt）。
   const stock = `  override fun onPermissionRequest(request: PermissionRequest) {
-    val isRequestPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-    val permissionList: MutableList<String> = ArrayList()
-    if (listOf(*request.resources).contains("android.webkit.resource.VIDEO_CAPTURE")) {
-      permissionList.add(Manifest.permission.CAMERA)
+    val requestedResources = request.resources
+    if (requestedResources.isEmpty()) {
+      request.deny()
+      return
     }
-    if (listOf(*request.resources).contains("android.webkit.resource.AUDIO_CAPTURE")) {
-      permissionList.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
-      permissionList.add(Manifest.permission.RECORD_AUDIO)
-    }
-    if (permissionList.isNotEmpty() && isRequestPermissionRequired) {
-      val permissions = permissionList.toTypedArray()
-      permissionListener = object : PermissionListener {
-        override fun onPermissionSelect(isGranted: Boolean?) {
-          if (isGranted == true) {
-            request.grant(request.resources)
-          } else {
-            request.deny()
-          }
-        }
+
+    val allowedResources = ArrayList<String>()
+    val defaultResources = ArrayList<String>()
+
+    for (resource in requestedResources) {
+      when (onPermissionRequestNative(webViewId, resource)) {
+        PERMISSION_REQUEST_DENY -> {}
+        PERMISSION_REQUEST_ALLOW -> allowedResources.add(resource)
+        PERMISSION_REQUEST_DEFAULT -> defaultResources.add(resource)
       }
-      permissionLauncher.launch(permissions)
-    } else {
-      request.grant(request.resources)
     }
+
+    val resources =
+      allowedResources.plus(filterKnownPermissions(defaultResources)).toList().toTypedArray()
+    grantPermissionRequest(request, resources)
   }`
   const source = `prefix\n${stock}\nsuffix`
   const transformed = transformWryAndroidWebChromeClient(source)
@@ -651,6 +649,8 @@ test('Wry 媒体权限补丁精确替换一次并在模板漂移时失败', () =
   assert.match(transformed, /MainActivity\.isTrustedProxyOrigin\(request\.origin\)/)
   assert.match(transformed, /audioResources\.size != requestedResources\.size/)
   assert.match(transformed, /request\.grant\(audioResources\)/)
+  assert.match(transformed, /activity\.requestPermissions\(permissions\)/)
+  assert.doesNotMatch(transformed, /grantPermissionRequest\(request, resources\)/)
   assert.match(transformed, /\nsuffix$/)
   assert.equal(transformWryAndroidWebChromeClient(transformed), transformed)
   const corrupted = transformed.replace(
@@ -948,7 +948,7 @@ test('局域网发现需桌面审批且保留二维码备用路径', async () =>
   assert.doesNotMatch(dnsSdAndroid, /serviceInfo\.serviceType != serviceType/)
   assert.doesNotMatch(dnsSdAndroid, /\.hostName/)
   assert.match(dnsSdAndroid, /removeSuffix\("\.local"\)/)
-  assert.match(packageJson, /"@tauri-apps\/api": "\^2\.11\.1"/)
+  assert.match(packageJson, /"@tauri-apps\/api": "\^2\.12\.4"/)
   assert.match(native, /plugin\(tauri_plugin_dns_sd::init\(\)\)/)
   assert.match(native, /mobile_ensure_local_network_permission/)
   assert.match(native, /mobile_pair_lan/)
