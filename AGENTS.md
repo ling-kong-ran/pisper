@@ -42,6 +42,7 @@ Pisper 包含 React Web、Node.js Runtime、Tauri 2 桌面/移动壳和 Rust TUI
 | `scripts/` | 构建、发布、开发工具与迁移入口，不承载产品领域规则 |
 | `packages/pisper/` | npm 安装器、启动器与发布源码清单 |
 | `docs/` | GitHub Pages 官网（`index.html`、`guide`、`changelog`、`privacy`、`support` 等页面及其 css/js，`shots/` 下只放主页引用的截图，`web/*.webp` 用于展示，部分配 PNG 原图供点开查看；`promo/` 下为主页宣传片、对外发布用的更新视频及封面）、移动端更新器与发布流程读取的 `latest-app.json`、README 与官网共用的品牌图；不存放官网用不到的截图、开发文档或规格文字稿 |
+| `.github/readme/` | README 配图，由 `npm run readme:images` 从 `docs/shots` 合成；换了官网截图后重跑，不手工修改 |
 | `dist/`、`release/` | 构建和打包产物，不手工维护 |
 
 路径别名：`@/*` → `src/*`，`@shared/*` → `shared/*`。业务所有权优先于复用次数；多个调用方不自动意味着应提升为全局模块。
