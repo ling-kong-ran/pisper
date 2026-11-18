@@ -5,7 +5,8 @@ plugins {
 
 android {
     namespace = "com.momics.dnssd"
-    compileSdk = 34
+    // Tauri 的 Android 库要求至少 API 36；仅提升编译 SDK，保留插件的最低系统版本。
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 21
