@@ -45,6 +45,7 @@
     "runtime/services/side-chat-service.mjs",
     "runtime/runtime/workspace-directories.mjs",
     "runtime/services/openai-request-transport.mjs",
+    "runtime/services/anthropic-stream-compat.mjs",
     "runtime/services/memory/abortable-memory-operation.mjs",
     "shared/app-update.mjs",
     "shared/raster-image.mjs",

@@ -18,6 +18,7 @@ import { SUBAGENT_MODEL_TIERS, normalizeSubagentModelTiers } from '../services/a
 import { normalizeAuxiliaryModelRef } from './auxiliary-model.mjs'
 import { normalizeToolMode } from '../tools/builtin-catalog.mjs'
 import { createOpenAIRequestFetch, usesOpenAISdk } from '../services/openai-request-transport.mjs'
+import { withAnthropicStreamCompatibility } from '../services/anthropic-stream-compat.mjs'
 
 // 官方 Provider 的 OAuth 凭据只发往官方端点：中转站要用独立 Provider ID 和 API Key，避免登录凭据外发。
 const OFFICIAL_OAUTH_ONLY =
@@ -535,7 +536,9 @@ export class ProviderPreferences {
                     model.api === 'openai-responses' || model.api === 'azure-openai-responses',
                 }),
               }
-            : options,
+            : model.api === 'anthropic-messages'
+              ? withAnthropicStreamCompatibility(options)
+              : options,
         )
     }
     // Pi 给没绑定模型的新会话兜底时，从“可用模型”里挑第一个有凭据的；停用的 Provider 凭据还在，
