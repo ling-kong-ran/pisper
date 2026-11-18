@@ -460,13 +460,20 @@ test('a closed browser tab is never torn down inside its own WebView2 callback',
     browser.indexOf('manager.GetCookies('),
   )
   assert.ok(callback.length > 0)
-  assert.doesNotMatch(callback, /drop\(browser\)/)
-  assert.match(callback, /retire\(browser\)/)
-  // retire 只挂起来，真正销毁放到下一轮消息循环。
-  const retire = browser.slice(browser.indexOf('fn retire('), browser.indexOf('fn rect('))
-  assert.match(retire, /RETIRED\.with_borrow_mut\(\|retired\| retired\.push\(browser\)\)/)
+  // RAII 同时保护完成、GetCookies 失败和取消（回调对象被释放）的路径。
   assert.match(
-    retire,
-    /run_on_main_thread\(\|\| \{\s*let retired = RETIRED\.with_borrow_mut\(std::mem::take\)/,
+    browser,
+    /let browser = super::super::desktop_browser_dispatch::DeferredDrop::new\(browser\)/,
   )
+  assert.match(callback, /drop\(browser\)/)
+  assert.match(browser, /desktop_browser_dispatch::initialize\(\)\?/)
+  // 实际排队顺序由 desktop_browser_dispatch 的 Windows 消息循环测试验证。
+  const dispatcher = await readFile(
+    'src-tauri/src/desktop_shell/desktop_browser_dispatch.rs',
+    'utf8',
+  )
+  assert.match(dispatcher, /PostMessageW\(/)
+  assert.match(dispatcher, /impl<T: Any> Drop for DeferredDrop<T>/)
+  assert.doesNotMatch(dispatcher, /\.run_on_main_thread\(/)
+  assert.match(dispatcher, /fn disposal_is_queued_even_on_the_owner_thread/)
 })
