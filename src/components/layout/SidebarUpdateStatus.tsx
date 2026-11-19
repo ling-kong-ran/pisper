@@ -1,6 +1,7 @@
 // 更新提示仅在确有可用更新时加载，避免给常驻导航增加入口体积。
-import { Download, ExternalLink, PackageCheck, RefreshCw, Rocket } from 'lucide-react'
+import { Download, ExternalLink, RefreshCw, Rocket } from 'lucide-react'
 import { useI18n } from '@/app/use-i18n'
+// 桌面端的 status 由壳的更新状态得出（整个桌面程序一起更新），下好后显示“等待重启安装”。
 export type SidebarUpdate = {
   info?: { desktop?: boolean; mobile?: boolean; version?: string }
   status?: {
@@ -11,8 +12,6 @@ export type SidebarUpdate = {
     branch?: string
     availableCommit?: string
   }
-  // 桌面安装包（壳在后台下载、验签）：下好了等用户去设置里点“安装”。
-  shellInstaller?: { status: { state: string; availableVersion: string } } | null
 }
 
 export default function SidebarUpdateStatus({
@@ -27,47 +26,29 @@ export default function SidebarUpdateStatus({
   const { t } = useI18n()
   const status = update?.status || { state: 'idle' }
   const nativeApp = Boolean(update?.info?.desktop || update?.info?.mobile)
-  const componentUpdate = ['available', 'downloading', 'downloaded'].includes(status.state)
-  const installer = update?.shellInstaller?.status
-  const installerReady = installer?.state === 'downloaded' && Boolean(installer.availableVersion)
-  if (!componentUpdate && !installerReady) return null
-  // 安装包已经带着同一次发布的组件，下好后优先提示它；只有组件已在下载或等重启时才先说组件。
-  const showInstaller =
-    installerReady && status.state !== 'downloading' && status.state !== 'downloaded'
-  const downloading = componentUpdate && status.state === 'downloading'
-  const downloaded = componentUpdate && status.state === 'downloaded'
-  const label = showInstaller
-    ? t('navigation:appSidebar.installerReady')
-    : downloaded
-      ? t('navigation:appSidebar.readyToRestart')
-      : downloading
-        ? t('navigation:appSidebar.downloading')
-        : nativeApp
-          ? t('navigation:appSidebar.updateAvailable')
-          : t('navigation:appSidebar.sourceUpdatesAvailable')
-  const detail = showInstaller
-    ? `v${installer.availableVersion}`
+  if (!['available', 'downloading', 'downloaded'].includes(status.state)) return null
+  const downloading = status.state === 'downloading'
+  const downloaded = status.state === 'downloaded'
+  const label = downloaded
+    ? t('navigation:appSidebar.readyToRestart')
     : downloading
-      ? `${Math.round(status.percent || 0)}%`
-      : nativeApp && status.availableVersion
-        ? `v${status.availableVersion}`
-        : status.behindBy
-          ? t('navigation:appSidebar.countCommitsBehindBranch', {
-              branch: status.branch || 'main',
-              count: status.behindBy,
-            })
-          : status.availableCommit
-            ? status.availableCommit.slice(0, 7)
-            : t('navigation:appSidebar.viewUpdateDetails')
-  const Icon = showInstaller
-    ? PackageCheck
-    : downloaded
-      ? Rocket
-      : downloading
-        ? RefreshCw
-        : nativeApp
-          ? Download
-          : ExternalLink
+      ? t('navigation:appSidebar.downloading')
+      : nativeApp
+        ? t('navigation:appSidebar.updateAvailable')
+        : t('navigation:appSidebar.sourceUpdatesAvailable')
+  const detail = downloading
+    ? `${Math.round(status.percent || 0)}%`
+    : nativeApp && status.availableVersion
+      ? `v${status.availableVersion}`
+      : status.behindBy
+        ? t('navigation:appSidebar.countCommitsBehindBranch', {
+            branch: status.branch || 'main',
+            count: status.behindBy,
+          })
+        : status.availableCommit
+          ? status.availableCommit.slice(0, 7)
+          : t('navigation:appSidebar.viewUpdateDetails')
+  const Icon = downloaded ? Rocket : downloading ? RefreshCw : nativeApp ? Download : ExternalLink
 
   return (
     <button

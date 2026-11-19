@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -38,7 +38,7 @@ test('SEA builder imports and applies the final size-manifest assertion', async 
   assert.match(seaBuild, /assertSizeManifest\(manifest, \{ requireExecutable: true \}\)/)
 })
 
-test('new desktop shells use component updates while legacy clients retain release metadata', async () => {
+test('desktop shells update themselves through the Tauri updater, driven only from Rust', async () => {
   const [cargo, config, library, bridge, permissions, workflow, updateHook] = await Promise.all([
     readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('src-tauri/tauri.conf.json', 'utf8'),
@@ -48,16 +48,24 @@ test('new desktop shells use component updates while legacy clients retain relea
     readFile('.github/workflows/release.yml', 'utf8'),
     readFile('src/features/updates/useAppUpdate.ts', 'utf8'),
   ])
+  const capabilities = await Promise.all(
+    (await readdir('src-tauri/capabilities')).map((name) =>
+      readFile(`src-tauri/capabilities/${name}`, 'utf8'),
+    ),
+  )
 
-  assert.doesNotMatch(cargo, /tauri-plugin-updater/)
-  assert.equal(JSON.parse(config).plugins?.updater, undefined)
-  assert.doesNotMatch(library, /desktop_(?:check_for|download|install)_update/)
-  assert.doesNotMatch(bridge, /checkForUpdates|downloadUpdate|installUpdate/)
-  assert.doesNotMatch(permissions, /desktop_(?:check_for|download|install)_update/)
+  assert.match(cargo, /tauri-plugin-updater/)
+  assert.ok(JSON.parse(config).plugins.updater.pubkey)
+  assert.match(library, /tauri_plugin_updater::Builder::new\(\)/)
+  // 插件自带的 JS 命令不授权给任何 WebView：检查、下载和安装都经 shell_installer 的窄命令。
+  for (const capability of capabilities) assert.doesNotMatch(capability, /updater:/)
+  assert.match(bridge, /install: \(\) => invoke\('desktop_install_shell_update'\)/)
+  // 早年的整包更新桥接和组件更新都已移除。
+  assert.doesNotMatch(bridge, /checkForUpdates|downloadUpdate|installUpdate|ComponentUpdate/)
+  assert.doesNotMatch(permissions, /desktop_(?:check_for|download|install)_update|component_update/)
   assert.match(workflow, /Create multi-platform updater manifest/)
   assert.match(workflow, /create-tauri-update-manifest\.mjs/)
-  assert.match(updateHook, /if \(bridge\?\.checkForUpdates\)/)
-  assert.match(updateHook, /legacyShellUpdateRef\.current/)
+  assert.doesNotMatch(updateHook, /checkForUpdates|legacyShellUpdateRef/)
 })
 
 test('main desktop window leaves HTML5 drag and drop to the webview', async () => {

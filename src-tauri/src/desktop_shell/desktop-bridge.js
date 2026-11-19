@@ -111,19 +111,14 @@
       getCliStatus: () => invoke('desktop_get_cli_status'),
       installCli: () => invoke('desktop_install_cli'),
       uninstallCli: () => invoke('desktop_uninstall_cli'),
-      componentUpdateStatus: () => invoke('desktop_component_update_status'),
-      checkComponentUpdates: () => invoke('desktop_check_component_updates'),
-      installComponentUpdates: () => invoke('desktop_install_component_updates'),
-      restartForComponentUpdate: () => invoke('desktop_restart_for_component_update'),
-      // 壳安装包：后台下载并验签，由用户点“安装”手动完成（shell_installer.rs）。只有主窗口有权限。
+      // 桌面程序自更新：后台下载并验签，用户点“重启并更新”才安装（shell_installer.rs）。只有主窗口有权限。
       shellInstaller: Object.freeze({
         status: () => invoke('desktop_shell_installer_status'),
         check: () => invoke('desktop_check_shell_installer'),
         download: () => invoke('desktop_download_shell_installer'),
         setAutoDownload: (enabled) =>
           invoke('desktop_set_shell_installer_auto_download', { enabled: enabled === true }),
-        open: () => invoke('desktop_open_shell_installer'),
-        reveal: () => invoke('desktop_reveal_shell_installer'),
+        install: () => invoke('desktop_install_shell_update'),
       }),
       openAsset: (input) => invoke('desktop_open_asset', { input }),
       openReleases: () => invoke('desktop_open_releases'),

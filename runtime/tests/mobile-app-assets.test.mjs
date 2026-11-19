@@ -42,8 +42,9 @@ test('共享产品路径同时归 App 与原组件发布通道', () => {
     ['src-tauri/src/lib.rs', ['desktop']],
     ['crates/tauri-plugin-dns-sd/src/lib.rs', ['desktop']],
     ['src/app/App.tsx', ['desktop']],
-    ['runtime/index.mjs', ['runtime']],
-    ['runtime/mobile-embedded.mjs', ['runtime']],
+    // 桌面安装包内置 Runtime，桌面程序又只整体更新：Runtime 变了 Desktop 也要发。
+    ['runtime/index.mjs', ['desktop', 'runtime']],
+    ['runtime/mobile-embedded.mjs', ['desktop', 'runtime']],
     ['shared/workflow-graph.mjs', ['desktop', 'runtime']],
     ['package-lock.json', ['desktop', 'runtime']],
     ['scripts/sea-runtime.mjs', ['desktop', 'runtime']],

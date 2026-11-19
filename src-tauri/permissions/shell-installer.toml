@@ -1,11 +1,10 @@
 [[permission]]
 identifier = "allow-pisper-desktop-shell-installer"
-description = "Allows the main authenticated Pisper desktop WebView to download, open and reveal the verified desktop installer."
+description = "Allows the main authenticated Pisper desktop WebView to download the verified desktop update and restart into it."
 commands.allow = [
   "desktop_shell_installer_status",
   "desktop_check_shell_installer",
   "desktop_download_shell_installer",
   "desktop_set_shell_installer_auto_download",
-  "desktop_open_shell_installer",
-  "desktop_reveal_shell_installer",
+  "desktop_install_shell_update",
 ]

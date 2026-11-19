@@ -180,11 +180,7 @@ fn write_update_log(app: &AppHandle, channel: &str, message: &str) {
     );
 }
 
-pub(crate) fn log_component_update(app: &AppHandle, message: &str) {
-    write_update_log(app, "component-update", message);
-}
-
-// 壳安装包的下载记录写进同一份更新诊断日志，“查看更新诊断日志”一次就能看到全部。
+// 桌面程序更新的检查、下载和安装记录都写进更新诊断日志，“查看更新诊断日志”一次就能看到。
 pub(crate) fn log_shell_installer(app: &AppHandle, message: &str) {
     write_update_log(app, "shell-installer", message);
 }

@@ -1,5 +1,5 @@
-// 桌面壳安装包的状态镜像：轮询壳的下载状态，并把“检查 / 下载 / 安装 / 在文件夹中显示 / 自动下载开关”
-// 转交给壳。状态的唯一所有者是壳（shell_installer.rs），这里不自己推断下载结果。
+// 桌面程序更新的状态镜像：轮询壳的下载状态，并把“检查 / 下载 / 安装 / 自动下载开关”转交给壳。
+// 状态的唯一所有者是壳（shell_installer.rs），这里不自己推断下载结果。
 // 只在带 shellInstaller 桥接的新壳上按需加载，不进入启动入口包。
 import type {
   ShellInstallerBridge,
@@ -10,13 +10,15 @@ import { normalizeShellInstallerStatus, shellInstallerPollDelay } from './shell-
 
 type Scheduler = Pick<Window, 'setTimeout' | 'clearTimeout'>
 
-const METHODS = ['status', 'check', 'download', 'setAutoDownload', 'open', 'reveal'] as const
+const METHODS = ['status', 'check', 'download', 'setAutoDownload'] as const
 
-// 旧壳没有这组桥接，或只带了一部分方法：逐个确认是函数才用。
+// 旧壳没有这组桥接，或只带了一部分方法：逐个确认是函数才用。安装入口二选一：
+// 现行的壳有 install（重启并更新），v0.6.40 的壳只有 open（用系统打开安装包）。
 export function usableShellInstallerBridge(value: unknown): ShellInstallerBridge | null {
   if (!value || typeof value !== 'object') return null
   const bridge = value as Record<string, unknown>
-  return METHODS.every((name) => typeof bridge[name] === 'function')
+  return METHODS.every((name) => typeof bridge[name] === 'function') &&
+    (typeof bridge.install === 'function' || typeof bridge.open === 'function')
     ? (value as ShellInstallerBridge)
     : null
 }
@@ -52,7 +54,7 @@ export function startShellInstallerPoller(
       const next = normalizeShellInstallerStatus(value)
       if (next) {
         status = next
-        publish(next.supported ? { status: next, ...actions } : null)
+        publish(next.supported ? { status: next, installKind, ...actions } : null)
       }
       schedule()
     } catch (error) {
@@ -63,20 +65,21 @@ export function startShellInstallerPoller(
   }
 
   const refresh = () => request(() => bridge.status())
+  const installKind = typeof bridge.install === 'function' ? 'restart' : 'installer'
+  const installCall = bridge.install ?? bridge.open
 
   const actions = {
     check: () => request(() => bridge.check(), true),
     download: () => request(() => bridge.download(), true),
     setAutoDownload: (enabled: boolean) => request(() => bridge.setAutoDownload(enabled), true),
-    // 打开前壳会再验一次签名；无论成败都刷新成壳记下的状态。
-    open: async () => {
+    // 安装前壳会再验一次签名；重启并更新成功时 Pisper 直接退出，失败才回到这里刷新状态。
+    install: async () => {
       try {
-        return (await bridge.open()) === true
+        return (await installCall?.()) === true
       } finally {
         void refresh()
       }
     },
-    reveal: async () => (await bridge.reveal()) === true,
   }
 
   void refresh()

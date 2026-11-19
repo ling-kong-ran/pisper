@@ -1,15 +1,16 @@
-//! 桌面壳安装包的后台下载与“安装 / 在文件夹中显示”入口。
+//! 桌面程序自更新：后台下载更新包，用户点“重启并更新”时交给 Tauri 更新器安装。
 //!
-//! 组件更新器换不了壳本身（这个 Rust 程序）。壳在启动后稍等片刻、之后每 6 小时检查一次最新发布，
-//! 默认在后台下载并验签当前平台的安装包，放进 `<应用本地数据目录>/installers/`；安装由用户点“安装”，
-//! 用系统打开安装包后自己完成，Pisper 不退出也不静默运行任何东西。下载、验签和清理的规则都在
-//! `pisper_component_updater::shell_installer` 里，这里只负责调度、状态和桥接命令。
+//! 更新包就是整个桌面程序（这个 Rust 壳连同内置的前端、Runtime 和 CLI）。壳在启动后稍等片刻、
+//! 之后每 6 小时检查一次最新发布，默认在后台下载并验签当前平台的 Tauri 更新包，放进
+//! `<应用本地数据目录>/installers/`。安装只在用户点了之后发生：Windows 由 NSIS 被动安装并重新打开
+//! Pisper，macOS / Linux 原地替换后重启。下载、验签和清理的规则都在
+//! `pisper_component_updater::shell_installer` 里，这里只负责调度、状态、安装和桥接命令。
 
 use pisper_component_updater::{
     rate_limited_until,
     shell_installer::{
-        is_newer, release_url, DownloadedInstaller, InstallerPlatform, ShellInstallerSettings,
-        ShellInstallerUpdater, ShellRelease, INSTALLERS_DIR,
+        is_newer, release_asset_url, release_url, DownloadedInstaller, InstallerPlatform,
+        ShellInstallerSettings, ShellInstallerUpdater, ShellRelease, INSTALLERS_DIR,
     },
 };
 use semver::Version;
@@ -23,9 +24,12 @@ use std::{
     time::Duration,
 };
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 
-use crate::desktop_shell::desktop_bridge::{log_shell_installer, UPDATER_PUBLIC_KEY};
+use crate::desktop_shell::{
+    desktop_bridge::{log_shell_installer, UPDATER_PUBLIC_KEY},
+    desktop_browser, prepare_for_update_exit,
+};
 
 // 不和启动抢网络与磁盘：主窗口、Runtime 和组件更新检查（前端 15 秒后）都先跑起来。
 const FIRST_CHECK_DELAY: Duration = Duration::from_secs(45);
@@ -548,35 +552,89 @@ async fn verified_path(app: &AppHandle) -> Result<DownloadedInstaller, String> {
         })
 }
 
-/// “安装”：用系统打开安装包（Windows 运行安装程序，macOS 挂载 dmg，Linux 交给文件关联）。
-/// 安装由用户自己完成；Pisper 不退出、不传参数。
+/// “重启并更新”：把已下载、已验签的更新包交给 Tauri 更新器安装。
+///
+/// Windows 上更新器启动 NSIS 被动安装后直接结束进程，安装完由安装程序重新打开 Pisper；
+/// macOS / Linux 上原地替换程序后由这里重启。退出前和正常退出一样收好终端、隧道和 Runtime，
+/// 安装程序才能覆盖 sidecar 等文件。
 #[tauri::command]
-pub async fn desktop_open_shell_installer(
+pub async fn desktop_install_shell_update(
     window: WebviewWindow,
     app: AppHandle,
 ) -> Result<bool, String> {
     require_main(&window)?;
+    let platform =
+        InstallerPlatform::current().ok_or_else(|| "unsupported platform".to_string())?;
     let installer = verified_path(&app).await?;
-    log_shell_installer(&app, &format!("opening {}", installer.file_name));
-    app.opener()
-        .open_path(installer.path.to_string_lossy().into_owned(), None::<&str>)
-        .map(|_| true)
-        .map_err(|_| "Failed to open the installer".to_string())
-}
+    let path = installer.path.clone();
+    let bytes = blocking(move || std::fs::read(path))
+        .await
+        .ok_or_else(|| "Failed to read the downloaded update".to_string())?
+        .map_err(|_| "Failed to read the downloaded update".to_string())?;
+    // 已下载的版本自己就是一份清单：安装不用再联网，也不会被清单里更新的版本替换掉。
+    let manifest = serde_json::json!({
+        "version": installer.version.to_string(),
+        "platforms": {
+            platform.manifest_key(): {
+                "url": release_asset_url(&installer.version, &installer.file_name),
+                "signature": installer.signature,
+            }
+        }
+    });
+    let exiting = Arc::new(AtomicBool::new(false));
+    let exit_app = app.clone();
+    let exit_flag = exiting.clone();
+    let update = app
+        .updater_builder()
+        .on_before_exit(move || {
+            exit_flag.store(true, Ordering::SeqCst);
+            prepare_for_update_exit(&exit_app);
+        })
+        .build()
+        .and_then(|updater| updater.restore_update(manifest))
+        .map_err(|error| clipped(&format!("Failed to prepare the update: {error}")))?
+        .ok_or_else(|| "The downloaded update is not newer than this version".to_string())?;
+    // 先验签再动手：验不过时 Pisper 照常运行，什么都没关。
+    update.verify(&bytes).map_err(|error| {
+        clipped(&format!(
+            "The downloaded update failed verification: {error}"
+        ))
+    })?;
 
-#[tauri::command]
-pub fn desktop_reveal_shell_installer(
-    window: WebviewWindow,
-    app: AppHandle,
-) -> Result<bool, String> {
-    require_main(&window)?;
-    let installer = app
-        .state::<ShellInstallerState>()
-        .downloaded()
-        .filter(|installer| installer.path.is_file())
-        .ok_or_else(|| "No downloaded installer is available".to_string())?;
-    app.opener()
-        .reveal_item_in_dir(&installer.path)
-        .map(|_| true)
-        .map_err(|_| "Failed to show the installer folder".to_string())
+    log_shell_installer(
+        &app,
+        &format!("installing {} and restarting", installer.file_name),
+    );
+    // 内置浏览器的登录只能在主线程上写下来（WebView 都在主线程），先做完再开始安装。
+    let (saved, logins_saved) = tokio::sync::oneshot::channel();
+    if app
+        .run_on_main_thread(move || {
+            desktop_browser::keep_logins_before_exit();
+            let _ = saved.send(());
+        })
+        .is_ok()
+    {
+        let _ = logins_saved.await;
+    }
+
+    let installed = blocking(move || update.install(bytes)).await;
+    match installed {
+        Some(Ok(())) => {
+            // 只有 macOS / Linux 会走到这里；Windows 的更新器已经结束了进程。
+            prepare_for_update_exit(&app);
+            app.restart()
+        }
+        result => {
+            let message = match result {
+                Some(Err(error)) => clipped(&format!("The update could not be installed: {error}")),
+                _ => "The update could not be installed".to_string(),
+            };
+            log_shell_installer(&app, &message);
+            // Windows 上 on_before_exit 已经停掉了 Runtime，却没能启动安装程序：重启一次恢复原状。
+            if exiting.load(Ordering::SeqCst) {
+                app.restart()
+            }
+            Err(message)
+        }
+    }
 }

@@ -128,7 +128,7 @@ test('release workflow builds and finalizes only the selected component channel'
   assert.match(workflow, /cargo test --manifest-path src-tauri\/Cargo\.toml --locked/)
 })
 
-test('desktop and TUI launch independently installed signed components with bundled fallback', async () => {
+test('the TUI installs signed components; the desktop app only keeps leftovers newer than its own', async () => {
   const [
     updater,
     desktopShell,
@@ -153,9 +153,12 @@ test('desktop and TUI launch independently installed signed components with bund
     readFile('src-tauri/src/desktop_shell/component_updates.rs', 'utf8'),
   ])
 
-  // 匿名 API 额度只有 60 次/小时：一轮检查或安装只能请求一次发布信息。
-  assert.doesNotMatch(desktopUpdates, /updater\s*\.latest\(/)
-  assert.equal(desktopUpdates.match(/load_feed\(&app, &updater,/g)?.length, 2)
+  // 桌面程序只整体更新：壳不再下载组件，只沿用旧壳装过、比内置版本新的组件。
+  assert.doesNotMatch(desktopUpdates, /ComponentUpdater|install_with_progress|tauri::command/)
+  assert.match(
+    desktopUpdates,
+    /installed_is_newer\(&installed\.version, bundled_version\(component\)\)/,
+  )
   assert.match(updater, /component signature verification failed/)
   assert.match(updater, /component archive path escapes its root/)
   assert.match(updater, /write_pointer\(&component_root, version\)/)
@@ -173,10 +176,9 @@ test('desktop and TUI launch independently installed signed components with bund
   assert.match(tuiUpdater, /pub async fn ensure_web/)
   assert.match(tuiUpdater, /pub async fn ensure_runtime/)
   assert.match(tuiSidecar, /deactivate_component/)
-  assert.match(bridge, /desktop_check_component_updates/)
-  assert.match(bridge, /desktop_install_component_updates/)
-  assert.match(permissions, /desktop_restart_for_component_update/)
-  assert.match(settings, /appComponents/)
+  assert.doesNotMatch(bridge, /component_update/)
+  assert.doesNotMatch(permissions, /component_update/)
+  assert.doesNotMatch(settings, /appComponents|installComponents/)
   assert.match(settings, /bundled\.version === info\.version \? bundled : null/)
   assert.match(settings, /bundledCurrent\?\.notes/)
   assert.doesNotMatch(settings, /installComponent\(component\.component\)/)
@@ -190,8 +192,12 @@ test('release paths select one or every affected component without coupling docu
   assert.deepEqual(releaseComponentsForPath('.github/workflows/release-app.yml'), [])
   assert.deepEqual(releaseComponentsForPath('scripts/build-mobile-android.mjs'), [])
   assert.deepEqual(releaseComponentsForPath('scripts/smoke-mobile-runtime.mjs'), [])
-  assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['tui'])
-  assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['runtime'])
+  // 桌面安装包内置 TUI 和 Runtime，桌面程序又只整体更新：它们变了 Desktop 也要发。
+  assert.deepEqual(releaseComponentsForPath('src-tui/src/main.rs'), ['desktop', 'tui'])
+  assert.deepEqual(releaseComponentsForPath('runtime/index.mjs'), ['desktop', 'runtime'])
+  assert.deepEqual(releaseComponentsForPath('scripts/sea-bootstrap.cjs'), ['desktop', 'runtime'])
+  // npm 启动器不在桌面安装包里。
+  assert.deepEqual(releaseComponentsForPath('packages/pisper/lib/install.mjs'), ['runtime'])
   assert.deepEqual(releaseComponentsForPath('src/features/chat/ChatPage.tsx'), ['desktop'])
   assert.deepEqual(releaseComponentsForPath('shared/workflow-graph.mjs'), ['desktop', 'runtime'])
   assert.deepEqual(releaseComponentsForPath('crates/component-updater/src/lib.rs'), [
@@ -213,11 +219,12 @@ test('component release ranges exclude substantive commits owned by other compon
   const runGit = (args) => {
     const command = args.join(' ')
     if (command === 'diff --name-only --diff-filter=ACMRTUXB v1.0.0..source') {
-      return 'src-tauri/src/lib.rs\nruntime/index.mjs\n'
+      return 'src-tauri/src/lib.rs\npackages/pisper/lib/install.mjs\n'
     }
     if (command === 'log --format=%H v1.0.0..source') return 'desktop-commit\nruntime-commit\n'
     if (command.endsWith('-r desktop-commit')) return 'src-tauri/src/lib.rs\n'
-    if (command.endsWith('-r runtime-commit')) return 'runtime/index.mjs\n'
+    // npm 启动器只属于 Runtime；runtime/ 下的改动桌面安装包也带着，会同时算进 Desktop。
+    if (command.endsWith('-r runtime-commit')) return 'packages/pisper/lib/install.mjs\n'
     if (command === 'show -s --format=%s desktop-commit') return 'fix(desktop): repair shell\n'
     if (command === 'show -s --format=%s runtime-commit') return 'feat(runtime): add endpoint\n'
     throw new Error(`Unexpected git command: ${command}`)

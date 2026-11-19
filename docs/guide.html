@@ -109,7 +109,7 @@
             <span>参考</span>
             <ul>
               <li><a href="#data">数据与目录</a></li>
-              <li><a href="#update">组件更新</a></li>
+              <li><a href="#update">更新</a></li>
               <li><a href="#faq">常见问题</a></li>
             </ul>
           </div>
@@ -750,13 +750,16 @@ pisper web        # 打开 Web 前端配置页</code></pre>
         </section>
 
         <section class="guide-section" id="update">
-          <h2>组件更新</h2>
-          <p>Desktop、TUI 与 Runtime 各自独立检查与更新，需要什么就只更新什么。</p>
-          <p>在 <strong>设置 → 更新</strong> 中查看各组件版本并单独触发更新；涉及 Runtime 替换的更新会提示重启。</p>
+          <h2>更新</h2>
+          <p>桌面版整体更新：桌面程序连同内置的 TUI 与 Runtime 一起换成新版本。</p>
           <p>
-            组件更新不会替换桌面程序本身。桌面版默认在后台下载并校验新版安装包（Windows 安装程序、macOS
-            dmg、Linux AppImage），只保留最新的一个；下好后在 <strong>设置 → 更新 → 桌面安装包</strong> 点
-            <strong>安装</strong>，按安装程序的提示完成即可。不想自动下载可以在同一处关掉。
+            Pisper 默认在后台下载并校验新版本，只保留最新的一个；下好后在 <strong>设置 → 更新</strong> 点
+            <strong>重启并更新</strong>，Pisper 会关闭、装好新版本后自动重新打开（Windows 上会短暂出现安装进度）。
+            不想自动下载可以在同一处关掉，改为手动点 <strong>下载更新</strong>。
+          </p>
+          <p>
+            v0.6.40 及更早的桌面版需要从 GitHub Releases 下载新版安装一次，之后就能在设置里一键更新。
+            独立安装的 TUI 和 npm 版仍然各自更新。
           </p>
         </section>
 

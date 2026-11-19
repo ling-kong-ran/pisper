@@ -401,11 +401,10 @@ function App({ routerState }: { routerState?: () => RouterLocationState }) {
   const toastSequence = useRef(0)
   const appDialog = useAppDialog()
   const appUpdate = useAppUpdate()
-  // 组件有更新，或者新版桌面安装包已下载、等用户安装时，侧栏都提示一下。
-  const showUpdateStatus =
-    (appUpdate.status &&
-      ['available', 'downloading', 'downloaded'].includes(appUpdate.status.state)) ||
-    appUpdate.shellInstaller?.status.state === 'downloaded'
+  // 有新版本、正在下载或已下好等重启时，侧栏提示一下。
+  const showUpdateStatus = ['available', 'downloading', 'downloaded'].includes(
+    appUpdate.status.state,
+  )
   useEffect(() => {
     applyUiPreferenceAttributes({
       accent,

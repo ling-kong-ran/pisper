@@ -62,8 +62,19 @@ function isDocumentationOrTest(path) {
   )
 }
 
+// 桌面程序只整体更新（壳的自更新），安装包内置 Runtime 和 TUI：它们变了，Desktop 也要一起发，
+// 否则桌面用户拿不到。npm 启动器不在安装包里，不算。
 export function releaseComponentsForPath(input) {
   const path = normalizePath(input)
+  const components = ownReleaseComponents(path)
+  if (path.startsWith('packages/pisper/') || components.includes('desktop')) return components
+  if (!components.includes('runtime') && !components.includes('tui')) return components
+  return ALL_COMPONENTS.filter(
+    (component) => component === 'desktop' || components.includes(component),
+  )
+}
+
+function ownReleaseComponents(path) {
   if (!path || isDocumentationOrTest(path) || RELEASE_SCRIPT_PATHS.has(path)) return []
   // App 独占路径不参与其他组件检测；共享 Rust 路径仍归 Desktop。
   if (isAppExclusivePath(path)) return []

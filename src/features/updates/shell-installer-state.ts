@@ -1,6 +1,11 @@
 // 桌面壳安装包状态的校验与派生：桥接返回值按不可信输入处理（旧壳、改过的壳都可能给出意外结构），
 // 只留认得出的字段，界面据此决定轮询节奏和要显示的操作。
-import type { ShellInstallerState, ShellInstallerStatus } from '@/types/update'
+import type {
+  ShellInstallKind,
+  ShellInstallerState,
+  ShellInstallerStatus,
+  UpdateStatus,
+} from '@/types/update'
 
 const STATES: ReadonlySet<string> = new Set<ShellInstallerState>([
   'unsupported',
@@ -14,9 +19,9 @@ const STATES: ReadonlySet<string> = new Set<ShellInstallerState>([
 ])
 const RELEASES_URL = 'https://github.com/ling-kong-ran/pisper/releases'
 const VERSION = /^\d+\.\d+\.\d+$/
-// 与壳侧 shell_installer 的命名一致：Pisper_<版本>_<平台>_<架构><后缀>。
+// 与壳侧 shell_installer 的命名一致：Pisper_<版本>_<平台>_<架构><后缀>。v0.6.40 的壳在 macOS 上下的是 dmg。
 const FILE_NAME =
-  /^Pisper_\d+\.\d+\.\d+_(?:windows_x86_64-setup\.exe|darwin_aarch64\.dmg|linux_x86_64\.AppImage)$/
+  /^Pisper_\d+\.\d+\.\d+_(?:windows_x86_64-setup\.exe|darwin_aarch64\.(?:app\.tar\.gz|dmg)|linux_x86_64\.AppImage)$/
 const MAX_NOTES = 64 * 1024
 const MAX_MESSAGE = 500
 
@@ -71,4 +76,26 @@ export function shellInstallerPollDelay(state: ShellInstallerState) {
   return state === 'checking' || state === 'downloading'
     ? SHELL_INSTALLER_ACTIVE_POLL_MS
     : SHELL_INSTALLER_IDLE_POLL_MS
+}
+
+// 设置页和侧栏共用的更新状态：桌面端的更新只剩桌面程序整体这一条，直接由壳的状态得出。
+export function shellUpdateStatus(
+  status: ShellInstallerStatus,
+  installKind: ShellInstallKind,
+): UpdateStatus {
+  const failed = status.state === 'error'
+  return {
+    state: status.state,
+    message: failed ? status.message : '',
+    releaseUrl: status.releaseUrl,
+    canDownload: status.canDownload,
+    availableVersion: status.availableVersion || undefined,
+    notes: status.state === 'current' ? '' : status.notes,
+    total: status.size,
+    transferred: status.transferred,
+    percent: status.size ? Math.min(100, (status.transferred / status.size) * 100) : 0,
+    rateLimited: failed && status.retryAt !== null,
+    retryAt: status.retryAt ?? undefined,
+    installKind,
+  }
 }

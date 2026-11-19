@@ -1,21 +1,10 @@
-// 更新设置：检查/下载/安装桌面端与组件（TUI/Runtime）更新，
-// 展示版本、变更日志与安装进度。
-import { useEffect, useMemo, useState } from 'react'
-import {
-  ArrowRight,
-  CheckCircle2,
-  Cpu,
-  Download,
-  ExternalLink,
-  Laptop,
-  RefreshCw,
-  Rocket,
-  SquareTerminal,
-} from 'lucide-react'
+// 更新设置：检查、下载并安装 Pisper 的新版本（桌面端整体更新桌面程序，手机去 App 更新页，
+// 浏览器比对源码分支），展示版本、变更日志与下载进度。
+import { useEffect, useState } from 'react'
+import { CheckCircle2, Download, ExternalLink, Laptop, RefreshCw, Rocket } from 'lucide-react'
 import { DEFAULT_BRANCH } from '@shared/app-update.mjs'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import { CliSettings } from './CliSettings'
-import { ShellInstallerSettings } from './ShellInstallerSettings'
 import { FeatureAlert, FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { useI18n } from '@/app/use-i18n'
 import type { Notify } from '@/app/route-context'
@@ -24,6 +13,7 @@ import type { AppUpdateController, AppUpdateInfo } from '@/types/update'
 
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 
 const BUILD_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0'
 
@@ -72,7 +62,7 @@ export function UpdateSettings({
   const mobile = Boolean(info.mobile)
   const nativeApp = desktop || mobile
   const [bundled, setBundled] = useState({ version: BUILD_VERSION, date: '', notes: '' })
-  const [componentBusy, setComponentBusy] = useState<'check' | 'install' | ''>('')
+  const [busy, setBusy] = useState<'' | 'check' | 'download' | 'install' | 'toggle'>('')
 
   useEffect(() => {
     let active = true
@@ -87,55 +77,25 @@ export function UpdateSettings({
     }
   }, [])
 
-  // 检查更新：调控制器检查并防重入（busy 标记）。
-  const check = async () => {
-    if (!update) return
-    setComponentBusy('check')
+  // 用户操作同一时刻只跑一个；失败提示原因，状态以控制器（桌面端是壳）为准。
+  const run = async (kind: Exclude<typeof busy, ''>, action: () => unknown) => {
+    setBusy(kind)
     try {
-      await update.check()
-    } finally {
-      setComponentBusy('')
-    }
-  }
-
-  const openReleases = () => update?.openReleases()
-  const openUpdateLog = () => update?.openUpdateLog?.()
-
-  // 下载/安装更新：桌面端安装全部组件，Web 端仅下载；失败提示。
-  const download = async () => {
-    setComponentBusy(desktop ? 'install' : '')
-    try {
-      if (desktop) await update?.installComponents()
-      else await update?.download()
+      await action()
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), 'error')
     } finally {
-      setComponentBusy('')
+      setBusy('')
     }
   }
-
-  const install = () => update?.install()
-
-  // 壳的安装包里带着同一次发布的前端、Runtime 和 CLI：它已下好或正在后台下时，再单独下组件
-  // 只是把同样的东西多下一遍，所以主按钮改为打开安装包。已经开始的组件下载照常走完。
-  const installer = desktop ? update.shellInstaller : null
-  const installerState = installer?.status.state
-  const installerVersion = installer?.status.availableVersion
-    ? `v${installer.status.availableVersion}`
-    : ''
-  const [installerOpening, setInstallerOpening] = useState(false)
-  const openInstaller = async () => {
-    if (!installer) return
-    setInstallerOpening(true)
-    try {
-      await installer.open()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      notify(t('config:updateSettings.installerActionFailed', { message }), 'error')
-    } finally {
-      setInstallerOpening(false)
-    }
-  }
+  const check = () => run('check', () => update.check())
+  // 桌面端由壳在后台下载更新包；手机和浏览器去下载页。
+  const download = () => run('download', () => update.download())
+  // 桌面端：重启并更新（v0.6.40 的壳是打开安装包）。
+  const install = () => run('install', () => update.install())
+  const openReleases = () => update?.openReleases()
+  const openUpdateLog = () => update?.openUpdateLog?.()
+  const shell = desktop ? update.shellInstaller : null
 
   const bundledCurrent = bundled.version === info.version ? bundled : null
   const notes =
@@ -156,23 +116,17 @@ export function UpdateSettings({
           ),
         })
       : t('config:updateSettings.githubRateLimited')
+  const unsupported = status.state === 'unsupported'
   const available = status.state === 'available'
   const resumable = status.state === 'error' && status.canResume && status.canDownload
+  // 桌面端下载失败后可以直接重下，不用先再检查一次。
+  const retryDownload = desktop && status.state === 'error' && status.canDownload
   const downloaded = status.state === 'downloaded'
-  const checking = status.state === 'checking' || componentBusy === 'check'
-  const downloading = status.state === 'downloading' || componentBusy === 'install'
-  const installerFirst =
-    (installerState === 'downloaded' || installerState === 'downloading') &&
-    !checking &&
-    !downloading &&
-    !downloaded
-  const installerReady = installerFirst && installerState === 'downloaded'
-  const installerDownloading = installerFirst && installerState === 'downloading'
-  const overallState = checking
-    ? 'checking'
-    : downloading || installerDownloading
-      ? 'downloading'
-      : status.state
+  const checking = status.state === 'checking' || busy === 'check'
+  const downloading = status.state === 'downloading'
+  const installing = busy === 'install'
+  const overallState = checking ? 'checking' : status.state
+  const version = status.availableVersion ? `v${status.availableVersion}` : ''
   const currentIdentifier = nativeApp
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
@@ -182,25 +136,6 @@ export function UpdateSettings({
       status.currentCommit?.slice(0, 7) ||
       bundled.version ||
       info.version
-  const componentItems = useMemo(() => {
-    const byName = new Map(update.components.map((component) => [component.component, component]))
-    return (['desktop', 'tui', 'runtime'] as const).map(
-      (component) =>
-        byName.get(component) || {
-          component,
-          state: 'idle',
-          currentVersion: component === 'desktop' ? info.version : '--',
-          availableVersion: '',
-          message: '',
-          releaseUrl: '',
-          notes: '',
-          size: 0,
-          transferred: 0,
-          canInstall: false,
-          restartRequired: false,
-        },
-    )
-  }, [info.version, update.components])
   // 状态读数一律中性（规格 6.1）：检查失败、下载暂停是已经发生的结果，不用红色；没有“需要你”的状态，所以也不用琥珀。
   const statusLabel =
     (
@@ -214,12 +149,20 @@ export function UpdateSettings({
         downloading: t('config:updateSettings.downloading'),
         downloaded: t('config:updateSettings.readyToRestart'),
         installed: t('config:updateSettings.upToDate'),
+        unsupported: t('config:updateSettings.manualUpdateOnly'),
         error: resumable
           ? t('config:updateSettings.downloadPaused')
           : t('config:updateSettings.checkFailed'),
       } as Record<string, string>
     )[overallState] || t('config:updateSettings.notChecked')
-  const statusText = installerReady ? t('config:updateSettings.installerReadyStatus') : statusLabel
+  // 下好之后说清楚点了会发生什么：重启并更新会关掉 Pisper，v0.6.40 的壳则是打开安装包。
+  const hint = unsupported
+    ? t('config:updateSettings.desktopNeedsReinstall')
+    : desktop && downloaded
+      ? status.installKind === 'installer'
+        ? t('config:updateSettings.installerReadyHint')
+        : t('config:updateSettings.restartToUpdateHint')
+      : ''
 
   // 方向 A 的设置分区（效果图 desktop-settings-light.png）：分区标题 + 细线行，左缘与页标题对齐，
   // 不再有带键帽图标的标题条、灰底分区头与 px-4 的内框。
@@ -234,7 +177,7 @@ export function UpdateSettings({
             data-update-status={overallState}
             className="text-xs text-content-secondary tabular-nums"
           >
-            {statusText}
+            {statusLabel}
           </span>
         }
       >
@@ -272,6 +215,12 @@ export function UpdateSettings({
               <span className="min-w-0">{status.message}</span>
             </p>
           ))}
+        {hint && (
+          <p className="mt-4 flex items-start gap-2 text-sm text-content-secondary">
+            <Laptop className="mt-0.5 shrink-0 text-content-muted" size={15} aria-hidden="true" />
+            <span className="min-w-0">{hint}</span>
+          </p>
+        )}
         {resumable && (
           <small className="mt-2 block text-xs text-content-muted">
             {t(
@@ -284,8 +233,9 @@ export function UpdateSettings({
             <div className="flex justify-between text-xs text-content-muted">
               <span>{t('config:updateSettings.downloadProgress')}</span>
               <span className="tabular-nums">
-                {Math.round(status.percent || 0)}% · {formatBytes(status.transferred, language)} /{' '}
-                {formatBytes(status.total, language)}
+                {status.total
+                  ? `${Math.round(status.percent || 0)}% · ${formatBytes(status.transferred, language)} / ${formatBytes(status.total, language)}`
+                  : formatBytes(status.transferred, language)}
               </span>
             </div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-active">
@@ -297,32 +247,19 @@ export function UpdateSettings({
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          {installerFirst ? (
+          {!unsupported && (
             <Button
               className="max-[650px]:h-11"
-              disabled={installerDownloading || installerOpening}
-              onClick={() => void openInstaller()}
+              disabled={checking || downloading || Boolean(busy)}
+              onClick={
+                downloaded ? install : available || resumable || retryDownload ? download : check
+              }
             >
-              {installerDownloading || installerOpening ? (
-                <OrbitSpinner className="text-current" />
-              ) : (
-                <Rocket size={14} />
-              )}
-              {installerDownloading
-                ? t('config:updateSettings.installerDownloadingShort')
-                : t('config:updateSettings.installVersion', { version: installerVersion })}
-            </Button>
-          ) : (
-            <Button
-              className="max-[650px]:h-11"
-              disabled={checking || downloading || Boolean(componentBusy)}
-              onClick={downloaded ? install : available || resumable ? download : check}
-            >
-              {checking || downloading ? (
+              {checking || downloading || installing ? (
                 <OrbitSpinner className="text-current" />
               ) : downloaded ? (
                 <Rocket size={14} />
-              ) : available || resumable ? (
+              ) : available || resumable || retryDownload ? (
                 status.canDownload ? (
                   <Download size={14} />
                 ) : (
@@ -331,23 +268,27 @@ export function UpdateSettings({
               ) : (
                 <RefreshCw size={14} />
               )}
-              {checking || downloading
-                ? downloading && desktop
-                  ? t('config:updateSettings.installingUpdates')
-                  : t('config:updateSettings.checking2')
-                : downloaded
-                  ? t('config:updateSettings.restartAndInstall')
-                  : resumable
-                    ? t('config:updateSettings.resumeDownload')
-                    : available
-                      ? status.canDownload
-                        ? desktop
-                          ? t('config:updateSettings.downloadAndInstallUpdates')
-                          : t('config:updateSettings.downloadUpdate')
-                        : nativeApp
-                          ? t('config:updateSettings.viewRelease')
-                          : t('config:updateSettings.viewSourceUpdates')
-                      : t('config:updateSettings.checkForUpdates')}
+              {checking
+                ? t('config:updateSettings.checking2')
+                : downloading
+                  ? t('config:updateSettings.downloadingUpdate')
+                  : downloaded
+                    ? desktop
+                      ? status.installKind === 'installer'
+                        ? t('config:updateSettings.installVersion', { version })
+                        : t('config:updateSettings.restartAndUpdate', { version })
+                      : t('config:updateSettings.restartAndInstall')
+                    : resumable
+                      ? t('config:updateSettings.resumeDownload')
+                      : retryDownload
+                        ? t('config:updateSettings.retryDownload')
+                        : available
+                          ? status.canDownload
+                            ? t('config:updateSettings.downloadUpdate')
+                            : nativeApp
+                              ? t('config:updateSettings.viewRelease')
+                              : t('config:updateSettings.viewSourceUpdates')
+                          : t('config:updateSettings.checkForUpdates')}
             </Button>
           )}
           <Button variant="secondary" className="max-[650px]:h-11" onClick={openReleases}>
@@ -361,77 +302,26 @@ export function UpdateSettings({
             </Button>
           )}
         </div>
-      </FeatureSection>
-
-      {desktop && update.shellInstaller && (
-        <ShellInstallerSettings
-          installer={update.shellInstaller}
-          notify={notify}
-          openReleases={openReleases}
-        />
-      )}
-
-      {!mobile && (
-        <FeatureSection
-          data-config-card="updates-components"
-          title={t('config:updateSettings.appComponents')}
-        >
-          <FeatureList>
-            {componentItems.map((component) => {
-              const Icon =
-                component.component === 'desktop'
-                  ? Laptop
-                  : component.component === 'tui'
-                    ? SquareTerminal
-                    : Cpu
-              const label =
-                component.component === 'desktop'
-                  ? t('config:updateSettings.desktopFrontend')
-                  : component.component === 'tui'
-                    ? t('config:updateSettings.tuiClient')
-                    : t('config:updateSettings.runtime')
-              const stateLabel =
-                component.state === 'checking'
-                  ? t('config:updateSettings.checking')
-                  : component.state === 'downloading'
-                    ? t('config:updateSettings.downloading')
-                    : component.state === 'available'
-                      ? t('config:updateSettings.updateAvailable')
-                      : component.state === 'installed'
-                        ? t('config:updateSettings.installed')
-                        : component.state === 'error'
-                          ? t('config:updateSettings.checkFailed')
-                          : component.state === 'current'
-                            ? t('config:updateSettings.upToDate')
-                            : t('config:updateSettings.notChecked')
-              return (
-                <FeatureRow
-                  key={component.component}
-                  icon={<Icon />}
-                  name={label}
-                  description={rateLimitMessage ? undefined : component.message || undefined}
-                  meta={
-                    <span className="flex items-center gap-1.5 font-mono tabular-nums">
-                      <span>v{component.currentVersion}</span>
-                      {component.availableVersion &&
-                        component.availableVersion !== component.currentVersion && (
-                          <>
-                            <ArrowRight size={12} aria-hidden="true" />
-                            <span>v{component.availableVersion}</span>
-                          </>
-                        )}
-                      {component.size > 0 && component.state === 'available' && (
-                        <span className="font-sans">{formatBytes(component.size, language)}</span>
-                      )}
-                    </span>
+        {shell && (
+          <FeatureList className="mt-4">
+            <FeatureRow
+              icon={<Download />}
+              name={t('config:updateSettings.autoDownload')}
+              description={t('config:updateSettings.autoDownloadHint')}
+              actions={
+                <Switch
+                  checked={shell.status.autoDownload}
+                  disabled={busy === 'toggle'}
+                  onCheckedChange={(enabled) =>
+                    void run('toggle', () => shell.setAutoDownload(enabled))
                   }
-                  status={stateLabel}
+                  aria-label={t('config:updateSettings.autoDownload')}
                 />
-              )
-            })}
+              }
+            />
           </FeatureList>
-        </FeatureSection>
-      )}
+        )}
+      </FeatureSection>
 
       {!mobile && <CliSettings notify={notify} />}
 

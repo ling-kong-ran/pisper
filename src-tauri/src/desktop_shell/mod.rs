@@ -524,6 +524,22 @@ fn force_stop_sidecar_process(child: &mut Child) {
     let _ = child.wait();
 }
 
+// 正常退出和更新前退出都要收的尾：终端、隧道和 Runtime 子进程。
+fn stop_background_work(app: &AppHandle) {
+    if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
+        desktop_terminal::close_all(&state);
+    }
+    stop_desktop_tunnel(app);
+    stop_sidecar(app);
+}
+
+// 自更新退出前：Windows 上更新器启动安装程序后直接结束进程，不经过 RunEvent::Exit，
+// 所以这里要自己收尾，安装程序才能覆盖 sidecar 等文件。
+pub(crate) fn prepare_for_update_exit(app: &AppHandle) {
+    stop_background_work(app);
+    app.cleanup_before_exit();
+}
+
 pub(crate) fn stop_sidecar(app: &AppHandle) {
     let Some(state) = app.try_state::<SidecarState>() else {
         return;
@@ -786,6 +802,8 @@ pub fn run() {
     let cli_args_for_setup = cli_args.clone();
     let builder = builder
         .plugin(tauri_plugin_dialog::init())
+        // 桌面程序自更新（shell_installer）：只从 Rust 侧调用，前端拿不到插件自己的命令。
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_opener::Builder::new()
@@ -801,7 +819,6 @@ pub fn run() {
                 )
                 .build(),
         )
-        .manage(component_updates::ComponentUpdateState::default())
         .manage(shell_installer::ShellInstallerState::default())
         .manage(desktop_terminal::DesktopTerminalState::default())
         .manage(computer_control::ComputerState::default())
@@ -821,16 +838,11 @@ pub fn run() {
             cli_manager::desktop_get_cli_status,
             cli_manager::desktop_install_cli,
             cli_manager::desktop_uninstall_cli,
-            component_updates::desktop_component_update_status,
-            component_updates::desktop_check_component_updates,
-            component_updates::desktop_install_component_updates,
-            component_updates::desktop_restart_for_component_update,
             shell_installer::desktop_shell_installer_status,
             shell_installer::desktop_check_shell_installer,
             shell_installer::desktop_download_shell_installer,
             shell_installer::desktop_set_shell_installer_auto_download,
-            shell_installer::desktop_open_shell_installer,
-            shell_installer::desktop_reveal_shell_installer,
+            shell_installer::desktop_install_shell_update,
             desktop_bridge::desktop_open_url,
             desktop_bridge::desktop_open_asset,
             desktop_bridge::desktop_open_releases,
@@ -992,11 +1004,7 @@ pub fn run() {
             desktop_browser::keep_logins_before_exit();
         }
         if matches!(&event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
-            if let Some(state) = app.try_state::<desktop_terminal::DesktopTerminalState>() {
-                desktop_terminal::close_all(&state);
-            }
-            stop_desktop_tunnel(app);
-            stop_sidecar(app);
+            stop_background_work(app);
         }
     });
 }

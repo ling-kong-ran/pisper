@@ -1,17 +1,9 @@
 // 应用更新控制器 hook：向壳层提供检查/下载/安装更新与
 // 状态订阅的完整能力（AppUpdateController）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type {
-  AppUpdateController,
-  AppUpdateInfo,
-  ComponentUpdateStatus,
-  UpdateStatus,
-} from '@/types/update'
+import type { AppUpdateController, AppUpdateInfo, UpdateStatus } from '@/types/update'
 import { scheduleAppUpdateChecks, shouldAutomaticallyCheckForUpdates } from './auto-update'
-import {
-  componentUpdateStatus as componentStatus,
-  currentDesktopVersion,
-} from './component-update-state'
+import { shellUpdateStatus } from './shell-installer-state'
 import { checkWebUpdates, RELEASES_URL } from './update-client'
 import { useShellInstaller } from './useShellInstaller'
 
@@ -26,8 +18,8 @@ const WEB_INFO: AppUpdateInfo = Object.freeze({
   releasesUrl: RELEASES_URL,
 })
 
-// 应用更新控制器 hook：检查/下载/安装桌面与组件更新，维护状态并
-// 订阅桌面桥接推送，向壳层提供 AppUpdateController 能力。
+// 应用更新控制器 hook。桌面端只整体更新桌面程序：状态、下载与安装都由壳负责（shell_installer.rs），
+// 这里只做镜像；手机走 App 商店式的更新页，浏览器比对源码分支。
 export function useAppUpdate(): AppUpdateController {
   const bridge = window.pisperDesktop
   const mobileInvoke = bridge
@@ -35,17 +27,27 @@ export function useAppUpdate(): AppUpdateController {
     : (window.__TAURI__?.core?.invoke ?? window.__TAURI_INTERNALS__?.invoke)
   const [info, setInfo] = useState(WEB_INFO)
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle', checkedAt: null })
-  const [components, setComponents] = useState<ComponentUpdateStatus[]>([])
   const statusRef = useRef(status)
   const checkInFlightRef = useRef<Promise<UpdateStatus> | null>(null)
-  const legacyShellUpdateRef = useRef(false)
   const mobileModeRef = useRef(false)
-  // 新壳在后台下载壳安装包；旧壳没有这组桥接时为 null，其余更新流程照旧。
-  const shellInstaller = useShellInstaller(bridge?.shellInstaller)
-  const shellInstallerCheckRef = useRef<(() => Promise<void>) | null>(null)
+  // 壳在后台检查、下载并验签更新包；v0.6.39 及更早的壳没有这组桥接，不能自更新。
+  const shell = useShellInstaller(bridge?.shellInstaller)
+  const shellInstaller = shell.controller
+  const shellStatus = useMemo<UpdateStatus | null>(() => {
+    if (!bridge) return null
+    if (shellInstaller) return shellUpdateStatus(shellInstaller.status, shellInstaller.installKind)
+    // 旧壳，或这个平台没有更新包（例如 Intel Mac）：只能到发布页下载安装。
+    if (!bridge.shellInstaller || shell.settled) {
+      return { state: 'unsupported', releaseUrl: RELEASES_URL }
+    }
+    return { state: 'idle' }
+  }, [bridge, shell.settled, shellInstaller])
+
+  // check 要保持稳定（手机的定时检查靠它），壳的最新状态从这里读。
+  const shellRef = useRef({ controller: shellInstaller, status: shellStatus })
   useEffect(() => {
-    shellInstallerCheckRef.current = shellInstaller?.check ?? null
-  }, [shellInstaller])
+    shellRef.current = { controller: shellInstaller, status: shellStatus }
+  }, [shellInstaller, shellStatus])
 
   const applyStatus = useCallback((value: UpdateStatus) => {
     statusRef.current = value
@@ -54,40 +56,21 @@ export function useAppUpdate(): AppUpdateController {
 
   const check = useCallback(
     ({ refresh = true }: { refresh?: boolean } = {}) => {
+      // 桌面端：壳自己定时检查；用户点“检查更新”时让壳立刻查一次，进度由状态镜像轮询。
+      if (bridge) {
+        const { controller } = shellRef.current
+        const current = () => shellRef.current.status ?? statusRef.current
+        if (!refresh || !controller) return Promise.resolve(current())
+        return controller
+          .check()
+          .catch(() => {})
+          .then(current)
+      }
       if (checkInFlightRef.current) return checkInFlightRef.current
 
       applyStatus({ ...statusRef.current, state: 'checking', message: '' })
-      // 手动“检查更新”顺带让壳检查安装包（壳自己也会定时检查，所以自动检查不再重复触发）。
-      // 不等它：安装包的进度由 shellInstaller 自己轮询。
-      if (refresh) void shellInstallerCheckRef.current?.().catch(() => {})
       const pending = (async (): Promise<UpdateStatus> => {
         try {
-          legacyShellUpdateRef.current = false
-          if (bridge?.checkForUpdates) {
-            try {
-              const shellUpdate = await bridge.checkForUpdates()
-              if (shellUpdate.state === 'available' && shellUpdate.canDownload) {
-                legacyShellUpdateRef.current = true
-                applyStatus(shellUpdate)
-                return shellUpdate
-              }
-            } catch {
-              // Old Shell update checks must not block signed component updates.
-            }
-          }
-          if (bridge?.checkComponentUpdates) {
-            const items = await bridge.checkComponentUpdates()
-            setComponents(items)
-            const next = componentStatus(items)
-            applyStatus(next)
-            if (
-              !items.some((item) => item.state === 'error' || item.state === 'available') &&
-              items.some((item) => item.restartRequired)
-            ) {
-              await bridge.restartForComponentUpdate?.()
-            }
-            return next
-          }
           if (mobileModeRef.current && mobileInvoke) {
             const next = await mobileInvoke<UpdateStatus>('mobile_check_app_update', { refresh })
             applyStatus(next)
@@ -120,142 +103,61 @@ export function useAppUpdate(): AppUpdateController {
     let stopAutomaticChecks = () => {}
     let stopVisibilityChecks = () => {}
 
-    const scheduleChecks = () => {
-      stopAutomaticChecks = scheduleAppUpdateChecks(() => {
-        if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
-        return check({ refresh: false })
-      })
-    }
-
-    if (!bridge) {
-      const checkWebSource = () => {
-        if (!active) return
-        void check({ refresh: false })
-      }
-      if (!mobileInvoke) {
-        checkWebSource()
-        return () => {
-          active = false
-        }
-      }
-
-      void mobileInvoke<AppUpdateInfo>('mobile_app_info')
+    if (bridge) {
+      bridge
+        .getAppInfo()
         .then((value) => {
-          if (!active) return
-          if (!value.mobile) {
-            checkWebSource()
-            return
-          }
-          mobileModeRef.current = true
-          setInfo(value)
-          setComponents([])
-          if (value.update) applyStatus(value.update)
-          void check({ refresh: false })
-          scheduleChecks()
-
-          const checkWhenVisible = () => {
-            if (document.visibilityState !== 'visible') return
-            if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
-            void check({ refresh: false })
-          }
-          document.addEventListener('visibilitychange', checkWhenVisible)
-          stopVisibilityChecks = () =>
-            document.removeEventListener('visibilitychange', checkWhenVisible)
+          if (active) setInfo(value)
         })
-        .catch(checkWebSource)
+        .catch(() => {})
       return () => {
         active = false
-        stopAutomaticChecks()
-        stopVisibilityChecks()
       }
     }
 
-    bridge
-      .getAppInfo()
+    const checkWebSource = () => {
+      if (!active) return
+      void check({ refresh: false })
+    }
+    if (!mobileInvoke) {
+      checkWebSource()
+      return () => {
+        active = false
+      }
+    }
+
+    void mobileInvoke<AppUpdateInfo>('mobile_app_info')
       .then((value) => {
         if (!active) return
-        setInfo({ ...value, hostVersion: value.version })
-        void bridge
-          .componentUpdateStatus?.()
-          .then((items) => {
-            if (!active) return
-            setComponents(items)
-            applyStatus(componentStatus(items))
-          })
-          .catch(() => {})
-        if (value.packaged) scheduleChecks()
+        if (!value.mobile) {
+          checkWebSource()
+          return
+        }
+        mobileModeRef.current = true
+        setInfo(value)
+        if (value.update) applyStatus(value.update)
+        void check({ refresh: false })
+        stopAutomaticChecks = scheduleAppUpdateChecks(() => {
+          if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
+          return check({ refresh: false })
+        })
+
+        const checkWhenVisible = () => {
+          if (document.visibilityState !== 'visible') return
+          if (!shouldAutomaticallyCheckForUpdates(statusRef.current.state)) return
+          void check({ refresh: false })
+        }
+        document.addEventListener('visibilitychange', checkWhenVisible)
+        stopVisibilityChecks = () =>
+          document.removeEventListener('visibilitychange', checkWhenVisible)
       })
-      .catch(() => {})
+      .catch(checkWebSource)
     return () => {
       active = false
       stopAutomaticChecks()
+      stopVisibilityChecks()
     }
   }, [applyStatus, bridge, check, mobileInvoke])
-
-  const installComponents = useCallback(async () => {
-    if (legacyShellUpdateRef.current && bridge?.downloadUpdate) {
-      applyStatus({
-        ...statusRef.current,
-        state: 'downloading',
-        message: '',
-        transferred: 0,
-        percent: 0,
-      })
-      const stopStatusUpdates = bridge.onUpdateStatus?.(applyStatus)
-      try {
-        const downloaded = await bridge.downloadUpdate()
-        applyStatus(downloaded)
-        if (downloaded.state === 'downloaded' && downloaded.canInstall) {
-          await bridge.installUpdate?.()
-        }
-      } finally {
-        stopStatusUpdates?.()
-      }
-      return []
-    }
-    if (!bridge?.installComponentUpdates) return []
-    applyStatus({
-      ...statusRef.current,
-      state: 'downloading',
-      message: '',
-      transferred: 0,
-      percent: 0,
-    })
-    let pollInFlight = false
-    let installFinished = false
-    const refreshProgress = async () => {
-      if (installFinished || pollInFlight || !bridge.componentUpdateStatus) return
-      pollInFlight = true
-      try {
-        const items = await bridge.componentUpdateStatus()
-        if (installFinished) return
-        setComponents(items)
-        const next = componentStatus(items)
-        if (next.state !== 'available') applyStatus(next)
-      } catch {
-        // The install command returns the authoritative terminal state.
-      } finally {
-        pollInFlight = false
-      }
-    }
-    const poll = window.setInterval(() => void refreshProgress(), 250)
-    try {
-      const items = await bridge.installComponentUpdates()
-      installFinished = true
-      setComponents(items)
-      applyStatus(componentStatus(items))
-      if (
-        !items.some((item) => item.state === 'error') &&
-        items.some((item) => item.restartRequired)
-      ) {
-        await bridge.restartForComponentUpdate?.()
-      }
-      return items
-    } finally {
-      installFinished = true
-      window.clearInterval(poll)
-    }
-  }, [applyStatus, bridge])
 
   const openReleases = useCallback(async () => {
     if (bridge) return bridge.openReleases()
@@ -269,31 +171,27 @@ export function useAppUpdate(): AppUpdateController {
 
   const openUpdateLog = useCallback(() => bridge?.openUpdateLog?.(), [bridge])
 
-  const download = useCallback(() => {
+  const download = useCallback(async () => {
+    if (bridge) {
+      if (shellInstaller?.status.canDownload) return shellInstaller.download()
+      return openReleases()
+    }
     if (mobileModeRef.current && mobileInvoke && status.downloadUrl) {
       return mobileInvoke<boolean>('mobile_open_app_update', { url: status.downloadUrl })
     }
     return openReleases()
-  }, [mobileInvoke, openReleases, status.downloadUrl])
+  }, [bridge, mobileInvoke, openReleases, shellInstaller, status.downloadUrl])
 
-  const install = useCallback(() => download(), [download])
-
-  const effectiveInfo = useMemo(
-    () => ({
-      ...info,
-      version: info.desktop
-        ? currentDesktopVersion(info.hostVersion || info.version, components)
-        : info.version,
-    }),
-    [components, info],
-  )
+  // 桌面端：重启并更新（v0.6.40 的壳是打开安装包）。其他平台去下载页。
+  const install = useCallback(async () => {
+    if (bridge && shellInstaller) return shellInstaller.install()
+    return download()
+  }, [bridge, download, shellInstaller])
 
   return {
-    info: effectiveInfo,
-    status,
-    components,
+    info,
+    status: shellStatus ?? status,
     check,
-    installComponents,
     download,
     install,
     openReleases,

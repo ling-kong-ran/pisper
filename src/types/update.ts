@@ -22,26 +22,15 @@ export type UpdateStatus = {
   releaseDate?: string
   rateLimited?: boolean
   retryAt?: number
+  // 桌面程序下好更新后怎么装：restart 由 Pisper 重启并更新；installer 是 v0.6.40 的壳，
+  // 只能用系统打开安装包，由用户完成。
+  installKind?: ShellInstallKind
 }
 
-export type ComponentUpdateStatus = {
-  component: 'desktop' | 'tui' | 'runtime'
-  state: string
-  currentVersion: string
-  availableVersion: string
-  message: string
-  releaseUrl: string
-  notes: string
-  size: number
-  transferred: number
-  canInstall: boolean
-  restartRequired: boolean
-  // GitHub 限流时可重试的 Unix 时间（秒）；旧版桌面壳没有这个字段。
-  retryAt?: number | null
-}
+export type ShellInstallKind = 'restart' | 'installer'
 
-// 桌面壳安装包（src-tauri/src/desktop_shell/shell_installer.rs）：组件更新换不了壳本身，
-// 壳在后台下载并验签新版安装包，由用户点“安装”手动完成。旧壳没有这组桥接方法。
+// 桌面程序更新（src-tauri/src/desktop_shell/shell_installer.rs）：壳在后台下载并验签整个桌面程序的
+// 更新包，用户点“重启并更新”时安装。v0.6.39 及更早的壳没有这组桥接方法。
 export type ShellInstallerState =
   | 'unsupported'
   | 'idle'
@@ -73,17 +62,19 @@ export type ShellInstallerBridge = {
   check: () => Promise<unknown>
   download: () => Promise<unknown>
   setAutoDownload: (enabled: boolean) => Promise<unknown>
-  open: () => Promise<boolean>
-  reveal: () => Promise<boolean>
+  // 现行的壳：交给 Tauri 更新器安装后重启。
+  install?: () => Promise<unknown>
+  // v0.6.40 的壳：用系统打开安装包。
+  open?: () => Promise<unknown>
 }
 
 export type ShellInstallerController = {
   status: ShellInstallerStatus
+  installKind: ShellInstallKind
   check: () => Promise<void>
   download: () => Promise<void>
   setAutoDownload: (enabled: boolean) => Promise<void>
-  open: () => Promise<boolean>
-  reveal: () => Promise<boolean>
+  install: () => Promise<boolean>
 }
 
 export type AppUpdateInfo = {
@@ -101,14 +92,12 @@ export type AppUpdateInfo = {
 export type AppUpdateController = {
   info: AppUpdateInfo
   status: UpdateStatus
-  components: ComponentUpdateStatus[]
   check: (options?: { refresh?: boolean }) => Promise<UpdateStatus>
-  installComponents: () => Promise<ComponentUpdateStatus[]>
   download: () => Promise<unknown>
-  install: () => unknown
+  install: () => Promise<unknown>
   openReleases: () => Promise<boolean>
   openUpdateLog: () => unknown
-  // 只在带 shellInstaller 桥接的新壳上有值；浏览器、手机和旧壳为 null。
+  // 桌面程序更新的状态镜像：只在带 shellInstaller 桥接的壳上有值；浏览器、手机和旧壳为 null。
   shellInstaller: ShellInstallerController | null
 }
 
@@ -250,13 +239,6 @@ export type DesktopBridge = {
   getCliStatus?: () => Promise<DesktopCliStatus>
   installCli?: () => Promise<DesktopCliStatus>
   uninstallCli?: () => Promise<DesktopCliStatus>
-  checkForUpdates?: () => Promise<UpdateStatus>
-  downloadUpdate?: () => Promise<UpdateStatus>
-  installUpdate?: () => Promise<unknown>
-  componentUpdateStatus?: () => Promise<ComponentUpdateStatus[]>
-  checkComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
-  installComponentUpdates?: () => Promise<ComponentUpdateStatus[]>
-  restartForComponentUpdate?: () => Promise<unknown>
   shellInstaller?: ShellInstallerBridge
   openAsset?: (input: { name: string; data: string }) => Promise<boolean>
   openReleases: () => Promise<boolean>

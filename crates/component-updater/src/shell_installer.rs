@@ -1,9 +1,8 @@
-//! 桌面壳安装包的后台下载。
+//! 桌面壳更新包的后台下载。
 //!
-//! 组件更新器只替换 Desktop 前端和 Runtime；壳本身（src-tauri 编出的 Pisper.exe / Pisper.app /
-//! AppImage）只有用户重装时才会变，Rust 侧的修复因此可能几个版本都到不了用户手上。这里按发布里的
-//! `latest.json` 找到当前平台的安装包，下载后用组件更新器同一把公钥验签，放进专用目录，
-//! 最后由用户自己打开安装：Pisper 不退出、也不静默执行任何东西。
+//! 桌面程序整体更新：壳本身（src-tauri 编出的 Pisper.exe / Pisper.app / AppImage）连同它内置的
+//! 前端、Runtime 和 CLI 一起换。这里按发布里的 `latest.json`（Tauri 更新器的清单）找到当前平台的
+//! 更新包，下载后用同一把公钥验签，放进专用目录；用户点“重启并更新”时由壳交给 Tauri 更新器安装。
 
 use super::{
     decode_public_key, decode_signature, download_candidates_with_mirrors, ensure_success,
@@ -87,14 +86,26 @@ impl InstallerPlatform {
         }
     }
 
-    // 与 scripts/stage-tauri-artifacts.mjs 暂存的文件名一致；Windows 用普通包而不是离线包，
-    // 和 Tauri 更新器的选择相同（离线包多带一份 WebView2，只给首次部署用）。
+    // 与 scripts/stage-tauri-artifacts.mjs 暂存的文件名一致，也就是清单 url 指向的 Tauri 更新包：
+    // Windows 用普通包而不是离线包（离线包多带一份 WebView2，只给首次部署用），macOS 用 .app.tar.gz。
     fn installer_suffix(self) -> &'static str {
         match self {
             Self::WindowsX64 => "-setup.exe",
-            Self::DarwinAarch64 => ".dmg",
+            Self::DarwinAarch64 => ".app.tar.gz",
             Self::LinuxX64 => ".AppImage",
         }
+    }
+
+    /// 旧版壳在 macOS 上下载的是给用户双击的 dmg。认出来只为了清掉，不再当作更新包。
+    fn legacy_installer(self, name: &str) -> bool {
+        self == Self::DarwinAarch64
+            && name
+                .strip_suffix(".sig")
+                .unwrap_or(name)
+                .strip_prefix("Pisper_")
+                .and_then(|text| text.strip_suffix("_darwin_aarch64.dmg"))
+                .and_then(|text| Version::parse(text).ok().filter(|v| v.to_string() == text))
+                .is_some()
     }
 
     pub fn installer_name(self, version: &Version) -> String {
@@ -130,7 +141,7 @@ pub struct ShellRelease {
     pub notes: String,
     pub published_at: Option<String>,
     pub release_url: String,
-    /// 没有时只能提示有新版本：例如 macOS 的旧发布没有 dmg 签名。
+    /// 没有时只能提示有新版本：清单里没有本平台。
     pub installer: Option<InstallerAsset>,
 }
 
@@ -147,6 +158,11 @@ pub fn is_newer(current: &Version, candidate: &Version) -> bool {
 
 pub fn release_url(version: &Version) -> String {
     format!("{RELEASE_TAG_BASE}v{version}")
+}
+
+/// 这次发布里某个资产的 GitHub 直链，也就是清单里 url 必须逐字等于的地址。
+pub fn release_asset_url(version: &Version, file_name: &str) -> String {
+    format!("{RELEASE_DOWNLOAD_BASE}v{version}/{file_name}")
 }
 
 /// 解析并校验 latest.json。任何字段不合规都整体拒绝，不拿半份数据去下载。
@@ -206,26 +222,14 @@ fn parse_manifest_from(
     })
 }
 
+// 只取 url/signature 指向的 Tauri 更新包。macOS 条目里附加的 installer（给首次安装用的 dmg）不再理会。
 fn select_installer(
     entry: &Map<String, Value>,
     platform: InstallerPlatform,
     version: &Version,
     download_base: &str,
 ) -> Result<Option<InstallerAsset>> {
-    // installer 是给壳下载用的附加字段（目前只有 macOS 的 dmg）；Tauri 更新器只读 url/signature，会忽略它。
-    if let Some(installer) = entry.get("installer") {
-        let installer = installer
-            .as_object()
-            .ok_or_else(|| anyhow!("desktop installer entry is not an object"))?;
-        return validate_asset(installer, platform, version, download_base).map(Some);
-    }
-    match platform {
-        // macOS 的 url 指向 .app.tar.gz 更新包，不是用户能双击安装的东西；没有 dmg 就只提示有新版本。
-        InstallerPlatform::DarwinAarch64 => Ok(None),
-        InstallerPlatform::WindowsX64 | InstallerPlatform::LinuxX64 => {
-            validate_asset(entry, platform, version, download_base).map(Some)
-        }
-    }
+    validate_asset(entry, platform, version, download_base).map(Some)
 }
 
 fn validate_asset(
@@ -349,9 +353,14 @@ enum OwnedFile {
     Installer(Version),
     Signature(Version),
     Partial,
+    /// 旧版壳留下的 dmg 及其签名，总是删掉。
+    Legacy,
 }
 
 fn classify(platform: InstallerPlatform, name: &str) -> Option<OwnedFile> {
+    if platform.legacy_installer(name) {
+        return Some(OwnedFile::Legacy);
+    }
     if let Some(inner) = name
         .strip_prefix('.')
         .and_then(|name| name.strip_suffix(".part"))
@@ -410,7 +419,7 @@ fn remove_stale_files(
     let mut removed = Vec::new();
     for (kind, name, path) in owned_files(dir, platform) {
         let stale = match &kind {
-            OwnedFile::Partial => true,
+            OwnedFile::Partial | OwnedFile::Legacy => true,
             OwnedFile::Installer(version) | OwnedFile::Signature(version) => {
                 !keep_installers && keep != Some(version)
             }
@@ -453,6 +462,8 @@ pub struct DownloadedInstaller {
     pub file_name: String,
     pub path: PathBuf,
     pub size: u64,
+    /// 清单里的签名（minisign，base64），安装时 Tauri 更新器还要再验一次。
+    pub signature: String,
 }
 
 struct DownloadLock(#[allow(dead_code)] File);
@@ -671,6 +682,7 @@ impl ShellInstallerUpdater {
             file_name,
             path,
             size: metadata.len(),
+            signature: signature.to_string(),
         })
     }
 
@@ -763,6 +775,7 @@ impl ShellInstallerUpdater {
             file_name: asset.file_name.clone(),
             path: final_path,
             size,
+            signature: asset.signature.clone(),
         })
     }
 
@@ -879,7 +892,7 @@ fn write_signature(dir: &Path, file_name: &str, signature: &str) -> Result<()> {
     Ok(())
 }
 
-/// AppImage 要有执行权限才能双击运行；Windows 和 dmg 不需要。
+/// AppImage 要有执行权限才能运行；Windows 安装程序和 .app.tar.gz 不需要。
 fn make_launchable(platform: InstallerPlatform, path: &Path) -> Result<()> {
     #[cfg(unix)]
     if platform == InstallerPlatform::LinuxX64 {
@@ -1016,25 +1029,28 @@ mod tests {
             "Pisper_0.6.38_linux_x86_64.AppImage"
         );
 
-        // macOS 用附加的 installer 字段里的 dmg，而不是 url 指向的 .app.tar.gz 更新包。
+        // macOS 取 url 指向的 .app.tar.gz 更新包，附加的 dmg 字段不理会。
         let darwin = parse_manifest(&bytes, InstallerPlatform::DarwinAarch64).unwrap();
         assert_eq!(
             darwin.installer.unwrap().file_name,
-            "Pisper_0.6.38_darwin_aarch64.dmg"
+            "Pisper_0.6.38_darwin_aarch64.app.tar.gz"
+        );
+        let without_dmg = manifest(
+            "0.6.38",
+            full_platforms(RELEASE_DOWNLOAD_BASE, "0.6.38", false),
+        );
+        assert_eq!(
+            parse_manifest(&without_dmg, InstallerPlatform::DarwinAarch64)
+                .unwrap()
+                .installer
+                .unwrap()
+                .file_name,
+            "Pisper_0.6.38_darwin_aarch64.app.tar.gz"
         );
     }
 
     #[test]
-    fn macos_without_a_signed_dmg_only_reports_the_new_version() {
-        let bytes = manifest(
-            "0.6.38",
-            full_platforms(RELEASE_DOWNLOAD_BASE, "0.6.38", false),
-        );
-        let darwin = parse_manifest(&bytes, InstallerPlatform::DarwinAarch64).unwrap();
-        assert_eq!(darwin.version, version("0.6.38"));
-        assert_eq!(darwin.installer, None);
-
-        // 清单里没有本平台时同样只提示新版本。
+    fn a_manifest_without_this_platform_only_reports_the_new_version() {
         let bytes = manifest("0.6.38", serde_json::json!({}));
         let windows = parse_manifest(&bytes, InstallerPlatform::WindowsX64).unwrap();
         assert_eq!(windows.installer, None);
@@ -1063,13 +1079,13 @@ mod tests {
                 "{url}: {error:#}"
             );
         }
-        // 附加的 dmg 字段同样只能指向本次发布。
+        // macOS 的更新包同样只能指向本次发布。
         let bytes = manifest(
             "0.6.38",
-            serde_json::json!({ "darwin-aarch64": { "installer": {
-                "url": "https://evil.example/Pisper_0.6.38_darwin_aarch64.dmg",
+            serde_json::json!({ "darwin-aarch64": {
+                "url": "https://evil.example/Pisper_0.6.38_darwin_aarch64.app.tar.gz",
                 "signature": FIXTURE_SIGNATURE,
-            } } }),
+            } }),
         );
         assert!(parse_manifest(&bytes, InstallerPlatform::DarwinAarch64).is_err());
     }
@@ -1155,6 +1171,17 @@ mod tests {
         ] {
             assert_eq!(windows.installer_version(name), None, "{name}");
         }
+        let darwin = InstallerPlatform::DarwinAarch64;
+        assert_eq!(
+            classify(darwin, "Pisper_0.6.37_darwin_aarch64.dmg"),
+            Some(OwnedFile::Legacy)
+        );
+        assert_eq!(
+            classify(darwin, "Pisper_0.6.37_darwin_aarch64.dmg.sig"),
+            Some(OwnedFile::Legacy)
+        );
+        assert_eq!(classify(darwin, "Pisper_x_darwin_aarch64.dmg"), None);
+        assert_eq!(classify(windows, "Pisper_0.6.37_darwin_aarch64.dmg"), None);
         assert_eq!(
             classify(
                 windows,
@@ -1353,7 +1380,9 @@ mod tests {
             if path == "/latest.json" {
                 return response("200 OK", "", &cell.lock().unwrap());
             }
-            if path.ends_with("-setup.exe") || path.ends_with(".dmg") || path.ends_with(".AppImage")
+            if path.ends_with("-setup.exe")
+                || path.ends_with(".app.tar.gz")
+                || path.ends_with(".AppImage")
             {
                 return response("200 OK", "", payload);
             }
@@ -1366,6 +1395,7 @@ mod tests {
 
     #[test]
     fn a_verified_download_replaces_older_installers_and_is_not_downloaded_twice() {
+        // 旧版壳在 macOS 上留下的 dmg 也一并清掉。
         let server = release_server("0.6.38", FIXTURE_PAYLOAD);
         let directory = TestDirectory::new();
         let root = &directory.0;
@@ -1379,7 +1409,15 @@ mod tests {
         let mut progress = Vec::new();
         let installer =
             run(updater.download(&release, |done, total| progress.push((done, total)))).unwrap();
-        assert_eq!(installer.file_name, "Pisper_0.6.38_darwin_aarch64.dmg");
+        assert_eq!(
+            installer.file_name,
+            "Pisper_0.6.38_darwin_aarch64.app.tar.gz"
+        );
+        assert_eq!(installer.signature, FIXTURE_SIGNATURE);
+        assert_eq!(
+            super::release_asset_url(&installer.version, &installer.file_name),
+            "https://github.com/ling-kong-ran/pisper/releases/download/v0.6.38/Pisper_0.6.38_darwin_aarch64.app.tar.gz"
+        );
         assert_eq!(fs::read(&installer.path).unwrap(), FIXTURE_PAYLOAD);
         assert_eq!(installer.size, FIXTURE_PAYLOAD.len() as u64);
         assert_eq!(

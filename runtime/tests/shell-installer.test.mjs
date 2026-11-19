@@ -6,6 +6,7 @@ import {
   SHELL_INSTALLER_ACTIVE_POLL_MS,
   SHELL_INSTALLER_IDLE_POLL_MS,
   shellInstallerPollDelay,
+  shellUpdateStatus,
 } from '../../src/features/updates/shell-installer-state.ts'
 import {
   startShellInstallerPoller,
@@ -66,6 +67,39 @@ test('shell installer status from the bridge is validated field by field', () =>
   assert.equal(normalizeShellInstallerStatus(status({ autoDownload: false })).autoDownload, false)
   // 进度不能超过总大小。
   assert.equal(normalizeShellInstallerStatus(status({ transferred: 500 })).transferred, 80)
+  // macOS 下的是 Tauri 更新包；v0.6.40 的壳下的 dmg 也认。
+  for (const fileName of [
+    'Pisper_0.6.38_darwin_aarch64.app.tar.gz',
+    'Pisper_0.6.38_darwin_aarch64.dmg',
+  ]) {
+    assert.equal(normalizeShellInstallerStatus(status({ fileName })).fileName, fileName)
+  }
+})
+
+test('the desktop update status comes straight from the shell', () => {
+  const downloading = shellUpdateStatus(
+    status({ state: 'downloading', size: 200, transferred: 50 }),
+    'restart',
+  )
+  assert.equal(downloading.state, 'downloading')
+  assert.equal(downloading.percent, 25)
+  assert.equal(downloading.total, 200)
+  assert.equal(downloading.availableVersion, '0.6.38')
+  assert.equal(downloading.installKind, 'restart')
+  assert.equal(downloading.message, '')
+
+  const failed = shellUpdateStatus(
+    status({ state: 'error', message: 'rate limited', retryAt: 1_800_000_000 }),
+    'installer',
+  )
+  assert.equal(failed.message, 'rate limited')
+  assert.equal(failed.rateLimited, true)
+  assert.equal(failed.retryAt, 1_800_000_000)
+  assert.equal(failed.installKind, 'installer')
+
+  // 已是最新时不再显示上一版的说明。
+  assert.equal(shellUpdateStatus(status({ state: 'current' }), 'restart').notes, '')
+  assert.equal(shellUpdateStatus(status({ state: 'current', size: 0 }), 'restart').percent, 0)
 })
 
 test('shell installer polling follows the shell state', () => {
@@ -93,8 +127,7 @@ test('installer commands are main-window only and the frontend feature-detects o
     'desktop_check_shell_installer',
     'desktop_download_shell_installer',
     'desktop_set_shell_installer_auto_download',
-    'desktop_open_shell_installer',
-    'desktop_reveal_shell_installer',
+    'desktop_install_shell_update',
   ]
   for (const command of commands) {
     assert.match(bridge, new RegExp(`invoke\\('${command}'`))
@@ -116,8 +149,8 @@ test('installer commands are main-window only and the frontend feature-detects o
   // 前端可能跑在没有这组方法的旧壳上：逐个确认是函数才用。
   assert.match(poller, /typeof bridge\[name\] === 'function'/)
   assert.match(appUpdate, /useShellInstaller\(bridge\?\.shellInstaller\)/)
-  // 只有手动检查才顺带触发壳的检查；定时检查由壳自己负责，不重复请求。
-  assert.match(appUpdate, /if \(refresh\) void shellInstallerCheckRef\.current/)
+  // 只有手动检查才让壳立刻查一次；定时检查由壳自己负责，前端不再排桌面端的定时检查。
+  assert.match(appUpdate, /if \(!refresh \|\| !controller\) return Promise\.resolve\(current\(\)\)/)
 })
 
 function fakeScheduler() {
@@ -159,8 +192,8 @@ function fakeBridge(responses) {
       check: reply('check'),
       download: reply('download'),
       setAutoDownload: reply('setAutoDownload'),
+      install: reply('install'),
       open: reply('open'),
-      reveal: reply('reveal'),
     },
   }
 }
@@ -183,7 +216,7 @@ test('the poller mirrors the shell, speeds up while downloading and stops cleanl
   const { bridge, calls } = fakeBridge({
     status: () => current,
     setAutoDownload: (enabled) => status({ autoDownload: enabled }),
-    open: true,
+    install: true,
   })
   const scheduler = fakeScheduler()
   const published = []
@@ -203,7 +236,9 @@ test('the poller mirrors the shell, speeds up while downloading and stops cleanl
     calls.find(([name]) => name === 'setAutoDownload'),
     ['setAutoDownload', false],
   )
-  assert.equal(await published.at(-1).open(), true)
+  assert.equal(published.at(-1).installKind, 'restart')
+  assert.equal(await published.at(-1).install(), true)
+  assert.ok(calls.some(([name]) => name === 'install'))
 
   stop()
   assert.equal(scheduler.timers.size, 0)
@@ -233,27 +268,51 @@ test('unsupported platforms publish nothing and failed actions reach the caller'
   assert.equal(controllers.at(-1).status.state, 'available')
 })
 
-test('a downloaded installer replaces the component download as the one install entry', async () => {
-  const [settings, installerSettings, sidebar] = await Promise.all([
+test('v0.6.40 shells without install fall back to opening the installer', async () => {
+  const { bridge, calls } = fakeBridge({ status: status(), open: true })
+  delete bridge.install
+  const published = []
+  startShellInstallerPoller(bridge, (value) => published.push(value), fakeScheduler())
+  await settle()
+  assert.equal(published.at(-1).installKind, 'installer')
+  assert.equal(await published.at(-1).install(), true)
+  assert.ok(calls.some(([name]) => name === 'open'))
+  // 两个安装入口都没有的壳不加载。
+  const { bridge: neither } = fakeBridge({ status: status() })
+  delete neither.install
+  delete neither.open
+  assert.equal(usableShellInstallerBridge(neither), null)
+})
+
+test('the desktop app updates as a whole through the Tauri updater', async () => {
+  const [glue, library, config, cargo, settings, appUpdate] = await Promise.all([
+    readFile('src-tauri/src/desktop_shell/shell_installer.rs', 'utf8'),
+    readFile('src-tauri/src/desktop_shell/mod.rs', 'utf8'),
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('src-tauri/Cargo.toml', 'utf8'),
     readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
-    readFile('src/features/config/ShellInstallerSettings.tsx', 'utf8'),
-    readFile('src/components/layout/SidebarUpdateStatus.tsx', 'utf8'),
+    readFile('src/features/updates/useAppUpdate.ts', 'utf8'),
   ])
-  // 安装包下好或正在下时，“应用更新”的主按钮打开安装包，不再提供组件下载；已开始的组件下载照常走完。
+  const publicKey = (await readFile('src-tauri/updater.pubkey', 'utf8')).trim()
+  const updater = JSON.parse(config).plugins.updater
+  // 开发构建也要有插件配置，否则插件初始化失败；公钥必须和发布签名用的是同一把。
+  assert.equal(updater.pubkey, publicKey)
+  assert.deepEqual(updater.endpoints, [
+    'https://github.com/ling-kong-ran/pisper/releases/latest/download/latest.json',
+  ])
+  assert.equal(updater.windows.installMode, 'passive')
+  assert.match(cargo, /tauri-plugin-updater = "2\.\d+\.\d+"/)
+  assert.match(library, /\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\)/)
+  // 安装用已下载的那个版本，不再联网换成别的版本；先验签再收尾，收尾后才交给安装程序。
+  assert.match(glue, /restore_update\(manifest\)/)
+  assert.ok(glue.indexOf('update.verify(&bytes)') < glue.indexOf('update.install(bytes)'))
+  assert.match(glue, /on_before_exit\(move \|\| \{[\s\S]*?prepare_for_update_exit\(&exit_app\)/)
   assert.match(
-    settings,
-    /const installerFirst =\s*\(installerState === 'downloaded' \|\| installerState === 'downloading'\) &&\s*!checking &&\s*!downloading &&\s*!downloaded/,
+    library,
+    /pub\(crate\) fn prepare_for_update_exit[\s\S]*?stop_background_work\(app\);\s*app\.cleanup_before_exit\(\);/,
   )
-  assert.match(
-    settings,
-    /\{installerFirst \? \(\s*<Button[\s\S]*?onClick=\{\(\) => void openInstaller\(\)\}/,
-  )
-  // “安装”只有一处：桌面安装包分区只留“在文件夹中显示”。
-  assert.doesNotMatch(installerSettings, /installer\.open/)
-  assert.match(installerSettings, /installer\.reveal/)
-  // 侧栏同样先提示安装包，除非组件已经在下载或等重启。
-  assert.match(
-    sidebar,
-    /const showInstaller =\s*installerReady && status\.state !== 'downloading' && status\.state !== 'downloaded'/,
-  )
+  // 桌面端不再有组件更新这条路。
+  assert.doesNotMatch(appUpdate, /ComponentUpdates|installComponents|componentUpdateStatus/)
+  assert.doesNotMatch(settings, /installComponents|ShellInstallerSettings/)
+  assert.match(settings, /restartAndUpdate/)
 })
