@@ -22,7 +22,14 @@ export async function publishNpmPackage({
       try {
         const value = JSON.parse(
           npm(
-            ['view', spec, '--json', '--prefer-online', '--fetch-retries=0', '--fetch-timeout=30000'],
+            [
+              'view',
+              spec,
+              '--json',
+              '--prefer-online',
+              '--fetch-retries=0',
+              '--fetch-timeout=30000',
+            ],
             { capture: true },
           ),
         )
