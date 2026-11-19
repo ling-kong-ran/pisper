@@ -116,6 +116,27 @@ export function UpdateSettings({
 
   const install = () => update?.install()
 
+  // 壳的安装包里带着同一次发布的前端、Runtime 和 CLI：它已下好或正在后台下时，再单独下组件
+  // 只是把同样的东西多下一遍，所以主按钮改为打开安装包。已经开始的组件下载照常走完。
+  const installer = desktop ? update.shellInstaller : null
+  const installerState = installer?.status.state
+  const installerVersion = installer?.status.availableVersion
+    ? `v${installer.status.availableVersion}`
+    : ''
+  const [installerOpening, setInstallerOpening] = useState(false)
+  const openInstaller = async () => {
+    if (!installer) return
+    setInstallerOpening(true)
+    try {
+      await installer.open()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      notify(t('config:updateSettings.installerActionFailed', { message }), 'error')
+    } finally {
+      setInstallerOpening(false)
+    }
+  }
+
   const bundledCurrent = bundled.version === info.version ? bundled : null
   const notes =
     status.notes ||
@@ -140,7 +161,18 @@ export function UpdateSettings({
   const downloaded = status.state === 'downloaded'
   const checking = status.state === 'checking' || componentBusy === 'check'
   const downloading = status.state === 'downloading' || componentBusy === 'install'
-  const overallState = checking ? 'checking' : downloading ? 'downloading' : status.state
+  const installerFirst =
+    (installerState === 'downloaded' || installerState === 'downloading') &&
+    !checking &&
+    !downloading &&
+    !downloaded
+  const installerReady = installerFirst && installerState === 'downloaded'
+  const installerDownloading = installerFirst && installerState === 'downloading'
+  const overallState = checking
+    ? 'checking'
+    : downloading || installerDownloading
+      ? 'downloading'
+      : status.state
   const currentIdentifier = nativeApp
     ? `v${info.version}`
     : `v${info.version}${status.currentCommit ? ` · ${status.currentCommit.slice(0, 7)}` : ''}`
@@ -187,6 +219,7 @@ export function UpdateSettings({
           : t('config:updateSettings.checkFailed'),
       } as Record<string, string>
     )[overallState] || t('config:updateSettings.notChecked')
+  const statusText = installerReady ? t('config:updateSettings.installerReadyStatus') : statusLabel
 
   // 方向 A 的设置分区（效果图 desktop-settings-light.png）：分区标题 + 细线行，左缘与页标题对齐，
   // 不再有带键帽图标的标题条、灰底分区头与 px-4 的内框。
@@ -201,7 +234,7 @@ export function UpdateSettings({
             data-update-status={overallState}
             className="text-xs text-content-secondary tabular-nums"
           >
-            {statusLabel}
+            {statusText}
           </span>
         }
       >
@@ -264,42 +297,59 @@ export function UpdateSettings({
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            className="max-[650px]:h-11"
-            disabled={checking || downloading || Boolean(componentBusy)}
-            onClick={downloaded ? install : available || resumable ? download : check}
-          >
-            {checking || downloading ? (
-              <OrbitSpinner className="text-current" />
-            ) : downloaded ? (
-              <Rocket size={14} />
-            ) : available || resumable ? (
-              status.canDownload ? (
-                <Download size={14} />
+          {installerFirst ? (
+            <Button
+              className="max-[650px]:h-11"
+              disabled={installerDownloading || installerOpening}
+              onClick={() => void openInstaller()}
+            >
+              {installerDownloading || installerOpening ? (
+                <OrbitSpinner className="text-current" />
               ) : (
-                <ExternalLink size={14} />
-              )
-            ) : (
-              <RefreshCw size={14} />
-            )}
-            {checking || downloading
-              ? downloading && desktop
-                ? t('config:updateSettings.installingUpdates')
-                : t('config:updateSettings.checking2')
-              : downloaded
-                ? t('config:updateSettings.restartAndInstall')
-                : resumable
-                  ? t('config:updateSettings.resumeDownload')
-                  : available
-                    ? status.canDownload
-                      ? desktop
-                        ? t('config:updateSettings.downloadAndInstallUpdates')
-                        : t('config:updateSettings.downloadUpdate')
-                      : nativeApp
-                        ? t('config:updateSettings.viewRelease')
-                        : t('config:updateSettings.viewSourceUpdates')
-                    : t('config:updateSettings.checkForUpdates')}
-          </Button>
+                <Rocket size={14} />
+              )}
+              {installerDownloading
+                ? t('config:updateSettings.installerDownloadingShort')
+                : t('config:updateSettings.installVersion', { version: installerVersion })}
+            </Button>
+          ) : (
+            <Button
+              className="max-[650px]:h-11"
+              disabled={checking || downloading || Boolean(componentBusy)}
+              onClick={downloaded ? install : available || resumable ? download : check}
+            >
+              {checking || downloading ? (
+                <OrbitSpinner className="text-current" />
+              ) : downloaded ? (
+                <Rocket size={14} />
+              ) : available || resumable ? (
+                status.canDownload ? (
+                  <Download size={14} />
+                ) : (
+                  <ExternalLink size={14} />
+                )
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {checking || downloading
+                ? downloading && desktop
+                  ? t('config:updateSettings.installingUpdates')
+                  : t('config:updateSettings.checking2')
+                : downloaded
+                  ? t('config:updateSettings.restartAndInstall')
+                  : resumable
+                    ? t('config:updateSettings.resumeDownload')
+                    : available
+                      ? status.canDownload
+                        ? desktop
+                          ? t('config:updateSettings.downloadAndInstallUpdates')
+                          : t('config:updateSettings.downloadUpdate')
+                        : nativeApp
+                          ? t('config:updateSettings.viewRelease')
+                          : t('config:updateSettings.viewSourceUpdates')
+                      : t('config:updateSettings.checkForUpdates')}
+            </Button>
+          )}
           <Button variant="secondary" className="max-[650px]:h-11" onClick={openReleases}>
             <ExternalLink size={14} />
             {nativeApp ? 'GitHub Releases' : 'GitHub Compare'}

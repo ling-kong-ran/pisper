@@ -1,7 +1,8 @@
 // 设置 › 更新里的“桌面安装包”分区：组件更新换不了桌面程序本身，壳在后台下载并验签新版安装包，
-// 这里显示下载状态，并提供“安装”（用系统打开安装包，由用户完成）、“在文件夹中显示”和自动下载开关。
+// 这里显示下载状态，并提供“在文件夹中显示”和自动下载开关。“安装”（用系统打开安装包，由用户完成）
+// 只放在上面“应用更新”的主按钮上：安装包已经带着新组件，两处各放一个入口只会让人以为要分两次装。
 import { useState } from 'react'
-import { Download, ExternalLink, FolderOpen, PackageCheck, RefreshCw, Rocket } from 'lucide-react'
+import { Download, ExternalLink, FolderOpen, PackageCheck, RefreshCw } from 'lucide-react'
 import { FeatureList, FeatureRow, FeatureSection } from '@/components/app/FeaturePage'
 import { Button } from '@/components/ui/button'
 import { OrbitSpinner } from '@/components/ui/spinner'
@@ -28,7 +29,7 @@ export function ShellInstallerSettings({
   openReleases: () => unknown
 }) {
   const { t, language } = useI18n()
-  const [busy, setBusy] = useState<'' | 'open' | 'reveal' | 'toggle' | 'download' | 'check'>('')
+  const [busy, setBusy] = useState<'' | 'reveal' | 'toggle' | 'download' | 'check'>('')
   const status = installer.status
   const version = status.availableVersion ? `v${status.availableVersion}` : ''
   // 服务器没给总大小时只显示已下载的字节数。
@@ -53,7 +54,7 @@ export function ShellInstallerSettings({
         return {
           icon: <PackageCheck />,
           name: t('config:updateSettings.installerReady', { version }),
-          description: t('config:updateSettings.installerReadyHint'),
+          description: t('config:updateSettings.installerReadyHint', { version }),
         }
       case 'downloading':
         return {
@@ -113,25 +114,15 @@ export function ShellInstallerSettings({
 
   const actions =
     status.state === 'downloaded' ? (
-      <>
-        <Button
-          className="max-[650px]:h-11"
-          disabled={Boolean(busy)}
-          onClick={() => void run('open', installer.open)}
-        >
-          {busy === 'open' ? <OrbitSpinner className="text-current" /> : <Rocket size={14} />}
-          {t('config:updateSettings.installerInstall')}
-        </Button>
-        <Button
-          variant="secondary"
-          className="max-[650px]:h-11"
-          disabled={Boolean(busy)}
-          onClick={() => void run('reveal', installer.reveal)}
-        >
-          <FolderOpen size={14} />
-          {t('config:updateSettings.installerReveal')}
-        </Button>
-      </>
+      <Button
+        variant="secondary"
+        className="max-[650px]:h-11"
+        disabled={Boolean(busy)}
+        onClick={() => void run('reveal', installer.reveal)}
+      >
+        <FolderOpen size={14} />
+        {t('config:updateSettings.installerReveal')}
+      </Button>
     ) : status.state === 'available' && status.canDownload && !status.autoDownload ? (
       <Button
         className="max-[650px]:h-11"

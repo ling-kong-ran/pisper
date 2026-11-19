@@ -31,8 +31,9 @@ export default function SidebarUpdateStatus({
   const installer = update?.shellInstaller?.status
   const installerReady = installer?.state === 'downloaded' && Boolean(installer.availableVersion)
   if (!componentUpdate && !installerReady) return null
-  // 组件更新优先：它装完要重启，安装包则一直留着等用户。
-  const showInstaller = !componentUpdate && installerReady
+  // 安装包已经带着同一次发布的组件，下好后优先提示它；只有组件已在下载或等重启时才先说组件。
+  const showInstaller =
+    installerReady && status.state !== 'downloading' && status.state !== 'downloaded'
   const downloading = componentUpdate && status.state === 'downloading'
   const downloaded = componentUpdate && status.state === 'downloaded'
   const label = showInstaller

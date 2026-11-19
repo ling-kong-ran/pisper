@@ -232,3 +232,28 @@ test('unsupported platforms publish nothing and failed actions reach the caller'
   // 失败后保留上一份状态。
   assert.equal(controllers.at(-1).status.state, 'available')
 })
+
+test('a downloaded installer replaces the component download as the one install entry', async () => {
+  const [settings, installerSettings, sidebar] = await Promise.all([
+    readFile('src/features/config/UpdateSettings.tsx', 'utf8'),
+    readFile('src/features/config/ShellInstallerSettings.tsx', 'utf8'),
+    readFile('src/components/layout/SidebarUpdateStatus.tsx', 'utf8'),
+  ])
+  // 安装包下好或正在下时，“应用更新”的主按钮打开安装包，不再提供组件下载；已开始的组件下载照常走完。
+  assert.match(
+    settings,
+    /const installerFirst =\s*\(installerState === 'downloaded' \|\| installerState === 'downloading'\) &&\s*!checking &&\s*!downloading &&\s*!downloaded/,
+  )
+  assert.match(
+    settings,
+    /\{installerFirst \? \(\s*<Button[\s\S]*?onClick=\{\(\) => void openInstaller\(\)\}/,
+  )
+  // “安装”只有一处：桌面安装包分区只留“在文件夹中显示”。
+  assert.doesNotMatch(installerSettings, /installer\.open/)
+  assert.match(installerSettings, /installer\.reveal/)
+  // 侧栏同样先提示安装包，除非组件已经在下载或等重启。
+  assert.match(
+    sidebar,
+    /const showInstaller =\s*installerReady && status\.state !== 'downloading' && status\.state !== 'downloaded'/,
+  )
+})
