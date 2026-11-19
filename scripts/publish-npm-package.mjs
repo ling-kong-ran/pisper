@@ -21,7 +21,10 @@ export async function publishNpmPackage({
     for (let attempt = 1; ; attempt += 1) {
       try {
         const value = JSON.parse(
-          npm(['view', spec, '--json', '--prefer-online', '--fetch-retries=0'], { capture: true }),
+          npm(
+            ['view', spec, '--json', '--prefer-online', '--fetch-retries=0', '--fetch-timeout=30000'],
+            { capture: true },
+          ),
         )
         if (value.version !== version || value.dist?.integrity !== integrity)
           throw new Error(`${spec} 的公开内容与本次构建不一致，停止发布。`)
