@@ -528,6 +528,10 @@ test('self-hosted Linux releases inject signing secrets and only resume existing
   }
   assert.equal(step('Require Linux x64').shell, 'bash')
   assert.match(step('Require Linux x64').run, /RUNNER_OS.*Linux.*RUNNER_ARCH.*X64/s)
+  assert.equal(
+    job.steps.find((entry) => entry.uses === 'actions/setup-node@v5').with.cache,
+    "${{ inputs.stage == 'build' && 'npm' || '' }}",
+  )
 
   const checkout = job.steps.find((entry) => entry.uses === 'actions/checkout@v5')
   assert.deepEqual(checkout.with, { ref: 'release', 'fetch-depth': 0 })

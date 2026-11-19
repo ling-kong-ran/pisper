@@ -54,7 +54,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+          # Publish 只校验并发布已有产物，避免收尾上传数 GB 缓存阻塞后续 App。
+          cache: ${{ inputs.stage == 'build' && 'npm' || '' }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
