@@ -25,6 +25,7 @@ import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createGitHubReleases } from './github-release-api.mjs'
+import { publishNpmPackage } from './publish-npm-package.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PLAN_ASSET = 'pisper-release-plan.json'
@@ -99,7 +100,9 @@ const tauriCli = join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
 async function loadSecrets() {
   const path = process.env.PISPER_RELEASE_ENV || join(homedir(), '.config', 'pisper-release', 'env')
   if (!existsSync(path)) {
-    console.warn(`未找到凭据文件 ${path}，只使用当前环境变量。`)
+    // CI 直接注入环境变量，无需本地凭据文件；只有显式指定的文件缺失才提示。
+    if (process.env.PISPER_RELEASE_ENV)
+      console.warn('指定的 PISPER_RELEASE_ENV 文件不存在，将使用当前环境变量。')
     return
   }
   if (process.platform !== 'win32' && (statSync(path).mode & 0o077) !== 0)
@@ -693,39 +696,23 @@ async function publishNpm(current, publishRoot) {
     mode: 0o600,
   })
   try {
-    const published = (name) => {
-      try {
-        npm(['view', name, 'version', '--json'], { capture: true })
-        return true
-      } catch {
-        return false
-      }
-    }
     for (const slug of ['win32-x64', 'darwin-arm64', 'linux-x64']) {
       const platformVersion = `${version}-${slug}.0`
-      if (published(`pisper@${platformVersion}`)) continue
-      npm([
-        'publish',
-        `release/npm/tarballs/pisper-${platformVersion}.tgz`,
-        '--access',
-        'public',
-        '--no-provenance',
-        '--tag',
-        `platform-${slug}`,
-        '--userconfig',
+      await publishNpmPackage({
+        version: platformVersion,
+        tarball: `release/npm/tarballs/pisper-${platformVersion}.tgz`,
+        tag: `platform-${slug}`,
         userconfig,
-      ])
+        npm,
+      })
     }
-    if (!published(`pisper@${version}`))
-      npm([
-        'publish',
-        `release/npm/tarballs/pisper-${version}.tgz`,
-        '--access',
-        'public',
-        '--no-provenance',
-        '--userconfig',
-        userconfig,
-      ])
+    await publishNpmPackage({
+      version,
+      tarball: `release/npm/tarballs/pisper-${version}.tgz`,
+      tag: 'latest',
+      userconfig,
+      npm,
+    })
   } finally {
     await rm(userconfig, { force: true })
   }

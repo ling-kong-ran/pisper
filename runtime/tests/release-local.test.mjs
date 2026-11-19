@@ -8,6 +8,209 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { load as parseYaml } from 'js-yaml'
 import { createGitHubReleases } from '../../scripts/github-release-api.mjs'
+import { EnvHttpProxyAgent } from 'undici'
+import { createServer } from 'node:net'
+import { once } from 'node:events'
+import { publishNpmPackage } from '../../scripts/publish-npm-package.mjs'
+
+test('default release dispatcher routes redirected downloads through the environment proxy', async (t) => {
+  const server = createServer((socket) => {
+    socket.once('data', (chunk) => {
+      assert.match(chunk.toString(), /^CONNECT release-test.invalid:80 /)
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+      socket.once('data', () =>
+        socket.end('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nbytes'),
+      )
+    })
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const keys = ['HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy']
+  const saved = keys.map((key) => [key, process.env[key]])
+  for (const key of keys)
+    process.env[key] =
+      key.toLowerCase() === 'http_proxy' ? `http://127.0.0.1:${server.address().port}` : ''
+  let dispatcher
+  t.after(async () => {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+    await dispatcher?.close()
+    await new Promise((resolve) => server.close(resolve))
+  })
+  const api = createGitHubReleases({
+    token: 'secret',
+    fetchImpl: (url, init) => {
+      dispatcher = init.dispatcher
+      assert.ok(dispatcher instanceof EnvHttpProxyAgent)
+      return url.startsWith('https://api.github.com')
+        ? Promise.resolve(
+            new Response(null, {
+              status: 302,
+              headers: { location: 'http://release-test.invalid/file' },
+            }),
+          )
+        : fetch(url, init)
+    },
+  })
+  assert.equal((await api.downloadAsset(5)).toString(), 'bytes')
+})
+
+test('asset redirect and response-body failures refresh the URL without forwarding credentials', async () => {
+  let downloads = 0
+  let redirects = 0
+  const api = createGitHubReleases({
+    token: 'secret',
+    sleepImpl: async () => {},
+    fetchImpl: async (url, init) => {
+      if (url.startsWith('https://api.github.com')) {
+        redirects += 1
+        return new Response(null, {
+          status: 302,
+          headers: { location: `https://assets.example/${redirects}` },
+        })
+      }
+      assert.equal(init.headers?.Authorization, undefined)
+      downloads += 1
+      if (downloads === 1) throw new TypeError('fetch failed')
+      if (downloads === 2) return new Response('expired', { status: 403 })
+      if (downloads === 3)
+        return {
+          ok: true,
+          arrayBuffer: async () => {
+            throw new TypeError('terminated')
+          },
+        }
+      return new Response('complete')
+    },
+  })
+  assert.equal((await api.downloadAsset(5)).toString(), 'complete')
+  assert.equal(redirects, 4)
+})
+
+async function npmFixture(t, overrides = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'pisper-npm-publish-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const tarball = join(dir, 'package.tgz')
+  await writeFile(tarball, 'archive')
+  const metadata = {
+    version: '1.2.3',
+    dist: { integrity: `sha512-${createHash('sha512').update('archive').digest('base64')}` },
+    'dist-tags': { latest: '1.2.3' },
+  }
+  const options = {
+    version: '1.2.3',
+    tarball,
+    tag: 'latest',
+    userconfig: 'unused',
+    sleep: async () => {},
+    polls: 3,
+    log: () => {},
+    ...overrides,
+  }
+  return { metadata, options }
+}
+const npmError = (text) => Object.assign(new Error('npm failed'), { stderr: text })
+
+test('staged npm conflict is reconciled by polling, without a second upload', async (t) => {
+  const { metadata, options } = await npmFixture(t)
+  let views = 0,
+    uploads = 0
+  await publishNpmPackage({
+    ...options,
+    npm: (args) => {
+      if (args[0] === 'view') {
+        if (++views < 3) throw npmError('E404')
+        return JSON.stringify(metadata)
+      }
+      uploads += 1
+      throw npmError('E409 Cannot publish over previously staged version "1.2.3".')
+    },
+  })
+  assert.equal(uploads, 1)
+  assert.equal(views, 3)
+})
+
+test('successful npm upload still waits for public metadata', async (t) => {
+  const { metadata, options } = await npmFixture(t)
+  let views = 0,
+    uploads = 0
+  await publishNpmPackage({
+    ...options,
+    npm: (args) => {
+      if (args[0] === 'view') {
+        if (++views < 3) throw npmError('E404')
+        return JSON.stringify(metadata)
+      }
+      uploads += 1
+      return ''
+    },
+  })
+  assert.equal(uploads, 1)
+  assert.equal(views, 3)
+})
+
+test('npm read outages and authentication failures never trigger publishing', async (t) => {
+  const { options } = await npmFixture(t)
+  for (const code of ['ETIMEDOUT', 'E401']) {
+    let calls = 0
+    await assert.rejects(
+      publishNpmPackage({
+        ...options,
+        npm: (args) => {
+          assert.equal(args[0], 'view')
+          calls += 1
+          throw npmError(code)
+        },
+      }),
+      /npm failed/,
+    )
+    assert.equal(calls, code === 'E401' ? 1 : 4)
+  }
+})
+
+test('npm content mismatch and prolonged staging fail without claiming success', async (t) => {
+  const { metadata, options } = await npmFixture(t)
+  await assert.rejects(
+    publishNpmPackage({
+      ...options,
+      npm: () => JSON.stringify({ ...metadata, dist: { integrity: 'wrong' } }),
+    }),
+    /不一致/,
+  )
+  let uploads = 0
+  await assert.rejects(
+    publishNpmPackage({
+      ...options,
+      npm: (args) => {
+        if (args[0] === 'view') throw npmError('E404')
+        uploads += 1
+        return ''
+      },
+    }),
+    /尚未公开/,
+  )
+  assert.equal(uploads, 1)
+})
+
+test('existing npm version is verified and its interrupted dist-tag update is resumed', async (t) => {
+  const { metadata, options } = await npmFixture(t)
+  metadata['dist-tags'].latest = '1.2.2'
+  const commands = []
+  await publishNpmPackage({
+    ...options,
+    npm: (args) => {
+      commands.push(args[0])
+      if (args[0] === 'dist-tag') {
+        metadata['dist-tags'].latest = '1.2.3'
+        return ''
+      }
+      return JSON.stringify(metadata)
+    },
+  })
+  assert.deepEqual(commands, ['view', 'dist-tag', 'view'])
+})
 
 function fakeFetch(handler) {
   const calls = []
@@ -185,9 +388,10 @@ test('release.mjs can stop after planning, and desktop builds can bundle local a
     local.indexOf('await publishNpm(current') < local.lastIndexOf('api.deleteAsset(planAsset.id)'),
   )
   // 包内 publishConfig 仍要求 provenance；NPM_TOKEN 入口必须显式关闭，包括平台包和主包。
-  const npmPublishCalls = [...local.matchAll(/npm\(\[\s*'publish',([\s\S]*?)\]\)/g)]
+  const npmPublishCalls = [...local.matchAll(/await publishNpmPackage\(\{/g)]
   assert.equal(npmPublishCalls.length, 2)
-  for (const call of npmPublishCalls) assert.match(call[1], /'--no-provenance'/)
+  const publisher = await readFile('scripts/publish-npm-package.mjs', 'utf8')
+  assert.match(publisher, /'publish',[\s\S]*?'--no-provenance'/)
 })
 
 test('a release that skips Linux validates only the planned platforms', async (t) => {

@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { Agent } from 'undici'
+import { EnvHttpProxyAgent } from 'undici'
 
 const API = 'https://api.github.com'
 const UPLOADS = 'https://uploads.github.com'
@@ -32,7 +32,7 @@ export function createGitHubReleases({
   token,
   fetchImpl = fetch,
   sleepImpl = sleep,
-  dispatcher = new Agent({
+  dispatcher = new EnvHttpProxyAgent({
     // 100 MB 以上的组件在慢速上行链路上可能超过 Undici 默认的 300 秒响应头超时。
     headersTimeout: REQUEST_TIMEOUT,
     bodyTimeout: REQUEST_TIMEOUT,
@@ -196,20 +196,40 @@ export function createGitHubReleases({
     },
     // 资产下载会跳到存储服务：跳转后不能再带令牌，手动跟一次。
     async downloadAsset(assetId) {
-      const response = await request('GET', `${repo}/releases/assets/${assetId}`, {
-        raw: true,
-        extraHeaders: { Accept: 'application/octet-stream' },
-      })
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location')
-        if (!location) throw new Error(`GitHub asset ${assetId} redirect has no location.`)
-        const redirected = await fetchImpl(location, { redirect: 'follow', dispatcher })
-        if (!redirected.ok)
-          throw new Error(`Asset ${assetId} download failed (${redirected.status}).`)
-        return Buffer.from(await redirected.arrayBuffer())
+      // 连接成功后仍可能在跳转或读取响应体时断线；重新取签名地址，避免反复使用过期 URL。
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return await downloadAssetOnce(assetId)
+        } catch (error) {
+          if (
+            attempt >= ATTEMPTS ||
+            (!error?.cause && !(error instanceof TypeError) && !error.retryable)
+          )
+            throw error
+          await sleepImpl(2_000 * attempt)
+        }
       }
-      if (!response.ok) throw new Error(`Asset ${assetId} download failed (${response.status}).`)
-      return Buffer.from(await response.arrayBuffer())
     },
+  }
+
+  async function downloadAssetOnce(assetId) {
+    const response = await request('GET', `${repo}/releases/assets/${assetId}`, {
+      raw: true,
+      extraHeaders: { Accept: 'application/octet-stream' },
+    })
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location')
+      if (!location) throw new Error(`GitHub asset ${assetId} redirect has no location.`)
+      const redirected = await fetchImpl(location, { redirect: 'follow', dispatcher })
+      if (!redirected.ok) {
+        await redirected.body?.cancel()
+        throw Object.assign(new Error(`Asset ${assetId} download failed (${redirected.status}).`), {
+          retryable: redirected.status >= 500 || redirected.status === 403,
+        })
+      }
+      return Buffer.from(await redirected.arrayBuffer())
+    }
+    if (!response.ok) throw new Error(`Asset ${assetId} download failed (${response.status}).`)
+    return Buffer.from(await response.arrayBuffer())
   }
 }
