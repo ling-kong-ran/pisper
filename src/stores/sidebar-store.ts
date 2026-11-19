@@ -12,12 +12,31 @@ export type SidebarPreference = {
   collapsed: boolean
   // “今天完成”分组折叠（规格 2.1：今天完成可折叠；需要你永不折叠）。
   doneCollapsed: boolean
+  // “最近”里收起的工作区（sessionWorkspaceKey）；默认都展开。
+  collapsedWorkspaces: string[]
 }
+
+// 记住的收起工作区上限：项目再多也只留最近收起的这些，偏好文件不会无限长。
+export const SIDEBAR_COLLAPSED_WORKSPACE_LIMIT = 100
+const WORKSPACE_KEY_MAX_LENGTH = 4096
 
 export const DEFAULT_SIDEBAR_PREFERENCE: Readonly<SidebarPreference> = Object.freeze({
   collapsed: false,
   doneCollapsed: false,
+  collapsedWorkspaces: [],
 })
+
+function workspaceKeys(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [
+    ...new Set(
+      value.filter(
+        (key): key is string =>
+          typeof key === 'string' && key.length > 0 && key.length <= WORKSPACE_KEY_MAX_LENGTH,
+      ),
+    ),
+  ].slice(-SIDEBAR_COLLAPSED_WORKSPACE_LIMIT)
+}
 
 // 存储内容按不可信输入解析：坏 JSON、错类型、未知字段一律回到默认值，永不抛错。
 export function parseSidebarPreference(raw: unknown): SidebarPreference {
@@ -30,11 +49,12 @@ export function parseSidebarPreference(raw: unknown): SidebarPreference {
     }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    return { ...DEFAULT_SIDEBAR_PREFERENCE }
+    return { ...DEFAULT_SIDEBAR_PREFERENCE, collapsedWorkspaces: [] }
   const source = value as Record<string, unknown>
   return {
     collapsed: source.collapsed === true,
     doneCollapsed: source.doneCollapsed === true,
+    collapsedWorkspaces: workspaceKeys(source.collapsedWorkspaces),
   }
 }
 
@@ -42,6 +62,7 @@ export function serializeSidebarPreference(preference: SidebarPreference) {
   return JSON.stringify({
     collapsed: preference.collapsed === true,
     doneCollapsed: preference.doneCollapsed === true,
+    collapsedWorkspaces: workspaceKeys(preference.collapsedWorkspaces),
   })
 }
 
@@ -49,7 +70,7 @@ function readPreference(): SidebarPreference {
   try {
     return parseSidebarPreference(pageStateStorage.getItem(STORAGE_KEYS.sidebar))
   } catch {
-    return { ...DEFAULT_SIDEBAR_PREFERENCE }
+    return { ...DEFAULT_SIDEBAR_PREFERENCE, collapsedWorkspaces: [] }
   }
 }
 
@@ -70,9 +91,13 @@ type SidebarState = SidebarPreference & {
   peeking: boolean
   // 手机外壳的抽屉（规格 7.1）：内容与桌面侧栏相同，只用 ☰ 打开；只在内存里，不落盘。
   drawerOpen: boolean
+  // “最近”里点了“显示更多”的工作区：只在内存里，重新打开应用回到每组几条。
+  expandedWorkspaces: string[]
   setCollapsed: (collapsed: boolean) => void
   toggleCollapsed: () => void
   setDoneCollapsed: (collapsed: boolean) => void
+  setWorkspaceCollapsed: (key: string, collapsed: boolean) => void
+  setWorkspaceExpanded: (key: string, expanded: boolean) => void
   setPeeking: (peeking: boolean) => void
   setDrawerOpen: (open: boolean) => void
 }
@@ -103,6 +128,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
     narrowRail: false,
     peeking: false,
     drawerOpen: false,
+    expandedWorkspaces: [],
     // 亲手收起或展开都结束临时展开，避免“收起”按钮按下去侧栏却还开着。
     setCollapsed: (collapsed) => applyCollapsed(collapsed),
     toggleCollapsed: () => applyCollapsed(!get().collapsed),
@@ -128,6 +154,14 @@ export const useSidebarStore = create<SidebarState>((set, get) => {
       })
     },
     setDoneCollapsed: (doneCollapsed) => save({ doneCollapsed }),
+    setWorkspaceCollapsed: (key, collapsed) => {
+      const rest = get().collapsedWorkspaces.filter((item) => item !== key)
+      save({ collapsedWorkspaces: collapsed ? [...rest, key] : rest })
+    },
+    setWorkspaceExpanded: (key, expanded) => {
+      const rest = get().expandedWorkspaces.filter((item) => item !== key)
+      set({ expandedWorkspaces: expanded ? [...rest, key] : rest })
+    },
     setPeeking: (peeking) => set({ peeking }),
     setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
   }
@@ -141,7 +175,11 @@ if (typeof window !== 'undefined') {
     // 页面默认窄轨期间只更新偏好，实际状态等离开页面时再跟上。
     useSidebarStore.setState((state) =>
       state.routeRail || state.narrowRail
-        ? { doneCollapsed: preference.doneCollapsed, preferenceCollapsed: preference.collapsed }
+        ? {
+            doneCollapsed: preference.doneCollapsed,
+            collapsedWorkspaces: preference.collapsedWorkspaces,
+            preferenceCollapsed: preference.collapsed,
+          }
         : { ...preference, preferenceCollapsed: preference.collapsed },
     )
   })

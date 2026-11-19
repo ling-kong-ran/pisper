@@ -1,6 +1,7 @@
-// 侧栏“最近”的数据：状态组（需要你、运行中、排队）之外的未归档会话（sidebar-recents）。
+// 侧栏“最近”的数据：状态组（需要你、运行中、排队）之外的未归档会话，按工作区分组（sidebar-recents）。
 // 侧栏渲染与 ⌥↑ / ⌥↓ 的切换顺序（SidebarCommands）共用，保证键盘顺序就是看得见的顺序。
 import { useMemo } from 'react'
+import { useSidebarStore } from '@/stores/sidebar-store'
 import type { SessionSummary } from '@/types/chat'
 import type { BoardItem } from './board-model'
 import type { SidebarModel } from './sidebar-model'
@@ -27,8 +28,18 @@ export function useSidebarRecents(
     () => new Set(sidebarStatusGroups(model).flatMap((group) => group.rows.map((row) => row.id))),
     [model],
   )
+  // 收起 / 显示更多的工作区：侧栏与键盘切换读同一份，收起的组里的会话 ⌥↑ / ⌥↓ 也跳过。
+  const collapsedKeys = useSidebarStore((state) => state.collapsedWorkspaces)
+  const expandedKeys = useSidebarStore((state) => state.expandedWorkspaces)
   return useMemo(
-    () => buildSidebarRecents(sessions ?? [], { items, shownIds, currentId }),
-    [currentId, items, sessions, shownIds],
+    () =>
+      buildSidebarRecents(sessions ?? [], {
+        items,
+        shownIds,
+        currentId,
+        collapsed: new Set(collapsedKeys),
+        expanded: new Set(expandedKeys),
+      }),
+    [collapsedKeys, currentId, expandedKeys, items, sessions, shownIds],
   )
 }

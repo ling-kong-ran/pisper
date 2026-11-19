@@ -107,6 +107,8 @@ export type SidebarRecentRow = SidebarRowBase & {
   group: 'recent'
   // 最近一次修改；界面显示“14:05”（今天）或“11/2”。
   at: number | null
+  // 最后操作的入栈序号（Runtime activityOrder），0 表示升级前没入栈过；排序先看它，不看时间。
+  order: number
   unread: boolean
 }
 

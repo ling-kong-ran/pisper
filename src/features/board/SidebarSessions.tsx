@@ -1,6 +1,6 @@
 // 侧栏会话分组（规格 v2 第 2.1、2.2、2.8 节）：需要你 → 运行中 → 排队 → 最近 → 全部会话。
-// 需要你、运行中常驻（为 0 时只留标题）；“最近”取代原来的置顶与今天完成：其余未归档会话里置顶的在前、
-// 再按最近修改取前几条，只有一行标题（sidebar-recents）。侧栏不按项目分组，按项目看用全部代理页的项目筛选。
+// 需要你、运行中常驻（为 0 时只留标题）；“最近”取代原来的置顶与今天完成：其余未归档会话按工作区分组、
+// 组可收起，组内置顶在前、再按最后操作的入栈顺序取前几条，只有一行标题（sidebar-recents）。
 // 数据只读看板 store（useSidebarModel），与全部代理、手机标签栏同一个所有者，不新开轮询。
 // 会话行是带 href 的链接（新标签打开、复制链接照常可用），当前会话行带 aria-current="page"。
 // 需要你行悬停或聚焦 80ms 后，右侧时长换成快捷处理：普通批准“拒绝 D · 允许 A”，其余“打开 ↵”；
@@ -29,7 +29,9 @@ import { StatusGlyph } from '@/components/app/StatusGlyph'
 import type { PromptDialogOptions } from '@/hooks/useAppDialog'
 import { ariaKeyShortcuts } from '@/lib/shortcut-aria'
 import { matchesBoardShortcut } from '@/lib/shortcuts'
+import { workspaceName } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { BotAvatarBadge } from '@/features/bots/public-avatar'
 import { useShortcutStore } from '@/stores/shortcut-store'
 import { useSidebarStore } from '@/stores/sidebar-store'
@@ -49,6 +51,8 @@ import {
   reasonText,
 } from './sidebar-presentation'
 import { requestOverviewFocus } from './overview-focus'
+import type { SidebarRecentGroup } from './sidebar-recents'
+import { useCatalogProjects } from './useCatalogProjects'
 import { collapseRow, motionAllowed, SIDEBAR_ROW_COLLAPSE_MS } from './row-motion'
 import { SessionRowMenu } from './SessionRowMenu'
 import { sessionAlerts, type SessionAlert, type SessionAlertSnapshot } from './session-alerts'
@@ -416,6 +420,13 @@ export function SidebarSessions({
   const { t } = useI18n()
   const { model, items, sessions, isLoading, error, refetch } = useSidebarModel()
   const recents = useSidebarRecents(model, items, sessions, currentId)
+  const projects = useCatalogProjects()
+  const projectLabels = useMemo(
+    () => new Map(projects.map((project) => [project.key, project.label])),
+    [projects],
+  )
+  const setWorkspaceCollapsed = useSidebarStore((state) => state.setWorkspaceCollapsed)
+  const setWorkspaceExpanded = useSidebarStore((state) => state.setWorkspaceExpanded)
   const actions = useBoardActions()
   const actionsRef = useRef(actions)
   actionsRef.current = actions
@@ -609,20 +620,40 @@ export function SidebarSessions({
         >
           {t('board:sidebar.group.recent')}
         </h2>
-        {recents.rows.length ? (
-          <ul className="m-0 flex list-none flex-col gap-px p-0">
-            {recents.rows.map((row) => (
-              <SidebarRowItem
-                key={row.id}
-                row={row}
-                href={hrefFor(row.id)}
-                current={row.id === currentId}
-                hidden={false}
-                fresh={false}
-                {...rowProps}
-              />
+        {recents.groups.length ? (
+          <div className="flex flex-col gap-1">
+            {recents.groups.map((group) => (
+              <SidebarWorkspaceGroup
+                key={group.key}
+                group={group}
+                label={
+                  projectLabels.get(group.key) ||
+                  (group.cwd ? workspaceName(group.cwd) : t('board:filter.noProject'))
+                }
+                onCollapsedChange={(collapsed) => setWorkspaceCollapsed(group.key, collapsed)}
+                onExpandedChange={(expanded) => setWorkspaceExpanded(group.key, expanded)}
+              >
+                {(rows) =>
+                  rows.map((row) => (
+                    <SidebarRowItem
+                      key={row.id}
+                      row={row}
+                      href={hrefFor(row.id)}
+                      current={row.id === currentId}
+                      hidden={false}
+                      fresh={false}
+                      {...rowProps}
+                    />
+                  ))
+                }
+              </SidebarWorkspaceGroup>
             ))}
-          </ul>
+            {recents.hiddenWorkspaces > 0 && (
+              <MoreLink plain onClick={onOpenHistory}>
+                {t('board:sidebar.moreWorkspaces', { count: recents.hiddenWorkspaces })}
+              </MoreLink>
+            )}
+          </div>
         ) : (
           <p className="px-2.5 text-xs leading-7 text-content-faint">
             {t('board:sidebar.emptyRecent')}
@@ -668,15 +699,84 @@ export function SidebarSkeleton({ label }: { label: string }) {
   )
 }
 
-function MoreLink({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+// plain：“最近”的行只有标题、没有状态图标，链接与标题对齐，不留图标的缩进。
+function MoreLink({
+  children,
+  onClick,
+  plain = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  plain?: boolean
+}) {
   return (
     <button
       type="button"
-      className="flex h-7 w-full items-center gap-1 rounded-[var(--r-md)] px-2.5 pl-[34px] text-left text-xs text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
+      className={cn(
+        'flex h-7 w-full items-center gap-1 rounded-[var(--r-md)] px-2.5 text-left text-xs text-content-muted transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content-secondary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11',
+        !plain && 'pl-[34px]',
+      )}
       onClick={onClick}
     >
       {children}
     </button>
+  )
+}
+
+// “最近”里的一个工作区：标题行收起 / 展开整组（记住），每组默认几条，“显示更多”在内存里展开全部。
+// 收起时正在看的会话仍留在标题下面（数据层已经只留它），侧栏里永远找得到当前会话。
+function SidebarWorkspaceGroup({
+  group,
+  label,
+  onCollapsedChange,
+  onExpandedChange,
+  children,
+}: {
+  group: SidebarRecentGroup
+  label: string
+  onCollapsedChange: (collapsed: boolean) => void
+  onExpandedChange: (expanded: boolean) => void
+  children: (rows: SidebarRecentGroup['rows']) => ReactNode
+}) {
+  const { t } = useI18n()
+  const list = <ul className="m-0 flex list-none flex-col gap-px p-0">{children(group.rows)}</ul>
+  return (
+    <Collapsible
+      open={!group.collapsed}
+      onOpenChange={(open) => onCollapsedChange(!open)}
+      data-sidebar-workspace={group.key}
+    >
+      <h3 className="m-0">
+        <CollapsibleTrigger
+          className="group/workspace flex h-7 w-full min-w-0 items-center gap-1.5 rounded-[var(--r-md)] px-2.5 text-left text-xs text-content-secondary transition-colors duration-(--d-fast) hover:bg-surface-hover hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
+          title={group.cwd || undefined}
+        >
+          <ChevronRight
+            className="size-3.5 flex-none text-content-muted transition-transform duration-(--d-fast) group-data-[state=open]/workspace:rotate-90 motion-reduce:transition-none"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate font-medium">{label}</span>
+          <span className="flex-none text-[11.5px] text-content-muted tabular-nums">
+            <span className="sr-only">
+              {t('board:sidebar.workspaceCount', { count: group.count })}
+            </span>
+            <span aria-hidden="true">{group.count}</span>
+          </span>
+        </CollapsibleTrigger>
+      </h3>
+      <CollapsibleContent>
+        {list}
+        {(group.hidden > 0 || group.expanded) && (
+          <MoreLink plain onClick={() => onExpandedChange(!group.expanded)}>
+            {group.expanded
+              ? t('board:sidebar.showFewer')
+              : t('board:sidebar.showMore', { count: group.hidden })}
+          </MoreLink>
+        )}
+      </CollapsibleContent>
+      {group.collapsed && group.rows.length > 0 && list}
+    </Collapsible>
   )
 }
 

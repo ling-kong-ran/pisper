@@ -21,8 +21,11 @@ import { parseSessionModelRef } from './session-model-ref.mjs'
 import { projectQuestionSummary } from '../services/session-question-service.mjs'
 import {
   applySessionOrganizationPatch,
+  nextSessionActivityOrder,
+  normalizeSessionOrganization,
   parseSessionOrganizationPatch,
   projectSessionOrganization,
+  recordSessionActivity,
   recordSessionCompletion,
 } from '../services/chat-session-organization.mjs'
 import {
@@ -577,6 +580,8 @@ export class SessionLifecycle {
       permissionMode: permissionModeForExecutionMode(DEFAULT_EXECUTION_MODE),
       ...metadata,
     }
+    // 新建也是一次操作：新会话入栈到“最近”最上面。
+    sessionMeta[id] = recordSessionActivity(sessionMeta[id], nextSessionActivityOrder(sessionMeta))
     await this.saveSessionMeta()
     try {
       await this.markSessionTracked?.(id, effectiveCwd)
@@ -1227,7 +1232,17 @@ export class SessionLifecycle {
           return null
         const sessionMeta = this.getSessionMeta()
         const previous = sessionMeta[id]
-        const next = applySessionOrganizationPatch(previous, patch)
+        const next = applySessionOrganizationPatch(
+          previous,
+          patch,
+          patch.opened ? this.activityOrderFor(id) : 0,
+        )
+        // 只是打开了已在栈顶、本来就已读的会话：状态没变，不改写元数据文件。
+        const unchanged =
+          JSON.stringify(normalizeSessionOrganization(previous)) ===
+          JSON.stringify(normalizeSessionOrganization(next))
+        if (unchanged)
+          return (await this.listSessions()).find((session) => session.id === id) || null
         sessionMeta[id] = next
         try {
           await this.saveSessionMeta()
@@ -1240,6 +1255,47 @@ export class SessionLifecycle {
         }
         this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
         return (await this.listSessions()).find((session) => session.id === id) || null
+      })
+    this.organizationUpdate = update
+    return update
+  }
+
+  // 入栈序号：已经在栈顶的会话保持原号，反复打开同一个会话不必每次改写元数据。
+  activityOrderFor(id) {
+    const sessionMeta = this.getSessionMeta()
+    const next = nextSessionActivityOrder(sessionMeta)
+    const current = normalizeSessionOrganization(sessionMeta[id]).activityOrder
+    return current > 0 && current === next - 1 ? current : next
+  }
+
+  // 用户在会话里发消息（含排队、重试）：入栈到“最近”最上面。与整理 PATCH 同一条写入队列。
+  recordSessionActivity(id) {
+    const update = this.organizationUpdate
+      .catch(() => {})
+      .then(async () => {
+        if (
+          !this.sessions.has(id) &&
+          !this.pendingSessions.has(id) &&
+          !(await this.findSessionInfo(id))
+        )
+          return false
+        const sessionMeta = this.getSessionMeta()
+        const previous = sessionMeta[id]
+        const order = this.activityOrderFor(id)
+        if (normalizeSessionOrganization(previous).activityOrder === order) return false
+        const next = recordSessionActivity(previous, order)
+        sessionMeta[id] = next
+        try {
+          await this.saveSessionMeta()
+        } catch (error) {
+          if (sessionMeta[id] === next) {
+            if (previous === undefined) delete sessionMeta[id]
+            else sessionMeta[id] = previous
+          }
+          throw error
+        }
+        this.invalidateProjection(id, { transcript: false, activity: true, usage: false })
+        return true
       })
     this.organizationUpdate = update
     return update

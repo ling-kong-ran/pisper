@@ -135,6 +135,18 @@ export function ChatPage({
     document.addEventListener('visibilitychange', markViewed)
     return () => document.removeEventListener('visibilitychange', markViewed)
   }, [catalog.activeId, catalog.sessions])
+  // 打开会话也是一次操作：入栈到侧栏“最近”的最上面。每次切到一个会话只报一次，
+  // 目录刷新不重报；Runtime 对已在栈顶的会话不改写元数据。旧 Runtime 不认 opened，不报。
+  const activityOrder = useRuntimeCapabilitiesStore(
+    (state) => state.capabilities.features.sessionActivityOrder === true,
+  )
+  const openedId = catalog.activeId
+  const openedKnown =
+    Boolean(openedId) && catalog.sessions.some((session) => session.id === openedId)
+  useEffect(() => {
+    if (!activityOrder || !openedId || !openedKnown) return
+    void updateSessionOrganization(openedId, { opened: true }).catch(() => undefined)
+  }, [activityOrder, openedId, openedKnown])
   // 看板事件流在线时，非当前会话的运行状态由看板 store 维护：/live 只为当前会话轮询。
   const boardEvents = useRuntimeCapabilitiesStore(
     (state) => state.capabilities.features['board.events'] === true,

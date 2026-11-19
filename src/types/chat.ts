@@ -139,6 +139,8 @@ export type SessionSummary = EntityRecord & {
   needsAttention?: boolean
   attentionReason?: 'approval' | 'failure' | null
   lastCompletedAt?: string | null
+  // 最后操作的入栈序号（新建、发消息、打开会话时取全局最大值 + 1），旧 Runtime 没有。
+  activityOrder?: number
   firstMessage?: string
   // 最后一条有文字的用户 / 助手消息（已压成一行并截短）；Runtime 还没读到时没有这个字段。
   lastMessage?: { role: 'user' | 'assistant'; text: string }

@@ -113,13 +113,23 @@ test('organization PATCH rejects empty, unknown, and non-boolean fields without 
   t.after(() => rm(directory, { recursive: true, force: true }))
   const runtime = freshRuntime(directory)
   const created = await runtime.createSession('合法会话', directory)
-  for (const input of [null, [], {}, { pinned: 'true' }, { archived: 1 }, { unknown: true }]) {
+  const organization = runtime.sessionMeta[created.id].organization
+  for (const input of [
+    null,
+    [],
+    {},
+    { pinned: 'true' },
+    { archived: 1 },
+    { unknown: true },
+    { opened: false },
+  ]) {
     const response = await patch(runtime, created.id, input)
     assert.equal(response.status, 400)
     assert.equal(response.value.code, 'invalid_session_organization')
   }
   assert.equal((await patch(runtime, 'missing-session', { pinned: true })).status, 404)
-  assert.equal(runtime.sessionMeta[created.id].organization, undefined)
+  assert.equal((await patch(runtime, 'missing-session', { opened: true })).status, 404)
+  assert.deepEqual(runtime.sessionMeta[created.id].organization, organization)
   assert.equal(
     (await runtime.listSessions()).find((session) => session.id === created.id).pinned,
     false,
@@ -204,15 +214,25 @@ test('old or malformed organization metadata projects safe defaults without chan
     unread: false,
     failed: false,
     lastCompletedAt: null,
+    activityOrder: 0,
   })
-  assert.deepEqual(projectSessionOrganization({ organization: { pinned: 'yes', failed: 1 } }), {
-    pinned: false,
-    archived: false,
-    unread: false,
-    needsAttention: false,
-    attentionReason: null,
-    lastCompletedAt: null,
-  })
+  assert.deepEqual(
+    projectSessionOrganization({ organization: { pinned: 'yes', failed: 1, activityOrder: -2 } }),
+    {
+      pinned: false,
+      archived: false,
+      unread: false,
+      needsAttention: false,
+      attentionReason: null,
+      lastCompletedAt: null,
+      activityOrder: 0,
+    },
+  )
+  for (const junk of [1.5, '7', Number.MAX_SAFE_INTEGER + 2, null])
+    assert.equal(
+      normalizeSessionOrganization({ organization: { activityOrder: junk } }).activityOrder,
+      0,
+    )
 })
 
 test('file change marker failure leaves new sessions usable and logs no private details', async (t) => {
@@ -236,4 +256,75 @@ test('file change marker failure leaves new sessions usable and logs no private 
   )
   assert.equal(warnings.length, 1)
   assert.doesNotMatch(warnings[0], /private|token|pisper-session-marker-failure/)
+})
+
+test('creating, opening and messaging a session push it onto the activity stack, clock or not', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-session-activity-order-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const runtime = freshRuntime(directory)
+  const order = async (id) =>
+    (await runtime.listSessions()).find((session) => session.id === id).activityOrder
+  const first = await runtime.createSession('第一个', directory)
+  const second = await runtime.createSession('第二个', directory)
+  // 新建入栈：后建的序号大。
+  assert.equal(first.activityOrder, 1)
+  assert.equal(second.activityOrder, 2)
+
+  // 系统时间被改回过去也不影响：打开第一个，它就到栈顶。
+  const realNow = Date.now
+  Date.now = () => realNow() - 30 * 24 * 60 * 60 * 1000
+  t.after(() => {
+    Date.now = realNow
+  })
+  const opened = await patch(runtime, first.id, { opened: true })
+  assert.equal(opened.status, 200)
+  assert.equal(opened.value.activityOrder, 3)
+  assert.ok((await order(first.id)) > (await order(second.id)))
+  Date.now = realNow
+
+  // 已在栈顶的会话再打开：序号不变，也不改写元数据文件。
+  const before = await readFile(runtime.sessionMetaPath, 'utf8')
+  assert.equal((await patch(runtime, first.id, { opened: true })).value.activityOrder, 3)
+  assert.equal(await readFile(runtime.sessionMetaPath, 'utf8'), before)
+
+  // 发消息（含排队、重试）经同一个入口入栈；不存在的会话不入栈。
+  await runtime.recordSessionActivity(second.id)
+  assert.equal(await order(second.id), 4)
+  await runtime.recordSessionActivity('missing-session')
+  assert.equal(runtime.sessionMeta['missing-session'], undefined)
+
+  // 落盘后重启仍是同一个栈，下一个序号接着往上数。
+  const persisted = JSON.parse(await readFile(runtime.sessionMetaPath, 'utf8'))
+  assert.equal(persisted[first.id].organization.activityOrder, 3)
+  const reloaded = freshRuntime(directory)
+  reloaded.sessionMeta = persisted
+  assert.equal((await patch(reloaded, first.id, { opened: true })).value.activityOrder, 5)
+  // 置顶等整理操作不入栈。
+  assert.equal((await patch(reloaded, second.id, { pinned: true })).value.activityOrder, 4)
+})
+
+test('a chat message records activity before the run starts', async () => {
+  const chatRoute = sessionRuntimeRoutes.find(
+    (route) => route.method === 'POST' && route.path === '/api/chat',
+  )
+  const calls = []
+  const runtime = {
+    sideChats: { assertAvailable() {} },
+    capabilities: { features: {} },
+    recordSessionActivity: async (id) => calls.push(['activity', id]),
+    streamPrompt: async (input) => calls.push(['prompt', input.sessionId]),
+  }
+  await chatRoute.handler({
+    runtime,
+    req: { headers: {} },
+    body: async () => ({ sessionId: 'chat-1', message: 'hi' }),
+    json: () => assert.fail('no error expected'),
+    startSse: () => {},
+    sendSse: () => {},
+    startRun: () => ({ runId: 'run-1' }),
+  })
+  assert.deepEqual(calls, [
+    ['activity', 'chat-1'],
+    ['prompt', 'chat-1'],
+  ])
 })

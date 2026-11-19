@@ -16,13 +16,16 @@ import {
   sidebarReasonKeys,
   sidebarReasons,
 } from '../../src/features/board/sidebar-model.ts'
+import { NO_WORKSPACE_KEY } from '../../src/features/chat/session-workspaces.ts'
 import {
   SIDEBAR_RECENT_LIMIT,
+  SIDEBAR_RECENT_WORKSPACE_LIMIT,
   buildSidebarRecents,
 } from '../../src/features/board/sidebar-recents.ts'
 import { sidebarStatusGroups } from '../../src/features/board/useSidebarRecents.ts'
 import {
   DEFAULT_SIDEBAR_PREFERENCE,
+  SIDEBAR_COLLAPSED_WORKSPACE_LIMIT,
   parseSidebarPreference,
   serializeSidebarPreference,
   useSidebarStore,
@@ -440,15 +443,38 @@ test('alt arrows walk the visible sidebar order without wrapping', () => {
 test('the sidebar preference is registered, read through page-state storage and tolerant of junk', async () => {
   assert.equal(STORAGE_KEYS.sidebar, 'pisper-sidebar')
   assert.ok(BROWSER_PREFERENCE_KEYS.includes('pisper-sidebar'))
-  assert.deepEqual(DEFAULT_SIDEBAR_PREFERENCE, { collapsed: false, doneCollapsed: false })
+  const defaults = { collapsed: false, doneCollapsed: false, collapsedWorkspaces: [] }
+  assert.deepEqual(DEFAULT_SIDEBAR_PREFERENCE, defaults)
   for (const raw of [null, '', 'nope', '[]', '1', 'true', '{"collapsed":"yes"}', 42, {}])
-    assert.deepEqual(parseSidebarPreference(raw), { collapsed: false, doneCollapsed: false })
-  const saved = serializeSidebarPreference({ collapsed: true, doneCollapsed: false })
-  assert.deepEqual(parseSidebarPreference(saved), { collapsed: true, doneCollapsed: false })
+    assert.deepEqual(parseSidebarPreference(raw), defaults)
+  const saved = serializeSidebarPreference({
+    collapsed: true,
+    doneCollapsed: false,
+    collapsedWorkspaces: ['/w/a'],
+  })
+  assert.deepEqual(parseSidebarPreference(saved), {
+    collapsed: true,
+    doneCollapsed: false,
+    collapsedWorkspaces: ['/w/a'],
+  })
   assert.deepEqual(parseSidebarPreference('{"collapsed":true,"doneCollapsed":true,"width":999}'), {
     collapsed: true,
     doneCollapsed: true,
+    collapsedWorkspaces: [],
   })
+  // 收起的工作区按不可信输入收：非字符串、空串、重复都丢掉，条数有上限。
+  assert.deepEqual(
+    parseSidebarPreference(
+      JSON.stringify({ collapsedWorkspaces: ['/w/a', 7, '', '/w/a', null, '/w/b'] }),
+    ).collapsedWorkspaces,
+    ['/w/a', '/w/b'],
+  )
+  assert.equal(
+    parseSidebarPreference(
+      JSON.stringify({ collapsedWorkspaces: Array.from({ length: 300 }, (_, i) => `/p${i}`) }),
+    ).collapsedWorkspaces.length,
+    SIDEBAR_COLLAPSED_WORKSPACE_LIMIT,
+  )
   assert.equal(parseSidebarPreference(saved).width, undefined)
 
   // 唯一所有者：侧栏状态只经 page-state-storage 写 'pisper-sidebar'；ui-store 不再持有旧侧栏字段，
@@ -611,13 +637,21 @@ test('the sidebar keeps needs-you and running in place and lists recent chats be
     shownIds: new Set(['waiting']),
     currentId: '',
   })
-  // 置顶在前，其余按修改时间从新到旧；归档、空草稿与上面状态组里的不列；不分项目。
+  // 按工作区分组：组按组里最近的会话排（置顶不把整组顶上去），组内置顶在前；
+  // 归档、空草稿与上面状态组里的不列。
+  assert.deepEqual(
+    recents.groups.map((group) => [group.key, group.rows.map((row) => row.id)]),
+    [
+      ['/w/b', ['new']],
+      ['/w/a', ['pinned', 'old']],
+    ],
+  )
   assert.deepEqual(
     recents.rows.map((row) => row.id),
-    ['pinned', 'new', 'old'],
+    ['new', 'pinned', 'old'],
   )
-  assert.equal(recents.hidden, 0)
-  const fresh = recents.rows[1]
+  assert.equal(recents.hiddenWorkspaces, 0)
+  const fresh = recents.rows[0]
   assert.equal(fresh.group, 'recent')
   assert.equal(fresh.title, '刚才的会话')
   assert.equal(fresh.unread, true)
@@ -633,13 +667,110 @@ test('recent chats stop at the limit but always keep the open chat', () => {
   const many = Array.from({ length: SIDEBAR_RECENT_LIMIT + 3 }, (_, index) => ({
     id: `s${index}`,
     name: `会话 ${index}`,
+    cwd: '/w/a',
     modified: iso(-index * MIN),
   }))
   const last = `s${SIDEBAR_RECENT_LIMIT + 2}`
   const plain = buildSidebarRecents(many, { items: [], shownIds: new Set(), currentId: '' })
   assert.equal(plain.rows.length, SIDEBAR_RECENT_LIMIT)
-  assert.equal(plain.hidden, 3)
+  assert.equal(plain.groups[0].hidden, 3)
+  assert.equal(plain.groups[0].count, SIDEBAR_RECENT_LIMIT + 3)
   const open = buildSidebarRecents(many, { items: [], shownIds: new Set(), currentId: last })
   assert.equal(open.rows.at(-1).id, last)
-  assert.equal(open.hidden, 2)
+  assert.equal(open.groups[0].hidden, 2)
+  // 显示更多：这一组全部列出，不再有截掉的条数。
+  const expanded = buildSidebarRecents(many, {
+    items: [],
+    shownIds: new Set(),
+    currentId: '',
+    expanded: new Set(['/w/a']),
+  })
+  assert.equal(expanded.rows.length, SIDEBAR_RECENT_LIMIT + 3)
+  assert.equal(expanded.groups[0].hidden, 0)
+  assert.equal(expanded.groups[0].expanded, true)
+})
+
+test('recent chats follow the last action, not the clock', () => {
+  // 系统时间被改回过去：后操作的会话 modified 反而更早；入栈序号大的仍在前。
+  // 没入栈过的旧会话（升级前）排在入栈过的后面，彼此再按修改时间。
+  const sessions = [
+    { id: 'future', cwd: '/w/a', modified: iso(10 * 24 * 60 * MIN), activityOrder: 1 },
+    { id: 'rolledBack', cwd: '/w/a', modified: iso(-5 * 24 * 60 * MIN), activityOrder: 2 },
+    { id: 'legacyNew', cwd: '/w/a', modified: iso(-MIN) },
+    { id: 'legacyOld', cwd: '/w/a', modified: iso(-60 * MIN), activityOrder: 0 },
+    { id: 'junk', cwd: '/w/a', modified: iso(-120 * MIN), activityOrder: -3 },
+  ]
+  const recents = buildSidebarRecents(sessions, { items: [], shownIds: new Set(), currentId: '' })
+  assert.deepEqual(
+    recents.rows.map((row) => row.id),
+    ['rolledBack', 'future', 'legacyNew', 'legacyOld', 'junk'],
+  )
+  // 组之间也按最后操作：b 组里的会话后操作，整组排到 a 前面，哪怕它的时间早。
+  const grouped = buildSidebarRecents(
+    [
+      { id: 'a1', cwd: '/w/a', modified: iso(0), activityOrder: 3 },
+      { id: 'b1', cwd: '/w/b', modified: iso(-9 * 24 * 60 * MIN), activityOrder: 4 },
+      { id: 'n1', cwd: '/tmp/x', projectless: true, modified: iso(0), activityOrder: 1 },
+    ],
+    { items: [], shownIds: new Set(), currentId: '' },
+  )
+  assert.deepEqual(
+    grouped.groups.map((group) => group.key),
+    ['/w/b', '/w/a', NO_WORKSPACE_KEY],
+  )
+  assert.equal(grouped.groups[2].cwd, '')
+})
+
+test('collapsed workspaces hide their chats except the open one, and only a few workspaces show', () => {
+  const sessions = [
+    { id: 'a1', cwd: '/w/a', modified: iso(0), activityOrder: 9 },
+    { id: 'a2', cwd: '/w/a', modified: iso(0), activityOrder: 8 },
+    { id: 'b1', cwd: '/w/b', modified: iso(0), activityOrder: 7 },
+  ]
+  const collapsed = buildSidebarRecents(sessions, {
+    items: [],
+    shownIds: new Set(),
+    currentId: '',
+    collapsed: new Set(['/w/a']),
+  })
+  assert.deepEqual(
+    collapsed.groups.map((group) => [group.key, group.collapsed, group.count, group.rows.length]),
+    [
+      ['/w/a', true, 2, 0],
+      ['/w/b', false, 1, 1],
+    ],
+  )
+  // ⌥↑ / ⌥↓ 的顺序跳过收起的组。
+  assert.deepEqual(
+    collapsed.rows.map((row) => row.id),
+    ['b1'],
+  )
+  const open = buildSidebarRecents(sessions, {
+    items: [],
+    shownIds: new Set(),
+    currentId: 'a2',
+    collapsed: new Set(['/w/a']),
+  })
+  assert.deepEqual(
+    open.groups[0].rows.map((row) => row.id),
+    ['a2'],
+  )
+
+  const spread = Array.from({ length: SIDEBAR_RECENT_WORKSPACE_LIMIT + 2 }, (_, index) => ({
+    id: `p${index}`,
+    cwd: `/w/p${index}`,
+    modified: iso(0),
+    activityOrder: 100 - index,
+  }))
+  const capped = buildSidebarRecents(spread, { items: [], shownIds: new Set(), currentId: '' })
+  assert.equal(capped.groups.length, SIDEBAR_RECENT_WORKSPACE_LIMIT)
+  assert.equal(capped.hiddenWorkspaces, 2)
+  // 正在看的会话所在的工作区排在后面也留着。
+  const keep = buildSidebarRecents(spread, {
+    items: [],
+    shownIds: new Set(),
+    currentId: `p${SIDEBAR_RECENT_WORKSPACE_LIMIT + 1}`,
+  })
+  assert.equal(keep.groups.length, SIDEBAR_RECENT_WORKSPACE_LIMIT + 1)
+  assert.equal(keep.hiddenWorkspaces, 1)
 })

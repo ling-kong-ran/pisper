@@ -127,6 +127,8 @@ function buildCapabilities({
     workspaceFolderList: true,
     // 插队（立即发送）：/input 的 behavior: 'interrupt' 与排队项的 send-now，只打断当前这一步。
     inputInterrupt: true,
+    // 会话按“最后操作”入栈排序：列表带 activityOrder，整理 PATCH 接受 opened: true。各档案都提供。
+    sessionActivityOrder: true,
     // 实验功能开关：只读写应用配置里的一个字段，各档案都提供；单项功能是否可用另看它 requires 的能力。
     // 清单为空时不声明：设置里不出现空的“实验功能”分区，等第一个实验功能进清单再出现。
     betaFeatures: BETA_FEATURES.length > 0,

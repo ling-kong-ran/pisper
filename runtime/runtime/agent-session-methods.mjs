@@ -455,6 +455,16 @@ export const agentSessionMethods = {
     return updated
   },
 
+  // 用户操作了这个会话（发消息、排队、重试）：入栈失败不影响这次操作本身，只少一次排序变化。
+  async recordSessionActivity(id) {
+    try {
+      if (await this.sessionLifecycle.recordSessionActivity(String(id || '')))
+        this.boardEvents?.catalogChanged()
+    } catch {
+      console.warn('Could not record the session activity order.')
+    }
+  },
+
   async setSessionModel(id, provider, modelId) {
     if (!supportsLightweightSessionConfiguration(this) || this.sessions.has(id)) {
       const result = await this.providerPreferences.setSessionModel(id, provider, modelId)

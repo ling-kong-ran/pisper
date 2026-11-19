@@ -649,6 +649,7 @@ const routes = [
     path: '/api/sessions/:sessionId/queue',
     async handler({ runtime, params, body, json }) {
       const input = await body()
+      void runtime.recordSessionActivity?.(params.sessionId)
       await handleQueue(json, () => runtime.enqueueSessionStart(params.sessionId, input))
     },
   },
@@ -768,6 +769,7 @@ const routes = [
     path: '/api/sessions/:sessionId/input',
     async handler({ runtime, params, body, json }) {
       const input = await body()
+      void runtime.recordSessionActivity?.(params.sessionId)
       json(
         200,
         await runtime.queueSessionMessage(params.sessionId, {
@@ -940,6 +942,7 @@ const routes = [
     async handler({ runtime, req, params, startSse, sendSse, startRun }) {
       // 先完成树导航与输入恢复，再开启 SSE：无可重试内容时按普通错误返回。
       const prepared = await runtime.prepareLastTurnRetry(params.sessionId)
+      void runtime.recordSessionActivity?.(params.sessionId)
       startSse()
       const runId = startRun({ kind: 'chat', sessionId: params.sessionId })?.runId
       await runtime.streamPrompt({
@@ -984,6 +987,8 @@ const routes = [
         })
         return
       }
+      // 发消息是一次用户操作：会话入栈到侧栏“最近”的最上面（失败只记日志，不影响这次发送）。
+      void runtime.recordSessionActivity?.(input.sessionId)
       startSse()
       // 登记为可重挂的 run：首帧发出 runId，客户端断线后可按游标续传。
       const runId = startRun({ kind: 'chat', sessionId: String(input.sessionId || '') })?.runId

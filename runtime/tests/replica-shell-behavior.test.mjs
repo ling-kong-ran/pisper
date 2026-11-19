@@ -13,18 +13,19 @@ const require = createRequire(import.meta.url)
 
 test('the v2 sidebar has a fixed width instead of a draggable, persisted one', async () => {
   // 规格 v2 第 2.1 节：侧栏宽 268、窄轨 60，不可拖动；旧侧栏的拖拽宽度（sidebar-width）随旧外壳删除，
-  // 收起偏好只有 collapsed / doneCollapsed 两个布尔值（sidebar-model / sidebar-store 的测试另见）。
+  // 收起偏好只有 collapsed / doneCollapsed 两个布尔值和收起的工作区列表（sidebar-model / sidebar-store 的测试另见）。
   const [shell, store] = await Promise.all([
     readFile('src/app/ShellSidebar.tsx', 'utf8'),
     readFile('src/stores/sidebar-store.ts', 'utf8'),
   ])
   assert.match(shell, /collapsed \? 'w-\[60px\]' : 'w-\[268px\]'/)
   assert.doesNotMatch(shell, /pointermove|cursor-col-resize|role="separator"|sidebarWidth/)
-  // 偏好的序列化只写两个布尔值（不落盘任何宽度）。
+  // 偏好的序列化只写两个布尔值和收起的工作区（不落盘任何宽度）。
   assert.match(
     store,
-    /return JSON\.stringify\(\{\s*collapsed: preference\.collapsed === true,\s*doneCollapsed: preference\.doneCollapsed === true,\s*\}\)/,
+    /return JSON\.stringify\(\{\s*collapsed: preference\.collapsed === true,\s*doneCollapsed: preference\.doneCollapsed === true,\s*collapsedWorkspaces: workspaceKeys\(preference\.collapsedWorkspaces\),\s*\}\)/,
   )
+  assert.doesNotMatch(store, /width:|Width:/)
   await assert.rejects(readFile('src/lib/sidebar-width.ts', 'utf8'), { code: 'ENOENT' })
 })
 

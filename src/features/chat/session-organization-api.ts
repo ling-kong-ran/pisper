@@ -8,6 +8,8 @@ export type SessionOrganizationPatch = {
   read?: boolean
   // 第 2 期 Runtime（能力 board.view）才接受：只清失败注意力，不改已读状态；只能为 true。
   dismissAttention?: true
+  // 能力 sessionActivityOrder 才接受：打开了这个会话，入栈到“最近”最上面；只能为 true。
+  opened?: true
 }
 
 export class SessionOrganizationProtocolError extends Error {

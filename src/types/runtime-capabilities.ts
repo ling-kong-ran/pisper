@@ -38,6 +38,7 @@ export type RuntimeFeature =
   | 'workspaceFolders'
   | 'workspaceFolderList'
   | 'inputInterrupt'
+  | 'sessionActivityOrder'
   | 'betaFeatures'
   | 'bots'
   | 'rooms.events'
@@ -106,6 +107,8 @@ const fullFeatures = {
   workspaceFolderList: false,
   // 插队（立即发送）：旧 Runtime 不认 interrupt，⌥↵ 退回排队（下一步送达），排队项不出现“立即发送”。
   inputInterrupt: false,
+  // 按最后操作入栈排序：旧 Runtime 没有 activityOrder、不认 opened，侧栏退回按修改时间排，打开会话也不上报。
+  sessionActivityOrder: false,
   // 实验功能：旧 Runtime 没有这个接口，设置里不出现“实验功能”分区。
   betaFeatures: false,
   // Bots：旧 Runtime 没有这组接口。
