@@ -460,9 +460,14 @@ export class ProviderModelCatalogService {
     }
     runtime.getModel = (providerId, modelId) => {
       if (configuredExcludedModels[providerId]?.includes(modelId)) return undefined
-      const model = modelsForProvider(providerId).find((item) => item.id === modelId)
-      if (model || catalogEntries(providerId).length) return model
-      return rawGetModel(providerId, modelId)
+      const models = modelsForProvider(providerId)
+      const exact =
+        models.find((item) => item.id === modelId) ||
+        (!catalogEntries(providerId).length ? rawGetModel(providerId, modelId) : undefined)
+      if (exact || typeof modelId !== 'string' || !/^models\/[^/]+$/.test(modelId)) return exact
+      // Google 的资源名与发现目录里的短 ID 指同一模型，旧会话可能保存了资源名。
+      const shortId = modelId.slice('models/'.length)
+      return models.find((item) => item.api === 'google-generative-ai' && item.id === shortId)
     }
     runtime.getAvailable = async (providerId) => {
       const raw = [...(await rawGetAvailable(providerId))]

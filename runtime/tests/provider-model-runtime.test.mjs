@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { createApiHandler } from '../http/api-handler.mjs'
 import { AgentRuntimeService } from '../runtime/agent-runtime.mjs'
+import { ProviderModelDiscoveryService } from '../services/provider-model-discovery-service.mjs'
 
 test('provider model discovery uses the configured relay Base URL and stored credential', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'pisper-provider-model-runtime-'))
@@ -54,6 +55,7 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   assert.deepEqual(discovered.addedModelIds, ['relay-chat-v2', 'relay-image-v1'])
   assert.deepEqual(discovered.removedModelIds, ['relay-chat-v1'])
   assert.equal(runtime.modelRuntime.getModel('company-relay', 'relay-chat-v1'), undefined)
+  assert.equal(runtime.modelRuntime.getModel('company-relay', 'models/relay-chat-v2'), undefined)
   assert.equal(
     runtime.modelRuntime.getModel('company-relay', 'relay-chat-v2').headers['User-Agent'],
     'Pisper/0.3.2-test',
@@ -66,6 +68,46 @@ test('provider model discovery uses the configured relay Base URL and stored cre
   const visualStatus = await runtime.getVisualModelStatus()
   assert.equal(visualStatus.image?.providerId, 'company-relay')
   assert.equal(visualStatus.image?.id, 'relay-image-v1')
+})
+
+test('a Gemini session bound to a resource name survives model discovery', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-google-model-'))
+  const provider = 'custom-google'
+  const id = 'gemini-3.8-flash'
+  const resource = `models/${id}`
+  const runtime = new AgentRuntimeService({
+    cwd: directory,
+    dataDir: directory,
+    providerModelDiscovery: new ProviderModelDiscoveryService({
+      fetchImpl: async () => Response.json({ models: [{ name: resource }] }),
+    }),
+  })
+  runtime.modelMetadata.fetchImpl = async () => {
+    throw new Error('offline in tests')
+  }
+  t.after(async () => {
+    await runtime.dispose()
+    await rm(directory, { recursive: true, force: true })
+  })
+  await runtime.init()
+  await runtime.createProvider({
+    id: provider,
+    name: 'Google',
+    api: 'google-generative-ai',
+    baseUrl: 'https://google.example.test/v1beta',
+    apiKey: 'test-key',
+    model: resource,
+  })
+  const session = await runtime.createSession('Gemini', directory)
+  await runtime.setSessionModel(session.id, provider, resource)
+  assert.equal(runtime.modelRuntime.getModel(provider, resource).id, resource)
+  await runtime.discoverProviderModels(provider)
+  const restored = await runtime.getOrCreateSession(session.id)
+  assert.equal(restored.blockedModel, undefined)
+  assert.equal(restored.session.model.provider, provider)
+  assert.equal(restored.session.model.id, id)
+  await runtime.deleteProviderModel(provider, id)
+  assert.equal(runtime.modelRuntime.getModel(provider, resource), undefined)
 })
 
 test('one Provider rejects multiple keys and ignores stored legacy extra keys', async (t) => {
