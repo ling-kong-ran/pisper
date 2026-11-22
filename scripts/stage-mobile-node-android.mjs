@@ -39,6 +39,8 @@ async function download(url, target, expectedSha256) {
   // github.com 下载入口回 504 时重试并经 GitHub API 下载同一个文件（github-download.mjs）；
   // 摘要不符直接失败，不写盘。
   const bytes = await downloadReleaseAsset(url, {
+    // 自托管机下载几十 MB 的运行库可能超过默认的两分钟；小签名文件沿用默认时限。
+    ...(target === archive ? { timeoutMs: 30 * 60_000 } : {}),
     verify: (value) => {
       const actual = createHash('sha256').update(value).digest('hex')
       if (actual !== expectedSha256) throw new Error(`${basename(target)} SHA256 不匹配：${actual}`)
