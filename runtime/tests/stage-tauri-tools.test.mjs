@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
+import { zipSync } from 'fflate'
 import {
   LINUXDEPLOY_COMMIT,
   NSIS_REQUIRED_FILES,
@@ -68,6 +69,33 @@ test('an older NSIS left by a previous CLI is replaced instead of reused', async
   assert.equal(again.staged, true)
   assert.equal(await readFile(join(toolsDir, 'NSIS', 'NSIS.exe'), 'utf8'), 'exe')
 })
+
+test(
+  'Windows extracts the NSIS ZIP even without tar on PATH',
+  { skip: process.platform !== 'win32' },
+  async (t) => {
+    const toolsDir = await mkdtemp(join(tmpdir(), 'pisper-nsis-zip-'))
+    t.after(() => rm(toolsDir, { recursive: true, force: true }))
+    const files = Object.fromEntries(
+      NSIS_REQUIRED_FILES.map((name) => [`${nsis.root}/${name}`, Buffer.from('x')]),
+    )
+    files[`${nsis.root}/NSIS.exe`] = Buffer.from('exe')
+    const archive = zipSync(files)
+    const previousPath = process.env.PATH
+    process.env.PATH = toolsDir
+    try {
+      const result = await stageTauriNsis({
+        toolsDir,
+        nsis: { ...nsis, sha1: sha1(archive) },
+        plugin,
+        fetchImpl: async (url) => new Response(url.endsWith('.zip') ? archive : 'dll'),
+      })
+      assert.equal(result.staged, true)
+    } finally {
+      process.env.PATH = previousPath
+    }
+  },
+)
 
 test('a tampered download is rejected before anything is written', async (t) => {
   const toolsDir = await mkdtemp(join(tmpdir(), 'pisper-tauri-tools-'))

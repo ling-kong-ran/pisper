@@ -37,6 +37,7 @@ const SCRIPT_COMPONENTS = new Map([
   ['scripts/smoke-tauri-dev.mjs', ['desktop']],
   ['scripts/stage-tauri-artifacts.mjs', ['desktop']],
   ['scripts/stage-tauri-cli.mjs', ['desktop']],
+  ['scripts/stage-tauri-tools.mjs', ['desktop']],
   ['scripts/validate-component-release-assets.mjs', ['tui', 'runtime']],
   ['scripts/validate-tauri-release-assets.mjs', ['desktop']],
 ])

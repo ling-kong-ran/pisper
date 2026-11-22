@@ -186,6 +186,7 @@ test('the TUI installs signed components; the desktop app only keeps leftovers n
 
 test('release paths select one or every affected component without coupling documentation', () => {
   assert.deepEqual(releaseComponentsForPath('src-tauri/src/lib.rs'), ['desktop'])
+  assert.deepEqual(releaseComponentsForPath('scripts/stage-tauri-tools.mjs'), ['desktop'])
   // App 组件独立：移动端独属路径不触发 desktop/tui/runtime 检测。
   assert.deepEqual(releaseComponentsForPath('src-tauri/src/mobile/proxy.rs'), [])
   assert.deepEqual(releaseComponentsForPath('src-tauri/mobile-package.json'), [])

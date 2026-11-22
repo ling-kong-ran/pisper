@@ -12,6 +12,7 @@ import { join, posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { downloadReleaseAsset } from './github-download.mjs'
+import { searchArchiveCommand } from './stage-search-tools.mjs'
 
 const run = promisify(execFile)
 
@@ -141,8 +142,9 @@ export async function stageTauriNsis({
   plugin: pluginAsset = NSIS_TAURI_UTILS,
   fetchImpl = globalThis.fetch,
   retryDelayMs,
-  // Windows 的 tar（bsdtar）能解 ZIP；测试里可以换掉。
-  extractZip = (archive, cwd) => run('tar', ['-xf', archive], { cwd, timeout: 120_000 }),
+  // Git Bash 的 tar 会把 Windows 盘符当成远程主机；与搜索工具共用系统 bsdtar。
+  extractZip = (archive, cwd) =>
+    run(searchArchiveCommand(), ['-xf', archive], { cwd, timeout: 120_000 }),
 } = {}) {
   const toolset = join(toolsDir, 'NSIS')
   if (await toolsetReady(toolset, pluginAsset.sha1, nsis.exeSha1)) return { staged: false, toolset }
