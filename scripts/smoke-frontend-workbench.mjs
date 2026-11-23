@@ -31,6 +31,13 @@ const sessions = ['a', 'b', 'c', 'd'].map((id, index) => {
 })
 const requests = []
 let runningTask = false
+const runningTool = {
+  type: 'tool',
+  id: 'running-tool',
+  name: 'bash',
+  args: { command: 'npm test' },
+  status: 'running',
+}
 let snapshotVersion = 0
 let holdProjectA = false
 let releaseProjectA = () => {}
@@ -145,7 +152,7 @@ const server = await createServer({
               model: 'fixture/model',
               startedAt: '2026-10-14T00:00:00Z',
               tools: [],
-              activityFeed: [],
+              activityFeed: runningTask && url.pathname.includes('/a/') ? [runningTool] : [],
               queuedInputs: [],
             }
           else if (url.pathname.endsWith('/thinking-level'))
@@ -326,7 +333,7 @@ try {
     await inspectorOf(initialPane)
       .locator('[data-inspector-tab-id]')
       .evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute('data-inspector-tab-id'))),
-    ['changes', 'terminal', 'running', 'files', 'preview'],
+    ['changes', 'terminal', 'files', 'preview'],
   )
   const headerRow = await initialPane.evaluate((pane) => ({
     session: pane.querySelector('[data-session-header]')?.getBoundingClientRect().top,
@@ -416,19 +423,20 @@ try {
     Math.abs(lastResourceOffset.top - 450) < 3 && Math.abs(lastResourceOffset.left - 160) < 3,
     'R5: resource tab must flush its last scroll before native scroll dispatch',
   )
-  // 并排：默认 456 宽的检查器放不下两栏，“并排”禁用并在组上说明原因；拖宽到 600 以上后可用，
-  // 两栏各占一半、新旧两侧都在视野里（不再是 880px 的并排渲染器把新文件一侧挤出视野）。
-  const splitOption = detail.getByRole('radio', { name: '并排', exact: true })
-  assert.equal(await splitOption.isDisabled(), true)
-  assert.match(
-    (await detail.locator('[data-slot="segmented-control"]').getAttribute('title')) || '',
-    /并排/,
-  )
+  // 检查器的默认宽度随会话区变化，先用键盘缩窄，再验证 600px 两侧的并排行为。
   const inspectorSplitter = initialPane.getByRole('separator', {
     name: '调整会话上下文宽度',
     exact: true,
   })
-  for (let step = 0; step < 3; step += 1) await inspectorSplitter.press('Shift+ArrowLeft')
+  const defaultInspectorWidth = Number(await inspectorSplitter.getAttribute('aria-valuenow'))
+  for (let step = 0; step < 3; step += 1) await inspectorSplitter.press('Shift+ArrowRight')
+  const splitOption = detail.getByRole('radio', { name: '并排', exact: true })
+  await splitOption.and(page.locator(':disabled')).waitFor()
+  assert.match(
+    (await detail.locator('[data-slot="segmented-control"]').getAttribute('title')) || '',
+    /并排/,
+  )
+  for (let step = 0; step < 6; step += 1) await inspectorSplitter.press('Shift+ArrowLeft')
   await page.waitForFunction(
     () =>
       document.querySelector('[data-change-detail="src/one.ts"]')?.getBoundingClientRect().width >=
@@ -511,10 +519,10 @@ try {
   const pane = page.locator('[data-task-workspace="a"]')
   await inspectorTab(pane, 'preview').click()
   await pane.locator('[data-inspector-preview]').waitFor()
-  // 检查器宽度：分隔条可用方向键与指针调整，双击恢复默认 456（宽度是全局偏好，不按会话保存）。
+  // 检查器宽度：分隔条可用方向键与指针调整，双击恢复默认比例。
   const splitter = pane.getByRole('separator', { name: '调整会话上下文宽度', exact: true })
   const beforeWidth = Number(await splitter.getAttribute('aria-valuenow'))
-  assert.equal(beforeWidth, 456)
+  assert.equal(beforeWidth, defaultInspectorWidth)
   await splitter.press('ArrowLeft')
   assert.ok(Number(await splitter.getAttribute('aria-valuenow')) > beforeWidth)
   await splitter.press('ArrowRight')
@@ -529,7 +537,7 @@ try {
     'pointer resize widens the inspector',
   )
   await splitter.dblclick()
-  assert.equal(Number(await splitter.getAttribute('aria-valuenow')), 456)
+  assert.equal(Number(await splitter.getAttribute('aria-valuenow')), defaultInspectorWidth)
   const addressInput = pane.locator('[data-inspector-preview] form input')
   await addressInput.fill('https://example.invalid/kept-as-draft')
   const savedReadingPosition = await pane.locator('.transcript').evaluate((el) => {
@@ -869,6 +877,13 @@ try {
   await runningPage.goto(fixtureUrl('a'))
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ timeout: 45000 })
   await runningPage.getByText('Running task output', { exact: true }).waitFor()
+  const runningChip = runningPage.locator('[data-session-header] [data-session-running="1"]')
+  const runningList = runningPage.locator('[data-session-running-list]')
+  await runningChip.press('Enter')
+  await runningList.locator('[data-running-item="tool"]').getByText('npm test').waitFor()
+  await runningPage.keyboard.press('Escape')
+  await runningList.waitFor({ state: 'detached' })
+  await runningChip.and(runningPage.locator(':focus')).waitFor()
   await runningPage.evaluate(() => window.workbenchFixture.board())
   await runningPage.locator('[data-task-workspace="a"]').waitFor({ state: 'detached' })
   await runningPage.locator('[data-board-card="a"][data-lane="running"]').waitFor()

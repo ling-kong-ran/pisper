@@ -69,6 +69,7 @@ export type MemoryDetail = {
   kind: 'fact' | 'digest' | 'episode'
   item: MemoryNode
   history: MemoryNode[]
+  sourceSession?: Pick<MemorySessionDigest, 'sessionId' | 'sessionName' | 'sessionAvailable'>
   episode?: { id: string; sessionId: string; at: string; userText: string; assistantText: string }
   // 摘要下的事实；会话摘要是这次对话记下的那些。
   children?: { id: string; title: string; validFrom: string }[]

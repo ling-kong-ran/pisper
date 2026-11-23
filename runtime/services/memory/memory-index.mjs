@@ -2,6 +2,7 @@
 // memory_docs 把 doc_id 映射到稳定的 rowid：memories 的隐式 rowid 在 VACUUM 后可能变，不能拿来当外键。
 // SQLite 没编译 FTS5 时退回扫描 memory_docs.scan_tokens，功能不变，只是更慢。
 import { ftsExpression, indexText } from './memory-tokenizer.mjs'
+import { chatSessionFilter } from './memory-chat-scope.mjs'
 
 function isFts5UnavailableError(error) {
   return String(error?.message || error)
@@ -31,7 +32,7 @@ export class MemorySearchIndex {
     this.ftsAvailable = ftsAvailable
   }
 
-  upsert({ kind, id, spaceId, title = '', body = '', expansion = '' }) {
+  upsert({ kind, id, spaceId, sessionId = '', title = '', body = '', expansion = '' }) {
     const titleTokens = indexText(title)
     const bodyTokens = indexText(body)
     const expansionTokens = indexText(expansion)
@@ -42,15 +43,17 @@ export class MemorySearchIndex {
     let rowid = existing?.rowid
     if (rowid) {
       this.db
-        .prepare('UPDATE memory_docs SET kind = ?, space_id = ?, scan_tokens = ? WHERE rowid = ?')
-        .run(kind, spaceId, scanTokens, rowid)
+        .prepare(
+          'UPDATE memory_docs SET kind = ?, space_id = ?, session_id = ?, scan_tokens = ? WHERE rowid = ?',
+        )
+        .run(kind, spaceId, sessionId, scanTokens, rowid)
       if (this.ftsAvailable) this.db.prepare('DELETE FROM memory_search WHERE rowid = ?').run(rowid)
     } else {
       rowid = this.db
         .prepare(
-          'INSERT INTO memory_docs (doc_id, kind, space_id, scan_tokens) VALUES (?, ?, ?, ?)',
+          'INSERT INTO memory_docs (doc_id, kind, space_id, session_id, scan_tokens) VALUES (?, ?, ?, ?, ?)',
         )
-        .run(id, kind, spaceId, scanTokens).lastInsertRowid
+        .run(id, kind, spaceId, sessionId, scanTokens).lastInsertRowid
     }
     if (this.ftsAvailable) {
       this.db
@@ -80,9 +83,10 @@ export class MemorySearchIndex {
   }
 
   // 按 BM25 排序的候选 [{ id, kind }]。token 为空时返回空。
-  match(tokens, { kinds, spaceIds, limit = 200 }) {
+  match(tokens, { kinds, spaceIds, limit = 200, sessionId }) {
     if (!tokens.length || !spaceIds.length || !kinds.length) return []
-    if (!this.ftsAvailable) return this.scan(tokens, { kinds, spaceIds, limit })
+    if (!this.ftsAvailable) return this.scan(tokens, { kinds, spaceIds, limit, sessionId })
+    const chat = chatSessionFilter(spaceIds, sessionId, 'docs')
     try {
       return this.db
         .prepare(
@@ -90,23 +94,24 @@ export class MemorySearchIndex {
            FROM memory_search JOIN memory_docs docs ON docs.rowid = memory_search.rowid
            WHERE memory_search MATCH ?
              AND docs.space_id IN (${placeholders(spaceIds)})
-             AND docs.kind IN (${placeholders(kinds)})
+             AND docs.kind IN (${placeholders(kinds)})${chat.sql}
            ORDER BY bm25(memory_search, 8.0, 4.0, 2.0)
            LIMIT ?`,
         )
-        .all(ftsExpression(tokens), ...spaceIds, ...kinds, limit)
+        .all(ftsExpression(tokens), ...spaceIds, ...kinds, ...chat.args, limit)
     } catch {
-      return this.scan(tokens, { kinds, spaceIds, limit })
+      return this.scan(tokens, { kinds, spaceIds, limit, sessionId })
     }
   }
 
-  scan(tokens, { kinds, spaceIds, limit }) {
+  scan(tokens, { kinds, spaceIds, limit, sessionId }) {
+    const chat = chatSessionFilter(spaceIds, sessionId)
     const rows = this.db
       .prepare(
         `SELECT doc_id AS id, kind, scan_tokens FROM memory_docs
-         WHERE space_id IN (${placeholders(spaceIds)}) AND kind IN (${placeholders(kinds)})`,
+         WHERE space_id IN (${placeholders(spaceIds)}) AND kind IN (${placeholders(kinds)})${chat.sql}`,
       )
-      .all(...spaceIds, ...kinds)
+      .all(...spaceIds, ...kinds, ...chat.args)
     const scored = []
     for (const row of rows) {
       const present = new Set(row.scan_tokens.split(' '))

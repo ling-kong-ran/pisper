@@ -69,7 +69,7 @@ function measure(memory, keys) {
 }
 
 async function injected(memory, keys, text) {
-  const { memories } = await memory.relevantContext(text, '', 5, { spaceIds: ['global'] })
+  const { memories } = await memory.relevantContext(text, '', undefined, { spaceIds: ['global'] })
   return memories.map((item) => keys.get(item.id))
 }
 
@@ -99,11 +99,12 @@ test('without any model, keyword search still finds what shares words and prefer
   })
 })
 
-test('automatic recall injects the right memory often and unrelated questions never', async () => {
+test('automatic recall injects the right memory often and unrelated questions never', async (t) => {
   await withLibrary(1000, true, async (memory, keys) => {
     let kept = 0
     for (const [, text, expected] of queries)
       if ((await injected(memory, keys, text)).includes(expected)) kept += 1
+    t.diagnostic(`recall@4 with 1000 distractors: ${kept}/${queries.length}`)
     assert.ok(kept >= 30, `kept ${kept}`)
     for (const text of negatives)
       assert.deepEqual(await injected(memory, keys, text), [], `误注入：${text}`)

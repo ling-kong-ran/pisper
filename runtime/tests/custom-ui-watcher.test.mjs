@@ -51,34 +51,55 @@ test('强制轮询：变化、新增、删除都按组件去抖回调一次；�
     debounceMs: 120,
   })
   t.after(() => watcher.dispose())
+  // 每次推进轮询时钟后，等本轮真实文件扫描完成并重新挂好定时器，再修改文件。
+  // 这样即使 CI 的文件 I/O 超过去抖窗口，两个连续快照也仍按指定的时间间隔到达。
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const armPoll = watcher.armPoll.bind(watcher)
+  let scanFinished
+  t.mock.method(watcher, 'armPoll', () => {
+    armPoll()
+    scanFinished?.()
+  })
+  const poll = async (count = 1) => {
+    for (let i = 0; i < count; i++) {
+      const finished = new Promise((resolve) => {
+        scanFinished = resolve
+      })
+      t.mock.timers.tick(40)
+      await finished
+    }
+  }
+
   assert.equal(await watcher.start(), 'poll')
-  // 基线不产生通知。
-  await delay(120)
+  await poll()
   assert.deepEqual(changes, [])
 
   await writeFile(join(dir, 'alpha', 'component.js'), 'export default 22')
+  await poll()
   await writeFile(join(dir, 'alpha', 'extra.js'), 'export const x = 1')
-  await until(() => changes.includes('alpha'), 'alpha 的变化没有被发现')
-  await delay(250)
+  await poll(3)
+  assert.deepEqual(changes, [])
+  await poll()
   assert.deepEqual(changes, ['alpha'])
 
   await mkdir(join(dir, '.component-write-xyz'), { recursive: true })
   await writeFile(join(dir, '.component-write-xyz', 'component.js'), 'staging')
   await writeFile(join(dir, 'alpha', '.swap'), 'editor temp')
-  await delay(300)
+  await poll(4)
   assert.deepEqual(changes, ['alpha'])
 
   await mkdir(join(dir, 'beta'))
   await writeFile(join(dir, 'beta', 'manifest.json'), '{}')
-  await until(() => changes.includes('beta'), '新增的 beta 没有被发现')
   await rm(join(dir, 'alpha'), { recursive: true })
-  await until(() => changes.filter((id) => id === 'alpha').length === 2, '删除 alpha 没有通知')
+  await poll(4)
+  assert.deepEqual(changes.slice(1).sort(), ['alpha', 'beta'])
 
-  watcher.dispose()
-  const count = changes.length
   await writeFile(join(dir, 'beta', 'manifest.json'), '{"changed":true}')
-  await delay(200)
-  assert.equal(changes.length, count)
+  await poll()
+  watcher.dispose()
+  await writeFile(join(dir, 'beta', 'manifest.json'), '{}')
+  t.mock.timers.tick(200)
+  assert.equal(changes.length, 3)
 })
 
 test('fs.watch 抛错（不支持递归监听）时退回轮询', async (t) => {

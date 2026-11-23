@@ -105,7 +105,7 @@ import {
   resolveWorkspaceDirectory,
   workspacePathKey,
 } from './workspace-directories.mjs'
-import { projectlessChatsRoot } from './projectless-chats.mjs'
+import { isProjectlessDirectory, projectlessChatsRoot } from './projectless-chats.mjs'
 import { assetMessageAttachment, attachmentIdentity } from '../services/session-assets.mjs'
 import { hideLegacyReplyAssets } from '../services/workspace-asset-capture.mjs'
 import { dedupeAssetsForDisplay } from '../services/asset-storage.mjs'
@@ -542,11 +542,13 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
     this.memory = new LocalMemoryRuntime({
       path: join(dataDir, 'pisper-memory.sqlite'),
       cwd,
+      isProjectless: (path) => isProjectlessDirectory(projectlessChatsRoot(dataDir), path),
       modelClient: this.memoryModel,
     })
     this.memorySummarizer = createSemanticMemorySummarizer({ modelClient: this.memoryModel })
     this.memoryCapture = new ConversationMemoryCapture({
       getModelRuntime: () => this.modelRuntime,
+      getAuxiliaryModel: () => this.resolveAuxiliaryModel(),
       waitForInitialization: () => this.waitForInitialization('memory'),
       memory: this.memory,
       recordUsage: (...args) => this.recordUsage(...args),
@@ -2760,6 +2762,7 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
         : memoryContextEnabled
           ? Promise.resolve().then(() =>
               this.memory.relevantContext(message, value.cwd, undefined, {
+                sessionId: session.sessionId,
                 excludeIds: injectedMemoryIds(contextUserTexts(session.messages)),
               }),
             )
@@ -3610,12 +3613,10 @@ export class AgentRuntimeService extends AgentRuntimeFacade {
   // 内部注入的消息（目标延续、Agent 完成）不是用户说的话，两样都跳过；附件上下文也不算。
   async captureConversationMemory(input) {
     if (isInternalParentMessage(input.user)) return []
-    const auxiliary = await this.resolveAuxiliaryModel()
     return this.memoryCapture.capture({
       ...input,
       user: String(input.user || '').split(ATTACHMENT_MARKER)[0],
       recordTurn: true,
-      ...(auxiliary ? { model: auxiliary } : {}),
     })
   }
 

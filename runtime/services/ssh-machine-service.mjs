@@ -5,7 +5,7 @@
 // 密码机器还存着用户核对过指纹的主机公钥（hostKey）：连接只认它，没确认过就不连（见 ssh-host-key.mjs）。
 import { randomBytes } from 'node:crypto'
 import { readdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { pisperError } from '../../shared/errors.mjs'
 import { readJson, writeJsonAtomic } from '../storage/json-file.mjs'
 import { ExecutorError } from './bots/executor.mjs'
@@ -81,7 +81,7 @@ export function muxDirectoryFor(
   { platform = process.platform, uid = process.getuid?.() } = {},
 ) {
   if (platform === 'win32') return ''
-  const preferred = join(dataDir, 'ssh-mux')
+  const preferred = posix.join(dataDir, 'ssh-mux')
   if (preferred.length <= MAX_MUX_DIRECTORY_CHARS) return preferred
   return Number.isInteger(uid) ? `/tmp/pisper-ssh-${uid}` : ''
 }

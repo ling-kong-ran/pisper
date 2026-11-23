@@ -78,7 +78,9 @@ export function memoryBadges(node: MemoryNode, t: Translate) {
 }
 
 export function memorySpaceLabel(space: MemorySpace | null | undefined, t: Translate) {
-  return space?.kind === 'global' ? t('memory:memoryPage.globalMemorySpace') : space?.name || ''
+  if (space?.kind === 'global') return t('memory:memoryPage.globalMemorySpace')
+  if (space?.kind === 'chats') return t('memory:memoryPage.projectlessChats')
+  return space?.name || ''
 }
 
 export function formatMemoryTime(value: string | undefined, locale = 'zh-CN') {

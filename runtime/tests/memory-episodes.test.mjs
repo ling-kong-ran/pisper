@@ -274,7 +274,21 @@ test('valid_from and expires_at are kept only when they parse and make sense', a
   assert.equal(memories[0].validFrom, '2026-09-01T00:00:00.000Z')
   assert.equal(memories[0].expiresAt, '2026-11-09T00:00:00.000Z')
   assert.deepEqual([memories[1].validFrom, memories[1].expiresAt], ['', ''])
-  assert.deepEqual([memories[2].validFrom, memories[2].expiresAt], ['', ''])
+  assert.equal(memories.length, 2)
+  const planned = await extractBatchMemories({
+    now,
+    modelClient: fakeModel([
+      {
+        text: JSON.stringify([
+          item({ valid_from: '2027-01-01' }),
+          item({ valid_from: '2026-10-01', expires_at: '2026-11-01' }),
+        ]),
+      },
+    ]),
+    turns: [turn],
+  })
+  assert.equal(planned.memories[0].validFrom, '2027-01-01T00:00:00.000Z')
+  assert.equal(planned.memories[1].expiresAt, '2026-11-01T00:00:00.000Z')
 })
 
 test('the number of items per batch grows with the turns but has a ceiling', async () => {
@@ -360,6 +374,165 @@ test('a batch with nothing worth keeping still moves the cursor', async () => {
     assert.deepEqual(await capture.flushIdleSessions(), { processed: 0 })
     assert.equal(model.calls.length, 1)
     await capture.dispose()
+  })
+})
+
+test('a session that switches spaces is extracted one space per model request', async () => {
+  await withMemory(async ({ memory, spaceId, clock }) => {
+    addTurns(memory, spaceId, clock, 'switch', 1, { text: 'earlier workspace' })
+    addTurns(memory, 'global', clock, 'switch', 1, { text: 'later workspace' })
+    const model = fakeModel([])
+    const { capture } = captureFor(memory, model)
+    try {
+      assert.equal((await capture.flushIdleSessions()).processed, 1)
+      assert.equal((await capture.flushIdleSessions()).processed, 1)
+      assert.equal(model.calls.length, 2)
+      assert.match(model.calls[0].user, /earlier workspace/)
+      assert.doesNotMatch(model.calls[0].user, /later workspace/)
+      assert.match(model.calls[1].user, /later workspace/)
+      assert.doesNotMatch(model.calls[1].user, /earlier workspace/)
+    } finally {
+      await capture.dispose()
+    }
+  })
+})
+
+for (const path of ['immediate', 'batch']) {
+  test(`a partial ${path} write rolls back facts, confirmations and completion together`, async () => {
+    await withMemory(async ({ memory, spaceId, cwd, clock }) => {
+      const user = '记住构建用 Vite，部署窗口在周三。'
+      const items = [
+        {
+          title: '构建工具',
+          content: '构建用 Vite',
+          topic: 'project.build.tool',
+          evidence: '记住构建用 Vite',
+        },
+        {
+          title: '部署窗口',
+          content: '部署窗口在周三',
+          topic: 'project.release.day',
+          evidence: '部署窗口在周三',
+        },
+      ]
+      const original = memory.remember({ ...items[0], spaceId, validFrom: ago(clock, 120) })
+      const reply = { text: JSON.stringify(items) }
+      const { capture, diagnostics } = captureFor(memory, fakeModel([reply, reply]), {
+        getModelRuntime: () => ({
+          completeSimple: async () => ({
+            content: [{ type: 'text', ...reply }],
+            stopReason: 'stop',
+          }),
+        }),
+      })
+      const db = memory.requireDb()
+      db.exec(`CREATE TEMP TRIGGER fail_second BEFORE INSERT ON memories WHEN NEW.title = '部署窗口'
+        BEGIN SELECT RAISE(ABORT, 'temporary error'); END;`)
+      const sessionId = 's1'
+      const at = ago(clock, 60)
+      if (path === 'immediate') {
+        assert.deepEqual(
+          await capture.capture({
+            sessionId,
+            cwd,
+            model: {},
+            user,
+            assistant: '好',
+            recordTurn: true,
+            sourceTimestamp: at,
+          }),
+          [],
+        )
+      } else {
+        memory.recordEpisode({ spaceId, sessionId, user, at })
+        assert.deepEqual(await capture.flushIdleSessions(), { processed: 0 })
+      }
+      assert.equal(memory.getMemory(original.id).confirmCount, 1)
+      assert.equal(memory.pendingEpisodeBatches()[0].episodes.length, 1)
+      assert.equal(memory.listMemories({ spaceId }).length, 1)
+      assert.equal(diagnostics.length, 1)
+      db.exec('DROP TRIGGER fail_second')
+      assert.deepEqual(await capture.flushIdleSessions(), { processed: 1 })
+      assert.equal(memory.getMemory(original.id).confirmCount, 2)
+      assert.equal(memory.listMemories({ spaceId }).length, 2)
+      assert.deepEqual(await capture.flushIdleSessions(), { processed: 0 })
+      await capture.dispose()
+    })
+  })
+}
+
+test('deleting source turns while a model is working discards the whole response', async () => {
+  await withMemory(async ({ memory, spaceId, clock, cwd }) => {
+    const user = '记住部署窗口在周三。'
+    const text = JSON.stringify([{ title: '部署窗口', content: user, evidence: user }])
+    const sessionId = 'delete-during-batch'
+    const release = Promise.withResolvers()
+    const started = Promise.withResolvers()
+    const model = fakeModel([
+      () => {
+        started.resolve()
+        return release.promise
+      },
+      { text: '[]' },
+    ])
+    const { capture } = captureFor(memory, model)
+    memory.recordEpisode({ sessionId, spaceId, user, at: ago(clock, 61) })
+    const second = memory.recordEpisode({
+      sessionId,
+      spaceId,
+      user: '另一轮对话',
+      at: ago(clock, 60),
+    })
+    const deleted = memory.remember({
+      sessionId,
+      spaceId,
+      episodeId: second.id,
+      title: '旧安排',
+      content: '另一轮对话的安排',
+    })
+    const running = capture.flushIdleSessions()
+    await started.promise
+    memory.forget(deleted.id)
+    release.resolve({ text })
+    assert.deepEqual(await running, { processed: 0 })
+    assert.equal(memory.listMemories({ spaceId }).length, 0)
+    assert.deepEqual(await capture.flushIdleSessions(), { processed: 1 })
+    await capture.dispose()
+
+    const immediateStarted = Promise.withResolvers()
+    const immediateReply = Promise.withResolvers()
+    const immediate = captureFor(memory, fakeModel(), {
+      getModelRuntime: () => ({
+        completeSimple: () => {
+          immediateStarted.resolve()
+          return immediateReply.promise
+        },
+      }),
+    }).capture
+    const pending = immediate.capture({
+      sessionId,
+      cwd,
+      model: {},
+      user,
+      assistant: '好',
+      recordTurn: true,
+      sourceTimestamp: ago(clock, 30),
+    })
+    await immediateStarted.promise
+    // 压缩前批量不能抢先给正在即时抽取的这一轮标记为空成功。
+    assert.deepEqual(await immediate.flushSessionBeforeCompaction(sessionId), { processed: 0 })
+    memory.forgetSession(sessionId)
+    immediateReply.resolve({ content: [{ type: 'text', text }], stopReason: 'stop' })
+    assert.deepEqual(await pending, [])
+    assert.equal(memory.listMemories({ spaceId }).length, 0)
+    assert.equal(
+      memory
+        .requireDb()
+        .prepare('SELECT 1 FROM memory_session_cursors WHERE session_id = ?')
+        .get(sessionId),
+      undefined,
+    )
+    await immediate.dispose()
   })
 })
 
@@ -547,9 +720,9 @@ test('a failed turn write does not stop what the user asked to remember', async 
       recordEpisode: () => {
         throw new Error('private path')
       },
-      remember: (value) => {
-        stored.push(value)
-        return value
+      commitEpisodeCapture: ({ memories }) => {
+        stored.push(...memories)
+        return { memories }
       },
     },
     null,
@@ -712,7 +885,7 @@ test('deleting a session removes its turns and index but keeps the facts it prod
   await withMemory(async ({ memory, spaceId, clock }) => {
     const [first] = addTurns(memory, spaceId, clock, 'gone', 2, { text: '网关超时' })
     addTurns(memory, spaceId, clock, 'kept', 1, { text: '网关超时' })
-    memory.saveSessionCursor('gone', ago(clock, 60))
+    memory.commitEpisodeCapture({ sessionId: 'gone', episodeIds: [first], memories: [] })
     const fact = memory.remember({
       spaceId,
       title: '网关',
@@ -769,18 +942,41 @@ test('over the size limit the oldest turns go first, along with their index', as
   })
 })
 
-test('the cursor only moves forward', async () => {
+test('each batch completes only its selected turns, including equal and late timestamps', async () => {
   await withMemory(async ({ memory, spaceId, clock }) => {
-    addTurns(memory, spaceId, clock, 's1', 3)
-    memory.saveSessionCursor('s1', ago(clock, 58))
-    memory.saveSessionCursor('s1', ago(clock, 60))
     const db = memory.requireDb()
-    assert.equal(
-      db.prepare('SELECT episode_at FROM memory_session_cursors WHERE session_id = ?').get('s1')
-        .episode_at,
-      ago(clock, 58),
+    const at = ago(clock, 60)
+    const record = (time) =>
+      memory.recordEpisode({ sessionId: 's1', spaceId, user: 'a turn', at: time }).id
+    const ids = Array.from({ length: 31 }, () => record(at))
+    const last = ids.at(-1)
+    const done = () =>
+      db.prepare('SELECT COUNT(*) AS count FROM memory_episodes WHERE captured = 1').get().count
+    const { capture } = captureFor(memory, fakeModel())
+    assert.deepEqual(await capture.flushIdleSessions(), { processed: 30 })
+    assert.equal(done(), 30)
+    assert.deepEqual(
+      memory.pendingEpisodeBatches()[0].episodes.map((row) => row.id),
+      [last],
     )
+    assert.deepEqual(await capture.flushIdleSessions(), { processed: 1 })
+    assert.equal(done(), 31)
+    const cursor = () =>
+      db.prepare('SELECT episode_at FROM memory_session_cursors WHERE session_id = ?').get('s1')
+    assert.equal(cursor().episode_at, at)
+    const late = record(ago(clock, 61))
+    assert.equal(cursor(), undefined)
+    // 模拟旧版留下的时间水位：新版本仍应读到捕获标记为 0 的迟到轮次。
+    db.prepare('INSERT INTO memory_session_cursors VALUES (?, ?, ?)').run('s1', at, at)
+    assert.deepEqual(
+      memory.pendingEpisodeBatches()[0].episodes.map((row) => row.id),
+      [late],
+    )
+    assert.deepEqual(await capture.flushIdleSessions(), { processed: 1 })
+    assert.equal(cursor().episode_at, at)
+    assert.equal(done(), 32)
     assert.equal(memory.pendingEpisodeBatches().length, 0)
+    await capture.dispose()
   })
 })
 
@@ -856,6 +1052,23 @@ test('a failed session delete leaves the turns alone', async (t) => {
     runtime.sessionLifecycle.deleteSession = async () => false
     assert.equal(await runtime.deleteSession('s1'), false)
     assert.equal(turnsOf(runtime, 's1').length, 1)
+  })
+})
+
+test('a session deleted during capture initialization cannot be recorded after deletion', async (t) => {
+  await withRuntime(t, async (runtime, cwd) => {
+    const ready = Promise.withResolvers()
+    runtime.memoryCapture.waitForInitialization = () => ready.promise
+    const turn = { cwd, user: '普通请求', assistant: '好的' }
+    const cancelled = runtime.captureConversationMemory({ ...turn, sessionId: 'gone' })
+    const kept = runtime.captureConversationMemory({ ...turn, sessionId: 'kept' })
+    runtime.sessionLifecycle.deleteSession = async () => true
+    assert.equal(await runtime.deleteSession('gone'), true)
+    assert.deepEqual(await cancelled, [])
+    ready.resolve()
+    await kept
+    assert.equal(turnsOf(runtime, 'gone').length, 0)
+    assert.equal(turnsOf(runtime, 'kept').length, 1)
   })
 })
 

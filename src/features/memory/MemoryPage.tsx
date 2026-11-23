@@ -192,6 +192,7 @@ export function MemoryPage({
     [data.spaces],
   )
   const activeSpace = data.spaces.find((space) => space.id === spaceId) || null
+  const projectless = activeSpace?.kind === 'chats'
   const searching = Boolean(query.trim())
   const groups = useMemo(
     () => groupMemoriesByTime(data.nodes, (node) => node.validFrom || node.createdAt),
@@ -283,7 +284,7 @@ export function MemoryPage({
     }
   }
 
-  const spaceEditable = Boolean(activeSpace) && activeSpace?.kind !== 'global'
+  const spaceEditable = Boolean(activeSpace) && activeSpace?.kind !== 'global' && !projectless
   const renderDetail = (node: MemoryNode) => (
     <MemoryDetailPanel
       id={node.id}
@@ -337,7 +338,9 @@ export function MemoryPage({
       ? t('memory:memoryPage.noArchivedMemories')
       : status === 'history'
         ? t('memory:memoryPage.noHistoryVersions')
-        : t('memory:memoryPage.noMemoriesInSpace')
+        : projectless
+          ? t('memory:memoryPage.noProjectlessMemories')
+          : t('memory:memoryPage.noMemoriesInSpace')
 
   return (
     // 切换键在工具行里，所以 Tabs 要包住整个模板。asChild 把它合并到 FeaturePage 上：
@@ -345,7 +348,9 @@ export function MemoryPage({
     <Tabs asChild value={view} onValueChange={changeView} className="gap-0">
       <FeaturePage
         title={t('navigation:navigation.memory')}
-        description={t('memory:memoryPage.lede')}
+        description={
+          projectless ? t('memory:memoryPage.projectlessHint') : t('memory:memoryPage.lede')
+        }
         back={
           onBack && {
             label: t('navigation:sidebar.features'),

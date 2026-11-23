@@ -9,6 +9,7 @@ import {
 } from './time-expression.mjs'
 import { jaccard, queryEntities, queryTokens, searchTokens } from './memory-tokenizer.mjs'
 import { MEMORY_CONTEXT_PREAMBLE } from '../../prompts/memory.mjs'
+import { chatSessionFilter } from './memory-chat-scope.mjs'
 
 const RRF_K = 60
 // 覆盖率加分：短文本上 BM25 的 Top-1 不稳，覆盖率补这个缺口。在评测集上校准，见 memory-retrieval-eval.test.mjs。
@@ -31,6 +32,15 @@ export const HALF_LIFE_DAYS = Object.freeze({
 
 const STATUS_WEIGHT = { active: 1, stale: 0.7, superseded: 0.6, archived: 0.4 }
 const CURRENT_STATUSES = ['active', 'stale']
+
+// valid_to / expires_at 都是开区间右端。旧库可能还没有 valid_from。
+export const FACT_START =
+  "COALESCE(NULLIF(valid_from, ''), NULLIF(source_timestamp, ''), created_at)"
+export const FACT_INTERVAL = `${FACT_START} <= :validAt AND (valid_to IS NULL OR valid_to > :validAt)
+  AND (expires_at IS NULL OR expires_at > :validAt)`
+const VERSION_STATUS =
+  "(status IN ('active', 'stale') OR (status = 'superseded' AND valid_to IS NOT NULL))"
+export const CURRENT_FACT_AT = `${VERSION_STATUS} AND ${FACT_INTERVAL}`
 
 export function decayFactor(type, ageDays, { pinned = false } = {}) {
   if (pinned) return 1
@@ -55,9 +65,11 @@ function authorityWeight(row) {
 
 const placeholders = (values) => values.map(() => '?').join(',')
 
-function loadFacts(db, ids) {
+function loadFacts(db, ids, filter) {
   if (!ids.length) return []
-  return db.prepare(`SELECT * FROM memories WHERE id IN (${placeholders(ids)})`).all(...ids)
+  return db
+    .prepare(`SELECT * FROM memories WHERE ${filter.sql} AND id IN (${placeholders(ids)})`)
+    .all(...filter.bindings, ...ids)
 }
 
 function loadDigests(db, ids) {
@@ -72,15 +84,19 @@ function loadEpisodes(db, ids) {
   return db.prepare(`SELECT * FROM memory_episodes WHERE id IN (${placeholders(ids)})`).all(...ids)
 }
 
-function factIsVisible(row, { statuses, asOf, includeTainted }) {
-  if (!includeTainted && row.tainted) return false
-  if (asOf) {
-    const from = factTimestamp(row)
-    if (from && from > asOf) return false
-    if (row.valid_to && row.valid_to <= asOf) return false
-    return row.status !== 'archived' || statuses.includes('archived')
-  }
-  return statuses.includes(row.status)
+export function factFilter(asOf, statuses, now) {
+  if (asOf)
+    return {
+      sql: `(${VERSION_STATUS} OR (status = 'archived' AND (archive_reason = 'expired' OR :includeArchived))) AND ${FACT_INTERVAL}`,
+      bindings: [{ validAt: asOf, includeArchived: Number(statuses.includes('archived')) }],
+    }
+  if (
+    statuses.length === CURRENT_STATUSES.length &&
+    CURRENT_STATUSES.every((status) => statuses.includes(status))
+  )
+    return { sql: CURRENT_FACT_AT, bindings: [{ validAt: new Date(now).toISOString() }] }
+  // 历史和归档列表显式按存储状态查，可以包含已结束的事实。
+  return { sql: `status IN (${placeholders(statuses)})`, bindings: statuses }
 }
 
 const inWindow = (at, window) => Boolean(at) && at >= window.since && at < window.until
@@ -159,7 +175,7 @@ function mmrOrder(items, limit) {
 /**
  * 检索。返回按 order 排好的 [{ kind, row, at, score, coverage, matched, entityHit }]。
  * @param {{ db: any, index: any }} deps
- * @param {{ query: string, queries?: string[], spaceIds: string[], kinds?: string[], limit?: number,
+ * @param {{ query: string, queries?: string[], spaceIds: string[], sessionId?: string, kinds?: string[], limit?: number,
  *   minCoverage?: number, includeHistory?: boolean, asOf?: string | null, since?: string | null,
  *   until?: string | null, includeTainted?: boolean, statuses?: string[] | null,
  *   order?: 'relevance' | 'recent' | 'chronological', now?: number }} options
@@ -178,6 +194,8 @@ export function retrieve({ db, index }, options) {
     now = Date.now(),
   } = options
   if (!spaceIds.length) return []
+  const sessionId = options.sessionId
+  const chat = chatSessionFilter(spaceIds, sessionId)
   const variants = [...new Set([query, ...queries].map((text) => String(text || '').trim()))]
     .filter(Boolean)
     .slice(0, 4)
@@ -196,7 +214,7 @@ export function retrieve({ db, index }, options) {
   const includeHistory = options.includeHistory ?? (Boolean(asOf) || hasHistoryIntent(query))
   const statuses =
     options.statuses || (includeHistory ? [...CURRENT_STATUSES, 'superseded'] : CURRENT_STATUSES)
-  const visibility = { statuses, asOf, includeTainted }
+  const visibility = factFilter(asOf, statuses, now)
 
   const scores = new Map()
   const seen = new Map()
@@ -208,11 +226,23 @@ export function retrieve({ db, index }, options) {
   const remember = (rows, kind) => {
     for (const row of rows) {
       if (seen.has(row.id)) continue
-      if (kind === 'fact' && !factIsVisible(row, visibility)) continue
-      seen.set(row.id, candidate(kind, row, tokenSetFor(kind, row)))
+      if (kind === 'fact' && !includeTainted && row.tainted) continue
+      const hit = candidate(kind, row, tokenSetFor(kind, row))
+      // 在查询时点仍然有效的旧版本，不能在注入提示里被标成已被替换。
+      if (
+        kind === 'fact' &&
+        (asOf || visibility.sql === CURRENT_FACT_AT) &&
+        (row.status === 'superseded' || row.status === 'archived')
+      )
+        hit.effectiveStatus = 'active'
+      seen.set(row.id, hit)
     }
   }
-  const loaders = { fact: loadFacts, digest: loadDigests, episode: loadEpisodes }
+  const loaders = {
+    fact: (db, ids) => loadFacts(db, ids, visibility),
+    digest: loadDigests,
+    episode: loadEpisodes,
+  }
   const loadMatches = (matches) => {
     for (const kind of kinds) {
       const ids = matches.filter((item) => item.kind === kind).map((item) => item.id)
@@ -228,7 +258,7 @@ export function retrieve({ db, index }, options) {
 
   // 每个查询变体单独走 BM25 + 覆盖率两路：Agent 给的中英文改写互相补充，不互相稀释。
   for (const tokens of variantTokens) {
-    const matches = index.match(tokens, { kinds, spaceIds, limit: CANDIDATE_LIMIT })
+    const matches = index.match(tokens, { kinds, spaceIds, sessionId, limit: CANDIDATE_LIMIT })
     loadMatches(matches)
     const visible = matches.filter((item) => seen.has(item.id))
     addRanked(
@@ -252,19 +282,21 @@ export function retrieve({ db, index }, options) {
   if (kinds.includes('fact') && variants.length) {
     const entities = [...new Set(variants.flatMap(queryEntities))]
     if (entities.length) {
+      const entityChat = chatSessionFilter(spaceIds, sessionId, 'memories')
       const rows = db
         .prepare(
           `SELECT entities.memory_id AS id, COUNT(*) AS hits FROM memory_entities entities
            JOIN memories ON memories.id = entities.memory_id
            WHERE entities.entity IN (${placeholders(entities)})
-             AND memories.space_id IN (${placeholders(spaceIds)})
+             AND memories.space_id IN (${placeholders(spaceIds)})${entityChat.sql}
            GROUP BY entities.memory_id ORDER BY hits DESC LIMIT ?`,
         )
-        .all(...entities, ...spaceIds, CANDIDATE_LIMIT)
+        .all(...entities, ...spaceIds, ...entityChat.args, CANDIDATE_LIMIT)
       remember(
         loadFacts(
           db,
           rows.map((row) => row.id).filter((id) => !seen.has(id)),
+          visibility,
         ),
         'fact',
       )
@@ -280,11 +312,11 @@ export function retrieve({ db, index }, options) {
       const rows = db
         .prepare(
           `SELECT * FROM memories
-           WHERE space_id IN (${placeholders(spaceIds)})
+           WHERE ${visibility.sql} AND space_id IN (${placeholders(spaceIds)})
              AND COALESCE(valid_from, created_at) >= ? AND COALESCE(valid_from, created_at) < ?
-           ORDER BY COALESCE(valid_from, created_at) DESC LIMIT 40`,
+             ${chat.sql} ORDER BY COALESCE(valid_from, created_at) DESC LIMIT 40`,
         )
-        .all(...spaceIds, timeWindow.since, timeWindow.until)
+        .all(...visibility.bindings, ...spaceIds, timeWindow.since, timeWindow.until, ...chat.args)
       remember(rows, 'fact')
       addRanked(
         scores,
@@ -297,10 +329,10 @@ export function retrieve({ db, index }, options) {
         .prepare(
           `SELECT * FROM memory_digests
            WHERE space_id IN (${placeholders(spaceIds)}) AND dirty < 2
-             AND window_start < ? AND window_end > ?
+             AND window_start < ? AND window_end > ?${chat.sql}
            ORDER BY level = 'session', window_start DESC LIMIT 12`,
         )
-        .all(...spaceIds, timeWindow.until, timeWindow.since)
+        .all(...spaceIds, timeWindow.until, timeWindow.since, ...chat.args)
       remember(rows, 'digest')
       // 摘要是时间类问题的入口，给双倍权重。
       addRanked(
@@ -313,10 +345,10 @@ export function retrieve({ db, index }, options) {
       const rows = db
         .prepare(
           `SELECT * FROM memory_episodes
-           WHERE space_id IN (${placeholders(spaceIds)}) AND at >= ? AND at < ?
+           WHERE space_id IN (${placeholders(spaceIds)}) AND at >= ? AND at < ?${chat.sql}
            ORDER BY at DESC LIMIT 20`,
         )
-        .all(...spaceIds, timeWindow.since, timeWindow.until)
+        .all(...spaceIds, timeWindow.since, timeWindow.until, ...chat.args)
       remember(rows, 'episode')
       addRanked(
         scores,
@@ -337,7 +369,8 @@ export function retrieve({ db, index }, options) {
     let score = base + COVERAGE_BOOST * coverage
     if (entry.kind === 'fact') {
       score *= asOf ? 1 : timeWeight(entry.row, now)
-      score *= authorityWeight(entry.row) * (STATUS_WEIGHT[entry.row.status] ?? 1)
+      score *=
+        authorityWeight(entry.row) * (STATUS_WEIGHT[entry.effectiveStatus || entry.row.status] ?? 1)
     }
     score *= KIND_WEIGHT[entry.kind] ?? 1
     if (timeWindow) {

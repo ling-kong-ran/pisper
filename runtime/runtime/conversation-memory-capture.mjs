@@ -1,6 +1,7 @@
 // 捕获任务拥有后台请求与取消生命周期；模型提取、持久化由窄依赖完成。
 // 每轮写原文（L0）；用户明确说“记住”时立即抽取；其余轮次等会话空闲或压缩前批量抽取，只用辅助模型。
 import { createHash } from 'node:crypto'
+import { memoryWriteSpace } from '../services/memory/memory-chat-scope.mjs'
 import { awaitMemoryOperation } from '../services/memory/abortable-memory-operation.mjs'
 import {
   extractBatchMemories,
@@ -28,6 +29,7 @@ export function localDayKey(value = new Date()) {
 export class ConversationMemoryCapture {
   constructor({
     getModelRuntime,
+    getAuxiliaryModel = null,
     waitForInitialization,
     memory,
     recordUsage,
@@ -36,6 +38,7 @@ export class ConversationMemoryCapture {
     timeoutMs = 120_000,
   }) {
     this.getModelRuntime = getModelRuntime
+    this.getAuxiliaryModel = getAuxiliaryModel
     this.waitForInitialization = waitForInitialization
     this.memory = memory
     this.recordUsage = recordUsage
@@ -60,7 +63,7 @@ export class ConversationMemoryCapture {
   }
 
   // 一个后台任务：带超时、可被 dispose 和外部 signal 取消，异常只留诊断码。
-  track(sessionId, work, { fallback, failureCode, signal } = {}) {
+  track(sessionId, work, { fallback, failureCode, signal, immediate = false } = {}) {
     const controller = new AbortController()
     let timedOut = false
     const timer = setTimeout(() => {
@@ -81,7 +84,7 @@ export class ConversationMemoryCapture {
         if (timedOut && !this.closed) this.diagnose('timeout', sessionId)
         this.tasks.delete(task)
       })
-    this.tasks.set(task, controller)
+    this.tasks.set(task, { controller, sessionId, immediate })
     return task
   }
 
@@ -92,26 +95,27 @@ export class ConversationMemoryCapture {
     return this.track(input.sessionId, (signal) => this.run(input, signal, extract), {
       fallback: [],
       failureCode: 'capture_failed',
+      immediate: extract && input.recordTurn,
     })
   }
 
   // 写原文失败不能挡住抽取：原文只是证据，用户明确要记的事更重要。
-  async recordTurn({ sessionId, cwd, user, assistant, sourceTimestamp }) {
+  async recordTurn({ sessionId, cwd, user, assistant, sourceTimestamp }, signal) {
     try {
       const spaceId = await this.memory.ensureWorkspaceSpace(cwd)
-      return (
-        this.memory.recordEpisode({
-          sessionId,
-          cwd,
-          spaceId,
-          user,
-          assistant,
-          at: sourceTimestamp,
-        })?.id || ''
-      )
+      if (signal.aborted) return null
+      const episode = this.memory.recordEpisode({
+        sessionId,
+        cwd,
+        spaceId,
+        user,
+        assistant,
+        at: sourceTimestamp,
+      })
+      return episode ? { id: episode.id, spaceId } : null
     } catch {
       this.diagnose('episode_write_failed', sessionId)
-      return ''
+      return null
     }
   }
 
@@ -119,11 +123,16 @@ export class ConversationMemoryCapture {
     const { sessionId, cwd, model, user, assistant, sourceTimestamp = '' } = input
     await awaitMemoryOperation(this.waitForInitialization(), signal)
     if (signal.aborted) return []
-    const episodeId = input.recordTurn ? await this.recordTurn(input) : ''
+    const episode = input.recordTurn ? await this.recordTurn(input, signal) : null
     if (signal.aborted || !extract) return []
+    const auxiliary = this.getAuxiliaryModel
+      ? await awaitMemoryOperation(this.getAuxiliaryModel(), signal)
+      : null
+    if (signal.aborted) return []
     const result = await extractConversationMemories({
       modelRuntime: this.getModelRuntime(),
-      model,
+      model: auxiliary || model,
+      sourceTimestamp,
       user,
       assistant,
       signal,
@@ -147,22 +156,24 @@ export class ConversationMemoryCapture {
       // 这一轮没标记已抽取，后台批量还会再试一次。
       return []
     }
-    if (episodeId) this.memory.recordEpisode({ id: episodeId, captured: true })
-    if (!result.memories.length) return []
-    const projectSpaceId = await this.memory.ensureWorkspaceSpace(cwd)
+    if (!episode && !result.memories.length) return []
+    const projectSpaceId = episode?.spaceId || (await this.memory.ensureWorkspaceSpace(cwd))
     if (signal.aborted) return []
-    return result.memories.map((item, index) =>
-      this.memory.remember({
+    const timestamp = result.timestamp || Date.now()
+    return this.memory.commitEpisodeCapture({
+      sessionId,
+      episodeIds: episode ? [episode.id] : [],
+      memories: result.memories.map((item, index) => ({
         ...item,
-        spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
+        spaceId: memoryWriteSpace(projectSpaceId, item, item.evidenceRole === 'user'),
         cwd,
         sessionId,
-        episodeId,
-        sourceId: `${sessionId}:${sourceTimestamp || result.timestamp || Date.now()}:${index}`,
-        sourceTimestamp: sourceTimestamp || new Date(result.timestamp || Date.now()).toISOString(),
+        episodeId: episode?.id || '',
+        sourceId: `${sessionId}:${sourceTimestamp || timestamp}:${index}`,
+        sourceTimestamp: sourceTimestamp || new Date(timestamp).toISOString(),
         sourceType: 'conversation',
-      }),
-    )
+      })),
+    }).memories
   }
 
   // 抽取一批。返回 { processed, stop }：stop 表示这轮后台任务别再继续（模型暂时不可用）。
@@ -170,6 +181,10 @@ export class ConversationMemoryCapture {
     const { sessionId, episodes } = batch
     if (this.closed || this.flushing.has(sessionId))
       return Promise.resolve({ processed: 0, stop: false })
+    // 明确要求记住的轮次先走即时抽取。避免定时/压缩并发时，批量空结果抢先标记成功。
+    for (const task of this.tasks.values())
+      if (task.immediate && task.sessionId === sessionId)
+        return Promise.resolve({ processed: 0, stop: false })
     this.flushing.add(sessionId)
     return this.track(
       sessionId,
@@ -185,24 +200,23 @@ export class ConversationMemoryCapture {
           return { processed: 0, stop: true }
         }
         if (result.errorCode) this.diagnose(result.errorCode, sessionId)
-        for (const [index, item] of result.memories.entries()) {
-          const { projectSpaceId, ...memory } = item
-          try {
-            this.memory.remember({
-              ...memory,
-              spaceId: item.scope === 'global' ? 'global' : projectSpaceId,
+        try {
+          const { processed } = this.memory.commitEpisodeCapture({
+            sessionId,
+            episodeIds: episodes.map((episode) => episode.id),
+            memories: result.memories.map(({ projectSpaceId, ...item }, index) => ({
+              ...item,
+              spaceId: memoryWriteSpace(projectSpaceId, item, item.evidenceRole === 'user'),
               sessionId,
               sourceId: `${sessionId}:${item.episodeId}:${index}`,
               sourceType: 'conversation',
-            })
-          } catch {
-            // 一条写不进去（比如空间刚被删）不影响其余条目。
-            this.diagnose('remember_failed', sessionId)
-          }
+            })),
+          })
+          return { processed, stop: false }
+        } catch {
+          this.diagnose('remember_failed', sessionId)
+          return { processed: 0, stop: false }
         }
-        // 没有值得记的也要往前走，否则这段对话会被反复送去抽取。
-        this.memory.saveSessionCursor(sessionId, episodes.at(-1).at)
-        return { processed: episodes.length, stop: false }
       },
       { fallback: { processed: 0, stop: true }, failureCode: 'flush_failed', signal },
     ).finally(() => this.flushing.delete(sessionId))
@@ -237,9 +251,14 @@ export class ConversationMemoryCapture {
     }
   }
 
+  cancelSession(sessionId) {
+    for (const task of this.tasks.values())
+      if (task.sessionId === sessionId) task.controller.abort()
+  }
+
   async dispose() {
     this.closed = true
-    for (const controller of this.tasks.values()) controller.abort()
+    for (const { controller } of this.tasks.values()) controller.abort()
     await Promise.allSettled(this.tasks.keys())
   }
 }

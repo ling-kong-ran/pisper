@@ -54,8 +54,12 @@ export function MemoryEditDialog({
   onSaved: (message: string) => Promise<void> | void
 }) {
   const { t } = useI18n()
+  const writableSpaces = spaces.filter(
+    (space) => space.kind !== 'chats' || space.id === node?.spaceId,
+  )
+  const requestedSpace = writableSpaces.find((space) => space.id === initialSpaceId)
   const [draft, setDraft] = useState<MemoryDraft>({
-    spaceId: node?.spaceId || initialSpaceId || spaces[0]?.id || '',
+    spaceId: node?.spaceId || requestedSpace?.id || writableSpaces[0]?.id || '',
     title: node?.title || '',
     content: node?.content || '',
     type: node?.type || 'concept',
@@ -88,7 +92,11 @@ export function MemoryEditDialog({
         <form className="grid min-w-0 gap-3" onSubmit={(event) => void submit(event)}>
           <DialogHeader>
             <DialogTitle>{heading}</DialogTitle>
-            <DialogDescription>{t('memory:memoryPage.memoryDialogHint')}</DialogDescription>
+            <DialogDescription>
+              {!node && initialSpaceId === 'chats'
+                ? t('memory:memoryPage.addFromProjectlessHint')
+                : t('memory:memoryPage.memoryDialogHint')}
+            </DialogDescription>
           </DialogHeader>
           <FieldLabel variant="control">
             {t('memory:memoryPage.memoryTitle')}
@@ -112,7 +120,7 @@ export function MemoryEditDialog({
               value={draft.spaceId}
               onChange={(event) => setDraft({ ...draft, spaceId: event.target.value })}
             >
-              {spaces.map((space) => (
+              {writableSpaces.map((space) => (
                 <option value={space.id} key={space.id}>
                   {memorySpaceLabel(space, t)}
                 </option>

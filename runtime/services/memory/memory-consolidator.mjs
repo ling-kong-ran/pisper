@@ -3,6 +3,7 @@
 // 规则阶段不需要模型：没配辅助模型时摘要就是要点列表，画像照常生成；LLM 只让摘要更好读、合并更准确。
 import { createHash } from 'node:crypto'
 import { authorityTier, memorySnapshot } from './memory-lifecycle.mjs'
+import { CURRENT_FACT_AT, FACT_INTERVAL } from './memory-retrieval.mjs'
 import { parseModelJson } from './memory-model-client.mjs'
 import { readMemoryMeta, writeMemoryMeta } from './memory-schema.mjs'
 import { jaccard, searchTokens, SESSION_INDEX_TERMS } from './memory-tokenizer.mjs'
@@ -230,15 +231,15 @@ function sessionTurns(db, { spaceId, sessionId }) {
   return [...head, ...tail.filter((turn) => !seen.has(turn.id))]
 }
 
-// 不限空间：项目会话里说的全局偏好存在全局空间，也是这次会话的结论。
-function sessionFacts(db, { sessionId }) {
+// 同一会话可以换目录；项目里的摘要不能带上之前那个空间的事实，全局偏好可以共用。
+function sessionFacts(db, { spaceId, sessionId }) {
   return db
     .prepare(
       `SELECT id, title, type, importance, ${FACT_AT} AS at FROM memories
-       WHERE session_id = ? AND ${FACT_ELIGIBLE}
-       ORDER BY importance DESC, ${FACT_AT} DESC LIMIT 50`,
+       WHERE session_id = ? AND space_id IN (?, 'global') AND ${FACT_ELIGIBLE}
+       ORDER BY importance DESC, ${FACT_AT} DESC, id LIMIT 50`,
     )
-    .all(sessionId)
+    .all(sessionId, spaceId)
 }
 
 function ruleSessionText(label, turns, facts) {
@@ -282,16 +283,18 @@ function writeSessionDigest(store, { spaceId, sessionId, start, end, text, dirty
     // source_ids 留空：会话摘要是当时发生过什么，后来事实被替换不算错，不用为此重算。
     // 用户删除时按 session_id 找它，见 memory-episodes.mjs。
     db.prepare(
-      `INSERT INTO memory_digests (id, space_id, level, session_id, window_start, window_end, text, source_ids, dirty, generated_at)
-       VALUES (?, ?, 'session', ?, ?, ?, ?, '[]', ?, ?)
+      `INSERT INTO memory_digests (id, space_id, level, session_id, window_start, window_end, text, source_ids, dirty, generated_at, session_scope_revision)
+       VALUES (?, ?, 'session', ?, ?, ?, ?, '[]', ?, ?, 1)
        ON CONFLICT(id) DO UPDATE SET window_start = excluded.window_start, window_end = excluded.window_end,
-         text = excluded.text, dirty = excluded.dirty, generated_at = excluded.generated_at`,
+         text = excluded.text, dirty = excluded.dirty, generated_at = excluded.generated_at,
+         session_scope_revision = session_scope_revision + 1`,
     ).run(id, spaceId, sessionId, windowStart, end, text, dirty, store.isoNow())
     store.index.upsert({
       kind: 'digest',
       id,
       spaceId,
       title: `${SESSION_INDEX_TERMS} ${sessionLabel(start, end)}`,
+      sessionId,
       body: text,
     })
   })
@@ -394,10 +397,23 @@ async function refreshSessionDigests(store, { signal, excluded, diagnose }) {
       }
       // 等模型的这段时间用户可能删了这个会话或其中的内容：不能把含有它的文字写回去，下一轮重来。
       const latest = sessionTurnStats(db, session)
+      const latestFacts = sessionFacts(db, session)
       const digestDirty = db
         .prepare('SELECT dirty FROM memory_digests WHERE id = ?')
         .get(digestId(session.spaceId, 'session', session.sessionId))?.dirty
-      if (Number(latest.turns) !== total || latest.last_at !== session.last_at || digestDirty === 2)
+      if (
+        Number(latest.turns) !== total ||
+        latest.last_at !== session.last_at ||
+        digestDirty === 2 ||
+        latestFacts.length !== facts.length ||
+        latestFacts.some(
+          (fact, index) => fact.id !== facts[index].id || fact.title !== facts[index].title,
+        ) ||
+        !sameIds(
+          turns.map((turn) => turn.id),
+          sessionTurns(db, session).map((turn) => turn.id),
+        )
+      )
         continue
     }
     writeSessionDigest(store, {
@@ -572,19 +588,20 @@ function ensureDigestsIndexed(store) {
       id: row.id,
       spaceId: row.space_id,
       title: labelOfRow(row),
+      sessionId: row.session_id,
       body: row.text,
     })
   }
 }
 
-function mergeCandidates(db, spaceId) {
-  const rows = db
+function mergeCandidates(store, spaceId) {
+  const rows = store.db
     .prepare(
       `SELECT id, space_id, title, content, authority, pinned, ${FACT_AT} AS at FROM memories
-       WHERE space_id = ? AND status = 'active' AND tainted = 0
+       WHERE space_id = ? AND status = 'active' AND ${FACT_INTERVAL} AND tainted = 0
        ORDER BY ${FACT_AT} DESC LIMIT ?`,
     )
-    .all(spaceId, MERGE_SCAN_LIMIT)
+    .all({ validAt: store.isoNow() }, spaceId, MERGE_SCAN_LIMIT)
     .map((row) => ({ ...row, tokens: new Set(searchTokens(row.content)) }))
   const pairs = []
   for (let left = 0; left < rows.length; left += 1) {
@@ -608,11 +625,20 @@ function mergeCandidates(db, spaceId) {
 
 function applyMerge(store, pair, model) {
   const { db } = store
-  const older = db.prepare('SELECT * FROM memories WHERE id = ?').get(pair.older.id)
-  const newer = db.prepare('SELECT * FROM memories WHERE id = ?').get(pair.newer.id)
-  // 同一轮里 A≈B、B≈C 时，B 可能已经被替换掉了。
-  if (older?.status !== 'active' || newer?.status !== 'active') return false
+  const live = db.prepare(
+    `SELECT * FROM memories WHERE id = ? AND status = 'active' AND ${FACT_INTERVAL}`,
+  )
   const now = store.isoNow()
+  const older = live.get({ validAt: now }, pair.older.id)
+  const newer = live.get({ validAt: now }, pair.newer.id)
+  // 同一轮里 A≈B、B≈C 时，B 可能已经被替换掉了。
+  if (
+    !older ||
+    !newer ||
+    older.space_id !== pair.older.space_id ||
+    newer.space_id !== pair.newer.space_id
+  )
+    return false
   store.transaction(() => {
     db.prepare(
       `UPDATE memories SET status = 'superseded', superseded_by = ?, superseded_at = ?, valid_to = ?, updated_at = ?
@@ -638,7 +664,7 @@ function applyMerge(store, pair, model) {
 
 async function mergeDuplicates(store, spaceIds, run) {
   const pairs = spaceIds
-    .flatMap((spaceId) => mergeCandidates(store.db, spaceId))
+    .flatMap((spaceId) => mergeCandidates(store, spaceId))
     .sort((left, right) => right.similarity - left.similarity)
     .slice(0, MAX_MERGE_PAIRS)
   if (!pairs.length) return
@@ -674,16 +700,16 @@ async function mergeDuplicates(store, spaceIds, run) {
 }
 
 // 画像的来源：用户钉住的；或者用户亲口说过、不止一次确认的偏好和决定。
-function profileSources(db, spaceId) {
-  return db
+function profileSources(store, spaceId) {
+  return store.db
     .prepare(
       `SELECT id, title, content, status FROM memories
-       WHERE space_id = ? AND status IN ('active', 'stale') AND tainted = 0
+       WHERE space_id = ? AND ${CURRENT_FACT_AT} AND tainted = 0
          AND (pinned = 1 OR (type IN ('preference', 'decision') AND authority >= 90
            AND (confirm_count >= 2 OR source_type IN ('user_confirmed', 'manual'))))
        ORDER BY pinned DESC, importance DESC, confirm_count DESC, ${FACT_AT} DESC LIMIT 200`,
     )
-    .all(spaceId)
+    .all({ validAt: store.isoNow() }, spaceId)
 }
 
 function buildProfile(rows) {
@@ -705,7 +731,7 @@ function buildProfile(rows) {
 // 每次读都按当前事实算一遍：别的模块改了状态（归档、失效）不一定来得及标脏，
 // 而画像常驻上下文，不能让已经作废的内容留在里面。查询走索引，只在会话开始和压缩后调用。
 function refreshProfile(store, spaceId) {
-  const { text, sourceIds } = buildProfile(profileSources(store.db, spaceId))
+  const { text, sourceIds } = buildProfile(profileSources(store, spaceId))
   const existing = store.db.prepare('SELECT * FROM memory_profiles WHERE space_id = ?').get(spaceId)
   if (existing && !existing.dirty && existing.text === text) return { text, changed: false }
   store.db
@@ -735,6 +761,7 @@ function escapeXml(value) {
 export function loadProfileContext(store, spaceIds) {
   const sections = []
   for (const spaceId of new Set(spaceIds || [])) {
+    if (spaceId === 'chats') continue
     const space = store.db.prepare('SELECT name, kind FROM memory_spaces WHERE id = ?').get(spaceId)
     if (!space) continue
     const { text } = refreshProfile(store, spaceId)
@@ -762,10 +789,11 @@ function episodeItem(row) {
  * 顶层 spaceId 给工具层做可见性校验。
  * @returns {object | null}
  */
-export function openMemoryDocument(store, id) {
+export function openMemoryDocument(store, id, canRead = () => true) {
   const { db } = store
   const memory = store.getMemory(id)
   if (memory) {
+    if (!canRead(memory.spaceId, memory.sessionId)) return null
     const episode = memory.episodeId
       ? db.prepare('SELECT * FROM memory_episodes WHERE id = ?').get(memory.episodeId)
       : null
@@ -773,10 +801,13 @@ export function openMemoryDocument(store, id) {
       kind: 'fact',
       spaceId: memory.spaceId,
       item: memory,
-      ...(episode ? { episode: episodeItem(episode) } : {}),
+      ...(episode && canRead(episode.space_id, episode.session_id)
+        ? { episode: episodeItem(episode) }
+        : {}),
     }
   }
   const digest = db.prepare('SELECT * FROM memory_digests WHERE id = ? AND dirty < 2').get(id)
+  if (digest && !canRead(digest.space_id, digest.session_id)) return null
   if (digest?.level === 'session') {
     const session = { spaceId: digest.space_id, sessionId: digest.session_id }
     return {
@@ -835,7 +866,8 @@ export function openMemoryDocument(store, id) {
     }
   }
   const episode = db.prepare('SELECT * FROM memory_episodes WHERE id = ?').get(id)
-  if (episode) return { kind: 'episode', spaceId: episode.space_id, item: episodeItem(episode) }
+  if (episode && canRead(episode.space_id, episode.session_id))
+    return { kind: 'episode', spaceId: episode.space_id, item: episodeItem(episode) }
   return null
 }
 
@@ -863,7 +895,7 @@ async function consolidate(store, { force, signal, excluded, diagnose }) {
   )
   if (signal?.aborted) return { ran: false, digests: scrubbed, profiles: 0, merged: 0 }
   const spaces = db
-    .prepare('SELECT id FROM memory_spaces')
+    .prepare("SELECT id FROM memory_spaces WHERE id <> 'chats'")
     .all()
     .map((row) => row.id)
     .filter((id) => !excluded.has(id))

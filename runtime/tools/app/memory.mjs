@@ -2,6 +2,7 @@
 // memory_confirm（确认可能过期的记忆仍然有效）、memory_forget（用户要求时删除）。
 // 写入不需要确认，直接生效；作用域不在参数里，由运行时决定模型能碰哪些空间。
 import { defineTool } from '../../runtime/pi-coding-agent.mjs'
+import { memoryWriteSpace } from '../../services/memory/memory-chat-scope.mjs'
 import { Type } from 'typebox'
 import {
   MEMORY_CONFIRM,
@@ -82,7 +83,7 @@ export function memoryLine(item) {
   return `[${item.id}] [${item.type}] [${date}] ${item.title} ${flags}\n${item.content}`.trim()
 }
 
-export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }) {
+export function createMemorySearchTool({ cwd, sessionId = '', memoryRuntime, getMemorySpaceIds }) {
   return defineTool({
     name: 'memory_search',
     label: 'Memory Search',
@@ -126,6 +127,7 @@ export function createMemorySearchTool({ cwd, memoryRuntime, getMemorySpaceIds }
       const level = params.level || 'facts'
       const memories = await memoryRuntime.searchRelevant(params.query, {
         cwd,
+        sessionId,
         spaceIds: getMemorySpaceIds?.() || null,
         limit: params.limit || 6,
         queries: params.queries || [],
@@ -174,6 +176,7 @@ export function verifiedRememberEvidence(params, getUserMessage) {
 
 export function createMemoryRememberTool({
   cwd,
+  sessionId = '',
   memoryRuntime,
   getUserMessage,
   getMemorySpaceIds,
@@ -217,16 +220,21 @@ export function createMemoryRememberTool({
     }),
     async execute(_toolCallId, params) {
       const assigned = getMemorySpaceIds?.()
-      const spaceId = assigned?.length
-        ? assigned[0]
-        : params.scope === 'global'
-          ? 'global'
-          : await memoryRuntime.ensureWorkspaceSpace(cwd)
       const rememberEvidence = verifiedRememberEvidence(params, getUserMessage)
+      const spaceId =
+        assigned?.[0] ||
+        (params.scope === 'global' && !memoryRuntime.isProjectless?.(cwd)
+          ? 'global'
+          : memoryWriteSpace(
+              await memoryRuntime.ensureWorkspaceSpace(cwd),
+              params,
+              Boolean(rememberEvidence),
+            ))
       const memory = memoryRuntime.remember({
         ...params,
         spaceId,
         cwd,
+        sessionId,
         validFrom: params.valid_from,
         expiresAt: params.expires_at,
         sourceType: rememberEvidence ? 'user_confirmed' : 'agent',
@@ -254,13 +262,17 @@ function textResult(text, details = {}) {
 }
 
 // 工具只能碰当前会话能看到的空间：Bot 不能靠猜 id 读别的 Bot 的记忆。
-function visibleToSession(memory, { cwd, memoryRuntime, getMemorySpaceIds }) {
+function visibleToSession(memory, { cwd, sessionId = '', memoryRuntime, getMemorySpaceIds }) {
   if (!memory) return false
-  const allowed = getMemorySpaceIds?.() || memoryRuntime.resolveSpaceIds({ cwd })
-  return allowed.includes(memory.spaceId)
+  const allowed = getMemorySpaceIds?.() || memoryRuntime.resolveSpaceIds({ cwd, sessionId })
+  return (
+    allowed.includes(memory.spaceId) &&
+    (memory.spaceId !== 'chats' || Boolean(sessionId && sessionId === memory.sessionId))
+  )
 }
 
-export function createMemoryOpenTool({ cwd, memoryRuntime, getMemorySpaceIds } = {}) {
+export function createMemoryOpenTool(context = {}) {
+  const { memoryRuntime } = context
   return defineTool({
     name: 'memory_open',
     label: 'Memory Open',
@@ -271,16 +283,17 @@ export function createMemoryOpenTool({ cwd, memoryRuntime, getMemorySpaceIds } =
       id: Type.String({ minLength: 1, maxLength: 200, description: MEMORY_OPEN.params.id }),
     }),
     execute(_toolCallId, params) {
-      const detail = memoryRuntime.openMemory(params.id)
-      const spaceId = detail?.spaceId ?? detail?.item?.spaceId
-      if (!detail || !visibleToSession({ spaceId }, { cwd, memoryRuntime, getMemorySpaceIds }))
+      const canRead = (spaceId, sessionId) => visibleToSession({ spaceId, sessionId }, context)
+      const detail = memoryRuntime.openMemory(params.id, canRead)
+      if (!detail || !canRead(detail.spaceId ?? detail.item?.spaceId, detail.item?.sessionId))
         return textResult('No memory with this ID.')
       return textResult(JSON.stringify(detail, null, 2).slice(0, 12_000), detail)
     },
   })
 }
 
-export function createMemoryConfirmTool({ cwd, memoryRuntime, getMemorySpaceIds } = {}) {
+export function createMemoryConfirmTool(context = {}) {
+  const { memoryRuntime } = context
   return defineTool({
     name: 'memory_confirm',
     label: 'Memory Confirm',
@@ -291,13 +304,7 @@ export function createMemoryConfirmTool({ cwd, memoryRuntime, getMemorySpaceIds 
       id: Type.String({ minLength: 1, maxLength: 200, description: MEMORY_CONFIRM.params.id }),
     }),
     execute(_toolCallId, params) {
-      if (
-        !visibleToSession(memoryRuntime.getMemory(params.id), {
-          cwd,
-          memoryRuntime,
-          getMemorySpaceIds,
-        })
-      )
+      if (!visibleToSession(memoryRuntime.getMemory(params.id), context))
         return textResult('No memory with this ID.')
       const memory = memoryRuntime.confirmMemory(params.id, { actor: 'agent' })
       return textResult(`Confirmed: ${memory.title}`, memory)
@@ -305,12 +312,8 @@ export function createMemoryConfirmTool({ cwd, memoryRuntime, getMemorySpaceIds 
   })
 }
 
-export function createMemoryForgetTool({
-  cwd,
-  memoryRuntime,
-  getUserMessage,
-  getMemorySpaceIds,
-} = {}) {
+export function createMemoryForgetTool(context = {}) {
+  const { memoryRuntime, getUserMessage } = context
   return defineTool({
     name: 'memory_forget',
     label: 'Memory Forget',
@@ -331,8 +334,7 @@ export function createMemoryForgetTool({
           'Not deleted: userQuote must be an exact quote of the user asking to forget this.',
         )
       const memory = memoryRuntime.getMemory(params.id)
-      if (!visibleToSession(memory, { cwd, memoryRuntime, getMemorySpaceIds }))
-        return textResult('No memory with this ID.')
+      if (!visibleToSession(memory, context)) return textResult('No memory with this ID.')
       memoryRuntime.forget(params.id, 'user_requested')
       return textResult(`Deleted: ${memory.title}`, { id: params.id, deleted: true })
     },

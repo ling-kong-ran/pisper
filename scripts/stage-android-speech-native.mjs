@@ -2,11 +2,11 @@
 // 从同一个 App Release 下载（SpeechNativeRuntime.kt）。这里打包下载用的压缩包，并把它的
 // 大小、摘要、地址写进 APK 资产 speech-native-android.json；摘要随 APK 签名一起受保护。
 // 商店包不能下载可执行代码，本地构建也没有对应的 Release，二者都保持随包安装（bundled）。
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { create as createTar } from 'tar'
 import { SHERPA_NATIVE_LIBRARIES } from './sherpa-aar.mjs'
 import {
@@ -22,19 +22,36 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function bzip2(input, output) {
-  const child = spawn('bzip2', ['-9', '-c'], { stdio: ['pipe', 'pipe', 'inherit'] })
+async function compressBzip2(executable, input) {
+  const child = spawn(executable, ['-9', '-c'], { stdio: ['pipe', 'pipe', 'inherit'] })
   const chunks = []
   child.stdout.on('data', (chunk) => chunks.push(chunk))
   const exited = new Promise((resolveExit, reject) => {
     child.on('error', reject)
+    child.stdin.on('error', reject)
     child.on('close', (code) =>
       code === 0 ? resolveExit() : reject(new Error(`bzip2 exited with ${code}`)),
     )
   })
   child.stdin.end(input)
   await exited
-  await writeFile(output, Buffer.concat(chunks))
+  return Buffer.concat(chunks)
+}
+
+async function bzip2(input, output) {
+  let compressed
+  try {
+    compressed = await compressBzip2('bzip2', input)
+  } catch (error) {
+    if (process.platform !== 'win32' || error?.code !== 'ENOENT') throw error
+    // Git for Windows 的 bzip2 与 Git 一起安装，PowerShell 的 PATH 通常只有 Git 的 cmd 目录。
+    const git = spawnSync('git', ['--exec-path'], { encoding: 'utf8' })
+    const gitExecPath = git.stdout?.trim()
+    if (git.status !== 0 || !gitExecPath || !isAbsolute(gitExecPath)) throw error
+    const executable = resolve(gitExecPath, '../../../usr/bin/bzip2.exe')
+    compressed = await compressBzip2(executable, input)
+  }
+  await writeFile(output, compressed)
 }
 
 export function androidSpeechNativeMode(env = process.env) {

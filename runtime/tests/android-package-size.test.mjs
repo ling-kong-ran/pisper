@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import test from 'node:test'
 import { brotliDecompressSync, constants as zlibConstants } from 'node:zlib'
 import { unzipSync, zipSync } from 'fflate'
-import { create as createTar } from 'tar'
+import { create as createTar, list as listTar } from 'tar'
+import unbzip2 from 'unbzip2-stream'
 import { configureAndroidNativePackaging } from '../../scripts/android-native-packaging.mjs'
 import {
   verifyAndroidRuntimeAsset,
@@ -189,8 +191,13 @@ test('GitHub APK downloads speech native libraries from its own Release', async 
         ['libsherpa-onnx-jni.so', 3],
       ],
     )
-    const listing = execFileSync('tar', ['-tjf', staged.archive], { encoding: 'utf8' })
-    assert.deepEqual(listing.trim().split('\n').sort(), [
+    const paths = []
+    await pipeline(
+      Readable.from([archive]),
+      unbzip2(),
+      listTar({ onReadEntry: (entry) => paths.push(entry.path) }),
+    )
+    assert.deepEqual(paths.sort(), [
       'speech-native/',
       'speech-native/libonnxruntime.so',
       'speech-native/libsherpa-onnx-jni.so',

@@ -10,6 +10,8 @@ import { platform } from 'node:os'
 import { redactSecretText } from '../../security/secret-redaction.mjs'
 import { isPisperError, PisperError, pisperError } from '../../../shared/errors.mjs'
 import { extractEntities, isInformativeQuery } from './memory-tokenizer.mjs'
+import { sameMemoryScope } from './memory-chat-scope.mjs'
+import { awaitMemoryOperation } from './abortable-memory-operation.mjs'
 import {
   initializeMemorySchema,
   MEMORY_SCHEMA_REVISION,
@@ -18,6 +20,9 @@ import {
 } from './memory-schema.mjs'
 import { initializeMemoryFullTextSearch, MemorySearchIndex } from './memory-index.mjs'
 import {
+  CURRENT_FACT_AT,
+  FACT_START,
+  factFilter,
   factTimestamp,
   formatMemoryContext,
   passesRecallGate,
@@ -39,9 +44,9 @@ import {
   deleteEpisodesOfFacts,
   deleteSessionEpisodes,
   hideSessionDigestsOfFacts,
+  markEpisodesCaptured,
   pendingEpisodeBatches,
   recordEpisode,
-  saveSessionCursor,
 } from './memory-episodes.mjs'
 import {
   loadProfileContext,
@@ -79,6 +84,10 @@ const BROAD_TOPIC_SEGMENTS = new Set([
   'user',
 ])
 const SEMANTIC_BATCH_SIZE = 16
+const SEMANTIC_TIMEOUT_MS = 120_000
+// 已排定后继版本时，原记录会先标为 superseded，到交接时刻才真正退出。
+const CURRENT_OR_SCHEDULED_VERSION =
+  "(status IN ('active', 'stale') OR (status = 'superseded' AND valid_to > ?))"
 const TOMBSTONE_RETENTION_DAYS = 90
 const FORGOTTEN_RETENTION_DAYS = 365
 const LIFECYCLE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
@@ -194,7 +203,8 @@ function rowSpace(row) {
 // 检索结果里不同层的统一形状：事实保持 rowMemory，摘要和原文补上 kind 相关字段。
 function itemFromHit(hit) {
   const base = { kind: hit.kind, score: hit.score, relevance: hit.coverage }
-  if (hit.kind === 'fact') return { ...rowMemory(hit.row), ...base }
+  if (hit.kind === 'fact')
+    return { ...rowMemory(hit.row), status: hit.effectiveStatus || hit.row.status, ...base }
   if (hit.kind === 'digest')
     return {
       ...base,
@@ -233,6 +243,7 @@ export class LocalMemoryRuntime {
   constructor({
     path,
     cwd,
+    isProjectless = () => false,
     fullTextSearchInitializer = initializeMemoryFullTextSearch,
     semanticSummarizer = null,
     modelClient = null,
@@ -240,6 +251,7 @@ export class LocalMemoryRuntime {
   } = {}) {
     this.path = path
     this.cwd = resolve(cwd)
+    this.isProjectless = isProjectless
     this.db = null
     this.setAsideFiles = []
     this.unavailableReason = null
@@ -252,7 +264,7 @@ export class LocalMemoryRuntime {
     this.now = now
     this.semanticQueue = new Set()
     this.semanticPromise = null
-    this.semanticGeneration = 0
+    this.semanticController = null
     this.semanticLastError = ''
     this.lastLifecycleSweep = 0
     this.transactionDepth = 0
@@ -315,15 +327,11 @@ export class LocalMemoryRuntime {
     await this.ensureGlobalSpace()
     await this.ensureWorkspaceSpace(this.cwd)
     this.cleanupRetention({ force: true })
-    if (this.semanticSummarizer)
-      this.scheduleSemantic(
-        this.requireDb()
-          .prepare(
-            "SELECT id FROM memories WHERE status IN ('active', 'stale') AND semantic_status IN ('pending', 'error')",
-          )
-          .all()
-          .map((row) => row.id),
-      )
+    // 旧版本在模型不可用时仍会标为 ready；恢复为待处理后按后台预算逐批补算。
+    this.db.exec(
+      "UPDATE memories SET semantic_status = 'pending', semantic_updated_at = NULL WHERE semantic_status = 'ready' AND trim(semantic_text) = ''",
+    )
+    this.retryPendingSemantic()
   }
 
   // 给各子模块的窄接口：它们只碰这些，不拿整个运行时。
@@ -340,7 +348,7 @@ export class LocalMemoryRuntime {
       markDerivedDirty: (ids, options) => this.markDerivedDirty(ids, options),
       scheduleSemantic: (ids) => this.scheduleSemantic(ids),
       retrieve: (options) => retrieve({ db: this.db, index: this.index }, options),
-      spaceIdsForCwd: (cwd) => this.resolveSpaceIds({ cwd }),
+      workspaceSpaceId: (cwd) => this.workspaceSpaceId(cwd),
       ensureWorkspaceSpace: (cwd) => this.ensureWorkspaceSpace(cwd),
       safeText,
       cleanText,
@@ -393,6 +401,7 @@ export class LocalMemoryRuntime {
           kind: 'episode',
           id: row.id,
           spaceId: row.space_id,
+          sessionId: row.session_id,
           title: String(row.user_text || row.assistant_text).slice(0, 80),
           body: `${row.user_text}\n${row.assistant_text}`,
         })
@@ -402,6 +411,7 @@ export class LocalMemoryRuntime {
           kind: 'digest',
           id: row.id,
           spaceId: row.space_id,
+          sessionId: row.session_id,
           title: row.level,
           body: row.text,
         })
@@ -420,6 +430,7 @@ export class LocalMemoryRuntime {
       kind: 'fact',
       id: row.id,
       spaceId: row.space_id,
+      sessionId: row.session_id,
       title: row.title,
       body: row.content,
       expansion: row.semantic_text || '',
@@ -438,11 +449,11 @@ export class LocalMemoryRuntime {
 
   async dispose() {
     this.stopBackground()
-    if (this.backgroundPromise) await this.backgroundPromise.catch(() => {})
-    this.semanticGeneration += 1
+    this.semanticController?.abort()
     this.semanticQueue.clear()
     this.semanticSummarizer = null
     try {
+      if (this.backgroundPromise) await this.backgroundPromise.catch(() => {})
       if (this.semanticPromise) await this.semanticPromise
     } finally {
       this.db?.close()
@@ -497,13 +508,36 @@ export class LocalMemoryRuntime {
     return 'global'
   }
 
+  workspaceSpaceId(cwd) {
+    const projectId = stableProjectId(cwd)
+    if (!this.isProjectless(cwd)) return projectId
+    const db = this.requireDb()
+    // 只保留已实际写过的新归属。回退旧版时它可能为同一目录重建项目空间。
+    if (readMemoryMeta(db, `chat_scope:${projectId}`)) return 'chats'
+    return db.prepare('SELECT 1 FROM memory_spaces WHERE id = ?').get(projectId)
+      ? projectId
+      : 'chats'
+  }
+
   async ensureWorkspaceSpace(cwd) {
     const rootPath = resolve(cwd || this.cwd)
+    const id = this.workspaceSpaceId(rootPath)
+    if (id === 'chats') {
+      const now = this.isoNow()
+      this.transaction((db) => {
+        db.prepare(
+          "INSERT OR IGNORE INTO memory_spaces (id, name, kind, created_at, updated_at) VALUES ('chats', 'Projectless chats', 'chats', ?, ?)",
+        ).run(now, now)
+        db.prepare("INSERT OR IGNORE INTO memory_meta (key, value) VALUES (?, 'chats')").run(
+          `chat_scope:${stableProjectId(rootPath)}`,
+        )
+      })
+      return id
+    }
     const rootKey = canonicalProjectPath(rootPath)
     const db = this.requireDb()
     const existing = db.prepare('SELECT id FROM memory_spaces WHERE root_key = ?').get(rootKey)
     if (existing) return existing.id
-    const id = stableProjectId(rootPath)
     const collision = db.prepare('SELECT root_key FROM memory_spaces WHERE id = ?').get(id)
     if (collision && collision.root_key !== rootKey)
       throw pisperError('exists', 'memory', 'project space id collision; use another folder')
@@ -531,15 +565,13 @@ export class LocalMemoryRuntime {
       .prepare(
         `
       SELECT spaces.*,
-        COUNT(DISTINCT CASE WHEN memories.status IN ('active', 'stale') THEN memories.id END) AS node_count
+        (SELECT COUNT(*) FROM memories WHERE space_id = spaces.id AND ${CURRENT_FACT_AT}) AS node_count
       FROM memory_spaces spaces
-      LEFT JOIN memories ON memories.space_id = spaces.id
       ${includeBots ? '' : "WHERE spaces.kind <> 'bot'"}
-      GROUP BY spaces.id
       ORDER BY CASE spaces.kind WHEN 'project' THEN 0 WHEN 'global' THEN 1 ELSE 2 END, spaces.updated_at DESC
     `,
       )
-      .all()
+      .all({ validAt: this.isoNow() })
       .map(rowSpace)
   }
 
@@ -570,19 +602,19 @@ export class LocalMemoryRuntime {
       .prepare(
         `
       SELECT spaces.*,
-        COUNT(DISTINCT CASE WHEN memories.status IN ('active', 'stale') THEN memories.id END) AS node_count
+        (SELECT COUNT(*) FROM memories WHERE space_id = spaces.id AND ${CURRENT_FACT_AT}) AS node_count
       FROM memory_spaces spaces
-      LEFT JOIN memories ON memories.space_id = spaces.id
-      WHERE spaces.id = ? GROUP BY spaces.id
+      WHERE spaces.id = ?
     `,
       )
-      .get(id)
+      .get({ validAt: this.isoNow() }, id)
     return row ? rowSpace(row) : null
   }
 
   updateSpace(id, input = {}) {
     const current = this.getSpace(id)
     if (!current) return null
+    if (id === 'chats') throw pisperError('forbidden', 'operation', 'built-in chat space')
     const name = safeText(input.name ?? current.name, 80)
     if (!name) throw pisperError('invalid', 'memory', 'name is required')
     this.requireDb()
@@ -594,8 +626,8 @@ export class LocalMemoryRuntime {
   deleteSpace(id) {
     const space = this.getSpace(id)
     if (!space) return false
-    if (space.kind === 'global')
-      throw pisperError('forbidden', 'operation', 'the global memory space cannot be deleted')
+    if (space.kind === 'global' || id === 'chats')
+      throw pisperError('forbidden', 'operation', 'built-in memory space cannot be deleted')
     return this.transaction((db) => {
       this.index.removeSpace(id)
       db.prepare('DELETE FROM memory_events WHERE space_id = ?').run(id)
@@ -622,16 +654,22 @@ export class LocalMemoryRuntime {
         statuses,
       })
     }
+    const visibility = factFilter(null, statuses, this.now())
     return this.requireDb()
       .prepare(
         `SELECT * FROM memories
-         WHERE space_id IN (${spaceIds.map(() => '?').join(',')})
-           AND status IN (${statuses.map(() => '?').join(',')})
+         WHERE ${visibility.sql} AND space_id IN (${spaceIds.map(() => '?').join(',')})
            AND (? = '' OR COALESCE(valid_from, created_at) < ?)
          ORDER BY COALESCE(valid_from, created_at) DESC, id DESC LIMIT ?`,
       )
-      .all(...spaceIds, ...statuses, before, before, safeLimit)
-      .map(rowMemory)
+      .all(...visibility.bindings, ...spaceIds, before, before, safeLimit)
+      .map((row) =>
+        rowMemory(
+          visibility.sql === CURRENT_FACT_AT && row.status === 'superseded'
+            ? { ...row, status: 'active' }
+            : row,
+        ),
+      )
   }
 
   getDashboard({ spaceId = '', query = '', status = 'current', before = '', limit = 100 } = {}) {
@@ -661,17 +699,15 @@ export class LocalMemoryRuntime {
 
   statusCounts(spaceId) {
     const spaceIds = spaceId === 'all' ? this.listSpaces().map((space) => space.id) : [spaceId]
-    const rows = this.requireDb()
-      .prepare(
-        `SELECT status, COUNT(*) AS count FROM memories
-         WHERE space_id IN (${spaceIds.map(() => '?').join(',')}) GROUP BY status`,
-      )
-      .all(...spaceIds)
-    const byStatus = Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]))
     return {
-      current: (byStatus.active || 0) + (byStatus.stale || 0),
-      archived: byStatus.archived || 0,
-      history: byStatus.superseded || 0,
+      ...this.requireDb()
+        .prepare(
+          `SELECT COUNT(*) FILTER (WHERE ${CURRENT_FACT_AT}) AS current,
+            COUNT(*) FILTER (WHERE status = 'archived') AS archived,
+            COUNT(*) FILTER (WHERE status = 'superseded') AS history
+         FROM memories WHERE space_id IN (${spaceIds.map(() => '?').join(',')})`,
+        )
+        .get({ validAt: this.isoNow() }, ...spaceIds),
     }
   }
 
@@ -867,10 +903,12 @@ export class LocalMemoryRuntime {
     if (spaceId) db.prepare('UPDATE memory_profiles SET dirty = 1 WHERE space_id = ?').run(spaceId)
   }
 
-  forgetFingerprint(spaceId, content) {
+  forgetFingerprint(spaceId, content, sessionId = '') {
     const salt = readMemoryMeta(this.requireDb(), 'forget_salt') || ''
     return createHmac('sha256', salt)
-      .update(`${spaceId}\0${normalizeKey(content, 12_000)}`)
+      .update(
+        `${spaceId === 'chats' ? `chats\0${sessionId}` : spaceId}\0${normalizeKey(content, 12_000)}`,
+      )
       .digest('hex')
   }
 
@@ -884,9 +922,12 @@ export class LocalMemoryRuntime {
     const content = safeText(input.content, 12_000)
     if (!title || !content) throw pisperError('invalid', 'memory', 'title and content are required')
     const spaceId = String(input.spaceId || '')
+    const sessionId = safeText(input.sessionId, 100)
+    if (spaceId === 'chats' && !sessionId)
+      throw pisperError('invalid', 'memory', 'chat memory requires a session')
     if (!this.getSpace(spaceId)) throw pisperError('not_found', 'memory', 'space')
     const db = this.requireDb()
-    const fingerprint = this.forgetFingerprint(spaceId, content)
+    const fingerprint = this.forgetFingerprint(spaceId, content, sessionId)
     // 用户亲手再加一次，说明又想记住了：解除指纹。自动抽取到的一律丢弃。
     if (input.ignoreForgotten === true)
       db.prepare('DELETE FROM memory_forgotten WHERE fingerprint = ?').run(fingerprint)
@@ -904,16 +945,31 @@ export class LocalMemoryRuntime {
     const topicKey = normalizeKey(input.topicKey || input.topic || title)
     const identityKey = topicIdentity(input.topicKey || input.topic, title)
     const now = this.isoNow()
+    const validFrom = cleanIso(input.validFrom) || cleanIso(input.sourceTimestamp) || now
+    const expiresAt = cleanIso(input.expiresAt) || null
+    if (expiresAt && expiresAt <= validFrom)
+      throw pisperError('invalid', 'memory', 'expiresAt must be later than validFrom')
     const normalizedContent = normalizeKey(content, 12_000)
-    const sameFact = db
+    // 按生效日插进版本链：迟到的旧决定只能改写其有效区间，不能把已排定的后继顶掉。
+    const versions = db
       .prepare(
-        "SELECT * FROM memories WHERE space_id = ? AND status IN ('active', 'stale') AND identity_key = ?",
+        `SELECT * FROM memories WHERE space_id = ? AND identity_key = ?
+           AND (space_id <> 'chats' OR session_id = ?)
+           AND ${CURRENT_OR_SCHEDULED_VERSION}
+         ORDER BY ${FACT_START}, created_at`,
       )
-      .all(spaceId, identityKey)
+      .all(spaceId, identityKey, sessionId, validFrom)
+    const prior = versions.filter((row) => factTimestamp(row) <= validFrom)
+    const sameFact = prior.filter((row) => !row.expires_at || row.expires_at > validFrom)
+    const later = versions.find((row) => factTimestamp(row) > validFrom)
+    // 后台对账还可能把它连到另一个 identity_key 的版本。
+    const replaced = prior.find((row) => row.superseded_by && row.valid_to)
+    const nextId = replaced?.superseded_by || later?.id
+    const nextAt = replaced?.valid_to || (later && factTimestamp(later))
     // 内容相同就只刷新证实时间：不论主题起得一不一样，都算同一件事。
     const duplicate =
       sameFact.find((row) => normalizeKey(row.content, 12_000) === normalizedContent) ||
-      this.findSameContent(spaceId, normalizedContent)
+      this.findSameContent(spaceId, normalizedContent, sessionId, validFrom)
     if (duplicate && input.dedupe !== false) {
       // 用户亲口重申模型猜过的内容：来源和证据升级成用户的。
       const stronger = authority > Number(duplicate.authority || 0)
@@ -936,9 +992,8 @@ export class LocalMemoryRuntime {
     const blockedBy = sameFact.find(
       (row) => authorityTier(Number(row.authority || 0)) > authorityTier(authority),
     )
-    const validFrom = cleanIso(input.validFrom) || cleanIso(input.sourceTimestamp) || now
     const id = cleanText(input.id, 180) || randomUUID()
-    const superseded = blockedBy ? [] : sameFact
+    const superseded = blockedBy ? [] : prior
     this.transaction(() => {
       db.prepare(
         `
@@ -959,7 +1014,7 @@ export class LocalMemoryRuntime {
         sourceType,
         safeText(input.sourceId, 180),
         safeText(input.sourcePath, 1000),
-        safeText(input.sessionId, 100),
+        sessionId,
         safeText(input.cwd, 1000),
         safeText(input.evidence, 2000),
         safeText(input.sourceTimestamp, 80),
@@ -967,7 +1022,7 @@ export class LocalMemoryRuntime {
         authority,
         blockedBy ? 'archived' : 'active',
         now,
-        cleanIso(input.expiresAt) || null,
+        expiresAt,
         validFrom,
         now,
         input.pinned ? 1 : 0,
@@ -986,6 +1041,7 @@ export class LocalMemoryRuntime {
         "UPDATE memories SET status = 'superseded', superseded_by = ?, superseded_at = ?, valid_to = ?, updated_at = ? WHERE id = ?",
       )
       for (const row of superseded) supersede.run(id, now, validFrom, now, row.id)
+      if (nextId && !blockedBy) supersede.run(nextId, now, nextAt, now, id)
       db.prepare('UPDATE memory_spaces SET updated_at = ? WHERE id = ?').run(now, spaceId)
       this.indexFact(id)
       for (const row of superseded) this.indexFact(row.id)
@@ -1013,14 +1069,20 @@ export class LocalMemoryRuntime {
     }
   }
 
-  findSameContent(spaceId, normalizedContent) {
+  findSameContent(spaceId, normalizedContent, sessionId, validFrom) {
     // 没有内容索引：只看标题或内容开头相近的少量候选，避免每次写入都全表扫描。
     const db = this.requireDb()
     const rows = db
       .prepare(
-        "SELECT * FROM memories WHERE space_id = ? AND status IN ('active', 'stale') AND length(content) BETWEEN ? AND ? LIMIT 400",
+        `SELECT * FROM memories WHERE space_id = ? AND (space_id <> 'chats' OR session_id = ?) AND ${CURRENT_FACT_AT} AND length(content) BETWEEN ? AND ? LIMIT 400`,
       )
-      .all(spaceId, Math.floor(normalizedContent.length * 0.5), normalizedContent.length * 2 + 8)
+      .all(
+        { validAt: validFrom },
+        spaceId,
+        sessionId,
+        Math.floor(normalizedContent.length * 0.5),
+        normalizedContent.length * 2 + 8,
+      )
     return rows.find((row) => normalizeKey(row.content, 12_000) === normalizedContent) || null
   }
 
@@ -1030,6 +1092,8 @@ export class LocalMemoryRuntime {
     if (!currentRow) return null
     const current = rowMemory(currentRow)
     const nextSpaceId = input.spaceId || current.spaceId
+    if (nextSpaceId === 'chats' && current.spaceId !== 'chats')
+      throw pisperError('invalid', 'memory', 'a chat memory must originate in that chat')
     if (!this.getSpace(nextSpaceId)) throw pisperError('not_found', 'memory', 'space')
     const title = safeText(input.title ?? current.title, 140)
     const content = safeText(input.content ?? current.content, 12_000)
@@ -1043,16 +1107,44 @@ export class LocalMemoryRuntime {
       ? topicIdentity(input.topicKey || input.topic, title)
       : current.identityKey || topicIdentity('', title)
     const now = this.isoNow()
-    const contentChanged = title !== current.title || content !== current.content
+    const refreshExpansion =
+      title !== current.title || content !== current.content || nextSpaceId !== current.spaceId
+    const keepSuccessor =
+      current.status === 'superseded' &&
+      current.validTo > now &&
+      nextSpaceId === current.spaceId &&
+      identityKey === current.identityKey
+    const validFrom = cleanIso(input.validFrom) || current.validFrom
+    const expiresAt = cleanIso(input.expiresAt ?? current.expiresAt) || null
+    if (expiresAt && expiresAt <= validFrom)
+      throw pisperError('invalid', 'memory', 'expiresAt must be later than validFrom')
     const sourcePath = safeText(input.sourcePath ?? current.sourcePath, 1000)
+    // 调整同一版本的生效日时，前一版也要在新的交接时刻结束。版本不能有负的有效期。
+    const previous =
+      validFrom !== current.validFrom &&
+      nextSpaceId === current.spaceId &&
+      identityKey === current.identityKey
+        ? db
+            .prepare(
+              `SELECT * FROM memories WHERE superseded_by = ? AND status = 'superseded' AND space_id = ?
+          AND (space_id <> 'chats' OR session_id = ?)`,
+            )
+            .all(id, current.spaceId, current.sessionId)
+        : []
+    if (
+      (keepSuccessor && validFrom > current.validTo) ||
+      previous.some((row) => factTimestamp(row) > validFrom)
+    )
+      throw pisperError('invalid', 'memory', 'effective date falls outside adjacent versions')
+    const memoryIds = [id, ...previous.map((row) => row.id)]
     this.transaction(() => {
       db.prepare(
         `
       UPDATE memories SET space_id = ?, title = ?, content = ?, type = ?, topic_key = ?, identity_key = ?, source_type = 'manual',
-        source_path = ?, evidence = ?, source_timestamp = ?, importance = ?, authority = 100, status = 'active', revision = revision + 1,
-        superseded_by = '', superseded_at = NULL, valid_to = NULL, verified_at = ?, expires_at = ?, last_confirmed_at = ?,
+        source_path = ?, evidence = ?, source_timestamp = ?, importance = ?, authority = 100, status = ?, revision = revision + 1,
+        superseded_by = ?, superseded_at = ?, valid_to = ?, verified_at = ?, expires_at = ?, last_confirmed_at = ?,
         archived_at = NULL, archive_reason = '', evidence_role = 'manual', tainted = 0, pinned = ?, anchor_hash = ?,
-        valid_from = COALESCE(?, valid_from), semantic_text = '', semantic_status = ?, semantic_updated_at = NULL, updated_at = ?
+        valid_from = COALESCE(?, valid_from), semantic_text = ?, semantic_status = ?, semantic_updated_at = ?, updated_at = ?
       WHERE id = ?
     `,
       ).run(
@@ -1066,27 +1158,41 @@ export class LocalMemoryRuntime {
         safeText(input.evidence ?? current.evidence, 2000),
         safeText(input.sourceTimestamp ?? current.sourceTimestamp, 80),
         Math.min(1, Math.max(0, Number(input.importance ?? current.importance))),
+        keepSuccessor ? current.status : 'active',
+        keepSuccessor ? current.supersededBy : '',
+        keepSuccessor ? current.supersededAt : null,
+        keepSuccessor ? current.validTo : null,
         now,
-        cleanIso(input.expiresAt ?? current.expiresAt) || null,
+        expiresAt,
         now,
         (input.pinned ?? current.pinned) ? 1 : 0,
         computeAnchorHash(sourcePath, input.cwd ?? current.cwd),
-        cleanIso(input.validFrom) || null,
-        contentChanged ? 'pending' : current.semanticStatus,
+        validFrom || null,
+        refreshExpansion ? '' : current.semanticText,
+        refreshExpansion ? 'pending' : current.semanticStatus,
+        refreshExpansion ? null : currentRow.semantic_updated_at,
         now,
         id,
       )
       this.indexFact(id)
+      for (const row of previous)
+        db.prepare('UPDATE memories SET valid_to = ?, updated_at = ? WHERE id = ?').run(
+          validFrom,
+          now,
+          row.id,
+        )
       this.recordEvent({
         actor: 'user',
         action: 'edit',
-        memoryIds: [id],
+        memoryIds,
         spaceId: nextSpaceId,
-        before: { [id]: memorySnapshot(currentRow) },
+        before: Object.fromEntries(
+          [currentRow, ...previous].map((row) => [row.id, memorySnapshot(row)]),
+        ),
       })
     })
-    this.markDerivedDirty([id], { spaceId: nextSpaceId })
-    if (contentChanged) this.scheduleSemantic([id])
+    this.markDerivedDirty(memoryIds, { spaceId: nextSpaceId })
+    if (refreshExpansion) this.scheduleSemantic([id])
     return this.getMemory(id)
   }
 
@@ -1140,7 +1246,10 @@ export class LocalMemoryRuntime {
       const forgottenUntil = dateAfterDays(this.now(), FORGOTTEN_RETENTION_DAYS)
       const scrubEvents = db.prepare('DELETE FROM memory_events WHERE memory_ids LIKE ?')
       for (const item of chain) {
-        insertForgotten.run(this.forgetFingerprint(item.space_id, item.content), forgottenUntil)
+        insertForgotten.run(
+          this.forgetFingerprint(item.space_id, item.content, item.session_id),
+          forgottenUntil,
+        )
         scrubEvents.run(`%"${item.id}"%`)
         this.index.remove(item.id)
         db.prepare('DELETE FROM memories WHERE id = ?').run(item.id)
@@ -1182,33 +1291,46 @@ export class LocalMemoryRuntime {
   cleanupRetention({ force = false } = {}) {
     const now = this.now()
     if (!force && now - this.lastLifecycleSweep < LIFECYCLE_SWEEP_INTERVAL_MS) return
-    this.lastLifecycleSweep = now
     sweepMemoryLifecycle(this.requireStore())
     const db = this.requireDb()
     const iso = this.isoNow()
     db.prepare('DELETE FROM memory_tombstones WHERE expires_at <= ?').run(iso)
     db.prepare('DELETE FROM memory_forgotten WHERE expires_at <= ?').run(iso)
+    this.lastLifecycleSweep = now
   }
 
-  resolveSpaceIds({ cwd = '', spaceIds = null } = {}) {
+  resolveSpaceIds({ cwd = '', spaceIds = null, sessionId = '' } = {}) {
     const ids = Array.isArray(spaceIds) ? spaceIds.filter(Boolean) : ['global']
-    if (!spaceIds && cwd) ids.push(stableProjectId(cwd))
+    if (!spaceIds && cwd) {
+      const id = this.workspaceSpaceId(cwd)
+      if (id !== 'chats' || sessionId) ids.push(id)
+      // 用户为已有聊天选择了项目后，仍可回忆本聊天早先的私有事实。
+      if (
+        sessionId &&
+        id !== 'chats' &&
+        this.requireDb()
+          .prepare("SELECT 1 FROM memory_docs WHERE space_id = 'chats' AND session_id = ? LIMIT 1")
+          .get(sessionId)
+      )
+        ids.push('chats')
+    }
     return [...new Set(ids)]
   }
 
   applyScopePrecedence(hits, cwd) {
     if (!cwd) return hits
-    const projectId = stableProjectId(cwd)
-    const projectIdentities = new Set(
-      hits
-        .filter((hit) => hit.kind === 'fact' && hit.row.space_id === projectId)
-        .map((hit) => hit.row.identity_key),
-    )
+    const projectId = this.workspaceSpaceId(cwd)
+    const priority = (row) => (row.space_id === projectId ? 2 : row.space_id === 'chats' ? 1 : 0)
+    const byIdentity = new Map()
+    for (const { kind, row } of hits) {
+      if (kind === 'fact')
+        byIdentity.set(
+          row.identity_key,
+          Math.max(byIdentity.get(row.identity_key) || 0, priority(row)),
+        )
+    }
     return hits.filter(
-      (hit) =>
-        hit.kind !== 'fact' ||
-        hit.row.space_id !== 'global' ||
-        !projectIdentities.has(hit.row.identity_key),
+      ({ kind, row }) => kind !== 'fact' || priority(row) === byIdentity.get(row.identity_key),
     )
   }
 
@@ -1239,7 +1361,7 @@ export class LocalMemoryRuntime {
     } = {},
   ) {
     const text = cleanText(query, 4000)
-    const ids = this.resolveSpaceIds({ cwd, spaceIds })
+    const ids = this.resolveSpaceIds({ cwd, spaceIds, sessionId: options.sessionId })
     if (!ids.length) return []
     const safeLimit = Math.min(30, Math.max(1, Number(limit) || 6))
     const hits = this.applyScopePrecedence(
@@ -1269,17 +1391,24 @@ export class LocalMemoryRuntime {
 
   // 每轮自动回忆：不调 LLM。门槛见 passesRecallGate；被污染的内容不自动进上下文。
   // spaceIds 由运行时指定（Bot 只能看到自己的空间），不传就是全局 + 当前项目。
-  async relevantContext(query, cwd, limit = 4, { excludeIds = [], spaceIds = null } = {}) {
+  async relevantContext(
+    query,
+    cwd,
+    limit = 4,
+    { excludeIds = [], spaceIds = null, sessionId = '' } = {},
+  ) {
     if (!isInformativeQuery(query)) return { text: '', memories: [] }
-    if (!spaceIds) await this.ensureWorkspaceSpace(cwd)
+    if (!spaceIds && !this.isProjectless(cwd || this.cwd)) await this.ensureWorkspaceSpace(cwd)
     const excluded = new Set(excludeIds)
     const hits = this.applyScopePrecedence(
       retrieve(
         { db: this.requireDb(), index: this.index },
         {
           query: cleanText(query, 4000),
-          spaceIds: this.resolveSpaceIds({ cwd, spaceIds }),
+          spaceIds: this.resolveSpaceIds({ cwd, spaceIds, sessionId }),
+          sessionId,
           kinds: ['fact'],
+          includeHistory: false,
           includeTainted: false,
           limit: limit + excluded.size + 4,
           now: this.now(),
@@ -1289,9 +1418,11 @@ export class LocalMemoryRuntime {
     )
     const gated = hits.filter((hit) => passesRecallGate(hit) && !excluded.has(hit.row.id))
     checkMemoryAnchors(this.requireStore(), gated)
-    const candidates = gated
-      .slice(0, limit)
-      .map((hit) => ({ ...rowMemory(hit.row), scopeLabel: scopeLabelFor(hit.row.space_id) }))
+    const candidates = gated.slice(0, limit).map((hit) => ({
+      ...rowMemory(hit.row),
+      status: hit.effectiveStatus || hit.row.status,
+      scopeLabel: scopeLabelFor(hit.row.space_id),
+    }))
     const context = formatMemoryContext(candidates, { now: this.now() })
     if (context.memories.length) this.trackAccess(context.memories.map(asFact))
     return context
@@ -1302,8 +1433,8 @@ export class LocalMemoryRuntime {
     return loadProfileContext(this.requireStore(), spaceIds)
   }
 
-  openMemory(id) {
-    return openMemoryDocument(this.requireStore(), id)
+  openMemory(id, canRead) {
+    return openMemoryDocument(this.requireStore(), id, canRead)
   }
 
   confirmMemory(id, options) {
@@ -1326,8 +1457,15 @@ export class LocalMemoryRuntime {
     return pendingEpisodeBatches(this.requireStore(), options)
   }
 
-  saveSessionCursor(sessionId, episodeAt) {
-    return saveSessionCursor(this.requireStore(), sessionId, episodeAt)
+  commitEpisodeCapture({ sessionId, episodeIds, memories }) {
+    return this.transaction(() => {
+      if (episodeIds.length && !markEpisodesCaptured(this.requireStore(), sessionId, episodeIds))
+        return { processed: 0, memories: [] }
+      return {
+        processed: episodeIds.length,
+        memories: memories.map((input) => this.remember(input)),
+      }
+    })
   }
 
   forgetSession(sessionId) {
@@ -1386,19 +1524,28 @@ export class LocalMemoryRuntime {
 
   setSemanticSummarizer(summarizer) {
     this.semanticSummarizer = summarizer || null
-    this.semanticGeneration += 1
+    this.semanticController?.abort()
     this.semanticQueue.clear()
     this.semanticLastError = ''
-    if (this.db && summarizer) {
-      const ids = this.requireDb()
-        .prepare(
-          "SELECT id FROM memories WHERE status IN ('active', 'stale') AND semantic_status IN ('pending', 'error')",
-        )
-        .all()
-        .map((row) => row.id)
-      if (ids.length) this.scheduleSemantic(ids)
-    }
+    this.retryPendingSemantic(true)
     return this.semanticStatus()
+  }
+
+  retryPendingSemantic(modelChanged = false) {
+    if (!this.db || !this.semanticSummarizer) return
+    if (this.semanticPromise && !modelChanged) return this.semanticPromise
+    // 每轮后台最多捞一批。失败也记下尝试时间，避免坏条目挡住后续积压。
+    const retryBefore = new Date(this.now() - BACKGROUND_INTERVAL_MS).toISOString()
+    const rows = this.db
+      .prepare(
+        `SELECT id, space_id, session_id FROM memories WHERE ${CURRENT_OR_SCHEDULED_VERSION} AND semantic_status IN ('pending', 'error')
+           AND (? OR semantic_updated_at IS NULL OR semantic_updated_at <= ?)
+         ORDER BY COALESCE(semantic_updated_at, created_at), rowid LIMIT ?`,
+      )
+      .all(this.isoNow(), Number(modelChanged), retryBefore, SEMANTIC_BATCH_SIZE)
+    // 一个后台轮次只给一个可见范围花一次模型调用；其余范围留到下轮。
+    this.scheduleSemantic(rows.filter((row) => sameMemoryScope(row, rows[0])).map((row) => row.id))
+    return this.semanticPromise
   }
 
   // 语义扩展队列：后台让模型写一行同义词和相关概念，索引到 expansion 列。
@@ -1406,58 +1553,82 @@ export class LocalMemoryRuntime {
     if (!this.semanticSummarizer || !this.db) return
     for (const id of ids) if (id) this.semanticQueue.add(id)
     if (!this.semanticPromise && this.semanticQueue.size) {
-      const generation = this.semanticGeneration
+      const controller = new AbortController()
+      this.semanticController = controller
       this.semanticPromise = Promise.resolve()
-        .then(() => this.processSemanticQueue(generation))
+        .then(() => this.processSemanticQueue(controller.signal))
+        .catch(() => {
+          if (!controller.signal.aborted) this.semanticLastError = 'semantic_expansion_failed'
+        })
         .finally(() => {
+          this.semanticController = null
           this.semanticPromise = null
           if (this.semanticQueue.size && this.semanticSummarizer) this.scheduleSemantic([])
         })
     }
   }
 
-  async processSemanticQueue(generation) {
-    while (
-      this.semanticQueue.size &&
-      generation === this.semanticGeneration &&
-      this.semanticSummarizer &&
-      this.db
-    ) {
+  async processSemanticQueue(signal) {
+    while (this.semanticQueue.size && !signal.aborted) {
       const ids = [...this.semanticQueue].slice(0, SEMANTIC_BATCH_SIZE)
       ids.forEach((id) => this.semanticQueue.delete(id))
       const placeholders = ids.map(() => '?').join(',')
-      const rows = this.requireDb()
+      const selected = this.requireDb()
         .prepare(
-          `SELECT id, title, content, space_id FROM memories WHERE id IN (${placeholders}) AND status IN ('active', 'stale')`,
+          `SELECT id, title, content, space_id, session_id FROM memories WHERE id IN (${placeholders}) AND ${CURRENT_OR_SCHEDULED_VERSION}
+           AND semantic_status IN ('pending', 'error')`,
         )
-        .all(...ids)
-      if (!rows.length) continue
-      try {
-        const summaries = await this.semanticSummarizer.summarize(
-          rows.map((row) => ({ title: row.title, content: row.content })),
-        )
-        if (generation !== this.semanticGeneration || !this.db) return
-        const now = this.isoNow()
-        const update = this.requireDb().prepare(
-          "UPDATE memories SET semantic_text = ?, semantic_status = ?, semantic_updated_at = ? WHERE id = ? AND status IN ('active', 'stale')",
-        )
-        this.transaction(() => {
-          for (const [index, row] of rows.entries()) {
-            const summary = redactSecretText(cleanText(String(summaries?.[index] || ''), 2000))
-            update.run(summary, 'ready', now, row.id)
-            this.indexFact(row.id)
-          }
-        })
-        this.semanticLastError = ''
-      } catch (error) {
-        // 保留原始错误会把请求内容带进状态接口，这里只留一条通用说明。
-        this.semanticLastError = error instanceof Error ? error.message : String(error)
-        const markError = this.requireDb().prepare(
-          "UPDATE memories SET semantic_status = 'error' WHERE id = ? AND status IN ('active', 'stale')",
-        )
-        for (const row of rows) markError.run(row.id)
-        await new Promise((resolvePromise) => setImmediate(resolvePromise))
+        .all(...ids, this.isoNow())
+      // 新写入也可能在同一轮排队，避免模型把不同聊天或项目的原文放在同一个提示中。
+      const rows = []
+      for (const row of selected) {
+        if (sameMemoryScope(row, selected[0])) rows.push(row)
+        else this.semanticQueue.add(row.id)
       }
+      if (!rows.length) continue
+      let summaries = []
+      let incomplete = 'pending'
+      const batchSignal = AbortSignal.any([signal, AbortSignal.timeout(SEMANTIC_TIMEOUT_MS)])
+      try {
+        const result = await awaitMemoryOperation(
+          this.semanticSummarizer.summarize(
+            rows.map(({ title, content }) => ({ title, content })),
+            { signal: batchSignal },
+          ),
+          batchSignal,
+        )
+        if (Array.isArray(result) && result.length === rows.length) summaries = result
+        else incomplete = 'error'
+      } catch {
+        incomplete = 'error'
+      }
+      if (signal.aborted) return
+      this.semanticLastError = incomplete === 'error' ? 'semantic_expansion_failed' : ''
+      const now = this.isoNow()
+      // 模型返回时原文可能已被编辑或撤销，只给当时读取的同一份原文回写。
+      const update = this.requireDb().prepare(
+        `UPDATE memories SET semantic_text = ?, semantic_status = ?, semantic_updated_at = ?
+         WHERE id = ? AND title = ? AND content = ? AND space_id = ? AND session_id = ? AND ${CURRENT_OR_SCHEDULED_VERSION}
+           AND semantic_status IN ('pending', 'error')`,
+      )
+      this.transaction(() => {
+        for (const [index, row] of rows.entries()) {
+          const value = summaries[index]
+          const summary = typeof value === 'string' ? safeText(value, 2000) : ''
+          const result = update.run(
+            summary,
+            summary ? 'ready' : incomplete,
+            now,
+            row.id,
+            row.title,
+            row.content,
+            row.space_id,
+            row.session_id,
+            now,
+          )
+          if (result.changes && summary) this.indexFact(row.id)
+        }
+      })
     }
   }
 
@@ -1474,10 +1645,10 @@ export class LocalMemoryRuntime {
     const counts = this.requireDb()
       .prepare(
         `
-      SELECT semantic_status AS status, COUNT(*) AS count FROM memories WHERE status IN ('active', 'stale') GROUP BY semantic_status
+      SELECT semantic_status AS status, COUNT(*) AS count FROM memories WHERE ${CURRENT_OR_SCHEDULED_VERSION} GROUP BY semantic_status
     `,
       )
-      .all()
+      .all(this.isoNow())
     const byStatus = Object.fromEntries(counts.map((row) => [row.status, Number(row.count)]))
     return {
       enabled: Boolean(this.semanticSummarizer),
@@ -1514,8 +1685,10 @@ export class LocalMemoryRuntime {
     const controller = new AbortController()
     this.backgroundController = controller
     const steps = [
+      () => this.cleanupRetention(),
       (signal) => reconcilePendingMemories(this.requireStore(), { signal }),
       ...this.backgroundSteps,
+      () => this.retryPendingSemantic(),
       (signal) =>
         runMemoryConsolidation(this.requireStore(), {
           signal,
@@ -1569,6 +1742,7 @@ function statusFilter(status) {
 
 function scopeLabelFor(spaceId) {
   if (spaceId === 'global') return 'global'
+  if (spaceId === 'chats') return 'chat'
   if (String(spaceId).startsWith('bot:')) return 'bot'
   return 'project'
 }

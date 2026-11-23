@@ -203,6 +203,153 @@ test('a longer session is written by the auxiliary model, as data and within a s
   )
 })
 
+test('a session that changes workspace keeps each digest and its children in scope, including after an older writer', async () => {
+  await withMemory(async (memory, { cwd }) => {
+    const project = await memory.ensureWorkspaceSpace(cwd)
+    const chatDir = join(cwd, 'chat')
+    memory.isProjectless = (path) => path === chatDir
+    const chat = await memory.ensureWorkspaceSpace(chatDir)
+    for (const space of [chat, project]) {
+      turn(memory, 'moved', 310, '这次的第一轮', '好', space)
+      turn(memory, 'moved', 300, '这次的第二轮', '好', space)
+    }
+    turn(memory, 'single', 250, '独立会话的问题', '好', project)
+    turn(memory, 'single', 200, '独立会话的结论', '好', project)
+    const remember = (spaceId, title) =>
+      memory.remember({
+        spaceId,
+        sessionId: 'moved',
+        title,
+        content: title,
+        topic: title,
+        validFrom: ago(310),
+      })
+    const privateFact = remember(chat, '紫色章鱼')
+    const projectFact = remember(project, '蓝鲸')
+    const sharedFact = remember('global', '通用偏好')
+    await memory.consolidate({ force: true })
+    const list = sessionDigests(memory)
+    const bySpace = (id) => list.find((row) => row.session_id === 'moved' && row.space_id === id).id
+    const chatId = bySpace(chat)
+    const projectId = bySpace(project)
+    const standalone = list.find((row) => row.session_id === 'single').id
+    const childIds = (id) =>
+      memory
+        .openMemory(id)
+        .children.map((row) => row.id)
+        .sort()
+    assert.deepEqual(childIds(chatId), [privateFact.id, sharedFact.id].sort())
+    assert.deepEqual(childIds(projectId), [projectFact.id, sharedFact.id].sort())
+    assert.doesNotMatch(memory.openMemory(projectId).item.content, /紫色章鱼/)
+    assert.doesNotMatch(memory.openMemory(chatId).item.content, /蓝鲸/)
+
+    // 旧版能继续打开数据库并按原来的 SQL 改写正文；不应将这种旧摘要视为新版本已检查过。
+    const oldWrite = memory
+      .requireDb()
+      .prepare('UPDATE memory_digests SET text = ?, dirty = 0 WHERE id = ?')
+    oldWrite.run('旧版跨空间摘要包含紫色章鱼', projectId)
+    oldWrite.run('单空间旧摘要保留', standalone)
+    await memory.dispose()
+    await memory.init()
+    assert.equal(memory.openMemory(projectId), null)
+    assert.equal(memory.openMemory(standalone).item.content, '单空间旧摘要保留')
+    await memory.consolidate({ force: true })
+    assert.doesNotMatch(memory.openMemory(projectId).item.content, /紫色章鱼/)
+
+    memory.updateMemory(privateFact.id, { spaceId: project })
+    const edit = memory.listEvents({ spaceId: project }).find((e) => e.action === 'edit')
+    assert.equal(memory.openMemory(chatId), null)
+    await memory.consolidate({ force: true })
+    assert.doesNotMatch(memory.openMemory(chatId).item.content, /紫色章鱼/)
+    assert.match(memory.openMemory(projectId).item.content, /紫色章鱼/)
+    memory.undoEvent(edit.id)
+    assert.equal(memory.openMemory(projectId), null)
+    await memory.consolidate({ force: true })
+    assert.doesNotMatch(memory.openMemory(projectId).item.content, /紫色章鱼/)
+    assert.match(memory.openMemory(chatId).item.content, /紫色章鱼/)
+  })
+})
+
+test('a first session digest cannot publish a fact moved away while its model was writing', async () => {
+  const started = Promise.withResolvers()
+  const finish = Promise.withResolvers()
+  const client = fakeClient({
+    reply(request) {
+      if (!request.system.includes('one conversation')) return '其他整理'
+      started.resolve(request.user)
+      return finish.promise
+    },
+  })
+  await withMemory(
+    async (memory, { cwd }) => {
+      const project = await memory.ensureWorkspaceSpace(cwd)
+      for (const minutes of [200, 190, 180])
+        turn(memory, 'moving', minutes, '普通进度', '好', project)
+      const item = memory.remember({
+        spaceId: project,
+        sessionId: 'moving',
+        title: '保密决定',
+        content: '稍后才公布的变更',
+      })
+      const writing = memory.consolidate({ force: true })
+      assert.match(await started.promise, /保密决定/)
+      const otherProject = await memory.ensureWorkspaceSpace(join(cwd, 'other'))
+      memory.updateMemory(item.id, { spaceId: otherProject })
+      finish.resolve('总结了保密决定')
+      await writing
+      assert.equal(sessionDigests(memory).length, 0)
+    },
+    { client },
+  )
+})
+
+test('an older client moving a fact hides only the affected derived content before the next startup', async () => {
+  await withMemory(async (memory, { cwd }) => {
+    const project = await memory.ensureWorkspaceSpace(cwd)
+    turn(memory, 'move', 200, '讨论部署约定', '好', project)
+    turn(memory, 'move', 190, '记录约定', '好', project)
+    const fact = memory.remember({
+      spaceId: project,
+      sessionId: 'move',
+      type: 'preference',
+      title: '部署窗口',
+      content: '每周三部署',
+      validFrom: ago(2880),
+    })
+    const other = memory.remember({
+      spaceId: project,
+      title: '单独的窗口',
+      content: '周六备份',
+      validFrom: ago(1440),
+    })
+    await memory.consolidate({ force: true })
+    const db = new DatabaseSync(memory.path)
+    try {
+      const day = db.prepare(
+        "SELECT dirty FROM memory_digests WHERE level = 'day' AND instr(source_ids, json_quote(?)) > 0",
+      )
+      const session = db.prepare(
+        "SELECT dirty FROM memory_digests WHERE session_id = 'move' AND level = 'session'",
+      )
+      const profile = db.prepare('SELECT dirty FROM memory_profiles WHERE space_id = ?')
+      const dirty = () => [
+        session.get().dirty,
+        day.get(fact.id).dirty,
+        day.get(other.id).dirty,
+        profile.get(project).dirty,
+      ]
+      const update = db.prepare('UPDATE memories SET space_id = ? WHERE id = ?')
+      assert.deepEqual(dirty(), [0, 0, 0, 0])
+      update.run(project, fact.id)
+      assert.deepEqual(dirty(), [0, 0, 0, 0])
+      update.run('global', fact.id)
+      assert.deepEqual(dirty(), [2, 2, 0, 1])
+    } finally {
+      db.close()
+    }
+  })
+})
+
 test('resuming a session rewrites its digest once it goes quiet again, and a settled one is left alone', async () => {
   const client = fakeClient()
   await withMemory(
@@ -657,6 +804,7 @@ test('an existing library gains the column without raising the revision, so olde
 
     // 还原成已发布版本写出的库：没有这一列。
     const raw = new DatabaseSync(path)
+    raw.exec('DROP TRIGGER memory_digest_source_moved')
     raw.exec('DROP INDEX memory_digests_session')
     raw.exec('ALTER TABLE memory_digests DROP COLUMN session_id')
     raw.close()

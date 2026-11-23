@@ -254,24 +254,26 @@ export function ProviderModelEditor({
             {chat && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {(['contextWindow', 'maxTokens'] as const).map((field) => (
-                  <label key={field} className="grid gap-1.5 text-sm">
-                    {field === 'contextWindow'
-                      ? t('providers:modelEditor.contextWindow')
-                      : t('providers:modelEditor.maxTokens')}
-                    <Input
-                      required
-                      type="number"
-                      min={1}
-                      max={100000000}
-                      step={1}
-                      value={limits[field]}
-                      aria-describedby={
-                        field === 'contextWindow' && windowEstimated
-                          ? 'model-context-window-estimated'
-                          : undefined
-                      }
-                      onChange={(event) => setLimits({ ...limits, [field]: event.target.value })}
-                    />
+                  <div key={field} className="grid content-start gap-1.5 text-sm">
+                    <label className="grid gap-1.5">
+                      {field === 'contextWindow'
+                        ? t('providers:modelEditor.contextWindow')
+                        : t('providers:modelEditor.maxTokens')}
+                      <Input
+                        required
+                        type="number"
+                        min={1}
+                        max={100000000}
+                        step={1}
+                        value={limits[field]}
+                        aria-describedby={
+                          field === 'contextWindow' && windowEstimated
+                            ? 'model-context-window-estimated'
+                            : undefined
+                        }
+                        onChange={(event) => setLimits({ ...limits, [field]: event.target.value })}
+                      />
+                    </label>
                     {field === 'contextWindow' && windowEstimated && (
                       <small
                         id="model-context-window-estimated"
@@ -280,7 +282,7 @@ export function ProviderModelEditor({
                         {t('providers:modelEditor.contextWindowEstimated')}
                       </small>
                     )}
-                  </label>
+                  </div>
                 ))}
               </div>
             )}

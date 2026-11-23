@@ -96,6 +96,14 @@ const BOT_NOTIFY_LIMIT = 10
 const BOT_NOTIFY_WINDOW_MS = 60 * 60_000
 const CHANNEL_NAMES = { qq: 'QQ', telegram: 'Telegram', feishu: 'Feishu', weixin: 'WeChat' }
 
+function memorySessionReference(sessionId, session) {
+  return {
+    sessionId,
+    sessionName: session?.name && session.name !== sessionId ? session.name : '',
+    sessionAvailable: Boolean(session),
+  }
+}
+
 // 已启用的通知渠道集合：只有完成连接或授权的渠道才允许工作流与定时任务选择。
 export function enabledNotificationTargets(notificationSettings) {
   return new Set([
@@ -270,11 +278,12 @@ export class AgentRuntimeFacade {
     const digests = this.memory.listSessionDigests(input)
     if (!digests.length) return digests
     // 标题在会话目录里，记忆库不存。目录里已经没有的会话只显示摘要，不给跳转。
-    const sessions = new Map((await this.listSessions()).map((session) => [session.id, session]))
-    return digests.map((digest) => {
-      const session = sessions.get(digest.sessionId)
-      return { ...digest, sessionName: session?.name || '', sessionAvailable: Boolean(session) }
-    })
+    const sessions = await this.listSessions({ ids: digests.map((digest) => digest.sessionId) })
+    const byId = new Map(sessions.map((session) => [session.id, session]))
+    return digests.map((digest) => ({
+      ...digest,
+      ...memorySessionReference(digest.sessionId, byId.get(digest.sessionId)),
+    }))
   }
 
   undoMemoryEvent(id) {
@@ -293,10 +302,20 @@ export class AgentRuntimeFacade {
     return this.memory.exportMarkdown(input)
   }
 
-  getMemoryDetail(id) {
+  async getMemoryDetail(id) {
     const detail = this.memory.openMemory(id)
     if (!detail) return null
-    return { ...detail, history: this.memory.getMemoryHistory(id)?.versions || [] }
+    const result = { ...detail, history: this.memory.getMemoryHistory(id)?.versions || [] }
+    if (detail.kind !== 'fact' || detail.spaceId !== 'chats' || !detail.item.sessionId)
+      return result
+    const sessionId = detail.item.sessionId
+    try {
+      const [session] = await this.listSessions({ ids: [sessionId] })
+      return { ...result, sourceSession: memorySessionReference(sessionId, session) }
+    } catch {
+      // 会话目录暂时不可读时，记忆和版本历史仍可管理。
+      return result
+    }
   }
 
   restoreMemory(id) {
@@ -355,6 +374,7 @@ export class AgentRuntimeFacade {
     // 仅在会话生命周期删除成功后清理快照，避免删除失败时丢失可恢复基线。
     const remove = async () => {
       const result = await this.sessionLifecycle.deleteSession(id)
+      if (result) this.forgetSessionEpisodes(id)
       await this.getFileChangesService().clear(id)
       await this.getTurnCheckpoints().clear(id)
       if (result) {
@@ -365,7 +385,6 @@ export class AgentRuntimeFacade {
         this.boardEvents?.catalogChanged()
         // 删掉的会话不再排队；排在它后面的会话视为前置已结束，照常启动。
         void this.sessionQueue?.onSessionDeleted(id).catch(() => {})
-        this.forgetSessionEpisodes(id)
       }
       return result
     }
@@ -375,6 +394,8 @@ export class AgentRuntimeFacade {
   // 会话的原文（L0）跟着会话一起删。手机冷启动时记忆可能还没好，等好了再删；
   // 这一步失败不能影响删除会话本身。
   forgetSessionEpisodes(id) {
+    // 同时取消还在等初始化或选模型的捕获，否则清完原文后它们仍可能写回来。
+    this.memoryCapture?.cancelSession?.(id)
     const forget = () => {
       try {
         this.memory.forgetSession?.(id)

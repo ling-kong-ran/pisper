@@ -170,14 +170,14 @@ function purgeExpired(store, nowMs) {
   const rows = store.db
     .prepare(
       `SELECT id, space_id, superseded_by FROM (
-         SELECT id, space_id, superseded_by, superseded_at, updated_at,
+         SELECT id, space_id, superseded_by, superseded_at, valid_to, updated_at,
            ROW_NUMBER() OVER (
              PARTITION BY space_id, identity_key
              ORDER BY COALESCE(valid_from, created_at) DESC, created_at DESC
            ) AS version
          FROM memories WHERE status = 'superseded'
        )
-       WHERE version > ? AND COALESCE(superseded_at, updated_at) <= ?
+       WHERE version > ? AND MAX(COALESCE(superseded_at, updated_at), COALESCE(valid_to, '')) <= ?
        UNION ALL
        SELECT id, space_id, superseded_by FROM memories
        WHERE status = 'archived' AND COALESCE(archived_at, updated_at) <= ?
@@ -318,9 +318,9 @@ export function restoreMemory(store, id) {
     .prepare(
       `SELECT * FROM memories
        WHERE id <> ? AND space_id = ? AND status IN ('active', 'stale')
-         AND (identity_key = ? OR id = ?)`,
+         AND (space_id <> 'chats' OR session_id = ?) AND (identity_key = ? OR id = ?)`,
     )
-    .all(id, row.space_id, row.identity_key, row.superseded_by || '')
+    .all(id, row.space_id, row.session_id, row.identity_key, row.superseded_by || '')
   store.transaction(() => {
     db.prepare(
       `UPDATE memories SET status = 'active', archived_at = NULL, archive_reason = '', superseded_by = '',

@@ -1451,6 +1451,15 @@ async function verifyPhoneSession(boardSessions) {
   report.checks.push(
     'Phone session page: phone shell with the 56px top bar (☰ announcing 3 needing you, 44px title ▾, 44px changes chip “2” instead of ✎), no tab bar and no agent strip',
   )
+  const runningChip = page.locator('[data-session-header="phone"] [data-session-running="1"]')
+  const runningList = page.locator('[data-session-running-list]')
+  await runningChip.click()
+  await runningList
+    .locator('[data-running-item="tool"]')
+    .getByText('npm test -- --runInBand')
+    .waitFor()
+  assert.equal(await nativeBack(page), true)
+  await runningList.waitFor({ state: 'detached' })
 
   // 标题 ▾ → 会话菜单底部表单：会话树 · 侧聊 · 检查器 | 重命名 · 归档 | …，行高 48；返回键先关表单。
   await page.locator('[data-session-menu-trigger]').click()
@@ -1578,8 +1587,8 @@ async function verifyPhoneSession(boardSessions) {
       ]),
     )
   assert.deepEqual(
-    tabs.slice(0, 5).map(([id]) => id),
-    ['changes', 'terminal', 'running', 'files', 'preview'],
+    tabs.map(([id]) => id),
+    ['changes', 'terminal', 'files', 'preview'],
   )
   assert.ok(
     tabs.every(([, height]) => height >= 44),

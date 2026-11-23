@@ -318,7 +318,38 @@ function ensureDigestSessionColumn(db) {
   const columns = db.prepare('PRAGMA table_info(memory_digests)').all()
   if (!columns.some((column) => column.name === 'session_id'))
     db.exec("ALTER TABLE memory_digests ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+  if (!columns.some((column) => column.name === 'session_scope_revision'))
+    db.exec(
+      'ALTER TABLE memory_digests ADD COLUMN session_scope_revision INTEGER NOT NULL DEFAULT 0',
+    )
   db.exec('CREATE INDEX IF NOT EXISTS memory_digests_session ON memory_digests(session_id)')
+  // 旧客户端也能移动事实。让写入本身同时隐藏失去来源的摘要，覆盖编辑、撤销和旧版本的更新。
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS memory_digest_source_moved AFTER UPDATE OF space_id ON memories
+    WHEN OLD.space_id <> NEW.space_id
+    BEGIN
+      UPDATE memory_digests SET dirty = 2
+        WHERE OLD.session_id <> '' AND session_id = OLD.session_id AND level = 'session' AND dirty < 2;
+      UPDATE memory_digests SET dirty = 2
+        WHERE space_id = OLD.space_id AND level <> 'session' AND dirty < 2
+          AND instr(source_ids, json_quote(OLD.id)) > 0;
+      UPDATE memory_profiles SET dirty = 1 WHERE space_id = OLD.space_id AND dirty = 0;
+    END;
+  `)
+  // 已发行的摘要没有记录采用的事实。检测到同一会话涉及别的空间时先隐藏，后台从现有来源重算。
+  // 旧程序也能写这套表。它改写正文时不会推进范围修订号，再升级后仍能识别这些摘要。
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS memory_session_digest_legacy_write AFTER UPDATE OF text ON memory_digests
+    WHEN NEW.level = 'session' AND NEW.session_scope_revision = OLD.session_scope_revision AND NEW.session_scope_revision <> 0
+    BEGIN
+      UPDATE memory_digests SET session_scope_revision = 0 WHERE id = NEW.id;
+    END;
+    CREATE INDEX IF NOT EXISTS memories_session_space ON memories(session_id, space_id);
+    UPDATE memory_digests AS d SET dirty = 2 WHERE d.level = 'session' AND d.session_scope_revision = 0 AND d.dirty < 2 AND (
+      EXISTS (SELECT 1 FROM memories m WHERE m.session_id = d.session_id AND m.space_id NOT IN (d.space_id, 'global')) OR
+      EXISTS (SELECT 1 FROM memory_episodes e WHERE e.session_id = d.session_id AND e.space_id <> d.space_id)
+    );
+  `)
 }
 
 function applyRevision5(db, now) {
@@ -417,6 +448,22 @@ export function initializeMemorySchema(
     upgraded = true
   }
   ensureDigestSessionColumn(db)
+  // 索引保留会话归属，使同一个聊天空间里的其他会话不会挤占 FTS 候选名额。
+  if (
+    !db
+      .prepare('PRAGMA table_info(memory_docs)')
+      .all()
+      .some((column) => column.name === 'session_id')
+  )
+    db.exec("ALTER TABLE memory_docs ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS memory_docs_chat_session ON memory_docs(session_id) WHERE space_id = 'chats';
+    UPDATE memory_docs SET session_id = COALESCE(
+      (SELECT session_id FROM memories WHERE id = memory_docs.doc_id),
+      (SELECT session_id FROM memory_episodes WHERE id = memory_docs.doc_id),
+      (SELECT session_id FROM memory_digests WHERE id = memory_docs.doc_id), ''
+    ) WHERE space_id = 'chats' AND session_id = '';
+  `)
   // 回退旧版期间写入的行没有这些字段，下次打开时补上；条件查询很便宜，每次启动跑一次。
   db.prepare(
     `

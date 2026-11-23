@@ -48,22 +48,25 @@ function exactEvidence(value, user, assistant) {
     : ''
 }
 
-// 模型写的时间能解析成 ISO 才要。还没发生的生效时间、已经过去的到期时间都没有意义，当作没写。
-function parseFactTimes(item, now) {
+// 保留明确约定的未来生效时间，也保留延迟抽取时已经结束的有效期。
+function parseFactTimes(item, defaultStart) {
   const parsed = (value) => {
     const time = Date.parse(String(value || ''))
     return Number.isNaN(time) ? null : time
   }
   const validFrom = parsed(item?.valid_from)
   const expiresAt = parsed(item?.expires_at)
+  if (expiresAt !== null && expiresAt <= (validFrom ?? defaultStart)) return null
   return {
-    validFrom: validFrom !== null && validFrom <= now ? new Date(validFrom).toISOString() : '',
-    expiresAt: expiresAt !== null && expiresAt > now ? new Date(expiresAt).toISOString() : '',
+    validFrom: validFrom !== null ? new Date(validFrom).toISOString() : '',
+    expiresAt: expiresAt !== null ? new Date(expiresAt).toISOString() : '',
   }
 }
 
 // 两条路径共用的字段清洗：标题和内容为空、证据不成立的条目在这之前已被丢弃。
-function cleanMemoryItem(item, title, content, now) {
+function cleanMemoryItem(item, title, content, defaultStart) {
+  const times = parseFactTimes(item, defaultStart)
+  if (!times) return null
   return {
     title: redactSecretText(title),
     content: redactSecretText(content),
@@ -73,7 +76,7 @@ function cleanMemoryItem(item, title, content, now) {
     type: MEMORY_ITEM_TYPES.includes(item?.type) ? item.type : 'fact',
     scope: item?.scope === 'global' ? 'global' : 'project',
     importance: Math.min(1, Math.max(0.1, Number(item?.importance) || 0.5)),
-    ...parseFactTimes(item, now),
+    ...times,
   }
 }
 
@@ -102,6 +105,7 @@ export async function extractConversationMemories({
   model,
   user,
   assistant,
+  sourceTimestamp = '',
   signal,
 }) {
   if (!shouldExtractConversationMemory(user, assistant))
@@ -117,6 +121,8 @@ export async function extractConversationMemories({
   const sourceHadSecrets = containsSecretText(user) || containsSecretText(assistant)
   const safeUser = redactSecretText(String(user || '')).slice(0, 2400)
   const safeAssistant = redactSecretText(String(assistant || '')).slice(0, 3600)
+  const parsedTime = Date.parse(sourceTimestamp)
+  const turnTime = Number.isNaN(parsedTime) ? Date.now() : parsedTime
   let result
   try {
     result = await awaitMemoryOperation(
@@ -127,8 +133,8 @@ export async function extractConversationMemories({
           messages: [
             {
               role: 'user',
-              content: extractTurnUser(safeUser, safeAssistant),
-              timestamp: Date.now(),
+              content: extractTurnUser(safeUser, safeAssistant, new Date(turnTime).toISOString()),
+              timestamp: turnTime,
             },
           ],
         },
@@ -155,15 +161,16 @@ export async function extractConversationMemories({
   if (!text.trim()) return failure('empty_response', result)
   const items = parseJsonArray(text)
   if (!items) return failure('invalid_response', result)
-  const now = Date.now()
   const memories = items.slice(0, 3).flatMap((item) => {
     const title = itemTitle(item)
     const content = itemContent(item)
     const evidence = exactEvidence(item?.evidence, safeUser, safeAssistant)
     if (!title || !content || !evidence || evidence.includes(REDACTED_MARK)) return []
+    const memory = cleanMemoryItem(item, title, content, turnTime)
+    if (!memory) return []
     return [
       {
-        ...cleanMemoryItem(item, title, content, now),
+        ...memory,
         confidence: Math.min(1, Math.max(0, Number(item.confidence) || 0.5)),
         evidence,
         // 证据只出现在助手的话里时，权威度按推断算，不能当成用户说的。
@@ -239,9 +246,11 @@ export async function extractBatchMemories({ modelClient, turns, signal, now = D
     if (evidence.includes(REDACTED_MARK)) return []
     const located = locateEvidence(evidence, turns)
     if (!located) return []
+    const memory = cleanMemoryItem(item, title, content, Date.parse(located.turn.at) || now)
+    if (!memory) return []
     return [
       {
-        ...cleanMemoryItem(item, title, content, now),
+        ...memory,
         evidence,
         evidenceRole: located.evidenceRole,
         episodeId: located.turn.id,

@@ -480,6 +480,27 @@ test('an aborted pass stops before touching anything', async () => {
   })
 })
 
+test('a model decision cannot update a neighbour moved to a different space while waiting', async () => {
+  let move
+  const client = fakeClient((request) => {
+    const [entry] = payloadOf(request)
+    const target = entry.neighbours[0].id
+    move(target)
+    return decide({ id: entry.id, action: 'SUPERSEDE', targets: [target], reason: 'replaced' })
+  })
+  await withMemory(client, async (memory, store) => {
+    const project = await memory.ensureWorkspaceSpace(memory.cwd)
+    const old = memory.remember(npm)
+    const current = memory.remember(pnpm)
+    move = (id) => memory.updateMemory(id, { spaceId: project })
+    await reconcilePendingMemories(store)
+    assert.equal(client.calls.length, 1)
+    assert.equal(memory.getMemory(old.id).spaceId, project)
+    assert.equal(memory.getMemory(old.id).status, 'active')
+    assert.equal(memory.getMemory(current.id).status, 'active')
+  })
+})
+
 test('the background loop runs reconciliation', async () => {
   const client = fakeClient((request) => {
     const entry = payloadOf(request).find((item) => item.title === '依赖工具')

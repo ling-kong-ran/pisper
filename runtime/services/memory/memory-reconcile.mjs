@@ -6,6 +6,7 @@
 import { authorityTier, memorySnapshot } from './memory-lifecycle.mjs'
 import { parseModelJson } from './memory-model-client.mjs'
 import { factTimestamp } from './memory-retrieval.mjs'
+import { sameMemoryScope } from './memory-chat-scope.mjs'
 import { RECONCILE_SYSTEM, reconcileUser } from '../../prompts/memory.mjs'
 
 const NEIGHBOUR_LIMIT = 8
@@ -48,6 +49,7 @@ function findNeighbours(store, row) {
     .retrieve({
       query: `${row.title}\n${row.content}`,
       spaceIds: [row.space_id],
+      sessionId: row.session_id,
       kinds: ['fact'],
       limit: NEIGHBOUR_POOL,
       statuses: ['active', 'stale'],
@@ -121,8 +123,11 @@ function applySupersede(store, row, decision, model, now) {
     return 'archived'
   }
   // 模型说得出“从什么时候起”时用它，否则就是新事实自己的时间。
-  const validFrom =
-    decision.validFrom && decision.validFrom < now ? decision.validFrom : factTimestamp(row)
+  const validFrom = decision.validFrom || factTimestamp(row)
+  if (row.expires_at && row.expires_at <= validFrom) {
+    markDone(store, row.id)
+    return 'added'
+  }
   store.db
     .prepare(
       "UPDATE memories SET valid_from = ?, reconcile_status = 'done', updated_at = ? WHERE id = ?",
@@ -203,6 +208,17 @@ function applyDecision(store, entry, decision, model) {
     markDone(store, row.id)
     return 'added'
   }
+  // 等待模型时条目可能已被编辑或移到另一空间。旧判定不再能修改它们。
+  if (!sameMemoryScope(row, entry.row) || row.revision !== entry.row.revision) return 'added'
+  for (const id of decision.targets) {
+    const target = loadFact(store, id)
+    if (
+      !target ||
+      !sameMemoryScope(row, target) ||
+      target.revision !== entry.neighbours.find((peer) => peer.id === id)?.revision
+    )
+      return 'added'
+  }
   const now = store.isoNow()
   return store.transaction(() =>
     decision.action === 'SUPERSEDE'
@@ -231,9 +247,10 @@ export async function reconcilePendingMemories(store, { signal, limit = 12 } = {
     .prepare(
       `SELECT * FROM memories
        WHERE reconcile_status = 'pending' AND status = 'active' AND tainted = 0
+         AND (expires_at IS NULL OR expires_at > ?)
        ORDER BY COALESCE(valid_from, created_at), created_at LIMIT ?`,
     )
-    .all(limit)
+    .all(store.isoNow(), limit)
   const pending = []
   for (const row of rows) {
     const neighbours = findNeighbours(store, row)
@@ -244,9 +261,10 @@ export async function reconcilePendingMemories(store, { signal, limit = 12 } = {
       totals.processed += 1
     }
   }
-  for (let start = 0; start < pending.length; start += BATCH_SIZE) {
+  const scoped = pending.filter((entry) => sameMemoryScope(entry.row, pending[0].row))
+  for (let start = 0; start < scoped.length; start += BATCH_SIZE) {
     if (signal?.aborted) return totals
-    const batch = pending.slice(start, start + BATCH_SIZE)
+    const batch = scoped.slice(start, start + BATCH_SIZE)
     const payload = batch.map((entry) => ({
       ...describe(entry.row),
       neighbours: entry.neighbours.map(describe),

@@ -186,8 +186,15 @@ test('the login shell is told apart from how one echo line expands', () => {
 
 test('the echo line really expands that way in the POSIX shells here', async () => {
   for (const shell of ['sh', 'bash', 'dash', 'zsh', 'fish']) {
-    if (spawnSync('sh', ['-c', `command -v ${shell}`]).status !== 0) continue
-    const { stdout } = await run(shell, ['-c', SHELL_PROBE_COMMAND], {
+    const candidates =
+      process.platform === 'win32'
+        ? (spawnSync('where.exe', [shell], { encoding: 'utf8' }).stdout || '').trim().split(/\r?\n/)
+        : [shell]
+    const executable = candidates.find(
+      (path) => path && spawnSync(path, ['-c', 'exit 0']).status === 0,
+    )
+    if (!executable) continue
+    const { stdout } = await run(executable, ['-c', SHELL_PROBE_COMMAND], {
       env: { ...process.env, PSHOME: '' },
     })
     assert.deepEqual(parseShellProbe(stdout), { family: 'posix', loginShell: '' }, shell)
@@ -755,7 +762,7 @@ test('the askpass helper answers password prompts only', async () => {
   assert.equal(invokedAsAskpass(['node', '/x/prompt', 'extra'], { packaged: false }), false)
   assert.equal(invokedAsAskpass(['/app/pisper', '/app/pisper', 'p'], { packaged: true }), true)
   assert.equal(
-    askpassPrompt(['node', "/cwd/me@host's password: "], '/cwd', 'node'),
+    askpassPrompt(['node', join(tmpdir(), "me@host's password: ")], tmpdir(), 'node'),
     "me@host's password: ",
   )
   assert.equal(askpassPrompt(['/app/pisper', '/app/pisper'], '/x', '/app/pisper'), '')
@@ -966,7 +973,7 @@ const POWERSHELL = [process.env.PISPER_TEST_POWERSHELL, 'pwsh', 'powershell']
   .find((name) => spawnSync(name, ['-NoProfile', '-Command', 'exit 0']).status === 0)
 
 // 把 ssh 换成“直接交给对方 shell”：探测那句按 cmd 的展开方式回答，PowerShell 引导命令交给本机的 PowerShell。
-function windowsTarget(home, loginShell = 'cmd') {
+function windowsTarget(home, children, loginShell = 'cmd') {
   return (file, args, options = {}) => {
     const remote = args.at(-1)
     if (remote === SHELL_PROBE_COMMAND) {
@@ -977,11 +984,13 @@ function windowsTarget(home, loginShell = 'cmd') {
       return spawn(process.execPath, ['-e', `process.stdout.write(${JSON.stringify(line)})`])
     }
     assert.equal(remote, POWERSHELL_COMMAND)
-    return spawn(POWERSHELL, remote.split(' ').slice(1), {
+    const child = spawn(POWERSHELL, remote.split(' ').slice(1), {
       ...options,
       cwd: home,
       env: { ...process.env, USERPROFILE: home },
     })
+    children.push(new Promise((resolve) => child.once('close', resolve)))
+    return child
   }
 }
 
@@ -990,12 +999,16 @@ const psTest = (name, body) =>
 
 async function windowsExecutor(t, loginShell) {
   const home = await mkdtemp(join(tmpdir(), 'pisper-ps-'))
-  t.after(() => rm(home, { recursive: true, force: true }))
+  const children = []
+  t.after(async () => {
+    await Promise.all(children)
+    await rm(home, { recursive: true, force: true })
+  })
   const systems = []
   const executor = new SshExecutor({
     machine: { id: 'ssh_windows1', name: 'win', target: 'me@win' },
     platform: 'linux',
-    spawnProcess: windowsTarget(home, loginShell),
+    spawnProcess: windowsTarget(home, children, loginShell),
     onSystem: (system) => systems.push(system),
   })
   return { home, executor, systems, ops: executor.operations() }
@@ -1014,7 +1027,10 @@ psTest('a Windows machine is detected once and remembered', async (t) => {
 })
 
 psTest('files round trip through PowerShell byte for byte', async (t) => {
-  const { home, ops, executor } = await windowsExecutor(t)
+  const fixture = await windowsExecutor(t)
+  const { ops, executor } = fixture
+  const home = join(fixture.home, 'work')
+  await mkdir(home)
   const path = join(home, "it's ’odd’ & $(x) %PATH%.txt")
   await ops.write.writeFile(path, '你好\r\n第二行\n')
   assert.equal(await readFile(path, 'utf8'), '你好\r\n第二行\n')

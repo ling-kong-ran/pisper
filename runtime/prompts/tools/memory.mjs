@@ -39,22 +39,22 @@ export const MEMORY_OPEN = Object.freeze({
 
 export const MEMORY_REMEMBER = Object.freeze({
   description:
-    'Save a durable fact to long-term memory. It takes effect immediately and replaces an older fact on the same topic.',
+    'Save a durable fact to long-term memory. Its effective date determines when it replaces an older fact on the same topic.',
   snippet: 'Store a durable user preference or project fact in long-term memory',
   guidelines: [
     'Use memory_remember when the user explicitly asks you to remember something, or when a stable project decision will matter in future sessions.',
     'When the user explicitly asks to remember something, include userQuote as an exact quote containing that request. The server verifies it against the current raw user message.',
-    'Memories take effect immediately. There is no review step, so do not ask the user to confirm or review them.',
+    'Memories are saved without a review step. Do not ask the user to confirm or review them.',
     'Never store API keys, passwords, access tokens, private credentials, or transient conversational details.',
-    'Use global scope only for preferences that apply across projects; use project scope for codebase-specific facts and decisions.',
+    'Use global scope only for preferences that apply across projects. Use project scope for local facts, decisions and schedules. In a chat without a project, that scope is private to the current chat.',
     'Provide a stable topic key and reuse it when a newer fact replaces an older fact on the same subject.',
-    'Set valid_from when the user says since when something has been true, and expires_at for things that only hold temporarily.',
+    'Set valid_from when the user says when a change takes effect, including a confirmed future change. Set expires_at for things that only hold temporarily.',
   ],
   params: {
     title: 'Short, recognizable memory title',
     content: 'Self-contained reusable memory content',
     topic: 'Stable topic key reused when updating the same fact, for example project.brand_colors',
-    valid_from: 'ISO date since when this has been true, if not just now',
+    valid_from: 'ISO date when the fact takes effect, including a confirmed future date',
     expires_at: 'ISO date after which this no longer holds',
     userQuote:
       'Exact quote from the current raw user message containing an explicit request to remember this fact.',

@@ -440,15 +440,16 @@ export function buildEvolutionScene(
 
   // 被替换、归档的时刻都不早于它出现：导入的旧数据可能时间颠倒。
   facts.forEach((fact, index) => {
-    const replaced =
-      parseTime(fact.supersededAt, NaN) ||
-      parseTime(fact.validTo, NaN) ||
-      (fact.status === 'superseded'
-        ? successor[index] >= 0
-          ? appearAt[successor[index]]
-          : domain.end
-        : NaN)
+    // 计划提前登记时等到交接日，历史回填时等到记入库，两件事都发生了才画作被替换。
+    const replaced = Math.max(
+      parseTime(fact.supersededAt, -Infinity),
+      parseTime(fact.validTo, -Infinity),
+    )
     if (Number.isFinite(replaced)) replacedAt[index] = Math.max(replaced, appearAt[index])
+    else if (fact.status === 'superseded') {
+      const fallback = successor[index] >= 0 ? appearAt[successor[index]] : domain.end
+      replacedAt[index] = Math.max(fallback, appearAt[index])
+    }
     const archived =
       parseTime(fact.archivedAt, NaN) || (fact.status === 'archived' ? domain.end : NaN)
     if (Number.isFinite(archived)) archivedAt[index] = Math.max(archived, appearAt[index])

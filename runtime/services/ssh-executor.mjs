@@ -940,7 +940,6 @@ export class SshExecutor {
       // 不读配置文件就没有跳板机，这句只可能来自目标机。
       channel = await openAskpassChannel({
         directory: scratch.directory,
-        platform: this.platform,
         secret: credentials.password,
         expect: [`${login.user}@${HOST_KEY_ALIAS}`, `${login.user}@${login.hostname}`],
         bare: true,

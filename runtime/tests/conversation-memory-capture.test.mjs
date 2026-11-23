@@ -127,9 +127,9 @@ function fixture(overrides = {}) {
     waitForInitialization: async () => {},
     memory: {
       ensureWorkspaceSpace: async () => 'project',
-      remember: (value) => {
-        proposed.push(value)
-        return value
+      commitEpisodeCapture: ({ memories }) => {
+        proposed.push(...memories)
+        return { memories }
       },
     },
     recordUsage: async (...args) => recorded.push(args),

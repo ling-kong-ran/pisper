@@ -247,8 +247,8 @@ export const memoryAssetRoutes = [
   {
     method: 'GET',
     path: '/api/memory/nodes/:memoryId',
-    handler({ runtime, params, json }) {
-      const detail = runtime.getMemoryDetail(params.memoryId)
+    async handler({ runtime, params, json }) {
+      const detail = await runtime.getMemoryDetail(params.memoryId)
       if (!detail) json(404, errorBody(pisperError('not_found', 'memory')))
       else json(200, detail)
     },

@@ -79,6 +79,89 @@ test('expired memories move to the archive instead of being deleted, and undoing
   })
 })
 
+test('current search, automatic recall and the profile switch at each effective date', async () => {
+  await withMemory(async ({ memory, clock, cwd }) => {
+    const iso = (day) => new Date(START + day * DAY_MS).toISOString()
+    const add = (day, content) =>
+      memory.remember(fact({ validFrom: iso(day), content, type: 'decision' }))
+    const first = add(0, '原先在甲区运行。')
+    const last = add(2, '改为在丙区运行。')
+    const middle = add(1, '中间一天在乙区运行。')
+    // 较晚写进来的回溯事实，以及提前写下的两次变更，都要按生效日接进链。
+    const early = add(-1, '最初在丁区运行。')
+    memory.updateMemory(first.id, { importance: 0.8 })
+    assert.deepEqual(
+      memory.getMemoryHistory(last.id).versions.map((row) => row.id),
+      [early.id, first.id, middle.id, last.id],
+    )
+    for (const [day, expected] of [
+      [-1, early],
+      [0, first],
+      [1, middle],
+      [2, last],
+    ]) {
+      clock.now = Date.parse(iso(day))
+      const search = (options = {}) =>
+        memory.search('部署平台', { cwd, ...options }).map((row) => row.id)
+      assert.deepEqual(search(), [expected.id])
+      assert.deepEqual(search({ asOf: iso(day) }), [expected.id])
+      const recall = await memory.relevantContext('部署平台', cwd)
+      assert.deepEqual(
+        recall.memories.map((row) => [row.id, row.status]),
+        [[expected.id, 'active']],
+      )
+      const profile = memory.profileContext(['global'])
+      for (const fact of [early, first, middle, last])
+        assert.equal(profile.includes(fact.content), fact.id === expected.id)
+      assert.deepEqual(
+        memory.listMemories({ spaceId: 'global' }).map((row) => row.id),
+        [expected.id],
+      )
+    }
+  })
+})
+
+test('editing the effective date moves the handover and undo restores both boundaries', async () => {
+  await withMemory(async ({ memory, clock }) => {
+    const old = memory.remember(fact())
+    const scheduled = new Date(START + DAY_MS).toISOString()
+    const later = new Date(START + 2 * DAY_MS).toISOString()
+    const next = memory.remember(fact({ content: '项目部署到上海机房。', validFrom: scheduled }))
+    memory.updateMemory(next.id, { validFrom: later })
+    assert.equal(memory.getMemory(old.id).validTo, later)
+    clock.now += DAY_MS
+    const search = () => memory.search('部署平台').map((row) => row.id)
+    assert.deepEqual(search(), [old.id])
+    const event = memory.listEvents().find((row) => row.action === 'edit')
+    memory.undoEvent(event.id)
+    assert.equal(memory.getMemory(old.id).validTo, scheduled)
+    assert.deepEqual(search(), [next.id])
+  })
+})
+
+test('expiry takes effect on read before the background sweep; history survives the sweep', async () => {
+  await withMemory(async ({ memory, clock, cwd }) => {
+    const before = new Date(START).toISOString()
+    const until = new Date(START + DAY_MS).toISOString()
+    const expired = memory.remember(fact({ expiresAt: until, pinned: true }))
+    const search = (asOf) => memory.search('部署平台', { cwd, asOf }).map((row) => row.id)
+    assert.deepEqual(search(), [expired.id])
+    assert.ok(memory.profileContext(['global']).includes(expired.content))
+    clock.now += DAY_MS
+    assert.equal(memory.getMemory(expired.id).status, 'active')
+    assert.deepEqual(search(), [])
+    assert.deepEqual(search(until), [])
+    assert.deepEqual(search(before), [expired.id])
+    assert.equal((await memory.relevantContext('以前的部署平台', cwd)).text, '')
+    assert.equal(memory.profileContext(['global']), '')
+    await memory.runBackgroundOnce()
+    assert.equal(memory.getMemory(expired.id).archiveReason, 'expired')
+    assert.deepEqual(search(before), [expired.id])
+    assert.deepEqual(search(until), [])
+    assert.equal(memory.statusCounts('global').current, 0)
+  })
+})
+
 test('a changed or missing referenced file flags the memory stale in the same result', async () => {
   await withMemory(async ({ memory, clock, cwd }) => {
     const path = join(cwd, 'deploy.md')

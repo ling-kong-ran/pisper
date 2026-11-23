@@ -2,6 +2,8 @@
 // 版本历史要单独请求，先用已有字段显示，取到后再补全。
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCheck, Pencil, Pin, PinOff, RotateCcw, Trash2, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { sessionPath } from '@/app/routes'
 import { useI18n } from '@/app/use-i18n'
 import { AppError } from '@/components/ui/app-primitives'
 import { Badge } from '@/components/ui/badge'
@@ -107,6 +109,7 @@ export function MemoryDetailPanel({
   // 换了一条记忆时不能继续显示上一条。
   const node = detail?.item?.id === id ? detail.item : fallback
   const history = detail?.item?.id === id ? detail.history : []
+  const sourceSession = detail?.item?.id === id ? detail.sourceSession : undefined
 
   const remove = async () => {
     if (!node) return
@@ -206,6 +209,24 @@ export function MemoryDetailPanel({
           <dt>{t('memory:memoryPage.source')}</dt>
           <dd>{memorySourceLabel(node.sourceType, t)}</dd>
         </div>
+        {sourceSession && (
+          <div className={KEY_VALUE}>
+            <dt>{t('memory:memoryPage.sourceChat')}</dt>
+            <dd>
+              {sourceSession.sessionAvailable ? (
+                <Button asChild variant="link" size="sm" className="max-w-full">
+                  <Link to={sessionPath(sourceSession.sessionId)}>
+                    <span className="truncate">
+                      {sourceSession.sessionName || t('memory:memoryPage.sessionUntitled')}
+                    </span>
+                  </Link>
+                </Button>
+              ) : (
+                t('memory:memoryPage.sourceChatUnavailable')
+              )}
+            </dd>
+          </div>
+        )}
         <div className={KEY_VALUE}>
           <dt>{t('memory:memoryPage.validFrom')}</dt>
           <dd className="tabular-nums">{formatMemoryTime(node.validFrom, language)}</dd>

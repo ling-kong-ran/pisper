@@ -47,7 +47,7 @@ function atomically(db, run) {
 function resolveSpaceId(store, { spaceId, cwd }) {
   if (spaceId) return String(spaceId)
   if (!cwd) return ''
-  const projectId = store.spaceIdsForCwd(cwd).at(-1)
+  const projectId = store.workspaceSpaceId(cwd)
   return store.db.prepare('SELECT 1 FROM memory_spaces WHERE id = ?').get(projectId)
     ? projectId
     : ''
@@ -89,6 +89,7 @@ export function recordEpisode(store, input) {
   const assistant = turnText(store, input.assistant, TURN_CHAR_LIMIT - user.length)
   if (!user && !assistant) return null
   const id = randomUUID()
+  const at = cleanIso(input.at) || store.isoNow()
   atomically(db, () => {
     db.prepare(
       `INSERT INTO memory_episodes (id, space_id, session_id, entry_id, cwd, captured, bytes, at, user_text, assistant_text)
@@ -101,14 +102,21 @@ export function recordEpisode(store, input) {
       store.safeText(input.cwd, 1000),
       input.captured ? 1 : 0,
       Buffer.byteLength(user) + Buffer.byteLength(assistant),
-      cleanIso(input.at) || store.isoNow(),
+      at,
       user,
       assistant,
     )
+    // 回退到旧版时，它仍会用时间游标筛选。迟到的原文需要让旧版也能重新看到。
+    if (!input.captured)
+      db.prepare('DELETE FROM memory_session_cursors WHERE session_id = ? AND episode_at >= ?').run(
+        sessionId,
+        at,
+      )
     store.index.upsert({
       kind: 'episode',
       id,
       spaceId,
+      sessionId,
       title: sliceText(user || assistant, TITLE_CHARS),
       body: `${user}\n${assistant}`,
     })
@@ -157,7 +165,7 @@ export function pruneEpisodes(store, { maxBytes = EPISODE_BYTES_SOFT_LIMIT } = {
 }
 
 /**
- * 需要批量抽取的会话：游标之后有没抽过的原文，且最后一轮已经空闲够久或累计够多。
+ * 需要批量抽取的会话：有没抽过的原文，且最后一轮已经空闲够久或累计够多。
  * force 不看空闲和累计（压缩前用），sessionId 只看这一个会话。
  * @returns {Array<{ sessionId: string, cwd: string, spaceId: string, episodes: Array<object> }>}
  */
@@ -176,13 +184,10 @@ export function pendingEpisodeBatches(
   const { db } = store
   const sessions = db
     .prepare(
-      `SELECT episodes.session_id AS session_id, COUNT(*) AS turns, MAX(episodes.at) AS last_at
-       FROM memory_episodes episodes
-       LEFT JOIN memory_session_cursors cursors ON cursors.session_id = episodes.session_id
-       WHERE episodes.captured = 0
-         AND (cursors.episode_at IS NULL OR episodes.at > cursors.episode_at)
-         AND (? = '' OR episodes.session_id = ?)
-       GROUP BY episodes.session_id
+      `SELECT session_id, COUNT(*) AS turns, MAX(at) AS last_at
+       FROM memory_episodes
+       WHERE captured = 0 AND (? = '' OR session_id = ?)
+       GROUP BY session_id
        ORDER BY last_at`,
     )
     .all(sessionId, sessionId)
@@ -191,35 +196,41 @@ export function pendingEpisodeBatches(
     .filter((row) => force || row.last_at <= idleBefore || Number(row.turns) >= minTurns)
     .slice(0, limit)
   const turns = db.prepare(
-    `SELECT episodes.* FROM memory_episodes episodes
-     LEFT JOIN memory_session_cursors cursors ON cursors.session_id = episodes.session_id
-     WHERE episodes.session_id = ? AND episodes.captured = 0
-       AND (cursors.episode_at IS NULL OR episodes.at > cursors.episode_at)
-     ORDER BY episodes.at, episodes.rowid LIMIT ?`,
+    `SELECT * FROM memory_episodes WHERE session_id = ? AND captured = 0 ORDER BY at, rowid LIMIT ?`,
   )
-  return due.map((row) => {
-    const episodes = turns.all(row.session_id, maxTurns).map(rowEpisode)
+  return due.flatMap((row) => {
+    const pending = turns.all(row.session_id, maxTurns)
+    // 同一聊天中途可以切换项目。一轮模型抽取只读一个空间，其他原文仍待处理。
+    const episodes = pending.filter((turn) => turn.space_id === pending[0].space_id).map(rowEpisode)
     const last = episodes.at(-1)
-    return { sessionId: row.session_id, cwd: last.cwd, spaceId: last.spaceId, episodes }
+    return last
+      ? [{ sessionId: row.session_id, cwd: last.cwd, spaceId: last.spaceId, episodes }]
+      : []
   })
 }
 
-// 游标只进不退；走过的原文标记为已抽取，待抽取的查询因此只需看 captured = 0 的那一小部分。
-export function saveSessionCursor(store, sessionId, episodeAt) {
-  const at = cleanIso(episodeAt)
-  if (!sessionId || !at) return
+// 调用方把这一步和事实写入放在同一事务里。等待模型时任何一轮被删或已处理，
+// 整批结果就作废：即使证据引用了另一轮，结果也可能转述了那段已删的原文。
+export function markEpisodesCaptured(store, sessionId, episodeIds) {
   const { db } = store
-  atomically(db, () => {
-    db.prepare(
-      `INSERT INTO memory_session_cursors (session_id, episode_at, updated_at) VALUES (?, ?, ?)
-       ON CONFLICT(session_id) DO UPDATE SET
-         episode_at = MAX(episode_at, excluded.episode_at),
-         updated_at = excluded.updated_at`,
-    ).run(sessionId, at, store.isoNow())
-    db.prepare(
-      'UPDATE memory_episodes SET captured = 1 WHERE session_id = ? AND captured = 0 AND at <= ?',
-    ).run(sessionId, at)
-  })
+  const marks = episodeIds.map(() => '?').join(',')
+  const source = db
+    .prepare(
+      `SELECT COUNT(*) AS count, MAX(at) AS at FROM memory_episodes
+      WHERE session_id = ? AND captured = 0 AND id IN (${marks})`,
+    )
+    .get(sessionId, ...episodeIds)
+  if (source.count !== episodeIds.length) return false
+  db.prepare(`UPDATE memory_episodes SET captured = 1 WHERE id IN (${marks})`).run(...episodeIds)
+  // 保留旧版能安全使用的时间游标。同一毫秒的下一批原文不能被它跳过。
+  db.prepare(
+    `INSERT INTO memory_session_cursors (session_id, episode_at, updated_at)
+     SELECT ?, ?, ? WHERE NOT EXISTS (
+       SELECT 1 FROM memory_episodes WHERE session_id = ? AND captured = 0 AND at <= ?
+     ) ON CONFLICT(session_id) DO UPDATE SET
+       episode_at = MAX(episode_at, excluded.episode_at), updated_at = excluded.updated_at`,
+  ).run(sessionId, source.at, store.isoNow(), sessionId, source.at)
+  return true
 }
 
 // 会话摘要是从原文写出来的：原文清掉了，摘要不能留着接着复述。

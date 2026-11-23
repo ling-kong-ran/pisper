@@ -164,6 +164,21 @@ test('states change exactly at the appear, replace and archive moments', () => {
   assert.equal(factStateNameAt(built, gone, built.archivedAt[gone]), 'archived')
 })
 
+test('a scheduled handover waits for the effective date; a backdated one waits for its recording', () => {
+  const built = scene([
+    fact('scheduled', 100, { status: 'superseded', supersededAt: iso(1), validTo: iso(-1) }),
+    fact('backdated', 100, { status: 'superseded', supersededAt: iso(1), validTo: iso(10) }),
+  ])
+  for (const [id, handover] of [
+    ['scheduled', NOW + DAY],
+    ['backdated', NOW - DAY],
+  ]) {
+    const index = indexOf(built, id)
+    assert.equal(factStateAt(built, index, handover - 1), FACT_ACTIVE)
+    assert.equal(factStateAt(built, index, handover), FACT_SUPERSEDED)
+  }
+})
+
 test('a replaced fact that is later archived ends up archived', () => {
   const built = scene([
     fact('a', 100, {

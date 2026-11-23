@@ -1,0 +1,199 @@
+{
+  "model": "gpt-6.2-sol",
+  "systemPromptsSha256": "17e47609518d519935ffe3b44ff23e9e668e266d271278cada940fa7b3d3bb1f",
+  "responses": {
+    "mirror": {
+      "items": [
+        {
+          "title": "演练服玩家镜像快照时间",
+          "content": "演练服的玩家镜像快照每天 03:20 运行。",
+          "topic": "rehearsal.player_mirror.snapshot_time",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "演练服的玩家镜像快照每天 03:20 运行。"
+        }
+      ],
+      "keywords": [
+        "演练服, 玩家镜像, 快照, 每日定时任务, 每天凌晨 03:20 生成玩家镜像快照, rehearsal server, drill environment, player mirror, snapshot, daily scheduled job, 03:20"
+      ]
+    },
+    "search": {
+      "items": [
+        {
+          "title": "记忆搜索采用 SQLite FTS5",
+          "content": "项目的记忆搜索使用 SQLite FTS5，未部署向量模型。",
+          "topic": "memory.search.backend",
+          "type": "decision",
+          "scope": "project",
+          "importance": 0.9,
+          "evidence": "记忆搜索使用 SQLite FTS5，没有部署向量模型。"
+        }
+      ],
+      "keywords": [
+        "记忆搜索, 全文检索, sqlite fts5, 词法搜索, 向量模型, 使用全文索引搜索记忆, memory search, full-text search, lexical retrieval, sqlite fts5, vector model"
+      ]
+    },
+    "incident": {
+      "items": [
+        {
+          "title": "结算日志重放导致积分重复",
+          "content": "积分重复由结算日志重放引起。按 round_key 去重后，两轮回放的对账结果均一致。",
+          "topic": "scoring.settlement_log.replay_deduplication",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.85,
+          "evidence": "积分重复的原因是结算日志被重放。用 round_key 去重后，两轮对账都一致。"
+        }
+      ],
+      "keywords": [
+        "积分重复, 重复计分, 结算日志重放, round_key, 按轮去重, 幂等处理, 回放对账, duplicate points, duplicate scoring, settlement log replay, deduplication, idempotency, reconciliation"
+      ]
+    },
+    "anchor": {
+      "items": [
+        {
+          "title": "配置文件改动后须人工复核",
+          "content": "配置来源校验尚未实现，文件改动后要人工复核。",
+          "topic": "config.source_validation.manual_review",
+          "type": "risk",
+          "scope": "project",
+          "importance": 0.8,
+          "confidence": 1,
+          "evidence": "配置来源校验还没实现，文件改动后要人工复核。"
+        }
+      ],
+      "keywords": [
+        "配置来源校验, 配置溯源, 文件改动, 人工复核, 配置变更后手工核验, configuration provenance, source validation, file changes, manual review, config change verification"
+      ]
+    },
+    "other": {
+      "items": [
+        {
+          "title": "归档站玩家镜像快照时间",
+          "content": "归档站的玩家镜像快照每天 21:45 运行。",
+          "topic": "archive_site.player_mirror.snapshot_time",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "归档站的玩家镜像快照每天 21:45 运行。"
+        }
+      ],
+      "keywords": [
+        "归档站, 玩家镜像, 快照, 每日定时任务, 每天晚上 21:45 运行玩家镜像快照, archive site, player mirror, snapshot, daily scheduled job, 21:45"
+      ]
+    },
+    "private": {
+      "items": [],
+      "keywords": []
+    },
+    "preference": {
+      "items": [
+        {
+          "title": "排查报告先写结论",
+          "content": "用户希望所有项目的排查报告都先写结论，再列证据。",
+          "topic": "user.investigation_report.structure",
+          "type": "preference",
+          "scope": "global",
+          "importance": 0.9,
+          "confidence": 1,
+          "evidence": "以后所有项目的排查报告都先写结论，再列证据。"
+        }
+      ],
+      "keywords": [
+        "排查报告, 故障调查, 结论先行, 列出证据, 跨项目写作偏好, investigation report, troubleshooting report, conclusion first, evidence follows, reporting preference"
+      ]
+    },
+    "noise": {
+      "items": [],
+      "keywords": []
+    },
+    "index": {
+      "items": [
+        {
+          "title": "演练服快照索引重建周期",
+          "content": "演练服的快照索引每周一重建。",
+          "topic": "rehearsal.snapshot_index.rebuild_schedule",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "演练服的快照索引每周一重建。"
+        }
+      ],
+      "keywords": [
+        "演练服, 快照索引, 重建索引, 每周一, 每周一重新建立快照索引, rehearsal server, drill environment, snapshot index, reindexing, index rebuild, weekly, monday"
+      ]
+    },
+    "cleanup": {
+      "items": [
+        {
+          "title": "演练服快照保留七天",
+          "content": "演练服的快照清理保留最近七天。",
+          "topic": "rehearsal.snapshot.retention_window",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "演练服的快照清理保留最近七天。"
+        }
+      ],
+      "keywords": [
+        "演练服, 快照清理, 快照保留期限, 最近七天, 滚动保留窗口, rehearsal server, drill environment, snapshot cleanup, snapshot retention, seven-day retention, rolling window"
+      ]
+    },
+    "format": {
+      "items": [
+        {
+          "title": "演练服快照导出格式",
+          "content": "演练服的快照导出统一存为 Parquet。",
+          "topic": "rehearsal.snapshot.export_format",
+          "type": "decision",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "演练服的快照导出统一存为 Parquet。"
+        }
+      ],
+      "keywords": [
+        "演练服, 快照导出, parquet, 导出文件格式, 列式存储, rehearsal server, drill environment, snapshot export, parquet, columnar file format"
+      ]
+    },
+    "timezone": {
+      "items": [
+        {
+          "title": "演练服快照日志时区",
+          "content": "演练服的快照日志统一使用 UTC。",
+          "topic": "rehearsal.snapshot_log.timezone",
+          "type": "decision",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "演练服的快照日志统一使用 UTC。"
+        }
+      ],
+      "keywords": [
+        "演练服, 快照日志, 日志时区, utc, 协调世界时, 日志时间戳, rehearsal server, drill environment, snapshot logs, log timezone, coordinated universal time, utc timestamps"
+      ]
+    },
+    "board": {
+      "items": [
+        {
+          "title": "独立沙盘棋盘边长为十九格",
+          "content": "这个独立沙盘的棋盘边长固定为十九格。",
+          "topic": "sandbox.board.side_length",
+          "type": "fact",
+          "scope": "project",
+          "importance": 0.75,
+          "confidence": 1,
+          "evidence": "我这个独立沙盘的棋盘边长固定为十九格。"
+        }
+      ],
+      "keywords": [
+        "独立沙盘, 棋盘边长, 固定尺寸, 十九格, 19×19 棋盘, standalone sandbox, board dimensions, fixed board size, nineteen cells per side, 19x19 board"
+      ]
+    }
+  }
+}
