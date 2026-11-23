@@ -47,6 +47,7 @@ type Command = {
 }
 
 type AgentTab = {
+  borrowed: boolean
   pageId: string
   browserId: string
   cursor: { x: number; y: number }
@@ -85,7 +86,7 @@ function parseCommand(value: unknown): Command | null {
   }
 }
 
-function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
+export function createAgentBrowserHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
   const tabs = new Map<string, AgentTab>()
   const queues = new Map<string, Promise<unknown>>()
   let nextId = 0
@@ -132,6 +133,8 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
     tabs.delete(sessionId)
     stopOverlayTimer(tab)
     void evaluate(tab.browserId, removeOverlayScript()).catch(() => {})
+    // 用户原先打开的 WebView 始终由 BrowserPane 管理，释放时只收起光效。
+    if (tab.borrowed) return
     const page = pageOf(sessionId, tab.pageId)
     if (page) store().update(sessionId, 'browser', { type: 'browser', id: page.id, agent: false })
     if (attachedNativeBrowsers.has(tab.browserId)) return
@@ -146,6 +149,14 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
     for (const [sessionId, tab] of tabs) {
       const pages = state.sessions[sessionId]
       const page = pages?.pages.find((entry) => entry.id === tab.pageId)
+      if (tab.borrowed) {
+        // 留住上次选中的目标，关页或换页后的旧选择器不能落到相邻页签。
+        if (tab.overlayTimer && (!page || pages.activeBrowserId !== tab.pageId)) {
+          stopOverlayTimer(tab)
+          void evaluate(tab.browserId, removeOverlayScript()).catch(() => {})
+        }
+        continue
+      }
       if (!page || page.resourceId !== tab.browserId) {
         tabs.delete(sessionId)
         stopOverlayTimer(tab)
@@ -225,6 +236,7 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
   }
 
   const openTab = async (sessionId: string, url: string) => {
+    if (tabs.get(sessionId)?.borrowed) release(sessionId)
     const existing = tabs.get(sessionId)
     if (existing && pageOf(sessionId, existing.pageId)) {
       const before = await evaluate(existing.browserId, loadStateScript()).catch(() => null)
@@ -278,6 +290,7 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
     })
     store().update(sessionId, 'browser', { type: 'resource', id: pageId, resourceId: browserId })
     const tab: AgentTab = {
+      borrowed: false,
       pageId,
       browserId,
       cursor: { x: 48, y: 48 },
@@ -288,11 +301,38 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
     return { tab, previousUrl: '' }
   }
 
-  const requireTab = (sessionId: string) => {
+  const requireTab = (sessionId: string, action: string) => {
     const tab = tabs.get(sessionId)
-    if (!tab || !pageOf(sessionId, tab.pageId))
-      throw new Error('No page is open. Use the open action first.')
-    return tab
+    const pages = store().sessions[sessionId]
+    const active = pages && activeBrowserPage(pages)
+    const observing = action === 'inspect' || action === 'screenshot'
+    if (tab && !tab.borrowed && (!observing || !active || active.id === tab.pageId)) return tab
+    const mounted =
+      active &&
+      [...attachedNativeBrowsers].find(
+        ([, owner]) => owner.sessionId === sessionId && owner.pageId === active.id,
+      )
+    if (!mounted || !active || !/^https?:\/\//i.test(active.url))
+      throw new Error(
+        'No live HTTP/HTTPS tab is available in this chat. Select its browser tab or open a URL.',
+      )
+    const [browserId] = mounted
+    if (tab?.browserId === browserId) return tab
+    if (tab && !observing)
+      throw new Error(
+        'The selected browser tab changed. Inspect the current page before continuing.',
+      )
+    release(sessionId)
+    const borrowed: AgentTab = {
+      borrowed: true,
+      pageId: active.id,
+      browserId,
+      cursor: { x: 48, y: 48 },
+      lastCommandAt: Date.now(),
+      overlayTimer: null,
+    }
+    tabs.set(sessionId, borrowed)
+    return borrowed
   }
 
   // 等元素出现，把指针移过去：用户看到的是 Agent 先看向目标再动手。
@@ -338,7 +378,7 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
       release(sessionId)
       return {}
     }
-    const tab = requireTab(sessionId)
+    const tab = requireTab(sessionId, action)
     keepOverlay(tab)
     await showOverlay(tab).catch(() => {})
     if (action === 'inspect') {
@@ -412,7 +452,7 @@ function createHost(browser: DesktopBrowserBridge, overlayLabel: () => string) {
       }
     })
     queues.set(command.sessionId, next)
-    void next.finally(() => {
+    return next.finally(() => {
       if (queues.get(command.sessionId) === next) queues.delete(command.sessionId)
     })
   }
@@ -454,7 +494,7 @@ async function nativeBrowserUsable(browser: DesktopBrowserBridge) {
 export function startAgentBrowserHost(overlayLabel: () => string) {
   const browser = window.pisperDesktop?.browser
   if (!browser) return () => {}
-  const host = createHost(browser, overlayLabel)
+  const host = createAgentBrowserHost(browser, overlayLabel)
   const controller = new AbortController()
   void nativeBrowserUsable(browser).then((usable) => {
     if (!usable || controller.signal.aborted) return

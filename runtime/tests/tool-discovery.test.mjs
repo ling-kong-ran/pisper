@@ -175,6 +175,24 @@ const browserTool = {
   active: false,
 }
 
+test('website and existing-tab requests prefer browser control; desktop requests still find computer use', () => {
+  const available = [...computerUseTools, browserTool]
+  for (const query of [
+    'browser use',
+    '点击右侧浏览器的网页',
+    '给当前页签截图',
+    'fill a browser tab',
+    '右侧页签里帮我点击提交',
+    'please click the button on the current website',
+    'click a link in the current tab',
+    '去浏览器里用鼠标点击那个按钮',
+    '在网站上点击登录按钮',
+  ])
+    assert.equal(searchOptionalTools(available, query, 1)[0].name, 'browser_automation', query)
+  assert.equal(searchOptionalTools(available, '桌面应用', 1)[0].name, 'computer_use')
+  assert.equal(searchOptionalTools(available, '在系统对话框里点击确定', 1)[0].name, 'computer_use')
+})
+
 test('optional tool search understands natural CJK phrasing with inserted particles', () => {
   // 「截个图」插入虚字,连续子串匹配会漏;跳跃二元组应兜住 alias「网页截图」
   assert.equal(

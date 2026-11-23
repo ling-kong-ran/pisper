@@ -243,7 +243,9 @@ export class BrowserAutomationService {
   }
 
   async execute(sessionId, input = {}, { cwd, signal, onProgress } = {}) {
-    const action = String(input.action || 'inspect')
+    // open 不传地址与 inspect 等价，保持现有页签的 DOM、登录和表单状态。
+    const inspectCurrent = input.action === 'open' && (input.url === undefined || input.url === '')
+    const action = inspectCurrent ? 'inspect' : String(input.action || 'inspect')
     const id = String(sessionId || 'default')
     const viewport = {
       width: safeDimension(input.width, DEFAULT_VIEWPORT.width, 640, 2560),
@@ -252,7 +254,9 @@ export class BrowserAutomationService {
     signal?.throwIfAborted?.()
     if (action === 'close') this.clearIdleTimer(id)
     else this.touchSession(id)
-    const driver = this.activeDriver(id)
+    // 显式选取当前页签时，允许从旧的无头会话转到刚连上的桌面。接管成功后才释放旧页面。
+    const selectPanel = inspectCurrent && !this.driver && this.desktopHost?.available
+    const driver = selectPanel ? this.desktopHost : this.activeDriver(id)
     if (driver) {
       const outputPath =
         action === 'screenshot' ? await this.screenshotPath(cwd, input.outputName) : undefined
@@ -272,6 +276,10 @@ export class BrowserAutomationService {
         },
         { signal, onProgress },
       )
+      if (selectPanel) {
+        this.desktopHostSessions.add(id)
+        await this.closeHeadless(id)
+      }
       return driver === this.desktopHost ? { ...result, visibleToUser: true } : result
     }
     return {
@@ -286,10 +294,14 @@ export class BrowserAutomationService {
       await this.closeSession(sessionId)
       return { action, closed: true }
     }
+    if (action !== 'open' && !this.sessions.has(String(sessionId || 'default')))
+      throw new Error(
+        'No page is open in this background browser. Open an HTTP/HTTPS URL first. The desktop browser panel is unavailable.',
+      )
+    const url = action === 'open' ? safeUrl(input.url) : null
     const current = await this.ensureSession(sessionId, viewport)
     const { page } = current
-    if (action === 'open') {
-      const url = safeUrl(input.url)
+    if (url) {
       onProgress?.(`Opening ${url}`)
       await page.setViewportSize(viewport)
       await page.goto(url, { waitUntil: 'domcontentloaded' })
@@ -356,6 +368,10 @@ export class BrowserAutomationService {
     this.clearIdleTimer(id)
     if (this.driver) return this.driver.closeSession?.(id)
     if (this.desktopHostSessions.delete(id)) return this.desktopHost?.closeSession(id)
+    return this.closeHeadless(id)
+  }
+
+  async closeHeadless(id) {
     const current = this.sessions.get(id)
     if (!current) return false
     this.sessions.delete(id)

@@ -61,6 +61,8 @@ export function BrowserPane({
     useBrowserHistoryStore.getState().visit(next)
   }
   const native = useNativeBrowser({
+    sessionId,
+    pageId: page.id,
     enabled: Boolean(window.pisperDesktop?.browser),
     url,
     popupId: page.resourceId,

@@ -22,9 +22,14 @@ const FLOATING_LAYER_SELECTOR =
 let nextBrowserId = 0
 
 // 正挂在界面上的 WebView。Agent 宿主自己导航时要先告诉 Hook，否则 Hook 看到地址变了会再导航一次。
-export const attachedNativeBrowsers = new Map<string, { noteUrl: (url: string) => void }>()
+export const attachedNativeBrowsers = new Map<
+  string,
+  { sessionId: string; pageId: string; noteUrl: (url: string) => void }
+>()
 
 export function useNativeBrowser({
+  sessionId,
+  pageId,
   enabled,
   url,
   popupId,
@@ -34,6 +39,8 @@ export function useNativeBrowser({
   onNewWindow,
   onClosed,
 }: {
+  sessionId: string
+  pageId: string
   enabled: boolean
   url: string
   // 这个页签来自 window.open：原生层已经建好 WebView，要接管它而不是新开一个，window.opener 才连得上。
@@ -163,6 +170,8 @@ export function useNativeBrowser({
       opened = true
       browserIdRef.current = browserId
       attachedNativeBrowsers.set(browserId, {
+        sessionId,
+        pageId,
         noteUrl: (next) => {
           if (next !== currentUrlRef.current) reportedUrlsRef.current.push(next)
           currentUrlRef.current = next
@@ -197,7 +206,7 @@ export function useNativeBrowser({
         else if (hiddenAt) void browser.sync(browserId, hiddenAt, false).catch(() => {})
       })
     }
-  }, [active])
+  }, [active, sessionId, pageId])
 
   useEffect(() => {
     // 这是页面自己跳转的回声（连同它之前更旧的），不是新的导航请求。

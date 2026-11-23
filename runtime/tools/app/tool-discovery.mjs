@@ -22,6 +22,14 @@ const TOOL_ALIASES = {
   browser_automation: [
     'browser',
     'browser automation',
+    'browser use',
+    'browser tab',
+    'current webpage',
+    'web page',
+    '右侧浏览器',
+    '当前页签',
+    '网页',
+    '网页表单',
     'screenshot',
     '浏览器',
     '打开网页',
@@ -55,6 +63,9 @@ const TOOL_ALIASES = {
     'mouse',
     'keyboard',
     'desktop app',
+    'file picker',
+    'native dialog',
+    'system dialog',
     '电脑操作',
     '控制电脑',
     '桌面自动化',
@@ -64,6 +75,8 @@ const TOOL_ALIASES = {
     '鼠标',
     '键盘',
     '桌面应用',
+    '文件选择器',
+    '系统对话框',
   ],
   mobile_device: [
     'mobile device',
@@ -245,6 +258,17 @@ function toolSearchText(tool) {
   )
 }
 
+// “鼠标点击网页”会同时命中电脑工具的“鼠标”和“点击”。按操作位置消歧。
+function browserPageAction(query) {
+  const page =
+    /浏览器|网页|网站|页签|右侧标签|\b(?:browser|web\s?page|website|current tab|active tab)\b/u
+  const action =
+    /点击|点一下|打开|填写|输入|读取|截图|截个图|检查|\b(?:click|open|fill|type|inspect|read|screenshot)\b/u
+  const desktop =
+    /系统弹窗|系统对话框|文件选择|地址栏|桌面应用|电脑操作|\b(?:computer use|file (?:picker|chooser|dialog)|address bar|native dialog|system dialog)\b/u
+  return page.test(query) && action.test(query) && !desktop.test(query)
+}
+
 function scoreTool(tool, query) {
   const normalizedQuery = normalized(query)
   const normalizedName = normalized(tool.name)
@@ -252,6 +276,7 @@ function scoreTool(tool, query) {
   const haystack = toolSearchText(tool)
   if (!normalizedQuery) return 1
   let score = 0
+  if (tool.name === 'browser_automation' && browserPageAction(normalizedQuery)) score += 180
   if (normalizedQuery === normalizedName || normalizedQuery === normalizedLabel) score += 240
   if (normalizedName.includes(normalizedQuery) || normalizedLabel.includes(normalizedQuery))
     score += 120

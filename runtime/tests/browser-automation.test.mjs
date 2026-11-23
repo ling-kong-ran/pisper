@@ -89,3 +89,21 @@ test('full-access browser actions run without approval', () => {
   assert.equal(permissionRequirement({ ...base, args: { action: 'click' } }), null)
   assert.equal(permissionRequirement({ ...base, args: { action: 'type' } }), null)
 })
+
+test('open without a URL inspects the current page; a missing headless tab does not launch a browser', async () => {
+  const calls = []
+  const service = new BrowserAutomationService({
+    idleTimeoutMs: 0,
+    driver: {
+      execute: (_session, command) => {
+        calls.push(command.action)
+        return { title: 'Current' }
+      },
+    },
+  })
+  assert.equal((await service.execute('s', { action: 'open' })).title, 'Current')
+  assert.deepEqual(calls, ['inspect'])
+  const headless = new BrowserAutomationService({ idleTimeoutMs: 0 })
+  headless.launchPlaywright = () => assert.fail('unexpected headless launch')
+  await assert.rejects(headless.execute('s', { action: 'inspect' }), /No page is open/)
+})

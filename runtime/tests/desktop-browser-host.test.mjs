@@ -18,6 +18,58 @@ function connectedHost(options) {
   }
 }
 
+test('inspect uses the selected live WebView in this chat and release leaves the user tab intact', async (t) => {
+  const { createAgentBrowserHost } = await import('../../src/features/chat/agent-browser-host.ts')
+  const { attachedNativeBrowsers } = await import('../../src/features/chat/useNativeBrowser.ts')
+  const { useContextPagesStore } =
+    await import('../../src/features/chat/session-context-pages-store.ts')
+  const store = useContextPagesStore.getState()
+  const url = 'https://example.com/form'
+  for (const sessionId of ['a', 'b']) {
+    store.update(sessionId, 'browser', { type: 'browser', id: 'page-1', url })
+    attachedNativeBrowsers.set('view-' + sessionId, { sessionId, pageId: 'page-1', noteUrl() {} })
+  }
+  store.update('a', 'browser', { type: 'add', kind: 'browser' })
+  store.update('a', 'browser', { type: 'browser', id: 'page-2', url })
+  attachedNativeBrowsers.set('selected', { sessionId: 'a', pageId: 'page-2', noteUrl() {} })
+  const calls = []
+  let reported
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    reported = JSON.parse(options.body)
+    return new Response()
+  })
+  const host = createAgentBrowserHost(
+    {
+      evaluate: async (id) => {
+        calls.push(id)
+        return JSON.stringify({ ok: true, url, title: 'Live form' })
+      },
+      close: () => assert.fail('closed a user tab'),
+      navigate: () => assert.fail('navigated a user tab'),
+      open: () => assert.fail('created another tab'),
+    },
+    () => 'Agent',
+  )
+  try {
+    await host.enqueue({ sessionId: 'a', requestId: 'i', action: 'inspect' })
+    assert.equal(reported.result.title, 'Live form')
+    assert.ok(calls.length > 0 && calls.every((id) => id === 'selected'))
+    store.update('a', 'browser', { type: 'browser-tab', id: 'page-1' })
+    await host.enqueue({ sessionId: 'a', requestId: 'c', action: 'click', selector: '#submit' })
+    assert.equal(reported.ok, false)
+    await host.enqueue({ sessionId: 'a', requestId: 'j', action: 'inspect' })
+    assert.equal(reported.ok, true)
+    assert.equal(calls.at(-1), 'view-a')
+    await host.enqueue({ sessionId: 'a', requestId: 'end', action: 'close' })
+    assert.equal(useContextPagesStore.getState().sessions.a.pages.length, 2)
+  } finally {
+    host.dispose()
+    attachedNativeBrowsers.clear()
+    store.forget('a')
+    store.forget('b')
+  }
+})
+
 test('commands go to the connected desktop front end and results come back trimmed', async () => {
   const { host, lastCommand } = connectedHost()
   const opening = host.execute('session-1', { action: 'open', url: 'https://example.com/' })
@@ -170,6 +222,16 @@ test('browser automation prefers the visible browser and only falls back when no
   // 空闲超时把页面还给用户。
   await service.closeSession('new')
   assert.deepEqual(sent.at(-1), { event: 'release', data: { sessionId: 'new' } })
+  // 用户显式选取右侧页签后，旧会话也能接到已有网页，后续动作留在同一侧。
+  const selected = service.execute('old', { action: 'open' })
+  const selecting = sent.at(-1).data
+  assert.equal(selecting.action, 'inspect')
+  assert.equal(selecting.url, undefined)
+  host.settle(selecting.requestId, { ok: true, result: { title: 'Already open' } })
+  assert.equal((await selected).visibleToUser, true)
+  const following = service.execute('old', { action: 'inspect' })
+  host.settle(sent.at(-1).data.requestId, { ok: true, result: { title: 'Already open' } })
+  assert.equal((await following).title, 'Already open')
 })
 
 test('the host route streams commands over real HTTP and takes results back', async () => {

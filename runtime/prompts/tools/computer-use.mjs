@@ -1,7 +1,8 @@
 // computer_use 的说明：看屏幕、动鼠标、敲键盘；坐标是截图上的像素。
 
 export const COMPUTER_USE = Object.freeze({
-  description: 'See the screen and control the mouse and keyboard to operate desktop apps.',
+  description:
+    'Operate native desktop apps and OS dialogs using the screen, mouse and keyboard. For webpage actions use browser_automation first.',
   snippet: 'See the screen and control the mouse and keyboard to operate desktop apps',
   guidelines: [
     'Use computer_use only for desktop apps nothing else can reach. Prefer the shell, file tools, and browser_automation for websites.',
