@@ -49,6 +49,7 @@ export const MEMORY_REMEMBER = Object.freeze({
     'Use global scope only for preferences that apply across projects. Use project scope for local facts, decisions and schedules. In a chat without a project, that scope is private to the current chat.',
     'Provide a stable topic key and reuse it when a newer fact replaces an older fact on the same subject.',
     'Set valid_from when the user says when a change takes effect, including a confirmed future change. Set expires_at for things that only hold temporarily.',
+    'Pass source_path when the memory restates something you just read from a file in the project: a later edit to that file then marks the memory as possibly outdated instead of it being trusted as-is.',
   ],
   params: {
     title: 'Short, recognizable memory title',
@@ -56,6 +57,7 @@ export const MEMORY_REMEMBER = Object.freeze({
     topic: 'Stable topic key reused when updating the same fact, for example project.brand_colors',
     valid_from: 'ISO date when the fact takes effect, including a confirmed future date',
     expires_at: 'ISO date after which this no longer holds',
+    source_path: 'File the memory came from, relative to the project or absolute',
     userQuote:
       'Exact quote from the current raw user message containing an explicit request to remember this fact.',
   },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -356,6 +356,39 @@ test('Agent memory tool cannot raise its authority using a model-controlled bool
     assert.equal(result.details.mode, 'stored')
     assert.equal(result.details.sourceType, 'agent')
     assert.equal(result.details.authority, 40)
+  })
+})
+
+test('Agent memory tool records the source file so a later edit marks the memory stale', async () => {
+  await withMemory(async (memory, cwd) => {
+    await writeFile(join(cwd, 'deploy.md'), 'deploy to aliyun')
+    const tool = createMemoryRememberTool({
+      cwd,
+      memoryRuntime: memory,
+      getUserMessage: () => '',
+    })
+    const stored = await tool.execute('call-1', {
+      title: '发布平台',
+      content: '项目部署到阿里云。',
+      topic: 'project.deploy.platform',
+      scope: 'project',
+      source_path: 'deploy.md',
+    })
+    const row = memory
+      .requireDb()
+      .prepare('SELECT source_path AS path, anchor_hash AS hash FROM memories WHERE id = ?')
+      .get(stored.details.id)
+    assert.equal(row.path, 'deploy.md')
+    // 有锚点，检索时才会去核对文件是否还和当初一致。
+    assert.match(row.hash, /^[0-9a-f]{16}$/)
+
+    const plain = await tool.execute('call-2', {
+      title: '数据库',
+      content: '项目使用 PostgreSQL。',
+      topic: 'project.database.engine',
+      scope: 'project',
+    })
+    assert.equal(memory.getMemory(plain.details.id).sourcePath, '')
   })
 })
 

@@ -210,6 +210,9 @@ export function createMemoryRememberTool({
       importance: Type.Optional(Type.Number({ minimum: 0.1, maximum: 1 })),
       valid_from: Type.Optional(Type.String({ description: MEMORY_REMEMBER.params.valid_from })),
       expires_at: Type.Optional(Type.String({ description: MEMORY_REMEMBER.params.expires_at })),
+      source_path: Type.Optional(
+        Type.String({ maxLength: 1000, description: MEMORY_REMEMBER.params.source_path }),
+      ),
       userQuote: Type.Optional(
         Type.String({
           minLength: 4,
@@ -237,6 +240,8 @@ export function createMemoryRememberTool({
         sessionId,
         validFrom: params.valid_from,
         expiresAt: params.expires_at,
+        // 记忆来自某个文件时记录来源：文件日后被改动，这条记忆会被标成可能过期。
+        sourcePath: params.source_path,
         sourceType: rememberEvidence ? 'user_confirmed' : 'agent',
         evidence: rememberEvidence || 'Stored by the Agent without an explicit user request.',
       })
