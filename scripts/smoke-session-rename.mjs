@@ -9,6 +9,7 @@ import { chromium } from 'playwright-core'
 import { startSmokeStyleServer } from './fixtures/smoke-style-server.mjs'
 import { AgentRuntimeService } from '../runtime/runtime/agent-runtime.mjs'
 import { ensureSessionFilePersisted } from '../runtime/runtime/session-file-persist.mjs'
+import { errorPayload } from '../shared/errors.mjs'
 import { SMOKE_BROWSER } from './fixtures/smoke-browser.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -197,7 +198,10 @@ try {
           })
         } catch (error) {
           mutations.push({ name, status: 409 })
-          return route.fulfill({ status: 409, json: { error: error.message } })
+          return route.fulfill({
+            status: 409,
+            json: { error: error.message, ...errorPayload(error) },
+          })
         }
       }
       if (
@@ -316,9 +320,8 @@ try {
         runtime.liveSessions.set(created.id, { streaming: true })
         await openRename(entry, currentName)
         const failure = await saveRename(`Rejected ${entry} ${width}`, 409)
-        assert.match(failure.error, /正在运行/)
-        const errorArea = history
-        await errorArea.getByRole('alert').filter({ hasText: failure.error }).waitFor()
+        assert.equal(failure.code, 'busy')
+        await history.getByRole('alert').filter({ hasText: '会话正忙' }).waitFor()
         await assertSynchronized(currentName)
         runtime.liveSessions.delete(created.id)
         await page.screenshot({
