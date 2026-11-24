@@ -601,7 +601,9 @@ export class LocalMemoryRuntime {
         for (const event of eventsWithSnapshots.all(space.id)) {
           const before = JSON.parse(event.before_json)
           for (const snapshot of Object.values(before)) {
-            if (snapshot.space_id === space.id) snapshot.space_id = 'chats'
+            if (snapshot.space_id !== space.id) continue
+            snapshot.space_id = 'chats'
+            snapshot.session_id = sessionId
           }
           updateSnapshot.run(JSON.stringify(before), event.id)
         }

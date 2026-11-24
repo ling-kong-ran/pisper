@@ -27,6 +27,7 @@ export const authorityTier = (authority) => (authority >= 90 ? 3 : authority >= 
 // 撤销要能完整写回的字段。不含 id、时间戳和索引状态。
 const EVENT_SNAPSHOT_FIELDS = [
   'space_id',
+  'session_id',
   'status',
   'superseded_by',
   'superseded_at',

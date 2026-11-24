@@ -262,6 +262,8 @@ test('legacy chat migration preserves recall, forgetting and undo under the real
   await before.init()
   let legacyFact
   let pinEvent
+  let movedFact
+  let moveEvent
   let keptFacts
   try {
     const legacySpace = await before.ensureWorkspaceSpace(chatRoot)
@@ -270,6 +272,15 @@ test('legacy chat migration preserves recall, forgetting and undo under the real
     pinEvent = before
       .listEvents({ spaceId: legacySpace })
       .find((event) => event.action === 'pin').id
+    movedFact = before.remember({
+      title: '迁到全局的审计记录',
+      content: '历史操作的快照应能恢复原会话',
+      spaceId: legacySpace,
+    })
+    before.updateMemory(movedFact.id, { spaceId: 'global' })
+    moveEvent = before
+      .listEvents()
+      .find((event) => event.undoable && event.memoryIds.includes(movedFact.id)).id
     before.forget(before.remember({ ...removed, spaceId: legacySpace, sessionId }).id)
     assert.equal(
       before.remember({ ...removed, spaceId: legacySpace, sessionId }).outcome,
@@ -353,6 +364,10 @@ test('legacy chat migration preserves recall, forgetting and undo under the real
     assert.deepEqual(after.undoEvent(pinEvent).memoryIds, [merged.id])
     assert.equal(after.getMemory(merged.id).pinned, false)
     assert.equal(after.getMemory(merged.id).spaceId, 'chats')
+    assert.equal(after.getMemory(movedFact.id).spaceId, 'global')
+    assert.deepEqual(after.undoEvent(moveEvent).memoryIds, [movedFact.id])
+    assert.equal(after.getMemory(movedFact.id).spaceId, 'chats')
+    assert.equal(after.getMemory(movedFact.id).sessionId, sessionId)
   } finally {
     await after.dispose()
   }
