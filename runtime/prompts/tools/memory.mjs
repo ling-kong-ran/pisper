@@ -57,7 +57,7 @@ export const MEMORY_REMEMBER = Object.freeze({
     topic: 'Stable topic key reused when updating the same fact, for example project.brand_colors',
     valid_from: 'ISO date when the fact takes effect, including a confirmed future date',
     expires_at: 'ISO date after which this no longer holds',
-    source_path: 'File the memory came from, relative to the project or absolute',
+    source_path: 'Path to the source file inside the current workspace',
     userQuote:
       'Exact quote from the current raw user message containing an explicit request to remember this fact.',
   },

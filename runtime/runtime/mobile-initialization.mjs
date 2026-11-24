@@ -55,7 +55,7 @@ export function prepareRuntimeInitialization(
     if (!runtime.capabilities.features.memory) return
     runtime.initialization.memory = 'initializing'
     try {
-      await runtime.memory.init()
+      await runtime.memory.init({ sessionMeta: runtime.sessionMeta })
       runtime.startupReport.setAside.push(...(runtime.memory.setAsideFiles ?? []))
       runtime.memory.setSemanticSummarizer(runtime.memorySummarizer)
       // 后台步骤按顺序轮流跑：对账 → 空闲会话批量抽取 → 整理；定时器归记忆运行时所有，dispose 时清掉。

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -379,8 +379,10 @@ test('Agent memory tool records the source file so a later edit marks the memory
       .prepare('SELECT source_path AS path, anchor_hash AS hash FROM memories WHERE id = ?')
       .get(stored.details.id)
     assert.equal(row.path, 'deploy.md')
-    // 有锚点，检索时才会去核对文件是否还和当初一致。
     assert.match(row.hash, /^[0-9a-f]{16}$/)
+    await writeFile(join(cwd, 'deploy.md'), 'deploy to another platform')
+    await memory.searchRelevant('发布平台', { cwd })
+    assert.equal(memory.getMemory(stored.details.id).status, 'stale')
 
     const plain = await tool.execute('call-2', {
       title: '数据库',
@@ -389,6 +391,30 @@ test('Agent memory tool records the source file so a later edit marks the memory
       scope: 'project',
     })
     assert.equal(memory.getMemory(plain.details.id).sourcePath, '')
+  })
+})
+
+test('Agent memory anchors cannot read paths outside the current workspace', async (t) => {
+  const outside = await mkdtemp(join(tmpdir(), 'pisper-anchor-outside-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  const file = join(outside, 'fixture.txt')
+  await writeFile(file, 'synthetic source')
+  await withMemory(async (memory, cwd) => {
+    const workspace = join(cwd, 'project')
+    await mkdir(workspace)
+    await writeFile(join(cwd, 'parent.txt'), 'synthetic sibling source')
+    await symlink(outside, join(workspace, 'external'), 'junction')
+    const tool = createMemoryRememberTool({ cwd: workspace, memoryRuntime: memory })
+    for (const [index, source] of [file, '../parent.txt', 'external/fixture.txt'].entries()) {
+      const stored = await tool.execute(`call-${index}`, {
+        title: `独立锚点用例 ${index}`,
+        topic: `project.anchor.case-${index}`,
+        content: `第 ${index} 条独立记忆`,
+        source_path: source,
+      })
+      const row = memory.requireDb().prepare('SELECT anchor_hash FROM memories WHERE id = ?')
+      assert.equal(row.get(stored.details.id).anchor_hash, '')
+    }
   })
 })
 
