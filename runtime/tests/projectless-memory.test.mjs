@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
 import test from 'node:test'
 import { isProjectlessDirectory } from '../runtime/projectless-chats.mjs'
@@ -239,5 +241,77 @@ test('existing projectless project spaces keep their original facts and forgotte
     )
   } finally {
     await memory.dispose()
+  }
+})
+
+test('legacy per-chat project spaces are merged into the single chats space on startup', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-legacy-chats-'))
+  const path = join(directory, 'memory.sqlite')
+  const chatRoot = join(directory, 'chats', '2026-11-09-AAA')
+  const realProject = join(directory, 'real-project')
+  await mkdir(chatRoot, { recursive: true })
+  await mkdir(realProject, { recursive: true })
+  // 先用旧语义（目录各成一个项目空间）写两条记忆，再按新语义重开库，触发归并。
+  const before = new LocalMemoryRuntime({ path, cwd: chatRoot, isProjectless: () => false })
+  await before.init()
+  let legacyFact
+  let projectFact
+  let renamedFact
+  try {
+    const legacySpace = await before.ensureWorkspaceSpace(chatRoot)
+    const realSpace = await before.ensureWorkspaceSpace(realProject)
+    assert.notEqual(legacySpace, realSpace)
+    legacyFact = before.remember({ ...fact, spaceId: legacySpace })
+    projectFact = before.remember({ ...fact, spaceId: realSpace })
+    // 用户改过名的空间含义不明，按旧语义保留，不参与归并。
+    const renamed = before.createSpace({
+      kind: 'project',
+      rootPath: join(directory, 'chats', '2026-11-10-BBB'),
+      name: 'Renamed chat',
+    })
+    renamedFact = before.remember({ ...fact, spaceId: renamed.id })
+    assert.equal(legacyFact.sessionId, '')
+    const db = before.requireDb()
+    db.prepare(
+      `INSERT INTO memory_digests (id, space_id, level, window_start, window_end, text, source_ids, dirty, generated_at, session_id)
+       VALUES (?, ?, 'day', ?, ?, ?, ?, 0, ?, '')`,
+    ).run(
+      'legacy-digest',
+      legacySpace,
+      '2026-11-09T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+      'legacy day digest',
+      JSON.stringify([legacyFact.id]),
+      '2026-11-10T00:00:00.000Z',
+    )
+  } finally {
+    await before.dispose()
+  }
+
+  const after = new LocalMemoryRuntime({ path, cwd: chatRoot, isProjectless: () => true })
+  await after.init()
+  try {
+    const merged = after.getMemory(legacyFact.id)
+    assert.equal(merged.spaceId, 'chats')
+    // 没记 session 的老记忆用原会话目录名兜底，否则并进来后哪个会话都查不到。
+    assert.equal(merged.sessionId, '2026-11-09-AAA')
+    const spaces = after.listSpaces().map((space) => space.id)
+    assert.ok(spaces.includes('chats'))
+    const kept = new Set([projectFact.spaceId, renamedFact.spaceId])
+    assert.ok(!spaces.some((id) => id.startsWith('project-') && !kept.has(id)))
+    // 真项目空间和用户改过名的空间都保持原样。
+    assert.equal(after.getMemory(projectFact.id).spaceId, projectFact.spaceId)
+    assert.equal(after.getMemory(renamedFact.id).spaceId, renamedFact.spaceId)
+    assert.ok(spaces.includes(renamedFact.spaceId))
+    const digest = after
+      .requireDb()
+      .prepare("SELECT space_id AS spaceId, dirty FROM memory_digests WHERE id = 'legacy-digest'")
+      .get()
+    assert.equal(digest.spaceId, 'chats')
+    // 来源事实换了空间，schema 触发器会把旧摘要置 2（重算前不得参与检索）。
+    assert.equal(digest.dirty, 2)
+  } finally {
+    await after.dispose()
+    await rm(directory, { recursive: true, force: true })
   }
 })

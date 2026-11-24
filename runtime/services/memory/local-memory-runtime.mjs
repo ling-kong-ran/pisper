@@ -4,7 +4,7 @@
 // 空间（global/project/custom/bot）隔离由调用方传入的 spaceIds 决定，模型参数碰不到。
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { setAsideDataFile } from '../startup-data-check.mjs'
 import { platform } from 'node:os'
 import { redactSecretText } from '../../security/secret-redaction.mjs'
@@ -326,6 +326,7 @@ export class LocalMemoryRuntime {
     await this.catchUpIndex()
     await this.ensureGlobalSpace()
     await this.ensureWorkspaceSpace(this.cwd)
+    this.mergeLegacyChatSpaces()
     this.cleanupRetention({ force: true })
     // 旧版本在模型不可用时仍会标为 ready；恢复为待处理后按后台预算逐批补算。
     this.db.exec(
@@ -546,6 +547,79 @@ export class LocalMemoryRuntime {
       'INSERT INTO memory_spaces (id, name, kind, root_path, root_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(id, basename(rootPath) || rootPath, 'project', rootPath, rootKey, now, now)
     return id
+  }
+
+  // 旧版把每个无项目会话的目录各建一个项目空间，同一个项目被拆散在多处。新版用单一 chats
+  // 空间按 session 隔离；这里把数据目录 chats/ 下遗留的历史空间并进去，真项目空间不动。
+  mergeLegacyChatSpaces() {
+    if (!this.path || this.path === ':memory:') return { moved: 0, merged: 0 }
+    const db = this.requireDb()
+    const chatsRoot = canonicalProjectPath(join(dirname(this.path), 'chats'))
+    const legacy = db
+      .prepare(
+        `SELECT id, name, root_key FROM memory_spaces
+          WHERE kind = 'project' AND (root_key = ? OR substr(root_key, 1, ?) = ?)`,
+      )
+      .all(chatsRoot, chatsRoot.length + 1, `${chatsRoot}/`)
+    if (!legacy.length) return { moved: 0, merged: 0 }
+    const now = this.isoNow()
+    return this.transaction((tx) => {
+      tx.prepare(
+        "INSERT OR IGNORE INTO memory_spaces (id, name, kind, created_at, updated_at) VALUES ('chats', 'Projectless chats', 'chats', ?, ?)",
+      ).run(now, now)
+      const moveFacts = tx.prepare(
+        `UPDATE memories SET space_id = 'chats',
+                session_id = CASE WHEN session_id = '' THEN ? ELSE session_id END
+          WHERE space_id = ?`,
+      )
+      const moveEpisodes = tx.prepare(
+        "UPDATE memory_episodes SET space_id = 'chats' WHERE space_id = ?",
+      )
+      const moveDocs = tx.prepare(
+        `UPDATE memory_docs SET space_id = 'chats',
+                session_id = CASE WHEN session_id = '' THEN ? ELSE session_id END
+          WHERE space_id = ?`,
+      )
+      // 摘要按 (space, level, window) 唯一：和 chats 已有摘要撞车的丢弃，交由后台按事实重算。
+      const dropConflictingDigests = tx.prepare(
+        `DELETE FROM memory_digests
+          WHERE space_id = ?
+            AND EXISTS (SELECT 1 FROM memory_digests kept
+                         WHERE kept.space_id = 'chats' AND kept.level = memory_digests.level
+                           AND kept.window_start = memory_digests.window_start)`,
+      )
+      const moveDigests = tx.prepare(
+        "UPDATE memory_digests SET space_id = 'chats' WHERE space_id = ?",
+      )
+      const countFacts = tx.prepare('SELECT COUNT(*) AS total FROM memories WHERE space_id = ?')
+      const dropSpace = tx.prepare('DELETE FROM memory_spaces WHERE id = ?')
+      let moved = 0
+      let merged = 0
+      for (const space of legacy) {
+        // 只并自动建的（名字就是会话目录名）。用户改过名的空间含义不明，按旧版语义原样保留。
+        const folder = basename(space.root_key)
+        const sameFolder =
+          platform() === 'win32' ? space.name.toLowerCase() === folder : space.name === folder
+        if (!sameFolder) continue
+        merged += 1
+        // 老记忆可能没记 session：用会话目录名兜底，避免并进 chats 后谁都看不到。
+        const session = space.name
+        moved += Number(countFacts.get(space.id).total || 0)
+        moveFacts.run(session, space.id)
+        moveDocs.run(session, space.id)
+        moveEpisodes.run(space.id)
+        dropConflictingDigests.run(space.id)
+        moveDigests.run(space.id)
+        // 画像按空间唯一，旧画像直接丢；chats 的画像并入新事实后重算。
+        tx.prepare('DELETE FROM memory_profiles WHERE space_id = ?').run(space.id)
+        dropSpace.run(space.id)
+      }
+      tx.prepare(
+        "UPDATE memory_digests SET dirty = MAX(dirty, 1) WHERE space_id = 'chats' AND level IN ('day', 'week', 'month')",
+      ).run()
+      tx.prepare('UPDATE memory_profiles SET dirty = 1 WHERE space_id = ?').run('chats')
+      return { moved, merged }
+    })
   }
 
   // Bot 的记忆是一个独立空间，只由运行时按 botForSession 决定谁能访问，不出现在记忆页。
