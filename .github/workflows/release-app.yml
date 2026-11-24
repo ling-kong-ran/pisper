@@ -565,13 +565,27 @@ jobs:
             "refs/tags/$RELEASE_TAG"
           pushed=1
 
-          mapfile -d '' assets < <(find artifacts -type f -print0)
           gh release create "$RELEASE_TAG" \
             --draft \
             --verify-tag \
             --title "$title" \
-            --notes-file release-body-app.md \
-            "${assets[@]}"
+            --notes-file release-body-app.md
+
+          # 自托管机并行上传大包时会遇到 408；串行上传，仅替换本次草稿中失败的同名附件。
+          upload_asset() {
+            local asset="$1" attempt
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$RELEASE_TAG" "$asset" --clobber; then
+                return 0
+              fi
+              if (( attempt == 5 )); then return 1; fi
+              sleep "$((10 * attempt))"
+            done
+          }
+          mapfile -d '' assets < <(find artifacts -type f -print0)
+          for asset in "${assets[@]}"; do
+            upload_asset "$asset"
+          done
           gh release edit "$RELEASE_TAG" \
             --draft=false \
             --latest=false \
